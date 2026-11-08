@@ -1,6 +1,6 @@
 # Plan: send the chat list as rows that changed
 
-Status: open. Not started. Takes up the step [record-change-feed.md](record-change-feed.md) left under "Next" and [chat-list-payload-and-parentage.md](chat-list-payload-and-parentage.md) closed without.
+Status: open. Step 1 landed: a row's digest is read from written records, and re-reads for changes only in memory are held to one per chat per 500 ms. Takes up the step [record-change-feed.md](record-change-feed.md) left under "Next" and [chat-list-payload-and-parentage.md](chat-list-payload-and-parentage.md) closed without.
 
 ## Problem
 

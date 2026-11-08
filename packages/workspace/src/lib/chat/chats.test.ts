@@ -66,6 +66,7 @@ import {
 import { updateSessionTitle } from "../update-session-title";
 import { chatRowAsked, liveChatList } from "./live-chat-list";
 import { CHAT_LIST_FILE_NAME, startChatListFile } from "./chat-list-file";
+import { closeWorkspaceDb } from "../workspace-db";
 import { workspaceLayout } from "../workspace-layout";
 import { createProject } from "./projects";
 
@@ -1364,8 +1365,6 @@ describe("listChats", () => {
       vi.setSystemTime(at(3).getTime() + 5000);
       const [relaunched] = await listChats();
       expect(relaunched?.status).toBe("idle");
-      // What the line says "Done" by once the chat is at rest.
-      expect(relaunched?.lastStep?.at).toBe(at(2).getTime());
 
       // A card raised before the quit still waits on the user: the note is
       // not the user speaking past it.
@@ -1687,7 +1686,7 @@ describe("listChats", () => {
 describe("liveChatList", () => {
   /**
    * The live list, followed: `next` answers with the list's next answer, or
-   * none if nothing comes within a moment.
+   * none if nothing comes within `wait` ms.
    */
   async function open() {
     const controller = new AbortController();
@@ -1700,11 +1699,11 @@ describe("liveChatList", () => {
         wake?.();
       }
     })().catch(() => undefined);
-    const next = async () => {
+    const next = async (wait = 200) => {
       if (answers.length === 0) {
         await new Promise<void>((resolve) => {
           wake = resolve;
-          setTimeout(resolve, 200);
+          setTimeout(resolve, wait);
         });
       }
       return answers.shift();
@@ -1985,6 +1984,122 @@ describe("liveChatList", () => {
       });
     } finally {
       await live.clear();
+    }
+  });
+
+  /** The chat's running turn, begun in memory as a reply starting at `minute`. */
+  async function replyArriving(sessionId: StoreId.Session, minute: number) {
+    const messageId = StoreId.newMessageId();
+    const live = chatRecords().live(await chatFor(sessionId), sessionId);
+    live.setMessage({
+      id: messageId,
+      metadata: {
+        createdAt: at(minute),
+        finishReason: "unknown",
+        modelId: "glm-5.3-flash",
+        providerId: "openai-compatible",
+        sessionId,
+      },
+      role: "assistant",
+    });
+    const partId = StoreId.newPartId();
+    const metadata = {
+      createdAt: at(minute),
+      id: partId,
+      messageId,
+      sessionId,
+    };
+    return {
+      live,
+      partId,
+      says: (text: string) => {
+        live.setPart(
+          SessionMessagePart.coerce({ metadata, text, type: "text" }),
+        );
+      },
+      types: (activity: string) => {
+        live.setPart(
+          SessionMessagePart.coerce({
+            input: { activity, command: "cat li" },
+            metadata: { ...metadata, id: StoreId.newPartId() },
+            state: "input-streaming",
+            toolCallId: "call-1",
+            type: "tool-bash",
+          }),
+        );
+      },
+    };
+  }
+
+  it("sends nothing for a reply streaming in, which a working row does not show", async () => {
+    const chatId = await freshChat();
+    const sessionId = await session(chatId, "Groceries");
+    await userSays(chatId, sessionId, "make me a grocery list", 1);
+    await agentSays(chatId, sessionId, "On it.", { minute: 2 });
+    alive.value = new Set([sessionId]);
+    const { first, next, stop } = await open();
+    expect(first?.[0]?.latest).toMatchObject({ kind: "reply", text: "On it." });
+
+    const reply = await replyArriving(sessionId, 3);
+    try {
+      reply.says("Here is");
+      await new Promise((resolve) => setTimeout(resolve, 150));
+      reply.says("Here is your list");
+      expect(await next(800)).toBeUndefined();
+    } finally {
+      stop();
+      await reply.live.clear();
+    }
+  });
+
+  it("moves a row to the step a call still arriving names", async () => {
+    const chatId = await freshChat();
+    const sessionId = await session(chatId, "Groceries");
+    await userSays(chatId, sessionId, "make me a grocery list", 1);
+    alive.value = new Set([sessionId]);
+    const { next, stop } = await open();
+
+    const reply = await replyArriving(sessionId, 2);
+    try {
+      reply.types("Reading the list");
+      expect((await next(800))?.[0]?.latest).toMatchObject({
+        kind: "step",
+        text: "Reading the list",
+      });
+    } finally {
+      stop();
+      await reply.live.clear();
+    }
+  });
+
+  // A crash mid-reply leaves the files as they were, so a digest kept under
+  // their stamp is served at the next launch; one read from memory would show
+  // words that were never written.
+  it("keeps no digest of a reply still arriving", async () => {
+    const chatId = await freshChat();
+    const config = getWorkspaceConfig();
+    setWorkspaceConfig({
+      ...config,
+      workspaceDbFile: AbsolutePathSchema.parse(
+        path.join(config.rootDir, "machine", "workspace.db"),
+      ),
+    });
+    try {
+      const sessionId = await session(chatId, "Groceries");
+      await userSays(chatId, sessionId, "make me a grocery list", 1);
+      await agentSays(chatId, sessionId, "On it.", { minute: 2 });
+      const reply = await replyArriving(sessionId, 3);
+      reply.says("Half a reply");
+
+      await listChats();
+      // Gone from memory without a write, as a crash leaves it: the digest
+      // read next comes from the index, under the same stamp.
+      reply.live.forget(reply.partId);
+      const [chat] = await listChats();
+
+      expect(chat?.latest).toMatchObject({ kind: "reply", text: "On it." });
+    } finally {
+      closeWorkspaceDb();
     }
   });
 });

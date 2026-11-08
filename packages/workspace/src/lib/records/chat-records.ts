@@ -1461,7 +1461,11 @@ export class ChatRecords {
       delete throttle.timer;
       throttle.published = performance.now();
       for (const id of throttle.changed) {
-        recordMessageChanged(chatId, { id, removed: false, sessionId });
+        recordMessageChanged(
+          chatId,
+          { id, removed: false, sessionId },
+          { live: true },
+        );
       }
       throttle.changed.clear();
     };

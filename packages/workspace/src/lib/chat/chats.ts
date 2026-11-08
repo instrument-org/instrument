@@ -93,11 +93,6 @@ export const ChatSchema = z.object({
   lastAsk: z.string().optional(),
   /** When the last reply with words finished, in ms; absent until there is one. */
   lastReplyAt: z.number().optional(),
-  /**
-   * The chat's own newest labeled step, and when the message holding it was
-   * sent: what its line says it last did once it is at rest.
-   */
-  lastStep: z.object({ at: z.number(), text: z.string() }).optional(),
   /** When the user last sent a message, in ms, wake notes aside; the chat's creation before one is saved. */
   lastUserMessageAt: z.number(),
   /** The step the chat's own turn is on, while it has one; never a task's. */
@@ -560,8 +555,6 @@ interface ChatDigest {
   session: Session.Type;
   /** The last reply with words: when it finished and its first line. */
   spoken?: { at: number; text: string };
-  /** The chat's own newest labeled step, in any turn, and when its message was sent. */
-  lastStep?: { at: number; text: string };
   /** Where each of the chat's asks stood when the digest was read (`askStates`). */
   asks: AskState[];
   /** The step the chat's current turn is on, from its own calls since the newest message that started a turn. */
@@ -733,7 +726,6 @@ async function chatFor(
     ...(digest.lastReplyAt === undefined
       ? {}
       : { lastReplyAt: digest.lastReplyAt }),
-    ...(digest.lastStep ? { lastStep: digest.lastStep } : {}),
     lastUserMessageAt: digest.lastUserMessageAt ?? createdAt,
     ...(ownStep ? { ownStep } : {}),
     ownWorking,
@@ -774,7 +766,14 @@ function chatDigest(
     if (session.isErr()) {
       return unkept(undefined);
     }
-    const messages = await ChatReads.transcript({ chatId, sessionId });
+    // Written records alone: the digest is kept under a stamp of the files,
+    // which the running turn's memory never moves, and what a row shows of
+    // that turn (its step) is read beside it in `chatFor`.
+    const messages = await ChatReads.transcript({
+      chatId,
+      live: false,
+      sessionId,
+    });
     const stop = await ChatReads.stopped({ chatId, sessionId });
     const asks = await ChatReads.asks({ chatId, sessionId });
     return messages.isOk() && stop.isOk() && asks.isOk()
@@ -836,7 +835,6 @@ function digestOf(
   const stepInTurn = latestStepIn(
     messages.slice(lastOpener ? messages.lastIndexOf(lastOpener) + 1 : 0),
   );
-  const lastStep = lastStepIn(messages);
   const lastMessageAt = messages.at(-1)?.metadata.createdAt.getTime();
   const lastReplyAt = replies.at(-1)?.metadata.finishedAt?.getTime();
   // Whether the last thing the agent did, after the newest message that
@@ -898,7 +896,6 @@ function digestOf(
         text: firstLine(textOf(spoken)),
       },
     }),
-    ...(lastStep && { lastStep }),
     ...(stepInTurn !== undefined && { stepInTurn }),
     stopped,
   };
@@ -989,19 +986,6 @@ function latestFor({
 
 async function loadShared(): Promise<Shared> {
   return { knownApps: await knownAppSlugs() };
-}
-
-/** The newest labeled step in a transcript, and when the message holding it was sent. */
-function lastStepIn(
-  messages: SessionMessage.WithParts[],
-): { at: number; text: string } | undefined {
-  for (const message of messages.toReversed()) {
-    const text = latestStepIn([message]);
-    if (text !== undefined) {
-      return { at: message.metadata.createdAt.getTime(), text };
-    }
-  }
-  return undefined;
 }
 
 /** Each item once, where it last appeared. */

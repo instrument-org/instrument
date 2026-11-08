@@ -114,18 +114,22 @@ export namespace ChatReads {
    * `only` reads the named messages alone, for a reader following a change
    * to them. `bytes` is for a reader that shows what a call returned, and
    * reads those bytes back from the blobs that hold them; a reader that does
-   * not show them spends no read on one.
+   * not show them spends no read on one. `live: false` leaves the running
+   * turn out, for a reader that keeps what it derives as though the records
+   * said it.
    */
   export function transcript({
     bytes = false,
     chatId,
     inherited,
+    live = true,
     only,
     sessionId,
   }: {
     bytes?: boolean;
     chatId: ChatId;
     inherited?: boolean;
+    live?: boolean;
     only?: ReadonlySet<StoreId.Message>;
     sessionId: StoreId.Session;
   }): ResultAsync<SessionMessage.WithParts[], Failure> {
@@ -138,7 +142,7 @@ export namespace ChatReads {
             steps,
             // The running turn is this process's own memory, and stands over
             // what has been written.
-            liveView(chat, sessionId, { only }),
+            live ? liveView(chat, sessionId, { only }) : [],
           ),
         ),
         storageError,

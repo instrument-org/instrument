@@ -18,6 +18,11 @@ vi.mock("./chats", () => ({
     async (read: readonly ChatId[]) => new Map(read.map((id) => [id, { id }])),
   ),
 }));
+vi.mock(import("../record-folders"), async (importOriginal) => ({
+  ...(await importOriginal()),
+  resolveChat: (id: string) =>
+    ids.listed.includes(id) ? ChatIdSchema.parse(id) : undefined,
+}));
 // The bus alone: the folder's watch says its edits there too.
 vi.mock("../host-events", () => ({
   appListChanges: (signal: AbortSignal | undefined) =>
@@ -63,6 +68,48 @@ describe("the live chat list on a change to the apps", () => {
         ["a", "b"],
       ]);
     });
+    controller.abort();
+    await pulled;
+  });
+});
+
+describe("the live chat list on a change to a chat", () => {
+  it("reads a chat again for changes only in memory at most once per 500 ms, and for a written one at once", async () => {
+    vi.mocked(listedChats).mockClear();
+    ids.listed = ["a", "b"];
+    const a = ChatIdSchema.parse("a");
+    const controller = new AbortController();
+    const list = liveChatList(controller.signal);
+    await list.next();
+    const pulled = list.next().catch(() => undefined);
+    const inMemory = () => {
+      publisher.publish("record.changed", {
+        id: a,
+        kind: "messages",
+        live: true,
+      });
+    };
+
+    // Within a moment of the first read, so held.
+    inMemory();
+    await new Promise((resolve) => setTimeout(resolve, 50));
+    inMemory();
+    await new Promise((resolve) => setTimeout(resolve, 50));
+    expect(rowsRead()).toEqual([["a", "b"]]);
+    await vi.waitFor(
+      () => {
+        expect(rowsRead()).toEqual([["a", "b"], ["a"]]);
+      },
+      { timeout: 1000 },
+    );
+
+    publisher.publish("record.changed", { id: a, kind: "messages" });
+    await vi.waitFor(
+      () => {
+        expect(rowsRead()).toEqual([["a", "b"], ["a"], ["a"]]);
+      },
+      { timeout: 100 },
+    );
     controller.abort();
     await pulled;
   });

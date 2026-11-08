@@ -1,4 +1,4 @@
-import { type DefaultTreeAdapterTypes, html as markup, parse } from "parse5";
+import { pageTitle } from "@instrument-org/workspace/page-title";
 
 /** How long a page has to answer with its title. */
 const TIMEOUT_MS = 8000;
@@ -12,9 +12,6 @@ const MAX_BYTES = 256 * 1024;
 
 /** How many redirects a title request follows, each checked as the first. */
 const MAX_REDIRECTS = 5;
-
-/** How long a title is kept, which covers any a reader would take in. */
-const MAX_TITLE_LENGTH = 300;
 
 /**
  * Whether an address is a page out on the internet rather than one on this
@@ -57,7 +54,7 @@ export function isPublicPage(url: string): boolean {
 }
 
 /**
- * The title a page gives itself in its `<title>`, read from the top of the
+ * The title a page gives itself (`pageTitle`), read from the top of the
  * page with no cookies, so a page behind a sign-in answers with its sign-in
  * page's. Undefined when the page is not HTML, does not answer in time, or
  * names itself nothing.
@@ -97,7 +94,7 @@ export async function fetchPageTitle(
     return undefined;
   }
   const head = await readHead(response.body, charsetOf(type));
-  return titleIn(head);
+  return pageTitle(head);
 }
 
 async function readHead(
@@ -133,37 +130,4 @@ function decoderFor(charset: string): TextDecoder {
   } catch {
     return new TextDecoder();
   }
-}
-
-/** The text of the document's own `<title>`, not one inside an SVG. */
-export function titleIn(html: string): string | undefined {
-  const title = findTitle(parse(html));
-  if (!title) {
-    return undefined;
-  }
-  const text = title.childNodes
-    .map((node) => ("value" in node ? node.value : ""))
-    .join("")
-    .replace(/\s+/gu, " ")
-    .trim()
-    .slice(0, MAX_TITLE_LENGTH);
-  return text === "" ? undefined : text;
-}
-
-function findTitle(
-  node: DefaultTreeAdapterTypes.ParentNode,
-): DefaultTreeAdapterTypes.Element | undefined {
-  for (const child of node.childNodes) {
-    if (!("tagName" in child)) {
-      continue;
-    }
-    if (child.tagName === "title" && child.namespaceURI === markup.NS.HTML) {
-      return child;
-    }
-    const found = findTitle(child);
-    if (found) {
-      return found;
-    }
-  }
-  return undefined;
 }

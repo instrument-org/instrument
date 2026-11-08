@@ -2,7 +2,7 @@ import http from "node:http";
 import { type AddressInfo } from "node:net";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
-import { fetchPageTitle, isPublicPage, titleIn } from "./page-title-fetch";
+import { fetchPageTitle, isPublicPage } from "./page-title-fetch";
 
 describe("isPublicPage", () => {
   it.each([
@@ -23,21 +23,6 @@ describe("isPublicPage", () => {
     ["ftp://example.com/", false],
   ])("%s is %s", (url, expected) => {
     expect(isPublicPage(url)).toBe(expected);
-  });
-});
-
-describe("titleIn", () => {
-  it.each([
-    [
-      "<title>Fish &amp; Chips &#8211; Wikipedia</title>",
-      "Fish & Chips – Wikipedia",
-    ],
-    ["<title>\n  Spread\n  over lines </title>", "Spread over lines"],
-    ["<svg><title>An icon</title></svg><title>The page</title>", "The page"],
-    ["<title></title>", undefined],
-    ["<p>No title</p>", undefined],
-  ])("reads %s", (html, expected) => {
-    expect(titleIn(html)).toBe(expected);
   });
 });
 

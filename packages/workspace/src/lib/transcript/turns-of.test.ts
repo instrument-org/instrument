@@ -1341,6 +1341,18 @@ describe("what a step carries", () => {
       kind: "fetch",
       url: "https://a.example",
     });
+    // A page's own title wins over a heading its navigation hides from sight.
+    expect(
+      stepOf(
+        { url: "https://a.example" },
+        {
+          state: "success",
+          text: "## Navigation Menu\n\n# repo\n\nA tool",
+          title: "owner/repo: A tool",
+        },
+        "web_fetch",
+      )?.shows,
+    ).toMatchObject({ kind: "fetch", title: "owner/repo: A tool" });
   });
 
   it.each([

@@ -3,23 +3,7 @@ import os from "node:os";
 import path from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
-import {
-  computerFileTitles,
-  markdownTitle,
-  pageTitle,
-} from "./computer-titles";
-
-describe("pageTitle", () => {
-  it.each([
-    ["<title>Pricing &amp; plans</title><h1>Other</h1>", "Pricing & plans"],
-    ["<title>  </title><h1>Only the <em>heading</em></h1>", "Only the heading"],
-    ["<head><title>\n  Two\n  lines\n</title>", "Two lines"],
-    ["<title>Q&#8217;s &#x2014; notes</title>", "Q’s — notes"],
-    ["<p>No title at all</p>", null],
-  ])("%j reads as %j", (html, title) => {
-    expect(pageTitle(html)).toBe(title);
-  });
-});
+import { computerFileTitles, markdownTitle } from "./computer-titles";
 
 describe("markdownTitle", () => {
   it.each([

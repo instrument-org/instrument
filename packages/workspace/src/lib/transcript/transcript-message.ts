@@ -256,6 +256,7 @@ const StepOutputSchema = z
     }),
     state: z.string(),
     text: z.string(),
+    title: z.string(),
     url: z.string(),
   })
   .partial();
@@ -425,7 +426,7 @@ function stepShows(
       return {
         kind: "fetch",
         ...(url !== undefined && { url }),
-        ...pageOf(output.text),
+        ...pageOf(output.text, output.title),
       };
     }
     case "tool-bash": {
@@ -454,14 +455,18 @@ function wordsOnACard(content: string | undefined, status: StepStatus) {
 }
 
 /**
- * The title and opening words of a fetched page. A page's text opens with its
- * navigation, so its words start at its first heading, and a page with none
- * gives no words at all rather than a screen of links.
+ * The title and opening words of a fetched page. Its title is the one the
+ * page gives itself, and its first heading where the fetch kept none. A page's
+ * text opens with its navigation, so its words start at its first heading,
+ * and a page with none gives no words at all rather than a screen of links.
  */
-function pageOf(text: string | undefined): { title?: string; words?: string } {
+function pageOf(
+  text: string | undefined,
+  title: string | undefined,
+): { title?: string; words?: string } {
   const heading = text === undefined ? null : /^#{1,2}\s+(.+)$/m.exec(text);
   if (text === undefined || heading?.[1] === undefined) {
-    return {};
+    return title === undefined ? {} : { title };
   }
   const words = text
     .slice(heading.index + heading[0].length)
@@ -471,7 +476,10 @@ function pageOf(text: string | undefined): { title?: string; words?: string } {
     .replaceAll(/\n{2,}/g, "\n")
     .trim()
     .slice(0, PAGE_WORDS_CHARS);
-  return { title: heading[1].trim(), ...(words !== "" && { words }) };
+  return {
+    title: title ?? heading[1].trim(),
+    ...(words !== "" && { words }),
+  };
 }
 
 /** Where a program starts in a shell line, and not a word its arguments say. */

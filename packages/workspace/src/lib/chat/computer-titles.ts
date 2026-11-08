@@ -1,9 +1,11 @@
 import fs from "node:fs/promises";
 import path from "node:path";
 
+import { pageTitle, plainText } from "../page-title";
+
 /**
  * The titles pages on this computer give themselves, for a folder listed by
- * them rather than by their names: a page's `<title>` (or its first `<h1>`),
+ * them rather than by their names: a page's title (`pageTitle`),
  * a Markdown file's front matter `title:` (or its first heading).
  *
  * Each file is read from the top in chunks until its title or first heading
@@ -69,7 +71,7 @@ async function titleOf(filePath: string): Promise<null | string> {
     Math.min(MAX_BYTES, stat.size),
     isPage ? PAGE_TITLE_END : MARKDOWN_TITLE_END,
   );
-  const title = isPage ? pageTitle(head) : markdownTitle(head);
+  const title = isPage ? (pageTitle(head) ?? null) : markdownTitle(head);
   if (kept.size >= KEPT) {
     const oldest = kept.keys().next().value;
     if (oldest !== undefined) kept.delete(oldest);
@@ -103,13 +105,6 @@ async function readHead(filePath: string, limit: number, end: RegExp) {
   return head;
 }
 
-/** A page's `<title>`, or its first `<h1>` where it has none. */
-export function pageTitle(html: string): null | string {
-  const title = /<title[^>]*>([\s\S]*?)<\/title>/i.exec(html)?.[1];
-  const heading = /<h1[^>]*>([\s\S]*?)<\/h1>/i.exec(html)?.[1];
-  return plain(title) ?? plain(heading);
-}
-
 /** A Markdown file's front matter `title:`, or its first heading. */
 export function markdownTitle(markdown: string): null | string {
   const front = /^---\r?\n([\s\S]*?)\r?\n---/.exec(markdown);
@@ -121,46 +116,7 @@ export function markdownTitle(markdown: string): null | string {
     : undefined;
   const body = front ? markdown.slice(front[0].length) : markdown;
   const heading = /^#{1,6}[ \t]+(.+?)[ \t#]*$/m.exec(body)?.[1];
-  return plain(declared) ?? plain(heading?.replace(/[*_`]/g, ""));
-}
-
-/** Text with its tags taken out, its entities read, and its spaces collapsed; null when nothing is left. */
-function plain(text: string | undefined): null | string {
-  if (text === undefined) return null;
-  const words = decodeEntities(text.replace(/<[^>]*>/g, ""))
-    .replace(/\s+/g, " ")
-    .trim();
-  return words === "" ? null : words;
-}
-
-const NAMED_ENTITIES: Record<string, string> = {
-  amp: "&",
-  apos: "'",
-  gt: ">",
-  hellip: "…",
-  ldquo: "“",
-  lsquo: "‘",
-  lt: "<",
-  mdash: "—",
-  middot: "·",
-  nbsp: " ",
-  ndash: "–",
-  quot: '"',
-  rdquo: "”",
-  rsquo: "’",
-};
-
-function decodeEntities(text: string) {
-  return text.replace(/&(#x[\da-f]+|#\d+|[a-z]+);/gi, (whole, name: string) => {
-    if (name.startsWith("#")) {
-      const code =
-        name[1]?.toLowerCase() === "x"
-          ? Number.parseInt(name.slice(2), 16)
-          : Number.parseInt(name.slice(1), 10);
-      return Number.isFinite(code) && code <= 0x10_ff_ff
-        ? String.fromCodePoint(code)
-        : whole;
-    }
-    return NAMED_ENTITIES[name.toLowerCase()] ?? whole;
-  });
+  return (
+    plainText(declared) ?? plainText(heading?.replace(/[*_`]/g, "")) ?? null
+  );
 }

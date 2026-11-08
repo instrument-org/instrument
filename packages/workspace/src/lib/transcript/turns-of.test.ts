@@ -922,6 +922,28 @@ describe("the slot", () => {
     expect(turn && slotOf(turn)).toBeUndefined();
   });
 
+  it.each([true, false])(
+    "says whether a written file is new (%s), once the call has said",
+    (isNewFile) => {
+      const [turn] = turnsOf(
+        [
+          typed("Do the thing"),
+          message("assistant", (id) => [
+            call(
+              id,
+              "write_file",
+              { content: "a", filePath: "/a.md" },
+              { filePath: "/a.md", isNewFile },
+            ),
+          ]),
+        ],
+        { isRunning: true },
+      );
+      const shows = turn && slotOf(turn)?.steps.at(-1)?.shows;
+      expect(shows?.kind === "file" && shows.isNew).toBe(isNewFile);
+    },
+  );
+
   it("takes the card away when the agent speaks, so its words never move", () => {
     const searched = (id: Parameters<typeof call>[0]) =>
       call(id, "web_search", { activity: "Looking", query: "x" }, {});
@@ -1245,7 +1267,10 @@ describe("the slot", () => {
     );
     const card = turn && slotOf(turn);
     expect(card?.kind).toBe("files");
-    expect(card?.changedFile).toBe("/work/report.csv");
+    expect(card?.changedFile).toEqual({
+      isNew: true,
+      path: "/work/report.csv",
+    });
     const row = turn?.rows[0];
     expect(row?.kind === "activity" && row.counts).toEqual([
       { count: 9, label: "rows added" },

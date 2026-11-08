@@ -46,7 +46,7 @@ type PlaceOf = (path: string) => string | undefined;
 /** The paths a card names, as the calls spelled them. */
 function pathsOf({ changedFile, steps }: SlotCard): string[] {
   return [
-    ...(changedFile === undefined ? [] : [changedFile]),
+    ...(changedFile === undefined ? [] : [changedFile.path]),
     ...steps.flatMap(({ shows }) => {
       switch (shows?.kind) {
         case "file": {
@@ -187,7 +187,8 @@ function cardBody(
       const place = newest?.path && placeOf(newest.path);
       return {
         mark: <ImageIcon className="size-3.5" />,
-        meta: images.length > 1 ? `${images.length.toString()} images` : "Read",
+        meta:
+          images.length > 1 ? `${images.length.toString()} images` : "Opened",
         ...(place && {
           open: () => {
             surface?.onOpenFile(place);
@@ -325,16 +326,23 @@ function filesCard(
   placeOf: PlaceOf,
 ): CardBody {
   const written = shownBy(steps, "file").at(-1);
-  const path = changedFile ?? written?.path;
+  const path = changedFile?.path ?? written?.path;
   const place = path && placeOf(path);
-  const isWriting = written?.status === "writing";
+  const isWriting = written !== undefined && written.status !== "done";
+  const isNew =
+    written?.after === undefined
+      ? (changedFile?.isNew ?? written?.isNew)
+      : false;
+  const meta = isWriting
+    ? "Writing"
+    : isNew === undefined
+      ? undefined
+      : isNew
+        ? "New file"
+        : "Updated";
   return {
     mark: <FileTextIcon className="size-3.5" />,
-    meta: isWriting
-      ? "Writing"
-      : written?.after !== undefined
-        ? "Edited"
-        : "Written",
+    ...(meta && { meta }),
     ...(place && {
       open: () => {
         surface?.onOpenFile(place);
@@ -354,7 +362,10 @@ function filesCard(
           </p>
         </div>
       ) : written?.words !== undefined ? (
-        <TypedWords isWriting={isWriting} words={written.words} />
+        <TypedWords
+          isWriting={written.status === "writing"}
+          words={written.words}
+        />
       ) : place ? (
         <FilePicture path={place} />
       ) : null,
@@ -404,7 +415,7 @@ function PictureRow({
   const newest = images.at(-1);
   const place = newest?.path && placeOf(newest.path);
   if (!place) {
-    return <Waiting>Reading the image</Waiting>;
+    return <Waiting>Opening the image</Waiting>;
   }
   const earlier = images
     .slice(0, -1)

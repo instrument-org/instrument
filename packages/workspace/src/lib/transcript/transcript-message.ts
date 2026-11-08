@@ -26,6 +26,8 @@ export type StepShows =
       /** The change an edit made, each side cut to a card's length. */
       after?: string;
       before?: string;
+      /** Whether the call made the file, once it has said. */
+      isNew?: boolean;
       kind: "file";
       path: string;
       /** The file's words so far, cut to a card's length. */
@@ -246,6 +248,7 @@ const StepOutputSchema = z
         modifiedAt: z.number().optional(),
       }),
     ),
+    isNewFile: z.boolean(),
     mimeType: z.string(),
     modifiedAt: z.number(),
     processId: z.string(),
@@ -366,7 +369,12 @@ function stepShows(
         return undefined;
       }
       const words = wordsOnACard(input.content, status);
-      return { kind: "file", path, ...(words !== undefined && { words }) };
+      return {
+        ...(output.isNewFile !== undefined && { isNew: output.isNewFile }),
+        kind: "file",
+        path,
+        ...(words !== undefined && { words }),
+      };
     }
     case "tool-edit_file": {
       const path = input.filePath ?? output.filePath;

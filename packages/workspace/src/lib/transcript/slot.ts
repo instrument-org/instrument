@@ -10,7 +10,7 @@ export type SlotKind = "files" | "generated" | "images" | "page" | "web";
  */
 export interface SlotCard {
   /** The one file a shell call changed, which the disk told rather than the call. */
-  changedFile: string | undefined;
+  changedFile: { isNew: boolean; path: string } | undefined;
   kind: SlotKind;
   steps: TurnStep[];
 }
@@ -43,7 +43,9 @@ export function cardsOf({ steps }: Pick<ActivityRow, "steps">): SlotCard[] {
       continue;
     }
     const changed = (step.facts?.files ?? []).flatMap((file) =>
-      file.via === "disk" && file.change !== "deleted" ? [file.path] : [],
+      file.via === "disk" && file.change !== "deleted"
+        ? [{ isNew: file.change === "created", path: file.path }]
+        : [],
     );
     const changedFile =
       !step.shows && changed.length === 1 ? changed[0] : undefined;

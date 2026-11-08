@@ -15,9 +15,11 @@ import { closeTabsOverCap } from "../../../lib/chat/tab-cap";
 import { getBrowserSessionDir } from "../../../lib/chat-dir-utils";
 import { getChatState } from "../../../lib/chat-record";
 import {
+  forgetTab,
   lastActOf,
   noteTabCommand,
   registerTabAnnouncer,
+  takenOverFrom,
 } from "../../../lib/tab-activity";
 import { type StoreId } from "../../../schemas/store-id";
 import { type ChatId } from "../../../schemas/chat-id";
@@ -75,10 +77,10 @@ interface Attached {
  * `Target.*` domain truthfully over the chat's tabs as the window lists them
  * rather than pinning the connection to one page. Each tab is known to the
  * agent by the window's id for it, the one the conversation's note uses. The
- * tabs the session worked in come first, the latest first, so a daemon that
- * reconnects starts where it left off; a session that has worked in none
- * gets a blank tab of its own to start in, so its first `open` never takes
- * a page someone else is on. Opening a tab asks the window for one in the
+ * tabs the session worked in and nobody used since come first, the latest
+ * first, so a daemon that reconnects starts where it left off; a session
+ * with no such tab gets a blank tab of its own to start in, so its first
+ * `open` never takes a page someone else is on. Opening a tab asks the window for one in the
  * chat, behind whatever the user has up. Closing one an agent opened closes
  * it; closing any other only lets go of it, since that tab is the user's.
  * Nothing here ever selects a tab in the window: switching tabs is the
@@ -136,9 +138,20 @@ export function handleTaskCdpClient(
   };
 
   /**
-   * The chat's page tabs, the ones the session worked in first, the latest
-   * first, then the rest in the strip's order. With no window to ask, the
-   * tabs the agent was told of whose pages are still up.
+   * When the session last worked in a tab nobody else has used since, or
+   * nothing: a tab another session or the person used after it is theirs
+   * now, and the session does not start there again.
+   */
+  const ownLast = (tab: Tab) =>
+    takenOverFrom(tab.targetId, sessionId)
+      ? undefined
+      : lastActOf(tab.targetId, sessionId);
+
+  /**
+   * The chat's page tabs, the ones the session worked in and nobody used
+   * since first, the latest first, then the rest in the strip's order. With
+   * no window to ask, the tabs the agent was told of whose pages are still
+   * up.
    */
   const tabs = async (): Promise<Tab[]> => {
     const listed = await chatPageTabs(chatId);
@@ -154,7 +167,7 @@ export function handleTaskCdpClient(
         );
     return found
       .map((tab, index) => ({
-        at: lastActOf(tab.targetId, sessionId) ?? -1,
+        at: ownLast(tab) ?? -1,
         index,
         tab,
       }))
@@ -264,7 +277,7 @@ export function handleTaskCdpClient(
       // no work yet.
       noteTabCommand(targetId, actor);
     }
-    await noteOpenedTab(chatId, targetId);
+    await noteOpenedTab(chatId, targetId, sessionId);
     // One more tab out of sight may put the chat past what it may keep.
     void closeTabsOverCap(chatId).catch(workspaceConfig.captureException);
     return { tabId, targetId, title: "", url: address ?? "about:blank" };
@@ -287,6 +300,7 @@ export function handleTaskCdpClient(
     }
     startTabs.delete(key);
     forget(tab.tabId);
+    forgetTab(tab.targetId);
     await askWindow({
       action: { kind: "close", tabId: tab.tabId },
       askedBy: chatId,
@@ -298,17 +312,15 @@ export function handleTaskCdpClient(
   /**
    * Brings what the agent knows up to the window: tabs closed since are
    * forgotten, and the chat's tabs announced. A session that has worked in
-   * none of them first gets a blank tab of its own, listed first, which
+   * none of them, or only in ones someone else has used since, first gets a
+   * blank tab of its own, listed first, which
    * agent-browser starts in: the one an earlier connection of the session's
    * made, while it is still open and blank, or a new one. It closes once the
    * session opens a tab or goes to work in another (`closeStartTab`).
    */
   const reconcile = async () => {
     let now = await tabs();
-    if (
-      !started &&
-      !now.some((tab) => lastActOf(tab.targetId, sessionId) !== undefined)
-    ) {
+    if (!started && !now.some((tab) => ownLast(tab) !== undefined)) {
       started = true;
       const kept = now.find(
         (tab) => tab.targetId === startTabs.get(key) && isBlank(tab),
@@ -476,6 +488,7 @@ export function handleTaskCdpClient(
         group: resolveChat(chatId),
       });
       await forgetOpenedTabs(chatId, new Set([tab.targetId]));
+      forgetTab(tab.targetId);
     }
     answer(id, { success: true } satisfies Protocol.Target.CloseTargetResponse);
   };

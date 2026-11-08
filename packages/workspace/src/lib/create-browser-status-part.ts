@@ -8,7 +8,7 @@ import { agentSpellingOfFileUrls } from "./local-page-address";
 import { sessionLayout } from "./session-layout";
 import { chatPageTabs, takeClosedTabs } from "./chat/chat-tabs";
 import { getChatState } from "./chat-record";
-import { chatDir, sessionOfChat } from "./record-folders";
+import { chatDir } from "./record-folders";
 import { tabLifetime } from "../machines/window-browser";
 import { getWorkspaceConfig } from "./workspace-config";
 
@@ -32,15 +32,14 @@ export async function createBrowserStatusPart({
     if (held === null) {
       return undefined;
     }
-    // What the app closed on its own is the chat's conversation's to hear.
-    const closed = (
-      sessionId === sessionOfChat(chatId) ? await takeClosedTabs(chatId) : []
-    ).map(({ id, reason, title, url }) => ({
-      id,
-      reason,
-      ...(title ? { title } : {}),
-      url: spell(url),
-    }));
+    const closed = (await takeClosedTabs(chatId, sessionId)).map(
+      ({ id, reason, title, url }) => ({
+        id,
+        reason,
+        ...(title ? { title } : {}),
+        url: spell(url),
+      }),
+    );
     return createPart({
       createdAt,
       data: {

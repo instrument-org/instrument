@@ -118,3 +118,10 @@ export function newTabLine(json: string): string {
   const id = parseTabList(json)?.data.tabs.find((tab) => tab.active)?.targetId;
   return id === undefined ? "" : `Opened as tab ${id}.\n`;
 }
+
+/** Whether `tab list --json` names the tab with the window's id `tabId`. */
+export function listsTab(json: string, tabId: string): boolean {
+  return (
+    parseTabList(json)?.data.tabs.some((tab) => tab.targetId === tabId) ?? false
+  );
+}

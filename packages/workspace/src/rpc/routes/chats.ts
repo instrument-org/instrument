@@ -49,6 +49,7 @@ import { base, toORPCError } from "../base";
 import { atMoment, distinct, liveRead, where } from "../live-read";
 import { publisher } from "../publisher";
 import { chatNextMessage, watchNextMessage } from "../../lib/chat/next-message";
+import { closeChatTabs } from "../../lib/chat/tab-cap";
 
 /** A task the chat started, as its tasks screen lists it. */
 const ChildTaskSchema = ChatTaskSchema.extend({
@@ -275,7 +276,10 @@ const archiveChatRoute = base
   .input(z.object({ id: ChatIdSchema }))
   .output(ListedAtSchema)
   .handler(async ({ input }) => {
-    return await whenChat(input.id, archiveChat);
+    const listed = await whenChat(input.id, archiveChat);
+    // Nothing of an archived chat works on, so its agents' tabs go.
+    void whenChat(input.id, closeChatTabs).catch(() => undefined);
+    return listed;
   });
 
 /** Stars a chat, or takes the star off. */

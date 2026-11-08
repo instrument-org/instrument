@@ -560,6 +560,10 @@ export function useOpeners({
     }
     const chat = chatOfAskingPage(targetId, windowTabs.allTabs);
     if (chat === undefined) {
+      // A page in no chat is the person's own, which no agent drives, so a
+      // `tabId` it carries names no result: the workspace names a popup only
+      // to the session that worked in the page, and sessions work in their
+      // chat's tabs alone.
       openPage(url, { behind: background, newTab: true });
     } else if (background) {
       browser?.openBehind(url, chat, tabId);

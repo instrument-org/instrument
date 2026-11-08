@@ -776,7 +776,6 @@ describe("a session's browser", () => {
   });
 
   it("keeps who else acted in a tab for the session's next result", async () => {
-    const { takeTabNews } = await import("../../../lib/tab-activity");
     const shared = tab({ worked: false });
     noteTabCommand(
       shared.targetId,
@@ -918,5 +917,40 @@ describe("a session's start tab", () => {
     expect(
       (targets.result?.targetInfos as { targetId: string }[])[0]?.targetId,
     ).toBe(start);
+  });
+});
+
+describe("a session reconnecting", () => {
+  const firstTarget = async (sessionId: StoreId.Session) => {
+    const targets = await connect(sessionId).command("Target.getTargets");
+    return (targets.result?.targetInfos as { targetId: string }[])[0]?.targetId;
+  };
+
+  it("starts in the tab it worked in last", async () => {
+    const sessionId = StoreId.newSessionId();
+    tab({ worked: false });
+    const mine = tab({ worked: false });
+    noteTabCommand(mine.targetId, { chatId: TASK_ID, sessionId }, 1);
+
+    expect(await firstTarget(sessionId)).toBe(mine.tabId);
+    expect(asked).toEqual([]);
+  });
+
+  it("starts in a blank tab once another session has worked in its last tab since", async () => {
+    const sessionId = StoreId.newSessionId();
+    const mine = tab({ worked: false });
+    noteTabCommand(mine.targetId, { chatId: TASK_ID, sessionId }, 1);
+    noteTabCommand(
+      mine.targetId,
+      { chatId: TASK_ID, sessionId: StoreId.newSessionId() },
+      2,
+    );
+
+    const first = await firstTarget(sessionId);
+
+    expect(first).not.toBe(mine.tabId);
+    expect(asked).toEqual([
+      { kind: "open", show: false, target: { kind: "page" } },
+    ]);
   });
 });

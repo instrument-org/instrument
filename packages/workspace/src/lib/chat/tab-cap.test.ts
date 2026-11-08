@@ -13,7 +13,7 @@ import { getChatState, setChatState } from "../chat-record";
 import { chatDir } from "../record-folders";
 import { noteTabCommand } from "../tab-activity";
 import { getWorkspaceConfig, setWorkspaceConfig } from "../workspace-config";
-import { closeTabsOverCap, closeTurnTabs } from "./tab-cap";
+import { closeTabsOverCap, closeTaskTabs, closeTurnTabs } from "./tab-cap";
 
 const lifetimes = vi.hoisted(() => new Map<string, TabLifetime>());
 const closes = vi.hoisted(() => [] as string[]);
@@ -30,6 +30,15 @@ vi.mock(import("./activity"), async (importOriginal) => ({
   ...(await importOriginal()),
   isWorking: (_chatId: ChatId, sessionId?: StoreId.Session) =>
     sessionId !== undefined && working.has(sessionId),
+}));
+/** The chat's tasks, as its records list them. */
+const tasks = vi.hoisted(
+  () =>
+    [] as { handle: string; id: string; stoppedBy?: "person"; title: string }[],
+);
+vi.mock(import("./children"), async (importOriginal) => ({
+  ...(await importOriginal()),
+  listChildTasks: () => Promise.resolve(tasks as never),
 }));
 vi.mock(import("./open-asks"), () => ({
   openAsks: () => Promise.resolve([]),
@@ -64,6 +73,7 @@ beforeEach(async () => {
   closes.length = 0;
   listed.ids = undefined;
   working.clear();
+  tasks.length = 0;
   personUsed = new Set();
   root = await fs.mkdtemp(path.join(os.tmpdir(), "tab-cap-"));
   chatId = createMockChatConfigForDir(
@@ -190,18 +200,47 @@ describe("closeTurnTabs", () => {
     ]);
   });
 
-  it("leaves a tab a task with a turn running has driven, and closes it once that task is done", async () => {
+  it("keeps a tab a task worked in while the task can be sent on, and closes it with the task's stop, telling the task", async () => {
     const task = StoreId.newSessionId();
+    tasks.push({ handle: "t1", id: task, title: "Cart" });
     const tab = openedTab(1);
     noteTabCommand(tab.id, { chatId, sessionId: task });
-    working.add(task);
     await setChatState(chatDir(chatId), { openedTabs: [tab] });
 
+    // Done, not working, and still to be sent on.
     await closeTurnTabs(chatId);
     expect(closes).toEqual([]);
 
-    working.delete(task);
-    await closeTurnTabs(chatId);
+    tasks[0] = { ...tasks[0]!, stoppedBy: "person" };
+    await closeTaskTabs(chatId, task);
     expect(closes).toEqual([tab.id]);
+    expect((await getChatState(chatDir(chatId))).closedTabs).toEqual([
+      { id: tab.id, reason: "turnEnd", session: task, url: "" },
+    ]);
+  });
+
+  it("keeps a tab a task opened, whoever worked in it since", async () => {
+    const task = StoreId.newSessionId();
+    tasks.push({ handle: "t1", id: task, title: "Cart" });
+    const tab = { ...openedTab(1), openedIn: task };
+    await setChatState(chatDir(chatId), { openedTabs: [tab] });
+
+    await closeTurnTabs(chatId);
+
+    expect(closes).toEqual([]);
+  });
+
+  it("notes a tab once when two closes race for it", async () => {
+    const tab = openedTab(500);
+    const tabs = [
+      ...Array.from({ length: CHAT_HIDDEN_TAB_CAP }, (_, i) => openedTab(i)),
+      tab,
+    ];
+    await setChatState(chatDir(chatId), { openedTabs: tabs });
+
+    await Promise.all([closeTabsOverCap(chatId), closeTurnTabs(chatId)]);
+
+    const { closedTabs } = await getChatState(chatDir(chatId));
+    expect(closedTabs.filter((closed) => closed.id === tab.id)).toHaveLength(1);
   });
 });

@@ -18,7 +18,14 @@ function tabIdOfEarlierBuilds(id: string) {
  * close on their own once nobody is working in them and the person never
  * used them (`closeTurnTabs`), and which count toward `CHAT_HIDDEN_TAB_CAP`.
  */
-const OpenedTabSchema = z.object({ id: BrowserTargetIdSchema });
+const OpenedTabSchema = z.object({
+  id: BrowserTargetIdSchema,
+  /**
+   * The session that opened it: a task's keeps it open while that task can
+   * still be sent on, and is told when it closes.
+   */
+  openedIn: StoreId.SessionSchema.optional(),
+});
 
 export type OpenedTab = z.output<typeof OpenedTabSchema>;
 
@@ -31,11 +38,13 @@ export const CHAT_HIDDEN_TAB_CAP = 20;
 
 /**
  * A tab an agent opened that the app closed on its own, waiting for the
- * chat's conversation to be told: its next browser note says so, and takes
- * it from here.
+ * session that worked in it to be told: its next browser note says so, and
+ * takes it from here.
  */
 const ClosedTabSchema = z.object({
   id: z.string().transform(tabIdOfEarlierBuilds),
+  /** The session to tell; absent for the chat's own conversation. */
+  session: StoreId.SessionSchema.optional(),
   /**
    * Why: the chat had more tabs it opened itself out of sight than it may
    * keep (`tabCap`), or the chat's turn ended with nobody working in the tab

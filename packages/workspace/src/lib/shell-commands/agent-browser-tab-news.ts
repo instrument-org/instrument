@@ -2,15 +2,7 @@ import { type ChatId } from "../../schemas/chat-id";
 import { type StoreId } from "../../schemas/store-id";
 import { listChildTasks } from "../chat/children";
 import { sessionOfChat } from "../record-folders";
-import { noteOpenedTab } from "../chat/chat-tabs";
-import { parseBrowserTargetId } from "../../types";
-import {
-  lastActOf,
-  type TabNews,
-  tabsActedInBy,
-  takePageOpenedTabs,
-  takeTabNews,
-} from "../tab-activity";
+import { type TabNews, takePopups, takeTabNews } from "../tab-activity";
 
 /**
  * The line an `agent-browser` result ends with when someone else acted in a
@@ -64,30 +56,14 @@ function ago(ms: number): string {
  * The line a result ends with when a page it drove opened a popup
  * (`window.open`), which the app opened as a tab of the chat behind
  * whatever is up: the tab's id, which `agent-browser tab <id>` switches to.
- * The tab is kept as one an agent opened, so it closes with the rest.
+ * The tab was kept as one the session opened as it opened (`notePageOpenedTab`).
  */
-export async function pageOpenedTabsNote({
-  chatId,
-  sessionId,
-  since,
-}: {
-  chatId: ChatId;
-  sessionId: StoreId.Session;
-  since: number;
-}): Promise<string | undefined> {
-  const opened = takePageOpenedTabs(
-    tabsActedInBy(sessionId).filter(
-      (targetId) => (lastActOf(targetId, sessionId) ?? 0) >= since,
-    ),
-  );
+export function pageOpenedTabsNote(
+  sessionId: StoreId.Session,
+): string | undefined {
+  const opened = takePopups(sessionId);
   if (opened.length === 0) {
     return undefined;
-  }
-  for (const tab of opened) {
-    const targetId = parseBrowserTargetId(tab.tabId);
-    if (targetId !== null) {
-      await noteOpenedTab(chatId, targetId);
-    }
   }
   return `${opened
     .map(

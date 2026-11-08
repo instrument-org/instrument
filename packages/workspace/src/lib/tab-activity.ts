@@ -26,7 +26,7 @@ export interface TabNews {
  */
 const FIRST_LOOK_MS = 2 * 60_000;
 
-/** How many tabs' acts are kept; the oldest tabs go first past it. */
+/** How many tabs' acts are kept; the tabs acted in longest ago go first past it. */
 const KEPT = 256;
 
 /** Every session's last command in each tab, since launch. */
@@ -45,16 +45,16 @@ export function noteTabCommand(
   { chatId, sessionId }: { chatId: ChatId; sessionId: StoreId.Session },
   now: number = Date.now(),
 ): void {
-  let acts = actsByTab.get(targetId);
-  if (!acts) {
-    acts = new Map();
-    actsByTab.set(targetId, acts);
-    for (const oldest of actsByTab.keys()) {
-      if (actsByTab.size <= KEPT) {
-        break;
-      }
-      actsByTab.delete(oldest);
+  // Moved to the end on every command, so the tabs dropped past `KEPT` are
+  // the ones nobody has acted in for longest.
+  const acts = actsByTab.get(targetId) ?? new Map<StoreId.Session, TabAct>();
+  actsByTab.delete(targetId);
+  actsByTab.set(targetId, acts);
+  for (const oldest of actsByTab.keys()) {
+    if (actsByTab.size <= KEPT) {
+      break;
     }
+    forgetTab(oldest);
   }
   const mine = acts.get(sessionId)?.at;
   const since = mine ?? now - FIRST_LOOK_MS;
@@ -161,34 +161,77 @@ export async function announceChatTab(
   return told.includes(true);
 }
 
+/**
+ * Whether someone other than the session (another session, or the person)
+ * acted in a tab after the session's last command there: a tab it should
+ * not take up again unawares.
+ */
+export function takenOverFrom(
+  targetId: BrowserTargetId,
+  sessionId: StoreId.Session,
+): boolean {
+  const mine = lastActOf(targetId, sessionId);
+  if (mine === undefined) {
+    return false;
+  }
+  const person = getWorkspaceConfig().browser.personInputAt(targetId);
+  return (
+    (person !== undefined && person > mine) ||
+    actsIn(targetId).some((act) => act.sessionId !== sessionId && act.at > mine)
+  );
+}
+
 /** A tab a page opened for itself (its `window.open`), as the window made it. */
 export interface PageOpenedTab {
+  /** The tab whose page opened it. */
+  from: BrowserTargetId;
   tabId: string;
   url: string;
 }
 
-/** Per tab, the tabs its page opened that no session has been told of yet. */
-const openedByPage = new Map<BrowserTargetId, PageOpenedTab[]>();
+/** Per session, the tabs pages it drove opened that it has not been told of. */
+const popupsOwed = new Map<StoreId.Session, PageOpenedTab[]>();
 
-/**
- * A page an agent drives asked for a window of its own (`window.open`), which
- * the app opens as a tab of the chat behind whatever is up: kept for the
- * result of the command that caused it, which says so.
- */
-export function notePageOpenedTab(
-  targetId: BrowserTargetId,
-  opened: PageOpenedTab,
-): void {
-  openedByPage.set(targetId, [...(openedByPage.get(targetId) ?? []), opened]);
+/** Keeps a popup's tab for the next result of the session whose page opened it. */
+export function owePopup(sessionId: StoreId.Session, tab: PageOpenedTab): void {
+  popupsOwed.set(sessionId, [...(popupsOwed.get(sessionId) ?? []), tab]);
 }
 
-/** The tabs the pages in `targetIds` opened since they were last taken. */
-export function takePageOpenedTabs(
-  targetIds: readonly BrowserTargetId[],
-): (PageOpenedTab & { from: BrowserTargetId })[] {
-  return targetIds.flatMap((from) => {
-    const opened = openedByPage.get(from) ?? [];
-    openedByPage.delete(from);
-    return opened.map((tab) => ({ ...tab, from }));
-  });
+/** The popup tabs the session has not been told of, taken: each is told once. */
+export function takePopups(sessionId: StoreId.Session): PageOpenedTab[] {
+  const popups = popupsOwed.get(sessionId) ?? [];
+  popupsOwed.delete(sessionId);
+  return popups;
+}
+
+/** Forgets everything kept of a tab, as it closes. */
+export function forgetTab(targetId: BrowserTargetId): void {
+  actsByTab.delete(targetId);
+  for (const [sessionId, news] of owed) {
+    news.delete(targetId);
+    if (news.size === 0) {
+      owed.delete(sessionId);
+    }
+  }
+  for (const [sessionId, popups] of popupsOwed) {
+    const kept = popups.filter(
+      (tab) => tab.from !== targetId && tab.tabId !== targetId,
+    );
+    if (kept.length === 0) {
+      popupsOwed.delete(sessionId);
+    } else {
+      popupsOwed.set(sessionId, kept);
+    }
+  }
+}
+
+/** Forgets everything kept of sessions that are gone: what they were owed, and their acts. */
+export function forgetSessions(sessionIds: readonly StoreId.Session[]): void {
+  for (const sessionId of sessionIds) {
+    owed.delete(sessionId);
+    popupsOwed.delete(sessionId);
+    for (const acts of actsByTab.values()) {
+      acts.delete(sessionId);
+    }
+  }
 }

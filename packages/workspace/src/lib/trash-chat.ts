@@ -18,6 +18,8 @@ import { closeAgentBrowserSessionsForSessions } from "./agent-browser-cleanup";
 import { writingChatRecords } from "./records/chat-records";
 import { workDir } from "./work-dir";
 import { listChildTasks } from "./chat/children";
+import { closeChatTabs } from "./chat/tab-cap";
+import { forgetSessions } from "./tab-activity";
 import { STOP_FAILSAFE_MS } from "../machines/session";
 
 /**
@@ -97,6 +99,11 @@ export async function trashChat({
           workspaceConfig.captureException(error);
         },
       );
+      // And the tabs its agents opened, with what was kept of their work.
+      await closeChatTabs(id).catch((error: unknown) => {
+        workspaceConfig.captureException(error);
+      });
+      forgetSessions(sessions);
 
       try {
         const chatId = id;

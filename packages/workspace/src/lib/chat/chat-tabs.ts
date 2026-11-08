@@ -1,9 +1,10 @@
 import { type ChatId } from "../../schemas/chat-id";
+import { type StoreId } from "../../schemas/store-id";
 import { type ClosedTab } from "../../schemas/chat-state";
 import { type WindowTabAnswer } from "../../schemas/window-tab";
 import { type BrowserTargetId, parseBrowserTargetId } from "../../types";
 import { getChatState, updateChatState } from "../chat-record";
-import { chatDir, resolveChat } from "../record-folders";
+import { chatDir, resolveChat, sessionOfChat } from "../record-folders";
 import { actsIn } from "../tab-activity";
 import { isWorking } from "./activity";
 import { listChildTasks } from "./children";
@@ -39,13 +40,17 @@ export async function chatPageTabs(
   });
 }
 
-/** Keeps a tab an agent of the chat opened, which closes once nobody is working in it (`closeTurnTabs`). */
+/** Keeps a tab a session of the chat opened, which closes once nobody can still be working in it (`closeTurnTabs`). */
 export async function noteOpenedTab(
   chatId: ChatId,
   id: BrowserTargetId,
+  openedIn: StoreId.Session,
 ): Promise<void> {
   await updateChatState(chatDir(chatId), ({ openedTabs }) => ({
-    openedTabs: [...openedTabs.filter((tab) => tab.id !== id), { id }],
+    openedTabs: [
+      ...openedTabs.filter((tab) => tab.id !== id),
+      { id, openedIn },
+    ],
   }));
 }
 
@@ -60,18 +65,24 @@ export async function forgetOpenedTabs(
 }
 
 /**
- * The tabs the app closed on its own since the chat's conversation was last
- * told, taken from the chat's state: whoever reads them tells it.
+ * The tabs the app closed on its own since the session was last told,
+ * taken from the chat's state: whoever reads them tells it. The chat's own
+ * conversation hears of the ones that name no session.
  */
-export async function takeClosedTabs(chatId: ChatId): Promise<ClosedTab[]> {
+export async function takeClosedTabs(
+  chatId: ChatId,
+  sessionId: StoreId.Session,
+): Promise<ClosedTab[]> {
+  const told = (tab: ClosedTab) =>
+    (tab.session ?? sessionOfChat(chatId)) === sessionId;
   const { closedTabs } = await getChatState(chatDir(chatId));
-  if (closedTabs.length === 0) {
+  if (!closedTabs.some(told)) {
     return [];
   }
   let taken: ClosedTab[] = [];
   await updateChatState(chatDir(chatId), (state) => {
-    taken = state.closedTabs;
-    return { closedTabs: [] };
+    taken = state.closedTabs.filter(told);
+    return { closedTabs: state.closedTabs.filter((tab) => !told(tab)) };
   });
   return taken;
 }

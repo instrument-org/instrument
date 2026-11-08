@@ -46,7 +46,7 @@ import {
   touchTask,
 } from "./children";
 import { stepInFlight } from "./in-flight";
-import { closeTurnTabs } from "./tab-cap";
+import { closeTaskTabs, closeTurnTabs } from "./tab-cap";
 import { cutForNote, lastAssistantText } from "./latest-session";
 import { appClosedLine, endedWithoutWords } from "./task-status";
 import { trajectorySince } from "./steps";
@@ -459,7 +459,13 @@ async function onSessionDone(
     ...(stop ? [] : (await openAsksOf(chatId, sessionId)).map(cardNeed)),
   ];
   await touchTask(chatId, sessionId, stop ? { stoppedBy: stop.by } : {});
-  // The pages it leaves open, which the chat may show the user.
+  // The pages it leaves open, which the chat may show the user. A stopped
+  // task is sent on no more, so the tabs it opened or worked in go with it.
+  if (stop) {
+    await closeTaskTabs(chatId, sessionId).catch(
+      getWorkspaceConfig().captureException,
+    );
+  }
   const tabs = await openTabsOf(ref);
   // Its agent-browser daemons, which would otherwise idle out on their own
   // clock; a later `instrument task send` starts them again.

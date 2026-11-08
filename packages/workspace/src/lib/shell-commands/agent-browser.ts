@@ -69,6 +69,7 @@ import {
   tabOutputOf,
   windowTabIdArgIndex,
   withTabIds,
+  listsTab,
   withTabLabel,
 } from "./agent-browser-tab-ids";
 import { recordProgramStart } from "./command-runs";
@@ -977,7 +978,7 @@ export function createAgentBrowserCommand({
       if (
         listed.exitCode === 0 &&
         named !== undefined &&
-        !listed.stdout.includes(`"${named}"`) &&
+        !listsTab(listed.stdout, named) &&
         (await announceChatTab({ chatId, sessionId }, named))
       ) {
         listed = await listTabs();
@@ -1149,7 +1150,7 @@ export function createAgentBrowserCommand({
     // And the popups its pages opened, each a new tab of the chat.
     if (drivesChatTabs) {
       const notes = [
-        await pageOpenedTabsNote({ chatId, sessionId, since: startedAtEpoch }),
+        pageOpenedTabsNote(sessionId),
         await tabNewsNote({ chatId, sessionId }),
       ].filter((note) => note !== undefined);
       for (const note of notes) {

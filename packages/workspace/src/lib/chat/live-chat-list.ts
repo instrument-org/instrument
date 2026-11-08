@@ -15,6 +15,7 @@ import {
   listedBefore,
   type ListedAt,
 } from "./chat-list-events";
+import { chatListRereads, type RereadCause } from "./chat-list-rereads";
 import { listChatIds } from "./chat-records";
 import { type Chat, knownAppSlugs, listedChats } from "./chats";
 
@@ -241,6 +242,7 @@ async function readChatList(
   const apps = collapsed(everyOne(appListChanges(signal)));
   const refreshes = refreshesOf(current);
   const held = heldReads(signal);
+  const rereads = chatListRereads();
   /** Chats read at least once, whether or not they had a row to show. */
   const read = new Set<ChatId>();
   /** The apps the workspace has, as last read; filled in before the first read. */
@@ -304,8 +306,14 @@ async function readChatList(
     ];
   };
   try {
+    const firstStarted = performance.now();
     knownApps = await knownAppSlugs();
-    await readAgain(listChatIds());
+    const first = listChatIds();
+    await readAgain(first);
+    rereads.first({
+      ms: performance.now() - firstStarted,
+      read: first.length,
+    });
     let rev = 0;
     current.rev = rev;
     for (const follower of current.followers) {
@@ -317,6 +325,7 @@ async function readChatList(
       refreshes,
       held.due,
     ])) {
+      const started = performance.now();
       let appsMoved = false;
       if (moved === null) {
         const now = await knownAppSlugs();
@@ -334,22 +343,28 @@ async function readChatList(
           gone.push(id);
         }
       }
-      const { removed, upserts } = await readAgain(
-        unique([
-          ...(moved === null
-            ? appsMoved
-              ? listed
-              : []
-            : moved instanceof Held
-              ? moved.ids
-              : Array.isArray(moved)
-                ? movedNow(moved)
-                : moved.refreshes.map((refresh) => refresh.id)
-          ).filter((id) => known.has(id)),
-          ...listed.filter((id) => !read.has(id)),
-        ]),
-        gone,
-      );
+      const fresh = listed.filter((id) => !read.has(id));
+      const ids = unique([
+        ...(moved === null
+          ? appsMoved
+            ? listed
+            : []
+          : moved instanceof Held
+            ? moved.ids
+            : Array.isArray(moved)
+              ? movedNow(moved)
+              : moved.refreshes.map((refresh) => refresh.id)
+        ).filter((id) => known.has(id)),
+        ...fresh,
+      ]);
+      const { removed, upserts } = await readAgain(ids, gone);
+      rereads.burst({
+        cause: causeOf(moved),
+        fresh: fresh.length,
+        listed: listed.length,
+        ms: performance.now() - started,
+        read: ids.length,
+      });
       if (upserts.length > 0 || removed.length > 0) {
         const from = rev;
         rev += 1;
@@ -377,6 +392,19 @@ async function readChatList(
     void refreshes.return(undefined);
     held.stop();
   }
+}
+
+/** What a burst came from, for `chatListRereads`. */
+function causeOf(
+  moved: RecordChanged[] | Held | Refreshes | null,
+): RereadCause {
+  return moved === null
+    ? "apps"
+    : moved instanceof Held
+      ? "held"
+      : moved instanceof Refreshes
+        ? "refresh"
+        : "records";
 }
 
 /** Requests for rows read again, taken together. */

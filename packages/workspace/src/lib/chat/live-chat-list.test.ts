@@ -1,4 +1,4 @@
-import { describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { publisher } from "../../rpc/publisher";
 import { type ChatId, ChatIdSchema } from "../../schemas/chat-id";
@@ -10,7 +10,35 @@ const ids = vi.hoisted(() => {
 const slugs = vi.hoisted(() => ({ known: new Set<string>() }));
 /** How many times rows have been read, which each row carries so a read moves it. */
 const reads = vi.hoisted(() => ({ count: 0 }));
+/**
+ * `performance.now()` where a test stands it in, and how long the next read
+ * of rows takes on it.
+ */
+const clock = vi.hoisted(() => ({ at: 0, nextReadMs: 0 }));
 
+/** The alarm gate, made afresh for each test so a key warns again in the next one. */
+const gate = vi.hoisted(() => ({
+  current: undefined as
+    | undefined
+    | {
+        raise: (
+          key: string,
+          line: () => string,
+          warn: (line: string) => void,
+        ) => boolean;
+      },
+}));
+
+vi.mock(import("@instrument-org/shared/alarms"), async (importOriginal) => {
+  const actual = await importOriginal();
+  return {
+    ...actual,
+    alarms: {
+      raise: (key, line, warn) =>
+        (gate.current ??= actual.createAlarmGate()).raise(key, line, warn),
+    },
+  };
+});
 vi.mock("./chat-records", () => ({
   listChatIds: () => ids.listed,
 }));
@@ -18,6 +46,8 @@ vi.mock("./chats", () => ({
   knownAppSlugs: vi.fn(async () => new Set(slugs.known)),
   listedChats: vi.fn(async (read: readonly ChatId[]) => {
     reads.count += 1;
+    clock.at += clock.nextReadMs;
+    clock.nextReadMs = 0;
     return new Map(
       read.map((id) => [id, { id, reads: reads.count, sessionId: id }]),
     );
@@ -176,6 +206,121 @@ describe("the live chat list when a read fails", () => {
     // The next follower reads the list afresh.
     const again = liveChatList(controller.signal);
     await expect(again.next()).resolves.toMatchObject({ done: false });
+    controller.abort();
+  });
+});
+
+describe("the live chat list's re-read warnings", () => {
+  beforeEach(() => {
+    gate.current = undefined;
+    clock.at = 0;
+    clock.nextReadMs = 0;
+    vi.spyOn(performance, "now").mockImplementation(() => clock.at);
+    vi.spyOn(console, "warn").mockImplementation(() => undefined);
+    vi.mocked(listedChats).mockClear();
+  });
+  afterEach(() => {
+    vi.mocked(performance.now).mockRestore();
+    vi.mocked(console.warn).mockRestore();
+  });
+  const listChats = (count: number) => {
+    ids.listed = Array.from({ length: count }, (_, index) =>
+      ChatIdSchema.parse(`c${index}`),
+    );
+  };
+  const warned = () =>
+    vi.mocked(console.warn).mock.calls.map(([line]) => String(line));
+
+  it("warns once an hour for a burst that reads every row, and never for the first read", async () => {
+    listChats(150);
+    slugs.known = new Set(["linear"]);
+    const controller = new AbortController();
+    const list = liveChatList(controller.signal);
+    await list.next();
+    expect(warned()).toEqual([]);
+
+    slugs.known = new Set(["linear", "drafts"]);
+    publisher.publish("app.updated", null);
+    await list.next();
+    slugs.known = new Set(["linear"]);
+    publisher.publish("app.updated", null);
+    await list.next();
+
+    expect(rowsRead()).toHaveLength(3);
+    expect(warned()).toMatchInlineSnapshot(`
+      [
+        "Chat list: read 150 rows again in 0 ms for a change to the apps (0 new to the list; 150 rows in 1 read in the last minute; 150 listed)",
+      ]
+    `);
+    controller.abort();
+  });
+
+  it("warns for a burst that takes long, naming what moved it", async () => {
+    listChats(3);
+    const controller = new AbortController();
+    const list = liveChatList(controller.signal);
+    await list.next();
+
+    clock.nextReadMs = 300;
+    publisher.publish("record.changed", {
+      id: ChatIdSchema.parse("c0"),
+      kind: "messages",
+    });
+    await list.next();
+
+    expect(warned()).toMatchInlineSnapshot(`
+      [
+        "Chat list: read 1 row again in 300 ms for record changes (0 new to the list; 1 row in 1 read in the last minute; 3 listed)",
+      ]
+    `);
+    controller.abort();
+  });
+
+  it("warns when small bursts pass 1,000 rows within a minute", async () => {
+    listChats(60);
+    const controller = new AbortController();
+    const list = liveChatList(controller.signal);
+    await list.next();
+    const burst = async () => {
+      for (const id of ids.listed) {
+        publisher.publish("record.changed", {
+          id: ChatIdSchema.parse(id),
+          kind: "messages",
+        });
+      }
+      await list.next();
+    };
+
+    for (let index = 0; index < 16; index += 1) {
+      await burst();
+    }
+    expect(warned()).toEqual([]);
+    await burst();
+    expect(warned()).toMatchInlineSnapshot(`
+      [
+        "Chat list: read 1020 rows again in 17 reads within a minute (60 listed; the last for record changes)",
+      ]
+    `);
+
+    // A minute on, the count starts over: with a fresh gate, a burst still says nothing.
+    clock.at += 60_000;
+    gate.current = undefined;
+    await burst();
+    expect(warned()).toHaveLength(1);
+    controller.abort();
+  });
+
+  it("warns for a first read that keeps every window waiting", async () => {
+    listChats(3);
+    clock.nextReadMs = 2_500;
+    const controller = new AbortController();
+    await liveChatList(controller.signal).next();
+
+    expect(warned()).toMatchInlineSnapshot(`
+      [
+        "Chat list: first read of 3 rows took 2500 ms",
+      ]
+    `);
     controller.abort();
   });
 });

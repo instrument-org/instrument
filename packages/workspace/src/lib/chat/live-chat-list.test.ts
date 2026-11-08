@@ -8,15 +8,18 @@ const ids = vi.hoisted(() => {
   return { listed };
 });
 const slugs = vi.hoisted(() => ({ known: new Set<string>() }));
+/** How many times rows have been read, which each row carries so a read moves it. */
+const reads = vi.hoisted(() => ({ count: 0 }));
 
 vi.mock("./chat-records", () => ({
   listChatIds: () => ids.listed,
 }));
 vi.mock("./chats", () => ({
   knownAppSlugs: vi.fn(async () => new Set(slugs.known)),
-  listedChats: vi.fn(
-    async (read: readonly ChatId[]) => new Map(read.map((id) => [id, { id }])),
-  ),
+  listedChats: vi.fn(async (read: readonly ChatId[]) => {
+    reads.count += 1;
+    return new Map(read.map((id) => [id, { id, reads: reads.count }]));
+  }),
 }));
 vi.mock(import("../record-folders"), async (importOriginal) => ({
   ...(await importOriginal()),
@@ -112,5 +115,44 @@ describe("the live chat list on a change to a chat", () => {
     );
     controller.abort();
     await pulled;
+  });
+});
+
+describe("the live chat list followed twice", () => {
+  it("reads a moved row once for both, and sends each the answer", async () => {
+    vi.mocked(listedChats).mockClear();
+    ids.listed = ["a", "b"];
+    const controller = new AbortController();
+    const first = liveChatList(controller.signal);
+    expect((await first.next()).value).toHaveLength(2);
+    // Comes after the first read, so starts from its answer.
+    const second = liveChatList(controller.signal);
+    expect((await second.next()).value).toHaveLength(2);
+    expect(rowsRead()).toEqual([["a", "b"]]);
+
+    const answers = Promise.all([first.next(), second.next()]);
+    publisher.publish("record.changed", {
+      id: ChatIdSchema.parse("a"),
+      kind: "messages",
+    });
+    const [one, two] = await answers;
+
+    expect(rowsRead()).toEqual([["a", "b"], ["a"]]);
+    expect(one.value).toEqual(two.value);
+    controller.abort();
+  });
+
+  it("starts reading again for a follower after the last one left", async () => {
+    vi.mocked(listedChats).mockClear();
+    ids.listed = ["a"];
+    const before = new AbortController();
+    await liveChatList(before.signal).next();
+    before.abort();
+
+    const after = new AbortController();
+    await liveChatList(after.signal).next();
+
+    expect(rowsRead()).toEqual([["a"], ["a"]]);
+    after.abort();
   });
 });

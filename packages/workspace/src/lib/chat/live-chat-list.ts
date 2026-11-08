@@ -50,10 +50,121 @@ function sameSlugs(a: Set<string>, b: Set<string>): boolean {
  * (`chatRowAsked`): a window paints that request before it lands, and a
  * request that changed nothing (a project just removed, a chat already gone)
  * leaves the list as it was, so the same answer is what takes the paint back.
+ *
+ * One reading of the list serves every follower in the process (each
+ * window's `chats.live.list`, and the phone's `chat-list.json`), so a moved
+ * row is read once however many follow it. A follower that comes while the
+ * list is read for the first time is sent that first answer, and one that
+ * comes later the last answer sent, then whatever follows. A follower busy
+ * with one answer is sent only the newest of those that came meanwhile.
+ * The reading starts with its first follower and stops with its last, so
+ * nothing is read, watched or kept while no one follows it; the phone's
+ * file follows it for as long as the app runs.
  */
 export async function* liveChatList(
   signal: AbortSignal | undefined,
 ): AsyncGenerator<Chat[]> {
+  if (signal?.aborted) {
+    return;
+  }
+  const current = (reading ??= startReading());
+  const follower: Follower = {
+    ...(current.answer && { pending: current.answer }),
+  };
+  current.followers.add(follower);
+  const leave = () => {
+    if (!current.followers.delete(follower)) {
+      return;
+    }
+    follower.wake?.();
+    if (current.followers.size === 0) {
+      if (reading === current) {
+        reading = undefined;
+      }
+      current.stop.abort();
+    }
+  };
+  signal?.addEventListener("abort", leave, { once: true });
+  try {
+    while (true) {
+      if (follower.failed) {
+        throw follower.failed.error;
+      }
+      if (!current.followers.has(follower)) {
+        return;
+      }
+      if (follower.pending) {
+        const answer = follower.pending;
+        delete follower.pending;
+        yield answer;
+        continue;
+      }
+      await new Promise<void>((resolve) => {
+        follower.wake = resolve;
+      });
+      delete follower.wake;
+    }
+  } finally {
+    signal?.removeEventListener("abort", leave);
+    leave();
+  }
+}
+
+/** One follower of the list: the newest answer it has not been sent yet. */
+interface Follower {
+  failed?: { error: unknown };
+  pending?: Chat[];
+  wake?: () => void;
+}
+
+/** The process's reading of the list, while anyone follows it. */
+interface Reading {
+  /** The last answer sent, which a follower that comes later starts from. */
+  answer?: Chat[];
+  followers: Set<Follower>;
+  stop: AbortController;
+}
+
+let reading: Reading | undefined;
+
+function startReading(): Reading {
+  const current: Reading = {
+    followers: new Set(),
+    stop: new AbortController(),
+  };
+  void (async () => {
+    try {
+      for await (const answer of readChatList(current.stop.signal)) {
+        current.answer = answer;
+        for (const follower of current.followers) {
+          follower.pending = answer;
+          follower.wake?.();
+        }
+      }
+    } catch (error) {
+      if (!current.stop.signal.aborted) {
+        for (const follower of current.followers) {
+          follower.failed = { error };
+          follower.wake?.();
+        }
+      }
+    } finally {
+      if (reading === current) {
+        reading = undefined;
+      }
+      // A reading that ended under its followers ends them too.
+      const left = [...current.followers];
+      current.followers.clear();
+      for (const follower of left) {
+        follower.wake?.();
+      }
+    }
+  })();
+  return current;
+}
+
+/** The list's answers, read for every follower at once: see `liveChatList`. */
+async function* readChatList(signal: AbortSignal): AsyncGenerator<Chat[]> {
   const records = recordChanges(signal);
   const apps = collapsed(everyOne(appListChanges(signal)));
   const asked = publisher.subscribe("chat.rowAsked", { signal });

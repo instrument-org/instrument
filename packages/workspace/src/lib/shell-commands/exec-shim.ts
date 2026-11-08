@@ -18,7 +18,7 @@ import {
 } from "../native-sandbox";
 
 import { watchSubprocessTree } from "../subprocess-tree";
-import { WINDOW_COMMAND } from "./window-command";
+import { WINDOW_COMMAND } from "../../model-text/commands/window-command";
 import {
   collectAndForward,
   currentShellOutputSink,

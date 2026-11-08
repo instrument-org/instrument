@@ -1,6 +1,6 @@
 import { generatedCommand } from "../capabilities/cli";
 import { type CapabilityScope } from "../capabilities/context";
-import { TASK_COMMAND } from "./task-command";
+import { TASK_COMMAND } from "../../model-text/commands/task-command";
 
 /**
  * `instrument task`, the chat's way of starting, steering and reading its

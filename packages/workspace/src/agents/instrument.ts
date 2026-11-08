@@ -34,14 +34,14 @@ import { getCurrentDate } from "../lib/get-current-date";
 import { PYTHON_BASE_PACKAGES, pythonBaseReady } from "../lib/python-base";
 import { AGENT_BROWSER_COMMAND } from "../lib/shell-commands/agent-browser";
 import { scriptSurfaceOpen } from "../lib/capabilities/script-surface";
-import { APP_COMMAND } from "../lib/shell-commands/app-command";
-import { MEMORY_COMMAND } from "../lib/shell-commands/memory-command";
+import { APP_COMMAND } from "../model-text/commands/app-command";
+import { MEMORY_COMMAND } from "../model-text/commands/memory-command";
 import { NODE_COMMAND } from "../lib/shell-commands/node";
 import { PNPM_COMMAND } from "../lib/shell-commands/pnpm";
 import { PIP_COMMAND } from "../lib/shell-commands/pip";
 import { PYTHON_COMMAND } from "../lib/shell-commands/python";
-import { WINDOW_COMMAND } from "../lib/shell-commands/window-command";
-import { TASK_COMMAND } from "../lib/shell-commands/task-command";
+import { WINDOW_COMMAND } from "../model-text/commands/window-command";
+import { TASK_COMMAND } from "../model-text/commands/task-command";
 import { SKILL_NAMES } from "../lib/skill-names";
 import { getWorkspaceConfig } from "../lib/workspace-config";
 import {

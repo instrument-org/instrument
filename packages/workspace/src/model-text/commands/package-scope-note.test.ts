@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { packageScopeNote } from "./refusals";
+import { packageScopeNote } from "./package-scope-note";
 
 // What the agent is told when Node, started by some other program, died
 // because the sandbox refused it a package.json above the script.

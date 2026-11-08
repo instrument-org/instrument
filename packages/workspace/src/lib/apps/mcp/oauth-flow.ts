@@ -7,7 +7,7 @@ import { err, ok, type Result } from "neverthrow";
 import { noop } from "radashi";
 
 import { type AbsolutePath } from "../../../schemas/paths";
-import { APP_COMMAND } from "../../shell-commands/app-command";
+import { APP_COMMAND } from "../../../model-text/commands/app-command";
 import {
   performSignedInRequest,
   redeemApiSignIn,

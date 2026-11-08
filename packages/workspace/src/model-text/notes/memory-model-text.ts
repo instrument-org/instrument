@@ -1,7 +1,7 @@
 import { formatDistanceStrict } from "date-fns/formatDistanceStrict";
 
 import { type SessionMessageDataPart } from "../../schemas/session/message-data-part";
-import { MEMORY_COMMAND } from "../../lib/shell-commands/memory-command";
+import { MEMORY_COMMAND } from "../commands/memory-command";
 import { systemNote } from "./system-note";
 
 type MemoryRow = SessionMessageDataPart.MemoryDataPart["memories"][number];

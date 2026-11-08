@@ -10,7 +10,7 @@ import { writeOwnFile } from "../own-file";
 import { shellPath } from "../shell-path";
 import { CachedReads } from "../workspace-files";
 import { macAppNamed } from "../mac-apps/apps";
-import { APP_COMMAND } from "../shell-commands/app-command";
+import { APP_COMMAND } from "../../model-text/commands/app-command";
 import { macAppGuide } from "./mac-app-guide";
 import {
   type AppFile,

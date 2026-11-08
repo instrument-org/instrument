@@ -52,7 +52,7 @@ import {
   WAIT_MARKER,
 } from "./shell-commands/background-jobs";
 import { createInstrumentCommand } from "./shell-commands/instrument";
-import { INSTRUMENT_COMMAND } from "./shell-commands/instrument-command";
+import { INSTRUMENT_COMMAND } from "../model-text/commands/instrument-command";
 import { createDuCommand } from "./shell-commands/du";
 import { createFfmpegCommand, FFMPEG_COMMAND } from "./shell-commands/ffmpeg";
 import {
@@ -103,8 +103,8 @@ import {
 } from "./shell-commands/python";
 import { createRgCommand, RG_COMMAND } from "./shell-commands/rg";
 import { createWindowCommand } from "./shell-commands/window";
-import { WINDOW_COMMAND } from "./shell-commands/window-command";
-import { TASK_COMMAND } from "./shell-commands/task-command";
+import { WINDOW_COMMAND } from "../model-text/commands/window-command";
+import { TASK_COMMAND } from "../model-text/commands/task-command";
 import { createTaskCommand } from "./shell-commands/task";
 import {
   createUvCommand,

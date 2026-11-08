@@ -1,8 +1,8 @@
 import { TOOL_NAMES } from "../tools/name";
-import { APP_COMMAND } from "./shell-commands/app-command";
-import { MEMORY_COMMAND } from "./shell-commands/memory-command";
-import { INSTRUMENT_COMMAND } from "./shell-commands/instrument-command";
-import { TASK_COMMAND } from "./shell-commands/task-command";
+import { APP_COMMAND } from "../model-text/commands/app-command";
+import { MEMORY_COMMAND } from "../model-text/commands/memory-command";
+import { INSTRUMENT_COMMAND } from "../model-text/commands/instrument-command";
+import { TASK_COMMAND } from "../model-text/commands/task-command";
 
 /**
  * The `instrument` subcommands the conversation's agent runs inside its bash

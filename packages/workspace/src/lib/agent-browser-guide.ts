@@ -2,8 +2,8 @@ import {
   AGENT_BROWSER_CORE_GUIDE,
   AGENT_BROWSER_CORE_REFERENCES,
 } from "./agent-browser-core-guide.generated";
-import { APP_COMMAND } from "./shell-commands/app-command";
-import { WINDOW_COMMAND } from "./shell-commands/window-command";
+import { APP_COMMAND } from "../model-text/commands/app-command";
+import { WINDOW_COMMAND } from "../model-text/commands/window-command";
 
 /**
  * How to use `agent-browser` here: the CLI's own core guide, as the release

@@ -1,7 +1,7 @@
 import { type SessionMessageDataPart } from "../../schemas/session/message-data-part";
 import { APP_NAME } from "@instrument-org/shared";
 
-import { APP_COMMAND } from "../../lib/shell-commands/app-command";
+import { APP_COMMAND } from "../commands/app-command";
 import { webInsteadCommand, webInsteadStep } from "../../lib/apps/web-instead";
 import {
   signInProgressLine,

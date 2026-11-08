@@ -12,7 +12,10 @@ import { knowChat } from "../../test/helpers/mock-chat-config";
 import { readAppGuide, loadApp } from "../apps/store";
 import { getWorkspaceConfig } from "../workspace-config";
 import { createAppCommand } from "./app";
-import { APP_SETUP_IS_THE_CHATS, APPS_ARE_THE_CHATS } from "./app-command";
+import {
+  APP_SETUP_IS_THE_CHATS,
+  APPS_ARE_THE_CHATS,
+} from "../../model-text/commands/app-command";
 
 // The checks that ask a server or a registry answer "can't tell", so no test
 // reaches the network.

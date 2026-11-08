@@ -33,7 +33,7 @@ import {
   type BrowserSkill,
 } from "../lib/browser-skill-delivery";
 import { executeError } from "../lib/execute-error";
-import { ignoredBuildsNote } from "../lib/ignored-builds-note";
+import { ignoredBuildsNote } from "../model-text/commands/ignored-builds-note";
 import { lastLoadedSkillDir } from "../lib/loaded-skill";
 import { sessionRole } from "../lib/chat/children";
 import { folderReach } from "../lib/chat/folder-reach";

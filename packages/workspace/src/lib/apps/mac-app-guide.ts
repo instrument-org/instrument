@@ -1,7 +1,7 @@
 import { APP_NAME } from "@instrument-org/shared";
 
 import { type MacAppDefinition } from "../mac-apps/tool";
-import { APP_COMMAND } from "../shell-commands/app-command";
+import { APP_COMMAND } from "../../model-text/commands/app-command";
 
 /**
  * A Mac app's guide, from its tools' own descriptions: what it is for, how a

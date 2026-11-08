@@ -17,7 +17,7 @@ import {
   loadApp,
   readAppGuide,
 } from "../lib/apps/store";
-import { APP_COMMAND } from "../lib/shell-commands/app-command";
+import { APP_COMMAND } from "../model-text/commands/app-command";
 import { getWorkspaceConfig } from "../lib/workspace-config";
 import { shellPath } from "../lib/workspace-fs-layout";
 import {

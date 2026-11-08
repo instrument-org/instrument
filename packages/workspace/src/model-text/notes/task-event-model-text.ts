@@ -3,8 +3,8 @@ import ms from "ms";
 import { type SessionMessageDataPart } from "../../schemas/session/message-data-part";
 import { asClause } from "../../lib/as-clause";
 import { describeLeftRunning } from "../../lib/chat/left-running";
-import { WINDOW_COMMAND } from "../../lib/shell-commands/window-command";
-import { TASK_COMMAND } from "../../lib/shell-commands/task-command";
+import { WINDOW_COMMAND } from "../commands/window-command";
+import { TASK_COMMAND } from "../commands/task-command";
 import { TOOL_NAMES } from "../../tools/name";
 import { systemNote } from "./system-note";
 

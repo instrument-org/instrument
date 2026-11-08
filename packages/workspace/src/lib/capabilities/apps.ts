@@ -47,7 +47,10 @@ import { baselineRecorded } from "../last-told";
 import { ChatReads } from "../chat-reads";
 import { getWorkspaceConfig } from "../workspace-config";
 import { shellPath } from "../workspace-fs-layout";
-import { APP_COMMAND, APPS_ARE_THE_CHATS } from "../shell-commands/app-command";
+import {
+  APP_COMMAND,
+  APPS_ARE_THE_CHATS,
+} from "../../model-text/commands/app-command";
 import {
   type CapabilityContext,
   CapabilityFailure,

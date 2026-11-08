@@ -1,8 +1,8 @@
 import { generatedCommand } from "../capabilities/cli";
 import { type CapabilityScope } from "../capabilities/context";
-import { MEMORY_COMMAND } from "./memory-command";
+import { MEMORY_COMMAND } from "../../model-text/commands/memory-command";
 
-export { MEMORY_COMMAND } from "./memory-command";
+export { MEMORY_COMMAND } from "../../model-text/commands/memory-command";
 
 /**
  * `instrument memory`: its subcommands are the registry's `memory.*`

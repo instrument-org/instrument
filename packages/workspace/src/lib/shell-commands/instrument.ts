@@ -1,6 +1,6 @@
 import { type Command, defineCommand } from "just-bash";
 
-import { INSTRUMENT_COMMAND } from "./instrument-command";
+import { INSTRUMENT_COMMAND } from "../../model-text/commands/instrument-command";
 
 /** One of `instrument`'s subcommands: its word, what it is in a line, and the command that runs it. */
 export interface InstrumentSubcommand {

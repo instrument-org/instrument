@@ -31,7 +31,7 @@ export {
   reachesSshKeys,
   withNativeReach,
 } from "./reach";
-export { packageScopeNote } from "./refusals";
+export { packageScopeNote } from "../../model-text/commands/package-scope-note";
 export {
   seatbeltAvailable,
   seatbeltProfile,

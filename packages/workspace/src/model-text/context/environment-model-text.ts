@@ -1,6 +1,6 @@
 import { FOLDER_VARIABLES } from "../../constants";
 import { MAC_APPS } from "../../lib/mac-apps/apps";
-import { APP_COMMAND } from "../../lib/shell-commands/app-command";
+import { APP_COMMAND } from "../commands/app-command";
 import {
   type Environment,
   type EnvironmentChange,

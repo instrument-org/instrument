@@ -1,6 +1,6 @@
 import { APP_NAME } from "@instrument-org/shared";
 
-import { APP_COMMAND } from "../shell-commands/app-command";
+import { APP_COMMAND } from "../../model-text/commands/app-command";
 
 /**
  * Signing in on the service's own site in the window's browser, where its

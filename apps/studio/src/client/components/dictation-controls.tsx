@@ -30,7 +30,7 @@ import { useEffect, useLayoutEffect, useRef, useState } from "react";
  * The microphone, then Stop while recording. It never stands in for Send:
  * where there is a Send, it sits to its left.
  */
-export function DictationButton({
+function DictationButton({
   className,
   dictation,
   disabled = false,

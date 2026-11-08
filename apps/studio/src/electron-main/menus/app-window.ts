@@ -179,21 +179,20 @@ const CHAT_CHORDS: WindowChord[] = [chord("nextChat"), chord("previousChat")];
  * The chords the tab bar answers to, on whichever screen is up: next and
  * previous by Ctrl+Tab (and by this system's own second chord, below), a tab
  * by place with Cmd+1 through Cmd+8, and the last with Cmd+9, as browsers do.
+ * Those nine are hidden rows, left out of the menu as Chrome leaves them out
+ * of its own, which a focused page guest still reaches.
  */
 const TAB_SWITCH_CHORDS: WindowChord[] = [
   chord("nextTab"),
   chord("previousTab"),
   ...Array.from({ length: 9 }, (_, index) => ({
     ...(index === 8
-      ? { ...WINDOW_MENU_SHORTCUTS.lastTab, symbol: "arrow.right.to.line" }
-      : {
-          accelerator: `CmdOrCtrl+${index + 1}`,
-          label: `Tab ${index + 1}`,
-          symbol: `${index + 1}.square`,
-        }),
+      ? WINDOW_MENU_SHORTCUTS.lastTab
+      : { accelerator: `CmdOrCtrl+${index + 1}`, label: `Tab ${index + 1}` }),
     run: (window: BrowserWindow) => {
       commandWindow(window, { index: index + 1, type: "selectTab" });
     },
+    visible: false,
   })),
 ];
 
@@ -329,18 +328,24 @@ export function createAppWindowMenu(
     ],
   };
 
-  const chatsMenu: MenuItemConstructorOptions = {
-    label: "Chats",
-    submenu: menuItems(CHAT_CHORDS, windows),
-  };
-
+  // Chrome's Tab menu: going between the window's tabs and taking one out of
+  // it. Opening, closing and reopening one are in File, where Chrome has them.
   const tabMenu: MenuItemConstructorOptions = {
-    label: "Tabs",
+    label: "Tab",
     submenu: [
-      ...menuItems(TAB_SWITCH_CHORDS.slice(0, 2), windows),
+      ...menuItems(TAB_SWITCH_CHORDS, windows),
       ...menuItems(TAB_SWITCH_ALIAS_CHORDS, windows),
       { type: "separator" },
-      ...menuItems(TAB_SWITCH_CHORDS.slice(2), windows),
+      {
+        click: () => {
+          const window = BrowserWindow.getFocusedWindow();
+          if (window) {
+            commandWindow(window, "moveTabToNewWindow");
+          }
+        },
+        label: "Move Tab to New Window",
+        ...menuSymbol("macwindow.on.rectangle"),
+      },
     ],
   };
 
@@ -367,7 +372,8 @@ export function createAppWindowMenu(
     ],
   };
 
-  // The other windows' View menu with the inbox's chord at its head, less
+  // The other windows' View menu with the inbox's chord at its head, and the
+  // rail's places and the steps down and up the inbox under it, less
   // its reload roles, which would reload the window and every page in it
   // (Reload Page above takes Cmd+R; the Developer menu reloads the app). Its
   // zoom chords go to the window, which decides whether they mean a page.
@@ -387,6 +393,8 @@ export function createAppWindowMenu(
       { type: "separator" },
       ...menuItems(PLACE_CHORDS, windows),
       { type: "separator" },
+      ...menuItems(CHAT_CHORDS, windows),
+      { type: "separator" },
       ...(Array.isArray(shared.submenu)
         ? shared.submenu.filter(
             (item) => item.role !== "reload" && item.role !== "forceReload",
@@ -399,20 +407,9 @@ export function createAppWindowMenu(
     fileMenu,
     createEditMenu(),
     viewMenu,
-    chatsMenu,
-    tabMenu,
     historyMenu,
+    tabMenu,
     ...createWindowMenu([
-      {
-        click: () => {
-          const window = BrowserWindow.getFocusedWindow();
-          if (window) {
-            commandWindow(window, "moveTabToNewWindow");
-          }
-        },
-        label: "Move Tab to New Window",
-        ...menuSymbol("macwindow.on.rectangle"),
-      },
       {
         click: () => {
           windows.mergeAll();

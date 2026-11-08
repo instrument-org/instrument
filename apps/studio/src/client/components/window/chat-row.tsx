@@ -34,6 +34,8 @@ import { useAtomValue } from "jotai";
 import { type ReactNode, useRef, useState } from "react";
 
 import { type AppsBySlug } from "./apps-by-slug";
+import { contextMenuComponents } from "@/client/components/ui/menu-components";
+import { ChatCopyMenu } from "./chat-copy-menu";
 import { chatMenuGroups } from "./chat-actions";
 import { type RowDensity } from "./chat-list-view";
 import { ChatMarkDot } from "./chat-mark";
@@ -459,6 +461,7 @@ export function ChatRow({
         </ContextMenuSub>
         <ContextMenuSeparator />
         {groups.files.map(item)}
+        <ChatCopyMenu chat={chat} menu={contextMenuComponents} />
         <ContextMenuSeparator />
         {groups.feedback.map(item)}
         <ContextMenuSeparator />

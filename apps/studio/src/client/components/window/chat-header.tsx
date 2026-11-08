@@ -25,6 +25,8 @@ import { useMutation } from "@tanstack/react-query";
 import { type ComponentProps, type ReactNode, useRef, useState } from "react";
 
 import { TaskBackgroundProcesses } from "../task/task-background-processes";
+import { dropdownMenuComponents } from "@/client/components/ui/menu-components";
+import { ChatCopyMenu } from "./chat-copy-menu";
 import { chatMenuGroups, useChatActions } from "./chat-actions";
 import { ProjectPill } from "./chat-row";
 import {
@@ -405,6 +407,7 @@ function ChatMenu({
         )}
         <DropdownMenuSeparator />
         {groups.files.map(item)}
+        <ChatCopyMenu chat={chat} menu={dropdownMenuComponents} />
         <DropdownMenuSeparator />
         {groups.feedback.map(item)}
         <DropdownMenuSeparator />

@@ -30,7 +30,8 @@ import { type RowAction } from "./row-shell";
 const NEST_GUARD = StoreId.newSessionId();
 const calls = vi.hoisted(() => ({
   archive: vi.fn(),
-  location: vi.fn(),
+  developerDetails: vi.fn(),
+  forAgent: vi.fn(),
   rename: vi.fn(),
   retitle: vi.fn(),
   read: vi.fn(),
@@ -84,7 +85,8 @@ vi.mock("@/client/rpc/client", () => {
   return {
     rpcClient: {
       chatLocation: {
-        copy: routeOf(calls.location),
+        developerDetails: routeOf(calls.developerDetails),
+        forAgent: routeOf(calls.forAgent),
       },
       utils: {
         // The Finder's icon is decorative; the row draws its glyph without it.
@@ -1203,6 +1205,7 @@ describe("the row's actions", () => {
       "Rename",
       "Project",
       osConventions().showInFileManager,
+      "Copy",
       "Send feedback…",
       "Archive",
       "Delete chat…",
@@ -1227,14 +1230,26 @@ describe("the row's actions", () => {
     expect(onOpen).toHaveBeenCalledTimes(1);
   });
 
-  it("offers copying the chat location in developer mode alone, in its color", async () => {
+  it("copies the chat for an agent from its Copy submenu", async () => {
+    const { row } = await renderRow(chat());
+    await userEvent.click(titleOf(row), { button: "right" });
+    await userEvent.hover(page.getByRole("menuitem", { name: "Copy" }));
+    await expect
+      .element(page.getByRole("menuitem", { name: "Developer Details" }))
+      .not.toBeInTheDocument();
+    await userEvent.click(page.getByRole("menuitem", { name: "For an Agent" }));
+    expect(calls.forAgent).toHaveBeenCalledWith(INPUT);
+  });
+
+  it("offers developer details in developer mode alone, in its color", async () => {
     developerMode.enabled = true;
     const { row } = await renderRow(chat());
     await userEvent.click(titleOf(row), { button: "right" });
-    const copy = page.getByRole("menuitem", { name: "Copy chat location" });
-    await expect.element(copy).toHaveAttribute("data-variant", "developer");
-    await userEvent.click(copy);
-    expect(calls.location).toHaveBeenCalledWith(
+    await userEvent.hover(page.getByRole("menuitem", { name: "Copy" }));
+    const details = page.getByRole("menuitem", { name: "Developer Details" });
+    await expect.element(details).toHaveAttribute("data-variant", "developer");
+    await userEvent.click(details);
+    expect(calls.developerDetails).toHaveBeenCalledWith(
       expect.objectContaining({ sessionId }),
     );
   });

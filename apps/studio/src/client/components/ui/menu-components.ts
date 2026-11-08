@@ -27,7 +27,7 @@ export interface MenuComponents {
     disabled?: boolean;
     onClick?: React.MouseEventHandler;
     onSelect?: (event: Event) => void;
-    variant?: "default" | "destructive";
+    variant?: "default" | "destructive" | "developer";
   }>;
   Separator: React.ComponentType<{ className?: string }>;
   /** The keys that do what the row does, dimmed at the row's end. */

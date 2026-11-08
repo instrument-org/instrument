@@ -1,5 +1,6 @@
 import {
   chatOutputFolder,
+  workDir,
   ChatIdSchema,
   liveRead,
 } from "@instrument-org/workspace/electron";
@@ -599,6 +600,20 @@ const chatFolderPath = base
     return dir;
   });
 
+/**
+ * A chat's work folder on this computer, where its scratch goes, for the
+ * person to hand to another program. Made when it is not there yet, so the
+ * path copied opens; the app removes it again once the chat comes to rest
+ * with nothing in it.
+ */
+const chatWorkFolderPath = base
+  .input(z.object({ id: ChatIdSchema }))
+  .handler(async ({ input }) => {
+    const dir = workDir(input.id);
+    await fs.mkdir(dir, { recursive: true });
+    return dir;
+  });
+
 const copyFileToClipboard = base
   .errors({
     FILE_NOT_FOUND: { message: "File not found" },
@@ -719,5 +734,6 @@ export const utils = {
   showFolderPicker,
   syncZoom,
   chatFolderPath,
+  chatWorkFolderPath,
   toggleMaximizeWindow,
 };

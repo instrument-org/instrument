@@ -106,25 +106,6 @@ export async function showChatFolder(chatId: ChatId) {
   await showInFolder(hostPath, { kind: "folder" });
 }
 
-/**
- * Puts the path of a chat's folder on the clipboard, for handing what the
- * chat made to another program or agent.
- */
-export async function copyChatFolderPath(chatId: ChatId) {
-  const [error, hostPath] = await safe(
-    rpcClient.utils.chatFolderPath.call({ id: chatId }),
-  );
-  if (error) {
-    toast.error("Couldn't find the chat's folder", { cause: error });
-    return;
-  }
-  try {
-    await navigator.clipboard.writeText(hostPath);
-  } catch (copyError) {
-    toast.error("Couldn't copy the path", { cause: copyError });
-  }
-}
-
 /** A project's own folder, `Projects/<Name>/` at the top of the workspace kept in `rootDir`. */
 export function projectFolderPath(rootDir: string, name: string) {
   return joinHostPath(rootDir, PROJECTS_FOLDER_NAME, name);

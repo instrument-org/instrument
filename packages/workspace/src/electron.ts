@@ -203,6 +203,11 @@ export {
   instrumentFolderUnchosen,
   outputFolderPath,
 } from "./lib/chat/output-folder";
+export {
+  chatDeveloperDetailsText,
+  chatForAgentText,
+  chatPlaces,
+} from "./lib/chat/chat-for-agent";
 export { watchFolder } from "./lib/folder-watch";
 export { placePaths, startupPaths } from "./lib/permissions/places";
 export { chatSessions, chatStartedWithApp, chatTitle } from "./lib/chat-info";

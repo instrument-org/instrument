@@ -3,15 +3,7 @@ import { describe, expect, it } from "vitest";
 import { chatMenuGroups } from "./chat-actions";
 import { type RowAction } from "./row-shell";
 
-const ids = [
-  "archive",
-  "read",
-  "star",
-  "location",
-  "reveal",
-  "copy-path",
-  "feedback",
-];
+const ids = ["archive", "read", "star", "reveal", "feedback"];
 
 describe("chatMenuGroups", () => {
   it("puts every action a chat offers into one of its menu groups", () => {
@@ -32,9 +24,7 @@ describe("chatMenuGroups", () => {
           "feedback",
         ],
         "files": [
-          "location",
           "reveal",
-          "copy-path",
         ],
         "marks": [
           "read",

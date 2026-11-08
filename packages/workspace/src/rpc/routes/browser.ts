@@ -165,7 +165,7 @@ const presence = base
 const agentActivity = base
   .input(
     z.object({
-      /** The guest asked about: a window tab, driven by the chat or whichever task was handed it. */
+      /** The guest asked about: a window tab, which any session of its chat drives. */
       targetId: BrowserTargetIdSchema,
     }),
   )

@@ -110,32 +110,21 @@ function useTaskMessages(id: StoreId.Session, isWorking: boolean) {
 type PageTab = Extract<WindowTab, { kind: "page" }>;
 
 /**
- * The page a session's work is on: the tab among its own its agent drove last.
- * Nothing is read while `sessionId` is absent.
+ * The page a session's work is on: the chat's tab an agent drove last, since
+ * every session of a chat drives every tab of it. Nothing is read while
+ * `sessionId` is absent.
  */
 function useDrivenTab(
   sessionId: StoreId.Session | undefined,
 ): PageTab | undefined {
   const chat = useLiveChat();
   const { allTabs } = useWindowTabs();
-  const state = useQuery({
-    ...rpcClient.workspace.chats.state.queryOptions({ input: { id: chat } }),
-    enabled: sessionId !== undefined,
-  });
-  const held = new Set<string>(
-    (state.data?.browserTabs ?? []).flatMap((tab) =>
-      tab.driver === sessionId ? [tab.id] : [],
-    ),
-  );
-  const pages =
+  const mine =
     sessionId === undefined
       ? []
       : allTabs.filter(
           (tab): tab is PageTab => tab.kind === "page" && tab.group === chat,
         );
-  const mine = pages.some((tab) => held.has(tab.id))
-    ? pages.filter((tab) => held.has(tab.id))
-    : pages;
   const driven = useQueries({
     combine: (results) => results.map((result) => result.data?.lastAt ?? 0),
     queries: mine.map((tab) =>

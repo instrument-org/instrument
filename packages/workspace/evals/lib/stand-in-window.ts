@@ -5,7 +5,7 @@
  * What it stands in for is the window's bookkeeping, not its pages. A tab id
  * the conversation reads in the note resolves here, `instrument window show <url>` makes a
  * new id and puts it in front, `close` and `show --in` act on the list, and a page tab reads as a live target
- * so `instrument task new --tab` accepts it. A task handed one still browses in a Chrome
+ * so the bridge lists it as the chat's. A task still browses in a Chrome
  * of its own (the run has no guests), so a case scores what the conversation
  * decided, not what a task saw in the tab. Given a shared Chrome
  * (`sharedBrowser`), each page tab is a real page there instead, which every
@@ -74,14 +74,6 @@ export function createStandInWindow(chrome?: SharedChrome) {
             : { id: tab.id, kind: "screen" as const }),
         })),
       };
-    }
-    if (action.kind === "adopt") {
-      tabs.set(action.tabId, {
-        at: action.url,
-        id: action.tabId,
-        kind: "page",
-      });
-      return { tabId: action.tabId };
     }
     if (action.kind === "theirs" || action.kind === "take") {
       const own = theirs.get(action.tabId);
@@ -188,7 +180,7 @@ export function createStandInWindow(chrome?: SharedChrome) {
   };
 
   return {
-    /** The browser config with the window's page tabs live, for `--tab` to accept. */
+    /** The browser config with the window's page tabs live. */
     browser(base: BrowserConfig): BrowserConfig {
       return {
         ...base,

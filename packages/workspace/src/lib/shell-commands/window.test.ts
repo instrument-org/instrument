@@ -32,9 +32,12 @@ const holders = new Map<
 >();
 // How long a call waits on the window, short where a test has none answer.
 let windowTimeoutMs = 2000;
-vi.mock(import("../chat/window-tab"), async (importOriginal) => ({
+vi.mock(import("../chat/chat-tabs"), async (importOriginal) => ({
   ...(await importOriginal()),
   tabHolders: () => Promise.resolve(holders),
+}));
+vi.mock(import("../chat/window-tab"), async (importOriginal) => ({
+  ...(await importOriginal()),
   get WINDOW_TAB_TIMEOUT_MS() {
     return windowTimeoutMs;
   },
@@ -366,7 +369,7 @@ describe("window close, show and read on a tab", () => {
 });
 
 describe("window list", () => {
-  it("names what is in the window by the ids the other subcommands and --tab take", async () => {
+  it("names what is in the window by the ids the other subcommands and agent-browser tab take", async () => {
     holders.set(pageTab, {
       id: ChatIdSchema.parse("t1"),
       title: "Compare plans",

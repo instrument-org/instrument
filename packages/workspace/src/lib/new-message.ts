@@ -25,7 +25,7 @@ import { detectMessageGap } from "./message-gap";
 import { pathExists } from "./path-exists";
 import { folderReach } from "./chat/folder-reach";
 import { listProjects, type ProjectFolder } from "./chat/projects";
-import { tabHolders } from "./chat/window-tab";
+import { tabHolders } from "./chat/chat-tabs";
 import { chatDir, resolveChat } from "./record-folders";
 import { chatModelURI, setChatModel } from "./chat-settings";
 import { grantFile, grantFolder } from "./chat/grants";

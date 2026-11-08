@@ -122,7 +122,7 @@ function pageNote(data: ViewContext) {
   const { page } = data;
   if (!page) {
     return systemNote`
-      When the user sent this, the window showed the Browser with no tab open. "This page" refers to nothing yet, and there is no tab to hand a task until one is opened: \`${WINDOW_COMMAND.name} show <url>\` opens one.
+      When the user sent this, the window showed the Browser with no tab open. "This page" refers to nothing yet, and there is no tab to work in until one is opened: \`${WINDOW_COMMAND.name} show <url>\` opens one.
     `;
   }
   const title = page.title ? ` "${page.title}"` : "";
@@ -207,7 +207,7 @@ function screenNote(data: ViewContext, shellPath: ShellPath) {
   }
 }
 
-/** The window's tabs, in a line, so \`tab\` has something to act on and "--tab" something to name. */
+/** The window's tabs, in a line, so \`tab\` has something to act on. */
 function tabsNote(data: ViewContext) {
   const tabs = (data.tabs ?? []).slice(0, TABS_NAMED_MAX);
   if (tabs.length === 0 || data.screen === "browser") {

@@ -7,7 +7,6 @@ import {
   type ChatId,
   browserTargetOf,
   isFolderPath,
-  StoreId,
   WINDOW_ID,
   type WindowTabAnswer,
   type WindowTabRequest,
@@ -439,14 +438,6 @@ export function useOpeners({
         setPaneOpen(into, true);
       }
       return { tabId };
-    }
-    if (action.kind === "adopt") {
-      const id = StoreId.TabSchema.safeParse(action.tabId);
-      if (group === undefined || !id.success) {
-        return { error: "only a chat's page can be given a tab." };
-      }
-      browser?.adopt(id.data, action.url, group);
-      return { tabId: id.data };
     }
     if (action.kind === "theirs" || action.kind === "take") {
       const theirs = windowTabs.allTabs.find(

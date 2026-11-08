@@ -13,52 +13,33 @@ function tabIdOfEarlierBuilds(id: string) {
 }
 
 /**
- * A tab of the window one of the chat's sessions drives: one the
- * conversation handed a task, which is the user's and outlives the task, or
- * one an agent opened itself.
+ * A tab one of the chat's agents opened for its own work. Every session of
+ * the chat sees and drives every tab of the chat; this only says which tabs
+ * close on their own once nobody is working in them and the person never
+ * used them (`closeTurnTabs`), and which count toward `CHAT_HIDDEN_TAB_CAP`.
  */
-const HeldTabSchema = z.object({
-  /**
-   * The task that drives it, by its session; absent for a tab the chat's own
-   * conversation drives. One driver per tab, and a task's tabs go back to the
-   * chat when it finishes.
-   */
-  driver: StoreId.SessionSchema.optional(),
-  // Held tabs earlier builds saved name it `window/<tab>`, or by a `ses_`
-  // id from before tabs had ids of their own.
-  id: z.string().transform(tabIdOfEarlierBuilds).pipe(BrowserTargetIdSchema),
-  /**
-   * Whether the tab is in the chat's tabs in the window. A page an agent asks
-   * for with no address is made with no tab, and gets one as it first goes
-   * somewhere; one that never does is closed when its session's turn ends,
-   * so looking around the browser leaves no blank tab behind.
-   */
-  inWindow: z.boolean().default(true),
-  openedBy: z.enum(["handed", "task"]),
-});
+const OpenedTabSchema = z.object({ id: BrowserTargetIdSchema });
 
-export type HeldTab = z.output<typeof HeldTabSchema>;
+export type OpenedTab = z.output<typeof OpenedTabSchema>;
 
 /**
  * How many tabs a chat may keep out of the user's sight that its agents
- * opened themselves, across its conversation and its tasks. Tabs handed to
- * them, and the user's own, never count and are never closed for it.
+ * opened themselves, across its conversation and its tasks. The user's own
+ * tabs never count and are never closed for it.
  */
 export const CHAT_HIDDEN_TAB_CAP = 20;
 
 /**
  * A tab an agent opened that the app closed on its own, waiting for the
- * session that drove it to be told: the next browser note it gets says so,
- * and takes it from here.
+ * chat's conversation to be told: its next browser note says so, and takes
+ * it from here.
  */
 const ClosedTabSchema = z.object({
-  /** The session that drove it, as `HeldTab.driver`. */
-  driver: StoreId.SessionSchema.optional(),
   id: z.string().transform(tabIdOfEarlierBuilds),
   /**
    * Why: the chat had more tabs it opened itself out of sight than it may
-   * keep (`tabCap`), or the chat's turn ended and the person never used the
-   * tab (`turnEnd`).
+   * keep (`tabCap`), or the chat's turn ended with nobody working in the tab
+   * and the person never having used it (`turnEnd`).
    */
   reason: z.enum(["tabCap", "turnEnd"]),
   title: z.string().optional(),
@@ -214,8 +195,8 @@ export type Ask = z.output<typeof AskSchema>;
 // Where this device left off in a chat, in its own `state.<device>.json`.
 // Each field that will not parse costs the chat that field alone.
 export const StoredChatStateSchema = z.object({
-  browserTabs: z.array(HeldTabSchema).catch([]).default([]),
   closedTabs: z.array(ClosedTabSchema).catch([]).default([]),
+  openedTabs: z.array(OpenedTabSchema).catch([]).default([]),
 });
 
 export type ChatState = z.output<typeof StoredChatStateSchema>;

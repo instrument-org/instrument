@@ -10,7 +10,6 @@ import {
   handOverBackgroundProcesses,
   listBackgroundProcesses,
 } from "../../background-processes";
-import { updateHeldTabs } from "../../held-tabs";
 import { newMessage } from "../../new-message";
 import { getWorkspaceActorRef } from "../../workspace-actor-ref";
 import { normalizeId } from "../../shell-commands/background-jobs";
@@ -19,11 +18,6 @@ import { recordHandOff } from "../../shell-commands/task-hand-off";
 import { defineCapability } from "../define";
 import { chatModel } from "./model-choice";
 import { TASKS_ARE_THE_CHATS } from "./roles";
-import {
-  handedTabsLine,
-  refuseTabsDrivenElsewhere,
-  resolveTabs,
-} from "./tab-choice";
 
 /**
  * `instrument task new`: starts a task, which is always a fork of the chat.
@@ -36,9 +30,6 @@ export const taskNew = defineCapability({
     name: z.string().optional().meta({
       description: "The task's title, which the user sees.",
     }),
-    tab: z.array(z.string()).default([]).meta({
-      description: "Hands it a tab of the user's, page and all.",
-    }),
     job: z.array(z.string()).default([]).meta({
       description:
         "Hands it a command of yours still running in the background (an id `jobs` lists), which it then waits on rather than you.",
@@ -49,10 +40,8 @@ export const taskNew = defineCapability({
     /** Its handle in the chat, `t1`. */
     id: z.string(),
     name: z.string(),
-    /** The tabs it was handed. */
-    tabs: z.array(z.string()),
   }),
-  async run({ brief, job, name, tab }, ctx) {
+  async run({ brief, job, name }, ctx) {
     const directive = brief.trim();
     if (!directive) {
       throw new Error(
@@ -62,15 +51,12 @@ export const taskNew = defineCapability({
     const chatSessionId = ctx.sessionId;
     const jobs = handedJobs(job, chatSessionId);
     const { model, modelURI } = await chatModel("new", ctx);
-    const handedTabs = await resolveTabs(tab, { chatId: ctx.chatId });
-    await refuseTabsDrivenElsewhere(handedTabs, ctx.chatId);
     const title = name?.trim() || defaultTaskName(directive);
 
     const task = await startFork({
       callPartId: ctx.asker.partId,
       chatId: ctx.chatId,
       chatSessionId,
-      handedTabs,
       model,
       modelURI,
       name: title,
@@ -88,7 +74,7 @@ export const taskNew = defineCapability({
           : directive,
     });
     recordHandOff({ kind: "created", sessionId: task.id });
-    return { id: task.handle, name: title, tabs: handedTabs };
+    return { id: task.handle, name: title };
   },
   summary:
     "Start a task: you, carrying on in the background with this conversation as it stands, in this same folder and with the same folders, apps and memories, doing what stdin says while you keep answering here.",
@@ -102,8 +88,8 @@ id, t1. You are told when it finishes; do not poll it.`,
       words: ["task", "new"],
     },
   },
-  text: ({ id, name, tabs }) =>
-    `Started task ${id} ("${name}"). It is running now, in this folder with your folders.\n${handedTabsLine(tabs)}You will be told when it finishes; do not poll it or wait on it, and say nothing more about it until then unless the user asked something else.`,
+  text: ({ id, name }) =>
+    `Started task ${id} ("${name}"). It is running now, in this folder with your folders.\nYou will be told when it finishes; do not poll it or wait on it, and say nothing more about it until then unless the user asked something else.`,
   where: TASKS_ARE_THE_CHATS,
 });
 
@@ -177,7 +163,6 @@ async function startFork({
   callPartId,
   chatId,
   chatSessionId,
-  handedTabs = [],
   model,
   modelURI,
   name,
@@ -189,7 +174,6 @@ async function startFork({
   callPartId: StoreId.Part | undefined;
   chatId: ChatId;
   chatSessionId: StoreId.Session;
-  handedTabs?: Awaited<ReturnType<typeof resolveTabs>>;
   model: AIGatewayModel.Type;
   modelURI: Parameters<typeof newMessage>[0]["modelURI"];
   name: string;
@@ -224,17 +208,6 @@ async function startFork({
     updatedAt: now,
   });
   const sessionId = task.id;
-  if (handedTabs.length > 0) {
-    await updateHeldTabs(chatId, sessionId, (held) => [
-      ...held,
-      ...handedTabs.map((id) => ({
-        id,
-        inWindow: true,
-        openedBy: "handed" as const,
-      })),
-    ]);
-  }
-
   const message = await newMessage({
     fromChat: {
       ...(callPartId && { call: { handle: task.handle, partId: callPartId } }),

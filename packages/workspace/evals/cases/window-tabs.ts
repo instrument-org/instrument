@@ -2,8 +2,8 @@
  * Does the conversation arrange the user's tabs the way it is told to?
  *
  * The conversation acts on the window's tabs with `instrument window` (show,
- * close, request), browses pages of its own with `agent-browser`, and hands a
- * tab the user has open to a fork with `instrument task new --tab`. Showing a
+ * close, request), and browses with `agent-browser` in any tab of the chat,
+ * as each of its tasks does. Showing a
  * new page is for putting something in front of the user and never a step in
  * starting work. Every case here starts from a note naming the tabs the user
  * has open, answered by the harness's stand-in window, and scores the
@@ -11,9 +11,9 @@
  *
  * - **A new page is the browser's to open.** The failure that prompted this: a
  *   conversation opened a page and ran `instrument task new` in one command,
- *   told the task the tab id would come from the open, and passed no
- *   `--tab`, so the task had nothing and stopped.
- * - **A page on screen is handed over, not opened again.**
+ *   told the task the tab id would come from the open, so the task had
+ *   nothing and stopped.
+ * - **A page on screen is worked in, not opened again.**
  * - **Closing is exact.** It closes the tabs named, and nothing else of the
  *   user's.
  * - **A tab already open is brought forward**, not opened a second time.
@@ -142,8 +142,7 @@ const startedNoTask: Assertion = {
 
 /**
  * Never opened a page and started a task in the same command, where what the
- * task is told is written before the tab id exists, and never passed a `--tab` it had not
- * yet been told.
+ * task is told is written before the tab id exists.
  */
 const neverOpenedToHandOver: Assertion = {
   check: ({ sessions }) => {
@@ -164,21 +163,27 @@ const neverOpenedToHandOver: Assertion = {
   text: "Never opened a tab and started a task in one command",
 };
 
-function handedTab(tabId: string): Assertion {
-  const text = `Handed the task tab ${tabId}`;
+/**
+ * The work went to the tab the user has open: an `agent-browser` command or
+ * a task's brief names it. Every session of the chat drives every tab of it,
+ * so either one does.
+ */
+function workedInTab(tabId: string): Assertion {
+  const text = `Worked in tab ${tabId}`;
   return {
     check: ({ sessions }) => {
-      const handed = bashCommands(sessions).filter(
+      const named = bashCommands(sessions).filter(
         (command) =>
-          STARTS_A_TASK.test(command) &&
-          new RegExp(`--tab[ =]['"]?${tabId}`).test(command),
+          (STARTS_A_TASK.test(command) ||
+            /\bagent-browser\b[^\n]*\btab\b/.test(command)) &&
+          command.includes(tabId),
       );
       return {
         evidence:
-          handed.length > 0
-            ? handed.join("\n---\n")
+          named.length > 0
+            ? named.join("\n---\n")
             : bashCommands(sessions).join("\n---\n") || "no commands",
-        passed: handed.length > 0,
+        passed: named.length > 0,
         text,
       };
     },
@@ -187,30 +192,27 @@ function handedTab(tabId: string): Assertion {
 }
 
 /**
- * Every tab a task was handed is one of the chat's own: a tab_ id, never
- * agent-browser's `t1`, and never the user's own tab, which only a request
- * brings into the chat.
+ * Every tab `agent-browser` was switched to is one of the chat's own: never
+ * the user's own tab outside the chat, which only a request brings in.
  */
-const handedOnlyChatTabs: Assertion = {
+const usedOnlyChatTabs: Assertion = {
   check: ({ sessions }) => {
-    const handed = bashCommands(sessions)
-      .filter((command) => STARTS_A_TASK.test(command))
-      .flatMap((command) =>
-        [...command.matchAll(/--tab[ =]['"]?([^\s'"]+)/g)].map(
-          (match) => match[1] ?? "",
-        ),
-      );
-    const wrong = handed.filter(
-      (id) => !id.startsWith("tab_") || id === THEIR_TAB,
+    const switched = bashCommands(sessions).flatMap((command) =>
+      [...command.matchAll(/\bagent-browser\s+tab\s+(tab_[^\s'"]+)/g)].map(
+        (match) => match[1] ?? "",
+      ),
     );
+    const wrong = switched.filter((id) => id === THEIR_TAB);
     return {
       evidence:
-        handed.length > 0 ? `--tab ${handed.join(", --tab ")}` : "no --tab",
+        switched.length > 0
+          ? `tab ${switched.join(", tab ")}`
+          : "no tab switch",
       passed: wrong.length === 0,
-      text: "Handed a task only the chat's own tabs",
+      text: "Worked only in the chat's own tabs",
     };
   },
-  text: "Handed a task only the chat's own tabs",
+  text: "Worked only in the chat's own tabs",
 };
 
 /** Everything the conversation said, in order. */
@@ -362,9 +364,9 @@ export const WINDOW_TABS_EVALS = [
     // The beta.102 run that prompted tab requests, in the words it was typed
     // in: the user's own Amazon tab behind the draft. A copy of the page in
     // a tab of the chat's own does as well as the tab itself here, so the
-    // case scores only that no task was handed an id that was not the
+    // case scores only that nothing worked in a tab that was not the
     // chat's, which is where that run went wrong.
-    assertions: [browsedOrForked, handedOnlyChatTabs],
+    assertions: [browsedOrForked, usedOnlyChatTabs],
     kind: "chat",
     name: "window-tabs-their-page",
     prompt:
@@ -380,7 +382,7 @@ export const WINDOW_TABS_EVALS = [
     // is what the work needs, and asking for it is the way to it.
     assertions: [
       ranWindow("request", { matching: new RegExp(`^${THEIR_TAB}$`) }),
-      handedOnlyChatTabs,
+      usedOnlyChatTabs,
     ],
     kind: "chat",
     name: "window-tabs-their-tab-as-it-stands",
@@ -403,8 +405,8 @@ export const WINDOW_TABS_EVALS = [
   }),
 
   defineEval({
-    // The user's tab is driven by a fork it is handed to.
-    assertions: [handedTab(JAR_TAB), neverOpenedNew],
+    // The user's tab is worked in where it is, by the chat or a task.
+    assertions: [workedInTab(JAR_TAB), neverOpenedNew],
     kind: "chat",
     name: "window-tabs-hands-open-page",
     prompt: "follow five links from this page, one after another",

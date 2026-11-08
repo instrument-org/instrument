@@ -231,7 +231,7 @@ export namespace SessionMessageDataPart {
   >;
 
   /**
-   * The tabs of the user's chat a session holds, each by the id
+   * The tabs of the user's chat, every session's to drive, each by the id
    * `agent-browser tab` takes, with where each stands and what it costs.
    * The figures are coarse (memory to 10 MB, CPU to a whole percent and left
    * out under one, the time left to five minutes) so the picture reads the
@@ -259,7 +259,8 @@ export namespace SessionMessageDataPart {
         memoryMb: z.number().optional(),
         /** Whether the user's window draws it now. */
         onScreen: z.boolean().optional(),
-        openedBy: z.enum(["handed", "task"]),
+        /** `task` for a tab an agent of the chat opened; `handed` only in notes earlier builds wrote. */
+        openedBy: z.enum(["handed", "task"]).optional(),
         /** The other tabs its process draws too, whose cost this is as well. */
         sharedWith: z.array(z.string()).optional(),
         title: z.string().optional(),
@@ -699,7 +700,8 @@ export namespace SessionMessageDataPart {
             .array(
               z.object({
                 id: z.string(),
-                openedBy: z.enum(["handed", "task"]),
+                /** Only in events earlier builds wrote. */
+                openedBy: z.enum(["handed", "task"]).optional(),
                 url: z.string().optional(),
               }),
             )
@@ -1081,7 +1083,7 @@ export namespace SessionMessageDataPart {
     tab: z.string().optional(),
     /**
      * Whether that tab is the person's own, outside the chat: one the chat
-     * may ask them for (`window request`), not one it may name or hand a task.
+     * may ask them for (`window request`), not one it may drive.
      */
     theirs: z.boolean().optional(),
     /** The chat's other tabs, on screen or not. */
@@ -1204,14 +1206,14 @@ export namespace SessionMessageDataPart {
       })
       .optional(),
     page: ViewedPageSchema.optional(),
-    /** Every tab the window has open, on screen or not, for `tab` and "--tab" to name; the strip's order. */
+    /** Every tab the window has open, on screen or not, for `tab` to name; the strip's order. */
     tabs: z
       .array(
         z.object({
           /** A page's address, a file's path, or a screen's route. */
           at: z.string(),
           heldBy: TabHolderSchema.optional(),
-          /** The tab's id, which `tab` names it by and a page's tab is handed to a task by. */
+          /** The tab's id, which `tab` names it by. */
           id: z.string().optional(),
           title: z.string(),
         }),

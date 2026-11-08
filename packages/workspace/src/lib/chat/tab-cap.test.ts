@@ -5,22 +5,34 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { type TabLifetime } from "../../machines/window-browser";
 import { type ChatId, ChatIdSchema } from "../../schemas/chat-id";
-import { CHAT_HIDDEN_TAB_CAP, type HeldTab } from "../../schemas/chat-state";
+import { CHAT_HIDDEN_TAB_CAP, type OpenedTab } from "../../schemas/chat-state";
 import { StoreId } from "../../schemas/store-id";
 import { createMockChatConfigForDir } from "../../test/helpers/mock-chat-config";
 import { type BrowserTargetId, browserTargetOf } from "../../types";
 import { getChatState, setChatState } from "../chat-record";
 import { chatDir } from "../record-folders";
-import { closeTabsOverCap } from "./tab-cap";
+import { noteTabCommand } from "../tab-activity";
+import { getWorkspaceConfig, setWorkspaceConfig } from "../workspace-config";
+import { closeTabsOverCap, closeTurnTabs } from "./tab-cap";
 
 const lifetimes = vi.hoisted(() => new Map<string, TabLifetime>());
 const closes = vi.hoisted(() => [] as string[]);
 /** The tabs the window lists for the chat; undefined for no window to ask. */
 const listed = vi.hoisted(() => ({ ids: undefined as string[] | undefined }));
+/** The sessions with a turn running. */
+const working = vi.hoisted(() => new Set<string>());
 
 vi.mock(import("../../machines/window-browser"), async (importOriginal) => ({
   ...(await importOriginal()),
   tabLifetime: (targetId: BrowserTargetId) => lifetimes.get(targetId),
+}));
+vi.mock(import("./activity"), async (importOriginal) => ({
+  ...(await importOriginal()),
+  isWorking: (_chatId: ChatId, sessionId?: StoreId.Session) =>
+    sessionId !== undefined && working.has(sessionId),
+}));
+vi.mock(import("./open-asks"), () => ({
+  openAsks: () => Promise.resolve([]),
 }));
 vi.mock(import("./window-tab"), async (importOriginal) => ({
   ...(await importOriginal()),
@@ -43,19 +55,28 @@ vi.mock(import("./window-tab"), async (importOriginal) => ({
   },
 }));
 
-const TASK = StoreId.newSessionId();
-
 let chatId: ChatId;
 let root: string;
+let personUsed: Set<string>;
 
 beforeEach(async () => {
   lifetimes.clear();
   closes.length = 0;
   listed.ids = undefined;
+  working.clear();
+  personUsed = new Set();
   root = await fs.mkdtemp(path.join(os.tmpdir(), "tab-cap-"));
   chatId = createMockChatConfigForDir(
     path.join(root, "chats", ChatIdSchema.parse("tab-cap-test")),
   );
+  const config = getWorkspaceConfig();
+  setWorkspaceConfig({
+    ...config,
+    browser: {
+      ...config.browser,
+      personInputAt: (id) => (personUsed.has(id) ? 1 : undefined),
+    },
+  });
   await fs.mkdir(chatDir(chatId), { recursive: true });
 });
 
@@ -63,71 +84,66 @@ afterEach(async () => {
   await fs.rm(root, { force: true, recursive: true });
 });
 
-/** A tab out of sight for `minutes`, or on screen with none. */
-function heldTab(
-  minutes: null | number,
-  extra: Partial<HeldTab> = {},
-): HeldTab {
+/** A tab an agent opened, out of sight for `minutes`, or on screen with none. */
+function openedTab(minutes: null | number): OpenedTab {
   const id = browserTargetOf(StoreId.newTabId());
   lifetimes.set(id, {
     drawn: minutes === null,
     hiddenForMs: minutes === null ? null : minutes * 60_000,
     unloadsInMs: minutes === null ? null : 0,
   });
-  return { id, inWindow: true, openedBy: "task", ...extra };
+  return { id };
 }
 
 describe("closeTabsOverCap", () => {
   it("leaves a chat at the cap alone", async () => {
     const tabs = Array.from({ length: CHAT_HIDDEN_TAB_CAP }, (_, i) =>
-      heldTab(i),
+      openedTab(i),
     );
-    await setChatState(chatDir(chatId), { browserTabs: tabs });
+    await setChatState(chatDir(chatId), { openedTabs: tabs });
 
     await closeTabsOverCap(chatId);
 
     expect(closes).toEqual([]);
   });
 
-  it("closes the tab hidden longest past the cap, and keeps word of it for its driver", async () => {
-    const oldest = heldTab(500, { driver: TASK });
+  it("closes the tab hidden longest past the cap, and keeps word of it for the chat", async () => {
+    const oldest = openedTab(500);
     const tabs = [
-      ...Array.from({ length: CHAT_HIDDEN_TAB_CAP }, (_, i) => heldTab(i)),
+      ...Array.from({ length: CHAT_HIDDEN_TAB_CAP }, (_, i) => openedTab(i)),
       oldest,
     ];
-    await setChatState(chatDir(chatId), { browserTabs: tabs });
+    await setChatState(chatDir(chatId), { openedTabs: tabs });
 
     await closeTabsOverCap(chatId);
 
     expect(closes).toEqual([oldest.id]);
     const state = await getChatState(chatDir(chatId));
-    expect(state.browserTabs.map((tab) => tab.id)).not.toContain(oldest.id);
+    expect(state.openedTabs.map((tab) => tab.id)).not.toContain(oldest.id);
     expect(state.closedTabs).toEqual([
-      { driver: TASK, id: oldest.id, reason: "tabCap", url: "" },
+      { id: oldest.id, reason: "tabCap", url: "" },
     ]);
   });
 
-  it("never counts or closes a handed tab, a tab on screen, or a page with no tab", async () => {
+  it("never closes a tab on screen", async () => {
     const tabs = [
-      ...Array.from({ length: CHAT_HIDDEN_TAB_CAP }, (_, i) => heldTab(i)),
-      heldTab(900, { openedBy: "handed" }),
-      heldTab(null),
-      heldTab(900, { inWindow: false }),
+      ...Array.from({ length: CHAT_HIDDEN_TAB_CAP }, (_, i) => openedTab(i)),
+      openedTab(null),
     ];
-    await setChatState(chatDir(chatId), { browserTabs: tabs });
+    await setChatState(chatDir(chatId), { openedTabs: tabs });
 
     await closeTabsOverCap(chatId);
 
     expect(closes).toEqual([]);
   });
 
-  it("never counts or closes a tab the person closed in the window", async () => {
-    const closedByPerson = heldTab(900, { driver: TASK });
+  it("forgets a tab the person closed in the window, closing nothing for it", async () => {
+    const closedByPerson = openedTab(900);
     const tabs = [
-      ...Array.from({ length: CHAT_HIDDEN_TAB_CAP }, (_, i) => heldTab(i)),
+      ...Array.from({ length: CHAT_HIDDEN_TAB_CAP }, (_, i) => openedTab(i)),
       closedByPerson,
     ];
-    await setChatState(chatDir(chatId), { browserTabs: tabs });
+    await setChatState(chatDir(chatId), { openedTabs: tabs });
     listed.ids = tabs
       .filter((tab) => tab !== closedByPerson)
       .map((tab) => tab.id);
@@ -135,25 +151,57 @@ describe("closeTabsOverCap", () => {
     await closeTabsOverCap(chatId);
 
     expect(closes).toEqual([]);
-    expect((await getChatState(chatDir(chatId))).closedTabs).toEqual([]);
+    const state = await getChatState(chatDir(chatId));
+    expect(state.closedTabs).toEqual([]);
+    expect(state.openedTabs).toHaveLength(CHAT_HIDDEN_TAB_CAP);
   });
 
   it("closes an unloaded tab before any with a page", async () => {
-    const unloaded: HeldTab = {
-      id: browserTargetOf(StoreId.newTabId()),
-      inWindow: true,
-      openedBy: "task",
-    };
+    const unloaded: OpenedTab = { id: browserTargetOf(StoreId.newTabId()) };
     const tabs = [
       ...Array.from({ length: CHAT_HIDDEN_TAB_CAP }, (_, i) =>
-        heldTab(i + 1000),
+        openedTab(i + 1000),
       ),
       unloaded,
     ];
-    await setChatState(chatDir(chatId), { browserTabs: tabs });
+    await setChatState(chatDir(chatId), { openedTabs: tabs });
 
     await closeTabsOverCap(chatId);
 
     expect(closes).toEqual([unloaded.id]);
+  });
+});
+
+describe("closeTurnTabs", () => {
+  it("closes the tabs agents opened that nobody is working in and the person never used", async () => {
+    const idle = openedTab(1);
+    const used = openedTab(1);
+    personUsed.add(used.id);
+    const onScreen = openedTab(null);
+    await setChatState(chatDir(chatId), {
+      openedTabs: [idle, used, onScreen],
+    });
+
+    await closeTurnTabs(chatId);
+
+    expect(closes).toEqual([idle.id]);
+    expect((await getChatState(chatDir(chatId))).closedTabs).toEqual([
+      { id: idle.id, reason: "turnEnd", url: "" },
+    ]);
+  });
+
+  it("leaves a tab a task with a turn running has driven, and closes it once that task is done", async () => {
+    const task = StoreId.newSessionId();
+    const tab = openedTab(1);
+    noteTabCommand(tab.id, { chatId, sessionId: task });
+    working.add(task);
+    await setChatState(chatDir(chatId), { openedTabs: [tab] });
+
+    await closeTurnTabs(chatId);
+    expect(closes).toEqual([]);
+
+    working.delete(task);
+    await closeTurnTabs(chatId);
+    expect(closes).toEqual([tab.id]);
   });
 });

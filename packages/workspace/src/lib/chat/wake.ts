@@ -9,7 +9,7 @@ import { type SessionMessageDataPart } from "../../schemas/session/message-data-
 import { type SessionMessagePart } from "../../schemas/session/message-part";
 import { type StopNotice, type Stopper } from "../../schemas/stop-notice";
 import { StoreId } from "../../schemas/store-id";
-import { closePagesWithNoTab, heldTabs, returnTabsToChat } from "../held-tabs";
+import { tabsActedInBy } from "../tab-activity";
 import {
   agentPathOfFileUrl,
   agentSpellingOfFileUrls,
@@ -421,16 +421,16 @@ async function onSessionDone(
   const chatId = resolveChat(id);
   // Taken whether or not a note follows, so none carries into another turn's.
   const refused = takeRoleRefusals(sessionId);
-  // Any session's pages that never went anywhere go with its turn, unless
-  // its next turn has started, whose pages these may be by now: they go
-  // when that one ends.
-  if (chatId && !isWorkingAgain(chatId, sessionId)) {
-    await closePagesWithNoTab(chatId, sessionId);
-    // The chat's own turn, ended on its own rather than stopped: the tabs
-    // it opened that the person never used go with it.
-    if (stop === undefined && sessionId === sessionOfChat(chatId)) {
-      await closeTurnTabs(chatId).catch(getWorkspaceConfig().captureException);
-    }
+  // The chat's own turn, ended on its own rather than stopped and not
+  // started again: the tabs its agents opened that nobody is working in and
+  // the person never used go with it.
+  if (
+    chatId &&
+    stop === undefined &&
+    sessionId === sessionOfChat(chatId) &&
+    !isWorkingAgain(chatId, sessionId)
+  ) {
+    await closeTurnTabs(chatId).catch(getWorkspaceConfig().captureException);
   }
   const task = chatId ? await childTask(chatId, sessionId) : undefined;
   if (!chatId || !task) {
@@ -459,10 +459,8 @@ async function onSessionDone(
     ...(stop ? [] : (await openAsksOf(chatId, sessionId)).map(cardNeed)),
   ];
   await touchTask(chatId, sessionId, stop ? { stoppedBy: stop.by } : {});
-  // The pages it leaves open, read while it still drives them, then given
-  // back: a tab has one driver, and a finished task drives nothing.
+  // The pages it leaves open, which the chat may show the user.
   const tabs = await openTabsOf(ref);
-  await returnTabsToChat(chatId, sessionId);
   // Its agent-browser daemons, which would otherwise idle out on their own
   // clock; a later `instrument task send` starts them again.
   void closeAgentBrowserSessionsForSessions([sessionId]).catch(
@@ -649,9 +647,9 @@ function mergeTaskEvents(
 }
 
 /**
- * The window's tabs a task held that are still open, by the id `tab` takes:
- * a result the task left on a page is in one of these, and nowhere in the
- * task's own transcript.
+ * The window's tabs a task drove that are still open, by the id `tab` takes,
+ * the latest first: a result the task left on a page is in one of these,
+ * and nowhere in the task's own transcript.
  */
 async function openTabsOf({
   sessionId,
@@ -662,14 +660,13 @@ async function openTabsOf({
 }): Promise<NonNullable<TaskEvent["tabs"]>> {
   const { browser } = getWorkspaceConfig();
   const tabs: NonNullable<TaskEvent["tabs"]> = [];
-  for (const tab of await heldTabs(chatId, sessionId)) {
-    if (!browser.getTargetMeta(tab.id)) {
+  for (const id of tabsActedInBy(sessionId)) {
+    if (!browser.getTargetMeta(id)) {
       continue;
     }
-    const url = browser.getTargetUrl(tab.id);
+    const url = browser.getTargetUrl(id);
     tabs.push({
-      id: tab.id,
-      openedBy: tab.openedBy,
+      id,
       ...(url === undefined
         ? {}
         : { url: await chatSpellingOfUrl(url, chatId) }),

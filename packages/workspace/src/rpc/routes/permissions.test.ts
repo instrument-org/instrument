@@ -6,7 +6,6 @@ import path from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { setChatModel } from "../../lib/chat-settings";
-import { heldTabs } from "../../lib/held-tabs";
 import { publisher } from "../publisher";
 import { appRefusal } from "../../lib/permissions/apps";
 import {
@@ -308,11 +307,11 @@ describe("permissions.answer", () => {
     }
 
     it.each([
-      [true, "allowed", [{ id: tab, inWindow: true, openedBy: "handed" }]],
-      [false, "gone", []],
+      [true, "allowed"],
+      [false, "gone"],
     ] as const)(
       "moves it in on Move when it is open (%s), and wakes the chat with %s",
-      async (open, answer, held) => {
+      async (open, answer) => {
         windowWith(open);
         const { chatId, own } = await chatWithTask();
         await recordAsk(
@@ -334,7 +333,6 @@ describe("permissions.answer", () => {
         expect(wokenSince(sentBefore)).toEqual([
           { answer: [answer], sessionId: own },
         ]);
-        expect(await heldTabs(chatId, own)).toEqual(held);
         expect(await openAsks(chatId)).toEqual([]);
       },
     );
@@ -355,7 +353,6 @@ describe("permissions.answer", () => {
       expect(wokenSince(sentBefore)).toEqual([
         { answer: ["declined"], sessionId: own },
       ]);
-      expect(await heldTabs(chatId, own)).toEqual([]);
       expect(await chatDenials(chatId)).toEqual([]);
     });
   });
@@ -1082,9 +1079,6 @@ describe("permissions.answer", () => {
         moveTab?.();
         await answering;
         expect(settled).toBe(true);
-        expect(await heldTabs(chatId, own)).toEqual([
-          { id: tab, inWindow: true, openedBy: "handed" },
-        ]);
       } finally {
         stopWindow();
         stopWatcher();

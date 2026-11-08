@@ -1039,10 +1039,12 @@ function createBrowserViewManager(): BrowserViewManager {
     },
     guestCost: (targetId) => guestCost(entries, targetId),
     isGuestAsleep: (targetId) => entries.get(targetId)?.asleep ?? false,
-    wasUsedByPerson: (targetId) => {
+    personInputAt: (targetId) => {
       const guestId = entries.get(targetId)?.webContents?.id;
       const record = guestId === undefined ? undefined : guests.get(guestId);
-      return record !== undefined && record.userInputAt > 0;
+      return record !== undefined && record.userInputAt > 0
+        ? record.userInputAt
+        : undefined;
     },
     isGuestBusy: (targetId) => {
       const entry = entries.get(targetId);

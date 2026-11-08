@@ -66,11 +66,11 @@ export interface BrowserConfig {
     sharedWith: BrowserTargetId[];
   };
   /**
-   * Whether a person has clicked, tapped or typed in the guest since it was
-   * made, by the guest's own record of input: an agent's dispatched input is
-   * not counted.
+   * When a person last clicked, tapped or typed in the guest, in ms since the
+   * epoch, by the guest's own record of input: an agent's dispatched input is
+   * not counted. Undefined when nobody has since it was made.
    */
-  wasUsedByPerson: (targetId: BrowserTargetId) => boolean;
+  personInputAt: (targetId: BrowserTargetId) => number | undefined;
   /** Whether the guest is asleep (`sleepGuest`), until a command or the window showing it wakes it. */
   isGuestAsleep: (targetId: BrowserTargetId) => boolean;
   /**

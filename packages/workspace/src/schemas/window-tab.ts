@@ -40,12 +40,6 @@ const WindowTabActionSchema = z.discriminatedUnion("kind", [
    */
   z.object({ kind: z.literal("restore"), tabId: z.string() }),
   /**
-   * Puts a page an agent made with no tab into the chat's tabs behind
-   * whatever is up, as it goes somewhere: the guest is already there, so
-   * the tab takes its id and nothing is loaded again.
-   */
-  z.object({ kind: z.literal("adopt"), tabId: z.string(), url: z.string() }),
-  /**
    * A page tab of the person's own, outside every chat, which a note on
    * their message named: its title and address, for the card that asks for
    * it. Answered with `tabs`, or an error when no such tab is open.

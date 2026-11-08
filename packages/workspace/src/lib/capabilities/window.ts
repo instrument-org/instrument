@@ -7,11 +7,8 @@ import {
 import { parseBrowserTargetId } from "../../types";
 import { noteBrowserAgentActivity } from "../browser-agent-activity";
 import { recordAsk } from "../chat/asks";
-import {
-  askWindow,
-  tabHolders,
-  WINDOW_TAB_TIMEOUT_MS,
-} from "../chat/window-tab";
+import { askWindow, WINDOW_TAB_TIMEOUT_MS } from "../chat/window-tab";
+import { tabHolders } from "../chat/chat-tabs";
 import { agentPathOfFileUrl, isLocalAddress } from "../local-page-address";
 import { recordRaisedAsk } from "../shell-commands/raised-asks";
 import {
@@ -180,7 +177,7 @@ export const windowList = defineCapability({
     });
   },
   summary:
-    "The chat's tabs, one line each, as what is in the window: the id every other subcommand and `--tab` take, whether it is in front, what it shows, and which task is at work in it.",
+    "The chat's tabs, one line each, as what is in the window: the id every other subcommand and `agent-browser tab` take, whether it is in front, what it shows, and which task is at work in it.",
   surfaces: {
     cli: { help: "", words: ["window", "list"] },
     script: {},
@@ -263,7 +260,7 @@ export const windowShow = defineCapability({
     return outcomes;
   },
   summary:
-    "Put each in front: a url, file or folder opens in a tab of its own, printing the tab's id, which a task takes with --tab; a tab's id brings it forward.",
+    "Put each in front: a url, file or folder opens in a tab of its own, printing the tab's id, which `agent-browser tab` takes; a tab's id brings it forward.",
   surfaces: {
     cli: {
       flagNames: { into: "in" },
@@ -403,7 +400,7 @@ export const windowRequest = defineCapability({
     const own = await ask({ kind: "list" }, ctx);
     if (own?.tabs?.some((each) => each.id === tab)) {
       throw new Error(
-        `tab ${tab} is already this chat's: \`${NAME} read ${tab}\` reads it, and \`instrument task new --tab ${tab}\` hands it to a task.`,
+        `tab ${tab} is already this chat's: \`${NAME} read ${tab}\` reads it, and \`agent-browser tab ${tab}\` works in it.`,
       );
     }
     const answer = await ask({ kind: "theirs", tabId: tab }, ctx);

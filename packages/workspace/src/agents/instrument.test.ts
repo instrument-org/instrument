@@ -422,9 +422,7 @@ describe("instrumentAgent", () => {
     expect(prompt).toContain(
       "A task is you, continuing in the background with this conversation in hand",
     );
-    expect(prompt).toContain(
-      "instrument task new --name '<title>' [--tab <id>]",
-    );
+    expect(prompt).toContain("instrument task new --name '<title>' <<'EOF'");
     expect(prompt).toContain(
       "this same folder, and the same folders and apps at the same paths",
     );

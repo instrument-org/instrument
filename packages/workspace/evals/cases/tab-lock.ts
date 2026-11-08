@@ -1,6 +1,7 @@
 /**
- * The one-driver-per-tab lock between a chat and its tasks, and a session
- * seeing only the tabs it holds. Each case starts with the user looking at a
+ * A chat and its tasks sharing the chat's tabs, every session seeing and
+ * driving every one, with only the note on each `agent-browser` result
+ * saying who else acted in a tab to keep them apart. Each case starts with the user looking at a
  * shop page in a chat tab, in one real headless Chrome every session reaches
  * through the CDP bridge (`sharedBrowser`), and asks for work that could put
  * two sessions in that one page at once: two tasks on it, or the chat acting
@@ -496,14 +497,12 @@ const answeredDelivery = replied(
 const LONG_JOB =
   "Go through all four pages of this catalog and add every item that costs under $3 to my cart.";
 /**
- * The chat's first step hands the long job and the shop tab to t1, so the
- * follow-up meets a task driving the tab on every model.
+ * The chat's first step hands the long job to t1, naming the shop tab, so
+ * the follow-up meets a task driving the tab on every model.
  */
 const LONG_JOB_TASK = {
-  brief:
-    "Go through all four pages of the catalog in the shop tab you were handed and add every item that costs under $3 to the cart.",
+  brief: `Go through all four pages of the catalog in the shop tab (${SHOP_TAB}) and add every item that costs under $3 to the cart.`,
   name: "Cart under $3",
-  tabs: [SHOP_TAB],
 };
 const RETURNS_FOLLOW_UP =
   "Oh, and what's their returns policy? There's a link at the bottom of the page.";

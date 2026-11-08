@@ -6,7 +6,9 @@ import { type ChatId } from "../schemas/chat-id";
 import { BLANK_PAGE_URL } from "./browser-state";
 import { agentSpellingOfFileUrls } from "./local-page-address";
 import { sessionLayout } from "./session-layout";
-import { heldTabs, takeClosedTabs } from "./held-tabs";
+import { chatPageTabs, takeClosedTabs } from "./chat/chat-tabs";
+import { getChatState } from "./chat-record";
+import { chatDir, sessionOfChat } from "./record-folders";
 import { tabLifetime } from "../machines/window-browser";
 import { getWorkspaceConfig } from "./workspace-config";
 
@@ -26,18 +28,19 @@ export async function createBrowserStatusPart({
     // by where the file sits on the person's disk.
     const layout = await sessionLayout({ chatId, sessionId });
     const spell = (url: string) => agentSpellingOfFileUrls(url, layout);
-    const held = await heldTabsStatus({ sessionId, chatId }, spell);
+    const held = await chatTabsStatus(chatId, spell);
     if (held === null) {
       return undefined;
     }
-    const closed = (await takeClosedTabs(chatId, sessionId)).map(
-      ({ id, reason, title, url }) => ({
-        id,
-        reason,
-        ...(title ? { title } : {}),
-        url: spell(url),
-      }),
-    );
+    // What the app closed on its own is the chat's conversation's to hear.
+    const closed = (
+      sessionId === sessionOfChat(chatId) ? await takeClosedTabs(chatId) : []
+    ).map(({ id, reason, title, url }) => ({
+      id,
+      reason,
+      ...(title ? { title } : {}),
+      url: spell(url),
+    }));
     return createPart({
       createdAt,
       data: {
@@ -81,40 +84,46 @@ function createPart({
 }
 
 /**
- * The tabs of its chat a task holds, open ones only, as the task names them.
- * Null where there is no window (the eval harness): a task browses in a
- * browser of its own there whatever it holds, so there is nothing true to
- * tell it.
+ * The chat's tabs whose pages are up, every session's to drive, as the
+ * session names them. Null where there is no window (the eval harness): a
+ * session browses in a browser of its own there, so there is nothing true
+ * to tell it.
  */
-async function heldTabsStatus(
-  { sessionId, chatId }: { sessionId: StoreId.Session; chatId: ChatId },
+async function chatTabsStatus(
+  chatId: ChatId,
   spell: (url: string) => string,
 ): Promise<null | SessionMessageDataPart.BrowserStatusDataPart["tabs"]> {
   const { browser } = getWorkspaceConfig();
   if (browser.hasNoWindow) {
     return null;
   }
-  const held = await heldTabs(chatId, sessionId);
-  if (held.length === 0) {
+  // With no page up anywhere there is no window to ask.
+  const windowTargets = await browser.listTargets();
+  if (windowTargets.length === 0) {
     return [];
   }
-  const windowTargets = await browser.listTargets();
   const titles = new Map(
     windowTargets.map((target) => [target.id, target.title]),
   );
-  return held.flatMap((tab) => {
-    const url = browser.getTargetUrl(tab.id);
-    if (!browser.getTargetMeta(tab.id)) {
+  const [listed, { openedTabs }] = await Promise.all([
+    chatPageTabs(chatId),
+    getChatState(chatDir(chatId)),
+  ]);
+  return (listed ?? []).flatMap(({ targetId }) => {
+    if (!browser.getTargetMeta(targetId)) {
       return [];
     }
-    const title = titles.get(tab.id);
+    const url = browser.getTargetUrl(targetId);
+    const title = titles.get(targetId);
     return [
       {
-        id: tab.id,
-        openedBy: tab.openedBy,
+        id: targetId,
+        ...(openedTabs.some((tab) => tab.id === targetId)
+          ? { openedBy: "task" as const }
+          : {}),
         ...(title ? { title } : {}),
         url: spell(url ?? BLANK_PAGE_URL),
-        ...tabStanding(tab.id),
+        ...tabStanding(targetId),
       },
     ];
   });

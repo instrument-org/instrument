@@ -91,7 +91,7 @@ export function taskEventModelNote(
     // takes, since the task's transcript holds only its account of the page.
     const tabs =
       event.tabs && event.tabs.length > 0
-        ? `\n  Its pages still open in the window: ${event.tabs.map((tab) => `${tab.url ?? "a blank page"} (tab ${tab.id}${tab.openedBy === "handed" ? ", handed to it" : ""})`).join(", ")}.`
+        ? `\n  Its pages still open in the window: ${event.tabs.map((tab) => `${tab.url ?? "a blank page"} (tab ${tab.id})`).join(", ")}.`
         : "";
     const background =
       event.running && event.running.length > 0

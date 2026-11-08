@@ -622,8 +622,8 @@ export interface EvalCase {
   /**
    * What the window showed as the case's message was sent, as the note on it:
    * the tabs open, by their ids, and the page or screen up. The tabs it names
-   * are open in a stand-in window for the run, which answers `tab` and makes
-   * `--tab` accept a page tab's id.
+   * are open in a stand-in window for the run, which answers `tab` and lists
+   * them as the chat's.
    */
   viewing?: SessionMessageDataPart.ViewContextDataPart;
   /**

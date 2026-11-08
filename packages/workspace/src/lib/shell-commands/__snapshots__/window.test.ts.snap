@@ -26,7 +26,7 @@ exports[`window close, show and read on a tab > names the form it takes for [ 's
 `;
 
 exports[`window request > refuses a tab already the chat's, raising nothing 1`] = `
-"instrument window: tab <page> is already this chat's: \`instrument window read <page>\` reads it, and \`instrument task new --tab <page>\` hands it to a task.
+"instrument window: tab <page> is already this chat's: \`instrument window read <page>\` reads it, and \`agent-browser tab <page>\` works in it.
 "
 `;
 

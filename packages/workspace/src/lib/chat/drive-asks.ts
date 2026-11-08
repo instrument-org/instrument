@@ -25,7 +25,6 @@ import { ChatReads } from "../chat-reads";
 import { ChatWrites } from "../chat-writes";
 import { createWriteQueue } from "../create-write-queue";
 import { getCurrentDate } from "../get-current-date";
-import { updateHeldTabs } from "../held-tabs";
 import { hostPathWithin } from "../host-path";
 import { appBundleId, grantApp } from "../permissions/apps";
 import { setDenied } from "../permissions/denials";
@@ -1091,11 +1090,6 @@ export async function driveOwedAsks(
 }
 
 /**
- * Moves the tab an ask is for out of the person's own tabs and into the
- * chat, page and all; the first to ask drives it, as a tab handed over:
- * the person's, never closed by the agent. Answers whether it moved.
- */
-/**
  * Where a waited-on page stands as the person answers: the chat's tab as the
  * window has it now, or as the card showed it when the window does not say.
  */
@@ -1112,6 +1106,11 @@ async function pageNow(
   return tab?.kind === "page" ? { title: tab.title, url: tab.url } : ask.page;
 }
 
+/**
+ * Moves the tab an ask is for out of the person's own tabs and into the
+ * chat, page and all, where every session of the chat drives it; it stays
+ * the person's, never closed by an agent. Answers whether it moved.
+ */
 async function moveTabIn(
   chatId: ChatId,
   ask: PermissionAskRecord,
@@ -1121,17 +1120,11 @@ async function moveTabIn(
     askedBy: chatId,
     group: chatId,
   });
-  const tabId = parseBrowserTargetId(ask.target);
-  const driver = ask.askers[0]?.sessionId;
-  const moved =
-    took !== undefined && took.error === undefined && tabId !== null;
-  if (moved && driver !== undefined) {
-    await updateHeldTabs(chatId, driver, (tabs) => [
-      ...tabs.filter((tab) => tab.id !== tabId),
-      { id: tabId, inWindow: true, openedBy: "handed" },
-    ]).catch(getWorkspaceConfig().captureException);
-  }
-  return moved;
+  return (
+    took !== undefined &&
+    took.error === undefined &&
+    parseBrowserTargetId(ask.target) !== null
+  );
 }
 
 /**

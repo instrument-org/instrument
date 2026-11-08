@@ -249,6 +249,12 @@ node $DRIVE run $(dirname $DRIVE)/perf-chat-turns.mjs --allow-reload --clean-roo
 
 Long animation frames come back too, and those do depend on load: compare them only between runs taken side by side, ideally alternating, and say which machine they came from. The counts are the same in a dev run and a production build, so a dev run answers render and wire questions. Load time (parse, code cache, bundle size) needs a production build, made in a worktree of your own: a build replaces the `out/` that every dev instance of its checkout runs from.
 
+`hidden-tabs-quiet` checks that window tabs behind another go quiet, since a tab stays mounted while another is up and whatever it polls keeps going unseen. It opens one tab per kind of screen (Files at a folder, with a file open, Recents and This Computer; the browser's start and a page; Apps and an app's page; the chat list, a chat and a task; Extensions, release notes, a new tab), puts a fresh new tab in front, and counts every RPC frame per procedure over an idle (`idleSeconds`, 30). A `requests` entry is a hidden screen polling or re-reading: it fails the run (`quiet: false`, exit 1), and `alsoInBaseline` marks one that also went out from the shell before those screens were opened. `inbound` lists live streams that pushed, which should be only for a real change (a hidden page's guest put to sleep pushes `browser.live.targets` once). Tabs restored by its reload pile up across runs in one instance, so boot again for a count of only its own.
+
+```bash
+node $DRIVE run $(dirname $DRIVE)/hidden-tabs-quiet.mjs --allow-reload --quiet --workspace documents
+```
+
 ## Measuring the main thread
 
 Typing and pasting wait on the main process's thread twice: once for the key to reach the page and once for the paste's clipboard read. So input lag is a main-thread question, and the renderer's own timestamps cannot see it (`KeyboardEvent.timeStamp` is when the renderer got the event). Boot with the main process's inspector open and sample it:

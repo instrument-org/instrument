@@ -595,6 +595,13 @@ export namespace SessionMessageDataPart {
            */
           cachedTokens: z.number().nonnegative().optional(),
           /**
+           * The questions on the chat's own cards still open as the turn
+           * ended, which the person has not answered: what the chat already
+           * asked, whatever the task's words say of it. Absent when none
+           * are, and on an overdue event.
+           */
+          chatQuestions: z.array(z.string()).optional(),
+          /**
            * How the turn ended when it ended without words, in the line the
            * task list shows for it: what it was stopped in the middle of, the
            * step limit it hit, or what the model error was. Absent when the
@@ -629,6 +636,13 @@ export namespace SessionMessageDataPart {
            * not finished.
            */
           needs: z.array(z.string()).optional(),
+          /**
+           * What the task called this turn that was refused because it is a
+           * task, by what it called (`choose`, `instrument task new`): the
+           * app's account of those calls, beside the task's own. Absent
+           * when nothing was, and on an overdue event.
+           */
+          refused: z.array(z.string()).optional(),
           /**
            * Whether sending the task on picks its turn up again: true when
            * the step limit, the output limit, a model error, or a timeout
@@ -747,6 +761,17 @@ export namespace SessionMessageDataPart {
    * fork's standing note ahead of an assignment.
    */
   export const FromChatDataPartSchema = z.object({
+    /**
+     * On an assignment, the chat's call that started the task (the `bash`
+     * part `instrument task new` ran in) and the handle it was given: the
+     * task's history runs through that call's step, which it reads with
+     * that call answered as its own start and the step's other calls as
+     * the chat's (`handOffResults`). Absent on an assignment no call
+     * started, and on one written before tasks read their start.
+     */
+    call: z
+      .object({ handle: z.string(), partId: StoreId.PartSchema })
+      .optional(),
     kind: z.enum(["assignment", "message"]),
     text: z.string().trim().min(1),
   });

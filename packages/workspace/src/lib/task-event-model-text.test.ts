@@ -50,6 +50,52 @@ describe("taskEventModelNote", () => {
     `);
   });
 
+  it("says what the task was refused for being a task, and the chat's own cards still open", () => {
+    const note = taskEventModelNote({
+      events: [
+        {
+          activeMs: 13_600,
+          chatQuestions: ["Which planet is your favorite?"],
+          handle: "t1",
+          refused: ["instrument task new", "choose"],
+          status: "done",
+          summary:
+            "The task command wouldn't start from this chat, so the work was done directly. The question card also failed to appear.",
+          sessionId: TASK_ID,
+          title: "Haikus for each planet",
+          tokens: 134_585,
+        },
+      ],
+    });
+    expect(note).toMatchInlineSnapshot(`
+      "
+      <instrument-system-note>
+      A task you created has finished:
+      - t1 ("Haikus for each planet") finished a turn (14 seconds of work, 135K tokens so far). It said:
+            The task command wouldn't start from this chat, so the work was done directly. The question card also failed to appear.
+        Refused because it is a task: \`instrument task new\`, \`choose\`.
+      Still open on your own card, unanswered: "Which planet is your favorite?".
+      Nobody typed anything; this note is why you are awake. What it found or made is yours to pass on, as the answer, in the conversation as it stands now: a line or two on what it means for the user, with what it made in the files fence, or nothing when they have since moved on or said they do not want it.
+      </instrument-system-note>"
+    `);
+  });
+
+  it("reads the chat's own cards from the newest event, where none means none open", () => {
+    const event = {
+      sessionId: TASK_ID,
+      status: "done" as const,
+      summary: "Done.",
+      title: "Haikus",
+    };
+    const note = taskEventModelNote({
+      events: [
+        { ...event, chatQuestions: ["Which planet is your favorite?"] },
+        { ...event, title: "Limericks" },
+      ],
+    });
+    expect(note).not.toContain("Still open on your own card");
+  });
+
   it("says how a turn ended in place of the words it did not say", () => {
     const note = taskEventModelNote({
       events: [

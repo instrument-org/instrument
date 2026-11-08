@@ -131,13 +131,13 @@ function handedJobs(args: string[], sessionId: StoreId.Session): string[] {
 }
 
 /**
- * The last of the chat's messages a task carries on from: the one before the
- * step whose call (`callPartId`, the `bash` part `instrument task new` runs in) starts
- * it, which is the last message the request that wrote that call was sent.
- * The task's first request then sends that same prefix, which the provider
- * has cached, and nothing of the step still under way, whose calls have no
- * results yet and whose own result would read as the work already started.
- * The newest message when no call is named.
+ * The last of the chat's messages a task carries on from: the step whose
+ * call (`callPartId`, the `bash` part `instrument task new` runs in) starts
+ * it, so the user's words that step answered read as answered, and the
+ * chat's other calls in it as made. The task reads the step with its calls
+ * answered for it (`handOffResults`), so everything before the step is the
+ * prefix the chat's step request sent, which the provider has cached, and
+ * only the step itself is new. The newest message when no call is named.
  */
 async function forkPoint({
   callPartId,
@@ -158,12 +158,11 @@ async function forkPoint({
   const calling = messages.value.findIndex((message) =>
     message.parts.some((part) => part.metadata.id === callPartId),
   );
-  const before =
-    calling === -1 ? messages.value.at(-1) : messages.value[calling - 1];
-  if (!before) {
+  const at = calling === -1 ? messages.value.at(-1) : messages.value[calling];
+  if (!at) {
     throw new Error("there is no conversation to carry on from yet.");
   }
-  return before.id;
+  return at.id;
 }
 
 /**
@@ -186,7 +185,7 @@ async function startFork({
 }: {
   /** What the chat asks the task to do, as it wrote it. */
   assignment: string;
-  /** The call starting it, whose step the task leaves out. */
+  /** The call starting it, whose step the task carries on from. */
   callPartId: StoreId.Part | undefined;
   chatId: ChatId;
   chatSessionId: StoreId.Session;
@@ -237,7 +236,11 @@ async function startFork({
   }
 
   const message = await newMessage({
-    fromChat: { kind: "assignment", text: assignment },
+    fromChat: {
+      ...(callPartId && { call: { handle: task.handle, partId: callPartId } }),
+      kind: "assignment",
+      text: assignment,
+    },
     modelURI,
     prompt: "",
     sessionId,

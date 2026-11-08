@@ -15,7 +15,7 @@ import { modelTool } from "../lib/capabilities/tool";
 
 // A task runs the chat's agent, questions included, where nobody sees a card.
 const ROLE_REFUSAL =
-  "You are running in the background, where nobody sees a question: only the chat asks the user. Do what you can, and end your last message with a needs fence naming what you need.";
+  "You are a task the chat started, running in the background, where nobody sees a card: the chat asks the user its questions itself. Do your assignment, and end your last message with a needs fence naming what you need from the user, if anything.";
 
 const NoteSchema = z.string().trim().min(1).optional();
 

@@ -11,7 +11,8 @@ import {
 } from "../../tools/types";
 import { sessionRole } from "../chat/children";
 import { executeError } from "../execute-error";
-import { unavailableReason } from "./admit";
+import { refusedForRole, unavailableReason } from "./admit";
+import { noteRoleRefusal } from "./role-refusals";
 import {
   type ToolInput,
   type ToolInputSchema,
@@ -101,13 +102,15 @@ export function modelTool<
       ),
     description: spec.description,
     execute: (call) => {
-      const refused = unavailableReason(
-        capability,
-        sessionRole(call.chatId, call.sessionId) ?? "task",
-      );
-      return refused === undefined
-        ? spec.execute(call)
-        : Promise.resolve(executeError(refused));
+      const role = sessionRole(call.chatId, call.sessionId) ?? "task";
+      const refused = unavailableReason(capability, role);
+      if (refused === undefined) {
+        return spec.execute(call);
+      }
+      if (refusedForRole(capability, role)) {
+        noteRoleRefusal(call.sessionId, spec.name);
+      }
+      return Promise.resolve(executeError(refused));
     },
     inputSchema,
     name: spec.name,

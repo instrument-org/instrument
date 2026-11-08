@@ -18,6 +18,7 @@ import {
 import { filesNamedIn } from "../parse-files-block";
 import { needsNamedIn, withoutNeedsFences } from "../parse-needs-block";
 import { openAsksOf } from "./open-asks";
+import { takeRoleRefusals } from "../capabilities/role-refusals";
 import { resolveChat, sessionOfChat } from "../record-folders";
 import { shellPath } from "../workspace-fs-layout";
 import { sessionLayout } from "../session-layout";
@@ -418,6 +419,8 @@ async function onSessionDone(
 ) {
   // Only a chat is woken, by a task of its own.
   const chatId = resolveChat(id);
+  // Taken whether or not a note follows, so none carries into another turn's.
+  const refused = takeRoleRefusals(sessionId);
   // Any session's pages that never went anywhere go with its turn, unless
   // its next turn has started, whose pages these may be by now: they go
   // when that one ends.
@@ -491,8 +494,17 @@ async function onSessionDone(
           needs.length > 0 ? withoutNeedsFences(receipt) : receipt,
           WAKE_SUMMARY_MAX_LENGTH,
         );
+  // The chat's own questions still up, which a task's words may misstate.
+  const chatSessionOf = sessionOfChat(chatId);
+  const chatQuestions =
+    chatSessionOf === undefined
+      ? []
+      : (await openAsksOf(chatId, chatSessionOf)).flatMap((ask) =>
+          ask.kind === "question" ? [ask.question] : [],
+        );
   const event: TaskEvent = {
     activeMs: usage.activeMs,
+    ...(chatQuestions.length > 0 ? { chatQuestions } : {}),
     ...(ending
       ? {
           ended:
@@ -504,6 +516,7 @@ async function onSessionDone(
     ...(files.length > 0 ? { files } : {}),
     handle: task.handle,
     ...(needs.length > 0 ? { needs } : {}),
+    ...(refused.length > 0 ? { refused } : {}),
     ...(ending?.resumable ? { resumable: true } : {}),
     ...(running.length > 0 ? { running } : {}),
     status: ending?.failed ? "error" : "done",
@@ -627,6 +640,9 @@ function mergeTaskEvents(
     if (!replacesPendingEvent(events.get(event.sessionId), event)) {
       return undefined;
     }
+    // Last, so the newest event is the note's last, whose reading of the
+    // chat's own cards the note gives.
+    events.delete(event.sessionId);
     events.set(event.sessionId, event);
   }
   return { data: { events: [...events.values()] }, type: "data-taskEvent" };

@@ -77,6 +77,12 @@ export function taskEventModelNote(
       event.status === "overdue" && event.inFlight
         ? `\n  Now: ${event.inFlight}.`
         : "";
+    // The app's account of calls its role ruled out, beside its own words
+    // of them, which have called a refusal a fault.
+    const refused =
+      event.refused && event.refused.length > 0
+        ? `\n  Refused because it is a task: ${event.refused.map((call) => `\`${call}\``).join(", ")}.`
+        : "";
     const needs =
       event.needs && event.needs.length > 0
         ? `\n  It cannot go on without:\n${event.needs.map((need) => `      ${need}`).join("\n")}`
@@ -107,8 +113,15 @@ export function taskEventModelNote(
         : event.stoppedBy === undefined && event.resumable
           ? ` \`${TASK_COMMAND.name} send ${id}\` picks it up again.`
           : "";
-    return `- ${id} ("${event.title}") ${outcome}${cost}.${leave}${steps}${summary}${inFlight}${needs}${tabs}${running}`;
+    return `- ${id} ("${event.title}") ${outcome}${cost}.${leave}${steps}${summary}${inFlight}${refused}${needs}${tabs}${running}`;
   });
+  // The chat's own cards as the newest event's turn ended, said once for
+  // the note; none on that event means none were open.
+  const chatQuestions = data.events.at(-1)?.chatQuestions;
+  const openCards =
+    chatQuestions && chatQuestions.length > 0
+      ? `\nStill open on your own card, unanswered: ${chatQuestions.map((question) => `"${question}"`).join(", ")}.`
+      : "";
 
   // Each kind of wake closes with what to do about it, since the note is read
   // at the moment it applies and the prompt need not carry every case.
@@ -165,7 +178,7 @@ export function taskEventModelNote(
           ? "A task you created has finished:"
           : "Tasks you created have finished:"
     }
-    ${lines.join("\n")}
+    ${lines.join("\n")}${openCards}
     Nobody typed anything; this note is why you are awake.${relay}${asks}
   `;
 }

@@ -31,6 +31,10 @@ import { environmentChangeModelNote } from "../../lib/environment-model-text";
 import { branchedFromModelNote } from "../../lib/branched-from-model-text";
 import { formatBytes } from "../../lib/format-bytes";
 import { fromChatModelText } from "../../lib/from-chat-model-text";
+import {
+  withHandOffCalls,
+  withHandOffResults,
+} from "../../lib/hand-off-model-text";
 import { isToolPart } from "../../lib/is-tool-part";
 import { jobEventModelNote } from "../../lib/job-event-model-text";
 import { maxStepsModelNote } from "../../lib/max-steps-model-text";
@@ -417,7 +421,15 @@ export namespace SessionMessage {
     tools: ToolSet,
     options: ModelNoteOptions = {},
   ): Promise<ModelMessage[]> {
-    return convertToModelMessages(toUIMessages(messages, options), { tools });
+    // A task reads the chat's step that started it with that step's calls
+    // answered for it, whatever they returned to the chat.
+    const handOff = withHandOffCalls(messages);
+    return withHandOffResults(
+      await convertToModelMessages(toUIMessages(handOff.messages, options), {
+        tools,
+      }),
+      handOff.results,
+    );
   }
 
   /**

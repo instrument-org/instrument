@@ -4,7 +4,8 @@ import { z } from "zod";
 
 import { INSTRUMENT_COMMAND } from "../shell-commands/instrument-command";
 import { subprocessStdin } from "../shell-commands/utils";
-import { unavailableReason } from "./admit";
+import { refusedForRole, unavailableReason } from "./admit";
+import { noteRoleRefusal } from "./role-refusals";
 import {
   type ArgvSpec,
   type CommandShell,
@@ -541,14 +542,22 @@ export function generatedCommand(
 ): Command {
   const refused = commandRefusal(word, scope.role, registry);
   if (refused !== undefined) {
+    const forRole = registry.some(
+      (capability) =>
+        capability.surfaces.cli?.words[0] === word &&
+        refusedForRole(capability, scope.role),
+    );
     // Nothing in it is this shell's, so every form says why, its usage too.
-    return defineCommand(name, () =>
-      Promise.resolve({
+    return defineCommand(name, (args) => {
+      if (forRole) {
+        noteRoleRefusal(scope.sessionId, [name, ...args.slice(0, 1)].join(" "));
+      }
+      return Promise.resolve({
         exitCode: 1,
         stderr: `${name}: ${refused}\n`,
         stdout: "",
-      }),
-    );
+      });
+    });
   }
   const generated = cliSubcommands(word, registry);
   const whole = usage(generated.usage);

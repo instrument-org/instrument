@@ -4,6 +4,6 @@
  */
 export const TASKS_ARE_THE_CHATS = {
   roleRefusal:
-    "only the chat starts and steers tasks. Do the work here, and say in your report what is left.",
+    "you are a task the chat started, and the chat alone starts and steers tasks. Do your assignment here, and say in your report what is left.",
   roles: ["chat"],
 } as const;

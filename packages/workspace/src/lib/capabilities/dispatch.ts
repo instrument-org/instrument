@@ -4,7 +4,8 @@ import { z } from "zod";
 import { recordAppGuideHandOff } from "../apps/guide-hand-off";
 import { recordRaisedAsk } from "../shell-commands/raised-asks";
 import { appCallOf, recordAppCall } from "../transcript/step-facts";
-import { unavailableReason } from "./admit";
+import { refusedForRole, unavailableReason } from "./admit";
+import { noteRoleRefusal } from "./role-refusals";
 import {
   type Capability,
   type CapabilityContext,
@@ -168,6 +169,13 @@ export async function dispatch(
   }
   const unavailable = unavailableReason(capability, ctx.role);
   if (unavailable !== undefined) {
+    if (refusedForRole(capability, ctx.role)) {
+      const words = capability.surfaces.cli?.words;
+      noteRoleRefusal(
+        ctx.sessionId,
+        words ? `instrument ${words.join(" ")}` : capability.name,
+      );
+    }
     return { error: { kind: "refused", message: unavailable } };
   }
   const parsed = capability.input.safeParse(declaredKeys(capability, rawArgs));

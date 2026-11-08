@@ -147,6 +147,50 @@ describe("chats.live.taskTitles", () => {
   });
 });
 
+describe("chats.live.activity", () => {
+  it("answers with the one chat's live agents and none of another's", async () => {
+    const own = StoreId.newSessionId();
+    const sessionRef = (sessionId: StoreId.Session, tags: string[]) => ({
+      getSnapshot: () => ({ context: { sessionId }, tags: new Set(tags) }),
+    });
+    const context: WorkspaceRPCContext = {
+      workspaceConfig: getWorkspaceConfig(),
+      // Only the snapshot's session refs are read.
+      workspaceRef: {
+        getSnapshot: () => ({
+          context: {
+            sessionRefsByChatId: new Map([
+              [
+                chatId,
+                [
+                  sessionRef(own, ["agent.alive"]),
+                  sessionRef(StoreId.newSessionId(), ["agent.done"]),
+                ],
+              ],
+              [
+                otherChatId,
+                [sessionRef(StoreId.newSessionId(), ["agent.alive"])],
+              ],
+            ]),
+          },
+        }),
+      } as never,
+    };
+    const controller = new AbortController();
+    const live = await call(
+      chats.live.activity,
+      { id: chatId },
+      { context, signal: controller.signal },
+    );
+    expect((await live.next()).value).toEqual({
+      chatId,
+      sessionActors: [{ sessionId: own, tags: ["agent.alive"] }],
+    });
+    controller.abort();
+    await live.return?.(undefined).catch(() => undefined);
+  });
+});
+
 describe("chats.live.info", () => {
   it("answers again when the chat is renamed", async () => {
     const context: WorkspaceRPCContext = {

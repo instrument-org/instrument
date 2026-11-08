@@ -28,6 +28,7 @@ export function taskCardFacts(
     return {
       ...(slice.line !== undefined && { ended: slice.line }),
       failed: slice.failed === true,
+      ...(slice.handedOn && { handedOn: true }),
       ...span,
       stoppable: false,
       title: task.title,

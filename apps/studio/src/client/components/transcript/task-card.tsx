@@ -107,7 +107,7 @@ export function TaskCardRow({
                 <WarningIcon className="text-warning-600 size-3.5 shrink-0" />
               ) : facts?.waiting ? (
                 <PauseCircleIcon className="size-3.5 shrink-0 text-muted-foreground" />
-              ) : (
+              ) : facts?.handedOn ? null : (
                 <CheckIcon className="size-3.5 shrink-0 text-muted-foreground" />
               )}
               {turn && <Badges apps={turn.apps} sites={turn.sites} />}

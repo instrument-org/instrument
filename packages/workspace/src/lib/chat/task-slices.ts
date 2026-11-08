@@ -18,6 +18,11 @@ export interface TaskSlice {
   endedAt: Date;
   /** Whether a model error ended it. */
   failed?: true;
+  /**
+   * The chat sent the next message while its last step was still running, so
+   * it ended at that send with its work still going on in the next stretch.
+   */
+  handedOn?: true;
   /** The message it starts at. */
   from: StoreId.Message;
   /**
@@ -57,13 +62,15 @@ export function taskSlices(messages: SessionMessage.WithParts[]): TaskSlice[] {
       ),
     }));
     const last = run.findLast((message) => message.role === "assistant");
+    const finishedInIt = (finishedAtOf(last) ?? Infinity) <= cut;
     // An error the step in flight met after the send ended the next stretch.
-    const ending = endingOf(kept, (finishedAtOf(last) ?? Infinity) <= cut);
+    const ending = endingOf(kept, finishedInIt);
     return [
       {
         endedAt: new Date(Math.min(cut, Math.max(...kept.map(lastWrittenAt)))),
         ...(ending.failed && { failed: true as const }),
         from: first.id,
+        ...(next !== undefined && !finishedInIt && { handedOn: true as const }),
         ...(ending.line !== undefined && { line: ending.line }),
         startedAt: first.metadata.createdAt,
       },

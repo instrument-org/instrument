@@ -126,4 +126,22 @@ describe("TaskCardRow for a task sent more work", () => {
       first: "Our Team plan is 18% under.Task · Pricing · 3 min",
     });
   });
+
+  it("leaves the check off a first card the chat sent on from mid-step", () => {
+    const glyphsOnFirst = (task: ChildTask) => {
+      renderBoth(task);
+      const count = screen.getByTestId("first").querySelectorAll("svg").length;
+      document.body.innerHTML = "";
+      return count;
+    };
+    const busy = resumed(true);
+    const [first, ...rest] = busy.slices;
+    expect({
+      finished: glyphsOnFirst(busy),
+      handedOn: glyphsOnFirst({
+        ...busy,
+        slices: first ? [{ ...first, handedOn: true }, ...rest] : rest,
+      }),
+    }).toStrictEqual({ finished: 1, handedOn: 0 });
+  });
 });

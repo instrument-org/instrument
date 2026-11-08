@@ -16,6 +16,11 @@ export interface TaskCardFacts {
    * with the chat it came from. Its card is finished and opens nothing.
    */
   gone?: boolean;
+  /**
+   * Its stretch ended at a message the chat sent while its step was still
+   * running, so it stopped there without finishing.
+   */
+  handedOn?: boolean;
   /** How long its card's stretch of the task took, once that has ended. */
   ranMs?: number;
   /** When its card's stretch of the task began, once the task's log says. */

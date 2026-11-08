@@ -212,6 +212,21 @@ describe("taskSlices", () => {
       line: "Reading pricing pages",
       span: "09:00-09:02",
     });
+    expect(slices.map((slice) => slice.handedOn)).toStrictEqual([
+      true,
+      undefined,
+    ]);
+  });
+
+  it("marks no slice handed on when its run finished before the send", () => {
+    const slices = taskSlices([
+      ...firstRun,
+      fromChat("message", "Check last year's prices too.", 40),
+    ]);
+    expect(slices.map((slice) => slice.handedOn)).toStrictEqual([
+      undefined,
+      undefined,
+    ]);
   });
 
   it("keeps a work summary written after the work out of its span, and out of an earlier slice once a send came first", () => {

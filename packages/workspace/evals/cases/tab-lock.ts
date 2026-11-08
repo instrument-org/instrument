@@ -399,7 +399,7 @@ function lastReply(sessions: Session.WithMessagesAndParts[]): string {
 
 /** A sentence saying the checkout form is filled, without saying it is not. */
 const CLAIMS_FILLED =
-  /[^.\n]*\bform\b[^.\n]*\b(?:filled|completed|entered)\b[^.\n]*/gi;
+  /[^.\n]*\bform\b[^.\n]*(?<![\w-])(?:filled|completed|entered)\b[^.\n]*/gi;
 const DENIED = /\b(?:not|isn't|wasn't|no longer|empty|emptied|cleared|lost)\b/i;
 
 const formIsFilled: Assertion = {

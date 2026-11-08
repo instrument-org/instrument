@@ -42,7 +42,7 @@ export async function tabNewsNote({
     ];
     return `Tab ${tab.targetId} was used since your last command in it, by ${who.join(" and ")}.`;
   });
-  return `${lines.join("\n")}\nThe chat and its tasks share every tab: check the page before relying on what you last saw there. Work on this page as the user sees it stays in this tab: wait for whoever is working in it, or ask, rather than redo their work or do yours in a copy of the page.\n`;
+  return `${lines.join("\n")}\nThe chat and its tasks share every tab: check the page before relying on what you last saw there. Going to another page in this tab undoes their work on it: work that needs this page itself waits for them or asks, and work that needs only the site goes in a tab of your own (\`agent-browser tab new <url>\`).\n`;
 }
 
 function ago(ms: number): string {

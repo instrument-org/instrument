@@ -27,10 +27,8 @@ import { StopCircleIcon } from "@phosphor-icons/react/StopCircle";
 import { TerminalWindowIcon } from "@phosphor-icons/react/TerminalWindow";
 import { WarningIcon } from "@phosphor-icons/react/Warning";
 
-/** How thick the marks are. Their size and colors top the layer's stylesheet. */
-const MARK_WEIGHT: IconWeight = "thin";
-/** Amber at the thin weight washes out, and an error is the one mark to catch the eye. */
-const ERROR_WEIGHT: IconWeight = "regular";
+/** How thick the marks are, the app's own weight: at 12px a lighter one's sub-pixel strokes blur. Their size and colors top the layer's stylesheet. */
+const MARK_WEIGHT: IconWeight = "bold";
 
 const ICONS: Record<DeveloperNote["mark"], Icon> = {
   apps: SquaresFourIcon,
@@ -64,10 +62,5 @@ const ICONS: Record<DeveloperNote["mark"], Icon> = {
 /** One note's icon. It says what kind of thing the note is, and the card says the rest. */
 export function NoteMark({ note }: { note: DeveloperNote }) {
   const Mark = ICONS[note.mark];
-  return (
-    <Mark
-      data-dn="mark"
-      weight={note.kind === "error" ? ERROR_WEIGHT : MARK_WEIGHT}
-    />
-  );
+  return <Mark data-dn="mark" weight={MARK_WEIGHT} />;
 }

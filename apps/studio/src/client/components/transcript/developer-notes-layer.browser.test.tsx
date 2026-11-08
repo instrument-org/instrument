@@ -425,15 +425,15 @@ it("draws nothing with chat notes off", async () => {
   await unmount();
 });
 
-it("draws a mark in the thin weight", async () => {
+it("draws a mark in the app's own weight", async () => {
   const { path } = await linesOf([noteOn(0)]);
-  const { unmount } = await renderInBrowser(<NoteIcon data-regular="" />);
-  const regular = document
-    .querySelector("[data-regular] path")
+  const { unmount } = await renderInBrowser(<NoteIcon data-app-weight="" />);
+  const appWeight = document
+    .querySelector("[data-app-weight] path")
     ?.getAttribute("d");
   await unmount();
   expect(path).toBeTruthy();
-  expect(path).not.toBe(regular);
+  expect(path).toBe(appWeight);
 });
 
 it.each([

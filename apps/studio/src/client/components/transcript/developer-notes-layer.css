@@ -2,13 +2,14 @@
 [data-developer-notes] {
   --dn-mark-size: 12px;
   --dn-count-size: 10px;
-  --dn-mark-rest: color-mix(in oklab, var(--foreground) 50%, transparent);
-  --dn-mark-hover: color-mix(in oklab, var(--foreground) 90%, transparent);
+  /* Opaque colors: a translucent one darkens wherever a mark's strokes cross. */
+  --dn-mark-rest: var(--dev-300);
+  --dn-mark-hover: var(--dev-600);
   --dn-mark-error: var(--warning-700);
 }
 .dark [data-developer-notes] {
-  --dn-mark-rest: color-mix(in oklab, var(--foreground) 55%, transparent);
-  --dn-mark-hover: color-mix(in oklab, var(--foreground) 90%, transparent);
+  --dn-mark-rest: var(--dev-700);
+  --dn-mark-hover: var(--dev-300);
   --dn-mark-error: var(--warning-300);
 }
 

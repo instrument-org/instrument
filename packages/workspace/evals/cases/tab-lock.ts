@@ -4,8 +4,9 @@
  * saying who else acted in a tab to keep them apart. Each case starts with the user looking at a
  * shop page in a chat tab, in one real headless Chrome every session reaches
  * through the CDP bridge (`sharedBrowser`), and asks for work that could put
- * two sessions in that one page at once: two tasks on it, or the chat acting
- * on the page while a task works there. The checkout form keeps its values
+ * two sessions in that one page at once: two tasks on it, started for the
+ * chat by a stand-in first step, or the chat acting on the page while a task
+ * works there. The checkout form keeps its values
  * only in the page, so a session that takes the tab elsewhere under another
  * empties it; the cart is the shop's own. What broke when sessions shared
  * tabs: the form emptied while the chat said it was filled, and a task
@@ -518,6 +519,16 @@ export const TAB_LOCK_EVALS = [
     kind: "chat",
     name: "tab-lock-two-tasks",
     prompt: `I need two things done here, and both take a while: go through all four pages of the catalog and add every item under $3 to my cart, and fill in the checkout form on this page with my details (${DETAILS}). Don't place the order.`,
+    // Left to itself the chat does both in one turn on every model tried,
+    // so two tasks are started for it, each told the shop tab, and both are
+    // at work in that one page at once.
+    startsTask: [
+      LONG_JOB_TASK,
+      {
+        brief: `Fill in the checkout form in the shop tab (${SHOP_TAB}) with these details: ${DETAILS}. Don't place the order.`,
+        name: "Checkout details",
+      },
+    ],
     sharedBrowser: true,
     teardown: recordOutcome,
     viewing,

@@ -560,9 +560,10 @@ export interface EvalCase {
    * For a chat case scoring the task plumbing rather than whether the model
    * forks: the chat's first step is a stand-in that starts t1 through `task
    * new` with this brief, so every model gets the task, and the chat's own
-   * turns begin at the next message (`startRun`).
+   * turns begin at the next message (`startRun`). Several start one task
+   * each, in order, all at once.
    */
-  startsTask?: StartsTask;
+  startsTask?: StartsTask | readonly StartsTask[];
   /**
    * Where the prompt is answered. A chat forks tasks inside the same
    * workspace, so a run of that kind produces the chat's transcript plus one

@@ -30,7 +30,14 @@ const event = (id: string, kind: string, size = 0) =>
   });
 const abort = (id: string) => JSON.stringify({ i: id, t: 4 });
 
-function setup(limits = { messageBytes: MB, minuteBytes: 10 * MB }) {
+const LIMITS = {
+  messageBytes: MB,
+  minuteBytes: 10 * MB,
+  largeBytes: 256_000,
+  largeMessages: 10,
+};
+
+function setup(limits: Partial<typeof LIMITS> = {}) {
   let clock = 0;
   const now = () => clock;
   const warn = vi.fn<(message: string) => void>();
@@ -39,7 +46,7 @@ function setup(limits = { messageBytes: MB, minuteBytes: 10 * MB }) {
     warn,
     now,
     gate: createAlarmGate({ now }),
-    limits,
+    limits: { ...LIMITS, ...limits },
   });
   return {
     meter,
@@ -82,7 +89,7 @@ it("warns once for a message over the limit, naming its procedure and window", (
 });
 
 it("warns when a procedure sends over the minute's limit in smaller messages", () => {
-  const { meter, warn, advance } = setup();
+  const { meter, warn, advance } = setup({ largeMessages: 100 });
   meter.received(request("s", "chats.live.list"));
   meter.sent(streamOpens("s"));
   for (let i = 0; i < 24; i++) {
@@ -112,10 +119,7 @@ it("forgets what fell out of the rolling minute", () => {
 });
 
 it("warns of each kind at most once an hour per procedure", () => {
-  const { meter, warn, advance } = setup({
-    messageBytes: MB,
-    minuteBytes: 100 * MB,
-  });
+  const { meter, warn, advance } = setup({ minuteBytes: 100 * MB });
   meter.received(request("s", "chats.live.list"));
   meter.sent(streamOpens("s"));
   meter.sent(event("s", "message", 2 * MB));
@@ -130,7 +134,7 @@ it("warns of each kind at most once an hour per procedure", () => {
 it("shares the hourly limit between windows", () => {
   const gate = createAlarmGate({ now: () => 0 });
   const warn = vi.fn();
-  const limits = { messageBytes: MB, minuteBytes: 100 * MB };
+  const limits = { ...LIMITS, minuteBytes: 100 * MB };
   for (const window of [1, 2]) {
     const meter = createPayloadMeter({
       window,
@@ -141,6 +145,47 @@ it("shares the hourly limit between windows", () => {
     });
     meter.received(request("1", "chats.live.list"));
     meter.sent(response("1", 2 * MB));
+  }
+  expect(warn).toHaveBeenCalledTimes(1);
+});
+
+it("warns when a procedure sends more than ten large messages within a minute", () => {
+  const { meter, warn, advance } = setup();
+  meter.received(request("s", "chats.live.list"));
+  meter.sent(streamOpens("s"));
+  for (let i = 0; i < 10; i++) {
+    meter.sent(event("s", "message", (i === 3 ? 420 : 300) * 1_000));
+    meter.sent(event("s", "message", 200_000));
+    advance(5_000);
+  }
+  expect(warn).not.toHaveBeenCalled();
+  meter.sent(event("s", "message", 300_000));
+  expect(warn.mock.calls).toMatchInlineSnapshot(`
+    [
+      [
+        "RPC payload: chats.live.list sent 11 messages over 256 KB to window 7 within a minute (largest 420 KB)",
+      ],
+    ]
+  `);
+});
+
+it("counts large messages over a rolling minute, once an hour", () => {
+  const { meter, warn, advance } = setup({ minuteBytes: 100 * MB });
+  meter.received(request("s", "chats.live.list"));
+  meter.sent(streamOpens("s"));
+  for (let i = 0; i < 30; i++) {
+    meter.sent(event("s", "message", 300_000));
+    advance(6_000);
+  }
+  expect(warn).not.toHaveBeenCalled();
+  for (let i = 0; i < 30; i++) {
+    meter.sent(event("s", "message", 300_000));
+    advance(1_000);
+  }
+  expect(warn.mock.calls[0]?.[0]).toMatch(/sent 11 messages over 256 KB/);
+  advance(30 * 60_000);
+  for (let i = 0; i < 30; i++) {
+    meter.sent(event("s", "message", 300_000));
   }
   expect(warn).toHaveBeenCalledTimes(1);
 });
@@ -222,6 +267,21 @@ function portPair() {
   b.other = a;
   return [a, b] as const;
 }
+
+it("hands the message on unchanged even when the warning throws", () => {
+  const port = { postMessage: vi.fn(), on: vi.fn() };
+  const post = port.postMessage;
+  const warn = vi.fn(() => {
+    throw new Error("log broke");
+  });
+  meterRPCPayloads(port, 1, { warn, gate: createAlarmGate() });
+  const frame = response("1", 2 * MB);
+  expect(() => {
+    port.postMessage(frame);
+  }).not.toThrow();
+  expect(warn).toHaveBeenCalledTimes(1);
+  expect(post).toHaveBeenCalledWith(frame);
+});
 
 it("hands the message on unchanged even when counting throws", () => {
   const port = { postMessage: vi.fn(), on: vi.fn() };

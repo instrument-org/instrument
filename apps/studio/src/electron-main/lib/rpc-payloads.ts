@@ -12,6 +12,13 @@ const PAYLOAD_LIMITS = {
   messageBytes: 1_000_000,
   /** This much within a minute is a procedure sending the same thing over. */
   minuteBytes: 10_000_000,
+  /**
+   * More than `largeMessages` messages this large within a minute is a
+   * procedure resending a whole collection on every change, which can stay
+   * under `minuteBytes` while sending the same 400 KB again and again.
+   */
+  largeBytes: 256_000,
+  largeMessages: 10,
 };
 
 /** The rolling minute is six ten-second buckets, so a total costs six adds. */
@@ -89,7 +96,14 @@ function sizeOf(data: unknown) {
 }
 
 /** A procedure's rolling minute: one bucket per ten seconds, by epoch. */
-type Minute = { epoch: number; bytes: number; messages: number }[];
+type Minute = {
+  epoch: number;
+  bytes: number;
+  messages: number;
+  /** Messages over `largeBytes`, and the largest of them. */
+  large: number;
+  largest: number;
+}[];
 
 type MeterOptions = {
   /** The window the port belongs to, named in each warning. */
@@ -106,7 +120,8 @@ type MeterOptions = {
 
 /**
  * Counts what one window's RPC port sends, by procedure, and warns when one
- * message or one rolling minute of a procedure's messages is past the limits.
+ * message, one rolling minute of a procedure's messages, or how many large
+ * messages it sent in that minute is past the limits.
  * Observation only: every method swallows its own failures.
  */
 export function createPayloadMeter({
@@ -130,6 +145,8 @@ export function createPayloadMeter({
       epoch: -1,
       bytes: 0,
       messages: 0,
+      large: 0,
+      largest: 0,
     }));
     traffic.set(path, fresh);
     return fresh;
@@ -143,20 +160,30 @@ export function createPayloadMeter({
       bucket.epoch = epoch;
       bucket.bytes = 0;
       bucket.messages = 0;
+      bucket.large = 0;
+      bucket.largest = 0;
     }
     if (bucket) {
       bucket.bytes += bytes;
       bucket.messages += 1;
+      if (bytes > limits.largeBytes) {
+        bucket.large += 1;
+        bucket.largest = Math.max(bucket.largest, bytes);
+      }
     }
     let total = 0;
     let messages = 0;
+    let large = 0;
+    let largest = 0;
     for (const each of minute) {
       if (each.epoch > epoch - BUCKETS) {
         total += each.bytes;
         messages += each.messages;
+        large += each.large;
+        largest = Math.max(largest, each.largest);
       }
     }
-    return { total, messages };
+    return { total, messages, large, largest };
   };
 
   return {
@@ -203,7 +230,7 @@ export function createPayloadMeter({
           }
         }
         const at = now();
-        const { total, messages } = count(path, bytes, at);
+        const { total, messages, large, largest } = count(path, bytes, at);
         if (bytes > limits.messageBytes) {
           gate.raise(
             `rpc:message:${path}`,
@@ -217,6 +244,14 @@ export function createPayloadMeter({
             `rpc:minute:${path}`,
             () =>
               `RPC payload: ${path} sent ${megabytes(total)} in ${messages} messages to window ${window} within a minute`,
+            warn,
+          );
+        }
+        if (bytes > limits.largeBytes && large > limits.largeMessages) {
+          gate.raise(
+            `rpc:large:${path}`,
+            () =>
+              `RPC payload: ${path} sent ${large} messages over ${kilobytes(limits.largeBytes)} to window ${window} within a minute (largest ${kilobytes(largest)})`,
             warn,
           );
         }
@@ -238,6 +273,10 @@ export function createPayloadMeter({
 
 function megabytes(bytes: number) {
   return `${(bytes / 1_000_000).toFixed(1)} MB`;
+}
+
+function kilobytes(bytes: number) {
+  return `${Math.round(bytes / 1_000)} KB`;
 }
 
 /** The part of Electron's `MessagePortMain` the meter uses. */

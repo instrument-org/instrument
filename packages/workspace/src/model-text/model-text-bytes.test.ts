@@ -35,7 +35,7 @@ import * as permissionAnswer from "./notes/permission-answer-model-text";
 import * as project from "./notes/project-model-text";
 import * as questionAnswer from "./notes/question-answer-model-text";
 import { ChatWrites } from "../lib/chat-writes";
-import { contextRolloverNotice } from "../lib/handoff-notes";
+import { contextRolloverNotice } from "./request/context-rollover-notice";
 import { sessionOfChat } from "../lib/record-folders";
 import { turnNoteFor } from "../lib/turn-note";
 import * as setupNews from "./notes/setup-news-model-text";
@@ -52,7 +52,7 @@ import * as stoppedToolCall from "./notes/stopped-tool-call-model-text";
 import * as systemNote from "./notes/system-note";
 import * as taskEvent from "./notes/task-event-model-text";
 import { DATA_PART_SAMPLES } from "../lib/transcript/developer-note-samples";
-import * as turnNote from "../lib/turn-note";
+import { TURN_NOTE } from "./request/turn-notes";
 import * as viewContext from "./notes/view-context-model-text";
 import {
   getWorkspaceConfig,
@@ -221,7 +221,8 @@ const MODULES = {
   systemNote,
   taskCommand,
   taskEvent,
-  turnNote,
+  // LENGTH_NOTE is pinned through turnNoteFor, below.
+  turnNote: { TURN_NOTE },
   viewContext,
   windowCommand,
   workspaceInstructions,

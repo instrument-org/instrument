@@ -5,7 +5,8 @@ import { type SessionMessagePart } from "../schemas/session/message-part";
 import { StoreId } from "../schemas/store-id";
 import { MID_TURN_NOTE } from "./chat/mid-turn";
 import { systemNoteBody } from "../model-text/notes/system-note";
-import { cutOffAtOutputLimit, opensTypedTurn, TURN_NOTE } from "./turn-note";
+import { TURN_NOTE } from "../model-text/request/turn-notes";
+import { cutOffAtOutputLimit, opensTypedTurn } from "./turn-note";
 
 const sessionId = StoreId.newSessionId();
 const createdAt = new Date("2026-10-07T12:00:00Z");

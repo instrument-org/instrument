@@ -5,11 +5,8 @@ import path from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { createMockChatConfigForDir } from "../test/helpers/mock-chat-config";
-import {
-  agentHandoffNotesPath,
-  contextRolloverNotice,
-  readHandoffNotes,
-} from "./handoff-notes";
+import { contextRolloverNotice } from "../model-text/request/context-rollover-notice";
+import { agentHandoffNotesPath, readHandoffNotes } from "./handoff-notes";
 import { chatDir } from "./record-folders";
 import { sanitizeSurrogates } from "./sanitize-model-text";
 import { shellPath } from "./workspace-fs-layout";

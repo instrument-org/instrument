@@ -1,9 +1,6 @@
-import { useBrowserTargets } from "@/client/hooks/use-browser-targets";
 import { useHostPaths } from "@/client/hooks/use-host-paths";
 import { useChatCommands } from "@/client/hooks/use-task-background-processes";
 import { useShowChatFile } from "@/client/hooks/use-show-chat-file";
-import { useTargetAgentLastAt } from "@/client/hooks/use-target-agent-activity";
-import { getGuest } from "@/client/lib/browser-pool";
 import { cn } from "@/client/lib/utils";
 import { rpcClient } from "@/client/rpc/client";
 import { type WindowTab } from "@/client/atoms/window";
@@ -16,18 +13,12 @@ import {
   type StepPart,
   type StoreId,
 } from "@instrument-org/workspace/client";
-import {
-  useMutation,
-  useQueries,
-  useQuery,
-  useQueryClient,
-} from "@tanstack/react-query";
+import { useMutation, useQueries, useQuery } from "@tanstack/react-query";
 import {
   createContext,
   type ReactNode,
   use,
   useContext,
-  useEffect,
   useLayoutEffect,
   useMemo,
   useRef,
@@ -38,23 +29,14 @@ import { PageFavicon } from "../favicon";
 import { useChatTasks } from "../window/child-tasks-query";
 import { WindowContext } from "../window/context";
 import { taskHref } from "../window/tab-location";
-import { thumbnailKey } from "../window/use-page-thumbnail-housekeeping";
 import { useWindowTabs } from "../window/window-tabs";
 import {
   type TaskCardFacts,
   type TranscriptSurface,
   TranscriptSurfaceContext,
 } from "./surface";
+import { usePagePicture } from "./use-page-picture";
 import { useTranscriptFeed } from "./use-transcript-feed";
-
-/** How long after a page loads, moves, or renames itself its picture is taken. */
-const CHANGE_SETTLE_MS = 500;
-
-/**
- * How long after an agent's last command in a page its picture is taken: one
- * command of the agent's arrives as a burst, and the page redraws after.
- */
-const AGENT_SETTLE_MS = 1000;
 
 const LiveChatContext = createContext<ChatId | undefined>(undefined);
 
@@ -244,84 +226,6 @@ function PageShot({
       )}
     </>
   );
-}
-
-/**
- * A picture of the page, retaken shortly after it loads, moves or renames
- * itself and after each agent command in it. A newer capture finishing first
- * is never replaced by an older one.
- */
-function usePagePicture(key: string, targetId: BrowserTargetId) {
-  const queryClient = useQueryClient();
-  const picture = useQuery({
-    queryFn: () => rpcClient.browser.thumbnails.get.call({ key }),
-    queryKey: thumbnailKey(key),
-    staleTime: Infinity,
-  });
-  const isAttached = useBrowserTargets().has(targetId);
-  const requested = useRef(0);
-  const capture = useRef(() => {});
-  useLayoutEffect(() => {
-    capture.current = () => {
-      // A guest not ready yet has nothing drawn to take.
-      const webContentsId = getGuest(targetId)?.webContentsId;
-      if (webContentsId === undefined) {
-        return;
-      }
-      requested.current += 1;
-      const mine = requested.current;
-      void rpcClient.browser.thumbnails.capture
-        .call({ key, webContentsId })
-        .then((result) => {
-          if (result.url && mine === requested.current) {
-            queryClient.setQueryData(thumbnailKey(key), result);
-          }
-        })
-        .catch(() => {
-          // A missed picture keeps the last one; the next change takes another.
-        });
-    };
-  });
-  useEffect(() => {
-    const guest = getGuest(targetId);
-    if (!guest) {
-      return;
-    }
-    let pending: ReturnType<typeof setTimeout> | undefined;
-    const soon = () => {
-      clearTimeout(pending);
-      pending = setTimeout(() => {
-        capture.current();
-      }, CHANGE_SETTLE_MS);
-    };
-    const stops = (
-      [
-        "did-stop-loading",
-        "did-navigate",
-        "did-navigate-in-page",
-        "page-title-updated",
-      ] as const
-    ).map((event) => guest.on(event, soon));
-    return () => {
-      for (const stop of stops) {
-        stop();
-      }
-      clearTimeout(pending);
-    };
-  }, [isAttached, targetId]);
-  const agentAt = useTargetAgentLastAt(targetId);
-  useEffect(() => {
-    if (agentAt === undefined) {
-      return;
-    }
-    const pending = setTimeout(() => {
-      capture.current();
-    }, AGENT_SETTLE_MS);
-    return () => {
-      clearTimeout(pending);
-    };
-  }, [agentAt]);
-  return picture.data?.url ?? undefined;
 }
 
 /** Connects a transcript to the app: its records, its window and its pages. */

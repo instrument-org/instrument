@@ -92,6 +92,7 @@ export function PaneTabs({
     tabs.flatMap((tab) =>
       tab.kind === "page" ? [browserTargetOf(tab.id)] : [],
     ),
+    isChatWorking,
   );
   const hasPicked = useRef(false);
   const [menu, setMenu] = useState<{ key: string; x: number; y: number }>();
@@ -140,12 +141,7 @@ export function PaneTabs({
             href={tab.href}
           />
         ),
-      // A page's working mark drops the moment nothing in the chat is at
-      // work, so it does not outlast the work by the quiet it waits out.
-      isWorking:
-        tab.kind === "page" &&
-        isChatWorking &&
-        driven.has(browserTargetOf(tab.id)),
+      isWorking: tab.kind === "page" && driven.has(browserTargetOf(tab.id)),
       key: named.key,
       title: short.get(named.key) ?? named.title,
       ...(tooltip ? { tooltip } : {}),

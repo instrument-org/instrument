@@ -30,7 +30,7 @@ import {
   useRef,
   useState,
 } from "react";
-import { ShimmerSweep } from "@/client/components/shimmer-sweep";
+import { BorderSweep, ShimmerSweep } from "@/client/components/shimmer-sweep";
 
 import { EDGE_FADE, EDGE_FADE_WIDTH, useEdgeFade } from "./use-edge-fade";
 
@@ -45,7 +45,7 @@ export interface StripTab {
   icon: ReactNode;
   /** Drawn first and held there: not dragged, not closed. */
   isFixed?: boolean;
-  /** An agent is at work in it: its name shimmers. */
+  /** An agent is at work in it: its name shimmers and an arc turns round its icon. */
   isWorking?: boolean;
   key: string;
   title: string;
@@ -933,8 +933,12 @@ function Tab({
 
   const contents = (
     <>
-      <span className="flex size-4 shrink-0 items-center justify-center">
+      <span className="relative flex size-4 shrink-0 items-center justify-center">
         {tab.icon}
+        {/* The live card's turning arc, as a ring round the icon. */}
+        {tab.isWorking && (
+          <BorderSweep className="-inset-0.75 rounded-full p-[1.5px]" />
+        )}
       </span>
       <span
         className={cn(

@@ -1,25 +1,27 @@
 import { rpcClient } from "@/client/rpc/client";
 import { type BrowserTargetId } from "@instrument-org/workspace/client";
 import { useQueries, useQuery } from "@tanstack/react-query";
-import { useEffect, useEffectEvent, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 
 /**
- * How long after the agent's last command a guest still counts as being
- * driven. An agent thinks between commands, sometimes for many seconds, and
- * a mark that drops in a pause reads as the work being done.
+ * How far back a command still counts for a stretch of work already under
+ * way when this is first drawn, whose start nothing here saw: the window it
+ * is drawn in opened, or the chat came up, mid-turn.
  */
-const QUIET_MS = 30_000;
+const JOINED_LATE_MS = 30_000;
 
 /**
- * Which of some guests an agent is driving, whoever the agent is: a tab of the
- * window's handed to a task is driven by that task, not by the window's own
- * conversation, so no run to latch to is known here. A guest's mark holds
- * through a pause and drops after a longer one. The stream says when a guest
- * was last worked in as it is subscribed to, so a tab drawn after the agent
- * opened it shows the mark from the start.
+ * Which of some guests an agent is using: one it sent a command since the
+ * chat's work began, for as long as that work goes on (`isWorking`, the chat
+ * or any task of it at work). A pause between commands, however long, keeps
+ * the mark, and the mark goes the moment the work stops. A tab of the
+ * window's handed to a task is the task's, which the chat's work includes.
+ * The stream says when a guest was last worked in as it is subscribed to, so
+ * a tab drawn after the agent opened it shows the mark from the start.
  */
 export function useTargetsAgentActivity(
   targetIds: readonly BrowserTargetId[],
+  isWorking: boolean,
 ): ReadonlySet<BrowserTargetId> {
   const lastAts = useQueries({
     combine: (results) => results.map((result) => result.data?.lastAt),
@@ -30,40 +32,24 @@ export function useTargetsAgentActivity(
     ),
   });
 
-  // A stretch ends when the quiet after its last command runs out with no
-  // newer command having moved it: the time it ran out on is the one showing.
-  const [quietAt, setQuietAt] = useState<ReadonlyMap<BrowserTargetId, number>>(
-    new Map(),
-  );
-  const stretches = targetIds.flatMap((targetId, index) => {
-    const lastAt = lastAts[index];
-    return lastAt === undefined ? [] : [{ lastAt, targetId }];
-  });
-  const stretchKey = stretches
-    .map(({ lastAt, targetId }) => `${targetId}@${lastAt}`)
-    .join(" ");
-  const currentStretches = useEffectEvent(() => stretches);
+  // When the work going on began, as this saw it start.
+  const [since, setSince] = useState(() => Date.now() - JOINED_LATE_MS);
+  const wasWorking = useRef(isWorking);
   useEffect(() => {
-    const timeouts = currentStretches().map(({ lastAt, targetId }) =>
-      window.setTimeout(
-        () => {
-          setQuietAt((current) => new Map(current).set(targetId, lastAt));
-        },
-        Math.max(0, lastAt + QUIET_MS - Date.now()),
-      ),
-    );
-    return () => {
-      for (const timeout of timeouts) {
-        window.clearTimeout(timeout);
-      }
-    };
-    // Keyed by what the stretches are, since the array is new every render.
-  }, [stretchKey]);
+    if (isWorking && !wasWorking.current) {
+      setSince(Date.now());
+    }
+    wasWorking.current = isWorking;
+  }, [isWorking]);
 
+  if (!isWorking) {
+    return new Set();
+  }
   return new Set(
-    stretches
-      .filter(({ lastAt, targetId }) => quietAt.get(targetId) !== lastAt)
-      .map(({ targetId }) => targetId),
+    targetIds.filter((_, index) => {
+      const lastAt = lastAts[index];
+      return lastAt !== undefined && lastAt >= since;
+    }),
   );
 }
 

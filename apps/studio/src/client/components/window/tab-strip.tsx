@@ -935,9 +935,9 @@ function Tab({
     <>
       <span className="relative flex size-4 shrink-0 items-center justify-center">
         {tab.icon}
-        {/* The live card's turning arc, as a ring round the icon. */}
+        {/* The live card's turning arc, tracing the icon's rounded square. */}
         {tab.isWorking && (
-          <BorderSweep className="-inset-0.75 rounded-full p-[1.5px]" />
+          <BorderSweep className="-inset-0.75 rounded-[6px] p-[1.5px]" />
         )}
       </span>
       <span

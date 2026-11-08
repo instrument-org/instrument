@@ -147,7 +147,7 @@ export type MacosAskStatus = SystemWait;
  * rules already allow. A tab's ask carries its `page`. Answers its id.
  */
 export async function recordAsk(
-  asker: Asker & { reason?: string },
+  asker: Asker & { reason?: string; title?: string },
   kind: PermissionAskRecord["on"],
   target: string,
   extra?:
@@ -165,6 +165,7 @@ export async function recordAsk(
     ...(asker.partId && { partId: asker.partId }),
     ...(asker.reason && { reason: asker.reason }),
     sessionId: asker.sessionId,
+    ...(asker.title && { title: asker.title }),
     ...(asker.waits && { waits: true as const }),
   };
   const sessionId = sessionOfChat(asker.chatId);
@@ -603,7 +604,8 @@ export function cardLine(
     return `Waiting for you to move your tab “${card.page?.title || "a page"}” here`;
   }
   if (kind === "page") {
-    return `Waiting for you on ${siteOf(card.page?.url) ?? "a page"}`;
+    const title = "askers" in card ? card.askers[0]?.title : undefined;
+    return title ?? `Waiting for you on ${siteOf(card.page?.url) ?? "a page"}`;
   }
   const name = askTargetName(kind, card.target);
   switch (status) {

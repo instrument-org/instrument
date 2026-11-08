@@ -441,25 +441,33 @@ export const windowRequest = defineCapability({
  * turn ends. Nothing watches the page for them finishing, since no signal
  * says so for every site; Done is how the agent hears it.
  */
+/** The form `wait` takes, as its errors spell it. */
+const WAIT_FORM =
+  "<id> --title '<what to do, a few words>' --reason '<why, one short sentence>'";
+const WAIT_TITLE = "--title '<what to do, a few words>', the card's title";
+const WAIT_REASON =
+  "--reason '<why, one short sentence>', which the card shows under the title";
+
 export const windowWait = defineCapability({
   input: z.object({
-    tab: TabField("wait", "<id> --reason '<one sentence to the user>'"),
-    reason: z
-      .string({
-        error:
-          "wait needs --reason '<one sentence to the user>', which the card shows them.",
-      })
-      .meta({
-        description: "One sentence to the user, which the card shows them.",
-      }),
+    tab: TabField("wait", WAIT_FORM),
+    title: z.string({ error: `wait needs ${WAIT_TITLE}.` }).meta({
+      description:
+        "What the user does there, in a few words starting with a verb: Log in to Shopify, Confirm you're human.",
+    }),
+    reason: z.string({ error: `wait needs ${WAIT_REASON}.` }).meta({
+      description:
+        "Why the work needs it, in one short sentence the card shows under the title.",
+    }),
   }),
   name: "window.wait",
   output: z.string(),
-  async run({ reason, tab }, ctx) {
+  async run({ reason, tab, title }, ctx) {
+    if (!title.trim()) {
+      throw new Error(`wait needs ${WAIT_TITLE}.`);
+    }
     if (!reason.trim()) {
-      throw new Error(
-        "wait needs --reason '<one sentence to the user>', which the card shows them.",
-      );
+      throw new Error(`wait needs ${WAIT_REASON}.`);
     }
     const own = await ask({ kind: "list" }, ctx);
     if (!own) {
@@ -476,16 +484,16 @@ export const windowWait = defineCapability({
     // In front, so the page they are asked to use is the one they see.
     await ask({ kind: "show", tabId: tab }, ctx);
     const askId = await recordAsk(
-      { ...ctx.asker, reason: reason.trim() },
+      { ...ctx.asker, reason: reason.trim(), title: title.trim() },
       "page",
       tab,
       { page: { title: page.title, url: page.url } },
     );
     recordRaisedAsk(askId);
-    return `Showed the user tab ${tab} ("${page.title || page.url}") and asked them to finish there. The card shows your reason with Done and Skip. Your turn ends here; their answer wakes you.`;
+    return `Showed the user tab ${tab} ("${page.title || page.url}") with a card titled "${title.trim()}", your reason, Done and Skip. Your turn ends here; their answer wakes you.`;
   },
   summary:
-    "Hand the user a page of this chat's for what only they can do there (sign in, prove they are a person) and wait: a card shows your reason with Done and Skip, your turn ends, and their answer wakes you.",
+    "Hand the user a page of this chat's for what only they can do there (sign in, prove they are a person) and wait: a card shows your title and reason with Done and Skip, your turn ends, and their answer wakes you.",
   surfaces: {
     cli: { help: "", positional: ["tab"], words: ["window", "wait"] },
   },

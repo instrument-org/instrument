@@ -19,6 +19,12 @@ export const AskerSchema = z.object({
   reason: z.string().optional(),
   sessionId: StoreId.SessionSchema,
   /**
+   * What the person is asked to do on a page the session waits on them in,
+   * in a few words ("Log in to Shopify"), for the card's title and the pill
+   * on the page.
+   */
+  title: z.string().optional(),
+  /**
    * A command of the session's waits on what the ask is about and carries
    * on by itself once it settles, waking the session as any command that
    * outlived its turn does, so the answer wakes it no more.

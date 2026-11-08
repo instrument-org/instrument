@@ -85,12 +85,15 @@ function bashCommands(sessions: Session.WithMessagesAndParts[]): string[] {
   );
 }
 
-/** The chat handed the user its tab with `instrument window wait`, and a reason. */
+/** The chat handed the user its tab with `instrument window wait`, with a title and a reason. */
 const handedThePage: Assertion = {
   check: ({ sessions }) => {
     const commands = bashCommands(sessions);
-    const waits = commands.filter((command) =>
-      /\binstrument\s+window\s+wait\s+tab_\w+[^\n]*--reason\b/.test(command),
+    const waits = commands.filter(
+      (command) =>
+        /\binstrument\s+window\s+wait\s+tab_\w+/.test(command) &&
+        /--title\b/.test(command) &&
+        /--reason\b/.test(command),
     );
     return {
       evidence:

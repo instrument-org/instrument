@@ -6,7 +6,7 @@ import { rpcClient } from "@/client/rpc/client";
 import { browserTargetOf, type ChatId } from "@instrument-org/workspace/client";
 import { CursorClickIcon } from "@phosphor-icons/react/CursorClick";
 import { HandIcon } from "@phosphor-icons/react/Hand";
-import { HourglassMediumIcon } from "@phosphor-icons/react/HourglassMedium";
+import { QuestionIcon } from "@phosphor-icons/react/Question";
 import { useMutation, useQuery } from "@tanstack/react-query";
 
 /**
@@ -33,11 +33,14 @@ export function PageAgentOverlay({
       input: { id: chatId },
     }),
   );
-  const isWaiting =
-    asks?.some(
-      (ask) =>
-        ask.kind === "page" && ask.target === tabId && ask.status === "open",
-    ) ?? false;
+  const waiting = asks?.find(
+    (ask) =>
+      ask.kind === "page" && ask.target === tabId && ask.status === "open",
+  );
+  const isWaiting = waiting !== undefined;
+  const waitingFor =
+    (waiting?.kind === "page" && waiting.askers[0]?.title) ||
+    "Instrument is waiting for you";
   const takeOver = useMutation(
     rpcClient.workspace.session.takeOver.mutationOptions({
       onError: (error) => {
@@ -52,11 +55,11 @@ export function PageAgentOverlay({
         <div className="page-glow" data-tone="waiting" />
         <div className="absolute inset-x-0 bottom-4 flex justify-center">
           <span
-            className="flex h-8 items-center gap-1.5 rounded-full bg-warning-100 px-3.5 text-[12.5px] font-medium text-warning-900 shadow-md dark:bg-warning-900 dark:text-warning-100"
+            className="flex h-8 items-center gap-1.5 rounded-full border border-warning-300 bg-warning-100 px-3.5 text-[12.5px] font-medium text-warning-900 shadow-md dark:border-transparent dark:bg-warning-300 dark:text-warning-900"
             role="status"
           >
-            <HourglassMediumIcon className="size-3.5" />
-            Instrument is waiting for you
+            <QuestionIcon className="size-3.5" />
+            {waitingFor}
           </span>
         </div>
       </div>

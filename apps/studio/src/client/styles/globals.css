@@ -1897,19 +1897,23 @@ a.cursor-pointer {
     position: absolute;
     inset: 0;
     pointer-events: none;
-    box-shadow: inset 0 0 48px 4px var(--page-glow-color);
+    box-shadow:
+      inset 0 0 0 2px var(--page-glow-edge),
+      inset 0 0 80px 12px var(--page-glow-color);
     will-change: opacity;
     animation: page-glow-breathe 2.4s ease-in-out infinite alternate;
-    --page-glow-color: color-mix(in oklab, var(--brand-500) 38%, transparent);
+    --page-glow-color: color-mix(in oklab, var(--brand-500) 60%, transparent);
+    --page-glow-edge: color-mix(in oklab, var(--brand-500) 70%, transparent);
   }
 
   .page-glow[data-tone="waiting"] {
     --page-glow-color: color-mix(in oklab, var(--warning-500) 45%, transparent);
+    --page-glow-edge: color-mix(in oklab, var(--warning-500) 60%, transparent);
   }
 
   @keyframes page-glow-breathe {
     from {
-      opacity: 0.6;
+      opacity: 0.75;
     }
     to {
       opacity: 1;

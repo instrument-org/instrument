@@ -1,6 +1,6 @@
 # Which processes stay busy in real use, and whether tab sleep ended the hidden-tab cost
 
-**Status:** open · **Check after:** 2026-11-07, once v2.0.0-beta.102 or later has run a week on the primary Mac and the test hosts · **Last checked:** 2026-10-24 (not yet on any build that logs it)
+**Status:** closed as answered: no sustained-CPU episode in about two weeks of daily use, and tab sleep holds (see Result) · **Last checked:** 2026-11-08
 
 ## What we're waiting to learn
 
@@ -40,3 +40,13 @@ The installed app's main log on the primary Mac and on the Linux and Windows tes
 - With the window minimized, wakes still found a frame in 8 to 24 ms, a click registered, and a screenshot showed the page's current state. The 2 s wait feared for an occluded window on Windows did not happen.
 
 So sleep behaves on Windows as on macOS and Linux. What remains is the sustained-CPU log over a week of real use.
+
+## Result
+
+Checked 2026-11-08 in the installed app's main log:
+
+- **Primary Mac, daily use from 2026-10-20 to 2026-11-08 (v2.0.0-beta.128 to beta.135):** no `Sustained CPU` line. The same log carries 223 main-thread stall warnings, so warnings from this process were being written. Tabs went to sleep 361 times; of 198 wakes, 196 found a frame and 2 (both on one day) waited the full 2 s.
+- **Windows test host (v2.0.0-beta.103 to beta.134, light use):** no `Sustained CPU` line; 52 sleeps, and all 29 wakes found a frame.
+- **Linux test host:** not checked; the VM was off.
+
+No process stays busy in ordinary use, and sleep ends the hidden-tab cost on both platforms checked, so this closes as answered. The log stays, since it costs nothing while quiet. The only gap is that no real log has shown the monitor firing, so it has no positive control outside its unit tests.

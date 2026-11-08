@@ -409,6 +409,83 @@ describe("task new", () => {
     });
   });
 
+  // On a chat's first turn its baseline is written as the step's request is
+  // made, after the step's id was taken, so it sorts after where the task
+  // forks. A task that missed it wrote a baseline of its own, whose start
+  // time could be a minute on, and lost the chat's cached prefix.
+  it("sends the chat's baseline even when the chat wrote it after the step's id", async () => {
+    const [first] = chatMessages;
+    if (first?.role !== "session-context") {
+      throw new Error("the conversation opens on its baseline");
+    }
+    // The chat's baseline in place of the one it holds, written now, with a
+    // line of its own that a baseline the task wrote would not have.
+    const rewrite = async (
+      replaced: StoreId.Message,
+      line: string,
+    ): Promise<StoreId.Message> => {
+      (
+        await ChatWrites.retract(context.chatId, chatSessionId, [replaced])
+      )._unsafeUnwrap();
+      const id = StoreId.newMessageId();
+      await save({
+        ...first,
+        id,
+        parts: first.parts.flatMap((part) =>
+          part.type === "text"
+            ? [
+                {
+                  ...part,
+                  metadata: {
+                    ...part.metadata,
+                    id: StoreId.newPartId(),
+                    messageId: id,
+                  },
+                  text: `${part.text}\n${line}`,
+                },
+              ]
+            : [],
+        ),
+      });
+      return id;
+    };
+    const written = await rewrite(
+      first.id,
+      "This session started at 11:05 AM local time.",
+    );
+    const [chatSystem] = await request(chatSessionId);
+    expect(JSON.stringify(chatSystem)).toContain("started at 11:05 AM");
+
+    const { handOffs } = await fork();
+    const id = forkId(handOffs);
+    await save(started().message);
+    const forked = await request(id);
+    expect(forked[0]).toEqual(chatSystem);
+    const own = async () =>
+      (
+        await ChatReads.transcript({
+          inherited: false,
+          sessionId: id,
+          chatId: context.chatId,
+        })
+      )
+        ._unsafeUnwrap()
+        .map((message) => message.role);
+    expect(await own()).toEqual(["user"]);
+
+    // A baseline the chat writes once the task has begun is the chat's
+    // alone. The one the task began on goes with it, so the task writes its
+    // own, once, and keeps it however often the chat writes again.
+    const again = await rewrite(
+      written,
+      "This session started at 2:40 PM local time.",
+    );
+    const own2 = await request(id);
+    expect(JSON.stringify(own2[0])).not.toContain("started at 2:40 PM");
+    await rewrite(again, "This session started at 4:10 PM local time.");
+    expect(await request(id)).toEqual(own2);
+  });
+
   it("reads the chat's messages as its own history, copying none", async () => {
     const { handOffs } = await fork();
     const id = forkId(handOffs);

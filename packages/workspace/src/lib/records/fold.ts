@@ -510,8 +510,9 @@ export function foldChat(
 
 /**
  * A session's history as the model reads it: a task's starts with its
- * parent's history up to and including the message it was forked at, then
- * goes on with its own messages.
+ * parent's history up to and including the message it was forked at, and
+ * the parent's baseline as the task began, then goes on with its own
+ * messages.
  */
 export function historyOf(
   chat: FoldedChat,
@@ -527,10 +528,25 @@ export function historyOf(
     }
     visited.add(id);
     const { forkedAt, parent } = found;
+    // The parent's baseline as the task began goes with it wherever its id
+    // sorts: a chat's first turn writes it as its first step's request is
+    // made, after that step's id was taken, so it sorts after a task forked
+    // at that step. One the parent writes once the task has begun is not
+    // the task's.
+    const began = found.messages.reduce<StoreId.Message | undefined>(
+      (first, message) =>
+        first === undefined || message.id < first ? message.id : first,
+      undefined,
+    );
     const inherited =
       parent === undefined || forkedAt === undefined
         ? []
-        : history(parent, visited).filter((message) => message.id <= forkedAt);
+        : history(parent, visited).filter(
+            (message) =>
+              message.id <= forkedAt ||
+              (message.role === "session-context" &&
+                (began === undefined || message.id < began)),
+          );
     return [...inherited, ...found.messages];
   };
   return history(session, new Set());

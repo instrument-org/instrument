@@ -19,7 +19,7 @@ const LOG_RECORDS = {
   rollover:
     "the context window was reset after message `after`; `windows` says, by model, whether that still holds (`lifted` when the model has room for everything). The newest record stands",
   session:
-    "the log's first line: `parent` and `forkedAt` on a task, a session the chat started, whose history is its parent's up to `forkedAt`, then its own, and `startedAs`, the title it was started with",
+    "the log's first line: `parent` and `forkedAt` on a task, a session the chat started, whose history is its parent's up to `forkedAt` (with the parent's baseline as the task began, wherever its id sorts), then its own, and `startedAs`, the title it was started with",
   sites:
     "the hosts the session's browser has been on, oldest first, in `visited`; the newest record stands",
   stop: "the turn was stopped, `by` saying who: `person`, `agent` (the chat's agent stopping its task) or `app` (it quit)",

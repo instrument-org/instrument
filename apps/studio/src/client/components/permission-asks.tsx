@@ -353,6 +353,7 @@ function PageWaitCard({
     <div className="relative animate-in rounded-2xl border border-border bg-card p-3 shadow-xs duration-200 ease-out fade-in-0 fill-mode-both slide-in-from-bottom-2 motion-reduce:animate-none">
       <button
         className="flex w-full items-start gap-3 text-left outline-none"
+        data-page-wait={ask.target}
         onClick={() => {
           windowTabs.select(ask.target);
           setPaneOpenByGroup((current) => ({ ...current, [chatId]: true }));
@@ -378,8 +379,8 @@ function PageWaitCard({
       {elsewhere ? (
         <p className="mt-2.5 text-[13px] text-muted-foreground">{elsewhere}</p>
       ) : (
-        <div className="mt-3 flex items-center gap-2 pl-12">
-          <span className="flex min-w-0 flex-1 items-center gap-1.5 text-[13px] text-muted-foreground">
+        <div className="mt-3 flex flex-wrap items-center gap-2 pl-12">
+          <span className="mr-auto flex items-center gap-1.5 text-[13px] whitespace-nowrap text-muted-foreground">
             <ArrowRightIcon className="size-3.5 shrink-0" />
             Finish on the page beside the chat.
           </span>

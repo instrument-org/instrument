@@ -8,6 +8,10 @@ import { SlotCardView } from "./slot-card";
 // about what the browser drew, which jsdom answers for any markup at all.
 
 function writing(path: string, words: string): TurnStep {
+  return step({ kind: "file", path, words }, "writing");
+}
+
+function step(shows: TurnStep["shows"], status: TurnStep["status"]): TurnStep {
   return {
     metadata: {
       createdAt: new Date("2026-01-01T00:00:00Z"),
@@ -15,22 +19,22 @@ function writing(path: string, words: string): TurnStep {
       messageId: StoreId.newMessageId(),
       sessionId: StoreId.newSessionId(),
     },
-    shows: { kind: "file", path, words },
-    status: "writing",
+    shows,
+    status,
     tool: "tool-write_file",
     type: "step",
   };
 }
 
 async function renderCard(path: string, words: string) {
+  return renderStep(writing(path, words));
+}
+
+async function renderStep(shown: TurnStep) {
   return renderInBrowser(
     <div style={{ width: 460 }}>
       <SlotCardView
-        card={{
-          changedFile: undefined,
-          kind: "files",
-          steps: [writing(path, words)],
-        }}
+        card={{ changedFile: undefined, kind: "files", steps: [shown] }}
         isCurrent
         sessionId={StoreId.newSessionId()}
       />
@@ -65,6 +69,27 @@ describe("a live card's file as it is written", () => {
         screen.container.querySelector(".code-highlight .syntax-string"),
       )
       .not.toBeNull();
+  });
+
+  it("shows both sides of an edit to code in its colors", async () => {
+    const screen = await renderStep(
+      step(
+        {
+          after: 'const name = "new";',
+          before: 'const name = "old";',
+          kind: "file",
+          path: "/work/a.ts",
+        },
+        "done",
+      ),
+    );
+    await expect
+      .poll(
+        () =>
+          screen.container.querySelectorAll(".code-highlight .syntax-string")
+            .length,
+      )
+      .toBe(2);
   });
 
   it("shows a file with no grammar as typed", async () => {

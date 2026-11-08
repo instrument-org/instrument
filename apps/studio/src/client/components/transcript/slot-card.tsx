@@ -358,13 +358,17 @@ function filesCard(
       written?.after !== undefined ? (
         <div className="absolute inset-0 overflow-hidden bg-card p-3 text-xs">
           {written.before && (
-            <p className="mb-1.5 rounded-sm bg-destructive/10 px-1 whitespace-pre-wrap text-foreground/70">
-              {written.before}
-            </p>
+            <FileWords
+              className="mb-1.5 rounded-sm bg-destructive/10 px-1 text-foreground/70"
+              path={written.path}
+              text={written.before}
+            />
           )}
-          <p className="rounded-sm bg-brand-500/10 px-1 whitespace-pre-wrap text-foreground/80">
-            {written.after}
-          </p>
+          <FileWords
+            className="rounded-sm bg-brand-500/10 px-1 text-foreground/80"
+            path={written.path}
+            text={written.after}
+          />
         </div>
       ) : written?.words !== undefined ? (
         <TypedWords
@@ -397,19 +401,10 @@ function TypedWords({
       ref.current.scrollTop = ref.current.scrollHeight;
     }
   }, [isWriting, words]);
-  const extension = /\.([^./\\]+)$/.exec(path)?.[1]?.toLowerCase();
-  const isMarkdown =
-    extension !== undefined && MARKDOWN_EXTENSIONS.has(extension);
-  const { highlightedHtml, isLanguageSupported } = useSyntaxHighlighting({
-    code: isMarkdown ? undefined : words,
-    language: isMarkdown ? undefined : extension,
-  });
+  const isMarkdown = MARKDOWN_EXTENSIONS.has(extensionOf(path) ?? "");
   return (
     <div
-      className={cn(
-        "absolute inset-0 overflow-hidden bg-card px-3 py-2.5 text-xs text-foreground/80",
-        isLanguageSupported && "font-mono",
-      )}
+      className="absolute inset-0 overflow-hidden bg-card px-3 py-2.5 text-xs text-foreground/80"
       ref={ref}
     >
       {isMarkdown ? (
@@ -421,14 +416,54 @@ function TypedWords({
         >
           <Markdown hideImages isStreaming={isWriting} markdown={words} />
         </div>
-      ) : highlightedHtml ? (
-        <div
-          className="[&_pre]:break-words [&_pre]:whitespace-pre-wrap"
-          dangerouslySetInnerHTML={{ __html: highlightedHtml.join("\n") }}
-        />
       ) : (
-        <div className="whitespace-pre-wrap">{words}</div>
+        <FileWords path={path} text={words} />
       )}
+    </div>
+  );
+}
+
+const extensionOf = (path: string) =>
+  /\.([^./\\]+)$/.exec(path)?.[1]?.toLowerCase();
+
+/**
+ * Some of a file's words as its source reads: code in monospace and its
+ * grammar's colors, and anything else, Markdown included, as typed.
+ */
+function FileWords({
+  className,
+  path,
+  text,
+}: {
+  className?: string;
+  path: string;
+  text: string;
+}) {
+  const extension = extensionOf(path);
+  const language = MARKDOWN_EXTENSIONS.has(extension ?? "")
+    ? undefined
+    : extension;
+  const { highlightedHtml, isLanguageSupported } = useSyntaxHighlighting({
+    code: language === undefined ? undefined : text,
+    language,
+  });
+  return highlightedHtml ? (
+    <div
+      className={cn(
+        "font-mono [&_pre]:break-words [&_pre]:whitespace-pre-wrap",
+        className,
+      )}
+      dangerouslySetInnerHTML={{ __html: highlightedHtml.join("\n") }}
+    />
+  ) : (
+    <div
+      className={cn(
+        "whitespace-pre-wrap",
+        isLanguageSupported && "font-mono",
+        className,
+      )}
+    >
+      {text}
     </div>
   );
 }

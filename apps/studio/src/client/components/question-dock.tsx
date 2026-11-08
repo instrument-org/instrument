@@ -22,7 +22,8 @@ export function QuestionDock({ chatId }: { chatId: ChatId }) {
     }),
   ).data;
   // Answers sent from here that the chat's asks don't show yet, so the next
-  // card comes up on the click.
+  // card comes up on the click. One given while the computer that asked was
+  // away comes back asking again, and shows.
   const [sent, setSent] = useState<ReadonlySet<string>>(new Set());
   const answer = useMutation(
     rpcClient.workspace.chats.answerQuestion.mutationOptions(),
@@ -31,7 +32,7 @@ export function QuestionDock({ chatId }: { chatId: ChatId }) {
     ask.kind === "question" &&
     ask.card !== undefined &&
     ask.answerable &&
-    !sent.has(ask.id)
+    (ask.away !== undefined || !sent.has(ask.id))
       ? [{ ...ask, card: ask.card }]
       : [],
   );

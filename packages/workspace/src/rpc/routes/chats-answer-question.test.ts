@@ -172,7 +172,9 @@ it("closes the question, writes the answer onto the call, and wakes the chat wit
   await vi.waitFor(() => {
     expect(
       sent
-        .filter((event) => event.type === "addMessage")
+        .filter(
+          (event) => event.type === "addMessage" && event.value.id === chatId,
+        )
         .map((event) => ({
           parts: event.value.message?.parts.map((woken) => woken.type),
           sessionId: event.value.sessionId,
@@ -242,7 +244,11 @@ it("closes a question the person wrote past, waking nobody, so no launch drives 
     outcome: { kind: "left" },
     woken: true,
   });
-  expect(sent.filter((event) => event.type === "addMessage")).toEqual([]);
+  expect(
+    sent.filter(
+      (event) => event.type === "addMessage" && event.value.id === chatId,
+    ),
+  ).toEqual([]);
 });
 
 it("keeps the question open past a note no one typed", async () => {
@@ -444,6 +450,28 @@ describe("questions asked in one turn", () => {
     ).toHaveLength(1);
   });
 
+  it("takes no answer to a held question until its turn is over", async () => {
+    const { chatId, sessionId } = await chatAsking();
+    const askId = await asksInTurn(chatId, sessionId, "Which planet?");
+    // As a device that does not know the question is held would write it.
+    await writingChatRecords()?.answer(chatId, sessionId, {
+      ask: askId,
+      given: { answer: { replies: [{ picked: ["Yes"] }] }, kind: "question" },
+    });
+
+    await driveAsks(chatId, context().workspaceRef);
+    expect(await questionsOpen(chatId)).toEqual([
+      { answerable: false, held: true, question: "Which planet?" },
+    ]);
+
+    await releaseQuestions(chatId, sessionId);
+    await driveAsks(chatId, context().workspaceRef);
+    expect(await questionsOpen(chatId)).toEqual([]);
+    await vi.waitFor(async () => {
+      expect(await answerNotes(chatId, sessionId)).toEqual([["Which planet?"]]);
+    });
+  });
+
   it("closes the whole set when the person writes instead", async () => {
     const { chatId, sessionId } = await chatAsking();
     const first = await asksInTurn(chatId, sessionId, "Which planet?");
@@ -572,7 +600,11 @@ describe("from another computer", () => {
     await expect(
       on(laptop, chatId, () => answer(chatId, askId, "Coffee")),
     ).rejects.toThrow("That question was already answered.");
-    expect(sent.filter((event) => event.type === "addMessage")).toEqual([]);
+    expect(
+      sent.filter(
+        (event) => event.type === "addMessage" && event.value.id === chatId,
+      ),
+    ).toEqual([]);
   });
 
   // Nothing is written when an answer goes stale, so the view reads again
@@ -644,7 +676,9 @@ describe("from another computer", () => {
 
     const woken = () =>
       sent
-        .filter((event) => event.type === "addMessage")
+        .filter(
+          (event) => event.type === "addMessage" && event.value.id === chatId,
+        )
         .flatMap((event) =>
           (event.value.message?.parts ?? []).flatMap((part) =>
             part.type === "data-questionAnswer"

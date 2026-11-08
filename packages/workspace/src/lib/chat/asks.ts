@@ -237,9 +237,8 @@ export async function recordAsk(
  * until it is answered or the person moves past it. One asked while its
  * turn runs is `held` (`releaseQuestions` lets it go once the session is at
  * rest) and joins the set of the questions held with it, which the person
- * goes through together. Asking replaces what the session asked in an
- * earlier turn: this computer's questions of any other set still open
- * close, waking nobody, so only the newest set waits on the person.
+ * goes through together. A new set leaves what an earlier turn asked
+ * behind (`askStates`), so only the newest set waits on the person.
  */
 export async function recordQuestion(
   asker: Asker & { messageId: StoreId.Message; partId: StoreId.Part },
@@ -252,33 +251,19 @@ export async function recordQuestion(
   }
   // Only the chat's own session asks, so its log is the one asking.
   await askWrites(asker.chatId, async () => {
-    const writer = askWriter(asker.chatId);
-    const own = (await chatAskStates(asker.chatId)).flatMap(({ ask, live }) =>
-      live &&
-      ask.kind === "question" &&
-      ask.device === thisDevice() &&
-      ask.askers.some((one) => one.sessionId === asker.sessionId)
-        ? [ask]
-        : [],
-    );
+    const heldSet = held
+      ? (await chatAskStates(asker.chatId)).find(
+          ({ ask, live }) =>
+            live &&
+            ask.kind === "question" &&
+            ask.held &&
+            ask.device === thisDevice(),
+        )?.ask
+      : undefined;
     const set =
-      (held ? own.find((ask) => ask.held)?.set : undefined) ?? asker.partId;
-    for (const ask of own) {
-      if (ask.set === set) {
-        continue;
-      }
-      await writer.ask(asker.chatId, asker.sessionId, {
-        ...ask,
-        stage: {
-          closedAt: getCurrentDate(),
-          is: "closed",
-          outcome: { kind: "left" },
-          woken: true,
-        },
-      });
-    }
+      (heldSet?.kind === "question" ? heldSet.set : undefined) ?? asker.partId;
     const at = getCurrentDate();
-    await writer.ask(asker.chatId, asker.sessionId, {
+    await askWriter(asker.chatId).ask(asker.chatId, asker.sessionId, {
       askedAt: at,
       askers: [{ at, partId: asker.partId, sessionId: asker.sessionId }],
       card,

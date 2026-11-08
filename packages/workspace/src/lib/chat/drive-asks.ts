@@ -149,19 +149,20 @@ async function step(
     if (stage.woken) {
       return false;
     }
+    const markWoken = () =>
+      write(chatId, ask.id, (now) =>
+        now.ask.stage.is === "closed"
+          ? { ...now.ask, stage: { ...now.ask.stage, woken: true } }
+          : undefined,
+      );
     const { delivering } = await wake(chatId, state, workspaceRef);
     if (delivering) {
-      // Written woken by the pass after it lands, which finds its note.
-      delivering
-        .then(() => driveAsks(chatId, workspaceRef))
-        .catch(getWorkspaceConfig().captureException);
+      // Written woken once it has been delivered or dropped; one that
+      // failed is woken by a later pass.
+      delivering.then(markWoken).catch(getWorkspaceConfig().captureException);
       return false;
     }
-    return write(chatId, ask.id, (now) =>
-      now.ask.stage.is === "closed"
-        ? { ...now.ask, stage: { ...now.ask.stage, woken: true } }
-        : undefined,
-    );
+    return markWoken();
   }
   if (askers.length === 0) {
     return close(chatId, ask.id, { kind: "left" }, undefined, true);
@@ -170,7 +171,9 @@ async function step(
     // The person wrote past it or stopped the chat: it closes, waking nobody.
     return close(chatId, ask.id, { kind: "left" }, undefined, true);
   }
-  if (pending) {
+  // A held question is answered by nobody until its turn is over, whatever
+  // a device that does not know it is held wrote.
+  if (pending && !(ask.kind === "question" && ask.held)) {
     // Read again: an asker may have joined since this round read the ask.
     return write(chatId, ask.id, (now) => {
       if (!sameAnswer(now.pending, pending)) {
@@ -509,6 +512,9 @@ function startLook(
 /** How long the wake for a set of questions waits for another call under its key. */
 const QUESTION_SET_WAKE_DEBOUNCE_MS = 300;
 
+/** Each set's wake from when it is asked for until it is delivered or dropped, by chat and set. */
+const setWakes = new Map<string, Promise<void>>();
+
 /**
  * Wakes each asker of a closed ask with its outcome: every one still on
  * it, but for a yes, one whose own command waits on what it asked for and
@@ -520,8 +526,7 @@ const QUESTION_SET_WAKE_DEBOUNCE_MS = 300;
  * A question of a set wakes once for the set: each of its questions but
  * the last to be told leaves its note without starting a turn, and the
  * last wakes the session once it is at rest, which the returned promise
- * settles on. The ask is written woken only after that, by the pass that
- * finds its note.
+ * settles on. The ask is written woken only after that.
  */
 async function wake(
   chatId: ChatId,
@@ -549,6 +554,12 @@ async function wake(
     ask.kind === "question" && ask.set !== undefined && !quiet
       ? { last: await lastOfSet(chatId, ask), set: ask.set }
       : undefined;
+  const setKey = ofSet && JSON.stringify([chatId, ofSet.set]);
+  // Until its note is written, a pass finds none and would wake again.
+  const onItsWay = setKey === undefined ? undefined : setWakes.get(setKey);
+  if (ofSet?.last && onItsWay) {
+    return { delivering: onItsWay };
+  }
   let delivering: Promise<void> | undefined;
   for (const asker of askers) {
     if (
@@ -589,6 +600,15 @@ async function wake(
         sessionId: asker.sessionId,
         workspaceRef,
       });
+      if (setKey !== undefined) {
+        const key = setKey;
+        setWakes.set(key, delivering);
+        void delivering
+          .catch(() => {})
+          .finally(() => {
+            setWakes.delete(key);
+          });
+      }
     } else {
       await enqueueWake({
         chatId,

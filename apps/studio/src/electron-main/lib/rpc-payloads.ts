@@ -19,17 +19,34 @@ const PAYLOAD_LIMITS = {
    */
   largeBytes: 256_000,
   largeMessages: 10,
+  /**
+   * More streams than this open from one procedure to one window is a
+   * subscription made per row, link or tab rather than once.
+   */
+  procedureStreams: 50,
+  /**
+   * A window's open streams passing this, and then each doubling of it, is
+   * streams that open and never end.
+   */
+  windowStreams: 200,
 };
 
 /** The rolling minute is six ten-second buckets, so a total costs six adds. */
 const BUCKET_MS = 10_000;
 const BUCKETS = 6;
 /**
- * Calls a window can have open before the one idle longest is forgotten. A
- * stream counts as open until it ends, and is moved to the back each time it
- * sends, so the cap drops calls that ended without a frame saying so.
+ * Calls a window can have waiting on an answer before the one idle longest is
+ * forgotten, so the cap drops calls that ended without a frame saying so.
+ * Streams are followed apart from these, so requests never push one out.
  */
 const MAX_CALLS = 1_000;
+/**
+ * Streams a window can have open before the one opened first stops being
+ * followed. Nothing said it ended, so it stays counted as open under its
+ * procedure until the port closes, and what it sends later counts as
+ * `(unknown)`. A window only gets here well past the stream warnings.
+ */
+const MAX_STREAMS = 4_000;
 /** Procedures a window counts apart before the rest share one total. */
 const MAX_PATHS = 500;
 /** How much of a frame is read to find its id, type and path. */
@@ -121,7 +138,8 @@ type MeterOptions = {
 /**
  * Counts what one window's RPC port sends, by procedure, and warns when one
  * message, one rolling minute of a procedure's messages, or how many large
- * messages it sent in that minute is past the limits.
+ * messages it sent in that minute is past the limits, and when a procedure or
+ * the window has too many streams open.
  * Observation only: every method swallows its own failures.
  */
 export function createPayloadMeter({
@@ -131,9 +149,69 @@ export function createPayloadMeter({
   gate = alarms,
   limits = PAYLOAD_LIMITS,
 }: MeterOptions) {
-  /** Open calls by id, the one idle longest first. */
+  /** Calls waiting on an answer by id, the one idle longest first. */
   const calls = new Map<string, string>();
+  /** Open streams by id, the one opened first first. */
+  const streams = new Map<string, string>();
+  /** Open streams per procedure, counting those past `MAX_STREAMS`. */
+  const openByPath = new Map<string, number>();
+  let openTotal = 0;
+  let nextWindowLevel = limits.windowStreams;
   const traffic = new Map<string, Minute>();
+
+  const mostOpen = () =>
+    [...openByPath]
+      .toSorted((a, b) => b[1] - a[1])
+      .slice(0, 3)
+      .map(([path, open]) => `${path} ${open}`)
+      .join(", ");
+
+  const openStream = (id: string, path: string) => {
+    streams.set(id, path);
+    if (streams.size > MAX_STREAMS) {
+      const first = streams.keys().next();
+      if (!first.done) {
+        streams.delete(first.value);
+      }
+    }
+    const open = (openByPath.get(path) ?? 0) + 1;
+    openByPath.set(path, open);
+    openTotal += 1;
+    const total = openTotal;
+    if (open > limits.procedureStreams) {
+      gate.raise(
+        `rpc:streams:${path}`,
+        () =>
+          `RPC streams: ${path} has ${open} streams open to window ${window} (${total} open in all)`,
+        warn,
+      );
+    }
+    if (total > nextWindowLevel) {
+      const level = nextWindowLevel;
+      nextWindowLevel *= 2;
+      gate.raise(
+        `rpc:window-streams:${window}:${level}`,
+        () =>
+          `RPC streams: window ${window} has ${total} streams open, past ${level} (most: ${mostOpen()})`,
+        warn,
+      );
+    }
+  };
+
+  const endStream = (id: string) => {
+    const path = streams.get(id);
+    if (path === undefined) {
+      return;
+    }
+    streams.delete(id);
+    const open = (openByPath.get(path) ?? 1) - 1;
+    if (open > 0) {
+      openByPath.set(path, open);
+    } else {
+      openByPath.delete(path);
+    }
+    openTotal -= 1;
+  };
 
   const minuteOf = (named: string) => {
     const path = traffic.has(named) || traffic.size < MAX_PATHS ? named : OTHER;
@@ -196,10 +274,12 @@ export function createPayloadMeter({
         }
         if (frame.type === 4) {
           calls.delete(frame.id);
+          endStream(frame.id);
           return;
         }
         if (frame.type === undefined && frame.path) {
           calls.delete(frame.id);
+          endStream(frame.id);
           calls.set(frame.id, frame.path);
           if (calls.size > MAX_CALLS) {
             const idlest = calls.keys().next();
@@ -218,15 +298,27 @@ export function createPayloadMeter({
       try {
         const bytes = sizeOf(data);
         const frame = readFrameHead(data);
-        const path = (frame && calls.get(frame.id)) ?? UNKNOWN;
-        if (frame && path !== UNKNOWN) {
+        let path = UNKNOWN;
+        if (frame) {
           const ends =
             frame.type === 4 ||
             (frame.type === 3 && frame.event !== "message") ||
             (frame.type === undefined && !frame.opensStream);
-          calls.delete(frame.id);
-          if (!ends) {
-            calls.set(frame.id, path);
+          const stream = streams.get(frame.id);
+          const call = calls.get(frame.id);
+          if (stream !== undefined) {
+            path = stream;
+            if (ends) {
+              endStream(frame.id);
+            }
+          } else if (call !== undefined) {
+            path = call;
+            calls.delete(frame.id);
+            if (frame.type === undefined && frame.opensStream) {
+              openStream(frame.id, call);
+            } else if (!ends) {
+              calls.set(frame.id, call);
+            }
           }
         }
         const at = now();
@@ -260,12 +352,19 @@ export function createPayloadMeter({
       }
     },
 
-    /** How many calls the meter is following, for tests. */
-    openCalls: () => calls.size,
+    /** How many calls and streams the meter is following, for tests. */
+    openCalls: () => calls.size + streams.size,
+
+    /** How many streams are open, for tests. */
+    openStreams: () => openTotal,
 
     /** Forgets the window's calls and counts once its port closes. */
     closed() {
       calls.clear();
+      streams.clear();
+      openByPath.clear();
+      openTotal = 0;
+      nextWindowLevel = limits.windowStreams;
       traffic.clear();
     },
   };

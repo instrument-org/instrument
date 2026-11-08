@@ -35,6 +35,8 @@ const LIMITS = {
   minuteBytes: 10 * MB,
   largeBytes: 256_000,
   largeMessages: 10,
+  procedureStreams: 50,
+  windowStreams: 200,
 };
 
 function setup(limits: Partial<typeof LIMITS> = {}) {
@@ -219,18 +221,114 @@ it("forgets a stream the window aborts, and everything when the port closes", ()
   expect(meter.openCalls()).toBe(0);
 });
 
-it("follows at most a thousand calls, dropping the one idle longest", () => {
+it("follows at most a thousand unanswered calls, keeping streams apart", () => {
   const { meter, warn } = setup();
   meter.received(request("live", "chats.live.list"));
   meter.sent(streamOpens("live"));
-  for (let i = 0; i < 999; i++) {
+  for (let i = 0; i < 1_001; i++) {
     meter.received(request(`u${i}`, "files.read"));
   }
-  meter.sent(event("live", "message"));
-  meter.received(request("one-more", "files.read"));
-  expect(meter.openCalls()).toBe(1_000);
+  expect(meter.openCalls()).toBe(1_001);
   meter.sent(event("live", "message", 2 * MB));
-  expect(warn.mock.calls[0]?.[0]).toContain("chats.live.list");
+  meter.sent(response("u0", 2 * MB));
+  expect(warn.mock.calls.map(([line]) => line.split(" sent")[0])).toEqual([
+    "RPC payload: chats.live.list",
+    "RPC payload: (unknown)",
+  ]);
+});
+
+let next = 0;
+function openStreams(
+  meter: ReturnType<typeof setup>["meter"],
+  path: string,
+  count: number,
+) {
+  const ids: string[] = [];
+  for (let i = 0; i < count; i++) {
+    const id = `${path}-${next++}`;
+    meter.received(request(id, path));
+    meter.sent(streamOpens(id));
+    ids.push(id);
+  }
+  return ids;
+}
+
+it("warns when one procedure has more than fifty streams open in a window, once an hour", () => {
+  const { meter, warn, advance } = setup();
+  const ids = openStreams(meter, "chats.transcript.live", 50);
+  expect(warn).not.toHaveBeenCalled();
+  openStreams(meter, "chats.transcript.live", 1);
+  expect(warn.mock.calls).toMatchInlineSnapshot(`
+    [
+      [
+        "RPC streams: chats.transcript.live has 51 streams open to window 7 (51 open in all)",
+      ],
+    ]
+  `);
+  for (const id of ids.slice(0, 20)) {
+    meter.sent(event(id, "done"));
+  }
+  advance(HOUR - 1);
+  openStreams(meter, "chats.transcript.live", 30);
+  expect(warn).toHaveBeenCalledTimes(1);
+  expect(meter.openStreams()).toBe(61);
+});
+
+it("warns as a window's open streams climb past 200 and each doubling", () => {
+  const { meter, warn } = setup({ procedureStreams: 1_000 });
+  openStreams(meter, "a.live", 120);
+  const b = openStreams(meter, "b.live", 80);
+  openStreams(meter, "c.live", 1);
+  openStreams(meter, "c.live", 1);
+  expect(warn.mock.calls).toMatchInlineSnapshot(`
+    [
+      [
+        "RPC streams: window 7 has 201 streams open, past 200 (most: a.live 120, b.live 80, c.live 1)",
+      ],
+    ]
+  `);
+  for (const id of b) {
+    meter.received(abort(id));
+  }
+  openStreams(meter, "a.live", 80);
+  expect(warn).toHaveBeenCalledTimes(1);
+  openStreams(meter, "a.live", 198);
+  expect(meter.openStreams()).toBe(400);
+  expect(warn).toHaveBeenCalledTimes(1);
+  openStreams(meter, "a.live", 1);
+  expect(warn.mock.calls[1]?.[0]).toMatchInlineSnapshot(
+    `"RPC streams: window 7 has 401 streams open, past 400 (most: a.live 399, c.live 2)"`,
+  );
+});
+
+it("counts a stream as open until it ends, however it ends", () => {
+  const { meter } = setup();
+  const [done = "", failed = "", aborted = ""] = openStreams(
+    meter,
+    "x.live",
+    4,
+  );
+  meter.sent(event(done, "message"));
+  expect(meter.openStreams()).toBe(4);
+  meter.sent(event(done, "done"));
+  meter.sent(event(failed, "error"));
+  meter.received(abort(aborted));
+  expect(meter.openStreams()).toBe(1);
+  meter.received(request("plain", "x.get"));
+  meter.sent(response("plain"));
+  expect(meter.openStreams()).toBe(1);
+  meter.closed();
+  expect(meter.openStreams()).toBe(0);
+});
+
+it("keeps counting a stream past the cap as open, since nothing said it ended", () => {
+  const { meter } = setup({ procedureStreams: 10_000 });
+  const [first = "", second = ""] = openStreams(meter, "x.live", 4_001);
+  expect(meter.openStreams()).toBe(4_001);
+  meter.sent(event(first, "done"));
+  expect(meter.openStreams()).toBe(4_001);
+  meter.sent(event(second, "done"));
+  expect(meter.openStreams()).toBe(4_000);
 });
 
 it("counts a frame it cannot read without throwing", () => {

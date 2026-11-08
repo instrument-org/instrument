@@ -114,11 +114,25 @@ describe("usePagePicture", () => {
     rpc.capture
       .mockResolvedValueOnce({ url: null })
       .mockResolvedValue({ url: "data:second" });
-    activity.lastAt = 1;
+    // No agent command, so only the retry asks a second time.
     pool.guest = GUEST;
     const view = await renderInBrowser(<Picture />);
     await expect
       .element(view.getByRole("status"), { timeout: 4000 })
       .toHaveTextContent("data:second");
+    expect(rpc.capture).toHaveBeenCalledTimes(2);
+  });
+
+  it("asks nothing more once the card is gone", async () => {
+    rpc.get.mockResolvedValue({ url: null });
+    const first = deferred<Picture>();
+    rpc.capture.mockReturnValueOnce(first.promise);
+    pool.guest = GUEST;
+    const view = await renderInBrowser(<Picture />);
+    await expect.poll(() => rpc.capture.mock.calls.length).toBe(1);
+    await view.unmount();
+    first.resolve({ url: null });
+    await new Promise((resolve) => setTimeout(resolve, 2500));
+    expect(rpc.capture).toHaveBeenCalledTimes(1);
   });
 });

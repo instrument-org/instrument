@@ -2106,6 +2106,25 @@ The skills installed on this machine when this session started. Load one with \`
 ]
 `;
 
+exports[`the context message > pins the notes a typed turn's first step and a cut-off step are sent with 1`] = `
+{
+  "cutOff": {
+    "kind": "output-limit",
+    "text": "
+<instrument-system-note>
+Your last reply was cut off at the output limit, mid-word. Carry on from exactly where it stops, without repeating what is already there and without starting over. Write less at a time.
+</instrument-system-note>",
+  },
+  "typed": {
+    "kind": "turn",
+    "text": "
+<instrument-system-note>
+Before using any tool, tell the user in a few words what you are doing ("Reading the lease."), the work rather than their request said back, then nothing more until the outcome. If no tool is needed, just answer.
+</instrument-system-note>",
+  },
+}
+`;
+
 exports[`the context message > pins the system information and user lines on their own 1`] = `
 {
   "systemInfo": "<system_info>
@@ -2858,6 +2877,47 @@ Sample words.
 </instrument-system-note>",
   ],
 ]
+`;
+
+exports[`the rollover notice > pins each shape it takes 1`] = `
+{
+  "noNotes": "<context-rollover>
+This conversation ran out of context and continued in a fresh window. The user's messages have been carried across newest first, up to a size budget: older ones may have been dropped whole, and a bracketed [context rollover omitted ...] line stands where the middle of an oversized one was cut. Treat a line like that, or an earlier instruction you cannot find, as something to ask the user about rather than something that never existed. Your own earlier turns have not been carried across at all: the work you did, what you read, and anything you worked out before the cut are no longer in front of you.
+
+No handoff notes were found at \`/Users/mac-user/.instrument/chats/c/handoff-notes.md\`. Treat what is in this window as the remainder of the task rather than the whole of it, and write your notes there before the room runs out again.
+</context-rollover>",
+  "summarized": "<context-rollover>
+This conversation was summarized to keep it small, and continued in a fresh window. The user's messages have been carried across newest first, up to a size budget: older ones may have been dropped whole, and a bracketed [context rollover omitted ...] line stands where the middle of an oversized one was cut. Treat a line like that, or an earlier instruction you cannot find, as something to ask the user about rather than something that never existed. Your own earlier turns are replaced by the summary below, which you wrote at the cut: treat what it says as established rather than something to rediscover. The whole conversation so far is in \`/Users/mac-user/transcript.md\`, if a detail the summary left out matters.
+
+<summary>
+A summary.
+</summary>
+
+These are the handoff notes you left at \`/Users/mac-user/.instrument/chats/c/handoff-notes.md\`. They are your own account of the work above, and the only one still in front of you, so treat what they say about the task as established rather than something to rediscover:
+
+Notes.
+
+Keep them current at \`/Users/mac-user/.instrument/chats/c/handoff-notes.md\` as the task moves.
+</context-rollover>",
+  "summarizedNoTranscript": "<context-rollover>
+This conversation was summarized to keep it small, and continued in a fresh window. The user's messages have been carried across newest first, up to a size budget: older ones may have been dropped whole, and a bracketed [context rollover omitted ...] line stands where the middle of an oversized one was cut. Treat a line like that, or an earlier instruction you cannot find, as something to ask the user about rather than something that never existed. Your own earlier turns are replaced by the summary below, which you wrote at the cut: treat what it says as established rather than something to rediscover.
+
+<summary>
+A summary.
+</summary>
+
+No handoff notes were found at \`/Users/mac-user/.instrument/chats/c/handoff-notes.md\`. Treat what is in this window as the remainder of the task rather than the whole of it, and write your notes there before the room runs out again.
+</context-rollover>",
+  "withNotes": "<context-rollover>
+This conversation ran out of context and continued in a fresh window. The user's messages have been carried across newest first, up to a size budget: older ones may have been dropped whole, and a bracketed [context rollover omitted ...] line stands where the middle of an oversized one was cut. Treat a line like that, or an earlier instruction you cannot find, as something to ask the user about rather than something that never existed. Your own earlier turns have not been carried across at all: the work you did, what you read, and anything you worked out before the cut are no longer in front of you.
+
+These are the handoff notes you left at \`/Users/mac-user/.instrument/chats/c/handoff-notes.md\`. They are your own account of the work above, and the only one still in front of you, so treat what they say about the task as established rather than something to rediscover:
+
+Notes.
+
+Keep them current at \`/Users/mac-user/.instrument/chats/c/handoff-notes.md\` as the task moves.
+</context-rollover>",
+}
 `;
 
 exports[`the system prompt > is pinned 1`] = `

@@ -34,7 +34,10 @@ import * as pageTakeover from "./notes/page-takeover-model-text";
 import * as permissionAnswer from "./notes/permission-answer-model-text";
 import * as project from "./notes/project-model-text";
 import * as questionAnswer from "./notes/question-answer-model-text";
+import { ChatWrites } from "../lib/chat-writes";
+import { contextRolloverNotice } from "../lib/handoff-notes";
 import { sessionOfChat } from "../lib/record-folders";
+import { turnNoteFor } from "../lib/turn-note";
 import * as setupNews from "./notes/setup-news-model-text";
 import * as appCommand from "./commands/app-command";
 import * as instrumentCommand from "./commands/instrument-command";
@@ -303,6 +306,80 @@ describe.skipIf(WINDOWS)("the context message", () => {
         network: "<network>",
       }),
       user: await getUserText(),
+    }).toMatchSnapshot();
+  });
+
+  it("pins the notes a typed turn's first step and a cut-off step are sent with", async () => {
+    const sessionId = sessionOfChat(chatId);
+    if (!sessionId) throw new Error("missing chat session");
+    const save = async (message: SessionMessage.WithParts) =>
+      (await ChatWrites.saveMessageWithParts(message, chatId))._unsafeUnwrap();
+    const userId = StoreId.newMessageId();
+    await save({
+      id: userId,
+      metadata: { createdAt: new Date(1000), sessionId },
+      parts: [
+        {
+          metadata: {
+            createdAt: new Date(1000),
+            id: StoreId.newPartId(),
+            messageId: userId,
+            sessionId,
+          },
+          state: "done",
+          text: "Hello",
+          type: "text",
+        },
+      ],
+      role: "user",
+    });
+    const typed = await turnNoteFor({ chatId, sessionId });
+    const replyId = StoreId.newMessageId();
+    await save({
+      id: replyId,
+      metadata: {
+        createdAt: new Date(2000),
+        finishReason: "length",
+        modelId: "mock-model-id",
+        providerId: "mock-provider-id",
+        sessionId,
+      },
+      parts: [
+        {
+          metadata: {
+            createdAt: new Date(2000),
+            id: StoreId.newPartId(),
+            messageId: replyId,
+            sessionId,
+          },
+          state: "done",
+          text: "Half a rep",
+          type: "text",
+        },
+      ],
+      role: "assistant",
+    });
+    expect({
+      cutOff: await turnNoteFor({ chatId, sessionId }),
+      typed,
+    }).toMatchSnapshot();
+  });
+});
+
+describe.skipIf(WINDOWS)("the rollover notice", () => {
+  it("pins each shape it takes", () => {
+    const notesPath = "/Users/mac-user/.instrument/chats/c/handoff-notes.md";
+    expect({
+      noNotes: contextRolloverNotice(undefined, notesPath),
+      summarized: contextRolloverNotice("Notes.", notesPath, {
+        summary: "A summary.",
+        transcriptPath: "/Users/mac-user/transcript.md",
+      }),
+      summarizedNoTranscript: contextRolloverNotice(undefined, notesPath, {
+        summary: "A summary.",
+        transcriptPath: undefined,
+      }),
+      withNotes: contextRolloverNotice("Notes.", notesPath),
     }).toMatchSnapshot();
   });
 });

@@ -51,6 +51,7 @@ import {
   waitInChat,
 } from "@instrument-org/workspace/electron";
 import { call, eventIterator, ORPCError } from "@orpc/server";
+import { createHash } from "node:crypto";
 import { z } from "zod";
 
 import {
@@ -140,11 +141,7 @@ async function iconFor(app: {
 }): Promise<{ icon?: string }> {
   const own = await findAppIcon(app.dir).catch(() => undefined);
   const url = own
-    ? await (
-        own.fileName === "icon.svg"
-          ? storeFileOpenSvgIcon(own.bytes)
-          : storeFileOpenIcon(own.bytes.toString("base64"), APP_ICON_SIZE)
-      ).catch(() => null)
+    ? await storedOwnIcon(own)
     : app.manifest.type === "mcp-local" && app.manifest.macApp
       ? await getMacAppIconUrl(app.manifest.macApp).catch(() => null)
       : null;
@@ -154,6 +151,36 @@ async function iconFor(app: {
   const entry = catalogEntryForApp(app.slug, app.manifest);
   const directory = entry ? await catalogIconFor(entry) : undefined;
   return directory ? { icon: directory } : {};
+}
+
+/**
+ * Where an app's own icon file is stored to be drawn, by the file's bytes:
+ * `list` reads again on every change to any app, and only a changed file
+ * needs decoding and resizing again. A failure is dropped so the next read
+ * tries again.
+ */
+const ownIcons = new Map<string, Promise<null | string>>();
+
+function storedOwnIcon(
+  own: NonNullable<Awaited<ReturnType<typeof findAppIcon>>>,
+) {
+  const key = `${own.fileName}:${createHash("sha256").update(own.bytes).digest("hex")}`;
+  const cached = ownIcons.get(key);
+  if (cached) {
+    return cached;
+  }
+  const pending = (
+    own.fileName === "icon.svg"
+      ? storeFileOpenSvgIcon(own.bytes)
+      : storeFileOpenIcon(own.bytes.toString("base64"), APP_ICON_SIZE)
+  ).catch(() => null);
+  ownIcons.set(key, pending);
+  void pending.then((url) => {
+    if (url === null && ownIcons.get(key) === pending) {
+      ownIcons.delete(key);
+    }
+  });
+  return pending;
 }
 
 /**

@@ -18,6 +18,7 @@ export namespace SessionMessageDataPart {
     "asks",
     "folderChanges",
     "permissionAnswer",
+    "pageTakeover",
     "questionAnswer",
     "attachments",
     "backgroundProcesses",
@@ -102,6 +103,7 @@ export namespace SessionMessageDataPart {
     messageGap: "event",
     modelChange: "diff",
     outputLimit: "event",
+    pageTakeover: "event",
     permissionAnswer: "event",
     questionAnswer: "event",
     setupChanges: "event",
@@ -239,7 +241,7 @@ export namespace SessionMessageDataPart {
       .array(
         z.object({
           id: z.string(),
-          reason: z.literal("tabCap"),
+          reason: z.enum(["tabCap", "turnEnd"]),
           title: z.string().optional(),
           url: z.string(),
         }),
@@ -853,8 +855,19 @@ export namespace SessionMessageDataPart {
   export type AppEventDataPart = z.output<typeof AppEventDataPartSchema>;
 
   /**
+   * What a permission card is about: a folder, a Mac app, a tab of the
+   * person's outside the chat (which Move tab here moves into it), or a page
+   * of the chat's own the agent waits on the person to finish something in
+   * (`instrument window wait`), which Done hands back.
+   */
+  export const PermissionOnSchema = z.enum(["app", "folder", "tab", "page"]);
+
+  export type PermissionOn = z.output<typeof PermissionOnSchema>;
+
+  /**
    * The person's answer to a card the agent's work raised: a folder that asks
-   * first, an app it may not use, or a tab of theirs it asked to work in.
+   * first, an app it may not use, a tab of theirs it asked to work in, or a
+   * page it waited on them in (`allowed` is Done there, `declined` Skip).
    * Like an app event, it wakes the session that ran into it, or joins its
    * turn if it is still going. `gone` is a tab closed before the answer.
    */
@@ -862,8 +875,8 @@ export namespace SessionMessageDataPart {
     /** The ask it answers, by id: a session holds one note per ask. */
     ask: z.string().optional(),
     answer: z.enum(["allowed", "always", "declined", "gone"]),
-    kind: z.enum(["app", "folder", "tab"]),
-    /** A tab's page as the card showed it. */
+    kind: PermissionOnSchema,
+    /** A tab's page as the card showed it; a waited-on page as it stood when answered. */
     page: z.object({ title: z.string(), url: z.string() }).optional(),
     /** The folder's path, the app's name, or the tab's id. */
     target: z.string(),
@@ -878,6 +891,23 @@ export namespace SessionMessageDataPart {
 
   export type PermissionAnswerDataPart = z.output<
     typeof PermissionAnswerDataPartSchema
+  >;
+
+  /**
+   * The person took a page the chat was working in away from it with Take
+   * over, which stopped the chat (`taken`, a note that starts no turn), or
+   * gave it back with Continue (`returned`, which wakes the chat). The page
+   * is as it stood at that moment.
+   */
+  export const PageTakeoverDataPartSchema = z.object({
+    page: z.object({ title: z.string(), url: z.string() }),
+    stage: z.enum(["taken", "returned"]),
+    /** The chat's tab, by its id. */
+    tab: z.string(),
+  });
+
+  export type PageTakeoverDataPart = z.output<
+    typeof PageTakeoverDataPartSchema
   >;
 
   /**
@@ -1414,6 +1444,7 @@ export namespace SessionMessageDataPart {
     [NameSchema.enum.appEvent]: AppEventDataPartSchema,
     [NameSchema.enum.asks]: AsksDataPartSchema,
     [NameSchema.enum.folderChanges]: FolderChangesDataPartSchema,
+    [NameSchema.enum.pageTakeover]: PageTakeoverDataPartSchema,
     [NameSchema.enum.permissionAnswer]: PermissionAnswerDataPartSchema,
     [NameSchema.enum.questionAnswer]: QuestionAnswerDataPartSchema,
     [NameSchema.enum.attachments]: FileAttachmentsDataPartSchema,

@@ -128,6 +128,7 @@ const MARK_OF_PART: Record<
   "data-messageGap": "time",
   "data-modelChange": "model",
   "data-outputLimit": "limit",
+  "data-pageTakeover": "tabs",
   "data-permissionAnswer": "permission",
   "data-project": "project",
   "data-questionAnswer": "question",
@@ -304,6 +305,12 @@ function labelOfPart(part: SessionMessagePart.DataPart): string {
     }
     case "data-outputLimit": {
       return `Output limit: ${part.data.continuations.toString()} in a row`;
+    }
+    case "data-pageTakeover": {
+      return named(
+        part.data.stage === "taken" ? "Taken over" : "Given back",
+        part.data.page.url,
+      );
     }
     case "data-permissionAnswer": {
       return named(`Permission ${part.data.answer}`, part.data.target);

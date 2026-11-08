@@ -206,8 +206,7 @@ const AskBaseSchema = z.object({
 export const AskRecordSchema = z.discriminatedUnion("kind", [
   AskBaseSchema.extend({
     kind: z.literal("permission"),
-    /** A folder, a Mac app, or a tab of the person's outside the chat, which `Move tab here` moves into it. */
-    on: z.enum(["app", "folder", "tab"]),
+    on: SessionMessageDataPart.PermissionOnSchema,
     /** A tab's page as it was when the agent asked, for the card and the note that answers it. */
     page: z.object({ title: z.string(), url: z.string() }).optional(),
     /**

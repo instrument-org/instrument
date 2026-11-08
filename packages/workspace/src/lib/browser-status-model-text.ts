@@ -55,14 +55,21 @@ function tabLine(tab: Tab) {
 }
 
 function closedNote(closed: NonNullable<Status["closed"]>) {
-  if (closed.length === 0) {
-    return "";
-  }
-  const tabs = closed
-    .map(
-      (tab) =>
-        `${tab.id}${tab.url ? ` at ${tab.url}` : ""}${tab.title ? ` ("${tab.title}")` : ""}`,
-    )
-    .join("; ");
-  return ` The app closed ${closed.length === 1 ? "a tab" : "tabs"} you opened, ${tabs}: the chat had more than ${CHAT_HIDDEN_TAB_CAP} tabs its agents opened out of the user's sight, and the one hidden longest closes first.`;
+  const named = (tabs: typeof closed) =>
+    tabs
+      .map(
+        (tab) =>
+          `${tab.id}${tab.url ? ` at ${tab.url}` : ""}${tab.title ? ` ("${tab.title}")` : ""}`,
+      )
+      .join("; ");
+  const overCap = closed.filter((tab) => tab.reason === "tabCap");
+  const atTurnEnd = closed.filter((tab) => tab.reason === "turnEnd");
+  return [
+    overCap.length === 0
+      ? ""
+      : ` The app closed ${overCap.length === 1 ? "a tab" : "tabs"} you opened, ${named(overCap)}: the chat had more than ${CHAT_HIDDEN_TAB_CAP} tabs its agents opened out of the user's sight, and the one hidden longest closes first.`,
+    atTurnEnd.length === 0
+      ? ""
+      : ` The app closed ${atTurnEnd.length === 1 ? "a tab" : "tabs"} you opened that the user never used, ${named(atTurnEnd)}, as your last turn ended. Open the address again if the work needs it.`,
+  ].join("");
 }

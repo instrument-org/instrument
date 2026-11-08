@@ -11,6 +11,8 @@ export interface TaskCardFacts {
   /** The line it finished on. */
   ended?: string;
   failed: boolean;
+  /** It stopped on something the person has to answer, which its line names. */
+  waiting?: boolean;
   /** How long it took, once it has finished. */
   ranMs?: number;
   /** What it is doing now. */

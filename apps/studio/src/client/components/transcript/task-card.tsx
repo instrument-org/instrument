@@ -5,6 +5,7 @@ import {
   turnsOf,
 } from "@instrument-org/workspace/client";
 import { CheckIcon } from "@phosphor-icons/react/Check";
+import { PauseCircleIcon } from "@phosphor-icons/react/PauseCircle";
 import { StopIcon } from "@phosphor-icons/react/Stop";
 import { WarningIcon } from "@phosphor-icons/react/Warning";
 import { AnimatePresence } from "motion/react";
@@ -97,6 +98,8 @@ export function TaskCardRow({
                 </span>
               ) : facts?.failed ? (
                 <WarningIcon className="text-warning-600 size-3.5 shrink-0" />
+              ) : facts?.waiting ? (
+                <PauseCircleIcon className="size-3.5 shrink-0 text-muted-foreground" />
               ) : (
                 <CheckIcon className="size-3.5 shrink-0 text-muted-foreground" />
               )}

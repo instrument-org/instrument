@@ -16,6 +16,8 @@ const DATA_PART_DISPLAY: Record<DataPartType, DataPartVisibility> = {
   "data-asks": "always",
   "data-folderChanges": "always",
   "data-permissionAnswer": "always",
+  // Take over draws the paused line with Continue; Continue draws nothing.
+  "data-pageTakeover": "always",
   // The card the question was asked on shows the answer.
   "data-questionAnswer": "hidden",
   // The note over the reply box that asked for it is gone once it lands.

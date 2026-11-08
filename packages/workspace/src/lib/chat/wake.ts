@@ -45,6 +45,7 @@ import {
   touchTask,
 } from "./children";
 import { stepInFlight } from "./in-flight";
+import { closeTurnTabs } from "./tab-cap";
 import { cutForNote, lastAssistantText } from "./latest-session";
 import { appClosedLine, endedWithoutWords } from "./task-status";
 import { trajectorySince } from "./steps";
@@ -422,6 +423,11 @@ async function onSessionDone(
   // when that one ends.
   if (chatId && !isWorkingAgain(chatId, sessionId)) {
     await closePagesWithNoTab(chatId, sessionId);
+    // The chat's own turn, ended on its own rather than stopped: the tabs
+    // it opened that the person never used go with it.
+    if (stop === undefined && sessionId === sessionOfChat(chatId)) {
+      await closeTurnTabs(chatId).catch(getWorkspaceConfig().captureException);
+    }
   }
   const task = chatId ? await childTask(chatId, sessionId) : undefined;
   if (!chatId || !task) {

@@ -71,6 +71,11 @@ export const DATA_PART_SAMPLES = {
   messageGap: { minutes: 90 },
   modelChange: { from: { modelId: "a" }, to: { modelId: "b" } },
   outputLimit: { continuations: 2 },
+  pageTakeover: {
+    page: { title: "Example", url: "https://example.com/" },
+    stage: "taken",
+    tab: "tab_01M0000000000000000000000T",
+  },
   permissionAnswer: { answer: "allowed", kind: "folder", target: "/work" },
   project: { project: { instructions: "Sample words.", name: "Pricing" } },
   questionAnswer: {

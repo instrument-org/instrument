@@ -133,6 +133,8 @@ function PermissionAskCard({
   const busy = answer.isPending || declineAll.isPending;
   const isFolder = ask.kind === "folder";
   const isTab = ask.kind === "tab";
+  // A page of the chat's the agent waits on the person to finish in.
+  const isPage = ask.kind === "page";
   const refused = ask.status === "macos-refused";
   const asking = ask.status === "macos-asking";
   const isPrivate = ask.status === "macos-private";
@@ -224,7 +226,7 @@ function PermissionAskCard({
           className="mt-2.5 rounded-xl bg-muted/50 px-3 py-2"
           path={ask.target}
         />
-      ) : isTab ? (
+      ) : isTab || isPage ? (
         <div className="mt-2.5 flex items-center gap-3 rounded-xl bg-muted/50 px-3 py-2">
           <span className="grid size-8 shrink-0 place-items-center text-muted-foreground">
             <PageFavicon
@@ -250,6 +252,11 @@ function PermissionAskCard({
           <span className="min-w-0 flex-1 truncate text-sm">{ask.target}</span>
         </div>
       )}
+      {isPage && ask.answerable ? (
+        <p className="mt-2 text-[13px] text-muted-foreground">
+          Finish on the page beside the chat, then press Done.
+        </p>
+      ) : null}
       {holds ? (
         <p className="mt-2 flex items-start gap-1.5 text-[13px] text-warning-700 dark:text-warning-300">
           <ShieldWarningIcon className="mt-0.5 size-3.5 shrink-0" />
@@ -285,6 +292,8 @@ function PermissionAskCard({
             <WindowsFixes ask={ask} busy={busy} chatId={chatId} />
           ) : isTab ? (
             <AnswerButton {...choice("allowed")}>Move tab here</AnswerButton>
+          ) : isPage ? (
+            <AnswerButton {...choice("allowed")}>Done</AnswerButton>
           ) : asking || isPrivate ? null : (
             <>
               <AnswerButton {...choice("allowed")}>
@@ -300,7 +309,7 @@ function PermissionAskCard({
             className="ml-auto text-muted-foreground @max-xs/asks:ml-0"
             variant="ghost"
           >
-            {isTab ? "Skip" : isPrivate ? "OK" : "Don’t allow"}
+            {isTab || isPage ? "Skip" : isPrivate ? "OK" : "Don’t allow"}
           </AnswerButton>
         </div>
       )}
@@ -327,7 +336,9 @@ function cardTitle(ask: Ask, name: string): string {
         ? "Can Instrument use this folder?"
         : ask.kind === "tab"
           ? "Can Instrument use this tab?"
-          : "Can Instrument use this app?";
+          : ask.kind === "page"
+            ? `Waiting for you on ${hostOf(ask.page?.url) || "this page"}`
+            : "Can Instrument use this app?";
   }
 }
 
@@ -584,6 +595,23 @@ export function PermissionAnswerNote({
 }: {
   data: SessionMessageDataPart.PermissionAnswerDataPart;
 }) {
+  if (data.kind === "page") {
+    const site = hostOf(data.page?.url) || "the page";
+    return (
+      <p className="mt-2 flex items-center gap-1.5 text-xs text-muted-foreground">
+        <PageFavicon
+          className="size-3.5"
+          hasTooltip={false}
+          url={data.page?.url}
+        />
+        <span>
+          {data.answer === "declined"
+            ? `You skipped this on ${site}.`
+            : `You finished on ${site}.`}
+        </span>
+      </p>
+    );
+  }
   if (data.kind === "tab") {
     const page = `“${data.page?.title || hostOf(data.page?.url) || "your tab"}”`;
     return (

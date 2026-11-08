@@ -105,6 +105,7 @@ function useTaskFacts(id: StoreId.Session): TaskCardFacts | undefined {
         ended: task.status.summary ?? task.status.line,
       }),
       failed: task.status?.kind === "failed",
+      ...(task.status?.kind === "waiting" && { waiting: true }),
       ...(!task.working && {
         ranMs: task.updatedAt.getTime() - task.createdAt.getTime(),
       }),

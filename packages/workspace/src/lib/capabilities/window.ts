@@ -15,6 +15,7 @@ import {
 import { agentPathOfFileUrl, isLocalAddress } from "../local-page-address";
 import { recordRaisedAsk } from "../shell-commands/raised-asks";
 import {
+  WAITING_IS_THE_CHATS,
   WINDOW_COMMAND,
   WINDOW_IS_THE_CHATS,
 } from "../shell-commands/window-command";
@@ -431,4 +432,63 @@ export const windowRequest = defineCapability({
   },
   text: (said) => said,
   where: CHATS,
+});
+
+/**
+ * Hands the user a page of the chat's to do there what only they can (a
+ * sign-in, a check that they are a person) and waits on them: a card says
+ * why, with Done and Skip, the page shows that it waits on them, and the
+ * turn ends. Nothing watches the page for them finishing, since no signal
+ * says so for every site; Done is how the agent hears it.
+ */
+export const windowWait = defineCapability({
+  input: z.object({
+    tab: TabField("wait", "<id> --reason '<one sentence to the user>'"),
+    reason: z
+      .string({
+        error:
+          "wait needs --reason '<one sentence to the user>', which the card shows them.",
+      })
+      .meta({
+        description: "One sentence to the user, which the card shows them.",
+      }),
+  }),
+  name: "window.wait",
+  output: z.string(),
+  async run({ reason, tab }, ctx) {
+    if (!reason.trim()) {
+      throw new Error(
+        "wait needs --reason '<one sentence to the user>', which the card shows them.",
+      );
+    }
+    const own = await ask({ kind: "list" }, ctx);
+    if (!own) {
+      throw new Error(NO_WINDOW);
+    }
+    const page = own.tabs?.find((each) => each.id === tab);
+    if (page?.kind !== "page") {
+      throw new Error(
+        page
+          ? `tab ${tab} is not a page: wait is for a page the user has something to do in.`
+          : `no tab ${tab} in this chat. \`${NAME} list\` names its tabs.`,
+      );
+    }
+    // In front, so the page they are asked to use is the one they see.
+    await ask({ kind: "show", tabId: tab }, ctx);
+    const askId = await recordAsk(
+      { ...ctx.asker, reason: reason.trim() },
+      "page",
+      tab,
+      { page: { title: page.title, url: page.url } },
+    );
+    recordRaisedAsk(askId);
+    return `Showed the user tab ${tab} ("${page.title || page.url}") and asked them to finish there. The card shows your reason with Done and Skip. Your turn ends here; their answer wakes you.`;
+  },
+  summary:
+    "Hand the user a page of this chat's for what only they can do there (sign in, prove they are a person) and wait: a card shows your reason with Done and Skip, your turn ends, and their answer wakes you.",
+  surfaces: {
+    cli: { help: "", positional: ["tab"], words: ["window", "wait"] },
+  },
+  text: (said) => said,
+  where: { roleRefusal: WAITING_IS_THE_CHATS, roles: ["chat"] },
 });

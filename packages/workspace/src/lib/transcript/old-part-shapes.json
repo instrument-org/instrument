@@ -284,6 +284,16 @@
   },
   {
     "data": {
+      "page": { "title": "Example", "url": "https://example.com/" },
+      "stage": "taken",
+      "tab": "tab_01M0000000000000000000000T"
+    },
+    "note": "as written on 2026-11-08",
+    "reads": "data-pageTakeover",
+    "type": "data-pageTakeover"
+  },
+  {
+    "data": {
       "answer": "allowed",
       "kind": "folder",
       "target": "/work"

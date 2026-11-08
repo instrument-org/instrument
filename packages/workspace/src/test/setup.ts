@@ -59,6 +59,7 @@ setWorkspaceConfig({
     hasNoWindow: false,
     guestCost: () => null,
     isGuestAsleep: () => false,
+    wasUsedByPerson: () => false,
     isGuestBusy: () => false,
     createTarget: rejectBrowserTarget,
     contentBlocking: () => ({ task: true, workspace: true }),

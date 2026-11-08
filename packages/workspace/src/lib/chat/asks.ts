@@ -21,7 +21,7 @@ import { StoreId } from "../../schemas/store-id";
 import { createWriteQueue } from "../create-write-queue";
 import { getCurrentDate } from "../get-current-date";
 import { askLine } from "../choose-call";
-import { askTargetName } from "../permissions/ask-target";
+import { askTargetName, siteOf } from "../permissions/ask-target";
 import { sessionOfChat } from "../record-folders";
 import { readDeviceName } from "../records/device-file";
 import { writingChatRecords } from "../records/installed-records";
@@ -387,16 +387,19 @@ export async function computerName(device: DeviceId): Promise<string> {
 
 /**
  * Whether a device other than the ask's computer may answer it: while it
- * is open with no answer pending, and not a tab, which is moved on the
- * screen it is on, as the system's own prompts and blocks are answered
- * there.
+ * is open with no answer pending, and not about a tab or a page, which is
+ * moved or finished on the screen it is on, as the system's own prompts and
+ * blocks are answered there.
  */
 export function answerableElsewhere(state: AskState): boolean {
   return (
     state.live &&
     state.pending === undefined &&
     state.ask.stage.is === "open" &&
-    !(state.ask.kind === "permission" && state.ask.on === "tab")
+    !(
+      state.ask.kind === "permission" &&
+      (state.ask.on === "tab" || state.ask.on === "page")
+    )
   );
 }
 
@@ -598,6 +601,9 @@ export function cardLine(
       : card.status;
   if (kind === "tab") {
     return `Waiting for you to move your tab “${card.page?.title || "a page"}” here`;
+  }
+  if (kind === "page") {
+    return `Waiting for you on ${siteOf(card.page?.url) ?? "a page"}`;
   }
   const name = askTargetName(kind, card.target);
   switch (status) {

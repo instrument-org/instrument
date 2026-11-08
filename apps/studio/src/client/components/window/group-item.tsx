@@ -21,6 +21,7 @@ import { WebStart } from "./web-start";
 import { asksOwnPlace, useWindow, WindowContext } from "./context";
 import { useRowSlots } from "./row-slots";
 import { BrowserExtensionButtons } from "./browser-extension-buttons";
+import { PageAgentOverlay } from "./page-agent-overlay";
 import { PageAskButton } from "./file-ask-button";
 import { GroupTabContext } from "./group-tab";
 import { liveFileAddress, liveHostedFileAddress } from "./hosted-page";
@@ -46,6 +47,7 @@ export function GroupItem({
   before,
   closeTab,
   group,
+  isChatWorking,
   isShown = true,
   onPageChrome,
   onPageHost,
@@ -55,6 +57,11 @@ export function GroupItem({
   before?: { back: () => void; canGoBack: boolean };
   closeTab: (id: string) => void;
   group: string;
+  /**
+   * Whether the chat whose pane this is, or any task of it, is at work, which
+   * a page uses to say the agent is using it; absent outside a chat's pane.
+   */
+  isChatWorking?: boolean;
   /** Whether it is on screen; false while the pane it stands in is put away, which keeps it mounted. */
   isShown?: boolean;
   /** Where the address row takes the page's reload and controls while a page is up; nothing otherwise. */
@@ -92,6 +99,7 @@ export function GroupItem({
     [],
   );
   const targetId = up.kind === "page" ? browserTargetOf(up.id) : undefined;
+  const chatId = chatOfGroup(group);
   const page = targetId ? getGuest(targetId) : null;
   // Back walks what is up (the page's own history, the screen's trail),
   // then what the tab showed before it, then, for a tab that is a site of
@@ -206,7 +214,16 @@ export function GroupItem({
               },
         )}
       >
-        <div className="h-full" ref={onPageHost} />
+        <div className="relative h-full">
+          <div className="h-full" ref={onPageHost} />
+          {chatId !== undefined && isChatWorking !== undefined && (
+            <PageAgentOverlay
+              chatId={chatId}
+              isChatWorking={isChatWorking}
+              tabId={up.id}
+            />
+          )}
+        </div>
       </Bare>
     );
   }

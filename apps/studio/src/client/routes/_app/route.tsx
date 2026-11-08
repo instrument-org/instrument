@@ -432,6 +432,7 @@ function ChatView({
                     <GroupItem
                       closeTab={shell.requestClose}
                       group={group}
+                      isChatWorking={chatRecord?.working === true}
                       isShown={showsPane}
                       onPageChrome={setPageChrome}
                       onPageHost={setPageHost}

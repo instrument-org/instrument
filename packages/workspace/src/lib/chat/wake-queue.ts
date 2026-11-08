@@ -27,6 +27,10 @@ export type WakePart =
       type: "data-questionAnswer";
     }
   | { data: SessionMessageDataPart.JobEventDataPart; type: "data-jobEvent" }
+  | {
+      data: SessionMessageDataPart.PageTakeoverDataPart;
+      type: "data-pageTakeover";
+    }
   | { data: SessionMessageDataPart.SignedInDataPart; type: "data-signedIn" }
   | { data: SessionMessageDataPart.TaskEventDataPart; type: "data-taskEvent" };
 

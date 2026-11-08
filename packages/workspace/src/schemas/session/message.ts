@@ -21,6 +21,7 @@ import { CHAT_FOLDER_NAMES } from "../../constants";
 import { appEventModelNote } from "../../lib/app-event-model-text";
 import { permissionAnswerModelNote } from "../../lib/permission-answer-model-text";
 import { questionAnswerModelNote } from "../../lib/question-answer-model-text";
+import { pageTakeoverModelNote } from "../../lib/page-takeover-model-text";
 import { signedInModelNote } from "../../lib/signed-in-model-text";
 import { asksModelNote } from "../../lib/asks-model-text";
 import { folderChangesModelNote } from "../../lib/folder-changes-model-text";
@@ -727,6 +728,7 @@ const USER_TURN_NOTES = [
   noted("jobEvent", ({ data }) => jobEventModelNote(data)),
   noted("appEvent", ({ data }) => appEventModelNote(data)),
   noted("permissionAnswer", ({ data }) => permissionAnswerModelNote(data)),
+  noted("pageTakeover", ({ data }) => pageTakeoverModelNote(data)),
   noted("questionAnswer", ({ data }) => questionAnswerModelNote(data)),
   noted("signedIn", ({ data }) => signedInModelNote(data)),
   noted("viewContext", stated),

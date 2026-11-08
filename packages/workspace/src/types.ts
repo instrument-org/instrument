@@ -65,6 +65,12 @@ export interface BrowserConfig {
     memoryBytes: number;
     sharedWith: BrowserTargetId[];
   };
+  /**
+   * Whether a person has clicked, tapped or typed in the guest since it was
+   * made, by the guest's own record of input: an agent's dispatched input is
+   * not counted.
+   */
+  wasUsedByPerson: (targetId: BrowserTargetId) => boolean;
   /** Whether the guest is asleep (`sleepGuest`), until a command or the window showing it wakes it. */
   isGuestAsleep: (targetId: BrowserTargetId) => boolean;
   /**

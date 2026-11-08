@@ -13,6 +13,9 @@ export function permissionAnswerModelNote(
   if (data.kind === "tab") {
     return systemNote`${tabAnswer(data)}`;
   }
+  if (data.kind === "page") {
+    return systemNote`${pageAnswer(data)}`;
+  }
   const what = data.kind === "app" ? data.target : `the folder ${data.target}`;
   const said =
     data.answer === "declined"
@@ -45,4 +48,18 @@ function tabAnswer({
       return `The user moved ${named} into this chat, the page as they left it. It is this chat's now: agent-browser works in it, and \`instrument task new --tab ${target}\` hands it to a task.`;
     }
   }
+}
+
+/** What the person did on a page of the chat's the agent waited on them in. */
+function pageAnswer({
+  answer,
+  page,
+  target,
+}: SessionMessageDataPart.PermissionAnswerDataPart): string {
+  const now = page
+    ? ` It is now at ${page.url}${page.title ? ` ("${page.title}")` : ""}.`
+    : "";
+  return answer === "declined"
+    ? `The user skipped what you waited on them for in tab ${target}.${now} Carry on without it, and say in a line what that left out.`
+    : `The user pressed Done on tab ${target}.${now} Look at the page before going on, since Done says only that they finished.`;
 }

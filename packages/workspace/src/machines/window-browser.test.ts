@@ -42,6 +42,7 @@ function makeBrowser() {
     hasNoWindow: false,
     guestCost: () => null,
     isGuestAsleep: (targetId) => asleep.has(targetId),
+    wasUsedByPerson: () => false,
     isGuestBusy: (targetId) => busy.has(targetId),
     listTargets: () => Promise.resolve([]),
     onTargetDestroyed: (targetId, listener) => {

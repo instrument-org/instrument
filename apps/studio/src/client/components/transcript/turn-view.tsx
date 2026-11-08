@@ -38,6 +38,7 @@ import {
 } from "./card-motion";
 import { ActivityRowView, Badges, RowLine, StepDetail } from "./activity-row";
 import { renderDataPart } from "./note-part";
+import { PageTakeoverNote } from "./page-takeover-note";
 import { SlotCardView } from "./slot-card";
 import { TranscriptSurfaceContext } from "./surface";
 import { TranscriptActionsContext } from "./transcript-actions";
@@ -228,6 +229,7 @@ function TurnBody({
             chatId={chatId}
             isLive={live !== undefined}
             isLast={isLast}
+            isNewest={isLast && index === turn.rows.length - 1}
             row={row}
             thought={live?.thought}
           />
@@ -464,12 +466,15 @@ function RowView({
   chatId,
   isLast,
   isLive,
+  isNewest = false,
   row,
   thought,
 }: {
   chatId: ChatId;
   isLast: boolean;
   isLive: boolean;
+  /** Nothing comes after it in the chat. */
+  isNewest?: boolean;
   row: TurnRow;
   thought?: StepPart;
 }) {
@@ -504,7 +509,15 @@ function RowView({
       );
     }
     case "note": {
-      return <NoteRow part={row.part} />;
+      return row.part.type === "data-pageTakeover" ? (
+        <PageTakeoverNote
+          chatId={chatInfo.id}
+          data={row.part.data}
+          isNewest={isNewest}
+        />
+      ) : (
+        <NoteRow part={row.part} />
+      );
     }
     case "task": {
       return (

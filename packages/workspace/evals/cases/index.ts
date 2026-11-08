@@ -55,6 +55,7 @@ import { WEB_SCRIPTING_EVALS } from "./web-scripting";
 import { FOLDER_INTEREST_EVALS } from "./folder-interest";
 import { WEB_SEARCH_EVALS } from "./web-search";
 import { WINDOW_TABS_EVALS } from "./window-tabs";
+import { WINDOW_WAIT_EVALS } from "./window-wait";
 import { WORKER_EVALS } from "./worker";
 import { WORK_FOLDER_EVALS } from "./work-folder";
 import { WORKSPACE_HYGIENE_EVALS } from "./workspace-hygiene";
@@ -122,6 +123,7 @@ export const EVALS = [
   ...FOLDER_INTEREST_EVALS,
   ...WEB_SEARCH_EVALS,
   ...WINDOW_TABS_EVALS,
+  ...WINDOW_WAIT_EVALS,
   ...WORKER_EVALS,
   ...WORK_FOLDER_EVALS,
 ];

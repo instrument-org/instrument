@@ -54,8 +54,12 @@ const ClosedTabSchema = z.object({
   /** The session that drove it, as `HeldTab.driver`. */
   driver: StoreId.SessionSchema.optional(),
   id: z.string().transform(tabIdOfEarlierBuilds),
-  /** Why: the chat had more tabs it opened itself out of sight than it may keep. */
-  reason: z.literal("tabCap"),
+  /**
+   * Why: the chat had more tabs it opened itself out of sight than it may
+   * keep (`tabCap`), or the chat's turn ended and the person never used the
+   * tab (`turnEnd`).
+   */
+  reason: z.enum(["tabCap", "turnEnd"]),
   title: z.string().optional(),
   url: z.string(),
 });
@@ -106,8 +110,7 @@ const PermissionAskSchema = z.object({
   /** Whether the ask belongs to this computer, which alone acts on it. */
   here: z.boolean(),
   id: z.string(),
-  /** A folder, a Mac app, or a tab of the person's outside the chat. */
-  kind: z.enum(["app", "folder", "tab"]),
+  kind: SessionMessageDataPart.PermissionOnSchema,
   page: z.object({ title: z.string(), url: z.string() }).optional(),
   /** The programs Windows' ransomware protection blocked, on `windows-blocked`. */
   programs: z.array(z.string()).optional(),

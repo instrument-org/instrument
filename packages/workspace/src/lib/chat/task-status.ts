@@ -16,6 +16,8 @@ import {
 } from "../workspace-index";
 import { latestStep, ownMessages, type SessionRef } from "./activity";
 import { lastAssistantTextIn } from "./latest-session";
+import { needsNamedIn } from "../parse-needs-block";
+import { sessionOfChat } from "../record-folders";
 
 /** How much of the agent's own words the list shows on a task's second line. */
 const LINE_MAX = 90;
@@ -48,6 +50,8 @@ export interface TaskStatus {
    * before saying. Never the word "done" alone.
    */
   line: string;
+  /** What its last words said it cannot go on without, from their needs fences. */
+  needs?: string[];
   /**
    * The line its finished turn's work came to, for a person's list. `line`
    * stays its own words, which is what the chat reads of it.
@@ -122,7 +126,22 @@ export async function taskStatus({
   if (card) {
     return { kind: "waiting", line: cardLine(card) };
   }
-  return settledStatus(chatId, sessionId, () => statusAtRest(ref));
+  const settled = await settledStatus(chatId, sessionId, () =>
+    statusAtRest(ref),
+  );
+  // A task that ended on what it needs hands that to the chat, which asks
+  // the person for it: while the chat has a card up, the task is paused on
+  // them rather than done.
+  const [need] = settled.needs ?? [];
+  const chat = sessionOfChat(chatId);
+  if (
+    need !== undefined &&
+    chat !== undefined &&
+    (await openAsksOf(chatId, chat)).length > 0
+  ) {
+    return { kind: "waiting", line: `Paused for ${need}` };
+  }
+  return settled;
 }
 
 /** The same ending, read from a transcript already in hand. */
@@ -209,9 +228,11 @@ async function statusAtRest(ref: SessionRef): Promise<Derived<TaskStatus>> {
     const summary = transcript
       .findLast((message) => message.role === "assistant")
       ?.parts.find((part) => part.type === "data-workSummary")?.data.words;
+    const needs = needsNamedIn(said);
     return settle({
       kind: "done",
       line: excerptOf(said, LINE_MAX),
+      ...(needs.length > 0 && { needs }),
       ...(summary !== undefined && { summary }),
     });
   }

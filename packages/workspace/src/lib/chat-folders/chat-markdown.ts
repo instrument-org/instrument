@@ -285,6 +285,12 @@ function visibleBlock(part: SessionMessagePart.Type): string | undefined {
     }
     case "data-permissionAnswer": {
       const { answer, kind, page, target } = part.data;
+      if (kind === "page") {
+        const site = page?.title || page?.url || "the page";
+        return answer === "declined"
+          ? `You skipped what Instrument waited for on ${site}.`
+          : `You finished on ${site}.`;
+      }
       const name =
         kind === "tab" ? `your tab “${page?.title || target}”` : target;
       switch (answer) {

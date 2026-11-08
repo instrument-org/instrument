@@ -1,5 +1,6 @@
 import { AIGatewayModelURI, fetchModel } from "@instrument-org/ai-gateway";
 import { call } from "@orpc/server";
+import { sleep } from "radashi";
 import { z } from "zod";
 
 import { stopRunningProcesses } from "../../lib/background-processes";
@@ -7,12 +8,14 @@ import { changedMessageBatches } from "../../lib/changed-message-batches";
 import { isWorking } from "../../lib/chat/activity";
 import { markChatStopped } from "../../lib/chat/chats";
 import { noteTaskStoppedOnCard } from "../../lib/chat/wake";
+import { enqueueWake, saveNote } from "../../lib/chat/wake-queue";
+import { askWindow } from "../../lib/chat/window-tab";
 import { closeAsksOf } from "../../lib/chat/asks";
 import { openAsksOf, openQuestions } from "../../lib/chat/open-asks";
 import { sessionOfChat } from "../../lib/record-folders";
 import { ChatReads } from "../../lib/chat-reads";
 import { StoreId } from "../../schemas/store-id";
-import { ChatIdSchema } from "../../schemas/chat-id";
+import { type ChatId, ChatIdSchema } from "../../schemas/chat-id";
 import { base, toORPCError } from "../base";
 
 // Run the agent over the session as it stands, with nothing added to it. What
@@ -138,6 +141,72 @@ const stop = base
     }
   });
 
+/** How long Take over waits for the stopped turn to wind down before it writes its note. */
+const STOP_SETTLE_MS = 3000;
+
+/** A chat's tab as the window has it now, or nothing when it is not one of the chat's pages. */
+async function chatPage(id: ChatId, tab: string) {
+  const listed = await askWindow({
+    action: { kind: "list" },
+    askedBy: id,
+    group: id,
+  }).catch(() => undefined);
+  const found = listed?.tabs?.find((each) => each.id === tab);
+  return found?.kind === "page"
+    ? { title: found.title, url: found.url }
+    : undefined;
+}
+
+/**
+ * Take over on a page the chat is working in: the chat stops as Stop stops
+ * it, and a note that starts no turn says the person has the page, which the
+ * chat reads with whatever starts its next turn. The transcript draws the
+ * note as the paused line with Continue.
+ */
+const takeOver = base
+  .input(z.object({ id: ChatIdSchema, tab: z.string() }))
+  .handler(async ({ context, input }) => {
+    await call(stop, { id: input.id }, { context });
+    const sessionId = sessionOfChat(input.id);
+    const page = await chatPage(input.id, input.tab);
+    if (sessionId === undefined || page === undefined) {
+      return;
+    }
+    // After the stopped turn's last message, which the stop writes as its
+    // turn winds down, so the note reads after the work it stopped.
+    const until = Date.now() + STOP_SETTLE_MS;
+    while (isWorking(input.id, sessionId) && Date.now() < until) {
+      await sleep(50);
+    }
+    await saveNote(input.id, sessionId, {
+      data: { page, stage: "taken", tab: input.tab },
+      type: "data-pageTakeover",
+    });
+  });
+
+/**
+ * Continue after Take over: the chat is woken with the page as it stands
+ * now, and picks the work up from there.
+ */
+const giveBack = base
+  .input(z.object({ id: ChatIdSchema, tab: z.string() }))
+  .handler(async ({ context, input }) => {
+    const sessionId = sessionOfChat(input.id);
+    const page = await chatPage(input.id, input.tab);
+    if (sessionId === undefined || page === undefined) {
+      return;
+    }
+    await enqueueWake({
+      chatId: input.id,
+      part: {
+        data: { page, stage: "returned", tab: input.tab },
+        type: "data-pageTakeover",
+      },
+      sessionId,
+      workspaceRef: context.workspaceRef,
+    });
+  });
+
 const contextTokens = base
   .input(
     z.object({
@@ -183,7 +252,9 @@ const live = {
 };
 
 export const session = {
+  giveBack,
   live,
   run,
   stop,
+  takeOver,
 };

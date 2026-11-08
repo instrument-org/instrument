@@ -9,6 +9,7 @@ import { type WindowTabAnswer } from "../../schemas/window-tab";
 import { getChatState, updateChatState } from "../chat-record";
 import { chatDir, resolveChat } from "../record-folders";
 import { getWorkspaceConfig } from "../workspace-config";
+import { openAsks } from "./open-asks";
 import { askWindow } from "./window-tab";
 
 type ListedTab = NonNullable<WindowTabAnswer["tabs"]>[number];
@@ -96,4 +97,64 @@ async function closedTab(
     ...(title ? { title } : {}),
     url: live ?? (kept?.kind === "page" ? kept.url : ""),
   };
+}
+
+/**
+ * Closes the tabs the chat's own agent opened that the person never used, as
+ * its turn ends, so the pane is back to the person's own. A tab they clicked
+ * or typed in, one on screen now, and one the chat waits on them in stay;
+ * so do tabs handed to it and a task's, which are a task's until it finishes
+ * and the chat's from then. The chat's next browser note names each closed
+ * tab and where it was, and the agent opens the address again if the work
+ * still needs it.
+ */
+export async function closeTurnTabs(chatId: ChatId): Promise<void> {
+  const { browserTabs } = await getChatState(chatDir(chatId));
+  const { browser } = getWorkspaceConfig();
+  const waitedOn = new Set(
+    (await openAsks(chatId)).flatMap((ask) =>
+      ask.kind === "page" ? [ask.target] : [],
+    ),
+  );
+  const unused = browserTabs.filter(
+    (tab) =>
+      tab.driver === undefined &&
+      tab.openedBy === "task" &&
+      tab.inWindow &&
+      !waitedOn.has(tab.id) &&
+      tabLifetime(tab.id)?.drawn !== true &&
+      !browser.wasUsedByPerson(tab.id),
+  );
+  if (unused.length === 0) {
+    return;
+  }
+  const listed = (
+    await askWindow({
+      action: { kind: "list" },
+      askedBy: chatId,
+      group: resolveChat(chatId),
+    })
+  )?.tabs;
+  // A tab the person closed already has nothing left to close.
+  const open = unused.filter(
+    (tab) => listed?.some((entry) => entry.id === tab.id) ?? true,
+  );
+  const closing = await Promise.all(
+    open.map(async (tab) => ({
+      ...(await closedTab(tab, listed)),
+      reason: "turnEnd" as const,
+    })),
+  );
+  const ids = new Set(closing.map((tab) => tab.id));
+  await updateChatState(chatDir(chatId), (state) => ({
+    browserTabs: state.browserTabs.filter((tab) => !ids.has(tab.id)),
+    closedTabs: [...state.closedTabs, ...closing],
+  }));
+  for (const tab of open) {
+    await askWindow({
+      action: { kind: "close", tabId: tab.id },
+      askedBy: chatId,
+      group: resolveChat(chatId),
+    });
+  }
 }

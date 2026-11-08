@@ -293,7 +293,7 @@ async function carryOut(
   if (answer.decision === "declined") {
     // Kept before the close, so an asker that asks again meets it; one
     // that cannot be kept is reported, and the askers still hear the no.
-    if (ask.on !== "tab") {
+    if (ask.on === "app" || ask.on === "folder") {
       await setDenied(chatId, ask.on, ask.target, true).catch(
         getWorkspaceConfig().captureException,
       );
@@ -301,7 +301,26 @@ async function carryOut(
     await close(
       chatId,
       ask.id,
-      permissionOutcome({ ...data, answer: "declined" }),
+      permissionOutcome({
+        ...data,
+        ...(ask.on === "page" && { page: await pageNow(chatId, ask) }),
+        answer: "declined",
+      }),
+      answer,
+    );
+    return undefined;
+  }
+  if (ask.on === "page") {
+    // Done: the page goes back to the agent as it stands now, which is what
+    // the note that wakes it says.
+    await close(
+      chatId,
+      ask.id,
+      permissionOutcome({
+        ...data,
+        page: await pageNow(chatId, ask),
+        answer: "allowed",
+      }),
       answer,
     );
     return undefined;
@@ -502,7 +521,7 @@ async function wake(
     (stage.outcome.data.answer === "allowed" ||
       stage.outcome.data.answer === "always") &&
     ask.kind === "permission" &&
-    ask.on !== "tab";
+    (ask.on === "app" || ask.on === "folder");
   // Loud only for an ask that closed while this process ran, on an answer
   // it heard: one owed since before (the app quit between closing and
   // waking) is read with the person's next message.
@@ -982,6 +1001,23 @@ export async function driveOwedAsks(
  * chat, page and all; the first to ask drives it, as a tab handed over:
  * the person's, never closed by the agent. Answers whether it moved.
  */
+/**
+ * Where a waited-on page stands as the person answers: the chat's tab as the
+ * window has it now, or as the card showed it when the window does not say.
+ */
+async function pageNow(
+  chatId: ChatId,
+  ask: PermissionAskRecord,
+): Promise<{ title: string; url: string } | undefined> {
+  const listed = await askWindow({
+    action: { kind: "list" },
+    askedBy: chatId,
+    group: chatId,
+  }).catch(() => undefined);
+  const tab = listed?.tabs?.find((each) => each.id === ask.target);
+  return tab?.kind === "page" ? { title: tab.title, url: tab.url } : ask.page;
+}
+
 async function moveTabIn(
   chatId: ChatId,
   ask: PermissionAskRecord,
@@ -1051,7 +1087,7 @@ async function grant(
   decision: "allowed" | "always",
 ): Promise<void> {
   const { on, target } = ask;
-  if (on === "tab") {
+  if (on === "tab" || on === "page") {
     return;
   }
   await setDenied(chatId, on, target, false);

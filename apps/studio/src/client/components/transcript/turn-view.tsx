@@ -1,7 +1,7 @@
 import { type ChatSeparator } from "@/client/lib/chat-separators";
 import { workedLine } from "@/client/lib/worked-line";
 import {
-  type ChatInfo,
+  type ChatId,
   FOLD_WAIT_MS,
   isTurnFolded,
   slotOf,
@@ -83,7 +83,7 @@ function FoldingRow({ children, id }: { children: ReactNode; id: string }) {
  * token landing in the last reply redraws only the last turn.
  */
 export const TurnView = memo(function TurnView({
-  chatInfo,
+  chatId,
   hasCard,
   isLast,
   separator,
@@ -91,7 +91,7 @@ export const TurnView = memo(function TurnView({
   turn,
   waitsForStep,
 }: {
-  chatInfo: ChatInfo;
+  chatId: ChatId;
   /** Its card is the one up in the transcript (`slotTurnOf`). */
   hasCard: boolean;
   isLast: boolean;
@@ -111,7 +111,7 @@ export const TurnView = memo(function TurnView({
           scrollAnchor
         >
           {separator && <ChatSeparatorRow separator={separator} />}
-          <OpenerView chatInfo={chatInfo} opener={turn.opener} />
+          <OpenerView chatId={chatId} opener={turn.opener} />
         </MessageScrollerItem>
       )}
       <MessageScrollerItem
@@ -119,7 +119,7 @@ export const TurnView = memo(function TurnView({
         {...(turn.opener ? {} : { messageId: turn.id })}
       >
         <TurnBody
-          chatInfo={chatInfo}
+          chatId={chatId}
           hasCard={hasCard}
           isLast={isLast}
           sessionId={sessionId}
@@ -132,10 +132,10 @@ export const TurnView = memo(function TurnView({
 });
 
 function OpenerView({
-  chatInfo,
+  chatId,
   opener,
 }: {
-  chatInfo: ChatInfo;
+  chatId: ChatId;
   opener: TurnOpener;
 }) {
   const { chips, files, folders, fromChat, notes, text } = opener;
@@ -150,7 +150,7 @@ function OpenerView({
         >
           <SentChips chips={chips} />
           <SentFolderChips folders={folders} />
-          <SentFileChips chatId={chatInfo.id} files={files} />
+          <SentFileChips chatId={chatId} files={files} />
         </div>
       )}
       {fromChat && <AssignmentBubble fromChat={fromChat} />}
@@ -181,14 +181,14 @@ function AssignmentBubble({
 }
 
 function TurnBody({
-  chatInfo,
+  chatId,
   hasCard,
   isLast,
   sessionId,
   turn,
   waitsForStep,
 }: {
-  chatInfo: ChatInfo;
+  chatId: ChatId;
   hasCard: boolean;
   isLast: boolean;
   sessionId: StoreId.Session;
@@ -206,7 +206,7 @@ function TurnBody({
     if (isFolded && row.id === turn.foldLineAt) {
       out.push(
         <WorkedRow
-          chatInfo={chatInfo}
+          chatId={chatId}
           isOpened={isOpened}
           key="worked"
           onToggle={() => {
@@ -225,7 +225,7 @@ function TurnBody({
       out.push(
         <FoldingRow id={row.id} key={row.id}>
           <RowView
-            chatInfo={chatInfo}
+            chatId={chatId}
             isLive={live !== undefined}
             isLast={isLast}
             row={row}
@@ -267,7 +267,7 @@ function TurnBody({
           since={turn.live.since}
           thought={
             turn.live.thought && (
-              <StepDetail chatInfo={chatInfo} step={turn.live.thought} />
+              <StepDetail chatId={chatId} step={turn.live.thought} />
             )
           }
         />
@@ -278,9 +278,7 @@ function TurnBody({
       {turn.phase !== "working" && hasReply && turn.replies.length > 0 && (
         <AssistantMessagesFooter messages={turn.replies} />
       )}
-      {turn.ratingCard && (
-        <RatingCard chatId={chatInfo.id} part={turn.ratingCard} />
-      )}
+      {turn.ratingCard && <RatingCard chatId={chatId} part={turn.ratingCard} />}
     </>
   );
 }
@@ -386,12 +384,12 @@ export function ThinkingRow({
 
 /** A finished turn's work as one line, opening onto its rows. */
 function WorkedRow({
-  chatInfo,
+  chatId,
   isOpened,
   onToggle,
   turn,
 }: {
-  chatInfo: ChatInfo;
+  chatId: ChatId;
   isOpened: boolean;
   onToggle: () => void;
   turn: Turn;
@@ -446,7 +444,7 @@ function WorkedRow({
                   .map((row) => (
                     <div data-transcript-row={row.id} key={row.id}>
                       <RowView
-                        chatInfo={chatInfo}
+                        chatId={chatId}
                         isLast={false}
                         isLive={false}
                         row={row}
@@ -463,13 +461,13 @@ function WorkedRow({
 }
 
 function RowView({
-  chatInfo,
+  chatId,
   isLast,
   isLive,
   row,
   thought,
 }: {
-  chatInfo: ChatInfo;
+  chatId: ChatId;
   isLast: boolean;
   isLive: boolean;
   row: TurnRow;
@@ -480,7 +478,7 @@ function RowView({
     case "activity": {
       return (
         <ActivityRowView
-          chatInfo={chatInfo}
+          chatId={chatId}
           isLive={isLive}
           row={row}
           thought={thought}
@@ -488,12 +486,12 @@ function RowView({
       );
     }
     case "ask": {
-      return <AskRow chatInfo={chatInfo} part={row.part} />;
+      return <AskRow chatId={chatId} part={row.part} />;
     }
     case "error": {
       return (
         <MessageError
-          chatId={chatInfo.id}
+          chatId={chatId}
           compact
           draws={row.draws}
           isAgentRunning={isLast && actions.isRunning}
@@ -518,7 +516,7 @@ function RowView({
         // As tall as the row it replaces, so the transcript does not shrink under
         // a message held at the top when Thinking gives way to a one-line reply.
         <div className="min-h-7" data-reply-row={row.part.metadata.id}>
-          <AssistantMessage chatId={chatInfo.id} part={row.part} />
+          <AssistantMessage chatId={chatId} part={row.part} />
         </div>
       );
     }
@@ -527,16 +525,14 @@ function RowView({
 
 /** A question or a sign-in: its card, or a quiet line once answered and folded. */
 function AskRow({
-  chatInfo,
+  chatId,
   part,
 }: {
-  chatInfo: ChatInfo;
+  chatId: ChatId;
   part: SessionMessagePart.ToolPart;
 }) {
   const actions = use(TranscriptActionsContext);
-  return (
-    <ToolCallBody chatInfo={chatInfo} onRetry={actions.onRetry} part={part} />
-  );
+  return <ToolCallBody chatId={chatId} onRetry={actions.onRetry} part={part} />;
 }
 
 /** A note the person reads. */

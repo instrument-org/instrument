@@ -36,7 +36,7 @@ import {
   type SessionMessageDataPart,
   type SessionMessagePart,
   StoreId,
-  type ChatInfo,
+  type ChatId,
 } from "@instrument-org/workspace/client";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { useAtomValue, useSetAtom } from "jotai";
@@ -112,7 +112,7 @@ export function ChatConversation({
   selectedSessionId,
   sendContext,
   sentPrompt,
-  chatInfo,
+  chatId,
 }: {
   /**
    * Places marked in files that go with the next message: drawn as pills in
@@ -147,10 +147,10 @@ export function ChatConversation({
    * reads as empty on the way.
    */
   sentPrompt?: string;
-  chatInfo: ChatInfo;
+  chatId: ChatId;
 }) {
   const appWindow = useContext(WindowContext);
-  const id = chatInfo.id;
+  const id = chatId;
 
   const promptInputRef = useRef<PromptInputRef>(null);
   const [composerDictating, setComposerDictating] = useState(false);
@@ -645,7 +645,7 @@ export function ChatConversation({
                     <NoMessages />
                   ) : (
                     <TranscriptStream
-                      chatInfo={chatInfo}
+                      chatId={chatId}
                       contentRef={contentRef}
                       isFollowing={
                         isAgentAlive || isFollowingSubmit || isSettlingTurn

@@ -237,7 +237,7 @@ function ChatScreenOfRecord({
                   selectedSessionId={sessionId}
                   sendContext={sendContext}
                   sentPrompt={sentPrompt}
-                  chatInfo={info.data}
+                  chatId={chatId}
                 />
               </ChatSessionProvider>
             </PageOpenContext>

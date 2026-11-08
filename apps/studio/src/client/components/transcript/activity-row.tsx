@@ -6,7 +6,7 @@ import {
 import { cn } from "@/client/lib/utils";
 import {
   type ActivityRow,
-  type ChatInfo,
+  type ChatId,
   thoughtText,
   type ToolName,
   type TurnStep,
@@ -190,12 +190,12 @@ const countsText = (row: Pick<ActivityRow, "counts">) =>
  * the one working has a clock.
  */
 export function ActivityRowView({
-  chatInfo,
+  chatId,
   isLive,
   row,
   thought,
 }: {
-  chatInfo: ChatInfo;
+  chatId: ChatId;
   isLive: boolean;
   row: ActivityRow;
   /** The thought going on, which the row's own steps leave out. */
@@ -252,10 +252,10 @@ export function ActivityRowView({
       {isOpen && (
         <div className="mt-1 ml-7 flex flex-col gap-1.5">
           {opened.length === 1 && opened[0] ? (
-            <StepDetail chatInfo={chatInfo} step={opened[0]} />
+            <StepDetail chatId={chatId} step={opened[0]} />
           ) : (
             opened.map((step) => (
-              <StepRow chatInfo={chatInfo} key={step.metadata.id} step={step} />
+              <StepRow chatId={chatId} key={step.metadata.id} step={step} />
             ))
           )}
         </div>
@@ -277,7 +277,7 @@ function stepLabel(step: TurnStep): string {
     : getToolLabel(tool);
 }
 
-function StepRow({ chatInfo, step }: { chatInfo: ChatInfo; step: TurnStep }) {
+function StepRow({ chatId, step }: { chatId: ChatId; step: TurnStep }) {
   const [isOpen, setIsOpen] = useState(false);
   const releaseAutoScroll = useReleaseAutoScroll();
   return (
@@ -299,7 +299,7 @@ function StepRow({ chatInfo, step }: { chatInfo: ChatInfo; step: TurnStep }) {
     >
       {isOpen && (
         <div className="my-1">
-          <StepDetail chatInfo={chatInfo} step={step} />
+          <StepDetail chatId={chatId} step={step} />
         </div>
       )}
     </RowLine>
@@ -308,10 +308,10 @@ function StepRow({ chatInfo, step }: { chatInfo: ChatInfo; step: TurnStep }) {
 
 /** What an opened step shows, read whole: a call's card, a thought's words. */
 export function StepDetail({
-  chatInfo,
+  chatId,
   step,
 }: {
-  chatInfo: ChatInfo;
+  chatId: ChatId;
   step: TurnStep;
 }) {
   const surface = use(TranscriptSurfaceContext);
@@ -326,12 +326,12 @@ export function StepDetail({
     return (
       <SessionMarkdown
         assetVersion={part.metadata.id}
-        chatId={chatInfo.id}
+        chatId={chatId}
         className={cn("w-full text-sm", THOUGHT_PROSE)}
         isStreaming={part.state === "streaming"}
         markdown={thoughtText(part.text)}
       />
     );
   }
-  return <ToolCallBody chatInfo={chatInfo} onRetry={onRetry} part={part} />;
+  return <ToolCallBody chatId={chatId} onRetry={onRetry} part={part} />;
 }

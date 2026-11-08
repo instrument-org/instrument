@@ -18,10 +18,8 @@ import {
   type ChatId,
   isFolderPath,
   type StoreId,
-  type ChatInfo,
 } from "@instrument-org/workspace/client";
 import { safe } from "@orpc/client";
-import { useQuery } from "@tanstack/react-query";
 import { toast } from "@/client/lib/toast";
 
 import { type OpenOptions, useWindow } from "./context";
@@ -49,19 +47,12 @@ export function ChildTranscript({
   /** Who stopped its last turn, which the transcript ends by saying. */
   stoppedBy?: "agent" | "app" | "person";
 }) {
-  // The chat's record, which the task runs in: its folder, model and apps.
-  const record = useQuery(
-    rpcClient.workspace.chats.live.info.experimental_liveOptions({
-      input: { id: chat },
-    }),
-  );
   const isDeveloperMode = useTabDeveloperMode();
   const feed = useTranscriptFeed({ id: chat, sessionId });
 
   const openFile = useOpenFileNamedByTask(chat);
 
-  const chatInfo = record.data;
-  if (!chatInfo || !feed.data) {
+  if (!feed.data) {
     return (
       <div className="flex h-full items-center justify-center">
         <Spinner className="size-5" />
@@ -83,12 +74,12 @@ export function ChildTranscript({
             <MessageScrollerContent className="mx-auto w-full max-w-3xl gap-2 p-4 pb-8 [--transcript-room:100cqi]">
               {/* Names the task and session for the links inside, so a page
                   the task names offers its browser as well as the user's. */}
-              <ChatSessionProvider sessionId={sessionId} chatId={chatInfo.id}>
+              <ChatSessionProvider sessionId={sessionId} chatId={chat}>
                 {/* Task paths are placed on the computer through the task's own layout before navigation. */}
                 <FileOpenContext value={openFile}>
                   <LiveTranscriptSurface chat={chat}>
                     <Transcript
-                      chatInfo={chatInfo}
+                      chatId={chat}
                       hasOlder={feed.data.hasOlder}
                       isDeveloperMode={isDeveloperMode}
                       isLoadingOlder={feed.isLoadingOlder}
@@ -128,7 +119,7 @@ export function ChildTranscript({
  * task's own layout before a tab is asked for it. A path the task cannot
  * reach opens nothing, and says so.
  */
-function useOpenFileNamedByTask(chatId: ChatInfo["id"]) {
+function useOpenFileNamedByTask(chatId: ChatId) {
   const { openScreen } = useWindow();
   return (filePath: string, options?: OpenOptions) => {
     const isFolder = isFolderPath(filePath);

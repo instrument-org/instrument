@@ -31,7 +31,6 @@ import {
   ChatIdSchema,
   getToolNameByType,
   isToolPart,
-  type ChatInfo,
   type DeveloperNote,
   type DeveloperNoteBody,
   type SessionMessagePart,
@@ -119,12 +118,7 @@ const ROW_HEIGHT = 28;
 // still runs as fast as it is pushed.
 const WHEEL_STEP = 24;
 
-const chatInfo: ChatInfo = {
-  createdAt: new Date(0),
-  id: ChatIdSchema.parse("debug-transcript"),
-  title: "Transcript",
-  updatedAt: new Date(0),
-};
+const DEBUG_CHAT = ChatIdSchema.parse("debug-transcript");
 
 /** The icon and wording one frame gets in the timeline. */
 function describe(mark: FrameMark): { icon: Icon; name: string } {
@@ -302,7 +296,7 @@ function ChatReplay({ id }: { id: ChatId }) {
         : [];
       const frames = chatFrames(lastTurns(stored, 5));
       const name = chat?.title ?? id;
-      return { chat: { ...chatInfo, id }, frames, id, name, script: [] };
+      return { chat: id, frames, id, name, script: [] };
     },
     queryKey: ["debug-transcript-replay", id],
     staleTime: Infinity,
@@ -514,7 +508,7 @@ function HoldAtReplyStart({
 }
 
 /** With `frames` it is a real chat's, drawn in place of a script. */
-type Playable = DebugScenario & { chat?: ChatInfo; frames?: Frame[] };
+type Playable = DebugScenario & { chat?: ChatId; frames?: Frame[] };
 
 function Viewer({ scenario }: { scenario: Playable }) {
   // Built once per scenario, and not because it is slow: every part keeps the
@@ -818,7 +812,7 @@ function FrameTranscript({
   pageTurns,
   tasks,
 }: {
-  chat: ChatInfo | undefined;
+  chat: ChatId | undefined;
   commands: DebugScenario["commands"];
   frame: Frame;
   frameIndex: number;
@@ -933,7 +927,7 @@ function FrameTranscript({
       <TranscriptSurfaceContext value={debugSurface}>
         <DeveloperNotesSourceContext value={noteSource}>
           <Transcript
-            chatInfo={chat ?? chatInfo}
+            chatId={chat ?? DEBUG_CHAT}
             hasOlder={from > 0}
             isDeveloperMode={isDeveloperMode}
             isLoadingOlder={isLoadingOlder}

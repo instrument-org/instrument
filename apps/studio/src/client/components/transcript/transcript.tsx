@@ -1,7 +1,7 @@
 import { chatSeparators } from "@/client/lib/chat-separators";
 import { type AIGatewayModelURI } from "@instrument-org/ai-gateway/client";
 import {
-  type ChatInfo,
+  type ChatId,
   type StoreId,
   type TranscriptMessage,
   type Turn,
@@ -46,7 +46,7 @@ const DeveloperNotesLayer = lazy(() => import("./developer-notes-layer"));
  * decided in one place, with the same messages always giving the same turns.
  */
 export function Transcript({
-  chatInfo,
+  chatId,
   hasOlder = false,
   isDeveloperMode = false,
   isLoadingOlder = false,
@@ -59,7 +59,7 @@ export function Transcript({
   onRunAgain,
   sessionId,
 }: {
-  chatInfo: ChatInfo;
+  chatId: ChatId;
   /** There are earlier turns than these, asked for as the reader nears them. */
   hasOlder?: boolean;
   /** Mounts the margin notes beside the rows, which never change for it. */
@@ -92,7 +92,7 @@ export function Transcript({
     !isRunning && last?.replies.at(-1)?.metadata.finishReason === "max-steps";
   const drawTurn = (turn: Turn) => (
     <TurnView
-      chatInfo={chatInfo}
+      chatId={chatId}
       hasCard={turn.id === cardTurn}
       isLast={turn === last}
       key={turn.id}
@@ -131,7 +131,7 @@ export function Transcript({
       {isDeveloperMode && (
         <Suspense fallback={null}>
           <DeveloperNotesLayer
-            chatId={chatInfo.id}
+            chatId={chatId}
             sessionId={sessionId}
             turns={turns}
           />

@@ -1,7 +1,7 @@
 import { useRunningBackgroundProcess } from "@/client/hooks/use-task-background-processes";
 import {
   type SessionMessagePart,
-  type ChatInfo,
+  type ChatId,
 } from "@instrument-org/workspace/client";
 
 import { ToolBash } from "./tool-bash";
@@ -27,11 +27,11 @@ import { ToolWriteFile } from "./tool-write-file";
 export function ToolCallBody({
   onRetry,
   part,
-  chatInfo,
+  chatId,
 }: {
   onRetry: (prompt: string) => void;
   part: SessionMessagePart.ToolPart;
-  chatInfo: ChatInfo;
+  chatId: ChatId;
 }) {
   const backgroundProcess = useRunningBackgroundProcess({
     processId:
@@ -39,7 +39,7 @@ export function ToolCallBody({
         ? part.output.processId
         : undefined,
     sessionId: part.metadata.sessionId,
-    chatId: chatInfo.id,
+    chatId,
   });
   const isActive = isActiveToolPart(part);
   return (
@@ -48,7 +48,7 @@ export function ToolCallBody({
       isRunning={isActive}
       isStreaming={isActive}
     >
-      <ToolCard chatInfo={chatInfo} onRetry={onRetry} part={part} />
+      <ToolCard chatId={chatId} onRetry={onRetry} part={part} />
     </ToolCallSessionProvider>
   );
 }
@@ -56,11 +56,11 @@ export function ToolCallBody({
 function ToolCard({
   onRetry,
   part,
-  chatInfo,
+  chatId,
 }: {
   onRetry: (prompt: string) => void;
   part: SessionMessagePart.ToolPart;
-  chatInfo: ChatInfo;
+  chatId: ChatId;
 }) {
   if (part.state === "output-error") {
     return <ToolCallError part={part} />;
@@ -75,7 +75,7 @@ function ToolCard({
       return <ToolBash part={part} />;
     }
     case "tool-choose": {
-      return <ToolChoose part={part} chatId={chatInfo.id} />;
+      return <ToolChoose part={part} chatId={chatId} />;
     }
     case "tool-connect_app": {
       return <ToolConnectApp part={part} />;
@@ -84,15 +84,13 @@ function ToolCard({
       return <ToolEditFile part={part} />;
     }
     case "tool-generate_image": {
-      return (
-        <ToolGenerateImage id={chatInfo.id} onRetry={onRetry} part={part} />
-      );
+      return <ToolGenerateImage id={chatId} onRetry={onRetry} part={part} />;
     }
     case "tool-load_skill": {
       return <ToolLoadSkill part={part} />;
     }
     case "tool-offer_feedback": {
-      return <ToolOfferFeedback chatId={chatInfo.id} part={part} />;
+      return <ToolOfferFeedback chatId={chatId} part={part} />;
     }
     case "tool-read_file": {
       return <ToolReadFile part={part} />;

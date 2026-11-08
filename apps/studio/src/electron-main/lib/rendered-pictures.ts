@@ -354,9 +354,25 @@ async function prettyJson(hostPath: string, head: string) {
       return head;
     }
     const parsed: unknown = JSON.parse(await fs.readFile(hostPath, "utf8"));
-    return JSON.stringify(parsed, null, 2);
+    return JSON.stringify(unwrapped(parsed), null, 2);
   } catch {
     return head;
+  }
+}
+
+/**
+ * The data a script encoded twice, saving a string of JSON: laid out as the
+ * string, it is one escaped line too long to highlight.
+ */
+function unwrapped(parsed: unknown): unknown {
+  if (typeof parsed !== "string") {
+    return parsed;
+  }
+  try {
+    const inner: unknown = JSON.parse(parsed);
+    return typeof inner === "object" && inner !== null ? inner : parsed;
+  } catch {
+    return parsed;
   }
 }
 

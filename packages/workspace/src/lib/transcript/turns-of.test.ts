@@ -944,6 +944,33 @@ describe("the slot", () => {
     },
   );
 
+  it.each([
+    ["a short file whole", "# Title\nfirst", "# Title\nfirst"],
+    [
+      "the end of a long one from its first whole line",
+      `${"x".repeat(2000)}\nlast line`,
+      "last line",
+    ],
+  ])("shows %s as it is written", (_, content, words) => {
+    const [turn] = turnsOf(
+      [
+        typed("Do the thing"),
+        message("assistant", (id) => [
+          call(
+            id,
+            "write_file",
+            { content, filePath: "/a.md" },
+            undefined,
+            "input-streaming",
+          ),
+        ]),
+      ],
+      { isRunning: true },
+    );
+    const shows = turn && slotOf(turn)?.steps.at(-1)?.shows;
+    expect(shows?.kind === "file" && shows.words).toBe(words);
+  });
+
   it("takes the card away when the agent speaks, so its words never move", () => {
     const searched = (id: Parameters<typeof call>[0]) =>
       call(id, "web_search", { activity: "Looking", query: "x" }, {});

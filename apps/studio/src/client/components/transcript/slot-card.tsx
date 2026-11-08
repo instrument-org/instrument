@@ -13,13 +13,18 @@ import { ImageIcon } from "@phosphor-icons/react/Image";
 import { MagnifyingGlassIcon } from "@phosphor-icons/react/MagnifyingGlass";
 import { use, useLayoutEffect, useRef, type ReactNode } from "react";
 
+import { useSyntaxHighlighting } from "../../hooks/use-syntax-highlighting";
 import { Favicon } from "../favicon";
+import { Markdown } from "../markdown";
 import { BorderSweep } from "../shimmer-sweep";
 import { useTheme } from "../theme-provider";
 import { type TranscriptSurface, TranscriptSurfaceContext } from "./surface";
 
 /** The earlier pictures a row of reads keeps beside its newest. */
 const EARLIER_SHOWN = 3;
+
+/** The files whose words a card shows as they read rather than as typed. */
+const MARKDOWN_EXTENSIONS = new Set(["markdown", "md", "mdx"]);
 
 const baseName = (path: string) => path.split(/[/\\]/).pop() ?? path;
 
@@ -364,6 +369,7 @@ function filesCard(
       ) : written?.words !== undefined ? (
         <TypedWords
           isWriting={written.status === "writing"}
+          path={written.path}
           words={written.words}
         />
       ) : place ? (
@@ -372,12 +378,17 @@ function filesCard(
   };
 }
 
-/** A file's words as they arrive, kept at the end while they do. */
+/**
+ * A file's words as they arrive, kept at the end while they do: Markdown as it
+ * reads, code in its colors, anything else as typed.
+ */
 function TypedWords({
   isWriting,
+  path,
   words,
 }: {
   isWriting: boolean;
+  path: string;
   words: string;
 }) {
   const ref = useRef<HTMLDivElement>(null);
@@ -386,12 +397,38 @@ function TypedWords({
       ref.current.scrollTop = ref.current.scrollHeight;
     }
   }, [isWriting, words]);
+  const extension = /\.([^./\\]+)$/.exec(path)?.[1]?.toLowerCase();
+  const isMarkdown =
+    extension !== undefined && MARKDOWN_EXTENSIONS.has(extension);
+  const { highlightedHtml, isLanguageSupported } = useSyntaxHighlighting({
+    code: isMarkdown ? undefined : words,
+    language: isMarkdown ? undefined : extension,
+  });
   return (
     <div
-      className="absolute inset-0 overflow-hidden bg-card px-3 py-2.5 text-xs whitespace-pre-wrap text-foreground/80"
+      className={cn(
+        "absolute inset-0 overflow-hidden bg-card px-3 py-2.5 text-xs text-foreground/80",
+        isLanguageSupported && "font-mono",
+      )}
       ref={ref}
     >
-      {words}
+      {isMarkdown ? (
+        // A picture of the file: the card is the one control, so nothing in
+        // the words answers a press or takes focus.
+        <div
+          className="prose prose-custom font-sans text-xs/relaxed wrap-break-word dark:prose-invert prose-code:text-inherit prose-pre:text-xs prose-table:text-xs"
+          inert
+        >
+          <Markdown hideImages isStreaming={isWriting} markdown={words} />
+        </div>
+      ) : highlightedHtml ? (
+        <div
+          className="[&_pre]:break-words [&_pre]:whitespace-pre-wrap"
+          dangerouslySetInnerHTML={{ __html: highlightedHtml.join("\n") }}
+        />
+      ) : (
+        <div className="whitespace-pre-wrap">{words}</div>
+      )}
     </div>
   );
 }

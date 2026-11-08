@@ -457,9 +457,17 @@ function wordsOnACard(content: string | undefined, status: StepStatus) {
   if (content === undefined) {
     return undefined;
   }
-  return status === "writing"
-    ? content.slice(-FILE_WORDS_CHARS)
-    : content.slice(0, FILE_WORDS_CHARS);
+  if (status !== "writing") {
+    return content.slice(0, FILE_WORDS_CHARS);
+  }
+  if (content.length <= FILE_WORDS_CHARS) {
+    return content;
+  }
+  // From the first whole line, so neither a grammar nor Markdown starts reading
+  // partway through a token.
+  const tail = content.slice(-FILE_WORDS_CHARS);
+  const lineStart = tail.indexOf("\n");
+  return lineStart === -1 ? tail : tail.slice(lineStart + 1);
 }
 
 /**

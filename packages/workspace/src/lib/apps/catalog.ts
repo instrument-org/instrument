@@ -5,6 +5,7 @@ import {
   searchDirectory,
 } from "@instrument-org/shared/app-directory";
 import { createHash } from "node:crypto";
+import { isEqual } from "radashi";
 import { z } from "zod";
 
 import { publisher } from "../../rpc/publisher";
@@ -229,8 +230,13 @@ export function applyServedAppCatalog(
   if (entries.length === 0) {
     return "unreadable";
   }
+  // A copy with the entries already in use (the one kept from the last
+  // launch, served again after a sign-in) changes nothing a reader shows.
+  const changed = !isEqual(entries, getAppCatalog());
   served = { entries, revision: parsed.data.revision };
-  publisher.publish("app.catalogChanged", null);
+  if (changed) {
+    publisher.publish("app.catalogChanged", null);
+  }
   return "used";
 }
 

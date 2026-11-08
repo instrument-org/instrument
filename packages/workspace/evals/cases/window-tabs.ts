@@ -24,6 +24,7 @@
  *   The task here is a stand-in (`finishesAs`), so the case scores only the
  *   reply to its finish note.
  */
+import { chooseQuestions } from "../../src/lib/choose-call";
 import { type Session } from "../../src/schemas/session";
 import { type SessionMessageDataPart } from "../../src/schemas/session/message-data-part";
 import { type Assertion, defineEval } from "../harness";
@@ -231,11 +232,25 @@ function replies(sessions: Session.WithMessagesAndParts[]): string {
 
 /**
  * Asked the user to add their own tab to a message, the one way a tab of
- * theirs outside the chat reaches it.
+ * theirs outside the chat reaches it: in a reply, or on a `choose` card.
  */
 const askedToAddTheirTab: Assertion = {
   check: ({ sessions }) => {
-    const said = replies(sessions);
+    const cards = sessions.flatMap((session) =>
+      session.messages.flatMap((message) =>
+        message.parts.flatMap((part) =>
+          part.type === "tool-choose"
+            ? chooseQuestions(part.input).flatMap(({ choices, question }) => [
+                question,
+                ...choices.map(
+                  (choice) => `${choice.label}: ${choice.description ?? ""}`,
+                ),
+              ])
+            : [],
+        ),
+      ),
+    );
+    const said = [replies(sessions), ...cards].join("\n");
     const asked = /\badd\b[^.\n]*\b(?:tab|page)\b/i.exec(said);
     return {
       evidence: asked?.[0] ?? (said.slice(-400) || "no reply"),

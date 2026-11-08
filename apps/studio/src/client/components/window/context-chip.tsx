@@ -19,7 +19,6 @@ import {
   COMPOSER_CHIP_SELECTED_CLASSNAME,
 } from "@/client/components/attached-item-preview";
 import { cn } from "@/client/lib/utils";
-import { rpcClient } from "@/client/rpc/client";
 import {
   type ChatId,
   ChatIdSchema,
@@ -36,6 +35,7 @@ import { type ReactNode, useContext } from "react";
 
 import { type AppsBySlug, useAppsBySlug } from "./apps-by-slug";
 import { TabIcon } from "./browser-tabs";
+import { chatListOptions } from "./chat-list-query";
 import { useComputerVolumes } from "./computer-volumes";
 import { type OpenOptions, WindowContext } from "./context";
 import { type ContextItem } from "./context-items";
@@ -276,20 +276,21 @@ function ChatChip({
   chatId: ChatId;
   onLeaveOut: () => void;
 }) {
-  const info = useQuery(
-    rpcClient.workspace.chats.live.info.experimental_liveOptions({
-      input: { id: chatId },
-    }),
-  );
+  // The chat's title as the list has it: undefined while the list loads,
+  // null once the list has no such chat.
+  const title = useQuery({
+    ...chatListOptions(),
+    select: (chats) => chats.find((chat) => chat.id === chatId)?.title ?? null,
+  }).data;
   // A chat trashed since is not there to name, and goes with nothing.
-  if (info.isError) {
+  if (title === null) {
     return null;
   }
   return (
     <ContextChip
       label={<ChipLabel paths={[]} said={SENT_WITH_MESSAGE} />}
       mark={<ChatCircleIcon />}
-      name={info.data?.title ?? "Chat"}
+      name={title ?? "Chat"}
       onLeaveOut={onLeaveOut}
       slot="chat-chip"
     />

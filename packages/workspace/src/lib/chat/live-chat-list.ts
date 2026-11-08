@@ -206,6 +206,9 @@ function startReading(): Reading {
         }
       }
     } finally {
+      // A reading that failed ends what it subscribed to, which waits on
+      // this signal; one stopped by its last follower has it aborted already.
+      current.stop.abort();
       if (reading === current) {
         reading = undefined;
       }

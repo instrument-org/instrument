@@ -30,11 +30,13 @@ vi.mock(import("../record-folders"), async (importOriginal) => ({
 }));
 // The bus alone: the folder's watch says its edits there too.
 vi.mock("../host-events", () => ({
-  appListChanges: (signal: AbortSignal | undefined) =>
+  appListChanges: vi.fn((signal: AbortSignal | undefined) =>
     publisher.subscribe("app.updated", { signal }),
+  ),
 }));
 
 const { knownAppSlugs, listedChats } = await import("./chats");
+const { appListChanges } = await import("../host-events");
 const { liveChatList } = await import("./live-chat-list");
 
 /** The chats each read asked for, leaving out the reads that asked for none. */
@@ -156,5 +158,24 @@ describe("the live chat list followed twice", () => {
 
     expect(rowsRead()).toEqual([["a"], ["a"]]);
     after.abort();
+  });
+});
+
+describe("the live chat list when a read fails", () => {
+  it("fails its follower and lets go of what it listened to", async () => {
+    ids.listed = ["a"];
+    vi.mocked(appListChanges).mockClear();
+    vi.mocked(listedChats).mockRejectedValueOnce(new Error("unreadable"));
+    const controller = new AbortController();
+    const list = liveChatList(controller.signal);
+
+    await expect(list.next()).rejects.toThrow("unreadable");
+    const [listening] = vi.mocked(appListChanges).mock.calls.at(-1) ?? [];
+    expect(listening?.aborted).toBe(true);
+
+    // The next follower reads the list afresh.
+    const again = liveChatList(controller.signal);
+    await expect(again.next()).resolves.toMatchObject({ done: false });
+    controller.abort();
   });
 });

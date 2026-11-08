@@ -82,6 +82,7 @@ function TabMenuContent({ children }: { children: ReactNode }) {
  */
 export function TabMenuItems({
   components: { Item, Separator, Shortcut },
+  isClosedByChord,
   isSelected,
   moving,
   onClose,
@@ -95,6 +96,8 @@ export function TabMenuItems({
   own,
 }: {
   components: MenuComponents;
+  /** Whether Close Tab's chord closes this tab, which Close Tab's row then shows; the tab up's, unless said. */
+  isClosedByChord?: boolean;
   /** The tab up, whose chords the rows show. */
   isSelected: boolean;
   /** Where the tab itself can move to, which only the window's strip offers. */
@@ -153,7 +156,7 @@ export function TabMenuItems({
       <Item onClick={onClose}>
         <XIcon className="size-4" />
         <span>Close Tab</span>
-        {isSelected ? (
+        {(isClosedByChord ?? isSelected) ? (
           <Shortcut>
             {formatAcceleratorText(WINDOW_SHORTCUTS.closeTab.accelerator)}
           </Shortcut>

@@ -113,7 +113,7 @@ import { inPlace, NO_FILTERS, strongestMark } from "./chats";
 import { ComposeLayer } from "./compose-layer";
 import { useComputerVolumes } from "./computer-volumes";
 import { type WindowContextValue as Screens, WindowContext } from "./context";
-import { isPaneOpen } from "./draft-context";
+import { isPaneOpen, shownPaneTab } from "./draft-context";
 import { useSignInLanding } from "./use-sign-in-landing";
 import { InboxPeek } from "./inbox-peek";
 import { inboxLandsAtOnceAtom } from "./inbox-room";
@@ -145,7 +145,11 @@ import {
   newChatHref,
   sameHref,
 } from "./window-href";
-import { useWindowTabs } from "./window-tabs";
+import {
+  groupOnScreenAtom,
+  useWindowTabs,
+  windowTabsAtom,
+} from "./window-tabs";
 import {
   forgetMovedAway,
   hasMovedAway,
@@ -966,8 +970,18 @@ function WindowShell({
       back: () => {
         windowSteps.go("back");
       },
+      // The tab a chat's pane shows, wherever the keyboard is, and the
+      // window's own tab only once no pane tab is in view: one close a
+      // press, read from the tabs as they are at that moment.
       closeTab: () => {
-        if (appTabs.model.selectedId) {
+        const paneTab = shownPaneTab(
+          store.get(windowTabsAtom),
+          store.get(groupOnScreenAtom),
+          store.get(paneOpenByGroupAtom),
+        );
+        if (paneTab) {
+          requestClose(paneTab.id);
+        } else if (appTabs.model.selectedId) {
           appTabs.close(appTabs.model.selectedId);
         }
       },

@@ -273,6 +273,12 @@ export function bindAppWindowChords(webContents: WebContents) {
       return;
     }
     event.preventDefault();
+    // Close Tab closes a chat's pane tab before the window's tab, and the
+    // last window's tab closes the window: a held key closes once, so it
+    // never runs on from a pane tab into the tab and the window behind it.
+    if (input.isAutoRepeat && pressed.id === "closeTab") {
+      return;
+    }
     const window = BrowserWindow.fromWebContents(webContents);
     if (window) {
       pressed.run(window);

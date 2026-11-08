@@ -2,6 +2,7 @@ import {
   tabsWithoutDeveloperModeAtom,
   useDeveloperMode,
 } from "@/client/hooks/use-developer-mode";
+import { paneOpenByGroupAtom } from "@/client/atoms/window";
 import { type TabId } from "@/shared/tabs";
 import { APP_NAME } from "@instrument-org/shared";
 import { type ChatId, type StoreId } from "@instrument-org/workspace/client";
@@ -29,6 +30,7 @@ import { ChatMarkIcon } from "./chat-mark";
 import { chatTabMark, type RailChatMark } from "./chats";
 import { useAppTabPresentation, useClosedAppTabs } from "./closed-app-tabs";
 import { ClosedTabsMenu } from "./closed-tabs-menu";
+import { shownPaneTab } from "./draft-context";
 import { chatListOptions } from "./chat-list-query";
 import { Peek } from "./chat-row";
 import { RECENTS_ROOT } from "./computer-page";
@@ -52,6 +54,7 @@ import {
   useTabCarryView,
 } from "./tab-carry-view";
 import { matchScreen } from "./window-href";
+import { groupOnScreenAtom, windowTabsAtom } from "./window-tabs";
 
 /**
  * The window's tabs across its bar, each named for where it stands: a chat
@@ -314,7 +317,8 @@ function ChatTabLine({ chat }: { chat: ChatId }) {
  * A tab's own menu: reload and copy it, then close it or the tabs around it.
  * In developer mode, a screen's tab can also be shown without it. The tab up
  * names the window's keys beside Reload and Close Tab, since those keys act
- * on it and on no other.
+ * on it and on no other, Close Tab's only while no chat's pane tab is in
+ * view, which the key closes first.
  */
 function TabMenu({
   id,
@@ -342,10 +346,18 @@ function TabMenu({
   ).data;
   const isDeveloperMode = useDeveloperMode();
   const [tabsWithout, setTabsWithout] = useAtom(tabsWithoutDeveloperModeAtom);
+  // Close Tab's chord closes a chat's pane tab first while one is in view.
+  const hasPaneTabUp =
+    shownPaneTab(
+      useAtomValue(windowTabsAtom),
+      useAtomValue(groupOnScreenAtom),
+      useAtomValue(paneOpenByGroupAtom),
+    ) !== undefined;
 
   return (
     <TabMenuItems
       components={dropdownMenuComponents}
+      isClosedByChord={isSelected && !hasPaneTabUp}
       isSelected={isSelected}
       moving={
         others && others.length > 0 ? (

@@ -104,6 +104,38 @@ describe("useWindowCommands", () => {
     );
   });
 
+  // Close Tab asks only the innermost hold, and the tab under it (a chat's
+  // pane tab or the window's) closes only once nothing holds the window.
+  it("closes the innermost hold, then one tab a press", async () => {
+    const outer = vi.fn();
+    const inner = vi.fn(() => false);
+    getDefaultStore().set(windowHoldsAtom, [
+      { close: outer },
+      { close: inner },
+    ]);
+    renderWithDefaultStore(<Window />);
+    stream.push("closeTab");
+    await vi.waitFor(
+      () => {
+        expect(inner).toHaveBeenCalledTimes(1);
+      },
+      { interval: 1 },
+    );
+    expect(outer).not.toHaveBeenCalled();
+    expect(handlers.closeTab).not.toHaveBeenCalled();
+
+    getDefaultStore().set(windowHoldsAtom, []);
+    stream.push("closeTab");
+    stream.push("closeTab");
+    await vi.waitFor(
+      () => {
+        expect(handlers.closeTab).toHaveBeenCalledTimes(2);
+      },
+      { interval: 1 },
+    );
+    expect(inner).toHaveBeenCalledTimes(1);
+  });
+
   it("leaves the search chord to what holds the window", () => {
     renderWithDefaultStore(<Window />);
     const press = () =>

@@ -105,6 +105,20 @@ async function windowOn(platform: NodeJS.Platform) {
       expect(event.preventDefault).toHaveBeenCalledTimes(ran === null ? 0 : 1);
       return ran;
     },
+    /** What a key held down sends after its first press: what it ran, and whether the page was kept from it. */
+    repeat: (input: Press) => {
+      publish.mockClear();
+      const event = { preventDefault: vi.fn() };
+      listeners.get("before-input-event")?.(event, {
+        ...input,
+        isAutoRepeat: true,
+        type: "keyDown",
+      });
+      return {
+        isKeptFromPage: event.preventDefault.mock.calls.length > 0,
+        ran: commandOf(publish.mock.calls[0]?.[1]),
+      };
+    },
   };
 }
 
@@ -161,6 +175,22 @@ describe("a window chord that is also a code editor's key", () => {
       expect(window.press(nextChat)).toBe("nextChat");
     },
   );
+});
+
+describe("Close Tab held down", () => {
+  // A pane tab closes first, then the window's tab, then the window: a key
+  // held down must not run on from one into the next.
+  it.each([
+    ["darwin", press("w", "KeyW", "meta")],
+    ["win32", press("w", "KeyW", "control")],
+    ["linux", press("w", "KeyW", "control")],
+  ] as const)("closes once on %s", async (platform, chord) => {
+    const window = await windowOn(platform);
+    expect(window.press(chord)).toBe("closeTab");
+    expect(window.repeat(chord)).toEqual({ isKeptFromPage: true, ran: null });
+    // Other chords still repeat as the system repeats them.
+    expect(window.repeat(press("Tab", "Tab", "control")).ran).toBe("nextTab");
+  });
 });
 
 describe("Info", () => {

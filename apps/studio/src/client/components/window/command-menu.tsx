@@ -235,7 +235,8 @@ export function useCommandMenuRows({
   const installed = useQuery(
     rpcClient.apps.live.list.experimental_liveOptions(),
   );
-  const visited = useRecentPages();
+  // Read only while the menu is up, which is mounted in every window.
+  const visited = useRecentPages({ enabled: active });
   // Described only while the menu is up: each file is looked at on the disk.
   const recentFiles = useRecentFiles({ enabled: active }).files;
   const bookmarks = useAtomValue(bookmarksAtom);

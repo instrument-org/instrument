@@ -36,7 +36,8 @@ export function WebStart({
 }) {
   const bookmarks = useAtomValue(bookmarksAtom);
   const applyBookmarkOps = useSetAtom(applyBookmarkOpsAtom);
-  const visited = useRecentPages();
+  // Enough that the dozen are left once the bookmarked ones are set aside.
+  const visited = useRecentPages({ limit: RECENT_SHOWN + bookmarks.length });
   const clicksFor = usePageClicks();
   // The bookmark whose name is being typed over, by id.
   const [renamingId, setRenamingId] = useState<string>();

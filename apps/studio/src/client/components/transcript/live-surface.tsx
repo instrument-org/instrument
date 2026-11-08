@@ -110,8 +110,10 @@ function useTaskMessages(id: StoreId.Session, isWorking: boolean) {
 type PageTab = Extract<WindowTab, { kind: "page" }>;
 
 /**
- * The page a session's work is on: the chat's tab an agent drove last, since
- * every session of a chat drives every tab of it. Nothing is read while
+ * The page a session's work is on: the chat's tab that session sent its
+ * latest command, read live as it works, so a session that moves to another
+ * tab is pictured there. Every session of a chat drives every tab of it, so
+ * none is the session's until it acts in one. Nothing is read while
  * `sessionId` is absent.
  */
 function useDrivenTab(
@@ -119,7 +121,7 @@ function useDrivenTab(
 ): PageTab | undefined {
   const chat = useLiveChat();
   const { allTabs } = useWindowTabs();
-  const mine =
+  const pages =
     sessionId === undefined
       ? []
       : allTabs.filter(
@@ -127,19 +129,27 @@ function useDrivenTab(
         );
   const driven = useQueries({
     combine: (results) => results.map((result) => result.data?.lastAt ?? 0),
-    queries: mine.map((tab) =>
+    queries: pages.map((tab) =>
       rpcClient.workspace.browser.events.agentActivity.experimental_liveOptions(
-        { input: { targetId: browserTargetOf(tab.id) } },
+        {
+          input: {
+            targetId: browserTargetOf(tab.id),
+            ...(sessionId ? { sessionId } : {}),
+          },
+        },
       ),
     ),
   });
-  return mine.reduce<PageTab | undefined>(
-    (best, tab, index) =>
-      !best || (driven[index] ?? 0) >= (driven[mine.indexOf(best)] ?? 0)
-        ? tab
-        : best,
-    undefined,
-  );
+  let newest: PageTab | undefined;
+  let newestAt = 0;
+  for (const [index, tab] of pages.entries()) {
+    const at = driven[index] ?? 0;
+    if (at > newestAt) {
+      newest = tab;
+      newestAt = at;
+    }
+  }
+  return newest;
 }
 
 /** What the page a session's work is on says it is, as its tab last heard. */

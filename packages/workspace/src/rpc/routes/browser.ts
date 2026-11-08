@@ -10,6 +10,8 @@ import {
 } from "../../lib/browser-state";
 import { CdpCommandTimeoutError } from "../../lib/cdp-command-timeout-error";
 import { getBrowserSessionDir } from "../../lib/chat-dir-utils";
+import { lastActOf } from "../../lib/tab-activity";
+import { StoreId } from "../../schemas/store-id";
 import { BrowserTargetIdSchema } from "../../types";
 import { base } from "../base";
 import { publisher } from "../publisher";
@@ -167,27 +169,36 @@ const agentActivity = base
     z.object({
       /** The guest asked about: a window tab, which any session of its chat drives. */
       targetId: BrowserTargetIdSchema,
+      /** One session of its chat, to hear only of the commands that session sent it. */
+      sessionId: StoreId.SessionSchema.optional(),
     }),
   )
   .output(
     eventIterator(
       z.object({
-        /** When an agent last worked in the guest, in ms; absent when none has. */
+        /** When an agent (or the session asked about) last worked in the guest, in ms; absent when none has. */
         lastAt: z.number().optional(),
         revision: z.number(),
       }),
     ),
   )
   .handler(async function* ({ input, signal }) {
+    const { sessionId, targetId } = input;
+    const read = () =>
+      sessionId === undefined
+        ? lastBrowserAgentActivity(targetId)
+        : lastActOf(targetId, sessionId);
     let revision = 0;
-    const lastAt = lastBrowserAgentActivity(input.targetId);
+    let lastAt = read();
     yield { revision, ...(lastAt === undefined ? {} : { lastAt }) };
     for await (const event of publisher.subscribe("browser.agentActivity", {
       signal,
     })) {
-      if (event.targetId === input.targetId) {
+      const now = event.targetId === targetId ? read() : undefined;
+      if (now !== undefined && now !== lastAt) {
+        lastAt = now;
         revision += 1;
-        yield { lastAt: Date.now(), revision };
+        yield { lastAt, revision };
       }
     }
   });

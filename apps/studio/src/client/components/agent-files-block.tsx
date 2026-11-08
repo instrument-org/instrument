@@ -24,7 +24,7 @@ import { fork } from "radashi";
 import { useContext } from "react";
 
 import { FileTypeIcon } from "./extend/file-system";
-import { FolderRowCard } from "./file-preview-card";
+import { FolderRowCard, UnreachableFileRowCard } from "./file-preview-card";
 import { FilesGrid, rowCardLayout } from "./files-grid";
 import { FilesLayoutContext } from "./files-layout-context";
 import { SystemFolderIcon } from "./icons/folder-glyph";
@@ -170,6 +170,9 @@ export function FilePathsGrid({
   ));
   const isMessage = (path: string) =>
     messages.some((entry) => entry.path === path);
+  // Answered, and with no place here: still drawn, as missing. A path not
+  // answered yet is absent and waits for its answer.
+  const isUnreachable = (path: string) => hostPaths[path] === null;
 
   const fileOf = (filePath: string): undefined | ViewerFile => {
     const hostPath = hostPaths[filePath];
@@ -210,6 +213,7 @@ export function FilePathsGrid({
             ) : (
               <FileLine
                 file={fileOf(path)}
+                isUnreachable={isUnreachable(path)}
                 key={path}
                 onClick={() => {
                   showChatFile(path);
@@ -225,6 +229,13 @@ export function FilePathsGrid({
   const folderCards = rowCardLayout({
     chatColumn,
     count: folderPaths.length,
+  });
+  const unreachablePaths = filePaths.filter(
+    (path) => !isMessage(path) && isUnreachable(path),
+  );
+  const unreachableCards = rowCardLayout({
+    chatColumn,
+    count: unreachablePaths.length,
   });
   return (
     <div
@@ -263,6 +274,21 @@ export function FilePathsGrid({
         pendingFilePath={pendingFilePath}
         preserveOrder
       />
+      {unreachablePaths.length > 0 && (
+        <div className="@container">
+          <div className={unreachableCards.grid} data-slot="files-grid-cards">
+            {unreachablePaths.map((path) => (
+              <div
+                className={unreachableCards.cell}
+                data-slot="files-grid-card"
+                key={path}
+              >
+                <UnreachableFileRowCard path={path} />
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
     </div>
   );
 }
@@ -276,15 +302,20 @@ export function FilePathsGrid({
  */
 function FileLine({
   file,
+  isUnreachable,
   onClick,
   path,
 }: {
   file: undefined | ViewerFile;
+  /** This computer has no place for the path, so the line reads as missing. */
+  isUnreachable: boolean;
   onClick: () => void;
   path: string;
 }) {
   const filename = nameOfPath(path);
-  const { isMissing, ref } = useFilePresence<HTMLButtonElement>(file?.url);
+  const presence = useFilePresence<HTMLButtonElement>(file?.url);
+  const { ref } = presence;
+  const isMissing = isUnreachable || presence.isMissing;
   const { onAuxClick, onContextMenu } = useOpenGestures({ kind: "path", path });
   // A missing file opens nothing, so the line stops being a control: a press
   // that could only end in an error is not offered.

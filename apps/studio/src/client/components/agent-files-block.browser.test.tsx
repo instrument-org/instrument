@@ -9,13 +9,16 @@ import { MarkdownChatContext } from "./markdown-chat-context";
 import { ThemeProvider } from "./theme-provider";
 
 // Where the chat's files are, answered without a chat: every path under one
-// folder, so the fence has somewhere to read a file from.
+// folder, so the fence has somewhere to read a file from, except one under
+// another computer's home, which has no place here.
 vi.mock("@/client/hooks/use-host-paths", () => ({
   useHostPaths: (_chatId: unknown, filePaths: readonly string[]) =>
     Object.fromEntries(
       filePaths.map((filePath) => [
         filePath,
-        `/Users/casey/tasks/quarterly-numbers/${filePath}`,
+        filePath.startsWith("/Users/other-mac-user/")
+          ? null
+          : `/Users/casey/tasks/quarterly-numbers/${filePath}`,
       ]),
     ),
 }));
@@ -162,6 +165,24 @@ test("says a file is missing, keeps its line where the reply put it, and offers 
     .element(getByRole("button", { name: /here\.txt/ }))
     .toBeDisabled();
 });
+
+test.each(["grid", "list"] as const)(
+  "draws a file with no place on this computer as missing, in the %s layout",
+  async (layout) => {
+    // A chat read on another computer names its files under that computer's
+    // home. The fence still shows what the reply handed over, beside the
+    // file that is here.
+    originAnswering(206);
+    const { getByText } = await drawFence(
+      "/Users/other-mac-user/Instrument/Chats/Dinner/plan.md\noutput/here.txt",
+      { layout },
+    );
+
+    await expect.element(getByText("plan.md")).toBeInTheDocument();
+    await expect.element(getByText("here.txt")).toBeInTheDocument();
+    expect(getByText("Missing").all()).toHaveLength(1);
+  },
+);
 
 test("draws a folder as a folder, in the place the fence gave it", async () => {
   // The origin serves files, so it has no answer for a folder but a 404 -- the

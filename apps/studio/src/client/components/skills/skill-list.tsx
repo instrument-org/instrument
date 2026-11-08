@@ -49,7 +49,9 @@ export function SkillList({
   onOpen: (skill: Skill) => void;
 }) {
   const { data: skills = [], isLoading } = useQuery(
-    rpcClient.workspace.skill.list.queryOptions(),
+    rpcClient.workspace.skill.list.queryOptions({
+      input: { fileCounts: true },
+    }),
   );
   const [query, setQuery] = useState("");
   const deferredQuery = useDeferredValue(query);
@@ -151,8 +153,8 @@ export function SkillList({
 
 // Every skill has a SKILL.md, so a count of one says nothing; what is worth
 // knowing at a glance is that a skill brings scripts and references with it.
-function fileCountLabel({ fileCount, filesTruncated }: Skill) {
-  return `${fileCount}${filesTruncated ? "+" : ""} files`;
+function fileCountLabel({ fileCount = 0, filesTruncated }: Skill) {
+  return `${fileCount}${filesTruncated === true ? "+" : ""} files`;
 }
 
 function groupSkills(skills: Skill[]) {
@@ -257,7 +259,7 @@ function SkillRow({
           />
         </span>
       </span>
-      {skill.fileCount > 1 ? (
+      {(skill.fileCount ?? 0) > 1 ? (
         <span className="flex shrink-0 items-center gap-1 pt-1 text-xs text-muted-foreground">
           <FilesIcon className="size-3.5" />
           {fileCountLabel(skill)}

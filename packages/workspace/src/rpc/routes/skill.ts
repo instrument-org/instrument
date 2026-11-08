@@ -33,8 +33,9 @@ const SkillSummarySchema = z.object({
    * sits outside the writable skills directory.
    */
   editable: z.boolean(),
-  fileCount: z.number(),
-  filesTruncated: z.boolean(),
+  /** How many files the skill's folder has, given only to a read that asks for `fileCounts`. */
+  fileCount: z.number().optional(),
+  filesTruncated: z.boolean().optional(),
   id: z.string(),
   modelInvocable: z.boolean(),
   name: z.string(),
@@ -49,9 +50,15 @@ const SkillSummarySchema = z.object({
   userInvocable: z.boolean(),
 });
 
+/**
+ * Every skill the workspace has. `fileCounts` adds how many files each one's
+ * folder has, which only the Skills page shows; the composers that read the
+ * list on every mount leave it out and skip the walk.
+ */
 const list = base
+  .input(z.object({ fileCounts: z.boolean().optional() }).optional())
   .output(SkillSummarySchema.array())
-  .handler(async ({ context }) => {
+  .handler(async ({ context, input }) => {
     const skills = await findSkills(getSkillSources(context.workspaceConfig));
     const writableRoot = await getWritableSkillsRoot(
       context.workspaceConfig.rootDir,
@@ -60,16 +67,21 @@ const list = base
     // few dozen skills, because the walk skips dependency trees and stops at
     // FILE_LIST_LIMIT, so it stays bounded however large a skill is.
     const signal = AbortSignal.timeout(10_000);
-    const listings = await Promise.all(
-      skills.map((skill) => listSkillFiles(skill.skillDir, signal)),
-    );
+    const listings =
+      input?.fileCounts === true
+        ? await Promise.all(
+            skills.map((skill) => listSkillFiles(skill.skillDir, signal)),
+          )
+        : undefined;
 
     return skills.map((skill, index) => ({
       aliases: skill.aliases,
       description: skill.description,
       editable: getSkillProvenance(skill, writableRoot).editable,
-      fileCount: listings[index]?.files.length ?? 0,
-      filesTruncated: listings[index]?.truncated ?? false,
+      ...(listings && {
+        fileCount: listings[index]?.files.length ?? 0,
+        filesTruncated: listings[index]?.truncated ?? false,
+      }),
       id: skill.id,
       modelInvocable: skill.modelInvocable,
       name: skill.name,

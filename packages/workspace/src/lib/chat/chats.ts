@@ -233,12 +233,14 @@ export async function listChats(): Promise<Chat[]> {
 /**
  * The rows of the chats named, as `listChats` would list them, read against
  * one load of what every row shares: a chat it would leave out has no row.
- * What the live list reads again for the chats a change moved.
+ * What the live list reads again for the chats a change moved, handing in
+ * the apps it keeps (`knownAppSlugs`) rather than reading them each time.
  */
 export async function listedChats(
   ids: readonly ChatId[],
+  knownApps?: Set<string>,
 ): Promise<Map<ChatId, Chat>> {
-  const shared = await loadShared();
+  const shared = knownApps === undefined ? await loadShared() : { knownApps };
   const rows = await parallel({ limit: READ_LIMIT }, ids, async (chatId) => {
     const sessionId = sessionOfChat(chatId);
     if (!sessionId) {
@@ -950,7 +952,7 @@ function knownAmong(slugs: string[], known: Set<string>): string[] {
  * a word that looked like one. Empty when the workspace has no apps folder
  * yet, in which case nothing is known and nothing is filtered.
  */
-async function knownAppSlugs(): Promise<Set<string>> {
+export async function knownAppSlugs(): Promise<Set<string>> {
   const { apps } = await listApps(getWorkspaceConfig().appsDir);
   return new Set(apps.map((app) => app.slug));
 }

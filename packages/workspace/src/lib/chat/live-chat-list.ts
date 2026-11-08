@@ -4,10 +4,11 @@ import { isEqual, unique } from "radashi";
 import { publisher } from "../../rpc/publisher";
 import { collapsed, everyOne } from "../../rpc/live-read";
 import { type ChatId } from "../../schemas/chat-id";
+import { appListChanges } from "../host-events";
 import { type RecordChanged, recordChanges } from "../record-changes";
 import { resolveChat } from "../record-folders";
 import { listChatIds } from "./chat-records";
-import { type Chat, listedChats } from "./chats";
+import { type Chat, knownAppSlugs, listedChats } from "./chats";
 
 /** The chat each change is to. */
 function chatsMoved(changes: RecordChanged[]): ChatId[] {
@@ -20,16 +21,23 @@ function chatsMoved(changes: RecordChanged[]): ChatId[] {
   );
 }
 
+function sameSlugs(a: Set<string>, b: Set<string>): boolean {
+  return a.size === b.size && [...a].every((slug) => b.has(slug));
+}
+
 /**
  * The chats, oldest first, and again after every burst of changes. Each
  * change to a record moves the row of the chat it is or is in, and only
  * those rows are read again: a row is made from nothing but its chat's
  * records and its tasks', so whatever a row comes to show is heard without
- * a list of what to listen for. A change to the workspace's apps reads every
- * row, since a row's holds name only the apps the workspace has. A chat the
- * index lists that no change named (made behind its back) is read when the
- * next change lands, and one it no longer lists goes. Subscribed before the
- * first read, so nothing lands unheard between the two. An answer the same
+ * a list of what to listen for. The one other thing a row shows is which of
+ * the apps it names the workspace has, kept here and read again on each
+ * change to the apps folder or an app; a change that adds or takes away an
+ * app reads every row, and one that leaves the same apps (an edit to an
+ * app's guide, a stray file) reads none. A chat the index lists that no
+ * change named (made behind its back) is read when the next change lands,
+ * and one it no longer lists goes. Subscribed before the first read, so
+ * nothing lands unheard between the two. An answer the same
  * as the last is not sent again, except to a request to change a row
  * (`chatRowAsked`): a window paints that request before it lands, and a
  * request that changed nothing (a project just removed, a chat already gone)
@@ -39,15 +47,15 @@ export async function* liveChatList(
   signal: AbortSignal | undefined,
 ): AsyncGenerator<Chat[]> {
   const records = recordChanges(signal);
-  const apps = collapsed(
-    everyOne(publisher.subscribe("app.updated", { signal })),
-  );
+  const apps = collapsed(everyOne(appListChanges(signal)));
   const asked = publisher.subscribe("chat.rowAsked", { signal });
   const rows = new Map<ChatId, Chat>();
   /** Chats read at least once, whether or not they had a row to show. */
   const read = new Set<ChatId>();
+  /** The apps the workspace has, as last read; filled in before the first read. */
+  let knownApps = new Set<string>();
   const readAgain = async (ids: ChatId[]) => {
-    const fresh = await listedChats(ids);
+    const fresh = await listedChats(ids, knownApps);
     for (const id of ids) {
       read.add(id);
       const row = fresh.get(id);
@@ -60,6 +68,7 @@ export async function* liveChatList(
   };
   const ordered = () => listChatIds().flatMap((id) => rows.get(id) ?? []);
   try {
+    knownApps = await knownAppSlugs();
     await readAgain(listChatIds());
     let last = ordered();
     yield last;
@@ -68,6 +77,12 @@ export async function* liveChatList(
       apps,
       all(asked),
     ])) {
+      let appsMoved = false;
+      if (moved === null) {
+        const now = await knownAppSlugs();
+        appsMoved = !sameSlugs(now, knownApps);
+        knownApps = now;
+      }
       const listed = listChatIds();
       const known = new Set(listed);
       for (const id of read) {
@@ -79,7 +94,9 @@ export async function* liveChatList(
       await readAgain(
         unique([
           ...(moved === null
-            ? listed
+            ? appsMoved
+              ? listed
+              : []
             : Array.isArray(moved)
               ? chatsMoved(moved).filter((id) => known.has(id))
               : [moved.id].filter((id) => known.has(id))),

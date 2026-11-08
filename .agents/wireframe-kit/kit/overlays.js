@@ -1,7 +1,8 @@
 // ---- overlays ---------------------------------------------------------------------
 // What draws over the window: menus, popovers, tooltips, dialogs and sheets, toasts, the
 // command menu, the bell's list and a status pill's card. Pass them as appWindow's
-// `over`, placed in the window's pixels (`left`, `top`). Measured 2026-10-31.
+// `over`, placed in the window's pixels (`left`, `top`). Measured 2026-10-31; the bell's
+// list re-measured 2026-11-07.
 
 /**
  * A menu (ui/dropdown-menu.tsx and ui/context-menu.tsx): 12px corners, 4px in, rows of
@@ -104,29 +105,32 @@ const commandMenu = ({ q = "", rows, top = 188 } = {}) => {
 
 /**
  * The bell's list (notifications-bell.tsx), hung under the bell at the window's top
- * right: "Notifications" over its notices, each a mark in a 28px tile, the title and
- * when, its line, and its buttons. `items` are { icon, title, when, line, actions:
- * [labels], tone } (tone "warn" reds the mark); none says nothing is new.
+ * right: "Notifications" over its notices, each a mark in a 28px muted tile, the title
+ * with when dimmed beside it, its line, then its action (white, raised) and Dismiss
+ * (outline). `items` are { icon, title, when, line, actions: [labels], tone } (tone
+ * "warn" for a security warning's amber shield, "problem" for a crash's red mark);
+ * none says "You don't have any notifications." Dismiss is always there, so `actions`
+ * names only the notice's own.
  */
 const notificationsPop = ({ items = [], right = 8, top = 38 } = {}) =>
   `<div class="absolute z-50 w-[380px] overflow-hidden rounded-xl bg-popover shadow-xl ring-1 ring-black/8" style="right:${right}px;top:${top}px">
-    <div class="border-b border-border px-4 py-3 text-sm font-medium">Notifications</div>
+    <div class="flex h-10 items-center border-b border-border px-4 text-[13px] font-semibold">Notifications</div>
     ${
       items.length
-        ? items
+        ? `<div class="divide-y divide-border">${items
             .map(
               (n) => `
-    <div class="flex gap-3 border-b border-border/60 px-4 py-3 last:border-b-0">
-      <span class="mt-0.5 grid size-7 shrink-0 place-items-center rounded-lg bg-muted ${n.tone === "warn" ? "text-destructive" : "text-brand-600"}"><i class="ph ph-${n.icon || "megaphone-simple"} text-[16px]"></i></span>
+    <div class="flex gap-3 px-4 py-3">
+      <span class="mt-0.5 grid size-7 shrink-0 place-items-center rounded-lg bg-muted ${n.tone === "warn" ? "text-warning-700" : n.tone === "problem" ? "text-destructive" : "text-muted-foreground"}"><i class="ph ph-${n.icon || "megaphone-simple"} text-[16px]"></i></span>
       <div class="min-w-0 flex-1">
-        <div class="flex items-baseline gap-2"><span class="min-w-0 flex-1 text-[13px] font-medium">${n.title}</span><span class="shrink-0 text-[11px] text-muted-foreground">${n.when || ""}</span></div>
+        <div class="flex items-baseline gap-2"><span class="min-w-0 flex-1 text-[13px] font-medium">${n.title}</span><span class="shrink-0 text-[11px] text-muted-foreground/60">${n.when || ""}</span></div>
         ${n.line ? `<p class="mt-0.5 text-xs text-muted-foreground">${n.line}</p>` : ""}
-        ${n.actions?.length ? `<div class="mt-2 flex gap-1.5">${n.actions.map((a, i) => button(a, { size: "xs", tone: i === 0 && n.actions.length > 1 ? "brand" : "default" })).join("")}</div>` : ""}
+        <div class="mt-2 flex gap-1.5">${(n.actions ?? []).map((a) => button(a, { size: "xs" })).join("")}${button("Dismiss", { size: "xs", tone: "outline" })}</div>
       </div>
     </div>`,
             )
-            .join("")
-        : `<div class="px-4 py-8 text-center text-[13px] text-muted-foreground">Nothing new.</div>`
+            .join("")}</div>`
+        : `<p class="px-4 py-8 text-center text-[13px] text-muted-foreground">You don't have any notifications.</p>`
     }
   </div>`;
 

@@ -87,7 +87,9 @@ const tabTitle = (t) =>
     : t.site
       ? SITES[t.site].title
       : t.file
-        ? FILES[t.file].title
+        ? // A page or note's tab goes by the title Files' List shows, as the app's tabs do
+          // (file-tab-titles.ts); a file with none goes by its name.
+          FOLDER_ROWS.find((r) => r[1] === FILES[t.file].title)?.[4] || FILES[t.file].title
         : t.folder ||
           t.title ||
           (t.browser

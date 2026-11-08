@@ -1,6 +1,6 @@
 // ---- the window -----------------------------------------------------------------
 // The Studio window at 1280x800 in the light theme, measured off the documents fixture
-// (re-measured 2026-10-31 at 1280x800). The bar (40) and the rail (76)
+// (re-measured 2026-11-07 at 1280x800). The bar (40) and the rail (76)
 // sit on the gray ground; everything else is one rounded card inset 8px from the right
 // and bottom. Window tabs live in the bar (tab-strip.tsx), status pills and the bell
 // at its right (window-bar.tsx).
@@ -9,6 +9,8 @@
 // background, so a row in the card's own white stands out from the list (globals.css).
 const GROUND = "bg-[light-dark(#f2f1f0,#161312)]";
 const PANE = "[--color-background:light-dark(#f7f7f6,#141210)]";
+// The lights sit in the bar's 80px left gutter (window-bar.tsx's 5rem), back and forward
+// right after it as two 28px buttons whose boxes meet (nav-controls.tsx).
 const trafficLights = `<div class="flex w-20 shrink-0 items-center gap-2 pl-3"><span class="size-3 rounded-full bg-[#ff5f57]"></span><span class="size-3 rounded-full bg-[#febc2e]"></span><span class="size-3 rounded-full bg-[#28c840]"></span></div>`;
 
 /** A title fading out at its end rather than ending in an ellipsis (`tab-title-fade`), the way a window tab cuts a long name. */
@@ -53,9 +55,9 @@ const stripDensity = (count, room = 1000) => {
   return (content - 80) / Math.max(1, count - 1) >= 60 ? "compact" : "icon";
 };
 
-/** The bell at the bar's end: `dot` for something new, `count` for how many, `open` pressed. */
+/** The bell at the bar's end (notifications-bell.tsx): `dot` for something new (`"problem"` red for a crash or a critical notice), `count` for how many, `open` pressed. */
 const bell = ({ dot = false, count = 0, open = false } = {}) =>
-  `<span class="relative grid size-7 shrink-0 place-items-center rounded-lg ${open ? "bg-foreground/8 text-foreground" : "text-muted-foreground/80"}"><i class="ph ph-bell text-[16px]"></i>${count ? `<span class="absolute -top-0.5 -right-0.5 grid h-4 min-w-4 place-items-center rounded-full bg-brand-600 px-1 text-[10px] font-semibold text-white">${count}</span>` : dot ? `<span class="absolute top-0.5 right-0.5 size-2 rounded-full bg-brand-600 ring-2 ring-[light-dark(#f2f1f0,#161312)]"></span>` : ""}</span>`;
+  `<span class="relative grid size-7 shrink-0 place-items-center rounded-md ${open ? "bg-muted/60 text-foreground" : "text-muted-foreground/70"}"><i class="ph ph-bell text-[16px]"></i>${count ? `<span class="absolute -top-0.5 -right-0.5 grid h-4 min-w-4 place-items-center rounded-full bg-brand-600 px-1 text-[10px] font-semibold text-white">${count}</span>` : dot ? `<span class="absolute top-1 right-1 size-2 rounded-full ${dot === "problem" ? "bg-destructive" : "bg-brand-600"} ring-2 ring-[light-dark(#f2f1f0,#161312)]"></span>` : ""}</span>`;
 
 /**
  * A pill in the bar's right corner (window-bar.tsx), before the bell. `kind`:
@@ -92,8 +94,7 @@ const winBar = ({
   const d = density ?? stripDensity(tabs.length);
   return `
   <div class="flex h-10 shrink-0 items-center gap-1.5 pr-2">
-    ${trafficLights}
-    <i class="ph ph-arrow-left px-1.5 text-[16px] ${back ? "text-foreground/80" : "text-foreground/35"}"></i><i class="ph ph-arrow-right px-1.5 text-[16px] text-foreground/35"></i>
+    <div class="flex shrink-0 items-center">${trafficLights}<span class="grid size-7 place-items-center rounded-md ${back ? "text-foreground/80" : "text-foreground/80 opacity-50"}"><i class="ph ph-arrow-left text-[16px]"></i></span><span class="grid size-7 place-items-center rounded-md text-foreground/80 opacity-50"><i class="ph ph-arrow-right text-[16px]"></i></span></div>
     ${lead}
     <div class="flex min-w-0 flex-1 items-center gap-1 px-2">
       ${tabs
@@ -102,7 +103,8 @@ const winBar = ({
             on: i === active,
             hover: i === hover && i !== active,
             density: i === active ? "full" : d,
-            sep: i < tabs.length - 1 && i !== active && i + 1 !== active && i !== hover && i + 1 !== hover,
+            // The last tab keeps its hairline against New tab, so the plus reads as part of the row.
+            sep: i !== active && i + 1 !== active && i !== hover && i + 1 !== hover,
           }),
         )
         .join("")}

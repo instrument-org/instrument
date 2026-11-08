@@ -21,7 +21,20 @@ const SURFACES = {
   },
   "inbox-view-menu": async (h) => {
     await h.go("/chats/red-and-blue-squares");
-    await h.app.click({ text: "View: Chats" });
+    await h.app.click({ selector: 'button[aria-label="View options"]' });
+  },
+  "inbox-tokens": async (h) => {
+    // The search offers a mark only while the list has a chat carrying it, so the
+    // fixture's chat is starred and marked unread once it is open (opening reads it).
+    await h.go("/chats/red-and-blue-squares");
+    await h.app.rpc("workspace.chats.star", { id: "red-and-blue-squares", starred: true });
+    await h.app.rpc("workspace.chats.unread", { id: "red-and-blue-squares" });
+    h.after(async () => {
+      await h.app.rpc("workspace.chats.star", { id: "red-and-blue-squares", starred: false });
+      await h.app.rpc("workspace.chats.read", { id: "red-and-blue-squares" });
+    });
+    await wait(600);
+    await h.app.click({ selector: "input[placeholder^=Search]" });
   },
   "inbox-search": async (h) => {
     await h.go("/chats/red-and-blue-squares");
@@ -31,12 +44,8 @@ const SURFACES = {
   "inbox-project": async (h) => {
     await h.project();
     await h.go("/chats/red-and-blue-squares");
-    await h.app.click({ text: "View: Chats" });
-    await h.app.click({ text: "💼 Pricing", selector: "[role=menuitemradio]" });
-    h.after(async () => {
-      await h.app.click({ text: "View: Pricing" });
-      await h.app.click({ text: "Chats", selector: "[role=menuitemradio]" });
-    });
+    await h.app.click({ text: "Pricing", selector: 'section[aria-label="Projects"] button' });
+    h.after(() => h.app.click({ text: "Inbox", selector: '[aria-label="Filters"] button' }));
   },
   bell: async (h) => {
     await h.go("/chats/red-and-blue-squares");
@@ -123,10 +132,23 @@ const SURFACES = {
     await h.go("/chats/red-and-blue-squares");
     await h.app.click({ text: "Feedback", selector: 'nav[aria-label="Places"] button' });
   },
+  // New on the Chat screen writes a new chat beside the list; anywhere else it docks a draft.
   draft: async (h) => {
     await h.go("/chats/red-and-blue-squares");
     await h.app.click({ selector: 'nav button[aria-label="New"]' });
-    h.after(() => h.app.click({ selector: 'button[aria-label="Close"]' }));
+  },
+  "draft-docked": async (h) => {
+    await h.files("Table view");
+    await h.app.click({ selector: 'nav button[aria-label="New"]' });
+    await wait(500);
+    h.after(() => h.app.click({ selector: '[data-slot="compose-window"] button[aria-label="Close"]' }));
+  },
+  // With no tabs, Show tabs opens a browser beside the chat.
+  "chat-pane": async (h) => {
+    await h.go("/chats/red-and-blue-squares");
+    await h.app.click({ selector: 'button[aria-label="Show tabs"]' });
+    await wait(1200);
+    h.after(() => h.app.click({ selector: 'button[aria-label="Hide tabs"]' }));
   },
   "tabs-five": async (h) => {
     await h.go("/browser");
@@ -183,6 +205,12 @@ export default async (app, args) => {
       await wait(600);
       await app.openModal("settings");
       await wait(600);
+      // The sheet opens with a fade and a zoom that can run long after a heavy screen
+      // (Apps' marks); its tabs read as hidden until it ends.
+      for (let i = 0; i < 20; i++) {
+        if (await app.eval(`[...document.querySelectorAll("[role=dialog]")].every((d) => d.getAnimations().every((a) => a.playState !== "running"))`)) break;
+        await wait(200);
+      }
       await app.click({ text: tab });
       h.after(() => app.closeModal());
     },

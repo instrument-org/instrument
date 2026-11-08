@@ -9,65 +9,81 @@ const META = {
   title: "Kit baseline: every surface as built",
   line: "Everything the wireframe kit draws as the app ships today: the chat list, window tabs, Files and its omnibar, Browser, Settings and the overlays, then the chat, setup, and the Mac and web around the app.",
   source:
-    "We drew the window frames with the kit in kit/, measured from the running app on the documents fixture at 1280x800 (2026-10-31). The chats, files, pages, prices, projects and release notes are the kit's invented pricing scenario. The desktop, menu bar, notification, Finder and website frames come from mac.js, drawn from macOS and a generic browser without measuring.",
+    "We drew the window frames with the kit in kit/, measured from the running app on the documents fixture at 1280x800 (2026-11-07). The chats, files, pages, prices, projects and release notes are the kit's invented pricing scenario. The desktop, menu bar, notification, Finder and website frames come from mac.js, drawn from macOS and a generic browser without measuring.",
   slotH: 300,
 };
 
 const D = { w: DESKTOP.w, h: DESKTOP.h };
 const chatBar = winBar({ tabs: [{ chats: true, title: PRICING_TITLE }] });
-const waitingHead = threadHead(PRICING_TITLE, { line: statusLine("Waiting on you", { tone: "wait" }), project: "Pricing" });
+const waitingHead = threadHead(PRICING_TITLE, { project: "Pricing" });
 const running = () => inboxCol({ on: 0 }) + thread({ working: "Reading plans on zendesk.com", project: "Pricing" });
 
 const states = [
   // ---- the chat list -------------------------------------------------------------
   {
     title: "Chats",
-    note: "The window opens on Chat with nothing open: the rail, the list of chats, and a quiet empty state beside it, since there's no Home page.",
+    note: "The window opens on Chat with a new chat waiting beside the list: the search and its places over the projects, then the chats under them.",
     measure: "chats",
     body: appWindow(),
   },
   {
     title: "Chat running",
-    note: "While the pricing chat runs, its newest step shimmers under its title and on its row, and a row shows its project and star in the corner.",
+    note: "While the pricing chat runs, its newest step shimmers on its row, an unread chat wears the green dot, and the row names its project in the project's color.",
     measure: "chat",
     body: appWindow({ bar: chatBar, body: running() }),
   },
   {
-    title: "Chats picker",
-    note: "The picker sits bare on the card until it's pressed, then lists the views with their counts, the projects with their marks, and New project.",
+    title: "View options",
+    note: "The button at the search's end picks how many lines a row shows and whether the list puts a heading over each day.",
     measure: "inbox-view-menu",
     body: appWindow({
       bar: chatBar,
       body: inboxCol({ on: 0, picking: true }) + thread({ working: "Reading plans on zendesk.com" }),
-      over: viewMenu({ counts: { unread: 1, starred: 1 } }),
+      over: viewMenu(),
     }),
   },
   {
+    title: "Search marks",
+    note: "Clicking into the empty search offers Unread and Starred, and a pick stands in the field as a token that narrows whatever the list shows.",
+    measure: "inbox-tokens",
+    body: appWindow({ bar: chatBar, body: inboxCol({ on: 0, offer: ["unread", "starred"] }) + thread({ working: "Reading plans on zendesk.com" }) }),
+  },
+  {
     title: "Chat list search",
-    note: "Typing folds the picker down to its mark and raises the search into a white field, and we bold the words that matched in each row.",
+    note: "Typing raises the search into a white field and puts the projects away, and we bold the words that matched in each row.",
     measure: "inbox-search",
     body: appWindow({ bar: chatBar, body: inboxCol({ on: 0, search: "pricing", rows: [ROWS[0]] }) + thread({ working: "Reading plans on zendesk.com" }) }),
   },
   {
     title: "Row under the pointer",
-    note: "Under the pointer a row trades its project and star for its controls: file under a project, pop out, archive, mark unread and star. A reply waiting unsent marks the title Draft in red.",
+    note: "Under the pointer a row trades its time and star for its controls: file under a project, pop out, archive, mark unread and star. A reply waiting unsent marks the title Draft in red.",
     body: appWindow({
       bar: chatBar,
-      body: inboxCol({ on: 0, hover: 2, rows: [ROWS[0], { ...ROWS[1], draft: true }, ROWS[2], ROWS[3], ROWS[4]] }) + thread({ working: "Reading plans on zendesk.com" }),
+      body: inboxCol({ on: 0, hover: 3, rows: [ROWS[0], { ...ROWS[1], draft: true }, ROWS[2], ROWS[3], ROWS[4]] }) + thread({ working: "Reading plans on zendesk.com" }),
     }),
   },
   {
+    title: "Two-line rows",
+    note: "At two lines a row keeps its title and time, then its project, or its latest line while it works or waits, with what it holds as marks at the right.",
+    body: appWindow({ bar: chatBar, body: inboxCol({ on: 0, density: "two" }) + thread({ working: "Reading plans on zendesk.com" }) }),
+  },
+  {
+    title: "One-line rows",
+    note: "At one line a row is its title, with the project just before the time, and the gutter's dot pulses while the chat works.",
+    body: appWindow({ bar: chatBar, body: inboxCol({ on: 0, density: "one" }) + thread({ working: "Reading plans on zendesk.com" }) }),
+  },
+  {
     title: "Project",
-    note: "Standing in a project tints the list's head in the project's color, and its instructions sit under the picker with Edit project.",
+    note: "Stepping into a project washes the list in its color under its mark, name and instructions, and puts a new chat filed under it beside the list. Inbox leads back out.",
     measure: "inbox-project",
     body: appWindow({
       bar: chatBar,
-      body: inboxCol({ on: 0, project: "Pricing", rows: [ROWS[0], { title: "Intercom's AI agent pricing per resolution", preview: "Fin bills $0.99 per resolution on every plan, on top of the seat price.", time: "Tue", holds: [{ site: "intercom" }] }, { title: "Freshdesk plan limits for 10 agents", preview: "Pro covers 10 agents with custom roles; Growth stops at 5 collaborators.", time: "Oct 22", holds: [{ site: "freshdesk" }] }] }) + thread({ working: "Reading plans on zendesk.com" }),
+      body: inboxCol({ on: -1, project: "Pricing", rows: [ROWS[0], { title: "Intercom's AI agent pricing per resolution", preview: "Fin bills $0.99 per resolution on every plan, on top of the seat price.", time: "Tue", holds: [{ site: "intercom" }] }, { title: "Freshdesk plan limits for 10 agents", preview: "Pro covers 10 agents with custom roles; Growth stops at 5 collaborators.", time: "Oct 22", holds: [{ site: "freshdesk" }] }] }) + noChatOpen({ project: "Pricing" }),
     }),
   },
   {
     title: "Drafts",
-    note: "Drafts is a view only while there are drafts. Each one is a row with a dashed circle where a chat shows its state, and it says Draft where a chat shows its latest line.",
+    note: "Each draft is a row with a dashed circle where a chat shows its dot, and it says Draft where a chat shows its latest line.",
     body: appWindow({
       body:
         inboxCol({
@@ -102,12 +118,12 @@ const states = [
   },
   {
     title: "Bell",
-    note: "The bell lists what the team sends and what went wrong, each with its own buttons, and a dot on the bell says something is new.",
+    note: "The bell lists a crash from an earlier session and what we send, each with its own button and Dismiss, and a dot on the bell says something is new.",
     measure: "bell",
     body: appWindow({
       bar: winBar({ tabs: [{ chats: true, title: PRICING_TITLE }], bell: { open: true } }),
       body: running(),
-      over: notificationsPop({ items: [{ icon: "megaphone-simple", title: "Hello from the notices feed", when: "Oct 9", line: "This is the first notice, sent only to the beta channel, to check that the bell can hear from us. Dismiss it whenever you like.", actions: ["Dismiss"] }, { icon: "warning-circle", tone: "warn", title: "A task stopped", when: "9:44 AM", line: "Reading plans on intercom.com stopped because the page wouldn't load.", actions: ["Open chat", "Dismiss"] }] }),
+      over: notificationsPop({ items: [{ icon: "warning-circle", tone: "problem", title: "Instrument quit unexpectedly", when: "9:44 AM", line: "Sending a report helps us fix what went wrong.", actions: ["Send a report"] }, { icon: "megaphone-simple", title: "Hello from the notices feed", when: "Oct 9", line: "This is the first notice, sent only to the beta channel, to check that the bell can hear from us. Dismiss it whenever you like." }] }),
     }),
   },
   {
@@ -189,7 +205,7 @@ const states = [
   },
   {
     title: "Browser page",
-    note: "A page fills the card under its location row: reload, the omnibar across the row with the host quiet and the open-in icon at its end, Ask and the page's menu.",
+    note: "A page fills the card under its location row, with reload framed at its left, the omnibar across the row with the host quiet, then the extensions, Ask and the page's menu, each framed the same way.",
     measure: "browser-page",
     body: appWindow({ on: "browser", bar: winBar({ tabs: [{ chats: true }, { site: "g2" }], active: 1 }), body: placeCard({ tab: { site: "g2" } }) }),
   },
@@ -277,18 +293,55 @@ const states = [
   {
     title: "Chat menu",
     note: "Right-clicking a row opens the chat's menu, which shares one shape with every menu in the window: rows with their icons, rules between groups, and a caret for a submenu.",
-    body: appWindow({ bar: chatBar, body: inboxCol({ on: 0, hover: 1 }) + thread({ working: "Reading plans on zendesk.com" }), over: chatMenu({ left: 210, top: 210, starred: true }) }),
+    body: appWindow({ bar: chatBar, body: inboxCol({ on: 0, hover: 1 }) + thread({ working: "Reading plans on zendesk.com" }), over: chatMenu({ left: 230, top: 346, starred: true }) }),
   },
   // ---- a chat -----------------------------------------------------------------------
   {
     title: "Chat with pane",
-    note: "The chat's tiles sit in a row over the reply box, and the one open in the pane beside the chat is ringed.",
+    note: "The pane beside a chat carries the chat's tabs across its head in the window's own tab strip, with + and × at the end, and the head's tabs button lights while it's up.",
+    measure: "chat-pane",
     body: appWindow({
       bar: chatBar,
       body:
         inboxCol({ on: 0, w: 280 }) +
-        thread({ body: pricing(3), tiles: chatTiles([{ file: "comparison" }, { file: "prices" }, { site: "zendesk", agent: true }], 0) }) +
-        paneCard({ tab: { file: "comparison" } }),
+        thread({ body: pricing(3), project: "Pricing", pane: true }) +
+        paneCard({ tabs: [{ file: "comparison" }, { file: "prices" }, { site: "zendesk", agent: true }], active: 0 }),
+    }),
+  },
+  {
+    title: "Task working",
+    note: "A task the chat started shows as a tinted card in the transcript, with its step shimmering and its live card under it showing the page it's on.",
+    body: appWindow({
+      bar: chatBar,
+      body:
+        inboxCol({ on: 0 }) +
+        thread({
+          project: "Pricing",
+          stick: "bottom",
+          body:
+            turnMeta() +
+            you("How does our pricing compare with Zendesk, Intercom and Freshdesk?") +
+            activityRow("Opened our plans page", { icon: "globe", sites: ["g2"] }) +
+            agent("I'll line up each one's list prices against our plans, per agent per month and billed annually, for a 10-agent team.") +
+            taskCard({ sites: ["zendesk"], card: liveCard({ tab: { site: "zendesk" }, meta: "0:42" }) }),
+        }),
+    }),
+  },
+  {
+    title: "Turn finished",
+    note: "Once a turn is done its work folds into one line above the reply, the task card goes flat with a check, and the reply's footer says how long it took and what it read.",
+    body: appWindow({
+      bar: chatBar,
+      body:
+        inboxCol({ on: 0 }) +
+        thread({
+          project: "Pricing",
+          stick: "bottom",
+          body:
+            turnMeta() +
+            you("How does our pricing compare with Zendesk, Intercom and Freshdesk?") +
+            `<div class="flex flex-col gap-2">${workedRow("Worked for 4m", { sites: ["zendesk", "intercom", "freshdesk"] })}${taskCard({ working: false, line: "Noted every tier on three pricing pages", span: "3 min" })}${agent("The comparison is ready: at 10 agents our Team plan is 18% under Zendesk Suite Team and 8% under Freshdesk Pro. Intercom looks cheaper per seat, but its AI agent bills per resolution.")}<div class="flex flex-col gap-1">${fileLine("comparison")}${fileLine("prices")}</div>${replyFoot({ took: "4m 12s", sources: ["zendesk", "intercom", "freshdesk"] })}</div>`,
+        }),
     }),
   },
   {
@@ -302,61 +355,57 @@ const states = [
     body: appWindow({ bar: chatBar, body: inboxCol({ on: 0 }) + thread({ head: waitingHead, foot: questionCard({ steps: ["Team size", "Billing", "Competitors", "Review"] }) }) }),
   },
   {
-    title: "Status popover",
-    note: "Pressing the line under a chat's title opens a short list of its tasks, running ones first.",
-    body: appWindow({
-      bar: chatBar,
-      body:
-        inboxCol({ on: 0 }) +
-        thread({
-          working: "Reading plans on zendesk.com",
-          body: turnMeta() + you("How does our pricing compare with Zendesk, Intercom and Freshdesk?") + stepRow("Opening the pricing pages", { icon: "globe" }) + stepRow("Reading plans on zendesk.com", { icon: "globe" }) + agent("It's going well: I'm reading each pricing page and noting what every tier includes."),
-        }),
-      over: statusPop([["Running", [["Competitor pricing pages", "2m"]]], ["Finished", [["Our plan prices from the site", "6m", true]]]], { left: 860, top: 98 }),
-    }),
-  },
-  {
     title: "Floating chat",
-    note: "A chat popped out from its header docks 420 pixels wide at the bottom right like a draft, over whichever place is open.",
+    note: "A chat popped out from its head docks 420 pixels wide at the bottom right over whichever place is open, and a draft put down waits beside it as a dark bar.",
     body: appWindow({
       on: "files",
       bar: winBar({ tabs: [{ chats: true }, { folder: "Instrument" }], active: 1 }),
       body: finder(),
-      over: smallChat({ tabs: [{ site: "zendesk", agent: true }, { file: "comparison" }], working: "Reading plans on zendesk.com" }),
+      over: smallChat({ working: "Reading plans on zendesk.com", project: "Pricing" }) + composeBar("Draft the email announcing our new plans", { right: 452 }),
     }),
   },
   {
-    title: "Floating chat with tile preview",
-    note: "Pressing a tile in the floating chat opens it in a card over the conversation and rings the tile.",
+    title: "New chat",
+    note: "New on the Chat screen writes a new chat beside the list, in the room a chat would have, and nothing is saved until something's written in it.",
+    measure: "draft",
+    body: appWindow({ bar: winBar({ tabs: [{ chats: true }] }), body: inboxCol({ on: -1 }) + newChat() }),
+  },
+  {
+    title: "New chat with chips",
+    note: "Whatever goes with the message sits as chips over the words while the pane is put away, and pressing one brings the pane up on it.",
     body: appWindow({
-      on: "files",
-      bar: winBar({ tabs: [{ chats: true }, { folder: "Instrument" }], active: 1 }),
-      body: finder(),
-      over: smallChat({ tabs: [{ site: "zendesk", agent: true }, { file: "comparison" }], peek: 0 }),
+      bar: winBar({ tabs: [{ chats: true }] }),
+      body: inboxCol({ on: -1 }) + newChat({ project: "Pricing", text: "Turn the comparison into a one-page brief for the sales team", chips: composerChip({ site: "zendesk" }) + composerChip({ file: "comparison" }) }),
     }),
   },
   {
     title: "Draft",
-    note: "A new chat opens a compose window docked at the bottom right, with the model, the mic and send in its head, and Browser, This Mac and Apps under the words.",
-    measure: "draft",
-    body: appWindow({ bar: chatBar, body: inboxCol({ on: 0 }) + thread(), over: composeWin() }),
+    note: "Anywhere but Chat, New docks a draft at the bottom right: the chat's composer on a white card with the project slot and the window's buttons over it, and what's in view offered beside the plus.",
+    measure: "draft-docked",
+    body: appWindow({
+      on: "files",
+      bar: winBar({ tabs: [{ folder: "Instrument" }] }),
+      body: finder({ pick: 6 }),
+      over: composeWin({ offer: offerChip({ file: "comparison" }) }),
+    }),
   },
   {
-    title: "Draft with a browser",
-    note: "Pressing Browser in a draft sets up a browser for the agent in a stone tray under the words, with its own tabs and address bar.",
+    title: "Draft with a page",
+    note: "A page or file opened in a draft shows in a well under the composer, and its chip is raised to say it's the one showing.",
     body: appWindow({
-      bar: chatBar,
-      body: inboxCol({ on: 0 }) + thread(),
-      over: `<div class="absolute bottom-0 z-40 flex w-[600px] flex-col rounded-t-2xl border border-b-0 border-border bg-card shadow-2xl" style="right:20px;height:600px"><div class="flex h-12 shrink-0 items-center px-4 text-[13px] font-medium">New chat</div><div class="px-4 pb-3"><span class="inline-flex h-7 items-center gap-1.5 rounded-full bg-foreground/5 px-2.5 text-[12px] text-foreground/70"><i class="ph ph-globe"></i>Browser<i class="ph ph-x text-[11px]"></i></span></div><div class="h-20 px-4 text-[15px] text-gray-400">What do you need?</div><div class="mx-2 min-h-0 flex-1">${agentTray({ tabs: [{ site: "zendesk" }] })}</div></div>`,
+      on: "files",
+      bar: winBar({ tabs: [{ folder: "Instrument" }] }),
+      body: finder(),
+      over: composeWin({ project: "Pricing", words: "Check Zendesk's Suite tiers against our plans", chips: composerChip({ site: "zendesk" }, { on: true }) + composerChip({ file: "prices" }), well: { site: "zendesk" } }),
     }),
   },
   {
     title: "Reply box with plus menu",
-    note: "When the chosen model has a problem, the open reply box leads with a notice about it, and the plus menu is where you pick another model.",
+    note: "When the chosen model has a problem, a yellow note floats over the reply box with the way to fix it, and the plus menu opens its own width from the box's left edge.",
     body: appWindow({
       bar: chatBar,
-      body: inboxCol({ on: 0 }) + thread({ replyEl: replyBoxOpen({ extras: modelProblem("No models available") }) }),
-      over: plusMenu({ left: 462, top: 452, w: 744 }),
+      body: inboxCol({ on: 0 }) + thread({ project: "Pricing", foot: replyNote("No models available") }),
+      over: plusMenu({ left: 462, top: 396 }),
     }),
   },
   {

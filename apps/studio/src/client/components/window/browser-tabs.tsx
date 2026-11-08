@@ -80,9 +80,13 @@ export interface BrowserTabsHandle {
    * Opens a page tab in a chat's group without showing it: the tab joins the
    * group's list and nothing on screen changes, the pane included. What an
    * agent's own work opens, which the user finds in the list when they want
-   * to watch. Returns the tab.
+   * to watch. Opens it under `id` when given. Returns the tab.
    */
-  openBehind: (url: string | undefined, group: string) => StoreId.Tab;
+  openBehind: (
+    url: string | undefined,
+    group: string,
+    id?: StoreId.Tab,
+  ) => StoreId.Tab;
   /**
    * Opens a page in the group on screen or the group given, or shows the tab
    * already on it when the address is a file's. Given a tab to replace, a
@@ -475,8 +479,8 @@ export function BrowserTabs({
         });
       },
       open: (url, options) => openTab(url, options),
-      openBehind: (url, into) => {
-        const id = StoreId.newTabId();
+      openBehind: (url, into, given) => {
+        const id = given ?? StoreId.newTabId();
         change((current) =>
           addPages(current, [
             {

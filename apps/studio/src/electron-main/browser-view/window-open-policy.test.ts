@@ -2,6 +2,7 @@ import { type HandlerDetails } from "electron";
 import { describe, expect, it } from "vitest";
 
 import {
+  agentPopupTabOf,
   guestWindowOpenHandler,
   newTabOpenOf,
   newWindowOpenOf,
@@ -222,5 +223,41 @@ describe("newTabOpenOf", () => {
     overrides: Partial<HandlerDetails>;
   }[])("reads $name", ({ expected, from, overrides }) => {
     expect(newTabOpenOf(details(overrides), from)).toEqual(expected);
+  });
+});
+
+describe("agentPopupTabOf", () => {
+  it.each([
+    {
+      expected: "https://accounts.google.com/o/oauth2/auth",
+      name: "a popup to the web",
+      overrides: { features: "width=500,height=600" },
+    },
+    {
+      expected: "https://help.example.com/chat",
+      name: "a named popup with no features",
+      overrides: { frameName: "help", url: "https://help.example.com/chat" },
+    },
+    {
+      expected: null,
+      name: "a Shift-click, which is the person's",
+      overrides: {},
+    },
+    {
+      expected: null,
+      name: "a target=_blank link",
+      overrides: { disposition: "foreground-tab" },
+    },
+    {
+      expected: null,
+      name: "a popup to a file",
+      overrides: { features: "popup", url: "file:///etc/hosts" },
+    },
+  ] satisfies {
+    expected: null | string;
+    name: string;
+    overrides: Partial<HandlerDetails>;
+  }[])("reads $name", ({ expected, overrides }) => {
+    expect(agentPopupTabOf(details(overrides))).toBe(expected);
   });
 });

@@ -2,7 +2,10 @@ import { type AppUpdaterStatus } from "@/electron-main/lib/update-status";
 import { type AppWindowAsk } from "@/electron-main/windows/app-window-asks";
 import { type AppCommand } from "@/shared/app-command";
 import { type Tab, type TabCarryView } from "@/shared/tabs";
-import { type BrowserTargetId } from "@instrument-org/workspace/electron";
+import {
+  type BrowserTargetId,
+  type StoreId,
+} from "@instrument-org/workspace/electron";
 import { EventPublisher } from "@orpc/server";
 
 interface PublisherEvents {
@@ -52,6 +55,8 @@ interface PublisherEvents {
     background: boolean;
     /** In a window of the app's own rather than a tab: a Shift-click, or the menu's Open Link in New Window. */
     newWindow?: boolean;
+    /** The id the tab opens under, for a popup an agent's page opened, which its result names. */
+    tabId?: StoreId.Tab;
     targetId: BrowserTargetId;
     url: string;
   };

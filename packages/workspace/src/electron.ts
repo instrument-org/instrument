@@ -167,6 +167,7 @@ export { type SyncedOp } from "./lib/synced-store/synced-record";
 export { runtimeLayout } from "./lib/runtime-dir";
 export { ensurePythonBase } from "./lib/python-base";
 export { lastBrowserAgentActivity } from "./lib/browser-agent-activity";
+export { notePageOpenedTab } from "./lib/tab-activity";
 export { WINDOW_ID } from "./schemas/window-id";
 export {
   appCatalogChanges,

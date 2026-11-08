@@ -14,7 +14,8 @@ import {
 // and tab-opens report `foreground-tab`/`background-tab` and get no window;
 // `sameTabNavigationUrl` is what keeps those from being dead clicks. The caller
 // additionally denies opens while agent CDP activity is driving the guest, so
-// automation can't spawn a window the user never asked for.
+// automation can't spawn a window the user never asked for; such a popup
+// becomes a tab of the chat instead (`agentPopupTabOf`).
 export function guestWindowOpenHandler(
   details: HandlerDetails,
 ): WindowOpenHandlerResponse {
@@ -29,6 +30,20 @@ export function guestWindowOpenHandler(
     action: "allow",
     overrideBrowserWindowOptions: popupWindowOptions(details.features),
   };
+}
+
+// Where a popup a page opens while an agent drives it goes instead: a tab of
+// the chat at the popup's address, behind whatever is up, which every session
+// of the chat can drive. A window is no use there (no debugger reaches it, it
+// is in no chat), and a `<webview>` cannot be given the opener, so a sign-in
+// popup that answers its opener does not finish this way; the person's own
+// click still gets the real window. Null for anything but a popup to the web.
+export function agentPopupTabOf(details: HandlerDetails): null | string {
+  return details.disposition === "new-window" &&
+    !isWindowAsk(details) &&
+    isHttpUrl(details.url)
+    ? details.url
+    : null;
 }
 
 export function isFileUrl(value: string): boolean {

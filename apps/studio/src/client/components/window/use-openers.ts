@@ -7,6 +7,7 @@ import {
   type ChatId,
   browserTargetOf,
   isFolderPath,
+  type StoreId,
   WINDOW_ID,
   type WindowTabAnswer,
   type WindowTabRequest,
@@ -588,11 +589,13 @@ export function useOpeners({
   const openFromPage = ({
     background,
     newWindow = false,
+    tabId,
     targetId,
     url,
   }: {
     background: boolean;
     newWindow?: boolean;
+    tabId?: StoreId.Tab;
     targetId: string;
     url: string;
   }) => {
@@ -606,7 +609,7 @@ export function useOpeners({
     if (chat === undefined) {
       openPage(url, { behind: background, newTab: true });
     } else if (background) {
-      browser?.openBehind(url, chat);
+      browser?.openBehind(url, chat, tabId);
     } else {
       openPage(url, { group: chat, ownTab: true, show: true });
     }

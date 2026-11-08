@@ -17,7 +17,9 @@ import { chatTaskFor } from "../../test/helpers/chat-task";
 import { createMockChatConfigForDir } from "../../test/helpers/mock-chat-config";
 import { type BrowserTargetId, browserTargetOf } from "../../types";
 import { sessionLayout } from "../session-layout";
-import { noteTabCommand } from "../tab-activity";
+import { getChatState } from "../chat-record";
+import { chatDir } from "../record-folders";
+import { notePageOpenedTab, noteTabCommand } from "../tab-activity";
 import { getWorkspaceConfig, setWorkspaceConfig } from "../workspace-config";
 import { createAgentBrowserCommand } from "./agent-browser";
 
@@ -194,6 +196,28 @@ describe("a task's tab", () => {
     );
     // Told once.
     expect((await run(["snapshot", "-i"])).stdout).toBe("");
+  });
+
+  it("names the tab a popup of its page became, as one an agent opened", async () => {
+    const shop = browserTargetOf(StoreId.newTabId());
+    const popup = StoreId.newTabId();
+    live.add(shop);
+    // Driven by the command about to run, which the bridge notes as it goes.
+    noteTabCommand(
+      shop,
+      { chatId: CHAT_ID, sessionId: TASK_SESSION },
+      Date.now() + 60_000,
+    );
+    notePageOpenedTab(shop, { tabId: popup, url: "https://help.example/" });
+
+    const result = await run(["click", "@e4"]);
+
+    expect(result.stdout).toContain(
+      `The page in tab ${shop} opened https://help.example/ as a popup, which is a new tab of this chat, ${popup}: \`agent-browser tab ${popup}\` switches to it.`,
+    );
+    expect((await getChatState(chatDir(CHAT_ID))).openedTabs).toEqual([
+      { id: popup },
+    ]);
   });
 
   it.each([

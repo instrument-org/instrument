@@ -11,6 +11,8 @@ import {
   type BrowserTarget,
   type BrowserTargetId,
   lastBrowserAgentActivity,
+  notePageOpenedTab,
+  StoreId,
 } from "@instrument-org/workspace/electron";
 import {
   BrowserWindow,
@@ -73,6 +75,7 @@ import { mayPageNavigateTo } from "./local-file-policy";
 import { log } from "./log";
 import { stopScreencast } from "./screencast";
 import {
+  agentPopupTabOf,
   guestWindowOpenHandler,
   isFileUrl,
   newTabOpenOf,
@@ -365,15 +368,31 @@ function createBrowserViewManager(): BrowserViewManager {
     // Allow only genuine sign-in popups, and only when the user -- not agent CDP
     // activity -- is driving this guest. A popup the agent triggers would be a
     // separate window it can neither see nor control (no CDP debugger, not in
-    // the entry map) and that the user never asked for, so deny while the guest
-    // is agent-guarded. When the user drives it, the child window inherits the
-    // guest's locked-down, same-partition session (see guestWindowOpenHandler),
-    // so the opener/postMessage channel that "Continue with Google" and similar
-    // flows complete through stays intact instead of hanging.
+    // the entry map) and that the user never asked for, so while the guest is
+    // agent-guarded it opens as a tab of the chat behind whatever is up, which
+    // the agent's result names. When the user drives it, the child window
+    // inherits the guest's locked-down, same-partition session (see
+    // guestWindowOpenHandler), so the opener/postMessage channel that
+    // "Continue with Google" and similar flows complete through stays intact
+    // instead of hanging.
     guest.setWindowOpenHandler((details) => {
       const response: WindowOpenHandlerResponse = focusGuard.isGuarded(targetId)
         ? { action: "deny" }
         : guestWindowOpenHandler(details);
+      const popup = focusGuard.isGuarded(targetId)
+        ? agentPopupTabOf(details)
+        : null;
+      if (popup !== null && mayOpenFromPage(popup)) {
+        const tabId = StoreId.newTabId();
+        publisher.publish("browser.open-in-new-tab", {
+          background: true,
+          tabId,
+          targetId,
+          url: popup,
+        });
+        notePageOpenedTab(targetId, { tabId, url: popup });
+        return response;
+      }
       if (response.action === "deny") {
         // A tab-open gets a tab of its own, as a browser does, while a person
         // rather than an agent is driving the page.

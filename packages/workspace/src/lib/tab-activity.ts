@@ -160,3 +160,35 @@ export async function announceChatTab(
   );
   return told.includes(true);
 }
+
+/** A tab a page opened for itself (its `window.open`), as the window made it. */
+export interface PageOpenedTab {
+  tabId: string;
+  url: string;
+}
+
+/** Per tab, the tabs its page opened that no session has been told of yet. */
+const openedByPage = new Map<BrowserTargetId, PageOpenedTab[]>();
+
+/**
+ * A page an agent drives asked for a window of its own (`window.open`), which
+ * the app opens as a tab of the chat behind whatever is up: kept for the
+ * result of the command that caused it, which says so.
+ */
+export function notePageOpenedTab(
+  targetId: BrowserTargetId,
+  opened: PageOpenedTab,
+): void {
+  openedByPage.set(targetId, [...(openedByPage.get(targetId) ?? []), opened]);
+}
+
+/** The tabs the pages in `targetIds` opened since they were last taken. */
+export function takePageOpenedTabs(
+  targetIds: readonly BrowserTargetId[],
+): (PageOpenedTab & { from: BrowserTargetId })[] {
+  return targetIds.flatMap((from) => {
+    const opened = openedByPage.get(from) ?? [];
+    openedByPage.delete(from);
+    return opened.map((tab) => ({ ...tab, from }));
+  });
+}

@@ -36,7 +36,7 @@ import {
 } from "../chat-dir-utils";
 import { chatPageTabs } from "../chat/chat-tabs";
 import { announceChatTab, lastActOf, tabsActedInBy } from "../tab-activity";
-import { tabNewsNote } from "./agent-browser-tab-news";
+import { pageOpenedTabsNote, tabNewsNote } from "./agent-browser-tab-news";
 import { getWorkspaceConfig } from "../workspace-config";
 import {
   hostPathOf,
@@ -1146,10 +1146,14 @@ export function createAgentBrowserCommand({
 
     // Who else acted in the tabs this command drove since this session's
     // last command there: every session of a chat drives every tab of it.
+    // And the popups its pages opened, each a new tab of the chat.
     if (drivesChatTabs) {
-      const news = await tabNewsNote({ chatId, sessionId });
-      if (news) {
-        stdout = `${stdout}${stdout === "" || stdout.endsWith("\n") ? "" : "\n"}${news}`;
+      const notes = [
+        await pageOpenedTabsNote({ chatId, sessionId, since: startedAtEpoch }),
+        await tabNewsNote({ chatId, sessionId }),
+      ].filter((note) => note !== undefined);
+      for (const note of notes) {
+        stdout = `${stdout}${stdout === "" || stdout.endsWith("\n") ? "" : "\n"}${note}`;
       }
     }
 

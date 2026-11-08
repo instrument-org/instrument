@@ -303,8 +303,10 @@ export function tabTooltip(
 
 /** A chat's latest line, as its row in the inbox says it. */
 function ChatTabLine({ chat }: { chat: ChatId }) {
-  const chats = useQuery(chatListOptions());
-  const found = chats.data?.find((each) => each.id === chat);
+  const { data: found } = useQuery({
+    ...chatListOptions(),
+    select: (chats) => chats.find((each) => each.id === chat),
+  });
   return found ? <Peek chat={found} /> : null;
 }
 

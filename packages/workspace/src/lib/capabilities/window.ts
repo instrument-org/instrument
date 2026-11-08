@@ -221,7 +221,7 @@ export const windowRead = defineCapability({
     return answer.text ?? "";
   },
   summary:
-    "The text of the page in a tab, as the user sees it, signed in where they are.",
+    "The text of the page in a tab, as the user sees it, signed in where they are, and what each of its form fields holds now.",
   surfaces: {
     cli: { help: "", positional: ["tab"], words: ["window", "read"] },
     script: { positional: ["tab"] },

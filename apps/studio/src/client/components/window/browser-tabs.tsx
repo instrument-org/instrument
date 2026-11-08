@@ -20,6 +20,7 @@ import { getFileType } from "@/client/lib/get-file-type";
 import { rpcClient } from "@/client/rpc/client";
 import { fileHref } from "@/shared/computer-href";
 import { isPageEditAddress } from "@instrument-org/shared";
+import { pageTextOf, READ_PAGE_TEXT } from "@instrument-org/shared/page-text";
 import {
   type BrowserTargetId,
   browserTargetOf,
@@ -142,16 +143,10 @@ interface PageContext {
 /** How much of what is selected goes with a message. */
 const SELECTION_MAX = 2000;
 
-/** The most of a page `instrument window read` hands back, which bounds what crosses to the sandbox. */
-const PAGE_TEXT_MAX = 200_000;
-
 const PageWordsSchema = z.object({
   focus: z.string(),
   selection: z.string(),
 });
-
-/** Runs in the page: its text as rendered, lines kept. */
-const READ_PAGE_TEXT = `String(document.body?.innerText ?? "")`;
 
 /**
  * Runs in the page: what is selected and where the cursor is. The focused
@@ -610,9 +605,7 @@ export function BrowserTabs({
         }
         try {
           const raw: unknown = await guest.run(READ_PAGE_TEXT);
-          return typeof raw === "string"
-            ? raw.slice(0, PAGE_TEXT_MAX)
-            : undefined;
+          return pageTextOf(raw);
         } catch {
           return;
         }

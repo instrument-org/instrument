@@ -11,6 +11,8 @@
  * (`sharedBrowser`), each page tab is a real page there instead, which every
  * session of the chat reaches through the bridge and `read` reads.
  */
+import { pageTextOf, READ_PAGE_TEXT } from "@instrument-org/shared/page-text";
+
 import { publisher } from "../../src/rpc/publisher";
 import { AbsolutePathSchema } from "../../src/schemas/paths";
 import { type SessionMessageDataPart } from "../../src/schemas/session/message-data-part";
@@ -121,8 +123,8 @@ export function createStandInWindow(chrome?: SharedChrome) {
         return { error: `no tab ${action.tabId} is open in this chat.` };
       }
       await chrome.ensure(tab.id, tab.at);
-      const text = await chrome.evaluate(tab.id, "document.body.innerText");
-      return { tabId: tab.id, text: typeof text === "string" ? text : "" };
+      const text = pageTextOf(await chrome.evaluate(tab.id, READ_PAGE_TEXT));
+      return { tabId: tab.id, text: text ?? "" };
     }
     const answer = act(action);
     const { tabId } = answer;

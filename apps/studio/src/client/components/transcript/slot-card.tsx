@@ -20,11 +20,19 @@ import { BorderSweep } from "../shimmer-sweep";
 import { useTheme } from "../theme-provider";
 import { type TranscriptSurface, TranscriptSurfaceContext } from "./surface";
 
-/** The earlier pictures a row of reads keeps beside its newest. */
-const EARLIER_SHOWN = 3;
+/** The most pictures the strip under a card's newest shows, the newest among them. */
+const STRIP_SHOWN = 6;
 
 /** The files whose words a card shows as they read rather than as typed. */
 const MARKDOWN_EXTENSIONS = new Set(["markdown", "md", "mdx"]);
+/**
+ * The files a card shows by their picture once written, since the app draws
+ * them as they look: a page, a drawing, a table.
+ */
+const PICTURED_EXTENSIONS = new Set(["csv", "htm", "html", "svg", "tsv"]);
+
+const isPictured = (path: string) =>
+  PICTURED_EXTENSIONS.has(extensionOf(path) ?? "");
 
 const baseName = (path: string) => path.split(/[/\\]/).pop() ?? path;
 
@@ -370,14 +378,15 @@ function filesCard(
             text={written.after}
           />
         </div>
-      ) : written?.words !== undefined ? (
+      ) : written?.words !== undefined &&
+        !(written.status === "done" && place && isPictured(written.path)) ? (
         <TypedWords
           isWriting={written.status === "writing"}
           path={written.path}
           words={written.words}
         />
       ) : place ? (
-        <FilePicture path={place} />
+        <FilePicture path={place} version={written?.modifiedAt} />
       ) : null,
   };
 }
@@ -476,7 +485,11 @@ function Waiting({ children }: { children: string }) {
   );
 }
 
-/** The newest large, with a few earlier ones beside it so each stays legible. */
+/**
+ * The newest large and whole, and with more than one, each of the latest whole
+ * along a strip under it, oldest first with the newest ringed. Nothing is
+ * cropped, so every picture keeps its own shape.
+ */
 function PictureRow({
   images,
   placeOf,
@@ -489,25 +502,36 @@ function PictureRow({
   if (!place) {
     return <Waiting>Opening the image</Waiting>;
   }
-  const earlier = images
-    .slice(0, -1)
-    .slice(-EARLIER_SHOWN)
-    .toReversed()
-    .flatMap((image) => {
-      const earlierPlace = image.path && placeOf(image.path);
-      return earlierPlace ? [earlierPlace] : [];
-    });
+  const strip =
+    images.length > 1
+      ? images.slice(-STRIP_SHOWN).flatMap((image) => {
+          const stripPlace = image.path && placeOf(image.path);
+          return stripPlace ? [{ image, place: stripPlace }] : [];
+        })
+      : [];
   return (
-    <div className="flex h-full gap-0.5">
-      <div className="min-w-0 flex-1">
-        <FilePicture fit="contain" path={place} version={newest?.modifiedAt} />
+    <div className="flex h-full flex-col items-center gap-2 p-2.5">
+      <div className="flex min-h-0 w-full flex-1 items-center justify-center">
+        <FilePicture
+          className="max-h-full max-w-full rounded-md shadow-xs ring-1 ring-foreground/10"
+          path={place}
+          version={newest?.modifiedAt}
+        />
       </div>
-      {earlier.length > 0 && (
-        <div className="flex w-20 shrink-0 flex-col gap-0.5">
-          {earlier.map((path) => (
-            <div className="min-h-0 flex-1" key={path}>
-              <FilePicture path={path} />
-            </div>
+      {strip.length > 0 && (
+        <div className="flex h-9 shrink-0 items-center gap-1.5">
+          {strip.map(({ image, place: stripPlace }, index) => (
+            <FilePicture
+              className={cn(
+                "h-full w-auto rounded-sm",
+                index === strip.length - 1
+                  ? "ring-2 ring-brand-500"
+                  : "opacity-80 ring-1 ring-foreground/10",
+              )}
+              key={`${index.toString()}:${stripPlace}`}
+              path={stripPlace}
+              version={image.modifiedAt}
+            />
           ))}
         </div>
       )}
@@ -517,11 +541,11 @@ function PictureRow({
 
 /** A file drawn small by the system: a picture, a page, a document's first page. */
 function FilePicture({
-  fit = "cover",
+  className = "size-full object-cover object-top",
   path,
   version,
 }: {
-  fit?: "contain" | "cover";
+  className?: string;
   path: string;
   version?: number;
 }) {
@@ -532,15 +556,5 @@ function FilePicture({
     theme: resolvedTheme,
     ...(version !== undefined && { version }),
   });
-  return (
-    <img
-      alt=""
-      className={cn(
-        "size-full object-top",
-        fit === "cover" ? "object-cover" : "object-contain",
-      )}
-      draggable={false}
-      src={src}
-    />
-  );
+  return <img alt="" className={className} draggable={false} src={src} />;
 }

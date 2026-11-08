@@ -29,6 +29,8 @@ export type StepShows =
       /** Whether the call made the file, once it has said. */
       isNew?: boolean;
       kind: "file";
+      /** When the call last wrote the file, once it has said. */
+      modifiedAt?: number;
       path: string;
       /** The file's words so far, cut to a card's length. */
       words?: string;
@@ -372,6 +374,9 @@ function stepShows(
       return {
         ...(output.isNewFile !== undefined && { isNew: output.isNewFile }),
         kind: "file",
+        ...(output.modifiedAt !== undefined && {
+          modifiedAt: output.modifiedAt,
+        }),
         path,
         ...(words !== undefined && { words }),
       };

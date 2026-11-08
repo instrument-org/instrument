@@ -115,6 +115,38 @@ describe("chats.live.tasks", () => {
   });
 });
 
+describe("chats.live.taskTitles", () => {
+  it("answers again when a task starts or is renamed", async () => {
+    const context: WorkspaceRPCContext = {
+      workspaceConfig: getWorkspaceConfig(),
+      workspaceRef: undefined as never,
+    };
+    const pantry = await chatFor(StoreId.newSessionId());
+    const controller = new AbortController();
+    const live = await call(
+      chats.live.taskTitles,
+      { id: pantry },
+      { context, signal: controller.signal },
+    );
+    const titles = (
+      next: IteratorResult<{ id: StoreId.Session; title: string }[]>,
+    ) => (next.done ? undefined : next.value.map((task) => task.title));
+    expect(titles(await live.next())).toEqual([]);
+
+    const task = await chatTaskFor(pantry, { title: "Count the jars" });
+    expect(titles(await live.next())).toEqual(["Count the jars"]);
+
+    const now = new Date();
+    await ChatWrites.saveSession(
+      { createdAt: now, id: task, title: "Count the tins", updatedAt: now },
+      pantry,
+    );
+    expect(titles(await live.next())).toEqual(["Count the tins"]);
+    controller.abort();
+    await live.return?.(undefined).catch(() => undefined);
+  });
+});
+
 describe("chats.live.info", () => {
   it("answers again when the chat is renamed", async () => {
     const context: WorkspaceRPCContext = {

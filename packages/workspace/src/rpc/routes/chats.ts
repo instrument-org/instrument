@@ -129,6 +129,42 @@ const liveChildTasksRoute = base
   });
 
 /**
+ * Each task's title, by its session, for a tab that names one: re-read only
+ * when a session's header or settings move, which is where a title is
+ * written, so a turn's messages never wake it.
+ */
+const liveTaskTitlesRoute = base
+  .input(z.object({ id: ChatIdSchema }))
+  .output(
+    eventIterator(
+      z.array(z.object({ id: StoreId.SessionSchema, title: z.string() })),
+    ),
+  )
+  .handler(async function* ({ errors, input, signal }) {
+    const chatId = resolveChat(input.id);
+    if (!chatId) {
+      throw errors.NOT_FOUND({ message: "That chat is not there any more." });
+    }
+    yield* distinct(
+      liveRead({
+        changes: [
+          recordChanges(
+            signal,
+            (change) =>
+              change.id === chatId &&
+              (change.kind === "session" || change.kind === "removed"),
+          ),
+        ],
+        read: async () =>
+          (await listChildTasks(chatId)).map(({ id, title }) => ({
+            id,
+            title,
+          })),
+      }),
+    );
+  });
+
+/**
  * Acts on the chat an id names; an id that is no chat's does nothing. Every
  * live chat list answers once it has finished, changed or not, which takes
  * back what a window painted ahead of the request.
@@ -546,6 +582,7 @@ export const chats = {
     signIn: liveSignInRoute,
     list: liveListChatsRoute,
     tasks: liveChildTasksRoute,
+    taskTitles: liveTaskTitlesRoute,
   },
   ofSession: chatOfSessionRoute,
   read: readChatRoute,

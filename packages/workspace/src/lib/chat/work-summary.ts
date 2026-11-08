@@ -210,7 +210,7 @@ async function summarize({
   const taskTitles = await Promise.all(
     turn.rows.flatMap((row) =>
       // A send's card stands for work sent to a task the turn did not start.
-      row.kind === "task" && row.from === undefined
+      row.kind === "task" && row.from === undefined && row.sessionId
         ? [
             ChatReads.session({ chatId, sessionId: row.sessionId }).match(
               (session) => session.title,

@@ -72,6 +72,12 @@ export interface StepPart {
   sentTasks?: { messageId: StoreId.Message; sessionId: StoreId.Session }[];
   /** The tasks this call started, whose cards stand for it. */
   startedTasks?: StoreId.Session[];
+  /**
+   * A call that starts a task or sends one work, known from its command as
+   * it arrives, so its card stands for it before the task exists. `name` is
+   * the new task's `--name`, once that much has arrived.
+   */
+  startsTask?: { name?: string };
   tool: "reasoning" | SessionMessagePart.ToolPart["type"];
   type: "step";
 }
@@ -304,6 +310,10 @@ function toolStep(
   );
   const status = stepStatus(part, siblings, output);
   const shows = stepShows(part.type, input, output, status);
+  const startsTask =
+    part.type === "tool-bash" && input.command !== undefined
+      ? taskCallOf(input.command)
+      : undefined;
   return {
     ...(activity && { activity }),
     ...(explanation && { explanation }),
@@ -312,6 +322,7 @@ function toolStep(
     ...(sentTasks.length > 0 && { sentTasks }),
     ...(shows && { shows }),
     ...(startedTasks.length > 0 && { startedTasks }),
+    ...(startsTask && { startsTask }),
     status,
     tool: part.type,
     type: "step",
@@ -535,6 +546,20 @@ const HEREDOC = /<<-?\s*(['"]?)(\w+)\1[^\n]*\n[\s\S]*?\n\s*\2\b/g;
 const NAMES_A_PLACE = /[/.:]/;
 /** What the chat tells a task is the task's to do, whatever it names. */
 const STARTS_A_TASK = /^\s*(?:instrument\s+)?task\b/;
+/** A command that starts a task or sends one work, and the new task's name. */
+const TASK_CALL = /^\s*(?:instrument\s+)?task\s+(new|send)\b/;
+const TASK_NAME = /\s--name(?:=|\s+)(?:'([^']*)'|"([^"]*)"|([^\s'"]+))/;
+
+/** Whether a command starts a task or sends one work, with the name a new one is given. */
+function taskCallOf(command: string): { name?: string } | undefined {
+  const call = TASK_CALL.exec(command);
+  if (!call) {
+    return undefined;
+  }
+  const named = call[1] === "new" ? TASK_NAME.exec(command) : null;
+  const name = (named?.[1] ?? named?.[2] ?? named?.[3])?.trim();
+  return name ? { name } : {};
+}
 const URL_IN_COMMAND = /(?:https?|file):\/\/[^\s"')]+/;
 /** The browser commands that change what a page shows, and so its picture. */
 const CHANGES_THE_PAGE = new Set([

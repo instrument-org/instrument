@@ -541,7 +541,8 @@ function RowView({
       return (
         <TaskCardRow
           {...(row.from && { from: row.from })}
-          sessionId={row.sessionId}
+          {...(row.name !== undefined && { name: row.name })}
+          {...(row.sessionId && { sessionId: row.sessionId })}
           startedAt={row.startedAt}
         />
       );

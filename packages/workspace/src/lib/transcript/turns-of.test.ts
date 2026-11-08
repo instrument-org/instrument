@@ -258,13 +258,14 @@ describe("turnsOf", () => {
           { exitCode: 0, handOffs: [handOff] },
         ),
       ]);
-    const [named] = turnsOf(
-      [
-        typed("Check last year too"),
-        sendCall({ kind: "sent", messageId: delivered, sessionId: task }),
-      ],
-      { isRunning: false },
-    );
+    const sent = sendCall({
+      kind: "sent",
+      messageId: delivered,
+      sessionId: task,
+    });
+    const [named] = turnsOf([typed("Check last year too"), sent], {
+      isRunning: false,
+    });
     const [legacy] = turnsOf(
       [
         typed("Check last year too"),
@@ -278,7 +279,9 @@ describe("turnsOf", () => {
           ? { from: row.from, id: row.id, sessionId: row.sessionId }
           : row.kind,
       ),
-    ).toStrictEqual([{ from: delivered, id: delivered, sessionId: task }]);
+    ).toStrictEqual([
+      { from: delivered, id: sent.parts[0]?.metadata.id, sessionId: task },
+    ]);
     expect(legacy && shape(legacy)).toStrictEqual([
       "activity: Asking the task x1",
     ]);
@@ -1060,6 +1063,48 @@ describe("the slot", () => {
       { isRunning: true },
     );
     expect(movedOn && slotOf(movedOn)?.kind).toBe("files");
+  });
+
+  it("draws a task's card from its call as it arrives, under the call's id once the task exists", () => {
+    const task = StoreId.newSessionId();
+    const step = StoreId.newPartId();
+    const startedBy = (
+      output: Record<string, unknown> | undefined,
+      state?: SessionMessagePart.ToolPart["state"],
+    ) =>
+      message("assistant", (id) => {
+        const bash = call(
+          id,
+          "bash",
+          {
+            activity: "Starting a task",
+            command: "instrument task new --name 'Price check' <<'EOF'",
+          },
+          output,
+          state,
+        );
+        return [
+          { ...bash, metadata: { ...bash.metadata, id: step } },
+        ] as SessionMessagePart.Type[];
+      });
+    const rowsAt = (
+      output: Record<string, unknown> | undefined,
+      state?: SessionMessagePart.ToolPart["state"],
+    ) =>
+      turnsOf([typed("Check prices"), startedBy(output, state)], {
+        isRunning: true,
+      })[0]?.rows.map((row) =>
+        row.kind === "task"
+          ? { id: row.id, name: row.name, sessionId: row.sessionId }
+          : row.kind,
+      );
+    expect(rowsAt(undefined, "input-streaming")).toStrictEqual([
+      { id: step, name: "Price check", sessionId: undefined },
+    ]);
+    expect(
+      rowsAt({ exitCode: 0, handOffs: [{ kind: "created", sessionId: task }] }),
+    ).toStrictEqual([{ id: step, name: undefined, sessionId: task }]);
+    expect(rowsAt({ exitCode: 1 })).toStrictEqual(["activity"]);
   });
 
   it("gives way to a task's card, which carries its own", () => {

@@ -63,10 +63,21 @@ export type TurnRow =
        * stretch is the task's first.
        */
       from?: StoreId.Message;
-      id: StoreId.Message | StoreId.Session;
+      /**
+       * The call's own part for the first task it started or sent work to,
+       * so the card that comes up as the call arrives is the same row once
+       * the task exists. A call reaching several tasks keys the rest by
+       * their message or session.
+       */
+      id: StoreId.Message | StoreId.Part | StoreId.Session;
       kind: "task";
-      sessionId: StoreId.Session;
+      /** The new task's name from its call, while the task does not exist yet. */
+      name?: string;
+      /** Absent while the call is still arriving or running and no task exists yet. */
+      sessionId?: StoreId.Session;
       startedAt: Date;
+      /** The call it stands for. */
+      step: StoreId.Part;
     }
   | { id: StoreId.Part; kind: "text"; part: SessionMessagePart.TextPart };
 
@@ -509,7 +520,18 @@ function rowsOf(
         }
         const started = part.startedTasks ?? [];
         const sent = part.sentTasks ?? [];
-        if (started.length === 0 && sent.length === 0) {
+        // A call that starts a task or sends one work is its card from the
+        // moment its command arrives. One that ended reaching no task (a
+        // refusal, its help, a send from before sends named their message)
+        // is a step like any other.
+        const pending =
+          started.length === 0 &&
+          sent.length === 0 &&
+          part.startsTask !== undefined &&
+          (part.status === "queued" ||
+            part.status === "running" ||
+            part.status === "writing");
+        if (started.length === 0 && sent.length === 0 && !pending) {
           stepInto(part);
           continue;
         }
@@ -517,17 +539,39 @@ function rowsOf(
         // and ends the activity above it. Calls after it open a new row.
         open = undefined;
         const startedAt = part.metadata.startedAt ?? part.metadata.createdAt;
-        for (const sessionId of started) {
-          rows.push({ id: sessionId, kind: "task", sessionId, startedAt });
-        }
-        for (const { messageId, sessionId } of sent) {
-          rows.push({
-            from: messageId,
-            id: messageId,
-            kind: "task",
+        const step = part.metadata.id;
+        const cards: TurnRow[] = [
+          ...started.map((sessionId) => ({
+            id: sessionId,
+            kind: "task" as const,
             sessionId,
             startedAt,
-          });
+            step,
+          })),
+          ...sent.map(({ messageId, sessionId }) => ({
+            from: messageId,
+            id: messageId,
+            kind: "task" as const,
+            sessionId,
+            startedAt,
+            step,
+          })),
+        ];
+        const [first, ...rest] = pending
+          ? [
+              {
+                id: step,
+                kind: "task" as const,
+                ...(part.startsTask?.name !== undefined && {
+                  name: part.startsTask.name,
+                }),
+                startedAt,
+                step,
+              },
+            ]
+          : cards;
+        if (first) {
+          rows.push({ ...first, id: step }, ...rest);
         }
       } else if (isAsk(part)) {
         open = undefined;

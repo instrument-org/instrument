@@ -9,7 +9,7 @@ import { PauseCircleIcon } from "@phosphor-icons/react/PauseCircle";
 import { StopIcon } from "@phosphor-icons/react/Stop";
 import { WarningIcon } from "@phosphor-icons/react/Warning";
 import { AnimatePresence } from "motion/react";
-import { use } from "react";
+import { type ReactNode, use } from "react";
 
 import { ShimmerSweep } from "../shimmer-sweep";
 import { Badges } from "./activity-row";
@@ -41,8 +41,54 @@ function WorkingDots() {
  * works and flat once it has finished, the sites and apps it reached after its
  * first line, the task's own Stop on hover, and while it works the task's own live
  * card, since a chat's visual work is mostly its tasks'. It never folds.
+ *
+ * It comes up as the call that starts the task arrives, before the task
+ * exists, as a card that is starting, and the same card carries on once the
+ * task's id is known.
  */
 export function TaskCardRow({
+  from,
+  name,
+  sessionId,
+  startedAt,
+}: {
+  from?: StoreId.Message;
+  name?: string;
+  sessionId?: StoreId.Session;
+  startedAt: Date;
+}) {
+  return sessionId === undefined ? (
+    <StartingTaskCard name={name} startedAt={startedAt} />
+  ) : (
+    <LiveTaskCard
+      {...(from && { from })}
+      sessionId={sessionId}
+      startedAt={startedAt}
+    />
+  );
+}
+
+/** The card of a task whose call has not made it yet. */
+function StartingTaskCard({
+  name,
+  startedAt,
+}: {
+  name?: string;
+  startedAt: Date;
+}) {
+  const now = useTicking(true);
+  return (
+    <TaskCardFace
+      disabled
+      firstLine="Starting"
+      isWorking
+      span={now - startedAt.getTime()}
+      title={name ?? "Task"}
+    />
+  );
+}
+
+function LiveTaskCard({
   from,
   sessionId,
   startedAt,
@@ -69,6 +115,74 @@ export function TaskCardRow({
     ? now - (facts?.startedAt ?? startedAt).getTime()
     : facts?.ranMs;
   return (
+    <TaskCardFace
+      badges={turn && <Badges apps={turn.apps} sites={turn.sites} />}
+      disabled={facts?.gone === true}
+      firstLine={firstLine}
+      isWorking={isWorking}
+      mark={
+        facts?.failed ? (
+          <WarningIcon className="text-warning-600 size-3.5 shrink-0" />
+        ) : facts?.waiting ? (
+          <PauseCircleIcon className="size-3.5 shrink-0 text-muted-foreground" />
+        ) : facts?.handedOn ? null : (
+          <CheckIcon className="size-3.5 shrink-0 text-muted-foreground" />
+        )
+      }
+      onOpen={() => {
+        surface?.onOpenTask(sessionId);
+      }}
+      {...(facts?.stoppable && {
+        onStop: () => {
+          surface?.onStopTask(sessionId);
+        },
+      })}
+      span={span}
+      title={title}
+    >
+      {/* No words of the task's start below its card, so the card closes
+          rather than going at once. */}
+      <AnimatePresence custom initial={false}>
+        {card && turn && (
+          <CardPresence key="slot-card" opens={cardOpens}>
+            <SlotCardView
+              card={card}
+              isCurrent={turn.phase === "working"}
+              sessionId={sessionId}
+            />
+          </CardPresence>
+        )}
+      </AnimatePresence>
+    </TaskCardFace>
+  );
+}
+
+/** What a task's card looks like, whether or not the task exists yet. */
+function TaskCardFace({
+  badges,
+  children,
+  disabled,
+  firstLine,
+  isWorking,
+  mark,
+  onOpen,
+  onStop,
+  span,
+  title,
+}: {
+  badges?: ReactNode;
+  children?: ReactNode;
+  disabled: boolean;
+  firstLine: string;
+  isWorking: boolean;
+  /** What a finished task wears after its first line. */
+  mark?: ReactNode;
+  onOpen?: () => void;
+  onStop?: () => void;
+  span: number | undefined;
+  title: string;
+}) {
+  return (
     <div className="flex max-w-115 flex-col gap-2">
       <div
         className={cn(
@@ -80,10 +194,8 @@ export function TaskCardRow({
       >
         <button
           className="flex min-w-0 flex-1 items-center gap-2.5 text-left outline-none"
-          disabled={facts?.gone}
-          onClick={() => {
-            surface?.onOpenTask(sessionId);
-          }}
+          disabled={disabled}
+          onClick={onOpen}
           type="button"
         >
           <span className="min-w-0 flex-1">
@@ -103,14 +215,10 @@ export function TaskCardRow({
                 <span className="brand-shiny-text">
                   <WorkingDots />
                 </span>
-              ) : facts?.failed ? (
-                <WarningIcon className="text-warning-600 size-3.5 shrink-0" />
-              ) : facts?.waiting ? (
-                <PauseCircleIcon className="size-3.5 shrink-0 text-muted-foreground" />
-              ) : facts?.handedOn ? null : (
-                <CheckIcon className="size-3.5 shrink-0 text-muted-foreground" />
+              ) : (
+                mark
               )}
-              {turn && <Badges apps={turn.apps} sites={turn.sites} />}
+              {badges}
             </span>
             <span className="block truncate text-xs text-muted-foreground tabular-nums">
               Task · {title}
@@ -118,32 +226,18 @@ export function TaskCardRow({
             </span>
           </span>
         </button>
-        {facts?.stoppable && (
+        {onStop && (
           <button
             aria-label="Stop this task"
             className="flex size-6 shrink-0 items-center justify-center rounded-md text-muted-foreground opacity-0 group-hover/task:opacity-100 hover:bg-muted hover:text-foreground"
-            onClick={() => {
-              surface?.onStopTask(sessionId);
-            }}
+            onClick={onStop}
             type="button"
           >
             <StopIcon className="size-3.5" weight="fill" />
           </button>
         )}
       </div>
-      {/* No words of the task's start below its card, so the card closes
-          rather than going at once. */}
-      <AnimatePresence custom initial={false}>
-        {card && turn && (
-          <CardPresence key="slot-card" opens={cardOpens}>
-            <SlotCardView
-              card={card}
-              isCurrent={turn.phase === "working"}
-              sessionId={sessionId}
-            />
-          </CardPresence>
-        )}
-      </AnimatePresence>
+      {children}
     </div>
   );
 }

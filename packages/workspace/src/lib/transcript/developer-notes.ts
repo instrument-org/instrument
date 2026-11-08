@@ -6,11 +6,7 @@ import { type SessionMessagePart } from "../../schemas/session/message-part";
 import { type StoreId } from "../../schemas/store-id";
 import { dataPartVisibility } from "../data-part-visibility";
 import { errorOutcomeOf } from "./error-outcome";
-import {
-  isStepPart,
-  thoughtText,
-  transcriptMessage,
-} from "./transcript-message";
+import { thoughtText, transcriptMessage } from "./transcript-message";
 import { type TurnRow, turnsOf } from "./turns-of";
 
 /** What a margin note stands for. */
@@ -421,10 +417,7 @@ function rowLabelOf(row: TurnRow): string {
 }
 
 /** The row each stored part draws in, for the rows that stand for a part. */
-function rowsByPart(
-  rows: readonly TurnRow[],
-  startedTask: ReadonlyMap<string, StoreId.Part>,
-): Map<string, Place> {
+function rowsByPart(rows: readonly TurnRow[]): Map<string, Place> {
   const found = new Map<string, Place>();
   for (const row of rows) {
     const place = {
@@ -440,10 +433,7 @@ function rowsByPart(
         break;
       }
       case "task": {
-        const step = startedTask.get(row.sessionId);
-        if (step !== undefined) {
-          found.set(step, place);
-        }
+        found.set(row.step, place);
         break;
       }
       case "error": {
@@ -505,17 +495,6 @@ export function developerNotesWithBodies(
   const light = stored.flatMap((message) => transcriptMessage(message) ?? []);
   const lightById = new Map(light.map((message) => [message.id, message]));
   const turns = turnsOf(light, { isRunning: false, sessionId });
-  const startedTask = new Map<string, StoreId.Part>();
-  for (const message of light) {
-    for (const part of message.parts) {
-      if (isStepPart(part)) {
-        for (const task of part.startedTasks ?? []) {
-          startedTask.set(task, part.metadata.id);
-        }
-      }
-    }
-  }
-
   const startOf = new Map(stored.map((message, at) => [message.id, at]));
   const notes: DeveloperNote[] = [];
   const bodies = new Map<string, DeveloperNoteBody>();
@@ -526,7 +505,7 @@ export function developerNotesWithBodies(
       startOf.get(turn.id) ?? 0,
       next ? startOf.get(next.id) : undefined,
     );
-    const rowOfPart = rowsByPart(turn.rows, startedTask);
+    const rowOfPart = rowsByPart(turn.rows);
     // What a note with no row of its own sits by, as the turn is read in order.
     let nearest: Place | undefined = turn.opener && {
       row: `message:${turn.id}`,

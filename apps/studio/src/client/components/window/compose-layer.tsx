@@ -5,11 +5,13 @@ import {
   type ChatId,
 } from "@instrument-org/workspace/client";
 import { AnimatePresence } from "motion/react";
+import { useQuery } from "@tanstack/react-query";
 import { useEffect } from "react";
 
 import { type BrowserTabsHandle } from "./browser-tabs";
+import { chatListOptions } from "./chat-list-query";
 import { ChatBar, ChatWindow } from "./chat-window";
-import { type Chat, type Project } from "./chats";
+import { type Project } from "./chats";
 import { ComposeBar, ComposeWindow, type DraftSend } from "./compose-window";
 import { type ContextItem } from "./context-items";
 import { type useCompose } from "./use-compose";
@@ -26,7 +28,6 @@ import { type useCompose } from "./use-compose";
  */
 export function ComposeLayer({
   browser,
-  chats,
   compose,
   drafts,
   modelURI,
@@ -46,7 +47,6 @@ export function ComposeLayer({
   projects,
 }: {
   browser: BrowserTabsHandle | null;
-  chats: Chat[];
   compose: ReturnType<typeof useCompose>;
   drafts: Draft[];
   modelURI: AIGatewayModelURI.Type | undefined;
@@ -96,6 +96,15 @@ export function ComposeLayer({
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [orphanKey]);
+
+  // The rows of the chats placed here, so another chat moving draws nothing.
+  const placedIds = compose.placed.flatMap((entry) =>
+    entry.kind === "chat" ? [entry.chatId] : [],
+  );
+  const { data: chats = [] } = useQuery({
+    ...chatListOptions(),
+    select: (listed) => listed.filter((chat) => placedIds.includes(chat.id)),
+  });
 
   return (
     <div className="pointer-events-none absolute inset-0 z-40">

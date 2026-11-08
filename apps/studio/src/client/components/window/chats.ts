@@ -336,6 +336,16 @@ export function railMarkOf(
   return inbox.some((chat) => chat.unread) ? "unread" : undefined;
 }
 
+/** The dot the rail wears for chats by the marks each wears alone: what `railMarkOf` says of them all together. */
+export function strongestMark(
+  marks: Iterable<RailChatMark>,
+): RailChatMark | undefined {
+  const worn = new Set(marks);
+  return (["waiting", "working", "unread"] as const).find((mark) =>
+    worn.has(mark),
+  );
+}
+
 /**
  * What one chat wears where it stands outside the chat itself, in its window
  * tab or its bar along the foot: its title shimmers while it works, and the

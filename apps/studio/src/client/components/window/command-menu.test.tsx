@@ -48,7 +48,6 @@ vi.mock("@/client/rpc/client", () => {
 vi.mock("@/client/components/window/shell-context", () => ({
   useShell: () => ({
     appTabs: { openNewTab: () => undefined },
-    chats: [],
     goToPlace: () => undefined,
     newDraft: () => undefined,
     projects: [],

@@ -10,7 +10,7 @@ import { createContext, useContext } from "react";
 import { type AIGatewayModelURI } from "@instrument-org/ai-gateway/client";
 
 import { type useAppTabs } from "./app-tabs";
-import { type Chat, type Project } from "./chats";
+import { type Project } from "./chats";
 import { type DraftSend } from "./compose-window";
 import { type ContextItem } from "./context-items";
 import { type useCompose } from "./use-compose";
@@ -24,7 +24,6 @@ export interface WindowShell {
   appTabs: ReturnType<typeof useAppTabs>;
   /** The chat a draft just became, marked in the inbox as it arrives. */
   arrivedId: ChatId | undefined;
-  chats: Chat[] | undefined;
   chatTitles: Map<ChatId, string>;
   /** Each task's title, for a tab standing on one. */
   childTitles: Map<StoreId.Session, string>;

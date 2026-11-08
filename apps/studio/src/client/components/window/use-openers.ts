@@ -25,7 +25,7 @@ import {
   type useAppTabs,
 } from "./app-tabs";
 import { type BrowserTabsHandle } from "./browser-tabs";
-import { type Chat } from "./chats";
+import { chatListOptions } from "./chat-list-query";
 import { type OpenOptions } from "./context";
 import { isGroupShown } from "./draft-context";
 import { openMenuLink } from "./menu-link";
@@ -59,7 +59,6 @@ import { newScreenId, type useWindowTabs } from "./window-tabs";
 export function useOpeners({
   appTabs,
   browser,
-  chats,
   chatTitles,
   isOpen,
   paneOpenByGroup,
@@ -71,8 +70,6 @@ export function useOpeners({
   appTabs: ReturnType<typeof useAppTabs>;
   /** The window's browser; null until it is mounted. */
   browser: BrowserTabsHandle | null;
-  /** The chats the window has, once the list has been read. */
-  chats: Chat[] | undefined;
   chatTitles: Map<ChatId, string>;
   /** Whether what the window opens on is made; nothing is opened before it is. */
   isOpen: boolean;
@@ -205,6 +202,7 @@ export function useOpeners({
     // among the chats the window has: a whole id that names none of them
     // is a link to a chat since deleted, not a chat with nothing in it.
     // Until the list has been read, a whole id is taken on its own.
+    const chats = queryClient.getQueryData(chatListOptions().queryKey);
     const chat = chats
       ? (chatOfHrefPrefix(href, chatTitles.keys()) ??
         chatOfSessionPrefix(href, chats))

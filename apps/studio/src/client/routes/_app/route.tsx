@@ -25,6 +25,7 @@ import {
 import { useAppsBySlug } from "@/client/components/window/apps-by-slug";
 import { type PageChromeSlots } from "@/client/components/window/browser-tabs";
 import { ChatHeader } from "@/client/components/window/chat-header";
+import { chatListOptions } from "@/client/components/window/chat-list-query";
 import { ChatPane } from "@/client/components/window/chat-pane";
 import { ChatScreen } from "@/client/components/window/chat-screen";
 import { GroupItem } from "@/client/components/window/group-item";
@@ -135,7 +136,7 @@ function ChatView({
 }) {
   const shell = useShell();
   const appWindow = useWindow();
-  const { appTabs, chats, chatTitles, rowWidth, setPaneOpen } = shell;
+  const { appTabs, chatTitles, rowWidth, setPaneOpen } = shell;
   const windowTabs = useWindowTabs();
   const outputFolder = useOutputFolder();
   const setInboxOpen = useSetAtom(inboxOpenAtom);
@@ -189,7 +190,10 @@ function ChatView({
     pageChrome,
     showsPane && up.kind === "page",
   );
-  const chatRecord = chats?.find((entry) => entry.id === chat);
+  const { data: chatRecord } = useQuery({
+    ...chatListOptions(),
+    select: (chats) => chats.find((entry) => entry.id === chat),
+  });
   /** A browser beside the chat, or beside the new chat. */
   const addWeb = () => {
     const opened = ensureGroup();

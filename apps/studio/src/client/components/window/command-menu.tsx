@@ -30,6 +30,7 @@ import { Spinner } from "@/client/components/ui/spinner";
 import { AppIcon } from "@/client/components/window/app-icon";
 import { PLACES } from "@/client/components/window/app-rail";
 import { useAppsBySlug } from "@/client/components/window/apps-by-slug";
+import { chatListOptions } from "@/client/components/window/chat-list-query";
 import { ChatMarkDot } from "@/client/components/window/chat-mark";
 import { ProjectPill } from "@/client/components/window/chat-row";
 import {
@@ -263,7 +264,11 @@ export function useCommandMenuRows({
     rpcClient.debug.trigger.testNoUpdateNotification.mutationOptions(),
   );
 
-  const chats = shell.chats ?? [];
+  // Followed only while the menu is up.
+  const { data: chats = [] } = useQuery({
+    ...chatListOptions(),
+    subscribed: active,
+  });
   const isPage = surface === "page";
 
   const commands: Omit<Item, "ranges" | "type">[] = [

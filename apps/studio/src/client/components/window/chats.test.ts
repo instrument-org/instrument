@@ -20,6 +20,7 @@ import {
   type RailChatMark,
   railMarkOf,
   projectSearch,
+  strongestMark,
   wordRanges,
 } from "./chats";
 import { chatHref } from "./window-href";
@@ -554,6 +555,9 @@ describe("the rail's Chat dot", () => {
     ],
   ])("%s: %j", (_label, chats, mark) => {
     expect(railMarkOf(chats)).toBe(mark);
+    expect(
+      strongestMark(chats.flatMap((each) => railMarkOf([each]) ?? [])),
+    ).toBe(mark);
   });
 });
 

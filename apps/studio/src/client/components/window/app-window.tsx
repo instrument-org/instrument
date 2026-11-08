@@ -107,9 +107,9 @@ import {
 import { COMPOSE_KEY } from "@/shared/kept-state";
 import { useAppsBySlug } from "./apps-by-slug";
 import { BrowserTabs, type BrowserTabsHandle } from "./browser-tabs";
-import { chatListOptions } from "./chat-list-query";
+import { chatListOptions, chromeOfChats } from "./chat-list-query";
 import { ChatPane } from "./chat-pane";
-import { inPlace, NO_FILTERS, railMarkOf } from "./chats";
+import { inPlace, NO_FILTERS, strongestMark } from "./chats";
 import { ComposeLayer } from "./compose-layer";
 import { useComputerVolumes } from "./computer-volumes";
 import { type WindowContextValue as Screens, WindowContext } from "./context";
@@ -432,16 +432,13 @@ function WindowShell({
   );
   const opened = ensure.data;
   const childTitles = useTaskTitles();
-  const chats = useQuery(chatListOptions());
-  const chatTitles = new Map<ChatId, string>(
-    chats.data?.map((chat) => [chat.id, chat.title]) ?? [],
-  );
-  const chatMarks = new Map(
-    chats.data?.flatMap((chat) => {
-      const mark = railMarkOf([chat]);
-      return mark ? [[chat.id, mark] as const] : [];
-    }) ?? [],
-  );
+  // Undefined until the list has been read.
+  const chatChrome = useQuery({
+    ...chatListOptions(),
+    select: chromeOfChats,
+  }).data;
+  const chatTitles = new Map<ChatId, string>(chatChrome?.titles);
+  const chatMarks = new Map(chatChrome?.marks);
   const [defaultModelURI, setDefaultModelURI, saveDefaultModelURI] =
     useDefaultModelURI();
   const drafts = useAtomValue(draftsAtom);
@@ -668,7 +665,6 @@ function WindowShell({
   const { openNamedPath, openPage, openScreen } = useOpeners({
     appTabs,
     browser,
-    chats: chats.data,
     chatTitles,
     isOpen: opened !== undefined,
     paneOpenByGroup,
@@ -733,6 +729,16 @@ function WindowShell({
     name?: string;
   }>();
   const chatUp = chatOfHref(activeHref);
+  // The chat a new project is asked for from: filed under it as it lands,
+  // and left out of the other chats its dialog offers to file.
+  const projectFor = newProject?.chatId ?? chatUp;
+  const { data: candidates = [] } = useQuery({
+    ...chatListOptions(),
+    select: (chats) =>
+      backfillCandidates(chats.filter((chat) => chat.id !== projectFor)),
+    // Followed only while the dialog is up.
+    subscribed: newProject !== undefined,
+  });
   // The inbox is on screen in Chat unless it was put away beside a chat;
   // anywhere else, Chat in the rail peeks it out.
   const inboxPeek = useInboxPeek({
@@ -872,14 +878,17 @@ function WindowShell({
   // yet, and the chat the list just stepped away from is on its way out.
   const standingProject =
     chatFilters.projects.length === 1 ? chatFilters.projects[0] : undefined;
-  const chatUpProject = chats.data?.find((chat) => chat.id === chatUp)?.project;
+  const { data: chatUpProject } = useQuery({
+    ...chatListOptions(),
+    select: (chats) => chats.find((chat) => chat.id === chatUp)?.project,
+  });
   const isChatOutsideProject =
     standingProject !== undefined &&
     chatUp !== undefined &&
     chatUp !== leavingChat &&
     !sentWords.has(chatUp) &&
     chatUp !== arrivedId &&
-    chats.data?.some((chat) => chat.id === chatUp) === true &&
+    chatTitles.has(chatUp) &&
     chatUpProject !== standingProject;
   useEffect(() => {
     if (isChatOutsideProject) {
@@ -1115,14 +1124,12 @@ function WindowShell({
     // it back. A reply waiting in a chat's box belongs to that chat and is
     // read there rather than listed here, until the chat is deleted: then it
     // is listed, so its words can be sent as a chat of their own.
-    chats: chats.data,
     chatTitles,
     drafts: drafts.filter(
       (draft) =>
         draft.sendingTo === undefined &&
         (draft.chatId === undefined ||
-          (chats.data !== undefined &&
-            !chats.data.some((chat) => chat.id === draft.chatId))) &&
+          (chatChrome !== undefined && !chatTitles.has(draft.chatId))) &&
         holdsSomething(draft) &&
         !startingIds.has(draft.id) &&
         !discardingIds.has(draft.id),
@@ -1193,7 +1200,6 @@ function WindowShell({
             overlay={
               <ComposeLayer
                 browser={browser}
-                chats={chats.data ?? []}
                 compose={compose}
                 drafts={drafts}
                 modelURI={defaultModelURI}
@@ -1225,10 +1231,10 @@ function WindowShell({
               <AppRail
                 appsMark={appsMark}
                 chatInView={chatUp}
-                chatMark={railMarkOf(
-                  (chats.data ?? []).filter(
-                    (chat) => !floatingChats.has(chat.id),
-                  ),
+                chatMark={strongestMark(
+                  chatChrome?.marks.flatMap(([id, mark]) =>
+                    floatingChats.has(id) ? [] : [mark],
+                  ) ?? [],
                 )}
                 onChoose={choosePlace}
                 onHoverChat={inboxPeek.onRailHover}
@@ -1335,20 +1341,16 @@ function WindowShell({
             {/* Asked for from a chat's head or a draft's, so the project it
               makes is filed on that chat or draft as it lands. */}
             <ProjectDialog
-              candidates={backfillCandidates(
-                (chats.data ?? []).filter(
-                  (chat) => chat.id !== (newProject?.chatId ?? chatUp),
-                ),
-              )}
+              candidates={candidates}
               mode="create"
               {...(newProject?.name ? { name: newProject.name } : {})}
               onCreate={(project, alsoFile) => {
                 const forDraft = newProject?.draftId;
                 const filedOn =
-                  forDraft === undefined
-                    ? chats.data?.find(
-                        (chat) => chat.id === (newProject?.chatId ?? chatUp),
-                      )
+                  forDraft === undefined &&
+                  projectFor !== undefined &&
+                  chatTitles.has(projectFor)
+                    ? projectFor
                     : undefined;
                 createProject.mutate(project, {
                   onSuccess: (created) => {
@@ -1366,7 +1368,7 @@ function WindowShell({
                       });
                     }
                     if (filedOn) {
-                      setChatProject(filedOn.id, created.id);
+                      setChatProject(filedOn, created.id);
                     }
                   },
                 });

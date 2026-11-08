@@ -21,7 +21,7 @@ export { isChatTranscript } from "./lib/chat-folders/chat-transcript";
 export { backgroundProcessesModelNote } from "./model-text/notes/background-processes-model-text";
 export { projectModelNote } from "./model-text/notes/project-model-text";
 export { dateChangeModelNote } from "./model-text/notes/date-change-model-text";
-export { environmentChangeModelNote } from "./lib/environment-model-text";
+export { environmentChangeModelNote } from "./model-text/context/environment-model-text";
 export { describeMessageError } from "./lib/describe-message-error";
 export { PLAN_NOT_ELIGIBLE_CODES } from "./lib/plan-not-eligible-codes";
 export { formatBytes } from "./lib/format-bytes";

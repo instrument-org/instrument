@@ -20,8 +20,8 @@ import {
 } from "../constants";
 import { APP_FILE_NAME } from "../lib/apps/app-file";
 import { buildAppsContextText } from "../lib/apps/context";
-import { buildAvailableSkillsContext } from "../lib/available-skills-context";
-import { buildFoldersText } from "../lib/build-folders-text";
+import { buildAvailableSkillsContext } from "../model-text/context/available-skills-context";
+import { buildFoldersText } from "../model-text/context/build-folders-text";
 import { ChatReads } from "../lib/chat-reads";
 import { chatModelURI } from "../lib/chat-settings";
 import { ChatWrites } from "../lib/chat-writes";

@@ -5,8 +5,8 @@ import {
 } from "@instrument-org/shared";
 import { dedent } from "radashi";
 
-import { TOOL_NAMES } from "../tools/name";
-import { shellPath } from "./workspace-fs-layout";
+import { TOOL_NAMES } from "../../tools/name";
+import { shellPath } from "../../lib/workspace-fs-layout";
 
 /**
  * The list of folders the model reads: every folder the chat reaches.

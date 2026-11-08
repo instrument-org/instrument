@@ -25,7 +25,7 @@ import {
   usableContextTokens,
 } from "./context-budget";
 import { ChatWrites } from "./chat-writes";
-import { contextBudgetNotice } from "./context-budget-notice";
+import { contextBudgetNotice } from "../model-text/request/context-budget-notice";
 import { contextOverflowNeedsRollover } from "./context-overflow";
 import {
   dropRepeatingReplies,

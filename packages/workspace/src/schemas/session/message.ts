@@ -27,7 +27,7 @@ import { asksModelNote } from "../../model-text/notes/asks-model-text";
 import { folderChangesModelNote } from "../../model-text/notes/folder-changes-model-text";
 import { backgroundProcessesModelNote } from "../../model-text/notes/background-processes-model-text";
 import { dateChangeModelNote } from "../../model-text/notes/date-change-model-text";
-import { environmentChangeModelNote } from "../../lib/environment-model-text";
+import { environmentChangeModelNote } from "../../model-text/context/environment-model-text";
 import { branchedFromModelNote } from "../../model-text/notes/branched-from-model-text";
 import { formatBytes } from "../../lib/format-bytes";
 import { fromChatModelText } from "../../model-text/notes/from-chat-model-text";

@@ -1,9 +1,9 @@
 import { dedent } from "radashi";
 
-import { TOOL_NAMES } from "../tools/name";
-import { renderSkillCatalog } from "./skill-catalog";
-import { findSkills, getSkillSources, type SkillInfo } from "./skills";
-import { getWorkspaceConfig } from "./workspace-config";
+import { TOOL_NAMES } from "../../tools/name";
+import { renderSkillCatalog } from "../../lib/skill-catalog";
+import { findSkills, getSkillSources, type SkillInfo } from "../../lib/skills";
+import { getWorkspaceConfig } from "../../lib/workspace-config";
 
 /**
  * The budgeted skill catalog, rendered for the session's context message.

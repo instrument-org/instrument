@@ -1,8 +1,8 @@
 import { describe, expect, it } from "vitest";
 
-import { AbsolutePathSchema } from "../schemas/paths";
+import { AbsolutePathSchema } from "../../schemas/paths";
 import { renderAvailableSkillsContext } from "./available-skills-context";
-import { type SkillInfo, type SkillSourceKind } from "./skills";
+import { type SkillInfo, type SkillSourceKind } from "../../lib/skills";
 
 const skill = (
   name: string,

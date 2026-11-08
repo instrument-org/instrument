@@ -1,4 +1,4 @@
-import { type ContextBudget } from "./context-budget";
+import { type ContextBudget } from "../../lib/context-budget";
 
 /**
  * What the agent is told when its context window is running out.

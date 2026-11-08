@@ -6,7 +6,7 @@ import {
   folderVariablesText,
   platformGuidance,
   timeZoneRegion,
-} from "../lib/environment-model-text";
+} from "../model-text/context/environment-model-text";
 import { getCurrentDate } from "../lib/get-current-date";
 import { isToolPart } from "../lib/is-tool-part";
 import { getWorkspaceConfig } from "../lib/workspace-config";

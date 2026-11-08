@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { computeContextBudget } from "./context-budget";
+import { computeContextBudget } from "../../lib/context-budget";
 import { contextBudgetNotice } from "./context-budget-notice";
 
 const MODEL = "model-being-asked";

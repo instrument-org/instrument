@@ -88,7 +88,7 @@ import {
   waitForPreviousDevInstance,
 } from "./lib/app-session";
 import { warnIfRunningX64BuildUnderARM64Translation } from "./lib/arm64-translation-warning";
-import { timeBootStep } from "./lib/boot-timing";
+import { logBootMark, timeBootStep, timeBootStepSync } from "./lib/boot-timing";
 import { registerFileDragHandler } from "./lib/file-drag";
 import { warmCommonFileOpenTargets } from "./lib/file-open-target";
 import { filesInArgv } from "./lib/files-in-argv";
@@ -231,6 +231,7 @@ if (gotTheLock) {
 }
 
 async function bootstrapPrimaryInstance() {
+  logBootMark("bootstrapPrimaryInstance");
   keepTrapFatal();
   registerUnattendedQuit();
 
@@ -378,23 +379,25 @@ async function bootstrapPrimaryInstance() {
     await startWorkspace();
   }
 
-  // A signed-in ChatGPT account's access token lasts an hour.
-  scheduleChatGPTAccountRefresh();
-  powerMonitor.on("resume", refreshChatGPTAccountAfterWake);
-  scheduleGrokRefresh();
-  powerMonitor.on("resume", refreshGrokAfterWake);
+  timeBootStepSync("startAccounts", () => {
+    // A signed-in ChatGPT account's access token lasts an hour.
+    scheduleChatGPTAccountRefresh();
+    powerMonitor.on("resume", refreshChatGPTAccountAfterWake);
+    scheduleGrokRefresh();
+    powerMonitor.on("resume", refreshGrokAfterWake);
 
-  // The Claude account is whatever the CLI says: someone installs it or signs
-  // in from a terminal, then comes back to the app.
-  // A workspace with no model chosen yet runs on the subscription it found.
-  void refreshClaudeAccountStatus().then(async (found) => {
-    if (found.kind === "signed-in" && !getDefaultModelURI()) {
-      await setClaudeAccountDefaultModel();
-    }
-  });
-  void keepClaudeCodeCurrent();
-  app.on("browser-window-focus", () => {
-    void refreshClaudeAccountStatus();
+    // The Claude account is whatever the CLI says: someone installs it or signs
+    // in from a terminal, then comes back to the app.
+    // A workspace with no model chosen yet runs on the subscription it found.
+    void refreshClaudeAccountStatus().then(async (found) => {
+      if (found.kind === "signed-in" && !getDefaultModelURI()) {
+        await setClaudeAccountDefaultModel();
+      }
+    });
+    void keepClaudeCodeCurrent();
+    app.on("browser-window-focus", () => {
+      void refreshClaudeAccountStatus();
+    });
   });
 
   // Development only: stage a made-up update and install it by restarting,
@@ -406,20 +409,22 @@ async function bootstrapPrimaryInstance() {
   // Restarting by itself to install is for macOS and Windows.
   const installsUnattended =
     simulateIdleRestart || (app.isPackaged && canInstallUnattended());
-  const updater = createStudioAppUpdater({
-    // Approving the install approves the quit it ends in, so before-quit and
-    // the window close go ahead without asking again. An install that then
-    // fails takes the approval back.
-    confirmQuit: requestQuitApproval,
-    installsUnattended,
-    simulatedInstall: simulateIdleRestart
-      ? () => {
-          startAgainAfterQuit();
-          app.quit();
-        }
-      : undefined,
-    withdrawQuit: withdrawQuitApproval,
-  });
+  const updater = timeBootStepSync("createAppUpdater", () =>
+    createStudioAppUpdater({
+      // Approving the install approves the quit it ends in, so before-quit and
+      // the window close go ahead without asking again. An install that then
+      // fails takes the approval back.
+      confirmQuit: requestQuitApproval,
+      installsUnattended,
+      simulatedInstall: simulateIdleRestart
+        ? () => {
+            startAgainAfterQuit();
+            app.quit();
+          }
+        : undefined,
+      withdrawQuit: withdrawQuitApproval,
+    }),
+  );
   if (process.env.DISABLE_AUTO_UPDATE_POLLING !== "true") {
     updater.pollForUpdates();
     powerMonitor.on("resume", updater.checkAfterWake);
@@ -449,8 +454,9 @@ async function bootstrapPrimaryInstance() {
 
   // The window opens at setup's size or its own, so it waits for setup's
   // slow facts (a few seconds at most, and never once setup is finished).
-  await setupStateKnown();
+  await timeBootStep("setupStateKnown", setupStateKnown);
   restoreAppWindows();
+  logBootMark("restoreAppWindows");
 
   // Let the initial window render before running the best-effort cache warmup.
   setTimeout(() => {

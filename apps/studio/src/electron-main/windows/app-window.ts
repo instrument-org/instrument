@@ -1,4 +1,5 @@
 import { getBrowserViewManager } from "@/electron-main/browser-view/manager";
+import { logBootMark } from "@/electron-main/lib/boot-timing";
 import { getAppSession } from "@/electron-main/lib/app-session";
 import { createContextMenu } from "@/electron-main/lib/context-menu";
 import { guardNavigation } from "@/electron-main/lib/guard-navigation";
@@ -374,7 +375,15 @@ export function restoreAppWindows() {
   // whatever the person is doing.
   const takesFocus = !isComingBackAsLeft();
   expectRestoredWindows(ids.length);
-  const windows = ids.map((id) => createAppWindow(id));
+  // Ready to show is the window's first paint: past here a slow launch is
+  // the renderer's.
+  const windows = ids.map((id) => {
+    const window = createAppWindow(id);
+    window.once("ready-to-show", () => {
+      logBootMark(`window ${id} ready-to-show`);
+    });
+    return window;
+  });
   // Each comes up as its page is ready, in no particular order, so the one
   // that was in front goes back there once they all have.
   const front = windows.at(-1);

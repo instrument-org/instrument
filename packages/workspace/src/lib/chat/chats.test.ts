@@ -71,6 +71,7 @@ import {
   type HeldChatList,
 } from "./chat-list-events";
 import { CHAT_LIST_FILE_NAME, startChatListFile } from "./chat-list-file";
+import { bumpChatGeneration } from "../chat-generation";
 import { closeWorkspaceDb } from "../workspace-db";
 import { workspaceLayout } from "../workspace-layout";
 import { createProject } from "./projects";
@@ -2182,9 +2183,11 @@ describe("liveChatRows", () => {
       reply.says("Half a reply");
 
       await listChats();
-      // Gone from memory without a write, as a crash leaves it: the digest
+      // Gone from memory without a write, as a crash leaves it, and the
+      // digest kept in memory dropped as a new launch has none: the digest
       // read next comes from the index, under the same stamp.
       reply.live.forget(reply.partId);
+      bumpChatGeneration(chatId, sessionId);
       const [chat] = await listChats();
 
       expect(chat?.latest).toMatchObject({ kind: "reply", text: "On it." });

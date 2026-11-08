@@ -12,6 +12,7 @@ import {
   createWindowMenu,
   withAppMenu,
 } from "./utils";
+import { menuSymbol } from "./symbol";
 
 export function createOtherWindowMenu(): MenuItemConstructorOptions[] {
   const fileMenu: MenuItemConstructorOptions = {
@@ -62,6 +63,7 @@ export function createOtherWindowViewMenu({
       // leaves embedded web content untouched and independent of it.
       {
         ...WINDOW_MENU_SHORTCUTS.actualSize,
+        ...menuSymbol("1.magnifyingglass"),
         click: () => {
           zoom("zoomReset");
         },
@@ -75,6 +77,7 @@ export function createOtherWindowViewMenu({
           zoom("zoomIn");
         },
         label: WINDOW_MENU_SHORTCUTS.zoomIn.label,
+        ...menuSymbol("plus.magnifyingglass"),
       },
       {
         // The other way to the same key: ⌘= on a Mac, the key pressed without
@@ -100,6 +103,7 @@ export function createOtherWindowViewMenu({
       },
       {
         ...WINDOW_MENU_SHORTCUTS.zoomOut,
+        ...menuSymbol("minus.magnifyingglass"),
         click: () => {
           zoom("zoomOut");
         },

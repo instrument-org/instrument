@@ -19,6 +19,7 @@ import {
 } from "electron";
 
 import { createOtherWindowViewMenu } from "./other-window";
+import { menuSymbol } from "./symbol";
 import {
   createDevToolsMenu,
   createEditMenu,
@@ -42,9 +43,42 @@ interface WindowChord {
   label: string;
   /** Answered by the window the chord was pressed in. */
   run: (window: BrowserWindow) => void;
+  /** The SF Symbol its menu row shows on a Mac (`menuSymbol`). */
+  symbol?: string;
   /** Drawn in the menu, or an accelerator alone behind a row already there. */
   visible?: boolean;
 }
+
+/**
+ * Each chord's SF Symbol, written for every one so that no row of the
+ * window's menus goes without while the rows around it have one.
+ */
+const CHORD_SYMBOLS: Record<WindowShortcutId, string> = {
+  back: "chevron.backward",
+  closeTab: "xmark.square",
+  commandMenu: "command",
+  editPage: "pencil",
+  fileInfo: "info.circle",
+  findInPage: "doc.text.magnifyingglass",
+  findNext: "chevron.down",
+  findPrevious: "chevron.up",
+  forward: "chevron.forward",
+  goToApps: "square.grid.2x2",
+  goToBrowser: "globe",
+  goToChat: "bubble.left.and.bubble.right",
+  goToFiles: "folder",
+  newChat: "square.and.pencil",
+  newTab: "plus.square.on.square",
+  nextChat: "arrow.down",
+  nextTab: "chevron.right",
+  previousChat: "arrow.up",
+  previousTab: "chevron.left",
+  printPage: "printer",
+  reloadPage: "arrow.clockwise",
+  reopenTab: "arrow.uturn.backward",
+  search: "magnifyingglass",
+  toggleInbox: "sidebar.left",
+};
 
 /** Sends a command to the window's renderer, which holds the tabs and the inbox: every chord's id is one. */
 const command = (name: WindowShortcutId) => (window: BrowserWindow) => {
@@ -62,6 +96,7 @@ function chord(
     id,
     label,
     run,
+    symbol: CHORD_SYMBOLS[id],
   };
 }
 
@@ -150,8 +185,12 @@ const TAB_SWITCH_CHORDS: WindowChord[] = [
   chord("previousTab"),
   ...Array.from({ length: 9 }, (_, index) => ({
     ...(index === 8
-      ? WINDOW_MENU_SHORTCUTS.lastTab
-      : { accelerator: `CmdOrCtrl+${index + 1}`, label: `Tab ${index + 1}` }),
+      ? { ...WINDOW_MENU_SHORTCUTS.lastTab, symbol: "arrow.right.to.line" }
+      : {
+          accelerator: `CmdOrCtrl+${index + 1}`,
+          label: `Tab ${index + 1}`,
+          symbol: `${index + 1}.square`,
+        }),
     run: (window: BrowserWindow) => {
       commandWindow(window, { index: index + 1, type: "selectTab" });
     },
@@ -271,6 +310,7 @@ export function createAppWindowMenu(
       { type: "separator" },
       {
         ...resolvedMenuShortcut(WINDOW_MENU_SHORTCUTS.newWindow),
+        ...menuSymbol("macwindow.badge.plus"),
         click: () => {
           windows.openNew();
         },
@@ -283,6 +323,7 @@ export function createAppWindowMenu(
         },
         enabled: windows.canReopenClosed,
         label: "Reopen Closed Window",
+        ...menuSymbol("arrow.uturn.backward.square"),
       },
       { ...WINDOW_MENU_SHORTCUTS.closeWindow, role: "close" as const },
     ],
@@ -321,6 +362,7 @@ export function createAppWindowMenu(
           }
         },
         label: "Clear Browsing Data…",
+        ...menuSymbol("trash"),
       },
     ],
   };
@@ -369,6 +411,7 @@ export function createAppWindowMenu(
           }
         },
         label: "Move Tab to New Window",
+        ...menuSymbol("macwindow.on.rectangle"),
       },
       {
         click: () => {
@@ -376,6 +419,7 @@ export function createAppWindowMenu(
         },
         enabled: windows.canMerge,
         label: "Merge All Windows",
+        ...menuSymbol("rectangle.stack"),
       },
     ]),
     createHelpMenu({
@@ -446,7 +490,7 @@ function menuItems(
   chords: WindowChord[],
   windows: WindowMenuActions,
 ): MenuItemConstructorOptions[] {
-  return chords.map(({ accelerator, id, label, run, visible }) => ({
+  return chords.map(({ accelerator, id, label, run, symbol, visible }) => ({
     accelerator,
     click: () => {
       const window = BrowserWindow.getFocusedWindow();
@@ -457,6 +501,6 @@ function menuItems(
       }
     },
     label,
-    ...(visible === false ? { visible } : {}),
+    ...(visible === false ? { visible } : symbol ? menuSymbol(symbol) : {}),
   }));
 }

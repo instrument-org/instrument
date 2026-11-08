@@ -16,6 +16,7 @@ vi.mock("electron", () => ({
     }),
     getFocusedWindow: () => inFront.window,
   },
+  nativeImage: { createMenuSymbol: () => ({}) },
 }));
 const publish = vi.hoisted(() =>
   vi.fn<(name: string, data: unknown) => void>(),

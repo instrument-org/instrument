@@ -12,6 +12,7 @@ vi.mock("@/electron-main/lib/open-external", () => ({ openExternal: vi.fn() }));
 vi.mock("@/electron-main/rpc/publisher", () => ({
   publisher: { publish: vi.fn() },
 }));
+vi.mock("./symbol", () => ({ menuSymbol: () => ({}) }));
 vi.mock("./shortcuts", () => ({
   shortcutMenuItem: (id: string) => ({ label: id }),
 }));

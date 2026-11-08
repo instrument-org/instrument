@@ -16,6 +16,7 @@ import {
 } from "electron";
 
 import { shortcutMenuItem } from "./shortcuts";
+import { menuSymbol } from "./symbol";
 
 const IS_MAC = process.platform === "darwin";
 
@@ -56,12 +57,14 @@ export function updateMenuItem(ready: boolean): MenuItemConstructorOptions {
           publisher.publish("updates.trigger-install", null);
         },
         label: "Restart to Update",
+        ...menuSymbol("arrow.triangle.2.circlepath"),
       }
     : {
         click: () => {
           publisher.publish("updates.trigger-check", null);
         },
         label: "Check for Updates…",
+        ...menuSymbol("arrow.down.circle"),
       };
 }
 
@@ -85,7 +88,7 @@ function appRows() {
       // Electron names it Exit on Windows and Quit on Linux.
       role: "quit" as const,
     },
-    settings: shortcutMenuItem("settings"),
+    settings: { ...shortcutMenuItem("settings"), ...menuSymbol("gear") },
     update: updateMenuItem(updateReady),
   } satisfies Record<string, MenuItemConstructorOptions>;
 }
@@ -200,30 +203,43 @@ export function createDevToolsMenu({
     {
       label: "Developer",
       submenu: [
-        shortcutMenuItem("reloadApp"),
-        { label: "Open Developer Tools", role: "toggleDevTools" as const },
+        {
+          ...shortcutMenuItem("reloadApp"),
+          ...menuSymbol("arrow.clockwise.circle"),
+        },
+        {
+          label: "Open Developer Tools",
+          role: "toggleDevTools" as const,
+          ...menuSymbol("hammer"),
+        },
         ...(windowCommands
           ? [
               {
                 click: commandsFocusedWindow("openDebugPages"),
                 label: "Debug Pages",
+                ...menuSymbol("ladybug"),
               },
               {
                 click: commandsFocusedWindow("toggleDeveloperStrip"),
                 label: "Toggle Developer Strip",
+                ...menuSymbol("rectangle.bottomhalf.filled"),
               },
             ]
           : []),
         { type: "separator" as const },
-        shortcutMenuItem("themeLight"),
-        shortcutMenuItem("themeDark"),
-        shortcutMenuItem("themeSystem"),
+        { ...shortcutMenuItem("themeLight"), ...menuSymbol("sun.max") },
+        { ...shortcutMenuItem("themeDark"), ...menuSymbol("moon") },
+        {
+          ...shortcutMenuItem("themeSystem"),
+          ...menuSymbol("circle.lefthalf.filled"),
+        },
         { type: "separator" as const },
         {
           click: () => {
             getWorkspacePreferences().set("developerMode", false);
           },
           label: "Turn Off Developer Mode",
+          ...menuSymbol("power"),
         },
       ],
     },
@@ -258,7 +274,11 @@ export function createHelpMenu({
         ? ([
             // No accelerator: the guide's `?` is the renderer's to answer,
             // since a bare key has to yield to whatever is being typed into.
-            { click: shortcutGuide, label: SHORTCUT_GUIDE.label },
+            {
+              click: shortcutGuide,
+              label: SHORTCUT_GUIDE.label,
+              ...menuSymbol("keyboard"),
+            },
             { type: "separator" },
           ] satisfies MenuItemConstructorOptions[])
         : []),
@@ -267,17 +287,23 @@ export function createHelpMenu({
           void openExternal(APP_URL);
         },
         label: "Learn More",
+        ...menuSymbol("questionmark.circle"),
       },
       // The app window answers feedback itself, with the log and versions
       // the person can read before sending; a window without the dialog
       // sends people to the website's support page.
       reportProblem
-        ? { click: reportProblem, label: "Send Feedback…" }
+        ? {
+            click: reportProblem,
+            label: "Send Feedback…",
+            ...menuSymbol("exclamationmark.bubble"),
+          }
         : {
             click: () => {
               void openExternal(SUPPORT_URL);
             },
             label: "Send Feedback",
+            ...menuSymbol("exclamationmark.bubble"),
           },
     ],
   };

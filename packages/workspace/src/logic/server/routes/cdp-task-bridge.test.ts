@@ -2,7 +2,11 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { WebSocket } from "ws";
 
 import { cdpMethodsHandled } from "../../../lib/cdp-methods";
-import { announceChatTab, noteTabCommand } from "../../../lib/tab-activity";
+import {
+  announceChatTab,
+  noteTabCommand,
+  takeTabNews,
+} from "../../../lib/tab-activity";
 import { StoreId } from "../../../schemas/store-id";
 import { ChatIdSchema } from "../../../schemas/chat-id";
 import { type WindowTabAction } from "../../../schemas/window-tab";
@@ -12,7 +16,7 @@ import {
   type WorkspaceConfig,
 } from "../../../types";
 import { type WorkspaceServerParentRef } from "../types";
-import { handleTaskCdpClient } from "./cdp-task-bridge";
+import { handleTaskCdpClient, isPageWork } from "./cdp-task-bridge";
 
 const TASK_ID = ChatIdSchema.parse("read-the-pages");
 
@@ -146,7 +150,9 @@ function connect(sessionId: StoreId.Session = SESSION_ID) {
         live.has(targetId) ? { partitionDir: "/tmp/profile" } : null,
       getTargetUrl: (targetId: BrowserTargetId) =>
         live.has(targetId)
-          ? (pages.get(targetId)?.url ?? "https://example.com/")
+          ? (pages.get(targetId)?.url ??
+            windowList.find((entry) => entry.id === targetId)?.url ??
+            "https://example.com/")
           : undefined,
       listTargets: () =>
         Promise.resolve(
@@ -786,7 +792,7 @@ describe("a session's browser", () => {
     });
     await other.command(
       "Runtime.evaluate",
-      { expression: "1" },
+      { expression: "document.title" },
       theirs.result?.sessionId as string,
     );
     const attached = await mine.command("Target.attachToTarget", {
@@ -796,12 +802,121 @@ describe("a session's browser", () => {
 
     await mine.command(
       "Runtime.evaluate",
-      { expression: "1" },
+      { expression: "document.title" },
       attached.result?.sessionId as string,
     );
 
     expect(takeTabNews(SESSION_ID)).toMatchObject([
       { agents: [{ sessionId: OTHER_SESSION }], targetId: shared.targetId },
     ]);
+  });
+});
+
+describe("what counts as a session's work in a page", () => {
+  it.each([
+    ["Page.navigate", { url: "https://example.com/" }, true],
+    ["Input.dispatchMouseEvent", { type: "mousePressed" }, true],
+    ["Runtime.evaluate", { expression: "document.title" }, true],
+    ["Accessibility.getFullAXTree", {}, true],
+    ["DOM.getDocument", {}, true],
+    ["Page.captureScreenshot", {}, true],
+    ["Runtime.evaluate", { expression: "1", returnByValue: true }, false],
+    ["Page.enable", {}, false],
+    ["DOM.enable", {}, false],
+    ["Runtime.runIfWaitingForDebugger", {}, false],
+    ["Target.setAutoAttach", { autoAttach: true }, false],
+    ["Emulation.setFocusEmulationEnabled", { enabled: true }, false],
+  ])("%s %j: %s", (method, params, work) => {
+    expect(isPageWork(method, params)).toBe(work);
+  });
+
+  it("tells nobody of a session that only connected to a tab and checked it answers", async () => {
+    const shared = tab({ worked: false });
+    const reader = StoreId.newSessionId();
+    noteTabCommand(
+      shared.targetId,
+      { chatId: TASK_ID, sessionId: reader },
+      Date.now() - 10_000,
+    );
+    takeTabNews(reader);
+    const { command } = connect(StoreId.newSessionId());
+    const attached = await command("Target.attachToTarget", {
+      flatten: true,
+      targetId: shared.tabId,
+    });
+    const session = attached.result?.sessionId as string;
+    await command("Page.enable", {}, session);
+    await command("Runtime.evaluate", { expression: "1" }, session);
+    noteTabCommand(shared.targetId, { chatId: TASK_ID, sessionId: reader });
+
+    expect(takeTabNews(reader)).toEqual([]);
+  });
+});
+
+describe("a session's start tab", () => {
+  /** A session new to the chat, connected, with the tab it was given to start in. */
+  async function started() {
+    const theirs = tab({ worked: false });
+    const sessionId = StoreId.newSessionId();
+    const connection = connect(sessionId);
+    const targets = await connection.command("Target.getTargets");
+    const [start] = (targets.result?.targetInfos as { targetId: string }[])
+      .map((info) => info.targetId)
+      .filter((id) => id !== theirs.tabId);
+    asked.length = 0;
+    return { ...connection, sessionId, start: start ?? "", theirs };
+  }
+
+  it("closes when the session opens a tab of its own before going anywhere", async () => {
+    const { command, events, start } = await started();
+
+    const made = await command("Target.createTarget", {
+      url: "https://example.org/",
+    });
+
+    expect(made.result?.targetId).not.toBe(start);
+    expect(asked).toContainEqual({ kind: "close", tabId: start });
+    expect(events("Target.targetDestroyed")).toContainEqual({
+      targetId: start,
+    });
+    expect(record.openedTabs.map((opened) => opened.id)).not.toContain(start);
+  });
+
+  it("closes when the session goes to work in another tab", async () => {
+    const { command, start, theirs } = await started();
+    const attached = await command("Target.attachToTarget", {
+      flatten: true,
+      targetId: theirs.tabId,
+    });
+
+    await command(
+      "Accessibility.getFullAXTree",
+      {},
+      attached.result?.sessionId as string,
+    );
+
+    expect(asked).toContainEqual({ kind: "close", tabId: start });
+  });
+
+  it("stays once the session has sent it somewhere", async () => {
+    const { command, navigates, start } = await started();
+    const startTarget = browserTargetOf(StoreId.TabSchema.parse(start));
+    await navigates(startTarget, { title: "Shop", url: "https://shop/" });
+
+    await command("Target.createTarget", { url: "https://example.org/" });
+
+    expect(asked).not.toContainEqual({ kind: "close", tabId: start });
+  });
+
+  it("is the one the session's next connection starts in, while it is still blank", async () => {
+    const { sessionId, start } = await started();
+
+    const again = connect(sessionId);
+    const targets = await again.command("Target.getTargets");
+
+    expect(asked.filter((action) => action.kind === "open")).toEqual([]);
+    expect(
+      (targets.result?.targetInfos as { targetId: string }[])[0]?.targetId,
+    ).toBe(start);
   });
 });

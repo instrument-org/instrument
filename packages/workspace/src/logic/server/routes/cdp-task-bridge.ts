@@ -110,6 +110,9 @@ export function handleTaskCdpClient(
   let closed = false;
   /** Whether this connection has looked for a tab for the session to start in. */
   let started = false;
+  /** The blank tab the session was given to start in, until it goes or closes. */
+  let startTab: Tab | undefined;
+  const key = `${chatId}/${sessionId}`;
   // Browser-level commands and events run in arrival order; a page's own
   // commands run in their session's order, beside the others.
   let queue = Promise.resolve();
@@ -257,19 +260,48 @@ export function handleTaskCdpClient(
       // navigation's does on any tab: `tab new <url>` then reads the page it
       // asked for.
       await loadInNewTab(browser, targetId, address);
+      // Sending it to a page is this session's work in it; a blank one is
+      // no work yet.
+      noteTabCommand(targetId, actor);
     }
-    noteTabCommand(targetId, actor);
     await noteOpenedTab(chatId, targetId);
     // One more tab out of sight may put the chat past what it may keep.
     void closeTabsOverCap(chatId).catch(workspaceConfig.captureException);
     return { tabId, targetId, title: "", url: address ?? "about:blank" };
   };
 
+  /** Whether a tab's page is still the blank one it was made with. */
+  const isBlank = (tab: Tab) =>
+    (browser.getTargetUrl(tab.targetId) ?? "about:blank") === "about:blank";
+
+  /**
+   * Closes the session's start tab once it has served its purpose: the
+   * session opened a tab of its own or went to work in another one, and the
+   * start tab never went anywhere, so nothing of it is left in the strip.
+   */
+  const closeStartTab = async () => {
+    const tab = startTab;
+    startTab = undefined;
+    if (!tab || !isBlank(tab)) {
+      return;
+    }
+    startTabs.delete(key);
+    forget(tab.tabId);
+    await askWindow({
+      action: { kind: "close", tabId: tab.tabId },
+      askedBy: chatId,
+      group: resolveChat(chatId),
+    });
+    await forgetOpenedTabs(chatId, new Set([tab.targetId]));
+  };
+
   /**
    * Brings what the agent knows up to the window: tabs closed since are
    * forgotten, and the chat's tabs announced. A session that has worked in
    * none of them first gets a blank tab of its own, listed first, which
-   * agent-browser starts in.
+   * agent-browser starts in: the one an earlier connection of the session's
+   * made, while it is still open and blank, or a new one. It closes once the
+   * session opens a tab or goes to work in another (`closeStartTab`).
    */
   const reconcile = async () => {
     let now = await tabs();
@@ -278,9 +310,14 @@ export function handleTaskCdpClient(
       !now.some((tab) => lastActOf(tab.targetId, sessionId) !== undefined)
     ) {
       started = true;
-      const own = await openTab();
+      const kept = now.find(
+        (tab) => tab.targetId === startTabs.get(key) && isBlank(tab),
+      );
+      const own = kept ?? (await openTab());
       if (typeof own !== "string") {
-        now = [own, ...now];
+        startTab = own;
+        startTabs.set(key, own.targetId);
+        now = [own, ...now.filter((tab) => tab !== own)];
       }
     }
     started = true;
@@ -415,6 +452,7 @@ export function handleTaskCdpClient(
       return;
     }
     await announce(tab);
+    await closeStartTab();
     answer(id, {
       targetId: tab.tabId,
     } satisfies Protocol.Target.CreateTargetResponse);
@@ -588,7 +626,15 @@ export function handleTaskCdpClient(
         answer(message.id, {});
         return;
       }
-      noteTabCommand(entry.tab.targetId, actor);
+      if (isPageWork(message.method, message.params)) {
+        noteTabCommand(entry.tab.targetId, actor);
+        // Work in another tab is the session having switched to it.
+        if (startTab && entry.tab.tabId !== startTab.tabId) {
+          queue = queue
+            .then(closeStartTab)
+            .catch(workspaceConfig.captureException);
+        }
+      }
       if (entry.session) {
         entry.session.run(message);
         return;
@@ -645,6 +691,44 @@ export function handleTaskCdpClient(
   };
   clientWs.on("close", end);
   clientWs.on("error", end);
+}
+
+/** Each session's start tab, by chat and session, for its next connection to start in again. */
+const startTabs = new Map<string, BrowserTargetId>();
+
+/** Domains whose every command acts on or reads the page, their switches aside. */
+const PAGE_DOMAINS = ["Accessibility.", "DOM.", "DOMSnapshot.", "Input."];
+
+/** Page and Runtime commands that act on or read the page. */
+const PAGE_COMMANDS = new Set([
+  "Page.captureScreenshot",
+  "Page.navigate",
+  "Page.navigateToHistoryEntry",
+  "Page.printToPDF",
+  "Page.reload",
+  "Runtime.callFunctionOn",
+  "Runtime.evaluate",
+]);
+
+/**
+ * Whether a command is a session's work in a page (a navigation, input, a
+ * script, a snapshot or a read), which another session's next result names,
+ * rather than agent-browser's bookkeeping: switching domains on or off,
+ * attaching, and the `1` it evaluates to see whether a page answers.
+ */
+export function isPageWork(method: string, params: unknown): boolean {
+  if (method.endsWith(".enable") || method.endsWith(".disable")) {
+    return false;
+  }
+  if (method === "Runtime.evaluate") {
+    const expression = (params as undefined | { expression?: unknown })
+      ?.expression;
+    return typeof expression !== "string" || expression.trim() !== "1";
+  }
+  return (
+    PAGE_COMMANDS.has(method) ||
+    PAGE_DOMAINS.some((domain) => method.startsWith(domain))
+  );
 }
 
 function isMainFrame(params: unknown): boolean {

@@ -5,7 +5,7 @@ import { createScopedLogger } from "@/electron-main/lib/electron-logger";
  * message's size is its frame's string length, which for the mostly ASCII
  * JSON oRPC sends is its size in bytes.
  */
-export const PAYLOAD_LIMITS = {
+const PAYLOAD_LIMITS = {
   /** One message this large is a procedure sending a whole thing at once. */
   messageBytes: 1_000_000,
   /** This much within a minute is a procedure sending the same thing over. */

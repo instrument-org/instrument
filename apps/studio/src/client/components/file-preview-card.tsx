@@ -203,10 +203,18 @@ export function FolderRowCard({
 /**
  * A file a reply names that this computer has no place for: written on
  * another computer, or somewhere the chat cannot reach. Drawn where a row card
- * would be and reading as missing, so the reply still shows what it handed
- * over; there is nothing to open, so it is not a control.
+ * would be, saying it is missing or which computer has it, so the reply
+ * still shows what it handed over; there is nothing to open, so it is not a
+ * control.
  */
-export function UnreachableFileRowCard({ path }: { path: string }) {
+export function UnreachableFileRowCard({
+  label,
+  path,
+}: {
+  /** Said in place of the file's kind: missing, or the computer that has it. */
+  label: string;
+  path: string;
+}) {
   const name = nameOfPath(path);
   return (
     <div
@@ -224,7 +232,7 @@ export function UnreachableFileRowCard({ path }: { path: string }) {
           {name}
         </span>
         <span className="truncate text-xs leading-[18px] font-medium text-muted-foreground">
-          {FILE_MISSING_LABEL}
+          {label}
         </span>
       </div>
     </div>

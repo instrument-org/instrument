@@ -3,6 +3,7 @@ import {
   FILE_MISSING_LABEL,
   useFilePresence,
 } from "@/client/hooks/use-file-presence";
+import { useComputersHolding } from "@/client/hooks/use-computers-holding";
 import { useHostPaths } from "@/client/hooks/use-host-paths";
 import { useOpenGestures } from "@/client/hooks/use-open-target";
 import { useShowChatFile } from "@/client/hooks/use-show-chat-file";
@@ -133,6 +134,15 @@ export function FilePathsGrid({
   // where they are. A file the task cannot reach, or one not yet translated,
   // is drawn as its line and nothing more.
   const hostPaths = useHostPaths(chatId, filePaths);
+  // Where a file with no place here is, when another computer has it.
+  const holding = useComputersHolding(
+    chatId,
+    filePaths.filter((path) => hostPaths[path] === null),
+  );
+  const missingLabel = (path: string) => {
+    const computer = holding[path];
+    return computer === undefined ? FILE_MISSING_LABEL : `On ${computer}`;
+  };
   const messages = useMessageFiles(
     filePaths.flatMap((path) => {
       const hostPath = hostPaths[path];
@@ -170,8 +180,9 @@ export function FilePathsGrid({
   ));
   const isMessage = (path: string) =>
     messages.some((entry) => entry.path === path);
-  // Answered, and with no place here: still drawn, as missing. A path not
-  // answered yet is absent and waits for its answer.
+  // Answered, and with no place here: still drawn, as missing or as on the
+  // computer that has it. A path not answered yet is absent and waits for
+  // its answer.
   const isUnreachable = (path: string) => hostPaths[path] === null;
 
   const fileOf = (filePath: string): undefined | ViewerFile => {
@@ -215,6 +226,7 @@ export function FilePathsGrid({
                 file={fileOf(path)}
                 isUnreachable={isUnreachable(path)}
                 key={path}
+                missingLabel={missingLabel(path)}
                 onClick={() => {
                   showChatFile(path);
                 }}
@@ -283,7 +295,10 @@ export function FilePathsGrid({
                 data-slot="files-grid-card"
                 key={path}
               >
-                <UnreachableFileRowCard path={path} />
+                <UnreachableFileRowCard
+                  label={missingLabel(path)}
+                  path={path}
+                />
               </div>
             ))}
           </div>
@@ -303,12 +318,15 @@ export function FilePathsGrid({
 function FileLine({
   file,
   isUnreachable,
+  missingLabel,
   onClick,
   path,
 }: {
   file: undefined | ViewerFile;
   /** This computer has no place for the path, so the line reads as missing. */
   isUnreachable: boolean;
+  /** What a missing line says in place of its kind. */
+  missingLabel: string;
   onClick: () => void;
   path: string;
 }) {
@@ -335,7 +353,7 @@ function FileLine({
       <FileTypeIcon className="size-4" fileName={filename} />
       <span className="min-w-0 flex-1 truncate">{filename}</span>
       <span className="shrink-0 text-[10px] text-muted-foreground">
-        {isMissing ? FILE_MISSING_LABEL : getFileKindLabel({ filename })}
+        {isMissing ? missingLabel : getFileKindLabel({ filename })}
       </span>
       {!isMissing && (
         <ArrowUpRightIcon className="size-3 shrink-0 text-muted-foreground" />

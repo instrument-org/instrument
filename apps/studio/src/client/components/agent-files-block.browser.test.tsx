@@ -22,6 +22,17 @@ vi.mock("@/client/hooks/use-host-paths", () => ({
       ]),
     ),
 }));
+// Of those, one on that computer's Desktop is a file only it has.
+vi.mock("@/client/hooks/use-computers-holding", () => ({
+  useComputersHolding: (_chatId: unknown, filePaths: readonly string[]) =>
+    Object.fromEntries(
+      filePaths
+        .filter((filePath) =>
+          filePath.startsWith("/Users/other-mac-user/Desktop/"),
+        )
+        .map((filePath) => [filePath, "Other Mac"]),
+    ),
+}));
 vi.mock("@/client/lib/computer-file-url", () => ({
   getComputerFileUrl: ({ hostPath }: { hostPath: string }) =>
     `http://files.example.test${hostPath}`,
@@ -181,6 +192,20 @@ test.each(["grid", "list"] as const)(
     await expect.element(getByText("plan.md")).toBeInTheDocument();
     await expect.element(getByText("here.txt")).toBeInTheDocument();
     expect(getByText("Missing").all()).toHaveLength(1);
+  },
+);
+
+test.each(["grid", "list"] as const)(
+  "says which computer has a file only it has, in the %s layout",
+  async (layout) => {
+    originAnswering(206);
+    const { getByText } = await drawFence(
+      "/Users/other-mac-user/Desktop/draft.md",
+      { layout },
+    );
+
+    await expect.element(getByText("draft.md")).toBeInTheDocument();
+    await expect.element(getByText("On Other Mac")).toBeInTheDocument();
   },
 );
 

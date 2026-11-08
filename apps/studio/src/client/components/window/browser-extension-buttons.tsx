@@ -20,6 +20,7 @@ import {
 import { useWindowPointStyle } from "@/client/hooks/use-app-zoom";
 import { useCloseOnWindowBlur } from "@/client/hooks/use-close-on-window-blur";
 import { useIsTaskPageVisible } from "@/client/hooks/use-task-page-visible";
+import { toast } from "@/client/lib/toast";
 import { cn } from "@/client/lib/utils";
 import { BROWSER_EXTENSIONS_SESSION } from "@/shared/browser-extensions";
 import { APP_NAME } from "@instrument-org/shared";
@@ -63,7 +64,7 @@ export function BrowserExtensionButtons() {
     x: number;
     y: number;
   }>(null);
-  const [notice, setNotice] = useState<BrowserExtension | null>(null);
+  const [noticeId, setNoticeId] = useState<null | string>(null);
   const pointStyle = useWindowPointStyle(buttonMenu ?? { x: 0, y: 0 });
   useCloseOnWindowBlur(buttonMenu !== null, () => {
     setButtonMenu(null);
@@ -104,9 +105,24 @@ export function BrowserExtensionButtons() {
   useEffect(() => {
     if (shown && firstRefused) {
       noticed.add(firstRefused.id);
-      setNotice(firstRefused);
+      setNoticeId(firstRefused.id);
     }
   }, [shown, firstRefused]);
+
+  // The notice reads the live list, so it goes once the app takes this
+  // browser, which the focus recheck finds when the person comes back from
+  // approving it there; a connection gets a word of its own.
+  const notice = refused.find((extension) => extension.id === noticeId) ?? null;
+  const connectedName = extensions.find(
+    (extension) =>
+      extension.id === noticeId && extension.connection === "connected",
+  )?.desktopApp?.name;
+  useEffect(() => {
+    if (connectedName) {
+      setNoticeId(null);
+      toast.success(`${connectedName} is connected to ${APP_NAME}.`);
+    }
+  }, [connectedName]);
 
   const activate = (extension: BrowserExtension) => {
     listRef.current?.shadowRoot
@@ -119,7 +135,7 @@ export function BrowserExtensionButtons() {
       modal={false}
       onOpenChange={(open) => {
         if (!open) {
-          setNotice(null);
+          setNoticeId(null);
         }
       }}
       open={notice !== null}
@@ -170,7 +186,7 @@ export function BrowserExtensionButtons() {
                   key={extension.id}
                   onActivate={() => {
                     if (isRefused(extension)) {
-                      setNotice(extension);
+                      setNoticeId(extension.id);
                     } else {
                       activate(extension);
                     }
@@ -218,7 +234,7 @@ export function BrowserExtensionButtons() {
             <NotConnectedSteps
               extension={notice}
               onDismiss={() => {
-                setNotice(null);
+                setNoticeId(null);
               }}
               tone="muted"
             />

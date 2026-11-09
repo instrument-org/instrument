@@ -20,18 +20,17 @@ function WebRoute() {
   // Beside a chat the start is one of the chat's tabs, which the page takes
   // the place of, and says nothing of itself.
   useTabSurface("view", groupTab ? null : { screen: "home" });
+  const open = (url: string) => {
+    if (groupTab) {
+      groupTab.showPage(url);
+    } else {
+      openPage(url);
+    }
+  };
   return (
     <>
-      {!groupTab && <BrowserStartControls />}
-      <WebStart
-        onOpenPage={(url) => {
-          if (groupTab) {
-            groupTab.showPage(url);
-          } else {
-            openPage(url);
-          }
-        }}
-      />
+      <BrowserStartControls onOpenPage={open} />
+      <WebStart onOpenPage={open} />
     </>
   );
 }

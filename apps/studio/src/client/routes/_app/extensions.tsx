@@ -1,4 +1,5 @@
 import { BrowserStartControls } from "@/client/components/window/browser-start-controls";
+import { useWindow } from "@/client/components/window/context";
 import { ExtensionsPage } from "@/client/components/window/extensions-page";
 import { createFileRoute } from "@tanstack/react-router";
 
@@ -11,9 +12,10 @@ export const Route = createFileRoute("/_app/extensions")({
 });
 
 function ExtensionsRoute() {
+  const { openPage } = useWindow();
   return (
     <>
-      <BrowserStartControls />
+      <BrowserStartControls onOpenPage={openPage} />
       <ExtensionsPage />
     </>
   );

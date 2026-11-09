@@ -21,6 +21,7 @@ import { WebStart } from "./web-start";
 import { asksOwnPlace, useWindow, WindowContext } from "./context";
 import { useRowSlots } from "./row-slots";
 import { BrowserExtensionButtons } from "./browser-extension-buttons";
+import { BrowserStartControls } from "./browser-start-controls";
 import { PageAgentOverlay } from "./page-agent-overlay";
 import { PageAskButton } from "./file-ask-button";
 import { GroupTabContext } from "./group-tab";
@@ -230,16 +231,18 @@ export function GroupItem({
   // The new tab a draft's group opens on, which a chat's group can be handed
   // with the draft's tabs: the web's start, whose page takes its place.
   if (isHomeTab(up)) {
+    const openFromStart = (url: string) => {
+      browser?.open(url, { group, replacing: up });
+    };
     return (
       <Bare
         anchorRef={anchorRef}
         head={row(screenLocation(up.href, { appsBySlug, taskTitles }))}
       >
-        <WebStart
-          onOpenPage={(url) => {
-            browser?.open(url, { group, replacing: up });
-          }}
-        />
+        <WindowContext value={{ ...appWindow, rowTail: slots.tail }}>
+          <BrowserStartControls onOpenPage={openFromStart} />
+        </WindowContext>
+        <WebStart onOpenPage={openFromStart} />
       </Bare>
     );
   }

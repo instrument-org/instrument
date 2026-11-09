@@ -48,6 +48,12 @@ export function readStartPages(
       AND visits.at >= ? AND visits.at <= ?
     GROUP BY urls.id, day
   `);
+  const hidden = new Set(
+    database
+      .prepare("SELECT host FROM frequent_hidden")
+      .all()
+      .map((row) => String(row.host)),
+  );
   const hosts = new Map<
     string,
     {
@@ -60,7 +66,7 @@ export function readStartPages(
   for (const row of days.iterate(now - 30 * DAY_MS, now)) {
     const page = pageOf(row);
     const host = hostnameOf(page.url);
-    if (excluded.has(page.url) || !host) {
+    if (excluded.has(page.url) || !host || hidden.has(host)) {
       continue;
     }
     const site = hosts.get(host) ?? {
@@ -128,7 +134,8 @@ function pageOf(row: Record<string, SQLOutputValue>): HistoryPage {
   };
 }
 
-function hostnameOf(url: string) {
+/** The site a page is on, as the start groups and names it; nothing for a page off the web. */
+export function hostnameOf(url: string) {
   const parsed = URL.parse(url);
   return parsed?.protocol === "http:" || parsed?.protocol === "https:"
     ? parsed.hostname.replace(/^www\./, "")

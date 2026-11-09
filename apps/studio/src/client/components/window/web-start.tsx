@@ -6,7 +6,6 @@ import {
   useBrowserStartPages,
 } from "@/client/hooks/use-browser-history";
 import { rpcClient } from "@/client/rpc/client";
-import { BookmarkSimpleIcon } from "@phosphor-icons/react/BookmarkSimple";
 import { BroomIcon } from "@phosphor-icons/react/Broom";
 import { DotsThreeVerticalIcon } from "@phosphor-icons/react/DotsThreeVertical";
 import { GlobeIcon } from "@phosphor-icons/react/Globe";
@@ -62,6 +61,28 @@ export function WebStart({
       description: bookmark.title || hostOf(bookmark.url),
     });
   };
+  // Off the row only: the site's pages stay in history and in Recent pages.
+  const setFrequentHidden = (url: string, isHidden: boolean) =>
+    rpcClient.history.setFrequentHidden.call({ isHidden, url });
+  const hideFrequent = (url: string) => {
+    setFrequentHidden(url, true)
+      .then(() => {
+        toast("Removed from Frequently visited", {
+          action: {
+            label: "Undo",
+            onClick: () => {
+              void setFrequentHidden(url, false).catch((error: unknown) => {
+                toast.error("Couldn't put the site back", { cause: error });
+              });
+            },
+          },
+          description: hostOf(url),
+        });
+      })
+      .catch((error: unknown) => {
+        toast.error("Couldn't remove the site", { cause: error });
+      });
+  };
   // Every page the person has seen, not only the dozen shown, since what
   // the rest feed is the address field's completions, and a person clearing
   // their recent pages means those too.
@@ -88,19 +109,7 @@ export function WebStart({
       <div className="mx-auto w-full max-w-5xl space-y-10 px-10 pt-20 pb-14">
         <PageSection title="Bookmarks">
           {bookmarks.length === 0 ? (
-            recent.length > 0 || frequent.length > 0 ? (
-              <div className="flex items-center gap-3 rounded-xl bg-black/2 px-4 py-4 dark:bg-white/3">
-                <BookmarkSimpleIcon
-                  aria-hidden
-                  className="size-5 shrink-0 text-muted-foreground"
-                />
-                <p className="text-[13px] text-muted-foreground">
-                  Save a page from its ⋮ menu to keep it here.
-                </p>
-              </div>
-            ) : (
-              <NoBookmarks />
-            )
+            <NoBookmarks />
           ) : (
             // Pulled in by the gap between a mark's box and its icon, so the
             // icons line up under the heading.
@@ -176,6 +185,10 @@ export function WebStart({
                 <PageContextMenu
                   key={page.url}
                   onOpen={openShortcut}
+                  onRemove={() => {
+                    hideFrequent(page.url);
+                  }}
+                  removeLabel="Remove from Frequently visited"
                   url={page.url}
                 >
                   <button

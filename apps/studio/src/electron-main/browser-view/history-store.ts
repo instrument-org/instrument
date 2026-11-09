@@ -1,4 +1,4 @@
-import { readStartPages } from "./history-start-pages";
+import { hostnameOf, readStartPages } from "./history-start-pages";
 
 import { logger } from "@/electron-main/lib/electron-logger";
 import { keepsHistory } from "@/electron-main/stores/workspace/preferences";
@@ -140,6 +140,12 @@ CREATE INDEX IF NOT EXISTS files_last_open ON files(last_open);
 CREATE TABLE IF NOT EXISTS fetched_titles (
   url TEXT PRIMARY KEY,
   title TEXT NOT NULL,
+  at INTEGER NOT NULL
+) STRICT;
+-- Sites the person took off the start's Frequently visited, by the host the
+-- start names them by; kept here so clearing history brings them back.
+CREATE TABLE IF NOT EXISTS frequent_hidden (
+  host TEXT PRIMARY KEY,
   at INTEGER NOT NULL
 ) STRICT;
 `;
@@ -338,6 +344,9 @@ export function createHistoryStore(file: string) {
       );
       database
         .prepare("DELETE FROM fetched_titles WHERE at >= ?")
+        .run(since ?? 0);
+      database
+        .prepare("DELETE FROM frequent_hidden WHERE at >= ?")
         .run(since ?? 0);
       database.exec(REFRESH);
       pagesChanged();
@@ -594,6 +603,29 @@ export function createHistoryStore(file: string) {
         .run(urlId, urlId);
       refresh(urlId);
       pagesChanged([url]);
+    },
+
+    /**
+     * Takes a page's site off the start's Frequently visited, or puts it
+     * back, leaving its visits as they are.
+     */
+    setFrequentHidden(url: string, isHidden: boolean, at: number) {
+      const host = hostnameOf(url);
+      if (host === undefined) {
+        return;
+      }
+      if (isHidden) {
+        database
+          .prepare(
+            "INSERT INTO frequent_hidden (host, at) VALUES (?, ?) ON CONFLICT(host) DO UPDATE SET at = excluded.at",
+          )
+          .run(host, at);
+      } else {
+        database
+          .prepare("DELETE FROM frequent_hidden WHERE host = ?")
+          .run(host);
+      }
+      pagesChanged();
     },
 
     /** The page's icon, as it announced it, whoever had the tab. */

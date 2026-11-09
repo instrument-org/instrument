@@ -81,6 +81,17 @@ const remove = base
     getHistoryStore().remove(input.url);
   });
 
+/**
+ * Takes a page's site off the browser start's Frequently visited, or puts it
+ * back, for "Remove from Frequently visited" and its Undo. History keeps the
+ * visits.
+ */
+const setFrequentHidden = base
+  .input(z.object({ isHidden: z.boolean(), url: z.string() }))
+  .handler(({ input }) => {
+    getHistoryStore().setFrequentHidden(input.url, input.isHidden, Date.now());
+  });
+
 const OpenedFileSchema = z.object({
   /** When the person last opened it, epoch ms. */
   at: z.number(),
@@ -184,5 +195,6 @@ export const history = {
   noteFileOpened,
   noteTypedPage,
   remove,
+  setFrequentHidden,
   summary,
 };

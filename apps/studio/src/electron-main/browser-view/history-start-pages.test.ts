@@ -225,4 +225,24 @@ describe("browser start pages", () => {
     history.clear();
     expect(history.startPages([], NOW)).toEqual({ frequent: [], recent: [] });
   });
+
+  it("takes a removed site off frequent only, until it is put back or history is cleared", () => {
+    const { history, visit } = setup();
+    for (const url of ["https://a.test/", "https://www.b.test/x"]) {
+      visit(url, NOW - DAY);
+      visit(url, NOW);
+    }
+    const frequent = () =>
+      history.startPages([], NOW).frequent.map((p) => p.url);
+    history.setFrequentHidden("https://b.test/other", true, NOW);
+    expect(frequent()).toEqual(["https://a.test/"]);
+    expect(history.startPages([], NOW).recent).toHaveLength(2);
+    expect(history.recent(12)).toHaveLength(2);
+    history.setFrequentHidden("https://b.test/", false, NOW);
+    expect(frequent()).toHaveLength(2);
+    history.setFrequentHidden("https://a.test/", true, NOW);
+    history.clear(NOW);
+    visit("https://a.test/", NOW);
+    expect(frequent()).toContain("https://a.test/");
+  });
 });

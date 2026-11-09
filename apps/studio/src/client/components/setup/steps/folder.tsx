@@ -447,7 +447,7 @@ function MovingPage({
         how === "open"
           ? "Opening your folder"
           : hasChats
-            ? "Moving your chats"
+            ? `Setting up the new ${APP_NAME}`
             : "Setting up your folder"
       }
     />

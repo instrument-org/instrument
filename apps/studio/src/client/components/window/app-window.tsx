@@ -477,6 +477,14 @@ function WindowShell({
   const filesFolder = useRouterState({
     select: (routerState) => filesFolderOf(routerState.location.href),
   });
+  // The address the screen record names a screen by. A folder or a file is
+  // recorded from what its tab shows, and a selection there writes the address.
+  const screenHref = useRouterState({
+    select: (routerState) =>
+      matchScreen(routerState.location.href).kind === "computer"
+        ? undefined
+        : routerState.location.href,
+  });
   const hrefNow = () => upRouter.state.location.href;
   const ensure = useQuery(
     rpcClient.workspace.window.ensure.queryOptions({
@@ -844,7 +852,7 @@ function WindowShell({
       ...(surfaceInView?.walked
         ? { folderPath: surfaceInView.walked.hostPath }
         : {}),
-      href: activeHref,
+      ...(screenHref === undefined ? {} : { href: screenHref }),
       ...(settings === null ? {} : { settingsTab: settingsTabOf(settings) }),
       view: screenView,
     }),

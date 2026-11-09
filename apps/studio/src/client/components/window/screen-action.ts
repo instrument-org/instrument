@@ -32,7 +32,8 @@ export function screenActionOf({
   chatTitle: (chat: ChatId) => string | undefined;
   /** The folder on screen by its path on this computer, when the tab in view says. */
   folderPath?: string;
-  href: string;
+  /** The tab's address, left out where it names a folder or a file. */
+  href?: string;
   /** The page Settings is at, while it is open. */
   settingsTab?: SettingsTab;
   view: null | ScreenView;
@@ -60,8 +61,8 @@ export function screenActionOf({
   if (view?.screen === "task" && view.task) {
     return { kind: "screen", name: `Tasks › ${view.task.title}` };
   }
-  const screen = matchScreen(href);
-  switch (screen.kind) {
+  const screen = href === undefined ? undefined : matchScreen(href);
+  switch (screen?.kind) {
     case "app": {
       return {
         kind: "screen",

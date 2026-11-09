@@ -15,11 +15,11 @@ import { describe, expect, it } from "vitest";
  * to the ones named here, which only ever get fewer.
  */
 const SKIPPED: Record<string, string> = {
+  "components/activity/activity-page.tsx#ActivityList": "IncompatibleLibrary",
   "components/document-viewers/archive-viewer.tsx#ArchiveViewer":
     "IncompatibleLibrary",
   "components/document-viewers/data-grid.tsx#DataGrid": "IncompatibleLibrary",
   "components/model-picker.tsx#VirtualRows": "IncompatibleLibrary",
-  "components/settings/activity-section.tsx#LogTable": "IncompatibleLibrary",
   "components/window/chat-list.tsx#ChatList": "IncompatibleLibrary",
   "components/window/command-menu.tsx#ResultRows": "IncompatibleLibrary",
   "components/window/use-window-commands.ts#useWindowCommands": "Todo",

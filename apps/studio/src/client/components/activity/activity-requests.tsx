@@ -14,7 +14,6 @@ import { cn } from "@/client/lib/utils";
 import { rpcClient } from "@/client/rpc/client";
 import { modelDisplayName } from "@instrument-org/ai-gateway/client";
 import { AIProviderTypeSchema } from "@instrument-org/shared";
-import { ArrowLeftIcon } from "@phosphor-icons/react/ArrowLeft";
 import { ArrowUpRightIcon } from "@phosphor-icons/react/ArrowUpRight";
 import { CaretRightIcon } from "@phosphor-icons/react/CaretRight";
 import { useQuery } from "@tanstack/react-query";
@@ -324,58 +323,19 @@ export function turnDuration(turn: Turn) {
   return formatDuration(Math.max(...ends) - Math.min(...starts));
 }
 
-function BackToActivity({
-  label,
-  onBack,
-}: {
-  label: string;
-  onBack: () => void;
-}) {
-  return (
-    <button
-      className="inline-flex items-center gap-2 text-sm text-muted-foreground hover:text-foreground"
-      onClick={onBack}
-      type="button"
-    >
-      <ArrowLeftIcon className="size-4" />
-      {label}
-    </button>
-  );
-}
-
-/** Everything recorded about one request, with a way back to its turn. */
-export function RequestDetail({
-  id,
-  onBack,
-}: {
-  id: string;
-  onBack: () => void;
-}) {
+/** Everything recorded about one request. */
+export function RequestDetail({ id }: { id: string }) {
   const { data: row } = useQuery(
     rpcClient.workspace.activity.byId.queryOptions({ input: { id } }),
   );
 
   return (
     <div className="space-y-4">
-      <div className="flex items-center gap-2 pr-8">
-        <BackToActivity label="Back" onBack={onBack} />
-        <span className="flex-1" />
-        {row ? (
-          <CopyButton
-            className="rounded-sm p-1 text-muted-foreground hover:bg-foreground/10 hover:text-foreground"
-            label="Copy details"
-            onCopy={() =>
-              navigator.clipboard.writeText(JSON.stringify(row, null, 2))
-            }
-            tooltip="Copy details"
-          />
-        ) : null}
-      </div>
       {row ? (
         <>
           <div className="flex items-center gap-3">
             <ConnectionMark type={row.connectionType} />
-            <div className="min-w-0">
+            <div className="min-w-0 flex-1">
               <div className="truncate font-medium">
                 {`${PURPOSE_LABELS[row.purpose]} · ${KIND_LABELS[row.kind]}`}
               </div>
@@ -383,6 +343,14 @@ export function RequestDetail({
                 {originOf(row) || "No chat"}
               </div>
             </div>
+            <CopyButton
+              className="shrink-0 rounded-sm p-1 text-muted-foreground hover:bg-foreground/10 hover:text-foreground"
+              label="Copy details"
+              onCopy={() =>
+                navigator.clipboard.writeText(JSON.stringify(row, null, 2))
+              }
+              tooltip="Copy details"
+            />
           </div>
           <div className="divide-y divide-border">
             <DetailGroup title="Request">

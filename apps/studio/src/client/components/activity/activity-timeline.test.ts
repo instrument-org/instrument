@@ -547,13 +547,13 @@ describe("turnText", () => {
       ]),
     ]).toMatchInlineSnapshot(`
       [
-        "Kitchen remodel quotes | Answered · Claude Haiku 5.5 · 4 requests",
+        "Kitchen remodel quotes | Claude Haiku 5.5 · 4 requests",
         "Kitchen remodel quotes | Named a chat · Claude Haiku 5.5 · 1 request",
         "Kitchen remodel quotes | Suggested a reply · Claude Haiku 5.5 · 1 request",
         "Kitchen remodel quotes | Made an image · Claude Haiku 5.5 · 1 request",
         "Kitchen remodel quotes | Searched the web · Claude Haiku 5.5 · 1 request",
-        "Kitchen remodel quotes | Worked on a task · Claude Haiku 5.5 · 1 request",
-        "Deleted chat | Answered · Claude Haiku 5.5 · 1 request",
+        "Kitchen remodel quotes | Claude Haiku 5.5 · 1 request",
+        "Deleted chat | Claude Haiku 5.5 · 1 request",
         "Searched Settings | 1 request",
       ]
     `);

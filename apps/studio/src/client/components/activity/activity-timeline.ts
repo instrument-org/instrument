@@ -610,6 +610,9 @@ const DID: Record<Purpose, string> = {
   "x-search": "Searched X",
 };
 
+/** What a chat does when it answers, which its row leaves unsaid. */
+const ANSWERS: ReadonlySet<Purpose> = new Set(["chat", "task"]);
+
 /** The purposes that name a turn ahead of the rest of its requests, first first. */
 const LEADING: readonly Purpose[] = [
   "chat",
@@ -678,8 +681,11 @@ export function turnParts(
   const did = DID[lead.purpose];
   const chat =
     lead.chatId === null ? undefined : (lead.chatTitle ?? "Deleted chat");
+  // A chat's own turn needs no word for what it did: it answered, as a
+  // chat does. Anything else it did says so.
+  const says = chat !== undefined && !ANSWERS.has(lead.purpose);
   return {
-    ...(chat === undefined ? {} : { did }),
+    ...(says ? { did } : {}),
     ...(maker === undefined ? {} : { maker }),
     model: modelName(id),
     requests,

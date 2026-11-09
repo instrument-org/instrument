@@ -20,6 +20,11 @@ import { CopyButton } from "@/client/components/copy-button";
 import { FolderTrail } from "@/client/components/folder-trail";
 import { Button } from "@/client/components/ui/button";
 import {
+  Tooltip,
+  TooltipContent,
+  TooltipTrigger,
+} from "@/client/components/ui/tooltip";
+import {
   InfoFrame,
   InfoRow,
   PathInfo,
@@ -31,8 +36,10 @@ import { type OpenTarget } from "@/client/lib/open-target";
 import { showInFolder, showInFolderLabel } from "@/client/lib/show-in-files";
 import { commandKeyHeld, osConventions } from "@/client/lib/utils";
 import { rpcClient } from "@/client/rpc/client";
+import { ArrowLeftIcon } from "@phosphor-icons/react/ArrowLeft";
+import { TrashIcon } from "@phosphor-icons/react/Trash";
 import { XIcon } from "@phosphor-icons/react/X";
-import { skipToken, useQuery } from "@tanstack/react-query";
+import { useQuery } from "@tanstack/react-query";
 import { type ReactNode, useState } from "react";
 
 const dayFormat = new Intl.DateTimeFormat(displayLocale, {
@@ -101,12 +108,12 @@ function fileOf(action: ShownAction): string | undefined {
 
 /**
  * The details of the row picked, beside the list, drawn the way Files' Info
- * card is: a header with its mark, name and kind, then a row per fact. A
- * file or folder shows Files' own Info about it; everything else shows
- * what Activity knows. Under the facts are the other times it was opened,
- * and at the foot the ways to open it and to take it out of Activity. An
- * AI row lists its requests, each opening what was recorded about it,
- * rather than what was said, which is the chat's to show.
+ * card is: a file's picture large, a header with its mark, name and kind,
+ * then a row per fact. A file or folder shows Files' own Info about it;
+ * everything else shows what Activity knows, then the other times it was
+ * opened. Its bar puts the way to open it first, and Remove and Close at
+ * its end. An AI row lists its requests, each opening what was recorded
+ * about it, rather than what was said, which is the chat's to show.
  */
 export function ActivityDetails({
   entry,
@@ -126,18 +133,11 @@ export function ActivityDetails({
   return (
     <aside
       aria-label="Details"
-      className="relative flex min-h-0 w-full flex-col overflow-hidden rounded-xl border border-border bg-card"
+      className="flex min-h-0 w-full flex-col overflow-hidden rounded-xl border border-border bg-card"
     >
-      {request === null ? (
-        <>
-          <div className="flex min-h-0 flex-1 flex-col overflow-y-auto">
-            {entry.kind === "turn" ? (
-              <TurnDetails entry={entry} onOpenRequest={setRequest} />
-            ) : (
-              <ActionDetails action={entry.action} at={entry.at} />
-            )}
-          </div>
-          <div className="flex shrink-0 flex-wrap items-center gap-2 border-t border-border p-3">
+      <div className="flex shrink-0 items-center gap-1.5 border-b border-border p-2">
+        {request === null ? (
+          <>
             <OpenButton label={openLabel(action)} target={target} />
             {filePath ? (
               <Button
@@ -145,37 +145,60 @@ export function ActivityDetails({
                   void showInFolder(filePath, { kind: "file" });
                 }}
                 size="sm"
-                variant="outline"
+                variant="ghost"
               >
                 {showInFolderLabel("file")}
               </Button>
             ) : null}
-            <span className="flex-1" />
-            {onRemove ? (
-              <Button onClick={onRemove} size="sm" variant="ghost-destructive">
-                Remove from Activity
-              </Button>
-            ) : null}
-          </div>
-        </>
-      ) : (
-        <div className="min-h-0 flex-1 overflow-y-auto p-4">
-          <RequestDetail
-            id={request}
-            onBack={() => {
+          </>
+        ) : (
+          <Button
+            onClick={() => {
               setRequest(null);
             }}
-          />
-        </div>
-      )}
-      <button
-        aria-label="Close"
-        className="absolute top-2 right-2 grid size-6 place-items-center rounded-md text-muted-foreground hover:bg-accent hover:text-foreground"
-        onClick={onClose}
-        type="button"
-      >
-        <XIcon className="size-3.5" />
-      </button>
+            size="sm"
+            variant="ghost"
+          >
+            <ArrowLeftIcon />
+            Back
+          </Button>
+        )}
+        <span className="flex-1" />
+        {onRemove ? (
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <Button
+                aria-label="Remove from Activity"
+                onClick={onRemove}
+                size="icon-sm"
+                variant="ghost"
+              >
+                <TrashIcon className="size-4" />
+              </Button>
+            </TooltipTrigger>
+            <TooltipContent>Remove from Activity</TooltipContent>
+          </Tooltip>
+        ) : null}
+        <Button
+          aria-label="Close"
+          onClick={onClose}
+          size="icon-sm"
+          variant="ghost"
+        >
+          <XIcon className="size-4" />
+        </Button>
+      </div>
+      <div className="flex min-h-0 flex-1 flex-col overflow-y-auto">
+        {request !== null ? (
+          <div className="p-4">
+            <RequestDetail id={request} />
+          </div>
+        ) : entry.kind === "turn" ? (
+          <TurnDetails entry={entry} onOpenRequest={setRequest} />
+        ) : (
+          <ActionDetails action={entry.action} at={entry.at} />
+        )}
+      </div>
     </aside>
   );
 }
@@ -203,7 +226,7 @@ function OpenButton({
         }
       }}
       size="sm"
-      variant="outline"
+      variant="default"
     >
       {label}
     </Button>
@@ -254,27 +277,27 @@ function Section({ children, title }: { children: ReactNode; title: string }) {
   );
 }
 
-/** When the row happened, and the other times the person opened what it names, newest first. */
-function Times({
+/** The other times the person opened what a row names, newest first, under the row's own facts; nothing when there are none. */
+function OtherTimes({
   at,
-  did,
   of,
 }: {
   at: number;
-  did: string;
-  of?: { download: true; path: string } | { path: string } | { url: string };
+  of: { download: true; path: string } | { path: string } | { url: string };
 }) {
   const { data } = useQuery(
-    rpcClient.activity.openings.queryOptions({ input: of ?? skipToken }),
+    rpcClient.activity.openings.queryOptions({ input: of }),
   );
   // The row's own opening is among them, and the rest are the others.
   const others = (data ?? [])
     .filter((each) => Date.parse(each.at) !== at)
     .slice(0, 8);
+  if (others.length === 0) {
+    return null;
+  }
   return (
-    <Section title="In Activity">
+    <Section title="Other times">
       <dl>
-        <InfoRow label={did}>{whenOf(at)}</InfoRow>
         {others.map((each) => (
           <InfoRow
             key={`${each.kind}:${each.at}`}
@@ -294,6 +317,24 @@ function Times({
       </dl>
     </Section>
   );
+}
+
+/**
+ * What was done and when, as one more row of the facts: inside a header's
+ * own rows, or under Files' Info for a file or folder, as if it were one
+ * of its rows.
+ */
+function WhenRow({
+  at,
+  did,
+  under = false,
+}: {
+  at: number;
+  did: string;
+  under?: boolean;
+}) {
+  const row = <InfoRow label={did}>{whenOf(at)}</InfoRow>;
+  return under ? <dl className="-mt-2 px-3 pb-2">{row}</dl> : row;
 }
 
 /** A row that is not a file or folder, under a header of its own mark, name and what it was. */
@@ -324,6 +365,12 @@ function ActionDetails({ action, at }: { action: ShownAction; at: number }) {
   const words = { trash: osConventions().trash };
   const text = actionText(action, words);
   const entry: TimelineEntry = { action, at, id: "", kind: "action" };
+  const own = (sub: string, rows: ReactNode, did: string) => (
+    <OwnInfo entry={entry} sub={sub} title={text.title}>
+      {rows}
+      <WhenRow at={at} did={did} />
+    </OwnInfo>
+  );
   switch (action.kind) {
     case "file":
     case "open-with":
@@ -331,11 +378,8 @@ function ActionDetails({ action, at }: { action: ShownAction; at: number }) {
       return (
         <>
           <PathInfo hostPath={action.path} kind="file" />
-          <Times
-            at={at}
-            did={text.context || "Opened"}
-            of={{ path: action.path }}
-          />
+          <WhenRow at={at} did={text.context || "Opened"} under />
+          <OtherTimes at={at} of={{ path: action.path }} />
         </>
       );
     }
@@ -343,18 +387,11 @@ function ActionDetails({ action, at }: { action: ShownAction; at: number }) {
       return (
         <>
           <PathInfo hostPath={action.path} kind="file" />
-          {action.url ? (
-            <div className="border-t border-border px-3 py-2">
-              <dl>
-                <AddressFact label="From" url={action.url} />
-              </dl>
-            </div>
-          ) : null}
-          <Times
-            at={at}
-            did="Downloaded"
-            of={{ download: true, path: action.path }}
-          />
+          <dl className="-mt-2 px-3 pb-2">
+            {action.url ? <AddressFact label="From" url={action.url} /> : null}
+            <InfoRow label="Downloaded">{whenOf(at)}</InfoRow>
+          </dl>
+          <OtherTimes at={at} of={{ download: true, path: action.path }} />
         </>
       );
     }
@@ -362,7 +399,10 @@ function ActionDetails({ action, at }: { action: ShownAction; at: number }) {
       return (
         <>
           <PathInfo hostPath={action.to} kind="file" />
-          <Times at={at} did={`Renamed from ${nameOf(action.from)}`} />
+          <dl className="-mt-2 px-3 pb-2">
+            <InfoRow label="Was">{nameOf(action.from)}</InfoRow>
+            <InfoRow label="Renamed">{whenOf(at)}</InfoRow>
+          </dl>
         </>
       );
     }
@@ -371,127 +411,96 @@ function ActionDetails({ action, at }: { action: ShownAction; at: number }) {
       return (
         <>
           <PathInfo hostPath={action.path} kind="folder" />
-          <Times at={at} did={action.kind === "folder" ? "Opened" : "Made"} />
+          <WhenRow
+            at={at}
+            did={action.kind === "folder" ? "Opened" : "Made"}
+            under
+          />
         </>
       );
     }
     case "move":
     case "copy": {
-      return (
+      return own(
+        text.context,
         <>
-          <OwnInfo entry={entry} sub={text.context} title={text.title}>
-            <InfoRow label="Files">
-              {action.names.map(nameOf).join(", ")}
-            </InfoRow>
-            <FolderFact label="From" path={action.from} />
-            <FolderFact label="To" path={action.to} />
-          </OwnInfo>
-          <Times at={at} did={action.kind === "move" ? "Moved" : "Copied"} />
-        </>
+          <InfoRow label="Files">{action.names.map(nameOf).join(", ")}</InfoRow>
+          <FolderFact label="From" path={action.from} />
+          <FolderFact label="To" path={action.to} />
+        </>,
+        action.kind === "move" ? "Moved" : "Copied",
       );
     }
     case "trash": {
       const first = action.paths[0];
-      return (
+      return own(
+        text.context,
         <>
-          <OwnInfo entry={entry} sub={text.context} title={text.title}>
-            <InfoRow label="Files">
-              {action.paths.map(nameOf).join(", ")}
-            </InfoRow>
-            {first === undefined ? null : (
-              <FolderFact label="From" path={folderOf(first)} />
-            )}
-          </OwnInfo>
-          <Times at={at} did="Moved" />
-        </>
+          <InfoRow label="Files">{action.paths.map(nameOf).join(", ")}</InfoRow>
+          {first === undefined ? null : (
+            <FolderFact label="From" path={folderOf(first)} />
+          )}
+        </>,
+        "Moved",
       );
     }
     case "page": {
       return (
         <>
-          <OwnInfo entry={entry} sub={text.context} title={text.title}>
-            <AddressFact url={action.url} />
-          </OwnInfo>
-          <Times at={at} did="Visited" of={{ url: action.url }} />
+          {own(text.context, <AddressFact url={action.url} />, "Visited")}
+          <OtherTimes at={at} of={{ url: action.url }} />
         </>
       );
     }
     case "permission": {
-      return (
+      return own(
+        "Permission",
         <>
-          <OwnInfo entry={entry} sub="Permission" title={text.title}>
-            <InfoRow label="Chat">{action.title}</InfoRow>
-            {action.path === undefined ? (
-              <InfoRow label="App">{action.app}</InfoRow>
-            ) : (
-              <FolderFact label="Folder" path={action.path} />
-            )}
-            <InfoRow label="Answer">
-              {action.did === "allowed" ? "Allowed" : "Didn't allow"}
-            </InfoRow>
-          </OwnInfo>
-          <Times at={at} did="Answered" />
-        </>
+          <InfoRow label="Chat">{action.title}</InfoRow>
+          {action.path === undefined ? (
+            <InfoRow label="App">{action.app}</InfoRow>
+          ) : (
+            <FolderFact label="Folder" path={action.path} />
+          )}
+          <InfoRow label="Answer">
+            {action.did === "allowed" ? "Allowed" : "Didn't allow"}
+          </InfoRow>
+        </>,
+        "Answered",
       );
     }
     case "error": {
-      return (
-        <>
-          <OwnInfo
-            entry={entry}
-            sub={action.where ? `In ${action.where}` : "Error"}
-            title="Error"
-          >
-            <InfoRow label="Said">{action.message}</InfoRow>
-          </OwnInfo>
-          <Times at={at} did="Shown" />
-        </>
+      return own(
+        action.where ? `In ${action.where}` : "Error",
+        null,
+        "Shown",
       );
     }
     case "update": {
-      return (
+      return own(
+        "Update",
         <>
-          <OwnInfo entry={entry} sub="Update" title={text.title}>
-            <InfoRow label="From">{action.from}</InfoRow>
-            <InfoRow label="To">{action.to}</InfoRow>
-          </OwnInfo>
-          <Times at={at} did="Updated" />
-        </>
+          <InfoRow label="From">{action.from}</InfoRow>
+          <InfoRow label="To">{action.to}</InfoRow>
+        </>,
+        "Updated",
       );
     }
     case "setting": {
-      return (
-        <>
-          <OwnInfo entry={entry} sub="Setting" title={action.name}>
-            <InfoRow label="Changed to">{action.value}</InfoRow>
-          </OwnInfo>
-          <Times at={at} did="Changed" />
-        </>
+      return own(
+        "Setting",
+        <InfoRow label="Changed to">{action.value}</InfoRow>,
+        "Changed",
       );
     }
     case "chat": {
-      return (
-        <>
-          <OwnInfo entry={entry} sub="Chat" title={text.title} />
-          <Times at={at} did="Opened" />
-        </>
-      );
+      return own("Chat", null, "Opened");
     }
     case "app": {
-      return (
-        <>
-          <OwnInfo entry={entry} sub="App" title={text.title} />
-          <Times at={at} did={text.context} />
-        </>
-      );
+      return own("App", null, text.context);
     }
     case "screen": {
-      return (
-        <>
-          <OwnInfo entry={entry} sub="Screen" title={text.title} />
-          <Times at={at} did="Opened" />
-        </>
-      );
+      return own("Screen", null, "Opened");
     }
   }
 }

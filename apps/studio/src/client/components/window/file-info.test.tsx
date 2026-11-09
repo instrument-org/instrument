@@ -13,8 +13,12 @@ vi.mock("@/client/hooks/use-active-tab", () => ({
 vi.mock("@/client/hooks/use-watched-file-url", () => ({
   useWatchedFileUrl: () => undefined,
 }));
-vi.mock("@/client/hooks/use-file-open-target", () => ({
-  useFileOpenTarget: () => ({ appName: "Finder" }),
+vi.mock("@/client/hooks/use-file-open-control", () => ({
+  useFileOpenControl: () => ({
+    appName: "Finder",
+    open: () => {},
+    openLabel: "Open in Finder",
+  }),
 }));
 vi.mock("@/client/components/open-target-icon", () => ({
   OpenTargetIcon: () => null,

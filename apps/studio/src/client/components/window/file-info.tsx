@@ -11,8 +11,10 @@ import {
 import { FolderTrail } from "@/client/components/folder-trail";
 import { OpenTargetIcon } from "@/client/components/open-target-icon";
 import { useIsActiveTab } from "@/client/hooks/use-active-tab";
-import { useFileOpenTarget } from "@/client/hooks/use-file-open-target";
+import { useFileOpenControl } from "@/client/hooks/use-file-open-control";
+import { useTheme } from "@/client/components/theme-provider";
 import { useWatchedFileUrl } from "@/client/hooks/use-watched-file-url";
+import { getComputerThumbnailUrl } from "@/client/lib/computer-file-url";
 import { getFileType } from "@/client/lib/get-file-type";
 import { isTypingTarget } from "@/client/lib/is-typing-target";
 import { cn, currentOs } from "@/client/lib/utils";
@@ -243,8 +245,9 @@ function useFileItem(hostPath: string | undefined) {
 /**
  * What Info says about a file or folder named by its path, for a place that
  * shows one beside a list rather than over a folder (Activity's details):
- * the card's own header and rows, without the card. A path with nothing at
- * it any more says so under its name, and where it was.
+ * a file's picture large, as the system draws it, then the card's own
+ * header and rows, without the card. A path with nothing at it any more
+ * says so under its name, and where it was.
  */
 export function PathInfo({
   hostPath,
@@ -260,17 +263,30 @@ export function PathInfo({
     }),
   );
   const item = useFileItem(hostPath);
-  if (item) {
-    return kind === "folder" ? (
-      <FolderInfo
-        isAskedFor={false}
-        item={{ ...item, kind: "folder", kindLabel: "Folder" }}
+  const name = folderNameFromPath(hostPath);
+  const picture =
+    kind === "file" ? (
+      <LargePicture
+        hostPath={hostPath}
+        name={name}
+        version={item?.modifiedAt}
       />
-    ) : (
-      <FileInfo item={item} />
+    ) : null;
+  if (item) {
+    return (
+      <>
+        {picture}
+        {kind === "folder" ? (
+          <FolderInfo
+            isAskedFor={false}
+            item={{ ...item, kind: "folder", kindLabel: "Folder" }}
+          />
+        ) : (
+          <FileInfo item={item} />
+        )}
+      </>
     );
   }
-  const name = folderNameFromPath(hostPath);
   return (
     <InfoFrame
       name={name}
@@ -281,10 +297,50 @@ export function PathInfo({
           <FileTypeIcon className="size-9" fileName={name} />
         )
       }
-      sub={listing.isPending ? "" : "Not there any more"}
+      sub={listing.isPending ? "" : "Can’t be found"}
     >
       <WhereRow hostPath={hostPath} />
     </InfoFrame>
+  );
+}
+
+/**
+ * A file as the system draws it, large: a picture, a PDF's first page, a
+ * page as a page. A file with no picture shows its kind's icon instead.
+ */
+function LargePicture({
+  hostPath,
+  name,
+  version,
+}: {
+  hostPath: string;
+  name: string;
+  version: string | undefined;
+}) {
+  const { resolvedTheme } = useTheme();
+  const url = getComputerThumbnailUrl({
+    hostPath,
+    size: 512,
+    theme: resolvedTheme === "dark" ? "dark" : "light",
+    ...(version === undefined ? {} : { version }),
+  });
+  const [failed, setFailed] = useState<string | undefined>();
+  return (
+    <div className="grid h-52 shrink-0 place-items-center border-b border-border bg-foreground/3 p-4">
+      {url && failed !== url ? (
+        <img
+          alt=""
+          className="max-h-full max-w-full rounded-sm object-contain shadow-sm ring-1 ring-black/10"
+          draggable={false}
+          onError={() => {
+            setFailed(url);
+          }}
+          src={url}
+        />
+      ) : (
+        <FileTypeIcon className="size-16" fileName={name} />
+      )}
+    </div>
   );
 }
 
@@ -357,7 +413,10 @@ function FileInfo({ item }: { item: FileInfoItem }) {
     }),
     refetchOnWindowFocus: false,
   });
-  const opens = useFileOpenTarget({ hostPath: item.hostPath });
+  const opens = useFileOpenControl(
+    { hostPath: item.hostPath },
+    { loadCandidates: false },
+  );
   const titles = useQuery(
     rpcClient.workspace.computer.titles.queryOptions({
       input: TITLED_NAME.test(item.name)
@@ -407,13 +466,19 @@ function FileInfo({ item }: { item: FileInfoItem }) {
       <DateRows item={item} />
       {opens.appName && !item.isPackage ? (
         <InfoRow label="Opens with">
-          <span className="flex min-w-0 items-center gap-1.5">
+          {/* The app named is a way to open it there, as a click on it says. */}
+          <button
+            className="-mx-1 flex max-w-full min-w-0 items-center gap-1.5 rounded px-1 hover:bg-accent"
+            onClick={opens.open}
+            title={opens.openLabel}
+            type="button"
+          >
             <OpenTargetIcon
               className="size-3.5 shrink-0"
               file={{ hostPath: item.hostPath }}
             />
             <span className="truncate">{opens.appName}</span>
-          </span>
+          </button>
         </InfoRow>
       ) : null}
     </InfoFrame>

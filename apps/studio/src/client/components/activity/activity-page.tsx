@@ -304,9 +304,24 @@ export function ActivityPage({
         <div className="flex items-start gap-3">
           <div className="min-w-0 flex-1">
             <h1 className="text-xl font-semibold">Activity</h1>
-            <p className="mt-1 flex items-center gap-1.5 text-sm text-muted-foreground">
-              <LockSimpleIcon className="size-3.25 shrink-0" />
-              {`${APP_NAME} keeps a history of what you do in it on this computer.`}
+            {/* Someone can land here from the window's corner without
+              looking for it, so the page says what this is and who reads
+              it before anything else. */}
+            <p className="mt-1 flex max-w-170 items-start gap-1.5 text-sm text-muted-foreground">
+              <LockSimpleIcon className="mt-1 size-3.25 shrink-0" />
+              <span>
+                {`This is what you've done in ${APP_NAME}, kept on this computer so you can find things again. Chats can read it to tell which file you mean, and you can change that in `}
+                <button
+                  className="text-foreground underline-offset-2 hover:underline"
+                  onClick={() => {
+                    openSettings({ tab: "Activity" });
+                  }}
+                  type="button"
+                >
+                  Activity settings
+                </button>
+                .
+              </span>
             </p>
           </div>
           <PageMenu

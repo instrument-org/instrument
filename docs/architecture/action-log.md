@@ -2,7 +2,7 @@
 
 What the person did in Instrument: folders and files opened, edits saved, files moved, copied, renamed or trashed, other chats opened, pages visited and files downloaded in the app's browser, settings changed, apps signed in to or disconnected, updates installed, folders and apps allowed or refused a chat, and errors the app showed them. Only what happens in Instrument is kept. Nothing the person does in another app is, and nothing about what a page or file says.
 
-It has four readers: the person, in Activity; the chat's agent, so "put them back" or "the weather there" resolves without the person attaching anything; a feedback report, when the person leaves its row on; and a developer debugging the app, who reads the same files beside the dev log.
+It has four readers: the person, in Activity, whose page says under its title what the history is for and who reads it; the chat's agent, so "put them back" or "the weather there" resolves without the person attaching anything; a feedback report, when the person switches its row on; and a developer debugging the app, who reads the same files beside the dev log.
 
 ## The records
 
@@ -72,7 +72,7 @@ Clear activity… opens a dialog modeled on Clear browsing data ([clear-activity
 
 ## Reports
 
-The feedback dialog offers the 30 minutes before it opened as a row, "Your activity", the one row with a switch to leave it out, since it is about more than the chat or error being reported ([feedback-dialog.tsx](../../apps/studio/src/client/components/studio-modals/feedback-dialog.tsx)). It is sent as `diagnostics/actions.jsonl`, the three records together, through the report's redactor like everything else ([problem-reports.ts](../../apps/studio/src/electron-main/lib/problem-reports.ts)).
+The feedback dialog offers the 30 minutes before it opened as a row, "Your activity", off until the person switches it on, since it is about more than the chat or error being reported ([feedback-dialog.tsx](../../apps/studio/src/client/components/studio-modals/feedback-dialog.tsx)). It is sent as `diagnostics/actions.jsonl` with names and places taken out first (`redactedAction` in [problem-reports.ts](../../apps/studio/src/electron-main/lib/problem-reports.ts)): a file or folder becomes its kind (`a .pdf file`, `a folder`), a page its site, a chat and a task go without their titles and an error's quoted names are dropped, so a report says how the app was used and not what on. Then it goes through the report's redactor like everything else. Its View page lists the lines the way Activity's rows read.
 
 ## Checks
 

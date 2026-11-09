@@ -196,11 +196,17 @@ describe("FeedbackDialogContent", () => {
       .mock.calls.at(-1)?.[0]
       .items.map((each) => each.id);
 
-  it("sends what the person did in the app with the rest", async () => {
+  it("sends what the person did in the app only when they switch it on", async () => {
     await open();
     expect(
       screen.getByText(
-        "What you did in Instrument in the 30 minutes before this.",
+        "Off, so this stays on your Mac. Turn it on to send what you did in the 30 minutes before this, without names.",
+      ),
+    ).toBeTruthy();
+    fireEvent.click(screen.getByRole("switch", { name: "Send your activity" }));
+    expect(
+      screen.getByText(
+        "What you did in Instrument in the 30 minutes before this, without the names of your files, pages or chats.",
       ),
     ).toBeTruthy();
     fireEvent.click(screen.getByRole("button", { name: "Send" }));
@@ -209,25 +215,27 @@ describe("FeedbackDialogContent", () => {
     });
   });
 
-  it("leaves out what the person did in the app when they switch it off", async () => {
+  it("leaves out what the person did in the app unless they switch it on", async () => {
     await open();
-    fireEvent.click(screen.getByRole("switch", { name: "Send your activity" }));
-    expect(screen.getByText("This stays on your Mac.")).toBeTruthy();
     fireEvent.click(screen.getByRole("button", { name: "Send" }));
     await waitFor(() => {
       expect(sentItems()).toEqual(["chat", "diagnostics"]);
     });
   });
 
-  it("shows what the person did as sentences, with its switch at the foot", async () => {
+  it("shows what the person did a line each, with its switch at the foot", async () => {
     await open();
     fireEvent.click(screen.getByRole("button", { name: "View Your activity" }));
     expect(screen.getByRole("heading", { name: "Your activity" })).toBeTruthy();
-    expect(screen.getByText("Opened the folder “Downloads”")).toBeTruthy();
+    expect(screen.getByText("Downloads")).toBeTruthy();
     fireEvent.click(
       screen.getByRole("switch", { name: "Send with your feedback" }),
     );
     fireEvent.click(screen.getByRole("button", { name: "Done" }));
-    expect(screen.getByText("This stays on your Mac.")).toBeTruthy();
+    expect(
+      screen.getByText(
+        "What you did in Instrument in the 30 minutes before this, without the names of your files, pages or chats.",
+      ),
+    ).toBeTruthy();
   });
 });

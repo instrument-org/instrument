@@ -27,7 +27,6 @@ import {
   type FeedbackImageType,
 } from "@/shared/feedback-images";
 import { osConventionsFor } from "@/shared/os-conventions";
-import { pageAddress } from "@instrument-org/shared";
 import { app } from "electron";
 import {
   type ExceptionEvent,
@@ -641,11 +640,100 @@ async function recentActions(): Promise<Action[]> {
   }
 }
 
+/** A file or folder as feedback names it: what kind of file, never its name or where it is. */
+function pathKind(filePath: string): string {
+  const name = path.basename(filePath.replace(/[\\/]+$/, ""));
+  const dot = name.lastIndexOf(".");
+  return dot > 0 && dot < name.length - 1
+    ? `a .${name.slice(dot + 1).toLowerCase()} file`
+    : "a folder";
+}
+
+/** A page's address as feedback names it: its site alone. */
+function siteAddress(url: string): string {
+  const parsed = URL.parse(url);
+  return parsed && parsed.origin !== "null" ? parsed.origin : "a page";
+}
+
+/**
+ * One thing the person did as feedback sends it: enough to tell how they
+ * used the app and nothing about what it was used on. A file or folder is
+ * its kind (`a .pdf file`, `a folder`), a page its site, a chat and a
+ * task go without their titles, and an error's quoted names are taken
+ * out. Apps, settings, screens and versions are the app's own words and
+ * stay.
+ */
+export function redactedAction(action: Action): Action {
+  switch (action.kind) {
+    case "folder": {
+      const { selected: _, ...rest } = action;
+      return { ...rest, path: "a folder" };
+    }
+    case "file":
+    case "open-with":
+    case "edit":
+    case "new-folder": {
+      return { ...action, path: pathKind(action.path) };
+    }
+    case "download": {
+      return {
+        at: action.at,
+        kind: "download",
+        path: pathKind(action.path),
+        ...(action.url === undefined ? {} : { url: siteAddress(action.url) }),
+      };
+    }
+    case "move":
+    case "copy": {
+      return {
+        ...action,
+        from: "a folder",
+        names: action.names.map(pathKind),
+        to: "a folder",
+      };
+    }
+    case "rename": {
+      return { ...action, from: pathKind(action.from), to: pathKind(action.to) };
+    }
+    case "trash": {
+      return { ...action, paths: action.paths.map(pathKind) };
+    }
+    case "page": {
+      return { at: action.at, kind: "page", url: siteAddress(action.url) };
+    }
+    case "chat": {
+      return { ...action, id: "", title: "another chat" };
+    }
+    case "permission": {
+      return {
+        ...action,
+        id: "",
+        ...(action.path === undefined ? {} : { path: "a folder" }),
+        title: "a chat",
+      };
+    }
+    case "error": {
+      return {
+        ...action,
+        message: action.message.replaceAll(/“[^”]*”|"[^"]*"/g, "“…”"),
+      };
+    }
+    case "screen": {
+      // A task's screen names the task, which is the person's own words.
+      return action.name.startsWith("Tasks ›")
+        ? { ...action, name: "Tasks" }
+        : action;
+    }
+    default: {
+      return action;
+    }
+  }
+}
+
 /**
  * What the person did in the app as one item of feedback, a JSON line per
- * action, redacted as the rest is (the home folder as `~`, other chats'
- * ids taken out, their titles kept, a page's address without its query):
- * the newest that fit
+ * action, each with its names and places taken out (`redactedAction`) and
+ * then redacted as the rest of the report is: the newest that fit
  * `FEEDBACK_ACTIONS_BYTES`, or nothing when they did nothing.
  */
 export function actionsFeedback(
@@ -655,11 +743,7 @@ export function actionsFeedback(
   const lines: string[] = [];
   let bytes = 0;
   for (const action of actions.toReversed()) {
-    const sent =
-      action.kind === "page"
-        ? { ...action, url: pageAddress(action.url) }
-        : action;
-    const line = `${JSON.stringify(redactor.deep(sent))}\n`;
+    const line = `${JSON.stringify(redactor.deep(redactedAction(action)))}\n`;
     bytes += Buffer.byteLength(line);
     if (bytes > FEEDBACK_ACTIONS_BYTES) {
       break;

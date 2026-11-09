@@ -12,10 +12,13 @@ import {
   DictatedTextarea,
   useDictatedText,
 } from "@/client/components/dictation-controls";
-import { FileTypeIcon } from "@/client/components/extend/file-system";
 import { isDictating } from "@/client/hooks/use-dictation";
 import { useModalBack } from "@/client/hooks/use-modal-back";
-import { type ActionMark, actionRows } from "@/client/lib/feedback-actions";
+import { EntryIcon } from "@/client/components/activity/activity-icons";
+import {
+  actionText,
+  type ShownAction,
+} from "@/client/components/activity/activity-timeline";
 import {
   aboutFields,
   chatGroups,
@@ -44,17 +47,12 @@ import {
   MAX_REPORT_BYTES,
 } from "@/shared/problem-reports";
 import { APP_NAME } from "@instrument-org/shared";
+import { ActionSchema } from "@instrument-org/workspace/client";
 import { type ExceptionEvent } from "@instrument-org/shared/exceptions";
-import { AppWindowIcon } from "@phosphor-icons/react/AppWindow";
-import { ArrowBendDownRightIcon } from "@phosphor-icons/react/ArrowBendDownRight";
 import { ArrowLeftIcon } from "@phosphor-icons/react/ArrowLeft";
 import { CaretDownIcon } from "@phosphor-icons/react/CaretDown";
 import { CaretRightIcon } from "@phosphor-icons/react/CaretRight";
-import { ChatCircleIcon } from "@phosphor-icons/react/ChatCircle";
-import { FolderIcon } from "@phosphor-icons/react/Folder";
-import { GlobeIcon } from "@phosphor-icons/react/Globe";
 import { ImageIcon } from "@phosphor-icons/react/Image";
-import { PlugsIcon } from "@phosphor-icons/react/Plugs";
 import { WarningCircleIcon } from "@phosphor-icons/react/WarningCircle";
 import { XIcon } from "@phosphor-icons/react/X";
 import { useQuery } from "@tanstack/react-query";
@@ -221,8 +219,8 @@ function partsOf({
           {
             item: described.actions,
             line: sendActions.on
-              ? `What you did in ${APP_NAME} in the ${FEEDBACK_ACTIONS_MS / 60_000} minutes before this.`
-              : `This stays on ${yourComputer}.`,
+              ? `What you did in ${APP_NAME} in the ${FEEDBACK_ACTIONS_MS / 60_000} minutes before this, without the names of your files, pages or chats.`
+              : `Off, so this stays on ${yourComputer}. Turn it on to send what you did in the ${FEEDBACK_ACTIONS_MS / 60_000} minutes before this, without names.`,
             sending: sendActions,
             title: "Your activity",
           },
@@ -252,8 +250,8 @@ function itemsGoing(parts: readonly Part[]) {
  * what the person did in the app, and the diagnostics). View turns the
  * dialog into a page that shows each as it will be sent, a row per record.
  * Everything listed goes, except a chat too big to send, whose row says it
- * stays behind, and what the person did in the app, which has a switch to
- * leave it out.
+ * stays behind, and what the person did in the app, which goes only when
+ * they switch it on.
  */
 export function FeedbackDialogContent({
   onClose,
@@ -273,7 +271,8 @@ export function FeedbackDialogContent({
     value: note,
   });
   const [viewing, setViewing] = useState<string | null>(null);
-  const [sendActions, setSendActions] = useState(true);
+  // Offered, never assumed: it is about more than what is being reported.
+  const [sendActions, setSendActions] = useState(false);
   const [images, setImages] = useState<AttachedImage[]>([]);
   const [imageProblems, setImageProblems] = useState<string[]>([]);
   const pickerRef = useRef<HTMLInputElement>(null);
@@ -704,38 +703,28 @@ function Review({
   );
 }
 
-/** The mark beside one thing the person did. */
-function ActionMarkIcon({ mark }: { mark: ActionMark }) {
-  const className = "size-4 text-foreground/70";
-  switch (mark.kind) {
-    case "app": {
-      return <PlugsIcon className={className} />;
+/** What the person did, read back from the lines feedback sends, as Activity's rows; a line that will not read is left out. */
+function sentActions(content: string): ShownAction[] {
+  return content.split("\n").flatMap((line) => {
+    if (!line.trim()) {
+      return [];
     }
-    case "chat": {
-      return <ChatCircleIcon className={className} />;
+    try {
+      const parsed = ActionSchema.safeParse(JSON.parse(line));
+      return parsed.success && parsed.data.kind !== "capped"
+        ? [parsed.data]
+        : [];
+    } catch {
+      return [];
     }
-    case "error": {
-      return <WarningCircleIcon className="size-4 text-destructive" />;
-    }
-    case "file": {
-      return <FileTypeIcon className="size-4" fileName={mark.file} />;
-    }
-    case "folder": {
-      return <FolderIcon className={className} />;
-    }
-    case "move": {
-      return <ArrowBendDownRightIcon className={className} />;
-    }
-    case "page": {
-      return <GlobeIcon className={className} />;
-    }
-    case "screen": {
-      return <AppWindowIcon className={className} />;
-    }
-  }
+  });
 }
 
-/** What the person did in the app, oldest first, a plain sentence each, as it will be sent. */
+/**
+ * What the person did in the app as it will be sent, oldest first, one
+ * line each the way Activity lists them, with its names and places
+ * already taken out.
+ */
 function ActionsReview({
   item,
   readAt,
@@ -743,37 +732,37 @@ function ActionsReview({
   item: FeedbackItem;
   readAt: number;
 }) {
-  const rows = actionRows(item.files[0]?.content ?? "", {
-    trash: osConventions().trash,
-  });
+  const words = { trash: osConventions().trash };
+  const actions = sentActions(item.files[0]?.content ?? "");
   return (
     <div className="flex flex-col">
-      <p className="px-3 pt-1 pb-2 text-[13px] text-muted-foreground">
-        From {timeOfDay(readAt - FEEDBACK_ACTIONS_MS)} to {timeOfDay(readAt)},
-        written just as it will be sent.
+      <p className="px-3 pt-1 pb-2 text-xs text-muted-foreground">
+        {`From ${timeOfDay(readAt - FEEDBACK_ACTIONS_MS)} to ${timeOfDay(readAt)}, just as it will be sent. Files, folders, pages and chats go without their names, so we can see how you used ${APP_NAME} without seeing what you used it on.`}
       </p>
-      {rows.map((row, index) => (
-        <div
-          className="flex items-start gap-3 rounded-md px-3 py-1.5 select-text"
-          // oxlint-disable-next-line react/no-array-index-key -- a file's records never move
-          key={index}
-        >
-          <span className="w-16 shrink-0 pt-px text-[13px] text-muted-foreground tabular-nums">
-            {timeOfDay(Date.parse(row.at))}
-          </span>
-          <span className="grid size-5 shrink-0 place-items-center">
-            <ActionMarkIcon mark={row.mark} />
-          </span>
-          <div className="min-w-0 flex-1">
-            <p className="text-sm leading-5 break-words">{row.what}</p>
-            {row.where && (
-              <p className="truncate text-[13px] leading-5 text-muted-foreground">
-                {row.where}
-              </p>
-            )}
+      {actions.map((action, index) => {
+        const text = actionText(action, words);
+        return (
+          <div
+            className="flex h-7 items-center gap-2.5 rounded-md px-3 text-[13px] select-text"
+            // oxlint-disable-next-line react/no-array-index-key -- a file's records never move
+            key={index}
+          >
+            <span className="w-14 shrink-0 text-xs text-muted-foreground tabular-nums">
+              {timeOfDay(Date.parse(action.at))}
+            </span>
+            <span className="grid size-4 shrink-0 place-items-center">
+              <EntryIcon
+                className="size-3.5"
+                entry={{ action, at: 0, id: "", kind: "action" }}
+              />
+            </span>
+            <span className="min-w-0 shrink truncate">{text.title}</span>
+            <span className="min-w-0 flex-1 truncate text-xs text-muted-foreground">
+              {text.context}
+            </span>
           </div>
-        </div>
-      ))}
+        );
+      })}
     </div>
   );
 }

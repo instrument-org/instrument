@@ -36,6 +36,8 @@ export function BranchFromReply({
   text: string;
 }) {
   const [open, setOpen] = useState(false);
+  // The day the quote is dated against, read as the dialog opens.
+  const [openedAt, setOpenedAt] = useState(() => new Date());
   const [branching, setBranching] = useState(false);
   const branch = async () => {
     setBranching(true);
@@ -44,9 +46,8 @@ export function BranchFromReply({
       setOpen(false);
     } catch (error) {
       toast.error("Couldn't branch the chat", { cause: error });
-    } finally {
-      setBranching(false);
     }
+    setBranching(false);
   };
   return (
     <>
@@ -56,6 +57,7 @@ export function BranchFromReply({
             aria-label="Branch from here"
             className={SHARED.messageFooterButton}
             onClick={() => {
+              setOpenedAt(new Date());
               setOpen(true);
             }}
             type="button"
@@ -79,7 +81,7 @@ export function BranchFromReply({
               <p className="line-clamp-3 text-foreground/80">{text}</p>
               {at && (
                 <p className="mt-1 text-xs text-muted-foreground">
-                  {separatorDayLabel(at, new Date())} {separatorTimeLabel(at)}
+                  {separatorDayLabel(at, openedAt)} {separatorTimeLabel(at)}
                 </p>
               )}
             </blockquote>

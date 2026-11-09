@@ -38,7 +38,7 @@ export function MarkdownValueEditor({
   // `value` reaches it only through `setValue`.
   const initial = useRef(value);
 
-  useEffect(() => {
+  const startSession = useEffectEvent(() => {
     const root = rootRef.current;
     if (!root) {
       return;
@@ -73,10 +73,10 @@ export function MarkdownValueEditor({
         () => undefined,
       );
     };
-    // The session is the value's for the component's life; a new value is
-    // handed over below rather than starting the editor over.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  });
+  // The session is the value's for the component's life; a new value is
+  // handed over below rather than starting the editor over.
+  useEffect(() => startSession(), []);
 
   useEffect(() => {
     session?.setValue(value);

@@ -6,7 +6,7 @@ import {
 } from "@instrument-org/workspace/client";
 import { AnimatePresence } from "motion/react";
 import { useQuery } from "@tanstack/react-query";
-import { useEffect } from "react";
+import { useEffect, useEffectEvent } from "react";
 
 import { type BrowserTabsHandle } from "./browser-tabs";
 import { chatListOptions } from "./chat-list-query";
@@ -90,11 +90,13 @@ export function ComposeLayer({
         : [],
     )
     .join("\n");
-  useEffect(() => {
+  const removeOrphans = useEffectEvent(() => {
     for (const key of orphanKey.split("\n").filter(Boolean)) {
       compose.remove(key);
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+  });
+  useEffect(() => {
+    removeOrphans();
   }, [orphanKey]);
 
   // The rows of the chats placed here, so another chat moving draws nothing.

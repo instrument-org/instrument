@@ -37,7 +37,13 @@ import { TrashIcon } from "@phosphor-icons/react/Trash";
 import { XIcon } from "@phosphor-icons/react/X";
 import { useAtomValue, useSetAtom } from "jotai";
 import { AnimatePresence, motion, useIsPresent } from "motion/react";
-import { type ReactNode, useLayoutEffect, useRef, useState } from "react";
+import {
+  type ReactNode,
+  useEffectEvent,
+  useLayoutEffect,
+  useRef,
+  useState,
+} from "react";
 
 import { AskPills } from "./ask-pills";
 import { type BrowserTabsHandle, type PageChromeSlots } from "./browser-tabs";
@@ -244,7 +250,7 @@ export function ComposeWindow({
   // set by then and on the way out it is still there, which a passive
   // cleanup would find already gone.
   // Past a relaunch only what has a place on disk is left, from the record.
-  useLayoutEffect(() => {
+  const restore = useEffectEvent(() => {
     const input = inputRef.current;
     if (snapshot) {
       input?.restore({ ...snapshot, prompt: words });
@@ -254,6 +260,10 @@ export function ComposeWindow({
         input?.restore({ items, prompt: words });
       }
     }
+  });
+  useLayoutEffect(() => {
+    restore();
+    const input = inputRef.current;
     return () => {
       const kept = input?.snapshot();
       if (kept) {
@@ -261,8 +271,7 @@ export function ComposeWindow({
       }
     };
     // Once per mount: the snapshot restored is the one from before it.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [draft.id]);
+  }, [draft.id, setSnapshots]);
 
   const project = projects.find((entry) => entry.id === draft.projectId);
   // Retired projects stay nameable on a draft already filed under one, but are

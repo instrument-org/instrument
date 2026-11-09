@@ -906,29 +906,32 @@ function Notifications() {
     "Not focused";
 
   const handleSendTest = async () => {
-    try {
-      const { supported } =
-        await sendTestNotificationMutation.mutateAsync(undefined);
-      if (!supported) {
-        toast.error("This computer doesn't support notifications");
-        return;
-      }
-      toast.success("Test notification sent", {
-        // Where the system has no notification settings to open, the
-        // description alone says what to look for.
-        action: canOpenNotificationSettings
-          ? {
-              label: "Open settings",
-              onClick: () => {
-                openNotificationSettingsMutation.mutate(undefined);
-              },
-            }
-          : undefined,
-        description: `Not seeing it? Turn on notifications for ${APP_NAME}.`,
+    const sent = await sendTestNotificationMutation
+      .mutateAsync(undefined)
+      .catch((error: unknown) => {
+        toast.error("Couldn't send a test notification", { cause: error });
+        return null;
       });
-    } catch (error) {
-      toast.error("Couldn't send a test notification", { cause: error });
+    if (sent === null) {
+      return;
     }
+    if (!sent.supported) {
+      toast.error("This computer doesn't support notifications");
+      return;
+    }
+    toast.success("Test notification sent", {
+      // Where the system has no notification settings to open, the
+      // description alone says what to look for.
+      action: canOpenNotificationSettings
+        ? {
+            label: "Open settings",
+            onClick: () => {
+              openNotificationSettingsMutation.mutate(undefined);
+            },
+          }
+        : undefined,
+      description: `Not seeing it? Turn on notifications for ${APP_NAME}.`,
+    });
   };
 
   // Until macOS lets the app notify, the setting would read as working when

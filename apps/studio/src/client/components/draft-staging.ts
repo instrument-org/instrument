@@ -3,7 +3,7 @@ import { toast } from "@/client/lib/toast";
 import { type Draft, type DraftAttachment } from "@/shared/drafts";
 import type { FileUpload } from "@instrument-org/workspace/client";
 import { isEqual, unique } from "radashi";
-import { type RefObject, useEffect, useRef } from "react";
+import { type RefObject, useEffect, useEffectEvent, useRef } from "react";
 import { ulid } from "ulid";
 
 import { type AttachedItem, type PromptInputRef } from "./prompt-input";
@@ -242,7 +242,7 @@ export function useFolderItems({
   );
   const inFolder = draft?.inFolder;
   const id = draft?.id;
-  useEffect(() => {
+  const follow = useEffectEvent(() => {
     const was = seen.current;
     const now = inFolder ?? [];
     seen.current =
@@ -305,8 +305,10 @@ export function useFolderItems({
     if (added.length > 0 || gone.length > 0) {
       input.current?.mergeItems({ added: added.map(itemOf), gone });
     }
+  });
+  useEffect(() => {
     // Each time main reads the folder anew; the staging and the box are read as they are then.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+    follow();
   }, [id, inFolder]);
 }
 

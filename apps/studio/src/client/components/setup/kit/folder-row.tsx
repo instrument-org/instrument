@@ -74,7 +74,7 @@ export function FolderLocation({
  */
 export function FolderNote({
   action,
-  icon = <ShieldWarningIcon />,
+  icon,
   line,
   title,
 }: {
@@ -92,7 +92,7 @@ export function FolderNote({
             "dark:bg-white/10 dark:text-brown-300",
           )}
         >
-          {icon}
+          {icon === undefined ? <ShieldWarningIcon /> : icon}
         </span>
         <div className="min-w-0 flex-1">
           <p className="text-sm font-medium text-pretty text-foreground">

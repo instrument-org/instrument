@@ -3,13 +3,32 @@ import { toast } from "@/client/lib/toast";
 import { osConventions } from "@/client/lib/utils";
 import { rpcClient } from "@/client/rpc/client";
 import { type ChatId } from "@instrument-org/workspace/client";
-import { useQuery, useQueryClient } from "@tanstack/react-query";
+import {
+  type QueryClient,
+  useQuery,
+  useQueryClient,
+} from "@tanstack/react-query";
 import { useState } from "react";
 
 import { chatListOptions, paintChatRow } from "./chat-list-query";
 
 /** How many chats the dialog names before it counts the rest. */
 const CHATS_NAMED = 5;
+
+/** Trashes each chat with its folder, in order, stopping at the first that fails. */
+async function trashChatsWithFolders(
+  queryClient: QueryClient,
+  chats: readonly { id: ChatId }[],
+) {
+  for (const chat of chats) {
+    const at = await rpcClient.workspace.chats.trash.call({
+      id: chat.id,
+      itsFolder: true,
+    });
+    // Kept out of the list until the list has it gone.
+    paintChatRow(queryClient, chat.id, "gone").landed(at);
+  }
+}
 
 /** What the person chose for the chats' folders they were about to trash. */
 export type ChatFolderChoice =
@@ -148,25 +167,22 @@ function ChatFolderDialog({
       }
       items={asking.chats}
       onDelete={async (chats) => {
+        let failed: { error: unknown } | undefined;
         try {
-          for (const chat of chats) {
-            const at = await rpcClient.workspace.chats.trash.call({
-              id: chat.id,
-              itsFolder: true,
-            });
-            // Kept out of the list until the list has it gone.
-            paintChatRow(queryClient, chat.id, "gone").landed(at);
-          }
+          await trashChatsWithFolders(queryClient, chats);
         } catch (error) {
+          failed = { error };
+        }
+        if (failed) {
           toast.error(
             one ? "Couldn't delete the chat" : "Couldn't delete every chat",
             {
-              cause: error,
+              cause: failed.error,
               description:
                 "Close anything using its folders, like an editor, a terminal or a server, and try again.",
             },
           );
-          throw error;
+          throw failed.error;
         }
         settle({ kind: "chats", rest });
       }}

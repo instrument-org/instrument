@@ -231,7 +231,9 @@ export function useImagePanzoom({
         pendingPanX += normalizeWheelDeltaPx(event, event.deltaX);
         pendingPanY += normalizeWheelDeltaPx(event);
       }
-      wheelFrame ??= window.requestAnimationFrame(applyPendingWheel);
+      if (wheelFrame === undefined) {
+        wheelFrame = window.requestAnimationFrame(applyPendingWheel);
+      }
     };
 
     const handleDoubleClick = (event: MouseEvent) => {

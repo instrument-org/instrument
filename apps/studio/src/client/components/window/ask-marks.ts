@@ -1,6 +1,6 @@
 // The numbered markers a live editor (Markdown or code) draws where a staged
 // ask points, kept in step with its edits and with the window's asks.
-import { useEffect } from "react";
+import { useEffect, useEffectEvent } from "react";
 
 import { numbered, useAskRevealer, useFileAsks } from "./staged-asks";
 
@@ -73,16 +73,20 @@ export function useAskMarks(path: string, host: AskMarkHost | null) {
   const numbers = numbered(asks).map(({ ask, n }) => ({ id: ask.id, n }));
   const key = numbers.map(({ id, n }) => `${id}:${n}`).join(",");
 
+  const addMarks = useEffectEvent((into: AskMarkHost) => {
+    for (const { id } of numbers) {
+      const place = placed.get(id);
+      if (place) {
+        into.addAskMark(id, place.from, place.to, place.quote);
+      }
+    }
+  });
+  // Once per editor: later changes to the asks are the effect below's.
   useEffect(() => {
     if (!host) {
       return;
     }
-    for (const { id } of numbers) {
-      const place = placed.get(id);
-      if (place) {
-        host.addAskMark(id, place.from, place.to, place.quote);
-      }
-    }
+    addMarks(host);
     return () => {
       for (const mark of host.askMarks()) {
         const place = placed.get(mark.id);
@@ -91,14 +95,16 @@ export function useAskMarks(path: string, host: AskMarkHost | null) {
         }
       }
     };
-    // Once per editor: later changes to the asks are the effect below's.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [host]);
 
+  const setNumbers = useEffectEvent((into: AskMarkHost) => {
+    into.setAskNumbers(numbers);
+  });
+  // `key` is `numbers` as a value.
   useEffect(() => {
-    host?.setAskNumbers(numbers);
-    // `key` is `numbers` as a value.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+    if (host) {
+      setNumbers(host);
+    }
   }, [host, key]);
 
   useAskRevealer(

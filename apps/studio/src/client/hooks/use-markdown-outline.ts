@@ -95,7 +95,9 @@ export function useActiveHeading(
       );
     };
     const schedule = () => {
-      frame ||= requestAnimationFrame(measure);
+      if (frame === 0) {
+        frame = requestAnimationFrame(measure);
+      }
     };
 
     measure();
@@ -155,7 +157,9 @@ export function useMarkdownHeadings(
       );
     };
     const schedule = () => {
-      frame ||= requestAnimationFrame(read);
+      if (frame === 0) {
+        frame = requestAnimationFrame(read);
+      }
     };
 
     read();

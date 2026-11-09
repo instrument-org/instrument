@@ -1,4 +1,5 @@
 import { atom, useSetAtom } from "jotai";
+import { omit } from "radashi";
 import { useEffect } from "react";
 
 import { type PageChromeSlots } from "./browser-tabs";
@@ -76,8 +77,7 @@ export function usePageHost(
         if (current[group] !== shown) {
           return current;
         }
-        const { [group]: _gone, ...rest } = current;
-        return rest;
+        return omit(current, [group]);
       });
     };
   }, [

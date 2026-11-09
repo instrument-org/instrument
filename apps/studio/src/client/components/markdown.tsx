@@ -1091,6 +1091,16 @@ const MarkdownBlock = memo(function MarkdownBlock({
   );
 });
 
+/** The HTML parser behind `rehype-raw`, loaded the first time a document has HTML. */
+const loadRawHtml = () => import("rehype-raw");
+/** What a document with math needs, loaded the first time one has some. */
+const loadMath = () =>
+  Promise.all([
+    import("rehype-katex"),
+    import("remark-math"),
+    import("katex/dist/katex.min.css"),
+  ]);
+
 export const Markdown = memo(
   ({
     assetVersion,
@@ -1180,7 +1190,7 @@ export const Markdown = memo(
         // it. Sanitizing is only meaningful over a tree it has re-parsed, so
         // the pair goes in together.
         if (needsRawHtml) {
-          const { default: rehypeRaw } = await import("rehype-raw");
+          const { default: rehypeRaw } = await loadRawHtml();
 
           nextRehypePlugins.push(rehypeRaw, [rehypeSanitize, sanitizeSchema]);
         }
@@ -1192,11 +1202,7 @@ export const Markdown = memo(
 
         if (needsMath) {
           const [{ default: rehypeKatex }, { default: remarkMath }] =
-            await Promise.all([
-              import("rehype-katex"),
-              import("remark-math"),
-              import("katex/dist/katex.min.css"),
-            ]);
+            await loadMath();
 
           nextRehypePlugins.push(rehypeKatex);
           nextRemarkPlugins.push([remarkMath, { singleDollarTextMath: false }]);

@@ -6,7 +6,7 @@ import {
 } from "@/shared/drafts";
 import { fileHref, folderHref } from "@/shared/computer-href";
 import { instrumentLinkOf } from "@instrument-org/shared";
-import { useEffect, useRef } from "react";
+import { useEffect, useEffectEvent, useRef } from "react";
 
 import { type BrowserTabsHandle } from "./browser-tabs";
 import { takePersonsTab } from "./take-tab";
@@ -252,7 +252,7 @@ export function useBandContext({
     .join("\n");
   const contextSignature = (draft?.context ?? []).map(lineKeyOf).join("\n");
 
-  useEffect(() => {
+  const followFile = useEffectEvent(() => {
     if (!draft) {
       return;
     }
@@ -291,12 +291,14 @@ export function useBandContext({
         state.opening.set(id, [...(state.opening.get(id) ?? []), key]);
       }
     }
-    // Only as what the file names changes; the openers are made afresh each
-    // render.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+  });
+  // Only as what the file names changes; the openers are made afresh each
+  // render.
+  useEffect(() => {
+    followFile();
   }, [draft?.id, contextSignature]);
 
-  useEffect(() => {
+  const followBand = useEffectEvent(() => {
     if (!draft) {
       return;
     }
@@ -330,7 +332,9 @@ export function useBandContext({
       const { context: _was, ...rest } = current;
       return next.length > 0 ? { ...rest, context: next } : rest;
     });
-    // Only as the band's tabs or what they stand for change.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+  });
+  // Only as the band's tabs or what they stand for change.
+  useEffect(() => {
+    followBand();
   }, [draft?.id, bandSignature]);
 }

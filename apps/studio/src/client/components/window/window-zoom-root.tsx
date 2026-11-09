@@ -9,6 +9,28 @@ import { type ReactNode, useEffect } from "react";
 
 const RECONNECT_DELAY_MS = 500;
 
+/** Applies the View menu's zoom commands until `signal` aborts, reconnecting when the stream drops. */
+async function followZoomCommands(
+  signal: AbortSignal,
+  onCommand: (type: Parameters<typeof appZoomAfter>[0]) => void,
+) {
+  while (!signal.aborted) {
+    try {
+      const commands = await rpcClient.appCommands.events.command.call(
+        undefined,
+        { signal },
+      );
+      for await (const command of commands) {
+        onCommand(command.type);
+      }
+    } catch {
+      // Stream dropped (transport reset, hot reload); reconnect below unless
+      // we're tearing down.
+    }
+    await sleep(RECONNECT_DELAY_MS);
+  }
+}
+
 /**
  * Drives the app window's zoom, and the router's outside it (a debug page in
  * a browser, a test). This
@@ -27,27 +49,10 @@ export function WindowZoomRoot({ children }: { children: ReactNode }) {
 
   useEffect(() => {
     const controller = new AbortController();
-    const { signal } = controller;
 
-    async function run() {
-      while (!signal.aborted) {
-        try {
-          const commands = await rpcClient.appCommands.events.command.call(
-            undefined,
-            { signal },
-          );
-          for await (const command of commands) {
-            setZoom((z) => appZoomAfter(command.type, z));
-          }
-        } catch {
-          // Stream dropped (transport reset, hot reload); reconnect below unless
-          // we're tearing down.
-        }
-        await sleep(RECONNECT_DELAY_MS);
-      }
-    }
-
-    void run();
+    void followZoomCommands(controller.signal, (type) => {
+      setZoom((z) => appZoomAfter(type, z));
+    });
 
     return () => {
       controller.abort();

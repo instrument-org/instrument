@@ -22,26 +22,26 @@ const FLY_EASING = "cubic-bezier(0.32, 1.15, 0.5, 1)";
  * picture is arriving that way, which holds back its own entrance.
  */
 export function useHeroPieces(ref: RefObject<HTMLElement | null>): boolean {
-  const registry = useHeroRegistry();
+  const registryRef = useHeroRegistry();
   // Read once: the page's flag changes as it leaves, and the picture
   // registers for as long as it is mounted.
   const [morph] = useState(useHeroMorph());
   useLayoutEffect(() => {
     const root = ref.current;
-    if (!root || !registry) {
+    if (!root || !registryRef) {
       return;
     }
-    const before = registry.current;
-    registry.current = root;
+    const before = registryRef.current;
+    registryRef.current = root;
     if (morph && before) {
       flyFrom(before, root);
     }
     return () => {
-      if (registry.current === root) {
-        registry.current = null;
+      if (registryRef.current === root) {
+        registryRef.current = null;
       }
     };
-  }, [morph, ref, registry]);
+  }, [morph, ref, registryRef]);
   return morph;
 }
 

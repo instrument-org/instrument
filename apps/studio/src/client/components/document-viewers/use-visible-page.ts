@@ -69,7 +69,9 @@ export function useVisiblePage({
     };
 
     const schedule = () => {
-      frame ||= requestAnimationFrame(measure);
+      if (frame === 0) {
+        frame = requestAnimationFrame(measure);
+      }
     };
 
     schedule();

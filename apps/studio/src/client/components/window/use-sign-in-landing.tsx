@@ -4,7 +4,7 @@ import { type OpenOptions } from "@/client/components/window/context";
 import { rpcClient } from "@/client/rpc/client";
 import { useQuery } from "@tanstack/react-query";
 import { atom, useAtom } from "jotai";
-import { useEffect } from "react";
+import { useEffect, useEffectEvent } from "react";
 import { toast } from "@/client/lib/toast";
 
 /** Where a sign-in page opens: the window's own browser, or the user's. */
@@ -39,12 +39,13 @@ export function useSignInLanding(
   const apps = useQuery(rpcClient.apps.live.list.experimental_liveOptions());
   const appsBySlug = useAppsBySlug();
 
-  useEffect(() => {
+  const land = useEffectEvent(() => {
     if (waiting.size === 0 || !apps.data) {
       return;
     }
     const settled = new Set<string>();
-    for (const [slug, { from, inChat }] of waiting) {
+    for (const [slug, started] of waiting) {
+      const { from, inChat } = started;
       const app = apps.data.apps.find((candidate) => candidate.slug === slug);
       const status = app?.status;
       if (status === "connected") {
@@ -83,7 +84,9 @@ export function useSignInLanding(
           new Map([...current].filter(([slug]) => !settled.has(slug))),
       );
     }
-    // Once, as a status lands; the opener and names are read then.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+  });
+  // Once, as a status lands; the opener and names are read then.
+  useEffect(() => {
+    land();
   }, [waiting, apps.data]);
 }

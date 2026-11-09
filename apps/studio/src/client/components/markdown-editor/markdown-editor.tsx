@@ -38,6 +38,7 @@ import {
   useContext,
   useEffect,
   useEffectEvent,
+  useLayoutEffect,
   useRef,
   useState,
 } from "react";
@@ -273,10 +274,12 @@ function LiveDocument({
   const { begin, card } = useAskCard(hostPath);
   const { mark } = useAskMarks(hostPath, session);
   const askRef = useRef({ begin, mark });
-  askRef.current = { begin, mark };
   const gesturesFor = useGesturesFor();
   const gesturesRef = useRef(gesturesFor);
-  gesturesRef.current = gesturesFor;
+  useLayoutEffect(() => {
+    askRef.current = { begin, mark };
+    gesturesRef.current = gesturesFor;
+  });
 
   const modifiedAt = usePullOnDiskChange(hostPath, session);
 
@@ -309,7 +312,7 @@ function LiveDocument({
     markUpdated(modifiedAt);
   });
 
-  useEffect(() => {
+  const startSession = useEffectEvent(() => {
     const root = rootRef.current;
     if (!root) {
       return;
@@ -360,7 +363,8 @@ function LiveDocument({
         }
         // The code block copies a preview in as markup, so what it gets is
         // an empty element to find again; React draws into it once it is up.
-        const id = ++fenceId;
+        fenceId += 1;
+        const id = fenceId;
         setFences((current) => [
           ...current,
           { content, createdAt: Date.now(), id, language },
@@ -391,10 +395,10 @@ function LiveDocument({
       unregister?.();
       void created.then((next) => next.destroy());
     };
-    // The session is the file's for the component's life; the caller keys the
-    // component on the path.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  });
+  // The session is the file's for the component's life; the caller keys the
+  // component on the path.
+  useEffect(() => startSession(), []);
 
   // Finds the elements the code blocks made for their fences. A block's
   // preview is drawn afresh on every edit; the fences it replaced have left
@@ -428,7 +432,9 @@ function LiveDocument({
       });
     };
     const observer = new MutationObserver(() => {
-      frame ||= requestAnimationFrame(scan);
+      if (frame === 0) {
+        frame = requestAnimationFrame(scan);
+      }
     });
     observer.observe(root, { childList: true, subtree: true });
     return () => {

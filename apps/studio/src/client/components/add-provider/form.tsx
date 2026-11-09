@@ -242,19 +242,15 @@ export function AddProviderForm({
       }
     }
 
+    const config = {
+      apiKey: requiresAPIKey ? state.apiKey : AI_GATEWAY_API_KEY_NOT_NEEDED,
+      baseURL: baseURLToSave,
+      displayName: state.displayName.trim() || undefined,
+      type: state.selectedProviderType,
+    };
     try {
       await createMutation.mutateAsync(
-        {
-          config: {
-            apiKey: requiresAPIKey
-              ? state.apiKey
-              : AI_GATEWAY_API_KEY_NOT_NEEDED,
-            baseURL: baseURLToSave,
-            displayName: state.displayName.trim() || undefined,
-            type: state.selectedProviderType,
-          },
-          skipValidation,
-        },
+        { config, skipValidation },
         {
           onError: (error) => {
             if (isDefinedError(error)) {

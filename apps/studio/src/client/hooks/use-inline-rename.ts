@@ -52,14 +52,12 @@ export function useInlineRename({
     }
 
     setIsSaving(true);
-    try {
-      await onSave(next);
+    if (await succeeds(() => onSave(next))) {
       setIsEditing(false);
-    } catch {
+    } else {
       setEditValue(value);
-    } finally {
-      setIsSaving(false);
     }
+    setIsSaving(false);
   };
 
   return {
@@ -87,4 +85,13 @@ export function useInlineRename({
     isEditing,
     start,
   };
+}
+
+async function succeeds(run: () => Promise<void>): Promise<boolean> {
+  try {
+    await run();
+    return true;
+  } catch {
+    return false;
+  }
 }

@@ -129,7 +129,14 @@ import { WarningCircleIcon } from "@phosphor-icons/react/WarningCircle";
 import { XIcon } from "@phosphor-icons/react/X";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { useAtomValue, useSetAtom } from "jotai";
-import { type ReactNode, useContext, useEffect, useRef, useState } from "react";
+import {
+  type ReactNode,
+  useContext,
+  useEffect,
+  useEffectEvent,
+  useRef,
+  useState,
+} from "react";
 import { createPortal } from "react-dom";
 import { toast } from "@/client/lib/toast";
 import { tabCarryViewAtom } from "@/client/components/window/tab-carry-view";
@@ -361,6 +368,10 @@ export function BrowserPanel({
   // `AUTO_OPENS` opens inside `AUTO_OPEN_WINDOW_MS` the panel stops and shows
   // the crash. Leaving the screen forgets the opens.
   const autoOpensRef = useRef(new Map<BrowserTargetId, number[]>());
+  // The address is only where a blank guest goes.
+  const autoOpen = useEffectEvent(() => {
+    openHere();
+  });
   useEffect(() => {
     const opens = autoOpensRef.current;
     if (!isVisible) {
@@ -379,9 +390,7 @@ export function BrowserPanel({
       return;
     }
     opens.set(targetId, [...recent, at]);
-    openHere();
-    // The address is only where a blank guest goes.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+    autoOpen();
   }, [
     active,
     canTake,

@@ -90,6 +90,18 @@ function holdRecording() {
   };
 }
 
+/** Opens a take's live stream and hands on each of its events as it comes. */
+async function listenLive(
+  surface: DictationSurface,
+  signal: AbortSignal,
+  onEvent: (event: DictationStreamEvent) => void,
+) {
+  const events = await rpcClient.dictation.listen.call({ surface }, { signal });
+  for await (const event of events) {
+    onEvent(event);
+  }
+}
+
 /**
  * The words a take's live stream has heard so far, for the box to show while
  * the person talks. `settled` is what will land; `interim` is the stretch
@@ -589,11 +601,7 @@ export function useDictation({
     void (async () => {
       let end: StreamEnd | undefined;
       try {
-        const events = await rpcClient.dictation.listen.call(
-          { surface },
-          { signal: stream.abort.signal },
-        );
-        for await (const event of events) {
+        await listenLive(surface, stream.abort.signal, (event) => {
           switch (event.type) {
             case "open": {
               stream.id = event.id;
@@ -649,7 +657,7 @@ export function useDictation({
             }
           }
           publishLive(stream);
-        }
+        });
       } catch {
         // Closed by us, or the app's own link went away mid-take.
         if (stream.status === "connecting") {

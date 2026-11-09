@@ -6,7 +6,7 @@ import { rpcClient } from "@/client/rpc/client";
 import { type ChatId } from "@instrument-org/workspace/client";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { useAtom, useAtomValue } from "jotai";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useEffectEvent, useRef, useState } from "react";
 import { spokenMessage, toast } from "@/client/lib/toast";
 
 import { useAppsBySlug } from "./apps-by-slug";
@@ -154,9 +154,11 @@ export function ChatPane({
   // Keyed by value: the list is rebuilt on every read of the chats, and
   // the callback is written fresh each render; the ids are what matter.
   const listedKey = listed.join("\n");
-  useEffect(() => {
+  const reportListed = useEffectEvent(() => {
     onListed?.(listed);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+  });
+  useEffect(() => {
+    reportListed();
   }, [listedKey]);
   // Standing in Drafts, the list holds the drafts, narrowed by the same
   // search: by their words and the name of the project each is filed under.
@@ -182,11 +184,11 @@ export function ChatPane({
   useProjectShift(shiftRef, chosenProject?.id);
   // The wash keeps the last project's color while it fades out, since the
   // column's own tint goes the moment the list leaves.
-  const washRef = useRef<Project>(undefined);
-  if (chosenProject) {
-    washRef.current = chosenProject;
+  const [lastProject, setLastProject] = useState<Project>();
+  if (chosenProject && chosenProject !== lastProject) {
+    setLastProject(chosenProject);
   }
-  const washProject = chosenProject ?? washRef.current;
+  const washProject = chosenProject ?? lastProject;
 
   // Whether the new-project dialog is up, and for which chat when a row
   // opened it: a project made from a row is filed on that chat as it lands,

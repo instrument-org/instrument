@@ -91,7 +91,7 @@ function LiveCanvas({
     markUpdated(modifiedAt);
   });
 
-  useEffect(() => {
+  const startSession = useEffectEvent(() => {
     if (!api || !scene) {
       return;
     }
@@ -119,8 +119,9 @@ function LiveCanvas({
     setSession(created);
     const unregister = registerFileFlush(hostPath, created.flush);
     if (import.meta.env.DEV) {
-      window.__excalidrawEditors ??= new Map();
-      window.__excalidrawEditors.set(hostPath, { api, session: created });
+      const editors = window.__excalidrawEditors ?? new Map();
+      editors.set(hostPath, { api, session: created });
+      window.__excalidrawEditors = editors;
     }
     return () => {
       unregister();
@@ -130,10 +131,10 @@ function LiveCanvas({
       }
       void created.destroy();
     };
-    // The session is the file's for the component's life; the caller keys the
-    // component on the path.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [api]);
+  });
+  // The session is the file's for the component's life; the caller keys the
+  // component on the path.
+  useEffect(() => startSession(), [api]);
 
   if (!scene) {
     return (

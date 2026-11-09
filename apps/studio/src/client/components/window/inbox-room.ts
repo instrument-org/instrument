@@ -1,6 +1,6 @@
 import { inboxOpenAtom } from "@/client/atoms/window";
 import { atom, useAtom } from "jotai";
-import { useEffect } from "react";
+import { useEffect, useEffectEvent } from "react";
 
 /** Whether the inbox was put away for a row too narrow for it, rather than by hand. */
 const inboxSteppedAsideAtom = atom(false);
@@ -52,10 +52,7 @@ export function useInboxRoom({
     ? !isCrowded && (isInboxOpen || isSteppedAside)
     : isInboxOpen;
 
-  useEffect(() => {
-    if (!isCrossing) {
-      return;
-    }
+  const answerCrossing = useEffectEvent(() => {
     setAnsweredCrowded(isCrowded);
     if (isCrowded) {
       if (isInboxOpen) {
@@ -68,16 +65,24 @@ export function useInboxRoom({
       setInboxOpen(true);
     }
     setSteppedAside(false);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+  });
+  useEffect(() => {
+    if (isCrossing) {
+      answerCrossing();
+    }
   }, [isCrossing]);
   // Brought back by hand, the inbox is someone's choice from then on. Not
   // while the row is crossing: the inbox this render read as open is the one
   // the crossing is putting aside.
-  useEffect(() => {
-    if (isInboxOpen && !isCrossing) {
+  const keepChoice = useEffectEvent(() => {
+    if (!isCrossing) {
       setSteppedAside(false);
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+  });
+  useEffect(() => {
+    if (isInboxOpen) {
+      keepChoice();
+    }
   }, [isInboxOpen]);
 
   // Read by the render that shows the inbox, then spent.

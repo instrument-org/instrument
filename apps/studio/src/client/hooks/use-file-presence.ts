@@ -32,23 +32,26 @@ export function useFilePresence<T extends HTMLElement>(
       return;
     }
     const controller = new AbortController();
-    void (async () => {
-      try {
-        const response = await fetch(url, {
-          method: "HEAD",
-          signal: controller.signal,
-        });
-        if (response.status === 404 && !controller.signal.aborted) {
-          setMissingUrl(url);
-        }
-      } catch {
-        // Not the file's absence.
+    void isGone(url, controller.signal).then((gone) => {
+      if (gone) {
+        setMissingUrl(url);
       }
-    })();
+    });
     return () => {
       controller.abort();
     };
   }, [isNear, url]);
 
   return { isMissing: url !== undefined && missingUrl === url, ref };
+}
+
+/** Whether the origin answers `url` with a 404, the one answer that means gone. */
+async function isGone(url: string, signal: AbortSignal): Promise<boolean> {
+  try {
+    const response = await fetch(url, { method: "HEAD", signal });
+    return response.status === 404 && !signal.aborted;
+  } catch {
+    // Not the file's absence.
+    return false;
+  }
 }

@@ -1,5 +1,5 @@
 import { registerFindTarget } from "@/client/lib/find-targets";
-import { type RefObject, useEffect, useRef } from "react";
+import { type RefObject, useEffect, useLayoutEffect, useRef } from "react";
 
 /**
  * Makes the search behind `openFind` the one Cmd+F opens while the keyboard is
@@ -22,7 +22,9 @@ export function useFindTarget({
   openFind: () => void;
 }) {
   const latest = useRef({ findAgain, holdsKeyboard, openFind });
-  latest.current = { findAgain, holdsKeyboard, openFind };
+  useLayoutEffect(() => {
+    latest.current = { findAgain, holdsKeyboard, openFind };
+  });
   useEffect(() => {
     if (!enabled) {
       return;

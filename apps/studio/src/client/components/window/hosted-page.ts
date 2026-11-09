@@ -12,7 +12,7 @@ import {
   type BrowserTargetId,
 } from "@instrument-org/workspace/client";
 import { noop } from "radashi";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useEffectEvent, useRef, useState } from "react";
 
 import { useWindow } from "./context";
 import { type PageHost, usePageHost } from "./page-hosts";
@@ -224,7 +224,7 @@ export function useHostedPage({
   // already up goes on to the next address in its own guest, rather than a
   // guest being made for each file a folder is walked through.
   const parked = useRef<number | undefined>(undefined);
-  useEffect(() => {
+  const showPage = useEffectEvent(() => {
     if (url !== undefined && !browser) {
       return;
     }
@@ -279,19 +279,23 @@ export function useHostedPage({
         close(id);
       }
     }
-    // Once per page and group; the browser handle is stable once it exists.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+  });
+  // Once per page and group; the browser handle is stable once it exists.
+  useEffect(() => {
+    showPage();
   }, [url, group, hasBrowser]);
+  const closeAll = useEffectEvent(() => {
+    window.clearTimeout(parked.current);
+    for (const id of tabIdsNow.current) {
+      hostLoads.delete(browserTargetOf(id));
+      close(id);
+    }
+  });
+  // On the way out alone.
   useEffect(
     () => () => {
-      window.clearTimeout(parked.current);
-      for (const id of tabIdsNow.current) {
-        hostLoads.delete(browserTargetOf(id));
-        close(id);
-      }
+      closeAll();
     },
-    // On the way out alone.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
     [],
   );
   // A page put away stops being drawn at once. Its slot can outlive it, inside

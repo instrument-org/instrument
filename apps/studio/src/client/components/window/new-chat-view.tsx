@@ -36,7 +36,13 @@ import { type Draft, draftGroupOf, isLeftEmpty } from "@/shared/drafts";
 import { osConventions } from "@/client/lib/utils";
 import { useRouter } from "@tanstack/react-router";
 import { useAtomValue, useSetAtom, useStore } from "jotai";
-import { type ReactNode, useEffect, useLayoutEffect, useRef } from "react";
+import {
+  type ReactNode,
+  useEffect,
+  useEffectEvent,
+  useLayoutEffect,
+  useRef,
+} from "react";
 import { ulid } from "ulid";
 
 import { AskPills } from "./ask-pills";
@@ -127,7 +133,7 @@ export function NewChatView({
   // one the box writes into by the time the address names it, and keeps
   // whatever was typed since. The box is read as it stands now rather than
   // as this render saw it, since these effects change it.
-  useLayoutEffect(() => {
+  const followAddress = useEffectEvent(() => {
     const named = drafts.find(
       (entry) => entry.id === draftId && entry.sendingTo === undefined,
     );
@@ -141,8 +147,10 @@ export function NewChatView({
       items: kept?.items ?? itemsOf(named),
       prompt: named?.words ?? "",
     });
-    // Only as the address changes; see above.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+  });
+  // Only as the address changes; see above.
+  useLayoutEffect(() => {
+    followAddress();
   }, [draftId, tabId]);
   // What the box held besides its words (a picture's own preview among it)
   // is kept with the draft as the box lets go of it, popped out or left, so

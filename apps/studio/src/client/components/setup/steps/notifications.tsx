@@ -15,6 +15,21 @@ import { type SetupStepProps } from "../step-props";
 import { NotificationPreview } from "../notification-preview";
 import { sendTestNotification } from "../test-notification";
 
+/** Asks the system for notifications, then whether they are on. */
+async function requestNotifications(): Promise<boolean> {
+  try {
+    await rpcClient.mac.notifications.request.call();
+    // The status, not the request's answer: a click on the body of
+    // macOS's prompt reads as a refusal, and turning them on afterwards
+    // in System Settings shows up only here.
+    const { status } = await rpcClient.mac.notifications.status.call();
+    return status === "allowed" || status === "provisional";
+  } catch {
+    // Read as a no: the row says where to turn them on.
+    return false;
+  }
+}
+
 /**
  * Notifications (frames 10 to 13). Allow asks the system; on a yes, a real
  * notification goes out and the page waits for its click, which marks the
@@ -46,17 +61,7 @@ export function NotificationsStep({
   const allow = async () => {
     hold();
     dispatch({ type: "allow" });
-    let granted = false;
-    try {
-      await rpcClient.mac.notifications.request.call();
-      // The status, not the request's answer: a click on the body of
-      // macOS's prompt reads as a refusal, and turning them on afterwards
-      // in System Settings shows up only here.
-      const { status } = await rpcClient.mac.notifications.status.call();
-      granted = status === "allowed" || status === "provisional";
-    } catch {
-      // Read as a no: the row says where to turn them on.
-    }
+    const granted = await requestNotifications();
     dispatch({ granted, type: "answered" });
     if (granted) {
       void sendTest();

@@ -5,7 +5,13 @@ import {
   typedWordsAtom,
 } from "@/client/atoms/prompt-value";
 import { useAtomValue, useSetAtom } from "jotai";
-import { type RefObject, useEffect, useRef, useState } from "react";
+import {
+  type RefObject,
+  useEffect,
+  useEffectEvent,
+  useRef,
+  useState,
+} from "react";
 
 import { cancelWords, flushWords, hasWaitingWords } from "./settle-words";
 
@@ -61,16 +67,14 @@ export function useComposerWords(
   );
   // The same chat's box in another window: what is typed there comes in here,
   // unless this is the window being typed in, or has words on their way.
-  useEffect(() => {
-    if (
-      storedWords !== value &&
-      !isBeingTyped.current &&
-      !hasWaitingWords(keyed)
-    ) {
-      editor.current?.setValue(storedWords);
+  const takeStoredWords = useEffectEvent((words: string) => {
+    if (words !== value && !isBeingTyped.current && !hasWaitingWords(keyed)) {
+      editor.current?.setValue(words);
     }
+  });
+  useEffect(() => {
     // Only as the draft changes: typing here reaches it a beat after `value`.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+    takeStoredWords(storedWords);
   }, [storedWords]);
   return { setValue, value };
 }

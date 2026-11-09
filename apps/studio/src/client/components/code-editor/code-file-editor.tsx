@@ -13,7 +13,13 @@ import { rpcClient } from "@/client/rpc/client";
 import { findNext, findPrevious, openSearchPanel } from "@codemirror/search";
 import { EditorView } from "@codemirror/view";
 import { useQuery } from "@tanstack/react-query";
-import { useEffect, useEffectEvent, useRef, useState } from "react";
+import {
+  useEffect,
+  useEffectEvent,
+  useLayoutEffect,
+  useRef,
+  useState,
+} from "react";
 import { createPortal } from "react-dom";
 import { useMarkUpdated } from "@/client/components/updated-note";
 import { toast } from "@/client/lib/toast";
@@ -124,9 +130,9 @@ function LiveCodeDocument({
   const { begin, card } = useAskCard(hostPath);
   const { mark } = useAskMarks(hostPath, session);
   const askRef = useRef({ begin, mark });
-  askRef.current = { begin, mark };
-  const wrapRef = useRef(wrapLines);
-  wrapRef.current = wrapLines;
+  useLayoutEffect(() => {
+    askRef.current = { begin, mark };
+  });
 
   const modifiedAt = usePullOnDiskChange(hostPath, session);
   // The editor's own keymap answers ⌘F and ⌘G with the caret in it; this is
@@ -156,7 +162,7 @@ function LiveCodeDocument({
     markUpdated(modifiedAt);
   });
 
-  useEffect(() => {
+  const startSession = useEffectEvent(() => {
     const parent = rootRef.current;
     if (!parent) {
       return;
@@ -200,7 +206,7 @@ function LiveCodeDocument({
       parent,
       readOnly: readOnly !== null,
       variant,
-      wrapLines: wrapRef.current,
+      wrapLines,
     });
     setSession(created);
     const unregister = registerFileFlush(hostPath, created.flush);
@@ -214,10 +220,10 @@ function LiveCodeDocument({
       }
       void created.destroy();
     };
-    // The session is the file's for the component's life; the caller keys the
-    // component on the path.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  });
+  // The session is the file's for the component's life; the caller keys the
+  // component on the path.
+  useEffect(() => startSession(), []);
 
   // The pill goes once the change is in view, however it got there.
   useEffect(() => {

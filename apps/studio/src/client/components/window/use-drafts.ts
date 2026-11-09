@@ -429,21 +429,28 @@ export function useDrafts({
       // Each send settles on its own: the mutation observer follows only the
       // latest call, so callbacks handed to it would be lost for a draft sent
       // while another was still on its way.
+      const message = {
+        ...(asks ? { asks } : {}),
+        files: send.files,
+        folders: send.folders,
+        fromDraft: id,
+        id: chatId,
+        modelURI: send.modelURI,
+        prompt: send.prompt,
+        ...(draft.projectId ? { project: draft.projectId } : {}),
+      };
+      let failed: { error: unknown } | undefined;
       try {
         await createMessage.mutateAsync({
-          ...(asks ? { asks } : {}),
-          files: send.files,
-          folders: send.folders,
-          fromDraft: id,
-          id: chatId,
-          modelURI: send.modelURI,
-          prompt: send.prompt,
-          ...(draft.projectId ? { project: draft.projectId } : {}),
+          ...message,
           // A context that cannot be gathered is a chat told less, not a
           // chat that never starts: the send goes on without it.
           viewing: await viewing,
         });
       } catch (error) {
+        failed = { error };
+      }
+      if (failed) {
         releaseDraft(id);
         if (opensWhole) {
           windowTabs.adoptGroup(chatId, draftGroupOf(id));
@@ -453,11 +460,12 @@ export function useDrafts({
         }
         setSentWords((current) => withoutKey(current, chatId));
         setSentProjects((current) => withoutKey(current, chatId));
-        toast.error("Couldn't start the chat", { cause: error });
+        toast.error("Couldn't start the chat", { cause: failed.error });
+      }
+      opened();
+      setStartingIds((current) => withoutId(current, id));
+      if (failed) {
         return;
-      } finally {
-        opened();
-        setStartingIds((current) => withoutId(current, id));
       }
       // The message naming this draft is written by now, and the chat has
       // its own copies of what was attached, so the draft's folder can go

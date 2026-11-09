@@ -11,7 +11,7 @@ import {
 } from "@instrument-org/workspace/client";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { useSetAtom } from "jotai";
-import { useEffect, useState } from "react";
+import { useEffect, useEffectEvent, useState } from "react";
 
 import { openSettings } from "@/client/atoms/settings-modal";
 import { paneOpenByGroupAtom } from "@/client/atoms/window";
@@ -150,12 +150,14 @@ function PermissionAskCard({
   );
   // The look runs on the computer the card belongs to, where the prompt is.
   const looks = asking && ask.here;
-  useEffect(() => {
+  const look = useEffectEvent(() => {
     if (looks) {
       retry.mutate({ askId: ask.id, id: chatId });
     }
+  });
+  useEffect(() => {
     // Once a card starts asking; the look waits as long as the prompt does.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+    look();
   }, [looks, ask.id]);
   // Another computer's card, which this one can't answer: what it waits on
   // there, in place of the answers.

@@ -1,3 +1,4 @@
+import { useSteadyCallbacks } from "@/client/hooks/use-steady-callbacks";
 import { PageFavicon } from "@/client/components/favicon";
 import {
   noteTypedPage,
@@ -70,6 +71,7 @@ import {
   type ReactNode,
   use,
   useEffect,
+  useEffectEvent,
   useId,
   useLayoutEffect,
   useReducer,
@@ -220,7 +222,7 @@ export function Omnibar({
   // just left still holds focus here, since a tab behind is only made
   // invisible and focus leaves it at the next style pass, so only a field
   // still on screen counts.
-  useEffect(() => {
+  const takeFocus = useEffectEvent(() => {
     const held = document.activeElement;
     if (
       resting === undefined &&
@@ -231,8 +233,10 @@ export function Omnibar({
     ) {
       input.current?.focus();
     }
-    // Once, as the field arrives.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+  });
+  // Once, as the field arrives.
+  useEffect(() => {
+    takeFocus();
   }, []);
 
   /** Takes the tab this field is over to a screen: its own when it keeps one, the router's otherwise. */
@@ -346,13 +350,13 @@ export function Omnibar({
     open: { openFolder, openPath, openSite, visit },
     typed,
   });
+  // Steady, as the rows a missed path offers are built while rendering and
+  // these reach the field itself.
+  const missedOpeners = useSteadyCallbacks({ openFolder, openSite });
   const notice =
     missed !== undefined && missed.typed === typed.trim() ? missed : undefined;
   const shownRows = notice
-    ? missedRows(notice.outcome, notice.typed, {
-        openFolder,
-        openSite,
-      })
+    ? missedRows(notice.outcome, notice.typed, missedOpeners)
     : found;
   const { completion, empty } = shownRows;
   const rows =

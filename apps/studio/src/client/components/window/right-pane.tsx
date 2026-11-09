@@ -147,7 +147,9 @@ export function RightPane({
     }
     let keptConversation: number | undefined;
     const widthFor = (width: number) => {
-      keptConversation ??= width - widthOfShare(currentShare(), width);
+      if (keptConversation === undefined) {
+        keptConversation = width - widthOfShare(currentShare(), width);
+      }
       return Math.min(
         Math.max(width - keptConversation, PANE_WIDTH_MIN),
         widthOfShare(1, width),

@@ -77,10 +77,12 @@ export function useFitWidth({
     // records in the same frame, and only the last one is worth acting on.
     let frame = 0;
     const observer = new ResizeObserver(() => {
-      frame ||= requestAnimationFrame(() => {
-        frame = 0;
-        apply();
-      });
+      if (frame === 0) {
+        frame = requestAnimationFrame(() => {
+          frame = 0;
+          apply();
+        });
+      }
     });
     observer.observe(container);
     return () => {

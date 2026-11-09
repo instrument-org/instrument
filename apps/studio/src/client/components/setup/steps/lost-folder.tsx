@@ -5,7 +5,7 @@ import { toast } from "@/client/lib/toast";
 import { rpcClient } from "@/client/rpc/client";
 import { type LostFolder, type LostReason } from "@/shared/setup";
 import { APP_NAME } from "@instrument-org/shared";
-import { useEffect, useState } from "react";
+import { useEffect, useEffectEvent, useState } from "react";
 
 import { FolderLocation, FolderNote } from "../kit/folder-row";
 import { SetupFooter, SetupPage } from "../kit/setup-page";
@@ -76,22 +76,23 @@ export function LostFolderPage({
       const reached = await rpcClient.workspaces.reachLost.call();
       if (reached.kind === "ready") {
         await onOpen();
-        return;
+      } else {
+        setReason(reached.reason);
       }
-      setReason(reached.reason);
     } catch (error) {
       toast.error(`${APP_NAME} couldn’t open your folder`, { cause: error });
-    } finally {
-      setReaching(false);
     }
+    setReaching(false);
   };
 
-  useEffect(() => {
+  const reachOnShow = useEffectEvent(() => {
     if (lost.reason === "cloud" && autoReach) {
       void reach();
     }
+  });
+  useEffect(() => {
     // Once, for the folder the launch found in the cloud.
-    // oxlint-disable-next-line react-hooks/exhaustive-deps
+    reachOnShow();
   }, []);
 
   const tryAgain = (

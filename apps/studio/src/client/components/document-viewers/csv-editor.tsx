@@ -382,6 +382,10 @@ function LiveTable({
     }
   });
 
+  const modifiedAt = usePullOnDiskChange(hostPath, session, {
+    enabled: session !== null,
+  });
+
   // Off the session's own deps, so saying the file was updated never starts
   // the editor over.
   const markUpdated = useMarkUpdated();
@@ -389,7 +393,7 @@ function LiveTable({
     markUpdated(modifiedAt);
   });
 
-  useEffect(() => {
+  const startSession = useEffectEvent(() => {
     if (readOnlyReason(doc)) {
       return;
     }
@@ -420,22 +424,19 @@ function LiveTable({
     setSession(next);
     const unregister = registerFileFlush(hostPath, next.flush);
     if (import.meta.env.DEV) {
-      window.__csvEditors ??= {};
-      window.__csvEditors[hostPath] = next;
+      const editors = window.__csvEditors ?? {};
+      editors[hostPath] = next;
+      window.__csvEditors = editors;
     }
     return () => {
       unregister();
       clearTimeout(flashTimer);
       void next.destroy();
     };
-    // The session is the file's for the component's life; the caller keys the
-    // component on the path.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
-
-  const modifiedAt = usePullOnDiskChange(hostPath, session, {
-    enabled: session !== null,
   });
+  // The session is the file's for the component's life; the caller keys the
+  // component on the path.
+  useEffect(() => startSession(), []);
 
   const width = widthOf(doc);
   const header = doc.values[doc.headerRecord] ?? [];

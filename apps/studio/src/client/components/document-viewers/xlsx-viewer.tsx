@@ -7,7 +7,7 @@ import {
   XlsxViewer as XlsxWorkbookViewer,
 } from "@extend-ai/react-xlsx";
 import { list } from "radashi";
-import { useEffect, useState } from "react";
+import { useEffect, useEffectEvent, useState } from "react";
 
 import { FileLoading } from "../file-loading";
 import { markdownCell, useAskSelection } from "./ask-selection-context";
@@ -122,7 +122,7 @@ export function XlsxViewer({
   const rangeKey = range
     ? `${range.firstRow}:${range.firstCol}:${range.lastRow}:${range.lastCol}`
     : "";
-  useEffect(() => {
+  const place = useEffectEvent(() => {
     if (!askSelection || !grid || !release) {
       return;
     }
@@ -149,9 +149,11 @@ export function XlsxViewer({
         },
       },
     });
-    // Placed again only when the release or the range itself changes, not on
-    // every render of the controller.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+  });
+  // Placed again only when the release or the range itself changes, not on
+  // every render of the controller.
+  useEffect(() => {
+    place();
   }, [askSelection, grid, release, rangeKey, sheetName]);
 
   // Thrown rather than rendered so it reaches the surface's `CatchBoundary`.

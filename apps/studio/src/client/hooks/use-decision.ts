@@ -61,7 +61,7 @@ export function useDecisionModelAvailable(enabled: boolean) {
  */
 export function useDecision({
   ask,
-  checkAvailable = ask !== undefined,
+  checkAvailable: checkAvailableGiven,
   keepPrevious,
   key,
   activity,
@@ -81,6 +81,7 @@ export function useDecision({
 }) {
   const { suggestions_from_your_chats: personalAllowed } =
     useAtomValue(featuresAtom);
+  const checkAvailable = checkAvailableGiven ?? ask !== undefined;
   const allowed = !personal || personalAllowed;
   const reachable = useDecisionModelAvailable(allowed && checkAvailable);
   // Another caller's check may be cached; it says nothing about this ask.
@@ -95,30 +96,8 @@ export function useDecision({
             : undefined
       : undefined,
     queryFn: sending
-      ? async ({ signal }) => {
-          try {
-            const asked = await Promise.all(
-              [ask]
-                .flat()
-                .map((one) =>
-                  rpcClient.workspace.decision.ask.call(
-                    { ...one, activity },
-                    { signal },
-                  ),
-                ),
-            );
-            const [first, ...rest] = asked;
-            if (!first) {
-              throw new Error("A decision ask needs at least one request");
-            }
-            return rest.reduce(
-              (merged, next) => ({
-                ...merged,
-                answers: { ...merged.answers, ...next.answers },
-              }),
-              first,
-            );
-          } catch (error) {
+      ? ({ signal }) =>
+          askInParts(ask, activity, signal).catch((error: unknown) => {
             // The workspace leaves the model alone for a while after this,
             // and says so; saying it here too saves every caller asking the
             // workspace again before that check would be read.
@@ -129,8 +108,7 @@ export function useDecision({
               );
             }
             throw error;
-          }
-        }
+          })
       : skipToken,
     queryKey: ["decision", ...key],
     retry: false,
@@ -144,4 +122,30 @@ export function useDecision({
     /** Whether a request is out. */
     isAsking: sending && query.isFetching,
   };
+}
+
+/** Sends each part of an ask and merges their answers into one. */
+async function askInParts(
+  ask: DecisionAsk | DecisionAsk[],
+  activity: DecisionActivity,
+  signal: AbortSignal,
+): Promise<DecisionAnswer> {
+  const asked = await Promise.all(
+    [ask]
+      .flat()
+      .map((one) =>
+        rpcClient.workspace.decision.ask.call({ ...one, activity }, { signal }),
+      ),
+  );
+  const [first, ...rest] = asked;
+  if (!first) {
+    throw new Error("A decision ask needs at least one request");
+  }
+  return rest.reduce(
+    (merged, next) => ({
+      ...merged,
+      answers: { ...merged.answers, ...next.answers },
+    }),
+    first,
+  );
 }

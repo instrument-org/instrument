@@ -27,7 +27,7 @@ import {
   StoreId,
 } from "@instrument-org/workspace/client";
 import { useQuery } from "@tanstack/react-query";
-import { noop } from "radashi";
+import { noop, omit } from "radashi";
 import { useAtomValue, useSetAtom } from "jotai";
 import { type Ref, useEffect, useImperativeHandle, useRef } from "react";
 import { createPortal } from "react-dom";
@@ -203,6 +203,47 @@ interface OpenOptions {
   replacing?: WindowTab;
   /** Brings the group on screen at the page, rather than leaving it behind: for what the user asked for by name. */
   show?: boolean;
+}
+
+/** Opens a page tab and its guest, returning the tab's id. */
+function openTab(
+  change: ReturnType<typeof useWindowTabsChange>,
+  url?: string,
+  { group: into, replacing, show = false }: OpenOptions = {},
+) {
+  const id = StoreId.newTabId();
+  const page = {
+    id,
+    openedAt: Date.now(),
+    ...(url ? { openedUrl: url, url } : {}),
+  };
+  // In the group on screen, or the group asked for: a page opened while a
+  // chat is up is the chat's, and one a chat asked for while another was
+  // up is still that chat's, waiting behind. In a tab's place, the page is
+  // what that tab's group has up.
+  change((current, onScreen) =>
+    openPageIn(current, {
+      group: into ?? onScreen,
+      homeId: newScreenId(),
+      page,
+      ...(replacing ? { replacing } : {}),
+      select: show || into === undefined || into === onScreen,
+    }),
+  );
+  // Read now: by the time the guest is up, the window may have lost focus
+  // to whatever the page opened.
+  const audible = url !== undefined && document.hasFocus();
+  void rpcClient.workspace.browser.open
+    .call({
+      targetId: browserTargetOf(id),
+      ...(url ? { url } : {}),
+    })
+    .then(() => {
+      if (audible) {
+        getGuest(browserTargetOf(id))?.allowSound();
+      }
+    });
+  return id;
 }
 
 /**
@@ -410,45 +451,6 @@ export function BrowserTabs({
     };
   }, [attached, change, tabIds]);
 
-  const openTab = (
-    url?: string,
-    { group: into, replacing, show = false }: OpenOptions = {},
-  ) => {
-    const id = StoreId.newTabId();
-    const page = {
-      id,
-      openedAt: Date.now(),
-      ...(url ? { openedUrl: url, url } : {}),
-    };
-    // In the group on screen, or the group asked for: a page opened while a
-    // chat is up is the chat's, and one a chat asked for while another was
-    // up is still that chat's, waiting behind. In a tab's place, the page is
-    // what that tab's group has up.
-    change((current, onScreen) =>
-      openPageIn(current, {
-        group: into ?? onScreen,
-        homeId: newScreenId(),
-        page,
-        ...(replacing ? { replacing } : {}),
-        select: show || into === undefined || into === onScreen,
-      }),
-    );
-    // Read now: by the time the guest is up, the window may have lost focus
-    // to whatever the page opened.
-    const audible = url !== undefined && document.hasFocus();
-    void rpcClient.workspace.browser.open
-      .call({
-        targetId: browserTargetOf(id),
-        ...(url ? { url } : {}),
-      })
-      .then(() => {
-        if (audible) {
-          getGuest(browserTargetOf(id))?.allowSound();
-        }
-      });
-    return id;
-  };
-
   useImperativeHandle(
     ref,
     () => ({
@@ -479,7 +481,7 @@ export function BrowserTabs({
           url,
         });
       },
-      open: (url, options) => openTab(url, options),
+      open: (url, options) => openTab(change, url, options),
       openBehind: (url, into, given) => {
         const id = given ?? StoreId.newTabId();
         change((current) =>
@@ -538,7 +540,11 @@ export function BrowserTabs({
                 key,
               );
         const fresh = waitingUp && isHomeTab(waitingUp) ? waitingUp : undefined;
-        return openTab(url, fresh ? { ...options, replacing: fresh } : options);
+        return openTab(
+          change,
+          url,
+          fresh ? { ...options, replacing: fresh } : options,
+        );
       },
       pageInPlaceOf: (tab, url) => {
         const id = StoreId.newTabId();
@@ -644,8 +650,7 @@ export function BrowserTabs({
     }),
     // The handle reads the strip through `latest` at call time; the guest on
     // screen is read here, so the handle is remade whenever it changes.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-    [activeTarget],
+    [activeTarget, change],
   );
 
   // A file shown as a page has its text a step away, which the page's menu
@@ -676,8 +681,8 @@ export function BrowserTabs({
       ? null
       : () => {
           setEditTabs((current) => {
-            const { [editableId]: was, ...rest } = current;
-            return was ? rest : { ...rest, [editableId]: true };
+            const rest = omit(current, [editableId]);
+            return current[editableId] ? rest : { ...rest, [editableId]: true };
           });
         },
   );

@@ -21,22 +21,24 @@ export function showTabCarryView(view: TabCarryView) {
   }
 }
 
+async function followTabCarry(signal: AbortSignal) {
+  try {
+    const views = await rpcClient.window.events.tabCarry.call(undefined, {
+      signal,
+    });
+    for await (const view of views) {
+      showTabCarryView(view);
+    }
+  } catch {
+    // The window closing ends the stream.
+  }
+}
+
 /** Follows what main says the strip shows, for as long as the window is up. */
 export function useTabCarryView() {
   useEffect(() => {
     const controller = new AbortController();
-    void (async () => {
-      try {
-        const views = await rpcClient.window.events.tabCarry.call(undefined, {
-          signal: controller.signal,
-        });
-        for await (const view of views) {
-          showTabCarryView(view);
-        }
-      } catch {
-        // The window closing ends the stream.
-      }
-    })();
+    void followTabCarry(controller.signal);
     return () => {
       controller.abort();
     };

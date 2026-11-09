@@ -1,4 +1,5 @@
 import { atom, useAtom } from "jotai";
+import { omit } from "radashi";
 import { useEffect, useRef } from "react";
 
 /**
@@ -22,7 +23,7 @@ export function usePageEdit(tabId: string) {
   const isEditing = tabs[tabId] === true;
   const setEditing = (next: boolean) => {
     setTabs((current) => {
-      const { [tabId]: _was, ...rest } = current;
+      const rest = omit(current, [tabId]);
       return next ? { ...rest, [tabId]: true } : rest;
     });
   };

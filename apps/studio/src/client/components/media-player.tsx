@@ -6,7 +6,7 @@ import { useSiblingCaptions } from "@/client/lib/use-sibling-captions";
 import { useStoryboardTrack } from "@/client/lib/use-storyboard-track";
 import { Audio, AudioPlayer as AudioPlayerRoot } from "@videojs/react/audio";
 import { Video, VideoPlayer as VideoPlayerRoot } from "@videojs/react/video";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useEffectEvent, useRef, useState } from "react";
 
 /** Played this far, a video is being watched, and its timeline previews are made. */
 const WATCHED_SECONDS = 10;
@@ -150,7 +150,7 @@ export function AudioPlayer({
  */
 function usePlayerSession<T extends HTMLMediaElement>(autoPlay: boolean) {
   const mediaRef = useRef<T | null>(null);
-  useEffect(() => {
+  const startSession = useEffectEvent(() => {
     const media = mediaRef.current;
     if (!media) {
       return;
@@ -183,9 +183,9 @@ function usePlayerSession<T extends HTMLMediaElement>(autoPlay: boolean) {
       media.removeAttribute("src");
       media.load();
     };
-    // Decided once, as the player opens.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  });
+  // Decided once, as the player opens.
+  useEffect(() => startSession(), []);
   return mediaRef;
 }
 

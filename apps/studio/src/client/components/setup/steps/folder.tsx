@@ -32,6 +32,22 @@ import { LostFolderPage } from "./lost-folder";
 const RESTART_NOTICE_MS = 3000;
 
 /**
+ * What `work` comes to, or nothing once what it threw is said in a toast
+ * headed `failure`.
+ */
+async function toastingFailure<T>(
+  failure: string,
+  work: () => Promise<T>,
+): Promise<T | undefined> {
+  try {
+    return await work();
+  } catch (error) {
+    toast.error(failure, { cause: error });
+    return undefined;
+  }
+}
+
+/**
  * Where the Instrument folder lives (frames 05 to 09). A new folder in
  * Documents is suggested, and nothing is made there until Continue, which is
  * when a Mac that guards Documents asks. Change picks another place the way
@@ -132,30 +148,34 @@ export function FolderStep({ hold, onBack, onContinue }: SetupStepProps) {
   ) => {
     hold();
     dispatch({ how: how.type, type: "moving" });
-    try {
-      const placed = await rpcClient.workspaces.place.call({
-        create: how.type === "move" && how.create,
-        path,
-      });
-      if (placed.kind === "placed") {
-        window.location.reload();
-        return;
-      }
-      // Another workspace, opened by a restart (`choosePlacement`).
-      if (placed.kind === "relaunching" || placed.kind === "on-next-launch") {
-        return;
-      }
-      if (placed.kind === "refused") {
-        await refuse(current, path, placed.reason);
-        return;
-      }
-      if (placed.kind === "unreachable") {
-        toast.error(`${APP_NAME} can’t read that folder right now`);
-      }
-    } catch (error) {
-      toast.error(`${APP_NAME} couldn’t set up your folder`, { cause: error });
+    const settled = await toastingFailure(
+      `${APP_NAME} couldn’t set up your folder`,
+      async () => {
+        const placed = await rpcClient.workspaces.place.call({
+          create: how.type === "move" && how.create,
+          path,
+        });
+        if (placed.kind === "placed") {
+          window.location.reload();
+          return true;
+        }
+        // Another workspace, opened by a restart (`choosePlacement`).
+        if (placed.kind === "relaunching" || placed.kind === "on-next-launch") {
+          return true;
+        }
+        if (placed.kind === "refused") {
+          await refuse(current, path, placed.reason);
+          return true;
+        }
+        if (placed.kind === "unreachable") {
+          toast.error(`${APP_NAME} can’t read that folder right now`);
+        }
+        return false;
+      },
+    );
+    if (settled !== true) {
+      dispatch({ type: "moveEnded" });
     }
-    dispatch({ type: "moveEnded" });
   };
 
   /** Moves into `path` (or opens it), restarting the app. */
@@ -174,35 +194,39 @@ export function FolderStep({ hold, onBack, onContinue }: SetupStepProps) {
     await new Promise((resolve) => {
       window.setTimeout(resolve, RESTART_NOTICE_MS);
     });
-    try {
-      if (how.type === "open") {
-        const opened = await rpcClient.workspaces.open.call({ path });
-        if (
-          opened.outcome === "relaunching" ||
-          opened.outcome === "unsupported"
-        ) {
-          onContinue();
-          return;
+    const settled = await toastingFailure(
+      `${APP_NAME} couldn’t move your folder`,
+      async () => {
+        if (how.type === "open") {
+          const opened = await rpcClient.workspaces.open.call({ path });
+          if (
+            opened.outcome === "relaunching" ||
+            opened.outcome === "unsupported"
+          ) {
+            onContinue();
+            return true;
+          }
+          toast.error(`${APP_NAME} can’t open that folder`);
+          return false;
         }
-        toast.error(`${APP_NAME} can’t open that folder`);
-      } else {
         const moved = await rpcClient.workspaces.move.call({
           create: how.create,
           path,
         });
         if (moved.kind === "relaunching" || moved.kind === "on-next-launch") {
           onContinue();
-          return;
+          return true;
         }
         if (moved.kind === "refused") {
           await refuse(current, path, moved.reason);
-          return;
+          return true;
         }
-      }
-    } catch (error) {
-      toast.error(`${APP_NAME} couldn’t move your folder`, { cause: error });
+        return false;
+      },
+    );
+    if (settled !== true) {
+      dispatch({ type: "moveEnded" });
     }
-    dispatch({ type: "moveEnded" });
   };
 
   /**
@@ -216,38 +240,38 @@ export function FolderStep({ hold, onBack, onContinue }: SetupStepProps) {
       return;
     }
     setBusy(true);
-    try {
-      const seen = picked ?? suggested;
-      const destination =
-        seen ??
-        suggestedDestination(
-          (
-            await rpcClient.workspaces.checkPick.call({
-              path: offered.inDocuments,
-            })
-          ).folder,
-        );
-      const step = destinationStep(destination, { opens: true });
-      if (step.type === "refused") {
-        await refuse(offered, destination.path, step.reason);
-        return;
-      }
-      if (seen === undefined && step.type === "open") {
-        dispatch({ destination, type: "suggestionSeen" });
-        return;
-      }
-      if (seen === undefined && destination.contents === "files") {
-        pick.settle({ folder: destination }, folderOf(destination.path));
-        return;
-      }
-      if (step.type === "open" || step.type === "move") {
-        await go(offered, destination.path, step);
-      }
-    } catch (error) {
-      toast.error(`${APP_NAME} couldn’t check that folder`, { cause: error });
-    } finally {
-      setBusy(false);
-    }
+    await toastingFailure(
+      `${APP_NAME} couldn’t check that folder`,
+      async () => {
+        const seen = picked ?? suggested;
+        const destination =
+          seen ??
+          suggestedDestination(
+            (
+              await rpcClient.workspaces.checkPick.call({
+                path: offered.inDocuments,
+              })
+            ).folder,
+          );
+        const step = destinationStep(destination, { opens: true });
+        if (step.type === "refused") {
+          await refuse(offered, destination.path, step.reason);
+          return;
+        }
+        if (seen === undefined && step.type === "open") {
+          dispatch({ destination, type: "suggestionSeen" });
+          return;
+        }
+        if (seen === undefined && destination.contents === "files") {
+          pick.settle({ folder: destination }, folderOf(destination.path));
+          return;
+        }
+        if (step.type === "open" || step.type === "move") {
+          await go(offered, destination.path, step);
+        }
+      },
+    );
+    setBusy(false);
   };
 
   const opens =

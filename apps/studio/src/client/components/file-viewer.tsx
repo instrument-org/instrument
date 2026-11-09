@@ -333,16 +333,7 @@ function useFileType(file: ViewerFile): FileType | undefined {
     placeholderData: keepPreviousData,
     // The first chunk the channel sends and no more, since the file may be
     // any size. Not a range: no range fits an empty file, which is text.
-    queryFn: async ({ signal }) => {
-      const response = await fetch(file.url, { signal });
-      if (!response.ok || !response.body) {
-        return false;
-      }
-      const reader = response.body.getReader();
-      const { value = new Uint8Array() } = await reader.read();
-      void reader.cancel();
-      return looksLikeText(value.subarray(0, TEXT_SNIFF_BYTES));
-    },
+    queryFn: ({ signal }) => fileLooksLikeText(file.url, signal),
     queryKey: ["file-looks-like-text", file.url],
     retry: false,
   });
@@ -353,6 +344,20 @@ function useFileType(file: ViewerFile): FileType | undefined {
     return undefined;
   }
   return isText.data === true ? "text" : named;
+}
+
+async function fileLooksLikeText(
+  url: string,
+  signal: AbortSignal,
+): Promise<boolean> {
+  const response = await fetch(url, { signal });
+  if (!response.ok || !response.body) {
+    return false;
+  }
+  const reader = response.body.getReader();
+  const { value = new Uint8Array() } = await reader.read();
+  void reader.cancel();
+  return looksLikeText(value.subarray(0, TEXT_SNIFF_BYTES));
 }
 
 // Both hosts (the artifact panel and the expand modal) give the viewer the

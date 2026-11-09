@@ -89,6 +89,12 @@ export interface BrowserTabsHandle {
     id?: StoreId.Tab,
   ) => StoreId.Tab;
   /**
+   * Adds a page tab to a group with no guest: the window that shows the
+   * group opens the page there, at its address. For a page opened into
+   * another window, whose guest made here would hold it here. Returns the tab.
+   */
+  openForAnotherWindow: (url: string, group: string) => StoreId.Tab;
+  /**
    * Opens a page in the group on screen or the group given, or shows the tab
    * already on it when the address is a file's. Given a tab to replace, a
    * page opened takes that tab's place in the strip rather than arriving
@@ -490,6 +496,15 @@ export function BrowserTabs({
           targetId: browserTargetOf(id),
           ...(url ? { url } : {}),
         });
+        return id;
+      },
+      openForAnotherWindow: (url, into) => {
+        const id = StoreId.newTabId();
+        change((current) =>
+          addPages(current, [
+            { group: into, id, openedAt: Date.now(), openedUrl: url, url },
+          ]),
+        );
         return id;
       },
       openOrFocus: (url, options) => {

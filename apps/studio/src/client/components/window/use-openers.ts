@@ -110,7 +110,7 @@ export function useOpeners({
   const openPage = (url: string, options: OpenOptions = {}) => {
     if (options.newWindow) {
       const group = newSiteGroup();
-      const id = browser?.open(url, { group });
+      const id = browser?.openForAnotherWindow(url, group);
       openInNewWindow(pageHrefOf(group));
       return id;
     }

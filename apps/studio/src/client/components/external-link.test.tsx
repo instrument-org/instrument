@@ -38,6 +38,7 @@ function inWindow(
       navigateTab: vi.fn(),
       open: browserOpen,
       openBehind: vi.fn(),
+      openForAnotherWindow: vi.fn(),
       openOrFocus: vi.fn(),
       pageInPlaceOf: vi.fn(),
       readPage: vi.fn(),

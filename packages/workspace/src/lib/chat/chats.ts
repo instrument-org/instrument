@@ -553,6 +553,8 @@ interface ChatDigest {
   firstAskedAt?: Date;
   sent: ReturnType<typeof sentHeld>;
   session: Session.Type;
+  /** The chat's tasks, every one it has started. */
+  tasks: StoreId.Session[];
   /** The last reply with words: when it finished and its first line. */
   spoken?: { at: number; text: string };
   /** Where each of the chat's asks stood when the digest was read (`askStates`). */
@@ -647,7 +649,6 @@ async function chatFor(
   shared: Shared,
 ): Promise<Chat> {
   const { session } = digest;
-  const filedTasks = (await listChildTasks(chatId)).map((task) => task.id);
   const { running: filed } = await chatActivity(chatId);
   const runningTasks = filed.map((task) => ({
     id: task.sessionId,
@@ -702,7 +703,7 @@ async function chatFor(
   const made = {
     apps: unique(knownAmong(digest.calledApps, shared.knownApps)),
     files: digest.madeFiles,
-    sites: await sitesHeld(chatId, digest.openedHosts, filedTasks),
+    sites: await sitesHeld(chatId, digest.openedHosts, digest.tasks),
   };
 
   const createdAt = (digest.firstAskedAt ?? session.createdAt).getTime();
@@ -776,9 +777,11 @@ function chatDigest(
     });
     const stop = await ChatReads.stopped({ chatId, sessionId });
     const asks = await ChatReads.asks({ chatId, sessionId });
+    const tasks = (await listChildTasks(chatId)).map((task) => task.id);
     return messages.isOk() && stop.isOk() && asks.isOk()
       ? kept({
           ...digestOf(session.value, messages.value, stop.value),
+          tasks,
           asks: askStates({
             ...asks.value,
             movedPast: movedPastOf(messages.value, stop.value),
@@ -794,7 +797,7 @@ function digestOf(
   messages: SessionMessage.WithParts[],
   /** The session's newest stop, whatever came after it. */
   stop: { at: Date; by: Stopper } | undefined,
-): Omit<ChatDigest, "asks"> {
+): Omit<ChatDigest, "asks" | "tasks"> {
   // Every chat is listed: the first thing the user sent opens it, whether
   // words, files, or an ask marked on a file.
   const root = messages.find(

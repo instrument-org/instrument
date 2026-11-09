@@ -121,6 +121,11 @@ export function leftRunning(
  * work off does not read as the end of it.
  */
 export async function chatActivity(chatId: ChatId): Promise<ChatActivity> {
+  // Read from memory, so a chat with nothing at work costs no read of its
+  // records.
+  if (!isWorking(chatId)) {
+    return { running: [] };
+  }
   const children = await listChildTasks(chatId, (id) => isWorking(chatId, id));
   const running = await Promise.all(
     children.map(async (child) => {

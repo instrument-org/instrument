@@ -369,9 +369,11 @@ async function checkOverdue(workspaceRef: WorkspaceActorRef) {
   // Only a chat's task reports in, and only one at work is read.
   const working = (
     await Promise.all(
-      listChatIds().map((chatId) =>
-        listChildTasks(chatId, (id) => isWorking(chatId, id)),
-      ),
+      listChatIds()
+        // From memory first, so a chat with nothing at work costs no read
+        // of its records.
+        .filter((chatId) => isWorking(chatId))
+        .map((chatId) => listChildTasks(chatId, (id) => isWorking(chatId, id))),
     )
   ).flat();
   const workingIds = new Set(working.map((task) => task.id));

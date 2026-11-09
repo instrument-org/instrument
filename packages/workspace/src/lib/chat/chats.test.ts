@@ -373,6 +373,18 @@ async function userSays(
 }
 
 describe("listChats", () => {
+  it("reads no chat's sessions again once its row is digested", async () => {
+    const chatId = await freshChat();
+    const sessionId = await session(chatId, "Groceries");
+    await userSays(chatId, sessionId, "make a list", 1);
+    await listChats();
+    const sessions = vi.spyOn(ChatReads, "sessions");
+
+    await listChats();
+
+    expect(sessions).not.toHaveBeenCalled();
+  });
+
   it("keeps the user's timestamp through replies and harness notifications", async () => {
     const chatId = await freshChat();
     const sessionId = await session(chatId, "Groceries");

@@ -514,7 +514,7 @@ describe("outlineCommand", () => {
   it.each<readonly [string, string]>([
     ["app tools gmail", "app tools gmail"],
     [
-      "memory save name <<'EOF'\nJeremy Mack\nEOF",
+      "memory save name <<'EOF'\nAlex Rivera\nEOF",
       "memory save name <<'EOF'\n<11 chars>\nEOF",
     ],
     [

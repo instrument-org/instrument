@@ -312,28 +312,28 @@ describe("PermissionAsksFoot", () => {
         {
           answerable: false,
           answered: {
-            by: "Jeremy's iPhone",
+            by: "Alex's iPhone",
             decision: "allowed",
             taken: false,
           },
         },
         "folder",
         "open",
-        "You answered from Jeremy's iPhone. It takes effect once Studio Mac picks it up.",
+        "You answered from Alex's iPhone. It takes effect once Studio Mac picks it up.",
       ],
       [
         "a yes that macOS there is still asking about",
         {
           answerable: false,
           answered: {
-            by: "Jeremy's iPhone",
+            by: "Alex's iPhone",
             decision: "allowed",
             taken: true,
           },
         },
         "folder",
         "macos-asking",
-        "You answered from Jeremy's iPhone, and Studio Mac needs you to finish it there.",
+        "You answered from Alex's iPhone, and Studio Mac needs you to finish it there.",
       ],
     ] as const)(
       "points at that computer for %s, with nothing to answer here",

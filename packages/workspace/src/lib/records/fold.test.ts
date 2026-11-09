@@ -375,7 +375,7 @@ describe("foldChat", () => {
       bytes: original.bytes.subarray(0, original.bytes.length - 10),
       name: original.name.replace(
         ".jsonl",
-        " (Jeremy's conflicted copy 2026-10-14).jsonl",
+        " (Alex's conflicted copy 2026-10-14).jsonl",
       ),
     };
 

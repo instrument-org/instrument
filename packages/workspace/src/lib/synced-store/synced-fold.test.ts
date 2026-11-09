@@ -103,7 +103,7 @@ describe("synced lines", () => {
   it.each([
     ["bookmarks.jsonl", true],
     ["bookmarks 2.jsonl", true],
-    ["bookmarks (Jeremy's conflicted copy 2026-10-19).jsonl", true],
+    ["bookmarks (Alex's conflicted copy 2026-10-19).jsonl", true],
     ["bookmarks-MACBOOK.jsonl", true],
     ["bookmarks.sync-conflict-20261019-120000-ABCD123.jsonl", true],
     ["bookmarks2.jsonl", false],

@@ -379,20 +379,20 @@ describe("setAppAccount", () => {
   it("names the account and moves a Gmail app to that account's own address", async () => {
     const apps = await gmailApps();
 
-    expect(await setAppAccount(apps, gmail, "jeremy@example.com"))
+    expect(await setAppAccount(apps, gmail, "name@example.com"))
       .toMatchInlineSnapshot(`
       {
-        "account": "jeremy@example.com",
+        "account": "name@example.com",
         "service": "gmail",
         "type": "web",
-        "url": "https://mail.google.com/mail/?authuser=jeremy%40example.com",
+        "url": "https://mail.google.com/mail/?authuser=name%40example.com",
       }
     `);
   });
 
   it("moves the app again when the account is renamed, and leaves it when the name is cleared", async () => {
     const apps = await gmailApps();
-    await setAppAccount(apps, gmail, "jeremy@example.com");
+    await setAppAccount(apps, gmail, "name@example.com");
 
     const renamed = await setAppAccount(apps, gmail, "ada@example.com");
     const cleared = await setAppAccount(apps, gmail, undefined);
@@ -419,7 +419,7 @@ describe("setAppAccount", () => {
     const slug = AppSlugSchema.parse("inbox");
     const before = (await loadApp(apps, slug))._unsafeUnwrap().manifestHash;
 
-    const manifest = await setAppAccount(apps, slug, "jeremy@example.com");
+    const manifest = await setAppAccount(apps, slug, "name@example.com");
 
     expect(manifest.type === "web" && manifest.url).toBe(
       "https://inbox.example/",

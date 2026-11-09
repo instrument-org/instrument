@@ -580,7 +580,7 @@ describe("from another computer", () => {
 
   it("shows a question answered elsewhere as answered, waiting for the computer that asked", async () => {
     const { askId, chatId } = await chatAsking();
-    const phone = await computer("Jeremy's iPhone");
+    const phone = await computer("Alex's iPhone");
     const laptop = await computer("MacBook Air");
 
     await on(phone, chatId, () => answer(chatId, askId, "Tea"));
@@ -590,7 +590,7 @@ describe("from another computer", () => {
         answerable: false,
         answered: {
           answer: { replies: [{ picked: ["Tea"] }] },
-          by: "Jeremy's iPhone",
+          by: "Alex's iPhone",
           taken: false,
         },
         here: false,
@@ -618,7 +618,7 @@ describe("from another computer", () => {
     const home = owner();
     try {
       const { askId, chatId } = await chatAsking();
-      const phone = await computer("Jeremy's iPhone");
+      const phone = await computer("Alex's iPhone");
       const laptop = await computer("MacBook Air");
       await on(phone, chatId, () => answer(chatId, askId, "Tea"));
       await laptop.catchUp(chatId);
@@ -639,7 +639,7 @@ describe("from another computer", () => {
       expect((await views.next()).value).toEqual([
         expect.objectContaining({
           answerable: true,
-          away: { by: "Jeremy's iPhone" },
+          away: { by: "Alex's iPhone" },
         }),
       ]);
       await views.return(undefined);
@@ -652,7 +652,7 @@ describe("from another computer", () => {
 
   it("starts one turn for two answers given on two devices at once, with the first", async () => {
     const { askId, chatId, messageId, partId, sessionId } = await chatAsking();
-    const phone = await computer("Jeremy's iPhone");
+    const phone = await computer("Alex's iPhone");
     const laptop = await computer("MacBook Air");
     // Neither had seen the other's answer when it gave its own.
     await Promise.all([phone.catchUp(chatId), laptop.catchUp(chatId)]);

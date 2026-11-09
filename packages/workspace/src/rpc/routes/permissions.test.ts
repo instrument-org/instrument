@@ -781,7 +781,7 @@ describe("permissions.answer", () => {
 
     it("shows the owner's card elsewhere, answerable and named for its computer", async () => {
       const { card, chatId } = await raised();
-      const phone = await computer("Jeremy's iPhone");
+      const phone = await computer("Alex's iPhone");
 
       expect(await on(phone, () => openAsks(chatId))).toEqual([
         expect.objectContaining({
@@ -796,7 +796,7 @@ describe("permissions.answer", () => {
 
     it("takes the first answer in log order, and the grant is the owner's", async () => {
       const { card, chatId, own, pantry, task } = await raised();
-      const phone = await computer("Jeremy's iPhone");
+      const phone = await computer("Alex's iPhone");
       const laptop = await computer("MacBook Air");
       await on(phone, () => answer(chatId, card.id, "always"));
       // The laptop's no lands after it, as one given before the phone's had
@@ -826,7 +826,7 @@ describe("permissions.answer", () => {
 
     it("refuses a later answer once one is given, and shows it waiting for the owner", async () => {
       const { card, chatId } = await raised();
-      const phone = await computer("Jeremy's iPhone");
+      const phone = await computer("Alex's iPhone");
       const laptop = await computer("MacBook Air");
       await on(phone, () => answer(chatId, card.id, "allowed"));
       // The owner is off: nothing takes the answer yet.
@@ -838,7 +838,7 @@ describe("permissions.answer", () => {
         expect.objectContaining({
           answerable: false,
           answered: {
-            by: "Jeremy's iPhone",
+            by: "Alex's iPhone",
             decision: "allowed",
             taken: false,
           },
@@ -857,7 +857,7 @@ describe("permissions.answer", () => {
         status: "windows-blocked",
       });
       const [card] = await openAsks(chatId);
-      const phone = await computer("Jeremy's iPhone");
+      const phone = await computer("Alex's iPhone");
 
       expect(await on(phone, () => openAsks(chatId))).toEqual([
         expect.objectContaining({ answerable: false, here: false }),
@@ -871,7 +871,7 @@ describe("permissions.answer", () => {
       "keeps a remote yes that macOS then refuses, as needing the owner",
       async () => {
         const { card, chatId } = await raised();
-        const phone = await computer("Jeremy's iPhone");
+        const phone = await computer("Alex's iPhone");
         macos.look = () => Promise.resolve("system");
         await on(phone, () => answer(chatId, card.id, "allowed"));
 
@@ -883,7 +883,7 @@ describe("permissions.answer", () => {
           expect.objectContaining({
             answerable: false,
             answered: {
-              by: "Jeremy's iPhone",
+              by: "Alex's iPhone",
               decision: "allowed",
               taken: true,
             },
@@ -896,7 +896,7 @@ describe("permissions.answer", () => {
 
     it("closes the card in the records when the owner stops the session", async () => {
       const { chatId, task } = await raised();
-      const phone = await computer("Jeremy's iPhone");
+      const phone = await computer("Alex's iPhone");
 
       await closeAsksOf(chatId, task);
 
@@ -907,7 +907,7 @@ describe("permissions.answer", () => {
     // before granting it: the next pass, as a launch makes, finishes it.
     it("finishes an answer it took but never carried out", async () => {
       const { card, chatId, pantry, task } = await raised();
-      const phone = await computer("Jeremy's iPhone");
+      const phone = await computer("Alex's iPhone");
       await on(phone, () => answer(chatId, card.id, "allowed"));
       await owner().catchUp(chatId);
       const [given] = await openAsks(chatId);
@@ -941,7 +941,7 @@ describe("permissions.answer", () => {
       // A target no folder rule can be written for.
       await recordAsk({ chatId, sessionId: own }, "folder", "not/a/full/path");
       const [card] = await openAsks(chatId);
-      const phone = await computer("Jeremy's iPhone");
+      const phone = await computer("Alex's iPhone");
       await on(phone, () => answer(chatId, card?.id ?? "", "always"));
       await owner().catchUp(chatId);
 
@@ -1020,7 +1020,7 @@ describe("permissions.answer", () => {
 
     it("never takes an answer given while it was away, and asks again", async () => {
       const { card, chatId, own, task } = await raised();
-      const phone = await computer("Jeremy's iPhone", undefined, halfAnHourAgo);
+      const phone = await computer("Alex's iPhone", undefined, halfAnHourAgo);
       await on(phone, () => answer(chatId, card.id, "allowed"));
       const sentBefore = sent.length;
       const ours = ({ sessionId }: { sessionId?: string }) =>
@@ -1036,7 +1036,7 @@ describe("permissions.answer", () => {
       expect(await on(laptop, () => openAsks(chatId))).toEqual([
         expect.objectContaining({
           answerable: true,
-          away: { by: "Jeremy's iPhone", decision: "allowed" },
+          away: { by: "Alex's iPhone", decision: "allowed" },
           status: "open",
         }),
       ]);
@@ -1045,7 +1045,7 @@ describe("permissions.answer", () => {
 
     it("never takes a stale answer that arrives while it runs, and takes a fresh one", async () => {
       const { card, chatId, pantry, task } = await raised();
-      const stale = await computer("Jeremy's iPhone", undefined, halfAnHourAgo);
+      const stale = await computer("Alex's iPhone", undefined, halfAnHourAgo);
       const fresh = await computer("MacBook Air");
       const stopWatcher = publisher.subscribe(
         "record.changed",
@@ -1083,7 +1083,7 @@ describe("permissions.answer", () => {
     // message rather than starting work nobody is watching.
     it("finishes a stale answer it took before a crash, leaving a note that starts no turn", async () => {
       const { card, chatId, pantry, task } = await raised();
-      const phone = await computer("Jeremy's iPhone", undefined, halfAnHourAgo);
+      const phone = await computer("Alex's iPhone", undefined, halfAnHourAgo);
       await on(phone, () => answer(chatId, card.id, "allowed"));
       await owner().catchUp(chatId);
       const given = (await owner().read(chatId)).chat.sessions
@@ -1122,7 +1122,7 @@ describe("permissions.answer", () => {
 
     it("wakes nobody twice when it stopped between the note and saying so", async () => {
       const { card, chatId, task } = await raised();
-      const phone = await computer("Jeremy's iPhone");
+      const phone = await computer("Alex's iPhone");
       await on(phone, () => answer(chatId, card.id, "allowed"));
       await owner().catchUp(chatId);
       await driveAsks(chatId, context().workspaceRef);
@@ -1180,7 +1180,7 @@ describe("permissions.answer", () => {
           woken: false,
         },
       }));
-      const phone = await computer("Jeremy's iPhone");
+      const phone = await computer("Alex's iPhone");
       await on(phone, () => answer(chatId, card.id, "allowed"));
       await owner().catchUp(chatId);
       let release = () => {};
@@ -1250,7 +1250,7 @@ describe("permissions.answer", () => {
 
     it("takes a session another computer stopped off the card, waking nobody", async () => {
       const { card, chatId, task } = await raised();
-      const phone = await computer("Jeremy's iPhone");
+      const phone = await computer("Alex's iPhone");
       await on(phone, () => closeAsksOf(chatId, task));
       expect(await on(phone, () => openAsks(chatId))).toEqual([]);
       const sentBefore = sent.length;

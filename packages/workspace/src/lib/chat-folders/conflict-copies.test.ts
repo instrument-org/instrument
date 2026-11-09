@@ -30,16 +30,16 @@ describe("the name a sync engine gives its copy", () => {
   it.each([
     ["iCloud Drive", "CHAT 2.md"],
     ["iCloud Drive, a third version", "CHAT 3.md"],
-    ["Dropbox", "CHAT (Jeremy's conflicted copy 2026-10-16).md"],
+    ["Dropbox", "CHAT (Alex's conflicted copy 2026-10-16).md"],
     ["Dropbox, by case", "CHAT (Case Conflict).md"],
-    ["OneDrive", "CHAT-JEREMY-PC.md"],
-    ["OneDrive, a Mac's name", "CHAT-Jeremy's MacBook Pro.md"],
+    ["OneDrive", "CHAT-ALEX-PC.md"],
+    ["OneDrive, a Mac's name", "CHAT-Alex's MacBook Pro.md"],
     ["Syncthing", "CHAT.sync-conflict-20261016-120000-ABCD123.md"],
     [
       "Syncthing, a copy of a copy",
       "CHAT.sync-conflict-20261016-120000-ABCD123.sync-conflict-20261017-090000-EFGH456.md",
     ],
-    ["two engines", "CHAT 2-JEREMY-PC.md"],
+    ["two engines", "CHAT 2-ALEX-PC.md"],
   ])("is read as one from %s", (_engine, name) => {
     expect(isChatFileConflictCopy(name)).toBe(true);
   });
@@ -94,10 +94,10 @@ describe("a copy of a chat's transcript", () => {
     await write(CHAT_FILE_NAME, transcript(CHAT));
     await write("CHAT 2.md", transcript(CHAT));
     await write(
-      "CHAT (Jeremy's conflicted copy 2026-10-16).md",
+      "CHAT (Alex's conflicted copy 2026-10-16).md",
       transcript(CHAT),
     );
-    await write("CHAT-JEREMY-PC.md", transcript(CHAT));
+    await write("CHAT-ALEX-PC.md", transcript(CHAT));
     await write(
       "CHAT.sync-conflict-20261016-120000-ABCD123.md",
       transcript(CHAT),
@@ -106,9 +106,9 @@ describe("a copy of a chat's transcript", () => {
     expect(await deleteChatFileConflictCopies({ folder, id: CHAT }))
       .toMatchInlineSnapshot(`
       [
-        "CHAT (Jeremy's conflicted copy 2026-10-16).md",
+        "CHAT (Alex's conflicted copy 2026-10-16).md",
         "CHAT 2.md",
-        "CHAT-JEREMY-PC.md",
+        "CHAT-ALEX-PC.md",
         "CHAT.sync-conflict-20261016-120000-ABCD123.md",
       ]
     `);

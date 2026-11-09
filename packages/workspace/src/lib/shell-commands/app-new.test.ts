@@ -736,7 +736,7 @@ describe("app new refuses what cannot connect", () => {
       "--web",
       "https://mail.google.com",
     );
-    await app("account", "gmail", "jeremy@example.com");
+    await app("account", "gmail", "name@example.com");
 
     const result = await app(
       "new",
@@ -756,7 +756,7 @@ describe("app new refuses what cannot connect", () => {
       url: "https://mail.google.com/mail/u/1/",
     });
     expect(result.stdout).toContain(
-      'It is another Gmail account beside gmail (jeremy@example.com), so it keeps the name Gmail rather than "Gmail (personal)"',
+      'It is another Gmail account beside gmail (name@example.com), so it keeps the name Gmail rather than "Gmail (personal)"',
     );
     // The next case sets Gmail up as the first of its kind.
     for (const slug of ["gmail", "gmail-personal"]) {
@@ -918,19 +918,19 @@ describe("app account", () => {
     );
     const before = await loadApp(getWorkspaceConfig().appsDir, "inbox-two");
 
-    const named = await app("account", "inbox-two", "jeremy@example.com");
+    const named = await app("account", "inbox-two", "name@example.com");
     const after = await loadApp(getWorkspaceConfig().appsDir, "inbox-two");
 
     expect(named.stdout).toBe(
-      "inbox-two is Inbox at work (jeremy@example.com) wherever it appears now.\n",
+      "inbox-two is Inbox at work (name@example.com) wherever it appears now.\n",
     );
-    expect(after._unsafeUnwrap().manifest.account).toBe("jeremy@example.com");
+    expect(after._unsafeUnwrap().manifest.account).toBe("name@example.com");
     // Outside the hash, so the connection record still matches.
     expect(after._unsafeUnwrap().manifestHash).toBe(
       before._unsafeUnwrap().manifestHash,
     );
     expect((await app("list")).stdout).toContain(
-      "inbox-two  Inbox at work (jeremy@example.com)  web",
+      "inbox-two  Inbox at work (name@example.com)  web",
     );
 
     await app("account", "inbox-two", "--clear");
@@ -955,11 +955,11 @@ describe("app account", () => {
       updatedAt: 1,
     });
 
-    const named = await app("account", "gmail-work", "jeremy@example.com");
+    const named = await app("account", "gmail-work", "name@example.com");
     const after = await appOf("gmail-work");
 
     expect(named.stdout).toMatchInlineSnapshot(`
-      "gmail-work is Gmail 2 (jeremy@example.com) wherever it appears now. It opens at https://mail.google.com/mail/?authuser=jeremy%40example.com, that account's own address.
+      "gmail-work is Gmail 2 (name@example.com) wherever it appears now. It opens at https://mail.google.com/mail/?authuser=name%40example.com, that account's own address.
       "
     `);
     expect(

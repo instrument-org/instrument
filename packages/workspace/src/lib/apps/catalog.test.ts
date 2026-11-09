@@ -20,7 +20,7 @@ describe("catalogEntryAt", () => {
   it.each([
     ["https://mail.google.com", "gmail"],
     ["https://mail.google.com/mail/u/1/", "gmail"],
-    ["https://mail.google.com/mail/?authuser=jeremy%40example.com", "gmail"],
+    ["https://mail.google.com/mail/?authuser=name%40example.com", "gmail"],
     ["https://calendar.google.com/calendar/r", "google-calendar"],
     ["https://docs.google.com/document/d/abc/edit", "google-docs"],
     ["https://docs.google.com/spreadsheets/d/abc/edit", "google-sheets"],

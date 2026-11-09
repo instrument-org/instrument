@@ -38,19 +38,19 @@ describe("record file names", () => {
     ["iCloud Drive, a later log", `${log}.2 3.jsonl`, logName(2, " 3")],
     [
       "Dropbox",
-      `${log} (Jeremy's conflicted copy 2026-10-14).jsonl`,
-      logName(1, " (Jeremy's conflicted copy 2026-10-14)"),
+      `${log} (Alex's conflicted copy 2026-10-14).jsonl`,
+      logName(1, " (Alex's conflicted copy 2026-10-14)"),
     ],
     [
       "Dropbox, by case",
       `settings.${DEVICE_A} (Case Conflict).jsonl`,
       { copy: " (Case Conflict)", device: DEVICE_A, kind: "settings" },
     ],
-    ["OneDrive", `${log}-JEREMY-PC.jsonl`, logName(1, "-JEREMY-PC")],
+    ["OneDrive", `${log}-ALEX-PC.jsonl`, logName(1, "-ALEX-PC")],
     [
       "OneDrive, a Mac's name",
-      `settings.${DEVICE_A}-Jeremy's MacBook Pro.jsonl`,
-      { copy: "-Jeremy's MacBook Pro", device: DEVICE_A, kind: "settings" },
+      `settings.${DEVICE_A}-Alex's MacBook Pro.jsonl`,
+      { copy: "-Alex's MacBook Pro", device: DEVICE_A, kind: "settings" },
     ],
     [
       "Syncthing",
@@ -65,7 +65,7 @@ describe("record file names", () => {
         ".sync-conflict-20261014-120000-ABCD123.sync-conflict-20261015-090000-EFGH456",
       ),
     ],
-    ["two engines", `${log} 2-JEREMY-PC.jsonl`, logName(1, " 2-JEREMY-PC")],
+    ["two engines", `${log} 2-ALEX-PC.jsonl`, logName(1, " 2-ALEX-PC")],
   ])("reads a conflict copy from %s", (_engine, name, expected) => {
     expect(parseRecordFileName(name)).toEqual(expected);
   });

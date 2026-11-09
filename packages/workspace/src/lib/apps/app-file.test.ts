@@ -14,7 +14,7 @@ const notion = [
   "test:",
   "  path: /users/me",
   "service: notion",
-  "account: jeremy@pileofturtles.com",
+  "account: name@example.com",
   "---",
   "",
   "What this app is for, and the endpoints the work needs.",
@@ -31,7 +31,7 @@ describe("reading an app's file", () => {
           "guide": "What this app is for, and the endpoints the work needs.",
           "id": "notion",
           "manifest": {
-            "account": "jeremy@pileofturtles.com",
+            "account": "name@example.com",
             "auth": {
               "kind": "bearer",
             },

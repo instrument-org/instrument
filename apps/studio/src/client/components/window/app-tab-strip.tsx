@@ -20,7 +20,15 @@ import { rpcClient } from "@/client/rpc/client";
 import { COMPUTER_ROOT } from "@/shared/computer-href";
 import { expandHomePath } from "@instrument-org/shared";
 import { useQuery } from "@tanstack/react-query";
+import { NewTabIcon } from "@/client/components/icons/new-tab-icon";
+import { formatAcceleratorText } from "@/client/lib/format-accelerator";
+import {
+  WINDOW_MENU_SHORTCUTS,
+  WINDOW_SHORTCUTS,
+} from "@/shared/window-shortcuts";
 import { AppWindowIcon } from "@phosphor-icons/react/AppWindow";
+import { ArrowUUpLeftIcon } from "@phosphor-icons/react/ArrowUUpLeft";
+import { ArrowsMergeIcon } from "@phosphor-icons/react/ArrowsMerge";
 import { WrenchIcon } from "@phosphor-icons/react/Wrench";
 import { useAtom, useAtomValue } from "jotai";
 import { useEffect, useLayoutEffect, useState } from "react";
@@ -72,6 +80,7 @@ export function AppTabStrip({
   onDuplicate,
   onNew,
   onReload,
+  onReopenLast,
   onReorder,
   onSelect,
   selectedId,
@@ -88,6 +97,8 @@ export function AppTabStrip({
   onNew: () => void;
   /** The tab's own reload, for a site's page; undefined where a tab has none. */
   onReload: (id: TabId) => (() => void) | undefined;
+  /** What Reopen Closed Tab's chord brings back: this window's tab or a window closed since. */
+  onReopenLast: () => void;
   onReorder: (ids: TabId[]) => void;
   onSelect: (id: TabId) => void;
   selectedId: null | TabId;
@@ -99,6 +110,7 @@ export function AppTabStrip({
     childTitles,
   });
   const [menu, setMenu] = useState<{ id: TabId; x: number; y: number }>();
+  const [stripMenu, setStripMenu] = useState<{ x: number; y: number }>();
   const idOf = (key: string) => tabs.find((tab) => tab.id === key)?.id;
 
   useTabCarryView();
@@ -181,7 +193,22 @@ export function AppTabStrip({
   });
 
   return (
-    <div className="contents" data-app-tab-strip="">
+    <div
+      className="contents"
+      data-app-tab-strip=""
+      onContextMenu={(event) => {
+        // A tab's own menu, or a control's, answered it first.
+        if (
+          event.defaultPrevented ||
+          (event.target instanceof Element &&
+            event.target.closest("button, a, input, [role=tab]"))
+        ) {
+          return;
+        }
+        event.preventDefault();
+        setStripMenu({ x: event.clientX, y: event.clientY });
+      }}
+    >
       <TabStrip
         carriedKey={carry.carriedKey}
         className="min-w-0 flex-1"
@@ -247,7 +274,73 @@ export function AppTabStrip({
           />
         )}
       </TabMenuAtPoint>
+      <TabMenuAtPoint
+        at={stripMenu}
+        onDismiss={() => {
+          setStripMenu(undefined);
+        }}
+      >
+        <StripMenu onNew={onNew} onReopenLast={onReopenLast} />
+      </TabMenuAtPoint>
     </div>
+  );
+}
+
+/**
+ * What a right click on the strip's empty part offers, as a browser's tab
+ * bar does: a tab or window to open, the last one closed, and the other
+ * windows' tabs brought into this one.
+ */
+function StripMenu({
+  onNew,
+  onReopenLast,
+}: {
+  onNew: () => void;
+  onReopenLast: () => void;
+}) {
+  const others = useQuery(
+    rpcClient.window.live.others.experimental_liveOptions(),
+  ).data;
+  const { Item, Separator, Shortcut } = dropdownMenuComponents;
+  return (
+    <>
+      <Item onClick={onNew}>
+        <NewTabIcon className="size-4" />
+        <span>{WINDOW_SHORTCUTS.newTab.label}</span>
+        <Shortcut>
+          {formatAcceleratorText(WINDOW_SHORTCUTS.newTab.accelerator)}
+        </Shortcut>
+      </Item>
+      <Item onClick={onReopenLast}>
+        <ArrowUUpLeftIcon className="size-4" />
+        <span>{WINDOW_SHORTCUTS.reopenTab.label}</span>
+        <Shortcut>
+          {formatAcceleratorText(WINDOW_SHORTCUTS.reopenTab.accelerator)}
+        </Shortcut>
+      </Item>
+      <Separator />
+      <Item
+        onClick={() => {
+          void rpcClient.window.openNew.call();
+        }}
+      >
+        <AppWindowIcon className="size-4" />
+        <span>{WINDOW_MENU_SHORTCUTS.newWindow.label}</span>
+        <Shortcut>
+          {formatAcceleratorText(WINDOW_MENU_SHORTCUTS.newWindow.accelerator)}
+        </Shortcut>
+      </Item>
+      {others && others.length > 0 ? (
+        <Item
+          onClick={() => {
+            void rpcClient.window.mergeAll.call();
+          }}
+        >
+          <ArrowsMergeIcon className="size-4" />
+          <span>Merge All Windows</span>
+        </Item>
+      ) : null}
+    </>
   );
 }
 

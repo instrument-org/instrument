@@ -1188,6 +1188,7 @@ function WindowShell({
                     onDuplicate={duplicateAppTab}
                     onNew={appTabs.openNewTab}
                     onReload={reloadablePageOf}
+                    onReopenLast={appTabs.reopen}
                     onReorder={appTabs.reorder}
                     onSelect={appTabs.select}
                     selectedId={appTabs.model.selectedId}

@@ -199,9 +199,7 @@ describe("FeedbackDialogContent", () => {
   it("sends what the person did in the app only when they switch it on", async () => {
     await open();
     expect(
-      screen.getByText(
-        "The last 30 minutes, without file or page names.",
-      ),
+      screen.getByText("The last 30 minutes, without file or page names."),
     ).toBeTruthy();
     fireEvent.click(screen.getByRole("switch", { name: "Send your activity" }));
     fireEvent.click(screen.getByRole("button", { name: "Send" }));

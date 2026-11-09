@@ -693,7 +693,11 @@ export function redactedAction(action: Action): Action {
       };
     }
     case "rename": {
-      return { ...action, from: pathKind(action.from), to: pathKind(action.to) };
+      return {
+        ...action,
+        from: pathKind(action.from),
+        to: pathKind(action.to),
+      };
     }
     case "trash": {
       return { ...action, paths: action.paths.map(pathKind) };

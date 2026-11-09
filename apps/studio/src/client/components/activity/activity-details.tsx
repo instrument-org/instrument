@@ -402,9 +402,7 @@ function ActionDetails({ action, at }: { action: ShownAction; at: number }) {
     }
     case "page": {
       return (
-        <>
-          {own(text.context, <AddressFact url={action.url} />, "Visited")}
-        </>
+        <>{own(text.context, <AddressFact url={action.url} />, "Visited")}</>
       );
     }
     case "permission": {

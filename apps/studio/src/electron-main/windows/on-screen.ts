@@ -27,9 +27,7 @@ let takenOver = false;
  */
 export function keepsOffScreen() {
   return (
-    isDrivenInstance() &&
-    process.env.STUDIO_DRIVE_VISIBLE !== "1" &&
-    !takenOver
+    isDrivenInstance() && process.env.STUDIO_DRIVE_VISIBLE !== "1" && !takenOver
   );
 }
 

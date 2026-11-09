@@ -40,7 +40,12 @@ describe("moveSkillsToFolder", () => {
 
     const moved = await moveSkillsToFolder(root);
 
-    expect(moved).toEqual({ count: 1, kind: "moved", where: folder() });
+    expect(moved).toEqual({
+      count: 1,
+      kind: "moved",
+      left: 0,
+      where: folder(),
+    });
     // The resolver and the move agree, which is what makes the skill load.
     expect(getWorkspaceSkillsDir()).toBe(folder());
     await expect(
@@ -49,17 +54,23 @@ describe("moveSkillsToFolder", () => {
     await expect(fs.readdir(hiddenDir())).rejects.toThrow();
   });
 
-  it("leaves a Skills folder the person already made alone", async () => {
+  it("brings a hidden skill in beside the ones the person already has", async () => {
     await writeSkill(hiddenDir(), "hidden-one");
     await writeSkill(folder(), "theirs");
 
     const moved = await moveSkillsToFolder(root);
 
-    expect(moved).toEqual({ kind: "already-there", where: folder() });
-    // Never merged over: what they wrote stays, and the hidden one stays
-    // put rather than being half-emptied into it.
-    expect((await fs.readdir(folder())).toSorted()).toEqual(["theirs"]);
-    expect(await fs.readdir(hiddenDir())).toEqual(["hidden-one"]);
+    expect(moved).toEqual({
+      count: 1,
+      kind: "moved",
+      left: 0,
+      where: folder(),
+    });
+    expect((await fs.readdir(folder())).toSorted()).toEqual([
+      "hidden-one",
+      "theirs",
+    ]);
+    await expect(fs.readdir(hiddenDir())).rejects.toThrow();
   });
 
   it("does nothing for a workspace with no skills hidden away", async () => {

@@ -13,6 +13,8 @@ import {
 import { type AppConnectionStore } from "./apps/connection";
 import { manifestHash } from "./apps/manifest";
 import { type FolderMoved, moveOutOfDataDir } from "./move-out-of-data-dir";
+import { readOldFile } from "./read-old-file";
+import { rewriteFileSync } from "./rewrite-file";
 import { isRecord } from "./skills";
 import { WORKSPACE_DATA_ENTRIES, workspaceLayout } from "./workspace-layout";
 
@@ -132,15 +134,13 @@ async function convertAppFolder({
     return undefined;
   }
   const already = parseAppFile(
-    await fs.readFile(path.join(was, APP_FILE_NAME), "utf8").catch(() => ""),
+    (await readOldFile(path.join(was, APP_FILE_NAME))) ?? "",
   );
   // The folder was the app's slug until this runs, and is its name after, so
   // a folder whose `APP.md` is written already is named for the app, and the
   // id in that file is the only thing that still says which app it is.
   const slug = already.kind === "app" ? already.app.id : folder;
-  const guide = await fs
-    .readFile(path.join(was, GUIDE_FILE_NAME), "utf8")
-    .catch(() => "");
+  const guide = (await readOldFile(path.join(was, GUIDE_FILE_NAME))) ?? "";
   const read = appOf(legacy, { guide, slug });
   if (read.kind !== "app") {
     throw new Error(
@@ -151,11 +151,7 @@ async function convertAppFolder({
   }
   const app = read.app;
   if (already.kind !== "app") {
-    await fs.writeFile(
-      path.join(was, APP_FILE_NAME),
-      renderAppFile(app),
-      "utf8",
-    );
+    rewriteFileSync(path.join(was, APP_FILE_NAME), () => renderAppFile(app));
     const again = parseAppFile(
       await fs.readFile(path.join(was, APP_FILE_NAME), "utf8"),
     );

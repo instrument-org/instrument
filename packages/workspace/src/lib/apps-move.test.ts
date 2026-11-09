@@ -69,12 +69,12 @@ it("brings the hidden apps folder out to the top level", async () => {
   expect(await moveAppsToFolder(root)).toEqual({ kind: "none" });
 });
 
-it("leaves an Apps folder the person already made, and the hidden one with it", async () => {
+it("brings a hidden app in beside the ones the person already has", async () => {
   await writeOldApp(hiddenApps(), "notion", notion);
   await fs.mkdir(path.join(apps(), "Theirs"), { recursive: true });
 
-  expect(await moveAppsToFolder(root)).toMatchObject({ kind: "already-there" });
-  expect(await fs.readdir(hiddenApps())).toEqual(["notion"]);
+  expect(await moveAppsToFolder(root)).toMatchObject({ kind: "moved" });
+  expect((await fs.readdir(apps())).toSorted()).toEqual(["Theirs", "notion"]);
 });
 
 it("turns an app's two files into one APP.md in a folder named for it", async () => {

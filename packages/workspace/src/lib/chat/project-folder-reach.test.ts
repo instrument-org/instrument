@@ -8,7 +8,11 @@ import { ChatIdSchema } from "../../schemas/chat-id";
 import { AbsolutePathSchema, WorkspaceDirSchema } from "../../schemas/paths";
 import { StoreId } from "../../schemas/store-id";
 import { chatReach } from "../permissions/chat-rules";
-import { moveProjectFolders } from "../permissions/move-project-folders";
+import { updateJsonRecordSync } from "../json-record-file";
+import {
+  markedWhereNoSettings,
+  moveProjectFolders,
+} from "../permissions/move-project-folders";
 import {
   permissionsFileIn,
   readPermissionSettings,
@@ -137,6 +141,26 @@ describe("a project's folders", () => {
       JSON.stringify({ topicFoldersMoved: true, topics: {} }),
     );
     listInProjectFile("Taxes", outside);
+
+    expect(moveProjectFolders({ machineDir, rootDir: root })).toEqual({
+      moved: 0,
+    });
+    expect(await reachOfChat(outside)).toEqual({
+      reached: false,
+      write: "ask",
+    });
+  });
+
+  // A launch on a computer new to the workspace carries a chat's grants and
+  // a 1.x project's folders into the settings before the project files are
+  // read, and settings made at that launch are not ones a build before left.
+  it("are never widened by settings a step of the same launch wrote first", async () => {
+    const project = await createProject({ name: "Taxes" });
+    filed.project = project.id;
+    listInProjectFile("Taxes", outside);
+
+    expect(markedWhereNoSettings(machineDir)).toBe(true);
+    updateJsonRecordSync(permissionsFileIn(machineDir), () => ({ chats: {} }));
 
     expect(moveProjectFolders({ machineDir, rootDir: root })).toEqual({
       moved: 0,

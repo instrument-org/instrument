@@ -14,6 +14,8 @@ import {
   PROJECTS_FOLDER_NAME,
 } from "./chat/project-file";
 import { type FolderMoved, moveOutOfDataDir } from "./move-out-of-data-dir";
+import { readOldFile } from "./read-old-file";
+import { rewriteFileSync } from "./rewrite-file";
 import { isSystemClutter } from "./system-clutter";
 import { isRecord } from "./skills";
 import { workspaceLayout } from "./workspace-layout";
@@ -108,14 +110,14 @@ async function convertProjectFolder(
     return undefined;
   }
   const instructionsFile = path.join(folder, INSTRUCTIONS_FILE_NAME);
-  const instructions = await fs
-    .readFile(instructionsFile, "utf8")
-    .catch(() => "");
+  const instructions = (await readOldFile(instructionsFile)) ?? "";
   const project = projectOf({ instructions, settings });
   if (!project) {
     throw new Error(`${SETTINGS_FILE_NAME} names no project`);
   }
-  await fs.writeFile(file, renderProjectFile(project), "utf8");
+  // Whole or not at all: a file cut short would read as the project
+  // converted, and the two files it came from would never be read again.
+  rewriteFileSync(file, () => renderProjectFile(project));
   const again = parseProjectFile(await fs.readFile(file, "utf8"), {
     at: new Date(),
   });

@@ -72,19 +72,32 @@ describe("moveProjectsToFolder", () => {
 
     const moved = await moveProjectsToFolder(root);
 
-    expect(moved).toEqual({ count: 1, kind: "moved", where: folder() });
+    expect(moved).toEqual({
+      count: 1,
+      kind: "moved",
+      left: 0,
+      where: folder(),
+    });
     await expect(fs.readdir(hiddenDir())).rejects.toThrow();
   });
 
-  it("leaves a Projects folder the person already made alone", async () => {
+  it("brings a hidden project in beside the ones the person already has", async () => {
     await writeOldProject(hiddenDir(), "Kitchen");
     await writeOldProject(folder(), "Theirs");
 
     const moved = await moveProjectsToFolder(root);
 
-    expect(moved).toEqual({ kind: "already-there", where: folder() });
-    expect(await fs.readdir(folder())).toEqual(["Theirs"]);
-    expect(await fs.readdir(hiddenDir())).toEqual(["Kitchen"]);
+    expect(moved).toEqual({
+      count: 1,
+      kind: "moved",
+      left: 0,
+      where: folder(),
+    });
+    expect((await fs.readdir(folder())).toSorted()).toEqual([
+      "Kitchen",
+      "Theirs",
+    ]);
+    await expect(fs.readdir(hiddenDir())).rejects.toThrow();
   });
 
   it("does nothing for a workspace with no projects hidden away", async () => {
@@ -239,6 +252,24 @@ describe("convertProjectsToProjectFiles", () => {
     expect(
       await fs.readdir(path.join(folder(), "Kitchen", PRIVATE_FOLDER_NAME)),
     ).toEqual([SETTINGS_FILE_NAME]);
+  });
+
+  // Read as empty, the project would be written with no instructions and the
+  // file that could not be read then deleted.
+  it("leaves a project whose instructions are there and cannot be read", async () => {
+    await writeOldProject(folder(), "Kitchen");
+    // Reading a folder fails as a file that will not read does.
+    await fs.mkdir(path.join(folder(), "Kitchen", "instructions.md"));
+
+    const converted = await convertProjectsToProjectFiles(root);
+
+    expect(converted.done).toEqual([]);
+    expect(converted.left).toMatchObject([
+      { where: path.join(folder(), "Kitchen") },
+    ]);
+    expect(
+      (await fs.readdir(path.join(folder(), "Kitchen"))).toSorted(),
+    ).toEqual([PRIVATE_FOLDER_NAME, "instructions.md"]);
   });
 
   it("does nothing for a workspace with no Projects folder", async () => {

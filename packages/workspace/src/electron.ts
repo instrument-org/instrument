@@ -119,7 +119,10 @@ export {
   type WorkspaceLayoutMigration,
 } from "./lib/migrate-workspace-layout";
 export { type ChatRecordsSplit } from "./lib/split-chat-records";
-export { moveProjectFolders } from "./lib/permissions/move-project-folders";
+export {
+  markedWhereNoSettings,
+  moveProjectFolders,
+} from "./lib/permissions/move-project-folders";
 export { folderProjectId, saveProjectId } from "./lib/chat/projects";
 export { attachChats } from "./lib/chat/attach";
 export { interruptTasksForQuit } from "./lib/chat/wake";

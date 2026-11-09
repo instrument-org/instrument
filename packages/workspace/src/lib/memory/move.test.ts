@@ -58,6 +58,7 @@ describe("moveMemoriesToFolder", () => {
     expect(await moveMemoriesToFolder(root)).toEqual({
       count: 1,
       kind: "moved",
+      left: 0,
       where: folder(),
     });
     expect(await fs.readFile(path.join(folder(), "no-stevia.md"), "utf8")).toBe(
@@ -69,13 +70,14 @@ describe("moveMemoriesToFolder", () => {
     await expect(fs.readdir(hiddenDir())).rejects.toThrow();
   });
 
-  it("leaves an existing Memory alone, whatever the hidden folder holds", async () => {
+  it("leaves a memory of the same name as it is, and the hidden one hidden", async () => {
     await hide("no-stevia", "No stevia in anything.");
     await fs.mkdir(folder(), { recursive: true });
     await fs.writeFile(path.join(folder(), "no-stevia.md"), "Mine.");
 
     expect(await moveMemoriesToFolder(root)).toEqual({
       kind: "already-there",
+      left: 1,
       where: folder(),
     });
     expect(await fs.readFile(path.join(folder(), "no-stevia.md"), "utf8")).toBe(

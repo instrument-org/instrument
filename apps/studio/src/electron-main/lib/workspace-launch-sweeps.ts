@@ -10,6 +10,7 @@ import {
   type DeviceId,
   type FolderMoved,
   giveChatsTheirFolders,
+  markedWhereNoSettings,
   migrateWorkspaceLayout,
   moveAppsToFolder,
   moveMemoriesToFolder,
@@ -84,8 +85,12 @@ export async function sweepWorkspaceFolder({
   await timeBootStep("sweep.moveTopicsToProjects", () =>
     moveTopicsToProjectsFolder(rootDir),
   );
+  // Whether a build before this one kept permission settings here is read
+  // before the steps below, which write them.
+  markProjectFoldersSeen();
+  let layoutSettled = true;
   if (inAppData) {
-    sweepWorkspaceLayout(rootDir);
+    layoutSettled = sweepWorkspaceLayout(rootDir);
   } else {
     logger.info(
       "Workspace layout migration: none for a folder the person picked",
@@ -105,9 +110,18 @@ export async function sweepWorkspaceFolder({
   );
   // A folder of the six under another case (`skills/`, which a build before
   // kept there) is the one each step below finds under the app's name on a
-  // file system that reads both as one, so it takes that name first.
-  for (const step of settleKeyFolderCase(rootDir)) {
-    logger.info(`Folder case: ${step}`);
+  // file system that reads both as one, so it takes that name first. Not
+  // while the layout sweep still has a folder to move in: it finds `chats/`
+  // and `projects/` by the lowercase names earlier builds wrote, and one
+  // renamed here is one it never finds again.
+  if (layoutSettled) {
+    for (const step of settleKeyFolderCase(rootDir)) {
+      logger.info(`Folder case: ${step}`);
+    }
+  } else {
+    logger.warn(
+      "Folder case: left as it is until the layout sweep has moved every folder",
+    );
   }
   // The person's own folders come out of `.instrument/` before anything
   // reads one of them.
@@ -208,6 +222,14 @@ function logDone(sweep: string, done: readonly string[]) {
  * not block boot; one before the settings are written is tried again next
  * launch.
  */
+function markProjectFoldersSeen() {
+  try {
+    markedWhereNoSettings(workspaceMachineDir());
+  } catch (error) {
+    captureServerException(error);
+  }
+}
+
 function carryProjectFolders(rootDir: string) {
   try {
     const { moved } = moveProjectFolders({
@@ -361,8 +383,8 @@ async function moveFolderOut(what: string, move: () => Promise<FolderMoved>) {
     const moved = await timeBootStep(`sweep.move${what}`, move);
     switch (moved.kind) {
       case "already-there":
-        logger.info(
-          `${what}: ${moved.where} is already there, so nothing moved`,
+        logger.warn(
+          `${what}: left ${moved.left} hidden, since ${moved.where} already has one of each name`,
         );
         break;
       case "failed":
@@ -371,7 +393,9 @@ async function moveFolderOut(what: string, move: () => Promise<FolderMoved>) {
         );
         break;
       case "moved":
-        logger.info(`${what}: moved ${moved.count} to ${moved.where}`);
+        logger.info(
+          `${what}: moved ${moved.count} to ${moved.where}${moved.left > 0 ? `, and left ${moved.left} hidden` : ""}`,
+        );
         break;
       case "none":
         break;
@@ -455,9 +479,10 @@ async function convertAppFiles(rootDir: string) {
  * Move the app's folders into the workspace's `.instrument/`, normalize the
  * on-disk layout of any legacy tasks, and take each chat's work out of its
  * records, before the workspace reads them. Idempotent; a failure must not
- * block boot.
+ * block boot. Says whether every app folder is where this build reads it,
+ * which is false when a move was left for the next boot or the sweep threw.
  */
-function sweepWorkspaceLayout(rootDir: string) {
+function sweepWorkspaceLayout(rootDir: string): boolean {
   try {
     const migrationStartedAt = performance.now();
     const migration = migrateWorkspaceLayout({
@@ -510,7 +535,9 @@ function sweepWorkspaceLayout(rootDir: string) {
         { conflictedTaskIds: migration.conflictedTaskIds },
       );
     }
+    return migration.appFolders.failed === 0;
   } catch (error) {
     captureServerException(error);
+    return false;
   }
 }

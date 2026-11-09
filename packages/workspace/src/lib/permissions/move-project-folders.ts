@@ -51,16 +51,11 @@ export function moveProjectFolders({
   rootDir: string;
 }): { moved: number } {
   const file = permissionsFileIn(machineDir);
-  const read = readJsonRecordSync(file);
-  if (read.kind === "read" && read.record[MOVED_MARK] === true) {
+  if (markedWhereNoSettings(machineDir)) {
     return { moved: 0 };
   }
-  // No settings here means no build before this one ran the workspace on
-  // this computer, so the folders a file lists were granted somewhere else,
-  // or written by the agent: none is taken in, and the files are left alone
-  // for the computer that granted them to take in its own.
-  if (read.kind === "missing") {
-    updateJsonRecordSync(file, () => ({ [MOVED_MARK]: true }));
+  const read = readJsonRecordSync(file);
+  if (read.kind === "read" && read.record[MOVED_MARK] === true) {
     return { moved: 0 };
   }
   const listing = readProjectsSync(rootDir).flatMap((project) => {
@@ -82,6 +77,28 @@ export function moveProjectFolders({
   return {
     moved: listing.filter(({ paths }) => paths.length > 0).length,
   };
+}
+
+/**
+ * Writes the mark where this computer has no permission settings for the
+ * workspace, and says whether it did.
+ *
+ * No settings means no build before this one ran the workspace here, so the
+ * folders a project's file lists were granted somewhere else, or written by
+ * the agent: none is taken in, and the files are left alone for the computer
+ * that granted them to take in its own.
+ *
+ * A launch calls this before any step that can write the settings, since a
+ * step that carries a chat's grants or a 1.x project's folders makes the file,
+ * and a file made at this launch would read as one a build before left.
+ */
+export function markedWhereNoSettings(machineDir: string): boolean {
+  const file = permissionsFileIn(machineDir);
+  if (readJsonRecordSync(file).kind !== "missing") {
+    return false;
+  }
+  updateJsonRecordSync(file, () => ({ [MOVED_MARK]: true }));
+  return true;
 }
 
 function withoutFolders(project: Project): Project {

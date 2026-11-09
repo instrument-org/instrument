@@ -5,6 +5,7 @@ import {
 import fs from "node:fs/promises";
 import path from "node:path";
 
+import { readOldFile } from "../read-old-file";
 import { isRecord } from "../skills";
 import { workspaceLayout } from "../workspace-layout";
 import { contextLineOf } from "./context-line";
@@ -94,11 +95,9 @@ async function moveDraftFolder({
   const settings = await readRecord(
     path.join(from, PRIVATE_FOLDER_NAME, SETTINGS_FILE_NAME),
   );
-  const words = await fs.readFile(path.join(from, "draft.md"), "utf8").catch(
-    // Words gone from the folder are a draft with no words, which is what the
-    // build that wrote it read too.
-    () => "",
-  );
+  // Words gone from the folder are a draft with no words, which is what the
+  // build that wrote it read too.
+  const words = (await readOldFile(path.join(from, "draft.md"))) ?? "";
   const draft = draftOf({ id, settings, words });
   const { dir, file } = await ensureDraftFolder({ draft, rootDir, timeZone });
   const pasted = await movePasted(from, dir);
@@ -226,13 +225,21 @@ function attachedOf(value: unknown): Attached[] | undefined {
   return items.length > 0 ? items : undefined;
 }
 
+/**
+ * The draft's old record, empty where it had none. One that is there and
+ * cannot be read or parsed throws, so the draft stays in its old folder
+ * with its record rather than moving without its chat, project and context.
+ */
 async function readRecord(file: string): Promise<Record<string, unknown>> {
-  try {
-    const parsed: unknown = JSON.parse(await fs.readFile(file, "utf8"));
-    return isRecord(parsed) ? parsed : {};
-  } catch {
+  const text = await readOldFile(file);
+  if (text === undefined) {
     return {};
   }
+  const parsed: unknown = JSON.parse(text);
+  if (!isRecord(parsed)) {
+    throw new Error(`${file} is not a record`);
+  }
+  return parsed;
 }
 
 function momentOf(value: unknown): Date | undefined {

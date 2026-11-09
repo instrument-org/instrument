@@ -36,7 +36,12 @@ describe("moveOutOfDataDir", () => {
   it("brings the whole folder out when the top level has none", async () => {
     await writeSkill(hidden(), "tidy-notes");
 
-    expect(await move()).toEqual({ count: 1, kind: "moved", where: visible() });
+    expect(await move()).toEqual({
+      count: 1,
+      kind: "moved",
+      left: 0,
+      where: visible(),
+    });
     expect(await fs.readdir(visible())).toEqual(["tidy-notes"]);
     await expect(fs.readdir(hidden())).rejects.toThrow();
   });
@@ -49,7 +54,12 @@ describe("moveOutOfDataDir", () => {
     await writeSkill(hidden(), "read-receipts");
     await fs.mkdir(visible(), { recursive: true });
 
-    expect(await move()).toEqual({ count: 2, kind: "moved", where: visible() });
+    expect(await move()).toEqual({
+      count: 2,
+      kind: "moved",
+      left: 0,
+      where: visible(),
+    });
     expect((await fs.readdir(visible())).toSorted()).toEqual([
       "read-receipts",
       "tidy-notes",
@@ -62,25 +72,60 @@ describe("moveOutOfDataDir", () => {
     await fs.mkdir(visible(), { recursive: true });
     await fs.writeFile(path.join(visible(), ".DS_Store"), "");
 
-    expect(await move()).toEqual({ count: 1, kind: "moved", where: visible() });
+    expect(await move()).toEqual({
+      count: 1,
+      kind: "moved",
+      left: 0,
+      where: visible(),
+    });
     expect((await fs.readdir(visible())).toSorted()).toEqual([
       ".DS_Store",
       "tidy-notes",
     ]);
   });
 
-  it("leaves a folder with the person's own work in it alone", async () => {
+  it("brings out what is still hidden after something was saved at the top level", async () => {
+    // A launch whose move failed, and a skill saved since: the folder at the
+    // top level is no longer empty, and the hidden ones still come out.
     await writeSkill(hidden(), "tidy-notes");
+    await writeSkill(hidden(), "read-receipts");
     await writeSkill(visible(), "theirs");
 
     expect(await move()).toEqual({
-      kind: "already-there",
+      count: 2,
+      kind: "moved",
+      left: 0,
       where: visible(),
     });
-    // Never merged over: what they wrote stays, and the hidden one stays put
-    // rather than being half-emptied into it.
-    expect(await fs.readdir(visible())).toEqual(["theirs"]);
+    expect((await fs.readdir(visible())).toSorted()).toEqual([
+      "read-receipts",
+      "theirs",
+      "tidy-notes",
+    ]);
+    await expect(fs.readdir(hidden())).rejects.toThrow();
+  });
+
+  it("leaves a hidden entry whose name is taken, whole, and what took it untouched", async () => {
+    await writeSkill(hidden(), "tidy-notes");
+    await writeSkill(hidden(), "read-receipts");
+    await fs.mkdir(path.join(visible(), "tidy-notes"), { recursive: true });
+    await fs.writeFile(path.join(visible(), "tidy-notes", "SKILL.md"), "mine");
+
+    expect(await move()).toEqual({
+      count: 1,
+      kind: "moved",
+      left: 1,
+      where: visible(),
+    });
+    expect(
+      await fs.readFile(path.join(visible(), "tidy-notes", "SKILL.md"), "utf8"),
+    ).toBe("mine");
     expect(await fs.readdir(hidden())).toEqual(["tidy-notes"]);
+    expect(await move()).toEqual({
+      kind: "already-there",
+      left: 1,
+      where: visible(),
+    });
   });
 
   it("does nothing for a workspace with nothing hidden away", async () => {

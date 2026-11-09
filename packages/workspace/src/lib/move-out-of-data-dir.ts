@@ -1,6 +1,8 @@
 import fs from "node:fs/promises";
 import path from "node:path";
 
+import { entryExists, moveEntrySync } from "./move-entry";
+
 /**
  * Brings a folder an earlier build hid in the workspace's `.instrument/` out
  * to the workspace's top level, where the person reads and edits it in a
@@ -13,26 +15,31 @@ import path from "node:path";
  * - Nothing stored is rewritten. Each of these folders is found by reading
  *   it, so the one thing that says which folder is the resolver, and the
  *   move is what makes the resolver true.
- * - It never merges into a folder with something in it. A top level that
- *   already holds the folder with the person's own work in it is left as it
- *   is, so a second run cannot write over what they put there, and the
- *   hidden copy stays where it is rather than being half-emptied.
- * - An empty folder of that name is moved into, since nothing can be written
- *   over and leaving it would hide what was hidden for good: the resolver
- *   reads the empty one and the person's work stays somewhere they cannot
- *   find. Both the app and the person make these, so it is the common case
- *   rather than a corner of one.
- * - A failure leaves everything where it was. The next launch tries again.
+ * - It never writes over anything. Where the top level already holds the
+ *   folder, each hidden entry moves in under its own name only when that
+ *   name is free there; one whose name is taken stays hidden, whole, and is
+ *   counted. So what the person put there is never touched, and a run cut
+ *   short, or one that follows a memory saved after a failed run, still
+ *   brings out everything it can.
+ * - A failure leaves the entry where it was. The next launch tries again.
  */
+
+const FINDER_FILE = ".DS_Store";
 
 /** What a move came to, for the boot log. */
 export type FolderMoved =
-  /** The folder is already at the top level, so the hidden one is left. */
-  | { kind: "already-there"; where: string }
+  /** Every hidden entry's name is taken at the top level, so none moved. */
+  | { kind: "already-there"; left: number; where: string }
   | { error: string; kind: "failed" }
   /** Nothing hidden, or nothing in it, which is most workspaces. */
   | { kind: "none" }
-  | { count: number; kind: "moved"; where: string };
+  | {
+      count: number;
+      kind: "moved";
+      /** Entries still hidden: a name taken at the top level, or a move that failed. */
+      left: number;
+      where: string;
+    };
 
 export async function moveOutOfDataDir({
   from,
@@ -56,46 +63,46 @@ export async function moveOutOfDataDir({
   if (held.length === 0) {
     return { kind: "none" };
   }
-  const there = await fs.readdir(to).catch(() => undefined);
-  if (there !== undefined) {
-    return there.some((entry) => entry !== ".DS_Store")
-      ? { kind: "already-there", where: to }
-      : moveEachInto({ from, held, to });
-  }
-  try {
-    await fs.rename(from, to);
-  } catch (error) {
-    return { error: String(error), kind: "failed" };
-  }
-  return { count: held.length, kind: "moved", where: to };
-}
-
-/**
- * Into the empty folder already at the top level, one entry at a time, since
- * the folder itself cannot be renamed over one that is there. The hidden
- * folder goes once it holds nothing; an entry left behind keeps it, and the
- * next launch moves that one.
- */
-async function moveEachInto({
-  from,
-  held,
-  to,
-}: {
-  from: string;
-  held: string[];
-  to: string;
-}): Promise<FolderMoved> {
-  let moved = 0;
-  for (const entry of held) {
+  if (!entryExists(to)) {
     try {
-      await fs.rename(path.join(from, entry), path.join(to, entry));
+      moveEntrySync(from, to);
+    } catch (error) {
+      return { error: String(error), kind: "failed" };
+    }
+    return { count: held.length, kind: "moved", left: 0, where: to };
+  }
+
+  // What the Finder left is no entry of the person's: it neither moves nor
+  // keeps the hidden folder.
+  const entries = held.filter((entry) => entry !== FINDER_FILE);
+  let moved = 0;
+  let taken = 0;
+  let failure: string | undefined;
+  for (const entry of entries) {
+    const target = path.join(to, entry);
+    if (entryExists(target)) {
+      taken += 1;
+      continue;
+    }
+    try {
+      moveEntrySync(path.join(from, entry), target);
       moved += 1;
     } catch (error) {
-      if (moved === 0) {
-        return { error: String(error), kind: "failed" };
-      }
+      failure ??= String(error);
     }
   }
-  await fs.rmdir(from).catch(() => undefined);
-  return { count: moved, kind: "moved", where: to };
+  const left = entries.length - moved;
+  if (left === 0) {
+    await fs.rm(path.join(from, FINDER_FILE), { force: true });
+    await fs.rmdir(from).catch(() => undefined);
+  }
+  if (entries.length === 0) {
+    return { kind: "none" };
+  }
+  if (moved > 0) {
+    return { count: moved, kind: "moved", left, where: to };
+  }
+  return failure !== undefined && taken === 0
+    ? { error: failure, kind: "failed" }
+    : { kind: "already-there", left, where: to };
 }

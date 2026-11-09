@@ -31,7 +31,7 @@ export function ProjectsSection({
   onNew,
   projects,
 }: {
-  chats: { lastUserMessageAt: number; project?: string }[];
+  chats: { archived: boolean; lastUserMessageAt: number; project?: string }[];
   onChoose: (project: Project) => void;
   onDetails: (project: Project) => void;
   onNew: () => void;
@@ -48,7 +48,8 @@ export function ProjectsSection({
   const folded = isFolding ? ordered.slice(SHOWN_PROJECTS) : [];
   const counts = new Map<string, number>();
   for (const chat of chats) {
-    if (chat.project !== undefined) {
+    // Counted as the project's view lists them, which leaves out the ones put away.
+    if (chat.project !== undefined && !chat.archived) {
       counts.set(chat.project, (counts.get(chat.project) ?? 0) + 1);
     }
   }

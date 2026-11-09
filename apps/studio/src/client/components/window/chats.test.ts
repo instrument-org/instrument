@@ -179,14 +179,33 @@ describe("matchesFilters", () => {
     expect(matchesFilters({ ...kept, archived: true }, filters)).toBe(false);
   });
 
-  it("keeps a chat put away in a project it is filed under, as a label does", () => {
-    const filters: ChatFilters = { ...NO_FILTERS, projects: ["house"] };
+  it("leaves a chat put away out of the project it is filed under, and keeps it in Archived", () => {
+    const filed = chat({ archived: true, project: "house" });
+    expect(matchesFilters(filed, { ...NO_FILTERS, projects: ["house"] })).toBe(
+      false,
+    );
     expect(
-      matchesFilters(chat({ archived: true, project: "house" }), filters),
+      matchesFilters(filed, {
+        ...NO_FILTERS,
+        place: "archived",
+        projects: ["house"],
+      }),
     ).toBe(true);
+  });
+
+  it("finds a chat put away in a project among the matches outside it", () => {
+    const filed = chat({
+      archived: true,
+      project: "house",
+      title: "Roof repair",
+    });
     expect(
-      matchesFilters(chat({ archived: true, project: "garden" }), filters),
-    ).toBe(false);
+      outsideFilters([filed], {
+        ...NO_FILTERS,
+        projects: ["house"],
+        search: "roof",
+      }),
+    ).toEqual([filed]);
   });
 
   it.each([

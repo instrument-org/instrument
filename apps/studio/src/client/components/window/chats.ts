@@ -207,10 +207,10 @@ function anyOf<T extends string>(chosen: T[], held: T[]) {
 /**
  * Whether a chat is in the place the column stands in. A chat put away
  * is in Archived alone, the way mail keeps what was archived out of the
- * inbox, so the inbox is every other chat. A project is the whole of its
- * collection rather than a part of the inbox, so one chosen shows what is
- * filed under it, put away or not. Drafts are not chats at all yet, so that
- * place holds none.
+ * inbox, so the inbox is every other chat, and a project chosen there shows
+ * what is filed under it and not put away. A search finds the ones put away
+ * through the matches outside the filters. Drafts are not chats at all yet,
+ * so that place holds none.
  */
 function matchesPlace(chat: Filterable, filters: ChatFilters) {
   switch (filters.place) {
@@ -221,7 +221,7 @@ function matchesPlace(chat: Filterable, filters: ChatFilters) {
       return false;
     }
     case undefined: {
-      return !chat.archived || filters.projects.length > 0;
+      return !chat.archived;
     }
   }
 }

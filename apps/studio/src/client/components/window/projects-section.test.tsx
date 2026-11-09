@@ -26,6 +26,7 @@ function renderSection() {
     <ProjectsSection
       // Each project's newest chat in the order the names are listed.
       chats={NAMES.map((name, index) => ({
+        archived: false,
         lastUserMessageAt: NAMES.length - index,
         project: name.toLowerCase(),
       }))}

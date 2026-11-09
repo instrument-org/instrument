@@ -66,7 +66,10 @@ export function RowActionBar({
         <IconContext.Provider value={ROW_ICONS}>
           {leading}
           {shown.map((action) => (
-            <Tooltip key={action.id}>
+            // The tooltip lets the pointer through to the row it covers: one
+            // that took it would end the row's hover, hide the control it
+            // hangs from, and come back as the row is hovered again.
+            <Tooltip disableHoverableContent key={action.id}>
               <TooltipTrigger asChild>
                 <button
                   aria-label={action.label}

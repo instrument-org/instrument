@@ -1131,6 +1131,12 @@ body {
   -webkit-app-region: no-drag;
 }
 
+/* A tooltip's positioning box takes no pointer, so the content alone decides
+ * whether the pointer reaches what the tooltip covers (`ui/tooltip.tsx`). */
+[data-radix-popper-content-wrapper]:has(> [data-slot="tooltip-content"]) {
+  pointer-events: none;
+}
+
 /* Adhere to standard macOS cursor behavior. */
 a {
   cursor: default;

@@ -27,11 +27,6 @@ import { ClearActivityDialog } from "@/client/components/activity/clear-activity
 import { Button } from "@/client/components/ui/button";
 import { Checkbox } from "@/client/components/ui/checkbox";
 import {
-  Tooltip,
-  TooltipContent,
-  TooltipTrigger,
-} from "@/client/components/ui/tooltip";
-import {
   ContextMenu,
   ContextMenuContent,
   ContextMenuTrigger,
@@ -393,9 +388,7 @@ export function ActivityPage({
           </div>
         )}
         <span className="flex-1" />
-        <PrivacyNote
-          canChatsRead={preferences.data?.shareActionsWithChats !== false}
-        />
+
         <PageMenu
           onClear={() => {
             setClearing(true);
@@ -444,6 +437,11 @@ export function ActivityPage({
             hasMore={isLoading}
             // Days are named from when the page opened, as both logs are read.
             items={withDayHeads(shown, new Date(until), displayLocale)}
+            notice={
+              <AboutCard
+                canChatsRead={preferences.data?.shareActionsWithChats !== false}
+              />
+            }
             loadMore={loadMore}
             onCheck={(entry, on) => {
               setChecked((current) => {
@@ -497,32 +495,29 @@ export function ActivityPage({
 }
 
 /**
- * Where the history is kept and who reads it, short at the bar's end, with
- * the whole of it on hover; a click opens Settings › Activity to change it.
+ * What the history is and who reads it, as a card above the first day:
+ * someone can land here from the window's corner without looking for it.
  */
-function PrivacyNote({ canChatsRead }: { canChatsRead: boolean }) {
+function AboutCard({ canChatsRead }: { canChatsRead: boolean }) {
   return (
-    <Tooltip>
-      <TooltipTrigger asChild>
-        <button
-          className="flex h-7 shrink-0 items-center gap-1.5 rounded-full px-2.5 text-xs text-muted-foreground hover:bg-foreground/5 hover:text-foreground"
-          onClick={() => {
-            openSettings({ tab: "Activity" });
-          }}
-          type="button"
-        >
-          <LockSimpleIcon className="size-3.5 shrink-0" />
-          {canChatsRead
-            ? "Only on this computer · Chats can read it"
-            : "Only on this computer · Chats can't read it"}
-        </button>
-      </TooltipTrigger>
-      <TooltipContent className="max-w-72">
+    <div className="mb-3 flex items-start gap-3 rounded-xl border border-border bg-card px-4 py-3">
+      <LockSimpleIcon className="mt-0.5 size-4 shrink-0 text-muted-foreground" />
+      <p className="min-w-0 flex-1 text-[13px] leading-5 text-muted-foreground">
         {canChatsRead
-          ? `${APP_NAME} keeps this on this computer so you can find things again, and chats read it to tell which file you mean. Click to change that in Activity settings.`
-          : `${APP_NAME} keeps this on this computer so you can find things again. Chats can't read it. Click to change that in Activity settings.`}
-      </TooltipContent>
-    </Tooltip>
+          ? `This history stays on this computer, so you can find what you had open. When you say “that file” or “the page I was on”, chats look here to work out what you mean.`
+          : `This history stays on this computer, so you can find what you had open. Chats can't look at it right now.`}
+      </p>
+      <Button
+        className="shrink-0"
+        onClick={() => {
+          openSettings({ tab: "Activity" });
+        }}
+        size="sm"
+        variant="outline"
+      >
+        Settings
+      </Button>
+    </div>
   );
 }
 
@@ -578,8 +573,9 @@ function targetOf(entry: TimelineEntry): OpenTarget | undefined {
 function ActivityList({
   checked,
   hasMore,
-  items,
+  items: listed,
   loadMore,
+  notice,
   onCheck,
   onMoreFrom,
   onPick,
@@ -590,6 +586,8 @@ function ActivityList({
   hasMore: boolean;
   items: TimelineItem[];
   loadMore: () => void;
+  /** What the page says above its first day, scrolled with the days. */
+  notice?: React.ReactNode;
   onCheck: (entry: TimelineEntry, on: boolean) => void;
   onMoreFrom: (q: string) => void;
   onPick: (entry: TimelineEntry | undefined) => void;
@@ -597,6 +595,9 @@ function ActivityList({
   picked: null | string;
 }) {
   const [scroller, setScroller] = useState<HTMLDivElement | null>(null);
+  const items: (TimelineItem | { id: string; kind: "notice" })[] = notice
+    ? [{ id: "notice", kind: "notice" }, ...listed]
+    : listed;
   const modelName = useModelName();
   const gesturesFor = useGesturesFor();
   const words = { trash: osConventions().trash };
@@ -606,7 +607,12 @@ function ActivityList({
   // oxlint-disable-next-line react/incompatible-library
   const virtualizer = useVirtualizer({
     count: items.length,
-    estimateSize: (index) => (items[index]?.kind === "day" ? 44 : 40),
+    estimateSize: (index) =>
+      items[index]?.kind === "notice"
+        ? 76
+        : items[index]?.kind === "day"
+          ? 44
+          : 40,
     getItemKey: (index) => items[index]?.id ?? index,
     getScrollElement: () => scroller,
     measureElement: (element) =>
@@ -638,7 +644,7 @@ function ActivityList({
     }
   }, [hasMore, items.length, last, loadMore]);
 
-  const entries = items.filter(
+  const entries = listed.filter(
     (item): item is TimelineEntry => item.kind !== "day",
   );
 
@@ -748,12 +754,25 @@ function ActivityList({
             ref: virtualizer.measureElement,
             style: { transform: `translateY(${virtual.start}px)` },
           };
+          if (item.kind === "notice") {
+            return (
+              <div
+                className="absolute inset-x-0 top-0"
+                key={item.id}
+                {...placed}
+              >
+                {notice}
+              </div>
+            );
+          }
           if (item.kind === "day") {
             return (
               <div
                 className={cn(
                   "absolute inset-x-0 top-0",
-                  virtual.index > 0 && "pt-3",
+                  virtual.index > 0 &&
+                    items[virtual.index - 1]?.kind !== "notice" &&
+                    "pt-3",
                 )}
                 key={item.id}
                 {...placed}

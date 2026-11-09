@@ -152,6 +152,7 @@ import {
   useEffect,
   useEffectEvent,
   useLayoutEffect,
+  useMemo,
   useRef,
   useState,
 } from "react";
@@ -570,29 +571,31 @@ export function ComputerPage({
   // The recents as a folder's worth of files: named where they live, and flat,
   // since a list of what was opened is not a tree.
   const recentEntries = recents.files;
-  const recentKeys = recentPaths(recentEntries);
+  const recentKeys = useMemo(() => recentPaths(recentEntries), [recentEntries]);
   // A WebM or a 3GP is a video or a sound, which its name cannot tell. Each
   // one listed is read (`files.probeMedia`, kept per version), and one with
   // no picture is typed and drawn as a sound, as the viewer opens it.
-  const ambiguousPaths = [
-    ...new Set(
-      [
-        ...listings.flatMap(({ data }) => data?.entries ?? []),
-        ...recentEntries,
-      ].flatMap((entry) =>
-        entry.kind !== "folder" && soundTypeIfNoPicture(entry.name)
-          ? [entry.path]
-          : [],
-      ),
-    ),
-  ];
-  const soundOnly = useQueries({
-    combine: (results) =>
-      new Set(
-        results.flatMap((result, index) =>
-          result.data?.picture === false ? [ambiguousPaths[index]] : [],
+  // Memoized by hand: read after the hook below, a value made before it is
+  // made afresh every render, and with it every item the folder lists.
+  const ambiguousPaths = useMemo(
+    () => [
+      ...new Set(
+        [
+          ...listings.flatMap(({ data }) => data?.entries ?? []),
+          ...recentEntries,
+        ].flatMap((entry) =>
+          entry.kind !== "folder" && soundTypeIfNoPicture(entry.name)
+            ? [entry.path]
+            : [],
         ),
       ),
+    ],
+    [listings, recentEntries],
+  );
+  // Combined into a string, which stays equal from one render to the next
+  // where a set would be new each time.
+  const pictureless = useQueries({
+    combine: picturelessMarks,
     queries: ambiguousPaths.map((ambiguousPath) =>
       rpcClient.files.probeMedia.queryOptions({
         input: { path: ambiguousPath },
@@ -600,88 +603,106 @@ export function ComputerPage({
       }),
     ),
   });
-  const contentTypeOf = (entry: {
-    mimeType?: string;
-    name: string;
-    path: string;
-  }) =>
-    (soundOnly.has(entry.path)
-      ? soundTypeIfNoPicture(entry.name)
-      : undefined) ?? entry.mimeType;
-  const recentItems = recentEntries.map((entry, index): FileSystemItem => {
-    return {
-      contentType: contentTypeOf(entry),
-      ...(entry.createdAt === undefined
-        ? {}
-        : { createdAt: new Date(entry.createdAt).toISOString() }),
-      kind: "file",
-      metadata: { hostPath: entry.path },
-      name: entry.name,
-      path: recentKeys[index] ?? entry.name,
-      ...previewOf(entry, resolvedTheme),
-      openedAt: new Date(entry.openedAt).toISOString(),
-      size: entry.size,
-      ...(entry.modifiedAt === undefined
-        ? {}
-        : { updatedAt: new Date(entry.modifiedAt).toISOString() }),
-    };
-  });
-  const folderItems = listings.flatMap(({ data }, index) => {
-    const prefix = prefixes[index] ?? "";
-    if (!data) {
-      return [];
-    }
-    return (
-      data.entries
-        // The browser hides a name that begins with a dot itself. Windows keeps
-        // the answer as a file attribute instead, which only the listing can
-        // read, so those are dropped here -- under the same switch, so one menu
-        // item still governs everything the system would rather you did not see.
-        .filter((entry) => showHiddenFiles || !entry.hidden)
-        .map((entry): FileSystemItem => {
-          const stamps = {
-            ...(entry.createdAt === undefined
-              ? {}
-              : { createdAt: new Date(entry.createdAt).toISOString() }),
-            ...(entry.modifiedAt === undefined
-              ? {}
-              : { updatedAt: new Date(entry.modifiedAt).toISOString() }),
-          };
-          if (entry.kind === "folder") {
-            return {
-              ...stamps,
-              ...withGlyph(
-                instrumentFolderGlyphUrl(entry.path, {
-                  outputFolder: instrumentPath,
-                  workspace: workspaceFolder,
-                }),
-              ),
-              hasChildren: true,
-              kind: "folder",
-              metadata: { hostPath: entry.path },
-              path: `${prefix}${entry.name}/`,
-            };
-          }
-          // Read by where it is, as the listing was: whatever the column can
-          // list, the viewer can show, whether or not the agent can reach it.
-          return {
-            ...stamps,
-            contentType: contentTypeOf(entry),
-            ...(entry.displayName === undefined
-              ? {}
-              : { displayName: entry.displayName }),
-            kind: "file",
-            metadata: { hostPath: entry.path },
-            path: `${prefix}${entry.name}`,
-            ...previewOf(entry, resolvedTheme),
-            size: entry.size,
-            ...(entry.typeName === undefined
-              ? {}
-              : { typeName: entry.typeName }),
-          };
-        })
-    );
-  });
+  const soundOnly = useMemo(
+    () =>
+      new Set(
+        ambiguousPaths.filter((_path, index) => pictureless[index] === "1"),
+      ),
+    [ambiguousPaths, pictureless],
+  );
+  // Memoized by hand, like the paths above: the same items from one render
+  // to the next are what spare the browser re-indexing the folder on every
+  // arrow press.
+  const recentItems = useMemo(
+    () =>
+      recentEntries.map((entry, index): FileSystemItem => {
+        return {
+          contentType: contentTypeOf(entry, soundOnly),
+          ...(entry.createdAt === undefined
+            ? {}
+            : { createdAt: new Date(entry.createdAt).toISOString() }),
+          kind: "file",
+          metadata: { hostPath: entry.path },
+          name: entry.name,
+          path: recentKeys[index] ?? entry.name,
+          ...previewOf(entry, resolvedTheme),
+          openedAt: new Date(entry.openedAt).toISOString(),
+          size: entry.size,
+          ...(entry.modifiedAt === undefined
+            ? {}
+            : { updatedAt: new Date(entry.modifiedAt).toISOString() }),
+        };
+      }),
+    [recentEntries, recentKeys, resolvedTheme, soundOnly],
+  );
+  const folderItems = useMemo(
+    () =>
+      listings.flatMap(({ data }, index) => {
+        const prefix = prefixes[index] ?? "";
+        if (!data) {
+          return [];
+        }
+        return (
+          data.entries
+            // The browser hides a name that begins with a dot itself. Windows keeps
+            // the answer as a file attribute instead, which only the listing can
+            // read, so those are dropped here -- under the same switch, so one menu
+            // item still governs everything the system would rather you did not see.
+            .filter((entry) => showHiddenFiles || !entry.hidden)
+            .map((entry): FileSystemItem => {
+              const stamps = {
+                ...(entry.createdAt === undefined
+                  ? {}
+                  : { createdAt: new Date(entry.createdAt).toISOString() }),
+                ...(entry.modifiedAt === undefined
+                  ? {}
+                  : { updatedAt: new Date(entry.modifiedAt).toISOString() }),
+              };
+              if (entry.kind === "folder") {
+                return {
+                  ...stamps,
+                  ...withGlyph(
+                    instrumentFolderGlyphUrl(entry.path, {
+                      outputFolder: instrumentPath,
+                      workspace: workspaceFolder,
+                    }),
+                  ),
+                  hasChildren: true,
+                  kind: "folder",
+                  metadata: { hostPath: entry.path },
+                  path: `${prefix}${entry.name}/`,
+                };
+              }
+              // Read by where it is, as the listing was: whatever the column can
+              // list, the viewer can show, whether or not the agent can reach it.
+              return {
+                ...stamps,
+                contentType: contentTypeOf(entry, soundOnly),
+                ...(entry.displayName === undefined
+                  ? {}
+                  : { displayName: entry.displayName }),
+                kind: "file",
+                metadata: { hostPath: entry.path },
+                path: `${prefix}${entry.name}`,
+                ...previewOf(entry, resolvedTheme),
+                size: entry.size,
+                ...(entry.typeName === undefined
+                  ? {}
+                  : { typeName: entry.typeName }),
+              };
+            })
+        );
+      }),
+    [
+      instrumentPath,
+      listings,
+      prefixes,
+      resolvedTheme,
+      showHiddenFiles,
+      soundOnly,
+      workspaceFolder,
+    ],
+  );
   const items = isRecents ? recentItems : folderItems;
   // Listed as files and opened as one, but folders inside, which the menu's
   // Show Package Contents goes into.
@@ -3499,6 +3520,25 @@ function combineListings(
     isPending: result.isPending,
     refusal: result.data?.kind === "refused" ? result.data : undefined,
   }));
+}
+
+/** A file's type, as a sound where probing found it has no picture. */
+function contentTypeOf(
+  entry: { mimeType?: string; name: string; path: string },
+  soundOnly: ReadonlySet<string>,
+) {
+  return (
+    (soundOnly.has(entry.path)
+      ? soundTypeIfNoPicture(entry.name)
+      : undefined) ?? entry.mimeType
+  );
+}
+
+/** A `1` for each probed file found to have no picture, a `0` for the rest. */
+function picturelessMarks(results: { data?: null | { picture: boolean } }[]) {
+  return results
+    .map((result) => (result.data?.picture === false ? "1" : "0"))
+    .join("");
 }
 
 /**

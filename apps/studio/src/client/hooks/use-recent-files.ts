@@ -26,20 +26,27 @@ export function useRecentFiles({
       input: enabled ? { limit: RECENT_FILES_MAX } : skipToken,
     }),
   );
-  const openedFiles = opened.data ?? [];
   const refresh = useRefreshWhileShown(refetchInterval);
   const described = useQuery(
     rpcClient.workspace.computer.describe.queryOptions({
       enabled: (query) =>
         enabled && opened.data !== undefined && refresh.enabled(query),
-      input: { id: WINDOW_ID, paths: openedFiles.map((file) => file.path) },
+      input: {
+        id: WINDOW_ID,
+        paths: (opened.data ?? []).map((file) => file.path),
+      },
       // The list keeps its rows while a new open is described, rather than
       // emptying for the moment between the two answers.
       placeholderData: keepPreviousData,
       refetchInterval: refresh.refetchInterval,
     }),
   );
-  const openedAt = new Map(openedFiles.map((file) => [file.path, file.at]));
+  // Derived after the last hook, where the compiler can keep the list the
+  // same object from one render to the next: a value made before a hook and
+  // read after it is made afresh every render.
+  const openedAt = new Map(
+    (opened.data ?? []).map((file) => [file.path, file.at]),
+  );
   const files = (described.data ?? []).flatMap((entry) => {
     const at = openedAt.get(entry.path);
     return at === undefined ? [] : [{ ...entry, openedAt: at }];

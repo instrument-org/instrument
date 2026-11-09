@@ -28,6 +28,7 @@ import {
   DropdownMenuTrigger,
 } from "@/client/components/ui/dropdown-menu";
 import { SearchField } from "@/client/components/window/search-field";
+import { useIsActiveTab } from "@/client/hooks/use-active-tab";
 import { useGesturesFor } from "@/client/hooks/use-open-target";
 import { displayLocale } from "@/client/lib/display-locale";
 import { type OpenTarget } from "@/client/lib/open-target";
@@ -135,8 +136,17 @@ export function ActivityPage({
   show: Show | undefined;
 }) {
   // Both logs are read up to when the page opened, so what is recorded
-  // while it is open never shifts a page.
+  // while it is open never shifts a page, and again from then each time
+  // its tab comes back up.
   const [until, setUntil] = useState(() => Date.now());
+  const isShown = useIsActiveTab();
+  const [wasShown, setWasShown] = useState(isShown);
+  if (isShown !== wasShown) {
+    setWasShown(isShown);
+    if (isShown) {
+      setUntil(Date.now());
+    }
+  }
   const view = viewOf(show);
   const queryClient = useQueryClient();
   const modelName = useModelName();

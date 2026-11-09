@@ -12,6 +12,7 @@ import {
   type BrowserTargetId,
   lastBrowserAgentActivity,
   notePageOpenedTab,
+  notePersonUsedTab,
   StoreId,
 } from "@instrument-org/workspace/electron";
 import {
@@ -550,6 +551,12 @@ function createBrowserViewManager(): BrowserViewManager {
         input.type,
         focusGuard.isGuarded(targetId),
       );
+      if (
+        byPerson ||
+        (input.type === "mouseWheel" && !focusGuard.isGuarded(targetId))
+      ) {
+        notePersonUsedTab(targetId);
+      }
       if (
         record &&
         byPerson &&

@@ -168,6 +168,7 @@ export { runtimeLayout } from "./lib/runtime-dir";
 export { ensurePythonBase } from "./lib/python-base";
 export { lastBrowserAgentActivity } from "./lib/browser-agent-activity";
 export { notePageOpenedTab } from "./lib/chat/popup-tabs";
+export { notePersonUsedTab } from "./lib/chat/tab-cap";
 export { WINDOW_ID } from "./schemas/window-id";
 export {
   appCatalogChanges,

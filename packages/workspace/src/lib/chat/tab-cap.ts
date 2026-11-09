@@ -6,21 +6,30 @@ import {
   type OpenedTab,
 } from "../../schemas/chat-state";
 import { type StoreId } from "../../schemas/store-id";
+import { type BrowserTargetId } from "../../types";
 import { getChatState, updateChatState } from "../chat-record";
 import { chatDir, resolveChat, sessionOfChat } from "../record-folders";
 import { actsIn, forgetTab, lastActOf } from "../tab-activity";
 import { getWorkspaceConfig } from "../workspace-config";
-import { type ChatPageTab, chatPageTabs, workingIn } from "./chat-tabs";
+import {
+  type ChatPageTab,
+  chatOfOpenedTab,
+  chatPageTabs,
+  workingIn,
+} from "./chat-tabs";
 import { type ChatTask, listChildTasks } from "./children";
 import { openAsks } from "./open-asks";
 import { askWindow } from "./window-tab";
 
 /**
  * Closes the tabs a chat's agents opened that are out of sight past
- * `CHAT_HIDDEN_TAB_CAP`, the one hidden longest first, and leaves a word for
- * the session that worked in each, which its next browser note says. A tab
- * whose page is unloaded counts as hidden longer than any with a page. A tab
- * the window no longer lists is gone already and is forgotten.
+ * `CHAT_HIDDEN_TAB_CAP`, the one hidden longest first among those the person
+ * never used, and leaves a word for the session that worked in each, which
+ * its next browser note says. A tab the person used counts toward the cap
+ * but is never closed for it, so a chat whose hidden tabs are all used keeps
+ * every one. A tab whose page is unloaded counts as hidden longer than any
+ * with a page. A tab the window no longer lists is gone already and is
+ * forgotten.
  */
 export async function closeTabsOverCap(chatId: ChatId): Promise<void> {
   await inTurn(chatId, async () => {
@@ -39,8 +48,9 @@ export async function closeTabsOverCap(chatId: ChatId): Promise<void> {
           (a.life?.hiddenForMs ?? Number.POSITIVE_INFINITY),
       );
     const over = hidden
-      .slice(0, Math.max(0, hidden.length - CHAT_HIDDEN_TAB_CAP))
-      .map(({ tab }) => tab);
+      .map(({ tab }) => tab)
+      .filter((tab) => isUnused(tab))
+      .slice(0, Math.max(0, hidden.length - CHAT_HIDDEN_TAB_CAP));
     await closeOpened(chatId, over, listed, "tabCap");
   });
 }
@@ -48,8 +58,8 @@ export async function closeTabsOverCap(chatId: ChatId): Promise<void> {
 /**
  * Closes the tabs the chat's agents opened that nobody can still be working
  * in and the person never used, as the chat's own turn ends, so the pane is
- * back to the person's own. A tab they clicked or typed in, one on screen
- * now, one the chat waits on them in, one a task with a turn running has
+ * back to the person's own. A tab they used (`notePersonUsedTab`), one on
+ * screen now, one the chat waits on them in, one a task with a turn running has
  * driven, and one a task opened or worked in that can still be sent on
  * (`task send`) stay; a task's tabs close when it is stopped
  * (`closeTaskTabs`). The next browser note of the session that worked in
@@ -137,13 +147,48 @@ export async function closeChatTabs(chatId: ChatId): Promise<void> {
   });
 }
 
-/** Whether a tab is one the person never clicked or typed in, and not on screen. */
+/** Whether a tab is one the person never used, and not on screen. */
 function isUnused(tab: OpenedTab): boolean {
-  return (
-    tabLifetime(tab.id)?.drawn !== true &&
-    getWorkspaceConfig().browser.personInputAt(tab.id) === undefined
-  );
+  return tab.usedByPerson !== true && tabLifetime(tab.id)?.drawn !== true;
 }
+
+/**
+ * Marks a tab an agent opened as used by the person, on the chat's
+ * `openedTabs` so it outlives a relaunch and its page being unloaded: they
+ * clicked, typed or scrolled in its page, or had it on screen for
+ * `SHOWN_COUNTS_AS_USED_MS`. No automatic close takes it from then on. The
+ * person's own tabs, which nothing closes, are left as they are. Written
+ * once per tab; later calls return at once.
+ */
+export function notePersonUsedTab(id: BrowserTargetId): void {
+  if (markedUsed.has(id)) {
+    return;
+  }
+  markedUsed.add(id);
+  void (async () => {
+    const chatId = await chatOfOpenedTab(id);
+    if (chatId === undefined) {
+      return;
+    }
+    await inTurn(chatId, async () => {
+      const { openedTabs } = await getChatState(chatDir(chatId));
+      if (!openedTabs.some((tab) => tab.id === id && !tab.usedByPerson)) {
+        return;
+      }
+      await updateChatState(chatDir(chatId), (state) => ({
+        openedTabs: state.openedTabs.map((tab) =>
+          tab.id === id ? { ...tab, usedByPerson: true as const } : tab,
+        ),
+      }));
+    });
+  })().catch((error: unknown) => {
+    markedUsed.delete(id);
+    getWorkspaceConfig().captureException(error);
+  });
+}
+
+/** The tabs `notePersonUsedTab` has marked this launch. */
+const markedUsed = new Set<BrowserTargetId>();
 
 /** Whether a task opened a tab or worked in it. */
 function isTasks(tab: OpenedTab, task: ChatTask): boolean {

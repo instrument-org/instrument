@@ -63,7 +63,7 @@ describe("browserStatusModelNote", () => {
     ).toMatchInlineSnapshot(`
       "
       <instrument-system-note>
-      This chat has no tabs open now. The app closed a tab this chat's agents opened, t9 at https://example.com/old ("Old results"): the chat had more than 20 tabs its agents opened out of the user's sight, and the one hidden longest closes first.
+      This chat has no tabs open now. The app closed a tab this chat's agents opened, t9 at https://example.com/old ("Old results"): the chat had more than 20 tabs its agents opened out of the user's sight, and the one hidden longest that the user never used closes first. Tabs the user used stay until someone closes them, so close the tabs you opened once you are done with them.
       </instrument-system-note>"
     `);
   });
@@ -85,7 +85,7 @@ describe("browserStatusModelNote", () => {
     ).toMatchInlineSnapshot(`
       "
       <instrument-system-note>
-      This chat has no tabs open now. The app closed a tab this chat's agents opened that nobody was working in and the user never used, t2 at https://example.com/list ("Field guide"), as your last turn ended. Open the address again if the work needs it.
+      This chat has no tabs open now. The app closed a tab this chat's agents opened that nobody was working in and the user never used, t2 at https://example.com/list ("Field guide"), as your last turn ended. Open the address again if the work needs it. Tabs the user used stay until someone closes them, so close the tabs you opened once you are done with them.
       </instrument-system-note>"
     `);
   });

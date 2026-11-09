@@ -1,3 +1,5 @@
+import { noop } from "radashi";
+
 import { type ChatId } from "../../schemas/chat-id";
 import { type StoreId } from "../../schemas/store-id";
 import { type ClosedTab } from "../../schemas/chat-state";
@@ -7,6 +9,7 @@ import { getChatState, updateChatState } from "../chat-record";
 import { chatDir, resolveChat, sessionOfChat } from "../record-folders";
 import { actsIn } from "../tab-activity";
 import { isWorking } from "./activity";
+import { listChatIds } from "./chat-records";
 import { listChildTasks } from "./children";
 import { askWindow } from "./window-tab";
 
@@ -46,12 +49,49 @@ export async function noteOpenedTab(
   id: BrowserTargetId,
   openedIn: StoreId.Session,
 ): Promise<void> {
-  await updateChatState(chatDir(chatId), ({ openedTabs }) => ({
-    openedTabs: [
-      ...openedTabs.filter((tab) => tab.id !== id),
-      { id, openedIn },
-    ],
-  }));
+  openerChats.set(id, chatId);
+  await updateChatState(chatDir(chatId), ({ openedTabs }) => {
+    const used = openedTabs.some((tab) => tab.id === id && tab.usedByPerson);
+    return {
+      openedTabs: [
+        ...openedTabs.filter((tab) => tab.id !== id),
+        { id, openedIn, ...(used ? { usedByPerson: true as const } : {}) },
+      ],
+    };
+  });
+}
+
+/** The chat whose agents opened each tab, as far as this launch has seen. */
+const openerChats = new Map<BrowserTargetId, ChatId>();
+
+/** Every chat's `openedTabs` read into `openerChats`, once a launch. */
+let scanned: Promise<void> | undefined;
+
+/**
+ * The chat whose agents opened a tab, or undefined for a tab no agent
+ * opened (the person's own). A tab kept before this launch is found by
+ * reading every chat's state, the first time one is asked about.
+ */
+export async function chatOfOpenedTab(
+  id: BrowserTargetId,
+): Promise<ChatId | undefined> {
+  const known = openerChats.get(id);
+  if (known !== undefined) {
+    return known;
+  }
+  // A chat gone meanwhile has no tabs to find.
+  scanned ??= Promise.allSettled(
+    listChatIds().map(async (chatId) => {
+      const { openedTabs } = await getChatState(chatDir(chatId));
+      for (const tab of openedTabs) {
+        if (!openerChats.has(tab.id)) {
+          openerChats.set(tab.id, chatId);
+        }
+      }
+    }),
+  ).then(noop);
+  await scanned;
+  return openerChats.get(id);
 }
 
 /** Forgets tabs that are gone or closing, so nothing counts or closes them again. */

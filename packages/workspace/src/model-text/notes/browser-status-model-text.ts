@@ -62,9 +62,12 @@ function closedNote(closed: NonNullable<Status["closed"]>) {
   return [
     overCap.length === 0
       ? ""
-      : ` The app closed ${overCap.length === 1 ? "a tab" : "tabs"} this chat's agents opened, ${named(overCap)}: the chat had more than ${CHAT_HIDDEN_TAB_CAP} tabs its agents opened out of the user's sight, and the one hidden longest closes first.`,
+      : ` The app closed ${overCap.length === 1 ? "a tab" : "tabs"} this chat's agents opened, ${named(overCap)}: the chat had more than ${CHAT_HIDDEN_TAB_CAP} tabs its agents opened out of the user's sight, and the one hidden longest that the user never used closes first.`,
     atTurnEnd.length === 0
       ? ""
       : ` The app closed ${atTurnEnd.length === 1 ? "a tab" : "tabs"} this chat's agents opened that nobody was working in and the user never used, ${named(atTurnEnd)}, as your last turn ended. Open the address again if the work needs it.`,
+    closed.length === 0
+      ? ""
+      : " Tabs the user used stay until someone closes them, so close the tabs you opened once you are done with them.",
   ].join("");
 }

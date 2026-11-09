@@ -25,6 +25,12 @@ const OpenedTabSchema = z.object({
    * still be sent on, and is told when it closes.
    */
   openedIn: StoreId.SessionSchema.optional(),
+  /**
+   * The person has used it: clicked, typed or scrolled in its page, or had
+   * it on screen for `SHOWN_COUNTS_AS_USED_MS`. No automatic close takes it
+   * from then on; an agent or the person still may.
+   */
+  usedByPerson: z.literal(true).optional(),
 });
 
 export type OpenedTab = z.output<typeof OpenedTabSchema>;

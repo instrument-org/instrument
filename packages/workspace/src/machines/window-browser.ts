@@ -37,6 +37,13 @@ export const DRIVEN_SLEEP_AFTER_MS = ms("2 minutes");
  */
 export const SLEEP_RECHECK_MS = ms("10 seconds");
 
+/**
+ * How long a tab's page stays drawn before the person counts as having used
+ * it (`WindowBrowserInput.onShownToPerson`): long enough to have looked, not
+ * just to have passed it on the way to another tab.
+ */
+export const SHOWN_COUNTS_AS_USED_MS = ms("3 seconds");
+
 /** What the running window browser knows of a tab's page: whether it is drawn, and how long it has left. */
 export interface TabLifetime {
   /** Whether a page of the window draws it. */
@@ -68,6 +75,8 @@ export interface WindowBrowserInput {
   browser: BrowserConfig;
   /** Whether an agent that is working right now drives the tab: a task, or the chat's own conversation. */
   isDrivenByWorkingAgent: (targetId: BrowserTargetId) => Promise<boolean>;
+  /** Told once a tab's page has been drawn for `SHOWN_COUNTS_AS_USED_MS` without a break. */
+  onShownToPerson?: (targetId: BrowserTargetId) => void;
   /** A clock that stops while the computer sleeps, so a night asleep is not hours out of sight. */
   now?: () => number;
 }
@@ -117,6 +126,8 @@ export const windowBrowserLogic = fromCallback<
   // and coming back (a crash, a reload), and the guest that returns is
   // still on screen.
   const leases = new Map<BrowserTargetId, number>();
+  // The tabs drawn now, each until it has been drawn long enough to count as used.
+  const shownTimers = new Map<BrowserTargetId, ReturnType<typeof setTimeout>>();
 
   const isDrawn = (targetId: BrowserTargetId) =>
     (leases.get(targetId) ?? 0) > 0;
@@ -289,6 +300,15 @@ export const windowBrowserLogic = fromCallback<
     switch (event.type) {
       case "acquireVisible": {
         leases.set(targetId, (leases.get(targetId) ?? 0) + 1);
+        const { onShownToPerson } = input;
+        if (onShownToPerson && !shownTimers.has(targetId)) {
+          shownTimers.set(
+            targetId,
+            setTimeout(() => {
+              onShownToPerson(targetId);
+            }, SHOWN_COUNTS_AS_USED_MS),
+          );
+        }
         const guest = guests.get(targetId);
         if (guest) {
           guest.hiddenSince = null;
@@ -308,6 +328,8 @@ export const windowBrowserLogic = fromCallback<
           return;
         }
         leases.delete(targetId);
+        clearTimeout(shownTimers.get(targetId));
+        shownTimers.delete(targetId);
         const guest = guests.get(targetId);
         if (guest) {
           guest.hiddenSince = now();
@@ -323,6 +345,9 @@ export const windowBrowserLogic = fromCallback<
     stopActivity();
     if (readLifetime === lifetime) {
       readLifetime = undefined;
+    }
+    for (const timer of shownTimers.values()) {
+      clearTimeout(timer);
     }
     for (const guest of guests.values()) {
       clearTimeout(guest.sleepTimer);

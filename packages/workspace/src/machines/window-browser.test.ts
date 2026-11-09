@@ -14,6 +14,7 @@ import {
   AGENT_PROTECTION_MS,
   DISCARD_CHECK_MS,
   SEEN_TAB_DISCARD_MS,
+  SHOWN_COUNTS_AS_USED_MS,
   DRIVEN_SLEEP_AFTER_MS,
   SLEEP_AFTER_MS,
   SLEEP_RECHECK_MS,
@@ -73,6 +74,7 @@ function makeBrowser() {
 
 let clock = 0;
 let driven = new Set<BrowserTargetId>();
+let shownToPerson: BrowserTargetId[] = [];
 
 function start() {
   const browser = makeBrowser();
@@ -82,6 +84,9 @@ function start() {
       isDrivenByWorkingAgent: (targetId) =>
         Promise.resolve(driven.has(targetId)),
       now: () => clock,
+      onShownToPerson: (targetId) => {
+        shownToPerson.push(targetId);
+      },
     },
   }).start();
   const send = (
@@ -105,6 +110,7 @@ beforeEach(() => {
   vi.useFakeTimers();
   clock = 0;
   driven = new Set();
+  shownToPerson = [];
 });
 
 afterEach(() => {
@@ -255,6 +261,19 @@ describe("windowBrowserLogic", () => {
     await pass(UNSEEN_TAB_DISCARD_MS + DISCARD_CHECK_MS * 3);
 
     expect(closed).toEqual([page]);
+  });
+
+  it("says a page was shown to the person once it stays drawn long enough, once", async () => {
+    const { send } = start();
+    const glanced = tab();
+    const looked = tab();
+    send("acquireVisible", glanced);
+    await pass(SHOWN_COUNTS_AS_USED_MS - 1);
+    send("releaseVisible", glanced);
+    send("acquireVisible", looked);
+    await pass(SHOWN_COUNTS_AS_USED_MS * 3);
+
+    expect(shownToPerson).toEqual([looked]);
   });
 
   describe("sleep", () => {

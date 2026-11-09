@@ -30,6 +30,8 @@ The rail down the left side holds New, which starts a chat, then Chat, Files, Br
 
 A chat is where the user talks to Instrument. Instrument answers small things itself and starts tasks for longer work, each running on its own and reporting back to the chat. What a chat made or opened, its files and pages, sits in a row of tiles over the reply box, and opening one shows it in a pane beside the chat. A chat can be popped out into a small floating window that stays over the others.
 
+The user can ask a chat to tidy up the others: rename them, archive them or bring them back, star them, or file them under a project. The chat does it with `instrument chats` (`instrument projects` names the projects), and a line under its reply says what changed, with Undo.
+
 ## What Instrument keeps
 
 Everything Instrument keeps for the user is plain files in their Instrument folder, which they can open in Files or any other app: [Instrument folder](instrument://settings/instrument-folder) says where it is and moves it. The folders at its top are Instrument's, so Files won't rename or delete them; what is inside them is the user's to read and change.

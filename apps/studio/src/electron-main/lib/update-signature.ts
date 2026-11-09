@@ -79,9 +79,10 @@ function sameName(a: string, b: string) {
 }
 
 /**
- * Whether a signer's subject is Instrument's publisher. The certificate has
- * been issued as both "Finalpoint, LLC" and "FINALPOINT, LLC", so names are
- * compared with case folded. The common name has to be one of them, and so
+ * Whether a signer's subject is Instrument's publisher, one of
+ * `WINDOWS_PUBLISHER_NAMES`. The certificate has been issued as both
+ * "Finalpoint, LLC" and "FINALPOINT, LLC", so names are compared with case
+ * folded. The common name has to be one of them, and so
  * does the organization wherever the certificate names one, which an
  * organization-validated certificate always does: a common name alone is
  * what any certificate can claim.

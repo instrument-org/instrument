@@ -382,10 +382,17 @@ const config: Configuration = {
   win: {
     icon: `${iconDir}icon.ico`,
     signtoolOptions: {
-      // Both casings the certificate subject has been issued under. An update is
-      // rejected unless the installed build's list contains the incoming
-      // installer's CN verbatim, and the comparison is case sensitive.
-      publisherName: ["Finalpoint, LLC", "FINALPOINT, LLC"],
+      // Both casings the certificate subject has been issued under, and both of
+      // the company's next name, Old Habit Software, LLC. An update is rejected
+      // unless the installed build's list contains the incoming installer's CN
+      // verbatim, and the comparison is case sensitive, so a name has to ship
+      // here before any certificate carries it.
+      publisherName: [
+        "Finalpoint, LLC",
+        "FINALPOINT, LLC",
+        "Old Habit Software, LLC",
+        "OLD HABIT SOFTWARE, LLC",
+      ],
       // A preview built without the signing key goes unsigned rather than
       // failing; a release always signs.
       sign:

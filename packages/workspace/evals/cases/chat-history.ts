@@ -33,7 +33,7 @@ type Context = Parameters<Assertion["check"]>[0];
 const DAY = 86_400_000;
 
 /** One seeded message, with a text part and whatever else it carries. */
-async function seed(
+export async function seed(
   chatId: ChatId,
   sessionId: StoreId.Session,
   role: "assistant" | "user",

@@ -28,7 +28,7 @@ export function projectModelNote({
   const standing = [
     ...(instructions
       ? [
-          `The user's instructions for every chat under "${project.name}":\n<project_instructions>\n${instructions}\n</project_instructions>`,
+          `What every chat under "${project.name}" is told, from its ${PROJECT_FILE_NAME}:\n<project_instructions>\n${instructions}\n</project_instructions>`,
         ]
       : []),
     ...(project.folders?.length
@@ -37,7 +37,7 @@ export function projectModelNote({
         ]
       : []),
   ];
-  const filed = `This chat is filed under the project ${mark}"${project.name}"${about}; read the chat through it. Its folder, \`${PROJECTS_FOLDER_NAME}/${project.name}/\` in the user's ${APP_NAME} folder, is where the project's lasting files are kept, so a finished file the user gave no place for goes there.`;
+  const filed = `This chat is filed under the project ${mark}"${project.name}"${about}; read the chat through it. Its folder, \`${PROJECTS_FOLDER_NAME}/${project.name}/\` in the user's ${APP_NAME} folder, is where a finished file the user gave no place for goes, and its ${PROJECT_FILE_NAME} is where what every chat under it should know goes.`;
   return systemNote`
     ${[filed, ...standing].join("\n\n")}
   `;

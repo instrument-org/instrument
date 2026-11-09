@@ -6,11 +6,15 @@ import {
   isHostedFeatureAvailable,
   isPlatformSearchForEveryModel,
 } from "@/electron-main/lib/hosted-features";
+import { personHistory } from "@/electron-main/browser-view/person-history";
 import { lookUpSentLinkTitles } from "@/electron-main/browser-view/sent-link-titles";
 import { startAppSignInChecks } from "@/electron-main/lib/app-sign-in-check";
 import { recordPlatformRefusal } from "@/electron-main/lib/platform-refusals";
 import { getMachinePreferences } from "@/electron-main/stores/machine/preferences";
-import { getWorkspacePreferences } from "@/electron-main/stores/workspace/preferences";
+import {
+  getWorkspacePreferences,
+  keepsHistory,
+} from "@/electron-main/stores/workspace/preferences";
 import { refreshExpiredTokens } from "@/electron-main/lib/chatgpt-account";
 import { refreshExpiredGrokTokens } from "@/electron-main/lib/grok-account";
 import { getAIProviderConfigs } from "@/electron-main/lib/get-ai-provider-configs";
@@ -69,6 +73,7 @@ import { createActor, fromPromise } from "xstate";
 import { getBrowserViewManager } from "../browser-view/manager";
 import { flushKeptState } from "../stores/workspace/kept-state";
 import { searchWeb } from "../platform-api/web-search";
+import { recordInstalledUpdate } from "./actions";
 import { createAppsConfig, rememberAppsDir } from "./apps";
 import { timeBootStep } from "./boot-timing";
 import { captureFor, captureServerException } from "./capture-server-exception";
@@ -227,8 +232,12 @@ export async function createWorkspaceActor(deviceId: DeviceId) {
       isHostedFeatureAvailable,
       isPlatformSearchForEveryModel,
       mayOfferFeedback: () => getMachinePreferences().get("offerFeedback"),
+      mayShareActions: () =>
+        getWorkspacePreferences().get("shareActionsWithChats"),
+      mayKeepHistory: keepsHistory,
       maySuggestNextMessage: () =>
         getWorkspacePreferences().get("suggestNextMessage"),
+      readPersonHistory: personHistory,
       pnpmBinPath: getPNPMBinPath(),
       reportPlatformRefusal: recordPlatformRefusal,
       refreshExpiredCredentials: async (providerConfigId) => {
@@ -264,6 +273,7 @@ export async function createWorkspaceActor(deviceId: DeviceId) {
 
   const workspaceConfig = snapshot.context.config;
   rememberAppsDir(workspaceConfig.appsDir);
+  recordInstalledUpdate();
   startAppSignInChecks();
   // What another device writes into the chats folder reaches the app while
   // it runs: the folder is watched, and looked at whenever the window comes

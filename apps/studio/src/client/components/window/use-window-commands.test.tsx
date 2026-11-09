@@ -56,6 +56,7 @@ const handlers = {
   selectTab: vi.fn(),
   moveTabToNewWindow: vi.fn(),
   receiveTab: vi.fn(),
+  showActivity: vi.fn(),
   toggleInbox: vi.fn(),
 };
 
@@ -135,6 +136,17 @@ describe("useWindowCommands", () => {
       { interval: 1 },
     );
     expect(inner).toHaveBeenCalledTimes(1);
+  });
+
+  it("shows Activity from the History menu's Show Activity", async () => {
+    renderWithDefaultStore(<Window />);
+    stream.push("showActivity");
+    await vi.waitFor(
+      () => {
+        expect(handlers.showActivity).toHaveBeenCalledTimes(1);
+      },
+      { interval: 1 },
+    );
   });
 
   it("leaves the search chord to what holds the window", () => {

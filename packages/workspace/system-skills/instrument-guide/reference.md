@@ -71,12 +71,18 @@ Where your Instrument folder is, and chats in it that can’t be opened.
 
 ### Activity (`activity`)
 
-Everything Instrument asked an AI model to do, which you can filter, sort, and export.
+Whether Instrument keeps a history of what you do in it, whether chats can use it, and clearing it.
+
+- **Keep a history** (`keep-history`): Whether Instrument keeps the pages, files and chats you open, so you can find them again and a chat can tell which file you mean.
+- **Chats can see this** (`share-activity`): Whether chats see what you just did in Instrument, like a folder you opened or files you moved, so they can tell what you mean.
+- **Your activity** (`activity-history`): The history of what you did in Instrument and when, with the AI requests your chats made, which you can search, export, or clear.
+- **Clear activity** (`clear-activity`): Delete what you did in Instrument, its AI requests, or both, from a time range.
 
 ## Screens
 
 Link one as `[Label](instrument://screen/<name>)`.
 
+- **Activity** (`activity`): What you did in Instrument, with the AI requests your chats made, to search and clear.
 - **Apps** (`apps`): The services Instrument can work in for you, and connecting one.
 - **Browser** (`browser`): A browser of your own, which tasks can work in beside you.
 - **Release notes** (`release-notes`): What changed in each version.
@@ -100,6 +106,7 @@ Each is written as on a Mac, then as on Windows and Linux.
 - Quit: ⌘Q / Ctrl+Q (not on Windows)
 - Search or Ask: ⌘L / Ctrl+L
 - Settings…: ⌘, / Ctrl+,
+- Show Activity: ⌘Y / Ctrl+H
 
 ### Chats
 

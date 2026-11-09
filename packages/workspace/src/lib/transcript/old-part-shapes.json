@@ -296,7 +296,10 @@
   },
   {
     "data": {
-      "page": { "title": "Example", "url": "https://example.com/" },
+      "page": {
+        "title": "Example",
+        "url": "https://example.com/"
+      },
       "stage": "taken",
       "tab": "tab_01M0000000000000000000000T"
     },
@@ -478,5 +481,19 @@
     "note": "as written on 2026-11-06",
     "reads": "data-workspaceInstructions",
     "type": "data-workspaceInstructions"
+  },
+  {
+    "data": {
+      "rows": [
+        {
+          "count": 2,
+          "kind": "file",
+          "minutes": 1
+        }
+      ]
+    },
+    "note": "as written on 2026-11-09",
+    "reads": "data-actions",
+    "type": "data-actions"
   }
 ]

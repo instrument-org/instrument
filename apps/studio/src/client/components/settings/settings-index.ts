@@ -241,6 +241,30 @@ export const SETTINGS_INDEX = [
     title: "Secure storage",
   },
   {
+    detail: `Whether ${APP_NAME} keeps the pages, files and chats you open, so you can find them again and a chat can tell which file you mean.`,
+    id: "keep-history",
+    tab: "Activity",
+    title: "Keep a history",
+  },
+  {
+    detail: `Whether chats see what you just did in ${APP_NAME}, like a folder you opened or files you moved, so they can tell what you mean.`,
+    id: "share-activity",
+    tab: "Activity",
+    title: "Chats can see this",
+  },
+  {
+    detail: `The history of what you did in ${APP_NAME} and when, with the AI requests your chats made, which you can search, export, or clear.`,
+    id: "activity-history",
+    tab: "Activity",
+    title: "Your activity",
+  },
+  {
+    detail: `Delete what you did in ${APP_NAME}, its AI requests, or both, from a time range.`,
+    id: "clear-activity",
+    tab: "Activity",
+    title: "Clear activity",
+  },
+  {
     id: "release-notes",
     mark: "version",
     tab: "General",
@@ -331,7 +355,7 @@ export const SETTINGS_PAGES: Record<
       "Where your Instrument folder is, and chats in it that can’t be opened.",
   },
   Activity: {
-    detail: `Everything ${APP_NAME} asked an AI model to do, which you can filter, sort, and export.`,
+    detail: `Whether ${APP_NAME} keeps a history of what you do in it, whether chats can use it, and clearing it.`,
   },
   Developer: {
     detail: "The API server, the release channel, and feature flags.",
@@ -377,6 +401,27 @@ export function settingsTargetOf(
     return { kind: "row", mark: name, tab: "Developer" };
   }
   return { kind: "search", search: name.replaceAll(/[-_:]+/g, " ").trim() };
+}
+
+/**
+ * The page Settings shows for what it was opened with: the page asked for,
+ * else the one a link's setting is on, else General, which is also where a
+ * setting it searches for opens.
+ */
+export function settingsTabOf({
+  setting,
+  tab,
+}: {
+  setting?: string;
+  tab?: SettingsTab;
+}): SettingsTab {
+  if (tab) {
+    return tab;
+  }
+  const target = setting === undefined ? undefined : settingsTargetOf(setting);
+  return target === undefined || target.kind === "search"
+    ? "General"
+    : target.tab;
 }
 
 /** Where a setting is, as a person would say the way there: `Settings › General › Zoom`. */

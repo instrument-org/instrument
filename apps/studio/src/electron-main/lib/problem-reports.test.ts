@@ -537,6 +537,88 @@ describe("feedback", () => {
     expect(sent.events?.map((event) => event.lastAt)).toEqual([5, 4, 3]);
   });
 
+  it("offers what the person did as one file, without names or places, and nothing when they did nothing", async () => {
+    const { createReportRedactor } = await import("./report-redaction");
+    const redactor = createReportRedactor({
+      chatIds: ["2026-10-01-roofer"],
+      home: "/Users/sam",
+    });
+    const actions = [
+      {
+        at: "2026-11-05T22:18:00.000Z",
+        kind: "folder" as const,
+        path: "/Users/sam/Downloads",
+      },
+      {
+        at: "2026-11-05T22:19:00.000Z",
+        id: "2026-10-01-roofer",
+        kind: "chat" as const,
+        title: "Roof quotes",
+      },
+      {
+        at: "2026-11-05T22:20:00.000Z",
+        kind: "page" as const,
+        title: "Reset your password",
+        url: "https://accounts.example.com/reset?token=k39fz#done",
+      },
+    ];
+    expect(reports.actionsFeedback(actions, redactor)?.files)
+      .toMatchInlineSnapshot(`
+        [
+          {
+            "content": "{"at":"2026-11-05T22:18:00.000Z","kind":"folder","path":"a folder"}
+        {"at":"2026-11-05T22:19:00.000Z","id":"","kind":"chat","title":"another chat"}
+        {"at":"2026-11-05T22:20:00.000Z","kind":"page","url":"https://accounts.example.com"}
+        ",
+            "label": "Your activity",
+            "path": "diagnostics/actions.jsonl",
+          },
+        ]
+      `);
+    expect(reports.actionsFeedback([], redactor)).toBeUndefined();
+  });
+
+  it.each([
+    [
+      { kind: "file", path: "/Users/mac-user/Taxes/W-2 2025.PDF" },
+      { path: "a .pdf file" },
+    ],
+    [
+      { kind: "move", from: "/a", names: ["/a/x.csv", "/a/notes"], to: "/b" },
+      { from: "a folder", names: ["a .csv file", "a folder"], to: "a folder" },
+    ],
+    [
+      { kind: "error", message: "Couldn't show “scan-0412.heic”." },
+      { message: "Couldn't show “…”." },
+    ],
+    [{ kind: "screen", name: "Tasks › Draft the lease" }, { name: "Tasks" }],
+    [
+      { kind: "setting", name: "Theme", value: "Dark" },
+      { name: "Theme", value: "Dark" },
+    ],
+  ] as const)("keeps how %o was done and not what on", (fields, kept) => {
+    const at = "2026-11-05T22:18:00.000Z";
+    expect(
+      reports.redactedAction({ at, ...fields } as Parameters<
+        typeof reports.redactedAction
+      >[0]),
+    ).toMatchObject(kept);
+  });
+
+  it("keeps the newest of what the person did when there is a lot of it", () => {
+    const actions = Array.from({ length: 2000 }, (_, index) => ({
+      at: new Date(index * 1000).toISOString(),
+      kind: "error" as const,
+      message: `${index} ${"x".repeat(200)}`,
+    }));
+    const content =
+      reports.actionsFeedback(actions, { deep: (value) => value })?.files[0]
+        ?.content ?? "";
+    expect(Buffer.byteLength(content)).toBeLessThanOrEqual(256 * 1024);
+    expect(content.split("\n").at(-2)).toContain('"1999 x');
+    expect(content).not.toContain('"0 x');
+  });
+
   it("refuses a chat too big to send rather than cutting it short", () => {
     expect(() =>
       input([

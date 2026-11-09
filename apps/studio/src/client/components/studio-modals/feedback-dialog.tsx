@@ -7,12 +7,18 @@ import {
   DialogTitle,
 } from "@/client/components/ui/dialog";
 import { Skeleton } from "@/client/components/ui/skeleton";
+import { Switch } from "@/client/components/ui/switch";
 import {
   DictatedTextarea,
   useDictatedText,
 } from "@/client/components/dictation-controls";
 import { isDictating } from "@/client/hooks/use-dictation";
 import { useModalBack } from "@/client/hooks/use-modal-back";
+import { EntryIcon } from "@/client/components/activity/activity-icons";
+import {
+  actionText,
+  type ShownAction,
+} from "@/client/components/activity/activity-timeline";
 import {
   aboutFields,
   chatGroups,
@@ -34,12 +40,14 @@ import {
   MAX_FEEDBACK_IMAGES,
 } from "@/shared/feedback-images";
 import {
+  FEEDBACK_ACTIONS_MS,
   type FeedbackDescription,
   type FeedbackItem,
   type FeedbackTag,
   MAX_REPORT_BYTES,
 } from "@/shared/problem-reports";
 import { APP_NAME } from "@instrument-org/shared";
+import { ActionSchema } from "@instrument-org/workspace/client";
 import { type ExceptionEvent } from "@instrument-org/shared/exceptions";
 import { ArrowLeftIcon } from "@phosphor-icons/react/ArrowLeft";
 import { CaretDownIcon } from "@phosphor-icons/react/CaretDown";
@@ -159,16 +167,20 @@ type Part = {
   /** Listed so the person knows it was meant to go, but too big to send. */
   leftOut?: true;
   line: string;
+  /** Whether it goes, for the one part the person may leave out. */
+  sending?: { on: boolean; set: (on: boolean) => void };
   title: string;
 };
 
 /** What goes with the note, a part each, in the order the dialog lists them. */
 function partsOf({
   described,
+  sendActions,
   writeup,
   yourComputer,
 }: {
   described: FeedbackDescription | undefined;
+  sendActions: NonNullable<Part["sending"]>;
   writeup: FeedbackRequest["writeup"];
   yourComputer: string;
 }): Part[] {
@@ -202,6 +214,16 @@ function partsOf({
               },
         ]
       : []),
+    ...(described?.actions
+      ? [
+          {
+            item: described.actions,
+            line: `The last ${FEEDBACK_ACTIONS_MS / 60_000} minutes, without file or page names.`,
+            sending: sendActions,
+            title: "Your activity",
+          },
+        ]
+      : []),
     ...(described
       ? [
           {
@@ -215,15 +237,19 @@ function partsOf({
 }
 
 function itemsGoing(parts: readonly Part[]) {
-  return parts.flatMap((part) => (part.leftOut ? [] : [part.item]));
+  return parts.flatMap((part) =>
+    part.leftOut || part.sending?.on === false ? [] : [part.item],
+  );
 }
 
 /**
  * Feedback: the person's note and the images they attach, then what goes
  * with them, a row each (the agent's write-up, the chat when there is one,
- * and the diagnostics). View turns the dialog into a page that shows each
- * as it will be sent, a row per record. Everything listed goes, except a
- * chat too big to send, whose row says it stays behind.
+ * what the person did in the app, and the diagnostics). View turns the
+ * dialog into a page that shows each as it will be sent, a row per record.
+ * Everything listed goes, except a chat too big to send, whose row says it
+ * stays behind, and what the person did in the app, which goes only when
+ * they switch it on.
  */
 export function FeedbackDialogContent({
   onClose,
@@ -243,6 +269,8 @@ export function FeedbackDialogContent({
     value: note,
   });
   const [viewing, setViewing] = useState<string | null>(null);
+  // Offered, never assumed: it is about more than what is being reported.
+  const [sendActions, setSendActions] = useState(false);
   const [images, setImages] = useState<AttachedImage[]>([]);
   const [imageProblems, setImageProblems] = useState<string[]>([]);
   const pickerRef = useRef<HTMLInputElement>(null);
@@ -267,8 +295,10 @@ export function FeedbackDialogContent({
     staleTime: Infinity,
   });
 
+  const sendActionsSwitch = { on: sendActions, set: setSendActions };
   const parts = partsOf({
     described: described.data,
+    sendActions: sendActionsSwitch,
     writeup: request.writeup,
     yourComputer,
   });
@@ -290,7 +320,12 @@ export function FeedbackDialogContent({
       }),
     ]);
     return itemsGoing(
-      partsOf({ described: gathered, writeup: request.writeup, yourComputer }),
+      partsOf({
+        described: gathered,
+        sendActions: sendActionsSwitch,
+        writeup: request.writeup,
+        yourComputer,
+      }),
     );
   };
 
@@ -404,6 +439,7 @@ export function FeedbackDialogContent({
             setViewing(null);
           }}
           part={reviewed}
+          readAt={described.dataUpdatedAt}
         />
       ) : (
         <>
@@ -562,7 +598,7 @@ export function FeedbackDialogContent({
   );
 }
 
-/** A part of what goes: its name, the line saying what it is, and View. */
+/** A part of what goes: its name, the line saying what it is, its switch when it has one, and View. */
 function PartRow({ onView, part }: { onView: () => void; part: Part }) {
   return (
     <div className="flex items-center gap-3 px-4 py-3">
@@ -570,6 +606,13 @@ function PartRow({ onView, part }: { onView: () => void; part: Part }) {
         <p className="truncate text-sm font-medium">{part.title}</p>
         <p className="mt-0.5 text-[13px] text-muted-foreground">{part.line}</p>
       </div>
+      {part.sending && (
+        <Switch
+          aria-label={`Send ${part.title.toLowerCase()}`}
+          checked={part.sending.on}
+          onCheckedChange={part.sending.set}
+        />
+      )}
       {!part.leftOut && (
         <Button
           aria-label={`View ${part.title}`}
@@ -599,7 +642,16 @@ function PartRowLoading() {
 }
 
 /** The review page: one part as it will be sent, under its own name. */
-function Review({ onBack, part }: { onBack: () => void; part: Part }) {
+function Review({
+  onBack,
+  part,
+  readAt,
+}: {
+  onBack: () => void;
+  part: Part;
+  /** When what goes was read, which what the person did is read back from. */
+  readAt: number;
+}) {
   return (
     <>
       <div className="flex h-14 shrink-0 items-center gap-3 border-b border-border px-4">
@@ -616,9 +668,11 @@ function Review({ onBack, part }: { onBack: () => void; part: Part }) {
         </DialogTitle>
         <DialogDescription className="sr-only">{part.line}</DialogDescription>
       </div>
-      <div className="min-h-0 flex-1 overflow-y-auto px-3 py-2">
+      <div className="min-h-0 flex-1 overflow-y-auto scroll-fade-y px-3 py-2">
         {part.item.kind === "chat" ? (
           <ChatReview item={part.item} />
+        ) : part.item.kind === "actions" ? (
+          <ActionsReview item={part.item} readAt={readAt} />
         ) : part.item.kind === "diagnostics" ? (
           <DiagnosticsReview item={part.item} />
         ) : (
@@ -627,12 +681,87 @@ function Review({ onBack, part }: { onBack: () => void; part: Part }) {
           </p>
         )}
       </div>
-      <div className="flex h-14 shrink-0 items-center justify-end border-t border-border px-5">
+      <div className="flex h-14 shrink-0 items-center gap-3 border-t border-border px-5">
+        <div className="min-w-0 flex-1">
+          {part.sending && (
+            <label className="inline-flex items-center gap-2.5 text-sm">
+              <Switch
+                checked={part.sending.on}
+                onCheckedChange={part.sending.set}
+              />
+              Send with your feedback
+            </label>
+          )}
+        </div>
         <Button onClick={onBack} variant="outline">
           Done
         </Button>
       </div>
     </>
+  );
+}
+
+/** What the person did, read back from the lines feedback sends, as Activity's rows; a line that will not read is left out. */
+function sentActions(content: string): ShownAction[] {
+  return content.split("\n").flatMap((line) => {
+    if (!line.trim()) {
+      return [];
+    }
+    try {
+      const parsed = ActionSchema.safeParse(JSON.parse(line));
+      return parsed.success && parsed.data.kind !== "capped"
+        ? [parsed.data]
+        : [];
+    } catch {
+      return [];
+    }
+  });
+}
+
+/**
+ * What the person did in the app as it will be sent, oldest first, one
+ * line each the way Activity lists them, with its names and places
+ * already taken out.
+ */
+function ActionsReview({
+  item,
+  readAt,
+}: {
+  item: FeedbackItem;
+  readAt: number;
+}) {
+  const words = { trash: osConventions().trash };
+  const actions = sentActions(item.files[0]?.content ?? "");
+  return (
+    <div className="flex flex-col">
+      <p className="px-3 pt-1 pb-2 text-xs text-muted-foreground">
+        {`From ${timeOfDay(readAt - FEEDBACK_ACTIONS_MS)} to ${timeOfDay(readAt)}, exactly as we'll see it.`}
+      </p>
+      {actions.map((action, index) => {
+        const text = actionText(action, words);
+        return (
+          <div
+            className="flex h-7 items-center gap-2.5 rounded-md px-3 text-[13px] select-text"
+            // oxlint-disable-next-line react/no-array-index-key -- a file's records never move
+            key={index}
+          >
+            <span className="w-14 shrink-0 text-xs text-muted-foreground tabular-nums">
+              {timeOfDay(Date.parse(action.at))}
+            </span>
+            <span className="grid size-4 shrink-0 place-items-center">
+              <EntryIcon
+                className="size-3.5"
+                entry={{ action, at: 0, id: "", kind: "action" }}
+              />
+            </span>
+            <span className="min-w-0 shrink truncate">{text.title}</span>
+            <span className="min-w-0 flex-1 truncate text-xs text-muted-foreground">
+              {text.context}
+            </span>
+          </div>
+        );
+      })}
+    </div>
   );
 }
 

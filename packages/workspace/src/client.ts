@@ -34,6 +34,8 @@ export { maxStepsModelNote } from "./model-text/notes/max-steps-model-text";
 export { setupNewsModelNote } from "./model-text/notes/setup-news-model-text";
 export { outputLimitModelNote } from "./model-text/notes/output-limit-model-text";
 export { messageGapModelNote } from "./model-text/notes/message-gap-model-text";
+export { gatherTurns } from "./lib/activity/turns";
+export { ActionSchema } from "./lib/actions/schema";
 export { modelChangeSincePreviousTurn } from "./lib/model-change";
 export { normalizeChatFilePath } from "./lib/normalize-chat-file-path";
 export type {

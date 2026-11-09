@@ -105,6 +105,7 @@ const MARK_OF_PART: Record<
   SessionMessagePart.DataPart["type"],
   DeveloperNoteMark
 > = {
+  "data-actions": "screen",
   "data-appEvent": "apps",
   "data-asks": "files",
   "data-attachments": "files",
@@ -215,6 +216,14 @@ function someOf(names: readonly string[]): string {
  */
 function labelOfPart(part: SessionMessagePart.DataPart): string {
   switch (part.type) {
+    case "data-actions": {
+      return named(
+        "What the user did",
+        someOf(
+          part.data.rows.map((one) => `${one.count.toString()} ${one.kind}`),
+        ),
+      );
+    }
     case "data-appEvent": {
       return named(
         "Apps",

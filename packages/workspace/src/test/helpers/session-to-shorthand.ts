@@ -102,6 +102,9 @@ function messagePartToShorthand(part: SessionMessagePart.Type): string {
     case "data-signedIn": {
       return `<data-signedIn waitedFor="${part.data.waitedFor}" />`;
     }
+    case "data-actions": {
+      return `<data-actions rows="${part.data.rows.map((row) => `${row.minutes}m:${row.kind}x${row.count}`).join(",")}" />`;
+    }
     case "data-appEvent": {
       return `<data-appEvent events="${part.data.events.map((event) => `${event.slug}:${event.event}`).join(",")}" />`;
     }

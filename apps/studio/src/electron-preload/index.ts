@@ -1,3 +1,4 @@
+import { RECORD_ACTION_CHANNEL } from "@/shared/actions";
 import {
   CAPTURE_EXCEPTION_CHANNEL,
   CODE_EDITOR_FOCUS_CHANNEL,
@@ -253,6 +254,11 @@ const api: Window["api"] = {
     set: (file, key, value) => {
       ipcRenderer.send(KEPT_STATE_CHANNEL.set, file, key, value);
     },
+  },
+  // Sent, not invoked: nothing waits on the action log, and the main process
+  // checks what it is told before recording it.
+  recordAction: (action) => {
+    ipcRenderer.send(RECORD_ACTION_CHANNEL, action);
   },
   // The token main asked with goes back once `finish` settles, failed or not,
   // so a quit waits on what the window had put off and never on its errors.

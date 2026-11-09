@@ -8,6 +8,7 @@ export * from "./folder-paths";
 export * from "./fresh-ask";
 export * from "./is-network-error";
 export * from "./listen-with-port-fallback";
+export * from "./page-address";
 export * from "./page-edit-address";
 export * from "./schemas";
 export type * from "./types/exceptions";

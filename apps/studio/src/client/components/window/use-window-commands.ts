@@ -96,6 +96,8 @@ export function useWindowCommands(
     reopenTab: () => void;
     /** The caret into the window's field, wherever it was. */
     search: () => void;
+    /** Activity, in the tab showing it or one of its own. */
+    showActivity: () => void;
     /** The next or previous chat of the inbox, as listed. */
     selectChat: (direction: -1 | 1) => void;
     /** Brings up the tab here showing what another window asked for; false where none does. */
@@ -398,6 +400,10 @@ export function useWindowCommands(
             }
             case "toggleDeveloperStrip": {
               toggleDeveloperStrip();
+              break;
+            }
+            case "showActivity": {
+              latest.current.showActivity();
               break;
             }
             case "toggleInbox": {

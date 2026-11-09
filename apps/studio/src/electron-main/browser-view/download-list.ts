@@ -1,14 +1,19 @@
 import type { DownloadItem } from "electron";
 
 import { publisher } from "@/electron-main/rpc/publisher";
+import { pageAddress } from "@instrument-org/shared";
+import { type HistoryAction } from "@instrument-org/workspace/electron";
 import {
   type BrowserDownload,
   getDownloadsStore,
 } from "@/electron-main/stores/workspace/downloads";
 import fs from "node:fs";
 
-// How many finished downloads the list keeps before dropping the oldest.
-const KEEP = 100;
+// How many finished downloads the list keeps before dropping the oldest, for
+// Activity to read back past what the popover shows.
+const KEEP = 1000;
+// How many the downloads popover shows, newest first.
+const SHOWN = 100;
 // How often a download's progress reaches the window at most. Chromium reports
 // every chunk it writes.
 const PROGRESS_INTERVAL_MS = 250;
@@ -117,6 +122,7 @@ export function trackDownload(
   item.once("done", (_event, state) => {
     running.delete(id);
     update(id, {
+      endedAt: Date.now(),
       path: item.getSavePath() || savePath,
       receivedBytes: item.getReceivedBytes(),
       state:
@@ -132,21 +138,23 @@ export function trackDownload(
 }
 
 /**
- * The list, newest first, each finished download saying whether its file is
- * still where it was saved.
+ * The newest of the list, as the popover shows them, each finished download
+ * saying whether its file is still where it was saved.
  */
 export function listDownloads(): (BrowserDownload & {
   exists: boolean;
   origin?: DownloadOrigin;
 })[] {
-  return list().map((download) => ({
-    ...download,
-    ...(origins.has(download.id) ? { origin: origins.get(download.id) } : {}),
-    exists:
-      download.state === "completed" &&
-      download.path !== null &&
-      fs.existsSync(download.path),
-  }));
+  return list()
+    .slice(0, SHOWN)
+    .map((download) => ({
+      ...download,
+      ...(origins.has(download.id) ? { origin: origins.get(download.id) } : {}),
+      exists:
+        download.state === "completed" &&
+        download.path !== null &&
+        fs.existsSync(download.path),
+    }));
 }
 
 /** Stops a running download; its `done` takes it off the running list. */
@@ -183,13 +191,92 @@ export function retryDownload(id: string, start: (url: string) => boolean) {
   }
 }
 
-/** Takes every finished download off the list, keeping the running ones. */
-export function clearDownloads() {
+/**
+ * Takes the finished downloads off the list, those that ended from `since`
+ * on or every one without it, keeping the running ones.
+ */
+export function clearDownloads(since?: number) {
+  downloads = list().filter(
+    (download) =>
+      running.has(download.id) ||
+      (since !== undefined && endedAt(download) < since),
+  );
   for (const id of origins.keys()) {
-    if (!running.has(id)) {
+    if (!downloads.some((download) => download.id === id)) {
       origins.delete(id);
     }
   }
-  downloads = list().filter((download) => running.has(download.id));
   changed();
+}
+
+/**
+ * Takes finished downloads off the list as Activity names them: the file
+ * at each path that ended from `since` to `at`, both included.
+ */
+export function removeDownloadsAt(
+  removed: readonly { at: number; path: string; since: number }[],
+) {
+  const isRemoved = (download: BrowserDownload) =>
+    !running.has(download.id) &&
+    removed.some(
+      ({ at, path, since }) =>
+        download.path === path &&
+        endedAt(download) >= since &&
+        endedAt(download) <= at,
+    );
+  const kept = list().filter((download) => !isRemoved(download));
+  if (kept.length === list().length) {
+    return;
+  }
+  downloads = kept;
+  for (const id of origins.keys()) {
+    if (!downloads.some((download) => download.id === id)) {
+      origins.delete(id);
+    }
+  }
+  changed();
+}
+
+/** When a finished download ended, or started for one that kept no end. */
+function endedAt(download: BrowserDownload): number {
+  return download.endedAt ?? download.startedAt;
+}
+
+/**
+ * The files the person downloaded whole from `since` to `until`, both
+ * included, as Activity reads them, newest first, at most `limit` (all
+ * without one): where the file landed and the address it came from without
+ * its query, which a signed download link keeps its key in.
+ */
+export function downloadsBetween({
+  limit,
+  since,
+  until,
+}: {
+  limit?: number;
+  since: number;
+  until: number;
+}): HistoryAction[] {
+  const done = list().flatMap((download): HistoryAction[] => {
+    const at = endedAt(download);
+    if (
+      download.state !== "completed" ||
+      download.path === null ||
+      at < since ||
+      at > until
+    ) {
+      return [];
+    }
+    const url = pageAddress(download.url);
+    return [
+      {
+        at: new Date(at).toISOString(),
+        kind: "download",
+        path: download.path,
+        ...(url.startsWith("http:") || url.startsWith("https:") ? { url } : {}),
+      },
+    ];
+  });
+  const newest = done.toSorted((a, b) => Date.parse(b.at) - Date.parse(a.at));
+  return limit === undefined ? newest : newest.slice(0, limit);
 }

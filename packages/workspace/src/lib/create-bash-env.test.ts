@@ -142,11 +142,12 @@ describe("instrument", () => {
     expect(bare.stdout).toMatchInlineSnapshot(`
       "Usage: instrument <command> ...
 
-        app     Connect services and call their tools.
-        memory  What you keep about the user for every chat.
-        task    Start, message, stop and read your tasks.
-        window  What is in front of the user: list, show, read and close this chat's tabs, or ask for one of theirs.
-        x       Search posts on X through the user's Grok account.
+        activity  What the user did in this app lately, with names and paths.
+        app       Connect services and call their tools.
+        memory    What you keep about the user for every chat.
+        task      Start, message, stop and read your tasks.
+        window    What is in front of the user: list, show, read and close this chat's tabs, or ask for one of theirs.
+        x         Search posts on X through the user's Grok account.
 
       \`instrument <command> help\` prints one command's own usage.
       "
@@ -190,7 +191,7 @@ describe("instrument", () => {
       const listed = (await bash.exec("instrument")).stdout
         .split("\n")
         .flatMap((line) => /^ {2}(\S+) /.exec(line)?.[1] ?? []);
-      expect(listed).toEqual(["app", "memory", "window", "x"]);
+      expect(listed).toEqual(["activity", "app", "memory", "window", "x"]);
     } finally {
       setWorkspaceConfig(config);
     }
@@ -201,10 +202,11 @@ describe("instrument", () => {
     expect((await bash.exec("instrument")).stdout).toMatchInlineSnapshot(`
       "Usage: instrument <command> ...
 
-        app     Connect services and call their tools.
-        memory  What you keep about the user for every chat.
-        window  What is in front of the user: list, show, read and close this chat's tabs, or ask for one of theirs.
-        x       Search posts on X through the user's Grok account.
+        activity  What the user did in this app lately, with names and paths.
+        app       Connect services and call their tools.
+        memory    What you keep about the user for every chat.
+        window    What is in front of the user: list, show, read and close this chat's tabs, or ask for one of theirs.
+        x         Search posts on X through the user's Grok account.
 
       \`instrument <command> help\` prints one command's own usage.
       "

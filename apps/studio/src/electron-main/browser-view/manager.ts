@@ -1,6 +1,7 @@
 import { historyToRestore } from "@/electron-main/browser-view/guest-history";
 import { publisher } from "@/electron-main/rpc/publisher";
 import { keptTabGroupOf } from "@/electron-main/stores/workspace/kept-state";
+import { keepsHistory } from "@/electron-main/stores/workspace/preferences";
 import {
   type BrowserGuestTarget,
   type GuestLastLoad,
@@ -1340,6 +1341,7 @@ function recordHistory(entry: BrowserEntry, guest: WebContents): TabRecorder {
           startedAt - AGENT_NAVIGATION_TAIL_MS
             ? "agent"
             : "user",
+        keeping: keepsHistory,
         now: Date.now,
         signInAt,
         signInPending,

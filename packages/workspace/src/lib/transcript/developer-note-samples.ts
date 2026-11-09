@@ -9,6 +9,7 @@ const SESSION = "ses_01M0000000000000000000TASK";
  * its text reaches the model, a developer's card has that text.
  */
 export const DATA_PART_SAMPLES = {
+  actions: { rows: [{ count: 2, kind: "file", minutes: 1 }] },
   appEvent: {
     apps: {},
     events: [{ event: "connected", name: "Notion", slug: "notion" }],

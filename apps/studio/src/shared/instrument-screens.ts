@@ -8,6 +8,12 @@
  * agent can link to.
  */
 export const SCREENS = {
+  activity: {
+    detail:
+      "What you did in Instrument, with the AI requests your chats made, to search and clear.",
+    href: "/activity",
+    title: "Activity",
+  },
   apps: {
     detail: "The services Instrument can work in for you, and connecting one.",
     href: "/apps",

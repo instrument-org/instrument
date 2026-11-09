@@ -631,6 +631,10 @@ export function FilesScreen({
   const fileInfo = useFileInfo({
     belowRow: isBesideLayout,
     file: activeFile?.hostPath,
+    folder:
+      folder?.hostPath && folder.hostPath !== RECENTS_ROOT
+        ? folder.hostPath
+        : undefined,
   });
   // Watched, so the viewer shows the file as it is rather than as it was
   // opened: a write lands in the open tab.

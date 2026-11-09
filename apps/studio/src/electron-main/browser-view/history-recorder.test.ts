@@ -35,8 +35,10 @@ function tab({
     return hit !== undefined;
   };
   let who = actor;
+  let keeping = true;
   const recorder = createTabRecorder({
     actorSince: () => who,
+    keeping: () => keeping,
     now: () => now,
     signInAt: (url) => (signIn && url === signIn.url ? signIn.slug : undefined),
     signInPending: () => signIn?.pending() ?? false,
@@ -93,6 +95,9 @@ function tab({
     },
     as(next: HistoryActor) {
       who = next;
+    },
+    keep(next: boolean) {
+      keeping = next;
     },
     back() {
       index -= 1;
@@ -318,6 +323,19 @@ describe("history recorder", () => {
     browser.replaceState("https://b.test/");
     expect(browser.recent()).toEqual([
       { title: "", url: "https://b.test/", visits: 1 },
+    ]);
+  });
+
+  it("records no visit while the person keeps no history", () => {
+    const browser = tab();
+    browser.go("https://kept.test/");
+    browser.keep(false);
+    browser.go("https://unkept.test/");
+    browser.keep(true);
+    browser.go("https://kept-again.test/");
+    expect(browser.recent().map((page) => page.url)).toEqual([
+      "https://kept-again.test/",
+      "https://kept.test/",
     ]);
   });
 

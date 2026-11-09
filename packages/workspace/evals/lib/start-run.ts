@@ -33,6 +33,7 @@ import { type StartsTask, startTaskForChat } from "./start-task";
  */
 export async function startRun(
   {
+    beforeSend,
     files,
     folders,
     kind,
@@ -42,6 +43,11 @@ export async function startRun(
     startsTask,
     viewing,
   }: {
+    /** Run once the chat exists, before the prompt is sent, with its own session. */
+    beforeSend?: (chat: {
+      chatId: ChatId;
+      sessionId: StoreId.Session;
+    }) => Promise<void>;
     files?: FileUpload.Type[];
     folders?: { path: string }[];
     kind: "chat" | "task";
@@ -72,6 +78,7 @@ export async function startRun(
   const chatSession = StoreId.newSessionId();
   const chatId: ChatId = await ensureChat(chatSession, prompt);
   await grantCaseFolders(chatId, folders);
+  await beforeSend?.({ chatId, sessionId: chatSession });
   let sessionId = chatSession;
   if (kind === "task") {
     // The chat's model is the task's, so the case's is the chat's, as the

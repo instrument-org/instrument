@@ -75,6 +75,12 @@ export const WINDOW_SHORTCUTS = {
   reloadPage: { accelerator: "CmdOrCtrl+R", label: "Reload Page" },
   reopenTab: { accelerator: "Shift+CmdOrCtrl+T", label: "Reopen Closed Tab" },
   search: { accelerator: "CmdOrCtrl+L", label: "Search or Ask" },
+  // Show All History's key: ⌘Y in Safari and Chrome on a Mac, and Ctrl+H in
+  // browsers elsewhere.
+  showActivity: {
+    accelerator: { darwin: "CmdOrCtrl+Y", default: "Ctrl+H" },
+    label: "Show Activity",
+  },
   toggleInbox: { accelerator: "CmdOrCtrl+B", label: "Toggle Inbox" },
 } as const satisfies Record<string, WindowShortcut>;
 

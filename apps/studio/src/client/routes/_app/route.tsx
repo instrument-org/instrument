@@ -587,13 +587,15 @@ function RouteScreen({ href }: { href: string }) {
   // above it to walk back up to and nothing to type an address for: a row
   // there would only offer to leave for the web. A new tab's own menu takes
   // addresses, so a row over it would be a second field. The release notes
-  // are a page to read, with no place above them either.
+  // are a page to read, with no place above them either, and Activity has
+  // its own search where the field would be.
   const screenKind = matchScreen(href).kind;
   const hasLocationRow =
     location.kind !== "apps" &&
     location.kind !== "task" &&
     screenKind !== "newTab" &&
-    screenKind !== "releaseNotes";
+    screenKind !== "releaseNotes" &&
+    screenKind !== "activity";
   return (
     <div className="flex min-h-0 min-w-0 flex-1 flex-col">
       {hasLocationRow && (

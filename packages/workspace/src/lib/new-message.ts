@@ -22,6 +22,7 @@ import { detectDateChange } from "./date-change";
 import { detectEnvironmentChange } from "./environment";
 import { ChatReads } from "./chat-reads";
 import { detectMessageGap } from "./message-gap";
+import { createActionsPart } from "./actions/actions-part";
 import { pathExists } from "./path-exists";
 import { folderReach } from "./chat/folder-reach";
 import { listProjects, type ProjectFolder } from "./chat/projects";
@@ -271,6 +272,19 @@ export async function newMessage({
       getWorkspaceConfig().captureException(messageGap.error);
     } else if (messageGap.value) {
       parts.push(messageGap.value);
+    }
+
+    // What the user did in the app since they last wrote here, as the kinds
+    // of things done: the names stay on this computer, behind
+    // `instrument activity`.
+    const actionsPart = await createActionsPart({
+      chatId,
+      createdAt,
+      messageId,
+      sessionId,
+    });
+    if (actionsPart) {
+      parts.push(actionsPart);
     }
 
     // The chat's project, or none once it has had one, rides on every message

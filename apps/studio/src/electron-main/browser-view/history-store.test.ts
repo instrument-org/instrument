@@ -1,6 +1,7 @@
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
+import { DatabaseSync } from "node:sqlite";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 vi.mock("@/electron-main/lib/get-workspace-folder", () => ({
@@ -248,11 +249,177 @@ describe("opened files", () => {
     ]);
   });
 
+  it("clears the opens from a time, keeping a file's earlier ones and its count", () => {
+    const history = store();
+    history.addFileOpen({ at: 1, path: "/a/one.txt", via: "tab" });
+    history.addFileOpen({ at: 5, path: "/a/one.txt", via: "external" });
+    history.addFileOpen({ at: 6, path: "/a/two.txt", via: "tab" });
+    expect(history.clearFileOpens(5)).toEqual({ removed: 2 });
+    expect(history.openedFiles(10)).toEqual([
+      { at: 1, openCount: 1, path: "/a/one.txt" },
+    ]);
+    expect(history.personHistory({ since: 0, until: 10 })).toHaveLength(1);
+    history.clearFileOpens();
+    expect(history.openedFiles(10)).toEqual([]);
+  });
+
   it("is left alone by clearing browsing history", () => {
     const history = store();
     history.addFileOpen({ at: 1, path: "/a/one.txt", via: "tab" });
     history.clear();
     expect(history.openedFiles(10)).toHaveLength(1);
+  });
+});
+
+describe("what the person did, as the activity readers take it", () => {
+  it("lists their visible visits and the files they opened in a range, newest first", () => {
+    const history = store();
+    const visit = (url: string, at: number, actor: "agent" | "user" = "user") =>
+      history.addVisit({ actor, at, transition: "link", url });
+    visit("https://before.test/", 1);
+    const titled = visit("https://irs.test/refunds", 10);
+    history.setTitle([titled], "Where's My Refund?");
+    visit("https://agent.test/", 11, "agent");
+    history.hideVisit(visit("https://hop.test/", 12), "redirect");
+    history.addFileOpen({ at: 13, path: "/a/w2.pdf", via: "tab" });
+    history.addFileOpen({
+      app: "Preview",
+      at: 14,
+      path: "/a/1099.pdf",
+      via: "external",
+    });
+    history.addFileOpen({ at: 15, path: "/a/budget.xlsx", via: "external" });
+    history.addFileOpen({ at: 99, path: "/a/later.txt", via: "tab" });
+
+    expect(history.personHistory({ since: 10, until: 15 }))
+      .toMatchInlineSnapshot(`
+        [
+          {
+            "at": "1970-01-01T00:00:00.015Z",
+            "kind": "open-with",
+            "path": "/a/budget.xlsx",
+          },
+          {
+            "app": "Preview",
+            "at": "1970-01-01T00:00:00.014Z",
+            "kind": "open-with",
+            "path": "/a/1099.pdf",
+          },
+          {
+            "at": "1970-01-01T00:00:00.013Z",
+            "kind": "file",
+            "path": "/a/w2.pdf",
+          },
+          {
+            "at": "1970-01-01T00:00:00.010Z",
+            "kind": "page",
+            "title": "Where's My Refund?",
+            "url": "https://irs.test/refunds",
+          },
+        ]
+      `);
+    expect(
+      history.personHistory({ limit: 1, since: 10, until: 15 }),
+    ).toHaveLength(1);
+  });
+
+  it("gives a history made before external opens kept their app the column it lacks", () => {
+    const dir = fs.mkdtempSync(path.join(os.tmpdir(), "history-app-"));
+    const file = path.join(dir, "history.db");
+    try {
+      const old = new DatabaseSync(file);
+      old.exec(
+        "CREATE TABLE file_opens (id INTEGER PRIMARY KEY, file_id INTEGER NOT NULL, at INTEGER NOT NULL, via TEXT NOT NULL) STRICT; PRAGMA user_version = 2;",
+      );
+      old.exec(
+        "CREATE TABLE files (id INTEGER PRIMARY KEY, path TEXT NOT NULL UNIQUE, open_count INTEGER NOT NULL DEFAULT 0, last_open INTEGER NOT NULL) STRICT;",
+      );
+      old.exec(
+        "INSERT INTO files (path, open_count, last_open) VALUES ('/a/kept.txt', 1, 5); INSERT INTO file_opens (file_id, at, via) VALUES (1, 5, 'tab');",
+      );
+      old.close();
+
+      const history = createHistoryStore(file);
+      history.addFileOpen({
+        app: "Numbers",
+        at: 6,
+        path: "/a/b.xlsx",
+        via: "external",
+      });
+      expect(history.personHistory({ since: 0, until: 10 })).toEqual([
+        {
+          app: "Numbers",
+          at: new Date(6).toISOString(),
+          kind: "open-with",
+          path: "/a/b.xlsx",
+        },
+        { at: new Date(5).toISOString(), kind: "file", path: "/a/kept.txt" },
+      ]);
+      history.close();
+    } finally {
+      fs.rmSync(dir, { force: true, recursive: true });
+    }
+  });
+});
+
+describe("taking openings out of Activity", () => {
+  it("removes a page's visits and a file's opens in the window named", () => {
+    const history = store();
+    const visit = (url: string, at: number) =>
+      history.addVisit({ actor: "user", at, transition: "link", url });
+    visit("https://irs.test/", 10);
+    visit("https://irs.test/", 50);
+    visit("https://irs.test/", 90);
+    visit("https://other.test/", 60);
+    history.addFileOpen({ at: 20, path: "/a/w2.pdf", via: "tab" });
+    history.addFileOpen({ at: 70, path: "/a/w2.pdf", via: "tab" });
+    history.addFileOpen({
+      app: "Preview",
+      at: 80,
+      path: "/a/w2.pdf",
+      via: "external",
+    });
+
+    expect(
+      history.removeOpenings([
+        { at: 90, kind: "page", since: 50, url: "https://irs.test/" },
+        { at: 70, kind: "file", path: "/a/w2.pdf", since: 20 },
+      ]),
+    ).toEqual({ removed: 4 });
+    expect(
+      history.personHistory({ since: 0, until: 100 }).map((each) => ({
+        at: Date.parse(each.at),
+        kind: each.kind,
+      })),
+    ).toEqual([
+      { at: 80, kind: "open-with" },
+      { at: 60, kind: "page" },
+      { at: 10, kind: "page" },
+    ]);
+  });
+});
+
+describe("taking another app's open out of Activity", () => {
+  it("leaves the same file's open in another app the minute before", () => {
+    const history = store();
+    history.addFileOpen({
+      app: "Preview",
+      at: 10,
+      path: "/a/r.pdf",
+      via: "external",
+    });
+    history.addFileOpen({
+      app: "Acrobat",
+      at: 40,
+      path: "/a/r.pdf",
+      via: "external",
+    });
+    history.removeOpenings([
+      { app: "Acrobat", at: 40, kind: "open-with", path: "/a/r.pdf", since: 0 },
+    ]);
+    expect(history.personHistory({ since: 0, until: 100 })).toMatchObject([
+      { app: "Preview", kind: "open-with" },
+    ]);
   });
 });
 

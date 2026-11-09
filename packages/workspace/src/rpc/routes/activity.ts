@@ -5,11 +5,7 @@ import {
   ActivityRowSchema,
   ActivitySortSchema,
 } from "../../lib/activity/schema";
-import {
-  getActivity,
-  listActivity,
-  summarizeActivity,
-} from "../../lib/activity/store";
+import { getActivity, listActivity } from "../../lib/activity/store";
 import { chatById } from "../../lib/chat/chats";
 import { ChatIdSchema } from "../../schemas/chat-id";
 import { base } from "../base";
@@ -69,47 +65,4 @@ const byId = base
     };
   });
 
-const FacetValueSchema = z.object({
-  count: z.number(),
-  /** The connection kind behind a model or connection value. */
-  connectionType: z.string().nullable().optional(),
-  /** A chat's title for an origin that is a chat, when the chat still exists. */
-  label: z.string().nullable(),
-  value: z.string(),
-});
-
-/** The totals under the filters, and the values each filter can take with their counts. */
-const summary = base
-  .input(z.object({ filter: ActivityFilterSchema }))
-  .output(
-    z.object({
-      facets: z.record(z.string(), FacetValueSchema.array()),
-      requests: z.number(),
-      tokens: z.number(),
-    }),
-  )
-  .handler(async ({ input }) => {
-    const { facets, requests, tokens } = await summarizeActivity(input.filter);
-    const titles = await chatTitles(
-      facets.origin.map(({ value }) =>
-        value.startsWith("chat:") ? value.slice("chat:".length) : null,
-      ),
-    );
-    return {
-      facets: Object.fromEntries(
-        Object.entries(facets).map(([facet, values]) => [
-          facet,
-          values.map((entry) => ({
-            ...entry,
-            label: entry.value.startsWith("chat:")
-              ? (titles.get(entry.value.slice("chat:".length)) ?? null)
-              : null,
-          })),
-        ]),
-      ),
-      requests,
-      tokens,
-    };
-  });
-
-export const activity = { byId, list, summary };
+export const activity = { byId, list };

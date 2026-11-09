@@ -9,10 +9,13 @@ import {
   itemKindLabel,
 } from "@/client/components/extend/file-system";
 import { FolderTrail } from "@/client/components/folder-trail";
+import { Skeleton } from "@/client/components/ui/skeleton";
 import { OpenTargetIcon } from "@/client/components/open-target-icon";
 import { useIsActiveTab } from "@/client/hooks/use-active-tab";
-import { useFileOpenTarget } from "@/client/hooks/use-file-open-target";
+import { useFileOpenControl } from "@/client/hooks/use-file-open-control";
+import { useTheme } from "@/client/components/theme-provider";
 import { useWatchedFileUrl } from "@/client/hooks/use-watched-file-url";
+import { getComputerThumbnailUrl } from "@/client/lib/computer-file-url";
 import { getFileType } from "@/client/lib/get-file-type";
 import { isTypingTarget } from "@/client/lib/is-typing-target";
 import { cn, currentOs } from "@/client/lib/utils";
@@ -69,9 +72,12 @@ export function requestFileInfo() {
 export function useFileInfo({
   belowRow,
   file,
+  folder,
 }: {
   belowRow: boolean;
   file?: string | undefined;
+  /** The folder on screen, which the card is about when nothing is open or selected, as the Finder's is. */
+  folder?: string | undefined;
 }): {
   /** Rendered inside the screen, which it floats over. */
   card: ReactNode;
@@ -99,8 +105,22 @@ export function useFileInfo({
     setOnFile(false);
   }
   const showsFile = file !== undefined && (isOnFile || selection.length === 0);
-  const fileItem = useFileItem(isOpen && showsFile ? file : undefined);
-  const items = showsFile ? [fileItem ?? bareItem(file)] : selection;
+  const showsFolder =
+    !showsFile && selection.length === 0 && folder !== undefined;
+  const fileItem = useFileItem(
+    isOpen && showsFile ? file : isOpen && showsFolder ? folder : undefined,
+  );
+  const items = showsFile
+    ? [fileItem ?? bareItem(file)]
+    : showsFolder
+      ? [
+          {
+            ...(fileItem ?? bareItem(folder)),
+            kind: "folder" as const,
+            kindLabel: "Folder",
+          },
+        ]
+      : selection;
   const isShown = isOpen && items.length > 0;
 
   // Subscribed afresh each render, so a press reads what is selected now.
@@ -240,6 +260,127 @@ function useFileItem(hostPath: string | undefined) {
   } satisfies FileInfoItem;
 }
 
+/**
+ * What Info says about a file or folder named by its path, for a place that
+ * shows one beside a list rather than over a folder (Activity's details):
+ * a file's picture large, as the system draws it, then the card's own
+ * header and rows, without the card. A path with nothing at it any more
+ * says so under its name, and where it was.
+ */
+export function PathInfo({
+  hostPath,
+  kind,
+}: {
+  hostPath: string;
+  kind: "file" | "folder";
+}) {
+  const listing = useQuery(
+    rpcClient.workspace.computer.list.queryOptions({
+      input: { id: WINDOW_ID, path: whereIs(hostPath) },
+      retry: false,
+    }),
+  );
+  const item = useFileItem(hostPath);
+  const name = folderNameFromPath(hostPath);
+  const picture =
+    kind === "file" ? (
+      // Asked for by its path alone, so the address does not change as
+      // the file's details arrive and the picture loads once.
+      <LargePicture hostPath={hostPath} name={name} />
+    ) : null;
+  if (item) {
+    return (
+      <>
+        {picture}
+        {kind === "folder" ? (
+          <FolderInfo
+            isAskedFor={false}
+            item={{ ...item, kind: "folder", kindLabel: "Folder" }}
+          />
+        ) : (
+          <FileInfo item={item} />
+        )}
+      </>
+    );
+  }
+  // Read for the first time: the same shapes as what comes, so moving
+  // from row to row never jumps.
+  if (listing.isPending) {
+    return (
+      <>
+        {picture}
+        <div className="flex items-center gap-3 border-b border-border p-3 pr-9">
+          <Skeleton className="size-11 shrink-0 rounded-md" />
+          <div className="min-w-0 flex-1 space-y-2">
+            <Skeleton className="h-3.5 w-3/4" />
+            <Skeleton className="h-3 w-1/3" />
+          </div>
+        </div>
+        <div className="space-y-3 px-3 py-3">
+          <Skeleton className="h-3 w-2/3" />
+          <Skeleton className="h-3 w-1/2" />
+          <Skeleton className="h-3 w-3/5" />
+        </div>
+      </>
+    );
+  }
+  return (
+    <InfoFrame
+      name={name}
+      picture={
+        kind === "folder" ? (
+          <FileSystemFolderGlyph className="size-11" />
+        ) : (
+          <FileTypeIcon className="size-9" fileName={name} />
+        )
+      }
+      sub="Can’t be found"
+    >
+      <WhereRow hostPath={hostPath} />
+    </InfoFrame>
+  );
+}
+
+/**
+ * A file as the system draws it, large: a picture, a PDF's first page, a
+ * page as a page. A file with no picture shows its kind's icon instead.
+ */
+function LargePicture({ hostPath, name }: { hostPath: string; name: string }) {
+  const { resolvedTheme } = useTheme();
+  const url = getComputerThumbnailUrl({
+    hostPath,
+    size: 512,
+    theme: resolvedTheme === "dark" ? "dark" : "light",
+  });
+  const [failed, setFailed] = useState<string | undefined>();
+  const [loaded, setLoaded] = useState<string | undefined>();
+  return (
+    <div className="flex h-52 shrink-0 items-center justify-center overflow-hidden border-b border-border bg-foreground/3 p-4">
+      {url && failed !== url ? (
+        <img
+          alt=""
+          // Shown once whole, over the box's own ground, so a picture never
+          // draws in part way.
+          className={cn(
+            "h-auto max-h-full w-auto max-w-full min-w-0 rounded-sm object-contain shadow-sm ring-1 ring-black/10",
+            loaded !== url && "invisible",
+          )}
+          draggable={false}
+          onError={() => {
+            setFailed(url);
+          }}
+          onLoad={() => {
+            setLoaded(url);
+          }}
+          src={url}
+        />
+      ) : (
+        <FileTypeIcon className="size-16" fileName={name} />
+      )}
+    </div>
+  );
+}
+
 function FileInfoCard({
   askedFor,
   className,
@@ -309,7 +450,10 @@ function FileInfo({ item }: { item: FileInfoItem }) {
     }),
     refetchOnWindowFocus: false,
   });
-  const opens = useFileOpenTarget({ hostPath: item.hostPath });
+  const opens = useFileOpenControl(
+    { hostPath: item.hostPath },
+    { loadCandidates: false },
+  );
   const titles = useQuery(
     rpcClient.workspace.computer.titles.queryOptions({
       input: TITLED_NAME.test(item.name)
@@ -359,13 +503,19 @@ function FileInfo({ item }: { item: FileInfoItem }) {
       <DateRows item={item} />
       {opens.appName && !item.isPackage ? (
         <InfoRow label="Opens with">
-          <span className="flex min-w-0 items-center gap-1.5">
+          {/* The app named is a way to open it there, as a click on it says. */}
+          <button
+            className="-mx-1 flex max-w-full min-w-0 items-center gap-1.5 rounded px-1 hover:bg-accent"
+            onClick={opens.open}
+            title={opens.openLabel}
+            type="button"
+          >
             <OpenTargetIcon
               className="size-3.5 shrink-0"
               file={{ hostPath: item.hostPath }}
             />
             <span className="truncate">{opens.appName}</span>
-          </span>
+          </button>
         </InfoRow>
       ) : null}
     </InfoFrame>
@@ -543,7 +693,7 @@ function SeveralInfo({ items }: { items: FileInfoItem[] }) {
       </InfoRow>
       {place && places.size === 1 ? (
         <InfoRow label="Where">
-          <FolderTrail path={place} />
+          <FolderTrail path={place} wrap />
         </InfoRow>
       ) : null}
       {modified ? <InfoRow label="Modified">{modified}</InfoRow> : null}
@@ -551,7 +701,7 @@ function SeveralInfo({ items }: { items: FileInfoItem[] }) {
   );
 }
 
-function InfoFrame({
+export function InfoFrame({
   children,
   name,
   picture,
@@ -578,7 +728,13 @@ function InfoFrame({
   );
 }
 
-function InfoRow({ children, label }: { children: ReactNode; label: string }) {
+export function InfoRow({
+  children,
+  label,
+}: {
+  children: ReactNode;
+  label: string;
+}) {
   return (
     <div className="grid grid-cols-[5.25rem_minmax(0,1fr)] gap-2 py-1 text-[13px] leading-[18px]">
       <dt className="text-muted-foreground">{label}</dt>
@@ -592,7 +748,7 @@ function InfoRow({ children, label }: { children: ReactNode; label: string }) {
 function WhereRow({ hostPath }: { hostPath: string }) {
   return (
     <InfoRow label="Where">
-      <FolderTrail path={whereIs(hostPath)} />
+      <FolderTrail path={whereIs(hostPath)} wrap />
     </InfoRow>
   );
 }

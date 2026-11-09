@@ -62,6 +62,7 @@ import { type ChooseQuestion, chooseQuestions } from "../src/lib/choose-call";
 import { type SessionMessagePart } from "../src/schemas/session/message-part";
 import { createTsxBashWorker } from "../src/test/helpers/tsx-bash-worker";
 import { type ChatId } from "../src/schemas/chat-id";
+import { AbsolutePathSchema } from "../src/schemas/paths";
 import { createStubBrowserConfig } from "../src/test/helpers/mock-chat-config";
 import { platformSearchClient } from "./lib/platform-search";
 import {
@@ -80,6 +81,10 @@ import {
   macAppsStandIn,
 } from "../src/test/helpers/mac-apps-launch";
 import { getWorkspaceConfig } from "../src/lib/workspace-config";
+import { ActionLog, actionsDir } from "../src/lib/actions/log";
+import { type Action, type HistoryAction } from "../src/lib/actions/schema";
+import { type ActivityEntry } from "../src/lib/activity/schema";
+import { insertActivity } from "../src/lib/activity/store";
 import {
   answerSignIn,
   cardOnlySignIns,
@@ -436,7 +441,104 @@ const TREE_POLL_MS = 500;
  */
 const ANSWER_AFTER_TURN_MAX_MS = 120_000;
 
+/**
+ * What the user did in the app before a message, each `ago` minutes before
+ * it is sent, as the app would have recorded it, in its action log or its
+ * history.
+ */
+type CaseActions = ({ ago: number } & (Exclude<
+  Action,
+  { kind: "permission" }
+> extends infer A
+  ? A extends { at: string }
+    ? Omit<A, "at">
+    : never
+  : never))[];
+
+/** The pages and files the run's cases say the user opened or downloaded, which the app's history and download list would hold, oldest first. */
+const seededHistory: HistoryAction[] = [];
+
+/** The seeded history as the app's would answer it (`readPersonHistory`). */
+function readSeededHistory({
+  limit,
+  since,
+  until,
+}: {
+  limit?: number;
+  since: number;
+  until: number;
+}): HistoryAction[] {
+  return seededHistory
+    .filter((action) => {
+      const at = Date.parse(action.at);
+      return at >= since && at <= until;
+    })
+    .toReversed()
+    .slice(0, limit);
+}
+
+/**
+ * Writes what the user did into the run's action log and its seeded
+ * history, each action `ago` minutes before `sentAt`, oldest first. With
+ * `after`, the time the message before was sent, an action is kept after
+ * it, in order, so a turn shorter than `ago` still leaves it between the two
+ * messages, where the note on the next one reads it.
+ */
+function writeActions(
+  actions: CaseActions,
+  { after, sentAt }: { after?: number; sentAt: number },
+) {
+  let now = 0;
+  const log = new ActionLog(
+    actionsDir(getWorkspaceConfig().workspaceMachineDir),
+    { now: () => now },
+  );
+  const oldestFirst = actions.toSorted((a, b) => b.ago - a.ago);
+  for (const [index, { ago, ...action }] of oldestFirst.entries()) {
+    now = Math.max(
+      sentAt - ago * 60_000,
+      after === undefined ? Number.NEGATIVE_INFINITY : after + index + 1,
+    );
+    if (
+      action.kind === "page" ||
+      action.kind === "file" ||
+      action.kind === "open-with" ||
+      action.kind === "download"
+    ) {
+      seededHistory.push({ ...action, at: new Date(now).toISOString() });
+    } else {
+      log.record(action);
+    }
+  }
+  log.close();
+}
+
+/**
+ * An AI request the app made before the case's first message, `ago`
+ * seconds before it is sent, as the app's recorder would have logged it.
+ */
+export type SeededRequest = Omit<ActivityEntry, "startedAt"> & {
+  ago: number;
+};
+
+/**
+ * Writes the requests into this computer's request log and the index, each
+ * `ago` seconds before `sentAt`, as `insertActivity` writes a request the
+ * app made.
+ */
+function writeRequests(requests: readonly SeededRequest[], sentAt: number) {
+  for (const { ago, ...request } of requests) {
+    insertActivity({ ...request, startedAt: sentAt - ago * 1000 });
+  }
+}
+
 export interface EvalCase {
+  /**
+   * What the user did in the app before the case's first message, written
+   * to the run's action log or its history before it is sent: what the note
+   * on it and `instrument activity` read.
+   */
+  actions?: CaseActions;
   /**
    * What the user answers to each `choose` card the agent puts to them, in
    * the order it asks, sent through the same route the card answers with. A
@@ -598,6 +700,18 @@ export interface EvalCase {
   /** Read after `setup`, so a getter can name something setup made. */
   prompt: string;
   /**
+   * AI requests the app made before the case's first message, written to
+   * this computer's request log once the case's chat exists, given its id
+   * and own session so a request can be the chat's own, and the earlier
+   * messages those requests answered can be written into it first. The run
+   * then keeps a `workspace.db`, as the app does, which every case in the
+   * process shares.
+   */
+  requests?: (chat: {
+    chatId: ChatId;
+    sessionId: StoreId.Session;
+  }) => Promise<SeededRequest[]> | SeededRequest[];
+  /**
    * Run before the case's task is created, with the run's home and workspace
    * in place: for fixtures that have to be made rather than copied, such as
    * files whose modification times matter, or a memory already kept.
@@ -685,7 +799,15 @@ export function pickChoice(
 
 type FollowUp = FollowUpTiming &
   (
-    | { prompt: string }
+    | {
+        /**
+         * What the user did in the app since the message before, written
+         * to the run's action log or its history just before this one is
+         * sent.
+         */
+        actions?: CaseActions;
+        prompt: string;
+      }
     | {
         /**
          * The user pressing Stop on one of the chat's tasks, by its handle,
@@ -898,6 +1020,24 @@ export async function runEvals(
           : {}),
         ...(macAppsStandInFor && { macAppsServer: macAppsStandInFor.launch }),
         modelCache: noopModelCache,
+        readPersonHistory: readSeededHistory,
+        // Where the request log is indexed, as the app keeps it, for a case
+        // that seeds requests or what the user did: `instrument activity`
+        // lists the requests from it, the run's own among them.
+        ...(evals.some(
+          (evalCase) =>
+            evalCase.requests !== undefined || evalCase.actions !== undefined,
+        )
+          ? {
+              workspaceDbFile: AbsolutePathSchema.parse(
+                path.join(
+                  workspaceRootDir,
+                  EVAL_MACHINE_DIR_NAME,
+                  "workspace.db",
+                ),
+              ),
+            }
+          : {}),
         ...(evals.some((evalCase) => evalCase.nativeSandbox)
           ? { nativeSandbox: true }
           : {}),
@@ -1028,6 +1168,9 @@ export async function runEvals(
             ensureWorkspaceFolder();
           }
           await evalCase.setup?.();
+          if (evalCase.actions) {
+            writeActions(evalCase.actions, { sentAt: Date.now() });
+          }
           const folders = privateFoldersFor(evalCase, index) ?? [];
           if (evalCase.project && evalCase.kind === "chat") {
             return openChatUnderProject(evalCase, evalCase.project, {
@@ -1036,8 +1179,14 @@ export async function runEvals(
               uri,
             });
           }
+          const { requests } = evalCase;
           return startRun(
             {
+              ...(requests && {
+                beforeSend: async (chat) => {
+                  writeRequests(await requests(chat), Date.now());
+                },
+              }),
               files: evalCase.files,
               folders: folders.length > 0 ? folders : undefined,
               kind: evalCase.kind ?? "task",
@@ -1707,6 +1856,12 @@ export async function runEvals(
             `${evalPrefix(label)}${c.dim}Follow-up${steering ? " (mid-turn)" : ""}: ${followUp.prompt.slice(0, 60)}${c.reset}\n`,
           );
           const sendingAt = Date.now();
+          if (followUp.actions) {
+            writeActions(followUp.actions, {
+              after: lastSentAt,
+              sentAt: sendingAt,
+            });
+          }
           for (const mark of marks) {
             if (
               mark.sentAt === undefined &&

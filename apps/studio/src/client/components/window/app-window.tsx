@@ -18,10 +18,12 @@ import {
   paneOpenByGroupAtom,
   chatsOutOf,
 } from "@/client/atoms/window";
+import { settingsModalAtom } from "@/client/atoms/settings-modal";
 import { AppErrorFallback } from "@/client/components/app-error-fallback";
 import { FileOpenContext } from "@/client/components/file-open-context";
 import { NavControls } from "@/client/components/nav-controls";
 import { WithDeveloperStrip } from "@/client/components/developer-strip/developer-strip-slot";
+import { settingsTabOf } from "@/client/components/settings/settings-index";
 import { WindowZoomRoot } from "@/client/components/window/window-zoom-root";
 import { PageOpenContext } from "@/client/components/page-open-context";
 import { ThemeProvider } from "@/client/components/theme-provider";
@@ -122,6 +124,7 @@ import { InboxPeek } from "./inbox-peek";
 import { inboxLandsAtOnceAtom } from "./inbox-room";
 import { WindowLook } from "./look-panel";
 import { ProjectDialog } from "./project-dialog";
+import { screenActionOf, useRecordScreen } from "./screen-action";
 import { contextReaders } from "./send-context";
 import { type WindowShell as Shell, ShellContext } from "./shell-context";
 import { useStagedAskActions } from "./staged-asks";
@@ -137,6 +140,7 @@ import { useWindowSteps } from "./use-tab-steps";
 import { useSetChatProject } from "./use-set-chat-project";
 import { backfillCandidates } from "./use-project-backfill";
 import { useWindowCommands } from "./use-window-commands";
+import { useShowActivity } from "./activity-button";
 import { WindowBar, WindowCorner } from "./window-bar";
 import { useWindowDropFallback } from "./use-window-drop-fallback";
 import { WindowFrame } from "./window-frame";
@@ -421,6 +425,7 @@ function WindowShell({
   tabs: Tab[];
 }) {
   const appTabs = useAppTabs();
+  const showActivity = useShowActivity();
   const waitingTabs = useRestoredTabsWaiting(tabs, appTabs.model.selectedId);
   useRefreshSkillsOnChange();
   useRefreshProjectsOnChange();
@@ -761,14 +766,29 @@ function WindowShell({
   // its pane is open, or the screen the window's tab is at.
   const groupUp = windowTabs.active;
   const groupInView = windowTabs.groupOnScreen;
-  const screenView =
+  const surfaceInView =
     groupInView === undefined
-      ? (surfaces[appTabs.model.selectedId ?? ""]?.view ?? null)
+      ? surfaces[appTabs.model.selectedId ?? ""]
       : groupUp?.kind === "screen" &&
           (chatOfGroup(groupInView) === undefined ||
             isPaneOpen(groupInView, paneOpenByGroup))
-        ? (surfaces[groupUp.id]?.view ?? null)
-        : null;
+        ? surfaces[groupUp.id]
+        : undefined;
+  const screenView = surfaceInView?.view ?? null;
+  // The screen in front, for the action log once it settles.
+  const settings = useAtomValue(settingsModalAtom);
+  useRecordScreen(
+    screenActionOf({
+      appName: (slug) => appsBySlug.get(slug)?.name,
+      chatTitle: (chat) => chatTitles.get(chat),
+      ...(surfaceInView?.walked
+        ? { folderPath: surfaceInView.walked.hostPath }
+        : {}),
+      href: activeHref,
+      ...(settings === null ? {} : { settingsTab: settingsTabOf(settings) }),
+      view: screenView,
+    }),
+  );
   // What goes with a message, read at the moment of sending.
   const volumes = useComputerVolumes();
   const { draftContext, sendContext } = contextReaders({
@@ -1004,13 +1024,9 @@ function WindowShell({
       openFile: (hostPath) => {
         appTabs.open(fileHref(hostPath));
       },
-      // The tab already showing it comes up rather than a second of the
-      // same. Main has already picked this window as the one showing it, or
-      // the one in front where none does.
+      // A tab of its own, as every open of a window tab is.
       openScreen: (href) => {
-        if (!appTabs.selectShowing(href)) {
-          openScreen(href, { newTab: true });
-        }
+        openScreen(href, { newTab: true });
       },
       showTab: appTabs.selectShowing,
       moveTabToNewWindow: () => {
@@ -1021,6 +1037,9 @@ function WindowShell({
       receiveTab,
       reopenTab: appTabs.reopen,
       search: focusField,
+      showActivity: () => {
+        showActivity();
+      },
       selectRelative: appTabs.selectRelative,
       selectTab: appTabs.selectIndex,
       toggleInbox: () => {

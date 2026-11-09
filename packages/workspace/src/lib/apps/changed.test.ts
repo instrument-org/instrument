@@ -4,6 +4,7 @@ import path from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
 import { publisher } from "../../rpc/publisher";
+import { actionLog } from "../actions/log";
 import { AbsolutePathSchema } from "../../schemas/paths";
 import { getWorkspaceConfig, setWorkspaceConfig } from "../workspace-config";
 import { APP_FILE_NAME } from "./app-file";
@@ -66,6 +67,20 @@ describe("appChanged", () => {
         name: "Drafts",
         slug: "drafts",
       },
+    ]);
+  });
+
+  it("keeps a sign-in going through or failing in the action log, by the app's name", async () => {
+    actionLog().clear();
+    await appChanged("drafts", { event: "connected" });
+    await appChanged("drafts", { detail: "no key", event: "failed" });
+    await appChanged("drafts", { event: "declined" });
+    await appChanged("drafts", { event: "disconnected" });
+    const logged = await actionLog().read({ since: 0 });
+    actionLog().clear();
+    expect(logged.map(({ at: _at, ...action }) => action)).toEqual([
+      { did: "signed in", kind: "app", name: "Drafts" },
+      { did: "sign-in failed", kind: "app", name: "Drafts" },
     ]);
   });
 

@@ -26,14 +26,13 @@ import {
   setTabPathname,
 } from "@/client/lib/tabs-model";
 import { APP_TABS_KEY } from "@/shared/kept-state";
-import { asksMoreThan, tabIdentityOf } from "@/shared/tab-identity";
+import { asksMoreThan } from "@/shared/tab-identity";
 import { type Tab, type TabsModel, TabsModelSchema } from "@/shared/tabs";
 import { rpcClient } from "@/client/rpc/client";
 import { folderHref } from "@/shared/computer-href";
 import { draftGroupOf } from "@/shared/drafts";
 import { type TabId } from "@/shared/tabs";
 import { type ChatId } from "@instrument-org/workspace/client";
-import { safe } from "@orpc/client";
 import { atom, getDefaultStore, useAtom, useAtomValue, useStore } from "jotai";
 
 import { openLinkAddress } from "./open-link-address";
@@ -214,17 +213,6 @@ function stripTabShowing(model: TabsModel, href: string): Tab | undefined {
   return model.tabs.find((tab) => showsSame(tab.pathname, href));
 }
 
-/** Whether a tab of another window's strip shows what an address shows, by what each window keeps. */
-function isShownInOtherWindow(href: string) {
-  return keptInOtherWindows(APP_TABS_KEY).some((value) => {
-    const model = TabsModelSchema.safeParse(value);
-    return (
-      model.success &&
-      model.data.tabs.some((tab) => showsSame(tab.pathname, href))
-    );
-  });
-}
-
 type Store = ReturnType<typeof getDefaultStore>;
 
 /**
@@ -279,49 +267,6 @@ function showTabHere(
 }
 
 /**
- * Opening something with one identity where a tab already shows it: that
- * tab comes forward (`showTabHere`), this window's first, then another
- * window's, which comes forward with it once it says it has the tab (main
- * asks it, by the same identity). Only where none does is `otherwise` run,
- * which opens it. Every open of a window tab that is not an explicit new tab
- * or new window, nor one the app makes on its own, goes through here.
- */
-export function showTabOr(
-  href: string,
-  otherwise: () => void,
-  {
-    select = true,
-    store = getDefaultStore(),
-  }: {
-    select?: boolean;
-    store?: Store;
-  } = {},
-) {
-  // A site, the web's start or a new tab is not one of a kind, and opens
-  // as it always has.
-  if (tabIdentityOf(href) === undefined) {
-    otherwise();
-    return;
-  }
-  if (showTabHere(href, { select, store })) {
-    return;
-  }
-  if (!isShownInOtherWindow(href)) {
-    otherwise();
-    return;
-  }
-  // What another window keeps includes windows closed that can come back,
-  // which main does not count, so a tab only one of those has opens here.
-  void safe(rpcClient.window.showInOtherWindow.call({ href })).then(
-    ([error, shown]) => {
-      if (error || !shown) {
-        otherwise();
-      }
-    },
-  );
-}
-
-/**
  * The window's tabs and what can be done with them. Navigation inside a tab
  * is its router's; everything about the set of tabs (which is up, their
  * order, opening and closing) is the model's.
@@ -335,32 +280,23 @@ export function useAppTabs() {
   const activeRouter = getTabRouter(model.selectedId);
 
   /**
-   * A tab at an address, up at once unless asked to wait behind: the one
-   * already showing what it shows (`showTabOr`), or a tab of its own, which
-   * `newTab` always opens, for a Cmd-click or Open in New Tab. A link address
-   * opens where it lives instead (`openLinkAddress`).
+   * A tab of its own at an address, up at once unless asked to wait behind.
+   * A window's tabs are the person's to keep as many of as they like, so
+   * one already showing the same thing is no reason not to open another;
+   * `newTab` is what a Cmd-click or Open in New Tab says, and opens the
+   * same. A link address opens where it lives instead (`openLinkAddress`).
    */
   const open = (
     href: string,
-    {
-      newTab = false,
-      select = true,
-    }: { newTab?: boolean; select?: boolean } = {},
+    { select = true }: { newTab?: boolean; select?: boolean } = {},
   ) => {
     const at = openLinkAddress(href);
     if (at === undefined) {
       return;
     }
-    const add = () => {
-      setModel((current) =>
-        addTab(current, { id: freshTabId(), pathname: at, select }),
-      );
-    };
-    if (newTab) {
-      add();
-    } else {
-      showTabOr(at, add, { select, store });
-    }
+    setModel((current) =>
+      addTab(current, { id: freshTabId(), pathname: at, select }),
+    );
   };
   /** The tab up goes to an address, one step on in its history; a link address opens where it lives instead. */
   const navigate = (to: string, { replace = false } = {}) => {
@@ -389,26 +325,8 @@ export function useAppTabs() {
       navigate(href);
     }
   };
-  /**
-   * As `goHere`, except that the tab already showing what the address shows
-   * comes forward rather than the tab up going there (`showTabOr`).
-   */
-  const go = (href: string, { behind = false, newTab = false } = {}) => {
-    if (newTab) {
-      goHere(href, { behind, newTab });
-      return;
-    }
-    const at = openLinkAddress(href);
-    if (at !== undefined) {
-      showTabOr(
-        at,
-        () => {
-          navigate(at);
-        },
-        { store },
-      );
-    }
-  };
+  /** The tab up to an address, or a tab of its own when asked, as `goHere`. */
+  const go = goHere;
   const closeInModel = (id: TabId) => {
     setModel((current) =>
       closeTab(current, {

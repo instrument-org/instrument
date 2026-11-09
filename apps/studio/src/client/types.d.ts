@@ -1,3 +1,4 @@
+import type { WindowAction } from "@/client/lib/actions";
 import type { DraftsBridge } from "@/shared/drafts";
 import type { BookmarksBridge } from "@/shared/bookmarks";
 import type { KeptFile, KeptSnapshot } from "@/shared/kept-state";
@@ -67,6 +68,10 @@ declare global {
         ) => () => void;
         set: (file: KeptFile, key: string, value: unknown) => void;
       };
+      // Tells the main process something the person did that only the
+      // window sees, for the action log (`client/lib/actions.ts`). Absent
+      // outside Electron.
+      recordAction?: (action: WindowAction) => void;
       // Hands main the window's way of finishing what it has put off, which
       // a quit runs and waits on before the app exits (`shared/leaving.ts`).
       // Absent outside Electron.

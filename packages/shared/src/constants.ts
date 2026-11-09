@@ -165,6 +165,13 @@ export const PRIVATE_FOLDER_NAME = `.instrument`;
  * agent's package both reach into it.
  */
 export const WORKSPACE_MACHINE_ENTRIES = {
+  /**
+   * What the person did in the app, a JSON Lines file per local day
+   * (`actions/<YYYY-MM-DD>.jsonl`), the oldest days dropped past a size
+   * cap: what happens on this computer alone, and never travels with the
+   * workspace.
+   */
+  actions: "actions",
   /** The local servers of connected apps, as installed. */
   appServers: "app-servers",
   /** The Chromium profiles of the app and its browser, history, page pictures, downloads. */

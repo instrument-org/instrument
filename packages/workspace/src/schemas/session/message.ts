@@ -44,6 +44,7 @@ import { setupNewsModelNote } from "../../model-text/notes/setup-news-model-text
 import { messageGapModelNote } from "../../model-text/notes/message-gap-model-text";
 import { modelChangeModelNote } from "../../model-text/notes/model-change-model-text";
 import { skillChangesModelNote } from "../../model-text/notes/skill-changes-model-text";
+import { actionsModelNote } from "../../model-text/notes/actions-model-text";
 import { stateNotes } from "../../lib/state-notes";
 import {
   withStoppedToolCallModelText,
@@ -745,6 +746,7 @@ const USER_TURN_NOTES = [
   noted("questionAnswer", ({ data }) => questionAnswerModelNote(data)),
   noted("signedIn", ({ data }) => signedInModelNote(data)),
   noted("viewContext", stated),
+  noted("actions", ({ data }) => actionsModelNote(data)),
   noted("asks", ({ data }) => asksModelNote(data)),
   noted("workspaceInstructions", stated),
   noted("project", stated),

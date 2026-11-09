@@ -14,11 +14,23 @@ export function isDrivenInstance() {
 }
 
 /**
+ * Whether a person has taken this driven run over by clicking its Dock
+ * icon, after which its windows are theirs and come up as any run's do.
+ */
+let takenOver = false;
+
+/**
  * Whether this run's windows wait off screen until someone asks for one.
- * `studio-drive boot --visible` puts them up as a development run would.
+ * `studio-drive boot --visible` puts them up as a development run would,
+ * and so does a person taking the run over from the Dock: a window they
+ * open next (New Window, a tab torn off) comes up for them.
  */
 export function keepsOffScreen() {
-  return isDrivenInstance() && process.env.STUDIO_DRIVE_VISIBLE !== "1";
+  return (
+    isDrivenInstance() &&
+    process.env.STUDIO_DRIVE_VISIBLE !== "1" &&
+    !takenOver
+  );
 }
 
 /** What this module asks of a window, so a test can hand it a stand-in. */
@@ -124,6 +136,9 @@ export function isHeldOffScreen(window: ScreenWindow) {
  */
 export function showHeldWindows() {
   const windows = [...held].filter(([window]) => !window.isDestroyed());
+  if (windows.length > 0) {
+    takenOver = true;
+  }
   held.clear();
   for (const [window, { maximized }] of windows) {
     if (maximized) {

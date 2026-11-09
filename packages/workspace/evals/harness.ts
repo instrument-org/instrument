@@ -36,6 +36,7 @@ import {
   listChatBackgroundProcesses,
 } from "../src/lib/background-processes";
 import { isWorking } from "../src/lib/chat/activity";
+import { hasWakeOnItsWay } from "../src/lib/chat/wake-queue";
 import { isTypedByUser } from "../src/lib/typed-by-user";
 import { wakeChatWithTaskEvent } from "../src/lib/chat/wake";
 import { closeAgentBrowserSessionsForSessions } from "../src/lib/agent-browser-cleanup";
@@ -2619,6 +2620,9 @@ async function waitForTreeQuiet(
   while (Date.now() < deadline) {
     const working =
       isWorking(rootChatId) ||
+      // A wake that has written its note and is still finding the chat's
+      // model has a turn to start yet.
+      hasWakeOnItsWay(rootChatId) ||
       (untilBackgroundEnds &&
         listChatBackgroundProcesses(rootChatId).some(
           (process) => process.status === "running",

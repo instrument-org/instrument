@@ -50,10 +50,7 @@ export function drawnFrame(
     const isFolded = isTurnFolded(turn, now);
     const card =
       isFolded || turn.id !== cardTurn ? undefined : slotOf(turn)?.kind;
-    const cardAt =
-      turn.phase === "working"
-        ? turn.rows.length - 1
-        : turn.rows.findLastIndex((row) => row.kind === "activity");
+    const cardAt = turn.rows.findLastIndex((row) => row.kind === "activity");
     turn.rows.forEach((row, index) => {
       if (isFolded && row.id === turn.foldLineAt) {
         push("worked", "worked");

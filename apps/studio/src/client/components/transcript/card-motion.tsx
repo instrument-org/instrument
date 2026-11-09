@@ -4,7 +4,13 @@ import {
   usePresenceData,
   useReducedMotion,
 } from "motion/react";
-import { type ReactNode, useEffect, useRef, useState } from "react";
+import {
+  type ReactNode,
+  useEffect,
+  useLayoutEffect,
+  useRef,
+  useState,
+} from "react";
 
 /** How a turn's rows close as its work folds, and how the live card opens and closes. */
 export const FOLD_TRANSITION = {
@@ -102,5 +108,56 @@ export function CardPresence({
     >
       {children}
     </motion.div>
+  );
+}
+
+/** Below this there is nothing to see move. */
+const SLIDE_MIN_PX = 4;
+
+/**
+ * The live card, sliding from where it was when it moves under other work:
+ * the rows it passes jump into place at once and it moves down past them on
+ * the fold's curve, over them as it goes. Only a move to new work slides, read
+ * as `under` changing, so anything above it growing or folding moves it as
+ * it moves everything else.
+ *
+ * It measures in layout pixels (`offsetTop`), which the window's zoom leaves
+ * alone, and animates a transform, so the rows around it never wait on it.
+ */
+export function SlidesUnder({
+  children,
+  under,
+}: {
+  children: ReactNode;
+  /** The row it sits under. */
+  under: string;
+}) {
+  const ref = useRef<HTMLDivElement>(null);
+  const was = useRef<{ top: number; under: string } | undefined>(undefined);
+  const isReduced = useReducedMotion();
+  useLayoutEffect(() => {
+    const element = ref.current;
+    if (!element) {
+      return;
+    }
+    const top = element.offsetTop;
+    const before = was.current;
+    was.current = { top, under };
+    const by = before && before.under !== under ? before.top - top : 0;
+    if (isReduced || Math.abs(by) < SLIDE_MIN_PX) {
+      return;
+    }
+    element.animate(
+      [{ transform: `translateY(${by.toString()}px)` }, { transform: "none" }],
+      {
+        duration: FOLD_TRANSITION.duration * 1000,
+        easing: `cubic-bezier(${FOLD_TRANSITION.ease.join(", ")})`,
+      },
+    );
+  });
+  return (
+    <div className="relative z-1" ref={ref}>
+      {children}
+    </div>
   );
 }

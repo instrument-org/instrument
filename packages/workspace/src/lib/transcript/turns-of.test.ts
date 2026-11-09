@@ -1034,7 +1034,7 @@ describe("the slot", () => {
     expect(shows?.kind === "file" && shows.words).toBe(words);
   });
 
-  it("holds the card through what the agent says while it works, and takes it away once the turn ends", () => {
+  it("holds the card through what the agent says while it works, and until the fold once the turn ends", () => {
     const searched = (id: Parameters<typeof call>[0]) =>
       call(id, "web_search", { activity: "Looking", query: "x" }, {});
     const spoke = [
@@ -1044,7 +1044,12 @@ describe("the slot", () => {
     const [speaking] = turnsOf(spoke, { isRunning: true });
     expect(speaking && slotOf(speaking)?.kind).toBe("web");
     const [ended] = turnsOf(spoke, { isRunning: false });
-    expect(ended && slotOf(ended)).toBeUndefined();
+    expect(ended && ended.foldedRowIds.size > 0 && slotOf(ended)?.kind).toBe(
+      "web",
+    );
+    expect(
+      ended && slotOf({ ...ended, foldedRowIds: new Set() }),
+    ).toBeUndefined();
     const [movedOn] = turnsOf(
       [
         typed("Do the thing"),

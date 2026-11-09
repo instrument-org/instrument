@@ -36,6 +36,7 @@ import {
   CardPresence,
   FOLD_TRANSITION,
   ROW_GAP,
+  SlidesUnder,
   useCardOpens,
 } from "./card-motion";
 import { ActivityRowView, Badges, RowLine, StepDetail } from "./activity-row";
@@ -211,13 +212,10 @@ function TurnBody({
   const branchesAt = turn.inherited ? undefined : turn.replies.at(-1)?.id;
   const card = isFolded || !hasCard ? undefined : slotOf(turn);
   const cardOpens = useCardOpens(card !== undefined);
-  // While the turn works its card sits under everything it has drawn, so
-  // what the agent says and does next comes in above the card rather than
-  // moving it; once it has ended, the card is under the work it shows.
-  const cardAt =
-    turn.phase === "working"
-      ? turn.rows.length - 1
-      : turn.rows.findLastIndex((row) => row.kind === "activity");
+  // The card sits under the work it shows, whose working line it goes with,
+  // and never under words: what the agent says comes in below it, and the
+  // next command it shows takes it down past them.
+  const cardAt = turn.rows.findLastIndex((row) => row.kind === "activity");
   const rows = turn.rows.flatMap((row, index) => {
     const out = [];
     if (isFolded && row.id === turn.foldLineAt) {
@@ -254,14 +252,17 @@ function TurnBody({
       if (index === cardAt && card) {
         out.push(
           // One key among the rows, so going from under one activity to under
-          // the next keeps it mounted, with its picture and its sweep going.
-          // It closes with the fold and goes at once as words end it.
+          // the next keeps it mounted, with its picture and its sweep going,
+          // and slides it there. It closes with the fold and goes at once as
+          // words end it.
           <CardPresence className="ml-7" key="slot-card" opens={cardOpens}>
-            <SlotCardView
-              card={card}
-              isCurrent={turn.phase === "working"}
-              sessionId={sessionId}
-            />
+            <SlidesUnder under={row.id}>
+              <SlotCardView
+                card={card}
+                isCurrent={turn.phase === "working"}
+                sessionId={sessionId}
+              />
+            </SlidesUnder>
           </CardPresence>,
         );
       }

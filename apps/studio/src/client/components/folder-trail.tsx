@@ -16,6 +16,9 @@ import { HouseIcon } from "@phosphor-icons/react/House";
 import { useQuery } from "@tanstack/react-query";
 import { Fragment } from "react";
 
+/** Where a name may break onto the next line, after a space, hyphen, underscore or dot, as Finder breaks one. */
+const BREAK_AFTER = /(?<=[-_.\s])/;
+
 /** The place's mark before the first name, and the gap after it, in pixels. */
 const PLACE_MARK_ROOM = 18;
 
@@ -70,25 +73,43 @@ export function FolderTrail({
   );
   const whole = labels.join(" › ");
   if (wrap) {
+    // Plain text that breaks where Finder breaks a name: at spaces, and
+    // after a hyphen, underscore or dot. Each caret keeps to the start of
+    // the name after it, so no line begins or ends on a caret alone.
     return (
       <span
         aria-label={whole}
-        className={cn(
-          "flex min-w-0 flex-wrap items-center gap-y-0.5 select-text",
-          className,
-        )}
+        className={cn("block min-w-0 select-text", className)}
       >
-        {labels.map((label, at) => (
-          <Fragment key={`${String(at)}:${label}`}>
-            {at > 0 ? separator : null}
-            <span className="inline-flex items-center gap-1 [overflow-wrap:anywhere]">
-              {at === 0 && Lead ? (
-                <Lead aria-hidden className="size-3.5 shrink-0" />
-              ) : null}
-              {label}
-            </span>
-          </Fragment>
-        ))}
+        {labels.map((label, at) => {
+          const [first = "", ...rest] = label.split(BREAK_AFTER);
+          return (
+            <Fragment key={`${String(at)}:${label}`}>
+              <span className="whitespace-nowrap">
+                {at === 0 && Lead ? (
+                  <Lead
+                    aria-hidden
+                    className="mr-1 inline size-3.5 align-[-0.15em]"
+                  />
+                ) : null}
+                {at > 0 ? (
+                  <CaretRightIcon
+                    aria-hidden
+                    className="mx-1 inline size-2.5 align-[0.05em] text-muted-foreground/70"
+                  />
+                ) : null}
+                {first}
+              </span>
+              {rest.map((chunk, index) => (
+                // oxlint-disable-next-line react/no-array-index-key -- a name's pieces never move
+                <Fragment key={index}>
+                  <wbr />
+                  {chunk}
+                </Fragment>
+              ))}{" "}
+            </Fragment>
+          );
+        })}
       </span>
     );
   }

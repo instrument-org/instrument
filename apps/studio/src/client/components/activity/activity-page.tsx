@@ -142,11 +142,18 @@ function isRemovable(entry: TimelineEntry) {
  * Saving a CSV is the only way either leaves, and the person does that.
  */
 export function ActivityPage({
+  item,
   onSearch,
   q,
   show,
 }: {
-  onSearch: (next: { q?: string; show?: Show | undefined }) => void;
+  /** The row whose details are open, by its id. */
+  item?: string | undefined;
+  onSearch: (next: {
+    item?: string | undefined;
+    q?: string;
+    show?: Show | undefined;
+  }) => void;
   q: string;
   show: Show | undefined;
 }) {
@@ -250,8 +257,10 @@ export function ActivityPage({
     }
   };
 
-  const [pickedId, setPickedId] = useState<null | string>(null);
-  const picked = shown.find((entry) => entry.id === pickedId);
+  const picked = shown.find((entry) => entry.id === item);
+  const pick = (id: string | undefined) => {
+    onSearch({ item: id });
+  };
   const [checked, setChecked] = useState<ReadonlySet<string>>(new Set());
   const checkedEntries = shown.filter((entry) => checked.has(entry.id));
   const [clearing, setClearing] = useState(false);
@@ -270,7 +279,7 @@ export function ActivityPage({
       },
       onSuccess: ({ requestsKept }) => {
         setChecked(new Set());
-        setPickedId(null);
+        pick(undefined);
         startOver();
         if (requestsKept > 0) {
           toast(
@@ -370,7 +379,7 @@ export function ActivityPage({
             <div className="flex w-75 shrink-0">
               <SearchField
                 onChange={(value) => {
-                  onSearch({ q: value });
+                  onSearch({ item: undefined, q: value });
                 }}
                 placeholder="Search activity"
                 value={q}
@@ -388,8 +397,7 @@ export function ActivityPage({
                   )}
                   key={each ?? "all"}
                   onClick={() => {
-                    setPickedId(null);
-                    onSearch({ show: each });
+                    onSearch({ item: undefined, show: each });
                   }}
                   role="radio"
                   title={
@@ -450,11 +458,10 @@ export function ActivityPage({
               });
             }}
             onMoreFrom={(found) => {
-              setPickedId(null);
-              onSearch({ q: found });
+              onSearch({ item: undefined, q: found });
             }}
             onPick={(entry) => {
-              setPickedId(entry?.id ?? null);
+              pick(entry?.id);
             }}
             onRemove={(entry) => {
               removeEntries([entry]);
@@ -468,7 +475,7 @@ export function ActivityPage({
               entry={picked}
               key={picked.id}
               onClose={() => {
-                setPickedId(null);
+                pick(undefined);
               }}
               onRemove={
                 isRemovable(picked)
@@ -692,7 +699,7 @@ function ActivityList({
 
   return (
     <div
-      className="min-h-0 flex-1 overflow-y-auto px-6 outline-none"
+      className="min-h-0 flex-1 overflow-y-auto scroll-fade-y px-6 outline-none"
       onKeyDown={onKeyDown}
       ref={setScroller}
       tabIndex={0}

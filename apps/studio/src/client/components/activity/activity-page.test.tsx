@@ -1,5 +1,6 @@
 import { renderWithProviders } from "@/tests/render";
 import { fireEvent, screen, waitFor } from "@testing-library/react";
+import { useState } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { ActivityPage } from "./activity-page";
@@ -80,11 +81,27 @@ beforeEach(() => {
   calls.set("workspace.activity.list", () => []);
 });
 
+/** The page with its address held the way the route holds it, so a row picked opens its details. */
 function page(props: Partial<Parameters<typeof ActivityPage>[0]> = {}) {
   const onSearch = vi.fn();
-  renderWithProviders(
-    <ActivityPage onSearch={onSearch} q="" show={undefined} {...props} />,
-  );
+  function Routed() {
+    const [item, setItem] = useState<string | undefined>();
+    return (
+      <ActivityPage
+        item={item}
+        onSearch={(next) => {
+          onSearch(next);
+          if ("item" in next) {
+            setItem(next.item);
+          }
+        }}
+        q=""
+        show={undefined}
+        {...props}
+      />
+    );
+  }
+  renderWithProviders(<Routed />);
   return { onSearch };
 }
 
@@ -108,7 +125,7 @@ describe("ActivityPage", () => {
     const { onSearch } = page();
     await screen.findByText("notes.md");
     fireEvent.click(screen.getByRole("radio", { name: "Pages" }));
-    expect(onSearch).toHaveBeenCalledWith({ show: "pages" });
+    expect(onSearch).toHaveBeenCalledWith({ item: undefined, show: "pages" });
   });
 
   it("shows a row's details beside the list, and removes it from there", async () => {

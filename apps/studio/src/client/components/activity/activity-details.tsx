@@ -190,7 +190,7 @@ export function ActivityDetails({
       </div>
       {/* Block flow, so Files' Info rows keep their height rather than
         shrinking to fit the card. */}
-      <div className="min-h-0 flex-1 overflow-y-auto">
+      <div className="min-h-0 flex-1 overflow-y-auto scroll-fade-y">
         {request !== null ? (
           <div className="p-4">
             <RequestDetail id={request} />

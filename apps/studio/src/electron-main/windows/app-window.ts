@@ -31,7 +31,6 @@ import {
   isHostedPageKey,
   WINDOW_KEPT_KEYS,
 } from "@/shared/kept-state";
-import { isSameTabIdentity } from "@/shared/tab-identity";
 import { type Tab, type TabsModel, TabsModelSchema } from "@/shared/tabs";
 import { homedir } from "node:os";
 import {
@@ -71,6 +70,11 @@ import {
 } from "@/electron-main/windows/setup-size";
 import { showWhenReady } from "@/electron-main/windows/show-when-ready";
 import { setTrafficLightForZoom } from "@/electron-main/windows/traffic-lights";
+import {
+  otherStripShowing,
+  type StripOf,
+  stripShowing,
+} from "@/electron-main/windows/tab-showing";
 import { commandWindow } from "@/electron-main/windows/window-command";
 import { trackWindowBounds } from "@/electron-main/windows/window-bounds";
 import { folderHref } from "@/shared/computer-href";
@@ -248,28 +252,29 @@ export function appWindowShowing(
   href: string,
   among: readonly BrowserWindow[] = getAppWindows(),
 ): BrowserWindow | null {
-  const home = homedir();
-  const standsThere = (pathname: string) =>
-    pathname === href ||
-    pathname.startsWith(`${href}?`) ||
-    isSameTabIdentity(pathname, href, home);
-  let behind: BrowserWindow | null = null;
-  for (const window of among) {
-    const id = appWindowIdOfWindow(window);
-    if (id !== undefined) {
-      const { selectedId, tabs } = keptTabsOf(id);
-      const tab = tabs.find(
-        (each) => each.id === selectedId && standsThere(each.pathname),
-      );
-      if (tab) {
-        return window;
-      }
-      if (!behind && tabs.some((each) => standsThere(each.pathname))) {
-        behind = window;
-      }
-    }
-  }
-  return behind;
+  return stripShowing(href, stripsOf(among), homedir());
+}
+
+/** Each window's strip as it keeps it, in the order given. */
+function stripsOf(among: readonly BrowserWindow[]) {
+  return among.flatMap(
+    (
+      window,
+    ): (StripOf<BrowserWindow> & {
+      webContentsId: number;
+    })[] => {
+      const id = appWindowIdOfWindow(window);
+      return id === undefined
+        ? []
+        : [
+            {
+              model: keptTabsOf(id),
+              webContentsId: window.webContents.id,
+              window,
+            },
+          ];
+    },
+  );
 }
 
 /**
@@ -326,31 +331,81 @@ export function openAppScreen(href: string) {
 
 /**
  * Brings forward the window that already has a screen in a tab, with that tab
- * up. False where no window has it; `except` leaves out the window asking.
+ * up. False where no window has it.
  */
-export function showInWindowHolding(
-  href: string,
-  { except }: { except?: number } = {},
-) {
-  const showing = appWindowShowing(
-    href,
-    getAppWindows().filter((window) => window.webContents.id !== except),
-  );
+export function showInWindowHolding(href: string) {
+  const showing = appWindowShowing(href);
   if (!showing) {
     return false;
   }
-  // Held after a restart, the person who followed a link has to be shown it.
-  if (isHeldOffScreen(showing) && !keepsOffScreen()) {
-    showHeldWindows();
-  }
-  if (!isHeldOffScreen(showing)) {
-    if (showing.isMinimized()) {
-      showing.restore();
-    }
-    showing.focus();
-  }
+  bringForward(showing);
   askWindow(showing, { href, type: "openScreen" });
   return true;
+}
+
+/** A window to the front, the person having asked for something it shows. */
+function bringForward(window: BrowserWindow) {
+  // Held after a restart, the person who followed a link has to be shown it.
+  if (isHeldOffScreen(window) && !keepsOffScreen()) {
+    showHeldWindows();
+  }
+  if (!isHeldOffScreen(window)) {
+    if (window.isMinimized()) {
+      window.restore();
+    }
+    window.focus();
+  }
+}
+
+/** How long a window has to say whether it has the tab another asked for. */
+const SHOW_TAB_WAIT_MS = 2000;
+const tabShownReplies = new Map<string, (shown: boolean) => void>();
+let showTabAsks = 0;
+
+/**
+ * Brings forward another open window's tab showing what an address shows,
+ * for the window asking, which has none. That window is asked to bring the
+ * tab up and comes forward only once it says it did; a window not listening,
+ * one whose tab has gone since it last kept its strip, or one that does not
+ * answer in time is false, for the asking window to open the thing itself.
+ */
+export async function showInOtherWindow(
+  href: string,
+  asking: number,
+): Promise<boolean> {
+  if (isSetupUp()) {
+    return false;
+  }
+  const hearing = getAppWindows().filter((window) =>
+    listening.has(window.webContents.id),
+  );
+  const showing = otherStripShowing(href, stripsOf(hearing), asking, homedir());
+  if (!showing) {
+    return false;
+  }
+  showTabAsks += 1;
+  const requestId = `show-tab-${showTabAsks.toString()}`;
+  const shown = await new Promise<boolean>((resolve) => {
+    const timer = setTimeout(() => {
+      tabShownReplies.delete(requestId);
+      resolve(false);
+    }, SHOW_TAB_WAIT_MS);
+    tabShownReplies.set(requestId, (said) => {
+      clearTimeout(timer);
+      tabShownReplies.delete(requestId);
+      resolve(said);
+    });
+    commandWindow(showing, { href, requestId, type: "showTab" });
+  });
+  if (shown && !showing.isDestroyed()) {
+    bringForward(showing);
+  }
+  return shown;
+}
+
+/** A window's answer to `showInOtherWindow`'s ask: whether it had the tab and brought it up. */
+export function tabShown(requestId: string, shown: boolean) {
+  tabShownReplies.get(requestId)?.(shown);
 }
 
 /**

@@ -165,6 +165,8 @@ export type WindowCommand =
   | "moveTabToNewWindow"
   | AppWindowAsk
   | { index?: number; tab: Tab; type: "receiveTab" }
+  /** Another window asked for what a tab here shows: bring it up and say so (`window.tabShown`). */
+  | { href: string; requestId: string; type: "showTab" }
   | { index: number; type: "selectTab" };
 
 // Per subscription, starting empty when it subscribes: what a subscriber that

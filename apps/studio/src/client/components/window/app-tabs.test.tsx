@@ -321,3 +321,78 @@ describe("stepChat", () => {
     expect(showInOtherWindow).not.toHaveBeenCalled();
   });
 });
+
+describe("a tab found for an address that asks more of it", () => {
+  const SINCE = "/release-notes?since=2.0.0";
+  const SELECTED = folderHref(DOCUMENTS, { select: "a.txt" });
+
+  it.each([
+    ["the notes since a version", SINCE, "/release-notes"],
+    [
+      "a selection in a folder",
+      SELECTED,
+      `/files?path=&root=${encodeURIComponent(DOCUMENTS)}&view=list`,
+    ],
+  ])("walks a restored tab with no router yet to %s", (_, asked, showing) => {
+    const { result, store } = windowShowing(showing);
+
+    act(() => {
+      result.current.open(asked);
+    });
+
+    const tabs = store.get(appTabsAtom);
+    expect(tabs.selectedId).toBe(SHOWING);
+    expect(tabs.tabs.find((tab) => tab.id === SHOWING)).toMatchObject({
+      history: { entries: [showing, asked], index: 1 },
+      pathname: asked,
+    });
+  });
+
+  it("walks a shown tab by its router, from the window's command too", () => {
+    const push = vi.fn();
+    const showing = "/release-notes";
+    const kept = TabIdSchema.parse("kept");
+    // Only the history a walk pushes onto.
+    setTabRouter(kept, {
+      history: { location: { href: showing }, push },
+    } as unknown as TabRouter);
+    const store = createStore();
+    const { result } = renderHook(() => useAppTabs(), {
+      wrapper: ({ children }: { children: ReactNode }) => (
+        <Provider store={store}>{children}</Provider>
+      ),
+    });
+    act(() => {
+      store.set(appTabsAtom, {
+        recentlyClosed: [],
+        selectedId: UP,
+        tabs: [
+          { id: UP, pathname: "/new-tab" },
+          { id: kept, pathname: showing },
+        ],
+      });
+    });
+
+    let shown = false;
+    act(() => {
+      shown = result.current.selectShowing(SINCE);
+    });
+
+    expect(shown).toBe(true);
+    expect(push).toHaveBeenCalledWith(SINCE);
+    expect(store.get(appTabsAtom).selectedId).toBe(kept);
+  });
+
+  it("leaves a tab found for the bare address as it stands", () => {
+    const walked = `/files?path=&root=${encodeURIComponent(DOCUMENTS)}&select=a.txt&view=list`;
+    const { result, store } = windowShowing(walked);
+
+    act(() => {
+      result.current.open(folderHref(DOCUMENTS));
+    });
+
+    expect(
+      store.get(appTabsAtom).tabs.find((tab) => tab.id === SHOWING),
+    ).toEqual({ id: SHOWING, pathname: walked });
+  });
+});

@@ -6,7 +6,8 @@ import {
   openNewAppWindow,
   otherAppWindows,
   reopenClosedAppWindow,
-  showInWindowHolding,
+  showInOtherWindow as showElsewhere,
+  tabShown as noteTabShown,
   takeLaunchSweep as takeSweep,
   takePendingAppWindowAsks,
 } from "@/electron-main/windows/app-window";
@@ -112,15 +113,22 @@ const reopenClosed = base.input(z.void()).handler(() => {
 
 /**
  * Brings forward another open window's tab showing what an address shows,
- * with that window; false where no other open window has one, for the asking
- * window to open it itself.
+ * with that window once it says it has the tab; false where none does, for
+ * the asking window to open it itself.
  */
 const showInOtherWindow = base
   .input(z.object({ href: z.string() }))
   .output(z.boolean())
   .handler(({ context, input }) =>
-    showInWindowHolding(input.href, { except: context.webContentsId }),
+    showElsewhere(input.href, context.webContentsId),
   );
+
+/** This window's answer to a `showTab` command: whether it had the tab and brought it up. */
+const tabShown = base
+  .input(z.object({ requestId: z.string(), shown: z.boolean() }))
+  .handler(({ input }) => {
+    noteTabShown(input.requestId, input.shown);
+  });
 
 /** Whether this window is the one to clear what the launch left over. */
 const takeLaunchSweep = base
@@ -209,6 +217,7 @@ export const window = {
   showAppMenu,
   showInOtherWindow,
   startTabCarry,
+  tabShown,
   takeLaunchSweep,
   takePending,
 };

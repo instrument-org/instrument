@@ -1004,6 +1004,7 @@ function WindowShell({
           openScreen(href, { newTab: true });
         }
       },
+      showTab: appTabs.selectShowing,
       moveTabToNewWindow: () => {
         if (appTabs.model.selectedId) {
           void moveTabOut(appTabs.model.selectedId, { kind: "new" });

@@ -98,6 +98,8 @@ export function useWindowCommands(
     search: () => void;
     /** The next or previous chat of the inbox, as listed. */
     selectChat: (direction: -1 | 1) => void;
+    /** Brings up the tab here showing what another window asked for; false where none does. */
+    showTab: (href: string) => boolean;
     selectRelative: (direction: -1 | 1) => void;
     selectTab: (index: number) => void;
     /** The inbox column put away or brought back. */
@@ -221,6 +223,15 @@ export function useWindowCommands(
               }
             } else if (command.type === "receiveTab") {
               latest.current.receiveTab(command.tab, command.index);
+            } else if (command.type === "showTab") {
+              // Said back either way: main brings this window forward only
+              // on a yes, and the asking window opens it itself on a no.
+              void safe(
+                rpcClient.window.tabShown.call({
+                  requestId: command.requestId,
+                  shown: latest.current.showTab(command.href),
+                }),
+              );
             } else {
               answer(latest.current, command);
             }

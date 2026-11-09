@@ -71,6 +71,37 @@ export function isSameTabIdentity(a: string, b: string, homeDir?: string) {
   return identity !== undefined && identity === tabIdentityOf(b, homeDir);
 }
 
+/** What an address's search says about which thing it is, rather than how it is shown. */
+const IDENTIFYING_SEARCH: Record<string, readonly string[]> = {
+  chats: ["draft"],
+  files: ["file", "path", "root"],
+  tasks: ["chat"],
+};
+
+/**
+ * Whether an address asks more of the tab showing its thing than the tab
+ * already shows: a search entry beyond what names the thing (a selection, a
+ * `since`, the folder beside a file) that the tab's own address does not
+ * have as asked. A tab found for such an address walks there; one found for
+ * the bare address keeps the layout and selection it has.
+ */
+export function asksMoreThan(asked: string, shown: string): boolean {
+  let want: URL;
+  let have: URL;
+  try {
+    want = new URL(asked, "http://tabs");
+    have = new URL(shown, "http://tabs");
+  } catch {
+    return false;
+  }
+  const first = want.pathname.split("/").find(Boolean) ?? "";
+  const identifying = IDENTIFYING_SEARCH[first] ?? [];
+  return [...want.searchParams].some(
+    ([key, value]) =>
+      !identifying.includes(key) && have.searchParams.get(key) !== value,
+  );
+}
+
 /** A path spelled one way: forward slashes, none doubled, none trailing. */
 function spelled(path: string) {
   const forward = path.replaceAll("\\", "/").replaceAll(/\/{2,}/g, "/");

@@ -45,6 +45,7 @@ function Commands({
       reopenTab: vi.fn(),
       search: vi.fn(),
       selectChat: vi.fn(),
+      showTab: vi.fn(() => false),
       selectRelative: vi.fn(),
       selectTab: vi.fn(),
       moveTabToNewWindow: vi.fn(),

@@ -1,7 +1,7 @@
 import { fileHref, folderHref } from "@/shared/computer-href";
 import { describe, expect, it } from "vitest";
 
-import { isSameTabIdentity, tabIdentityOf } from "./tab-identity";
+import { asksMoreThan, isSameTabIdentity, tabIdentityOf } from "./tab-identity";
 
 const HOME = "/Users/mac-user";
 const NOTES = `${HOME}/notes.md`;
@@ -55,5 +55,41 @@ describe("isSameTabIdentity", () => {
   ])("gives %s no identity, so it is never one of a kind", (_, href) => {
     expect(tabIdentityOf(href, HOME)).toBeUndefined();
     expect(isSameTabIdentity(href, href, HOME)).toBe(false);
+  });
+});
+
+describe("asksMoreThan", () => {
+  const walkedFile = `/files?file=${encodeURIComponent(NOTES)}&path=&root=~&view=columns`;
+
+  it.each([
+    [
+      "the notes since a version",
+      "/release-notes?since=2.0.0",
+      "/release-notes",
+      true,
+    ],
+    [
+      "the same notes again",
+      "/release-notes?since=2.0.0",
+      "/release-notes?since=2.0.0",
+      false,
+    ],
+    [
+      "a selection in a folder",
+      folderHref(HOME, { select: "a.txt" }),
+      "/files?path=&root=%2FUsers%2Fmac-user&view=list",
+      true,
+    ],
+    ["a file's bare address", fileHref(NOTES), walkedFile, false],
+    [
+      "a file beside the folder it was opened from",
+      fileHref(NOTES, { tree: HOME }),
+      walkedFile,
+      true,
+    ],
+    ["a draft by its id", "/chats?draft=d1", "/chats/?draft=d1", false],
+    ["a task by its chat", "/tasks/s1?chat=c1", "/tasks/s1", false],
+  ])("%s", (_, asked, shown, expected) => {
+    expect(asksMoreThan(asked, shown)).toBe(expected);
   });
 });

@@ -23,9 +23,10 @@ import {
   selectByIndex,
   selectOrAddTab,
   selectTab,
+  setTabPathname,
 } from "@/client/lib/tabs-model";
 import { APP_TABS_KEY } from "@/shared/kept-state";
-import { tabIdentityOf } from "@/shared/tab-identity";
+import { asksMoreThan, tabIdentityOf } from "@/shared/tab-identity";
 import { type Tab, type TabsModel, TabsModelSchema } from "@/shared/tabs";
 import { rpcClient } from "@/client/rpc/client";
 import { folderHref } from "@/shared/computer-href";
@@ -224,26 +225,76 @@ function isShownInOtherWindow(href: string) {
   });
 }
 
+type Store = ReturnType<typeof getDefaultStore>;
+
+/**
+ * Walks a tab to an address, a step on in its history: by its router, or,
+ * for a tab restored and never shown, which has none yet, in what the tab
+ * keeps, which its router starts from when it comes up.
+ */
+function walkTab(store: Store, tab: Tab, href: string) {
+  const router = getTabRouter(tab.id);
+  if (router) {
+    router.history.push(href);
+    return;
+  }
+  const { entries, index } = tab.history ?? {
+    entries: [tab.pathname],
+    index: 0,
+  };
+  const history = {
+    entries: [...entries.slice(0, index + 1), href],
+    index: index + 1,
+  };
+  store.set(appTabsAtom, (model) =>
+    setTabPathname(model, { history, id: tab.id, pathname: href }),
+  );
+}
+
+/**
+ * Brings up this window's tab already showing what an address shows, and
+ * walks it there when the address asks more of it than it shows
+ * (`asksMoreThan`: a selection, the notes since a version). False where no
+ * tab here shows it. `select: false` leaves the tab found where it is.
+ */
+function showTabHere(
+  href: string,
+  {
+    select = true,
+    store = getDefaultStore(),
+  }: { select?: boolean; store?: Store } = {},
+): boolean {
+  const current = store.get(appTabsAtom);
+  const here = stripTabShowing(current, href);
+  if (!here) {
+    return false;
+  }
+  if (select && current.selectedId !== here.id) {
+    store.set(appTabsAtom, (model) => selectTab(model, { id: here.id }));
+  }
+  if (asksMoreThan(href, here.pathname)) {
+    walkTab(store, here, href);
+  }
+  return true;
+}
+
 /**
  * Opening something with one identity where a tab already shows it: that
- * tab comes forward, this window's first, then another window's, which
- * comes forward with it (main finds it among the windows open, by the same
- * identity). Only where none does is `otherwise` run, which opens it. Every
- * open of a window tab that is not an explicit new tab or new window goes
- * through here; `select: false` leaves a tab found in this window where it
- * is. `onHere` hears of a tab found in this window.
+ * tab comes forward (`showTabHere`), this window's first, then another
+ * window's, which comes forward with it once it says it has the tab (main
+ * asks it, by the same identity). Only where none does is `otherwise` run,
+ * which opens it. Every open of a window tab that is not an explicit new tab
+ * or new window, nor one the app makes on its own, goes through here.
  */
 export function showTabOr(
   href: string,
   otherwise: () => void,
   {
-    onHere,
     select = true,
     store = getDefaultStore(),
   }: {
-    onHere?: (tab: Tab) => void;
     select?: boolean;
-    store?: ReturnType<typeof getDefaultStore>;
+    store?: Store;
   } = {},
 ) {
   // A site, the web's start or a new tab is not one of a kind, and opens
@@ -252,13 +303,7 @@ export function showTabOr(
     otherwise();
     return;
   }
-  const current = store.get(appTabsAtom);
-  const here = stripTabShowing(current, href);
-  if (here) {
-    if (select && current.selectedId !== here.id) {
-      store.set(appTabsAtom, (model) => selectTab(model, { id: here.id }));
-    }
-    onHere?.(here);
+  if (showTabHere(href, { select, store })) {
     return;
   }
   if (!isShownInOtherWindow(href)) {
@@ -482,14 +527,8 @@ export function useAppTabs() {
         navigate(chatHref(next));
       }
     },
-    /** Brings up this window's tab already showing what an address shows; false where none does. */
-    selectShowing: (href: string): boolean => {
-      const here = stripTabShowing(store.get(appTabsAtom), href);
-      if (here) {
-        setModel((current) => selectTab(current, { id: here.id }));
-      }
-      return here !== undefined;
-    },
+    /** This window's tab already showing what an address shows, up and walked there (`showTabHere`); false where none does. */
+    selectShowing: (href: string): boolean => showTabHere(href, { store }),
     reorder: (ids: TabId[]) => {
       setModel((current) => reorderTabs(current, { ids }));
     },

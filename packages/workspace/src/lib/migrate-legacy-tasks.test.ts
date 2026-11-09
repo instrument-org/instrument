@@ -968,7 +968,10 @@ describe("migrateLegacyTasks", () => {
        }
        process.kill(process.pid, "SIGKILL");`,
     ]);
-    expect(crashed.signal).toBe("SIGKILL");
+    // Windows has no signals: the kill terminates the process with exit code 1.
+    expect(crashed.signal ?? crashed.status).toBe(
+      process.platform === "win32" ? 1 : "SIGKILL",
+    );
     expect(fs.existsSync(`${database}-journal`)).toBe(true);
     expect(() =>
       new DatabaseSync(database, { readOnly: true })

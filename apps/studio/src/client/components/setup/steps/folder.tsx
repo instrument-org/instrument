@@ -407,7 +407,7 @@ function WelcomePage({ onStart }: { onStart: () => void }) {
       title={`Welcome to ${APP_NAME}`}
     >
       <Button
-        className="mt-10 h-10 w-95 max-w-full bg-white/30 text-base text-foreground dark:bg-white/5"
+        className="mt-10 h-10 bg-white/30 px-8 text-base text-foreground dark:bg-white/5"
         onClick={onStart}
         variant="outline"
       >

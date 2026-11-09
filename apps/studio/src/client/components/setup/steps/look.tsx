@@ -221,7 +221,8 @@ function AllSetPage({ onFinish }: { onFinish: () => void }) {
       className="setup-rise-in"
       footer={<SetupFooter back={false} next="none" />}
       hero={<BrandMark className="mb-4" size={88} />}
-      title={firstName ? `You're all set, ${firstName}` : "You're all set"}
+      subtitle={`Welcome to ${APP_NAME}`}
+      title={firstName ? `You're all set, ${firstName}!` : "You're all set!"}
     >
       <Button
         className="mt-8 h-10 px-8 text-base"

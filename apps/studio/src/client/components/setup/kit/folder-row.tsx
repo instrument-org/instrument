@@ -33,7 +33,9 @@ export function FolderLocation({
 }) {
   const change = onChange && (
     <Button
-      className="h-9 px-1 text-brand-700 dark:text-brand-300"
+      // Pulled right by what the padding adds, so the word stays where the
+      // row's own padding puts it.
+      className="-mr-2 h-9 px-3 text-brand-700 dark:text-brand-300"
       onClick={onChange}
       variant="ghost"
     >

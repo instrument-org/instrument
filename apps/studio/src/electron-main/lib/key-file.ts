@@ -77,6 +77,7 @@ export function keyFileSerializer({
     }
     log.error("Encryption is not available");
     try {
+      // oxlint-disable-next-line studio/no-sync-content-read -- a store's serialize is synchronous, and the keys folder is in this computer's machine folder, never a synced one
       return fs.readFileSync(path.join(dir(), keyFileName(name)), "utf8");
     } catch {
       return "";

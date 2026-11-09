@@ -581,6 +581,31 @@ jobs:
       - name: Remove smoke test screenshots from artifacts
         run: find artifacts -name "*.png" -delete
 
+      # The installers a person downloads, attached to the release beside the
+      # source maps: the DMGs, the Linux packages, and the Velopack Setup for
+      # the release's own channel, named like the rest. The update feeds, the
+      # Mac zips, the legacy NSIS installer and the Velopack packages stay on
+      # S3 alone, since only an installed app reads those.
+      - name: Gather installers for the release
+        shell: bash
+        run: |
+          set -euo pipefail
+          version="${GITHUB_REF_NAME#v}"
+          case "$GITHUB_REF_NAME" in
+            *-alpha*) channel=alpha ;;
+            *-beta*) channel=beta ;;
+            *) channel=latest ;;
+          esac
+          mkdir release-assets
+          cp artifacts/*.dmg artifacts/*.AppImage artifacts/*.deb artifacts/*.rpm release-assets/
+          setup=(artifacts/velopack/*-"$channel"-Setup.exe)
+          if [ ! -f "${setup[0]}" ]; then
+            echo "::error::No Velopack Setup for the $channel channel in artifacts/velopack"
+            exit 1
+          fi
+          cp "${setup[0]}" "release-assets/Instrument-win-$version-x64-Setup.exe"
+          ls -l release-assets
+
       # Published rather than drafted, unlike the stable release below: a draft is
       # invisible to the unauthenticated GitHub API, and the app reads these notes
       # back to show prerelease users the changelog for the build they are running.
@@ -594,13 +619,15 @@ jobs:
         env:
           FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: "true"
         with:
-          # Releases here are immutable, so the source maps go up while it is a
-          # draft and the next step publishes it.
+          # Releases here are immutable, so the installers and source maps go up
+          # while it is a draft and the next step publishes it.
           draft: true
           prerelease: true
           generate_release_notes: false
           body_path: /tmp/release-body.md
-          files: artifacts/sourcemaps-*.tar.gz
+          files: |
+            artifacts/sourcemaps-*.tar.gz
+            release-assets/*
 
       - name: Publish GitHub Prerelease
         id: prerelease_published
@@ -622,7 +649,9 @@ jobs:
           prerelease: false
           generate_release_notes: false
           body_path: /tmp/release-body.md
-          files: artifacts/sourcemaps-*.tar.gz
+          files: |
+            artifacts/sourcemaps-*.tar.gz
+            release-assets/*
 
       - name: Capture release URL
         id: release

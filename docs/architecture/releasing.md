@@ -12,9 +12,9 @@ Where a build comes from and where it goes. [auto-updater.md](auto-updater.md) i
 
 ## Where the artifacts go
 
-To S3, not to the GitHub release. The publish job syncs the installers and the electron-updater manifests (`latest.yml`, `latest-mac.yml`, `latest-linux*.yml`, and the channel variants) into the `instrument-releases` bucket named in [`electron-builder.ts`](../../apps/studio/electron-builder.ts), at the endpoint held in the `BUILDER_PUBLISH_S3_ENDPOINT` repository variable.
+To S3 first, which is what ships. The publish job syncs the installers and the electron-updater manifests (`latest.yml`, `latest-mac.yml`, `latest-linux*.yml`, and the channel variants) into the `instrument-releases` bucket named in [`electron-builder.ts`](../../apps/studio/electron-builder.ts), at the endpoint held in the `BUILDER_PUBLISH_S3_ENDPOINT` repository variable.
 
-A release therefore carries zero attached assets. That is the normal shape, not an upload that failed.
+The GitHub release then gets the installers a person downloads, beside each leg's source maps: both DMGs, the AppImages, debs and rpms, and the Velopack Setup for the release's own channel, renamed `Instrument-win-<version>-x64-Setup.exe` to match the others. The update feeds, the Mac zips, the NSIS installer and the Velopack packages stay on S3 alone, since only an installed app reads them. Releases here are immutable, so everything is attached while the release is still a draft.
 
 ### Windows: Velopack
 

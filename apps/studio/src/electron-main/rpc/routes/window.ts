@@ -5,6 +5,7 @@ import {
   mergeAllWindows,
   openNewAppWindow,
   otherAppWindows,
+  canReopenClosedAppWindow,
   reopenClosedAppWindow,
   showInOtherWindow as showElsewhere,
   tabShown as noteTabShown,
@@ -105,6 +106,9 @@ const openNew = base
   .handler(({ input }) => {
     openNewAppWindow(input?.tabs);
   });
+
+/** Whether a window closed lately can come back. */
+const canReopenClosed = base.handler(() => canReopenClosedAppWindow());
 
 /**
  * A window closed lately, as it was, where one can come back; with `after`,
@@ -208,6 +212,7 @@ const endTabCarry = base
   .handler(({ input }) => endCarry(input));
 
 export const window = {
+  canReopenClosed,
   endTabCarry,
   events,
   live: { others },

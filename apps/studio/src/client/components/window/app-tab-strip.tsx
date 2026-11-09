@@ -280,7 +280,11 @@ export function AppTabStrip({
           setStripMenu(undefined);
         }}
       >
-        <StripMenu onNew={onNew} onReopenLast={onReopenLast} />
+        <StripMenu
+          hasClosedTab={closed.length > 0}
+          onNew={onNew}
+          onReopenLast={onReopenLast}
+        />
       </TabMenuAtPoint>
     </div>
   );
@@ -292,15 +296,23 @@ export function AppTabStrip({
  * windows' tabs brought into this one.
  */
 function StripMenu({
+  hasClosedTab,
   onNew,
   onReopenLast,
 }: {
+  /** Whether this window has a closed tab to bring back. */
+  hasClosedTab: boolean;
   onNew: () => void;
   onReopenLast: () => void;
 }) {
   const others = useQuery(
     rpcClient.window.live.others.experimental_liveOptions(),
   ).data;
+  // Read as the menu opens, since it is mounted only while up.
+  const hasClosedWindow = useQuery({
+    ...rpcClient.window.canReopenClosed.queryOptions(),
+    staleTime: 0,
+  }).data;
   const { Item, Separator, Shortcut } = dropdownMenuComponents;
   return (
     <>
@@ -311,7 +323,10 @@ function StripMenu({
           {formatAcceleratorText(WINDOW_SHORTCUTS.newTab.accelerator)}
         </Shortcut>
       </Item>
-      <Item onClick={onReopenLast}>
+      <Item
+        disabled={!hasClosedTab && hasClosedWindow !== true}
+        onClick={onReopenLast}
+      >
         <ArrowUUpLeftIcon className="size-4" />
         <span>{WINDOW_SHORTCUTS.reopenTab.label}</span>
         <Shortcut>

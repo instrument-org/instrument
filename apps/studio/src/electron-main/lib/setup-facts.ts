@@ -9,6 +9,7 @@ import {
   type NotificationStatus,
   notificationStatus,
 } from "@/electron-main/lib/mac-native";
+import { getNetworkStatus } from "@/electron-main/lib/network-status";
 import { getWorkspaceRun } from "@/electron-main/lib/workspace-run";
 import {
   readRegistry,
@@ -260,6 +261,20 @@ export function startSetupFacts(): void {
   publisher.subscribe("session.apiBearerToken.updated", () => {
     refreshSetupFacts();
     void refreshPlanFact().then(refreshSetupFacts);
+  });
+  // A read that found no answer (offline, the API down) left the plan
+  // unknown, which choosing AI counts as no plan. It is asked again once the
+  // API can be reached, so someone whose only AI is their plan is not left
+  // on that step until they quit.
+  publisher.subscribe("network.status.updated", () => {
+    const token = getToken();
+    if (
+      token !== undefined &&
+      planRead?.token !== token &&
+      getNetworkStatus() === "online"
+    ) {
+      void refreshPlanFact().then(refreshSetupFacts);
+    }
   });
   provideSetupFacts({ read: () => (facts ??= readSetupFacts()), settle });
 }

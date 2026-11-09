@@ -2,7 +2,11 @@ import { type SetupFacts } from "@/shared/setup";
 import { describe, expect, it, vi } from "vitest";
 
 const mocks = vi.hoisted(() => ({
+  billingStatus: (): Promise<unknown> => Promise.reject(new Error("offline")),
   configs: [] as { id: string; type: string }[],
+  listeners: new Map<string, () => void>(),
+  network: "online",
+  token: undefined as string | undefined,
   getResolvedWorkspace: vi.fn(() => ({
     id: "default",
     machineDir: "/data/machine/default",
@@ -53,14 +57,24 @@ vi.mock("@/electron-main/lib/setup-state", () => ({
   setupStillAsks: () => false,
 }));
 vi.mock("@/electron-main/platform-api/client", () => ({
-  platformApiRpcClient: {},
+  platformApiRpcClient: {
+    billing: { status: { call: () => mocks.billingStatus() } },
+  },
 }));
 vi.mock("@/electron-main/platform-api/utils", () => ({
-  getToken: () => undefined,
-  hasToken: () => false,
+  getToken: () => mocks.token,
+  hasToken: () => mocks.token !== undefined,
+}));
+vi.mock("@/electron-main/lib/network-status", () => ({
+  getNetworkStatus: () => mocks.network,
 }));
 vi.mock("@/electron-main/rpc/publisher", () => ({
-  publisher: { publish: vi.fn(), subscribe: vi.fn() },
+  publisher: {
+    publish: vi.fn(),
+    subscribe: (event: string, listener: () => void) => {
+      mocks.listeners.set(event, listener);
+    },
+  },
 }));
 
 const { refreshSetupFacts, startSetupFacts } = await import("./setup-facts");
@@ -130,5 +144,31 @@ describe("setup's facts", () => {
     mocks.configs = types.map((type) => ({ id: type, type }));
     refreshSetupFacts();
     expect(read()).toMatchObject(expected);
+  });
+
+  // Someone whose only AI is their plan, launching while the API cannot be
+  // reached: the read fails, which counts as no plan, and nothing asked again
+  // until they quit.
+  it("ask for the plan again once the API can be reached", async () => {
+    mocks.token = "a sign-in";
+    mocks.network = "api-down";
+    const signedIn = mocks.listeners.get("session.apiBearerToken.updated");
+    const networkChanged = mocks.listeners.get("network.status.updated");
+    signedIn?.();
+    await vi.waitFor(() => {
+      expect(read()).toMatchObject({ isCheckingPlan: false });
+    });
+    expect(read()).toMatchObject({ hasInstrumentPlan: false });
+
+    // Still down: nothing to ask.
+    networkChanged?.();
+    mocks.billingStatus = () =>
+      Promise.resolve({ subscription: {}, trial: { state: "none" } });
+    mocks.network = "online";
+    networkChanged?.();
+
+    await vi.waitFor(() => {
+      expect(read()).toMatchObject({ hasInstrumentPlan: true });
+    });
   });
 });

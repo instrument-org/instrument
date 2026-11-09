@@ -8,10 +8,17 @@ import {
   type SettledStep,
   sentStep,
   shownStepOf,
+  springEnded,
+  sprungStep,
 } from "./files-step";
 
-/** Moves the Files tab the way a change asks. */
-export type GoFiles = (intent: FilesIntent) => void;
+/**
+ * Moves the Files tab the way a change asks. `endSpring` is the end of a drag
+ * that opened folders under itself: `dropped` into one of them, or not.
+ */
+export type GoFiles = (
+  intent: FilesIntent | { dropped: boolean; type: "endSpring" },
+) => void;
 
 /**
  * Where the Files tab stands: the step its address holds, with the steps it
@@ -34,11 +41,7 @@ export function useFilesStep(routed: SettledStep) {
   useLayoutEffect(() => {
     latest.current = shown;
   }, [shown]);
-  const go: GoFiles = (intent) => {
-    const { step, write } = nextStep(latest.current.step, intent);
-    if (write === "none") {
-      return;
-    }
+  const send = (step: SettledStep, write: "push" | "replace") => {
     latest.current = sentStep(latest.current, step);
     setShown(latest.current);
     void navigate({
@@ -46,6 +49,29 @@ export function useFilesStep(routed: SettledStep) {
       search: step,
       to: "/files",
     });
+  };
+  const go: GoFiles = (intent) => {
+    if (intent.type === "endSpring") {
+      if (latest.current.sprungFrom === undefined) {
+        return;
+      }
+      const ended = springEnded(latest.current, intent.dropped);
+      latest.current = ended.shown;
+      setShown(latest.current);
+      for (const each of ended.writes) {
+        send(each.step, each.write);
+      }
+      return;
+    }
+    const from = latest.current.step;
+    const { step, write } = nextStep(from, intent);
+    if (write === "none") {
+      return;
+    }
+    if (intent.type === "spring") {
+      latest.current = sprungStep(latest.current, from);
+    }
+    send(step, write);
   };
   return { arrivals: next.arrivals, go, step: next.step };
 }

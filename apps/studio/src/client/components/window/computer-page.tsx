@@ -91,6 +91,7 @@ import {
   isOwnFileDragOf,
   isSelfFileDrag,
   ownFileDragInAir,
+  sawOwnFileDrag,
   releaseSelfFileDrag,
 } from "@/client/lib/self-file-drag";
 import {
@@ -173,6 +174,7 @@ import { pictureHoldingKeyboard } from "@/client/lib/picture-keys";
 import { openInNewWindow } from "./app-tabs";
 import { useWindow } from "./context";
 import { arrivalView } from "./files-step";
+import { maySpring, springTimer } from "./spring-loading";
 import { type GoFiles } from "./use-files-step";
 import { PlaceMenu } from "./place-menu";
 import { FileThumbnail } from "./file-thumbnail";
@@ -1245,9 +1247,70 @@ export function ComputerPage({
         ?.getAttribute("data-file-system-folder") || current
     );
   };
-  const dropHandlers = useRef({ copyInto, dropIntoOf, moveInto });
+  // A folder's listing read before it is opened, unless reading it would
+  // have macOS ask the person first.
+  const readAhead = (prefix: string) => {
+    if (isRecents || macosAsksFirst(hostPathOf(prefix))) {
+      return;
+    }
+    void queryClient.prefetchQuery({
+      ...rpcClient.workspace.computer.list.queryOptions({
+        input: { id: WINDOW_ID, path: hostPathOf(prefix) },
+      }),
+      staleTime: REFRESH_MS,
+    });
+  };
+  // The folder whose own row or tile a drag is over, if it opens under a
+  // drag that rests there (`maySpring`). macOS asks about a guarded folder
+  // once, at its top, so one listed inside another it guards, or one read
+  // before, opens without a question.
+  const springFolderOf = (target: EventTarget | null) => {
+    const row =
+      target instanceof Element
+        ? target
+            .closest("[data-file-system-item]")
+            ?.getAttribute("data-file-system-item")
+        : null;
+    if (!row || itemsByPath.get(row)?.kind !== "folder") {
+      return null;
+    }
+    const read = hostPathOf(row);
+    const asksFirst =
+      macosAsksFirst(read) &&
+      !macosAsksFirst(folderOf(read)) &&
+      queryClient.getQueryData(
+        rpcClient.workspace.computer.list.queryKey({
+          input: { id: WINDOW_ID, path: read },
+        }),
+      ) === undefined;
+    return maySpring({
+      asksFirst,
+      carried: ownFileDragInAir(),
+      folder: row,
+      hostPath: hostPathOf(row, rootHostPath ?? root),
+      onScreen: path,
+      refused: refusalOf(row) !== undefined,
+    })
+      ? row
+      : null;
+  };
+  const dropHandlers = useRef({
+    copyInto,
+    dropIntoOf,
+    go,
+    moveInto,
+    readAhead,
+    springFolderOf,
+  });
   useEffect(() => {
-    dropHandlers.current = { copyInto, dropIntoOf, moveInto };
+    dropHandlers.current = {
+      copyInto,
+      dropIntoOf,
+      go,
+      moveInto,
+      readAhead,
+      springFolderOf,
+    };
   });
   const isDropOpen = !isRecents && settled;
   const dropHostPathOf = (prefix: string) =>
@@ -1266,6 +1329,28 @@ export function ComputerPage({
       window.clearTimeout(staleTimer);
       setDropInto(null);
     };
+    // A drag resting on a folder opens it, so the drag can go on into a
+    // folder inside it, and so on down. The folders it opened stand in place
+    // of the step on screen until the drag ends: dropped here, the tab stays
+    // where it dropped, and otherwise it goes back to where the drag began.
+    let hasSprung = false;
+    const spring = springTimer((folder) => {
+      hasSprung = true;
+      dropHandlers.current.go({ path: folder, type: "spring" });
+    });
+    const endSpring = (dropped: boolean) => {
+      spring.stop();
+      if (hasSprung) {
+        hasSprung = false;
+        dropHandlers.current.go({ dropped, type: "endSpring" });
+      }
+    };
+    // The system owns a drag, from here or from another app, and the page
+    // hears no pointer events until it is over. So the first one heard with
+    // folders still sprung open is a drag that ended somewhere else.
+    const pointerBack = () => {
+      endSpring(false);
+    };
     const over = (event: DragEvent) => {
       if (!event.dataTransfer?.types.includes("Files")) {
         return;
@@ -1279,6 +1364,12 @@ export function ComputerPage({
         into: dropHostPathRef.current(prefix),
       });
       setDropInto(prefix);
+      sawOwnFileDrag();
+      const resting = dropHandlers.current.springFolderOf(event.target);
+      if (resting !== null && event.type === "dragenter") {
+        dropHandlers.current.readAhead(resting);
+      }
+      spring.rest(resting);
       // `dragover` repeats while the drag is over the folder, so its silence
       // means the drag went somewhere this did not hear about.
       window.clearTimeout(staleTimer);
@@ -1291,6 +1382,21 @@ export function ComputerPage({
       ) {
         clear();
       }
+      // A folder opening takes the row under the drag away, which is a leave
+      // to nowhere with the drag still over the listing.
+      const box = browser.getBoundingClientRect();
+      const isOver =
+        event.clientX > box.left &&
+        event.clientX < box.right &&
+        event.clientY > box.top &&
+        event.clientY < box.bottom;
+      if (
+        event.relatedTarget instanceof Node
+          ? !browser.contains(event.relatedTarget)
+          : !isOver
+      ) {
+        endSpring(false);
+      }
     };
     const drop = (event: DragEvent) => {
       if (!event.dataTransfer?.types.includes("Files")) {
@@ -1299,6 +1405,7 @@ export function ComputerPage({
       event.preventDefault();
       event.stopPropagation();
       clear();
+      endSpring(true);
       const wasSelfDrag = isSelfFileDrag();
       releaseSelfFileDrag();
       const prefix = dropHandlers.current.dropIntoOf(event.target);
@@ -1348,8 +1455,17 @@ export function ComputerPage({
     browser.addEventListener("dragover", over);
     browser.addEventListener("dragleave", leave);
     browser.addEventListener("drop", drop);
+    window.addEventListener("pointermove", pointerBack, { capture: true });
+    window.addEventListener("pointerdown", pointerBack, { capture: true });
     return () => {
       clear();
+      spring.stop();
+      window.removeEventListener("pointermove", pointerBack, {
+        capture: true,
+      });
+      window.removeEventListener("pointerdown", pointerBack, {
+        capture: true,
+      });
       browser.removeEventListener("dragenter", over);
       browser.removeEventListener("dragover", over);
       browser.removeEventListener("dragleave", leave);
@@ -2639,17 +2755,7 @@ export function ComputerPage({
                   pendingFolders={pendingFolders}
                   // Resting on a folder reads it ahead, so opening it in place
                   // is the listing already in hand.
-                  prefetchChildren={(prefix) => {
-                    if (isRecents || macosAsksFirst(hostPathOf(prefix))) {
-                      return;
-                    }
-                    void queryClient.prefetchQuery({
-                      ...rpcClient.workspace.computer.list.queryOptions({
-                        input: { id: WINDOW_ID, path: hostPathOf(prefix) },
-                      }),
-                      staleTime: REFRESH_MS,
-                    });
-                  }}
+                  prefetchChildren={readAhead}
                   ref={fileSystemRef}
                   renderFileStage={(file) => {
                     const tab = fileTabOf(file);

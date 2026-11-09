@@ -93,6 +93,11 @@ export type FilesIntent =
       type: "walk";
     }
   /**
+   * A drag rested on a folder, which opens under it in place of the step on
+   * screen (`ShownStep.sprungFrom`), so the drag can go on into it.
+   */
+  | { path: string; type: "spring" }
+  /**
    * The selection moved: `path` is the one the keyboard is on, and `several`
    * whether more are held beside it.
    */
@@ -230,6 +235,15 @@ function applied(
         },
         "push",
       ];
+    case "spring":
+      // In the columns the folder opens as selecting it does, beside the
+      // column it is in.
+      return [
+        inColumns
+          ? selecting(step, intent.path)
+          : { ...step, path: intent.path, query: undefined, select: undefined },
+        "replace",
+      ];
     case "select": {
       // Selecting somewhere else in the columns is standing there, a step
       // of its own; letting go of the selection, a trash or a press on
@@ -320,6 +334,12 @@ export type ShownStep = {
   routed: SettledStep;
   /** The steps written and not yet read back, oldest first. */
   sent: readonly SettledStep[];
+  /**
+   * Where the tab stood when a drag first opened a folder under itself,
+   * while the drag is still going. The address moving on its own lets go of
+   * it.
+   */
+  sprungFrom?: SettledStep | undefined;
   /** The step on screen. */
   step: SettledStep;
 };
@@ -332,6 +352,38 @@ export function shownStepOf(routed: SettledStep): ShownStep {
 /** A step written: shown at once, and kept until the address reads it back. */
 export function sentStep(shown: ShownStep, step: SettledStep): ShownStep {
   return { ...shown, sent: [...shown.sent, step], step };
+}
+
+/** A folder a drag opened: where the tab stood before the first of them is kept. */
+export function sprungStep(shown: ShownStep, from: SettledStep): ShownStep {
+  return { ...shown, sprungFrom: shown.sprungFrom ?? from };
+}
+
+/**
+ * The drag that opened folders is over, and what to write for it. Dropped
+ * into the folder it opened, the tab stays there as one step on from where
+ * the drag began, so Back returns to that; anything else puts the tab back
+ * where it began.
+ */
+export function springEnded(
+  shown: ShownStep,
+  dropped: boolean,
+): {
+  shown: ShownStep;
+  writes: readonly { step: SettledStep; write: "push" | "replace" }[];
+} {
+  const { sprungFrom: from, step: at } = shown;
+  const settled = { ...shown, sprungFrom: undefined };
+  if (from === undefined || isSameStep(from, at)) {
+    return { shown: settled, writes: [] };
+  }
+  return {
+    shown: settled,
+    writes: [
+      { step: from, write: "replace" },
+      ...(dropped ? [{ step: at, write: "push" as const }] : []),
+    ],
+  };
 }
 
 /**

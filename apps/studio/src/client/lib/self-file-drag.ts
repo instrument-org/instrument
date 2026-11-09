@@ -53,6 +53,7 @@ export function trackSelfFileDrag(paths: readonly string[] = []) {
   startedAt = Date.now();
   carried = paths.length > 0 ? new Set(paths) : null;
   carriedSince = startedAt;
+  carriedSeen = startedAt;
   if (carried) {
     listenForEnd();
   }
@@ -70,10 +71,13 @@ let carriedSince = 0;
 // The pointer events a page can still be sent as a drag begins, which are
 // not its end.
 const END_GRACE_MS = 250;
-// Longer than anyone holds a drag over a folder. A drag that went out to
-// another app without the window hearing of it, and the same files dragged
-// back in from somewhere else later, is never taken for this one.
+// Longer than a drag goes unheard from while it is over this window, where a
+// drop target hears of it several times a second (`sawOwnFileDrag`). A drag
+// that went out to another app without the window hearing of it, and the same
+// files dragged back in from somewhere else later, is never taken for this
+// one.
 const CARRIED_FOR_MS = 30_000;
+let carriedSeen = 0;
 
 function listenForEnd() {
   const end = () => {
@@ -109,7 +113,7 @@ let stopListening: (() => void) | null = null;
 export function isOwnFileDragOf(paths: readonly string[]) {
   return (
     carried !== null &&
-    Date.now() - carriedSince < CARRIED_FOR_MS &&
+    Date.now() - carriedSeen < CARRIED_FOR_MS &&
     paths.length === carried.size &&
     paths.every((at) => carried?.has(at))
   );
@@ -117,9 +121,21 @@ export function isOwnFileDragOf(paths: readonly string[]) {
 
 /** The files of this app's own drag still in the air, or nothing. */
 export function ownFileDragInAir(): readonly string[] {
-  return carried !== null && Date.now() - carriedSince < CARRIED_FOR_MS
+  return carried !== null && Date.now() - carriedSeen < CARRIED_FOR_MS
     ? [...carried]
     : [];
+}
+
+/**
+ * Called by a drop target each time it hears a drag of files over it. The
+ * page hears nothing else of this app's own drag while it is in the air, and
+ * any pointer event ends it, so a drag heard while one is still carried is
+ * that one, however long it has been held over folders opening under it.
+ */
+export function sawOwnFileDrag() {
+  if (ownFileDragInAir().length > 0) {
+    carriedSeen = Date.now();
+  }
 }
 
 /** Called once a drop has taken this app's own drag, or it is known to have ended. */

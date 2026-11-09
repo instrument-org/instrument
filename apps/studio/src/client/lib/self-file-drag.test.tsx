@@ -5,6 +5,7 @@ import {
   isOwnFileDragOf,
   isSelfFileDrag,
   releaseSelfFileDrag,
+  sawOwnFileDrag,
   trackSelfFileDrag,
 } from "./self-file-drag";
 
@@ -98,6 +99,21 @@ describe("self file drag", () => {
       trackSelfFileDrag(["/a.txt"]);
       vi.advanceTimersByTime(31_000);
 
+      expect(isOwnFileDragOf(["/a.txt"])).toBe(false);
+    });
+
+    // Held over folders opening one after another, a drag outlasts any age
+    // set for it, and is still this app's own for as long as it is heard.
+    it("keeps them for as long as a drop target hears the drag", () => {
+      trackSelfFileDrag(["/a.txt"]);
+      for (let heard = 0; heard < 4; heard += 1) {
+        vi.advanceTimersByTime(20_000);
+        sawOwnFileDrag();
+      }
+      expect(isOwnFileDragOf(["/a.txt"])).toBe(true);
+
+      vi.advanceTimersByTime(31_000);
+      sawOwnFileDrag();
       expect(isOwnFileDragOf(["/a.txt"])).toBe(false);
     });
   });

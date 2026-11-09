@@ -10,6 +10,8 @@ import {
   type SettledStep,
   settleArrival,
   shownStepOf,
+  springEnded,
+  sprungStep,
 } from "./files-step";
 
 const DOCS: SettledStep = {
@@ -54,6 +56,16 @@ const EVENTS: [string, SettledStep, FilesIntent][] = [
     { path: "Music/", root: "~", type: "arrive", view: "table" },
   ],
   ["double-click a folder", DOCS, { path: "Documents/Old/", type: "walk" }],
+  [
+    "a drag resting on a folder",
+    DOCS,
+    { path: "Documents/Old/", type: "spring" },
+  ],
+  [
+    "a drag resting on a folder in the columns",
+    COLUMNS,
+    { path: "Documents/Old/", type: "spring" },
+  ],
   [
     "a folder selected in the columns",
     COLUMNS,
@@ -212,6 +224,8 @@ describe("the step a change leads to", () => {
         "a place: push path= root=/Users/sam/Downloads view=columns",
         "a place with a folder under it: push path=Music/ root=~ view=table",
         "double-click a folder: push path=Documents/Old/ root=~ view=icons",
+        "a drag resting on a folder: replace path=Documents/Old/ root=~ view=icons",
+        "a drag resting on a folder in the columns: replace path=Documents/Old/ query=report root=~ select=Documents/Old/ view=columns",
         "a folder selected in the columns: push path=Documents/Old/ query=report root=~ select=Documents/Old/ view=columns",
         "a file selected in the column above: push path= query=report root=~ select=notes.md view=columns",
         "several selected in the columns, a folder among them: replace path=Documents/ query=report root=~ select=Documents/Old/ view=columns",
@@ -388,4 +402,44 @@ it("reads back writes the router folded into no change, so a later arrival is no
   // Then something outside opens the folder as it was before.
   shown = routedStep(shown, DOCS);
   expect([shown.arrivals, shown.step.select]).toEqual([1, DOCS.select]);
+});
+
+describe("a drag that opened folders under itself", () => {
+  // Two folders down from where the drag began.
+  const sprung = () => {
+    let shown = shownStepOf(DOCS);
+    for (const path of ["Documents/Old/", "Documents/Old/2024/"]) {
+      const from = shown.step;
+      const { step } = nextStep(from, { path, type: "spring" });
+      shown = sentStep(sprungStep(shown, from), step);
+    }
+    return shown;
+  };
+  const written = (dropped: boolean) =>
+    springEnded(sprung(), dropped).writes.map(
+      ({ step, write }) => `${write} ${line(step)}`,
+    );
+
+  it("stays where it dropped, one step on from where it began", () => {
+    expect(written(true)).toMatchInlineSnapshot(`
+      [
+        "replace path=Documents/ query=report root=~ select=Documents/report.pdf view=icons",
+        "push path=Documents/Old/2024/ root=~ view=icons",
+      ]
+    `);
+  });
+
+  it("goes back to where it began when it ends anywhere else", () => {
+    expect(written(false)).toMatchInlineSnapshot(`
+      [
+        "replace path=Documents/ query=report root=~ select=Documents/report.pdf view=icons",
+      ]
+    `);
+  });
+
+  it("writes nothing for a drag that opened none, or once the address moved on its own", () => {
+    expect(springEnded(shownStepOf(DOCS), true).writes).toEqual([]);
+    const moved = routedStep(sprung(), { ...DOCS, path: "Music/" });
+    expect(springEnded(moved, false).writes).toEqual([]);
+  });
 });

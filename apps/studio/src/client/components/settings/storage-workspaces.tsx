@@ -12,6 +12,7 @@ import { Button } from "@/client/components/ui/button";
 import { Checkbox } from "@/client/components/ui/checkbox";
 import {
   Dialog,
+  DialogBody,
   DialogContent,
   DialogDescription,
   DialogFooter,
@@ -324,60 +325,62 @@ function NewWorkspaceDialog({
             Its own chats, sign-ins, flags, and browser profile.
           </DialogDescription>
         </DialogHeader>
-        <form
-          className="grid gap-4 py-2"
-          id="new-workspace"
-          onSubmit={(event) => {
-            event.preventDefault();
-            submit(true);
-          }}
-        >
-          <div className="grid gap-2">
-            <Label htmlFor="workspace-name">Name</Label>
-            <Input
-              autoFocus
-              disabled={busy}
-              id="workspace-name"
-              onChange={(event) => {
-                setName(event.target.value);
-              }}
-              placeholder="BYOK only"
-              value={name}
-            />
-          </div>
-          <div className="grid gap-2">
-            <Label>Color</Label>
-            <div className="flex flex-wrap items-center gap-1.5">
-              {COLORS.map((option) => (
-                <button
-                  aria-label={option}
-                  aria-pressed={option === color}
-                  className={cn(
-                    "size-5 rounded-full ring-offset-2 ring-offset-background",
-                    option === color && "ring-2 ring-ring",
-                  )}
-                  disabled={busy}
-                  key={option}
-                  onClick={() => {
-                    setColor(option);
-                  }}
-                  style={{ backgroundColor: WORKSPACE_COLOR_HEX[option] }}
-                  type="button"
-                />
-              ))}
+        <DialogBody>
+          <form
+            className="grid gap-4 py-2"
+            id="new-workspace"
+            onSubmit={(event) => {
+              event.preventDefault();
+              submit(true);
+            }}
+          >
+            <div className="grid gap-2">
+              <Label htmlFor="workspace-name">Name</Label>
+              <Input
+                autoFocus
+                disabled={busy}
+                id="workspace-name"
+                onChange={(event) => {
+                  setName(event.target.value);
+                }}
+                placeholder="BYOK only"
+                value={name}
+              />
             </div>
-          </div>
-          <Label className="flex items-center gap-2 font-normal">
-            <Checkbox
-              checked={copySignIns}
-              disabled={busy}
-              onCheckedChange={(checked) => {
-                setCopySignIns(checked === true);
-              }}
-            />
-            Copy account and API keys
-          </Label>
-        </form>
+            <div className="grid gap-2">
+              <Label>Color</Label>
+              <div className="flex flex-wrap items-center gap-1.5">
+                {COLORS.map((option) => (
+                  <button
+                    aria-label={option}
+                    aria-pressed={option === color}
+                    className={cn(
+                      "size-5 rounded-full ring-offset-2 ring-offset-background",
+                      option === color && "ring-2 ring-ring",
+                    )}
+                    disabled={busy}
+                    key={option}
+                    onClick={() => {
+                      setColor(option);
+                    }}
+                    style={{ backgroundColor: WORKSPACE_COLOR_HEX[option] }}
+                    type="button"
+                  />
+                ))}
+              </div>
+            </div>
+            <Label className="flex items-center gap-2 font-normal">
+              <Checkbox
+                checked={copySignIns}
+                disabled={busy}
+                onCheckedChange={(checked) => {
+                  setCopySignIns(checked === true);
+                }}
+              />
+              Copy account and API keys
+            </Label>
+          </form>
+        </DialogBody>
         <DialogFooter>
           <Button
             disabled={busy || name.trim() === ""}

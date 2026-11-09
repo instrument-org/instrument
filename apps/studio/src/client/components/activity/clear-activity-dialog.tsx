@@ -2,6 +2,7 @@ import { Button } from "@/client/components/ui/button";
 import { Checkbox } from "@/client/components/ui/checkbox";
 import {
   Dialog,
+  DialogBody,
   DialogContent,
   DialogDescription,
   DialogFooter,
@@ -111,58 +112,60 @@ function ClearActivityContent({
         </DialogDescription>
       </div>
 
-      <div className="flex items-center justify-between gap-4">
-        <label className="text-sm" htmlFor="clear-activity-range">
-          Time range
-        </label>
-        <Select
-          onValueChange={(value) => {
-            const option = TIME_RANGES.find((each) => each.id === value);
-            if (option) {
-              setRange(option.id);
+      <DialogBody className="flex flex-col gap-4">
+        <div className="flex items-center justify-between gap-4">
+          <label className="text-sm" htmlFor="clear-activity-range">
+            Time range
+          </label>
+          <Select
+            onValueChange={(value) => {
+              const option = TIME_RANGES.find((each) => each.id === value);
+              if (option) {
+                setRange(option.id);
+              }
+            }}
+            value={range}
+          >
+            <SelectTrigger className="w-40" id="clear-activity-range">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent align="end" position="popper">
+              {TIME_RANGES.map((option) => (
+                <SelectItem key={option.id} value={option.id}>
+                  {option.label}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
+
+        <div className="flex flex-col gap-1">
+          <BoxRow
+            checked={picked.actions}
+            detail={summary && thingsDetail(summary.actions)}
+            label={`What you did in ${APP_NAME}`}
+            onCheckedChange={(actions) => {
+              setPicked((current) => ({ ...current, actions }));
+            }}
+          />
+          <BoxRow
+            checked={picked.requests}
+            detail={summary && requestsDetail(summary.requests)}
+            label="AI requests"
+            onCheckedChange={(requests) => {
+              setPicked((current) => ({ ...current, requests }));
+            }}
+          />
+        </div>
+
+        {picked.actions && (
+          <p className="text-sm text-muted-foreground">
+            {
+              "This also clears recent files and the address bar's suggestions from that time."
             }
-          }}
-          value={range}
-        >
-          <SelectTrigger className="w-40" id="clear-activity-range">
-            <SelectValue />
-          </SelectTrigger>
-          <SelectContent align="end" position="popper">
-            {TIME_RANGES.map((option) => (
-              <SelectItem key={option.id} value={option.id}>
-                {option.label}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
-      </div>
-
-      <div className="flex flex-col gap-1">
-        <BoxRow
-          checked={picked.actions}
-          detail={summary && thingsDetail(summary.actions)}
-          label={`What you did in ${APP_NAME}`}
-          onCheckedChange={(actions) => {
-            setPicked((current) => ({ ...current, actions }));
-          }}
-        />
-        <BoxRow
-          checked={picked.requests}
-          detail={summary && requestsDetail(summary.requests)}
-          label="AI requests"
-          onCheckedChange={(requests) => {
-            setPicked((current) => ({ ...current, requests }));
-          }}
-        />
-      </div>
-
-      {picked.actions && (
-        <p className="text-sm text-muted-foreground">
-          {
-            "This also clears recent files and the address bar's suggestions from that time."
-          }
-        </p>
-      )}
+          </p>
+        )}
+      </DialogBody>
 
       <DialogFooter>
         <Button onClick={onClose} variant="outline">

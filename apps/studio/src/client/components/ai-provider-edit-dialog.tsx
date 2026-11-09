@@ -1,6 +1,7 @@
 import { Button } from "@/client/components/ui/button";
 import {
   Dialog,
+  DialogBody,
   DialogContent,
   DialogDescription,
   DialogFooter,
@@ -111,83 +112,85 @@ export function AIProviderEditDialog({
           </DialogTitle>
           <DialogDescription>{providerMetadata.description}</DialogDescription>
         </DialogHeader>
-        <div className="space-y-4 py-4">
-          <div className="space-y-3">
-            <div className="space-y-1">
-              <Label htmlFor="display-name">Name</Label>
-              <div className="text-xs text-muted-foreground">
-                Custom name to identify this provider
-              </div>
-            </div>
-            <Input
-              id="display-name"
-              onChange={(e) => {
-                setDisplayName(e.target.value);
-                setErrorMessage(null);
-              }}
-              placeholder={`E.g. ${providerMetadata.name}`}
-              spellCheck={false}
-              type="text"
-              value={displayName}
-            />
-          </div>
-
-          {config.baseURL && (
+        <DialogBody>
+          <div className="space-y-4 py-4">
             <div className="space-y-3">
               <div className="space-y-1">
-                <Label htmlFor="base-url">Base URL</Label>
+                <Label htmlFor="display-name">Name</Label>
+                <div className="text-xs text-muted-foreground">
+                  Custom name to identify this provider
+                </div>
               </div>
               <Input
-                className="font-mono"
-                disabled
-                id="base-url"
-                readOnly
+                id="display-name"
+                onChange={(e) => {
+                  setDisplayName(e.target.value);
+                  setErrorMessage(null);
+                }}
+                placeholder={`E.g. ${providerMetadata.name}`}
                 spellCheck={false}
                 type="text"
-                value={config.baseURL}
+                value={displayName}
               />
             </div>
-          )}
-          {providerMetadata.requiresAPIKey && (
-            <div className="space-y-3">
-              <div className="space-y-1">
-                <Label htmlFor="api-key">API Key</Label>
-              </div>
 
-              {config.maskedApiKey ? (
-                <div className="relative">
-                  <Input
-                    className="pr-10 font-mono"
-                    disabled
-                    id="api-key"
-                    readOnly
-                    spellCheck={false}
-                    type="text"
-                    value={config.maskedApiKey}
-                  />
+            {config.baseURL && (
+              <div className="space-y-3">
+                <div className="space-y-1">
+                  <Label htmlFor="base-url">Base URL</Label>
                 </div>
-              ) : (
                 <Input
                   className="font-mono"
-                  id="api-key"
-                  onChange={(e) => {
-                    handleApiKeyChange(e.target.value);
-                  }}
-                  placeholder={`${providerMetadata.api.keyFormat ?? ""}...xyz123`}
+                  disabled
+                  id="base-url"
+                  readOnly
                   spellCheck={false}
                   type="text"
-                  value={apiKey}
+                  value={config.baseURL}
                 />
-              )}
-            </div>
-          )}
-          {errorMessage && (
-            <Alert variant="destructive">
-              <WarningCircleIcon />
-              <AlertDescription>{errorMessage}</AlertDescription>
-            </Alert>
-          )}
-        </div>
+              </div>
+            )}
+            {providerMetadata.requiresAPIKey && (
+              <div className="space-y-3">
+                <div className="space-y-1">
+                  <Label htmlFor="api-key">API Key</Label>
+                </div>
+
+                {config.maskedApiKey ? (
+                  <div className="relative">
+                    <Input
+                      className="pr-10 font-mono"
+                      disabled
+                      id="api-key"
+                      readOnly
+                      spellCheck={false}
+                      type="text"
+                      value={config.maskedApiKey}
+                    />
+                  </div>
+                ) : (
+                  <Input
+                    className="font-mono"
+                    id="api-key"
+                    onChange={(e) => {
+                      handleApiKeyChange(e.target.value);
+                    }}
+                    placeholder={`${providerMetadata.api.keyFormat ?? ""}...xyz123`}
+                    spellCheck={false}
+                    type="text"
+                    value={apiKey}
+                  />
+                )}
+              </div>
+            )}
+            {errorMessage && (
+              <Alert variant="destructive">
+                <WarningCircleIcon />
+                <AlertDescription>{errorMessage}</AlertDescription>
+              </Alert>
+            )}
+          </div>
+        </DialogBody>
         <DialogFooter className="flex items-center">
           <Button
             disabled={removeMutation.isPending || updateMutation.isPending}

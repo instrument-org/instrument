@@ -4,6 +4,14 @@ import { createStore } from "jotai";
 import { describe, expect, it } from "vitest";
 
 import {
+  AlertDialog,
+  AlertDialogBody,
+  AlertDialogContent,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "./alert-dialog";
+import {
   Dialog,
   DialogBody,
   DialogContent,
@@ -60,4 +68,34 @@ describe("DialogBody", () => {
       });
     },
   );
+});
+
+describe("AlertDialogBody", () => {
+  it("scrolls the body and keeps the footer in the dialog", async () => {
+    await renderInBrowser(
+      <AlertDialog open>
+        <AlertDialogContent aria-describedby={undefined} maxHeight="20rem">
+          <AlertDialogHeader>
+            <AlertDialogTitle>Tall</AlertDialogTitle>
+          </AlertDialogHeader>
+          <AlertDialogBody>
+            <div style={{ height: 4000 }} />
+          </AlertDialogBody>
+          <AlertDialogFooter>
+            <button data-testid="action" type="button">
+              Delete
+            </button>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>,
+    );
+
+    const content = rectOf("[data-slot='alert-dialog-content']");
+    const action = rectOf("[data-testid='action']");
+    const body = document.querySelector("[data-slot='alert-dialog-body']");
+    expect({
+      actionInDialog: Math.round(action.bottom) <= Math.round(content.bottom),
+      bodyScrolls: (body?.scrollHeight ?? 0) > (body?.clientHeight ?? 0),
+    }).toEqual({ actionInDialog: true, bodyScrolls: true });
+  });
 });

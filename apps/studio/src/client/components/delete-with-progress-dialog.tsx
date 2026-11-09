@@ -9,6 +9,7 @@ import { Alert, AlertDescription } from "./ui/alert";
 import {
   AlertDialog,
   AlertDialogAction,
+  AlertDialogBody,
   AlertDialogCancel,
   AlertDialogContent,
   AlertDialogDescription,
@@ -171,8 +172,13 @@ function DeleteWithProgressDialogBody<T>({
       <AlertDialogHeader>
         <AlertDialogTitle>{title}</AlertDialogTitle>
         <AlertDialogDescription>{description}</AlertDialogDescription>
-        {content}
       </AlertDialogHeader>
+      {content ? (
+        // Pulled up to the description, as close as the header spaces its own lines.
+        <AlertDialogBody className="-mt-3 text-center sm:text-left">
+          {content}
+        </AlertDialogBody>
+      ) : null}
       <AlertDialogFooter>
         <AlertDialogCancel>Cancel</AlertDialogCancel>
         {alternative && (

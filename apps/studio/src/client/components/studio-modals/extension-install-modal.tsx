@@ -2,6 +2,7 @@ import { extensionInstallModalAtom } from "@/client/atoms/extension-install-moda
 import { Button } from "@/client/components/ui/button";
 import {
   Dialog,
+  DialogBody,
   DialogContent,
   DialogDescription,
   DialogFooter,
@@ -64,26 +65,28 @@ export function ExtensionInstallModal() {
           maxWidth="30rem"
           onExitComplete={onExitComplete}
         >
-          <div className="flex items-start gap-3">
-            <img alt="" className="size-10 shrink-0" src={content.icon} />
-            <div className="flex min-w-0 flex-col gap-2">
-              <DialogTitle>
-                Add “{content.name}” to {APP_NAME}?
-              </DialogTitle>
-              <DialogDescription>
-                {content.lines.length > 0
-                  ? "It will be able to:"
-                  : "It asks for nothing beyond running in the browser."}
-              </DialogDescription>
-              {content.lines.length > 0 && (
-                <ul className="list-disc space-y-1 pl-5 text-sm">
-                  {content.lines.map((line) => (
-                    <li key={line}>{line}</li>
-                  ))}
-                </ul>
-              )}
+          <DialogBody>
+            <div className="flex items-start gap-3">
+              <img alt="" className="size-10 shrink-0" src={content.icon} />
+              <div className="flex min-w-0 flex-col gap-2">
+                <DialogTitle>
+                  Add “{content.name}” to {APP_NAME}?
+                </DialogTitle>
+                <DialogDescription>
+                  {content.lines.length > 0
+                    ? "It will be able to:"
+                    : "It asks for nothing beyond running in the browser."}
+                </DialogDescription>
+                {content.lines.length > 0 && (
+                  <ul className="list-disc space-y-1 pl-5 text-sm">
+                    {content.lines.map((line) => (
+                      <li key={line}>{line}</li>
+                    ))}
+                  </ul>
+                )}
+              </div>
             </div>
-          </div>
+          </DialogBody>
           <DialogFooter>
             <Button
               onClick={() => {

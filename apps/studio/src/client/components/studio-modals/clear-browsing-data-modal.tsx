@@ -3,6 +3,7 @@ import { Button } from "@/client/components/ui/button";
 import { Checkbox } from "@/client/components/ui/checkbox";
 import {
   Dialog,
+  DialogBody,
   DialogContent,
   DialogDescription,
   DialogFooter,
@@ -134,60 +135,62 @@ function ClearBrowsingDataContent({
         </DialogDescription>
       </div>
 
-      <div className="flex items-center justify-between gap-4">
-        <label className="text-sm" htmlFor="clear-browsing-data-range">
-          Time range
-        </label>
-        <Select
-          onValueChange={(value) => {
-            const option = TIME_RANGES.find((r) => r.id === value);
-            if (option) {
-              setRange(option.id);
-            }
-          }}
-          value={range}
-        >
-          <SelectTrigger className="w-40" id="clear-browsing-data-range">
-            <SelectValue />
-          </SelectTrigger>
-          <SelectContent align="end" position="popper">
-            {TIME_RANGES.map((option) => (
-              <SelectItem key={option.id} value={option.id}>
-                {option.label}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
-      </div>
+      <DialogBody className="flex flex-col gap-4">
+        <div className="flex items-center justify-between gap-4">
+          <label className="text-sm" htmlFor="clear-browsing-data-range">
+            Time range
+          </label>
+          <Select
+            onValueChange={(value) => {
+              const option = TIME_RANGES.find((r) => r.id === value);
+              if (option) {
+                setRange(option.id);
+              }
+            }}
+            value={range}
+          >
+            <SelectTrigger className="w-40" id="clear-browsing-data-range">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent align="end" position="popper">
+              {TIME_RANGES.map((option) => (
+                <SelectItem key={option.id} value={option.id}>
+                  {option.label}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
 
-      <div className="flex flex-col gap-1">
-        <BucketRow
-          checked={picked.history}
-          detail={history && historyDetail(history)}
-          label="Browsing history"
-          onCheckedChange={(checked) => {
-            setPicked((current) => ({ ...current, history: checked }));
-          }}
-        />
-        <BucketRow
-          checked={picked.siteData}
-          detail={summary && cookiesDetail(summary.cookieSites)}
-          label="Cookies and other site data"
-          onCheckedChange={(siteData) => {
-            setPicked((current) => ({ ...current, siteData }));
-          }}
-        />
-        <BucketRow
-          checked={picked.cache}
-          detail={summary && cacheDetail(summary.cacheBytes)}
-          label="Cached images and files"
-          onCheckedChange={(cache) => {
-            setPicked((current) => ({ ...current, cache }));
-          }}
-        />
-      </div>
+        <div className="flex flex-col gap-1">
+          <BucketRow
+            checked={picked.history}
+            detail={history && historyDetail(history)}
+            label="Browsing history"
+            onCheckedChange={(checked) => {
+              setPicked((current) => ({ ...current, history: checked }));
+            }}
+          />
+          <BucketRow
+            checked={picked.siteData}
+            detail={summary && cookiesDetail(summary.cookieSites)}
+            label="Cookies and other site data"
+            onCheckedChange={(siteData) => {
+              setPicked((current) => ({ ...current, siteData }));
+            }}
+          />
+          <BucketRow
+            checked={picked.cache}
+            detail={summary && cacheDetail(summary.cacheBytes)}
+            label="Cached images and files"
+            onCheckedChange={(cache) => {
+              setPicked((current) => ({ ...current, cache }));
+            }}
+          />
+        </div>
 
-      {note && <p className="text-sm text-muted-foreground">{note}</p>}
+        {note && <p className="text-sm text-muted-foreground">{note}</p>}
+      </DialogBody>
 
       <DialogFooter>
         <Button onClick={onClose} variant="outline">

@@ -5,6 +5,7 @@ import { StorageWorkspaces } from "@/client/components/settings/storage-workspac
 import {
   AlertDialog,
   AlertDialogAction,
+  AlertDialogBody,
   AlertDialogCancel,
   AlertDialogContent,
   AlertDialogDescription,
@@ -415,38 +416,42 @@ function InstrumentFolder() {
                 : `${APP_NAME} will restart to move your chats there.`}
             </AlertDialogDescription>
           </AlertDialogHeader>
-          <div className="space-y-1.5">
-            <p className="text-xs font-medium text-muted-foreground">From</p>
-            <div className="overflow-hidden rounded-lg border">
-              <FolderRow actions={false} path={folder.path} />
-            </div>
-            <p className="pt-1 text-xs font-medium text-muted-foreground">To</p>
-            {to === null ? null : (
+          <AlertDialogBody className="flex flex-col gap-4">
+            <div className="space-y-1.5">
+              <p className="text-xs font-medium text-muted-foreground">From</p>
               <div className="overflow-hidden rounded-lg border">
-                <DestinationRow
-                  destination={to}
-                  end={
-                    <Button
-                      disabled={restarting}
-                      onClick={choose}
-                      size="sm"
-                      variant="ghost"
-                    >
-                      Change
-                    </Button>
-                  }
-                  path={to.path}
-                />
+                <FolderRow actions={false} path={folder.path} />
               </div>
-            )}
-          </div>
-          {isOtherWorkspace ? (
-            <p className="flex gap-2 rounded-lg border border-destructive/30 bg-destructive/5 p-3 text-sm">
-              <ProhibitIcon className="mt-0.5 size-4 shrink-0 text-destructive" />
-              You can’t move one Instrument folder into another. Choose a
-              different place for yours.
-            </p>
-          ) : null}
+              <p className="pt-1 text-xs font-medium text-muted-foreground">
+                To
+              </p>
+              {to === null ? null : (
+                <div className="overflow-hidden rounded-lg border">
+                  <DestinationRow
+                    destination={to}
+                    end={
+                      <Button
+                        disabled={restarting}
+                        onClick={choose}
+                        size="sm"
+                        variant="ghost"
+                      >
+                        Change
+                      </Button>
+                    }
+                    path={to.path}
+                  />
+                </div>
+              )}
+            </div>
+            {isOtherWorkspace ? (
+              <p className="flex gap-2 rounded-lg border border-destructive/30 bg-destructive/5 p-3 text-sm">
+                <ProhibitIcon className="mt-0.5 size-4 shrink-0 text-destructive" />
+                You can’t move one Instrument folder into another. Choose a
+                different place for yours.
+              </p>
+            ) : null}
+          </AlertDialogBody>
           <AlertDialogFooter>
             <AlertDialogCancel disabled={restarting}>Cancel</AlertDialogCancel>
             <AlertDialogAction

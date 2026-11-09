@@ -88,7 +88,7 @@ function AlertDialogContent({
       <AlertDialogOverlay />
       <AlertDialogPrimitive.Content
         className={cn(
-          "fixed top-[50%] left-[50%] z-50 grid w-full translate-[-50%] grid-cols-1 gap-4 overflow-y-auto rounded-3xl border bg-background p-6 shadow-float-lg duration-200 data-[state=closed]:pointer-events-none data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=closed]:zoom-out-95 data-[state=open]:animate-in data-[state=open]:fade-in-0 data-[state=open]:zoom-in-95",
+          "fixed top-[50%] left-[50%] z-50 grid w-full translate-[-50%] grid-cols-1 gap-4 overflow-y-auto rounded-3xl border bg-background p-6 shadow-float-lg duration-200 has-data-[slot=alert-dialog-body]:flex has-data-[slot=alert-dialog-body]:flex-col data-[state=closed]:pointer-events-none data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=closed]:zoom-out-95 data-[state=open]:animate-in data-[state=open]:fade-in-0 data-[state=open]:zoom-in-95",
           className,
         )}
         data-slot="alert-dialog-content"
@@ -105,6 +105,24 @@ function AlertDialogContent({
         {...props}
       />
     </AlertDialogPortal>
+  );
+}
+
+/**
+ * The part of an alert dialog that scrolls once the dialog reaches its
+ * height, so its header and footer stay in view; `DialogBody` explains the
+ * layout.
+ */
+function AlertDialogBody({ className, ...props }: React.ComponentProps<"div">) {
+  return (
+    <div
+      className={cn(
+        "-mx-6 -my-1 min-h-0 overflow-y-auto scroll-fade-y px-6 py-1",
+        className,
+      )}
+      data-slot="alert-dialog-body"
+      {...props}
+    />
   );
 }
 
@@ -210,6 +228,7 @@ function AlertDialogTrigger({
 export {
   AlertDialog,
   AlertDialogAction,
+  AlertDialogBody,
   AlertDialogCancel,
   AlertDialogContent,
   AlertDialogDescription,

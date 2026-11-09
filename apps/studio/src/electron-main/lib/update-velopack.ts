@@ -215,7 +215,8 @@ export function createVelopackPort({
     version: app.getVersion(),
   });
 
-  const startDownload = (update: Velopack.UpdateInfo) => {
+  const startDownload = (available: Velopack.UpdateInfo) => {
+    const update = withDeltaFallback(available);
     const version = update.TargetFullRelease.Version;
     if (download?.version === version) {
       return download.promise;
@@ -344,7 +345,7 @@ export function createVelopackPort({
       manager = new velopack.UpdateManager(feed, {
         AllowVersionDowngrade: false,
         ExplicitChannel: getChannel(),
-        MaximumDeltasBeforeFallback: 10,
+        MaximumDeltasBeforeFallback: MAX_DELTAS,
       });
     },
     downloadUpdate: () =>
@@ -383,4 +384,20 @@ function isUnchanged(entry: Verified) {
   } catch {
     return false;
   }
+}
+
+// Velopack's options take a delta limit, but its download (1.2.161) never
+// reads it and applies every delta in the chain. More deltas than this, or
+// deltas that add up to more than the full package, download the full
+// package instead, as Velopack's C# library does.
+const MAX_DELTAS = 10;
+
+export function withDeltaFallback(
+  update: Velopack.UpdateInfo,
+): Velopack.UpdateInfo {
+  const deltas = update.DeltasToTarget;
+  const size = deltas.reduce((sum, delta) => sum + delta.Size, 0);
+  return deltas.length > MAX_DELTAS || size > update.TargetFullRelease.Size
+    ? { ...update, DeltasToTarget: [] }
+    : update;
 }

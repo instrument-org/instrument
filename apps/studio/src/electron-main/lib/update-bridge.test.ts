@@ -12,7 +12,7 @@ const {
   recentMoveFailure,
   updaterCacheDirs,
 } = await import("./update-bridge");
-const { hasFeedFile, restoreCheckedUpdater } =
+const { hasFeedFile, restoreCheckedUpdater, withDeltaFallback } =
   await import("./update-velopack");
 
 const feed = (...assets: { Type: string; Version: string }[]) => ({
@@ -192,5 +192,35 @@ describe("restoreCheckedUpdater", () => {
     expect(fs.statSync(at.updateExe).mtimeMs).toBe(1000);
     expect(log.warn).not.toHaveBeenCalled();
     fs.rmSync(at.root, { recursive: true });
+  });
+});
+
+describe("withDeltaFallback", () => {
+  const asset = (Size: number) => ({
+    FileName: "x.nupkg",
+    NotesHtml: "",
+    NotesMarkdown: "",
+    PackageId: "Instrument",
+    SHA1: "",
+    SHA256: "",
+    Size,
+    Type: "Delta" as const,
+    Version: "2.0.1",
+  });
+  const update = (deltas: number[], full = 1000) => ({
+    BaseRelease: asset(full),
+    DeltasToTarget: deltas.map(asset),
+    IsDowngrade: false,
+    TargetFullRelease: { ...asset(full), Type: "Full" as const },
+  });
+
+  it.each([
+    ["a few small deltas", [10, 10], 2],
+    ["ten deltas", Array.from({ length: 10 }, () => 10), 10],
+    ["eleven deltas", Array.from({ length: 11 }, () => 10), 0],
+    ["deltas larger than the package", [600, 500], 0],
+    ["no deltas", [], 0],
+  ])("%s", (_, deltas, kept) => {
+    expect(withDeltaFallback(update(deltas)).DeltasToTarget).toHaveLength(kept);
   });
 });

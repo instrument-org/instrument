@@ -1,3 +1,5 @@
+import { type TabRouter } from "@/client/lib/tab-router";
+import { setTabRouter } from "@/client/lib/tab-router-registry";
 import { fileHref, folderHref } from "@/shared/computer-href";
 import { TabIdSchema } from "@/shared/tabs";
 import { ChatIdSchema } from "@instrument-org/workspace/client";
@@ -282,5 +284,40 @@ describe("opening what a tab already shows", () => {
     await vi.waitFor(() => {
       expect(store.get(appTabsAtom).tabs).toHaveLength(3);
     });
+  });
+});
+
+describe("stepChat", () => {
+  it.each([
+    ["another tab in this window", "here"],
+    ["a tab in another window", "elsewhere"],
+  ])("walks the tab up to the next chat when %s has it", (_, where) => {
+    const push = vi.fn();
+    // Only the history a step walks: the tab up has no route mounted here.
+    const router = {
+      history: { location: { href: `/chats/${OTHER}` }, push },
+    } as unknown as TabRouter;
+    setTabRouter(UP, router);
+    if (where === "elsewhere") {
+      otherWindows.models = [
+        {
+          recentlyClosed: [],
+          selectedId: "theirs",
+          tabs: [{ id: "theirs", pathname: `/chats/${CHAT}` }],
+        },
+      ];
+    }
+    const { result, store } = windowShowing(
+      where === "here" ? `/chats/${CHAT}` : "/apps",
+    );
+
+    act(() => {
+      result.current.stepChat([OTHER, CHAT], OTHER, 1);
+    });
+
+    expect(push).toHaveBeenCalledWith(`/chats/${CHAT}`);
+    expect(store.get(appTabsAtom).selectedId).toBe(UP);
+    expect(store.get(appTabsAtom).tabs).toHaveLength(2);
+    expect(showInOtherWindow).not.toHaveBeenCalled();
   });
 });

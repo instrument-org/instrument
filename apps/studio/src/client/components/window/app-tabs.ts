@@ -461,6 +461,27 @@ export function useAppTabs() {
       }
       setModel((current) => reopenClosed(current, { entry, id: freshTabId() }));
     },
+    /**
+     * The next or previous row of the inbox from the chat up, or from no
+     * chat the list's first or last, in the tab up: the chord steps in
+     * place, whatever another tab or window has the chat.
+     */
+    stepChat: (
+      listed: readonly ChatId[],
+      from: ChatId | undefined,
+      direction: -1 | 1,
+    ) => {
+      const at = from === undefined ? -1 : listed.indexOf(from);
+      const next =
+        at === -1
+          ? direction === 1
+            ? listed[0]
+            : listed.at(-1)
+          : listed[at + direction];
+      if (next !== undefined) {
+        navigate(chatHref(next));
+      }
+    },
     /** Brings up this window's tab already showing what an address shows; false where none does. */
     selectShowing: (href: string): boolean => {
       const here = stripTabShowing(store.get(appTabsAtom), href);

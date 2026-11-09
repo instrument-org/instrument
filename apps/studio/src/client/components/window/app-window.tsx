@@ -1020,20 +1020,8 @@ function WindowShell({
           setInboxOpen((isOpen) => !isOpen || chatUp === undefined);
         }
       },
-      // The next or previous row of the inbox from the chat up; from no
-      // chat, the list's first or last.
       selectChat: (direction) => {
-        const listed = listedChats.current;
-        const at = chatUp === undefined ? -1 : listed.indexOf(chatUp);
-        const next =
-          at === -1
-            ? direction === 1
-              ? listed[0]
-              : listed.at(-1)
-            : listed[at + direction];
-        if (next !== undefined) {
-          openScreen(chatHref(next));
-        }
+        appTabs.stepChat(listedChats.current, chatUp, direction);
       },
     },
     { isReady: opened !== undefined },

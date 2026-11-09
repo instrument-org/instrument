@@ -48,13 +48,13 @@ function renderRail(place: AppPlace = "chat", chatMark?: RailChatMark) {
 }
 
 describe("AppRail", () => {
-  it("names New, the places, Feedback and Settings, each a word under its mark, with the place stood in current", () => {
+  it("names New and the places by the word under each mark, Feedback and Settings by their marks alone, with the place stood in current", () => {
     const { rail } = renderRail("chat");
     expect(
       rail
         .getAllByRole("button")
         .map((entry) => [
-          entry.textContent,
+          entry.getAttribute("aria-label") ?? entry.textContent,
           entry.getAttribute("aria-current"),
         ]),
     ).toEqual([

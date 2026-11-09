@@ -39,8 +39,8 @@ export const APP_RAIL_WIDTH = 76;
 
 /**
  * The rail down the window's left edge: New at its top, then one entry per
- * place, each a mark with its word close under it, and at its foot Feedback
- * over the user, who is the way to Settings. The one the window stands in sits in a soft well
+ * place, each a mark with its word close under it, and at its foot Feedback's
+ * mark alone over the user, who is the way to Settings. The one the window stands in sits in a soft well
  * around the whole entry, mark and word together. Narrow enough to be
  * chrome rather than a column: a mark, a word, and nothing wider than
  * either. Away from Chat, Chat wears a dot for where the chats stand, and
@@ -233,25 +233,24 @@ function RailEntry({
  */
 function RailFeedback({ chatId }: { chatId?: ChatId }) {
   return (
-    <button
-      className="flex w-15 flex-col items-center gap-0.5 rounded-xl py-1.5 text-muted-foreground hover:bg-foreground/5 hover:text-foreground"
-      onClick={() => {
-        openReportDialog(feedbackReport({ chatId, surface: "rail" }));
-      }}
-      type="button"
-    >
-      <span className="grid h-6 place-items-center">
+    <ToolbarTooltip label="Feedback">
+      <button
+        className="grid w-15 place-items-center rounded-xl py-1.5 text-muted-foreground hover:bg-foreground/5 hover:text-foreground"
+        onClick={() => {
+          openReportDialog(feedbackReport({ chatId, surface: "rail" }));
+        }}
+        type="button"
+      >
         <RailMegaphoneIcon className="size-6" />
-      </span>
-      <span className="text-[11px] leading-4">Feedback</span>
-    </button>
+      </button>
+    </ToolbarTooltip>
   );
 }
 
 /**
  * The user at the rail's foot, which is the way to Settings: their picture
  * alone, in a rounded square, while they are signed in, and the faders
- * Settings wears elsewhere with the word under them while they are not.
+ * Settings wears elsewhere, alone too, while they are not.
  * The window has no sidebar of its own to keep the account row in, so this
  * is where it shows.
  */
@@ -261,7 +260,7 @@ function RailUser() {
     return (
       <ToolbarTooltip label="Settings">
         <button
-          // The same well the signed-out Settings entry stands in, so the
+          // The same width as the signed-out Settings entry, so the
           // foot holds the rail's 8px gutter either way, with the picture
           // centered in it: 16px from either side and from the bottom.
           className="grid w-15 place-items-center rounded-xl p-2 hover:bg-foreground/5"
@@ -279,15 +278,14 @@ function RailUser() {
     );
   }
   return (
-    <button
-      className="flex w-15 flex-col items-center gap-0.5 rounded-xl py-1.5 text-muted-foreground hover:bg-foreground/5 hover:text-foreground"
-      onClick={openGeneralSettings}
-      type="button"
-    >
-      <span className="grid h-6 place-items-center">
+    <ToolbarTooltip label="Settings">
+      <button
+        className="grid w-15 place-items-center rounded-xl py-1.5 text-muted-foreground hover:bg-foreground/5 hover:text-foreground"
+        onClick={openGeneralSettings}
+        type="button"
+      >
         <FadersHorizontalIcon className="size-6" />
-      </span>
-      <span className="text-[11px] leading-4">Settings</span>
-    </button>
+      </button>
+    </ToolbarTooltip>
   );
 }

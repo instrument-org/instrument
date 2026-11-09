@@ -140,7 +140,7 @@ const trigger = {
         {
           action: {
             label: "Download",
-            url: "https://tryinstrument.com/beta/download",
+            url: "https://tryinstrument.com/download",
           },
           body: stuck
             ? `A newer version came out 9 days ago, and this computer is still on ${app.getVersion()}. Downloading it again usually fixes this.`

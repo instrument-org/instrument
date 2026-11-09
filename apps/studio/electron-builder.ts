@@ -7,6 +7,8 @@ import {
   APP_PRODUCT_NAME,
   APP_PROTOCOL,
   APP_UPDATER_CACHE_DIR_NAME,
+  COMPANY_NAME,
+  SUPPORT_EMAIL,
 } from "@instrument-org/shared";
 import dotenv from "dotenv";
 import {
@@ -15,6 +17,7 @@ import {
 } from "electron-builder";
 
 import { runAfterPack } from "./electron-builder/after-pack";
+import { DMG_LAYOUT } from "./electron-builder/dmg-layout";
 import {
   macFileAssociations,
   writeWindowsInstallerScript,
@@ -94,6 +97,8 @@ const config: Configuration = {
     "**/node_modules/dugite/git/**",
     "**/node_modules/pnpm/**",
   ],
+  // What Get Info on macOS and a file's Properties on Windows show.
+  copyright: `Copyright © ${new Date().getFullYear()} ${COMPANY_NAME}`,
   directories: {
     buildResources: "build",
     output: process.env.ELECTRON_BUILDER_OUTPUT_DIR ?? "dist",
@@ -102,6 +107,16 @@ const config: Configuration = {
     artifactName: "${productName}-${os}-${version}-${arch}.${ext}",
     // DMG volume icons still use .icns even when the app bundle uses .icon (macOS 26+).
     icon: `${iconDir}icon.icns`,
+    // background.png and background@2x.png, which electron-builder joins into
+    // one HiDPI TIFF; the window takes the 1x image's size. Drawn by
+    // `scripts/generate-dmg-background.ts` around these positions.
+    background: "background.png",
+    contents: [
+      { ...DMG_LAYOUT.appIcon, type: "file" },
+      { ...DMG_LAYOUT.applicationsIcon, path: "/Applications", type: "link" },
+    ],
+    iconSize: DMG_LAYOUT.iconSize,
+    iconTextSize: DMG_LAYOUT.iconTextSize,
   },
   // Refuses `--inspect` and SIGUSR1 on the packaged binary, so no other
   // process can start Instrument with a debugger on main and read what
@@ -236,6 +251,8 @@ const config: Configuration = {
     artifactName: "${productName}-${os}-${version}-${arch}.${ext}",
     category: "Office",
     executableName: previewPackageName ?? APP_EXECUTABLE,
+    // What deb and rpm name as the package's maintainer, `Name <email>`.
+    maintainer: `${APP_NAME} <${SUPPORT_EMAIL}>`,
     icon: `build/${iconDir}icons`,
     // A preview runs from where it was unpacked, never installed system-wide.
     // A release ships no tar.gz: nothing updates one, and on Ubuntu it

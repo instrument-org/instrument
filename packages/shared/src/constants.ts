@@ -119,6 +119,10 @@ export const SANDBOX_OFF_URL = `${APP_REPO_URL}/blob/main/docs/architecture/nati
 // What the notice for web pages running without Chromium's sandbox links to.
 export const BROWSER_SANDBOX_OFF_URL = `${SANDBOX_OFF_URL}#when-web-pages-have-no-sandbox`;
 export const SUPPORT_URL = `https://${APP_DOMAIN}/support`;
+// Where customers ask for help, as the website names it.
+export const SUPPORT_EMAIL = `support@${APP_DOMAIN}`;
+// The company that publishes the app, as its copyright line names it.
+export const COMPANY_NAME = "Finalpoint, LLC";
 export const MANUAL_DOWNLOAD_URL = `${APP_URL}/download`;
 export const AI_GATEWAY_API_KEY_NOT_NEEDED = "NOT_NEEDED";
 // Identity every commit the agent makes is authored and committed under, so a

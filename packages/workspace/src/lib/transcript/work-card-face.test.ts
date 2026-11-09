@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 
 import { StoreId } from "../../schemas/store-id";
 import { type TurnStep } from "./turns-of";
-import { type WorkCard } from "./work-card";
+import { cardsOf, type WorkCard } from "./work-card";
 import {
   workCardFace,
   type WorkCardLookups,
@@ -89,7 +89,7 @@ describe("a web card's face", () => {
     ],
     [
       "a fetch whose address has not come, after nothing found",
-      "web/opening",
+      "web/nothing-found",
       card("web", [search([]), step({ kind: "fetch" }, "running")]),
     ],
     [
@@ -135,6 +135,11 @@ describe("a web card's face", () => {
       card("web", [step({ kind: "fetch", url: "https://www.example.com/" })]),
     ],
     [
+      "a second search, counted alone",
+      "web/results",
+      card("web", [search(RESULTS), search(RESULTS.slice(0, 1))]),
+    ],
+    [
       "a search after a fetch",
       "web/results",
       card("web", [
@@ -150,7 +155,7 @@ describe("a web card's face", () => {
         "a fetch whose address has not come, after nothing found": {
           "heading": "nashville weather",
           "title": "nashville weather",
-          "view": "web/opening",
+          "view": "web/nothing-found",
         },
         "a fetch with no search": {
           "heading": "Opening a page",
@@ -193,6 +198,20 @@ describe("a web card's face", () => {
               "isOpening": false,
               "title": undefined,
               "url": "https://www.wsmv.com/weather/",
+            },
+          ],
+          "title": "nashville weather",
+          "view": "web/results",
+        },
+        "a second search, counted alone": {
+          "heading": "nashville weather",
+          "meta": "1 result",
+          "results": [
+            {
+              "host": "forecast.weather.gov",
+              "isOpening": false,
+              "title": "7-Day Forecast",
+              "url": "https://forecast.weather.gov/a",
             },
           ],
           "title": "nashville weather",
@@ -415,7 +434,7 @@ describe("a files card's face", () => {
         },
         "an edit adding only": {
           "after": "b",
-          "meta": "Updated",
+          "meta": "New file",
           "open": {
             "file": "/w/a.ts",
           },
@@ -512,11 +531,7 @@ describe("an images card's face", () => {
           "open": {
             "file": "/w/b.png",
           },
-          "strip": [
-            {
-              "place": "/w/b.png",
-            },
-          ],
+          "strip": [],
           "title": "b.png",
           "view": "images/pictures",
         },
@@ -697,5 +712,29 @@ describe("a page card's face", () => {
         },
       }
     `);
+  });
+});
+
+describe("the calls a card shows", () => {
+  it("leaves out a call waiting its turn behind the one running", () => {
+    const running = step(
+      { kind: "fetch", url: "https://a.example/" },
+      "running",
+    );
+    const queued = step({ kind: "fetch", url: "https://b.example/" }, "queued");
+    expect(cardsOf({ steps: [running, queued] })).toEqual([
+      { changedFile: undefined, kind: "web", steps: [running] },
+    ]);
+  });
+
+  it("leaves out a call still being written while one before it in its message runs", () => {
+    const running = step(undefined, "running");
+    const writing = {
+      ...step({ kind: "file", path: "/w/a.md", words: "#" }, "writing"),
+      metadata: running.metadata,
+    };
+    writing.metadata = { ...running.metadata, id: StoreId.newPartId() };
+    expect(cardsOf({ steps: [running, writing] })).toEqual([]);
+    expect(cardsOf({ steps: [writing] })).toHaveLength(1);
   });
 });

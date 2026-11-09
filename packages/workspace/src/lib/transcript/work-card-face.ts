@@ -194,15 +194,24 @@ function imagesFace(
   return {
     ...bar,
     newest: pictureOf(place, newest?.modifiedAt),
-    strip:
-      images.length > 1
-        ? images.slice(-STRIP_SHOWN).flatMap((image) => {
-            const stripPlace = image.path && placeOf(image.path);
-            return stripPlace ? [pictureOf(stripPlace, image.modifiedAt)] : [];
-          })
-        : [],
+    strip: stripOf(images, placeOf),
     view: "images/pictures",
   };
+}
+
+/**
+ * The latest pictures under the newest, oldest first, once more than the
+ * newest is found: a strip of one would only repeat it.
+ */
+function stripOf(
+  images: readonly ShowsOf<"image">[],
+  placeOf: PlaceOf,
+): WorkCardPicture[] {
+  const strip = images.slice(-STRIP_SHOWN).flatMap((image) => {
+    const place = image.path && placeOf(image.path);
+    return place ? [pictureOf(place, image.modifiedAt)] : [];
+  });
+  return strip.length > 1 ? strip : [];
 }
 
 function generatedFace(
@@ -225,15 +234,14 @@ function generatedFace(
 }
 
 function webFace(steps: readonly TurnStep[]): WorkCardFace {
-  const searches = shownBy(steps, "search");
-  const search = searches.at(-1);
+  const search = shownBy(steps, "search").at(-1);
   // A fetch's address comes last in its call, and until it has, the search
   // it follows stays up: there is nothing yet to say of the page.
   const fetch =
     steps.at(-1)?.shows?.kind === "fetch"
       ? shownBy(steps, "fetch").at(-1)
       : undefined;
-  const found = searches.reduce((sum, each) => sum + each.total, 0);
+  const found = search?.total ?? 0;
   const counted =
     found > 0
       ? `${found.toString()} ${found === 1 ? "result" : "results"}`
@@ -256,13 +264,13 @@ function webFace(steps: readonly TurnStep[]): WorkCardFace {
         view: "web/results",
       };
     }
+    if (search?.status === "done") {
+      return { ...bar, view: "web/nothing-found" };
+    }
     if (fetch) {
       return { ...bar, view: "web/opening" };
     }
-    return {
-      ...bar,
-      view: search?.status === "done" ? "web/nothing-found" : "web/searching",
-    };
+    return { ...bar, view: "web/searching" };
   }
   const host = hostOf(url);
   const open = url ? { open: { url } } : {};
@@ -300,10 +308,12 @@ function filesFace(
   const path = changedFile?.path ?? written?.path;
   const place = path && placeOf(path);
   const isWriting = written !== undefined && written.status !== "done";
+  // An edit replacing nothing makes the file, which an edit of one that is
+  // there refuses.
   const isNew =
     written?.after === undefined
       ? (changedFile?.isNew ?? written?.isNew)
-      : false;
+      : written.before === "";
   const meta = isWriting
     ? "Writing"
     : isNew === undefined

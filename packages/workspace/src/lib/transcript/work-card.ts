@@ -29,7 +29,9 @@ const KIND_OF: Record<StepShows["kind"], WorkCardKind> = {
  * The cards an activity's calls come to, in order. The rules for what a call
  * puts up:
  *
- * 1. A call with nothing to show changes nothing, and a call that failed has
+ * 1. A call with nothing to show changes nothing, and a call that failed, or
+ *    one that has not started (waiting its turn behind a call before it in
+ *    its message, or still being written while one before it runs), has
  *    nothing to show.
  * 2. Things of one kind share a card, so a browser's commands update one page.
  * 3. A file card is one file: each file a call names replaces the last, and a
@@ -38,8 +40,8 @@ const KIND_OF: Record<StepShows["kind"], WorkCardKind> = {
  */
 export function cardsOf({ steps }: Pick<ActivityRow, "steps">): WorkCard[] {
   const cards: WorkCard[] = [];
-  for (const step of steps) {
-    if (step.status === "failed") {
+  for (const [index, step] of steps.entries()) {
+    if (step.status === "failed" || !hasStarted(step, steps.slice(0, index))) {
       continue;
     }
     const changed = (step.facts?.files ?? []).flatMap((file) =>
@@ -65,6 +67,21 @@ export function cardsOf({ steps }: Pick<ActivityRow, "steps">): WorkCard[] {
     }
   }
   return cards;
+}
+
+/** Whether a call has started, of the calls before it in its activity. */
+function hasStarted(step: TurnStep, before: readonly TurnStep[]): boolean {
+  if (step.status === "queued") {
+    return false;
+  }
+  return (
+    step.status !== "writing" ||
+    !before.some(
+      (other) =>
+        other.metadata.messageId === step.metadata.messageId &&
+        (other.status === "running" || other.status === "queued"),
+    )
+  );
 }
 
 /**

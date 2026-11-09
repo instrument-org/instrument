@@ -198,7 +198,7 @@ export function useChatActionsFor(): (chat: Chat) => RowAction[] {
  * lands. Outside the hook so that it is one function for the window's life,
  * which the actions handed to every row are memoized on.
  */
-function setArchived(
+export function setArchived(
   queryClient: QueryClient,
   input: ChatInput,
   archived: boolean,

@@ -84,6 +84,7 @@ import { ThinkingRow } from "../transcript/turn-view";
 import { useTranscriptFeed } from "../transcript/use-transcript-feed";
 import { UserMessage } from "../user-message";
 import { ChatSeparatorRow } from "../chat-separator";
+import { setArchived } from "../window/chat-actions";
 import { chatListed, chatListOptions } from "../window/chat-list-query";
 import { WindowContext } from "../window/context";
 import { chatHref } from "../window/window-href";
@@ -283,6 +284,10 @@ export function ChatConversation({
     ...chatListOptions(),
     select: (chats) =>
       chats.find((chat) => chat.id === id)?.status === "waiting",
+  });
+  const { data: isArchived = false } = useQuery({
+    ...chatListOptions(),
+    select: (chats) => chats.find((chat) => chat.id === id)?.archived === true,
   });
 
   // A submit that never becomes a turn would otherwise leave an idle transcript
@@ -794,19 +799,46 @@ export function ChatConversation({
               as the composer it belongs to. */}
               <PermissionAsksFoot chatId={id} />
               <QuestionDock chatId={id} />
-              {draftKey.scope === "chat" && (
-                <RepliesWaiting
-                  chatId={draftKey.chatId}
-                  disabled={composerDictating}
-                  onSwapIn={swapInReply}
-                />
+              {isArchived ? (
+                <ArchivedFoot chatId={id} />
+              ) : (
+                <>
+                  {draftKey.scope === "chat" && (
+                    <RepliesWaiting
+                      chatId={draftKey.chatId}
+                      disabled={composerDictating}
+                      onSwapIn={swapInReply}
+                    />
+                  )}
+                  {promptInput}
+                </>
               )}
-              {promptInput}
             </div>
           </div>
         </MessageScrollerProvider>
       </LiveTranscriptSurface>
     </ComposerDraftContext>
+  );
+}
+
+/**
+ * Stands in the composer's place while the chat is archived, so a message
+ * goes to it only once the person brings it back.
+ */
+function ArchivedFoot({ chatId }: { chatId: ChatId }) {
+  const queryClient = useQueryClient();
+  return (
+    <div className="flex items-center justify-between gap-3 rounded-xl border bg-card py-2.5 pr-2.5 pl-4 text-sm text-muted-foreground shadow-xs">
+      This chat is archived.
+      <Button
+        onClick={() => {
+          setArchived(queryClient, { id: chatId }, false);
+        }}
+        size="sm"
+      >
+        Unarchive
+      </Button>
+    </div>
   );
 }
 

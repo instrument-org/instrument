@@ -22,7 +22,7 @@ const MAX_RECENTLY_CLOSED = 10;
  * Whether a closed tab is worth bringing back: anything but a new tab that
  * never went anywhere, which a reopen would give back as a new one would.
  */
-export function isTabInteresting(tab: Tab) {
+function isTabInteresting(tab: Tab) {
   return (
     (tab.history?.entries.length ?? 0) > 1 ||
     matchScreen(tab.pathname).kind !== "newTab"

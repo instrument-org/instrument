@@ -44,7 +44,7 @@ export function ProjectBanner({
         {project.name}
       </h2>
       {instructions && (
-        <p className="mt-1 line-clamp-3 text-[13px] leading-5 text-foreground/65">
+        <p className="mt-1 line-clamp-3 max-w-full text-[13px] leading-5 wrap-break-word text-foreground/65">
           {instructions}
         </p>
       )}

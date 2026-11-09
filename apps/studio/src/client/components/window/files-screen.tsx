@@ -41,11 +41,14 @@ import { AnimatePresence, motion, useIsPresent } from "motion/react";
 import {
   type ReactNode,
   useEffect,
+  useEffectEvent,
   useLayoutEffect,
   useRef,
   useState,
 } from "react";
 import { createPortal } from "react-dom";
+import { omit } from "radashi";
+import { useSteadyCallbacks } from "@/client/hooks/use-steady-callbacks";
 import { toast } from "@/client/lib/toast";
 
 import { newSiteGroup, pageHrefOf } from "./app-tabs";
@@ -471,8 +474,10 @@ export function FilesScreen({
       ? null
       : () => {
           setEditTabs((current) => {
-            const { [hostedTabId]: was, ...rest } = current;
-            return was ? rest : { ...rest, [hostedTabId]: true };
+            const rest = omit(current, [hostedTabId]);
+            return current[hostedTabId]
+              ? rest
+              : { ...rest, [hostedTabId]: true };
           });
         },
   );
@@ -484,8 +489,7 @@ export function FilesScreen({
     }
     return () => {
       setEditTabs((current) => {
-        const { [hostedTabId]: _was, ...rest } = current;
-        return rest;
+        return omit(current, [hostedTabId]);
       });
     };
   }, [hostedTabId, hostedFile, setEditTabs]);
@@ -566,59 +570,49 @@ export function FilesScreen({
     reason: ComputerRefusal["reason"];
   } | null>(null);
   const [askedAgain, setAskedAgain] = useState(0);
+  const putAway = useEffectEvent(() => {
+    if (isFileOpen) {
+      closeBeside();
+    } else {
+      leaveFile();
+    }
+  });
   useEffect(() => {
     if (!file) {
       return;
     }
     const controller = new AbortController();
-    void (async () => {
-      try {
-        const response = await fetch(getComputerFileUrl({ hostPath: file }), {
-          headers: { Range: "bytes=0-0" },
-          signal: controller.signal,
-        });
-        if (controller.signal.aborted) {
-          return;
-        }
-        const name = segmentsOf(file).at(-1) ?? file;
-        const putAway = () => {
-          if (isFileOpen) {
-            closeBeside();
-          } else {
-            leaveFile();
-          }
-        };
-        const reason =
-          response.status === 403
-            ? response.headers.get(COMPUTER_FILE_REFUSAL_HEADER)
-            : null;
-        const refusal =
-          reason === "system" || reason === "account" ? reason : null;
-        setRefused(refusal ? { file, reason: refusal } : null);
-        if (refusal) {
-          return;
-        }
-        if (response.status === 403) {
-          toast(`Instrument keeps “${name}” private`, {
-            description:
-              "It’s part of Instrument’s own data, so you can’t open it here.",
-          });
-          putAway();
-        } else if (response.status === 404) {
-          toast(`${name} is no longer there`);
-          putAway();
-        }
-      } catch {
-        // The channel is not up, or the request was cut off: not the file's
-        // absence, so the tab stays.
+    void firstByteOf(file, controller.signal).then((response) => {
+      if (!response || controller.signal.aborted) {
+        return;
       }
-    })();
+      const name = segmentsOf(file).at(-1) ?? file;
+      const reason =
+        response.status === 403
+          ? response.headers.get(COMPUTER_FILE_REFUSAL_HEADER)
+          : null;
+      const refusal =
+        reason === "system" || reason === "account" ? reason : null;
+      setRefused(refusal ? { file, reason: refusal } : null);
+      if (refusal) {
+        return;
+      }
+      if (response.status === 403) {
+        toast(`Instrument keeps “${name}” private`, {
+          description:
+            "It’s part of Instrument’s own data, so you can’t open it here.",
+        });
+        putAway();
+      } else if (response.status === 404) {
+        toast(`${name} is no longer there`);
+        putAway();
+      }
+    });
     return () => {
       controller.abort();
     };
     // Once per file the tab shows, once more if it goes, and again after a
     // pick that may have let the app in.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [file, isFileGone, askedAgain]);
   const refusedView =
     activeFile && refused?.file === activeFile.hostPath ? (
@@ -705,6 +699,33 @@ export function FilesScreen({
     }
   };
 
+  // Steady, so the folder is not drawn again each time this screen is.
+  const folderHandlers = useSteadyCallbacks({
+    go,
+    onBesidePick,
+    onFolderChange,
+    onInfoSelection: fileInfo.props.onInfoSelection,
+    onInfoShow: fileInfo.props.onInfoShow,
+    onOpenFile: (tab: FileTab) => {
+      if (isFileOpen) {
+        showFile(tab.hostPath, { replace: true });
+      } else {
+        openFile(tab);
+      }
+    },
+    onQuickLook: quickLook.props.onQuickLook,
+    onQuickLookFollow: quickLook.props.onQuickLookFollow,
+  });
+  const folderInfoProps = {
+    onInfoSelection: folderHandlers.onInfoSelection,
+    onInfoShow: folderHandlers.onInfoShow,
+  };
+  const folderQuickLookProps = {
+    onQuickLook: folderHandlers.onQuickLook,
+    onQuickLookFollow: folderHandlers.onQuickLookFollow,
+    quickLookOpen: quickLook.props.quickLookOpen,
+  };
+
   if (isBesideLayout) {
     const fileOffset = isFolderShown ? besideWidth : 0;
     const closeButton = (
@@ -780,7 +801,7 @@ export function FilesScreen({
                       isClosing,
                       isFolderShown,
                       isResizing: draggedWidth !== null,
-                      onPick: onBesidePick,
+                      onPick: folderHandlers.onBesidePick,
                       ...(besideOpenPath === undefined
                         ? {}
                         : { openPath: besideOpenPath }),
@@ -800,24 +821,18 @@ export function FilesScreen({
                     },
                   }
                 : {})}
-              onFolderChange={onFolderChange}
-              onOpenFile={
-                isFileOpen
-                  ? (tab) => {
-                      showFile(tab.hostPath, { replace: true });
-                    }
-                  : openFile
-              }
+              onFolderChange={folderHandlers.onFolderChange}
+              onOpenFile={folderHandlers.onOpenFile}
               path={path}
               query={query}
               root={root}
               arrivals={arrivals}
-              go={go}
+              go={folderHandlers.go}
               select={select}
               toolsInRow
               view={view}
-              {...(isFileOpen ? {} : quickLook.props)}
-              {...fileInfo.props}
+              {...(isFileOpen ? {} : folderQuickLookProps)}
+              {...folderInfoProps}
             />
           </div>
           {isFileOpen && isFolderShown && (
@@ -982,17 +997,17 @@ export function FilesScreen({
           </LinkSurface>
         ) : (
           <ComputerPage
-            onFolderChange={onFolderChange}
-            onOpenFile={openFile}
+            onFolderChange={folderHandlers.onFolderChange}
+            onOpenFile={folderHandlers.onOpenFile}
             path={path}
             query={query}
             root={root}
             arrivals={arrivals}
-            go={go}
+            go={folderHandlers.go}
             select={select}
             view={view}
-            {...quickLook.props}
-            {...fileInfo.props}
+            {...folderQuickLookProps}
+            {...folderInfoProps}
           />
         )}
         {/* A page in Edit keeps its asks in its own dock instead. */}
@@ -1083,4 +1098,20 @@ function FolderToggle({
       </Button>
     </ToolbarTooltip>
   );
+}
+
+/**
+ * The answer to asking for a file's first byte, which says whether the file
+ * is there and the app may read it. Nothing when the channel is not up or the
+ * request was cut off, which says nothing about the file.
+ */
+async function firstByteOf(hostPath: string, signal: AbortSignal) {
+  try {
+    return await fetch(getComputerFileUrl({ hostPath }), {
+      headers: { Range: "bytes=0-0" },
+      signal,
+    });
+  } catch {
+    return null;
+  }
 }

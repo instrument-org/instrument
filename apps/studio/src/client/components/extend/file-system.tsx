@@ -1,4 +1,5 @@
 import { thumbnailUrlAtSize } from "@/client/lib/computer-file-url";
+import { useSteadyCallbacks } from "@/client/hooks/use-steady-callbacks";
 import {
   TOOLBAR_CONTROL_CLASSNAME,
   TOOLBAR_ICON_BUTTON_CLASSNAME,
@@ -1932,36 +1933,36 @@ export function FileSystem({
   pendingFolders,
   listColumns: listColumnsProp,
   listColumnWidths: listColumnWidthsProp,
-  loadChildren,
+  loadChildren: loadChildrenGiven,
   moveFocusWithSelection = true,
-  onColumnWidthChange,
-  onCopy,
-  onCopyPath,
-  onCut,
-  onMoveHere,
-  onDuplicate,
-  onFileOpen,
-  onItemContextMenu,
-  onListColumnsChange,
-  onListColumnWidthsChange,
-  onLeaveRoot,
-  onArrowBesideFile,
-  onNewFolder,
-  onOpenSeveral,
-  onPathChange,
-  onWalk,
-  onOpenFolderChange,
-  onRenameCommit,
-  onSearchChange,
-  onGroupChange,
-  onSelectionChange,
-  onShowHiddenFilesChange,
-  onSortChange,
-  onTrash,
-  onViewChange,
+  onColumnWidthChange: onColumnWidthChangeGiven,
+  onCopy: onCopyGiven,
+  onCopyPath: onCopyPathGiven,
+  onCut: onCutGiven,
+  onMoveHere: onMoveHereGiven,
+  onDuplicate: onDuplicateGiven,
+  onFileOpen: onFileOpenGiven,
+  onItemContextMenu: onItemContextMenuGiven,
+  onListColumnsChange: onListColumnsChangeGiven,
+  onListColumnWidthsChange: onListColumnWidthsChangeGiven,
+  onLeaveRoot: onLeaveRootGiven,
+  onArrowBesideFile: onArrowBesideFileGiven,
+  onNewFolder: onNewFolderGiven,
+  onOpenSeveral: onOpenSeveralGiven,
+  onPathChange: onPathChangeGiven,
+  onWalk: onWalkGiven,
+  onOpenFolderChange: onOpenFolderChangeGiven,
+  onRenameCommit: onRenameCommitGiven,
+  onSearchChange: onSearchChangeGiven,
+  onGroupChange: onGroupChangeGiven,
+  onSelectionChange: onSelectionChangeGiven,
+  onShowHiddenFilesChange: onShowHiddenFilesChangeGiven,
+  onSortChange: onSortChangeGiven,
+  onTrash: onTrashGiven,
+  onViewChange: onViewChangeGiven,
   openFolders,
   path: pathProp,
-  prefetchChildren,
+  prefetchChildren: prefetchChildrenGiven,
   ref,
   renderFileStage,
   renderHeaderActions,
@@ -1976,6 +1977,65 @@ export function FileSystem({
   toolbarInto,
   view: viewProp,
 }: FileSystemProps) {
+  // Steady, so the handlers built from them, and the rows they reach, stay
+  // the same while the caller renders new closures.
+  const {
+    loadChildren,
+    onColumnWidthChange,
+    onCopy,
+    onCopyPath,
+    onCut,
+    onMoveHere,
+    onDuplicate,
+    onFileOpen,
+    onItemContextMenu,
+    onListColumnsChange,
+    onListColumnWidthsChange,
+    onLeaveRoot,
+    onArrowBesideFile,
+    onNewFolder,
+    onOpenSeveral,
+    onPathChange,
+    onWalk,
+    onOpenFolderChange,
+    onRenameCommit,
+    onSearchChange,
+    onGroupChange,
+    onSelectionChange,
+    onShowHiddenFilesChange,
+    onSortChange,
+    onTrash,
+    onViewChange,
+    prefetchChildren,
+  } = useSteadyCallbacks({
+    loadChildren: loadChildrenGiven,
+    onColumnWidthChange: onColumnWidthChangeGiven,
+    onCopy: onCopyGiven,
+    onCopyPath: onCopyPathGiven,
+    onCut: onCutGiven,
+    onMoveHere: onMoveHereGiven,
+    onDuplicate: onDuplicateGiven,
+    onFileOpen: onFileOpenGiven,
+    onItemContextMenu: onItemContextMenuGiven,
+    onListColumnsChange: onListColumnsChangeGiven,
+    onListColumnWidthsChange: onListColumnWidthsChangeGiven,
+    onLeaveRoot: onLeaveRootGiven,
+    onArrowBesideFile: onArrowBesideFileGiven,
+    onNewFolder: onNewFolderGiven,
+    onOpenSeveral: onOpenSeveralGiven,
+    onPathChange: onPathChangeGiven,
+    onWalk: onWalkGiven,
+    onOpenFolderChange: onOpenFolderChangeGiven,
+    onRenameCommit: onRenameCommitGiven,
+    onSearchChange: onSearchChangeGiven,
+    onGroupChange: onGroupChangeGiven,
+    onSelectionChange: onSelectionChangeGiven,
+    onShowHiddenFilesChange: onShowHiddenFilesChangeGiven,
+    onSortChange: onSortChangeGiven,
+    onTrash: onTrashGiven,
+    onViewChange: onViewChangeGiven,
+    prefetchChildren: prefetchChildrenGiven,
+  });
   const [internalView, setInternalView] = React.useState(defaultView);
   const view = viewProp ?? internalView;
   const [loadedItems, setLoadedItems] = React.useState<FileSystemItem[]>([]);
@@ -2230,10 +2290,8 @@ export function FileSystem({
       );
       children.set(
         parentPath,
-        [...parentChildren].sort(
-          (left, right) =>
-            (ranks.get(left.path) ?? 0) - (ranks.get(right.path) ?? 0) ||
-            compareEntriesBySort(left, right, sort),
+        [...parentChildren].sort((left, right) =>
+          compareRankThenSort(ranks, sort, left, right),
         ),
       );
     }
@@ -2481,26 +2539,19 @@ export function FileSystem({
       if (requestedFoldersRef.current.has(folderPath)) return;
       requestedFoldersRef.current.add(folderPath);
       setFetchingFolders((previous) => new Set(previous).add(folderPath));
-      void (async () => {
-        try {
-          let cursor: null | string = null;
-          do {
-            const result = await loadChildren({ cursor, path: folderPath });
-            if (result.items.length > 0) {
-              setLoadedItems((previous) => [...previous, ...result.items]);
-            }
-            cursor = result.nextCursor ?? null;
-          } while (cursor);
-        } catch {
+      void loadAllPages(loadChildren, folderPath, (pageItems) => {
+        setLoadedItems((previous) => [...previous, ...pageItems]);
+      })
+        .catch(() => {
           requestedFoldersRef.current.delete(folderPath);
-        } finally {
+        })
+        .then(() => {
           setFetchingFolders((previous) => {
             const next = new Set(previous);
             next.delete(folderPath);
             return next;
           });
-        }
-      })();
+        });
     },
     [index, loadChildren],
   );
@@ -2576,19 +2627,16 @@ export function FileSystem({
   const [, bumpStageHosts] = React.useState(0);
   const [dialogStageHost, setDialogStageHost] =
     React.useState<HTMLElement | null>(null);
-  const registerStageHost = React.useCallback(
-    (path: string, element: HTMLElement | null) => {
-      if (element) {
-        if (stageHosts.get(path) === element) return;
-        stageHosts.set(path, element);
-      } else {
-        if (!stageHosts.has(path)) return;
-        stageHosts.delete(path);
-      }
-      bumpStageHosts((version) => version + 1);
-    },
-    [stageHosts],
-  );
+  const registerStageHost = (path: string, element: HTMLElement | null) => {
+    if (element) {
+      if (stageHosts.get(path) === element) return;
+      stageHosts.set(path, element);
+    } else {
+      if (!stageHosts.has(path)) return;
+      stageHosts.delete(path);
+    }
+    bumpStageHosts((version) => version + 1);
+  };
   const dialogStageHostRef = React.useCallback(
     (element: HTMLDivElement | null) => setDialogStageHost(element),
     [],
@@ -2805,6 +2853,8 @@ export function FileSystem({
       selectAndPrefetchEntry,
     };
   });
+  // What an answer the rename waited on sends back in, once it comes.
+  const sendRenameLater = React.useRef<(event: RenameEvent) => void>(() => {});
   const sendRename = React.useCallback((event: RenameEvent) => {
     const { effects, state } = renameStep(renameRef.current, event);
     if (state === renameRef.current) return;
@@ -2823,11 +2873,14 @@ export function FileSystem({
         if (!entry || !save) throw new Error("Nothing to rename");
         await save(entry, effect.name);
       })().then(
-        () => sendRename({ type: "saved" }),
-        () => sendRename({ type: "save-failed" }),
+        () => sendRenameLater.current({ type: "saved" }),
+        () => sendRenameLater.current({ type: "save-failed" }),
       );
     }
   }, []);
+  React.useLayoutEffect(() => {
+    sendRenameLater.current = sendRename;
+  }, [sendRename]);
   const startRename = React.useCallback(
     (path: string) => {
       if (!canRename) return;
@@ -2837,6 +2890,13 @@ export function FileSystem({
     },
     [canRename, canRenameItem, entryOf, listedNameOf, sendRename],
   );
+  // The keys, read once for every view (`listingCommandOf`) and answered by
+  // the view on screen, which says how its rows are walked.
+  const listingNavRef = React.useRef<ListingNav | null>(null);
+  const typeAheadRef = React.useRef(NO_TYPE_AHEAD);
+  const runListingCommandRef = React.useRef<
+    (command: ListingCommand) => boolean
+  >(() => false);
   React.useImperativeHandle(
     ref,
     () => ({
@@ -2982,6 +3042,10 @@ export function FileSystem({
   const gestureInterruptRef = React.useRef<((event: Event) => void) | null>(
     null,
   );
+  // What a timer the gesture set sends back in, once it fires.
+  const sendGestureLater = React.useRef<(event: GestureEvent) => void>(
+    () => {},
+  );
   const sendGesture = React.useCallback(
     (event: GestureEvent, order?: () => readonly FileSystemEntry[]) => {
       const previous = gestureRef.current;
@@ -2993,7 +3057,7 @@ export function FileSystem({
         if (ms !== null) {
           gestureTimerRef.current = window.setTimeout(() => {
             const current = selectionRef.current;
-            sendGesture({
+            sendGestureLater.current({
               lead: current.lead,
               selectionSize: selectedPathsOf(current).length,
               type: "timeout",
@@ -3011,7 +3075,7 @@ export function FileSystem({
         } else if (listens && !interrupt) {
           const next = (each: Event) => {
             if (each instanceof KeyboardEvent && isModifierAlone(each)) return;
-            sendGesture({ type: "interrupt" });
+            sendGestureLater.current({ type: "interrupt" });
           };
           window.addEventListener("keydown", next, true);
           window.addEventListener("wheel", next, true);
@@ -3037,6 +3101,9 @@ export function FileSystem({
     },
     [],
   );
+  React.useLayoutEffect(() => {
+    sendGestureLater.current = sendGesture;
+  }, [sendGesture]);
   React.useEffect(
     () => () => {
       window.clearTimeout(gestureTimerRef.current);
@@ -3112,10 +3179,6 @@ export function FileSystem({
     }),
     [rowPressModeOf, sendGesture],
   );
-  // The keys, read once for every view (`listingCommandOf`) and answered by
-  // the view on screen, which says how its rows are walked.
-  const listingNavRef = React.useRef<ListingNav | null>(null);
-  const typeAheadRef = React.useRef(NO_TYPE_AHEAD);
   // What was typed at one folder says nothing about the next. The columns stay
   // on one `currentPath` while the selection moves through their folders.
   React.useLayoutEffect(() => {
@@ -3263,7 +3326,6 @@ export function FileSystem({
       }
     }
   };
-  const runListingCommandRef = React.useRef(runListingCommand);
   React.useLayoutEffect(() => {
     runListingCommandRef.current = runListingCommand;
   });
@@ -3275,7 +3337,15 @@ export function FileSystem({
   // The table keeps its open folders here, per folder on screen, so
   // returning to the table — or to a previously visited folder — finds
   // them open again.
-  const treeExpansionRef = React.useRef(new Map<string, readonly string[]>());
+  const [treeExpansion] = React.useState((): TreeExpansion => {
+    const kept = new Map<string, readonly string[]>();
+    return {
+      get: (path) => kept.get(path),
+      set: (path, open) => {
+        kept.set(path, open);
+      },
+    };
+  });
   const viewProps: FileSystemViewProps = {
     attachedStagePaths,
     besideOpenPath,
@@ -3321,7 +3391,7 @@ export function FileSystem({
     selectedPath,
     selection,
     sort,
-    treeExpansionRef,
+    treeExpansion,
     ...(openFolders === undefined ? {} : { openFolders, onOpenFolderChange }),
   };
   // ⌘F focuses the toolbar search. Below 560px the field is in a popover,
@@ -4245,6 +4315,39 @@ function BesideBackRow({ name, onBack }: { name: string; onBack: () => void }) {
   );
 }
 
+/** By group rank, then by the sort the person chose. */
+function compareRankThenSort(
+  ranks: ReadonlyMap<string, number>,
+  sort: FileSystemSortState,
+  left: FileSystemEntry,
+  right: FileSystemEntry,
+) {
+  const byRank = (ranks.get(left.path) ?? 0) - (ranks.get(right.path) ?? 0);
+  return byRank === 0 ? compareEntriesBySort(left, right, sort) : byRank;
+}
+
+/** Every page of a folder's listing, each handed on as it arrives. */
+async function loadAllPages(
+  loadChildren: NonNullable<FileSystemProps["loadChildren"]>,
+  path: string,
+  onItems: (items: FileSystemItem[]) => void,
+) {
+  let cursor: null | string = null;
+  do {
+    const result = await loadChildren({ cursor, path });
+    if (result.items.length > 0) {
+      onItems(result.items);
+    }
+    cursor = result.nextCursor ?? null;
+  } while (cursor);
+}
+
+/** The folders open in the list, by the folder on screen they were open in. */
+type TreeExpansion = {
+  get: (path: string) => readonly string[] | undefined;
+  set: (path: string, open: readonly string[]) => void;
+};
+
 type FileSystemViewProps = {
   besideOpenPath: string | undefined;
   /** Pooled paths currently attached to the DOM (reveal instantly). */
@@ -4319,8 +4422,8 @@ type FileSystemViewProps = {
   selection: ReadonlySet<string>;
   sort: FileSystemSortState;
   /** The list's open folders per folder on screen, surviving view switches. */
-  treeExpansionRef: React.RefObject<Map<string, readonly string[]>>;
-  /** The caller's open folders, which take the place of `treeExpansionRef`'s. */
+  treeExpansion: TreeExpansion;
+  /** The caller's open folders, which take the place of `treeExpansion`'s. */
   openFolders?: ReadonlySet<string>;
   onOpenFolderChange?: (path: string, open: boolean) => void;
 };
@@ -5371,7 +5474,7 @@ function FileSystemTableView({
   selectedPath,
   selection,
   sort,
-  treeExpansionRef,
+  treeExpansion,
   openFolders,
   onOpenFolderChange,
   besideOpenPath,
@@ -5385,12 +5488,12 @@ function FileSystemTableView({
   // The folders left open here, kept by the browser per folder so walking
   // away and back, or to another layout and back, finds them open again.
   const [ownExpanded, setExpanded] = React.useState<ReadonlySet<string>>(
-    () => new Set(treeExpansionRef.current.get(currentPath) ?? []),
+    () => new Set(treeExpansion.get(currentPath) ?? []),
   );
   const expanded = openFolders ?? ownExpanded;
   const setExpandedFolders = (next: ReadonlySet<string>) => {
     setExpanded(next);
-    treeExpansionRef.current.set(currentPath, [...next]);
+    treeExpansion.set(currentPath, [...next]);
   };
   // A search shows every match wherever it is, so every folder with one in
   // it stands open while it is on.
@@ -6598,14 +6701,15 @@ function FileSystemColumnsView(props: FileSystemViewProps) {
   const [internalColumnWidth, setInternalColumnWidth] =
     React.useState(COLUMN_WIDTH_DEFAULT);
   const columnWidth = columnWidthProp ?? internalColumnWidth;
-  const setColumnWidth = (next: number) => {
-    setInternalColumnWidth(next);
-    onColumnWidthChange?.(next);
-  };
   React.useEffect(() => {
     const container = scrollContainerRef.current;
     if (container) container.scrollLeft = container.scrollWidth;
   }, [columnPaths.length, deferredSelectedPath]);
+  // After the last hook, where the compiler can keep it the same function.
+  const setColumnWidth = (next: number) => {
+    setInternalColumnWidth(next);
+    onColumnWidthChange?.(next);
+  };
   // Beside a file only the last column stands, filling the folder's width:
   // the file is open beside it, so there is no preview to make room for,
   // and the columns before it are a step back (left, or the folder's menu).

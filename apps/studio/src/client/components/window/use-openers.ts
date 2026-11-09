@@ -598,19 +598,12 @@ export function useOpeners({
   // A link in text being edited, opened from the window's native menu.
   useEffect(() => {
     const controller = new AbortController();
-    void (async () => {
-      try {
-        const asks = await rpcClient.window.events.openMenuLink.call(
-          undefined,
-          { signal: controller.signal },
-        );
-        for await (const ask of asks) {
-          openMenuLink(ask);
-        }
-      } catch {
-        // The window closing ends the stream.
-      }
-    })();
+    void eachSent(
+      (signal) =>
+        rpcClient.window.events.openMenuLink.call(undefined, { signal }),
+      controller.signal,
+      openMenuLink,
+    );
     return () => {
       controller.abort();
     };
@@ -618,19 +611,14 @@ export function useOpeners({
   // A link a person asked a page for in a tab of its own.
   useEffect(() => {
     const controller = new AbortController();
-    void (async () => {
-      try {
-        const asks = await rpcClient.browser.events.openInNewTab.call(
-          undefined,
-          { signal: controller.signal },
-        );
-        for await (const ask of asks) {
-          openers.current.openFromPage(ask);
-        }
-      } catch {
-        // The window closing ends the stream.
-      }
-    })();
+    void eachSent(
+      (signal) =>
+        rpcClient.browser.events.openInNewTab.call(undefined, { signal }),
+      controller.signal,
+      (ask) => {
+        openers.current.openFromPage(ask);
+      },
+    );
     return () => {
       controller.abort();
     };
@@ -640,26 +628,21 @@ export function useOpeners({
       return;
     }
     const controller = new AbortController();
-    void (async () => {
-      try {
-        const asks = await rpcClient.workspace.window.events.tab.call(
-          undefined,
-          { signal: controller.signal },
-        );
-        for await (const request of asks) {
-          const answer = await openers.current.actOnTab(request);
-          // The answer goes back to the command that asked, so the
-          // conversation can hand a tab to a task, or say what went wrong,
-          // without waiting for the next message's note.
-          void rpcClient.workspace.window.tabDone.call({
-            requestId: request.requestId,
-            ...answer,
-          });
-        }
-      } catch {
-        // The window closing ends the stream.
-      }
-    })();
+    void eachSent(
+      (signal) =>
+        rpcClient.workspace.window.events.tab.call(undefined, { signal }),
+      controller.signal,
+      async (request) => {
+        const answer = await openers.current.actOnTab(request);
+        // The answer goes back to the command that asked, so the
+        // conversation can hand a tab to a task, or say what went wrong,
+        // without waiting for the next message's note.
+        void rpcClient.workspace.window.tabDone.call({
+          requestId: request.requestId,
+          ...answer,
+        });
+      },
+    );
     return () => {
       controller.abort();
     };
@@ -678,4 +661,22 @@ function sayNoChat() {
   toast("No chat at that address", {
     description: "It may have been deleted, or the link is not for this chat.",
   });
+}
+
+/**
+ * Hands on each thing an event stream sends, one at a time, until the stream
+ * ends or `signal` stops it.
+ */
+async function eachSent<T>(
+  start: (signal: AbortSignal) => Promise<AsyncIterable<T>>,
+  signal: AbortSignal,
+  onEach: (sent: T) => Promise<void> | void,
+) {
+  try {
+    for await (const sent of await start(signal)) {
+      await onEach(sent);
+    }
+  } catch {
+    // The window closing ends the stream.
+  }
 }

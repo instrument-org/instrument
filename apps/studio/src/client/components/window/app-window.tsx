@@ -83,6 +83,7 @@ import { useAtom, useAtomValue, useSetAtom, useStore } from "jotai";
 import {
   type ComponentProps,
   useEffect,
+  useEffectEvent,
   useLayoutEffect,
   useRef,
   useState,
@@ -526,7 +527,7 @@ function WindowShell({
   // words is not kept past its window, so one left over from a launch goes,
   // unless its window came back with it. A window whose draft is gone goes.
   // Once, over what was restored.
-  useEffect(() => {
+  const sweepRestored = useEffectEvent(() => {
     // Another window's are as much its own as this one's are this one's.
     const floating = new Set([
       ...compose.entries.flatMap((entry) =>
@@ -563,7 +564,9 @@ function WindowShell({
     for (const group of RETIRED_GROUPS) {
       windowTabs.dropGroup(group);
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+  });
+  useEffect(() => {
+    sweepRestored();
   }, []);
 
   // A site opened at the window's level lives for as long as an open tab
@@ -580,7 +583,7 @@ function WindowShell({
       ),
     ),
   ].join("\n");
-  useEffect(() => {
+  const settleSites = useEffectEvent(() => {
     const open = new Set(
       appTabs.model.tabs.flatMap((tab) => {
         const router = routers.get(tab.id);
@@ -622,7 +625,9 @@ function WindowShell({
     for (const group of leaving) {
       windowTabs.dropGroup(group);
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+  });
+  useEffect(() => {
+    settleSites();
   }, [siteGroups, appTabs.model]);
 
   const setPaneOpen = (group: string, isOpen: boolean) => {
@@ -780,7 +785,9 @@ function WindowShell({
     ...(volumes ? { volumes } : {}),
     windowTabs,
   });
-  sendContextRef.current = sendContext;
+  useLayoutEffect(() => {
+    sendContextRef.current = sendContext;
+  });
   const {
     arrivedId,
     closeDraft,

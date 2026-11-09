@@ -569,6 +569,54 @@ export const scenarios: DebugScenario[] = [
     ],
   },
   {
+    id: "search-then-read",
+    name: "A search, a page read from it, and the answer",
+    script: [
+      user("Weather in Nashville today? And this week."),
+      prose("Checking the latest forecast."),
+      activity("Checking the forecast"),
+      searched({
+        explanation: "Finding Nashville's weekly forecast",
+        query: "Nashville TN weather this week forecast",
+        results: [
+          {
+            title: "7-Day Forecast for Nashville, Tennessee",
+            url: "https://www.weather.gov/ohx/",
+          },
+          {
+            title: "First Alert Forecast: below-freezing temperatures",
+            url: "https://www.wsmv.com/weather/",
+          },
+          {
+            title: "Nashville, TN 10-Day Weather Forecast",
+            url: "https://weather.com/weather/tenday/",
+          },
+        ],
+      }),
+      // The address comes last in the call, as a model writes it.
+      call({
+        input: {
+          explanation: "Confirming the local forecast",
+          url: "https://www.wsmv.com/weather/",
+        },
+        output: {
+          contentType: "text/html",
+          format: "markdown",
+          state: "success",
+          text: "Skip to content\n# First Alert Forecast: below-freezing temperatures\n\nIt will be sunny and mild this afternoon, with highs near 70.",
+          truncated: false,
+          url: "https://www.wsmv.com/weather/",
+        },
+        streamed: { explanation: "Confirming the local forecast" },
+        type: "tool-web_fetch",
+      }),
+      prose(
+        "**Today:** sunny and dry, high near 70°F, around 40°F tonight.\n\n**This week:** mild through Wednesday with rain likely midweek, then much colder, with the first widespread freeze of the season this weekend.",
+        12,
+      ),
+    ],
+  },
+  {
     id: "burst",
     name: "A burst of files",
     script: [

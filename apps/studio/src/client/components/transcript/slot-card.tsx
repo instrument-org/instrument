@@ -11,6 +11,7 @@ import { FileTextIcon } from "@phosphor-icons/react/FileText";
 import { GlobeIcon } from "@phosphor-icons/react/Globe";
 import { ImageIcon } from "@phosphor-icons/react/Image";
 import { MagnifyingGlassIcon } from "@phosphor-icons/react/MagnifyingGlass";
+import { motion, useReducedMotion } from "motion/react";
 import { use, useLayoutEffect, useRef, type ReactNode } from "react";
 
 import { useSyntaxHighlighting } from "../../hooks/use-syntax-highlighting";
@@ -251,19 +252,25 @@ function webCard(
   surface: TranscriptSurface | undefined,
 ): CardBody {
   const searches = shownBy(steps, "search");
-  const reads = shownBy(steps, "fetch");
-  const reading =
-    steps.at(-1)?.shows?.kind === "fetch" ? reads.at(-1) : undefined;
   const search = searches.at(-1);
-  const found = searches.reduce((sum, each) => sum + each.total, 0);
-  const meta = [
-    found > 0 && `${found.toString()} ${found === 1 ? "result" : "results"}`,
-    reads.length > 0 &&
-      `${reads.length.toString()} ${reads.length === 1 ? "page" : "pages"} read`,
-  ]
-    .filter(Boolean)
-    .join(", ");
+  const newest = steps.at(-1)?.shows?.kind === "fetch";
+  // A fetch's address comes last in its call, and until it has, the search
+  // it follows stays up: there is nothing yet to say of the page.
+  const fetch = newest ? shownBy(steps, "fetch").at(-1) : undefined;
+  const reading = fetch?.url === undefined ? undefined : fetch;
   const host = hostOf(reading?.url);
+  const isRead = reading?.status === "done";
+  const opening = reading && !isRead ? reading.url : undefined;
+  const found = searches.reduce((sum, each) => sum + each.total, 0);
+  const meta =
+    (isRead ? host : undefined) ??
+    (found > 0
+      ? `${found.toString()} ${found === 1 ? "result" : "results"}`
+      : undefined);
+  const results = search?.results ?? [];
+  const isAResult =
+    opening !== undefined &&
+    results.some((result) => sameAddress(result.url, opening));
   return {
     mark: <MagnifyingGlassIcon className="size-3.5" />,
     ...(meta && { meta }),
@@ -273,11 +280,17 @@ function webCard(
       },
     }),
     title: reading
-      ? (reading.title ?? host ?? "A page")
-      : (search?.query ?? "Searching the web"),
+      ? isRead
+        ? (reading.title ?? host ?? "Page")
+        : `Opening ${host ?? "the page"}`
+      : fetch
+        ? search
+          ? (search.query ?? "Searching the web")
+          : "Opening a page"
+        : (search?.query ?? "Searching the web"),
     view:
-      reading?.words !== undefined ? (
-        <div className="absolute inset-0 overflow-hidden bg-card px-3 py-2.5 text-xs">
+      isRead && reading.words !== undefined ? (
+        <div className="absolute inset-0 animate-in overflow-hidden bg-card px-3 py-2.5 text-xs duration-200 fade-in">
           <p className="truncate font-medium text-foreground">
             {reading.title ?? host}
           </p>
@@ -289,16 +302,20 @@ function webCard(
       ) : (
         <div className="absolute inset-0 flex flex-col gap-2 overflow-hidden bg-card px-3 py-2.5 text-xs">
           <p className="truncate font-medium text-foreground">
-            {reading
-              ? reading.status === "done"
+            {reading && (isRead || !isAResult)
+              ? isRead
                 ? (reading.title ?? host)
-                : `Reading ${host ?? "the page"}`
-              : (search?.query ?? "Searching")}
+                : `Opening ${host ?? "the page"}`
+              : (search?.query ?? (fetch ? "Opening a page" : "Searching"))}
           </p>
-          {search && search.results.length > 0 ? (
-            <ResultList results={search.results} />
+          {results.length > 0 && (isAResult || !reading) ? (
+            <ResultList
+              {...(opening !== undefined && { opening })}
+              results={results}
+            />
           ) : (
-            !reading && (
+            !reading &&
+            !fetch && (
               <span className="text-muted-foreground">
                 {search?.status === "done"
                   ? "Nothing came up for that search."
@@ -311,24 +328,61 @@ function webCard(
   };
 }
 
-function ResultList({ results }: { results: readonly WebResult[] }) {
+/** Two addresses for one page, whatever their fragment or a trailing slash. */
+function sameAddress(one: string, other: string): boolean {
+  const plain = (url: string) => url.replace(/#.*$/, "").replace(/\/+$/, "");
+  return plain(one) === plain(other);
+}
+
+/** How long after the one before it each result comes in. */
+const RESULT_STAGGER_S = 0.04;
+
+/**
+ * A search's results, each coming in a moment after the one before, since a
+ * search's results arrive together. The one being opened stands out and the
+ * rest step back.
+ */
+function ResultList({
+  opening,
+  results,
+}: {
+  opening?: string;
+  results: readonly WebResult[];
+}) {
+  const isReduced = useReducedMotion();
   return (
     <ul className="flex flex-col gap-1.5">
-      {results.map((result) => (
-        <li className="flex min-w-0 items-start gap-1.5" key={result.url}>
-          <Favicon className="mt-px size-3.5 shrink-0" url={result.url} />
-          <span className="min-w-0">
-            <span className="block truncate text-foreground/80">
-              {result.title ?? hostOf(result.url)}
-            </span>
-            {result.title && (
-              <span className="block truncate text-muted-foreground">
-                {hostOf(result.url)}
-              </span>
+      {results.map((result, index) => {
+        const isOpening =
+          opening !== undefined && sameAddress(result.url, opening);
+        return (
+          <motion.li
+            animate={{
+              opacity: opening !== undefined && !isOpening ? 0.5 : 1,
+              y: 0,
+            }}
+            className={cn(
+              "-mx-1 flex min-w-0 items-start gap-1.5 rounded-md px-1",
+              isOpening && "bg-brand-500/10",
             )}
-          </span>
-        </li>
-      ))}
+            initial={isReduced ? false : { opacity: 0, y: 2 }}
+            key={result.url}
+            transition={{ delay: index * RESULT_STAGGER_S, duration: 0.15 }}
+          >
+            <Favicon className="mt-px size-3.5 shrink-0" url={result.url} />
+            <span className="min-w-0">
+              <span className="block truncate text-foreground/80">
+                {result.title ?? hostOf(result.url)}
+              </span>
+              {result.title && (
+                <span className="block truncate text-muted-foreground">
+                  {hostOf(result.url)}
+                </span>
+              )}
+            </span>
+          </motion.li>
+        );
+      })}
     </ul>
   );
 }

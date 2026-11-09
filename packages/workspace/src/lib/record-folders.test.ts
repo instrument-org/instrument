@@ -29,6 +29,7 @@ import {
   loadChatIndex,
   resolveChat,
   sessionOfChat,
+  withholdChats,
 } from "./record-folders";
 import { workDir } from "./work-dir";
 import { getWorkspaceConfig, setWorkspaceConfig } from "./workspace-config";
@@ -374,6 +375,24 @@ describe("the index read before its first use", () => {
     expect(sessionOfChat(NAME)).toBe(OWN);
     expect(chatOfSession(OWN)).toBe(NAME);
     expect(reads.map((spy) => spy.mock.calls.length)).toEqual([0, 0, 0, 0, 0]);
+  });
+
+  // A chat a launch left on its database reads as one with nothing in it,
+  // and a message sent there would keep every later launch from converting
+  // it, so nothing can reach it as a chat until it is converted.
+  it("knows no chat in a folder a launch left on its database", async () => {
+    await writeChat(NAME);
+    withholdChats([NAME]);
+    try {
+      await loadChatIndex();
+
+      expect(chatIds()).toEqual([]);
+      expect(resolveChat(NAME)).toBeUndefined();
+    } finally {
+      withholdChats([]);
+    }
+    await loadChatIndex();
+    expect(chatIds()).toEqual([NAME]);
   });
 
   it.runIf(process.platform === "darwin")(

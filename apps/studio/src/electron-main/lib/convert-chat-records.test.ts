@@ -118,7 +118,11 @@ const conversionThatSays: typeof convertWorkspaceChats = (dir) => {
         store: storeOf(where),
       };
       const outcome = said.get(entry.name) ?? converted;
-      return { ...outcome, dir: where };
+      return {
+        ...outcome,
+        dir: where,
+        onDatabaseAlone: outcome.kind === "failed",
+      };
     });
   const counts = {
     converted: 0,
@@ -239,6 +243,7 @@ it("keeps the chat it could not convert, says why, and marks nothing", async () 
     "not a chat id at all",
   ]);
   expect(converted.left[0]?.reason).toContain("is not a chat id");
+  expect(converted.onDatabaseAlone).toEqual(["not a chat id at all"]);
   // The chat that converted is done, and the one that did not keeps its
   // database, so the next launch tries that one alone.
   expect(tree(asideDir())).toEqual(["red-and-blue-squares.db"]);

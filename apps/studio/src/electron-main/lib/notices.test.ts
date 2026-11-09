@@ -466,7 +466,7 @@ describe("notices", () => {
 
       expect(notices.listNotices()).toMatchObject([
         {
-          body: "Instrument couldn't finish bringing one of your chats over, so it looks empty right now. The conversation is safe where it is, and Instrument tries again the next time it starts.",
+          body: "Instrument couldn't finish bringing one of your chats over, so it isn't in your list yet. The conversation is safe where it is, and Instrument tries again the next time it starts.",
           severity: "important",
           title: "One chat is still being brought over",
         },
@@ -476,7 +476,7 @@ describe("notices", () => {
 
       expect(notices.listNotices()).toMatchObject([
         {
-          body: "Instrument couldn't finish bringing 3 of your chats over, so they look empty right now. Their conversations are safe where they are, and Instrument tries again the next time it starts.",
+          body: "Instrument couldn't finish bringing 3 of your chats over, so they aren't in your list yet. Their conversations are safe where they are, and Instrument tries again the next time it starts.",
           title: "Some chats are still being brought over",
         },
       ]);

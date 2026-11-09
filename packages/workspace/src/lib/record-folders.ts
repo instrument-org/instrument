@@ -55,6 +55,25 @@ interface Index {
 let index: Index | undefined;
 
 /**
+ * The record folders, by name, of chats whose conversation is still in the
+ * database an earlier build kept, which a launch could not convert. Such a
+ * folder reads as a chat with nothing in it, and anything written there is a
+ * history the database does not hold, so the conversion could never run
+ * under it. They are no chat to the index until a launch converts them, and
+ * are listed in Settings > Storage meanwhile, like any folder that names no
+ * session.
+ */
+let withheld: ReadonlySet<string> = new Set();
+
+/**
+ * Names the chats left on their database at this launch, replacing the last.
+ * Called before `loadChatIndex` reads the index.
+ */
+export function withholdChats(folders: readonly string[]): void {
+  withheld = new Set(folders);
+}
+
+/**
  * The chats this process was handed and the folder each is in, in a process
  * that is told its chat rather than reading the index (the bash worker,
  * handed the one its command runs in). Set, it is the whole answer: an id
@@ -149,7 +168,7 @@ export async function loadChatIndex(root: string = chatsDir()): Promise<void> {
   const known: Index = { chats: new Map(), root, sessions: new Map() };
   const skipped: string[] = [];
   const later: string[] = [];
-  const names = await dirsIn(root);
+  const names = (await dirsIn(root)).filter((name) => !withheld.has(name));
   const sessions = await Promise.all(
     names.map((name) =>
       ChatIdSchema.safeParse(name).success
@@ -531,7 +550,7 @@ function readWhenHere(known: Index, folder: string): void {
  */
 function discover(known: Index, id: ChatId): ChatId | undefined {
   const folder = path.join(known.root, id);
-  if (!isDir(folder)) {
+  if (withheld.has(id) || !isDir(folder)) {
     return undefined;
   }
   const sessionId = sessionInNow(folder);

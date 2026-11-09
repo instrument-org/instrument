@@ -1106,6 +1106,13 @@ describe("convertWorkspaceChats", () => {
     });
     expect(await contents(maps)).toEqual(kept);
     expect(await listing(path.join(chats, "a-trip"))).toEqual(EVERY_KIND_FILES);
+    // The one left behind has its conversation in the database alone, which
+    // is what the app keeps out of its list until a launch converts it.
+    expect(
+      first.chats
+        .filter((chat) => chat.onDatabaseAlone)
+        .map((chat) => path.basename(chat.dir)),
+    ).toEqual(["c-maps"]);
 
     // The chats that converted have their `chat.db` moved out of the folder
     // before the next launch, which is what makes the retry cost a listing.

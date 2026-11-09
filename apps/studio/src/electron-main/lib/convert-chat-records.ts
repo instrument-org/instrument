@@ -38,6 +38,12 @@ export interface ChatRecordsConverted {
   done: string[];
   /** Chats left on their database, each with why, for the log to warn about. */
   left: { reason: string; where: string }[];
+  /**
+   * The chats among `left` whose conversation is in the database alone, by
+   * the name of each one's record folder: kept out of the chat list until a
+   * launch converts them.
+   */
+  onDatabaseAlone: string[];
 }
 
 /**
@@ -84,6 +90,7 @@ export async function convertChatRecords({
     converted: [],
     done: [],
     left: [],
+    onDatabaseAlone: [],
   };
   const chatsDir = workspaceLayout(rootDir).chatsDir;
   // A workspace with no chats folder has no chat on a database, which is all
@@ -106,6 +113,9 @@ export async function convertChatRecords({
       const reason = whyNotConverted(chat);
       if (reason !== undefined) {
         converted.left.push({ reason, where: path.basename(chat.dir) });
+      }
+      if (chat.onDatabaseAlone) {
+        converted.onDatabaseAlone.push(path.basename(chat.dir));
       }
     }
 

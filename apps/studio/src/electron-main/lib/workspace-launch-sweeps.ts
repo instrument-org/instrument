@@ -21,6 +21,7 @@ import {
   renameChatDatabases,
   settleDrafts,
   settleKeyFolderCase,
+  withholdChats,
   settleWorkspaceDb,
 } from "@instrument-org/workspace/electron";
 import { workspaceLayout } from "@instrument-org/workspace/layout";
@@ -271,13 +272,17 @@ async function convertChatDatabases(
         `Chat records: left ${where} on its database and will try again next launch: ${reason}`,
       );
     }
-    // A chat left behind opens with nothing in it while its conversation
-    // sits in the database beside it, so the bell says so rather than
-    // leaving the person to wonder where it went.
+    // A chat whose conversation sits in the database alone would open with
+    // nothing in it, and a message sent there would keep every later launch
+    // from converting it, so it stays out of the list until one does, and
+    // the bell says so rather than leaving the person to wonder where it
+    // went.
+    withholdChats(converted.onDatabaseAlone);
     noteChatsLeftBehind(converted.left.length);
     return converted.converted;
   } catch (error) {
     captureServerException(error);
+    withholdChats([]);
     return [];
   }
 }

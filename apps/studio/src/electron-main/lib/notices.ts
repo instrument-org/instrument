@@ -421,11 +421,11 @@ function browserSandboxOffNotice(): Omit<BellNotice, "seen"> {
 }
 
 /**
- * The notice for chats the conversion left on their database, which read as
- * empty until a later launch brings them over. The app makes it itself.
+ * The notice for chats the conversion left on their database, which stay out
+ * of the list until a later launch brings them over. The app makes it itself.
  *
  * It says how many rather than which: a chat's title comes from its records,
- * and a chat with none is listed by its id, which says nothing to anyone.
+ * and a chat with none has only its id, which says nothing to anyone.
  * Its id carries the count and when, so a chat that is left behind after the
  * person dismissed the last notice is a notice of its own.
  */
@@ -436,8 +436,8 @@ function chatsLeftBehindNotice({
   return {
     body:
       count > 1
-        ? `${APP_NAME} couldn't finish bringing ${count.toString()} of your chats over, so they look empty right now. Their conversations are safe where they are, and ${APP_NAME} tries again the next time it starts.`
-        : `${APP_NAME} couldn't finish bringing one of your chats over, so it looks empty right now. The conversation is safe where it is, and ${APP_NAME} tries again the next time it starts.`,
+        ? `${APP_NAME} couldn't finish bringing ${count.toString()} of your chats over, so they aren't in your list yet. Their conversations are safe where they are, and ${APP_NAME} tries again the next time it starts.`
+        : `${APP_NAME} couldn't finish bringing one of your chats over, so it isn't in your list yet. The conversation is safe where it is, and ${APP_NAME} tries again the next time it starts.`,
     id: `chats-left-behind-${count.toString()}-${at}`,
     kind: "announcement",
     publishedAt: new Date(at).toISOString(),

@@ -124,7 +124,18 @@ export type ChatConversion =
   | { error: string; kind: "unreadable" };
 
 export interface WorkspaceConversion {
-  chats: ({ dir: string } & ChatConversion)[];
+  chats: ({
+    dir: string;
+    /**
+     * Whether the chat was left with its conversation in `chat.db` alone:
+     * not converted, and no record of its history beside the database. Its
+     * records would read as a chat with nothing in it, and a message sent
+     * there is a history the database does not hold, which no later launch
+     * can convert under. The app keeps such a chat out of its list until a
+     * launch converts it.
+     */
+    onDatabaseAlone: boolean;
+  } & ChatConversion)[];
   /** Whether every chat that has a `chat.db` holds records now. */
   complete: boolean;
   counts: Record<ChatConversion["kind"], number>;
@@ -156,7 +167,16 @@ export async function convertWorkspaceChats(
   const chats: WorkspaceConversion["chats"] = await parallel(
     { limit: CHATS_AT_ONCE },
     dirs,
-    async (dir) => ({ dir, ...(await convertChat(dir, options)) }),
+    async (dir) => {
+      const conversion = await convertChat(dir, options);
+      return {
+        dir,
+        onDatabaseAlone:
+          LEFT_UNCONVERTED.has(conversion.kind) &&
+          (await holdsDatabaseAlone(dir, options.deviceId)),
+        ...conversion,
+      };
+    },
   );
   const counts: WorkspaceConversion["counts"] = {
     "already-converted": 0,
@@ -180,6 +200,31 @@ export async function convertWorkspaceChats(
       0,
     counts,
   };
+}
+
+/** The outcomes that leave a chat's database where it was, unconverted. */
+const LEFT_UNCONVERTED: ReadonlySet<ChatConversion["kind"]> = new Set([
+  "different",
+  "failed",
+  "unreadable",
+]);
+
+/**
+ * Whether a folder holds a `chat.db` and no record of a history. One that
+ * cannot be told either way answers no, and the chat stays listed.
+ */
+async function holdsDatabaseAlone(
+  chatDir: string,
+  device: DeviceId,
+): Promise<boolean> {
+  try {
+    return (
+      (await storeFiles(chatDir)).length > 0 &&
+      (await recordsThere(chatDir, device)).kind === "restating"
+    );
+  } catch {
+    return false;
+  }
 }
 
 /** Converts the chat whose record folder is `chatDir`. */

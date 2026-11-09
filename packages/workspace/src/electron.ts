@@ -202,7 +202,12 @@ export { FILES_FENCE } from "./lib/parse-files-block";
 export { MESSAGE_FENCE, parseMessage } from "./lib/parse-message";
 
 export { getBrowserSessionDir } from "./lib/chat-dir-utils";
-export { chatDir, chatIds, loadChatIndex } from "./lib/record-folders";
+export {
+  chatDir,
+  chatIds,
+  loadChatIndex,
+  withholdChats,
+} from "./lib/record-folders";
 export { workDir } from "./lib/work-dir";
 export {
   ASIDE_INFIX,

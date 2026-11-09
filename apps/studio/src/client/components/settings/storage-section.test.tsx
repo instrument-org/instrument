@@ -90,7 +90,7 @@ describe("InstrumentFolder", () => {
     ).toBeDefined();
     expect(screen.getByLabelText("sam › Notes › Instrument")).toBeDefined();
     // A folder still to be made says nothing under its path.
-    expect(screen.queryByText("Has other files in it")).toBeNull();
+    expect(screen.queryByText("Already contains some files")).toBeNull();
     fireEvent.click(screen.getByRole("button", { name: "Restart and move" }));
     await vi.waitFor(() => {
       expect(move).toHaveBeenCalledWith({
@@ -116,7 +116,7 @@ describe("InstrumentFolder", () => {
     );
 
     expect(await screen.findByLabelText("sam › Notes")).toBeDefined();
-    expect(screen.getByText("Has other files in it")).toBeDefined();
+    expect(screen.getByText("Already contains some files")).toBeDefined();
   });
 
   it("won't move into another Instrument folder, and says why", async () => {

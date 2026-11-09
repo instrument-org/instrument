@@ -87,7 +87,7 @@ function DestinationLine({
       ? `${APP_NAME} folder with ${String(chats)} ${chats === 1 ? "chat" : "chats"}`
       : `${APP_NAME} folder`
     : destination.contents === "files"
-      ? "Has other files in it"
+      ? "Already contains some files"
       : undefined;
   const { warning } = destination.verdict;
   const warned =

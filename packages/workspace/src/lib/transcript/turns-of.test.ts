@@ -925,6 +925,37 @@ describe("the work card", () => {
     expect(turn?.foldedRowIds.size).toBe(0);
   });
 
+  it.each([
+    ["under the reply", "after", 1],
+    ["between the last step and the reply", "before", 0],
+  ] as const)(
+    "with a note %s, %s the reply, folds %i row(s)",
+    (_name, where, folded) => {
+      const note = (id: StoreId.Message) =>
+        ({
+          data: {
+            changes: [{ change: "added", kind: "memory", name: "no-stevia" }],
+          },
+          metadata: meta(id),
+          type: "data-setupChanges",
+        }) as SessionMessagePart.Type;
+      const [turn] = turnsOf(
+        [
+          typed("Do the thing"),
+          message("assistant", (id) => [
+            call(id, "bash", { activity: "Looking" }, { exitCode: 0 }),
+            ...(where === "before" ? [note(id)] : []),
+            said(id, "Done."),
+            ...(where === "after" ? [note(id)] : []),
+          ]),
+        ],
+        { isRunning: false },
+      );
+      expect(turn?.rows.some((row) => row.kind === "note")).toBe(true);
+      expect(turn?.foldedRowIds.size).toBe(folded);
+    },
+  );
+
   it("folds a turn whose question the person wrote past without answering", () => {
     const cache: TurnsCache = new Map();
     const question = [

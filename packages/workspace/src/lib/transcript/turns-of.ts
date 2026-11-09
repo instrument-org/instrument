@@ -927,15 +927,21 @@ function isRunningRow(row: ActivityRow): boolean {
  * said along the way. A note, an error, a task, a step still running or a
  * card still waiting keeps the whole turn open. What the agent said before
  * it did anything answers the message at once, so it stays above the fold.
+ * Notes under the reply (what the turn did to the person's setup or chats)
+ * are outside the work and stay in view, so they keep nothing open.
  */
 function foldedRows(
-  rows: readonly TurnRow[],
+  all: readonly TurnRow[],
   {
     cutAcross,
     phase,
   }: { cutAcross: boolean; phase: "done" | "interrupted" | "working" },
 ): { ids: ReadonlySet<string>; lineAt: string | undefined } {
   const none = { ids: new Set<string>(), lineAt: undefined };
+  const reply = all.findLastIndex((row) => row.kind === "text");
+  const rows = all.slice(reply + 1).every((row) => row.kind === "note")
+    ? all.slice(0, reply + 1)
+    : all;
   const isWork = (row: TurnRow) =>
     row.kind === "activity" || row.kind === "ask";
   const firstWork = rows.findIndex(isWork);

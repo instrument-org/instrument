@@ -842,25 +842,16 @@ describe("migrateWorkspaceLayout", () => {
       );
       // The chat's own store under the name the chat opens, its write-ahead
       // log with it, and the empty one set aside with its own, where a
-      // person can still read it and nothing else does. Reading a database
-      // beside a write-ahead log leaves a shared-memory file, which travels
-      // with the rest.
-      expect(chatFiles("2026-10-12-chat")).toEqual([
-        "chat.db",
-        "chat.db-shm",
-        "chat.db-wal",
-      ]);
+      // person can still read it and nothing else does. Each was read
+      // through a copy, so neither gained a file beside it.
+      expect(chatFiles("2026-10-12-chat")).toEqual(["chat.db", "chat.db-wal"]);
       expect(
         sessionKeys(".instrument", "chats", "2026-10-12-chat", "chat.db"),
       ).toEqual([SESSION_KEY]);
       expect(
         read(".instrument", "chats", "2026-10-12-chat", "chat.db-wal"),
       ).toBe("the chat's own");
-      expect(asideFiles("2026-10-12-chat")).toEqual([
-        "chat.db",
-        "chat.db-shm",
-        "chat.db-wal",
-      ]);
+      expect(asideFiles("2026-10-12-chat")).toEqual(["chat.db", "chat.db-wal"]);
 
       marks = { ...marks, layoutVersion: 0 };
       expect(migrate().chatRecords.failed).toBe(0);
@@ -870,11 +861,7 @@ describe("migrateWorkspaceLayout", () => {
         "chat.db-shm",
         "chat.db-wal",
       ]);
-      expect(asideFiles("2026-10-12-chat")).toEqual([
-        "chat.db",
-        "chat.db-shm",
-        "chat.db-wal",
-      ]);
+      expect(asideFiles("2026-10-12-chat")).toEqual(["chat.db", "chat.db-wal"]);
       expect(
         exists(".instrument", ".pre-chats", EMPTY_STORES, "2026-10-12-chat-2"),
       ).toBe(false);
@@ -1389,6 +1376,29 @@ describe("migrateWorkspaceLayout", () => {
     expect(read("tasks", "abc", "attachments", "page.html")).toBe("pg");
     expect(exists("tasks", "abc", "user-provided")).toBe(false);
     expect(exists("tasks", "abc", "agent-retrieved")).toBe(false);
+  });
+
+  // A throw out of one task used to leave the sweep before the 1.x tasks
+  // became chats, so one task nothing could put in shape kept every other
+  // one out of the chat list.
+  it("counts a task it cannot put in shape and goes on to the rest", () => {
+    const broken = path.join(rootDir, "tasks", "abc");
+    fs.mkdirSync(broken, { recursive: true });
+    // A file where the folder of sent files would be cannot be listed.
+    fs.writeFileSync(path.join(broken, "user-provided"), "not a folder");
+    const sound = path.join(rootDir, "tasks", "def");
+    fs.mkdirSync(path.join(sound, "user-provided"), { recursive: true });
+    fs.writeFileSync(path.join(sound, "user-provided", "upload.txt"), "up");
+
+    const result = migrate();
+
+    expect(read("tasks", "def", "attachments", "upload.txt")).toBe("up");
+    expect(result.chatRecords.failed).toBe(1);
+    expect(result.chatRecords.done).toContainEqual(
+      expect.stringContaining(`could not put ${broken} in shape`),
+    );
+    expect(migrateLegacyTasks).toHaveBeenCalled();
+    expect(marks.layoutVersion).toBeUndefined();
   });
 
   // Two files of one name in the folders being folded together are two

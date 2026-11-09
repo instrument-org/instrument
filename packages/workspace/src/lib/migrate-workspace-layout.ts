@@ -4,7 +4,6 @@ import {
 } from "@instrument-org/shared";
 import fs from "node:fs";
 import path from "node:path";
-import { DatabaseSync } from "node:sqlite";
 
 import {
   CHAT_DB_FILE_NAME,
@@ -31,6 +30,7 @@ import {
   moveEntrySync,
   removeIfEmptySync,
 } from "./move-entry";
+import { readStoreCopy } from "./read-store-copy";
 import { rewriteStoredPaths } from "./rewrite-stored-paths";
 import { type ChatRecordsSplit, splitChatRecords } from "./split-chat-records";
 import { STORE_TABLE } from "./store-table";
@@ -275,7 +275,7 @@ function stageLegacyProjectsDir(rootDir: string) {
   const to = legacyProjectsDir(rootDir);
   if (!entryExists(to)) {
     fs.mkdirSync(path.dirname(to), { recursive: true });
-    fs.renameSync(from, to);
+    moveEntrySync(from, to);
     return;
   }
   mergeDirInto({
@@ -739,26 +739,24 @@ function freeStoreName({
 
 /**
  * Whether a store holds a session, or `undefined` where SQLite could not
- * read it, which is as good as holding one: nothing then moves. Read-only
- * and one statement over the key each session is filed under, with none of
- * the store's own migrations run on it, so a store this build has not opened
+ * read it, which is as good as holding one: nothing then moves. One
+ * statement over the key each session is filed under, run on a copy with
+ * none of the store's own migrations, so a store this build has not opened
  * is left exactly as the build that wrote it left it.
  */
 function holdsSessions(file: string): boolean | undefined {
-  let database: DatabaseSync | undefined;
   try {
-    database = new DatabaseSync(file, { readOnly: true });
-    return (
-      database
-        .prepare(
-          `select key from ${STORE_TABLE} where key like 'sessions:%' limit 1`,
-        )
-        .get() !== undefined
+    return readStoreCopy(
+      file,
+      (database) =>
+        database
+          .prepare(
+            `select key from ${STORE_TABLE} where key like 'sessions:%' limit 1`,
+          )
+          .get() !== undefined,
     );
   } catch {
     return undefined;
-  } finally {
-    database?.close();
   }
 }
 
@@ -782,11 +780,21 @@ function normalizeTasks(rootDir: string, normalized: ChatRecordsSplit) {
     if (!entry.isDirectory()) {
       continue;
     }
-    removedBrowserProfileCloneCount += normalizeTask({
-      normalized,
-      setAsideDir,
-      taskFolder: path.join(tasksDir, entry.name),
-    });
+    const taskFolder = path.join(tasksDir, entry.name);
+    // One task that cannot be put in shape is counted and left for the next
+    // boot, and every other task still becomes a chat on this one.
+    try {
+      removedBrowserProfileCloneCount += normalizeTask({
+        normalized,
+        setAsideDir,
+        taskFolder,
+      });
+    } catch (error) {
+      normalized.failed++;
+      normalized.done.push(
+        `could not put ${taskFolder} in shape (${String(error)}); left it there`,
+      );
+    }
   }
   return removedBrowserProfileCloneCount;
 }

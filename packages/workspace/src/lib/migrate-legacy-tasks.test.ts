@@ -1,3 +1,4 @@
+import { spawnSync } from "node:child_process";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
@@ -920,6 +921,66 @@ describe("migrateLegacyTasks", () => {
       ["2026-06-23-rotating-red-square", ["first.txt"]],
       ["2026-06-23-rotating-red-square-2", ["second.txt"]],
     ]);
+  });
+
+  // The layout mark is written once nothing is left over, and no sweep runs
+  // after it, so a staged chat that still cannot be named on a later boot
+  // has to be counted there too, or it stays under its hidden name for good.
+  it("counts a staged chat a later boot still cannot name as left over", () => {
+    legacyTask("2026-06-23-first", { sessions: ONE_ASK });
+    const rename = fs.renameSync.bind(fs);
+    const busy = () =>
+      vi.spyOn(fs, "renameSync").mockImplementation((from, to) => {
+        if (String(from).endsWith(".partial")) {
+          throw Object.assign(new Error("EBUSY"), { code: "EBUSY" });
+        }
+        rename(from, to);
+      });
+
+    const firstBoot = busy();
+    expect(migrateLegacyTasks(root, machineDir)).toMatchObject({ leftOver: 1 });
+    firstBoot.mockRestore();
+    const secondBoot = busy();
+    expect(migrateLegacyTasks(root, machineDir)).toMatchObject({ leftOver: 1 });
+    secondBoot.mockRestore();
+
+    expect(migrateLegacyTasks(root, machineDir)).toMatchObject({ leftOver: 0 });
+    expect(fs.readdirSync(path.join(root, ".instrument", "chats"))).toEqual([
+      "2026-06-23-rotating-red-square",
+    ]);
+  });
+
+  // 1.x kept a rollback journal, so a build that crashed or was force quit
+  // in the middle of a write left one beside the database. Every row is
+  // intact, and SQLite has to roll the journal back before it reads one,
+  // which a read-only connection cannot do.
+  it("adopts a task whose database a crashed build left mid-write", () => {
+    const chatDir = legacyTask("2026-06-23-crashed", { sessions: ONE_ASK });
+    const database = path.join(chatDir, ".instrument", "task.db");
+    const crashed = spawnSync(process.execPath, [
+      "-e",
+      `const { DatabaseSync } = require("node:sqlite");
+       const db = new DatabaseSync(${JSON.stringify(database)});
+       db.exec("PRAGMA cache_size = 1; BEGIN");
+       const insert = db.prepare("insert into sessions (key, blob) values (?, ?)");
+       for (let row = 0; row < 2000; row++) {
+         insert.run("scratch:" + row, Buffer.alloc(2048));
+       }
+       process.kill(process.pid, "SIGKILL");`,
+    ]);
+    expect(crashed.signal).toBe("SIGKILL");
+    expect(fs.existsSync(`${database}-journal`)).toBe(true);
+    expect(() =>
+      new DatabaseSync(database, { readOnly: true })
+        .prepare("select key from sessions limit 1")
+        .get(),
+    ).toThrow();
+
+    expect(migrateLegacyTasks(root, machineDir)).toMatchObject({
+      adoptedCount: 1,
+      leftOver: 0,
+      unreadable: [],
+    });
   });
 
   // A database or settings file already under the name the chat's own take is

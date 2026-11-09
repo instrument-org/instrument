@@ -4,7 +4,6 @@ import {
 } from "@instrument-org/shared";
 import fs from "node:fs";
 import path from "node:path";
-import { DatabaseSync } from "node:sqlite";
 import { ulid } from "ulid";
 
 import {
@@ -32,6 +31,7 @@ import {
   writeProjectSync,
 } from "./chat/projects";
 import { addProjectFoldersSync } from "./permissions/project-folders";
+import { readStoreCopy } from "./read-store-copy";
 import { forgetChatFolders } from "./record-folders";
 import { isRecord } from "./skills";
 import { STORE_TABLE, writeStoreRowsSync } from "./store-table";
@@ -152,6 +152,7 @@ export function migrateLegacyTasks(
   const tasksDir = path.join(rootDir, TASKS_DIR_NAME);
   const { chatsDir } = workspaceLayout(rootDir);
   const staged = finishStagedChats(chatsDir, rootDir);
+  migration.leftOver += staged.left;
   const legacy = readDirs(tasksDir).filter((name) =>
     isLegacyTask(path.join(tasksDir, name)),
   );
@@ -159,7 +160,11 @@ export function migrateLegacyTasks(
   const waitingProjects = readDirs(waitingDir).filter((name) =>
     isLegacyProjectFolder(path.join(waitingDir, name)),
   );
-  if (legacy.length === 0 && waitingProjects.length === 0 && !staged) {
+  if (
+    legacy.length === 0 &&
+    waitingProjects.length === 0 &&
+    staged.staged === 0
+  ) {
     return migration;
   }
 
@@ -464,19 +469,26 @@ function finishStagedChat(stagingDir: string, rootDir: string) {
   fs.renameSync(stagingDir, path.join(path.dirname(stagingDir), chatName));
 }
 
-/** Finishes the chats an earlier boot staged. Returns whether there were any. */
-function finishStagedChats(chatsDir: string, rootDir: string): boolean {
+/**
+ * Finishes the chats an earlier boot staged. Says how many there were, and
+ * how many are still staged for the next boot to finish.
+ */
+function finishStagedChats(
+  chatsDir: string,
+  rootDir: string,
+): { left: number; staged: number } {
   const staged = readDirs(chatsDir).filter(
     (name) => stagedChatName(name) !== undefined,
   );
+  let left = 0;
   for (const name of staged) {
     try {
       finishStagedChat(path.join(chatsDir, name), rootDir);
     } catch {
-      // Left staged, and tried again on the next boot.
+      left += 1;
     }
   }
-  return staged.length > 0;
+  return { left, staged: staged.length };
 }
 
 function firstLine(text: string): string {
@@ -612,18 +624,17 @@ function readConversation(dbPath: string): {
   }
   let rows: StoreRow[];
   try {
-    const db = new DatabaseSync(dbPath, { readOnly: true });
-    try {
-      // node:sqlite types a row as a record of any column value; these are
-      // two of the store's own columns.
-      rows = db
-        .prepare(
-          `select key, blob from ${STORE_TABLE} where key like 'sessions:%' or key like 'messages:%' or key like 'parts:%'`,
-        )
-        .all() as unknown as StoreRow[];
-    } finally {
-      db.close();
-    }
+    rows = readStoreCopy(
+      dbPath,
+      (db) =>
+        // node:sqlite types a row as a record of any column value; these are
+        // two of the store's own columns.
+        db
+          .prepare(
+            `select key, blob from ${STORE_TABLE} where key like 'sessions:%' or key like 'messages:%' or key like 'parts:%'`,
+          )
+          .all() as unknown as StoreRow[],
+    );
   } catch {
     return { messages, tutorial: false, unreadable: true };
   }

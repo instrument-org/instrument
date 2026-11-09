@@ -557,9 +557,10 @@ function OutcomePage({
               <WarningIcon weight="bold" />
             )
           }
+          isBare={provider === "instrument"}
         >
           {provider === "instrument" ? (
-            <BrandMark className="size-10" />
+            <BrandMark className="size-16" />
           ) : (
             <SubscriptionMark provider={provider} />
           )}

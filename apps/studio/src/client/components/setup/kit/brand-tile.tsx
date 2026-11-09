@@ -3,23 +3,28 @@ import { type ReactNode } from "react";
 
 /**
  * A provider's mark on a white tile: 40 (Figma's name; 48 across) starts a
- * row, 64 heads a sign-in page. `badge` is the small round mark at its
+ * row, 64 heads a sign-in page. The app's own icon goes bare, at the tile's
+ * size with nothing behind it. `badge` is the small round mark at its
  * corner that says what went wrong (a warning, a clock).
  */
 export function BrandTile({
   badge,
   children,
+  isBare = false,
   size = 64,
 }: {
   badge?: ReactNode;
-  /** The mark, sized by the tile. */
+  /** The mark, sized by the tile, or by itself when the tile is bare. */
   children: ReactNode;
+  /** No tile behind the mark, for one that is a whole icon already (the app's). */
+  isBare?: boolean;
   size?: 40 | 64;
 }) {
   return (
     <span
       className={cn(
-        "relative flex shrink-0 items-center justify-center border bg-card shadow-xs",
+        "relative flex shrink-0 items-center justify-center",
+        !isBare && "border bg-card shadow-xs",
         size === 64
           ? "size-16 rounded-[17px] [&>span:not([data-badge])]:size-10 [&>svg]:size-10"
           : "size-12 rounded-xl [&>span:not([data-badge])]:size-7.5 [&>svg]:size-7.5",

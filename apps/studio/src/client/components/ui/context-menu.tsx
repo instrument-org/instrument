@@ -120,10 +120,9 @@ function ContextMenuContent({
         className={cn(
           // `--content-zoom` divisor cancels Radix's zoomed-px available-height
           // against this content's self-applied CSS `zoom` (see select.tsx).
-          // Closed, it stays up for its exit and takes no press, or the second
-          // of a double click picks the item again; `!` beats the inline `auto`
-          // Radix gives a layer over a modal.
-          "z-50 max-h-[calc(var(--radix-context-menu-content-available-height)/var(--content-zoom))] min-w-[8rem] origin-(--radix-context-menu-content-transform-origin) overflow-x-hidden overflow-y-auto rounded-xl bg-popover p-1 text-popover-foreground shadow-float-sm data-[side=bottom]:slide-in-from-top-2 data-[side=left]:slide-in-from-right-2 data-[side=right]:slide-in-from-left-2 data-[side=top]:slide-in-from-bottom-2 data-[state=closed]:pointer-events-none! data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=closed]:zoom-out-95 data-[state=open]:animate-in data-[state=open]:fade-in-0 data-[state=open]:zoom-in-95",
+          // It carries no enter or exit animation: a menu is there on the
+          // frame after the press and gone on the frame after a pick.
+          "z-50 max-h-[calc(var(--radix-context-menu-content-available-height)/var(--content-zoom))] min-w-[8rem] overflow-x-hidden overflow-y-auto rounded-xl bg-popover p-1 text-popover-foreground shadow-float-sm",
           className,
         )}
         collisionPadding={collisionPadding ?? chromeCollisionPadding}
@@ -283,7 +282,7 @@ function ContextMenuSubContent({
     <ContextMenuPrimitive.Portal container={container}>
       <ContextMenuPrimitive.SubContent
         className={cn(
-          "z-50 min-w-[8rem] origin-(--radix-context-menu-content-transform-origin) overflow-hidden rounded-xl bg-popover p-1 text-popover-foreground shadow-float-sm data-[side=bottom]:slide-in-from-top-2 data-[side=left]:slide-in-from-right-2 data-[side=right]:slide-in-from-left-2 data-[side=top]:slide-in-from-bottom-2 data-[state=closed]:pointer-events-none! data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=closed]:zoom-out-95 data-[state=open]:animate-in data-[state=open]:fade-in-0 data-[state=open]:zoom-in-95",
+          "z-50 min-w-[8rem] overflow-hidden rounded-xl bg-popover p-1 text-popover-foreground shadow-float-sm",
           className,
         )}
         data-slot="context-menu-sub-content"

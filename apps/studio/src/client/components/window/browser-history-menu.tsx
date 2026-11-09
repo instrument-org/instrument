@@ -37,7 +37,7 @@ export function BrowserHistoryMenu({
 }
 
 function HistoryRows({ onOpen }: { onOpen: (url: string) => void }) {
-  const visited = useRecentPages().slice(0, SHOWN);
+  const visited = useRecentPages({ limit: SHOWN });
   return (
     <>
       <DropdownMenuLabel className="text-xs text-muted-foreground">

@@ -211,8 +211,8 @@ export function TabLocationRow({
         {fieldEnd}
         {openIn && <OpenInAppButton target={openIn} />}
       </div>
-      {trailing}
-      {/* The file up at the size Quick Look gives it, over the window. */}
+      {/* The file up at the size Quick Look gives it, over the window. Ahead
+          of the file's own controls, so the × that closes it stays last. */}
       {lookTarget && (
         <div className={TOOLBAR_GROUP_CLASSNAME}>
           <TabRowControl
@@ -225,6 +225,7 @@ export function TabLocationRow({
           />
         </div>
       )}
+      {trailing}
     </div>
   );
 }

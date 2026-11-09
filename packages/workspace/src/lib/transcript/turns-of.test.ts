@@ -4,7 +4,7 @@ import { type SessionMessage } from "../../schemas/session/message";
 import { type SessionMessagePart } from "../../schemas/session/message-part";
 import { StoreId } from "../../schemas/store-id";
 import { MID_TURN_NOTE } from "../chat/mid-turn";
-import { cardsOf, slotOf } from "./slot";
+import { cardsOf, workCardOf, workCardTurnOf } from "./work-card";
 import {
   type TranscriptMessage,
   transcriptMessage,
@@ -246,6 +246,47 @@ describe("turnsOf", () => {
     `);
   });
 
+  it("draws a card for a send that names its message, and none for one that does not", () => {
+    const task = StoreId.newSessionId();
+    const delivered = StoreId.newMessageId();
+    const sendCall = (handOff: Record<string, string>) =>
+      message("assistant", (id) => [
+        call(
+          id,
+          "bash",
+          { activity: "Asking the task", command: "task send t1" },
+          { exitCode: 0, handOffs: [handOff] },
+        ),
+      ]);
+    const sent = sendCall({
+      kind: "sent",
+      messageId: delivered,
+      sessionId: task,
+    });
+    const [named] = turnsOf([typed("Check last year too"), sent], {
+      isRunning: false,
+    });
+    const [legacy] = turnsOf(
+      [
+        typed("Check last year too"),
+        sendCall({ kind: "sent", sessionId: task }),
+      ],
+      { isRunning: false },
+    );
+    expect(
+      named?.rows.map((row) =>
+        row.kind === "task"
+          ? { from: row.from, id: row.id, sessionId: row.sessionId }
+          : row.kind,
+      ),
+    ).toStrictEqual([
+      { from: delivered, id: sent.parts[0]?.metadata.id, sessionId: task },
+    ]);
+    expect(legacy && shape(legacy)).toStrictEqual([
+      "activity: Asking the task x1",
+    ]);
+  });
+
   it("folds the work between what the agent said first and the words it ended on", () => {
     const [turn] = turnsOf(
       [
@@ -298,43 +339,33 @@ describe("turnsOf", () => {
           said(id, "Here it is."),
         ]),
       ],
-      { isDeveloperMode: true, isRunning: false },
+      { isRunning: false },
     );
     const folded = turn?.rows.map((row) => turn.foldedRowIds.has(row.id));
-    expect(folded).toEqual([true, false, true, true, true, false]);
-    expect(turn?.foldLineAt).toBe(turn?.rows[2]?.id);
+    expect(folded).toEqual([false, true, true, true, false]);
+    expect(turn?.foldLineAt).toBe(turn?.rows[1]?.id);
   });
 
   it.each([
     ["while it goes on", "streaming", true],
     ["once it has ended", "done", false],
-  ] as const)(
-    "draws no row for a thought %s, for all but a developer",
-    (_when, state, isRunning) => {
-      const messages = [
-        typed("Do the thing"),
-        message("assistant", (id) => [
-          {
-            metadata: meta(id),
-            state,
-            text: "Let me think.",
-            type: "reasoning",
-          } as SessionMessagePart.Type,
-          ...(isRunning ? [] : [said(id, "Here it is.")]),
-        ]),
-      ];
-      const [person] = turnsOf(messages, { isRunning });
-      expect(person?.rows.filter((row) => row.kind === "activity")).toEqual([]);
-      expect(person?.live?.kind).toBe(isRunning ? "thinking" : undefined);
-      const [developer] = turnsOf(messages, {
-        isDeveloperMode: true,
-        isRunning,
-      });
-      expect(
-        developer?.rows.filter((row) => row.kind === "activity"),
-      ).toHaveLength(1);
-    },
-  );
+  ] as const)("draws no row for a thought %s", (_when, state, isRunning) => {
+    const messages = [
+      typed("Do the thing"),
+      message("assistant", (id) => [
+        {
+          metadata: meta(id),
+          state,
+          text: "Let me think.",
+          type: "reasoning",
+        } as SessionMessagePart.Type,
+        ...(isRunning ? [] : [said(id, "Here it is.")]),
+      ]),
+    ];
+    const [turn] = turnsOf(messages, { isRunning });
+    expect(turn?.rows.filter((row) => row.kind === "activity")).toEqual([]);
+    expect(turn?.live?.kind).toBe(isRunning ? "thinking" : undefined);
+  });
 
   it("opens the working line onto the thought going on, until something follows it", () => {
     const thinking = (id: StoreId.Message) =>
@@ -345,18 +376,13 @@ describe("turnsOf", () => {
         type: "reasoning",
       }) as SessionMessagePart.Type;
     const first = message("assistant", (id) => [thinking(id)]);
-    const live = (
-      messages: Parameters<typeof turnsOf>[0],
-      isDeveloperMode = false,
-    ) => turnsOf(messages, { isDeveloperMode, isRunning: true })[0]?.live;
+    const live = (messages: Parameters<typeof turnsOf>[0]) =>
+      turnsOf(messages, { isRunning: true })[0]?.live;
 
     expect(live([typed("Do the thing"), first])).toMatchObject({
       kind: "thinking",
       thought: { tool: "reasoning" },
     });
-    expect(live([typed("Do the thing"), first], true)).not.toHaveProperty(
-      "thought",
-    );
     expect(
       live([
         typed("Do the thing"),
@@ -425,7 +451,7 @@ describe("turnsOf", () => {
     expect(turn && isTurnFolded(turn, Number.MAX_SAFE_INTEGER)).toBe(false);
   });
 
-  it("never folds a task's card, and never folds while it works", () => {
+  it("keeps a turn that started a task open, and never folds while it works", () => {
     const task = StoreId.newSessionId();
     const messages = [
       typed("Do the thing"),
@@ -446,11 +472,7 @@ describe("turnsOf", () => {
       ]),
     ];
     const [done] = turnsOf(messages, { isRunning: false });
-    expect(
-      done?.rows
-        .filter((row) => done.foldedRowIds.has(row.id))
-        .map((row) => row.kind),
-    ).toEqual(["activity"]);
+    expect(done?.foldedRowIds.size).toBe(0);
     const [working] = turnsOf(messages, { isRunning: true });
     expect(working?.foldedRowIds.size).toBe(0);
     expect(working?.phase).toBe("working");
@@ -475,6 +497,28 @@ describe("turnsOf", () => {
     expect(card({ outcome: "dismissed" })?.ratingCard).toBeUndefined();
   });
 
+  it("keeps a branch's note on its last copied turn, out of the rows", () => {
+    const data = {
+      chat: "2026-11-08-pricing-7k3q",
+      records: "/records",
+      title: "Pricing",
+      work: "/work",
+    };
+    const turns = turnsOf(
+      [
+        typed("Compare the prices"),
+        message("assistant", (id) => [said(id, "Done.")]),
+        message("user", (id) => [
+          { data, metadata: meta(id), type: "data-branchedFrom" },
+        ]),
+      ],
+      { isRunning: false },
+    );
+    expect(turns).toHaveLength(1);
+    expect(turns[0]?.branchedFrom?.data).toEqual(data);
+    expect(turns[0]?.rows.map((row) => row.kind)).toEqual(["text"]);
+  });
+
   it("waits for the summary or the wait, whichever comes first", () => {
     const messages = [
       typed("Do the thing"),
@@ -493,7 +537,7 @@ describe("turnsOf", () => {
     expect(isTurnFolded({ ...turn, summary: "Did it" }, end)).toBe(true);
   });
 
-  it("folds the work a message cut across at once, leaving what still runs", () => {
+  it("never folds a turn a message cut across", () => {
     const [cut] = turnsOf(
       [
         typed("Do the thing"),
@@ -522,13 +566,8 @@ describe("turnsOf", () => {
       throw new Error("Expected the first turn");
     }
     expect(cut.phase).toBe("done");
-    expect(cut.foldsWhenDone).toBe(false);
-    expect(isTurnFolded(cut, 0)).toBe(true);
-    expect(
-      cut.rows
-        .filter((row) => cut.foldedRowIds.has(row.id))
-        .map((row) => row.kind === "activity" && row.title),
-    ).toEqual(["Finished"]);
+    expect(cut.foldedRowIds.size).toBe(0);
+    expect(isTurnFolded(cut, Number.MAX_SAFE_INTEGER)).toBe(false);
   });
 
   it("says a repeated line once", () => {
@@ -583,7 +622,7 @@ describe("turnsOf", () => {
   });
 });
 
-describe("the slot", () => {
+describe("the work card", () => {
   const cardKinds = (turn: Turn | undefined) =>
     (turn?.rows ?? []).flatMap((row) =>
       row.kind === "activity"
@@ -657,7 +696,7 @@ describe("the slot", () => {
         "page x1",
       ]
     `);
-    expect(turn && slotOf(turn)?.kind).toBe("page");
+    expect(turn && workCardOf(turn)?.kind).toBe("page");
   });
 
   it("keeps the words of a reply that was stopped", () => {
@@ -681,7 +720,7 @@ describe("the slot", () => {
         type: "data-taskEvent",
       } as SessionMessagePart.Type,
     ]);
-    const [turn] = turnsOf(
+    const turns = turnsOf(
       [
         typed("Do the thing"),
         message("assistant", (id) => [said(id, "Done.")]),
@@ -690,7 +729,80 @@ describe("the slot", () => {
       ],
       { isRunning: false },
     );
-    expect(turn?.rows.filter((row) => row.kind === "text")).toHaveLength(2);
+    expect(
+      turns.flatMap((turn) => turn.rows.filter((row) => row.kind === "text")),
+    ).toHaveLength(2);
+  });
+
+  it("carries a wake after the answer on in a turn of its own, and keeps one while the agent works", () => {
+    const wake = () =>
+      message("user", (id) => [
+        {
+          data: { events: [] },
+          metadata: meta(id),
+          type: "data-taskEvent",
+        } as SessionMessagePart.Type,
+      ]);
+    const answered = turnsOf(
+      [
+        typed("Do the thing"),
+        message("assistant", (id) => [
+          call(id, "bash", { activity: "Working" }, { exitCode: 0 }),
+          said(id, "I've started on it."),
+        ]),
+        wake(),
+        message("assistant", (id) => [said(id, "It's done.")]),
+      ],
+      { isRunning: false },
+    );
+    expect(
+      answered.map((turn) => ({
+        opener: turn.opener !== undefined,
+        rows: turn.rows.map((row) => row.kind),
+      })),
+    ).toEqual([
+      { opener: true, rows: ["activity", "text"] },
+      { opener: false, rows: ["text"] },
+    ]);
+    expect(answered[0]?.foldedRowIds.size).toBe(1);
+    expect(answered[1]?.wokenBy).toBeUndefined();
+    const finished = turnsOf(
+      [
+        typed("Do the thing"),
+        message("assistant", (id) => [said(id, "I've started on it.")]),
+        message("user", (id) => [
+          {
+            data: {
+              events: [
+                {
+                  sessionId: StoreId.newSessionId(),
+                  status: "done",
+                  summary: "Done.",
+                  title: "The thing",
+                },
+              ],
+            },
+            metadata: meta(id),
+            type: "data-taskEvent",
+          } as SessionMessagePart.Type,
+        ]),
+        message("assistant", (id) => [said(id, "It's done.")]),
+      ],
+      { isRunning: false },
+    );
+    expect(finished[1]?.wokenBy).toEqual({ count: 1, kind: "task-finished" });
+    const working = turnsOf(
+      [
+        typed("Do the thing"),
+        message("assistant", (id) => [
+          call(id, "bash", { activity: "Working" }, { exitCode: 0 }),
+        ]),
+        wake(),
+        message("assistant", (id) => [said(id, "It's done.")]),
+      ],
+      { isRunning: false },
+    );
+    expect(working).toHaveLength(1);
   });
 
   it("gives each task a call started its own row", () => {
@@ -745,6 +857,13 @@ describe("the slot", () => {
       "input-available",
     ],
     [
+      "a question up on its card, not answered",
+      "choose",
+      { questions: [] },
+      { asked: true },
+      "output-available",
+    ],
+    [
       "a sign-in nothing has settled",
       "connect_app",
       { apps: ["notion"] },
@@ -752,7 +871,7 @@ describe("the slot", () => {
       "output-available",
     ],
   ] as const)(
-    "keeps %s out of the fold",
+    "keeps the whole turn open for %s",
     (_name, tool, input, output, state) => {
       const [turn] = turnsOf(
         [
@@ -765,11 +884,103 @@ describe("the slot", () => {
         ],
         { isRunning: false },
       );
-      const ask = turn?.rows.find((row) => row.kind === "ask");
-      expect(ask && turn?.foldedRowIds.has(ask.id)).toBe(false);
-      expect(turn?.foldedRowIds.size).toBe(1);
+      expect(turn?.rows.find((row) => row.kind === "ask")).toMatchObject({
+        isOpen: true,
+      });
+      expect(turn?.foldedRowIds.size).toBe(0);
     },
   );
+
+  it.each([
+    ["a task started before any step", "task"],
+    ["a note before any step", "note"],
+  ] as const)("keeps the whole turn open for %s", (_name, first) => {
+    const [turn] = turnsOf(
+      [
+        typed("Do the thing"),
+        message("assistant", (id) => [
+          first === "task"
+            ? call(
+                id,
+                "bash",
+                { command: "task new" },
+                {
+                  exitCode: 0,
+                  handOffs: [
+                    { kind: "created", sessionId: StoreId.newSessionId() },
+                  ],
+                },
+              )
+            : ({
+                data: { answer: "allowed", kind: "app", target: "notion" },
+                metadata: meta(id),
+                type: "data-permissionAnswer",
+              } as SessionMessagePart.Type),
+          call(id, "bash", { activity: "Looking" }, { exitCode: 0 }),
+          said(id, "Done."),
+        ]),
+      ],
+      { isRunning: false },
+    );
+    expect(turn?.foldedRowIds.size).toBe(0);
+  });
+
+  it("folds a turn whose question the person wrote past without answering", () => {
+    const cache: TurnsCache = new Map();
+    const question = [
+      typed("Plan the trip"),
+      message("assistant", (id) => [
+        call(id, "bash", { activity: "Looking" }, { exitCode: 0 }),
+        call(
+          id,
+          "choose",
+          { questions: [] },
+          { asked: true },
+          "output-available",
+        ),
+        said(id, "Two questions for you above."),
+      ]),
+    ];
+    expect(
+      turnsOf(question, { isRunning: false }, cache)[0]?.foldedRowIds.size,
+    ).toBe(0);
+    expect(
+      turnsOf(
+        [...question, typed("Actually, never mind")],
+        { isRunning: false },
+        cache,
+      )[0]?.foldedRowIds.size,
+    ).toBe(2);
+  });
+
+  it("keeps a question open through a task's wake until its answer is on the call, then folds the turn", () => {
+    const turn = (output: unknown) =>
+      turnsOf(
+        [
+          typed("Plan the trip"),
+          message("assistant", (id) => [
+            call(id, "bash", { activity: "Looking" }, { exitCode: 0 }),
+            call(id, "choose", { questions: [] }, output, "output-available"),
+          ]),
+          message("user", (id) => [
+            {
+              data: { events: [] },
+              metadata: meta(id),
+              type: "data-taskEvent",
+            } as SessionMessagePart.Type,
+          ]),
+          message("assistant", (id) => [said(id, "The flights are in.")]),
+        ],
+        { isRunning: false },
+      )[0];
+    expect(turn({ asked: true })?.foldedRowIds.size).toBe(0);
+    expect(
+      turn({
+        answer: { replies: [{ picked: ["Friday"] }] },
+        asked: true,
+      })?.foldedRowIds.size,
+    ).toBe(2);
+  });
 
   it.each([
     ["connecting", ["notion"], [["connected", "notion"]], true],
@@ -844,20 +1055,74 @@ describe("the slot", () => {
       ],
       { isRunning: true },
     );
-    expect(turn && slotOf(turn)).toBeUndefined();
+    expect(turn && workCardOf(turn)).toBeUndefined();
   });
 
-  it("takes the card away when the agent speaks, so its words never move", () => {
-    const searched = (id: Parameters<typeof call>[0]) =>
-      call(id, "web_search", { activity: "Looking", query: "x" }, {});
-    const [speaking] = turnsOf(
+  it.each([true, false])(
+    "says whether a written file is new (%s), once the call has said",
+    (isNewFile) => {
+      const [turn] = turnsOf(
+        [
+          typed("Do the thing"),
+          message("assistant", (id) => [
+            call(
+              id,
+              "write_file",
+              { content: "a", filePath: "/a.md" },
+              { filePath: "/a.md", isNewFile },
+            ),
+          ]),
+        ],
+        { isRunning: true },
+      );
+      const shows = turn && workCardOf(turn)?.steps.at(-1)?.shows;
+      expect(shows?.kind === "file" && shows.isNew).toBe(isNewFile);
+    },
+  );
+
+  it.each([
+    ["a short file whole", "# Title\nfirst", "# Title\nfirst"],
+    [
+      "the end of a long one from its first whole line",
+      `${"x".repeat(2000)}\nlast line`,
+      "last line",
+    ],
+  ])("shows %s as it is written", (_, content, words) => {
+    const [turn] = turnsOf(
       [
         typed("Do the thing"),
-        message("assistant", (id) => [searched(id), said(id, "Found it.")]),
+        message("assistant", (id) => [
+          call(
+            id,
+            "write_file",
+            { content, filePath: "/a.md" },
+            undefined,
+            "input-streaming",
+          ),
+        ]),
       ],
       { isRunning: true },
     );
-    expect(speaking && slotOf(speaking)).toBeUndefined();
+    const shows = turn && workCardOf(turn)?.steps.at(-1)?.shows;
+    expect(shows?.kind === "file" && shows.words).toBe(words);
+  });
+
+  it("holds the card through what the agent says while it works, and until the fold once the turn ends", () => {
+    const searched = (id: Parameters<typeof call>[0]) =>
+      call(id, "web_search", { activity: "Looking", query: "x" }, {});
+    const spoke = [
+      typed("Do the thing"),
+      message("assistant", (id) => [searched(id), said(id, "Found it.")]),
+    ];
+    const [speaking] = turnsOf(spoke, { isRunning: true });
+    expect(speaking && workCardOf(speaking)?.kind).toBe("web");
+    const [ended] = turnsOf(spoke, { isRunning: false });
+    expect(
+      ended && ended.foldedRowIds.size > 0 && workCardOf(ended)?.kind,
+    ).toBe("web");
+    expect(
+      ended && workCardOf({ ...ended, foldedRowIds: new Set() }),
+    ).toBeUndefined();
     const [movedOn] = turnsOf(
       [
         typed("Do the thing"),
@@ -875,7 +1140,49 @@ describe("the slot", () => {
       ],
       { isRunning: true },
     );
-    expect(movedOn && slotOf(movedOn)?.kind).toBe("files");
+    expect(movedOn && workCardOf(movedOn)?.kind).toBe("files");
+  });
+
+  it("draws a task's card from its call as it arrives, under the call's id once the task exists", () => {
+    const task = StoreId.newSessionId();
+    const step = StoreId.newPartId();
+    const startedBy = (
+      output: Record<string, unknown> | undefined,
+      state?: SessionMessagePart.ToolPart["state"],
+    ) =>
+      message("assistant", (id) => {
+        const bash = call(
+          id,
+          "bash",
+          {
+            activity: "Starting a task",
+            command: "instrument task new --name 'Price check' <<'EOF'",
+          },
+          output,
+          state,
+        );
+        return [
+          { ...bash, metadata: { ...bash.metadata, id: step } },
+        ] as SessionMessagePart.Type[];
+      });
+    const rowsAt = (
+      output: Record<string, unknown> | undefined,
+      state?: SessionMessagePart.ToolPart["state"],
+    ) =>
+      turnsOf([typed("Check prices"), startedBy(output, state)], {
+        isRunning: true,
+      })[0]?.rows.map((row) =>
+        row.kind === "task"
+          ? { id: row.id, name: row.name, sessionId: row.sessionId }
+          : row.kind,
+      );
+    expect(rowsAt(undefined, "input-streaming")).toStrictEqual([
+      { id: step, name: "Price check", sessionId: undefined },
+    ]);
+    expect(
+      rowsAt({ exitCode: 0, handOffs: [{ kind: "created", sessionId: task }] }),
+    ).toStrictEqual([{ id: step, name: undefined, sessionId: task }]);
+    expect(rowsAt({ exitCode: 1 })).toStrictEqual(["activity"]);
   });
 
   it("gives way to a task's card, which carries its own", () => {
@@ -895,7 +1202,37 @@ describe("the slot", () => {
       ],
       { isRunning: true },
     );
-    expect(turn && slotOf(turn)).toBeUndefined();
+    expect(turn && workCardOf(turn)).toBeUndefined();
+  });
+
+  it("keeps one card up across a message sent mid-turn", () => {
+    const wrote = (id: Parameters<typeof call>[0], filePath: string) =>
+      call(id, "write_file", { activity: "Writing", content: "a", filePath });
+    const midTurn = message("user", (id) => [
+      said(id, "Also this"),
+      {
+        data: { text: MID_TURN_NOTE },
+        metadata: meta(id),
+        type: "data-intent",
+      } as SessionMessagePart.Type,
+    ]);
+    const before = [
+      typed("Do the thing"),
+      message("assistant", (id) => [wrote(id, "/a.md")]),
+      midTurn,
+    ];
+    const cardIn = (after: Parameters<typeof turnsOf>[0]) => {
+      const turns = turnsOf([...before, ...after], { isRunning: true });
+      return turns.findIndex((turn) => turn.id === workCardTurnOf(turns));
+    };
+    expect(cardIn([])).toBe(0);
+    expect(cardIn([message("assistant", (id) => [wrote(id, "/b.md")])])).toBe(
+      1,
+    );
+    // Words in the turn still working leave the card where it was.
+    expect(cardIn([message("assistant", (id) => [said(id, "On it.")])])).toBe(
+      0,
+    );
   });
 
   it("says a message is waiting while a step goes on above it", () => {
@@ -943,7 +1280,7 @@ describe("the slot", () => {
     },
   );
 
-  it("takes a card away with its activity, so a page left behind stays behind", () => {
+  describe("between activities", () => {
     const browsed = (id: Parameters<typeof call>[0]) =>
       call(
         id,
@@ -951,28 +1288,156 @@ describe("the slot", () => {
         { activity: "Browsing", command: "agent-browser open a.example" },
         { exitCode: 0 },
       );
-    const [browsing] = turnsOf(
-      [typed("Do the thing"), message("assistant", (id) => [browsed(id)])],
-      { isRunning: true },
+    const addingUp = (id: Parameters<typeof call>[0], activity = "Adding up") =>
+      call(
+        id,
+        "bash",
+        { activity, command: "sleep 5" },
+        undefined,
+        "input-available",
+      );
+    const cardAfter = (
+      ...parts: ((id: StoreId.Message) => SessionMessagePart.Type)[]
+    ) => {
+      const [turn] = turnsOf(
+        [
+          typed("Do the thing"),
+          message("assistant", (id) => parts.map((part) => part(id))),
+        ],
+        { isRunning: true },
+      );
+      return turn && workCardOf(turn);
+    };
+
+    it("keeps the card of the activity before while a new one has nothing to show", () => {
+      expect(cardAfter(browsed)?.kind).toBe("page");
+      expect(cardAfter(browsed, addingUp)?.kind).toBe("page");
+    });
+
+    it("keeps it through several activities with nothing to show", () => {
+      expect(
+        cardAfter(browsed, addingUp, (id) => addingUp(id, "Checking"))?.kind,
+      ).toBe("page");
+    });
+
+    it("gives way to the first card the new activity has", () => {
+      expect(
+        cardAfter(browsed, addingUp, (id) =>
+          call(id, "write_file", {
+            activity: "Writing",
+            content: "a",
+            filePath: "/a.md",
+          }),
+        )?.kind,
+      ).toBe("files");
+    });
+
+    it("holds through what the agent says between them", () => {
+      const spoke = (id: StoreId.Message) => said(id, "Now the next page.");
+      expect(cardAfter(browsed, spoke)?.kind).toBe("page");
+      expect(cardAfter(browsed, spoke, addingUp)?.kind).toBe("page");
+    });
+
+    it("goes for a task's card, and doesn't come back for an activity after it", () => {
+      const started = (id: StoreId.Message) =>
+        call(
+          id,
+          "bash",
+          { command: "task new" },
+          {
+            exitCode: 0,
+            handOffs: [{ kind: "created", sessionId: StoreId.newSessionId() }],
+          },
+        );
+      expect(cardAfter(browsed, started, addingUp)).toBeUndefined();
+    });
+
+    it("holds across a wake", () => {
+      const [turn] = turnsOf(
+        [
+          typed("Do the thing"),
+          message("assistant", (id) => [browsed(id)]),
+          message("user", (id) => [
+            {
+              data: { date: "2026-11-06" },
+              metadata: meta(id),
+              type: "data-dateChange",
+            } as SessionMessagePart.Type,
+          ]),
+          message("assistant", (id) => [addingUp(id)]),
+        ],
+        { isRunning: true },
+      );
+      expect(turn && workCardOf(turn)?.kind).toBe("page");
+    });
+  });
+
+  describe("words still arriving with nothing in them", () => {
+    const searched = (id: Parameters<typeof call>[0]) =>
+      call(id, "web_search", { activity: "Looking", query: "x" }, {});
+
+    it.each(["", "  \n", "```", "~~~"])(
+      "leave the card and the working line as they were for %j",
+      (text) => {
+        const [turn] = turnsOf(
+          [
+            typed("Do the thing"),
+            message("assistant", (id) => [
+              searched(id),
+              said(id, text, "streaming"),
+            ]),
+          ],
+          { isRunning: true },
+        );
+        expect(turn && shape(turn)).toEqual(["activity: Looking x1"]);
+        expect(turn && workCardOf(turn)?.kind).toBe("web");
+        expect(turn?.live?.kind).toBe("activity");
+      },
     );
-    expect(browsing && slotOf(browsing)?.kind).toBe("page");
-    const [movedOn] = turnsOf(
-      [
-        typed("Do the thing"),
-        message("assistant", (id) => [
-          browsed(id),
-          call(
-            id,
-            "bash",
-            { activity: "Adding it up", command: "sleep 5" },
-            undefined,
-            "input-available",
-          ),
-        ]),
-      ],
-      { isRunning: true },
-    );
-    expect(movedOn && slotOf(movedOn)).toBeUndefined();
+
+    it("draw no row and leave Thinking up before there is any work", () => {
+      const [turn] = turnsOf(
+        [
+          typed("Do the thing"),
+          message("assistant", (id) => [said(id, "", "streaming")]),
+        ],
+        { isRunning: true },
+      );
+      expect(turn?.rows).toEqual([]);
+      expect(turn?.live?.kind).toBe("thinking");
+    });
+
+    it("let the next call join the activity it follows", () => {
+      const [turn] = turnsOf(
+        [
+          typed("Do the thing"),
+          message("assistant", (id) => [
+            searched(id),
+            said(id, "\n", "streaming"),
+            searched(id),
+          ]),
+        ],
+        { isRunning: true },
+      );
+      expect(turn && shape(turn)).toEqual(["activity: Looking x2"]);
+    });
+
+    it("give way to the row of the first words, under the same id", () => {
+      const going = message("assistant", (id) => [
+        searched(id),
+        said(id, "Found", "streaming"),
+      ]);
+      const [turn] = turnsOf([typed("Do the thing"), going], {
+        isRunning: true,
+      });
+      expect(turn && shape(turn)).toEqual([
+        "activity: Looking x1",
+        "text: Found",
+      ]);
+      expect(turn?.rows[1]?.id).toBe(going.parts[1]?.metadata.id);
+      expect(turn && workCardOf(turn)?.kind).toBe("web");
+      expect(turn?.live?.kind).toBe("writing");
+    });
   });
 
   it("shows a file a command changed, from what the disk told", () => {
@@ -1011,9 +1476,12 @@ describe("the slot", () => {
       ],
       { isRunning: true },
     );
-    const card = turn && slotOf(turn);
+    const card = turn && workCardOf(turn);
     expect(card?.kind).toBe("files");
-    expect(card?.changedFile).toBe("/work/report.csv");
+    expect(card?.changedFile).toEqual({
+      isNew: true,
+      path: "/work/report.csv",
+    });
     const row = turn?.rows[0];
     expect(row?.kind === "activity" && row.counts).toEqual([
       { count: 9, label: "rows added" },
@@ -1057,7 +1525,7 @@ describe("the slot", () => {
       ],
       { isRunning: true },
     );
-    expect(turn && slotOf(turn)).toBeUndefined();
+    expect(turn && workCardOf(turn)).toBeUndefined();
   });
 });
 
@@ -1109,6 +1577,18 @@ describe("what a step carries", () => {
       kind: "fetch",
       url: "https://a.example",
     });
+    // A page's own title wins over a heading its navigation hides from sight.
+    expect(
+      stepOf(
+        { url: "https://a.example" },
+        {
+          state: "success",
+          text: "## Navigation Menu\n\n# repo\n\nA tool",
+          title: "owner/repo: A tool",
+        },
+        "web_fetch",
+      )?.shows,
+    ).toMatchObject({ kind: "fetch", title: "owner/repo: A tool" });
   });
 
   it.each([

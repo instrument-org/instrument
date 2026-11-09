@@ -102,7 +102,7 @@ async function replyFollowedByAReader() {
   const reading = new AbortController();
   const events = await call(
     message.live.feed,
-    { id: chatId, isDeveloperMode: false, sessionId },
+    { id: chatId, sessionId },
     {
       context: {
         workspaceConfig: getWorkspaceConfig(),

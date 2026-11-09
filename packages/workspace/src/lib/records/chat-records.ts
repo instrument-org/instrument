@@ -19,6 +19,7 @@ import { type Session } from "../../schemas/session";
 import { type SessionMessage } from "../../schemas/session/message";
 import { SessionMessagePart } from "../../schemas/session/message-part";
 import { type StoreId } from "../../schemas/store-id";
+import { isDeveloperNotePart } from "../data-part-visibility";
 import { getCurrentDate } from "../get-current-date";
 import { isToolPart } from "../is-tool-part";
 import { recordChanged, recordMessageChanged } from "../record-changes";
@@ -241,6 +242,8 @@ export class ChatRecords {
   #live = new Map<ChatId, Map<StoreId.Session, LiveState>>();
   readonly #now: () => Date;
   readonly #onError: (error: unknown) => void;
+  /** Chats being trashed, which take no reads or writes (`refuse`). */
+  #refused = new Set<ChatId>();
   /** Chats whose interrupted calls this process has settled. */
   #swept = new Set<ChatId>();
   #throttles = new Map<string, LiveThrottle>();
@@ -312,6 +315,19 @@ export class ChatRecords {
       await settled(chat);
       await this.#commitAll(chat);
     }
+  }
+
+  /**
+   * Lets the chat go as `close` does, then refuses every read and write of
+   * it until the returned release: for a chat whose folder is on its way to
+   * the trash, which a late write would otherwise make again.
+   */
+  async refuse(chatId: ChatId): Promise<() => void> {
+    this.#refused.add(chatId);
+    await this.close(chatId);
+    return () => {
+      this.#refused.delete(chatId);
+    };
   }
 
   /** Lands and syncs every chat's writes, and takes no more. */
@@ -971,7 +987,7 @@ export class ChatRecords {
     const { id, messageId, sessionId } = part.metadata;
     const at = this.#now();
     return this.#log(chat, sessionId, {
-      at,
+      ...(!isDeveloperNotePart(part) && { at }),
       changed: () =>
         recordMessageChanged(chat.id, {
           id: messageId,
@@ -1015,7 +1031,8 @@ export class ChatRecords {
       hold,
       record,
     }: {
-      at: Date;
+      /** When the session was last active, for a record that says it was. */
+      at?: Date;
       changed: () => void;
       commit?: boolean;
       hold: (
@@ -1027,7 +1044,9 @@ export class ChatRecords {
   ): Promise<void> {
     requireSession(chat, sessionId);
     const pending = pendingOf(chat, sessionId);
-    pending.at = Math.max(pending.at, at.getTime());
+    if (at !== undefined) {
+      pending.at = Math.max(pending.at, at.getTime());
+    }
     const release = hold(pending, this.#nextTicket());
     changed();
     const file = this.#logFile(chat, sessionId);
@@ -1212,6 +1231,9 @@ export class ChatRecords {
   ): Promise<T> {
     if (this.#disposed) {
       return Promise.reject(new Error("The chat records are closed"));
+    }
+    if (this.#refused.has(chatId)) {
+      return Promise.reject(new Error("The chat is being deleted"));
     }
     const entry = this.#entry(chatId);
     entry.lastUsed = ++this.#uses;
@@ -1439,7 +1461,11 @@ export class ChatRecords {
       delete throttle.timer;
       throttle.published = performance.now();
       for (const id of throttle.changed) {
-        recordMessageChanged(chatId, { id, removed: false, sessionId });
+        recordMessageChanged(
+          chatId,
+          { id, removed: false, sessionId },
+          { live: true },
+        );
       }
       throttle.changed.clear();
     };

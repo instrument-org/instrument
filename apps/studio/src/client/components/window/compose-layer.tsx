@@ -1,39 +1,33 @@
-import { useHoldWindow } from "@/client/hooks/use-hold-window";
 import { type Draft, draftGroupOf } from "@/shared/drafts";
-import { composeKeyOf } from "@/client/atoms/window";
 import { type AIGatewayModelURI } from "@instrument-org/ai-gateway/client";
 import {
   type SessionMessageDataPart,
   type ChatId,
 } from "@instrument-org/workspace/client";
-import { useAtomValue } from "jotai";
-import { AnimatePresence, motion } from "motion/react";
-import { useEffect, useEffectEvent, useRef } from "react";
+import { AnimatePresence } from "motion/react";
+import { useQuery } from "@tanstack/react-query";
+import { useEffect } from "react";
 
-import { appTabsAtom } from "./app-tabs";
 import { type BrowserTabsHandle } from "./browser-tabs";
+import { chatListOptions } from "./chat-list-query";
 import { ChatBar, ChatWindow } from "./chat-window";
-import { type Chat, type Project } from "./chats";
-import { COMPOSE_MOTION } from "./compose-layout";
+import { type Project } from "./chats";
 import { ComposeBar, ComposeWindow, type DraftSend } from "./compose-window";
+import { type ContextItem } from "./context-items";
 import { type useCompose } from "./use-compose";
-import { parseHref } from "./window-href";
 
 /**
  * The windows floating over the row: the drafts being written, each in its
- * window at its place along the foot or as the bar it was put down to, and
- * the chats in their small views beside them. Laid over the whole row and
+ * window at its place along the foot, and the chats in their small views
+ * beside them, or the bars they were put down to. Laid over the whole row and
  * letting the pointer through everywhere but the windows, so the inbox, the
- * chat and the places stay in reach beside them. A window or a bar
- * arrives and leaves with a motion of its own, so a draft opening is seen
- * to open; a draft becoming a chat keeps its window, since it is the same
- * window in the same corner. A grown draft's window stands over a scrim that holds
- * the rest of the window still, like a dialog: pressing the scrim or Escape
- * shrinks it back to the foot.
+ * chat and the places stay in reach beside them. A window or a bar arrives
+ * and leaves with a motion of its own, so a draft opening is seen to open; a
+ * draft becoming a chat keeps its window, since it is the same window in the
+ * same corner.
  */
 export function ComposeLayer({
   browser,
-  chats,
   compose,
   drafts,
   modelURI,
@@ -42,6 +36,7 @@ export function ComposeLayer({
   onCloseDraft,
   onDiscardDraft,
   onExpandChat,
+  onExpandDraft,
   onModelChange,
   onNewChatProject,
   onNewProject,
@@ -52,7 +47,6 @@ export function ComposeLayer({
   projects,
 }: {
   browser: BrowserTabsHandle | null;
-  chats: Chat[];
   compose: ReturnType<typeof useCompose>;
   drafts: Draft[];
   modelURI: AIGatewayModelURI.Type | undefined;
@@ -65,6 +59,8 @@ export function ComposeLayer({
   onDiscardDraft: (id: string) => void;
   /** A popped-out chat expanded: the window goes and the chat comes up in a tab of the window's own, its pane open when asked. */
   onExpandChat: (chatId: ChatId, options: { showsPane: boolean }) => void;
+  /** A draft's window expanded: the window goes and the draft comes up in the Chat screen, written there in full. */
+  onExpandDraft: (id: string) => void;
   onModelChange: (modelURI: AIGatewayModelURI.Type) => void;
   /** A project asked for from a draft's head, with what was typed: the project it makes files that draft. */
   /** Makes a project from a popped-out chat's head, filing that chat under it. */
@@ -72,12 +68,11 @@ export function ComposeLayer({
   onNewProject: (draftId: string, name: string) => void;
   onSetChatProject: (chatId: ChatId, project: null | string) => void;
   onStart: (id: string, send: DraftSend) => void;
-  /** What goes with a reply sent from a chat's small view: what the window has up behind it. */
+  /** What goes with a reply sent from a chat's small view: what the person took from what the window has behind it. */
   sendContext: (options: {
-    isViewOpen: boolean;
-    isPoppedOut: boolean;
     chatId: ChatId;
-    leftOut: readonly string[];
+    isViewOpen: boolean;
+    taken: readonly ContextItem[];
   }) => Promise<SessionMessageDataPart.ViewContextDataPart | undefined>;
   /** What each chat being started from a draft sent, by the chat: its window shows the words until its transcript has them. */
   sentWords: ReadonlyMap<ChatId, string>;
@@ -102,77 +97,18 @@ export function ComposeLayer({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [orphanKey]);
 
-  // Only a draft grows; a chat expands into a tab of its own.
-  const grown = compose.placed.find(
-    (entry) => entry.kind === "draft" && entry.placement === "expanded",
+  // The rows of the chats placed here, so another chat moving draws nothing.
+  const placedIds = compose.placed.flatMap((entry) =>
+    entry.kind === "chat" ? [entry.chatId] : [],
   );
-  const isGrown = grown !== undefined;
-  const shrink = () => {
-    if (grown) {
-      compose.setPlacement(composeKeyOf(grown), "docked");
-    }
-  };
-  // Grown over the row, a window holds the tab behind it like a dialog: back
-  // and Cmd+W shrink it back to the foot, as Escape and the scrim do.
-  useHoldWindow(grown !== undefined, { onClose: shrink });
-  // Held like that, the tab behind moves only for something asked for from
-  // the grown window (a file shown in its folder, a link to another chat or
-  // a place), which comes up there; the window shrinks back to the foot so
-  // the person sees it arrive.
-  const appTabs = useAtomValue(appTabsAtom);
-  const upHref = appTabs.tabs.find(
-    (tab) => tab.id === appTabs.selectedId,
-  )?.pathname;
-  const behindKey = `${appTabs.selectedId ?? ""} ${upHref === undefined ? "" : parseHref(upHref).pathname}`;
-  const shrinkEvent = useEffectEvent(shrink);
-  const behindWhenGrown = useRef<string>(undefined);
-  useEffect(() => {
-    if (!isGrown) {
-      behindWhenGrown.current = undefined;
-      return;
-    }
-    if (behindWhenGrown.current === undefined) {
-      behindWhenGrown.current = behindKey;
-    } else if (behindWhenGrown.current !== behindKey) {
-      shrinkEvent();
-    }
-  }, [behindKey, isGrown]);
+  const { data: chats = [] } = useQuery({
+    ...chatListOptions(),
+    select: (listed) => listed.filter((chat) => placedIds.includes(chat.id)),
+  });
 
   return (
-    <div
-      className="pointer-events-none absolute inset-0 z-40"
-      // Bubbled from inside the windows, so a menu or a picker that took its
-      // own Escape (and marked it handled) is closed first. The prompt editor
-      // marks every Escape handled whether it did anything or not, and stops
-      // the one that closed its menu, so one that arrives from it is free.
-      onKeyDown={(event) => {
-        if (
-          grown &&
-          event.key === "Escape" &&
-          (!event.defaultPrevented ||
-            (event.target instanceof Element &&
-              event.target.closest(".ProseMirror") !== null))
-        ) {
-          event.preventDefault();
-          shrink();
-        }
-      }}
-    >
+    <div className="pointer-events-none absolute inset-0 z-40">
       <AnimatePresence initial={false}>
-        {/* Over the bars along the foot and under the grown window, which is
-          drawn after it on the same layer. */}
-        {grown && (
-          <motion.div
-            animate={{ opacity: 1 }}
-            className="pointer-events-auto absolute inset-0 z-41 bg-black/20 dark:bg-black/50"
-            data-slot="compose-scrim"
-            exit={{ opacity: 0 }}
-            initial={{ opacity: 0 }}
-            key="scrim"
-            onClick={shrink}
-            transition={COMPOSE_MOTION}
-          />
-        )}
         {compose.placed.map((entry) => {
           if (entry.kind === "chat") {
             const { chatId } = entry;
@@ -215,9 +151,7 @@ export function ComposeLayer({
                   onSetChatProject(chatId, next);
                 }}
                 right={entry.right}
-                sendContext={(options) =>
-                  sendContext({ ...options, chatId, isPoppedOut: true })
-                }
+                sendContext={(options) => sendContext({ ...options, chatId })}
                 sentWords={sentWords.get(chatId)}
                 chatId={chatId}
                 projects={projects}
@@ -262,17 +196,19 @@ export function ComposeLayer({
               onDiscard={() => {
                 onDiscardDraft(draft.id);
               }}
+              onExpand={() => {
+                onExpandDraft(draft.id);
+              }}
+              onMinimize={() => {
+                compose.setPlacement(key, "bar");
+              }}
               onModelChange={onModelChange}
               onNewProject={(name) => {
                 onNewProject(draft.id, name);
               }}
-              onPlacementChange={(placement) => {
-                compose.setPlacement(key, placement);
-              }}
               onStart={(send) => {
                 onStart(draft.id, send);
               }}
-              placement={entry.placement}
               right={entry.right}
               projects={projects}
               width={entry.width}

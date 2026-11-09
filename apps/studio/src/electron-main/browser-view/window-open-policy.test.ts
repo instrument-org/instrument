@@ -2,8 +2,10 @@ import { type HandlerDetails } from "electron";
 import { describe, expect, it } from "vitest";
 
 import {
+  agentPopupTabOf,
   guestWindowOpenHandler,
   newTabOpenOf,
+  newWindowOpenOf,
   sameTabNavigationUrl,
 } from "./window-open-policy";
 
@@ -43,9 +45,9 @@ describe("guestWindowOpenHandler", () => {
     width: number;
   }[] = [
     {
-      features: "",
+      features: "popup",
       height: 720,
-      name: "no features -> fallback size",
+      name: "no size -> fallback size",
       width: 520,
     },
     {
@@ -83,9 +85,48 @@ describe("guestWindowOpenHandler", () => {
 
   it("allows plain http popups", () => {
     expect(
-      guestWindowOpenHandler(details({ url: "http://example.test/oauth" }))
-        .action,
+      guestWindowOpenHandler(
+        details({ features: "popup", url: "http://example.test/oauth" }),
+      ).action,
     ).toBe("allow");
+  });
+
+  it("opens no popup for a Shift-click, which names no features", () => {
+    expect(guestWindowOpenHandler(details({})).action).toBe("deny");
+  });
+});
+
+describe("newWindowOpenOf", () => {
+  it.each([
+    {
+      expected: { url: "https://example.com/next" },
+      name: "a Shift-click to the web",
+      overrides: { url: "https://example.com/next" },
+    },
+    {
+      expected: null,
+      name: "a popup, which names its size",
+      overrides: { features: "width=480,height=640" },
+    },
+    {
+      expected: null,
+      name: "a named window",
+      overrides: { frameName: "signin" },
+    },
+    {
+      expected: null,
+      name: "a tab-open",
+      overrides: { disposition: "foreground-tab" as const },
+    },
+    {
+      expected: null,
+      name: "a file from a web page",
+      overrides: { url: "file:///etc/passwd" },
+    },
+  ])("opens a window for $name: $expected", ({ expected, overrides }) => {
+    expect(newWindowOpenOf(details(overrides), "https://example.com/")).toEqual(
+      expected,
+    );
   });
 });
 
@@ -182,5 +223,41 @@ describe("newTabOpenOf", () => {
     overrides: Partial<HandlerDetails>;
   }[])("reads $name", ({ expected, from, overrides }) => {
     expect(newTabOpenOf(details(overrides), from)).toEqual(expected);
+  });
+});
+
+describe("agentPopupTabOf", () => {
+  it.each([
+    {
+      expected: "https://accounts.google.com/o/oauth2/auth",
+      name: "a popup to the web",
+      overrides: { features: "width=500,height=600" },
+    },
+    {
+      expected: "https://help.example.com/chat",
+      name: "a named popup with no features",
+      overrides: { frameName: "help", url: "https://help.example.com/chat" },
+    },
+    {
+      expected: null,
+      name: "a Shift-click, which is the person's",
+      overrides: {},
+    },
+    {
+      expected: null,
+      name: "a target=_blank link",
+      overrides: { disposition: "foreground-tab" },
+    },
+    {
+      expected: null,
+      name: "a popup to a file",
+      overrides: { features: "popup", url: "file:///etc/hosts" },
+    },
+  ] satisfies {
+    expected: null | string;
+    name: string;
+    overrides: Partial<HandlerDetails>;
+  }[])("reads $name", ({ expected, overrides }) => {
+    expect(agentPopupTabOf(details(overrides))).toBe(expected);
   });
 });

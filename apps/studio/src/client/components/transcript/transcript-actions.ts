@@ -6,20 +6,15 @@ import { type RunAgain } from "../message-error";
 
 /** What a row calls back with, and what it reads of the session's state. */
 export interface TranscriptActions {
-  isDeveloperMode: boolean;
   isRunning: boolean;
+  /** Starts a new chat with the conversation up to `upTo`, a reply's last message; only a chat's own transcript can. */
+  onBranch?: (upTo: StoreId.Message) => Promise<void>;
   onModelChange?: (modelURI: AIGatewayModelURI.Type) => void;
   onRetry: (prompt: string) => void;
   onRunAgain?: RunAgain;
 }
 
 export const TranscriptActionsContext = createContext<TranscriptActions>({
-  isDeveloperMode: false,
   isRunning: false,
   onRetry: () => {},
 });
-
-/** What the model heard of each `state` part, for the notes developers see. */
-export const StateNotesContext = createContext<
-  ReadonlyMap<StoreId.Part, string>
->(new Map());

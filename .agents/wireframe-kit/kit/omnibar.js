@@ -1,9 +1,34 @@
 // ---- the omnibar and the location row ---------------------------------------------
 // The field every place puts its address in (tab-location-row.tsx, omnibar.tsx,
 // folding-trail.tsx), and the 40px row it stands in over a page, a file or a pane.
-// Measured 2026-10-31: the field runs the row's whole width; a page says its host
-// quiet and the rest loud; a folder or file walks its path as crumbs that fold their
-// middle into ··· when the field runs short; the Mac app it opens in sits at its end.
+// Re-measured 2026-11-07: the row is 44px; the field is a 32px well a shade darker than
+// the row (white with a firmer ring while typing) and runs the row's whole width; a page
+// says its host quiet and the rest loud; a folder or file walks its path as crumbs that
+// fold their middle into ··· when the field runs short; the Mac app it opens in sits at
+// its end. Every control around it is framed the same way (toolbar-control.ts): a 32px
+// card with a hairline ring and 12px corners, several of them (back, forward, reload)
+// sharing one frame as bare 28px glyphs.
+
+/** The frame every control around the row stands on (TOOLBAR_SURFACE_CLASSNAME). */
+const TOOL_SURFACE = "h-8 rounded-xl bg-card text-foreground/70 shadow-[0_1px_2px_rgb(0_0_0/0.04)] ring-1 ring-border";
+
+/** A bare 28px glyph inside a shared frame (TabRowControl); `dim` for one that can't be pressed. */
+const toolGlyph = (icon, { dim = false } = {}) =>
+  `<span class="grid size-7 shrink-0 place-items-center rounded-lg ${dim ? "text-foreground/25" : "text-foreground/60"}"><i class="ph ph-${icon} text-[16px]"></i></span>`;
+
+/** Several controls framed as one (TOOLBAR_GROUP_CLASSNAME): back, forward and reload, or the extensions' buttons. `inner` is finished HTML, usually toolGlyphs. */
+const toolGroup = (inner) => `<span class="flex shrink-0 items-center gap-0.5 px-0.5 ${TOOL_SURFACE}">${inner}</span>`;
+
+/** A framed 32px icon button (TOOLBAR_ICON_BUTTON_CLASSNAME): a page's ⋮, Files' ··· and search. */
+const toolIcon = (icon) => `<span class="grid size-8 shrink-0 place-items-center ${TOOL_SURFACE}"><i class="ph ph-${icon} text-[16px]"></i></span>`;
+
+/** Ask framed like the row's other buttons (file-ask-button.tsx), the mark saying who it asks; `label` false for the mark alone, as a narrow row draws it. */
+const askFramed = (label = true) =>
+  `<span class="flex shrink-0 items-center gap-1.5 ${label ? "px-2.5" : "px-1.5"} text-[13px] font-medium text-foreground ${TOOL_SURFACE}">${brand("instrumentglyph", "size-3.5")}${label ? "Ask" : ""}</span>`;
+
+/** The browser's extensions (browser-extension-buttons.tsx): the pinned ones' marks (HTML) and the puzzle piece, in one frame. With none installed the puzzle piece stands alone. */
+const extensionsPill = (marks = []) =>
+  toolGroup(`${marks.map((m) => `<span class="grid size-7 shrink-0 place-items-center">${m}</span>`).join("")}${toolGlyph("puzzle-piece")}`);
 
 /**
  * The omnibar's field. `t` is what it stands on: a tab (see tabMark) for a page, a
@@ -11,15 +36,16 @@
  * folder or file walks (the place last), `fold` folds the crumbs before that index
  * into ···, and `mark` overrides the mark leading it. `focus` draws it pressed, the
  * whole address selected the way clicking into it does; `typed` draws words being
- * typed with the caret after them (its menu is omniMenu). `size` is 7 (28px, the
- * location row's) or 8 (32px, Files' row); `end` replaces the open-in icon.
+ * typed with the caret after them (its menu is omniMenu). `size` is kept for older
+ * parts and ignored, since every row's field is 32px; `end` replaces the open-in icon.
  */
 const omnibar = (
   t,
-  { crumbs, fold = 0, mark, focus = false, typed = "", ph, size = 7, end, url } = {},
+  { crumbs, fold = 0, mark, focus = false, typed = "", ph, size = 8, end, url } = {},
 ) => {
-  const text = size === 8 ? "text-[13px]" : "text-xs";
-  const box = `flex ${size === 8 ? "h-8" : "h-7"} min-w-0 flex-1 items-center gap-2 rounded-full border bg-card px-3 ${text} shadow-xs ${focus || typed ? "border-transparent ring-2 ring-brand-500/45" : "border-border"}`;
+  // Every row's field is 32px now; `size` stays for parts that pass it.
+  void size;
+  const box = `flex h-8 min-w-0 flex-1 items-center gap-2 rounded-xl px-3 text-[13px] ring-1 ${focus || typed ? "bg-card ring-foreground/20" : "bg-[color-mix(in_oklab,var(--color-foreground)_4.5%,var(--color-background))] ring-foreground/[0.06]"}`;
   const kind = t?.site ? "site" : t?.file ? FILES[t.file].kind : t?.folder ? "folder" : "";
   const tail = end ?? (kind ? openIn(kind) : "");
   if (typed)
@@ -35,8 +61,8 @@ const omnibar = (
     return `<div class="${box}"><span class="min-w-0 flex-1 truncate"><span class="bg-[#b4d5fe]">${path}</span></span>${tail}</div>`;
   }
   const path = crumbs ?? (t.file ? ["mac-user", "Instrument", FILES[t.file].title] : ["mac-user", t.folder]);
-  const lead = mark ?? (t.file ? fileMark(FILES[t.file].kind, size === 8 ? "text-[14px]" : "text-[13px]") : fileMark("folder", "text-[15px]"));
-  const sep = `<i class="ph ph-caret-right shrink-0 text-[11px] text-muted-foreground/50"></i>`;
+  const lead = mark ?? (t.file ? fileMark(FILES[t.file].kind, "text-[14px]") : fileMark("folder", "text-[15px]"));
+  const sep = `<i class="ph ph-caret-right shrink-0 text-[12px] text-muted-foreground/50"></i>`;
   const parts = path.map((c, i) =>
     i === path.length - 1
       ? `<span class="shrink-0 px-1 text-foreground">${c}</span>`
@@ -64,20 +90,23 @@ const omniMenu = (rows, { left, top, w = 640, on = 0 } = {}) => `
   </div>`;
 
 /**
- * The 40px location row over a page or file (tab-location-row.tsx): `lead` (a proposal's
- * own controls), back and forward in a pane or peek (`close`), reload where the page
- * fills a window tab (`place`), the omnibar across the rest, Ask and the page's menu,
- * then Expand (a file's in a pane, or with `expand`) and the × that puts a pane away.
- * `omni` passes options to the omnibar (focus, typed, crumbs, fold, url).
+ * The 44px location row over a page, a file or a pane (tab-location-row.tsx): `lead` (a
+ * proposal's own controls, or a toggle at the far left), then back and forward in a pane
+ * (`close`) and reload where a page fills a window tab (`place`), framed together; the
+ * omnibar across the rest; then for a page the extensions (`extensions`, their marks);
+ * Ask (a site's only at the window's level, a file's anywhere); the ⋮; and Expand for a
+ * file in a pane (or with `expand`). `trail` goes
+ * last. `omni` passes options to the omnibar (focus, typed, crumbs, fold, url). A pane's
+ * × is in its tab strip now, not in this row.
  */
-const locRow = (t, { close = false, expand = false, place = false, lead = "", trail = "", omni = {} } = {}) => {
-  const btn = (i, dim = false) => `<span class="grid size-7 shrink-0 place-items-center rounded-md ${dim ? "text-foreground/25" : "text-foreground/60"}"><i class="ph ph-${i} text-[16px]"></i></span>`;
+const locRow = (t, { close = false, expand = false, place = false, lead = "", trail = "", omni = {}, extensions = [] } = {}) => {
   const isEmpty = !t || t.newtab || t.browser;
+  const nav = (close ? toolGlyph("arrow-left") + toolGlyph("arrow-right", { dim: true }) : "") + (place && !isEmpty ? toolGlyph("arrow-clockwise") : "");
   return `
-  <div class="flex h-10 shrink-0 items-center gap-1 border-b border-border bg-background px-2">
-    ${lead}${close ? btn("caret-left") + btn("caret-right", true) : ""}${place && !isEmpty ? btn("arrow-clockwise") : ""}
+  <div class="flex h-11 shrink-0 items-center gap-1.5 border-b border-border bg-background px-1.5">
+    ${lead}${nav ? toolGroup(nav) : ""}
     ${omnibar(t, omni)}
-    ${isEmpty ? "" : askButton(true) + btn("dots-three-vertical")}${trail}
-    ${close && (expand || t?.file) ? btn("arrows-out-simple") : ""}${close ? btn("x") : ""}
+    ${t?.site || t?.browser ? extensionsPill(extensions) : ""}${isEmpty || (t.site && close) ? "" : askFramed(true)}${(t && !t.newtab) ? toolIcon("dots-three-vertical") : ""}
+    ${close && (expand || t?.file) ? toolGroup(toolGlyph("arrows-out-simple")) : ""}${trail}
   </div>`;
 };

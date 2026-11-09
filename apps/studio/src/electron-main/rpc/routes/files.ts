@@ -388,6 +388,8 @@ const ClashSchema = z.object({
 
 const PlaceInputSchema = z.object({
   folder: HostPathSchema,
+  /** A copy into its own folder takes a number, as an Option-drag's does. */
+  numbersInPlace: z.boolean().optional(),
   paths: z.array(HostPathSchema).min(1).max(1000),
   /** The person's answer for each clash, by the source's path. */
   resolutions: z
@@ -460,6 +462,7 @@ function placeRoute(op: "copy" | "move") {
         await gatherPlaceRequest({
           answers: input.resolutions ?? {},
           folder: input.folder,
+          numbersInPlace: input.numbersInPlace,
           op,
           paths: input.paths,
           ...(input.replacing ? { replacing: input.replacing } : {}),

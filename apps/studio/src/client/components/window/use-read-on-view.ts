@@ -1,19 +1,22 @@
 import { rpcClient } from "@/client/rpc/client";
 import { type ChatId } from "@instrument-org/workspace/client";
 import { useMutation } from "@tanstack/react-query";
+import { useAtomValue } from "jotai";
 import { useEffect, useRef } from "react";
 
 import { readDelay } from "./read-on-view";
+import { tabCarryViewAtom } from "./tab-carry-view";
 
 /**
  * Marks the chat on screen read once it has really been looked at: up in its
  * tab, in a window on screen, for as long as `readDelay` asks. Hiding the
- * window pauses the wait and showing it starts it again.
+ * window pauses the wait and showing it starts it again. A window waiting beneath
+ * a tab's drag is on screen under another, and has not been looked at.
  */
 export function useReadOnView({
   chat,
   chatId,
-  isUp,
+  isUp: isTabUp,
 }: {
   /** The chat's unread mark as the list has it; absent until the list has the chat. */
   chat: undefined | { unread: boolean; unreadByUser: boolean };
@@ -25,6 +28,8 @@ export function useReadOnView({
   );
   const isUnread = chat?.unread === true;
   const isUnreadByUser = chat?.unreadByUser === true;
+  const isBeneath = useAtomValue(tabCarryViewAtom).kind === "beneath";
+  const isUp = isTabUp && !isBeneath;
   // How it was on the previous look, which tells arriving at the chat from
   // sitting on it. Null until the first look, which counts as an arrival.
   const wasUp = useRef<boolean | null>(null);

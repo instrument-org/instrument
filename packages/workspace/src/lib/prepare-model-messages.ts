@@ -25,7 +25,7 @@ import {
   usableContextTokens,
 } from "./context-budget";
 import { ChatWrites } from "./chat-writes";
-import { contextBudgetNotice } from "./context-budget-notice";
+import { contextBudgetNotice } from "../model-text/request/context-budget-notice";
 import { contextOverflowNeedsRollover } from "./context-overflow";
 import {
   dropRepeatingReplies,
@@ -37,9 +37,9 @@ import { filterUnsupportedMedia } from "./filter-unsupported-media";
 import {
   agentHandoffNotesPath,
   agentTranscriptPath,
-  contextRolloverNotice,
   readHandoffNotes,
 } from "./handoff-notes";
+import { contextRolloverNotice } from "../model-text/request/context-rollover-notice";
 import { modelChangeSincePreviousTurn } from "./model-change";
 import { modelWindow } from "./model-window";
 import { limitModelImages } from "./limit-model-images";
@@ -48,6 +48,7 @@ import { normalizeToolCallIds } from "./normalize-tool-call-ids";
 import { dropRefusedMedia, standingRefusals } from "./refused-media";
 import { chatDir } from "./record-folders";
 import { removeCrossModelReasoningDetails } from "./remove-cross-model-reasoning-details";
+import { searchesAsOurOwn } from "./searches-as-our-own";
 import { sanitizeModelText } from "./sanitize-model-text";
 import { sessionBaseline } from "./session-baseline";
 import { splitMultipartToolResults } from "./split-multipart-tool-results";
@@ -108,6 +109,70 @@ async function withRolloverDecision({
  * since the next request leaves it out or says it differently.
  */
 export const TRANSIENT = { instrument: { transient: true } };
+
+const REQUEST_NOTES = new WeakMap<
+  ModelMessage,
+  SessionMessageDataPart.RequestNoteDataPart
+>();
+
+/**
+ * A message said for this request alone, with what the session records of it:
+ * captured here where the text is added, rather than worked out again later.
+ */
+export function transientNote(
+  kind: SessionMessageDataPart.RequestNoteDataPart["kind"],
+  text: string,
+  status?: SessionMessageDataPart.RequestNoteDataPart["status"],
+): ModelMessage {
+  const message: ModelMessage = {
+    content: text,
+    providerOptions: TRANSIENT,
+    role: "user",
+  };
+  REQUEST_NOTES.set(message, { kind, text, ...(status && { status }) });
+  return message;
+}
+
+/** The notes a request carries, in the order they went on. */
+export function requestNotesIn(
+  messages: readonly ModelMessage[],
+): SessionMessageDataPart.RequestNoteDataPart[] {
+  return messages.flatMap((message) => REQUEST_NOTES.get(message) ?? []);
+}
+
+/**
+ * Which of a request's notes the session records, given what it has recorded.
+ * A rollover notice goes on every request and a budget notice restates its
+ * count on each, so the first is kept when its text changes and the second when
+ * its status does. The others say something of their one step and are all kept.
+ */
+export function notesToRecord(
+  notes: readonly SessionMessageDataPart.RequestNoteDataPart[],
+  recorded: readonly SessionMessage.WithParts[],
+  sessionId: StoreId.Session,
+): SessionMessageDataPart.RequestNoteDataPart[] {
+  const lastOf = (kind: SessionMessageDataPart.RequestNoteDataPart["kind"]) =>
+    recorded
+      .flatMap(({ parts }) => parts)
+      .findLast(
+        (part) =>
+          part.type === "data-requestNote" &&
+          part.metadata.sessionId === sessionId &&
+          part.data.kind === kind,
+      );
+  return notes.filter((note) => {
+    if (note.kind !== "budget" && note.kind !== "rollover") {
+      return true;
+    }
+    const last = lastOf(note.kind);
+    if (last?.type !== "data-requestNote") {
+      return true;
+    }
+    return note.kind === "budget"
+      ? last.data.status !== note.status
+      : last.data.text !== note.text;
+  });
+}
 
 /**
  * Model turns that have to pass after a summary that came to nothing before
@@ -498,7 +563,7 @@ export async function prepareModelMessages({
   // not used in this session
   const modelMessages = await SessionMessage.toModelMessages(
     markRepeatSearchSources(
-      portableMessagesResult.messages,
+      searchesAsOurOwn(portableMessagesResult.messages, model),
       toolResultsClearedThrough(nonContextMessages),
     ),
     TOOLS_FOR_MODEL_OUTPUT,
@@ -584,19 +649,20 @@ export async function prepareModelMessages({
   // missing stays missing, and the turn that needs to recover from it is rarely
   // the first one after.
   if (nonContextMessages.length < allNonContextMessages.length) {
-    preparedMessages.push({
-      content: contextRolloverNotice(
-        await readHandoffNotes(chatId),
-        agentHandoffNotesPath(chatId),
-        rolloverSummary(
-          allNonContextMessages,
-          rolledOverAfterMessageId,
-          chatId,
+    preparedMessages.push(
+      transientNote(
+        "rollover",
+        contextRolloverNotice(
+          await readHandoffNotes(chatId),
+          agentHandoffNotesPath(chatId),
+          rolloverSummary(
+            allNonContextMessages,
+            rolledOverAfterMessageId,
+            chatId,
+          ),
         ),
       ),
-      providerOptions: TRANSIENT,
-      role: "user",
-    });
+    );
   }
 
   // Near the price step with nothing left worth clearing: the model writes a
@@ -639,11 +705,7 @@ export async function prepareModelMessages({
   const notice = contextBudgetNotice(budget, agentHandoffNotesPath(chatId));
 
   if (notice !== undefined) {
-    preparedMessages.push({
-      content: notice,
-      providerOptions: TRANSIENT,
-      role: "user",
-    });
+    preparedMessages.push(transientNote("budget", notice, budget.status));
   }
 
   return ok(preparedMessages);

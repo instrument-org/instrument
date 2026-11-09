@@ -24,10 +24,11 @@ import { stepForKeyboard, stepSurfaceAt } from "@/client/lib/history-surfaces";
 import { focusScreenHome } from "@/client/lib/keyboard-home";
 import { runPageChord } from "@/client/lib/page-chords";
 import { runPictureChord } from "@/client/lib/picture-keys";
-import { commandKeyHeld, isLinux } from "@/client/lib/utils";
+import { isBackspaceBackPress } from "@/client/components/extend/file-system-keys";
+import { commandKeyHeld, currentOs, isLinux } from "@/client/lib/utils";
 import { rpcClient, type RPCOutput } from "@/client/rpc/client";
+import { type Tab } from "@/shared/tabs";
 import { safe } from "@orpc/client";
-import { useRouter } from "@tanstack/react-router";
 import { getDefaultStore } from "jotai";
 import { useEffect, useRef } from "react";
 
@@ -88,11 +89,17 @@ export function useWindowCommands(
     openFile: (hostPath: string) => void;
     /** A screen by its route, in a tab of its own, since what asked is not in any tab. */
     openScreen: (href: string) => void;
+    /** The tab up to a window of its own. */
+    moveTabToNewWindow: () => void;
+    /** A tab another window handed over, up here at a point along the strip. */
+    receiveTab: (tab: Tab, index?: number) => void;
     reopenTab: () => void;
     /** The caret into the window's field, wherever it was. */
     search: () => void;
     /** The next or previous chat of the inbox, as listed. */
     selectChat: (direction: -1 | 1) => void;
+    /** Brings up the tab here showing what another window asked for; false where none does. */
+    showTab: (href: string) => boolean;
     selectRelative: (direction: -1 | 1) => void;
     selectTab: (index: number) => void;
     /** The inbox column put away or brought back. */
@@ -105,8 +112,8 @@ export function useWindowCommands(
     isReady: boolean;
   },
 ) {
-  const router = useRouter();
-  // The stream is opened once; what a chord means is read at the moment it
+  // The stream is opened once, and never again as the tab up changes, or what
+  // arrives while it opens again would be lost; what a chord means is read at the moment it
   // fires, off whatever tab is up then.
   const latest = useRef(handlers);
   useEffect(() => {
@@ -180,6 +187,21 @@ export function useWindowCommands(
         requestPageEditToggle();
       }
     };
+    // Backspace at the rows goes back a folder where the file manager's does,
+    // after the rows have had it: one that was taking back a typed name is theirs.
+    const onBackspace = (event: KeyboardEvent) => {
+      if (
+        isBackspaceBackPress(event, currentOs()) &&
+        !event.defaultPrevented &&
+        event.target instanceof Element &&
+        event.target.closest("[data-file-system-listing]") &&
+        getDefaultStore().get(windowHoldsAtom).length === 0
+      ) {
+        event.preventDefault();
+        latest.current.back();
+      }
+    };
+    window.addEventListener("keydown", onBackspace);
     window.addEventListener("keydown", onKeyDown, { capture: true });
     if (!isLinux()) {
       window.addEventListener("mousedown", swallow, { capture: true });
@@ -199,6 +221,17 @@ export function useWindowCommands(
               if (getDefaultStore().get(windowHoldsAtom).length === 0) {
                 latest.current.selectTab(command.index);
               }
+            } else if (command.type === "receiveTab") {
+              latest.current.receiveTab(command.tab, command.index);
+            } else if (command.type === "showTab") {
+              // Said back either way: main brings this window forward only
+              // on a yes, and the asking window opens it itself on a no.
+              void safe(
+                rpcClient.window.tabShown.call({
+                  requestId: command.requestId,
+                  shown: latest.current.showTab(command.href),
+                }),
+              );
             } else {
               answer(latest.current, command);
             }
@@ -206,6 +239,10 @@ export function useWindowCommands(
           }
           if (command === "commandMenu") {
             openOrCloseCommandMenu();
+            continue;
+          }
+          if (command === "moveTabToNewWindow") {
+            latest.current.moveTabToNewWindow();
             continue;
           }
           if (
@@ -402,7 +439,7 @@ export function useWindowCommands(
       window.removeEventListener("mouseup", onMouseUp, { capture: true });
       window.removeEventListener("auxclick", swallow, { capture: true });
     };
-  }, [router]);
+  }, []);
   // What links and files from outside asked for while this window was
   // opening: the command stream could not carry them to a renderer not yet
   // listening, so they are asked for once the window can show them.
@@ -434,9 +471,10 @@ function openOrCloseCommandMenu() {
   }
 }
 
-/** Puts up what something outside the window asked for: a file, a screen by its route, or a new chat's words. */
+/** Puts up what something outside the window asked for: a file, a screen by its route, a new chat's words, or a new chat. */
 function answer(
   handlers: {
+    newChat: () => void;
     newChatFromLink: (words: string, projectId?: string) => void;
     openFile: (hostPath: string) => void;
     openScreen: (href: string) => void;
@@ -446,6 +484,10 @@ function answer(
   switch (ask.type) {
     case "newChat": {
       handlers.newChatFromLink(ask.words, ask.project);
+      break;
+    }
+    case "openNewChat": {
+      handlers.newChat();
       break;
     }
     case "openFile": {

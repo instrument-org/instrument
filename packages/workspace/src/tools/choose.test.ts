@@ -1,5 +1,10 @@
 import { describe, expect, it } from "vitest";
 
+import { takeRoleRefusals } from "../lib/capabilities/role-refusals";
+import { ChatIdSchema } from "../schemas/chat-id";
+import { StoreId } from "../schemas/store-id";
+import { createMockAIGatewayModel } from "../test/helpers/mock-ai-gateway-model";
+import { runTool } from "../test/helpers/run-tool";
 import { TOOLS } from "./all";
 
 const input = {
@@ -19,6 +24,22 @@ function modelText(
 }
 
 describe("choose", () => {
+  // A session that is not the chat's own is a task's.
+  it("refuses a task with what it is, and keeps that it did", async () => {
+    const sessionId = StoreId.newSessionId();
+    const result = await runTool(TOOLS.Choose, {
+      chatId: ChatIdSchema.parse("2026-11-08-not-a-chat"),
+      input: { ...input, activity: "Asking", explanation: "Asking" },
+      model: createMockAIGatewayModel(),
+      sessionId,
+      signal: AbortSignal.timeout(10_000),
+    });
+    expect(result._unsafeUnwrapErr().message).toMatchInlineSnapshot(
+      `"You are a task the chat started, running in the background, where nobody sees a card: the chat asks the user its questions itself. Do your assignment, and end your last message with a needs fence naming what you need from the user, if anything."`,
+    );
+    expect(takeRoleRefusals(sessionId)).toEqual(["choose"]);
+  });
+
   it("tells the model the card is up and its answers come later", () => {
     expect(
       modelText(

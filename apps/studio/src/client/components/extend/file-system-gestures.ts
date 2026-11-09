@@ -55,10 +55,11 @@ export const GESTURE_IDLE: GestureState = { phase: "idle" };
  */
 export const NARROW_AFTER_MS = 500;
 /**
- * How long a second click on a selected name waits before it renames, so a
- * double-click can still claim it, the way the Finder waits.
+ * How long a second click on a selected name waits before it renames, from the
+ * click's release, so a double-click can still claim it: 0.8 of the Mac's
+ * default double-click time from the press, less the time a click is held.
  */
-export const RENAME_AFTER_MS = 600;
+export const RENAME_AFTER_MS = 320;
 /** How long a press on the spot of a click still counts as its double, in ms. */
 const SECOND_CLICK_WITHIN_MS = NARROW_AFTER_MS;
 /** How far apart two clicks of one double-click can land, in px. */
@@ -259,6 +260,13 @@ export function step(
       };
     }
   }
+}
+
+/** A press of a modifier alone, which does nothing yet and calls off no wait. */
+export function isModifierAlone({ key }: { key: string }) {
+  return (
+    key === "Shift" || key === "Alt" || key === "Control" || key === "Meta"
+  );
 }
 
 /** How long the state waits before `timeout`, or null for a state that waits for nothing. */

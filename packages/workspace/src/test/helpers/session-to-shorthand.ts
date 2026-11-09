@@ -82,6 +82,9 @@ function messagePartToShorthand(part: SessionMessagePart.Type): string {
   }
 
   switch (part.type) {
+    case "data-pageTakeover": {
+      return `<data-pageTakeover ${part.data.stage}="${part.data.tab}" />`;
+    }
     case "data-permissionAnswer": {
       return `<data-permissionAnswer ${part.data.kind}="${part.data.target}" answer="${part.data.answer}" />`;
     }
@@ -176,6 +179,9 @@ function messagePartToShorthand(part: SessionMessagePart.Type): string {
         .join(", ");
       return `<data-fileChanges>${files}</data-fileChanges>`;
     }
+    case "data-branchedFrom": {
+      return `<data-branchedFrom chat="${part.data.chat}">${part.data.title}</data-branchedFrom>`;
+    }
     case "data-fromChat": {
       return `<data-fromChat kind="${part.data.kind}">${part.data.text}</data-fromChat>`;
     }
@@ -220,6 +226,12 @@ function messagePartToShorthand(part: SessionMessagePart.Type): string {
     }
     case "data-ratingCard": {
       return `<data-ratingCard${part.data.outcome ? ` outcome="${part.data.outcome}"` : ""} />`;
+    }
+    case "data-requestFailure": {
+      return `<data-requestFailure />`;
+    }
+    case "data-requestNote": {
+      return `<data-requestNote kind="${part.data.kind}" />`;
     }
     case "data-taskEvent": {
       const events = part.data.events

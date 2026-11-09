@@ -3,6 +3,7 @@ import {
   FileSystemFolderGlyph,
   formatTimestamp,
 } from "@/client/components/extend/file-system";
+import { isQuickLookPress } from "@/client/components/extend/file-system-keys";
 import { FileViewer, PictureViewer } from "@/client/components/file-viewer";
 import { Button } from "@/client/components/ui/button";
 import {
@@ -12,11 +13,13 @@ import {
 } from "@/client/components/ui/dialog";
 import { useWatchedFileUrl } from "@/client/hooks/use-watched-file-url";
 import { fileUrlOf } from "@/client/lib/file-url";
+import { currentOs } from "@/client/lib/utils";
 import { getFileType } from "@/client/lib/get-file-type";
 import { isTypingTarget } from "@/client/lib/is-typing-target";
 import { dialogMaxSize } from "@/client/hooks/use-app-zoom";
 import { cn } from "@/client/lib/utils";
 import { rpcClient } from "@/client/rpc/client";
+import { HOSTED_PAGE_GROUP_PREFIX } from "@/shared/kept-state";
 import { WINDOW_ID } from "@instrument-org/workspace/client";
 import { XIcon } from "@phosphor-icons/react/X";
 import { useQuery } from "@tanstack/react-query";
@@ -27,7 +30,7 @@ import { type LookFolder, lookAtAtom, type LookTarget } from "./look-at";
 import { useHostedPage } from "./hosted-page";
 
 /** The group a page looked at is kept under while the panel is up, off every strip. */
-const QUICK_LOOK_GROUP = "page:quick-look";
+const QUICK_LOOK_GROUP = `${HOSTED_PAGE_GROUP_PREFIX}quick-look`;
 
 /**
  * The window layer a looked-at page's guest is shown on: over the panel
@@ -184,7 +187,7 @@ export function LookPanel({
           if (isTypingTarget(event.target)) {
             return;
           }
-          if (event.key === " ") {
+          if (isQuickLookPress(event, currentOs())) {
             event.preventDefault();
             event.stopPropagation();
             onClose();

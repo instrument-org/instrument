@@ -1,7 +1,11 @@
 import { type AppUpdaterStatus } from "@/electron-main/lib/update-status";
 import { type AppWindowAsk } from "@/electron-main/windows/app-window-asks";
 import { type AppCommand } from "@/shared/app-command";
-import { type BrowserTargetId } from "@instrument-org/workspace/electron";
+import { type Tab, type TabCarryView } from "@/shared/tabs";
+import {
+  type BrowserTargetId,
+  type StoreId,
+} from "@instrument-org/workspace/electron";
 import { EventPublisher } from "@orpc/server";
 
 interface PublisherEvents {
@@ -49,12 +53,16 @@ interface PublisherEvents {
   // the one up when `background`.
   "browser.open-in-new-tab": {
     background: boolean;
+    /** In a window of the app's own rather than a tab: a Shift-click, or the menu's Open Link in New Window. */
+    newWindow?: boolean;
+    /** The id the tab opens under, for a popup an agent's page opened, which its result names. */
+    tabId?: StoreId.Tab;
     targetId: BrowserTargetId;
     url: string;
   };
   // Agent-driven browser input can move Chromium keyboard focus into a guest.
   // The renderer owns the exact Studio element that must be restored.
-  "browser.restore-host-focus": null;
+  "browser.restore-host-focus": { targetId: BrowserTargetId };
   // The size a target's parked guest should lay out at, or null to fall back to
   // the size the panel last showed it at. Only the renderer can resize a guest:
   // the `<webview>` element is its DOM.
@@ -101,49 +109,65 @@ interface PublisherEvents {
   // the caret in the window's field, a screen to put up, or a file to open.
   // The chords that can mean a page (history, reload, find, zoom) come as they
   // were pressed, and the window decides which page, if any, they mean.
-  "window.command":
-    | "back"
-    | "clearBrowsingData"
-    | "closeTab"
-    | "commandMenu"
-    | "editPage"
-    | "findInPage"
-    | "findNext"
-    | "fileInfo"
-    | "findPrevious"
-    | "forward"
-    | "goToApps"
-    | "goToBrowser"
-    | "goToChat"
-    | "goToFiles"
-    | "newChat"
-    | "newTab"
-    | "nextChat"
-    | "nextTab"
-    | "openDebugPages"
-    | "openSettings"
-    | "openShortcutGuide"
-    | "reportProblem"
-    | "previousChat"
-    | "previousTab"
-    | "printPage"
-    | "reloadPage"
-    | "reopenTab"
-    | "toggleDeveloperStrip"
-    | "search"
-    | "toggleInbox"
-    | "zoomIn"
-    | "zoomOut"
-    | "zoomReset"
-    | AppWindowAsk
-    | { index: number; type: "selectTab" };
-  "window.focus-changed": null;
+  "window.command": { command: WindowCommand; webContentsId: number };
+  // The windows open changed, or one of them is called something else: what a
+  // tab's menu offers to move it to, and what the Window menu's commands can do.
+  "windows.changed": null;
+  // What a window's strip shows of a tab held by the pointer.
+  "window.tab-carry": {
+    view: TabCarryView;
+    webContentsId: number;
+  };
+  // A window came to the front, or one closed, which names none.
+  "window.focus-changed": { webContentsId: null | number };
   // A link under the pointer in text being edited, which the window's native
   // menu offers to open: the page that drew it opens it, in place or in a tab
   // of the window's own.
-  "window.open-menu-link": { newTab: boolean };
+  "window.open-menu-link": { newTab: boolean; webContentsId: number };
   "window.state-changed": null;
 }
+
+/** What one window is asked to do; see `window.command`. */
+export type WindowCommand =
+  | "back"
+  | "clearBrowsingData"
+  | "closeTab"
+  | "commandMenu"
+  | "editPage"
+  | "findInPage"
+  | "findNext"
+  | "fileInfo"
+  | "findPrevious"
+  | "forward"
+  | "goToApps"
+  | "goToBrowser"
+  | "goToChat"
+  | "goToFiles"
+  | "newChat"
+  | "newTab"
+  | "nextChat"
+  | "nextTab"
+  | "openDebugPages"
+  | "openSettings"
+  | "openShortcutGuide"
+  | "reportProblem"
+  | "previousChat"
+  | "previousTab"
+  | "printPage"
+  | "reloadPage"
+  | "reopenTab"
+  | "toggleDeveloperStrip"
+  | "search"
+  | "toggleInbox"
+  | "zoomIn"
+  | "zoomOut"
+  | "zoomReset"
+  | "moveTabToNewWindow"
+  | AppWindowAsk
+  | { index?: number; tab: Tab; type: "receiveTab" }
+  /** Another window asked for what a tab here shows: bring it up and say so (`window.tabShown`). */
+  | { href: string; requestId: string; type: "showTab" }
+  | { index: number; type: "selectTab" };
 
 // Per subscription, starting empty when it subscribes: what a subscriber that
 // is still busy with one event holds of the ones after it. Several of these

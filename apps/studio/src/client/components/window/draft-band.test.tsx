@@ -1,0 +1,285 @@
+import { BROWSER_HREF, type WindowTab } from "@/client/atoms/window";
+import {
+  pruneTabRouters,
+  setTabRouter,
+} from "@/client/lib/tab-router-registry";
+import { TabIdSchema } from "@/shared/tabs";
+import { draftFileOf, draftOf } from "@/electron-main/drafts/draft-record";
+import { fileHref, folderHref } from "@/shared/computer-href";
+import {
+  type Draft,
+  type DraftContextItem,
+  draftGroupOf,
+} from "@/shared/drafts";
+import { ChatIdSchema, StoreId } from "@instrument-org/workspace/client";
+import { describe, expect, it, vi } from "vitest";
+
+import { pageHrefOf, siteGroupOf } from "./app-tabs";
+import { type BrowserTabsHandle } from "./browser-tabs";
+import { forgetTakenTab, putBackTakenTab } from "./take-tab";
+
+import { bandTabLines, draftContextItems } from "./context-items";
+import { contextFollowingBand, openInBand, targetsOf } from "./draft-band";
+
+const DRAFT: Draft = { createdAt: 0, id: "d1", updatedAt: 0, words: "" };
+const GROUP = draftGroupOf(DRAFT.id);
+const CHAT = ChatIdSchema.parse("2026-10-01-lisbon");
+
+const page = (id: string, url: string): WindowTab => ({
+  group: GROUP,
+  id,
+  kind: "page",
+  openedAt: 0,
+  url,
+});
+const screen = (id: string, href: string): WindowTab => ({
+  group: GROUP,
+  href,
+  id,
+  kind: "screen",
+});
+
+const REPORT = { kind: "link" as const, url: "https://example.com/report" };
+const PLAN = { kind: "file" as const, path: "/Users/casey/Notes/plan.md" };
+const NOTES = { kind: "folder" as const, path: "/Users/casey/Notes/" };
+
+const linesOf = (tab: WindowTab, held: DraftContextItem[] = []) =>
+  bandTabLines(tab, {
+    finderOf: () => null,
+    held: held.flatMap((entry) =>
+      entry.kind === "file" || entry.kind === "folder" ? [entry] : [],
+    ),
+  });
+
+describe("what a tab of a draft's band stands for", () => {
+  it.each([
+    ["a page", page("t", REPORT.url), [REPORT]],
+    ["a file", screen("t", fileHref(PLAN.path)), [PLAN]],
+    [
+      "a folder",
+      screen("t", folderHref("/Users/casey/Notes")),
+      [{ kind: "folder", path: "/Users/casey/Notes" }],
+    ],
+    [
+      "an app's front",
+      screen("t", "/apps/notion"),
+      [{ kind: "link", url: "instrument://app/notion" }],
+    ],
+    ["the list of apps", screen("t", "/apps"), []],
+  ] as const)("is %s's line", (_name, tab, lines) => {
+    expect(linesOf(tab)).toEqual(lines);
+  });
+
+  it("is nothing for a file the draft has attached", () => {
+    expect(linesOf(screen("t", fileHref(PLAN.path)), [PLAN])).toEqual([]);
+  });
+});
+
+describe("a draft's file following its band", () => {
+  const follow = (
+    context: DraftContextItem[] | undefined,
+    lines: [string, DraftContextItem[]][],
+    was: [string, string[]][] = [],
+  ) =>
+    contextFollowingBand(context, { lines: new Map(lines), was: new Map(was) });
+
+  it("writes a line for a tab the file does not have yet", () => {
+    expect(follow([NOTES], [["t", [REPORT]]])).toEqual([NOTES, REPORT]);
+  });
+
+  it("takes out the line of a tab that was closed", () => {
+    expect(
+      follow([REPORT, NOTES], [], [["t", [`link:${REPORT.url}`]]]),
+    ).toEqual([NOTES]);
+  });
+
+  it("names where a tab went once it goes somewhere else", () => {
+    const moved = { kind: "link" as const, url: "https://example.com/next" };
+    expect(
+      follow([REPORT], [["t", [moved]]], [["t", [`link:${REPORT.url}`]]]),
+    ).toEqual([moved]);
+  });
+
+  it("keeps a line another tab still stands for", () => {
+    expect(
+      follow([REPORT], [["u", [REPORT]]], [["t", [`link:${REPORT.url}`]]]),
+    ).toBeUndefined();
+  });
+
+  it("leaves alone a line no tab was seen standing for, and another chat", () => {
+    expect(
+      follow([{ chat: CHAT, kind: "chat" }, PLAN], [], [["t", []]]),
+    ).toBeUndefined();
+  });
+
+  it("keeps the line of a tab still open that names nothing now", () => {
+    expect(
+      follow([NOTES], [["t", []]], [["t", ["chosen:/Users/casey/Notes"]]]),
+    ).toBeUndefined();
+  });
+
+  it("matches a folder's line however its path ends", () => {
+    expect(
+      follow(
+        [NOTES],
+        [["t", [{ kind: "folder", path: "/Users/casey/Notes" }]]],
+      ),
+    ).toBeUndefined();
+  });
+});
+
+describe("a draft shown with its band", () => {
+  const band = [page("t", REPORT.url), screen("u", fileHref(PLAN.path))];
+  const draft: Draft = {
+    ...DRAFT,
+    context: [REPORT, PLAN, { chat: CHAT, kind: "chat" }],
+  };
+
+  it("is one chip for each thing, the tab where the band has one", () => {
+    expect(
+      draftContextItems({
+        allTabs: band,
+        band,
+        draft,
+        finderOf: () => null,
+        group: GROUP,
+      }).map((item) => (item.kind === "tab" ? item.tab.id : item.key)),
+    ).toEqual(["t", "u", `chat:${CHAT}`]);
+  });
+
+  it("keeps every line in its file for another device to read", () => {
+    const lines = new Map(band.map((tab) => [tab.id, linesOf(tab)]));
+    const shown =
+      contextFollowingBand(draft.context, { lines, was: new Map() }) ??
+      draft.context;
+    const rootDir = "/Users/casey/Workspace";
+    const dir = `${rootDir}/Drafts/2026-11-07`;
+    const file = draftFileOf({ ...draft, context: shown }, { dir, rootDir });
+    expect(
+      draftOf({ dir, draft: file, file: `${dir}/DRAFT.md` }, rootDir).context,
+    ).toEqual(draft.context);
+  });
+});
+
+describe("taking the page chip", () => {
+  const site = siteGroupOf("s1");
+  const browserTab = TabIdSchema.parse("app-browser");
+  const theirs: WindowTab = {
+    group: site,
+    id: "tab_theirs",
+    kind: "page",
+    openedAt: 0,
+    url: "https://shop.example/checkout",
+  };
+
+  function take(allTabs: WindowTab[]) {
+    const moveToGroup = vi.fn();
+    const openBehind = vi.fn(() => StoreId.newTabId());
+    // The Browser tab's history: where it is, and who hears it move.
+    const history = {
+      listeners: new Set<() => void>(),
+      location: { href: pageHrefOf(site) },
+      replace: vi.fn((href: string) => {
+        history.location = { href };
+      }),
+      subscribe: (listener: () => void) => {
+        history.listeners.add(listener);
+        return () => history.listeners.delete(listener);
+      },
+    };
+    const replace = history.replace;
+    // Only the history of the Browser tab's router is read here.
+    setTabRouter(browserTab, {
+      history,
+    } as unknown as Parameters<typeof setTabRouter>[1]);
+    // The page chip as the offer makes it; `targetsOf` reads only its tab.
+    const [target] = targetsOf({
+      key: "k",
+      kind: "tab",
+      tab: theirs,
+    } as Parameters<typeof targetsOf>[0]);
+    const id = target
+      ? openInBand({
+          appTabs: [{ id: browserTab, pathname: pageHrefOf(site) }],
+          browser: { openBehind } as unknown as BrowserTabsHandle,
+          group: GROUP,
+          target,
+          windowTabs: {
+            allTabs,
+            moveToGroup,
+            openOrFocusScreen: vi.fn(),
+          },
+        })
+      : undefined;
+    /** The person takes their Browser tab somewhere else. */
+    const browse = (href: string) => {
+      history.location = { href };
+      for (const listener of history.listeners) {
+        listener();
+      }
+    };
+    return { browse, id, moveToGroup, openBehind, replace };
+  }
+
+  it("moves the person's own tab into the draft, page and all, and puts their Browser back at its start", () => {
+    const { id, moveToGroup, openBehind, replace } = take([theirs]);
+
+    expect(id).toBe(theirs.id);
+    expect(moveToGroup).toHaveBeenCalledWith(theirs.id, GROUP);
+    expect(replace).toHaveBeenCalledWith(BROWSER_HREF);
+    expect(openBehind).not.toHaveBeenCalled();
+  });
+
+  it("opens the page at its address when the tab has gone since", () => {
+    const { moveToGroup, openBehind } = take([]);
+
+    expect(moveToGroup).not.toHaveBeenCalled();
+    expect(openBehind).toHaveBeenCalledWith(
+      "https://shop.example/checkout",
+      GROUP,
+    );
+  });
+
+  it("puts the tab back in its Browser tab when the chip comes out while that tab is still at its start", () => {
+    const { id, moveToGroup, replace } = take([theirs]);
+
+    expect(
+      putBackTakenTab({ tabId: id ?? "", windowTabs: { moveToGroup } }),
+    ).toBe(true);
+    expect(moveToGroup).toHaveBeenLastCalledWith(theirs.id, site);
+    expect(replace).toHaveBeenLastCalledWith(pageHrefOf(site));
+    // Once.
+    expect(
+      putBackTakenTab({ tabId: id ?? "", windowTabs: { moveToGroup } }),
+    ).toBe(false);
+  });
+
+  it("leaves the tab to close once its Browser tab has shown anything else", () => {
+    const { browse, id, moveToGroup } = take([theirs]);
+    browse("/browser/site/other");
+    browse(BROWSER_HREF);
+
+    expect(
+      putBackTakenTab({ tabId: id ?? "", windowTabs: { moveToGroup } }),
+    ).toBe(false);
+    expect(moveToGroup).toHaveBeenCalledTimes(1);
+  });
+
+  it("leaves the tab to close once its Browser tab is gone", () => {
+    const { id, moveToGroup } = take([theirs]);
+    pruneTabRouters(new Set());
+
+    expect(
+      putBackTakenTab({ tabId: id ?? "", windowTabs: { moveToGroup } }),
+    ).toBe(false);
+  });
+
+  it("forgets where the tab came from once it goes on to a chat", () => {
+    const { id, moveToGroup } = take([theirs]);
+    forgetTakenTab(id ?? "");
+
+    expect(
+      putBackTakenTab({ tabId: id ?? "", windowTabs: { moveToGroup } }),
+    ).toBe(false);
+  });
+});

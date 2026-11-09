@@ -14,17 +14,36 @@ import {
 // and tab-opens report `foreground-tab`/`background-tab` and get no window;
 // `sameTabNavigationUrl` is what keeps those from being dead clicks. The caller
 // additionally denies opens while agent CDP activity is driving the guest, so
-// automation can't spawn a window the user never asked for.
+// automation can't spawn a window the user never asked for; such a popup
+// becomes a tab of the chat instead (`agentPopupTabOf`).
 export function guestWindowOpenHandler(
   details: HandlerDetails,
 ): WindowOpenHandlerResponse {
-  if (details.disposition !== "new-window" || !isHttpUrl(details.url)) {
+  if (
+    details.disposition !== "new-window" ||
+    isWindowAsk(details) ||
+    !isHttpUrl(details.url)
+  ) {
     return { action: "deny" };
   }
   return {
     action: "allow",
     overrideBrowserWindowOptions: popupWindowOptions(details.features),
   };
+}
+
+// Where a popup a page opens while an agent drives it goes instead: a tab of
+// the chat at the popup's address, behind whatever is up, which every session
+// of the chat can drive. A window is no use there (no debugger reaches it, it
+// is in no chat), and a `<webview>` cannot be given the opener, so a sign-in
+// popup that answers its opener does not finish this way; the person's own
+// click still gets the real window. Null for anything but a popup to the web.
+export function agentPopupTabOf(details: HandlerDetails): null | string {
+  return details.disposition === "new-window" &&
+    !isWindowAsk(details) &&
+    isHttpUrl(details.url)
+    ? details.url
+    : null;
 }
 
 export function isFileUrl(value: string): boolean {
@@ -66,6 +85,32 @@ export function newTabOpenOf(
     background: details.disposition === "background-tab",
     url: details.url,
   };
+}
+
+// A Shift-click on a link, which a browser built on Chromium opens in a window
+// of its own. Chromium reports it as `new-window`, as it does a popup, but a
+// page's popup always names features (a size, `popup`), and `window.open` with
+// none is a tab, so `new-window` with no features and no name is only ever
+// the person's Shift-click.
+function isWindowAsk(details: HandlerDetails) {
+  return (
+    details.disposition === "new-window" &&
+    details.features.trim() === "" &&
+    details.frameName === ""
+  );
+}
+
+// Where a Shift-click should open in a window of the app's own: to the web
+// or, from a page on the computer, to another file on it, as a tab-open
+// would. Null for every other open.
+export function newWindowOpenOf(
+  details: HandlerDetails,
+  fromUrl: string | undefined,
+): null | { url: string } {
+  const reachable =
+    isHttpUrl(details.url) ||
+    (isFileUrl(details.url) && fromUrl !== undefined && isFileUrl(fromUrl));
+  return isWindowAsk(details) && reachable ? { url: details.url } : null;
 }
 
 // Where a denied open should navigate the guest that asked for it, or null to

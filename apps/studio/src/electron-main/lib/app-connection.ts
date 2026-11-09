@@ -8,7 +8,7 @@ import {
 import { z } from "zod";
 
 /** Where an app stands, as the Apps screen draws it. */
-export const AppStandingSchema = z.enum([
+export const AppStatusSchema = z.enum([
   "connected",
   "declined",
   "failed",
@@ -20,16 +20,16 @@ export const AppStandingSchema = z.enum([
   "untested",
 ]);
 
-type AppStanding = z.output<typeof AppStandingSchema>;
+type AppStatus = z.output<typeof AppStatusSchema>;
 
 /**
  * Where an app stands, from its connection record and the manifest as it is
  * now: a connection that passed on another manifest is stale.
  */
-export function standingOf(
+export function statusOf(
   connection: AppConnection | undefined,
   manifestHash: string,
-): AppStanding {
+): AppStatus {
   if (connection === undefined) {
     return "untested";
   }

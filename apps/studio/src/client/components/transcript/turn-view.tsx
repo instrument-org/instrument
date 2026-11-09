@@ -1,11 +1,11 @@
 import { type ChatSeparator } from "@/client/lib/chat-separators";
+import { type InstructionsChange } from "@/client/lib/instructions-changes";
 import { workedLine } from "@/client/lib/worked-line";
-import { cn } from "@/client/lib/utils";
 import {
-  type ChatInfo,
+  type ChatId,
   FOLD_WAIT_MS,
   isTurnFolded,
-  slotOf,
+  workCardOf,
   type SessionMessagePart,
   type StepPart,
   type StoreId,
@@ -19,34 +19,36 @@ import { memo, type ReactNode, use, useState } from "react";
 
 import { AssistantMessage } from "../assistant-message";
 import { AssistantMessagesFooter } from "../assistant-messages-footer";
-import { AttachmentsCard } from "../attachments-card";
+import { SentFileChips } from "../sent-file-chips";
 import { CommandCard } from "../task/command-card";
 import { ChatSeparatorRow } from "../chat-separator";
+import { InstructionsChangesNote } from "../instructions-changes-note";
 import { WorkingMark } from "../icons/working-mark";
 import { MessageError } from "../message-error";
 import { RatingCard } from "../message-part/rating-card";
 import { ToolCallBody } from "../message-part/tool-call";
-import { SentFoldersCard } from "../sent-folders-card";
+import { SentFolderChips } from "../sent-folder-chips";
 import { useReleaseAutoScroll } from "../transcript-scroll-context";
 import { MessageScrollerItem } from "../ui/message-scroller";
-import { UserMessage } from "../user-message";
+import { MessageBubble, UserMessage } from "../user-message";
 import { SentChips } from "../window/context-chip";
-import { ActivityRowView, Badges, RowLine, StepDetail } from "./activity-row";
-import { DeveloperNote } from "./developer-note";
-import { renderDataPart } from "./note-part";
-import { SlotCardView } from "./slot-card";
-import { TranscriptSurfaceContext } from "./surface";
 import {
-  StateNotesContext,
-  TranscriptActionsContext,
-} from "./transcript-actions";
+  CardPresence,
+  FOLD_TRANSITION,
+  ROW_GAP,
+  SlidesUnder,
+  useCardOpens,
+} from "./card-motion";
+import { ActivityRowView, Badges, RowLine, StepDetail } from "./activity-row";
+import { BranchedFromLine } from "./branched-from-line";
+import { renderDataPart } from "./note-part";
+import { PageTakeoverNote } from "./page-takeover-note";
+import { WorkCardView } from "./work-card";
+import { TranscriptSurfaceContext } from "./surface";
+import { TranscriptActionsContext } from "./transcript-actions";
 import { TaskCardRow } from "./task-card";
 import { formatClock, usePassed, useTicking } from "./time";
-
-/** How long the work takes to close into its one line, so the reply slides up to it. */
-const FOLD_TRANSITION = { duration: 0.24, ease: [0.32, 0.72, 0, 1] } as const;
-/** The gap between a turn's rows, which a row closing takes with it. */
-const ROW_GAP = 8;
+import { WakeLine } from "./wake-line";
 
 /** How long the agent may sit between things before the transcript says it is thinking. */
 const THINKING_AFTER_MS = 1000;
@@ -87,14 +89,20 @@ function FoldingRow({ children, id }: { children: ReactNode; id: string }) {
  * token landing in the last reply redraws only the last turn.
  */
 export const TurnView = memo(function TurnView({
-  chatInfo,
+  chatId,
+  changes,
+  hasCard,
   isLast,
   separator,
   sessionId,
   turn,
   waitsForStep,
 }: {
-  chatInfo: ChatInfo;
+  chatId: ChatId;
+  /** What its message brought to the agent's project and workspace instructions. */
+  changes: readonly InstructionsChange[] | undefined;
+  /** Its card is the one up in the transcript (`workCardTurnOf`). */
+  hasCard: boolean;
   isLast: boolean;
   separator: ChatSeparator | undefined;
   sessionId: StoreId.Session;
@@ -112,15 +120,18 @@ export const TurnView = memo(function TurnView({
           scrollAnchor
         >
           {separator && <ChatSeparatorRow separator={separator} />}
-          <OpenerView chatInfo={chatInfo} opener={turn.opener} />
+          <OpenerView chatId={chatId} opener={turn.opener} />
+          {changes && <InstructionsChangesNote changes={changes} />}
         </MessageScrollerItem>
       )}
       <MessageScrollerItem
         className="group/assistant-turn flex flex-col gap-2"
         {...(turn.opener ? {} : { messageId: turn.id })}
       >
+        {turn.wokenBy && <WakeLine woken={turn.wokenBy} />}
         <TurnBody
-          chatInfo={chatInfo}
+          chatId={chatId}
+          hasCard={hasCard}
           isLast={isLast}
           sessionId={sessionId}
           turn={turn}
@@ -132,32 +143,35 @@ export const TurnView = memo(function TurnView({
 });
 
 function OpenerView({
-  chatInfo,
+  chatId,
   opener,
 }: {
-  chatInfo: ChatInfo;
+  chatId: ChatId;
   opener: TurnOpener;
 }) {
   const { chips, files, folders, fromChat, notes, text } = opener;
   return (
     <div className="flex flex-col gap-1">
-      {chips.length > 0 && <SentChips chips={chips} />}
-      {folders.length > 0 && <SentFoldersCard folders={folders} />}
-      {files.length > 0 && (
-        <AttachmentsCard chatId={chatInfo.id} files={files} />
+      {/* What went with the message, one row of the composer's own chips:
+          what was on screen, then the folders and files attached. */}
+      {chips.length + folders.length + files.length > 0 && (
+        <div
+          className="flex w-full flex-wrap justify-end gap-1.5"
+          data-slot="sent-with-message"
+        >
+          <SentChips chips={chips} />
+          <SentFolderChips folders={folders} />
+          <SentFileChips chatId={chatId} files={files} />
+        </div>
       )}
       {fromChat && <AssignmentBubble fromChat={fromChat} />}
       {text && <UserMessage part={text} />}
       {notes.map((part) => (
-        <NoteRow chatInfo={chatInfo} key={part.metadata.id} part={part} />
+        <NoteRow key={part.metadata.id} part={part} />
       ))}
     </div>
   );
 }
-
-/** How many lines of an assignment show before Show all, by its breaks and by its length. */
-const ASSIGNMENT_LINES = 6;
-const ASSIGNMENT_CHARS = 360;
 
 /** What the chat told a task: its words, not the person's, so gray and labeled. */
 function AssignmentBubble({
@@ -165,50 +179,28 @@ function AssignmentBubble({
 }: {
   fromChat: NonNullable<TurnOpener["fromChat"]>;
 }) {
-  const [isOpen, setIsOpen] = useState(false);
-  const isLong =
-    fromChat.text.length > ASSIGNMENT_CHARS ||
-    fromChat.text.split("\n").length > ASSIGNMENT_LINES;
   return (
-    <div className="ml-auto flex w-fit max-w-[85%] flex-col items-end gap-1">
+    <div className="group flex w-full flex-col items-end gap-1">
       <span className="pr-1 text-xs text-muted-foreground">
         {fromChat.kind === "assignment"
           ? "Assignment from the chat"
           : "From the chat"}
       </span>
-      <div className="flex flex-col gap-1 rounded-2xl bg-muted px-3.5 py-2.5 text-sm">
-        <p
-          className={cn(
-            "whitespace-pre-wrap",
-            isLong && !isOpen && "line-clamp-6",
-          )}
-        >
-          {fromChat.text}
-        </p>
-        {isLong && (
-          <button
-            className="w-fit text-xs text-muted-foreground hover:text-foreground"
-            onClick={() => {
-              setIsOpen((open) => !open);
-            }}
-            type="button"
-          >
-            {isOpen ? "Show less" : "Show all"}
-          </button>
-        )}
-      </div>
+      <MessageBubble text={fromChat.text} tone="chat" />
     </div>
   );
 }
 
 function TurnBody({
-  chatInfo,
+  chatId,
+  hasCard,
   isLast,
   sessionId,
   turn,
   waitsForStep,
 }: {
-  chatInfo: ChatInfo;
+  chatId: ChatId;
+  hasCard: boolean;
   isLast: boolean;
   sessionId: StoreId.Session;
   turn: Turn;
@@ -217,14 +209,21 @@ function TurnBody({
   const isFolded = useIsFolded(turn);
   const [isOpened, setIsOpened] = useState(false);
   const releaseAutoScroll = useReleaseAutoScroll();
-  const card = isFolded ? undefined : slotOf(turn);
-  const lastWork = turn.rows.findLastIndex((row) => row.kind === "activity");
+  const { onBranch } = use(TranscriptActionsContext);
+  // A branch carries the conversation through the reply's last message.
+  const branchesAt = turn.inherited ? undefined : turn.replies.at(-1)?.id;
+  const card = isFolded || !hasCard ? undefined : workCardOf(turn);
+  const cardOpens = useCardOpens(card !== undefined);
+  // The card sits under the work it shows, whose working line it goes with,
+  // and never under words: what the agent says comes in below it, and the
+  // next command it shows takes it down past them.
+  const cardAt = turn.rows.findLastIndex((row) => row.kind === "activity");
   const rows = turn.rows.flatMap((row, index) => {
     const out = [];
     if (isFolded && row.id === turn.foldLineAt) {
       out.push(
         <WorkedRow
-          chatInfo={chatInfo}
+          chatId={chatId}
           isOpened={isOpened}
           key="worked"
           onToggle={() => {
@@ -243,24 +242,32 @@ function TurnBody({
       out.push(
         <FoldingRow id={row.id} key={row.id}>
           <RowView
-            chatInfo={chatInfo}
+            chatId={chatId}
             isLive={live !== undefined}
             isLast={isLast}
+            isNewest={isLast && index === turn.rows.length - 1}
             row={row}
             thought={live?.thought}
           />
-          {/* In its row, so it goes in the same render as the words that end it. */}
-          {index === lastWork && card && (
-            <div className="ml-7">
-              <SlotCardView
+        </FoldingRow>,
+      );
+      if (index === cardAt && card) {
+        out.push(
+          // One key among the rows, so going from under one activity to under
+          // the next keeps it mounted, with its picture and its sweep going,
+          // and slides it there. It closes with the fold and goes at once as
+          // words end it.
+          <CardPresence className="ml-7" key="work-card" opens={cardOpens}>
+            <SlidesUnder under={row.id}>
+              <WorkCardView
                 card={card}
                 isCurrent={turn.phase === "working"}
                 sessionId={sessionId}
               />
-            </div>
-          )}
-        </FoldingRow>,
-      );
+            </SlidesUnder>
+          </CardPresence>,
+        );
+      }
     }
     return out;
   });
@@ -281,7 +288,7 @@ function TurnBody({
           since={turn.live.since}
           thought={
             turn.live.thought && (
-              <StepDetail chatInfo={chatInfo} step={turn.live.thought} />
+              <StepDetail chatId={chatId} step={turn.live.thought} />
             )
           }
         />
@@ -290,11 +297,17 @@ function TurnBody({
         <CommandCards sessionId={sessionId} turn={turn} />
       )}
       {turn.phase !== "working" && hasReply && turn.replies.length > 0 && (
-        <AssistantMessagesFooter messages={turn.replies} />
+        <AssistantMessagesFooter
+          messages={turn.replies}
+          onBranch={
+            onBranch && branchesAt !== undefined
+              ? () => onBranch(branchesAt)
+              : undefined
+          }
+        />
       )}
-      {turn.ratingCard && (
-        <RatingCard chatId={chatInfo.id} part={turn.ratingCard} />
-      )}
+      {turn.ratingCard && <RatingCard chatId={chatId} part={turn.ratingCard} />}
+      {turn.branchedFrom && <BranchedFromLine part={turn.branchedFrom} />}
     </>
   );
 }
@@ -343,7 +356,7 @@ function CommandCards({
 /** Whether the turn is folded now, turning so when its wait for a summary runs out. */
 function useIsFolded(turn: Turn): boolean {
   const foldsAt =
-    turn.foldsWhenDone && turn.endedAt
+    turn.foldedRowIds.size > 0 && turn.endedAt
       ? turn.endedAt.getTime() + FOLD_WAIT_MS
       : undefined;
   const hasPassed = usePassed(foldsAt);
@@ -400,12 +413,12 @@ export function ThinkingRow({
 
 /** A finished turn's work as one line, opening onto its rows. */
 function WorkedRow({
-  chatInfo,
+  chatId,
   isOpened,
   onToggle,
   turn,
 }: {
-  chatInfo: ChatInfo;
+  chatId: ChatId;
   isOpened: boolean;
   onToggle: () => void;
   turn: Turn;
@@ -440,7 +453,7 @@ function WorkedRow({
         }
         onClick={onToggle}
         places={<Badges apps={turn.apps} sites={turn.sites} />}
-        rollKey={workedLine(turn)}
+        sweepsIn
       >
         <AnimatePresence initial={false}>
           {isOpened && (
@@ -460,7 +473,7 @@ function WorkedRow({
                   .map((row) => (
                     <div data-transcript-row={row.id} key={row.id}>
                       <RowView
-                        chatInfo={chatInfo}
+                        chatId={chatId}
                         isLast={false}
                         isLive={false}
                         row={row}
@@ -477,15 +490,18 @@ function WorkedRow({
 }
 
 function RowView({
-  chatInfo,
+  chatId,
   isLast,
   isLive,
+  isNewest = false,
   row,
   thought,
 }: {
-  chatInfo: ChatInfo;
+  chatId: ChatId;
   isLast: boolean;
   isLive: boolean;
+  /** Nothing comes after it in the chat. */
+  isNewest?: boolean;
   row: TurnRow;
   thought?: StepPart;
 }) {
@@ -494,7 +510,7 @@ function RowView({
     case "activity": {
       return (
         <ActivityRowView
-          chatInfo={chatInfo}
+          chatId={chatId}
           isLive={isLive}
           row={row}
           thought={thought}
@@ -502,16 +518,15 @@ function RowView({
       );
     }
     case "ask": {
-      return <AskRow chatInfo={chatInfo} part={row.part} />;
+      return <AskRow chatId={chatId} part={row.part} />;
     }
     case "error": {
       return (
         <MessageError
-          chatId={chatInfo.id}
+          chatId={chatId}
           compact
-          endedTurn={row.endedTurn}
+          draws={row.draws}
           isAgentRunning={isLast && actions.isRunning}
-          isDeveloperMode={actions.isDeveloperMode}
           isLastMessage={row.isLastMessage}
           isLatestAttempt={row.isLatestAttempt}
           message={row.message}
@@ -521,19 +536,36 @@ function RowView({
       );
     }
     case "note": {
-      return <NoteRow chatInfo={chatInfo} part={row.part} />;
+      return row.part.type === "data-pageTakeover" ? (
+        <PageTakeoverNote
+          chatId={chatId}
+          data={row.part.data}
+          isNewest={isNewest}
+        />
+      ) : (
+        <NoteRow part={row.part} />
+      );
     }
     case "task": {
       return (
-        <TaskCardRow sessionId={row.sessionId} startedAt={row.startedAt} />
+        <TaskCardRow
+          {...(row.from && { from: row.from })}
+          {...(row.name !== undefined && { name: row.name })}
+          {...(row.sessionId && { sessionId: row.sessionId })}
+          startedAt={row.startedAt}
+        />
       );
     }
     case "text": {
       return (
         // As tall as the row it replaces, so the transcript does not shrink under
         // a message held at the top when Thinking gives way to a one-line reply.
-        <div className="min-h-7" data-reply-row={row.part.metadata.id}>
-          <AssistantMessage chatId={chatInfo.id} part={row.part} />
+        <div
+          className="min-h-7"
+          data-reply-row={row.part.metadata.id}
+          data-reply-tail={isNewest || undefined}
+        >
+          <AssistantMessage chatId={chatId} part={row.part} />
         </div>
       );
     }
@@ -542,35 +574,17 @@ function RowView({
 
 /** A question or a sign-in: its card, or a quiet line once answered and folded. */
 function AskRow({
-  chatInfo,
+  chatId,
   part,
 }: {
-  chatInfo: ChatInfo;
+  chatId: ChatId;
   part: SessionMessagePart.ToolPart;
 }) {
   const actions = use(TranscriptActionsContext);
-  return (
-    <ToolCallBody chatInfo={chatInfo} onRetry={actions.onRetry} part={part} />
-  );
+  return <ToolCallBody chatId={chatId} onRetry={actions.onRetry} part={part} />;
 }
 
-/** A note everyone sees, or a developer's quiet line. */
-function NoteRow({
-  chatInfo,
-  part,
-}: {
-  chatInfo: ChatInfo;
-  part: SessionMessagePart.DataPart;
-}) {
-  const { isDeveloperMode } = use(TranscriptActionsContext);
-  const stateNotes = use(StateNotesContext);
-  const node = renderDataPart({
-    ctx: { chatInfo, isDeveloperMode },
-    part,
-    stateNote: stateNotes.get(part.metadata.id),
-  });
-  if (node === null) {
-    return null;
-  }
-  return <DeveloperNote part={part}>{node}</DeveloperNote>;
+/** A note the person reads. */
+function NoteRow({ part }: { part: SessionMessagePart.DataPart }) {
+  return renderDataPart(part);
 }

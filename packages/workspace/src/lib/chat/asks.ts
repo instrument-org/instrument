@@ -20,8 +20,8 @@ import { type SessionMessageDataPart } from "../../schemas/session/message-data-
 import { StoreId } from "../../schemas/store-id";
 import { createWriteQueue } from "../create-write-queue";
 import { getCurrentDate } from "../get-current-date";
-import { askLine } from "../choose-call";
-import { askTargetName } from "../permissions/ask-target";
+import { askLine, type ChooseQuestion } from "../choose-call";
+import { askTargetName, siteOf } from "../permissions/ask-target";
 import { sessionOfChat } from "../record-folders";
 import { readDeviceName } from "../records/device-file";
 import { writingChatRecords } from "../records/installed-records";
@@ -147,7 +147,7 @@ export type MacosAskStatus = SystemWait;
  * rules already allow. A tab's ask carries its `page`. Answers its id.
  */
 export async function recordAsk(
-  asker: Asker & { reason?: string },
+  asker: Asker & { reason?: string; title?: string },
   kind: PermissionAskRecord["on"],
   target: string,
   extra?:
@@ -165,6 +165,7 @@ export async function recordAsk(
     ...(asker.partId && { partId: asker.partId }),
     ...(asker.reason && { reason: asker.reason }),
     sessionId: asker.sessionId,
+    ...(asker.title && { title: asker.title }),
     ...(asker.waits && { waits: true as const }),
   };
   const sessionId = sessionOfChat(asker.chatId);
@@ -231,33 +232,79 @@ export async function recordAsk(
 }
 
 /**
- * Records the questions the chat's agent put to the person with `choose`,
- * by the call that asked them, whose part's id is the ask's: the card under
- * that call, on every device, until it is answered or the person moves
- * past it.
+ * Records the card the chat's agent put to the person with `choose`, by
+ * the call that asked it, whose part's id is the ask's, on every device,
+ * until it is answered or the person moves past it. One asked while its
+ * turn runs is `held` (`releaseQuestions` lets it go once the session is at
+ * rest) and joins the set of the questions held with it, which the person
+ * goes through together. A new set leaves what an earlier turn asked
+ * behind (`askStates`), so only the newest set waits on the person.
  */
 export async function recordQuestion(
   asker: Asker & { messageId: StoreId.Message; partId: StoreId.Part },
-  questions: string[],
+  card: ChooseQuestion[],
+  { held = false }: { held?: boolean } = {},
 ): Promise<void> {
+  const questions = card.map(({ question }) => question);
   if (questions.length === 0) {
     return;
   }
-  const at = getCurrentDate();
   // Only the chat's own session asks, so its log is the one asking.
-  await askWrites(asker.chatId, () =>
-    askWriter(asker.chatId).ask(asker.chatId, asker.sessionId, {
+  await askWrites(asker.chatId, async () => {
+    const heldSet = held
+      ? (await chatAskStates(asker.chatId)).find(
+          ({ ask, live }) =>
+            live &&
+            ask.kind === "question" &&
+            ask.held &&
+            ask.device === thisDevice(),
+        )?.ask
+      : undefined;
+    const set =
+      (heldSet?.kind === "question" ? heldSet.set : undefined) ?? asker.partId;
+    const at = getCurrentDate();
+    await askWriter(asker.chatId).ask(asker.chatId, asker.sessionId, {
       askedAt: at,
       askers: [{ at, partId: asker.partId, sessionId: asker.sessionId }],
+      card,
       device: thisDevice(),
+      ...(held && { held: true as const }),
       id: asker.partId,
       kind: "question",
       messageId: asker.messageId,
       partId: asker.partId,
       questions,
+      set,
       stage: { is: "open" },
-    }),
-  );
+    });
+  });
+}
+
+/**
+ * Lets the person see and answer the questions a session asked during its
+ * turn, now the turn is over: this computer's held questions of that
+ * session, written again without `held`.
+ */
+export async function releaseQuestions(
+  chatId: ChatId,
+  sessionId: StoreId.Session,
+): Promise<void> {
+  if (sessionOfChat(chatId) !== sessionId) {
+    return;
+  }
+  await askWrites(chatId, async () => {
+    for (const { ask, live } of await chatAskStates(chatId)) {
+      if (
+        live &&
+        ask.kind === "question" &&
+        ask.held &&
+        ask.device === thisDevice()
+      ) {
+        const { held: _held, ...shown } = ask;
+        await askWriter(chatId).ask(chatId, sessionId, shown);
+      }
+    }
+  });
 }
 
 /**
@@ -387,16 +434,18 @@ export async function computerName(device: DeviceId): Promise<string> {
 
 /**
  * Whether a device other than the ask's computer may answer it: while it
- * is open with no answer pending, and not a tab, which is moved on the
- * screen it is on, as the system's own prompts and blocks are answered
- * there.
+ * is open with no answer pending, and not about a tab or a page, which is
+ * moved or finished on the screen it is on, as the system's own prompts and
+ * blocks are answered there, nor a question held while the turn that asked
+ * it runs.
  */
 export function answerableElsewhere(state: AskState): boolean {
   return (
     state.live &&
     state.pending === undefined &&
     state.ask.stage.is === "open" &&
-    !(state.ask.kind === "permission" && state.ask.on === "tab")
+    !(state.ask.kind === "permission" && state.ask.on === "page") &&
+    !(state.ask.kind === "question" && state.ask.held)
   );
 }
 
@@ -471,8 +520,10 @@ async function questionAskOf(
     askedAt: ask.askedAt,
     askers,
     ...(away && { away: { by: await computerName(away.device) } }),
+    ...(ask.card && { card: ask.card }),
     computer: await computerName(ask.device),
     device: ask.device,
+    ...(ask.held && { held: true as const }),
     here: ask.device === thisDevice(),
     id: ask.id,
     kind: "question",
@@ -596,8 +647,9 @@ export function cardLine(
         ? card.stage.on
         : "open"
       : card.status;
-  if (kind === "tab") {
-    return `Waiting for you to move your tab “${card.page?.title || "a page"}” here`;
+  if (kind === "page") {
+    const title = "askers" in card ? card.askers[0]?.title : undefined;
+    return title ?? `Waiting for you on ${siteOf(card.page?.url) ?? "a page"}`;
   }
   const name = askTargetName(kind, card.target);
   switch (status) {

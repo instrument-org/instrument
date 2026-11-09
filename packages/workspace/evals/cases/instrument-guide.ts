@@ -185,6 +185,31 @@ export const INSTRUMENT_GUIDE_EVALS = [
   }),
 
   defineEval({
+    // The file has no screen in the app, so the guide is the only place
+    // that tells the user where it is.
+    assertions: [
+      readTheGuide,
+      {
+        check: ({ sessions }) => {
+          const text = "named the workspace's AGENTS.md";
+          const reply = replyText(sessions);
+          return result(
+            reply.includes("AGENTS.md"),
+            text,
+            JSON.stringify(reply.slice(0, 600)),
+          );
+        },
+        text: "named the workspace's AGENTS.md",
+      },
+      withoutATask,
+    ],
+    kind: "chat",
+    name: "instrument-guide-instructions-for-every-chat",
+    prompt:
+      "Is there a way to give you instructions that apply to every chat, not just one project?",
+  }),
+
+  defineEval({
     // The run has no Grok account, so the command fails and its error links
     // the setting; the reply should pass that link on.
     assertions: [

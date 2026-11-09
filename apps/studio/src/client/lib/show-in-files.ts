@@ -1,12 +1,20 @@
 import { settingsModalAtom } from "@/client/atoms/settings-modal";
-import { appTabsAtom } from "@/client/components/window/app-tabs";
-import { folderOf, segmentsOf } from "@/client/components/window/host-path";
+import { appTabsAtom, showTabOr } from "@/client/components/window/app-tabs";
+import {
+  folderOf,
+  joinHostPath,
+  segmentsOf,
+} from "@/client/components/window/host-path";
 import { freshTabId } from "@/client/lib/tab-actions";
 import { addTab } from "@/client/lib/tabs-model";
 import { osConventions } from "@/client/lib/utils";
 import { rpcClient } from "@/client/rpc/client";
 import { folderHref } from "@/shared/computer-href";
-import { type ChatId } from "@instrument-org/workspace/client";
+import {
+  type ChatId,
+  PROJECT_FILE_NAME,
+  PROJECTS_FOLDER_NAME,
+} from "@instrument-org/workspace/client";
 import { safe } from "@orpc/client";
 import { getDefaultStore } from "jotai";
 import { toast } from "@/client/lib/toast";
@@ -57,8 +65,16 @@ export async function showInFolder(
         : folderHref(folderOf(hostPath), {
             select: segmentsOf(hostPath).at(-1),
           });
-    store.set(appTabsAtom, (model) =>
-      addTab(model, { id: freshTabId(), pathname, select: true }),
+    // The tab already standing in the folder comes up, walked to the file
+    // there when there is one to select.
+    showTabOr(
+      pathname,
+      () => {
+        store.set(appTabsAtom, (model) =>
+          addTab(model, { id: freshTabId(), pathname, select: true }),
+        );
+      },
+      { store },
     );
     return;
   }
@@ -96,6 +112,32 @@ export async function showChatFolder(chatId: ChatId) {
     return;
   }
   await showInFolder(hostPath, { kind: "folder" });
+}
+
+/** A project's own folder, `Projects/<Name>/` at the top of the workspace kept in `rootDir`. */
+export function projectFolderPath(rootDir: string, name: string) {
+  return joinHostPath(rootDir, PROJECTS_FOLDER_NAME, name);
+}
+
+/**
+ * Opens Files at a project's own folder with its `AGENTS.md` selected, as
+ * `showInFolder` shows any file, so its instructions are one look away.
+ */
+export async function showProjectInFiles(project: { name: string }) {
+  const [error, location] = await safe(
+    rpcClient.workspace.storage.location.call(),
+  );
+  if (error) {
+    toast.error("Couldn't find the project's folder", { cause: error });
+    return;
+  }
+  await showInFolder(
+    joinHostPath(
+      projectFolderPath(location.rootDir, project.name),
+      PROJECT_FILE_NAME,
+    ),
+    { kind: "file" },
+  );
 }
 
 /**

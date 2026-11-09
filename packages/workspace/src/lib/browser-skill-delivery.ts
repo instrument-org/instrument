@@ -7,7 +7,7 @@ import { type ChatId } from "../schemas/chat-id";
 import {
   AGENT_BROWSER_GUIDE_NAME,
   agentBrowserGuide,
-} from "./agent-browser-guide";
+} from "../model-text/guides/agent-browser-guide";
 import { readModelWindow } from "./model-window";
 import { SKILL_ORIGINS } from "./skill-provenance";
 import { truncateSkillContent } from "./skills";

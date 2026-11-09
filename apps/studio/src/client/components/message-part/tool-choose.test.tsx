@@ -153,6 +153,35 @@ describe("ToolChoose", () => {
     expect(container.textContent).toContain("Which one?");
   });
 
+  // A question that carries its card waits by the composer, so the call
+  // shows no buttons of its own.
+  it.each([
+    {
+      held: true,
+      name: "draws nothing while the turn that asked it runs",
+      text: "",
+    },
+    {
+      held: undefined,
+      name: "points to the box below once the turn is over",
+      text: "Which one? You can answer below.",
+    },
+  ])("$name", async ({ held, text }) => {
+    const { container } = withAsks([
+      {
+        answerable: held === undefined,
+        askers: [{ partId, sessionId }],
+        card: ONE,
+        held,
+      },
+    ]);
+
+    await waitFor(() => {
+      expect(container.textContent).toBe(text);
+    });
+    expect(screen.queryAllByRole("radio")).toHaveLength(0);
+  });
+
   it.each([
     { answer: { replies: [{ picked: ["Vue"] }] }, name: "the answer" },
     { answer: { selectedChoice: "Vue" }, name: "an earlier build's answer" },
@@ -357,4 +386,46 @@ describe("QuestionCard once answered", () => {
     expect(container.textContent).toContain("Vue");
     expect(screen.queryAllByRole("radio")).toHaveLength(0);
   });
+
+  it("quotes an answer in the person's own words, and not a picked choice", () => {
+    const { container } = renderWithProviders(
+      <QuestionCard
+        onAnswer={vi.fn()}
+        output={{ replies: [{ picked: ["Vue", "Solid, if it's ready"] }] }}
+        questions={ONE}
+        status="closed"
+      />,
+    );
+    expect(container.textContent).toContain("Vue, “Solid, if it's ready”");
+  });
+
+  it.each([
+    {
+      name: "skipped",
+      output: {
+        replies: [{ skipped: true as const }, { skipped: true as const }],
+      },
+      status: "closed" as const,
+      text: "Skipped",
+    },
+    {
+      name: "never answered",
+      output: undefined,
+      status: "ended" as const,
+      text: "No answer",
+    },
+  ])(
+    "says a card of several questions all $name once",
+    ({ output, status, text }) => {
+      const { container } = renderWithProviders(
+        <QuestionCard
+          onAnswer={vi.fn()}
+          output={output}
+          questions={[...ONE, { ...ONE[0]!, header: "Hosting" }]}
+          status={status}
+        />,
+      );
+      expect(container.textContent?.split(text)).toHaveLength(2);
+    },
+  );
 });

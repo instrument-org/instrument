@@ -1,6 +1,7 @@
 import { type FeedbackRequest } from "@/client/atoms/report-dialog";
 import { Button } from "@/client/components/ui/button";
 import {
+  DialogBody,
   DialogContent,
   DialogDescription,
   DialogTitle,
@@ -37,7 +38,7 @@ import {
 } from "@/shared/feedback-images";
 import {
   FEEDBACK_ACTIONS_MS,
-  FEEDBACK_TOO_LARGE,
+  type FeedbackDescription,
   type FeedbackItem,
   type FeedbackTag,
   MAX_REPORT_BYTES,
@@ -76,6 +77,18 @@ const DIALOG_WIDTH = "38rem";
 const REVIEW_HEIGHT = "40rem";
 
 const NOTE_MAX_LENGTH = 5000;
+
+/**
+ * Room the report keeps for what is sent beside the chat and never cut
+ * short: the note, the title, and the diagnostics' own details.
+ */
+const BESIDE_THE_CHAT_BYTES = 64 * 1024;
+
+/**
+ * How long a Send pressed before the dialog finished gathering waits for it,
+ * after which the note and images go alone.
+ */
+const GATHER_WAIT_MS = 15_000;
 
 /** The tags as the dialog offers them, with the question each one's note answers. */
 const TAGS: readonly {
@@ -153,19 +166,94 @@ async function offerImages(already: number, files: readonly File[]) {
 /** A part of what goes, as the dialog lists it and its review page shows it. */
 type Part = {
   item: FeedbackItem;
+  /** Listed so the person knows it was meant to go, but too big to send. */
+  leftOut?: true;
   line: string;
   /** Whether it goes, for the one part the person may leave out. */
   sending?: { on: boolean; set: (on: boolean) => void };
   title: string;
 };
 
+/** What goes with the note, a part each, in the order the dialog lists them. */
+function partsOf({
+  described,
+  sendActions,
+  writeup,
+  yourComputer,
+}: {
+  described: FeedbackDescription | undefined;
+  sendActions: NonNullable<Part["sending"]>;
+  writeup: FeedbackRequest["writeup"];
+  yourComputer: string;
+}): Part[] {
+  const chat = described?.chat;
+  const chatTooLarge = chat
+    ? chat.item.bytes > MAX_REPORT_BYTES - BESIDE_THE_CHAT_BYTES
+    : false;
+  return [
+    ...(writeup
+      ? [
+          {
+            item: writeupItem(writeup),
+            line: writeup.title,
+            title: `${APP_NAME}'s write-up`,
+          },
+        ]
+      : []),
+    ...(chat
+      ? [
+          chatTooLarge
+            ? {
+                item: chat.item,
+                leftOut: true as const,
+                line: "This chat is too big to send, so your feedback will go without it.",
+                title: chat.title,
+              }
+            : {
+                item: chat.item,
+                line: `Your messages, ${APP_NAME}'s replies and each step it took. What it read stays on ${yourComputer}, though an error message can quote a little of it.`,
+                title: chat.title,
+              },
+        ]
+      : []),
+    ...(described?.actions
+      ? [
+          {
+            item: described.actions,
+            line: sendActions.on
+              ? `What you did in ${APP_NAME} in the ${FEEDBACK_ACTIONS_MS / 60_000} minutes before this.`
+              : `This stays on ${yourComputer}.`,
+            sending: sendActions,
+            title: "Your activity",
+          },
+        ]
+      : []),
+    ...(described
+      ? [
+          {
+            item: described.diagnostics,
+            line: `${APP_NAME}'s version, ${yourComputer} and recent errors.`,
+            title: "Diagnostics",
+          },
+        ]
+      : []),
+  ];
+}
+
+function itemsGoing(parts: readonly Part[]) {
+  return parts.flatMap((part) =>
+    part.leftOut || part.sending?.on === false ? [] : [part.item],
+  );
+}
+
 /**
  * Feedback: the person's note and the images they attach, then what goes
  * with them, a row each (the agent's write-up, the chat when there is one,
  * what the person did in the app, and the diagnostics). View turns the
  * dialog into a page that shows each as it will be sent, a row per record.
- * Everything listed goes, but what the person did in the app has a switch
- * to leave it out.
+ * Everything listed goes, except a chat too big to send, whose row says it
+ * stays behind, and what the person did in the app, which has a switch to
+ * leave it out.
  */
 export function FeedbackDialogContent({
   onClose,
@@ -210,62 +298,45 @@ export function FeedbackDialogContent({
     staleTime: Infinity,
   });
 
-  const chat = described.data?.chat;
-  const chatTooLarge = chat ? chat.item.bytes > MAX_REPORT_BYTES : false;
-  const parts: Part[] = [
-    ...(request.writeup
-      ? [
-          {
-            item: writeupItem(request.writeup),
-            line: request.writeup.title,
-            title: `${APP_NAME}'s write-up`,
-          },
-        ]
-      : []),
-    ...(chat
-      ? [
-          {
-            item: chat.item,
-            line: chatTooLarge
-              ? FEEDBACK_TOO_LARGE
-              : `Your messages, ${APP_NAME}'s replies and each step it took. What it read stays on ${yourComputer}, though an error message can quote a little of it.`,
-            title: chat.title,
-          },
-        ]
-      : []),
-    ...(described.data?.actions
-      ? [
-          {
-            item: described.data.actions,
-            line: sendActions
-              ? `What you did in ${APP_NAME} in the ${FEEDBACK_ACTIONS_MS / 60_000} minutes before this.`
-              : `This stays on ${yourComputer}.`,
-            sending: { on: sendActions, set: setSendActions },
-            title: "Your activity",
-          },
-        ]
-      : []),
-    ...(described.data
-      ? [
-          {
-            item: described.data.diagnostics,
-            line: `${APP_NAME}'s version, ${yourComputer} and recent errors.`,
-            title: "Diagnostics",
-          },
-        ]
-      : []),
-  ];
-  const going = parts
-    .filter((part) => part.sending?.on !== false)
-    .map((part) => part.item);
+  const sendActionsSwitch = { on: sendActions, set: setSendActions };
+  const parts = partsOf({
+    described: described.data,
+    sendActions: sendActionsSwitch,
+    writeup: request.writeup,
+    yourComputer,
+  });
   const reviewed = parts.find((part) => part.item.id === viewing);
+
+  // What goes once the dialog has gathered it. Send pressed before then
+  // gathers it again for the toast, since closing the dialog drops this
+  // query, and never waits on it for long.
+  const itemsToSend = async () => {
+    if (!described.isPending) {
+      return itemsGoing(parts);
+    }
+    const gathered = await Promise.race([
+      rpcClient.problems.describeFeedback
+        .call({ chatId: request.chatId })
+        .catch(() => undefined),
+      new Promise<undefined>((resolve) => {
+        setTimeout(resolve, GATHER_WAIT_MS);
+      }),
+    ]);
+    return itemsGoing(
+      partsOf({
+        described: gathered,
+        sendActions: sendActionsSwitch,
+        writeup: request.writeup,
+        yourComputer,
+      }),
+    );
+  };
 
   // The dialog gets out of the way at once, and the toast follows the send.
   const send = () => {
     const trimmed = note.trim();
     const feedback = {
       images: images.map((image) => ({ data: image.file, name: image.name })),
-      items: going,
       note: trimmed || undefined,
       surface: request.surface,
       tag,
@@ -280,7 +351,10 @@ export function FeedbackDialogContent({
       failed: "Couldn't send your feedback",
       onDone: request.onSent,
       run: async () => {
-        await rpcClient.problems.sendFeedback.call(feedback);
+        await rpcClient.problems.sendFeedback.call({
+          ...feedback,
+          items: await itemsToSend(),
+        });
       },
       running: "Sending your feedback…",
     });
@@ -298,12 +372,8 @@ export function FeedbackDialogContent({
 
   const sendButton = (
     <Button
-      disabled={
-        described.isPending ||
-        chatTooLarge ||
-        // Waits for dictated words, so the note goes with them.
-        isDictating(noteDictation.phase)
-      }
+      // Waits for dictated words, so the note goes with them.
+      disabled={isDictating(noteDictation.phase)}
       onClick={send}
       variant="brand"
     >
@@ -315,7 +385,7 @@ export function FeedbackDialogContent({
   // between them swaps what is inside rather than opening the dialog again.
   return (
     <DialogContent
-      className="flex flex-col gap-0 overflow-hidden p-0"
+      className="flex flex-col gap-0 p-0"
       maxHeight={REVIEW_HEIGHT}
       maxWidth={DIALOG_WIDTH}
       onDragOver={(event) => {
@@ -375,8 +445,8 @@ export function FeedbackDialogContent({
           readAt={described.dataUpdatedAt}
         />
       ) : (
-        <div className="flex flex-col gap-5 p-6">
-          <div className="flex flex-col gap-2 pr-6">
+        <>
+          <div className="flex shrink-0 flex-col gap-2 px-6 pt-6 pr-12 pb-5">
             <DialogTitle>Send feedback</DialogTitle>
             <DialogDescription>
               Only the {APP_NAME} team will see what you send, and you can look
@@ -384,132 +454,134 @@ export function FeedbackDialogContent({
             </DialogDescription>
           </div>
 
-          <div className="flex flex-col gap-2">
-            <p className="text-[13px] font-medium text-muted-foreground">
-              What's it about?
-            </p>
-            <div className="flex flex-wrap gap-2">
-              {TAGS.map((each) => (
-                <button
-                  aria-pressed={tag === each.tag}
-                  className={cn(
-                    "inline-flex h-7 items-center rounded-full px-3 text-xs font-medium outline-none focus-visible:ring-[3px] focus-visible:ring-ring/50",
-                    tag === each.tag
-                      ? "bg-brand-600 text-white"
-                      : "border border-border bg-card text-foreground/80 hover:bg-accent",
-                  )}
-                  key={each.tag}
-                  onClick={() => {
-                    setTag(tag === each.tag ? undefined : each.tag);
-                  }}
-                  type="button"
-                >
-                  {each.label}
-                </button>
-              ))}
-            </div>
-          </div>
-
-          <DictatedTextarea
-            aria-label="Your note"
-            autoFocus
-            className="min-h-24"
-            dictation={noteDictation}
-            maxLength={NOTE_MAX_LENGTH}
-            onChange={(event) => {
-              setNote(event.target.value);
-            }}
-            placeholder={
-              request.writeup
-                ? "Anything to add? You can also send it as it is."
-                : (TAGS.find((each) => each.tag === tag)?.placeholder ??
-                  "What happened, and what did you expect?")
-            }
-            value={note}
-          />
-
-          <div className="flex flex-col gap-2">
-            <div className="flex flex-wrap items-center gap-3">
-              {images.map((image) => (
-                <div className="relative" key={image.id}>
-                  <img
-                    alt={image.name}
-                    className="block size-14 rounded-md border border-border bg-muted object-cover"
-                    src={image.src}
-                  />
+          <DialogBody className="mx-0 flex flex-col gap-5">
+            <div className="flex flex-col gap-2">
+              <p className="text-[13px] font-medium text-muted-foreground">
+                What's it about?
+              </p>
+              <div className="flex flex-wrap gap-2">
+                {TAGS.map((each) => (
                   <button
-                    aria-label={`Remove ${image.name}`}
-                    className="absolute -top-1.5 -right-1.5 grid size-4.5 place-items-center rounded-full bg-foreground text-background hover:bg-foreground/80"
+                    aria-pressed={tag === each.tag}
+                    className={cn(
+                      "inline-flex h-7 items-center rounded-full px-3 text-xs font-medium outline-none focus-visible:ring-[3px] focus-visible:ring-ring/50",
+                      tag === each.tag
+                        ? "bg-brand-600 text-white"
+                        : "border border-border bg-card text-foreground/80 hover:bg-accent",
+                    )}
+                    key={each.tag}
                     onClick={() => {
-                      setImages((current) =>
-                        current.filter((other) => other.id !== image.id),
-                      );
-                      setImageProblems([]);
+                      setTag(tag === each.tag ? undefined : each.tag);
                     }}
                     type="button"
                   >
-                    <XIcon className="size-2.5" weight="bold" />
+                    {each.label}
                   </button>
-                </div>
-              ))}
-              <Button
-                disabled={images.length >= MAX_FEEDBACK_IMAGES}
-                onClick={() => {
-                  pickerRef.current?.click();
-                }}
-                size="sm"
-                variant="outline"
-              >
-                <ImageIcon />
-                Add images
-              </Button>
-              <input
-                accept={FEEDBACK_IMAGE_TYPES.join(",")}
-                className="hidden"
-                multiple
-                onChange={(event) => {
-                  const files = [...(event.target.files ?? [])];
-                  event.target.value = "";
-                  void addImages(files);
-                }}
-                ref={pickerRef}
-                type="file"
-              />
+                ))}
+              </div>
             </div>
-            {imageProblems.map((line) => (
-              <p
-                className="flex items-start gap-1.5 text-xs text-destructive"
-                key={line}
-              >
-                <WarningCircleIcon className="mt-px size-3.5 shrink-0" />
-                {line}
-              </p>
-            ))}
-          </div>
 
-          <div className="flex flex-col gap-2">
-            <p className="text-[13px] font-medium text-muted-foreground">
-              Sent with your note
-            </p>
-            <div className="divide-y divide-border rounded-xl border border-border">
-              {described.isPending
-                ? (request.chatId
-                    ? ["chat", "diagnostics"]
-                    : ["diagnostics"]
-                  ).map((id) => <PartRowLoading key={id} />)
-                : parts.map((part) => (
-                    <PartRow
-                      key={part.item.id}
-                      onView={() => {
-                        setViewing(part.item.id);
-                      }}
-                      part={part}
+            <DictatedTextarea
+              aria-label="Your note"
+              autoFocus
+              className="min-h-24"
+              dictation={noteDictation}
+              maxLength={NOTE_MAX_LENGTH}
+              onChange={(event) => {
+                setNote(event.target.value);
+              }}
+              placeholder={
+                request.writeup
+                  ? "Anything to add? You can also send it as it is."
+                  : (TAGS.find((each) => each.tag === tag)?.placeholder ??
+                    "What happened, and what did you expect?")
+              }
+              value={note}
+            />
+
+            <div className="flex flex-col gap-2">
+              <div className="flex flex-wrap items-center gap-3">
+                {images.map((image) => (
+                  <div className="relative" key={image.id}>
+                    <img
+                      alt={image.name}
+                      className="block size-14 rounded-md border border-border bg-muted object-cover"
+                      src={image.src}
                     />
-                  ))}
+                    <button
+                      aria-label={`Remove ${image.name}`}
+                      className="absolute -top-1.5 -right-1.5 grid size-4.5 place-items-center rounded-full bg-foreground text-background hover:bg-foreground/80"
+                      onClick={() => {
+                        setImages((current) =>
+                          current.filter((other) => other.id !== image.id),
+                        );
+                        setImageProblems([]);
+                      }}
+                      type="button"
+                    >
+                      <XIcon className="size-2.5" weight="bold" />
+                    </button>
+                  </div>
+                ))}
+                <Button
+                  disabled={images.length >= MAX_FEEDBACK_IMAGES}
+                  onClick={() => {
+                    pickerRef.current?.click();
+                  }}
+                  size="sm"
+                  variant="outline"
+                >
+                  <ImageIcon />
+                  Add images
+                </Button>
+                <input
+                  accept={FEEDBACK_IMAGE_TYPES.join(",")}
+                  className="hidden"
+                  multiple
+                  onChange={(event) => {
+                    const files = [...(event.target.files ?? [])];
+                    event.target.value = "";
+                    void addImages(files);
+                  }}
+                  ref={pickerRef}
+                  type="file"
+                />
+              </div>
+              {imageProblems.map((line) => (
+                <p
+                  className="flex items-start gap-1.5 text-xs text-destructive"
+                  key={line}
+                >
+                  <WarningCircleIcon className="mt-px size-3.5 shrink-0" />
+                  {line}
+                </p>
+              ))}
             </div>
-          </div>
 
-          <div className="flex items-center gap-2">
+            <div className="flex flex-col gap-2">
+              <p className="text-[13px] font-medium text-muted-foreground">
+                Sent with your note
+              </p>
+              <div className="divide-y divide-border rounded-xl border border-border">
+                {described.isPending
+                  ? (request.chatId
+                      ? ["chat", "diagnostics"]
+                      : ["diagnostics"]
+                    ).map((id) => <PartRowLoading key={id} />)
+                  : parts.map((part) => (
+                      <PartRow
+                        key={part.item.id}
+                        onView={() => {
+                          setViewing(part.item.id);
+                        }}
+                        part={part}
+                      />
+                    ))}
+              </div>
+            </div>
+          </DialogBody>
+
+          <div className="flex shrink-0 items-center gap-2 px-6 pt-5 pb-6">
             <div className="min-w-0 flex-1">
               {problem && (
                 <p className="flex items-start gap-1.5 text-xs text-destructive">
@@ -523,7 +595,7 @@ export function FeedbackDialogContent({
             </Button>
             {sendButton}
           </div>
-        </div>
+        </>
       )}
     </DialogContent>
   );
@@ -544,14 +616,16 @@ function PartRow({ onView, part }: { onView: () => void; part: Part }) {
           onCheckedChange={part.sending.set}
         />
       )}
-      <Button
-        aria-label={`View ${part.title}`}
-        onClick={onView}
-        size="sm"
-        variant="outline"
-      >
-        View
-      </Button>
+      {!part.leftOut && (
+        <Button
+          aria-label={`View ${part.title}`}
+          onClick={onView}
+          size="sm"
+          variant="outline"
+        >
+          View
+        </Button>
+      )}
     </div>
   );
 }

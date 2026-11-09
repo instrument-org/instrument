@@ -221,7 +221,7 @@ describe("instrument", () => {
     const started = await bash.exec("instrument task new --name x <<< 'y'");
     expect(started.exitCode).toBe(1);
     expect(started.stderr).toMatchInlineSnapshot(`
-      "instrument task: only the chat starts and steers tasks. Do the work here, and say in your report what is left.
+      "instrument task: you are a task the chat started, and the chat alone starts and steers tasks. Do your assignment here, and say in your report what is left.
       "
     `);
   });

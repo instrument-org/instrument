@@ -1,6 +1,6 @@
 # How often the app restarts itself to install an update, and whether anyone notices
 
-**Status:** open · **Check after:** two releases shipped to a beta that restarts on its own, and at least a week of use · **Last checked:** never
+**Status:** closed as answered: automatic installs reached their requested builds on all three computers · **Last checked:** 2026-11-08
 
 ## What we're waiting to learn
 
@@ -35,4 +35,10 @@ The main-process logs of the beta machines that ran the build, macOS and Windows
 
 ## Result
 
-Not yet checked.
+Checked 2026-11-08 in the installed apps' retained main logs, covering automatic restarts from October 29 through November 8:
+
+- **Primary Mac:** 20 restarts, 7 while locked and 13 while away. All 20 have a return marker and a subsequent updater line on the requested build, through beta.135.
+- **Windows test host:** 16 restarts, 10 while locked, 4 while away and 2 with no window. All 16 returned on the requested build, through beta.134. One same-version beta.113 restart completed the recorded NSIS-to-Velopack migration successfully; it was not a failed update loop.
+- **Laptop:** 11 restarts, 8 while locked and 3 while away. All 11 reached the requested build, through beta.134; the installed app is now beta.135. Nine have a return marker. The other two reached beta.128 and beta.130 about 16.5 and 17.8 minutes after the restart request, during periods with dark-wake activity; those two delays are not evidence of prompt unattended installation.
+
+No machine logged a backstop restart, exhausted attempts, an unknown-work blocker, a called-off restart or a declined restart outcome. Waiting-state counts are transitions, not time spent blocked. Keep the timing values: ordinary locked, away and no-window restarts are installing updates without needing the backstop. The logs establish successful installs, not whether a person noticed them; no subjective feedback was collected.

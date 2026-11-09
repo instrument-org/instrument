@@ -5,10 +5,10 @@ import {
 } from "@ai-sdk/provider";
 import { type SDKMessage } from "@anthropic-ai/claude-agent-sdk";
 import { randomUUID } from "node:crypto";
-import { z } from "zod";
 
 import { assistantErrorText, nextMessage, planError } from "./cli-messages";
 import { type ClaudeCodeSession, TOOL_PREFIX } from "./session";
+import { CLAUDE_WEB_SEARCH_TOOL_NAME, webSearchOf } from "./web-search";
 
 export const CLAUDE_ACCOUNT_PROVIDER_ID = "claude-account";
 
@@ -100,13 +100,26 @@ export async function pumpStep(
         if (!replying && message.uuid) {
           session.forkPoint = message.uuid;
         }
-        for (const source of webSearchSources(message.tool_use_result)) {
+        // A search Claude Code ran itself, reported whole once its result is
+        // in: when the model searched alongside one of our tools, that is in
+        // the step after the one that called it, so the call and its result
+        // go out together.
+        const search = webSearchOf(message);
+        if (search) {
           controller.enqueue({
-            id: randomUUID(),
-            sourceType: "url",
-            title: source.title,
-            type: "source",
-            url: source.url,
+            dynamic: true,
+            input: JSON.stringify({ query: search.result.query }),
+            providerExecuted: true,
+            toolCallId: search.id,
+            toolName: CLAUDE_WEB_SEARCH_TOOL_NAME,
+            type: "tool-call",
+          });
+          controller.enqueue({
+            dynamic: true,
+            result: search.result,
+            toolCallId: search.id,
+            toolName: CLAUDE_WEB_SEARCH_TOOL_NAME,
+            type: "tool-result",
           });
         }
         break;
@@ -413,27 +426,4 @@ function usageOf(usage: AnthropicUsage): LanguageModelV4Usage {
 
 export function emptyUsage(): LanguageModelV4Usage {
   return usageOf({});
-}
-
-/** What a WebSearch run by Claude Code reports, as its tool result. */
-const WebSearchOutputSchema = z.object({
-  results: z.array(
-    z.union([
-      z.object({
-        content: z.array(z.object({ title: z.string(), url: z.string() })),
-      }),
-      z.string(),
-    ]),
-  ),
-});
-
-/** The pages a WebSearch Claude Code ran turned up, or none for any other result. */
-function webSearchSources(result: unknown) {
-  const parsed = WebSearchOutputSchema.safeParse(result);
-  if (!parsed.success) {
-    return [];
-  }
-  return parsed.data.results.flatMap((entry) =>
-    typeof entry === "string" ? [] : entry.content,
-  );
 }

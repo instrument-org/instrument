@@ -23,7 +23,7 @@ import {
   answerAgentBrowser,
 } from "../../test/helpers/agent-browser-runs";
 import { browserTargetOf } from "../../types";
-import { updateHeldTabs } from "../held-tabs";
+import { publisher } from "../../rpc/publisher";
 import { sessionLayout } from "../session-layout";
 import { getWorkspaceConfig, setWorkspaceConfig } from "../workspace-config";
 import {
@@ -179,9 +179,29 @@ describe("createAgentBrowserCommand", () => {
     const unblocked = new Set<string>();
     let workspaceBlocking = true;
     const driven = browserTargetOf(StoreId.newTabId());
+    /** The chat's tabs, as its window lists them. */
+    let chatTabs: string[] = [];
+    let stopWindow = () => {};
 
-    beforeEach(async () => {
+    afterEach(() => {
+      stopWindow();
+    });
+
+    beforeEach(() => {
       unblocked.clear();
+      chatTabs = [driven];
+      stopWindow = publisher.subscribe("window.tab", (ask) => {
+        publisher.publish("window.tabDone", {
+          id: ask.id,
+          requestId: ask.requestId,
+          tabs: chatTabs.map((id) => ({
+            id,
+            kind: "page" as const,
+            title: "",
+            url: "https://example.com/",
+          })),
+        });
+      });
       workspaceBlocking = true;
       const config = getWorkspaceConfig();
       setWorkspaceConfig({
@@ -203,26 +223,23 @@ describe("createAgentBrowserCommand", () => {
           },
         },
       });
-      await updateHeldTabs(chatId, sessionId, () => [
-        { id: driven, inWindow: true, openedBy: "task" },
-      ]);
     });
 
-    it("turns blocking off and on for the task without spawning the CLI", async () => {
+    it("turns blocking off and on for the chat's tabs without spawning the CLI", async () => {
       const off = await command.execute(["adblock", "off"], mockCtx);
       expect(off.stdout).toMatchInlineSnapshot(`
-        "Ad blocking is off in this task's tabs, until \`agent-browser adblock on\` or the app restarts. The user's own setting is unchanged.
+        "Ad blocking is off in this chat's tabs, until \`agent-browser adblock on\` or the app restarts. The user's own setting is unchanged.
         Reload the page (\`agent-browser reload\`) for the change to apply.
         "
       `);
       expect(unblocked.has(driven)).toBe(true);
 
       const status = await command.execute(["adblock"], mockCtx);
-      expect(status.stdout).toContain("off in this task's tabs");
+      expect(status.stdout).toContain("off in this chat's tabs");
 
       const on = await command.execute(["adblock", "on"], mockCtx);
       expect(on.stdout).toMatchInlineSnapshot(`
-        "Ad blocking is on in this task's tabs.
+        "Ad blocking is on in this chat's tabs.
         Reload the page (\`agent-browser reload\`) for the change to apply.
         "
       `);
@@ -238,8 +255,8 @@ describe("createAgentBrowserCommand", () => {
       `);
     });
 
-    it("asks for a page first when the task has no tabs", async () => {
-      await updateHeldTabs(chatId, sessionId, () => []);
+    it("asks for a page first when the chat has no tabs", async () => {
+      chatTabs = [];
       const result = await command.execute(["adblock", "off"], mockCtx);
       expect(result.exitCode).toBe(1);
       expect(result.stderr).toContain("Open the page first");

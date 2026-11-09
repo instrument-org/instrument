@@ -469,7 +469,7 @@ describe("SessionMessage.toModelMessages", () => {
             {
               "text": "
       <instrument-system-note>
-      Your browser is these tabs of the user's chat, first one first: t1 at https://example.com ("Example"), which you opened. \`agent-browser\` starts on the first; \`agent-browser tab <id>\` switches to another, and \`agent-browser tab list\` shows them all.
+      This chat's tabs, which the chat and each of its tasks all see and drive: t1 at https://example.com ("Example"), opened by an agent. \`agent-browser tab <id>\` switches to one.
       </instrument-system-note>",
               "type": "text",
             },

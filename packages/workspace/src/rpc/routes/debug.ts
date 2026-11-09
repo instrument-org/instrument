@@ -1,9 +1,16 @@
+import { type } from "@orpc/server";
 import ms from "ms";
 import { z } from "zod";
 
 import { createBashEnv } from "../../lib/create-bash-env";
 import { folderReach } from "../../lib/chat/folder-reach";
 import { lastLoadedSkillDir } from "../../lib/loaded-skill";
+import {
+  type DeveloperNote,
+  type DeveloperNoteBody,
+  developerNotesWithBodies,
+} from "../../lib/transcript/developer-notes";
+import { type SessionMessage } from "../../schemas/session/message";
 import { StoreId } from "../../schemas/store-id";
 import { ChatIdSchema } from "../../schemas/chat-id";
 import { base } from "../base";
@@ -130,4 +137,29 @@ const runBash = base
     }
   });
 
-export const debug = { runBash };
+/**
+ * The notes a script's messages come to, for the transcript's debug page, which
+ * has no records under it. Here rather than in the page because a note's card
+ * is the request's own walk, which the renderer can't load.
+ */
+const developerNotes = base
+  .input(
+    z.object({
+      messages: z.array(z.custom<SessionMessage.WithParts>()),
+      sessionId: StoreId.SessionSchema,
+    }),
+  )
+  .output(
+    type<{
+      bodies: Record<string, DeveloperNoteBody>;
+      notes: DeveloperNote[];
+    }>(),
+  )
+  .handler(({ input }) => {
+    const { bodies, notes } = developerNotesWithBodies(input.messages, {
+      sessionId: input.sessionId,
+    });
+    return { bodies: Object.fromEntries(bodies), notes };
+  });
+
+export const debug = { developerNotes, runBash };

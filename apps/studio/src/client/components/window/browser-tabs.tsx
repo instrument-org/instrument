@@ -20,6 +20,7 @@ import { getFileType } from "@/client/lib/get-file-type";
 import { rpcClient } from "@/client/rpc/client";
 import { fileHref } from "@/shared/computer-href";
 import { isPageEditAddress } from "@instrument-org/shared";
+import { pageTextOf, READ_PAGE_TEXT } from "@instrument-org/shared/page-text";
 import {
   type BrowserTargetId,
   browserTargetOf,
@@ -80,14 +81,13 @@ export interface BrowserTabsHandle {
    * Opens a page tab in a chat's group without showing it: the tab joins the
    * group's list and nothing on screen changes, the pane included. What an
    * agent's own work opens, which the user finds in the list when they want
-   * to watch. Returns the tab.
+   * to watch. Opens it under `id` when given. Returns the tab.
    */
-  openBehind: (url: string | undefined, group: string) => StoreId.Tab;
-  /**
-   * Gives a page an agent made with no tab a tab in a chat's group, behind
-   * whatever is up, under the page's own id, as the page goes somewhere.
-   */
-  adopt: (id: StoreId.Tab, url: string, group: string) => void;
+  openBehind: (
+    url: string | undefined,
+    group: string,
+    id?: StoreId.Tab,
+  ) => StoreId.Tab;
   /**
    * Opens a page in the group on screen or the group given, or shows the tab
    * already on it when the address is a file's. Given a tab to replace, a
@@ -143,16 +143,10 @@ interface PageContext {
 /** How much of what is selected goes with a message. */
 const SELECTION_MAX = 2000;
 
-/** The most of a page `instrument window read` hands back, which bounds what crosses to the sandbox. */
-const PAGE_TEXT_MAX = 200_000;
-
 const PageWordsSchema = z.object({
   focus: z.string(),
   selection: z.string(),
 });
-
-/** Runs in the page: its text as rendered, lines kept. */
-const READ_PAGE_TEXT = `String(document.body?.innerText ?? "")`;
 
 /**
  * Runs in the page: what is selected and where the cursor is. The focused
@@ -479,19 +473,9 @@ export function BrowserTabs({
           url,
         });
       },
-      adopt: (id, url, into) => {
-        if (latest.current.tabs.some((tab) => tab.id === id)) {
-          return;
-        }
-        change((current) =>
-          addPages(current, [
-            { group: into, id, openedAt: Date.now(), openedUrl: url, url },
-          ]),
-        );
-      },
       open: (url, options) => openTab(url, options),
-      openBehind: (url, into) => {
-        const id = StoreId.newTabId();
+      openBehind: (url, into, given) => {
+        const id = given ?? StoreId.newTabId();
         change((current) =>
           addPages(current, [
             {
@@ -621,9 +605,7 @@ export function BrowserTabs({
         }
         try {
           const raw: unknown = await guest.run(READ_PAGE_TEXT);
-          return typeof raw === "string"
-            ? raw.slice(0, PAGE_TEXT_MAX)
-            : undefined;
+          return pageTextOf(raw);
         } catch {
           return;
         }

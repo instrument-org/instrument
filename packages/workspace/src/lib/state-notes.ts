@@ -1,10 +1,10 @@
 import { SessionMessageDataPart } from "../schemas/session/message-data-part";
 import { type SessionMessage } from "../schemas/session/message";
 import { type SessionMessagePart } from "../schemas/session/message-part";
-import { browserStatusModelNote } from "./browser-status-model-text";
-import { projectModelNote } from "./project-model-text";
-import { viewContextModelNote } from "./view-context-model-text";
-import { workspaceInstructionsModelNote } from "./workspace-instructions-model-text";
+import { browserStatusModelNote } from "../model-text/notes/browser-status-model-text";
+import { projectModelNote } from "../model-text/notes/project-model-text";
+import { viewContextModelNote } from "../model-text/notes/view-context-model-text";
+import { workspaceInstructionsModelNote } from "../model-text/notes/workspace-instructions-model-text";
 
 type DataParts = SessionMessageDataPart.DataParts;
 

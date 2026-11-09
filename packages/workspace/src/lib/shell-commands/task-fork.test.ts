@@ -66,6 +66,7 @@ let rootDir: string;
 let context: CapabilityScope;
 let chatSessionId: StoreId.Session;
 let chatMessages: SessionMessage.WithParts[];
+let chatStepRequest: Awaited<ReturnType<typeof request>>;
 
 beforeEach(async () => {
   counter += 1;
@@ -125,13 +126,42 @@ beforeEach(async () => {
     path.join(chatDir(chatId), "attachments", "list.csv"),
     "a,b\n",
   );
-  for (const message of chatMessages) {
-    const saved = await ChatWrites.saveMessageWithParts(message, chatId);
-    if (saved.isErr()) {
-      throw saved.error;
-    }
+  for (const message of chatMessages.slice(0, -1)) {
+    await save(message);
+  }
+  // What the chat sent for the step that calls `instrument task new`: the
+  // request that wrote the reply, before the reply was recorded.
+  chatStepRequest = await request(chatSessionId);
+  const reply = chatMessages.at(-1);
+  if (reply) {
+    await save(reply);
   }
 });
+
+async function save(message: SessionMessage.WithParts) {
+  (
+    await ChatWrites.saveMessageWithParts(message, context.chatId)
+  )._unsafeUnwrap();
+}
+
+/** What a session sends for its next request, without the cache options. */
+async function request(sessionId: StoreId.Session) {
+  return (
+    (
+      await prepareModelMessages({
+        agent: instrumentAgent,
+        model: createMockAIGatewayModel(),
+        sessionId,
+        signal: new AbortController().signal,
+        chatId: context.chatId,
+      })
+    )
+      ._unsafeUnwrap()
+      // Where the cache breakpoints sit moves with the newest message, and
+      // is a request option rather than bytes of the prefix.
+      .map(({ providerOptions: _options, ...message }) => message)
+  );
+}
 
 afterEach(async () => {
   vi.restoreAllMocks();
@@ -299,7 +329,7 @@ function started() {
 }
 
 describe("task new", () => {
-  it("starts a session in the chat's store, carrying on from before the step that started it", async () => {
+  it("starts a session in the chat's store, carrying on from the step that started it", async () => {
     const { handOffs, result } = await fork();
     expect(result.exitCode).toBe(0);
     expect(handOffs.map((handOff) => handOff.kind)).toEqual(["created"]);
@@ -308,10 +338,9 @@ describe("task new", () => {
     const session = (
       await ChatReads.session({ chatId: context.chatId, sessionId: id })
     )._unsafeUnwrap();
-    // The last message the step that called `instrument task new` was sent: the
-    // finished `ls`, not the reply still in flight.
+    // The step that called `instrument task new`, still in flight.
     expect(session).toMatchObject({
-      forkedAtMessageId: chatMessages[2]?.id,
+      forkedAtMessageId: chatMessages[3]?.id,
       parentId: chatSessionId,
       title: "Rename photos",
     });
@@ -332,6 +361,7 @@ describe("task new", () => {
     expect(parts.some((part) => part.type === "data-attachments")).toBe(false);
     expect(parts.find((part) => part.type === "data-fromChat")).toMatchObject({
       data: {
+        call: { handle: "t1", partId: context.partId },
         kind: "assignment",
         text: `Batch ${counter}: rename every photo in Downloads by its date taken.`,
       },
@@ -379,6 +409,83 @@ describe("task new", () => {
     });
   });
 
+  // On a chat's first turn its baseline is written as the step's request is
+  // made, after the step's id was taken, so it sorts after where the task
+  // forks. A task that missed it wrote a baseline of its own, whose start
+  // time could be a minute on, and lost the chat's cached prefix.
+  it("sends the chat's baseline even when the chat wrote it after the step's id", async () => {
+    const [first] = chatMessages;
+    if (first?.role !== "session-context") {
+      throw new Error("the conversation opens on its baseline");
+    }
+    // The chat's baseline in place of the one it holds, written now, with a
+    // line of its own that a baseline the task wrote would not have.
+    const rewrite = async (
+      replaced: StoreId.Message,
+      line: string,
+    ): Promise<StoreId.Message> => {
+      (
+        await ChatWrites.retract(context.chatId, chatSessionId, [replaced])
+      )._unsafeUnwrap();
+      const id = StoreId.newMessageId();
+      await save({
+        ...first,
+        id,
+        parts: first.parts.flatMap((part) =>
+          part.type === "text"
+            ? [
+                {
+                  ...part,
+                  metadata: {
+                    ...part.metadata,
+                    id: StoreId.newPartId(),
+                    messageId: id,
+                  },
+                  text: `${part.text}\n${line}`,
+                },
+              ]
+            : [],
+        ),
+      });
+      return id;
+    };
+    const written = await rewrite(
+      first.id,
+      "This session started at 11:05 AM local time.",
+    );
+    const [chatSystem] = await request(chatSessionId);
+    expect(JSON.stringify(chatSystem)).toContain("started at 11:05 AM");
+
+    const { handOffs } = await fork();
+    const id = forkId(handOffs);
+    await save(started().message);
+    const forked = await request(id);
+    expect(forked[0]).toEqual(chatSystem);
+    const own = async () =>
+      (
+        await ChatReads.transcript({
+          inherited: false,
+          sessionId: id,
+          chatId: context.chatId,
+        })
+      )
+        ._unsafeUnwrap()
+        .map((message) => message.role);
+    expect(await own()).toEqual(["user"]);
+
+    // A baseline the chat writes once the task has begun is the chat's
+    // alone. The one the task began on goes with it, so the task writes its
+    // own, once, and keeps it however often the chat writes again.
+    const again = await rewrite(
+      written,
+      "This session started at 2:40 PM local time.",
+    );
+    const own2 = await request(id);
+    expect(JSON.stringify(own2[0])).not.toContain("started at 2:40 PM");
+    await rewrite(again, "This session started at 4:10 PM local time.");
+    expect(await request(id)).toEqual(own2);
+  });
+
   it("reads the chat's messages as its own history, copying none", async () => {
     const { handOffs } = await fork();
     const id = forkId(handOffs);
@@ -393,13 +500,13 @@ describe("task new", () => {
       })
     )._unsafeUnwrap();
     expect(history.map((message) => message.id)).toEqual([
-      ...chatMessages.slice(0, 3).map((message) => message.id),
+      ...chatMessages.map((message) => message.id),
       started().message.id,
     ]);
     // Still the chat's, filed under its session.
     expect(
       history
-        .slice(0, 3)
+        .slice(0, chatMessages.length)
         .every((message) => message.metadata.sessionId === chatSessionId),
     ).toBe(true);
     const own = (
@@ -412,7 +519,7 @@ describe("task new", () => {
     expect(own.map((message) => message.id)).toEqual([started().message.id]);
   });
 
-  it("carries on from before its step even once its call was answered and a newer step followed", async () => {
+  it("carries on from its step even once its call was answered and a newer step followed", async () => {
     // A call that ran past its yield is answered "still running in the
     // background" while the chat goes on; a task that read that answer would
     // take its own start for the work already under way.
@@ -472,14 +579,17 @@ describe("task new", () => {
     )._unsafeUnwrap();
 
     const { handOffs } = await fork();
+    const id = forkId(handOffs);
     expect(
       (
-        await ChatReads.session({
-          chatId: context.chatId,
-          sessionId: forkId(handOffs),
-        })
+        await ChatReads.session({ chatId: context.chatId, sessionId: id })
       )._unsafeUnwrap().forkedAtMessageId,
-    ).toBe(chatMessages[2]?.id);
+    ).toBe(chatMessages[3]?.id);
+    // Its call reads as its own start, never as the work still running.
+    await save(started().message);
+    const asked = JSON.stringify(await request(id));
+    expect(asked).toContain("Started task t1. That is you");
+    expect(asked).not.toContain("Still running");
   });
 
   it("says it started by its handle, with nothing of a task folder", async () => {
@@ -528,52 +638,28 @@ describe("task new", () => {
     }
   });
 
-  it("sends the request that started it as the prefix of its first one", async () => {
-    const model = createMockAIGatewayModel();
-    const request = async (sessionId: StoreId.Session) =>
-      (
-        await prepareModelMessages({
-          agent: instrumentAgent,
-          model,
-          sessionId,
-          signal: new AbortController().signal,
-          chatId: context.chatId,
-        })
-      )
-        ._unsafeUnwrap()
-        // Where the cache breakpoints sit moves with the newest message, and
-        // is a request option rather than bytes of the prefix.
-        .map(({ providerOptions: _options, ...message }) => message);
-    // What the chat sent for the step that called `instrument task new`: everything
-    // before the reply that step wrote.
-    const reply = chatMessages.at(-1);
-    if (!reply) {
-      throw new Error("the conversation is empty");
-    }
-    (
-      await ChatWrites.retract(context.chatId, chatSessionId, [reply.id])
-    )._unsafeUnwrap();
-    const chat = await request(chatSessionId);
-    (
-      await ChatWrites.saveMessageWithParts(reply, context.chatId)
-    )._unsafeUnwrap();
-
+  it("sends the request that started it as the prefix of its first one, then the step that started it", async () => {
     const { handOffs } = await fork();
     // The session machine saves the assignment before the first request.
-    (
-      await ChatWrites.saveMessageWithParts(started().message, context.chatId)
-    )._unsafeUnwrap();
+    await save(started().message);
     const forked = await request(forkId(handOffs));
 
     // System prompt, the ask, and the `ls` call and its result.
-    expect(chat.map((message) => message.role)).toEqual([
+    expect(chatStepRequest.map((message) => message.role)).toEqual([
       "system",
       "user",
       "assistant",
       "tool",
     ]);
-    expect(forked.slice(0, chat.length)).toEqual(chat);
-    expect(forked).toHaveLength(chat.length + 1);
+    expect(forked.slice(0, chatStepRequest.length)).toEqual(chatStepRequest);
+    // Then the step that started it, its call answered as its start, and the
+    // assignment.
+    expect(
+      forked.slice(chatStepRequest.length).map((message) => message.role),
+    ).toEqual(["assistant", "tool", "user"]);
+    expect(JSON.stringify(forked.at(-2))).toContain(
+      "Started task t1. That is you",
+    );
     // What the model reads for the chat's words: the fork's note, then the
     // assignment, with nothing fencing it as the user's.
     const assignment = JSON.stringify(forked.at(-1));
@@ -584,6 +670,180 @@ describe("task new", () => {
     expect(assignment).toContain("Your assignment:\\nBatch");
     expect(assignment).not.toContain("<user_message>");
     expect(assignment).not.toContain("attached_folders");
+  });
+
+  it("reads a request that asked for a task and a question as answered, when the task starts on the turn's first step", async () => {
+    const createdAt = new Date("2026-10-06T10:05:00.000Z");
+    const askId = StoreId.newMessageId();
+    await save({
+      id: askId,
+      metadata: { createdAt, sessionId: chatSessionId },
+      parts: [
+        {
+          metadata: {
+            createdAt,
+            id: StoreId.newPartId(),
+            messageId: askId,
+            sessionId: chatSessionId,
+          },
+          text: "Start a task renaming the photos, and ask me which folder to put them in.",
+          type: "text",
+        },
+      ],
+      role: "user",
+    });
+    const chat = await request(chatSessionId);
+
+    const stepId = StoreId.newMessageId();
+    const meta = () => ({
+      createdAt,
+      id: StoreId.newPartId(),
+      messageId: stepId,
+      sessionId: chatSessionId,
+    });
+    const call = meta();
+    await save({
+      id: stepId,
+      metadata: {
+        createdAt,
+        finishReason: "tool-calls",
+        modelId: "mock-model",
+        msToFinish: 900,
+        providerId: "instrument",
+        sessionId: chatSessionId,
+      },
+      parts: [
+        {
+          input: {
+            command: "instrument task new --name 'Rename photos'",
+            explanation: "Forking",
+            yieldMs: 1000,
+          },
+          metadata: call,
+          state: "input-available",
+          toolCallId: "call-task-new",
+          type: "tool-bash",
+        },
+        {
+          input: {
+            explanation: "Asking",
+            questions: [
+              {
+                choices: [{ label: "Pictures" }, { label: "Desktop" }],
+                header: "Folder",
+                multiSelect: false,
+                question: "Which folder?",
+              },
+            ],
+          },
+          metadata: { ...meta(), endedAt: createdAt },
+          output: { asked: true },
+          state: "output-available",
+          // A provider that numbers its calls per step reuses an earlier
+          // step's id, whose result the task still reads as it was.
+          toolCallId: "call-ls",
+          type: "tool-choose",
+        },
+        {
+          metadata: meta(),
+          state: "done",
+          text: "Starting the rename and asking about the folder.",
+          type: "text",
+        },
+      ],
+      role: "assistant",
+    });
+    context = { ...context, partId: call.id };
+
+    const { handOffs } = await fork();
+    const id = forkId(handOffs);
+    expect(
+      (
+        await ChatReads.session({ chatId: context.chatId, sessionId: id })
+      )._unsafeUnwrap().forkedAtMessageId,
+    ).toBe(stepId);
+    await save(started().message);
+    const forked = await request(id);
+
+    // Byte for byte what the chat sent up to the user's request, which the
+    // provider has cached; then the chat's step, both its calls answered for
+    // the task, and the assignment.
+    expect(forked.slice(0, chat.length)).toEqual(chat);
+    expect(forked.slice(chat.length).map((message) => message.role)).toEqual([
+      "assistant",
+      "tool",
+      "user",
+    ]);
+    const [step, results] = forked.slice(chat.length);
+    expect(JSON.stringify(step)).toContain("Which folder?");
+    expect(results).toMatchInlineSnapshot(`
+      {
+        "content": [
+          {
+            "output": {
+              "type": "text",
+              "value": "Started task t1. That is you: the conversation goes on without you, and the rest of this step is its own. Your assignment follows.",
+            },
+            "toolCallId": "call-task-new",
+            "toolName": "bash",
+            "type": "tool-result",
+          },
+          {
+            "output": {
+              "type": "text",
+              "value": "The conversation made this call in the step that started you, and has its result.",
+            },
+            "toolCallId": "call-ls",
+            "toolName": "choose",
+            "type": "tool-result",
+          },
+        ],
+        "role": "tool",
+      }
+    `);
+    // The same on every later request, whatever the chat's calls and its
+    // turn's end wrote onto the step since.
+    await save({
+      id: stepId,
+      metadata: {
+        createdAt,
+        finishReason: "tool-calls",
+        modelId: "mock-model",
+        msToFinish: 900,
+        providerId: "instrument",
+        sessionId: chatSessionId,
+      },
+      parts: [
+        {
+          input: {
+            command: "instrument task new --name 'Rename photos'",
+            explanation: "Forking",
+            yieldMs: 1000,
+          },
+          metadata: { ...call, endedAt: createdAt },
+          output: {
+            command: "instrument task new --name 'Rename photos'",
+            commands: ["instrument"],
+            durationMs: 300,
+            exitCode: 0,
+            omittedBytes: 0,
+            output: 'Started task t1 ("Rename photos").',
+          },
+          state: "output-available",
+          toolCallId: "call-task-new",
+          type: "tool-bash",
+        },
+        {
+          data: {
+            changes: [{ change: "added", kind: "skill", name: "rename" }],
+          },
+          metadata: meta(),
+          type: "data-setupChanges",
+        },
+      ],
+      role: "assistant",
+    });
+    expect(await request(id)).toEqual(forked);
   });
 
   it("leaves the chat's folders alone, reaching them as they stand", async () => {

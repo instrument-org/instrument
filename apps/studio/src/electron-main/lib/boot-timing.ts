@@ -24,3 +24,29 @@ export async function timeBootStep<T>(
     );
   }
 }
+
+/**
+ * A synchronous step, timed as `timeBootStep` times one, without the await
+ * that would let other work run between it and the next step.
+ */
+export function timeBootStepSync<T>(name: string, run: () => T): T {
+  const startedAt = performance.now();
+  try {
+    return run();
+  } catch (error) {
+    throw new Error(`Boot failed during ${name}`, { cause: error });
+  } finally {
+    scopedLogger.info(
+      `${name}: ${Math.round(performance.now() - startedAt)}ms`,
+    );
+  }
+}
+
+/**
+ * A point the launch reached, in ms since the process started, which also
+ * counts what no step times: Electron's own start and loading the main
+ * bundle before the first step, and the gaps between steps.
+ */
+export function logBootMark(name: string): void {
+  scopedLogger.info(`${name} at ${Math.round(performance.now())}ms`);
+}

@@ -19,6 +19,8 @@ const DATA_PART_DISPLAY: Record<DataPartType, DataPartVisibility> = {
   "data-asks": "always",
   "data-folderChanges": "always",
   "data-permissionAnswer": "always",
+  // Take over draws the paused line with Continue; Continue draws nothing.
+  "data-pageTakeover": "always",
   // The card the question was asked on shows the answer.
   "data-questionAnswer": "hidden",
   // The note over the reply box that asked for it is gone once it lands.
@@ -30,6 +32,9 @@ const DATA_PART_DISPLAY: Record<DataPartType, DataPartVisibility> = {
   // status out of tool results. The header pill is the live surface; this is
   // context for the model, and a debug peek for us.
   "data-backgroundProcesses": "dev",
+  // The line after a branch's copied conversation naming the chat it came
+  // from; the folders it names are for the agent.
+  "data-branchedFrom": "always",
   "data-browserStatus": "dev",
   // Developer-mode only, deliberately. What happens here is a rollover, not a
   // compaction: assembly stops sending the model's own earlier turns and
@@ -99,10 +104,23 @@ const DATA_PART_DISPLAY: Record<DataPartType, DataPartVisibility> = {
   "data-project": "dev",
   // The card asking how the chat went, for the person alone.
   "data-ratingCard": "always",
+  // What one request went out with, kept for the margins; nobody reads it in
+  // the column and the model never reads it at all.
+  "data-requestNote": "hidden",
+  // A request that failed before any reply was saved, for the margins too.
+  "data-requestFailure": "hidden",
   "data-workspaceInstructions": "dev",
   "data-unknown": "dev",
   "data-viewContext": "dev",
 };
+
+/**
+ * A part kept for a developer alone. It is not content: a message holding only
+ * this one is as empty as it was, and writing it is no activity of the session's.
+ */
+export function isDeveloperNotePart({ type }: { type: string }): boolean {
+  return type === "data-requestFailure" || type === "data-requestNote";
+}
 
 export function dataPartVisibility(
   part: SessionMessagePart.DataPart,

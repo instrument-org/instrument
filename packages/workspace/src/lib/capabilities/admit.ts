@@ -24,3 +24,11 @@ export function unavailableReason(
   }
   return undefined;
 }
+
+/** Whether a capability is left out for a role, which its role refusal says. */
+export function refusedForRole(
+  { where }: { where?: Where },
+  role: Role,
+): boolean {
+  return where?.roles?.includes(role) === false;
+}

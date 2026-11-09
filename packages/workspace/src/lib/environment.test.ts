@@ -14,7 +14,7 @@ import {
   environmentChange,
   lastToldEnvironment,
 } from "./environment";
-import { environmentChangeModelNote } from "./environment-model-text";
+import { environmentChangeModelNote } from "../model-text/context/environment-model-text";
 import { getWorkspaceConfig, setWorkspaceConfig } from "./workspace-config";
 
 const MAC: Environment = {

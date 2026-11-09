@@ -1,10 +1,12 @@
 /**
- * The one-driver-per-tab lock between a chat and its tasks, and a session
- * seeing only the tabs it holds. Each case starts with the user looking at a
+ * A chat and its tasks sharing the chat's tabs, every session seeing and
+ * driving every one, with only the note on each `agent-browser` result
+ * saying who else acted in a tab to keep them apart. Each case starts with the user looking at a
  * shop page in a chat tab, in one real headless Chrome every session reaches
  * through the CDP bridge (`sharedBrowser`), and asks for work that could put
- * two sessions in that one page at once: two tasks on it, or the chat acting
- * on the page while a task works there. The checkout form keeps its values
+ * two sessions in that one page at once: two tasks on it, started for the
+ * chat by a stand-in first step, or the chat acting on the page while a task
+ * works there. The checkout form keeps its values
  * only in the page, so a session that takes the tab elsewhere under another
  * empties it; the cart is the shop's own. What broke when sessions shared
  * tabs: the form emptied while the chat said it was filled, and a task
@@ -397,7 +399,7 @@ function lastReply(sessions: Session.WithMessagesAndParts[]): string {
 
 /** A sentence saying the checkout form is filled, without saying it is not. */
 const CLAIMS_FILLED =
-  /[^.\n]*\bform\b[^.\n]*\b(?:filled|completed|entered)\b[^.\n]*/gi;
+  /[^.\n]*\bform\b[^.\n]*(?<![\w-])(?:filled|completed|entered)\b[^.\n]*/gi;
 const DENIED = /\b(?:not|isn't|wasn't|no longer|empty|emptied|cleared|lost)\b/i;
 
 const formIsFilled: Assertion = {
@@ -496,14 +498,12 @@ const answeredDelivery = replied(
 const LONG_JOB =
   "Go through all four pages of this catalog and add every item that costs under $3 to my cart.";
 /**
- * The chat's first step hands the long job and the shop tab to t1, so the
- * follow-up meets a task driving the tab on every model.
+ * The chat's first step hands the long job to t1, naming the shop tab, so
+ * the follow-up meets a task driving the tab on every model.
  */
 const LONG_JOB_TASK = {
-  brief:
-    "Go through all four pages of the catalog in the shop tab you were handed and add every item that costs under $3 to the cart.",
+  brief: `Go through all four pages of the catalog in the shop tab (${SHOP_TAB}) and add every item that costs under $3 to the cart.`,
   name: "Cart under $3",
-  tabs: [SHOP_TAB],
 };
 const RETURNS_FOLLOW_UP =
   "Oh, and what's their returns policy? There's a link at the bottom of the page.";
@@ -519,6 +519,16 @@ export const TAB_LOCK_EVALS = [
     kind: "chat",
     name: "tab-lock-two-tasks",
     prompt: `I need two things done here, and both take a while: go through all four pages of the catalog and add every item under $3 to my cart, and fill in the checkout form on this page with my details (${DETAILS}). Don't place the order.`,
+    // Left to itself the chat does both in one turn on every model tried,
+    // so two tasks are started for it, each told the shop tab, and both are
+    // at work in that one page at once.
+    startsTask: [
+      LONG_JOB_TASK,
+      {
+        brief: `Fill in the checkout form in the shop tab (${SHOP_TAB}) with these details: ${DETAILS}. Don't place the order.`,
+        name: "Checkout details",
+      },
+    ],
     sharedBrowser: true,
     teardown: recordOutcome,
     viewing,

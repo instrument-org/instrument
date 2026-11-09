@@ -16,6 +16,7 @@ export function createStubBrowserConfig(): BrowserConfig {
     hasNoWindow: false,
     guestCost: () => null,
     isGuestAsleep: () => false,
+    personInputAt: () => undefined,
     isGuestBusy: () => false,
     getTargetUrl: (): string | undefined => {
       // No guest is ever live here, so there is no address to report.

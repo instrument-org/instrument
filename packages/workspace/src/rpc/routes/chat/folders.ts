@@ -2,6 +2,10 @@ import { eventIterator } from "@orpc/server";
 import { z } from "zod";
 
 import { folderReach } from "../../../lib/chat/folder-reach";
+import {
+  chatFolderEdits,
+  chatFolderWithFiles,
+} from "../../../lib/chat-folders/folder-with-files";
 import { recordChanges } from "../../../lib/record-changes";
 import {
   chatDir,
@@ -65,6 +69,38 @@ export const liveChatOwnFolder = base
           resolveChat(input.id) === undefined
             ? null
             : (chatOwnFolder(chatDir(input.id)) ?? null),
+      }),
+    );
+  });
+
+/**
+ * The chat's own folder while it has files in it beside its `CHAT.md`, null
+ * otherwise (`chatFolderWithFiles`): what the chat's head offers to open.
+ * Read again when the chat writes a message (a turn saving a file, a person
+ * sending one), when its folder moves to its title, and when the system
+ * reports a change at the folder's top level.
+ */
+export const liveChatFolderWithFiles = base
+  .input(z.object({ id: ChatIdSchema }))
+  .output(eventIterator(z.string().nullable()))
+  .handler(async function* ({ input, signal }) {
+    const ofChat = () => [
+      recordChanges(
+        signal,
+        (change) =>
+          change.id === input.id &&
+          change.kind === "messages" &&
+          change.live !== true,
+      ),
+      where(
+        publisher.subscribe("chat.folderMoved", { signal }),
+        (moved) => moved.id === input.id,
+      ),
+    ];
+    yield* distinct(
+      liveRead({
+        changes: [...ofChat(), chatFolderEdits(input.id, ofChat(), signal)],
+        read: () => chatFolderWithFiles(input.id),
       }),
     );
   });

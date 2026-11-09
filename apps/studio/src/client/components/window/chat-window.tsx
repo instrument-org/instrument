@@ -5,11 +5,13 @@ import {
   type ChatId,
   type SessionMessageDataPart,
 } from "@instrument-org/workspace/client";
+import { fileHref, folderHref } from "@/shared/computer-href";
+import { ChipPresence } from "@/client/components/attached-item-preview";
 import { ArrowsOutSimpleIcon } from "@phosphor-icons/react/ArrowsOutSimple";
 import { ChatsCircleIcon } from "@phosphor-icons/react/ChatsCircle";
 import { MinusIcon } from "@phosphor-icons/react/Minus";
 import { XIcon } from "@phosphor-icons/react/X";
-import { motion, useIsPresent } from "motion/react";
+import { AnimatePresence, motion, useIsPresent } from "motion/react";
 import { useEffect, useRef } from "react";
 
 import { ChatHeader } from "./chat-header";
@@ -27,9 +29,10 @@ import {
   COMPOSE_BAR_WIDTH,
   COMPOSE_MOTION,
 } from "./compose-layout";
-import { BarMarks, WindowButton } from "./compose-window";
-import { useWindow, WindowContext } from "./context";
-import { ContextChips } from "./context-chip";
+import { WindowButton } from "./compose-window";
+import { asksOwnPlace, useWindow, WindowContext } from "./context";
+import { ContextChips, ContextSuggestion } from "./context-chip";
+import { type ContextItem } from "./context-items";
 import { computerTabOf } from "./file-tabs";
 import { LinkSurface } from "./link-surface";
 import { taskHref, tasksOfHref } from "./tab-location";
@@ -41,9 +44,11 @@ import { ShimmerSweep } from "@/client/components/shimmer-sweep";
 const CHAT_WINDOW_HEIGHT = 560;
 
 /**
- * A chat put down: a dark bar along the window's foot with its title, the
- * pulse while it works, and the marks of what it holds, as a draft's bar
- * has, brought back up by a press, taken down by its cross. The chat itself is untouched by either.
+ * A chat put down: a dark bar along the window's foot with its title and
+ * the pulse while it works, brought back up by a press, taken down by its
+ * cross. The chat itself is untouched by either. Flush with the foot in the
+ * light theme, where it has no ring to double the edge the system draws
+ * there; a screen pixel up in the dark one, where it has.
  */
 export function ChatBar({
   chat,
@@ -66,7 +71,7 @@ export function ChatBar({
   return (
     <motion.div
       animate={{ opacity: 1, right, y: 0 }}
-      className="pointer-events-auto absolute bottom-[calc(1px/var(--app-zoom))] z-40 flex h-9 items-center overflow-hidden rounded-t-lg bg-gray-900 text-[12px] font-medium text-white shadow-xl-soft [clip-path:inset(-4rem_-4rem_0_-4rem)] dark:bg-gray-800 dark:ring-1 dark:ring-[color-mix(in_srgb,#fff_10%,var(--background))]"
+      className="pointer-events-auto absolute bottom-0 z-40 flex h-9 items-center overflow-hidden rounded-t-lg bg-gray-900 text-[12px] font-medium text-white shadow-xl-soft [clip-path:inset(-4rem_-4rem_0_-4rem)] dark:bottom-[calc(1px/var(--app-zoom))] dark:bg-gray-800 dark:ring-1 dark:ring-[color-mix(in_srgb,#fff_10%,var(--background))]"
       data-slot="chat-bar"
       exit={{ opacity: 0, y: 36 }}
       inert={!isPresent}
@@ -99,7 +104,6 @@ export function ChatBar({
             {isWorking && <ShimmerSweep text={chat?.title ?? "Chat"} />}
           </span>
         </span>
-        {chat && <BarMarks group={chat.id} />}
       </button>
       <button
         aria-label="Close"
@@ -151,10 +155,10 @@ export function ChatWindow({
   onSetProject: (project: null | string) => void;
   /** Where the window stands along the foot, in layout px from the right edge. */
   right: number;
-  /** What goes with a reply: what is behind the window. */
+  /** What goes with a reply: what the person took from what is behind the window. */
   sendContext: (options: {
     isViewOpen: boolean;
-    leftOut: readonly string[];
+    taken: readonly ContextItem[];
   }) => Promise<SessionMessageDataPart.ViewContextDataPart | undefined>;
   /** The words the draft this window was sent, while the chat they start is on its way. */
   sentWords?: string;
@@ -170,19 +174,42 @@ export function ChatWindow({
   const appWindow = useWindow();
   const windowTabs = useWindowTabs();
 
-  // What goes with each message besides its words, as the chips over the
-  // composer: what is in view behind the chat, each until its x is pressed.
-  // The send reads the same list at the press.
+  // What goes with the next message besides its words, as the chips over the
+  // composer: what the person took from what is behind the chat, which is
+  // offered beside them. The send reads the same list at the press, and the
+  // row is empty again once the message has gone.
   const context = useChatContext({
     chatId,
     isPoppedOut: true,
     isViewOpen: false,
   });
-  const contextRef = useRef({ isViewOpen: false, leftOut: context.leftOut });
+  const contextRef = useRef({ isViewOpen: false, taken: context.taken });
   useEffect(() => {
-    contextRef.current = { isViewOpen: false, leftOut: context.leftOut };
+    contextRef.current = { isViewOpen: false, taken: context.taken };
   });
-  const contextToSend = () => sendContext(contextRef.current);
+  const contextToSend = async () => {
+    const sending = await sendContext(contextRef.current);
+    context.sent();
+    return sending;
+  };
+  /** A chip pressed: what it names comes up on the screen behind the chat, where it was taken from. */
+  const showBehind = (item: ContextItem) => {
+    if (item.kind !== "tab") {
+      return;
+    }
+    const [one] = item.items ?? [];
+    if (one) {
+      appWindow.openScreen(
+        one.kind === "folder" ? folderHref(one.path) : fileHref(one.path),
+      );
+    } else if (item.tab.kind === "page") {
+      if (item.tab.url !== undefined) {
+        appWindow.openPage(item.tab.url);
+      }
+    } else {
+      appWindow.openScreen(item.tab.href);
+    }
+  };
 
   /** Takes the chat into a tab with what is up in it shown in its pane. */
   const showUp = () => {
@@ -192,10 +219,10 @@ export function ChatWindow({
     windowTabs.select(id);
     showUp();
   };
-  // A new tab each time: the person asked for another, even of a kind the
-  // chat already has open. One a link opened closes on back from its start.
+  // The chat's tab already showing it, or a new one. One a link opened
+  // closes on back from its start.
   const openHere = (href: string, { isOpened }: { isOpened: boolean }) => {
-    windowTabs.openScreen(href, {
+    windowTabs.openOrFocusScreen(href, {
       group: chatId,
       isOpened,
       select: true,
@@ -292,14 +319,14 @@ export function ChatWindow({
             value={{
               ...appWindow,
               openPage: (url, options) => {
-                if (options?.show && !options.newTab) {
+                if (options?.show && !asksOwnPlace(options)) {
                   openPage(url);
                   return;
                 }
                 appWindow.openPage(url, options);
               },
               openPath: (path, options) => {
-                if (options?.show && !options.newTab) {
+                if (options?.show && !asksOwnPlace(options)) {
                   appWindow.openPath(path, {
                     activate: true,
                     group: chatId,
@@ -311,7 +338,7 @@ export function ChatWindow({
                 appWindow.openPath(path, options);
               },
               openScreen: (href, options) => {
-                if (options?.newTab) {
+                if (asksOwnPlace(options)) {
                   appWindow.openScreen(href, options);
                   return;
                 }
@@ -332,7 +359,7 @@ export function ChatWindow({
                 it is shown the same way. */}
             <FileOpenContext
               value={(path, options) => {
-                if (options?.newTab) {
+                if (asksOwnPlace(options)) {
                   appWindow.openPath(path, options);
                   return;
                 }
@@ -352,8 +379,28 @@ export function ChatWindow({
                         <ContextChips
                           items={context.chips}
                           onLeaveOut={context.leaveOut}
+                          onShow={showBehind}
                         />
                       ) : undefined
+                    }
+                    // What is behind is offered beside the plus, as a
+                    // docked draft offers it, and goes over the words once
+                    // taken.
+                    composerOffer={
+                      <AnimatePresence initial={false}>
+                        {context.suggestion && (
+                          <ChipPresence key={context.suggestion.key}>
+                            <ContextSuggestion
+                              item={context.suggestion}
+                              onTake={() => {
+                                if (context.suggestion) {
+                                  context.take(context.suggestion);
+                                }
+                              }}
+                            />
+                          </ChipPresence>
+                        )}
+                      </AnimatePresence>
                     }
                     isUp
                     onGone={onClose}

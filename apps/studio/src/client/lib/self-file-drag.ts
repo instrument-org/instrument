@@ -115,6 +115,13 @@ export function isOwnFileDragOf(paths: readonly string[]) {
   );
 }
 
+/** The files of this app's own drag still in the air, or nothing. */
+export function ownFileDragInAir(): readonly string[] {
+  return carried !== null && Date.now() - carriedSince < CARRIED_FOR_MS
+    ? [...carried]
+    : [];
+}
+
 /** Called once a drop has taken this app's own drag, or it is known to have ended. */
 export function endOwnFileDrag() {
   carried = null;

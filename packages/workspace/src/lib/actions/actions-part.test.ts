@@ -4,7 +4,7 @@ import { ChatIdSchema } from "../../schemas/chat-id";
 import { type SessionMessage } from "../../schemas/session/message";
 import { StoreId } from "../../schemas/store-id";
 import { createMockChatConfig } from "../../test/helpers/mock-chat-config";
-import { actionsModelNote } from "../actions-model-text";
+import { actionsModelNote } from "../../model-text/notes/actions-model-text";
 import { ChatWrites } from "../chat-writes";
 import { getWorkspaceConfig, setWorkspaceConfig } from "../workspace-config";
 import { actionsNoteRows, createActionsPart } from "./actions-part";

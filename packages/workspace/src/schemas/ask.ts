@@ -1,5 +1,6 @@
 import { z } from "zod";
 
+import { ChooseQuestionSchema } from "./choose-question";
 import { DeviceIdSchema } from "./device-id";
 import { SessionMessageDataPart } from "./session/message-data-part";
 import { StoreId } from "./store-id";
@@ -18,6 +19,12 @@ export const AskerSchema = z.object({
   /** What the session said it needs the folder or app for, for the card. */
   reason: z.string().optional(),
   sessionId: StoreId.SessionSchema,
+  /**
+   * What the person is asked to do on a page the session waits on them in,
+   * in a few words ("Log in to Shopify"), for the card's title and the pill
+   * on the page.
+   */
+  title: z.string().optional(),
   /**
    * A command of the session's waits on what the ask is about and carries
    * on by itself once it settles, waking the session as any command that
@@ -206,25 +213,41 @@ const AskBaseSchema = z.object({
 export const AskRecordSchema = z.discriminatedUnion("kind", [
   AskBaseSchema.extend({
     kind: z.literal("permission"),
-    /** A folder, a Mac app, or a tab of the person's outside the chat, which `Move tab here` moves into it. */
-    on: z.enum(["app", "folder", "tab"]),
-    /** A tab's page as it was when the agent asked, for the card and the note that answers it. */
+    on: SessionMessageDataPart.PermissionOnSchema,
+    /** The waited-on page as it was when the agent asked, for the card and the note that answers it. */
     page: z.object({ title: z.string(), url: z.string() }).optional(),
     /**
      * The programs Windows' ransomware protection kept out of the folder,
      * by their paths, which the card's Allow lets through.
      */
     programs: z.array(z.string()).optional(),
-    /** The folder's absolute path, the app's name, or the tab's id. */
+    /** The folder's absolute path, the app's name, or the page's tab id. */
     target: z.string(),
   }),
   AskBaseSchema.extend({
+    /**
+     * Every question on the card with its choices, as the call asked them,
+     * so any device can put the card up from the ask alone. Absent on an ask
+     * an earlier build wrote, whose card draws under its call.
+     */
+    card: z.array(ChooseQuestionSchema).optional(),
+    /**
+     * Asked during a turn still going: nobody answers it until its computer
+     * writes it again without this once the session is at rest.
+     */
+    held: z.literal(true).optional(),
     kind: z.literal("question"),
     /** The message holding the `choose` call, whose part's id is `partId`. */
     messageId: StoreId.MessageSchema,
     partId: StoreId.PartSchema,
     /** Every question on the card as the agent asked it, in order. */
     questions: z.array(z.string()).min(1),
+    /**
+     * The questions the session asked in one turn share a set, by the id of
+     * the first of them: the person goes through them together once the
+     * turn is over, and their answers wake the session once.
+     */
+    set: z.string().optional(),
   }),
   AskBaseSchema.extend({
     /** Each app on the card as it stood when its computer last wrote the ask. */

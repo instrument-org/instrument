@@ -18,10 +18,12 @@ function deferred<T = void>() {
 function createHarness({
   approve = () => Promise.resolve(true),
   closeBrowserSessions = () => Promise.resolve(),
+  finishWindows = () => Promise.resolve(),
   stopServices = () => Promise.resolve(),
 }: {
   approve?: () => Promise<boolean>;
   closeBrowserSessions?: () => Promise<void>;
+  finishWindows?: () => Promise<void>;
   stopServices?: () => Promise<void>;
 } = {}) {
   const calls: string[] = [];
@@ -39,6 +41,7 @@ function createHarness({
       actors: {
         approve: fromPromise(approveSpy),
         closeBrowserSessions: fromPromise(closeBrowserSessions),
+        finishWindows: fromPromise(finishWindows),
         stopServices: fromPromise(stopServicesSpy),
       },
       delays: { teardown: TEARDOWN_MS },
@@ -209,6 +212,29 @@ describe("quit machine", () => {
     expect(h.approve).toHaveBeenCalledOnce();
     expect(h.stopServices).toHaveBeenCalledOnce();
     expect(h.calls.filter((call) => call === "exit")).toHaveLength(1);
+  });
+
+  it("has the windows finish what they put off before anything closes", async () => {
+    const calls: string[] = [];
+    const finishing = deferred();
+    const h = createHarness({
+      closeBrowserSessions: () => {
+        calls.push("close browser sessions");
+        return Promise.resolve();
+      },
+      finishWindows: () => {
+        calls.push("finish windows");
+        return finishing.promise;
+      },
+    });
+    h.send("quitRequested");
+    await vi.advanceTimersByTimeAsync(0);
+    expect(calls).toEqual(["finish windows"]);
+
+    finishing.reject(new Error("a window is gone"));
+    await vi.runAllTimersAsync();
+    expect(calls).toEqual(["finish windows", "close browser sessions"]);
+    expect(h.calls).toEqual(["teardown browser views", "exit"]);
   });
 
   it("moves on when closing browser sessions hangs", async () => {

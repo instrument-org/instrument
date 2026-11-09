@@ -128,8 +128,8 @@ export class ClaudeCodeSession implements MessageSource {
   /**
    * @param transcript The Claude Code session this process writes, under
    * its own id, and how it begins: new, or forked from a transcript at one
-   * of its entries (its own slot's last finished step, or the step a task
-   * branched off its chat at). None for a one-off, which nothing continues
+   * of its entries (its own slot's last finished step, or the step a branch
+   * left its parent at). None for a one-off, which nothing continues
    * and so keeps no transcript.
    */
   constructor(

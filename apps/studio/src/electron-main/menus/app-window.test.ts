@@ -2,8 +2,21 @@ import { CODE_EDITOR_FOCUS_CHANNEL } from "@/shared/constants";
 import { type Input, type WebContents } from "electron";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
+const inFront = vi.hoisted(() => ({
+  window: null as null | {
+    isDestroyed: () => boolean;
+    webContents: { id: number };
+  },
+}));
 vi.mock("electron", () => ({
-  BrowserWindow: { getFocusedWindow: () => null },
+  BrowserWindow: {
+    fromWebContents: () => ({
+      isDestroyed: () => false,
+      webContents: { id: 1 },
+    }),
+    getFocusedWindow: () => inFront.window,
+  },
+  nativeImage: { createMenuSymbol: () => ({}) },
 }));
 const publish = vi.hoisted(() =>
   vi.fn<(name: string, data: unknown) => void>(),
@@ -17,7 +30,7 @@ vi.mock("./other-window", () => ({
   createOtherWindowViewMenu: () => ({ label: "View", submenu: [] }),
 }));
 vi.mock("./utils", () => ({
-  createAppMenu: () => ({ label: "App" }),
+  withAppMenu: (menus: unknown[]) => [{ label: "App" }, ...menus],
   createDevToolsMenu: () => [],
   createEditMenu: () => ({ label: "Edit" }),
   createHelpMenu: () => ({ label: "Help" }),
@@ -26,9 +39,27 @@ vi.mock("./utils", () => ({
 
 const PLATFORM = process.platform;
 
+const NO_WINDOW_ACTIONS = {
+  canMerge: false,
+  canReopenClosed: false,
+  mergeAll: () => {},
+  openNew: () => {},
+  openNewWithChat: () => {},
+  reopenClosed: () => {},
+};
+
 afterEach(() => {
   Object.defineProperty(process, "platform", { value: PLATFORM });
 });
+
+/** The command a publish on the window's stream carried. */
+function commandOf(published: unknown) {
+  return published !== null &&
+    typeof published === "object" &&
+    "command" in published
+    ? published.command
+    : null;
+}
 
 type Press = Pick<Input, "alt" | "code" | "control" | "key" | "meta" | "shift">;
 
@@ -70,9 +101,23 @@ async function windowOn(platform: NodeJS.Platform) {
         ...input,
         type: "keyDown",
       });
-      const ran = publish.mock.calls[0]?.[1] ?? null;
+      const ran = commandOf(publish.mock.calls[0]?.[1]);
       expect(event.preventDefault).toHaveBeenCalledTimes(ran === null ? 0 : 1);
       return ran;
+    },
+    /** What a key held down sends after its first press: what it ran, and whether the page was kept from it. */
+    repeat: (input: Press) => {
+      publish.mockClear();
+      const event = { preventDefault: vi.fn() };
+      listeners.get("before-input-event")?.(event, {
+        ...input,
+        isAutoRepeat: true,
+        type: "keyDown",
+      });
+      return {
+        isKeptFromPage: event.preventDefault.mock.calls.length > 0,
+        ran: commandOf(publish.mock.calls[0]?.[1]),
+      };
     },
   };
 }
@@ -132,6 +177,22 @@ describe("a window chord that is also a code editor's key", () => {
   );
 });
 
+describe("Close Tab held down", () => {
+  // A pane tab closes first, then the window's tab, then the window: a key
+  // held down must not run on from one into the next.
+  it.each([
+    ["darwin", press("w", "KeyW", "meta")],
+    ["win32", press("w", "KeyW", "control")],
+    ["linux", press("w", "KeyW", "control")],
+  ] as const)("closes once on %s", async (platform, chord) => {
+    const window = await windowOn(platform);
+    expect(window.press(chord)).toBe("closeTab");
+    expect(window.repeat(chord)).toEqual({ isKeptFromPage: true, ran: null });
+    // Other chords still repeat as the system repeats them.
+    expect(window.repeat(press("Tab", "Tab", "control")).ran).toBe("nextTab");
+  });
+});
+
 describe("Info", () => {
   // Taken ahead of the page, ⌘I would stop being italic in every editor.
   it.each([
@@ -153,7 +214,9 @@ describe("Info", () => {
       Object.defineProperty(process, "platform", { value: platform });
       vi.resetModules();
       const { createAppWindowMenu } = await import("./app-window");
-      const file = createAppWindowMenu().find((menu) => menu.label === "File");
+      const file = createAppWindowMenu(NO_WINDOW_ACTIONS).find(
+        (menu) => menu.label === "File",
+      );
       const row = (Array.isArray(file?.submenu) ? file.submenu : []).find(
         (item) => item.label === label,
       );
@@ -162,8 +225,12 @@ describe("Info", () => {
       const click = row?.click as
         | ((item: unknown, window: unknown, event: unknown) => void)
         | undefined;
+      inFront.window = { isDestroyed: () => false, webContents: { id: 7 } };
       click?.({}, {}, {});
-      expect(publish).toHaveBeenCalledWith("window.command", "fileInfo");
+      expect(publish).toHaveBeenCalledWith("window.command", {
+        command: "fileInfo",
+        webContentsId: 7,
+      });
     },
   );
 });
@@ -172,7 +239,7 @@ describe("a window chord from the menu", () => {
   it("does nothing with no window focused, as with the window held off screen", async () => {
     vi.resetModules();
     const { createAppWindowMenu } = await import("./app-window");
-    const closeTab = createAppWindowMenu()
+    const closeTab = createAppWindowMenu(NO_WINDOW_ACTIONS)
       .flatMap((menu) => (Array.isArray(menu.submenu) ? menu.submenu : []))
       .find((item) => item.label === "Close Tab");
     // Electron types the click's arguments as real menu items and windows;
@@ -183,10 +250,51 @@ describe("a window chord from the menu", () => {
     expect(click).toBeDefined();
 
     publish.mockClear();
+    inFront.window = null;
     click?.({}, undefined, {});
     expect(publish).not.toHaveBeenCalled();
 
+    inFront.window = { isDestroyed: () => false, webContents: { id: 7 } };
     click?.({}, {}, {});
-    expect(publish).toHaveBeenCalledWith("window.command", "closeTab");
+    expect(publish).toHaveBeenCalledWith("window.command", {
+      command: "closeTab",
+      webContentsId: 7,
+    });
+  });
+
+  it("opens a window for New Chat, New Tab and Reopen Closed Tab with none focused, as a browser does", async () => {
+    vi.resetModules();
+    const { createAppWindowMenu } = await import("./app-window");
+    const opened: string[] = [];
+    const rows = (canReopenClosed: boolean) =>
+      createAppWindowMenu({
+        ...NO_WINDOW_ACTIONS,
+        canReopenClosed,
+        openNew: () => opened.push("window"),
+        openNewWithChat: () => opened.push("window with a chat"),
+        reopenClosed: () => opened.push("window closed last"),
+      }).flatMap((menu) => (Array.isArray(menu.submenu) ? menu.submenu : []));
+    const choose = (canReopenClosed: boolean, label: string) => {
+      const click = rows(canReopenClosed).find(
+        (item) => item.label === label && item.visible !== false,
+      )?.click as
+        | ((item: unknown, window: unknown, event: unknown) => void)
+        | undefined;
+      click?.({}, undefined, {});
+    };
+
+    inFront.window = null;
+    publish.mockClear();
+    choose(true, "New Chat");
+    choose(true, "New Tab");
+    choose(true, "Reopen Closed Tab");
+    choose(false, "Reopen Closed Tab");
+    choose(true, "Close Tab");
+    expect(opened).toEqual([
+      "window with a chat",
+      "window",
+      "window closed last",
+    ]);
+    expect(publish).not.toHaveBeenCalled();
   });
 });

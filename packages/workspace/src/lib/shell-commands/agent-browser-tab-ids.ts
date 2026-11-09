@@ -23,7 +23,7 @@ type TabList = z.output<typeof TabListSchema>;
  * or as JSON, and the tab `tab new` opened. Nothing for any other command.
  *
  * agent-browser labels tabs `t1`, `t2`; the window names each by its tab_ id,
- * which `instrument window`, `--tab` and the note on the user's message use,
+ * which `instrument window` and the note on the user's message use,
  * and which agent-browser takes anywhere it takes a label. One id per tab, so
  * the agent is never shown the label.
  */
@@ -117,4 +117,11 @@ export function withTabLabel(
 export function newTabLine(json: string): string {
   const id = parseTabList(json)?.data.tabs.find((tab) => tab.active)?.targetId;
   return id === undefined ? "" : `Opened as tab ${id}.\n`;
+}
+
+/** Whether `tab list --json` names the tab with the window's id `tabId`. */
+export function listsTab(json: string, tabId: string): boolean {
+  return (
+    parseTabList(json)?.data.tabs.some((tab) => tab.targetId === tabId) ?? false
+  );
 }

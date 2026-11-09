@@ -229,6 +229,8 @@ describe("the fold, over a fake sync engine", { timeout: 30_000 }, () => {
         if (!session.forked) {
           expect(written(session)).toEqual(expectedOf(model));
         }
+        // The model writes no baselines, so the parent's baseline a task
+        // carries whatever its id (`historyOf`) is not in play here.
         if (model.parent && model.forkedAt) {
           const { forkedAt } = model;
           expect(historyOf(chat, session.id).map(({ id }) => id)).toEqual([

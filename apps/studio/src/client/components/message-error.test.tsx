@@ -33,11 +33,11 @@ vi.mock("@/client/hooks/use-network-status", () => ({
   useNetworkStatus: () => ({ status: network.status }),
 }));
 
-const chat = vi.hoisted(() => ({ state: "failed" }));
+const chat = vi.hoisted(() => ({ status: "failed" }));
 vi.mock("./window/chat-list-query", () => ({
   chatListOptions: () => ({
     queryFn: () =>
-      Promise.resolve([{ id: "2026-10-29-model-error", state: chat.state }]),
+      Promise.resolve([{ id: "2026-10-29-model-error", status: chat.status }]),
     queryKey: ["chats"],
   }),
 }));
@@ -118,22 +118,22 @@ function openDetails() {
 
 function renderError({
   canRunAgain = true,
+  draws,
   isAgentRunning = false,
   error = {
     classification: "rate-limit",
     kind: "unknown",
     message: UPSTREAM_THROTTLE_TEXT,
   },
-  isDeveloperMode = false,
   isLastMessage = true,
   isLatestAttempt,
   provider = OUR_MODELS.providerType,
   onModelChange = vi.fn(),
 }: {
   canRunAgain?: boolean;
+  draws?: "card" | "nothing" | "online-retry";
   error?: MessageErrorData;
   isAgentRunning?: boolean;
-  isDeveloperMode?: boolean;
   isLastMessage?: boolean;
   isLatestAttempt?: boolean;
   provider?: null | string;
@@ -143,8 +143,8 @@ function renderError({
     <TooltipProvider>
       <MessageError
         chatId={ChatIdSchema.parse("2026-10-29-model-error")}
+        draws={draws}
         isAgentRunning={isAgentRunning}
-        isDeveloperMode={isDeveloperMode}
         isLastMessage={isLastMessage}
         isLatestAttempt={isLatestAttempt}
         message={messageWithError(error, provider)}
@@ -162,13 +162,6 @@ describe("MessageError", () => {
     expect(container.textContent).not.toContain("openrouter");
     expect(container.textContent).not.toContain("gpt-5.6-luna");
     expect(screen.getByText(/the model is busy right now/i)).not.toBeNull();
-  });
-
-  it("shows the provider's text under developer mode", () => {
-    const { container } = renderError({ isDeveloperMode: true });
-    openDetails();
-
-    expect(container.textContent).toContain("openrouter.ai");
   });
 
   it("shows the provider's text on the user's own key", () => {
@@ -399,7 +392,10 @@ describe("MessageError", () => {
   });
 
   it("says nothing about a throttle the session already got past", () => {
-    const { container } = renderError({ isLastMessage: false });
+    const { container } = renderError({
+      draws: "online-retry",
+      isLastMessage: false,
+    });
 
     expect(container.innerHTML).toBe("");
   });
@@ -417,7 +413,7 @@ describe("MessageError", () => {
     };
     afterEach(() => {
       network.status = "online";
-      chat.state = "failed";
+      chat.status = "failed";
     });
 
     it("says so while offline, with nothing to press", () => {
@@ -450,6 +446,7 @@ describe("MessageError", () => {
     it("gives way once a later attempt has said something", () => {
       network.status = "offline";
       const { container } = renderError({
+        draws: "online-retry",
         error: NEVER_CONNECTED,
         isAgentRunning: true,
         isLastMessage: false,
@@ -461,7 +458,7 @@ describe("MessageError", () => {
 
     it("promises nothing once the person has stopped the chat", async () => {
       network.status = "offline";
-      chat.state = "stopped";
+      chat.status = "stopped";
       renderError({ error: NEVER_CONNECTED, provider: "openrouter" });
       expect(
         await screen.findByRole("button", { name: "Try again" }),
@@ -567,6 +564,7 @@ describe("MessageError", () => {
 
     it("says nothing about a wait the turn got past", () => {
       const { container } = renderError({
+        draws: "nothing",
         error: refusal({ code: "concurrency-limit" }, 429),
         isLastMessage: false,
       });

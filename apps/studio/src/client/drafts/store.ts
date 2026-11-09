@@ -130,10 +130,10 @@ export const updateDraftAtom = atom(
   },
 );
 
-/** A draft thrown away, with what was pasted into it. */
-export const removeDraftAtom = atom(null, (_get, set, id: string) => {
-  void set(applyDraftOpsAtom, [{ id, type: "remove" }]);
-});
+/** A draft thrown away, with what was pasted into it. Answers once main has applied it. */
+export const removeDraftAtom = atom(null, (_get, set, id: string) =>
+  set(applyDraftOpsAtom, [{ id, type: "remove" }]),
+);
 
 /**
  * The first step of a send: the draft is pointed at the chat it is going

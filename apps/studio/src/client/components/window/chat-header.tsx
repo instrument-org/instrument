@@ -19,12 +19,14 @@ import { PencilSimpleIcon } from "@phosphor-icons/react/PencilSimple";
 import { PictureInPictureIcon } from "@phosphor-icons/react/PictureInPicture";
 import { PlusIcon } from "@phosphor-icons/react/Plus";
 import { StopIcon } from "@phosphor-icons/react/Stop";
-import { TagIcon } from "@phosphor-icons/react/Tag";
+import { CardsThreeIcon } from "@phosphor-icons/react/CardsThree";
 import { TrashIcon } from "@phosphor-icons/react/Trash";
 import { useMutation } from "@tanstack/react-query";
 import { type ComponentProps, type ReactNode, useRef, useState } from "react";
 
 import { TaskBackgroundProcesses } from "../task/task-background-processes";
+import { dropdownMenuComponents } from "@/client/components/ui/menu-components";
+import { ChatCopyMenu } from "./chat-copy-menu";
 import { chatMenuGroups, useChatActions } from "./chat-actions";
 import { ProjectPill } from "./chat-row";
 import {
@@ -83,26 +85,7 @@ export function ChatHeader({
   trailing?: ReactNode;
 }) {
   const [isDeleting, setDeleting] = useState(false);
-  const popOutButton = popOut && (
-    <ToolbarTooltip label={popOut.isOut ? "Bring back" : "Pop out"}>
-      <Button
-        aria-label={popOut.isOut ? "Bring back" : "Pop out"}
-        aria-pressed={popOut.isOut}
-        className={cn(
-          toolbarClassName({ pressed: popOut.isOut }),
-          "shrink-0",
-          popOut.isOut
-            ? "bg-brand-100 text-brand-700 hover:bg-brand-100 hover:text-brand-700 dark:bg-brand-900/40 dark:text-brand-300"
-            : "text-muted-foreground/70 opacity-0 group-hover/head:opacity-100 not-disabled:hover:text-foreground focus-visible:opacity-100",
-        )}
-        onClick={popOut.onToggle}
-        size="icon-sm"
-        variant="ghost"
-      >
-        <PictureInPictureIcon className="size-4" />
-      </Button>
-    </ToolbarTooltip>
-  );
+  const popOutButton = popOut && <PopOutButton {...popOut} />;
   return (
     <>
       {chat && (
@@ -150,6 +133,40 @@ export function ChatHeader({
         </div>
       </div>
     </>
+  );
+}
+
+/**
+ * The glyph after a head's title that pops the conversation out into its
+ * small window, shown under a hand over the head; lit, and always there,
+ * while it is out, when pressing it brings the conversation back.
+ */
+export function PopOutButton({
+  isOut,
+  onToggle,
+}: {
+  isOut: boolean;
+  onToggle: () => void;
+}) {
+  return (
+    <ToolbarTooltip label={isOut ? "Bring back" : "Pop out"}>
+      <Button
+        aria-label={isOut ? "Bring back" : "Pop out"}
+        aria-pressed={isOut}
+        className={cn(
+          toolbarClassName({ pressed: isOut }),
+          "shrink-0",
+          isOut
+            ? "bg-brand-100 text-brand-700 hover:bg-brand-100 hover:text-brand-700 dark:bg-brand-900/40 dark:text-brand-300"
+            : "text-muted-foreground/70 opacity-0 group-hover/head:opacity-100 not-disabled:hover:text-foreground focus-visible:opacity-100",
+        )}
+        onClick={onToggle}
+        size="icon-sm"
+        variant="ghost"
+      >
+        <PictureInPictureIcon className="size-4" />
+      </Button>
+    </ToolbarTooltip>
   );
 }
 
@@ -295,6 +312,7 @@ function ChatMenu({
   trigger: ReactNode;
 }) {
   const groups = chatMenuGroups(useChatActions(chat));
+  const live = projectMenu?.projects.filter((entry) => !entry.retired) ?? [];
   const stop = useMutation(rpcClient.workspace.session.stop.mutationOptions());
   const item = (action: RowAction) => (
     <DropdownMenuItem
@@ -322,7 +340,7 @@ function ChatMenu({
           }
         }}
       >
-        {chat.state === "working" && (
+        {chat.status === "working" && (
           <>
             <DropdownMenuItem
               onSelect={() => {
@@ -349,14 +367,13 @@ function ChatMenu({
         {projectMenu && (
           <DropdownMenuSub>
             <DropdownMenuSubTrigger>
-              <TagIcon className="size-3.5" />
+              <CardsThreeIcon className="size-3.5" />
               Project
             </DropdownMenuSubTrigger>
             <DropdownMenuSubContent className="flex w-56 flex-col p-0">
-              <MenuScrollArea className="max-h-80">
-                {projectMenu.projects
-                  .filter((entry) => !entry.retired)
-                  .map((entry) => (
+              {live.length > 0 && (
+                <MenuScrollArea className="max-h-80">
+                  {live.map((entry) => (
                     <DropdownMenuCheckboxItem
                       checked={chat.project === entry.id}
                       key={entry.id}
@@ -368,8 +385,14 @@ function ChatMenu({
                       <span className="truncate">{entry.name}</span>
                     </DropdownMenuCheckboxItem>
                   ))}
-              </MenuScrollArea>
-              <div className="shrink-0 border-t border-border p-1">
+                </MenuScrollArea>
+              )}
+              <div
+                className={cn(
+                  "shrink-0 p-1",
+                  live.length > 0 && "border-t border-border",
+                )}
+              >
                 <DropdownMenuItem
                   onSelect={() => {
                     projectMenu.onNew();
@@ -384,6 +407,7 @@ function ChatMenu({
         )}
         <DropdownMenuSeparator />
         {groups.files.map(item)}
+        <ChatCopyMenu chat={chat} menu={dropdownMenuComponents} />
         <DropdownMenuSeparator />
         {groups.feedback.map(item)}
         <DropdownMenuSeparator />

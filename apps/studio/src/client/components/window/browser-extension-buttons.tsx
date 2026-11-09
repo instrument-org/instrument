@@ -20,6 +20,7 @@ import {
 import { useWindowPointStyle } from "@/client/hooks/use-app-zoom";
 import { useCloseOnWindowBlur } from "@/client/hooks/use-close-on-window-blur";
 import { useIsTaskPageVisible } from "@/client/hooks/use-task-page-visible";
+import { toast } from "@/client/lib/toast";
 import { cn } from "@/client/lib/utils";
 import { BROWSER_EXTENSIONS_SESSION } from "@/shared/browser-extensions";
 import { APP_NAME } from "@instrument-org/shared";
@@ -56,6 +57,7 @@ const noticed = new Set<string>();
  */
 export function BrowserExtensionButtons() {
   const extensions = useBrowserExtensions();
+  const hasPinned = extensions.some((extension) => extension.pinned);
   const shown = useIsTaskPageVisible();
   const listRef = useRef<HTMLElement>(null);
   const [buttonMenu, setButtonMenu] = useState<null | {
@@ -63,7 +65,7 @@ export function BrowserExtensionButtons() {
     x: number;
     y: number;
   }>(null);
-  const [notice, setNotice] = useState<BrowserExtension | null>(null);
+  const [noticeId, setNoticeId] = useState<null | string>(null);
   const pointStyle = useWindowPointStyle(buttonMenu ?? { x: 0, y: 0 });
   useCloseOnWindowBlur(buttonMenu !== null, () => {
     setButtonMenu(null);
@@ -77,8 +79,10 @@ export function BrowserExtensionButtons() {
   const refused = extensions.filter(isRefused);
   const sheet = [
     ":host{gap:2px}",
-    ".action{width:28px;height:28px;border-radius:8px;background-size:16px 16px}",
+    ".action{width:28px;height:28px;border-radius:calc(var(--radius-xl) - 2px);background-size:16px 16px}",
     ".action:hover{background-color:color-mix(in srgb,var(--foreground) 8%,transparent)}",
+    "@keyframes extension-enter{from{width:0;opacity:0;transform:scale(.6)}to{width:28px;opacity:1;transform:scale(1)}}",
+    "@media(prefers-reduced-motion:no-preference){.action{animation:extension-enter 360ms cubic-bezier(.2,.8,.2,1)}}",
     ...unpinned.map((extension) => `#${extension.id}{display:none}`),
     ...refused.map(
       (extension) =>
@@ -104,9 +108,24 @@ export function BrowserExtensionButtons() {
   useEffect(() => {
     if (shown && firstRefused) {
       noticed.add(firstRefused.id);
-      setNotice(firstRefused);
+      setNoticeId(firstRefused.id);
     }
   }, [shown, firstRefused]);
+
+  // The notice reads the live list, so it goes once the app takes this
+  // browser, which the focus recheck finds when the person comes back from
+  // approving it there; a connection gets a word of its own.
+  const notice = refused.find((extension) => extension.id === noticeId) ?? null;
+  const connectedName = extensions.find(
+    (extension) =>
+      extension.id === noticeId && extension.connection === "connected",
+  )?.desktopApp?.name;
+  useEffect(() => {
+    if (connectedName) {
+      setNoticeId(null);
+      toast.success(`${connectedName} is connected to ${APP_NAME}.`);
+    }
+  }, [connectedName]);
 
   const activate = (extension: BrowserExtension) => {
     listRef.current?.shadowRoot
@@ -119,14 +138,14 @@ export function BrowserExtensionButtons() {
       modal={false}
       onOpenChange={(open) => {
         if (!open) {
-          setNotice(null);
+          setNoticeId(null);
         }
       }}
       open={notice !== null}
     >
       <PopoverAnchor asChild>
         <div
-          className={TOOLBAR_GROUP_CLASSNAME}
+          className={cn(TOOLBAR_GROUP_CLASSNAME, !hasPinned && "gap-0 px-0")}
           // The buttons live in the list's shadow root, which stops a
           // right-click on its own; this runs first and takes it for the
           // button's menu.
@@ -147,6 +166,7 @@ export function BrowserExtensionButtons() {
           }}
         >
           <browser-action-list
+            className={cn(!hasPinned && "hidden")}
             partition={BROWSER_EXTENSIONS_SESSION}
             ref={listRef}
           />
@@ -155,7 +175,12 @@ export function BrowserExtensionButtons() {
               <DropdownMenuTrigger asChild>
                 <button
                   aria-label="Extensions"
-                  className="grid size-7 shrink-0 place-items-center rounded-lg text-foreground/60 hover:bg-foreground/8 hover:text-foreground data-[state=open]:bg-foreground/8 data-[state=open]:text-foreground"
+                  className={cn(
+                    "grid shrink-0 place-items-center text-foreground/60 hover:bg-foreground/8 hover:text-foreground data-[state=open]:bg-foreground/8 data-[state=open]:text-foreground",
+                    hasPinned
+                      ? "size-7 rounded-[calc(var(--radius-xl)-2px)]"
+                      : "size-8 rounded-xl",
+                  )}
                   type="button"
                 >
                   <PuzzlePieceIcon className="size-4" />
@@ -170,7 +195,7 @@ export function BrowserExtensionButtons() {
                   key={extension.id}
                   onActivate={() => {
                     if (isRefused(extension)) {
-                      setNotice(extension);
+                      setNoticeId(extension.id);
                     } else {
                       activate(extension);
                     }
@@ -218,7 +243,7 @@ export function BrowserExtensionButtons() {
             <NotConnectedSteps
               extension={notice}
               onDismiss={() => {
-                setNotice(null);
+                setNoticeId(null);
               }}
               tone="muted"
             />

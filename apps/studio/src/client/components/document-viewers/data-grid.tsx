@@ -1199,6 +1199,7 @@ function ColumnMenu({
           <DropdownMenuTrigger asChild>
             <Button
               aria-label="Columns"
+              disabled={columns.length === 0}
               className={toolbarClassName({
                 className: "size-7",
                 pressed: false,

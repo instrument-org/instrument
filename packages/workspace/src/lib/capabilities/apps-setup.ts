@@ -55,7 +55,7 @@ import {
   APP_COMMAND,
   APP_SETUP_IS_THE_CHATS,
   APPS_ARE_THE_CHATS,
-} from "../shell-commands/app-command";
+} from "../../model-text/commands/app-command";
 import { AppField, appsFolder, requireApp, withTimeout } from "./apps";
 import {
   CapabilityFailure,
@@ -920,7 +920,7 @@ export const appsAccount = defineCapability({
   output: Said,
   run: (input, ctx) => runAccount(input, ctx.role),
   summary:
-    'Name the account the app is signed in as, the way the user would know it ("jeremy@example.com", "Acme workspace"), so two apps for one service can be told apart; it shows wherever the app does.',
+    'Name the account the app is signed in as, the way the user would know it ("name@example.com", "Acme workspace"), so two apps for one service can be told apart; it shows wherever the app does.',
   surfaces: {
     cli: {
       help: "Name it when it is plain (the service answered it, the page shows it, or the\nuser said it); don't hunt for it. A web app whose site serves several\naccounts (Gmail) moves to that account's address. The user can rename it.\nWith no name, prints it.",

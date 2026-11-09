@@ -183,3 +183,95 @@ describe("getWindowState", () => {
     `);
   });
 });
+
+describe("which windows come back", () => {
+  it("is the one window of a build that had only one", () => {
+    stored = { windows: { app: { bounds: almostMaximized } } };
+    expect(windowState.rememberedWindowIds("app")).toEqual({
+      closed: [],
+      open: ["app"],
+    });
+  });
+
+  it("is none on a first launch", () => {
+    stored = {};
+    expect(windowState.rememberedWindowIds("app").open).toEqual([]);
+  });
+
+  it("keeps the window last in front at the end", () => {
+    stored = {};
+    windowState.rememberWindowInFront("a");
+    windowState.rememberWindowInFront("b");
+    windowState.rememberWindowInFront("a");
+    expect(windowState.rememberedWindowIds("app").open).toEqual(["b", "a"]);
+  });
+
+  it("moves one closed to what can come back, newest first, and takes it back as it opens", () => {
+    stored = {};
+    windowState.rememberWindowInFront("a");
+    windowState.rememberWindowInFront("b");
+    windowState.rememberWindowClosed("a");
+    windowState.rememberWindowClosed("b");
+    expect(windowState.rememberedWindowIds("app")).toEqual({
+      closed: ["b", "a"],
+      open: [],
+    });
+    windowState.rememberWindowInFront("b");
+    expect(windowState.rememberedWindowIds("app")).toEqual({
+      closed: ["a"],
+      open: ["b"],
+    });
+  });
+
+  it("answers those that can no longer come back, and forgets where they were", () => {
+    stored = { windows: { w0: { bounds: almostMaximized } } };
+    let gone: string[] = [];
+    for (let index = 0; index < 11; index += 1) {
+      gone = windowState.rememberWindowClosed(`w${index.toString()}`);
+    }
+    expect(gone).toEqual(["w0"]);
+    expect(windowState.hasWindowState("w0")).toBe(false);
+  });
+
+  it("remembers when a window closed until it opens again", () => {
+    stored = { closedIds: ["old"] };
+    vi.spyOn(Date, "now").mockReturnValue(1000);
+    windowState.rememberWindowClosed("a");
+    expect(windowState.windowClosedAt("a")).toBe(1000);
+    expect(windowState.windowClosedAt("old")).toBe(0);
+    windowState.rememberWindowInFront("a");
+    expect(windowState.windowClosedAt("a")).toBe(0);
+    vi.restoreAllMocks();
+  });
+
+  it("forgets a window altogether", () => {
+    stored = { windows: { a: { bounds: almostMaximized } } };
+    windowState.rememberWindowInFront("a");
+    windowState.forgetWindow("a");
+    expect(windowState.rememberedWindowIds("app")).toEqual({
+      closed: [],
+      open: [],
+    });
+    expect(windowState.hasWindowState("a")).toBe(false);
+  });
+});
+
+describe("a window kept on screen", () => {
+  it.each([
+    [
+      { height: 500, width: 500, x: 2000, y: 2000 },
+      { height: 500, width: 500, x: 780, y: 300 },
+    ],
+    [
+      { height: 500, width: 500, x: -50, y: -50 },
+      { height: 500, width: 500, x: 66, y: 32 },
+    ],
+    [
+      { height: 9000, width: 9000, x: 100, y: 100 },
+      { height: 768, width: 1214, x: 66, y: 32 },
+    ],
+  ])("%o goes to %o", (bounds, want) => {
+    currentDisplay = x11Display;
+    expect(windowState.keepBoundsOnScreen(bounds)).toEqual(want);
+  });
+});

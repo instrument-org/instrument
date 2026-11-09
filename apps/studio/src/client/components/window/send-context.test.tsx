@@ -12,6 +12,7 @@ import {
 } from "@instrument-org/workspace/client";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
+import { chatSuggestionOf, type ContextItem } from "./context-items";
 import { contextReaders, type SendContextWindow } from "./send-context";
 
 const CHAT = ChatIdSchema.parse("2026-10-01-lisbon");
@@ -73,7 +74,6 @@ function windowOf(over: Partial<SendContextWindow> = {}): SendContextWindow {
         }),
     },
     chatTitles: new Map([[CHAT, "Lisbon"]]),
-    dismissed: {},
     drafts: [],
     href: "/browser",
     paneOpenByGroup: {},
@@ -97,9 +97,8 @@ describe("sendContext", () => {
     await expect(
       sendContext({
         chatId: CHAT,
-        isPoppedOut: false,
         isViewOpen: true,
-        leftOut: [],
+        taken: [],
       }),
     ).resolves.toMatchObject({
       page: { selection: "Words on the page" },
@@ -115,9 +114,8 @@ describe("sendContext", () => {
     await expect(
       sendContext({
         chatId: CHAT,
-        isPoppedOut: false,
         isViewOpen: false,
-        leftOut: [],
+        taken: [],
       }),
     ).resolves.toMatchInlineSnapshot(`
       {
@@ -144,14 +142,13 @@ describe("sendContext", () => {
     await expect(
       sendContext({
         chatId: other,
-        isPoppedOut: true,
         isViewOpen: false,
-        leftOut: [],
+        taken: [],
       }),
     ).resolves.toBeUndefined();
   });
 
-  it("tells a chat in the tab's place nothing about what else is in view", async () => {
+  it("sends what is in view behind a chat only once it is taken", async () => {
     const site: WindowTab = { ...SITE, group: "site:1", id: "site" };
     const { sendContext } = contextReaders(
       windowOf({
@@ -159,15 +156,18 @@ describe("sendContext", () => {
         windowTabs: tabsOf([site], "site:1"),
       }),
     );
-    const send = (isPoppedOut: boolean) =>
-      sendContext({
-        chatId: CHAT,
-        isPoppedOut,
-        isViewOpen: false,
-        leftOut: [],
-      });
-    await expect(send(false)).resolves.toBeUndefined();
-    await expect(send(true)).resolves.toMatchObject({ screen: "browser" });
+    const taken = chatSuggestionOf({
+      chatId: CHAT,
+      finderOf: () => null,
+      inView: site,
+      taken: [],
+    });
+    const send = (items: ContextItem[]) =>
+      sendContext({ chatId: CHAT, isViewOpen: false, taken: items });
+    await expect(send([])).resolves.toBeUndefined();
+    await expect(send(taken ? [taken] : [])).resolves.toMatchObject({
+      screen: "browser",
+    });
   });
 
   it("sends nothing before the chat's state is read", async () => {
@@ -181,9 +181,8 @@ describe("sendContext", () => {
     await expect(
       sendContext({
         chatId: CHAT,
-        isPoppedOut: false,
         isViewOpen: true,
-        leftOut: [],
+        taken: [],
       }),
     ).resolves.toBeUndefined();
   });
@@ -204,9 +203,8 @@ describe("sendContext", () => {
     await expect(
       sendContext({
         chatId: CHAT,
-        isPoppedOut: false,
         isViewOpen: true,
-        leftOut: [],
+        taken: [],
       }),
     ).resolves.toMatchInlineSnapshot(`
       {
@@ -260,9 +258,8 @@ describe("sendContext", () => {
     await expect(
       sendContext({
         chatId: CHAT,
-        isPoppedOut: false,
         isViewOpen: true,
-        leftOut: [],
+        taken: [],
       }),
     ).resolves.toMatchInlineSnapshot(`
       {
@@ -296,9 +293,8 @@ describe("sendContext", () => {
     );
     const sent = sendContext({
       chatId: CHAT,
-      isPoppedOut: false,
       isViewOpen: true,
-      leftOut: [],
+      taken: [],
     });
     await vi.advanceTimersByTimeAsync(5000);
     await expect(sent).resolves.toMatchInlineSnapshot(`
@@ -341,9 +337,8 @@ describe("sendContext", () => {
     await expect(
       sendContext({
         chatId: CHAT,
-        isPoppedOut: false,
         isViewOpen: true,
-        leftOut: [],
+        taken: [],
       }),
     ).resolves.toMatchInlineSnapshot(`
       {
@@ -421,6 +416,11 @@ describe("draftContext", () => {
             "kind": "page",
             "title": "Hotels",
             "url": "https://hotels.example/",
+          },
+          {
+            "kind": "screen",
+            "title": "Chat",
+            "url": "/chats/2026-10-01-lisbon",
           },
         ],
         "page": {
@@ -594,7 +594,7 @@ describe("draftContext", () => {
     `);
   });
 
-  it("sends what is in view behind the draft, and nothing it dismissed", async () => {
+  it("sends what is in view behind the draft only once it is taken", async () => {
     const PLACE = "place:files";
     const file: WindowTab = {
       group: PLACE,
@@ -602,21 +602,24 @@ describe("draftContext", () => {
       id: "file",
       kind: "screen",
     };
-    const behindFile = (dismissed: string[]) =>
+    const behindFile = (draft: Draft) =>
       contextReaders(
-        windowOf({
-          dismissed: { [DRAFT.id]: dismissed },
-          drafts: [DRAFT],
-          windowTabs: tabsOf([file], PLACE),
-        }),
+        windowOf({ drafts: [draft], windowTabs: tabsOf([file], PLACE) }),
       ).draftContext(DRAFT.id);
-    await expect(behindFile([])).resolves.toMatchObject({
-      file: { path: "/Users/casey/Notes/plan.md" },
-      screen: "file",
-    });
+    await expect(behindFile(DRAFT)).resolves.toBeUndefined();
     await expect(
-      behindFile([`tab:file ${file.href}`]),
-    ).resolves.toBeUndefined();
+      behindFile({
+        ...DRAFT,
+        context: [{ kind: "file", path: "/Users/casey/Notes/plan.md" }],
+      }),
+    ).resolves.toMatchObject({
+      attached: [
+        {
+          items: [{ kind: "file", path: "/Users/casey/Notes/plan.md" }],
+          kind: "paths",
+        },
+      ],
+    });
   });
 
   it("never sends the chat on screen as what was in view", async () => {
@@ -656,26 +659,5 @@ describe("draftContext", () => {
       }),
     );
     await expect(trashed.draftContext(DRAFT.id)).resolves.toBeUndefined();
-  });
-
-  it("leaves out the band's page the person took off", async () => {
-    const band: WindowTab = {
-      group: GROUP,
-      id: "band",
-      kind: "page",
-      openedAt: 1,
-      title: "Hotels",
-      url: "https://hotels.example/",
-    };
-    const { draftContext } = contextReaders(
-      windowOf({
-        dismissed: { [DRAFT.id]: ["tab:band"] },
-        drafts: [DRAFT],
-        windowTabs: tabsOf([band]),
-      }),
-    );
-    const context = await draftContext(DRAFT.id);
-    expect(context?.attached).toBeUndefined();
-    expect(context?.page).toBeUndefined();
   });
 });

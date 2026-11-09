@@ -2,7 +2,11 @@ import type React from "react";
 
 import { useEffect, useRef, useState } from "react";
 
-// Waits after save for live query to update before closing, preventing old→new flicker.
+/**
+ * An inline field for renaming something, which closes once `onSave` is
+ * done; `onSave` has the new name showing by then, so the old one never
+ * shows again between the two.
+ */
 export function useInlineRename({
   onSave,
   value,
@@ -50,10 +54,6 @@ export function useInlineRename({
     setIsSaving(true);
     try {
       await onSave(next);
-      // wait for client update to avoid flicker
-      await new Promise((resolve) => {
-        setTimeout(resolve, 250);
-      });
       setIsEditing(false);
     } catch {
       setEditValue(value);

@@ -1,0 +1,254 @@
+/* How the marks look, to tune by feel. Their weight is in developer-note-marks.tsx. */
+[data-developer-notes] {
+  --dn-mark-size: 12px;
+  --dn-count-size: 10px;
+  /* Opaque colors: a translucent one darkens wherever a mark's strokes cross. */
+  --dn-mark-rest: var(--dev-300);
+  --dn-mark-hover: var(--dev-600);
+  --dn-mark-error: var(--warning-700);
+}
+.dark [data-developer-notes] {
+  --dn-mark-rest: var(--dev-700);
+  --dn-mark-hover: var(--dev-300);
+  --dn-mark-error: var(--warning-300);
+}
+
+[data-slot="message-scroller-viewport"]:has(> [data-developer-notes]) {
+  position: relative;
+}
+[data-slot="message-scroller-content"] {
+  anchor-name: --dn-column;
+}
+[data-developer-notes] {
+  display: contents;
+}
+
+/* A send slides the column by a transform, which anchors ignore, so a note would
+   stand still beside rows on the move. It comes back level once they land. */
+[data-sliding] [data-developer-notes] {
+  visibility: hidden;
+}
+
+/* A stack's box runs down to the next stack and no wider than the margin, so it
+   can't grow the scroller: its top and bottom come from anchors, and how many
+   lines show comes from that height. The box takes no pointer, so only its lines
+   count as hovering it. */
+[data-dn="stack"] {
+  --dn-margin: calc((100cqi - anchor-size(--dn-column width)) / 2);
+  position: absolute;
+  width: min(14px, var(--dn-margin));
+  overflow: clip;
+  line-height: 17px;
+  white-space: nowrap;
+  user-select: none;
+  pointer-events: none;
+}
+[data-dn="stack"][data-side="right"] {
+  left: anchor(--dn-column right);
+}
+[data-dn="stack"][data-side="left"] {
+  right: anchor(--dn-column left);
+}
+[data-dn="stack"][data-many] {
+  container: dn-stack / size;
+}
+
+[data-dn="lines"] {
+  pointer-events: auto;
+}
+[data-dn="line"] {
+  display: none;
+  align-items: center;
+  justify-content: center;
+  height: 17px;
+  color: var(--dn-mark-rest);
+}
+[data-dn="line"]:hover,
+[data-dn="line"][data-open] {
+  color: var(--dn-mark-hover);
+}
+[data-dn="line"][data-error] {
+  color: var(--dn-mark-error);
+}
+
+/* How many lines fit, and so which show. Past what fits, the last place is a count. */
+[data-dn="line"][data-fits="1"],
+[data-dn="line"][data-count-at="1"] {
+  display: flex;
+}
+@container dn-stack (height >= 34px) {
+  [data-dn="line"][data-fits="2"],
+  [data-dn="line"][data-count-at="2"] {
+    display: flex;
+  }
+  [data-dn="line"][data-count-at="1"] {
+    display: none;
+  }
+}
+@container dn-stack (height >= 51px) {
+  [data-dn="line"][data-fits="3"],
+  [data-dn="line"][data-count-at="3"] {
+    display: flex;
+  }
+  [data-dn="line"][data-count-at="2"] {
+    display: none;
+  }
+}
+@container dn-stack (height >= 68px) {
+  [data-dn="line"][data-fits="4"],
+  [data-dn="line"][data-count-at="4"] {
+    display: flex;
+  }
+  [data-dn="line"][data-count-at="3"] {
+    display: none;
+  }
+}
+
+[data-dn="mark"] {
+  width: var(--dn-mark-size);
+  height: var(--dn-mark-size);
+}
+[data-dn="count"] {
+  font-family: var(--font-mono);
+  font-size: var(--dn-count-size);
+  font-variant-numeric: tabular-nums;
+}
+
+/* A fold's total can be wider than a mark, and an error's triangle sits beside it. */
+[data-dn="stack"][data-fold] {
+  width: max-content;
+  max-width: var(--dn-margin);
+}
+[data-fold] > [data-dn="lines"] {
+  display: flex;
+  flex-direction: row-reverse;
+  gap: 2px;
+}
+[data-fold] [data-dn="line"] {
+  min-width: 14px;
+}
+
+[data-dn="card"] {
+  position-anchor: --dn-card-line;
+  position: fixed;
+  inset: auto;
+  top: anchor(top);
+  position-try-fallbacks: --dn-card-up;
+  margin: 0;
+  /* Up to this wide in the room between its line and the window's far edge, so
+     it always fits across and --dn-card-up can always fit it down the window. */
+  width: stretch;
+  max-width: 360px;
+  /* Layout px, so it grows with the words under zoom until the window stops it,
+     with room above and below for the band and for --dn-card-up's offset. */
+  max-height: min(400px, calc(100vh / var(--app-zoom, 1) - 80px));
+  padding: 0 12px 8px;
+  overflow: auto;
+  overscroll-behavior: contain;
+  font-size: 12px;
+  line-height: 20px;
+  color: var(--foreground);
+  background: var(--popover);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  box-shadow: var(--shadow-lg-soft);
+}
+@position-try --dn-card-up {
+  top: auto;
+  bottom: 40px;
+}
+[data-dn="card"][data-side="right"] {
+  right: calc(anchor(left) + 8px);
+  left: 8px;
+  justify-self: end;
+}
+[data-dn="card"][data-side="left"] {
+  right: 8px;
+  left: calc(anchor(right) + 8px);
+  justify-self: start;
+}
+/* It stays as the words scroll, so Copy is always in reach. */
+[data-dn="card-top"] {
+  position: sticky;
+  top: 0;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  min-height: 28px;
+  padding-top: 8px;
+  background: var(--popover);
+}
+[data-dn="card"] > [data-dn="card-head"] {
+  padding-top: 8px;
+}
+[data-dn="card-head"] {
+  display: block;
+  overflow: hidden;
+  font-weight: 500;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+[data-dn="card-unsent"] {
+  color: var(--muted-foreground);
+}
+[data-dn="card-words"] {
+  margin-top: 4px;
+  font-family: var(--font-mono);
+  font-size: 11px;
+  line-height: 16px;
+  overflow-wrap: anywhere;
+  white-space: pre-wrap;
+  user-select: text;
+}
+[data-dn="list-group"] {
+  margin-top: 8px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--muted-foreground);
+}
+[data-dn="list-note"] {
+  display: block;
+  overflow: hidden;
+  width: 100%;
+  border-radius: 4px;
+  text-align: left;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+[data-dn="list-note"]:hover {
+  background: var(--accent);
+}
+
+/* No margin to speak of: the column's 16px padding is all the room, so a mark
+   sits in it clear of the row's own icon on the left, and on the right as far in
+   as it goes, since an overlay scrollbar takes the pointer at the window's edge. */
+@container transcript (width < 820px) {
+  [data-dn="stack"],
+  [data-dn="stack"][data-fold] {
+    width: 16px;
+    max-width: none;
+  }
+  [data-fold] > [data-dn="lines"] {
+    flex-direction: column;
+    gap: 0;
+  }
+  [data-fold] [data-dn="line"] {
+    min-width: 0;
+  }
+  [data-dn="stack"][data-side="right"] {
+    left: calc(anchor(--dn-column right) - 16px);
+  }
+  [data-dn="stack"][data-side="left"] {
+    right: calc(anchor(--dn-column left) - 16px);
+  }
+  [data-side="right"] [data-dn="line"] {
+    justify-content: flex-start;
+    padding-left: 1px;
+  }
+  [data-dn="count"] {
+    font-size: 9px;
+    letter-spacing: -0.5px;
+  }
+}

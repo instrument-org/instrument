@@ -1,10 +1,12 @@
 // ---- Files ------------------------------------------------------------------------
-// The Files place (files-screen.tsx, extend/file-system.tsx), re-measured 2026-10-31 at
-// 1280x800. One 40px row and no header: the sidebar toggle over the 175px places, the
-// four views (Grid, Table, Columns, List), sort, more and search as ringed 32px buttons,
-// the omnibar across the rest, then Ask. A file opens beside its folder, the folder
-// narrowed to a 300px column of its own. Rows are 24px in Table, stripes running down
-// the whole pane; the picked row is filled in brand-500.
+// The Files place (files-screen.tsx, extend/file-system.tsx), re-measured 2026-11-07 at
+// 1280x800. Files' row is the 44px location row and there is no header: the sidebar
+// toggle over the 175px places, the four views (Grid, Table, Columns, List) in a grey
+// well with the one shown raised white, then sort, more and search framed the way the
+// row frames every control (TOOL_SURFACE, omnibar.js), the omnibar's grey field across
+// the rest, then Ask. A file opens beside its folder, the folder narrowed to a 300px
+// column of its own. Rows are 24px in Table, stripes running down the whole pane; the
+// picked row is filled in brand-500, and the Instrument folder's mark is teal.
 
 /** The views as Files names them, in its picker's order: [key, label, icon]. */
 const FILE_VIEWS = [
@@ -14,18 +16,18 @@ const FILE_VIEWS = [
   ["list", "List", "rows"],
 ];
 
-/** The view picker: a grey well with the four views, the one shown raised white. `extra` adds views a proposal brings, as [key, label, icon]. */
+/** The view picker (VIEW_TAB_CLASSNAME): a grey well with the four views, the one shown raised in the card's white. `extra` adds views a proposal brings, as [key, label, icon]. */
 const filesViews = (view = "table", extra = []) =>
-  `<span class="flex h-8 shrink-0 items-center rounded-lg bg-foreground/8 p-0.5">${[...FILE_VIEWS, ...extra]
+  `<span class="flex h-8 shrink-0 items-center rounded-xl bg-foreground/8 p-0.5">${[...FILE_VIEWS, ...extra]
     .map(
       ([k, , i]) =>
-        `<span class="grid h-7 w-9 place-items-center rounded-md ${k === view ? "bg-background text-foreground shadow-xs" : "text-foreground/60"}"><i class="ph ph-${i} text-[16px]"></i></span>`,
+        `<span class="grid h-7 w-9 place-items-center rounded-lg ${k === view ? "bg-card text-foreground shadow-xs" : "text-muted-foreground"}"><i class="ph ph-${i} text-[16px]"></i></span>`,
     )
     .join("")}</span>`;
 
-/** A ringed 32px button on the row, as Files draws sort, more and search. */
+/** A framed 32px control on the row (TOOL_SURFACE), as Files draws sort, more and search. */
 const filesBtn = (inner) =>
-  `<span class="flex h-8 min-w-8 shrink-0 items-center justify-center gap-0.5 rounded-lg bg-card px-1.5 text-foreground/70 ring-1 ring-border">${inner}</span>`;
+  `<span class="flex min-w-8 shrink-0 items-center justify-center gap-1 px-1.5 ${TOOL_SURFACE}">${inner}</span>`;
 
 /**
  * Files' one 40px row (files-screen.tsx): over the places (`side`, or folded) the sidebar
@@ -44,15 +46,15 @@ const filesRow = ({
   search,
   omni = {},
 } = {}) => `
-  <div class="flex h-10 shrink-0 items-center gap-1.5 border-b border-border pr-1.5">
-    <div class="flex h-full shrink-0 items-center ${side ? "w-[175px] border-r border-border" : ""} px-1.5"><span class="grid size-8 place-items-center rounded-lg text-muted-foreground"><i class="ph ph-sidebar-simple text-[17px]"></i></span></div>
+  <div class="flex h-11 shrink-0 items-center gap-1.5 border-b border-border pr-1.5">
+    <div class="flex h-full shrink-0 items-center ${side ? "w-[175px] border-r border-border" : ""} px-1.5"><span class="grid size-8 place-items-center rounded-md text-foreground/70"><i class="ph ph-sidebar-simple text-[16px]"></i></span></div>
     ${
       search !== undefined && search !== false
-        ? `<span class="ml-0.5 flex h-8 w-[228px] shrink-0 items-center gap-2 rounded-lg border border-transparent bg-card px-2.5 text-[13px] shadow-xs ring-2 ring-foreground/15"><i class="ph ph-magnifying-glass text-[14px] text-muted-foreground"></i><span class="min-w-0 flex-1 truncate ${search === true ? "text-muted-foreground" : ""}">${search === true ? "Search" : search}</span>${search === true ? "" : `<i class="ph ph-x-circle text-[14px] text-muted-foreground"></i>`}</span>`
-        : `<span class="ml-0.5">${filesViews(view)}</span>${filesBtn(`<i class="ph ph-arrows-down-up text-[16px]"></i>${narrow ? "" : `<i class="ph ph-caret-down text-[9px] text-muted-foreground"></i>`}`)}${filesBtn(`<i class="ph ph-dots-three text-[16px]"></i>`)}${filesBtn(`<i class="ph ph-magnifying-glass text-[16px]"></i>`)}`
+        ? `<span class="flex w-56 shrink-0 items-center gap-1 pr-2 pl-2 text-sm text-foreground ${TOOL_SURFACE} ring-2 ring-foreground/30"><i class="ph ph-magnifying-glass text-[14px] text-muted-foreground"></i><span class="min-w-0 flex-1 truncate ${search === true ? "text-muted-foreground" : ""}">${search === true ? "Search" : search}</span>${search === true ? "" : `<i class="ph ph-x text-[12px] text-muted-foreground"></i>`}</span>`
+        : `${filesViews(view)}${filesBtn(`<i class="ph ph-arrows-down-up text-[16px]"></i>${narrow ? "" : `<i class="ph ph-caret-down text-[10px] text-muted-foreground"></i>`}`)}${filesBtn(`<i class="ph ph-dots-three text-[16px]"></i>`)}${filesBtn(`<i class="ph ph-magnifying-glass text-[16px]"></i>`)}`
     }
-    ${omnibar({ folder: crumbs[crumbs.length - 1] }, { crumbs, fold, size: 8, ...omni })}
-    ${filesBtn(`${brand("instrumentglyph", "size-4")}${narrow ? "" : `<span class="pr-1 pl-1 text-[13px] font-medium text-foreground">Ask</span>`}`)}
+    ${omnibar({ folder: crumbs[crumbs.length - 1] }, { crumbs, fold, ...omni })}
+    ${askFramed(!narrow)}
   </div>`;
 
 /**
@@ -218,7 +220,7 @@ const finder = ({ view = "table", pick = -1, side = true, search, omni = {}, row
   });
 
 /** The sort menu (Sort by, Group by, Show hidden files), hung from the sort button. */
-const sortMenu = ({ sort = "Name", group = "None", left = 282, top = 84 } = {}) =>
+const sortMenu = ({ sort = "Name", group = "None", left = 282, top = 88 } = {}) =>
   menu(
     [
       { head: "Sort by" },
@@ -233,7 +235,7 @@ const sortMenu = ({ sort = "Name", group = "None", left = 282, top = 84 } = {}) 
   );
 
 /** The search's Show only menu: the kinds the folder has, each with its mark. */
-const kindMenu = ({ kinds = ["folder", "html", "md", "csv"], left = 256, top = 84 } = {}) =>
+const kindMenu = ({ kinds = ["folder", "html", "md", "csv"], left = 256, top = 88 } = {}) =>
   menu([{ head: "Show only" }, ...kinds.map((k) => ({ icon: fileMark(k, "text-[14px]"), label: k === "folder" ? "Folder" : KIND_TEXT[k] }))], { left, top, w: 226 });
 
 /**
@@ -262,9 +264,8 @@ const fileBeside = ({
 } = {}) => {
   const f = FILES[file] ? { file } : file;
   const path = crumbs ?? ["mac-user", folder, tabTitle(f)];
-  const ico = (i) =>
-    `<span class="flex h-7 shrink-0 items-center gap-0.5 rounded-lg bg-card px-1.5 text-foreground/70 ring-1 ring-border"><i class="ph ${i} text-[15px]"></i><i class="ph ph-caret-down text-[9px] text-muted-foreground"></i></span>`;
-  const btn = (i) => `<span class="grid size-7 shrink-0 place-items-center text-muted-foreground"><i class="ph ph-${i} text-[16px]"></i></span>`;
+  const ico = (i) => filesBtn(`<i class="ph ${i} text-[16px]"></i><i class="ph ph-caret-down text-[10px] text-muted-foreground"></i>`);
+  const btn = (i) => `<span class="grid size-8 shrink-0 place-items-center rounded-md text-foreground/70"><i class="ph ph-${i} text-[16px]"></i></span>`;
   const list = `<div class="grid h-7 grid-cols-[1fr_80px] items-center border-b border-border px-3 text-[12px] text-muted-foreground"><span class="pl-4 font-medium text-foreground">Name <i class="ph ph-caret-up text-[9px]"></i></span><span class="border-l border-border pl-2">Modified</span></div><div class="pt-0.5">${rows
     .map(
       ([k, n, d], i) =>
@@ -279,17 +280,17 @@ const fileBeside = ({
     .join("")}</div>`;
   return `
   <div class="flex min-w-0 flex-1 flex-col">
-    <div class="flex h-10 shrink-0 items-center border-b border-border">
+    <div class="flex h-11 shrink-0 items-center border-b border-border">
       ${
         folded
           ? ""
-          : `<div class="flex h-full shrink-0 items-center gap-1 border-r border-border px-1.5" style="width:${w}px"><span class="flex h-7 min-w-0 items-center gap-1.5 rounded-md px-1.5 text-[13px] font-medium">${fileMark("folder", "text-[15px]")}<span class="truncate">${folder}</span><i class="ph ph-caret-down text-[10px] text-muted-foreground"></i></span><span class="flex-1"></span>${ico(view === "icons" ? "ph-grid-four" : "ph-list-bullets")}${ico("ph-arrows-down-up")}<span class="grid size-7 shrink-0 place-items-center rounded-lg bg-card text-foreground/70 ring-1 ring-border"><i class="ph ph-magnifying-glass text-[14px]"></i></span></div>`
+          : `<div class="flex h-full shrink-0 items-center gap-1.5 border-r border-border px-1.5" style="width:${w}px"><span class="flex h-7 min-w-0 items-center gap-1.5 rounded-md px-1.5 text-[13px] font-medium">${fileMark("folder", "text-[15px]")}<span class="truncate">${folder}</span><i class="ph ph-caret-down text-[10px] text-muted-foreground"></i></span><span class="flex-1"></span>${ico(view === "icons" ? "ph-grid-four" : "ph-list-bullets")}${ico("ph-arrows-down-up")}${filesBtn(`<i class="ph ph-magnifying-glass text-[16px]"></i>`)}</div>`
       }
-      <div class="flex min-w-0 flex-1 items-center gap-1 px-1.5">
-        ${btn("sidebar-simple")}${btn("arrow-clockwise")}
+      <div class="flex min-w-0 flex-1 items-center gap-1.5 px-1.5">
+        ${btn("sidebar-simple")}${toolGroup(toolGlyph("arrow-clockwise"))}
         ${omnibar(f, { crumbs: path, fold })}
         <span class="flex h-7 shrink-0 items-center gap-1.5 rounded-md px-1.5 text-[13px] ${editing ? "bg-foreground text-background" : "text-muted-foreground"}"><i class="ph ph-${editing ? "pencil-simple" : "eye"} text-[15px]"></i>${editing ? "Editing" : "Viewing"}<i class="ph ph-caret-down text-[10px]"></i></span>
-        ${askButton(true)}${btn("dots-three-vertical")}${close ? btn("x") : ""}
+        ${askFramed(true)}${toolIcon("dots-three-vertical")}${close ? btn("x") : ""}
       </div>
     </div>
     <div class="flex min-h-0 flex-1">

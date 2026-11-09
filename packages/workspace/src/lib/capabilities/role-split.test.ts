@@ -6,6 +6,7 @@ import { StoreId } from "../../schemas/store-id";
 import { knowChat } from "../../test/helpers/mock-chat-config";
 import { createLocalBashEnv } from "../create-bash-env";
 import { chatDir } from "../record-folders";
+import { takeRoleRefusals } from "./role-refusals";
 
 const chatId = ChatIdSchema.parse("role-split");
 
@@ -34,9 +35,23 @@ describe("a task's instrument", () => {
     const refused = await shell("task", "instrument task list");
     expect(refused.exitCode).toBe(1);
     expect(refused.stderr).toMatchInlineSnapshot(`
-      "instrument task: only the chat starts and steers tasks. Do the work here, and say in your report what is left.
+      "instrument task: you are a task the chat started, and the chat alone starts and steers tasks. Do your assignment here, and say in your report what is left.
       "
     `);
+  });
+
+  // What the note waking the chat says of the task's turn, beside its words.
+  it("keeps what it refused a task for, by what the task called, until read", async () => {
+    const sessionId = StoreId.newSessionId();
+    const bash = await createLocalBashEnv({ chatId, role: "task", sessionId });
+    await bash.exec("instrument task new --name x <<'EOF'\nGo.\nEOF");
+    await bash.exec("instrument memory save decaf <<'EOF'\nOnly decaf.\nEOF");
+    await bash.exec("instrument memory list");
+    expect(takeRoleRefusals(sessionId)).toEqual([
+      "instrument task new",
+      "instrument memory save",
+    ]);
+    expect(takeRoleRefusals(sessionId)).toEqual([]);
   });
 
   it("lists the task command in the chat's shell", async () => {

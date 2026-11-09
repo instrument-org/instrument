@@ -912,14 +912,19 @@ function layoutRules(
   const runtime = runtimeLayout(config.runtimeDir);
   const programs =
     process.platform === "win32" ? windowsProgramFolders(given.home) : [];
+  const workspaceData = workspaceLayout(config.rootDir).dataDir;
   const appData: Rule[] = [
     config.userDataDir,
     workspaceMachineDir(),
     config.runtimeDir,
-    workspaceLayout(config.rootDir).dataDir,
+    workspaceData,
     homeDataLayout(given.home).dataDir,
     ...appUpdateCaches(given.home),
-  ].map((path) => ({ appData: true, ...system("never", path) }));
+  ].map((path) => ({
+    appData: true,
+    ...(path === workspaceData && { workspaceData: true }),
+    ...system("never", path),
+  }));
   const own: Rule[] = [
     ...appData,
     // Every chat's work folder, in every workspace, so a chat can pick up

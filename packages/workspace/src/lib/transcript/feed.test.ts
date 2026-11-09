@@ -65,11 +65,11 @@ describe("TranscriptProjection", () => {
       stored("assistant", (message) => [text(message, words, partId)], id);
     const held = applyFeedEvent(
       undefined,
-      new TranscriptProjection(false).reset([same, moved("Two")]),
+      new TranscriptProjection().reset([same, moved("Two")]),
     );
     const back = applyFeedEvent(
       held,
-      new TranscriptProjection(false).reset([same, moved("Two and more")]),
+      new TranscriptProjection().reset([same, moved("Two and more")]),
     );
     expect(back.messages[0]).toBe(held.messages[0]);
     expect(back.messages[1]).not.toBe(held.messages[1]);
@@ -80,7 +80,7 @@ describe("TranscriptProjection", () => {
     const partId = StoreId.newPartId();
     const reply = (words: string) =>
       stored("assistant", (id) => [text(id, words, partId)], messageId);
-    const projection = new TranscriptProjection(false);
+    const projection = new TranscriptProjection();
     const first = projection.reset([typed("Hi"), reply("Good")]);
     const next = projection.update({
       changed: [reply("Good day")],
@@ -112,7 +112,7 @@ describe("TranscriptProjection", () => {
         ],
         messageId,
       );
-    const projection = new TranscriptProjection(false);
+    const projection = new TranscriptProjection();
     projection.reset([reply()]);
     expect(
       projection.update({ changed: [reply()], removed: [] }),
@@ -197,7 +197,7 @@ describe("TranscriptProjection", () => {
         ],
         messageId,
       );
-    const projection = new TranscriptProjection(false);
+    const projection = new TranscriptProjection();
     const first = projection.reset([typed("Hi"), call(before)]);
     const next = projection.update({ changed: [call(after)], removed: [] });
     if (!next) {
@@ -211,7 +211,7 @@ describe("TranscriptProjection", () => {
 
   it("leaves what did not move as the same objects", () => {
     const a = typed("One");
-    const projection = new TranscriptProjection(false);
+    const projection = new TranscriptProjection();
     const held = applyFeedEvent(undefined, projection.reset([a]));
     const added = stored("assistant", (id) => [text(id, "Reply")]);
     const event = projection.update({ changed: [added], removed: [] });
@@ -241,7 +241,7 @@ describe("TranscriptProjection", () => {
         ],
         messageId,
       );
-    const projection = new TranscriptProjection(false);
+    const projection = new TranscriptProjection();
     const first = projection.reset([call("x".repeat(100_000))]);
     expect(JSON.stringify(first).length).toBeLessThan(2000);
   });
@@ -254,17 +254,16 @@ describe("paging", () => {
   ]).flat();
 
   it("gives the last turns whole, and says more are above them", () => {
-    const feed = lastTurnsOf(session, { isDeveloperMode: false, turns: 2 });
+    const feed = lastTurnsOf(session, { turns: 2 });
     expect(feed.hasOlder).toBe(true);
     expect(feed.messages).toHaveLength(4);
     expect(feed.messages[0]?.id).toBe(session[6]?.id);
   });
 
   it("reads the page before a message, and puts it above what is held", () => {
-    const held = lastTurnsOf(session, { isDeveloperMode: false, turns: 2 });
+    const held = lastTurnsOf(session, { turns: 2 });
     const older = lastTurnsOf(session, {
       before: held.messages[0]?.id,
-      isDeveloperMode: false,
       turns: 2,
     });
     const both = applyOlder(held, older);
@@ -274,7 +273,7 @@ describe("paging", () => {
   });
 
   it("gives the whole of a short session and says nothing is above it", () => {
-    const feed = lastTurnsOf(session, { isDeveloperMode: false });
+    const feed = lastTurnsOf(session);
     expect(feed.hasOlder).toBe(false);
     expect(feed.messages).toHaveLength(session.length);
   });

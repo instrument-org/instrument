@@ -579,7 +579,7 @@ export type Delivery =
 
 const COPY_SUFFIXES = [
   (n: number) => ` ${n + 1}`,
-  (n: number) => ` (Jeremy's conflicted copy 2026-10-${10 + n})`,
+  (n: number) => ` (Alex's conflicted copy 2026-10-${10 + n})`,
   (n: number) => `-DEVICE-${n}`,
   (n: number) => `.sync-conflict-20261014-12000${n}-ABCD123`,
 ];

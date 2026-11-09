@@ -141,7 +141,7 @@ export default async (app, args = {}) => {
  * workspace has no chat. Read from disk because nothing in the app lists
  * the chats in one call, and the task routes need one to stand on.
  */
-async function firstChat(app) {
+export async function firstChat(app) {
   const info = await app.rpc("debug.systemInfo", {});
   const root = info.find((entry) => entry.title === "Workspace Root")?.value;
   if (!root) {

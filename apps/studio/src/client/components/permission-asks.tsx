@@ -10,9 +10,13 @@ import {
   type SessionMessageDataPart,
 } from "@instrument-org/workspace/client";
 import { useMutation, useQuery } from "@tanstack/react-query";
+import { useSetAtom } from "jotai";
 import { useEffect, useState } from "react";
 
 import { openSettings } from "@/client/atoms/settings-modal";
+import { paneOpenByGroupAtom } from "@/client/atoms/window";
+import { useWindowTabs } from "@/client/components/window/window-tabs";
+import { ArrowRightIcon } from "@phosphor-icons/react/ArrowRight";
 import { privacyPaneForApp } from "@/client/lib/privacy-pane";
 import { cn } from "@/client/lib/utils";
 import { ShieldCheckIcon } from "@phosphor-icons/react/ShieldCheck";
@@ -132,7 +136,6 @@ function PermissionAskCard({
   );
   const busy = answer.isPending || declineAll.isPending;
   const isFolder = ask.kind === "folder";
-  const isTab = ask.kind === "tab";
   const refused = ask.status === "macos-refused";
   const asking = ask.status === "macos-asking";
   const isPrivate = ask.status === "macos-private";
@@ -167,6 +170,18 @@ function PermissionAskCard({
     },
     pending: pending === decision,
   });
+
+  if (ask.kind === "page") {
+    return (
+      <PageWaitCard
+        ask={ask}
+        chatId={chatId}
+        done={choice("allowed")}
+        elsewhere={elsewhere}
+        skip={choice("declined")}
+      />
+    );
+  }
 
   return (
     <div
@@ -224,24 +239,6 @@ function PermissionAskCard({
           className="mt-2.5 rounded-xl bg-muted/50 px-3 py-2"
           path={ask.target}
         />
-      ) : isTab ? (
-        <div className="mt-2.5 flex items-center gap-3 rounded-xl bg-muted/50 px-3 py-2">
-          <span className="grid size-8 shrink-0 place-items-center text-muted-foreground">
-            <PageFavicon
-              className="size-5"
-              hasTooltip={false}
-              url={ask.page?.url}
-            />
-          </span>
-          <span className="flex min-w-0 flex-1 flex-col">
-            <span className="truncate text-sm">
-              {ask.page?.title || hostOf(ask.page?.url)}
-            </span>
-            <span className="truncate text-xs text-muted-foreground">
-              {hostOf(ask.page?.url)}
-            </span>
-          </span>
-        </div>
       ) : (
         <div className="mt-2.5 flex items-center gap-3 rounded-xl bg-muted/50 px-3 py-2">
           <span className="grid size-8 shrink-0 place-items-center">
@@ -283,8 +280,6 @@ function PermissionAskCard({
             <MacFixes ask={ask} busy={busy} chatId={chatId} />
           ) : blocked ? (
             <WindowsFixes ask={ask} busy={busy} chatId={chatId} />
-          ) : isTab ? (
-            <AnswerButton {...choice("allowed")}>Move tab here</AnswerButton>
           ) : asking || isPrivate ? null : (
             <>
               <AnswerButton {...choice("allowed")}>
@@ -300,7 +295,83 @@ function PermissionAskCard({
             className="ml-auto text-muted-foreground @max-xs/asks:ml-0"
             variant="ghost"
           >
-            {isTab ? "Skip" : isPrivate ? "OK" : "Don’t allow"}
+            {isPrivate ? "OK" : "Don’t allow"}
+          </AnswerButton>
+        </div>
+      )}
+    </div>
+  );
+}
+
+/**
+ * A page of the chat's the agent handed the person (`instrument window
+ * wait`): the page's mark in a tile, what the agent asks them to do and why,
+ * then Done and Skip. Pressing the mark or the words brings that tab up in
+ * the pane, opening the pane when it is put away.
+ */
+function PageWaitCard({
+  ask,
+  chatId,
+  done,
+  elsewhere,
+  skip,
+}: {
+  ask: Ask;
+  chatId: ChatId;
+  done: Omit<Parameters<typeof AnswerButton>[0], "children">;
+  elsewhere: string | undefined;
+  skip: Omit<Parameters<typeof AnswerButton>[0], "children">;
+}) {
+  const windowTabs = useWindowTabs();
+  const setPaneOpenByGroup = useSetAtom(paneOpenByGroupAtom);
+  const asker = ask.askers[0];
+  const title =
+    asker?.title ||
+    `Waiting for you on ${hostOf(ask.page?.url) || "this page"}`;
+  return (
+    <div className="relative animate-in rounded-2xl border border-border bg-card p-3 shadow-xs duration-200 ease-out fade-in-0 fill-mode-both slide-in-from-bottom-2 motion-reduce:animate-none">
+      {/* Narrow, the reason runs under the icon rather than beside it, so
+          the words get the card's whole width. */}
+      <button
+        className="grid w-full grid-cols-[auto_minmax(0,1fr)] items-start gap-x-3 gap-y-0.5 text-left outline-none"
+        data-page-wait={ask.target}
+        onClick={() => {
+          windowTabs.select(ask.target);
+          setPaneOpenByGroup((current) => ({ ...current, [chatId]: true }));
+        }}
+        type="button"
+      >
+        <span className="row-span-2 grid size-9 place-items-center rounded-lg border border-border bg-background @max-sm/asks:row-span-1">
+          <PageFavicon
+            className="size-5"
+            hasTooltip={false}
+            url={ask.page?.url}
+          />
+        </span>
+        <span className="text-sm font-medium @max-sm/asks:self-center">
+          {title}
+        </span>
+        {asker?.reason ? (
+          <span className="text-[13px] text-muted-foreground @max-sm/asks:col-span-2 @max-sm/asks:mt-1.5">
+            {asker.reason}
+          </span>
+        ) : null}
+      </button>
+      {elsewhere ? (
+        <p className="mt-2.5 text-[13px] text-muted-foreground">{elsewhere}</p>
+      ) : (
+        <div className="mt-3 flex flex-wrap items-center gap-2 pl-12 @max-sm/asks:pl-0">
+          <span className="mr-auto flex items-center gap-1.5 text-[13px] whitespace-nowrap text-muted-foreground">
+            <ArrowRightIcon className="size-3.5 shrink-0" />
+            Finish on the page beside the chat.
+          </span>
+          <AnswerButton {...done}>Done</AnswerButton>
+          <AnswerButton
+            {...skip}
+            className="text-muted-foreground"
+            variant="ghost"
+          >
+            Skip
           </AnswerButton>
         </div>
       )}
@@ -325,9 +396,7 @@ function cardTitle(ask: Ask, name: string): string {
     default:
       return ask.kind === "folder"
         ? "Can Instrument use this folder?"
-        : ask.kind === "tab"
-          ? "Can Instrument use this tab?"
-          : "Can Instrument use this app?";
+        : "Can Instrument use this app?";
   }
 }
 
@@ -584,8 +653,8 @@ export function PermissionAnswerNote({
 }: {
   data: SessionMessageDataPart.PermissionAnswerDataPart;
 }) {
-  if (data.kind === "tab") {
-    const page = `“${data.page?.title || hostOf(data.page?.url) || "your tab"}”`;
+  if (data.kind === "page") {
+    const site = hostOf(data.page?.url) || "the page";
     return (
       <p className="mt-2 flex items-center gap-1.5 text-xs text-muted-foreground">
         <PageFavicon
@@ -594,11 +663,9 @@ export function PermissionAnswerNote({
           url={data.page?.url}
         />
         <span>
-          {data.answer === "allowed"
-            ? `You moved ${page} into this chat.`
-            : data.answer === "gone"
-              ? `${page} closed before you answered.`
-              : `You kept ${page} in your own tabs.`}
+          {data.answer === "declined"
+            ? `You skipped this on ${site}.`
+            : `You finished on ${site}.`}
         </span>
       </p>
     );

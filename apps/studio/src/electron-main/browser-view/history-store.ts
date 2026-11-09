@@ -1,3 +1,5 @@
+import { readStartPages } from "./history-start-pages";
+
 import { logger } from "@/electron-main/lib/electron-logger";
 import { workspaceBrowserDir } from "@/electron-main/lib/get-workspace-folder";
 import { type HistoryAction } from "@instrument-org/workspace/electron";
@@ -156,8 +158,33 @@ UPDATE urls SET
 export type HistoryStore = ReturnType<typeof createHistoryStore>;
 
 /**
+ * A write to the pages: the addresses whose row, visits or fetched title it
+ * changed, or no `urls` when it may have changed any of them.
+ */
+export interface PagesChange {
+  urls?: readonly string[];
+}
+
+/**
+ * Whether a change to the pages can move what `titleOf(url)` answers, which
+ * takes an address with or without its closing slash as the same page.
+ */
+export function touchesPage(change: PagesChange, url: string): boolean {
+  const page = withoutClosingSlash(url);
+  return (
+    change.urls === undefined ||
+    change.urls.some((each) => withoutClosingSlash(each) === page)
+  );
+}
+
+function withoutClosingSlash(url: string) {
+  return url.endsWith("/") ? url.slice(0, -1) : url;
+}
+
+/**
  * The store over one database file, or `:memory:` for tests. Every write
- * tells `changes` so live readers read again.
+ * tells `changes` so live readers read again: `pages` for the browser's
+ * pages and their titles, `files` for the files opened.
  */
 export function createHistoryStore(file: string) {
   if (file !== ":memory:") {
@@ -184,9 +211,12 @@ export function createHistoryStore(file: string) {
     database.exec("ALTER TABLE file_opens ADD COLUMN app TEXT");
   }
 
-  const changes = new EventPublisher<{ changed: null }>();
-  const changed = () => {
-    changes.publish("changed", null);
+  const changes = new EventPublisher<{ files: null; pages: PagesChange }>();
+  const filesChanged = () => {
+    changes.publish("files", null);
+  };
+  const pagesChanged = (urls?: readonly string[]) => {
+    changes.publish("pages", urls === undefined ? {} : { urls });
   };
 
   const statements = {
@@ -198,7 +228,9 @@ export function createHistoryStore(file: string) {
     ),
     refreshOne: database.prepare(`${REFRESH} WHERE id = ?`),
     urlId: database.prepare("SELECT id FROM urls WHERE url = ?"),
-    urlOfVisit: database.prepare("SELECT url_id FROM visits WHERE id = ?"),
+    urlOfVisit: database.prepare(
+      "SELECT urls.id AS id, urls.url AS url FROM visits JOIN urls ON urls.id = visits.url_id WHERE visits.id = ?",
+    ),
   };
 
   const urlIdOf = (url: string): number => {
@@ -209,9 +241,13 @@ export function createHistoryStore(file: string) {
   const refresh = (urlId: number) => {
     statements.refreshOne.run(urlId);
   };
-  const urlIdOfVisit = (visitId: number): number | undefined => {
+  const urlOfVisit = (
+    visitId: number,
+  ): undefined | { id: number; url: string } => {
     const row = statements.urlOfVisit.get(visitId);
-    return row === undefined ? undefined : Number(row.url_id);
+    return row === undefined
+      ? undefined
+      : { id: Number(row.id), url: String(row.url) };
   };
 
   const pagesWhere = (where: string, parameters: number[], limit: number) =>
@@ -258,7 +294,7 @@ export function createHistoryStore(file: string) {
           "INSERT INTO file_opens (file_id, at, via, app) SELECT id, ?, ?, ? FROM files WHERE path = ?",
         )
         .run(at, via, app ?? null, filePath);
-      changed();
+      filesChanged();
     },
 
     /** A visit committed in a tab; answers its id. */
@@ -275,7 +311,7 @@ export function createHistoryStore(file: string) {
         visit.hiddenBy ?? null,
       );
       refresh(urlId);
-      changed();
+      pagesChanged([visit.url]);
       return Number(result.lastInsertRowid);
     },
 
@@ -303,7 +339,7 @@ export function createHistoryStore(file: string) {
         .prepare("DELETE FROM fetched_titles WHERE at >= ?")
         .run(since ?? 0);
       database.exec(REFRESH);
-      changed();
+      pagesChanged();
       return { removed };
     },
 
@@ -324,7 +360,7 @@ export function createHistoryStore(file: string) {
       database.exec(
         "UPDATE files SET open_count = (SELECT count(*) FROM file_opens WHERE file_id = files.id), last_open = (SELECT max(at) FROM file_opens WHERE file_id = files.id)",
       );
-      changed();
+      filesChanged();
       return { removed };
     },
 
@@ -338,8 +374,8 @@ export function createHistoryStore(file: string) {
      * first reason.
      */
     hideVisit(visitId: number, hiddenBy: HiddenBy) {
-      const urlId = urlIdOfVisit(visitId);
-      if (urlId === undefined) {
+      const page = urlOfVisit(visitId);
+      if (page === undefined) {
         return;
       }
       database
@@ -347,8 +383,8 @@ export function createHistoryStore(file: string) {
           "UPDATE visits SET hidden_by = ? WHERE id = ? AND hidden_by IS NULL",
         )
         .run(hiddenBy, visitId);
-      refresh(urlId);
-      changed();
+      refresh(page.id);
+      pagesChanged([page.url]);
     },
 
     /**
@@ -387,7 +423,7 @@ export function createHistoryStore(file: string) {
         database.exec("ROLLBACK");
         throw error;
       }
-      changed();
+      filesChanged();
       return moved.length;
     },
 
@@ -458,6 +494,11 @@ export function createHistoryStore(file: string) {
         });
     },
 
+    /** The start page's host-limited recents and frequently visited sites. */
+    startPages(excludedUrls: readonly string[], now: number) {
+      return readStartPages(database, excludedUrls, now);
+    },
+
     /** The person's visible pages, newest first. */
     recent(limit: number): HistoryPage[] {
       return pagesWhere("1", [], limit);
@@ -480,7 +521,7 @@ export function createHistoryStore(file: string) {
         )
         .run(urlId, urlId);
       refresh(urlId);
-      changed();
+      pagesChanged([url]);
     },
 
     /** The page's icon, as it announced it, whoever had the tab. */
@@ -491,7 +532,7 @@ export function createHistoryStore(file: string) {
         )
         .run(favicon, url, favicon);
       if (Number(result.changes) > 0) {
-        changed();
+        pagesChanged([url]);
       }
     },
 
@@ -502,24 +543,25 @@ export function createHistoryStore(file: string) {
           "INSERT INTO fetched_titles (url, title, at) VALUES (?, ?, ?) ON CONFLICT(url) DO UPDATE SET title = excluded.title, at = excluded.at",
         )
         .run(url, title, at);
-      changed();
+      pagesChanged([url]);
     },
 
     /** A title for the addresses of the given visits, which a redirect chain shares. */
     setTitle(visitIds: readonly number[], title: string) {
-      const urlIds = new Set(
-        visitIds.flatMap((visitId) => urlIdOfVisit(visitId) ?? []),
+      const pages = new Map(
+        visitIds.flatMap((visitId): [number, string][] => {
+          const page = urlOfVisit(visitId);
+          return page === undefined ? [] : [[page.id, page.url]];
+        }),
       );
-      let didChange = false;
       const update = database.prepare(
         "UPDATE urls SET title = ? WHERE id = ? AND title IS NOT ?",
       );
-      for (const urlId of urlIds) {
-        didChange =
-          Number(update.run(title, urlId, title).changes) > 0 || didChange;
-      }
-      if (didChange) {
-        changed();
+      const retitled = [...pages].flatMap(([urlId, url]) =>
+        Number(update.run(title, urlId, title).changes) > 0 ? [url] : [],
+      );
+      if (retitled.length > 0) {
+        pagesChanged(retitled);
       }
     },
 

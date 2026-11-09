@@ -82,6 +82,18 @@ function mapPaths(
           })),
         },
       };
+    case "data-branchedFrom":
+      return {
+        ...part,
+        data: {
+          ...part.data,
+          ...(part.data.folder !== undefined && {
+            folder: map(part.data.folder),
+          }),
+          records: map(part.data.records),
+          work: map(part.data.work),
+        },
+      };
     case "data-attachments":
       return part.data.folders === undefined
         ? part

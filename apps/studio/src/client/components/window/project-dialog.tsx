@@ -17,14 +17,16 @@ import {
   DialogContent,
   DialogDescription,
   DialogFooter,
-  DialogHeader,
   DialogTitle,
 } from "@/client/components/ui/dialog";
 import { Input } from "@/client/components/ui/input";
 import {
-  DictatedTextarea,
+  DictationControls,
+  DictationReadout,
+  useCanDictate,
   useDictatedText,
 } from "@/client/components/dictation-controls";
+import { MarkdownValueEditor } from "@/client/components/markdown-editor/markdown-value-editor";
 import { isDictating } from "@/client/hooks/use-dictation";
 import {
   starterEmoji,
@@ -36,11 +38,19 @@ import {
   ProjectMarkPicker,
 } from "@/client/components/window/project-mark-picker";
 import { folderLabel } from "@/client/lib/path-utils";
-import { showInFolder } from "@/client/lib/show-in-files";
+import { useWorkspaceFolder } from "@/client/lib/output-folder";
+import {
+  projectFolderPath,
+  showInFolder,
+  showProjectInFiles,
+} from "@/client/lib/show-in-files";
 import { rpcClient } from "@/client/rpc/client";
 import { APP_NAME } from "@instrument-org/shared";
+import { PROJECT_FILE_NAME } from "@instrument-org/workspace/client";
+import { ArrowUpRightIcon } from "@phosphor-icons/react/ArrowUpRight";
 import { ChatCircleIcon } from "@phosphor-icons/react/ChatCircle";
 import { MinusCircleIcon } from "@phosphor-icons/react/MinusCircle";
+import { PencilSimpleIcon } from "@phosphor-icons/react/PencilSimple";
 import { PlusIcon } from "@phosphor-icons/react/Plus";
 import { XIcon } from "@phosphor-icons/react/X";
 import { useRef, useState } from "react";
@@ -62,9 +72,12 @@ const CONFIDENT = 0.3;
 /** What the user chooses about a project: its name, its mark, its tint, its instructions and its folders. */
 export interface ProjectChoice {
   color: string;
+  /** Its mark when it is an emoji; empty when it is an icon. */
   emoji: string;
   /** The user's folders the work under it uses, attached to each chat filed there. */
   folders: ProjectFolder[];
+  /** Its mark when it is a Phosphor icon, by name; empty when it is an emoji. */
+  icon: string;
   /** What every chat filed under it is given; empty takes them away. */
   instructions: string;
   name: string;
@@ -119,6 +132,7 @@ export function ProjectDialog(
           color?: string;
           emoji?: string;
           folders?: ProjectFolder[];
+          icon?: string;
           id: string;
           instructions?: string;
           name: string;
@@ -143,6 +157,7 @@ export function ProjectDialog(
               PROJECT_COLORS[taken.length % PROJECT_COLORS.length] ?? "#3b6ef6",
             emoji: starterEmoji(taken, taken.length),
             folders: [],
+            icon: "",
             instructions: "",
             name,
           }}
@@ -165,10 +180,12 @@ export function ProjectDialog(
         action="Save"
         deleting={{ name: project.name, onDelete }}
         description="Changes apply to every chat filed under this project."
+        folderName={project.name}
         initial={{
           color: project.color ?? PROJECT_COLORS[8] ?? "#3b6ef6",
           emoji: project.emoji ?? "",
           folders: project.folders ?? [],
+          icon: project.icon ?? "",
           instructions: project.instructions ?? "",
           name: project.name,
         }}
@@ -182,6 +199,9 @@ export function ProjectDialog(
             ...(samePaths(chosen.folders, project.folders ?? [])
               ? {}
               : { folders: chosen.folders }),
+            ...(chosen.icon === (project.icon ?? "")
+              ? {}
+              : { icon: chosen.icon }),
             ...(chosen.instructions.trim() ===
             (project.instructions ?? "").trim()
               ? {}
@@ -434,6 +454,7 @@ function ProjectForm({
   candidates = [],
   deleting,
   description,
+  folderName,
   initial,
   isNew = false,
   onCommit,
@@ -448,6 +469,8 @@ function ProjectForm({
   /** Offered at the foot when the project exists to be deleted: whose name to confirm, and what deleting does. */
   deleting?: { name: string; onDelete: () => void };
   description: string;
+  /** The name the project's own folder has on disk, once it has one. */
+  folderName?: string;
   initial: ProjectChoice;
   /** A project being made, whose mark follows its name until one is picked by hand. */
   isNew?: boolean;
@@ -466,6 +489,7 @@ function ProjectForm({
     emoji,
     folders,
     follows,
+    icon,
     instructions,
     isFilingFits,
     isPicking,
@@ -481,6 +505,7 @@ function ProjectForm({
     surface: "project-instructions",
     value: instructions,
   });
+  const canDictate = useCanDictate();
   // Saving waits for dictated words, so the instructions keep them.
   const isHolding = isDictating(instructionsDictation.phase);
   const [wasOpen, setWasOpen] = useState(open);
@@ -515,10 +540,12 @@ function ProjectForm({
   ) {
     edit({ emoji: best.emoji.unicode });
   }
-  const choose = (picked: string) => {
-    edit({ emoji: picked, follows: false });
-  };
   const nameField = useRef<HTMLInputElement>(null);
+  const workspaceFolder = useWorkspaceFolder();
+  const projectFolder =
+    folderName !== undefined && workspaceFolder !== undefined
+      ? projectFolderPath(workspaceFolder, folderName)
+      : undefined;
 
   // Judged only while open: the project it just made joins the names in use
   // as the dialog animates out, and would be named as taken by itself.
@@ -533,7 +560,7 @@ function ProjectForm({
       return;
     }
     onCommit(
-      { color, emoji, folders, instructions, name: trimmed },
+      { color, emoji, folders, icon, instructions, name: trimmed },
       isFilingFits ? fits.map((chat) => chat.id) : [],
     );
     onOpenChange(false);
@@ -541,6 +568,9 @@ function ProjectForm({
 
   return (
     <DialogContent
+      className="h-full gap-0 overflow-hidden p-0"
+      maxHeight="60rem"
+      maxWidth="80rem"
       // The name is what the dialog is for, so the caret starts in it, with
       // the name selected so typing replaces it; the dialog would otherwise
       // put focus on the first control, which is the mark.
@@ -550,124 +580,208 @@ function ProjectForm({
         nameField.current?.select();
       }}
     >
-      <DialogHeader>
-        <DialogTitle>{title}</DialogTitle>
-        <DialogDescription>{description}</DialogDescription>
-      </DialogHeader>
-      <div className="flex items-center gap-3">
-        <ProjectMarkPicker
-          context={name}
-          onEmoji={choose}
-          onOpenChange={(next) => {
-            edit({ isPicking: next });
-          }}
-          open={isPicking}
-        >
-          <button
-            aria-label="Choose a mark"
-            className="shrink-0 rounded-xl hover:opacity-80"
-            type="button"
-          >
-            <ProjectMark
-              // A changed mark fades in where it stands, so one that follows
-              // the name reads as an answer arriving rather than a flicker.
-              className="animate-in duration-300 fade-in-0 zoom-in-90"
-              key={emoji}
-              size="lg"
-              project={{ color, emoji, name }}
+      <DialogTitle className="sr-only">{title}</DialogTitle>
+      {/* Side by side, each scrolling alone: the project down the left, its
+        instructions taking the rest, as wide as a page reads. Stacked when
+        the dialog is too narrow for both, which goes by its own width since
+        zoom and the window's size both decide it. */}
+      <div className="@container/project-dialog size-full min-h-0">
+        <div className="grid h-full min-h-0 grid-cols-1 grid-rows-[minmax(0,2fr)_minmax(0,3fr)] @3xl/project-dialog:grid-cols-[22rem_minmax(0,1fr)] @3xl/project-dialog:grid-rows-1">
+          <div className="flex min-h-0 min-w-0 flex-col gap-5 overflow-y-auto border-b bg-muted/30 p-6 @3xl/project-dialog:border-r @3xl/project-dialog:border-b-0">
+            <ProjectMarkPicker
+              context={name}
+              icon={icon || undefined}
+              onEmoji={(picked) => {
+                edit({ emoji: picked, follows: false, icon: "" });
+              }}
+              onIcon={(picked) => {
+                edit({ emoji: "", follows: false, icon: picked });
+              }}
+              onOpenChange={(next) => {
+                edit({ isPicking: next });
+              }}
+              open={isPicking}
+            >
+              <button
+                aria-label="Choose a mark"
+                className="group/mark relative w-fit shrink-0 rounded-2xl"
+                type="button"
+              >
+                <ProjectMark
+                  // A changed mark fades in where it stands, so one that follows
+                  // the name reads as an answer arriving rather than a flicker.
+                  className="size-16 animate-in rounded-2xl text-[32px] duration-300 fade-in-0 zoom-in-90 group-hover/mark:opacity-80"
+                  key={icon || emoji}
+                  size="lg"
+                  project={{ color, emoji, icon, name }}
+                />
+                <span className="absolute -right-1.5 -bottom-1.5 grid size-6 place-items-center rounded-full border bg-background text-muted-foreground shadow-xs">
+                  <PencilSimpleIcon className="size-3" />
+                </span>
+              </button>
+            </ProjectMarkPicker>
+            <div>
+              <Input
+                aria-label="Name"
+                className="h-11 text-lg font-semibold md:text-lg"
+                maxLength={PROJECT_NAME_MAX}
+                onChange={(event) => {
+                  edit({ name: event.target.value });
+                }}
+                onKeyDown={(event) => {
+                  if (event.key === "Enter") {
+                    commit();
+                  }
+                }}
+                placeholder="Name it"
+                ref={nameField}
+                value={name}
+              />
+              {problem && (
+                <p className="pt-2 text-xs text-destructive">{problem}</p>
+              )}
+              <DialogDescription className="pt-2 text-xs">
+                {description}
+              </DialogDescription>
+            </div>
+            {fits.length > 0 && (
+              <FitsLine
+                checked={isFilingFits}
+                fits={fits}
+                name={name.trim()}
+                onCheckedChange={(next) => {
+                  edit({ isFilingFits: next });
+                }}
+              />
+            )}
+            <ColorRow
+              onPick={(next) => {
+                edit({ color: next });
+              }}
+              value={color}
             />
-          </button>
-        </ProjectMarkPicker>
-        <Input
-          maxLength={PROJECT_NAME_MAX}
-          onChange={(event) => {
-            edit({ name: event.target.value });
-          }}
-          onKeyDown={(event) => {
-            if (event.key === "Enter") {
-              commit();
-            }
-          }}
-          placeholder="Name it"
-          ref={nameField}
-          value={name}
-        />
-      </div>
-      {problem && <p className="-mt-2 text-xs text-destructive">{problem}</p>}
-      {fits.length > 0 && (
-        <FitsLine
-          checked={isFilingFits}
-          fits={fits}
-          name={name.trim()}
-          onCheckedChange={(next) => {
-            edit({ isFilingFits: next });
-          }}
-        />
-      )}
-      <div>
-        <p className="pb-2 text-[11px] font-medium tracking-wide text-muted-foreground uppercase">
-          Color
-        </p>
-        <ColorRow
-          onPick={(next) => {
-            edit({ color: next });
-          }}
-          value={color}
-        />
-      </div>
-      <div>
-        <label
-          className="block pb-2 text-[11px] font-medium tracking-wide text-muted-foreground uppercase"
-          htmlFor="project-instructions"
-        >
-          Instructions
-        </label>
-        <DictatedTextarea
-          className="max-h-64 min-h-24 text-sm"
-          dictation={instructionsDictation}
-          id="project-instructions"
-          onChange={(event) => {
-            edit({ instructions: event.target.value });
-          }}
-          placeholder={`What ${APP_NAME} should know or do in every chat filed here`}
-          value={instructions}
-        />
-      </div>
-      <ProjectFolders
-        folders={folders}
-        onChange={(next) => {
-          edit({ folders: next });
-        }}
-      />
-      <DialogFooter className="sm:justify-between">
-        {deleting ? (
-          <DeleteProjectButton
-            name={deleting.name}
-            onDelete={() => {
-              deleting.onDelete();
-              onOpenChange(false);
-            }}
-          />
-        ) : (
-          <span />
-        )}
-        <div className="flex gap-2">
-          <Button
-            onClick={() => {
-              onOpenChange(false);
-            }}
-            variant="ghost"
-          >
-            Cancel
-          </Button>
-          <Button
-            disabled={!name.trim() || problem !== undefined || isHolding}
-            onClick={commit}
-          >
-            {action}
-          </Button>
+            <ProjectFolders
+              folders={folders}
+              onChange={(next) => {
+                edit({ folders: next });
+              }}
+            />
+            {projectFolder !== undefined && (
+              <ProjectOwnFolder
+                onOpenInFiles={() => {
+                  onOpenChange(false);
+                  void showProjectInFiles({ name: folderName ?? name });
+                }}
+                path={projectFolder}
+              />
+            )}
+            {deleting && (
+              <div className="mt-auto -ml-3 pt-2">
+                <DeleteProjectButton
+                  name={deleting.name}
+                  onDelete={() => {
+                    deleting.onDelete();
+                    onOpenChange(false);
+                  }}
+                />
+              </div>
+            )}
+          </div>
+          <div className="flex min-h-0 min-w-0 flex-col">
+            <div className="shrink-0 border-b py-4 pr-14 pl-8">
+              <div className="flex items-center gap-2">
+                <h3 className="text-sm font-semibold" id="project-instructions">
+                  Instructions
+                </h3>
+                <code className="rounded bg-muted px-1.5 py-0.5 font-mono text-[11px] text-muted-foreground">
+                  {PROJECT_FILE_NAME}
+                </code>
+              </div>
+              <p className="pt-0.5 text-xs text-muted-foreground">
+                {name.trim()
+                  ? `Every chat in “${name.trim()}” starts with these.`
+                  : "Every chat in this project starts with these."}
+              </p>
+            </div>
+            <div className="relative min-h-0 flex-1 overflow-y-auto">
+              <MarkdownValueEditor
+                className="mx-auto max-w-2xl pt-6 pr-8 pb-24 pl-14"
+                label="Instructions"
+                onChange={(next) => {
+                  edit({ instructions: next });
+                }}
+                placeholder={`What ${APP_NAME} should know or do in every chat filed here`}
+                value={instructions}
+              />
+              {(canDictate || isHolding) && (
+                <div className="pointer-events-none sticky bottom-3 flex items-center justify-end gap-2 px-4 [&>*]:pointer-events-auto">
+                  <DictationReadout
+                    className="max-w-md rounded-full bg-background/95 px-3 py-1 shadow-xs"
+                    dictation={instructionsDictation}
+                  />
+                  <DictationControls
+                    className="rounded-full bg-background/95 p-0.5 shadow-xs"
+                    dictation={instructionsDictation}
+                    size="sm"
+                  />
+                </div>
+              )}
+            </div>
+            <DialogFooter className="shrink-0 border-t px-6 py-4">
+              <Button
+                onClick={() => {
+                  onOpenChange(false);
+                }}
+                variant="ghost"
+              >
+                Cancel
+              </Button>
+              <Button
+                disabled={!name.trim() || problem !== undefined || isHolding}
+                onClick={commit}
+              >
+                {action}
+              </Button>
+            </DialogFooter>
+          </div>
         </div>
-      </DialogFooter>
+      </div>
     </DialogContent>
+  );
+}
+
+/**
+ * The project's own folder, where its instructions are kept as a file, with
+ * the way into it in Files.
+ */
+function ProjectOwnFolder({
+  onOpenInFiles,
+  path,
+}: {
+  onOpenInFiles: () => void;
+  path: string;
+}) {
+  return (
+    <div className="min-w-0">
+      <p className="pb-1 text-[11px] font-medium tracking-wide text-muted-foreground uppercase">
+        Project folder
+      </p>
+      <div className="overflow-hidden rounded-lg border bg-background">
+        <FolderRow
+          className="gap-1 py-2 pr-1.5 pl-1"
+          note="Its instructions are saved here, along with anything else you keep for it."
+          onOpen={onOpenInFiles}
+          path={path}
+        />
+        <Button
+          className="w-full rounded-none border-t"
+          onClick={onOpenInFiles}
+          variant="ghost"
+        >
+          Open in Files
+          <ArrowUpRightIcon className="size-3.5" />
+        </Button>
+      </div>
+    </div>
   );
 }

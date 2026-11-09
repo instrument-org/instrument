@@ -7,6 +7,7 @@ import {
   activity,
   batch,
   call,
+  type DataPart,
   emptyStep,
   fail,
   facts,
@@ -113,6 +114,7 @@ const shopifyWork: Act[] = [
     text: "# Next.js Commerce\n\nThis repository was archived on October 20.",
     url: "https://vercel.com/templates/next.js/nextjs-commerce",
   }),
+  facts({ hosts: ["vercel.com"] }),
   activity("Building the home page"),
   wrote({
     content:
@@ -148,10 +150,205 @@ const longChat = (turns: number): Act[] =>
     ];
   }).flat();
 
+const THROUGH = StoreId.MessageSchema.parse("msg_01M0000000000000000000000T");
+
+const memoryNote = (count: number): DataPart => ({
+  data: {
+    forgotten: [],
+    memories: Array.from({ length: count }, (_, index) => ({
+      at: 0,
+      name: `memory-${index.toString()}`,
+      text: `Remembered thing ${index.toString()}`,
+    })),
+    more: 0,
+    sentAt: 0,
+    tells: "whole",
+    told: {},
+  },
+  type: "data-memory",
+});
+const projectNote = (instructions?: string): DataPart => ({
+  data: {
+    project: {
+      emoji: "🎮",
+      id: "gaming",
+      ...(instructions && { instructions }),
+      name: "Gaming",
+    },
+  },
+  type: "data-project",
+});
+const workspaceNote = (instructions: string): DataPart => ({
+  data: { file: "AGENTS.md", instructions },
+  type: "data-workspaceInstructions",
+});
+const dateNote: DataPart = {
+  data: { date: "2026-11-06" },
+  type: "data-dateChange",
+};
+const gapNote: DataPart = { data: { minutes: 5640 }, type: "data-messageGap" };
+const skillsNote: DataPart = {
+  data: { names: ["launch-plans"] },
+  type: "data-skillMentions",
+};
+const clearedNote: DataPart = {
+  data: { results: 38, through: THROUGH },
+  type: "data-toolResultsCleared",
+};
+const rolloverNote: DataPart = {
+  data: { droppedMessages: 41, retainedUserMessages: 12 },
+  type: "data-contextRollover",
+};
+const limitNote: DataPart = {
+  data: { continuations: 3 },
+  type: "data-outputLimit",
+};
+const jobNote: DataPart = {
+  data: {
+    events: [
+      {
+        command: "pnpm build",
+        durationMs: 120_000,
+        exitCode: 1,
+        id: "bg_1",
+        logFilePath: "logs/bg_1.log",
+        status: "failed",
+      },
+    ],
+  },
+  type: "data-jobEvent",
+};
+
+const LONG_ASK =
+  "How does our pricing compare with Zendesk, Intercom and Freshdesk at the team size most of our customers are?\n\nI need the comparison for the pricing review on Thursday, so please check each one's current page rather than last year's numbers, and say which plan each of them would put a ten agent team on.";
+
+/** Notes on messages and rows, folded and not, enough to fill both margins. */
+const devNotesTurns = (name: string): Act[] => [
+  user(`What changed on ${name} since last time?`, memoryNote(2), skillsNote),
+  activity(`Looking at ${name}`),
+  browse("open https://example.com", "Opening the page"),
+  notes(clearedNote),
+  browse("get title", "Reading its title"),
+  prose(`The title of ${name} is the same, and the second section moved up.`),
+  stop(),
+];
+
+const devNotes: Act[] = [
+  ...devNotesTurns("the first page"),
+  user(LONG_ASK, dateNote, gapNote, memoryNote(5), skillsNote, limitNote),
+  notes({
+    data: { kind: "turn", text: "Stands in for the turn note." },
+    type: "data-requestNote",
+  }),
+  prose("I'll read each one's pricing page first."),
+  activity("Reading competitors' pricing pages"),
+  searched({
+    explanation: "Searching for current help desk prices",
+    query: "help desk pricing 2026 Zendesk Intercom Freshdesk",
+    results: [{ title: "Suite plans", url: "https://www.zendesk.com/pricing" }],
+  }),
+  notes(clearedNote, rolloverNote),
+  fetched({
+    explanation: "Reading Zendesk's plans",
+    text: "# Suite plans\n\nSuite Team is $55 per agent a month.",
+    url: "https://www.zendesk.com/pricing",
+  }),
+  activity("Writing up the comparison"),
+  wrote({
+    content: "# Pricing against three competitors\n",
+    explanation: "Writing the comparison",
+    filePath: "pricing-comparison.md",
+  }),
+  notes(limitNote),
+  prose(
+    "We're the cheapest at the team size most customers are: **$49** against Zendesk's $55 and Intercom's $74.\n\nZendesk would put a ten agent team on Suite Team, Intercom on Essential, and Freshdesk on Growth.",
+    12,
+  ),
+  notes({
+    data: { words: "Read the pricing pages and wrote the comparison" },
+    type: "data-workSummary",
+  }),
+  stop(),
+  user("", jobNote),
+  prose("The build you left running failed, so the numbers page is stale."),
+  stop(),
+  user("Check the second one again.", memoryNote(1)),
+  activity("Checking Intercom again"),
+  fetched({
+    explanation: "Reading Intercom's plans",
+    text: "# Pricing\n\nEssential is $74 per seat a month.",
+    url: "https://www.intercom.com/pricing",
+  }),
+  notes(rolloverNote, limitNote, clearedNote, dateNote),
+  activity("Updating the comparison"),
+  edited({
+    explanation: "Correcting Intercom's number",
+    filePath: "pricing-comparison.md",
+    newString: "| Team | $49 | $55 | $74 |",
+    oldString: "| Team | $49 | $55 | $47 |",
+  }),
+  notes(jobNote),
+  prose(
+    Array.from(
+      { length: 40 },
+      (_, index) =>
+        `Line ${index.toString()} of a reply long enough to pass the top of the window as it arrives, so the transcript has to stop following it.`,
+    ).join("\n\n"),
+    40,
+  ),
+];
+
+const manyNotes = (count: number): Act[] =>
+  Array.from({ length: count }, (_, index) => [
+    browse(`get text --step ${index.toString()}`, "Reading the page"),
+    notes(index % 2 === 0 ? clearedNote : limitNote),
+  ]).flat();
+
+/** The crowded spots real chats reach: nine notes on a spot, 23 in a fold, and a fold of 100. */
+const devNotesCrowded: Act[] = [
+  user(
+    "Nine notes on a message.",
+    dateNote,
+    gapNote,
+    memoryNote(9),
+    skillsNote,
+    limitNote,
+    jobNote,
+    clearedNote,
+    rolloverNote,
+    { data: { continuations: 1 }, type: "data-maxSteps" } as DataPart,
+  ),
+  activity("Nine notes on one row, with the turn stopped so it stays open"),
+  ...manyNotes(9),
+  prose("Stopping here."),
+  activity("Two notes on the next row"),
+  ...manyNotes(2),
+  fail({
+    classification: "transient",
+    kind: "provider",
+    message: "The provider stopped answering.",
+  } as never),
+  user("A fold of 23."),
+  activity("Reading the first page"),
+  ...manyNotes(12),
+  activity("Reading the second page"),
+  ...manyNotes(11),
+  prose("That fold has 23 notes."),
+  stop(),
+  user("A fold of 100."),
+  activity("Reading a very long document"),
+  ...manyNotes(100),
+  prose("That fold has 100 notes."),
+];
+
+const devNotesLong: Act[] = Array.from({ length: 40 }, (_, index) =>
+  devNotesTurns(`page ${index.toString()}`),
+).flat();
+
 /**
  * The moments the transcript has to get right, each about one thing. Scrolled
  * through a step at a time, they are how it is checked by eye: the fold, the
- * slot moving from kind to kind, a burst, a task's card, a message cutting
+ * work card moving from kind to kind, a burst, a task's card, a message cutting
  * across a turn, and what a failure leaves open.
  */
 export const scenarios: DebugScenario[] = [
@@ -240,6 +437,28 @@ export const scenarios: DebugScenario[] = [
     ],
   },
   {
+    id: "instructions-changes",
+    name: "Instructions changed between messages",
+    script: [
+      user("hi", projectNote(), workspaceNote("Answer briefly.")),
+      prose("Hey."),
+      stop(),
+      user(
+        "What can you help me with?",
+        projectNote("I play WoW and soon GTA VI."),
+        workspaceNote("Answer briefly, in plain words."),
+      ),
+      prose("Raids, builds and GTA VI news, to start."),
+      stop(),
+      user("Move this somewhere else.", {
+        data: { project: { emoji: "💼", id: "work", name: "Work" } },
+        type: "data-project",
+      }),
+      prose("Done."),
+      stop(),
+    ],
+  },
+  {
     id: "notion",
     name: "Sign-in, app calls and a count",
     script: [
@@ -306,6 +525,95 @@ export const scenarios: DebugScenario[] = [
         counts: [{ count: 14, label: "rows added" }],
       }),
       prose("The database is ready, with all 14 videos in it."),
+    ],
+  },
+  {
+    id: "card-between-activities",
+    name: "The card between activities",
+    script: [
+      user("Check the pricing page and add up what it says."),
+      activity("Reading the pricing page"),
+      browse("open https://example.com/pricing", "Opening the page"),
+      browse("get text", "Reading its plans"),
+      activity("Adding up the plans"),
+      ran({ command: "python3 total.py", explanation: "Adding them up" }),
+      activity("Reading the pricing page again"),
+      browse("get text --section add-ons", "Reading its add-ons"),
+      activity("Adding up the add-ons"),
+      ran({ command: "python3 total.py", explanation: "Adding them up" }),
+      activity("Checking the total"),
+      ran({ command: "python3 check.py", explanation: "Checking the total" }),
+      prose(
+        `${" ".repeat(12)}The plans and add-ons come to $412 a month, and the total checks out against the page.`,
+        4,
+      ),
+      activity("Saving the total"),
+      ran({ command: "python3 save.py", explanation: "Saving the total" }),
+      prose("It's saved."),
+    ],
+  },
+  {
+    id: "narrated-browsing",
+    name: "A line said before each command",
+    script: [
+      user("Find the cheapest flight to Lisbon next Friday."),
+      activity("Searching flights"),
+      browse("open https://example.com/flights", "Opening the flight search"),
+      prose("Now the destination."),
+      browse("fill @e3 Lisbon", "Typing Lisbon"),
+      prose("And the date."),
+      browse("click @e7", "Picking next Friday"),
+      prose("Sorting by price."),
+      browse("click @e12", "Sorting by price"),
+      prose("The cheapest is **$412** on TAP, leaving at 7:05 AM."),
+    ],
+  },
+  {
+    id: "search-then-read",
+    name: "A search, a page read from it, and the answer",
+    script: [
+      user("Weather in Nashville today? And this week."),
+      prose("Checking the latest forecast."),
+      activity("Checking the forecast"),
+      searched({
+        explanation: "Finding Nashville's weekly forecast",
+        query: "Nashville TN weather this week forecast",
+        results: [
+          {
+            title: "7-Day Forecast for Nashville, Tennessee",
+            url: "https://www.weather.gov/ohx/",
+          },
+          {
+            title: "First Alert Forecast: below-freezing temperatures",
+            url: "https://www.wsmv.com/weather/",
+          },
+          {
+            title: "Nashville, TN 10-Day Weather Forecast",
+            url: "https://weather.com/weather/tenday/",
+          },
+        ],
+      }),
+      // The address comes last in the call, as a model writes it.
+      call({
+        input: {
+          explanation: "Confirming the local forecast",
+          url: "https://www.wsmv.com/weather/",
+        },
+        output: {
+          contentType: "text/html",
+          format: "markdown",
+          state: "success",
+          text: "Skip to content\n# First Alert Forecast: below-freezing temperatures\n\nIt will be sunny and mild this afternoon, with highs near 70.",
+          truncated: false,
+          url: "https://www.wsmv.com/weather/",
+        },
+        streamed: { explanation: "Confirming the local forecast" },
+        type: "tool-web_fetch",
+      }),
+      prose(
+        "**Today:** sunny and dry, high near 70°F, around 40°F tonight.\n\n**This week:** mild through Wednesday with rain likely midweek, then much colder, with the first widespread freeze of the season this weekend.",
+        12,
+      ),
     ],
   },
   {
@@ -603,4 +911,106 @@ export const scenarios: DebugScenario[] = [
     pageTurns: 20,
     script: longChat(80),
   },
+  { id: "dev-notes", name: "Developer notes", script: devNotes },
+  {
+    id: "dev-notes-errors",
+    name: "Developer notes on errors",
+    script: [
+      user("Stopped on the way."),
+      activity("Reading the page"),
+      browse("get text", "Reading it"),
+      fail({ kind: "aborted", message: "Aborted", reason: "manual" }),
+      user("Timed out on every attempt."),
+      fail({ kind: "aborted", message: "Aborted", reason: "timeout" }),
+      user("Retried, then answered."),
+      fail({
+        classification: "rate-limit",
+        kind: "unknown",
+        message: "Busy",
+      } as never),
+      prose("Here is the whole answer."),
+      stop(),
+      user("Retried partway through the work."),
+      activity("Reading the page"),
+      browse("get text", "Reading it"),
+      fail({
+        classification: "rate-limit",
+        kind: "unknown",
+        message: "Busy",
+      } as never),
+      browse("get title", "Reading its title"),
+      notes(clearedNote),
+      prose(
+        "Here is the answer, and the fold has a triangle beside its total.",
+      ),
+      stop(),
+      user("Ended on a refusal."),
+      fail({
+        classification: "usage-limit",
+        kind: "api-call",
+        message: "Over the limit",
+        name: "APICallError",
+        responseBody: '{"error":{"code":"usage-limit-exceeded"}}',
+        statusCode: 402,
+        url: "https://api.example/v1",
+      } as never),
+    ],
+  },
+  {
+    id: "dev-notes-crowded",
+    name: "Developer notes, crowded",
+    script: devNotesCrowded,
+  },
+  {
+    id: "dev-notes-tail",
+    name: "Developer notes running past the end",
+    script: [
+      ...Array.from({ length: 12 }, () => [
+        user("Tell me about this page."),
+        prose("It says the same thing as last time, with one more section."),
+        stop(),
+      ]).flat(),
+      user("Look at the last one."),
+      activity("Reading the last one"),
+      read({ explanation: "Reading it", filePath: "last.md" }),
+      notes(
+        dateNote,
+        gapNote,
+        limitNote,
+        clearedNote,
+        rolloverNote,
+        skillsNote,
+        jobNote,
+        memoryNote(40),
+      ),
+      stop(),
+    ],
+  },
+  {
+    id: "dev-notes-kinds",
+    name: "Developer notes on every kind of row",
+    script: [
+      user("Plan the launch from this brief.", dateNote),
+      activity("Reading the brief"),
+      read({ explanation: "Reading the brief", filePath: "brief.pdf" }),
+      notes(limitNote),
+      startsTask(SHOPIFY_TASK, "Compare the storefront starters"),
+      notes(clearedNote),
+      chose({
+        answer: { selectedChoice: "Friday" },
+        choices: ["Friday", "Monday"],
+        explanation: "Asking which day it goes out",
+        question: "Which day should it go out?",
+      }),
+      notes(skillsNote),
+      fail({
+        classification: "transient",
+        kind: "provider",
+        message: "The provider stopped answering.",
+      } as never),
+      notes(rolloverNote),
+    ],
+    tasks: { [SHOPIFY_TASK]: taskOnly("Compare the storefront starters") },
+  },
+  { id: "dev-notes-long", name: "Developer notes, long", script: devNotesLong },
 ];

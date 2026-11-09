@@ -14,6 +14,7 @@ import {
   sessionOfChat,
 } from "../record-folders";
 import { getWorkspaceConfig } from "../workspace-config";
+import { listedBefore } from "./chat-list-events";
 
 /**
  * A chat's record, made the first time something is sent in it, and named on
@@ -77,6 +78,6 @@ export async function ensureChat(
  */
 export function listChatIds(): ChatId[] {
   return chatIds().sort((a, b) =>
-    (sessionOfChat(a) ?? "").localeCompare(sessionOfChat(b) ?? ""),
+    listedBefore(sessionOfChat(a) ?? "", sessionOfChat(b) ?? ""),
   );
 }

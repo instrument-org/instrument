@@ -15,6 +15,7 @@ import {
 } from "./dev-file-logger";
 import { guardLogger } from "./log-guards";
 import { redactLogger } from "./log-redaction";
+import { createLogVolumeMeter } from "./log-volume";
 import { createRotatingLogWriter } from "./rotating-log-writer";
 
 const IS_DEV = process.env.NODE_ENV === "development";
@@ -75,6 +76,11 @@ const fileWriter = createRotatingLogWriter(
   getMainLogFilePath,
   MAX_LOG_FILE_BYTES,
 );
+// Whichever of the file and dev transports writes the log counts each line
+// here, for the "Log volume" warnings.
+const logVolume = createLogVolumeMeter({
+  warn: (line) => log.scope("log").warn(line),
+});
 const fileTransport = log.transports.file;
 log.transports.file = Object.assign((message: Parameters<Transport>[0]) => {
   const data: unknown[] = message.data;
@@ -89,9 +95,9 @@ log.transports.file = Object.assign((message: Parameters<Transport>[0]) => {
           }),
     )
     .join(" ");
-  fileWriter.write(
-    `[${message.date.toISOString()}] [${message.level}]${message.scope ? ` (${message.scope})` : ""} ${text}`,
-  );
+  const line = `[${message.date.toISOString()}] [${message.level}]${message.scope ? ` (${message.scope})` : ""} ${text}`;
+  fileWriter.write(line);
+  logVolume.wrote(message.scope, line.length);
 }, fileTransport);
 
 log.transports.console.level = getConsoleLevel();
@@ -128,7 +134,10 @@ export function initializeElectronLogging() {
       level: string;
       scope?: string;
     }) => {
-      writeDevLogEntry(message.level, message.data, { scope: message.scope });
+      const bytes = writeDevLogEntry(message.level, message.data, {
+        scope: message.scope,
+      });
+      logVolume.wrote(message.scope, bytes);
     };
     // Cast required: Transport interface mandates `transforms` but custom
     // transports that do their own serialization don't need it.

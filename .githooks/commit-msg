@@ -1,0 +1,7 @@
+#!/usr/bin/env bash
+# Checks the subject's wording before git records the commit
+# (scripts/commit-subject.sh). `git commit --no-verify` skips this.
+check="$(git rev-parse --show-toplevel)/scripts/commit-subject.sh"
+# A checkout of a branch from before the check has no script to run.
+[[ -x "$check" ]] || exit 0
+exec "$check" "$1"

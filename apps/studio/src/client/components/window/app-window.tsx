@@ -1,9 +1,13 @@
+import { showProjectInFiles } from "@/client/lib/show-in-files";
 import {
   draftsAtom,
   removeDraftAtom,
   updateDraftAtom,
 } from "@/client/drafts/store";
-import { dismissedChipsAtom } from "@/client/drafts/dismissed-chips";
+import {
+  newChatBoxesAtom,
+  pickNewChatProjectAtom,
+} from "@/client/drafts/new-chat-box";
 import { type Draft, draftGroupOf, holdsSomething } from "@/shared/drafts";
 import {
   type AppPlace,
@@ -36,10 +40,12 @@ import {
 import { useDefaultModelURI } from "@/client/hooks/use-default-model-uri";
 import { useGroupTabRouters } from "@/client/hooks/use-group-tab-routers";
 import { PortalContainerProvider } from "@/client/hooks/use-portal-container";
+import { useRefetchOnWindowSwitch } from "@/client/hooks/use-refetch-on-window-switch";
 import { useRefreshSkillsOnChange } from "@/client/hooks/use-refresh-skills-on-change";
 import { useRefreshProjectsOnChange } from "@/client/hooks/use-refresh-projects-on-change";
 import { useTabRouters } from "@/client/hooks/use-tab-routers";
-import { getGuest } from "@/client/lib/browser-pool";
+import { getGuest, pageHoldingKeyboard } from "@/client/lib/browser-pool";
+import { keptInOtherWindows } from "@/client/lib/kept-state";
 import { resolveComputerFileBase } from "@/client/lib/computer-file-url";
 import { ICON_CONTEXT_VALUE } from "@/client/lib/icon-context";
 import {
@@ -50,6 +56,7 @@ import { storageLocationQueryOptions } from "@/client/lib/output-folder";
 import { sharedQueryClient, type TabRouter } from "@/client/lib/tab-router";
 import { getRouterHistory } from "@/client/lib/tab-router-history";
 import { getTabRouter } from "@/client/lib/tab-router-registry";
+import { restoreTabView } from "@/client/lib/tab-view-state";
 import { setTabPathname } from "@/client/lib/tabs-model";
 import { spokenMessage, toast } from "@/client/lib/toast";
 import { captureComponentError } from "@/client/lib/capture-exception";
@@ -57,6 +64,8 @@ import { cn } from "@/client/lib/utils";
 import { rpcClient } from "@/client/rpc/client";
 import { fileHref, folderHref } from "@/shared/computer-href";
 import { type Tab, type TabId } from "@/shared/tabs";
+
+import { useRestoredTabsWaiting } from "./use-restored-tabs-waiting";
 import { type ChatId, browserTargetOf } from "@instrument-org/workspace/client";
 import { IconContext } from "@phosphor-icons/react/dist/lib/context";
 import {
@@ -72,10 +81,11 @@ import {
   useRouterState,
   useNavigate,
 } from "@tanstack/react-router";
-import { useAtom, useAtomValue, useSetAtom } from "jotai";
+import { useAtom, useAtomValue, useSetAtom, useStore } from "jotai";
 import {
   type ComponentProps,
   useEffect,
+  useEffectEvent,
   useLayoutEffect,
   useRef,
   useState,
@@ -95,17 +105,20 @@ import {
   pageHrefOf,
   placeOfHref,
   putAwaySitesAtom,
+  siteGroupsInOtherWindows,
+  siteGroupsOf,
   useAppTabs,
 } from "./app-tabs";
+import { COMPOSE_KEY } from "@/shared/kept-state";
 import { useAppsBySlug } from "./apps-by-slug";
 import { BrowserTabs, type BrowserTabsHandle } from "./browser-tabs";
-import { chatListOptions } from "./chat-list-query";
+import { chatListOptions, chromeOfChats } from "./chat-list-query";
 import { ChatPane } from "./chat-pane";
-import { NO_FILTERS, railMarkOf } from "./chats";
+import { inPlace, NO_FILTERS, strongestMark } from "./chats";
 import { ComposeLayer } from "./compose-layer";
 import { useComputerVolumes } from "./computer-volumes";
 import { type WindowContextValue as Screens, WindowContext } from "./context";
-import { isPaneOpen } from "./draft-context";
+import { isPaneOpen, shownPaneTab } from "./draft-context";
 import { useSignInLanding } from "./use-sign-in-landing";
 import { InboxPeek } from "./inbox-peek";
 import { inboxLandsAtOnceAtom } from "./inbox-room";
@@ -130,12 +143,42 @@ import { useWindowCommands } from "./use-window-commands";
 import { WindowBar, WindowCorner } from "./window-bar";
 import { useWindowDropFallback } from "./use-window-drop-fallback";
 import { WindowFrame } from "./window-frame";
-import { chatHref, chatOfGroup, chatOfHref, matchScreen } from "./window-href";
-import { useWindowTabs } from "./window-tabs";
+import {
+  chatHref,
+  chatOfGroup,
+  chatOfHref,
+  matchScreen,
+  newChatHref,
+  sameHref,
+} from "./window-href";
+import {
+  groupOnScreenAtom,
+  useWindowTabs,
+  windowTabsAtom,
+} from "./window-tabs";
+import {
+  forgetMovedAway,
+  hasMovedAway,
+  moveTabOut,
+  receiveTab,
+} from "./move-tab";
+import { sitesLeaving, sitesNoLongerHere, sitesPutAway } from "./site-let-go";
 
 // Resolve the computer file channel once at boot so file URLs derive locally
 // from a host path; not awaited, so it never holds up the first render.
 void resolveComputerFileBase();
+
+/** The drafts floating in what another window kept of its floating windows. */
+function floatingDraftIdsOf(kept: unknown): string[] {
+  return (Array.isArray(kept) ? (kept as unknown[]) : []).flatMap((entry) =>
+    typeof entry === "object" &&
+    entry !== null &&
+    "draftId" in entry &&
+    typeof entry.draftId === "string"
+      ? [entry.draftId]
+      : [],
+  );
+}
 
 /** The groups the window's places once kept their tabs under, which nothing shows now. */
 const RETIRED_GROUPS = [
@@ -257,28 +300,45 @@ function AppTabView({
   // somewhere on screen by then (the tab strip's own arrows, a field a
   // command opened).
   const lastFocused = useRef<HTMLElement | null>(null);
+  const arrivesWithFocus = Boolean(tab.arrivingView?.focus);
   useEffect(() => {
     if (!isActive) {
       return;
     }
-    const focused = document.activeElement;
-    const kept = lastFocused.current;
-    const isOnScreen =
-      focused instanceof HTMLElement &&
-      focused !== document.body &&
-      focused.checkVisibility({
-        opacityProperty: true,
-        visibilityProperty: true,
-      });
-    if (isOnScreen) {
+    const restore = () => {
+      const focused = document.activeElement;
+      const kept = lastFocused.current;
+      const isOnScreen =
+        focused instanceof HTMLElement &&
+        focused !== document.body &&
+        (focused.tagName === "WEBVIEW"
+          ? pageHoldingKeyboard() !== null
+          : focused.checkVisibility({
+              opacityProperty: true,
+              visibilityProperty: true,
+            }));
+      if (isOnScreen || arrivesWithFocus) {
+        return;
+      }
+      if (kept?.isConnected) {
+        kept.focus({ preventScroll: true });
+      } else {
+        focusScreenHome({ leaving: false });
+      }
+    };
+    // A page is drawn outside every tab, and the one the tab going away
+    // showed holds the keyboard until its slot lets it go and the pool hands
+    // the keyboard back, which is after this commit: the keyboard is read
+    // once that has settled.
+    if (document.activeElement?.tagName !== "WEBVIEW") {
+      restore();
       return;
     }
-    if (kept?.isConnected) {
-      kept.focus({ preventScroll: true });
-    } else {
-      focusScreenHome({ leaving: false });
-    }
-  }, [isActive]);
+    const frame = requestAnimationFrame(restore);
+    return () => {
+      cancelAnimationFrame(frame);
+    };
+  }, [arrivesWithFocus, isActive]);
   useEffect(() => {
     const unsubscribe = router.subscribe("onResolved", () => {
       setModel((model) =>
@@ -293,8 +353,32 @@ function AppTabView({
       unsubscribe();
     };
   }, [router, setModel, tab.id]);
+  // Arriving from another window: its keyboard and scrolling go back as what
+  // they stood on comes in, and only then is the tab drawn as it was.
+  const arrivingView = tab.arrivingView;
+  const rootRef = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    const root = rootRef.current;
+    if (!arrivingView || !root) {
+      return;
+    }
+    return restoreTabView(root, arrivingView, () => {
+      setModel((model) => ({
+        ...model,
+        tabs: model.tabs.map((each) => {
+          if (each.id !== tab.id) {
+            return each;
+          }
+          const { arrivingView: _done, ...rest } = each;
+          return rest;
+        }),
+      }));
+    });
+  }, [arrivingView, setModel, tab.id]);
   return (
     <div
+      ref={rootRef}
+      data-app-tab-view={tab.id}
       className={cn(
         "absolute inset-0 flex",
         // Transparent as well as invisible, so a layer the compositor
@@ -332,11 +416,6 @@ function focusField() {
   field?.select();
 }
 
-/**
- * Whether a draft holds anything: words, or something pasted or attached
- * into it. What keeps it past its window, and what a draft has to have to be
- * one to come back to.
- */
 function WindowShell({
   routers,
   tabs,
@@ -345,8 +424,10 @@ function WindowShell({
   tabs: Tab[];
 }) {
   const appTabs = useAppTabs();
+  const waitingTabs = useRestoredTabsWaiting(tabs, appTabs.model.selectedId);
   useRefreshSkillsOnChange();
   useRefreshProjectsOnChange();
+  useRefetchOnWindowSwitch();
   useEffect(() => installKeyboardHome(), []);
   // Where the tab up stands, read off its own router, which the context above
   // is: the rail lights its place and the group on screen follows it.
@@ -362,16 +443,13 @@ function WindowShell({
   );
   const opened = ensure.data;
   const childTitles = useTaskTitles();
-  const chats = useQuery(chatListOptions());
-  const chatTitles = new Map<ChatId, string>(
-    chats.data?.map((chat) => [chat.id, chat.title]) ?? [],
-  );
-  const chatMarks = new Map(
-    chats.data?.flatMap((chat) => {
-      const mark = railMarkOf([chat]);
-      return mark ? [[chat.id, mark] as const] : [];
-    }) ?? [],
-  );
+  // Undefined until the list has been read.
+  const chatChrome = useQuery({
+    ...chatListOptions(),
+    select: chromeOfChats,
+  }).data;
+  const chatTitles = new Map<ChatId, string>(chatChrome?.titles);
+  const chatMarks = new Map(chatChrome?.marks);
   const [defaultModelURI, setDefaultModelURI, saveDefaultModelURI] =
     useDefaultModelURI();
   const drafts = useAtomValue(draftsAtom);
@@ -379,8 +457,9 @@ function WindowShell({
   const removeDraft = useSetAtom(removeDraftAtom);
   const setChatGroup = useSetAtom(chatGroupAtom);
   const setFilesFolder = useSetAtom(filesFolderAtom);
-  const setChatFilters = useSetAtom(chatFiltersAtom);
+  const [chatFilters, setChatFilters] = useAtom(chatFiltersAtom);
   const [isInboxOpen, setInboxOpen] = useAtom(inboxOpenAtom);
+  const pickNewChatProject = useSetAtom(pickNewChatProjectAtom);
   const setInboxLandsAtOnce = useSetAtom(inboxLandsAtOnceAtom);
   const sendContextRef = useRef<Shell["sendContext"]>(() =>
     Promise.resolve(undefined),
@@ -451,25 +530,32 @@ function WindowShell({
   // words is not kept past its window, so one left over from a launch goes,
   // unless its window came back with it. A window whose draft is gone goes.
   // Once, over what was restored.
-  useEffect(() => {
-    const floating = new Set(
-      compose.entries.flatMap((entry) =>
+  const sweepRestored = useEffectEvent(() => {
+    // Another window's are as much its own as this one's are this one's.
+    const floating = new Set([
+      ...compose.entries.flatMap((entry) =>
         entry.kind === "draft" ? [entry.draftId] : [],
       ),
-    );
+      ...keptInOtherWindows(COMPOSE_KEY).flatMap(floatingDraftIdsOf),
+    ]);
     // A reply waiting in a chat's box is kept by the chat, not by a window
     // of its own, so nothing here takes one away.
     const isKept = (draft: Draft) =>
       draft.chatId !== undefined ||
       holdsSomething(draft) ||
       floating.has(draft.id);
-    // A draft's folder goes with it, and what was pasted into it.
-    for (const draft of drafts) {
-      if (!isKept(draft)) {
-        windowTabs.dropGroup(draftGroupOf(draft.id));
-        removeDraft(draft.id);
+    // A draft's folder goes with it, and what was pasted into it. Once a launch,
+    // since a window opening later finds another's new chat box as empty as these.
+    void rpcClient.window.takeLaunchSweep.call().then((isFirstUp) => {
+      if (isFirstUp) {
+        for (const draft of drafts) {
+          if (!isKept(draft)) {
+            windowTabs.dropGroup(draftGroupOf(draft.id));
+            void removeDraft(draft.id);
+          }
+        }
       }
-    }
+    });
     for (const entry of compose.entries) {
       if (
         entry.kind === "draft" &&
@@ -481,7 +567,9 @@ function WindowShell({
     for (const group of RETIRED_GROUPS) {
       windowTabs.dropGroup(group);
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+  });
+  useEffect(() => {
+    sweepRestored();
   }, []);
 
   // A site opened at the window's level lives for as long as an open tab
@@ -490,6 +578,7 @@ function WindowShell({
   // record is put aside for as long as Shift+Cmd+T can reopen the tab, which
   // brings the page back at its address.
   const setPutAway = useSetAtom(putAwaySitesAtom);
+  const sitesHeldHere = useRef(new Set<string>());
   const siteGroups = [
     ...new Set(
       windowTabs.allTabs.flatMap((tab) =>
@@ -497,16 +586,11 @@ function WindowShell({
       ),
     ),
   ].join("\n");
-  useEffect(() => {
-    const groupsOf = (hrefs: string[]) =>
-      hrefs.flatMap((href) => {
-        const group = groupOfHref(href);
-        return group !== undefined && isSiteGroup(group) ? [group] : [];
-      });
+  const settleSites = useEffectEvent(() => {
     const open = new Set(
       appTabs.model.tabs.flatMap((tab) => {
         const router = routers.get(tab.id);
-        return groupsOf([
+        return siteGroupsOf([
           ...(router
             ? getRouterHistory(router).entries
             : (tab.history?.entries ?? [])),
@@ -516,32 +600,37 @@ function WindowShell({
     );
     const reopenable = new Set(
       appTabs.model.recentlyClosed.flatMap((tab) =>
-        groupsOf([...(tab.history?.entries ?? []), tab.pathname]),
+        siteGroupsOf([...(tab.history?.entries ?? []), tab.pathname]),
       ),
     );
-    const leaving = siteGroups
-      .split("\n")
-      .filter((group) => group && !open.has(group));
-    setPutAway((current) => {
-      const next: typeof current = {};
-      // Kept while a closed tab can bring it back, or while an open one is
-      // on its way to (the site's view takes it back itself).
-      for (const [group, stashed] of Object.entries(current)) {
-        if (reopenable.has(group) || open.has(group)) {
-          next[group] = stashed;
-        }
-      }
-      for (const group of leaving) {
-        if (reopenable.has(group)) {
-          next[group] = windowTabs.allTabs.filter((tab) => tab.group === group);
-        }
-      }
-      return next;
-    });
+    for (const group of open) {
+      sitesHeldHere.current.add(group);
+      forgetMovedAway(group);
+    }
+    const noLongerHere = sitesNoLongerHere(
+      siteGroups.split("\n").filter(Boolean),
+      open,
+      sitesHeldHere.current,
+    );
+    const leaving =
+      noLongerHere.length === 0
+        ? []
+        : sitesLeaving(noLongerHere, siteGroupsInOtherWindows(), hasMovedAway);
+    setPutAway((current) =>
+      sitesPutAway(current, {
+        noLongerHere,
+        open,
+        recordOf: (group) =>
+          windowTabs.allTabs.filter((tab) => tab.group === group),
+        reopenable,
+      }),
+    );
     for (const group of leaving) {
       windowTabs.dropGroup(group);
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+  });
+  useEffect(() => {
+    settleSites();
   }, [siteGroups, appTabs.model]);
 
   const setPaneOpen = (group: string, isOpen: boolean) => {
@@ -591,7 +680,6 @@ function WindowShell({
   const { openNamedPath, openPage, openScreen } = useOpeners({
     appTabs,
     browser,
-    chats: chats.data,
     chatTitles,
     isOpen: opened !== undefined,
     paneOpenByGroup,
@@ -656,6 +744,16 @@ function WindowShell({
     name?: string;
   }>();
   const chatUp = chatOfHref(activeHref);
+  // The chat a new project is asked for from: filed under it as it lands,
+  // and left out of the other chats its dialog offers to file.
+  const projectFor = newProject?.chatId ?? chatUp;
+  const { data: candidates = [] } = useQuery({
+    ...chatListOptions(),
+    select: (chats) =>
+      backfillCandidates(chats.filter((chat) => chat.id !== projectFor)),
+    // Followed only while the dialog is up.
+    subscribed: newProject !== undefined,
+  });
   // The inbox is on screen in Chat unless it was put away beside a chat;
   // anywhere else, Chat in the rail peeks it out.
   const inboxPeek = useInboxPeek({
@@ -691,13 +789,11 @@ function WindowShell({
   );
   // What goes with a message, read at the moment of sending.
   const volumes = useComputerVolumes();
-  const dismissedChips = useAtomValue(dismissedChipsAtom);
   const { draftContext, sendContext } = contextReaders({
     appsBySlug,
     appTabId: appTabs.model.selectedId,
     browser,
     chatTitles,
-    dismissed: dismissedChips,
     drafts,
     href: activeHref,
     paneOpenByGroup,
@@ -707,14 +803,20 @@ function WindowShell({
     ...(volumes ? { volumes } : {}),
     windowTabs,
   });
-  sendContextRef.current = sendContext;
+  useLayoutEffect(() => {
+    sendContextRef.current = sendContext;
+  });
   const {
     arrivedId,
     closeDraft,
     discardDraft,
     discardingIds,
     draftFromLink,
+    draftWith,
+    expandDraft,
     newDraft,
+    popOutDraft,
+    sentProjects,
     sentWords,
     showDraft,
     startChat,
@@ -728,6 +830,18 @@ function WindowShell({
     openChat: (chatId) => {
       appTabs.navigate(chatHref(chatId));
     },
+    openDraftInChat: (id) => {
+      setInboxOpen(true);
+      appTabs.navigate(newChatHref(id));
+    },
+    openNewChat: (projectId) => {
+      const tabId = appTabs.model.selectedId;
+      if (tabId) {
+        pickNewChatProject({ projectId, tabId });
+      }
+      setInboxOpen(true);
+      appTabs.navigate(newChatHref());
+    },
     openDrafts: () => {
       setInboxOpen(true);
       if (place !== "chat") {
@@ -738,6 +852,101 @@ function WindowShell({
     projects,
     windowTabs,
   });
+  // The chat or draft each tab had up beside the list when it stepped into
+  // a project, by the tab, which stepping back out brings back.
+  const beforeProject = useRef(new Map<string, string>());
+  // The chat up as the list stepped into a project, which the tab is on its
+  // way away from: never a chat that takes the list back out.
+  const [leavingChat, setLeavingChat] = useState<ChatId>();
+  if (leavingChat !== undefined && chatUp !== leavingChat) {
+    setLeavingChat(undefined);
+  }
+  /**
+   * The list standing in a project, from its row, the command menu, or a
+   * project just made, from wherever the tab is: the inbox comes up, and
+   * whatever chat or draft was up beside it is put away for a new chat
+   * filed under the project, and remembered for the way back out. A search
+   * or a place left over from before would hide the chats it was asked for,
+   * so both go.
+   */
+  const enterProject = (projectId: string) => {
+    const tabId = appTabs.model.selectedId;
+    if (tabId && isChat && chatFilters.projects.length === 0) {
+      if (sameHref(activeHref, newChatHref())) {
+        beforeProject.current.delete(tabId);
+      } else {
+        beforeProject.current.set(tabId, activeHref);
+      }
+    }
+    setLeavingChat(chatUp);
+    setChatFilters({ ...NO_FILTERS, projects: [projectId] });
+    if (inboxPeek.isOpen) {
+      setInboxLandsAtOnce(true);
+    }
+    setInboxOpen(true);
+    if (tabId) {
+      pickNewChatProject({ projectId, tabId });
+    }
+    appTabs.navigate(newChatHref());
+  };
+  /**
+   * The list back in the inbox from its project. The new chat the project
+   * put up, still unwritten, gives way to the chat or draft this tab had up
+   * before it; anything opened in the project since stays.
+   */
+  const leaveProject = () => {
+    const tabId = appTabs.model.selectedId;
+    const back = tabId ? beforeProject.current.get(tabId) : undefined;
+    if (tabId) {
+      beforeProject.current.delete(tabId);
+    }
+    setChatFilters((current) => inPlace(current, undefined));
+    if (back !== undefined && sameHref(activeHref, newChatHref())) {
+      appTabs.navigate(back);
+    }
+  };
+  // A chat filed elsewhere coming up beside a project's list, from the
+  // command menu, a link or a notice, takes the list out of the project, so
+  // the open chat always has its row. A chat being started is not filed
+  // yet, and the chat the list just stepped away from is on its way out.
+  const standingProject =
+    chatFilters.projects.length === 1 ? chatFilters.projects[0] : undefined;
+  const { data: chatUpProject } = useQuery({
+    ...chatListOptions(),
+    select: (chats) => chats.find((chat) => chat.id === chatUp)?.project,
+  });
+  const isChatOutsideProject =
+    standingProject !== undefined &&
+    chatUp !== undefined &&
+    chatUp !== leavingChat &&
+    !sentWords.has(chatUp) &&
+    chatUp !== arrivedId &&
+    chatTitles.has(chatUp) &&
+    chatUpProject !== standingProject;
+  useEffect(() => {
+    if (isChatOutsideProject) {
+      beforeProject.current.clear();
+      setChatFilters((current) => inPlace(current, undefined));
+    }
+  }, [isChatOutsideProject, setChatFilters]);
+  // However the list leaves a project (its Inbox, a chat from elsewhere,
+  // the project deleted), a new chat in any tab that the project filed and
+  // that has nothing written yet stops being filed under it.
+  const store = useStore();
+  const lastStanding = useRef(standingProject);
+  useEffect(() => {
+    const left = lastStanding.current;
+    lastStanding.current = standingProject;
+    if (left === undefined || left === standingProject) {
+      return;
+    }
+    const boxes = store.get(newChatBoxesAtom);
+    for (const [tabId, box] of Object.entries(boxes)) {
+      if (box?.projectId === left && box.draftId === null) {
+        pickNewChatProject({ projectId: undefined, tabId });
+      }
+    }
+  }, [pickNewChatProject, standingProject, store]);
   /**
    * The tab up to one of the rail's places, from the rail, its chords, or the
    * command menu. Chat asked for is the inbox asked for too, even where the
@@ -749,7 +958,14 @@ function WindowShell({
    * place asked for in a tab of its own waits behind, the way a bookmark
    * middle-clicked in a browser does.
    */
-  const choosePlace = (next: AppPlace, { newTab = false } = {}) => {
+  const choosePlace = (
+    next: AppPlace,
+    { newTab = false, newWindow = false } = {},
+  ) => {
+    if (newWindow) {
+      appTabs.goToPlace(next, { newWindow });
+      return;
+    }
     const bringsInboxBack =
       next === "chat" && chatUp !== undefined && !isInboxOpen;
     if (next === "chat") {
@@ -772,19 +988,25 @@ function WindowShell({
   // A file let go of where nothing else takes it opens the way one dropped
   // on the Dock icon does.
   useWindowDropFallback(({ hostPath, isFolder }) => {
-    if (isFolder) {
-      openScreen(folderHref(hostPath), { newTab: true });
-    } else {
-      appTabs.open(fileHref(hostPath));
-    }
+    appTabs.open(isFolder ? folderHref(hostPath) : fileHref(hostPath));
   });
   useWindowCommands(
     {
       back: () => {
         windowSteps.go("back");
       },
+      // The tab a chat's pane shows, wherever the keyboard is, and the
+      // window's own tab only once no pane tab is in view: one close a
+      // press, read from the tabs as they are at that moment.
       closeTab: () => {
-        if (appTabs.model.selectedId) {
+        const paneTab = shownPaneTab(
+          store.get(windowTabsAtom),
+          store.get(groupOnScreenAtom),
+          store.get(paneOpenByGroupAtom),
+        );
+        if (paneTab) {
+          requestClose(paneTab.id);
+        } else if (appTabs.model.selectedId) {
           appTabs.close(appTabs.model.selectedId);
         }
       },
@@ -795,13 +1017,26 @@ function WindowShell({
       newChat: newDraft,
       newChatFromLink: draftFromLink,
       newTab: appTabs.openNewTab,
-      // A file from outside the app is the person's own, in a tab of its own.
+      // A file from outside the app is the person's own, in a tab of its own
+      // or the one already showing it.
       openFile: (hostPath) => {
         appTabs.open(fileHref(hostPath));
       },
+      // The tab already showing it comes up rather than a second of the
+      // same. Main has already picked this window as the one showing it, or
+      // the one in front where none does.
       openScreen: (href) => {
-        openScreen(href, { newTab: true });
+        if (!appTabs.selectShowing(href)) {
+          openScreen(href, { newTab: true });
+        }
       },
+      showTab: appTabs.selectShowing,
+      moveTabToNewWindow: () => {
+        if (appTabs.model.selectedId) {
+          void moveTabOut(appTabs.model.selectedId, { kind: "new" });
+        }
+      },
+      receiveTab,
       reopenTab: appTabs.reopen,
       search: focusField,
       selectRelative: appTabs.selectRelative,
@@ -812,20 +1047,8 @@ function WindowShell({
           setInboxOpen((isOpen) => !isOpen || chatUp === undefined);
         }
       },
-      // The next or previous row of the inbox from the chat up; from no
-      // chat, the list's first or last.
       selectChat: (direction) => {
-        const listed = listedChats.current;
-        const at = chatUp === undefined ? -1 : listed.indexOf(chatUp);
-        const next =
-          at === -1
-            ? direction === 1
-              ? listed[0]
-              : listed.at(-1)
-            : listed[at + direction];
-        if (next !== undefined) {
-          openScreen(chatHref(next));
-        }
+        appTabs.stepChat(listedChats.current, chatUp, direction);
       },
     },
     { isReady: opened !== undefined },
@@ -837,10 +1060,10 @@ function WindowShell({
         // draft with the line in it rather than a chat, so the person reads
         // what is about to be asked, adds to it, and sends it themselves.
         ask: (prompt) => {
-          newDraft(prompt);
+          draftWith(prompt);
         },
         askAbout: (items, words) => {
-          newDraft(words, items);
+          draftWith(words, items);
         },
         browser,
         focusComposer: () => {
@@ -849,7 +1072,7 @@ function WindowShell({
         // With no chat beside the file, a new draft takes what was marked,
         // opened over the file now that the marking is done.
         moveAsksToDraft: (askIds) => {
-          moveAsks(askIds, { draftId: newDraft(), kind: "draft" });
+          moveAsks(askIds, { draftId: draftWith(), kind: "draft" });
         },
         openPage,
         openPath: openNamedPath,
@@ -919,6 +1142,7 @@ function WindowShell({
     arrivedId,
     childTitles,
     compose,
+    defaultModelURI,
     discardDraft,
     // Only a draft holding something is a draft to come back to; one being
     // written with nothing in it yet is its window's alone, one being sent is
@@ -926,14 +1150,12 @@ function WindowShell({
     // it back. A reply waiting in a chat's box belongs to that chat and is
     // read there rather than listed here, until the chat is deleted: then it
     // is listed, so its words can be sent as a chat of their own.
-    chats: chats.data,
     chatTitles,
     drafts: drafts.filter(
       (draft) =>
         draft.sendingTo === undefined &&
         (draft.chatId === undefined ||
-          (chats.data !== undefined &&
-            !chats.data.some((chat) => chat.id === draft.chatId))) &&
+          (chatChrome !== undefined && !chatTitles.has(draft.chatId))) &&
         holdsSomething(draft) &&
         !startingIds.has(draft.id) &&
         !discardingIds.has(draft.id),
@@ -945,23 +1167,28 @@ function WindowShell({
     onListed: (listed) => {
       listedChats.current = listed;
     },
+    onNewDraftProject: (draftId, name) => {
+      setNewProject({ draftId, ...(name ? { name } : {}) });
+    },
     onNewProject: (name) => {
       setNewProject(name ? { name } : {});
     },
-    // A project is a view of the inbox, so going to one is the inbox standing
-    // in it and nothing else: a search or a place left over from before
-    // would hide the chats it was asked for.
-    openProject: (projectId) => {
-      setChatFilters({ ...NO_FILTERS, projects: [projectId] });
-      choosePlace("chat");
+    leaveProject,
+    openProject: enterProject,
+    openProjectInFiles: (project) => {
+      void showProjectInFiles(project);
     },
+    popOutDraft,
     requestClose,
     rowWidth,
     sendContext: (options) => sendContextRef.current(options),
+    sentProjects,
     sentWords,
     setChatProject,
+    setDefaultModelURI,
     setPaneOpen,
     showDraft,
+    startChat,
     projects,
   };
 
@@ -988,6 +1215,7 @@ function WindowShell({
                     onDuplicate={duplicateAppTab}
                     onNew={appTabs.openNewTab}
                     onReload={reloadablePageOf}
+                    onReopenLast={appTabs.reopen}
                     onReorder={appTabs.reorder}
                     onSelect={appTabs.select}
                     selectedId={appTabs.model.selectedId}
@@ -1000,7 +1228,6 @@ function WindowShell({
             overlay={
               <ComposeLayer
                 browser={browser}
-                chats={chats.data ?? []}
                 compose={compose}
                 drafts={drafts}
                 modelURI={defaultModelURI}
@@ -1013,6 +1240,7 @@ function WindowShell({
                 onCloseDraft={closeDraft}
                 onDiscardDraft={discardDraft}
                 onExpandChat={expandChat}
+                onExpandDraft={expandDraft}
                 onModelChange={setDefaultModelURI}
                 onNewChatProject={(chatId, name) => {
                   setNewProject({ chatId, ...(name ? { name } : {}) });
@@ -1031,10 +1259,10 @@ function WindowShell({
               <AppRail
                 appsMark={appsMark}
                 chatInView={chatUp}
-                chatMark={railMarkOf(
-                  (chats.data ?? []).filter(
-                    (chat) => !floatingChats.has(chat.id),
-                  ),
+                chatMark={strongestMark(
+                  chatChrome?.marks.flatMap(([id, mark]) =>
+                    floatingChats.has(id) ? [] : [mark],
+                  ) ?? [],
                 )}
                 onChoose={choosePlace}
                 onHoverChat={inboxPeek.onRailHover}
@@ -1050,7 +1278,7 @@ function WindowShell({
               <div className="relative min-h-0 min-w-0 flex-1">
                 {tabs.map((tab) => {
                   const router = routers.get(tab.id);
-                  return router ? (
+                  return router && !waitingTabs.has(tab.id) ? (
                     <AppTabView
                       isActive={tab.id === appTabs.model.selectedId}
                       key={tab.id}
@@ -1141,20 +1369,16 @@ function WindowShell({
             {/* Asked for from a chat's head or a draft's, so the project it
               makes is filed on that chat or draft as it lands. */}
             <ProjectDialog
-              candidates={backfillCandidates(
-                (chats.data ?? []).filter(
-                  (chat) => chat.id !== (newProject?.chatId ?? chatUp),
-                ),
-              )}
+              candidates={candidates}
               mode="create"
               {...(newProject?.name ? { name: newProject.name } : {})}
               onCreate={(project, alsoFile) => {
                 const forDraft = newProject?.draftId;
                 const filedOn =
-                  forDraft === undefined
-                    ? chats.data?.find(
-                        (chat) => chat.id === (newProject?.chatId ?? chatUp),
-                      )
+                  forDraft === undefined &&
+                  projectFor !== undefined &&
+                  chatTitles.has(projectFor)
+                    ? projectFor
                     : undefined;
                 createProject.mutate(project, {
                   onSuccess: (created) => {
@@ -1172,7 +1396,7 @@ function WindowShell({
                       });
                     }
                     if (filedOn) {
-                      setChatProject(filedOn.id, created.id);
+                      setChatProject(filedOn, created.id);
                     }
                   },
                 });

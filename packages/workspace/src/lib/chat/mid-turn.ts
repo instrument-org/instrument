@@ -1,5 +1,5 @@
 import { type SessionMessage } from "../../schemas/session/message";
-import { systemNote } from "../system-note";
+import { systemNote } from "../../model-text/notes/system-note";
 
 /**
  * A message the user typed while the chat's turn was working joins that turn

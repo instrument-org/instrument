@@ -52,9 +52,10 @@ export type DraftAttachment =
  * What it has gathered (sites, files, folders) is its tab group, kept with
  * the window's tabs under {@link draftGroupOf}; what its composer has besides
  * the words is kept in memory beside it, and the part of that with a place on
- * disk in `attached`. What else the person chose to go with the message is
- * `context`; what is on screen goes too, worked out at the moment, and is
- * never kept with the draft.
+ * disk in `attached`. `context` is what the draft was given by name from
+ * outside a window (asked about, written into its file); a window opens its
+ * files, folders and pages as tabs of the group and keeps only the chats.
+ * What is on screen goes only once taken into the group.
  *
  * `projectSource` is kept while the app runs and never written to the draft's
  * file.
@@ -329,6 +330,26 @@ export function holdsSomething(draft: Draft): boolean {
     draft.words.trim() !== "" ||
     (draft.attached ?? []).length > 0 ||
     (draft.inFolder ?? []).length > 0
+  );
+}
+
+/**
+ * Whether a draft has nothing worth keeping: no words, nothing attached,
+ * nothing named in `context`, no project the person picked, and no tab in
+ * its group. Such a draft is thrown away when its window closes or its box
+ * is emptied, wherever it is written, so one opened and left leaves nothing
+ * in Drafts. `words` is the box's own, which the record follows a beat behind.
+ */
+export function isLeftEmpty(
+  draft: Draft,
+  { hasTabs, words = draft.words }: { hasTabs: boolean; words?: string },
+): boolean {
+  return (
+    words.trim() === "" &&
+    !holdsSomething({ ...draft, words: "" }) &&
+    (draft.context ?? []).length === 0 &&
+    !(draft.projectId !== undefined && draft.projectSource === "chosen") &&
+    !hasTabs
   );
 }
 

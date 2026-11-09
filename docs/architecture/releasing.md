@@ -46,3 +46,17 @@ The job re-fetches the tag before reading it, because `actions/checkout` rewrite
 A tag cut without notes still ships. Slack then gets the range's commits grouped by scope with the plumbing scopes (`dx`, `docs`, `lint` and the like) dropped, and the body is the commit list, with a `Skills` section when the registry pointer moved.
 
 The range starts at the last published release, so a tag whose build failed folds into the next one. Its notes have to as well: the next tag's notes cover everything since the last release anyone could install.
+
+## Which build someone was running
+
+Feedback sent from the app names its version, so trust that first. For feedback from anywhere else (Slack, email, a call), a timestamp narrows it down. The tags are the release history, with their notes as the message:
+
+```sh
+git fetch --tags
+git tag -l 'v*' --sort=-creatordate --format='%(creatordate:iso) %(refname:short)'
+git tag -n99 v2.0.0-beta.130   # that release's notes
+```
+
+A tag's date is when it was cut, not when it reached anyone: the build lands in the feed only once every leg finishes. `gh release list --json tagName,publishedAt,isPrerelease` gives the publish time, the moment the feed moved. Stable releases stay drafts, so for those the tag's build run finishing is the moment.
+
+That gives the newest build someone could have had at that time, not the one they had. An install updates when it next checks the feed and restarts ([auto-updater.md](auto-updater.md#restarting-while-the-app-is-not-in-use)), so someone may be several releases behind, and stable and beta users were on different lines. When the version matters, ask for it.

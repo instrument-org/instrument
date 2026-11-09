@@ -80,6 +80,43 @@ describe("readLog", () => {
     expect(seqs(read)).toEqual([0, 1, 6]);
   });
 
+  it("skips an ask of a kind this build no longer has, and reads the rest of the chat", () => {
+    // A tab card as beta.134 wrote it, a kind since retired.
+    const retired = `${JSON.stringify({
+      ask: {
+        askedAt: at(5).toISOString(),
+        askers: [
+          {
+            at: at(5).toISOString(),
+            partId: "prt_01M6Y5FP4NNJZY4VPT470HN94B",
+            reason: "To pick up the cart.",
+            sessionId: session,
+          },
+        ],
+        device: DEVICE_A,
+        id: "ask_01M6Y5FP4NNJZY4VPT470HN94C",
+        kind: "permission",
+        on: "tab",
+        page: {
+          title: "Amazon.com Shopping Cart",
+          url: "https://www.amazon.com/gp/cart/view.html",
+        },
+        stage: { is: "open" },
+        target: "tab_01M6Y5FP4NNJZY4VPT470HN94A",
+      },
+      at: at(5).toISOString(),
+      seq: 5,
+      t: "ask",
+    })}\n`;
+
+    const read = readLog(
+      bytes(HEADER, recordLine(message(1)), retired, recordLine(message(6))),
+    );
+
+    expect(read).toMatchObject({ kind: "read", skipped: 1 });
+    expect(seqs(read)).toEqual([0, 1, 6]);
+  });
+
   it("counts and skips a line that is not UTF-8", () => {
     const file = Buffer.concat([
       bytes(HEADER),

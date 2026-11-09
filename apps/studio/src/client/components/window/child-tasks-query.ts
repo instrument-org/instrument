@@ -32,16 +32,23 @@ export function useChildTask(chat: ChatId | undefined, id: StoreId.Session) {
   return tasks.data?.find((task) => task.id === id);
 }
 
-/** Each task's title, kept current, for the tasks named, each in its chat. */
+/**
+ * Each task's title, kept current, for the tasks named, each in its chat:
+ * the titles alone, so a tab that names a task never holds its chat's whole
+ * task list, which is read again on every message.
+ */
 export function useTaskTitlesOf(
   tasks: readonly { chat: ChatId; id: StoreId.Session }[],
 ): Map<StoreId.Session, string> {
   const chats = [...new Set(tasks.map((task) => task.chat))].toSorted();
   return useQueries({
-    queries: chats.map((chat) => ({
-      ...childTasksOptions(chat),
-      retry: false,
-    })),
+    queries: chats.map((chat) =>
+      rpcClient.workspace.chats.live.taskTitles.experimental_liveOptions({
+        input: { id: chat },
+        retry: false,
+        structuralSharing: shareEqualDeep,
+      }),
+    ),
     combine: (results) =>
       new Map(
         results.flatMap((result) =>

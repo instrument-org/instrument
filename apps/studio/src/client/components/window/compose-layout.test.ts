@@ -68,17 +68,6 @@ describe("layoutCompose", () => {
     ]);
   });
 
-  it("stands a grown window alone among the windows, with the bars kept", () => {
-    const placed = layoutCompose(
-      [draft("a"), draft("b", "bar"), draft("c", "expanded")],
-      2000,
-    );
-    expect(placed.map((entry) => [idOf(entry), entry.placement])).toEqual([
-      ["c", "expanded"],
-      ["b", "bar"],
-    ]);
-  });
-
   it("lays a chat's small view at its own width beside a draft's window", () => {
     const placed = layoutCompose(
       [draft("a"), chat("2026-10-01-chat-3"), draft("b", "bar")],

@@ -28,19 +28,22 @@ let pageUrls: string[];
 // Which task is at work in which tab, as the chat's tasks' records would say.
 const holders = new Map<
   string,
-  { id: ReturnType<typeof ChatIdSchema.parse>; title: string }
+  { id: string; session: StoreId.Session; title: string }
 >();
 // How long a call waits on the window, short where a test has none answer.
 let windowTimeoutMs = 2000;
-vi.mock(import("../chat/window-tab"), async (importOriginal) => ({
+vi.mock(import("../chat/chat-tabs"), async (importOriginal) => ({
   ...(await importOriginal()),
   tabHolders: () => Promise.resolve(holders),
+}));
+vi.mock(import("../chat/window-tab"), async (importOriginal) => ({
+  ...(await importOriginal()),
   get WINDOW_TAB_TIMEOUT_MS() {
     return windowTimeoutMs;
   },
 }));
 
-// The cards a request raised, as the chat's state would keep them.
+// The cards a command raised, as the chat's state would keep them.
 const raised: unknown[][] = [];
 vi.mock(import("../chat/asks"), async (importOriginal) => ({
   ...(await importOriginal()),
@@ -51,7 +54,6 @@ vi.mock(import("../chat/asks"), async (importOriginal) => ({
 }));
 
 // A tab of the user's own, outside the chat, which a note named.
-const theirTab = StoreId.newTabId();
 
 let asked: { action: WindowTabAction; chatId?: ChatId }[];
 let stopAnswering: () => void;
@@ -86,29 +88,14 @@ function answeringWindow() {
                   : { id, kind: "screen" as const },
               ),
             }
-          : action.kind === "theirs"
-            ? action.tabId === theirTab
-              ? {
-                  tabs: [
-                    {
-                      id: theirTab,
-                      kind: "page" as const,
-                      title: "Shopping Cart",
-                      url: "https://www.amazon.com/gp/cart/view.html",
-                    },
-                  ],
-                }
-              : {
-                  error: `no tab ${action.tabId} of the user's is open outside a chat.`,
-                }
-            : known.has(action.tabId)
-              ? {
-                  tabId: action.tabId,
-                  ...(action.kind === "read"
-                    ? { text: "Jar\nA rigid container." }
-                    : {}),
-                }
-              : { error: `no tab ${action.tabId} is open in this chat.` };
+          : known.has(action.tabId)
+            ? {
+                tabId: action.tabId,
+                ...(action.kind === "read"
+                  ? { text: "Jar\nA rigid container." }
+                  : {}),
+              }
+            : { error: `no tab ${action.tabId} is open in this chat.` };
     publisher.publish("window.tabDone", {
       id: ask.id,
       requestId: ask.requestId,
@@ -118,7 +105,11 @@ function answeringWindow() {
 }
 
 function run(
-  options: { role?: "chat" | "task"; timeoutMs?: number },
+  options: {
+    role?: "chat" | "task";
+    sessionId?: StoreId.Session;
+    timeoutMs?: number;
+  },
   ...args: string[]
 ) {
   const fsTree = new InMemoryFs();
@@ -128,7 +119,7 @@ function run(
     chatId,
     layout,
     role: options.role ?? "chat",
-    sessionId: StoreId.newSessionId(),
+    sessionId: options.sessionId ?? StoreId.newSessionId(),
   }).execute(
     args,
     createCommandContext({
@@ -243,7 +234,8 @@ describe("window close, show and read on a tab", () => {
 
   it("says which task was working in a tab it closed", async () => {
     holders.set("tab_known", {
-      id: ChatIdSchema.parse("read-the-page"),
+      id: "read-the-page",
+      session: StoreId.newSessionId(),
       title: "Read the page",
     });
 
@@ -351,7 +343,6 @@ describe("window close, show and read on a tab", () => {
   });
 
   it.each([
-    { args: ["request"] },
     { args: ["close"] },
     { args: ["show"] },
     { args: ["show", "--in", "tab_known"] },
@@ -366,9 +357,10 @@ describe("window close, show and read on a tab", () => {
 });
 
 describe("window list", () => {
-  it("names what is in the window by the ids the other subcommands and --tab take", async () => {
+  it("names what is in the window by the ids the other subcommands and agent-browser tab take", async () => {
     holders.set(pageTab, {
-      id: ChatIdSchema.parse("t1"),
+      id: "t1",
+      session: StoreId.newSessionId(),
       title: "Compare plans",
     });
     const result = await run({}, "list");
@@ -380,58 +372,18 @@ describe("window list", () => {
       "
     `);
   });
-});
 
-describe("window request", () => {
-  it("raises a card for a tab of the user's a note named, and says the turn ends on it", async () => {
-    const result = await run(
-      {},
-      "request",
-      theirTab,
-      "--reason",
-      "So I can pick up your cart where you left it.",
-    );
+  it("tells a task the tab it is working in is its own", async () => {
+    const session = StoreId.newSessionId();
+    holders.set(pageTab, { id: "t2", session, title: "Checkout details" });
+    const result = await run({ role: "task", sessionId: session }, "list");
 
     expect(result.exitCode).toBe(0);
-    expect(result.stdout.replaceAll(theirTab, "<theirs>"))
-      .toMatchInlineSnapshot(`
-      "Asked the user to move tab <theirs> ("Shopping Cart") into this chat. The card shows your reason with Move tab here and Skip. Your turn ends here; their answer wakes you.
+    expect(result.stdout.replaceAll(pageTab, "<page>")).toMatchInlineSnapshot(`
+      "tab_known  behind    a screen of the app, not a page
+      <page>  in front  Suite plans · https://www.zendesk.com/pricing/  you are working in it
       "
     `);
-    expect(raised).toEqual([
-      [
-        expect.objectContaining({
-          reason: "So I can pick up your cart where you left it.",
-        }),
-        "tab",
-        theirTab,
-        {
-          page: {
-            title: "Shopping Cart",
-            url: "https://www.amazon.com/gp/cart/view.html",
-          },
-        },
-      ],
-    ]);
-  });
-
-  it.each([
-    ["a tab already the chat's", () => [pageTab, "--reason", "To read it."]],
-    [
-      "a tab no note named",
-      () => ["tab_01M5Q0AAAAAAAAAAAAAAAAAAAA", "--reason", "To read it."],
-    ],
-    ["no reason", () => [theirTab]],
-  ])("refuses %s, raising nothing", async (_, args) => {
-    const result = await run({}, "request", ...args());
-
-    expect(result.exitCode).toBe(1);
-    expect(
-      result.stderr
-        .replaceAll(pageTab, "<page>")
-        .replaceAll(theirTab, "<theirs>"),
-    ).toMatchSnapshot();
-    expect(raised).toEqual([]);
   });
 });
 
@@ -451,7 +403,6 @@ describe("in a task", () => {
     ["show", "tab_known"],
     ["show", "https://example.com/", "--in", "tab_known"],
     ["close", "tab_known"],
-    ["request", "tab_known", "--reason", "To read it."],
   ])("changes nothing, and says what to do instead: %j", async (...args) => {
     const result = await run({ role: "task" }, ...args);
 

@@ -62,6 +62,12 @@ export interface GuestRecord {
   /** Whether the contents' page is in HTML full screen, from Electron's `enter-` and `leave-html-full-screen`. */
   htmlFullScreen: boolean;
   readonly id: number;
+  /**
+   * Where in the page a person last pressed the mouse, in the page's own
+   * pixels, and when: where a download that press starts is drawn leaving
+   * from.
+   */
+  pressedAt?: { at: number; x: number; y: number };
   readonly role: GuestRole;
   /**
    * When a person last clicked, tapped or pressed a key in this contents, by
@@ -69,6 +75,8 @@ export interface GuestRecord {
    * not counted; see `noteUserInput` in `external-app-links.ts`.
    */
   userInputAt: number;
+  /** A person has scrolled it, which leaves a place a reload can lose. It lets a page do nothing, unlike a click or a key. */
+  wasScrolled: boolean;
 }
 
 const keyOf = ({ processId, routingId }: FrameId) =>
@@ -107,6 +115,7 @@ export function createGuestRegistry() {
       id,
       role,
       userInputAt: 0,
+      wasScrolled: false,
     };
     records.set(id, record);
     contents.on("enter-html-full-screen", () => {

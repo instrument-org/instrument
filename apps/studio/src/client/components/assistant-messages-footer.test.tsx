@@ -105,3 +105,40 @@ test("times a turn to the last part that ended, past its message's finish", () =
 
   expect(screen.getByText("20s")).toBeTruthy();
 });
+
+test("offers Branch only where the transcript can branch", () => {
+  renderWithProviders(
+    <AssistantMessagesFooter alwaysVisible messages={[assistantMessage()]} />,
+  );
+
+  expect(screen.queryByRole("button", { name: "Branch from here" })).toBeNull();
+});
+
+// The dialog quotes the reply from what the footer already has, and the
+// branch is made only once the person confirms it.
+test("asks before branching, quoting the reply it is under", async () => {
+  const onBranch = vi.fn<() => Promise<void>>(() => Promise.resolve());
+  renderWithProviders(
+    <AssistantMessagesFooter
+      alwaysVisible
+      messages={[assistantMessage("At 10 agents we're 18% under Zendesk.")]}
+      onBranch={onBranch}
+    />,
+  );
+
+  fireEvent.click(screen.getByRole("button", { name: "Branch from here" }));
+
+  const dialog = await screen.findByRole("alertdialog");
+  expect(dialog.textContent).toContain("Branch from this reply?");
+  expect(dialog.textContent).toContain("At 10 agents we're 18% under Zendesk.");
+  expect(onBranch).not.toHaveBeenCalled();
+
+  fireEvent.click(screen.getByRole("button", { name: "Branch" }));
+
+  await waitFor(() => {
+    expect(onBranch).toHaveBeenCalledOnce();
+  });
+  await waitFor(() => {
+    expect(screen.queryByRole("alertdialog")).toBeNull();
+  });
+});

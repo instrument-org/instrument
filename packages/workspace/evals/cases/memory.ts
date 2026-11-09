@@ -18,6 +18,13 @@
  *   there is one.
  * - **It did not claim a memory it does not hold.** The failure above is only
  *   dangerous because the user is told it happened.
+ * - **A fact goes where its scope is.** Asked to update a project with what
+ *   an earlier chat found, the details go in the project's `AGENTS.md`,
+ *   which every chat under it reads, and not into memory, which every chat
+ *   in the workspace reads. A fact about the person said in a chat filed
+ *   under a project is still a memory. Measured on a real chat, 2026-11-08:
+ *   the agent wrote a new file in the project's folder and saved two
+ *   memories, leaving `AGENTS.md` alone.
  *
  * Memory lives in the run's workspace, so each case of each trial runs in a
  * process and workspace of its own (`runCasesApart` in `evals/cli.ts`):
@@ -34,8 +41,18 @@
  * told a thing was remembered that was not, which is what the last assertion
  * is for. The conversation ships on a stronger model than this one.
  */
+import { splitFrontMatter } from "@instrument-org/shared";
+import { existsSync, readdirSync, readFileSync } from "node:fs";
+import path from "node:path";
+
+import { PROJECT_FILE_NAME } from "../../src/constants";
+import { ensureChat } from "../../src/lib/chat/chat-records";
+import { projectsDir } from "../../src/lib/chat/projects";
+import { memoryDir } from "../../src/lib/memory/store";
 import { type Session } from "../../src/schemas/session";
+import { StoreId } from "../../src/schemas/store-id";
 import { type Assertion, type AssertionResult, defineEval } from "../harness";
+import { seed } from "./chat-history";
 
 /** A command that keeps a memory, anchored the way the shell reads it. */
 const SAVES_A_MEMORY = /(?:^|[\n;&|])\s*instrument memory save\b/;
@@ -185,6 +202,84 @@ const didNotClaimWhatItDidNotSave: Assertion = {
   text: "did not claim a memory it never saved",
 };
 
+const GAMING = {
+  instructions: "WoW Forever is a new game release.",
+  name: "Gaming",
+};
+
+/** The body of a project's `AGENTS.md`, under its front matter. */
+function projectBody(name: string): string {
+  const file = path.join(projectsDir(), name, PROJECT_FILE_NAME);
+  if (!existsSync(file)) {
+    return "";
+  }
+  const raw = readFileSync(file, "utf8");
+  const split = splitFrontMatter(raw);
+  return (split.ok ? split.body : raw).trim();
+}
+
+/** The memories kept, by file name. */
+function memoryFiles(): string[] {
+  const dir = memoryDir();
+  return existsSync(dir)
+    ? readdirSync(dir).filter((name) => name.endsWith(".md"))
+    : [];
+}
+
+/** An earlier chat where the user told the details the project now wants. */
+async function seedGameChat() {
+  const start = Date.now() - 3 * 86_400_000;
+  const sessionId = StoreId.newSessionId();
+  const ask =
+    "Just installed WoW Forever to D:\\Games\\WoW Forever, it's on the Stormreaver server. My main is Brakka, a level 34 orc shaman. Is a shaman good for solo play?";
+  const chatId = await ensureChat(sessionId, ask);
+  await seed(chatId, sessionId, "user", new Date(start), ask);
+  await seed(
+    chatId,
+    sessionId,
+    "assistant",
+    new Date(start + 20_000),
+    "Shamans solo well: Enhancement hits hard and heals itself between fights. At 34, Brakka has Ghost Wolf, which helps a lot on Stormreaver's long roads.",
+  );
+}
+
+const projectGainedTheDetails: Assertion = {
+  check: () => {
+    const text = "added the game's details to Projects/Gaming/AGENTS.md";
+    const body = projectBody(GAMING.name);
+    const others = readdirSync(path.join(projectsDir(), GAMING.name)).filter(
+      (name) => name !== PROJECT_FILE_NAME,
+    );
+    const evidence = `body: ${JSON.stringify(body.slice(0, 300))}; other files: ${others.join(", ") || "none"}`;
+    return /Brakka|Stormreaver|D:[\\/]+Games/i.test(body)
+      ? pass(text, evidence)
+      : fail(text, evidence);
+  },
+  text: "added the game's details to Projects/Gaming/AGENTS.md",
+};
+
+const keptNoMemory: Assertion = {
+  check: () => {
+    const text = "kept the project's details out of memory";
+    const files = memoryFiles();
+    return files.length === 0
+      ? pass(text, "no memories")
+      : fail(text, `saved ${files.join(", ")}`);
+  },
+  text: "kept the project's details out of memory",
+};
+
+const leftTheProjectAlone: Assertion = {
+  check: () => {
+    const text = "left Projects/Gaming/AGENTS.md as it was";
+    const body = projectBody(GAMING.name);
+    return body === GAMING.instructions
+      ? pass(text, "unchanged")
+      : fail(text, JSON.stringify(body.slice(0, 300)));
+  },
+  text: "left Projects/Gaming/AGENTS.md as it was",
+};
+
 export const MEMORY_EVALS = [
   defineEval({
     assertions: [savedAMemory, withoutATask],
@@ -237,5 +332,27 @@ export const MEMORY_EVALS = [
     name: "memory-keeps-what-a-task-reported",
     prompt:
       "Book me a table for two at Kaze Sushi this Friday at 7 on Resy. I'm signed in there.",
+  }),
+
+  defineEval({
+    // The real chat's ask, typo and all, in a chat filed under the project.
+    assertions: [projectGainedTheDetails, keptNoMemory],
+    kind: "chat",
+    name: "memory-project-facts-go-to-the-project",
+    project: GAMING,
+    prompt:
+      "update this project w/ details about wow forever that i'm play8ing. check other chats for recent things e.g. install location and deets about the game",
+    setup: seedGameChat,
+  }),
+
+  defineEval({
+    // The counterweight: filed under a project, a fact about the person is
+    // still theirs everywhere.
+    assertions: [savedAMemory, leftTheProjectAlone],
+    kind: "chat",
+    name: "memory-person-fact-in-a-project-chat",
+    project: GAMING,
+    prompt:
+      "Heads up, I moved to Denver last week, so I'm on Mountain time now.",
   }),
 ];

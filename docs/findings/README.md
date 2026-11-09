@@ -42,8 +42,10 @@ Each entry is the finding's title and the opening of its own `Status:` line.
 - [A page the user asked to see does not appear, because driving the browser never opens the pane](browsing-never-opens-the-pane.md): resolved in the 1.x window, likely moot in 2.0.
 - [CDP keyboard input goes to the focused widget, not the target you sent it on](cdp-keyboard-input-follows-window-focus.md): mitigated: keyboard commands reclaim guest focus before dispatching, refusing only when the guest never takes it back (19f9dd72e);
 - [Every tool-output budget counts characters, and moving them to tokens buys less than it looks like](character-budgets-are-a-token-proxy.md): open question, nothing planned.
+- [A chat's pane tabs drift from the window's tabs](chat-pane-tabs-drift-from-window-tabs.md): resolved in 6271b8163 and e77442cdb, checked 2026-11-07: the pane draws the window's strip in its squeezing mode.
 - [A ChatGPT account cannot generate images, so a plan-only user has no image tool](chatgpt-account-cannot-generate-images.md): known, by design upstream.
 - [OpenAI models cite our search results in ChatGPT's private-use encoding, and the fix costs more than the bug](chatgpt-citation-markers-in-model-output.md): known, deliberately not fixed.
+- [Command-drag never drops in Electron on the Mac](command-drag-never-drops-in-electron-on-mac.md)
 - [Connector authentication: technical notes](connector-authentication-technical-notes.md): reference, partly overtaken.
 - [CSS zoom: mixing rect (on-screen px) with layout px](css-zoom-rect-vs-layout-px.md): guidance, with an audit heuristic.
 - [A deb update can leave the package unpacked but not configured](deb-update-left-the-package-unconfigured.md): fixed (df48c5507) and verified in a shipped build;
@@ -56,6 +58,7 @@ Each entry is the finding's title and the opening of its own `Status:` line.
 - [EPERM on a symlink reads as a macOS denial](eperm-on-a-symlink-reads-as-a-macos-denial.md): resolved 2026-09-10;
 - [The file-open cache is sized for a cost that no longer exists](file-open-cache-is-sized-for-a-vanished-cost.md): open.
 - [GNU text commands on bundled uutils](gnu-text-commands-on-bundled-uutils.md): resolved, measured 2026-10-15: the GNU text commands answer from bundled uutils by a fixed table (native-and-builtin-commands.md has the table as it runs), n...
+- [Haiku narrates between tool calls, and prompt wording does not move it](haiku-narrates-between-calls.md)
 - [HTML file artifacts: in-iframe link navigation can't be tracked or driven](html-artifact-iframe-navigation.md): moot: the sandboxed iframe was removed in 15dae28cb (checked 2026-10-02).
 - [In-app browser: device/viewport emulation isn't safe for agent-browser](in-app-browser-device-emulation.md): superseded: the request is honored again, by a different mechanism.
 - [In-app browser: full-page screenshots aren't supported](in-app-browser-full-page-screenshots.md): still open, workaround in place (PDF export), checked 2026-10-02.

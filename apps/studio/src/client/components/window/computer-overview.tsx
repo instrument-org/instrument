@@ -5,6 +5,7 @@ import {
   ContextMenuTrigger,
 } from "@/client/components/ui/context-menu";
 import { Spinner } from "@/client/components/ui/spinner";
+import { useRefreshWhileShown } from "@/client/hooks/use-active-tab";
 import { cn } from "@/client/lib/utils";
 import { rpcClient } from "@/client/rpc/client";
 import { CloudIcon } from "@phosphor-icons/react/Cloud";
@@ -45,10 +46,9 @@ export function ComputerOverview({
   onOpenInNewTab: (path: string) => void;
   refreshInterval: false | number;
 }) {
+  const refresh = useRefreshWhileShown(refreshInterval);
   const drives = useQuery(
-    rpcClient.workspace.computer.drives.queryOptions({
-      refetchInterval: refreshInterval,
-    }),
+    rpcClient.workspace.computer.drives.queryOptions(refresh),
   );
   const [selected, setSelected] = useState<string>();
   const tile = (place: Place, mark: ReactNode, detail?: ReactNode) => (

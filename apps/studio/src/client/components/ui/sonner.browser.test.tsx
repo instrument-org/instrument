@@ -1,6 +1,16 @@
 import { toast, Toaster } from "sonner";
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
+import { page } from "vitest/browser";
 import { render } from "vitest-browser-react";
+
+import { renderInBrowser } from "@/tests/render-browser";
+
+import { ThemeProvider } from "../theme-provider";
+import { Toaster as AppToaster } from "./sonner";
+
+vi.mock("@/client/hooks/use-developer-mode", () => ({
+  useDeveloperMode: () => false,
+}));
 
 // The app zooms its whole UI with CSS `zoom` on `ZoomRoot`, and the Toaster
 // renders inside it. Sonner measures each toast with `getBoundingClientRect()`
@@ -89,5 +99,24 @@ describe("Toaster under app zoom", () => {
         }
       }
     },
+  );
+});
+
+// Sonner's injected stylesheet centers its loader absolutely, and `unstyled`
+// drops the rule that makes the icon slot its box, so the spinner landed in the
+// middle of the toast over the words.
+it("keeps a loading toast's spinner beside its words", async () => {
+  await renderInBrowser(
+    <ThemeProvider>
+      <AppToaster />
+    </ThemeProvider>,
+  );
+  toast.loading("Sending your feedback…");
+  await expect.element(page.getByText("Sending your feedback…")).toBeVisible();
+
+  const spinner = document.querySelector(".sonner-loader");
+  const title = document.querySelector("[data-title]");
+  expect(spinner!.getBoundingClientRect().right).toBeLessThanOrEqual(
+    title!.getBoundingClientRect().left,
   );
 });

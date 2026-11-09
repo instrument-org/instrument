@@ -21,6 +21,8 @@ import { publisher } from "../publisher";
 const ProjectMarkSchema = z.object({
   color: z.string().max(9).optional(),
   emoji: z.string().max(8).optional(),
+  /** A Phosphor icon's name, in place of an emoji. */
+  icon: z.string().max(64).optional(),
 });
 
 const ProjectNameSchema = z
@@ -28,10 +30,39 @@ const ProjectNameSchema = z
   .min(1)
   .max(PROJECT_NAME_MAX * 2);
 
-/** The conversation's projects: in use first, in the order made, then retired. */
+/**
+ * A project as the menus, marks and filters name it. Its instructions (up to
+ * 100k characters), the folders granted under it and the front matter this
+ * build does not know are `get`'s, read where they are shown.
+ */
+const ProjectSummarySchema = ListedProjectSchema.pick({
+  about: true,
+  color: true,
+  created: true,
+  emoji: true,
+  icon: true,
+  id: true,
+  name: true,
+  retired: true,
+  unsaved: true,
+});
+
+/**
+ * The conversation's projects: in use first, in the order made, then retired.
+ * The output schema leaves out what `ProjectSummarySchema` does not name.
+ */
 const listProjectsRoute = base
-  .output(ListedProjectSchema.array())
+  .output(ProjectSummarySchema.array())
   .handler(() => listProjects());
+
+/** One project whole, as its details show it; null for an id no project has. */
+const getProjectRoute = base
+  .input(z.object({ projectId: z.string() }))
+  .output(ListedProjectSchema.nullable())
+  .handler(async ({ input }) => {
+    const projects = await listProjects();
+    return projects.find((project) => project.id === input.projectId) ?? null;
+  });
 
 /** A name a project's folder cannot take, said back as a bad request. */
 async function sayingNameErrors<T>(run: () => Promise<T>): Promise<T> {
@@ -67,6 +98,7 @@ const createProjectRoute = base
       createProject({
         ...(input.color ? { color: input.color } : {}),
         ...(input.emoji ? { emoji: input.emoji } : {}),
+        ...(input.icon ? { icon: input.icon } : {}),
         ...(input.folders ? { folders: input.folders } : {}),
         ...(input.instructions ? { instructions: input.instructions } : {}),
         name: input.name,
@@ -93,6 +125,7 @@ const updateProjectRoute = base
       updateProject(input.projectId, {
         ...(input.color === undefined ? {} : { color: input.color }),
         ...(input.emoji === undefined ? {} : { emoji: input.emoji }),
+        ...(input.icon === undefined ? {} : { icon: input.icon }),
         ...(input.folders === undefined ? {} : { folders: input.folders }),
         ...(input.instructions === undefined
           ? {}
@@ -139,6 +172,7 @@ const changedProjectsRoute = base
 export const projects = {
   create: createProjectRoute,
   events: { changed: changedProjectsRoute },
+  get: getProjectRoute,
   list: listProjectsRoute,
   retire: retireProjectRoute,
   update: updateProjectRoute,

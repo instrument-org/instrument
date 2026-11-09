@@ -123,11 +123,14 @@ const ExcerptResultsSchema = z.object({
 
 const SummaryResultsSchema = z.object({
   kind: z.literal("summary"),
-  modelId: z.string(),
+  // The model that wrote the summary, where the search was routed to one of
+  // ours. A search Claude Code ran inside a Claude account's step reports
+  // neither it nor its usage.
+  modelId: z.string().optional(),
   // Present only when the provider served a different model than the search
   // was routed to.
   modelIdServed: z.string().optional(),
-  provider: ProviderOutputSchema,
+  provider: ProviderOutputSchema.optional(),
   sources: z.array(
     z.object({
       title: z.string().optional(),
@@ -135,7 +138,7 @@ const SummaryResultsSchema = z.object({
     }),
   ),
   text: z.string(),
-  usage: UsageOutputSchema,
+  usage: UsageOutputSchema.optional(),
 });
 
 export const webSearchCapability = defineCapability({

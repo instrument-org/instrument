@@ -13,3 +13,15 @@ export function askTargetName(
 ): string {
   return kind === "folder" ? `“${folderNameFromPath(target)}”` : target;
 }
+
+/** A page's site as a line names it, its host without `www.`; undefined for no address or one with no host. */
+export function siteOf(url: string | undefined): string | undefined {
+  if (!url) {
+    return undefined;
+  }
+  try {
+    return new URL(url).hostname.replace(/^www\./u, "") || undefined;
+  } catch {
+    return undefined;
+  }
+}

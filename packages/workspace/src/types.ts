@@ -26,6 +26,12 @@ export interface BrowserConfig {
   createTarget: (
     targetId: BrowserTargetId,
     partitionDir: AbsolutePath,
+    /**
+     * The window the call came from, whose renderer mounts a guest made for
+     * it, and whether that window takes a guest another window has: `parked`
+     * unless the other window is showing it, `always` either way.
+     */
+    host?: { take?: "always" | "parked"; webContentsId: number },
   ) => Promise<void>;
   getTargetMeta: (
     targetId: BrowserTargetId,
@@ -60,6 +66,12 @@ export interface BrowserConfig {
     memoryBytes: number;
     sharedWith: BrowserTargetId[];
   };
+  /**
+   * When a person last clicked, tapped or typed in the guest, in ms since the
+   * epoch, by the guest's own record of input: an agent's dispatched input is
+   * not counted. Undefined when nobody has since it was made.
+   */
+  personInputAt: (targetId: BrowserTargetId) => number | undefined;
   /** Whether the guest is asleep (`sleepGuest`), until a command or the window showing it wakes it. */
   isGuestAsleep: (targetId: BrowserTargetId) => boolean;
   /**
@@ -193,6 +205,13 @@ export interface WorkspaceConfig {
    * what the machine's state holds and the hardware it runs on.
    */
   deviceId: DeviceId;
+  /**
+   * The window that answers what a chat asks of its tabs, and mounts the pages
+   * it makes, where a host has several: exactly one must, or a tab an agent
+   * opens would open once per window. Every window answers where this is not
+   * given or names none.
+   */
+  windowForChat?: (chatId: string | undefined) => number | undefined;
   /**
    * What the system's file manager calls each drive at `roots` (`C:\`), by
    * its root, for the Files sidebar's Locations: "Local Disk (C:)" on

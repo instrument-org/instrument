@@ -2,7 +2,7 @@ import { useDecision } from "@/client/hooks/use-decision";
 import { decisionBar } from "@instrument-org/shared/decision-bars";
 import { useEffect, useState } from "react";
 
-import { byActivity, type Chat } from "./chats";
+import { byLastUserMessage, type Chat } from "./chats";
 
 /** A chat a new project could be filed on at once: which, and what it is called and asks. */
 export interface BackfillCandidate {
@@ -30,7 +30,9 @@ const DEBOUNCE_MS = 600;
  * never takes a project a chat already has or adds a second one to it.
  */
 export function backfillCandidates(chats: Chat[]): BackfillCandidate[] {
-  return byActivity(chats.filter((chat) => !chat.project && !chat.archived))
+  return byLastUserMessage(
+    chats.filter((chat) => !chat.project && !chat.archived),
+  )
     .slice(0, MOST_READ)
     .map((chat) => ({
       asked: chat.firstAsk.slice(0, ASK_MAX),

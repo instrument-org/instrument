@@ -2,7 +2,7 @@ import { ChatIdSchema } from "@instrument-org/workspace/client";
 import { renderHook, waitFor } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
-import { useGesturesFor } from "./use-open-target";
+import { openClickGestures, useGesturesFor } from "./use-open-target";
 
 const hostPaths = vi.fn(
   ({ filePaths }: { filePaths: string[] }): Record<string, null | string> =>
@@ -108,5 +108,36 @@ describe("Copy Path", () => {
       { interval: 1 },
     );
     expect(writeText).not.toHaveBeenCalled();
+  });
+});
+
+describe("a click on a link", () => {
+  const press = (keys: { meta?: boolean; shift?: boolean }) => {
+    const open = vi.fn();
+    const openInNewTab = vi.fn();
+    const openInNewWindow = vi.fn();
+    openClickGestures({ open, openInNewTab, openInNewWindow }).onClick({
+      altKey: false,
+      button: 0,
+      ctrlKey: keys.meta ?? false,
+      metaKey: keys.meta ?? false,
+      shiftKey: keys.shift ?? false,
+    } as React.MouseEvent);
+    return [open, openInNewTab, openInNewWindow].map(
+      (each) => each.mock.calls.length,
+    );
+  };
+
+  it.each([
+    { expected: [1, 0, 0], keys: {}, name: "plain, here" },
+    { expected: [0, 1, 0], keys: { meta: true }, name: "Command, a tab" },
+    { expected: [0, 0, 1], keys: { shift: true }, name: "Shift, a window" },
+    {
+      expected: [0, 1, 0],
+      keys: { meta: true, shift: true },
+      name: "Command and Shift, a tab",
+    },
+  ])("opens $name", ({ expected, keys }) => {
+    expect(press(keys)).toEqual(expected);
   });
 });

@@ -16,7 +16,7 @@ import {
   projectFolder,
 } from "../pnpm-outside";
 import { PNPM_NAME, runPnpmCommand } from "../run-pnpm";
-import { systemNote } from "../system-note";
+import { systemNote } from "../../model-text/notes/system-note";
 import { dlxInstall, dlxPlan, dlxProgram } from "../dlx-outside";
 import { mxcState } from "../native-sandbox/mxc";
 import { execNode } from "./node";

@@ -253,6 +253,34 @@ describe("openOrFocusScreen", () => {
     expect(shape(opened.state)).toEqual(expected);
   });
 
+  it.each([
+    [
+      "a file whose tab has settled its layout",
+      fileHref(FILE),
+      `${fileHref(FILE)}&view=columns&select=plan.md`,
+    ],
+    [
+      "a folder whose tab has a selection",
+      "/files?path=&root=%2FUsers%2Fme%2Fnotes",
+      "/files?path=&root=%2FUsers%2Fme%2Fnotes&select=plan.md&view=list",
+    ],
+    ["a task", "/tasks/s1?chat=c1", "/tasks/s1"],
+  ])("finds the tab already showing %s", (_, href, walked) => {
+    const state = windowOf([
+      screenTab("a", BROWSER_HREF, CHAT),
+      screenTab("b", walked, CHAT),
+    ]);
+    const opened = openOrFocusScreen(state, {
+      group: CHAT,
+      href,
+      id: "new",
+      isWaiting: false,
+      select: true,
+    });
+    expect(opened.id).toBe("b");
+    expect(shape(opened.state)).toEqual({ [CHAT]: "a *b" });
+  });
+
   it("finds a file's tab that became the page showing the file", () => {
     const state = windowOf([pageTab("p", `file://${FILE}`, CHAT)]);
     const opened = openOrFocusScreen(state, {

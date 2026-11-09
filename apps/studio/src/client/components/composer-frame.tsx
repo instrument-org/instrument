@@ -41,18 +41,11 @@ export function ComposerFrame({
   actions,
   actionsInto,
   attachments,
-  below,
   children,
-  extras,
-  layout,
-  leading,
   maxHeight,
   notice,
-  onBlur,
-  onFocus,
   overlay,
   ref,
-  trailing,
 }: {
   /** The button row along the bottom. Never pushed out of the box. */
   actions: React.ReactNode;
@@ -62,148 +55,19 @@ export function ComposerFrame({
    * words. Nothing is drawn until the element exists.
    */
   actionsInto?: HTMLElement | null;
-  /**
-   * A pill's row under its words, while something needs the room beside
-   * them; `leading` moves to its left end.
-   */
-  below?: React.ReactNode;
   /** Attached files, above the editor. Absent when nothing is attached. */
   attachments?: React.ReactNode;
   /** The editor. Fills the row it is given and scrolls past it. */
   children: React.ReactNode;
-  /**
-   * A pill's second row, above the editor, present only while the pill is
-   * open: the model and what the message will carry. It slides in and out.
-   */
-  extras?: React.ReactNode;
-  /**
-   * A pill is one row, the height of a text field, with `leading` at its
-   * left and `trailing` at its right and the editor between; it grows with
-   * the draft up to `maxHeight`. Bare is the editor above its button row with
-   * no box drawn around them, for a host that is itself the box.
-   */
-  layout: "bare" | "pill";
-  /** The pill's left end: the add menu. */
-  leading?: React.ReactNode;
   /** Layout px: inside the zoom root, so the cap scales with the rest of the UI. Null for no cap but the host's layout. */
   maxHeight: null | number;
-  /**
-   * One row about the chosen model, over everything else: a newer release on
-   * offer, or a problem to fix before sending. The same row in every layout,
-   * so a pill and a draft say it in one place and one way.
-   */
+  /** One row about the chosen model, over everything else: a newer release on offer, or a problem to fix before sending. */
   notice?: React.ReactNode;
-  /** Focus entering and leaving the pill, for what it shows only while open. */
-  onBlur?: React.FocusEventHandler<HTMLDivElement>;
-  onFocus?: React.FocusEventHandler<HTMLDivElement>;
   /** Laid over the whole box, out of flow: the drop target, the re-entry ring. */
   overlay?: React.ReactNode;
   /** The box itself, for anything that has to be sized or placed against it. */
   ref?: React.Ref<HTMLDivElement>;
-  /** The pill's right end: the send button, and anything that reads beside it. */
-  trailing?: React.ReactNode;
 }) {
-  if (layout === "pill") {
-    return (
-      <div
-        className={cn(
-          "relative isolate flex w-full flex-col rounded-[22px] px-1.5 py-1.5",
-          "bg-white shadow-sm-soft transition-shadow dark:bg-gray-800",
-          "focus-within:ring-1 focus-within:ring-black/5 dark:focus-within:ring-white/5",
-        )}
-        data-slot="composer-frame"
-        onBlur={onBlur}
-        onFocus={onFocus}
-        ref={ref}
-        style={maxHeight === null ? undefined : { maxHeight }}
-      >
-        {overlay}
-        <AnimatePresence initial={false}>
-          {notice ? (
-            <motion.div
-              animate={{ height: "auto", opacity: 1 }}
-              className="overflow-hidden"
-              exit={{ height: 0, opacity: 0 }}
-              initial={{ height: 0, opacity: 0 }}
-              key="notice"
-              transition={BLOCK_OPEN}
-            >
-              <div className="px-0.5 pb-1.5" data-slot="composer-notice">
-                {notice}
-              </div>
-            </motion.div>
-          ) : null}
-          {extras ? (
-            // The padding, given back by the margin, keeps the clip clear of
-            // the chips' rings along the row's top.
-            <motion.div
-              animate={{ height: "auto", opacity: 1 }}
-              className="-mt-1 overflow-hidden pt-1"
-              exit={{ height: 0, opacity: 0 }}
-              initial={{ height: 0, opacity: 0 }}
-              key="extras"
-              transition={BLOCK_OPEN}
-            >
-              <div
-                // `empty:hidden`: a row with nothing in it, a screen with no
-                // chip to show, takes no height rather than a blank line.
-                className="flex min-h-7 items-center gap-1 px-1 pb-1 empty:hidden"
-                data-slot="composer-extras"
-              >
-                {extras}
-              </div>
-            </motion.div>
-          ) : null}
-        </AnimatePresence>
-        {/* The negative margin makes room inside the scroller for the remove
-            buttons that sit outside the chips, which its clip would cut. */}
-        {attachments ? (
-          <div
-            className="-mx-1 -mt-1 flex max-h-24 min-h-0 flex-wrap items-start gap-1.5 overflow-y-auto px-2 pt-2 pb-1.5"
-            data-slot="composer-attachments"
-          >
-            {attachments}
-          </div>
-        ) : null}
-        <div className="flex min-h-7 w-full items-end gap-1.5">
-          {/* With a row below, the leading control moves down to it, so it
-              stays at the box's bottom left; its room here stays, so the
-              words keep their width. */}
-          <div className="flex shrink-0 items-center self-end">
-            {below ? <span aria-hidden="true" className="w-7" /> : leading}
-          </div>
-          {/* `min-w-0`: a pasted link is one word as wide as a paragraph. */}
-          {/* One 20px line box for the words and the placeholder alike, which
-              the 4px above and below center in the row's 28px: the editor's own
-              paragraph height is for the block, and would sit this line high by
-              a couple of pixels.
-
-              Stretched to the row rather than centered in it, so the editor is
-              as tall as the room the pill has and scrolls the rest. Sized to
-              its own draft it would keep growing past the cap and, centered,
-              paint out of both ends of the box. */}
-          <div className="flex min-h-0 min-w-0 flex-1 flex-col self-stretch py-1 [--prompt-editor-line:1.25rem] [&_.prompt-editor]:min-h-5 [&_.prompt-editor]:text-[13px] [&_.prompt-editor]:leading-5">
-            {children}
-          </div>
-          <div
-            className="flex shrink-0 items-center gap-1 self-end"
-            data-slot="composer-actions"
-          >
-            {trailing}
-          </div>
-        </div>
-        {below ? (
-          <div
-            className="flex items-center justify-between gap-1.5 pt-1"
-            data-slot="composer-below"
-          >
-            <div className="flex shrink-0 items-center">{leading}</div>
-            {below}
-          </div>
-        ) : null}
-      </div>
-    );
-  }
   // The row is drawn where the host asked for it, or along the box's foot; a
   // host that named an element the page has not made yet gets no row rather
   // than one along the foot in the meantime.
@@ -233,9 +97,13 @@ export function ComposerFrame({
         // relative also lifts the box over the folder tray tucked under its top
         // edge.
         "relative isolate grid w-full grid-rows-[auto_minmax(3rem,1fr)_auto]",
-        // A bare box gives way to the host's layout: squeezed, its editor row
+        // The box gives way to the host's layout: squeezed, its editor row
         // scrolls, since the host sets the floor and the room around it.
-        "min-h-0 px-5 pt-2 pb-3",
+        "min-h-0 px-3 pt-3 pb-2",
+        // A card of its own, its corners matching the panes it sits beside,
+        // and selectable in hosts that are not.
+        "rounded-[18px] bg-card shadow-[0_1px_2px_rgb(0_0_0/0.05),0_4px_12px_-4px_rgb(0_0_0/0.08)] ring-1 ring-black/6 select-text dark:ring-white/8",
+        "[&_.prompt-editor]:min-h-12 [&_.prompt-editor]:text-[14px] [&_.prompt-editor]:leading-6",
       )}
       data-slot="composer-frame"
       ref={ref}

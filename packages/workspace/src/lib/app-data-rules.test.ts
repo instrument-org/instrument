@@ -815,6 +815,44 @@ describe.each(SHAPES)("the app's data $name", (shape) => {
       },
     );
 
+    // Documents holding a picked workspace is the person's own folder: a card
+    // asks for it whole, and its yes leaves the workspace's .instrument/ closed.
+    const documents = path.join(paths.home, "Documents");
+    const documentsAsks =
+      shape.workspace !== undefined &&
+      reachOf(layout.rules, documents, "list").level === "ask";
+
+    it.runIf(documentsAsks)("asks for the Documents folder holding it", () => {
+      expect(
+        ruleRefusal({
+          hostPath: documents,
+          isDirectory: true,
+          op: "list",
+          rules: layout.rules,
+          spell: (spelled) => spelled,
+        }),
+      ).toContain(`ask for ${JSON.stringify(documents)} with ask_permission`);
+    });
+
+    it.runIf(shape.workspace !== undefined)(
+      "keeps the workspace's .instrument/ closed under a yes to Documents",
+      () => {
+        const granted = layoutUnder(paths, { grants: [documents] });
+        expect(reachOf(granted.rules, documents, "write").level).toBe("allow");
+        expect(
+          reachOf(
+            granted.rules,
+            `${paths.workspace}/.instrument/workspace.json`,
+            "read",
+          ).level,
+        ).toBe("never");
+        expect(
+          reachOf(granted.rules, `${paths.workspaceMachine}/keys/x`, "read")
+            .level,
+        ).toBe("never");
+      },
+    );
+
     it.runIf(asksBeside)("raises none for the folder that holds it", () => {
       expect(
         ruleRefusal({

@@ -342,12 +342,27 @@ const escapeRegExp = (text: string) =>
  * The command with each heredoc's body as its length, found in the source
  * in the order the parser met them: an opener (`<<'EOF'`), the lines after
  * the line it is on, and the closing word on a line of its own. Undefined
- * when one can't be found as the parser read it.
+ * when one can't be found as the parser read it, or when the source spells
+ * an opener more often than the parser found heredocs (one quoted as an
+ * example), since the search could then take the example for the real one.
  */
 function sizeHeredocs(
   command: string,
   heredocs: Carried["heredocs"],
 ): string | undefined {
+  const openers = new Map<string, number>();
+  for (const { delimiter } of heredocs) {
+    openers.set(delimiter, (openers.get(delimiter) ?? 0) + 1);
+  }
+  // Every word after a `<<`, its quoting taken off, as the shell reads it.
+  const spelled = [...command.matchAll(/<<-?[ \t]*([^\s;&|<>()]+)/g)].map(
+    ([, word = ""]) => word.replaceAll(/^\$(?=')|['"\\]/g, ""),
+  );
+  for (const [delimiter, count] of openers) {
+    if (spelled.filter((word) => word === delimiter).length !== count) {
+      return undefined;
+    }
+  }
   let out = "";
   let opened = 0;
   let bodyFrom = 0;
@@ -536,7 +551,15 @@ type ToolRule = {
 const TOOLS: Record<string, ToolRule> = {
   "tool-ask_permission": {
     input: ["kind", "target", "reason"],
-    output: ["answer", "asked", "declined", "state"],
+    output: [
+      "agentTarget",
+      "answer",
+      "asked",
+      "declined",
+      "kind",
+      "state",
+      "target",
+    ],
   },
   "tool-choose": {
     input: ["question", "choices"],
@@ -656,7 +679,7 @@ function notePart(part: Obj, sources: OutlineSources): Obj {
   const type = String(part.type);
   const data = part.data;
   if (NOTES_KEPT.has(type)) {
-    return part;
+    return withPagesAsHosts(part, sources);
   }
   if (!isObj(data)) {
     return { ...part, data: size(data) };
@@ -738,6 +761,27 @@ function notePart(part: Obj, sources: OutlineSources): Obj {
 
 // ---- records ---------------------------------------------------------------
 
+/**
+ * `value` with every tab's `page` in it, at any depth (an ask, its outcome,
+ * the note answering it), as its title's length and its address's host.
+ */
+function withPagesAsHosts(value: Obj, sources: OutlineSources): Obj {
+  const inside = (each: unknown): unknown =>
+    Array.isArray(each)
+      ? each.map(inside)
+      : isObj(each)
+        ? withPagesAsHosts(each, sources)
+        : each;
+  return Object.fromEntries(
+    Object.entries(value).map(([key, each]) => [
+      key,
+      key === "page" && isObj(each)
+        ? { title: size(each.title), url: hostOnly(each.url, sources) }
+        : inside(each),
+    ]),
+  );
+}
+
 /** Record kinds that carry only the app's own bookkeeping, kept whole. */
 const RECORDS_KEPT = new Set([
   "answer",
@@ -807,6 +851,11 @@ export function outlineRecord(
   }
   if (RECORDS_KEPT.has(kind)) {
     return record;
+  }
+  if (kind === "ask") {
+    // Where a card stands is the app's bookkeeping, and its target and
+    // reason are the ask_permission call's, kept there already.
+    return withPagesAsHosts(record, sources);
   }
   return { ...sizeFields(record), t: record.t };
 }

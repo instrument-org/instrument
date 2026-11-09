@@ -11,7 +11,9 @@ describe("BrowserDownloadsButton", () => {
     ["/Users/sam/Downloads/a\\b.txt", "a\\b.txt"],
     ["C:\\Users\\sam\\Downloads\\report.pdf", "report.pdf"],
   ])("lists the file saved at %s as %s", async (path, name) => {
-    const { queryClient } = renderWithProviders(<BrowserDownloadsButton />);
+    const { queryClient } = renderWithProviders(
+      <BrowserDownloadsButton surfaceRef={{ current: null }} targetId="tab" />,
+    );
     queryClient.setQueryData(
       rpcClient.browser.live.downloads.experimental_liveOptions().queryKey,
       [
@@ -32,5 +34,39 @@ describe("BrowserDownloadsButton", () => {
     fireEvent.click(await screen.findByRole("button"));
 
     expect(await screen.findByText(name)).toBeDefined();
+  });
+});
+
+describe("a download's Try again", () => {
+  it.each([
+    ["failed", "https://example.com/a.zip", true],
+    ["canceled", "https://example.com/a.zip", true],
+    ["completed", "https://example.com/a.zip", false],
+    ["failed", "blob:https://example.com/1", false],
+  ] as const)("on a %s download of %s shows: %s", async (state, url, shown) => {
+    const { queryClient } = renderWithProviders(
+      <BrowserDownloadsButton surfaceRef={{ current: null }} targetId="tab" />,
+    );
+    queryClient.setQueryData(
+      rpcClient.browser.live.downloads.experimental_liveOptions().queryKey,
+      [
+        {
+          exists: false,
+          filename: "a.zip",
+          id: "download-1",
+          path: null,
+          receivedBytes: 0,
+          startedAt: 0,
+          state,
+          totalBytes: 0,
+          url,
+        },
+      ],
+    );
+
+    fireEvent.click(await screen.findByRole("button"));
+    await screen.findByText("a.zip");
+
+    expect(screen.queryByLabelText("Try again") !== null).toBe(shown);
   });
 });

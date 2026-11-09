@@ -34,10 +34,10 @@ function describe(child: Child) {
   return {
     id: child.handle,
     status:
-      child.standing.kind === "running"
+      child.status.kind === "running"
         ? ("working" as const)
         : ("done" as const),
-    ...(child.standing.kind === "running" ? { step: child.standing.line } : {}),
+    ...(child.status.kind === "running" ? { step: child.status.line } : {}),
     title: child.title,
   };
 }

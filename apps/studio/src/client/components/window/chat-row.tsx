@@ -2,6 +2,8 @@ import { hasReplyWaitingAtom } from "@/client/drafts/store";
 import { chatHref } from "@/client/components/window/window-href";
 import { FileOpenContext } from "@/client/components/file-open-context";
 import { FuzzyHighlight } from "@/client/components/fuzzy-highlight";
+import { AppWindowIcon } from "@phosphor-icons/react/AppWindow";
+import { openInNewWindow } from "./app-tabs";
 import { NewTabIcon } from "@/client/components/icons/new-tab-icon";
 import { PageOpenContext } from "@/client/components/page-open-context";
 import {
@@ -25,14 +27,18 @@ import { PictureInPictureIcon } from "@phosphor-icons/react/PictureInPicture";
 import { PlusIcon } from "@phosphor-icons/react/Plus";
 import { QuestionIcon } from "@phosphor-icons/react/Question";
 import { StarIcon } from "@phosphor-icons/react/Star";
-import { TagIcon } from "@phosphor-icons/react/Tag";
+import { CardsThreeIcon } from "@phosphor-icons/react/CardsThree";
 import { TrashIcon } from "@phosphor-icons/react/Trash";
 import { WarningCircleIcon } from "@phosphor-icons/react/WarningCircle";
 import { useAtomValue } from "jotai";
 import { type ReactNode, useRef, useState } from "react";
 
 import { type AppsBySlug } from "./apps-by-slug";
+import { contextMenuComponents } from "@/client/components/ui/menu-components";
+import { ChatCopyMenu } from "./chat-copy-menu";
 import { chatMenuGroups } from "./chat-actions";
+import { type RowDensity } from "./chat-list-view";
+import { ChatMarkDot } from "./chat-mark";
 import { ChatTitleField } from "./chat-title";
 import {
   activityLabel,
@@ -41,7 +47,12 @@ import {
   type Project,
   wordRanges,
 } from "./chats";
-import { type OpenOptions, useWindow, WindowContext } from "./context";
+import {
+  type OpenOptions,
+  ownPlaceOf,
+  useWindow,
+  WindowContext,
+} from "./context";
 import { HoldMarks } from "./hold-marks";
 import { ROW_CONTROL, RowActionBar } from "./row-action-bar";
 import { type RowAction, rowClassName, stopHere } from "./row-shell";
@@ -86,8 +97,10 @@ export function ChatRow({
   actions,
   appsBySlug,
   chat,
+  density = "three",
   isArriving = false,
   isOpen,
+  isProjectShown = true,
   now,
   onDelete,
   onNewProject,
@@ -100,10 +113,14 @@ export function ChatRow({
   actions: RowAction[];
   appsBySlug: AppsBySlug;
   chat: Chat;
+  /** How much of the chat the row shows: see `RowDensity`. */
+  density?: RowDensity;
   /** Whether the chat just started from a draft: its row arrives with a wash that settles. */
   isArriving?: boolean;
   /** Whether this chat is the one open beside the list. */
   isOpen: boolean;
+  /** Whether the row names the project the chat is filed under: not in the list of that project, which already says it. */
+  isProjectShown?: boolean;
   /** The moment the row's time is read against. */
   now: Date;
   /** Asks before the chat goes to the trash, through the caller's dialog. */
@@ -169,9 +186,10 @@ export function ChatRow({
       projects={projects}
     />
   );
-  // The project in the row's corner, by name; filing is the control in the
-  // corner's bar.
-  const pill = filed && <ProjectPill quiet project={filed} />;
+  // The project the chat is filed under, by name in its ink; filing is the
+  // control in the corner's bar.
+  const shownProject = isProjectShown ? filed : undefined;
+  const projectWords = shownProject && <ProjectWords project={shownProject} />;
   // The title takes only its own width, so the draft's word stands right
   // after it and keeps its place as the title truncates before it.
   const title = rename.isEditing ? (
@@ -214,22 +232,19 @@ export function ChatRow({
       )}
     </>
   );
-  // When the user last messaged the chat, which the list is ordered by, in
-  // the row's bottom corner, in a column of one width so the times line up
-  // down the list.
+  // When the user last messaged the chat, which the list is ordered by, at
+  // the end of the title's line.
   const time = (
     <span
       className={cn(
-        // `ml-auto` holds it to the corner when the holds' line draws no
-        // marks, as when a chat's only site has no icon yet.
-        "ml-auto w-14 shrink-0 text-right text-[11px] text-muted-foreground/70 tabular-nums",
+        "shrink-0 text-right text-[11px] text-muted-foreground/70 tabular-nums",
         isUnseen && "font-semibold",
       )}
     >
       {activityLabel(new Date(chat.lastUserMessageAt), now)}
     </span>
   );
-  // A starred chat's star, past its project in the row's corner and a mark
+  // A starred chat's star, past its time in the row's corner and a mark
   // rather than a control: starring and unstarring end the corner's bar,
   // which takes the same spot, in a box of a control's size so the star
   // stays put as the bar comes and goes.
@@ -245,6 +260,7 @@ export function ChatRow({
   );
   // The same groups, in the same order, as the menu in the chat's head.
   const groups = chatMenuGroups(actions);
+  const live = projects.filter((entry) => !entry.retired);
   // Beside the ways to open the chat, where the list offers it.
   const popOut = actions.find((action) => action.id === "popOut");
   const item = (action: RowAction) => (
@@ -283,49 +299,86 @@ export function ChatRow({
           tabIndex={0}
         >
           <div className="min-w-0 flex-1">
-            {/* The project at the line's end in the row's corner. */}
             <div className="flex h-5 items-center gap-1.5">
               {title}
-              {/* The pills step aside for the row's controls while the
-                  pointer is on it. */}
+              {/* At one line the project stands just before the time, so
+                  every title starts at the same edge. */}
+              {density === "one" && projectWords && (
+                <span className="flex shrink-0 grow justify-end pl-1">
+                  {projectWords}
+                </span>
+              )}
+              {/* The time and the star step aside for the row's controls
+                  while the pointer is on it. */}
               <RowActionBar
                 actions={actions}
                 isHeld={isPickerLeaving}
                 leading={tagControl}
                 resting={
-                  (pill || starMark) && (
-                    <>
-                      {pill}
-                      {starMark}
-                    </>
-                  )
+                  <>
+                    {time}
+                    {starMark}
+                  </>
                 }
               />
             </div>
-            {/* A line's room whatever the latest line takes, and when there
-                is none, so the row keeps one height as its chat starts work. */}
-            <div className="h-5 min-w-0">
-              <Peek chat={chat} search={search} />
-            </div>
-            {/* What the chat holds and the time in the row's bottom corner,
-                on a line every row has whether or not it holds anything, so
-                the list keeps one row height down its length. */}
-            <div className="mt-1 flex h-5 items-center gap-2">
-              {hasHolds && (
-                <HoldsInChat chatId={chat.id}>
-                  <HoldMarks
-                    appsBySlug={appsBySlug}
-                    chatId={chat.id}
-                    className="min-w-0 flex-1 gap-1"
-                    holds={chat.holds}
-                    namedFiles
-                    wrap={false}
-                  />
-                </HoldsInChat>
-              )}
-              {time}
-            </div>
+            {density === "three" && (
+              <>
+                {/* A line's room whatever the latest line takes, and when
+                    there is none, so the row keeps one height as its chat
+                    starts work. */}
+                <div className="h-5 min-w-0">
+                  <Peek chat={chat} search={search} />
+                </div>
+                {/* The project and what the chat holds, the files by name,
+                    on a line every row has whether or not it holds
+                    anything, so the list keeps one row height. */}
+                <div className="mt-1 flex h-5 min-w-0 items-center gap-2">
+                  {projectWords}
+                  {hasHolds && (
+                    <HoldsInChat chatId={chat.id}>
+                      <HoldMarks
+                        appsBySlug={appsBySlug}
+                        chatId={chat.id}
+                        className="min-w-0 flex-1 gap-1"
+                        holds={chat.holds}
+                        namedFiles
+                        wrap={false}
+                      />
+                    </HoldsInChat>
+                  )}
+                </div>
+              </>
+            )}
+            {density === "two" && (
+              // A chat at work, waiting or stopped says so here, since there
+              // is no other line for it; otherwise the project, or the last
+              // reply for a chat filed under none. The marks of what it
+              // holds stand at the row's right edge, under the time, without
+              // the files' names; the count of the rest keeps them from
+              // needing a fade.
+              <div className="flex h-5 min-w-0 items-center gap-2">
+                <span className="flex min-w-0 flex-1">
+                  {isBusy(chat) || !projectWords ? (
+                    <Peek chat={chat} search={search} />
+                  ) : (
+                    projectWords
+                  )}
+                </span>
+                {hasHolds && (
+                  <HoldsInChat chatId={chat.id}>
+                    <HoldMarks
+                      appsBySlug={appsBySlug}
+                      chatId={chat.id}
+                      className="max-w-[45%] shrink-0 justify-end gap-1 overflow-hidden"
+                      holds={chat.holds}
+                    />
+                  </HoldsInChat>
+                )}
+              </div>
+            )}
           </div>
+          <RowDot chat={chat} density={density} />
         </div>
       </ContextMenuTrigger>
       <ContextMenuContent
@@ -340,6 +393,14 @@ export function ChatRow({
         <ContextMenuItem onSelect={openInNewTab}>
           <NewTabIcon className="size-4" />
           Open in New Tab
+        </ContextMenuItem>
+        <ContextMenuItem
+          onSelect={() => {
+            openInNewWindow(chatHref(chat.id));
+          }}
+        >
+          <AppWindowIcon className="size-4" />
+          Open in New Window
         </ContextMenuItem>
         {popOut && (
           <ContextMenuItem onSelect={popOut.run}>
@@ -361,14 +422,13 @@ export function ChatRow({
         </ContextMenuItem>
         <ContextMenuSub>
           <ContextMenuSubTrigger>
-            <TagIcon className="size-4" />
+            <CardsThreeIcon className="size-4" />
             Project
           </ContextMenuSubTrigger>
           <ContextMenuSubContent className="flex w-56 flex-col p-0">
-            <MenuScrollArea className="max-h-80">
-              {projects
-                .filter((entry) => !entry.retired)
-                .map((entry) => (
+            {live.length > 0 && (
+              <MenuScrollArea className="max-h-80">
+                {live.map((entry) => (
                   <ContextMenuCheckboxItem
                     checked={chat.project === entry.id}
                     key={entry.id}
@@ -380,8 +440,14 @@ export function ChatRow({
                     <span className="truncate">{entry.name}</span>
                   </ContextMenuCheckboxItem>
                 ))}
-            </MenuScrollArea>
-            <div className="shrink-0 border-t border-border p-1">
+              </MenuScrollArea>
+            )}
+            <div
+              className={cn(
+                "shrink-0 p-1",
+                live.length > 0 && "border-t border-border",
+              )}
+            >
               <ContextMenuItem
                 onSelect={() => {
                   onNewProject();
@@ -395,6 +461,7 @@ export function ChatRow({
         </ContextMenuSub>
         <ContextMenuSeparator />
         {groups.files.map(item)}
+        <ChatCopyMenu chat={chat} menu={contextMenuComponents} />
         <ContextMenuSeparator />
         {groups.feedback.map(item)}
         <ContextMenuSeparator />
@@ -406,6 +473,54 @@ export function ChatRow({
         </ContextMenuItem>
       </ContextMenuContent>
     </ContextMenu>
+  );
+}
+
+/** Whether the chat's latest line says where it stands rather than what it last said. */
+function isBusy(chat: Chat) {
+  return (
+    chat.status === "failed" ||
+    chat.status === "limited" ||
+    chat.status === "waiting" ||
+    chat.status === "working"
+  );
+}
+
+/**
+ * The dot in the row's gutter, the rail's own: green while the chat has
+ * something not yet seen. A one-line row has no line to say where the chat
+ * stands, so there the dot says that too, pulsing green while it works and
+ * gray while it waits on the user, as the rail's Chat does.
+ */
+function RowDot({ chat, density }: { chat: Chat; density: RowDensity }) {
+  const shown =
+    density === "one" && chat.status === "waiting"
+      ? "waiting"
+      : density === "one" && chat.working
+        ? "working"
+        : chat.unread
+          ? "unread"
+          : undefined;
+  if (!shown) {
+    return null;
+  }
+  return (
+    <span className="absolute top-4.5 left-1.5 flex size-1.5">
+      <ChatMarkDot className="static size-1.5 ring-0" mark={shown} />
+    </span>
+  );
+}
+
+/** The project a chat is filed under, as its name in the project's ink. */
+export function ProjectWords({ project }: { project: Project }) {
+  return (
+    <span
+      className="max-w-32 shrink-0 truncate text-[12px] leading-5 font-medium text-(--project-tint-ink) project-tint"
+      data-slot="project-words"
+      style={projectTint(projectColor(project))}
+    >
+      {project.name}
+    </span>
   );
 }
 
@@ -483,9 +598,8 @@ function HoldsInChat({
 }) {
   const appWindow = useWindow();
   const inChat = { group: chatId, ownTab: true, show: true };
-  // A new-tab gesture asks for a tab of the window's own instead.
-  const options = (asked?: OpenOptions) =>
-    asked?.newTab ? { behind: asked.behind, newTab: true } : inChat;
+  // A new-tab or new-window gesture asks for a place of the window's own instead.
+  const options = (asked?: OpenOptions) => ownPlaceOf(asked) ?? inChat;
   return (
     <WindowContext
       value={{
@@ -533,10 +647,10 @@ export function Peek({
   /** The words searched for, marked where they turn up in the line. */
   search?: string;
 }) {
-  const isFailed = chat.state === "failed";
-  const isLimited = chat.state === "limited";
-  const isWaiting = chat.state === "waiting";
-  const isWorking = chat.state === "working";
+  const isFailed = chat.status === "failed";
+  const isLimited = chat.status === "limited";
+  const isWaiting = chat.status === "waiting";
+  const isWorking = chat.status === "working";
   if (!chat.latest && !isFailed && !isLimited && !isWaiting && !isWorking) {
     return null;
   }
@@ -640,7 +754,7 @@ function TagControl({
           title="Project"
           type="button"
         >
-          <TagIcon />
+          <CardsThreeIcon />
         </button>
       </ProjectPicker>
     </span>

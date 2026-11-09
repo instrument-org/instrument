@@ -29,7 +29,7 @@ Beyond the plan: trashing one task with the `task` command now reaches listeners
 
 ## Next, not in this plan
 
-- **Rows on the wire.** Step 2 recomputes only the moved rows but still sends the whole array, so the payload cost (2.1 MB, most of it `root`) stays until the list sends upserts and removals by chat id and the client folds them into its cache. That is a protocol change for `chat-list-query.ts` and every reader of the list, best done with the `firstAsk` change in [chat-list-payload-and-parentage.md](chat-list-payload-and-parentage.md).
+- **Rows on the wire.** Step 2 recomputes only the moved rows but still sends the whole array, so the payload cost (2.1 MB, most of it `root`) stays until the list sends upserts and removals by chat id and the client folds them into its cache. That is a protocol change for `chat-list-query.ts` and every reader of the list, taken up in [chat-list-rows-on-the-wire.md](chat-list-rows-on-the-wire.md).
 - **Transcript patches** ([incremental-live-transcript-updates.md](incremental-live-transcript-updates.md)): the feed says which record moved; the transcript still needs which message and how.
 
 ## Out of scope

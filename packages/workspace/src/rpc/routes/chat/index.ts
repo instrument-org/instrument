@@ -20,7 +20,12 @@ import { liveChatActivity } from "./activity";
 import { agentStatus } from "./agent-status";
 import { chatBackgroundProcesses } from "./background-processes";
 import { chatFiles } from "./files";
-import { chatsOfFolders, liveChatFolders, liveChatOwnFolder } from "./folders";
+import {
+  chatsOfFolders,
+  liveChatFolders,
+  liveChatFolderWithFiles,
+  liveChatOwnFolder,
+} from "./folders";
 
 /**
  * Where the user left off in a chat: the tabs its sessions drive, each with
@@ -101,7 +106,7 @@ const liveUsageSummary = base
 /**
  * What is read of one chat beside its list row: its settings (`info`), its
  * state, the folders it reaches, the files its agents name, its background processes and its spend,
- * plus the agents alive across chats. Spread into `chats`.
+ * its agents alive, plus how many are alive across chats. Spread into `chats`.
  */
 export const chatRoutes = {
   agentStatus,
@@ -112,6 +117,7 @@ export const chatRoutes = {
     ...live,
     activity: liveChatActivity,
     folders: liveChatFolders,
+    folderWithFiles: liveChatFolderWithFiles,
     ownFolder: liveChatOwnFolder,
     usageSummary: liveUsageSummary,
   },

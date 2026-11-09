@@ -19,9 +19,11 @@ export namespace SessionMessageDataPart {
     "asks",
     "folderChanges",
     "permissionAnswer",
+    "pageTakeover",
     "questionAnswer",
     "attachments",
     "backgroundProcesses",
+    "branchedFrom",
     "browserStatus",
     "contextRollover",
     "dateChange",
@@ -45,6 +47,8 @@ export namespace SessionMessageDataPart {
     "chatContext",
     "project",
     "ratingCard",
+    "requestFailure",
+    "requestNote",
     "unknown",
     "viewContext",
     "workSummary",
@@ -87,6 +91,7 @@ export namespace SessionMessageDataPart {
     asks: "event",
     attachments: "event",
     backgroundProcesses: "diff",
+    branchedFrom: "event",
     browserStatus: "state",
     chatContext: "unwritten",
     contextRollover: "event",
@@ -102,6 +107,7 @@ export namespace SessionMessageDataPart {
     messageGap: "event",
     modelChange: "diff",
     outputLimit: "event",
+    pageTakeover: "event",
     permissionAnswer: "event",
     questionAnswer: "event",
     setupChanges: "event",
@@ -113,6 +119,8 @@ export namespace SessionMessageDataPart {
     toolResultsCleared: "event",
     project: "state",
     ratingCard: "event",
+    requestFailure: "event",
+    requestNote: "event",
     unknown: "unwritten",
     viewContext: "state",
     workSummary: "event",
@@ -225,7 +233,7 @@ export namespace SessionMessageDataPart {
   >;
 
   /**
-   * The tabs of the user's chat a session holds, each by the id
+   * The tabs of the user's chat, every session's to drive, each by the id
    * `agent-browser tab` takes, with where each stands and what it costs.
    * The figures are coarse (memory to 10 MB, CPU to a whole percent and left
    * out under one, the time left to five minutes) so the picture reads the
@@ -237,7 +245,7 @@ export namespace SessionMessageDataPart {
       .array(
         z.object({
           id: z.string(),
-          reason: z.literal("tabCap"),
+          reason: z.enum(["tabCap", "turnEnd"]),
           title: z.string().optional(),
           url: z.string(),
         }),
@@ -253,7 +261,8 @@ export namespace SessionMessageDataPart {
         memoryMb: z.number().optional(),
         /** Whether the user's window draws it now. */
         onScreen: z.boolean().optional(),
-        openedBy: z.enum(["handed", "task"]),
+        /** `task` for a tab an agent of the chat opened; `handed` only in notes earlier builds wrote. */
+        openedBy: z.enum(["handed", "task"]).optional(),
         /** The other tabs its process draws too, whose cost this is as well. */
         sharedWith: z.array(z.string()).optional(),
         title: z.string().optional(),
@@ -589,6 +598,13 @@ export namespace SessionMessageDataPart {
            */
           cachedTokens: z.number().nonnegative().optional(),
           /**
+           * The questions on the chat's own cards still open as the turn
+           * ended, which the person has not answered: what the chat already
+           * asked, whatever the task's words say of it. Absent when none
+           * are, and on an overdue event.
+           */
+          chatQuestions: z.array(z.string()).optional(),
+          /**
            * How the turn ended when it ended without words, in the line the
            * task list shows for it: what it was stopped in the middle of, the
            * step limit it hit, or what the model error was. Absent when the
@@ -623,6 +639,13 @@ export namespace SessionMessageDataPart {
            * not finished.
            */
           needs: z.array(z.string()).optional(),
+          /**
+           * What the task called this turn that was refused because it is a
+           * task, by what it called (`choose`, `instrument task new`): the
+           * app's account of those calls, beside the task's own. Absent
+           * when nothing was, and on an overdue event.
+           */
+          refused: z.array(z.string()).optional(),
           /**
            * Whether sending the task on picks its turn up again: true when
            * the step limit, the output limit, a model error, or a timeout
@@ -679,7 +702,8 @@ export namespace SessionMessageDataPart {
             .array(
               z.object({
                 id: z.string(),
-                openedBy: z.enum(["handed", "task"]),
+                /** Only in events earlier builds wrote. */
+                openedBy: z.enum(["handed", "task"]).optional(),
                 url: z.string().optional(),
               }),
             )
@@ -741,11 +765,45 @@ export namespace SessionMessageDataPart {
    * fork's standing note ahead of an assignment.
    */
   export const FromChatDataPartSchema = z.object({
+    /**
+     * On an assignment, the chat's call that started the task (the `bash`
+     * part `instrument task new` ran in) and the handle it was given: the
+     * task's history runs through that call's step, which it reads with
+     * that call answered as its own start and the step's other calls as
+     * the chat's (`handOffResults`). Absent on an assignment no call
+     * started, and on one written before tasks read their start.
+     */
+    call: z
+      .object({ handle: z.string(), partId: StoreId.PartSchema })
+      .optional(),
     kind: z.enum(["assignment", "message"]),
     text: z.string().trim().min(1),
   });
 
   export type FromChatDataPart = z.output<typeof FromChatDataPartSchema>;
+
+  /**
+   * The chat a branch was copied from, and where that chat's things are:
+   * written as the branch's last message, a user message with no text, so
+   * the agent reads it as a note rather than something to answer, and the
+   * transcript draws it as one quiet line after the copied conversation.
+   * `folder` and `records` are kept by their place in the workspace like
+   * any path the app writes (`part-paths.ts`); `work` is this computer's,
+   * which is where that chat's work folder is.
+   */
+  export const BranchedFromDataPartSchema = z.object({
+    /** The chat's id, which the line links to. */
+    chat: z.string().min(1),
+    /** Its own folder under `Chats/`, when the person opens it. */
+    folder: z.string().optional(),
+    records: z.string().min(1),
+    title: z.string(),
+    work: z.string().min(1),
+  });
+
+  export type BranchedFromDataPart = z.output<
+    typeof BranchedFromDataPartSchema
+  >;
 
   /**
    * Where each app on a sign-in card the agent put up stands, as the card
@@ -851,19 +909,28 @@ export namespace SessionMessageDataPart {
   export type AppEventDataPart = z.output<typeof AppEventDataPartSchema>;
 
   /**
+   * What a permission card is about: a folder, a Mac app, or a page of the
+   * chat's own the agent waits on the person to finish something in
+   * (`instrument window wait`), which Done hands back.
+   */
+  export const PermissionOnSchema = z.enum(["app", "folder", "page"]);
+
+  export type PermissionOn = z.output<typeof PermissionOnSchema>;
+
+  /**
    * The person's answer to a card the agent's work raised: a folder that asks
-   * first, an app it may not use, or a tab of theirs it asked to work in.
-   * Like an app event, it wakes the session that ran into it, or joins its
-   * turn if it is still going. `gone` is a tab closed before the answer.
+   * first, an app it may not use, or a page it waited on them in (`allowed`
+   * is Done there, `declined` Skip). Like an app event, it wakes the session
+   * that ran into it, or joins its turn if it is still going.
    */
   export const PermissionAnswerDataPartSchema = z.object({
     /** The ask it answers, by id: a session holds one note per ask. */
     ask: z.string().optional(),
-    answer: z.enum(["allowed", "always", "declined", "gone"]),
-    kind: z.enum(["app", "folder", "tab"]),
-    /** A tab's page as the card showed it. */
+    answer: z.enum(["allowed", "always", "declined"]),
+    kind: PermissionOnSchema,
+    /** A waited-on page as it stood when answered. */
     page: z.object({ title: z.string(), url: z.string() }).optional(),
-    /** The folder's path, the app's name, or the tab's id. */
+    /** The folder's path, the app's name, or the page's tab id. */
     target: z.string(),
     /**
      * Where the yes went when it was not to Instrument's own rules: Windows'
@@ -876,6 +943,23 @@ export namespace SessionMessageDataPart {
 
   export type PermissionAnswerDataPart = z.output<
     typeof PermissionAnswerDataPartSchema
+  >;
+
+  /**
+   * The person took a page the chat was working in away from it with Take
+   * over, which stopped the chat (`taken`, a note that starts no turn), or
+   * gave it back with Continue (`returned`, which wakes the chat). The page
+   * is as it stood at that moment.
+   */
+  export const PageTakeoverDataPartSchema = z.object({
+    page: z.object({ title: z.string(), url: z.string() }),
+    stage: z.enum(["taken", "returned"]),
+    /** The chat's tab, by its id. */
+    tab: z.string(),
+  });
+
+  export type PageTakeoverDataPart = z.output<
+    typeof PageTakeoverDataPartSchema
   >;
 
   /**
@@ -998,8 +1082,8 @@ export namespace SessionMessageDataPart {
     /** The tab on screen, by its id. */
     tab: z.string().optional(),
     /**
-     * Whether that tab is the person's own, outside the chat: one the chat
-     * may ask them for (`window request`), not one it may name or hand a task.
+     * Whether that tab is the person's own, outside the chat: one it may
+     * not drive until the person adds it to a message.
      */
     theirs: z.boolean().optional(),
     /** The chat's other tabs, on screen or not. */
@@ -1122,14 +1206,14 @@ export namespace SessionMessageDataPart {
       })
       .optional(),
     page: ViewedPageSchema.optional(),
-    /** Every tab the window has open, on screen or not, for `tab` and "--tab" to name; the strip's order. */
+    /** Every tab the window has open, on screen or not, for `tab` to name; the strip's order. */
     tabs: z
       .array(
         z.object({
           /** A page's address, a file's path, or a screen's route. */
           at: z.string(),
           heldBy: TabHolderSchema.optional(),
-          /** The tab's id, which `tab` names it by and a page's tab is handed to a task by. */
+          /** The tab's id, which `tab` names it by. */
           id: z.string().optional(),
           title: z.string(),
         }),
@@ -1332,6 +1416,8 @@ export namespace SessionMessageDataPart {
         emoji: z.string().optional(),
         /** The paths of the project's folders in the chat. */
         folders: z.array(z.string()).optional(),
+        /** The project's id, which a rename of its folder keeps; absent on a part stored before it was recorded. */
+        id: z.string().optional(),
         /** The project's instructions as they stood when the message was sent. */
         instructions: z.string().optional(),
         name: z.string(),
@@ -1428,19 +1514,50 @@ export namespace SessionMessageDataPart {
 
   export type RatingCardDataPart = z.output<typeof RatingCardDataPartSchema>;
 
+  /**
+   * A request that failed while it was being built, before any reply was saved
+   * to hold its error: kept on the session's last message, for a developer, and
+   * read by no request.
+   */
+  const RequestFailureDataPartSchema = z.object({
+    /** What the failure said, as the request's assembly reported it. */
+    error: z.string(),
+  });
+
+  /**
+   * An instruction one request went out with and no other: its kind and exact
+   * text, captured where it was added to the request (`transientNote`). The
+   * model never reads this part, so the request's bytes stay what they were; it
+   * is here so a developer can see afterward what steered a step. A notice said
+   * on every request is recorded when it changes (`notesToRecord`), so a card
+   * shows the first of a run of them.
+   */
+  const RequestNoteDataPartSchema = z.object({
+    kind: z.enum(["budget", "correction", "output-limit", "rollover", "turn"]),
+    /** A budget notice's context budget status, which says when to record the next. */
+    status: z.string().optional(),
+    text: z.string(),
+  });
+
+  export type RequestNoteDataPart = z.output<typeof RequestNoteDataPartSchema>;
+
   const DataPartsSchema = z.object({
     [NameSchema.enum.actions]: ActionsDataPartSchema,
     [NameSchema.enum.appEvent]: AppEventDataPartSchema,
     [NameSchema.enum.asks]: AsksDataPartSchema,
     [NameSchema.enum.folderChanges]: FolderChangesDataPartSchema,
+    [NameSchema.enum.pageTakeover]: PageTakeoverDataPartSchema,
     [NameSchema.enum.permissionAnswer]: PermissionAnswerDataPartSchema,
     [NameSchema.enum.questionAnswer]: QuestionAnswerDataPartSchema,
     [NameSchema.enum.attachments]: FileAttachmentsDataPartSchema,
     [NameSchema.enum.backgroundProcesses]: BackgroundProcessesDataPartSchema,
+    [NameSchema.enum.branchedFrom]: BranchedFromDataPartSchema,
     [NameSchema.enum.browserStatus]: BrowserStatusDataPartSchema,
     [NameSchema.enum.chatContext]: ChatContextDataPartSchema,
     [NameSchema.enum.project]: ProjectDataPartSchema,
     [NameSchema.enum.ratingCard]: RatingCardDataPartSchema,
+    [NameSchema.enum.requestFailure]: RequestFailureDataPartSchema,
+    [NameSchema.enum.requestNote]: RequestNoteDataPartSchema,
     [NameSchema.enum.contextRollover]: ContextRolloverDataPartSchema,
     [NameSchema.enum.dateChange]: DateChangeDataPartSchema,
     [NameSchema.enum.environmentChange]: EnvironmentChangeDataPartSchema,

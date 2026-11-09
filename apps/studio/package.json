@@ -1,6 +1,6 @@
 {
   "name": "@instrument-org/studio",
-  "version": "2.0.0-beta.129",
+  "version": "2.0.0-beta.138",
   "description": "Private AI workspace on your computer",
   "repository": {
     "type": "git",
@@ -31,6 +31,7 @@
     "build:windows:dev": "pnpm run build:install-app-deps && pnpm run build:dev && electron-builder --win",
     "check:lint": "oxlint --type-aware",
     "check:types": "tsc --noEmit",
+    "dmg-background:generate": "node scripts/generate-dmg-background.ts",
     "dev": "cross-env NODE_OPTIONS=--enable-source-maps node scripts/dev-supervisor.ts dev --sourcemap",
     "fix:lint": "oxlint --type-aware --fix",
     "icons:check": "node scripts/generate-icons.ts --check",
@@ -276,7 +277,7 @@
     "@vscode/ripgrep-win32-x64": "1.18.0"
   },
   "engines": {
-    "node": ">=24.22.0"
+    "node": ">=24.22.2"
   },
   "productName": "Instrument"
 }

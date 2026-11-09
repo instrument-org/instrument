@@ -19,6 +19,16 @@ const ACTIVATING_INPUT = new Set<InputEvent["type"]>([
 ]);
 
 /**
+ * Whether an input event is the person using a tab's page, for keeping a tab
+ * an agent opened: a click, tap, key press or wheel scroll, while no agent's
+ * CDP command owns the guest (`byAgent`), whose dispatched input arrives as
+ * the same events.
+ */
+export function isPersonUse(type: InputEvent["type"], byAgent: boolean) {
+  return !byAgent && (ACTIVATING_INPUT.has(type) || type === "mouseWheel");
+}
+
+/**
  * Records a person's click, tap or key press in a guest. `byAgent` is whether
  * an agent's CDP command owns the guest right now: its dispatched input
  * reaches the guest as the same events a person's does, and counting it would

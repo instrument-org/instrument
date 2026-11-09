@@ -16,10 +16,15 @@ export const MESSAGE_KINDS = [
   "other",
 ] as const;
 
-/** Words the user will send as their own, as the agent wrote them. */
+/** Words to send to someone, as the agent wrote them. */
 export interface MessageDraft {
   body: string;
   kind: MessageKind;
+  /**
+   * Who sends it: the user, unless the agent will send it itself (typing it
+   * into a site, say), when the card only shows the words.
+   */
+  sender?: "agent";
   subject?: string;
   /** Who it goes to, as written: a name, an address, or both. */
   to?: string;
@@ -39,7 +44,7 @@ export const MESSAGE_FENCE = new RegExp(
   "gmu",
 );
 
-const FIELDS = ["message", "kind", "to", "subject", "via"] as const;
+const FIELDS = ["message", "kind", "sender", "to", "subject", "via"] as const;
 type Field = (typeof FIELDS)[number];
 
 // A header line written without front matter's rules: `to: Sam`.
@@ -68,9 +73,11 @@ export function parseMessage(source: string): MessageDraft {
   const text = source.replaceAll("\r\n", "\n").replace(/^\n+/, "");
   const { body, fields } = splitHeaders(text);
   const subject = fields.subject;
+  const sender = fields.sender?.toLowerCase() === "agent" ? "agent" : undefined;
   return {
     body: body.trim(),
     kind: kindOf(fields.message ?? fields.kind, subject),
+    ...(sender ? { sender } : {}),
     ...(subject ? { subject } : {}),
     ...(fields.to ? { to: fields.to } : {}),
     ...(fields.via ? { via: fields.via } : {}),

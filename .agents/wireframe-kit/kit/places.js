@@ -1,7 +1,8 @@
 // ---- New tab, Apps, release notes -------------------------------------------------
 // The places a window tab can stand on besides Chat, Files and Browser: the New tab page
 // (new-tab-page.tsx, the command menu's list in place), Apps (apps-home.tsx) and the
-// release notes (routes/_app/release-notes.tsx). Re-measured 2026-10-31.
+// release notes (routes/_app/release-notes.tsx). Re-measured 2026-10-31; Apps re-measured
+// 2026-11-07.
 
 /** A command row in the New tab page's list: icon, words, and the shortcut at the right. */
 const cmdRow = (icon, label, keys = "", { on = false, h = 8 } = {}) =>
@@ -28,22 +29,41 @@ const newTabPage = ({
     <p class="mt-6 text-[13px] text-muted-foreground">Press <span class="rounded bg-foreground/8 px-1 text-[11px]">⌘K</span> to search from anywhere.</p>
   </div>`;
 
-/** Apps filling the card with nothing open: the serif title and its line, the search, then Popular as two columns of rows with Connect. `connected` names rows that show Open instead. */
-const appsPlace = ({ connected = [] } = {}) => `
-  <div class="min-w-0 flex-1 overflow-hidden px-[126px] pt-14">
-    <h1 class="font-serif text-[32px] text-brand-700">Apps</h1>
-    <p class="mt-2 max-w-[570px] text-[15px] leading-[26px] text-muted-foreground">Connect the services you already use. Instrument does the setup, then works in them from your chats.</p>
-    <div class="mt-12 flex h-11 items-center gap-2.5 rounded-xl border border-border bg-card px-4 text-[15px] text-muted-foreground"><i class="ph ph-magnifying-glass text-[16px]"></i>Search apps, or name any service</div>
-    <div class="mt-8 flex items-center gap-3 text-sm text-muted-foreground">Popular<span class="h-px flex-1 bg-border"></span></div>
-    <div class="mt-4 grid grid-cols-2 gap-3">
-      ${APP_ROWS.map(
-        ([mark, name, line]) => `
-        <div class="flex h-[72px] items-center gap-3 rounded-2xl border border-border bg-card px-5">
-          ${mark}
-          <div class="min-w-0 flex-1"><div class="text-[15px] font-medium">${name}</div><div class="truncate text-[13px] text-muted-foreground">${line}</div></div>
-          <span class="flex h-8 items-center gap-1.5 rounded-lg bg-card px-2.5 text-[13px] font-medium ring-1 ring-border">${brand("instrumentglyph", "size-3.5")}${connected.includes(name) ? "Open" : "Connect"}</span>
-        </div>`,
-      ).join("")}
+/** The product's call to action (glyph-button.tsx): a white button carrying the mark and a verb, 32px with `small`. */
+const glyphButton = (label, { small = true } = {}) =>
+  `<span class="inline-flex shrink-0 items-center gap-2 rounded-lg border border-border bg-card font-medium text-foreground shadow-xs ${small ? "h-8 px-2.5 text-xs" : "h-9 px-3 text-sm"}">${brand("instrumentglyph", small ? "size-3.5" : "size-4")}${label}</span>`;
+
+/**
+ * Apps filling the card with nothing open (apps-home.tsx): the serif title and its line,
+ * Your apps as marks when there are any (`yours`: [mark, name, dot], `dot` the
+ * grey waiting dot the rail's Apps wears for a sign-in that was lost), the search, then Popular as two columns of 72px cards with
+ * each service's mark and Connect. `connected` names rows that show Open instead.
+ */
+const appsPlace = ({ connected = [], yours = [] } = {}) => `
+  <div class="min-w-0 flex-1 overflow-hidden">
+    <div class="mx-auto w-full max-w-5xl space-y-12 px-10 pt-14">
+      <header class="max-w-xl"><h1 class="font-serif text-3xl leading-tight tracking-tight text-brand-600">Apps</h1><p class="mt-3 text-[15px] leading-relaxed text-muted-foreground">Connect the services you already use. Instrument does the setup, then works in them from your chats.</p></header>
+      ${
+        yours.length
+          ? `<section><div class="-my-2 flex h-10 items-center gap-3"><h2 class="text-[13px] font-medium text-muted-foreground">Your apps</h2><span class="h-px flex-1 bg-border"></span></div><div class="mt-4 -ml-4 flex flex-wrap gap-x-2 gap-y-4">${yours
+              .map(([mark, name, dot]) => `<div class="flex w-24 flex-col items-center gap-1.5 py-2 text-center"><span class="relative grid size-16 place-items-center rounded-2xl bg-card shadow-xs">${mark}${dot ? `<span class="absolute -top-0.5 -right-1 size-2.5 rounded-full bg-foreground/70 ring-2 ring-background"></span>` : ""}</span><span class="w-full truncate text-[13px] leading-4 font-medium">${name}</span></div>`)
+              .join("")}</div></section>`
+          : ""
+      }
+      <div class="space-y-10">
+        <div class="relative flex h-11 items-center rounded-xl bg-card pl-11 text-[15px] text-muted-foreground shadow-xs"><i class="ph ph-magnifying-glass absolute left-4 text-[16px]"></i>Search apps, or name any service</div>
+        <section><div class="-my-2 flex h-10 items-center gap-3"><h2 class="text-[13px] font-medium text-muted-foreground">Popular</h2><span class="h-px flex-1 bg-border"></span></div>
+        <div class="mt-4 grid grid-cols-2 gap-3">
+          ${APP_ROWS.map(
+            ([mark, name, line]) => `
+            <div class="flex h-18 items-center gap-3 rounded-2xl bg-card px-5 shadow-xs">
+              ${mark}
+              <div class="min-w-0 flex-1"><div class="truncate text-[15px] leading-snug font-medium">${name}</div><div class="truncate text-[13px] leading-snug text-muted-foreground">${line}</div></div>
+              ${connected.includes(name) ? button("Open", { size: "sm", tone: "outline" }) : glyphButton("Connect")}
+            </div>`,
+          ).join("")}
+        </div></section>
+      </div>
     </div>
   </div>`;
 

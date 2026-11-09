@@ -1,27 +1,14 @@
 import { type BrowserTargetId } from "../../types";
-import { getChatState } from "../chat-record";
-import { chatDir, sessionOfChat } from "../record-folders";
-import { getWorkspaceActorRef } from "../workspace-actor-ref";
-import { isWorking } from "./activity";
+import { workingIn } from "./chat-tabs";
 
 /**
- * Whether an agent with a turn running right now drives the tab: the task a
- * chat handed it to, or the chat's own conversation for a tab no task
- * drives. Only chats with a running session are read, so it costs nothing
- * while every agent is idle.
+ * Whether an agent with a turn running right now has driven the tab: any
+ * session of any chat, since every session of a chat drives every tab of it.
+ * Only tabs an agent sent commands are read, so it costs nothing while none
+ * has.
  */
-export async function isDrivenByWorkingAgent(
+export function isDrivenByWorkingAgent(
   targetId: BrowserTargetId,
 ): Promise<boolean> {
-  const { sessionRefsByChatId } = getWorkspaceActorRef().getSnapshot().context;
-  for (const chatId of sessionRefsByChatId.keys()) {
-    const held = (await getChatState(chatDir(chatId))).browserTabs.find(
-      (tab) => tab.id === targetId,
-    );
-    if (held) {
-      const driver = held.driver ?? sessionOfChat(chatId);
-      return driver !== undefined && isWorking(chatId, driver);
-    }
-  }
-  return false;
+  return Promise.resolve(workingIn(targetId).length > 0);
 }

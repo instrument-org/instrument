@@ -7,7 +7,11 @@ import path from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { setChatModel } from "../../lib/chat-settings";
-import { recordAsk, recordQuestion } from "../../lib/chat/asks";
+import {
+  recordAsk,
+  recordQuestion,
+  releaseQuestions,
+} from "../../lib/chat/asks";
 import { openAsks } from "../../lib/chat/open-asks";
 import { ChatReads } from "../../lib/chat-reads";
 import { ChatWrites } from "../../lib/chat-writes";
@@ -43,7 +47,11 @@ vi.mock(import("@instrument-org/ai-gateway"), async (importOriginal) => ({
 
 const sent: {
   type: string;
-  value: { message?: SessionMessage.UserWithParts; sessionId?: string };
+  value: {
+    id?: string;
+    message?: SessionMessage.UserWithParts;
+    sessionId?: string;
+  };
 }[] = [];
 
 const context = () => ({
@@ -130,7 +138,11 @@ async function chatAsking() {
   }
   // What the call's own run records: the question, named by its call.
   await recordQuestion({ chatId, messageId, partId, sessionId }, [
-    "Which one?",
+    {
+      choices: [{ label: "Tea" }, { label: "Coffee" }],
+      header: "Pick",
+      question: "Which one?",
+    },
   ]);
   return { askId: partId, chatId, messageId, partId, sessionId };
 }
@@ -157,14 +169,18 @@ it("closes the question, writes the answer onto the call, and wakes the chat wit
   expect(part).toMatchObject({
     output: { answer: { replies: [{ picked: ["Tea"] }] }, asked: true },
   });
-  expect(
-    sent
-      .filter((event) => event.type === "addMessage")
-      .map((event) => ({
-        parts: event.value.message?.parts.map((woken) => woken.type),
-        sessionId: event.value.sessionId,
-      })),
-  ).toEqual([{ parts: ["data-questionAnswer"], sessionId }]);
+  await vi.waitFor(() => {
+    expect(
+      sent
+        .filter(
+          (event) => event.type === "addMessage" && event.value.id === chatId,
+        )
+        .map((event) => ({
+          parts: event.value.message?.parts.map((woken) => woken.type),
+          sessionId: event.value.sessionId,
+        })),
+    ).toEqual([{ parts: ["data-questionAnswer"], sessionId }]);
+  });
 });
 
 it("refuses a second answer to the same question", async () => {
@@ -228,7 +244,11 @@ it("closes a question the person wrote past, waking nobody, so no launch drives 
     outcome: { kind: "left" },
     woken: true,
   });
-  expect(sent.filter((event) => event.type === "addMessage")).toEqual([]);
+  expect(
+    sent.filter(
+      (event) => event.type === "addMessage" && event.value.id === chatId,
+    ),
+  ).toEqual([]);
 });
 
 it("keeps the question open past a note no one typed", async () => {
@@ -252,6 +272,253 @@ it("closes the chat's questions when the person stops it", async () => {
   )._unsafeUnwrap();
 
   expect(await openAsks(chatId)).toEqual([]);
+});
+
+/** A `choose` call on its own reply in the chat's session, asked during the turn and held. */
+async function asksInTurn(
+  chatId: ChatId,
+  sessionId: StoreId.Session,
+  question: string,
+  messageId = StoreId.newMessageId(),
+) {
+  const partId = StoreId.newPartId();
+  const card = [
+    { choices: [{ label: "Yes" }, { label: "No" }], header: "", question },
+  ];
+  (
+    await ChatWrites.saveMessageWithParts(
+      {
+        id: messageId,
+        metadata: {
+          createdAt: new Date(),
+          finishedAt: new Date(),
+          finishReason: "tool-calls",
+          modelId: "glm-5.3-flash",
+          providerId: "openai-compatible",
+          sessionId,
+        },
+        parts: [
+          {
+            input: { questions: card },
+            metadata: {
+              createdAt: new Date(),
+              endedAt: new Date(),
+              id: partId,
+              messageId,
+              sessionId,
+            },
+            output: { asked: true },
+            state: "output-available",
+            toolCallId: `call_${partId}`,
+            type: "tool-choose",
+          },
+        ],
+        role: "assistant",
+      },
+      chatId,
+    )
+  )._unsafeUnwrap();
+  await recordQuestion({ chatId, messageId, partId, sessionId }, card, {
+    held: true,
+  });
+  return partId;
+}
+
+/** The chat's open questions as the dock reads them. */
+async function questionsOpen(chatId: ChatId) {
+  return (await openAsks(chatId)).flatMap((ask) =>
+    ask.kind === "question"
+      ? [
+          {
+            answerable: ask.answerable,
+            held: ask.held ?? false,
+            question: ask.question,
+          },
+        ]
+      : [],
+  );
+}
+
+/** The notes the chat's session holds for answered questions, by what they answered. */
+async function answerNotes(chatId: ChatId, sessionId: StoreId.Session) {
+  return (await ChatReads.history({ chatId, sessionId }))
+    ._unsafeUnwrap()
+    .flatMap((message) =>
+      message.role === "user"
+        ? message.parts.flatMap((part) =>
+            part.type === "data-questionAnswer" ? [part.data.questions] : [],
+          )
+        : [],
+    );
+}
+
+describe("questions asked in one turn", () => {
+  it("holds them unanswerable while the turn runs, then puts them up in the order asked", async () => {
+    const { chatId, sessionId } = await chatAsking();
+    const first = await asksInTurn(chatId, sessionId, "Which planet?");
+    await asksInTurn(chatId, sessionId, "Which moon?");
+
+    expect(await questionsOpen(chatId)).toMatchInlineSnapshot(`
+      [
+        {
+          "answerable": false,
+          "held": true,
+          "question": "Which planet?",
+        },
+        {
+          "answerable": false,
+          "held": true,
+          "question": "Which moon?",
+        },
+      ]
+    `);
+    await expect(
+      call(
+        chats.answerQuestion,
+        {
+          answer: { replies: [{ picked: ["Yes"] }] },
+          askId: first,
+          id: chatId,
+        },
+        { context: context() },
+      ),
+    ).rejects.toThrow("That question was already answered.");
+
+    await releaseQuestions(chatId, sessionId);
+
+    expect(await questionsOpen(chatId)).toMatchInlineSnapshot(`
+      [
+        {
+          "answerable": true,
+          "held": false,
+          "question": "Which planet?",
+        },
+        {
+          "answerable": true,
+          "held": false,
+          "question": "Which moon?",
+        },
+      ]
+    `);
+  });
+
+  it("wakes the chat once, when the last of them is answered", async () => {
+    const { chatId, sessionId } = await chatAsking();
+    const first = await asksInTurn(chatId, sessionId, "Which planet?");
+    const second = await asksInTurn(chatId, sessionId, "Which moon?");
+    await releaseQuestions(chatId, sessionId);
+    const answer = (askId: string, picked: string) =>
+      call(
+        chats.answerQuestion,
+        { answer: { replies: [{ picked: [picked] }] }, askId, id: chatId },
+        { context: context() },
+      );
+
+    await answer(first, "Yes");
+    expect(await answerNotes(chatId, sessionId)).toEqual([["Which planet?"]]);
+    expect(
+      sent.filter(
+        (event) => event.type === "addMessage" && event.value.id === chatId,
+      ),
+    ).toEqual([]);
+
+    await answer(second, "No");
+    await vi.waitFor(() => {
+      expect(
+        sent
+          .filter(
+            (event) => event.type === "addMessage" && event.value.id === chatId,
+          )
+          .map((event) =>
+            event.value.message?.parts.flatMap((part) =>
+              part.type === "data-questionAnswer" ? part.data.questions : [],
+            ),
+          ),
+      ).toEqual([["Which moon?"]]);
+    });
+    expect(await answerNotes(chatId, sessionId)).toEqual([
+      ["Which planet?"],
+      ["Which moon?"],
+    ]);
+    expect(await questionsOpen(chatId)).toEqual([]);
+    // Driven again, as every record change does: nothing more wakes it.
+    await driveAsks(chatId, context().workspaceRef);
+    expect(
+      sent.filter(
+        (event) => event.type === "addMessage" && event.value.id === chatId,
+      ),
+    ).toHaveLength(1);
+  });
+
+  it("takes no answer to a held question until its turn is over", async () => {
+    const { chatId, sessionId } = await chatAsking();
+    const askId = await asksInTurn(chatId, sessionId, "Which planet?");
+    // As a device that does not know the question is held would write it.
+    await writingChatRecords()?.answer(chatId, sessionId, {
+      ask: askId,
+      given: { answer: { replies: [{ picked: ["Yes"] }] }, kind: "question" },
+    });
+
+    await driveAsks(chatId, context().workspaceRef);
+    expect(await questionsOpen(chatId)).toEqual([
+      { answerable: false, held: true, question: "Which planet?" },
+    ]);
+
+    await releaseQuestions(chatId, sessionId);
+    await driveAsks(chatId, context().workspaceRef);
+    expect(await questionsOpen(chatId)).toEqual([]);
+    await vi.waitFor(async () => {
+      expect(await answerNotes(chatId, sessionId)).toEqual([["Which planet?"]]);
+    });
+  });
+
+  it("closes the whole set when the person writes instead", async () => {
+    const { chatId, sessionId } = await chatAsking();
+    const first = await asksInTurn(chatId, sessionId, "Which planet?");
+    await asksInTurn(chatId, sessionId, "Which moon?");
+    await releaseQuestions(chatId, sessionId);
+    await call(
+      chats.answerQuestion,
+      { answer: { replies: [{ picked: ["Yes"] }] }, askId: first, id: chatId },
+      { context: context() },
+    );
+
+    await writeMessage(chatId, sessionId, "user", [
+      { state: "done", text: "Never mind, Saturn.", type: "text" },
+    ]);
+    await driveAsks(chatId, context().workspaceRef);
+
+    expect(await questionsOpen(chatId)).toEqual([]);
+    expect(
+      sent.filter(
+        (event) => event.type === "addMessage" && event.value.id === chatId,
+      ),
+    ).toEqual([]);
+  });
+
+  it("closes what an earlier turn left open when a later one asks", async () => {
+    const { chatId, sessionId } = await chatAsking();
+    await asksInTurn(chatId, sessionId, "Which planet?");
+    await releaseQuestions(chatId, sessionId);
+    await writeMessage(chatId, sessionId, "user", [
+      {
+        data: { answer: "allowed", kind: "folder", target: "/Users/me/Pantry" },
+        type: "data-permissionAnswer",
+      },
+    ]);
+
+    await asksInTurn(chatId, sessionId, "Which planet, again?");
+
+    expect(await questionsOpen(chatId)).toMatchInlineSnapshot(`
+      [
+        {
+          "answerable": false,
+          "held": true,
+          "question": "Which planet, again?",
+        },
+      ]
+    `);
+  });
 });
 
 // Every device writes its own logs into one synced folder; here each is a
@@ -313,7 +580,7 @@ describe("from another computer", () => {
 
   it("shows a question answered elsewhere as answered, waiting for the computer that asked", async () => {
     const { askId, chatId } = await chatAsking();
-    const phone = await computer("Jeremy's iPhone");
+    const phone = await computer("Alex's iPhone");
     const laptop = await computer("MacBook Air");
 
     await on(phone, chatId, () => answer(chatId, askId, "Tea"));
@@ -323,7 +590,7 @@ describe("from another computer", () => {
         answerable: false,
         answered: {
           answer: { replies: [{ picked: ["Tea"] }] },
-          by: "Jeremy's iPhone",
+          by: "Alex's iPhone",
           taken: false,
         },
         here: false,
@@ -333,7 +600,11 @@ describe("from another computer", () => {
     await expect(
       on(laptop, chatId, () => answer(chatId, askId, "Coffee")),
     ).rejects.toThrow("That question was already answered.");
-    expect(sent.filter((event) => event.type === "addMessage")).toEqual([]);
+    expect(
+      sent.filter(
+        (event) => event.type === "addMessage" && event.value.id === chatId,
+      ),
+    ).toEqual([]);
   });
 
   // Nothing is written when an answer goes stale, so the view reads again
@@ -347,7 +618,7 @@ describe("from another computer", () => {
     const home = owner();
     try {
       const { askId, chatId } = await chatAsking();
-      const phone = await computer("Jeremy's iPhone");
+      const phone = await computer("Alex's iPhone");
       const laptop = await computer("MacBook Air");
       await on(phone, chatId, () => answer(chatId, askId, "Tea"));
       await laptop.catchUp(chatId);
@@ -368,7 +639,7 @@ describe("from another computer", () => {
       expect((await views.next()).value).toEqual([
         expect.objectContaining({
           answerable: true,
-          away: { by: "Jeremy's iPhone" },
+          away: { by: "Alex's iPhone" },
         }),
       ]);
       await views.return(undefined);
@@ -381,7 +652,7 @@ describe("from another computer", () => {
 
   it("starts one turn for two answers given on two devices at once, with the first", async () => {
     const { askId, chatId, messageId, partId, sessionId } = await chatAsking();
-    const phone = await computer("Jeremy's iPhone");
+    const phone = await computer("Alex's iPhone");
     const laptop = await computer("MacBook Air");
     // Neither had seen the other's answer when it gave its own.
     await Promise.all([phone.catchUp(chatId), laptop.catchUp(chatId)]);
@@ -403,14 +674,21 @@ describe("from another computer", () => {
       driveAsks(chatId, context().workspaceRef),
     ]);
 
-    const woken = sent
-      .filter((event) => event.type === "addMessage")
-      .flatMap((event) =>
-        (event.value.message?.parts ?? []).flatMap((part) =>
-          part.type === "data-questionAnswer" ? [part.data.answer.replies] : [],
-        ),
-      );
-    expect(woken).toEqual([[{ picked: ["Tea"] }]]);
+    const woken = () =>
+      sent
+        .filter(
+          (event) => event.type === "addMessage" && event.value.id === chatId,
+        )
+        .flatMap((event) =>
+          (event.value.message?.parts ?? []).flatMap((part) =>
+            part.type === "data-questionAnswer"
+              ? [part.data.answer.replies]
+              : [],
+          ),
+        );
+    await vi.waitFor(() => {
+      expect(woken()).toEqual([[{ picked: ["Tea"] }]]);
+    });
     const part = (
       await ChatReads.transcript({
         chatId,

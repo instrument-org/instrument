@@ -20,8 +20,10 @@ export const BROWSER_SESSIONS_CLOSE_MS = 3000;
  * process soon after asking, so it skips approval, even one already on screen,
  * and goes straight to teardown.
  *
- * Teardown closes the agent browser sessions (bounded on its own), then tears
- * down the browser views and stops the services. One deadline over everything
+ * Teardown first has every window finish what it put off (a deletion still
+ * offering Undo, typing not yet in its draft), since `app.exit` unloads no
+ * page, then closes the agent browser sessions (each bounded on its own),
+ * then tears down the browser views and stops the services. One deadline over everything
  * means a step that hangs still ends in an exit.
  */
 export const quitMachine = setup({
@@ -29,6 +31,8 @@ export const quitMachine = setup({
     /** Brings a window back to the front after a canceled quit. */
     reveal: () => {},
     announce: (_, _params: { stage: string }) => {},
+    /** Ends the process off the main thread if teardown outlives its deadline. */
+    armWatchdog: () => {},
     reportBrowserSessionsTimeout: () => {},
     teardownBrowserViews: () => {},
     exit: () => {},
@@ -37,6 +41,8 @@ export const quitMachine = setup({
     /** The running-agents prompt. True to go ahead; a throw also goes ahead. */
     approve: fromPromise<boolean>(() => Promise.resolve(true)),
     closeBrowserSessions: fromPromise<void>(() => Promise.resolve()),
+    /** Every window's put-off writes landed in main; bounded by its own deadline. */
+    finishWindows: fromPromise<void>(() => Promise.resolve()),
     stopServices: fromPromise<void>(() => Promise.resolve()),
   },
   delays: {
@@ -119,7 +125,10 @@ export const quitMachine = setup({
       // stage announces itself: a quit that never finishes is otherwise
       // indistinguishable from one that did, and the log is all there is.
       after: { teardown: "exiting" },
-      entry: { params: { stage: "started" }, type: "announce" },
+      entry: [
+        { params: { stage: "started" }, type: "announce" },
+        "armWatchdog",
+      ],
       onDone: {
         actions: {
           params: { stage: "services settled" },
@@ -127,8 +136,15 @@ export const quitMachine = setup({
         },
         target: "exiting",
       },
-      initial: "closingBrowserSessions",
+      initial: "finishingWindows",
       states: {
+        finishingWindows: {
+          invoke: {
+            onDone: "closingBrowserSessions",
+            onError: "closingBrowserSessions",
+            src: "finishWindows",
+          },
+        },
         closingBrowserSessions: {
           after: {
             browserSessionsClose: {

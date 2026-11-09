@@ -5,12 +5,14 @@
  * What it stands in for is the window's bookkeeping, not its pages. A tab id
  * the conversation reads in the note resolves here, `instrument window show <url>` makes a
  * new id and puts it in front, `close` and `show --in` act on the list, and a page tab reads as a live target
- * so `instrument task new --tab` accepts it. A task handed one still browses in a Chrome
+ * so the bridge lists it as the chat's. A task still browses in a Chrome
  * of its own (the run has no guests), so a case scores what the conversation
  * decided, not what a task saw in the tab. Given a shared Chrome
  * (`sharedBrowser`), each page tab is a real page there instead, which every
  * session of the chat reaches through the bridge and `read` reads.
  */
+import { pageTextOf, READ_PAGE_TEXT } from "@instrument-org/shared/page-text";
+
 import { publisher } from "../../src/rpc/publisher";
 import { AbsolutePathSchema } from "../../src/schemas/paths";
 import { type SessionMessageDataPart } from "../../src/schemas/session/message-data-part";
@@ -35,8 +37,6 @@ export interface StandInTab {
 
 export function createStandInWindow(chrome?: SharedChrome) {
   const tabs = new Map<string, StandInTab>();
-  /** The user's own tabs outside the chat that a note named, which `window request` asks for and a Move takes into `tabs`. */
-  const theirs = new Map<string, StandInTab>();
   /** The tab in front: the last one opened, shown or moved in. */
   let front: string | undefined;
 
@@ -74,31 +74,6 @@ export function createStandInWindow(chrome?: SharedChrome) {
             : { id: tab.id, kind: "screen" as const }),
         })),
       };
-    }
-    if (action.kind === "adopt") {
-      tabs.set(action.tabId, {
-        at: action.url,
-        id: action.tabId,
-        kind: "page",
-      });
-      return { tabId: action.tabId };
-    }
-    if (action.kind === "theirs" || action.kind === "take") {
-      const own = theirs.get(action.tabId);
-      if (!own) {
-        return {
-          error: `no tab ${action.tabId} of the user's is open outside a chat.`,
-        };
-      }
-      if (action.kind === "theirs") {
-        return {
-          tabs: [{ id: own.id, kind: "page", title: "", url: own.at }],
-        };
-      }
-      theirs.delete(own.id);
-      tabs.set(own.id, own);
-      front = own.id;
-      return { tabId: own.id };
     }
     const tab = tabs.get(action.tabId);
     if (!tab) {
@@ -148,8 +123,8 @@ export function createStandInWindow(chrome?: SharedChrome) {
         return { error: `no tab ${action.tabId} is open in this chat.` };
       }
       await chrome.ensure(tab.id, tab.at);
-      const text = await chrome.evaluate(tab.id, "document.body.innerText");
-      return { tabId: tab.id, text: typeof text === "string" ? text : "" };
+      const text = pageTextOf(await chrome.evaluate(tab.id, READ_PAGE_TEXT));
+      return { tabId: tab.id, text: text ?? "" };
     }
     const answer = act(action);
     const { tabId } = answer;
@@ -188,7 +163,7 @@ export function createStandInWindow(chrome?: SharedChrome) {
   };
 
   return {
-    /** The browser config with the window's page tabs live, for `--tab` to accept. */
+    /** The browser config with the window's page tabs live. */
     browser(base: BrowserConfig): BrowserConfig {
       return {
         ...base,
@@ -240,10 +215,6 @@ export function createStandInWindow(chrome?: SharedChrome) {
     },
     /** Opens the tabs a case's note names, under the ids the note gives them. */
     seed(viewing: SessionMessageDataPart.ViewContextDataPart | undefined) {
-      const shown = viewing?.page;
-      if (shown?.tab !== undefined && shown.theirs === true) {
-        theirs.set(shown.tab, { at: shown.url, id: shown.tab, kind: "page" });
-      }
       for (const tab of [
         ...(viewing?.tabs ?? []),
         ...(viewing?.page?.tabs ?? []).map((page) => ({

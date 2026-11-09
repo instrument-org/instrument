@@ -101,6 +101,14 @@ body {
   :where(code, kbd, samp, pre, .font-mono) {
     font-variant-ligatures: none;
   }
+
+  /* A page runs in a process of its own, which takes a pointer that crosses it,
+     and the release with it. Nothing else in the window answers to a pointer that
+     is carrying a tab either, as hovering. */
+  [data-tab-held] :is(webview, iframe),
+  [data-tab-held] body {
+    pointer-events: none;
+  }
 }
 
 /* =========================
@@ -971,23 +979,17 @@ body {
   }
 }
 
-/* Clears a tab's title out from under a close control drawn on top of it.
- *
- * Fully transparent across the control rather than merely on the way there: a
- * gradient that only reaches transparent at the very edge leaves the name at
- * roughly four fifths opacity under the control's left half, which reads as
- * text showing through a button. The stops are measured from the title's own
- * box, whose right edge sits 0.75rem short of where the control begins.
- *
- * Applied only while the control is on screen, because a tab is the width of
- * its name: with nothing drawn over it, the same fade would eat the last few
- * letters of a name that fits perfectly well. */
+/* Ends a tab's title before the close control drawn over its end, whose hover
+ * background would otherwise sit on the last faint letters. The stops are
+ * measured from the title's own box, where the control begins 1rem in, and the
+ * name is gone 0.125rem before that. The same with or without the control on
+ * screen, so that a name stays put as the pointer comes and goes. */
 @utility tab-title-fade {
   --tab-title-fade: linear-gradient(
     to right,
     #000 0%,
-    #000 calc(100% - 1.5rem),
-    transparent calc(100% - 0.75rem),
+    #000 calc(100% - 2rem),
+    transparent calc(100% - 1.125rem),
     transparent 100%
   );
   mask-image: var(--tab-title-fade);
@@ -1127,6 +1129,12 @@ body {
 [data-slot="portal-container"],
 [data-slot="portal-container"] * {
   -webkit-app-region: no-drag;
+}
+
+/* A tooltip's positioning box takes no pointer, so the content alone decides
+ * whether the pointer reaches what the tooltip covers (`ui/tooltip.tsx`). */
+[data-radix-popper-content-wrapper]:has(> [data-slot="tooltip-content"]) {
+  pointer-events: none;
 }
 
 /* Adhere to standard macOS cursor behavior. */
@@ -1304,6 +1312,41 @@ a.cursor-pointer {
   to {
     opacity: 1;
     translate: 0 0;
+  }
+}
+
+/* The list's project on the new chat beside it, rising in as the list steps
+ * into the project; see `ProjectRoom`. */
+.project-room-in {
+  animation: project-room-in 360ms cubic-bezier(0.2, 0.8, 0.2, 1) both;
+  @media (prefers-reduced-motion: reduce) {
+    animation: none;
+  }
+}
+
+@keyframes project-room-in {
+  from {
+    opacity: 0;
+    scale: 0.97;
+    translate: 0 8px;
+  }
+}
+
+/* The search inside a project, opening out of its glass at the head's end. */
+.head-field-in {
+  animation: head-field-in 220ms cubic-bezier(0.2, 0.8, 0.2, 1) backwards;
+  @media (prefers-reduced-motion: reduce) {
+    animation: none;
+  }
+}
+
+@keyframes head-field-in {
+  from {
+    clip-path: inset(0 0 0 70% round 0.5rem);
+    opacity: 0;
+  }
+  to {
+    clip-path: inset(0 round 0.5rem);
   }
 }
 
@@ -1850,6 +1893,42 @@ a.cursor-pointer {
     .shimmer-sweep,
     .border-sweep {
       display: none;
+    }
+  }
+
+  /* A page the agent is using, or waiting on the person in (`PageAgentOverlay`):
+   * a soft glow inside its edges. The shadow is painted once; only the layer's
+   * opacity breathes, so the GPU fades it and nothing repaints. */
+  .page-glow {
+    position: absolute;
+    inset: 0;
+    pointer-events: none;
+    box-shadow:
+      inset 0 0 0 2px var(--page-glow-edge),
+      inset 0 0 80px 12px var(--page-glow-color);
+    will-change: opacity;
+    animation: page-glow-breathe 2.4s ease-in-out infinite alternate;
+    --page-glow-color: color-mix(in oklab, var(--brand-500) 60%, transparent);
+    --page-glow-edge: color-mix(in oklab, var(--brand-500) 70%, transparent);
+  }
+
+  .page-glow[data-tone="waiting"] {
+    --page-glow-color: color-mix(in oklab, var(--warning-500) 45%, transparent);
+    --page-glow-edge: color-mix(in oklab, var(--warning-500) 60%, transparent);
+  }
+
+  @keyframes page-glow-breathe {
+    from {
+      opacity: 0.75;
+    }
+    to {
+      opacity: 1;
+    }
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .page-glow {
+      animation: none;
     }
   }
 

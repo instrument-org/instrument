@@ -5,7 +5,7 @@ import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
 import { TASKS_DIR_NAME } from "../constants";
 import { type ChatId, ChatIdSchema } from "../schemas/chat-id";
-import { type HeldTab } from "../schemas/chat-state";
+import { type OpenedTab } from "../schemas/chat-state";
 import { StoreId } from "../schemas/store-id";
 import { BrowserTargetIdSchema } from "../types";
 import { createMockChatConfigForDir } from "../test/helpers/mock-chat-config";
@@ -39,13 +39,9 @@ async function writeJson(file: string, record: unknown): Promise<void> {
   await fs.writeFile(file, JSON.stringify(record, null, 2), "utf8");
 }
 
-/** A tab the chat holds, as the state file keeps one. */
-function heldTab(): HeldTab {
-  return {
-    id: BrowserTargetIdSchema.parse(StoreId.newTabId()),
-    inWindow: true,
-    openedBy: "handed",
-  };
+/** A tab an agent of the chat opened, as the state file keeps one. */
+function heldTab(): OpenedTab {
+  return { id: BrowserTargetIdSchema.parse(StoreId.newTabId()) };
 }
 
 const tabA = heldTab();
@@ -62,16 +58,16 @@ async function readJson(file: string): Promise<unknown> {
 describe("this device's state", () => {
   it("answers empty for a chat with no state file", async () => {
     await expect(getChatState(chatDir(chatId))).resolves.toEqual({
-      browserTabs: [],
       closedTabs: [],
+      openedTabs: [],
     });
   });
 
   it("is written to this device's own file", async () => {
-    await setChatState(chatDir(chatId), { browserTabs: [tabA] });
+    await setChatState(chatDir(chatId), { openedTabs: [tabA] });
 
     expect(await readJson(statePath())).toEqual({
-      browserTabs: [tabA],
+      openedTabs: [tabA],
     });
   });
 
@@ -80,7 +76,7 @@ describe("this device's state", () => {
   it("never clobbers another device's state, nor reads it", async () => {
     const other = newDeviceId();
     const theirs = {
-      browserTabs: [],
+      openedTabs: [],
       closedTabs: [
         {
           id: "tab_01M57YZVESD48Z1K45RY4CKY04",
@@ -91,47 +87,47 @@ describe("this device's state", () => {
     };
     await writeJson(statePath(other), theirs);
 
-    await setChatState(chatDir(chatId), { browserTabs: [tabB] });
-    await writeJson(statePath(other), { ...theirs, browserTabs: [tabC] });
-    await setChatState(chatDir(chatId), { browserTabs: [tabB, tabD] });
+    await setChatState(chatDir(chatId), { openedTabs: [tabB] });
+    await writeJson(statePath(other), { ...theirs, openedTabs: [tabC] });
+    await setChatState(chatDir(chatId), { openedTabs: [tabB, tabD] });
 
     expect(await getChatState(chatDir(chatId))).toEqual({
-      browserTabs: [tabB, tabD],
+      openedTabs: [tabB, tabD],
       closedTabs: [],
     });
     expect(await readJson(statePath(other))).toEqual({
       ...theirs,
-      browserTabs: [tabC],
+      openedTabs: [tabC],
     });
   });
 
   it("answers empty for a state it cannot read", async () => {
-    await writeJson(statePath(), { browserTabs: "not a list at all" });
+    await writeJson(statePath(), { openedTabs: "not a list at all" });
 
     expect(await getChatState(chatDir(chatId))).toEqual({
-      browserTabs: [],
       closedTabs: [],
+      openedTabs: [],
     });
   });
 
   it("carries forward a field it cannot read", async () => {
     await writeJson(statePath(), { futureNested: "keep me" });
 
-    await setChatState(chatDir(chatId), { browserTabs: [tabE] });
+    await setChatState(chatDir(chatId), { openedTabs: [tabE] });
 
     expect(await readJson(statePath())).toEqual({
-      browserTabs: [tabE],
+      openedTabs: [tabE],
       futureNested: "keep me",
     });
   });
 
   it("refuses to replace a state file it could not read", async () => {
-    await fs.writeFile(statePath(), '{ "browserTabs": [', "utf8");
+    await fs.writeFile(statePath(), '{ "openedTabs": [', "utf8");
 
     await expect(
-      setChatState(chatDir(chatId), { browserTabs: [tabF] }),
+      setChatState(chatDir(chatId), { openedTabs: [tabF] }),
     ).rejects.toThrow(/unreadable/);
 
-    expect(await fs.readFile(statePath(), "utf8")).toBe('{ "browserTabs": [');
+    expect(await fs.readFile(statePath(), "utf8")).toBe('{ "openedTabs": [');
   });
 });

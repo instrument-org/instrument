@@ -1,5 +1,6 @@
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 
+import { publisher } from "../../rpc/publisher";
 import { serveRegisteredClient } from "../../test/helpers/serve-registered-client";
 import {
   appCatalogEntriesHash,
@@ -19,7 +20,7 @@ describe("catalogEntryAt", () => {
   it.each([
     ["https://mail.google.com", "gmail"],
     ["https://mail.google.com/mail/u/1/", "gmail"],
-    ["https://mail.google.com/mail/?authuser=jeremy%40example.com", "gmail"],
+    ["https://mail.google.com/mail/?authuser=name%40example.com", "gmail"],
     ["https://calendar.google.com/calendar/r", "google-calendar"],
     ["https://docs.google.com/document/d/abc/edit", "google-docs"],
     ["https://docs.google.com/spreadsheets/d/abc/edit", "google-sheets"],
@@ -371,6 +372,21 @@ describe("applyServedAppCatalog", () => {
       }),
     ).toBe("used");
     expect(getAppCatalog().map((entry) => entry.tagline)).toEqual(["Served."]);
+  });
+
+  it("tells readers of a served copy only when its entries differ from the ones in use", () => {
+    const published = vi.spyOn(publisher, "publish");
+    const document = {
+      entries: [{ ...slack, tagline: "Served." }],
+      entriesHash: "",
+      revision: later,
+    };
+    expect(applyServedAppCatalog(document)).toBe("used");
+    expect(applyServedAppCatalog(document)).toBe("used");
+    expect(
+      published.mock.calls.filter(([topic]) => topic === "app.catalogChanged"),
+    ).toHaveLength(1);
+    published.mockRestore();
   });
 
   it("refuses one older than the built-in, which would undo it", () => {

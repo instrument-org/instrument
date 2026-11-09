@@ -75,7 +75,7 @@ describe("chats.tasks", () => {
 
     expect(await call(chats.tasks, { id: pantry }, { context })).toEqual([
       expect.objectContaining({
-        standing: {
+        status: {
           kind: "waiting",
           line: "Waiting for your OK to use “Pantry”",
         },
@@ -110,6 +110,82 @@ describe("chats.live.tasks", () => {
     expect(
       next.done ? [] : next.value.map((task) => [task.handle, task.title]),
     ).toEqual([["t1", "Child"]]);
+    controller.abort();
+    await live.return?.(undefined).catch(() => undefined);
+  });
+});
+
+describe("chats.live.taskTitles", () => {
+  it("answers again when a task starts or is renamed", async () => {
+    const context: WorkspaceRPCContext = {
+      workspaceConfig: getWorkspaceConfig(),
+      workspaceRef: undefined as never,
+    };
+    const pantry = await chatFor(StoreId.newSessionId());
+    const controller = new AbortController();
+    const live = await call(
+      chats.live.taskTitles,
+      { id: pantry },
+      { context, signal: controller.signal },
+    );
+    const titles = (
+      next: IteratorResult<{ id: StoreId.Session; title: string }[]>,
+    ) => (next.done ? undefined : next.value.map((task) => task.title));
+    expect(titles(await live.next())).toEqual([]);
+
+    const task = await chatTaskFor(pantry, { title: "Count the jars" });
+    expect(titles(await live.next())).toEqual(["Count the jars"]);
+
+    const now = new Date();
+    await ChatWrites.saveSession(
+      { createdAt: now, id: task, title: "Count the tins", updatedAt: now },
+      pantry,
+    );
+    expect(titles(await live.next())).toEqual(["Count the tins"]);
+    controller.abort();
+    await live.return?.(undefined).catch(() => undefined);
+  });
+});
+
+describe("chats.live.activity", () => {
+  it("answers with the one chat's live agents and none of another's", async () => {
+    const own = StoreId.newSessionId();
+    const sessionRef = (sessionId: StoreId.Session, tags: string[]) => ({
+      getSnapshot: () => ({ context: { sessionId }, tags: new Set(tags) }),
+    });
+    const context: WorkspaceRPCContext = {
+      workspaceConfig: getWorkspaceConfig(),
+      // Only the snapshot's session refs are read.
+      workspaceRef: {
+        getSnapshot: () => ({
+          context: {
+            sessionRefsByChatId: new Map([
+              [
+                chatId,
+                [
+                  sessionRef(own, ["agent.alive"]),
+                  sessionRef(StoreId.newSessionId(), ["agent.done"]),
+                ],
+              ],
+              [
+                otherChatId,
+                [sessionRef(StoreId.newSessionId(), ["agent.alive"])],
+              ],
+            ]),
+          },
+        }),
+      } as never,
+    };
+    const controller = new AbortController();
+    const live = await call(
+      chats.live.activity,
+      { id: chatId },
+      { context, signal: controller.signal },
+    );
+    expect((await live.next()).value).toEqual({
+      chatId,
+      sessionActors: [{ sessionId: own, tags: ["agent.alive"] }],
+    });
     controller.abort();
     await live.return?.(undefined).catch(() => undefined);
   });

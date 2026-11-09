@@ -1,4 +1,4 @@
-**Status:** open · **Check after:** 2026-11-13, after a week on a beta with the stream guard · **Last checked:** never
+**Status:** open · **Check after:** 2026-11-22, or when production exception reports are accessible · **Last checked:** 2026-11-08
 
 # Why Responses streams end without a terminal event
 
@@ -30,3 +30,13 @@ The app's exception reports and main-process logs on the computers running the b
 - **A terminal event under an unknown name:** treat it as terminal in the guard, and patch or upgrade `@ai-sdk/openai` to read it.
 
 ## Result
+
+Checked 2026-11-08. The stream guard first shipped in beta.116 (3404bcddb, October 30; whole-event follow-up 45d3c2ef1). Qualifying builds actually ran on all three computers, starting October 30 on the primary Mac and Windows.
+
+No `Responses stream ended without a terminal event` warning appeared in any retained main log, and no matching exception appeared in the current local exception stores. The primary Mac's activity from October 30 onward includes 128 ChatGPT-account requests; the laptop's daily-use workspace includes 289. These exercise the relevant Responses path. Windows' 295 available activity rows use Instrument serving Claude Haiku, so its quiet log supplies no observed Responses exposure.
+
+This is encouraging local evidence over more than a week of calendar time, but with no recurrence it cannot show retry success, early-close causes or unknown terminal event types. PostHog required reauthentication and could not be queried; no production-wide counts were obtained. Keep this open for that check. Request counts include helper calls and are not counts of user turns.
+
+## Next check
+
+Once PostHog access is restored, count matching exceptions since beta.116 by provider and retry outcome, and inspect any event types the SDK ignored. No guard changes are justified by the local sample.

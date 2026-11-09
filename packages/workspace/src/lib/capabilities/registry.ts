@@ -30,7 +30,7 @@ import {
   windowClose,
   windowList,
   windowRead,
-  windowRequest,
+  windowWait,
   windowShow,
 } from "./window";
 import { xSearch, xThread } from "./x";
@@ -74,7 +74,7 @@ export const CAPABILITIES: readonly Capability[] = [
   windowShow,
   windowRead,
   windowClose,
-  windowRequest,
+  windowWait,
   xSearch,
   xThread,
 ];

@@ -197,8 +197,15 @@ describe("recorded Claude Code steps", () => {
           "hasOutputTokens": true,
           "hasReasoning": true,
           "hasText": true,
-          "sources": 10,
-          "toolCalls": [],
+          "sources": 0,
+          "toolCalls": [
+            {
+              "input": {
+                "query": "Electron latest stable release version",
+              },
+              "toolName": "WebSearch",
+            },
+          ],
         },
       ]
     `);

@@ -26,7 +26,7 @@ import { createActionsPart } from "./actions/actions-part";
 import { pathExists } from "./path-exists";
 import { folderReach } from "./chat/folder-reach";
 import { listProjects, type ProjectFolder } from "./chat/projects";
-import { tabHolders } from "./chat/window-tab";
+import { tabHolders } from "./chat/chat-tabs";
 import { chatDir, resolveChat } from "./record-folders";
 import { chatModelURI, setChatModel } from "./chat-settings";
 import { grantFile, grantFolder } from "./chat/grants";
@@ -427,6 +427,7 @@ async function createProjectPart({
             ...(filed.about ? { about: filed.about } : {}),
             ...(filed.emoji ? { emoji: filed.emoji } : {}),
             ...(folders.length > 0 ? { folders } : {}),
+            id: filed.id,
             ...(filed.instructions ? { instructions: filed.instructions } : {}),
             name: filed.name,
           }
@@ -497,7 +498,9 @@ async function withTabHolders(
   }
   const mark = <Tab extends { id?: string }>(tab: Tab) => {
     const holder = tab.id === undefined ? undefined : holders.get(tab.id);
-    return holder ? { ...tab, heldBy: holder } : tab;
+    return holder
+      ? { ...tab, heldBy: { id: holder.id, title: holder.title } }
+      : tab;
   };
   return {
     ...viewing,

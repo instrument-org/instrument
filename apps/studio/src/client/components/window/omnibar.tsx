@@ -340,6 +340,7 @@ export function Omnibar({
 
   const found = useRows({
     canComplete,
+    isEditing,
     location,
     mode,
     open: { openFolder, openPath, openSite, visit },
@@ -601,12 +602,15 @@ export function Omnibar({
  */
 function useRows({
   canComplete,
+  isEditing,
   location,
   mode,
   open,
   typed,
 }: {
   canComplete: boolean;
+  /** Whether the field is being typed in, the only time the rows are read. */
+  isEditing: boolean;
   location: TabLocation;
   mode: OmnibarMode;
   open: {
@@ -624,7 +628,9 @@ function useRows({
   // On the web: the pages the window knows, bookmarks ahead of history,
   // whose part is the pages the person goes back to (Chromium's significant
   // ones) rather than every page seen once.
-  const visited = useCompletionPages();
+  const visited = useCompletionPages({
+    enabled: isEditing && mode === "web",
+  });
   const bookmarks = useAtomValue(bookmarksAtom);
   const pages = unique(
     [

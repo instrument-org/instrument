@@ -32,11 +32,11 @@ import { listChildTasks } from "./children";
 import { joinedMidTurn } from "./mid-turn";
 import { latestStepIn } from "./step-label";
 import { shownTitleFrom } from "./shown-title";
-import { excerptOf } from "./standing";
+import { excerptOf } from "./reply-excerpt";
 import { saveProjectId } from "./projects";
 import { hasWakeOnItsWay } from "./wake-queue";
 import { isStopNote } from "./wake-event";
-import { chatStateOf, chatWorks } from "./chat-state";
+import { ChatStatusSchema, chatStatusOf, chatWorks } from "./chat-status";
 import { createWriteQueue } from "../create-write-queue";
 
 /** How much of the agent's last reply a chat's row shows. */
@@ -93,11 +93,6 @@ export const ChatSchema = z.object({
   lastAsk: z.string().optional(),
   /** When the last reply with words finished, in ms; absent until there is one. */
   lastReplyAt: z.number().optional(),
-  /**
-   * The chat's own newest labeled step, and when the message holding it was
-   * sent: what its line says it last did once it is at rest.
-   */
-  lastStep: z.object({ at: z.number(), text: z.string() }).optional(),
   /** When the user last sent a message, in ms, wake notes aside; the chat's creation before one is saved. */
   lastUserMessageAt: z.number(),
   /** The step the chat's own turn is on, while it has one; never a task's. */
@@ -117,10 +112,10 @@ export const ChatSchema = z.object({
   ),
   /** The chat's session, which its transcript is read and its messages are sent through. */
   sessionId: StoreId.SessionSchema,
-  /** Where the chat stands, by the one rule in `chatStateOf`. */
-  state: z.enum(["failed", "idle", "limited", "stopped", "waiting", "working"]),
+  /** Where the chat stands, by the one rule in `chatStatusOf`. */
+  status: ChatStatusSchema,
   /**
-   * While `state` is `limited`, what stopped the turn: a plan the account
+   * While `status` is `limited`, what stopped the turn: a plan the account
    * does not have (`plan`, Instrument's refusal for a missing or lapsed
    * plan), a plan whose last payment failed (`payment`), or a usage window
    * spent (`usage`).
@@ -147,8 +142,8 @@ export const ChatSchema = z.object({
   updatedAt: z.number(),
   /**
    * Whether anything of the chat's still moves, by the same rule, whatever
-   * `state` says: a card can wait on the user while a task of its works.
-   * What reads the chat as settled or busy reads this, not `state`.
+   * `status` says: a card can wait on the user while a task of its works.
+   * What reads the chat as settled or busy reads this, not `status`.
    */
   working: z.boolean(),
 });
@@ -201,7 +196,7 @@ export async function chatIsWorking(chatId: ChatId): Promise<boolean> {
   const { running } = await chatActivity(chatId);
   // Whether anything moves does not turn on what waits on the user, so the
   // chat's cards are not read.
-  return stateOf(chatId, digest, running, []).working;
+  return statusOf(chatId, digest, running, []).working;
 }
 
 /**
@@ -233,12 +228,14 @@ export async function listChats(): Promise<Chat[]> {
 /**
  * The rows of the chats named, as `listChats` would list them, read against
  * one load of what every row shares: a chat it would leave out has no row.
- * What the live list reads again for the chats a change moved.
+ * What the live list reads again for the chats a change moved, handing in
+ * the apps it keeps (`knownAppSlugs`) rather than reading them each time.
  */
 export async function listedChats(
   ids: readonly ChatId[],
+  knownApps?: Set<string>,
 ): Promise<Map<ChatId, Chat>> {
-  const shared = await loadShared();
+  const shared = knownApps === undefined ? await loadShared() : { knownApps };
   const rows = await parallel({ limit: READ_LIMIT }, ids, async (chatId) => {
     const sessionId = sessionOfChat(chatId);
     if (!sessionId) {
@@ -387,7 +384,7 @@ export function startChatSettle(): void {
 }
 
 /**
- * Whether the chat may be working, by the rule `chatStateOf` follows, read
+ * Whether the chat may be working, by the rule `chatStatusOf` follows, read
  * without the chat's records: any agent of the chat's alive stands in for
  * both its own turn and a task at work.
  */
@@ -556,10 +553,10 @@ interface ChatDigest {
   firstAskedAt?: Date;
   sent: ReturnType<typeof sentHeld>;
   session: Session.Type;
+  /** The chat's tasks, every one it has started. */
+  tasks: StoreId.Session[];
   /** The last reply with words: when it finished and its first line. */
   spoken?: { at: number; text: string };
-  /** The chat's own newest labeled step, in any turn, and when its message was sent. */
-  lastStep?: { at: number; text: string };
   /** Where each of the chat's asks stood when the digest was read (`askStates`). */
   asks: AskState[];
   /** The step the chat's current turn is on, from its own calls since the newest message that started a turn. */
@@ -652,7 +649,6 @@ async function chatFor(
   shared: Shared,
 ): Promise<Chat> {
   const { session } = digest;
-  const filedTasks = (await listChildTasks(chatId)).map((task) => task.id);
   const { running: filed } = await chatActivity(chatId);
   const runningTasks = filed.map((task) => ({
     id: task.sessionId,
@@ -663,17 +659,19 @@ async function chatFor(
   const {
     ask: anyAsk,
     ownWorking,
-    state,
+    status,
     working,
-  } = stateOf(
+  } = statusOf(
     chatId,
     digest,
     filed,
     asksOf(
       sortAsks(
-        // A sign-in waits on the person while an app on it does.
+        // A sign-in waits on the person while an app on it does, and a
+        // question once the turn that asked it is over.
         digest.asks.flatMap(({ ask, live }) =>
           live &&
+          !(ask.kind === "question" && ask.held) &&
           (ask.kind !== "sign-in" ||
             ask.apps.some((app) => app.standing === "waiting"))
             ? [ask]
@@ -682,7 +680,7 @@ async function chatFor(
       ),
     ),
   );
-  const ask = state === "working" ? undefined : anyAsk;
+  const ask = status === "working" ? undefined : anyAsk;
 
   const [lead] = runningTasks;
   // A turn under way names its step from what it holds in memory, where a
@@ -698,14 +696,14 @@ async function chatFor(
     // The chat's own turn names its step first, as the line under its title
     // does; a task at work, its step or else its name.
     step: ownStep ?? lead?.step ?? lead?.title,
-    state,
+    status,
   });
 
   const { sent } = digest;
   const made = {
     apps: unique(knownAmong(digest.calledApps, shared.knownApps)),
     files: digest.madeFiles,
-    sites: await sitesHeld(chatId, digest.openedHosts, filedTasks),
+    sites: await sitesHeld(chatId, digest.openedHosts, digest.tasks),
   };
 
   const createdAt = (digest.firstAskedAt ?? session.createdAt).getTime();
@@ -729,17 +727,16 @@ async function chatFor(
     ...(digest.lastReplyAt === undefined
       ? {}
       : { lastReplyAt: digest.lastReplyAt }),
-    ...(digest.lastStep ? { lastStep: digest.lastStep } : {}),
     lastUserMessageAt: digest.lastUserMessageAt ?? createdAt,
     ...(ownStep ? { ownStep } : {}),
     ownWorking,
-    ...(state === "limited" && {
+    ...(status === "limited" && {
       stoppedFor: digest.planRefusal ?? ("usage" as const),
     }),
     firstAsk: digest.firstAsk,
     runningTasks,
     sessionId: session.id,
-    state,
+    status,
     title: shownTitleFrom(session.title, digest.firstAsk),
     titleByApp: session.titleByApp === true,
     titled: !isUntitledChatSessionTitle(session.title),
@@ -770,12 +767,21 @@ function chatDigest(
     if (session.isErr()) {
       return unkept(undefined);
     }
-    const messages = await ChatReads.transcript({ chatId, sessionId });
+    // Written records alone: the digest is kept under a stamp of the files,
+    // which the running turn's memory never moves, and what a row shows of
+    // that turn (its step) is read beside it in `chatFor`.
+    const messages = await ChatReads.transcript({
+      chatId,
+      live: false,
+      sessionId,
+    });
     const stop = await ChatReads.stopped({ chatId, sessionId });
     const asks = await ChatReads.asks({ chatId, sessionId });
+    const tasks = (await listChildTasks(chatId)).map((task) => task.id);
     return messages.isOk() && stop.isOk() && asks.isOk()
       ? kept({
           ...digestOf(session.value, messages.value, stop.value),
+          tasks,
           asks: askStates({
             ...asks.value,
             movedPast: movedPastOf(messages.value, stop.value),
@@ -791,7 +797,7 @@ function digestOf(
   messages: SessionMessage.WithParts[],
   /** The session's newest stop, whatever came after it. */
   stop: { at: Date; by: Stopper } | undefined,
-): Omit<ChatDigest, "asks"> {
+): Omit<ChatDigest, "asks" | "tasks"> {
   // Every chat is listed: the first thing the user sent opens it, whether
   // words, files, or an ask marked on a file.
   const root = messages.find(
@@ -832,7 +838,6 @@ function digestOf(
   const stepInTurn = latestStepIn(
     messages.slice(lastOpener ? messages.lastIndexOf(lastOpener) + 1 : 0),
   );
-  const lastStep = lastStepIn(messages);
   const lastMessageAt = messages.at(-1)?.metadata.createdAt.getTime();
   const lastReplyAt = replies.at(-1)?.metadata.finishedAt?.getTime();
   // Whether the last thing the agent did, after the newest message that
@@ -894,7 +899,6 @@ function digestOf(
         text: firstLine(textOf(spoken)),
       },
     }),
-    ...(lastStep && { lastStep }),
     ...(stepInTurn !== undefined && { stepInTurn }),
     stopped,
   };
@@ -950,7 +954,7 @@ function knownAmong(slugs: string[], known: Set<string>): string[] {
  * a word that looked like one. Empty when the workspace has no apps folder
  * yet, in which case nothing is known and nothing is filtered.
  */
-async function knownAppSlugs(): Promise<Set<string>> {
+export async function knownAppSlugs(): Promise<Set<string>> {
   const { apps } = await listApps(getWorkspaceConfig().appsDir);
   return new Set(apps.map((app) => app.slug));
 }
@@ -958,16 +962,16 @@ async function knownAppSlugs(): Promise<Set<string>> {
 function latestFor({
   ask,
   digest,
-  state,
+  status,
   step,
 }: {
   ask: undefined | { at: number; text: string };
   digest: ChatDigest;
-  state: Chat["state"];
+  status: Chat["status"];
   /** What a working chat is on: the step its own turn or a task at work names. */
   step: string | undefined;
 }): Chat["latest"] {
-  if (state === "working") {
+  if (status === "working") {
     if (step && digest.lastMessageAt !== undefined) {
       return { at: digest.lastMessageAt, kind: "step", text: step };
     }
@@ -985,19 +989,6 @@ function latestFor({
 
 async function loadShared(): Promise<Shared> {
   return { knownApps: await knownAppSlugs() };
-}
-
-/** The newest labeled step in a transcript, and when the message holding it was sent. */
-function lastStepIn(
-  messages: SessionMessage.WithParts[],
-): { at: number; text: string } | undefined {
-  for (const message of messages.toReversed()) {
-    const text = latestStepIn([message]);
-    if (text !== undefined) {
-      return { at: message.metadata.createdAt.getTime(), text };
-    }
-  }
-  return undefined;
 }
 
 /** Each item once, where it last appeared. */
@@ -1186,11 +1177,11 @@ function webHostOf(url: string): string {
 }
 
 /**
- * Where a chat stands by `chatStateOf`, read from its digest, the tasks
+ * Where a chat stands by `chatStatusOf`, read from its digest, the tasks
  * running in it, and what it waits on the user for (`asksOf`), with what its
  * line says it waits on the user for.
  */
-function stateOf(
+function statusOf(
   chatId: ChatId,
   digest: ChatDigest,
   running: ChatActivity["running"],
@@ -1201,7 +1192,7 @@ function stateOf(
     : undefined;
   return {
     ask: asks[0],
-    ...chatStateOf({
+    ...chatStatusOf({
       askedAt,
       failed: digest.failed,
       limited: digest.limited,
@@ -1227,11 +1218,15 @@ function hasOwnTurn(chatId: ChatId): boolean {
 /**
  * Whether a message started a turn of the chat's own: one the user sent, or
  * a wake's. One that joined a turn already under way started none, and nor
- * did a note a stop left, which wakes nothing.
+ * did a note a stop left, which wakes nothing, or the note a branch is
+ * copied with, which ends the copy.
  */
 function startsTurn(message: SessionMessage.WithParts): boolean {
   return (
-    message.role === "user" && !isStopNote(message) && !joinedMidTurn(message)
+    message.role === "user" &&
+    !isStopNote(message) &&
+    !joinedMidTurn(message) &&
+    !message.parts.some((part) => part.type === "data-branchedFrom")
   );
 }
 

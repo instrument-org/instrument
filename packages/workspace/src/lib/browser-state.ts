@@ -35,6 +35,32 @@ function withVisit(hosts: string[], url: string): string[] {
 }
 
 /**
+ * How many pages the user asked for are on their way to each target, from the
+ * moment the open arrives until its navigate is answered. A window opening a
+ * tab at a page also draws that tab, and a tab drawn with no guest asks for a
+ * restore of the same target at the same moment. The restore stands aside:
+ * it would navigate the guest a second time and mark the person's own visit
+ * as a reopening, which the history leaves out.
+ */
+const pagesOnTheirWay = new Map<BrowserTargetId, number>();
+
+/**
+ * Note that a page the user asked for is on its way to `targetId`; the
+ * function it returns says it arrived or failed.
+ */
+export function pageOnItsWay(targetId: BrowserTargetId): () => void {
+  pagesOnTheirWay.set(targetId, (pagesOnTheirWay.get(targetId) ?? 0) + 1);
+  return () => {
+    const left = (pagesOnTheirWay.get(targetId) ?? 1) - 1;
+    if (left === 0) {
+      pagesOnTheirWay.delete(targetId);
+    } else {
+      pagesOnTheirWay.set(targetId, left);
+    }
+  };
+}
+
+/**
  * Send a target to a page the user just asked for.
  *
  * Unconditional, which is the whole difference from {@link restoreLastPage}:
@@ -106,7 +132,8 @@ export function recordVisitedHosts({
  *
  * Only ever acts on a blank target, so it cannot disturb a live page: this runs
  * on every panel mount, and most of those find a browser that was never reaped
- * and is sitting on the page the user left.
+ * and is sitting on the page the user left. A blank one with a page on its way
+ * (`pageOnItsWay`) is about to have one.
  */
 export function restoreLastPage({
   fallbackUrl,
@@ -127,7 +154,11 @@ export function restoreLastPage({
         const { browser } = getWorkspaceConfig();
         const targets = await browser.listTargets();
         const target = targets.find(({ id }) => id === targetId);
-        if (!target || target.url !== BLANK_PAGE_URL) {
+        if (
+          !target ||
+          target.url !== BLANK_PAGE_URL ||
+          pagesOnTheirWay.has(targetId)
+        ) {
           return ok(undefined);
         }
         browser.noteRestore?.(targetId, fallbackUrl);

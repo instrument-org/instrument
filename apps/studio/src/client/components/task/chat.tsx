@@ -13,10 +13,10 @@ import {
 } from "@/client/drafts/chat-box";
 import { draftsAtom, updateDraftAtom } from "@/client/drafts/store";
 import { APPS_HREF, BROWSER_HREF, filesHrefAtom } from "@/client/atoms/window";
+import { useTabDeveloperMode } from "@/client/hooks/use-developer-mode";
 import { useIsActiveTab } from "@/client/hooks/use-active-tab";
 import { useAgentSessionStatus } from "@/client/hooks/use-agent-session-status";
 import { useContinueSession } from "@/client/hooks/use-continue-session";
-import { useTabDeveloperMode } from "@/client/hooks/use-developer-mode";
 import { useTurnSettleWindow } from "@/client/hooks/use-turn-settle-window";
 import {
   itemsOf,
@@ -28,6 +28,7 @@ import { reachModel } from "@/client/lib/model-status";
 import { createMessageOptions } from "@/client/lib/message-sends";
 import { cn, osConventions } from "@/client/lib/utils";
 import { PermissionAsksFoot } from "@/client/components/permission-asks";
+import { QuestionDock } from "@/client/components/question-dock";
 import { rpcClient } from "@/client/rpc/client";
 import { type AIGatewayModelURI } from "@instrument-org/ai-gateway/client";
 import { APP_NAME } from "@instrument-org/shared";
@@ -36,10 +37,11 @@ import {
   type SessionMessageDataPart,
   type SessionMessagePart,
   StoreId,
-  type ChatInfo,
+  type ChatId,
 } from "@instrument-org/workspace/client";
-import { useMutation, useQuery } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useAtomValue, useSetAtom } from "jotai";
+import { noop } from "radashi";
 import {
   type ComponentProps,
   type ReactNode,
@@ -75,12 +77,15 @@ import {
 import { Spinner } from "../ui/spinner";
 import { LiveTranscriptSurface } from "../transcript/live-surface";
 import { useHoldAtReplyStart } from "../transcript/use-hold-at-reply-start";
+import { useSlideToSent } from "../transcript/use-slide-to-sent";
 import { Transcript } from "../transcript/transcript";
 import { ThinkingRow } from "../transcript/turn-view";
 import { useTranscriptFeed } from "../transcript/use-transcript-feed";
 import { UserMessage } from "../user-message";
-import { chatListOptions } from "../window/chat-list-query";
+import { ChatSeparatorRow } from "../chat-separator";
+import { chatListed, chatListOptions } from "../window/chat-list-query";
 import { WindowContext } from "../window/context";
+import { chatHref } from "../window/window-href";
 import {
   type PendingPrompt,
   pendingPrompt,
@@ -92,6 +97,9 @@ import { ScrollToEndBridge } from "./scroll-to-end-bridge";
 // session has to justify it. Long enough to cover starting a turn, short enough
 // that a submit that never becomes one hands the idle transcript back.
 const SUBMIT_FOLLOW_TIMEOUT_MS = 5000;
+
+// Layout px: the composer's whole box, notes inside it and buttons included.
+const CONVERSATION_COMPOSER_MAX_HEIGHT = 280;
 
 /**
  * A chat's conversation: its transcript and its composer.
@@ -105,12 +113,13 @@ const SUBMIT_FOLLOW_TIMEOUT_MS = 5000;
 export function ChatConversation({
   asks,
   composerLead,
+  composerOffer,
   draftKey,
   selectedModelURI: initialSelectedModelURI,
   selectedSessionId,
   sendContext,
   sentPrompt,
-  chatInfo,
+  chatId,
 }: {
   /**
    * Places marked in files that go with the next message: drawn as pills in
@@ -126,6 +135,8 @@ export function ChatConversation({
   };
   /** A chip at the head of the composer's box: what goes with the prompt besides its words. */
   composerLead?: ReactNode;
+  /** What stands beside the composer's plus: something offered to the message, such as what is behind a popped-out chat. */
+  composerOffer?: ReactNode;
   /** Which draft the composer edits, and the one "Add to chat" in the transcript writes to. */
   draftKey: PromptDraftKey;
   selectedModelURI?: AIGatewayModelURI.Type;
@@ -145,15 +156,16 @@ export function ChatConversation({
    * reads as empty on the way.
    */
   sentPrompt?: string;
-  chatInfo: ChatInfo;
+  chatId: ChatId;
 }) {
   const appWindow = useContext(WindowContext);
-  const id = chatInfo.id;
+  const id = chatId;
 
   const promptInputRef = useRef<PromptInputRef>(null);
   const [composerDictating, setComposerDictating] = useState(false);
   const contentRef = useRef<HTMLDivElement>(null);
   const [isFollowingSubmit, setIsFollowingSubmit] = useState(false);
+  const slideToSentRef = useRef<() => void>(noop);
 
   const createMessage = useMutation(
     createMessageOptions({
@@ -184,7 +196,6 @@ export function ChatConversation({
   const isDeveloperMode = useTabDeveloperMode();
   const messagesQuery = useTranscriptFeed({
     id,
-    isDeveloperMode,
     sessionId: selectedSessionId,
   });
   const stopChat = useMutation(
@@ -248,7 +259,7 @@ export function ChatConversation({
   const isLoadingMessages = messagesQuery.isLoading;
   const refetch = messagesQuery.refetch;
 
-  const { isAgentAlive, isAgentRunning } = useAgentSessionStatus({
+  const { isAgentAlive, isAgentRunning, isChatAlive } = useAgentSessionStatus({
     id,
     sessionId: selectedSessionId,
   });
@@ -259,14 +270,17 @@ export function ChatConversation({
     setIsFollowingSubmit(false);
   }
 
-  const isSettlingTurn = useTurnSettleWindow(isAgentAlive);
+  // A task's preview grows in this transcript after the session that started
+  // it stops, so any live session of the chat is output arriving.
+  const isSettlingTurn = useTurnSettleWindow(isChatAlive);
+  const isFollowingOutput = isChatAlive || isFollowingSubmit || isSettlingTurn;
 
   // A question the chat is stopped on, which a reader scrolled back from the
   // end is told about by the scroll button rather than taken down to.
   const { data: isWaiting = false } = useQuery({
     ...chatListOptions(),
     select: (chats) =>
-      chats.find((chat) => chat.id === id)?.state === "waiting",
+      chats.find((chat) => chat.id === id)?.status === "waiting",
   });
 
   // A submit that never becomes a turn would otherwise leave an idle transcript
@@ -290,6 +304,23 @@ export function ChatConversation({
     modelURI: selectedModelURI,
     sessionId: selectedSessionId,
   });
+
+  // A new chat up to the reply, opened in a tab of its own beside this one.
+  // The window opens only a chat its list has, so the branch's row goes in
+  // the list first, and the open waits for the window drawn with it.
+  const queryClient = useQueryClient();
+  const latestWindow = useRef(appWindow);
+  useLayoutEffect(() => {
+    latestWindow.current = appWindow;
+  });
+  const handleBranch = async (upTo: StoreId.Message) => {
+    const { id: branch, listed } = await rpcClient.workspace.chats.branch.call({
+      id: chatId,
+      upTo,
+    });
+    await chatListed(queryClient, listed);
+    latestWindow.current?.openScreen(chatHref(branch), { newTab: true });
+  };
 
   const handleRetry = (prompt: string) => {
     if (!selectedModelURI) {
@@ -454,11 +485,13 @@ export function ChatConversation({
 
   const promptInput = (
     <PromptInput
-      // Beside the work, the row stays open: a tab switch moves the caret, and
-      // a row that folded and unfolded with it would animate on every switch.
-      alwaysOpen
       attachmentsLead={asks?.pills}
       autoFocus
+      // The box shares a column with the conversation, so it gives way to
+      // it sooner than a box on a page of its own: a handful of lines, then
+      // the words scroll.
+      autoResizeMaxHeight={CONVERSATION_COMPOSER_MAX_HEIGHT}
+      besidePlus={composerOffer}
       keyboardHome
       className="relative z-10"
       draftKey={draftKey}
@@ -507,6 +540,7 @@ export function ChatConversation({
         // room reserved below it. Following is armed for a reply that outgrows
         // that room.
         setIsFollowingSubmit(true);
+        slideToSentRef.current();
         const taken = asks?.take();
         // Drawn before what goes with it is read: reading a page can take a
         // moment, and the send is only stored once that is in.
@@ -564,7 +598,6 @@ export function ChatConversation({
           ? (nextMessage ?? undefined)
           : undefined
       }
-      variant="pill"
     />
   );
 
@@ -574,7 +607,7 @@ export function ChatConversation({
   // gradient overlay at the scroll frame's bottom edge eases the transcript into
   // the composer; pb-8 keeps the last turn's text clear of the fade band.
   //
-  // autoScroll while the session is alive, while a just-submitted prompt is
+  // autoScroll while a session of the chat is alive, while a just-submitted prompt is
   // waiting for one, and through the moment a turn takes to settle: past that,
   // on a transcript nothing is arriving into, follow-bottom has only the
   // reader's own clicks left to read as output. What it would misread there is
@@ -586,7 +619,7 @@ export function ChatConversation({
     <ComposerDraftContext value={draftKey}>
       <LiveTranscriptSurface chat={id}>
         <MessageScrollerProvider
-          autoScroll={isAgentAlive || isFollowingSubmit || isSettlingTurn}
+          autoScroll={isFollowingOutput}
           defaultScrollPosition="end"
           key={selectedSessionId}
           scrollPreviousItemPeek={TRANSCRIPT_PREVIOUS_TURN_PEEK}
@@ -645,11 +678,9 @@ export function ChatConversation({
                     <NoMessages />
                   ) : (
                     <TranscriptStream
-                      chatInfo={chatInfo}
+                      chatId={chatId}
                       contentRef={contentRef}
-                      isFollowing={
-                        isAgentAlive || isFollowingSubmit || isSettlingTurn
-                      }
+                      isFollowing={isFollowingOutput}
                       hasOlder={messagesQuery.data?.hasOlder ?? false}
                       isDeveloperMode={isDeveloperMode}
                       isLoadingOlder={messagesQuery.isLoadingOlder}
@@ -663,7 +694,9 @@ export function ChatConversation({
                         shownMessages.length > messages.length
                       }
                       messages={shownMessages}
+                      onBranch={handleBranch}
                       onLoadOlder={messagesQuery.loadOlder}
+                      slideToSentRef={slideToSentRef}
                       sessionId={selectedSessionId}
                       onContinue={handleContinue}
                       onModelChange={(modelURI) => {
@@ -693,7 +726,8 @@ export function ChatConversation({
               <div className="pointer-events-none absolute inset-x-0 bottom-0 flex justify-center pb-4">
                 <MessageScrollerButton
                   busy={isAgentRunning}
-                  className="pointer-events-auto"
+                  // A slide counts as room left to scroll while it runs.
+                  className="pointer-events-auto group-data-sliding/message-scroller:opacity-0"
                   waiting={isWaiting}
                 />
               </div>
@@ -704,6 +738,7 @@ export function ChatConversation({
               {/* Inside the column rather than above it, so it is exactly as wide
               as the composer it belongs to. */}
               <PermissionAsksFoot chatId={id} />
+              <QuestionDock chatId={id} />
               {draftKey.scope === "chat" && (
                 <RepliesWaiting
                   chatId={draftKey.chatId}
@@ -730,7 +765,9 @@ function NoMessages() {
 
 /**
  * The words just sent, as the transcript will draw them once they are
- * stored, with the conversation's dots under them.
+ * stored, under the line that opens a chat with when it was sent, and with
+ * the conversation's dots under them, so the stored message lands where
+ * they stand.
  */
 function SentPrompt({
   sessionId,
@@ -754,7 +791,12 @@ function SentPrompt({
   );
   return (
     <div className="flex flex-col gap-4">
-      <UserMessage part={part} />
+      <div className="flex flex-col gap-1 pb-2">
+        <ChatSeparatorRow
+          separator={{ at: part.metadata.createdAt, timed: true }}
+        />
+        <UserMessage part={part} />
+      </div>
       <ThinkingRow since={part.metadata.createdAt} />
     </div>
   );
@@ -765,21 +807,30 @@ function SentPrompt({
 function TranscriptStream({
   contentRef,
   isFollowing,
+  slideToSentRef,
   ...props
 }: ComponentProps<typeof Transcript> & {
   contentRef: RefObject<HTMLElement | null>;
   /** The scroller is following the end, rather than left where the reader put it. */
   isFollowing: boolean;
+  /** What a send calls, so the move to its message animates. */
+  slideToSentRef: RefObject<() => void>;
 }) {
-  const { releaseAutoScroll } = useMessageScroller();
-  useHoldAtReplyStart({
+  const { releaseAutoScroll, scrollToEnd } = useMessageScroller();
+  const releaseForReader = useHoldAtReplyStart({
     contentRef,
     isFollowing,
     release: releaseAutoScroll,
+    resume: scrollToEnd,
+  });
+  useSlideToSent({
+    armRef: slideToSentRef,
+    contentRef,
+    release: releaseForReader,
   });
 
   return (
-    <TranscriptScrollContext value={releaseAutoScroll}>
+    <TranscriptScrollContext value={releaseForReader}>
       <Transcript {...props} />
     </TranscriptScrollContext>
   );

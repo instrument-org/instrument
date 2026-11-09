@@ -6,7 +6,7 @@ import {
 import { cn } from "@/client/lib/utils";
 import {
   type ActivityRow,
-  type ChatInfo,
+  type ChatId,
   thoughtText,
   type ToolName,
   type TurnStep,
@@ -46,6 +46,7 @@ export function RowLine({
   right,
   rollKey,
   rowId,
+  sweepsIn = false,
 }: {
   children?: ReactNode;
   isLive?: boolean;
@@ -59,7 +60,18 @@ export function RowLine({
   rollKey?: string;
   /** Names the row for the transcript debug page. */
   rowId?: string;
+  /**
+   * Sweeps a new label in left to right, as a chat's title arrives, for a
+   * line that changes once its work is done: a roll reads as work going on.
+   */
+  sweepsIn?: boolean;
 }) {
+  const [shownLabel, setShownLabel] = useState(label);
+  const [isSweeping, setIsSweeping] = useState(false);
+  if (label !== shownLabel) {
+    setShownLabel(label);
+    setIsSweeping(sweepsIn);
+  }
   const words = (
     <span
       className={cn(
@@ -67,7 +79,15 @@ export function RowLine({
         isLive
           ? "brand-shiny-text"
           : "text-muted-foreground group-hover/row:text-foreground",
+        isSweeping && "title-arrival",
       )}
+      // A label that changes again mid-sweep starts its own sweep.
+      key={isSweeping ? label : undefined}
+      onAnimationEnd={(event) => {
+        if (event.target === event.currentTarget) {
+          setIsSweeping(false);
+        }
+      }}
     >
       {label}
       {isLive && <ShimmerSweep text={label} />}
@@ -170,12 +190,12 @@ const countsText = (row: Pick<ActivityRow, "counts">) =>
  * the one working has a clock.
  */
 export function ActivityRowView({
-  chatInfo,
+  chatId,
   isLive,
   row,
   thought,
 }: {
-  chatInfo: ChatInfo;
+  chatId: ChatId;
   isLive: boolean;
   row: ActivityRow;
   /** The thought going on, which the row's own steps leave out. */
@@ -232,10 +252,10 @@ export function ActivityRowView({
       {isOpen && (
         <div className="mt-1 ml-7 flex flex-col gap-1.5">
           {opened.length === 1 && opened[0] ? (
-            <StepDetail chatInfo={chatInfo} step={opened[0]} />
+            <StepDetail chatId={chatId} step={opened[0]} />
           ) : (
             opened.map((step) => (
-              <StepRow chatInfo={chatInfo} key={step.metadata.id} step={step} />
+              <StepRow chatId={chatId} key={step.metadata.id} step={step} />
             ))
           )}
         </div>
@@ -257,7 +277,7 @@ function stepLabel(step: TurnStep): string {
     : getToolLabel(tool);
 }
 
-function StepRow({ chatInfo, step }: { chatInfo: ChatInfo; step: TurnStep }) {
+function StepRow({ chatId, step }: { chatId: ChatId; step: TurnStep }) {
   const [isOpen, setIsOpen] = useState(false);
   const releaseAutoScroll = useReleaseAutoScroll();
   return (
@@ -279,7 +299,7 @@ function StepRow({ chatInfo, step }: { chatInfo: ChatInfo; step: TurnStep }) {
     >
       {isOpen && (
         <div className="my-1">
-          <StepDetail chatInfo={chatInfo} step={step} />
+          <StepDetail chatId={chatId} step={step} />
         </div>
       )}
     </RowLine>
@@ -288,10 +308,10 @@ function StepRow({ chatInfo, step }: { chatInfo: ChatInfo; step: TurnStep }) {
 
 /** What an opened step shows, read whole: a call's card, a thought's words. */
 export function StepDetail({
-  chatInfo,
+  chatId,
   step,
 }: {
-  chatInfo: ChatInfo;
+  chatId: ChatId;
   step: TurnStep;
 }) {
   const surface = use(TranscriptSurfaceContext);
@@ -306,12 +326,25 @@ export function StepDetail({
     return (
       <SessionMarkdown
         assetVersion={part.metadata.id}
-        chatId={chatInfo.id}
+        chatId={chatId}
         className={cn("w-full text-sm", THOUGHT_PROSE)}
         isStreaming={part.state === "streaming"}
         markdown={thoughtText(part.text)}
       />
     );
   }
-  return <ToolCallBody chatInfo={chatInfo} onRetry={onRetry} part={part} />;
+  const counts = countsText({ counts: step.facts?.counts ?? [] });
+  const apps = [...new Set((step.facts?.apps ?? []).map((call) => call.app))];
+  return (
+    <>
+      <ToolCallBody chatId={chatId} onRetry={onRetry} part={part} />
+      {/* What the call did in the apps it reached, as its row counts it. */}
+      {counts && (
+        <p className="mt-1.5 flex items-center gap-1.5 px-1 text-xs text-muted-foreground">
+          <Badges apps={apps} sites={[]} />
+          <span className="text-foreground/70">{counts}</span>
+        </p>
+      )}
+    </>
+  );
 }

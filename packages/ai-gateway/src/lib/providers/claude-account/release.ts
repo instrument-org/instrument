@@ -20,7 +20,7 @@ const ManifestSchema = z.object({
 });
 
 /**
- * The oldest Claude Code this build runs. When a chat's process starts over,
+ * The oldest Claude Code this build runs. When a session's process starts over,
  * the provider hands the new one the conversation as turns of its own, and an
  * older build took them in the wrong order (2.1.220 did); 2.1.285 is the
  * oldest that replay was checked against, on macOS and Windows.

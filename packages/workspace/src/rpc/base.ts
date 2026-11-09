@@ -6,6 +6,8 @@ import { type WorkspaceActorRef } from "../machines/workspace";
 import { type WorkspaceConfig } from "../types";
 
 export interface WorkspaceRPCContext {
+  /** The window that made the call, where a host has more than one. */
+  webContentsId?: number;
   workspaceConfig: WorkspaceConfig;
   workspaceRef: WorkspaceActorRef;
 }

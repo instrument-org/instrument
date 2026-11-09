@@ -16,9 +16,9 @@ const RECONNECT_DELAY_MS = 500;
  * publish on, then renders the shared {@link ZoomRoot} so zoom uses the CSS
  * `zoom` mechanism (clamped range, portalled-popover compensation via
  * `useAppZoomStyle`) rather than Electron's native page zoom, and reports the
- * level back for the window's macOS traffic lights. `zoomAtom` is
- * `localStorage`-backed, so the level set last is applied as the window
- * mounts.
+ * level back for the window's macOS traffic lights. `zoomAtom` is kept state
+ * every window shares, so the level set last is applied as the window mounts
+ * and reaches the other windows as it changes.
  */
 export function WindowZoomRoot({ children }: { children: ReactNode }) {
   const setZoom = useSetAtom(zoomAtom);

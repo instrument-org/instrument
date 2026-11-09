@@ -37,7 +37,6 @@ function describeRow(
             folded: turn.rows
               .filter((row) => turn.foldedRowIds.has(row.id))
               .map((row) => `${row.kind} ${row.id}`),
-            foldsWhenDone: turn.foldsWhenDone,
             phase: turn.phase,
             sites: turn.sites,
             summary: turn.summary,
@@ -105,14 +104,12 @@ function describeRow(
 export function RowInspector({
   className,
   frame,
-  isDeveloperMode,
   messages,
   sessionId,
   transcript,
 }: {
   className?: string;
   frame: Frame;
-  isDeveloperMode: boolean;
   messages: readonly TranscriptMessage[];
   sessionId: StoreId.Session | undefined;
   transcript: RefObject<HTMLElement | null>;
@@ -152,7 +149,6 @@ export function RowInspector({
       return undefined;
     }
     const turns = turnsOf(messages, {
-      isDeveloperMode,
       isRunning: frame.isAgentRunning,
       sessionId,
     });
@@ -161,14 +157,7 @@ export function RowInspector({
       turns,
       frame.messages.flatMap((message) => message.parts),
     );
-  }, [
-    frame.isAgentRunning,
-    frame.messages,
-    id,
-    isDeveloperMode,
-    messages,
-    sessionId,
-  ]);
+  }, [frame.isAgentRunning, frame.messages, id, messages, sessionId]);
   const json = found ? JSON.stringify(found.data, null, 2) : undefined;
 
   return (

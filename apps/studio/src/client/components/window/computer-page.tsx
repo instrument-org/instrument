@@ -9,6 +9,7 @@ import {
   computerOpenFoldersAtom,
   computerViewAtom,
   type FileTab,
+  filesCutAtom,
   finderPlacesOpenAtom,
   finderPlacesWidthAtom,
 } from "@/client/atoms/window";
@@ -29,7 +30,10 @@ import {
   TOOLBAR_CONTROL_CLASSNAME,
   TOOLBAR_ICON_BUTTON_CLASSNAME,
 } from "@/client/components/toolbar-control";
-import { listingKeys } from "@/client/components/extend/file-system-keys";
+import {
+  isQuickLookPress,
+  listingKeys,
+} from "@/client/components/extend/file-system-keys";
 import { InstrumentGlyph } from "@/client/components/wordmark";
 import { instrumentFolderGlyphUrl } from "@/client/components/icons/folder-glyph";
 import { NewTabIcon } from "@/client/components/icons/new-tab-icon";
@@ -67,10 +71,14 @@ import {
   type MenuComponents,
 } from "@/client/components/ui/menu-components";
 import { Spinner } from "@/client/components/ui/spinner";
-import { useIsActiveTab } from "@/client/hooks/use-active-tab";
+import {
+  useIsActiveTab,
+  useRefreshWhileShown,
+} from "@/client/hooks/use-active-tab";
 import { useRecentFiles } from "@/client/hooks/use-recent-files";
 import { useFileOpenTarget } from "@/client/hooks/use-file-open-target";
 import { useOpenFile } from "@/client/hooks/use-open-file";
+import { wantsNewWindow } from "@/client/hooks/use-open-target";
 import {
   getComputerFileUrl,
   getComputerThumbnailUrl,
@@ -81,6 +89,7 @@ import {
   endOwnFileDrag,
   isOwnFileDragOf,
   isSelfFileDrag,
+  ownFileDragInAir,
   releaseSelfFileDrag,
 } from "@/client/lib/self-file-drag";
 import {
@@ -115,6 +124,7 @@ import { MonitorIcon } from "@phosphor-icons/react/Monitor";
 import { PencilSimpleIcon } from "@phosphor-icons/react/PencilSimple";
 import { PushPinIcon } from "@phosphor-icons/react/PushPin";
 import { PushPinSlashIcon } from "@phosphor-icons/react/PushPinSlash";
+import { ScissorsIcon } from "@phosphor-icons/react/Scissors";
 import { SidebarSimpleIcon } from "@phosphor-icons/react/SidebarSimple";
 import { SortAscendingIcon } from "@phosphor-icons/react/SortAscending";
 import { TrashIcon } from "@phosphor-icons/react/Trash";
@@ -127,7 +137,13 @@ import {
   useQueryClient,
 } from "@tanstack/react-query";
 import { ORPCError } from "@orpc/client";
-import { getDefaultStore, useAtom, useAtomValue, useSetAtom } from "jotai";
+import {
+  getDefaultStore,
+  useAtom,
+  useAtomValue,
+  useSetAtom,
+  useStore,
+} from "jotai";
 import ms from "ms";
 import { unique } from "radashi";
 import {
@@ -149,6 +165,7 @@ import {
 } from "@/client/lib/browser-pool";
 import { pictureHoldingKeyboard } from "@/client/lib/picture-keys";
 
+import { openInNewWindow } from "./app-tabs";
 import { useWindow } from "./context";
 import { arrivalView } from "./files-step";
 import { type GoFiles } from "./use-files-step";
@@ -499,6 +516,9 @@ export function ComputerPage({
   // The browser itself, asked to type over a name where it sits.
   const fileSystemRef = useRef<FileSystemHandle>(null);
 
+  // Tabs behind the one up stay mounted, so the clock stops in them and
+  // coming back up re-reads at once.
+  const refresh = useRefreshWhileShown(refreshInterval);
   const listings = useQueries({
     combine: combineListings,
     queries: isFolderless
@@ -506,7 +526,7 @@ export function ComputerPage({
       : prefixes.map((prefix) =>
           rpcClient.workspace.computer.list.queryOptions({
             input: { id: WINDOW_ID, path: hostPathOf(prefix) },
-            refetchInterval: refreshInterval,
+            ...refresh,
             retry: false,
           }),
         ),
@@ -547,122 +567,17 @@ export function ComputerPage({
       ),
     }));
   }, [goneFolder]);
-  // The recents as a folder's worth of files: named where they live, and flat,
-  // since a list of what was opened is not a tree.
   const recentEntries = recents.files;
-  const recentKeys = recentPaths(recentEntries);
-  // A WebM or a 3GP is a video or a sound, which its name cannot tell. Each
-  // one listed is read (`files.probeMedia`, kept per version), and one with
-  // no picture is typed and drawn as a sound, as the viewer opens it.
-  const ambiguousPaths = [
-    ...new Set(
-      [
-        ...listings.flatMap(({ data }) => data?.entries ?? []),
-        ...recentEntries,
-      ].flatMap((entry) =>
-        entry.kind !== "folder" && soundTypeIfNoPicture(entry.name)
-          ? [entry.path]
-          : [],
-      ),
-    ),
-  ];
-  const soundOnly = useQueries({
-    combine: (results) =>
-      new Set(
-        results.flatMap((result, index) =>
-          result.data?.picture === false ? [ambiguousPaths[index]] : [],
-        ),
-      ),
-    queries: ambiguousPaths.map((ambiguousPath) =>
-      rpcClient.files.probeMedia.queryOptions({
-        input: { path: ambiguousPath },
-        retry: false,
-      }),
-    ),
+  const { items, recentKeys } = useListedItems({
+    instrumentPath,
+    isRecents,
+    listings,
+    prefixes,
+    recentEntries,
+    resolvedTheme,
+    showHiddenFiles,
+    workspaceFolder,
   });
-  const contentTypeOf = (entry: {
-    mimeType?: string;
-    name: string;
-    path: string;
-  }) =>
-    (soundOnly.has(entry.path)
-      ? soundTypeIfNoPicture(entry.name)
-      : undefined) ?? entry.mimeType;
-  const recentItems = recentEntries.map((entry, index): FileSystemItem => {
-    return {
-      contentType: contentTypeOf(entry),
-      ...(entry.createdAt === undefined
-        ? {}
-        : { createdAt: new Date(entry.createdAt).toISOString() }),
-      kind: "file",
-      metadata: { hostPath: entry.path },
-      name: entry.name,
-      path: recentKeys[index] ?? entry.name,
-      ...previewOf(entry, resolvedTheme),
-      openedAt: new Date(entry.openedAt).toISOString(),
-      size: entry.size,
-      ...(entry.modifiedAt === undefined
-        ? {}
-        : { updatedAt: new Date(entry.modifiedAt).toISOString() }),
-    };
-  });
-  const folderItems = listings.flatMap(({ data }, index) => {
-    const prefix = prefixes[index] ?? "";
-    if (!data) {
-      return [];
-    }
-    return (
-      data.entries
-        // The browser hides a name that begins with a dot itself. Windows keeps
-        // the answer as a file attribute instead, which only the listing can
-        // read, so those are dropped here -- under the same switch, so one menu
-        // item still governs everything the system would rather you did not see.
-        .filter((entry) => showHiddenFiles || !entry.hidden)
-        .map((entry): FileSystemItem => {
-          const stamps = {
-            ...(entry.createdAt === undefined
-              ? {}
-              : { createdAt: new Date(entry.createdAt).toISOString() }),
-            ...(entry.modifiedAt === undefined
-              ? {}
-              : { updatedAt: new Date(entry.modifiedAt).toISOString() }),
-          };
-          if (entry.kind === "folder") {
-            return {
-              ...stamps,
-              ...withGlyph(
-                instrumentFolderGlyphUrl(entry.path, {
-                  outputFolder: instrumentPath,
-                  workspace: workspaceFolder,
-                }),
-              ),
-              hasChildren: true,
-              kind: "folder",
-              metadata: { hostPath: entry.path },
-              path: `${prefix}${entry.name}/`,
-            };
-          }
-          // Read by where it is, as the listing was: whatever the column can
-          // list, the viewer can show, whether or not the agent can reach it.
-          return {
-            ...stamps,
-            contentType: contentTypeOf(entry),
-            ...(entry.displayName === undefined
-              ? {}
-              : { displayName: entry.displayName }),
-            kind: "file",
-            metadata: { hostPath: entry.path },
-            path: `${prefix}${entry.name}`,
-            ...previewOf(entry, resolvedTheme),
-            size: entry.size,
-            ...(entry.typeName === undefined
-              ? {}
-              : { typeName: entry.typeName }),
-          };
-        })
-    );
-  });
-  const items = isRecents ? recentItems : folderItems;
   // Listed as files and opened as one, but folders inside, which the menu's
   // Show Package Contents goes into.
   const packagePaths = new Set(
@@ -756,19 +671,19 @@ export function ComputerPage({
   // agent's: these run because the person browsing asked for them, from the
   // folder they are looking at.
   const newFolderIn = async (parent: { hostPath: string; prefix: string }) => {
+    let made: { path: string };
     try {
-      const made = await rpcClient.files.newFolder.call({
+      made = await rpcClient.files.newFolder.call({
         parent: parent.hostPath,
       });
-      reread();
-      // Made and named in one move, the way the Finder does it: the field
-      // opens on the row as soon as the re-read puts the folder there.
-      fileSystemRef.current?.startRename(
-        `${parent.prefix}${nameOf(made.path)}/`,
-      );
     } catch (error) {
       fileActionFailed("Couldn't make a new folder", error);
+      return;
     }
+    reread();
+    // Made and named in one move, the way the Finder does it: the field
+    // opens on the row as soon as the re-read puts the folder there.
+    fileSystemRef.current?.startRename(`${parent.prefix}${nameOf(made.path)}/`);
   };
   // A failure is said and thrown on, so the browser opens the name field
   // again with what was typed.
@@ -777,6 +692,7 @@ export function ComputerPage({
     if (!hostPath) {
       throw new Error("Nothing on this computer to rename");
     }
+    const shownName = item.name ?? item.path;
     let renamed: string;
     try {
       ({ path: renamed } = await rpcClient.files.rename.call({
@@ -784,7 +700,7 @@ export function ComputerPage({
         path: hostPath,
       }));
     } catch (error) {
-      fileActionFailed(`Couldn't rename “${item.name ?? item.path}”`, error);
+      fileActionFailed(`Couldn't rename “${shownName}”`, error);
       throw error;
     }
     // The thing renamed stays selected under its new name, so the column it
@@ -805,7 +721,7 @@ export function ComputerPage({
       keptInPlaceToast("Couldn't make a copy", kept);
       return;
     }
-    try {
+    const copyEach = async () => {
       for (const item of picked) {
         const hostPath = hostPathOfItem(item);
         if (!hostPath) {
@@ -818,18 +734,21 @@ export function ComputerPage({
           setSelectedPath(siblingPath(item.path, nameOf(copy.path)));
         }
       }
+    };
+    try {
+      await copyEach();
       focusBrowser();
     } catch (error) {
       fileActionFailed("Couldn't make a copy", error);
-    } finally {
-      reread();
     }
+    reread();
   };
   // Where each thing sits on the Mac, as a terminal, a Finder window or
   // another app takes it, one to a line. The browser's own path names a place
   // inside the browser and is no use anywhere else.
   // The things themselves, as the file manager's Copy puts them on the
   // clipboard, so a paste here or in any other app copies them.
+  const store = useStore();
   const copyFiles = async (picked: FileSystemItem[]) => {
     const hostPaths = picked.map(hostPathOfItem).filter(Boolean);
     if (hostPaths.length === 0) {
@@ -837,9 +756,28 @@ export function ComputerPage({
     }
     try {
       await rpcClient.files.copyToClipboard.call({ paths: hostPaths });
+      store.set(filesCutAtom, []);
       focusBrowser();
     } catch (error) {
       fileActionFailed("Couldn't copy that", error);
+    }
+  };
+  const cutFiles = async (picked: FileSystemItem[]) => {
+    const hostPaths = picked.map(hostPathOfItem).filter(Boolean);
+    if (hostPaths.length === 0) {
+      return;
+    }
+    const kept = hostPaths.map(keptInPlace).find(Boolean);
+    if (kept) {
+      keptInPlaceToast("Couldn't move that", kept);
+      return;
+    }
+    try {
+      await rpcClient.files.copyToClipboard.call({ paths: hostPaths });
+      store.set(filesCutAtom, hostPaths);
+      focusBrowser();
+    } catch (error) {
+      fileActionFailed("Couldn't cut that", error);
     }
   };
   const copyPaths = async (picked: FileSystemItem[]) => {
@@ -890,18 +828,22 @@ export function ComputerPage({
     // Undo is about these whatever is done after them.
     const undoable: string[] = [];
     let moved = 0;
+    let failed = false;
     try {
-      // One at a time, so a failure stops short of the rest rather than
-      // leaving which of them went to chance.
-      for (const hostPath of toTrash) {
-        const { journalId } = await rpcClient.files.trash.call({
-          path: hostPath,
-        });
+      await trashInTurn(toTrash, (journalId) => {
         moved += 1;
         if (journalId !== null) {
           undoable.push(journalId);
         }
-      }
+      });
+    } catch (error) {
+      failed = true;
+      fileActionFailed(
+        `Couldn't move that to the ${osConventions().trash}`,
+        error,
+      );
+    }
+    if (!failed) {
       // The row after what went is selected, the way the Finder leaves it,
       // so another press of the key trashes that one too. With nothing
       // after it, the columns open as far as the selection reaches, so they
@@ -919,39 +861,33 @@ export function ComputerPage({
         );
       }
       focusBrowser();
-    } catch (error) {
-      fileActionFailed(
-        `Couldn't move that to the ${osConventions().trash}`,
-        error,
+    }
+    reread();
+    if (moved > 0) {
+      const [only] = toTrash;
+      // Offered only when the app found every one of them in the Trash
+      // and so can put them all back.
+      toastWithUndo(
+        moved === 1 && only
+          ? `Moved “${segmentsOf(only).at(-1) ?? only}” to the ${osConventions().trash}`
+          : `Moved ${moved} items to the ${osConventions().trash}`,
+        undoable.length === moved
+          ? {
+              journalIds: undoable,
+              undo: () => {
+                void undoJournaled(undoable);
+              },
+            }
+          : null,
+        choice.kind === "folders" && choice.kept > 0
+          ? {
+              description:
+                choice.kept === 1
+                  ? "The chat is still in your list."
+                  : "The chats are still in your list.",
+            }
+          : {},
       );
-    } finally {
-      reread();
-      if (moved > 0) {
-        const [only] = toTrash;
-        // Offered only when the app found every one of them in the Trash
-        // and so can put them all back.
-        toastWithUndo(
-          moved === 1 && only
-            ? `Moved “${segmentsOf(only).at(-1) ?? only}” to the ${osConventions().trash}`
-            : `Moved ${moved} items to the ${osConventions().trash}`,
-          undoable.length === moved
-            ? {
-                journalIds: undoable,
-                undo: () => {
-                  void undoJournaled(undoable);
-                },
-              }
-            : null,
-          choice.kind === "folders" && choice.kept > 0
-            ? {
-                description:
-                  choice.kept === 1
-                    ? "The chat is still in your list."
-                    : "The chats are still in your list.",
-              }
-            : {},
-        );
-      }
     }
   };
   const clashQuestions = useClashQuestions();
@@ -965,6 +901,7 @@ export function ComputerPage({
     mode: "copy" | "move",
     sources: { hostPath: string; isFolder: boolean }[],
     into: { hostPath: string; prefix: string },
+    how: { numbersInPlace?: boolean } = {},
   ) => {
     if (sources.length === 0) {
       return;
@@ -979,7 +916,8 @@ export function ComputerPage({
     }
     const paths = sources.map((source) => source.hostPath);
     const folderName = nameOf(into.hostPath);
-    try {
+    // What was there already is asked about before anything is put there.
+    const askAndPlace = async () => {
       const { clashes } = await rpcClient.files.clashes.call({
         folder: into.hostPath,
         op: mode,
@@ -993,114 +931,124 @@ export function ComputerPage({
               verb: mode === "move" ? "moving" : "copying",
             });
       if (resolutions === null) {
-        focusBrowser();
-        return;
+        return null;
       }
       const route = mode === "move" ? "moveInto" : "copyInto";
-      const { failure, journalId, placed, protection, skipped, trashed } =
-        await rpcClient.files[route].call({
-          folder: into.hostPath,
-          paths,
-          // What each Replace was shown in its way, so it replaces only that.
-          replacing: Object.fromEntries(
-            clashes.flatMap((clash) =>
-              resolutions[clash.path] === "replace"
-                ? [[clash.path, clash.with.identity]]
-                : [],
-            ),
+      return rpcClient.files[route].call({
+        ...how,
+        folder: into.hostPath,
+        paths,
+        // What each Replace was shown in its way, so it replaces only that.
+        replacing: Object.fromEntries(
+          clashes.flatMap((clash) =>
+            resolutions[clash.path] === "replace"
+              ? [[clash.path, clash.with.identity]]
+              : [],
           ),
-          resolutions,
-        });
-      const folders = new Set(
-        sources.flatMap((source) => (source.isFolder ? [source.hostPath] : [])),
-      );
-      if (into.prefix === onScreen && placed.length > 0) {
-        selectWhenListed(
-          placed.map(
-            (each) =>
-              `${into.prefix}${nameOf(each.path)}${folders.has(each.from) ? "/" : ""}`,
-          ),
-        );
-      }
-      focusBrowser();
-      const message = placedMessage({
-        folderName,
-        placed,
-        skipped: skipped.filter((each) => each.why === "answered").length,
+        ),
+        resolutions,
       });
-      // What a Replace put in the Trash cannot be put back from here, so
-      // that toast shows where it went instead of offering Undo. Showing it
-      // is the Mac's: the Finder reveals it, or opens the Trash.
-      const [firstTrashed] = trashed;
-      if (message && firstTrashed) {
-        toast(message, {
-          action: isMacOS()
-            ? {
-                label: "Show in Trash",
-                onClick: () => {
-                  void rpcClient.files.showInTrash.call({
-                    inTrash: firstTrashed.inTrash,
-                  });
-                },
-              }
-            : undefined,
-        });
-      } else if (message) {
-        toastWithUndo(
-          message,
-          journalId === null
-            ? null
-            : {
-                journalIds: [journalId],
-                undo: () => {
-                  void undoJournaled([journalId]);
-                },
-              },
-        );
-      }
-      // Said apart from what was done, so nothing that stopped short or was
-      // passed over goes unmentioned.
-      const changed = skipped.filter((each) => each.why === "changed");
-      const [first] = changed;
-      if (first) {
-        toast(
-          changed.length === 1
-            ? `“${nameOf(first.source)}” changed before it could be put there, so it was left where it was.`
-            : `${changed.length.toString()} items changed before they could be put there, so they were left where they were.`,
-        );
-      }
-      const there = skipped.filter((each) => each.why === "already-there");
-      const [firstThere] = there;
-      if (firstThere) {
-        toast(
-          there.length === 1
-            ? `“${nameOf(firstThere.source)}” is already in “${folderName}”.`
-            : `${there.length.toString()} of these are already in “${folderName}”.`,
-        );
-      }
-      if (protection) {
-        protectionBlocked(protection);
-      } else if (failure) {
-        toast.error(
-          mode === "move"
-            ? "Couldn't finish moving"
-            : "Couldn't finish copying",
-          { description: failure },
-        );
-      }
+    };
+    let outcome: Awaited<ReturnType<typeof askAndPlace>>;
+    try {
+      outcome = await askAndPlace();
     } catch (error) {
       fileActionFailed(
         mode === "move" ? "Couldn't move that" : "Couldn't copy that",
         error,
       );
-    } finally {
       reread();
+      return;
     }
+    if (outcome === null) {
+      focusBrowser();
+      reread();
+      return;
+    }
+    const { failure, journalId, placed, protection, skipped, trashed } =
+      outcome;
+    const folders = new Set(
+      sources.flatMap((source) => (source.isFolder ? [source.hostPath] : [])),
+    );
+    if (into.prefix === onScreen && placed.length > 0) {
+      selectWhenListed(
+        placed.map(
+          (each) =>
+            `${into.prefix}${nameOf(each.path)}${folders.has(each.from) ? "/" : ""}`,
+        ),
+      );
+    }
+    focusBrowser();
+    const message = placedMessage({
+      folderName,
+      placed,
+      skipped: skipped.filter((each) => each.why === "answered").length,
+    });
+    // What a Replace put in the Trash cannot be put back from here, so
+    // that toast shows where it went instead of offering Undo. Showing it
+    // is the Mac's: the Finder reveals it, or opens the Trash.
+    const [firstTrashed] = trashed;
+    if (message && firstTrashed) {
+      toast(message, {
+        action: isMacOS()
+          ? {
+              label: "Show in Trash",
+              onClick: () => {
+                void rpcClient.files.showInTrash.call({
+                  inTrash: firstTrashed.inTrash,
+                });
+              },
+            }
+          : undefined,
+      });
+    } else if (message) {
+      toastWithUndo(
+        message,
+        journalId === null
+          ? null
+          : {
+              journalIds: [journalId],
+              undo: () => {
+                void undoJournaled([journalId]);
+              },
+            },
+      );
+    }
+    // Said apart from what was done, so nothing that stopped short or was
+    // passed over goes unmentioned.
+    const changed = skipped.filter((each) => each.why === "changed");
+    const [first] = changed;
+    if (first) {
+      toast(
+        changed.length === 1
+          ? `“${nameOf(first.source)}” changed before it could be put there, so it was left where it was.`
+          : `${changed.length.toString()} items changed before they could be put there, so they were left where they were.`,
+      );
+    }
+    const there = skipped.filter((each) => each.why === "already-there");
+    const [firstThere] = there;
+    if (firstThere) {
+      toast(
+        there.length === 1
+          ? `“${nameOf(firstThere.source)}” is already in “${folderName}”.`
+          : `${there.length.toString()} of these are already in “${folderName}”.`,
+      );
+    }
+    if (protection) {
+      protectionBlocked(protection);
+    } else if (failure) {
+      toast.error(
+        mode === "move" ? "Couldn't finish moving" : "Couldn't finish copying",
+        { description: failure },
+      );
+    }
+    reread();
   };
   const copyInto = (
     sources: { hostPath: string; isFolder: boolean }[],
     into: { hostPath: string; prefix: string },
-  ) => placeInto("copy", sources, into);
+    how?: { numbersInPlace?: boolean },
+  ) => placeInto("copy", sources, into, how);
   const moveInto = (
     sources: { hostPath: string; isFolder: boolean }[],
     into: { hostPath: string; prefix: string },
@@ -1126,23 +1074,10 @@ export function ComputerPage({
   const undoJournaled = async (journalIds: string[]) => {
     let first: null | RPCOutput["files"]["undo"] = null;
     try {
-      for (const journalId of journalIds.toReversed()) {
-        const undone = await rpcClient.files.undo
-          .call({ journalId })
-          .catch((error: unknown) => {
-            if (
-              error instanceof ORPCError &&
-              error.code === "NOTHING_TO_UNDO"
-            ) {
-              return null;
-            }
-            throw error;
-          });
-        if (undone) {
-          withdrawUndoOffer(undone.journalId);
-          first = undone;
-        }
-      }
+      await undoInTurn(journalIds, (undone) => {
+        withdrawUndoOffer(undone.journalId);
+        first = undone;
+      });
     } catch (error) {
       fileActionFailed("Couldn't put that back", error);
     }
@@ -1332,8 +1267,13 @@ export function ComputerPage({
       }
       event.preventDefault();
       event.stopPropagation();
-      event.dataTransfer.dropEffect = "copy";
-      setDropInto(dropHandlers.current.dropIntoOf(event.target));
+      const prefix = dropHandlers.current.dropIntoOf(event.target);
+      event.dataTransfer.dropEffect = dropEffectOf({
+        altKey: event.altKey,
+        carried: ownFileDragInAir(),
+        into: dropHostPathRef.current(prefix),
+      });
+      setDropInto(prefix);
       // `dragover` repeats while the drag is over the folder, so its silence
       // means the drag went somewhere this did not hear about.
       window.clearTimeout(staleTimer);
@@ -1357,7 +1297,7 @@ export function ComputerPage({
       const wasSelfDrag = isSelfFileDrag();
       releaseSelfFileDrag();
       const prefix = dropHandlers.current.dropIntoOf(event.target);
-      const into = { hostPath: dropHostPathRef.current(prefix), prefix };
+      const dropped = { hostPath: dropHostPathRef.current(prefix), prefix };
       // Read while the drop is being dispatched: the items empty after.
       const sources = [...event.dataTransfer.items].flatMap((item) => {
         const file = item.kind === "file" ? item.getAsFile() : null;
@@ -1375,21 +1315,29 @@ export function ComputerPage({
         sources.map((source) => source.hostPath),
       );
       endOwnFileDrag();
+      const copies = isRowDrag && event.altKey;
+      // A folder Option-dragged onto itself is copied beside itself.
+      const into =
+        copies && sources.some((each) => each.hostPath === dropped.hostPath)
+          ? {
+              hostPath: folderOf(dropped.hostPath),
+              prefix: parentPrefixOf(prefix),
+            }
+          : dropped;
       // A row of this Finder let go of where it already is, or inside
-      // itself, is a drag that went nowhere, as in the Finder.
+      // itself, is a drag that went nowhere, as in the Finder, unless Option
+      // asks for a copy of it there.
       const kept =
-        isRowDrag || wasSelfDrag
-          ? sources.filter(
-              (source) =>
-                joinHostPath(into.hostPath, nameOf(source.hostPath)) !==
-                  source.hostPath && !isInside(into.hostPath, source.hostPath),
-            )
+        !copies && (isRowDrag || wasSelfDrag)
+          ? movableInto(sources, into.hostPath)
           : sources;
       // The Finder's own rows move, as its own drag does, unless Option is
       // held; everything from outside the app is copied in.
       void (isRowDrag && !event.altKey
         ? dropHandlers.current.moveInto(kept, into)
-        : dropHandlers.current.copyInto(kept, into));
+        : dropHandlers.current.copyInto(kept, into, {
+            numbersInPlace: copies && isMacOS(),
+          }));
     };
     browser.addEventListener("dragenter", over);
     browser.addEventListener("dragover", over);
@@ -1409,59 +1357,110 @@ export function ComputerPage({
   // Paste named. It is heard only while the keyboard is in this Finder and
   // out of any field, since that is the only place the window sends it.
   const [pasteTarget] = useState(() => createPasteTarget());
+  const pasteDestination = (
+    target: EventTarget | null,
+    named?: null | string,
+  ) => {
+    const prefix =
+      named ??
+      (target instanceof Element
+        ? target
+            .closest("[data-file-system-folder]")
+            ?.getAttribute("data-file-system-folder")
+        : undefined) ??
+      current;
+    return {
+      hostPath: dropHostPathRef.current(prefix || current),
+      prefix: prefix || current,
+    };
+  };
+  // What the clipboard has, moved rather than copied: ⌥⌘V, or the menu's row.
+  const moveClipboardInto = (into: { hostPath: string; prefix: string }) => {
+    void rpcClient.files.clipboardFiles
+      .call()
+      .catch(() => ({ files: [] }))
+      .then(({ files }) => {
+        store.set(filesCutAtom, []);
+        return dropHandlers.current.moveInto(
+          movableInto(filesToPaste(files, []), into.hostPath),
+          into,
+        );
+      });
+  };
+  // Esc puts a cut down, and the rows go back to how they were.
+  const cutPaths = useAtomValue(filesCutAtom);
+  const isAnythingCut = cutPaths.length > 0;
+  useEffect(() => {
+    if (!isAnythingCut) {
+      return;
+    }
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape") {
+        store.set(filesCutAtom, []);
+      }
+    };
+    window.addEventListener("keydown", onKeyDown);
+    return () => {
+      window.removeEventListener("keydown", onKeyDown);
+    };
+  }, [isAnythingCut, store]);
+  const paste = useEffectEvent((event: ClipboardEvent) => {
+    const named = pasteTarget.take();
+    if (!event.clipboardData || isTypingTarget(event.target)) {
+      return;
+    }
+    // Read while the paste is being dispatched: the items empty after.
+    const pasted = [...event.clipboardData.items].flatMap((item) => {
+      const file = item.kind === "file" ? item.getAsFile() : null;
+      const hostPath = file ? window.api.getFilePath(file) : "";
+      return hostPath
+        ? [
+            {
+              hostPath,
+              isFolder: item.webkitGetAsEntry()?.isDirectory ?? false,
+            },
+          ]
+        : [];
+    });
+    event.preventDefault();
+    const into = pasteDestination(event.target, named);
+    // The page sees only the first of several files the Finder copied, so
+    // the computer's own list comes first where there is one.
+    void rpcClient.files.clipboardFiles
+      .call()
+      .catch(() => ({ files: [] }))
+      .then(({ files }) => {
+        const sources = filesToPaste(files, pasted);
+        const cut = store.get(filesCutAtom);
+        store.set(filesCutAtom, []);
+        return isSamePathSet(
+          cut,
+          sources.map((source) => source.hostPath),
+        )
+          ? dropHandlers.current.moveInto(
+              movableInto(sources, into.hostPath),
+              into,
+            )
+          : dropHandlers.current.copyInto(sources, into);
+      });
+  });
   useEffect(() => {
     const browser = browserRef.current;
     if (!browser || !isDropOpen) {
       return;
     }
-    const paste = (event: ClipboardEvent) => {
-      const named = pasteTarget.take();
-      if (!event.clipboardData || isTypingTarget(event.target)) {
-        return;
-      }
-      // Read while the paste is being dispatched: the items empty after.
-      const pasted = [...event.clipboardData.items].flatMap((item) => {
-        const file = item.kind === "file" ? item.getAsFile() : null;
-        const hostPath = file ? window.api.getFilePath(file) : "";
-        return hostPath
-          ? [
-              {
-                hostPath,
-                isFolder: item.webkitGetAsEntry()?.isDirectory ?? false,
-              },
-            ]
-          : [];
-      });
-      event.preventDefault();
-      const prefix =
-        named ??
-        (event.target instanceof Element
-          ? event.target
-              .closest("[data-file-system-folder]")
-              ?.getAttribute("data-file-system-folder")
-          : undefined) ??
-        current;
-      const into = {
-        hostPath: dropHostPathRef.current(prefix || current),
-        prefix: prefix || current,
-      };
-      // The page sees only the first of several files the Finder copied, so
-      // the computer's own list comes first where there is one.
-      void rpcClient.files.clipboardFiles
-        .call()
-        .catch(() => ({ files: [] }))
-        .then(({ files }) =>
-          dropHandlers.current.copyInto(filesToPaste(files, pasted), into),
-        );
+    const onPaste = (event: ClipboardEvent) => {
+      paste(event);
     };
-    browser.addEventListener("paste", paste);
+    browser.addEventListener("paste", onPaste);
     return () => {
-      browser.removeEventListener("paste", paste);
+      browser.removeEventListener("paste", onPaste);
     };
-  }, [current, isDropOpen, pasteTarget]);
+  }, [isDropOpen]);
 
   // The arrows work the moment a folder is on screen: the first row takes
-  // the keyboard on each opening, unless the user is typing somewhere.
+  // the keyboard on each opening, or the browser where there is no row, unless
+  // the user is typing somewhere.
   const hasRows = items.length > 0;
   // Only the Finder in the window's tab that is up: every tab stays mounted,
   // and one behind another is not where the keyboard is.
@@ -1472,10 +1471,15 @@ export function ComputerPage({
   const opening = `${root}#${arrivals}`;
   const focusedOpening = useRef(isBesideOpen ? opening : null);
   useEffect(() => {
-    if (!hasRows || !isActiveTab || isTypingTarget(document.activeElement)) {
+    if (!isActiveTab || isTypingTarget(document.activeElement)) {
       return;
     }
     if (isBesideOpen && focusedOpening.current === opening) {
+      return;
+    }
+    // A folder with no rows yet, or none at all, still takes a paste.
+    if (!hasRows) {
+      focusBrowser();
       return;
     }
     focusedOpening.current = opening;
@@ -1540,7 +1544,7 @@ export function ComputerPage({
   // One value for the selection, so the effect below runs when it changes
   // rather than on every re-read that rebuilds the same rows.
   const selectedKey = JSON.stringify(selectedOnScreen);
-  useEffect(() => {
+  const tellFolder = useEffectEvent(() => {
     // The recents with nothing selected, or a folder not yet read: no folder
     // is on screen, and the one that was is not still the answer.
     if (display === undefined || hostPath === undefined) {
@@ -1555,13 +1559,17 @@ export function ComputerPage({
       selectedItems: selectedOnScreen.map(({ item }) => item),
       walked: walked ?? display,
     });
-    // The selection by its key: the rows are rebuilt on every re-read.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+  });
+  // The selection by its key: the rows are rebuilt on every re-read.
+  useEffect(() => {
+    tellFolder();
   }, [display, hostPath, mount, onFolderChange, selectedKey, walked]);
   // The arrows a page beside the folder had no use for walk the folder, and
   // the keyboard goes on into the page the next file shows as.
   const besidePage = isBesideOpen ? beside.page : undefined;
   const keyboardInPage = useRef(false);
+  // The screen's own frame, which says whether a key was pressed in the folder.
+  const frameRef = useRef<HTMLDivElement | null>(null);
   useEffect(() => {
     if (besidePage === undefined) {
       keyboardInPage.current = false;
@@ -1634,13 +1642,12 @@ export function ComputerPage({
   const pickedKey = JSON.stringify(pickedBeside);
   // Told as a file opens beside the folder and as the picks change, and
   // only then: the file beside moving on is not a pick.
-  const tellPicked = useEffectEvent((next: ChosenItem[]) => {
-    beside?.onPick(next);
+  const tellPicked = useEffectEvent(() => {
+    beside?.onPick(pickedBeside);
   });
+  // The selection by its key: the rows are rebuilt on every re-read.
   useEffect(() => {
-    tellPicked(pickedBeside);
-    // The selection by its key: the rows are rebuilt on every re-read.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+    tellPicked();
   }, [isBesideOpen, pickedKey]);
 
   // A type with no viewer here goes to the app the computer would use, the way
@@ -1680,42 +1687,46 @@ export function ComputerPage({
   // everything.
   const quickLookTab = selectedItem ? lookTargetOf(selectedItem) : undefined;
   const quickLookKey = quickLookTab && lookPathOf(quickLookTab);
+  const quickLookPress = useEffectEvent((event: KeyboardEvent) => {
+    if (!quickLookTab || !onQuickLook) {
+      return;
+    }
+    if (
+      !isQuickLookPress(event, currentOs()) ||
+      isTypingTarget(event.target) ||
+      // A dialog over the folder keeps its own Space.
+      getDefaultStore().get(windowHoldsAtom).length > 0
+    ) {
+      return;
+    }
+    event.preventDefault();
+    onQuickLook(quickLookTab, () => selectedRowIn(browserRef.current));
+  });
+  const hasQuickLook = quickLookKey !== undefined && onQuickLook !== undefined;
   useEffect(() => {
     // No panel to show one in, no key taken from the rest of the page, and
     // none from a tab that is not up.
-    if (!quickLookTab || !onQuickLook || !isActiveTab) {
+    if (!hasQuickLook || !isActiveTab) {
       return;
     }
     const onKeyDown = (event: KeyboardEvent) => {
-      if (
-        event.key !== " " ||
-        event.metaKey ||
-        event.ctrlKey ||
-        event.altKey ||
-        isTypingTarget(event.target) ||
-        // A dialog over the folder keeps its own Space.
-        getDefaultStore().get(windowHoldsAtom).length > 0
-      ) {
-        return;
-      }
-      event.preventDefault();
-      onQuickLook(quickLookTab, () => selectedRowIn(browserRef.current));
+      quickLookPress(event);
     };
     window.addEventListener("keydown", onKeyDown);
     return () => {
       window.removeEventListener("keydown", onKeyDown);
     };
-    // The tab is rebuilt with the items on every re-read; its path is its identity.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [quickLookKey, onQuickLook, isActiveTab]);
+  }, [hasQuickLook, isActiveTab]);
 
   // The info card follows the selection, by what it says about each item:
   // the rows are rebuilt on every re-read.
   const infoItems = selectedItems.flatMap(infoItemOf);
   const infoKey = JSON.stringify(infoItems);
-  useEffect(() => {
+  const tellInfo = useEffectEvent(() => {
     onInfoSelection?.(infoItems);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+  });
+  useEffect(() => {
+    tellInfo();
   }, [infoKey, onInfoSelection]);
   useEffect(
     () => () => {
@@ -1745,45 +1756,44 @@ export function ComputerPage({
   // Finder's own Edit > Undo does. What was put back is selected; what cannot
   // be taken back safely says why. Only while the keyboard is in the folder,
   // or nowhere with no file open beside it: a ⌘Z over a file is the file's.
-  const frameRef = useRef<HTMLDivElement | null>(null);
+  const undoPress = useEffectEvent((event: KeyboardEvent) => {
+    const inFolder =
+      event.target instanceof Node &&
+      frameRef.current?.contains(event.target) === true;
+    const nowhere = event.target === document.body && !isBesideOpen;
+    if (
+      event.key.toLowerCase() !== "z" ||
+      event.shiftKey ||
+      event.altKey ||
+      !commandKeyHeld(event) ||
+      event.defaultPrevented ||
+      isTypingTarget(event.target) ||
+      !(inFolder || nowhere)
+    ) {
+      return;
+    }
+    event.preventDefault();
+    void rpcClient.files.undo
+      .call()
+      .then((undone) => {
+        withdrawUndoOffer(undone.journalId);
+        reread();
+        selectUndone(undone);
+      })
+      .catch(undoFailed);
+  });
   useEffect(() => {
     if (!isActiveTab || isRecents) {
       return;
     }
     const onKeyDown = (event: KeyboardEvent) => {
-      const inFolder =
-        event.target instanceof Node &&
-        frameRef.current?.contains(event.target) === true;
-      const nowhere = event.target === document.body && !isBesideOpen;
-      if (
-        event.key.toLowerCase() !== "z" ||
-        event.shiftKey ||
-        event.altKey ||
-        !commandKeyHeld(event) ||
-        event.defaultPrevented ||
-        isTypingTarget(event.target) ||
-        !(inFolder || nowhere)
-      ) {
-        return;
-      }
-      event.preventDefault();
-      void rpcClient.files.undo
-        .call()
-        .then((undone) => {
-          withdrawUndoOffer(undone.journalId);
-          reread();
-          selectUndone(undone);
-        })
-        .catch(undoFailed);
+      undoPress(event);
     };
     window.addEventListener("keydown", onKeyDown);
     return () => {
       window.removeEventListener("keydown", onKeyDown);
     };
-    // `reread` and `selectUndone` are rebuilt each render and read nothing
-    // that changes.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isActiveTab, isRecents, isBesideOpen]);
+  }, [isActiveTab, isRecents]);
 
   // Quick Look stays up while the arrows walk the folder, and shows whatever
   // the selection lands on. The panel holds the keyboard, so the keys are
@@ -1814,14 +1824,16 @@ export function ComputerPage({
       window.removeEventListener("keydown", onKeyDown, true);
     };
   }, [quickLookOpen]);
-  useEffect(() => {
+  const followQuickLook = useEffectEvent(() => {
     if (quickLookOpen && quickLookTab) {
       onQuickLookFollow?.(quickLookTab, () =>
         selectedRowIn(browserRef.current),
       );
     }
-    // The tab is rebuilt with the items on every re-read; its path is its identity.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+  });
+  // The tab is rebuilt with the items on every re-read; its path is its identity.
+  useEffect(() => {
+    followQuickLook();
   }, [quickLookKey, quickLookOpen, onQuickLookFollow]);
 
   // In a narrow tab the places stand over the folder rather than beside it,
@@ -1886,6 +1898,9 @@ export function ComputerPage({
   const openPlaceInNewTab = (place: string) => {
     openScreen(folderHref(place), { behind: true, newTab: true });
   };
+  const openPlaceInNewWindow = (place: string) => {
+    openScreen(folderHref(place), { newWindow: true });
+  };
   const placeMenu = (place: string, { isPinned = false } = {}) => (
     <PlaceMenu
       hostPath={place}
@@ -1897,6 +1912,9 @@ export function ComputerPage({
       }
       onOpenInNewTab={() => {
         openPlaceInNewTab(place);
+      }}
+      onOpenInNewWindow={() => {
+        openPlaceInNewWindow(place);
       }}
       pin={
         isPinned
@@ -1951,6 +1969,7 @@ export function ComputerPage({
       ...menuActionsForOne(item),
       kept: picked.map(keptInPlace).find(Boolean),
       onCopy: () => void copyFiles(picked),
+      onCut: () => void cutFiles(picked),
       onDuplicate: () => void duplicate(picked),
       onInfo:
         onInfoShow && picked.length > 0
@@ -1972,6 +1991,9 @@ export function ComputerPage({
             },
             onOpenInNewTab: () => {
               openInTabs(group, { behind: true });
+            },
+            onOpenInNewWindow: () => {
+              openInWindow(group);
             },
             onQuickLook: undefined,
             onRename: undefined,
@@ -2005,6 +2027,25 @@ export function ComputerPage({
         { behind: behind || !isFirst, newTab: true },
       );
       isFirst = false;
+    }
+  };
+  // Opening in a window of their own: each a tab there, the first up.
+  const openInWindow = (picked: FileSystemItem[]) => {
+    const hrefs = picked.flatMap((item) => {
+      const itemPath = hostPathOfItem(item);
+      if (!itemPath) {
+        return [];
+      }
+      return [
+        item.kind === "folder"
+          ? folderHref(itemPath)
+          : fileHref(itemPath, {
+              tree: folderOnScreenPath ?? folderOf(itemPath),
+            }),
+      ];
+    });
+    if (hrefs.length > 0) {
+      openInNewWindow(...hrefs);
     }
   };
   // Opening several, as a double-click or ⌘O on a selection does: each file
@@ -2041,6 +2082,15 @@ export function ComputerPage({
                 void rpcClient.files.paste.call();
               };
             },
+            onMove: () => {
+              afterMenu.current = () => {
+                focusBrowser();
+                moveClipboardInto({
+                  hostPath: dropHostPathRef.current(onScreen || current),
+                  prefix: onScreen || current,
+                });
+              };
+            },
           },
     onNewFolder:
       folderOnScreenPath === undefined
@@ -2058,6 +2108,9 @@ export function ComputerPage({
     },
     onOpenInNewTab: () => {
       openInTabs(item ? [item] : [], { behind: true });
+    },
+    onOpenInNewWindow: () => {
+      openInWindow(item ? [item] : []);
     },
     onQuickLook: (() => {
       const target = item ? lookTargetOf(item) : undefined;
@@ -2202,6 +2255,7 @@ export function ComputerPage({
           place === RECENTS_ROOT ? undefined : placeMenu(place)
         }
         onOpenInNewTab={openPlaceInNewTab}
+        onOpenInNewWindow={openPlaceInNewWindow}
         onOpen={(folder) => {
           rootTo(folder);
         }}
@@ -2246,6 +2300,7 @@ export function ComputerPage({
         }
         menu={(place) => placeMenu(place, { isPinned: true })}
         onOpenInNewTab={openPlaceInNewTab}
+        onOpenInNewWindow={openPlaceInNewWindow}
         onOpen={(folder) => {
           rootTo(folder === homePath ? "~" : folder);
         }}
@@ -2264,6 +2319,7 @@ export function ComputerPage({
           place === COMPUTER_ROOT ? undefined : placeMenu(place)
         }
         onOpenInNewTab={openPlaceInNewTab}
+        onOpenInNewWindow={openPlaceInNewWindow}
         onOpen={(folder) => {
           rootTo(folder);
         }}
@@ -2500,6 +2556,16 @@ export function ComputerPage({
                 {dropInto === current ? (
                   <div className="pointer-events-none absolute inset-1 z-10 rounded-lg ring-2 ring-brand-500 ring-inset" />
                 ) : null}
+                {isAnythingCut ? (
+                  // Faded where each view draws its rows, whichever that is.
+                  <style>
+                    {cutRowsStyle(
+                      items.filter((item) =>
+                        cutPaths.includes(hostPathOfItem(item)),
+                      ),
+                    )}
+                  </style>
+                ) : null}
                 <FileSystem
                   className="h-full rounded-none border-0"
                   keyboardHome
@@ -2632,6 +2698,10 @@ export function ComputerPage({
                   }
                   onCopy={(picked) => void copyFiles(picked)}
                   onCopyPath={(picked) => void copyPaths(picked)}
+                  onCut={(picked) => void cutFiles(picked)}
+                  onMoveHere={() => {
+                    moveClipboardInto(pasteDestination(document.activeElement));
+                  }}
                   onDuplicate={(picked) => void duplicate(picked)}
                   onTrash={(picked) => void trash(picked)}
                   openFolders={isRecents ? undefined : openFolders}
@@ -2866,6 +2936,7 @@ type FolderMenuActions = {
   kept?: string | undefined;
   onCopy: () => void;
   onCopyPath: () => void;
+  onCut: () => void;
   onDuplicate: () => void;
   /** Left out where nothing shows a file's info, or the menu is on the folder's empty space. */
   onInfo: (() => void) | undefined;
@@ -2877,6 +2948,8 @@ type FolderMenuActions = {
   onOpen: () => void;
   /** A folder in a tab of its own, which is the Finder's first answer for one. */
   onOpenInNewTab: () => void;
+  /** What it is in a window of its own, several as tabs of one. */
+  onOpenInNewWindow: () => void;
   /** Left out where nothing shows a file over the page. */
   onQuickLook: (() => void) | undefined;
   /** Left out where there is no field to type a name in. */
@@ -2893,7 +2966,7 @@ type FolderMenuActions = {
   /** Pinning a folder to the sidebar, or unpinning it; left out for anything but one folder. */
   pin?: { isPinned: boolean; onToggle: () => void } | undefined;
   /** Files on the clipboard, copied into the folder on screen, by its name; left out where there is no folder. */
-  paste?: { into: string; onPaste: () => void } | undefined;
+  paste?: { into: string; onMove: () => void; onPaste: () => void } | undefined;
   /**
    * What the menu acts on, when it is several selected: what names one thing
    * (Rename, Copy Path, Quick Look, Reveal) is left off, and Open With lists
@@ -3033,12 +3106,14 @@ function FolderMenuItems({
   newFolderFirst = false,
   onCopy,
   onCopyPath,
+  onCut,
   onDuplicate,
   onInfo,
   onNewDraft,
   onNewFolder,
   onOpen,
   onOpenInNewTab,
+  onOpenInNewWindow,
   onQuickLook,
   onRename,
   onReveal,
@@ -3142,6 +3217,10 @@ function FolderMenuItems({
             <NewTabIcon className="size-4" />
             <span>{several ? "Open in New Tabs" : "Open in New Tab"}</span>
           </Item>
+          <Item onClick={onOpenInNewWindow}>
+            <AppWindowIcon className="size-4" />
+            <span>Open in New Window</span>
+          </Item>
           {onShowPackageContents && !several ? (
             <Item onClick={onShowPackageContents}>
               <FolderOpenIcon className="size-4" />
@@ -3186,6 +3265,13 @@ function FolderMenuItems({
               <PencilSimpleIcon className="size-4" />
               <span>Rename</span>
               <Shortcut>{keys.rename}</Shortcut>
+            </Item>
+          ) : null}
+          {keys.cut ? (
+            <Item disabled={kept !== undefined} onClick={onCut}>
+              <ScissorsIcon className="size-4" />
+              <span>Cut</span>
+              <Shortcut>{keys.cut}</Shortcut>
             </Item>
           ) : null}
           <Item onClick={onCopy}>
@@ -3275,6 +3361,13 @@ function FolderMenuItems({
                 <span>Paste into “{paste.into}”</span>
                 <Shortcut>{keys.paste}</Shortcut>
               </Item>
+              {keys.moveHere ? (
+                <Item onClick={paste.onMove}>
+                  <ClipboardIcon className="size-4" />
+                  <span>Move into “{paste.into}”</span>
+                  <Shortcut>{keys.moveHere}</Shortcut>
+                </Item>
+              ) : null}
             </>
           ) : null}
           {emptyTail ? (
@@ -3310,6 +3403,200 @@ function combineListings(
     isPending: result.isPending,
     refusal: result.data?.kind === "refused" ? result.data : undefined,
   }));
+}
+
+/**
+ * What the browser lists: the folders' entries as items, or the recents as a
+ * folder's worth of files, named where they live and flat, since a list of
+ * what was opened is not a tree. A hook of its own so the compiler keeps the
+ * items the same object while nothing they come from changed, which spares
+ * the browser re-indexing the folder on every selection change.
+ */
+function useListedItems({
+  instrumentPath,
+  isRecents,
+  listings,
+  prefixes,
+  recentEntries,
+  resolvedTheme,
+  showHiddenFiles,
+  workspaceFolder,
+}: {
+  instrumentPath: string | undefined;
+  isRecents: boolean;
+  listings: ReturnType<typeof combineListings>;
+  prefixes: readonly string[];
+  recentEntries: ReturnType<typeof useRecentFiles>["files"];
+  resolvedTheme: Parameters<typeof previewOf>[1];
+  showHiddenFiles: boolean;
+  workspaceFolder: string | undefined;
+}) {
+  // A WebM or a 3GP is a video or a sound, which its name cannot tell. Each
+  // one listed is read (`files.probeMedia`, kept per version), and one with
+  // no picture is typed and drawn as a sound, as the viewer opens it.
+  const ambiguousPaths = [
+    ...new Set(
+      [
+        ...listings.flatMap(({ data }) => data?.entries ?? []),
+        ...recentEntries,
+      ].flatMap((entry) =>
+        entry.kind !== "folder" && soundTypeIfNoPicture(entry.name)
+          ? [entry.path]
+          : [],
+      ),
+    ),
+  ];
+  // Combined into a string, which stays equal from one render to the next
+  // where a set would be new each time. Each answer names its own file, so
+  // nothing past the hook reads the paths asked about, which would keep the
+  // compiler from memoizing what is built from them.
+  const soundOnlyPaths = useQueries({
+    combine: picturelessPaths,
+    queries: ambiguousPaths.map((ambiguousPath) =>
+      rpcClient.files.probeMedia.queryOptions({
+        input: { path: ambiguousPath },
+        retry: false,
+        select: (probe) => ({ path: ambiguousPath, picture: probe?.picture }),
+      }),
+    ),
+  });
+  // Everything below is built after the hook, where the compiler can keep it.
+  const recentKeys = recentPaths(recentEntries);
+  const soundOnly = new Set(soundOnlyPaths.split("\n"));
+  const recentItems = recentEntries.map((entry, index): FileSystemItem => {
+    return {
+      contentType: contentTypeOf(entry, soundOnly),
+      ...(entry.createdAt === undefined
+        ? {}
+        : { createdAt: new Date(entry.createdAt).toISOString() }),
+      kind: "file",
+      metadata: { hostPath: entry.path },
+      name: entry.name,
+      path: recentKeys[index] ?? entry.name,
+      ...previewOf(entry, resolvedTheme),
+      openedAt: new Date(entry.openedAt).toISOString(),
+      size: entry.size,
+      ...(entry.modifiedAt === undefined
+        ? {}
+        : { updatedAt: new Date(entry.modifiedAt).toISOString() }),
+    };
+  });
+  const folderItems = listings.flatMap(({ data }, index) => {
+    const prefix = prefixes[index] ?? "";
+    if (!data) {
+      return [];
+    }
+    return (
+      data.entries
+        // The browser hides a name that begins with a dot itself. Windows keeps
+        // the answer as a file attribute instead, which only the listing can
+        // read, so those are dropped here -- under the same switch, so one menu
+        // item still governs everything the system would rather you did not see.
+        .filter((entry) => showHiddenFiles || !entry.hidden)
+        .map((entry): FileSystemItem => {
+          const stamps = {
+            ...(entry.createdAt === undefined
+              ? {}
+              : { createdAt: new Date(entry.createdAt).toISOString() }),
+            ...(entry.modifiedAt === undefined
+              ? {}
+              : { updatedAt: new Date(entry.modifiedAt).toISOString() }),
+          };
+          if (entry.kind === "folder") {
+            return {
+              ...stamps,
+              ...withGlyph(
+                instrumentFolderGlyphUrl(entry.path, {
+                  outputFolder: instrumentPath,
+                  workspace: workspaceFolder,
+                }),
+              ),
+              hasChildren: true,
+              kind: "folder",
+              metadata: { hostPath: entry.path },
+              path: `${prefix}${entry.name}/`,
+            };
+          }
+          // Read by where it is, as the listing was: whatever the column can
+          // list, the viewer can show, whether or not the agent can reach it.
+          return {
+            ...stamps,
+            contentType: contentTypeOf(entry, soundOnly),
+            ...(entry.displayName === undefined
+              ? {}
+              : { displayName: entry.displayName }),
+            kind: "file",
+            metadata: { hostPath: entry.path },
+            path: `${prefix}${entry.name}`,
+            ...previewOf(entry, resolvedTheme),
+            size: entry.size,
+            ...(entry.typeName === undefined
+              ? {}
+              : { typeName: entry.typeName }),
+          };
+        })
+    );
+  });
+  return { items: isRecents ? recentItems : folderItems, recentKeys };
+}
+
+/** A file's type, as a sound where probing found it has no picture. */
+function contentTypeOf(
+  entry: { mimeType?: string; name: string; path: string },
+  soundOnly: ReadonlySet<string>,
+) {
+  return (
+    (soundOnly.has(entry.path)
+      ? soundTypeIfNoPicture(entry.name)
+      : undefined) ?? entry.mimeType
+  );
+}
+
+/**
+ * Puts back each journal entry, the last first, stopping at the first that
+ * cannot come back. One already put back another way is passed over.
+ */
+async function undoInTurn(
+  journalIds: readonly string[],
+  onUndone: (undone: RPCOutput["files"]["undo"]) => void,
+) {
+  for (const journalId of journalIds.toReversed()) {
+    const undone = await rpcClient.files.undo
+      .call({ journalId })
+      .catch((error: unknown) => {
+        if (error instanceof ORPCError && error.code === "NOTHING_TO_UNDO") {
+          return null;
+        }
+        throw error;
+      });
+    if (undone) {
+      onUndone(undone);
+    }
+  }
+}
+
+/**
+ * Moves each path to the Trash in turn, so a failure stops short of the rest
+ * rather than leaving which of them went to chance. Told of each as it goes,
+ * with the journal entry that can put it back.
+ */
+async function trashInTurn(
+  paths: readonly string[],
+  onTrashed: (journalId: null | string) => void,
+) {
+  for (const path of paths) {
+    const { journalId } = await rpcClient.files.trash.call({ path });
+    onTrashed(journalId);
+  }
+}
+
+/** The probed files found to have no picture, one to a line. */
+function picturelessPaths(
+  results: { data?: { path: string; picture?: boolean } }[],
+) {
+  return results
+    .flatMap(({ data }) => (data?.picture === false ? [data.path] : []))
+    .join("\n");
 }
 
 /**
@@ -3609,6 +3896,65 @@ export function placedMessage({
  * on the clipboard where it has one, else the files the paste event carried.
  * Only files: text on the clipboard beside them, or alone, is never pasted.
  */
+/** What can move into `folder`: nothing already there, and no folder into itself. */
+function movableInto<T extends { hostPath: string }>(
+  sources: readonly T[],
+  folder: string,
+) {
+  return sources.filter(
+    (source) =>
+      joinHostPath(folder, nameOf(source.hostPath)) !== source.hostPath &&
+      !isInside(folder, source.hostPath),
+  );
+}
+
+function cutRowsStyle(rows: readonly { path: string }[]) {
+  const selectors = rows.map(
+    (row) => `[data-file-system-item="${CSS.escape(row.path)}"]`,
+  );
+  return selectors.length > 0 ? `${selectors.join(",")}{opacity:.5}` : "";
+}
+
+/** The folder above a prefix like `docs/notes/`, as a prefix. */
+function parentPrefixOf(prefix: string) {
+  const at = prefix.replace(/\/$/u, "").lastIndexOf("/");
+  return at === -1 ? "" : prefix.slice(0, at + 1);
+}
+
+/** The disk a path on a Mac is on, by where disks are mounted. */
+function macDiskOf(path: string) {
+  return /^\/Volumes\/[^/]+/u.exec(path)?.[0] ?? "/";
+}
+
+/**
+ * What the pointer says a drop will do, by the rule the drop itself follows.
+ * Only the Mac: elsewhere a drag the app starts offers no move to say.
+ */
+export function dropEffectOf({
+  altKey,
+  carried,
+  into,
+  isMac = isMacOS(),
+}: {
+  altKey: boolean;
+  carried: readonly string[];
+  into: string;
+  isMac?: boolean;
+}) {
+  const [first] = carried;
+  if (!isMac || !first || altKey) return "copy";
+  return macDiskOf(first) === macDiskOf(into) ? "move" : "copy";
+}
+
+function isSamePathSet(left: readonly string[], right: readonly string[]) {
+  const those = new Set(right);
+  return (
+    left.length > 0 &&
+    left.length === those.size &&
+    left.every((path) => those.has(path))
+  );
+}
+
 export function filesToPaste(
   fromComputer: readonly { isFolder: boolean; path: string }[],
   fromEvent: readonly { hostPath: string; isFolder: boolean }[],
@@ -4051,6 +4397,7 @@ function PlaceList({
   menu,
   onOpen,
   onOpenInNewTab,
+  onOpenInNewWindow,
   places,
 }: {
   /** Left out for the app's own places, which need no heading. */
@@ -4062,6 +4409,8 @@ function PlaceList({
   onOpen: (path: string) => void;
   /** A middle click: the place in a tab of its own, waiting behind. */
   onOpenInNewTab: (path: string) => void;
+  /** A click with Shift: the place in a window of its own. */
+  onOpenInNewWindow?: (path: string) => void;
   places: {
     icon: ReactNode;
     isActive: boolean;
@@ -4099,8 +4448,12 @@ function PlaceList({
                         onOpenInNewTab(place.path);
                       }
                     }}
-                    onClick={() => {
-                      onOpen(place.path);
+                    onClick={(event) => {
+                      if (onOpenInNewWindow && wantsNewWindow(event)) {
+                        onOpenInNewWindow(place.path);
+                      } else {
+                        onOpen(place.path);
+                      }
                     }}
                     onMouseDown={(event) => {
                       if (event.button === 1) {

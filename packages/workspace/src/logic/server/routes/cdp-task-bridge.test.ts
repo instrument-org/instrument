@@ -2,10 +2,13 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { WebSocket } from "ws";
 
 import { cdpMethodsHandled } from "../../../lib/cdp-methods";
-import { publisher } from "../../../rpc/publisher";
+import {
+  announceChatTab,
+  noteTabCommand,
+  takeTabNews,
+} from "../../../lib/tab-activity";
 import { StoreId } from "../../../schemas/store-id";
 import { ChatIdSchema } from "../../../schemas/chat-id";
-import { type HeldTab } from "../../../schemas/chat-state";
 import { type WindowTabAction } from "../../../schemas/window-tab";
 import {
   type BrowserTargetId,
@@ -13,30 +16,51 @@ import {
   type WorkspaceConfig,
 } from "../../../types";
 import { type WorkspaceServerParentRef } from "../types";
-import { handleTaskCdpClient, TASK_TAB_CAP } from "./cdp-task-bridge";
+import { handleTaskCdpClient, isPageWork } from "./cdp-task-bridge";
 
 const TASK_ID = ChatIdSchema.parse("read-the-pages");
 
 const SESSION_ID = StoreId.SessionSchema.parse(
   "ses_01M3AX9RF3C2E9RTATMB602W0C",
 );
+const OTHER_SESSION = StoreId.SessionSchema.parse(
+  "ses_01M3AX9RF3C2E9RTATMB602W0D",
+);
 
-// The tabs the task's session holds, in memory.
-const record: { browserTabs?: HeldTab[] } = {};
-vi.mock("../../../lib/held-tabs", () => ({
-  heldTabs: () => Promise.resolve([...(record.browserTabs ?? [])]),
-  updateHeldTabs: (
-    _chatId: unknown,
-    _sessionId: unknown,
-    change: (tabs: HeldTab[]) => HeldTab[],
-  ) => {
-    record.browserTabs = change(record.browserTabs ?? []);
+/** The tabs the chat's agents opened, in memory. */
+const record: { openedTabs: { id: BrowserTargetId }[] } = { openedTabs: [] };
+/** The chat's tabs as the window groups them, a page's guest up or not. */
+let windowList: { id: string; kind: "page"; title: string; url: string }[] = [];
+vi.mock("../../../lib/chat/chat-tabs", () => ({
+  chatPageTabs: () =>
+    Promise.resolve(
+      windowList.map((entry) => ({
+        ...entry,
+        targetId: entry.id as BrowserTargetId,
+      })),
+    ),
+  forgetOpenedTabs: (_chatId: unknown, ids: ReadonlySet<string>) => {
+    record.openedTabs = record.openedTabs.filter((entry) => !ids.has(entry.id));
+    return Promise.resolve();
+  },
+  noteOpenedTab: (_chatId: unknown, id: BrowserTargetId) => {
+    record.openedTabs = [...record.openedTabs, { id }];
     return Promise.resolve();
   },
 }));
+vi.mock("../../../lib/chat-record", () => ({
+  getChatState: () =>
+    Promise.resolve({ closedTabs: [], openedTabs: record.openedTabs }),
+}));
+vi.mock("../../../lib/record-folders", () => ({
+  chatDir: (id: string) => `/tmp/chats/${id}`,
+  resolveChat: (id: string) => id,
+}));
+vi.mock("../../../lib/chat/tab-cap", () => ({
+  closeTabsOverCap: () => Promise.resolve(),
+}));
 vi.mock("../../../lib/chat-dir-utils", () => ({
   getBrowserSessionDir: () => "/tmp/profile",
-  chatDir: (id: string) => `/tmp/tasks/${id}`,
 }));
 // The chats whose folders were read for a gate.
 const { layoutsReadFor } = vi.hoisted(() => ({
@@ -57,36 +81,44 @@ vi.mock("../../../lib/session-layout", async () => {
     },
   };
 });
-// The window: what the task asked of it, answered with a tab of its own.
+// The window: what the session asked of it, a new tab joining the chat's.
 const asked: WindowTabAction[] = [];
-/** The chat's tabs as the window lists them, a page's guest up or not. */
-let windowList: { id: string; kind: "page"; title: string; url: string }[] = [];
 vi.mock("../../../lib/chat/window-tab", () => ({
   askWindow: ({ action }: { action: WindowTabAction }) => {
     asked.push(action);
+    if (action.kind === "close") {
+      windowList = windowList.filter((entry) => entry.id !== action.tabId);
+    }
     return Promise.resolve({
       requestId: "r",
-      ...(action.kind === "adopt" || action.kind === "restore"
+      ...(action.kind === "restore" || action.kind === "close"
         ? { tabId: action.tabId }
         : {}),
-      ...(action.kind === "list" ? { tabs: windowList } : {}),
     });
   },
-  chatSessionOfTask: () =>
-    StoreId.SessionSchema.parse("ses_01M3AX9RF3C2E9RTATMB602W0B"),
   requestWindowTab: (options: { show: boolean; url?: string }) => {
     asked.push({
       kind: "open",
       show: options.show,
       target: { kind: "page", ...(options.url ? { url: options.url } : {}) },
     });
-    return Promise.resolve(StoreId.newTabId());
+    const tabId = StoreId.newTabId();
+    windowList = [
+      ...windowList,
+      {
+        id: tabId,
+        kind: "page",
+        title: "",
+        url: options.url ?? "about:blank",
+      },
+    ];
+    return Promise.resolve(tabId);
   },
 }));
 
-function connect() {
+function connect(sessionId: StoreId.Session = SESSION_ID) {
   const live = new Set<BrowserTargetId>(
-    (record.browserTabs ?? []).map((held) => held.id),
+    windowList.map((entry) => entry.id as BrowserTargetId),
   );
   const subscribers = new Map<
     BrowserTargetId,
@@ -118,7 +150,9 @@ function connect() {
         live.has(targetId) ? { partitionDir: "/tmp/profile" } : null,
       getTargetUrl: (targetId: BrowserTargetId) =>
         live.has(targetId)
-          ? (pages.get(targetId)?.url ?? "https://example.com/")
+          ? (pages.get(targetId)?.url ??
+            windowList.find((entry) => entry.id === targetId)?.url ??
+            "https://example.com/")
           : undefined,
       listTargets: () =>
         Promise.resolve(
@@ -129,6 +163,7 @@ function connect() {
             url: pages.get(id)?.url ?? "https://example.com/",
           })),
         ),
+      personInputAt: () => undefined,
       sendCommand,
       setAgentFileRoots: vi.fn(),
       stopScreencast: vi.fn(),
@@ -152,7 +187,7 @@ function connect() {
   } as unknown as WorkspaceConfig;
   handleTaskCdpClient(
     ws as unknown as WebSocket,
-    { sessionId: SESSION_ID, chatId: TASK_ID },
+    { sessionId, chatId: TASK_ID },
     config,
     { send: vi.fn() } as unknown as WorkspaceServerParentRef,
   );
@@ -161,7 +196,7 @@ function connect() {
   const command = async (
     method: string,
     params: unknown = {},
-    sessionId?: string,
+    session?: string,
   ) => {
     const id = ++nextId;
     listeners.message?.(
@@ -170,7 +205,7 @@ function connect() {
           id,
           method,
           params,
-          ...(sessionId ? { sessionId } : {}),
+          ...(session ? { sessionId: session } : {}),
         }),
       ),
     );
@@ -185,10 +220,6 @@ function connect() {
       .filter((frame) => frame.method === method)
       .map((frame) => frame.params);
   return {
-    /** A tab of the window coming open, as one handed over is. */
-    appears: (targetId: BrowserTargetId) => {
-      live.add(targetId);
-    },
     /** An event from a tab's guest, from one of its frames when `frameSession` names one. */
     emit: async (
       targetId: BrowserTargetId,
@@ -207,9 +238,22 @@ function connect() {
         onDetach();
       }
     },
-    /** A tab's page moving on by itself, as a clicked link takes it. */
+    /** A tab's page discarded: the tab stays in the window, its guest goes. */
+    discards: (targetId: BrowserTargetId) => {
+      live.delete(targetId);
+    },
+    /** A tab's page taken by another window: the page goes, and a new one stands in its place. */
+    movesWindow: async (targetId: BrowserTargetId) => {
+      const watching = subscribers.get(targetId) ?? [];
+      subscribers.delete(targetId);
+      for (const { onDetach } of watching) {
+        onDetach();
+      }
+      await flush();
+    },
     command,
     events,
+    /** A tab's page moving on by itself, as a clicked link takes it. */
     navigates: async (
       targetId: BrowserTargetId,
       page: { title: string; url: string },
@@ -220,6 +264,14 @@ function connect() {
         onEvent("Page.loadEventFired", { timestamp: 1 });
       }
       await flush();
+    },
+    /** A tab coming into the chat while the agent is connected. */
+    opensInWindow: (targetId: BrowserTargetId) => {
+      live.add(targetId);
+      windowList = [
+        ...windowList,
+        { id: targetId, kind: "page", title: "Later", url: "https://later/" },
+      ];
     },
     sendCommand,
   };
@@ -232,52 +284,86 @@ async function flush(): Promise<void> {
   }
 }
 
-/** A tab of the window, open, by its id. */
-function tab(openedBy: HeldTab["openedBy"] = "handed") {
+/**
+ * A page tab of the chat's in the window. `opened` for one an agent opened;
+ * `worked` for one this session already sent a command, so it starts there
+ * rather than in a blank tab of its own.
+ */
+function tab({
+  opened = false,
+  worked = true,
+}: { opened?: boolean; worked?: boolean } = {}) {
   const tabId = StoreId.newTabId();
-  return {
-    held: {
-      id: browserTargetOf(tabId),
-      inWindow: true,
-      openedBy,
-    } satisfies HeldTab,
-    tabId,
-  };
+  const targetId = browserTargetOf(tabId);
+  windowList = [
+    ...windowList,
+    { id: tabId, kind: "page", title: "Example", url: "https://example.com/" },
+  ];
+  if (opened) {
+    record.openedTabs = [...record.openedTabs, { id: targetId }];
+  }
+  if (worked) {
+    noteTabCommand(targetId, { chatId: TASK_ID, sessionId: SESSION_ID });
+  }
+  return { tabId, targetId };
+}
+
+/** The ids `Target.targetCreated` announced, in order. */
+function created(events: (method: string) => unknown[]) {
+  return events("Target.targetCreated").map(
+    (params) =>
+      (params as { targetInfo: { targetId: string } }).targetInfo.targetId,
+  );
 }
 
 beforeEach(() => {
-  delete record.browserTabs;
+  record.openedTabs = [];
+  windowList = [];
   asked.length = 0;
 });
 
-describe("a task's browser", () => {
-  it("is the tabs the task holds, by the window's ids for them", async () => {
-    const first = tab();
-    const second = tab("task");
-    record.browserTabs = [first.held, second.held];
+describe("a session's browser", () => {
+  it("is every page tab the window groups in the chat, a tab moved in with a draft included, by the window's ids", async () => {
+    // A tab the window put in the chat with nothing written about it: a
+    // draft's page as it becomes the chat.
+    const sent = tab({ worked: false });
+    const own = tab();
     const { command, events } = connect();
 
     await command("Target.setDiscoverTargets", { discover: true });
     const targets = await command("Target.getTargets");
 
+    // The tab the session worked in first, then the rest.
     expect(
       (targets.result?.targetInfos as { targetId: string }[]).map(
         (info) => info.targetId,
       ),
-    ).toEqual([first.tabId, second.tabId]);
-    expect(
-      events("Target.targetCreated").map(
-        (params) =>
-          (params as { targetInfo: { targetId: string } }).targetInfo.targetId,
-      ),
-    ).toEqual([first.tabId, second.tabId]);
+    ).toEqual([own.tabId, sent.tabId]);
+    expect(created(events)).toEqual([own.tabId, sent.tabId]);
+    expect(asked).toEqual([]);
   });
 
-  it("sends a page's commands to that page, and no other", async () => {
+  it("gives a session that has worked in none of the chat's tabs a blank tab of its own, listed first", async () => {
+    const theirs = tab({ worked: false });
+    const { command } = connect(OTHER_SESSION);
+
+    const targets = await command("Target.getTargets");
+
+    const ids = (targets.result?.targetInfos as { targetId: string }[]).map(
+      (info) => info.targetId,
+    );
+    expect(asked).toEqual([
+      { kind: "open", show: false, target: { kind: "page" } },
+    ]);
+    expect(ids).toHaveLength(2);
+    expect(ids[1]).toBe(theirs.tabId);
+    expect(record.openedTabs.map((opened) => opened.id)).toEqual([ids[0]]);
+  });
+
+  it("sends a page's commands to that page, and no other, as this session's", async () => {
     const first = tab();
     const second = tab();
-    record.browserTabs = [first.held, second.held];
-    const { command, sendCommand } = connect();
+    const { command, sendCommand } = connect(OTHER_SESSION);
 
     const attached = await command("Target.attachToTarget", {
       flatten: true,
@@ -287,14 +373,12 @@ describe("a task's browser", () => {
     await command("Runtime.evaluate", { expression: "1" }, sessionId);
 
     expect(sendCommand).toHaveBeenCalledWith(
-      second.held.id,
+      second.targetId,
       "Runtime.evaluate",
-      {
-        expression: "1",
-      },
+      { expression: "1" },
     );
     expect(sendCommand).not.toHaveBeenCalledWith(
-      first.held.id,
+      first.targetId,
       "Runtime.evaluate",
       expect.anything(),
     );
@@ -302,7 +386,6 @@ describe("a task's browser", () => {
 
   it("reaches a tab's cross-site frame through the tab's session, and only once its page asked for frames", async () => {
     const only = tab();
-    record.browserTabs = [only.held];
     const { command, emit, events, sendCommand } = connect();
     const attached = await command("Target.attachToTarget", {
       flatten: true,
@@ -315,7 +398,7 @@ describe("a task's browser", () => {
       { autoAttach: true, flatten: true, waitForDebuggerOnStart: true },
       page,
     );
-    await emit(only.held.id, "Target.attachedToTarget", {
+    await emit(only.targetId, "Target.attachedToTarget", {
       sessionId: "frame-1",
       targetInfo: {
         targetId: "F1",
@@ -328,7 +411,7 @@ describe("a task's browser", () => {
     const front = await command("Page.bringToFront", {}, "frame-1");
 
     expect(sendCommand).toHaveBeenCalledWith(
-      only.held.id,
+      only.targetId,
       "Target.setAutoAttach",
       expect.objectContaining({
         autoAttach: true,
@@ -340,7 +423,7 @@ describe("a task's browser", () => {
     ]);
     expect(read.error).toBeUndefined();
     expect(sendCommand).toHaveBeenCalledWith(
-      only.held.id,
+      only.targetId,
       "DOM.getDocument",
       {},
       "frame-1",
@@ -354,15 +437,14 @@ describe("a task's browser", () => {
     );
   });
 
-  it("judges a handed tab's local files by the folders of the task's chat", async () => {
-    const handed = tab();
-    record.browserTabs = [handed.held];
+  it("judges a tab's local files by the folders of the session's chat", async () => {
+    const only = tab();
     layoutsReadFor.length = 0;
     const { command } = connect();
 
     const attached = await command("Target.attachToTarget", {
       flatten: true,
-      targetId: handed.tabId,
+      targetId: only.tabId,
     });
     await command(
       "Runtime.evaluate",
@@ -374,8 +456,8 @@ describe("a task's browser", () => {
     expect(new Set(layoutsReadFor)).toEqual(new Set([TASK_ID]));
   });
 
-  it("refuses to attach to a tab the task does not hold", async () => {
-    record.browserTabs = [tab().held];
+  it("refuses to attach to a tab that is not the chat's", async () => {
+    tab();
     const { command } = connect();
 
     const attached = await command("Target.attachToTarget", {
@@ -383,14 +465,14 @@ describe("a task's browser", () => {
       targetId: StoreId.newTabId(),
     });
 
-    expect(attached.error?.message).toContain("not one of this task's tabs");
+    expect(attached.error?.message).toContain("not one of this chat's tabs");
   });
 
-  it("opens a new tab behind, in the task's chat, and holds it", async () => {
-    record.browserTabs = [tab().held];
+  it("opens a new tab behind, in the chat, as one an agent opened", async () => {
+    tab();
     const { command, events } = connect();
 
-    const created = await command("Target.createTarget", {
+    const made = await command("Target.createTarget", {
       url: "https://example.org/",
     });
 
@@ -401,66 +483,47 @@ describe("a task's browser", () => {
         target: { kind: "page", url: "https://example.org/" },
       },
     ]);
-    const tabId = created.result?.targetId;
-    expect(record.browserTabs?.at(-1)).toEqual({
-      id: tabId,
-      inWindow: true,
-      openedBy: "task",
-    });
-    expect(
-      events("Target.targetCreated").some(
-        (params) =>
-          (params as { targetInfo: { targetId: string } }).targetInfo
-            .targetId === tabId,
-      ),
-    ).toBe(true);
+    const tabId = made.result?.targetId;
+    expect(record.openedTabs.at(-1)).toEqual({ id: tabId });
+    expect(created(events)).toContain(tabId);
   });
 
-  it("makes a page asked for with no address without a tab, and gives it one as it goes somewhere", async () => {
-    record.browserTabs = [];
-    const { command, navigates } = connect();
+  it("opens a page asked for with no address as a blank tab in the chat", async () => {
+    tab();
+    const { command } = connect();
 
-    const created = await command("Target.createTarget", {
-      url: "about:blank",
-    });
-    const targetId = browserTargetOf(
-      StoreId.TabSchema.parse(created.result?.targetId),
-    );
-
-    expect(asked).toEqual([]);
-    expect(record.browserTabs).toEqual([
-      { id: targetId, inWindow: false, openedBy: "task" },
-    ]);
-
-    await command("Target.attachToTarget", { flatten: true, targetId });
-    await navigates(targetId, {
-      title: "Example",
-      url: "https://example.org/",
-    });
+    const made = await command("Target.createTarget", { url: "about:blank" });
 
     expect(asked).toEqual([
-      { kind: "adopt", tabId: targetId, url: "https://example.org/" },
+      { kind: "open", show: false, target: { kind: "page" } },
     ]);
-    expect(record.browserTabs).toEqual([
-      { id: targetId, inWindow: true, openedBy: "task" },
-    ]);
+    expect(record.openedTabs).toEqual([{ id: made.result?.targetId }]);
   });
 
-  it("lists a tab whose page was discarded at the window's address, and brings it back as it is attached to", async () => {
+  it.each([
+    "chrome-extension://aeblfdkhhhdcdjpifhhbdiojplfjncoa/app/app.html",
+    "Chrome-Extension://aeblfdkhhhdcdjpifhhbdiojplfjncoa/app/app.html",
+    "chrome-\textension://aeblfdkhhhdcdjpifhhbdiojplfjncoa/app/app.html",
+    "\u0001chrome-extension://aeblfdkhhhdcdjpifhhbdiojplfjncoa/app/app.html",
+  ])("refuses a new tab at an extension's own page: %s", async (url) => {
+    const { command } = connect();
+
+    const made = await command("Target.createTarget", { url });
+
+    expect(made.error?.message).toContain("is an extension's own page");
+    expect(asked).toEqual([]);
+    expect(record.openedTabs).toEqual([]);
+  });
+
+  it("lists a tab whose page was discarded at the window's address, and brings it back only as a command reaches it", async () => {
     const resting = tab();
-    record.browserTabs = [resting.held];
-    windowList = [
-      {
-        id: resting.tabId,
-        kind: "page",
-        title: "Kept",
-        url: "https://example.org/kept",
-      },
-    ];
-    const { command, closeByUser } = connect();
-    // Its guest went, and the tab stayed: discarded.
-    closeByUser(resting.held.id);
-    asked.length = 0;
+    windowList = windowList.map((entry) =>
+      entry.id === resting.tabId
+        ? { ...entry, title: "Kept", url: "https://example.org/kept" }
+        : entry,
+    );
+    const { command, discards, sendCommand } = connect();
+    discards(resting.targetId);
 
     const targets = await command("Target.getTargets");
     expect(targets.result?.targetInfos).toMatchObject([
@@ -470,71 +533,60 @@ describe("a task's browser", () => {
         url: "https://example.org/kept",
       },
     ]);
-    expect(asked.map((action) => action.kind)).toEqual(["list"]);
 
     const attached = await command("Target.attachToTarget", {
       flatten: true,
       targetId: resting.tabId,
     });
     expect(attached.result?.sessionId).toBeDefined();
-    expect(asked.map((action) => action.kind)).toContain("restore");
-  });
+    expect(asked.map((action) => action.kind)).not.toContain("restore");
 
-  it("stops opening tabs at the cap", async () => {
-    record.browserTabs = Array.from(
-      { length: TASK_TAB_CAP },
-      () => tab("task").held,
+    await command(
+      "Runtime.evaluate",
+      { expression: "1" },
+      attached.result?.sessionId as string,
     );
-    const { command } = connect();
-
-    const created = await command("Target.createTarget", {
-      url: "about:blank",
-    });
-
-    expect(created.error?.message).toContain(`${TASK_TAB_CAP} tabs open`);
-    expect(asked).toEqual([]);
+    expect(asked.map((action) => action.kind)).toContain("restore");
+    expect(sendCommand).toHaveBeenCalledWith(
+      resting.targetId,
+      "Runtime.evaluate",
+      { expression: "1" },
+    );
   });
 
-  it("closes a tab it opened, in the window", async () => {
-    const own = tab("task");
-    record.browserTabs = [tab().held, own.held];
+  it("closes a tab an agent opened, in the window", async () => {
+    tab();
+    const own = tab({ opened: true });
     const { command, events } = connect();
     await command("Target.setDiscoverTargets", { discover: true });
 
     await command("Target.closeTarget", { targetId: own.tabId });
 
     expect(asked).toEqual([{ kind: "close", tabId: own.tabId }]);
-    expect(record.browserTabs.map((held) => held.id)).not.toContain(
-      own.held.id,
-    );
+    expect(record.openedTabs).toEqual([]);
     expect(events("Target.targetDestroyed")).toEqual([{ targetId: own.tabId }]);
   });
 
-  it("only lets go of a tab it was handed, which is the user's", async () => {
-    const handed = tab("handed");
-    record.browserTabs = [handed.held, tab("task").held];
+  it("only lets go of a tab of the user's", async () => {
+    const theirs = tab();
     const { command } = connect();
 
     const closed = await command("Target.closeTarget", {
-      targetId: handed.tabId,
+      targetId: theirs.tabId,
     });
 
     expect(closed.result).toEqual({ success: true });
     expect(asked).toEqual([]);
-    expect(record.browserTabs.map((held) => held.id)).not.toContain(
-      handed.held.id,
-    );
+    expect(windowList.map((entry) => entry.id)).toContain(theirs.tabId);
   });
-
   it.each(
     cdpMethodsHandled("task", "override").filter((method) =>
       method.startsWith("Target."),
     ),
   )("answers %s itself, as the table of CDP methods says", async (method) => {
     const held = tab();
-    record.browserTabs = [held.held];
     const { command, sendCommand } = connect();
-    // The ones that name a tab name one the task holds.
+    // The ones that name a tab name one of the chat's.
     const reply = await command(method, { targetId: held.tabId });
     expect(reply.error).toBeUndefined();
     expect(sendCommand).not.toHaveBeenCalledWith(
@@ -547,7 +599,7 @@ describe("a task's browser", () => {
   it.each(cdpMethodsHandled("task", "refuse"))(
     "refuses %s, as the table of CDP methods says",
     async (method) => {
-      record.browserTabs = [tab().held];
+      tab();
       const { command } = connect();
       expect((await command(method)).error).toBeDefined();
     },
@@ -561,7 +613,6 @@ describe("a task's browser", () => {
     "refuses %s, a target command the table does not list, on a tab's session too",
     async (method) => {
       const only = tab();
-      record.browserTabs = [only.held];
       const { command, sendCommand } = connect();
       const attached = await command("Target.attachToTarget", {
         flatten: true,
@@ -590,7 +641,7 @@ describe("a task's browser", () => {
   ])(
     "refuses %s sent with no session, which would skip the tab's file gate",
     async (method, params) => {
-      record.browserTabs = [tab().held];
+      tab();
       const { command, sendCommand } = connect();
 
       const reply = await command(method, params);
@@ -602,7 +653,6 @@ describe("a task's browser", () => {
 
   it("never brings a page forward in the window", async () => {
     const only = tab();
-    record.browserTabs = [only.held];
     const { command, sendCommand } = connect();
     const attached = await command("Target.attachToTarget", {
       flatten: true,
@@ -618,15 +668,15 @@ describe("a task's browser", () => {
 
     expect(answer.result).toEqual({});
     expect(sendCommand).not.toHaveBeenCalledWith(
-      only.held.id,
+      only.targetId,
       "Page.bringToFront",
       expect.anything(),
     );
   });
 
-  it("tells the agent when the user closes one of its tabs", async () => {
+  it("tells the agent when the user closes one of the chat's tabs", async () => {
     const closing = tab();
-    record.browserTabs = [closing.held, tab().held];
+    tab();
     const { closeByUser, command, events } = connect();
     await command("Target.setDiscoverTargets", { discover: true });
     await command("Target.attachToTarget", {
@@ -634,7 +684,7 @@ describe("a task's browser", () => {
       targetId: closing.tabId,
     });
 
-    closeByUser(closing.held.id);
+    closeByUser(closing.targetId);
 
     expect(events("Target.detachedFromTarget")).toEqual([
       { sessionId: `session-${closing.tabId}`, targetId: closing.tabId },
@@ -644,9 +694,8 @@ describe("a task's browser", () => {
     ]);
   });
 
-  it("tells the agent where a tab it drives has gone, and names it", async () => {
+  it("tells the agent where a tab it drove has gone, and names it", async () => {
     const driven = tab();
-    record.browserTabs = [driven.held];
     const { command, events, navigates } = connect();
     await command("Target.setDiscoverTargets", { discover: true });
     await command("Target.attachToTarget", {
@@ -654,7 +703,7 @@ describe("a task's browser", () => {
       targetId: driven.tabId,
     });
 
-    await navigates(driven.held.id, {
+    await navigates(driven.targetId, {
       title: "Glass - Wikipedia",
       url: "https://en.wikipedia.org/wiki/Glass",
     });
@@ -681,22 +730,227 @@ describe("a task's browser", () => {
     ).toEqual(["Glass - Wikipedia"]);
   });
 
-  it("tells the agent of a tab handed over while it is connected", async () => {
-    record.browserTabs = [tab().held];
-    const { appears, command, events } = connect();
+  it("tells the agent a tab whose page another window took is back, to attach to again", async () => {
+    const moving = tab();
+    const { command, events, movesWindow } = connect();
     await command("Target.setDiscoverTargets", { discover: true });
+    await command("Target.attachToTarget", {
+      flatten: true,
+      targetId: moving.tabId,
+    });
 
-    const handed = tab();
-    appears(handed.held.id);
-    record.browserTabs = [...record.browserTabs, handed.held];
-    publisher.publish("record.changed", { id: TASK_ID, kind: "state" });
-    await flush();
+    await movesWindow(moving.targetId);
 
+    expect(events("Target.detachedFromTarget")).toEqual([
+      { sessionId: `session-${moving.tabId}`, targetId: moving.tabId },
+    ]);
     expect(
       events("Target.targetCreated").map(
         (params) =>
           (params as { targetInfo: { targetId: string } }).targetInfo.targetId,
       ),
-    ).toContain(handed.tabId);
+    ).toEqual([moving.tabId, moving.tabId]);
+    const reply = await command("Target.attachToTarget", {
+      flatten: true,
+      targetId: moving.tabId,
+    });
+    expect(reply).toMatchObject({
+      result: { sessionId: `session-${moving.tabId}` },
+    });
+  });
+
+  it("announces a tab that came into the chat after it connected only when the wrapper asks", async () => {
+    tab();
+    const { command, events, opensInWindow } = connect();
+    await command("Target.setDiscoverTargets", { discover: true });
+
+    const later = browserTargetOf(StoreId.newTabId());
+    opensInWindow(later);
+    await flush();
+    expect(created(events)).not.toContain(later);
+
+    expect(
+      await announceChatTab({ chatId: TASK_ID, sessionId: SESSION_ID }, later),
+    ).toBe(true);
+    expect(created(events)).toContain(later);
+  });
+
+  it("keeps who else acted in a tab for the session's next result", async () => {
+    const shared = tab({ worked: false });
+    noteTabCommand(
+      shared.targetId,
+      { chatId: TASK_ID, sessionId: SESSION_ID },
+      Date.now() - 10_000,
+    );
+    takeTabNews(SESSION_ID);
+    const other = connect(OTHER_SESSION);
+    const mine = connect();
+    const theirs = await other.command("Target.attachToTarget", {
+      flatten: true,
+      targetId: shared.tabId,
+    });
+    await other.command(
+      "Runtime.evaluate",
+      { expression: "document.title" },
+      theirs.result?.sessionId as string,
+    );
+    const attached = await mine.command("Target.attachToTarget", {
+      flatten: true,
+      targetId: shared.tabId,
+    });
+
+    await mine.command(
+      "Runtime.evaluate",
+      { expression: "document.title" },
+      attached.result?.sessionId as string,
+    );
+
+    expect(takeTabNews(SESSION_ID)).toMatchObject([
+      { agents: [{ sessionId: OTHER_SESSION }], targetId: shared.targetId },
+    ]);
+  });
+});
+
+describe("what counts as a session's work in a page", () => {
+  it.each([
+    ["Page.navigate", { url: "https://example.com/" }, true],
+    ["Input.dispatchMouseEvent", { type: "mousePressed" }, true],
+    ["Runtime.evaluate", { expression: "document.title" }, true],
+    ["Accessibility.getFullAXTree", {}, true],
+    ["DOM.getDocument", {}, true],
+    ["Page.captureScreenshot", {}, true],
+    ["Runtime.evaluate", { expression: "1", returnByValue: true }, false],
+    ["Page.enable", {}, false],
+    ["DOM.enable", {}, false],
+    ["Runtime.runIfWaitingForDebugger", {}, false],
+    ["Target.setAutoAttach", { autoAttach: true }, false],
+    ["Emulation.setFocusEmulationEnabled", { enabled: true }, false],
+  ])("%s %j: %s", (method, params, work) => {
+    expect(isPageWork(method, params)).toBe(work);
+  });
+
+  it("tells nobody of a session that only connected to a tab and checked it answers", async () => {
+    const shared = tab({ worked: false });
+    const reader = StoreId.newSessionId();
+    noteTabCommand(
+      shared.targetId,
+      { chatId: TASK_ID, sessionId: reader },
+      Date.now() - 10_000,
+    );
+    takeTabNews(reader);
+    const { command } = connect(StoreId.newSessionId());
+    const attached = await command("Target.attachToTarget", {
+      flatten: true,
+      targetId: shared.tabId,
+    });
+    const session = attached.result?.sessionId as string;
+    await command("Page.enable", {}, session);
+    await command("Runtime.evaluate", { expression: "1" }, session);
+    noteTabCommand(shared.targetId, { chatId: TASK_ID, sessionId: reader });
+
+    expect(takeTabNews(reader)).toEqual([]);
+  });
+});
+
+describe("a session's start tab", () => {
+  /** A session new to the chat, connected, with the tab it was given to start in. */
+  async function started() {
+    const theirs = tab({ worked: false });
+    const sessionId = StoreId.newSessionId();
+    const connection = connect(sessionId);
+    const targets = await connection.command("Target.getTargets");
+    const [start] = (targets.result?.targetInfos as { targetId: string }[])
+      .map((info) => info.targetId)
+      .filter((id) => id !== theirs.tabId);
+    asked.length = 0;
+    return { ...connection, sessionId, start: start ?? "", theirs };
+  }
+
+  it("closes when the session opens a tab of its own before going anywhere", async () => {
+    const { command, events, start } = await started();
+
+    const made = await command("Target.createTarget", {
+      url: "https://example.org/",
+    });
+
+    expect(made.result?.targetId).not.toBe(start);
+    expect(asked).toContainEqual({ kind: "close", tabId: start });
+    expect(events("Target.targetDestroyed")).toContainEqual({
+      targetId: start,
+    });
+    expect(record.openedTabs.map((opened) => opened.id)).not.toContain(start);
+  });
+
+  it("closes when the session goes to work in another tab", async () => {
+    const { command, start, theirs } = await started();
+    const attached = await command("Target.attachToTarget", {
+      flatten: true,
+      targetId: theirs.tabId,
+    });
+
+    await command(
+      "Accessibility.getFullAXTree",
+      {},
+      attached.result?.sessionId as string,
+    );
+
+    expect(asked).toContainEqual({ kind: "close", tabId: start });
+  });
+
+  it("stays once the session has sent it somewhere", async () => {
+    const { command, navigates, start } = await started();
+    const startTarget = browserTargetOf(StoreId.TabSchema.parse(start));
+    await navigates(startTarget, { title: "Shop", url: "https://shop/" });
+
+    await command("Target.createTarget", { url: "https://example.org/" });
+
+    expect(asked).not.toContainEqual({ kind: "close", tabId: start });
+  });
+
+  it("is the one the session's next connection starts in, while it is still blank", async () => {
+    const { sessionId, start } = await started();
+
+    const again = connect(sessionId);
+    const targets = await again.command("Target.getTargets");
+
+    expect(asked.filter((action) => action.kind === "open")).toEqual([]);
+    expect(
+      (targets.result?.targetInfos as { targetId: string }[])[0]?.targetId,
+    ).toBe(start);
+  });
+});
+
+describe("a session reconnecting", () => {
+  const firstTarget = async (sessionId: StoreId.Session) => {
+    const targets = await connect(sessionId).command("Target.getTargets");
+    return (targets.result?.targetInfos as { targetId: string }[])[0]?.targetId;
+  };
+
+  it("starts in the tab it worked in last", async () => {
+    const sessionId = StoreId.newSessionId();
+    tab({ worked: false });
+    const mine = tab({ worked: false });
+    noteTabCommand(mine.targetId, { chatId: TASK_ID, sessionId }, 1);
+
+    expect(await firstTarget(sessionId)).toBe(mine.tabId);
+    expect(asked).toEqual([]);
+  });
+
+  it("starts in a blank tab once another session has worked in its last tab since", async () => {
+    const sessionId = StoreId.newSessionId();
+    const mine = tab({ worked: false });
+    noteTabCommand(mine.targetId, { chatId: TASK_ID, sessionId }, 1);
+    noteTabCommand(
+      mine.targetId,
+      { chatId: TASK_ID, sessionId: StoreId.newSessionId() },
+      2,
+    );
+
+    const first = await firstTarget(sessionId);
+
+    expect(first).not.toBe(mine.tabId);
+    expect(asked).toEqual([
+      { kind: "open", show: false, target: { kind: "page" } },
+    ]);
   });
 });

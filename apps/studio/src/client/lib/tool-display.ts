@@ -171,4 +171,3 @@ export function summarizeToolRun(toolNames: ToolName[]): string {
     clauses.length === 0 ? last : `${clauses.join(", ")} and ${last}`;
   return sentence.charAt(0).toUpperCase() + sentence.slice(1);
 }
-

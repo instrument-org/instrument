@@ -54,7 +54,7 @@ export async function startRun(
     modelURI: string;
     name: string;
     prompt: string;
-    startsTask?: StartsTask;
+    startsTask?: StartsTask | readonly StartsTask[];
     /** What the window had on screen, as the note on the first message. */
     viewing?: SessionMessageDataPart.ViewContextDataPart;
   },
@@ -128,7 +128,9 @@ export async function startRun(
     // the message in the store.
     (await setChatModel(chatId, uri))._unsafeUnwrap();
     (await ChatWrites.saveMessageWithParts(message, chatId))._unsafeUnwrap();
-    await startTaskForChat(chatId, sessionId, startsTask, model);
+    for (const each of [startsTask].flat()) {
+      await startTaskForChat(chatId, sessionId, each, model);
+    }
     return { id: chatId, sessionId };
   }
 

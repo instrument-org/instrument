@@ -1,6 +1,6 @@
 import { isSetupUp } from "@/electron-main/lib/setup-state";
 import { matchesAccelerator } from "@/electron-main/menus/match-accelerator";
-import { publisher } from "@/electron-main/rpc/publisher";
+import { commandWindow } from "@/electron-main/windows/window-command";
 import { isDeveloperMode } from "@/electron-main/stores/workspace/preferences";
 import { CODE_EDITOR_FOCUS_CHANNEL } from "@/shared/constants";
 import { OS_CONVENTIONS, osOf } from "@/shared/os-conventions";
@@ -19,12 +19,13 @@ import {
 } from "electron";
 
 import { createOtherWindowViewMenu } from "./other-window";
+import { menuSymbol } from "./symbol";
 import {
-  createAppMenu,
   createDevToolsMenu,
   createEditMenu,
   createHelpMenu,
   createWindowMenu,
+  withAppMenu,
 } from "./utils";
 
 const IS_MAC = process.platform === "darwin";
@@ -40,20 +41,54 @@ interface WindowChord {
   /** The shared table's row, for a chord that has one. */
   id?: WindowShortcutId;
   label: string;
-  run: () => void;
+  /** Answered by the window the chord was pressed in. */
+  run: (window: BrowserWindow) => void;
+  /** The SF Symbol its menu row shows on a Mac (`menuSymbol`). */
+  symbol?: string;
   /** Drawn in the menu, or an accelerator alone behind a row already there. */
   visible?: boolean;
 }
 
+/**
+ * Each chord's SF Symbol, written for every one so that no row of the
+ * window's menus goes without while the rows around it have one.
+ */
+const CHORD_SYMBOLS: Record<WindowShortcutId, string> = {
+  back: "chevron.backward",
+  closeTab: "xmark.square",
+  commandMenu: "command",
+  editPage: "pencil",
+  fileInfo: "info.circle",
+  findInPage: "doc.text.magnifyingglass",
+  findNext: "chevron.down",
+  findPrevious: "chevron.up",
+  forward: "chevron.forward",
+  goToApps: "square.grid.2x2",
+  goToBrowser: "globe",
+  goToChat: "bubble.left.and.bubble.right",
+  goToFiles: "folder",
+  newChat: "square.and.pencil",
+  newTab: "plus.square.on.square",
+  nextChat: "arrow.down",
+  nextTab: "chevron.right",
+  previousChat: "arrow.up",
+  previousTab: "chevron.left",
+  printPage: "printer",
+  reloadPage: "arrow.clockwise",
+  reopenTab: "arrow.uturn.backward",
+  search: "magnifyingglass",
+  toggleInbox: "sidebar.left",
+};
+
 /** Sends a command to the window's renderer, which holds the tabs and the inbox: every chord's id is one. */
-const command = (name: WindowShortcutId) => () => {
-  publisher.publish("window.command", name);
+const command = (name: WindowShortcutId) => (window: BrowserWindow) => {
+  commandWindow(window, name);
 };
 
 /** A chord from the shared table, answered by the command of the same name unless told otherwise. */
 function chord(
   id: WindowShortcutId,
-  run: () => void = command(id),
+  run: (window: BrowserWindow) => void = command(id),
 ): WindowChord {
   const { accelerator, label } = WINDOW_SHORTCUTS[id];
   return {
@@ -61,25 +96,25 @@ function chord(
     id,
     label,
     run,
+    symbol: CHORD_SYMBOLS[id],
   };
 }
 
 const FILE_CHORDS: WindowChord[] = [
   // Where mail keeps New Message: a draft of a new chat, at the corner.
   chord("newChat"),
-  chord("commandMenu", () => {
+  chord("commandMenu", (window) => {
     // As with the field below: a page guest holding the keyboard keeps the
     // menu's input from taking it, so the window takes it back first.
-    BrowserWindow.getFocusedWindow()?.webContents.focus();
-    publisher.publish("window.command", "commandMenu");
+    window.webContents.focus();
+    commandWindow(window, "commandMenu");
   }),
-  chord("search", () => {
+  chord("search", (window) => {
     // The chord reaches the menu when a page guest has the keyboard, since
     // its keys never reach the window's own renderer. The field is the
-    // window's, so the window (the one in front, which is this one while
-    // its menu is up) takes the keyboard back before it is asked for.
-    BrowserWindow.getFocusedWindow()?.webContents.focus();
-    publisher.publish("window.command", "search");
+    // window's, so the window takes the keyboard back before it is asked for.
+    window.webContents.focus();
+    commandWindow(window, "search");
   }),
   // The renderer opens the find bar in the page on screen, and does nothing
   // when none is.
@@ -144,6 +179,8 @@ const CHAT_CHORDS: WindowChord[] = [chord("nextChat"), chord("previousChat")];
  * The chords the tab bar answers to, on whichever screen is up: next and
  * previous by Ctrl+Tab (and by this system's own second chord, below), a tab
  * by place with Cmd+1 through Cmd+8, and the last with Cmd+9, as browsers do.
+ * Those nine are hidden rows, left out of the menu as Chrome leaves them out
+ * of its own, which a focused page guest still reaches.
  */
 const TAB_SWITCH_CHORDS: WindowChord[] = [
   chord("nextTab"),
@@ -152,12 +189,10 @@ const TAB_SWITCH_CHORDS: WindowChord[] = [
     ...(index === 8
       ? WINDOW_MENU_SHORTCUTS.lastTab
       : { accelerator: `CmdOrCtrl+${index + 1}`, label: `Tab ${index + 1}` }),
-    run: () => {
-      publisher.publish("window.command", {
-        index: index + 1,
-        type: "selectTab",
-      });
+    run: (window: BrowserWindow) => {
+      commandWindow(window, { index: index + 1, type: "selectTab" });
     },
+    visible: false,
   })),
 ];
 
@@ -238,42 +273,85 @@ export function bindAppWindowChords(webContents: WebContents) {
       return;
     }
     event.preventDefault();
-    pressed.run();
+    // Close Tab closes a chat's pane tab before the window's tab, and the
+    // last window's tab closes the window: a held key closes once, so it
+    // never runs on from a pane tab into the tab and the window behind it.
+    if (input.isAutoRepeat && pressed.id === "closeTab") {
+      return;
+    }
+    const window = BrowserWindow.fromWebContents(webContents);
+    if (window) {
+      pressed.run(window);
+    }
   });
+}
+
+/** What the menu does with the windows themselves, which the windows' own module answers. */
+export interface WindowMenuActions {
+  canMerge: boolean;
+  canReopenClosed: boolean;
+  mergeAll: () => void;
+  openNew: () => void;
+  /** A new window, with a new chat up in it. */
+  openNewWithChat: () => void;
+  reopenClosed: () => void;
 }
 
 /**
  * The app window's menu: the other windows' menu, but with the
  * chords a browser has, and the ones an inbox has.
  */
-export function createAppWindowMenu(): MenuItemConstructorOptions[] {
+export function createAppWindowMenu(
+  windows: WindowMenuActions,
+): MenuItemConstructorOptions[] {
   const fileMenu: MenuItemConstructorOptions = {
     label: "File",
     submenu: [
-      ...menuItems(FILE_CHORDS.slice(0, 1)),
+      ...menuItems(FILE_CHORDS.slice(0, 1), windows),
       { type: "separator" },
-      ...menuItems(FILE_CHORDS.slice(1)),
-      ...menuItems(FILE_ALIAS_CHORDS),
-      ...menuItems(FILE_INFO_CHORDS),
+      ...menuItems(FILE_CHORDS.slice(1), windows),
+      ...menuItems(FILE_ALIAS_CHORDS, windows),
+      ...menuItems(FILE_INFO_CHORDS, windows),
       { type: "separator" },
-      ...menuItems(TAB_CHORDS),
-      ...menuItems(TAB_ALIAS_CHORDS),
+      {
+        ...resolvedMenuShortcut(WINDOW_MENU_SHORTCUTS.newWindow),
+        ...menuSymbol("macwindow.badge.plus"),
+        click: () => {
+          windows.openNew();
+        },
+      },
+      ...menuItems(TAB_CHORDS, windows),
+      ...menuItems(TAB_ALIAS_CHORDS, windows),
+      {
+        click: () => {
+          windows.reopenClosed();
+        },
+        enabled: windows.canReopenClosed,
+        label: "Reopen Closed Window",
+        ...menuSymbol("arrow.uturn.backward.square"),
+      },
       { ...WINDOW_MENU_SHORTCUTS.closeWindow, role: "close" as const },
     ],
   };
 
-  const chatsMenu: MenuItemConstructorOptions = {
-    label: "Chats",
-    submenu: menuItems(CHAT_CHORDS),
-  };
-
+  // Chrome's Tab menu: going between the window's tabs and taking one out of
+  // it. Opening, closing and reopening one are in File, where Chrome has them.
   const tabMenu: MenuItemConstructorOptions = {
-    label: "Tabs",
+    label: "Tab",
     submenu: [
-      ...menuItems(TAB_SWITCH_CHORDS.slice(0, 2)),
-      ...menuItems(TAB_SWITCH_ALIAS_CHORDS),
+      ...menuItems(TAB_SWITCH_CHORDS, windows),
+      ...menuItems(TAB_SWITCH_ALIAS_CHORDS, windows),
       { type: "separator" },
-      ...menuItems(TAB_SWITCH_CHORDS.slice(2)),
+      {
+        click: () => {
+          const window = BrowserWindow.getFocusedWindow();
+          if (window) {
+            commandWindow(window, "moveTabToNewWindow");
+          }
+        },
+        label: "Move Tab to New Window",
+        ...menuSymbol("macwindow.on.rectangle"),
+      },
     ],
   };
 
@@ -282,36 +360,46 @@ export function createAppWindowMenu(): MenuItemConstructorOptions[] {
   const historyMenu: MenuItemConstructorOptions = {
     label: "History",
     submenu: [
-      ...menuItems(HISTORY_CHORDS),
+      ...menuItems(HISTORY_CHORDS, windows),
       { type: "separator" },
       {
         click: () => {
           // A focused page guest holds the keyboard, and the dialog is the
           // window's, so the window takes the keyboard back first.
-          BrowserWindow.getFocusedWindow()?.webContents.focus();
-          publisher.publish("window.command", "clearBrowsingData");
+          const window = BrowserWindow.getFocusedWindow();
+          window?.webContents.focus();
+          if (window) {
+            commandWindow(window, "clearBrowsingData");
+          }
         },
         label: "Clear Browsing Data…",
+        ...menuSymbol("trash"),
       },
     ],
   };
 
-  // The other windows' View menu with the inbox's chord at its head, less
+  // The other windows' View menu with the inbox's chord at its head, and the
+  // rail's places and the steps down and up the inbox under it, less
   // its reload roles, which would reload the window and every page in it
   // (Reload Page above takes Cmd+R; the Developer menu reloads the app). Its
   // zoom chords go to the window, which decides whether they mean a page.
   const shared = createOtherWindowViewMenu({
     zoom: (type) => {
-      publisher.publish("window.command", type);
+      const window = BrowserWindow.getFocusedWindow();
+      if (window) {
+        commandWindow(window, type);
+      }
     },
   });
   const viewMenu: MenuItemConstructorOptions = {
     ...shared,
     submenu: [
-      ...menuItems(VIEW_CHORDS),
-      ...menuItems(VIEW_ALIAS_CHORDS),
+      ...menuItems(VIEW_CHORDS, windows),
+      ...menuItems(VIEW_ALIAS_CHORDS, windows),
       { type: "separator" },
-      ...menuItems(PLACE_CHORDS),
+      ...menuItems(PLACE_CHORDS, windows),
+      { type: "separator" },
+      ...menuItems(CHAT_CHORDS, windows),
       { type: "separator" },
       ...(Array.isArray(shared.submenu)
         ? shared.submenu.filter(
@@ -321,46 +409,101 @@ export function createAppWindowMenu(): MenuItemConstructorOptions[] {
     ],
   };
 
-  return [
-    createAppMenu(),
+  return withAppMenu([
     fileMenu,
     createEditMenu(),
     viewMenu,
-    chatsMenu,
-    tabMenu,
     historyMenu,
-    ...createWindowMenu(),
+    tabMenu,
+    ...createWindowMenu([
+      {
+        click: () => {
+          windows.mergeAll();
+        },
+        enabled: windows.canMerge,
+        label: "Merge All Windows",
+        ...menuSymbol("rectangle.stack"),
+      },
+    ]),
     createHelpMenu({
       reportProblem: () => {
-        BrowserWindow.getFocusedWindow()?.webContents.focus();
-        publisher.publish("window.command", "reportProblem");
+        const window = BrowserWindow.getFocusedWindow();
+        window?.webContents.focus();
+        if (window) {
+          commandWindow(window, "reportProblem");
+        }
       },
       shortcutGuide: () => {
         // A focused page guest holds the keyboard, and the guide's search
         // field is the window's, so the window takes the keyboard back first.
-        BrowserWindow.getFocusedWindow()?.webContents.focus();
-        publisher.publish("window.command", "openShortcutGuide");
+        const window = BrowserWindow.getFocusedWindow();
+        window?.webContents.focus();
+        if (window) {
+          commandWindow(window, "openShortcutGuide");
+        }
       },
     }),
     ...(isDeveloperMode() ? createDevToolsMenu({ windowCommands: true }) : []),
-  ];
+  ]);
+}
+
+function resolvedMenuShortcut({
+  accelerator,
+  label,
+}: (typeof WINDOW_MENU_SHORTCUTS)[keyof typeof WINDOW_MENU_SHORTCUTS]) {
+  return {
+    accelerator: resolveAccelerator(accelerator, { isMac: IS_MAC }),
+    label,
+  };
 }
 
 /**
- * A chord's menu row, answered only while a window is focused. This menu is
- * up with no window focused too (menus/index.ts), where the app window may
- * be minimized or held off screen, and a chord there would act on a window
- * nobody can see: Cmd+W on its last tab closes it.
+ * What a chord does with no window focused, as a browser's do: New Chat
+ * opens a window with a new chat in it, New Tab a window, and Reopen Closed
+ * Tab the window closed last. The rest do nothing then.
  */
-function menuItems(chords: WindowChord[]): MenuItemConstructorOptions[] {
-  return chords.map(({ accelerator, label, run, visible }) => ({
+function noWindowAction(
+  id: WindowShortcutId | undefined,
+  windows: WindowMenuActions,
+): (() => void) | undefined {
+  switch (id) {
+    case "newChat": {
+      return windows.openNewWithChat;
+    }
+    case "newTab": {
+      return windows.openNew;
+    }
+    case "reopenTab": {
+      return windows.canReopenClosed ? windows.reopenClosed : undefined;
+    }
+    default: {
+      return undefined;
+    }
+  }
+}
+
+/**
+ * A chord's menu row, answered by the focused window. This menu is up with
+ * no window focused too (menus/index.ts), where the app window may be
+ * minimized or held off screen, and a chord there would act on a window
+ * nobody can see (Cmd+W on its last tab closes it), so only the chords with
+ * a `noWindowAction` answer then, each by opening a window.
+ */
+function menuItems(
+  chords: WindowChord[],
+  windows: WindowMenuActions,
+): MenuItemConstructorOptions[] {
+  return chords.map(({ accelerator, id, label, run, symbol, visible }) => ({
     accelerator,
-    click: (_item, focusedWindow) => {
-      if (focusedWindow) {
-        run();
+    click: () => {
+      const window = BrowserWindow.getFocusedWindow();
+      if (window) {
+        run(window);
+      } else {
+        noWindowAction(id, windows)?.();
       }
     },
     label,
-    ...(visible === false ? { visible } : {}),
+    ...(visible === false ? { visible } : symbol ? menuSymbol(symbol) : {}),
   }));
 }

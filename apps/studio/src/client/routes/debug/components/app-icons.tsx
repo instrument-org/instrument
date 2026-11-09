@@ -279,7 +279,7 @@ function RouteComponent() {
           </Surface>
           <Surface
             label="Apps and zero-state marks (xl)"
-            source="window/apps-home.tsx, window/compose-zero-state.tsx"
+            source="window/apps-home.tsx, window/web-start.tsx"
           >
             {chosen.map((app) => (
               <div

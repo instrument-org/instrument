@@ -15,6 +15,12 @@ import { StoreId } from "../../schemas/store-id";
  */
 export const HandOffSchema = z.object({
   kind: z.enum(["created", "sent"]),
+  /**
+   * On a send, the message it put in the task's log, where the card for what
+   * the task does with it starts. Absent on a creation, and on a send
+   * recorded before sends named it, which draws no card.
+   */
+  messageId: StoreId.MessageSchema.optional(),
   /** The task, by its session in the chat's store. */
   sessionId: StoreId.SessionSchema,
 });

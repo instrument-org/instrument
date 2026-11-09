@@ -18,7 +18,7 @@ import { chatById } from "../../lib/chat/chats";
 import { childTask } from "../../lib/chat/children";
 import { startJobWake } from "../../lib/chat/job-wake";
 import { hasWakeOnItsWay } from "../../lib/chat/wake-queue";
-import { taskStanding } from "../../lib/chat/standing";
+import { taskStatus } from "../../lib/chat/task-status";
 import { startChatWake } from "../../lib/chat/wake";
 import { recordAsk } from "../../lib/chat/asks";
 import { openAsks } from "../../lib/chat/open-asks";
@@ -200,8 +200,8 @@ async function said(chatId: ChatId, sessionId: StoreId.Session, text: string) {
 }
 
 /** Where a task with no agent at work stands. */
-function standingOf(chatId: ChatId, sessionId: StoreId.Session) {
-  return taskStanding({ chatId, isRunning: false, sessionId });
+function statusOf(chatId: ChatId, sessionId: StoreId.Session) {
+  return taskStatus({ chatId, isRunning: false, sessionId });
 }
 
 // A task whose turn ended with the card it ran into still up waits on the
@@ -211,7 +211,7 @@ describe("a task waiting on a card", () => {
     const { chatId, task } = await chatWithTask();
     await recordAsk({ chatId, sessionId: task }, "folder", "/Users/me/Pantry");
     await said(chatId, task, "I need the Pantry folder to go on.");
-    expect(await standingOf(chatId, task)).toEqual({
+    expect(await statusOf(chatId, task)).toEqual({
       kind: "waiting",
       line: "Waiting for your OK to use “Pantry”",
     });
@@ -237,7 +237,7 @@ describe("a task waiting on a card", () => {
       summary: "The Pantry has 12 jars of jam.",
     });
     expect((await notesIn(chatId))[0]).not.toHaveProperty("needs");
-    expect(await standingOf(chatId, task)).toEqual({
+    expect(await statusOf(chatId, task)).toEqual({
       kind: "done",
       line: "The Pantry has 12 jars of jam.",
     });
@@ -264,7 +264,7 @@ describe("a task waiting on a card", () => {
     await vi.waitFor(async () => {
       expect((await childTask(chatId, task))?.stoppedBy).toBe("person");
     }, 5000);
-    expect(await standingOf(chatId, task)).toEqual({
+    expect(await statusOf(chatId, task)).toEqual({
       kind: "done",
       line: "I need the Pantry folder to go on.",
     });
@@ -463,11 +463,11 @@ describe("session.stop", () => {
   // A Stop before the turn began leaves only the message no turn took up,
   // and the chat still says the person stopped it.
   it.each([
-    { running: true, state: "stopped" },
-    { running: false, state: "idle" },
+    { running: true, status: "stopped" },
+    { running: false, status: "idle" },
   ])(
     "says the chat was stopped once the person stops its own turn (turn running: $running)",
-    async ({ running: turnRunning, state }) => {
+    async ({ running: turnRunning, status }) => {
       const { chatId, own } = await chatWithTask();
       const messageId = StoreId.newMessageId();
       const createdAt = new Date();
@@ -503,7 +503,7 @@ describe("session.stop", () => {
         { context: context() },
       );
 
-      expect((await chatById(chatId))?.state).toBe(state);
+      expect((await chatById(chatId))?.status).toBe(status);
     },
   );
 

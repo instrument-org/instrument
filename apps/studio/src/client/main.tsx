@@ -5,6 +5,7 @@ import ReactDOM, { type Root } from "react-dom/client";
 import { App } from "./app";
 import { FileSystemIconSpriteSheet } from "./components/extend/file-system";
 import { AppWindow } from "./components/window/app-window";
+import { initBeforeLeaving } from "./lib/before-leaving";
 import { initBrowserNavigationNotices } from "./lib/browser-navigation-notices";
 import { initBrowserPool } from "./lib/browser-pool";
 import { initExceptionCapture } from "./lib/capture-exception";
@@ -17,6 +18,7 @@ declare global {
 }
 
 initExceptionCapture();
+initBeforeLeaving();
 initDebugRpcBridge();
 initNetworkStatusForwarding();
 

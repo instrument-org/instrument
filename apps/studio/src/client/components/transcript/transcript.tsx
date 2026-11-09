@@ -1,20 +1,27 @@
 import { chatSeparators } from "@/client/lib/chat-separators";
+import { instructionsChanges } from "@/client/lib/instructions-changes";
 import { type AIGatewayModelURI } from "@instrument-org/ai-gateway/client";
 import {
-  type ChatInfo,
-  type SessionMessagePart,
-  shellPath,
-  stateNotes,
+  type ChatId,
   type StoreId,
   type TranscriptMessage,
   type Turn,
+  workCardTurnOf,
   turnsOf,
   type TurnsCache,
   waitsForStep,
 } from "@instrument-org/workspace/client";
 import { CaretDownIcon } from "@phosphor-icons/react/CaretDown";
 import { WarningIcon } from "@phosphor-icons/react/Warning";
-import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
+import {
+  lazy,
+  Suspense,
+  useEffect,
+  useLayoutEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
 
 import { cn } from "@/client/lib/utils";
 import { type RunAgain } from "../message-error";
@@ -23,11 +30,13 @@ import { Button } from "../ui/button";
 import { MessageScrollerItem } from "../ui/message-scroller";
 import { Spinner } from "../ui/spinner";
 import {
-  StateNotesContext,
   type TranscriptActions,
   TranscriptActionsContext,
 } from "./transcript-actions";
 import { TurnView } from "./turn-view";
+
+/** What only a developer reads, loaded only for a developer. */
+const DeveloperNotesLayer = lazy(() => import("./developer-notes-layer"));
 
 /**
  * A session's transcript. The one way a chat or a task is drawn: a chat's turns
@@ -38,12 +47,13 @@ import { TurnView } from "./turn-view";
  * decided in one place, with the same messages always giving the same turns.
  */
 export function Transcript({
-  chatInfo,
+  chatId,
   hasOlder = false,
-  isDeveloperMode,
+  isDeveloperMode = false,
   isLoadingOlder = false,
   isRunning,
   messages,
+  onBranch,
   onContinue,
   onLoadOlder,
   onModelChange,
@@ -51,14 +61,17 @@ export function Transcript({
   onRunAgain,
   sessionId,
 }: {
-  chatInfo: ChatInfo;
+  chatId: ChatId;
   /** There are earlier turns than these, asked for as the reader nears them. */
   hasOlder?: boolean;
-  isDeveloperMode: boolean;
+  /** Mounts the margin notes beside the rows, which never change for it. */
+  isDeveloperMode?: boolean;
   isLoadingOlder?: boolean;
   /** The session is at work on its last turn, or about to be. */
   isRunning: boolean;
   messages: readonly TranscriptMessage[];
+  /** Starts a new chat up to a reply; given only for a chat's own conversation. */
+  onBranch?: (upTo: StoreId.Message) => Promise<void>;
   onContinue?: () => void;
   onLoadOlder?: () => void;
   onModelChange?: (modelURI: AIGatewayModelURI.Type) => void;
@@ -67,19 +80,12 @@ export function Transcript({
   sessionId: StoreId.Session;
 }) {
   const [cache] = useState<TurnsCache>(() => new Map());
-  const turns = turnsOf(
-    messages,
-    { isDeveloperMode, isRunning, sessionId },
-    cache,
-  );
+  const turns = turnsOf(messages, { isRunning, sessionId }, cache);
   const separators = useMemo(() => chatSeparators(messages), [messages]);
-  const notes = useMemo(
-    () => (isDeveloperMode ? stateNotesOf(messages) : NO_NOTES),
-    [isDeveloperMode, messages],
-  );
+  const changes = useMemo(() => instructionsChanges(messages), [messages]);
   const actions = useStableActions({
-    isDeveloperMode,
     isRunning,
+    onBranch,
     onModelChange,
     onRetry,
     onRunAgain,
@@ -87,11 +93,14 @@ export function Transcript({
   const earlier = turns.filter((turn) => turn.inherited);
   const own = turns.filter((turn) => !turn.inherited);
   const last = turns.at(-1);
+  const cardTurn = workCardTurnOf(turns);
   const pausedAtMaxSteps =
     !isRunning && last?.replies.at(-1)?.metadata.finishReason === "max-steps";
   const drawTurn = (turn: Turn) => (
     <TurnView
-      chatInfo={chatInfo}
+      chatId={chatId}
+      changes={turn.opener && changes.get(turn.opener.message.id)}
+      hasCard={turn.id === cardTurn}
       isLast={turn === last}
       key={turn.id}
       separator={turn.opener && separators.get(turn.opener.message.id)}
@@ -102,56 +111,41 @@ export function Transcript({
   );
   return (
     <TranscriptActionsContext value={actions}>
-      <StateNotesContext value={notes}>
-        {hasOlder && onLoadOlder && (
-          <OlderTurns isLoading={isLoadingOlder} onNear={onLoadOlder} />
-        )}
-        {earlier.length > 0 && (
-          <EarlierInTheChat count={messagesIn(earlier)}>
-            {earlier.map(drawTurn)}
-          </EarlierInTheChat>
-        )}
-        {own.map(drawTurn)}
-        {pausedAtMaxSteps && onContinue && (
-          <MessageScrollerItem key="continue">
-            <Alert className="mt-4" variant="warning">
-              <WarningIcon />
-              <AlertDescription className="flex flex-col gap-3">
-                <div className="text-xs">
-                  Instrument paused after working on its own for a while.
-                </div>
-                <Button onClick={onContinue} size="sm" variant="secondary">
-                  Keep going
-                </Button>
-              </AlertDescription>
-            </Alert>
-          </MessageScrollerItem>
-        )}
-      </StateNotesContext>
+      {hasOlder && onLoadOlder && (
+        <OlderTurns isLoading={isLoadingOlder} onNear={onLoadOlder} />
+      )}
+      {earlier.length > 0 && (
+        <EarlierInTheChat count={messagesIn(earlier)}>
+          {earlier.map(drawTurn)}
+        </EarlierInTheChat>
+      )}
+      {own.map(drawTurn)}
+      {pausedAtMaxSteps && onContinue && (
+        <MessageScrollerItem key="continue">
+          <Alert className="mt-4" variant="warning">
+            <WarningIcon />
+            <AlertDescription className="flex flex-col gap-3">
+              <div className="text-xs">
+                Instrument paused after working on its own for a while.
+              </div>
+              <Button onClick={onContinue} size="sm" variant="secondary">
+                Keep going
+              </Button>
+            </AlertDescription>
+          </Alert>
+        </MessageScrollerItem>
+      )}
+      {isDeveloperMode && (
+        <Suspense fallback={null}>
+          <DeveloperNotesLayer
+            chatId={chatId}
+            sessionId={sessionId}
+            turns={turns}
+          />
+        </Suspense>
+      )}
     </TranscriptActionsContext>
   );
-}
-
-const NO_NOTES: ReadonlyMap<StoreId.Part, string> = new Map();
-
-/** What the model heard of each `state` part, read in the order a request reads them. */
-function stateNotesOf(
-  messages: readonly TranscriptMessage[],
-): ReadonlyMap<StoreId.Part, string> {
-  const noteOf = stateNotes({
-    shellPath: (hostPath) =>
-      shellPath(hostPath, window.electron.process.platform),
-  });
-  const notes = new Map<StoreId.Part, string>();
-  for (const part of messages.flatMap((message) => message.parts)) {
-    if (part.type !== "step" && part.type.startsWith("data-")) {
-      const note = noteOf(part as SessionMessagePart.DataPart);
-      if (note !== undefined) {
-        notes.set(part.metadata.id, note);
-      }
-    }
-  }
-  return notes;
 }
 
 function messagesIn(turns: readonly Turn[]): number {
@@ -244,7 +238,9 @@ function useStableActions(actions: TranscriptActions): TranscriptActions {
   useLayoutEffect(() => {
     latest.current = actions;
   });
-  const [handlers] = useState(() => ({
+  const [{ onBranch, ...handlers }] = useState(() => ({
+    onBranch: (upTo: StoreId.Message) =>
+      latest.current.onBranch?.(upTo) ?? Promise.resolve(),
     onModelChange: (modelURI: AIGatewayModelURI.Type) => {
       latest.current.onModelChange?.(modelURI);
     },
@@ -255,12 +251,14 @@ function useStableActions(actions: TranscriptActions): TranscriptActions {
       latest.current.onRunAgain?.(options);
     },
   }));
+  // Whether the transcript offers Branch at all, which a task's never does.
+  const canBranch = actions.onBranch !== undefined;
   return useMemo(
     () => ({
       ...handlers,
-      isDeveloperMode: actions.isDeveloperMode,
       isRunning: actions.isRunning,
+      ...(canBranch && { onBranch }),
     }),
-    [actions.isDeveloperMode, actions.isRunning, handlers],
+    [actions.isRunning, canBranch, handlers, onBranch],
   );
 }

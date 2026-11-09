@@ -5,13 +5,14 @@ import { cn } from "@/client/lib/utils";
 import { rpcClient } from "@/client/rpc/client";
 import { type ChatId } from "@instrument-org/workspace/client";
 import { useMutation, useQuery } from "@tanstack/react-query";
-import { useAtom } from "jotai";
-import { useEffect, useState } from "react";
+import { useAtom, useAtomValue } from "jotai";
+import { useEffect, useRef, useState } from "react";
 import { spokenMessage, toast } from "@/client/lib/toast";
 
 import { useAppsBySlug } from "./apps-by-slug";
 import { ChatList } from "./chat-list";
 import { chatListOptions } from "./chat-list-query";
+import { groupByDayAtom, rowDensityAtom } from "./chat-list-view";
 import {
   byLastUserMessage,
   type Chat,
@@ -21,7 +22,6 @@ import {
   matchesFilters,
   outsideFilters,
   type Project,
-  widenToSearch,
 } from "./chats";
 import { FilterHead } from "./filter-head";
 import { DeleteChatDialog } from "./delete-chat-dialog";
@@ -29,17 +29,21 @@ import { ProjectDialog } from "./project-dialog";
 import { ProjectBanner } from "./project-banner";
 import { projectColor } from "./project-colors";
 import { projectTint } from "./project-tint";
+import { ProjectsSection } from "./projects-section";
 import { useChatSearchFallback } from "./use-chat-search-fallback";
+import { useProjectShift } from "./use-project-shift";
 import { useSetChatProject } from "./use-set-chat-project";
+import { useShell } from "./shell-context";
 import { backfillCandidates } from "./use-project-backfill";
 
 /**
- * The chat pane: the inbox under the line that says where it stands and
- * searches it. Nothing is composed here: New in the rail opens
- * a draft, and the chat it starts lands at the top of the list; until it
- * is started it is a row of the Drafts place, which lists the drafts where
- * the chats otherwise go. With one project chosen in the head, the project's
- * banner stands above the rows.
+ * The chat pane: the inbox under the search and the tabs of the places a
+ * chat can be. Nothing is composed here: New in the rail opens a new chat,
+ * and the chat it starts lands at the top of the list; a draft saved and left
+ * is a row of the Drafts place, which lists the drafts where the chats
+ * otherwise go. In the inbox the projects stand above the chats, and
+ * stepping into one makes the list that project, under its own head, in its
+ * tint.
  */
 export function ChatPane({
   arrivedId,
@@ -77,6 +81,7 @@ export function ChatPane({
   outIds?: ReadonlySet<string>;
 }) {
   const appsBySlug = useAppsBySlug();
+  const shell = useShell();
   const chatsQuery = useQuery(chatListOptions());
   const projectsQuery = useQuery(
     rpcClient.workspace.projects.list.queryOptions(),
@@ -99,6 +104,8 @@ export function ChatPane({
   const setChatProject = useSetChatProject();
 
   const [filters, setFilters] = useAtom(chatFiltersAtom);
+  const density = useAtomValue(rowDensityAtom);
+  const groupByDay = useAtomValue(groupByDayAtom);
   // A change of filter is a change of subject, and the newest of the new
   // subject is what matters, so the list is taken back to its top with it.
   // Read off the filters rather than counted here, because the pane is not
@@ -111,6 +118,18 @@ export function ChatPane({
     matchesFilters(chat, filters, projectNames),
   );
   const outside = outsideFilters(chats, filters, projectNames);
+  // The matches outside the filter, once asked for, are shown under the
+  // list's own for as long as the same view is searched; the view itself
+  // stays where it is. Kept by the view they were asked for in, so another
+  // view or a cleared search folds them away.
+  const viewKey = JSON.stringify({ ...filters, search: "" });
+  const [widenedIn, setWidenedIn] = useState<string>();
+  const isSearching = filters.search.trim() !== "";
+  const isNarrowed = isSearching || filters.tags.length > 0;
+  if (widenedIn !== undefined && (!isSearching || widenedIn !== viewKey)) {
+    setWidenedIn(undefined);
+  }
+  const shownOutside = widenedIn === viewKey ? outside : [];
   // Words that turn up in no chat anywhere are handed to the decision
   // model, which reads the chats the other filters keep for the one the
   // search means; its finds stand in the list's place, under a line saying
@@ -120,7 +139,7 @@ export function ChatPane({
       filters.place !== "drafts" &&
       filters.search.trim() !== "" &&
       matched.length === 0 &&
-      outside === 0,
+      outside.length === 0,
     candidates: chats.filter((chat) =>
       matchesFilters(chat, { ...filters, search: "" }, projectNames),
     ),
@@ -128,7 +147,10 @@ export function ChatPane({
   });
   const isAISearch = aiSearch.isLooking || aiSearch.chats.length > 0;
   const shown = matched.length > 0 ? matched : aiSearch.chats;
-  const listed = byLastUserMessage(shown).map((chat) => chat.id);
+  const listed = [
+    ...byLastUserMessage(shown),
+    ...byLastUserMessage(shownOutside),
+  ].map((chat) => chat.id);
   // Keyed by value: the list is rebuilt on every read of the chats, and
   // the callback is written fresh each render; the ids are what matter.
   const listedKey = listed.join("\n");
@@ -154,6 +176,17 @@ export function ChatPane({
     filters.projects.length === 1
       ? projects.find((project) => project.id === filters.projects[0])
       : undefined;
+  // The head and the rows slide in together as the list steps into a
+  // project or back out of one.
+  const shiftRef = useRef<HTMLDivElement>(null);
+  useProjectShift(shiftRef, chosenProject?.id);
+  // The wash keeps the last project's color while it fades out, since the
+  // column's own tint goes the moment the list leaves.
+  const washRef = useRef<Project>(undefined);
+  if (chosenProject) {
+    washRef.current = chosenProject;
+  }
+  const washProject = chosenProject ?? washRef.current;
 
   // Whether the new-project dialog is up, and for which chat when a row
   // opened it: a project made from a row is filed on that chat as it lands,
@@ -176,93 +209,124 @@ export function ChatPane({
     // hairlines never cross; the wash, placed against the padding box,
     // still reaches under the line.
     <div
-      className="relative isolate flex h-full min-h-0 min-w-0 flex-col pr-px"
+      className={cn(
+        "relative isolate flex h-full min-h-0 min-w-0 flex-col pr-px",
+        chosenProject && "project-tint",
+      )}
       data-project={chosenProject ? "" : undefined}
       data-find-surface
+      style={
+        chosenProject ? projectTint(projectColor(chosenProject)) : undefined
+      }
     >
-      {/* The head, and while the list is one project, the project's own line
-          under it, with the project's tint washing down from the card's edge
-          and fading out past the head, behind the first rows. */}
-      <div
-        className={cn("shrink-0", chosenProject && "project-tint")}
-        style={
-          chosenProject ? projectTint(projectColor(chosenProject)) : undefined
-        }
-      >
-        {/* Sized against the whole column, so a taller window washes
-            further down it. */}
-        {chosenProject && (
-          <div
-            aria-hidden
-            className="pointer-events-none absolute inset-x-0 top-0 -z-10 h-[calc(20%+14rem)] bg-linear-to-b from-(--project-tint-surface)/50 to-transparent dark:from-(--project-tint-surface)/25"
-          />
-        )}
+      {/* While the list is one project, its tint washes down from the
+          card's edge and fades out past the head, behind the first rows;
+          sized against the whole column, so a taller window washes further
+          down it. */}
+      {washProject && (
+        <div
+          aria-hidden
+          className={cn(
+            "pointer-events-none absolute inset-x-0 top-0 -z-10 h-[calc(20%+14rem)] bg-linear-to-b from-(--project-tint-surface)/50 to-transparent transition-opacity duration-300 ease-out project-tint motion-reduce:transition-none dark:from-(--project-tint-surface)/25 starting:opacity-0",
+            !chosenProject && "opacity-0",
+          )}
+          style={projectTint(projectColor(washProject))}
+        />
+      )}
+      <div className="flex min-h-0 flex-1 flex-col" ref={shiftRef}>
         <FilterHead
           chats={chats}
-          drafts={drafts.length}
           filters={filters}
           onFiltersChange={setFilters}
-          onNewProject={() => {
-            setNewProject({});
+          onLeaveProject={shell.leaveProject}
+          project={chosenProject}
+        />
+        {isAISearch && (
+          <p className="shrink-0 px-4 pt-2 pb-1 text-xs font-medium text-muted-foreground">
+            AI results
+          </p>
+        )}
+        <ChatList
+          appsBySlug={appsBySlug}
+          arrivedId={arrivedId}
+          chats={shown}
+          density={density}
+          drafts={shownDrafts}
+          groupByDay={groupByDay && shownDrafts === undefined}
+          head={
+            chosenProject
+              ? {
+                  node: (
+                    <ProjectBanner
+                      onDetails={(project) => {
+                        openProjectDetails(project.id);
+                      }}
+                      onOpenInFiles={shell.openProjectInFiles}
+                      project={chosenProject}
+                    />
+                  ),
+                }
+              : filters.place === undefined &&
+                  filters.apps.length === 0 &&
+                  !isNarrowed &&
+                  projects.some((project) => !project.retired)
+                ? {
+                    heading: "Chats",
+                    node: (
+                      <ProjectsSection
+                        chats={chats}
+                        onChoose={(project) => {
+                          shell.openProject(project.id);
+                        }}
+                        onDetails={(project) => {
+                          openProjectDetails(project.id);
+                        }}
+                        onNew={() => {
+                          setNewProject({});
+                        }}
+                        projects={projects}
+                      />
+                    ),
+                  }
+                : undefined
+          }
+          isProjectShown={chosenProject === undefined}
+          emptyLine={
+            aiSearch.isLooking
+              ? "Looking through your chats…"
+              : emptyLineFor(filters, chats.length, chosenProject)
+          }
+          // The drafts are kept on this computer, so they are never on
+          // their way.
+          isLoading={shownDrafts === undefined && chatsQuery.data === undefined}
+          onArchiveOpen={onArchiveOpen}
+          onDelete={(chat) => {
+            setDeletingId(chat.id);
           }}
-          onProjectDetails={(project) => {
-            openProjectDetails(project.id);
+          onDeleteDraft={onDeleteDraft}
+          onNewProject={(chat, name) => {
+            setNewProject({ forChat: chat, ...(name ? { name } : {}) });
           }}
+          onOpen={onOpenChat}
+          onOpenDraft={onOpenDraft}
+          onPopOut={onPopOut}
+          onSetProject={(chat, next) => {
+            setChatProject(chat.id, next);
+          }}
+          onWiden={() => {
+            setWidenedIn(viewKey);
+          }}
+          openId={openChatId}
+          outIds={outIds}
+          outside={outside.length}
+          outsideChats={shownOutside}
+          scrollSignal={scrollSignal}
+          // The decision model's finds are not matches of the words, so
+          // nothing on them is marked.
+          search={isAISearch ? "" : filters.search}
           projects={projects}
         />
-        {chosenProject && (
-          <ProjectBanner
-            onDetails={(project) => {
-              openProjectDetails(project.id);
-            }}
-            project={chosenProject}
-          />
-        )}
       </div>
-      {isAISearch && (
-        <p className="shrink-0 px-4 pt-2 pb-1 text-xs font-medium text-muted-foreground">
-          AI results
-        </p>
-      )}
-      <ChatList
-        appsBySlug={appsBySlug}
-        arrivedId={arrivedId}
-        chats={shown}
-        drafts={shownDrafts}
-        emptyLine={
-          aiSearch.isLooking
-            ? "Looking through your chats…"
-            : emptyLineFor(filters, chats.length, chosenProject)
-        }
-        // The drafts are kept on this computer, so they are never on
-        // their way.
-        isLoading={shownDrafts === undefined && chatsQuery.data === undefined}
-        onArchiveOpen={onArchiveOpen}
-        onDelete={(chat) => {
-          setDeletingId(chat.id);
-        }}
-        onDeleteDraft={onDeleteDraft}
-        onNewProject={(chat, name) => {
-          setNewProject({ forChat: chat, ...(name ? { name } : {}) });
-        }}
-        onOpen={onOpenChat}
-        onOpenDraft={onOpenDraft}
-        onPopOut={onPopOut}
-        onSetProject={(chat, next) => {
-          setChatProject(chat.id, next);
-        }}
-        onWiden={() => {
-          setFilters(widenToSearch(filters));
-        }}
-        openId={openChatId}
-        outIds={outIds}
-        outside={outside}
-        scrollSignal={scrollSignal}
-        // The decision model's finds are not matches of the words, so
-        // nothing on them is marked.
-        search={isAISearch ? "" : filters.search}
-        projects={projects}
-      />
       {deletingChat && (
         <DeleteChatDialog
           chat={deletingChat}
@@ -296,13 +360,7 @@ export function ChatPane({
                 setChatProject(forChat.id, created.id);
                 return;
               }
-              // Read at the moment it lands rather than from the render
-              // that opened the dialog: the search may have moved since.
-              setFilters((current) => ({
-                ...current,
-                apps: [],
-                projects: [created.id],
-              }));
+              shell.openProject(created.id);
             },
           });
         }}
@@ -338,10 +396,10 @@ function emptyLineFor(
   if (filters.place === "drafts") {
     return "You don't have any drafts right now";
   }
-  if (filters.place === "unread") {
+  if (filters.tags.includes("unread")) {
     return "You're all caught up";
   }
-  if (filters.place === "starred") {
+  if (filters.tags.includes("starred")) {
     return "Chats you star will show up here";
   }
   if (filters.place === "archived") {

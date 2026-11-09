@@ -41,6 +41,12 @@ export interface RecordChanged {
     removed: boolean;
     sessionId: StoreId.Session;
   };
+  /**
+   * Set when the change was to the running turn's memory alone (a reply
+   * streaming in, a call still being typed) and wrote nothing: what a reader
+   * that shows only written records can leave unread.
+   */
+  live?: true;
 }
 
 /**
@@ -57,14 +63,21 @@ export function recordChanged(
 
 /**
  * Says that a message of a transcript, or one of its parts, changed, naming
- * the message and whether it was taken out.
+ * the message and whether it was taken out, and with `live` that the change
+ * was to the running turn's memory alone.
  */
 export function recordMessageChanged(
   id: ChatId,
   message: NonNullable<RecordChanged["message"]>,
+  { live = false }: { live?: boolean } = {},
 ): void {
   bumpChatGeneration(id, message.sessionId);
-  publisher.publish("record.changed", { id, kind: "messages", message });
+  publisher.publish("record.changed", {
+    id,
+    kind: "messages",
+    message,
+    ...(live && { live: true as const }),
+  });
 }
 
 /** Says that a chat is gone, once the index has forgotten it. */
@@ -74,7 +87,8 @@ export function recordRemoved(id: ChatId): void {
 
 /**
  * Every record change since the consumer last pulled, one batch per pull,
- * each change once however often it happened. A callback subscription
+ * each change once however often it happened, and `live` only when every
+ * time it happened was in memory alone. A callback subscription
  * hears every change as it is published, so nothing is dropped behind a
  * slow consumer, and the subscription is made when this is called rather
  * than on the first pull: a read taken right after has nothing land
@@ -94,7 +108,11 @@ export function recordChanges(
   };
   const unsubscribe = publisher.subscribe("record.changed", (change) => {
     if (keep(change)) {
-      pending.set(`${change.id}\n${change.kind}`, change);
+      const key = `${change.id}\n${change.kind}`;
+      const earlier = pending.get(key);
+      const { live: _live, ...written } = change;
+      // A change written stays written, whatever memory change follows it.
+      pending.set(key, earlier && !earlier.live ? written : change);
       notify();
     }
   });

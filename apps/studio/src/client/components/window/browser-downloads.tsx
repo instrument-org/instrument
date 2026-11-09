@@ -17,11 +17,14 @@ import { showInFolder, showInFolderLabel } from "@/client/lib/show-in-files";
 import { cn } from "@/client/lib/utils";
 import { rpcClient, type RPCOutput } from "@/client/rpc/client";
 import { formatBytes } from "@instrument-org/workspace/client";
+import { ArrowClockwiseIcon } from "@phosphor-icons/react/ArrowClockwise";
 import { DownloadSimpleIcon } from "@phosphor-icons/react/DownloadSimple";
 import { MagnifyingGlassIcon } from "@phosphor-icons/react/MagnifyingGlass";
 import { XIcon } from "@phosphor-icons/react/X";
 import { useMutation, useQuery } from "@tanstack/react-query";
-import { useState } from "react";
+import { motion, useAnimate, useReducedMotion } from "motion/react";
+import { type RefObject, useEffect, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 
 type Download =
   RPCOutput["browser"]["live"]["downloads"] extends AsyncIterable<(infer D)[]>
@@ -35,11 +38,33 @@ type Download =
  * shows the list, where each file can be opened, shown in its folder,
  * stopped, or taken off the list.
  */
-export function BrowserDownloadsButton() {
+export function BrowserDownloadsButton({
+  surfaceRef,
+  targetId,
+}: {
+  /** The page's area, which a download it starts is drawn leaving from. */
+  surfaceRef: RefObject<HTMLElement | null>;
+  /** The page this button sits over. */
+  targetId: string;
+}) {
   const [open, setOpen] = useState(false);
   const { data: downloads = [] } = useQuery(
     rpcClient.browser.live.downloads.experimental_liveOptions(),
   );
+  const [buttonScope, bounce] = useAnimate<HTMLButtonElement>();
+  const flight = useDownloadFlight({
+    buttonRef: buttonScope,
+    downloads,
+    onArrive: () => {
+      void bounce(
+        buttonScope.current,
+        { scale: [1, 1.3, 0.95, 1] },
+        { duration: 0.45, ease: "easeOut" },
+      );
+    },
+    surfaceRef,
+    targetId,
+  });
   const clear = useMutation(
     rpcClient.browser.downloads.clear.mutationOptions(),
   );
@@ -61,6 +86,7 @@ export function BrowserDownloadsButton() {
         <PopoverTrigger asChild>
           <Button
             className={cn(TOOLBAR_ICON_BUTTON_CLASSNAME, "relative")}
+            ref={buttonScope}
             size="icon-sm"
             variant="ghost"
           >
@@ -71,6 +97,7 @@ export function BrowserDownloadsButton() {
           </Button>
         </PopoverTrigger>
       </ToolbarTooltip>
+      {flight}
       <PopoverContent align="end" className="w-80 p-0" maxHeight="28rem">
         <div className="flex items-center justify-between border-b py-1.5 pr-1.5 pl-3">
           <span className="text-sm font-medium">Downloads</span>
@@ -144,6 +171,9 @@ function DownloadRow({ download }: { download: Download }) {
   const remove = useMutation(
     rpcClient.browser.downloads.remove.mutationOptions(),
   );
+  const retry = useMutation(
+    rpcClient.browser.downloads.retry.mutationOptions(),
+  );
   const { path } = download;
   const running = isRunning(download);
   const openable = download.exists && path !== null;
@@ -194,6 +224,21 @@ function DownloadRow({ download }: { download: Download }) {
         </span>
       </button>
       <div className="flex shrink-0 items-center">
+        {(download.state === "canceled" || download.state === "failed") &&
+          isWebAddress(download.url) && (
+            <ToolbarTooltip label="Try again">
+              <Button
+                className="size-7"
+                onClick={() => {
+                  retry.mutate({ id: download.id });
+                }}
+                size="icon-sm"
+                variant="ghost"
+              >
+                <ArrowClockwiseIcon />
+              </Button>
+            </ToolbarTooltip>
+          )}
         {openable && (
           <ToolbarTooltip label={showInFolderLabel("file")}>
             <Button
@@ -230,6 +275,123 @@ function DownloadRow({ download }: { download: Download }) {
         </ToolbarTooltip>
       </div>
     </li>
+  );
+}
+
+/** Whether a download can be asked for again from its address alone. */
+function isWebAddress(url: string) {
+  return /^https?:/i.test(url);
+}
+
+/** How long after a download starts its arrival is still worth drawing. */
+const FLIGHT_FRESH_MS = 5000;
+
+/** The downloads whose arrival was drawn, so a second button over the same page draws none. */
+const flown = new Set<string>();
+
+/**
+ * A new download drawn as its file's icon leaving from where it was pressed
+ * in the page, or the page's middle, and dropping into the button in an arc,
+ * the way a browser shows one begin. Only over the page it came from, and
+ * only once per download.
+ */
+function useDownloadFlight({
+  buttonRef,
+  downloads,
+  onArrive,
+  surfaceRef,
+  targetId,
+}: {
+  buttonRef: RefObject<HTMLButtonElement | null>;
+  downloads: Download[];
+  onArrive: () => void;
+  surfaceRef: RefObject<HTMLElement | null>;
+  targetId: string;
+}) {
+  const isReduced = useReducedMotion();
+  const [flight, setFlight] = useState<{
+    filename: string;
+    from: { x: number; y: number };
+    id: string;
+    to: { x: number; y: number };
+  } | null>(null);
+  const arrive = useRef(onArrive);
+  useEffect(() => {
+    arrive.current = onArrive;
+  });
+
+  useEffect(() => {
+    const fresh = downloads.find(
+      (download) =>
+        download.origin?.targetId === targetId &&
+        !flown.has(download.id) &&
+        Date.now() - download.startedAt < FLIGHT_FRESH_MS,
+    );
+    if (fresh === undefined) {
+      return;
+    }
+    flown.add(fresh.id);
+    const surface = surfaceRef.current?.getBoundingClientRect();
+    const button = buttonRef.current?.getBoundingClientRect();
+    if (!surface || !button || button.width === 0) {
+      return;
+    }
+    if (isReduced) {
+      arrive.current();
+      return;
+    }
+    const { x, y } = fresh.origin ?? {};
+    setFlight({
+      filename: fresh.filename,
+      from:
+        x === undefined || y === undefined
+          ? {
+              x: surface.left + surface.width / 2,
+              y: surface.top + surface.height / 2,
+            }
+          : { x: surface.left + x, y: surface.top + y },
+      id: fresh.id,
+      to: {
+        x: button.left + button.width / 2,
+        y: button.top + button.height / 2,
+      },
+    });
+  }, [buttonRef, downloads, isReduced, surfaceRef, targetId]);
+
+  if (flight === null) {
+    return null;
+  }
+  const { from, to } = flight;
+  const ICON = 32;
+  // The arc comes of the two moves easing apart: the icon rises off the page
+  // at once and drifts across late, so it curves into the button rather than
+  // sliding to it, and never leaves the window, as a peak above the
+  // toolbar's button would.
+  return createPortal(
+    <motion.div
+      animate={{
+        opacity: [0, 1, 1, 0.6],
+        scale: [0.6, 1.1, 0.9, 0.4],
+        x: [from.x - ICON / 2, to.x - ICON / 2],
+        y: [from.y - ICON / 2, to.y - ICON / 2],
+      }}
+      className="pointer-events-none fixed top-0 left-0 z-50 drop-shadow-md"
+      key={flight.id}
+      onAnimationComplete={() => {
+        setFlight(null);
+        arrive.current();
+      }}
+      transition={{
+        duration: 0.7,
+        opacity: { duration: 0.7, times: [0, 0.1, 0.85, 1] },
+        scale: { duration: 0.7, times: [0, 0.3, 0.8, 1] },
+        x: { duration: 0.7, ease: [0.55, 0, 0.9, 0.6] },
+        y: { duration: 0.7, ease: [0.1, 0.6, 0.35, 1] },
+      }}
+    >
+      <FileTypeIcon className="size-8" fileName={flight.filename} />
+    </motion.div>,
+    document.body,
   );
 }
 

@@ -33,4 +33,26 @@ describe("TabStrip", () => {
     const closing = view.container.querySelector('[role="tab"][aria-hidden]');
     expect(closing).toBe(before);
   });
+
+  // A window given another's tabs: they were already open, and five tabs
+  // opening at once is not what happened.
+  it("takes on a whole other set of tabs with nothing opening or closing", () => {
+    const view = renderWithProviders(strip([tab("a"), tab("b")]));
+
+    view.rerender(strip([tab("x"), tab("y"), tab("z")]));
+
+    expect(
+      view.container.querySelector('[role="tab"][aria-hidden]'),
+    ).toBeNull();
+    expect(view.container.querySelector(".pane-tab-arriving")).toBeNull();
+    expect(screen.getAllByRole("tab")).toHaveLength(3);
+  });
+
+  it("opens a tab beside the others with its motion", () => {
+    const view = renderWithProviders(strip([tab("a"), tab("b")]));
+
+    view.rerender(strip([tab("a"), tab("b"), tab("c")]));
+
+    expect(view.container.querySelector(".pane-tab-arriving")).not.toBeNull();
+  });
 });

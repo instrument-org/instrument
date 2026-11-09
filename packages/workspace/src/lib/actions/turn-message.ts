@@ -1,6 +1,6 @@
 import { type SessionMessage } from "../../schemas/session/message";
-import { actionsNoteLines } from "../actions-model-text";
-import { ACTIVITY_COMMAND } from "../shell-commands/activity-command";
+import { actionsNoteLines } from "../../model-text/notes/actions-model-text";
+import { ACTIVITY_COMMAND } from "../../model-text/commands/activity-command";
 
 /** Whether the person wrote a message: words or an attachment, rather than a wake. */
 function typed(message: SessionMessage.WithParts) {

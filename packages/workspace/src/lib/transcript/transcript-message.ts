@@ -26,7 +26,11 @@ export type StepShows =
       /** The change an edit made, each side cut to a card's length. */
       after?: string;
       before?: string;
+      /** Whether the call made the file, once it has said. */
+      isNew?: boolean;
       kind: "file";
+      /** When the call last wrote the file, once it has said. */
+      modifiedAt?: number;
       path: string;
       /** The file's words so far, cut to a card's length. */
       words?: string;
@@ -64,8 +68,16 @@ export interface StepPart {
   processId?: string;
   shows?: StepShows;
   status: StepStatus;
+  /** The tasks this call sent work to, each from the message it put in its log. */
+  sentTasks?: { messageId: StoreId.Message; sessionId: StoreId.Session }[];
   /** The tasks this call started, whose cards stand for it. */
   startedTasks?: StoreId.Session[];
+  /**
+   * A call that starts a task or sends one work, known from its command as
+   * it arrives, so its card stands for it before the task exists. `name` is
+   * the new task's `--name`, once that much has arrived.
+   */
+  startsTask?: { name?: string };
   tool: "reasoning" | SessionMessagePart.ToolPart["type"];
   type: "step";
 }
@@ -107,17 +119,16 @@ const RESULTS_SHOWN = 8;
 
 /**
  * A stored message as the transcript draws it, or nothing for one it does not
- * draw. Developer mode keeps the notes only developers see.
+ * draw.
  */
 export function transcriptMessage(
   message: SessionMessage.WithParts,
-  { isDeveloperMode = false }: { isDeveloperMode?: boolean } = {},
 ): TranscriptMessage | undefined {
   if (message.role !== "assistant" && message.role !== "user") {
     return undefined;
   }
   const parts = message.parts.flatMap((part) =>
-    transcriptParts(part, message.parts, isDeveloperMode),
+    transcriptParts(part, message.parts),
   );
   return { ...message, parts };
 }
@@ -130,7 +141,6 @@ export function thoughtText(text: string): string {
 function transcriptParts(
   part: SessionMessagePart.Type,
   siblings: readonly SessionMessagePart.Type[],
-  isDeveloperMode: boolean,
 ): TranscriptPart[] {
   if (isToolPart(part)) {
     if (answeredByAPerson(part)) {
@@ -165,8 +175,7 @@ function transcriptParts(
       return [];
     }
     default: {
-      return isDeveloperMode ||
-        READ_THOUGH_HIDDEN.has(part.type) ||
+      return READ_THOUGH_HIDDEN.has(part.type) ||
         dataPartVisibility(part) === "always"
         ? [part]
         : [];
@@ -241,7 +250,11 @@ const StepOutputSchema = z
     exitCode: z.number(),
     filePath: z.string(),
     handOffs: z.array(
-      z.looseObject({ kind: z.string(), sessionId: z.string() }),
+      z.looseObject({
+        kind: z.string(),
+        messageId: z.string().optional(),
+        sessionId: z.string(),
+      }),
     ),
     images: z.array(
       z.looseObject({
@@ -249,6 +262,7 @@ const StepOutputSchema = z
         modifiedAt: z.number().optional(),
       }),
     ),
+    isNewFile: z.boolean(),
     mimeType: z.string(),
     modifiedAt: z.number(),
     processId: z.string(),
@@ -259,6 +273,7 @@ const StepOutputSchema = z
     }),
     state: z.string(),
     text: z.string(),
+    title: z.string(),
     url: z.string(),
   })
   .partial();
@@ -282,15 +297,32 @@ function toolStep(
   const startedTasks = (output.handOffs ?? []).flatMap((handOff) =>
     handOff.kind === "created" ? [handOff.sessionId as StoreId.Session] : [],
   );
+  // A send recorded before sends named their message draws no card.
+  const sentTasks = (output.handOffs ?? []).flatMap((handOff) =>
+    handOff.kind === "sent" && handOff.messageId !== undefined
+      ? [
+          {
+            messageId: handOff.messageId as StoreId.Message,
+            sessionId: handOff.sessionId as StoreId.Session,
+          },
+        ]
+      : [],
+  );
   const status = stepStatus(part, siblings, output);
   const shows = stepShows(part.type, input, output, status);
+  const startsTask =
+    part.type === "tool-bash" && input.command !== undefined
+      ? taskCallOf(input.command)
+      : undefined;
   return {
     ...(activity && { activity }),
     ...(explanation && { explanation }),
     metadata: part.metadata,
     ...(output.processId && { processId: output.processId }),
+    ...(sentTasks.length > 0 && { sentTasks }),
     ...(shows && { shows }),
     ...(startedTasks.length > 0 && { startedTasks }),
+    ...(startsTask && { startsTask }),
     status,
     tool: part.type,
     type: "step",
@@ -368,7 +400,15 @@ function stepShows(
         return undefined;
       }
       const words = wordsOnACard(input.content, status);
-      return { kind: "file", path, ...(words !== undefined && { words }) };
+      return {
+        ...(output.isNewFile !== undefined && { isNew: output.isNewFile }),
+        kind: "file",
+        ...(output.modifiedAt !== undefined && {
+          modifiedAt: output.modifiedAt,
+        }),
+        path,
+        ...(words !== undefined && { words }),
+      };
     }
     case "tool-edit_file": {
       const path = input.filePath ?? output.filePath;
@@ -428,7 +468,7 @@ function stepShows(
       return {
         kind: "fetch",
         ...(url !== undefined && { url }),
-        ...pageOf(output.text),
+        ...pageOf(output.text, output.title),
       };
     }
     case "tool-bash": {
@@ -451,20 +491,32 @@ function wordsOnACard(content: string | undefined, status: StepStatus) {
   if (content === undefined) {
     return undefined;
   }
-  return status === "writing"
-    ? content.slice(-FILE_WORDS_CHARS)
-    : content.slice(0, FILE_WORDS_CHARS);
+  if (status !== "writing") {
+    return content.slice(0, FILE_WORDS_CHARS);
+  }
+  if (content.length <= FILE_WORDS_CHARS) {
+    return content;
+  }
+  // From the first whole line, so neither a grammar nor Markdown starts reading
+  // partway through a token.
+  const tail = content.slice(-FILE_WORDS_CHARS);
+  const lineStart = tail.indexOf("\n");
+  return lineStart === -1 ? tail : tail.slice(lineStart + 1);
 }
 
 /**
- * The title and opening words of a fetched page. A page's text opens with its
- * navigation, so its words start at its first heading, and a page with none
- * gives no words at all rather than a screen of links.
+ * The title and opening words of a fetched page. Its title is the one the
+ * page gives itself, and its first heading where the fetch kept none. A page's
+ * text opens with its navigation, so its words start at its first heading,
+ * and a page with none gives no words at all rather than a screen of links.
  */
-function pageOf(text: string | undefined): { title?: string; words?: string } {
+function pageOf(
+  text: string | undefined,
+  title: string | undefined,
+): { title?: string; words?: string } {
   const heading = text === undefined ? null : /^#{1,2}\s+(.+)$/m.exec(text);
   if (text === undefined || heading?.[1] === undefined) {
-    return {};
+    return title === undefined ? {} : { title };
   }
   const words = text
     .slice(heading.index + heading[0].length)
@@ -474,7 +526,10 @@ function pageOf(text: string | undefined): { title?: string; words?: string } {
     .replaceAll(/\n{2,}/g, "\n")
     .trim()
     .slice(0, PAGE_WORDS_CHARS);
-  return { title: heading[1].trim(), ...(words !== "" && { words }) };
+  return {
+    title: title ?? heading[1].trim(),
+    ...(words !== "" && { words }),
+  };
 }
 
 /** Where a program starts in a shell line, and not a word its arguments say. */
@@ -491,6 +546,20 @@ const HEREDOC = /<<-?\s*(['"]?)(\w+)\1[^\n]*\n[\s\S]*?\n\s*\2\b/g;
 const NAMES_A_PLACE = /[/.:]/;
 /** What the chat tells a task is the task's to do, whatever it names. */
 const STARTS_A_TASK = /^\s*(?:instrument\s+)?task\b/;
+/** A command that starts a task or sends one work, and the new task's name. */
+const TASK_CALL = /^\s*(?:instrument\s+)?task\s+(new|send)\b/;
+const TASK_NAME = /\s--name(?:=|\s+)(?:'([^']*)'|"([^"]*)"|([^\s'"]+))/;
+
+/** Whether a command starts a task or sends one work, with the name a new one is given. */
+function taskCallOf(command: string): { name?: string } | undefined {
+  const call = TASK_CALL.exec(command);
+  if (!call) {
+    return undefined;
+  }
+  const named = call[1] === "new" ? TASK_NAME.exec(command) : null;
+  const name = (named?.[1] ?? named?.[2] ?? named?.[3])?.trim();
+  return name ? { name } : {};
+}
 const URL_IN_COMMAND = /(?:https?|file):\/\/[^\s"')]+/;
 /** The browser commands that change what a page shows, and so its picture. */
 const CHANGES_THE_PAGE = new Set([

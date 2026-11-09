@@ -1,6 +1,6 @@
 import { generatedCommand } from "../capabilities/cli";
 import { type CapabilityScope } from "../capabilities/context";
-import { ACTIVITY_COMMAND } from "./activity-command";
+import { ACTIVITY_COMMAND } from "../../model-text/commands/activity-command";
 
 /**
  * `instrument activity`: what the user did in the app lately, read from the

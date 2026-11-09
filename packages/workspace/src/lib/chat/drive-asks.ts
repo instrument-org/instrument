@@ -15,23 +15,21 @@ import { type ChatId } from "../../schemas/chat-id";
 import { type SessionMessageDataPart } from "../../schemas/session/message-data-part";
 import { AbsolutePathSchema, type AbsolutePath } from "../../schemas/paths";
 import { type StoreId } from "../../schemas/store-id";
-import { parseBrowserTargetId } from "../../types";
 import { appEventOf } from "../apps/changed";
 import { appChanged } from "../apps/changed";
 import { readConnection, recordConnection } from "../apps/connection";
 import { signInProgress } from "../apps/sign-in-group";
-import { signInsSettled } from "../sign-in-progress-model-text";
+import { signInsSettled } from "../../model-text/notes/sign-in-progress-model-text";
 import { ChatReads } from "../chat-reads";
 import { ChatWrites } from "../chat-writes";
 import { createWriteQueue } from "../create-write-queue";
 import { getCurrentDate } from "../get-current-date";
-import { updateHeldTabs } from "../held-tabs";
 import { hostPathWithin } from "../host-path";
 import { appBundleId, grantApp } from "../permissions/apps";
 import { setDenied } from "../permissions/denials";
 import {
   lookAsTheApp,
-  macAppStanding,
+  macAppStatus,
   macosRefusalStatus,
   watchMacosPrompt,
 } from "../permissions/macos";
@@ -40,6 +38,7 @@ import {
   type PermissionSettings,
   updatePermissionSettings,
 } from "../permissions/rules";
+import { sessionOfChat } from "../record-folders";
 import { getWorkspaceConfig } from "../workspace-config";
 import { type AskState } from "./ask-states";
 import {
@@ -48,8 +47,10 @@ import {
   changeAsk,
   chatAskStates,
   computerName,
+  releaseQuestions,
   thisDevice,
 } from "./asks";
+import { isWorking } from "./activity";
 import { listChatIds } from "./chat-records";
 import { chatAskStatesOf } from "./chats";
 import { grantFolder } from "./grants";
@@ -146,12 +147,20 @@ async function step(
     if (stage.woken) {
       return false;
     }
-    await wake(chatId, state, workspaceRef);
-    return write(chatId, ask.id, (now) =>
-      now.ask.stage.is === "closed"
-        ? { ...now.ask, stage: { ...now.ask.stage, woken: true } }
-        : undefined,
-    );
+    const markWoken = () =>
+      write(chatId, ask.id, (now) =>
+        now.ask.stage.is === "closed"
+          ? { ...now.ask, stage: { ...now.ask.stage, woken: true } }
+          : undefined,
+      );
+    const { delivering } = await wake(chatId, state, workspaceRef);
+    if (delivering) {
+      // Written woken once it has been delivered or dropped; one that
+      // failed is woken by a later pass.
+      delivering.then(markWoken).catch(getWorkspaceConfig().captureException);
+      return false;
+    }
+    return markWoken();
   }
   if (askers.length === 0) {
     return close(chatId, ask.id, { kind: "left" }, undefined, true);
@@ -160,7 +169,9 @@ async function step(
     // The person wrote past it or stopped the chat: it closes, waking nobody.
     return close(chatId, ask.id, { kind: "left" }, undefined, true);
   }
-  if (pending) {
+  // A held question is answered by nobody until its turn is over, whatever
+  // a device that does not know it is held wrote.
+  if (pending && !(ask.kind === "question" && ask.held)) {
     // Read again: an asker may have joined since this round read the ask.
     return write(chatId, ask.id, (now) => {
       if (!sameAnswer(now.pending, pending)) {
@@ -293,7 +304,7 @@ async function carryOut(
   if (answer.decision === "declined") {
     // Kept before the close, so an asker that asks again meets it; one
     // that cannot be kept is reported, and the askers still hear the no.
-    if (ask.on !== "tab") {
+    if (ask.on === "app" || ask.on === "folder") {
       await setDenied(chatId, ask.on, ask.target, true).catch(
         getWorkspaceConfig().captureException,
       );
@@ -301,18 +312,25 @@ async function carryOut(
     await close(
       chatId,
       ask.id,
-      permissionOutcome({ ...data, answer: "declined" }),
+      permissionOutcome({
+        ...data,
+        ...(ask.on === "page" && { page: await pageNow(chatId, ask) }),
+        answer: "declined",
+      }),
       answer,
     );
     return undefined;
   }
-  if (ask.on === "tab") {
+  if (ask.on === "page") {
+    // Done: the page goes back to the agent as it stands now, which is what
+    // the note that wakes it says.
     await close(
       chatId,
       ask.id,
       permissionOutcome({
         ...data,
-        answer: (await moveTabIn(chatId, ask)) ? "allowed" : "gone",
+        page: await pageNow(chatId, ask),
+        answer: "allowed",
       }),
       answer,
     );
@@ -477,6 +495,12 @@ function startLook(
   return look.then(() => driveAsks(chatId, workspaceRef));
 }
 
+/** How long the wake for a set of questions waits for another call under its key. */
+const QUESTION_SET_WAKE_DEBOUNCE_MS = 300;
+
+/** Each set's wake from when it is asked for until it is delivered or dropped, by chat and set. */
+const setWakes = new Map<string, Promise<void>>();
+
 /**
  * Wakes each asker of a closed ask with its outcome: every one still on
  * it, but for a yes, one whose own command waits on what it asked for and
@@ -484,25 +508,27 @@ function startLook(
  * not woken again. An answer from before this process started that is no
  * longer fresh leaves its note without starting a turn, read with the
  * person's next message.
+ *
+ * A question of a set wakes once for the set: each of its questions but
+ * the last to be told leaves its note without starting a turn, and the
+ * last wakes the session once it is at rest, which the returned promise
+ * settles on. The ask is written woken only after that.
  */
 async function wake(
   chatId: ChatId,
   { ask, askers }: AskState,
   workspaceRef: WorkspaceActorRef,
-): Promise<void> {
+): Promise<{ delivering?: Promise<void> }> {
   const { stage } = ask;
-  if (stage.is !== "closed") {
-    return;
-  }
-  if (stage.outcome.kind === "left") {
-    return;
+  if (stage.is !== "closed" || stage.outcome.kind === "left") {
+    return {};
   }
   const yes =
     stage.outcome.kind === "permission" &&
     (stage.outcome.data.answer === "allowed" ||
       stage.outcome.data.answer === "always") &&
     ask.kind === "permission" &&
-    ask.on !== "tab";
+    (ask.on === "app" || ask.on === "folder");
   // Loud only for an ask that closed while this process ran, on an answer
   // it heard: one owed since before (the app quit between closing and
   // waking) is read with the person's next message.
@@ -510,6 +536,17 @@ async function wake(
     stage.quiet === true ||
     stage.closedAt === undefined ||
     stage.closedAt.getTime() < launchedAt;
+  const ofSet =
+    ask.kind === "question" && ask.set !== undefined && !quiet
+      ? { last: await lastOfSet(chatId, ask), set: ask.set }
+      : undefined;
+  const setKey = ofSet && JSON.stringify([chatId, ofSet.set]);
+  // Until its note is written, a pass finds none and would wake again.
+  const onItsWay = setKey === undefined ? undefined : setWakes.get(setKey);
+  if (ofSet?.last && onItsWay) {
+    return { delivering: onItsWay };
+  }
+  let delivering: Promise<void> | undefined;
   for (const asker of askers) {
     if (
       (yes && asker.waits === true) ||
@@ -535,8 +572,29 @@ async function wake(
     if (part === undefined) {
       continue;
     }
-    if (quiet) {
+    if (quiet || ofSet?.last === false) {
       await saveNote(chatId, asker.sessionId, part);
+    } else if (ofSet) {
+      delivering = enqueueWake({
+        chatId,
+        debounceMs: QUESTION_SET_WAKE_DEBOUNCE_MS,
+        key: `questions:${ofSet.set}`,
+        // The set's wake is already on its way: it stays as it is.
+        merge: () => undefined,
+        part,
+        restingOnly: true,
+        sessionId: asker.sessionId,
+        workspaceRef,
+      });
+      if (setKey !== undefined) {
+        const key = setKey;
+        setWakes.set(key, delivering);
+        void delivering
+          .catch(() => {})
+          .finally(() => {
+            setWakes.delete(key);
+          });
+      }
     } else {
       await enqueueWake({
         chatId,
@@ -546,6 +604,30 @@ async function wake(
       });
     }
   }
+  return delivering ? { delivering } : {};
+}
+
+/**
+ * Whether a closed question is the last of its set to be told: every other
+ * question asked with it is closed, and none that closed and was not told
+ * yet was asked after it, so the set wakes its session once.
+ */
+async function lastOfSet(
+  chatId: ChatId,
+  ask: Extract<AskRecord, { kind: "question" }>,
+): Promise<boolean> {
+  const after = (other: AskRecord) =>
+    other.askedAt.getTime() === ask.askedAt.getTime()
+      ? other.id > ask.id
+      : other.askedAt.getTime() > ask.askedAt.getTime();
+  return (await chatAskStates(chatId)).every(
+    ({ ask: other }) =>
+      other.id === ask.id ||
+      other.kind !== "question" ||
+      other.set !== ask.set ||
+      other.device !== ask.device ||
+      (other.stage.is === "closed" && (other.stage.woken || !after(other))),
+  );
 }
 
 /**
@@ -619,6 +701,7 @@ export async function refreshSignIn(
   askId: string,
   event: AppEventLine | undefined,
   workspaceRef: WorkspaceActorRef,
+  { quiet = false }: { quiet?: boolean } = {},
 ): Promise<boolean> {
   const state = (await chatAskStates(chatId)).find(
     ({ ask, live }) => live && ask.id === askId && ask.device === thisDevice(),
@@ -689,15 +772,18 @@ export async function refreshSignIn(
       ? {
           ...now,
           apps: progress,
-          stage: closedStage(
-            {
-              events,
-              kind: "sign-in",
-              ...(card && ask.notOnCard && { notOnCard: ask.notOnCard }),
-              ...(card && { signIns: progress }),
-            },
-            taken,
-          ),
+          stage: {
+            ...closedStage(
+              {
+                events,
+                kind: "sign-in",
+                ...(card && ask.notOnCard && { notOnCard: ask.notOnCard }),
+                ...(card && { signIns: progress }),
+              },
+              taken,
+            ),
+            ...(quiet && { quiet: true as const }),
+          },
         }
       : undefined,
   );
@@ -922,6 +1008,12 @@ export function startAskDriver(workspaceRef: WorkspaceActorRef): void {
       drive(id);
     }
   });
+  // The questions a turn asked go up once it is over.
+  publisher.subscribe("session.done", ({ id, sessionId }) => {
+    releaseQuestions(id, sessionId).catch(
+      getWorkspaceConfig().captureException,
+    );
+  });
   driveOwedAsks(workspaceRef).catch(getWorkspaceConfig().captureException);
 }
 
@@ -930,22 +1022,52 @@ export function startAskDriver(workspaceRef: WorkspaceActorRef): void {
  * something is owed on, read from its digest so a chat whose records have
  * not changed costs no read. An answer given while the computer was away
  * is no longer fresh and is not taken, and one found part-way finishes
- * with a note that starts no turn (`wake`).
+ * with a note that starts no turn (`wake`). A sign-in still waiting is read
+ * against its apps' connections first, since one the app quit while
+ * finishing is connected with no event left to settle its card.
  */
 export async function driveOwedAsks(
   workspaceRef: WorkspaceActorRef,
 ): Promise<void> {
   for (const chatId of listChatIds()) {
     try {
-      const owed = (await chatAskStatesOf(chatId)).some(
-        ({ ask, live, pending }) =>
-          ask.device === thisDevice() &&
-          (pending !== undefined ||
-            ask.stage.is === "taken" ||
-            (ask.stage.is === "closed" && !ask.stage.woken) ||
-            (!live && ask.stage.is !== "closed")),
+      const states = (await chatAskStatesOf(chatId)).filter(
+        ({ ask }) => ask.device === thisDevice(),
       );
-      if (owed) {
+      // Held by a turn that ended while the app was not running to hear it.
+      const sessionId = sessionOfChat(chatId);
+      if (
+        sessionId !== undefined &&
+        states.some(
+          ({ ask, live }) => live && ask.kind === "question" && ask.held,
+        ) &&
+        !workingNow(chatId, sessionId)
+      ) {
+        await releaseQuestions(chatId, sessionId);
+      }
+      let refreshed = false;
+      for (const { ask, live, pending } of states) {
+        if (
+          live &&
+          pending === undefined &&
+          ask.kind === "sign-in" &&
+          ask.stage.is !== "closed" &&
+          ask.stage.is !== "taken"
+        ) {
+          refreshed =
+            (await refreshSignIn(chatId, ask.id, undefined, workspaceRef, {
+              quiet: true,
+            })) || refreshed;
+        }
+      }
+      const owed = states.some(
+        ({ ask, live, pending }) =>
+          pending !== undefined ||
+          ask.stage.is === "taken" ||
+          (ask.stage.is === "closed" && !ask.stage.woken) ||
+          (!live && ask.stage.is !== "closed"),
+      );
+      if (owed || refreshed) {
         await driveAsks(chatId, workspaceRef);
       }
     } catch (error) {
@@ -955,30 +1077,20 @@ export async function driveOwedAsks(
 }
 
 /**
- * Moves the tab an ask is for out of the person's own tabs and into the
- * chat, page and all; the first to ask drives it, as a tab handed over:
- * the person's, never closed by the agent. Answers whether it moved.
+ * Where a waited-on page stands as the person answers: the chat's tab as the
+ * window has it now, or as the card showed it when the window does not say.
  */
-async function moveTabIn(
+async function pageNow(
   chatId: ChatId,
   ask: PermissionAskRecord,
-): Promise<boolean> {
-  const took = await askWindow({
-    action: { kind: "take", tabId: ask.target },
+): Promise<{ title: string; url: string } | undefined> {
+  const listed = await askWindow({
+    action: { kind: "list" },
     askedBy: chatId,
     group: chatId,
-  });
-  const tabId = parseBrowserTargetId(ask.target);
-  const driver = ask.askers[0]?.sessionId;
-  const moved =
-    took !== undefined && took.error === undefined && tabId !== null;
-  if (moved && driver !== undefined) {
-    await updateHeldTabs(chatId, driver, (tabs) => [
-      ...tabs.filter((tab) => tab.id !== tabId),
-      { id: tabId, inWindow: true, openedBy: "handed" },
-    ]).catch(getWorkspaceConfig().captureException);
-  }
-  return moved;
+  }).catch(() => undefined);
+  const tab = listed?.tabs?.find((each) => each.id === ask.target);
+  return tab?.kind === "page" ? { title: tab.title, url: tab.url } : ask.page;
 }
 
 /**
@@ -1028,7 +1140,7 @@ async function grant(
   decision: "allowed" | "always",
 ): Promise<void> {
   const { on, target } = ask;
-  if (on === "tab") {
+  if (on === "page") {
     return;
   }
   await setDenied(chatId, on, target, false);
@@ -1087,12 +1199,21 @@ async function macosKeepsOut(
   if (bundleId === undefined) {
     return undefined;
   }
-  const standing = macAppStanding(
+  const status = macAppStatus(
     { bundleId, name: ask.target },
     { request: true },
   );
-  const watched = watchMacosPrompt(standing, onAsking);
-  const standingAnswer = await standing;
+  const watched = watchMacosPrompt(status, onAsking);
+  const answer = await status;
   await watched;
-  return standingAnswer === "denied" ? "macos-refused" : undefined;
+  return answer === "denied" ? "macos-refused" : undefined;
+}
+
+/** Whether the session has a turn running, or false where no workspace is running to ask. */
+function workingNow(chatId: ChatId, sessionId: StoreId.Session): boolean {
+  try {
+    return isWorking(chatId, sessionId);
+  } catch {
+    return false;
+  }
 }

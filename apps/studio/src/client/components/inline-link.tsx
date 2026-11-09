@@ -1,5 +1,9 @@
 import { useImageArrival } from "@/client/hooks/use-image-arrival";
-import { useOpenGestures } from "@/client/hooks/use-open-target";
+import {
+  useOpenGestures,
+  wantsNewTab,
+  wantsNewWindow,
+} from "@/client/hooks/use-open-target";
 import {
   getFaviconUrl,
   markIconlessThisSession,
@@ -93,9 +97,11 @@ const INLINE_LINK_CLASS_NAME = "font-normal! no-underline!";
 /**
  * The underline, on the label rather than on the anchor around it, which
  * leaves the icon in front unruled where an anchor-wide decoration would have
- * struck through it.
+ * struck through it. Set a little below the text and lighter than it, so it
+ * reads as a link without crowding the descenders; full strength on hover.
  */
-const INLINE_LINK_UNDERLINE_CLASS_NAME = "underline";
+const INLINE_LINK_UNDERLINE_CLASS_NAME =
+  "underline decoration-foreground/40 underline-offset-3 [a:hover_&]:decoration-foreground";
 
 /**
  * A chip's insides: its icon, then its label. The icon is held to the label's
@@ -159,7 +165,12 @@ export function ChipButton({
   onActivate,
   ...props
 }: Omit<React.ComponentProps<"span">, "onClick" | "onKeyDown" | "role"> & {
-  onActivate: (event: { ctrlKey: boolean; metaKey: boolean }) => void;
+  onActivate: (event: {
+    altKey: boolean;
+    ctrlKey: boolean;
+    metaKey: boolean;
+    shiftKey: boolean;
+  }) => void;
 }) {
   return (
     <span
@@ -283,7 +294,15 @@ function AppLink({
   const chip = (
     <ChipButton
       className={className}
-      onActivate={open.run}
+      onActivate={(event) => {
+        if (wantsNewWindow(event) && gestures.ownWindow) {
+          gestures.ownWindow.run();
+        } else if (wantsNewTab(event) && gestures.separate) {
+          gestures.separate.run();
+        } else {
+          open.run();
+        }
+      }}
       onAuxClick={gestures.onAuxClick}
       onContextMenu={gestures.onContextMenu}
     >
@@ -436,7 +455,7 @@ function SiteIcon({ className, href }: { className?: string; href: string }) {
       // wins where prose was not applied in the first place -- which is to say,
       // everywhere the margin was already zero.
       className={cn(
-        "my-0! size-3 shrink-0 rounded-xs align-middle",
+        "my-0! size-4 shrink-0 rounded-xs align-middle",
         FAVICON_SURFACE_CLASS_NAME,
         arrivalClassName,
         className,

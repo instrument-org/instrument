@@ -1,4 +1,8 @@
 import {
+  appWindowForChat,
+  getAppWindows,
+} from "@/electron-main/windows/app-window";
+import {
   isHostedFeatureAvailable,
   isPlatformSearchForEveryModel,
 } from "@/electron-main/lib/hosted-features";
@@ -29,6 +33,10 @@ import {
 import { diskModelCache } from "@/electron-main/stores/machine/model-cache";
 import { workspaceModelRoutes } from "@/electron-main/stores/workspace/state";
 import { ensureForegroundWindowVisible } from "@/electron-main/windows/ensure-foreground-visible";
+import {
+  FINISH_BEFORE_LEAVING_MS,
+  finishBeforeLeaving,
+} from "@/electron-main/windows/finish-before-leaving";
 import { getForegroundWindow } from "@/electron-main/windows/foreground";
 import { is } from "@electron-toolkit/utils";
 import { aiGatewayApp } from "@instrument-org/ai-gateway";
@@ -82,6 +90,7 @@ import { isRefusedFile } from "./refused-files";
 import { BROWSER_SESSIONS_CLOSE_MS, quitMachine } from "./quit-machine";
 import { quitPrompt, runningJobNames } from "./quit-prompt";
 import { getRegistryDir } from "./registry-dir";
+import { armQuitWatchdog } from "./quit-watchdog";
 import { quitExitCode } from "./relaunch";
 import { getRuntimeDir, removeFormerRuntime } from "./runtime-dir";
 import { windowsDriveNames } from "./windows-drives";
@@ -100,6 +109,18 @@ const SYSTEM_SKILLS_DIR_NAME = "system-skills";
  * does not spend the watcher's budget as well.
  */
 const QUIT_TEARDOWN_SLACK_MS = ms("2 seconds");
+// Killing background processes is the slowest step, and its bound is derived
+// rather than restated here: a hand-picked number would go quietly wrong the
+// next time the termination grace moves. A logout or shutdown waits on it too,
+// and systemd gives a stopping session 90 s by default before it kills what is
+// left.
+const QUIT_TEARDOWN_MS =
+  FINISH_BEFORE_LEAVING_MS +
+  BROWSER_SESSIONS_CLOSE_MS +
+  BACKGROUND_PROCESS_TEARDOWN_MS +
+  QUIT_TEARDOWN_SLACK_MS;
+/** What the watchdog gives `app.exit` past teardown's own deadline. */
+const QUIT_WATCHDOG_SLACK_MS = ms("5 seconds");
 const UNPACKAGED_SYSTEM_SKILLS_DIR = path.resolve(
   import.meta.dirname,
   "../../../../packages/workspace/system-skills",
@@ -134,6 +155,7 @@ export async function createWorkspaceActor(deviceId: DeviceId) {
       apps: createAppsConfig(),
       appVersion: app.getVersion(),
       browser: browserViewManager.browser,
+      windowForChat: appWindowForChat,
       captureException: captureFor("workspace"),
       deviceId,
       ...(process.platform === "win32"
@@ -369,6 +391,9 @@ export async function createWorkspaceActor(deviceId: DeviceId) {
         announce: (_, { stage }) => {
           logger.info(`Quit teardown: ${stage}`);
         },
+        armWatchdog: () => {
+          armQuitWatchdog(QUIT_TEARDOWN_MS + QUIT_WATCHDOG_SLACK_MS);
+        },
         exit: () => {
           actor.stop();
           // app.exit skips everything after it, so what the windows wrote in
@@ -402,6 +427,11 @@ export async function createWorkspaceActor(deviceId: DeviceId) {
           );
         }),
         closeBrowserSessions: fromPromise(() => closeAllAgentBrowserSessions()),
+        finishWindows: fromPromise(() =>
+          finishBeforeLeaving(
+            getAppWindows().map((window) => window.webContents),
+          ),
+        ),
         stopServices: fromPromise(async () => {
           // Agent-started servers and watchers outlive the turn that started
           // them, so quitting is what ends them. The tasks at work are
@@ -424,15 +454,7 @@ export async function createWorkspaceActor(deviceId: DeviceId) {
         }),
       },
       delays: {
-        // Killing background processes is the slowest step, and its bound is
-        // derived rather than restated here: a hand-picked number would go
-        // quietly wrong the next time the termination grace moves.
-        // A logout or shutdown waits on it too, and systemd gives a stopping
-        // session 90 s by default before it kills what is left.
-        teardown:
-          BROWSER_SESSIONS_CLOSE_MS +
-          BACKGROUND_PROCESS_TEARDOWN_MS +
-          QUIT_TEARDOWN_SLACK_MS,
+        teardown: QUIT_TEARDOWN_MS,
       },
     }),
     {

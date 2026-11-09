@@ -8,6 +8,7 @@ import { z } from "zod";
 
 import { CHAT_FOLDER_NAMES } from "../constants";
 import { absolutePathJoin } from "../lib/absolute-path-join";
+import { pageTitle } from "../lib/page-title";
 import { truncateWithoutSplitting } from "../lib/sanitize-model-text";
 import { SKILL_NAMES } from "../lib/skill-names";
 import {
@@ -179,6 +180,7 @@ export const webFetchCapability = defineCapability({
           spillFilePath,
           state: "success" as const,
           text: result.text,
+          title: result.title,
           truncated: result.truncated,
           url: result.finalUrl,
         });
@@ -229,6 +231,9 @@ export const webFetchCapability = defineCapability({
           spillFilePath: RelativePathSchema.optional(),
           state: z.literal("success"),
           text: z.string(),
+          // What the page calls itself, which Markdown loses with its head.
+          // Shown on its card; the model reads the page's own text.
+          title: z.string().optional(),
           truncated: z.boolean(),
           url: z.string(),
         }),
@@ -298,6 +303,8 @@ type FetchTextualResult =
       ok: true;
       spillText?: string;
       text: string;
+      /** The name the page gives itself, for an HTML page that gives one. */
+      title?: string;
       truncated: boolean;
     }
   | { error: string; ok: false };
@@ -466,6 +473,7 @@ function renderBody({
   const mime = mimeType(contentType);
   const converted = convert(decoded, mime, format);
   const truncated = converted.length > maxCharacters;
+  const title = isHtmlMime(mime) ? pageTitle(decoded) : undefined;
   return {
     // Non-HTML content is returned as-is, so report it as raw rather than the
     // requested markdown; HTML keeps the caller's requested format.
@@ -476,6 +484,7 @@ function renderBody({
     ok: true,
     spillText: truncated ? converted : undefined,
     text: truncated ? converted.slice(0, maxCharacters) : converted,
+    ...(title !== undefined && { title }),
     truncated,
   };
 }

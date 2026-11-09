@@ -16,9 +16,8 @@
  * - **It steers that task by its handle.** A change of plan reaches t1
  *   through `instrument task send t1`, or `instrument task stop t1` before a
  *   task in its place, rather than a second task beside it.
- * - **It hands the task the user's tab.** `instrument task new --tab` makes the task
- *   the tab's one driver, and the tab goes back to the chat when the task
- *   finishes.
+ * - **Its task works in the user's tab.** Every session of a chat drives
+ *   every tab of it, so a task told which tab reads the page there.
  * - **It leaves a task the user stopped alone.** Stop on t1 writes the chat
  *   a note saying the user stopped it and starts no turn, and nothing is
  *   started again.
@@ -48,10 +47,8 @@ import {
   CUT_OFF_TOOL_CALL_ERROR_TEXT,
   STOPPED_TOOL_CALL_ERROR_TEXT,
 } from "../../src/constants";
-import { getChatState } from "../../src/lib/chat-record";
 import { listChildTasks } from "../../src/lib/chat/children";
 import { openAsks } from "../../src/lib/chat/open-asks";
-import { chatDir } from "../../src/lib/record-folders";
 import { type Session } from "../../src/schemas/session";
 import {
   answerEach,
@@ -183,20 +180,6 @@ const steeredT1: Assertion = {
 /** The user's open tab, as the note on their message names it. */
 const PAGE = "https://example.com/";
 const PAGE_TAB = "tab_01M3AX9RF3C2E9RTATMB602W0D";
-
-/** Once the task finished, the tab it drove is the chat's again. */
-const tabCameBack: Assertion = {
-  check: async (ctx: Context) => {
-    const text = "the tab went back to the chat when the task finished";
-    const { browserTabs } = await getChatState(chatDir(ctx.chatId));
-    const held = browserTabs.filter((tab) => tab.id.endsWith(PAGE_TAB));
-    return (held.length > 0 && held.every((tab) => !tab.driver) ? pass : fail)(
-      text,
-      JSON.stringify(browserTabs),
-    );
-  },
-  text: "the tab went back to the chat when the task finished",
-};
 
 /** The question asked once the chat's turn and its task are both stopped. */
 const WHAT_HAPPENED = "what happened?";
@@ -673,20 +656,14 @@ export const TASK_SESSION_EVALS = [
     },
   }),
   defineEval({
-    assertions: [
-      startedOneTaskAsT1,
-      tabCameBack,
-      wrote("page-title.md", /example domain/i),
-    ],
+    assertions: [startedOneTaskAsT1, wrote("page-title.md", /example domain/i)],
     kind: "chat",
     name: "task-session-tab",
     prompt:
       "Read this page's title and save it as page-title.md in the workspace folder.",
     startsTask: {
-      brief:
-        "Read the title of the page in the tab you were handed and save it as page-title.md in the workspace folder.",
+      brief: `Read the title of the page in the user's tab ${PAGE_TAB} and save it as page-title.md in the workspace folder.`,
       name: "Page title",
-      tabs: [PAGE_TAB],
     },
     viewing: {
       page: {

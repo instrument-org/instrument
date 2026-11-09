@@ -10,6 +10,8 @@ import type { ActorRef, AnyMachineSnapshot } from "xstate";
 import {
   type AIGatewayModel,
   catalogEffort,
+  CLAUDE_WEB_SEARCH_TOOL_NAME,
+  ClaudeWebSearchResultSchema,
   CLIENT_SESSION_ID_HEADER,
   fetchAISDKModel,
   findCachedModelByProviderId,
@@ -37,7 +39,12 @@ import { isStorageFullError } from "../lib/is-storage-full-error";
 import { writingChatRecords } from "../lib/records/chat-records";
 import { isToolPart } from "../lib/is-tool-part";
 import { DEFAULT_MAX_OUTPUT_TOKENS } from "../lib/llm-token-limits";
-import { prepareModelMessages, TRANSIENT } from "../lib/prepare-model-messages";
+import {
+  prepareModelMessages,
+  notesToRecord,
+  requestNotesIn,
+  transientNote,
+} from "../lib/prepare-model-messages";
 import { refusalCandidates, suspectsRefusedMedia } from "../lib/refused-media";
 import { summarizeBeforePriceStep } from "../lib/price-step-summary";
 import { shellCommandFromToolName } from "../lib/repair-shell-command-tool-call";
@@ -128,6 +135,18 @@ export const llmRequestLogic = fromPromise<
       const saved = await ChatWrites.savePart(part, input.chatId);
       if (saved.isErr()) {
         reportStorageError(saved.error);
+      }
+    },
+    /**
+     * What is kept for a developer alone, which decides nothing about the
+     * request: a save that fails is reported like any other and stops there,
+     * so it neither fails a request nor stands in for the error it records.
+     */
+    saveDeveloperNote: async (part: SessionMessagePart.Type) => {
+      try {
+        await writes.savePart(part);
+      } catch (error) {
+        reportStorageError(error);
       }
     },
   };
@@ -284,9 +303,29 @@ export const llmRequestLogic = fromPromise<
   });
 
   if (messagesResult.isErr()) {
-    throw new Error(
-      `Error preparing model messages: ${JSON.stringify(messagesResult.error)}`,
-    );
+    const error = `Error preparing model messages: ${JSON.stringify(messagesResult.error)}`;
+    // No reply was saved to hold this, so the session's last message keeps it.
+    const last = (
+      await ChatReads.messageIds({
+        chatId: input.chatId,
+        sessionId: input.sessionId,
+      })
+    )
+      .unwrapOr([])
+      .at(-1);
+    if (last !== undefined) {
+      await writes.saveDeveloperNote({
+        data: { error },
+        metadata: {
+          createdAt: getCurrentDate(),
+          id: StoreId.newPartId(),
+          messageId: last,
+          sessionId: input.sessionId,
+        },
+        type: "data-requestFailure",
+      });
+    }
+    throw new Error(error);
   }
 
   // Read before this step's message is stored, so the turn it describes is
@@ -299,11 +338,7 @@ export const llmRequestLogic = fromPromise<
     // After the cache breakpoints, like the budget notice: for this request
     // alone, and never stored, so a model keeping its own copy of the
     // conversation must not count it as seen.
-    messagesResult.value.push({
-      content: turnNote,
-      providerOptions: TRANSIENT,
-      role: "user",
-    });
+    messagesResult.value.push(transientNote(turnNote.kind, turnNote.text));
   }
 
   if (signal.aborted) {
@@ -313,6 +348,29 @@ export const llmRequestLogic = fromPromise<
 
   await writes.saveMessage(assistantMessage);
   live?.setMessage(assistantMessage);
+
+  // What this request alone goes out with, for a developer to read afterward.
+  // A hidden part on the reply it produced, so no request reads it.
+  const notes = requestNotesIn(messagesResult.value);
+  const recorded =
+    notes.length === 0
+      ? []
+      : await ChatReads.developerHistory({
+          chatId: input.chatId,
+          sessionId: input.sessionId,
+        }).unwrapOr([]);
+  for (const data of notesToRecord(notes, recorded, input.sessionId)) {
+    await writes.saveDeveloperNote({
+      data,
+      metadata: {
+        createdAt: getCurrentDate(),
+        id: StoreId.newPartId(),
+        messageId: assistantMessage.id,
+        sessionId: input.sessionId,
+      },
+      type: "data-requestNote",
+    });
+  }
 
   const abortListener = () => {
     saveAbortMessage();
@@ -495,6 +553,15 @@ export const llmRequestLogic = fromPromise<
       input.self.send({ type: "llmRequest.chunkReceived" });
       if (isNativeSearchPart(part, ownToolNames, nativeCallIds)) {
         continue;
+      }
+      // A search Claude Code ran itself is recorded as one of ours, so it
+      // shows and replays as the search it was.
+      if (
+        (part.type === "tool-call" || part.type === "tool-result") &&
+        part.providerExecuted === true &&
+        part.toolName === CLAUDE_WEB_SEARCH_TOOL_NAME
+      ) {
+        part.toolName = TOOL_NAMES.webSearch;
       }
       if (
         part.type === "text-start" ||
@@ -951,7 +1018,51 @@ export const llmRequestLogic = fromPromise<
           break;
         }
         case "tool-result": {
-          throw new Error(`Unexpected tool result: ${JSON.stringify(part)}`);
+          // Only a search Claude Code ran comes back with its result: every
+          // other call is run here, and its result written where it runs.
+          const toolCall = toolCalls[part.toolCallId];
+          const search =
+            part.providerExecuted === true &&
+            toolCall?.type === `tool-${TOOL_NAMES.webSearch}`
+              ? ClaudeWebSearchResultSchema.safeParse(part.output)
+              : undefined;
+          if (!toolCall || !search?.success) {
+            throw new Error(`Unexpected tool result: ${JSON.stringify(part)}`);
+          }
+          const endedAt = getCurrentDate();
+          const answeredPart: Extract<
+            SessionMessagePart.ToolPartOutputAvailable,
+            { type: `tool-${typeof TOOL_NAMES.webSearch}` }
+          > = {
+            ...(toolCall.callProviderMetadata !== undefined && {
+              callProviderMetadata: toolCall.callProviderMetadata,
+            }),
+            input: { query: search.data.query },
+            // Both halves arrive once the search is over, so the call is
+            // dated back by the time Claude Code says it took.
+            metadata: {
+              ...toolCall.metadata,
+              createdAt: new Date(
+                endedAt.getTime() - (search.data.durationMs ?? 0),
+              ),
+              endedAt,
+            },
+            providerExecuted: true,
+            toolCallId: toolCall.toolCallId,
+            type: `tool-${TOOL_NAMES.webSearch}`,
+            output: {
+              results: {
+                kind: "summary",
+                sources: search.data.sources,
+                text: search.data.summary,
+              },
+              state: "success",
+            },
+            state: "output-available",
+          };
+          toolCalls[part.toolCallId] = answeredPart;
+          await writes.savePart(answeredPart);
+          break;
         }
         case "tool-approval-request": {
           getWorkspaceConfig().captureException(

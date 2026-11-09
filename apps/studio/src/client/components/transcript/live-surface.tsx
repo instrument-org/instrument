@@ -1,9 +1,7 @@
-import { useBrowserTargets } from "@/client/hooks/use-browser-targets";
 import { useHostPaths } from "@/client/hooks/use-host-paths";
 import { useChatCommands } from "@/client/hooks/use-task-background-processes";
-import { useOpenFile } from "@/client/hooks/use-open-file";
-import { useTargetAgentLastAt } from "@/client/hooks/use-target-agent-activity";
-import { getGuest } from "@/client/lib/browser-pool";
+import { useShowChatFile } from "@/client/hooks/use-show-chat-file";
+import { cn } from "@/client/lib/utils";
 import { rpcClient } from "@/client/rpc/client";
 import { type WindowTab } from "@/client/atoms/window";
 import {
@@ -15,18 +13,12 @@ import {
   type StepPart,
   type StoreId,
 } from "@instrument-org/workspace/client";
-import {
-  useMutation,
-  useQueries,
-  useQuery,
-  useQueryClient,
-} from "@tanstack/react-query";
+import { useMutation, useQueries, useQuery } from "@tanstack/react-query";
 import {
   createContext,
   type ReactNode,
   use,
   useContext,
-  useEffect,
   useLayoutEffect,
   useMemo,
   useRef,
@@ -34,26 +26,18 @@ import {
 } from "react";
 
 import { PageFavicon } from "../favicon";
-import { useChatTasks, useChildTask } from "../window/child-tasks-query";
+import { useChatTasks } from "../window/child-tasks-query";
 import { WindowContext } from "../window/context";
 import { taskHref } from "../window/tab-location";
-import { thumbnailKey } from "../window/use-page-thumbnail-housekeeping";
 import { useWindowTabs } from "../window/window-tabs";
 import {
   type TaskCardFacts,
   type TranscriptSurface,
   TranscriptSurfaceContext,
 } from "./surface";
+import { taskCardFacts } from "./task-card-facts";
+import { usePagePicture } from "./use-page-picture";
 import { useTranscriptFeed } from "./use-transcript-feed";
-
-/** How long after a page loads, moves, or renames itself its picture is taken. */
-const CHANGE_SETTLE_MS = 500;
-
-/**
- * How long after an agent's last command in a page its picture is taken: one
- * command of the agent's arrives as a burst, and the page redraws after.
- */
-const AGENT_SETTLE_MS = 1000;
 
 const LiveChatContext = createContext<ChatId | undefined>(undefined);
 
@@ -96,29 +80,28 @@ function useCommands() {
   return useChatCommands(useLiveChat());
 }
 
-function useTaskFacts(id: StoreId.Session): TaskCardFacts | undefined {
-  const task = useChildTask(useLiveChat(), id);
-  return (
-    task && {
-      ...(task.standing && {
-        ended: task.standing.summary ?? task.standing.line,
-      }),
-      failed: task.standing?.kind === "failed",
-      ...(!task.working && {
-        ranMs: task.updatedAt.getTime() - task.createdAt.getTime(),
-      }),
-      ...(task.step && { step: task.step }),
-      stoppable: task.stoppable,
-      title: task.title,
-      working: task.working,
-    }
-  );
+function useTaskFacts(
+  id: StoreId.Session,
+  from?: StoreId.Message,
+): TaskCardFacts | undefined {
+  const tasks = useChatTasks(useLiveChat());
+  const task = tasks.data?.find((each) => each.id === id);
+  if (tasks.data && !task) {
+    return {
+      failed: false,
+      gone: true,
+      stoppable: false,
+      title: "Task",
+      working: false,
+    };
+  }
+  return task && taskCardFacts(task, from);
 }
 
 function useTaskMessages(id: StoreId.Session, isWorking: boolean) {
   const chat = useLiveChat();
   const feed = useTranscriptFeed(
-    { id: chat, isDeveloperMode: false, sessionId: id },
+    { id: chat, sessionId: id },
     { enabled: isWorking },
   );
   return isWorking ? (feed.data?.messages ?? []) : [];
@@ -127,41 +110,63 @@ function useTaskMessages(id: StoreId.Session, isWorking: boolean) {
 type PageTab = Extract<WindowTab, { kind: "page" }>;
 
 /**
- * The page a session's work is on: the tab among its own its agent drove last.
- * The picture follows it, retaken after each thing that changes the page.
+ * The page a session's work is on: the chat's tab that session sent its
+ * latest command, read live as it works, so a session that moves to another
+ * tab is pictured there. Every session of a chat drives every tab of it, so
+ * none is the session's until it acts in one. Nothing is read while
+ * `sessionId` is absent.
  */
-function LivePagePicture({ sessionId }: { sessionId: StoreId.Session }) {
+function useDrivenTab(
+  sessionId: StoreId.Session | undefined,
+): PageTab | undefined {
   const chat = useLiveChat();
   const { allTabs } = useWindowTabs();
-  const state = useQuery(
-    rpcClient.workspace.chats.state.queryOptions({ input: { id: chat } }),
-  );
-  const held = new Set<string>(
-    (state.data?.browserTabs ?? []).flatMap((tab) =>
-      tab.driver === sessionId ? [tab.id] : [],
-    ),
-  );
-  const pages = allTabs.filter(
-    (tab): tab is PageTab => tab.kind === "page" && tab.group === chat,
-  );
-  const mine = pages.some((tab) => held.has(tab.id))
-    ? pages.filter((tab) => held.has(tab.id))
-    : pages;
+  const pages =
+    sessionId === undefined
+      ? []
+      : allTabs.filter(
+          (tab): tab is PageTab => tab.kind === "page" && tab.group === chat,
+        );
   const driven = useQueries({
     combine: (results) => results.map((result) => result.data?.lastAt ?? 0),
-    queries: mine.map((tab) =>
+    queries: pages.map((tab) =>
       rpcClient.workspace.browser.events.agentActivity.experimental_liveOptions(
-        { input: { targetId: browserTargetOf(tab.id) } },
+        {
+          input: {
+            targetId: browserTargetOf(tab.id),
+            ...(sessionId ? { sessionId } : {}),
+          },
+        },
       ),
     ),
   });
-  const newest = mine.reduce<PageTab | undefined>(
-    (best, tab, index) =>
-      !best || (driven[index] ?? 0) >= (driven[mine.indexOf(best)] ?? 0)
-        ? tab
-        : best,
-    undefined,
+  let newest: PageTab | undefined;
+  let newestAt = 0;
+  for (const [index, tab] of pages.entries()) {
+    const at = driven[index] ?? 0;
+    if (at > newestAt) {
+      newest = tab;
+      newestAt = at;
+    }
+  }
+  return newest;
+}
+
+/** What the page a session's work is on says it is, as its tab last heard. */
+function useDrivenPage(sessionId: StoreId.Session | undefined) {
+  const tab = useDrivenTab(sessionId);
+  const url = tab?.url ?? tab?.openedUrl;
+  return (
+    tab && {
+      ...(tab.title && { title: tab.title }),
+      ...(url && { url }),
+    }
   );
+}
+
+/** The driven page's picture, retaken after each thing that changes the page. */
+function LivePagePicture({ sessionId }: { sessionId: StoreId.Session }) {
+  const newest = useDrivenTab(sessionId);
   if (!newest) {
     return null;
   }
@@ -182,99 +187,33 @@ function PageShot({
   targetId: BrowserTargetId;
 }) {
   const url = usePagePicture(tab.id, targetId);
-  if (url) {
-    return (
-      <img
-        alt=""
-        className="size-full object-cover object-top"
-        draggable={false}
-        src={url}
-      />
-    );
-  }
+  const [hasDrawn, setHasDrawn] = useState(false);
+  // The page's icon, which its first picture fades in over once it has drawn;
+  // a later picture replaces the one before in place.
   return (
-    <div className="flex h-full items-center justify-center [&_img]:size-6 [&_svg]:size-6">
-      <PageFavicon favicon={tab.favicon} url={tab.url ?? tab.openedUrl ?? ""} />
-    </div>
+    <>
+      <div className="flex h-full items-center justify-center [&_img]:size-6 [&_svg]:size-6">
+        <PageFavicon
+          favicon={tab.favicon}
+          url={tab.url ?? tab.openedUrl ?? ""}
+        />
+      </div>
+      {url && (
+        <img
+          alt=""
+          className={cn(
+            "absolute inset-0 size-full object-cover object-top transition-opacity duration-200",
+            !hasDrawn && "opacity-0",
+          )}
+          draggable={false}
+          onLoad={() => {
+            setHasDrawn(true);
+          }}
+          src={url}
+        />
+      )}
+    </>
   );
-}
-
-/**
- * A picture of the page, retaken shortly after it loads, moves or renames
- * itself and after each agent command in it. A newer capture finishing first
- * is never replaced by an older one.
- */
-function usePagePicture(key: string, targetId: BrowserTargetId) {
-  const queryClient = useQueryClient();
-  const picture = useQuery({
-    queryFn: () => rpcClient.browser.thumbnails.get.call({ key }),
-    queryKey: thumbnailKey(key),
-    staleTime: Infinity,
-  });
-  const isAttached = useBrowserTargets().has(targetId);
-  const requested = useRef(0);
-  const capture = useRef(() => {});
-  useLayoutEffect(() => {
-    capture.current = () => {
-      // A guest not ready yet has nothing drawn to take.
-      const webContentsId = getGuest(targetId)?.webContentsId;
-      if (webContentsId === undefined) {
-        return;
-      }
-      requested.current += 1;
-      const mine = requested.current;
-      void rpcClient.browser.thumbnails.capture
-        .call({ key, webContentsId })
-        .then((result) => {
-          if (result.url && mine === requested.current) {
-            queryClient.setQueryData(thumbnailKey(key), result);
-          }
-        })
-        .catch(() => {
-          // A missed picture keeps the last one; the next change takes another.
-        });
-    };
-  });
-  useEffect(() => {
-    const guest = getGuest(targetId);
-    if (!guest) {
-      return;
-    }
-    let pending: ReturnType<typeof setTimeout> | undefined;
-    const soon = () => {
-      clearTimeout(pending);
-      pending = setTimeout(() => {
-        capture.current();
-      }, CHANGE_SETTLE_MS);
-    };
-    const stops = (
-      [
-        "did-stop-loading",
-        "did-navigate",
-        "did-navigate-in-page",
-        "page-title-updated",
-      ] as const
-    ).map((event) => guest.on(event, soon));
-    return () => {
-      for (const stop of stops) {
-        stop();
-      }
-      clearTimeout(pending);
-    };
-  }, [isAttached, targetId]);
-  const agentAt = useTargetAgentLastAt(targetId);
-  useEffect(() => {
-    if (agentAt === undefined) {
-      return;
-    }
-    const pending = setTimeout(() => {
-      capture.current();
-    }, AGENT_SETTLE_MS);
-    return () => {
-      clearTimeout(pending);
-    };
-  }, [agentAt]);
-  return picture.data?.url ?? undefined;
 }
 
 /** Connects a transcript to the app: its records, its window and its pages. */
@@ -286,20 +225,20 @@ export function LiveTranscriptSurface({
   children: ReactNode;
 }) {
   const appWindow = useContext(WindowContext);
-  const openFile = useOpenFile();
+  const showChatFile = useShowChatFile();
   const stop = useMutation(rpcClient.workspace.session.stop.mutationOptions());
   const stopCommand = useMutation(
     rpcClient.workspace.chats.backgroundProcesses.stop.mutationOptions(),
   );
   // Every chat's tasks are read once here, so each card shares one subscription.
   useChatTasks(chat);
-  const latest = useRef({ appWindow, chat, openFile, stop, stopCommand });
+  const latest = useRef({ appWindow, chat, showChatFile, stop, stopCommand });
   useLayoutEffect(() => {
-    latest.current = { appWindow, chat, openFile, stop, stopCommand };
+    latest.current = { appWindow, chat, showChatFile, stop, stopCommand };
   });
   const [surface] = useState<TranscriptSurface>(() => ({
     onOpenFile: (path) => {
-      latest.current.openFile({ hostPath: path });
+      latest.current.showChatFile(path);
     },
     onOpenTask: (id) => {
       latest.current.appWindow?.openScreen(taskHref(id, latest.current.chat));
@@ -318,6 +257,7 @@ export function LiveTranscriptSurface({
       latest.current.stop.mutate({ id: latest.current.chat, sessionId: id });
     },
     PagePicture: LivePagePicture,
+    useDrivenPage,
     useHostPaths: useChatHostPaths,
     useCommands,
     useStepPart,

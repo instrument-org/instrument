@@ -13,8 +13,8 @@ import {
 } from "../memory/store";
 import { learnedIn } from "../memory/learned-in";
 import { recordSetupTouch } from "../setup-changes";
-import { APP_COMMAND } from "../shell-commands/app-command";
-import { MEMORY_COMMAND } from "../shell-commands/memory-command";
+import { APP_COMMAND } from "../../model-text/commands/app-command";
+import { MEMORY_COMMAND } from "../../model-text/commands/memory-command";
 import { type ChatId } from "../../schemas/chat-id";
 import { defineCapability } from "./define";
 

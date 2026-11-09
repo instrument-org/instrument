@@ -1,6 +1,7 @@
+import { useRefreshWhileShown } from "@/client/hooks/use-active-tab";
 import { rpcClient } from "@/client/rpc/client";
 import { WINDOW_ID } from "@instrument-org/workspace/client";
-import { keepPreviousData, useQuery } from "@tanstack/react-query";
+import { keepPreviousData, skipToken, useQuery } from "@tanstack/react-query";
 
 /** How many of the files the person opened the recents carry. */
 const RECENT_FILES_MAX = 100;
@@ -20,22 +21,32 @@ export function useRecentFiles({
 } = {}) {
   const opened = useQuery(
     rpcClient.history.live.files.experimental_liveOptions({
-      enabled,
-      input: { limit: RECENT_FILES_MAX },
+      // A key of its own rather than `enabled`, which would leave the read
+      // running under an observer that only stopped looking at it.
+      input: enabled ? { limit: RECENT_FILES_MAX } : skipToken,
     }),
   );
-  const openedFiles = opened.data ?? [];
+  const refresh = useRefreshWhileShown(refetchInterval);
   const described = useQuery(
     rpcClient.workspace.computer.describe.queryOptions({
-      enabled: enabled && opened.data !== undefined,
-      input: { id: WINDOW_ID, paths: openedFiles.map((file) => file.path) },
+      enabled: (query) =>
+        enabled && opened.data !== undefined && refresh.enabled(query),
+      input: {
+        id: WINDOW_ID,
+        paths: (opened.data ?? []).map((file) => file.path),
+      },
       // The list keeps its rows while a new open is described, rather than
       // emptying for the moment between the two answers.
       placeholderData: keepPreviousData,
-      refetchInterval,
+      refetchInterval: refresh.refetchInterval,
     }),
   );
-  const openedAt = new Map(openedFiles.map((file) => [file.path, file.at]));
+  // Derived after the last hook, where the compiler can keep the list the
+  // same object from one render to the next: a value made before a hook and
+  // read after it is made afresh every render.
+  const openedAt = new Map(
+    (opened.data ?? []).map((file) => [file.path, file.at]),
+  );
   const files = (described.data ?? []).flatMap((entry) => {
     const at = openedAt.get(entry.path);
     return at === undefined ? [] : [{ ...entry, openedAt: at }];

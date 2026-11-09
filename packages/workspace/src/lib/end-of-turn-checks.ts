@@ -4,7 +4,7 @@ import { type StoreId } from "../schemas/store-id";
 import { brokenLinksIn } from "./broken-links";
 import { sessionRole } from "./chat/children";
 import { isToolPart } from "./is-tool-part";
-import { systemNote } from "./system-note";
+import { systemNote } from "../model-text/notes/system-note";
 
 interface FinishedTurn {
   chatId: ChatId;

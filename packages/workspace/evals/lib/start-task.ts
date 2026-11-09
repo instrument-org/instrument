@@ -11,8 +11,6 @@ export interface StartsTask {
   /** What stdin tells the task to do. */
   brief: string;
   name: string;
-  /** Tabs of the user's to hand it, as `--tab` names them. */
-  tabs?: string[];
 }
 
 const TASK_NEW = cliSubcommands("task").subcommands.new;
@@ -27,19 +25,18 @@ const TASK_NEW = cliSubcommands("task").subcommands.new;
 export async function startTaskForChat(
   chatId: ChatId,
   sessionId: StoreId.Session,
-  { brief, name, tabs = [] }: StartsTask,
+  { brief, name }: StartsTask,
   /** The chat's model, which the step is recorded as answering from. */
   model: AIGatewayModel.Type,
 ): Promise<void> {
   if (!TASK_NEW) {
     throw new Error("no instrument task new");
   }
-  const tabArgs = tabs.flatMap((tab) => ["--tab", tab]);
-  const command = `instrument task new --name '${name}'${tabArgs.map((arg) => ` ${arg}`).join("")} <<'EOF'\n${brief}\nEOF`;
+  const command = `instrument task new --name '${name}' <<'EOF'\n${brief}\nEOF`;
   const startedAt = new Date();
   const result = await runSubcommand(
     TASK_NEW,
-    ["--name", name, ...tabArgs],
+    ["--name", name],
     {
       chatId,
       remainingYieldMs: () => Number.POSITIVE_INFINITY,

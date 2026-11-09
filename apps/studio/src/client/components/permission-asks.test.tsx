@@ -22,7 +22,7 @@ function showAsks(
       answerable: boolean;
       answered?: { by: string; decision: "allowed"; taken: boolean };
     };
-    kind?: "app" | "folder" | "tab";
+    kind?: "app" | "folder";
     reason?: string;
     status?: "macos-asking" | "macos-private" | "macos-refused" | "open";
     target: string;
@@ -308,39 +308,32 @@ describe("PermissionAsksFoot", () => {
 
     it.each([
       [
-        "a tab, which moves on the screen it is on",
-        { answerable: false },
-        "tab",
-        "open",
-        "You can answer this on Studio Mac.",
-      ],
-      [
         "an answer that computer has not picked up yet",
         {
           answerable: false,
           answered: {
-            by: "Jeremy's iPhone",
+            by: "Alex's iPhone",
             decision: "allowed",
             taken: false,
           },
         },
         "folder",
         "open",
-        "You answered from Jeremy's iPhone. It takes effect once Studio Mac picks it up.",
+        "You answered from Alex's iPhone. It takes effect once Studio Mac picks it up.",
       ],
       [
         "a yes that macOS there is still asking about",
         {
           answerable: false,
           answered: {
-            by: "Jeremy's iPhone",
+            by: "Alex's iPhone",
             decision: "allowed",
             taken: true,
           },
         },
         "folder",
         "macos-asking",
-        "You answered from Jeremy's iPhone, and Studio Mac needs you to finish it there.",
+        "You answered from Alex's iPhone, and Studio Mac needs you to finish it there.",
       ],
     ] as const)(
       "points at that computer for %s, with nothing to answer here",
@@ -348,9 +341,7 @@ describe("PermissionAsksFoot", () => {
         showAsks([{ elsewhere, kind, status, target: "/Users/sam/Pantry" }]);
 
         expect(await screen.findByText(line)).toBeDefined();
-        expect(
-          screen.queryByRole("button", { name: /allow|Skip|Move tab/i }),
-        ).toBeNull();
+        expect(screen.queryByRole("button", { name: /allow/i })).toBeNull();
       },
     );
   });

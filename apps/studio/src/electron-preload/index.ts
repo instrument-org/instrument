@@ -24,6 +24,7 @@ import {
   type DraftStageRequest,
   type DraftTrashRequest,
 } from "@/shared/drafts";
+import { LEAVING_CHANNEL } from "@/shared/leaving";
 import { type SetupState } from "@/shared/setup";
 import { electronAPI } from "@electron-toolkit/preload";
 import { contextBridge, ipcRenderer, webUtils } from "electron";
@@ -228,6 +229,13 @@ const api: Window["api"] = {
   homeDir: os.homedir(),
   initialSetupState: loadSetupState(),
   keptState: {
+    otherWindows: (key) => {
+      const values: unknown = ipcRenderer.sendSync(
+        KEPT_STATE_CHANNEL.otherWindows,
+        key,
+      );
+      return Array.isArray(values) ? (values as unknown[]) : [];
+    },
     initial: loadKeptState(),
     onChange: (listener) => {
       const forward = (
@@ -251,6 +259,17 @@ const api: Window["api"] = {
   // checks what it is told before recording it.
   recordAction: (action) => {
     ipcRenderer.send(RECORD_ACTION_CHANNEL, action);
+  },
+  // The token main asked with goes back once `finish` settles, failed or not,
+  // so a quit waits on what the window had put off and never on its errors.
+  onLeaving: (finish) => {
+    ipcRenderer.on(LEAVING_CHANNEL.ask, (_event, token: unknown) => {
+      void finish()
+        .catch(() => {})
+        .then(() => {
+          ipcRenderer.send(LEAVING_CHANNEL.done, token);
+        });
+    });
   },
   // One-way bridge for forwarding renderer errors to the main-process dev log.
   // The main side only listens in development, so this is a no-op in production.

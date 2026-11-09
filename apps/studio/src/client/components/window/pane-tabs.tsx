@@ -4,48 +4,34 @@ import {
   FileSystemFolderGlyph,
   FileTypeIcon,
 } from "@/client/components/extend/file-system";
-import { ShimmerSweep } from "@/client/components/shimmer-sweep";
-import {
-  ContextMenu,
-  ContextMenuContent,
-  ContextMenuItem,
-  ContextMenuSeparator,
-  ContextMenuTrigger,
-} from "@/client/components/ui/context-menu";
 import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/client/components/ui/dropdown-menu";
-import { PageTooltip } from "@/client/components/window/page-tooltip";
-import { useTargetAgentActivity } from "@/client/hooks/use-target-agent-activity";
-import { cn, osConventions } from "@/client/lib/utils";
+import { dropdownMenuComponents } from "@/client/components/ui/menu-components";
+import { useTargetsAgentActivity } from "@/client/hooks/use-target-agent-activity";
+import { getGuest } from "@/client/lib/browser-pool";
+import { osConventions } from "@/client/lib/utils";
 import { browserTargetOf } from "@instrument-org/workspace/client";
-import { BrowsersIcon } from "@phosphor-icons/react/Browsers";
-import { CopyIcon } from "@phosphor-icons/react/Copy";
 import { DesktopIcon } from "@phosphor-icons/react/Desktop";
 import { GlobeIcon } from "@phosphor-icons/react/Globe";
-import { PlusIcon } from "@phosphor-icons/react/Plus";
 import { XIcon } from "@phosphor-icons/react/X";
-import { motion, Reorder } from "motion/react";
-import { type ReactNode, useContext, useEffect, useRef, useState } from "react";
+import { useContext, useRef, useState } from "react";
 
+import { tabTooltip } from "./app-tab-strip";
 import { useAppsBySlug } from "./apps-by-slug";
 import { useComputerVolumes } from "./computer-volumes";
 import { WindowContext } from "./context";
 import { useFileTabTitles } from "./file-tab-titles";
-import { screenLocation, screenPresentation } from "./screen-presentation";
+import { screenPresentation, screenLocation } from "./screen-presentation";
+import { siteTabTitles } from "./site-tab-titles";
+import { tasksOfHref } from "./tab-location";
+import { TabMenuAtPoint, TabMenuItems } from "./tab-menu-items";
+import { NewTabButton, type StripTab, TabStrip } from "./tab-strip";
 
 type Presentation = Parameters<typeof screenPresentation>[1];
-
-/** A layout change that lands at once, for tabs moved by anything but a drag. */
-const STILL = { layout: { duration: 0 } };
-
-// The room around the tabs inside their scroller, the `p-1` it draws, in layout
-// px. A scroller clips at its padding edge whatever `overflow-clip-margin` says,
-// so a row exactly as tall as its tabs would slice the chosen tab's shadow flat.
-const TAB_ROOM = 4;
 
 function hostOf(url: string): string {
   if (!URL.canParse(url)) {
@@ -62,9 +48,10 @@ function keyOf(tab: WindowTab): string {
 /**
  * A chat's tabs, across the head of the pane beside it, the one place they
  * show: what its agent browses and the person opened, oldest at the left,
- * scrolling sideways when there are many. Pressing one brings it up, its ×
- * takes it out of the chat, and dragging one moves it among the others. The ×
- * at the row's far end puts the whole pane away and keeps the tabs.
+ * narrowing to icons when there are many and scrolling sideways past that.
+ * They are the window's own strip, so they open, close, reorder and answer the keyboard as
+ * the window's tabs do. The × at the row's far end puts the whole pane away and
+ * keeps the tabs.
  */
 export function PaneTabs({
   chatTitles,
@@ -73,6 +60,7 @@ export function PaneTabs({
   onAddComputer,
   onAddWeb,
   onClose,
+  onDuplicate,
   onHide,
   onReorder,
   onSelect,
@@ -86,6 +74,8 @@ export function PaneTabs({
   onAddComputer: () => void;
   onAddWeb: () => void;
   onClose: (id: string) => void;
+  /** A copy of the tab beside it in the pane: a page at its address, a screen at its own. */
+  onDuplicate: (tab: WindowTab) => void;
   onHide: () => void;
   /** The chat's tabs in a new order, by their strip keys, oldest first. */
   onReorder: (keys: string[]) => void;
@@ -93,284 +83,265 @@ export function PaneTabs({
   tabs: WindowTab[];
   taskTitles: Presentation["taskTitles"];
 }) {
-  // Tabs slide only while one is being dragged among them: laid out otherwise,
-  // they would slide every time the pane around them resizes.
-  const [isDragging, setDragging] = useState(false);
-  const listRef = useRef<HTMLDivElement>(null);
-  // The chosen tab is brought into the row's view. Offsets are layout px, which
-  // is what scrollLeft is in under the window's zoom.
-  useEffect(() => {
-    const list = listRef.current;
-    const tab = [
-      ...(list?.querySelectorAll<HTMLElement>("[data-pane-tab]") ?? []),
-    ].find((element) => element.dataset.paneTab === chosenId);
-    if (!list || !tab) {
-      return;
+  const appsBySlug = useAppsBySlug();
+  const volumes = useComputerVolumes();
+  const fileTitles = useFileTabTitles(
+    tabs.map((tab) => (tab.kind === "page" ? undefined : tab.href)),
+  );
+  const driven = useTargetsAgentActivity(
+    tabs.flatMap((tab) =>
+      tab.kind === "page" ? [browserTargetOf(tab.id)] : [],
+    ),
+    isChatWorking,
+  );
+  const hasPicked = useRef(false);
+  const [menu, setMenu] = useState<{ key: string; x: number; y: number }>();
+  const tabOf = (key: string) => tabs.find((tab) => keyOf(tab) === key);
+
+  const whole = tabs.map((tab) => {
+    const key = keyOf(tab);
+    if (tab.kind === "page") {
+      const url = tab.url ?? tab.openedUrl;
+      return { key, title: tab.title || hostOf(url ?? ""), url };
     }
-    const left = tab.offsetLeft - TAB_ROOM;
-    const right = tab.offsetLeft + tab.offsetWidth + TAB_ROOM;
-    if (left < list.scrollLeft) {
-      list.scrollTo({ behavior: "smooth", left });
-    } else if (right > list.scrollLeft + list.clientWidth) {
-      list.scrollTo({ behavior: "smooth", left: right - list.clientWidth });
+    return {
+      key,
+      title: screenPresentation(tab.href, {
+        appsBySlug,
+        chatTitles,
+        ...(fileTitles ? { fileTitles } : {}),
+        taskTitles,
+        ...(volumes ? { volumes } : {}),
+      }).title,
+    };
+  });
+  // Pages of one site say only what tells them apart, as the window's do.
+  const short = siteTabTitles(whole);
+  const presented = tabs.map((tab, index): StripTab => {
+    const named = whole[index] ?? { key: keyOf(tab), title: "" };
+    let tooltip: StripTab["tooltip"];
+    if (tab.kind !== "page") {
+      tooltip = tabTooltip(tab.href, named);
+    } else if (named.url !== undefined) {
+      tooltip = tabTooltip("", named);
     }
-  }, [chosenId, tabs.length]);
+    return {
+      icon:
+        tab.kind === "page" ? (
+          <PageFavicon
+            className="size-3.5"
+            favicon={tab.favicon}
+            hasTooltip={false}
+            url={tab.url ?? tab.openedUrl ?? ""}
+          />
+        ) : (
+          <ScreenMark
+            appsBySlug={appsBySlug}
+            chatTitles={chatTitles}
+            href={tab.href}
+          />
+        ),
+      isWorking: tab.kind === "page" && driven.has(browserTargetOf(tab.id)),
+      key: named.key,
+      title: short.get(named.key) ?? named.title,
+      ...(tooltip ? { tooltip } : {}),
+    };
+  });
+  const chosen = tabs.find((tab) => tab.id === chosenId);
+  const menuTab = menu ? tabOf(menu.key) : undefined;
+
   return (
-    <div
-      aria-label="What this chat has open"
-      className="flex h-10 shrink-0 items-center gap-1 px-2"
-      role="tablist"
-    >
-      <motion.div
-        className="relative -m-1 flex min-w-0 [scrollbar-width:none] overflow-x-auto p-1"
-        layoutScroll
-        // A wheel that only turns up and down scrolls the row sideways.
-        onWheel={(event) => {
-          const list = event.currentTarget;
-          if (
-            list.scrollWidth > list.clientWidth &&
-            Math.abs(event.deltaY) > Math.abs(event.deltaX)
-          ) {
-            list.scrollLeft += event.deltaY;
+    <div className="flex shrink-0 items-center pr-2">
+      <TabStrip
+        // The pane's own card is the ground a tab up stands on.
+        className="min-w-0 flex-1 pr-0 [--tab-selected:var(--card)]"
+        label="What this chat has open"
+        newControl={
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <NewTabButton aria-label="Open beside the chat" title="New" />
+            </DropdownMenuTrigger>
+            <DropdownMenuContent
+              align="start"
+              className="w-48"
+              // What was picked comes up, so the + has nothing to keep the
+              // focus for, and it would wear a focus ring after a pick made
+              // with the mouse.
+              onCloseAutoFocus={(event) => {
+                if (hasPicked.current) {
+                  hasPicked.current = false;
+                  event.preventDefault();
+                }
+              }}
+            >
+              <DropdownMenuItem
+                onSelect={() => {
+                  hasPicked.current = true;
+                  onAddWeb();
+                }}
+              >
+                <GlobeIcon className="size-3.5" />
+                Browser
+              </DropdownMenuItem>
+              <DropdownMenuItem
+                onSelect={() => {
+                  hasPicked.current = true;
+                  onAddComputer();
+                }}
+              >
+                <DesktopIcon className="size-3.5" />
+                {osConventions().computer}
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
+        }
+        onClose={(key) => {
+          const tab = tabOf(key);
+          if (tab) {
+            onClose(tab.id);
           }
         }}
-        ref={listRef}
-      >
-        <Reorder.Group
-          as="div"
-          axis="x"
-          className="flex shrink-0 gap-0.5"
-          onReorder={(keys: string[]) => {
-            onReorder(keys);
-          }}
-          values={tabs.map(keyOf)}
-        >
-          {tabs.map((tab) => (
-            <Reorder.Item
-              as="div"
-              className="shrink-0"
-              data-pane-tab={tab.id}
-              key={tab.id}
-              onDragEnd={() => {
-                setDragging(false);
-              }}
-              onDragStart={() => {
-                setDragging(true);
-              }}
-              transition={isDragging ? undefined : STILL}
-              value={keyOf(tab)}
-            >
-              <PaneTab
-                chatTitles={chatTitles}
-                isChatWorking={isChatWorking}
-                isChosen={tab.id === chosenId}
-                onClose={() => {
-                  onClose(tab.id);
-                }}
-                onSelect={() => {
-                  onSelect(tab.id);
-                }}
-                tab={tab}
-                taskTitles={taskTitles}
-              />
-            </Reorder.Item>
-          ))}
-        </Reorder.Group>
-      </motion.div>
-      <DropdownMenu>
-        <DropdownMenuTrigger asChild>
-          <button
-            aria-label="Open beside the chat"
-            className="grid size-7 shrink-0 place-items-center rounded-md text-muted-foreground hover:bg-accent hover:text-foreground data-[state=open]:bg-accent data-[state=open]:text-foreground"
-            title="New"
-            type="button"
-          >
-            <PlusIcon className="size-3.5" />
-          </button>
-        </DropdownMenuTrigger>
-        <DropdownMenuContent align="start" className="w-48">
-          <DropdownMenuItem onSelect={onAddWeb}>
-            <GlobeIcon className="size-3.5" />
-            Browser
-          </DropdownMenuItem>
-          <DropdownMenuItem onSelect={onAddComputer}>
-            <DesktopIcon className="size-3.5" />
-            {osConventions().computer}
-          </DropdownMenuItem>
-        </DropdownMenuContent>
-      </DropdownMenu>
+        onContextMenu={(key, event) => {
+          event.preventDefault();
+          setMenu({ key, x: event.clientX, y: event.clientY });
+        }}
+        onReorder={onReorder}
+        onSelect={(key) => {
+          const tab = tabOf(key);
+          if (tab) {
+            onSelect(tab.id);
+          }
+        }}
+        overflow="squeeze"
+        selectedKey={chosen ? keyOf(chosen) : undefined}
+        tabs={presented}
+      />
       <button
         aria-label="Hide tabs"
-        className="ml-auto grid size-7 shrink-0 place-items-center rounded-md text-muted-foreground hover:bg-accent hover:text-foreground"
+        className="grid size-7 shrink-0 place-items-center rounded-md text-muted-foreground hover:bg-accent hover:text-foreground"
         onClick={onHide}
         type="button"
       >
         <XIcon className="size-4" />
       </button>
-    </div>
-  );
-}
-
-function PaneTab({
-  chatTitles,
-  isChatWorking,
-  isChosen,
-  onClose,
-  onSelect,
-  tab,
-  taskTitles,
-}: {
-  chatTitles: Presentation["chatTitles"];
-  isChatWorking: boolean;
-  isChosen: boolean;
-  onClose: () => void;
-  onSelect: () => void;
-  tab: WindowTab;
-  taskTitles: Presentation["taskTitles"];
-}) {
-  const appsBySlug = useAppsBySlug();
-  const volumes = useComputerVolumes();
-  const windowContext = useContext(WindowContext);
-  const fileTitles = useFileTabTitles([
-    tab.kind === "page" ? undefined : tab.href,
-  ]);
-  const title =
-    tab.kind === "page"
-      ? tab.title || hostOf(tab.url ?? tab.openedUrl ?? "")
-      : screenPresentation(tab.href, {
-          appsBySlug,
-          chatTitles,
-          ...(fileTitles ? { fileTitles } : {}),
-          taskTitles,
-          ...(volumes ? { volumes } : {}),
-        }).title;
-  const mark =
-    tab.kind === "page" ? (
-      <PageFavicon
-        favicon={tab.favicon}
-        hasTooltip={false}
-        url={tab.url ?? tab.openedUrl ?? ""}
-      />
-    ) : (
-      <ScreenMark
-        appsBySlug={appsBySlug}
-        chatTitles={chatTitles}
-        href={tab.href}
-      />
-    );
-  const body = (isWorking: boolean) => (
-    <div
-      className={cn(
-        "group/tab flex h-8 w-36 items-center gap-0.5 rounded-xl pr-0.5 pl-2 text-xs",
-        isChosen
-          ? "bg-card font-medium text-foreground shadow-xs-soft"
-          : "text-muted-foreground hover:bg-accent/50 hover:text-foreground",
-      )}
-    >
-      <button
-        aria-selected={isChosen}
-        className="flex h-full min-w-0 flex-1 items-center gap-1.5 text-left outline-none"
-        // A middle click closes it, as it does a browser's tab.
-        onAuxClick={(event) => {
-          if (event.button === 1) {
-            onClose();
-          }
+      <TabMenuAtPoint
+        at={menu}
+        onDismiss={() => {
+          setMenu(undefined);
         }}
-        onClick={onSelect}
-        onMouseDown={(event) => {
-          if (event.button === 1) {
-            event.preventDefault();
-          }
-        }}
-        role="tab"
-        // A page says what it is on hover; anything else, its name.
-        title={tab.kind === "page" ? undefined : title}
-        type="button"
       >
-        <span className="grid size-3.5 shrink-0 place-items-center [&_img]:size-3.5 [&_svg]:size-3.5">
-          {mark}
-        </span>
-        <span className={cn("truncate", isWorking && "brand-shiny-text")}>
-          {title}
-          {isWorking && <ShimmerSweep text={title} />}
-        </span>
-      </button>
-      <button
-        aria-label={`Close ${title}`}
-        className="grid size-5 shrink-0 place-items-center rounded-sm opacity-0 group-hover/tab:opacity-100 hover:bg-foreground/10 focus-visible:opacity-100"
-        onClick={onClose}
-        type="button"
-      >
-        <XIcon className="size-3" weight="bold" />
-      </button>
+        {menuTab && (
+          <PaneTabMenu
+            isChosen={menuTab.id === chosenId}
+            onClose={onClose}
+            onDuplicate={onDuplicate}
+            tab={menuTab}
+            tabs={tabs}
+          />
+        )}
+      </TabMenuAtPoint>
     </div>
-  );
-  if (tab.kind !== "page") {
-    return body(false);
-  }
-  const pageUrl = tab.url ?? tab.openedUrl;
-  const page = (isWorking: boolean) => {
-    const tooltipped = (
-      <PageTooltip title={tab.title} url={pageUrl ?? ""}>
-        {body(isWorking)}
-      </PageTooltip>
-    );
-    return pageUrl === undefined ? (
-      tooltipped
-    ) : (
-      <ContextMenu>
-        <ContextMenuTrigger asChild>{tooltipped}</ContextMenuTrigger>
-        <ContextMenuContent>
-          {windowContext && (
-            <ContextMenuItem
-              onSelect={() => {
-                windowContext.openPage(pageUrl, { newTab: true });
-              }}
-            >
-              <BrowsersIcon className="size-4" />
-              Open in Browser Tab
-            </ContextMenuItem>
-          )}
-          <ContextMenuItem
-            onSelect={() => {
-              void navigator.clipboard.writeText(pageUrl);
-            }}
-          >
-            <CopyIcon className="size-4" />
-            Copy URL
-          </ContextMenuItem>
-          <ContextMenuSeparator />
-          <ContextMenuItem onSelect={onClose}>
-            <XIcon className="size-4" />
-            Close
-          </ContextMenuItem>
-        </ContextMenuContent>
-      </ContextMenu>
-    );
-  };
-  return (
-    <PageWorking isChatWorking={isChatWorking} tabId={tab.id}>
-      {page}
-    </PageWorking>
   );
 }
 
 /**
- * Whether an agent is at work in a page: while its commands keep arriving, and
- * never once nothing in the chat is at work, so the mark does not outlast the
- * work by the quiet it waits out.
+ * A pane tab's menu: the window's rows, with a copy of the tab opened
+ * elsewhere in place of moving it, since the tab is its chat's.
  */
-function PageWorking({
-  children,
-  isChatWorking,
-  tabId,
+function PaneTabMenu({
+  isChosen,
+  onClose,
+  onDuplicate,
+  tab,
+  tabs,
 }: {
-  children: (isWorking: boolean) => ReactNode;
-  isChatWorking: boolean;
-  tabId: string;
+  isChosen: boolean;
+  onClose: (id: string) => void;
+  onDuplicate: (tab: WindowTab) => void;
+  tab: WindowTab;
+  tabs: WindowTab[];
 }) {
-  const isDriven = useTargetAgentActivity(browserTargetOf(tabId));
-  return children(isChatWorking && isDriven);
+  const windowContext = useContext(WindowContext);
+  const pageUrl = tab.kind === "page" ? (tab.url ?? tab.openedUrl) : undefined;
+  // Elsewhere, a copy: a page at its address, a screen at its own. A task
+  // stands only in its chat, so it has no tab of the window's own.
+  const openElsewhere = (where: "tab" | "window") => {
+    if (!windowContext) {
+      return;
+    }
+    const options = where === "tab" ? { newTab: true } : { newWindow: true };
+    if (tab.kind === "page") {
+      if (pageUrl !== undefined) {
+        windowContext.openPage(pageUrl, options);
+      }
+    } else {
+      windowContext.openScreen(tab.href, options);
+    }
+  };
+  const canGoElsewhere =
+    windowContext !== null && (tab.kind !== "page" || pageUrl !== undefined);
+  const index = tabs.findIndex((each) => each.id === tab.id);
+  return (
+    <TabMenuItems
+      components={dropdownMenuComponents}
+      isSelected={isChosen}
+      onClose={() => {
+        onClose(tab.id);
+      }}
+      onCloseOthers={
+        tabs.length > 1
+          ? () => {
+              for (const other of tabs) {
+                if (other.id !== tab.id) {
+                  onClose(other.id);
+                }
+              }
+            }
+          : undefined
+      }
+      onCloseToRight={
+        index === tabs.length - 1
+          ? undefined
+          : () => {
+              for (const later of tabs.slice(index + 1)) {
+                onClose(later.id);
+              }
+            }
+      }
+      onCopyUrl={
+        pageUrl === undefined
+          ? undefined
+          : () => {
+              void navigator.clipboard.writeText(pageUrl);
+            }
+      }
+      onDuplicate={() => {
+        onDuplicate(tab);
+      }}
+      onOpenInNewWindow={
+        canGoElsewhere
+          ? () => {
+              openElsewhere("window");
+            }
+          : undefined
+      }
+      onOpenInTabBar={
+        canGoElsewhere &&
+        (tab.kind === "page" || tasksOfHref(tab.href) === undefined)
+          ? () => {
+              openElsewhere("tab");
+            }
+          : undefined
+      }
+      onReload={
+        tab.kind === "page"
+          ? () => {
+              getGuest(browserTargetOf(tab.id))?.reload();
+            }
+          : undefined
+      }
+    />
+  );
 }
 
 /** A screen's small mark: a file's type, a folder, or the screen's own icon. */

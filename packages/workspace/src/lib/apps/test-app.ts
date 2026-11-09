@@ -1,7 +1,7 @@
 import { APP_NAME } from "@instrument-org/shared";
 
 import { type AbsolutePath } from "../../schemas/paths";
-import { APP_COMMAND } from "../shell-commands/app-command";
+import { APP_COMMAND } from "../../model-text/commands/app-command";
 import { getWorkspaceConfig } from "../workspace-config";
 import { shellPath } from "../workspace-fs-layout";
 import { isConnected, readConnection, recordConnection } from "./connection";

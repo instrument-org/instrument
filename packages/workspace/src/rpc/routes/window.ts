@@ -51,14 +51,17 @@ const ensure = base
  */
 const tab = base
   .output(eventIterator(WindowTabRequestSchema))
-  .handler(async function* ({ signal }) {
+  .handler(async function* ({ context, signal }) {
     for await (const event of publisher.subscribe("window.tab", {
       signal,
     })) {
       // A chat's own asks, and those of any task asking among a chat's tabs,
-      // go to the window.
-      if (resolveChat(event.id) || event.chatId !== undefined) {
-        const { id: _asker, ...request } = event;
+      // go to the window named as the ask went out.
+      if (
+        (resolveChat(event.id) || event.chatId !== undefined) &&
+        (event.window === undefined || event.window === context.webContentsId)
+      ) {
+        const { id: _asker, window: _window, ...request } = event;
         yield request;
       }
     }

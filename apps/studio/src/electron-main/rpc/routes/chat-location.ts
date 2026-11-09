@@ -1,11 +1,11 @@
-import { devOnly } from "@/electron-main/rpc/base";
+import { base, devOnly } from "@/electron-main/rpc/base";
 import {
-  chatDir,
   ChatIdSchema,
+  chatDeveloperDetailsText,
+  chatForAgentText,
+  chatPlaces,
   chatStartedWithApp,
-  chatTitle,
   StoreId,
-  workDir,
 } from "@instrument-org/workspace/electron";
 import { app, clipboard } from "electron";
 import os from "node:os";
@@ -18,32 +18,35 @@ const OS_NAMES: Partial<Record<NodeJS.Platform, string>> = {
 };
 
 /**
- * Where a chat's session lives on this computer, as `key: value` lines for a
- * developer to paste to a coding agent: the agent reads the records and the
- * work folder itself, and `host` says which computer they are on. Behind
- * developer mode, since it names paths on the developer's own disk.
+ * Copies what another agent needs to pick up from a chat: what the app is,
+ * and each of the chat's folders with what it has. The main process puts the
+ * text together and copies it, so a menu item calls this with nothing fetched.
  */
-const copy = devOnly
+const forAgent = base
+  .input(z.object({ id: ChatIdSchema }))
+  .handler(async ({ input }) => {
+    await clipboard.writeText(chatForAgentText(await chatPlaces(input.id)));
+  });
+
+/**
+ * Copies where a chat's session lives on this computer for a developer to
+ * paste to a coding agent: its folders and records, its main thread, the
+ * build, and which computer they are on. Behind developer mode, since it
+ * names the app's own data.
+ */
+const developerDetails = devOnly
   .input(z.object({ id: ChatIdSchema, sessionId: StoreId.SessionSchema }))
   .handler(async ({ input }) => {
     const { id, sessionId } = input;
     const platform = os.platform();
-    const lines = {
-      title: (await chatTitle(id)) ?? "unknown",
-      chat: id,
-      session: sessionId,
-      records: chatDir(id),
-      work: workDir(id),
-      app: `${app.getVersion()} (${app.isPackaged ? "packaged" : "development"})`,
-      "started with": (await chatStartedWithApp(id)) ?? "unknown",
-      os: `${OS_NAMES[platform] ?? platform} ${os.release()} / ${os.arch()}`,
-      host: os.hostname(),
-    };
     await clipboard.writeText(
-      Object.entries(lines)
-        .map(([key, value]) => `${key}: ${value}`)
-        .join("\n"),
+      chatDeveloperDetailsText(await chatPlaces(id), {
+        app: `${app.getVersion()} (${app.isPackaged ? "packaged" : "development"})`,
+        computer: `${OS_NAMES[platform] ?? platform} ${os.release()} (${os.arch()}), named ${os.hostname()}`,
+        mainThread: sessionId,
+        startedWith: await chatStartedWithApp(id),
+      }),
     );
   });
 
-export const chatLocation = { copy };
+export const chatLocation = { developerDetails, forAgent };

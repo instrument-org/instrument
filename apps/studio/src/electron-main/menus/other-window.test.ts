@@ -8,6 +8,7 @@ vi.mock("@/electron-main/stores/workspace/preferences", () => ({
   isDeveloperMode: () => false,
 }));
 vi.mock("./utils", () => ({}));
+vi.mock("./symbol", () => ({ menuSymbol: () => ({}) }));
 
 const PLATFORM = process.platform;
 

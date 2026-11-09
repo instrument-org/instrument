@@ -7,8 +7,12 @@ import {
 } from "@instrument-org/workspace/client";
 import { createContext, useContext } from "react";
 
+import { type AIGatewayModelURI } from "@instrument-org/ai-gateway/client";
+
 import { type useAppTabs } from "./app-tabs";
-import { type Chat, type Project } from "./chats";
+import { type Project } from "./chats";
+import { type DraftSend } from "./compose-window";
+import { type ContextItem } from "./context-items";
 import { type useCompose } from "./use-compose";
 
 /**
@@ -20,11 +24,12 @@ export interface WindowShell {
   appTabs: ReturnType<typeof useAppTabs>;
   /** The chat a draft just became, marked in the inbox as it arrives. */
   arrivedId: ChatId | undefined;
-  chats: Chat[] | undefined;
   chatTitles: Map<ChatId, string>;
   /** Each task's title, for a tab standing on one. */
   childTitles: Map<StoreId.Session, string>;
   compose: ReturnType<typeof useCompose>;
+  /** The model a new chat starts on, and setting it. */
+  defaultModelURI: AIGatewayModelURI.Type | undefined;
   /** Throws a draft away, with a moment to take it back. */
   discardDraft: (id: string) => void;
   /** The drafts worth coming back to, for the inbox. */
@@ -37,8 +42,21 @@ export interface WindowShell {
   onListed: (listed: ChatId[]) => void;
   /** A project asked for from a chat's head, with what was typed. */
   onNewProject: (name: string | undefined) => void;
-  /** Takes the tab up to Chat with the inbox standing in a project, by its id. */
+  /** A project asked for from a draft's head, with what was typed: the project it makes files that draft. */
+  onNewDraftProject: (draftId: string, name: string) => void;
+  /** Sends the draft the Chat screen is writing to a window along the foot. */
+  popOutDraft: (id: string) => void;
+  setDefaultModelURI: (modelURI: AIGatewayModelURI.Type) => void;
+  /** Starts the chat a draft is for, from what its composer sends. */
+  startChat: (id: string, send: DraftSend) => void;
+  /** Takes the tab up to Chat with the inbox standing in a project, by its id, putting away the chat or draft up beside it for a new chat filed under the project. */
   openProject: (projectId: string) => void;
+  /** Takes the inbox back out of its project, to the chat or draft up before it while the project's new chat is still unwritten. */
+  leaveProject: () => void;
+  /** Opens a project's folder in Files. */
+  openProjectInFiles: (project: Project) => void;
+  /** The project each chat being started from a draft was sent under, by the chat, worn by its head until its record files it. */
+  sentProjects: ReadonlyMap<ChatId, string>;
   /** What each chat being started from a draft sent, by the chat, shown until its transcript has it. */
   sentWords: ReadonlyMap<ChatId, string>;
   /** Closes one of a chat's tabs, asking first while a task is working in it. */
@@ -48,9 +66,8 @@ export interface WindowShell {
   /** What goes with a message in a chat; see `contextReaders`. */
   sendContext: (options: {
     chatId: ChatId;
-    isPoppedOut: boolean;
     isViewOpen: boolean;
-    leftOut: readonly string[];
+    taken: readonly ContextItem[];
   }) => Promise<SessionMessageDataPart.ViewContextDataPart | undefined>;
   setChatProject: (id: ChatId, project: null | string) => void;
   setPaneOpen: (group: string, isOpen: boolean) => void;

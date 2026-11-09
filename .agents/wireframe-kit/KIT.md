@@ -62,13 +62,13 @@ The shared scenario is the chat "Help desk pricing against competitors" (`PRICIN
 
 ## The baseline
 
-[`baseline.js`](baseline.js) is a part with one frame per surface as it stands: the chat list in each of its states, the window tabs, the bell and a status pill, Files in each view with its menus and search, Browser, New tab, ⌘K, Apps, the release notes, Settings, Send feedback, a dialog and a toast, the chat with its cards, the floating chat, the draft, the model picker, setup, and the desktop, menu bar extra, notification, context menu and website. Build it and look at it before drawing a round:
+[`baseline.js`](baseline.js) is a part with one frame per surface as it stands: the chat list in each of its states, the window tabs, the bell and a status pill, Files in each view with its menus and search, Browser, New tab, ⌘K, Apps, the release notes, Settings, Send feedback, a dialog and a toast, the chat with its activity rows, task and live cards, its pane and its cards, a new chat beside the list, the docked draft, the floating chat, the model picker, setup, and the desktop, menu bar extra, notification, context menu and website. Build it and look at it before drawing a round:
 
 ```bash
 node .agents/wireframe-kit/build.mjs .agents/wireframe-kit/baseline.js ~/wireframes/kit-baseline.html
 ```
 
-`appWindow({ dark: true })` draws the dark theme for everything built on tokens; hard-coded light colors (page bodies, tiles) stay light. Not in the kit yet, so drawn by hand when a round needs it: an app's own page, a task opened on its own, and the transcript's newer pieces.
+`appWindow({ dark: true })` draws the dark theme for everything built on tokens; hard-coded light colors (page bodies, tiles) stay light. Not in the kit yet, so drawn by hand when a round needs it: an app's own page and a task opened on its own.
 
 ## Measuring against the app
 

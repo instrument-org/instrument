@@ -55,7 +55,7 @@ The main product question is not whether this is technically possible. It is how
 - [manager.ts](../../apps/studio/src/electron-main/browser-view/manager.ts) creates task browser targets, binds guests, and builds the Electron session with `session.fromPath(partitionDir)`.
 - [packages/workspace/src/rpc/routes/browser.ts](../../packages/workspace/src/rpc/routes/browser.ts) starts task browser targets and passes the task-specific partition directory.
 - [packages/workspace/src/lib/shell-commands/agent-browser.ts](../../packages/workspace/src/lib/shell-commands/agent-browser.ts) wraps the `agent-browser` CLI and is the likely place to expose a controlled escape hatch to the agent.
-- [packages/workspace/src/lib/browser-status-model-text.ts](../../packages/workspace/src/lib/browser-status-model-text.ts) formats model-facing browser state and should include blocking state if this ships.
+- [packages/workspace/src/model-text/notes/browser-status-model-text.ts](../../packages/workspace/src/model-text/notes/browser-status-model-text.ts) formats model-facing browser state and should include blocking state if this ships.
 
 ## Proposed architecture
 

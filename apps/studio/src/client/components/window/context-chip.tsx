@@ -11,10 +11,14 @@ import {
 } from "@/client/components/ui/tooltip";
 import { FileOpenContext } from "@/client/components/file-open-context";
 import { useFileDrag } from "@/client/hooks/use-file-drag";
-import { wantsNewTab } from "@/client/hooks/use-open-target";
+import { wantsNewTab, wantsNewWindow } from "@/client/hooks/use-open-target";
 import { displayPath } from "@/client/lib/path-utils";
+import {
+  ChipPresence,
+  COMPOSER_CHIP_CLASSNAME,
+  COMPOSER_CHIP_SELECTED_CLASSNAME,
+} from "@/client/components/attached-item-preview";
 import { cn } from "@/client/lib/utils";
-import { rpcClient } from "@/client/rpc/client";
 import {
   type ChatId,
   ChatIdSchema,
@@ -22,12 +26,16 @@ import {
   type SessionMessageDataPart,
 } from "@instrument-org/workspace/client";
 import { ChatCircleIcon } from "@phosphor-icons/react/ChatCircle";
+import { PlusIcon } from "@phosphor-icons/react/Plus";
 import { XIcon } from "@phosphor-icons/react/X";
+import { ToolbarTooltip } from "@/client/components/toolbar-tooltip";
 import { useQuery } from "@tanstack/react-query";
+import { AnimatePresence } from "motion/react";
 import { type ReactNode, useContext } from "react";
 
 import { type AppsBySlug, useAppsBySlug } from "./apps-by-slug";
 import { TabIcon } from "./browser-tabs";
+import { chatListOptions } from "./chat-list-query";
 import { useComputerVolumes } from "./computer-volumes";
 import { type OpenOptions, WindowContext } from "./context";
 import { type ContextItem } from "./context-items";
@@ -39,10 +47,10 @@ import { chatHref } from "./window-href";
 type SentChip = SessionMessageDataPart.SentChip;
 
 /** What a chip of the composer's is, as its tooltip says it. */
-const SENT_WITH_MESSAGE = "Instrument sees this with your message.";
+const SENT_WITH_MESSAGE = "Goes with your message";
 
 /** What a chip over a sent message is, as its tooltip says it. */
-const SENT_WITH_THIS_MESSAGE = "Instrument saw this with your message.";
+const SENT_WITH_THIS_MESSAGE = "Sent with this message";
 
 /**
  * A tab a chip names as it goes with a message: what it points at on this
@@ -75,23 +83,76 @@ export function heldChipOf(
 }
 
 /**
- * The chip at the head of the words naming what the screen already gives
- * the draft: the thing it was opened over, in the row an attached file lands
- * in, since it goes with the words as a file does. One quiet line, its mark
- * and name in grey with an x that leaves it out, so it takes no room from
- * the words and does not ask to be read; what it is for is in its tooltip.
- * Nothing of the thing itself is drawn in the draft, which stands over it.
+ * What the window has in view behind a draft, offered to it beside the plus:
+ * dashed and quiet, the way the head offers a project, with a plus where a
+ * chip has its x. A press takes it into the draft's band, where it is a chip
+ * like any other from then on. Nothing offered goes with the message, so it
+ * may follow the screen as the person moves about without changing what is
+ * sent.
+ */
+export function ContextSuggestion({
+  item,
+  onTake,
+}: {
+  item: ContextItem;
+  onTake: () => void;
+}) {
+  const appsBySlug = useAppsBySlug();
+  const volumes = useComputerVolumes();
+  if (item.kind !== "tab") {
+    return null;
+  }
+  const chip = heldChipOf(
+    { items: item.items, tab: item.tab },
+    { appsBySlug, ...(volumes ? { volumes } : {}) },
+  );
+  const [one] = item.items ?? [];
+  const name = nameOfChip(chip);
+  return (
+    <ToolbarTooltip label="Add to your message">
+      <button
+        aria-label={`Add ${name}`}
+        className="inline-flex h-7 max-w-56 min-w-0 shrink items-center gap-1.5 rounded-[9px] border border-dashed border-border pr-1.5 pl-1.5 text-[12.5px] text-muted-foreground hover:border-foreground/30 hover:text-foreground"
+        data-slot="context-suggestion"
+        onClick={onTake}
+        type="button"
+      >
+        <span className="grid size-4 shrink-0 place-items-center opacity-70 [&_img]:size-4 [&_svg]:size-4">
+          {item.items?.length === 1 && one !== undefined ? (
+            <ItemMark item={one} />
+          ) : (
+            <HeldMark appsBySlug={appsBySlug} tab={item.tab} />
+          )}
+        </span>
+        <span className="min-w-0 truncate">{name}</span>
+        <PlusIcon className="size-3 shrink-0" />
+      </button>
+    </ToolbarTooltip>
+  );
+}
+
+/**
+ * The chip at the head of the words naming one of the draft's own tabs, or
+ * what a chat's view has up, in the row an attached file lands in, since it
+ * goes with the words as a file does. One quiet line, its mark and name with
+ * an x that leaves it out; what it is for is in its tooltip.
  */
 function IncludedChip({
   appsBySlug,
+  isSelected = false,
   items,
   onLeaveOut,
+  onSelect,
   tab,
 }: {
   appsBySlug: AppsBySlug;
+  /** Whether the chip's tab is the one its band has up. */
+  isSelected?: boolean;
   /** What the thing points at on this computer, which the chip names in place of the tab. */
   items: ChosenItem[] | undefined;
   onLeaveOut: () => void;
+  /** Puts the chip's tab up in its band, for a chip that is one of a band's tabs. */
+  onSelect?: () => void;
   tab: WindowTab;
 }) {
   const volumes = useComputerVolumes();
@@ -115,8 +176,10 @@ function IncludedChip({
           <HeldMark appsBySlug={appsBySlug} tab={tab} />
         )
       }
+      isSelected={isSelected}
       name={nameOfChip(chip)}
       onLeaveOut={onLeaveOut}
+      {...(onSelect ? { onSelect } : {})}
       slot="included-chip"
     />
   );
@@ -127,43 +190,78 @@ function IncludedChip({
  * order, each with an x that leaves its item out. The one way a composer
  * shows what goes with its words, so a chip is never missing for something
  * that goes.
+ *
+ * Given a `band`, the chips of that band's tabs are its tabs too: a press on
+ * one puts its tab up in the band, and the one up is drawn raised.
  */
 export function ContextChips({
+  band,
   items,
   onLeaveOut,
+  onShow,
 }: {
+  band?: {
+    group: string;
+    onSelect: (tabId: string) => void;
+    selectedId: string | undefined;
+  };
   items: ContextItem[];
   onLeaveOut: (item: ContextItem) => void;
+  /** Shows what a chip that is no band's tab names, where the host shows such things: behind a popped-out chat, the screen. */
+  onShow?: (item: ContextItem) => void;
 }) {
   const appsBySlug = useAppsBySlug();
-  return items.map((item) => {
+  const chipOf = (item: ContextItem) => {
     const leaveOut = () => {
       onLeaveOut(item);
     };
     switch (item.kind) {
       case "chat": {
-        return (
-          <ChatChip chatId={item.chat} key={item.key} onLeaveOut={leaveOut} />
-        );
+        return <ChatChip chatId={item.chat} onLeaveOut={leaveOut} />;
       }
       case "chosen": {
-        return (
-          <ChosenChip item={item.item} key={item.key} onLeaveOut={leaveOut} />
-        );
+        return <ChosenChip item={item.item} onLeaveOut={leaveOut} />;
       }
       case "tab": {
+        const { tab } = item;
+        const inBand = band !== undefined && tab.group === band.group;
         return (
           <IncludedChip
             appsBySlug={appsBySlug}
+            isSelected={inBand && tab.id === band.selectedId}
             items={item.items}
-            key={item.key}
             onLeaveOut={leaveOut}
-            tab={item.tab}
+            onSelect={
+              inBand
+                ? () => {
+                    band.onSelect(tab.id);
+                  }
+                : onShow
+                  ? () => {
+                      onShow(item);
+                    }
+                  : undefined
+            }
+            tab={tab}
           />
         );
       }
     }
-  });
+  };
+  // Keyed by the tab where a chip is one, so a folder's chip that comes to
+  // name what is selected in it changes in place rather than going and
+  // coming back.
+  return (
+    <AnimatePresence initial={false}>
+      {items.map((item) => (
+        <ChipPresence
+          key={item.kind === "tab" ? `tab:${item.tab.id}` : item.key}
+        >
+          {chipOf(item)}
+        </ChipPresence>
+      ))}
+    </AnimatePresence>
+  );
 }
 
 /**
@@ -178,20 +276,21 @@ function ChatChip({
   chatId: ChatId;
   onLeaveOut: () => void;
 }) {
-  const info = useQuery(
-    rpcClient.workspace.chats.live.info.experimental_liveOptions({
-      input: { id: chatId },
-    }),
-  );
+  // The chat's title as the list has it: undefined while the list loads,
+  // null once the list has no such chat.
+  const title = useQuery({
+    ...chatListOptions(),
+    select: (chats) => chats.find((chat) => chat.id === chatId)?.title ?? null,
+  }).data;
   // A chat trashed since is not there to name, and goes with nothing.
-  if (info.isError) {
+  if (title === null) {
     return null;
   }
   return (
     <ContextChip
       label={<ChipLabel paths={[]} said={SENT_WITH_MESSAGE} />}
       mark={<ChatCircleIcon />}
-      name={info.data?.title ?? "Chat"}
+      name={title ?? "Chat"}
       onLeaveOut={onLeaveOut}
       slot="chat-chip"
     />
@@ -260,10 +359,9 @@ export function SentChips({ chips }: { chips: SentChip[] }) {
         };
   };
   return (
-    <div
-      className="flex w-full flex-wrap justify-end gap-1"
-      data-slot="sent-chips"
-    >
+    // No box of its own: the chips stand in the row of what went with the
+    // message, beside its folders and files.
+    <div className="contents" data-slot="sent-chips">
       {chips.map((chip) => (
         <ContextChip
           key={keyOfChip(chip)}
@@ -342,43 +440,69 @@ function ChipLabel({ paths, said }: { paths: string[]; said: string }) {
  * an x that leaves the thing out while there is still a message to leave it
  * out of, so it takes no room from the words and does not ask to be read;
  * what it is is in its tooltip. A chip with somewhere to open its thing is a
- * button that opens it, a modified or middle click in a tab of its own.
+ * button that opens it, a modified or middle click in a tab of its own. A
+ * chip that is one of a band's tabs puts its tab up when its name is pressed,
+ * and the one up stands raised on the card's color.
  */
 function ContextChip({
   drags,
+  isSelected = false,
   label,
   mark,
   name,
   onLeaveOut,
   onOpen,
+  onSelect,
   slot,
 }: {
   /** What dragging the chip out of the window carries: a sent chip's files and folders, never a draft's. */
   drags?: { hostPath: string; others: string[] };
+  /** Whether the chip's tab is the one its band has up. */
+  isSelected?: boolean;
   label: ReactNode;
   mark: ReactNode;
   name: string;
   onLeaveOut?: () => void;
   /** Opens the thing the chip names; a chip that can be left out has none, since the x sits inside it. */
   onOpen?: (options: OpenOptions) => void;
+  /** Puts the chip's tab up in its band. */
+  onSelect?: () => void;
   slot: string;
 }) {
   const className = cn(
-    "inline-flex h-6 max-w-44 min-w-0 items-center gap-1 self-center rounded-full bg-muted/60 pl-2 text-xs text-muted-foreground ring-1 ring-border/70",
-    onLeaveOut ? "pr-0.5" : "pr-2.5",
+    COMPOSER_CHIP_CLASSNAME,
+    "self-center",
+    onLeaveOut ? "pr-1" : "pr-2",
+    isSelected && COMPOSER_CHIP_SELECTED_CLASSNAME,
   );
   const fileDragProps = useFileDrag(drags);
   const dragProps = drags ? fileDragProps : {};
-  const content = (
+  const markAndName = (
     <>
-      <span className="grid size-3.5 shrink-0 place-items-center [&_img]:size-3.5 [&_svg]:size-3.5">
+      <span className="grid size-4 shrink-0 place-items-center [&_img]:size-4 [&_svg]:size-4">
         {mark}
       </span>
       <span className="truncate">{name}</span>
+    </>
+  );
+  const content = (
+    <>
+      {onSelect ? (
+        <button
+          aria-pressed={isSelected}
+          className="-ml-1.5 flex h-full min-w-0 cursor-default items-center gap-1.5 rounded-l-[9px] pl-1.5"
+          onClick={onSelect}
+          type="button"
+        >
+          {markAndName}
+        </button>
+      ) : (
+        markAndName
+      )}
       {onLeaveOut && (
         <button
           aria-label={`Leave out ${name}`}
-          className="grid size-5 shrink-0 place-items-center rounded-full hover:bg-foreground/8 hover:text-foreground"
+          className="grid size-5 shrink-0 place-items-center rounded-md text-muted-foreground hover:bg-foreground/8 hover:text-foreground"
           onClick={onLeaveOut}
           type="button"
         >
@@ -395,7 +519,7 @@ function ContextChip({
             {...dragProps}
             className={cn(
               className,
-              "cursor-pointer hover:bg-muted hover:text-foreground",
+              "cursor-pointer hover:bg-foreground/[0.07]",
             )}
             data-slot={slot}
             onAuxClick={(event) => {
@@ -405,7 +529,13 @@ function ContextChip({
               }
             }}
             onClick={(event) => {
-              onOpen(wantsNewTab(event) ? { newTab: true } : {});
+              onOpen(
+                wantsNewWindow(event)
+                  ? { newWindow: true }
+                  : wantsNewTab(event)
+                    ? { newTab: true }
+                    : {},
+              );
             }}
             type="button"
           >

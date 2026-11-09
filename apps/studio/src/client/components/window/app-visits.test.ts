@@ -10,7 +10,7 @@ describe("isOnSite", () => {
       true,
     ],
     ["a host under the site", "https://app.asana.com/0/inbox", true],
-    ["www in front of either", "https://www.notion.so/jeremy/Use-Cases", true],
+    ["www in front of either", "https://www.notion.so/acme/Use-Cases", true],
     ["a host that only ends the same", "https://notlinear.app/x", false],
     ["another site", "https://mail.google.com/mail/u/0/", false],
     ["words that are not an address", "linear issues", false],

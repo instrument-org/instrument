@@ -1,5 +1,6 @@
 import { AIGatewayModelURI, fetchModel } from "@instrument-org/ai-gateway";
 import { eventIterator, type } from "@orpc/server";
+import { isEqual } from "radashi";
 import { z } from "zod";
 
 import { changedMessageBatches } from "../../lib/changed-message-batches";
@@ -12,6 +13,11 @@ import { ChatWrites } from "../../lib/chat-writes";
 import { ensureChatSession } from "../../lib/create-session";
 import { createWriteQueue } from "../../lib/create-write-queue";
 import { nameChat } from "../../lib/chat/chat-name";
+import { sessionDeveloperNotes } from "../../lib/chat/session-developer-notes";
+import {
+  type DeveloperNote,
+  type DeveloperNoteBody,
+} from "../../lib/transcript/developer-notes";
 import {
   lastTurnsOf,
   type TranscriptFeed,
@@ -33,6 +39,9 @@ import { SessionMessageDataPart } from "../../schemas/session/message-data-part"
 import { StoreId } from "../../schemas/store-id";
 import { ChatIdSchema } from "../../schemas/chat-id";
 import { base, toORPCError } from "../base";
+
+/** How often a session's notes are worked out again while it moves. */
+const NOTES_AT_MOST_EVERY_MS = 400;
 
 const listWithParts = base
   .input(
@@ -253,7 +262,6 @@ const liveFeed = base
   .input(
     z.object({
       id: ChatIdSchema,
-      isDeveloperMode: z.boolean().default(false),
       sessionId: StoreId.SessionSchema,
     }),
   )
@@ -269,7 +277,7 @@ const liveFeed = base
           sessionId: input.sessionId,
           ...(only ? { only } : {}),
         });
-      const projection = new TranscriptProjection(input.isDeveloperMode);
+      const projection = new TranscriptProjection();
       const initial = await read();
       if (initial.isErr()) {
         throw toORPCError(initial.error, errors);
@@ -313,7 +321,6 @@ const older = base
     z.object({
       before: StoreId.MessageSchema,
       id: ChatIdSchema,
-      isDeveloperMode: z.boolean().default(false),
       sessionId: StoreId.SessionSchema,
     }),
   )
@@ -372,9 +379,75 @@ const liveWhole = base
     }
   });
 
+/**
+ * What a developer reads beside a session's transcript, as it changes. Worked
+ * out from the whole session, so what a page of turns doesn't hold still counts,
+ * and sent again only when it says something new.
+ */
+const liveDeveloperNotes = base
+  .input(z.object({ id: ChatIdSchema, sessionId: StoreId.SessionSchema }))
+  .output(eventIterator(type<DeveloperNote[]>()))
+  .handler(async function* ({ errors, input, signal }) {
+    const batches = changedMessageBatches(input, signal);
+    const read = async () => {
+      const notes = await sessionDeveloperNotes({
+        chatId: input.id,
+        sessionId: input.sessionId,
+      });
+      if (notes.isErr()) {
+        throw toORPCError(notes.error, errors);
+      }
+      return notes.value.notes;
+    };
+    try {
+      let last = await read();
+      yield last;
+      for await (const _batch of batches) {
+        // Changes that land meanwhile join the next batch, so a reply
+        // streaming costs a read at this rate rather than one per token.
+        await new Promise((resolve) => {
+          setTimeout(resolve, NOTES_AT_MOST_EVERY_MS);
+        });
+        const next = await read();
+        if (!isEqual(next, last)) {
+          last = next;
+          yield next;
+        }
+      }
+    } finally {
+      await batches.return();
+    }
+  });
+
+/** What one note's card shows, read when the card opens. */
+const developerNoteBody = base
+  .input(
+    z.object({
+      id: ChatIdSchema,
+      note: z.string(),
+      sessionId: StoreId.SessionSchema,
+    }),
+  )
+  .output(type<DeveloperNoteBody | null>())
+  .handler(async ({ errors, input }) => {
+    const notes = await sessionDeveloperNotes({
+      chatId: input.id,
+      sessionId: input.sessionId,
+    });
+    if (notes.isErr()) {
+      throw toORPCError(notes.error, errors);
+    }
+    return notes.value.bodies.get(input.note) ?? null;
+  });
+
 export const message = {
   create,
+  developerNoteBody,
   list: listWithParts,
-  live: { feed: liveFeed, whole: liveWhole },
+  live: {
+    developerNotes: liveDeveloperNotes,
+    feed: liveFeed,
+    whole: liveWhole,
+  },
   older,
 };

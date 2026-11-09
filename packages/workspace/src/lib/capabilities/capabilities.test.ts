@@ -509,14 +509,14 @@ describe("the registry", () => {
         "apps.test": "only the chat sets up and changes apps, since every chat uses them. End your last message with a needs fence naming the app and what it needs (set up, connected, or changed); the chat does it and sends you on.",
         "memory.forget": "only the chat saves and forgets memories. Say in your report what the chat should remember or forget.",
         "memory.save": "only the chat saves and forgets memories. Say in your report what the chat should remember or forget.",
-        "task.list": "only the chat starts and steers tasks. Do the work here, and say in your report what is left.",
-        "task.log": "only the chat starts and steers tasks. Do the work here, and say in your report what is left.",
-        "task.new": "only the chat starts and steers tasks. Do the work here, and say in your report what is left.",
-        "task.send": "only the chat starts and steers tasks. Do the work here, and say in your report what is left.",
-        "task.stop": "only the chat starts and steers tasks. Do the work here, and say in your report what is left.",
+        "task.list": "you are a task the chat started, and the chat alone starts and steers tasks. Do your assignment here, and say in your report what is left.",
+        "task.log": "you are a task the chat started, and the chat alone starts and steers tasks. Do your assignment here, and say in your report what is left.",
+        "task.new": "you are a task the chat started, and the chat alone starts and steers tasks. Do your assignment here, and say in your report what is left.",
+        "task.send": "you are a task the chat started, and the chat alone starts and steers tasks. Do your assignment here, and say in your report what is left.",
+        "task.stop": "you are a task the chat started, and the chat alone starts and steers tasks. Do your assignment here, and say in your report what is left.",
         "window.close": "only the chat changes the window. To open a page to work in, use \`agent-browser tab new <url>\`; say in your report what the chat should show.",
-        "window.request": "only the chat changes the window. To open a page to work in, use \`agent-browser tab new <url>\`; say in your report what the chat should show.",
         "window.show": "only the chat changes the window. To open a page to work in, use \`agent-browser tab new <url>\`; say in your report what the chat should show.",
+        "window.wait": "only the chat hands the user a page. End your last message with a needs fence naming the tab and what the user has to do there (sign in, prove they are a person); the chat asks them and sends you on.",
       }
     `);
   });
@@ -567,8 +567,8 @@ describe("the registry", () => {
           "close",
           "list",
           "read",
-          "request",
           "show",
+          "wait",
         ],
         "x": [
           "search",

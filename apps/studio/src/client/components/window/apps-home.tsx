@@ -11,6 +11,7 @@ import { AppIcon } from "@/client/components/window/app-icon";
 import { ChatMarkDot } from "@/client/components/window/chat-mark";
 import { useWindow } from "@/client/components/window/context";
 import { useConnectFromDirectory } from "@/client/components/window/use-connect-from-directory";
+import { AppContextMenu } from "@/client/components/window/app-menu";
 import { GlyphButton } from "@/client/components/window/glyph-button";
 import { PageSection } from "@/client/components/window/page-section";
 import { useDebouncedValue } from "@/client/hooks/use-debounced-value";
@@ -81,8 +82,8 @@ export function AppsHome({
   // Connected first, since theirs are the fronts worth opening; the ones
   // still being set up follow, each saying what it waits for.
   const own = [
-    ...apps.filter((app) => app.standing === "connected"),
-    ...apps.filter((app) => app.standing !== "connected"),
+    ...apps.filter((app) => app.status === "connected"),
+    ...apps.filter((app) => app.status !== "connected"),
   ];
   // Every service the directory lists stays in its place, the ones already
   // here included, so a search finds an app whoever forgot it was set up;
@@ -363,57 +364,58 @@ export function AppsHome({
 /**
  * One of the workspace's apps as a mark: its icon on a card with its name
  * under it, and under that, for one not yet connected, what it waits for.
- * The mark is the only control it needs, since pressing one can mean
- * nothing but open it.
+ * Pressing it opens the app, and a right click raises the app's own menu,
+ * the one by its name on its front.
  */
 function AppMark({ app, onOpen }: { app: App; onOpen: () => void }) {
   const href = `/apps/${app.slug}`;
-  const { onContextMenu, opening } = useOpenGestures({
+  const { destinations, opening } = useOpenGestures({
     href,
     kind: "screen",
   });
-  const waiting = app.standing === "connected" ? undefined : waitingLine(app);
+  const waiting = app.status === "connected" ? undefined : waitingLine(app);
   return (
-    <button
-      className="group flex w-24 flex-col items-center gap-1.5 rounded-xl py-2 text-center hover:bg-accent/50"
-      {...opening(onOpen)}
-      onContextMenu={onContextMenu}
-      title={
-        waiting
-          ? `${app.name}: ${waiting}`
-          : app.account
-            ? `${app.name}: ${app.account}`
-            : app.name
-      }
-      type="button"
-    >
-      <span className="relative">
-        <AppIcon
-          className={cn(
-            "transition-shadow group-hover:shadow-md",
-            waiting && "opacity-60",
+    <AppContextMenu app={app} name={app.name} opens={destinations}>
+      <button
+        className="group flex w-24 flex-col items-center gap-1.5 rounded-xl py-2 text-center hover:bg-accent/50 data-[state=open]:bg-accent/50"
+        {...opening(onOpen)}
+        title={
+          waiting
+            ? `${app.name}: ${waiting}`
+            : app.account
+              ? `${app.name}: ${app.account}`
+              : app.name
+        }
+        type="button"
+      >
+        <span className="relative">
+          <AppIcon
+            className={cn(
+              "transition-shadow group-hover:shadow-md",
+              waiting && "opacity-60",
+            )}
+            name={app.name}
+            icon={app.icon}
+            site={app.site}
+            size="xl"
+          />
+          {/* The dot the rail's Apps wore, on the app it was for. */}
+          {app.status === "needs-sign-in" && (
+            <ChatMarkDot className="ring-background" mark="waiting" />
           )}
-          name={app.name}
-          icon={app.icon}
-          site={app.site}
-          size="xl"
-        />
-        {/* The dot the rail's Apps wore, on the app it was for. */}
-        {app.standing === "needs-sign-in" && (
-          <ChatMarkDot className="ring-background" mark="waiting" />
-        )}
-      </span>
-      <span className="w-full truncate text-[13px] leading-4 font-medium">
-        {app.name}
-      </span>
-      {/* Under the name, what it waits for, or else which account it is,
-          so two of one service read apart. */}
-      {waiting || app.account ? (
-        <span className="-mt-1 w-full truncate text-[11px] leading-4 text-muted-foreground">
-          {waiting ?? app.account}
         </span>
-      ) : null}
-    </button>
+        <span className="w-full truncate text-[13px] leading-4 font-medium">
+          {app.name}
+        </span>
+        {/* Under the name, what it waits for, or else which account it is,
+          so two of one service read apart. */}
+        {waiting || app.account ? (
+          <span className="-mt-1 w-full truncate text-[11px] leading-4 text-muted-foreground">
+            {waiting ?? app.account}
+          </span>
+        ) : null}
+      </button>
+    </AppContextMenu>
   );
 }
 
@@ -539,7 +541,7 @@ function AccountTiles({
           icon={app.icon ?? entry.icon}
           key={app.slug}
           line={
-            app.standing === "connected"
+            app.status === "connected"
               ? (app.account ?? "In your apps")
               : waitingLine(app)
           }
@@ -716,7 +718,7 @@ function UnlistedTile({
 
 /** What an app not yet connected is waiting for, in a few words under its name. */
 function waitingLine(app: App): string {
-  switch (app.standing) {
+  switch (app.status) {
     case "declined": {
       return "Not connected";
     }

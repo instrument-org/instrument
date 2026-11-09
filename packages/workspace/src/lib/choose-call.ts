@@ -1,40 +1,18 @@
 import { z } from "zod";
 
+import {
+  type ChooseQuestion,
+  ChooseQuestionSchema,
+} from "../schemas/choose-question";
 import { SessionMessageDataPart } from "../schemas/session/message-data-part";
 
 /** The most questions one `choose` card asks. */
 const MAX_CARD_QUESTIONS = 4;
 
-const ChoiceSchema = z.object({
-  description: z.string().optional().meta({
-    description:
-      "A short line under the label saying what picking it means, when the label alone does not",
-  }),
-  label: z
-    .string()
-    .meta({ description: "The choice as the card shows it, in a few words" }),
-});
-
-const QuestionSchema = z.object({
-  choices: z.array(ChoiceSchema).min(2).meta({
-    description: "The choices to pick from, two or more",
-  }),
-  header: z.string().meta({
-    description:
-      "One to three words naming what the question decides ('Team size'), shown as its tab when the card asks more than one",
-  }),
-  multiSelect: z.boolean().optional().meta({
-    description: "True when the user may pick more than one choice",
-  }),
-  question: z
-    .string()
-    .meta({ description: "The question to present to the user" }),
-});
-
 /** What the agent asks a `choose` card with. */
 export const ChooseInputSchema = z.object({
   questions: z
-    .array(QuestionSchema)
+    .array(ChooseQuestionSchema)
     .min(1)
     .max(MAX_CARD_QUESTIONS)
     .meta({
@@ -42,7 +20,7 @@ export const ChooseInputSchema = z.object({
     }),
 });
 
-export type ChooseQuestion = z.output<typeof QuestionSchema>;
+export type { ChooseQuestion };
 
 /** A card earlier builds asked: one question, its choices bare labels. */
 const OneQuestionInputSchema = z.object({

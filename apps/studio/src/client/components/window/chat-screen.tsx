@@ -19,7 +19,12 @@ import { type ReactNode, useContext, useEffect, useState } from "react";
 
 import { AskPills } from "./ask-pills";
 import { chatListOptions } from "./chat-list-query";
-import { type OpenOptions, useWindow, WindowContext } from "./context";
+import {
+  type OpenOptions,
+  ownPlaceOf,
+  useWindow,
+  WindowContext,
+} from "./context";
 import { asksPart, useComposerAsks, useStagedAskActions } from "./staged-asks";
 import { useReadOnView } from "./use-read-on-view";
 
@@ -35,6 +40,8 @@ interface ChatScreenProps {
   chatId: ChatId;
   /** Drawn at the head of the composer: what goes with a message besides its words. */
   composerLead?: ReactNode;
+  /** What stands beside the composer's plus: something offered to the message. */
+  composerOffer?: ReactNode;
   /** Whether this is the chat on screen: only that one marks itself read or takes the caret. */
   isUp: boolean;
   /** Puts away a chat no record holds any more, the way deleting one does. */
@@ -50,11 +57,21 @@ interface ChatScreenProps {
  * One chat's conversation: its transcript, opening at the end, and a
  * composer that replies in it. Nothing above the transcript: the row over
  * it names the chat, and the top of the scroll is the ask itself. The chat's
- * transcript is in its session, which is asked for by the chat's id first.
+ * transcript is in its session, read off the chat's list row, or asked for
+ * by the chat's id while the list does not have it.
  */
 export function ChatScreen(props: ChatScreenProps) {
+  // The session as the chat list has it, which a chat already listed opens
+  // on without a request.
+  const { data: listedSessionId } = useQuery({
+    ...chatListOptions(),
+    select: (chats) =>
+      chats.find((entry) => entry.id === props.chatId)?.sessionId,
+  });
   const chat = useQuery(
     rpcClient.workspace.chats.session.queryOptions({
+      // Asked only of a chat the list does not have, yet or any longer.
+      enabled: listedSessionId === undefined,
       input: { id: props.chatId },
       // A chat keeps its session for as long as it exists; a chat with none
       // is asked again, since the record that holds it may be on its way.
@@ -64,7 +81,7 @@ export function ChatScreen(props: ChatScreenProps) {
         query.state.data?.sessionId ? Number.POSITIVE_INFINITY : 0,
     }),
   );
-  const sessionId = chat.data?.sessionId;
+  const sessionId = listedSessionId ?? chat.data?.sessionId;
   const isGone = useStaysMissing(
     chat.data !== undefined && !sessionId && props.sentPrompt === undefined,
   );
@@ -88,6 +105,7 @@ export function ChatScreen(props: ChatScreenProps) {
 function ChatScreenOfRecord({
   chatId,
   composerLead,
+  composerOffer,
   isUp,
   sendContext,
   sentPrompt,
@@ -106,8 +124,10 @@ function ChatScreenOfRecord({
   );
   // The chat as the list beside the tabs knows it, for the newest reply
   // that has landed, which is what marks it read below.
-  const chats = useQuery(chatListOptions());
-  const chat = chats.data?.find((entry) => entry.id === chatId);
+  const { data: chat } = useQuery({
+    ...chatListOptions(),
+    select: (chats) => chats.find((entry) => entry.id === chatId),
+  });
   const [defaultModelURI] = useDefaultModelURI();
   const openFile = useContext(FileOpenContext);
   const createMessage = useMutation(createMessageOptions());
@@ -145,22 +165,26 @@ function ChatScreenOfRecord({
       </div>
     );
   }
-  if (!info.data || !folders.data) {
+  // A chat whose first message is on its way draws its conversation at
+  // once, the words sent standing in it: its model is the one the message
+  // went to, which is the default now, and nothing marked waits on its
+  // folders yet.
+  if ((!info.data || !folders.data) && sentPrompt === undefined) {
     return (
       <div className="flex h-full items-center justify-center">
         <Spinner className="size-5" />
       </div>
     );
   }
-  const modelURI = info.data.modelURI ?? defaultModelURI;
+  const modelURI = info.data?.modelURI ?? defaultModelURI;
   const reach = folders.data;
   // Into this chat's own group, shown: an open from a chat's transcript is the
   // chat's whatever the window has up at that moment, and never a silent
   // nothing because the group on screen was another's.
-  // A new-tab gesture over any of it asks for a tab of the window's own.
+  // A new-tab or new-window gesture over any of it asks for a place of the
+  // window's own.
   const into = { group: chatId, ownTab: true, show: true };
-  const intoOr = (options?: OpenOptions) =>
-    options?.newTab ? { behind: options.behind, newTab: true } : into;
+  const intoOr = (options?: OpenOptions) => ownPlaceOf(options) ?? into;
   return (
     // The chat is the drop region, so a file let go anywhere over it lands
     // in the reply, and the pane beside it stays outside.
@@ -205,7 +229,7 @@ function ChatScreenOfRecord({
               <ChatSessionProvider sessionId={sessionId} chatId={chatId}>
                 <ChatConversation
                   asks={
-                    groupAsks.length === 0
+                    groupAsks.length === 0 || reach === undefined
                       ? undefined
                       : {
                           pills: <AskPills asks={groupAsks} />,
@@ -225,6 +249,7 @@ function ChatScreenOfRecord({
                   }
                   // What the chat holds, over the composer.
                   composerLead={composerLead}
+                  composerOffer={composerOffer}
                   // Kept past this screen's unmount, so the row in the inbox
                   // can say the chat holds a draft while it does.
                   draftKey={{ chatId, scope: "chat" }}
@@ -232,7 +257,7 @@ function ChatScreenOfRecord({
                   selectedSessionId={sessionId}
                   sendContext={sendContext}
                   sentPrompt={sentPrompt}
-                  chatInfo={info.data}
+                  chatId={chatId}
                 />
               </ChatSessionProvider>
             </PageOpenContext>

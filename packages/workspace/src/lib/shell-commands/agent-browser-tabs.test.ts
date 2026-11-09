@@ -16,9 +16,11 @@ import { chatFor } from "../../test/helpers/chat-record";
 import { chatTaskFor } from "../../test/helpers/chat-task";
 import { createMockChatConfigForDir } from "../../test/helpers/mock-chat-config";
 import { type BrowserTargetId, browserTargetOf } from "../../types";
-import { chatDir } from "../record-folders";
 import { sessionLayout } from "../session-layout";
-import { getChatState, setChatState } from "../chat-record";
+import { getChatState } from "../chat-record";
+import { chatDir } from "../record-folders";
+import { notePageOpenedTab } from "../chat/popup-tabs";
+import { noteTabCommand } from "../tab-activity";
 import { getWorkspaceConfig, setWorkspaceConfig } from "../workspace-config";
 import { createAgentBrowserCommand } from "./agent-browser";
 
@@ -114,19 +116,6 @@ async function run(
   }).execute(args, ctx);
 }
 
-/** Tabs the task drives, on the chat's record. */
-async function holdTabs(
-  tabs: {
-    id: BrowserTargetId;
-    inWindow: boolean;
-    openedBy: "handed" | "task";
-  }[],
-) {
-  await setChatState(chatDir(CHAT_ID), {
-    browserTabs: tabs.map((tab) => ({ ...tab, driver: TASK_SESSION })),
-  });
-}
-
 async function spawnedCdpUrl() {
   return JSON.stringify((await agentBrowserRuns()).at(-1)?.env);
 }
@@ -160,7 +149,7 @@ afterEach(async () => {
 });
 
 describe("a chat", () => {
-  it("browses in the tabs it holds, through its own browser", async () => {
+  it("browses in the chat's tabs, through its own browser", async () => {
     const result = await run(["open", "https://example.com"], CHAT_SESSION);
 
     expect(result.exitCode).toBe(0);
@@ -172,7 +161,7 @@ describe("a chat", () => {
 });
 
 describe("a task's tab", () => {
-  it("connects a task with no tab yet to its browser, which opens one on demand", async () => {
+  it("connects a task to its browser, which opens a tab on demand", async () => {
     const result = await run(["open", "https://example.com"]);
 
     expect(result.exitCode).toBe(0);
@@ -184,78 +173,55 @@ describe("a task's tab", () => {
     expect(asks).toEqual([]);
   });
 
-  it("connects a task to the tabs it holds", async () => {
-    const own = browserTargetOf(StoreId.newTabId());
-    live.add(own);
-    await holdTabs([{ id: own, inWindow: true, openedBy: "task" }]);
-
-    const result = await run(["snapshot", "-i"]);
-
-    expect(result.exitCode).toBe(0);
-    expect(await spawnedCdpUrl()).toContain(
-      `/devtools/task/${CHAT_ID}/${TASK_SESSION}`,
+  it("ends a result with who else used a tab it drove since its last command there", async () => {
+    const shared = browserTargetOf(StoreId.newTabId());
+    live.add(shared);
+    const at = Date.now();
+    noteTabCommand(
+      shared,
+      { chatId: CHAT_ID, sessionId: TASK_SESSION },
+      at - 30_000,
     );
-  });
-
-  it("says so once when its own tabs were closed, then goes on", async () => {
-    const chats = browserTargetOf(StoreId.newTabId());
-    await holdTabs([
-      {
-        id: browserTargetOf(StoreId.newTabId()),
-        inWindow: true,
-        openedBy: "task",
-      },
-    ]);
-    // A tab the chat's own conversation holds is none of the task's.
-    const held = await getChatState(chatDir(CHAT_ID));
-    await setChatState(chatDir(CHAT_ID), {
-      browserTabs: [
-        ...held.browserTabs,
-        { id: chats, inWindow: true, openedBy: "task" },
-      ],
-    });
-
-    const told = await run(["snapshot", "-i"]);
-    const next = await run(["open", "https://example.com"]);
-
-    expect(told.exitCode).toBe(1);
-    expect(told.stderr).toContain("the tabs you opened were closed");
-    expect(next.exitCode).toBe(0);
-    const state = await getChatState(chatDir(CHAT_ID));
-    expect(state.browserTabs).toEqual([
-      { id: chats, inWindow: true, openedBy: "task" },
-    ]);
-  });
-
-  it("drops a page with no tab whose guest went, saying nothing of it", async () => {
-    await holdTabs([
-      {
-        id: browserTargetOf(StoreId.newTabId()),
-        inWindow: false,
-        openedBy: "task",
-      },
-    ]);
+    noteTabCommand(
+      shared,
+      { chatId: CHAT_ID, sessionId: CHAT_SESSION },
+      at - 20_000,
+    );
+    noteTabCommand(shared, { chatId: CHAT_ID, sessionId: TASK_SESSION }, at);
 
     const result = await run(["snapshot", "-i"]);
 
     expect(result.exitCode).toBe(0);
-    expect((await getChatState(chatDir(CHAT_ID))).browserTabs).toEqual([]);
+    expect(result.stdout).toContain(
+      `Tab ${shared} was used since your last command in it, by the chat`,
+    );
+    // Told once.
+    expect((await run(["snapshot", "-i"])).stdout).toBe("");
   });
 
-  it("is never replaced when it was handed over and the user closed it", async () => {
-    await holdTabs([
-      {
-        id: browserTargetOf(StoreId.newTabId()),
-        inWindow: true,
-        openedBy: "handed",
-      },
-    ]);
+  it("names the tab a popup of its page became, kept as the session's from the moment it opens", async () => {
+    const shop = browserTargetOf(StoreId.newTabId());
+    const popup = StoreId.newTabId();
+    live.add(shop);
+    // The page the session drove opens a popup.
+    noteTabCommand(
+      shop,
+      { chatId: CHAT_ID, sessionId: TASK_SESSION },
+      Date.now() + 60_000,
+    );
+    notePageOpenedTab(shop, { tabId: popup, url: "https://help.example/" });
 
-    const result = await run(["snapshot", "-i"]);
+    // Kept as the session's at once, before any result claims it.
+    await vi.waitFor(async () => {
+      expect((await getChatState(chatDir(CHAT_ID))).openedTabs).toEqual([
+        { id: popup, openedIn: TASK_SESSION },
+      ]);
+    });
+    const result = await run(["click", "@e4"]);
 
-    expect(result.exitCode).toBe(1);
-    expect(result.stderr).toContain("the tab this task was handed is closed");
-    expect(asks).toEqual([]);
+    expect(result.stdout).toContain(
+      `The page in tab ${shop} opened https://help.example/ as a popup, which is a new tab of this chat, ${popup}: \`agent-browser tab ${popup}\` switches to it.`,
+    );
   });
 
   it.each([

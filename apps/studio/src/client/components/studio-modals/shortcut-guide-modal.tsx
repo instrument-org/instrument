@@ -11,6 +11,7 @@ import { useModalBack } from "@/client/hooks/use-modal-back";
 import { useDeferredModalState } from "@/client/hooks/use-deferred-modal-state";
 import { useDeveloperMode } from "@/client/hooks/use-developer-mode";
 import { useShortcutGuideHotkey } from "@/client/hooks/use-shortcut-guide-hotkey";
+import { currentOs } from "@/client/lib/utils";
 import { ShortcutKeys } from "@/client/components/shortcut-keys";
 import {
   matchShortcuts,
@@ -67,9 +68,13 @@ function ShortcutGuideContent({
   const [query, setQuery] = useState("");
   const isDeveloperMode = useDeveloperMode();
 
-  // The Developer menu, and so its chords, exist only in developer mode.
+  // The Developer menu, and so its chords, exist only in developer mode, and
+  // Windows has no quit chord.
+  const isWindows = currentOs() === "windows";
   const entries = SHORTCUT_GUIDE_ENTRIES.filter(
-    ({ group }) => isDeveloperMode || group !== "Developer",
+    ({ group, noChordOnWindows }) =>
+      (isDeveloperMode || group !== "Developer") &&
+      !(isWindows && noChordOnWindows),
   );
   const matches = matchShortcuts(entries, query);
   const sections = SHORTCUT_GUIDE_GROUPS.map((group) => ({

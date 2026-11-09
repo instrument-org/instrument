@@ -6,7 +6,10 @@ import { openLogin } from "@/client/atoms/login-modal";
 import { openReportDialog } from "@/client/atoms/report-dialog";
 import { type ComposerApp } from "@/client/components/app-mention";
 import { AttachedFilePreview } from "@/client/components/attached-file-preview";
-import { AttachedItemPreview } from "@/client/components/attached-item-preview";
+import {
+  AttachedItemPreview,
+  ChipPresence,
+} from "@/client/components/attached-item-preview";
 import {
   type ComposerAction,
   ComposerAddMenu,
@@ -15,12 +18,10 @@ import {
 } from "@/client/components/composer-add-menu";
 import { ComposerFrame } from "@/client/components/composer-frame";
 import {
-  DictationButton,
   DictationControls,
   landingWords,
 } from "@/client/components/dictation-controls";
 import { SystemFolderIcon } from "@/client/components/icons/folder-glyph";
-import { AIProviderIcon } from "@/client/components/ai-provider-icon";
 import { type ChatNote } from "@/client/components/billing/chat-note";
 import { ModelNoticeRow } from "@/client/components/model-notice";
 import { ModelPicker } from "@/client/components/model-picker";
@@ -49,7 +50,6 @@ import {
   reachModel,
   readModelStatus,
 } from "@/client/lib/model-status";
-import { ITEM_IN } from "@/client/lib/motion";
 import { shouldAttachClipboardItem } from "@/client/lib/paste-clipboard";
 import { displayPath, folderLabel } from "@/client/lib/path-utils";
 import { SKILL_LIST_STALE_TIME_MS } from "@/client/lib/skill-query";
@@ -67,7 +67,6 @@ import {
 import { safe } from "@orpc/client";
 import { ArrowUpIcon } from "@phosphor-icons/react/ArrowUp";
 import { StopIcon } from "@phosphor-icons/react/Stop";
-import { CpuIcon } from "@phosphor-icons/react/Cpu";
 import { DesktopIcon } from "@phosphor-icons/react/Desktop";
 import { FolderIcon } from "@phosphor-icons/react/Folder";
 import { GlobeIcon } from "@phosphor-icons/react/Globe";
@@ -75,7 +74,7 @@ import { PaperclipIcon } from "@phosphor-icons/react/Paperclip";
 import { ChatTextIcon } from "@phosphor-icons/react/ChatText";
 import { useQuery } from "@tanstack/react-query";
 import { useAtom, useAtomValue, useSetAtom } from "jotai";
-import { AnimatePresence, motion, useIsPresent } from "motion/react";
+import { AnimatePresence } from "motion/react";
 import {
   Fragment,
   useEffect,
@@ -96,10 +95,8 @@ import {
   promptDraftRefAtom,
   releasePromptDraftRefAtom,
   removeTransientDraft,
-  storedWordsAtom,
-  typedWordsAtom,
 } from "../atoms/prompt-value";
-import { flushWords } from "../drafts/settle-words";
+import { useComposerWords } from "../drafts/use-composer-words";
 import { PromptEditor, type PromptEditorRef } from "./prompt-editor";
 import { SessionContextRing } from "./session-context-ring";
 import { Spinner } from "./ui/spinner";
@@ -187,18 +184,18 @@ interface PromptInputProps {
   actionsInto?: HTMLElement | null;
   /** Whether the plus is drawn in the button row; off where the host offers its own ways in. A typed slash still offers what the plus would. */
   addMenu?: boolean;
-  /**
-   * Keep the row open whether or not the caret is in it. For a composer that
-   * sits beside the work rather than under it: switching to another tab would
-   * otherwise fold the row shut and unfold it again on the focus that follows.
-   */
-  alwaysOpen?: boolean;
+  /** What stands beside the plus along the box's foot: something offered to the message, such as what is in view behind a draft or a popped-out chat. */
+  besidePlus?: React.ReactNode;
+  /** Shows an attached file or folder on disk where the host shows what goes with the message; without it a picture opens large. */
+  onShowItem?: (item: { kind: "file" | "folder"; path: string }) => void;
+  /** The attached file or folder the host shows now, whose chip is drawn raised. */
+  shownPath?: string;
   /** What goes with the words besides files, drawn first in the row attached files land in: places marked in a file, say. */
   attachmentsLead?: React.ReactNode;
   autoFocus?: boolean;
   /** Whether the screen showing the box is worked from it, so the keyboard lands in it as the screen comes up (`keyboard-home.ts`). */
   keyboardHome?: boolean;
-  /** Where the box stops growing and the draft starts scrolling. Defaults by variant; null leaves the cap to the host's layout. */
+  /** Where the box stops growing and the draft starts scrolling. Null leaves the cap to the host's layout. */
   autoResizeMaxHeight?: null | number;
   className?: string;
   draftKey: PromptDraftKey;
@@ -210,11 +207,10 @@ interface PromptInputProps {
   lead?: React.ReactNode;
   modelURI?: AIGatewayModelURI.Type;
   /**
-   * The chat's note about the account its model runs on. A pill draws one
-   * note above itself, outside the box: a note that the next turn can't run,
-   * then a problem with the model, then the rest of the chat's note, then a
-   * newer-model offer. A model problem, or a note that says it holds sends,
-   * holds a send and flashes the note.
+   * The chat's note about the account its model runs on, drawn above the box,
+   * outside it, while the model has no problem or the note says the next turn
+   * can't run; the model's own row stays inside the box. A model problem, or a
+   * note that says it holds sends, holds a send and flashes the note.
    */
   note?: ChatNote;
   /** Stops the chat's work, offered in Send's place while the box is empty. */
@@ -223,6 +219,12 @@ interface PromptInputProps {
   onDictatingChange?: (dictating: boolean) => void;
   /** What the box holds besides the words, each time that changes after it first draws. */
   onItemsChange?: (items: AttachedItem[]) => void;
+  /**
+   * Where a folder picked, dropped or pasted goes in place of the box's own
+   * row: a draft opens it in its pane, the way its computer's place does, so
+   * the person sees what is in it.
+   */
+  onFolders?: (paths: string[]) => void;
   /** An item the person took out of the box, by its chip or by putting its words back in the message. */
   onItemRemoved?: (item: AttachedItem) => void;
   onModelChange: (modelURI: AIGatewayModelURI.Type) => void;
@@ -242,8 +244,6 @@ interface PromptInputProps {
   selectedSessionId?: StoreId.Session;
   /** A next message to offer in the empty box (`PromptEditor`), while nothing is attached. */
   suggestion?: string;
-  /** A pill is one row, the height of a text field, that grows with the draft; bare is the editor above its button row with no box drawn around them, for a host that draws its own. */
-  variant: "bare" | "pill";
 }
 
 /**
@@ -251,25 +251,12 @@ interface PromptInputProps {
  * out it takes no press: a second one on its remove button would run the
  * removal again from the render before it left.
  */
-function AttachedChip({ children }: { children: React.ReactNode }) {
-  const isPresent = useIsPresent();
-  return (
-    <motion.div
-      animate={{ opacity: 1, scale: 1 }}
-      exit={{ opacity: 0, scale: 0.9 }}
-      inert={!isPresent}
-      initial={{ opacity: 0, scale: 0.9 }}
-      transition={ITEM_IN}
-    >
-      {children}
-    </motion.div>
-  );
-}
-
 export const PromptInput = ({
   actionsInto,
   addMenu = true,
-  alwaysOpen,
+  besidePlus,
+  onShowItem,
+  shownPath,
   attachmentsLead,
   autoFocus = false,
   keyboardHome = false,
@@ -284,6 +271,7 @@ export const PromptInput = ({
   note,
   onStop,
   onDictatingChange,
+  onFolders,
   onItemsChange,
   onItemRemoved,
   onModelChange,
@@ -293,7 +281,6 @@ export const PromptInput = ({
   ref,
   selectedSessionId,
   suggestion,
-  variant,
 }: PromptInputProps) => {
   const features = useAtomValue(featuresAtom);
   const isActiveTab = useIsActiveTab();
@@ -311,8 +298,6 @@ export const PromptInput = ({
     }
   }, [attachedItems]);
   const [menuView, setMenuView] = useState<ComposerMenuView | null>(null);
-  // A pill is one row until it is written in, then opens a row for the rest.
-  const [pillFocused, setPillFocused] = useState(false);
   const [pickerOpen, setPickerOpen] = useState(false);
   const setLookAt = useSetAtom(lookAtAtom);
   const promptEditorRef = useRef<PromptEditorRef>(null);
@@ -327,30 +312,8 @@ export const PromptInput = ({
     null,
   );
   const fileInputRef = useRef<HTMLInputElement>(null);
-  // The words the editor shows, which reach the draft a beat after they are
-  // typed. The editor reads its text once, at mount, from what the draft has,
-  // and every edit after that comes back through `onChange`; a composer moved
-  // onto another draft starts again from that one's.
   const draftKeyed = draftKeyString(draftKey);
-  const storedWords = useAtomValue(storedWordsAtom(draftKey));
-  const typeWords = useSetAtom(typedWordsAtom);
-  const [shown, setShown] = useState({ key: draftKeyed, words: storedWords });
-  if (shown.key !== draftKeyed) {
-    setShown({ key: draftKeyed, words: storedWords });
-  }
-  const value = shown.key === draftKeyed ? shown.words : storedWords;
-  const setValue = (words: string) => {
-    setShown({ key: draftKeyed, words });
-    typeWords({ key: draftKey, words });
-  };
-  // A composer going, or moving onto another draft, writes what it was
-  // typed into at once: the next one to show that draft starts from it.
-  useEffect(
-    () => () => {
-      flushWords(draftKeyed);
-    },
-    [draftKeyed],
-  );
+  const { setValue, value } = useComposerWords(draftKey, promptEditorRef);
   const setInputRef = useSetAtom(promptDraftRefAtom(draftKey));
   const releaseInputRef = useSetAtom(releasePromptDraftRefAtom);
   const appendDictation = useSetAtom(appendDictationToPromptAtom);
@@ -503,18 +466,18 @@ export const PromptInput = ({
       : undefined;
   const noticeRow = modelNotice && (
     <ModelNoticeRow
-      floating={variant === "pill"}
       notice={modelNotice}
       nudge={noticeNudge}
       onAction={handleModelAction}
       onDismiss={dismissOffer}
     />
   );
-  // A pill has one note, over the box: the chat's when the next turn can't
-  // run, the model's when it has a problem, then the chat's quieter one, then
-  // the model's offer.
+  // The chat's note over the box, unless the model has a problem to fix
+  // first: the model's row says that inside the box, and only a note that
+  // the next turn can't run outranks it.
+  const isModelProblem = modelNotice?.tone === "problem";
   const chatNote =
-    variant === "pill" && note
+    note && (note.rank === "stop" || !isModelProblem)
       ? note.render({
           nudge: noticeNudge,
           openModelPicker: () => {
@@ -522,17 +485,7 @@ export const PromptInput = ({
           },
         })
       : undefined;
-  const isModelProblem = modelNotice?.tone === "problem";
-  const pillNote =
-    variant !== "pill"
-      ? undefined
-      : note?.rank === "stop"
-        ? chatNote
-        : isModelProblem
-          ? noticeRow
-          : (chatNote ?? noticeRow);
-  const holdsSend =
-    isModelProblem || (variant === "pill" && note?.holdsSend === true);
+  const holdsSend = isModelProblem || note?.holdsSend === true;
 
   useEffect(() => {
     const editor = promptEditorRef.current;
@@ -620,6 +573,10 @@ export const PromptInput = ({
   };
 
   const attachFolders = (folders: DroppedFolder[]) => {
+    if (onFolders) {
+      onFolders(folders.map((folder) => folder.path));
+      return;
+    }
     // Split the drop against the rendered list so the toast happens here,
     // once, rather than inside the updater -- React may call an updater more
     // than once and would repeat the notification.
@@ -710,6 +667,10 @@ export const PromptInput = ({
       return;
     }
     const folderPath = result.path;
+    if (onFolders) {
+      onFolders([folderPath]);
+      return;
+    }
 
     // Notify outside the updater: React may run an updater more than once, and
     // a duplicate pick would then toast twice.
@@ -821,35 +782,6 @@ export const PromptInput = ({
         void handleFolderPick();
       },
     },
-    // A pill has no room for the model beside the words, so the menu offers
-    // it, and the picker opens where the menu was.
-    ...(variant === "pill"
-      ? [
-          {
-            // The picker opens once this menu has closed, and takes the caret
-            // from there.
-            handsOff: true,
-            icon: CpuIcon,
-            // Where the chosen model is billed, as the draft's model control
-            // shows it, so the entry says which model before it is read.
-            ...(selectedModel && {
-              iconElement: (
-                <AIProviderIcon
-                  className="size-4 shrink-0"
-                  type={selectedModel.params.provider}
-                />
-              ),
-            }),
-            id: "model",
-            label: selectedModel
-              ? `Model · ${selectedModel.name.trim()}`
-              : "Choose a model",
-            onSelect: () => {
-              setPickerOpen(true);
-            },
-          },
-        ]
-      : []),
   ];
 
   // A typed slash offers what the plus does: in a chat, the places it opens
@@ -902,28 +834,8 @@ export const PromptInput = ({
     modelURI &&
     selectedModel;
 
-  // Open while the caret is in it, a menu of its is up, or a draft is waiting:
-  // the model and the message's context have nowhere else to go, and a row
-  // that folded away mid-draft would take them with it.
-  const pillOpen =
-    variant === "pill" &&
-    (alwaysOpen ||
-      pillFocused ||
-      pickerOpen ||
-      menuView !== null ||
-      value.trim().length > 0 ||
-      attachedItems.length > 0 ||
-      hasAttachmentsLead);
-
-  // A pill stands beside the work in a column it shares with the conversation
-  // it is part of, so it gives way to that conversation sooner than a block on
-  // a page of its own does: a handful of lines, then the draft scrolls.
   const maxHeight =
-    autoResizeMaxHeight === undefined
-      ? variant === "pill"
-        ? 200
-        : 400
-      : autoResizeMaxHeight;
+    autoResizeMaxHeight === undefined ? 400 : autoResizeMaxHeight;
 
   const validateSubmission = () => {
     if (modelStatus.kind === "loading") {
@@ -1098,19 +1010,18 @@ export const PromptInput = ({
       className={cn("relative flex flex-col", className)}
       data-keyboard-home={keyboardHome ? "1" : undefined}
     >
-      {pillNote && (
+      {chatNote && (
         <div className="mb-2" data-slot="reply-note-slot">
-          {pillNote}
+          {chatNote}
         </div>
       )}
       <ComposerFrame
         actions={
           <>
-            <div className="flex min-w-0 shrink-0 items-center gap-1">
+            <div className="flex min-w-0 items-center gap-1.5">
               {addMenu && (
                 <ComposerAddMenu
                   actions={actions}
-                  bounds={composerBounds}
                   disabled={isLoading}
                   onReturnFocus={() => {
                     promptEditorRef.current?.focus();
@@ -1123,9 +1034,11 @@ export const PromptInput = ({
                   onViewChange={setMenuView}
                   places={composerPlaces}
                   skills={userInvocableSkills}
+                  triggerClassName="size-7 rounded-full [&_svg]:size-4"
                   view={menuView}
                 />
               )}
+              {besidePlus}
             </div>
 
             <div className="flex min-w-0 flex-1 items-center justify-end gap-4">
@@ -1175,7 +1088,17 @@ export const PromptInput = ({
                   Send is back once the words land; Enter stops and sends. */}
               <div className="flex shrink-0 items-center gap-1.5">
                 <DictationControls dictation={dictation} disabled={isLoading} />
-                {!dictating && (
+                {!dictating && onStop && !canSubmit && !isLoading && (
+                  <Button
+                    aria-label="Stop"
+                    className="size-8 shrink-0 rounded-full p-0"
+                    onClick={onStop}
+                    variant="brand"
+                  >
+                    <StopIcon className="size-4" weight="fill" />
+                  </Button>
+                )}
+                {!dictating && (!onStop || canSubmit || isLoading) && (
                   <Button
                     aria-label="Send"
                     className="size-8 shrink-0 rounded-full p-0 disabled:opacity-100"
@@ -1196,9 +1119,7 @@ export const PromptInput = ({
         }
         actionsInto={actionsInto}
         attachments={
-          ((variant !== "pill" && lead) ||
-            hasAttachmentsLead ||
-            attachedItems.length > 0) && (
+          (lead || hasAttachmentsLead || attachedItems.length > 0) && (
             // A file lands in the corner of a box the user is looking away
             // from, at the caret, so it grows into place rather than appearing
             // there. `initial={false}`: the first one is carried in by the row
@@ -1206,15 +1127,23 @@ export const PromptInput = ({
             // Every child here needs a key of its own: presence tells them
             // apart by key, and two keyless ones read as the same child.
             <AnimatePresence initial={false}>
-              <Fragment key="lead">{variant === "pill" ? null : lead}</Fragment>
+              <Fragment key="lead">{lead}</Fragment>
               <Fragment key="attachments-lead">{attachmentsLead}</Fragment>
               {attachedItems.map((item) => (
-                <AttachedChip key={item.id}>
+                <ChipPresence key={item.id}>
                   {item.type === "folder" ? (
                     <AttachedItemPreview
                       hostPath={item.path}
-                      icon={<SystemFolderIcon className="size-5 shrink-0" />}
+                      icon={<SystemFolderIcon className="size-4 shrink-0" />}
+                      isSelected={shownPath === item.path}
                       label={folderLabel(item.path)}
+                      {...(onShowItem
+                        ? {
+                            onClick: () => {
+                              onShowItem({ kind: "folder", path: item.path });
+                            },
+                          }
+                        : {})}
                       onRemove={() => {
                         removeAttachedItem(item.id);
                       }}
@@ -1224,9 +1153,14 @@ export const PromptInput = ({
                     <AttachedFilePreview
                       filename={item.name}
                       {...("path" in item ? { hostPath: item.path } : {})}
+                      isSelected={"path" in item && shownPath === item.path}
                       mimeType={item.mimeType}
                       onClick={() => {
-                        if (item.url) {
+                        // On disk, it shows where the host shows what goes
+                        // with the message; only bytes pasted in open large.
+                        if (onShowItem && "path" in item) {
+                          onShowItem({ kind: "file", path: item.path });
+                        } else if (item.url) {
                           setLookAt(
                             lookTargetOf({
                               filename: item.name,
@@ -1247,167 +1181,14 @@ export const PromptInput = ({
                       url={item.url}
                     />
                   )}
-                </AttachedChip>
+                </ChipPresence>
               ))}
             </AnimatePresence>
           )
         }
-        // What goes with the message is said while the person is writing it:
-        // shown always, it comes and goes with every tab they move between.
-        extras={
-          pillOpen && (pillFocused || pickerOpen || menuView !== null)
-            ? lead
-            : undefined
-        }
-        layout={variant}
-        // A pill shows it only while open, with the rest of its second row;
-        // a draft always has room over its words.
-        notice={variant === "pill" ? undefined : noticeRow}
-        leading={
-          variant === "pill" ? (
-            // The picker has no button of its own here: it hangs off an empty
-            // box over the plus, so its panel opens from the plus when the menu
-            // or the notice asks for it.
-            <div className="relative">
-              <ComposerAddMenu
-                actions={actions}
-                bounds={composerBounds}
-                disabled={isLoading}
-                onReturnFocus={() => {
-                  promptEditorRef.current?.focus();
-                }}
-                onSelectSkill={(skill) => {
-                  promptEditorRef.current?.insertText(
-                    skillMentionToken(skill.id),
-                  );
-                }}
-                onViewChange={setMenuView}
-                places={composerPlaces}
-                skills={userInvocableSkills}
-                triggerClassName="size-7 rounded-full [&_svg]:size-4"
-                view={menuView}
-              />
-              <ModelPicker
-                anchorOnly
-                bounds={composerBounds}
-                className="pointer-events-none absolute inset-0"
-                disabled={isLoading}
-                errors={modelsErrors}
-                isError={modelsIsError}
-                isLoading={modelsIsLoading}
-                models={models}
-                modelURI={reached.uri}
-                notice={modelNotice}
-                onAction={handleModelAction}
-                onAddProvider={addProvider}
-                onClose={() => {
-                  setPickerOpen(false);
-                  if (modelURI) {
-                    promptEditorRef.current?.focus();
-                  }
-                }}
-                onOpenChange={(open) => {
-                  setPickerOpen(open);
-                  if (open && modelsErrors && modelsErrors.length > 0) {
-                    void modelsRefetch();
-                  }
-                }}
-                onValueChange={onModelChange}
-                open={pickerOpen}
-                selectedModel={selectedModel}
-              />
-            </div>
-          ) : undefined
-        }
+        notice={noticeRow}
         maxHeight={maxHeight}
-        onBlur={
-          variant === "pill"
-            ? (event) => {
-                if (
-                  event.relatedTarget instanceof Node &&
-                  event.currentTarget.contains(event.relatedTarget)
-                ) {
-                  return;
-                }
-                setPillFocused(false);
-              }
-            : undefined
-        }
-        onFocus={
-          variant === "pill"
-            ? () => {
-                setPillFocused(true);
-              }
-            : undefined
-        }
-        below={
-          // While dictating, under the words: the wave, then Cancel and Stop
-          // together. Send is back once the words land; Enter stops and sends.
-          variant === "pill" && dictating ? (
-            <DictationControls
-              className="justify-end"
-              dictation={dictation}
-              disabled={isLoading}
-              size="sm"
-            />
-          ) : undefined
-        }
         ref={setComposerBounds}
-        trailing={
-          variant === "pill" ? (
-            <>
-              {!dictating &&
-                features.context_ring &&
-                id &&
-                selectedSessionId && (
-                  <SessionContextRing
-                    id={id}
-                    model={selectedModel}
-                    selectedSessionId={selectedSessionId}
-                  />
-                )}
-              {dictating ? (
-                // Holds the room the mic and Send take, so the words keep the
-                // width they will land at while the controls sit below them.
-                <div aria-hidden="true" className="flex gap-1">
-                  <span className="size-7" />
-                  <span className="size-7" />
-                </div>
-              ) : (
-                <DictationButton
-                  dictation={dictation}
-                  disabled={isLoading}
-                  size="sm"
-                />
-              )}
-              {!dictating && onStop && !canSubmit && !isLoading && (
-                <Button
-                  aria-label="Stop"
-                  className="size-7 shrink-0 rounded-full p-0"
-                  onClick={onStop}
-                  variant="brand"
-                >
-                  <StopIcon className="size-3.5" weight="fill" />
-                </Button>
-              )}
-              {!dictating && (!onStop || canSubmit || isLoading) && (
-                <Button
-                  aria-label="Send"
-                  className="size-7 shrink-0 rounded-full p-0 disabled:opacity-100"
-                  disabled={!canSubmit}
-                  onClick={send}
-                  variant="brand"
-                >
-                  {isLoading ? (
-                    <Spinner className="size-4" delay={0} />
-                  ) : (
-                    <ArrowUpIcon className="size-4" />
-                  )}
-                </Button>
-              )}
-            </>
-          ) : undefined
-        }
       >
         {/* Keyed by draft: the editor reads its text once, at mount, so a
             surface that swaps which draft it is composing (one skill page to

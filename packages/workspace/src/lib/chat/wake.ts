@@ -9,7 +9,7 @@ import { type SessionMessageDataPart } from "../../schemas/session/message-data-
 import { type SessionMessagePart } from "../../schemas/session/message-part";
 import { type StopNotice, type Stopper } from "../../schemas/stop-notice";
 import { StoreId } from "../../schemas/store-id";
-import { closePagesWithNoTab, heldTabs, returnTabsToChat } from "../held-tabs";
+import { tabsActedInBy } from "../tab-activity";
 import {
   agentPathOfFileUrl,
   agentSpellingOfFileUrls,
@@ -18,6 +18,7 @@ import {
 import { filesNamedIn } from "../parse-files-block";
 import { needsNamedIn, withoutNeedsFences } from "../parse-needs-block";
 import { openAsksOf } from "./open-asks";
+import { takeRoleRefusals } from "../capabilities/role-refusals";
 import { resolveChat, sessionOfChat } from "../record-folders";
 import { shellPath } from "../workspace-fs-layout";
 import { sessionLayout } from "../session-layout";
@@ -45,8 +46,9 @@ import {
   touchTask,
 } from "./children";
 import { stepInFlight } from "./in-flight";
+import { closeTaskTabs, closeTurnTabs } from "./tab-cap";
 import { cutForNote, lastAssistantText } from "./latest-session";
-import { appClosedLine, endedWithoutWords } from "./standing";
+import { appClosedLine, endedWithoutWords } from "./task-status";
 import { trajectorySince } from "./steps";
 import { replacesPendingEvent } from "./wake-event";
 import { enqueueWake, holdWake, saveNote, type WakePart } from "./wake-queue";
@@ -367,9 +369,11 @@ async function checkOverdue(workspaceRef: WorkspaceActorRef) {
   // Only a chat's task reports in, and only one at work is read.
   const working = (
     await Promise.all(
-      listChatIds().map((chatId) =>
-        listChildTasks(chatId, (id) => isWorking(chatId, id)),
-      ),
+      listChatIds()
+        // From memory first, so a chat with nothing at work costs no read
+        // of its records.
+        .filter((chatId) => isWorking(chatId))
+        .map((chatId) => listChildTasks(chatId, (id) => isWorking(chatId, id))),
     )
   ).flat();
   const workingIds = new Set(working.map((task) => task.id));
@@ -417,11 +421,18 @@ async function onSessionDone(
 ) {
   // Only a chat is woken, by a task of its own.
   const chatId = resolveChat(id);
-  // Any session's pages that never went anywhere go with its turn, unless
-  // its next turn has started, whose pages these may be by now: they go
-  // when that one ends.
-  if (chatId && !isWorkingAgain(chatId, sessionId)) {
-    await closePagesWithNoTab(chatId, sessionId);
+  // Taken whether or not a note follows, so none carries into another turn's.
+  const refused = takeRoleRefusals(sessionId);
+  // The chat's own turn, ended on its own rather than stopped and not
+  // started again: the tabs its agents opened that nobody is working in and
+  // the person never used go with it.
+  if (
+    chatId &&
+    stop === undefined &&
+    sessionId === sessionOfChat(chatId) &&
+    !isWorkingAgain(chatId, sessionId)
+  ) {
+    await closeTurnTabs(chatId).catch(getWorkspaceConfig().captureException);
   }
   const task = chatId ? await childTask(chatId, sessionId) : undefined;
   if (!chatId || !task) {
@@ -450,10 +461,14 @@ async function onSessionDone(
     ...(stop ? [] : (await openAsksOf(chatId, sessionId)).map(cardNeed)),
   ];
   await touchTask(chatId, sessionId, stop ? { stoppedBy: stop.by } : {});
-  // The pages it leaves open, read while it still drives them, then given
-  // back: a tab has one driver, and a finished task drives nothing.
+  // The pages it leaves open, which the chat may show the user. A stopped
+  // task is sent on no more, so the tabs it opened or worked in go with it.
+  if (stop) {
+    await closeTaskTabs(chatId, sessionId).catch(
+      getWorkspaceConfig().captureException,
+    );
+  }
   const tabs = await openTabsOf(ref);
-  await returnTabsToChat(chatId, sessionId);
   // Its agent-browser daemons, which would otherwise idle out on their own
   // clock; a later `instrument task send` starts them again.
   void closeAgentBrowserSessionsForSessions([sessionId]).catch(
@@ -485,8 +500,17 @@ async function onSessionDone(
           needs.length > 0 ? withoutNeedsFences(receipt) : receipt,
           WAKE_SUMMARY_MAX_LENGTH,
         );
+  // The chat's own questions still up, which a task's words may misstate.
+  const chatSessionOf = sessionOfChat(chatId);
+  const chatQuestions =
+    chatSessionOf === undefined
+      ? []
+      : (await openAsksOf(chatId, chatSessionOf)).flatMap((ask) =>
+          ask.kind === "question" ? [ask.question] : [],
+        );
   const event: TaskEvent = {
     activeMs: usage.activeMs,
+    ...(chatQuestions.length > 0 ? { chatQuestions } : {}),
     ...(ending
       ? {
           ended:
@@ -498,6 +522,7 @@ async function onSessionDone(
     ...(files.length > 0 ? { files } : {}),
     handle: task.handle,
     ...(needs.length > 0 ? { needs } : {}),
+    ...(refused.length > 0 ? { refused } : {}),
     ...(ending?.resumable ? { resumable: true } : {}),
     ...(running.length > 0 ? { running } : {}),
     status: ending?.failed ? "error" : "done",
@@ -621,15 +646,18 @@ function mergeTaskEvents(
     if (!replacesPendingEvent(events.get(event.sessionId), event)) {
       return undefined;
     }
+    // Last, so the newest event is the note's last, whose reading of the
+    // chat's own cards the note gives.
+    events.delete(event.sessionId);
     events.set(event.sessionId, event);
   }
   return { data: { events: [...events.values()] }, type: "data-taskEvent" };
 }
 
 /**
- * The window's tabs a task held that are still open, by the id `tab` takes:
- * a result the task left on a page is in one of these, and nowhere in the
- * task's own transcript.
+ * The window's tabs a task drove that are still open, by the id `tab` takes,
+ * the latest first: a result the task left on a page is in one of these,
+ * and nowhere in the task's own transcript.
  */
 async function openTabsOf({
   sessionId,
@@ -640,14 +668,13 @@ async function openTabsOf({
 }): Promise<NonNullable<TaskEvent["tabs"]>> {
   const { browser } = getWorkspaceConfig();
   const tabs: NonNullable<TaskEvent["tabs"]> = [];
-  for (const tab of await heldTabs(chatId, sessionId)) {
-    if (!browser.getTargetMeta(tab.id)) {
+  for (const id of tabsActedInBy(sessionId)) {
+    if (!browser.getTargetMeta(id)) {
       continue;
     }
-    const url = browser.getTargetUrl(tab.id);
+    const url = browser.getTargetUrl(id);
     tabs.push({
-      id: tab.id,
-      openedBy: tab.openedBy,
+      id,
       ...(url === undefined
         ? {}
         : { url: await chatSpellingOfUrl(url, chatId) }),

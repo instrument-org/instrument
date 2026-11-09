@@ -3,9 +3,15 @@ import invariant from "tiny-invariant";
 import { z } from "zod";
 
 import { lastBrowserAgentActivity } from "../../lib/browser-agent-activity";
-import { navigateTarget, restoreLastPage } from "../../lib/browser-state";
+import {
+  navigateTarget,
+  pageOnItsWay,
+  restoreLastPage,
+} from "../../lib/browser-state";
 import { CdpCommandTimeoutError } from "../../lib/cdp-command-timeout-error";
 import { getBrowserSessionDir } from "../../lib/chat-dir-utils";
+import { lastActOf } from "../../lib/tab-activity";
+import { StoreId } from "../../schemas/store-id";
 import { BrowserTargetIdSchema } from "../../types";
 import { base } from "../base";
 import { publisher } from "../publisher";
@@ -34,48 +40,71 @@ const open = base
     z.object({
       /** Where a tab that comes up blank goes: the address the window remembers it at. */
       restoreUrl: z.string().min(1).optional(),
+      /**
+       * Whether this window takes the page from another that has its guest,
+       * which reloads it here: `parked` unless the other window is showing
+       * it, `always` when the person asked for it here.
+       */
+      take: z.enum(["always", "parked"]).optional(),
       targetId: BrowserTargetIdSchema,
       url: z.string().min(1).optional(),
     }),
   )
   .handler(async ({ context, errors, input }) => {
-    const { restoreUrl, targetId, url } = input;
-    const partitionDir = getBrowserSessionDir();
-    await context.workspaceConfig.browser
-      .createTarget(targetId, partitionDir)
-      .catch((error: unknown) => {
-        throw errors.BROWSER_OPEN_FAILED({
-          message: error instanceof Error ? error.message : "Unknown error",
+    const { restoreUrl, take, targetId, url } = input;
+    // Noted before the attach, so a restore of the same target sent beside
+    // this open, as a window drawing the tab it just opened sends one, finds
+    // it there and stands aside.
+    const arrived = url === undefined ? undefined : pageOnItsWay(targetId);
+    try {
+      const partitionDir = getBrowserSessionDir();
+      await context.workspaceConfig.browser
+        .createTarget(
+          targetId,
+          partitionDir,
+          context.webContentsId === undefined
+            ? undefined
+            : {
+                ...(take === undefined ? {} : { take }),
+                webContentsId: context.webContentsId,
+              },
+        )
+        .catch((error: unknown) => {
+          throw errors.BROWSER_OPEN_FAILED({
+            message: error instanceof Error ? error.message : "Unknown error",
+          });
         });
+
+      // Register only after the guest attaches, so a timed-out attach never
+      // records a phantom target the reaper would try to close.
+      context.workspaceRef.send({
+        type: "registerBrowserTarget",
+        value: { targetId },
       });
 
-    // Register only after the guest attaches, so a timed-out attach never
-    // records a phantom target the reaper would try to close.
-    context.workspaceRef.send({
-      type: "registerBrowserTarget",
-      value: { targetId },
-    });
-
-    // An explicit page replaces the restore rather than racing it: both would
-    // navigate the same guest, and the one the user just clicked is the one
-    // they meant.
-    const navigated = url
-      ? await navigateTarget({ targetId, url })
-      : await restoreLastPage({
-          ...(restoreUrl === undefined ? {} : { fallbackUrl: restoreUrl }),
-          targetId,
-        });
-    // The tab is open, which is what was asked for; it just came up blank. A
-    // navigate that timed out is a slow server rather than a bug, and the load
-    // carries on in the guest, so only other failures are reported. A tab
-    // closed while its navigate was in flight fails it too, and is gone as
-    // asked.
-    if (
-      navigated.isErr() &&
-      !(navigated.error instanceof CdpCommandTimeoutError) &&
-      context.workspaceConfig.browser.getTargetMeta(targetId) !== null
-    ) {
-      context.workspaceConfig.captureException(navigated.error);
+      // An explicit page replaces the restore rather than racing it, in this
+      // open or in another one of the same target: both would navigate the
+      // same guest, and the one the user just clicked is the one they meant.
+      const navigated = url
+        ? await navigateTarget({ targetId, url })
+        : await restoreLastPage({
+            ...(restoreUrl === undefined ? {} : { fallbackUrl: restoreUrl }),
+            targetId,
+          });
+      // The tab is open, which is what was asked for; it just came up blank. A
+      // navigate that timed out is a slow server rather than a bug, and the
+      // load carries on in the guest, so only other failures are reported. A
+      // tab closed while its navigate was in flight fails it too, and is gone
+      // as asked.
+      if (
+        navigated.isErr() &&
+        !(navigated.error instanceof CdpCommandTimeoutError) &&
+        context.workspaceConfig.browser.getTargetMeta(targetId) !== null
+      ) {
+        context.workspaceConfig.captureException(navigated.error);
+      }
+    } finally {
+      arrived?.();
     }
   });
 
@@ -138,29 +167,38 @@ const presence = base
 const agentActivity = base
   .input(
     z.object({
-      /** The guest asked about: a window tab, driven by the chat or whichever task was handed it. */
+      /** The guest asked about: a window tab, which any session of its chat drives. */
       targetId: BrowserTargetIdSchema,
+      /** One session of its chat, to hear only of the commands that session sent it. */
+      sessionId: StoreId.SessionSchema.optional(),
     }),
   )
   .output(
     eventIterator(
       z.object({
-        /** When an agent last worked in the guest, in ms; absent when none has. */
+        /** When an agent (or the session asked about) last worked in the guest, in ms; absent when none has. */
         lastAt: z.number().optional(),
         revision: z.number(),
       }),
     ),
   )
   .handler(async function* ({ input, signal }) {
+    const { sessionId, targetId } = input;
+    const read = () =>
+      sessionId === undefined
+        ? lastBrowserAgentActivity(targetId)
+        : lastActOf(targetId, sessionId);
     let revision = 0;
-    const lastAt = lastBrowserAgentActivity(input.targetId);
+    let lastAt = read();
     yield { revision, ...(lastAt === undefined ? {} : { lastAt }) };
     for await (const event of publisher.subscribe("browser.agentActivity", {
       signal,
     })) {
-      if (event.targetId === input.targetId) {
+      const now = event.targetId === targetId ? read() : undefined;
+      if (now !== undefined && now !== lastAt) {
+        lastAt = now;
         revision += 1;
-        yield { lastAt: Date.now(), revision };
+        yield { lastAt, revision };
       }
     }
   });

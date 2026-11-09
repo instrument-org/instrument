@@ -20,7 +20,15 @@ import { layoutCompose } from "./compose-layout";
  * `usePageHost`.
  */
 export function useCompose(width: number) {
-  const [entries, setEntries] = useAtom(composeAtom);
+  const [kept, setEntries] = useAtom(composeAtom);
+  // A window is docked or put down to a bar. One kept by a build that could
+  // grow a draft over the window comes back docked.
+  const entries = kept.map(
+    (entry): ComposeEntry =>
+      entry.placement === "bar" || entry.placement === "docked"
+        ? entry
+        : { ...entry, placement: "docked" },
+  );
   const zoom = useAtomValue(zoomAtom);
   const placed = layoutCompose(entries, width, zoom);
   /** Whether a window is standing: a new one at the right, or the bar it was put down to, raised. */
@@ -54,8 +62,7 @@ export function useCompose(width: number) {
   /**
    * The draft's window becomes the chat's small view in the same place
    * along the foot: the entry is replaced where it stands, put down if the
-   * draft was, docked if it had grown, since a chat's view has no larger
-   * size. What the draft's band drew and reported goes with the draft.
+   * draft was. What the draft's band drew and reported goes with the draft.
    */
   const becomeChat = (draftId: string, chatId: ChatId) => {
     setEntries((current) =>

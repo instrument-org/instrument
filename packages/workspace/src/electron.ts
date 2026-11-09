@@ -180,6 +180,8 @@ export { type SyncedOp } from "./lib/synced-store/synced-record";
 export { runtimeLayout } from "./lib/runtime-dir";
 export { ensurePythonBase } from "./lib/python-base";
 export { lastBrowserAgentActivity } from "./lib/browser-agent-activity";
+export { notePageOpenedTab } from "./lib/chat/popup-tabs";
+export { notePersonUsedTab } from "./lib/chat/person-used-tabs";
 export { WINDOW_ID } from "./schemas/window-id";
 export {
   appCatalogChanges,
@@ -188,6 +190,7 @@ export {
 } from "./lib/host-events";
 export { settleIsNews } from "./lib/chat/chats";
 export { FILES_FENCE } from "./lib/parse-files-block";
+export { MESSAGE_FENCE, parseMessage } from "./lib/parse-message";
 
 export { getBrowserSessionDir } from "./lib/chat-dir-utils";
 export { chatDir, chatIds, loadChatIndex } from "./lib/record-folders";
@@ -215,6 +218,11 @@ export {
   instrumentFolderUnchosen,
   outputFolderPath,
 } from "./lib/chat/output-folder";
+export {
+  chatDeveloperDetailsText,
+  chatForAgentText,
+  chatPlaces,
+} from "./lib/chat/chat-for-agent";
 export { watchFolder } from "./lib/folder-watch";
 export { placePaths, startupPaths } from "./lib/permissions/places";
 export { chatSessions, chatStartedWithApp, chatTitle } from "./lib/chat-info";

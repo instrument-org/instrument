@@ -3,17 +3,30 @@ import { chatFiltersAtom } from "@/client/atoms/window";
 import { ProjectDialog } from "@/client/components/window/project-dialog";
 import { spokenMessage, toast } from "@/client/lib/toast";
 import { rpcClient } from "@/client/rpc/client";
-import { useMutation, useQuery } from "@tanstack/react-query";
+import {
+  skipToken,
+  useMutation,
+  useQuery,
+  useQueryClient,
+} from "@tanstack/react-query";
 import { useAtom } from "jotai";
 
 /** A project's details, changed or deleted from wherever it was asked for. */
 export function ProjectDetailsModal() {
   const [open, setOpen] = useAtom(projectDetailsModalAtom);
   const [filters, setFilters] = useAtom(chatFiltersAtom);
+  const queryClient = useQueryClient();
   const projectsQuery = useQuery(
     rpcClient.workspace.projects.list.queryOptions(),
   );
   const projects = projectsQuery.data ?? [];
+  // The list leaves out instructions and folders, so the project being
+  // changed is read whole, only while its details are open.
+  const projectQuery = useQuery(
+    rpcClient.workspace.projects.get.queryOptions({
+      input: open ? { projectId: open.projectId } : skipToken,
+    }),
+  );
   const afterProjectChange = {
     onError: (error: Error) => {
       // A name a project can't take comes back in words written for people.
@@ -22,7 +35,10 @@ export function ProjectDetailsModal() {
         description: spokenMessage(error, ["BAD_REQUEST"]),
       });
     },
-    onSuccess: () => void projectsQuery.refetch(),
+    onSuccess: () =>
+      void queryClient.invalidateQueries({
+        queryKey: rpcClient.workspace.projects.key(),
+      }),
   };
   const updateProject = useMutation(
     rpcClient.workspace.projects.update.mutationOptions(afterProjectChange),
@@ -30,10 +46,10 @@ export function ProjectDetailsModal() {
   const retireProject = useMutation(
     rpcClient.workspace.projects.retire.mutationOptions(afterProjectChange),
   );
-  // Looked up on every render rather than kept, so a re-read of the list
-  // does not close the dialog under the user.
-  const project = projects.find((each) => each.id === open?.projectId);
-  if (!project) {
+  // Read from the query on every render rather than kept, so a re-read
+  // after a change does not close the dialog under the user.
+  const project = projectQuery.data;
+  if (!open || project?.id !== open.projectId) {
     return null;
   }
   return (

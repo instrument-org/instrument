@@ -29,6 +29,7 @@ import { useMutation, useQuery } from "@tanstack/react-query";
 import { useAtomValue } from "jotai";
 import { type ReactNode } from "react";
 
+import { ChatNotesToggle } from "./chat-notes-toggle";
 import { DeveloperErrors } from "./developer-errors";
 import { StripHeading, StripPopover } from "./strip-popover";
 
@@ -176,6 +177,7 @@ export function DeveloperStrip({
         value={workspace?.name ?? ""}
       />
       <div className="flex-1" />
+      <ChatNotesToggle className={CELL_CLASS} />
       <Fact
         className={ROOMY_CLASS}
         label="flags"

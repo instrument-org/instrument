@@ -25,19 +25,18 @@ import {
   instrumentPluginRegistry,
   writeInstrumentProviderPlugin,
 } from "../agent-browser-plugin";
-import { agentBrowserGuide } from "../agent-browser-guide";
+import { agentBrowserGuide } from "../../model-text/guides/agent-browser-guide";
 import { recordVisitedHosts } from "../browser-state";
 import { ffmpegSubprocessEnv } from "../ffmpeg";
 import { agentSpellingOfFileUrls } from "../local-page-address";
-import { askWindow } from "../chat/window-tab";
 import {
   getAgentBrowserHomeDir,
   getDownloadsDir,
   getScreenshotsDir,
 } from "../chat-dir-utils";
-import { resolveChat } from "../record-folders";
-import { sessionRole } from "../chat/children";
-import { heldTabs, updateHeldTabs } from "../held-tabs";
+import { chatPageTabs } from "../chat/chat-tabs";
+import { announceChatTab, lastActOf, tabsActedInBy } from "../tab-activity";
+import { pageOpenedTabsNote, tabNewsNote } from "./agent-browser-tab-news";
 import { getWorkspaceConfig } from "../workspace-config";
 import {
   hostPathOf,
@@ -70,6 +69,7 @@ import {
   tabOutputOf,
   windowTabIdArgIndex,
   withTabIds,
+  listsTab,
   withTabLabel,
 } from "./agent-browser-tab-ids";
 import { recordProgramStart } from "./command-runs";
@@ -225,14 +225,14 @@ function skills(
 }
 
 /**
- * `agent-browser adblock [on|off]`: the task's own say over the ad and tracker
- * blocking in the tabs it drives, for a page the block lists broke. Answered
+ * `agent-browser adblock [on|off]`: the agent's own say over the ad and
+ * tracker blocking in its chat's tabs, for a page the block lists broke. Answered
  * here rather than by the CLI, since the blocking lives in the app, not in
  * the browser.
  */
 async function adblock(
   browser: BrowserConfig,
-  { chatId, sessionId }: { chatId: ChatId; sessionId: StoreId.Session },
+  chatId: ChatId,
   mode: string | undefined,
 ): Promise<{ exitCode: number; stderr: string; stdout: string }> {
   if (mode !== undefined && mode !== "on" && mode !== "off") {
@@ -242,12 +242,14 @@ async function adblock(
       stdout: "",
     };
   }
-  const targets = (await heldTabs(chatId, sessionId)).map((tab) => tab.id);
+  const targets = ((await chatPageTabs(chatId)) ?? []).map(
+    (tab) => tab.targetId,
+  );
   if (targets.length === 0) {
     return {
       exitCode: 1,
       stderr:
-        "agent-browser: adblock applies to the tabs you have open, and you have none yet. Open the page first.\n",
+        "agent-browser: adblock applies to this chat's tabs, and it has none yet. Open the page first.\n",
       stdout: "",
     };
   }
@@ -258,8 +260,8 @@ async function adblock(
   const state = !workspace
     ? "Ad blocking is off: the user turned it off for every page."
     : task
-      ? "Ad blocking is on in this task's tabs."
-      : "Ad blocking is off in this task's tabs, until `agent-browser adblock on` or the app restarts. The user's own setting is unchanged.";
+      ? "Ad blocking is on in this chat's tabs."
+      : "Ad blocking is off in this chat's tabs, until `agent-browser adblock on` or the app restarts. The user's own setting is unchanged.";
   const reload =
     mode !== undefined && workspace
       ? "\nReload the page (`agent-browser reload`) for the change to apply."
@@ -791,11 +793,7 @@ export function createAgentBrowserCommand({
     });
     switch (invocation.kind) {
       case "adblock": {
-        return adblock(
-          workspaceConfig.browser,
-          { chatId: id, sessionId },
-          invocation.mode,
-        );
+        return adblock(workspaceConfig.browser, id, invocation.mode);
       }
       case "help": {
         return { exitCode: 0, stderr: "", stdout: WORKSPACE_HELP_MANAGED };
@@ -850,8 +848,8 @@ export function createAgentBrowserCommand({
     const configPath = path.join(homeDir, "config.json");
 
     const commandArgs: string[] = [];
-    // A chat's session, which drives the tabs it holds rather than one page.
-    const drivesHeldTabs = invocation.kind === "tabs";
+    // A session of a chat, which drives the chat's tabs rather than one page.
+    const drivesChatTabs = invocation.kind === "tabs";
     let pluginRegistry: string | undefined;
 
     if (isInfoOnly) {
@@ -889,11 +887,6 @@ export function createAgentBrowserCommand({
         ...resolvedArgs,
       );
     } else {
-      const refused = await refuseBrowserFor(id, sessionId);
-      if (refused !== undefined) {
-        return { exitCode: 1, stderr: refused, stdout: "" };
-      }
-
       const cdpUrl = cdpBridgeUrl(serverPort, id, sessionId);
       const pluginPath = await writeInstrumentProviderPlugin(homeDir);
       pluginRegistry = instrumentPluginRegistry({ cdpUrl, pluginPath });
@@ -970,12 +963,26 @@ export function createAgentBrowserCommand({
         ? undefined
         : windowTabIdArgIndex(resolvedArgs);
     if (tabIdIndex !== undefined) {
-      const listed = await runAgentBrowser({
-        ...spawnOptions,
-        args: [...connectionArgs, "tab", "list", "--json"],
-        cancelSignal: ctx.signal,
-        input: undefined,
-      });
+      const listTabs = () =>
+        runAgentBrowser({
+          ...spawnOptions,
+          args: [...connectionArgs, "tab", "list", "--json"],
+          cancelSignal: ctx.signal,
+          input: undefined,
+        });
+      let listed = await listTabs();
+      // A tab of the chat's opened since this session's agent-browser
+      // connected is announced only now that the agent names it, since
+      // agent-browser makes a tab it discovers its active one.
+      const named = resolvedArgs[tabIdIndex];
+      if (
+        listed.exitCode === 0 &&
+        named !== undefined &&
+        !listsTab(listed.stdout, named) &&
+        (await announceChatTab({ chatId, sessionId }, named))
+      ) {
+        listed = await listTabs();
+      }
       if (listed.exitCode === 0) {
         commandArgs.splice(
           connectionArgs.length,
@@ -1028,8 +1035,13 @@ export function createAgentBrowserCommand({
       });
       elapsedMs = performance.now() - startedAt;
     } finally {
-      if (drivesHeldTabs) {
-        await recordHeldTabHosts({ callPartId, sessionId, chatId });
+      if (drivesChatTabs) {
+        await recordDrivenTabHosts({
+          callPartId,
+          chatId,
+          sessionId,
+          since: startedAtEpoch,
+        });
       }
     }
 
@@ -1105,7 +1117,7 @@ export function createAgentBrowserCommand({
     }
 
     // The labels agent-browser prints for tabs are its own; each tab is
-    // named instead by the id `instrument window` and `--tab` take.
+    // named instead by the id `instrument window` takes.
     let stdout = result.stdout;
     const tabOutput =
       exitCode === 0 && !browserFreeRead
@@ -1130,6 +1142,19 @@ export function createAgentBrowserCommand({
           tabOutput === "list"
             ? withTabIds(stdout, listed.stdout)
             : `${stdout}${stdout === "" || stdout.endsWith("\n") ? "" : "\n"}${newTabLine(listed.stdout)}`;
+      }
+    }
+
+    // Who else acted in the tabs this command drove since this session's
+    // last command there: every session of a chat drives every tab of it.
+    // And the popups its pages opened, each a new tab of the chat.
+    if (drivesChatTabs) {
+      const notes = [
+        pageOpenedTabsNote(sessionId),
+        await tabNewsNote({ chatId, sessionId }),
+      ].filter((note) => note !== undefined);
+      for (const note of notes) {
+        stdout = `${stdout}${stdout === "" || stdout.endsWith("\n") ? "" : "\n"}${note}`;
       }
     }
 
@@ -1194,25 +1219,29 @@ export function isExternalBrowserInvocation(args: string[]): boolean {
 }
 
 /**
- * The hosts of the pages in the tabs a chat's task holds, recorded as the
- * sites its work used: read after the command, so a tab it just opened and a
- * page it just reached are both there.
+ * The hosts of the pages in the tabs a command of a chat's session drove,
+ * recorded as the sites its work used: read after the command, so a tab it
+ * just opened and a page it just reached are both there.
  */
-async function recordHeldTabHosts({
+async function recordDrivenTabHosts({
   callPartId,
-  sessionId,
   chatId,
+  sessionId,
+  since,
 }: {
   callPartId: StoreId.Part | undefined;
-  sessionId: StoreId.Session;
   chatId: ChatId;
+  sessionId: StoreId.Session;
+  since: number;
 }) {
   const { browser } = getWorkspaceConfig();
   try {
-    const urls = (await heldTabs(chatId, sessionId)).flatMap((tab) => {
-      const url = browser.getTargetUrl(tab.id);
-      return url ? [url] : [];
-    });
+    const urls = tabsActedInBy(sessionId)
+      .filter((targetId) => (lastActOf(targetId, sessionId) ?? 0) >= since)
+      .flatMap((targetId) => {
+        const url = browser.getTargetUrl(targetId);
+        return url ? [url] : [];
+      });
     if (callPartId !== undefined) {
       recordStepPages(callPartId, sessionId, urls);
     }
@@ -1223,70 +1252,6 @@ async function recordHeldTabHosts({
   } catch (error) {
     getWorkspaceConfig().captureException(error);
   }
-}
-
-/**
- * Why a chat or task cannot browse right now, or nothing when it can. Each
- * drives the tabs of the chat it holds: tabs the conversation handed it,
- * which are the user's and outlive the task, and tabs it opened itself, each
- * opened behind whatever the user has up, so every page the agent works in
- * is one the user can find in the chat's tabs and none is put in front of
- * them. A page the user has open is handed to a task (`instrument task new --tab`).
- */
-async function refuseBrowserFor(
-  id: ChatId,
-  sessionId: StoreId.Session,
-): Promise<string | undefined> {
-  const held = await heldTabs(id, sessionId);
-  if (held.length === 0) {
-    // None yet: agent-browser asks a browser with no pages for one, which
-    // the endpoint makes as a page with no tab until it goes somewhere.
-    return undefined;
-  }
-  const { browser } = getWorkspaceConfig();
-  const answer = await askWindow({
-    action: { kind: "list" },
-    askedBy: id,
-    group: resolveChat(id),
-  });
-  if (!answer?.tabs) {
-    // No window answered; nothing is known to be gone.
-    return undefined;
-  }
-  const listed = new Set(answer.tabs.map((tab) => tab.id));
-  // A tab is still held while the window lists it, its page discarded or
-  // not (it comes back as it is attached to); a page with no tab while its
-  // guest is up.
-  const kept = held.filter((tab) =>
-    tab.inWindow ? listed.has(tab.id) : browser.getTargetMeta(tab.id) !== null,
-  );
-  if (kept.length < held.length) {
-    await updateHeldTabs(id, sessionId, (tabs) =>
-      tabs.filter((tab) => kept.some((alive) => alive.id === tab.id)),
-    );
-  }
-  if (kept.length > 0) {
-    return undefined;
-  }
-  // A page with no tab that went with a relaunch was never the user's to see.
-  const closed = held.filter((tab) => tab.inWindow);
-  // A task handed tabs works in those alone; the chat, which gets them back
-  // when the task finishes, goes on with a new one.
-  if (
-    sessionRole(id, sessionId) === "task" &&
-    closed.some((tab) => tab.openedBy === "handed")
-  ) {
-    // The user closed the tabs, or the window they were in, since the task
-    // was handed them.
-    return "agent-browser: the tab this task was handed is closed, so there is no page to act on. Say so and finish with what you have.\n";
-  }
-  if (closed.length > 0) {
-    // The session's own tabs, closed by the user or by the conversation:
-    // said once, so it knows the pages it was on are gone rather than
-    // finding a blank one, and the next command opens a new tab.
-    return "agent-browser: the tabs you opened were closed by the user or the conversation, and the pages in them are gone. The next command opens a new tab; start again from the page's address.\n";
-  }
-  return undefined;
 }
 
 async function runAgentBrowser(options: SpawnAgentBrowserOptions) {

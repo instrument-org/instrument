@@ -18,6 +18,7 @@ import { Button } from "@/client/components/ui/button";
 import { Spinner } from "@/client/components/ui/spinner";
 import { AppCapabilities } from "@/client/components/window/app-capabilities";
 import { AppIcon } from "@/client/components/window/app-icon";
+import { AppMenuButton } from "@/client/components/window/app-menu";
 import { useAppsBySlug } from "@/client/components/window/apps-by-slug";
 import { InstrumentGlyph } from "@/client/components/wordmark";
 import { useConnectFromDirectory } from "@/client/components/window/use-connect-from-directory";
@@ -36,17 +37,10 @@ import { useModalBack } from "@/client/hooks/use-modal-back";
 import { useRecentPages } from "@/client/hooks/use-browser-history";
 import { appMentionToken } from "@/client/lib/app-mention";
 import { rpcClient, type RPCOutput } from "@/client/rpc/client";
-import {
-  hasFilesView,
-  revealInFileManager,
-  showInFolder,
-  showInFolderLabel,
-} from "@/client/lib/show-in-files";
 import { osConventions } from "@/client/lib/utils";
 import { CaretDownIcon } from "@phosphor-icons/react/CaretDown";
-import { DotsThreeVerticalIcon } from "@phosphor-icons/react/DotsThreeVertical";
 import { useMutation, useQuery } from "@tanstack/react-query";
-import { useRef, useState } from "react";
+import { useState } from "react";
 import { toast } from "@/client/lib/toast";
 
 /** How many of the pages visited in the app its front lists. */
@@ -106,7 +100,7 @@ export function AppFront({
   const site = drawn?.site;
   const icon = drawn?.icon;
   const home = app?.home ?? entry?.home ?? site;
-  const isConnected = app?.standing === "connected";
+  const isConnected = app?.status === "connected";
   // Worked on its own site in the window's browser: the site is the app, so
   // opening it is what the page leads with.
   const isWeb = app?.type === "web";
@@ -125,15 +119,7 @@ export function AppFront({
     (app.type === "mcp-local" ||
       /^https?:\/\/(?:127\.|localhost|\[::1\])/.test(app.endpoint));
   const [reading, setReading] = useState<InspectorReading>();
-  const [isNaming, setIsNaming] = useState(false);
   const { connect, isConnecting } = useConnectFromDirectory();
-  const setAccount = useMutation(
-    rpcClient.apps.setAccount.mutationOptions({
-      onError: (error) => {
-        toast.error("Couldn't name the account", { cause: error });
-      },
-    }),
-  );
   const screen = {
     app: {
       name,
@@ -147,7 +133,7 @@ export function AppFront({
           }
         : {}),
       slug,
-      standing: app?.standing ?? "not-set-up",
+      standing: app?.status ?? "not-set-up",
     },
     screen: "apps" as const,
   };
@@ -157,23 +143,6 @@ export function AppFront({
   const visited = useRecentPages();
   const visits = visitsWithin(visited, [{ name, site }]).slice(0, VISITS_SHOWN);
 
-  const disconnect = useMutation(
-    rpcClient.apps.disconnect.mutationOptions({
-      onError: (error) => {
-        toast.error(`Couldn't disconnect ${name}`, { cause: error });
-      },
-    }),
-  );
-  const remove = useMutation(
-    rpcClient.apps.remove.mutationOptions({
-      onError: (error) => {
-        toast.error(`Couldn't remove ${name}`, { cause: error });
-      },
-      onSuccess: () => {
-        onToApps();
-      },
-    }),
-  );
   const test = useMutation(
     rpcClient.apps.test.mutationOptions({
       onError: (error) => {
@@ -216,23 +185,23 @@ export function AppFront({
   // One of the Mac's own apps runs on a server the app ships, so connecting
   // it installs nothing; macOS asks the person itself on first use.
   const isBundled = app?.type === "mcp-local" && app.bundled;
-  const bundledToConnect = isBundled && app.standing === "needs-approval";
+  const bundledToConnect = isBundled && app.status === "needs-approval";
   const setupTitle =
     !app || bundledToConnect
       ? `Connect ${name}`
       : isWeb
         ? `Sign in to ${name} on the web`
-        : app.standing === "needs-sign-in"
+        : app.status === "needs-sign-in"
           ? app.connection?.error
             ? `Sign in to ${name} again`
             : `Sign in to ${name}`
-          : app.standing === "needs-key"
+          : app.status === "needs-key"
             ? `Add a key from ${name}`
-            : app.standing === "needs-approval"
+            : app.status === "needs-approval"
               ? `Allow ${name} to run on ${osConventions().thisComputer}`
-              : app.standing === "failed"
+              : app.status === "failed"
                 ? `Couldn’t connect to ${name}`
-                : app.standing === "stale"
+                : app.status === "stale"
                   ? `${name} changed since it last connected`
                   : `Finish connecting ${name}`;
   const setupDetail = !app
@@ -241,9 +210,9 @@ export function AppFront({
       : undefined
     : bundledToConnect
       ? `macOS will ask you once before Instrument uses ${name}.`
-      : app.standing === "needs-sign-in" && !isWeb
+      : app.status === "needs-sign-in" && !isWeb
         ? `Sign in with ${browserName} if you’re already signed in to ${name} there, or here in a tab.`
-        : app.standing === "stale"
+        : app.status === "stale"
           ? "Try again to connect it as it is now."
           : undefined;
   // The way out when the buttons beside it are not getting there: last and
@@ -281,104 +250,20 @@ export function AppFront({
             <div className="flex items-center gap-1">
               <h1 className="text-lg leading-6 font-semibold">{name}</h1>
               {app ? (
-                <DropdownMenu>
-                  <DropdownMenuTrigger asChild>
-                    <button
-                      aria-label={`More for ${name}`}
-                      className="grid size-6 place-items-center rounded-md text-muted-foreground hover:bg-accent hover:text-foreground data-[state=open]:bg-accent data-[state=open]:text-foreground"
-                      type="button"
-                    >
-                      <DotsThreeVerticalIcon className="size-4" weight="bold" />
-                    </button>
-                  </DropdownMenuTrigger>
-                  <DropdownMenuContent align="start">
-                    {isBrowsable ? (
-                      <DropdownMenuItem
-                        onSelect={() => {
-                          setIsInspecting(true);
-                        }}
-                      >
-                        View actions
-                      </DropdownMenuItem>
-                    ) : null}
-                    <DropdownMenuItem
-                      onSelect={() => {
-                        setIsNaming(true);
-                      }}
-                    >
-                      Rename
-                    </DropdownMenuItem>
-                    <DropdownMenuItem
-                      disabled={test.isPending}
-                      onSelect={() => {
-                        test.mutate({ slug });
-                      }}
-                    >
-                      Test connection
-                    </DropdownMenuItem>
-                    {entry && !app.account && otherAccounts.length === 0 ? (
-                      <DropdownMenuItem
-                        disabled={isConnecting}
-                        onSelect={() => {
-                          connect(entry, { another: true });
-                        }}
-                      >
-                        Connect another account
-                      </DropdownMenuItem>
-                    ) : null}
-                    <DropdownMenuItem
-                      onSelect={() => {
-                        void showInFolder(app.dir, { kind: "folder" });
-                      }}
-                    >
-                      {showInFolderLabel("folder")}
-                    </DropdownMenuItem>
-                    {hasFilesView() ? (
-                      <DropdownMenuItem
-                        onSelect={() => {
-                          void revealInFileManager(app.dir);
-                        }}
-                      >
-                        {osConventions().showInFileManager}
-                      </DropdownMenuItem>
-                    ) : null}
-                    {isConnected || app.hasCredential ? (
-                      <DropdownMenuItem
-                        disabled={disconnect.isPending}
-                        onSelect={() => {
-                          disconnect.mutate({ slug });
-                        }}
-                      >
-                        Disconnect
-                      </DropdownMenuItem>
-                    ) : null}
-                    <DropdownMenuItem
-                      disabled={remove.isPending}
-                      onSelect={() => {
-                        remove.mutate({ slug });
-                      }}
-                      variant="destructive"
-                    >
-                      Remove
-                    </DropdownMenuItem>
-                  </DropdownMenuContent>
-                </DropdownMenu>
+                <AppMenuButton
+                  app={app}
+                  name={name}
+                  onInspect={() => {
+                    setIsInspecting(true);
+                  }}
+                  onRemoved={onToApps}
+                />
               ) : null}
             </div>
             {/* Which account it is, when that is named, so two of one
                 service can be told apart; otherwise the directory's one line
-                about the app. Naming it turns the line into a field. */}
-            {isNaming && app ? (
-              <AccountField
-                initial={app.account ?? ""}
-                onDone={(account) => {
-                  setIsNaming(false);
-                  if (account !== undefined) {
-                    setAccount.mutate({ account, slug });
-                  }
-                }}
-              />
-            ) : app && entry && (app.account || otherAccounts.length > 0) ? (
+                about the app. */}
+            {app && entry && (app.account || otherAccounts.length > 0) ? (
               <AccountSwitcher
                 account={app.account}
                 connecting={isConnecting}
@@ -535,7 +420,7 @@ export function AppFront({
                     </p>
                   ) : null}
                 </div>
-                {app?.standing === "failed" && app.connection?.error ? (
+                {app?.status === "failed" && app.connection?.error ? (
                   <div className="group/detail relative rounded-lg bg-muted/60 px-3 py-2 select-text">
                     <pre className="max-h-32 scrollbar-thin scrollbar-color overflow-auto pr-7 font-mono text-xs leading-5 wrap-break-word whitespace-pre-wrap text-foreground/80">
                       {app.connection.error}
@@ -563,7 +448,7 @@ export function AppFront({
                     name={name}
                     slug={slug}
                   />
-                ) : app?.standing === "needs-sign-in" ? (
+                ) : app?.status === "needs-sign-in" ? (
                   <ConnectControls
                     alongside={withInstrument}
                     describesDestination={false}
@@ -571,7 +456,7 @@ export function AppFront({
                     name={name}
                     slug={slug}
                   />
-                ) : app?.standing === "needs-approval" ? (
+                ) : app?.status === "needs-approval" ? (
                   <ConnectControls
                     alongside={withInstrument}
                     kind="run"
@@ -584,7 +469,7 @@ export function AppFront({
                     }
                     slug={slug}
                   />
-                ) : app?.standing === "needs-key" ? (
+                ) : app?.status === "needs-key" ? (
                   <ConnectControls
                     alongside={withInstrument}
                     kind="key"
@@ -677,53 +562,5 @@ function AccountSwitcher({
         </DropdownMenuItem>
       </DropdownMenuContent>
     </DropdownMenu>
-  );
-}
-
-/**
- * The account line as a field: Enter keeps what was typed (an empty field
- * clears the name), Escape or leaving it keeps the name as it was.
- */
-function AccountField({
-  initial,
-  onDone,
-}: {
-  initial: string;
-  /** The name to keep, or undefined to leave it as it was. */
-  onDone: (account: string | undefined) => void;
-}) {
-  const [value, setValue] = useState(initial);
-  // Saving takes the field away, which can blur it on the way out; the
-  // first ending is the one that counts.
-  const ended = useRef(false);
-  const end = (account: string | undefined) => {
-    if (!ended.current) {
-      ended.current = true;
-      onDone(account);
-    }
-  };
-  return (
-    <input
-      aria-label="Account"
-      autoFocus
-      className="h-5 w-full max-w-xs rounded-sm bg-transparent text-xs leading-5 text-foreground ring-1 ring-border outline-none focus-visible:ring-brand-500/40"
-      onBlur={() => {
-        end(undefined);
-      }}
-      onChange={(event) => {
-        setValue(event.target.value);
-      }}
-      onKeyDown={(event) => {
-        if (event.key === "Enter") {
-          event.preventDefault();
-          end(value.trim());
-        } else if (event.key === "Escape") {
-          event.preventDefault();
-          end(undefined);
-        }
-      }}
-      placeholder="jeremy@example.com"
-      value={value}
-    />
   );
 }

@@ -1,15 +1,12 @@
 import { ulid } from "ulid";
 
+import { getWorkspaceConfig } from "../workspace-config";
 import { publisher } from "../../rpc/publisher";
 import { StoreId } from "../../schemas/store-id";
 import {
   type WindowTabAction,
   type WindowTabAnswer,
 } from "../../schemas/window-tab";
-import { chatDir } from "../record-folders";
-import { getChatState } from "../chat-record";
-import { isWorking } from "./activity";
-import { listChildTasks } from "./children";
 import { type ChatId } from "../../schemas/chat-id";
 
 /**
@@ -46,11 +43,13 @@ export async function askWindow({
   const timer = setTimeout(() => {
     controller.abort();
   }, timeoutMs);
+  const window = getWorkspaceConfig().windowForChat?.(group);
   publisher.publish("window.tab", {
     action,
     id: askedBy,
     requestId,
     ...(group ? { chatId: group } : {}),
+    ...(window === undefined ? {} : { window }),
   });
   try {
     for await (const answer of answers) {
@@ -98,40 +97,4 @@ export async function requestWindowTab({
   });
   const tabId = StoreId.TabSchema.safeParse(answer?.tabId);
   return tabId.success ? tabId.data : undefined;
-}
-
-/**
- * The tasks of a chat at work in each of its tabs, by the tab's id: what
- * lets the conversation see whose page a tab is before it closes or replaces
- * it. A task that has finished holds nothing here.
- */
-export async function tabHolders(
-  chatId: ChatId,
-): Promise<Map<string, { id: string; title: string }>> {
-  const holders = new Map<string, { id: string; title: string }>();
-  const working = await listChildTasks(chatId, (id) =>
-    isWorkingNow(chatId, id),
-  );
-  if (working.length === 0) {
-    return holders;
-  }
-  const { browserTabs } = await getChatState(chatDir(chatId));
-  for (const task of working) {
-    for (const held of browserTabs) {
-      if (held.driver === task.id) {
-        // By its handle, which is what the conversation steers it by.
-        holders.set(held.id, { id: task.handle, title: task.title });
-      }
-    }
-  }
-  return holders;
-}
-
-/** Whether a task is working, or false where no workspace is running to ask. */
-function isWorkingNow(chatId: ChatId, sessionId: StoreId.Session): boolean {
-  try {
-    return isWorking(chatId, sessionId);
-  } catch {
-    return false;
-  }
 }

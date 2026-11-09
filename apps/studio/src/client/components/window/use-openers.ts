@@ -1,5 +1,3 @@
-import { BROWSER_HREF } from "@/client/atoms/window";
-import { getTabRouter } from "@/client/lib/tab-router-registry";
 import { takeKeyboardOnArrival } from "@/client/lib/browser-pool";
 import { rpcClient } from "@/client/rpc/client";
 import { fileHref, folderHref } from "@/shared/computer-href";
@@ -7,7 +5,7 @@ import {
   type ChatId,
   browserTargetOf,
   isFolderPath,
-  StoreId,
+  type StoreId,
   WINDOW_ID,
   type WindowTabAnswer,
   type WindowTabRequest,
@@ -18,13 +16,13 @@ import { useEffect, useRef } from "react";
 import { toast } from "@/client/lib/toast";
 
 import {
-  isSiteGroup,
   newSiteGroup,
+  openInNewWindow,
   pageHrefOf,
   type useAppTabs,
 } from "./app-tabs";
 import { type BrowserTabsHandle } from "./browser-tabs";
-import { type Chat } from "./chats";
+import { chatListOptions } from "./chat-list-query";
 import { type OpenOptions } from "./context";
 import { isGroupShown } from "./draft-context";
 import { openMenuLink } from "./menu-link";
@@ -58,7 +56,6 @@ import { newScreenId, type useWindowTabs } from "./window-tabs";
 export function useOpeners({
   appTabs,
   browser,
-  chats,
   chatTitles,
   isOpen,
   paneOpenByGroup,
@@ -70,8 +67,6 @@ export function useOpeners({
   appTabs: ReturnType<typeof useAppTabs>;
   /** The window's browser; null until it is mounted. */
   browser: BrowserTabsHandle | null;
-  /** The chats the window has, once the list has been read. */
-  chats: Chat[] | undefined;
   chatTitles: Map<ChatId, string>;
   /** Whether what the window opens on is made; nothing is opened before it is. */
   isOpen: boolean;
@@ -112,6 +107,12 @@ export function useOpeners({
    * behind. Opened into the group on screen, it brings the pane up.
    */
   const openPage = (url: string, options: OpenOptions = {}) => {
+    if (options.newWindow) {
+      const group = newSiteGroup();
+      const id = browser?.open(url, { group });
+      openInNewWindow(pageHrefOf(group));
+      return id;
+    }
     const placement = pagePlacementOf(options, placing);
     switch (placement.kind) {
       case "group-behind": {
@@ -163,13 +164,21 @@ export function useOpeners({
       case "window-tab": {
         const group = newSiteGroup();
         const id = browser?.open(url, { group });
-        appTabs.open(pageHrefOf(group), { select: !placement.behind });
+        appTabs.open(pageHrefOf(group), {
+          newTab: true,
+          select: !placement.behind,
+        });
         return id;
       }
     }
   };
   const openScreen = (href: string, options: OpenOptions = {}): void => {
-    const { behind = false, group: into, newTab = false } = options;
+    const {
+      behind = false,
+      group: into,
+      here = false,
+      newTab = false,
+    } = options;
     // A chat named by its session, as an older reply's link names it,
     // opens at the chat that session is.
     const session = chatSessionOfHref(href);
@@ -198,6 +207,7 @@ export function useOpeners({
     // among the chats the window has: a whole id that names none of them
     // is a link to a chat since deleted, not a chat with nothing in it.
     // Until the list has been read, a whole id is taken on its own.
+    const chats = queryClient.getQueryData(chatListOptions().queryKey);
     const chat = chats
       ? (chatOfHrefPrefix(href, chatTitles.keys()) ??
         chatOfSessionPrefix(href, chats))
@@ -205,7 +215,13 @@ export function useOpeners({
     if (chat) {
       // A chat is a place a tab stands: the tab up goes there, a step on in
       // its history, and the chat comes up at the tab it last had up.
-      appTabs.go(chatHref(chat), { behind, newTab });
+      if (options.newWindow) {
+        openInNewWindow(chatHref(chat));
+      } else if (here && !newTab) {
+        appTabs.navigate(chatHref(chat));
+      } else {
+        appTabs.go(chatHref(chat), { behind, newTab });
+      }
       return;
     }
     const screen = matchScreen(href);
@@ -260,7 +276,21 @@ export function useOpeners({
       });
       if (placement.kind === "in-place") {
         revealPane();
-        windowTabs.navigateScreen(at);
+        if (!windowTabs.selectShowing(at)) {
+          windowTabs.navigateScreen(at);
+        }
+        return;
+      }
+      // In a window of its own, the chat comes up there at its task, which
+      // is up in the chat's group every window shares.
+      if (options.newWindow) {
+        windowTabs.openOrFocusScreen(at, {
+          group: owner,
+          isOpened: true,
+          select: true,
+        });
+        setPaneOpen(owner, true);
+        openInNewWindow(chatHref(owner));
         return;
       }
       // In a tab of the window's own, the chat comes up there at its tasks.
@@ -281,6 +311,10 @@ export function useOpeners({
       sayNoChat();
       return;
     }
+    if (options.newWindow) {
+      openInNewWindow(href);
+      return;
+    }
     const placement = screenPlacementOf(href, options, placing);
     switch (placement.kind) {
       case "group-behind": {
@@ -296,14 +330,17 @@ export function useOpeners({
       }
       case "group-navigate": {
         // A file opened from a Finder takes the Finder's place in its tab,
-        // the way a folder does, and back returns to the folder.
+        // the way a folder does, and back returns to the folder, unless
+        // another of the chat's tabs already shows it.
         revealPane();
-        windowTabs.navigateScreen(href);
+        if (here || !windowTabs.selectShowing(href)) {
+          windowTabs.navigateScreen(href);
+        }
         return;
       }
       case "group-open": {
         revealPane();
-        windowTabs.openScreen(href);
+        windowTabs.openOrFocusScreen(href);
         return;
       }
       case "group-own-tab": {
@@ -312,11 +349,15 @@ export function useOpeners({
         return;
       }
       case "window-navigate": {
-        appTabs.navigate(href);
+        if (here) {
+          appTabs.navigate(href);
+        } else {
+          appTabs.go(href);
+        }
         return;
       }
       case "window-tab": {
-        appTabs.open(href, { select: !placement.behind });
+        appTabs.open(href, { newTab: true, select: !placement.behind });
         return;
       }
     }
@@ -414,58 +455,6 @@ export function useOpeners({
         setPaneOpen(into, true);
       }
       return { tabId };
-    }
-    if (action.kind === "adopt") {
-      const id = StoreId.TabSchema.safeParse(action.tabId);
-      if (group === undefined || !id.success) {
-        return { error: "only a chat's page can be given a tab." };
-      }
-      browser?.adopt(id.data, action.url, group);
-      return { tabId: id.data };
-    }
-    if (action.kind === "theirs" || action.kind === "take") {
-      const theirs = windowTabs.allTabs.find(
-        (entry) =>
-          entry.id === action.tabId &&
-          entry.kind === "page" &&
-          (entry.group === undefined || isSiteGroup(entry.group)),
-      );
-      if (theirs?.kind !== "page") {
-        return {
-          error: `no tab ${action.tabId} of the user's is open outside a chat.`,
-        };
-      }
-      if (action.kind === "theirs") {
-        return {
-          tabs: [
-            {
-              id: theirs.id,
-              kind: "page" as const,
-              title: theirs.title ?? "",
-              url: theirs.url ?? "about:blank",
-            },
-          ],
-        };
-      }
-      if (group === undefined) {
-        return { error: "only a chat can be given a tab." };
-      }
-      // The window tab that showed the page goes back to the Browser's
-      // start, still a browser of the person's, and the page itself, guest
-      // and all, becomes the chat's tab, up in its pane. Nothing else on
-      // screen moves.
-      const site = theirs.group;
-      const shownIn =
-        site === undefined
-          ? undefined
-          : appTabs.model.tabs.find((tab) => tab.pathname === pageHrefOf(site));
-      if (shownIn) {
-        getTabRouter(shownIn.id)?.history.replace(BROWSER_HREF);
-      }
-      windowTabs.moveToGroup(theirs.id, group);
-      windowTabs.select(theirs.id);
-      setPaneOpen(group, true);
-      return { tabId: theirs.id };
     }
     if (action.kind === "list") {
       if (group === undefined) {
@@ -571,18 +560,32 @@ export function useOpeners({
    */
   const openFromPage = ({
     background,
+    newWindow = false,
+    tabId,
     targetId,
     url,
   }: {
     background: boolean;
+    newWindow?: boolean;
+    tabId?: StoreId.Tab;
     targetId: string;
     url: string;
   }) => {
+    // A window of its own has the page on its own, whichever chat's page
+    // asked for it.
+    if (newWindow) {
+      openPage(url, { newWindow });
+      return;
+    }
     const chat = chatOfAskingPage(targetId, windowTabs.allTabs);
     if (chat === undefined) {
+      // A page in no chat is the person's own, which no agent drives, so a
+      // `tabId` it carries names no result: the workspace names a popup only
+      // to the session that worked in the page, and sessions work in their
+      // chat's tabs alone.
       openPage(url, { behind: background, newTab: true });
     } else if (background) {
-      browser?.openBehind(url, chat);
+      browser?.openBehind(url, chat, tabId);
     } else {
       openPage(url, { group: chat, ownTab: true, show: true });
     }
@@ -595,19 +598,12 @@ export function useOpeners({
   // A link in text being edited, opened from the window's native menu.
   useEffect(() => {
     const controller = new AbortController();
-    void (async () => {
-      try {
-        const asks = await rpcClient.window.events.openMenuLink.call(
-          undefined,
-          { signal: controller.signal },
-        );
-        for await (const ask of asks) {
-          openMenuLink(ask);
-        }
-      } catch {
-        // The window closing ends the stream.
-      }
-    })();
+    void eachSent(
+      (signal) =>
+        rpcClient.window.events.openMenuLink.call(undefined, { signal }),
+      controller.signal,
+      openMenuLink,
+    );
     return () => {
       controller.abort();
     };
@@ -615,19 +611,14 @@ export function useOpeners({
   // A link a person asked a page for in a tab of its own.
   useEffect(() => {
     const controller = new AbortController();
-    void (async () => {
-      try {
-        const asks = await rpcClient.browser.events.openInNewTab.call(
-          undefined,
-          { signal: controller.signal },
-        );
-        for await (const ask of asks) {
-          openers.current.openFromPage(ask);
-        }
-      } catch {
-        // The window closing ends the stream.
-      }
-    })();
+    void eachSent(
+      (signal) =>
+        rpcClient.browser.events.openInNewTab.call(undefined, { signal }),
+      controller.signal,
+      (ask) => {
+        openers.current.openFromPage(ask);
+      },
+    );
     return () => {
       controller.abort();
     };
@@ -637,26 +628,21 @@ export function useOpeners({
       return;
     }
     const controller = new AbortController();
-    void (async () => {
-      try {
-        const asks = await rpcClient.workspace.window.events.tab.call(
-          undefined,
-          { signal: controller.signal },
-        );
-        for await (const request of asks) {
-          const answer = await openers.current.actOnTab(request);
-          // The answer goes back to the command that asked, so the
-          // conversation can hand a tab to a task, or say what went wrong,
-          // without waiting for the next message's note.
-          void rpcClient.workspace.window.tabDone.call({
-            requestId: request.requestId,
-            ...answer,
-          });
-        }
-      } catch {
-        // The window closing ends the stream.
-      }
-    })();
+    void eachSent(
+      (signal) =>
+        rpcClient.workspace.window.events.tab.call(undefined, { signal }),
+      controller.signal,
+      async (request) => {
+        const answer = await openers.current.actOnTab(request);
+        // The answer goes back to the command that asked, so the
+        // conversation can hand a tab to a task, or say what went wrong,
+        // without waiting for the next message's note.
+        void rpcClient.workspace.window.tabDone.call({
+          requestId: request.requestId,
+          ...answer,
+        });
+      },
+    );
     return () => {
       controller.abort();
     };
@@ -675,4 +661,22 @@ function sayNoChat() {
   toast("No chat at that address", {
     description: "It may have been deleted, or the link is not for this chat.",
   });
+}
+
+/**
+ * Hands on each thing an event stream sends, one at a time, until the stream
+ * ends or `signal` stops it.
+ */
+async function eachSent<T>(
+  start: (signal: AbortSignal) => Promise<AsyncIterable<T>>,
+  signal: AbortSignal,
+  onEach: (sent: T) => Promise<void> | void,
+) {
+  try {
+    for await (const sent of await start(signal)) {
+      await onEach(sent);
+    }
+  } catch {
+    // The window closing ends the stream.
+  }
 }

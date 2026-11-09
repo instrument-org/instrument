@@ -92,16 +92,17 @@ function pruneOldLogs() {
   }
 }
 
+/** Writes one entry, and says how many bytes it wrote: none when dropped. */
 export function writeDevLogEntry(
   level: string,
   args: unknown[],
   { scope, source }: { scope?: string; source?: string } = {},
 ) {
   if (!logStream) {
-    return;
+    return 0;
   }
   if (logStream.writableLength >= MAX_PENDING_BYTES) {
-    return;
+    return 0;
   }
 
   const entry: Record<string, unknown> = {
@@ -147,15 +148,16 @@ export function writeDevLogEntry(
   }
   const bytes = Buffer.byteLength(line) + 1;
   if (logStream.writableLength + bytes > MAX_PENDING_BYTES) {
-    return;
+    return 0;
   }
   if (bytesWritten + bytes > MAX_LOG_FILE_BYTES) {
     logStream.end();
     logStream = undefined;
-    return;
+    return 0;
   }
   bytesWritten += bytes;
   logStream.write(line + "\n");
+  return bytes;
 }
 
 function serializeArg(arg: unknown): unknown {

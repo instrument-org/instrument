@@ -23,7 +23,7 @@ import { appBundleId, appLevel, appRefusal } from "../lib/permissions/apps";
 import {
   APP_COMMAND,
   APPS_ARE_THE_CHATS,
-} from "../lib/shell-commands/app-command";
+} from "../model-text/commands/app-command";
 import { sessionRole } from "../lib/chat/children";
 import { chatRules } from "../lib/permissions/chat-rules";
 import { reachOf } from "../lib/permissions/rules";

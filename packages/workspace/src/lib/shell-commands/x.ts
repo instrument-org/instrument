@@ -1,8 +1,8 @@
 import { generatedCommand } from "../capabilities/cli";
 import { type CapabilityScope } from "../capabilities/context";
-import { X_COMMAND } from "./x-command";
+import { X_COMMAND } from "../../model-text/commands/x-command";
 
-export { X_COMMAND } from "./x-command";
+export { X_COMMAND } from "../../model-text/commands/x-command";
 
 /** `instrument x`: its subcommands are the registry's `x.*` capabilities. */
 export function createXCommand(scope: CapabilityScope) {

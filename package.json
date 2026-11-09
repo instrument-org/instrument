@@ -65,7 +65,7 @@
   },
   "packageManager": "pnpm@11.28.0",
   "engines": {
-    "node": ">=24.22.0"
+    "node": ">=24.22.2"
   },
   "publishConfig": {
     "provenance": true
@@ -74,7 +74,7 @@
     "runtime": {
       "name": "node",
       "onFail": "download",
-      "version": "24.22.0"
+      "version": "24.22.2"
     }
   }
 }

@@ -133,9 +133,12 @@ export const WINDOW_MENU_SHORTCUTS = {
   actualSize: { accelerator: "CmdOrCtrl+0", label: "Actual Size" },
   closeWindow: { accelerator: "Shift+CmdOrCtrl+W", label: "Close Window" },
   lastTab: { accelerator: "CmdOrCtrl+9", label: "Last Tab" },
-  // Ctrl+Q off the Mac, Windows included, whose quit role Electron gives no
-  // chord. Alt+F4 quits there too, by closing the last window.
-  quit: { accelerator: "CmdOrCtrl+Q", label: "Quit" },
+  // Cmd+N is a new chat, as it is a new message in mail, so a window takes
+  // Shift, as it does in a code editor and in Notion.
+  newWindow: { accelerator: "Shift+CmdOrCtrl+N", label: "New Window" },
+  // No chord on Windows, as Electron's quit role leaves it: Alt+F4 is how an
+  // app closes there, and Ctrl+Q sits beside Ctrl+W and Tab.
+  quit: { accelerator: "CmdOrCtrl+Q", label: "Quit", noChordOnWindows: true },
   // Stands for eight chords, one per tab, which the menu spells out itself;
   // written the way the guide reads it.
   tabByPlace: { accelerator: "CmdOrCtrl+1…8", label: "Tab 1 to 8" },
@@ -152,7 +155,7 @@ export const WINDOW_MENU_SHORTCUTS = {
   zoomOut: { accelerator: "CmdOrCtrl+-", label: "Zoom Out" },
 } as const satisfies Record<
   string,
-  { accelerator: ShortcutAccelerator; label: string }
+  { accelerator: ShortcutAccelerator; label: string; noChordOnWindows?: true }
 >;
 
 export type WindowMenuShortcutId = keyof typeof WINDOW_MENU_SHORTCUTS;

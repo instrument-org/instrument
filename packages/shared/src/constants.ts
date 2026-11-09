@@ -119,6 +119,10 @@ export const SANDBOX_OFF_URL = `${APP_REPO_URL}/blob/main/docs/architecture/nati
 // What the notice for web pages running without Chromium's sandbox links to.
 export const BROWSER_SANDBOX_OFF_URL = `${SANDBOX_OFF_URL}#when-web-pages-have-no-sandbox`;
 export const SUPPORT_URL = `https://${APP_DOMAIN}/support`;
+// Where customers ask for help, as the website names it.
+export const SUPPORT_EMAIL = `support@${APP_DOMAIN}`;
+// The company that publishes the app, as its copyright line names it.
+export const COMPANY_NAME = "Finalpoint, LLC";
 export const MANUAL_DOWNLOAD_URL = `${APP_URL}/download`;
 export const AI_GATEWAY_API_KEY_NOT_NEEDED = "NOT_NEEDED";
 // Identity every commit the agent makes is authored and committed under, so a
@@ -139,10 +143,18 @@ export const APP_VELOPACK_ID =
 // The Windows update feed, beside electron-updater's manifests.
 export const VELOPACK_FEED_URL = `${RELEASES_BUCKET_URL}/velopack`;
 /**
- * The subject every Windows executable Instrument ships is signed under. The
- * certificate has been issued in both casings, so a comparison folds case.
+ * The subjects a Windows executable Instrument ships may be signed under. The
+ * certificate has been issued in both casings, so a comparison folds case. Old
+ * Habit Software, LLC is the company's next name: an installed build accepts an
+ * update only from a publisher it already lists, so the name ships here before
+ * any certificate carries it.
  */
-export const WINDOWS_PUBLISHER_NAMES = ["Finalpoint, LLC", "FINALPOINT, LLC"];
+export const WINDOWS_PUBLISHER_NAMES = [
+  "Finalpoint, LLC",
+  "FINALPOINT, LLC",
+  "Old Habit Software, LLC",
+  "OLD HABIT SOFTWARE, LLC",
+];
 export const PRIVATE_FOLDER_NAME = `.instrument`;
 
 /**

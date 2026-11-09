@@ -16,12 +16,12 @@ import { StoreId } from "../../schemas/store-id";
 import { createMockChatConfig } from "../../test/helpers/mock-chat-config";
 import { writeMessage } from "../../test/helpers/told-history";
 import { ChatWrites } from "../chat-writes";
-import { questionAnswerModelNote } from "../question-answer-model-text";
+import { questionAnswerModelNote } from "../../model-text/notes/question-answer-model-text";
 import { sessionOfChat } from "../record-folders";
 import { getWorkspaceConfig, setWorkspaceConfig } from "../workspace-config";
 import { openAsks } from "../chat/open-asks";
 import { recordSignIn, waitInChat } from "../chat/asks";
-import { driveAsks, openSignInsOf } from "../chat/drive-asks";
+import { driveAsks, driveOwedAsks, openSignInsOf } from "../chat/drive-asks";
 import { chatDir } from "../record-folders";
 import { ChatRecords, writingChatRecords } from "../records/chat-records";
 import { newDeviceId } from "../records/device-id";
@@ -533,5 +533,28 @@ describe("Not now from another computer", () => {
     expect(await openAsks(chatId)).toEqual([]);
     expect(wakes().filter((wake) => wake.chatId === chatId)).toHaveLength(1);
     expect(writes).toBeLessThan(8);
+  });
+});
+
+describe("a launch after a sign-in finished as the app quit", () => {
+  it("settles the card the connection already answers, quietly", async () => {
+    woken.mockClear();
+    const { chatId } = await chatWithCard({ apps: [["linear", "Linear"]] });
+    // Saved as connected, with the app gone before its event went out.
+    await setStatus("linear", "connected");
+
+    await driveOwedAsks({} as WorkspaceActorRef);
+
+    expect(await openAsks(chatId)).toEqual([]);
+    expect(
+      woken.mock.calls
+        .filter(([, , woke]) => woke === chatId)
+        .map(([events, , , extra]) => [events, extra]),
+    ).toEqual([
+      [
+        [expect.objectContaining({ event: "connected", slug: "linear" })],
+        expect.objectContaining({ quiet: true }),
+      ],
+    ]);
   });
 });

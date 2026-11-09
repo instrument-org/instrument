@@ -65,7 +65,7 @@ Chats stop writing `data-attachments.files` for disk-backed items; their files r
 
 No migration. Old messages keep their copies and render as they do. An old chat whose referenced file has moved, or whose folder is no longer in reach, asks for it again through `request_folder`; that is expected, not a regression.
 
-Consumers to update with it: `attachments-card.tsx` and the chip row in `chat-stream.tsx`, `handedFiles` in `task.ts`, the files list in `orchestrator/chats.ts`, `session-to-markdown.ts`, `generate-title-from-user-message.ts`, `message-gap.ts`, the `<uploaded_files>` text in `message.ts` (pasted content only, for chats), and the test helpers and debug scenarios.
+Consumers to update with it: `sent-file-chips.tsx` and the chip row in `chat-stream.tsx`, `handedFiles` in `task.ts`, the files list in `orchestrator/chats.ts`, `session-to-markdown.ts`, `generate-title-from-user-message.ts`, `message-gap.ts`, the `<uploaded_files>` text in `message.ts` (pasted content only, for chats), and the test helpers and debug scenarios.
 
 ## Open issue found on the way
 

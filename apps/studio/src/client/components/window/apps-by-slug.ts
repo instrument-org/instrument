@@ -27,7 +27,7 @@ type AppOfSlug = {
 export function useAppsBySlug(): AppsBySlug {
   const apps = useQuery(rpcClient.apps.live.list.experimental_liveOptions());
   const catalog = useQuery(
-    rpcClient.apps.live.catalog.experimental_liveOptions(),
+    rpcClient.apps.live.catalogMarks.experimental_liveOptions(),
   );
   return new Map<string, AppOfSlug>([
     ...(catalog.data ?? []).map(

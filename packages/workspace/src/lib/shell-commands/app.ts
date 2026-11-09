@@ -2,10 +2,10 @@ import { APP_MANIFEST_EXAMPLE } from "../apps/manifest";
 import { generatedCommand } from "../capabilities/cli";
 import { type CapabilityScope } from "../capabilities/context";
 import { scriptSurfaceOpen } from "../capabilities/script-surface";
-import { APP_COMMAND } from "./app-command";
+import { APP_COMMAND } from "../../model-text/commands/app-command";
 import { NODE_COMMAND } from "./node";
 
-export { APP_COMMAND } from "./app-command";
+export { APP_COMMAND } from "../../model-text/commands/app-command";
 
 /** What `app` needs from the `bash` call it runs inside: its chat, session, model and role. */
 export type AppCommandContext = CapabilityScope;

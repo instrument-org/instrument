@@ -12,6 +12,7 @@ import {
   sitesView,
   contextTokensView,
   conversationView,
+  developerHistoryView,
   everyMessageView,
   listView,
   liveView,
@@ -74,6 +75,20 @@ export namespace ChatReads {
   }
 
   /**
+   * That history with the parts kept for a developer alone, for what reads
+   * beside the transcript and for what those parts remember of themselves.
+   */
+  export function developerHistory({
+    chatId,
+    sessionId,
+  }: {
+    chatId: ChatId;
+    sessionId: StoreId.Session;
+  }): ResultAsync<SessionMessage.WithParts[], Failure> {
+    return read(chatId).map((chat) => developerHistoryView(chat, sessionId));
+  }
+
+  /**
    * The ids of the session's own messages, oldest first: for a reader that
    * only has to place a message among them, or count them. A task's carry
    * none of its chat's, which is what tells an empty task from a started
@@ -99,18 +114,22 @@ export namespace ChatReads {
    * `only` reads the named messages alone, for a reader following a change
    * to them. `bytes` is for a reader that shows what a call returned, and
    * reads those bytes back from the blobs that hold them; a reader that does
-   * not show them spends no read on one.
+   * not show them spends no read on one. `live: false` leaves the running
+   * turn out, for a reader that keeps what it derives as though the records
+   * said it.
    */
   export function transcript({
     bytes = false,
     chatId,
     inherited,
+    live = true,
     only,
     sessionId,
   }: {
     bytes?: boolean;
     chatId: ChatId;
     inherited?: boolean;
+    live?: boolean;
     only?: ReadonlySet<StoreId.Message>;
     sessionId: StoreId.Session;
   }): ResultAsync<SessionMessage.WithParts[], Failure> {
@@ -123,7 +142,7 @@ export namespace ChatReads {
             steps,
             // The running turn is this process's own memory, and stands over
             // what has been written.
-            liveView(chat, sessionId, { only }),
+            live ? liveView(chat, sessionId, { only }) : [],
           ),
         ),
         storageError,

@@ -46,6 +46,11 @@ export function NotificationsBell() {
   const markSeen = useMutation(rpcClient.notices.markSeen.mutationOptions());
   const appTabs = useAppTabs();
   const openAction = (notice: BellNotice) => {
+    // Acting on a notice from its toast has shown it, so the bell's dot for
+    // it goes too.
+    if (!notice.seen) {
+      markSeen.mutate({ ids: [notice.id] });
+    }
     if (notice.action && "settings" in notice.action) {
       setOpen(false);
       openSettings({

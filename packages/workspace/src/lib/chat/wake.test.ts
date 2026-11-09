@@ -16,11 +16,11 @@ import { recordAsk } from "./asks";
 import { ChatReads } from "../chat-reads";
 import { ChatWrites } from "../chat-writes";
 import { sessionOfChat } from "../record-folders";
-import { taskEventModelNote } from "../task-event-model-text";
+import { taskEventModelNote } from "../../model-text/notes/task-event-model-text";
 import { getWorkspaceConfig, setWorkspaceConfig } from "../workspace-config";
 import { leftRunning } from "./activity";
 import { childTask } from "./children";
-import { taskStanding } from "./standing";
+import { taskStatus } from "./task-status";
 import {
   noteTaskStoppedOnCard,
   noteTasksInterruptedByQuit,
@@ -341,7 +341,7 @@ describe("a task whose request timed out", () => {
     });
     expect(event).not.toHaveProperty("stoppedBy");
     expect(
-      await taskStanding({ chatId, isRunning: false, sessionId: taskSession }),
+      await taskStatus({ chatId, isRunning: false, sessionId: taskSession }),
     ).toEqual({ kind: "failed", line: "Timed out while reading the vault" });
   });
 });
@@ -438,7 +438,7 @@ describe("a task whose turn ended on a card", () => {
       </instrument-system-note>"
     `);
     expect(
-      await taskStanding({ chatId, isRunning: false, sessionId: taskSession }),
+      await taskStatus({ chatId, isRunning: false, sessionId: taskSession }),
     ).toEqual({ kind: "waiting", line: "Waiting for your OK to use “Pantry”" });
   });
 });
@@ -592,7 +592,7 @@ describe("a task the app's quit cut off", () => {
 
     // The relaunched app reads the task from its store alone.
     expect(
-      await taskStanding({ chatId, isRunning: false, sessionId: taskSession }),
+      await taskStatus({ chatId, isRunning: false, sessionId: taskSession }),
     ).toMatchInlineSnapshot(`
       {
         "kind": "failed",

@@ -100,7 +100,7 @@ describe("stateNotes", () => {
     expect(said(tabs([]))).toMatchInlineSnapshot(`
       "
       <instrument-system-note>
-      Your browser has no tabs of the user's chat now.
+      This chat has no tabs open now.
       </instrument-system-note>"
     `);
   });

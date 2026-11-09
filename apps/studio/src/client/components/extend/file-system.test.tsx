@@ -1028,6 +1028,39 @@ describe("a folder beside an open file", () => {
     expect(row.getAttribute("aria-selected")).toBe("true");
   });
 
+  it("comes back to the first column from a folder the caller stands in", () => {
+    let standIn: (step: { path: string; selected: string }) => void = () => {};
+    const HeldPath = () => {
+      const [step, setStep] = React.useState({ path: "", selected: "docs/" });
+      standIn = setStep;
+      return (
+        <FileSystem
+          besideWidth={300}
+          defaultView="columns"
+          items={NESTED}
+          onWalk={(path) => {
+            setStep({ path, selected: "" });
+          }}
+          path={step.path}
+          selectedPath={step.selected || null}
+          title="The top"
+        />
+      );
+    };
+    renderWithProviders(<HeldPath />);
+    // Walked into the folder from the top, a file in it open beside.
+    act(() => {
+      standIn({ path: "docs/", selected: "docs/inner.txt" });
+    });
+    expect(rowOf("notes.txt")).toBeUndefined();
+
+    spot += 50;
+    fireEvent.click(screen.getByRole("button", { name: "The top" }), {
+      clientX: spot,
+    });
+    expect(rowOf("notes.txt")).toBeTruthy();
+  });
+
   it("stays put on one click with no file open", () => {
     renderBeside({ besideWidth: undefined });
     clickRow("docs");
@@ -1502,6 +1535,33 @@ describe("the keyboard", () => {
       ).toEqual(["Docs/alpha.txt"]);
     });
 
+    it("answers what is about the folder in one with no rows", () => {
+      const onMoveHere = vi.fn();
+      const onNewFolder = vi.fn();
+      renderWithProviders(
+        <FileSystem
+          defaultView="table"
+          items={[]}
+          onMoveHere={onMoveHere}
+          onNewFolder={onNewFolder}
+        />,
+      );
+      const browser =
+        document.querySelector("[data-slot=file-system]") ??
+        expect.unreachable("no browser");
+
+      fireEvent.keyDown(browser, {
+        altKey: true,
+        code: "KeyV",
+        key: "√",
+        metaKey: true,
+      });
+      fireEvent.keyDown(browser, { key: "N", metaKey: true, shiftKey: true });
+
+      expect(onMoveHere).toHaveBeenCalledOnce();
+      expect(onNewFolder).toHaveBeenCalledOnce();
+    });
+
     it("leaves the window's own key to it", () => {
       const heard = vi.fn();
       const onKeyDown = (event: KeyboardEvent) => {
@@ -1519,6 +1579,19 @@ describe("the keyboard", () => {
       expect(heard).toHaveBeenCalledWith("?");
       expect(reported()).toEqual(["a.txt"]);
     });
+  });
+
+  it("keeps one empty stripe past the last row, where a press lets go", () => {
+    const { reported, row } = renderList();
+    fireEvent.click(row("a.txt"));
+    const listing =
+      document.querySelector("[data-file-system-listing]") ??
+      expect.unreachable("no listing");
+    const stripes = listing.parentElement ?? expect.unreachable("no stripes");
+
+    expect(stripes.style.height).toBe(`${(FILES.length + 1) * 24}px`);
+    fireEvent.pointerDown(stripes, { button: 0 });
+    expect(reported()).toEqual([]);
   });
 
   it("does not narrow several to one after an arrow has moved the selection", () => {

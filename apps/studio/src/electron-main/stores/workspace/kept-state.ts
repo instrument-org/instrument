@@ -1,14 +1,19 @@
 import { workspaceWindowDir } from "@/electron-main/lib/get-workspace-folder";
+import { appWindowIdOf } from "@/electron-main/windows/app-window-ids";
 import {
   isKeptFile,
-  KEPT_FILES,
   KEPT_STATE_CHANNEL,
   type KeptFile,
   type KeptSnapshot,
+  SHARED_KEPT_FILES,
+  WINDOW_KEPT_FILE,
+  WINDOW_KEPT_KEYS,
+  WINDOW_TABS_KEY,
 } from "@/shared/kept-state";
 import { BrowserWindow, ipcMain } from "electron";
 import fs from "node:fs";
 import path from "node:path";
+import { z } from "zod";
 
 import { logger } from "../../lib/electron-logger";
 
@@ -16,17 +21,20 @@ import { logger } from "../../lib/electron-logger";
 const WRITE_DELAY_MS = 250;
 
 /**
- * The windows' kept state as JSON files, one object of keys per file in
- * `KEPT_FILES`, each in the folder `dirOf` names for it. Read whole on first use, through `readAs` for a file
- * whose keys are read back in a shape of their own; a write lands in memory
+ * The windows' kept state as JSON files, one object of keys per file, each in
+ * the folder `dirOf` names for it. Read whole on first use; a write lands in memory
  * at once and on disk a beat later, each file replaced by rename so a crash
  * mid-write leaves the old file rather than half of the new one.
  */
 export function createKeptStateStore(
   dirOf: (file: KeptFile) => string,
-  readAs: Partial<
-    Record<KeptFile, (keys: Record<string, unknown>) => Record<string, unknown>>
-  > = {},
+  {
+    keptFiles = SHARED_KEPT_FILES,
+    nameOf = keptFileName,
+  }: {
+    keptFiles?: readonly KeptFile[];
+    nameOf?: (file: KeptFile) => string;
+  } = {},
 ) {
   let files: Map<KeptFile, Record<string, unknown>> | null = null;
   const dirty = new Set<KeptFile>();
@@ -34,48 +42,55 @@ export function createKeptStateStore(
   const unreadable = new Set<KeptFile>();
   let timer: ReturnType<typeof setTimeout> | undefined;
 
-  const pathOf = (file: KeptFile) => path.join(dirOf(file), keptFileName(file));
+  const pathOf = (file: KeptFile) => path.join(dirOf(file), nameOf(file));
 
   const loaded = () => {
     if (files) {
       return files;
     }
     files = new Map();
-    for (const file of KEPT_FILES) {
+    for (const file of keptFiles) {
       const read = readObject(pathOf(file));
       if (read === undefined) {
         unreadable.add(file);
       }
-      const keys = read ?? {};
-      files.set(file, readAs[file]?.(keys) ?? keys);
+      files.set(file, read ?? {});
     }
     return files;
   };
 
+  /** Writes what is waiting, and says whether all of it reached the disk. */
   const flush = () => {
     clearTimeout(timer);
     timer = undefined;
-    if (dirty.size === 0) {
-      return;
-    }
+    let isWritten = true;
     for (const file of dirty) {
       const target = pathOf(file);
       if (unreadable.has(file)) {
         logger.warn(
           `Not writing kept state over ${target}, which could not be read`,
         );
+        isWritten = false;
         continue;
       }
       try {
         writeObject(target, loaded().get(file) ?? {});
       } catch (error) {
         logger.error(`Could not write kept state to ${target}`, error);
+        isWritten = false;
       }
     }
     dirty.clear();
+    return isWritten;
   };
 
   return {
+    /** Drops what is waiting to be written, for a file about to be removed. */
+    discard: () => {
+      clearTimeout(timer);
+      timer = undefined;
+      dirty.clear();
+    },
     flush,
     get: (file: KeptFile, key: string): unknown => loaded().get(file)?.[key],
     set: (file: KeptFile, key: string, value: unknown) => {
@@ -93,6 +108,9 @@ export function createKeptStateStore(
     snapshot: (): KeptSnapshot => Object.fromEntries(loaded()),
   };
 }
+
+/** Where each window's own file lives, beside the files every window shares. */
+const WINDOWS_FOLDER = "windows";
 
 /** What a kept file is called in the folder it lives in. */
 function keptFileName(file: KeptFile): string {
@@ -129,7 +147,25 @@ export function rewriteFolderAddresses(
   windowDir: string,
   where: (hostPath: string) => string,
 ): string[] {
-  const file = path.join(windowDir, keptFileName("layout"));
+  const windowsDir = path.join(windowDir, WINDOWS_FOLDER);
+  let windowFiles: string[] = [];
+  try {
+    windowFiles = fs
+      .readdirSync(windowsDir)
+      .filter((name) => name.endsWith(".json"))
+      .map((name) => path.join(windowsDir, name));
+  } catch {
+    // A workspace no window of this build has opened has none.
+  }
+  return [path.join(windowDir, keptFileName("layout")), ...windowFiles].flatMap(
+    (file) => rewriteAddressesIn(file, where),
+  );
+}
+
+function rewriteAddressesIn(
+  file: string,
+  where: (hostPath: string) => string,
+): string[] {
   let rewritten = 0;
   const visit = (value: unknown): unknown => {
     if (typeof value === "string") {
@@ -240,30 +276,188 @@ function getStore() {
   return STORE;
 }
 
+const windowStores = new Map<string, ReturnType<typeof createKeptStateStore>>();
+
+/** The first window of a workspace, and the one every earlier build's state belongs to. */
+export const FIRST_APP_WINDOW_ID = "app";
+
+/**
+ * What one window keeps for itself, in a file named for it. The window an
+ * earlier build opened as the only one takes what that build kept in `layout`
+ * the first time it is asked for.
+ */
+function windowStoreOf(windowId: string) {
+  const known = windowStores.get(windowId);
+  if (known) {
+    return known;
+  }
+  const store = createKeptStateStore(
+    () => path.join(workspaceWindowDir(), WINDOWS_FOLDER),
+    {
+      keptFiles: [WINDOW_KEPT_FILE],
+      nameOf: () => `${windowId}.json`,
+    },
+  );
+  windowStores.set(windowId, store);
+  if (windowId === FIRST_APP_WINDOW_ID) {
+    const earlier = WINDOW_KEPT_KEYS.filter(
+      (key) => getStore().get("layout", key) !== undefined,
+    );
+    for (const key of earlier) {
+      if (store.get(WINDOW_KEPT_FILE, key) === undefined) {
+        store.set(WINDOW_KEPT_FILE, key, getStore().get("layout", key));
+      }
+    }
+    // Out of `layout` only once they are on disk in the window's own file, or
+    // the next launch has them nowhere. Until then it takes them again.
+    if (store.flush()) {
+      for (const key of earlier) {
+        getStore().set("layout", key, undefined);
+      }
+    }
+  }
+  return store;
+}
+
+/** What a window keeps for itself, by key, for handing all of it to another. */
+export function windowKeptKeys(windowId: string) {
+  return Object.keys(
+    windowStoreOf(windowId).snapshot()[WINDOW_KEPT_FILE] ?? {},
+  );
+}
+
+/** One value a window keeps for itself, for what the main process does with its tabs. */
+export function getWindowKeptState(windowId: string, key: string): unknown {
+  return windowStoreOf(windowId).get(WINDOW_KEPT_FILE, key);
+}
+
+/** A value a window opens with, written before it loads. */
+export function setWindowKeptState(
+  windowId: string,
+  key: string,
+  value: unknown,
+) {
+  windowStoreOf(windowId).set(WINDOW_KEPT_FILE, key, value);
+}
+
+/** A value a window keeps, written from outside it and told to its page as it runs. */
+export function tellWindowKeptState(
+  windowId: string,
+  contents: Electron.WebContents,
+  key: string,
+  value: unknown,
+) {
+  setWindowKeptState(windowId, key, value);
+  if (!contents.isDestroyed()) {
+    contents.send(KEPT_STATE_CHANNEL.changed, WINDOW_KEPT_FILE, key, value);
+  }
+}
+
+/** Every other window's kept value of a key, for windows on disk and in memory alike. */
+function otherWindowsValues(key: string, exceptId: string | undefined) {
+  const windowsDir = path.join(workspaceWindowDir(), WINDOWS_FOLDER);
+  const onDisk = fs.existsSync(windowsDir)
+    ? fs
+        .readdirSync(windowsDir)
+        .filter((name) => name.endsWith(".json"))
+        .map((name) => name.slice(0, -".json".length))
+    : [];
+  return [...new Set([...onDisk, ...windowStores.keys()])].flatMap((id) => {
+    if (id === exceptId) {
+      return [];
+    }
+    const value = getWindowKeptState(id, key);
+    return value === undefined ? [] : [value];
+  });
+}
+
+/** Forgets what a window kept, once it can no longer come back. */
+export function forgetWindowKeptState(windowId: string) {
+  windowStores.get(windowId)?.discard();
+  windowStores.delete(windowId);
+  const file = path.join(
+    workspaceWindowDir(),
+    WINDOWS_FOLDER,
+    `${windowId}.json`,
+  );
+  try {
+    fs.rmSync(file, { force: true });
+  } catch (error) {
+    // Another program holding it, and this runs as a window closes.
+    logger.warn(`Could not remove kept state in ${file}`, error);
+  }
+}
+
 /** One kept value, for the main process's own use of what a window keeps. */
 export function getKeptState(file: KeptFile, key: string): unknown {
   return getStore().get(file, key);
 }
 
+const KeptTabGroupSchema = z.object({
+  tabs: z.array(z.object({ id: z.string() })),
+});
+
+/**
+ * The window group a tab is kept in, by the tab's id: a chat's id for a
+ * chat's tab, a site's or draft's otherwise. Undefined for a tab no window
+ * has kept yet. A page drawn inside one window's surface is in no group here.
+ */
+export function keptTabGroupOf(tabId: string): string | undefined {
+  const prefix = `${WINDOW_TABS_KEY}/`;
+  const layout = getStore().snapshot().layout ?? {};
+  for (const [key, value] of Object.entries(layout)) {
+    if (
+      key.startsWith(prefix) &&
+      KeptTabGroupSchema.safeParse(value).data?.tabs.some(
+        (tab) => tab.id === tabId,
+      )
+    ) {
+      return key.slice(prefix.length);
+    }
+  }
+  return undefined;
+}
+
 /** Writes what is still waiting, at once. The quit calls it on its way out. */
 export function flushKeptState() {
   STORE?.flush();
+  for (const store of windowStores.values()) {
+    store.flush();
+  }
 }
 
 /**
  * Answers the windows: every file, synchronously, for a preload that is
  * loading; and each write, which goes to the other windows too so a window
- * already open keeps up. A write names one of the kept files, never a path.
- * Registered before any window exists.
+ * already open keeps up, unless it is what that window keeps for itself. A
+ * write names one of the kept files, never a path. Registered before any
+ * window exists.
  */
 export function serveKeptState() {
   ipcMain.on(KEPT_STATE_CHANNEL.load, (event) => {
-    event.returnValue = getStore().snapshot();
+    const windowId = appWindowIdOf(event.sender.id);
+    event.returnValue = {
+      ...getStore().snapshot(),
+      ...(windowId === undefined ? {} : windowStoreOf(windowId).snapshot()),
+    } satisfies KeptSnapshot;
+  });
+  ipcMain.on(KEPT_STATE_CHANNEL.otherWindows, (event, key: unknown) => {
+    event.returnValue =
+      typeof key === "string"
+        ? otherWindowsValues(key, appWindowIdOf(event.sender.id))
+        : [];
   });
   ipcMain.on(
     KEPT_STATE_CHANNEL.set,
     (event, file: unknown, key: unknown, value: unknown) => {
       if (!isKeptFile(file) || typeof key !== "string") {
+        return;
+      }
+      if (file === WINDOW_KEPT_FILE) {
+        const windowId = appWindowIdOf(event.sender.id);
+        if (windowId !== undefined) {
+          windowStoreOf(windowId).set(file, key, value);
+        }
         return;
       }
       getStore().set(file, key, value);

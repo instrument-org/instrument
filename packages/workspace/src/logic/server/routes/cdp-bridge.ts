@@ -403,13 +403,17 @@ export function createLocalFileGate({
   };
 }
 
-/** Whether an address is one of a browser extension's own pages. */
-function isExtensionPage(url: string): boolean {
-  return url.startsWith("chrome-extension://");
+/** Whether an address is one of a browser extension's own pages, read as the browser reads it. */
+export function isExtensionPage(url: string): boolean {
+  try {
+    return new URL(url).protocol === "chrome-extension:";
+  } catch {
+    return false;
+  }
 }
 
 /** The refusal of a browser extension's own page, which only the person opens. */
-function notYourPage(url: string) {
+export function notYourPage(url: string) {
   return {
     code: -32_000,
     message: `${url} is an extension's own page, which only the user opens. Use what the extension puts in a site's page instead.`,

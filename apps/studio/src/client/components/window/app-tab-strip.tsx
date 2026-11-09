@@ -1,40 +1,44 @@
-import { useWindowPointStyle } from "@/client/hooks/use-app-zoom";
 import {
   tabsWithoutDeveloperModeAtom,
   useDeveloperMode,
 } from "@/client/hooks/use-developer-mode";
+import { paneOpenByGroupAtom } from "@/client/atoms/window";
 import { type TabId } from "@/shared/tabs";
 import { APP_NAME } from "@instrument-org/shared";
 import { type ChatId, type StoreId } from "@instrument-org/workspace/client";
-import { NewTabIcon } from "@/client/components/icons/new-tab-icon";
+import { dropdownMenuComponents } from "@/client/components/ui/menu-components";
 import {
-  DropdownMenu,
   DropdownMenuCheckboxItem,
-  DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuSeparator,
-  DropdownMenuShortcut,
-  DropdownMenuTrigger,
+  DropdownMenuSub,
+  DropdownMenuSubContent,
+  DropdownMenuSubTrigger,
 } from "@/client/components/ui/dropdown-menu";
-import { formatAcceleratorText } from "@/client/lib/format-accelerator";
 import { displayPath } from "@/client/lib/path-utils";
+import { rpcClient } from "@/client/rpc/client";
 import { COMPUTER_ROOT } from "@/shared/computer-href";
 import { expandHomePath } from "@instrument-org/shared";
 import { useQuery } from "@tanstack/react-query";
-import { WINDOW_SHORTCUTS } from "@/shared/window-shortcuts";
-import { ArrowClockwiseIcon } from "@phosphor-icons/react/ArrowClockwise";
-import { ArrowLineRightIcon } from "@phosphor-icons/react/ArrowLineRight";
-import { XIcon } from "@phosphor-icons/react/X";
+import { NewTabIcon } from "@/client/components/icons/new-tab-icon";
+import { formatAcceleratorText } from "@/client/lib/format-accelerator";
+import {
+  WINDOW_MENU_SHORTCUTS,
+  WINDOW_SHORTCUTS,
+} from "@/shared/window-shortcuts";
+import { AppWindowIcon } from "@phosphor-icons/react/AppWindow";
+import { ArrowUUpLeftIcon } from "@phosphor-icons/react/ArrowUUpLeft";
+import { ArrowsMergeIcon } from "@phosphor-icons/react/ArrowsMerge";
 import { WrenchIcon } from "@phosphor-icons/react/Wrench";
-import { XSquareIcon } from "@phosphor-icons/react/XSquare";
-import { useAtom } from "jotai";
-import { useEffect, useState } from "react";
+import { useAtom, useAtomValue } from "jotai";
+import { useEffect, useLayoutEffect, useState } from "react";
 
 import { INBOX_HREF } from "./app-tabs";
 import { ChatMarkIcon } from "./chat-mark";
 import { chatTabMark, type RailChatMark } from "./chats";
 import { useAppTabPresentation, useClosedAppTabs } from "./closed-app-tabs";
 import { ClosedTabsMenu } from "./closed-tabs-menu";
+import { shownPaneTab } from "./draft-context";
 import { chatListOptions } from "./chat-list-query";
 import { Peek } from "./chat-row";
 import { RECENTS_ROOT } from "./computer-page";
@@ -45,8 +49,20 @@ import {
   segmentsOf,
 } from "./host-path";
 import { siteTabTitles } from "./site-tab-titles";
+import { useTabCarry } from "./use-tab-carry";
 import { type StripTab, TabStrip } from "./tab-strip";
+import { moveTabOut } from "./move-tab";
+import { TabMenuAtPoint, TabMenuItems } from "./tab-menu-items";
+import {
+  measureCarryIndex,
+  stripIndexAt,
+  tabCarryIndexAtom,
+  tabCarryViewAtom,
+  tabsInView,
+  useTabCarryView,
+} from "./tab-carry-view";
 import { matchScreen } from "./window-href";
+import { groupOnScreenAtom, windowTabsAtom } from "./window-tabs";
 
 /**
  * The window's tabs across its bar, each named for where it stands: a chat
@@ -64,6 +80,7 @@ export function AppTabStrip({
   onDuplicate,
   onNew,
   onReload,
+  onReopenLast,
   onReorder,
   onSelect,
   selectedId,
@@ -80,6 +97,8 @@ export function AppTabStrip({
   onNew: () => void;
   /** The tab's own reload, for a site's page; undefined where a tab has none. */
   onReload: (id: TabId) => (() => void) | undefined;
+  /** What Reopen Closed Tab's chord brings back: this window's tab or a window closed since. */
+  onReopenLast: () => void;
   onReorder: (ids: TabId[]) => void;
   onSelect: (id: TabId) => void;
   selectedId: null | TabId;
@@ -91,10 +110,23 @@ export function AppTabStrip({
     childTitles,
   });
   const [menu, setMenu] = useState<{ id: TabId; x: number; y: number }>();
-  const menuStyle = useWindowPointStyle(menu ?? { x: 0, y: 0 });
+  const [stripMenu, setStripMenu] = useState<{ x: number; y: number }>();
   const idOf = (key: string) => tabs.find((tab) => tab.id === key)?.id;
 
-  const whole = tabs.map((tab) => ({
+  useTabCarryView();
+  const carryView = useAtomValue(tabCarryViewAtom);
+  const carryIndex = useAtomValue(tabCarryIndexAtom);
+  // Measured from the strip as drawn, so the tab comes to rest where the
+  // pointer is once it has joined the strip, moved or not.
+  useLayoutEffect(() => {
+    measureCarryIndex(carryView, tabs);
+  }, [carryView, carryIndex, tabs]);
+  const shownTabs = tabsInView(tabs, carryView, carryIndex);
+  const incoming = carryView.kind === "incoming" ? carryView : undefined;
+  const shownSelectedId = incoming ? incoming.tab.id : selectedId;
+  const heldHere = carryView.kind === "reshaping" ? carryView.held : incoming;
+
+  const whole = shownTabs.map((tab) => ({
     key: tab.id,
     ...presentationOf(tab.pathname || INBOX_HREF),
   }));
@@ -103,12 +135,12 @@ export function AppTabStrip({
   const short = siteTabTitles(whole);
   const presented = whole.map(({ url: _url, ...tab }, index) => {
     const { dot, isWorking } = chatTabMark(
-      tabs[index]?.pathname || INBOX_HREF,
+      shownTabs[index]?.pathname || INBOX_HREF,
       chatMarks,
-      { isUp: tab.key === selectedId },
+      { isUp: tab.key === shownSelectedId },
     );
     const tooltip = tabTooltip(
-      tabs[index]?.pathname || INBOX_HREF,
+      shownTabs[index]?.pathname || INBOX_HREF,
       whole[index],
     );
     return {
@@ -127,10 +159,68 @@ export function AppTabStrip({
     document.title = selectedTitle ?? APP_NAME;
   }, [selectedTitle]);
 
+  const reorderKeys = (keys: string[]) => {
+    onReorder(
+      keys.flatMap((key) => {
+        const id = idOf(key);
+        return id ? [id] : [];
+      }),
+    );
+  };
+
+  const carry = useTabCarry({
+    isOnlyTab: tabs.length === 1,
+    onCancel: (keys) => {
+      reorderKeys(keys);
+    },
+    onPlace: (key, left) => {
+      const id = idOf(key);
+      if (id) {
+        const others = tabs.filter((tab) => tab.id !== id);
+        const at = stripIndexAt(left, others, id);
+        if (tabs[at]?.id !== id) {
+          reorderKeys(others.map((tab) => tab.id).toSpliced(at, 0, id));
+        }
+      }
+    },
+    onSelect: (key) => {
+      const id = idOf(key);
+      if (id) {
+        onSelect(id);
+      }
+    },
+    order: presented.map((tab) => tab.key),
+  });
+
   return (
-    <>
+    <div
+      className="contents"
+      data-app-tab-strip=""
+      onContextMenu={(event) => {
+        // A tab's own menu, or a control's, answered it first.
+        if (
+          event.defaultPrevented ||
+          (event.target instanceof Element &&
+            event.target.closest("button, a, input, [role=tab]"))
+        ) {
+          return;
+        }
+        event.preventDefault();
+        setStripMenu({ x: event.clientX, y: event.clientY });
+      }}
+    >
       <TabStrip
+        carriedKey={carry.carriedKey}
         className="min-w-0 flex-1"
+        heldAt={
+          heldHere
+            ? {
+                key: heldHere.tab.id,
+                left: heldHere.clientX - heldHere.pointInTab,
+              }
+            : carry.held
+        }
+        isStill={carryView.kind === "reshaping"}
         onClose={(key) => {
           const id = idOf(key);
           if (id) {
@@ -152,42 +242,24 @@ export function AppTabStrip({
           />
         }
         onNew={onNew}
-        onReorder={(keys) => {
-          onReorder(
-            keys.flatMap((key) => {
-              const id = idOf(key);
-              return id ? [id] : [];
-            }),
-          );
-        }}
         onSelect={(key) => {
           const id = idOf(key);
           if (id) {
             onSelect(id);
           }
         }}
-        selectedKey={selectedId ?? undefined}
+        onTabDrag={carry.onDrag}
+        onTabDragEnd={carry.onDragEnd}
+        onTabDragStart={carry.onDragStart}
+        selectedKey={shownSelectedId ?? undefined}
         tabs={presented}
       />
-      {/* The menu a right click on a tab raises, anchored at the pointer:
-          what a browser's tab menu offers, marks and all, the way the
-          system's own menus draw them. */}
-      <DropdownMenu
-        modal={false}
-        onOpenChange={(open) => {
-          if (!open) {
-            setMenu(undefined);
-          }
+      <TabMenuAtPoint
+        at={menu}
+        onDismiss={() => {
+          setMenu(undefined);
         }}
-        open={menu !== undefined}
       >
-        <DropdownMenuTrigger asChild>
-          <span
-            aria-hidden
-            className="pointer-events-none fixed size-0"
-            style={menuStyle}
-          />
-        </DropdownMenuTrigger>
         {menu && (
           <TabMenu
             id={menu.id}
@@ -201,7 +273,88 @@ export function AppTabStrip({
             reload={onReload(menu.id)}
           />
         )}
-      </DropdownMenu>
+      </TabMenuAtPoint>
+      <TabMenuAtPoint
+        at={stripMenu}
+        onDismiss={() => {
+          setStripMenu(undefined);
+        }}
+      >
+        <StripMenu
+          hasClosedTab={closed.length > 0}
+          onNew={onNew}
+          onReopenLast={onReopenLast}
+        />
+      </TabMenuAtPoint>
+    </div>
+  );
+}
+
+/**
+ * What a right click on the strip's empty part offers, as a browser's tab
+ * bar does: a tab or window to open, the last one closed, and the other
+ * windows' tabs brought into this one.
+ */
+function StripMenu({
+  hasClosedTab,
+  onNew,
+  onReopenLast,
+}: {
+  /** Whether this window has a closed tab to bring back. */
+  hasClosedTab: boolean;
+  onNew: () => void;
+  onReopenLast: () => void;
+}) {
+  const others = useQuery(
+    rpcClient.window.live.others.experimental_liveOptions(),
+  ).data;
+  // Read as the menu opens, since it is mounted only while up.
+  const hasClosedWindow = useQuery({
+    ...rpcClient.window.canReopenClosed.queryOptions(),
+    staleTime: 0,
+  }).data;
+  const { Item, Separator, Shortcut } = dropdownMenuComponents;
+  return (
+    <>
+      <Item onClick={onNew}>
+        <NewTabIcon className="size-4" />
+        <span>{WINDOW_SHORTCUTS.newTab.label}</span>
+        <Shortcut>
+          {formatAcceleratorText(WINDOW_SHORTCUTS.newTab.accelerator)}
+        </Shortcut>
+      </Item>
+      <Item
+        disabled={!hasClosedTab && hasClosedWindow !== true}
+        onClick={onReopenLast}
+      >
+        <ArrowUUpLeftIcon className="size-4" />
+        <span>{WINDOW_SHORTCUTS.reopenTab.label}</span>
+        <Shortcut>
+          {formatAcceleratorText(WINDOW_SHORTCUTS.reopenTab.accelerator)}
+        </Shortcut>
+      </Item>
+      <Separator />
+      <Item
+        onClick={() => {
+          void rpcClient.window.openNew.call();
+        }}
+      >
+        <AppWindowIcon className="size-4" />
+        <span>{WINDOW_MENU_SHORTCUTS.newWindow.label}</span>
+        <Shortcut>
+          {formatAcceleratorText(WINDOW_MENU_SHORTCUTS.newWindow.accelerator)}
+        </Shortcut>
+      </Item>
+      {others && others.length > 0 ? (
+        <Item
+          onClick={() => {
+            void rpcClient.window.mergeAll.call();
+          }}
+        >
+          <ArrowsMergeIcon className="size-4" />
+          <span>Merge All Windows</span>
+        </Item>
+      ) : null}
     </>
   );
 }
@@ -261,8 +414,10 @@ export function tabTooltip(
 
 /** A chat's latest line, as its row in the inbox says it. */
 function ChatTabLine({ chat }: { chat: ChatId }) {
-  const chats = useQuery(chatListOptions());
-  const found = chats.data?.find((each) => each.id === chat);
+  const { data: found } = useQuery({
+    ...chatListOptions(),
+    select: (chats) => chats.find((each) => each.id === chat),
+  });
   return found ? <Peek chat={found} /> : null;
 }
 
@@ -270,7 +425,8 @@ function ChatTabLine({ chat }: { chat: ChatId }) {
  * A tab's own menu: reload and copy it, then close it or the tabs around it.
  * In developer mode, a screen's tab can also be shown without it. The tab up
  * names the window's keys beside Reload and Close Tab, since those keys act
- * on it and on no other.
+ * on it and on no other, Close Tab's only while no chat's pane tab is in
+ * view, which the key closes first.
  */
 function TabMenu({
   id,
@@ -293,81 +449,107 @@ function TabMenu({
   onDuplicate: (id: TabId) => void;
   reload: (() => void) | undefined;
 }) {
+  const others = useQuery(
+    rpcClient.window.live.others.experimental_liveOptions(),
+  ).data;
   const isDeveloperMode = useDeveloperMode();
   const [tabsWithout, setTabsWithout] = useAtom(tabsWithoutDeveloperModeAtom);
+  // Close Tab's chord closes a chat's pane tab first while one is in view.
+  const hasPaneTabUp =
+    shownPaneTab(
+      useAtomValue(windowTabsAtom),
+      useAtomValue(groupOnScreenAtom),
+      useAtomValue(paneOpenByGroupAtom),
+    ) !== undefined;
 
   return (
-    <DropdownMenuContent align="start" className="min-w-52" sideOffset={0}>
-      {reload && (
-        <DropdownMenuItem onClick={reload}>
-          <ArrowClockwiseIcon className="size-4" />
-          <span>Reload</span>
-          {isSelected ? (
-            <DropdownMenuShortcut>
-              {formatAcceleratorText(WINDOW_SHORTCUTS.reloadPage.accelerator)}
-            </DropdownMenuShortcut>
-          ) : null}
-        </DropdownMenuItem>
-      )}
-      <DropdownMenuItem
-        onClick={() => {
-          onDuplicate(id);
-        }}
-      >
-        <NewTabIcon className="size-4" />
-        <span>Duplicate Tab</span>
-      </DropdownMenuItem>
-      {/* A site's page shows nothing developer mode adds, so only a
-          screen's tab offers it. */}
-      {isDeveloperMode && !reload && (
-        <DropdownMenuCheckboxItem
-          checked={!tabsWithout.has(id)}
-          className="text-dev-700 dark:text-dev-300"
-          onCheckedChange={(checked) => {
-            const next = new Set(tabsWithout);
-            if (checked) next.delete(id);
-            else next.add(id);
-            setTabsWithout(next);
-          }}
-        >
-          <WrenchIcon className="size-4 text-dev-700 dark:text-dev-300" />
-          <span>Developer Mode in This Tab</span>
-        </DropdownMenuCheckboxItem>
-      )}
-      <DropdownMenuSeparator />
-      <DropdownMenuItem
-        onClick={() => {
-          onClose(id);
-        }}
-      >
-        <XIcon className="size-4" />
-        <span>Close Tab</span>
-        {isSelected ? (
-          <DropdownMenuShortcut>
-            {formatAcceleratorText(WINDOW_SHORTCUTS.closeTab.accelerator)}
-          </DropdownMenuShortcut>
-        ) : null}
-      </DropdownMenuItem>
-      {isOnly ? null : (
-        <DropdownMenuItem
-          onClick={() => {
-            onCloseOthers(id);
-          }}
-        >
-          <XSquareIcon className="size-4" />
-          <span>Close Other Tabs</span>
-        </DropdownMenuItem>
-      )}
-      {isLast ? null : (
-        <DropdownMenuItem
-          onClick={() => {
-            onCloseToRight(id);
-          }}
-        >
-          <ArrowLineRightIcon className="size-4" />
-          <span>Close Tabs to the Right</span>
-        </DropdownMenuItem>
-      )}
-    </DropdownMenuContent>
+    <TabMenuItems
+      components={dropdownMenuComponents}
+      isClosedByChord={isSelected && !hasPaneTabUp}
+      isSelected={isSelected}
+      moving={
+        others && others.length > 0 ? (
+          <DropdownMenuSub>
+            <DropdownMenuSubTrigger>
+              <AppWindowIcon className="size-4" />
+              <span>Move Tab to Another Window</span>
+            </DropdownMenuSubTrigger>
+            <DropdownMenuSubContent>
+              {isOnly ? null : (
+                <>
+                  <DropdownMenuItem
+                    onClick={() => {
+                      void moveTabOut(id, { kind: "new" });
+                    }}
+                  >
+                    <span>New Window</span>
+                  </DropdownMenuItem>
+                  <DropdownMenuSeparator />
+                </>
+              )}
+              {others.map((other) => (
+                <DropdownMenuItem
+                  key={other.id}
+                  onClick={() => {
+                    void moveTabOut(id, { id: other.id, kind: "window" });
+                  }}
+                >
+                  <span className="truncate">{other.title}</span>
+                </DropdownMenuItem>
+              ))}
+            </DropdownMenuSubContent>
+          </DropdownMenuSub>
+        ) : isOnly ? null : (
+          <DropdownMenuItem
+            onClick={() => {
+              void moveTabOut(id, { kind: "new" });
+            }}
+          >
+            <AppWindowIcon className="size-4" />
+            <span>Move Tab to New Window</span>
+          </DropdownMenuItem>
+        )
+      }
+      onClose={() => {
+        onClose(id);
+      }}
+      onCloseOthers={
+        isOnly
+          ? undefined
+          : () => {
+              onCloseOthers(id);
+            }
+      }
+      onCloseToRight={
+        isLast
+          ? undefined
+          : () => {
+              onCloseToRight(id);
+            }
+      }
+      onDuplicate={() => {
+        onDuplicate(id);
+      }}
+      onReload={reload}
+      own={
+        // A site's page shows nothing developer mode adds, so only a
+        // screen's tab offers it.
+        isDeveloperMode && !reload ? (
+          <DropdownMenuCheckboxItem
+            checked={!tabsWithout.has(id)}
+            className="text-dev-700 dark:text-dev-300"
+            onCheckedChange={(checked) => {
+              const next = new Set(tabsWithout);
+              if (checked) next.delete(id);
+              else next.add(id);
+              setTabsWithout(next);
+            }}
+          >
+            <WrenchIcon className="size-4 text-dev-700 dark:text-dev-300" />
+            <span>Developer Mode in This Tab</span>
+          </DropdownMenuCheckboxItem>
+        ) : null
+      }
+    />
   );
 }

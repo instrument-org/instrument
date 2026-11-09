@@ -58,7 +58,7 @@ async function append() {
 /** A fresh cache over the same index, as the next launch has: nothing in memory. */
 function nextLaunch() {
   closeWorkspaceDb();
-  return indexedByRecords<{ said: string }>("task_standings");
+  return indexedByRecords<{ said: string }>("task_statuses");
 }
 
 describe("indexedByRecords", () => {

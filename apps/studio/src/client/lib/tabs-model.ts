@@ -1,5 +1,10 @@
-import { type Tab, type TabId, TabIdSchema, TabSchema } from "@/shared/tabs";
-import { z } from "zod";
+import { matchScreen } from "@/client/components/window/window-href";
+import {
+  neighborAt,
+  type Tab,
+  type TabId,
+  type TabsModel,
+} from "@/shared/tabs";
 
 /**
  * Renderer-owned tab state and the pure transitions over it: selection,
@@ -9,17 +14,20 @@ import { z } from "zod";
  * Every function is pure: it returns a new model and never mutates the input,
  * so it is trivially unit-testable and safe to drive a Jotai atom.
  */
-/** A closed tab, with where it stood in the strip so a reopen puts it back there. */
-const ClosedTabSchema = TabSchema.extend({ index: z.number().optional() });
-
-export const TabsModelSchema = z.object({
-  recentlyClosed: z.array(ClosedTabSchema),
-  selectedId: TabIdSchema.nullable(),
-  tabs: z.array(TabSchema),
-});
-export type TabsModel = z.output<typeof TabsModelSchema>;
+export type { TabsModel };
 
 const MAX_RECENTLY_CLOSED = 10;
+
+/**
+ * Whether a closed tab is worth bringing back: anything but a new tab that
+ * never went anywhere, which a reopen would give back as a new one would.
+ */
+function isTabInteresting(tab: Tab) {
+  return (
+    (tab.history?.entries.length ?? 0) > 1 ||
+    matchScreen(tab.pathname).kind !== "newTab"
+  );
+}
 
 export function addTab(
   model: TabsModel,
@@ -71,10 +79,12 @@ export function closeTab(
   // `tab.history` is already fresh: TabView captures each router's live stack on
   // every navigation (see setTabPathname), so reopen restores from the model
   // rather than a separate close-time snapshot.
-  const recentlyClosed = [
-    { ...tab, index: closingIndex },
-    ...model.recentlyClosed,
-  ].slice(0, MAX_RECENTLY_CLOSED);
+  const recentlyClosed = isTabInteresting(tab)
+    ? [
+        { ...tab, closedAt: Date.now(), index: closingIndex },
+        ...model.recentlyClosed,
+      ].slice(0, MAX_RECENTLY_CLOSED)
+    : model.recentlyClosed;
 
   if (tabs.length === 0) {
     return {
@@ -90,6 +100,35 @@ export function closeTab(
       : model.selectedId;
 
   return { recentlyClosed, selectedId, tabs };
+}
+
+/**
+ * A tab gone to another window: out of the strip as a close would take it, and
+ * not one this window can reopen.
+ */
+export function removeTab(
+  model: TabsModel,
+  { id, newTab }: { id: TabId; newTab: { id: TabId; pathname: string } },
+): TabsModel {
+  const closed = closeTab(model, { id, newTab });
+  return closed === model
+    ? model
+    : { ...closed, recentlyClosed: model.recentlyClosed };
+}
+
+/** A tab from another window, up, at a place along the strip or at its end. */
+export function insertTab(
+  model: TabsModel,
+  { index, tab }: { index?: number; tab: Tab },
+): TabsModel {
+  const others = model.tabs.filter((each) => each.id !== tab.id);
+  const at =
+    index === undefined ? others.length : Math.min(index, others.length);
+  return {
+    ...model,
+    selectedId: tab.id,
+    tabs: [...others.slice(0, at), tab, ...others.slice(at)],
+  };
 }
 
 /**
@@ -185,7 +224,12 @@ export function reorderTabs(
   const reordered = ids
     .map((id) => byId.get(id))
     .filter((tab): tab is Tab => tab !== undefined);
-  return { ...model, tabs: reordered };
+  // A tab opened since the order was read stays, past the ones it names.
+  const listed = new Set(ids);
+  return {
+    ...model,
+    tabs: [...reordered, ...model.tabs.filter((tab) => !listed.has(tab.id))],
+  };
 }
 
 export function selectAdjacent(
@@ -258,8 +302,7 @@ export function setTabPathname(
  * to the right, falls back to the left.
  */
 function neighborId(tabs: Tab[], closingIndex: number) {
-  const next = tabs[closingIndex + 1] ?? tabs[closingIndex - 1];
-  return next?.id ?? null;
+  return neighborAt(tabs, closingIndex)?.id ?? null;
 }
 
 /** The tabs a test picks closed, onto the closed list leftmost first, and `id` up. */
@@ -272,17 +315,18 @@ function closeWhere(
   if (keptIndex === -1) {
     return model;
   }
+  const closedAt = Date.now();
   const closed = model.tabs.flatMap((tab, index) =>
-    closes(index, keptIndex) ? [{ ...tab, index }] : [],
+    closes(index, keptIndex) ? [{ ...tab, closedAt, index }] : [],
   );
   if (closed.length === 0) {
     return model;
   }
   return {
-    recentlyClosed: [...closed, ...model.recentlyClosed].slice(
-      0,
-      MAX_RECENTLY_CLOSED,
-    ),
+    recentlyClosed: [
+      ...closed.filter(isTabInteresting),
+      ...model.recentlyClosed,
+    ].slice(0, MAX_RECENTLY_CLOSED),
     selectedId: id,
     tabs: model.tabs.filter((_, index) => !closes(index, keptIndex)),
   };

@@ -1,5 +1,6 @@
 import { AppIcon } from "@/client/components/window/app-icon";
 import { useAppsBySlug } from "@/client/components/window/apps-by-slug";
+import { type OpenOptions } from "@/client/components/window/context";
 import { rpcClient } from "@/client/rpc/client";
 import { useQuery } from "@tanstack/react-query";
 import { atom, useAtom } from "jotai";
@@ -31,7 +32,9 @@ export const signInsWaitingAtom = atom<
  * beside the chat, and the chat's card says the app is connected. A sign-in
  * the provider declined, that failed or that lapsed is let go without either.
  */
-export function useSignInLanding(openScreen: (href: string) => void) {
+export function useSignInLanding(
+  openScreen: (href: string, options?: OpenOptions) => void,
+) {
   const [waiting, setWaiting] = useAtom(signInsWaitingAtom);
   const apps = useQuery(rpcClient.apps.live.list.experimental_liveOptions());
   const appsBySlug = useAppsBySlug();
@@ -43,8 +46,8 @@ export function useSignInLanding(openScreen: (href: string) => void) {
     const settled = new Set<string>();
     for (const [slug, { from, inChat }] of waiting) {
       const app = apps.data.apps.find((candidate) => candidate.slug === slug);
-      const standing = app?.standing;
-      if (standing === "connected") {
+      const status = app?.status;
+      if (status === "connected") {
         settled.add(slug);
         const shown = appsBySlug.get(slug);
         toast.success(`Connected ${shown?.name ?? slug}`, {
@@ -59,16 +62,17 @@ export function useSignInLanding(openScreen: (href: string) => void) {
           ),
         });
         if (!inChat) {
-          openScreen(`/apps/${slug}`);
+          // Nobody pressed anything, so the tab up goes there rather than
+          // another window coming forward.
+          openScreen(`/apps/${slug}`, { here: true });
         }
       } else if (
         // Written since the sign-in started: a second failure in a row is
         // news as much as the first.
         app?.connection?.updatedAt !== from &&
-        (standing === "declined" ||
-          standing === "failed" ||
-          (standing === "needs-sign-in" &&
-            app?.connection?.ended === "expired"))
+        (status === "declined" ||
+          status === "failed" ||
+          (status === "needs-sign-in" && app?.connection?.ended === "expired"))
       ) {
         settled.add(slug);
       }
@@ -79,7 +83,7 @@ export function useSignInLanding(openScreen: (href: string) => void) {
           new Map([...current].filter(([slug]) => !settled.has(slug))),
       );
     }
-    // Once, as a standing lands; the opener and names are read then.
+    // Once, as a status lands; the opener and names are read then.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [waiting, apps.data]);
 }

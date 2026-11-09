@@ -1,3 +1,4 @@
+import { chatNotesAtom } from "@/client/atoms/chat-notes";
 import { commandMenuOpenAtom } from "@/client/atoms/command-menu";
 import { openSettings } from "@/client/atoms/settings-modal";
 import { openClearBrowsingData } from "@/client/atoms/clear-browsing-data-modal";
@@ -29,6 +30,7 @@ import { Spinner } from "@/client/components/ui/spinner";
 import { AppIcon } from "@/client/components/window/app-icon";
 import { PLACES } from "@/client/components/window/app-rail";
 import { useAppsBySlug } from "@/client/components/window/apps-by-slug";
+import { chatListOptions } from "@/client/components/window/chat-list-query";
 import { ChatMarkDot } from "@/client/components/window/chat-mark";
 import { ProjectPill } from "@/client/components/window/chat-row";
 import {
@@ -79,10 +81,12 @@ import { rpcClient } from "@/client/rpc/client";
 import { SHORTCUT_GUIDE } from "@/shared/shortcut-guide";
 import { SHORTCUTS, type ShortcutAccelerator } from "@/shared/shortcuts";
 import {
+  WINDOW_MENU_SHORTCUTS,
   WINDOW_SHORTCUTS,
   type WindowShortcutId,
 } from "@/shared/window-shortcuts";
 import { boundedFuzzy } from "@/client/lib/bounded-fuzzy";
+import { AppWindowIcon } from "@phosphor-icons/react/AppWindow";
 import { BroomIcon } from "@phosphor-icons/react/Broom";
 import { ArrowsClockwiseIcon } from "@phosphor-icons/react/ArrowsClockwise";
 import { ChatCircleIcon } from "@phosphor-icons/react/ChatCircle";
@@ -97,6 +101,7 @@ import { NotePencilIcon } from "@phosphor-icons/react/NotePencil";
 import { NewspaperIcon } from "@phosphor-icons/react/Newspaper";
 import { PuzzlePieceIcon } from "@phosphor-icons/react/PuzzlePiece";
 import { PlusIcon } from "@phosphor-icons/react/Plus";
+import { StackIcon } from "@phosphor-icons/react/Stack";
 import { StarIcon } from "@phosphor-icons/react/Star";
 import { SunIcon } from "@phosphor-icons/react/Sun";
 import { WrenchIcon } from "@phosphor-icons/react/Wrench";
@@ -231,7 +236,8 @@ export function useCommandMenuRows({
   const installed = useQuery(
     rpcClient.apps.live.list.experimental_liveOptions(),
   );
-  const visited = useRecentPages();
+  // Read only while the menu is up, which is mounted in every window.
+  const visited = useRecentPages({ enabled: active });
   // Described only while the menu is up: each file is looked at on the disk.
   const recentFiles = useRecentFiles({ enabled: active }).files;
   const bookmarks = useAtomValue(bookmarksAtom);
@@ -247,6 +253,7 @@ export function useCommandMenuRows({
     rpcClient.debug.toggleDevTools.mutationOptions(),
   );
   const isStripHidden = useAtomValue(developerStripHiddenAtom);
+  const [isChatNotesOn, setIsChatNotesOn] = useAtom(chatNotesAtom);
   const setReleaseChannel = useMutation(
     rpcClient.preferences.setReleaseChannel.mutationOptions(),
   );
@@ -257,7 +264,11 @@ export function useCommandMenuRows({
     rpcClient.debug.trigger.testNoUpdateNotification.mutationOptions(),
   );
 
-  const chats = shell.chats ?? [];
+  // Followed only while the menu is up.
+  const { data: chats = [] } = useQuery({
+    ...chatListOptions(),
+    subscribed: active,
+  });
   const isPage = surface === "page";
 
   const commands: Omit<Item, "ranges" | "type">[] = [
@@ -283,6 +294,23 @@ export function useCommandMenuRows({
           },
         ]),
     {
+      chord: WINDOW_MENU_SHORTCUTS.newWindow.accelerator,
+      icon: <AppWindowIcon />,
+      id: "new-window",
+      label: "New window",
+      run: () => {
+        void rpcClient.window.openNew.call();
+      },
+    },
+    {
+      icon: <StackIcon />,
+      id: "merge-windows",
+      label: "Merge all windows",
+      run: () => {
+        void rpcClient.window.mergeAll.call();
+      },
+    },
+    {
       chord: SHORTCUTS.settings.accelerator,
       icon: <GearIcon />,
       id: "settings",
@@ -307,6 +335,14 @@ export function useCommandMenuRows({
             run: () => {
               setDeveloperMode.mutate({ enabled: false });
               toast("Developer mode off");
+            },
+          },
+          {
+            icon: <WrenchIcon />,
+            id: "toggle-chat-notes",
+            label: isChatNotesOn ? "Turn off chat notes" : "Turn on chat notes",
+            run: () => {
+              setIsChatNotesOn(!isChatNotesOn);
             },
           },
           {

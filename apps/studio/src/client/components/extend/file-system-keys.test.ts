@@ -4,6 +4,8 @@ import { type Os } from "@/shared/os-conventions";
 
 import {
   endsTypeAhead,
+  isBackspaceBackPress,
+  isQuickLookPress,
   isTypingAhead,
   listingCommandOf,
   listingKeys,
@@ -133,9 +135,8 @@ describe("listingCommandOf", () => {
     ["mac", "⌥⌘c", { type: "copy-path" }],
     ["mac", "⇧⌘d", null],
     ["mac", "⌃c", null],
-    // File Explorer's Copy as path. Its Ctrl+D deletes, so it stays unclaimed.
+    // File Explorer's Copy as path.
     ["windows", "⌃⇧C", { type: "copy-path" }],
-    ["windows", "⌃d", null],
     ["windows", "⌃⌥c", null],
     ["linux", "⌃⇧C", null],
     ["linux", "⌃d", null],
@@ -161,8 +162,10 @@ describe("listingKeys", () => {
         "linux": {
           "copy": "Ctrl+C",
           "copyPath": null,
+          "cut": "Ctrl+X",
           "duplicate": null,
           "info": "Alt+Enter",
+          "moveHere": null,
           "newFolder": "Ctrl+Shift+N",
           "open": "Enter",
           "paste": "Ctrl+V",
@@ -173,8 +176,10 @@ describe("listingKeys", () => {
         "mac": {
           "copy": "⌘C",
           "copyPath": "⌥⌘C",
+          "cut": null,
           "duplicate": "⌘D",
           "info": "⌘I",
+          "moveHere": "⌥⌘V",
           "newFolder": "⇧⌘N",
           "open": "⌘O",
           "paste": "⌘V",
@@ -185,8 +190,10 @@ describe("listingKeys", () => {
         "windows": {
           "copy": "Ctrl+C",
           "copyPath": "Ctrl+Shift+C",
+          "cut": "Ctrl+X",
           "duplicate": null,
           "info": "Alt+Enter",
+          "moveHere": null,
           "newFolder": "Ctrl+Shift+N",
           "open": "Enter",
           "paste": "Ctrl+V",
@@ -196,6 +203,46 @@ describe("listingKeys", () => {
         },
       }
     `);
+  });
+});
+
+describe("the file manager's own keys", () => {
+  const keyed = (chord: string, code: string) => ({ ...press(chord), code });
+
+  it.each([
+    ["mac", press("⌥⌘v"), { type: "move-here" }],
+    ["windows", press("⌃x"), { type: "cut" }],
+    ["linux", press("⌃x"), { type: "cut" }],
+    ["windows", press("⌃d"), { type: "trash" }],
+    ["mac", keyed("⇧⌘>", "Period"), { type: "toggle-hidden" }],
+    ["linux", press("⌃h"), { type: "toggle-hidden" }],
+    // Nothing of the kind on that system, so the letter is left alone.
+    ["mac", press("⌘x"), null],
+    ["windows", press("⌃⌥v"), null],
+    ["linux", press("⌃d"), null],
+    ["windows", press("⌃h"), null],
+  ] as const)("reads a press on %s: %#", (os, pressed, command) => {
+    expect(listingCommandOf(pressed, os)).toEqual(command);
+  });
+
+  it.each([
+    ["mac", "Space", true],
+    ["windows", "Space", true],
+    ["mac", "⌘y", true],
+    ["windows", "⌃y", false],
+    ["linux", "⌃y", false],
+    ["mac", "⌘Space", false],
+  ] as const)("on %s, %s previews: %s", (os, chord, previews) => {
+    expect(isQuickLookPress(press(chord), os)).toBe(previews);
+  });
+
+  it.each([
+    ["windows", "Backspace", true],
+    ["windows", "⌃Backspace", false],
+    ["mac", "Backspace", false],
+    ["linux", "Backspace", false],
+  ] as const)("on %s, %s goes back: %s", (os, chord, goes) => {
+    expect(isBackspaceBackPress(press(chord), os)).toBe(goes);
   });
 });
 
@@ -338,7 +385,7 @@ describe("typeAhead", () => {
   it.each([
     ["Escape", true],
     ["Tab", true],
-    ["Backspace", true],
+    ["Backspace", false],
     ["ArrowDown", false],
     ["m", false],
   ])("%s ends the search: %s", (key, ends) => {

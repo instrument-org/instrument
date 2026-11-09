@@ -49,35 +49,80 @@ export function getMxcExecPath(): string | undefined {
 // Added to PATH so that child processes (the users's apps) can access the binaries
 // as if they were installed globally. We don't use these ourselves due to issues
 // with orphaned processes on Windows.
+//
+// The links are made again only when what they point at differs from what
+// the last launch recorded in `LINKS_RECORD`, or one of them is gone: on a
+// cold Windows disk wiping and writing the shims took seconds of the launch.
 export async function setupBinDirectory(): Promise<string> {
   const binDir = runtimeLayout(getRuntimeDir()).bin;
 
   await ensureDirectoryExists(binDir);
-  await cleanBinDirectory(binDir);
 
-  await setupNodeLink(binDir);
+  const links = await presentLinks();
+  const record = JSON.stringify(links);
+  if (!(await linksAreCurrent(binDir, links, record))) {
+    await cleanBinDirectory(binDir);
+    await setupNodeLink(binDir);
 
-  const binaries = getBinaryConfigs();
-
-  for (const binary of binaries) {
-    try {
-      const targetPath = binary.getTargetPath();
-
+    for (const link of links.filter(({ name }) => name !== "node")) {
       try {
-        await fs.access(targetPath);
-      } catch {
-        continue;
+        await linkDirect(binDir, link.name, link.targetPath);
+      } catch (error) {
+        captureServerException(error);
       }
-
-      await linkDirect(binDir, binary.name, targetPath);
-    } catch (error) {
-      captureServerException(error);
     }
+
+    await fs
+      .writeFile(path.join(binDir, LINKS_RECORD), record, "utf8")
+      .catch(captureServerException);
   }
 
   prependBinDirectoryToPath(binDir);
 
   return binDir;
+}
+
+/** What the last launch linked, in the bin folder beside the links. */
+const LINKS_RECORD = ".links.json";
+
+/** The bundled binaries this build has on disk, each with where it is. */
+async function presentLinks(): Promise<{ name: string; targetPath: string }[]> {
+  const links = [{ name: "node", targetPath: process.execPath }];
+  for (const binary of getBinaryConfigs()) {
+    try {
+      const targetPath = binary.getTargetPath();
+      await fs.access(targetPath);
+      links.push({ name: binary.name, targetPath });
+    } catch {
+      // Not in this build, or not on this platform.
+    }
+  }
+  return links;
+}
+
+async function linksAreCurrent(
+  binDir: string,
+  links: { name: string }[],
+  record: string,
+): Promise<boolean> {
+  const recorded = await fs
+    .readFile(path.join(binDir, LINKS_RECORD), "utf8")
+    .catch(() => undefined);
+  if (recorded !== record) {
+    return false;
+  }
+  const isWindows = process.platform === "win32";
+  const present = await Promise.all(
+    links.map((link) =>
+      fs
+        .lstat(path.join(binDir, isWindows ? `${link.name}.cmd` : link.name))
+        .then(
+          () => true,
+          () => false,
+        ),
+    ),
+  );
+  return present.every(Boolean);
 }
 
 async function cleanBinDirectory(binDir: string): Promise<void> {

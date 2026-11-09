@@ -4,8 +4,8 @@ import {
   addTab,
   emptyTabsModel,
   type TabsModel,
-  TabsModelSchema,
 } from "@/client/lib/tabs-model";
+import { TabsModelSchema } from "@/shared/tabs";
 
 function freshTabsModel(pathname: string): TabsModel {
   return addTab(emptyTabsModel(), { id: freshTabId(), pathname });
@@ -19,7 +19,7 @@ function freshTabsModel(pathname: string): TabsModel {
  */
 export function tabsAtomOf(key: string, pathname: string) {
   return keptAtom<TabsModel>(
-    "layout",
+    "window",
     key,
     freshTabsModel(pathname),
     (value, initial) => {

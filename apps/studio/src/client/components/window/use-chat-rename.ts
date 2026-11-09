@@ -1,14 +1,10 @@
 import { useInlineRename } from "@/client/hooks/use-inline-rename";
 import { rpcClient } from "@/client/rpc/client";
-import { useMutation } from "@tanstack/react-query";
-import { sleep } from "radashi";
+import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { toast } from "@/client/lib/toast";
 
+import { type ChatRowPainting, paintChatRow } from "./chat-list-query";
 import { type Chat } from "./chats";
-
-// Long enough for the live list to carry the new name before the field goes,
-// so the old one does not flash back in between.
-const SETTLE_MS = 250;
 
 export type ChatRename = ReturnType<typeof useChatRename>;
 
@@ -17,12 +13,24 @@ export type ChatRename = ReturnType<typeof useChatRename>;
  * the conversation by the sparkle inside the field, the one way a chat is
  * renamed from what was said in it rather than by what the user typed.
  * Either one settles the title, so the app never renames the chat after.
+ * The new name is painted onto the chat's row in the list until the list
+ * has it, so the field closes onto it at once.
  */
 export function useChatRename(chat: Chat | undefined) {
+  const queryClient = useQueryClient();
   const { mutateAsync: renameChat } = useMutation(
-    rpcClient.workspace.chats.rename.mutationOptions({
-      onError: (error) => {
+    rpcClient.workspace.chats.rename.mutationOptions<ChatRowPainting>({
+      onError: (error, _input, painting) => {
+        painting?.failed();
         toast.error("Couldn't rename the chat", { cause: error });
+      },
+      onMutate: (input) =>
+        paintChatRow(queryClient, input.id, {
+          title: input.title,
+          titleByApp: false,
+        }),
+      onSuccess: (at, _input, painting) => {
+        painting.landed(at);
       },
     }),
   );
@@ -45,19 +53,21 @@ export function useChatRename(chat: Chat | undefined) {
     if (!chat) {
       return;
     }
-    let title: string | undefined;
+    let named: Awaited<ReturnType<typeof retitle.mutateAsync>>;
     try {
-      ({ title } = await retitle.mutateAsync({ id: chat.id }));
+      named = await retitle.mutateAsync({ id: chat.id });
     } catch {
       // Toasted by the mutation; the field stays open.
       return;
     }
+    const { listed, title } = named;
     if (title === undefined) {
       toast("Nothing to name it from yet");
     } else if (title === chat.title) {
       toast("The name still fits");
+    } else {
+      paintChatRow(queryClient, chat.id, { title }).landed(listed);
     }
-    await sleep(SETTLE_MS);
     inline.cancel();
   };
   return {

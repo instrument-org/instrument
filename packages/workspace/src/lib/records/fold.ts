@@ -7,6 +7,7 @@ import { type Session } from "../../schemas/session";
 import { type SessionMessage } from "../../schemas/session/message";
 import { type SessionMessagePart } from "../../schemas/session/message-part";
 import { type StoreId } from "../../schemas/store-id";
+import { isDeveloperNotePart } from "../data-part-visibility";
 import { type DeviceId } from "./device-id";
 import { parseRecordFileName } from "./file-names";
 import {
@@ -323,7 +324,9 @@ export class ChatFold {
         record.t === "session" ? seqs.data : Math.max(seqs.data, record.seq),
       last: Math.max(seqs.last, record.seq),
     });
-    session.updatedAt = Math.max(session.updatedAt, record.at.getTime());
+    if (record.t !== "part" || !isDeveloperNotePart(record.part)) {
+      session.updatedAt = Math.max(session.updatedAt, record.at.getTime());
+    }
     switch (record.t) {
       case "session":
         keepNewest(session.headers, stem, record, place);
@@ -507,8 +510,9 @@ export function foldChat(
 
 /**
  * A session's history as the model reads it: a task's starts with its
- * parent's history up to and including the message it was forked at, then
- * goes on with its own messages.
+ * parent's history up to and including the message it was forked at, and
+ * the parent's baseline as the task began, then goes on with its own
+ * messages.
  */
 export function historyOf(
   chat: FoldedChat,
@@ -524,10 +528,25 @@ export function historyOf(
     }
     visited.add(id);
     const { forkedAt, parent } = found;
+    // The parent's baseline as the task began goes with it wherever its id
+    // sorts: a chat's first turn writes it as its first step's request is
+    // made, after that step's id was taken, so it sorts after a task forked
+    // at that step. One the parent writes once the task has begun is not
+    // the task's.
+    const began = found.messages.reduce<StoreId.Message | undefined>(
+      (first, message) =>
+        first === undefined || message.id < first ? message.id : first,
+      undefined,
+    );
     const inherited =
       parent === undefined || forkedAt === undefined
         ? []
-        : history(parent, visited).filter((message) => message.id <= forkedAt);
+        : history(parent, visited).filter(
+            (message) =>
+              message.id <= forkedAt ||
+              (message.role === "session-context" &&
+                (began === undefined || message.id < began)),
+          );
     return [...inherited, ...found.messages];
   };
   return history(session, new Set());

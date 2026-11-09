@@ -44,8 +44,6 @@ export interface SendContextWindow {
   /** The window's browser, for a page's words; null until it is mounted. */
   browser: null | Pick<BrowserTabsHandle, "readPage">;
   chatTitles: Map<ChatId, string>;
-  /** By draft, the keys of the screen's chips the person dismissed. */
-  dismissed: Readonly<Record<string, readonly string[]>>;
   drafts: Draft[];
   /** The router's address, which is the screen's own. */
   href: string;
@@ -77,7 +75,6 @@ export function contextReaders({
   appTabId,
   browser,
   chatTitles,
-  dismissed,
   drafts,
   href,
   paneOpenByGroup,
@@ -321,12 +318,14 @@ export function contextReaders({
       if (shown && item.items !== undefined) {
         continue;
       }
+      // A tab of the sending group's own is named with the rest of them
+      // below, so only one from elsewhere is named here.
       if (shown) {
-        named.push(
-          ...describeTabs([item.tab]).map(({ id, ...tab }) =>
-            item.owned ? { ...tab, id } : tab,
-          ),
-        );
+        if (!item.owned) {
+          named.push(
+            ...describeTabs([item.tab]).map(({ id: _id, ...tab }) => tab),
+          );
+        }
         continue;
       }
       shown = await tabContext(item.tab, { own, owned: item.owned });
@@ -367,15 +366,12 @@ export function contextReaders({
   /** The items a draft carries now; see draftContextItems. */
   const draftItems = (draft: Draft) => {
     const group = draftGroupOf(draft.id);
-    const bandUp = windowTabs.selectedTabIn(group);
     return draftContextItems({
       allTabs: windowTabs.allTabs,
-      bandUp,
-      dismissed: dismissed[draft.id] ?? [],
+      band: windowTabs.allTabs.filter((tab) => tab.group === group),
       draft,
       finderOf,
       group,
-      inView,
     });
   };
   /** What a draft carries as its chat starts. */
@@ -389,30 +385,26 @@ export function contextReaders({
   };
   /**
    * What goes with a message in a chat: the chat's tab up while its view of
-   * it is open, or, for a popped-out chat, what the window has in view
-   * behind it, each unless left out; and the chat's own tabs, by the ids a
-   * task can be handed.
+   * it is open, and what the person took for the message from what was
+   * offered; and the chat's own tabs, by the ids a task can be handed.
    */
   const sendContext = async ({
     chatId,
-    isPoppedOut,
     isViewOpen,
-    leftOut,
+    taken,
   }: {
     chatId: ChatId;
-    /** Whether the chat is in a window of its own over another screen, rather than in the tab's place. */
-    isPoppedOut: boolean;
     /** Whether the chat's view of its tab up is open where the message is written. */
     isViewOpen: boolean;
-    leftOut: readonly string[];
+    /** What the person took for the message. */
+    taken: readonly ContextItem[];
   }): Promise<SessionMessageDataPart.ViewContextDataPart | undefined> =>
     contextOf(
       chatId,
       chatContextItems({
         chatId,
         finderOf,
-        inView: isPoppedOut && !isViewOpen ? inView : undefined,
-        leftOut,
+        taken,
         up: isViewOpen ? windowTabs.selectedTabIn(chatId) : undefined,
       }),
     );

@@ -60,6 +60,9 @@ declare global {
       // the writes other windows make. Absent outside Electron.
       keptState?: {
         initial: KeptSnapshot;
+        // One key of `window` as every other window kept it, closed ones that
+        // can come back included.
+        otherWindows: (key: string) => unknown[];
         onChange: (
           listener: (file: KeptFile, key: string, value: unknown) => void,
         ) => () => void;
@@ -69,6 +72,10 @@ declare global {
       // window sees, for the action log (`client/lib/actions.ts`). Absent
       // outside Electron.
       recordAction?: (action: WindowAction) => void;
+      // Hands main the window's way of finishing what it has put off, which
+      // a quit runs and waits on before the app exits (`shared/leaving.ts`).
+      // Absent outside Electron.
+      onLeaving?: (finish: () => Promise<void>) => void;
       // Dev-only: forward a renderer log entry to the main-process dev log.
       rendererLog?: (entry: { args: unknown[]; level: string }) => void;
       // Hand files to the OS as a native drag, by where they are on the

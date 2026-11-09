@@ -13,7 +13,7 @@ import {
 } from "@/client/components/ui/dropdown-menu";
 import { MenuScrollArea } from "@/client/components/ui/menu-scroll-area";
 import { PlaceIcon } from "@/client/components/window/place-icons";
-import { useComposerMenuPlacement } from "@/client/hooks/use-composer-menu-placement";
+import { zoomAtom } from "@/client/atoms/zoom";
 import { cn } from "@/client/lib/utils";
 import { type Icon } from "@phosphor-icons/react";
 import { ArrowLeftIcon } from "@phosphor-icons/react/ArrowLeft";
@@ -22,6 +22,7 @@ import { CubeIcon } from "@phosphor-icons/react/Cube";
 import { DesktopIcon } from "@phosphor-icons/react/Desktop";
 import { GlobeIcon } from "@phosphor-icons/react/Globe";
 import { PlusIcon } from "@phosphor-icons/react/Plus";
+import { useAtomValue } from "jotai";
 import { useRef } from "react";
 
 import { AppIcon } from "./window/app-icon";
@@ -32,18 +33,7 @@ import { AppIcon } from "./window/app-icon";
  * described once and its `onSelect` is what differs per surface.
  */
 export interface ComposerAction {
-  /**
-   * For an entry that opens another surface in this menu's place. It runs once
-   * the menu has closed rather than on the click: a popover opened while the
-   * menu is still tearing down loses the caret to it -- a menu takes focus back
-   * to its own content as the pointer leaves an item, and a layer that sees
-   * focus land outside itself dismisses. The caret is then the new surface's,
-   * so the prompt does not take it back either.
-   */
-  handsOff?: boolean;
   icon: Icon;
-  /** Drawn in the icon's place, for an entry whose mark is not a Phosphor icon: the chosen model's provider. */
-  iconElement?: React.ReactNode;
   id: string;
   /**
    * For an entry that turns the menu into something else rather than acting and
@@ -85,14 +75,13 @@ const ATTACH_ACTIONS = new Set(["add-files", "work-in-folder"]);
  * The plus button and everything it offers: what the composer can be given,
  * then the skills that can be run.
  *
- * Sized and placed to the composer rather than to its own trigger. The skills
- * read as a line of name, description and source -- the width a typed slash
- * gives them -- and the prompt this is adding to stays in view beside the menu
- * rather than under it.
+ * Opens on the plus itself, over it with its left edge on the plus's: the box
+ * is tall enough that hanging off its edge would put the menu far from the
+ * press. Its width is its own, the room a row and a skill's name and
+ * description need, whatever the box's.
  */
 export function ComposerAddMenu({
   actions,
-  bounds,
   disabled,
   onReturnFocus,
   onSelectSkill,
@@ -103,8 +92,6 @@ export function ComposerAddMenu({
   view,
 }: {
   actions: ComposerAction[];
-  /** The composer box this hangs off, rather than overlays. */
-  bounds: HTMLElement | null;
   disabled?: boolean;
   /** Puts the caret back in the prompt, once something has been chosen here. */
   onReturnFocus: () => void;
@@ -113,40 +100,30 @@ export function ComposerAddMenu({
   /** A chat's places, which turn the menu into tiles over its rows. */
   places?: ComposerPlaces;
   skills: ComposerSkill[];
-  /** The trigger's shape where the composer draws it differently: a pill's round button. */
+  /** The trigger's shape where the composer draws it differently: a round button. */
   triggerClassName?: string;
   view: ComposerMenuView | null;
 }) {
   // Whether this closed because something was chosen, which is the only case
   // where the menu owns where focus lands next. Dismissing it is the user
   // going somewhere themselves, and Radix's own handling is right for that.
+  const zoom = useAtomValue(zoomAtom);
   const chose = useRef<"hand-off" | "prompt" | null>(null);
-  // A hand-off's own work, held until this menu is gone rather than run where
-  // it was chosen. See `handsOff`.
+  // What a place opens, held until this menu is gone rather than run where it
+  // was chosen: a surface opened while the menu is still tearing down loses
+  // the caret to it, since a menu takes focus back to its own content as the
+  // pointer leaves an item.
   const handOff = useRef<(() => void) | null>(null);
-  const triggerRef = useRef<HTMLButtonElement>(null);
-  // An entry acting and leaving, turning the menu into something else, or
-  // handing off to a surface that opens once the menu has gone.
+  // An entry acting and leaving, or turning the menu into something else.
   const choose = (action: ComposerAction, event: Event) => {
     if (action.keepMenuOpen) {
       event.preventDefault();
       action.onSelect();
       return;
     }
-    if (action.handsOff) {
-      chose.current = "hand-off";
-      handOff.current = action.onSelect;
-      return;
-    }
     chose.current = "prompt";
     action.onSelect();
   };
-  const { alignOffset, side, sideOffset, width } = useComposerMenuPlacement({
-    anchorRef: triggerRef,
-    bounds,
-    open: view !== null,
-  });
-
   return (
     <DropdownMenu
       onOpenChange={(open) => {
@@ -166,7 +143,6 @@ export function ComposerAddMenu({
             triggerClassName,
           )}
           disabled={disabled}
-          ref={triggerRef}
           size="sm"
           variant="ghost"
         >
@@ -175,8 +151,6 @@ export function ComposerAddMenu({
       </DropdownMenuTrigger>
       <DropdownMenuContent
         align="start"
-        alignOffset={alignOffset}
-        avoidCollisions={false}
         // Room for the first group and a few skills, and no more: left to the
         // available height a full skills list becomes a column as tall as the
         // window. The same cap the slash menu keeps, over the same entries.
@@ -185,7 +159,7 @@ export function ComposerAddMenu({
         // other dropdown wears, since this one is read against the edge of the
         // box it hangs off. A row's is that corner less the 4px it sits in by,
         // so a highlighted first or last row curves alongside the menu.
-        className="flex max-h-[min(18rem,calc(var(--radix-dropdown-menu-content-available-height)/var(--content-zoom)))] flex-col rounded-[20px] p-0 [&_[role=menuitem]]:rounded-2xl"
+        className="flex max-h-[min(18rem,calc(var(--radix-dropdown-menu-content-available-height)/var(--content-zoom)))] w-72 flex-col rounded-[20px] p-0 [&_[role=menuitem]]:rounded-2xl"
         // Everything on offer here is something the prompt is about to carry,
         // so the caret goes back to the prompt rather than to the button that
         // opened this -- including out of a list, which is a second menu deep
@@ -207,9 +181,9 @@ export function ComposerAddMenu({
           // on screen.
           opensNext?.();
         }}
-        side={side}
-        sideOffset={sideOffset}
-        style={{ width }}
+        side="top"
+        // On-screen px, the space Radix offsets in, for a 6px layout gap.
+        sideOffset={6 * zoom}
       >
         <MenuScrollArea>
           {view === "apps" && places ? (
@@ -410,7 +384,7 @@ function ActionItem({
 }) {
   return (
     <DropdownMenuItem onSelect={onSelect}>
-      {action.iconElement ?? <action.icon className="size-4" />}
+      <action.icon className="size-4" />
       {/* One line whatever its length: a long model name wrapped the entry
           onto two. */}
       <span className="min-w-0 truncate">{action.label}</span>

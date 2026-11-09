@@ -1,0 +1,499 @@
+[
+  {
+    "type": "data-adoptedTask",
+    "data": {
+      "sessionId": "ses_old"
+    },
+    "note": "retired, last seen 2026-09",
+    "reads": "data-unknown"
+  },
+  {
+    "type": "data-attachedFolderChanges",
+    "data": {
+      "added": [],
+      "removed": []
+    },
+    "note": "renamed to folderChanges, last seen 2026-10",
+    "reads": "data-unknown"
+  },
+  {
+    "type": "data-chatTopics",
+    "data": {
+      "topics": []
+    },
+    "note": "retired, last seen 2026-10",
+    "reads": "data-unknown"
+  },
+  {
+    "type": "data-taskEvent",
+    "data": {
+      "events": [
+        {
+          "sessionId": "task-old-id",
+          "status": "done",
+          "title": "A task"
+        }
+      ]
+    },
+    "note": "a session id from before ses_, to 2026-10-20",
+    "reads": "data-unknown"
+  },
+  {
+    "type": "data-appEvent",
+    "data": {
+      "events": [
+        {
+          "event": "connected",
+          "name": "Notion",
+          "slug": "notion"
+        }
+      ]
+    },
+    "note": "no apps field, to 2026-10-12",
+    "reads": "data-unknown"
+  },
+  {
+    "type": "data-memory",
+    "data": {
+      "memories": [],
+      "sentAt": 0
+    },
+    "note": "no told field, to 2026-10-20",
+    "reads": "data-unknown"
+  },
+  {
+    "data": {
+      "apps": {},
+      "events": [
+        {
+          "event": "connected",
+          "name": "Notion",
+          "slug": "notion"
+        }
+      ]
+    },
+    "note": "as written on 2026-11-06",
+    "reads": "data-appEvent",
+    "type": "data-appEvent"
+  },
+  {
+    "data": {
+      "asks": [
+        {
+          "file": {
+            "name": "plan.md",
+            "path": "/work/plan.md"
+          },
+          "instruction": "Shorter",
+          "target": "lines 1-2"
+        }
+      ]
+    },
+    "note": "as written on 2026-11-06",
+    "reads": "data-asks",
+    "type": "data-asks"
+  },
+  {
+    "data": {
+      "files": [
+        {
+          "filename": "plan.pdf",
+          "filePath": "attachments/plan.pdf",
+          "mimeType": "application/pdf",
+          "size": 1024
+        }
+      ]
+    },
+    "note": "as written on 2026-11-06",
+    "reads": "data-attachments",
+    "type": "data-attachments"
+  },
+  {
+    "data": {
+      "ended": [],
+      "running": [
+        {
+          "command": "pnpm build",
+          "id": "bg_1",
+          "runningForMs": 1000
+        }
+      ]
+    },
+    "note": "as written on 2026-11-06",
+    "reads": "data-backgroundProcesses",
+    "type": "data-backgroundProcesses"
+  },
+  {
+    "data": {
+      "status": "tabs",
+      "tabs": [
+        {
+          "id": "t1",
+          "openedBy": "task",
+          "url": "https://example.com"
+        }
+      ]
+    },
+    "note": "as written on 2026-11-06",
+    "reads": "data-browserStatus",
+    "type": "data-browserStatus"
+  },
+  {
+    "data": {
+      "chats": [],
+      "sentAt": 0
+    },
+    "note": "as written on 2026-11-06",
+    "reads": "data-chatContext",
+    "type": "data-chatContext"
+  },
+  {
+    "data": {
+      "droppedMessages": 4,
+      "retainedUserMessages": 2
+    },
+    "note": "as written on 2026-11-06",
+    "reads": "data-contextRollover",
+    "type": "data-contextRollover"
+  },
+  {
+    "data": {
+      "date": "2026-11-06"
+    },
+    "note": "as written on 2026-11-06",
+    "reads": "data-dateChange",
+    "type": "data-dateChange"
+  },
+  {
+    "data": {
+      "computer": "A test computer"
+    },
+    "note": "as written on 2026-11-06",
+    "reads": "data-environmentChange",
+    "type": "data-environmentChange"
+  },
+  {
+    "data": {
+      "files": []
+    },
+    "note": "as written on 2026-11-06",
+    "reads": "data-fileChanges",
+    "type": "data-fileChanges"
+  },
+  {
+    "data": {
+      "added": [
+        {
+          "path": "/work/notes"
+        }
+      ],
+      "removed": []
+    },
+    "note": "as written on 2026-11-06",
+    "reads": "data-folderChanges",
+    "type": "data-folderChanges"
+  },
+  {
+    "data": {
+      "kind": "assignment",
+      "text": "Compare the two."
+    },
+    "note": "as written on 2026-11-06",
+    "reads": "data-fromChat",
+    "type": "data-fromChat"
+  },
+  {
+    "data": {
+      "chat": "2026-11-08-help-desk-pricing-7k3q",
+      "folder": "workspace:/Chats/Help desk pricing",
+      "records": "workspace:/.instrument/chats/2026-11-08-help-desk-pricing-7k3q",
+      "title": "Help desk pricing",
+      "work": "/Users/mac-user/.instrument/work/Instrument/2026-11-08-help-desk-pricing-7k3q"
+    },
+    "note": "as written on 2026-11-08",
+    "reads": "data-branchedFrom",
+    "type": "data-branchedFrom"
+  },
+  {
+    "data": {
+      "text": "Words from a sample."
+    },
+    "note": "as written on 2026-11-06",
+    "reads": "data-intent",
+    "type": "data-intent"
+  },
+  {
+    "data": {
+      "events": [
+        {
+          "command": "pnpm build",
+          "durationMs": 1000,
+          "id": "bg_1",
+          "logFilePath": "logs/bg_1.log",
+          "status": "failed"
+        }
+      ]
+    },
+    "note": "as written on 2026-11-06",
+    "reads": "data-jobEvent",
+    "type": "data-jobEvent"
+  },
+  {
+    "data": {
+      "maxStepCount": 25
+    },
+    "note": "as written on 2026-11-06",
+    "reads": "data-maxSteps",
+    "type": "data-maxSteps"
+  },
+  {
+    "data": {
+      "forgotten": [],
+      "memories": [
+        {
+          "at": 0,
+          "name": "plan-names",
+          "text": "A sample memory."
+        }
+      ],
+      "more": 0,
+      "sentAt": 0,
+      "tells": "whole",
+      "told": {}
+    },
+    "note": "as written on 2026-11-06",
+    "reads": "data-memory",
+    "type": "data-memory"
+  },
+  {
+    "data": {
+      "minutes": 90
+    },
+    "note": "as written on 2026-11-06",
+    "reads": "data-messageGap",
+    "type": "data-messageGap"
+  },
+  {
+    "data": {
+      "from": {
+        "modelId": "a"
+      },
+      "to": {
+        "modelId": "b"
+      }
+    },
+    "note": "as written on 2026-11-06",
+    "reads": "data-modelChange",
+    "type": "data-modelChange"
+  },
+  {
+    "data": {
+      "continuations": 2
+    },
+    "note": "as written on 2026-11-06",
+    "reads": "data-outputLimit",
+    "type": "data-outputLimit"
+  },
+  {
+    "data": {
+      "page": {
+        "title": "Example",
+        "url": "https://example.com/"
+      },
+      "stage": "taken",
+      "tab": "tab_01M0000000000000000000000T"
+    },
+    "note": "as written on 2026-11-08",
+    "reads": "data-pageTakeover",
+    "type": "data-pageTakeover"
+  },
+  {
+    "data": {
+      "answer": "allowed",
+      "kind": "folder",
+      "target": "/work"
+    },
+    "note": "as written on 2026-11-06",
+    "reads": "data-permissionAnswer",
+    "type": "data-permissionAnswer"
+  },
+  {
+    "data": {
+      "project": {
+        "instructions": "Sample words.",
+        "name": "Pricing"
+      }
+    },
+    "note": "as written on 2026-11-06",
+    "reads": "data-project",
+    "type": "data-project"
+  },
+  {
+    "data": {
+      "answer": {
+        "replies": [
+          {
+            "picked": ["Friday"]
+          }
+        ]
+      },
+      "partId": "prt_01M0000000000000000000000T",
+      "questions": ["Which day?"]
+    },
+    "note": "as written on 2026-11-06",
+    "reads": "data-questionAnswer",
+    "type": "data-questionAnswer"
+  },
+  {
+    "data": {},
+    "note": "as written on 2026-11-06",
+    "reads": "data-ratingCard",
+    "type": "data-ratingCard"
+  },
+  {
+    "data": {
+      "error": "It failed."
+    },
+    "note": "as written on 2026-11-06",
+    "reads": "data-requestFailure",
+    "type": "data-requestFailure"
+  },
+  {
+    "data": {
+      "kind": "turn",
+      "text": "Sample words."
+    },
+    "note": "as written on 2026-11-06",
+    "reads": "data-requestNote",
+    "type": "data-requestNote"
+  },
+  {
+    "data": {
+      "changes": [
+        {
+          "change": "added",
+          "kind": "skill",
+          "name": "launch"
+        }
+      ]
+    },
+    "note": "as written on 2026-11-06",
+    "reads": "data-setupChanges",
+    "type": "data-setupChanges"
+  },
+  {
+    "data": {
+      "changes": [
+        {
+          "change": "added",
+          "kind": "skill",
+          "name": "launch"
+        }
+      ],
+      "told": {}
+    },
+    "note": "as written on 2026-11-06",
+    "reads": "data-setupNews",
+    "type": "data-setupNews"
+  },
+  {
+    "data": {
+      "waitedFor": "image"
+    },
+    "note": "as written on 2026-11-06",
+    "reads": "data-signedIn",
+    "type": "data-signedIn"
+  },
+  {
+    "data": {
+      "names": ["launch"]
+    },
+    "note": "as written on 2026-11-06",
+    "reads": "data-skillMentions",
+    "type": "data-skillMentions"
+  },
+  {
+    "data": {
+      "apps": [],
+      "counts": [],
+      "files": [],
+      "hosts": [],
+      "settled": true,
+      "step": "prt_01M0000000000000000000000T"
+    },
+    "note": "as written on 2026-11-06",
+    "reads": "data-stepFacts",
+    "type": "data-stepFacts"
+  },
+  {
+    "data": {
+      "events": [
+        {
+          "sessionId": "ses_01M0000000000000000000TASK",
+          "status": "done",
+          "title": "A task"
+        }
+      ]
+    },
+    "note": "as written on 2026-11-06",
+    "reads": "data-taskEvent",
+    "type": "data-taskEvent"
+  },
+  {
+    "data": {
+      "results": 3,
+      "through": "msg_01M0000000000000000000000T"
+    },
+    "note": "as written on 2026-11-06",
+    "reads": "data-toolResultsCleared",
+    "type": "data-toolResultsCleared"
+  },
+  {
+    "data": {
+      "originalType": "data-gone",
+      "reason": "no schema"
+    },
+    "note": "as written on 2026-11-06",
+    "reads": "data-unknown",
+    "type": "data-unknown"
+  },
+  {
+    "data": {
+      "screen": "conversation"
+    },
+    "note": "as written on 2026-11-06",
+    "reads": "data-viewContext",
+    "type": "data-viewContext"
+  },
+  {
+    "data": {
+      "words": "Read two pages"
+    },
+    "note": "as written on 2026-11-06",
+    "reads": "data-workSummary",
+    "type": "data-workSummary"
+  },
+  {
+    "data": {
+      "file": "AGENTS.md",
+      "instructions": "Sample words."
+    },
+    "note": "as written on 2026-11-06",
+    "reads": "data-workspaceInstructions",
+    "type": "data-workspaceInstructions"
+  },
+  {
+    "data": {
+      "rows": [
+        {
+          "count": 2,
+          "kind": "file",
+          "minutes": 1
+        }
+      ]
+    },
+    "note": "as written on 2026-11-09",
+    "reads": "data-actions",
+    "type": "data-actions"
+  }
+]

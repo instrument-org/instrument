@@ -2,7 +2,12 @@ import { type BrowserTab, type WindowTab } from "@/client/atoms/window";
 import { atom, useAtomValue, useSetAtom } from "jotai";
 
 import { getGroupTabRouter } from "@/client/lib/group-tab-router-registry";
-import { keptAtom } from "@/client/lib/kept-state";
+import { keptMembersAtom, takeKept, writeKept } from "@/client/lib/kept-state";
+import {
+  fileOfTabGroup,
+  HOSTED_PAGE_GROUP_PREFIX,
+  WINDOW_TABS_KEY,
+} from "@/shared/kept-state";
 import { StoreId } from "@instrument-org/workspace/client";
 
 import { appTabsAtom, groupOfHref } from "./app-tabs";
@@ -31,24 +36,84 @@ import {
   stepVisit,
   tabsIn,
   selectedTabIn,
+  tabShowingIn,
   tabToScreen,
   type WindowTabs,
 } from "./tab-model";
 import { openLinkAddress } from "./open-link-address";
 import { sameHref } from "./window-href";
 
+/** The member a tab with no group is kept under. */
+const NO_GROUP = "-";
+
+// What a build with one window kept whole, once, as every window keeps it now: ahead of
+// the atom below, which reads what is kept as it is made.
+const earlierTabs = takeKept("layout", "window-tabs.v9");
+if (isStoredWindowTabs(earlierTabs)) {
+  for (const [member, group] of splitTabGroups(
+    normalizeWindowTabs(earlierTabs),
+  )) {
+    writeKept(fileOfTabGroup(member), `${WINDOW_TABS_KEY}/${member}`, group);
+  }
+}
+
 /**
  * The window's tabs, one list across every group, kept across launches on
  * this computer. Written only here, through the functions of `tab-model.ts`.
  */
-const storedTabsAtom = keptAtom<WindowTabs>(
-  "layout",
-  "window-tabs.v9",
-  { activeByGroup: {}, tabs: [] },
-  // Read as this build keeps them, whatever an earlier one wrote.
-  (value, initial) =>
-    isStoredWindowTabs(value) ? normalizeWindowTabs(value) : initial,
+const storedTabsAtom = keptMembersAtom<WindowTabs>(
+  fileOfTabGroup,
+  WINDOW_TABS_KEY,
+  {
+    join: joinTabGroups,
+    split: splitTabGroups,
+  },
 );
+
+interface TabGroupMember {
+  active?: string;
+  tabs: WindowTab[];
+}
+
+/**
+ * The tabs by group, each kept by itself: a chat, draft or site's tabs and
+ * which is up belong to it whichever window shows it (`fileOfTabGroup`).
+ */
+function splitTabGroups({ activeByGroup, tabs }: WindowTabs) {
+  const members = new Map<string, TabGroupMember>();
+  const memberOf = (key: string) => {
+    let member = members.get(key);
+    if (!member) {
+      member = { tabs: [] };
+      members.set(key, member);
+    }
+    return member;
+  };
+  for (const tab of tabs) {
+    memberOf(tab.group ?? NO_GROUP).tabs.push(tab);
+  }
+  for (const [group, active] of Object.entries(activeByGroup)) {
+    memberOf(group).active = active;
+  }
+  return members;
+}
+
+function joinTabGroups(members: Map<string, unknown>): WindowTabs {
+  const activeByGroup: Record<string, string> = {};
+  const tabs: WindowTab[] = [];
+  for (const [group, member] of members) {
+    if (member === null || typeof member !== "object") {
+      continue;
+    }
+    if ("active" in member && typeof member.active === "string") {
+      activeByGroup[group] = member.active;
+    }
+    if ("tabs" in member && Array.isArray(member.tabs)) {
+      tabs.push(...(member.tabs as WindowTab[])); // Written by this module alone.
+    }
+  }
+  return { activeByGroup, tabs };
+}
 
 /** Whether a kept value is the tabs at all: an object whose tabs, if any, are a list. */
 function isStoredWindowTabs(value: unknown): value is StoredWindowTabs {
@@ -57,6 +122,14 @@ function isStoredWindowTabs(value: unknown): value is StoredWindowTabs {
     typeof value === "object" &&
     (!("tabs" in value) || Array.isArray(value.tabs))
   );
+}
+
+/**
+ * The group of the page a file tab draws in its viewer, by the tab's id: a
+ * group no strip lists, holding that one page.
+ */
+export function hostGroupOf(tabId: string) {
+  return `${HOSTED_PAGE_GROUP_PREFIX}${tabId}`;
 }
 
 /** The window's tabs, to read; every change goes through `useWindowTabs`. */
@@ -243,6 +316,20 @@ export function useWindowTabs() {
         return { state: opened.state, value: opened.id };
       }, undefined);
     },
+    /**
+     * Brings up the tab of the group on screen already showing what an
+     * address shows (`tabShowingIn`); false where none does.
+     */
+    selectShowing: (href: string): boolean =>
+      answer<boolean>((current, onScreen) => {
+        const tab =
+          onScreen === undefined
+            ? undefined
+            : tabShowingIn(current, onScreen, href);
+        return tab
+          ? { state: selectTab(current, tab.id), value: true }
+          : { state: current, value: false };
+      }, false),
     /**
      * Opens a screen at an address in a group (the group on screen, unless
      * one is named): up at once when that group is on screen or when asked,

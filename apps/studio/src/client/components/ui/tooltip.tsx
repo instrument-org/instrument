@@ -7,10 +7,27 @@ import { cn } from "@/client/lib/utils";
 import * as TooltipPrimitive from "@radix-ui/react-tooltip";
 import * as React from "react";
 
+/**
+ * Whether the tooltip's content takes the pointer. A hoverable tooltip does,
+ * to stay open while the pointer is on it; one that is not lets the pointer
+ * through to whatever it covers, so a row revealed by hover stays hovered
+ * under the tooltip of one of its controls.
+ */
+const HoverableContext = React.createContext(true);
+
 function Tooltip({
+  disableHoverableContent,
   ...props
 }: React.ComponentProps<typeof TooltipPrimitive.Root>) {
-  return <TooltipPrimitive.Root data-slot="tooltip" {...props} />;
+  return (
+    <HoverableContext value={disableHoverableContent !== true}>
+      <TooltipPrimitive.Root
+        data-slot="tooltip"
+        disableHoverableContent={disableHoverableContent}
+        {...props}
+      />
+    </HoverableContext>
+  );
 }
 
 function TooltipContent({
@@ -26,6 +43,7 @@ function TooltipContent({
   maxWidth?: string;
 }) {
   const container = usePortalContainer();
+  const isHoverable = React.use(HoverableContext);
   const chromeCollisionPadding = useChromeCollisionPadding();
 
   return (
@@ -33,8 +51,13 @@ function TooltipContent({
       <TooltipPrimitive.Content
         // Wrapping stays plain rather than balanced: `w-fit` resolves to the
         // max-width cap before lines are balanced, so a tooltip that wraps at
-        // all keeps the full width with half of it left empty.
+        // all keeps the full width with half of it left empty. Its wrapper
+        // takes no pointer (globals.css), and the content takes it only while
+        // a hoverable tooltip is open: one on its way out, or one that is not
+        // hoverable, leaves the pointer on what is under it.
         className={cn(
+          isHoverable &&
+            "pointer-events-auto data-[state=closed]:pointer-events-none",
           "z-50 w-fit origin-(--radix-tooltip-content-transform-origin) animate-in rounded-md bg-popover px-3 py-1.5 text-xs text-pretty text-popover-foreground shadow-float-md fade-in-0 zoom-in-95 data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=closed]:zoom-out-95",
           className,
         )}

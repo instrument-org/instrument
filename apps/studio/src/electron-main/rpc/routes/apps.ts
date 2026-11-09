@@ -51,6 +51,7 @@ import {
   waitInChat,
 } from "@instrument-org/workspace/electron";
 import { call, eventIterator, ORPCError } from "@orpc/server";
+import { createHash } from "node:crypto";
 import { z } from "zod";
 
 import { recordPersonAction } from "../../lib/actions";
@@ -63,9 +64,9 @@ import {
   disconnectApp,
 } from "../../lib/apps";
 import {
-  AppStandingSchema,
+  AppStatusSchema,
   settleConnection,
-  standingOf,
+  statusOf,
 } from "../../lib/app-connection";
 import {
   expectSignIn,
@@ -96,7 +97,7 @@ const AppListItemBaseSchema = z.object({
   /** The service's origin, for its icon. */
   site: z.string().optional(),
   slug: z.string(),
-  standing: AppStandingSchema,
+  status: AppStatusSchema,
 });
 
 /** For an app opened with a key, where the directory says the user makes one, and what to do there. */
@@ -142,11 +143,7 @@ async function iconFor(app: {
 }): Promise<{ icon?: string }> {
   const own = await findAppIcon(app.dir).catch(() => undefined);
   const url = own
-    ? await (
-        own.fileName === "icon.svg"
-          ? storeFileOpenSvgIcon(own.bytes)
-          : storeFileOpenIcon(own.bytes.toString("base64"), APP_ICON_SIZE)
-      ).catch(() => null)
+    ? await storedOwnIcon(own)
     : app.manifest.type === "mcp-local" && app.manifest.macApp
       ? await getMacAppIconUrl(app.manifest.macApp).catch(() => null)
       : null;
@@ -156,6 +153,36 @@ async function iconFor(app: {
   const entry = catalogEntryForApp(app.slug, app.manifest);
   const directory = entry ? await catalogIconFor(entry) : undefined;
   return directory ? { icon: directory } : {};
+}
+
+/**
+ * Where an app's own icon file is stored to be drawn, by the file's bytes:
+ * `list` reads again on every change to any app, and only a changed file
+ * needs decoding and resizing again. A failure is dropped so the next read
+ * tries again.
+ */
+const ownIcons = new Map<string, Promise<null | string>>();
+
+function storedOwnIcon(
+  own: NonNullable<Awaited<ReturnType<typeof findAppIcon>>>,
+) {
+  const key = `${own.fileName}:${createHash("sha256").update(own.bytes).digest("hex")}`;
+  const cached = ownIcons.get(key);
+  if (cached) {
+    return cached;
+  }
+  const pending = (
+    own.fileName === "icon.svg"
+      ? storeFileOpenSvgIcon(own.bytes)
+      : storeFileOpenIcon(own.bytes.toString("base64"), APP_ICON_SIZE)
+  ).catch(() => null);
+  ownIcons.set(key, pending);
+  void pending.then((url) => {
+    if (url === null && ownIcons.get(key) === pending) {
+      ownIcons.delete(key);
+    }
+  });
+  return pending;
 }
 
 /**
@@ -220,7 +247,7 @@ const list = base.output(AppListSchema).handler(async ({ context }) => {
           ...withService(catalogEntryForApp(app.slug, app.manifest)?.slug),
           site: appSiteFor(app.slug, app.manifest),
           slug: app.slug,
-          standing: standingOf(connection, app.manifestHash),
+          status: statusOf(connection, app.manifestHash),
         };
         const { manifest } = app;
         switch (manifest.type) {
@@ -287,10 +314,33 @@ const live = {
   catalog: base.handler(async function* ({ signal }) {
     yield* liveRead({
       changes: [appCatalogChanges(signal)],
-      read: () => Promise.all(getAppCatalog().map(withIcon)),
+      read: readCatalog,
+    });
+  }),
+  /**
+   * `catalog` with only what a screen draws a service by (its name, site,
+   * home and icon), for the window's shell, which names apps everywhere and
+   * reads none of the rest. A tenth of the whole directory's size.
+   */
+  catalogMarks: base.handler(async function* ({ signal }) {
+    yield* liveRead({
+      changes: [appCatalogChanges(signal)],
+      read: async () =>
+        (await readCatalog()).map(({ domain, home, icon, name, slug }) => ({
+          domain,
+          ...(home === undefined ? {} : { home }),
+          ...(icon === undefined ? {} : { icon }),
+          name,
+          slug,
+        })),
     });
   }),
 };
+
+/** The directory, each entry with the icon it is drawn with. */
+function readCatalog() {
+  return Promise.all(getAppCatalog().map(withIcon));
+}
 
 /**
  * The directory's services a search means without naming them, most likely

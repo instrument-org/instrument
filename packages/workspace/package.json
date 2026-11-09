@@ -20,6 +20,7 @@
     "./host-path": "./src/lib/host-path.ts",
     "./layout": "./src/lib/workspace-layout.ts",
     "./mac-apps-server": "./src/lib/mac-apps/main.ts",
+    "./page-title": "./src/lib/page-title.ts",
     "./report-outline": "./src/lib/report-outline.ts",
     "./work-folders": "./src/lib/work-folders.ts",
     "./fixture-workspaces": "./scripts/lib/fixture-workspaces.ts",
@@ -37,6 +38,7 @@
     "script:clt-shim-audit": "cross-env NODE_ENV=development node --import tsx scripts/clt-shim-audit.ts",
     "script:dump-session-transcript": "tsx scripts/dump-session-transcript.ts",
     "script:dump-sessions": "tsx scripts/dump-sessions.ts",
+    "script:flicker-inventory": "tsx scripts/flicker-inventory.ts",
     "script:probe-app-directory": "tsx scripts/probe-app-directory.ts",
     "script:query-chat-db": "tsx scripts/query-chat-db.ts",
     "script:record-fixture-session": "tsx scripts/record-fixture-session.ts",
@@ -115,6 +117,6 @@
   },
   "optionalDependencies": {},
   "engines": {
-    "node": ">=24.22.0"
+    "node": ">=24.22.2"
   }
 }

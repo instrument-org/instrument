@@ -38,12 +38,14 @@ import {
   checkRecentVersionBump,
   takeRelaunchMarker,
 } from "@/electron-main/stores/machine/state";
-import { startBrowserExtensions } from "@/electron-main/browser-view/guest-session";
 import { getDefaultModelURI } from "@/electron-main/stores/workspace/preferences";
 import {
   askAppWindow,
   openAppFile,
   openAppWindow,
+  openNewAppWindow,
+  restoreAppWindows,
+  showInWindowHolding,
   updateAppWindowBackgroundColor,
   waitingAppWindowAsks,
 } from "@/electron-main/windows/app-window";
@@ -87,10 +89,11 @@ import {
   waitForPreviousDevInstance,
 } from "./lib/app-session";
 import { warnIfRunningX64BuildUnderARM64Translation } from "./lib/arm64-translation-warning";
-import { timeBootStep } from "./lib/boot-timing";
+import { logBootMark, timeBootStep, timeBootStepSync } from "./lib/boot-timing";
 import { registerFileDragHandler } from "./lib/file-drag";
 import { warmCommonFileOpenTargets } from "./lib/file-open-target";
 import { filesInArgv } from "./lib/files-in-argv";
+import { asksForNewWindow } from "./lib/new-window-task";
 import { logGpuStatus } from "./lib/gpu-status";
 import { handleBootFailure } from "./lib/handle-boot-failure";
 import { startAppCatalog } from "./lib/app-catalog";
@@ -102,6 +105,7 @@ import {
   requestQuitApproval,
   withdrawQuitApproval,
 } from "./lib/quit";
+import { keepTrapFatal } from "./lib/take-signal";
 import { registerUnattendedQuit } from "./lib/unattended-quit";
 import { getWorkspaceRefusal } from "./lib/workspace-refusal";
 import { getWorkspaceRun } from "./lib/workspace-run";
@@ -171,6 +175,10 @@ if (gotTheLock) {
       BrowserWindow.getAllWindows()[0]?.focus();
       return;
     }
+    // The taskbar's New Window task, which opens one unless setup is up.
+    if (asksForNewWindow(commandLine) && openNewAppWindow()) {
+      return;
+    }
     focusForegroundWindow();
 
     const url = linkInArgv(commandLine);
@@ -224,6 +232,8 @@ if (gotTheLock) {
 }
 
 async function bootstrapPrimaryInstance() {
+  logBootMark("bootstrapPrimaryInstance");
+  keepTrapFatal();
   registerUnattendedQuit();
 
   // A workspace this build will not open is said in a window of its own, and
@@ -371,23 +381,25 @@ async function bootstrapPrimaryInstance() {
     await startWorkspace();
   }
 
-  // A signed-in ChatGPT account's access token lasts an hour.
-  scheduleChatGPTAccountRefresh();
-  powerMonitor.on("resume", refreshChatGPTAccountAfterWake);
-  scheduleGrokRefresh();
-  powerMonitor.on("resume", refreshGrokAfterWake);
+  timeBootStepSync("startAccounts", () => {
+    // A signed-in ChatGPT account's access token lasts an hour.
+    scheduleChatGPTAccountRefresh();
+    powerMonitor.on("resume", refreshChatGPTAccountAfterWake);
+    scheduleGrokRefresh();
+    powerMonitor.on("resume", refreshGrokAfterWake);
 
-  // The Claude account is whatever the CLI says: someone installs it or signs
-  // in from a terminal, then comes back to the app.
-  // A workspace with no model chosen yet runs on the subscription it found.
-  void refreshClaudeAccountStatus().then(async (found) => {
-    if (found.kind === "signed-in" && !getDefaultModelURI()) {
-      await setClaudeAccountDefaultModel();
-    }
-  });
-  void keepClaudeCodeCurrent();
-  app.on("browser-window-focus", () => {
-    void refreshClaudeAccountStatus();
+    // The Claude account is whatever the CLI says: someone installs it or signs
+    // in from a terminal, then comes back to the app.
+    // A workspace with no model chosen yet runs on the subscription it found.
+    void refreshClaudeAccountStatus().then(async (found) => {
+      if (found.kind === "signed-in" && !getDefaultModelURI()) {
+        await setClaudeAccountDefaultModel();
+      }
+    });
+    void keepClaudeCodeCurrent();
+    app.on("browser-window-focus", () => {
+      void refreshClaudeAccountStatus();
+    });
   });
 
   // Development only: stage a made-up update and install it by restarting,
@@ -399,20 +411,22 @@ async function bootstrapPrimaryInstance() {
   // Restarting by itself to install is for macOS and Windows.
   const installsUnattended =
     simulateIdleRestart || (app.isPackaged && canInstallUnattended());
-  const updater = createStudioAppUpdater({
-    // Approving the install approves the quit it ends in, so before-quit and
-    // the window close go ahead without asking again. An install that then
-    // fails takes the approval back.
-    confirmQuit: requestQuitApproval,
-    installsUnattended,
-    simulatedInstall: simulateIdleRestart
-      ? () => {
-          startAgainAfterQuit();
-          app.quit();
-        }
-      : undefined,
-    withdrawQuit: withdrawQuitApproval,
-  });
+  const updater = timeBootStepSync("createAppUpdater", () =>
+    createStudioAppUpdater({
+      // Approving the install approves the quit it ends in, so before-quit and
+      // the window close go ahead without asking again. An install that then
+      // fails takes the approval back.
+      confirmQuit: requestQuitApproval,
+      installsUnattended,
+      simulatedInstall: simulateIdleRestart
+        ? () => {
+            startAgainAfterQuit();
+            app.quit();
+          }
+        : undefined,
+      withdrawQuit: withdrawQuitApproval,
+    }),
+  );
   if (process.env.DISABLE_AUTO_UPDATE_POLLING !== "true") {
     updater.pollForUpdates();
     powerMonitor.on("resume", updater.checkAfterWake);
@@ -440,14 +454,11 @@ async function bootstrapPrimaryInstance() {
     initializeRPC({ appUpdater: updater });
   });
 
-  // Before the window, whose extension buttons ask for them as soon as a
-  // tab's row is drawn.
-  startBrowserExtensions();
-
   // The window opens at setup's size or its own, so it waits for setup's
   // slow facts (a few seconds at most, and never once setup is finished).
-  await setupStateKnown();
-  openAppWindow();
+  await timeBootStep("setupStateKnown", setupStateKnown);
+  restoreAppWindows();
+  logBootMark("restoreAppWindows");
 
   // Let the initial window render before running the best-effort cache warmup.
   setTimeout(() => {
@@ -526,6 +537,9 @@ function focusForegroundWindow() {
 function handleDeepLink(url: string) {
   void openOutsideLink(url, {
     ask: (ask) => {
+      if (ask.type === "openScreen" && showInWindowHolding(ask.href)) {
+        return;
+      }
       focusForegroundWindow();
       askAppWindow(ask);
     },

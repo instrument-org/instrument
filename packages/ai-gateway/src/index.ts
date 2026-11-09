@@ -21,6 +21,10 @@ export {
 export { claudeCodeEnvironment } from "./lib/providers/claude-account/environment";
 export { closeClaudeAccountSessions } from "./lib/providers/claude-account/language-model";
 export {
+  CLAUDE_WEB_SEARCH_TOOL_NAME,
+  ClaudeWebSearchResultSchema,
+} from "./lib/providers/claude-account/web-search";
+export {
   type ClaudeCodeSignIn,
   startClaudeCodeSignIn,
   UnusableCodeError,

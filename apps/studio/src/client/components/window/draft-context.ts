@@ -6,7 +6,7 @@ import { type TabId } from "@/shared/tabs";
 import { groupOfHref } from "./app-tabs";
 import { computerTabOf } from "./file-tabs";
 import { joinHostPath } from "./host-path";
-import { isFreshTab } from "./tab-model";
+import { isFreshTab, selectedTabIn, type WindowTabs } from "./tab-model";
 import { chatOfGroup, matchScreen } from "./window-href";
 
 /**
@@ -75,6 +75,27 @@ export function isGroupShown(
     return false;
   }
   return chatOfGroup(group) === undefined || isPaneOpen(group, paneOpenByGroup);
+}
+
+/**
+ * The tab a chat's pane shows beside it, which the window's Close Tab
+ * closes before the window's own tab: the tab up in the chat the window's
+ * tab stands on, while that chat's pane is open. None for a hidden pane, a
+ * draft or a site, which close with the window's tab.
+ */
+export function shownPaneTab(
+  state: WindowTabs,
+  groupOnScreen: string | undefined,
+  paneOpenByGroup: Record<string, boolean>,
+): undefined | WindowTab {
+  if (
+    groupOnScreen === undefined ||
+    chatOfGroup(groupOnScreen) === undefined ||
+    !isPaneOpen(groupOnScreen, paneOpenByGroup)
+  ) {
+    return undefined;
+  }
+  return selectedTabIn(state, groupOnScreen);
 }
 
 /**

@@ -33,7 +33,7 @@ import {
   type BrowserSkill,
 } from "../lib/browser-skill-delivery";
 import { executeError } from "../lib/execute-error";
-import { ignoredBuildsNote } from "../lib/ignored-builds-note";
+import { ignoredBuildsNote } from "../model-text/commands/ignored-builds-note";
 import { lastLoadedSkillDir } from "../lib/loaded-skill";
 import { sessionRole } from "../lib/chat/children";
 import { folderReach } from "../lib/chat/folder-reach";
@@ -66,7 +66,7 @@ import {
   withHandOffs,
 } from "../lib/shell-commands/task-hand-off";
 import { withRaisedAsks } from "../lib/shell-commands/raised-asks";
-import { systemNote } from "../lib/system-note";
+import { systemNote } from "../model-text/notes/system-note";
 import { sessionToolFs } from "../lib/tool-fs";
 import { truncateMiddle } from "../lib/truncate-buffer";
 import { RelativePathSchema } from "../schemas/paths";

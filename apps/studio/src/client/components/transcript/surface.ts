@@ -11,12 +11,26 @@ export interface TaskCardFacts {
   /** The line it finished on. */
   ended?: string;
   failed: boolean;
-  /** How long it took, once it has finished. */
+  /**
+   * The chat has no such task: a branch's copy of a card whose task stayed
+   * with the chat it came from. Its card is finished and opens nothing.
+   */
+  gone?: boolean;
+  /**
+   * Its stretch ended at a message the chat sent while its step was still
+   * running, so it stopped there without finishing.
+   */
+  handedOn?: boolean;
+  /** How long its card's stretch of the task took, once that has ended. */
   ranMs?: number;
+  /** When its card's stretch of the task began, once the task's log says. */
+  startedAt?: Date;
   /** What it is doing now. */
   step?: string;
   stoppable: boolean;
   title: string;
+  /** It stopped on something the person has to answer, which its line names. */
+  waiting?: boolean;
   working: boolean;
 }
 
@@ -46,6 +60,13 @@ export interface TranscriptSurface {
   onOpenUrl: (url: string) => void;
   onStopCommand: (command: Pick<CommandFacts, "id" | "sessionId">) => void;
   onStopTask: (id: StoreId.Session) => void;
+  /**
+   * The page a session's work is on, as its tab says it is; nothing is read
+   * while `sessionId` is absent.
+   */
+  useDrivenPage: (
+    sessionId: StoreId.Session | undefined,
+  ) => { title?: string; url?: string } | undefined;
   /** Where the paths a call named are on this computer, once that is known. */
   useHostPaths: (paths: readonly string[]) => Record<string, null | string>;
   /** The commands the chat and its tasks left going, and those that have since ended. */
@@ -57,7 +78,14 @@ export interface TranscriptSurface {
     | SessionMessagePart.ReasoningPart
     | SessionMessagePart.ToolPart
     | undefined;
-  useTaskFacts: (id: StoreId.Session) => TaskCardFacts | undefined;
+  /**
+   * What a task's card says: the stretch of its log from `from`, the message
+   * a send put there, or from its start without one.
+   */
+  useTaskFacts: (
+    id: StoreId.Session,
+    from?: StoreId.Message,
+  ) => TaskCardFacts | undefined;
   useTaskMessages: (
     id: StoreId.Session,
     isWorking: boolean,

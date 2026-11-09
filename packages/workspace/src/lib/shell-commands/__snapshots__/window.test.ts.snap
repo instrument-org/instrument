@@ -5,11 +5,6 @@ exports[`window close, show and read on a tab > names the form it takes for [ 'c
 "
 `;
 
-exports[`window close, show and read on a tab > names the form it takes for [ 'request' ] 1`] = `
-"instrument window: request takes one tab id: instrument window request <id> --reason '<one sentence to the user>'.; request needs --reason '<one sentence to the user>', which the card shows them.
-"
-`;
-
 exports[`window close, show and read on a tab > names the form it takes for [ 'show' ] 1`] = `
 "instrument window: nothing to show: give a url, a path or a tab's id (instrument window show <url, path or id>...).
 "
@@ -22,20 +17,5 @@ exports[`window close, show and read on a tab > names the form it takes for [ 's
 
 exports[`window close, show and read on a tab > names the form it takes for [ 'show', 'tab_gone', '--in', …(1) ] 1`] = `
 "instrument window: --in takes one url or path to show in the tab: instrument window show <url or path> --in <id>.
-"
-`;
-
-exports[`window request > refuses a tab already the chat's, raising nothing 1`] = `
-"instrument window: tab <page> is already this chat's: \`instrument window read <page>\` reads it, and \`instrument task new --tab <page>\` hands it to a task.
-"
-`;
-
-exports[`window request > refuses a tab no note named, raising nothing 1`] = `
-"instrument window: no tab tab_01M5Q0AAAAAAAAAAAAAAAAAAAA of the user's is open outside this chat. A request names the tab a note on the user's message showed as theirs.
-"
-`;
-
-exports[`window request > refuses no reason, raising nothing 1`] = `
-"instrument window: request needs --reason '<one sentence to the user>', which the card shows them.
 "
 `;

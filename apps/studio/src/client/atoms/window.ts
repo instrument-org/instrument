@@ -1,4 +1,5 @@
 import { type ChosenItem, draftGroupOf, draftOfGroup } from "@/shared/drafts";
+import { COMPOSE_KEY } from "@/shared/kept-state";
 import { PANE_DEFAULT_SHARE } from "@/client/atoms/right-pane";
 import {
   type FileSystemListColumn,
@@ -27,6 +28,9 @@ import { folderHref } from "@/shared/computer-href";
  */
 export const chatFiltersAtom = atom<ChatFilters>(NO_FILTERS);
 
+/** The files cut in this window, by host path: a paste of exactly these moves them. */
+export const filesCutAtom = atom<readonly string[]>([]);
+
 /**
  * What a screen shows, in the terms the conversation is told it; see
  * `TabSurface.view`.
@@ -53,15 +57,15 @@ export type ComposeEntry = { placement: ComposePlacement } & (
   | { chatId: ChatId; fromDraft?: string; kind: "chat" }
 );
 
-/** How a window stands: docked along the window's foot, grown to fill the window, or put down to a bar along the foot. */
-export type ComposePlacement = "bar" | "docked" | "expanded";
+/** How a window stands: docked along the window's foot, or put down to a bar along it. */
+export type ComposePlacement = "bar" | "docked";
 
 /** The group key of what a window shows: the draft's tabs, or the chat's. */
 export function composeKeyOf(entry: ComposeEntry): string {
   return entry.kind === "draft" ? draftGroupOf(entry.draftId) : entry.chatId;
 }
 
-/** The chats up in a window of their own over the row: docked or grown, not put down to a bar. */
+/** The chats up in a window of their own over the row, not put down to a bar. */
 export function chatsOutOf(entries: ComposeEntry[]): Set<string> {
   return new Set(
     entries.flatMap((entry) =>
@@ -78,7 +82,7 @@ export function chatsOutOf(entries: ComposeEntry[]): Set<string> {
  * launches, so what was floating when the app quit floats again; the drafts
  * themselves are in `draftsAtom` (`client/drafts/store.ts`).
  */
-export const composeAtom = keptAtom<ComposeEntry[]>("layout", "compose.v2", []);
+export const composeAtom = keptAtom<ComposeEntry[]>("window", COMPOSE_KEY, []);
 
 /** The places the rail at the window's edge switches between: the chat, the files, the browser, and the apps. */
 export type AppPlace = "apps" | "browser" | "chat" | "files";
@@ -88,7 +92,7 @@ export type AppPlace = "apps" | "browser" | "chat" | "files";
  * Null for the inbox alone.
  */
 export const chatGroupAtom = keptAtom<null | string>(
-  "layout",
+  "window",
   "chat-group.v2",
   null,
 );
@@ -98,7 +102,7 @@ export const chatGroupAtom = keptAtom<null | string>(
  * rail takes a tab back to it. Null until a tab has been there.
  */
 export const filesFolderAtom = keptAtom<null | string>(
-  "layout",
+  "window",
   "files-folder.v1",
   null,
 );
@@ -113,7 +117,7 @@ export const filesHrefAtom = atom(
  * the window to themselves; it comes back on its own when nothing is left
  * on screen without it.
  */
-export const inboxOpenAtom = keptAtom<boolean>("layout", "inbox-open.v1", true);
+export const inboxOpenAtom = keptAtom<boolean>("window", "inbox-open.v1", true);
 
 /**
  * Whether each group's pane is open, by the chat's id or the draft's

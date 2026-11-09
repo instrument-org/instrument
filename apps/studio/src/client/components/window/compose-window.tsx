@@ -2,13 +2,8 @@ import {
   draftSnapshotsAtom,
   storedWordsAtom,
 } from "@/client/atoms/prompt-value";
-import { type Draft, draftGroupOf } from "@/shared/drafts";
-import {
-  APPS_HREF,
-  BROWSER_HREF,
-  type ComposePlacement,
-  NEW_TAB_HREF,
-} from "@/client/atoms/window";
+import { type Draft, draftGroupOf, isLeftEmpty } from "@/shared/drafts";
+import { APPS_HREF, BROWSER_HREF, filesHrefAtom } from "@/client/atoms/window";
 import { FileDropRegion } from "@/client/components/file-drop-region";
 import { FileOpenContext } from "@/client/components/file-open-context";
 import { PageOpenContext } from "@/client/components/page-open-context";
@@ -25,26 +20,25 @@ import {
 } from "@/client/components/ui/tooltip";
 import { fileUrlOf } from "@/client/lib/file-url";
 import { getFileType } from "@/client/lib/get-file-type";
-import { cn } from "@/client/lib/utils";
+import { osConventions } from "@/client/lib/utils";
 import {
   itemsOf,
   useDraftStaging,
   useFolderItems,
 } from "@/client/components/draft-staging";
+import { ChipPresence } from "@/client/components/attached-item-preview";
 import { fileHref, folderHref } from "@/shared/computer-href";
 import { type AIGatewayModelURI } from "@instrument-org/ai-gateway/client";
 import { type FileUpload } from "@instrument-org/workspace/client";
-import { ArrowsInSimpleIcon } from "@phosphor-icons/react/ArrowsInSimple";
 import { ArrowsOutSimpleIcon } from "@phosphor-icons/react/ArrowsOutSimple";
 import { CircleDashedIcon } from "@phosphor-icons/react/CircleDashed";
 import { MinusIcon } from "@phosphor-icons/react/Minus";
 import { TrashIcon } from "@phosphor-icons/react/Trash";
 import { XIcon } from "@phosphor-icons/react/X";
 import { useAtomValue, useSetAtom } from "jotai";
-import { motion, useIsPresent } from "motion/react";
+import { AnimatePresence, motion, useIsPresent } from "motion/react";
 import { type ReactNode, useLayoutEffect, useRef, useState } from "react";
 
-import { useAppsBySlug } from "./apps-by-slug";
 import { AskPills } from "./ask-pills";
 import { type BrowserTabsHandle, type PageChromeSlots } from "./browser-tabs";
 import { draftTitle, type Project } from "./chats";
@@ -53,11 +47,13 @@ import {
   COMPOSE_GUEST_LAYER,
   COMPOSE_MOTION,
   COMPOSE_WIDTH,
-  GROWN,
 } from "./compose-layout";
-import { ComposeZeroState } from "./compose-zero-state";
-import { useWindow, WindowContext } from "./context";
-import { ContextChips, HeldMark } from "./context-chip";
+import { asksOwnPlace, useWindow, WindowContext } from "./context";
+import { ContextChips, ContextSuggestion } from "./context-chip";
+import { appTabsAtom } from "./app-tabs";
+import { putBackTakenTab } from "./take-tab";
+import { type BandTarget, openInBand, targetsOf } from "./draft-band";
+import { includedItemsOf } from "./draft-context";
 import { GroupItem } from "./group-item";
 import { usePageHost } from "./page-hosts";
 import { tabSurfaceAtom } from "./tab-surface";
@@ -71,7 +67,6 @@ import { projectTint } from "./project-tint";
 import { useDraftChips } from "./use-draft-chips";
 import { useDraftProjectSuggestion } from "./use-draft-project-suggestion";
 import { useTabInView } from "./use-tab-in-view";
-import { WindowTabStrip } from "./window-tab-strip";
 import { isHomeTab } from "./tab-model";
 import { matchScreen } from "./window-href";
 import { useWindowTabs } from "./window-tabs";
@@ -84,52 +79,17 @@ export interface DraftSend {
   prompt: string;
 }
 
-/** How many marks the minimized bar shows of what the draft holds. */
-const BAR_MARKS = 4;
-
 /** The most the words take before they scroll, whatever the window could give them. */
 const WORDS_MAX_HEIGHT = 192;
 
-/** A docked window's height, in layout px, however long the words run: they scroll inside it, and Expand is there for more room. */
+/** A docked window's height, in layout px, while its well is open, however long the words run: they scroll inside it, and Expand is there for more room. */
 const COMPOSE_HEIGHT = 640;
 
-const NO_TITLES = new Map<never, never>();
-
 /**
- * The marks of what a group holds, for a window put down to a bar: a site's
- * icon, a file's type, a folder, the first few and a count of the rest.
- */
-export function BarMarks({ group }: { group: string }) {
-  const { allTabs } = useWindowTabs();
-  const appsBySlug = useAppsBySlug();
-  const held = allTabs.filter((tab) => tab.group === group && !isHomeTab(tab));
-  if (held.length === 0) {
-    return null;
-  }
-  return (
-    <span className="flex shrink-0 items-center gap-1 [&_img]:size-3.5 [&_svg]:size-3.5">
-      {held.slice(0, BAR_MARKS).map((tab) => (
-        <span
-          className="grid size-4 place-items-center rounded-sm bg-white/90 dark:bg-white/10 [&_img]:rounded-xs"
-          key={tab.id}
-        >
-          <HeldMark appsBySlug={appsBySlug} tab={tab} />
-        </span>
-      ))}
-      {held.length > BAR_MARKS && (
-        <span className="text-[10px] text-white/70">
-          +{held.length - BAR_MARKS}
-        </span>
-      )}
-    </span>
-  );
-}
-
-/**
- * The draft put down: a dark bar along the window's foot with its first words
- * and the marks of what it holds, brought back up by a press, closed by its
- * cross. What it holds is read off its tabs, so the bar says the same as the
- * band would.
+ * The draft put down: a dark bar along the window's foot with its first
+ * words, brought back up by a press, closed by its cross. Flush with the foot
+ * in the light theme, where it has no ring to double the edge the system
+ * draws there; a screen pixel up in the dark one, where it has.
  */
 export function ComposeBar({
   draft,
@@ -147,7 +107,7 @@ export function ComposeBar({
   return (
     <motion.div
       animate={{ opacity: 1, right, y: 0 }}
-      className="pointer-events-auto absolute bottom-[calc(1px/var(--app-zoom))] z-40 flex h-9 items-center overflow-hidden rounded-t-lg bg-gray-900 text-[12px] font-medium text-white shadow-xl-soft [clip-path:inset(-4rem_-4rem_0_-4rem)] dark:bg-gray-800 dark:ring-1 dark:ring-[color-mix(in_srgb,#fff_10%,var(--background))]"
+      className="pointer-events-auto absolute bottom-0 z-40 flex h-9 items-center overflow-hidden rounded-t-lg bg-gray-900 text-[12px] font-medium text-white shadow-xl-soft [clip-path:inset(-4rem_-4rem_0_-4rem)] dark:bottom-[calc(1px/var(--app-zoom))] dark:bg-gray-800 dark:ring-1 dark:ring-[color-mix(in_srgb,#fff_10%,var(--background))]"
       data-slot="compose-bar"
       exit={{ opacity: 0, y: 36 }}
       inert={!isPresent}
@@ -164,7 +124,6 @@ export function ComposeBar({
         <span className="min-w-0 flex-1 truncate">
           {draftTitle(draft.words)}
         </span>
-        <BarMarks group={draftGroupOf(draft.id)} />
       </button>
       <button
         aria-label="Close draft"
@@ -179,17 +138,16 @@ export function ComposeBar({
 }
 
 /**
- * A draft of a new chat, in a window that floats over the inbox and the
- * chat the way a mail client's compose window does: docked at the window's
- * bottom-right corner, or grown to fill the window inset from its edges, and
- * put down to a bar along the window's foot. Its head carries the draft's
- * name, the project it will be filed under, the composer's controls (the plus
- * menu, the model, the arrow) and the window's own three
- * buttons; under it the words on white, borderless, and under those a gray
- * band that is the draft's own pane: the four doors when nothing is gathered
- * yet, and otherwise the gathered things as tabs with the one up drawn large,
- * a page by the browser and a folder by This Mac. The draft's tabs are the
- * chat's tabs from the moment it starts; nothing is handed over.
+ * A draft of a new chat, in a window that floats over Files, the browser or
+ * Apps the way a mail client's compose window does, docked at the window's
+ * bottom-right corner. On a tinted shell: a head with the draft's name, the
+ * project it will be filed under, and the window's own buttons (trash, then
+ * minimize to a bar, expand into the Chat screen, close); under it the chat's
+ * own composer; and
+ * under that, once the draft has something open, a well that is the draft's
+ * own pane. The composer's chips are that pane's tabs: the one picked is the
+ * one drawn in the well, and taking one off closes it. The draft's tabs are
+ * the chat's tabs from the moment it starts; nothing is handed over.
  *
  * The words ride in the draft's record, so the Drafts list can name it and a
  * relaunch keeps them; what else the box was given (files, a folder) is kept
@@ -202,11 +160,11 @@ export function ComposeWindow({
   onChange,
   onClose,
   onDiscard,
+  onExpand,
+  onMinimize,
   onModelChange,
   onNewProject,
-  onPlacementChange,
   onStart,
-  placement,
   right,
   projects,
   width = COMPOSE_WIDTH,
@@ -217,14 +175,16 @@ export function ComposeWindow({
   onChange: (update: (draft: Draft) => Draft) => void;
   /** The window's close, with the words as the box has them that moment and whether it is dictating more: the caller keeps or throws the draft away by them. */
   onClose: (words: string, dictating: boolean) => void;
-  /** Throws the draft away, from the head's trash, offered while it has words to lose. */
+  /** Throws the draft away, from the head's trash, offered while it has anything to lose (`isLeftEmpty`). */
   onDiscard: () => void;
+  /** Takes the draft into the Chat screen, written there in full beside the chat list. */
+  onExpand: () => void;
+  /** Puts the window down to a bar along the foot. */
+  onMinimize: () => void;
   onModelChange: (modelURI: AIGatewayModelURI.Type) => void;
   /** Makes a project named for what was typed in the head's project picker, and files the draft under it. */
   onNewProject: (name: string) => void;
-  onPlacementChange: (placement: ComposePlacement) => void;
   onStart: (send: DraftSend) => void;
-  placement: Exclude<ComposePlacement, "bar">;
   /** Where a docked window stands along the foot, in layout px from the right edge; the windows beside it are placed the same way. */
   right: number;
   projects: Project[];
@@ -235,26 +195,30 @@ export function ComposeWindow({
   // it left, so it takes no input then.
   const isPresent = useIsPresent();
   const appWindow = useWindow();
+  const appTabs = useAtomValue(appTabsAtom).tabs;
   const windowTabs = useWindowTabs();
+  const filesHref = useAtomValue(filesHrefAtom);
   const group = draftGroupOf(draft.id);
-  const tabs = windowTabs.allTabs.filter((tab) => tab.group === group);
+  // A new-tab page a build before this one opened a draft on is no tab of
+  // the draft's: it is left out of the chips and never drawn in the well.
+  const tabs = windowTabs.allTabs.filter(
+    (tab) => tab.group === group && !isHomeTab(tab),
+  );
   // What was marked in files and moved here, as pills that go with the words.
   const marked = useComposerAsks({ draftId: draft.id, kind: "draft" });
   const { moveTo: moveAsks } = useStagedAskActions();
-  const up = windowTabs.selectedTabIn(group);
-  const isExpanded = placement === "expanded";
-  // What the draft carries besides its words, as its chips: the same list
-  // its chat is told at the press (see draftContextItems).
+  const selected = windowTabs.selectedTabIn(group);
+  // The well opens on what the person asks to see (a chip pressed, a place
+  // opened from the plus) and closes on a second press of the chip it shows,
+  // so taking something in adds its chip without covering the screen.
+  const [isWellOpen, setWellOpen] = useState(false);
+  const up = isWellOpen
+    ? selected && !isHomeTab(selected)
+      ? selected
+      : (tabs.at(-1) ?? undefined)
+    : undefined;
   const surfaces = useAtomValue(tabSurfaceAtom);
   const inView = useTabInView();
-  const { items: contextItems, leaveOut } = useDraftChips({
-    allTabs: windowTabs.allTabs,
-    bandUp: up,
-    draft,
-    finderOf: (id) => surfaces[id]?.finder ?? null,
-    inView,
-    onChange,
-  });
 
   // The words are the draft's own, wherever they are read; what else the
   // box held when it was put away is put back as it comes up.
@@ -306,9 +270,6 @@ export function ComposeWindow({
   const liveProjects = projects.filter((entry) => !entry.retired);
   useDraftProjectSuggestion({ draft, onChange, projects: liveProjects, words });
 
-  // The head's slot the composer's button row is drawn into. State rather
-  // than a ref: the row is a portal, which needs the element to exist.
-  const [headSlot, setHeadSlot] = useState<HTMLDivElement | null>(null);
   // What the band opens lands in the draft's group and comes up in the band,
   // never on screen behind the window; the caret goes back to the words,
   // which are what the window is for.
@@ -316,6 +277,7 @@ export function ComposeWindow({
     const id = browser?.openOrFocus(url, { group });
     if (id !== undefined) {
       windowTabs.select(id);
+      setWellOpen(true);
     }
     inputRef.current?.focus();
   };
@@ -329,6 +291,7 @@ export function ComposeWindow({
       isOpened: true,
       select: true,
     });
+    setWellOpen(true);
     inputRef.current?.focus();
   };
   const openFolder = (hostPath: string) => {
@@ -346,6 +309,7 @@ export function ComposeWindow({
         isOpened: true,
         select: true,
       });
+      setWellOpen(true);
       inputRef.current?.focus();
     }
   };
@@ -366,9 +330,46 @@ export function ComposeWindow({
     }
     appWindow.openScreen(href, { newTab: true });
   };
+  // Closing what the well shows closes the well, rather than putting
+  // another of the chips up in its place.
   const closeTab = (id: string) => {
-    windowTabs.close(id);
+    if (id === up?.id) {
+      setWellOpen(false);
+    }
+    // A tab of the person's own goes back where it came from, if it still can.
+    if (!putBackTakenTab({ tabId: id, windowTabs })) {
+      windowTabs.close(id);
+    }
   };
+  /** A chip pressed: its tab comes up in the well, or the well closes when it already shows it. */
+  const showTab = (id: string) => {
+    if (id === up?.id) {
+      setWellOpen(false);
+      return;
+    }
+    windowTabs.select(id);
+    setWellOpen(true);
+  };
+  const open = (target: BandTarget) =>
+    openInBand({ appTabs, browser, group, target, windowTabs });
+  // What the draft carries besides its words, as its chips: the same list
+  // its chat is told at the press (see draftContextItems).
+  const {
+    items: contextItems,
+    leaveOut,
+    suggestion,
+  } = useDraftChips({
+    allTabs: windowTabs.allTabs,
+    band: tabs,
+    closeTab,
+    draft,
+    finderOf: (id) => surfaces[id]?.finder ?? null,
+    inView,
+    onChange,
+    open,
+  });
+  // The attached file or folder the well shows, whose chip stands raised.
+  const shownPath = up ? includedItemsOf(up, null, [])?.[0]?.path : undefined;
 
   // The element the page is drawn into, held as state so the ref React
   // calls is one stable setter: a callback made afresh each render is
@@ -382,17 +383,9 @@ export function ComposeWindow({
     into: pageHost,
     isActive: true,
     layer: COMPOSE_GUEST_LAYER,
-    place: `${placement}:${right}:${width}`,
+    place: `${right}:${width}`,
   });
 
-  // The strip is drawn once there is anything to switch between: a lone
-  // new tab is the band's own face rather than a tab.
-  // Nothing open yet: the band is only its tiles and the strip under them,
-  // so it takes what those need and the words take the rest.
-  const isEmpty = up === undefined || (up.kind === "screen" && isHomeTab(up));
-  const showsStrip =
-    tabs.length > 1 || (tabs[0] !== undefined && !isHomeTab(tabs[0]));
-  const wordsFill = isEmpty && !showsStrip;
   const openBrowser = () => {
     // The caret goes to the new tab's address field, which takes it as it
     // arrives only while nothing else holds it; the words give it up rather
@@ -405,39 +398,20 @@ export function ComposeWindow({
       isOpened: true,
       select: true,
     });
+    setWellOpen(true);
   };
-  const openNewTab = () => {
-    windowTabs.openScreen(NEW_TAB_HREF, { group, select: true });
+  // The plus opens the web, the computer and Apps in the well, the way a
+  // chat's plus opens them beside the chat.
+  const places = {
+    computerName: osConventions().computer,
+    onOpenApps: () => {
+      openScreenIn(APPS_HREF);
+    },
+    onOpenComputer: () => {
+      openScreenIn(filesHref);
+    },
+    onOpenWeb: openBrowser,
   };
-
-  const content = (() => {
-    if (isEmpty) {
-      return (
-        <ComposeZeroState
-          onAttachFiles={() => {
-            inputRef.current?.pickFiles();
-          }}
-          onAttachFolder={() => {
-            inputRef.current?.pickFolder();
-          }}
-          onOpenApps={() => {
-            openScreenIn(APPS_HREF);
-          }}
-          onOpenBrowser={openBrowser}
-          onOpenFolder={openFolder}
-        />
-      );
-    }
-    return (
-      <GroupItem
-        closeTab={closeTab}
-        group={group}
-        onPageChrome={setPageChrome}
-        onPageHost={setPageHost}
-        up={up}
-      />
-    );
-  })();
 
   return (
     // Arrives from a little below its place and leaves the same way, so a
@@ -445,30 +419,25 @@ export function ComposeWindow({
     // slides to its new place along the foot when a neighbor goes, and its
     // page is placed again as it moves (see the host's `place`).
     <motion.div
-      animate={{ opacity: 1, right: isExpanded ? 0 : right, y: 0 }}
-      className={cn(
-        // An opaque edge, and the shadow ramp without its own hairline: these
-        // windows are drawn over the pane, over a page guest, and over each
-        // other, and a see-through edge takes the color of whatever it lands
-        // on and doubles wherever two of them cross.
-        "pointer-events-auto absolute z-40 flex flex-col overflow-hidden bg-card text-foreground shadow-xl-soft ring-1 ring-gray-300 dark:ring-gray-600",
-        // Docked, the window grows with the words up to the row's height, so
-        // the band keeps its room under them for as long as there is room to
-        // give; only then do the words scroll.
-        // A screen pixel off the foot at any zoom, so the ring stops short of
-        // the edge the system draws along the window's bottom rather than
-        // doubling it, and clipped at its own foot, so the ring's bottom side
-        // and the shadow under it never reach that edge either. The bars
-        // along the foot stand on the same line.
-        isExpanded
-          ? "z-41 rounded-2xl"
-          : "bottom-[calc(1px/var(--app-zoom))] max-h-[calc(100%-3.5rem)] rounded-t-2xl [clip-path:inset(-4rem_-4rem_0_-4rem)]",
-      )}
+      animate={{ opacity: 1, right, y: 0 }}
+      // An opaque edge, and the shadow ramp without its own hairline: these
+      // windows are drawn over the pane, over a page guest, and over each
+      // other, and a see-through edge takes the color of whatever it lands on
+      // and doubles wherever two of them cross. A screen pixel off the foot
+      // at any zoom, so the ring stops short of the edge the system draws
+      // along the window's bottom rather than doubling it, and clipped at its
+      // own foot, so the ring's bottom side and the shadow under it never
+      // reach that edge either. The bars along the foot stand on the same
+      // line.
+      className="pointer-events-auto absolute bottom-[calc(1px/var(--app-zoom))] z-40 flex max-h-[calc(100%-3.5rem)] flex-col overflow-hidden rounded-t-2xl bg-gray-100 text-foreground shadow-xl-soft ring-1 ring-gray-300 [clip-path:inset(-4rem_-4rem_0_-4rem)] dark:bg-gray-900 dark:ring-gray-600"
       data-slot="compose-window"
       exit={{ opacity: 0, y: 24 }}
       inert={!isPresent}
-      initial={{ opacity: 0, right: isExpanded ? 0 : right, y: 24 }}
-      style={isExpanded ? GROWN : { height: COMPOSE_HEIGHT, width }}
+      initial={{ opacity: 0, right, y: 24 }}
+      // With nothing open the window is only its head and the composer; a
+      // page or a folder opens the well, which takes the window's full
+      // height, and the words scroll past what is left over it.
+      style={{ height: up ? COMPOSE_HEIGHT : "auto", width }}
       transition={COMPOSE_MOTION}
     >
       <WindowContext
@@ -485,7 +454,7 @@ export function ComposeWindow({
             moveAsks(ids, { draftId: draft.id, kind: "draft" });
           },
           openPage: (url, options) => {
-            if (options?.newTab) {
+            if (asksOwnPlace(options)) {
               appWindow.openPage(url, options);
             } else {
               openPage(url);
@@ -494,16 +463,12 @@ export function ComposeWindow({
           openPath: (path, options) => {
             appWindow.openPath(
               path,
-              options?.newTab ? options : { ...options, group },
+              asksOwnPlace(options) ? options : { ...options, group },
             );
           },
           openScreen: (href, options) => {
-            if (options?.newTab) {
+            if (asksOwnPlace(options)) {
               appWindow.openScreen(href, options);
-              // A grown window would cover the tab brought up behind it.
-              if (isExpanded && !options.behind) {
-                onPlacementChange("docked");
-              }
             } else {
               openScreen(href);
             }
@@ -512,7 +477,7 @@ export function ComposeWindow({
       >
         <FileOpenContext
           value={(path, options) => {
-            if (options?.newTab) {
+            if (asksOwnPlace(options)) {
               appWindow.openScreen(
                 path.endsWith("/")
                   ? folderHref(path.slice(0, -1))
@@ -528,7 +493,7 @@ export function ComposeWindow({
         >
           <PageOpenContext
             value={(url, options) => {
-              if (options?.newTab) {
+              if (asksOwnPlace(options)) {
                 appWindow.openPage(url, options);
               } else {
                 openPage(url);
@@ -536,7 +501,7 @@ export function ComposeWindow({
             }}
           >
             <FileDropRegion className="flex h-full min-h-0 flex-col">
-              <div className="flex h-12 shrink-0 items-center gap-1.5 px-3 select-none">
+              <div className="flex h-11 shrink-0 items-center gap-1.5 pr-2 pl-3 select-none">
                 <span className="inline-flex h-7 shrink-0 items-center px-1.5 text-[13px] font-medium">
                   New chat
                 </span>
@@ -559,43 +524,25 @@ export function ComposeWindow({
                   project={project}
                   projects={liveProjects}
                 />
-                {/* The composer's own row, drawn here by the box below. */}
-                {/* Kept whole at the head's end: on a crowded head the
-                    sentence's names give way before the model's. */}
-                <div
-                  className="ml-auto flex shrink-0 items-center pl-2"
-                  ref={setHeadSlot}
-                />
-                <div className="ml-1 flex shrink-0 items-center gap-0.5 border-l border-border pl-2">
+                <div className="ml-auto flex shrink-0 items-center gap-0.5">
                   {/* Always there, so words landing in the draft don't move the
                       buttons beside it. */}
                   <WindowButton
-                    disabled={words.trim() === ""}
+                    disabled={isLeftEmpty(draft, {
+                      hasTabs: tabs.length > 0,
+                      words,
+                    })}
                     label="Discard draft"
                     onClick={onDiscard}
                   >
                     <TrashIcon className="size-4" />
                   </WindowButton>
-                  <WindowButton
-                    label="Minimize"
-                    onClick={() => {
-                      onPlacementChange("bar");
-                    }}
-                  >
+                  <span className="mx-1 h-4 w-px bg-border" />
+                  <WindowButton label="Minimize" onClick={onMinimize}>
                     <MinusIcon className="size-4" />
                   </WindowButton>
-                  <WindowButton
-                    keepsFocus
-                    label={isExpanded ? "Shrink" : "Expand"}
-                    onClick={() => {
-                      onPlacementChange(isExpanded ? "docked" : "expanded");
-                    }}
-                  >
-                    {isExpanded ? (
-                      <ArrowsInSimpleIcon className="size-4" />
-                    ) : (
-                      <ArrowsOutSimpleIcon className="size-4" />
-                    )}
+                  <WindowButton label="Expand" onClick={onExpand}>
+                    <ArrowsOutSimpleIcon className="size-4" />
                   </WindowButton>
                   <WindowButton
                     label="Close"
@@ -607,41 +554,64 @@ export function ComposeWindow({
                   </WindowButton>
                 </div>
               </div>
-              {/* The words give way to the band: the band keeps a floor,
-                  and the words scroll past what is left. The editor keeps
-                  three lines of its own whatever is attached over it, so a
-                  chip or a row of pasted files takes its room from the band,
-                  not the words. */}
-              <div
-                className={cn(
-                  "flex min-h-24 shrink flex-col select-text [&_.prompt-editor]:min-h-18 [&_.prompt-editor]:text-[15px] [&_.prompt-editor]:leading-6",
-                  wordsFill && "flex-1",
-                )}
-              >
+              {/* What goes with the message over the words, always shown,
+                  since in a draft they are what is attached. Over the well
+                  the words scroll past a few lines, so the page keeps its
+                  room. */}
+              <div className="mx-2 mb-2 shrink-0">
                 <PromptInput
-                  actionsInto={headSlot}
-                  // The band's rows are the ways in; a plus beside them
-                  // would be a second door to the same rooms.
-                  addMenu={false}
                   attachmentsLead={
                     marked.length > 0 ? <AskPills asks={marked} /> : undefined
                   }
                   autoFocus
-                  // Over the tiles alone the words take all the room the
-                  // window has, and scroll only past that.
-                  autoResizeMaxHeight={wordsFill ? null : WORDS_MAX_HEIGHT}
-                  className="min-h-0 flex-1"
+                  {...(up ? { autoResizeMaxHeight: WORDS_MAX_HEIGHT } : {})}
+                  besidePlus={
+                    <AnimatePresence initial={false}>
+                      {suggestion && (
+                        <ChipPresence key={suggestion.key}>
+                          <ContextSuggestion
+                            item={suggestion}
+                            onTake={() => {
+                              for (const target of targetsOf(suggestion)) {
+                                open(target);
+                              }
+                            }}
+                          />
+                        </ChipPresence>
+                      )}
+                    </AnimatePresence>
+                  }
                   draftKey={key}
                   hasAttachmentsLead={marked.length > 0}
                   onDictatingChange={setDictating}
+                  onFolders={(paths) => {
+                    for (const path of paths) {
+                      openFolder(path);
+                    }
+                  }}
                   onItemRemoved={removeItem}
                   onItemsChange={keepItems}
+                  onShowItem={(item) => {
+                    if (item.path === shownPath) {
+                      setWellOpen(false);
+                    } else if (item.kind === "folder") {
+                      openFolder(item.path);
+                    } else {
+                      openFile(item.path);
+                    }
+                  }}
+                  shownPath={shownPath}
                   // The window becomes the chat's at the press, so the
                   // box is never left waiting on a send.
                   isLoading={false}
                   lead={
                     contextItems.length > 0 ? (
                       <ContextChips
+                        band={{
+                          group,
+                          onSelect: showTab,
+                          selectedId: up?.id,
+                        }}
                         items={contextItems}
                         onLeaveOut={leaveOut}
                       />
@@ -653,45 +623,25 @@ export function ComposeWindow({
                     onStart(asStaged(send));
                   }}
                   placeholder="What do you need?"
+                  places={places}
                   ref={inputRef}
-                  variant="bare"
                 />
               </div>
-              {/* The band: the draft's own pane, on a gray floor with nothing
-                  between it and the words but the color. */}
-              <div
-                className={cn(
-                  "mx-2 flex flex-col overflow-hidden rounded-t-xl bg-gray-200 dark:bg-gray-900",
-                  wordsFill ? "shrink-0" : "min-h-80 flex-1",
-                )}
-              >
-                {showsStrip && (
-                  // The tab on screen in the card's color, so it reads as
-                  // the top of the card under it rather than as the floor. In
-                  // dark the floor is the page's own color, so the tab is
-                  // lifted to the card's.
-                  <div className="flex h-9 shrink-0 items-center pr-1 pl-1 [--project-tint-raised:var(--card)] dark:[--background:var(--card)]">
-                    <WindowTabStrip
-                      chatTitles={NO_TITLES}
-                      childTitles={NO_TITLES}
-                      groupKey={group}
-                      onClose={closeTab}
-                      onNew={openNewTab}
-                      onReorder={(keys) => {
-                        windowTabs.reorder(keys, group);
-                      }}
-                      onSelect={(id) => {
-                        windowTabs.select(id);
-                      }}
-                      selectedId={up?.id}
-                      tabs={tabs}
+              {/* The well: the draft's own pane, a card of its own under the
+                  composer, its corners concentric with the row inside it. */}
+              {up && (
+                <div className="mx-2 mb-2 flex min-h-0 flex-1 flex-col overflow-hidden rounded-[18px] bg-card shadow-xs ring-1 ring-border [--background:var(--card)] [--guest-bottom-radius:18px]">
+                  <LinkSurface>
+                    <GroupItem
+                      closeTab={closeTab}
+                      group={group}
+                      onPageChrome={setPageChrome}
+                      onPageHost={setPageHost}
+                      up={up}
                     />
-                  </div>
-                )}
-                <div className="min-h-0 flex-1">
-                  <LinkSurface>{content}</LinkSurface>
+                  </LinkSurface>
                 </div>
-              </div>
+              )}
             </FileDropRegion>
           </PageOpenContext>
         </FileOpenContext>
@@ -752,7 +702,7 @@ export function WindowButton({
  * to take it off, or a dashed slot that opens the same picker when none is
  * picked yet. A project Instrument filed on its own explains itself on hover.
  */
-function ProjectSlot({
+export function ProjectSlot({
   onClear,
   onNew,
   onPick,

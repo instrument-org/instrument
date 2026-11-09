@@ -12,7 +12,7 @@ import { absolutePathJoin } from "./absolute-path-join";
 import { getIgnore } from "./get-ignore";
 import { pathExists } from "./path-exists";
 import { SKILL_ARTIFACT_IGNORE } from "./skill-artifact-ignore";
-import { AGENT_BROWSER_GUIDE_NAME } from "./agent-browser-guide";
+import { AGENT_BROWSER_GUIDE_NAME } from "../model-text/guides/agent-browser-guide";
 import { getSkillPackageFingerprint } from "./skill-package-fingerprint";
 import { runtimeLayout } from "./runtime-dir";
 import {

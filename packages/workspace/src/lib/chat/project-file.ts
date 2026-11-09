@@ -35,6 +35,7 @@ const OWN_KEYS = new Set([
   "color",
   "created",
   "emoji",
+  "icon",
   "id",
   "retired",
 ]);
@@ -49,6 +50,11 @@ export const ProjectFileSchema = z.object({
   created: z.date(),
   /** What stands for it: one emoji, chosen when it was made. */
   emoji: z.string().optional(),
+  /**
+   * What stands for it in place of an emoji: a Phosphor icon by its name
+   * (`books`), drawn in its color. A project has one or the other.
+   */
+  icon: z.string().optional(),
   id: z.string(),
   /** The standing words for work under it; empty for most projects. */
   instructions: z.string().optional(),
@@ -130,6 +136,7 @@ function fieldsOf(
   const about = words(front.about);
   const color = words(front.color);
   const emoji = words(front.emoji);
+  const icon = words(front.icon);
   const id = words(front.id);
   const standing = instructions.trim();
   return {
@@ -137,6 +144,7 @@ function fieldsOf(
     ...(color ? { color } : {}),
     created: toTheSecond(dateOf(front.created) ?? at),
     ...(emoji ? { emoji } : {}),
+    ...(icon ? { icon } : {}),
     ...(id ? { id } : {}),
     ...(standing ? { instructions: standing } : {}),
     ...(Object.keys(others).length > 0 ? { others } : {}),
@@ -157,6 +165,9 @@ export function renderProjectFile(project: ProjectFile): string {
   const front: Record<string, unknown> = { id: project.id };
   if (project.emoji !== undefined) {
     front.emoji = project.emoji;
+  }
+  if (project.icon !== undefined) {
+    front.icon = project.icon;
   }
   if (project.color !== undefined) {
     front.color = project.color;

@@ -22,8 +22,12 @@ export type Selection = {
   several: null | SeveralSelected;
 };
 
-/** A press or key that adds to the selection rather than replacing it: Shift reaches, ⌘ picks one more. */
-export type SelectionMode = "extend" | "toggle";
+/**
+ * A press or key that adds to the selection rather than replacing it: Shift
+ * reaches, ⌘ picks one more or lets one go, and an arrow held with Shift in the
+ * icons on a Mac adds the tile it lands on.
+ */
+export type SelectionMode = "add" | "extend" | "toggle";
 
 export const NOTHING_SELECTED: Selection = { lead: null, several: null };
 
@@ -73,19 +77,22 @@ export function selectOnly(path: null | string): Selection {
 }
 
 /**
- * Exactly these, the way ⌘A takes a folder: the lead stays where it is when
- * it is among them, and is the first of them otherwise.
+ * Exactly these, the way ⌘A takes a folder: on `leadOn` where it says, and
+ * otherwise the lead stays where it is when it is among them, and is the first
+ * of them when it is not.
  */
 export function selectExactly(
   current: Selection,
   paths: readonly string[],
+  leadOn?: string,
 ): Selection {
   const first = paths[0];
   if (first === undefined) return NOTHING_SELECTED;
   const lead =
-    current.lead !== null && paths.includes(current.lead)
+    leadOn ??
+    (current.lead !== null && paths.includes(current.lead)
       ? current.lead
-      : first;
+      : first);
   return paths.length > 1
     ? { lead, several: { anchor: first, paths, range: paths } }
     : { lead, several: null };
@@ -143,6 +150,15 @@ export function extendSelected(
     : { lead: path, several: null };
 }
 
+/** One more added and led to, whatever is selected already staying. */
+function addSelected(current: Selection, path: string): Selection {
+  const held = selectedPathsOf(current);
+  const paths = held.includes(path) ? held : [...held, path];
+  return paths.length > 1
+    ? { lead: path, several: { anchor: path, paths, range: [path] } }
+    : { lead: path, several: null };
+}
+
 /** A press or key on one row: alone, or with the modifier it carried. */
 export function selectWithMode(
   current: Selection,
@@ -150,6 +166,7 @@ export function selectWithMode(
   mode: null | SelectionMode,
   order: readonly string[],
 ): Selection {
+  if (mode === "add") return addSelected(current, path);
   if (mode === "toggle") return toggleSelected(current, path);
   if (mode === "extend") return extendSelected(current, path, order);
   return selectOnly(path);

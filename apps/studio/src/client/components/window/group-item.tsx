@@ -17,10 +17,11 @@ import {
 
 import { useAppsBySlug } from "./apps-by-slug";
 import { type PageChromeSlots } from "./browser-tabs";
-import { WebStart } from "./compose-zero-state";
-import { useWindow, WindowContext } from "./context";
+import { WebStart } from "./web-start";
+import { asksOwnPlace, useWindow, WindowContext } from "./context";
 import { useRowSlots } from "./row-slots";
 import { BrowserExtensionButtons } from "./browser-extension-buttons";
+import { PageAgentOverlay } from "./page-agent-overlay";
 import { PageAskButton } from "./file-ask-button";
 import { GroupTabContext } from "./group-tab";
 import { liveFileAddress, liveHostedFileAddress } from "./hosted-page";
@@ -46,7 +47,7 @@ export function GroupItem({
   before,
   closeTab,
   group,
-  isFramed = true,
+  isChatWorking,
   isShown = true,
   onPageChrome,
   onPageHost,
@@ -56,8 +57,11 @@ export function GroupItem({
   before?: { back: () => void; canGoBack: boolean };
   closeTab: (id: string) => void;
   group: string;
-  /** Whether it stands on a card inset in its band, as in a draft; a grown popped-out chat draws it edge to edge, as the pane beside a chat does. */
-  isFramed?: boolean;
+  /**
+   * Whether the chat whose pane this is, or any task of it, is at work, which
+   * a page uses to say the agent is using it; absent outside a chat's pane.
+   */
+  isChatWorking?: boolean;
   /** Whether it is on screen; false while the pane it stands in is put away, which keeps it mounted. */
   isShown?: boolean;
   /** Where the address row takes the page's reload and controls while a page is up; nothing otherwise. */
@@ -73,7 +77,6 @@ export function GroupItem({
   // What is up draws its own controls into the row: a page its reload, zoom
   // and controls, a file screen its folder toggle and actions.
   const { rowProps, slots } = useRowSlots();
-  const Frame = isFramed ? Card : Bare;
   const taskTitles = useTaskTitles();
   // What the screen up says it shows, which the row reads a folder's place off.
   const surface = useAtomValue(tabSurfaceAtom)[up.id];
@@ -96,6 +99,7 @@ export function GroupItem({
     [],
   );
   const targetId = up.kind === "page" ? browserTargetOf(up.id) : undefined;
+  const chatId = chatOfGroup(group);
   const page = targetId ? getGuest(targetId) : null;
   // Back walks what is up (the page's own history, the screen's trail),
   // then what the tab showed before it, then, for a tab that is a site of
@@ -197,7 +201,7 @@ export function GroupItem({
   if (up.kind === "page") {
     const filePath = hostPathOfFileUrl(up.url);
     return (
-      <Frame
+      <Bare
         anchorRef={anchorRef}
         head={row(
           filePath === undefined
@@ -210,15 +214,24 @@ export function GroupItem({
               },
         )}
       >
-        <div className="h-full" ref={onPageHost} />
-      </Frame>
+        <div className="relative h-full">
+          <div className="h-full" ref={onPageHost} />
+          {chatId !== undefined && isChatWorking !== undefined && (
+            <PageAgentOverlay
+              chatId={chatId}
+              isChatWorking={isChatWorking}
+              tabId={up.id}
+            />
+          )}
+        </div>
+      </Bare>
     );
   }
   // The new tab a draft's group opens on, which a chat's group can be handed
   // with the draft's tabs: the web's start, whose page takes its place.
   if (isHomeTab(up)) {
     return (
-      <Frame
+      <Bare
         anchorRef={anchorRef}
         head={row(screenLocation(up.href, { appsBySlug, taskTitles }))}
       >
@@ -227,7 +240,7 @@ export function GroupItem({
             browser?.open(url, { group, replacing: up });
           }}
         />
-      </Frame>
+      </Bare>
     );
   }
   // Every other screen is a route of the window's own tree, under a router
@@ -237,7 +250,7 @@ export function GroupItem({
     surface,
   );
   return (
-    <Frame
+    <Bare
       anchorRef={anchorRef}
       // A task's page heads itself with its title and Stop.
       {...(location.kind === "task" ? {} : { head: row(location) })}
@@ -265,7 +278,7 @@ export function GroupItem({
               : { askAbout: undefined }),
             // A chat's tasks and each task's page walk this tab in place.
             openScreen: (href, options) => {
-              if (tasksOfHref(href) && !options?.newTab && router) {
+              if (tasksOfHref(href) && !asksOwnPlace(options) && router) {
                 router.history.push(href);
                 return;
               }
@@ -280,7 +293,7 @@ export function GroupItem({
           {router ? <RouterProvider router={router} /> : null}
         </WindowContext>
       </GroupTabContext>
-    </Frame>
+    </Bare>
   );
 }
 
@@ -298,26 +311,6 @@ function Bare({
     <div className="flex h-full flex-col bg-background" ref={anchorRef}>
       {head}
       <div className="min-h-0 flex-1">{children}</div>
-    </div>
-  );
-}
-
-/** The band's white card, for a thing drawn large in it. */
-function Card({
-  anchorRef,
-  children,
-  head,
-}: {
-  anchorRef?: Ref<HTMLDivElement>;
-  children: ReactNode;
-  head?: ReactNode;
-}) {
-  return (
-    <div className="h-full px-2 pb-2" ref={anchorRef}>
-      <div className="flex h-full flex-col overflow-hidden rounded-lg bg-card">
-        {head}
-        <div className="min-h-0 flex-1">{children}</div>
-      </div>
     </div>
   );
 }

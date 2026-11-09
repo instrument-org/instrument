@@ -5,7 +5,7 @@ import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
 import { AbsolutePathSchema, WorkspaceDirSchema } from "../schemas/paths";
 import { chatFor } from "../test/helpers/chat-record";
-import { chatTaskFor } from "../test/helpers/chat-task";
+import { chatTaskFor, writtenIn } from "../test/helpers/chat-task";
 import { recordChatFolderName } from "./chat-folders/own-folder";
 import { grantFolder } from "./chat/grants";
 import { ChatReads } from "./chat-reads";
@@ -21,12 +21,33 @@ import { removeChatsDir } from "../test/helpers/remove-chats-dir";
 let rootDir: string;
 let trashed: string[];
 
-// The machine answers the browser teardown at once; nothing else is asked of it.
-const workspaceRef = {
-  send: (event: { type: string; value?: { onBrowserReaped?: () => void } }) => {
-    event.value?.onBrowserReaped?.();
-  },
-} as never;
+/**
+ * A workspace machine with no session running unless `running` says one is
+ * still active, which answers the browser teardown at once and notes each
+ * event it is sent in `sent`.
+ */
+function fakeWorkspaceRef({
+  running = () => false,
+  sent = [],
+}: { running?: () => boolean; sent?: string[] } = {}) {
+  const session = {
+    getSnapshot: () => ({ status: running() ? "active" : "done" }),
+  };
+  return {
+    getSnapshot: () => ({
+      context: { sessionRefsByChatId: { get: () => [session] } },
+    }),
+    send: (event: {
+      type: string;
+      value?: { onBrowserReaped?: () => void };
+    }) => {
+      sent.push(event.type);
+      event.value?.onBrowserReaped?.();
+    },
+  };
+}
+
+const workspaceRef = fakeWorkspaceRef() as never;
 
 beforeEach(async () => {
   rootDir = await fs.mkdtemp(path.join(os.tmpdir(), "trash-chat-"));
@@ -234,18 +255,91 @@ describe("trashChat", () => {
     const result = await trashChat({
       id: chat,
       workspaceConfig: getWorkspaceConfig(),
-      workspaceRef: {
-        send: (event: {
-          type: string;
-          value?: { onBrowserReaped?: () => void };
-        }) => {
-          sent.push(event.type);
-          event.value?.onBrowserReaped?.();
-        },
-      } as never,
+      workspaceRef: fakeWorkspaceRef({ sent }) as never,
     });
 
     expect(result.isErr()).toBe(true);
     expect(sent).toEqual(["prepareToTrashChat", "removeChatBeingTrashed"]);
+  });
+
+  it("waits for the chat's sessions to end before its folders go", async () => {
+    const chat = await chatFor();
+    let running = true;
+    setTimeout(() => {
+      running = false;
+    }, 200);
+    const runningWhenTrashed: boolean[] = [];
+    setWorkspaceConfig({
+      ...getWorkspaceConfig(),
+      trashItem: async (item: string) => {
+        runningWhenTrashed.push(running);
+        await fs.rm(item, { force: true, recursive: true });
+      },
+    });
+
+    const result = await trashChat({
+      id: chat,
+      workspaceConfig: getWorkspaceConfig(),
+      workspaceRef: fakeWorkspaceRef({
+        running: () => running,
+      }) as never,
+    });
+
+    expect(result.isOk()).toBe(true);
+    expect(runningWhenTrashed).toEqual([false]);
+  });
+
+  it("refuses a write landing after the records went, so the folder stays gone", async () => {
+    const chat = await chatFor();
+    const records = chatDir(chat);
+    const lateWrites: string[] = [];
+    setWorkspaceConfig({
+      ...getWorkspaceConfig(),
+      trashItem: async (item: string) => {
+        await fs.rm(item, { force: true, recursive: true });
+        if (item === records) {
+          // A stopped turn writing how it ended, after its folder went.
+          await writtenIn(chat).catch((error: unknown) => {
+            lateWrites.push(error instanceof Error ? error.message : "");
+          });
+        }
+      },
+    });
+
+    const result = await trashChat({
+      id: chat,
+      workspaceConfig: getWorkspaceConfig(),
+      workspaceRef,
+    });
+
+    expect(result.isOk()).toBe(true);
+    expect(lateWrites).toEqual(["The chat is being deleted"]);
+    await expect(fs.access(records)).rejects.toThrow();
+  });
+
+  it("tries the trash again while something lets go of the folder", async () => {
+    const chat = await chatFor();
+    let tries = 0;
+    setWorkspaceConfig({
+      ...getWorkspaceConfig(),
+      trashItem: async (item: string) => {
+        tries += 1;
+        if (tries === 1) {
+          throw new Error("A file in it is open");
+        }
+        trashed.push(path.relative(rootDir, item));
+        await fs.rm(item, { force: true, recursive: true });
+      },
+    });
+
+    const result = await trashChat({
+      id: chat,
+      workspaceConfig: getWorkspaceConfig(),
+      workspaceRef,
+    });
+
+    expect(result.isOk()).toBe(true);
+    expect(trashed).toEqual([path.join("chats", chat)]);
+    expect(resolveChat(chat)).toBeUndefined();
   });
 });

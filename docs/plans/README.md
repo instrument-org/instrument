@@ -28,6 +28,7 @@ Each entry is the plan's title and the opening of its status.
 ### Open
 
 - [What the classic window took with it](after-the-classic-window.md): Open list.
+- [A host cursor for Agent Browser](agent-browser-cursor.md): Not started;
 - [Cut the harness cost of an agent driving Studio](agent-driving-studio-friction.md): Proposal, largely addressed.
 - [Move the agent turn off the Electron main thread](agent-turn-off-the-main-thread.md): Active.
 - [The app directory, made connectable and drawn well](app-directory-uplift.md): In progress.
@@ -87,11 +88,13 @@ Each entry is the plan's title and the opening of its status.
 - [App-level tabs in the 2.0 window](app-level-tabs.md): Landed in `7e84c5a88` (v2.0.0-beta.33);
 - [Async access to the synced workspace folder](async-workspace-file-access.md): Steps 1 to 4: "workspace: add async reads of workspace files that can pass over evicted ones" built the module, "workspace: pass over evicted activity files...
 - [Parse markdown a block at a time](block-split-markdown.md): Landed in `8d1cb0312` (`client/lib/split-markdown-blocks.ts`);
+- [Browser start pages](browser-start-pages.md): Implemented history-derived hostname limits, frequent destinations, and start-page metadata with focused store tests and running-app validation.
 - [Interactive task-file links in chat](chat-file-links.md): Landed, and the rest was overtaken.
 - [Chats as folders that own their tasks](chat-folders.md): Landed.
 - [One identity for a chat](chat-identity.md): Completed.
 - [A workspace index the chat list reads from](chat-list-index.md): Stage A landed in `0f1ba5277` and `ba658eeaa` (`lib/workspace-index.ts`);
 - [A cheaper chat list rebuild](chat-list-payload-and-parentage.md): Both changes landed.
+- [Send the chat list as rows that changed](chat-list-rows-on-the-wire.md): All six steps landed.
 - [The chat's status line and loading states](chat-status-line-and-loading-states.md): Done.
 - [Chat surface](chat-surface.md): Landed, then partly reshaped.
 - [Chat transcript redesign](chat-transcript-redesign.md): Built as the transcript's map describes, which holds wherever it and this file differ: one card up at a time where this says a card per page, tabs only in th...
@@ -154,7 +157,7 @@ Each entry is the plan's title and the opening of its status.
 - [Lazy browser targets, and multiple tabs per task](lazy-browser-targets-and-multiple-tabs.md): Superseded by agent-browser-multiple-tabs: Part 2 landed there as the task browser endpoint;
 - [Storage for a conversation that runs for months](long-lived-conversation-storage.md): Overtaken, not built as written.
 - [A built-in Reminders and Calendar app on macOS](mac-reminders-and-calendar-app.md): Superseded.
-- [Multiple top-level app windows](multi-window-support.md): Not built, and overtaken: the investigation below is of the 1.x main window (`windows/main/`, `MainWindow`, `menus/main-window.ts`), removed in `a73917f45`.
+- [Multiple top-level app windows](multi-window-support.md): Not built from this plan: the investigation below is of the 1.x main window (`windows/main/`, `MainWindow`, `menus/main-window.ts`), removed in `a73917f45`,...
 - [One browser abstraction, many tabs](one-browser-many-tabs.md): Superseded by agent-browser-multiple-tabs, which built the tabs on the 2.0 window's own tab ids instead of a per-page id migration.
 - [Temporary tasks](temporary-tasks.md): Not built;
 - [Store tool-result media once, by content hash](tool-result-media-dedup.md): Overtaken by the chat records (`4a4af7b36`): a log keeps every `base64Data` in a tool part's output as a blob in the chat's `blobs/`, named by the SHA-256 of...

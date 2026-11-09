@@ -215,4 +215,59 @@ describe("askStates", () => {
       ]
     `);
   });
+
+  it.each([
+    { name: "a later turn's set, from another computer", set: "second" },
+    { name: "a question an earlier build asked later", set: undefined },
+  ])("leaves a question behind once a later message asks $name", ({ set }) => {
+    const question = (
+      id: string,
+      device: typeof owner,
+      messageId: StoreId.Message,
+      ofSet: string | undefined,
+    ): AskRecord => ({
+      askedAt: at(0),
+      askers: [{ at: at(0), sessionId: own }],
+      device,
+      id,
+      kind: "question",
+      messageId,
+      partId: StoreId.newPartId(),
+      questions: [id],
+      ...(ofSet && { set: ofSet }),
+      stage: { is: "open" },
+    });
+    const earlier = StoreId.newMessageId();
+    const sameTurn = StoreId.newMessageId();
+    const later = StoreId.newMessageId();
+
+    expect(
+      askStates({
+        answers: [],
+        asks: [
+          question("planet", owner, earlier, "first"),
+          question("moon", owner, sameTurn, "first"),
+          question("again", laptop, later, set),
+        ],
+        now: NOW,
+      }).map(({ ask, live }) => [ask.id, live]),
+    ).toEqual([
+      ["planet", false],
+      ["moon", false],
+      ["again", true],
+    ]);
+    expect(
+      askStates({
+        answers: [],
+        asks: [
+          question("planet", owner, earlier, "first"),
+          question("moon", owner, sameTurn, "first"),
+        ],
+        now: NOW,
+      }).map(({ ask, live }) => [ask.id, live]),
+    ).toEqual([
+      ["planet", true],
+      ["moon", true],
+    ]);
+  });
 });

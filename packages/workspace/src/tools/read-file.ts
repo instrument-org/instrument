@@ -33,7 +33,7 @@ import {
 } from "../lib/render-image";
 import { truncateWithoutSplitting } from "../lib/sanitize-model-text";
 import { FFPROBE_COMMAND } from "../lib/shell-commands/ffprobe";
-import { systemNote } from "../lib/system-note";
+import { systemNote } from "../model-text/notes/system-note";
 import { isMissing, sessionToolFs } from "../lib/tool-fs";
 import { defineCapability } from "../lib/capabilities/define";
 import { modelTool } from "../lib/capabilities/tool";

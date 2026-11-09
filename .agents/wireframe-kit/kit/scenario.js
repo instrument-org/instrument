@@ -236,49 +236,19 @@ const page = (t) =>
 
 
 // The Apps directory's first rows, as the API seeds it. [mark, name, line]; a mark is a brands.js key or a letter mark.
+// Each service's own mark, as the directory shows it on its 36px box (AppIcon).
+const appMark = (key) => `<span class="grid size-9 shrink-0 place-items-center">${brand(key, "size-7")}</span>`;
 const APP_ROWS = [
-  [
-    letterMark("D", "bg-[#1fa463]", "size-9 text-[15px]"),
-    "Google Drive",
-    "Files, Docs, Sheets, and Slides.",
-  ],
-  [
-    letterMark("S", "bg-[#23a566]", "size-9 text-[15px]"),
-    "Google Sheets",
-    "Spreadsheets, tabs, and cells.",
-  ],
-  [brand("gmail", "size-9"), "Gmail", "Mail, threads, labels, and drafts."],
-  [
-    letterMark("31", "bg-[#4285f4]", "size-9 text-[13px]"),
-    "Google Calendar",
-    "Events, invites, and availability.",
-  ],
-  [
-    letterMark("#", "bg-[#4a154b]", "size-9 text-[15px]"),
-    "Slack",
-    "Read, search, and send messages where your team talks.",
-  ],
-  [
-    letterMark("C", "bg-[#7d2ae8]", "size-9 text-[15px]"),
-    "Canva",
-    "Designs, brand kits, and exports.",
-  ],
-  [
-    letterMark("H", "bg-[#ff7a59]", "size-9 text-[15px]"),
-    "HubSpot",
-    "Contacts, companies, deals, and tickets.",
-  ],
-  [brand("notion", "size-9"), "Notion", "Pages, databases, and comments."],
-  [
-    brand("figma", "size-9"),
-    "Figma",
-    "Design files, components, and variables.",
-  ],
-  [
-    letterMark("A", "bg-[#f06a6a]", "size-9 text-[15px]"),
-    "Asana",
-    "Tasks, projects, and goals across the work.",
-  ],
+  [appMark("googledrive"), "Google Drive", "Files, Docs, Sheets, and Slides."],
+  [appMark("googlesheets"), "Google Sheets", "Spreadsheets, tabs, and cells."],
+  [appMark("gmail"), "Gmail", "Mail, threads, labels, and drafts."],
+  [appMark("googlecalendar"), "Google Calendar", "Events, invites, and availability."],
+  [appMark("slack"), "Slack", "Read, search, and send messages where your team talks."],
+  [appMark("canva"), "Canva", "Designs, brand kits, and exports."],
+  [appMark("hubspot"), "HubSpot", "Contacts, companies, deals, and tickets."],
+  [appMark("notion"), "Notion", "Pages, databases, and comments."],
+  [appMark("figma"), "Figma", "Design files, components, and variables."],
+  [appMark("asana"), "Asana", "Tasks, projects, and goals across the work."],
 ];
 
 /** The projects the scenario files chats under, as the picker lists them (projects.list). */

@@ -37,9 +37,7 @@ export const readOnlyClient = new QueryClient({
 
 /** The chat from its `count`th turn from the end, or all of it when shorter. */
 export function lastTurns(stored: Message[], count: number): Message[] {
-  const light = stored.flatMap(
-    (message) => transcriptMessage(message, { isDeveloperMode: false }) ?? [],
-  );
+  const light = stored.flatMap((message) => transcriptMessage(message) ?? []);
   const openers = turnsOf(light, { isRunning: false }).filter((t) => t.opener);
   const index = stored.findIndex(({ id }) => id === openers.at(-count)?.id);
   return index > 0 ? stored.slice(index) : stored;

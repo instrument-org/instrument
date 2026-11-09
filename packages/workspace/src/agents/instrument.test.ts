@@ -73,6 +73,22 @@ const bash =
     type: "tool-bash",
   });
 
+/** A search Claude Code ran inside the step, as a Claude account records it. */
+const providerSearch = (
+  messageId: StoreId.Message,
+): SessionMessagePart.Type => ({
+  input: { query: "figma news" },
+  metadata: { ...partMetadata(messageId), endedAt: createdAt },
+  output: {
+    results: { kind: "summary", sources: [], text: "Figma reported Q3." },
+    state: "success",
+  },
+  providerExecuted: true,
+  state: "output-available",
+  toolCallId: `call-${messageId}`,
+  type: "tool-web_search",
+});
+
 const askPermission =
   (state: "allowed" | "asked") =>
   (messageId: StoreId.Message): SessionMessagePart.Type => ({
@@ -150,6 +166,28 @@ const taskNew = bash(
 );
 
 describe("shouldContinueAfterHandingOff", () => {
+  it("ends the turn on a reply whose only call the provider ran inside the step", async () => {
+    await expect(
+      shouldContinueAfterHandingOff({
+        messages: [
+          user(text("what did figma announce?")),
+          assistant(providerSearch, text("Figma reported Q3.")),
+        ],
+      }),
+    ).resolves.toBe(false);
+  });
+
+  it("carries on after a reply with a call this app ran", async () => {
+    await expect(
+      shouldContinueAfterHandingOff({
+        messages: [
+          user(text("what is in here?")),
+          assistant(providerSearch, bash("ls", "notes.md")),
+        ],
+      }),
+    ).resolves.toBe(true);
+  });
+
   it("ends the turn once a task was made and a line was said", async () => {
     await expect(
       shouldContinueAfterHandingOff({
@@ -206,7 +244,8 @@ describe("shouldContinueAfterHandingOff", () => {
   });
 
   it("ends the turn on a card a bash command raised, with no step after it", async () => {
-    const request = "instrument window request tab_01K4M8C2B5N7R0T3V6X9Z1D4F7";
+    const request =
+      "instrument window wait tab_01K4M8C2B5N7R0T3V6X9Z1D4F7 --title 'Sign in' --reason 'Only you can sign in.'";
     await expect(
       shouldContinueAfterHandingOff({
         messages: [
@@ -214,7 +253,7 @@ describe("shouldContinueAfterHandingOff", () => {
           assistant((messageId) => {
             const part = bash(
               request,
-              "Asked the user to move tab …\n",
+              "Waiting for the user on tab …\n",
             )(messageId);
             return part.type === "tool-bash" &&
               part.state === "output-available"
@@ -384,9 +423,7 @@ describe("instrumentAgent", () => {
     expect(prompt).toContain(
       "A task is you, continuing in the background with this conversation in hand",
     );
-    expect(prompt).toContain(
-      "instrument task new --name '<title>' [--tab <id>]",
-    );
+    expect(prompt).toContain("instrument task new --name '<title>' <<'EOF'");
     expect(prompt).toContain(
       "this same folder, and the same folders and apps at the same paths",
     );

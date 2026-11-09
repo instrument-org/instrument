@@ -33,7 +33,8 @@ export interface AskState {
   /**
    * Whether it still waits on the person: not closed, with someone left on
    * it, and (a question or a sign-in) not moved past by what the person
-   * wrote or a Stop of theirs since it was asked.
+   * wrote or a Stop of theirs since it was asked, and (a question) not
+   * asked again past by a later turn.
    */
   live: boolean;
   /**
@@ -86,6 +87,24 @@ function isMovedPast(ask: AskRecord, moved: MovedPast | undefined): boolean {
 }
 
 /**
+ * Whether a later turn asked again past a question: a question of another
+ * set (or one an earlier build asked, which has none) was asked in a later
+ * message, whichever computer asked it. Only the newest set waits on the
+ * person.
+ */
+function isAskedAgain(ask: AskRecord, asks: readonly AskRecord[]): boolean {
+  return (
+    ask.kind === "question" &&
+    asks.some(
+      (other) =>
+        other.kind === "question" &&
+        other.messageId > ask.messageId &&
+        (other.set === undefined || other.set !== ask.set),
+    )
+  );
+}
+
+/**
  * Each ask's state, oldest first, from a session's `ask` records (the
  * newest of each id) and its `answer` records in log order. `movedPast`
  * says how far the person wrote or stopped past what the chat asked; `now`
@@ -120,7 +139,8 @@ export function askStates({
       const live =
         ask.stage.is !== "closed" &&
         askers.length > 0 &&
-        !isMovedPast(ask, movedPast);
+        !isMovedPast(ask, movedPast) &&
+        !isAskedAgain(ask, asks);
       const unused = live ? unusedAnswers(ask, toAsk) : [];
       const pending = unused.find((answer) => isFreshAsk(answer.at, now));
       const away =

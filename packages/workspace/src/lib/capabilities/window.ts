@@ -7,17 +7,15 @@ import {
 import { parseBrowserTargetId } from "../../types";
 import { noteBrowserAgentActivity } from "../browser-agent-activity";
 import { recordAsk } from "../chat/asks";
-import {
-  askWindow,
-  tabHolders,
-  WINDOW_TAB_TIMEOUT_MS,
-} from "../chat/window-tab";
+import { askWindow, WINDOW_TAB_TIMEOUT_MS } from "../chat/window-tab";
+import { tabHolders } from "../chat/chat-tabs";
 import { agentPathOfFileUrl, isLocalAddress } from "../local-page-address";
 import { recordRaisedAsk } from "../shell-commands/raised-asks";
 import {
+  WAITING_IS_THE_CHATS,
   WINDOW_COMMAND,
   WINDOW_IS_THE_CHATS,
-} from "../shell-commands/window-command";
+} from "../../model-text/commands/window-command";
 import { getWorkspaceConfig } from "../workspace-config";
 import { type CapabilityContext, defineCapability } from "./define";
 
@@ -154,8 +152,10 @@ export const windowList = defineCapability({
       kind: z.enum(["page", "screen"]),
       title: z.string().optional(),
       url: z.string().optional(),
-      /** The task at work in it, by its handle. */
-      task: z.object({ id: z.string(), title: z.string() }).optional(),
+      /** The task at work in it, by its handle, and whether that is the session asking. */
+      task: z
+        .object({ id: z.string(), title: z.string(), you: z.boolean() })
+        .optional(),
     }),
   ),
   async run(_, ctx) {
@@ -174,12 +174,20 @@ export const windowList = defineCapability({
         id: tab.id,
         kind: tab.kind,
         ...(tab.kind === "page" ? { title: tab.title, url: tab.url } : {}),
-        ...(holder ? { task: holder } : {}),
+        ...(holder
+          ? {
+              task: {
+                id: holder.id,
+                title: holder.title,
+                you: holder.session === ctx.sessionId,
+              },
+            }
+          : {}),
       };
     });
   },
   summary:
-    "The chat's tabs, one line each, as what is in the window: the id every other subcommand and `--tab` take, whether it is in front, what it shows, and which task is at work in it.",
+    "The chat's tabs, one line each, as what is in the window: the id every other subcommand and `agent-browser tab` take, whether it is in front, what it shows, and which task is at work in it.",
   surfaces: {
     cli: { help: "", words: ["window", "list"] },
     script: {},
@@ -195,7 +203,7 @@ export const windowList = defineCapability({
                   ? `${tab.title} · ${tab.url ?? ""}`
                   : (tab.url ?? "")
                 : "a screen of the app, not a page";
-            return `${tab.id}  ${tab.front ? "in front" : "behind  "}  ${shows}${tab.task ? `  task ${tab.task.id} is working in it` : ""}`;
+            return `${tab.id}  ${tab.front ? "in front" : "behind  "}  ${shows}${tab.task ? (tab.task.you ? "  you are working in it" : `  task ${tab.task.id} is working in it`) : ""}`;
           })
           .join("\n"),
 });
@@ -223,7 +231,7 @@ export const windowRead = defineCapability({
     return answer.text ?? "";
   },
   summary:
-    "The text of the page in a tab, as the user sees it, signed in where they are.",
+    "The text of the page in a tab, as the user sees it, signed in where they are, and what each of its form fields holds now.",
   surfaces: {
     cli: { help: "", positional: ["tab"], words: ["window", "read"] },
     script: { positional: ["tab"] },
@@ -262,7 +270,7 @@ export const windowShow = defineCapability({
     return outcomes;
   },
   summary:
-    "Put each in front: a url, file or folder opens in a tab of its own, printing the tab's id, which a task takes with --tab; a tab's id brings it forward.",
+    "Put each in front: a url, file or folder opens in a tab of its own, printing the tab's id, which `agent-browser tab` takes; a tab's id brings it forward.",
   surfaces: {
     cli: {
       flagNames: { into: "in" },
@@ -379,56 +387,69 @@ export const windowClose = defineCapability({
   where: CHATS,
 });
 
-export const windowRequest = defineCapability({
+/**
+ * Hands the user a page of the chat's to do there what only they can (a
+ * sign-in, a check that they are a person) and waits on them: a card says
+ * why, with Done and Skip, the page shows that it waits on them, and the
+ * turn ends. Nothing watches the page for them finishing, since no signal
+ * says so for every site; Done is how the agent hears it.
+ */
+/** The form `wait` takes, as its errors spell it. */
+const WAIT_FORM =
+  "<id> --title '<what to do, a few words>' --reason '<why, one short sentence>'";
+const WAIT_TITLE = "--title '<what to do, a few words>', the card's title";
+const WAIT_REASON =
+  "--reason '<why, one short sentence>', which the card shows under the title";
+
+export const windowWait = defineCapability({
   input: z.object({
-    tab: TabField("request", "<id> --reason '<one sentence to the user>'"),
-    reason: z
-      .string({
-        error:
-          "request needs --reason '<one sentence to the user>', which the card shows them.",
-      })
-      .meta({
-        description: "One sentence to the user, which the card shows them.",
-      }),
+    tab: TabField("wait", WAIT_FORM),
+    title: z.string({ error: `wait needs ${WAIT_TITLE}.` }).meta({
+      description:
+        "What the user does there, in a few words starting with a verb: Log in to Shopify, Confirm you're human.",
+    }),
+    reason: z.string({ error: `wait needs ${WAIT_REASON}.` }).meta({
+      description:
+        "Why the work needs it, in one short sentence the card shows under the title.",
+    }),
   }),
-  name: "window.request",
+  name: "window.wait",
   output: z.string(),
-  async run({ reason, tab }, ctx) {
+  async run({ reason, tab, title }, ctx) {
+    if (!title.trim()) {
+      throw new Error(`wait needs ${WAIT_TITLE}.`);
+    }
     if (!reason.trim()) {
-      throw new Error(
-        "request needs --reason '<one sentence to the user>', which the card shows them.",
-      );
+      throw new Error(`wait needs ${WAIT_REASON}.`);
     }
     const own = await ask({ kind: "list" }, ctx);
-    if (own?.tabs?.some((each) => each.id === tab)) {
-      throw new Error(
-        `tab ${tab} is already this chat's: \`${NAME} read ${tab}\` reads it, and \`instrument task new --tab ${tab}\` hands it to a task.`,
-      );
-    }
-    const answer = await ask({ kind: "theirs", tabId: tab }, ctx);
-    if (!answer) {
+    if (!own) {
       throw new Error(NO_WINDOW);
     }
-    const page = answer.tabs?.[0];
-    if (answer.error || page?.kind !== "page") {
+    const page = own.tabs?.find((each) => each.id === tab);
+    if (page?.kind !== "page") {
       throw new Error(
-        `no tab ${tab} of the user's is open outside this chat. A request names the tab a note on the user's message showed as theirs.`,
+        page
+          ? `tab ${tab} is not a page: wait is for a page the user has something to do in.`
+          : `no tab ${tab} in this chat. \`${NAME} list\` names its tabs.`,
       );
     }
+    // In front, so the page they are asked to use is the one they see.
+    await ask({ kind: "show", tabId: tab }, ctx);
     const askId = await recordAsk(
-      { ...ctx.asker, reason: reason.trim() },
-      "tab",
+      { ...ctx.asker, reason: reason.trim(), title: title.trim() },
+      "page",
       tab,
       { page: { title: page.title, url: page.url } },
     );
     recordRaisedAsk(askId);
-    return `Asked the user to move tab ${tab} ("${page.title || page.url}") into this chat. The card shows your reason with Move tab here and Skip. Your turn ends here; their answer wakes you.`;
+    return `Showed the user tab ${tab} ("${page.title || page.url}") with a card titled "${title.trim()}", your reason, Done and Skip. Your turn ends here; their answer wakes you.`;
   },
   summary:
-    "Ask the user to move a tab of their own, which the note on their message named outside this chat, into it: a card shows them your reason with Move tab here and Skip, your turn ends, and their answer wakes you.",
+    "Hand the user a page of this chat's for what only they can do there (sign in, prove they are a person) and wait: a card shows your title and reason with Done and Skip, your turn ends, and their answer wakes you.",
   surfaces: {
-    cli: { help: "", positional: ["tab"], words: ["window", "request"] },
+    cli: { help: "", positional: ["tab"], words: ["window", "wait"] },
   },
   text: (said) => said,
-  where: CHATS,
+  where: { roleRefusal: WAITING_IS_THE_CHATS, roles: ["chat"] },
 });

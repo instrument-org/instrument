@@ -174,7 +174,7 @@ it("keeps a connected app connected, and leaves a record that was already stale"
   // What the build before this one recorded when each app passed its test.
   const was = manifestHash(notion);
   await store.set("notion", {
-    account: "jeremy@pileofturtles.com",
+    account: "name@example.com",
     approvedManifestHash: was,
     connectedAt: 1,
     manifestHash: was,
@@ -194,7 +194,7 @@ it("keeps a connected app connected, and leaves a record that was already stale"
   expect(app.manifestHash).not.toBe(was);
   expect(isConnected(record, app.manifestHash)).toBe(true);
   expect(record).toMatchObject({
-    account: "jeremy@pileofturtles.com",
+    account: "name@example.com",
     approvedManifestHash: app.manifestHash,
     connectedAt: 1,
     updatedAt: 2,

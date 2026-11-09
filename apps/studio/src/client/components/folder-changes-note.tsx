@@ -7,28 +7,16 @@ import { FolderIcon } from "@phosphor-icons/react/Folder";
  * took effect on.
  *
  * A folder taken back is shown, since it is gone for the agent from this
- * message on. A folder granted is not, outside developer mode: it already
- * shows where it was granted, on the message that sent it or on the card
- * that asked for it. In developer mode the grants are listed too, since there
- * the note is read to find out what the agent was told.
+ * message on. A folder granted is not: it already shows where it was granted,
+ * on the message that sent it or on the card that asked for it.
  */
 export function FolderChangesNote({
   data,
-  isDeveloperMode = false,
 }: {
   data: SessionMessageDataPart.FolderChangesDataPart;
-  isDeveloperMode?: boolean;
 }) {
   const changes: string[] = [];
   const [detached] = data.removed;
-
-  if (isDeveloperMode && data.added.length > 0) {
-    changes.push(
-      `added ${data.added
-        .map((folder) => folderLabel(folder.path))
-        .join(", ")}`,
-    );
-  }
 
   if (detached && data.removed.length === 1) {
     changes.push(`removed ${folderLabel(detached.path)}`);

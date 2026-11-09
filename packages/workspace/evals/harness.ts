@@ -662,9 +662,10 @@ export interface EvalCase {
    * For a chat case scoring the task plumbing rather than whether the model
    * forks: the chat's first step is a stand-in that starts t1 through `task
    * new` with this brief, so every model gets the task, and the chat's own
-   * turns begin at the next message (`startRun`).
+   * turns begin at the next message (`startRun`). Several start one task
+   * each, in order, all at once.
    */
-  startsTask?: StartsTask;
+  startsTask?: StartsTask | readonly StartsTask[];
   /**
    * Where the prompt is answered. A chat forks tasks inside the same
    * workspace, so a run of that kind produces the chat's transcript plus one
@@ -736,8 +737,8 @@ export interface EvalCase {
   /**
    * What the window showed as the case's message was sent, as the note on it:
    * the tabs open, by their ids, and the page or screen up. The tabs it names
-   * are open in a stand-in window for the run, which answers `tab` and makes
-   * `--tab` accept a page tab's id.
+   * are open in a stand-in window for the run, which answers `tab` and lists
+   * them as the chat's.
    */
   viewing?: SessionMessageDataPart.ViewContextDataPart;
   /**

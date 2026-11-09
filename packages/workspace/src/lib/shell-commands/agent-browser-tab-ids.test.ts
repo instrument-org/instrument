@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 
 import {
   jsonWithTabIds,
+  listsTab,
   newTabLine,
   tabOutputOf,
   windowTabIdArgIndex,
@@ -114,5 +115,21 @@ describe("a tab named by the window's id", () => {
     expect(
       withTabLabel(["tab", "tab_01M5Q2CY3JB5G7KJVE1QAZZZZZ"], 1, JSON_LIST),
     ).toEqual(["tab", "tab_01M5Q2CY3JB5G7KJVE1QAZZZZZ"]);
+  });
+});
+
+describe("listsTab", () => {
+  it.each([
+    ["tab_01M5Q2CY3JB5G7KJVE1QA1HK0B", JSON_LIST, true],
+    ["tab_01M5Q2CY3JB5G7KJVE1QAZZZZZ", JSON_LIST, false],
+    // The id only in some other field, or no list at all.
+    [
+      "tab_01M5Q2CY3JB5G7KJVE1QA1HK0B",
+      '{"note":"tab_01M5Q2CY3JB5G7KJVE1QA1HK0B"}',
+      false,
+    ],
+    ["tab_01M5Q2CY3JB5G7KJVE1QA1HK0B", "not json", false],
+  ])("finds %s in the list %s: %s", (id, json, listed) => {
+    expect(listsTab(json, id)).toBe(listed);
   });
 });

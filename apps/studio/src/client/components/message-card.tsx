@@ -40,7 +40,8 @@ const GMAIL_HOME = "https://mail.google.com/";
 
 /**
  * The ways out of a message: Copy takes the whole, and Send opens an email
- * filled in, in the mail app or in Gmail, or shares anything else. The
+ * filled in, in the mail app or in Gmail, or shares anything else. A message
+ * the agent sends itself has Copy alone, since the user only reads it. The
  * message is read when a button is pressed, so a surface whose message is
  * being edited hands over what it says at that moment.
  */
@@ -48,10 +49,12 @@ export function MessageActions({
   disabled = false,
   getMessage,
   kind,
+  sender,
 }: {
   disabled?: boolean;
   getMessage: () => MessageDraft;
   kind: MessageKind;
+  sender?: MessageDraft["sender"];
 }) {
   const openExternal = useOpenExternalLink();
   const share = useMutation(rpcClient.utils.shareText.mutationOptions());
@@ -67,6 +70,7 @@ export function MessageActions({
   );
   const { active: copied, trigger: showCopied } = useTimedFlag();
   const canShare = isMacOS();
+  const userSends = sender !== "agent";
 
   const shareIt = () => {
     share.mutate({ text: getMessage().body });
@@ -88,7 +92,7 @@ export function MessageActions({
         {copied ? <CheckIcon /> : <CopyIcon />}
         {copied ? "Copied" : "Copy"}
       </Button>
-      {kind === "email" ? (
+      {!userSends ? null : kind === "email" ? (
         // Not modal: a modal menu takes focus and the page from under it, and
         // a card drawn inside the Markdown editor is redrawn when the editor
         // loses them, taking the menu's trigger, and so the menu, with it.
@@ -147,15 +151,15 @@ export function MessageActions({
 }
 
 /**
- * Words the user will send as their own, drawn as the thing they are rather
- * than as prose: what it is and who it is for, the subject and body in the
+ * Words to send to someone, drawn as the thing they are rather than as prose: what it is and who it is for, the subject and body in the
  * reply's own type, and the ways out. The subject and body each copy from the
  * control that shows while they are hovered, an address copies when clicked,
  * and Copy takes the whole.
  *
  * Nothing sends from here. An email opens filled in, in the mail app or in
  * Gmail in the browser, each named with its icon, and on macOS anything shares
- * to Messages or wherever the user picks.
+ * to Messages or wherever the user picks. One the agent sends itself only
+ * shows the words and copies.
  */
 export function MessageCard({
   file,
@@ -218,6 +222,7 @@ export function MessageCard({
           disabled={!settled}
           getMessage={() => message}
           kind={message.kind}
+          sender={message.sender}
         />
       </div>
     </div>

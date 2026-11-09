@@ -1,4 +1,5 @@
 import { thumbnailUrlAtSize } from "@/client/lib/computer-file-url";
+import { useSteadyCallbacks } from "@/client/hooks/use-steady-callbacks";
 import {
   TOOLBAR_CONTROL_CLASSNAME,
   TOOLBAR_ICON_BUTTON_CLASSNAME,
@@ -60,11 +61,15 @@ import { Spinner } from "@/client/components/ui/spinner";
 import { Tabs, TabsList, TabsTrigger } from "@/client/components/ui/tabs";
 import { useFileDragArea } from "@/client/hooks/use-file-drag";
 import { useFindTarget } from "@/client/hooks/use-find-target";
-import { folderGlyphUrl } from "@/client/components/icons/folder-glyph";
+import {
+  folderGlyphUrl,
+  isKeyFolderGlyphUrl,
+} from "@/client/components/icons/folder-glyph";
 import {
   cn,
   commandKeyHeld,
   currentOs,
+  osConventions,
   isMacOS,
   isWindows,
 } from "@/client/lib/utils";
@@ -95,14 +100,17 @@ import {
   GESTURE_IDLE,
   type GestureEvent,
   type GestureState,
+  isModifierAlone,
   step as gestureStep,
   swallowSecondClick,
   waitFor,
 } from "./file-system-gestures";
+import { gridNeighbor } from "./file-system-grid";
 import {
   type ListingCommand,
   type ListingDirection,
   endsTypeAhead,
+  isBackspaceBackPress,
   isTypingAhead,
   listingCommandOf,
   NO_TYPE_AHEAD,
@@ -284,6 +292,10 @@ export type FileSystemProps = {
    * nobody's here.
    */
   onCopyPath?: (items: FileSystemItem[]) => void;
+  /** What is selected, to move at the next paste. */
+  onCut?: (items: FileSystemItem[]) => void;
+  /** What the clipboard has, moved into the folder the keyboard is in. */
+  onMoveHere?: () => void;
   /**
    * What is selected, to the clipboard as the files themselves, by ⌘C (Ctrl+C
    * off the Mac). Left out, the key is nobody's here.
@@ -1171,9 +1183,11 @@ function folderHasChildren(index: FileSystemIndex, folder: FolderEntry) {
 // is.
 export function FileSystemFolderGlyph({
   className,
+  "data-key-mark": keyMark,
   src,
 }: {
   className?: string;
+  "data-key-mark"?: string;
   src?: string;
 }) {
   return (
@@ -1182,6 +1196,7 @@ export function FileSystemFolderGlyph({
       alt=""
       aria-hidden="true"
       className={className}
+      data-key-mark={keyMark}
       draggable={false}
       src={src ?? folderGlyphUrl()}
     />
@@ -1664,9 +1679,13 @@ function useVirtualWindow({
     const update = () => {
       const scrollStart =
         (horizontal ? viewport.scrollLeft : viewport.scrollTop) - leadingPx;
-      const viewportSize = horizontal
-        ? viewport.clientWidth
-        : viewport.clientHeight;
+      // A viewport not laid out yet (a hidden tab, a window opened while the
+      // computer slept) measures 0. The window's own size stands in for it,
+      // so the rows a person sees first are drawn even if nothing measures
+      // again.
+      const viewportSize =
+        (horizontal ? viewport.clientWidth : viewport.clientHeight) ||
+        (horizontal ? window.innerWidth : window.innerHeight);
       const firstVisible = Math.max(0, Math.floor(scrollStart / itemStride));
       const lastVisible = Math.min(
         count,
@@ -1691,9 +1710,15 @@ function useVirtualWindow({
     const observer =
       typeof ResizeObserver === "undefined" ? null : new ResizeObserver(update);
     observer?.observe(viewport);
+    // Measured again when the window comes back into view or to the front,
+    // where a resize observer can have stayed quiet while it was away.
+    document.addEventListener("visibilitychange", update);
+    window.addEventListener("focus", update);
     return () => {
       viewport.removeEventListener("scroll", update);
       observer?.disconnect();
+      document.removeEventListener("visibilitychange", update);
+      window.removeEventListener("focus", update);
     };
   }, [count, horizontal, itemStride, leadingPx, overscan, viewportRef]);
   return window_;
@@ -1908,34 +1933,36 @@ export function FileSystem({
   pendingFolders,
   listColumns: listColumnsProp,
   listColumnWidths: listColumnWidthsProp,
-  loadChildren,
+  loadChildren: loadChildrenGiven,
   moveFocusWithSelection = true,
-  onColumnWidthChange,
-  onCopy,
-  onCopyPath,
-  onDuplicate,
-  onFileOpen,
-  onItemContextMenu,
-  onListColumnsChange,
-  onListColumnWidthsChange,
-  onLeaveRoot,
-  onArrowBesideFile,
-  onNewFolder,
-  onOpenSeveral,
-  onPathChange,
-  onWalk,
-  onOpenFolderChange,
-  onRenameCommit,
-  onSearchChange,
-  onGroupChange,
-  onSelectionChange,
-  onShowHiddenFilesChange,
-  onSortChange,
-  onTrash,
-  onViewChange,
+  onColumnWidthChange: onColumnWidthChangeGiven,
+  onCopy: onCopyGiven,
+  onCopyPath: onCopyPathGiven,
+  onCut: onCutGiven,
+  onMoveHere: onMoveHereGiven,
+  onDuplicate: onDuplicateGiven,
+  onFileOpen: onFileOpenGiven,
+  onItemContextMenu: onItemContextMenuGiven,
+  onListColumnsChange: onListColumnsChangeGiven,
+  onListColumnWidthsChange: onListColumnWidthsChangeGiven,
+  onLeaveRoot: onLeaveRootGiven,
+  onArrowBesideFile: onArrowBesideFileGiven,
+  onNewFolder: onNewFolderGiven,
+  onOpenSeveral: onOpenSeveralGiven,
+  onPathChange: onPathChangeGiven,
+  onWalk: onWalkGiven,
+  onOpenFolderChange: onOpenFolderChangeGiven,
+  onRenameCommit: onRenameCommitGiven,
+  onSearchChange: onSearchChangeGiven,
+  onGroupChange: onGroupChangeGiven,
+  onSelectionChange: onSelectionChangeGiven,
+  onShowHiddenFilesChange: onShowHiddenFilesChangeGiven,
+  onSortChange: onSortChangeGiven,
+  onTrash: onTrashGiven,
+  onViewChange: onViewChangeGiven,
   openFolders,
   path: pathProp,
-  prefetchChildren,
+  prefetchChildren: prefetchChildrenGiven,
   ref,
   renderFileStage,
   renderHeaderActions,
@@ -1950,6 +1977,65 @@ export function FileSystem({
   toolbarInto,
   view: viewProp,
 }: FileSystemProps) {
+  // Steady, so the handlers built from them, and the rows they reach, stay
+  // the same while the caller renders new closures.
+  const {
+    loadChildren,
+    onColumnWidthChange,
+    onCopy,
+    onCopyPath,
+    onCut,
+    onMoveHere,
+    onDuplicate,
+    onFileOpen,
+    onItemContextMenu,
+    onListColumnsChange,
+    onListColumnWidthsChange,
+    onLeaveRoot,
+    onArrowBesideFile,
+    onNewFolder,
+    onOpenSeveral,
+    onPathChange,
+    onWalk,
+    onOpenFolderChange,
+    onRenameCommit,
+    onSearchChange,
+    onGroupChange,
+    onSelectionChange,
+    onShowHiddenFilesChange,
+    onSortChange,
+    onTrash,
+    onViewChange,
+    prefetchChildren,
+  } = useSteadyCallbacks({
+    loadChildren: loadChildrenGiven,
+    onColumnWidthChange: onColumnWidthChangeGiven,
+    onCopy: onCopyGiven,
+    onCopyPath: onCopyPathGiven,
+    onCut: onCutGiven,
+    onMoveHere: onMoveHereGiven,
+    onDuplicate: onDuplicateGiven,
+    onFileOpen: onFileOpenGiven,
+    onItemContextMenu: onItemContextMenuGiven,
+    onListColumnsChange: onListColumnsChangeGiven,
+    onListColumnWidthsChange: onListColumnWidthsChangeGiven,
+    onLeaveRoot: onLeaveRootGiven,
+    onArrowBesideFile: onArrowBesideFileGiven,
+    onNewFolder: onNewFolderGiven,
+    onOpenSeveral: onOpenSeveralGiven,
+    onPathChange: onPathChangeGiven,
+    onWalk: onWalkGiven,
+    onOpenFolderChange: onOpenFolderChangeGiven,
+    onRenameCommit: onRenameCommitGiven,
+    onSearchChange: onSearchChangeGiven,
+    onGroupChange: onGroupChangeGiven,
+    onSelectionChange: onSelectionChangeGiven,
+    onShowHiddenFilesChange: onShowHiddenFilesChangeGiven,
+    onSortChange: onSortChangeGiven,
+    onTrash: onTrashGiven,
+    onViewChange: onViewChangeGiven,
+    prefetchChildren: prefetchChildrenGiven,
+  });
   const [internalView, setInternalView] = React.useState(defaultView);
   const view = viewProp ?? internalView;
   const [loadedItems, setLoadedItems] = React.useState<FileSystemItem[]>([]);
@@ -2204,10 +2290,8 @@ export function FileSystem({
       );
       children.set(
         parentPath,
-        [...parentChildren].sort(
-          (left, right) =>
-            (ranks.get(left.path) ?? 0) - (ranks.get(right.path) ?? 0) ||
-            compareEntriesBySort(left, right, sort),
+        [...parentChildren].sort((left, right) =>
+          compareRankThenSort(ranks, sort, left, right),
         ),
       );
     }
@@ -2291,11 +2375,12 @@ export function FileSystem({
   // Exactly these, the way ⌘A takes a folder: the one the keyboard is on
   // stays on it when it is among them.
   const selectEntries = React.useCallback(
-    (entries: readonly FileSystemEntry[]) => {
+    (entries: readonly FileSystemEntry[], leadOn?: FileSystemEntry) => {
       commitSelection(
         selectExactly(
           selectionRef.current,
           entries.map((entry) => entry.path),
+          leadOn?.path,
         ),
       );
     },
@@ -2310,10 +2395,17 @@ export function FileSystem({
     (entry: FileSystemEntry, { mode, order }: SelectionGesture) => {
       const current = selectionRef.current;
       const paths = order.map((candidate) => candidate.path);
+      // A reach with nothing to reach from starts at the top on a Mac.
+      const from =
+        current.lead === null &&
+        mode === "extend" &&
+        osConventions().files.macSelection
+          ? selectOnly(paths[0] ?? null)
+          : current;
       commitSelection(
         current.lead !== null && !paths.includes(current.lead)
           ? selectOnly(entry.path)
-          : selectWithMode(current, entry.path, mode, paths),
+          : selectWithMode(from, entry.path, mode, paths),
       );
     },
     [commitSelection],
@@ -2447,26 +2539,19 @@ export function FileSystem({
       if (requestedFoldersRef.current.has(folderPath)) return;
       requestedFoldersRef.current.add(folderPath);
       setFetchingFolders((previous) => new Set(previous).add(folderPath));
-      void (async () => {
-        try {
-          let cursor: null | string = null;
-          do {
-            const result = await loadChildren({ cursor, path: folderPath });
-            if (result.items.length > 0) {
-              setLoadedItems((previous) => [...previous, ...result.items]);
-            }
-            cursor = result.nextCursor ?? null;
-          } while (cursor);
-        } catch {
+      void loadAllPages(loadChildren, folderPath, (pageItems) => {
+        setLoadedItems((previous) => [...previous, ...pageItems]);
+      })
+        .catch(() => {
           requestedFoldersRef.current.delete(folderPath);
-        } finally {
+        })
+        .then(() => {
           setFetchingFolders((previous) => {
             const next = new Set(previous);
             next.delete(folderPath);
             return next;
           });
-        }
-      })();
+        });
     },
     [index, loadChildren],
   );
@@ -2542,19 +2627,16 @@ export function FileSystem({
   const [, bumpStageHosts] = React.useState(0);
   const [dialogStageHost, setDialogStageHost] =
     React.useState<HTMLElement | null>(null);
-  const registerStageHost = React.useCallback(
-    (path: string, element: HTMLElement | null) => {
-      if (element) {
-        if (stageHosts.get(path) === element) return;
-        stageHosts.set(path, element);
-      } else {
-        if (!stageHosts.has(path)) return;
-        stageHosts.delete(path);
-      }
-      bumpStageHosts((version) => version + 1);
-    },
-    [stageHosts],
-  );
+  const registerStageHost = (path: string, element: HTMLElement | null) => {
+    if (element) {
+      if (stageHosts.get(path) === element) return;
+      stageHosts.set(path, element);
+    } else {
+      if (!stageHosts.has(path)) return;
+      stageHosts.delete(path);
+    }
+    bumpStageHosts((version) => version + 1);
+  };
   const dialogStageHostRef = React.useCallback(
     (element: HTMLDivElement | null) => setDialogStageHost(element),
     [],
@@ -2771,6 +2853,8 @@ export function FileSystem({
       selectAndPrefetchEntry,
     };
   });
+  // What an answer the rename waited on sends back in, once it comes.
+  const sendRenameLater = React.useRef<(event: RenameEvent) => void>(() => {});
   const sendRename = React.useCallback((event: RenameEvent) => {
     const { effects, state } = renameStep(renameRef.current, event);
     if (state === renameRef.current) return;
@@ -2789,11 +2873,14 @@ export function FileSystem({
         if (!entry || !save) throw new Error("Nothing to rename");
         await save(entry, effect.name);
       })().then(
-        () => sendRename({ type: "saved" }),
-        () => sendRename({ type: "save-failed" }),
+        () => sendRenameLater.current({ type: "saved" }),
+        () => sendRenameLater.current({ type: "save-failed" }),
       );
     }
   }, []);
+  React.useLayoutEffect(() => {
+    sendRenameLater.current = sendRename;
+  }, [sendRename]);
   const startRename = React.useCallback(
     (path: string) => {
       if (!canRename) return;
@@ -2803,6 +2890,13 @@ export function FileSystem({
     },
     [canRename, canRenameItem, entryOf, listedNameOf, sendRename],
   );
+  // The keys, read once for every view (`listingCommandOf`) and answered by
+  // the view on screen, which says how its rows are walked.
+  const listingNavRef = React.useRef<ListingNav | null>(null);
+  const typeAheadRef = React.useRef(NO_TYPE_AHEAD);
+  const runListingCommandRef = React.useRef<
+    (command: ListingCommand) => boolean
+  >(() => false);
   React.useImperativeHandle(
     ref,
     () => ({
@@ -2858,8 +2952,10 @@ export function FileSystem({
       }
       sendRename({ text: input?.value ?? "", type: "accept" });
     };
-    const onKeyDown = () => {
-      if (renamePhase === "waiting") sendRename({ type: "interrupt" });
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (renamePhase === "waiting" && !isModifierAlone(event)) {
+        sendRename({ type: "interrupt" });
+      }
     };
     window.addEventListener("pointerdown", onPointerDown, true);
     window.addEventListener("keydown", onKeyDown, true);
@@ -2943,7 +3039,13 @@ export function FileSystem({
   });
   const gestureRef = React.useRef<GestureState>(GESTURE_IDLE);
   const gestureTimerRef = React.useRef<number | undefined>(undefined);
-  const gestureInterruptRef = React.useRef<(() => void) | null>(null);
+  const gestureInterruptRef = React.useRef<((event: Event) => void) | null>(
+    null,
+  );
+  // What a timer the gesture set sends back in, once it fires.
+  const sendGestureLater = React.useRef<(event: GestureEvent) => void>(
+    () => {},
+  );
   const sendGesture = React.useCallback(
     (event: GestureEvent, order?: () => readonly FileSystemEntry[]) => {
       const previous = gestureRef.current;
@@ -2955,7 +3057,7 @@ export function FileSystem({
         if (ms !== null) {
           gestureTimerRef.current = window.setTimeout(() => {
             const current = selectionRef.current;
-            sendGesture({
+            sendGestureLater.current({
               lead: current.lead,
               selectionSize: selectedPathsOf(current).length,
               type: "timeout",
@@ -2971,7 +3073,10 @@ export function FileSystem({
           window.removeEventListener("wheel", interrupt, true);
           gestureInterruptRef.current = null;
         } else if (listens && !interrupt) {
-          const next = () => sendGesture({ type: "interrupt" });
+          const next = (each: Event) => {
+            if (each instanceof KeyboardEvent && isModifierAlone(each)) return;
+            sendGestureLater.current({ type: "interrupt" });
+          };
           window.addEventListener("keydown", next, true);
           window.addEventListener("wheel", next, true);
           gestureInterruptRef.current = next;
@@ -2996,6 +3101,9 @@ export function FileSystem({
     },
     [],
   );
+  React.useLayoutEffect(() => {
+    sendGestureLater.current = sendGesture;
+  }, [sendGesture]);
   React.useEffect(
     () => () => {
       window.clearTimeout(gestureTimerRef.current);
@@ -3010,6 +3118,15 @@ export function FileSystem({
   React.useEffect(() => {
     sendGesture({ lead: selectionState.lead, type: "selection" });
   }, [selectionState, sendGesture]);
+  // In the icons on a Mac, Shift picks one tile, as ⌘ does, and never a range.
+  const shiftPicksOne = view === "icons" && osConventions().files.macSelection;
+  const rowPressModeOf = React.useCallback(
+    (event: { ctrlKey: boolean; metaKey: boolean; shiftKey: boolean }) => {
+      const mode = selectionModeOf(event);
+      return shiftPicksOne && mode === "extend" ? "toggle" : mode;
+    },
+    [shiftPicksOne],
+  );
   const rowGestures = React.useMemo<RowGestures>(
     () => ({
       click: (entry, event, order) => {
@@ -3017,7 +3134,7 @@ export function FileSystem({
           {
             detail: event.detail,
             isContextClick: isMacContextClick(event),
-            mode: selectionModeOf(event),
+            mode: rowPressModeOf(event),
             path: entry.path,
             point: { x: event.clientX, y: event.clientY },
             type: "click",
@@ -3049,7 +3166,7 @@ export function FileSystem({
             isOnName:
               event.target instanceof Element &&
               event.target.closest("[data-file-system-name]") !== null,
-            mode: selectionModeOf(event),
+            mode: rowPressModeOf(event),
             path: entry.path,
             pointerType: event.pointerType,
             renames: canRenameRef.current,
@@ -3060,18 +3177,40 @@ export function FileSystem({
         );
       },
     }),
-    [sendGesture],
+    [rowPressModeOf, sendGesture],
   );
-  // The keys, read once for every view (`listingCommandOf`) and answered by
-  // the view on screen, which says how its rows are walked.
-  const listingNavRef = React.useRef<ListingNav | null>(null);
-  const typeAheadRef = React.useRef(NO_TYPE_AHEAD);
   // What was typed at one folder says nothing about the next. The columns stay
   // on one `currentPath` while the selection moves through their folders.
   React.useLayoutEffect(() => {
     typeAheadRef.current = NO_TYPE_AHEAD;
   }, [currentPath]);
   const runListingCommand = (command: ListingCommand) => {
+    // What is about the folder rather than its rows, so an empty one answers.
+    if (command.type === "move-here") {
+      if (!onMoveHere) return false;
+      onMoveHere();
+      return true;
+    }
+    if (command.type === "new-folder") {
+      if (!onNewFolder) return false;
+      onNewFolder();
+      return true;
+    }
+    if (command.type === "parent") {
+      if (currentPath === "") {
+        if (!onLeaveRoot) return false;
+        onLeaveRoot();
+        return true;
+      }
+      // The folder left behind is what is selected above it, the way the
+      // Finder and File Explorer both go up.
+      navigateTo(pathParent(currentPath), currentPath);
+      return true;
+    }
+    if (command.type === "toggle-hidden") {
+      setShowHiddenFiles(!showHiddenFiles);
+      return true;
+    }
     const nav = listingNavRef.current;
     if (!nav) return false;
     const lead = entryOf(selectionRef.current.lead);
@@ -3083,13 +3222,14 @@ export function FileSystem({
     switch (command.type) {
       case "copy":
       case "copy-path":
+      case "cut":
       case "duplicate": {
-        const handler =
-          command.type === "duplicate"
-            ? onDuplicate
-            : command.type === "copy"
-              ? onCopy
-              : onCopyPath;
+        const handler = {
+          copy: onCopy,
+          "copy-path": onCopyPath,
+          cut: onCut,
+          duplicate: onDuplicate,
+        }[command.type];
         const chosen = picked();
         if (!handler || chosen.length === 0) return false;
         handler(chosen);
@@ -3097,6 +3237,20 @@ export function FileSystem({
       }
       case "move": {
         const moved = nav.move(command.direction);
+        // At the end of the rows with several selected, an arrow leaves the
+        // one it is on, on a Mac.
+        if (
+          moved === true &&
+          lead &&
+          !command.extend &&
+          (command.direction === "up" || command.direction === "down") &&
+          osConventions().files.macSelection &&
+          selectedPathsOf(selectionRef.current).length > 1
+        ) {
+          selectAndPrefetchEntry(lead);
+          nav.reveal(lead);
+          return true;
+        }
         if (typeof moved === "boolean") {
           const isOneFile =
             lead?.kind === "file" &&
@@ -3115,31 +3269,16 @@ export function FileSystem({
         selectAndPrefetchEntry(
           moved.entry,
           command.extend && moved.order
-            ? { mode: "extend", order: moved.order }
+            ? { mode: shiftPicksOne ? "add" : "extend", order: moved.order }
             : undefined,
         );
         nav.reveal(moved.entry);
         return true;
       }
-      case "new-folder":
-        if (!onNewFolder) return false;
-        onNewFolder();
-        return true;
       case "open":
         if (!lead) return false;
         openEntry(lead);
         return true;
-      case "parent": {
-        if (currentPath === "") {
-          if (!onLeaveRoot) return false;
-          onLeaveRoot();
-          return true;
-        }
-        // The folder left behind is what is selected above it, the way the
-        // Finder and File Explorer both go up.
-        navigateTo(pathParent(currentPath), currentPath);
-        return true;
-      }
       case "rename":
       case "return":
         if (!lead) return false;
@@ -3152,7 +3291,12 @@ export function FileSystem({
         }
         return true;
       case "select-all":
-        selectEntries(nav.rows);
+        selectEntries(
+          nav.rows,
+          osConventions().files.macSelection
+            ? nav.rows.at(view === "icons" ? 0 : -1)
+            : undefined,
+        );
         return true;
       case "space":
         return true;
@@ -3182,7 +3326,6 @@ export function FileSystem({
       }
     }
   };
-  const runListingCommandRef = React.useRef(runListingCommand);
   React.useLayoutEffect(() => {
     runListingCommandRef.current = runListingCommand;
   });
@@ -3194,7 +3337,15 @@ export function FileSystem({
   // The table keeps its open folders here, per folder on screen, so
   // returning to the table — or to a previously visited folder — finds
   // them open again.
-  const treeExpansionRef = React.useRef(new Map<string, readonly string[]>());
+  const [treeExpansion] = React.useState((): TreeExpansion => {
+    const kept = new Map<string, readonly string[]>();
+    return {
+      get: (path) => kept.get(path),
+      set: (path, open) => {
+        kept.set(path, open);
+      },
+    };
+  });
   const viewProps: FileSystemViewProps = {
     attachedStagePaths,
     besideOpenPath,
@@ -3223,6 +3374,7 @@ export function FileSystem({
     onOpen: openEntry,
     onSelect: selectAndPrefetchEntry,
     onSelectEntries: selectEntries,
+    onWalk: navigateTo,
     marquee,
     onListedCount: setListedCount,
     onSortColumnClick: toggleSortColumn,
@@ -3239,7 +3391,7 @@ export function FileSystem({
     selectedPath,
     selection,
     sort,
-    treeExpansionRef,
+    treeExpansion,
     ...(openFolders === undefined ? {} : { openFolders, onOpenFolderChange }),
   };
   // ⌘F focuses the toolbar search. Below 560px the field is in a popover,
@@ -3404,6 +3556,13 @@ export function FileSystem({
       onDragStart={dragArea.onDragStart}
       onKeyDown={(event) => {
         if (endsTypeAhead(event)) typeAheadRef.current = NO_TYPE_AHEAD;
+        // A name being typed is not left for the window's Backspace.
+        if (
+          isBackspaceBackPress(event, currentOs()) &&
+          isTypingAhead(typeAheadRef.current, performance.now())
+        ) {
+          event.preventDefault();
+        }
         // The rows' keys, read here for every view. A press already answered
         // (a menu's own arrows), one from something portalled out of the
         // browser (its menus and dialogs), and one typed into a field are
@@ -3475,9 +3634,19 @@ export function FileSystem({
                   searchField("row")
                 ) : (
                   <>
-                    {toolbarInto.tail === undefined
-                      ? viewSelect
-                      : viewTabs("flex gap-0")}
+                    {/* In a narrow row (a draft's well, a pane) the four
+                        views fold into their menu, so the field beside them
+                        keeps room to say where the folder is. */}
+                    {toolbarInto.tail === undefined ? (
+                      viewSelect
+                    ) : (
+                      <>
+                        <div className="flex @2xl/tabrow:hidden">
+                          {viewSelect}
+                        </div>
+                        {viewTabs("hidden gap-0 @2xl/tabrow:flex")}
+                      </>
+                    )}
                     {sortMenu}
                     {/* With the folder alone, its menu and search follow
                         sort, beside the rows they act on and where search
@@ -4146,6 +4315,39 @@ function BesideBackRow({ name, onBack }: { name: string; onBack: () => void }) {
   );
 }
 
+/** By group rank, then by the sort the person chose. */
+function compareRankThenSort(
+  ranks: ReadonlyMap<string, number>,
+  sort: FileSystemSortState,
+  left: FileSystemEntry,
+  right: FileSystemEntry,
+) {
+  const byRank = (ranks.get(left.path) ?? 0) - (ranks.get(right.path) ?? 0);
+  return byRank === 0 ? compareEntriesBySort(left, right, sort) : byRank;
+}
+
+/** Every page of a folder's listing, each handed on as it arrives. */
+async function loadAllPages(
+  loadChildren: NonNullable<FileSystemProps["loadChildren"]>,
+  path: string,
+  onItems: (items: FileSystemItem[]) => void,
+) {
+  let cursor: null | string = null;
+  do {
+    const result = await loadChildren({ cursor, path });
+    if (result.items.length > 0) {
+      onItems(result.items);
+    }
+    cursor = result.nextCursor ?? null;
+  } while (cursor);
+}
+
+/** The folders open in the list, by the folder on screen they were open in. */
+type TreeExpansion = {
+  get: (path: string) => readonly string[] | undefined;
+  set: (path: string, open: readonly string[]) => void;
+};
+
 type FileSystemViewProps = {
   besideOpenPath: string | undefined;
   /** Pooled paths currently attached to the DOM (reveal instantly). */
@@ -4189,6 +4391,8 @@ type FileSystemViewProps = {
   onOpen: (entry: FileSystemEntry) => void;
   /** Selects the entry alone, or adds to the selection with a gesture. */
   onSelect: (entry: FileSystemEntry | null, gesture?: SelectionGesture) => void;
+  /** Walks to a folder, the way the folder menu does, with nothing selected in it. */
+  onWalk: (folderPath: string) => void;
   /** Selects exactly these, keeping the keyboard on the one it is on when it is among them. */
   onSelectEntries: (entries: readonly FileSystemEntry[]) => void;
   /** Where a box dragged across the rows says what it touches. */
@@ -4218,8 +4422,8 @@ type FileSystemViewProps = {
   selection: ReadonlySet<string>;
   sort: FileSystemSortState;
   /** The list's open folders per folder on screen, surviving view switches. */
-  treeExpansionRef: React.RefObject<Map<string, readonly string[]>>;
-  /** The caller's open folders, which take the place of `treeExpansionRef`'s. */
+  treeExpansion: TreeExpansion;
+  /** The caller's open folders, which take the place of `treeExpansion`'s. */
   openFolders?: ReadonlySet<string>;
   onOpenFolderChange?: (path: string, open: boolean) => void;
 };
@@ -4484,50 +4688,6 @@ function FileSystemNameField({
     />
   );
 }
-/**
- * The tile an arrow reaches in a grid drawn by the browser's own auto-fill:
- * the next or previous in order across, and up or down by where the tiles
- * actually stand, so the walk follows the rendered grid.
- */
-function gridNeighbor({
-  current,
-  direction,
-  entries,
-  itemRefs,
-}: {
-  current: null | string;
-  direction: ListingDirection;
-  entries: readonly FileSystemEntry[];
-  itemRefs: Map<string, HTMLElement>;
-}) {
-  const currentIndex = entries.findIndex((entry) => entry.path === current);
-  if (currentIndex === -1) return entries[0] ?? null;
-  if (direction === "left" || direction === "right") {
-    return entries[currentIndex + (direction === "left" ? -1 : 1)] ?? null;
-  }
-  const currentRect = itemRefs
-    .get(entries[currentIndex]?.path ?? "")
-    ?.getBoundingClientRect();
-  if (!currentRect) return null;
-  let best: FileSystemEntry | null = null;
-  let bestScore = Infinity;
-  for (const entry of entries) {
-    if (entry.path === current) continue;
-    const rect = itemRefs.get(entry.path)?.getBoundingClientRect();
-    if (!rect) continue;
-    const rowDelta =
-      direction === "down"
-        ? rect.top - currentRect.top
-        : currentRect.top - rect.top;
-    if (rowDelta <= 1) continue;
-    const score = rowDelta * 1000 + Math.abs(rect.left - currentRect.left);
-    if (score < bestScore) {
-      bestScore = score;
-      best = entry;
-    }
-  }
-  return best;
-}
 // Icon grid geometry (px at the default 16px root font size). Tiles have a
 // fixed height — a 4rem glyph box plus a reserved two-line label — so rows
 // share one stride and the grid can window cleanly.
@@ -4572,10 +4732,12 @@ function FileSystemIconsView({
   useListingNav(listingNavRef, {
     move: (direction) => {
       const entry = gridNeighbor({
+        byPlace: osConventions().files.macSelection,
         current: selectedPath,
         direction,
         entries,
-        itemRefs: itemRefs.current,
+        placeOf: (path) =>
+          itemRefs.current.get(path)?.getBoundingClientRect() ?? null,
       });
       return entry ? { entry, order: entries } : false;
     },
@@ -4744,7 +4906,7 @@ function FileSystemIconsView({
     const glyph = (
       <span
         className={cn(
-          "flex h-16 w-20 shrink-0 items-center justify-center rounded-lg p-1 group-focus-visible:ring-2 group-focus-visible:ring-ring",
+          "flex h-16 w-20 shrink-0 items-center justify-center rounded-lg p-1",
           isSelected
             ? "bg-accent"
             : entry.path === besideOpenPath && OPEN_BESIDE_ROW_CLASSNAME,
@@ -4962,8 +5124,10 @@ const LIST_EDGE_PADDING = 24;
 const LIST_COLUMN_WIDTH_MIN = 64;
 const LIST_COLUMN_WIDTH_MAX = 480;
 // The selection: the app's accent, solid, with the row's text in white over
-// it, the way the Finder fills one with the system's.
-const SELECTED_ROW_CLASSNAME = "bg-brand-500 text-white";
+// it, the way the Finder fills one with the system's. A key folder's mark is
+// the accent too, so it turns white with the text.
+const SELECTED_ROW_CLASSNAME =
+  "bg-brand-500 text-white [&_[data-key-mark]]:brightness-0 [&_[data-key-mark]]:invert";
 // The file showing beside the folder, when the selection has moved off it.
 const OPEN_BESIDE_ROW_CLASSNAME = "bg-foreground/10";
 // What reads as secondary on a row (dates, sizes, the chevron), over the
@@ -5310,7 +5474,7 @@ function FileSystemTableView({
   selectedPath,
   selection,
   sort,
-  treeExpansionRef,
+  treeExpansion,
   openFolders,
   onOpenFolderChange,
   besideOpenPath,
@@ -5324,12 +5488,12 @@ function FileSystemTableView({
   // The folders left open here, kept by the browser per folder so walking
   // away and back, or to another layout and back, finds them open again.
   const [ownExpanded, setExpanded] = React.useState<ReadonlySet<string>>(
-    () => new Set(treeExpansionRef.current.get(currentPath) ?? []),
+    () => new Set(treeExpansion.get(currentPath) ?? []),
   );
   const expanded = openFolders ?? ownExpanded;
   const setExpandedFolders = (next: ReadonlySet<string>) => {
     setExpanded(next);
-    treeExpansionRef.current.set(currentPath, [...next]);
+    treeExpansion.set(currentPath, [...next]);
   };
   // A search shows every match wherever it is, so every folder with one in
   // it stands open while it is on.
@@ -5600,7 +5764,11 @@ function FileSystemTableView({
       const selectedRow = entryRows[selectedEntryIndex];
       const first = entryRows[0]?.entry;
       if (!selectedRow) {
-        return first ? { entry: first, order: null } : true;
+        const arrival =
+          direction === "up" && osConventions().files.macSelection
+            ? entryRows.at(-1)?.entry
+            : first;
+        return arrival ? { entry: arrival, order: null } : true;
       }
       if (direction === "up" || direction === "down") {
         const next =
@@ -5687,7 +5855,12 @@ function FileSystemTableView({
             <div
               className="relative min-h-full"
               ref={rowsRef}
-              style={{ ...LIST_STRIPES, height: rows.length * LIST_ROW_HEIGHT }}
+              // One empty stripe past the last row, so a folder too long for
+              // the window still has somewhere to press that lets go.
+              style={{
+                ...LIST_STRIPES,
+                height: (rows.length + 1) * LIST_ROW_HEIGHT,
+              }}
             >
               <div
                 className="absolute inset-x-0 flex flex-col"
@@ -5746,7 +5919,7 @@ function FileSystemTableView({
                       }
                       aria-selected={isSelected}
                       className={cn(
-                        "mx-1.5 flex h-6 shrink-0 items-center rounded-md pr-1.5 pl-1 text-sm outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-inset",
+                        "mx-1.5 flex h-6 shrink-0 items-center rounded-md pr-1.5 pl-1 text-sm outline-none",
                         isSelected
                           ? SELECTED_ROW_CLASSNAME
                           : entry.path === besideOpenPath &&
@@ -6029,9 +6202,11 @@ function FileSystemListView({
   useListingNav(listingNavRef, {
     move: (direction) => {
       if (direction === "left" || direction === "right") return false;
-      const first = entries[0];
       if (selectedIndex === -1) {
-        return first ? { entry: first, order: null } : true;
+        const arrival = entries.at(
+          direction === "up" && osConventions().files.macSelection ? -1 : 0,
+        );
+        return arrival ? { entry: arrival, order: null } : true;
       }
       const next = entries[selectedIndex + (direction === "up" ? -1 : 1)];
       return next ? { entry: next, order: entries } : true;
@@ -6069,7 +6244,7 @@ function FileSystemListView({
       <div
         aria-selected={isSelected}
         className={cn(
-          "absolute inset-x-1.5 flex items-center gap-2.5 rounded-md pr-2 pl-1.5 outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-inset",
+          "absolute inset-x-1.5 flex items-center gap-2.5 rounded-md pr-2 pl-1.5 outline-none",
           isSelected
             ? SELECTED_ROW_CLASSNAME
             : entry.path === besideOpenPath
@@ -6305,6 +6480,7 @@ export function FileSystemRowGlyph({
     return (
       <FileSystemFolderGlyph
         className="h-3.5 w-auto shrink-0"
+        data-key-mark={isKeyFolderGlyphUrl(entry.glyphSrc) ? "" : undefined}
         src={entry.glyphSrc}
       />
     );
@@ -6383,6 +6559,7 @@ function FileSystemColumnsView(props: FileSystemViewProps) {
     marquee,
     onOpen,
     onSelect,
+    onWalk,
     path: standingIn,
     renamingPath,
     renderFileStage,
@@ -6524,14 +6701,15 @@ function FileSystemColumnsView(props: FileSystemViewProps) {
   const [internalColumnWidth, setInternalColumnWidth] =
     React.useState(COLUMN_WIDTH_DEFAULT);
   const columnWidth = columnWidthProp ?? internalColumnWidth;
-  const setColumnWidth = (next: number) => {
-    setInternalColumnWidth(next);
-    onColumnWidthChange?.(next);
-  };
   React.useEffect(() => {
     const container = scrollContainerRef.current;
     if (container) container.scrollLeft = container.scrollWidth;
   }, [columnPaths.length, deferredSelectedPath]);
+  // After the last hook, where the compiler can keep it the same function.
+  const setColumnWidth = (next: number) => {
+    setInternalColumnWidth(next);
+    onColumnWidthChange?.(next);
+  };
   // Beside a file only the last column stands, filling the folder's width:
   // the file is open beside it, so there is no preview to make room for,
   // and the columns before it are a step back (left, or the folder's menu).
@@ -6643,8 +6821,15 @@ function FileSystemColumnsView(props: FileSystemViewProps) {
                   index.folders.get(backPath)?.name ??
                   rootTitle
                 }
+                // Back to the first column walks there: with nothing
+                // selected, the trail ends at the folder the browser stands
+                // in, which is the one being left.
                 onBack={() => {
-                  onSelect(backFolder);
+                  if (backFolder) {
+                    onSelect(backFolder);
+                  } else {
+                    onWalk(backPath);
+                  }
                 }}
               />
               {column}
@@ -6934,7 +7119,6 @@ const FileSystemColumn = React.memo(function FileSystemColumn({
                     aria-selected={isSelected}
                     className={cn(
                       rowClassName,
-                      "focus-visible:ring-2 focus-visible:ring-ring",
                       isSelected
                         ? SELECTED_ROW_CLASSNAME
                         : isOnTrail

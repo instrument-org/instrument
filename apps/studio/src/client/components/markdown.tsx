@@ -6,7 +6,7 @@ import { FileOpenContext } from "@/client/components/file-open-context";
 import { useFileDrag } from "@/client/hooks/use-file-drag";
 import { TranscriptSurfaceContext } from "@/client/components/transcript/surface";
 import { useHostPaths } from "@/client/hooks/use-host-paths";
-import { wantsNewTab } from "@/client/hooks/use-open-target";
+import { wantsNewTab, wantsNewWindow } from "@/client/hooks/use-open-target";
 import { useShowChatFile } from "@/client/hooks/use-show-chat-file";
 import {
   APP_NAME_SLUG,
@@ -58,6 +58,7 @@ import {
   getComputerFileUrl,
   hostPathOfComputerFileUrl,
 } from "../lib/computer-file-url";
+import { bracketPathLinkDestinations } from "../lib/bracket-path-link-destinations";
 import {
   classifyImageSource,
   type ImageSourceKind,
@@ -75,6 +76,7 @@ import {
   FRONT_MATTER_ID,
   remarkFrontMatterPanel,
 } from "../lib/remark-front-matter-panel";
+import { numberedListsAfterText } from "../lib/numbered-lists-after-text";
 import { splitMarkdownBlocks } from "../lib/split-markdown-blocks";
 import { cn } from "../lib/utils";
 import { AgentFilesBlock } from "./agent-files-block";
@@ -501,7 +503,12 @@ const ChatFileLink = ({
     <ChipButton
       className={className}
       onActivate={(event) => {
-        showChatFile(filePath, { newTab: hasTabs && wantsNewTab(event) });
+        showChatFile(
+          filePath,
+          hasTabs && wantsNewWindow(event)
+            ? { newWindow: true }
+            : { newTab: hasTabs && wantsNewTab(event) },
+        );
       }}
       onAuxClick={(event) => {
         if (event.button === 1) {
@@ -559,6 +566,13 @@ const ChatFileLink = ({
               }}
             >
               Open in New Tab
+            </ContextMenuItem>
+            <ContextMenuItem
+              onSelect={() => {
+                showChatFile(filePath, { newWindow: true });
+              }}
+            >
+              Open in New Window
             </ContextMenuItem>
             <ContextMenuSeparator />
           </>
@@ -719,9 +733,12 @@ const MarkdownLink = ({
           }}
           onClick={(event) => {
             event.preventDefault();
-            openFile(hostPath, {
-              newTab: wantsNewTab(event) || event.shiftKey,
-            });
+            openFile(
+              hostPath,
+              wantsNewWindow(event)
+                ? { newWindow: true }
+                : { newTab: wantsNewTab(event) },
+            );
           }}
           title={hostPath}
         >
@@ -1081,9 +1098,13 @@ export const Markdown = memo(
     hideImages,
     imageKinds = MARKDOWN_IMAGE_KINDS,
     isStreaming,
-    markdown,
+    markdown: written,
     chatId,
   }: MarkdownProps) => {
+    const markdown = useMemo(
+      () => numberedListsAfterText(bracketPathLinkDestinations(written)),
+      [written],
+    );
     const setLookAt = useSetAtom(lookAtAtom);
     const [rehypePlugins, setRehypePlugins] =
       useState<PluginList>(baseRehypePlugins);

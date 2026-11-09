@@ -1,4 +1,4 @@
-import { APP_COMMAND } from "../shell-commands/app-command";
+import { APP_COMMAND } from "../../model-text/commands/app-command";
 import { getWorkspaceConfig } from "../workspace-config";
 import { type AppManifest } from "./manifest";
 import { credentialOrigin } from "./origin-bound";

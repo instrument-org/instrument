@@ -21,6 +21,8 @@ export interface GuestLinkPlaces {
   mayOpen: (url: string) => boolean;
   /** Opens the address in a tab of the window's own; absent where the window has none. */
   openInNewTab?: (url: string) => void;
+  /** Opens the address in a window of the app's own; absent where there are none. */
+  openInNewWindow?: (url: string) => void;
   /** Asks the window to step the tab the page is in, which runs into the page's own history first. */
   step: (direction: "back" | "forward") => void;
 }
@@ -81,13 +83,21 @@ function contextMenuTemplate(
         },
         label: "Open Link",
       });
-      const { openInNewTab } = places;
+      const { openInNewTab, openInNewWindow } = places;
       if (openInNewTab) {
         items.push({
           click: () => {
             openInNewTab(url);
           },
           label: "Open Link in New Tab",
+        });
+      }
+      if (openInNewWindow) {
+        items.push({
+          click: () => {
+            openInNewWindow(url);
+          },
+          label: "Open Link in New Window",
         });
       }
     }

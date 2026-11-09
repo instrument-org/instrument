@@ -2,6 +2,7 @@ import { z } from "zod";
 
 import { BrowserTargetIdSchema } from "../types";
 import { AskerSchema, PermissionDecisionSchema, SystemWaitSchema } from "./ask";
+import { ChooseQuestionSchema } from "./choose-question";
 import { DeviceIdSchema } from "./device-id";
 import { SessionMessageDataPart } from "./session/message-data-part";
 import { StoreId } from "./store-id";
@@ -12,50 +13,50 @@ function tabIdOfEarlierBuilds(id: string) {
 }
 
 /**
- * A tab of the window one of the chat's sessions drives: one the
- * conversation handed a task, which is the user's and outlives the task, or
- * one an agent opened itself.
+ * A tab one of the chat's agents opened for its own work. Every session of
+ * the chat sees and drives every tab of the chat; this only says which tabs
+ * close on their own once nobody is working in them and the person never
+ * used them (`closeTurnTabs`), and which count toward `CHAT_HIDDEN_TAB_CAP`.
  */
-const HeldTabSchema = z.object({
+const OpenedTabSchema = z.object({
+  id: BrowserTargetIdSchema,
   /**
-   * The task that drives it, by its session; absent for a tab the chat's own
-   * conversation drives. One driver per tab, and a task's tabs go back to the
-   * chat when it finishes.
+   * The session that opened it: a task's keeps it open while that task can
+   * still be sent on, and is told when it closes.
    */
-  driver: StoreId.SessionSchema.optional(),
-  // Held tabs earlier builds saved name it `window/<tab>`, or by a `ses_`
-  // id from before tabs had ids of their own.
-  id: z.string().transform(tabIdOfEarlierBuilds).pipe(BrowserTargetIdSchema),
+  openedIn: StoreId.SessionSchema.optional(),
   /**
-   * Whether the tab is in the chat's tabs in the window. A page an agent asks
-   * for with no address is made with no tab, and gets one as it first goes
-   * somewhere; one that never does is closed when its session's turn ends,
-   * so looking around the browser leaves no blank tab behind.
+   * The person has used it: clicked, tapped, typed or scrolled in its page
+   * (`notePersonUsedTab`). No automatic close but the chat's trashing takes
+   * it from then on; an agent or the person still may.
    */
-  inWindow: z.boolean().default(true),
-  openedBy: z.enum(["handed", "task"]),
+  usedByPerson: z.literal(true).optional(),
 });
 
-export type HeldTab = z.output<typeof HeldTabSchema>;
+export type OpenedTab = z.output<typeof OpenedTabSchema>;
 
 /**
  * How many tabs a chat may keep out of the user's sight that its agents
- * opened themselves, across its conversation and its tasks. Tabs handed to
- * them, and the user's own, never count and are never closed for it.
+ * opened themselves, across its conversation and its tasks. The user's own
+ * tabs never count and are never closed for it.
  */
 export const CHAT_HIDDEN_TAB_CAP = 20;
 
 /**
  * A tab an agent opened that the app closed on its own, waiting for the
- * session that drove it to be told: the next browser note it gets says so,
- * and takes it from here.
+ * session that worked in it to be told: its next browser note says so, and
+ * takes it from here.
  */
 const ClosedTabSchema = z.object({
-  /** The session that drove it, as `HeldTab.driver`. */
-  driver: StoreId.SessionSchema.optional(),
   id: z.string().transform(tabIdOfEarlierBuilds),
-  /** Why: the chat had more tabs it opened itself out of sight than it may keep. */
-  reason: z.literal("tabCap"),
+  /** The session to tell; absent for the chat's own conversation. */
+  session: StoreId.SessionSchema.optional(),
+  /**
+   * Why: the chat had more tabs it opened itself out of sight than it may
+   * keep (`tabCap`), or the chat's turn ended with nobody working in the tab
+   * and the person never having used it (`turnEnd`).
+   */
+  reason: z.enum(["tabCap", "turnEnd"]),
   title: z.string().optional(),
   url: z.string(),
 });
@@ -106,14 +107,13 @@ const PermissionAskSchema = z.object({
   /** Whether the ask belongs to this computer, which alone acts on it. */
   here: z.boolean(),
   id: z.string(),
-  /** A folder, a Mac app, or a tab of the person's outside the chat. */
-  kind: z.enum(["app", "folder", "tab"]),
+  kind: SessionMessageDataPart.PermissionOnSchema,
   page: z.object({ title: z.string(), url: z.string() }).optional(),
   /** The programs Windows' ransomware protection blocked, on `windows-blocked`. */
   programs: z.array(z.string()).optional(),
   /** What it waits on: the person's answer (`open`), or the system's. */
   status: z.enum(["open", ...SystemWaitSchema.options]),
-  /** The folder's absolute path, the app's name, or the tab's id. */
+  /** The folder's absolute path, the app's name, or the page's tab id. */
   target: z.string(),
 });
 
@@ -144,9 +144,16 @@ const QuestionAskSchema = z.object({
   askers: z.array(AskerSchema),
   /** An answer given while the computer that asked was away, which it never takes. */
   away: z.object({ by: z.string() }).optional(),
+  /**
+   * Every question with its choices, for the card by the composer; absent
+   * on a question an earlier build asked, whose card is under its call.
+   */
+  card: z.array(ChooseQuestionSchema).optional(),
   /** The name of the computer that asked. */
   computer: z.string(),
   device: DeviceIdSchema,
+  /** Asked during a turn still going, so nobody sees or answers it yet. */
+  held: z.literal(true).optional(),
   /** Whether this computer asked it, and alone acts on its answer. */
   here: z.boolean(),
   id: z.string(),
@@ -203,8 +210,8 @@ export type Ask = z.output<typeof AskSchema>;
 // Where this device left off in a chat, in its own `state.<device>.json`.
 // Each field that will not parse costs the chat that field alone.
 export const StoredChatStateSchema = z.object({
-  browserTabs: z.array(HeldTabSchema).catch([]).default([]),
   closedTabs: z.array(ClosedTabSchema).catch([]).default([]),
+  openedTabs: z.array(OpenedTabSchema).catch([]).default([]),
 });
 
 export type ChatState = z.output<typeof StoredChatStateSchema>;

@@ -58,6 +58,47 @@ describe.runIf(process.platform !== "win32")("setupBinDirectory", () => {
     expect(captureServerException).not.toHaveBeenCalled();
   });
 
+  it("leaves the links alone when a launch finds them as the last one left them", async () => {
+    await setupBinDirectory();
+    const rm = vi.spyOn(fs, "rm");
+    const symlink = vi.spyOn(fs, "symlink");
+
+    await expect(setupBinDirectory()).resolves.toBe(binDir());
+
+    expect(rm).not.toHaveBeenCalled();
+    expect(symlink).not.toHaveBeenCalled();
+    expect(process.env.PATH?.split(path.delimiter)[0]).toBe(binDir());
+  });
+
+  it.each([
+    [
+      "a link is gone",
+      () => fs.rm(path.join(binDir(), "node"), { force: true }),
+    ],
+    [
+      "the record names another target",
+      () =>
+        fs.writeFile(
+          path.join(binDir(), ".links.json"),
+          JSON.stringify([{ name: "node", targetPath: "/elsewhere/node" }]),
+        ),
+    ],
+  ])("links again when %s", async (_, change) => {
+    await setupBinDirectory();
+    await change();
+    const symlink = vi.spyOn(fs, "symlink");
+
+    await setupBinDirectory();
+
+    expect(symlink).toHaveBeenCalledWith(
+      process.execPath,
+      path.join(binDir(), "node"),
+    );
+    await expect(fs.readlink(path.join(binDir(), "node"))).resolves.toBe(
+      process.execPath,
+    );
+  });
+
   it("records a node link failure and degrades like the other binaries", async () => {
     const failure = Object.assign(new Error("EPERM: operation not permitted"), {
       code: "EPERM",

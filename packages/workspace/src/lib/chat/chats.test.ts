@@ -27,7 +27,13 @@ import { createMockChatConfig } from "../../test/helpers/mock-chat-config";
 import { APP_FILE_NAME } from "../apps/app-file";
 import { chatRecords } from "../records/chat-records";
 import { type WorkspaceActorRef } from "../../machines/workspace";
-import { recordAsk, recordQuestion, recordSignIn } from "./asks";
+import {
+  recordAsk,
+  recordQuestion,
+  recordSignIn,
+  releaseQuestions,
+} from "./asks";
+import { openAsks } from "./open-asks";
 import { refreshSignIn } from "./drive-asks";
 import { SessionMessagePart } from "../../schemas/session/message-part";
 import { recordChanged, recordRemoved } from "../record-changes";
@@ -58,8 +64,15 @@ import {
   unarchiveChat,
 } from "./chats";
 import { updateSessionTitle } from "../update-session-title";
-import { chatRowAsked, liveChatList } from "./live-chat-list";
+import { liveChatRows, refreshChatRow } from "./live-chat-list";
+import {
+  type ChatListEvent,
+  foldChatList,
+  type HeldChatList,
+} from "./chat-list-events";
 import { CHAT_LIST_FILE_NAME, startChatListFile } from "./chat-list-file";
+import { bumpChatGeneration } from "../chat-generation";
+import { closeWorkspaceDb } from "../workspace-db";
 import { workspaceLayout } from "../workspace-layout";
 import { createProject } from "./projects";
 
@@ -155,7 +168,12 @@ afterEach(() => {
 const at = (minute: number) => new Date(Date.UTC(2026, 8, 16, 12, minute));
 
 /** A reply that asked the user with `choose`, and the question it left open. */
-async function agentAsks(_chatId: ChatId, sessionId: StoreId.Session) {
+async function agentAsks(
+  _chatId: ChatId,
+  sessionId: StoreId.Session,
+  question = "Which one?",
+  { held = false }: { held?: boolean } = {},
+) {
   const messageId = StoreId.newMessageId();
   const part = {
     input: {
@@ -163,7 +181,7 @@ async function agentAsks(_chatId: ChatId, sessionId: StoreId.Session) {
         {
           choices: [{ label: "Yes" }, { label: "No" }],
           header: "Pick",
-          question: "Which one?",
+          question,
         },
       ],
     },
@@ -196,7 +214,8 @@ async function agentAsks(_chatId: ChatId, sessionId: StoreId.Session) {
   // What the call's own run records.
   await recordQuestion(
     { chatId, messageId, partId: part.metadata.id, sessionId },
-    ["Which one?"],
+    part.input.questions,
+    { held },
   );
 }
 
@@ -354,6 +373,18 @@ async function userSays(
 }
 
 describe("listChats", () => {
+  it("reads no chat's sessions again once its row is digested", async () => {
+    const chatId = await freshChat();
+    const sessionId = await session(chatId, "Groceries");
+    await userSays(chatId, sessionId, "make a list", 1);
+    await listChats();
+    const sessions = vi.spyOn(ChatReads, "sessions");
+
+    await listChats();
+
+    expect(sessions).not.toHaveBeenCalled();
+  });
+
   it("keeps the user's timestamp through replies and harness notifications", async () => {
     const chatId = await freshChat();
     const sessionId = await session(chatId, "Groceries");
@@ -440,7 +471,7 @@ describe("listChats", () => {
         createdAt: chat.createdAt,
         latest: chat.latest,
         firstAsk: chat.firstAsk,
-        state: chat.state,
+        status: chat.status,
         title: chat.title,
         unread: chat.unread,
       })),
@@ -453,7 +484,7 @@ describe("listChats", () => {
           text: "Starting the list.",
         },
         firstAsk: "make me a grocery list",
-        state: "idle",
+        status: "idle",
         title: "Groceries for the week",
         unread: false,
       },
@@ -461,7 +492,7 @@ describe("listChats", () => {
         createdAt: at(4).getTime(),
         latest: undefined,
         firstAsk: "plan a trip to lisbon",
-        state: "idle",
+        status: "idle",
         title: "Trip to Lisbon",
         unread: false,
       },
@@ -659,11 +690,11 @@ describe("listChats", () => {
     await userSays(chatId, sessionId, "hru", 1);
     await agentSays(chatId, sessionId, "", { failed: true, minute: 2 });
     const [failed] = await listChats();
-    expect(failed?.state).toBe("failed");
+    expect(failed?.status).toBe("failed");
 
     await agentSays(chatId, sessionId, "Doing well!", { minute: 3 });
     const [answered] = await listChats();
-    expect(answered?.state).toBe("idle");
+    expect(answered?.status).toBe("idle");
   });
 
   it("says a chat stopped at a usage limit is limited, not failed", async () => {
@@ -680,7 +711,7 @@ describe("listChats", () => {
     });
 
     const [chat] = await listChats();
-    expect(chat?.state).toBe("limited");
+    expect(chat?.status).toBe("limited");
     expect(chat?.stoppedFor).toBe("usage");
   });
 
@@ -704,7 +735,7 @@ describe("listChats", () => {
     });
 
     const [chat] = await listChats();
-    expect(chat).toMatchObject({ state: "limited", stoppedFor: "plan" });
+    expect(chat).toMatchObject({ status: "limited", stoppedFor: "plan" });
   });
 
   it("says a chat Instrument refused for a failed payment stopped for its payment", async () => {
@@ -727,7 +758,7 @@ describe("listChats", () => {
     });
 
     const [chat] = await listChats();
-    expect(chat).toMatchObject({ state: "limited", stoppedFor: "payment" });
+    expect(chat).toMatchObject({ status: "limited", stoppedFor: "payment" });
   });
 
   it("leaves a failed turn behind once the user sends again", async () => {
@@ -738,19 +769,19 @@ describe("listChats", () => {
     await userSays(chatId, sessionId, "hello?", 3);
 
     const [chat] = await listChats();
-    expect(chat?.state).not.toBe("failed");
+    expect(chat?.status).not.toBe("failed");
   });
 
   // A reply cut off by its request timing out never got out, which nobody
   // asked for; one cut off by a stop someone asked for is no error, and nor
   // is one cut off before the reason was kept.
   it.each([
-    { reason: "timeout", state: "failed" },
-    { reason: "manual", state: "idle" },
-    { reason: undefined, state: "idle" },
+    { reason: "timeout", status: "failed" },
+    { reason: "manual", status: "idle" },
+    { reason: undefined, status: "idle" },
   ] as const)(
-    "reads a reply cut off for $reason as $state",
-    async ({ reason, state }) => {
+    "reads a reply cut off for $reason as $status",
+    async ({ reason, status }) => {
       const chatId = await freshChat();
       const sessionId = await session(chatId, "Documents", 1);
       await userSays(chatId, sessionId, "what's in my Documents?", 1);
@@ -779,7 +810,7 @@ describe("listChats", () => {
       expect(reply.isOk()).toBe(true);
 
       const [chat] = await listChats();
-      expect(chat?.state).toBe(state);
+      expect(chat?.status).toBe(status);
     },
   );
 
@@ -903,7 +934,7 @@ describe("listChats", () => {
 
     const [chat] = await listChats();
 
-    expect(chat?.state).toBe("working");
+    expect(chat?.status).toBe("working");
     expect(chat?.latest).toEqual({
       at: at(2).getTime(),
       kind: "step",
@@ -926,7 +957,7 @@ describe("listChats", () => {
 
     const [chat] = await listChats();
 
-    expect(chat?.state).toBe("working");
+    expect(chat?.status).toBe("working");
     expect(chat?.latest?.kind).toBe("step");
     expect(chat?.latest?.text).toBe("Running a command");
   });
@@ -946,12 +977,12 @@ describe("listChats", () => {
       vi.setSystemTime(at(3).getTime() + 5000);
 
       const [untaken] = await listChats();
-      expect(untaken?.state).toBe("idle");
+      expect(untaken?.status).toBe("idle");
 
       vi.setSystemTime(at(3).getTime() + 60_000);
       alive.value = new Set([sessionId]);
       const [taken] = await listChats();
-      expect(taken?.state).toBe("working");
+      expect(taken?.status).toBe("working");
     } finally {
       vi.useRealTimers();
     }
@@ -988,7 +1019,7 @@ describe("listChats", () => {
 
     const [chat] = await listChats();
 
-    expect(chat?.state).toBe("working");
+    expect(chat?.status).toBe("working");
     expect(chat?.latest).toMatchObject({
       kind: "step",
       text: "Running a command",
@@ -1005,7 +1036,7 @@ describe("listChats", () => {
 
     const [chat] = await listChats();
 
-    expect(chat?.state).toBe("working");
+    expect(chat?.status).toBe("working");
   });
 
   it("is waiting on the question its last turn asked", async () => {
@@ -1016,12 +1047,64 @@ describe("listChats", () => {
 
     const [chat] = await listChats();
 
-    expect(chat?.state).toBe("waiting");
+    expect(chat?.status).toBe("waiting");
     expect(chat?.latest).toEqual({
       at: expect.any(Number),
       kind: "question",
       text: "Which one?",
     });
+  });
+
+  it("waits on no question while the turn that asked it is held", async () => {
+    const chatId = await freshChat();
+    const sessionId = await session(chatId, "Planets");
+    await userSays(chatId, sessionId, "ask me my favorite planet", 1);
+    await agentAsks(chatId, sessionId, "Which planet?", { held: true });
+
+    expect((await listChats())[0]?.status).not.toBe("waiting");
+
+    await releaseQuestions(await chatFor(sessionId), sessionId);
+
+    expect((await listChats())[0]?.status).toBe("waiting");
+  });
+
+  it("waits only on the newest question once a later turn asks again", async () => {
+    const chatId = await freshChat();
+    const sessionId = await session(chatId, "Planets");
+    await userSays(chatId, sessionId, "ask me my favorite planet", 1);
+    await agentAsks(chatId, sessionId, "Which planet?");
+    // A note no one typed wakes the chat, which asks again.
+    const noteId = StoreId.newMessageId();
+    const woke = await ChatWrites.saveMessageWithParts(
+      {
+        id: noteId,
+        metadata: { createdAt: at(6), sessionId },
+        parts: [
+          {
+            data: { answer: "allowed", kind: "folder", target: "/Users/me" },
+            metadata: partMetadata({ messageId: noteId, sessionId }),
+            type: "data-permissionAnswer",
+          },
+        ],
+        role: "user",
+      },
+      await chatFor(sessionId),
+    );
+    expect(woke.isOk()).toBe(true);
+    await agentAsks(chatId, sessionId, "Which planet, again?");
+
+    const [chat] = await listChats();
+
+    expect(chat?.latest).toEqual({
+      at: expect.any(Number),
+      kind: "question",
+      text: "Which planet, again?",
+    });
+    expect(
+      (await openAsks(await chatFor(sessionId))).map((ask) =>
+        ask.kind === "question" ? ask.question : ask.kind,
+      ),
+    ).toEqual(["Which planet, again?"]);
   });
 
   it("waits on a sign-in card until its app is answered, and not once the user writes past it", async () => {
@@ -1104,7 +1187,7 @@ describe("listChats", () => {
     );
 
     const [asked] = await listChats();
-    expect(asked?.state).toBe("waiting");
+    expect(asked?.status).toBe("waiting");
     expect(asked?.latest).toEqual({
       at: expect.any(Number),
       kind: "question",
@@ -1122,7 +1205,7 @@ describe("listChats", () => {
       { event: "connected", name: "Reminders", slug: "apple-reminders" },
       {} as WorkspaceActorRef,
     );
-    expect((await listChats())[0]?.state).toBe("idle");
+    expect((await listChats())[0]?.status).toBe("idle");
 
     // Asked again, then written past.
     await connections.set("apple-reminders", {
@@ -1135,10 +1218,10 @@ describe("listChats", () => {
       undefined,
       { id: StoreId.newPartId() },
     );
-    expect((await listChats())[0]?.state).toBe("waiting");
+    expect((await listChats())[0]?.status).toBe("waiting");
     await userSays(chatId, sessionId, "never mind", 7);
     recordChanged(chatId, "state");
-    expect((await listChats())[0]?.state).toBe("idle");
+    expect((await listChats())[0]?.status).toBe("idle");
   });
 
   it("stops waiting on a sign-in card once the user stops the chat", async () => {
@@ -1215,7 +1298,7 @@ describe("listChats", () => {
       [{ name: "Reminders", slug: "apple-reminders" }],
       undefined,
     );
-    expect((await listChats())[0]?.state).toBe("waiting");
+    expect((await listChats())[0]?.status).toBe("waiting");
 
     const stopped = await ChatWrites.stopped(
       await chatFor(sessionId),
@@ -1225,7 +1308,7 @@ describe("listChats", () => {
     );
     expect(stopped.isOk()).toBe(true);
     recordChanged(chatId, "state");
-    expect((await listChats())[0]?.state).not.toBe("waiting");
+    expect((await listChats())[0]?.status).not.toBe("waiting");
   });
 
   it("waits on an open card, even while the turn that raised it winds down", async () => {
@@ -1248,7 +1331,7 @@ describe("listChats", () => {
       alive.value = new Set([sessionId]);
 
       const [winding] = await listChats();
-      expect(winding?.state).toBe("waiting");
+      expect(winding?.status).toBe("waiting");
       expect(winding?.latest).toEqual({
         at: at(3).getTime(),
         kind: "question",
@@ -1257,14 +1340,14 @@ describe("listChats", () => {
 
       alive.value = new Set();
       const [ended] = await listChats();
-      expect(ended?.state).toBe("waiting");
+      expect(ended?.status).toBe("waiting");
 
       // The user sent something else rather than answer: the turn that
       // starts is what the chat is on until it ends.
       await userSays(chatId, sessionId, "never mind, check the fridge", 4);
       alive.value = new Set([sessionId]);
       const [spokenPast] = await listChats();
-      expect(spokenPast?.state).toBe("working");
+      expect(spokenPast?.status).toBe("working");
     } finally {
       vi.useRealTimers();
     }
@@ -1299,9 +1382,7 @@ describe("listChats", () => {
 
       vi.setSystemTime(at(3).getTime() + 5000);
       const [relaunched] = await listChats();
-      expect(relaunched?.state).toBe("idle");
-      // What the line says "Done" by once the chat is at rest.
-      expect(relaunched?.lastStep?.at).toBe(at(2).getTime());
+      expect(relaunched?.status).toBe("idle");
 
       // A card raised before the quit still waits on the user: the note is
       // not the user speaking past it.
@@ -1313,7 +1394,7 @@ describe("listChats", () => {
       );
       vi.setSystemTime(at(3).getTime() + 5000);
       const [carded] = await listChats();
-      expect(carded?.state).toBe("waiting");
+      expect(carded?.status).toBe("waiting");
     } finally {
       vi.useRealTimers();
     }
@@ -1347,19 +1428,19 @@ describe("listChats", () => {
     // Written, and on its way to the session.
     pendingWakes.value = new Set([await chatFor(sessionId)]);
     const [woken] = await listChats();
-    expect(woken?.state).toBe("working");
+    expect(woken?.status).toBe("working");
 
     pendingWakes.value = new Set();
     alive.value = new Set([sessionId]);
     const [answering] = await listChats();
-    expect(answering?.state).toBe("working");
+    expect(answering?.status).toBe("working");
 
     await agentSays(chatId, sessionId, "Your Documents folder holds Taxes.", {
       minute: 4,
     });
     alive.value = new Set();
     const [settled] = await listChats();
-    expect(settled?.state).toBe("idle");
+    expect(settled?.status).toBe("idle");
   });
 
   // The person's Stop is what says so, however the turn ended: before it
@@ -1373,7 +1454,7 @@ describe("listChats", () => {
     await markChatStopped(await chatFor(sessionId), at(2));
 
     const [beforeStart] = await listChats();
-    expect(beforeStart?.state).toBe("stopped");
+    expect(beforeStart?.status).toBe("stopped");
 
     await noteSays(sessionId, 3, (metadata) => ({
       data: {
@@ -1392,13 +1473,13 @@ describe("listChats", () => {
       type: "data-taskEvent",
     }));
     const [pastNote] = await listChats();
-    expect(pastNote?.state).toBe("stopped");
+    expect(pastNote?.status).toBe("stopped");
 
     // The next turn starting is what ends it.
     await userSays(chatId, sessionId, "try Desktop instead", 4);
     alive.value = new Set([sessionId]);
     const [next] = await listChats();
-    expect(next?.state).toBe("working");
+    expect(next?.status).toBe("working");
 
     // A reply cut off with no Stop of the person's behind it is not theirs.
     alive.value = new Set();
@@ -1428,7 +1509,7 @@ describe("listChats", () => {
     );
     expect(reply.isOk()).toBe(true);
     const [cutOff] = await listChats();
-    expect(cutOff?.state).not.toBe("stopped");
+    expect(cutOff?.status).not.toBe("stopped");
   });
 
   it("reads a reply that is only the files it handed over by what it wrote", async () => {
@@ -1620,39 +1701,112 @@ describe("listChats", () => {
   });
 });
 
-describe("liveChatList", () => {
+describe("liveChatRows", () => {
   /**
-   * The live list, followed: `next` answers with the list's next answer, or
-   * none if nothing comes within a moment.
+   * The live list, followed as a window folds it: `next` answers with the
+   * list after its next event, or none if nothing comes within `wait` ms,
+   * and `events` with every event sent so far.
    */
-  async function open() {
+  /** `firstWait` is how long the first answer may take, for a list with many chats to read. */
+  async function open(firstWait?: number) {
     const controller = new AbortController();
     const answers: Chat[][] = [];
+    const events: ChatListEvent<Chat>[] = [];
+    let held: HeldChatList<Chat> | undefined;
     let wake: (() => void) | undefined;
     // Ends with the abort's error, as a live route does when its request goes.
     void (async () => {
-      for await (const answer of liveChatList(controller.signal)) {
-        answers.push(answer);
+      for await (const event of liveChatRows(controller.signal)) {
+        events.push(event);
+        held = foldChatList(held, event);
+        if (!held) {
+          throw new Error("A patch did not go on from the list held");
+        }
+        answers.push(held.rows);
         wake?.();
       }
     })().catch(() => undefined);
-    const next = async () => {
+    const next = async (wait = 200) => {
       if (answers.length === 0) {
         await new Promise<void>((resolve) => {
           wake = resolve;
-          setTimeout(resolve, 200);
+          setTimeout(resolve, wait);
         });
       }
       return answers.shift();
     };
     return {
-      first: await next(),
+      events,
+      first: await next(firstWait),
       next,
       stop: () => {
         controller.abort();
       },
     };
   }
+
+  it("sends a change to one chat as a patch carrying that row alone", async () => {
+    const chatId = await freshChat();
+    const groceries = await session(chatId, "Groceries", 1);
+    await userSays(chatId, groceries, "make me a grocery list", 1);
+    const taxes = await session(chatId, "Taxes", 2);
+    await userSays(chatId, taxes, "file my taxes", 2);
+    const { events, next, stop } = await open();
+
+    await setChatStarred(await chatFor(taxes), true);
+    await next();
+
+    expect(events.map((event) => event.kind)).toEqual(["snapshot", "patch"]);
+    const [snapshot, patch] = events;
+    expect(patch).toMatchObject({
+      epoch: snapshot?.epoch,
+      from: snapshot?.rev,
+      removed: [],
+      rev: (snapshot?.rev ?? 0) + 1,
+    });
+    expect(
+      patch?.kind === "patch" &&
+        patch.upserts.map((row) => [row.sessionId, row.starred]),
+    ).toEqual([[taxes, true]]);
+    stop();
+  });
+
+  // What one change sends has to stay the size of the row it moved, however
+  // many chats the workspace has: the whole list on every change was tens of
+  // megabytes a turn in a workspace of a few hundred.
+  it.each([50, 400])(
+    "sends a star in a workspace of %i chats in under 8 KB",
+    async (count) => {
+      const chatId = await freshChat();
+      const sessions: StoreId.Session[] = [];
+      for (let index = 0; index < count; index++) {
+        const sessionId = await session(chatId, `Chat ${index}`, index % 60);
+        await userSays(
+          chatId,
+          sessionId,
+          `make me list number ${index}`,
+          index % 60,
+        );
+        sessions.push(sessionId);
+      }
+      // Reading every row first can take seconds on a busy machine.
+      const { events, first, next, stop } = await open(20_000);
+      expect(first).toHaveLength(count);
+
+      const starred = sessions[Math.floor(count / 2)];
+      if (!starred) {
+        throw new Error("No chat to star");
+      }
+      await setChatStarred(await chatFor(starred), true);
+      await next(20_000);
+
+      const patch = events.at(-1);
+      expect(patch?.kind).toBe("patch");
+      expect(JSON.stringify(patch).length).toBeLessThan(8 * 1024);
+      stop();
+    },
+    60_000,
+  );
 
   it("drops a deleted chat's row, though the index forgot the chat before anything heard", async () => {
     const chatId = await freshChat();
@@ -1715,12 +1869,12 @@ describe("liveChatList", () => {
     await agentSays(chatId, sessionId, "Here it is.", { minute: 2 });
     alive.value = new Set([sessionId]);
     const { first, next, stop } = await open();
-    expect(first?.[0]?.state).toBe("working");
+    expect(first?.[0]?.status).toBe("working");
 
     alive.value = new Set();
     recordChanged(await chatFor(sessionId), "agent");
 
-    expect((await next())?.[0]?.state).toBe("idle");
+    expect((await next())?.[0]?.status).toBe("idle");
     stop();
   });
 
@@ -1765,7 +1919,7 @@ describe("liveChatList", () => {
 
       vi.setSystemTime(at(3).getTime() + 5000);
       const { first, stop } = await open();
-      expect(first?.[0]?.state).toBe("idle");
+      expect(first?.[0]?.status).toBe("idle");
       stop();
     } finally {
       vi.useRealTimers();
@@ -1824,26 +1978,40 @@ describe("liveChatList", () => {
     stop();
   });
 
-  // A window paints the project from the click; a project removed before the
-  // request lands files the chat under none, which writes nothing, so the
-  // only answer that takes the paint back is the same list sent again.
-  it("answers a request to change a row with the row as it stands, though nothing changed", async () => {
+  // A window paints the project from the click and keeps the paint until its
+  // list reaches the revision the request answers with. A project removed
+  // before the request lands files the chat under none, which writes nothing,
+  // so the answer is the revision the list already stands at.
+  it("answers a request for a row with the revision the row stands at, and sends nothing for one that changed nothing", async () => {
+    expect(await refreshChatRow(ChatIdSchema.parse("chats-no-list"))).toBe(
+      null,
+    );
     const chatId = await freshChat();
     const sessionId = await session(chatId, "Groceries");
     await userSays(chatId, sessionId, "make me a grocery list", 1);
     const id = await chatFor(sessionId);
-    const { first, next, stop } = await open();
+    const { events, next, stop } = await open();
+    const [snapshot] = events;
 
     await setChatProject(id, "top_removed");
     recordChanged(id, "settings");
+    expect(await refreshChatRow(id)).toEqual({
+      epoch: snapshot?.epoch,
+      rev: snapshot?.rev,
+    });
+    expect(await refreshChatRow(ChatIdSchema.parse("chats-not-there"))).toEqual(
+      { epoch: snapshot?.epoch, rev: snapshot?.rev },
+    );
     expect(await next()).toBeUndefined();
 
-    chatRowAsked(id);
-    expect(await next()).toEqual(first);
-    expect(await next()).toBeUndefined();
-
-    chatRowAsked(ChatIdSchema.parse("chats-not-there"));
-    expect(await next()).toEqual(first);
+    await setChatStarred(id, true);
+    const starredAt = await refreshChatRow(id);
+    expect((await next())?.[0]?.starred).toBe(true);
+    expect(starredAt).toEqual({
+      epoch: snapshot?.epoch,
+      rev: events.at(-1)?.rev,
+    });
+    expect(events).toHaveLength(2);
     stop();
   });
 
@@ -1921,6 +2089,124 @@ describe("liveChatList", () => {
       });
     } finally {
       await live.clear();
+    }
+  });
+
+  /** The chat's running turn, begun in memory as a reply starting at `minute`. */
+  async function replyArriving(sessionId: StoreId.Session, minute: number) {
+    const messageId = StoreId.newMessageId();
+    const live = chatRecords().live(await chatFor(sessionId), sessionId);
+    live.setMessage({
+      id: messageId,
+      metadata: {
+        createdAt: at(minute),
+        finishReason: "unknown",
+        modelId: "glm-5.3-flash",
+        providerId: "openai-compatible",
+        sessionId,
+      },
+      role: "assistant",
+    });
+    const partId = StoreId.newPartId();
+    const metadata = {
+      createdAt: at(minute),
+      id: partId,
+      messageId,
+      sessionId,
+    };
+    return {
+      live,
+      partId,
+      says: (text: string) => {
+        live.setPart(
+          SessionMessagePart.coerce({ metadata, text, type: "text" }),
+        );
+      },
+      types: (activity: string) => {
+        live.setPart(
+          SessionMessagePart.coerce({
+            input: { activity, command: "cat li" },
+            metadata: { ...metadata, id: StoreId.newPartId() },
+            state: "input-streaming",
+            toolCallId: "call-1",
+            type: "tool-bash",
+          }),
+        );
+      },
+    };
+  }
+
+  it("sends nothing for a reply streaming in, which a working row does not show", async () => {
+    const chatId = await freshChat();
+    const sessionId = await session(chatId, "Groceries");
+    await userSays(chatId, sessionId, "make me a grocery list", 1);
+    await agentSays(chatId, sessionId, "On it.", { minute: 2 });
+    alive.value = new Set([sessionId]);
+    const { first, next, stop } = await open();
+    expect(first?.[0]?.latest).toMatchObject({ kind: "reply", text: "On it." });
+
+    const reply = await replyArriving(sessionId, 3);
+    try {
+      reply.says("Here is");
+      await new Promise((resolve) => setTimeout(resolve, 150));
+      reply.says("Here is your list");
+      expect(await next(800)).toBeUndefined();
+    } finally {
+      stop();
+      await reply.live.clear();
+    }
+  });
+
+  it("moves a row to the step a call still arriving names", async () => {
+    const chatId = await freshChat();
+    const sessionId = await session(chatId, "Groceries");
+    await userSays(chatId, sessionId, "make me a grocery list", 1);
+    alive.value = new Set([sessionId]);
+    const { next, stop } = await open();
+
+    const reply = await replyArriving(sessionId, 2);
+    try {
+      reply.types("Reading the list");
+      expect((await next(800))?.[0]?.latest).toMatchObject({
+        kind: "step",
+        text: "Reading the list",
+      });
+    } finally {
+      stop();
+      await reply.live.clear();
+    }
+  });
+
+  // A crash mid-reply leaves the files as they were, so a digest kept under
+  // their stamp is served at the next launch; one read from memory would show
+  // words that were never written.
+  it("keeps no digest of a reply still arriving", async () => {
+    const chatId = await freshChat();
+    const config = getWorkspaceConfig();
+    setWorkspaceConfig({
+      ...config,
+      workspaceDbFile: AbsolutePathSchema.parse(
+        path.join(config.rootDir, "machine", "workspace.db"),
+      ),
+    });
+    try {
+      const sessionId = await session(chatId, "Groceries");
+      await userSays(chatId, sessionId, "make me a grocery list", 1);
+      await agentSays(chatId, sessionId, "On it.", { minute: 2 });
+      const reply = await replyArriving(sessionId, 3);
+      reply.says("Half a reply");
+
+      await listChats();
+      // Gone from memory without a write, as a crash leaves it, and the
+      // digest kept in memory dropped as a new launch has none: the digest
+      // read next comes from the index, under the same stamp.
+      reply.live.forget(reply.partId);
+      bumpChatGeneration(chatId, sessionId);
+      const [chat] = await listChats();
+
+      expect(chat?.latest).toMatchObject({ kind: "reply", text: "On it." });
+    } finally {
+      closeWorkspaceDb();
     }
   });
 });

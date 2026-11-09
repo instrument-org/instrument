@@ -143,7 +143,7 @@ function isAllowedBaseUrl(value: string): boolean {
 // An "api" app: authenticated HTTP requests through `instrument app request`.
 /**
  * Which account of the service this app is signed in as, in the user's
- * words or the agent's ("jeremy@pileofturtles.com", "Acme workspace"), so
+ * words or the agent's ("name@example.com", "Acme workspace"), so
  * two apps for one service can be told apart. Only a label: it reaches
  * nothing and is left out of the manifest's hash.
  */

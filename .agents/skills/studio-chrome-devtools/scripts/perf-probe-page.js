@@ -1,6 +1,7 @@
-// Installed ahead of the renderer's own scripts by perf-screens.mjs and
-// perf-chat-turns.mjs (Page.addScriptToEvaluateOnNewDocument, then a reload),
-// and read back through window.__perfProbe.
+// Installed ahead of the renderer's own scripts by perf-screens.mjs,
+// perf-chat-turns.mjs and hidden-tabs-quiet.mjs
+// (Page.addScriptToEvaluateOnNewDocument, then a reload), and read back
+// through window.__perfProbe.
 //
 // Counts what does not move with machine load, so a run on a busy computer
 // still compares with one on a quiet one: React commits and which components
@@ -37,6 +38,14 @@
  * }} ComponentType
  *
  * @typedef {{ n: number; bytes: number }} Traffic
+ *
+ * @typedef {{
+ *   at: number;
+ *   dir: "in" | "out";
+ *   kind: string;
+ *   path: string;
+ *   bytes: number;
+ * }} Frame
  *
  * @typedef {{
  *   at: number;
@@ -88,6 +97,8 @@
     watch: new Set(),
     /** @type {Map<string, Map<string, number>>} */
     why: new Map(),
+    /** @type {Frame[]} every RPC frame since the reset, oldest first */
+    frames: [],
   };
   const reset = () => {
     state.t0 = performance.now();
@@ -100,6 +111,7 @@
     state.mutations = 0;
     state.loaf = [];
     state.why = new Map();
+    state.frames = [];
   };
 
   /** @param {Map<string, number>} counts @param {string} key */
@@ -223,6 +235,39 @@
         : 0;
   /** @param {string | undefined} id */
   const pathOf = (id) => (id && state.idToPath.get(id)) ?? "?";
+  /** Kept to this many, so a chatty stream cannot grow the page without bound. */
+  const FRAME_LIMIT = 2000;
+  /**
+   * What an oRPC frame is, from its head: a request carries its procedure's
+   * address, a stream frame is type 3 (its event `message`, `done` or
+   * `error`), an abort type 4, and a frame with neither is a response.
+   * @param {unknown} data @param {"in" | "out"} dir
+   */
+  const kindOf = (data, dir) => {
+    if (typeof data !== "string") {
+      return "binary";
+    }
+    const type = /^\{"i":"?[^",}]+"?,"t":(\d)/.exec(data)?.[1];
+    if (type === "3") {
+      return `stream:${/"p":\{"e":"([a-z]+)"/.exec(data)?.[1] ?? "?"}`;
+    }
+    if (type === "4") {
+      return "abort";
+    }
+    return dir === "out" ? "request" : "response";
+  };
+  /** @param {unknown} data @param {"in" | "out"} dir @param {string} path */
+  const logFrame = (data, dir, path) => {
+    if (state.frames.length < FRAME_LIMIT) {
+      state.frames.push({
+        at: Math.round(performance.now() - state.t0),
+        dir,
+        kind: kindOf(data, dir),
+        path,
+        bytes: sizeOf(data),
+      });
+    }
+  };
 
   const originalPost = /** @type {MessagePort["postMessage"]} */ (
     Reflect.get(MessagePort.prototype, "postMessage")
@@ -236,6 +281,7 @@
         state.idToPath.set(id, path.replace(/^orpc:\/+/, "/"));
       }
       bump(state.rpcOut, pathOf(id), sizeOf(data));
+      logFrame(data, "out", pathOf(id));
     }
     Reflect.apply(originalPost, this, [data, ...rest]);
   };
@@ -243,11 +289,9 @@
   const countInbound = (event) => {
     const { data } = event;
     if (typeof data === "string" || data instanceof ArrayBuffer) {
-      bump(
-        state.rpcIn,
-        pathOf(typeof data === "string" ? idOf(data) : undefined),
-        sizeOf(data),
-      );
+      const path = pathOf(typeof data === "string" ? idOf(data) : undefined);
+      bump(state.rpcIn, path, sizeOf(data));
+      logFrame(data, "in", path);
     }
   };
   /** @type {WeakSet<MessagePort>} */
@@ -355,6 +399,8 @@
 
   hookHost.__perfProbe = {
     reset,
+    /** Every RPC frame since the reset, in order, up to FRAME_LIMIT. */
+    frames: () => [...state.frames],
     /** @param {string[]} names */
     watch(names) {
       state.watch = new Set(names);

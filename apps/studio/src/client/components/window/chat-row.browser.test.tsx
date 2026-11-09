@@ -19,6 +19,7 @@ import {
 import { page, userEvent } from "vitest/browser";
 
 import { useChatActionsFor } from "./chat-actions";
+import { type RowDensity } from "./chat-list-view";
 import { ChatRow } from "./chat-row";
 import { type Chat, type Project } from "./chats";
 import { WindowContext, type WindowContextValue } from "./context";
@@ -26,10 +27,10 @@ import { type RowAction } from "./row-shell";
 
 /** What each of the row's own routes was asked, by name. */
 
-const NEST_GUARD = StoreId.newSessionId();
 const calls = vi.hoisted(() => ({
   archive: vi.fn(),
-  location: vi.fn(),
+  developerDetails: vi.fn(),
+  forAgent: vi.fn(),
   rename: vi.fn(),
   retitle: vi.fn(),
   read: vi.fn(),
@@ -83,7 +84,8 @@ vi.mock("@/client/rpc/client", () => {
   return {
     rpcClient: {
       chatLocation: {
-        copy: routeOf(calls.location),
+        developerDetails: routeOf(calls.developerDetails),
+        forAgent: routeOf(calls.forAgent),
       },
       utils: {
         // The Finder's icon is decorative; the row draws its glyph without it.
@@ -99,10 +101,10 @@ vi.mock("@/client/rpc/client", () => {
       workspace: {
         chats: {
           archive: routeOf(calls.archive),
-          // Only for its key, which the actions paint their marks onto.
+          // A list that never answers, which the actions paint their marks onto.
           live: {
-            list: {
-              experimental_liveOptions: () => ({ queryKey: ["chats"] }),
+            rows: {
+              call: () => new Promise(() => undefined),
             },
           },
           rename: routeOf(calls.rename),
@@ -148,25 +150,19 @@ const LONG_REPLY =
 function chat(overrides: Partial<Chat> = {}): Chat {
   return {
     archived: false,
-    createdAt: STARTED_AT.getTime(),
     holds: { apps: [], files: [], sites: [] },
     id: CHAT_ID,
     firstAsk: ASK,
-    lastReplyAt: MOVED_AT.getTime(),
     lastUserMessageAt: STARTED_AT.getTime(),
-    ownWorking: false,
     latest: { at: MOVED_AT.getTime(), kind: "reply", text: REPLY },
-    runningTasks: [],
     sessionId,
     starred: false,
-    state: "idle",
+    status: "idle",
     title: TITLE,
     titleByApp: true,
-    titled: true,
     unread: false,
     unreadByUser: false,
-    updatedAt: MOVED_AT.getTime(),
-    working: overrides.state === "working",
+    working: overrides.status === "working",
     ...overrides,
   };
 }
@@ -215,9 +211,7 @@ function barOf(row: HTMLElement) {
 
 /** A state dot in front of the title, which no row wears. */
 function dotOf(row: HTMLElement) {
-  return row.querySelector<HTMLElement>(
-    '[aria-label="Unread"], [aria-label="Working"], [aria-label="Needs you"]',
-  );
+  return row.querySelector<HTMLElement>("[data-chat-mark]");
 }
 
 /** The first line of a tall row: the title and the pills at its end. */
@@ -256,19 +250,30 @@ function peekOf(row: HTMLElement) {
   return row.querySelector<HTMLElement>('[class*="text-[12px]"]');
 }
 
-/** The pill of the project the chat is filed under: a label, not a control. */
+/** The name of the project the chat is filed under: a label, not a control. */
+/** The time at the end of the title's line. */
+function timeOf(row: HTMLElement) {
+  const time = row.querySelector<HTMLElement>(".tabular-nums");
+  if (!time) {
+    throw new Error("no time");
+  }
+  return time;
+}
+
 function pillOf(row: HTMLElement) {
-  return row.querySelector<HTMLElement>('[data-slot="project-pill"]');
+  return row.querySelector<HTMLElement>('[data-slot="project-words"]');
 }
 
 async function renderRow(
   row: Chat,
   {
+    density,
     onOpen = vi.fn(),
     onSetProject = vi.fn(),
     openScreen = vi.fn(),
     store,
   }: {
+    density?: RowDensity;
     onOpen?: Mock<() => void>;
     onSetProject?: Mock<(project: null | string) => void>;
     openScreen?: Mock<(href: string) => void>;
@@ -276,6 +281,7 @@ async function renderRow(
   } = {},
 ) {
   const { rows, ...rest } = await renderRows([row], {
+    density,
     onOpen,
     onSetProject,
     openScreen,
@@ -292,12 +298,14 @@ async function renderRow(
 async function renderRows(
   chats: Chat[],
   {
+    density,
     leading = [],
     onOpen = vi.fn(),
     onSetProject = vi.fn(),
     openScreen = vi.fn(),
     store,
   }: {
+    density?: RowDensity;
     /** Actions the list puts ahead of the chat's own, as it does Pop out. */
     leading?: RowAction[];
     onOpen?: Mock<() => void>;
@@ -332,6 +340,7 @@ async function renderRows(
             ])
           }
           chat={entry}
+          density={density}
           isOpen={false}
           now={NOW}
           onDelete={vi.fn()}
@@ -380,7 +389,7 @@ describe("ChatRow", () => {
     resetDrafts();
   });
 
-  it("stacks: the title with the pill at its end on one line, the latest under it, the files and the time under that", async () => {
+  it("stacks: the title with the time at its end, the latest under it, then the project and the files", async () => {
     const { row } = await renderRow(
       chat({
         holds: {
@@ -391,34 +400,70 @@ describe("ChatRow", () => {
         project: "house",
       }),
     );
-    expect(row.getBoundingClientRect().height).toBeGreaterThan(40);
     const first = firstLineOf(row);
-    expect(first.textContent).toBe(`${TITLE}🏠House`);
-    // The pill on the title's line, at its end in the row's corner.
-    const pill = pillOf(row)?.getBoundingClientRect();
-    expect(pill?.top).toBeGreaterThanOrEqual(first.getBoundingClientRect().top);
-    expect(pill?.left).toBeGreaterThan(
-      titleOf(row).getBoundingClientRect().right,
-    );
+    expect(first.textContent).toBe(`${TITLE}8:46 AM`);
     expect(row.textContent).not.toContain(ASK);
     const peek = peekOf(row);
     expect(peek?.getBoundingClientRect().top).toBeGreaterThanOrEqual(
       first.getBoundingClientRect().bottom,
     );
+    const project = pillOf(row);
+    expect(project?.textContent).toBe("House");
     const [chip] = marksOf(row);
     expect(chip?.textContent).toBe("report.md");
-    expect(chip?.getBoundingClientRect().top).toBeGreaterThanOrEqual(
-      peek?.getBoundingClientRect().bottom ?? 0,
+    for (const third of [project, chip]) {
+      expect(third?.getBoundingClientRect().top).toBeGreaterThanOrEqual(
+        peek?.getBoundingClientRect().bottom ?? 0,
+      );
+    }
+    expect(chip?.getBoundingClientRect().left).toBeGreaterThan(
+      project?.getBoundingClientRect().right ?? 0,
     );
-    // The time in the bottom corner. The innermost span with its words,
-    // since the corner around it has them too.
-    const time = [...row.querySelectorAll("span")]
-      .findLast((span) => span.textContent === "8:46 AM")
-      ?.getBoundingClientRect();
-    expect(time?.top).toBeGreaterThanOrEqual(
-      peek?.getBoundingClientRect().bottom ?? 0,
+  });
+
+  it.each<["one" | "two", string]>([
+    ["two", "House"],
+    ["one", ""],
+  ])("at %s lines, keeps the lines it has", async (density, second) => {
+    const { row } = await renderRow(chat({ project: "house" }), { density });
+    expect(firstLineOf(row).textContent).toContain(TITLE);
+    const lines = row.firstElementChild?.children.length;
+    expect(lines).toBe(density === "two" ? 2 : 1);
+    if (second) {
+      expect(pillOf(row)?.textContent).toBe(second);
+    }
+  });
+
+  it("at one line, names the project just before the time rather than ahead of the title", async () => {
+    const { rows } = await renderRows(
+      [chat({ project: "house" }), chat({ project: undefined })],
+      { density: "one" },
     );
-    expect(time?.right).toBeLessThanOrEqual(row.getBoundingClientRect().right);
+    const [filed, loose] = rows;
+    if (!filed || !loose) {
+      throw new Error("no rows");
+    }
+    const project = pillOf(filed);
+    expect(project?.textContent).toBe("House");
+    expect(firstLineOf(filed).contains(project)).toBe(true);
+    // Every title starts at the same edge, filed or not.
+    expect(titleOf(filed).getBoundingClientRect().left).toBe(
+      titleOf(loose).getBoundingClientRect().left,
+    );
+    const time = timeOf(filed).getBoundingClientRect();
+    const words = project?.getBoundingClientRect();
+    expect(words?.right).toBeLessThanOrEqual(time.left);
+    expect(words?.right).toBeGreaterThan(time.left - 16);
+  });
+
+  it("at two lines, ends what the chat holds at the time's right edge", async () => {
+    const { row } = await renderRow(
+      chat({ holds: { apps: ["github"], files: [], sites: [] } }),
+      { density: "two" },
+    );
+    expect(marksOf(row).at(-1)?.getBoundingClientRect().right).toBe(
+      timeOf(row).getBoundingClientRect().right,
+    );
   });
 
   it("keeps one row height whether a chat holds anything or has said anything", async () => {
@@ -431,8 +476,8 @@ describe("ChatRow", () => {
         },
       }),
       chat(),
-      chat({ lastReplyAt: undefined, latest: undefined }),
-      chat({ state: "working" }),
+      chat({ latest: undefined }),
+      chat({ status: "working" }),
     ]);
     const heights = new Set(
       rows.map((row) => Math.round(row.getBoundingClientRect().height)),
@@ -467,20 +512,23 @@ describe("ChatRow", () => {
   it("carries no reply count, and the time", async () => {
     const { row } = await renderRow(chat());
     expect(row.querySelector('[aria-label="3 replies"]')).toBeNull();
-    expect(firstLineOf(row).textContent).toBe(TITLE);
-    expect(row.textContent).toContain("8:46 AM");
+    expect(firstLineOf(row).textContent).toBe(`${TITLE}8:46 AM`);
   });
 
-  it.each<[string, Partial<Chat>]>([
-    ["quiet", {}],
-    ["unseen", { unread: true }],
-    ["working", { state: "working" }],
-    ["waiting", { state: "waiting" }],
+  it.each<[string, Partial<Chat>, string | undefined, string | undefined]>([
+    ["quiet", {}, undefined, undefined],
+    ["unseen", { unread: true }, "unread", "unread"],
+    ["working", { status: "working", working: true }, undefined, "working"],
+    ["waiting", { status: "waiting" }, undefined, "waiting"],
   ])(
-    "wears no dot when %s: the latest line says where it stands",
-    async (_, overrides) => {
+    "wears the rail's dot when %s: for what is unseen, and at one line for where it stands",
+    async (_, overrides, atThree, atOne) => {
       const { row } = await renderRow(chat(overrides));
-      expect(dotOf(row)).toBeNull();
+      expect(dotOf(row)?.dataset.chatMark).toBe(atThree);
+      const { row: short } = await renderRow(chat(overrides), {
+        density: "one",
+      });
+      expect(dotOf(short)?.dataset.chatMark).toBe(atOne);
     },
   );
 
@@ -513,14 +561,11 @@ describe("ChatRow", () => {
       (span) => span.textContent === "Draft",
     );
     expect(draft?.className).toContain("text-error-700");
-    // Beside the title's words, before the pill, and never the draft's words.
+    // Beside the title's words, and never the draft's words.
     const title = titleOf(row).getBoundingClientRect();
     const worn = draft?.getBoundingClientRect();
     expect(worn?.left).toBeGreaterThanOrEqual(title.right);
     expect(worn?.left).toBeLessThan(title.right + 16);
-    expect(worn?.left).toBeLessThan(
-      pillOf(row)?.getBoundingClientRect().left ?? 0,
-    );
     expect(row.textContent).not.toContain("porch light");
   });
 
@@ -536,10 +581,10 @@ describe("ChatRow", () => {
     expect(row.textContent).not.toContain("Draft");
   });
 
-  it("wears its project's pill, by name, at the title's end", async () => {
+  it("names its project in the project's ink", async () => {
     const { row } = await renderRow(chat({ project: "money" }));
-    const pills = [...row.querySelectorAll('[data-slot="project-pill"]')];
-    expect(pills.map((pill) => pill.textContent)).toEqual(["💸Money"]);
+    const names = [...row.querySelectorAll('[data-slot="project-words"]')];
+    expect(names.map((name) => name.textContent)).toEqual(["Money"]);
   });
 
   it("shows the step in brand while working, and the question behind a gray question mark while waiting", async () => {
@@ -552,14 +597,7 @@ describe("ChatRow", () => {
           kind: "step",
           text: "Reading the automation",
         },
-        runningTasks: [
-          {
-            id: NEST_GUARD,
-            step: "Reading the automation",
-            title: "Nest guard",
-          },
-        ],
-        state: "working",
+        status: "working",
       }),
       chat({
         latest: {
@@ -567,7 +605,7 @@ describe("ChatRow", () => {
           kind: "question",
           text: "Reuse the old CSR, or generate a new one?",
         },
-        state: "waiting",
+        status: "waiting",
       }),
     ]);
     const [working, waiting] = rows;
@@ -585,27 +623,15 @@ describe("ChatRow", () => {
 
   it("shows only Instrument is working until a task starts", async () => {
     const working = chat({
-      lastAsk: "Check the Nest schedule",
       latest: undefined,
-      state: "working",
+      status: "working",
     });
     const { row } = await renderRow(working);
     expect(peekOf(row)?.textContent).toBe("Instrument is working");
   });
 
-  it("shows only Instrument is working until the task's first step lands", async () => {
-    const { row } = await renderRow(
-      chat({
-        latest: undefined,
-        runningTasks: [{ id: NEST_GUARD, title: "Nest guard" }],
-        state: "working",
-      }),
-    );
-    expect(peekOf(row)?.textContent).toBe("Instrument is working");
-  });
-
   it("says a chat stopped on an error in red, in place of its latest line", async () => {
-    const { row } = await renderRow(chat({ state: "failed" }));
+    const { row } = await renderRow(chat({ status: "failed" }));
     expect(peekOf(row)?.textContent).toBe("Stopped on an error");
   });
 
@@ -619,7 +645,7 @@ describe("ChatRow", () => {
   ])(
     "says $expected, with no mark, for a chat stopped for its $stoppedFor",
     async ({ expected, stoppedFor }) => {
-      const { row } = await renderRow(chat({ state: "limited", stoppedFor }));
+      const { row } = await renderRow(chat({ status: "limited", stoppedFor }));
       const peek = peekOf(row);
       expect(peek?.textContent).toBe(expected);
       expect(peek?.querySelector("svg")).toBeNull();
@@ -627,9 +653,7 @@ describe("ChatRow", () => {
   );
 
   it("has no latest line for an idle chat with nothing to say", async () => {
-    const { row } = await renderRow(
-      chat({ lastReplyAt: undefined, latest: undefined }),
-    );
+    const { row } = await renderRow(chat({ latest: undefined }));
     expect(peekOf(row)).toBeNull();
     expect(row.textContent).toBe(`${TITLE}8:46 AM`);
   });
@@ -676,7 +700,7 @@ describe("ChatRow", () => {
     },
   );
 
-  it("tints the full width on hover and swaps the pills for the corner's controls", async () => {
+  it("tints the full width on hover and swaps the time for the corner's controls", async () => {
     const { row } = await renderRow(
       chat({
         holds: {
@@ -688,9 +712,11 @@ describe("ChatRow", () => {
       }),
     );
     const control = row.querySelector<HTMLElement>('[aria-label="Project"]');
-    const pill = pillOf(row);
+    const pill = [...row.querySelectorAll("span")].findLast(
+      (span) => span.textContent === "8:46 AM",
+    );
     if (!control || !pill) {
-      throw new Error("no tag control or pill");
+      throw new Error("no tag control or time");
     }
     // The pointer is shared across test files, so it may sit wherever another
     // file left it, over the row just drawn. Move it off before reading rest.
@@ -704,7 +730,7 @@ describe("ChatRow", () => {
     await vi.waitFor(() => {
       expect(control.getClientRects().length).toBeGreaterThan(0);
     });
-    // In the row's top corner, where the pills were, which step aside.
+    // In the row's top corner, where the time was, which steps aside.
     expect(pill.getClientRects().length).toBe(0);
     const box = control.getBoundingClientRect();
     const edge = row.getBoundingClientRect();
@@ -795,8 +821,8 @@ describe("ChatRow", () => {
       new MouseEvent("contextmenu", { bubbles: true, cancelable: true }),
     );
     const items = page.getByRole("menuitem");
-    await expect.element(items.nth(2)).toHaveTextContent("Pop Out");
-    await userEvent.click(items.nth(2));
+    await expect.element(items.nth(3)).toHaveTextContent("Pop Out");
+    await userEvent.click(items.nth(3));
     expect(run).toHaveBeenCalledOnce();
   });
 
@@ -1125,9 +1151,7 @@ describe("the row's actions", () => {
   );
 
   it("offers Mark as unread on a chat with nothing said in it yet", async () => {
-    const { row } = await renderRow(
-      chat({ lastReplyAt: undefined, latest: undefined, unread: false }),
-    );
+    const { row } = await renderRow(chat({ latest: undefined, unread: false }));
     expect(barOf(row).labels).toEqual(["Archive", "Mark as unread", "Star"]);
   });
 
@@ -1145,11 +1169,13 @@ describe("the row's actions", () => {
     ).toEqual([
       "Open",
       "Open in New Tab",
+      "Open in New Window",
       "Mark as read",
       "Star",
       "Rename",
       "Project",
       osConventions().showInFileManager,
+      "Copy",
       "Send feedback…",
       "Archive",
       "Delete chat…",
@@ -1174,14 +1200,26 @@ describe("the row's actions", () => {
     expect(onOpen).toHaveBeenCalledTimes(1);
   });
 
-  it("offers copying the chat location in developer mode alone, in its color", async () => {
+  it("copies the chat for an agent from its Copy submenu", async () => {
+    const { row } = await renderRow(chat());
+    await userEvent.click(titleOf(row), { button: "right" });
+    await userEvent.hover(page.getByRole("menuitem", { name: "Copy" }));
+    await expect
+      .element(page.getByRole("menuitem", { name: "Developer Details" }))
+      .not.toBeInTheDocument();
+    await userEvent.click(page.getByRole("menuitem", { name: "For an Agent" }));
+    expect(calls.forAgent).toHaveBeenCalledWith(INPUT);
+  });
+
+  it("offers developer details in developer mode alone, in its color", async () => {
     developerMode.enabled = true;
     const { row } = await renderRow(chat());
     await userEvent.click(titleOf(row), { button: "right" });
-    const copy = page.getByRole("menuitem", { name: "Copy chat location" });
-    await expect.element(copy).toHaveAttribute("data-variant", "developer");
-    await userEvent.click(copy);
-    expect(calls.location).toHaveBeenCalledWith(
+    await userEvent.hover(page.getByRole("menuitem", { name: "Copy" }));
+    const details = page.getByRole("menuitem", { name: "Developer Details" });
+    await expect.element(details).toHaveAttribute("data-variant", "developer");
+    await userEvent.click(details);
+    expect(calls.developerDetails).toHaveBeenCalledWith(
       expect.objectContaining({ sessionId }),
     );
   });

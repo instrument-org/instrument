@@ -12,7 +12,7 @@ import { type ActivityRow } from "../activity/schema";
 import { listActivity } from "../activity/store";
 import { gatherTurns } from "../activity/turns";
 import { chatTitle } from "../chat-info";
-import { ACTIVITY_COMMAND } from "../shell-commands/activity-command";
+import { ACTIVITY_COMMAND } from "../../model-text/commands/activity-command";
 import { defineCapability } from "./define";
 
 /** How far back a listing reaches: whole minutes, hours or days. */

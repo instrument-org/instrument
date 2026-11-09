@@ -19,7 +19,7 @@ import {
   startBackgroundRun,
 } from "../background-processes";
 import { chatModelURI, setChatModel } from "../chat-settings";
-import { jobEventModelNote } from "../job-event-model-text";
+import { jobEventModelNote } from "../../model-text/notes/job-event-model-text";
 import { sessionOfChat } from "../record-folders";
 import { getWorkspaceConfig, setWorkspaceConfig } from "../workspace-config";
 import { isWorking } from "./activity";

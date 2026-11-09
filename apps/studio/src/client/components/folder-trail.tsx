@@ -27,7 +27,7 @@ import { Fragment } from "react";
  * The mark between two folders of a path: a small solid triangle, as the
  * Finder's path bar draws it, sitting on the middle of the line.
  */
-export function PathSeparator({ className }: { className?: string }) {
+function PathSeparator({ className }: { className?: string }) {
   return (
     <svg
       aria-hidden

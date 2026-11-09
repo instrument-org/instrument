@@ -1,3 +1,4 @@
+import { matchScreen } from "@/client/components/window/window-href";
 import {
   neighborAt,
   type Tab,
@@ -16,6 +17,17 @@ import {
 export type { TabsModel };
 
 const MAX_RECENTLY_CLOSED = 10;
+
+/**
+ * Whether a closed tab is worth bringing back: anything but a new tab that
+ * never went anywhere, which a reopen would give back as a new one would.
+ */
+export function isTabInteresting(tab: Tab) {
+  return (
+    (tab.history?.entries.length ?? 0) > 1 ||
+    matchScreen(tab.pathname).kind !== "newTab"
+  );
+}
 
 export function addTab(
   model: TabsModel,
@@ -67,10 +79,12 @@ export function closeTab(
   // `tab.history` is already fresh: TabView captures each router's live stack on
   // every navigation (see setTabPathname), so reopen restores from the model
   // rather than a separate close-time snapshot.
-  const recentlyClosed = [
-    { ...tab, closedAt: Date.now(), index: closingIndex },
-    ...model.recentlyClosed,
-  ].slice(0, MAX_RECENTLY_CLOSED);
+  const recentlyClosed = isTabInteresting(tab)
+    ? [
+        { ...tab, closedAt: Date.now(), index: closingIndex },
+        ...model.recentlyClosed,
+      ].slice(0, MAX_RECENTLY_CLOSED)
+    : model.recentlyClosed;
 
   if (tabs.length === 0) {
     return {
@@ -309,10 +323,10 @@ function closeWhere(
     return model;
   }
   return {
-    recentlyClosed: [...closed, ...model.recentlyClosed].slice(
-      0,
-      MAX_RECENTLY_CLOSED,
-    ),
+    recentlyClosed: [
+      ...closed.filter(isTabInteresting),
+      ...model.recentlyClosed,
+    ].slice(0, MAX_RECENTLY_CLOSED),
     selectedId: id,
     tabs: model.tabs.filter((_, index) => !closes(index, keptIndex)),
   };

@@ -27,7 +27,7 @@ function model(tabs: Tab[], selectedId: null | TabId = null): TabsModel {
 }
 
 function tab(partial: Partial<Tab> & Pick<Tab, "id">): Tab {
-  return { pathname: "/new-tab", ...partial };
+  return { pathname: "/chats", ...partial };
 }
 
 describe("addTab", () => {
@@ -102,7 +102,7 @@ describe("selectOrAddTab", () => {
 
     expect(next.selectedId).toBe(id("new"));
     expect(next.tabs.map((entry) => entry.pathname)).toEqual([
-      "/new-tab",
+      "/chats",
       "/chats/a",
     ]);
   });
@@ -143,6 +143,27 @@ describe("closeTab", () => {
     const start = model([tab({ id: id("a") }), tab({ id: id("b") })], id("a"));
     const next = closeTab(start, { id: id("a"), newTab: seed });
     expect(next.recentlyClosed.map((t) => t.id)).toEqual(["a"]);
+  });
+
+  it("leaves a new tab that never went anywhere off the closed list", () => {
+    const start = model(
+      [
+        tab({ id: id("blank"), pathname: "/new-tab" }),
+        tab({
+          history: { entries: ["/new-tab", "/chats"], index: 0 },
+          id: id("went"),
+          pathname: "/new-tab",
+        }),
+        tab({ id: id("kept") }),
+      ],
+      id("kept"),
+    );
+    const next = closeOtherTabs(start, { id: id("kept") });
+    expect(next.tabs.map((t) => t.id)).toEqual(["kept"]);
+    expect(next.recentlyClosed.map((t) => t.id)).toEqual(["went"]);
+    expect(
+      closeTab(start, { id: id("blank"), newTab: seed }).recentlyClosed,
+    ).toEqual([]);
   });
 });
 

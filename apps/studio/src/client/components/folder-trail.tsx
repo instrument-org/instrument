@@ -25,14 +25,18 @@ const PLACE_MARK_ROOM = 18;
  * its own name) with that place's mark, then each folder, with carets
  * between. Always one line: when it runs out of room the folders in its
  * middle fold into a …, keeping the place and the last names, and hovering
- * the path shows the whole of it, start to end, in a tooltip.
+ * the path shows the whole of it, start to end, in a tooltip. `wrap` shows
+ * the whole of it instead, onto as many lines as it takes, for a place
+ * whose point is to say where something is (Info, Activity's details).
  */
 export function FolderTrail({
   className,
   path,
+  wrap = false,
 }: {
   className?: string;
   path: string;
+  wrap?: boolean;
 }) {
   const places = useQuery(rpcClient.workspace.computer.places.queryOptions());
   const volumes = places.data?.volumes;
@@ -65,6 +69,29 @@ export function FolderTrail({
     </span>
   );
   const whole = labels.join(" › ");
+  if (wrap) {
+    return (
+      <span
+        aria-label={whole}
+        className={cn(
+          "flex min-w-0 flex-wrap items-center gap-y-0.5 select-text",
+          className,
+        )}
+      >
+        {labels.map((label, at) => (
+          <Fragment key={`${String(at)}:${label}`}>
+            {at > 0 ? separator : null}
+            <span className="inline-flex items-center gap-1 [overflow-wrap:anywhere]">
+              {at === 0 && Lead ? (
+                <Lead aria-hidden className="size-3.5 shrink-0" />
+              ) : null}
+              {label}
+            </span>
+          </Fragment>
+        ))}
+      </span>
+    );
+  }
   return (
     <Tooltip>
       <TooltipTrigger asChild>

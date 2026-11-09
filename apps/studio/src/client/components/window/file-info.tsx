@@ -656,7 +656,7 @@ function SeveralInfo({ items }: { items: FileInfoItem[] }) {
       </InfoRow>
       {place && places.size === 1 ? (
         <InfoRow label="Where">
-          <FolderTrail path={place} />
+          <FolderTrail path={place} wrap />
         </InfoRow>
       ) : null}
       {modified ? <InfoRow label="Modified">{modified}</InfoRow> : null}
@@ -711,7 +711,7 @@ export function InfoRow({
 function WhereRow({ hostPath }: { hostPath: string }) {
   return (
     <InfoRow label="Where">
-      <FolderTrail path={whereIs(hostPath)} />
+      <FolderTrail path={whereIs(hostPath)} wrap />
     </InfoRow>
   );
 }

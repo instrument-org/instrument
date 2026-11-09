@@ -235,11 +235,11 @@ function OpenButton({
   );
 }
 
-/** A folder's place as Files names it, one line that folds in its middle. */
+/** A folder's place as Files names it, whole. */
 function FolderFact({ label, path }: { label: string; path: string }) {
   return (
     <InfoRow label={label}>
-      <FolderTrail path={path} />
+      <FolderTrail path={path} wrap />
     </InfoRow>
   );
 }
@@ -472,11 +472,7 @@ function ActionDetails({ action, at }: { action: ShownAction; at: number }) {
       );
     }
     case "error": {
-      return own(
-        action.where ? `In ${action.where}` : "Error",
-        null,
-        "Shown",
-      );
+      return own(action.where ? `In ${action.where}` : "Error", null, "Shown");
     }
     case "update": {
       return own(

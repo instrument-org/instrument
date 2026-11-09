@@ -1024,13 +1024,9 @@ function WindowShell({
       openFile: (hostPath) => {
         appTabs.open(fileHref(hostPath));
       },
-      // The tab already showing it comes up rather than a second of the
-      // same. Main has already picked this window as the one showing it, or
-      // the one in front where none does.
+      // A tab of its own, as every open of a window tab is.
       openScreen: (href) => {
-        if (!appTabs.selectShowing(href)) {
-          openScreen(href, { newTab: true });
-        }
+        openScreen(href, { newTab: true });
       },
       showTab: appTabs.selectShowing,
       moveTabToNewWindow: () => {

@@ -62,6 +62,8 @@ import { cn } from "@/client/lib/utils";
 import { rpcClient } from "@/client/rpc/client";
 import { fileHref, folderHref } from "@/shared/computer-href";
 import { type Tab, type TabId } from "@/shared/tabs";
+
+import { useRestoredTabsWaiting } from "./use-restored-tabs-waiting";
 import { type ChatId, browserTargetOf } from "@instrument-org/workspace/client";
 import { IconContext } from "@phosphor-icons/react/dist/lib/context";
 import {
@@ -418,6 +420,7 @@ function WindowShell({
   tabs: Tab[];
 }) {
   const appTabs = useAppTabs();
+  const waitingTabs = useRestoredTabsWaiting(tabs, appTabs.model.selectedId);
   useRefreshSkillsOnChange();
   useRefreshProjectsOnChange();
   useRefetchOnWindowSwitch();
@@ -1264,7 +1267,7 @@ function WindowShell({
               <div className="relative min-h-0 min-w-0 flex-1">
                 {tabs.map((tab) => {
                   const router = routers.get(tab.id);
-                  return router ? (
+                  return router && !waitingTabs.has(tab.id) ? (
                     <AppTabView
                       isActive={tab.id === appTabs.model.selectedId}
                       key={tab.id}

@@ -212,10 +212,10 @@ export function AppTabStrip({
     >
       <TabStrip
         carriedKey={carry.carriedKey}
-        // The dark bar is a step off the background, too near it for a tab of
-        // the background's own color to read as chosen, so the tab stands
-        // halfway from there to the card.
-        className="min-w-0 flex-1 dark:[--tab-selected:color-mix(in_oklab,var(--card)_50%,var(--background))]"
+        // The bar is a step off the background, too near it for a tab of the
+        // background's own color to read as chosen: the tab takes the card's
+        // color in light mode and stands halfway to it in dark.
+        className="min-w-0 flex-1 [--tab-selected:var(--card)] dark:[--tab-selected:color-mix(in_oklab,var(--card)_50%,var(--background))]"
         heldAt={
           heldHere
             ? {

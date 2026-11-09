@@ -1,4 +1,7 @@
-import { EntryIcon } from "@/client/components/activity/activity-icons";
+import {
+  EntryIcon,
+  MakerMark,
+} from "@/client/components/activity/activity-icons";
 import {
   RequestDetail,
   RequestRows,
@@ -7,17 +10,20 @@ import {
 } from "@/client/components/activity/activity-requests";
 import {
   actionText,
-  leadOf,
-  modelOf,
   placeOf,
   type ShownAction,
   type TimelineEntry,
+  turnParts,
   turnPlaceOf,
-  turnText,
 } from "@/client/components/activity/activity-timeline";
 import { CopyButton } from "@/client/components/copy-button";
-import { FolderRow } from "@/client/components/folder-row";
+import { FolderTrail } from "@/client/components/folder-trail";
 import { Button } from "@/client/components/ui/button";
+import {
+  InfoFrame,
+  InfoRow,
+  PathInfo,
+} from "@/client/components/window/file-info";
 import { folderOf, nameOf } from "@/client/components/window/host-path";
 import { useGesturesFor } from "@/client/hooks/use-open-target";
 import { displayLocale } from "@/client/lib/display-locale";
@@ -54,12 +60,53 @@ function whenOf(at: number, now = new Date()) {
   return `${day} at ${timeFormat.format(at)}`;
 }
 
+/** What the open button says for a row, by where it goes. */
+function openLabel(action: ShownAction | undefined) {
+  switch (action?.kind) {
+    case "setting": {
+      return "Show in Settings";
+    }
+    case "screen": {
+      return action.name.startsWith("Settings") ? "Show in Settings" : "Open";
+    }
+    case "update": {
+      return "What's New";
+    }
+    case "app": {
+      return "Open Apps";
+    }
+    default: {
+      return "Open";
+    }
+  }
+}
+
+/** The file a row is about, which Show in Folder shows. */
+function fileOf(action: ShownAction): string | undefined {
+  switch (action.kind) {
+    case "file":
+    case "open-with":
+    case "edit":
+    case "download": {
+      return action.path;
+    }
+    case "rename": {
+      return action.to;
+    }
+    default: {
+      return undefined;
+    }
+  }
+}
+
 /**
- * The details of the row picked, in a card beside the list: what it names
- * and when, a way to open it, where it is, the other times it was opened,
- * and a way to take it out of Activity. An AI row lists its requests, each
- * opening what was recorded about it, rather than what was said, which is
- * the chat's to show.
+ * The details of the row picked, beside the list, drawn the way Files' Info
+ * card is: a header with its mark, name and kind, then a row per fact. A
+ * file or folder shows Files' own Info about it; everything else shows
+ * what Activity knows. Under the facts are the other times it was opened,
+ * and at the foot the ways to open it and to take it out of Activity. An
+ * AI row lists its requests, each opening what was recorded about it,
+ * rather than what was said, which is the chat's to show.
  */
 export function ActivityDetails({
   entry,
@@ -72,168 +119,150 @@ export function ActivityDetails({
   onRemove?: () => void;
 }) {
   const [request, setRequest] = useState<null | string>(null);
+  const action = entry.kind === "action" ? entry.action : undefined;
+  const target =
+    entry.kind === "turn" ? turnPlaceOf(entry.turn) : placeOf(entry.action);
+  const filePath = action ? fileOf(action) : undefined;
   return (
-    <div className="relative flex min-h-0 w-full flex-col overflow-y-auto rounded-xl border border-border bg-card p-5 select-text">
-      <Button
-        aria-label="Close"
-        className="absolute top-3 right-3"
-        onClick={onClose}
-        size="icon-sm"
-        variant="ghost"
-      >
-        <XIcon className="size-4" />
-      </Button>
+    <aside
+      aria-label="Details"
+      className="relative flex min-h-0 w-full flex-col overflow-hidden rounded-xl border border-border bg-card"
+    >
       {request === null ? (
-        <div className="flex flex-1 flex-col gap-5">
-          {entry.kind === "turn" ? (
-            <TurnDetails entry={entry} onOpenRequest={setRequest} />
-          ) : (
-            <ActionDetails action={entry.action} at={entry.at} />
-          )}
-          <span className="flex-1" />
-          {onRemove ? (
-            <div>
+        <>
+          <div className="flex min-h-0 flex-1 flex-col overflow-y-auto">
+            {entry.kind === "turn" ? (
+              <TurnDetails entry={entry} onOpenRequest={setRequest} />
+            ) : (
+              <ActionDetails action={entry.action} at={entry.at} />
+            )}
+          </div>
+          <div className="flex shrink-0 flex-wrap items-center gap-2 border-t border-border p-3">
+            <OpenButton label={openLabel(action)} target={target} />
+            {filePath ? (
               <Button
-                className="-ml-2.5"
-                onClick={onRemove}
+                onClick={() => {
+                  void showInFolder(filePath, { kind: "file" });
+                }}
                 size="sm"
-                variant="ghost-destructive"
+                variant="outline"
               >
+                {showInFolderLabel("file")}
+              </Button>
+            ) : null}
+            <span className="flex-1" />
+            {onRemove ? (
+              <Button onClick={onRemove} size="sm" variant="ghost-destructive">
                 Remove from Activity
               </Button>
-            </div>
-          ) : null}
-        </div>
+            ) : null}
+          </div>
+        </>
       ) : (
-        <RequestDetail
-          id={request}
-          onBack={() => {
-            setRequest(null);
-          }}
-        />
-      )}
-    </div>
-  );
-}
-
-function Head({
-  entry,
-  line,
-  title,
-}: {
-  entry: TimelineEntry;
-  line: string;
-  title: string;
-}) {
-  return (
-    <div className="flex items-start gap-3 pr-8">
-      <span className="grid size-10 shrink-0 place-items-center rounded-lg bg-foreground/5">
-        <EntryIcon className="size-5" entry={entry} />
-      </span>
-      <div className="min-w-0">
-        <div className="text-[15px] leading-5 font-medium [overflow-wrap:anywhere]">
-          {title}
+        <div className="min-h-0 flex-1 overflow-y-auto p-4">
+          <RequestDetail
+            id={request}
+            onBack={() => {
+              setRequest(null);
+            }}
+          />
         </div>
-        <div className="mt-0.5 text-[13px] text-muted-foreground">{line}</div>
-      </div>
-    </div>
+      )}
+      <button
+        aria-label="Close"
+        className="absolute top-2 right-2 grid size-6 place-items-center rounded-md text-muted-foreground hover:bg-accent hover:text-foreground"
+        onClick={onClose}
+        type="button"
+      >
+        <XIcon className="size-3.5" />
+      </button>
+    </aside>
   );
 }
 
-/** Open, and what else the row's place can be opened with. */
-function Opens({
-  extra,
+/** Open, where the row's place opens; a Cmd-click opens it in a tab of its own. */
+function OpenButton({
+  label,
   target,
 }: {
-  extra?: ReactNode;
+  label: string;
   target: OpenTarget | undefined;
 }) {
   const gesturesFor = useGesturesFor();
   const gestures = target ? gesturesFor(target) : undefined;
-  if (!gestures?.primary && !extra) {
+  if (!gestures?.primary) {
     return null;
   }
   return (
-    <div className="flex flex-wrap gap-2">
-      {gestures?.primary ? (
-        <Button
-          onClick={(event) => {
-            if (commandKeyHeld(event)) {
-              gestures.separate?.run();
-            } else {
-              gestures.primary?.run();
-            }
-          }}
-          size="sm"
-          variant="outline"
-        >
-          Open
-        </Button>
-      ) : null}
-      {extra}
-    </div>
+    <Button
+      onClick={(event) => {
+        if (commandKeyHeld(event)) {
+          gestures.separate?.run();
+        } else {
+          gestures.primary?.run();
+        }
+      }}
+      size="sm"
+      variant="outline"
+    >
+      {label}
+    </Button>
   );
 }
 
-function Facts({ children }: { children: ReactNode }) {
-  return <dl className="flex flex-col">{children}</dl>;
-}
-
-function Fact({ children, label }: { children: ReactNode; label: string }) {
-  return (
-    <div className="grid grid-cols-[5.5rem_minmax(0,1fr)] items-baseline gap-3 py-1.5 text-[13px]">
-      <dt className="text-muted-foreground">{label}</dt>
-      <dd className="min-w-0 [overflow-wrap:anywhere]">{children}</dd>
-    </div>
-  );
-}
-
-/** A folder as every list names one: its mark, its name over its path, and the menu that copies the path. */
+/** A folder's place as Files names it, one line that folds in its middle. */
 function FolderFact({ label, path }: { label: string; path: string }) {
   return (
-    <div className="grid grid-cols-[5.5rem_minmax(0,1fr)] items-center gap-3 py-1 text-[13px]">
-      <span className="text-muted-foreground">{label}</span>
-      <FolderRow
-        className="-mx-1.5 rounded-md p-1.5 hover:bg-foreground/5"
-        onOpen={() => {
-          void showInFolder(path, { kind: "folder" });
-        }}
-        path={path}
-      />
-    </div>
+    <InfoRow label={label}>
+      <FolderTrail path={path} />
+    </InfoRow>
   );
 }
 
 /** A page's address in full, to read and copy. */
-function AddressFact({ url }: { url: string }) {
+function AddressFact({
+  label = "Address",
+  url,
+}: {
+  label?: string;
+  url: string;
+}) {
   return (
-    <Fact label="Address">
+    <InfoRow label={label}>
       <span className="flex items-start gap-1">
-        <span className="min-w-0 flex-1 font-mono text-xs leading-5 break-all">
-          {url}
-        </span>
+        <span className="min-w-0 flex-1 break-all">{url}</span>
         <CopyButton
-          className="shrink-0 rounded-sm p-0.5 text-muted-foreground hover:bg-foreground/10 hover:text-foreground"
+          className="-mt-0.5 shrink-0 rounded-sm p-0.5 text-muted-foreground hover:bg-foreground/10 hover:text-foreground"
           label="Copy address"
           onCopy={() => navigator.clipboard.writeText(url)}
           tooltip="Copy address"
         />
       </span>
-    </Fact>
+    </InfoRow>
   );
 }
 
-/** The other times the person opened what a row names, newest first. */
-function OtherTimes({
+/** A section under the facts, with its own small head. */
+function Section({ children, title }: { children: ReactNode; title: string }) {
+  return (
+    <div className="border-t border-border px-3 py-2">
+      <div className="py-1 text-xs font-medium text-muted-foreground">
+        {title}
+      </div>
+      {children}
+    </div>
+  );
+}
+
+/** When the row happened, and the other times the person opened what it names, newest first. */
+function Times({
   at,
+  did,
   of,
 }: {
   at: number;
-  of:
-    | { download: true; path: string }
-    | { path: string }
-    | { url: string }
-    | undefined;
+  did: string;
+  of?: { download: true; path: string } | { path: string } | { url: string };
 }) {
   const { data } = useQuery(
     rpcClient.activity.openings.queryOptions({ input: of ?? skipToken }),
@@ -242,34 +271,51 @@ function OtherTimes({
   const others = (data ?? [])
     .filter((each) => Date.parse(each.at) !== at)
     .slice(0, 8);
-  if (others.length === 0) {
-    return null;
-  }
   return (
-    <div>
-      <div className="mb-1 text-xs font-medium text-muted-foreground">
-        Other times
-      </div>
-      {others.map((each) => (
-        <div
-          className="flex h-7 items-center justify-between gap-3 text-[13px]"
-          key={`${each.kind}:${each.at}`}
-        >
-          <span className="truncate">
-            {each.kind === "open-with"
-              ? `Opened in ${each.app ?? "another app"}`
-              : each.kind === "download"
-                ? "Downloaded"
-                : each.kind === "page"
-                  ? "Visited"
-                  : "Opened"}
-          </span>
-          <span className="shrink-0 text-muted-foreground">
+    <Section title="In Activity">
+      <dl>
+        <InfoRow label={did}>{whenOf(at)}</InfoRow>
+        {others.map((each) => (
+          <InfoRow
+            key={`${each.kind}:${each.at}`}
+            label={
+              each.kind === "open-with"
+                ? `Opened in ${each.app ?? "another app"}`
+                : each.kind === "download"
+                  ? "Downloaded"
+                  : each.kind === "page"
+                    ? "Visited"
+                    : "Opened"
+            }
+          >
             {whenOf(Date.parse(each.at))}
-          </span>
-        </div>
-      ))}
-    </div>
+          </InfoRow>
+        ))}
+      </dl>
+    </Section>
+  );
+}
+
+/** A row that is not a file or folder, under a header of its own mark, name and what it was. */
+function OwnInfo({
+  children,
+  entry,
+  sub,
+  title,
+}: {
+  children?: ReactNode;
+  entry: TimelineEntry;
+  sub: string;
+  title: string;
+}) {
+  return (
+    <InfoFrame
+      name={title}
+      picture={<EntryIcon className="size-7" entry={entry} />}
+      sub={sub}
+    >
+      {children}
+    </InfoFrame>
   );
 }
 
@@ -278,46 +324,45 @@ function ActionDetails({ action, at }: { action: ShownAction; at: number }) {
   const words = { trash: osConventions().trash };
   const text = actionText(action, words);
   const entry: TimelineEntry = { action, at, id: "", kind: "action" };
-  const when = whenOf(at);
-  const line = text.context ? `${text.context} · ${when}` : when;
-  const target = placeOf(action);
-  const showFile = (path: string) => (
-    <Button
-      onClick={() => {
-        void showInFolder(path, { kind: "file" });
-      }}
-      size="sm"
-      variant="outline"
-    >
-      {showInFolderLabel("file")}
-    </Button>
-  );
-  const head = <Head entry={entry} line={line} title={text.title} />;
   switch (action.kind) {
     case "file":
     case "open-with":
     case "edit": {
       return (
         <>
-          {head}
-          <Opens extra={showFile(action.path)} target={target} />
-          <Facts>
-            <FolderFact label="Where" path={folderOf(action.path)} />
-          </Facts>
-          <OtherTimes at={at} of={{ path: action.path }} />
+          <PathInfo hostPath={action.path} kind="file" />
+          <Times
+            at={at}
+            did={text.context || "Opened"}
+            of={{ path: action.path }}
+          />
         </>
       );
     }
     case "download": {
       return (
         <>
-          {head}
-          <Opens extra={showFile(action.path)} target={target} />
-          <Facts>
-            <FolderFact label="Where" path={folderOf(action.path)} />
-            {action.url ? <AddressFact url={action.url} /> : null}
-          </Facts>
-          <OtherTimes at={at} of={{ download: true, path: action.path }} />
+          <PathInfo hostPath={action.path} kind="file" />
+          {action.url ? (
+            <div className="border-t border-border px-3 py-2">
+              <dl>
+                <AddressFact label="From" url={action.url} />
+              </dl>
+            </div>
+          ) : null}
+          <Times
+            at={at}
+            did="Downloaded"
+            of={{ download: true, path: action.path }}
+          />
+        </>
+      );
+    }
+    case "rename": {
+      return (
+        <>
+          <PathInfo hostPath={action.to} kind="file" />
+          <Times at={at} did={`Renamed from ${nameOf(action.from)}`} />
         </>
       );
     }
@@ -325,23 +370,8 @@ function ActionDetails({ action, at }: { action: ShownAction; at: number }) {
     case "new-folder": {
       return (
         <>
-          {head}
-          <Opens target={target} />
-          <Facts>
-            <FolderFact label="In" path={folderOf(action.path)} />
-          </Facts>
-        </>
-      );
-    }
-    case "rename": {
-      return (
-        <>
-          {head}
-          <Opens extra={showFile(action.to)} target={target} />
-          <Facts>
-            <Fact label="Before">{nameOf(action.from)}</Fact>
-            <FolderFact label="Where" path={folderOf(action.to)} />
-          </Facts>
+          <PathInfo hostPath={action.path} kind="folder" />
+          <Times at={at} did={action.kind === "folder" ? "Opened" : "Made"} />
         </>
       );
     }
@@ -349,13 +379,14 @@ function ActionDetails({ action, at }: { action: ShownAction; at: number }) {
     case "copy": {
       return (
         <>
-          {head}
-          <Opens target={target} />
-          <Facts>
-            <Fact label="Files">{action.names.map(nameOf).join(", ")}</Fact>
+          <OwnInfo entry={entry} sub={text.context} title={text.title}>
+            <InfoRow label="Files">
+              {action.names.map(nameOf).join(", ")}
+            </InfoRow>
             <FolderFact label="From" path={action.from} />
             <FolderFact label="To" path={action.to} />
-          </Facts>
+          </OwnInfo>
+          <Times at={at} did={action.kind === "move" ? "Moved" : "Copied"} />
         </>
       );
     }
@@ -363,73 +394,102 @@ function ActionDetails({ action, at }: { action: ShownAction; at: number }) {
       const first = action.paths[0];
       return (
         <>
-          {head}
-          <Facts>
-            <Fact label="Files">{action.paths.map(nameOf).join(", ")}</Fact>
+          <OwnInfo entry={entry} sub={text.context} title={text.title}>
+            <InfoRow label="Files">
+              {action.paths.map(nameOf).join(", ")}
+            </InfoRow>
             {first === undefined ? null : (
               <FolderFact label="From" path={folderOf(first)} />
             )}
-          </Facts>
+          </OwnInfo>
+          <Times at={at} did="Moved" />
         </>
       );
     }
     case "page": {
       return (
         <>
-          {head}
-          <Opens target={target} />
-          <Facts>
+          <OwnInfo entry={entry} sub={text.context} title={text.title}>
             <AddressFact url={action.url} />
-          </Facts>
-          <OtherTimes at={at} of={{ url: action.url }} />
+          </OwnInfo>
+          <Times at={at} did="Visited" of={{ url: action.url }} />
         </>
       );
     }
     case "permission": {
       return (
         <>
-          {head}
-          <Opens target={target} />
-          <Facts>
-            <Fact label="Chat">{action.title}</Fact>
+          <OwnInfo entry={entry} sub="Permission" title={text.title}>
+            <InfoRow label="Chat">{action.title}</InfoRow>
             {action.path === undefined ? (
-              <Fact label="App">{action.app}</Fact>
+              <InfoRow label="App">{action.app}</InfoRow>
             ) : (
               <FolderFact label="Folder" path={action.path} />
             )}
-          </Facts>
+            <InfoRow label="Answer">
+              {action.did === "allowed" ? "Allowed" : "Didn't allow"}
+            </InfoRow>
+          </OwnInfo>
+          <Times at={at} did="Answered" />
         </>
       );
     }
     case "error": {
       return (
         <>
-          {head}
-          <Facts>
-            <Fact label="Said">{action.message}</Fact>
-          </Facts>
+          <OwnInfo
+            entry={entry}
+            sub={action.where ? `In ${action.where}` : "Error"}
+            title="Error"
+          >
+            <InfoRow label="Said">{action.message}</InfoRow>
+          </OwnInfo>
+          <Times at={at} did="Shown" />
         </>
       );
     }
     case "update": {
       return (
         <>
-          {head}
-          <Facts>
-            <Fact label="From">{action.from}</Fact>
-            <Fact label="To">{action.to}</Fact>
-          </Facts>
+          <OwnInfo entry={entry} sub="Update" title={text.title}>
+            <InfoRow label="From">{action.from}</InfoRow>
+            <InfoRow label="To">{action.to}</InfoRow>
+          </OwnInfo>
+          <Times at={at} did="Updated" />
         </>
       );
     }
-    case "chat":
-    case "app":
-    case "screen":
     case "setting": {
       return (
         <>
-          {head}
-          <Opens target={target} />
+          <OwnInfo entry={entry} sub="Setting" title={action.name}>
+            <InfoRow label="Changed to">{action.value}</InfoRow>
+          </OwnInfo>
+          <Times at={at} did="Changed" />
+        </>
+      );
+    }
+    case "chat": {
+      return (
+        <>
+          <OwnInfo entry={entry} sub="Chat" title={text.title} />
+          <Times at={at} did="Opened" />
+        </>
+      );
+    }
+    case "app": {
+      return (
+        <>
+          <OwnInfo entry={entry} sub="App" title={text.title} />
+          <Times at={at} did={text.context} />
+        </>
+      );
+    }
+    case "screen": {
+      return (
+        <>
+          <OwnInfo entry={entry} sub="Screen" title={text.title} />
+          <Times at={at} did="Opened" />
         </>
       );
     }
@@ -446,26 +506,30 @@ function TurnDetails({
 }) {
   const modelName = useModelName();
   const { turn } = entry;
-  const text = turnText(turn, modelName);
-  const lead = leadOf(turn);
-  const count = turn.requests.length;
-  const line = [
-    lead ? modelName(modelOf(lead)) : "",
-    `${count} ${count === 1 ? "request" : "requests"}`,
-    turnDuration(turn),
-  ]
-    .filter(Boolean)
-    .join(" · ");
+  const parts = turnParts(turn, modelName);
+  const took = turnDuration(turn);
   return (
     <>
-      <Head entry={entry} line={line} title={text.title} />
-      <Opens target={turnPlaceOf(turn)} />
-      <div>
-        <div className="mb-1 text-xs font-medium text-muted-foreground">
-          {`Requests · ${whenOf(entry.at)}`}
-        </div>
+      <OwnInfo
+        entry={entry}
+        sub={parts.did ?? "AI requests"}
+        title={parts.title}
+      >
+        {parts.model ? (
+          <InfoRow label="Model">
+            <span className="flex min-w-0 items-center gap-1.5">
+              <MakerMark maker={parts.maker} />
+              <span className="truncate">{parts.model}</span>
+            </span>
+          </InfoRow>
+        ) : null}
+        <InfoRow label="Requests">{parts.requests}</InfoRow>
+        {took ? <InfoRow label="Took">{took}</InfoRow> : null}
+        <InfoRow label="When">{whenOf(entry.at)}</InfoRow>
+      </OwnInfo>
+      <Section title="Requests">
         <RequestRows onOpen={onOpenRequest} turn={turn} />
-      </div>
+      </Section>
     </>
   );
 }

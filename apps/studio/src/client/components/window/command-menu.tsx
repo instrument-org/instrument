@@ -14,6 +14,7 @@ import {
 } from "@/client/components/extend/file-system";
 import { useSettingsTabs } from "@/client/components/settings/use-settings-tabs";
 import { folderOf } from "@/client/components/window/host-path";
+import { SCREEN_ROUTES } from "@/client/components/window/window-href";
 import { displayPath } from "@/client/lib/path-utils";
 import { fileHref, folderHref } from "@/shared/computer-href";
 import { FuzzyHighlight } from "@/client/components/fuzzy-highlight";
@@ -99,6 +100,7 @@ import { MonitorIcon } from "@phosphor-icons/react/Monitor";
 import { MoonIcon } from "@phosphor-icons/react/Moon";
 import { NotePencilIcon } from "@phosphor-icons/react/NotePencil";
 import { NewspaperIcon } from "@phosphor-icons/react/Newspaper";
+import { ClockCounterClockwiseIcon } from "@phosphor-icons/react/ClockCounterClockwise";
 import { PuzzlePieceIcon } from "@phosphor-icons/react/PuzzlePiece";
 import { PlusIcon } from "@phosphor-icons/react/Plus";
 import { StackIcon } from "@phosphor-icons/react/Stack";
@@ -394,6 +396,15 @@ export function useCommandMenuRows({
         } else {
           checkForUpdates.mutate();
         }
+      },
+    },
+    {
+      chord: WINDOW_SHORTCUTS.showActivity.accelerator,
+      icon: <ClockCounterClockwiseIcon />,
+      id: "activity",
+      label: "Activity",
+      run: () => {
+        openScreen(SCREEN_ROUTES.activity);
       },
     },
     {

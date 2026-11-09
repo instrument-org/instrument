@@ -1,9 +1,15 @@
 import { folderOf, nameOf } from "@/client/components/window/host-path";
-import { chatHref } from "@/client/components/window/window-href";
+import { APPS_HREF } from "@/client/atoms/window";
+import {
+  chatHref,
+  LINK_ADDRESSES,
+  pathOf,
+  SCREEN_ROUTES,
+} from "@/client/components/window/window-href";
 import { isWebPage, type OpenTarget } from "@/client/lib/open-target";
 // Types alone: the client opens its channel to the main process on import.
 import type { RPCInput, RPCOutput } from "@/client/rpc/client";
-import { folderHref } from "@/shared/computer-href";
+import { fileHref, folderHref } from "@/shared/computer-href";
 import { APP_NAME } from "@instrument-org/shared";
 import { ChatIdSchema, gatherTurns } from "@instrument-org/workspace/client";
 
@@ -481,25 +487,29 @@ export function moreFromOf(
 }
 
 /**
- * Where opening a row of the person's own goes: the file or folder it names
- * (by its path, so a copy is the path on this computer), where files were
- * moved or copied to with the first selected, the chat (a permission's too),
- * or the page; nothing for what has no place to open.
+ * Where opening a row of the person's own goes: the folder or file it names
+ * in Files, where files were moved or copied to with the first selected, the
+ * chat (a permission's too), the page, the setting changed or the screen
+ * named, Apps for an app, and the release notes for an update. Nothing for
+ * an error or what went to the bin.
  */
 export function placeOf(action: ShownAction): OpenTarget | undefined {
   switch (action.kind) {
     case "folder":
     case "new-folder": {
-      return { kind: "path", path: `${action.path.replace(/[\\/]+$/, "")}/` };
+      return { href: folderHref(action.path), kind: "screen" };
     }
     case "file":
     case "edit":
     case "open-with":
     case "download": {
-      return { kind: "path", path: action.path };
+      return { href: fileHref(action.path), kind: "screen" };
     }
     case "rename": {
-      return { kind: "path", path: action.to };
+      return {
+        href: folderHref(folderOf(action.to), { select: nameOf(action.to) }),
+        kind: "screen",
+      };
     }
     case "move":
     case "copy": {
@@ -523,6 +533,53 @@ export function placeOf(action: ShownAction): OpenTarget | undefined {
       return isWebPage(action.url)
         ? { kind: "page", url: action.url }
         : undefined;
+    }
+    case "setting": {
+      return {
+        href: pathOf(LINK_ADDRESSES.setting, { name: action.name }),
+        kind: "screen",
+      };
+    }
+    case "screen": {
+      const [place, below] = action.name.split(" › ");
+      if (place === "Settings") {
+        return {
+          href: pathOf(LINK_ADDRESSES.setting, { name: below ?? "General" }),
+          kind: "screen",
+        };
+      }
+      return place === "Apps" ? { href: APPS_HREF, kind: "screen" } : undefined;
+    }
+    case "app": {
+      return { href: APPS_HREF, kind: "screen" };
+    }
+    case "update": {
+      return { href: SCREEN_ROUTES.releaseNotes, kind: "screen" };
+    }
+    case "error":
+    case "trash": {
+      return undefined;
+    }
+  }
+}
+
+/** The path a row's Copy Path puts on the clipboard: the file or folder it names. */
+export function pathOfAction(action: ShownAction): string | undefined {
+  switch (action.kind) {
+    case "folder":
+    case "new-folder":
+    case "file":
+    case "edit":
+    case "open-with":
+    case "download": {
+      return action.path;
+    }
+    case "rename": {
+      return action.to;
+    }
+    case "move":
+    case "copy": {
+      return action.to;
     }
     default: {
       return undefined;
@@ -564,7 +621,7 @@ const LEADING: readonly Purpose[] = [
 ];
 
 /** The request that says what a turn was: its newest of the leading purpose. */
-export function leadOf(turn: Turn): ActivityRequest | undefined {
+function leadOf(turn: Turn): ActivityRequest | undefined {
   for (const purpose of LEADING) {
     const lead = turn.requests.find((request) => request.purpose === purpose);
     if (lead) {
@@ -588,20 +645,79 @@ export function turnText(
   turn: Turn,
   modelName: (id: null | string) => string,
 ): RowText {
+  const { did, model, requests, title } = turnParts(turn, modelName);
+  const facts = [did, model, requests].filter((fact): fact is string =>
+    Boolean(fact),
+  );
+  return { context: facts.join(" · "), title };
+}
+
+/**
+ * An AI row's words apart, for a row that draws the model's mark beside its
+ * name: what the turn did (none when that is its title), the model, the
+ * maker whose mark it wears, and how many requests it took.
+ */
+export function turnParts(
+  turn: Turn,
+  modelName: (id: null | string) => string,
+): {
+  did?: string;
+  maker?: string;
+  model: string;
+  requests: string;
+  title: string;
+} {
   const lead = leadOf(turn);
-  if (!lead) {
-    return { context: "", title: "" };
-  }
   const count = turn.requests.length;
   const requests = `${count} ${count === 1 ? "request" : "requests"}`;
-  const model = modelName(modelOf(lead));
+  if (!lead) {
+    return { model: "", requests, title: "" };
+  }
+  const id = modelOf(lead);
+  const maker = makerOfModel(id);
   const did = DID[lead.purpose];
   const chat =
     lead.chatId === null ? undefined : (lead.chatTitle ?? "Deleted chat");
-  const facts = [chat === undefined ? undefined : did, model, requests].filter(
-    (fact): fact is string => Boolean(fact),
-  );
-  return { context: facts.join(" · "), title: chat ?? did };
+  return {
+    ...(chat === undefined ? {} : { did }),
+    ...(maker === undefined ? {} : { maker }),
+    model: modelName(id),
+    requests,
+    title: chat ?? did,
+  };
+}
+
+/** Model names whose maker their id does not say, by how the name starts. */
+const MAKER_BY_NAME: [RegExp, string][] = [
+  [/^claude/, "anthropic"],
+  [/^(gpt|chatgpt|codex|o\d)/, "openai"],
+  [/^gemini/, "google"],
+  [/^grok/, "xai"],
+  [/^(llama|meta)/, "meta"],
+  [/^(mistral|codestral|devstral)/, "mistralai"],
+  [/^deepseek/, "deepseek"],
+  [/^qwen/, "qwen"],
+  [/^kimi/, "moonshotai"],
+  [/^glm/, "z-ai"],
+];
+
+/**
+ * Whose model an id names, as the maker marks are keyed: the part before
+ * the slash in a catalog id (`anthropic/claude-haiku-5.5`), or for a bare
+ * name a subscription reports (`claude-opus-5-5`), the maker its name says.
+ * None for our own router's name or a model no rule knows.
+ */
+export function makerOfModel(id: null | string): string | undefined {
+  if (!id) {
+    return undefined;
+  }
+  const slash = id.indexOf("/");
+  if (slash > 0) {
+    const author = id.slice(0, slash);
+    return author === "instrument" ? undefined : author;
+  }
+  const name = id.toLowerCase();
+  return MAKER_BY_NAME.find(([pattern]) => pattern.test(name))?.[1];
 }
 
 /** Where opening an AI row goes: the chat its requests were for, while it is there. */

@@ -2,7 +2,7 @@ import { type ActivityRow } from "./schema";
 
 /**
  * How the AI requests gather into turns among what the person did, the one
- * rule Settings › Activity and `instrument activity` both read them by.
+ * rule Activity and `instrument activity` both read them by.
  */
 
 /** The longest pause between two requests of one turn. */
@@ -14,11 +14,18 @@ type Gathered = Pick<
   "chatId" | "purpose" | "sessionId" | "surface"
 >;
 
-/** Whether a request continues a turn: the same chat and session, or with no chat, the same place and purpose. */
+/**
+ * Whether a request continues a turn: the same chat and session, a request
+ * of the chat's own with no session (naming it) joining whichever session
+ * of it is working, or with no chat, the same place and purpose.
+ */
 function continues(turn: Gathered, request: Gathered) {
   if (turn.chatId !== null || request.chatId !== null) {
     return (
-      turn.chatId === request.chatId && turn.sessionId === request.sessionId
+      turn.chatId === request.chatId &&
+      (turn.sessionId === request.sessionId ||
+        turn.sessionId === null ||
+        request.sessionId === null)
     );
   }
   return turn.surface === request.surface && turn.purpose === request.purpose;

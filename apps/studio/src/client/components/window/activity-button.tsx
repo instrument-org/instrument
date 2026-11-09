@@ -11,8 +11,9 @@ import { useRouterState } from "@tanstack/react-router";
 
 /**
  * Activity from anywhere in the window: the tab already showing it comes up,
- * or a tab of its own opens. On Activity itself it goes back to the start,
- * every row and no search, which is what pressing it again is for.
+ * or a tab of its own opens, except over a new tab, which becomes Activity.
+ * On Activity itself it goes back to the start, every row and no search,
+ * which is what pressing it again is for.
  */
 export function useShowActivity() {
   const appTabs = useAppTabs();
@@ -20,9 +21,11 @@ export function useShowActivity() {
     select: (routerState) => routerState.location.href,
   });
   return ({ newTab = false }: { newTab?: boolean } = {}) => {
+    const up = matchScreen(activeHref).kind;
     if (newTab) {
       appTabs.open(SCREEN_ROUTES.activity, { newTab: true });
-    } else if (matchScreen(activeHref).kind === "activity") {
+    } else if (up === "activity" || up === "newTab") {
+      // A new tab is somewhere to go rather than something to keep.
       appTabs.navigate(SCREEN_ROUTES.activity);
     } else {
       appTabs.open(SCREEN_ROUTES.activity);

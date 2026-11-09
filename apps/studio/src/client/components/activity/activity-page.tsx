@@ -1,6 +1,9 @@
 import { openSettings } from "@/client/atoms/settings-modal";
 import { ActivityDetails } from "@/client/components/activity/activity-details";
-import { EntryIcon } from "@/client/components/activity/activity-icons";
+import {
+  EntryIcon,
+  MakerMark,
+} from "@/client/components/activity/activity-icons";
 import { useModelName } from "@/client/components/activity/activity-requests";
 import {
   type ActivityRequest,
@@ -15,6 +18,8 @@ import {
   type TimelineEntry,
   type TimelineItem,
   turnPlaceOf,
+  pathOfAction,
+  turnParts,
   turnText,
   withDayHeads,
 } from "@/client/components/activity/activity-timeline";
@@ -28,7 +33,10 @@ import {
   DropdownMenuTrigger,
 } from "@/client/components/ui/dropdown-menu";
 import { SearchField } from "@/client/components/window/search-field";
-import { useIsActiveTab } from "@/client/hooks/use-active-tab";
+import {
+  refreshWhileShown,
+  useIsActiveTab,
+} from "@/client/hooks/use-active-tab";
 import { useGesturesFor } from "@/client/hooks/use-open-target";
 import { displayLocale } from "@/client/lib/display-locale";
 import { type OpenTarget } from "@/client/lib/open-target";
@@ -57,6 +65,12 @@ import { type KeyboardEvent, useEffect, useState } from "react";
 
 /** How many of each log one read takes. */
 const PAGE_SIZE = 200;
+
+/** How often what happened since the page opened is read while its tab is up. */
+const LIVE_MS = 5000;
+
+/** The most of each log the live read takes, past which the page is read again from now. */
+const LIVE_LIMIT = 200;
 
 /** The query keys of the person's actions and the AI requests, which a removal or a Clear starts over. */
 export const ACTIONS_KEY = ["actions", "list"];
@@ -136,18 +150,11 @@ export function ActivityPage({
   q: string;
   show: Show | undefined;
 }) {
-  // Both logs are read up to when the page opened, so what is recorded
-  // while it is open never shifts a page, and again from then each time
-  // its tab comes back up.
+  // Both logs are paged up to when the page opened, so what is recorded
+  // while it is open never shifts a page; what comes after is read on its
+  // own every few seconds while the tab is up, and goes on top.
   const [until, setUntil] = useState(() => Date.now());
   const isShown = useIsActiveTab();
-  const [wasShown, setWasShown] = useState(isShown);
-  if (isShown !== wasShown) {
-    setWasShown(isShown);
-    if (isShown) {
-      setUntil(Date.now());
-    }
-  }
   const view = viewOf(show);
   const queryClient = useQueryClient();
   const modelName = useModelName();
@@ -188,14 +195,40 @@ export function ActivityPage({
     placeholderData: keepPreviousData,
   });
 
+  const newerActions = useQuery({
+    ...rpcClient.actions.list.queryOptions({
+      input: { limit: LIVE_LIMIT, since: until + 1 },
+    }),
+    ...refreshWhileShown(isShown && view !== "ai", LIVE_MS),
+    placeholderData: keepPreviousData,
+  });
+  const newerRequests = useQuery({
+    ...rpcClient.workspace.activity.list.queryOptions({
+      input: {
+        filter: { since: until + 1 },
+        limit: LIVE_LIMIT,
+        offset: 0,
+        sort: { column: "startedAt", direction: "desc" },
+      },
+    }),
+    ...refreshWhileShown(isShown && view !== "yours", LIVE_MS),
+    placeholderData: keepPreviousData,
+  });
+
   const { entries, waitingOn } = timelineOf({
     actions: {
       complete: isComplete(actions),
-      items: actions.data?.pages.flatMap((page) => page.actions) ?? [],
+      items: [
+        ...(newerActions.data?.actions ?? []),
+        ...(actions.data?.pages.flatMap((page) => page.actions) ?? []),
+      ],
     },
     requests: {
       complete: isComplete(requests),
-      items: requests.data?.pages.flat() ?? [],
+      items: [
+        ...(newerRequests.data ?? []),
+        ...(requests.data?.pages.flat() ?? []),
+      ],
     },
     view,
   });
@@ -595,7 +628,26 @@ function ActivityList({
 
   const showMenu = async (entry: TimelineEntry) => {
     const target = targetOf(entry);
-    const destinations = target ? gesturesFor(target).destinations : [];
+    const path =
+      entry.kind === "action" ? pathOfAction(entry.action) : undefined;
+    // A file's or folder's row copies its path on this computer, where the
+    // place's own Copy would give the app's link to it.
+    const destinations = [
+      ...(target ? gesturesFor(target).destinations : []).filter(
+        (destination) => path === undefined || destination.id !== "copy",
+      ),
+      ...(path === undefined
+        ? []
+        : [
+            {
+              id: "copyPath",
+              label: "Copy Path",
+              run: () => {
+                void navigator.clipboard.writeText(path);
+              },
+            },
+          ]),
+    ];
     const more = moreFromOf(entry);
     const { id } = await rpcClient.utils.showContextMenu.call({
       items: [
@@ -663,6 +715,12 @@ function ActivityList({
             item.kind === "turn"
               ? turnText(item.turn, modelName)
               : actionText(item.action, words);
+          const context =
+            item.kind === "turn" ? (
+              <TurnContext parts={turnParts(item.turn, modelName)} />
+            ) : (
+              text.context
+            );
           const target = targetOf(item);
           return (
             <div className="absolute inset-x-0 top-0" key={item.id} {...placed}>
@@ -675,7 +733,7 @@ function ActivityList({
                 <ActivityRow
                   at={item.at}
                   checked={checked.has(item.id)}
-                  context={text.context}
+                  context={context}
                   icon={<EntryIcon entry={item} />}
                   isPicked={picked === item.id}
                   onCheck={(on) => {
@@ -729,7 +787,7 @@ function ActivityRow({
 }: {
   at: number;
   checked: boolean;
-  context: string;
+  context: React.ReactNode;
   icon: React.ReactNode;
   isPicked: boolean;
   onCheck: (on: boolean) => void;
@@ -767,10 +825,15 @@ function ActivityRow({
       }}
       role="option"
     >
+      {/* The whole gutter around the box ticks it, so a click a little
+        off the box never picks the row instead. */}
       <span
-        className="grid shrink-0"
+        className="-my-1 -ml-2.5 grid shrink-0 place-items-center self-stretch pr-1 pl-2.5"
         onClick={(event) => {
           event.stopPropagation();
+          if (event.target === event.currentTarget) {
+            onCheck(!checked);
+          }
         }}
         onDoubleClick={(event) => {
           event.stopPropagation();
@@ -813,5 +876,21 @@ function ActivityRow({
         <DotsThreeVerticalIcon className="size-4" weight="bold" />
       </Button>
     </div>
+  );
+}
+
+/** What an AI row did, then its model with the maker's mark, then how many requests. */
+function TurnContext({ parts }: { parts: ReturnType<typeof turnParts> }) {
+  return (
+    <span className="flex min-w-0 items-center gap-1">
+      {parts.did ? <span className="shrink-0">{parts.did} ·</span> : null}
+      {parts.model ? (
+        <span className="flex min-w-0 shrink items-center gap-1">
+          <MakerMark maker={parts.maker} />
+          <span className="truncate">{parts.model}</span>
+        </span>
+      ) : null}
+      <span className="shrink-0">· {parts.requests}</span>
+    </span>
   );
 }

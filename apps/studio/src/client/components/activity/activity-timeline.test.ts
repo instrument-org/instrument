@@ -6,6 +6,7 @@ import {
   type ActivityView,
   dayLabel,
   entriesShown,
+  makerOfModel,
   moreFromOf,
   type PersonAction,
   placeOf,
@@ -78,7 +79,7 @@ function rows(entries: TimelineEntry[]) {
 }
 
 describe("timelineOf", () => {
-  it("gathers a chat turn's requests and splits turns at an action, a five-minute pause, another session, and no chat", () => {
+  it("gathers a chat turn's requests, its title request with them, and splits turns at an action, a five-minute pause, another session, and no chat", () => {
     ids = 0;
     const requests = [
       request(at(14, 44, 30)), // req_1
@@ -87,7 +88,7 @@ describe("timelineOf", () => {
       request(at(14, 41, 0)), // req_4
       request(at(14, 35, 0)), // req_5, six minutes before req_4
       request(at(14, 34, 50), { sessionId: "ses_task" }), // req_6
-      request(at(14, 34, 40), { purpose: "chat-title", sessionId: null }), // req_7
+      request(at(14, 34, 40), { purpose: "chat-title", sessionId: null }), // req_7, naming the chat, joins its turn
       request(at(14, 30, 0), {
         chatId: null,
         chatTitle: null,
@@ -114,9 +115,8 @@ describe("timelineOf", () => {
         "turn req_1,req_2,req_3",
         "action 14:42",
         "turn req_4",
-        "turn req_5",
+        "turn req_5,req_7",
         "turn req_6",
-        "turn req_7",
         "turn req_8,req_9",
       ]
     `);
@@ -384,7 +384,7 @@ describe("actionText", () => {
     `);
   });
 
-  it("opens a folder, file, chat or page, and nothing for the rest", () => {
+  it("opens what each row names, and nothing for an error or what went to the bin", () => {
     expect(
       actions.flatMap((each) =>
         each.kind === "capped"
@@ -393,32 +393,32 @@ describe("actionText", () => {
       ),
     ).toMatchInlineSnapshot(`
       [
-        "folder: {"kind":"path","path":"/Users/sam/Downloads/Sam taxes 2025/"}",
-        "file: {"kind":"path","path":"/Users/sam/Downloads/Sam taxes 2025/1099-INT Capital One.pdf"}",
-        "open-with: {"kind":"path","path":"/Users/sam/Documents/Budget.xlsx"}",
-        "open-with: {"kind":"path","path":"/Users/sam/Documents/Budget.xlsx"}",
-        "edit: {"kind":"path","path":"/Users/sam/Trips/Lisbon in March.md"}",
+        "folder: {"href":"/files?path=&root=%2FUsers%2Fsam%2FDownloads%2FSam+taxes+2025","kind":"screen"}",
+        "file: {"href":"/files?file=%2FUsers%2Fsam%2FDownloads%2FSam%20taxes%202025%2F1099-INT%20Capital%20One.pdf&path=&root=~","kind":"screen"}",
+        "open-with: {"href":"/files?file=%2FUsers%2Fsam%2FDocuments%2FBudget.xlsx&path=&root=~","kind":"screen"}",
+        "open-with: {"href":"/files?file=%2FUsers%2Fsam%2FDocuments%2FBudget.xlsx&path=&root=~","kind":"screen"}",
+        "edit: {"href":"/files?file=%2FUsers%2Fsam%2FTrips%2FLisbon%20in%20March.md&path=&root=~","kind":"screen"}",
         "move: {"href":"/files?path=&root=%2FUsers%2Fsam%2FArchive%2F2023&select=a.pdf","kind":"screen"}",
         "copy: {"href":"/files?path=&root=%2FUsers%2Fsam%2FTaxes&select=Receipt.pdf","kind":"screen"}",
-        "rename: {"kind":"path","path":"/Users/sam/Pictures/Porch.jpg"}",
+        "rename: {"href":"/files?path=&root=%2FUsers%2Fsam%2FPictures&select=Porch.jpg","kind":"screen"}",
         "trash: undefined",
         "trash: undefined",
-        "new-folder: {"kind":"path","path":"/Users/sam/Documents/Receipts/"}",
+        "new-folder: {"href":"/files?path=&root=%2FUsers%2Fsam%2FDocuments%2FReceipts","kind":"screen"}",
         "chat: {"href":"/chats/kitchen-remodel-quotes","kind":"screen"}",
         "page: {"kind":"page","url":"https://www.irs.gov/refunds"}",
         "page: {"kind":"page","url":"https://www.irs.gov/refunds"}",
-        "download: {"kind":"path","path":"/Users/sam/Downloads/Globex NDA.pdf"}",
-        "app: undefined",
-        "app: undefined",
-        "app: undefined",
-        "update: undefined",
+        "download: {"href":"/files?file=%2FUsers%2Fsam%2FDownloads%2FGlobex%20NDA.pdf&path=&root=~","kind":"screen"}",
+        "app: {"href":"/apps","kind":"screen"}",
+        "app: {"href":"/apps","kind":"screen"}",
+        "app: {"href":"/apps","kind":"screen"}",
+        "update: {"href":"/release-notes","kind":"screen"}",
         "permission: {"href":"/chats/kitchen-remodel-quotes","kind":"screen"}",
         "permission: {"href":"/chats/kitchen-remodel-quotes","kind":"screen"}",
         "permission: {"href":"/chats/kitchen-remodel-quotes","kind":"screen"}",
         "error: undefined",
         "error: undefined",
-        "screen: undefined",
-        "setting: undefined",
+        "screen: {"href":"/settings/Models","kind":"screen"}",
+        "setting: {"href":"/settings/Zoom","kind":"screen"}",
       ]
     `);
   });
@@ -489,6 +489,19 @@ describe("entriesShown", () => {
       null,
       "Kitchen remodel quotes",
     ]);
+  });
+});
+
+describe("makerOfModel", () => {
+  it.each([
+    ["anthropic/claude-haiku-5.5", "anthropic"],
+    ["claude-opus-5-5", "anthropic"],
+    ["gpt-6-luna", "openai"],
+    ["instrument/auto", undefined],
+    ["something-new", undefined],
+    [null, undefined],
+  ])("reads %s as made by %s", (id, maker) => {
+    expect(makerOfModel(id)).toBe(maker);
   });
 });
 

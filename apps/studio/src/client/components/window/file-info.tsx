@@ -240,6 +240,54 @@ function useFileItem(hostPath: string | undefined) {
   } satisfies FileInfoItem;
 }
 
+/**
+ * What Info says about a file or folder named by its path, for a place that
+ * shows one beside a list rather than over a folder (Activity's details):
+ * the card's own header and rows, without the card. A path with nothing at
+ * it any more says so under its name, and where it was.
+ */
+export function PathInfo({
+  hostPath,
+  kind,
+}: {
+  hostPath: string;
+  kind: "file" | "folder";
+}) {
+  const listing = useQuery(
+    rpcClient.workspace.computer.list.queryOptions({
+      input: { id: WINDOW_ID, path: whereIs(hostPath) },
+      retry: false,
+    }),
+  );
+  const item = useFileItem(hostPath);
+  if (item) {
+    return kind === "folder" ? (
+      <FolderInfo
+        isAskedFor={false}
+        item={{ ...item, kind: "folder", kindLabel: "Folder" }}
+      />
+    ) : (
+      <FileInfo item={item} />
+    );
+  }
+  const name = folderNameFromPath(hostPath);
+  return (
+    <InfoFrame
+      name={name}
+      picture={
+        kind === "folder" ? (
+          <FileSystemFolderGlyph className="size-11" />
+        ) : (
+          <FileTypeIcon className="size-9" fileName={name} />
+        )
+      }
+      sub={listing.isPending ? "" : "Not there any more"}
+    >
+      <WhereRow hostPath={hostPath} />
+    </InfoFrame>
+  );
+}
+
 function FileInfoCard({
   askedFor,
   className,
@@ -551,7 +599,7 @@ function SeveralInfo({ items }: { items: FileInfoItem[] }) {
   );
 }
 
-function InfoFrame({
+export function InfoFrame({
   children,
   name,
   picture,
@@ -578,7 +626,13 @@ function InfoFrame({
   );
 }
 
-function InfoRow({ children, label }: { children: ReactNode; label: string }) {
+export function InfoRow({
+  children,
+  label,
+}: {
+  children: ReactNode;
+  label: string;
+}) {
   return (
     <div className="grid grid-cols-[5.25rem_minmax(0,1fr)] gap-2 py-1 text-[13px] leading-[18px]">
       <dt className="text-muted-foreground">{label}</dt>

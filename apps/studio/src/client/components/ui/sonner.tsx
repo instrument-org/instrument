@@ -64,7 +64,7 @@ const Toaster = ({ ...props }: ToasterProps) => {
           // Sonner's own stylesheet centers the loading spinner absolutely, so
           // the slot is its box, kept a glyph wide while the spinner is alone.
           icon: "relative flex min-h-4 min-w-4 shrink-0 in-[[data-sonner-toast]:has([data-description])]:mt-px in-[[data-sonner-toast]:has([data-description])]:self-start",
-          title: "leading-5",
+          title: "leading-5 select-text",
           toast:
             "flex w-fit max-w-(--width) items-center gap-2 rounded-2xl bg-popover py-1.5 pr-1.5 pl-3 text-[13px] text-popover-foreground shadow-float-md has-[[data-description]]:w-(--width) has-[[data-description]]:items-start has-[[data-description]]:rounded-xl has-[[data-description]]:py-2.5 data-[expanded=false]:data-[front=false]:*:opacity-0",
         },

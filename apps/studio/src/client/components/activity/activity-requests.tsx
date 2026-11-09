@@ -144,7 +144,7 @@ function originOf(row: ActivityRequest) {
 }
 
 /** The mark of the provider a request went to, or the room for one. */
-export function ConnectionMark({
+function ConnectionMark({
   className = "size-3.5",
   type,
 }: {

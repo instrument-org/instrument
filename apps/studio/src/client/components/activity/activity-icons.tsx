@@ -1,6 +1,4 @@
-import { ConnectionMark } from "@/client/components/activity/activity-requests";
 import {
-  leadOf,
   type ShownAction,
   type TimelineEntry,
 } from "@/client/components/activity/activity-timeline";
@@ -9,7 +7,9 @@ import {
   FileTypeIcon,
 } from "@/client/components/extend/file-system";
 import { PageFavicon } from "@/client/components/favicon";
+import { ModelMakerIcon } from "@/client/components/model-maker-icon";
 import { nameOf } from "@/client/components/window/host-path";
+import { PlaceIcon } from "@/client/components/window/place-icons";
 import { cn } from "@/client/lib/utils";
 import { AppWindowIcon } from "@phosphor-icons/react/AppWindow";
 import { ArrowBendDownRightIcon } from "@phosphor-icons/react/ArrowBendDownRight";
@@ -26,7 +26,7 @@ const GLYPH = "size-4 text-foreground/60";
 
 /**
  * The mark a row wears: a page's icon, a file's by its kind, a folder's,
- * the model's maker for an AI row, and a plain glyph for the rest. Several
+ * the chat's for an AI row, and a plain glyph for the rest. Several
  * files moved or thrown away together wear the move's or the bin's.
  */
 export function EntryIcon({
@@ -36,13 +36,10 @@ export function EntryIcon({
   className?: string;
   entry: TimelineEntry;
 }) {
+  // A turn is a chat's, so it wears the chat's mark; its model's maker
+  // stands beside the model's name.
   if (entry.kind === "turn") {
-    return (
-      <ConnectionMark
-        className={cn("size-4", className)}
-        type={leadOf(entry.turn)?.connectionType ?? null}
-      />
-    );
+    return <PlaceIcon className={cn(GLYPH, className)} place="chat" />;
   }
   return <ActionIcon action={entry.action} className={className} />;
 }
@@ -118,4 +115,17 @@ function ActionIcon({
       return <AppWindowIcon className={glyph} />;
     }
   }
+}
+
+/** A model's maker's mark, or nothing for a model no maker is known for. */
+export function MakerMark({
+  className = "size-3.5",
+  maker,
+}: {
+  className?: string;
+  maker: string | undefined;
+}) {
+  return maker === undefined ? null : (
+    <ModelMakerIcon author={maker} className={cn("shrink-0", className)} />
+  );
 }

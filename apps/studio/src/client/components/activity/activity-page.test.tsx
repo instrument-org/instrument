@@ -116,7 +116,10 @@ describe("ActivityPage", () => {
     calls.set("activity.remove", remove);
     page();
     fireEvent.click(await screen.findByText("notes.md"));
-    expect(await screen.findByText(/^Edited · Today at /)).toBeTruthy();
+    const details = await screen.findByRole("complementary", {
+      name: "Details",
+    });
+    expect(details.textContent).toMatch(/Edited.*Today at /);
     fireEvent.click(
       screen.getByRole("button", { name: "Remove from Activity" }),
     );

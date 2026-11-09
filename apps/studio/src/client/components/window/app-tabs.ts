@@ -288,14 +288,29 @@ export function useAppTabs() {
    */
   const open = (
     href: string,
-    { select = true }: { newTab?: boolean; select?: boolean } = {},
+    {
+      behind,
+      select = true,
+    }: {
+      /** Where back goes from the new tab's first address, oldest first. */
+      behind?: string[];
+      newTab?: boolean;
+      select?: boolean;
+    } = {},
   ) => {
     const at = openLinkAddress(href);
     if (at === undefined) {
       return;
     }
     setModel((current) =>
-      addTab(current, { id: freshTabId(), pathname: at, select }),
+      addTab(current, {
+        ...(behind?.length
+          ? { history: { entries: [...behind, at], index: behind.length } }
+          : {}),
+        id: freshTabId(),
+        pathname: at,
+        select,
+      }),
     );
   };
   /** The tab up goes to an address, one step on in its history; a link address opens where it lives instead. */

@@ -1,3 +1,4 @@
+import { BROWSER_HREF } from "@/client/atoms/window";
 import { takeKeyboardOnArrival } from "@/client/lib/browser-pool";
 import { rpcClient } from "@/client/rpc/client";
 import { fileHref, folderHref } from "@/shared/computer-href";
@@ -164,7 +165,10 @@ export function useOpeners({
       case "window-tab": {
         const group = newSiteGroup();
         const id = browser?.open(url, { group });
+        // The browser's start behind the page, as a browser's new tab is
+        // behind the page opened in it, so back from the page reaches it.
         appTabs.open(pageHrefOf(group), {
+          behind: [BROWSER_HREF],
           newTab: true,
           select: !placement.behind,
         });

@@ -7,7 +7,7 @@ import { INSTRUMENT_COMMAND } from "./instrument-command";
  */
 export const CHATS_COMMAND = {
   description:
-    "Organizing the user's chats, which is the chat's alone: `instrument chats list` names them and `instrument chats projects` the projects; `rename`, `archive`, `unarchive`, `project`, `star` and `unstar` change them, by id.",
+    "Organizing the user's chats, which is the chat's alone: `instrument chats list` names them; `rename`, `archive`, `unarchive`, `project`, `star` and `unstar` change them, by id.",
   name: `${INSTRUMENT_COMMAND.name} chats`,
   summary: "Organizing the user's chats: rename, archive, file and star them.",
   word: "chats",

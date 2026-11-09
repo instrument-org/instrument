@@ -217,17 +217,16 @@ describe("instrument chats list", () => {
   });
 });
 
-describe("instrument chats projects", () => {
+describe("instrument projects", () => {
   it("names each project in use", async () => {
     const travel = await createProject({ name: "Travel" });
-    expect((await one("instrument chats projects")).stdout).toBe(
+    expect((await one("instrument projects")).stdout).toBe(
       `  Travel  ${travel.id}\n`,
     );
   });
 
   it("says so when there are none", async () => {
-    expect((await one("instrument chats projects")).stdout)
-      .toMatchInlineSnapshot(`
+    expect((await one("instrument projects")).stdout).toMatchInlineSnapshot(`
       "There are no projects yet.
       "
     `);

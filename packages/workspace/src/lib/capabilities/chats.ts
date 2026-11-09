@@ -18,8 +18,10 @@ import {
 } from "../chat/chats";
 import { archiveChatAndTabs, renameChatAndFolder } from "../chat/organize";
 import { listProjects, type Project } from "../chat/projects";
+import { PROJECTS_COMMAND } from "../../model-text/commands/projects-command";
 import { resolveChat } from "../record-folders";
 import { defineCapability } from "./define";
+import { projectsInUse } from "./projects";
 
 const NAME = CHATS_COMMAND.name;
 
@@ -43,8 +45,6 @@ const ListedChat = z.object({
   starred: z.boolean(),
   title: z.string(),
 });
-
-const ListedProject = z.object({ id: z.string(), name: z.string() });
 
 /** What a change came to for one chat: done, or why not. */
 const Outcome = z.object({
@@ -75,11 +75,6 @@ function outcomesText(outcomes: readonly Outcome[]) {
 
 function day(at: number): string {
   return new Date(at).toISOString().slice(0, 10);
-}
-
-/** The projects in use, which a chat can be filed under. */
-async function projectsInUse(): Promise<Project[]> {
-  return (await listProjects()).filter((project) => project.retired !== true);
 }
 
 function namedProjects(projects: readonly Project[]): string {
@@ -201,27 +196,6 @@ day was never come back to.`,
               `  ${chat.id}  ${chat.began}  ${chat.last_activity}  ${chat.project ? `[${chat.project}]  ` : ""}${chat.title}${chat.named ? "" : "  (unnamed)"}${chat.starred ? "  (starred)" : ""}`,
           )
           .join("\n")}`,
-  where: CHATS,
-});
-
-export const chatsProjects = defineCapability({
-  input: z.object({}),
-  name: "chats.projects",
-  output: z.array(ListedProject),
-  async run() {
-    return (await projectsInUse()).map(({ id, name }) => ({ id, name }));
-  },
-  summary: "The projects a chat can be filed under, by name.",
-  surfaces: {
-    cli: { help: "", words: ["chats", "projects"] },
-    script: {},
-  },
-  text: (projects) =>
-    projects.length === 0
-      ? "There are no projects yet."
-      : projects
-          .map((project) => `  ${project.name}  ${project.id}`)
-          .join("\n"),
   where: CHATS,
 });
 
@@ -356,7 +330,7 @@ export const chatsProject = defineCapability({
   input: z.object({
     ids,
     project: z.string({
-      error: `project: which project, or "${NO_PROJECT}"? ${NAME} projects names them.`,
+      error: `project: which project, or "${NO_PROJECT}"? ${PROJECTS_COMMAND.name} names them.`,
     }),
   }),
   name: "chats.project",

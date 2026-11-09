@@ -72,6 +72,7 @@ describe("createBashDescription", () => {
         "instrument memory",
         "instrument window",
         "instrument chats",
+        "instrument projects",
       ]
     `);
   });
@@ -145,16 +146,12 @@ describe("instrument", () => {
 
         activity  What the user did in this app lately, with names and paths.
         app       Connect services and call their tools.
+        chats     Organizing the user's chats: rename, archive, file and star them.
         memory    What you keep about the user for every chat.
+        projects  The user's projects, by name.
         task      Start, message, stop and read your tasks.
         window    What is in front of the user: list, show, read and close this chat's tabs, or ask for one of theirs.
         x         Search posts on X through the user's Grok account.
-        app     Connect services and call their tools.
-        chats   Organizing the user's chats: rename, archive, file and star them.
-        memory  What you keep about the user for every chat.
-        task    Start, message, stop and read your tasks.
-        window  What is in front of the user: list, show, read and close this chat's tabs, or ask for one of theirs.
-        x       Search posts on X through the user's Grok account.
 
       \`instrument <command> help\` prints one command's own usage.
       "
@@ -198,7 +195,14 @@ describe("instrument", () => {
       const listed = (await bash.exec("instrument")).stdout
         .split("\n")
         .flatMap((line) => /^ {2}(\S+) /.exec(line)?.[1] ?? []);
-      expect(listed).toEqual(["activity", "app", "memory", "window", "x"]);
+      expect(listed).toEqual([
+        "activity",
+        "app",
+        "memory",
+        "projects",
+        "window",
+        "x",
+      ]);
     } finally {
       setWorkspaceConfig(config);
     }
@@ -212,6 +216,7 @@ describe("instrument", () => {
         activity  What the user did in this app lately, with names and paths.
         app       Connect services and call their tools.
         memory    What you keep about the user for every chat.
+        projects  The user's projects, by name.
         window    What is in front of the user: list, show, read and close this chat's tabs, or ask for one of theirs.
         x         Search posts on X through the user's Grok account.
 

@@ -1,4 +1,4 @@
-Status: open.
+Status: done. The note was built without the wireframe the plan asks for; its look is still to settle.
 
 # Agent `chats` command
 
@@ -17,7 +17,7 @@ Each takes one or more chat ids, so one call can tidy many chats. Chat role only
 | Command | Wraps | Prints |
 |---|---|---|
 | `chats list [--project <name>] [--archived] [--unnamed]` | `listChats` | One line per chat: id, title, project, last activity, newest first. `--unnamed` is chats whose title is still the placeholder. |
-| `chats projects` | the projects list | Each project's name and id, so the agent files under one that exists without guessing names. |
+| `instrument projects` | the projects list | Each project's name and id, so the agent files under one that exists without guessing names. |
 | `chats rename <id> <title>` | `renameChat` | The title as stored, after `cappedTitle`. |
 | `chats archive <id>...` / `chats unarchive <id>...` | `archiveChat` / `unarchiveChat` | |
 | `chats project <project or none> <id>...` | `setChatProject` | A project the workspace doesn't have is refused, with the list. |
@@ -45,7 +45,7 @@ The command's `help` text says what the command is for. The chat prompt gets at 
 
 ## Steps
 
-1. `chats list` and `chats projects`, with tests over a fixture workspace.
+1. `chats list` and `instrument projects`, with tests over a fixture workspace.
 2. The write commands, each going through the same function its RPC route calls, with a test per command (and the working-chat rename case).
 3. The `chatChanges` part, written from the commands, with a schema test and a `note-part.test.tsx` case.
 4. Undo: an RPC route that takes the note's entries, with a test for the skip-if-changed rule.

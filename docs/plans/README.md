@@ -29,7 +29,6 @@ Each entry is the plan's title and the opening of its status.
 
 - [What the classic window took with it](after-the-classic-window.md): Open list.
 - [A host cursor for Agent Browser](agent-browser-cursor.md): Not started;
-- [Agent `chats` command](agent-chats-command.md): open
 - [Cut the harness cost of an agent driving Studio](agent-driving-studio-friction.md): Proposal, largely addressed.
 - [Move the agent turn off the Electron main thread](agent-turn-off-the-main-thread.md): Active.
 - [The app directory, made connectable and drawn well](app-directory-uplift.md): In progress.
@@ -84,6 +83,7 @@ Each entry is the plan's title and the opening of its status.
 - [Agent browser ad blocking](agent-browser-ad-blocking.md): Landed in 2699ce60e and its follow-ups.
 - [Agent browsing across several tabs](agent-browser-multiple-tabs.md): Landed.
 - [One agent-browser Command via an Instrument Browser Provider Plugin](agent-browser-provider-unification.md): Complete.
+- [Agent `chats` command](agent-chats-command.md): The note was built without the wireframe the plan asks for;
 - [An AI usage panel in Settings](ai-usage-panel.md): Landed in full (`427559098` and the commits after it).
 - [Anchor the turn you just sent at the top of the transcript](anchor-the-submitted-turn.md): Landed.
 - [App-level tabs in the 2.0 window](app-level-tabs.md): Landed in `7e84c5a88` (v2.0.0-beta.33);

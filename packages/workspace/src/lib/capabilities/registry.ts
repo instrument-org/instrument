@@ -23,7 +23,6 @@ import {
   chatsArchive,
   chatsList,
   chatsProject,
-  chatsProjects,
   chatsRename,
   chatsStar,
   chatsUnarchive,
@@ -31,6 +30,7 @@ import {
 } from "./chats";
 import { type Capability } from "./define";
 import { memoryForget, memoryList, memorySave, memoryShow } from "./memory";
+import { projectsList } from "./projects";
 import { taskNew } from "./task/fork";
 import { taskList } from "./task/list";
 import { taskLog } from "./task/log";
@@ -69,7 +69,6 @@ export const CAPABILITIES: readonly Capability[] = [
   appsAccount,
   appsDisconnect,
   chatsList,
-  chatsProjects,
   chatsRename,
   chatsArchive,
   chatsUnarchive,
@@ -81,6 +80,7 @@ export const CAPABILITIES: readonly Capability[] = [
   memorySave,
   memoryShow,
   memoryForget,
+  projectsList,
   taskNew,
   taskSend,
   taskStop,

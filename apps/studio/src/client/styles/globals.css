@@ -1155,6 +1155,25 @@ a.cursor-pointer {
   }
 }
 
+/* The pass of a glint over an icon standing before a shimmering name: up and
+ * down in the first quarter of the name's 3s sweep, as its bar comes in from the
+ * left, and still for the rest. Five steps each way, the sweep's 15 fps. */
+@keyframes icon-glint {
+  0%,
+  4% {
+    opacity: 0;
+    animation-timing-function: steps(5);
+  }
+  14% {
+    opacity: 1;
+    animation-timing-function: steps(5);
+  }
+  24%,
+  100% {
+    opacity: 0;
+  }
+}
+
 @keyframes border-sweep {
   to {
     rotate: 1turn;
@@ -1889,8 +1908,36 @@ a.cursor-pointer {
     animation: border-sweep 3s steps(45) infinite;
   }
 
+  /* The shimmer for a one-color icon (`IconGlint`): the icon takes the base
+   * green of a shimmering name, and a second drawing of it in the glint's color
+   * lies over it. Only that drawing's `opacity` animates, so the GPU fades it and
+   * the icon is never repainted for it. */
+  .brand-shiny-icon {
+    --shimmer-base: #17604a;
+    --shimmer-glint: #55e8bb;
+    color: var(--shimmer-base);
+  }
+
+  .dark .brand-shiny-icon {
+    --shimmer-base: #2e9e79;
+  }
+
+  .icon-glint {
+    position: absolute;
+    inset: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: var(--shimmer-glint);
+    opacity: 0;
+    pointer-events: none;
+    will-change: opacity;
+    animation: icon-glint 3s infinite;
+  }
+
   @media (prefers-reduced-motion: reduce) {
     .shimmer-sweep,
+    .icon-glint,
     .border-sweep {
       display: none;
     }

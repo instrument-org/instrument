@@ -145,6 +145,7 @@ export function AppTabStrip({
     );
     return {
       ...tab,
+      ...(isWorking ? { glintIcon: tab.icon } : {}),
       icon: <ChatMarkIcon dot={dot} icon={tab.icon} />,
       isWorking,
       title: short.get(tab.key) ?? tab.title,

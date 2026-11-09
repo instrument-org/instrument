@@ -1,4 +1,5 @@
 import { cn } from "@/client/lib/utils";
+import type { ReactNode } from "react";
 
 /**
  * The moving glint of a `brand-shiny-text` or `shiny-text` span, placed as the
@@ -24,4 +25,17 @@ export function ShimmerSweep({ text }: { text: string }) {
  */
 export function BorderSweep({ className }: { className?: string }) {
   return <span aria-hidden className={cn("border-sweep", className)} />;
+}
+
+/**
+ * The glint for a one-color icon, placed after the icon in a positioned
+ * `brand-shiny-icon` box of its size: a second drawing of the icon in the
+ * glint's color, faded in and out as the glint of a name beside it sets off.
+ */
+export function IconGlint({ children }: { children: ReactNode }) {
+  return (
+    <span aria-hidden className="icon-glint">
+      {children}
+    </span>
+  );
 }

@@ -30,7 +30,7 @@ import {
   useRef,
   useState,
 } from "react";
-import { BorderSweep, ShimmerSweep } from "@/client/components/shimmer-sweep";
+import { IconGlint, ShimmerSweep } from "@/client/components/shimmer-sweep";
 
 import { EDGE_FADE, EDGE_FADE_WIDTH, useEdgeFade } from "./use-edge-fade";
 
@@ -45,7 +45,12 @@ export interface StripTab {
   icon: ReactNode;
   /** Drawn first and held there: not dragged, not closed. */
   isFixed?: boolean;
-  /** An agent is at work in it: its name shimmers and an arc turns round its icon. */
+  /**
+   * A second drawing of a one-color icon, which takes the shimmer's color and
+   * its glint while the tab works. Left out for a picture, which stays as it is.
+   */
+  glintIcon?: ReactNode;
+  /** An agent is at work in it: its name shimmers, and its icon with `glintIcon`. */
   isWorking?: boolean;
   key: string;
   title: string;
@@ -933,11 +938,15 @@ function Tab({
 
   const contents = (
     <>
-      <span className="relative flex size-4 shrink-0 items-center justify-center">
+      <span
+        className={cn(
+          "relative flex size-4 shrink-0 items-center justify-center",
+          tab.isWorking && tab.glintIcon && "brand-shiny-icon",
+        )}
+      >
         {tab.icon}
-        {/* The live card's turning arc, tracing the icon's rounded square. */}
-        {tab.isWorking && (
-          <BorderSweep className="-inset-0.75 rounded-[6px] p-[1.5px]" />
+        {tab.isWorking && tab.glintIcon && (
+          <IconGlint>{tab.glintIcon}</IconGlint>
         )}
       </span>
       <span

@@ -1,3 +1,4 @@
+import { TOOL_NAMES } from "../../tools/name";
 import { APP_NAME } from "@instrument-org/shared";
 
 import { APP_COMMAND } from "../../model-text/commands/app-command";
@@ -19,5 +20,5 @@ export function webInsteadCommand(slug: string, url: string | undefined) {
  * with `connect_app`, whose card opens the site in the window's browser.
  */
 export function webInsteadStep(slug: string, url: string | undefined): string {
-  return `Next, sign in on the web in ${APP_NAME}'s browser: \`${webInsteadCommand(slug, url)}\`, then connect_app; its card opens the site, and the app is worked in a tab there.`;
+  return `Next, sign in on the web in ${APP_NAME}'s browser: \`${webInsteadCommand(slug, url)}\`, then ${TOOL_NAMES.connectApp}; its card opens the site, and the app is worked in a tab there.`;
 }

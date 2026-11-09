@@ -1,3 +1,4 @@
+import { TOOL_NAMES } from "./name";
 import os from "node:os";
 import { chatDir, chatOwnFolder } from "../lib/record-folders";
 import { fileTouches, watchCall } from "../lib/transcript/file-changes";
@@ -596,7 +597,7 @@ const bashCapability = defineCapability({
           type: "content",
           value: [
             {
-              text: `${text.value}\n\nThe screenshot the call took, as \`read_file\` would show it${describeImageSize(output.screenshot)}:`,
+              text: `${text.value}\n\nThe screenshot the call took, as \`${TOOL_NAMES.readFile}\` would show it${describeImageSize(output.screenshot)}:`,
               type: "text",
             },
             {

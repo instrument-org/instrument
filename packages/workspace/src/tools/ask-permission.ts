@@ -1,3 +1,4 @@
+import { TOOL_NAMES } from "./name";
 import ms from "ms";
 import { ok } from "neverthrow";
 import { existsSync, statSync } from "node:fs";
@@ -289,7 +290,7 @@ async function appToAsk(
   const inApps = MAC_APPS.find((each) => each.bundleId === bundleId);
   if (inApps !== undefined) {
     return {
-      message: `${inApps.name} is an app in Apps rather than something to ask for here. Use it with \`${APP_COMMAND.name} call ${inApps.server}\`; if it isn't connected, ${role === "chat" ? `\`${APP_COMMAND.name} catalog ${inApps.server}\` has its set-up line, then connect_app.` : APPS_ARE_THE_CHATS}`,
+      message: `${inApps.name} is an app in Apps rather than something to ask for here. Use it with \`${APP_COMMAND.name} call ${inApps.server}\`; if it isn't connected, ${role === "chat" ? `\`${APP_COMMAND.name} catalog ${inApps.server}\` has its set-up line, then ${TOOL_NAMES.connectApp}.` : APPS_ARE_THE_CHATS}`,
       state: "refused",
     };
   }

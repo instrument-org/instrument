@@ -1,3 +1,4 @@
+import { TOOL_NAMES } from "../../tools/name";
 import { APP_NAME } from "@instrument-org/shared";
 
 import { type AbsolutePath } from "../../schemas/paths";
@@ -188,7 +189,7 @@ export async function runAppTest({
     checks.push({
       name: "credential",
       ...failure(
-        `No key is stored for this app; its server reads one from ${app.manifest.auth.envVar}. Ask the user for one with connect_app, then test again.`,
+        `No key is stored for this app; its server reads one from ${app.manifest.auth.envVar}. Ask the user for one with ${TOOL_NAMES.connectApp}, then test again.`,
       ),
     });
   } else if (app.manifest.auth.kind === "oauth") {
@@ -208,7 +209,7 @@ export async function runAppTest({
       checks.push({
         name: "credential",
         ...failure(
-          "No sign-in is stored for this app. Ask the user to sign in with connect_app; the app connects on its own when they do.",
+          `No sign-in is stored for this app. Ask the user to sign in with ${TOOL_NAMES.connectApp}; the app connects on its own when they do.`,
         ),
       });
     } else if (signIn.origin !== origin) {
@@ -235,7 +236,7 @@ export async function runAppTest({
     checks.push({
       name: "credential",
       ...failure(
-        "No key is stored for this app. Ask the user for one with connect_app, then test again.",
+        `No key is stored for this app. Ask the user for one with ${TOOL_NAMES.connectApp}, then test again.`,
       ),
     });
   } else {
@@ -316,7 +317,7 @@ export async function runAppTest({
         ...failure(
           `${redact(mcpResult.error.message)}${
             refusedClient
-              ? ` The server refuses ${APP_NAME}'s sign-in client, so signing in again meets the same refusal. Sign in on the web instead: \`${webInsteadCommand(slug, webInsteadUrl(slug, manifest))}\`, then connect_app.`
+              ? ` The server refuses ${APP_NAME}'s sign-in client, so signing in again meets the same refusal. Sign in on the web instead: \`${webInsteadCommand(slug, webInsteadUrl(slug, manifest))}\`, then ${TOOL_NAMES.connectApp}.`
               : ""
           }`,
         ),
@@ -385,7 +386,7 @@ export async function runAppTest({
       ...failure(
         `${canaryMethod} ${manifest.test.path} returned ${canary.value.status}. ${
           signedIn && canary.value.status === 401
-            ? `The sign-in was refused even after a refresh. Ask the user to sign in again with connect_app; if that sign-in fails or is refused, sign in on the web instead: \`${webInsteadCommand(slug, webInsteadUrl(slug, manifest))}\`, then connect_app.`
+            ? `The sign-in was refused even after a refresh. Ask the user to sign in again with ${TOOL_NAMES.connectApp}; if that sign-in fails or is refused, sign in on the web instead: \`${webInsteadCommand(slug, webInsteadUrl(slug, manifest))}\`, then ${TOOL_NAMES.connectApp}.`
             : signedIn && rejected
               ? `The API knows the signed-in account and refuses it this request: the account, or what the sign-in asked for, lacks a permission it needs.`
               : rejected
@@ -393,7 +394,7 @@ export async function runAppTest({
                   // one when it rides in the wrong place, and the placement is the
                   // thing the agent chose and can change. Naming only the key sends
                   // it back to the card for a key that was right all along.
-                  `The key was refused. That is as often the wrong placement as the wrong key: a service that documents Basic credentials, an \`X-Api-Key\`, or an \`api_key\` query parameter refuses a bearer token just like this. Try the placements the manifest can take (bearer, basic, basic:<user>, header:<Name>, query:<param>) with \`${APP_COMMAND.name} new ${slug} ... --force\`, then \`${APP_COMMAND.name} test ${slug}\`, which reuses the stored key and does not ask the user. Only once every one is refused is the key itself in question: ask for it again with connect_app, saying what was wrong.`
+                  `The key was refused. That is as often the wrong placement as the wrong key: a service that documents Basic credentials, an \`X-Api-Key\`, or an \`api_key\` query parameter refuses a bearer token just like this. Try the placements the manifest can take (bearer, basic, basic:<user>, header:<Name>, query:<param>) with \`${APP_COMMAND.name} new ${slug} ... --force\`, then \`${APP_COMMAND.name} test ${slug}\`, which reuses the stored key and does not ask the user. Only once every one is refused is the key itself in question: ask for it again with ${TOOL_NAMES.connectApp}, saying what was wrong.`
                 : `Expected a 2xx response; fix the test path or the manifest. Some APIs require static headers on every request (an API-version header, say): set them in the manifest's "headers".`
         } Response body: ${redactCredential(redact(canary.value.bodyText), sent).slice(0, 400)}`,
       ),
@@ -481,8 +482,8 @@ async function testWebApp({
           name: "credential",
           ...failure(
             connection?.status === "connected"
-              ? `The manifest changed since the user said they were signed in, so the sign-in may be for another site. Ask them again with connect_app.`
-              : `The user has not said they are signed in to ${name}. Ask them with connect_app: the card opens ${manifest.signIn ?? manifest.url} in ${APP_NAME}'s browser, and the app connects when they say they are signed in.`,
+              ? `The manifest changed since the user said they were signed in, so the sign-in may be for another site. Ask them again with ${TOOL_NAMES.connectApp}.`
+              : `The user has not said they are signed in to ${name}. Ask them with ${TOOL_NAMES.connectApp}: the card opens ${manifest.signIn ?? manifest.url} in ${APP_NAME}'s browser, and the app connects when they say they are signed in.`,
           ),
         },
   );

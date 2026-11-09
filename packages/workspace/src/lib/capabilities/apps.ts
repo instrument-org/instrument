@@ -1,3 +1,4 @@
+import { TOOL_NAMES } from "../../tools/name";
 import { APP_NAME } from "@instrument-org/shared";
 import ms from "ms";
 import { isPlainObject } from "radashi";
@@ -499,13 +500,13 @@ export const appsCall = defineCapability({
       if (forTask !== undefined) {
         throw forTask;
       }
-      const web = `\`${webInsteadCommand(app.slug, webInsteadUrl(app.slug, manifest))}\`, then connect_app`;
+      const web = `\`${webInsteadCommand(app.slug, webInsteadUrl(app.slug, manifest))}\`, then ${TOOL_NAMES.connectApp}`;
       const next: Partial<Record<typeof result.error.reason, string>> = {
         forbidden: ` A 403 usually means the account lacks a permission, scope or plan on the service's side, which signing in again does not change; ${ctx.role === "chat" ? `tell the user what the server said. Some servers send it for a bad key too: \`${APP_COMMAND.name} test ${app.slug}\` checks the key.` : "say in your report what the server said."}`,
         unauthorized:
           manifest.auth.kind === "oauth"
-            ? ` The sign-in is gone. Ask for it again with connect_app; if that sign-in fails or is refused, sign in on the web instead: ${web}.`
-            : ` Run \`${APP_COMMAND.name} test ${app.slug}\`; if the sign-in is gone, ask for it again with connect_app.`,
+            ? ` The sign-in is gone. Ask for it again with ${TOOL_NAMES.connectApp}; if that sign-in fails or is refused, sign in on the web instead: ${web}.`
+            : ` Run \`${APP_COMMAND.name} test ${app.slug}\`; if the sign-in is gone, ask for it again with ${TOOL_NAMES.connectApp}.`,
       };
       // A sign-in the server will never take from this client, or one whose
       // message already says what to do, needs nothing more said.

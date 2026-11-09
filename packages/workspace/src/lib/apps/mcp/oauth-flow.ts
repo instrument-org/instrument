@@ -1,3 +1,4 @@
+import { TOOL_NAMES } from "../../../tools/name";
 import { APP_NAME } from "@instrument-org/shared";
 import { auth } from "@modelcontextprotocol/sdk/client/auth.js";
 import { Client } from "@modelcontextprotocol/sdk/client/index.js";
@@ -424,7 +425,7 @@ export async function completeMcpOAuth({
       new URL(current.url).origin !== new URL(flow.url).origin
     ) {
       return err({
-        message: `Signed in, but app "${flow.slug}" now points at another server. Ask the user to sign in again with connect_app.`,
+        message: `Signed in, but app "${flow.slug}" now points at another server. Ask the user to sign in again with ${TOOL_NAMES.connectApp}.`,
         reason: "unauthorized",
       });
     }

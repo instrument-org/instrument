@@ -1,3 +1,4 @@
+import { TOOL_NAMES } from "../../tools/name";
 import path from "node:path";
 
 import { type AbsolutePath } from "../../schemas/paths";
@@ -120,7 +121,7 @@ in front of the user.
 help(instrument.apps.request) and describe() show what this shell can call.
 
 Calls block and are safe from threads, so a ThreadPoolExecutor fans out. One
-the person has to answer raises: NeedsPermission (ask with ask_permission),
+the person has to answer raises: NeedsPermission (ask with ${TOOL_NAMES.askPermission}),
 CardShown (a card is up; the turn ends), ReadGuideFirst (its message is the
 app's guide; read it, then run the script again). Anything else raises Error.
 """
@@ -161,7 +162,7 @@ class Error(Exception):
 
 
 class NeedsPermission(Error):
-    """The call needs the person's yes: ask for what ask names with ask_permission."""
+    """The call needs the person's yes: ask for what ask names with ${TOOL_NAMES.askPermission}."""
 
     def __init__(self, message, ask=None):
         super().__init__(message, "ask")

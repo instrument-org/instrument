@@ -1,3 +1,4 @@
+import { TOOL_NAMES } from "./name";
 import ms from "ms";
 import { ok } from "neverthrow";
 import { dedent } from "radashi";
@@ -61,8 +62,7 @@ const INPUT_PARAMS = {
  */
 const SEARCH_TEXT_BUDGET = 10_000;
 
-const SHORTENING_NOTE =
-  "Some retrieved text below was shortened so that one search cannot fill the context window. Each shortened passage says so at the point it was cut, and the source list is complete: fetch a source's URL with web_fetch when you need more of that page than is shown here.";
+const SHORTENING_NOTE = `Some retrieved text below was shortened so that one search cannot fill the context window. Each shortened passage says so at the point it was cut, and the source list is complete: fetch a source's URL with ${TOOL_NAMES.webFetch} when you need more of that page than is shown here.`;
 
 /**
  * Says that boilerplate was removed, since the alternative is a result that
@@ -74,7 +74,7 @@ const SHORTENING_NOTE =
  * search, and only when something was actually dropped.
  */
 function boilerplateNote(lines: number): string {
-  return `${lines} ${lines === 1 ? "line that appeared" : "lines that appeared"} in three or more of these results -- site navigation, buttons, and other repeated page furniture -- ${lines === 1 ? "is" : "are"} shown under the first result carrying ${lines === 1 ? "it" : "them"} and omitted from the rest. Nothing unique to a page was removed; fetch a source's URL with web_fetch to see one whole.`;
+  return `${lines} ${lines === 1 ? "line that appeared" : "lines that appeared"} in three or more of these results -- site navigation, buttons, and other repeated page furniture -- ${lines === 1 ? "is" : "are"} shown under the first result carrying ${lines === 1 ? "it" : "them"} and omitted from the rest. Nothing unique to a page was removed; fetch a source's URL with ${TOOL_NAMES.webFetch} to see one whole.`;
 }
 
 /**
@@ -335,7 +335,7 @@ async function* searchOutputs({
   const input = { query };
   if (input.query.trim().toLowerCase() === PLACEHOLDER_QUERY) {
     yield ok({
-      errorMessage: `No search was performed: "${input.query}" does not name anything to look for. Call web_search again with the question you actually want answered, or skip the call.`,
+      errorMessage: `No search was performed: "${input.query}" does not name anything to look for. Call ${TOOL_NAMES.webSearch} again with the question you actually want answered, or skip the call.`,
       errorType: "invalid-query" as const,
       state: "failure" as const,
     });
@@ -478,7 +478,7 @@ function sameExcerptText(
 ): string | undefined {
   return sameAs === undefined
     ? undefined
-    : `[Same excerpt as result ${sameAs.position} of the web_search for ${JSON.stringify(sameAs.query)}.]`;
+    : `[Same excerpt as result ${sameAs.position} of the ${TOOL_NAMES.webSearch} for ${JSON.stringify(sameAs.query)}.]`;
 }
 
 /**

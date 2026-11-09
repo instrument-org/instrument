@@ -1,3 +1,4 @@
+import { TOOL_NAMES } from "../../tools/name";
 import {
   exchangeAuthorization,
   refreshAuthorization,
@@ -42,7 +43,7 @@ export class SignInNeededError extends Error {
     options?: ErrorOptions,
   ) {
     super(
-      `This app needs the user to sign in again. Ask with connect_app; if that sign-in fails or is refused, sign in on the web instead: \`${webInsteadCommand(slug, webInsteadUrl(slug, manifest))}\`, then connect_app.`,
+      `This app needs the user to sign in again. Ask with ${TOOL_NAMES.connectApp}; if that sign-in fails or is refused, sign in on the web instead: \`${webInsteadCommand(slug, webInsteadUrl(slug, manifest))}\`, then ${TOOL_NAMES.connectApp}.`,
       options,
     );
   }
@@ -58,7 +59,7 @@ class RefreshFailedError extends Error {
     options: ErrorOptions & { cause: unknown },
   ) {
     super(
-      `Refreshing ${slug}'s sign-in failed: ${describeMcpFailure(options.cause)}. Signing in again does not change this. Try again in a minute; if it keeps failing, sign in on the web instead: \`${webInsteadCommand(slug, webInsteadUrl(slug, manifest))}\`, then connect_app.`,
+      `Refreshing ${slug}'s sign-in failed: ${describeMcpFailure(options.cause)}. Signing in again does not change this. Try again in a minute; if it keeps failing, sign in on the web instead: \`${webInsteadCommand(slug, webInsteadUrl(slug, manifest))}\`, then ${TOOL_NAMES.connectApp}.`,
       options,
     );
   }
@@ -198,7 +199,7 @@ async function apiAccessToken(
     // With no client a new sign-in cannot start either, so the web is all
     // that is left.
     throw new Error(
-      `The directory no longer has a sign-in client for ${manifest.url}, so "${slug}" can neither refresh its sign-in nor start a new one. Sign in on the web instead: \`${webInsteadCommand(slug, webInsteadUrl(slug, manifest))}\`, then connect_app.`,
+      `The directory no longer has a sign-in client for ${manifest.url}, so "${slug}" can neither refresh its sign-in nor start a new one. Sign in on the web instead: \`${webInsteadCommand(slug, webInsteadUrl(slug, manifest))}\`, then ${TOOL_NAMES.connectApp}.`,
     );
   }
   if (refreshToken === undefined) {

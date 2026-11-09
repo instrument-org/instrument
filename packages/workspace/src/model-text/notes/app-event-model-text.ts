@@ -1,3 +1,4 @@
+import { TOOL_NAMES } from "../../tools/name";
 import { type SessionMessageDataPart } from "../../schemas/session/message-data-part";
 import { APP_NAME } from "@instrument-org/shared";
 
@@ -84,7 +85,7 @@ type AppEventLine = SessionMessageDataPart.AppEventDataPart["events"][number];
  */
 function notOnCardLines(notOnCard: SessionMessageDataPart.NotOnCard): string[] {
   return [
-    `Never on the card, so not connected: ${notOnCard.length === 1 ? "an app" : "apps"} your connect_app call named that could not be asked for:`,
+    `Never on the card, so not connected: ${notOnCard.length === 1 ? "an app" : "apps"} your ${TOOL_NAMES.connectApp} call named that could not be asked for:`,
     ...notOnCard.map(({ reason, slug }) => `- ${slug}: ${reason}`),
     "Your reply names each of these as not connected and says what it needs, beside what the card settled; the user has not seen this.",
   ];
@@ -118,7 +119,7 @@ function signInEnded(
 ): string {
   const said = detail ? `: ${detail}` : "";
   const onCard = `The card now offers signing in on the service's site in ${APP_NAME}'s browser, which connects the app when they finish`;
-  const wait = `Say so in a line and wait: do not change the app or call connect_app again.`;
+  const wait = `Say so in a line and wait: do not change the app or call ${TOOL_NAMES.connectApp} again.`;
   switch (ended) {
     case "canceled":
     case "expired": {
@@ -126,7 +127,7 @@ function signInEnded(
         ended === "canceled"
           ? `The user stopped signing in to ${name} (${slug}) before it finished.`
           : `The sign-in to ${name} (${slug}) was left unfinished and lapsed.`;
-      return `- ${what} The card offers signing in on the web or trying again; ask which in a line. For the web: \`${webInsteadCommand(slug, web)}\`, then connect_app. To try again: connect_app as it is.`;
+      return `- ${what} The card offers signing in on the web or trying again; ask which in a line. For the web: \`${webInsteadCommand(slug, web)}\`, then ${TOOL_NAMES.connectApp}. To try again: ${TOOL_NAMES.connectApp} as it is.`;
     }
     case "failed": {
       return web === undefined

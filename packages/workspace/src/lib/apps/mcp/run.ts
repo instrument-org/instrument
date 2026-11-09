@@ -1,3 +1,4 @@
+import { TOOL_NAMES } from "../../../tools/name";
 import { type Client } from "@modelcontextprotocol/sdk/client/index.js";
 import { err, type Result } from "neverthrow";
 
@@ -50,8 +51,8 @@ export async function withAppMcpClient<T>({
     return err({
       message:
         manifest.runtime === "bundled"
-          ? `Connecting ${slug} needs the user's go-ahead. Ask with connect_app; they connect it on the card.`
-          : `Running ${manifest.package} on this machine needs the user's go-ahead. Ask with connect_app; they see what would run and allow it.`,
+          ? `Connecting ${slug} needs the user's go-ahead. Ask with ${TOOL_NAMES.connectApp}; they connect it on the card.`
+          : `Running ${manifest.package} on this machine needs the user's go-ahead. Ask with ${TOOL_NAMES.connectApp}; they see what would run and allow it.`,
       reason: "unapproved",
     });
   }

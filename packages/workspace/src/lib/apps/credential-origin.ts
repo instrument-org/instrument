@@ -1,3 +1,4 @@
+import { TOOL_NAMES } from "../../tools/name";
 import { APP_COMMAND } from "../../model-text/commands/app-command";
 import { getWorkspaceConfig } from "../workspace-config";
 import { type AppManifest } from "./manifest";
@@ -17,7 +18,7 @@ export function credentialMovedMessage({
   savedFor: string;
   sendsTo: string;
 }): string {
-  return `The stored ${noun} was approved for ${savedFor}, and this manifest would send it to ${sendsTo}. A ${noun} only goes where the user gave it: ask for it again with connect_app.`;
+  return `The stored ${noun} was approved for ${savedFor}, and this manifest would send it to ${sendsTo}. A ${noun} only goes where the user gave it: ask for it again with ${TOOL_NAMES.connectApp}.`;
 }
 
 export type AppCredentialLookup =
@@ -64,7 +65,7 @@ export async function requireAppCredential(
   switch (found.kind) {
     case "missing": {
       throw new Error(
-        `"${slug}" has no key stored. Ask the user for one with connect_app, then \`${APP_COMMAND.name} test ${slug}\` after the note.`,
+        `"${slug}" has no key stored. Ask the user for one with ${TOOL_NAMES.connectApp}, then \`${APP_COMMAND.name} test ${slug}\` after the note.`,
       );
     }
     case "moved": {

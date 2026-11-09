@@ -1,3 +1,4 @@
+import { TOOL_NAMES } from "../../../tools/name";
 import {
   type OAuthClientProvider,
   UnauthorizedError,
@@ -58,7 +59,7 @@ export function mcpAuthProviderForCommand(
     ...signIn,
     openAuthorization: () => {
       throw new SignInAgainError(
-        `This app needs the user to sign in again. Ask with connect_app; if that sign-in fails or is refused, sign in on the web instead: \`${webInsteadCommand(slug, webInsteadUrl(slug, manifest))}\`, then connect_app.`,
+        `This app needs the user to sign in again. Ask with ${TOOL_NAMES.connectApp}; if that sign-in fails or is refused, sign in on the web instead: \`${webInsteadCommand(slug, webInsteadUrl(slug, manifest))}\`, then ${TOOL_NAMES.connectApp}.`,
       );
     },
     origin: credentialOrigin(manifest),

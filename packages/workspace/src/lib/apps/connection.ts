@@ -1,3 +1,4 @@
+import { TOOL_NAMES } from "../../tools/name";
 import { z } from "zod";
 
 import { type AbsolutePath } from "../../schemas/paths";
@@ -98,13 +99,13 @@ export function describeConnection(
       return `failed${connection.error ? `: ${connection.error}` : ""}`;
     }
     case "needs-approval": {
-      return `needs the user to allow its server to run on this machine${next("connect_app")}`;
+      return `needs the user to allow its server to run on this machine${next(TOOL_NAMES.connectApp)}`;
     }
     case "needs-key": {
-      return `needs a key from the user${next("connect_app")}`;
+      return `needs a key from the user${next(TOOL_NAMES.connectApp)}`;
     }
     case "needs-sign-in": {
-      return `needs the user to sign in${next("connect_app")}`;
+      return `needs the user to sign in${next(TOOL_NAMES.connectApp)}`;
     }
   }
 }

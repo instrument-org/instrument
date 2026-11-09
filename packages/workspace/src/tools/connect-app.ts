@@ -1,3 +1,4 @@
+import { TOOL_NAMES } from "./name";
 import { type ToolResultPart } from "ai";
 import ms from "ms";
 import { ok } from "neverthrow";
@@ -266,7 +267,7 @@ function cardModelOutput(
   const failedAll = results.every((result) => result.state === "failure");
   if (!failedAll && results.some((result) => result.state === "failure")) {
     lines.push(
-      "The user cannot connect an app that is not on the card. Fix each one now and ask for it with connect_app on its own, or tell the user, in your line, that it is not connected and why.",
+      `The user cannot connect an app that is not on the card. Fix each one now and ask for it with ${TOOL_NAMES.connectApp} on its own, or tell the user, in your line, that it is not connected and why.`,
     );
   }
   return failedAll

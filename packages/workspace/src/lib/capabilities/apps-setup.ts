@@ -1,3 +1,4 @@
+import { TOOL_NAMES } from "../../tools/name";
 import { APP_NAME } from "@instrument-org/shared";
 import { findSecrets } from "@instrument-org/shared/secrets";
 import { APP_CATEGORIES } from "@instrument-org/shared/app-directory";
@@ -119,7 +120,7 @@ function describeCatalogEntry(entry: AppCatalogEntry, role: Role): string {
                 ? `none: ${APP_NAME} has no way into ${way.name} in this build, so tell the user that rather than looking for another way in.`
                 : `${start} --web ${entry.home ?? `https://${entry.domain}`}  (${APP_NAME} has no way into ${way.name} in this build, so ${entry.name} is worked on its site)`
               : entry.family === "apple"
-                ? `${APP_COMMAND.name} new ${entry.slug} --name '${macApp.name}' --local ${macApp.server} --runtime bundled, then connect_app: ${APP_NAME}'s own way into ${macApp.name}, which reads every account added there.`
+                ? `${APP_COMMAND.name} new ${entry.slug} --name '${macApp.name}' --local ${macApp.server} --runtime bundled, then ${TOOL_NAMES.connectApp}: ${APP_NAME}'s own way into ${macApp.name}, which reads every account added there.`
                 : `through ${macApp.name} on this Mac when its account is added there, which is \`${APP_COMMAND.name} catalog ${macApp.server}\`; otherwise \`${start} --web ${entry.home ?? `https://${entry.domain}`}\`.`
             : `${start} --web ${way.url}  (on the web: no other way in works from here yet, so the user signs in on the site in ${APP_NAME}'s browser and it is worked in a tab)`;
   const keySurface =
@@ -219,7 +220,7 @@ async function runDisconnect(slug: string) {
   const app = await requireApp(slug, { connected: false });
   await getWorkspaceConfig().apps.disconnect(app.slug);
   return ok(
-    `Disconnected ${app.slug}. Its folder at ${appsFolder()}/${app.name}/ stays; connect_app asks the user again.\n`,
+    `Disconnected ${app.slug}. Its folder at ${appsFolder()}/${app.name}/ stays; ${TOOL_NAMES.connectApp} asks the user again.\n`,
   );
 }
 
@@ -250,7 +251,7 @@ async function runGuide(slug: string, text: string | undefined, role: Role) {
     return ok(
       left.length > 0
         ? `Wrote the guide in ${appsFolder()}/${app.name}/${APP_FILE_NAME}, but these prompts are still in it: ${left.map((prompt) => `"${prompt}"`).join(" ")} Replace each with its answer and write it again.\n`
-        : `Wrote the guide in ${appsFolder()}/${app.name}/${APP_FILE_NAME}. Run \`${APP_COMMAND.name} test ${app.slug}\`, or ask with connect_app.\n`,
+        : `Wrote the guide in ${appsFolder()}/${app.name}/${APP_FILE_NAME}. Run \`${APP_COMMAND.name} test ${app.slug}\`, or ask with ${TOOL_NAMES.connectApp}.\n`,
     );
   }
   const guide = await readAppGuide(app.dir);
@@ -595,16 +596,16 @@ async function runNew(input: z.output<typeof NewInput>) {
       : await lookupAppCredential(slug, manifest);
   const next =
     manifest.type === "web"
-      ? `Ask the user to sign in with connect_app: the card opens ${manifest.signIn ?? manifest.url} in ${APP_NAME}'s browser, and the app connects when they say they are signed in.`
+      ? `Ask the user to sign in with ${TOOL_NAMES.connectApp}: the card opens ${manifest.signIn ?? manifest.url} in ${APP_NAME}'s browser, and the app connects when they say they are signed in.`
       : manifest.auth.kind === "none"
         ? `Run \`${APP_COMMAND.name} test ${slug}\`.`
         : manifest.auth.kind === "oauth"
-          ? `Ask the user to sign in with connect_app; the app connects on its own when they do.`
+          ? `Ask the user to sign in with ${TOOL_NAMES.connectApp}; the app connects on its own when they do.`
           : stored?.kind === "ok"
-            ? `A key for this app is already stored for ${credentialOrigin(manifest)}: run \`${APP_COMMAND.name} test ${slug}\` to try it against this manifest, without asking the user again. Ask for it with connect_app only once every placement has been refused.`
+            ? `A key for this app is already stored for ${credentialOrigin(manifest)}: run \`${APP_COMMAND.name} test ${slug}\` to try it against this manifest, without asking the user again. Ask for it with ${TOOL_NAMES.connectApp} only once every placement has been refused.`
             : stored?.kind === "moved"
               ? credentialMovedMessage({ noun: "key", ...stored })
-              : `Ask the user for the key with connect_app, then \`${APP_COMMAND.name} test ${slug}\` after the note.`;
+              : `Ask the user for the key with ${TOOL_NAMES.connectApp}, then \`${APP_COMMAND.name} test ${slug}\` after the note.`;
   const another =
     siblings.length > 0
       ? ` It is another ${name} account beside ${siblings.map((app) => (app.manifest.account ? `${app.slug} (${app.manifest.account})` : app.slug)).join(", ")}, so it keeps the name ${name}${givenName === name ? "" : ` rather than "${givenName}"`}: its account is what tells them apart, named when the user has signed in.`

@@ -1675,8 +1675,11 @@ function useVirtualWindow({
   overscan?: number;
   viewportRef: React.RefObject<HTMLDivElement | null>;
 }) {
+  // Kept in items from the viewport's start, whatever the count: a count
+  // that grows (a grid taking fewer columns as it narrows) is drawn to the
+  // window's end in the same render, so no item leaves and comes back.
   const [window_, setWindow] = React.useState(() => ({
-    end: Math.min(count, overscan * 2),
+    end: overscan * 2,
     start: 0,
   }));
   React.useLayoutEffect(() => {
@@ -1693,20 +1696,16 @@ function useVirtualWindow({
         (horizontal ? viewport.clientWidth : viewport.clientHeight) ||
         (horizontal ? window.innerWidth : window.innerHeight);
       const firstVisible = Math.max(0, Math.floor(scrollStart / itemStride));
-      const lastVisible = Math.min(
-        count,
-        Math.ceil((scrollStart + viewportSize) / itemStride),
-      );
+      const lastVisible = Math.ceil((scrollStart + viewportSize) / itemStride);
       setWindow((previous) => {
         if (
-          previous.end <= count &&
           previous.start <= Math.max(0, firstVisible - 1) &&
-          previous.end >= Math.min(count, lastVisible + 1)
+          previous.end >= lastVisible + 1
         ) {
           return previous;
         }
         return {
-          end: Math.min(count, lastVisible + overscan),
+          end: lastVisible + overscan,
           start: Math.max(0, firstVisible - overscan),
         };
       });
@@ -1726,8 +1725,11 @@ function useVirtualWindow({
       document.removeEventListener("visibilitychange", update);
       window.removeEventListener("focus", update);
     };
-  }, [count, horizontal, itemStride, leadingPx, overscan, viewportRef]);
-  return window_;
+  }, [horizontal, itemStride, leadingPx, overscan, viewportRef]);
+  return {
+    end: Math.min(count, window_.end),
+    start: Math.min(count, window_.start),
+  };
 }
 /** How far a press on empty space travels before it is a box being dragged rather than a click. */
 const MARQUEE_SLOP_PX = 4;

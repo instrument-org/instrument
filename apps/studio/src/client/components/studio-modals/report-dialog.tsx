@@ -7,6 +7,7 @@ import { Button } from "@/client/components/ui/button";
 import { Checkbox } from "@/client/components/ui/checkbox";
 import {
   Dialog,
+  DialogBody,
   DialogContent,
   DialogDescription,
   DialogFooter,
@@ -166,84 +167,86 @@ function ReportDialogContent({
         <DialogDescription>{request.intro}</DialogDescription>
       </div>
 
-      <div className="flex flex-col gap-1.5">
-        <label className="text-xs font-medium" htmlFor={noteId}>
-          {request.noteLabel}
-        </label>
-        <DictatedTextarea
-          autoFocus={request.focusNote}
-          id={noteId}
-          dictation={noteDictation}
-          maxLength={REPORT_NOTE_MAX_LENGTH}
-          onChange={(event) => {
-            setNote(event.target.value);
-          }}
-          placeholder="Optional"
-          value={note}
-        />
-      </div>
-
-      <div className="flex flex-col gap-2">
-        <button
-          aria-expanded={showDetails}
-          className="flex w-fit items-center gap-1 text-xs font-medium"
-          onClick={() => {
-            setShowDetails((shown) => !shown);
-          }}
-          type="button"
-        >
-          {showDetails ? (
-            <CaretDownIcon className="size-3" />
-          ) : (
-            <CaretRightIcon className="size-3" />
-          )}
-          {showDetails ? "Hide details" : "Show details"}
-        </button>
-        {showDetails && (
-          <pre className="max-h-60 overflow-auto rounded-lg bg-muted/60 px-3 py-2.5 font-mono text-[11px] leading-[17px] wrap-anywhere whitespace-pre-wrap select-text">
-            {details ?? "Gathering the details…"}
-          </pre>
-        )}
-        {showDetails && described && described.events.length > 0 && (
-          <>
-            <button
-              aria-expanded={showData}
-              className="flex w-fit items-center gap-1 text-xs font-medium"
-              onClick={() => {
-                setShowData((shown) => !shown);
-              }}
-              type="button"
-            >
-              {showData ? (
-                <CaretDownIcon className="size-3" />
-              ) : (
-                <CaretRightIcon className="size-3" />
-              )}
-              {showData ? "Hide the error data" : "Show the error data"}
-            </button>
-            {showData && (
-              <pre className="max-h-60 overflow-auto rounded-lg bg-muted/60 px-3 py-2.5 font-mono text-[11px] leading-[17px] wrap-anywhere whitespace-pre-wrap select-text">
-                {JSON.stringify(described.events, null, 2)}
-              </pre>
-            )}
-          </>
-        )}
-      </div>
-
-      {request.offerAlwaysSend && (
-        <label className="flex cursor-default items-start gap-2.5">
-          <Checkbox
-            checked={alwaysSend}
-            className="mt-0.5"
-            onCheckedChange={(value) => {
-              setAlwaysSend(value === true);
+      <DialogBody className="flex flex-col gap-4">
+        <div className="flex flex-col gap-1.5">
+          <label className="text-xs font-medium" htmlFor={noteId}>
+            {request.noteLabel}
+          </label>
+          <DictatedTextarea
+            autoFocus={request.focusNote}
+            id={noteId}
+            dictation={noteDictation}
+            maxLength={REPORT_NOTE_MAX_LENGTH}
+            onChange={(event) => {
+              setNote(event.target.value);
             }}
+            placeholder="Optional"
+            value={note}
           />
-          <span className="text-sm">
-            Send error reports automatically from now on
-          </span>
-        </label>
-      )}
+        </div>
+
+        <div className="flex flex-col gap-2">
+          <button
+            aria-expanded={showDetails}
+            className="flex w-fit items-center gap-1 text-xs font-medium"
+            onClick={() => {
+              setShowDetails((shown) => !shown);
+            }}
+            type="button"
+          >
+            {showDetails ? (
+              <CaretDownIcon className="size-3" />
+            ) : (
+              <CaretRightIcon className="size-3" />
+            )}
+            {showDetails ? "Hide details" : "Show details"}
+          </button>
+          {showDetails && (
+            <pre className="max-h-60 overflow-auto rounded-lg bg-muted/60 px-3 py-2.5 font-mono text-[11px] leading-[17px] wrap-anywhere whitespace-pre-wrap select-text">
+              {details ?? "Gathering the details…"}
+            </pre>
+          )}
+          {showDetails && described && described.events.length > 0 && (
+            <>
+              <button
+                aria-expanded={showData}
+                className="flex w-fit items-center gap-1 text-xs font-medium"
+                onClick={() => {
+                  setShowData((shown) => !shown);
+                }}
+                type="button"
+              >
+                {showData ? (
+                  <CaretDownIcon className="size-3" />
+                ) : (
+                  <CaretRightIcon className="size-3" />
+                )}
+                {showData ? "Hide the error data" : "Show the error data"}
+              </button>
+              {showData && (
+                <pre className="max-h-60 overflow-auto rounded-lg bg-muted/60 px-3 py-2.5 font-mono text-[11px] leading-[17px] wrap-anywhere whitespace-pre-wrap select-text">
+                  {JSON.stringify(described.events, null, 2)}
+                </pre>
+              )}
+            </>
+          )}
+        </div>
+
+        {request.offerAlwaysSend && (
+          <label className="flex cursor-default items-start gap-2.5">
+            <Checkbox
+              checked={alwaysSend}
+              className="mt-0.5"
+              onCheckedChange={(value) => {
+                setAlwaysSend(value === true);
+              }}
+            />
+            <span className="text-sm">
+              Send error reports automatically from now on
+            </span>
+          </label>
+        )}
+      </DialogBody>
 
       <DialogFooter>
         <Button onClick={onClose} variant="outline">

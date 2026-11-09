@@ -69,7 +69,7 @@ function DialogContent({
       <DialogOverlay className={overlayClassName} />
       <DialogPrimitive.Content
         className={cn(
-          "pointer-events-auto fixed top-[50%] left-[50%] z-50 grid w-full translate-[-50%] grid-cols-1 gap-4 overflow-y-auto rounded-3xl border bg-background p-6 shadow-float-lg duration-200 data-[state=closed]:pointer-events-none data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=closed]:zoom-out-95 data-[state=open]:animate-in data-[state=open]:fade-in-0 data-[state=open]:zoom-in-95",
+          "pointer-events-auto fixed top-[50%] left-[50%] z-50 grid w-full translate-[-50%] grid-cols-1 gap-4 overflow-y-auto rounded-3xl border bg-background p-6 shadow-float-lg duration-200 has-data-[slot=dialog-body]:flex has-data-[slot=dialog-body]:flex-col data-[state=closed]:pointer-events-none data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=closed]:zoom-out-95 data-[state=open]:animate-in data-[state=open]:fade-in-0 data-[state=open]:zoom-in-95",
           className,
         )}
         data-slot="dialog-content"
@@ -101,6 +101,24 @@ function DialogContent({
         )}
       </DialogPrimitive.Content>
     </DialogPortal>
+  );
+}
+
+/**
+ * The part of a dialog that scrolls once the dialog reaches its height, so
+ * the header above it and the footer below it stay in view. `DialogContent`
+ * lays out as a flex column while it holds one, since a grid's auto rows
+ * grow past the dialog's max height rather than shrink the body to fit.
+ * Without one the whole dialog scrolls, footer included. The body reaches
+ * into the content's padding so focus rings aren't clipped at its edges.
+ */
+function DialogBody({ className, ...props }: React.ComponentProps<"div">) {
+  return (
+    <div
+      className={cn("-mx-6 -my-1 min-h-0 overflow-y-auto px-6 py-1", className)}
+      data-slot="dialog-body"
+      {...props}
+    />
   );
 }
 
@@ -194,6 +212,7 @@ function DialogTrigger({
 
 export {
   Dialog,
+  DialogBody,
   DialogClose,
   DialogContent,
   DialogDescription,

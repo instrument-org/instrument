@@ -82,6 +82,7 @@ import { Transcript } from "../transcript/transcript";
 import { ThinkingRow } from "../transcript/turn-view";
 import { useTranscriptFeed } from "../transcript/use-transcript-feed";
 import { UserMessage } from "../user-message";
+import { ChatSeparatorRow } from "../chat-separator";
 import { chatListed, chatListOptions } from "../window/chat-list-query";
 import { WindowContext } from "../window/context";
 import { chatHref } from "../window/window-href";
@@ -764,7 +765,9 @@ function NoMessages() {
 
 /**
  * The words just sent, as the transcript will draw them once they are
- * stored, with the conversation's dots under them.
+ * stored, under the line that opens a chat with when it was sent, and with
+ * the conversation's dots under them, so the stored message lands where
+ * they stand.
  */
 function SentPrompt({
   sessionId,
@@ -788,7 +791,12 @@ function SentPrompt({
   );
   return (
     <div className="flex flex-col gap-4">
-      <UserMessage part={part} />
+      <div className="flex flex-col gap-1 pb-2">
+        <ChatSeparatorRow
+          separator={{ at: part.metadata.createdAt, timed: true }}
+        />
+        <UserMessage part={part} />
+      </div>
       <ThinkingRow since={part.metadata.createdAt} />
     </div>
   );

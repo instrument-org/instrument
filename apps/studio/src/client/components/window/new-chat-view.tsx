@@ -159,6 +159,21 @@ export function NewChatView({
       }
     };
   }, [boundId, setSnapshots]);
+  // The draft sent from here is the chat on its way, so the box lets go of
+  // it as the tab moves to the chat, and a new chat here starts empty.
+  useEffect(
+    () => () => {
+      const sent = draftInNewChatBox(
+        store.get(draftsAtom),
+        store.get(newChatBoxesAtom),
+        tabId,
+      );
+      if (sent?.sendingTo !== undefined) {
+        bindBox({ draftId: null, tabId });
+      }
+    },
+    [bindBox, store, tabId],
+  );
   // A draft made here, by the first words or the first thing opened beside
   // them, is put in the address, so a back or a relaunch finds it. Only one
   // made here: a draft taken up from the address is the address's to name,
@@ -377,10 +392,9 @@ export function NewChatView({
             const send = staging.asStaged(sending);
             cancelWords(newChatWordsKey(tabId));
             const id = draft?.id ?? makeDraft({ tabId, words: send.prompt });
-            // The screen is a new chat again from the press: the draft is
-            // the chat on its way, and the tab goes to it.
-            bindBox({ draftId: null, tabId });
-            inputRef.current?.clear();
+            // The screen stays as it was sent, the words and the project
+            // with it, until the tab moves to the chat, which has them in
+            // its place from its first frame.
             shell.startChat(id, send);
           }}
           placeholder="What do you need?"

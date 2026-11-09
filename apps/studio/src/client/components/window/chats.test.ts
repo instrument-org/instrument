@@ -1,4 +1,8 @@
-import { type ChatId, ChatIdSchema } from "@instrument-org/workspace/client";
+import {
+  type ChatId,
+  ChatIdSchema,
+  StoreId,
+} from "@instrument-org/workspace/client";
 import { describe, expect, it } from "vitest";
 
 import {
@@ -6,6 +10,8 @@ import {
   byActivity,
   byLastUserMessage,
   byNewestChat,
+  type Chat,
+  chatAsSent,
   type ChatFilters,
   chatTabMark,
   dayHeading,
@@ -603,5 +609,64 @@ describe("chatTabMark", () => {
     ["the inbox", "/chats", marks, false, { isWorking: false }],
   ])("%s", (_label, href, chatMarks, isUp, expected) => {
     expect(chatTabMark(href, chatMarks, { isUp })).toEqual(expected);
+  });
+});
+
+describe("a chat's head while its first message is on its way", () => {
+  function started(overrides: Partial<Chat> = {}): Chat {
+    return {
+      archived: false,
+      firstAsk: "",
+      holds: { apps: [], files: [], sites: [] },
+      id: ChatIdSchema.parse("2026-11-09-water-the-beans"),
+      lastUserMessageAt: 0,
+      sessionId: StoreId.newSessionId(),
+      starred: false,
+      status: "idle",
+      title: "Untitled chat",
+      titleByApp: true,
+      unread: false,
+      unreadByUser: false,
+      working: false,
+      ...overrides,
+    };
+  }
+  type Sent = Parameters<typeof chatAsSent>[1];
+  const SENT: Sent = {
+    project: "garden",
+    words: "Water the beans\nTwice a day",
+  };
+
+  it.each<[string, Partial<Chat>, Sent, Partial<Chat>]>([
+    [
+      "a chat made with nothing in it yet",
+      {},
+      SENT,
+      { project: "garden", title: "Water the beans" },
+    ],
+    [
+      "one sent under no project",
+      {},
+      { project: undefined, words: SENT.words },
+      { title: "Water the beans" },
+    ],
+    [
+      "one its record has filed already",
+      { project: "kitchen" },
+      SENT,
+      { project: "kitchen", title: "Water the beans" },
+    ],
+    [
+      "one whose message has landed",
+      { firstAsk: "Water the beans", title: "Bean watering" },
+      SENT,
+      { title: "Bean watering" },
+    ],
+  ])("%s", (_label, record, sent, shown) => {
+    const head = chatAsSent(started(record), sent);
+    expect({ project: head.project, title: head.title }).toEqual({
+      project: undefined,
+      ...shown,
+    });
   });
 });

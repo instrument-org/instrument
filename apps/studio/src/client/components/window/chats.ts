@@ -309,6 +309,29 @@ export function draftTitle(words: string): string {
   );
 }
 
+/**
+ * A chat whose first message is on its way, as its head shows it: named by
+ * the words sent and filed under the project they were sent under until its
+ * record has the message, so the head reads from the press as it will once
+ * the chat has started.
+ */
+export function chatAsSent(
+  chat: Chat,
+  sent: { project: string | undefined; words: string },
+): Chat {
+  if (chat.firstAsk !== "") {
+    return chat;
+  }
+  return {
+    ...chat,
+    // With no message there is nothing the chat could be named by yet.
+    title: draftTitle(sent.words),
+    ...(chat.project === undefined && sent.project !== undefined
+      ? { project: sent.project }
+      : {}),
+  };
+}
+
 /** The dot the rail's Chat entry wears while the window stands elsewhere. */
 export type RailChatMark = "unread" | "waiting" | "working";
 

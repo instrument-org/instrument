@@ -115,6 +115,11 @@ export function useDrafts({
   const [sentWords, setSentWords] = useState<ReadonlyMap<ChatId, string>>(
     () => new Map(),
   );
+  // The project each of those chats was sent under, by chat, which the
+  // chat's head wears until the chat's own record files it.
+  const [sentProjects, setSentProjects] = useState<ReadonlyMap<ChatId, string>>(
+    () => new Map(),
+  );
   const [startingIds, setStartingIds] = useState<ReadonlySet<string>>(
     () => new Set(),
   );
@@ -136,6 +141,7 @@ export function useDrafts({
     const timer = setTimeout(() => {
       setArrived(undefined);
       setSentWords((current) => withoutKey(current, arrived.chatId));
+      setSentProjects((current) => withoutKey(current, arrived.chatId));
     }, CHAT_ARRIVAL_MS);
     return () => {
       clearTimeout(timer);
@@ -406,6 +412,10 @@ export function useDrafts({
         () => undefined,
       );
       setSentWords((current) => new Map(current).set(chatId, send.prompt));
+      const { projectId } = draft;
+      if (projectId !== undefined) {
+        setSentProjects((current) => new Map(current).set(chatId, projectId));
+      }
       if (opensWhole) {
         compose.remove(draftGroupOf(id));
         // Written in the Chat screen, the draft's pages stand in the side
@@ -442,6 +452,7 @@ export function useDrafts({
           compose.becomeDraft(chatId, id);
         }
         setSentWords((current) => withoutKey(current, chatId));
+        setSentProjects((current) => withoutKey(current, chatId));
         toast.error("Couldn't start the chat", { cause: error });
         return;
       } finally {
@@ -493,6 +504,7 @@ export function useDrafts({
     expandDraft,
     newDraft,
     popOutDraft,
+    sentProjects,
     sentWords,
     showDraft,
     startChat,

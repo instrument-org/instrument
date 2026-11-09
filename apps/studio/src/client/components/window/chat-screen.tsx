@@ -165,14 +165,18 @@ function ChatScreenOfRecord({
       </div>
     );
   }
-  if (!info.data || !folders.data) {
+  // A chat whose first message is on its way draws its conversation at
+  // once, the words sent standing in it: its model is the one the message
+  // went to, which is the default now, and nothing marked waits on its
+  // folders yet.
+  if ((!info.data || !folders.data) && sentPrompt === undefined) {
     return (
       <div className="flex h-full items-center justify-center">
         <Spinner className="size-5" />
       </div>
     );
   }
-  const modelURI = info.data.modelURI ?? defaultModelURI;
+  const modelURI = info.data?.modelURI ?? defaultModelURI;
   const reach = folders.data;
   // Into this chat's own group, shown: an open from a chat's transcript is the
   // chat's whatever the window has up at that moment, and never a silent
@@ -225,7 +229,7 @@ function ChatScreenOfRecord({
               <ChatSessionProvider sessionId={sessionId} chatId={chatId}>
                 <ChatConversation
                   asks={
-                    groupAsks.length === 0
+                    groupAsks.length === 0 || reach === undefined
                       ? undefined
                       : {
                           pills: <AskPills asks={groupAsks} />,

@@ -30,6 +30,7 @@ import {
 } from "@/client/components/window/chat-folder-button";
 import { ChatHeader } from "@/client/components/window/chat-header";
 import { chatListOptions } from "@/client/components/window/chat-list-query";
+import { chatAsSent, draftTitle } from "@/client/components/window/chats";
 import { ChatPane } from "@/client/components/window/chat-pane";
 import { ChatScreen } from "@/client/components/window/chat-screen";
 import { GroupItem } from "@/client/components/window/group-item";
@@ -199,6 +200,16 @@ function ChatView({
     ...chatListOptions(),
     select: (chats) => chats.find((entry) => entry.id === chat),
   });
+  const sentWords = chat === undefined ? undefined : shell.sentWords.get(chat);
+  // The head of a chat just sent from a new chat: the words and the project
+  // stay on it from the press, before the chat's record has either.
+  const headChat =
+    chatRecord && sentWords !== undefined && chat !== undefined
+      ? chatAsSent(chatRecord, {
+          project: shell.sentProjects.get(chat),
+          words: sentWords,
+        })
+      : chatRecord;
   /** A browser beside the chat, or beside the new chat. */
   const addWeb = () => {
     const opened = ensureGroup();
@@ -366,7 +377,12 @@ function ChatView({
                     ) : (
                       <div className="absolute inset-0 flex flex-col">
                         <ChatHeader
-                          chat={chatRecord}
+                          chat={headChat}
+                          fallbackTitle={
+                            sentWords === undefined
+                              ? undefined
+                              : draftTitle(sentWords)
+                          }
                           leading={<InboxToggle />}
                           // An archived chat is put away, so it leaves the
                           // side beside the list with it.

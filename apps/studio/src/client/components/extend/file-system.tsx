@@ -407,6 +407,12 @@ export type FileSystemProps = {
   besideWidth?: number;
   /** Whether `besideWidth` is being dragged, when the folder follows it with no slide. */
   besideResizing?: boolean;
+  /**
+   * Whether the file beside is on its way out and the folder widening back:
+   * the columns and the list draw as they do at the folder's full width,
+   * cut off at its edge, so it widens onto the layout it ends at.
+   */
+  besideClosing?: boolean;
   /** The file showing beside the folder, as a path under the root: its row keeps a quiet mark. */
   besideOpenPath?: string;
   /**
@@ -1914,6 +1920,7 @@ const VIEW_OPTIONS: Array<{
   { icon: ListRowsGlyph, label: "List", value: "list" },
 ];
 export function FileSystem({
+  besideClosing = false,
   besideOpenPath,
   besideResizing = false,
   besideWidth,
@@ -3348,6 +3355,7 @@ export function FileSystem({
   });
   const viewProps: FileSystemViewProps = {
     attachedStagePaths,
+    besideClosing,
     besideOpenPath,
     besideResizing,
     besideWidth,
@@ -4352,6 +4360,7 @@ type FileSystemViewProps = {
   besideOpenPath: string | undefined;
   /** Pooled paths currently attached to the DOM (reveal instantly). */
   attachedStagePaths: string[];
+  besideClosing: boolean;
   besideResizing: boolean;
   besideWidth: number | undefined;
   columnWidth?: number;
@@ -6093,6 +6102,7 @@ function titledName(entry: FileSystemEntry) {
  * kind goes under it. Folders are walked into rather than opened in place.
  */
 function FileSystemListView({
+  besideClosing,
   besideWidth,
   draggable,
   entries,
@@ -6219,7 +6229,7 @@ function FileSystemListView({
     rows: entries,
   });
   // Beside a file the dates are cut short, as the table's narrowed column's are.
-  const isShort = besideWidth !== undefined;
+  const isShort = besideWidth !== undefined && !besideClosing;
   const sortedColumn: FileSystemListColumn =
     sort.key === "name" || sort.key === "openedAt" ? "updatedAt" : sort.key;
   const tabStopPath = visible.some(
@@ -6543,6 +6553,7 @@ export function FileSystemRowGlyph({
 }
 function FileSystemColumnsView(props: FileSystemViewProps) {
   const {
+    besideClosing,
     besideWidth,
     columnWidth: columnWidthProp,
     currentPath,
@@ -6713,15 +6724,47 @@ function FileSystemColumnsView(props: FileSystemViewProps) {
   // Beside a file only the last column stands, filling the folder's width:
   // the file is open beside it, so there is no preview to make room for,
   // and the columns before it are a step back (left, or the folder's menu).
-  const isBeside = besideWidth !== undefined;
+  // As the file goes, every column and the preview are back at once, for the
+  // widening folder to uncover.
+  const isBeside = besideWidth !== undefined && !besideClosing;
+  // Drawn at the folder's full width while it widens, as the list is, so
+  // the preview stands where it will be rather than growing into place.
+  const [width, setWidth] = React.useState<null | number>(null);
+  const rootRef = React.useRef<HTMLDivElement | null>(null);
+  React.useLayoutEffect(() => {
+    const root = rootRef.current;
+    if (!root || typeof ResizeObserver === "undefined") return;
+    const observer = new ResizeObserver((entries) =>
+      setWidth(entries[0]?.contentRect.width ?? null),
+    );
+    setWidth(root.clientWidth);
+    observer.observe(root);
+    return () => observer.disconnect();
+  }, []);
+  const [wideWidth, setWideWidth] = React.useState<null | number>(null);
+  if (besideWidth === undefined && width !== null && width !== wideWidth) {
+    setWideWidth(width);
+  }
+  const heldWidth =
+    besideClosing && width !== null && wideWidth !== null && wideWidth > width
+      ? wideWidth
+      : null;
   return (
-    <InlineScrollArea2
-      orientation="horizontal"
-      viewportClassName="overscroll-x-contain"
-      viewportProps={{ disableImplicitContentElement: true }}
-      viewportRef={scrollContainerRef}
+    <div
+      className={cn("size-full", heldWidth !== null && "overflow-hidden")}
+      ref={rootRef}
     >
-      {/* The Content part's ResizeObserver tells the scroll area when the
+      <div
+        className="h-full"
+        style={heldWidth === null ? {} : { width: heldWidth }}
+      >
+        <InlineScrollArea2
+          orientation="horizontal"
+          viewportClassName="overscroll-x-contain"
+          viewportProps={{ disableImplicitContentElement: true }}
+          viewportRef={scrollContainerRef}
+        >
+          {/* The Content part's ResizeObserver tells the scroll area when the
             trail shrinks (deselect, shallower selection) so the horizontal
             scrollbar hides; the viewport alone only observes its own box.
             Content's built-in inline style is `display: table`, and a
@@ -6730,170 +6773,176 @@ function FileSystemColumnsView(props: FileSystemViewProps) {
             only scrolls sideways, would clip them so nothing answered the
             wheel. The inline flex display holds the columns to the viewport's
             height; the inline min-width keeps the full-width floor. */}
-      <InlineScrollAreaContent
-        className={cn("flex h-full", isBeside ? "w-full" : "w-max")}
-        data-file-system-listing=""
-        style={{ display: "flex", minWidth: "100%" }}
-      >
-        {listedColumnPaths.map((columnPath, columnIndex) => {
-          if (
-            isBeside &&
-            (unreadableColumnPath !== undefined ||
-              columnIndex < listedColumnPaths.length - 1)
-          ) {
-            return null;
-          }
-          const column = (
-            <FileSystemColumn
-              draggable={draggable}
-              fills={isBeside}
-              grouping={grouping}
-              entries={index.children.get(columnPath) ?? []}
-              index={index}
-              isLoading={loadingFolders.has(columnPath)}
-              key={columnPath || "(root)"}
-              menuTargetChildPath={
-                menuTargetPath && pathParent(menuTargetPath) === columnPath
-                  ? menuTargetPath
-                  : null
-              }
-              onFolderHover={onFolderHover}
-              onItemContextMenu={onItemContextMenu}
-              onOpen={onOpen}
-              onResize={setColumnWidth}
-              onSelect={onSelect}
-              ownFolder={
-                columnIndex === 0
-                  ? null
-                  : (index.folders.get(columnPath) ?? null)
-              }
-              // Scalar per-column props so the memoized column only
-              // re-renders when its own rows change — a selection deeper in
-              // the trail leaves ancestor columns untouched.
-              renamingChildPath={
-                renamingPath && pathParent(renamingPath) === columnPath
-                  ? renamingPath
-                  : null
-              }
-              marquee={marquee}
-              openBesideChildPath={
-                besideOpenPath && pathParent(besideOpenPath) === columnPath
-                  ? besideOpenPath
-                  : null
-              }
-              renderNameField={renderNameField}
-              rowGestures={rowGestures}
-              rowRefs={rowRefs}
-              selectedChildPath={
-                selectedPath && pathParent(selectedPath) === columnPath
-                  ? selectedPath
-                  : null
-              }
-              selection={
-                selectedPath && pathParent(selectedPath) === columnPath
-                  ? selection
-                  : null
-              }
-              tabStopChildPath={
-                tabStopPath && pathParent(tabStopPath) === columnPath
-                  ? tabStopPath
-                  : null
-              }
-              trailChildPath={columnPaths[columnIndex + 1] ?? null}
-              width={columnWidth}
-            />
-          );
-          if (!isBeside || columnIndex === 0) {
-            return column;
-          }
-          // The way back to the column before.
-          const backPath = listedColumnPaths[columnIndex - 1] ?? currentPath;
-          const backFolder =
-            columnIndex === 1 ? null : (index.folders.get(backPath) ?? null);
-          return (
-            <div
-              className="flex min-w-0 flex-1 flex-col"
-              key={columnPath || "(root)"}
-            >
-              <BesideBackRow
-                name={
-                  backFolder?.name ??
-                  index.folders.get(backPath)?.name ??
-                  rootTitle
-                }
-                // Back to the first column walks there: with nothing
-                // selected, the trail ends at the folder the browser stands
-                // in, which is the one being left.
-                onBack={() => {
-                  if (backFolder) {
-                    onSelect(backFolder);
-                  } else {
-                    onWalk(backPath);
-                  }
-                }}
-              />
-              {column}
-            </div>
-          );
-        })}
-        {unreadableColumnPath !== undefined ? (
-          <div className="min-w-72 flex-1 contain-inline-size">
-            {renderUnreadable?.(unreadableColumnPath, "pane")}
-          </div>
-        ) : isBeside ? null : selectedFile ? (
-          <InlineScrollArea2
-            className="min-w-60 flex-1 contain-inline-size"
-            orientation="vertical"
-            viewportClassName="flex justify-center p-4"
+          <InlineScrollAreaContent
+            className={cn("flex h-full", isBeside ? "w-full" : "w-max")}
+            data-file-system-listing=""
+            style={{ display: "flex", minWidth: "100%" }}
           >
-            <div className="mx-auto flex w-full max-w-xl flex-col items-stretch gap-3">
-              {/* Width derives from the aspect ratio so the thumbnail grows
+            {listedColumnPaths.map((columnPath, columnIndex) => {
+              if (
+                isBeside &&
+                (unreadableColumnPath !== undefined ||
+                  columnIndex < listedColumnPaths.length - 1)
+              ) {
+                return null;
+              }
+              const column = (
+                <FileSystemColumn
+                  draggable={draggable}
+                  fills={isBeside}
+                  grouping={grouping}
+                  entries={index.children.get(columnPath) ?? []}
+                  index={index}
+                  isLoading={loadingFolders.has(columnPath)}
+                  key={columnPath || "(root)"}
+                  menuTargetChildPath={
+                    menuTargetPath && pathParent(menuTargetPath) === columnPath
+                      ? menuTargetPath
+                      : null
+                  }
+                  onFolderHover={onFolderHover}
+                  onItemContextMenu={onItemContextMenu}
+                  onOpen={onOpen}
+                  onResize={setColumnWidth}
+                  onSelect={onSelect}
+                  ownFolder={
+                    columnIndex === 0
+                      ? null
+                      : (index.folders.get(columnPath) ?? null)
+                  }
+                  // Scalar per-column props so the memoized column only
+                  // re-renders when its own rows change — a selection deeper in
+                  // the trail leaves ancestor columns untouched.
+                  renamingChildPath={
+                    renamingPath && pathParent(renamingPath) === columnPath
+                      ? renamingPath
+                      : null
+                  }
+                  marquee={marquee}
+                  openBesideChildPath={
+                    besideOpenPath && pathParent(besideOpenPath) === columnPath
+                      ? besideOpenPath
+                      : null
+                  }
+                  renderNameField={renderNameField}
+                  rowGestures={rowGestures}
+                  rowRefs={rowRefs}
+                  selectedChildPath={
+                    selectedPath && pathParent(selectedPath) === columnPath
+                      ? selectedPath
+                      : null
+                  }
+                  selection={
+                    selectedPath && pathParent(selectedPath) === columnPath
+                      ? selection
+                      : null
+                  }
+                  tabStopChildPath={
+                    tabStopPath && pathParent(tabStopPath) === columnPath
+                      ? tabStopPath
+                      : null
+                  }
+                  trailChildPath={columnPaths[columnIndex + 1] ?? null}
+                  width={columnWidth}
+                />
+              );
+              if (!isBeside || columnIndex === 0) {
+                return column;
+              }
+              // The way back to the column before.
+              const backPath =
+                listedColumnPaths[columnIndex - 1] ?? currentPath;
+              const backFolder =
+                columnIndex === 1
+                  ? null
+                  : (index.folders.get(backPath) ?? null);
+              return (
+                <div
+                  className="flex min-w-0 flex-1 flex-col"
+                  key={columnPath || "(root)"}
+                >
+                  <BesideBackRow
+                    name={
+                      backFolder?.name ??
+                      index.folders.get(backPath)?.name ??
+                      rootTitle
+                    }
+                    // Back to the first column walks there: with nothing
+                    // selected, the trail ends at the folder the browser stands
+                    // in, which is the one being left.
+                    onBack={() => {
+                      if (backFolder) {
+                        onSelect(backFolder);
+                      } else {
+                        onWalk(backPath);
+                      }
+                    }}
+                  />
+                  {column}
+                </div>
+              );
+            })}
+            {unreadableColumnPath !== undefined ? (
+              <div className="min-w-72 flex-1 contain-inline-size">
+                {renderUnreadable?.(unreadableColumnPath, "pane")}
+              </div>
+            ) : isBeside ? null : selectedFile ? (
+              <InlineScrollArea2
+                className="min-w-60 flex-1 contain-inline-size"
+                orientation="vertical"
+                viewportClassName="flex justify-center p-4"
+              >
+                <div className="mx-auto flex w-full max-w-xl flex-col items-stretch gap-3">
+                  {/* Width derives from the aspect ratio so the thumbnail grows
                 with the pane up to a 24rem height cap; past that the whole
                 column stands centered, top-aligned, as the Finder's does.
                 Double-clicking it opens the file, as double-clicking its row
                 does. Dragging it drags the file out, as its row does. */}
-              <div
-                className="mx-auto w-full shrink-0"
-                data-file-system-item={selectedFile.path}
+                  <div
+                    className="mx-auto w-full shrink-0"
+                    data-file-system-item={selectedFile.path}
+                    draggable={draggable}
+                    onDoubleClick={() => onOpen(selectedFile)}
+                    style={{
+                      maxWidth: `min(100%, ${(selectedFile.previewAspectRatio ?? selectedFileAspectRatio) * 24}rem)`,
+                    }}
+                  >
+                    {selectedFileStage ?? (
+                      <FileVisual
+                        className="w-full"
+                        file={selectedFile}
+                        pageable
+                        previewAspectRatio={0.78}
+                      />
+                    )}
+                  </div>
+                  <div className="text-center">
+                    <div className="text-sm font-semibold break-words">
+                      {shownName(selectedFile)}
+                    </div>
+                    <div className="text-xs text-muted-foreground">
+                      {fileKindLabel(selectedFile)}
+                      {selectedFileSize ? ` - ${selectedFileSize}` : null}
+                    </div>
+                  </div>
+                  <FileSystemInformation entry={selectedFile} index={index} />
+                </div>
+              </InlineScrollArea2>
+            ) : deferredIsSeveral ? (
+              <FileSystemSelectionStack
                 draggable={draggable}
-                onDoubleClick={() => onOpen(selectedFile)}
-                style={{
-                  maxWidth: `min(100%, ${(selectedFile.previewAspectRatio ?? selectedFileAspectRatio) * 24}rem)`,
-                }}
-              >
-                {selectedFileStage ?? (
-                  <FileVisual
-                    className="w-full"
-                    file={selectedFile}
-                    pageable
-                    previewAspectRatio={0.78}
-                  />
-                )}
-              </div>
-              <div className="text-center">
-                <div className="text-sm font-semibold break-words">
-                  {shownName(selectedFile)}
-                </div>
-                <div className="text-xs text-muted-foreground">
-                  {fileKindLabel(selectedFile)}
-                  {selectedFileSize ? ` - ${selectedFileSize}` : null}
-                </div>
-              </div>
-              <FileSystemInformation entry={selectedFile} index={index} />
-            </div>
-          </InlineScrollArea2>
-        ) : deferredIsSeveral ? (
-          <FileSystemSelectionStack
-            draggable={draggable}
-            entries={[...selection].flatMap((path) => {
-              const entry = index.files.get(path) ?? index.folders.get(path);
-              return entry ? [entry] : [];
-            })}
-            renderFileStage={renderFileStage}
-          />
-        ) : null}
-      </InlineScrollAreaContent>
-    </InlineScrollArea2>
+                entries={[...selection].flatMap((path) => {
+                  const entry =
+                    index.files.get(path) ?? index.folders.get(path);
+                  return entry ? [entry] : [];
+                })}
+                renderFileStage={renderFileStage}
+              />
+            ) : null}
+          </InlineScrollAreaContent>
+        </InlineScrollArea2>
+      </div>
+    </div>
   );
 }
 // Column row geometry (px at the default 16px root font size).

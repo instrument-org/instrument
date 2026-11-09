@@ -2846,6 +2846,7 @@ export function ComputerPage({
                   {...(beside === undefined
                     ? {}
                     : {
+                        besideClosing: beside.isClosing,
                         besideResizing: beside.isResizing,
                         besideWidth: beside.width,
                         ...(beside.openPath === undefined

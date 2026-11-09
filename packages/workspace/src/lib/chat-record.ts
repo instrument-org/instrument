@@ -48,16 +48,22 @@ export async function setChatState(
 /**
  * Changes this device's state from what is on disk, read inside the write
  * queue, so two changes landing together each build on the other. A field
- * this build cannot read is carried forward.
+ * this build cannot read is carried forward. A change that returns undefined
+ * writes nothing.
  */
 export async function updateChatState(
   dir: ChatDir,
-  change: (state: ChatState) => Partial<ChatState>,
+  change: (state: ChatState) => Partial<ChatState> | undefined,
 ): Promise<void> {
-  await updateJsonRecord(statePath(dir), (raw) => change(stateFrom(raw)));
+  let changed = false;
+  await updateJsonRecord(statePath(dir), (raw) => {
+    const next = change(stateFrom(raw));
+    changed = next !== undefined;
+    return next;
+  });
   // A record's folder is named by its id.
   const id = ChatIdSchema.safeParse(path.basename(dir));
-  if (id.success) {
+  if (changed && id.success) {
     recordChanged(id.data, "state");
   }
 }

@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import {
+  isPersonUse,
   mayOpenInAnotherApp,
   noteUserInput,
   USER_INPUT_WINDOW_MS,
@@ -46,5 +47,20 @@ describe("recording a person's input", () => {
     const record = { userInputAt: 0 };
     noteUserInput(record, type, byAgent, 500);
     expect(record.userInputAt).toBe(recorded);
+  });
+});
+
+describe("telling the person's use of a tab", () => {
+  it.each([
+    ["mouseDown", false, true],
+    ["keyDown", false, true],
+    ["gestureTap", false, true],
+    ["mouseWheel", false, true],
+    ["mouseMove", false, false],
+    ["mouseDown", true, false],
+    ["mouseWheel", true, false],
+    ["keyDown", true, false],
+  ] as const)("%s, agent driving %s, counts %s", (type, byAgent, counts) => {
+    expect(isPersonUse(type, byAgent)).toBe(counts);
   });
 });

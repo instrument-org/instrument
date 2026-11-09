@@ -8,10 +8,12 @@ import {
   SHARED_KEPT_FILES,
   WINDOW_KEPT_FILE,
   WINDOW_KEPT_KEYS,
+  WINDOW_TABS_KEY,
 } from "@/shared/kept-state";
 import { BrowserWindow, ipcMain } from "electron";
 import fs from "node:fs";
 import path from "node:path";
+import { z } from "zod";
 
 import { logger } from "../../lib/electron-logger";
 
@@ -389,6 +391,31 @@ export function forgetWindowKeptState(windowId: string) {
 /** One kept value, for the main process's own use of what a window keeps. */
 export function getKeptState(file: KeptFile, key: string): unknown {
   return getStore().get(file, key);
+}
+
+const KeptTabGroupSchema = z.object({
+  tabs: z.array(z.object({ id: z.string() })),
+});
+
+/**
+ * The window group a tab is kept in, by the tab's id: a chat's id for a
+ * chat's tab, a site's or draft's otherwise. Undefined for a tab no window
+ * has kept yet. A page drawn inside one window's surface is in no group here.
+ */
+export function keptTabGroupOf(tabId: string): string | undefined {
+  const prefix = `${WINDOW_TABS_KEY}/`;
+  const layout = getStore().snapshot().layout ?? {};
+  for (const [key, value] of Object.entries(layout)) {
+    if (
+      key.startsWith(prefix) &&
+      KeptTabGroupSchema.safeParse(value).data?.tabs.some(
+        (tab) => tab.id === tabId,
+      )
+    ) {
+      return key.slice(prefix.length);
+    }
+  }
+  return undefined;
 }
 
 /** Writes what is still waiting, at once. The quit calls it on its way out. */

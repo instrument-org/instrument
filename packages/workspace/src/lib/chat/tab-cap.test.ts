@@ -12,13 +12,11 @@ import { type BrowserTargetId, browserTargetOf } from "../../types";
 import { getChatState, setChatState } from "../chat-record";
 import { chatDir } from "../record-folders";
 import { noteTabCommand } from "../tab-activity";
-import { noteOpenedTab } from "./chat-tabs";
 import {
   closeChatTabs,
   closeTabsOverCap,
   closeTaskTabs,
   closeTurnTabs,
-  notePersonUsedTab,
 } from "./tab-cap";
 
 const lifetimes = vi.hoisted(() => new Map<string, TabLifetime>());
@@ -101,9 +99,13 @@ function openedTab(minutes: null | number, used = false): OpenedTab {
   return used ? { id, usedByPerson: true } : { id };
 }
 
-/** Each automatic close, set up so it would close `tab` were the person never to have used it. */
+/**
+ * Each automatic close, set up so it would close `tab` were the person never
+ * to have used it, and whether it closes one they did.
+ */
 const closePaths = [
   {
+    closesUsed: false,
     path: "turn end",
     run: async (tab: OpenedTab) => {
       await setChatState(chatDir(chatId), { openedTabs: [tab] });
@@ -111,6 +113,7 @@ const closePaths = [
     },
   },
   {
+    closesUsed: false,
     path: "task stop",
     run: async (tab: OpenedTab) => {
       const task = StoreId.newSessionId();
@@ -122,13 +125,23 @@ const closePaths = [
     },
   },
   {
-    path: "archive or trash",
+    closesUsed: false,
+    path: "archive",
     run: async (tab: OpenedTab) => {
       await setChatState(chatDir(chatId), { openedTabs: [tab] });
-      await closeChatTabs(chatId);
+      await closeChatTabs(chatId, { trashed: false });
     },
   },
   {
+    closesUsed: true,
+    path: "trash",
+    run: async (tab: OpenedTab) => {
+      await setChatState(chatDir(chatId), { openedTabs: [tab] });
+      await closeChatTabs(chatId, { trashed: true });
+    },
+  },
+  {
+    closesUsed: false,
     path: "hidden-tab cap",
     run: async (tab: OpenedTab) => {
       lifetimes.set(tab.id, { drawn: false, hiddenForMs: 9e9, unloadsInMs: 0 });
@@ -145,51 +158,21 @@ const closePaths = [
   },
 ];
 
-describe("notePersonUsedTab", () => {
-  // First in the file: the scan of every chat's tabs runs once a launch, so
-  // only the first tab asked about can come from it.
-  it("marks a tab kept before this launch, found in its chat's state", async () => {
+describe.each(closePaths)("the $path", ({ closesUsed, run }) => {
+  it("closes a tab the person never used", async () => {
     const tab = openedTab(1);
-    await setChatState(chatDir(chatId), { openedTabs: [tab] });
-
-    notePersonUsedTab(tab.id);
-
-    await vi.waitFor(async () => {
-      expect((await getChatState(chatDir(chatId))).openedTabs).toEqual([
-        { id: tab.id, usedByPerson: true },
-      ]);
-    });
-  });
-
-  it("keeps the mark when the tab is noted as opened again", async () => {
-    const session = StoreId.newSessionId();
-    const { id } = openedTab(1);
-    await noteOpenedTab(chatId, id, session);
-
-    notePersonUsedTab(id);
-    await vi.waitFor(async () => {
-      expect(
-        (await getChatState(chatDir(chatId))).openedTabs[0]?.usedByPerson,
-      ).toBe(true);
-    });
-    await noteOpenedTab(chatId, id, session);
-
-    expect((await getChatState(chatDir(chatId))).openedTabs).toEqual([
-      { id, openedIn: session, usedByPerson: true },
-    ]);
-  });
-});
-
-describe.each(closePaths)("the $path", ({ run }) => {
-  it.each([
-    { closed: true, does: "closes", used: false },
-    { closed: false, does: "keeps", used: true },
-  ])("$does a tab when the person's use is $used", async ({ closed, used }) => {
-    const tab = openedTab(1, used);
 
     await run(tab);
 
-    expect(closes.includes(tab.id)).toBe(closed);
+    expect(closes).toContain(tab.id);
+  });
+
+  it(`${closesUsed ? "closes" : "keeps"} a tab the person used`, async () => {
+    const tab = openedTab(1, true);
+
+    await run(tab);
+
+    expect(closes.includes(tab.id)).toBe(closesUsed);
   });
 });
 
@@ -258,9 +241,7 @@ describe("closeTabsOverCap", () => {
     const used = openedTab(900, true);
     const unused = openedTab(500);
     const tabs = [
-      ...Array.from({ length: CHAT_HIDDEN_TAB_CAP - 1 }, (_, i) =>
-        openedTab(i),
-      ),
+      ...Array.from({ length: CHAT_HIDDEN_TAB_CAP }, (_, i) => openedTab(i)),
       used,
       unused,
     ];
@@ -269,6 +250,21 @@ describe("closeTabsOverCap", () => {
     await closeTabsOverCap(chatId);
 
     expect(closes).toEqual([unused.id]);
+  });
+
+  it("keeps the tab an agent just opened when tabs the person used fill the cap", async () => {
+    const fresh = openedTab(0);
+    const tabs = [
+      ...Array.from({ length: CHAT_HIDDEN_TAB_CAP }, (_, i) =>
+        openedTab(i + 1, true),
+      ),
+      fresh,
+    ];
+    await setChatState(chatDir(chatId), { openedTabs: tabs });
+
+    await closeTabsOverCap(chatId);
+
+    expect(closes).toEqual([]);
   });
 
   it("closes none when every hidden tab is one the person used", async () => {

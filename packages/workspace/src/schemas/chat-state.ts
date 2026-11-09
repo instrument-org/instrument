@@ -26,9 +26,9 @@ const OpenedTabSchema = z.object({
    */
   openedIn: StoreId.SessionSchema.optional(),
   /**
-   * The person has used it: clicked, typed or scrolled in its page, or had
-   * it on screen for `SHOWN_COUNTS_AS_USED_MS`. No automatic close takes it
-   * from then on; an agent or the person still may.
+   * The person has used it: clicked, tapped, typed or scrolled in its page
+   * (`notePersonUsedTab`). No automatic close but the chat's trashing takes
+   * it from then on; an agent or the person still may.
    */
   usedByPerson: z.literal(true).optional(),
 });

@@ -1,5 +1,6 @@
 import { historyToRestore } from "@/electron-main/browser-view/guest-history";
 import { publisher } from "@/electron-main/rpc/publisher";
+import { keptTabGroupOf } from "@/electron-main/stores/workspace/kept-state";
 import {
   type BrowserGuestTarget,
   type GuestLastLoad,
@@ -48,7 +49,7 @@ import {
 import { isBlocking } from "./content-blocking";
 import { attachGuestInteractions } from "./guest-interactions";
 import { forgetRasterBudget } from "./guest-surface";
-import { noteUserInput } from "./external-app-links";
+import { isPersonUse, noteUserInput } from "./external-app-links";
 import { resyncPagesAfterFullScreen } from "./full-screen-exit";
 import { guests } from "./guest-registry";
 import {
@@ -551,11 +552,8 @@ function createBrowserViewManager(): BrowserViewManager {
         input.type,
         focusGuard.isGuarded(targetId),
       );
-      if (
-        byPerson ||
-        (input.type === "mouseWheel" && !focusGuard.isGuarded(targetId))
-      ) {
-        notePersonUsedTab(targetId);
+      if (isPersonUse(input.type, focusGuard.isGuarded(targetId))) {
+        notePersonUsedTab(targetId, () => keptTabGroupOf(targetId));
       }
       if (
         record &&

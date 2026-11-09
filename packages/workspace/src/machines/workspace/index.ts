@@ -46,7 +46,6 @@ import {
 } from "../session";
 import { windowBrowserLogic } from "../window-browser";
 import { isDrivenByWorkingAgent } from "../../lib/chat/driven-tabs";
-import { notePersonUsedTab } from "../../lib/chat/tab-cap";
 import { type WorkspaceContext } from "./types";
 
 export type WorkspaceEvent =
@@ -336,7 +335,6 @@ export const workspaceMachine = setup({
         input: {
           browser: workspaceConfig.browser,
           isDrivenByWorkingAgent,
-          onShownToPerson: notePersonUsedTab,
         },
       }),
       chatsBeingTrashed: [],

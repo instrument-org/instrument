@@ -277,8 +277,11 @@ const archiveChatRoute = base
   .output(ListedAtSchema)
   .handler(async ({ input }) => {
     const listed = await whenChat(input.id, archiveChat);
-    // Nothing of an archived chat works on, so its agents' tabs go.
-    void whenChat(input.id, closeChatTabs).catch(() => undefined);
+    // Nothing of an archived chat works on, so its agents' tabs go, but for
+    // the ones the person used.
+    void whenChat(input.id, (chatId) =>
+      closeChatTabs(chatId, { trashed: false }),
+    ).catch(() => undefined);
     return listed;
   });
 

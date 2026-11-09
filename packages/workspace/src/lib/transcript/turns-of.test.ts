@@ -720,7 +720,7 @@ describe("the slot", () => {
         type: "data-taskEvent",
       } as SessionMessagePart.Type,
     ]);
-    const [turn] = turnsOf(
+    const turns = turnsOf(
       [
         typed("Do the thing"),
         message("assistant", (id) => [said(id, "Done.")]),
@@ -729,7 +729,54 @@ describe("the slot", () => {
       ],
       { isRunning: false },
     );
-    expect(turn?.rows.filter((row) => row.kind === "text")).toHaveLength(2);
+    expect(
+      turns.flatMap((turn) => turn.rows.filter((row) => row.kind === "text")),
+    ).toHaveLength(2);
+  });
+
+  it("carries a wake after the answer on in a turn of its own, and keeps one while the agent works", () => {
+    const wake = () =>
+      message("user", (id) => [
+        {
+          data: { events: [] },
+          metadata: meta(id),
+          type: "data-taskEvent",
+        } as SessionMessagePart.Type,
+      ]);
+    const answered = turnsOf(
+      [
+        typed("Do the thing"),
+        message("assistant", (id) => [
+          call(id, "bash", { activity: "Working" }, { exitCode: 0 }),
+          said(id, "I've started on it."),
+        ]),
+        wake(),
+        message("assistant", (id) => [said(id, "It's done.")]),
+      ],
+      { isRunning: false },
+    );
+    expect(
+      answered.map((turn) => ({
+        opener: turn.opener !== undefined,
+        rows: turn.rows.map((row) => row.kind),
+      })),
+    ).toEqual([
+      { opener: true, rows: ["activity", "text"] },
+      { opener: false, rows: ["text"] },
+    ]);
+    expect(answered[0]?.foldedRowIds.size).toBe(1);
+    const working = turnsOf(
+      [
+        typed("Do the thing"),
+        message("assistant", (id) => [
+          call(id, "bash", { activity: "Working" }, { exitCode: 0 }),
+        ]),
+        wake(),
+        message("assistant", (id) => [said(id, "It's done.")]),
+      ],
+      { isRunning: false },
+    );
+    expect(working).toHaveLength(1);
   });
 
   it("gives each task a call started its own row", () => {

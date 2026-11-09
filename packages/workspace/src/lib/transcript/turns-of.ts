@@ -115,10 +115,12 @@ export type TurnLive =
   | { kind: "writing" };
 
 /**
- * Everything since the message the person typed, wakes included: a sign-in
- * answered or a task finished carries the same work on, so it is the same
- * turn. `rows` is all of it; `foldedRowIds` says which of them the Worked row
- * stands for once the turn folds.
+ * Everything since the message the person typed, or since a wake that came
+ * once the agent had answered: a sign-in answered or a task finished carries
+ * the work on in a turn of its own with no opener, below the answer it
+ * follows. A wake while the agent is still at it stays in the turn. `rows` is
+ * all of it; `foldedRowIds` says which of them the Worked row stands for once
+ * the turn folds.
  */
 export interface Turn {
   /** The apps its work reached. */
@@ -192,6 +194,10 @@ export function turnsOf(
 ): Turn[] {
   const slices = turnSlices(messages);
   const lastMessage = messages.at(-1);
+  // A wake carrying a turn on is not the person writing past it.
+  const lastTyped = slices.findLastIndex(
+    ([first]) => first !== undefined && opensTurn(first),
+  );
   return slices.flatMap((slice, index) => {
     const [first] = slice;
     if (!first) {
@@ -207,7 +213,7 @@ export function turnsOf(
         (index === slices.length - 2 &&
           !cutAcross &&
           slice.some(isStillGoing)));
-    const holdsLast = next === undefined;
+    const holdsLast = index >= lastTyped;
     const kept = cache?.get(first.id);
     if (
       kept &&
@@ -271,7 +277,10 @@ export function waitsForStep(turns: readonly Turn[]): boolean {
 
 /**
  * The messages cut into turns: each message a person typed opens one, and what
- * follows belongs to it until the next.
+ * follows belongs to it until the next. A wake after the turn ended in words
+ * (a task finished, a permission or sign-in answered) opens one of its own
+ * with no opener, which carries the work on below what was already shown, so
+ * a turn that ended and folded stays as it was.
  */
 function turnSlices<T extends TranscriptMessage>(
   messages: readonly T[],
@@ -279,7 +288,11 @@ function turnSlices<T extends TranscriptMessage>(
   const slices: T[][] = [];
   for (const message of messages) {
     const current = slices.at(-1);
-    if (opensTurn(message) || !current) {
+    if (
+      !current ||
+      opensTurn(message) ||
+      (isWake(message) && endedInWords(current))
+    ) {
       slices.push([message]);
     } else {
       current.push(message);
@@ -319,6 +332,31 @@ export function opensTurn(message: {
       }
     }
   });
+}
+
+/**
+ * Whether a message is the app waking the agent: a user message other than a
+ * branch's note on its copied history, counted from before its parts arrive,
+ * since a message is written ahead of them.
+ */
+function isWake(message: TranscriptMessage): boolean {
+  return (
+    message.role === "user" &&
+    (message.parts.length === 0 ||
+      message.parts.some((part) => part.type !== "data-branchedFrom"))
+  );
+}
+
+/** Whether the newest of a turn's messages ended with words the agent finished saying. */
+function endedInWords(slice: readonly TranscriptMessage[]): boolean {
+  const last = slice.findLast((message) => message.role === "assistant");
+  if (!last || last !== slice.at(-1) || isStillGoing(last)) {
+    return false;
+  }
+  const said = last.parts.findLast(
+    (part) => part.type === "text" || isStepPart(part),
+  );
+  return said?.type === "text" && !saysNothing(said.text);
 }
 
 /** Whether a message has a step or words the agent is still on. */

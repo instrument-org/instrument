@@ -7,7 +7,7 @@ import { type StoreId } from "../../schemas/store-id";
 import { dataPartVisibility } from "../data-part-visibility";
 import { errorOutcomeOf } from "./error-outcome";
 import { thoughtText, transcriptMessage } from "./transcript-message";
-import { type TurnRow, turnsOf } from "./turns-of";
+import { type Turn, type TurnRow, turnsOf } from "./turns-of";
 
 /** What a margin note stands for. */
 type DeveloperNoteKind = "error" | "note" | "replaced" | "thought";
@@ -499,6 +499,9 @@ export function developerNotesWithBodies(
   const notes: DeveloperNote[] = [];
   const bodies = new Map<string, DeveloperNoteBody>();
 
+  // A turn a wake opens has no message of its own, and its notes before its
+  // first row sit by where the turn it carries on left off.
+  let carried: { place: Place; turn: Turn } | undefined;
   for (const [at, turn] of turns.entries()) {
     const next = turns[at + 1];
     const body = stored.slice(
@@ -507,13 +510,16 @@ export function developerNotesWithBodies(
     );
     const rowOfPart = rowsByPart(turn.rows);
     // What a note with no row of its own sits by, as the turn is read in order.
-    let nearest: Place | undefined = turn.opener && {
-      row: `message:${turn.id}`,
-      rowKind: "bubble",
-      rowLabel: firstWords(
-        turn.opener.text?.text ?? turn.opener.fromChat?.text ?? "Message",
-      ),
-    };
+    let nearest: Place | undefined = turn.opener
+      ? {
+          row: `message:${turn.id}`,
+          rowKind: "bubble",
+          rowLabel: firstWords(
+            turn.opener.text?.text ?? turn.opener.fromChat?.text ?? "Message",
+          ),
+        }
+      : carried?.place;
+    let nearestTurn = turn.opener ? turn : (carried?.turn ?? turn);
     const inThisTurn: DeveloperNote[] = [];
 
     const place = (note: Said) => {
@@ -522,7 +528,9 @@ export function developerNotesWithBodies(
       }
       bodies.set(note.id, note.body);
       inThisTurn.push({
-        ...(turn.foldedRowIds.has(nearest.row) && { foldedIn: turn.id }),
+        ...(nearestTurn.foldedRowIds.has(nearest.row) && {
+          foldedIn: nearestTurn.id,
+        }),
         id: note.id,
         kind: note.kind,
         label: note.label,
@@ -534,7 +542,7 @@ export function developerNotesWithBodies(
           note.kind === "note" && nearest.rowKind === "bubble"
             ? "right"
             : note.side,
-        turn: turn.id,
+        turn: nearestTurn.id,
       });
     };
 
@@ -556,6 +564,7 @@ export function developerNotesWithBodies(
         const own = rowOfPart.get(part.metadata.id);
         if (own) {
           nearest = own;
+          nearestTurn = turn;
         }
         const said = noteOfPart(part, each, { hasRow: own !== undefined });
         if (said) {
@@ -584,6 +593,7 @@ export function developerNotesWithBodies(
         );
         if (row) {
           nearest = rowOfError(row);
+          nearestTurn = turn;
         }
         place({
           body: {
@@ -603,6 +613,9 @@ export function developerNotesWithBodies(
     const rowIndex = (note: DeveloperNote) =>
       turn.rows.findIndex((row) => row.id === note.row);
     notes.push(...sort(inThisTurn, rowIndex));
+    if (nearest) {
+      carried = { place: nearest, turn: nearestTurn };
+    }
   }
   return { bodies, notes };
 

@@ -48,7 +48,10 @@ import { chatRoutes } from "./chat";
 import { base, toORPCError } from "../base";
 import { atMoment, distinct, liveRead, where } from "../live-read";
 import { publisher } from "../publisher";
-import { chatNextMessage, watchNextMessage } from "../../lib/chat/next-message";
+import {
+  chatNextMessages,
+  watchNextMessage,
+} from "../../lib/chat/next-message";
 import { closeChatTabs } from "../../lib/chat/tab-cap";
 
 /** A task the chat started, as its tasks screen lists it. */
@@ -522,16 +525,16 @@ const liveSignInRoute = base
   });
 
 /**
- * The message this computer suggests the chat's person send next, read
- * again when one is made and as the chat's records move, which is how a
- * sent message or a new turn takes it away. None while nothing is
- * suggested.
+ * The messages this computer suggests the chat's person send next, likeliest
+ * first, read again when they are made and as the chat's records move, which
+ * is how a sent message or a new turn takes them away. Empty while nothing
+ * is suggested.
  */
-const liveNextMessageRoute = base
+const liveNextMessagesRoute = base
   .input(z.object({ id: ChatIdSchema }))
-  .output(eventIterator(z.string().nullable()))
+  .output(eventIterator(z.array(z.string()).readonly()))
   .handler(async function* ({ input, signal }) {
-    // A window reading this shows the chat's box, which is what asks for one.
+    // A window reading this shows the chat, which is what asks for them.
     const unwatch = watchNextMessage(input.id);
     try {
       yield* distinct(
@@ -546,7 +549,7 @@ const liveNextMessageRoute = base
               (event) => event.id === input.id,
             ),
           ],
-          read: async () => (await chatNextMessage(input.id)) ?? null,
+          read: async () => chatNextMessages(input.id),
         }),
       );
     } finally {
@@ -676,7 +679,7 @@ export const chats = {
   live: {
     ...chatRoutes.live,
     asks: liveAsksRoute,
-    nextMessage: liveNextMessageRoute,
+    nextMessages: liveNextMessagesRoute,
     signIn: liveSignInRoute,
     rows: liveChatRowsRoute,
     tasks: liveChildTasksRoute,

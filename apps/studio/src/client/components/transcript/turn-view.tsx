@@ -15,7 +15,13 @@ import {
 } from "@instrument-org/workspace/client";
 import { CheckIcon } from "@phosphor-icons/react/Check";
 import { AnimatePresence, motion, useReducedMotion } from "motion/react";
-import { memo, type ReactNode, use, useState } from "react";
+import {
+  type ComponentProps,
+  memo,
+  type ReactNode,
+  use,
+  useState,
+} from "react";
 
 import { AssistantMessage } from "../assistant-message";
 import { AssistantMessagesFooter } from "../assistant-messages-footer";
@@ -41,6 +47,7 @@ import {
 } from "./card-motion";
 import { ActivityRowView, Badges, RowLine, StepDetail } from "./activity-row";
 import { BranchedFromLine } from "./branched-from-line";
+import { NextStepRows, useHasNextSteps } from "./next-steps";
 import { renderDataPart } from "./note-part";
 import { PageTakeoverNote } from "./page-takeover-note";
 import { WorkCardView } from "./work-card";
@@ -192,6 +199,34 @@ function AssignmentBubble({
   );
 }
 
+/**
+ * What stands under a finished reply: its footer, and under the chat's last
+ * reply the next messages the chat suggests, which keep the footer drawn
+ * since their arrows line up under its copy button.
+ */
+function ReplyFoot({
+  isLast,
+  messages,
+  onBranch,
+}: Pick<
+  ComponentProps<typeof AssistantMessagesFooter>,
+  "messages" | "onBranch"
+> & {
+  isLast: boolean;
+}) {
+  const hasNextSteps = useHasNextSteps() && isLast;
+  return (
+    <>
+      <AssistantMessagesFooter
+        alwaysVisible={hasNextSteps}
+        messages={messages}
+        onBranch={onBranch}
+      />
+      {hasNextSteps && <NextStepRows />}
+    </>
+  );
+}
+
 function TurnBody({
   chatId,
   hasCard,
@@ -298,7 +333,8 @@ function TurnBody({
         <CommandCards sessionId={sessionId} turn={turn} />
       )}
       {turn.phase !== "working" && hasReply && turn.replies.length > 0 && (
-        <AssistantMessagesFooter
+        <ReplyFoot
+          isLast={isLast}
           messages={turn.replies}
           onBranch={
             onBranch && branchesAt !== undefined

@@ -76,6 +76,7 @@ import {
 } from "../ui/message-scroller";
 import { Spinner } from "../ui/spinner";
 import { LiveTranscriptSurface } from "../transcript/live-surface";
+import { NextStepsContext } from "../transcript/next-steps";
 import { useHoldAtReplyStart } from "../transcript/use-hold-at-reply-start";
 import { useSlideToSent } from "../transcript/use-slide-to-sent";
 import { Transcript } from "../transcript/transcript";
@@ -220,13 +221,14 @@ export function ChatConversation({
     rpcClient.gateway.models.live.list.experimental_liveOptions(),
   );
   const nextModel = reachModel(modelsData, selectedModelURI).model;
-  // What the person might send next, offered in the chat's own box once the
-  // chat is at rest.
-  const { data: nextMessage } = useQuery(
-    rpcClient.workspace.chats.live.nextMessage.experimental_liveOptions({
+  // What the person might send next, offered under the chat's last reply
+  // once the chat is at rest.
+  const { data: nextMessages } = useQuery(
+    rpcClient.workspace.chats.live.nextMessages.experimental_liveOptions({
       input: { id },
     }),
   );
+  const [isBoxEmpty, setIsBoxEmpty] = useState(true);
   // Read here too, so turning it off takes a standing suggestion away at once.
   const { data: preferences } = useQuery(
     rpcClient.preferences.live.get.experimental_liveOptions(),
@@ -483,6 +485,50 @@ export function ChatConversation({
       }
     : undefined;
 
+  // Shown for the reply the chat rests on: a message on its way, or the
+  // setting turned off, takes them away at once.
+  const nextSteps =
+    draftKey.scope === "chat" &&
+    unsettled.length === 0 &&
+    preferences?.suggestNextMessage !== false
+      ? (nextMessages ?? [])
+      : [];
+  const firstNextStep = nextSteps[0];
+  /**
+   * Sends a suggested message as the person's own. The reply in the box is
+   * left as it is: the suggestion is a message of its own, and words they
+   * had started stay theirs to finish.
+   */
+  const sendNextStep = (prompt: string) => {
+    if (!selectedModelURI) {
+      toast.error("Couldn't send your message", {
+        description: "Choose a model first.",
+      });
+      return;
+    }
+    setIsFollowingSubmit(true);
+    slideToSentRef.current();
+    const dropPending = showPending(prompt);
+    void sendContext().then(
+      (viewing) => {
+        createMessage.mutate(
+          {
+            id,
+            modelURI: selectedModelURI,
+            prompt,
+            sessionId: selectedSessionId,
+            viewing,
+          },
+          { onError: dropPending },
+        );
+      },
+      (error: unknown) => {
+        dropPending();
+        toast.error("Couldn't send your message", { cause: error });
+      },
+    );
+  };
+
   const promptInput = (
     <PromptInput
       attachmentsLead={asks?.pills}
@@ -587,17 +633,18 @@ export function ChatConversation({
           },
         );
       }}
+      onCommandEnterWhenEmpty={
+        firstNextStep === undefined
+          ? undefined
+          : () => {
+              sendNextStep(firstNextStep);
+            }
+      }
+      onEmptyChange={setIsBoxEmpty}
       placeholder={`Talk to ${APP_NAME}`}
       places={places}
       ref={promptInputRef}
       selectedSessionId={selectedSessionId}
-      suggestion={
-        draftKey.scope === "chat" &&
-        unsettled.length === 0 &&
-        preferences?.suggestNextMessage !== false
-          ? (nextMessage ?? undefined)
-          : undefined
-      }
     />
   );
 
@@ -677,37 +724,45 @@ export function ChatConversation({
                   ) : !isAgentRunning && shownMessages.length === 0 ? (
                     <NoMessages />
                   ) : (
-                    <TranscriptStream
-                      chatId={chatId}
-                      contentRef={contentRef}
-                      isFollowing={isFollowingOutput}
-                      hasOlder={messagesQuery.data?.hasOlder ?? false}
-                      isDeveloperMode={isDeveloperMode}
-                      isLoadingOlder={messagesQuery.isLoadingOlder}
-                      // Through the send too, so the turn does not read as finished
-                      // between its message being stored and its session starting.
-                      isRunning={
-                        isAgentRunning ||
-                        runTurn.isPending ||
-                        isAgentAlive ||
-                        isFollowingSubmit ||
-                        shownMessages.length > messages.length
-                      }
-                      messages={shownMessages}
-                      onBranch={handleBranch}
-                      onLoadOlder={messagesQuery.loadOlder}
-                      slideToSentRef={slideToSentRef}
-                      sessionId={selectedSessionId}
-                      onContinue={handleContinue}
-                      onModelChange={(modelURI) => {
-                        setSelectedModelURI(modelURI);
-                        handleRunAgain(modelURI);
+                    <NextStepsContext
+                      value={{
+                        isBoxEmpty,
+                        lines: nextSteps,
+                        onSend: sendNextStep,
                       }}
-                      onRetry={handleRetry}
-                      onRunAgain={(options) => {
-                        handleRunAgain(undefined, options);
-                      }}
-                    />
+                    >
+                      <TranscriptStream
+                        chatId={chatId}
+                        contentRef={contentRef}
+                        isFollowing={isFollowingOutput}
+                        hasOlder={messagesQuery.data?.hasOlder ?? false}
+                        isDeveloperMode={isDeveloperMode}
+                        isLoadingOlder={messagesQuery.isLoadingOlder}
+                        // Through the send too, so the turn does not read as finished
+                        // between its message being stored and its session starting.
+                        isRunning={
+                          isAgentRunning ||
+                          runTurn.isPending ||
+                          isAgentAlive ||
+                          isFollowingSubmit ||
+                          shownMessages.length > messages.length
+                        }
+                        messages={shownMessages}
+                        onBranch={handleBranch}
+                        onLoadOlder={messagesQuery.loadOlder}
+                        slideToSentRef={slideToSentRef}
+                        sessionId={selectedSessionId}
+                        onContinue={handleContinue}
+                        onModelChange={(modelURI) => {
+                          setSelectedModelURI(modelURI);
+                          handleRunAgain(modelURI);
+                        }}
+                        onRetry={handleRetry}
+                        onRunAgain={(options) => {
+                          handleRunAgain(undefined, options);
+                        }}
+                      />
+                    </NextStepsContext>
                   )}
                   {pendingModelChange && (
                     <ModelChangeNote data={pendingModelChange} />

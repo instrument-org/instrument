@@ -115,7 +115,7 @@ export const SETTINGS_INDEX = [
     title: "Release channel",
   },
   {
-    detail: "After a reply, show what you might say next. Press Tab to use it.",
+    detail: "After a reply, show a few things you might say next.",
     id: "suggest-next-message",
     tab: "General",
     title: "Suggest a next message",

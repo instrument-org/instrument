@@ -242,8 +242,13 @@ interface PromptInputProps {
   places?: Omit<ComposerPlaces, "apps" | "onNameApp">;
   ref?: React.Ref<PromptInputRef>;
   selectedSessionId?: StoreId.Session;
-  /** A next message to offer in the empty box (`PromptEditor`), while nothing is attached. */
-  suggestion?: string;
+  /**
+   * What the command key with Enter does while the box has nothing in it:
+   * no words, nothing attached, and nobody dictating.
+   */
+  onCommandEnterWhenEmpty?: () => void;
+  /** Whether the box has nothing in it, as it opens and each time that changes. */
+  onEmptyChange?: (empty: boolean) => void;
 }
 
 /**
@@ -280,7 +285,8 @@ export const PromptInput = ({
   places,
   ref,
   selectedSessionId,
-  suggestion,
+  onCommandEnterWhenEmpty,
+  onEmptyChange,
 }: PromptInputProps) => {
   const features = useAtomValue(featuresAtom);
   const isActiveTab = useIsActiveTab();
@@ -344,6 +350,17 @@ export const PromptInput = ({
   useEffect(() => {
     onDictatingChangeEvent(dictating);
   }, [dictating]);
+  const hasNothing =
+    !dictating &&
+    value.trim() === "" &&
+    attachedItems.length === 0 &&
+    !hasAttachmentsLead;
+  const onEmptyChangeEvent = useEffectEvent((now: boolean) => {
+    onEmptyChange?.(now);
+  });
+  useEffect(() => {
+    onEmptyChangeEvent(hasNothing);
+  }, [hasNothing]);
   // A tab put out of sight stays mounted, so its take stops there rather
   // than leave the mic on with no controls showing. Its words still land; a
   // mic still opening has heard nothing yet, so it is let go.
@@ -1206,16 +1223,12 @@ export const PromptInput = ({
           disabled={isLoading}
           key={draftKeyed}
           onChange={setValue}
+          onCommandEnter={hasNothing ? onCommandEnterWhenEmpty : undefined}
           onPaste={handlePaste}
           onSubmit={send}
           placeholder={placeholder}
           ref={promptEditorRef}
           skills={userInvocableSkills}
-          suggestion={
-            attachedItems.length === 0 && !hasAttachmentsLead
-              ? suggestion
-              : undefined
-          }
         />
       </ComposerFrame>
 

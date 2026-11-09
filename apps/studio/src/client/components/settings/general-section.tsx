@@ -776,7 +776,7 @@ function FeedbackOffers() {
 
 /**
  * Whether a chat that comes to rest asks its model for the person's likely
- * next message, shown in the empty box. Each ask is a request on the chat's
+ * next messages, shown under the reply. Each ask is a request on the chat's
  * own model, so this is where someone saving usage turns it off.
  */
 function NextMessageSuggestions() {

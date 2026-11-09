@@ -66,6 +66,8 @@ export interface StepPart {
   };
   /** The command left running, by the id the process list has it under. */
   processId?: string;
+  /** It put up a card for the person to answer, which ends the turn on it. */
+  putsUpCard?: true;
   shows?: StepShows;
   status: StepStatus;
   /** The tasks this call sent work to, each from the message it put in its log. */
@@ -246,6 +248,7 @@ const StepInputSchema = z
 /** What a finished call says of itself, whichever tool it was. */
 const StepOutputSchema = z
   .looseObject({
+    asks: z.array(z.string()),
     blob: z.string(),
     exitCode: z.number(),
     filePath: z.string(),
@@ -310,6 +313,9 @@ function toolStep(
   );
   const status = stepStatus(part, siblings, output);
   const shows = stepShows(part.type, input, output, status);
+  const putsUpCard =
+    (part.type === "tool-ask_permission" && output.state === "asked") ||
+    (part.type === "tool-bash" && (output.asks?.length ?? 0) > 0);
   const startsTask =
     part.type === "tool-bash" && input.command !== undefined
       ? taskCallOf(input.command)
@@ -319,6 +325,7 @@ function toolStep(
     ...(explanation && { explanation }),
     metadata: part.metadata,
     ...(output.processId && { processId: output.processId }),
+    ...(putsUpCard && { putsUpCard }),
     ...(sentTasks.length > 0 && { sentTasks }),
     ...(shows && { shows }),
     ...(startedTasks.length > 0 && { startedTasks }),

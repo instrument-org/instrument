@@ -107,8 +107,8 @@ export function workCardOf(
  * The turn whose card is up, of a session's turns: the same walk as `workCardOf`,
  * carried back across turns, so one card is up in the whole transcript. A
  * message sent mid-turn starts a turn of its own, and the card stays where it
- * was until that turn's work shows something, ends with words, or starts a
- * task.
+ * was until that turn's work shows something, ends with words, asks the
+ * person, or starts a task.
  */
 export function workCardTurnOf(
   turns: readonly Pick<Turn, "foldedRowIds" | "id" | "phase" | "rows">[],
@@ -125,16 +125,29 @@ export function workCardTurnOf(
   return undefined;
 }
 
-/** The newest card of a turn's work, "ended" if a task, or words once a turn that does not fold ended, came after it. */
+/** The newest card of a turn's work, "ended" if a task, a card or step asking the person, or words once a turn that does not fold ended, came after it. */
 function walkBack(
   turn: Pick<Turn, "foldedRowIds" | "phase" | "rows">,
 ): WorkCard | "ended" | undefined {
   const wordsEnd = turn.phase !== "working" && turn.foldedRowIds.size === 0;
   for (const row of turn.rows.toReversed()) {
-    if (row.kind === "task" || (row.kind === "text" && wordsEnd)) {
+    if (
+      row.kind === "task" ||
+      row.kind === "ask" ||
+      (row.kind === "text" && wordsEnd)
+    ) {
       return "ended";
     }
-    const card = row.kind === "activity" ? cardsOf(row).at(-1) : undefined;
+    if (row.kind !== "activity") {
+      continue;
+    }
+    const card = cardsOf(row).at(-1);
+    const cardAt = row.steps.findLastIndex((step) =>
+      card?.steps.includes(step),
+    );
+    if (row.steps.findLastIndex((step) => step.putsUpCard) > cardAt) {
+      return "ended";
+    }
     if (card) {
       return card;
     }

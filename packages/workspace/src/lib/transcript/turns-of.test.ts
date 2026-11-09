@@ -1185,6 +1185,58 @@ describe("the work card", () => {
     expect(rowsAt({ exitCode: 1 })).toStrictEqual(["activity"]);
   });
 
+  it("gives way to a card asking the person", () => {
+    const turn = (output: unknown) =>
+      turnsOf(
+        [
+          typed("Tidy my phone"),
+          message("assistant", (id) => [
+            call(
+              id,
+              "write_file",
+              { activity: "Writing", content: "a", filePath: "/a.md" },
+              { filePath: "/a.md", isNewFile: true },
+            ),
+            call(id, "choose", { questions: [] }, output, "output-available"),
+          ]),
+        ],
+        { isRunning: false },
+      )[0];
+    const waiting = turn({ asked: true });
+    expect(waiting && workCardOf(waiting)).toBeUndefined();
+    expect(waiting && workCardTurnOf([waiting])).toBeUndefined();
+  });
+
+  it.each([
+    [
+      "a permission card",
+      "ask_permission",
+      { kind: "folder", state: "asked", target: "/b" },
+    ],
+    ["a card a command put up", "bash", { asks: ["ask"], exitCode: 1 }],
+  ])("gives way to %s the turn ended on", (_, tool, output) => {
+    const turn = (stepOutput: unknown) =>
+      turnsOf(
+        [
+          typed("Tidy my phone"),
+          message("assistant", (id) => [
+            call(
+              id,
+              "write_file",
+              { activity: "Writing", content: "a", filePath: "/a.md" },
+              { filePath: "/a.md", isNewFile: true },
+            ),
+            call(id, tool, { activity: "Writing" }, stepOutput),
+          ]),
+        ],
+        { isRunning: false },
+      )[0];
+    const waiting = turn(output);
+    expect(waiting && workCardOf(waiting)).toBeUndefined();
+    const ran = turn({ exitCode: 0, state: "allowed", target: "/b" });
+    expect(ran && workCardOf(ran)?.kind).toBe("files");
+  });
+
   it("gives way to a task's card, which carries its own", () => {
     const task = StoreId.newSessionId();
     const [turn] = turnsOf(

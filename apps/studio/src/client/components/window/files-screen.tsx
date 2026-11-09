@@ -798,46 +798,55 @@ export function FilesScreen({
             inert={isFileOpen && !isFolderShown}
             style={{ width: isFileOpen ? fileOffset : "100%" }}
           >
-            <ComputerPage
-              {...(isFileOpen || isClosing
-                ? {
-                    beside: {
-                      isClosing,
-                      isFolderShown,
-                      isResizing: draggedWidth !== null,
-                      onPick: folderHandlers.onBesidePick,
-                      ...(besideOpenPath === undefined
-                        ? {}
-                        : { openPath: besideOpenPath }),
-                      ...(hostedTabId === undefined
-                        ? {}
-                        : { page: browserTargetOf(hostedTabId) }),
-                      pickedInto: pickedSlot,
-                      toggle: (
-                        <FolderToggle
-                          isOpen={isFolderShown}
-                          onToggle={() => {
-                            setFolderShown((shown) => !shown);
-                          }}
-                        />
-                      ),
-                      width: besideWidth,
-                    },
-                  }
-                : {})}
-              onFolderChange={folderHandlers.onFolderChange}
-              onOpenFile={folderHandlers.onOpenFile}
-              path={path}
-              query={query}
-              root={root}
-              arrivals={arrivals}
-              go={folderHandlers.go}
-              select={select}
-              toolsInRow
-              view={view}
-              {...(isFileOpen ? {} : folderQuickLookProps)}
-              {...folderInfoProps}
-            />
+            {/* Never narrower than it stands beside the file, so folding it
+                away and back covers and uncovers it as it was laid out. */}
+            <div
+              className="h-full"
+              style={
+                isFileOpen || isClosing ? { minWidth: besideWidth } : undefined
+              }
+            >
+              <ComputerPage
+                {...(isFileOpen || isClosing
+                  ? {
+                      beside: {
+                        isClosing,
+                        isFolderShown,
+                        isResizing: draggedWidth !== null,
+                        onPick: folderHandlers.onBesidePick,
+                        ...(besideOpenPath === undefined
+                          ? {}
+                          : { openPath: besideOpenPath }),
+                        ...(hostedTabId === undefined
+                          ? {}
+                          : { page: browserTargetOf(hostedTabId) }),
+                        pickedInto: pickedSlot,
+                        toggle: (
+                          <FolderToggle
+                            isOpen={isFolderShown}
+                            onToggle={() => {
+                              setFolderShown((shown) => !shown);
+                            }}
+                          />
+                        ),
+                        width: besideWidth,
+                      },
+                    }
+                  : {})}
+                onFolderChange={folderHandlers.onFolderChange}
+                onOpenFile={folderHandlers.onOpenFile}
+                path={path}
+                query={query}
+                root={root}
+                arrivals={arrivals}
+                go={folderHandlers.go}
+                select={select}
+                toolsInRow
+                view={view}
+                {...(isFileOpen ? {} : folderQuickLookProps)}
+                {...folderInfoProps}
+              />
+            </div>
           </div>
           {isFileOpen && isFolderShown && (
             <div

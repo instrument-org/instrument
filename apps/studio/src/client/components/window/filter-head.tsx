@@ -134,9 +134,11 @@ export function FilterHead({
   if (project) {
     const isFieldShown = isSearchAsked || isSearched;
     return (
+      // Its controls center 24px down, on the line of the chat head's
+      // 48px row across the divider.
       <div
         aria-label="Filters"
-        className="flex h-13 shrink-0 items-center gap-1.5 px-2"
+        className="flex h-13 shrink-0 items-center gap-1.5 px-2 pb-1"
         role="group"
       >
         {!isFieldShown && (
@@ -174,9 +176,11 @@ export function FilterHead({
     );
   }
   return (
+    // The search row centers 24px down, on the line of the chat head's 48px
+    // row across the divider.
     <div
       aria-label="Filters"
-      className="flex shrink-0 flex-col gap-1.5 px-2 pt-2 pb-2"
+      className="flex shrink-0 flex-col gap-1.5 px-2 pt-1.5 pb-2.5"
       role="group"
     >
       <div className="flex items-center gap-1.5">
@@ -217,7 +221,7 @@ export function FilterHead({
 
 /** A square control at the head's height, its glyph in the muted ink. */
 const HEAD_ICON_BUTTON =
-  "grid size-9 shrink-0 place-items-center rounded-lg text-muted-foreground hover:bg-foreground/5 hover:text-foreground data-[state=open]:bg-foreground/6 data-[state=open]:text-foreground";
+  "grid size-9 shrink-0 place-items-center rounded-lg text-muted-foreground/70 hover:bg-foreground/5 hover:text-foreground data-[state=open]:bg-foreground/6 data-[state=open]:text-foreground";
 
 /** The row densities as the view menu offers them. */
 const DENSITIES: {

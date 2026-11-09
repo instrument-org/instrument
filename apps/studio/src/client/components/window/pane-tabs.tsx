@@ -153,8 +153,9 @@ export function PaneTabs({
   return (
     <div className="flex shrink-0 items-center pr-2">
       <TabStrip
-        // The pane's own card is the ground a tab up stands on.
-        className="min-w-0 flex-1 pr-0 [--tab-selected:var(--card)]"
+        // The pane's own card is the ground a tab up stands on. The first tab
+        // starts at the location row's 6px inset, over its back button.
+        className="min-w-0 flex-1 pr-0 pl-1.5 [--tab-selected:var(--card)]"
         label="What this chat has open"
         newControl={
           <DropdownMenu>

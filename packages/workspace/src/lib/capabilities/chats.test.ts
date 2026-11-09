@@ -164,11 +164,11 @@ describe("instrument chats list", () => {
     expect(travel.name).toBe("Travel");
     expect((await one("instrument chats list")).stdout).toMatchInlineSnapshot(
       `
-      "4 chats, newest first:
-        organizer  2026-09-16  Tidy up my chats
-        groceries  2026-09-16  Groceries for the week
-        porto  2026-09-16  about porto  (unnamed)
-        lisbon  2026-09-16  [Travel]  Trip to Lisbon
+      "4 chats, newest first (id, began, last active, title):
+        organizer  2026-09-16  2026-09-16  Tidy up my chats
+        groceries  2026-09-16  2026-09-16  Groceries for the week
+        porto  2026-09-16  2026-09-16  about porto  (unnamed)
+        lisbon  2026-09-16  2026-09-16  [Travel]  Trip to Lisbon
       "
     `,
     );
@@ -182,27 +182,27 @@ describe("instrument chats list", () => {
     );
     expect((await one("instrument chats list --project Travel")).stdout)
       .toMatchInlineSnapshot(`
-        "2 chats, newest first:
-          porto  2026-09-16  [Travel]  about porto  (unnamed)
-          lisbon  2026-09-16  [Travel]  Trip to Lisbon
+        "2 chats, newest first (id, began, last active, title):
+          porto  2026-09-16  2026-09-16  [Travel]  about porto  (unnamed)
+          lisbon  2026-09-16  2026-09-16  [Travel]  Trip to Lisbon
         "
       `);
     expect((await one("instrument chats list --archived")).stdout)
       .toMatchInlineSnapshot(`
-        "1 chat, newest first:
-          groceries  2026-09-16  Groceries for the week
+        "1 chat, newest first (id, began, last active, title):
+          groceries  2026-09-16  2026-09-16  Groceries for the week
         "
       `);
     expect((await one("instrument chats list --unnamed")).stdout)
       .toMatchInlineSnapshot(`
-        "1 chat, newest first:
-          porto  2026-09-16  [Travel]  about porto  (unnamed)
+        "1 chat, newest first (id, began, last active, title):
+          porto  2026-09-16  2026-09-16  [Travel]  about porto  (unnamed)
         "
       `);
     expect((await one("instrument chats list --project none")).stdout)
       .toMatchInlineSnapshot(`
-        "1 chat, newest first:
-          organizer  2026-09-16  Tidy up my chats
+        "1 chat, newest first (id, began, last active, title):
+          organizer  2026-09-16  2026-09-16  Tidy up my chats
         "
       `);
   });

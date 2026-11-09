@@ -31,6 +31,8 @@ const NO_PROJECT = "none";
 
 const ListedChat = z.object({
   archived: z.boolean(),
+  /** The day it began, YYYY-MM-DD. */
+  began: z.string(),
   id: z.string(),
   /** The day anything last happened in it, YYYY-MM-DD. */
   last_activity: z.string(),
@@ -169,6 +171,7 @@ export const chatsList = defineCapability({
         const name = chat.project && names.get(chat.project);
         return {
           archived: chat.archived,
+          began: day(chat.createdAt),
           id: chat.id,
           last_activity: day(chat.updatedAt),
           named: chat.titled,
@@ -179,11 +182,12 @@ export const chatsList = defineCapability({
       });
   },
   summary:
-    "The user's chats, newest first: each one's id, the day it was last active, its project, and its title.",
+    "The user's chats, newest first: each one's id, the day it began and the day it was last active, its project, and its title.",
   surfaces: {
     cli: {
       help: `A chat's id is also its folder's name under $INSTRUMENT_CHATS, where what
-was said in it can be read.`,
+was said in it can be read. A chat that began and was last active on the same
+day was never come back to.`,
       words: ["chats", "list"],
     },
     script: {},
@@ -191,10 +195,10 @@ was said in it can be read.`,
   text: (chats) =>
     chats.length === 0
       ? "No chats match."
-      : `${chats.length} ${chats.length === 1 ? "chat" : "chats"}, newest first:\n${chats
+      : `${chats.length} ${chats.length === 1 ? "chat" : "chats"}, newest first (id, began, last active, title):\n${chats
           .map(
             (chat) =>
-              `  ${chat.id}  ${chat.last_activity}  ${chat.project ? `[${chat.project}]  ` : ""}${chat.title}${chat.named ? "" : "  (unnamed)"}${chat.starred ? "  (starred)" : ""}`,
+              `  ${chat.id}  ${chat.began}  ${chat.last_activity}  ${chat.project ? `[${chat.project}]  ` : ""}${chat.title}${chat.named ? "" : "  (unnamed)"}${chat.starred ? "  (starred)" : ""}`,
           )
           .join("\n")}`,
   where: CHATS,

@@ -18,6 +18,7 @@ import { PROCESS_CONTROL_EVALS } from "./process-control";
 import { BROWSER_DATA_EVALS } from "./browser-data";
 import { BROWSER_SELECTION_EVALS } from "./browser-selection";
 import { CHAT_HISTORY_EVALS } from "./chat-history";
+import { CHATS_ORGANIZE_EVALS } from "./chats-organize";
 import { CONTEXT_ROLLOVER_EVALS } from "./context-rollover";
 import { COST_STUDY_EVALS } from "./cost-study";
 import { CREATE_PAGE_SKILL_EVALS } from "./create-page-skill";
@@ -87,6 +88,7 @@ export const EVALS = [
   ...BROWSER_DATA_EVALS,
   ...BROWSER_SELECTION_EVALS,
   ...CHAT_HISTORY_EVALS,
+  ...CHATS_ORGANIZE_EVALS,
   ...CONTEXT_ROLLOVER_EVALS,
   ...COST_STUDY_EVALS,
   ...CREATE_PAGE_SKILL_EVALS,

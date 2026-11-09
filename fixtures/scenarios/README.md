@@ -33,15 +33,16 @@ Everything a scenario writes stays inside its own folders in studio-drive's cach
 
 ## The scenarios
 
-| Scenario              | State                                                                                         | Setup opens on               |
-| --------------------- | --------------------------------------------------------------------------------------------- | ---------------------------- |
-| `new`                 | A first launch, with no workspace yet                                                         | `folder`, as Welcome         |
-| `beta-tester`         | Chats in the app's own data, ChatGPT, finished work in Documents, no record                   | `welcome-back`               |
-| `one-x-user`          | A 1.x task with no chat in the app's own data, ChatGPT, finished work in Documents, no record | `welcome-back`               |
-| `quit-after-chatgpt`  | Picked the folder, connected ChatGPT, then quit                                               | `free-account`               |
-| `folder-move-pending` | A beta tester's launch that makes the move the folder step recorded                           | `free-account`               |
-| `own-key-and-account` | Picked the folder with a Workers AI key; boot with `--account` for a no-plan account          | `model`, past the plan       |
-| `finished-new-step`   | Finished on a build without the notifications step                                            | `notifications`, as new only |
-| `offline`             | A first launch with no network                                                                | `folder`, as Welcome         |
+| Scenario              | State                                                                                         | Setup opens on                                    |
+| --------------------- | --------------------------------------------------------------------------------------------- | ------------------------------------------------- |
+| `new`                 | A first launch, with no workspace yet                                                         | `folder`, as Welcome                              |
+| `beta-tester`         | Chats in the app's own data, ChatGPT, finished work in Documents, no record                   | `welcome-back`                                    |
+| `beta-tester-no-ai`   | Chats in the app's own data, finished work in Documents, no sign-ins, no record               | `welcome-back`, then `choose-ai` after the folder |
+| `one-x-user`          | A 1.x task with no chat in the app's own data, ChatGPT, finished work in Documents, no record | `welcome-back`                                    |
+| `quit-after-chatgpt`  | Picked the folder, connected ChatGPT, then quit                                               | `free-account`                                    |
+| `folder-move-pending` | A beta tester's launch that makes the move the folder step recorded                           | `free-account`                                    |
+| `own-key-and-account` | Picked the folder with a Workers AI key; boot with `--account` for a no-plan account          | `model`, past the plan                            |
+| `finished-new-step`   | Finished on a build without the notifications step                                            | `notifications`, as new only                      |
+| `offline`             | A first launch with no network                                                                | `folder`, as Welcome                              |
 
 Check where one landed by reading `setup.live.state` over the debug port rather than by looking.

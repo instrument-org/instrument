@@ -1,0 +1,4 @@
+description: A beta tester's first launch of this build with no AI connected. Chats in a workspace in the app's own data, finished work in the folder an earlier build used in Documents, no sign-ins, and no setup record. Setup opens on Welcome back and asks which AI to use after the folder.
+workspace: documents
+outputFolder: documents
+notifications: not-asked

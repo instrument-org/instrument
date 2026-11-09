@@ -74,16 +74,16 @@ describe("restoring a reopened tab", () => {
   const targetId = browserTargetOf(StoreId.newTabId());
 
   function withTargets(targets: BrowserTarget[]) {
-    const sendCommand = vi.fn(() => Promise.resolve({}));
+    const loadPage = vi.fn(() => Promise.resolve());
     setWorkspaceConfig({
       ...getWorkspaceConfig(),
       browser: {
         ...getWorkspaceConfig().browser,
         listTargets: () => Promise.resolve(targets),
-        sendCommand,
+        loadPage,
       },
     });
-    return sendCommand;
+    return loadPage;
   }
 
   function target(url: string): BrowserTarget {
@@ -91,7 +91,7 @@ describe("restoring a reopened tab", () => {
   }
 
   it("navigates a blank tab to the page the window remembers", async () => {
-    const sendCommand = withTargets([target(BLANK_PAGE_URL)]);
+    const loadPage = withTargets([target(BLANK_PAGE_URL)]);
 
     const result = await restoreLastPage({
       fallbackUrl: "https://example.org/remembered",
@@ -99,29 +99,30 @@ describe("restoring a reopened tab", () => {
     });
 
     expect(result.isOk()).toBe(true);
-    expect(sendCommand).toHaveBeenCalledWith(targetId, "Page.navigate", {
-      url: "https://example.org/remembered",
-    });
+    expect(loadPage).toHaveBeenCalledWith(
+      targetId,
+      "https://example.org/remembered",
+    );
   });
 
   it("leaves a tab that already has a page alone", async () => {
     // The ordinary case: this runs on every panel mount, and most find a
     // browser that was never reaped and is still on the page the user left.
-    const sendCommand = withTargets([target("https://example.org")]);
+    const loadPage = withTargets([target("https://example.org")]);
 
     await restoreLastPage({
       fallbackUrl: "https://example.com",
       targetId,
     });
 
-    expect(sendCommand).not.toHaveBeenCalled();
+    expect(loadPage).not.toHaveBeenCalled();
   });
 
   it("stands aside while a page the user asked for is on its way, and restores once it has gone", async () => {
     // A window opening a tab at an address sends that open, then draws the
     // tab, whose blank guest asks for a restore of the same target before
     // the address has loaded.
-    const sendCommand = withTargets([target(BLANK_PAGE_URL)]);
+    const loadPage = withTargets([target(BLANK_PAGE_URL)]);
     const noteRestore = vi.fn();
     setWorkspaceConfig({
       ...getWorkspaceConfig(),
@@ -134,7 +135,7 @@ describe("restoring a reopened tab", () => {
     await restore();
 
     expect(noteRestore).not.toHaveBeenCalled();
-    expect(sendCommand).not.toHaveBeenCalled();
+    expect(loadPage).not.toHaveBeenCalled();
 
     arrived();
     await restore();

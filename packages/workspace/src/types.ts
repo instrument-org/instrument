@@ -81,6 +81,13 @@ export interface BrowserConfig {
   isGuestBusy: (targetId: BrowserTargetId) => boolean;
   listTargets: () => Promise<BrowserTarget[]>;
   /**
+   * Sends a guest to an address on the app's own behalf: a page the person
+   * opened, or one brought back to where its tab was. Unlike `sendCommand`,
+   * it does not count as an agent working in the page, so another window may
+   * still take it.
+   */
+  loadPage: (targetId: BrowserTargetId, url: string) => Promise<void>;
+  /**
    * Told just before a blank guest is navigated back to the page its tab was
    * last on (`restoreLastPage`), so the browser's history can tell reopening
    * a page from visiting it.

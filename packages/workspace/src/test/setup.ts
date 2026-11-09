@@ -69,6 +69,7 @@ setWorkspaceConfig({
       return;
     },
     listTargets: () => Promise.resolve([]),
+    loadPage: () => Promise.resolve(),
     onTargetDestroyed: noopCleanup,
     sendCommand: () => Promise.resolve({}),
     setAgentFileRoots: noop,

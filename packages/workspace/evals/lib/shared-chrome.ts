@@ -378,6 +378,13 @@ export async function launchSharedChrome(): Promise<SharedChrome> {
             url: page.url,
           })),
         ),
+      loadPage: async (targetId, url) => {
+        const page = pages.get(targetId);
+        if (!page) {
+          throw new Error(`No target ${targetId}`);
+        }
+        await send("Page.navigate", { url }, page.session);
+      },
       onTargetDestroyed: (targetId, listener) => {
         const page = pages.get(targetId);
         page?.destroyed.add(listener);

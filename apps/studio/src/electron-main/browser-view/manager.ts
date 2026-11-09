@@ -1043,6 +1043,54 @@ function createBrowserViewManager(): BrowserViewManager {
     };
   }
 
+  /**
+   * Every command reaches the page through here, so a sleeping guest is
+   * woken, and has drawn a frame, before any of them is sent. Only an
+   * agent's commands keep the page in its window (`isInUse`): the app's own
+   * load of a page opened or brought back is no one's work in it.
+   */
+  async function sendToGuest(
+    targetId: BrowserTargetId,
+    method: string,
+    params: unknown,
+    frameSession: string | undefined,
+    { byAgent }: { byAgent: boolean },
+  ) {
+    const entry = entries.get(targetId);
+    if (entry) {
+      await wakeGuest(entry, notifyEntriesChanged);
+    }
+    const dispatch = () =>
+      sendCommand({
+        describeHost,
+        ensureDebuggerAttached,
+        entries,
+        frameSession,
+        method,
+        params,
+        requestGuestFocus,
+        targetId,
+      });
+    if (!isAgentDrivenCommand(method)) {
+      return dispatch();
+    }
+    const driven = entries.get(targetId);
+    if (driven && byAgent) {
+      noteAgentCommand(driven);
+      driven.hasAgentInput ||= method.startsWith("Input.");
+    }
+    const settle = focusGuard.armCommand(
+      targetId,
+      hostOf(targetId)?.isFocused() ?? false,
+      bouncesGuestFocus(method),
+    );
+    try {
+      return await dispatch();
+    } finally {
+      settle();
+    }
+  }
+
   const browser: BrowserConfig = {
     hasNoWindow: false,
     closeTarget: (targetId) =>
@@ -1095,50 +1143,22 @@ function createBrowserViewManager(): BrowserViewManager {
       workspace: isBlocking(),
     }),
     listTargets,
+    loadPage: async (targetId, url) => {
+      await sendToGuest(targetId, "Page.navigate", { url }, undefined, {
+        byAgent: false,
+      });
+    },
     noteRestore: noteRestored,
     onTargetDestroyed,
-    sendCommand: (async (
+    sendCommand: ((
       targetId: BrowserTargetId,
       method: string,
       params?: unknown,
       frameSession?: string,
-    ) => {
-      // Every command reaches the page through here, so a sleeping guest is
-      // woken, and has drawn a frame, before any of them is sent.
-      const entry = entries.get(targetId);
-      if (entry) {
-        await wakeGuest(entry, notifyEntriesChanged);
-      }
-      const dispatch = () =>
-        sendCommand({
-          describeHost,
-          ensureDebuggerAttached,
-          entries,
-          frameSession,
-          method,
-          params,
-          requestGuestFocus,
-          targetId,
-        });
-      if (!isAgentDrivenCommand(method)) {
-        return dispatch();
-      }
-      const driven = entries.get(targetId);
-      if (driven) {
-        noteAgentCommand(driven);
-        driven.hasAgentInput ||= method.startsWith("Input.");
-      }
-      const settle = focusGuard.armCommand(
-        targetId,
-        hostOf(targetId)?.isFocused() ?? false,
-        bouncesGuestFocus(method),
-      );
-      try {
-        return await dispatch();
-      } finally {
-        settle();
-      }
-    }) satisfies BrowserConfig["sendCommand"],
+    ) =>
+      sendToGuest(targetId, method, params, frameSession, {
+        byAgent: true,
+      })) satisfies BrowserConfig["sendCommand"],
     sleepGuest: (targetId) => {
       const entry = entries.get(targetId);
       const guest = entry?.webContents;

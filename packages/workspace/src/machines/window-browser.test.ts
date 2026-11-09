@@ -45,6 +45,7 @@ function makeBrowser() {
     personInputAt: () => undefined,
     isGuestBusy: (targetId) => busy.has(targetId),
     listTargets: () => Promise.resolve([]),
+    loadPage: () => Promise.resolve(),
     onTargetDestroyed: (targetId, listener) => {
       destroyed.set(targetId, listener);
       return () => {

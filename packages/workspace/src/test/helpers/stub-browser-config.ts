@@ -23,6 +23,7 @@ export function createStubBrowserConfig(): BrowserConfig {
       return;
     },
     listTargets: () => Promise.resolve([]),
+    loadPage: () => Promise.resolve(),
     onTargetDestroyed: () => noop,
     sendCommand: () => Promise.resolve({}),
     setAgentFileRoots: noop,

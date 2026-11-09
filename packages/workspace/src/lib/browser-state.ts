@@ -80,7 +80,7 @@ export function navigateTarget({
     // wrapped the same way restoreLastPage wraps its own.
     try {
       const { browser } = getWorkspaceConfig();
-      yield* ok(await browser.sendCommand(targetId, "Page.navigate", { url }));
+      yield* ok(await browser.loadPage(targetId, url));
     } catch (error) {
       return err(error instanceof Error ? error : new Error(String(error)));
     }
@@ -162,9 +162,7 @@ export function restoreLastPage({
           return ok(undefined);
         }
         browser.noteRestore?.(targetId, fallbackUrl);
-        await browser.sendCommand(targetId, "Page.navigate", {
-          url: fallbackUrl,
-        });
+        await browser.loadPage(targetId, fallbackUrl);
       } catch (error) {
         return err(error instanceof Error ? error : new Error(String(error)));
       }

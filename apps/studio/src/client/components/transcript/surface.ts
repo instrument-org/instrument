@@ -1,9 +1,4 @@
-import {
-  type SessionMessagePart,
-  type StepPart,
-  type StoreId,
-  type TranscriptMessage,
-} from "@instrument-org/workspace/client";
+import { type StoreId } from "@instrument-org/workspace/client";
 import { type ComponentType, createContext } from "react";
 
 /** What a task's card says of it, wherever that comes from. */
@@ -48,10 +43,9 @@ export interface CommandFacts {
 }
 
 /**
- * What the transcript reads from outside what it is handed, so it draws the
- * same in the app and on the debug page, which supplies scripted answers: the
- * call behind an opened step, the picture of a page, the commands left going,
- * and a task's standing and messages.
+ * What the transcript does outside itself, and the picture of a page, so it
+ * draws the same in the app and on the debug page, which does nothing outside
+ * and draws a stand-in picture. What it reads comes from `transcript-data.ts`.
  */
 export interface TranscriptSurface {
   PagePicture: ComponentType<{ sessionId: StoreId.Session }>;
@@ -60,36 +54,6 @@ export interface TranscriptSurface {
   onOpenUrl: (url: string) => void;
   onStopCommand: (command: Pick<CommandFacts, "id" | "sessionId">) => void;
   onStopTask: (id: StoreId.Session) => void;
-  /**
-   * The page a session's work is on, as its tab says it is; nothing is read
-   * while `sessionId` is absent.
-   */
-  useDrivenPage: (
-    sessionId: StoreId.Session | undefined,
-  ) => { title?: string; url?: string } | undefined;
-  /** Where the paths a call named are on this computer, once that is known. */
-  useHostPaths: (paths: readonly string[]) => Record<string, null | string>;
-  /** The commands the chat and its tasks left going, and those that have since ended. */
-  useCommands: () => readonly CommandFacts[];
-  useStepPart: (
-    step: StepPart,
-    isOpen: boolean,
-  ) =>
-    | SessionMessagePart.ReasoningPart
-    | SessionMessagePart.ToolPart
-    | undefined;
-  /**
-   * What a task's card says: the stretch of its log from `from`, the message
-   * a send put there, or from its start without one.
-   */
-  useTaskFacts: (
-    id: StoreId.Session,
-    from?: StoreId.Message,
-  ) => TaskCardFacts | undefined;
-  useTaskMessages: (
-    id: StoreId.Session,
-    isWorking: boolean,
-  ) => readonly TranscriptMessage[];
 }
 
 export const TranscriptSurfaceContext = createContext<

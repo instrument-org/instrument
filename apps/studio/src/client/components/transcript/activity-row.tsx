@@ -23,7 +23,7 @@ import { SessionMarkdown } from "../session-markdown";
 import { ShimmerSweep } from "../shimmer-sweep";
 import { useReleaseAutoScroll } from "../transcript-scroll-context";
 import { RollingText } from "./rolling-text";
-import { TranscriptSurfaceContext } from "./surface";
+import { useStepPart } from "./transcript-data";
 import { TranscriptActionsContext } from "./transcript-actions";
 import { formatClock, useTicking } from "./time";
 
@@ -314,9 +314,8 @@ export function StepDetail({
   chatId: ChatId;
   step: TurnStep;
 }) {
-  const surface = use(TranscriptSurfaceContext);
   const { onRetry } = use(TranscriptActionsContext);
-  const part = surface?.useStepPart(step, true);
+  const part = useStepPart(step, true);
   if (!part) {
     return (
       <p className="py-1 text-xs text-muted-foreground">Opening the call…</p>

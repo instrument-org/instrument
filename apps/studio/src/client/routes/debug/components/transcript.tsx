@@ -1,10 +1,11 @@
 import {
-  type CommandFacts,
-  type TaskCardFacts,
   type TranscriptSurface,
   TranscriptSurfaceContext,
 } from "@/client/components/transcript/surface";
-import { DeveloperNotesSourceContext } from "@/client/components/transcript/developer-notes-source";
+import {
+  type TranscriptRecords,
+  TranscriptRecordsContext,
+} from "@/client/components/transcript/transcript-data";
 import { Transcript } from "@/client/components/transcript/transcript";
 import { useHoldAtReplyStart } from "@/client/components/transcript/use-hold-at-reply-start";
 import { TranscriptScrollContext } from "@/client/components/transcript-scroll-context";
@@ -30,13 +31,14 @@ import { rpcClient } from "@/client/rpc/client";
 import {
   type ChatId,
   ChatIdSchema,
+  type ChildTask,
   getToolNameByType,
-  isToolPart,
   type DeveloperNote,
   type DeveloperNoteBody,
+  latestStepIn,
   type SessionMessagePart,
-  type StepPart,
   type StoreId,
+  taskSlices,
   type TranscriptMessage,
   transcriptMessage,
   turnsOf,
@@ -169,22 +171,21 @@ function noop() {
   // nothing here is a real task.
 }
 
-/** What a frame is, for the surface: its messages, its place in the run, and its tasks. */
-interface DebugFrame {
-  commands: readonly CommandFacts[];
-  frameIndex: number;
-  lastFrameIndex: number;
-  messages: readonly SessionMessagePart.Type[];
-  tasks: Map<string, { frames: Frame[]; ended: string; title: string }>;
-  taskStarts: Map<string, number>;
-}
+/** A scenario's tasks, by session, each with its frames. */
+type DebugTasks = Map<
+  string,
+  { frames: Frame[]; ended: string; title: string }
+>;
 
-const DebugFrameContext = createContext<DebugFrame | undefined>(undefined);
+/** Where each task the chat started begins: the frame, and when its call made it. */
+type TaskStarts = Map<StoreId.Session, { at: number; startedAt: Date }>;
+
+const FrameIndexContext = createContext(0);
 
 /** A stand-in for a page's picture, changing as the frames go by. */
 function DebugPagePicture() {
-  const frame = use(DebugFrameContext);
-  const seed = Math.floor((frame?.frameIndex ?? 0) / 3);
+  const frameIndex = use(FrameIndexContext);
+  const seed = Math.floor(frameIndex / 3);
   const widths = [60, 92, 74, 88, 66, 95, 70].map(
     (width, index) => 40 + ((width + seed * 13 + index * 7) % 60),
   );
@@ -203,20 +204,132 @@ function DebugPagePicture() {
   );
 }
 
-function taskFrame(frame: DebugFrame | undefined, id: StoreId.Session) {
-  const task = frame?.tasks.get(id);
-  const start = frame?.taskStarts.get(id);
-  if (!frame || !task || start === undefined) {
-    return undefined;
-  }
-  // Its whole run plays out between its start and the end of its chat's frames.
+/**
+ * Where a scripted task is at a frame: its whole run plays out between its
+ * start and the end of its chat's frames.
+ */
+function taskFrame({
+  frameIndex,
+  lastFrameIndex,
+  start,
+  task,
+}: {
+  frameIndex: number;
+  lastFrameIndex: number;
+  start: number;
+  task: { frames: Frame[] };
+}) {
   const through =
-    (frame.frameIndex - start) / Math.max(frame.lastFrameIndex - 3 - start, 1);
+    (frameIndex - start) / Math.max(lastFrameIndex - 3 - start, 1);
   const at = Math.min(
     Math.max(Math.round(through * (task.frames.length - 1)), 0),
     task.frames.length - 1,
   );
-  return { at, task, working: at < task.frames.length - 1 };
+  return {
+    messages: task.frames[at]?.messages ?? [],
+    working: at < task.frames.length - 1,
+  };
+}
+
+/**
+ * The chat's tasks as the app's list has them at a frame, and each one's
+ * messages. A task without a script ends where the wake saying it finished
+ * lands, and works until then, as a real chat's does.
+ */
+function taskRecordsAt({
+  chat,
+  frameIndex,
+  lastFrameIndex,
+  parts,
+  taskStarts,
+  tasks,
+}: {
+  chat: ChatId;
+  frameIndex: number;
+  lastFrameIndex: number;
+  parts: readonly SessionMessagePart.Type[];
+  taskStarts: TaskStarts;
+  tasks: DebugTasks;
+}): Pick<TranscriptRecords, "taskMessages" | "tasks"> {
+  const records: ChildTask[] = [];
+  const taskMessages = new Map<StoreId.Session, TranscriptMessage[]>();
+  for (const [index, [id, { at, startedAt }]] of [
+    ...taskStarts.entries(),
+  ].entries()) {
+    const known = {
+      chatId: chat,
+      handle: `t${(index + 1).toString()}`,
+      id,
+    };
+    const task = tasks.get(id);
+    if (task) {
+      const { messages, working } = taskFrame({
+        frameIndex,
+        lastFrameIndex,
+        start: at,
+        task,
+      });
+      const step = latestStepIn(messages);
+      const createdAt = messages[0]?.metadata.createdAt ?? startedAt;
+      records.push({
+        ...known,
+        createdAt,
+        slices: taskSlices(messages),
+        status: working
+          ? { kind: "running", line: step ?? "Working" }
+          : { kind: "done", line: task.ended, summary: task.ended },
+        ...(step !== undefined && { step }),
+        stoppable: working,
+        title: task.title,
+        updatedAt: messages.at(-1)?.metadata.createdAt ?? createdAt,
+        working,
+      });
+      taskMessages.set(id, lightMessages(messages));
+      continue;
+    }
+    const finished = parts
+      .flatMap((part) =>
+        part.type === "data-taskEvent"
+          ? part.data.events.map((event) => ({
+              at: part.metadata.createdAt,
+              event,
+            }))
+          : [],
+      )
+      .find(
+        ({ event }) => event.sessionId === id && event.status !== "overdue",
+      );
+    if (finished) {
+      const { event } = finished;
+      const ended = event.summary?.split("```")[0];
+      records.push({
+        ...known,
+        createdAt: startedAt,
+        slices: [],
+        status: {
+          kind: event.status === "error" ? "failed" : "done",
+          line: ended ?? event.title,
+          ...(ended !== undefined && { summary: ended }),
+        },
+        stoppable: false,
+        title: event.title,
+        updatedAt: finished.at,
+        working: false,
+      });
+      continue;
+    }
+    records.push({
+      ...known,
+      createdAt: startedAt,
+      slices: [],
+      status: { kind: "running", line: "Working" },
+      stoppable: false,
+      title: "Task",
+      updatedAt: startedAt,
+      working: true,
+    });
+  }
+  return { taskMessages, tasks: records };
 }
 
 const debugSurface: TranscriptSurface = {
@@ -226,57 +339,6 @@ const debugSurface: TranscriptSurface = {
   onStopCommand: noop,
   onStopTask: noop,
   PagePicture: DebugPagePicture,
-  useDrivenPage: () => undefined,
-  useHostPaths: (paths) =>
-    Object.fromEntries(paths.map((path) => [path, path])),
-  useCommands: () => use(DebugFrameContext)?.commands ?? [],
-  useStepPart: (step: StepPart) => {
-    const part = use(DebugFrameContext)?.messages.find(
-      (each) => each.metadata.id === step.metadata.id,
-    );
-    return part && (isToolPart(part) || part.type === "reasoning")
-      ? part
-      : undefined;
-  },
-  useTaskFacts: (id): TaskCardFacts | undefined => {
-    const frame = use(DebugFrameContext);
-    const found = taskFrame(frame, id);
-    if (!found) {
-      // A real chat's task works until the wake saying it finished lands.
-      const event = frame?.messages
-        .flatMap((part) =>
-          part.type === "data-taskEvent" ? part.data.events : [],
-        )
-        .find((each) => each.sessionId === id && each.status !== "overdue");
-      return (
-        event && {
-          ended: event.summary?.split("```")[0],
-          failed: event.status === "error",
-          stoppable: false,
-          title: event.title,
-          working: false,
-        }
-      );
-    }
-    const messages = lightMessages(found.task.frames[found.at]?.messages ?? []);
-    const row = turnsOf(messages, { isRunning: found.working })
-      .at(-1)
-      ?.rows.findLast((each) => each.kind === "activity");
-    return {
-      ended: found.task.ended,
-      failed: false,
-      ...(row?.kind === "activity" && row.title && { step: row.title }),
-      stoppable: found.working,
-      title: found.task.title,
-      working: found.working,
-    };
-  },
-  useTaskMessages: (id) => {
-    const found = taskFrame(use(DebugFrameContext), id);
-    return found
-      ? lightMessages(found.task.frames[found.at]?.messages ?? [])
-      : [];
-  },
 };
 
 function lightMessages(messages: Frame["messages"]): TranscriptMessage[] {
@@ -829,7 +891,7 @@ function FrameTranscript({
   frames: Frame[];
   isDeveloperMode: boolean;
   pageTurns: number | undefined;
-  tasks: DebugFrame["tasks"];
+  tasks: DebugTasks;
 }) {
   const allMessages = useMemo(
     () => lightMessages(frame.messages),
@@ -855,14 +917,17 @@ function FrameTranscript({
     [allMessages, from],
   );
   const taskStarts = useMemo(() => {
-    const starts = new Map<string, number>();
+    const starts: TaskStarts = new Map();
     for (const [at, each] of frames.entries()) {
       for (const message of each.messages) {
         for (const part of message.parts) {
           if (part.type === "tool-bash" && part.state === "output-available") {
             for (const handOff of part.output.handOffs ?? []) {
               if (!starts.has(handOff.sessionId)) {
-                starts.set(handOff.sessionId, at);
+                starts.set(handOff.sessionId, {
+                  at,
+                  startedAt: part.metadata.createdAt,
+                });
               }
             }
           }
@@ -874,34 +939,6 @@ function FrameTranscript({
   const sessionId = frame.messages[0]?.metadata.sessionId;
   // Going for a while by now, or ended after its turn did.
   const [startedAgo] = useState(() => Date.now() - 40_000);
-  const debugFrame = useMemo(
-    (): DebugFrame => ({
-      commands: sessionId
-        ? (commands ?? []).map((command) => ({
-            ...command,
-            sessionId,
-            startedAt: new Date(
-              command.ranMs === undefined ? startedAgo : startedAgo + 40_000,
-            ),
-          }))
-        : [],
-      frameIndex,
-      lastFrameIndex: frames.length - 1,
-      messages: frame.messages.flatMap((message) => message.parts),
-      tasks,
-      taskStarts,
-    }),
-    [
-      commands,
-      frame.messages,
-      frameIndex,
-      frames.length,
-      sessionId,
-      startedAgo,
-      taskStarts,
-      tasks,
-    ],
-  );
   const [noteRead, setNoteRead] = useState<{
     bodies: Record<string, DeveloperNoteBody>;
     notes: DeveloperNote[];
@@ -922,20 +959,50 @@ function FrameTranscript({
       isCurrent = false;
     };
   }, [frame.messages, isDeveloperMode, sessionId]);
-  const noteSource = useMemo(
-    () => ({
-      useBody: ({ note }: { note: string }) => noteRead.bodies[note] ?? null,
-      useNotes: () => noteRead.notes,
-    }),
-    [noteRead],
-  );
+  const records = useMemo((): TranscriptRecords => {
+    const parts = frame.messages.flatMap((message) => message.parts);
+    return {
+      commands: sessionId
+        ? (commands ?? []).map((command) => ({
+            ...command,
+            sessionId,
+            startedAt: new Date(
+              command.ranMs === undefined ? startedAgo : startedAgo + 40_000,
+            ),
+          }))
+        : [],
+      developerNotes: noteRead,
+      // Every path is where the call said it was.
+      hostPathOf: (path) => path,
+      parts,
+      ...taskRecordsAt({
+        chat: chat ?? DEBUG_CHAT,
+        frameIndex,
+        lastFrameIndex: frames.length - 1,
+        parts,
+        taskStarts,
+        tasks,
+      }),
+    };
+  }, [
+    chat,
+    commands,
+    frame.messages,
+    frameIndex,
+    frames.length,
+    noteRead,
+    sessionId,
+    startedAgo,
+    taskStarts,
+    tasks,
+  ]);
   if (!sessionId) {
     return null;
   }
   return (
-    <DebugFrameContext value={debugFrame}>
+    <FrameIndexContext value={frameIndex}>
       <TranscriptSurfaceContext value={debugSurface}>
-        <DeveloperNotesSourceContext value={noteSource}>
+        <TranscriptRecordsContext value={records}>
           <Transcript
             chatId={chat ?? DEBUG_CHAT}
             hasOlder={from > 0}
@@ -961,8 +1028,8 @@ function FrameTranscript({
             onRunAgain={noop}
             sessionId={sessionId}
           />
-        </DeveloperNotesSourceContext>
+        </TranscriptRecordsContext>
       </TranscriptSurfaceContext>
-    </DebugFrameContext>
+    </FrameIndexContext>
   );
 }

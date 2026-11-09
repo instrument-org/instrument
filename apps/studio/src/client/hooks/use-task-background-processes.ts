@@ -1,6 +1,6 @@
 import { rpcClient } from "@/client/rpc/client";
 import { type StoreId, type ChatId } from "@instrument-org/workspace/client";
-import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { skipToken, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useEffect } from "react";
 
 /** One entry of what a task has running, as the list route reports it. */
@@ -46,13 +46,14 @@ export function useRunningBackgroundProcess({
 
 /**
  * Every command a chat and its tasks started that the registry remembers, those
- * still running and those that ended with how long they ran.
+ * still running and those that ended with how long they ran. None without a
+ * chat.
  */
-export function useChatCommands(chatId: ChatId) {
+export function useChatCommands(chatId: ChatId | undefined) {
   const running = useTaskBackgroundProcesses(chatId);
   const { data: ended } = useQuery(
     rpcClient.workspace.chats.backgroundProcesses.ended.queryOptions({
-      input: { id: chatId },
+      input: chatId === undefined ? skipToken : { id: chatId },
     }),
   );
   return [
@@ -78,7 +79,8 @@ export function useChatCommands(chatId: ChatId) {
  * and only `backgroundProcesses.changed` says when the set moved.
  */
 export function useTaskBackgroundProcesses(
-  chatId: ChatId,
+  /** None is read without one. */
+  chatId: ChatId | undefined,
   /** One session's of the record alone: the chat's own, or a task's. */
   sessionId?: StoreId.Session,
 ) {
@@ -86,7 +88,10 @@ export function useTaskBackgroundProcesses(
 
   const { data: processes } = useQuery(
     rpcClient.workspace.chats.backgroundProcesses.list.queryOptions({
-      input: { id: chatId, ...(sessionId ? { sessionId } : {}) },
+      input:
+        chatId === undefined
+          ? skipToken
+          : { id: chatId, ...(sessionId ? { sessionId } : {}) },
     }),
   );
 
@@ -94,7 +99,7 @@ export function useTaskBackgroundProcesses(
   // changes is whether anything is running at all.
   const { data: changed } = useQuery(
     rpcClient.workspace.chats.backgroundProcesses.events.changed.experimental_liveOptions(
-      { input: { id: chatId } },
+      { input: chatId === undefined ? skipToken : { id: chatId } },
     ),
   );
   const revision = changed?.revision;

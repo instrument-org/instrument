@@ -1,12 +1,13 @@
 import type * as ComputerFileUrl from "@/client/lib/computer-file-url";
 
 import { renderInBrowser } from "@/tests/render-browser";
+import { transcriptRecords } from "@/tests/transcript-records";
 import { StoreId, type TurnStep } from "@instrument-org/workspace/client";
 import { describe, expect, it, vi } from "vitest";
 
 import { ThemeProvider } from "../theme-provider";
 import { WorkCardView } from "./work-card";
-import { type TranscriptSurface, TranscriptSurfaceContext } from "./surface";
+import { TranscriptRecordsContext } from "./transcript-data";
 
 // A file's picture comes over the app protocol, which only the main process
 // answers, so here it is an address named by the file.
@@ -17,21 +18,7 @@ vi.mock("@/client/lib/computer-file-url", async (importOriginal) => ({
 }));
 
 // Every path is where the call said it was, and nothing else is asked for.
-const SURFACE: TranscriptSurface = {
-  PagePicture: () => null,
-  onOpenFile: () => undefined,
-  onOpenTask: () => undefined,
-  onOpenUrl: () => undefined,
-  onStopCommand: () => undefined,
-  onStopTask: () => undefined,
-  useCommands: () => [],
-  useDrivenPage: () => undefined,
-  useHostPaths: (paths) =>
-    Object.fromEntries(paths.map((path) => [path, path])),
-  useStepPart: () => undefined,
-  useTaskFacts: () => undefined,
-  useTaskMessages: () => [],
-};
+const RECORDS = transcriptRecords();
 
 // Whether Markdown came out as Markdown and code in its colors is a question
 // about what the browser drew, which jsdom answers for any markup at all.
@@ -66,7 +53,7 @@ async function renderStep(shown: TurnStep) {
 async function renderSteps(kind: "files" | "images", steps: TurnStep[]) {
   return renderInBrowser(
     <ThemeProvider>
-      <TranscriptSurfaceContext value={SURFACE}>
+      <TranscriptRecordsContext value={RECORDS}>
         <div style={{ width: 460 }}>
           <WorkCardView
             card={{ changedFile: undefined, kind, steps }}
@@ -74,7 +61,7 @@ async function renderSteps(kind: "files" | "images", steps: TurnStep[]) {
             sessionId={StoreId.newSessionId()}
           />
         </div>
-      </TranscriptSurfaceContext>
+      </TranscriptRecordsContext>
     </ThemeProvider>,
   );
 }

@@ -17,6 +17,7 @@ import { CardPresence, useCardOpens } from "./card-motion";
 import { RollingText } from "./rolling-text";
 import { WorkCardView } from "./work-card";
 import { TranscriptSurfaceContext } from "./surface";
+import { useTaskFacts, useTaskMessages } from "./transcript-data";
 import { formatRoughSpan, useTicking } from "./time";
 
 /** The dots after a working task's step. */
@@ -98,9 +99,9 @@ function LiveTaskCard({
   startedAt: Date;
 }) {
   const surface = use(TranscriptSurfaceContext);
-  const facts = surface?.useTaskFacts(sessionId, from);
+  const facts = useTaskFacts(sessionId, from);
   const isWorking = facts?.working !== false;
-  const messages = surface?.useTaskMessages(sessionId, isWorking) ?? [];
+  const messages = useTaskMessages(sessionId, isWorking);
   const now = useTicking(isWorking);
   const turn = isWorking
     ? turnsOf(messages, { isRunning: true, sessionId }).at(-1)

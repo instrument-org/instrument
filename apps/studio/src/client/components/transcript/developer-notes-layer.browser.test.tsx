@@ -3,6 +3,7 @@
 // that the notes keep out of it and it keeps working with them there.
 import { chatNotesAtom } from "@/client/atoms/chat-notes";
 import { renderInBrowser } from "@/tests/render-browser";
+import { transcriptRecords } from "@/tests/transcript-records";
 import {
   type ChatId,
   type DeveloperNote,
@@ -24,7 +25,7 @@ import {
   useMessageScroller,
 } from "../ui/message-scroller";
 import DeveloperNotesLayer from "./developer-notes-layer";
-import { DeveloperNotesSourceContext } from "./developer-notes-source";
+import { TranscriptRecordsContext } from "./transcript-data";
 import { useSlideToSent } from "./use-slide-to-sent";
 
 const PEEK = 80;
@@ -66,10 +67,9 @@ function Harness({ hasLayer }: { hasLayer: boolean }) {
     setSent((count) => count + 1);
   };
   const indexes = Array.from({ length: sent }, (_, index) => index);
-  const source = {
-    useBody: () => null,
-    useNotes: () => indexes.map(noteOn),
-  };
+  const records = transcriptRecords({
+    developerNotes: { bodies: {}, notes: indexes.map(noteOn) },
+  });
   return (
     <MessageScrollerProvider
       autoScroll
@@ -100,7 +100,7 @@ function Harness({ hasLayer }: { hasLayer: boolean }) {
               </Fragment>
             ))}
             {hasLayer && (
-              <DeveloperNotesSourceContext value={source}>
+              <TranscriptRecordsContext value={records}>
                 <DeveloperNotesLayer
                   chatId={"chat" as ChatId}
                   sessionId={"ses" as StoreId.Session}
@@ -108,7 +108,7 @@ function Harness({ hasLayer }: { hasLayer: boolean }) {
                     (index) => ({ id: turnId(index) }) as Turn,
                   )}
                 />
-              </DeveloperNotesSourceContext>
+              </TranscriptRecordsContext>
             )}
           </MessageScrollerContent>
           <Slide armRef={armRef} contentRef={contentRef} />
@@ -227,10 +227,10 @@ it("scrolls a long card inside itself, with Copy in reach, and leaves the scroll
     text: Array.from({ length: 200 }, (_, at) => at.toString()).join("\n"),
     wasSent: true,
   };
-  const source = {
-    useBody: () => body,
-    useNotes: () => [noteOn(0)],
-  };
+  const note = noteOn(0);
+  const records = transcriptRecords({
+    developerNotes: { bodies: { [note.id]: body }, notes: [note] },
+  });
   const { unmount } = await renderInBrowser(
     <MessageScrollerProvider defaultScrollPosition="start">
       <MessageScroller>
@@ -244,13 +244,13 @@ it("scrolls a long card inside itself, with Copy in reach, and leaves the scroll
               data-transcript-row={`message:${turn}`}
               style={{ height: 40 }}
             />
-            <DeveloperNotesSourceContext value={source}>
+            <TranscriptRecordsContext value={records}>
               <DeveloperNotesLayer
                 chatId={"chat" as ChatId}
                 sessionId={"ses" as StoreId.Session}
                 turns={[{ id: turn } as Turn]}
               />
-            </DeveloperNotesSourceContext>
+            </TranscriptRecordsContext>
           </MessageScrollerContent>
         </MessageScrollerViewport>
       </MessageScroller>
@@ -289,7 +289,9 @@ async function linesOf(
   notes: DeveloperNote[],
   { within = "[data-dn=line]" } = {},
 ) {
-  const source = { useBody: () => null, useNotes: () => notes };
+  const records = transcriptRecords({
+    developerNotes: { bodies: {}, notes: notes },
+  });
   const { unmount } = await renderInBrowser(
     <MessageScrollerProvider defaultScrollPosition="start">
       <MessageScroller>
@@ -310,13 +312,13 @@ async function linesOf(
               data-transcript-row={`worked:${turnId(0)}`}
               style={{ height: 400 }}
             />
-            <DeveloperNotesSourceContext value={source}>
+            <TranscriptRecordsContext value={records}>
               <DeveloperNotesLayer
                 chatId={"chat" as ChatId}
                 sessionId={"ses" as StoreId.Session}
                 turns={[{ id: turnId(0) } as Turn]}
               />
-            </DeveloperNotesSourceContext>
+            </TranscriptRecordsContext>
           </MessageScrollerContent>
         </MessageScrollerViewport>
       </MessageScroller>
@@ -340,20 +342,22 @@ async function linesOf(
 
 /** What shows of a stack with room for one line, by what each line says it needs. */
 async function oneLineHolds(notes: DeveloperNote[]) {
-  const source = { useBody: () => null, useNotes: () => notes };
+  const records = transcriptRecords({
+    developerNotes: { bodies: {}, notes: notes },
+  });
   const { unmount } = await renderInBrowser(
     <MessageScrollerProvider defaultScrollPosition="start">
       <MessageScroller>
         <MessageScrollerViewport className="@container/transcript">
           <MessageScrollerContent data-content>
             <MessageScrollerItem data-transcript-row={`message:${turnId(0)}`} />
-            <DeveloperNotesSourceContext value={source}>
+            <TranscriptRecordsContext value={records}>
               <DeveloperNotesLayer
                 chatId={"chat" as ChatId}
                 sessionId={"ses" as StoreId.Session}
                 turns={[{ id: turnId(0) } as Turn]}
               />
-            </DeveloperNotesSourceContext>
+            </TranscriptRecordsContext>
           </MessageScrollerContent>
         </MessageScrollerViewport>
       </MessageScroller>
@@ -395,7 +399,9 @@ it("keeps an error showing where the room fits one line, in place of the count",
 it("draws nothing with chat notes off", async () => {
   const store = createStore();
   store.set(chatNotesAtom, false);
-  const source = { useBody: () => null, useNotes: () => [noteOn(0)] };
+  const records = transcriptRecords({
+    developerNotes: { bodies: {}, notes: [noteOn(0)] },
+  });
   const { unmount } = await renderInBrowser(
     <Provider store={store}>
       <MessageScrollerProvider defaultScrollPosition="start">
@@ -405,13 +411,13 @@ it("draws nothing with chat notes off", async () => {
               <MessageScrollerItem
                 data-transcript-row={`message:${turnId(0)}`}
               />
-              <DeveloperNotesSourceContext value={source}>
+              <TranscriptRecordsContext value={records}>
                 <DeveloperNotesLayer
                   chatId={"chat" as ChatId}
                   sessionId={"ses" as StoreId.Session}
                   turns={[{ id: turnId(0) } as Turn]}
                 />
-              </DeveloperNotesSourceContext>
+              </TranscriptRecordsContext>
             </MessageScrollerContent>
           </MessageScrollerViewport>
         </MessageScroller>
@@ -468,7 +474,9 @@ it("keeps a fold's total off the page on either side of its Worked row, without 
     side: "right",
     turn,
   };
-  const source = { useBody: () => null, useNotes: () => [note] };
+  const records = transcriptRecords({
+    developerNotes: { bodies: {}, notes: [note] },
+  });
   const { unmount } = await renderInBrowser(
     <MessageScrollerProvider defaultScrollPosition="start">
       <MessageScroller>
@@ -488,13 +496,13 @@ it("keeps a fold's total off the page on either side of its Worked row, without 
               data-transcript-row={`worked:${turn}`}
               style={{ height: 40 }}
             />
-            <DeveloperNotesSourceContext value={source}>
+            <TranscriptRecordsContext value={records}>
               <DeveloperNotesLayer
                 chatId={"chat" as ChatId}
                 sessionId={"ses" as StoreId.Session}
                 turns={[{ id: turn } as Turn]}
               />
-            </DeveloperNotesSourceContext>
+            </TranscriptRecordsContext>
           </MessageScrollerContent>
         </MessageScrollerViewport>
       </MessageScroller>

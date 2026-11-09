@@ -24,6 +24,7 @@ import { Markdown } from "../markdown";
 import { BorderSweep } from "../shimmer-sweep";
 import { useTheme } from "../theme-provider";
 import { type TranscriptSurface, TranscriptSurfaceContext } from "./surface";
+import { useDrivenPage, useTranscriptHostPaths } from "./transcript-data";
 
 /** The files whose words a card shows as they read rather than as typed. */
 const MARKDOWN_EXTENSIONS = new Set(["markdown", "md", "mdx"]);
@@ -52,13 +53,13 @@ export function WorkCardView({
   sessionId: StoreId.Session;
 }) {
   const surface = use(TranscriptSurfaceContext);
-  const places = surface?.useHostPaths(workCardPaths(card));
-  const drivenPage = surface?.useDrivenPage(
+  const places = useTranscriptHostPaths(workCardPaths(card));
+  const drivenPage = useDrivenPage(
     card.kind === "page" ? sessionId : undefined,
   );
   const face = workCardFace(card, {
     ...(drivenPage && { drivenPage }),
-    places: places ?? {},
+    places,
   });
   const target = face.open;
   const open =

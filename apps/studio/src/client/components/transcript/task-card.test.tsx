@@ -1,12 +1,12 @@
 import { type RPCOutput } from "@/client/rpc/client";
 import { renderWithProviders } from "@/tests/render";
+import { transcriptRecords } from "@/tests/transcript-records";
 import { ChatIdSchema, StoreId } from "@instrument-org/workspace/client";
 import { screen } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-import { type TranscriptSurface, TranscriptSurfaceContext } from "./surface";
 import { TaskCardRow } from "./task-card";
-import { taskCardFacts } from "./task-card-facts";
+import { TranscriptRecordsContext } from "./transcript-data";
 
 type ChildTask = RPCOutput["workspace"]["chats"]["tasks"][number];
 
@@ -52,27 +52,10 @@ const resumed = (working: boolean): ChildTask => ({
   working,
 });
 
-function surfaceFor(task: ChildTask): TranscriptSurface {
-  return {
-    PagePicture: () => null,
-    onOpenFile: () => undefined,
-    onOpenTask: () => undefined,
-    onOpenUrl: () => undefined,
-    onStopCommand: () => undefined,
-    onStopTask: () => undefined,
-    useCommands: () => [],
-    useDrivenPage: () => undefined,
-    useHostPaths: () => ({}),
-    useStepPart: () => undefined,
-    useTaskFacts: (_id, from) => taskCardFacts(task, from),
-    useTaskMessages: () => [],
-  };
-}
-
 /** The first card, from `task new` 39 minutes ago, and the bottom one, from `task send`. */
 function renderBoth(task: ChildTask) {
   renderWithProviders(
-    <TranscriptSurfaceContext value={surfaceFor(task)}>
+    <TranscriptRecordsContext value={transcriptRecords({ tasks: [task] })}>
       <div data-testid="first">
         <TaskCardRow sessionId={sessionId} startedAt={minutesAgo(39)} />
       </div>
@@ -83,7 +66,7 @@ function renderBoth(task: ChildTask) {
           startedAt={new Date(NOW.getTime() - 41_000)}
         />
       </div>
-    </TranscriptSurfaceContext>,
+    </TranscriptRecordsContext>,
   );
   return {
     bottom: screen.getByTestId("bottom").textContent,

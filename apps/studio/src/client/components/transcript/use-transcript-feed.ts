@@ -6,7 +6,12 @@ import {
   type StoreId,
   type TranscriptFeed,
 } from "@instrument-org/workspace/client";
-import { queryOptions, useQuery, useQueryClient } from "@tanstack/react-query";
+import {
+  queryOptions,
+  skipToken,
+  useQuery,
+  useQueryClient,
+} from "@tanstack/react-query";
 import { useState } from "react";
 
 interface FeedInput {
@@ -17,34 +22,41 @@ interface FeedInput {
 /**
  * A session's transcript, kept current by `message.live.feed`: the first event
  * is its end and each after it only what moved, merged into what the query
- * holds, so the messages that did not move keep their objects.
+ * holds, so the messages that did not move keep their objects. Nothing is
+ * read without a session.
  */
-function transcriptFeedOptions(input: FeedInput) {
-  const queryKey = ["transcript-feed", input.id, input.sessionId] as const;
+export function transcriptFeedOptions(input: FeedInput | undefined) {
+  const queryKey = ["transcript-feed", input?.id, input?.sessionId] as const;
   return queryOptions({
-    queryFn: async ({ client, signal }): Promise<TranscriptFeed> => {
-      const events = await rpcClient.workspace.message.live.feed.call(input, {
-        signal,
-      });
-      let feed: TranscriptFeed | undefined;
-      for await (const event of events) {
-        if (signal.aborted) {
-          throw signal.reason;
-        }
-        // From what the query holds, which has the older turns asked for since.
-        feed = applyFeedEvent(
-          client.getQueryData<TranscriptFeed>(queryKey),
-          event,
-        );
-        client.setQueryData(queryKey, feed);
-      }
-      if (!feed) {
-        throw new Error(
-          "The transcript's feed closed before it sent anything.",
-        );
-      }
-      return feed;
-    },
+    queryFn:
+      input === undefined
+        ? skipToken
+        : async ({ client, signal }): Promise<TranscriptFeed> => {
+            const events = await rpcClient.workspace.message.live.feed.call(
+              input,
+              {
+                signal,
+              },
+            );
+            let feed: TranscriptFeed | undefined;
+            for await (const event of events) {
+              if (signal.aborted) {
+                throw signal.reason;
+              }
+              // From what the query holds, which has the older turns asked for since.
+              feed = applyFeedEvent(
+                client.getQueryData<TranscriptFeed>(queryKey),
+                event,
+              );
+              client.setQueryData(queryKey, feed);
+            }
+            if (!feed) {
+              throw new Error(
+                "The transcript's feed closed before it sent anything.",
+              );
+            }
+            return feed;
+          },
     queryKey,
     retry: 1,
   });

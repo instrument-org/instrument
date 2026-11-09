@@ -18,15 +18,8 @@ const SKIPPED: Record<string, string> = {
   "components/document-viewers/archive-viewer.tsx#ArchiveViewer":
     "IncompatibleLibrary",
   "components/document-viewers/data-grid.tsx#DataGrid": "IncompatibleLibrary",
-  "components/markdown.tsx#useChatFileHostPaths": "Hooks",
   "components/model-picker.tsx#VirtualRows": "IncompatibleLibrary",
   "components/settings/activity-section.tsx#LogTable": "IncompatibleLibrary",
-  "components/transcript/activity-row.tsx#StepDetail": "Hooks",
-  "components/transcript/developer-notes-layer.tsx#DeveloperNotesLayer":
-    "Hooks",
-  "components/transcript/developer-notes-layer.tsx#NoteCard": "Hooks",
-  "components/transcript/task-card.tsx#LiveTaskCard": "Hooks",
-  "components/transcript/work-card.tsx#WorkCardView": "Hooks",
   "components/window/chat-list.tsx#ChatList": "IncompatibleLibrary",
   "components/window/command-menu.tsx#ResultRows": "IncompatibleLibrary",
   "components/window/use-window-commands.ts#useWindowCommands": "Todo",

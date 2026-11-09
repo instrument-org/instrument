@@ -6,14 +6,14 @@ import {
   type Turn,
 } from "@instrument-org/workspace/client";
 import { useAtomValue } from "jotai";
-import { use, useEffect, useLayoutEffect, useRef, useState } from "react";
+import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { sort } from "radashi";
 
 import { CopyButton } from "../copy-button";
 import { NoteMark } from "./developer-note-marks";
 import STYLES from "./developer-notes-layer.css?inline";
-import { DeveloperNotesSourceContext } from "./developer-notes-source";
+import { useDeveloperNoteBody, useDeveloperNotes } from "./transcript-data";
 
 /** How long the pointer rests on a mark before its card opens. */
 const CARD_OPENS_AFTER_MS = 150;
@@ -360,8 +360,7 @@ function NoteCard({
   note: DeveloperNote;
   sessionId: StoreId.Session;
 }) {
-  const source = use(DeveloperNotesSourceContext);
-  const body = source.useBody({ chatId, note: note.id, sessionId });
+  const body = useDeveloperNoteBody({ chatId, note: note.id, sessionId });
   const words = body?.text ?? body?.detail;
   return (
     <>
@@ -435,8 +434,7 @@ export default function DeveloperNotesLayer({
   turns: readonly Turn[];
 }) {
   const isOn = useAtomValue(chatNotesAtom);
-  const source = use(DeveloperNotesSourceContext);
-  const all = source.useNotes({ chatId, sessionId });
+  const all = useDeveloperNotes({ chatId, sessionId });
   const [viewport, setViewport] = useState<HTMLElement | null>(null);
   const [card, setCard] = useState<OpenCard>();
   const [isPinned, setIsPinned] = useState(false);

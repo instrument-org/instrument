@@ -45,6 +45,7 @@ import { renderDataPart } from "./note-part";
 import { PageTakeoverNote } from "./page-takeover-note";
 import { WorkCardView } from "./work-card";
 import { TranscriptSurfaceContext } from "./surface";
+import { useTranscriptCommands } from "./transcript-data";
 import { TranscriptActionsContext } from "./transcript-actions";
 import { TaskCardRow } from "./task-card";
 import { formatClock, usePassed, useTicking } from "./time";
@@ -325,7 +326,7 @@ function CommandCards({
   turn: Turn;
 }) {
   const surface = use(TranscriptSurfaceContext);
-  const commands = surface?.useCommands() ?? [];
+  const commands = useTranscriptCommands();
   const endedAt = turn.endedAt?.getTime() ?? 0;
   const started = new Set(
     turn.rows.flatMap((row) =>

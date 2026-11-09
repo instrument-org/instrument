@@ -493,18 +493,28 @@ export function useAppTabs() {
     openNewTab: () => {
       open(NEW_TAB_HREF);
     },
-    // The tab closed last, or with none to reopen the window closed last, the
-    // way a browser's one chord brings back either.
+    // Whichever closed last, this window's tab or a whole window, the way a
+    // browser's one chord brings back either.
     reopen: () => {
       // A site no record is left of has nothing to come back to, here as in the menu.
-      const entry = model.recentlyClosed.findIndex(
-        (tab) => !isGoneSite(tab, putAwaySites),
+      const tab = model.recentlyClosed.find(
+        (each) => !isGoneSite(each, putAwaySites),
       );
-      if (entry === -1) {
-        void rpcClient.window.reopenClosed.call();
-        return;
-      }
-      setModel((current) => reopenClosed(current, { entry, id: freshTabId() }));
+      void rpcClient.window.reopenClosed
+        .call(tab && { after: tab.closedAt ?? 0 })
+        .catch(() => false)
+        .then((windowCameBack) => {
+          if (tab && !windowCameBack) {
+            setModel((current) =>
+              reopenClosed(current, {
+                entry: current.recentlyClosed.findIndex(
+                  (each) => each.id === tab.id,
+                ),
+                id: freshTabId(),
+              }),
+            );
+          }
+        });
     },
     /**
      * The next or previous row of the inbox from the chat up, or from no

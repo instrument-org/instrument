@@ -43,8 +43,14 @@ export const TabSchema = z.object({
 
 export type Tab = z.output<typeof TabSchema>;
 
-/** A closed tab, with where it stood in the strip so a reopen puts it back there. */
-const ClosedTabSchema = TabSchema.extend({ index: z.number().optional() });
+/**
+ * A closed tab, with where it stood in the strip so a reopen puts it back
+ * there, and when it closed, so a window closed since comes back before it.
+ */
+const ClosedTabSchema = TabSchema.extend({
+  closedAt: z.number().optional(),
+  index: z.number().optional(),
+});
 
 export const TabsModelSchema = z.object({
   recentlyClosed: z.array(ClosedTabSchema),

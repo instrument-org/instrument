@@ -43,6 +43,7 @@ import {
   rememberWindowClosed,
   rememberWindowInFront,
   setWindowState,
+  windowClosedAt,
 } from "@/electron-main/stores/workspace/window-state";
 import {
   expectRestoredWindows,
@@ -656,12 +657,19 @@ export function canReopenClosedAppWindow() {
   );
 }
 
-/** The window closed last, as it was. False when none can come back. */
-export function reopenClosedAppWindow() {
+/**
+ * The window closed last, as it was. With `after`, only one closed later than
+ * that, so a tab closed since comes back first. False when none comes back.
+ */
+export function reopenClosedAppWindow({ after }: { after?: number } = {}) {
   const id = rememberedWindowIds(FIRST_APP_WINDOW_ID).closed.find(
     (closed) => !openWindows.has(closed),
   );
-  if (id === undefined || isSetupUp()) {
+  if (
+    id === undefined ||
+    isSetupUp() ||
+    (after !== undefined && windowClosedAt(id) <= after)
+  ) {
     return false;
   }
   createAppWindow(id);

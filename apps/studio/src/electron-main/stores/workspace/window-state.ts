@@ -22,6 +22,8 @@ export type WindowStateName = string;
 const MAX_CLOSED_WINDOWS = 10;
 
 interface StoredWindowState {
+  /** When each of `closedIds` closed, in ms since the epoch; none for one an earlier build closed. */
+  closedAt?: Partial<Record<string, number>>;
   /** The windows closed while the app ran on, newest first, which can come back. */
   closedIds?: string[];
   /** The windows open now, the one last in front at the end; what a launch brings back. */
@@ -123,10 +125,16 @@ export function rememberedWindowIds(first: string) {
   };
 }
 
+/** When a closed window closed, in ms since the epoch; 0 for one an earlier build closed. */
+export function windowClosedAt(id: string) {
+  return getStore().store.closedAt?.[id] ?? 0;
+}
+
 /** Records a window open, and in front of the others. */
 export function rememberWindowInFront(id: string) {
-  const { closedIds = [], openIds = [] } = getStore().store;
+  const { closedAt = {}, closedIds = [], openIds = [] } = getStore().store;
   getStore().set({
+    closedAt: withoutKeys(closedAt, [id]),
     closedIds: closedIds.filter((closed) => closed !== id),
     openIds: [...openIds.filter((open) => open !== id), id],
   });
@@ -137,10 +145,16 @@ export function rememberWindowInFront(id: string) {
  * pushed off the end of what can, whose kept state is the caller's to remove.
  */
 export function rememberWindowClosed(id: string): string[] {
-  const { closedIds = [], openIds = [], windows } = getStore().store;
+  const {
+    closedAt = {},
+    closedIds = [],
+    openIds = [],
+    windows,
+  } = getStore().store;
   const closed = [id, ...closedIds.filter((other) => other !== id)];
   const gone = closed.slice(MAX_CLOSED_WINDOWS);
   getStore().set({
+    closedAt: { ...withoutKeys(closedAt, gone), [id]: Date.now() },
     closedIds: closed.slice(0, MAX_CLOSED_WINDOWS),
     openIds: openIds.filter((open) => open !== id),
     windows: Object.fromEntries(
@@ -152,14 +166,26 @@ export function rememberWindowClosed(id: string): string[] {
 
 /** Forgets a window altogether: its place, and that it was open. */
 export function forgetWindow(id: string) {
-  const { closedIds = [], openIds = [], windows } = getStore().store;
+  const {
+    closedAt = {},
+    closedIds = [],
+    openIds = [],
+    windows,
+  } = getStore().store;
   getStore().set({
+    closedAt: withoutKeys(closedAt, [id]),
     closedIds: closedIds.filter((other) => other !== id),
     openIds: openIds.filter((other) => other !== id),
     windows: Object.fromEntries(
       Object.entries(windows ?? {}).filter(([name]) => name !== id),
     ),
   });
+}
+
+function withoutKeys<T>(record: Partial<Record<string, T>>, keys: string[]) {
+  return Object.fromEntries(
+    Object.entries(record).filter(([key]) => !keys.includes(key)),
+  );
 }
 
 /** A window's bounds kept on some display, with its size as it asked for. */

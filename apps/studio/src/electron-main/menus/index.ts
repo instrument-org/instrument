@@ -94,7 +94,10 @@ function updateApplicationMenu(): void {
               askWindow(window, { type: "openNewChat" });
             }
           },
-          reopenClosed: reopenClosedAppWindow,
+          // Not the function itself: a menu click passes it the menu item.
+          reopenClosed: () => {
+            reopenClosedAppWindow();
+          },
         })),
   ];
 

@@ -68,7 +68,7 @@ export function closeTab(
   // every navigation (see setTabPathname), so reopen restores from the model
   // rather than a separate close-time snapshot.
   const recentlyClosed = [
-    { ...tab, index: closingIndex },
+    { ...tab, closedAt: Date.now(), index: closingIndex },
     ...model.recentlyClosed,
   ].slice(0, MAX_RECENTLY_CLOSED);
 
@@ -301,8 +301,9 @@ function closeWhere(
   if (keptIndex === -1) {
     return model;
   }
+  const closedAt = Date.now();
   const closed = model.tabs.flatMap((tab, index) =>
-    closes(index, keptIndex) ? [{ ...tab, index }] : [],
+    closes(index, keptIndex) ? [{ ...tab, closedAt, index }] : [],
   );
   if (closed.length === 0) {
     return model;

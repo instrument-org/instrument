@@ -106,10 +106,13 @@ const openNew = base
     openNewAppWindow(input?.tabs);
   });
 
-/** A window closed lately, as it was, where one can come back. */
-const reopenClosed = base.input(z.void()).handler(() => {
-  reopenClosedAppWindow();
-});
+/**
+ * A window closed lately, as it was, where one can come back; with `after`,
+ * only one closed later than that. Answers whether one came back.
+ */
+const reopenClosed = base
+  .input(z.object({ after: z.number().optional() }).optional())
+  .handler(({ input }) => reopenClosedAppWindow({ after: input?.after }));
 
 /**
  * Brings forward another open window's tab showing what an address shows,

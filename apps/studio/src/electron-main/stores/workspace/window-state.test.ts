@@ -233,6 +233,17 @@ describe("which windows come back", () => {
     expect(windowState.hasWindowState("w0")).toBe(false);
   });
 
+  it("remembers when a window closed until it opens again", () => {
+    stored = { closedIds: ["old"] };
+    vi.spyOn(Date, "now").mockReturnValue(1000);
+    windowState.rememberWindowClosed("a");
+    expect(windowState.windowClosedAt("a")).toBe(1000);
+    expect(windowState.windowClosedAt("old")).toBe(0);
+    windowState.rememberWindowInFront("a");
+    expect(windowState.windowClosedAt("a")).toBe(0);
+    vi.restoreAllMocks();
+  });
+
   it("forgets a window altogether", () => {
     stored = { windows: { a: { bounds: almostMaximized } } };
     windowState.rememberWindowInFront("a");

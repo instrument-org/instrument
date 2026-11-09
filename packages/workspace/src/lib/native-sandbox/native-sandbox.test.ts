@@ -86,15 +86,16 @@ describe.skipIf(onWindows)("seatbeltProfile", () => {
         ]),
       );
       expect(
-        profile
-          .split("\n")
-          .filter(
-            (line) =>
-              !line.includes("/.cache") &&
-              !line.includes("Library/") &&
-              !line.includes("/var/folders") &&
-              !/\/\.(npm|local|config|gitconfig)/.test(line),
-          ),
+        profile.split("\n").filter(
+          (line) =>
+            !line.includes("/.cache") &&
+            !line.includes("Library/") &&
+            !line.includes("/var/folders") &&
+            // The SSH agent's socket, where the shell running the tests
+            // has one: a path of this login's, there in some shells only.
+            !line.includes("com.apple.launchd.") &&
+            !/\/\.(npm|local|config|gitconfig)/.test(line),
+        ),
       ).toMatchInlineSnapshot(`
       [
         "(version 1)",

@@ -1028,6 +1028,39 @@ describe("a folder beside an open file", () => {
     expect(row.getAttribute("aria-selected")).toBe("true");
   });
 
+  it("comes back to the first column from a folder the caller stands in", () => {
+    let standIn: (step: { path: string; selected: string }) => void = () => {};
+    const HeldPath = () => {
+      const [step, setStep] = React.useState({ path: "", selected: "docs/" });
+      standIn = setStep;
+      return (
+        <FileSystem
+          besideWidth={300}
+          defaultView="columns"
+          items={NESTED}
+          onWalk={(path) => {
+            setStep({ path, selected: "" });
+          }}
+          path={step.path}
+          selectedPath={step.selected || null}
+          title="The top"
+        />
+      );
+    };
+    renderWithProviders(<HeldPath />);
+    // Walked into the folder from the top, a file in it open beside.
+    act(() => {
+      standIn({ path: "docs/", selected: "docs/inner.txt" });
+    });
+    expect(rowOf("notes.txt")).toBeUndefined();
+
+    spot += 50;
+    fireEvent.click(screen.getByRole("button", { name: "The top" }), {
+      clientX: spot,
+    });
+    expect(rowOf("notes.txt")).toBeTruthy();
+  });
+
   it("stays put on one click with no file open", () => {
     renderBeside({ besideWidth: undefined });
     clickRow("docs");

@@ -3304,6 +3304,7 @@ export function FileSystem({
     onOpen: openEntry,
     onSelect: selectAndPrefetchEntry,
     onSelectEntries: selectEntries,
+    onWalk: navigateTo,
     marquee,
     onListedCount: setListedCount,
     onSortColumnClick: toggleSortColumn,
@@ -4287,6 +4288,8 @@ type FileSystemViewProps = {
   onOpen: (entry: FileSystemEntry) => void;
   /** Selects the entry alone, or adds to the selection with a gesture. */
   onSelect: (entry: FileSystemEntry | null, gesture?: SelectionGesture) => void;
+  /** Walks to a folder, the way the folder menu does, with nothing selected in it. */
+  onWalk: (folderPath: string) => void;
   /** Selects exactly these, keeping the keyboard on the one it is on when it is among them. */
   onSelectEntries: (entries: readonly FileSystemEntry[]) => void;
   /** Where a box dragged across the rows says what it touches. */
@@ -6453,6 +6456,7 @@ function FileSystemColumnsView(props: FileSystemViewProps) {
     marquee,
     onOpen,
     onSelect,
+    onWalk,
     path: standingIn,
     renamingPath,
     renderFileStage,
@@ -6713,8 +6717,15 @@ function FileSystemColumnsView(props: FileSystemViewProps) {
                   index.folders.get(backPath)?.name ??
                   rootTitle
                 }
+                // Back to the first column walks there: with nothing
+                // selected, the trail ends at the folder the browser stands
+                // in, which is the one being left.
                 onBack={() => {
-                  onSelect(backFolder);
+                  if (backFolder) {
+                    onSelect(backFolder);
+                  } else {
+                    onWalk(backPath);
+                  }
                 }}
               />
               {column}

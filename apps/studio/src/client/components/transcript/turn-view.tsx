@@ -48,6 +48,7 @@ import { TranscriptSurfaceContext } from "./surface";
 import { TranscriptActionsContext } from "./transcript-actions";
 import { TaskCardRow } from "./task-card";
 import { formatClock, usePassed, useTicking } from "./time";
+import { WakeLine } from "./wake-line";
 
 /** How long the agent may sit between things before the transcript says it is thinking. */
 const THINKING_AFTER_MS = 1000;
@@ -127,6 +128,7 @@ export const TurnView = memo(function TurnView({
         className="group/assistant-turn flex flex-col gap-2"
         {...(turn.opener ? {} : { messageId: turn.id })}
       >
+        {turn.wokenBy && <WakeLine woken={turn.wokenBy} />}
         <TurnBody
           chatId={chatId}
           hasCard={hasCard}

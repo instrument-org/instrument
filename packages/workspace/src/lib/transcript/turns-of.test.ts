@@ -765,6 +765,32 @@ describe("the slot", () => {
       { opener: false, rows: ["text"] },
     ]);
     expect(answered[0]?.foldedRowIds.size).toBe(1);
+    expect(answered[1]?.wokenBy).toBeUndefined();
+    const finished = turnsOf(
+      [
+        typed("Do the thing"),
+        message("assistant", (id) => [said(id, "I've started on it.")]),
+        message("user", (id) => [
+          {
+            data: {
+              events: [
+                {
+                  sessionId: StoreId.newSessionId(),
+                  status: "done",
+                  summary: "Done.",
+                  title: "The thing",
+                },
+              ],
+            },
+            metadata: meta(id),
+            type: "data-taskEvent",
+          } as SessionMessagePart.Type,
+        ]),
+        message("assistant", (id) => [said(id, "It's done.")]),
+      ],
+      { isRunning: false },
+    );
+    expect(finished[1]?.wokenBy).toEqual({ count: 1, kind: "task-finished" });
     const working = turnsOf(
       [
         typed("Do the thing"),

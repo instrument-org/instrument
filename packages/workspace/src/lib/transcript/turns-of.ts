@@ -136,6 +136,11 @@ export interface Turn {
   id: StoreId.Message;
   /** Taken over from the chat a task forked from, ahead of the task's own work. */
   inherited: boolean;
+  /**
+   * What woke the agent, for a turn a wake opens whose news draws no row of
+   * its own: the line that says why the work goes on.
+   */
+  wokenBy?: WokenBy;
   live?: TurnLive;
   opener?: TurnOpener;
   phase: "done" | "interrupted" | "working";
@@ -375,6 +380,44 @@ function joinedMidTurn(message: TranscriptMessage): boolean {
   );
 }
 
+/** What a wake that opens a turn says happened. */
+type WokenBy =
+  | { kind: "signed-in" }
+  | {
+      count: number;
+      kind: "task-checked-on" | "task-failed" | "task-finished";
+    };
+
+/**
+ * What woke the agent at the head of a turn a wake opens, when no note row
+ * says so already: a task's news reaches the person as the reply, and a sign-in
+ * finishing as the work it unblocked.
+ */
+function wokenByOf(message: TranscriptMessage): WokenBy | undefined {
+  for (const part of message.parts) {
+    if (
+      part.type === "data-taskEvent" &&
+      part.data.events.length > 0 &&
+      !drawsNote(part)
+    ) {
+      const { events } = part.data;
+      const kind = events.some((event) => event.status === "error")
+        ? "task-failed"
+        : events.every((event) => event.status === "overdue")
+          ? "task-checked-on"
+          : "task-finished";
+      return { count: events.length, kind };
+    }
+    if (
+      part.type === "data-appEvent" &&
+      part.data.events.some(({ event }) => event === "connected")
+    ) {
+      return { kind: "signed-in" };
+    }
+  }
+  return undefined;
+}
+
 interface BuildOptions {
   cutAcross: boolean;
   /** A message the person typed comes after this turn. */
@@ -391,6 +434,7 @@ function buildTurn(
 ): Turn {
   const { cutAcross, isLive, sessionId } = options;
   const opener = opensTurn(first) ? openerOf(first) : undefined;
+  const wokenBy = opener ? undefined : wokenByOf(first);
   const body = opener ? slice.slice(1) : slice;
   const rows = rowsOf(body, options);
   const replies = body.filter(
@@ -443,6 +487,7 @@ function buildTurn(
     sites: unique(activities.flatMap((row) => row.sites)),
     sources,
     startedAt,
+    ...(wokenBy && { wokenBy }),
     ...(summary !== undefined && { summary }),
     workedMs: workedMs(rows, startedAt),
   };

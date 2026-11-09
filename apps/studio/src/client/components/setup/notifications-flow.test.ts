@@ -30,6 +30,17 @@ describe("notificationsStep", () => {
     expect(continueFor(state)).toBe("quiet");
   });
 
+  it("reads as allowed once a refusal is turned on in the system's settings", () => {
+    const state = run(
+      { type: "allow" },
+      { granted: false, type: "answered" },
+      { type: "turnedOn" },
+    );
+    expect(state).toBe("allowed");
+    expect(continueFor(state)).toBe("primary");
+    expect(run({ type: "turnedOn" })).toBe("ask");
+  });
+
   it("keeps waiting on a click that never came, with Continue still there", () => {
     const state = run({ type: "allow" }, { granted: true, type: "answered" });
     expect(state).toBe("sent");

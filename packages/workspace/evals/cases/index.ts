@@ -11,6 +11,7 @@ import { NEXT_MESSAGE_EVALS } from "./next-message";
 import { APP_SCRIPTING_EVALS } from "./app-scripting";
 import { APP_SCRIPTING_API_EVALS } from "./app-scripting-api";
 import { APP_SIGN_IN_CARD_EVALS } from "./app-sign-in-card";
+import { APP_SIGN_IN_LOST_EVALS } from "./app-sign-in-lost";
 import { APP_SIGN_IN_REFUSED_EVALS } from "./app-sign-in-refused";
 import { BACKGROUND_PROCESS_EVALS } from "./background-processes";
 import { PROCESS_CONTROL_EVALS } from "./process-control";
@@ -79,6 +80,7 @@ export const EVALS = [
   ...APP_SCRIPTING_EVALS,
   ...APP_SCRIPTING_API_EVALS,
   ...APP_SIGN_IN_CARD_EVALS,
+  ...APP_SIGN_IN_LOST_EVALS,
   ...APP_SIGN_IN_REFUSED_EVALS,
   ...BACKGROUND_PROCESS_EVALS,
   ...PROCESS_CONTROL_EVALS,

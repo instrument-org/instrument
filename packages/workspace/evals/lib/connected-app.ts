@@ -1,10 +1,14 @@
 import http from "node:http";
 
 import { AppManifestSchema, AppSlugSchema } from "../../src/lib/apps/manifest";
+import { credentialOrigin } from "../../src/lib/apps/origin-bound";
 import { loadApp, writeAppFolder } from "../../src/lib/apps/store";
 import { AbsolutePathSchema } from "../../src/schemas/paths";
 import { type WorkspaceAppsConfig } from "../../src/types";
 import { startMcpTracker } from "./mcp-tracker";
+
+/** The access token a sign-in answered on a card leaves, which a `signed-out` app's server takes. */
+export const SIGNED_IN_TOKEN = "stand-in";
 
 /** A connected app a case wants to exist before it runs. */
 export interface AppFixture {
@@ -17,9 +21,12 @@ export interface AppFixture {
    * `sign-in` is an app set up and not connected yet, which signs in
    * directly, for a case that has the agent ask for it (`signInsAnswerAs`);
    * `unfinished` is an API app whose setup stopped before its guide was
-   * written, which `connect_app` refuses to put on a card.
+   * written, which `connect_app` refuses to put on a card; `signed-out` is
+   * the MCP tracker, connected by a sign-in its server has stopped taking,
+   * so every call is refused until the user signs in again on a card
+   * (`signInsAnswerAs`).
    */
-  kind?: "api" | "mcp" | "sign-in" | "unfinished" | "web";
+  kind?: "api" | "mcp" | "sign-in" | "signed-out" | "unfinished" | "web";
   /** What the user calls it, as the manifest carries it. */
   name: string;
   /**
@@ -135,6 +142,43 @@ export async function seedConnectedApps(
         },
         `${fixture.name}, set up and waiting for the user to sign in.\n`,
       );
+      continue;
+    }
+    if (fixture.kind === "signed-out") {
+      const store = apps.oauth?.store;
+      if (store === undefined) {
+        throw new Error(
+          `${fixture.slug}: a signed-out app needs a case with signInsAnswerAs, which gives the run a sign-in store`,
+        );
+      }
+      const tracker = await startMcpTracker({ accepts: SIGNED_IN_TOKEN });
+      closers.push(tracker.close);
+      const manifest = AppManifestSchema.parse({
+        auth: { kind: "oauth" },
+        type: "mcp",
+        url: tracker.url,
+      });
+      await writeApp(
+        appsDir,
+        fixture,
+        manifest,
+        `${fixture.name} tracks the team's issues.\n`,
+      );
+      // What an earlier sign-in left: a registered client, and an access
+      // token with nothing to refresh it by.
+      const origin = credentialOrigin(manifest);
+      await store.saveClientInformation(fixture.slug, {
+        origin,
+        value: {
+          client_id: "stand-in-client",
+          redirect_uris: [apps.oauth?.redirectUrl() ?? ""],
+        },
+      });
+      await store.saveTokens(fixture.slug, {
+        origin,
+        value: { access_token: "lapsed", token_type: "Bearer" },
+      });
+      await recordConnected(fixture.slug, { apps, appsDir });
       continue;
     }
     if (fixture.kind === "unfinished") {
@@ -278,6 +322,7 @@ async function recordConnected(
     throw new Error(`${slug}: ${loaded.error.message}`);
   }
   await apps.connections.set(slug, {
+    connectedAt: Date.now(),
     manifestHash: loaded.value.manifestHash,
     status: "connected",
     updatedAt: Date.now(),

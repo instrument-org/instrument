@@ -357,11 +357,15 @@ function buildServer(created: { count: number }, viewer: unknown): McpServer {
 /**
  * Serves the tracker on loopback, a fresh stateless server per request.
  * With `viewer`, it also answers who the connection is signed in as, the
- * way a hosted server's "who am I" tool does.
+ * way a hosted server's "who am I" tool does. With `accepts`, it answers
+ * 401 to a request carrying any other bearer token, as a server does once a
+ * sign-in has lapsed, and 404 off its own path, so a client looking for
+ * sign-in metadata finds none.
  */
 export async function startMcpTracker({
+  accepts,
   viewer,
-}: { viewer?: unknown } = {}): Promise<{
+}: { accepts?: string; viewer?: unknown } = {}): Promise<{
   close: () => Promise<void>;
   url: string;
 }> {
@@ -370,6 +374,24 @@ export async function startMcpTracker({
   const created = { count: 0 };
   const server = http.createServer((request, response) => {
     void (async () => {
+      if (accepts !== undefined) {
+        const onPath = (request.url ?? "/").split("?")[0] === "/mcp";
+        const status = !onPath
+          ? 404
+          : request.headers.authorization === `Bearer ${accepts}`
+            ? undefined
+            : 401;
+        if (status !== undefined) {
+          request.resume();
+          response.writeHead(status, { "content-type": "application/json" });
+          response.end(
+            JSON.stringify({
+              error: status === 401 ? "invalid_token" : "not_found",
+            }),
+          );
+          return;
+        }
+      }
       const mcp = buildServer(created, viewer);
       const transport = new StreamableHTTPServerTransport({
         sessionIdGenerator: undefined,

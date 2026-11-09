@@ -17,6 +17,7 @@ import {
   type OriginBound,
 } from "../../src/lib/apps/origin-bound";
 import { type WorkspaceAppsConfig } from "../../src/types";
+import { SIGNED_IN_TOKEN } from "./connected-app";
 
 /**
  * Sign-ins for a run that shows the card and has nobody to finish it: the
@@ -89,7 +90,7 @@ export async function answerSignIn(
   if (manifest.type === "mcp" && manifest.auth.kind === "oauth") {
     await getWorkspaceConfig().apps.oauth?.store.saveTokens(slug, {
       origin: credentialOrigin(manifest),
-      value: { access_token: "stand-in", token_type: "Bearer" },
+      value: { access_token: SIGNED_IN_TOKEN, token_type: "Bearer" },
     });
   }
   await recordConnection(slug, {

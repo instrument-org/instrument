@@ -504,8 +504,8 @@ function AboutCard({ canChatsRead }: { canChatsRead: boolean }) {
       <LockSimpleIcon className="size-4 shrink-0 text-muted-foreground" />
       <p className="min-w-0 flex-1 text-[13px] leading-5 text-muted-foreground">
         {canChatsRead
-          ? `This history stays on this computer, so you can find what you had open. When you say “that file” or “the page I was on”, chats look here to work out what you mean.`
-          : `This history stays on this computer, so you can find what you had open. Chats can't look at it right now.`}
+          ? "Only you can see this history, and it stays on this computer. Chats use it to tell which file or page you're talking about."
+          : "Only you can see this history, and it stays on this computer. Chats can't look at it right now."}
       </p>
       <Button
         className="shrink-0"

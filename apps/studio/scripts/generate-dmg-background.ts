@@ -4,11 +4,15 @@
  * `electron-builder/dmg-layout.ts`. electron-builder joins the pair into one
  * HiDPI TIFF, so the window is sharp on a Retina display.
  *
- * Finder draws the icon labels black in light mode and white in dark mode, on
- * top of this image either way, so the background is a mid-tone that both
- * read against.
+ * The picture takes the website's link preview: a wedge of pale mint light
+ * falling from the top left into sage, with a fine grain, and nothing on it
+ * but the arrow from the app to Applications.
  *
- * Requires macOS (sips renders the SVG) and, for --preview, ImageMagick.
+ * Finder draws the icon labels over this image, black in light mode and white
+ * in dark mode, so the sage under them is the one tone both read against at
+ * 4.5:1 or better. Each run measures that and fails when either falls short.
+ *
+ * Requires macOS (sips renders the SVG) and ImageMagick (the grain).
  *
  * Usage:
  *   node scripts/generate-dmg-background.ts
@@ -29,93 +33,114 @@ const studioDir = path.resolve(
 );
 const build = (name: string) => path.join(studioDir, "build", name);
 
-// The brand's greens (the website's brand-300 to brand-500), held near the
-// luminance where black and white text contrast about equally.
-const TOP = "#46a091";
-const BOTTOM = "#1f7a6d";
-
 const { appIcon, applicationsIcon, height, iconSize, width } = DMG_LAYOUT;
 
+// The light's edge, where mint gives way to sage: its height at the window's
+// left and right sides, rising to the right, and how far either side of it
+// the light fades.
+const EDGE = { left: 165, right: 15, soft: 190 };
+
+// Along the light, from its brightest to the sage. The sage the labels sit on
+// is the luminance (about 0.18) where black and white text contrast alike.
+const LIGHT: [offset: number, color: string][] = [
+  [0, "#f4fcf5"],
+  [0.32, "#dcefe4"],
+  [0.5, "#a9bcb5"],
+  [0.72, "#7d8c87"],
+  [0.86, "#6b7974"],
+  [1, "#6b7974"],
+];
+
+// Gaussian noise strength (ImageMagick -attenuate), the link preview's grain.
+const GRAIN = 0.08;
+
 function svg(scale: number) {
-  const dots: string[] = [];
-  const step = 16;
-  for (let y = step / 2; y < height; y += step) {
-    for (let x = step / 2; x < width; x += step) {
-      dots.push(`<circle cx="${x}" cy="${y}" r="0.7"/>`);
-    }
-  }
-  // An icon's shadow on the ground: a soft ellipse under its lower edge.
-  const shadow = ({ x, y }: { x: number; y: number }) =>
-    `<ellipse cx="${x}" cy="${y + iconSize * 0.48}" rx="${iconSize * 0.48}" ry="${iconSize * 0.12}" fill="url(#shadow)"/>`;
-  // A light behind each icon, so an icon in the brand's own green keeps its
-  // edge against the ground.
-  const halo = ({ x, y }: { x: number; y: number }) =>
-    `<circle cx="${x}" cy="${y}" r="${iconSize * 0.66}" fill="url(#halo)"/>`;
+  const dx = width;
+  const dy = EDGE.right - EDGE.left;
+  const length = Math.hypot(dx, dy);
+  // Across the edge, pointing down and to the right.
+  const across = { x: -dy / length, y: dx / length };
+  const middle = { x: width / 2, y: (EDGE.left + EDGE.right) / 2 };
+  const start = {
+    x: middle.x - across.x * EDGE.soft,
+    y: middle.y - across.y * EDGE.soft,
+  };
+  const end = {
+    x: middle.x + across.x * EDGE.soft,
+    y: middle.y + across.y * EDGE.soft,
+  };
   // The arrow runs between the icons' facing edges, with room either side.
-  const gap = 34;
-  const from = appIcon.x + iconSize / 2 + gap;
-  const to = applicationsIcon.x - iconSize / 2 - gap;
+  const from = appIcon.x + iconSize / 2 + 40;
+  const to = applicationsIcon.x - iconSize / 2 - 40;
   const y = appIcon.y;
-  const head = 11;
+  const head = 8;
   return `<svg xmlns="http://www.w3.org/2000/svg" width="${width * scale}" height="${height * scale}" viewBox="0 0 ${width} ${height}">
   <defs>
-    <linearGradient id="ground" x1="0" y1="0" x2="0" y2="1">
-      <stop offset="0" stop-color="${TOP}"/>
-      <stop offset="1" stop-color="${BOTTOM}"/>
-    </linearGradient>
-    <radialGradient id="glow" cx="${width / 2}" cy="${-height * 0.25}" r="${width * 0.7}" gradientUnits="userSpaceOnUse">
-      <stop offset="0" stop-color="#ffffff" stop-opacity="0.22"/>
-      <stop offset="1" stop-color="#ffffff" stop-opacity="0"/>
-    </radialGradient>
-    <radialGradient id="vignette" cx="${width / 2}" cy="${height * 0.45}" r="${width * 0.62}" gradientUnits="userSpaceOnUse">
-      <stop offset="0.6" stop-color="#05201c" stop-opacity="0"/>
-      <stop offset="1" stop-color="#05201c" stop-opacity="0.22"/>
-    </radialGradient>
-    <radialGradient id="halo">
-      <stop offset="0.6" stop-color="#ffffff" stop-opacity="0.2"/>
-      <stop offset="1" stop-color="#ffffff" stop-opacity="0"/>
-    </radialGradient>
-    <radialGradient id="shadow">
-      <stop offset="0" stop-color="#03201b" stop-opacity="0.32"/>
-      <stop offset="1" stop-color="#03201b" stop-opacity="0"/>
-    </radialGradient>
-    <linearGradient id="shaft" x1="${from}" y1="0" x2="${to}" y2="0" gradientUnits="userSpaceOnUse">
-      <stop offset="0" stop-color="#ffffff" stop-opacity="0.15"/>
-      <stop offset="1" stop-color="#ffffff" stop-opacity="0.85"/>
+    <linearGradient id="light" gradientUnits="userSpaceOnUse" x1="${start.x}" y1="${start.y}" x2="${end.x}" y2="${end.y}">
+      ${LIGHT.map(([offset, color]) => `<stop offset="${offset}" stop-color="${color}"/>`).join("")}
     </linearGradient>
   </defs>
-  <rect width="${width}" height="${height}" fill="url(#ground)"/>
-  <rect width="${width}" height="${height}" fill="url(#glow)"/>
-  <g fill="#ffffff" fill-opacity="0.07">${dots.join("")}</g>
-  <rect width="${width}" height="${height}" fill="url(#vignette)"/>
-  ${halo(appIcon)}
-  ${halo(applicationsIcon)}
-  ${shadow(appIcon)}
-  ${shadow(applicationsIcon)}
-  <path d="M ${from} ${y} L ${to} ${y}" stroke="url(#shaft)" stroke-width="3.5" stroke-linecap="round" fill="none"/>
-  <path d="M ${to - head} ${y - head} L ${to} ${y} L ${to - head} ${y + head}" stroke="#ffffff" stroke-opacity="0.85" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round" fill="none"/>
+  <rect width="${width}" height="${height}" fill="url(#light)"/>
+  <path d="M ${from} ${y} L ${to} ${y}" stroke="#ffffff" stroke-width="3" stroke-linecap="round"/>
+  <path d="M ${to - head * 1.2} ${y - head} L ${to} ${y} L ${to - head * 1.2} ${y + head}" stroke="#ffffff" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" fill="none"/>
 </svg>
 `;
 }
 
 function run(cmd: string, args: string[]) {
-  execFileSync(cmd, args, { stdio: ["ignore", "ignore", "inherit"] });
+  return execFileSync(cmd, args, {
+    stdio: ["ignore", "pipe", "inherit"],
+  }).toString();
 }
 
 function render(scale: number, out: string, scratch: string) {
   const source = path.join(scratch, `background-${scale}x.svg`);
+  const smooth = path.join(scratch, `background-${scale}x.png`);
   writeFileSync(source, svg(scale));
-  run("sips", ["-s", "format", "png", source, "--out", out]);
-  // Points per inch, so the 2x image reads as the same size as the 1x one.
-  run("sips", [
-    "-s",
-    "dpiWidth",
-    `${72 * scale}`,
-    "-s",
-    "dpiHeight",
+  run("sips", ["-s", "format", "png", source, "--out", smooth]);
+  run("magick", [
+    smooth,
+    "-alpha",
+    "off",
+    "-seed",
+    `${scale}`,
+    "-attenuate",
+    `${GRAIN}`,
+    "+noise",
+    "Gaussian",
+    // Points per inch, so the 2x image reads as the same size as the 1x one.
+    "-units",
+    "PixelsPerInch",
+    "-density",
     `${72 * scale}`,
     out,
   ]);
+}
+
+/** WCAG contrast of black and white text on the ground under one label. */
+function labelContrast(image: string, at: { x: number; y: number }) {
+  const strip = { h: 16, w: 80 };
+  const hex = run("magick", [
+    image,
+    "-crop",
+    `${strip.w}x${strip.h}+${at.x - strip.w / 2}+${at.y + iconSize / 2 + 6}`,
+    "-scale",
+    "1x1!",
+    "-format",
+    "%[hex:p{0,0}]",
+    "info:",
+  ]).trim();
+  const channel = (i: number) => {
+    const v = Number.parseInt(hex.slice(i, i + 2), 16) / 255;
+    return v <= 0.04045 ? v / 12.92 : ((v + 0.055) / 1.055) ** 2.4;
+  };
+  const luminance =
+    0.2126 * channel(0) + 0.7152 * channel(2) + 0.0722 * channel(4);
+  return {
+    black: (luminance + 0.05) / 0.05,
+    hex: `#${hex.slice(0, 6)}`,
+    white: 1.05 / (luminance + 0.05),
+  };
 }
 
 /**
@@ -153,6 +178,8 @@ function preview(dir: string, scratch: string) {
         "-resize",
         `${size}x${size}`,
         ")",
+        "-gravity",
+        "NorthWest",
         "-geometry",
         `+${left}+${top}`,
         "-composite",
@@ -162,11 +189,11 @@ function preview(dir: string, scratch: string) {
         `${DMG_LAYOUT.iconTextSize * scale}`,
         "-fill",
         mode === "light" ? "black" : "white",
+        // North gravity measures x from the image's center line.
         "-gravity",
-        "NorthWest",
+        "North",
         "-annotate",
-        // Centered under the icon by measuring nothing: close enough for a look.
-        `+${(item.x - item.label.length * 3.6) * scale}+${(item.y + iconSize / 2 + 6) * scale}`,
+        `${item.x - width / 2 >= 0 ? "+" : ""}${(item.x - width / 2) * scale}+${(item.y + iconSize / 2 + 5) * scale}`,
         item.label,
       );
     }
@@ -179,6 +206,18 @@ const scratch = mkdtempSync(path.join(tmpdir(), "dmg-background-"));
 try {
   render(1, build("background.png"), scratch);
   render(2, build("background@2x.png"), scratch);
+  for (const [name, at] of [
+    ["Instrument", appIcon],
+    ["Applications", applicationsIcon],
+  ] as const) {
+    const { black, hex, white } = labelContrast(build("background.png"), at);
+    console.log(
+      `${name} on ${hex}: black ${black.toFixed(2)}, white ${white.toFixed(2)}`,
+    );
+    if (black < 4.5 || white < 4.5) {
+      throw new Error(`The ground under “${name}” is under 4.5:1 for a label`);
+    }
+  }
   const previewAt = process.argv.indexOf("--preview");
   if (previewAt !== -1) {
     const dir = process.argv[previewAt + 1];

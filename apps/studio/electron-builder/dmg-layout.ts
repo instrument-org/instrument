@@ -8,10 +8,10 @@
  * Icon positions are the icon's center, as Finder places them.
  */
 export const DMG_LAYOUT = {
-  appIcon: { x: 170, y: 180 },
-  applicationsIcon: { x: 470, y: 180 },
+  appIcon: { x: 200, y: 200 },
+  applicationsIcon: { x: 500, y: 200 },
   height: 380,
   iconSize: 128,
   iconTextSize: 13,
-  width: 640,
+  width: 660,
 };

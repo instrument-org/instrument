@@ -348,7 +348,7 @@ const devNotesLong: Act[] = Array.from({ length: 40 }, (_, index) =>
 /**
  * The moments the transcript has to get right, each about one thing. Scrolled
  * through a step at a time, they are how it is checked by eye: the fold, the
- * slot moving from kind to kind, a burst, a task's card, a message cutting
+ * work card moving from kind to kind, a burst, a task's card, a message cutting
  * across a turn, and what a failure leaves open.
  */
 export const scenarios: DebugScenario[] = [

@@ -1,5 +1,5 @@
 import { isTurnFolded, type Turn, type TurnRow } from "./turns-of";
-import { slotOf, slotTurnOf, type SlotKind } from "./slot";
+import { workCardOf, workCardTurnOf, type WorkCardKind } from "./work-card";
 
 /**
  * What a transcript draws at one moment, flattened to the elements a person
@@ -24,7 +24,7 @@ export interface DrawnFrame {
 
 /** What the transcript knows of a task while drawing its row, from the task's own records. */
 export interface TaskView {
-  card?: SlotKind;
+  card?: WorkCardKind;
   isWorking: boolean;
 }
 
@@ -38,7 +38,7 @@ export function drawnFrame(
   now: number,
   taskOf: (sessionId: string) => TaskView | undefined = () => undefined,
 ): DrawnFrame {
-  const cardTurn = slotTurnOf(turns);
+  const cardTurn = workCardTurnOf(turns);
   const elements: DrawnElement[] = [];
   for (const turn of turns) {
     const push = (key: string, kind: string, size = 1) => {
@@ -49,7 +49,7 @@ export function drawnFrame(
     }
     const isFolded = isTurnFolded(turn, now);
     const card =
-      isFolded || turn.id !== cardTurn ? undefined : slotOf(turn)?.kind;
+      isFolded || turn.id !== cardTurn ? undefined : workCardOf(turn)?.kind;
     const cardAt = turn.rows.findLastIndex((row) => row.kind === "activity");
     turn.rows.forEach((row, index) => {
       if (isFolded && row.id === turn.foldLineAt) {
@@ -62,11 +62,11 @@ export function drawnFrame(
       if (row.kind === "task" && row.sessionId) {
         const task = taskOf(row.sessionId);
         if (task?.isWorking && task.card) {
-          push(`${row.id}/slot-card`, `task-card:${task.card}`);
+          push(`${row.id}/work-card`, `task-card:${task.card}`);
         }
       }
       if (index === cardAt && card) {
-        push("slot-card", `card:${card}`);
+        push("work-card", `card:${card}`);
       }
     });
     if (turn.live?.kind === "thinking") {

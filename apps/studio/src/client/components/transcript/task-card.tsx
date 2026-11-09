@@ -1,6 +1,6 @@
 import { cn } from "@/client/lib/utils";
 import {
-  slotOf,
+  workCardOf,
   type StoreId,
   turnsOf,
 } from "@instrument-org/workspace/client";
@@ -15,7 +15,7 @@ import { ShimmerSweep } from "../shimmer-sweep";
 import { Badges } from "./activity-row";
 import { CardPresence, useCardOpens } from "./card-motion";
 import { RollingText } from "./rolling-text";
-import { SlotCardView } from "./slot-card";
+import { WorkCardView } from "./work-card";
 import { TranscriptSurfaceContext } from "./surface";
 import { formatRoughSpan, useTicking } from "./time";
 
@@ -105,7 +105,7 @@ function LiveTaskCard({
   const turn = isWorking
     ? turnsOf(messages, { isRunning: true, sessionId }).at(-1)
     : undefined;
-  const card = turn && slotOf(turn);
+  const card = turn && workCardOf(turn);
   const cardOpens = useCardOpens(card !== undefined);
   const title = facts?.title ?? "Task";
   const firstLine = isWorking
@@ -144,8 +144,8 @@ function LiveTaskCard({
           rather than going at once. */}
       <AnimatePresence custom initial={false}>
         {card && turn && (
-          <CardPresence key="slot-card" opens={cardOpens}>
-            <SlotCardView
+          <CardPresence key="work-card" opens={cardOpens}>
+            <WorkCardView
               card={card}
               isCurrent={turn.phase === "working"}
               sessionId={sessionId}

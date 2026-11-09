@@ -2,20 +2,20 @@ import { type StepShows } from "./transcript-message";
 import { type ActivityRow, type Turn, type TurnStep } from "./turns-of";
 
 /** The kinds of card. */
-export type SlotKind = "files" | "generated" | "images" | "page" | "web";
+export type WorkCardKind = "files" | "generated" | "images" | "page" | "web";
 
 /**
- * What the slot shows: a run of steps of one kind, which update one card in
+ * What the work card shows: a run of steps of one kind, which update one card in
  * place, however many there are.
  */
-export interface SlotCard {
+export interface WorkCard {
   /** The one file a shell call changed, which the disk told rather than the call. */
   changedFile: { isNew: boolean; path: string } | undefined;
-  kind: SlotKind;
+  kind: WorkCardKind;
   steps: TurnStep[];
 }
 
-const KIND_OF: Record<StepShows["kind"], SlotKind> = {
+const KIND_OF: Record<StepShows["kind"], WorkCardKind> = {
   fetch: "web",
   file: "files",
   generated: "generated",
@@ -36,8 +36,8 @@ const KIND_OF: Record<StepShows["kind"], SlotKind> = {
  *    shell call that changed several shows none, since no one of them is what
  *    it made.
  */
-export function cardsOf({ steps }: Pick<ActivityRow, "steps">): SlotCard[] {
-  const cards: SlotCard[] = [];
+export function cardsOf({ steps }: Pick<ActivityRow, "steps">): WorkCard[] {
+  const cards: WorkCard[] = [];
   for (const step of steps) {
     if (step.status === "failed") {
       continue;
@@ -79,21 +79,21 @@ export function cardsOf({ steps }: Pick<ActivityRow, "steps">): SlotCard[] {
  * words after the work. A task's card takes over the same way at any time,
  * since the task is what is moving now and carries a card of its own.
  */
-export function slotOf(
+export function workCardOf(
   turn: Pick<Turn, "foldedRowIds" | "phase" | "rows">,
-): SlotCard | undefined {
+): WorkCard | undefined {
   const found = walkBack(turn);
   return found === "ended" ? undefined : found;
 }
 
 /**
- * The turn whose card is up, of a session's turns: the same walk as `slotOf`,
+ * The turn whose card is up, of a session's turns: the same walk as `workCardOf`,
  * carried back across turns, so one card is up in the whole transcript. A
  * message sent mid-turn starts a turn of its own, and the card stays where it
  * was until that turn's work shows something, ends with words, or starts a
  * task.
  */
-export function slotTurnOf(
+export function workCardTurnOf(
   turns: readonly Pick<Turn, "foldedRowIds" | "id" | "phase" | "rows">[],
 ): Turn["id"] | undefined {
   for (const turn of turns.toReversed()) {
@@ -111,7 +111,7 @@ export function slotTurnOf(
 /** The newest card of a turn's work, "ended" if a task, or words once a turn that does not fold ended, came after it. */
 function walkBack(
   turn: Pick<Turn, "foldedRowIds" | "phase" | "rows">,
-): SlotCard | "ended" | undefined {
+): WorkCard | "ended" | undefined {
   const wordsEnd = turn.phase !== "working" && turn.foldedRowIds.size === 0;
   for (const row of turn.rows.toReversed()) {
     if (row.kind === "task" || (row.kind === "text" && wordsEnd)) {

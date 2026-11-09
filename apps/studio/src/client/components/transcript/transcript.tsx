@@ -6,7 +6,7 @@ import {
   type StoreId,
   type TranscriptMessage,
   type Turn,
-  slotTurnOf,
+  workCardTurnOf,
   turnsOf,
   type TurnsCache,
   waitsForStep,
@@ -93,7 +93,7 @@ export function Transcript({
   const earlier = turns.filter((turn) => turn.inherited);
   const own = turns.filter((turn) => !turn.inherited);
   const last = turns.at(-1);
-  const cardTurn = slotTurnOf(turns);
+  const cardTurn = workCardTurnOf(turns);
   const pausedAtMaxSteps =
     !isRunning && last?.replies.at(-1)?.metadata.finishReason === "max-steps";
   const drawTurn = (turn: Turn) => (

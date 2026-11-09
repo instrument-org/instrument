@@ -20,7 +20,7 @@ import {
   type FoldedSession,
 } from "../src/lib/records/fold";
 import { FOLD_WAIT_MS, turnsOf } from "../src/lib/transcript/turns-of";
-import { slotOf } from "../src/lib/transcript/slot";
+import { workCardOf } from "../src/lib/transcript/work-card";
 import { transcriptMessage } from "../src/lib/transcript/transcript-message";
 import {
   drawnFrame,
@@ -167,7 +167,7 @@ for (const folder of folders) {
       if (session.parent !== undefined) {
         const last = turns.at(-1);
         views.set(session.id, {
-          card: running && last ? slotOf(last)?.kind : undefined,
+          card: running && last ? workCardOf(last)?.kind : undefined,
           isWorking: running,
         });
       }

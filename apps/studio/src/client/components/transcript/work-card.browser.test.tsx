@@ -5,7 +5,7 @@ import { StoreId, type TurnStep } from "@instrument-org/workspace/client";
 import { describe, expect, it, vi } from "vitest";
 
 import { ThemeProvider } from "../theme-provider";
-import { SlotCardView } from "./slot-card";
+import { WorkCardView } from "./work-card";
 import { type TranscriptSurface, TranscriptSurfaceContext } from "./surface";
 
 // A file's picture comes over the app protocol, which only the main process
@@ -68,7 +68,7 @@ async function renderSteps(kind: "files" | "images", steps: TurnStep[]) {
     <ThemeProvider>
       <TranscriptSurfaceContext value={SURFACE}>
         <div style={{ width: 460 }}>
-          <SlotCardView
+          <WorkCardView
             card={{ changedFile: undefined, kind, steps }}
             isCurrent
             sessionId={StoreId.newSessionId()}
@@ -88,7 +88,7 @@ describe("a live card's file as it is written", () => {
     await expect
       .element(screen.getByText("Obsidian for Agents."))
       .toBeVisible();
-    const card = screen.container.querySelector("[data-slot-card]");
+    const card = screen.container.querySelector("[data-work-card]");
     expect(card?.querySelector("strong")?.textContent).toBe(
       "Obsidian for Agents.",
     );
@@ -146,7 +146,7 @@ describe("a live card's file as it is written", () => {
         "done",
       ),
     );
-    const card = screen.container.querySelector("[data-slot-card]");
+    const card = screen.container.querySelector("[data-work-card]");
     expect(card?.querySelector("img")).not.toBeNull();
     expect(card?.textContent).not.toContain("Roasted");
   });
@@ -158,7 +158,7 @@ describe("a live card's pictures", () => {
   it("shows one picture alone", async () => {
     const screen = await renderSteps("images", [read("/work/a.png")]);
     expect(
-      screen.container.querySelectorAll("[data-slot-card] img"),
+      screen.container.querySelectorAll("[data-work-card] img"),
     ).toHaveLength(1);
   });
 
@@ -169,7 +169,7 @@ describe("a live card's pictures", () => {
     );
     const screen = await renderSteps("images", paths.map(read));
     const pictures = [
-      ...screen.container.querySelectorAll("[data-slot-card] img"),
+      ...screen.container.querySelectorAll("[data-work-card] img"),
     ];
     // The newest large, then the strip of the last six, oldest first.
     expect(

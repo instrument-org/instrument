@@ -22,7 +22,7 @@ A turn's rows are its activities, asks, task cards, notes, errors and words. An 
 
 ## The card
 
-One card is up at a time, and all of its rules are in `cardsOf` and `slotOf` ([slot.ts](../../packages/workspace/src/lib/transcript/slot.ts)), so they can be changed in one place:
+One card is up at a time, and all of its rules are in `cardsOf` and `workCardOf` ([work-card.ts](../../packages/workspace/src/lib/transcript/work-card.ts)), so they can be changed in one place:
 
 - A card stays up from one activity to the next while the new one has nothing to show, and through what the agent says between them, kept mounted, so it never blinks between them: agents narrate a line before most commands, and a card that went at each would close and open again at every step. It is drawn under the work it shows, never under words: what the agent says comes in below it, and the next activity takes it down past those words, sliding from where it was. Once the turn ends it stays until the turn folds and closes with it; in a turn that does not fold, words after the work end it. Words that are still blank or only fence marks draw no row and change nothing. A call with nothing to show changes nothing, and a call that failed has nothing to show.
 - Things of one kind share a card, so a browser's commands update one page. A file card is one file: each file a call names replaces the last, and a shell call that changed several shows none.
@@ -64,4 +64,4 @@ A command that outlasts its turn gets a card under the reply ([command-card.tsx]
 
 ## Checking a change
 
-The transcript debug page (`/debug/components/transcript`, scenarios in [`-transcript/scenarios.ts`](../../apps/studio/src/client/routes/debug/-transcript/scenarios.ts)) replays a scripted session frame by frame, with developer mode a switch away. Add a scenario for a new state rather than a test of its pixels: tests pin the rules in `turnsOf` and `slot.ts`, where they run in milliseconds.
+The transcript debug page (`/debug/components/transcript`, scenarios in [`-transcript/scenarios.ts`](../../apps/studio/src/client/routes/debug/-transcript/scenarios.ts)) replays a scripted session frame by frame, with developer mode a switch away. Add a scenario for a new state rather than a test of its pixels: tests pin the rules in `turnsOf` and `work-card.ts`, where they run in milliseconds.

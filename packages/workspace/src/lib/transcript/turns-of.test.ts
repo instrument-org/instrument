@@ -4,7 +4,7 @@ import { type SessionMessage } from "../../schemas/session/message";
 import { type SessionMessagePart } from "../../schemas/session/message-part";
 import { StoreId } from "../../schemas/store-id";
 import { MID_TURN_NOTE } from "../chat/mid-turn";
-import { cardsOf, slotOf, slotTurnOf } from "./slot";
+import { cardsOf, workCardOf, workCardTurnOf } from "./work-card";
 import {
   type TranscriptMessage,
   transcriptMessage,
@@ -622,7 +622,7 @@ describe("turnsOf", () => {
   });
 });
 
-describe("the slot", () => {
+describe("the work card", () => {
   const cardKinds = (turn: Turn | undefined) =>
     (turn?.rows ?? []).flatMap((row) =>
       row.kind === "activity"
@@ -696,7 +696,7 @@ describe("the slot", () => {
         "page x1",
       ]
     `);
-    expect(turn && slotOf(turn)?.kind).toBe("page");
+    expect(turn && workCardOf(turn)?.kind).toBe("page");
   });
 
   it("keeps the words of a reply that was stopped", () => {
@@ -1055,7 +1055,7 @@ describe("the slot", () => {
       ],
       { isRunning: true },
     );
-    expect(turn && slotOf(turn)).toBeUndefined();
+    expect(turn && workCardOf(turn)).toBeUndefined();
   });
 
   it.each([true, false])(
@@ -1075,7 +1075,7 @@ describe("the slot", () => {
         ],
         { isRunning: true },
       );
-      const shows = turn && slotOf(turn)?.steps.at(-1)?.shows;
+      const shows = turn && workCardOf(turn)?.steps.at(-1)?.shows;
       expect(shows?.kind === "file" && shows.isNew).toBe(isNewFile);
     },
   );
@@ -1103,7 +1103,7 @@ describe("the slot", () => {
       ],
       { isRunning: true },
     );
-    const shows = turn && slotOf(turn)?.steps.at(-1)?.shows;
+    const shows = turn && workCardOf(turn)?.steps.at(-1)?.shows;
     expect(shows?.kind === "file" && shows.words).toBe(words);
   });
 
@@ -1115,13 +1115,13 @@ describe("the slot", () => {
       message("assistant", (id) => [searched(id), said(id, "Found it.")]),
     ];
     const [speaking] = turnsOf(spoke, { isRunning: true });
-    expect(speaking && slotOf(speaking)?.kind).toBe("web");
+    expect(speaking && workCardOf(speaking)?.kind).toBe("web");
     const [ended] = turnsOf(spoke, { isRunning: false });
-    expect(ended && ended.foldedRowIds.size > 0 && slotOf(ended)?.kind).toBe(
-      "web",
-    );
     expect(
-      ended && slotOf({ ...ended, foldedRowIds: new Set() }),
+      ended && ended.foldedRowIds.size > 0 && workCardOf(ended)?.kind,
+    ).toBe("web");
+    expect(
+      ended && workCardOf({ ...ended, foldedRowIds: new Set() }),
     ).toBeUndefined();
     const [movedOn] = turnsOf(
       [
@@ -1140,7 +1140,7 @@ describe("the slot", () => {
       ],
       { isRunning: true },
     );
-    expect(movedOn && slotOf(movedOn)?.kind).toBe("files");
+    expect(movedOn && workCardOf(movedOn)?.kind).toBe("files");
   });
 
   it("draws a task's card from its call as it arrives, under the call's id once the task exists", () => {
@@ -1202,7 +1202,7 @@ describe("the slot", () => {
       ],
       { isRunning: true },
     );
-    expect(turn && slotOf(turn)).toBeUndefined();
+    expect(turn && workCardOf(turn)).toBeUndefined();
   });
 
   it("keeps one card up across a message sent mid-turn", () => {
@@ -1223,7 +1223,7 @@ describe("the slot", () => {
     ];
     const cardIn = (after: Parameters<typeof turnsOf>[0]) => {
       const turns = turnsOf([...before, ...after], { isRunning: true });
-      return turns.findIndex((turn) => turn.id === slotTurnOf(turns));
+      return turns.findIndex((turn) => turn.id === workCardTurnOf(turns));
     };
     expect(cardIn([])).toBe(0);
     expect(cardIn([message("assistant", (id) => [wrote(id, "/b.md")])])).toBe(
@@ -1296,7 +1296,7 @@ describe("the slot", () => {
         undefined,
         "input-available",
       );
-    const slotAfter = (
+    const cardAfter = (
       ...parts: ((id: StoreId.Message) => SessionMessagePart.Type)[]
     ) => {
       const [turn] = turnsOf(
@@ -1306,23 +1306,23 @@ describe("the slot", () => {
         ],
         { isRunning: true },
       );
-      return turn && slotOf(turn);
+      return turn && workCardOf(turn);
     };
 
     it("keeps the card of the activity before while a new one has nothing to show", () => {
-      expect(slotAfter(browsed)?.kind).toBe("page");
-      expect(slotAfter(browsed, addingUp)?.kind).toBe("page");
+      expect(cardAfter(browsed)?.kind).toBe("page");
+      expect(cardAfter(browsed, addingUp)?.kind).toBe("page");
     });
 
     it("keeps it through several activities with nothing to show", () => {
       expect(
-        slotAfter(browsed, addingUp, (id) => addingUp(id, "Checking"))?.kind,
+        cardAfter(browsed, addingUp, (id) => addingUp(id, "Checking"))?.kind,
       ).toBe("page");
     });
 
     it("gives way to the first card the new activity has", () => {
       expect(
-        slotAfter(browsed, addingUp, (id) =>
+        cardAfter(browsed, addingUp, (id) =>
           call(id, "write_file", {
             activity: "Writing",
             content: "a",
@@ -1334,8 +1334,8 @@ describe("the slot", () => {
 
     it("holds through what the agent says between them", () => {
       const spoke = (id: StoreId.Message) => said(id, "Now the next page.");
-      expect(slotAfter(browsed, spoke)?.kind).toBe("page");
-      expect(slotAfter(browsed, spoke, addingUp)?.kind).toBe("page");
+      expect(cardAfter(browsed, spoke)?.kind).toBe("page");
+      expect(cardAfter(browsed, spoke, addingUp)?.kind).toBe("page");
     });
 
     it("goes for a task's card, and doesn't come back for an activity after it", () => {
@@ -1349,7 +1349,7 @@ describe("the slot", () => {
             handOffs: [{ kind: "created", sessionId: StoreId.newSessionId() }],
           },
         );
-      expect(slotAfter(browsed, started, addingUp)).toBeUndefined();
+      expect(cardAfter(browsed, started, addingUp)).toBeUndefined();
     });
 
     it("holds across a wake", () => {
@@ -1368,7 +1368,7 @@ describe("the slot", () => {
         ],
         { isRunning: true },
       );
-      expect(turn && slotOf(turn)?.kind).toBe("page");
+      expect(turn && workCardOf(turn)?.kind).toBe("page");
     });
   });
 
@@ -1390,7 +1390,7 @@ describe("the slot", () => {
           { isRunning: true },
         );
         expect(turn && shape(turn)).toEqual(["activity: Looking x1"]);
-        expect(turn && slotOf(turn)?.kind).toBe("web");
+        expect(turn && workCardOf(turn)?.kind).toBe("web");
         expect(turn?.live?.kind).toBe("activity");
       },
     );
@@ -1435,7 +1435,7 @@ describe("the slot", () => {
         "text: Found",
       ]);
       expect(turn?.rows[1]?.id).toBe(going.parts[1]?.metadata.id);
-      expect(turn && slotOf(turn)?.kind).toBe("web");
+      expect(turn && workCardOf(turn)?.kind).toBe("web");
       expect(turn?.live?.kind).toBe("writing");
     });
   });
@@ -1476,7 +1476,7 @@ describe("the slot", () => {
       ],
       { isRunning: true },
     );
-    const card = turn && slotOf(turn);
+    const card = turn && workCardOf(turn);
     expect(card?.kind).toBe("files");
     expect(card?.changedFile).toEqual({
       isNew: true,
@@ -1525,7 +1525,7 @@ describe("the slot", () => {
       ],
       { isRunning: true },
     );
-    expect(turn && slotOf(turn)).toBeUndefined();
+    expect(turn && workCardOf(turn)).toBeUndefined();
   });
 });
 

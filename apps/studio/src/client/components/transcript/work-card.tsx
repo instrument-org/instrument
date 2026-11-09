@@ -1,7 +1,7 @@
 import { getComputerThumbnailUrl } from "@/client/lib/computer-file-url";
 import { cn } from "@/client/lib/utils";
 import {
-  type SlotCard,
+  type WorkCard,
   type StepShows,
   type StoreId,
   type TurnStep,
@@ -58,7 +58,7 @@ type ShowsOf<K extends StepShows["kind"]> = Extract<StepShows, { kind: K }>;
 type PlaceOf = (path: string) => string | undefined;
 
 /** The paths a card names, as the calls spelled them. */
-function pathsOf({ changedFile, steps }: SlotCard): string[] {
+function pathsOf({ changedFile, steps }: WorkCard): string[] {
   return [
     ...(changedFile === undefined ? [] : [changedFile.path]),
     ...steps.flatMap(({ shows }) => {
@@ -99,12 +99,12 @@ function shownBy<K extends StepShows["kind"]>(
  * it without the transcript moving. It loses its glow if the turn ends with it
  * still up.
  */
-export function SlotCardView({
+export function WorkCardView({
   card,
   isCurrent,
   sessionId,
 }: {
-  card: SlotCard;
+  card: WorkCard;
   /** The turn it belongs to is still working. */
   isCurrent: boolean;
   sessionId: StoreId.Session;
@@ -125,7 +125,7 @@ export function SlotCardView({
     <div className="relative w-full max-w-115 rounded-2xl">
       <button
         className="block w-full overflow-hidden rounded-2xl border border-border bg-card text-left"
-        data-slot-card={card.kind}
+        data-work-card={card.kind}
         onClick={body.open}
         type="button"
       >
@@ -160,7 +160,7 @@ interface CardBody {
 }
 
 function cardBody(
-  card: SlotCard,
+  card: WorkCard,
   surface: TranscriptSurface | undefined,
   sessionId: StoreId.Session,
   placeOf: PlaceOf,
@@ -388,7 +388,7 @@ function ResultList({
 }
 
 function filesCard(
-  { changedFile, steps }: SlotCard,
+  { changedFile, steps }: WorkCard,
   surface: TranscriptSurface | undefined,
   placeOf: PlaceOf,
 ): CardBody {

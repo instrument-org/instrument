@@ -5,7 +5,7 @@ import {
   type ChatId,
   FOLD_WAIT_MS,
   isTurnFolded,
-  slotOf,
+  workCardOf,
   type SessionMessagePart,
   type StepPart,
   type StoreId,
@@ -43,7 +43,7 @@ import { ActivityRowView, Badges, RowLine, StepDetail } from "./activity-row";
 import { BranchedFromLine } from "./branched-from-line";
 import { renderDataPart } from "./note-part";
 import { PageTakeoverNote } from "./page-takeover-note";
-import { SlotCardView } from "./slot-card";
+import { WorkCardView } from "./work-card";
 import { TranscriptSurfaceContext } from "./surface";
 import { TranscriptActionsContext } from "./transcript-actions";
 import { TaskCardRow } from "./task-card";
@@ -101,7 +101,7 @@ export const TurnView = memo(function TurnView({
   chatId: ChatId;
   /** What its message brought to the agent's project and workspace instructions. */
   changes: readonly InstructionsChange[] | undefined;
-  /** Its card is the one up in the transcript (`slotTurnOf`). */
+  /** Its card is the one up in the transcript (`workCardTurnOf`). */
   hasCard: boolean;
   isLast: boolean;
   separator: ChatSeparator | undefined;
@@ -212,7 +212,7 @@ function TurnBody({
   const { onBranch } = use(TranscriptActionsContext);
   // A branch carries the conversation through the reply's last message.
   const branchesAt = turn.inherited ? undefined : turn.replies.at(-1)?.id;
-  const card = isFolded || !hasCard ? undefined : slotOf(turn);
+  const card = isFolded || !hasCard ? undefined : workCardOf(turn);
   const cardOpens = useCardOpens(card !== undefined);
   // The card sits under the work it shows, whose working line it goes with,
   // and never under words: what the agent says comes in below it, and the
@@ -257,9 +257,9 @@ function TurnBody({
           // the next keeps it mounted, with its picture and its sweep going,
           // and slides it there. It closes with the fold and goes at once as
           // words end it.
-          <CardPresence className="ml-7" key="slot-card" opens={cardOpens}>
+          <CardPresence className="ml-7" key="work-card" opens={cardOpens}>
             <SlidesUnder under={row.id}>
-              <SlotCardView
+              <WorkCardView
                 card={card}
                 isCurrent={turn.phase === "working"}
                 sessionId={sessionId}

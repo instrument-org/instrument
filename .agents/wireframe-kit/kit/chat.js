@@ -153,7 +153,7 @@ const taskCard = ({ line = "Reading plans on zendesk.com", title = "Competitor p
   </div>`;
 
 /**
- * The live card (transcript/slot-card.tsx): what the work is on right now, under the
+ * The live card (transcript/work-card.tsx): what the work is on right now, under the
  * activity it belongs to (indented 28px, `indent`) or under a task card. A 460-wide
  * card, a 208px picture of the page, file or search over a 32px foot naming it with
  * its mark, and `meta` at the right. `current` rings it with the brand's glint while

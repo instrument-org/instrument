@@ -57,11 +57,11 @@ export {
 } from "./lib/transcript/feed";
 export {
   cardsOf,
-  type SlotCard,
-  type SlotKind,
-  slotOf,
-  slotTurnOf,
-} from "./lib/transcript/slot";
+  type WorkCard,
+  type WorkCardKind,
+  workCardOf,
+  workCardTurnOf,
+} from "./lib/transcript/work-card";
 export {
   type StepPart,
   type StepShows,

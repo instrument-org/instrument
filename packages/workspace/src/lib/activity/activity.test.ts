@@ -24,6 +24,7 @@ import {
   countOwnActivity,
   insertActivity,
   listActivity,
+  removeOwnActivity,
 } from "./store";
 
 const SECRET = "the words nobody may keep";
@@ -474,6 +475,27 @@ describe("the log in the workspace", () => {
 
     await clearOwnActivity();
     expect(await ids()).toEqual([`${OTHER}:01THEIRS0000000000000000A`]);
+  });
+
+  it("removes this device's requests by id and leaves another device's", async () => {
+    insertActivity(entry({ startedAt: Date.UTC(2026, 9, 10) }));
+    insertActivity(entry({ startedAt: Date.UTC(2026, 9, 20) }));
+    await writeTheirs("2026-10", theirs("01THEIRS0000000000000000A"));
+    const [first, second] = (await ids()).filter(
+      (id) => !id.startsWith(OTHER),
+    );
+    const idOf = (key: string | undefined) => key?.split(":").at(-1) ?? "";
+
+    expect(
+      await removeOwnActivity([idOf(first), "01THEIRS0000000000000000A"]),
+    ).toEqual({ removed: 1 });
+
+    const left = [`${OTHER}:01THEIRS0000000000000000A`, second].toSorted();
+    expect((await ids()).toSorted()).toEqual(left);
+    // The index read again from the files says the same.
+    closeWorkspaceDb();
+    await fs.rm(path.join(dir, "workspace.db"));
+    expect((await ids()).toSorted()).toEqual(left);
   });
 
   it("leaves a last line with no newline yet until it is whole", async () => {

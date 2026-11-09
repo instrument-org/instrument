@@ -1,6 +1,7 @@
 import { readStartPages } from "./history-start-pages";
 
 import { logger } from "@/electron-main/lib/electron-logger";
+import { keepsHistory } from "@/electron-main/stores/workspace/preferences";
 import { workspaceBrowserDir } from "@/electron-main/lib/get-workspace-folder";
 import { type HistoryAction } from "@instrument-org/workspace/electron";
 import { EventPublisher } from "@orpc/server";
@@ -369,6 +370,73 @@ export function createHistoryStore(file: string) {
     },
 
     /**
+     * Takes openings out of the activity readers' history: each page's
+     * visits by the person, or each file's opens of the kind given, from
+     * `since` to `at`, both included, which is the one Activity showed and
+     * the repeats it stood for. An address or a file left with none goes,
+     * as clearing takes it.
+     */
+    removeOpenings(
+      openings: readonly (
+        | { at: number; kind: "page"; since: number; url: string }
+        | {
+            at: number;
+            kind: "file" | "open-with";
+            path: string;
+            since: number;
+          }
+      )[],
+    ): { removed: number } {
+      const visit = database.prepare(
+        `DELETE FROM visits WHERE ${VISIBLE} AND at BETWEEN ? AND ? AND url_id = (SELECT id FROM urls WHERE url = ?)`,
+      );
+      const open = database.prepare(
+        "DELETE FROM file_opens WHERE at BETWEEN ? AND ? AND (via = 'external') = ? AND file_id = (SELECT id FROM files WHERE path = ?)",
+      );
+      let removed = 0;
+      let pages = false;
+      let files = false;
+      for (const opening of openings) {
+        if (opening.kind === "page") {
+          pages = true;
+          removed += Number(
+            visit.run(opening.since, opening.at, opening.url).changes,
+          );
+        } else {
+          files = true;
+          removed += Number(
+            open.run(
+              opening.since,
+              opening.at,
+              opening.kind === "open-with" ? 1 : 0,
+              opening.path,
+            ).changes,
+          );
+        }
+      }
+      if (pages) {
+        database.exec(
+          "UPDATE visits SET from_visit = NULL WHERE from_visit IS NOT NULL AND from_visit NOT IN (SELECT id FROM visits)",
+        );
+        database.exec(
+          "DELETE FROM urls WHERE id NOT IN (SELECT DISTINCT url_id FROM visits)",
+        );
+        database.exec(REFRESH);
+        pagesChanged();
+      }
+      if (files) {
+        database.exec(
+          "DELETE FROM files WHERE id NOT IN (SELECT DISTINCT file_id FROM file_opens)",
+        );
+        database.exec(
+          "UPDATE files SET open_count = (SELECT count(*) FROM file_opens WHERE file_id = files.id), last_open = (SELECT max(at) FROM file_opens WHERE file_id = files.id)",
+        );
+        filesChanged();
+      }
+      return { removed };
+    },
+
+    /**
      * Hides a visit after the fact: a page its tab replaced before the person
      * moved on, or one whose load failed. A visit hidden already keeps its
      * first reason.
@@ -450,26 +518,46 @@ export function createHistoryStore(file: string) {
      */
     personHistory({
       limit,
+      path: onlyPath,
       since,
       until,
+      url: onlyUrl,
     }: {
       limit?: number;
+      /** Only the openings of the file at this path. */
+      path?: string;
       since: number;
       until: number;
+      /** Only the visits to this address. */
+      url?: string;
     }): HistoryAction[] {
+      const pages = onlyPath === undefined;
+      const files = onlyUrl === undefined;
       return database
         .prepare(
           `SELECT * FROM (
             SELECT visits.at AS at, 'page' AS kind, visits.id AS id, urls.url AS url, urls.title AS title, NULL AS path, NULL AS app
               FROM visits JOIN urls ON urls.id = visits.url_id
-              WHERE ${VISIBLE} AND visits.at BETWEEN ? AND ?
+              WHERE ${VISIBLE} AND visits.at BETWEEN ? AND ? AND ? AND (? IS NULL OR urls.url = ?)
             UNION ALL
             SELECT file_opens.at, CASE file_opens.via WHEN 'external' THEN 'open-with' ELSE 'file' END, file_opens.id, NULL, NULL, files.path, file_opens.app
               FROM file_opens JOIN files ON files.id = file_opens.file_id
-              WHERE file_opens.at BETWEEN ? AND ?
+              WHERE file_opens.at BETWEEN ? AND ? AND ? AND (? IS NULL OR files.path = ?)
           ) ORDER BY at DESC, kind DESC, id DESC LIMIT ?`,
         )
-        .all(since, until, since, until, limit ?? -1)
+        .all(
+          since,
+          until,
+          pages ? 1 : 0,
+          onlyUrl ?? null,
+          onlyUrl ?? null,
+          since,
+          until,
+          files ? 1 : 0,
+          onlyPath ?? null,
+          onlyPath ?? null,
+          limit ?? -1,
+        )
         .map((row): HistoryAction => {
           const at = new Date(Number(row.at)).toISOString();
           if (row.kind === "page") {
@@ -691,6 +779,9 @@ export function recordFileOpen(
   via: FileOpenVia,
   app?: string,
 ) {
+  if (!keepsHistory()) {
+    return;
+  }
   try {
     getHistoryStore().addFileOpen({
       ...(app === undefined ? {} : { app }),

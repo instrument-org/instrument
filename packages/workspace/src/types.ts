@@ -292,6 +292,13 @@ export interface WorkspaceConfig {
    */
   mayShareActions?: () => boolean;
   /**
+   * Whether the person keeps a history in the app: off, nothing they do
+   * goes into the action log and no AI request into the activity log, as
+   * the app's own history stops taking their pages and files. Absent means
+   * it does.
+   */
+  mayKeepHistory?: () => boolean;
+  /**
    * What the person did that the app's history and download list keep
    * rather than the action log (`lib/actions/`): the pages they visited in
    * their own tabs, the files they opened, in the app or in another app from

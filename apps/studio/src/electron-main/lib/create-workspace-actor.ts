@@ -11,7 +11,10 @@ import { lookUpSentLinkTitles } from "@/electron-main/browser-view/sent-link-tit
 import { startAppSignInChecks } from "@/electron-main/lib/app-sign-in-check";
 import { recordPlatformRefusal } from "@/electron-main/lib/platform-refusals";
 import { getMachinePreferences } from "@/electron-main/stores/machine/preferences";
-import { getWorkspacePreferences } from "@/electron-main/stores/workspace/preferences";
+import {
+  getWorkspacePreferences,
+  keepsHistory,
+} from "@/electron-main/stores/workspace/preferences";
 import { refreshExpiredTokens } from "@/electron-main/lib/chatgpt-account";
 import { refreshExpiredGrokTokens } from "@/electron-main/lib/grok-account";
 import { getAIProviderConfigs } from "@/electron-main/lib/get-ai-provider-configs";
@@ -231,6 +234,7 @@ export async function createWorkspaceActor(deviceId: DeviceId) {
       mayOfferFeedback: () => getMachinePreferences().get("offerFeedback"),
       mayShareActions: () =>
         getWorkspacePreferences().get("shareActionsWithChats"),
+      mayKeepHistory: keepsHistory,
       maySuggestNextMessage: () =>
         getWorkspacePreferences().get("suggestNextMessage"),
       readPersonHistory: personHistory,

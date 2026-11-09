@@ -123,6 +123,28 @@ describe("ActionLog", () => {
     expect(second.more).toBe(false);
   });
 
+  it("removes the lines named and keeps the rest of their days", async () => {
+    for (const [day, minute, name] of [
+      [4, 0, "Apps"],
+      [5, 0, "Skills"],
+      [5, 1, "Files"],
+    ] as const) {
+      now = new Date(2026, 10, day, 9, minute).getTime();
+      log.record({ kind: "screen", name });
+    }
+    const all = await log.read({ since: 0 });
+    log.remove(
+      all.filter((each) => each.kind === "screen" && each.name !== "Files"),
+    );
+    now += 60_000;
+    log.record({ kind: "screen", name: "after" });
+    expect(
+      (await log.read({ since: 0 })).map(
+        (each) => each.kind === "screen" && each.name,
+      ),
+    ).toEqual(["Files", "after"]);
+  });
+
   it("clears every day", async () => {
     log.record({ kind: "screen", name: "Apps" });
     log.clear();

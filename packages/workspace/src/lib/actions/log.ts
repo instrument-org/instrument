@@ -278,6 +278,38 @@ export class ActionLog {
     this.#last = undefined;
   }
 
+  /**
+   * Deletes these lines, each matched whole as the log reads it back, from
+   * the days they were recorded on. Synchronous for the reason `clear` is.
+   */
+  remove(actions: readonly LoggedAction[]): void {
+    if (actions.length === 0) {
+      return;
+    }
+    this.close();
+    const gone = new Set(actions.map((action) => JSON.stringify(action)));
+    const days = new Set(actions.map((action) => dayOf(Date.parse(action.at))));
+    for (const { file } of dayFiles(this.#dir)) {
+      if (!days.has(path.basename(file, ".jsonl"))) {
+        continue;
+      }
+      // oxlint-disable-next-line studio/no-sync-content-read -- a day file in the machine folder, which is never synced, read whole while nothing appends to it
+      const lines = fs.readFileSync(file, "utf8").split("\n");
+      const nonEmpty = lines.filter((line) => line.trim() !== "");
+      const kept = nonEmpty.filter((line) => {
+        const action = actionOf(line);
+        return action === undefined || !gone.has(JSON.stringify(action));
+      });
+      if (kept.length === nonEmpty.length) {
+        continue;
+      }
+      const copy = `${file}.clearing`;
+      fs.writeFileSync(copy, kept.map((line) => `${line}\n`).join(""));
+      fs.renameSync(copy, file);
+    }
+    this.#last = undefined;
+  }
+
   /** Writes what the caps left out and lets go of the day's file. */
   close(): void {
     try {
@@ -411,6 +443,9 @@ export function actionLog(): ActionLog {
 export function recordAction(input: ActionInput): void {
   let log: ActionLog;
   try {
+    if (getWorkspaceConfig().mayKeepHistory?.() === false) {
+      return;
+    }
     log = actionLog();
   } catch {
     return;

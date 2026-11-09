@@ -75,6 +75,10 @@ export const WorkspacePreferencesSchema = z.object({
         ),
       }),
     ),
+  // Whether the app keeps a history of what the person does in it: the
+  // action log, the browser history's visits and the files opened, and the
+  // AI requests; see `mayKeepHistory` in the workspace's config.
+  keepHistory: z.boolean().catch(true),
   // Chats may read what the person did in the app, from the action log in
   // the machine folder; see `mayShareActions` in the workspace's config.
   shareActionsWithChats: z.boolean().catch(true),
@@ -121,6 +125,18 @@ export const getWorkspacePreferences = (): Store<WorkspacePreferences> => {
 
 export function getDefaultModelURI(): AIGatewayModelURI.Type | undefined {
   return getWorkspacePreferences().get("defaultModelURI");
+}
+
+/**
+ * Whether the app keeps a history of what the person does in it, as the
+ * workspace's preferences say; on before a workspace is open.
+ */
+export function keepsHistory(): boolean {
+  try {
+    return getWorkspacePreferences().get("keepHistory");
+  } catch {
+    return true;
+  }
 }
 
 export function isDeveloperMode() {

@@ -222,4 +222,19 @@ describe("downloads as Activity reads them", () => {
 
     expect(list.listDownloads().map((d) => d.filename)).toEqual(["old.pdf"]);
   });
+
+  it("removes a download Activity names by where it landed and when it ended", async () => {
+    const list = await launch();
+    finishedAt(list, "w9.pdf", 90);
+    finishedAt(list, "w9.pdf", 10);
+    const at = NOW - 10 * MIN;
+
+    list.removeDownloadsAt([
+      { at, path: "/Users/mac-user/Downloads/w9.pdf", since: at },
+    ]);
+
+    expect(list.listDownloads().map((d) => d.endedAt)).toEqual([
+      NOW - 90 * MIN,
+    ]);
+  });
 });

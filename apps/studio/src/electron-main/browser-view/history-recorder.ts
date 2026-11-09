@@ -79,6 +79,8 @@ export interface RecorderDeps {
    * sent the tab a command since shortly before then, the person otherwise.
    */
   actorSince: (startedAt: number) => HistoryActor;
+  /** Whether the person keeps a history; off, no visit is recorded. */
+  keeping: () => boolean;
   now: () => number;
   /** The slug of a pending app sign-in whose authorization page is at this address. */
   signInAt: (url: string) => string | undefined;
@@ -142,7 +144,7 @@ export function createTabRecorder(deps: RecorderDeps) {
     url: string;
   }) => {
     const kind = classifyCommit(snapshot, after, url);
-    if (!isRecordable(url)) {
+    if (!isRecordable(url) || !deps.keeping()) {
       current = undefined;
       return;
     }

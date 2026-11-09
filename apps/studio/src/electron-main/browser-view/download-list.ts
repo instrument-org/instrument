@@ -209,6 +209,34 @@ export function clearDownloads(since?: number) {
   changed();
 }
 
+/**
+ * Takes finished downloads off the list as Activity names them: the file
+ * at each path that ended from `since` to `at`, both included.
+ */
+export function removeDownloadsAt(
+  removed: readonly { at: number; path: string; since: number }[],
+) {
+  const isRemoved = (download: BrowserDownload) =>
+    !running.has(download.id) &&
+    removed.some(
+      ({ at, path, since }) =>
+        download.path === path &&
+        endedAt(download) >= since &&
+        endedAt(download) <= at,
+    );
+  const kept = list().filter((download) => !isRemoved(download));
+  if (kept.length === list().length) {
+    return;
+  }
+  downloads = kept;
+  for (const id of origins.keys()) {
+    if (!downloads.some((download) => download.id === id)) {
+      origins.delete(id);
+    }
+  }
+  changed();
+}
+
 /** When a finished download ended, or started for one that kept no end. */
 function endedAt(download: BrowserDownload): number {
   return download.endedAt ?? download.startedAt;

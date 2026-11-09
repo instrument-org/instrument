@@ -1,15 +1,24 @@
-import { clearDownloads } from "@/electron-main/browser-view/download-list";
+import {
+  clearDownloads,
+  downloadsBetween,
+  removeDownloadsAt,
+} from "@/electron-main/browser-view/download-list";
 import { getHistoryStore } from "@/electron-main/browser-view/history-store";
 import { activityExportCsv } from "@/electron-main/lib/activity-csv";
 import { base } from "@/electron-main/rpc/base";
 import { getCallingWindow } from "@/electron-main/windows/calling-window";
 import { APP_NAME } from "@instrument-org/shared";
 import {
+  ActionSchema,
   actionLog,
   activityCsv,
   clearOwnActivity,
   countOwnActivity,
+  type HistoryAction,
+  LoggedActionSchema,
   readActions,
+  removeOwnActivity,
+  REPEAT_WINDOW_MS,
 } from "@instrument-org/workspace/electron";
 import { app, dialog } from "electron";
 import fs from "node:fs/promises";
@@ -108,4 +117,87 @@ const clear = base
     }
   });
 
-export const activity = { clear, saveCsv, summary };
+/**
+ * Takes rows out of Activity: what the person did, each from where it is
+ * kept (a page or a file opened from the history with the repeats the row
+ * stood for, a download from the download list, the rest from the action
+ * log), and the AI requests named, those this computer made. A permission
+ * answered is a rule of its chat's, which stays.
+ */
+const remove = base
+  .input(
+    z.object({
+      actions: z.array(ActionSchema),
+      requests: z.array(z.string()),
+    }),
+  )
+  .handler(async ({ input }) => {
+    const openings: Parameters<
+      ReturnType<typeof getHistoryStore>["removeOpenings"]
+    >[0][number][] = [];
+    const downloads: { at: number; path: string; since: number }[] = [];
+    const logged = [];
+    for (const action of input.actions) {
+      const at = Date.parse(action.at);
+      const since = at - REPEAT_WINDOW_MS + 1;
+      switch (action.kind) {
+        case "page": {
+          openings.push({ at, kind: "page", since, url: action.url });
+          break;
+        }
+        case "file":
+        case "open-with": {
+          openings.push({ at, kind: action.kind, path: action.path, since });
+          break;
+        }
+        case "download": {
+          downloads.push({ at, path: action.path, since: at });
+          break;
+        }
+        case "permission": {
+          break;
+        }
+        default: {
+          const line = LoggedActionSchema.safeParse(action);
+          if (line.success) {
+            logged.push(line.data);
+          }
+        }
+      }
+    }
+    actionLog().remove(logged);
+    getHistoryStore().removeOpenings(openings);
+    removeDownloadsAt(downloads);
+    await removeOwnActivity(input.requests);
+  });
+
+/**
+ * The other times the person opened what one Activity row names, newest
+ * first: the visits to a page, the openings of a file, or the downloads that
+ * landed at a path.
+ */
+const openings = base
+  .input(
+    z.union([
+      z.object({ url: z.string() }),
+      z.object({ download: z.literal(true), path: z.string() }),
+      z.object({ path: z.string() }),
+    ]),
+  )
+  .handler(({ input }): HistoryAction[] => {
+    const range = { limit: 20, since: 0, until: Date.now() };
+    if ("url" in input) {
+      return getHistoryStore().personHistory({ ...range, url: input.url });
+    }
+    if ("download" in input) {
+      return downloadsBetween({ since: 0, until: range.until })
+        .filter(
+          (download) =>
+            download.kind === "download" && download.path === input.path,
+        )
+        .slice(0, range.limit);
+    }
+    return getHistoryStore().personHistory({ ...range, path: input.path });
+  });
+
+export const activity = { clear, openings, remove, saveCsv, summary };

@@ -1,7 +1,12 @@
 export { actionLog, recordAction } from "./lib/actions/log";
-export { readActions, readActionsNewestFirst } from "./lib/actions/read";
+export {
+  readActions,
+  readActionsNewestFirst,
+  REPEAT_WINDOW_MS,
+} from "./lib/actions/read";
 export {
   type Action,
+  ActionSchema,
   type ActionInput,
   type HistoryAction,
   type LoggedAction,
@@ -12,6 +17,7 @@ export {
   activityCsv,
   clearOwnActivity,
   countOwnActivity,
+  removeOwnActivity,
 } from "./lib/activity/store";
 export { closeAllAgentBrowserSessions } from "./lib/agent-browser-cleanup";
 export {

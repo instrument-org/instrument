@@ -275,11 +275,14 @@ function totalOf(entry: ActivityEntry): null | number {
  * request it describes.
  */
 export function insertActivity(entry: ActivityEntry): void {
+  const { deviceId, mayKeepHistory, rootDir } = getWorkspaceConfig();
+  if (mayKeepHistory?.() === false) {
+    return;
+  }
   const db = openStore();
   if (!db) {
     return;
   }
-  const { deviceId, rootDir } = getWorkspaceConfig();
   const row: ActivityRow = {
     cacheReadTokens: entry.cacheReadTokens ?? null,
     cacheWriteTokens: entry.cacheWriteTokens ?? null,
@@ -384,6 +387,77 @@ export async function clearOwnActivity(
       .prepare("DELETE FROM activity WHERE device = ? AND started_at >= ?")
       .run(deviceId, since ?? Number.MIN_SAFE_INTEGER).changes,
   );
+  return { removed };
+}
+
+/** The id a line records its request under, or nothing for one that will not parse. */
+function idOf(line: string): string | undefined {
+  try {
+    const parsed: unknown = JSON.parse(line);
+    return typeof parsed === "object" &&
+      parsed !== null &&
+      "id" in parsed &&
+      typeof parsed.id === "string"
+      ? parsed.id
+      : undefined;
+  } catch {
+    return undefined;
+  }
+}
+
+/**
+ * Removes the requests named, those of them this device made, from its own
+ * files and from the index, as `clearOwnActivity` removes a time's worth.
+ * Answers how many went from the index.
+ */
+export async function removeOwnActivity(
+  ids: readonly string[],
+): Promise<{ removed: number }> {
+  if (ids.length === 0) {
+    return { removed: 0 };
+  }
+  const { deviceId, rootDir } = getWorkspaceConfig();
+  const gone = new Set(ids);
+  const own = activityFiles(rootDir).filter(
+    ({ device }) => device === deviceId,
+  );
+  for (const { file } of own) {
+    await fs.promises.readFile(file).catch(() => undefined);
+  }
+  const db = openStore();
+  for (const { file } of own) {
+    let text: string;
+    try {
+      // oxlint-disable-next-line studio/no-sync-content-read -- this device's own file, just read above; synchronous so no request appended meanwhile is lost
+      text = fs.readFileSync(file, "utf8");
+    } catch {
+      continue;
+    }
+    const lines = text.split("\n").filter((line) => line.trim() !== "");
+    const kept = lines.filter((line) => {
+      const id = idOf(line);
+      return id === undefined || !gone.has(id);
+    });
+    if (kept.length === lines.length) {
+      continue;
+    }
+    if (kept.length === 0) {
+      fs.rmSync(file, { force: true });
+    } else {
+      const copy = `${file}.clearing`;
+      fs.writeFileSync(copy, kept.map((line) => `${line}\n`).join(""));
+      fs.renameSync(copy, file);
+    }
+    db?.prepare("DELETE FROM activity_files WHERE path = ?").run(file);
+  }
+  if (!db) {
+    return { removed: 0 };
+  }
+  const forget = db.prepare("DELETE FROM activity WHERE device = ? AND id = ?");
+  let removed = 0;
+  for (const id of gone) {
+    removed += Number(forget.run(deviceId, id).changes);
+  }
   return { removed };
 }
 

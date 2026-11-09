@@ -141,6 +141,13 @@ const setSuggestNextMessage = base
     getWorkspacePreferences().set("suggestNextMessage", input.enabled);
   });
 
+/** Whether the app keeps a history of what the person does in it. */
+const setKeepHistory = base
+  .input(z.object({ enabled: z.boolean() }))
+  .handler(({ input }) => {
+    getWorkspacePreferences().set("keepHistory", input.enabled);
+  });
+
 /** Whether chats may read what the person did in the app. */
 const setShareActionsWithChats = base
   .input(z.object({ enabled: z.boolean() }))
@@ -284,6 +291,7 @@ export const preferences = {
   setDeveloperMode,
   setPlatformApiServer,
   setReleaseChannel,
+  setKeepHistory,
   setShareActionsWithChats,
   setSuggestNextMessage,
   setTheme,

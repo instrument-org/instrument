@@ -17,7 +17,7 @@ import { type Action, type HistoryAction } from "./schema";
 type Range = { since: number; until: number };
 
 /** How close two openings of one page or file are to read as one, as the log takes a repeated line. */
-const REPEAT_WINDOW_MS = 60_000;
+export const REPEAT_WINDOW_MS = 60_000;
 
 /** What makes two history rows the same opening: the page, or the file and the app it opened in. */
 function sameness(action: HistoryAction): string {

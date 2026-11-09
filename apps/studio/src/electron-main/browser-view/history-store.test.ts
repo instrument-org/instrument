@@ -359,6 +359,56 @@ describe("what the person did, as the activity readers take it", () => {
     } finally {
       fs.rmSync(dir, { force: true, recursive: true });
     }
+  });
+});
+
+describe("taking openings out of Activity", () => {
+  it("removes a page's visits and a file's opens in the window named, and reads one at a time", () => {
+    const history = store();
+    const visit = (url: string, at: number) =>
+      history.addVisit({ actor: "user", at, transition: "link", url });
+    visit("https://irs.test/", 10);
+    visit("https://irs.test/", 50);
+    visit("https://irs.test/", 90);
+    visit("https://other.test/", 60);
+    history.addFileOpen({ at: 20, path: "/a/w2.pdf", via: "tab" });
+    history.addFileOpen({ at: 70, path: "/a/w2.pdf", via: "tab" });
+    history.addFileOpen({
+      app: "Preview",
+      at: 80,
+      path: "/a/w2.pdf",
+      via: "external",
+    });
+
+    expect(
+      history
+        .personHistory({ since: 0, until: 100, url: "https://irs.test/" })
+        .map((each) => each.at),
+    ).toHaveLength(3);
+    expect(
+      history
+        .personHistory({ path: "/a/w2.pdf", since: 0, until: 100 })
+        .map((each) => each.kind),
+    ).toEqual(["open-with", "file", "file"]);
+
+    expect(
+      history.removeOpenings([
+        { at: 90, kind: "page", since: 50, url: "https://irs.test/" },
+        { at: 70, kind: "file", path: "/a/w2.pdf", since: 20 },
+      ]),
+    ).toEqual({ removed: 4 });
+    expect(
+      history.personHistory({ since: 0, until: 100 }).map((each) => ({
+        at: Date.parse(each.at),
+        kind: each.kind,
+      })),
+    ).toEqual([
+      { at: 80, kind: "open-with" },
+      { at: 60, kind: "page" },
+      { at: 10, kind: "page" },
+    ]);
+  });
+});
 
 describe("what a write tells live readers", () => {
   it("names the pages it touched, says files apart, and says nothing for a write that changed nothing", () => {

@@ -72,6 +72,11 @@ minimumReleaseAgeExclude:
   # releases still wait out the guard; the entry goes inert once 45.2.3 passes
   # the cutoff and can be dropped.
   - "electron@45.2.3"
+  # Claude Agent SDK 0.3.321 (Claude Code 2.1.321), the first whose CLI knows
+  # Fable 5.2, taken ahead of the age cutoff. Exact
+  # version, so later releases still wait out the guard; the entry goes inert
+  # once 0.3.321 passes the cutoff and can be dropped.
+  - "@anthropic-ai/claude-agent-sdk@0.3.321"
 
 overrides:
   "@electron/rebuild>node-abi": 4.35.0

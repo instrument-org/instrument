@@ -1,3 +1,4 @@
+import { useSteadyCallbacks } from "@/client/hooks/use-steady-callbacks";
 import { showProjectInFiles } from "@/client/lib/show-in-files";
 import {
   draftsAtom,
@@ -78,8 +79,9 @@ import {
   CatchBoundary,
   RouterContextProvider,
   RouterProvider,
-  useRouterState,
   useNavigate,
+  useRouter,
+  useRouterState,
 } from "@tanstack/react-router";
 import { useAtom, useAtomValue, useSetAtom, useStore } from "jotai";
 import {
@@ -417,6 +419,32 @@ function focusField() {
   field?.select();
 }
 
+/**
+ * The chats' titles and rail marks, read from the chat list. A hook of its
+ * own so the maps stay the same while the list does, which every tab's title
+ * in the strip is drawn from. `isRead` is false until the list has been read.
+ */
+function useChatChrome() {
+  const chrome = useQuery({
+    ...chatListOptions(),
+    select: chromeOfChats,
+  }).data;
+  return {
+    chatMarks: new Map(chrome?.marks),
+    chatTitles: new Map<ChatId, string>(chrome?.titles),
+    isRead: chrome !== undefined,
+    marks: chrome?.marks ?? [],
+  };
+}
+
+/** The folder a Files address stands in, which Files in the rail goes back to; none for any other screen or a file's. */
+function filesFolderOf(href: string) {
+  const screen = matchScreen(href);
+  return screen.kind === "computer" && screen.file === undefined
+    ? folderHref(screen.root, { path: screen.path })
+    : undefined;
+}
+
 function WindowShell({
   routers,
   tabs,
@@ -432,10 +460,24 @@ function WindowShell({
   useRefetchOnWindowSwitch();
   useEffect(() => installKeyboardHome(), []);
   // Where the tab up stands, read off its own router, which the context above
-  // is: the rail lights its place and the group on screen follows it.
-  const activeHref = useRouterState({
-    select: (routerState) => routerState.location.href,
+  // is: the rail lights its place and the group on screen follows it. Each
+  // part is read on its own, so a step that changes none of them (a file
+  // selected in a folder) does not draw the window again; what needs the
+  // whole address reads it from the router when it is asked.
+  const upRouter = useRouter();
+  const place = useRouterState({
+    select: (routerState) => placeOfHref(routerState.location.href),
   });
+  const isChat = useRouterState({
+    select: (routerState) => isChatHref(routerState.location.href),
+  });
+  const chatUp = useRouterState({
+    select: (routerState) => chatOfHref(routerState.location.href),
+  });
+  const filesFolder = useRouterState({
+    select: (routerState) => filesFolderOf(routerState.location.href),
+  });
+  const hrefNow = () => upRouter.state.location.href;
   const ensure = useQuery(
     rpcClient.workspace.window.ensure.queryOptions({
       // What the window opens on is made once, and the folders it reaches
@@ -446,12 +488,35 @@ function WindowShell({
   const opened = ensure.data;
   const childTitles = useTaskTitles();
   // Undefined until the list has been read.
-  const chatChrome = useQuery({
-    ...chatListOptions(),
-    select: chromeOfChats,
-  }).data;
-  const chatTitles = new Map<ChatId, string>(chatChrome?.titles);
-  const chatMarks = new Map(chatChrome?.marks);
+  const chatChrome = useChatChrome();
+  const { chatMarks, chatTitles } = chatChrome;
+  // Steady, so the strip is drawn again only when its tabs are.
+  const stripActions = useSteadyCallbacks({
+    onClose: (id: TabId) => {
+      appTabs.close(id);
+    },
+    onCloseOthers: (id: TabId) => {
+      appTabs.closeOthers(id);
+    },
+    onCloseToRight: (id: TabId) => {
+      appTabs.closeToRight(id);
+    },
+    onDuplicate: (id: TabId) => {
+      duplicateAppTab(id);
+    },
+    onNew: () => {
+      appTabs.openNewTab();
+    },
+    onReopenLast: () => {
+      appTabs.reopen();
+    },
+    onReorder: (ids: TabId[]) => {
+      appTabs.reorder(ids);
+    },
+    onSelect: (id: TabId) => {
+      appTabs.select(id);
+    },
+  });
   const [defaultModelURI, setDefaultModelURI, saveDefaultModelURI] =
     useDefaultModelURI();
   const drafts = useAtomValue(draftsAtom);
@@ -491,8 +556,6 @@ function WindowShell({
   const windowSteps = useWindowSteps();
   // Every screen a group's tab stands on is walked by a router of its own.
   useGroupTabRouters(windowTabs.allTabs, windowTabs.screenMoved);
-  const place = placeOfHref(activeHref);
-  const isChat = isChatHref(activeHref);
 
   // Apps in the rail wears a dot for an app signed out since Apps was last
   // shown; showing Apps is what counts as seeing it.
@@ -510,19 +573,17 @@ function WindowShell({
     if (!isChat) {
       return;
     }
-    setChatGroup(chatOfHref(activeHref) ?? null);
-  }, [activeHref, isChat, setChatGroup]);
+    setChatGroup(chatUp ?? null);
+  }, [chatUp, isChat, setChatGroup]);
 
   // The folder a tab last stood in is where Files in the rail takes a tab.
   // A file's address names where it was opened from rather than the folder
   // on screen, so one with a file open leaves the folder as it was.
   useEffect(() => {
-    const screen = matchScreen(activeHref);
-    if (screen.kind !== "computer" || screen.file !== undefined) {
-      return;
+    if (filesFolder !== undefined) {
+      setFilesFolder(filesFolder);
     }
-    setFilesFolder(folderHref(screen.root, { path: screen.path }));
-  }, [activeHref, setFilesFolder]);
+  }, [filesFolder, setFilesFolder]);
 
   const compose = useCompose(rowWidth);
   // The chats floating on screen, which show where they stand themselves, so
@@ -745,7 +806,6 @@ function WindowShell({
     draftId?: string;
     name?: string;
   }>();
-  const chatUp = chatOfHref(activeHref);
   // The chat a new project is asked for from: filed under it as it lands,
   // and left out of the other chats its dialog offers to file.
   const projectFor = newProject?.chatId ?? chatUp;
@@ -791,22 +851,24 @@ function WindowShell({
   );
   // What goes with a message, read at the moment of sending.
   const volumes = useComputerVolumes();
-  const { draftContext, sendContext } = contextReaders({
-    appsBySlug,
-    appTabId: appTabs.model.selectedId,
-    browser,
-    chatTitles,
-    drafts,
-    href: activeHref,
-    paneOpenByGroup,
-    screenView,
-    state: opened,
-    surfaces,
-    ...(volumes ? { volumes } : {}),
-    windowTabs,
-  });
+  const readersNow = () =>
+    contextReaders({
+      appsBySlug,
+      appTabId: appTabs.model.selectedId,
+      browser,
+      chatTitles,
+      drafts,
+      href: hrefNow(),
+      paneOpenByGroup,
+      screenView,
+      state: opened,
+      surfaces,
+      ...(volumes ? { volumes } : {}),
+      windowTabs,
+    });
+  const draftContext = (draftId: string) => readersNow().draftContext(draftId);
   useLayoutEffect(() => {
-    sendContextRef.current = sendContext;
+    sendContextRef.current = (options) => readersNow().sendContext(options);
   });
   const {
     arrivedId,
@@ -874,10 +936,10 @@ function WindowShell({
   const enterProject = (projectId: string) => {
     const tabId = appTabs.model.selectedId;
     if (tabId && isChat && chatFilters.projects.length === 0) {
-      if (sameHref(activeHref, newChatHref())) {
+      if (sameHref(hrefNow(), newChatHref())) {
         beforeProject.current.delete(tabId);
       } else {
-        beforeProject.current.set(tabId, activeHref);
+        beforeProject.current.set(tabId, hrefNow());
       }
     }
     setLeavingChat(chatUp);
@@ -903,7 +965,7 @@ function WindowShell({
       beforeProject.current.delete(tabId);
     }
     setChatFilters((current) => inPlace(current, undefined));
-    if (back !== undefined && sameHref(activeHref, newChatHref())) {
+    if (back !== undefined && sameHref(hrefNow(), newChatHref())) {
       appTabs.navigate(back);
     }
   };
@@ -1156,7 +1218,7 @@ function WindowShell({
       (draft) =>
         draft.sendingTo === undefined &&
         (draft.chatId === undefined ||
-          (chatChrome !== undefined && !chatTitles.has(draft.chatId))) &&
+          (chatChrome.isRead && !chatTitles.has(draft.chatId))) &&
         holdsSomething(draft) &&
         !startingIds.has(draft.id) &&
         !discardingIds.has(draft.id),
@@ -1210,15 +1272,8 @@ function WindowShell({
                     chatMarks={chatMarks}
                     chatTitles={chatTitles}
                     childTitles={childTitles}
-                    onClose={appTabs.close}
-                    onCloseOthers={appTabs.closeOthers}
-                    onCloseToRight={appTabs.closeToRight}
-                    onDuplicate={duplicateAppTab}
-                    onNew={appTabs.openNewTab}
+                    {...stripActions}
                     onReload={reloadablePageOf}
-                    onReopenLast={appTabs.reopen}
-                    onReorder={appTabs.reorder}
-                    onSelect={appTabs.select}
                     selectedId={appTabs.model.selectedId}
                     tabs={tabs}
                   />
@@ -1261,9 +1316,9 @@ function WindowShell({
                 appsMark={appsMark}
                 chatInView={chatUp}
                 chatMark={strongestMark(
-                  chatChrome?.marks.flatMap(([id, mark]) =>
+                  chatChrome.marks.flatMap(([id, mark]) =>
                     floatingChats.has(id) ? [] : [mark],
-                  ) ?? [],
+                  ),
                 )}
                 onChoose={choosePlace}
                 onHoverChat={inboxPeek.onRailHover}

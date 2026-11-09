@@ -1,3 +1,4 @@
+import { useSteadyCallbacks } from "@/client/hooks/use-steady-callbacks";
 import { type ChosenItem } from "@/shared/drafts";
 import {
   computerColumnWidthAtom,
@@ -103,7 +104,11 @@ import { useWorkspaceFolder } from "@/client/lib/output-folder";
 import { rpcClient, type RPCOutput } from "@/client/rpc/client";
 import { COMPUTER_ROOT, fileHref, folderHref } from "@/shared/computer-href";
 import { keptInPlaceReason } from "@/shared/instrument-folders";
-import { NO_SIDEBAR_CHANGES, pinnedPlaces } from "@/shared/sidebar-places";
+import {
+  NO_SIDEBAR_CHANGES,
+  pinnedPlaces,
+  type SidebarPlaces,
+} from "@/shared/sidebar-places";
 import { expandHomePath, folderNameFromPath } from "@instrument-org/shared";
 import {
   type BrowserTargetId,
@@ -1886,6 +1891,35 @@ export function ComputerPage({
     }
   };
 
+  // Steady, so the places beside the folder are not drawn again each time
+  // the selection moves.
+  const placeActions = useSteadyCallbacks({
+    askAbout:
+      askAbout &&
+      ((place: string) => {
+        askAbout([{ kind: "folder", path: place }]);
+      }),
+    openInNewTab: (place: string) => {
+      openScreen(folderHref(place), { behind: true, newTab: true });
+    },
+    openInNewWindow: (place: string) => {
+      openScreen(folderHref(place), { newWindow: true });
+    },
+    restoreDefaults: () => {
+      void rpcClient.preferences.restoreDefaultSidebarPlaces
+        .call()
+        .catch(sidebarChangeFailed);
+    },
+    rootTo: (folder: string) => {
+      rootTo(folder);
+    },
+    unpin: (place: string) => {
+      void rpcClient.preferences.unpinSidebarPlace
+        .call({ path: place })
+        .catch(sidebarChangeFailed);
+    },
+  });
+
   if (!places.data) {
     return (
       <div className="flex h-full items-center justify-center">
@@ -1894,41 +1928,8 @@ export function ComputerPage({
     );
   }
 
-  /** A place in a tab of its own, waiting behind; the recents by their own address. */
-  const openPlaceInNewTab = (place: string) => {
-    openScreen(folderHref(place), { behind: true, newTab: true });
-  };
-  const openPlaceInNewWindow = (place: string) => {
-    openScreen(folderHref(place), { newWindow: true });
-  };
-  const placeMenu = (place: string, { isPinned = false } = {}) => (
-    <PlaceMenu
-      hostPath={place}
-      onNewDraft={
-        askAbout &&
-        (() => {
-          askAbout([{ kind: "folder", path: place }]);
-        })
-      }
-      onOpenInNewTab={() => {
-        openPlaceInNewTab(place);
-      }}
-      onOpenInNewWindow={() => {
-        openPlaceInNewWindow(place);
-      }}
-      pin={
-        isPinned
-          ? {
-              isPinned,
-              onToggle: () =>
-                void rpcClient.preferences.unpinSidebarPlace
-                  .call({ path: place })
-                  .catch(sidebarChangeFailed),
-            }
-          : undefined
-      }
-    />
-  );
+  const placeMenu = (place: string, { isPinned = false } = {}) =>
+    placeMenuOf(place, { actions: placeActions, isPinned });
   const afterMenuClosed = () => {
     afterMenu.current?.();
     afterMenu.current = null;
@@ -2247,98 +2248,17 @@ export function ComputerPage({
     },
   ];
   const placeLists = (
-    <>
-      {/* The app's own places, which nobody unpins: what the person opened,
-          and the folder Instrument keeps what it makes in. */}
-      <PlaceList
-        menu={(place) =>
-          place === RECENTS_ROOT ? undefined : placeMenu(place)
-        }
-        onOpenInNewTab={openPlaceInNewTab}
-        onOpenInNewWindow={openPlaceInNewWindow}
-        onOpen={(folder) => {
-          rootTo(folder);
-        }}
-        places={[
-          {
-            icon: (
-              <ClockCounterClockwiseIcon className="size-4 text-muted-foreground" />
-            ),
-            isActive: isRecents,
-            name: "Recents",
-            path: RECENTS_ROOT,
-          },
-          ...(instrumentPlace
-            ? [
-                {
-                  icon: <FolderMark size="large" path={instrumentPlace.path} />,
-                  isActive: folderHostPath === instrumentPlace.path,
-                  name: instrumentPlace.name,
-                  path: instrumentPlace.path,
-                },
-              ]
-            : []),
-        ]}
-      />
-      <PlaceList
-        label="Pinned"
-        labelMenu={
-          sidebarPlaces.unpinned.length === 0 ? undefined : (
-            <ContextMenuContent className="min-w-48">
-              <ContextMenuItem
-                onClick={() =>
-                  void rpcClient.preferences.restoreDefaultSidebarPlaces
-                    .call()
-                    .catch(sidebarChangeFailed)
-                }
-              >
-                <PushPinIcon className="size-4" />
-                <span>Restore Default Places</span>
-              </ContextMenuItem>
-            </ContextMenuContent>
-          )
-        }
-        menu={(place) => placeMenu(place, { isPinned: true })}
-        onOpenInNewTab={openPlaceInNewTab}
-        onOpenInNewWindow={openPlaceInNewWindow}
-        onOpen={(folder) => {
-          rootTo(folder === homePath ? "~" : folder);
-        }}
-        places={pinned.map((place) => ({
-          // The home folder wears the house it wears in the Finder, which
-          // is what says the account-named folder is home.
-          icon: <FolderMark size="large" path={place.path} />,
-          isActive: folderHostPath === place.path,
-          name: place.name,
-          path: place.path,
-        }))}
-      />
-      <PlaceList
-        label="Locations"
-        menu={(place) =>
-          place === COMPUTER_ROOT ? undefined : placeMenu(place)
-        }
-        onOpenInNewTab={openPlaceInNewTab}
-        onOpenInNewWindow={openPlaceInNewWindow}
-        onOpen={(folder) => {
-          rootTo(folder);
-        }}
-        places={[
-          {
-            icon: <MonitorIcon className="size-4 text-muted-foreground" />,
-            isActive: isComputer,
-            name: osConventions().computer,
-            path: COMPUTER_ROOT,
-          },
-          ...places.data.volumes.map((volume) => ({
-            icon: <FolderMark size="large" path={volume.path} />,
-            isActive: folderHostPath === volume.path,
-            name: volume.name,
-            path: volume.path,
-          })),
-        ]}
-      />
-    </>
+    <FinderPlaces
+      actions={placeActions}
+      defaults={places.data.pinned}
+      folderHostPath={folderHostPath}
+      homePath={homePath}
+      instrumentPlace={instrumentPlace}
+      isComputer={isComputer}
+      isRecents={isRecents}
+      sidebarPlaces={sidebarPlaces}
+      volumes={places.data.volumes}
+    />
   );
   return (
     // A container, so the places give the folder their room when the tab is
@@ -2517,7 +2437,7 @@ export function ComputerPage({
           onOpen={(place) => {
             rootTo(place === homePath ? "~" : place);
           }}
-          onOpenInNewTab={openPlaceInNewTab}
+          onOpenInNewTab={placeActions.openInNewTab}
           refreshInterval={refreshInterval}
         />
       ) : (
@@ -3539,6 +3459,179 @@ function useListedItems({
     );
   });
   return { items: isRecents ? recentItems : folderItems, recentKeys };
+}
+
+/** What a place's menu and the place lists do, steady for the life of the screen. */
+type PlaceActions = {
+  /** Left out where the window has no chat to ask in. */
+  askAbout?: (place: string) => void;
+  openInNewTab: (place: string) => void;
+  openInNewWindow: (place: string) => void;
+  restoreDefaults: () => void;
+  rootTo: (folder: string) => void;
+  unpin: (place: string) => void;
+};
+
+/** The menu on a place in the sidebar. */
+function placeMenuOf(
+  place: string,
+  { actions, isPinned }: { actions: PlaceActions; isPinned: boolean },
+) {
+  const { askAbout } = actions;
+  return (
+    <PlaceMenu
+      hostPath={place}
+      onNewDraft={
+        askAbout &&
+        (() => {
+          askAbout(place);
+        })
+      }
+      onOpenInNewTab={() => {
+        actions.openInNewTab(place);
+      }}
+      onOpenInNewWindow={() => {
+        actions.openInNewWindow(place);
+      }}
+      pin={
+        isPinned
+          ? {
+              isPinned,
+              onToggle: () => {
+                actions.unpin(place);
+              },
+            }
+          : undefined
+      }
+    />
+  );
+}
+
+/**
+ * The places beside the folder: the app's own, the pinned ones, and the
+ * computer's disks. A component of its own, handed only what it shows and
+ * steady actions, so moving the selection in the folder leaves it alone.
+ */
+function FinderPlaces({
+  actions,
+  defaults,
+  folderHostPath,
+  homePath,
+  instrumentPlace,
+  isComputer,
+  isRecents,
+  sidebarPlaces,
+  volumes,
+}: {
+  actions: PlaceActions;
+  /** The system's places as the computer lists them, the Instrument folder among them. */
+  defaults: RPCOutput["workspace"]["computer"]["places"]["pinned"];
+  /** The folder on screen, the one place marked. */
+  folderHostPath: string | undefined;
+  homePath: string;
+  instrumentPlace:
+    | RPCOutput["workspace"]["computer"]["places"]["pinned"][number]
+    | undefined;
+  isComputer: boolean;
+  isRecents: boolean;
+  sidebarPlaces: SidebarPlaces;
+  volumes: RPCOutput["workspace"]["computer"]["places"]["volumes"];
+}) {
+  const pinned = pinnedPlaces(
+    defaults.filter((place) => place !== instrumentPlace),
+    sidebarPlaces,
+    (place) => ({
+      kind: "folder" as const,
+      name: folderNameFromPath(place),
+      path: place,
+    }),
+  );
+  const placeMenu = (place: string, { isPinned = false } = {}) =>
+    placeMenuOf(place, { actions, isPinned });
+  return (
+    <>
+      {/* The app's own places, which nobody unpins: what the person opened,
+          and the folder Instrument keeps what it makes in. */}
+      <PlaceList
+        menu={(place) =>
+          place === RECENTS_ROOT ? undefined : placeMenu(place)
+        }
+        onOpenInNewTab={actions.openInNewTab}
+        onOpenInNewWindow={actions.openInNewWindow}
+        onOpen={actions.rootTo}
+        places={[
+          {
+            icon: (
+              <ClockCounterClockwiseIcon className="size-4 text-muted-foreground" />
+            ),
+            isActive: isRecents,
+            name: "Recents",
+            path: RECENTS_ROOT,
+          },
+          ...(instrumentPlace
+            ? [
+                {
+                  icon: <FolderMark size="large" path={instrumentPlace.path} />,
+                  isActive: folderHostPath === instrumentPlace.path,
+                  name: instrumentPlace.name,
+                  path: instrumentPlace.path,
+                },
+              ]
+            : []),
+        ]}
+      />
+      <PlaceList
+        label="Pinned"
+        labelMenu={
+          sidebarPlaces.unpinned.length === 0 ? undefined : (
+            <ContextMenuContent className="min-w-48">
+              <ContextMenuItem onClick={actions.restoreDefaults}>
+                <PushPinIcon className="size-4" />
+                <span>Restore Default Places</span>
+              </ContextMenuItem>
+            </ContextMenuContent>
+          )
+        }
+        menu={(place) => placeMenu(place, { isPinned: true })}
+        onOpenInNewTab={actions.openInNewTab}
+        onOpenInNewWindow={actions.openInNewWindow}
+        onOpen={(folder) => {
+          actions.rootTo(folder === homePath ? "~" : folder);
+        }}
+        places={pinned.map((place) => ({
+          // The home folder wears the house it wears in the Finder, which
+          // is what says the account-named folder is home.
+          icon: <FolderMark size="large" path={place.path} />,
+          isActive: folderHostPath === place.path,
+          name: place.name,
+          path: place.path,
+        }))}
+      />
+      <PlaceList
+        label="Locations"
+        menu={(place) =>
+          place === COMPUTER_ROOT ? undefined : placeMenu(place)
+        }
+        onOpenInNewTab={actions.openInNewTab}
+        onOpenInNewWindow={actions.openInNewWindow}
+        onOpen={actions.rootTo}
+        places={[
+          {
+            icon: <MonitorIcon className="size-4 text-muted-foreground" />,
+            isActive: isComputer,
+            name: osConventions().computer,
+            path: COMPUTER_ROOT,
+          },
+          ...volumes.map((volume) => ({
+            icon: <FolderMark size="large" path={volume.path} />,
+            isActive: folderHostPath === volume.path,
+            name: volume.name,
+            path: volume.path,
+          })),
+        ]}
+      />
+    </>
+  );
 }
 
 /** A file's type, as a sound where probing found it has no picture. */

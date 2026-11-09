@@ -1,4 +1,5 @@
 import { BROWSER_HREF } from "@/client/atoms/window";
+import { useSteadyCallbacks } from "@/client/hooks/use-steady-callbacks";
 import { takeKeyboardOnArrival } from "@/client/lib/browser-pool";
 import { rpcClient } from "@/client/rpc/client";
 import { fileHref, folderHref } from "@/shared/computer-href";
@@ -651,13 +652,15 @@ export function useOpeners({
       controller.abort();
     };
   }, [isOpen]);
-  return {
+  // Steady, so what they are handed to (the command menu, every screen's
+  // window context) is not drawn again each time the window is.
+  return useSteadyCallbacks({
     openNamedPath,
     openPage,
     openScreen: (href: string, options?: OpenOptions) => {
       openScreen(href, options);
     },
-  };
+  });
 }
 
 /** Says a chat's address named none of the chats here. */

@@ -16,6 +16,7 @@ interface HandOffResult {
  * which a task forked at that step would otherwise hear as its own.
  */
 const CHAT_TURN_PARTS = new Set<SessionMessagePart.Type["type"]>([
+  "data-chatChanges",
   "data-maxSteps",
   "data-outputLimit",
   "data-setupChanges",

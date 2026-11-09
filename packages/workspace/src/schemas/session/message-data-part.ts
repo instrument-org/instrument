@@ -1,6 +1,7 @@
 import { AIProviderTypeSchema } from "@instrument-org/shared";
 import { z } from "zod";
 
+import { ChatIdSchema } from "../chat-id";
 import { DeviceIdSchema } from "../device-id";
 import { EnvironmentChangeSchema } from "../environment";
 import {
@@ -25,6 +26,7 @@ export namespace SessionMessageDataPart {
     "backgroundProcesses",
     "branchedFrom",
     "browserStatus",
+    "chatChanges",
     "contextRollover",
     "dateChange",
     "environmentChange",
@@ -93,6 +95,7 @@ export namespace SessionMessageDataPart {
     backgroundProcesses: "diff",
     branchedFrom: "event",
     browserStatus: "state",
+    chatChanges: "event",
     chatContext: "unwritten",
     contextRollover: "event",
     dateChange: "event",
@@ -463,6 +466,47 @@ export namespace SessionMessageDataPart {
   export type SetupChangesDataPart = z.output<
     typeof SetupChangesDataPartSchema
   >;
+
+  /**
+   * One thing a turn's `chats` command set on a chat: the field, what it
+   * held before and what it holds after. A title is the record's own, a
+   * placeholder for a chat not named yet, and a project is by its id, `null`
+   * for none.
+   */
+  export const ChatChangeSchema = z.discriminatedUnion("field", [
+    z.object({
+      after: z.string(),
+      before: z.string(),
+      chat: ChatIdSchema,
+      field: z.literal("title"),
+    }),
+    z.object({
+      after: z.boolean(),
+      before: z.boolean(),
+      chat: ChatIdSchema,
+      field: z.enum(["archived", "starred"]),
+    }),
+    z.object({
+      after: z.string().nullable(),
+      before: z.string().nullable(),
+      chat: ChatIdSchema,
+      field: z.literal("project"),
+    }),
+  ]);
+
+  export type ChatChange = z.output<typeof ChatChangeSchema>;
+
+  /**
+   * What a turn did to the person's chats through the `chats` command: the
+   * titles, archive marks, stars and projects it set, each with the value
+   * from before. Attached to the turn's last assistant message, where the
+   * chat tells the person and offers to undo it.
+   */
+  export const ChatChangesDataPartSchema = z.object({
+    changes: z.array(ChatChangeSchema).min(1),
+  });
+
+  export type ChatChangesDataPart = z.output<typeof ChatChangesDataPartSchema>;
 
   /**
    * The workspace's skills that changed since this session last heard, by
@@ -1553,6 +1597,7 @@ export namespace SessionMessageDataPart {
     [NameSchema.enum.backgroundProcesses]: BackgroundProcessesDataPartSchema,
     [NameSchema.enum.branchedFrom]: BranchedFromDataPartSchema,
     [NameSchema.enum.browserStatus]: BrowserStatusDataPartSchema,
+    [NameSchema.enum.chatChanges]: ChatChangesDataPartSchema,
     [NameSchema.enum.chatContext]: ChatContextDataPartSchema,
     [NameSchema.enum.project]: ProjectDataPartSchema,
     [NameSchema.enum.ratingCard]: RatingCardDataPartSchema,

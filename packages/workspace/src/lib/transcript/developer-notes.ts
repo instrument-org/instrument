@@ -4,6 +4,7 @@ import { SessionMessage } from "../../schemas/session/message";
 import { type SessionMessageDataPart } from "../../schemas/session/message-data-part";
 import { type SessionMessagePart } from "../../schemas/session/message-part";
 import { type StoreId } from "../../schemas/store-id";
+import { chatsChanged } from "../chat-change-groups";
 import { dataPartVisibility } from "../data-part-visibility";
 import { errorOutcomeOf } from "./error-outcome";
 import { thoughtText, transcriptMessage } from "./transcript-message";
@@ -111,6 +112,7 @@ const MARK_OF_PART: Record<
   "data-attachments": "files",
   "data-backgroundProcesses": "command",
   "data-branchedFrom": "chats",
+  "data-chatChanges": "chats",
   "data-browserStatus": "tabs",
   "data-chatContext": "chats",
   "data-contextRollover": "cut",
@@ -340,6 +342,12 @@ function labelOfPart(part: SessionMessagePart.DataPart): string {
     }
     case "data-requestNote": {
       return REQUEST_NOTE_NAMES[part.data.kind];
+    }
+    case "data-chatChanges": {
+      return named(
+        "Chats changed",
+        chatsChanged(part.data.changes).length.toString(),
+      );
     }
     case "data-setupChanges":
     case "data-setupNews": {

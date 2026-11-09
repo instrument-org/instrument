@@ -91,6 +91,11 @@ export const DATA_PART_SAMPLES = {
     partId: "prt_01M0000000000000000000000T",
     questions: ["Which day?"],
   },
+  chatChanges: {
+    changes: [
+      { after: true, before: false, chat: "chat-1", field: "archived" },
+    ],
+  },
   ratingCard: {},
   requestFailure: { error: "It failed." },
   requestNote: { kind: "turn", text: "Sample words." },

@@ -19,6 +19,16 @@ import {
   appsTest,
 } from "./apps-setup";
 import { activityList } from "./activity";
+import {
+  chatsArchive,
+  chatsList,
+  chatsProject,
+  chatsProjects,
+  chatsRename,
+  chatsStar,
+  chatsUnarchive,
+  chatsUnstar,
+} from "./chats";
 import { type Capability } from "./define";
 import { memoryForget, memoryList, memorySave, memoryShow } from "./memory";
 import { taskNew } from "./task/fork";
@@ -58,6 +68,14 @@ export const CAPABILITIES: readonly Capability[] = [
   appsIcon,
   appsAccount,
   appsDisconnect,
+  chatsList,
+  chatsProjects,
+  chatsRename,
+  chatsArchive,
+  chatsUnarchive,
+  chatsProject,
+  chatsStar,
+  chatsUnstar,
   generateImageCapability,
   memoryList,
   memorySave,

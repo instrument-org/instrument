@@ -36,6 +36,7 @@ import {
 import { MAC_APPS } from "./mac-apps/apps";
 import { APP_COMMAND, createAppCommand } from "./shell-commands/app";
 import { createXCommand, X_COMMAND } from "./shell-commands/x";
+import { CHATS_COMMAND, createChatsCommand } from "./shell-commands/chats";
 import { answerChannel, type ChannelAnswer } from "./capabilities/channel";
 import { commandRefusal } from "./capabilities/cli";
 import { type CapabilityScope } from "./capabilities/context";
@@ -696,6 +697,7 @@ const CHAT_COMMAND_LINES = [
   `  ${TASK_COMMAND.name} - ${TASK_COMMAND.description}`,
   `  ${MEMORY_COMMAND.name} - ${MEMORY_COMMAND.description}`,
   `  ${WINDOW_COMMAND.name} - ${WINDOW_COMMAND.description}`,
+  `  ${CHATS_COMMAND.name} - ${CHATS_COMMAND.description}`,
 ];
 
 /**
@@ -934,6 +936,7 @@ export async function createLocalBashEnv({
         command: createAppCommand(scope),
       },
       { ...X_COMMAND, command: createXCommand(scope) },
+      { ...CHATS_COMMAND, command: createChatsCommand(scope) },
       {
         ...MEMORY_COMMAND,
         command: createMemoryCommand(scope),

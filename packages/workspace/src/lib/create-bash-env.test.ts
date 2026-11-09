@@ -71,6 +71,7 @@ describe("createBashDescription", () => {
         "instrument task",
         "instrument memory",
         "instrument window",
+        "instrument chats",
       ]
     `);
   });
@@ -148,6 +149,12 @@ describe("instrument", () => {
         task      Start, message, stop and read your tasks.
         window    What is in front of the user: list, show, read and close this chat's tabs, or ask for one of theirs.
         x         Search posts on X through the user's Grok account.
+        app     Connect services and call their tools.
+        chats   Organizing the user's chats: rename, archive, file and star them.
+        memory  What you keep about the user for every chat.
+        task    Start, message, stop and read your tasks.
+        window  What is in front of the user: list, show, read and close this chat's tabs, or ask for one of theirs.
+        x       Search posts on X through the user's Grok account.
 
       \`instrument <command> help\` prints one command's own usage.
       "

@@ -8,6 +8,7 @@ import { type ReactNode } from "react";
 export { dataPartVisibility };
 
 import { FilePathsGrid } from "../agent-files-block";
+import { ChatChangesNote } from "../chat-changes-note";
 import { FolderChangesNote } from "../folder-changes-note";
 import { PermissionAnswerNote } from "../permission-asks";
 import { SetupChangesNote } from "../setup-changes-note";
@@ -48,6 +49,11 @@ export function renderDataPart(part: SessionMessagePart.DataPart): ReactNode {
 
       return paths.length === 0 ? null : (
         <FilePathsGrid key={part.metadata.id} paths={[...new Set(paths)]} />
+      );
+    }
+    case "data-chatChanges": {
+      return (
+        <ChatChangesNote changes={part.data.changes} key={part.metadata.id} />
       );
     }
     case "data-setupChanges": {

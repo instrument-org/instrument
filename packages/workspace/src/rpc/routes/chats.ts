@@ -8,22 +8,20 @@ import { taskSlices } from "../../lib/chat/task-slices";
 import { branchChat } from "../../lib/chat/branch-chat";
 import { ensureChat } from "../../lib/chat/chat-records";
 import {
-  archiveChat,
   chatById,
-  chatIsWorking,
   markChatRead,
   markChatUnread,
-  renameChat,
   setChatStarred,
   setChatProject,
   settleChatTitle,
   unarchiveChat,
 } from "../../lib/chat/chats";
 import {
-  followTitle,
-  titlesToFollow,
-} from "../../lib/chat-folders/follow-title";
-import { cappedTitle } from "../../lib/chat-folders/folder-name";
+  archiveChatAndTabs,
+  followTitleBetweenTurns,
+  renameChatAndFolder,
+  undoChatChanges,
+} from "../../lib/chat/organize";
 import { ChatTaskSchema, listChildTasks } from "../../lib/chat/children";
 import { chatRow, ChatRowSchema } from "../../lib/chat/chat-row";
 import { liveChatRows, refreshChatRow } from "../../lib/chat/live-chat-list";
@@ -52,7 +50,6 @@ import {
   chatNextMessages,
   watchNextMessage,
 } from "../../lib/chat/next-message";
-import { closeChatTabs } from "../../lib/chat/tab-cap";
 
 /** A task the chat started, as its tasks screen lists it. */
 const ChildTaskSchema = ChatTaskSchema.extend({
@@ -279,13 +276,7 @@ const archiveChatRoute = base
   .input(z.object({ id: ChatIdSchema }))
   .output(ListedAtSchema)
   .handler(async ({ input }) => {
-    const listed = await whenChat(input.id, archiveChat);
-    // Nothing of an archived chat works on, so its agents' tabs go, but for
-    // the ones the person used.
-    void whenChat(input.id, (chatId) =>
-      closeChatTabs(chatId, { trashed: false }),
-    ).catch(() => undefined);
-    return listed;
+    return await whenChat(input.id, archiveChatAndTabs);
   });
 
 /** Stars a chat, or takes the star off. */
@@ -330,34 +321,26 @@ const retitleChatRoute = base
     return { listed: await refreshChatRow(input.id), title };
   });
 
-/**
- * Moves a chat's folder to a title it was just given, unless something of
- * the chat's is running in it: a rename under a working agent takes its
- * working directory out from under it, and Windows refuses it outright. The
- * folder then catches up when the chat's turn settles (`retitle.ts`).
- */
-async function followTitleBetweenTurns(chatId: ChatId, title: string) {
-  if (await chatIsWorking(chatId)) {
-    titlesToFollow.add(chatId);
-    return;
-  }
-  titlesToFollow.delete(chatId);
-  await followTitle(chatId, title);
-}
-
 /** Names a chat as the user typed it, and its folder with it. */
 const renameChatRoute = base
   .input(z.object({ id: ChatIdSchema, title: z.string().trim().min(1) }))
   .output(ListedAtSchema)
   .handler(async ({ input }) => {
-    return await whenChat(input.id, async (chatId) => {
-      const renamed = await renameChat(chatId, input.title);
-      if (renamed) {
-        await followTitleBetweenTurns(chatId, cappedTitle(input.title));
-      }
-      return renamed;
-    });
+    return await whenChat(input.id, (chatId) =>
+      renameChatAndFolder(chatId, input.title),
+    );
   });
+
+/**
+ * Takes back what a turn's `chats` commands did, from its note's entries:
+ * each field goes back to what it held before, but for one changed since.
+ */
+const undoChatChangesRoute = base
+  .input(
+    z.object({ changes: z.array(SessionMessageDataPart.ChatChangeSchema) }),
+  )
+  .output(z.object({ skipped: z.number(), undone: z.number() }))
+  .handler(async ({ input }) => await undoChatChanges(input.changes));
 
 /** Files a chat under a project, or under none with `null`. */
 const setChatProjectRoute = base
@@ -695,5 +678,6 @@ export const chats = {
   tasks: childTasksRoute,
   trash: trashChatRoute,
   unarchive: unarchiveChatRoute,
+  undoChanges: undoChatChangesRoute,
   unread: unreadChatRoute,
 };

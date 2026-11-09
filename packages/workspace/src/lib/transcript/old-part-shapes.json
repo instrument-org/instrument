@@ -216,6 +216,33 @@
   },
   {
     "data": {
+      "changes": [
+        {
+          "after": "A week in Porto",
+          "before": "Untitled chat 2",
+          "chat": "2026-11-08-porto-4f2a",
+          "field": "title"
+        },
+        {
+          "after": true,
+          "before": false,
+          "chat": "2026-11-08-groceries-9c1d",
+          "field": "archived"
+        },
+        {
+          "after": "prj_01K9M3V7Q2ZB8N4T6W0XRYHDCE",
+          "before": null,
+          "chat": "2026-11-08-lisbon-1b7e",
+          "field": "project"
+        }
+      ]
+    },
+    "note": "as written on 2026-11-09",
+    "reads": "data-chatChanges",
+    "type": "data-chatChanges"
+  },
+  {
+    "data": {
       "text": "Words from a sample."
     },
     "note": "as written on 2026-11-06",

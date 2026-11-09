@@ -133,3 +133,29 @@ describe("a task event in the chat", () => {
     },
   );
 });
+
+/**
+ * What a turn's `chats` commands did is the person's to see and take back, so
+ * its note is drawn for everyone.
+ */
+describe("a chat-changes part", () => {
+  const part = {
+    data: {
+      changes: [
+        { after: true, before: false, chat: "lisbon", field: "archived" },
+      ],
+    },
+    metadata: {
+      createdAt: new Date(0),
+      id: StoreId.newPartId(),
+      messageId,
+      sessionId,
+    },
+    type: "data-chatChanges",
+  } as unknown as SessionMessagePart.DataPart;
+
+  it("is a note everyone sees", () => {
+    expect(dataPartVisibility(part)).toBe("always");
+    expect(renderDataPart(part)).not.toBeNull();
+  });
+});

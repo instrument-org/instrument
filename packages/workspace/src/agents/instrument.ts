@@ -15,6 +15,10 @@ import { TypedError } from "../lib/errors";
 import { getCurrentDate } from "../lib/get-current-date";
 import { getWorkspaceConfig } from "../lib/workspace-config";
 import {
+  beginChatChangeTracking,
+  consumeChatChanges,
+} from "../lib/chat-changes";
+import {
   beginSetupChangeTracking,
   consumeSetupChanges,
 } from "../lib/setup-changes";
@@ -121,8 +125,9 @@ export const instrumentAgent = setupAgent({
     return [systemMessage, userMessage];
   },
   onFinish: async ({ parentMessageId, sessionId, chatId }) => {
+    const chatChanges = consumeChatChanges({ id: chatId, sessionId });
     const changes = await consumeSetupChanges({ id: chatId, sessionId });
-    if (changes.length === 0) {
+    if (changes.length === 0 && chatChanges.length === 0) {
       return;
     }
     const result = await safeTry(async function* () {
@@ -140,6 +145,25 @@ export const instrumentAgent = setupAgent({
       ).findLast((message) => message.role === "assistant");
       if (!lastAssistantMessage) {
         return err(new TypedError.NotFound("No assistant message found"));
+      }
+
+      if (chatChanges.length > 0) {
+        yield* ChatWrites.savePart(
+          {
+            data: { changes: chatChanges },
+            metadata: {
+              createdAt: new Date(),
+              id: StoreId.newPartId(),
+              messageId: lastAssistantMessage.id,
+              sessionId,
+            },
+            type: "data-chatChanges",
+          },
+          chatId,
+        );
+      }
+      if (changes.length === 0) {
+        return ok(undefined);
       }
 
       // Told through this part, so the next message's notes do not repeat it.
@@ -185,6 +209,7 @@ export const instrumentAgent = setupAgent({
   },
   onStart: async ({ sessionId, chatId }) => {
     beginSetupChangeTracking({ id: chatId, sessionId });
+    beginChatChangeTracking({ id: chatId, sessionId });
   },
   // A reply whose links open nothing gets one step more to correct them.
   shouldContinue: async (options) =>

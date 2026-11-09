@@ -457,6 +457,21 @@ export async function renameChat(
   }));
 }
 
+/**
+ * A chat's title as its record has it, which is a placeholder until the chat
+ * is named; none for an id that is not a chat's.
+ */
+export async function chatRecordTitle(
+  chatId: ChatId,
+): Promise<string | undefined> {
+  const sessionId = sessionOfChat(chatId);
+  if (!sessionId) {
+    return undefined;
+  }
+  const session = await ChatReads.session({ chatId, sessionId });
+  return session.isOk() ? session.value.title : undefined;
+}
+
 /** Stars a chat, or takes the star off. The stamp stays where it was, as with putting a chat away. */
 export async function setChatStarred(
   chatId: ChatId,

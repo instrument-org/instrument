@@ -203,6 +203,15 @@ function messagePartToShorthand(part: SessionMessagePart.Type): string {
     case "data-outputLimit": {
       return `<data-outputLimit continuations="${part.data.continuations}" />`;
     }
+    case "data-chatChanges": {
+      const changes = part.data.changes
+        .map(
+          (item) =>
+            `${item.chat}:${item.field}:${String(item.before)}>${String(item.after)}`,
+        )
+        .join(",");
+      return `<chat-changes changes="${changes}" />`;
+    }
     case "data-setupChanges": {
       const changes = part.data.changes
         .map((item) => `${item.change}:${item.kind}:${item.name}`)

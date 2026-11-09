@@ -2451,6 +2451,15 @@ This chat's tabs, which the chat and each of its tasks all see and drive: t1 at 
 ]
 `;
 
+exports[`the notes a stored data part renders > chatChanges 1`] = `
+[
+  [
+    "First",
+    "data-chatChanges",
+  ],
+]
+`;
+
 exports[`the notes a stored data part renders > chatContext 1`] = `
 [
   [

@@ -6718,17 +6718,33 @@ function FileSystemColumnsView(props: FileSystemViewProps) {
     const container = scrollContainerRef.current;
     if (container) container.scrollLeft = container.scrollWidth;
   }, [columnPaths.length, deferredSelectedPath]);
-  // After the last hook, where the compiler can keep it the same function.
-  const setColumnWidth = (next: number) => {
-    setInternalColumnWidth(next);
-    onColumnWidthChange?.(next);
-  };
   // Beside a file only the last column stands, filling the folder's width:
   // the file is open beside it, so there is no preview to make room for,
   // and the columns before it are a step back (left, or the folder's menu).
   // As the file goes, every column and the preview are back at once, for the
   // widening folder to uncover.
   const isBeside = besideWidth !== undefined && !besideClosing;
+  // Where the columns were scrolled to before a file opened beside them,
+  // which they come back to: the one column standing meanwhile has nowhere
+  // to scroll. A trail walked while the file was open comes back at its end.
+  const trailKey = `${columnPaths.length}:${deferredSelectedPath ?? ""}`;
+  const scrolledToRef = React.useRef({ left: 0, trail: trailKey });
+  React.useLayoutEffect(() => {
+    const container = scrollContainerRef.current;
+    if (!container || isBeside) return;
+    container.scrollLeft =
+      scrolledToRef.current.trail === trailKey
+        ? scrolledToRef.current.left
+        : container.scrollWidth;
+    const keep = () => {
+      scrolledToRef.current = { left: container.scrollLeft, trail: trailKey };
+    };
+    keep();
+    container.addEventListener("scroll", keep, { passive: true });
+    return () => {
+      container.removeEventListener("scroll", keep);
+    };
+  }, [isBeside, trailKey]);
   // Drawn at the folder's full width while it widens, as the list is, so
   // the preview stands where it will be rather than growing into place.
   const [width, setWidth] = React.useState<null | number>(null);
@@ -6751,6 +6767,11 @@ function FileSystemColumnsView(props: FileSystemViewProps) {
     besideClosing && width !== null && wideWidth !== null && wideWidth > width
       ? wideWidth
       : null;
+  // After the last hook, where the compiler can keep it the same function.
+  const setColumnWidth = (next: number) => {
+    setInternalColumnWidth(next);
+    onColumnWidthChange?.(next);
+  };
   return (
     <div
       className={cn("size-full", heldWidth !== null && "overflow-hidden")}

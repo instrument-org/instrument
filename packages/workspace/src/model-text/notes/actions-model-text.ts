@@ -99,7 +99,7 @@ function actionPhrase({ count, kind }: Pick<Row, "count" | "kind">) {
 }
 
 /** The note's rows as the model reads them, without their dashes: `21m ago · opened a folder in Files`. */
-export function actionsNoteLines(
+function actionsNoteLines(
   data: SessionMessageDataPart.ActionsDataPart,
 ): string[] {
   return data.rows.map(

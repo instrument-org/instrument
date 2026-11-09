@@ -51,6 +51,7 @@ describe("SHORTCUT_GUIDE_ENTRIES", () => {
         "General: Quit  ⌘Q",
         "General: Search or Ask  ⌘L",
         "General: Settings…  ⌘,",
+        "General: Show Activity  ⌘Y",
         "Chats: Back to List  Esc",
         "Chats: Next Chat  ⌥⌘↓",
         "Chats: Next Chat in List  ↓",

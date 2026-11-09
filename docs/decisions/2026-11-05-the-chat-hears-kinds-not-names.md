@@ -6,7 +6,7 @@ Date: 2026-11-05
 
 The app keeps a record of what the person does in it ([action-log.md](../architecture/action-log.md)): folders and files opened, edits, moves, chats opened, pages visited, errors shown. The question was how a chat's agent should hear it, so that "put them back" after a drag, or "the weather there" after editing a packing list, resolves without the person attaching anything.
 
-Every message already carries what is on screen and every open tab ([view-context-model-text.ts](../../packages/workspace/src/lib/view-context-model-text.ts)), so a place still in a tab was never the gap. What the tabs cannot say is what the person did: a move, an edit, a folder passed through, a chat read and closed.
+Every message already carries what is on screen and every open tab ([view-context-model-text.ts](../../packages/workspace/src/model-text/notes/view-context-model-text.ts)), so a place still in a tab was never the gap. What the tabs cannot say is what the person did: a move, an edit, a folder passed through, a chat read and closed.
 
 ## Options weighed
 

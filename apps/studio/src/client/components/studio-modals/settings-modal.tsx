@@ -362,15 +362,7 @@ function SettingsModalContent({
               key={activeTab}
               ref={contentRef}
             >
-              {/* Activity scrolls its own list, so it is held to the pane's
-                  height; every other page is as tall as it is and the pane
-                  scrolls it. */}
-              <div
-                className={cn(
-                  "flex flex-1 flex-col gap-4 p-6",
-                  activeTab === "Activity" && "min-h-0",
-                )}
-              >
+              <div className="flex flex-1 flex-col gap-4 p-6">
                 <SettingsSectionBody tab={activeTab} />
               </div>
             </SidebarInset>

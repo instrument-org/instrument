@@ -481,9 +481,7 @@ describe("the log in the workspace", () => {
     insertActivity(entry({ startedAt: Date.UTC(2026, 9, 10) }));
     insertActivity(entry({ startedAt: Date.UTC(2026, 9, 20) }));
     await writeTheirs("2026-10", theirs("01THEIRS0000000000000000A"));
-    const [first, second] = (await ids()).filter(
-      (id) => !id.startsWith(OTHER),
-    );
+    const [first, second] = (await ids()).filter((id) => !id.startsWith(OTHER));
     const idOf = (key: string | undefined) => key?.split(":").at(-1) ?? "";
 
     expect(

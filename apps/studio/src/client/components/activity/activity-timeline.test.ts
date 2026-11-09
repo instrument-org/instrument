@@ -5,6 +5,8 @@ import {
   actionText,
   type ActivityView,
   dayLabel,
+  entriesShown,
+  moreFromOf,
   type PersonAction,
   placeOf,
   timelineOf,
@@ -203,19 +205,19 @@ describe("timelineOf", () => {
 });
 
 describe("withDayHeads", () => {
-  it("heads each day: Today, Yesterday, then the weekday and date, with the year only when it is not this one", () => {
+  it("heads each day with its weekday and date, after Today or Yesterday, with the year only when it is not this one", () => {
     const now = new Date(2026, 10, 5, 15, 0);
     const day = (month: number, date: number, year = 2026) =>
       dayLabel(new Date(year, month, date, 9, 0).getTime(), now, "en-US");
     expect([day(10, 5), day(10, 4), day(10, 3), day(11, 31, 2025)])
       .toMatchInlineSnapshot(`
-      [
-        "Today",
-        "Yesterday",
-        "Tuesday, November 3",
-        "Wednesday, December 31, 2025",
-      ]
-    `);
+        [
+          "Today · Thursday, November 5",
+          "Yesterday · Wednesday, November 4",
+          "Tuesday, November 3",
+          "Wednesday, December 31, 2025",
+        ]
+      `);
     ids = 0;
     const { entries } = timelineOf({
       actions: done([action(at(14, 0)), action(at(9, 0))]),
@@ -226,7 +228,13 @@ describe("withDayHeads", () => {
       withDayHeads(entries, now, "en-US").map((item) =>
         item.kind === "day" ? item.label : item.kind,
       ),
-    ).toEqual(["Today", "action", "action", "Yesterday", "turn"]);
+    ).toEqual([
+      "Today · Thursday, November 5",
+      "action",
+      "action",
+      "Yesterday · Wednesday, November 4",
+      "turn",
+    ]);
   });
 });
 
@@ -335,43 +343,43 @@ describe("actionText", () => {
     { at: time, kind: "setting", name: "Zoom", value: "110%" },
   ];
 
-  it("says what the person did on one line and where on the other", () => {
+  it("names what each row is about, then what was done with it, without quotes", () => {
     expect(
       actions.flatMap((each) => {
         if (each.kind === "capped") {
           return [];
         }
-        const { primary, secondary } = actionText(each, { trash: "Trash" });
-        return [`${each.kind}: ${primary} | ${secondary}`];
+        const { context, title } = actionText(each, { trash: "Trash" });
+        return [`${each.kind}: ${title} | ${context}`];
       }),
     ).toMatchInlineSnapshot(`
       [
-        "folder: Opened “Sam taxes 2025” | Folder in Downloads",
-        "file: Opened “1099-INT Capital One.pdf” | In Sam taxes 2025",
-        "open-with: Opened “Budget.xlsx” in Numbers | In Documents",
-        "open-with: Opened “Budget.xlsx” in another app | In Documents",
-        "edit: Edited “Lisbon in March.md” | In Trips",
-        "move: Moved 3 files to “2023” | From Downloads",
-        "copy: Copied “Receipt.pdf” to “Taxes” | From Desktop",
-        "rename: Renamed “IMG_2210.jpg” to “Porch.jpg” | In Pictures",
-        "trash: Moved “old draft.docx” to the Trash | In Documents",
-        "trash: Moved 2 files to the Trash | In Documents",
-        "new-folder: Made the folder “Receipts” | In Documents",
-        "chat: Opened “Kitchen remodel quotes” | Chat",
-        "page: Visited “Where's My Refund?” | irs.gov",
-        "page: Visited irs.gov/refunds | irs.gov",
-        "download: Downloaded “Globex NDA.pdf” | To Downloads",
-        "app: Couldn't sign in to Gmail | App",
-        "app: Signed in to Gmail | App",
-        "app: Disconnected Gmail | App",
-        "update: Updated Instrument to 2.0.14 | From 2.0.13",
-        "permission: Allowed “Kitchen remodel quotes” to use Downloads | Permission",
-        "permission: Allowed “Kitchen remodel quotes” to use Gmail | Permission",
-        "permission: Didn't allow “Kitchen remodel quotes” to use Downloads | Permission",
+        "folder: Sam taxes 2025 | ",
+        "file: 1099-INT Capital One.pdf | ",
+        "open-with: Budget.xlsx | Opened in Numbers",
+        "open-with: Budget.xlsx | Opened in another app",
+        "edit: Lisbon in March.md | Edited",
+        "move: a.pdf and 2 more | Moved to 2023",
+        "copy: Receipt.pdf | Copied to Taxes",
+        "rename: Porch.jpg | Renamed from IMG_2210.jpg",
+        "trash: old draft.docx | Moved to the Trash",
+        "trash: a.txt and 1 more | Moved to the Trash",
+        "new-folder: Receipts | New folder",
+        "chat: Kitchen remodel quotes | Chat",
+        "page: Where's My Refund? | irs.gov",
+        "page: irs.gov/refunds | irs.gov",
+        "download: Globex NDA.pdf | Downloaded from globex.com",
+        "app: Gmail | Couldn't sign in",
+        "app: Gmail | Signed in",
+        "app: Gmail | Disconnected",
+        "update: Instrument 2.0.14 | Updated",
+        "permission: Downloads | Allowed Kitchen remodel quotes to use it",
+        "permission: Gmail | Allowed Kitchen remodel quotes to use it",
+        "permission: Downloads | Didn't allow Kitchen remodel quotes to use it",
         "error: Couldn't show “scan-0412.heic” | Error in the file viewer",
         "error: Couldn't save. The disk is full | Error",
-        "screen: Opened Settings › Models | Screen",
-        "setting: Changed Zoom to 110% | Setting",
+        "screen: Settings › Models | ",
+        "setting: Zoom | Changed to 110%",
       ]
     `);
   });
@@ -385,21 +393,21 @@ describe("actionText", () => {
       ),
     ).toMatchInlineSnapshot(`
       [
-        "folder: {"href":"/files?path=&root=%2FUsers%2Fsam%2FDownloads%2FSam+taxes+2025","kind":"screen"}",
-        "file: {"href":"/files?file=%2FUsers%2Fsam%2FDownloads%2FSam%20taxes%202025%2F1099-INT%20Capital%20One.pdf&path=&root=~","kind":"screen"}",
-        "open-with: {"href":"/files?file=%2FUsers%2Fsam%2FDocuments%2FBudget.xlsx&path=&root=~","kind":"screen"}",
-        "open-with: {"href":"/files?file=%2FUsers%2Fsam%2FDocuments%2FBudget.xlsx&path=&root=~","kind":"screen"}",
-        "edit: {"href":"/files?file=%2FUsers%2Fsam%2FTrips%2FLisbon%20in%20March.md&path=&root=~","kind":"screen"}",
+        "folder: {"kind":"path","path":"/Users/sam/Downloads/Sam taxes 2025/"}",
+        "file: {"kind":"path","path":"/Users/sam/Downloads/Sam taxes 2025/1099-INT Capital One.pdf"}",
+        "open-with: {"kind":"path","path":"/Users/sam/Documents/Budget.xlsx"}",
+        "open-with: {"kind":"path","path":"/Users/sam/Documents/Budget.xlsx"}",
+        "edit: {"kind":"path","path":"/Users/sam/Trips/Lisbon in March.md"}",
         "move: {"href":"/files?path=&root=%2FUsers%2Fsam%2FArchive%2F2023&select=a.pdf","kind":"screen"}",
         "copy: {"href":"/files?path=&root=%2FUsers%2Fsam%2FTaxes&select=Receipt.pdf","kind":"screen"}",
-        "rename: {"href":"/files?path=&root=%2FUsers%2Fsam%2FPictures&select=Porch.jpg","kind":"screen"}",
+        "rename: {"kind":"path","path":"/Users/sam/Pictures/Porch.jpg"}",
         "trash: undefined",
         "trash: undefined",
-        "new-folder: {"href":"/files?path=&root=%2FUsers%2Fsam%2FDocuments%2FReceipts","kind":"screen"}",
+        "new-folder: {"kind":"path","path":"/Users/sam/Documents/Receipts/"}",
         "chat: {"href":"/chats/kitchen-remodel-quotes","kind":"screen"}",
         "page: {"kind":"page","url":"https://www.irs.gov/refunds"}",
         "page: {"kind":"page","url":"https://www.irs.gov/refunds"}",
-        "download: {"href":"/files?file=%2FUsers%2Fsam%2FDownloads%2FGlobex%20NDA.pdf&path=&root=~","kind":"screen"}",
+        "download: {"kind":"path","path":"/Users/sam/Downloads/Globex NDA.pdf"}",
         "app: undefined",
         "app: undefined",
         "app: undefined",
@@ -416,15 +424,83 @@ describe("actionText", () => {
   });
 });
 
+describe("entriesShown", () => {
+  const entry = (did: PersonAction, n: number): TimelineEntry => {
+    if (did.kind === "capped") {
+      throw new Error("not a row");
+    }
+    return { action: did, at: at(14, n), id: String(n), kind: "action" };
+  };
+  const time = new Date(at(14, 0)).toISOString();
+  const entries: TimelineEntry[] = [
+    entry(
+      {
+        at: time,
+        kind: "page",
+        title: "Refunds",
+        url: "https://www.irs.gov/refunds",
+      },
+      1,
+    ),
+    entry({ at: time, kind: "file", path: "/Users/sam/Taxes/w2.pdf" }, 2),
+    entry(
+      { at: time, id: CHAT, kind: "chat", title: "Kitchen remodel quotes" },
+      3,
+    ),
+    entry({ at: time, kind: "setting", name: "Zoom", value: "110%" }, 4),
+    {
+      at: at(14, 5),
+      id: "req_turn",
+      kind: "turn",
+      turn: { id: "req_turn", requests: [request(at(14, 5))] },
+    },
+  ];
+  const shown = (q: string, show?: "ai" | "chats" | "files" | "pages") =>
+    entriesShown(entries, {
+      modelName: (id) => (id === null ? "" : "Claude Haiku 5.5"),
+      q,
+      show,
+      words: { trash: "Trash" },
+    }).map((each) => each.id);
+
+  it.each([
+    ["pages", ["1"]],
+    ["files", ["2"]],
+    ["chats", ["3"]],
+    ["ai", ["req_turn"]],
+  ] as const)("shows only %s under its filter", (show, expected) => {
+    expect(shown("", show)).toEqual(expected);
+  });
+
+  it("finds a row by its words, its path or its address, every word of the search", () => {
+    expect(shown("")).toHaveLength(5);
+    expect(shown("irs.gov")).toEqual(["1"]);
+    expect(shown("/users/sam/taxes")).toEqual(["2"]);
+    expect(shown("kitchen")).toEqual(["3", "req_turn"]);
+    expect(shown("kitchen haiku")).toEqual(["req_turn"]);
+    expect(shown("kitchen", "chats")).toEqual(["3"]);
+  });
+
+  it("searches More from a page's site, a file's folder, and a turn's chat", () => {
+    expect(entries.map((each) => moreFromOf(each)?.q ?? null)).toEqual([
+      "irs.gov",
+      "/Users/sam/Taxes",
+      "Kitchen remodel quotes",
+      null,
+      "Kitchen remodel quotes",
+    ]);
+  });
+});
+
 describe("turnText", () => {
   const names = (id: null | string) =>
     id === "anthropic/claude-haiku-5.5" ? "Claude Haiku 5.5" : (id ?? "");
   const text = (requests: ActivityRequest[]) => {
-    const { primary, secondary } = turnText(
+    const { context, title } = turnText(
       { id: requests[0]?.id ?? "", requests },
       names,
     );
-    return `${primary} | ${secondary}`;
+    return `${title} | ${context}`;
   };
 
   it("names a turn by what led it, in its chat, with the model and how many requests", () => {
@@ -458,13 +534,13 @@ describe("turnText", () => {
       ]),
     ]).toMatchInlineSnapshot(`
       [
-        "Answered in “Kitchen remodel quotes” | Claude Haiku 5.5 · 4 requests",
-        "Named a chat | Claude Haiku 5.5 · 1 request",
-        "Suggested a reply in “Kitchen remodel quotes” | Claude Haiku 5.5 · 1 request",
-        "Made an image in “Kitchen remodel quotes” | Claude Haiku 5.5 · 1 request",
-        "Searched the web in “Kitchen remodel quotes” | Claude Haiku 5.5 · 1 request",
-        "Worked on a task in “Kitchen remodel quotes” | Claude Haiku 5.5 · 1 request",
-        "Answered in a deleted chat | Claude Haiku 5.5 · 1 request",
+        "Kitchen remodel quotes | Answered · Claude Haiku 5.5 · 4 requests",
+        "Kitchen remodel quotes | Named a chat · Claude Haiku 5.5 · 1 request",
+        "Kitchen remodel quotes | Suggested a reply · Claude Haiku 5.5 · 1 request",
+        "Kitchen remodel quotes | Made an image · Claude Haiku 5.5 · 1 request",
+        "Kitchen remodel quotes | Searched the web · Claude Haiku 5.5 · 1 request",
+        "Kitchen remodel quotes | Worked on a task · Claude Haiku 5.5 · 1 request",
+        "Deleted chat | Answered · Claude Haiku 5.5 · 1 request",
         "Searched Settings | 1 request",
       ]
     `);

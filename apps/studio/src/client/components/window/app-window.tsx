@@ -140,6 +140,7 @@ import { useWindowSteps } from "./use-tab-steps";
 import { useSetChatProject } from "./use-set-chat-project";
 import { backfillCandidates } from "./use-project-backfill";
 import { useWindowCommands } from "./use-window-commands";
+import { useShowActivity } from "./activity-button";
 import { WindowBar, WindowCorner } from "./window-bar";
 import { useWindowDropFallback } from "./use-window-drop-fallback";
 import { WindowFrame } from "./window-frame";
@@ -424,6 +425,7 @@ function WindowShell({
   tabs: Tab[];
 }) {
   const appTabs = useAppTabs();
+  const showActivity = useShowActivity();
   const waitingTabs = useRestoredTabsWaiting(tabs, appTabs.model.selectedId);
   useRefreshSkillsOnChange();
   useRefreshProjectsOnChange();
@@ -1039,6 +1041,9 @@ function WindowShell({
       receiveTab,
       reopenTab: appTabs.reopen,
       search: focusField,
+      showActivity: () => {
+        showActivity();
+      },
       selectRelative: appTabs.selectRelative,
       selectTab: appTabs.selectIndex,
       toggleInbox: () => {

@@ -81,6 +81,7 @@ const WINDOW_GROUPS: Record<
   reloadPage: "Pages",
   reopenTab: "Tabs",
   search: "General",
+  showActivity: "General",
   tabByPlace: "Tabs",
   toggleFullScreen: "View",
   toggleInbox: "Chats",

@@ -1,5 +1,6 @@
 import { UpdateStatusIndicator } from "@/client/components/update-status-indicator";
 import { NetworkStatusIndicator } from "@/client/components/network-status/network-status-pill";
+import { ActivityButton } from "@/client/components/window/activity-button";
 import { NotificationsBell } from "@/client/components/window/notifications-bell";
 import { Button } from "@/client/components/ui/button";
 import { WindowControls } from "@/client/components/window-controls";
@@ -104,6 +105,7 @@ export function WindowCorner() {
       <UpdateStatusIndicator />
       {/* Offline, or Instrument's servers not answering, beside the bell. */}
       <NetworkStatusIndicator />
+      <ActivityButton />
       <NotificationsBell />
     </>
   );

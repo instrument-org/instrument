@@ -77,6 +77,7 @@ const CHORD_SYMBOLS: Record<WindowShortcutId, string> = {
   reloadPage: "arrow.clockwise",
   reopenTab: "arrow.uturn.backward",
   search: "magnifyingglass",
+  showActivity: "clock.arrow.circlepath",
   toggleInbox: "sidebar.left",
 };
 
@@ -203,6 +204,9 @@ const TAB_SWITCH_CHORDS: WindowChord[] = [
  */
 const HISTORY_CHORDS: WindowChord[] = [chord("back"), chord("forward")];
 
+/** Everything the person did, as a browser's History menu shows all of it. */
+const ACTIVITY_CHORDS: WindowChord[] = [chord("showActivity")];
+
 /**
  * This system's second chords for a command (`WINDOW_SHORTCUT_ALIASES`),
  * answered like the rest and drawn in the menu only as hidden rows, which a
@@ -234,6 +238,7 @@ const WINDOW_CHORDS = [
   ...TAB_SWITCH_CHORDS,
   ...TAB_SWITCH_ALIAS_CHORDS,
   ...HISTORY_CHORDS,
+  ...ACTIVITY_CHORDS,
 ];
 
 /**
@@ -361,6 +366,8 @@ export function createAppWindowMenu(
     label: "History",
     submenu: [
       ...menuItems(HISTORY_CHORDS, windows),
+      { type: "separator" },
+      ...menuItems(ACTIVITY_CHORDS, windows),
       { type: "separator" },
       {
         click: () => {

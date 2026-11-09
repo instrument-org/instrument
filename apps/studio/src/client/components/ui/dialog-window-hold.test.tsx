@@ -50,6 +50,7 @@ function Commands({
       selectTab: vi.fn(),
       moveTabToNewWindow: vi.fn(),
       receiveTab: vi.fn(),
+      showActivity: vi.fn(),
       toggleInbox: vi.fn(),
     },
     { isReady: false },

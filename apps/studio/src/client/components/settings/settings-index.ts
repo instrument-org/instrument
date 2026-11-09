@@ -241,13 +241,19 @@ export const SETTINGS_INDEX = [
     title: "Secure storage",
   },
   {
+    detail: `Whether ${APP_NAME} keeps the pages, files and chats you open, so you can find them again and a chat can tell which file you mean.`,
+    id: "keep-history",
+    tab: "Activity",
+    title: "Keep a history",
+  },
+  {
     detail: `Whether chats see what you just did in ${APP_NAME}, like a folder you opened or files you moved, so they can tell what you mean.`,
     id: "share-activity",
     tab: "Activity",
     title: "Chats can see this",
   },
   {
-    detail: `The history of what you did in ${APP_NAME} and when: folders and files you opened, chats you read, pages you visited, with its AI requests in between.`,
+    detail: `The history of what you did in ${APP_NAME} and when, with the AI requests your chats made, which you can search, export, or clear.`,
     id: "activity-history",
     tab: "Activity",
     title: "Your activity",
@@ -255,16 +261,8 @@ export const SETTINGS_INDEX = [
   {
     detail: `Delete what you did in ${APP_NAME}, its AI requests, or both, from a time range.`,
     id: "clear-activity",
-    mark: "activity-history",
     tab: "Activity",
     title: "Clear activity",
-  },
-  {
-    detail: "Save your activity and AI requests as a spreadsheet.",
-    id: "export-activity",
-    mark: "activity-history",
-    tab: "Activity",
-    title: "Export CSV",
   },
   {
     id: "release-notes",
@@ -357,7 +355,7 @@ export const SETTINGS_PAGES: Record<
       "Where your Instrument folder is, and chats in it that can’t be opened.",
   },
   Activity: {
-    detail: `What you did in ${APP_NAME} and every request it made to an AI, as one history newest first, which you can filter, export, or clear, and whether chats can use your activity.`,
+    detail: `Whether ${APP_NAME} keeps a history of what you do in it, whether chats can use it, and clearing it.`,
   },
   Developer: {
     detail: "The API server, the release channel, and feature flags.",

@@ -84,7 +84,7 @@ describe("matchSettings", () => {
         "activity": [
           "Your activity",
           "Clear activity",
-          "Export CSV",
+          "Keep a history",
           "Chats can see this",
         ],
         "chats": [

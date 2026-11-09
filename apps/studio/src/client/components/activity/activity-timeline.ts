@@ -3,7 +3,7 @@ import { chatHref } from "@/client/components/window/window-href";
 import { isWebPage, type OpenTarget } from "@/client/lib/open-target";
 // Types alone: the client opens its channel to the main process on import.
 import type { RPCInput, RPCOutput } from "@/client/rpc/client";
-import { fileHref, folderHref } from "@/shared/computer-href";
+import { folderHref } from "@/shared/computer-href";
 import { APP_NAME } from "@instrument-org/shared";
 import { ChatIdSchema, gatherTurns } from "@instrument-org/workspace/client";
 
@@ -29,12 +29,6 @@ export type ShownAction = Exclude<PersonAction, { kind: "capped" }>;
 
 /** Which of the two logs the list shows: both, the person's, or the AI's. */
 export type ActivityView = RPCInput["activity"]["saveCsv"]["view"];
-
-export const ACTIVITY_VIEWS = [
-  "all",
-  "yours",
-  "ai",
-] as const satisfies readonly ActivityView[];
 
 /** The requests one chat turn made, newest first. */
 export type Turn = {
@@ -144,27 +138,28 @@ export function timelineOf({
 }
 
 /**
- * A day's head as the list writes it: Today, Yesterday, then the weekday and
- * date, with the year only when it is not this one.
+ * A day's head as the list writes it: its weekday and date, with the year
+ * only when it is not this one, after Today or Yesterday for those two.
  */
 export function dayLabel(at: number, now: Date, locale: string): string {
   const today = new Date(now);
   today.setHours(0, 0, 0, 0);
   const yesterday = new Date(today);
   yesterday.setDate(today.getDate() - 1);
-  if (at >= today.getTime()) {
-    return "Today";
-  }
-  if (at >= yesterday.getTime()) {
-    return "Yesterday";
-  }
   const day = new Date(at);
-  return new Intl.DateTimeFormat(locale, {
+  const date = new Intl.DateTimeFormat(locale, {
     day: "numeric",
     month: "long",
     weekday: "long",
     ...(day.getFullYear() === now.getFullYear() ? {} : { year: "numeric" }),
   }).format(day);
+  if (at >= today.getTime()) {
+    return `Today · ${date}`;
+  }
+  if (at >= yesterday.getTime()) {
+    return `Yesterday · ${date}`;
+  }
+  return date;
 }
 
 /** The list with a head over each day's first entry. */
@@ -186,22 +181,22 @@ export function withDayHeads(
   return items;
 }
 
-/** A row's two lines. */
-export type RowText = { primary: string; secondary: string };
+/** A row's one line: what it names, then the muted words after it. */
+export type RowText = { context: string; title: string };
 
 /** The words of the system the rows are read on: where a deleted file waits. */
 export type Words = { trash: string };
 
-const quoted = (name: string) => `“${name}”`;
-
-/** The name of the folder a path is in. */
-const parentName = (path: string) => nameOf(folderOf(path));
-
-/** One name in quotes, or how many files there are. */
-const filesNamed = (paths: readonly string[]) =>
-  paths.length === 1 && paths[0] !== undefined
-    ? quoted(nameOf(paths[0]))
-    : `${paths.length} files`;
+/** One name, or the first and how many more. */
+const namesOf = (paths: readonly string[]) => {
+  const [first] = paths;
+  if (first === undefined) {
+    return "";
+  }
+  return paths.length === 1
+    ? nameOf(first)
+    : `${nameOf(first)} and ${paths.length - 1} more`;
+};
 
 /** A page's site as a person reads it: `irs.gov`. */
 function siteOf(url: string) {
@@ -218,132 +213,293 @@ function shortAddress(url: string) {
   return `${parsed.hostname.replace(/^www\./, "")}${path}`;
 }
 
-/** What a row of the person's own says they did, and where. */
+/** What a row of the person's own names, and what they did with it. */
 export function actionText(action: ShownAction, words: Words): RowText {
   switch (action.kind) {
-    case "folder": {
-      return {
-        primary: `Opened ${quoted(nameOf(action.path))}`,
-        secondary: `Folder in ${parentName(action.path)}`,
-      };
-    }
+    case "folder":
     case "file": {
-      return {
-        primary: `Opened ${quoted(nameOf(action.path))}`,
-        secondary: `In ${parentName(action.path)}`,
-      };
+      return { context: "", title: nameOf(action.path) };
     }
     case "open-with": {
       return {
-        primary: `Opened ${quoted(nameOf(action.path))} in ${action.app ?? "another app"}`,
-        secondary: `In ${parentName(action.path)}`,
+        context: `Opened in ${action.app ?? "another app"}`,
+        title: nameOf(action.path),
       };
     }
     case "edit": {
-      return {
-        primary: `Edited ${quoted(nameOf(action.path))}`,
-        secondary: `In ${parentName(action.path)}`,
-      };
+      return { context: "Edited", title: nameOf(action.path) };
     }
     case "move":
     case "copy": {
       return {
-        primary: `${action.kind === "move" ? "Moved" : "Copied"} ${filesNamed(action.names)} to ${quoted(nameOf(action.to))}`,
-        secondary: `From ${nameOf(action.from)}`,
+        context: `${action.kind === "move" ? "Moved" : "Copied"} to ${nameOf(action.to)}`,
+        title: namesOf(action.names),
       };
     }
     case "rename": {
       return {
-        primary: `Renamed ${quoted(nameOf(action.from))} to ${quoted(nameOf(action.to))}`,
-        secondary: `In ${parentName(action.to)}`,
+        context: `Renamed from ${nameOf(action.from)}`,
+        title: nameOf(action.to),
       };
     }
     case "trash": {
       return {
-        primary: `Moved ${filesNamed(action.paths)} to the ${words.trash}`,
-        secondary: `In ${parentName(action.paths[0] ?? "")}`,
+        context: `Moved to the ${words.trash}`,
+        title: namesOf(action.paths),
       };
     }
     case "new-folder": {
-      return {
-        primary: `Made the folder ${quoted(nameOf(action.path))}`,
-        secondary: `In ${parentName(action.path)}`,
-      };
+      return { context: "New folder", title: nameOf(action.path) };
     }
     case "chat": {
-      return { primary: `Opened ${quoted(action.title)}`, secondary: "Chat" };
+      return { context: "Chat", title: action.title };
     }
     case "page": {
       return {
-        primary: `Visited ${action.title ? quoted(action.title) : shortAddress(action.url)}`,
-        secondary: siteOf(action.url),
+        context: siteOf(action.url),
+        title: action.title || shortAddress(action.url),
       };
     }
     case "download": {
       return {
-        primary: `Downloaded ${quoted(nameOf(action.path))}`,
-        secondary: `To ${parentName(action.path)}`,
+        context: action.url
+          ? `Downloaded from ${siteOf(action.url)}`
+          : "Downloaded",
+        title: nameOf(action.path),
       };
     }
     case "app": {
       return {
-        primary:
+        context:
           action.did === "signed in"
-            ? `Signed in to ${action.name}`
+            ? "Signed in"
             : action.did === "disconnected"
-              ? `Disconnected ${action.name}`
-              : `Couldn't sign in to ${action.name}`,
-        secondary: "App",
+              ? "Disconnected"
+              : "Couldn't sign in",
+        title: action.name,
       };
     }
     case "update": {
-      return {
-        primary: `Updated ${APP_NAME} to ${action.to}`,
-        secondary: `From ${action.from}`,
-      };
+      return { context: "Updated", title: `${APP_NAME} ${action.to}` };
     }
     case "permission": {
-      const what =
-        action.path === undefined ? (action.app ?? "") : nameOf(action.path);
       return {
-        primary: `${action.did === "allowed" ? "Allowed" : "Didn't allow"} ${quoted(action.title)} to use ${what}`,
-        secondary: "Permission",
+        context: `${action.did === "allowed" ? "Allowed" : "Didn't allow"} ${action.title} to use it`,
+        title:
+          action.path === undefined ? (action.app ?? "") : nameOf(action.path),
       };
     }
     case "error": {
       return {
-        primary: action.message.replace(/\.$/, ""),
-        secondary: action.where ? `Error in ${action.where}` : "Error",
+        context: action.where ? `Error in ${action.where}` : "Error",
+        title: action.message.replace(/\.$/, ""),
       };
     }
     case "screen": {
-      return { primary: `Opened ${action.name}`, secondary: "Screen" };
+      return { context: "", title: action.name };
     }
     case "setting": {
-      return {
-        primary: `Changed ${action.name} to ${action.value}`,
-        secondary: "Setting",
-      };
+      return { context: `Changed to ${action.value}`, title: action.name };
+    }
+  }
+}
+
+/** Which of the page's filters a row shows under, past All: none for the rest. */
+export type Show = "ai" | "chats" | "files" | "pages";
+
+export const SHOWS = [
+  "pages",
+  "files",
+  "chats",
+  "ai",
+] as const satisfies Show[];
+
+/** The filter an entry shows under, besides All. */
+function showOf(entry: TimelineEntry): Show | undefined {
+  if (entry.kind === "turn") {
+    return "ai";
+  }
+  switch (entry.action.kind) {
+    case "page": {
+      return "pages";
+    }
+    case "folder":
+    case "file":
+    case "open-with":
+    case "edit":
+    case "move":
+    case "copy":
+    case "rename":
+    case "trash":
+    case "new-folder":
+    case "download": {
+      return "files";
+    }
+    case "chat":
+    case "permission": {
+      return "chats";
+    }
+    default: {
+      return undefined;
+    }
+  }
+}
+
+/** Everything a search may find a person's row by: its words, and the paths and address behind them. */
+function actionHaystack(action: ShownAction, words: Words): string[] {
+  const { context, title } = actionText(action, words);
+  const found = [title, context];
+  switch (action.kind) {
+    case "move":
+    case "copy": {
+      found.push(action.from, action.to, ...action.names);
+      break;
+    }
+    case "rename": {
+      found.push(action.from, action.to);
+      break;
+    }
+    case "trash": {
+      found.push(...action.paths);
+      break;
+    }
+    case "page": {
+      found.push(action.url);
+      break;
+    }
+    case "download": {
+      found.push(action.path, action.url ?? "");
+      break;
+    }
+    case "folder":
+    case "file":
+    case "open-with":
+    case "edit":
+    case "new-folder": {
+      found.push(action.path);
+      break;
+    }
+    case "permission": {
+      found.push(action.path ?? "", action.title);
+      break;
+    }
+    default: {
+      break;
+    }
+  }
+  return found;
+}
+
+/**
+ * The entries a filter and a search leave: those under the filter (all of
+ * them without one) whose words, paths or address have every word of the
+ * search in them, case aside.
+ */
+export function entriesShown(
+  entries: readonly TimelineEntry[],
+  {
+    modelName,
+    q,
+    show,
+    words,
+  }: {
+    modelName: (id: null | string) => string;
+    q: string;
+    show: Show | undefined;
+    words: Words;
+  },
+): TimelineEntry[] {
+  const terms = q.toLowerCase().split(/\s+/).filter(Boolean);
+  return entries.filter((entry) => {
+    if (show !== undefined && showOf(entry) !== show) {
+      return false;
+    }
+    if (terms.length === 0) {
+      return true;
+    }
+    const haystack = (
+      entry.kind === "turn"
+        ? [
+            ...Object.values(turnText(entry.turn, modelName)),
+            ...entry.turn.requests.flatMap((request) => [
+              request.chatTitle ?? "",
+              modelOf(request) ?? "",
+            ]),
+          ]
+        : actionHaystack(entry.action, words)
+    )
+      .join("\n")
+      .toLowerCase();
+    return terms.every((term) => haystack.includes(term));
+  });
+}
+
+/**
+ * What More from searches for: a page's site, the folder a file is in, or
+ * the chat a turn or a chat row was in. None for a row with no such place.
+ */
+export function moreFromOf(
+  entry: TimelineEntry,
+): undefined | { label: string; q: string } {
+  if (entry.kind === "turn") {
+    const title = leadOf(entry.turn)?.chatTitle;
+    return title ? { label: title, q: title } : undefined;
+  }
+  const { action } = entry;
+  switch (action.kind) {
+    case "page": {
+      const site = siteOf(action.url);
+      return { label: site, q: site };
+    }
+    case "file":
+    case "open-with":
+    case "edit":
+    case "new-folder":
+    case "download": {
+      const folder = folderOf(action.path);
+      return { label: nameOf(folder), q: folder };
+    }
+    case "folder": {
+      return { label: nameOf(action.path), q: action.path };
+    }
+    case "move":
+    case "copy": {
+      return { label: nameOf(action.to), q: action.to };
+    }
+    case "rename": {
+      const folder = folderOf(action.to);
+      return { label: nameOf(folder), q: folder };
+    }
+    case "chat":
+    case "permission": {
+      return { label: action.title, q: action.title };
+    }
+    default: {
+      return undefined;
     }
   }
 }
 
 /**
- * Where clicking a row of the person's own goes: the folder, file, chat or
- * page it names (the chat a permission was for), or nowhere for what has no
- * place to open.
+ * Where opening a row of the person's own goes: the file or folder it names
+ * (by its path, so a copy is the path on this computer), where files were
+ * moved or copied to with the first selected, the chat (a permission's too),
+ * or the page; nothing for what has no place to open.
  */
 export function placeOf(action: ShownAction): OpenTarget | undefined {
   switch (action.kind) {
     case "folder":
     case "new-folder": {
-      return { href: folderHref(action.path), kind: "screen" };
+      return { kind: "path", path: `${action.path.replace(/[\\/]+$/, "")}/` };
     }
     case "file":
     case "edit":
     case "open-with":
     case "download": {
-      return { href: fileHref(action.path), kind: "screen" };
+      return { kind: "path", path: action.path };
+    }
+    case "rename": {
+      return { kind: "path", path: action.to };
     }
     case "move":
     case "copy": {
@@ -353,12 +509,6 @@ export function placeOf(action: ShownAction): OpenTarget | undefined {
           action.to,
           first === undefined ? {} : { select: nameOf(first) },
         ),
-        kind: "screen",
-      };
-    }
-    case "rename": {
-      return {
-        href: folderHref(folderOf(action.to), { select: nameOf(action.to) }),
         kind: "screen",
       };
     }
@@ -430,8 +580,9 @@ export function modelOf(request: ActivityRequest) {
 }
 
 /**
- * What an AI row says: what the turn did, in which chat, and the model with
- * how many requests it took.
+ * What an AI row says: the chat it was in, then what the turn did, the
+ * model and how many requests it took. A turn in no chat is named by what
+ * it did.
  */
 export function turnText(
   turn: Turn,
@@ -439,19 +590,25 @@ export function turnText(
 ): RowText {
   const lead = leadOf(turn);
   if (!lead) {
-    return { primary: "", secondary: "" };
+    return { context: "", title: "" };
   }
-  const chat =
-    lead.purpose === "chat-title" || lead.chatId === null
-      ? ""
-      : lead.chatTitle === null
-        ? " in a deleted chat"
-        : ` in ${quoted(lead.chatTitle)}`;
   const count = turn.requests.length;
   const requests = `${count} ${count === 1 ? "request" : "requests"}`;
   const model = modelName(modelOf(lead));
-  return {
-    primary: `${DID[lead.purpose]}${chat}`,
-    secondary: model ? `${model} · ${requests}` : requests,
-  };
+  const did = DID[lead.purpose];
+  const chat =
+    lead.chatId === null ? undefined : (lead.chatTitle ?? "Deleted chat");
+  const facts = [chat === undefined ? undefined : did, model, requests].filter(
+    (fact): fact is string => Boolean(fact),
+  );
+  return { context: facts.join(" · "), title: chat ?? did };
+}
+
+/** Where opening an AI row goes: the chat its requests were for, while it is there. */
+export function turnPlaceOf(turn: Turn): OpenTarget | undefined {
+  const lead = leadOf(turn);
+  const id = ChatIdSchema.safeParse(lead?.chatId);
+  return id.success && lead?.chatTitle !== null
+    ? { href: chatHref(id.data), kind: "screen" }
+    : undefined;
 }

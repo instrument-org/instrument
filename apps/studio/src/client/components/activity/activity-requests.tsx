@@ -4,11 +4,9 @@ import { AIProviderIcon } from "@/client/components/ai-provider-icon";
 import { CopyButton } from "@/client/components/copy-button";
 import {
   type ActivityRequest,
-  leadOf,
   modelOf,
   type Turn,
-  turnText,
-} from "@/client/components/settings/activity-timeline";
+} from "@/client/components/activity/activity-timeline";
 import { pathOf, SCREEN_ROUTES } from "@/client/components/window/window-href";
 import { useGesturesFor } from "@/client/hooks/use-open-target";
 import { displayLocale } from "@/client/lib/display-locale";
@@ -16,22 +14,17 @@ import { cn } from "@/client/lib/utils";
 import { rpcClient } from "@/client/rpc/client";
 import { modelDisplayName } from "@instrument-org/ai-gateway/client";
 import { AIProviderTypeSchema } from "@instrument-org/shared";
-import {
-  ChatIdSchema,
-  StoreId,
-  turnMessageOf,
-} from "@instrument-org/workspace/client";
-import { ArrowDownIcon } from "@phosphor-icons/react/ArrowDown";
 import { ArrowLeftIcon } from "@phosphor-icons/react/ArrowLeft";
 import { ArrowUpRightIcon } from "@phosphor-icons/react/ArrowUpRight";
-import { skipToken, useQuery } from "@tanstack/react-query";
+import { CaretRightIcon } from "@phosphor-icons/react/CaretRight";
+import { useQuery } from "@tanstack/react-query";
 import { useSetAtom } from "jotai";
 import { type ReactNode } from "react";
 
 /**
- * The AI requests behind Settings › Activity: one chat turn's requests in
- * the columns the request log has always used, and everything recorded
- * about one request. None of it holds what was said.
+ * The AI requests behind Activity: one chat turn's requests a line each,
+ * and everything recorded about one request. None of it holds what was
+ * said.
  */
 
 const KIND_LABELS: Record<ActivityRequest["kind"], string> = {
@@ -80,12 +73,6 @@ const STATUS_LABELS: Record<ActivityRequest["status"], string> = {
   stopped: "Stopped",
 };
 
-const dateFormat = new Intl.DateTimeFormat(displayLocale, {
-  day: "numeric",
-  hour: "numeric",
-  minute: "2-digit",
-  month: "short",
-});
 const fullDateFormat = new Intl.DateTimeFormat(displayLocale, {
   dateStyle: "medium",
   timeStyle: "medium",
@@ -277,54 +264,65 @@ function Tokens({
   );
 }
 
+const clockFormat = new Intl.DateTimeFormat(displayLocale, {
+  hour: "numeric",
+  minute: "2-digit",
+  second: "2-digit",
+});
+
 /**
- * A turn's columns, in the request log's words, each at least its width (in
- * layout px) and sharing the room left over.
+ * One chat turn's requests, oldest first, a line each: when it started,
+ * what it was for, how it ended and its tokens. Each opens what was
+ * recorded about it.
  */
-const COLUMNS: {
-  cell: (row: ActivityRequest) => ReactNode;
-  label: string;
-  right?: boolean;
-  width: number;
-}[] = [
-  {
-    cell: (row) => (
-      <span className="truncate text-muted-foreground tabular-nums">
-        {dateFormat.format(row.startedAt)}
-      </span>
-    ),
-    label: "Date",
-    // Fits the widest date and time a row shows ("Dec 28, 12:59 PM").
-    width: 148,
-  },
-  {
-    cell: (row) => (
-      <span className="truncate">{PURPOSE_LABELS[row.purpose]}</span>
-    ),
-    label: "For",
-    width: 116,
-  },
-  { cell: (row) => <ModelLabel row={row} />, label: "Model", width: 150 },
-  {
-    cell: (row) => (
-      <span className="truncate text-muted-foreground">
-        <ResultText row={row} />
-      </span>
-    ),
-    label: "Result",
-    width: 76,
-  },
-  {
-    cell: (row) => (
-      <span className="truncate text-muted-foreground tabular-nums">
-        <Tokens count={row.totalTokens} />
-      </span>
-    ),
-    label: "Tokens",
-    right: true,
-    width: 76,
-  },
-];
+export function RequestRows({
+  onOpen,
+  turn,
+}: {
+  onOpen: (id: string) => void;
+  turn: Turn;
+}) {
+  return (
+    <div className="flex flex-col">
+      {turn.requests.toReversed().map((request) => (
+        <button
+          className="flex h-8 items-center gap-3 rounded-md px-2 text-left text-[13px] hover:bg-foreground/5"
+          key={request.id}
+          onClick={() => {
+            onOpen(request.id);
+          }}
+          type="button"
+        >
+          <span className="w-21 shrink-0 text-muted-foreground tabular-nums">
+            {clockFormat.format(request.startedAt)}
+          </span>
+          <span className="min-w-0 flex-1 truncate">
+            {PURPOSE_LABELS[request.purpose]}
+          </span>
+          <span className="shrink-0 text-muted-foreground">
+            <ResultText row={request} />
+          </span>
+          <span className="w-10 shrink-0 text-right text-muted-foreground tabular-nums">
+            <Tokens count={request.totalTokens} empty="–" />
+          </span>
+          <CaretRightIcon className="size-3 shrink-0 text-muted-foreground" />
+        </button>
+      ))}
+    </div>
+  );
+}
+
+/** How long a turn's requests took, from the first starting to the last ending. */
+export function turnDuration(turn: Turn) {
+  const ends = turn.requests.map(
+    (request) => request.startedAt + (request.durationMs ?? 0),
+  );
+  const starts = turn.requests.map((request) => request.startedAt);
+  if (starts.length === 0) {
+    return "";
+  }
+  return formatDuration(Math.max(...ends) - Math.min(...starts));
+}
 
 function BackToActivity({
   label,
@@ -345,148 +343,6 @@ function BackToActivity({
   );
 }
 
-/** The requests one chat turn made, newest first, each opening its own detail. */
-export function TurnDetail({
-  onBack,
-  onOpen,
-  turn,
-}: {
-  onBack: () => void;
-  onOpen: (id: string) => void;
-  turn: Turn;
-}) {
-  const modelName = useModelName();
-  const text = turnText(turn, modelName);
-  const lead = leadOf(turn);
-  return (
-    <div className="space-y-6">
-      <div className="flex items-center gap-2">
-        <BackToActivity label="Activity" onBack={onBack} />
-      </div>
-      <div className="flex items-center gap-3">
-        <ConnectionMark
-          className="size-4"
-          type={lead?.connectionType ?? null}
-        />
-        <div className="min-w-0">
-          <div className="truncate font-medium">{text.primary}</div>
-          <div className="truncate text-sm text-muted-foreground">
-            {text.secondary}
-          </div>
-        </div>
-      </div>
-      <TurnMessage turn={turn} />
-      <div className="overflow-x-auto rounded-xl border border-border bg-card">
-        <div
-          className="flex h-9 items-center border-b border-border text-xs font-medium text-muted-foreground"
-          role="row"
-        >
-          {COLUMNS.map((column, index) => (
-            <div
-              className={cn(
-                "flex min-w-0 shrink-0 items-center gap-1 px-3",
-                column.right && "justify-end",
-                index === 0 && "text-foreground",
-              )}
-              key={column.label}
-              role="columnheader"
-              style={{ flex: `1 0 ${column.width}px` }}
-            >
-              {column.label}
-              {index === 0 ? <ArrowDownIcon className="size-3" /> : null}
-            </div>
-          ))}
-        </div>
-        {turn.requests.map((request) => (
-          <button
-            className="flex h-9 w-full items-center border-b border-border text-left text-sm last:border-b-0 hover:bg-foreground/5"
-            key={request.id}
-            onClick={() => {
-              onOpen(request.id);
-            }}
-            type="button"
-          >
-            {COLUMNS.map((column) => (
-              <div
-                className={cn(
-                  "flex min-w-0 shrink-0 items-center px-3",
-                  column.right && "justify-end",
-                )}
-                key={column.label}
-                style={{ flex: `1 0 ${column.width}px` }}
-              >
-                {column.cell(request)}
-              </div>
-            ))}
-          </button>
-        ))}
-      </div>
-    </div>
-  );
-}
-
-const timeFormat = new Intl.DateTimeFormat(displayLocale, {
-  hour: "numeric",
-  minute: "2-digit",
-});
-
-/**
- * What went with the message a chat turn answered: the person's words, the
- * activity note it carried as the model read it, and whether the chat looked
- * up names with `instrument activity`. Nothing for a turn no message of
- * theirs started, or whose chat is gone.
- */
-function TurnMessage({ turn }: { turn: Turn }) {
-  const first = turn.requests.at(-1);
-  const chat = ChatIdSchema.safeParse(first?.chatId);
-  const session = StoreId.SessionSchema.safeParse(first?.sessionId);
-  const { data: messages } = useQuery({
-    ...rpcClient.workspace.message.list.queryOptions({
-      input:
-        chat.success && session.success
-          ? { id: chat.data, sessionId: session.data }
-          : skipToken,
-    }),
-    retry: false,
-  });
-  const message =
-    messages && first ? turnMessageOf(messages, first.startedAt) : undefined;
-  if (!message) {
-    return null;
-  }
-  return (
-    <div className="space-y-3 rounded-xl border border-border bg-card px-4 py-3 text-sm">
-      <div className="space-y-1">
-        <div className="text-xs text-muted-foreground">
-          {`${timeFormat.format(message.at)} · You wrote`}
-        </div>
-        <p className="line-clamp-3 whitespace-pre-wrap">{message.text}</p>
-      </div>
-      {message.noteLines ? (
-        <div className="space-y-1">
-          <div className="text-xs text-muted-foreground">
-            Your activity sent with it
-          </div>
-          <div className="font-mono text-xs leading-5">
-            {message.noteLines.map((line, index) => (
-              <div key={index}>{line}</div>
-            ))}
-          </div>
-        </div>
-      ) : (
-        <div className="text-xs text-muted-foreground">
-          No activity sent with it.
-        </div>
-      )}
-      <div className="text-xs text-muted-foreground">
-        {message.lookedUp
-          ? "The chat looked up names."
-          : "The chat didn't look up any names."}
-      </div>
-    </div>
-  );
-}
-
 /** Everything recorded about one request, with a way back to its turn. */
 export function RequestDetail({
   id,
@@ -500,8 +356,8 @@ export function RequestDetail({
   );
 
   return (
-    <div className="space-y-6">
-      <div className="flex items-center gap-2">
+    <div className="space-y-4">
+      <div className="flex items-center gap-2 pr-8">
         <BackToActivity label="Back" onBack={onBack} />
         <span className="flex-1" />
         {row ? (
@@ -528,7 +384,7 @@ export function RequestDetail({
               </div>
             </div>
           </div>
-          <div className="divide-y rounded-xl bg-card px-4 shadow-sm">
+          <div className="divide-y divide-border">
             <DetailGroup title="Request">
               <Detail label="Started">
                 {fullDateFormat.format(row.startedAt)}
@@ -676,7 +532,7 @@ function Detail({
   label: string;
 }) {
   return (
-    <div className="grid grid-cols-[9rem_minmax(0,1fr)] gap-4 py-1.5 text-sm">
+    <div className="grid grid-cols-[6.5rem_minmax(0,1fr)] gap-3 py-1.5 text-[13px]">
       <span className="text-muted-foreground">{label}</span>
       <span
         className={cn(

@@ -5,6 +5,7 @@ import { AppWindowIcon } from "@phosphor-icons/react/AppWindow";
 import { ChatCircleIcon } from "@phosphor-icons/react/ChatCircle";
 import { CheckSquareIcon } from "@phosphor-icons/react/CheckSquare";
 import { CodeIcon } from "@phosphor-icons/react/Code";
+import { ClockCounterClockwiseIcon } from "@phosphor-icons/react/ClockCounterClockwise";
 import { FileTextIcon } from "@phosphor-icons/react/FileText";
 import { MagnifyingGlassIcon } from "@phosphor-icons/react/MagnifyingGlass";
 import { PuzzlePieceIcon } from "@phosphor-icons/react/PuzzlePiece";
@@ -88,6 +89,7 @@ export function screenLocation(
     case "extensions": {
       return { kind: "screen", screen: "extensions" };
     }
+    case "activity":
     case "browser":
     case "debug":
     case "memory":
@@ -176,6 +178,12 @@ export function screenPresentation(
       return {
         icon: <FileTextIcon className="size-3.5" />,
         title: "Release notes",
+      };
+    }
+    case "activity": {
+      return {
+        icon: <ClockCounterClockwiseIcon className="size-3.5" />,
+        title: "Activity",
       };
     }
     case "extensions": {

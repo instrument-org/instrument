@@ -40,6 +40,7 @@ export function tabIdentityOf(
       const draft = search.get("draft");
       return draft ? `draft:${draft}` : undefined;
     }
+    case "activity":
     case "extensions":
     case "release-notes": {
       return second === undefined ? first : undefined;

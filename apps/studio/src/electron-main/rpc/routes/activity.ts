@@ -171,10 +171,26 @@ const remove = base
     await removeOwnActivity(input.requests);
   });
 
+/** The openings a row stands for read as one, as Activity's list reads them: the newest of each run a minute apart. */
+function withoutRepeats(newestFirst: readonly HistoryAction[]) {
+  let kept: number | undefined;
+  return newestFirst.filter((opening) => {
+    const at = Date.parse(opening.at);
+    if (kept !== undefined && kept - at < REPEAT_WINDOW_MS) {
+      return false;
+    }
+    kept = at;
+    return true;
+  });
+}
+
+/** How many other times a row's details list. */
+const OTHER_TIMES = 8;
+
 /**
  * The other times the person opened what one Activity row names, newest
- * first: the visits to a page, the openings of a file, or the downloads that
- * landed at a path.
+ * first and without repeats, as many as the details list: the visits to a
+ * page, the openings of a file, or the downloads that landed at a path.
  */
 const openings = base
   .input(
@@ -185,19 +201,17 @@ const openings = base
     ]),
   )
   .handler(({ input }): HistoryAction[] => {
-    const range = { limit: 20, since: 0, until: Date.now() };
-    if ("url" in input) {
-      return getHistoryStore().personHistory({ ...range, url: input.url });
-    }
-    if ("download" in input) {
-      return downloadsBetween({ since: 0, until: range.until })
-        .filter(
-          (download) =>
-            download.kind === "download" && download.path === input.path,
-        )
-        .slice(0, range.limit);
-    }
-    return getHistoryStore().personHistory({ ...range, path: input.path });
+    const range = { limit: 200, since: 0, until: Date.now() };
+    const found =
+      "url" in input
+        ? getHistoryStore().personHistory({ ...range, url: input.url })
+        : "download" in input
+          ? downloadsBetween({ since: 0, until: range.until }).filter(
+              (download) =>
+                download.kind === "download" && download.path === input.path,
+            )
+          : getHistoryStore().personHistory({ ...range, path: input.path });
+    return withoutRepeats(found).slice(0, OTHER_TIMES + 1);
   });
 
 export const activity = { clear, openings, remove, saveCsv, summary };

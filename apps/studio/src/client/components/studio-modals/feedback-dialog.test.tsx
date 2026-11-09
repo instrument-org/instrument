@@ -6,7 +6,7 @@ import { toast } from "@/client/lib/toast";
 import { rpcClient } from "@/client/rpc/client";
 import { type FeedbackItem, type FeedbackTag } from "@/shared/problem-reports";
 import { renderWithDefaultStore } from "@/tests/render";
-import { fireEvent, screen } from "@testing-library/react";
+import { fireEvent, screen, waitFor } from "@testing-library/react";
 import { getDefaultStore } from "jotai";
 import { act } from "react";
 import { describe, expect, it, vi } from "vitest";
@@ -204,7 +204,9 @@ describe("FeedbackDialogContent", () => {
       ),
     ).toBeTruthy();
     fireEvent.click(screen.getByRole("button", { name: "Send" }));
-    expect(sentItems()).toEqual(["chat", "actions", "diagnostics"]);
+    await waitFor(() => {
+      expect(sentItems()).toEqual(["chat", "actions", "diagnostics"]);
+    });
   });
 
   it("leaves out what the person did in the app when they switch it off", async () => {
@@ -212,7 +214,9 @@ describe("FeedbackDialogContent", () => {
     fireEvent.click(screen.getByRole("switch", { name: "Send your activity" }));
     expect(screen.getByText("This stays on your Mac.")).toBeTruthy();
     fireEvent.click(screen.getByRole("button", { name: "Send" }));
-    expect(sentItems()).toEqual(["chat", "diagnostics"]);
+    await waitFor(() => {
+      expect(sentItems()).toEqual(["chat", "diagnostics"]);
+    });
   });
 
   it("shows what the person did as sentences, with its switch at the foot", async () => {

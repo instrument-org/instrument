@@ -12,6 +12,8 @@ import {
  * its type. Anything that asks what an address is switches on `kind`.
  */
 export type Screen =
+  /** What the person did in the app, with the AI requests its chats made. */
+  | { kind: "activity" }
   | { kind: "app"; slug: string }
   | { kind: "apps" }
   | { kind: "browser" }
@@ -53,6 +55,7 @@ type RoutePath = keyof RegisteredRouter["routesByPath"];
  * checks that the router reads each address the way `matchScreen` does.
  */
 export const SCREEN_ROUTES = {
+  activity: "/activity",
   app: "/apps/$slug",
   apps: "/apps/",
   browser: "/browser",
@@ -200,6 +203,9 @@ export function matchScreen(href: string): Screen {
     return id.success
       ? { kind: "task", task: id.data, ...tasksChat }
       : { kind: "unknown" };
+  }
+  if (at(SCREEN_ROUTES.activity)) {
+    return { kind: "activity" };
   }
   if (at(SCREEN_ROUTES.releaseNotes)) {
     return { kind: "releaseNotes" };

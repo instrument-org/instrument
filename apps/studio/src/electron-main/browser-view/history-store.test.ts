@@ -410,6 +410,30 @@ describe("taking openings out of Activity", () => {
   });
 });
 
+describe("taking another app's open out of Activity", () => {
+  it("leaves the same file's open in another app the minute before", () => {
+    const history = store();
+    history.addFileOpen({
+      app: "Preview",
+      at: 10,
+      path: "/a/r.pdf",
+      via: "external",
+    });
+    history.addFileOpen({
+      app: "Acrobat",
+      at: 40,
+      path: "/a/r.pdf",
+      via: "external",
+    });
+    history.removeOpenings([
+      { app: "Acrobat", at: 40, kind: "open-with", path: "/a/r.pdf", since: 0 },
+    ]);
+    expect(history.personHistory({ since: 0, until: 100 })).toMatchObject([
+      { app: "Preview", kind: "open-with" },
+    ]);
+  });
+});
+
 describe("what a write tells live readers", () => {
   it("names the pages it touched, says files apart, and says nothing for a write that changed nothing", () => {
     const history = store();

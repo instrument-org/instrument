@@ -45,6 +45,7 @@ import { PauseCircleIcon } from "@phosphor-icons/react/PauseCircle";
 import { TrashIcon } from "@phosphor-icons/react/Trash";
 import {
   type InfiniteData,
+  keepPreviousData,
   useInfiniteQuery,
   type UseInfiniteQueryResult,
   useMutation,
@@ -162,6 +163,9 @@ export function ActivityPage({
         { signal },
       ),
     queryKey: [...ACTIONS_KEY, until],
+    // A new `until` reads afresh behind what is shown, so the list keeps
+    // its rows and its place meanwhile.
+    placeholderData: keepPreviousData,
   });
   const requests = useInfiniteQuery({
     enabled: view !== "yours",
@@ -179,6 +183,9 @@ export function ActivityPage({
         { signal },
       ),
     queryKey: [...REQUESTS_KEY, until],
+    // A new `until` reads afresh behind what is shown, so the list keeps
+    // its rows and its place meanwhile.
+    placeholderData: keepPreviousData,
   });
 
   const { entries, waitingOn } = timelineOf({
@@ -228,10 +235,15 @@ export function ActivityPage({
       onError: (error) => {
         toast.error("Couldn't remove that from Activity", { cause: error });
       },
-      onSuccess: () => {
+      onSuccess: ({ requestsKept }) => {
         setChecked(new Set());
         setPickedId(null);
         startOver();
+        if (requestsKept > 0) {
+          toast(
+            "AI requests made on your other computers can only be removed there.",
+          );
+        }
       },
     }),
   );
@@ -548,6 +560,10 @@ function ActivityList({
 
   // The arrows walk the rows, Return opens the one picked, Escape lets it go.
   const onKeyDown = (event: KeyboardEvent) => {
+    // A row's own box and ⋮ answer their keys themselves.
+    if (event.target !== event.currentTarget) {
+      return;
+    }
     const at = entries.findIndex((entry) => entry.id === picked);
     if (event.key === "ArrowDown" || event.key === "ArrowUp") {
       event.preventDefault();

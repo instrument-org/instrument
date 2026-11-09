@@ -112,7 +112,7 @@ describe("ActivityPage", () => {
   });
 
   it("shows a row's details beside the list, and removes it from there", async () => {
-    const remove = vi.fn(() => null);
+    const remove = vi.fn(() => ({ requestsKept: 0 }));
     calls.set("activity.remove", remove);
     page();
     fireEvent.click(await screen.findByText("notes.md"));
@@ -135,7 +135,7 @@ describe("ActivityPage", () => {
   });
 
   it("removes the rows ticked, together", async () => {
-    const remove = vi.fn(() => null);
+    const remove = vi.fn(() => ({ requestsKept: 0 }));
     calls.set("activity.remove", remove);
     page();
     fireEvent.click(

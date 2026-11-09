@@ -121,8 +121,9 @@ const clear = base
  * Takes rows out of Activity: what the person did, each from where it is
  * kept (a page or a file opened from the history with the repeats the row
  * stood for, a download from the download list, the rest from the action
- * log), and the AI requests named, those this computer made. A permission
- * answered is a rule of its chat's, which stays.
+ * log), and the AI requests named, those this computer made, answering how
+ * many of them were another computer's and stayed. A permission answered is
+ * a rule of its chat's, which stays.
  */
 const remove = base
   .input(
@@ -145,9 +146,18 @@ const remove = base
           openings.push({ at, kind: "page", since, url: action.url });
           break;
         }
-        case "file":
+        case "file": {
+          openings.push({ at, kind: "file", path: action.path, since });
+          break;
+        }
         case "open-with": {
-          openings.push({ at, kind: action.kind, path: action.path, since });
+          openings.push({
+            ...(action.app === undefined ? {} : { app: action.app }),
+            at,
+            kind: "open-with",
+            path: action.path,
+            since,
+          });
           break;
         }
         case "download": {
@@ -168,7 +178,9 @@ const remove = base
     actionLog().remove(logged);
     getHistoryStore().removeOpenings(openings);
     removeDownloadsAt(downloads);
-    await removeOwnActivity(input.requests);
+    const { removed } = await removeOwnActivity(input.requests);
+    // Another computer's requests are its own to write, so they stay.
+    return { requestsKept: input.requests.length - removed };
   });
 
 /** The openings a row stands for read as one, as Activity's list reads them: the newest of each run a minute apart. */

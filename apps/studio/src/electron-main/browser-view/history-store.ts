@@ -380,6 +380,8 @@ export function createHistoryStore(file: string) {
       openings: readonly (
         | { at: number; kind: "page"; since: number; url: string }
         | {
+            /** The app an open-with went to, which tells it from another app's open. */
+            app?: string;
             at: number;
             kind: "file" | "open-with";
             path: string;
@@ -391,7 +393,7 @@ export function createHistoryStore(file: string) {
         `DELETE FROM visits WHERE ${VISIBLE} AND at BETWEEN ? AND ? AND url_id = (SELECT id FROM urls WHERE url = ?)`,
       );
       const open = database.prepare(
-        "DELETE FROM file_opens WHERE at BETWEEN ? AND ? AND (via = 'external') = ? AND file_id = (SELECT id FROM files WHERE path = ?)",
+        "DELETE FROM file_opens WHERE at BETWEEN ? AND ? AND (via = 'external') = ? AND (? = 0 OR coalesce(app, '') = ?) AND file_id = (SELECT id FROM files WHERE path = ?)",
       );
       let removed = 0;
       let pages = false;
@@ -409,6 +411,8 @@ export function createHistoryStore(file: string) {
               opening.since,
               opening.at,
               opening.kind === "open-with" ? 1 : 0,
+              opening.kind === "open-with" ? 1 : 0,
+              opening.app ?? "",
               opening.path,
             ).changes,
           );

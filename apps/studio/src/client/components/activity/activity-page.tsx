@@ -500,8 +500,8 @@ export function ActivityPage({
  */
 function AboutCard({ canChatsRead }: { canChatsRead: boolean }) {
   return (
-    <div className="mb-3 flex items-start gap-3 rounded-xl border border-border bg-card px-4 py-3">
-      <LockSimpleIcon className="mt-0.5 size-4 shrink-0 text-muted-foreground" />
+    <div className="mb-3 flex items-center gap-3 rounded-xl border border-border bg-card py-2.5 pr-2.5 pl-4">
+      <LockSimpleIcon className="size-4 shrink-0 text-muted-foreground" />
       <p className="min-w-0 flex-1 text-[13px] leading-5 text-muted-foreground">
         {canChatsRead
           ? `This history stays on this computer, so you can find what you had open. When you say “that file” or “the page I was on”, chats look here to work out what you mean.`

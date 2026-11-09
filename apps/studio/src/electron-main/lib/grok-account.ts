@@ -3,7 +3,7 @@ import { noteSignedOut } from "@/electron-main/lib/notices";
 import { workspaceKeysDir } from "@/electron-main/lib/get-workspace-folder";
 import {
   keyFileDeserializer,
-  encodeKeyFile,
+  keyFileSerializer,
   KEY_FILE_EXTENSION,
   KEY_STORE_NAMES,
 } from "@/electron-main/lib/key-file";
@@ -273,16 +273,11 @@ function getStore(): Store<StoreShape> {
       }),
       fileExtension: KEY_FILE_EXTENSION,
       name: KEY_STORE_NAMES.grokAccount,
-      serialize: (value) => {
-        // Without a keyring nothing is written, as the ChatGPT account's
-        // store does: a sign-in then lasts until the app quits.
-        const encoded = encodeKeyFile(JSON.stringify(value));
-        if (encoded === undefined) {
-          log.error("Encryption is not available");
-          return "";
-        }
-        return encoded;
-      },
+      serialize: keyFileSerializer({
+        dir: workspaceKeysDir,
+        log,
+        name: KEY_STORE_NAMES.grokAccount,
+      }),
     });
     STORE.onDidAnyChange(() => {
       publisher.publish("grok-account.updated", null);

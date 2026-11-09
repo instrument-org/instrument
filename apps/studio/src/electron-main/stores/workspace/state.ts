@@ -1,3 +1,4 @@
+import { storeJson } from "@/electron-main/stores/store-json";
 import { logger } from "@/electron-main/lib/electron-logger";
 import { workspaceMachineDir } from "@/electron-main/lib/get-workspace-folder";
 import { publisher } from "@/electron-main/rpc/publisher";
@@ -37,7 +38,7 @@ const getWorkspaceState = (): Store<WorkspaceState> => {
       cwd: workspaceMachineDir(),
       defaults,
       deserialize: (value) => {
-        const parsed = WorkspaceStateSchema.safeParse(JSON.parse(value));
+        const parsed = WorkspaceStateSchema.safeParse(storeJson(value));
 
         if (parsed.success) {
           return parsed.data;

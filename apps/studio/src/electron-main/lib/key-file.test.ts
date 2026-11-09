@@ -34,7 +34,7 @@ vi.mock("electron", () => ({
   },
 }));
 
-const { encodeKeyFile, keyFileDeserializer } = await import("./key-file");
+const { keyFileDeserializer, keyFileSerializer } = await import("./key-file");
 
 type Shape = { token?: string };
 
@@ -54,7 +54,7 @@ describe("an unreadable key file", () => {
       }),
       fileExtension: "json.enc",
       name: "keys",
-      serialize: (value) => encodeKeyFile(JSON.stringify(value)) ?? "",
+      serialize: keyFileSerializer({ dir: () => dir, log, name: "keys" }),
     });
 
   const file = () => path.join(dir, "keys.json.enc");
@@ -117,5 +117,30 @@ describe("an unreadable key file", () => {
     expect(store.get("token")).toBeUndefined();
     encryption.available = true;
     expect(store.get("token")).toBe("kept");
+  });
+
+  // A launch that cannot reach the keyring reads every sign-in as gone, and
+  // the person signs in again or turns a provider off. That save has nothing
+  // to encrypt with, and must not take the file a launch with the keyring
+  // wrote.
+  it("keeps what the file holds when a save comes with no keyring", () => {
+    open().set("token", "kept");
+    const encrypted = fs.readFileSync(file(), "utf8");
+    encryption.available = false;
+    const store = open();
+
+    store.set("token", "typed without a keyring");
+
+    expect(fs.readFileSync(file(), "utf8")).toBe(encrypted);
+    encryption.available = true;
+    expect(store.get("token")).toBe("kept");
+  });
+
+  it("writes an empty file where there is none and no keyring", () => {
+    encryption.available = false;
+
+    open().set("token", "typed without a keyring");
+
+    expect(fs.readFileSync(file(), "utf8")).toBe("");
   });
 });

@@ -1,3 +1,4 @@
+import { storeJson } from "@/electron-main/stores/store-json";
 import { logger } from "@/electron-main/lib/electron-logger";
 import { workspaceBrowserDir } from "@/electron-main/lib/get-workspace-folder";
 import Store from "electron-store";
@@ -28,7 +29,7 @@ export const getExternalAppLinksStore = (): Store<ExternalAppLinks> => {
       cwd: workspaceBrowserDir(),
       defaults,
       deserialize: (value) => {
-        const parsed = ExternalAppLinksSchema.safeParse(JSON.parse(value));
+        const parsed = ExternalAppLinksSchema.safeParse(storeJson(value));
         if (parsed.success) {
           return parsed.data;
         }

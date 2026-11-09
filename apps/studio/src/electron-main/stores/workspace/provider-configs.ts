@@ -2,7 +2,7 @@ import { logger } from "@/electron-main/lib/electron-logger";
 import { workspaceKeysDir } from "@/electron-main/lib/get-workspace-folder";
 import {
   keyFileDeserializer,
-  encodeKeyFile,
+  keyFileSerializer,
   KEY_FILE_EXTENSION,
   KEY_STORE_NAMES,
 } from "@/electron-main/lib/key-file";
@@ -68,14 +68,11 @@ export const getProviderConfigsStore = (): Store<ProviderConfigsStore> => {
       }),
       fileExtension: KEY_FILE_EXTENSION,
       name: KEY_STORE_NAMES.providerConfigs,
-      serialize: (value) => {
-        const encoded = encodeKeyFile(JSON.stringify(value));
-        if (encoded === undefined) {
-          logger.error("Encryption is not available");
-          return "";
-        }
-        return encoded;
-      },
+      serialize: keyFileSerializer({
+        dir: workspaceKeysDir,
+        log: logger,
+        name: KEY_STORE_NAMES.providerConfigs,
+      }),
     });
 
     PROVIDER_CONFIGS_STORE.onDidAnyChange(() => {

@@ -1,3 +1,4 @@
+import { storeJson } from "@/electron-main/stores/store-json";
 import { logger } from "@/electron-main/lib/electron-logger";
 import { MACHINE_PREFERENCES_NAME } from "@/electron-main/lib/settings-migration";
 import { publisher } from "@/electron-main/rpc/publisher";
@@ -60,7 +61,7 @@ export const getMachinePreferences = (): Store<MachinePreferences> => {
     STORE = new Store<MachinePreferences>({
       defaults,
       deserialize: (value) => {
-        const parsed = MachinePreferencesSchema.safeParse(JSON.parse(value));
+        const parsed = MachinePreferencesSchema.safeParse(storeJson(value));
 
         if (parsed.success) {
           return parsed.data;

@@ -1,3 +1,4 @@
+import { storeJson } from "@/electron-main/stores/store-json";
 import { logger } from "@/electron-main/lib/electron-logger";
 import { publisher } from "@/electron-main/rpc/publisher";
 import {
@@ -61,7 +62,7 @@ function getStore(): Store<StoredExceptions> {
       cwd: app.getPath("userData"),
       defaults,
       deserialize: (value) => {
-        const parsed = StoredExceptionsSchema.safeParse(JSON.parse(value));
+        const parsed = StoredExceptionsSchema.safeParse(storeJson(value));
         if (parsed.success) {
           return parsed.data;
         }

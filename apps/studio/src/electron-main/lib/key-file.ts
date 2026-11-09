@@ -1,5 +1,7 @@
 import { is } from "@electron-toolkit/utils";
 import { safeStorage } from "electron";
+import fs from "node:fs";
+import path from "node:path";
 
 /**
  * How every key store in a workspace's `keys/` folder is written: plain JSON
@@ -37,7 +39,7 @@ export function decodeKeyFile(value: string): string {
  * A key file holding `json`, or undefined where there is no keyring to
  * encrypt with (a Linux desktop without one, or CI).
  */
-export function encodeKeyFile(json: string): string | undefined {
+function encodeKeyFile(json: string): string | undefined {
   if (is.dev) {
     return json;
   }
@@ -45,6 +47,41 @@ export function encodeKeyFile(json: string): string | undefined {
     return undefined;
   }
   return safeStorage.encryptString(json).toString("base64");
+}
+
+/**
+ * A key store's `serialize`. Where there is no keyring to encrypt with (a
+ * Linux desktop without one, or a launch its keyring was not reachable in),
+ * it answers what the file in `dir` already holds, so the write the store
+ * makes puts back the same bytes: a file encrypted on a launch that had the
+ * keyring is still there, whole, on the next one that does. Nothing where
+ * there is no file yet, since the store writes its defaults on the first
+ * read at boot and throwing there would keep the app from opening. What was
+ * being saved lasts until the app quits.
+ */
+export function keyFileSerializer({
+  dir,
+  log,
+  name,
+}: {
+  /** The keys folder the store's file is in, read when a write happens. */
+  dir: () => string;
+  log: { error: (...data: unknown[]) => void };
+  /** The store's name, one of `KEY_STORE_NAMES`. */
+  name: string;
+}): (value: unknown) => string {
+  return (value) => {
+    const encoded = encodeKeyFile(JSON.stringify(value));
+    if (encoded !== undefined) {
+      return encoded;
+    }
+    log.error("Encryption is not available");
+    try {
+      return fs.readFileSync(path.join(dir(), keyFileName(name)), "utf8");
+    } catch {
+      return "";
+    }
+  };
 }
 
 /**

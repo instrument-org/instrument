@@ -1,3 +1,4 @@
+import { storeJson } from "@/electron-main/stores/store-json";
 import { logger } from "@/electron-main/lib/electron-logger";
 import { workspaceKeysDir } from "@/electron-main/lib/get-workspace-folder";
 import {
@@ -49,7 +50,7 @@ function getStore(): Store<AppConnectionsStoreShape> {
       cwd: workspaceKeysDir(),
       defaults,
       deserialize: (value) => {
-        const parsed = AppConnectionsStoreSchema.safeParse(JSON.parse(value));
+        const parsed = AppConnectionsStoreSchema.safeParse(storeJson(value));
         if (parsed.success) {
           return parsed.data;
         }

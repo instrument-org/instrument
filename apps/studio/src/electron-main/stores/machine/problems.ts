@@ -1,3 +1,4 @@
+import { storeJson } from "@/electron-main/stores/store-json";
 import { logger } from "@/electron-main/lib/electron-logger";
 import { publisher } from "@/electron-main/rpc/publisher";
 import { PendingProblemSchema } from "@/shared/problem-reports";
@@ -33,7 +34,7 @@ export const getProblemsStore = (): Store<ProblemsStore> => {
     STORE = new Store<ProblemsStore>({
       defaults,
       deserialize: (value) => {
-        const parsed = ProblemsStoreSchema.safeParse(JSON.parse(value));
+        const parsed = ProblemsStoreSchema.safeParse(storeJson(value));
         if (parsed.success) {
           return parsed.data;
         }

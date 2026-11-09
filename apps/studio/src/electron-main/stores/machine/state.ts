@@ -1,4 +1,5 @@
 import { noteInstalledUpdate } from "@/electron-main/lib/actions";
+import { storeJson } from "@/electron-main/stores/store-json";
 import { logger } from "@/electron-main/lib/electron-logger";
 import { noteInstallFailed, noteUpdate } from "@/electron-main/lib/notices";
 import {
@@ -99,7 +100,7 @@ export const getMachineState = (): Store<MachineState> => {
     STORE = new Store<MachineState>({
       defaults,
       deserialize: (value) => {
-        const parsed = MachineStateSchema.safeParse(JSON.parse(value));
+        const parsed = MachineStateSchema.safeParse(storeJson(value));
 
         if (parsed.success) {
           return parsed.data;

@@ -5,7 +5,7 @@ import { noteSignedOut } from "@/electron-main/lib/notices";
 import { workspaceKeysDir } from "@/electron-main/lib/get-workspace-folder";
 import {
   keyFileDeserializer,
-  encodeKeyFile,
+  keyFileSerializer,
   KEY_FILE_EXTENSION,
   KEY_STORE_NAMES,
 } from "@/electron-main/lib/key-file";
@@ -351,19 +351,11 @@ function getStore(): Store<StoreShape> {
       }),
       fileExtension: KEY_FILE_EXTENSION,
       name: KEY_STORE_NAMES.chatgptAccount,
-      serialize: (value) => {
-        // Where there is no keyring to encrypt with (a Linux desktop without
-        // one, or CI), nothing is written, as the session and provider stores
-        // do: the store is made, and writes its defaults, on the first read at
-        // boot, so throwing here kept the app from opening at all. A sign-in
-        // then lasts until the app quits.
-        const encoded = encodeKeyFile(JSON.stringify(value));
-        if (encoded === undefined) {
-          log.error("Encryption is not available");
-          return "";
-        }
-        return encoded;
-      },
+      serialize: keyFileSerializer({
+        dir: workspaceKeysDir,
+        log,
+        name: KEY_STORE_NAMES.chatgptAccount,
+      }),
     });
     STORE.onDidAnyChange(() => {
       publisher.publish("chatgpt-account.updated", null);

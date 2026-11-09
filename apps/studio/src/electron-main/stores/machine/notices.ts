@@ -1,3 +1,4 @@
+import { storeJson } from "@/electron-main/stores/store-json";
 import { logger } from "@/electron-main/lib/electron-logger";
 import { publisher } from "@/electron-main/rpc/publisher";
 import { NoticeSchema } from "@/shared/notices";
@@ -99,7 +100,7 @@ export const getNoticesStore = (): Store<NoticesStore> => {
     STORE = new Store<NoticesStore>({
       defaults,
       deserialize: (value) => {
-        const parsed = NoticesStoreSchema.safeParse(JSON.parse(value));
+        const parsed = NoticesStoreSchema.safeParse(storeJson(value));
         if (parsed.success) {
           return parsed.data;
         }

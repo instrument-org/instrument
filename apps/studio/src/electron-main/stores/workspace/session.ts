@@ -2,11 +2,11 @@ import { logger } from "@/electron-main/lib/electron-logger";
 import { workspaceKeysDir } from "@/electron-main/lib/get-workspace-folder";
 import {
   decodeKeyFile,
-  encodeKeyFile,
   KEY_FILE_EXTENSION,
   KEY_STORE_NAMES,
   keyFileDeserializer,
   keyFileName,
+  keyFileSerializer,
 } from "@/electron-main/lib/key-file";
 import { buildDefaultPlatformApiBaseUrl } from "@/electron-main/platform-api/base-url";
 import { publisher } from "@/electron-main/rpc/publisher";
@@ -136,14 +136,11 @@ export const getSessionStore = (): Store<SessionState> => {
       }),
       fileExtension: KEY_FILE_EXTENSION,
       name: KEY_STORE_NAMES.session,
-      serialize: (value) => {
-        const encoded = encodeKeyFile(JSON.stringify(value));
-        if (encoded === undefined) {
-          logger.error("Encryption is not available");
-          return "";
-        }
-        return encoded;
-      },
+      serialize: keyFileSerializer({
+        dir: workspaceKeysDir,
+        log: logger,
+        name: KEY_STORE_NAMES.session,
+      }),
     });
 
     // Reading the store parses it; writing back what was read leaves the file

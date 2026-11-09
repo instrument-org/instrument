@@ -66,7 +66,7 @@ const run = base
  * or the chat's own turn alone, which leaves its tasks working and its
  * processes running.
  */
-const stop = base
+export const stop = base
   .input(
     z.object({
       id: ChatIdSchema,

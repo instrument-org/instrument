@@ -164,7 +164,10 @@ export function useOpeners({
       case "window-tab": {
         const group = newSiteGroup();
         const id = browser?.open(url, { group });
-        appTabs.open(pageHrefOf(group), { select: !placement.behind });
+        appTabs.open(pageHrefOf(group), {
+          newTab: true,
+          select: !placement.behind,
+        });
         return id;
       }
     }
@@ -266,7 +269,9 @@ export function useOpeners({
       });
       if (placement.kind === "in-place") {
         revealPane();
-        windowTabs.navigateScreen(at);
+        if (!windowTabs.selectShowing(at)) {
+          windowTabs.navigateScreen(at);
+        }
         return;
       }
       // In a window of its own, the chat comes up there at its task, which
@@ -318,14 +323,17 @@ export function useOpeners({
       }
       case "group-navigate": {
         // A file opened from a Finder takes the Finder's place in its tab,
-        // the way a folder does, and back returns to the folder.
+        // the way a folder does, and back returns to the folder, unless
+        // another of the chat's tabs already shows it.
         revealPane();
-        windowTabs.navigateScreen(href);
+        if (!windowTabs.selectShowing(href)) {
+          windowTabs.navigateScreen(href);
+        }
         return;
       }
       case "group-open": {
         revealPane();
-        windowTabs.openScreen(href);
+        windowTabs.openOrFocusScreen(href);
         return;
       }
       case "group-own-tab": {
@@ -334,11 +342,11 @@ export function useOpeners({
         return;
       }
       case "window-navigate": {
-        appTabs.navigate(href);
+        appTabs.go(href);
         return;
       }
       case "window-tab": {
-        appTabs.open(href, { select: !placement.behind });
+        appTabs.open(href, { newTab: true, select: !placement.behind });
         return;
       }
     }

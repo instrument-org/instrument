@@ -1,3 +1,4 @@
+import { isSameTabIdentity } from "@/shared/tab-identity";
 import { type RegisteredRouter } from "@tanstack/react-router";
 import {
   type ChatId,
@@ -342,6 +343,20 @@ export function sameHref(a: string, b: string) {
     return false;
   }
   return searchEntries(x.search) === searchEntries(y.search);
+}
+
+/**
+ * Two addresses show the same thing: the same screen, or the same file,
+ * folder, chat, draft, task or one-of-a-kind screen however far either tab
+ * has walked within it (`tabIdentityOf`).
+ */
+export function showsSame(a: string, b: string) {
+  return sameHref(a, b) || isSameTabIdentity(a, b, homeDirOfWindow());
+}
+
+/** The home folder, which a folder rooted at `~` is read against; none outside the app. */
+function homeDirOfWindow() {
+  return globalThis.window === undefined ? undefined : window.api?.homeDir;
 }
 
 function searchEntries(search: URLSearchParams) {

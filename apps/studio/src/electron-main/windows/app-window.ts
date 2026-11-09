@@ -31,7 +31,9 @@ import {
   isHostedPageKey,
   WINDOW_KEPT_KEYS,
 } from "@/shared/kept-state";
+import { isSameTabIdentity } from "@/shared/tab-identity";
 import { type Tab, type TabsModel, TabsModelSchema } from "@/shared/tabs";
+import { homedir } from "node:os";
 import {
   getAppZoom,
   getWindowState,
@@ -237,15 +239,20 @@ export function hostedPagesOf(id: string): BrowserTargetId[] {
 }
 
 /**
- * The window that has a screen in a tab, by its address: the one with that
- * tab up if there is one, else the one in front of the others with it behind.
+ * The window that has a screen in a tab, by its address or by what it shows
+ * (`tabIdentityOf`: a file, a folder, a chat, however far its tab has walked
+ * within it): the one with that tab up if there is one, else the one in front
+ * of the others with it behind.
  */
 export function appWindowShowing(
   href: string,
   among: readonly BrowserWindow[] = getAppWindows(),
 ): BrowserWindow | null {
+  const home = homedir();
   const standsThere = (pathname: string) =>
-    pathname === href || pathname.startsWith(`${href}?`);
+    pathname === href ||
+    pathname.startsWith(`${href}?`) ||
+    isSameTabIdentity(pathname, href, home);
   let behind: BrowserWindow | null = null;
   for (const window of among) {
     const id = appWindowIdOfWindow(window);
@@ -319,10 +326,16 @@ export function openAppScreen(href: string) {
 
 /**
  * Brings forward the window that already has a screen in a tab, with that tab
- * up. False where no window has it.
+ * up. False where no window has it; `except` leaves out the window asking.
  */
-export function showInWindowHolding(href: string) {
-  const showing = appWindowShowing(href);
+export function showInWindowHolding(
+  href: string,
+  { except }: { except?: number } = {},
+) {
+  const showing = appWindowShowing(
+    href,
+    getAppWindows().filter((window) => window.webContents.id !== except),
+  );
   if (!showing) {
     return false;
   }

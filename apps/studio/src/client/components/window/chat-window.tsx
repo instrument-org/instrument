@@ -222,7 +222,7 @@ export function ChatWindow({
   // A new tab each time: the person asked for another, even of a kind the
   // chat already has open. One a link opened closes on back from its start.
   const openHere = (href: string, { isOpened }: { isOpened: boolean }) => {
-    windowTabs.openScreen(href, {
+    windowTabs.openOrFocusScreen(href, {
       group: chatId,
       isOpened,
       select: true,

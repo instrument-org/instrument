@@ -6,6 +6,7 @@ import {
   openNewAppWindow,
   otherAppWindows,
   reopenClosedAppWindow,
+  showInWindowHolding,
   takeLaunchSweep as takeSweep,
   takePendingAppWindowAsks,
 } from "@/electron-main/windows/app-window";
@@ -109,6 +110,18 @@ const reopenClosed = base.input(z.void()).handler(() => {
   reopenClosedAppWindow();
 });
 
+/**
+ * Brings forward another open window's tab showing what an address shows,
+ * with that window; false where no other open window has one, for the asking
+ * window to open it itself.
+ */
+const showInOtherWindow = base
+  .input(z.object({ href: z.string() }))
+  .output(z.boolean())
+  .handler(({ context, input }) =>
+    showInWindowHolding(input.href, { except: context.webContentsId }),
+  );
+
 /** Whether this window is the one to clear what the launch left over. */
 const takeLaunchSweep = base
   .output(z.boolean())
@@ -194,6 +207,7 @@ export const window = {
   openNew,
   reopenClosed,
   showAppMenu,
+  showInOtherWindow,
   startTabCarry,
   takeLaunchSweep,
   takePending,

@@ -36,6 +36,7 @@ import {
   stepVisit,
   tabsIn,
   selectedTabIn,
+  tabShowingIn,
   tabToScreen,
   type WindowTabs,
 } from "./tab-model";
@@ -315,6 +316,20 @@ export function useWindowTabs() {
         return { state: opened.state, value: opened.id };
       }, undefined);
     },
+    /**
+     * Brings up the tab of the group on screen already showing what an
+     * address shows (`tabShowingIn`); false where none does.
+     */
+    selectShowing: (href: string): boolean =>
+      answer<boolean>((current, onScreen) => {
+        const tab =
+          onScreen === undefined
+            ? undefined
+            : tabShowingIn(current, onScreen, href);
+        return tab
+          ? { state: selectTab(current, tab.id), value: true }
+          : { state: current, value: false };
+      }, false),
     /**
      * Opens a screen at an address in a group (the group on screen, unless
      * one is named): up at once when that group is on screen or when asked,

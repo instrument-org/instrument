@@ -10,7 +10,7 @@ import { StoreId } from "@instrument-org/workspace/client";
 import { computerTabOf } from "./file-tabs";
 import { groupScreenTabsOnly } from "./group-screen";
 import { historyOf, stepTabVisit, visitInTab } from "./tab-history";
-import { chatOfGroup, matchScreen, sameHref } from "./window-href";
+import { chatOfGroup, matchScreen, sameHref, showsSame } from "./window-href";
 
 /**
  * What the window has open: every group's tabs in strip order, and the tab
@@ -200,9 +200,29 @@ export function addScreen(
 }
 
 /**
- * The screen tab already at an address in a group, or one opened there. A
- * file's tab may have become the page that shows the file; it is still the
- * file's tab, and the file is not opened twice. A group waiting behind with
+ * The tab of a group showing what an address shows: a screen tab at it, or
+ * at the same file, folder or task however far it has walked within it
+ * (`showsSame`), or the page a file's tab became, which is still the file's
+ * tab. The one the group has up comes first.
+ */
+export function tabShowingIn(
+  state: WindowTabs,
+  group: string,
+  href: string,
+): undefined | WindowTab {
+  const filePath = computerTabOf(href)?.file;
+  const shows = (tab: WindowTab) =>
+    tab.group === group &&
+    (tab.kind === "screen"
+      ? showsSame(tab.href, href)
+      : filePath !== undefined && hostPathOfFileUrl(tab.url) === filePath);
+  const up = selectedTabIn(state, group);
+  return up && shows(up) ? up : state.tabs.find(shows);
+}
+
+/**
+ * The tab already showing an address in a group (`tabShowingIn`), or one
+ * opened there. A file is not opened twice. A group waiting behind with
  * its new tab up is told where to go, the way the tab on screen is: the
  * screen lands in that tab rather than beside it, and the tab keeps its id,
  * so what remembered it still finds it.
@@ -227,14 +247,7 @@ export function openOrFocusScreen(
     select: boolean;
   },
 ): { id: string; state: WindowTabs } {
-  const filePath = computerTabOf(href)?.file;
-  const existing = state.tabs.find(
-    (tab) =>
-      tab.group === group &&
-      (tab.kind === "screen"
-        ? sameHref(tab.href, href)
-        : filePath !== undefined && hostPathOfFileUrl(tab.url) === filePath),
-  );
+  const existing = tabShowingIn(state, group, href);
   if (existing) {
     return {
       id: existing.id,

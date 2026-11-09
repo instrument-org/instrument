@@ -962,11 +962,7 @@ function WindowShell({
   // A file let go of where nothing else takes it opens the way one dropped
   // on the Dock icon does.
   useWindowDropFallback(({ hostPath, isFolder }) => {
-    if (isFolder) {
-      openScreen(folderHref(hostPath), { newTab: true });
-    } else {
-      appTabs.open(fileHref(hostPath));
-    }
+    appTabs.open(isFolder ? folderHref(hostPath) : fileHref(hostPath));
   });
   useWindowCommands(
     {
@@ -995,18 +991,16 @@ function WindowShell({
       newChat: newDraft,
       newChatFromLink: draftFromLink,
       newTab: appTabs.openNewTab,
-      // A file from outside the app is the person's own, in a tab of its own.
+      // A file from outside the app is the person's own, in a tab of its own
+      // or the one already showing it.
       openFile: (hostPath) => {
         appTabs.open(fileHref(hostPath));
       },
-      // The tab already there comes up rather than a second of the same.
+      // The tab already showing it comes up rather than a second of the
+      // same. Main has already picked this window as the one showing it, or
+      // the one in front where none does.
       openScreen: (href) => {
-        const there = appTabs.model.tabs.find((tab) =>
-          sameHref(tab.pathname, href),
-        );
-        if (there) {
-          appTabs.select(there.id);
-        } else {
+        if (!appTabs.selectShowing(href)) {
           openScreen(href, { newTab: true });
         }
       },

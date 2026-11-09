@@ -50,7 +50,7 @@ export function InternalLink(
       to,
     } as Parameters<typeof router.buildLocation>[0]).href;
   const openInNewTab = (select: boolean) => {
-    appTabs.open(hrefOfLink(), { select });
+    appTabs.open(hrefOfLink(), { newTab: true, select });
   };
 
   const handleMouseDown = (e: MouseEvent<HTMLAnchorElement>) => {

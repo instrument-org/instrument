@@ -1,5 +1,6 @@
 import { settingsModalAtom } from "@/client/atoms/settings-modal";
-import { appTabsAtom } from "@/client/components/window/app-tabs";
+import { appTabsAtom, showTabOr } from "@/client/components/window/app-tabs";
+import { getTabRouter } from "@/client/lib/tab-router-registry";
 import {
   folderOf,
   joinHostPath,
@@ -65,8 +66,23 @@ export async function showInFolder(
         : folderHref(folderOf(hostPath), {
             select: segmentsOf(hostPath).at(-1),
           });
-    store.set(appTabsAtom, (model) =>
-      addTab(model, { id: freshTabId(), pathname, select: true }),
+    // The tab already standing in the folder comes up, and is walked to the
+    // file there when there is one to select.
+    showTabOr(
+      pathname,
+      () => {
+        store.set(appTabsAtom, (model) =>
+          addTab(model, { id: freshTabId(), pathname, select: true }),
+        );
+      },
+      {
+        onHere: (tab) => {
+          if (kind === "file") {
+            getTabRouter(tab.id)?.history.push(pathname);
+          }
+        },
+        store,
+      },
     );
     return;
   }

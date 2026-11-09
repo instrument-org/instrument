@@ -6,11 +6,18 @@ import { beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 import { CHATS_FOLDER_NAME } from "../../constants";
 import { ensureChat } from "../../lib/chat/chat-records";
 import { chatIsWorking, renameChat } from "../../lib/chat/chats";
-import { retitleChat, startChatRetitle } from "../../lib/chat/retitle";
+import {
+  retitleChat,
+  startChatRetitle,
+  TITLE_TRIES,
+} from "../../lib/chat/retitle";
+import { ChatReads } from "../../lib/chat-reads";
+import { ChatWrites } from "../../lib/chat-writes";
 import { chatFolderNames } from "../../lib/chat-folders/own-folder";
 import { sessionOfChat } from "../../lib/record-folders";
 import { getWorkspaceConfig } from "../../lib/workspace-config";
 import { StoreId } from "../../schemas/store-id";
+import { type ChatId } from "../../schemas/chat-id";
 import { type WorkspaceRPCContext } from "../base";
 import { publisher } from "../publisher";
 import { chats } from "./chats";
@@ -106,5 +113,64 @@ describe("a chat's folder following its title", () => {
 
     expect(folderOf(chatId)).toBe("Flights to Lisbon");
     expect(await folderNames()).toContain("Flights to Lisbon");
+  });
+});
+
+describe("a chat with nothing to name", () => {
+  async function says(
+    chatId: ChatId,
+    sessionId: StoreId.Session,
+    text: string,
+  ) {
+    const messageId = StoreId.newMessageId();
+    const createdAt = new Date();
+    (
+      await ChatWrites.saveMessageWithParts(
+        {
+          id: messageId,
+          metadata: { createdAt, sessionId },
+          parts: [
+            {
+              metadata: {
+                createdAt,
+                id: StoreId.newPartId(),
+                messageId,
+                sessionId,
+              },
+              text,
+              type: "text",
+            },
+          ],
+          role: "user",
+        },
+        chatId,
+      )
+    )._unsafeUnwrap();
+  }
+
+  async function settledAt(chatId: ChatId, sessionId: StoreId.Session) {
+    return (await ChatReads.session({ chatId, sessionId }))._unsafeUnwrap()
+      .titleSettledAt;
+  }
+
+  // Without a reply there is nothing to name it from, which is the answer
+  // the titler gives a greeting, without a model call.
+  it("keeps its opening words once the person has sent their third message", async () => {
+    const sessionId = StoreId.newSessionId();
+    const chatId = await ensureChat(sessionId, "hi");
+    const asks = ["hi", "hey", "test"];
+    expect(asks).toHaveLength(TITLE_TRIES);
+    for (const said of asks.slice(0, -1)) {
+      await says(chatId, sessionId, said);
+      publisher.publish("chat.settled", { id: chatId, sessionId });
+    }
+    await new Promise((resolve) => setTimeout(resolve, 100));
+    expect(await settledAt(chatId, sessionId)).toBeUndefined();
+
+    await says(chatId, sessionId, asks.at(-1) ?? "");
+    publisher.publish("chat.settled", { id: chatId, sessionId });
+    await vi.waitFor(async () => {
+      expect(await settledAt(chatId, sessionId)).toBeDefined();
+    });
   });
 });

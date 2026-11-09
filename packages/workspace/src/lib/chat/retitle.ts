@@ -14,15 +14,30 @@ import { getWorkspaceConfig } from "../workspace-config";
 import { nameChat } from "./chat-name";
 import { settleChatTitle } from "./chats";
 import { lastAssistantTextIn } from "./latest-session";
+import { textForMessage } from "../text-for-message";
 import { type ChatId } from "../../schemas/chat-id";
 
 /** How much of the latest reply the title call reads. */
 const REPLY_MAX = 600;
 
+/** How many of the person's later messages the title call reads, newest kept. */
+const LATER_MESSAGES = 3;
+
+/** How much of each later message the title call reads. */
+const LATER_MESSAGE_MAX = 300;
+
 /**
- * Names a chat again from its root and its latest reply, and says what it
- * is called now: the new title, the one it already had when the call agreed
- * with it, or nothing when the chat has no reply to be named from or no
+ * How many of the person's messages a chat gets to say what it is about,
+ * counting the opening one. A chat still unnamed after that (small talk, a
+ * test) keeps its opening words, so a greeting never costs a title call on
+ * every turn for the rest of the chat.
+ */
+export const TITLE_TRIES = 3;
+
+/**
+ * Names a chat again from its root, what the person said since and its
+ * latest reply, and says what it is called now: the new title, the one it
+ * already had when the call agreed with it, or nothing when the chat has no reply to be named from or no
  * model to ask. `keep` asks the call to hold on to an agent-given title
  * unless the subject has moved; without it, as on the user's own ask, the
  * call names the chat afresh.
@@ -42,6 +57,12 @@ export async function retitleChat({
   }
   const sorted = alphabetical(messages.value, (message) => message.id);
   const root = sorted.find(isRoot);
+  const laterMessages = sorted
+    .filter((message) => message !== root && isRoot(message))
+    .slice(-LATER_MESSAGES)
+    .map((message) =>
+      truncateAtWordBoundary(textForMessage(message).trim(), LATER_MESSAGE_MAX),
+    );
   // Cut plainly: the note-shaped cut addresses the conversation, and this
   // reply is going to the title model.
   const said = lastAssistantTextIn(sorted);
@@ -80,6 +101,7 @@ export async function retitleChat({
   const title = await nameChat({
     chatId: id,
     ...(currentTitle === undefined ? {} : { currentTitle }),
+    ...(laterMessages.length > 0 ? { laterMessages } : {}),
     message: root,
     model: model.value,
     reply,
@@ -109,9 +131,12 @@ export async function retitleChat({
  * The title is written from the opening message, before anything has been
  * done; by the time the chat's agent and every task it filed have stopped,
  * the work has said what it is about, so the chat is named again from the
- * root and the latest reply. That is the whole of it: a title that kept
- * moving would be one the user loses in the list, so after the first settle,
- * or once the user has named the chat themselves, only the user renames it.
+ * root, what the person said since and the latest reply. That is the whole
+ * of it: a title that kept moving would be one the user loses in the list,
+ * so after the first settle that names it, or once the user has named the
+ * chat themselves, only the user renames it. A chat with nothing to name
+ * yet is tried again on each settle until the person has sent
+ * {@link TITLE_TRIES} messages, then keeps its opening words.
  * Heard on `chat.settled`, so a turn that leaves something of the chat's
  * still working (a hand-off, a task's report while another runs) waits for
  * the one that settles it.
@@ -162,11 +187,24 @@ async function retitleOnSettle({
     return;
   }
   const title = await retitleChat({ id: chatId, keep: true, sessionId });
-  if (title !== undefined) {
-    await settleChatTitle(chatId);
-    titlesToFollow.delete(chatId);
-    // Between two turns, which is the only moment a folder may move: the
-    // chat has stopped, so nothing of its own holds the folder.
-    await followTitle(chatId, title);
+  if (title === undefined) {
+    if ((await asksIn(chatId, sessionId)) >= TITLE_TRIES) {
+      await settleChatTitle(chatId);
+    }
+    return;
   }
+  await settleChatTitle(chatId);
+  titlesToFollow.delete(chatId);
+  // Between two turns, which is the only moment a folder may move: the
+  // chat has stopped, so nothing of its own holds the folder.
+  await followTitle(chatId, title);
+}
+
+/** How many messages the person has sent the chat. */
+async function asksIn(
+  chatId: ChatId,
+  sessionId: StoreId.Session,
+): Promise<number> {
+  const messages = await ChatReads.transcript({ chatId, sessionId });
+  return messages.isOk() ? messages.value.filter(isRoot).length : 0;
 }

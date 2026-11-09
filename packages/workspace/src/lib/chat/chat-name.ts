@@ -125,6 +125,7 @@ export function numberedTitle(
 export async function nameChat({
   chatId,
   currentTitle,
+  laterMessages,
   message,
   model,
   reply,
@@ -132,6 +133,7 @@ export async function nameChat({
 }: {
   chatId: ChatId;
   currentTitle?: string;
+  laterMessages?: readonly string[];
   message: SessionMessage.UserWithParts;
   model: AIGatewayModel.Type;
   reply?: string;
@@ -150,6 +152,7 @@ export async function nameChat({
       generateTitleFromUserMessage({
         chatId,
         ...(currentTitle === undefined ? {} : { currentTitle }),
+        ...(laterMessages === undefined ? {} : { laterMessages }),
         message,
         model,
         otherTitles: recent,

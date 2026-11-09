@@ -61,6 +61,7 @@ export function looksLikeCommentary(title: string): boolean {
 
 export function generateTitleFromUserMessage({
   currentTitle,
+  laterMessages = [],
   message,
   model,
   now = new Date(),
@@ -75,6 +76,11 @@ export function generateTitleFromUserMessage({
    * subject has moved: a title that changes is one the user loses in a list.
    */
   currentTitle?: string;
+  /**
+   * What the person said after the opening message, oldest first: the
+   * subject, when the opening was only a greeting.
+   */
+  laterMessages?: readonly string[];
   message: SessionMessage.UserWithParts;
   model: AIGatewayModel.Type;
   /** When the call is made, whose date tells a chat apart from an earlier one about the same thing. */
@@ -113,6 +119,11 @@ export function generateTitleFromUserMessage({
               opening,
             ]
           : [opening];
+      if (laterMessages.length > 0) {
+        sections.push(
+          `Later messages:\n${laterMessages.map((said) => `- ${said}`).join("\n")}`,
+        );
+      }
       if (reply) {
         sections.push(`Latest reply: ${reply}`);
       }
@@ -147,6 +158,7 @@ export function generateTitleFromUserMessage({
         headers: { [CLIENT_SESSION_ID_HEADER]: message.metadata.sessionId },
         instructions: buildSystemPrompt({
           hasCurrentTitle: currentTitle !== undefined,
+          withLaterMessages: laterMessages.length > 0,
           withOtherTitles: otherTitles.length > 0,
           withRejected: rejected !== undefined,
           withReply: reply !== undefined,
@@ -216,7 +228,10 @@ export function generateTitleFromUserMessage({
       ) {
         return currentTitle;
       }
-      cleanedTitle = withoutUnaskedYears(cleanedTitle, opening);
+      cleanedTitle = withoutUnaskedYears(
+        cleanedTitle,
+        [opening, ...laterMessages].join("\n"),
+      );
 
       const words = cleanedTitle.split(/\s+/).filter(Boolean);
       // A cut mid-sentence leaves the comma that led into the next word.
@@ -316,11 +331,13 @@ function titleSourceText(message: SessionMessage.UserWithParts): string {
 
 function buildSystemPrompt({
   hasCurrentTitle,
+  withLaterMessages,
   withOtherTitles,
   withRejected,
   withReply,
 }: {
   hasCurrentTitle: boolean;
+  withLaterMessages: boolean;
   withOtherTitles: boolean;
   withRejected: boolean;
   withReply: boolean;
@@ -339,6 +356,15 @@ function buildSystemPrompt({
             : `Let it sharpen the title: a message asking "what should I make for dinner" answered with a lentil soup recipe is "Lentil soup for dinner".`
         } Name the subject the message and the reply share; never name the act of replying, and never a title that is only the reply's own words.
         </reply>`}\n\n`
+    : "";
+
+  // A chat opened with "hi" says what it is about in what comes next, and
+  // without that the opening alone is named nothing on every try.
+  const laterSection = withLaterMessages
+    ? `${dedent`
+        <later_messages>
+        What the user said after the opening message follows "Later messages:", oldest first. When the opening message has nothing to name, a greeting or a test, name the work the later messages start. Otherwise they only check the subject the opening names. When none of them carries anything to name either, return nothing.
+        </later_messages>`}\n\n`
     : "";
 
   // Two calls over the same chat word the same subject differently, so
@@ -434,7 +460,7 @@ function buildSystemPrompt({
     If the message carries nothing to name -- a greeting, a single word, a test -- return nothing at all. An empty answer is correct and expected; the user's own words are kept instead. Never invent a subject, and never fall back to naming the day, the time, or the kind of message it is: a message with nothing to name stays unnamed whatever the other chats are called.
     </important>
 
-    ${replySection}${otherTitlesSection}${rejectedSection}<rules>
+    ${laterSection}${replySection}${otherTitlesSection}${rejectedSection}<rules>
     - Specific over short. Prefer concrete nouns and the distinguishing detail -- the file, the folder, the site, the format, the number -- over a vague label that would fit a hundred other messages
     - Specific enough to be recognized later: "Check the weather" could have been "Check the weather for Friday". A detail earns its place by telling the work apart, so a date or a time goes in only when the work is about one or another chat needs telling apart from it
     - Only details the message or the reply states, and of those, none true of nearly every chat the user has, such as where they live or the current year: it tells nothing apart

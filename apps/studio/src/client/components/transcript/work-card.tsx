@@ -280,7 +280,7 @@ function TypedWords({
         // A picture of the file: the card is the one control, so nothing in
         // the words answers a press or takes focus.
         <div
-          className="prose prose-custom font-sans text-xs/relaxed wrap-break-word dark:prose-invert prose-code:text-inherit prose-pre:text-xs prose-table:text-xs"
+          className="prose-card prose prose-custom font-sans text-xs/relaxed wrap-break-word dark:prose-invert prose-code:text-inherit prose-pre:text-xs prose-table:text-xs"
           inert
         >
           <Markdown hideImages isStreaming={isWriting} markdown={words} />

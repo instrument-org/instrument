@@ -647,6 +647,46 @@ body {
   .prose.prose-custom.prose-session :is(h5, h6) {
     font-size: 0.75rem;
   }
+
+  /* A miniature of a document on a small card: headings stay within a step
+     of the body text and blocks sit close, so a few lines of a report read
+     as its outline rather than one oversized title. Sizes are in em so they
+     follow whatever text size the card sets. */
+  .prose.prose-custom.prose-card :is(h1, h2, h3, h4, h5, h6) {
+    font-family: var(--font-sans);
+    font-weight: 600;
+    line-height: 1.375;
+    margin-top: 1em;
+    margin-bottom: 0.25em;
+  }
+
+  .prose.prose-custom.prose-card h1 {
+    font-size: 1.25em;
+  }
+
+  .prose.prose-custom.prose-card h2 {
+    font-size: 1.125em;
+  }
+
+  .prose.prose-custom.prose-card :is(h3, h4, h5, h6) {
+    font-size: 1em;
+  }
+
+  .prose.prose-custom.prose-card
+    :is(p, ul, ol, pre, blockquote, table, figure) {
+    margin-top: 0.5em;
+    margin-bottom: 0.5em;
+  }
+
+  .prose.prose-custom.prose-card li {
+    margin-top: 0.125em;
+    margin-bottom: 0.125em;
+  }
+
+  .prose.prose-custom.prose-card hr {
+    margin-top: 1em;
+    margin-bottom: 1em;
+  }
 }
 
 @utility prose-custom {

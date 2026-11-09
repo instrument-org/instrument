@@ -200,15 +200,10 @@ describe("FeedbackDialogContent", () => {
     await open();
     expect(
       screen.getByText(
-        "Off, so this stays on your Mac. Turn it on to send what you did in the 30 minutes before this, without names.",
+        "The last 30 minutes, without file or page names.",
       ),
     ).toBeTruthy();
     fireEvent.click(screen.getByRole("switch", { name: "Send your activity" }));
-    expect(
-      screen.getByText(
-        "What you did in Instrument in the 30 minutes before this, without the names of your files, pages or chats.",
-      ),
-    ).toBeTruthy();
     fireEvent.click(screen.getByRole("button", { name: "Send" }));
     await waitFor(() => {
       expect(sentItems()).toEqual(["chat", "actions", "diagnostics"]);
@@ -233,9 +228,7 @@ describe("FeedbackDialogContent", () => {
     );
     fireEvent.click(screen.getByRole("button", { name: "Done" }));
     expect(
-      screen.getByText(
-        "What you did in Instrument in the 30 minutes before this, without the names of your files, pages or chats.",
-      ),
-    ).toBeTruthy();
+      screen.getByRole("switch", { name: "Send your activity" }),
+    ).toHaveProperty("ariaChecked", "true");
   });
 });

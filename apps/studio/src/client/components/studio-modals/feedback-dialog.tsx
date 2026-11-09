@@ -218,9 +218,7 @@ function partsOf({
       ? [
           {
             item: described.actions,
-            line: sendActions.on
-              ? `What you did in ${APP_NAME} in the ${FEEDBACK_ACTIONS_MS / 60_000} minutes before this, without the names of your files, pages or chats.`
-              : `Off, so this stays on ${yourComputer}. Turn it on to send what you did in the ${FEEDBACK_ACTIONS_MS / 60_000} minutes before this, without names.`,
+            line: `The last ${FEEDBACK_ACTIONS_MS / 60_000} minutes, without file or page names.`,
             sending: sendActions,
             title: "Your activity",
           },
@@ -670,7 +668,7 @@ function Review({
         </DialogTitle>
         <DialogDescription className="sr-only">{part.line}</DialogDescription>
       </div>
-      <div className="min-h-0 flex-1 overflow-y-auto px-3 py-2">
+      <div className="min-h-0 flex-1 overflow-y-auto scroll-fade-y px-3 py-2">
         {part.item.kind === "chat" ? (
           <ChatReview item={part.item} />
         ) : part.item.kind === "actions" ? (
@@ -737,7 +735,7 @@ function ActionsReview({
   return (
     <div className="flex flex-col">
       <p className="px-3 pt-1 pb-2 text-xs text-muted-foreground">
-        {`From ${timeOfDay(readAt - FEEDBACK_ACTIONS_MS)} to ${timeOfDay(readAt)}, just as it will be sent. Files, folders, pages and chats go without their names, so we can see how you used ${APP_NAME} without seeing what you used it on.`}
+        {`From ${timeOfDay(readAt - FEEDBACK_ACTIONS_MS)} to ${timeOfDay(readAt)}, exactly as we'll see it.`}
       </p>
       {actions.map((action, index) => {
         const text = actionText(action, words);

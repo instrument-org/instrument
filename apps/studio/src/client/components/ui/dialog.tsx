@@ -115,7 +115,12 @@ function DialogContent({
 function DialogBody({ className, ...props }: React.ComponentProps<"div">) {
   return (
     <div
-      className={cn("-mx-6 -my-1 min-h-0 overflow-y-auto px-6 py-1", className)}
+      // Fades at whichever edge has more to scroll to, so a body cut off
+      // above its footer reads as one that scrolls.
+      className={cn(
+        "-mx-6 -my-1 min-h-0 overflow-y-auto scroll-fade-y px-6 py-1",
+        className,
+      )}
       data-slot="dialog-body"
       {...props}
     />

@@ -890,7 +890,7 @@ function Tab({
         // project's tint in the window bar, and a fixed grey reads as dirt on
         // a colored ground.
         cn(
-          "text-foreground/55",
+          "text-foreground/55 dark:text-foreground/65",
           !isDragging && "hover:bg-foreground/8 hover:text-foreground",
         ),
     // Over the `z-index` a `Reorder.Item` sets itself, which lapses wherever the

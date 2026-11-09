@@ -212,7 +212,9 @@ export function AppTabStrip({
     >
       <TabStrip
         carriedKey={carry.carriedKey}
-        className="min-w-0 flex-1"
+        // The dark bar is a step off the background, too near it for a tab of
+        // the background's own color to read as chosen.
+        className="min-w-0 flex-1 dark:[--tab-selected:var(--card)]"
         heldAt={
           heldHere
             ? {

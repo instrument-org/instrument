@@ -63,6 +63,14 @@ export {
   workCardTurnOf,
 } from "./lib/transcript/work-card";
 export {
+  workCardFace,
+  type WorkCardFaceOf,
+  workCardPaths,
+  type WorkCardPicture,
+  type WorkCardResult,
+  type WorkCardView,
+} from "./lib/transcript/work-card-face";
+export {
   type StepPart,
   type StepShows,
   type StepStatus,

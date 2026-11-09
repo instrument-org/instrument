@@ -1,11 +1,15 @@
 import { getComputerThumbnailUrl } from "@/client/lib/computer-file-url";
 import { cn } from "@/client/lib/utils";
 import {
-  type WorkCard,
-  type StepShows,
   type StoreId,
-  type TurnStep,
-  type WebResult,
+  type WorkCard,
+  workCardFace,
+  type WorkCardFaceOf,
+  type WorkCardKind,
+  workCardPaths,
+  type WorkCardPicture,
+  type WorkCardResult,
+  type WorkCardView,
 } from "@instrument-org/workspace/client";
 import { FileTextIcon } from "@phosphor-icons/react/FileText";
 import { GlobeIcon } from "@phosphor-icons/react/Globe";
@@ -21,78 +25,16 @@ import { BorderSweep } from "../shimmer-sweep";
 import { useTheme } from "../theme-provider";
 import { type TranscriptSurface, TranscriptSurfaceContext } from "./surface";
 
-/** The most pictures the strip under a card's newest shows, the newest among them. */
-const STRIP_SHOWN = 6;
-
 /** The files whose words a card shows as they read rather than as typed. */
 const MARKDOWN_EXTENSIONS = new Set(["markdown", "md", "mdx"]);
-/**
- * The files a card shows by their picture once written, since the app draws
- * them as they look: a page, a drawing, a table.
- */
-const PICTURED_EXTENSIONS = new Set(["csv", "htm", "html", "svg", "tsv"]);
 
-const isPictured = (path: string) =>
-  PICTURED_EXTENSIONS.has(extensionOf(path) ?? "");
-
-const baseName = (path: string) => path.split(/[/\\]/).pop() ?? path;
-
-function hostOf(url: string | undefined): string | undefined {
-  if (url === undefined) {
-    return undefined;
-  }
-  try {
-    const { hostname, pathname } = new URL(url);
-    // A file's address has no host, so it goes by its file's name.
-    return hostname === ""
-      ? baseName(decodeURIComponent(pathname)) || undefined
-      : hostname.replace(/^www\./, "");
-  } catch {
-    return url;
-  }
-}
-
-type ShowsOf<K extends StepShows["kind"]> = Extract<StepShows, { kind: K }>;
-
-/** Where a path a call named is on this computer, once that is known. */
-type PlaceOf = (path: string) => string | undefined;
-
-/** The paths a card names, as the calls spelled them. */
-function pathsOf({ changedFile, steps }: WorkCard): string[] {
-  return [
-    ...(changedFile === undefined ? [] : [changedFile.path]),
-    ...steps.flatMap(({ shows }) => {
-      switch (shows?.kind) {
-        case "file": {
-          return [shows.path];
-        }
-        case "generated":
-        case "image": {
-          return shows.path === undefined ? [] : [shows.path];
-        }
-        case "opened": {
-          return /^[a-z]+:\/\//.test(shows.target) ? [] : [shows.target];
-        }
-        default: {
-          return [];
-        }
-      }
-    }),
-  ];
-}
-
-/** Each step's `shows` of the given kinds, oldest first. */
-function shownBy<K extends StepShows["kind"]>(
-  steps: readonly TurnStep[],
-  ...kinds: K[]
-): (ShowsOf<K> & { status: TurnStep["status"] })[] {
-  return steps.flatMap((step) => {
-    const { shows } = step;
-    return shows && (kinds as string[]).includes(shows.kind)
-      ? [{ ...(shows as ShowsOf<K>), status: step.status }]
-      : [];
-  });
-}
+const MARKS: Record<WorkCardKind, ReactNode> = {
+  files: <FileTextIcon className="size-3.5" />,
+  generated: <ImageIcon className="size-3.5" />,
+  images: <ImageIcon className="size-3.5" />,
+  page: <GlobeIcon className="size-3.5" />,
+  web: <MagnifyingGlassIcon className="size-3.5" />,
+};
 
 /**
  * The live card: what the activity going on is showing, so a person can watch
@@ -110,38 +52,48 @@ export function WorkCardView({
   sessionId: StoreId.Session;
 }) {
   const surface = use(TranscriptSurfaceContext);
-  const places = surface?.useHostPaths(pathsOf(card));
+  const places = surface?.useHostPaths(workCardPaths(card));
   const drivenPage = surface?.useDrivenPage(
     card.kind === "page" ? sessionId : undefined,
   );
-  const body = cardBody(
-    card,
-    surface,
-    sessionId,
-    (path) => places?.[path] ?? undefined,
-    drivenPage,
-  );
+  const face = workCardFace(card, {
+    ...(drivenPage && { drivenPage }),
+    places: places ?? {},
+  });
+  const target = face.open;
+  const open =
+    target &&
+    (() => {
+      if ("url" in target) {
+        surface?.onOpenUrl(target.url);
+      } else {
+        surface?.onOpenFile(target.file);
+      }
+    });
   return (
     <div className="relative w-full max-w-115 rounded-2xl">
       <button
         className="block w-full overflow-hidden rounded-2xl border border-border bg-card text-left"
         data-work-card={card.kind}
-        onClick={body.open}
+        onClick={open}
         type="button"
       >
         <div className="relative h-52 overflow-hidden bg-muted/50">
-          {body.view}
+          {viewOf(face, {
+            PagePicture: surface?.PagePicture,
+            sessionId,
+          })}
         </div>
         <div className="flex h-8 items-center gap-1.5 border-t border-border px-2.5 text-xs">
           <span className="flex size-4 shrink-0 items-center justify-center text-muted-foreground">
-            {body.mark}
+            {MARKS[card.kind]}
           </span>
           <span className="min-w-0 truncate text-foreground/80">
-            {body.title}
+            {face.title}
           </span>
-          {body.meta && (
+          {face.meta && (
             <span className="ml-auto shrink-0 pl-2 text-muted-foreground tabular-nums">
-              {body.meta}
+              {face.meta}
             </span>
           )}
         </div>
@@ -151,187 +103,105 @@ export function WorkCardView({
   );
 }
 
-interface CardBody {
-  mark: ReactNode;
-  meta?: string;
-  open?: () => void;
-  title: string;
-  view: ReactNode;
+/** What a view has besides its face. */
+interface ViewContext {
+  PagePicture: TranscriptSurface["PagePicture"] | undefined;
+  sessionId: StoreId.Session;
 }
 
-function cardBody(
-  card: WorkCard,
-  surface: TranscriptSurface | undefined,
-  sessionId: StoreId.Session,
-  placeOf: PlaceOf,
-  drivenPage: { title?: string; url?: string } | undefined,
-): CardBody {
-  const { kind, steps } = card;
-  switch (kind) {
-    case "page": {
-      const pages = shownBy(steps, "page", "opened");
-      const newest = pages.at(-1);
-      const address = pages
-        .flatMap((page) => (page.kind === "page" && page.url ? [page.url] : []))
-        .at(-1);
-      const target = newest?.kind === "opened" ? newest.target : undefined;
-      const place = drivenPage?.url ?? address ?? target;
-      const PagePicture = surface?.PagePicture;
-      return {
-        mark: <GlobeIcon className="size-3.5" />,
-        ...(place && {
-          open: () => {
-            if (/^[a-z]+:\/\//.test(place)) {
-              surface?.onOpenUrl(place);
-            } else {
-              surface?.onOpenFile(placeOf(place) ?? place);
-            }
-          },
-        }),
-        title:
-          drivenPage?.title ??
-          hostOf(drivenPage?.url ?? address) ??
-          (target ? baseName(target) : "A page"),
-        view: PagePicture ? <PagePicture sessionId={sessionId} /> : null,
-      };
-    }
-    case "images": {
-      const images = shownBy(steps, "image");
-      const newest = images.at(-1);
-      const place = newest?.path && placeOf(newest.path);
-      return {
-        mark: <ImageIcon className="size-3.5" />,
-        meta:
-          images.length > 1 ? `${images.length.toString()} images` : "Opened",
-        ...(place && {
-          open: () => {
-            surface?.onOpenFile(place);
-          },
-        }),
-        title: newest?.path ? baseName(newest.path) : "An image",
-        view: <PictureRow images={images} placeOf={placeOf} />,
-      };
-    }
-    case "generated": {
-      const generated = shownBy(steps, "generated");
-      const newest = generated.at(-1);
-      const place = newest?.path && placeOf(newest.path);
-      return {
-        mark: <ImageIcon className="size-3.5" />,
-        ...(place && {
-          open: () => {
-            surface?.onOpenFile(place);
-          },
-        }),
-        title: newest?.path ? baseName(newest.path) : "An image",
-        // The tool writes each partial frame over the file, so the picture
-        // fills in as it is made.
-        view: place ? (
-          <FilePicture
-            path={place}
-            {...(newest?.modifiedAt !== undefined && {
-              version: newest.modifiedAt,
-            })}
-          />
-        ) : (
-          <Waiting>Generating the image</Waiting>
-        ),
-      };
-    }
-    case "web": {
-      return webCard(steps, surface);
-    }
-    case "files": {
-      return filesCard(card, surface, placeOf);
-    }
-  }
+/**
+ * A view for each of a card's views, given its face. Each is called as a
+ * function rather than mounted as a component, so a card moving from one view
+ * to the next keeps what the two have in common, a web card's results as one
+ * is opened among them above all.
+ */
+const VIEWS: {
+  [V in WorkCardView]: (
+    face: WorkCardFaceOf<V>,
+    context: ViewContext,
+  ) => ReactNode;
+} = {
+  "files/diff": (face) => (
+    <div className="absolute inset-0 overflow-hidden bg-card p-3 text-xs">
+      {face.before && (
+        <FileWords
+          className="mb-1.5 rounded-sm bg-destructive/10 px-1 text-foreground/70"
+          path={face.path}
+          text={face.before}
+        />
+      )}
+      <FileWords
+        className="rounded-sm bg-brand-500/10 px-1 text-foreground/80"
+        path={face.path}
+        text={face.after}
+      />
+    </div>
+  ),
+  "files/none": () => null,
+  "files/picture": (face) => <FilePicture picture={face.picture} />,
+  "files/words": (face) => (
+    <TypedWords isWriting={false} path={face.path} words={face.words} />
+  ),
+  "files/writing": (face) => (
+    <TypedWords isWriting path={face.path} words={face.words} />
+  ),
+  "generated/generating": () => <Waiting>Generating the image</Waiting>,
+  "generated/picture": (face) => <FilePicture picture={face.picture} />,
+  "images/opening": () => <Waiting>Opening the image</Waiting>,
+  "images/pictures": (face) => (
+    <PictureRow newest={face.newest} strip={face.strip} />
+  ),
+  "page/picture": (_face, { PagePicture, sessionId }) =>
+    PagePicture ? <PagePicture sessionId={sessionId} /> : null,
+  "web/nothing-found": (face) =>
+    webList(
+      face.heading,
+      <span className="text-muted-foreground">
+        Nothing came up for that search.
+      </span>,
+    ),
+  "web/opening": (face) =>
+    webList(
+      face.heading,
+      face.results && <ResultList dims results={face.results} />,
+    ),
+  "web/page": (face) =>
+    face.words === undefined ? (
+      webList(face.heading)
+    ) : (
+      <div className="absolute inset-0 animate-in overflow-hidden bg-card px-3 py-2.5 text-xs duration-200 fade-in">
+        <p className="truncate font-medium text-foreground">{face.heading}</p>
+        <p className="truncate text-muted-foreground">{face.host}</p>
+        <p className="mt-1.5 whitespace-pre-wrap text-foreground/80">
+          {face.words}
+        </p>
+      </div>
+    ),
+  "web/results": (face) =>
+    webList(face.heading, <ResultList dims={false} results={face.results} />),
+  "web/searching": (face) =>
+    webList(
+      face.heading,
+      <span className="text-muted-foreground">Searching…</span>,
+    ),
+};
+
+/** A face drawn by its view. */
+function viewOf<V extends WorkCardView>(
+  face: WorkCardFaceOf<V>,
+  context: ViewContext,
+): ReactNode {
+  return VIEWS[face.view](face, context);
 }
 
-function webCard(
-  steps: readonly TurnStep[],
-  surface: TranscriptSurface | undefined,
-): CardBody {
-  const searches = shownBy(steps, "search");
-  const search = searches.at(-1);
-  const newest = steps.at(-1)?.shows?.kind === "fetch";
-  // A fetch's address comes last in its call, and until it has, the search
-  // it follows stays up: there is nothing yet to say of the page.
-  const fetch = newest ? shownBy(steps, "fetch").at(-1) : undefined;
-  const reading = fetch?.url === undefined ? undefined : fetch;
-  const host = hostOf(reading?.url);
-  const isRead = reading?.status === "done";
-  const opening = reading && !isRead ? reading.url : undefined;
-  const found = searches.reduce((sum, each) => sum + each.total, 0);
-  const meta =
-    (isRead ? host : undefined) ??
-    (found > 0
-      ? `${found.toString()} ${found === 1 ? "result" : "results"}`
-      : undefined);
-  const results = search?.results ?? [];
-  const isAResult =
-    opening !== undefined &&
-    results.some((result) => sameAddress(result.url, opening));
-  return {
-    mark: <MagnifyingGlassIcon className="size-3.5" />,
-    ...(meta && { meta }),
-    ...(reading?.url && {
-      open: () => {
-        surface?.onOpenUrl(reading.url ?? "");
-      },
-    }),
-    title: reading
-      ? isRead
-        ? (reading.title ?? host ?? "Page")
-        : `Opening ${host ?? "the page"}`
-      : fetch
-        ? search
-          ? (search.query ?? "Searching the web")
-          : "Opening a page"
-        : (search?.query ?? "Searching the web"),
-    view:
-      isRead && reading.words !== undefined ? (
-        <div className="absolute inset-0 animate-in overflow-hidden bg-card px-3 py-2.5 text-xs duration-200 fade-in">
-          <p className="truncate font-medium text-foreground">
-            {reading.title ?? host}
-          </p>
-          <p className="truncate text-muted-foreground">{host}</p>
-          <p className="mt-1.5 whitespace-pre-wrap text-foreground/80">
-            {reading.words}
-          </p>
-        </div>
-      ) : (
-        <div className="absolute inset-0 flex flex-col gap-2 overflow-hidden bg-card px-3 py-2.5 text-xs">
-          <p className="truncate font-medium text-foreground">
-            {reading && (isRead || !isAResult)
-              ? isRead
-                ? (reading.title ?? host)
-                : `Opening ${host ?? "the page"}`
-              : (search?.query ?? (fetch ? "Opening a page" : "Searching"))}
-          </p>
-          {results.length > 0 && (isAResult || !reading) ? (
-            <ResultList
-              {...(opening !== undefined && { opening })}
-              results={results}
-            />
-          ) : (
-            !reading &&
-            !fetch && (
-              <span className="text-muted-foreground">
-                {search?.status === "done"
-                  ? "Nothing came up for that search."
-                  : "Searching…"}
-              </span>
-            )
-          )}
-        </div>
-      ),
-  };
-}
-
-/** Two addresses for one page, whatever their fragment or a trailing slash. */
-function sameAddress(one: string, other: string): boolean {
-  const plain = (url: string) => url.replace(/#.*$/, "").replace(/\/+$/, "");
-  return plain(one) === plain(other);
+/** A web card's heading over what goes under it. */
+function webList(heading: string | undefined, under?: ReactNode) {
+  return (
+    <div className="absolute inset-0 flex flex-col gap-2 overflow-hidden bg-card px-3 py-2.5 text-xs">
+      <p className="truncate font-medium text-foreground">{heading}</p>
+      {under}
+    </div>
+  );
 }
 
 /** How long after the one before it each result comes in. */
@@ -339,110 +209,45 @@ const RESULT_STAGGER_S = 0.04;
 
 /**
  * A search's results, each coming in a moment after the one before, since a
- * search's results arrive together. The one being opened stands out and the
- * rest step back.
+ * search's results arrive together. With `dims`, the one being opened stands
+ * out and the rest step back.
  */
 function ResultList({
-  opening,
+  dims,
   results,
 }: {
-  opening?: string;
-  results: readonly WebResult[];
+  dims: boolean;
+  results: readonly WorkCardResult[];
 }) {
   const isReduced = useReducedMotion();
   return (
     <ul className="flex flex-col gap-1.5">
-      {results.map((result, index) => {
-        const isOpening =
-          opening !== undefined && sameAddress(result.url, opening);
-        return (
-          <motion.li
-            animate={{
-              opacity: opening !== undefined && !isOpening ? 0.5 : 1,
-              y: 0,
-            }}
-            className={cn(
-              "-mx-1 flex min-w-0 items-start gap-1.5 rounded-md px-1",
-              isOpening && "bg-brand-500/10",
-            )}
-            initial={isReduced ? false : { opacity: 0, y: 2 }}
-            key={result.url}
-            transition={{ delay: index * RESULT_STAGGER_S, duration: 0.15 }}
-          >
-            <Favicon className="mt-px size-3.5 shrink-0" url={result.url} />
-            <span className="min-w-0">
-              <span className="block truncate text-foreground/80">
-                {result.title ?? hostOf(result.url)}
-              </span>
-              {result.title && (
-                <span className="block truncate text-muted-foreground">
-                  {hostOf(result.url)}
-                </span>
-              )}
+      {results.map((result, index) => (
+        <motion.li
+          animate={{ opacity: dims && !result.isOpening ? 0.5 : 1, y: 0 }}
+          className={cn(
+            "-mx-1 flex min-w-0 items-start gap-1.5 rounded-md px-1",
+            result.isOpening && "bg-brand-500/10",
+          )}
+          initial={isReduced ? false : { opacity: 0, y: 2 }}
+          key={result.url}
+          transition={{ delay: index * RESULT_STAGGER_S, duration: 0.15 }}
+        >
+          <Favicon className="mt-px size-3.5 shrink-0" url={result.url} />
+          <span className="min-w-0">
+            <span className="block truncate text-foreground/80">
+              {result.title ?? result.host}
             </span>
-          </motion.li>
-        );
-      })}
+            {result.title && (
+              <span className="block truncate text-muted-foreground">
+                {result.host}
+              </span>
+            )}
+          </span>
+        </motion.li>
+      ))}
     </ul>
   );
-}
-
-function filesCard(
-  { changedFile, steps }: WorkCard,
-  surface: TranscriptSurface | undefined,
-  placeOf: PlaceOf,
-): CardBody {
-  const written = shownBy(steps, "file").at(-1);
-  const path = changedFile?.path ?? written?.path;
-  const place = path && placeOf(path);
-  const isWriting = written !== undefined && written.status !== "done";
-  const isNew =
-    written?.after === undefined
-      ? (changedFile?.isNew ?? written?.isNew)
-      : false;
-  const meta = isWriting
-    ? "Writing"
-    : isNew === undefined
-      ? undefined
-      : isNew
-        ? "New file"
-        : "Updated";
-  return {
-    mark: <FileTextIcon className="size-3.5" />,
-    ...(meta && { meta }),
-    ...(place && {
-      open: () => {
-        surface?.onOpenFile(place);
-      },
-    }),
-    title: path ? baseName(path) : "A file",
-    view:
-      written?.after !== undefined ? (
-        <div className="absolute inset-0 overflow-hidden bg-card p-3 text-xs">
-          {written.before && (
-            <FileWords
-              className="mb-1.5 rounded-sm bg-destructive/10 px-1 text-foreground/70"
-              path={written.path}
-              text={written.before}
-            />
-          )}
-          <FileWords
-            className="rounded-sm bg-brand-500/10 px-1 text-foreground/80"
-            path={written.path}
-            text={written.after}
-          />
-        </div>
-      ) : written?.words !== undefined &&
-        !(written.status === "done" && place && isPictured(written.path)) ? (
-        <TypedWords
-          isWriting={written.status === "writing"}
-          path={written.path}
-          words={written.words}
-        />
-      ) : place ? (
-        <FilePicture path={place} version={written?.modifiedAt} />
-      ) : null,
-  };
 }
 
 /**
@@ -545,36 +350,23 @@ function Waiting({ children }: { children: string }) {
  * cropped, so every picture keeps its own shape.
  */
 function PictureRow({
-  images,
-  placeOf,
+  newest,
+  strip,
 }: {
-  images: readonly ShowsOf<"image">[];
-  placeOf: PlaceOf;
+  newest: WorkCardPicture;
+  strip: readonly WorkCardPicture[];
 }) {
-  const newest = images.at(-1);
-  const place = newest?.path && placeOf(newest.path);
-  if (!place) {
-    return <Waiting>Opening the image</Waiting>;
-  }
-  const strip =
-    images.length > 1
-      ? images.slice(-STRIP_SHOWN).flatMap((image) => {
-          const stripPlace = image.path && placeOf(image.path);
-          return stripPlace ? [{ image, place: stripPlace }] : [];
-        })
-      : [];
   return (
     <div className="flex h-full flex-col items-center gap-2 p-2.5">
       <div className="flex min-h-0 w-full flex-1 items-center justify-center">
         <FilePicture
           className="max-h-full max-w-full rounded-md shadow-xs ring-1 ring-foreground/10"
-          path={place}
-          version={newest?.modifiedAt}
+          picture={newest}
         />
       </div>
       {strip.length > 0 && (
         <div className="flex h-9 shrink-0 items-center gap-1.5">
-          {strip.map(({ image, place: stripPlace }, index) => (
+          {strip.map((picture, index) => (
             <FilePicture
               className={cn(
                 "h-full w-auto rounded-sm",
@@ -582,9 +374,8 @@ function PictureRow({
                   ? "ring-2 ring-brand-500"
                   : "opacity-80 ring-1 ring-foreground/10",
               )}
-              key={`${index.toString()}:${stripPlace}`}
-              path={stripPlace}
-              version={image.modifiedAt}
+              key={`${index.toString()}:${picture.place}`}
+              picture={picture}
             />
           ))}
         </div>
@@ -596,16 +387,14 @@ function PictureRow({
 /** A file drawn small by the system: a picture, a page, a document's first page. */
 function FilePicture({
   className = "size-full object-cover object-top",
-  path,
-  version,
+  picture: { place, version },
 }: {
   className?: string;
-  path: string;
-  version?: number;
+  picture: WorkCardPicture;
 }) {
   const { resolvedTheme } = useTheme();
   const src = getComputerThumbnailUrl({
-    hostPath: path,
+    hostPath: place,
     size: 1024,
     theme: resolvedTheme,
     ...(version !== undefined && { version }),

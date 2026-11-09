@@ -20,7 +20,9 @@ const toolbarSurface = tv({
   variants: {
     pressed: {
       false:
-        "bg-transparent text-muted-foreground not-disabled:hover:bg-muted not-disabled:hover:text-muted-foreground not-disabled:active:bg-muted",
+        // A share of the ink in light mode, where `muted` is two levels off
+        // the window's main card.
+        "bg-transparent text-muted-foreground not-disabled:hover:bg-foreground/7 not-disabled:hover:text-muted-foreground not-disabled:active:bg-foreground/7 dark:not-disabled:active:bg-muted",
       true: "bg-accent text-accent-foreground not-disabled:hover:bg-accent not-disabled:hover:text-accent-foreground not-disabled:active:bg-accent/90",
     },
   },

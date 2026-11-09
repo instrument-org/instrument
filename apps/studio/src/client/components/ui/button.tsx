@@ -27,7 +27,9 @@ export const buttonVariants = tv({
       destructive:
         "bg-destructive button-sheen text-white not-disabled:hover:bg-destructive/90 focus-visible:outline-destructive/20 dark:bg-destructive/60 dark:focus-visible:outline-destructive/40",
       ghost:
-        "not-disabled:hover:bg-muted not-disabled:hover:text-accent-foreground dark:not-disabled:hover:bg-accent/50",
+        // A share of the ink rather than `muted`, which is two levels off the
+        // window's main card in light mode.
+        "not-disabled:hover:bg-foreground/7 not-disabled:hover:text-accent-foreground dark:not-disabled:hover:bg-accent/50",
       "ghost-destructive":
         "text-destructive not-disabled:hover:bg-destructive/10 dark:not-disabled:hover:bg-destructive/20",
       // For the toolbar surface, where `accent` is the same gray as the

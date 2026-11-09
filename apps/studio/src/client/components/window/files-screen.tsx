@@ -691,7 +691,10 @@ export function FilesScreen({
   // standing in it.
   const openLinkedFile = (hostPath: string, options?: OpenOptions) => {
     if (hostPath.endsWith("/")) {
-      openScreen(folderHref(hostPath.slice(0, -1)), options);
+      openScreen(folderHref(hostPath.slice(0, -1)), {
+        here: true,
+        ...options,
+      });
     } else if (asksOwnPlace(options)) {
       openScreen(
         fileHref(hostPath, tree === undefined ? {} : { tree }),

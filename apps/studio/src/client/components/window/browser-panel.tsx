@@ -573,7 +573,7 @@ export function BrowserPanel({
   const openTypedPath = async (typedPath: TypedPath) => {
     const located = await locateTypedPath(typedPath);
     if (located.kind === "file" && windowContext) {
-      windowContext.openScreen(fileHref(located.path));
+      windowContext.openScreen(fileHref(located.path), { here: true });
     } else if (located.kind !== "failed" && located.kind !== "missing") {
       await showInFolder(located.path, {
         kind: located.kind === "file" ? "file" : "folder",

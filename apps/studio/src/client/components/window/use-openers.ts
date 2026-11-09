@@ -173,7 +173,12 @@ export function useOpeners({
     }
   };
   const openScreen = (href: string, options: OpenOptions = {}): void => {
-    const { behind = false, group: into, newTab = false } = options;
+    const {
+      behind = false,
+      group: into,
+      here = false,
+      newTab = false,
+    } = options;
     // A chat named by its session, as an older reply's link names it,
     // opens at the chat that session is.
     const session = chatSessionOfHref(href);
@@ -212,6 +217,8 @@ export function useOpeners({
       // its history, and the chat comes up at the tab it last had up.
       if (options.newWindow) {
         openInNewWindow(chatHref(chat));
+      } else if (here && !newTab) {
+        appTabs.navigate(chatHref(chat));
       } else {
         appTabs.go(chatHref(chat), { behind, newTab });
       }
@@ -326,7 +333,7 @@ export function useOpeners({
         // the way a folder does, and back returns to the folder, unless
         // another of the chat's tabs already shows it.
         revealPane();
-        if (!windowTabs.selectShowing(href)) {
+        if (here || !windowTabs.selectShowing(href)) {
           windowTabs.navigateScreen(href);
         }
         return;
@@ -342,7 +349,11 @@ export function useOpeners({
         return;
       }
       case "window-navigate": {
-        appTabs.go(href);
+        if (here) {
+          appTabs.navigate(href);
+        } else {
+          appTabs.go(href);
+        }
         return;
       }
       case "window-tab": {

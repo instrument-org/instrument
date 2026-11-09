@@ -17,6 +17,12 @@ export interface OpenOptions {
   behind?: boolean;
   group?: string;
   /**
+   * In the tab up, whatever another tab shows: what the app opens on its
+   * own, with nobody pressing anything, and what a surface opens in its own
+   * tab, as a folder linked from a document there.
+   */
+  here?: boolean;
+  /**
    * A tab of the window's own, across its bar, wherever it was asked for
    * from: what a middle click, a Cmd-click, or Open in New Tab asks.
    */

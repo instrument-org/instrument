@@ -1,5 +1,6 @@
 import { AppIcon } from "@/client/components/window/app-icon";
 import { useAppsBySlug } from "@/client/components/window/apps-by-slug";
+import { type OpenOptions } from "@/client/components/window/context";
 import { rpcClient } from "@/client/rpc/client";
 import { useQuery } from "@tanstack/react-query";
 import { atom, useAtom } from "jotai";
@@ -31,7 +32,9 @@ export const signInsWaitingAtom = atom<
  * beside the chat, and the chat's card says the app is connected. A sign-in
  * the provider declined, that failed or that lapsed is let go without either.
  */
-export function useSignInLanding(openScreen: (href: string) => void) {
+export function useSignInLanding(
+  openScreen: (href: string, options?: OpenOptions) => void,
+) {
   const [waiting, setWaiting] = useAtom(signInsWaitingAtom);
   const apps = useQuery(rpcClient.apps.live.list.experimental_liveOptions());
   const appsBySlug = useAppsBySlug();
@@ -59,7 +62,9 @@ export function useSignInLanding(openScreen: (href: string) => void) {
           ),
         });
         if (!inChat) {
-          openScreen(`/apps/${slug}`);
+          // Nobody pressed anything, so the tab up goes there rather than
+          // another window coming forward.
+          openScreen(`/apps/${slug}`, { here: true });
         }
       } else if (
         // Written since the sign-in started: a second failure in a row is

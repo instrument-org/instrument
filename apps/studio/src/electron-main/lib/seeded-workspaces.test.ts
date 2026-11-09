@@ -5,6 +5,7 @@ import {
   seedWorkspace,
 } from "@instrument-org/workspace/fixture-workspaces";
 import { newDeviceId } from "@instrument-org/workspace/electron";
+import { spawnSync } from "node:child_process";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
@@ -61,8 +62,19 @@ afterAll(() => {
 const log = { info: () => undefined, warn: () => undefined };
 
 /** Seeds a fixture and launches on it, as `studio-drive boot --workspace` does. */
-async function seedAndLaunch(name: string) {
-  const root = path.join(base, name);
+async function seedAndLaunch(
+  name: string,
+  {
+    beforeLaunch,
+    under = name,
+  }: {
+    /** Changes the seeded workspace before the launch's steps run on it. */
+    beforeLaunch?: (workspaceDir: string) => void;
+    /** The folder this run is seeded in, where one fixture is seeded twice. */
+    under?: string;
+  } = {},
+) {
+  const root = path.join(base, under);
   const userDataDir = path.join(root, "userdata");
   const home = path.join(root, "home");
   fs.mkdirSync(userDataDir, { recursive: true });
@@ -103,6 +115,7 @@ async function seedAndLaunch(name: string) {
     workspace: launch.workspace,
   });
   beginWorkspaceRun({ kind: "placed", workspace: opened });
+  beforeLaunch?.(opened.path);
   await sweepWorkspaceFolder({
     deviceId: newDeviceId(),
     inAppData: workspaceInAppData(),
@@ -206,6 +219,80 @@ describe.each(names)("the %s fixture, after a launch", (name) => {
       ),
     );
     expect(preferences).toMatchObject(fixture.settings.preferences ?? {});
+    expect(failures).toEqual([]);
+  });
+});
+
+/**
+ * A 1.x workspace as a real one may be found, put through the same launch:
+ * beside the task that is whole, one whose database a crashed build left
+ * mid-write, one a step of the sweep cannot put in shape, and memories an
+ * earlier build hid while one was saved at the top level since. Each is
+ * something that once kept a task or a file out of what the person sees,
+ * for good, with only a line in the log.
+ */
+describe("a 1.x workspace left in bad shape, after a launch", () => {
+  function copyTask(tasks: string, to: string, name: string) {
+    fs.cpSync(path.join(tasks, "squares-pdf"), path.join(tasks, to), {
+      recursive: true,
+    });
+    const settings = path.join(tasks, to, ".instrument", "settings.json");
+    fs.writeFileSync(
+      settings,
+      JSON.stringify({
+        ...(JSON.parse(fs.readFileSync(settings, "utf8")) as object),
+        name,
+      }),
+    );
+  }
+
+  it("makes a chat of every task and brings out every memory", async () => {
+    failures.length = 0;
+    const { chats, opened } = await seedAndLaunch("legacy-tasks", {
+      beforeLaunch: (workspaceDir) => {
+        const tasks = path.join(workspaceDir, "tasks");
+
+        copyTask(tasks, "crashed", "Crashed mid-write");
+        const database = path.join(tasks, "crashed", ".instrument", "task.db");
+        const crashed = spawnSync(process.execPath, [
+          "-e",
+          `const { DatabaseSync } = require("node:sqlite");
+           const db = new DatabaseSync(${JSON.stringify(database)});
+           db.exec("PRAGMA cache_size = 1; BEGIN");
+           const insert = db.prepare("insert into sessions (key, blob) values (?, ?)");
+           for (let row = 0; row < 2000; row++) {
+             insert.run("scratch:" + row, Buffer.alloc(2048));
+           }
+           process.kill(process.pid, "SIGKILL");`,
+        ]);
+        expect(crashed.signal).toBe("SIGKILL");
+        expect(fs.existsSync(`${database}-journal`)).toBe(true);
+
+        copyTask(tasks, "held", "Held open");
+        // A file where the folder of sent files would be cannot be listed.
+        fs.writeFileSync(path.join(tasks, "held", "user-provided"), "a file");
+
+        const hidden = path.join(workspaceDir, ".instrument", "memory");
+        fs.mkdirSync(hidden, { recursive: true });
+        fs.writeFileSync(path.join(hidden, "older.md"), "Saved by 1.x.");
+        fs.mkdirSync(path.join(workspaceDir, "Memory"), { recursive: true });
+        fs.writeFileSync(
+          path.join(workspaceDir, "Memory", "newer.md"),
+          "Saved since.",
+        );
+      },
+      under: "legacy-tasks-in-bad-shape",
+    });
+
+    expect(chats.map((chat) => chat.title).toSorted()).toEqual([
+      "Crashed mid-write",
+      "Held open",
+      "Red and blue squares PDF",
+    ]);
+    expect(fs.readdirSync(path.join(opened.path, "Memory")).toSorted()).toEqual(
+      ["newer.md", "older.md"],
+    );
+    expect(fs.existsSync(path.join(opened.path, "tasks"))).toBe(false);
     expect(failures).toEqual([]);
   });
 });

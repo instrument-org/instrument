@@ -27,11 +27,26 @@ import { ClearActivityDialog } from "@/client/components/activity/clear-activity
 import { Button } from "@/client/components/ui/button";
 import { Checkbox } from "@/client/components/ui/checkbox";
 import {
+  Tooltip,
+  TooltipContent,
+  TooltipTrigger,
+} from "@/client/components/ui/tooltip";
+import {
+  ContextMenu,
+  ContextMenuContent,
+  ContextMenuTrigger,
+} from "@/client/components/ui/context-menu";
+import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/client/components/ui/dropdown-menu";
+import {
+  contextMenuComponents,
+  dropdownMenuComponents,
+  type MenuComponents,
+} from "@/client/components/ui/menu-components";
 import { SearchField } from "@/client/components/window/search-field";
 import {
   refreshWhileShown,
@@ -309,47 +324,13 @@ export function ActivityPage({
 
   return (
     <div className="flex h-full min-h-0 flex-col bg-background">
-      <div className="shrink-0 space-y-4 border-b border-border px-6 pt-5 pb-4">
-        <div className="flex items-start gap-3">
-          <div className="min-w-0 flex-1">
-            <h1 className="text-xl font-semibold">Activity</h1>
-            {/* Someone can land here from the window's corner without
-              looking for it, so the page says what this is and who reads
-              it before anything else. */}
-            <p className="mt-1 flex max-w-170 items-start gap-1.5 text-sm text-muted-foreground">
-              <LockSimpleIcon className="mt-1 size-3.25 shrink-0" />
-              <span>
-                {`This is what you've done in ${APP_NAME}, kept on this computer so you can find things again. Chats can read it to tell which file you mean, and you can change that in `}
-                <button
-                  className="text-foreground underline-offset-2 hover:underline"
-                  onClick={() => {
-                    openSettings({ tab: "Activity" });
-                  }}
-                  type="button"
-                >
-                  Activity settings
-                </button>
-                .
-              </span>
-            </p>
-          </div>
-          <PageMenu
-            onClear={() => {
-              setClearing(true);
-            }}
-            onExport={() => {
-              void rpcClient.activity.saveCsv
-                .call({ view })
-                .then(({ status }) => {
-                  if (status === "failed") {
-                    toast.error("The file couldn't be saved.");
-                  }
-                });
-            }}
-          />
-        </div>
+      {/* One bar: the page's name, how to narrow it, and, at its end, where
+        the history is kept and who reads it, which someone landing here
+        from the window's corner should see before anything else. */}
+      <div className="flex shrink-0 flex-wrap items-center gap-x-3 gap-y-2 border-b border-border px-6 py-3">
+        <h1 className="mr-1 text-base font-semibold">Activity</h1>
         {checkedEntries.length > 0 ? (
-          <div className="flex h-9 items-center gap-3 rounded-lg bg-foreground/6 px-3 text-sm">
+          <div className="flex h-9 min-w-0 flex-1 items-center gap-3 rounded-lg bg-foreground/6 px-3 text-sm">
             <span className="font-medium">
               {`${checkedEntries.length} selected`}
             </span>
@@ -375,8 +356,8 @@ export function ActivityPage({
             </Button>
           </div>
         ) : (
-          <div className="flex flex-wrap items-center gap-3">
-            <div className="flex w-75 shrink-0">
+          <div className="flex min-w-0 flex-wrap items-center gap-3">
+            <div className="flex w-64 shrink-0">
               <SearchField
                 onChange={(value) => {
                   onSearch({ item: undefined, q: value });
@@ -411,6 +392,24 @@ export function ActivityPage({
             </div>
           </div>
         )}
+        <span className="flex-1" />
+        <PrivacyNote
+          canChatsRead={preferences.data?.shareActionsWithChats !== false}
+        />
+        <PageMenu
+          onClear={() => {
+            setClearing(true);
+          }}
+          onExport={() => {
+            void rpcClient.activity.saveCsv
+              .call({ view })
+              .then(({ status }) => {
+                if (status === "failed") {
+                  toast.error("The file couldn't be saved.");
+                }
+              });
+          }}
+        />
       </div>
       {isKeeping ? null : (
         <div className="mx-6 mt-4 flex shrink-0 items-center gap-3 rounded-xl bg-foreground/5 px-4 py-2.5 text-sm">
@@ -494,6 +493,36 @@ export function ActivityPage({
         open={clearing}
       />
     </div>
+  );
+}
+
+/**
+ * Where the history is kept and who reads it, short at the bar's end, with
+ * the whole of it on hover; a click opens Settings › Activity to change it.
+ */
+function PrivacyNote({ canChatsRead }: { canChatsRead: boolean }) {
+  return (
+    <Tooltip>
+      <TooltipTrigger asChild>
+        <button
+          className="flex h-7 shrink-0 items-center gap-1.5 rounded-full px-2.5 text-xs text-muted-foreground hover:bg-foreground/5 hover:text-foreground"
+          onClick={() => {
+            openSettings({ tab: "Activity" });
+          }}
+          type="button"
+        >
+          <LockSimpleIcon className="size-3.5 shrink-0" />
+          {canChatsRead
+            ? "Only on this computer · Chats can read it"
+            : "Only on this computer · Chats can't read it"}
+        </button>
+      </TooltipTrigger>
+      <TooltipContent className="max-w-72">
+        {canChatsRead
+          ? `${APP_NAME} keeps this on this computer so you can find things again, and chats read it to tell which file you mean. Click to change that in Activity settings.`
+          : `${APP_NAME} keeps this on this computer so you can find things again. Chats can't read it. Click to change that in Activity settings.`}
+      </TooltipContent>
+    </Tooltip>
   );
 }
 
@@ -648,58 +677,60 @@ function ActivityList({
     }
   };
 
-  const showMenu = async (entry: TimelineEntry) => {
+  // A row's menu, the same under ⋮ and a right click: where it opens, a
+  // file's or folder's path (where the place's own Copy would give the
+  // app's link to it), More from, and Remove.
+  const menuOf = (entry: TimelineEntry): RowMenuItem[] => {
     const target = targetOf(entry);
     const path =
       entry.kind === "action" ? pathOfAction(entry.action) : undefined;
-    // A file's or folder's row copies its path on this computer, where the
-    // place's own Copy would give the app's link to it.
-    const destinations = [
-      ...(target ? gesturesFor(target).destinations : []).filter(
-        (destination) => path === undefined || destination.id !== "copy",
-      ),
+    const opens = (target ? gesturesFor(target).destinations : []).filter(
+      (destination) => path === undefined || destination.id !== "copy",
+    );
+    const more = moreFromOf(entry);
+    return [
+      ...opens.map((destination) => ({
+        label: destination.label,
+        run: destination.run,
+      })),
       ...(path === undefined
         ? []
         : [
             {
-              id: "copyPath",
               label: "Copy Path",
               run: () => {
                 void navigator.clipboard.writeText(path);
               },
             },
           ]),
+      ...(more
+        ? [
+            {
+              label: `More from ${more.label}`,
+              run: () => {
+                onMoreFrom(more.q);
+              },
+            },
+          ]
+        : []),
+      ...(isRemovable(entry)
+        ? [
+            "separator" as const,
+            {
+              destructive: true,
+              label: "Remove from Activity",
+              run: () => {
+                onRemove(entry);
+              },
+            },
+          ]
+        : []),
     ];
-    const more = moreFromOf(entry);
-    const { id } = await rpcClient.utils.showContextMenu.call({
-      items: [
-        ...destinations.map((destination) => ({
-          id: destination.id,
-          label: destination.label,
-        })),
-        ...(more ? [{ id: "more", label: `More from ${more.label}` }] : []),
-        ...(isRemovable(entry)
-          ? [
-              ...(destinations.length > 0 || more
-                ? [{ separator: true as const }]
-                : []),
-              { id: "remove", label: "Remove from Activity" },
-            ]
-          : []),
-      ],
-    });
-    if (id === "more" && more) {
-      onMoreFrom(more.q);
-    } else if (id === "remove") {
-      onRemove(entry);
-    } else {
-      destinations.find((destination) => destination.id === id)?.run();
-    }
   };
 
   return (
     <div
-      className="min-h-0 flex-1 overflow-y-auto scroll-fade-y px-6 outline-none"
+      className="min-h-0 flex-1 overflow-y-auto px-6 outline-none"
       onKeyDown={onKeyDown}
       ref={setScroller}
       tabIndex={0}
@@ -761,9 +792,7 @@ function ActivityList({
                   onCheck={(on) => {
                     onCheck(item, on);
                   }}
-                  onMenu={() => {
-                    void showMenu(item);
-                  }}
+                  menu={menuOf(item)}
                   onOpen={({ newTab }) => {
                     if (!target) {
                       return;
@@ -801,8 +830,8 @@ function ActivityRow({
   context,
   icon,
   isPicked,
+  menu,
   onCheck,
-  onMenu,
   onOpen,
   onPick,
   title,
@@ -812,92 +841,133 @@ function ActivityRow({
   context: React.ReactNode;
   icon: React.ReactNode;
   isPicked: boolean;
+  /** What its ⋮ and a right click offer. */
+  menu: RowMenuItem[];
   onCheck: (on: boolean) => void;
-  onMenu: () => void;
   /** Opens it where the page opens things, or in a tab of its own. */
   onOpen: (how: { newTab: boolean }) => void;
   onPick: () => void;
   title: string;
 }) {
   return (
-    <div
-      aria-selected={isPicked}
-      className={cn(
-        "group/row flex h-10 cursor-default items-center gap-3 rounded-lg px-2.5 select-none",
-        isPicked ? "bg-foreground/8" : "hover:bg-foreground/5",
-      )}
-      onAuxClick={(event) => {
-        if (event.button === 1) {
-          onOpen({ newTab: true });
-        }
-      }}
-      onClick={(event) => {
-        if (commandKeyHeld(event)) {
-          onOpen({ newTab: true });
-        } else {
-          onPick();
-        }
-      }}
-      onContextMenu={(event) => {
-        event.preventDefault();
-        onMenu();
-      }}
-      onDoubleClick={() => {
-        onOpen({ newTab: false });
-      }}
-      role="option"
-    >
-      {/* The whole gutter around the box ticks it, so a click a little
-        off the box never picks the row instead. */}
-      <span
-        className="-my-1 -ml-2.5 grid shrink-0 place-items-center self-stretch pr-1 pl-2.5"
-        onClick={(event) => {
-          event.stopPropagation();
-          if (event.target === event.currentTarget) {
-            onCheck(!checked);
-          }
-        }}
-        onDoubleClick={(event) => {
-          event.stopPropagation();
-        }}
-      >
-        <Checkbox
-          aria-label={`Select ${title}`}
-          checked={checked}
-          onCheckedChange={(value) => {
-            onCheck(value === true);
+    <ContextMenu>
+      <ContextMenuTrigger asChild>
+        <div
+          aria-selected={isPicked}
+          className={cn(
+            "group/row flex h-10 cursor-default items-center gap-3 rounded-lg px-2.5 select-none",
+            isPicked ? "bg-foreground/8" : "hover:bg-foreground/5",
+          )}
+          onAuxClick={(event) => {
+            if (event.button === 1) {
+              onOpen({ newTab: true });
+            }
           }}
-        />
-      </span>
-      <span className="w-16 shrink-0 text-[13px] text-muted-foreground tabular-nums">
-        {timeFormat.format(at)}
-      </span>
-      <span className="grid size-5 shrink-0 place-items-center">{icon}</span>
-      <span className="min-w-0 shrink truncate text-sm">{title}</span>
-      <span className="min-w-0 flex-1 truncate text-[13px] text-muted-foreground">
-        {context}
-      </span>
-      <Button
-        aria-label="More"
-        className={cn(
-          "shrink-0 text-foreground/60",
-          isPicked
-            ? ""
-            : "opacity-0 group-hover/row:opacity-100 focus-visible:opacity-100",
-        )}
-        onClick={(event) => {
-          event.stopPropagation();
-          onMenu();
-        }}
-        onDoubleClick={(event) => {
-          event.stopPropagation();
-        }}
-        size="icon-sm"
-        variant="ghost"
+          onClick={(event) => {
+            if (commandKeyHeld(event)) {
+              onOpen({ newTab: true });
+            } else {
+              onPick();
+            }
+          }}
+          onDoubleClick={() => {
+            onOpen({ newTab: false });
+          }}
+          role="option"
+        >
+          {/* The whole gutter around the box ticks it, so a click a little
+        off the box never picks the row instead. */}
+          <span
+            className="-my-1 -ml-2.5 grid shrink-0 place-items-center self-stretch pr-1 pl-2.5"
+            onClick={(event) => {
+              event.stopPropagation();
+              if (event.target === event.currentTarget) {
+                onCheck(!checked);
+              }
+            }}
+            onDoubleClick={(event) => {
+              event.stopPropagation();
+            }}
+          >
+            <Checkbox
+              aria-label={`Select ${title}`}
+              checked={checked}
+              onCheckedChange={(value) => {
+                onCheck(value === true);
+              }}
+            />
+          </span>
+          <span className="w-16 shrink-0 text-[13px] text-muted-foreground tabular-nums">
+            {timeFormat.format(at)}
+          </span>
+          <span className="grid size-5 shrink-0 place-items-center">
+            {icon}
+          </span>
+          <span className="min-w-0 shrink truncate text-sm">{title}</span>
+          <span className="min-w-0 flex-1 truncate text-[13px] text-muted-foreground">
+            {context}
+          </span>
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button
+                aria-label="More"
+                className={cn(
+                  "shrink-0 text-foreground/60 data-[state=open]:opacity-100",
+                  isPicked
+                    ? ""
+                    : "opacity-0 group-hover/row:opacity-100 focus-visible:opacity-100",
+                )}
+                onClick={(event) => {
+                  event.stopPropagation();
+                }}
+                onDoubleClick={(event) => {
+                  event.stopPropagation();
+                }}
+                size="icon-sm"
+                variant="ghost"
+              >
+                <DotsThreeVerticalIcon className="size-4" weight="bold" />
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end" className="w-56">
+              <RowMenu components={dropdownMenuComponents} items={menu} />
+            </DropdownMenuContent>
+          </DropdownMenu>
+        </div>
+      </ContextMenuTrigger>
+      <ContextMenuContent className="w-56">
+        <RowMenu components={contextMenuComponents} items={menu} />
+      </ContextMenuContent>
+    </ContextMenu>
+  );
+}
+
+/** One line of a row's menu, or a rule between groups of them. */
+type RowMenuItem =
+  | "separator"
+  | { destructive?: boolean; label: string; run: () => void };
+
+/** A row's menu, written once for its ⋮ and its right click. */
+function RowMenu({
+  components: { Item, Separator },
+  items,
+}: {
+  components: MenuComponents;
+  items: RowMenuItem[];
+}) {
+  return items.map((item, index) =>
+    item === "separator" ? (
+      // oxlint-disable-next-line react/no-array-index-key -- a rule has nothing else to go by
+      <Separator key={`rule-${index}`} />
+    ) : (
+      <Item
+        key={item.label}
+        onSelect={item.run}
+        variant={item.destructive ? "destructive" : "default"}
       >
-        <DotsThreeVerticalIcon className="size-4" weight="bold" />
-      </Button>
-    </div>
+        {item.label}
+      </Item>
+    ),
   );
 }
 

@@ -35,11 +35,9 @@ import { displayLocale } from "@/client/lib/display-locale";
 import { type OpenTarget } from "@/client/lib/open-target";
 import { showInFolder, showInFolderLabel } from "@/client/lib/show-in-files";
 import { commandKeyHeld, osConventions } from "@/client/lib/utils";
-import { rpcClient } from "@/client/rpc/client";
 import { ArrowLeftIcon } from "@phosphor-icons/react/ArrowLeft";
 import { TrashIcon } from "@phosphor-icons/react/Trash";
 import { XIcon } from "@phosphor-icons/react/X";
-import { useQuery } from "@tanstack/react-query";
 import { type ReactNode, useState } from "react";
 
 const dayFormat = new Intl.DateTimeFormat(displayLocale, {
@@ -110,9 +108,9 @@ function fileOf(action: ShownAction): string | undefined {
  * The details of the row picked, beside the list, drawn the way Files' Info
  * card is: a file's picture large, a header with its mark, name and kind,
  * then a row per fact. A file or folder shows Files' own Info about it;
- * everything else shows what Activity knows, then the other times it was
- * opened. Its bar puts the way to open it first, and Remove and Close at
- * its end. An AI row lists its requests, each opening what was recorded
+ * everything else shows what Activity knows, and what was done with it
+ * and when is one more row. Its bar puts the way to open it first, and
+ * Remove and Close at its end. An AI row lists its requests, each opening what was recorded
  * about it, rather than what was said, which is the chat's to show.
  */
 export function ActivityDetails({
@@ -279,48 +277,6 @@ function Section({ children, title }: { children: ReactNode; title: string }) {
   );
 }
 
-/** The other times the person opened what a row names, newest first, under the row's own facts; nothing when there are none. */
-function OtherTimes({
-  at,
-  of,
-}: {
-  at: number;
-  of: { download: true; path: string } | { path: string } | { url: string };
-}) {
-  const { data } = useQuery(
-    rpcClient.activity.openings.queryOptions({ input: of }),
-  );
-  // The row's own opening is among them, and the rest are the others.
-  const others = (data ?? [])
-    .filter((each) => Date.parse(each.at) !== at)
-    .slice(0, 8);
-  if (others.length === 0) {
-    return null;
-  }
-  return (
-    <Section title="Other times">
-      <dl>
-        {others.map((each) => (
-          <InfoRow
-            key={`${each.kind}:${each.at}`}
-            label={
-              each.kind === "open-with"
-                ? `Opened in ${each.app ?? "another app"}`
-                : each.kind === "download"
-                  ? "Downloaded"
-                  : each.kind === "page"
-                    ? "Visited"
-                    : "Opened"
-            }
-          >
-            {whenOf(Date.parse(each.at))}
-          </InfoRow>
-        ))}
-      </dl>
-    </Section>
-  );
-}
-
 /**
  * What was done and when, as one more row of the facts: inside a header's
  * own rows, or under Files' Info for a file or folder, as if it were one
@@ -381,7 +337,6 @@ function ActionDetails({ action, at }: { action: ShownAction; at: number }) {
         <>
           <PathInfo hostPath={action.path} kind="file" />
           <WhenRow at={at} did={text.context || "Opened"} under />
-          <OtherTimes at={at} of={{ path: action.path }} />
         </>
       );
     }
@@ -393,7 +348,6 @@ function ActionDetails({ action, at }: { action: ShownAction; at: number }) {
             {action.url ? <AddressFact label="From" url={action.url} /> : null}
             <InfoRow label="Downloaded">{whenOf(at)}</InfoRow>
           </dl>
-          <OtherTimes at={at} of={{ download: true, path: action.path }} />
         </>
       );
     }
@@ -450,7 +404,6 @@ function ActionDetails({ action, at }: { action: ShownAction; at: number }) {
       return (
         <>
           {own(text.context, <AddressFact url={action.url} />, "Visited")}
-          <OtherTimes at={at} of={{ url: action.url }} />
         </>
       );
     }

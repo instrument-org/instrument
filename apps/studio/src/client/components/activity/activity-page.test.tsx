@@ -15,6 +15,10 @@ const { calls, data } = vi.hoisted(() => ({
  * or a mutation answered by `calls`' entry, so the section reads and asks
  * what each test sets.
  */
+vi.mock("@/client/components/theme-provider", () => ({
+  useTheme: () => ({ resolvedTheme: "light" }),
+}));
+
 vi.mock("@/client/rpc/client", () => {
   const route = (path: string[]): unknown =>
     new Proxy(() => {}, {

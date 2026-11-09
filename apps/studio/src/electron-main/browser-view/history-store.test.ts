@@ -363,7 +363,7 @@ describe("what the person did, as the activity readers take it", () => {
 });
 
 describe("taking openings out of Activity", () => {
-  it("removes a page's visits and a file's opens in the window named, and reads one at a time", () => {
+  it("removes a page's visits and a file's opens in the window named", () => {
     const history = store();
     const visit = (url: string, at: number) =>
       history.addVisit({ actor: "user", at, transition: "link", url });
@@ -379,17 +379,6 @@ describe("taking openings out of Activity", () => {
       path: "/a/w2.pdf",
       via: "external",
     });
-
-    expect(
-      history
-        .personHistory({ since: 0, until: 100, url: "https://irs.test/" })
-        .map((each) => each.at),
-    ).toHaveLength(3);
-    expect(
-      history
-        .personHistory({ path: "/a/w2.pdf", since: 0, until: 100 })
-        .map((each) => each.kind),
-    ).toEqual(["open-with", "file", "file"]);
 
     expect(
       history.removeOpenings([

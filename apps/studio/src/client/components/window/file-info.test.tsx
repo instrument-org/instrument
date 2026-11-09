@@ -60,12 +60,14 @@ const sheet: FileInfoItem = {
 
 function Screen({
   file,
+  folder,
   selection,
 }: {
   file?: string;
+  folder?: string;
   selection: FileInfoItem[];
 }) {
-  const info = useFileInfo({ belowRow: true, file });
+  const info = useFileInfo({ belowRow: true, file, folder });
   const { onInfoSelection } = info.props;
   useEffect(() => {
     onInfoSelection(selection);
@@ -161,6 +163,17 @@ describe("the info card", () => {
     expect(card()?.textContent).toContain("note.md");
     rerender(<Screen file="/work/note.md" selection={[sheet]} />);
     expect(card()?.textContent).toContain("sheet.csv");
+  });
+
+  it("is about the folder on screen with nothing open or selected, as the Finder's is", () => {
+    const { rerender } = renderWithProviders(
+      <Screen folder="/work/Taxes" selection={[]} />,
+    );
+    press();
+    expect(card()?.textContent).toContain("Taxes");
+    expect(card()?.textContent).toContain("Folder");
+    rerender(<Screen folder="/work/Taxes" selection={[note]} />);
+    expect(card()?.textContent).toContain("note.md");
   });
 
   it("is about the open file with nothing selected", () => {

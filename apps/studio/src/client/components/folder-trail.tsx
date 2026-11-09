@@ -6,15 +6,51 @@ import {
 import { FoldingTrail } from "@/client/components/window/folding-trail";
 import { isInside } from "@/client/components/window/host-path";
 import { locationCrumbs } from "@/client/components/window/tab-location";
+import {
+  ContextMenu,
+  ContextMenuContent,
+  ContextMenuItem,
+  ContextMenuTrigger,
+} from "@/client/components/ui/context-menu";
+import { showInFolder, showInFolderLabel } from "@/client/lib/show-in-files";
+import { toast } from "@/client/lib/toast";
 import { cn } from "@/client/lib/utils";
 import { rpcClient } from "@/client/rpc/client";
 import { expandHomePath } from "@instrument-org/shared";
-import { CaretRightIcon } from "@phosphor-icons/react/CaretRight";
 import { CloudIcon } from "@phosphor-icons/react/Cloud";
 import { HardDriveIcon } from "@phosphor-icons/react/HardDrive";
 import { HouseIcon } from "@phosphor-icons/react/House";
 import { useQuery } from "@tanstack/react-query";
 import { Fragment } from "react";
+
+/**
+ * The mark between two folders of a path: a small solid triangle, as the
+ * Finder's path bar draws it, sitting on the middle of the line.
+ */
+export function PathSeparator({ className }: { className?: string }) {
+  return (
+    <svg
+      aria-hidden
+      className={cn(
+        "inline-block h-[0.5em] w-[0.36em] shrink-0 align-middle text-muted-foreground/70",
+        className,
+      )}
+      fill="currentColor"
+      viewBox="0 0 5 7"
+    >
+      <path d="M0.5 0.4 L4.6 3.5 L0.5 6.6 Z" />
+    </svg>
+  );
+}
+
+/** Puts a path on the clipboard, saying so when it could not. */
+async function copyText(text: string) {
+  try {
+    await navigator.clipboard.writeText(text);
+  } catch (error) {
+    toast.error("Couldn't copy the path", { cause: error });
+  }
+}
 
 /** Where a name may break onto the next line, after a space, hyphen, underscore or dot, as Finder breaks one. */
 const BREAK_AFTER = /(?<=[-_.\s])/;
@@ -48,12 +84,13 @@ export function FolderTrail({
     { kind: "folder", path },
     { home, ...(volumes ? { volumes } : {}) },
   ).map((crumb) => crumb.label);
-  const Lead = placeIcon(expandHomePath(path, home), volumes);
+  const hostPath = expandHomePath(path, home);
+  const Lead = placeIcon(hostPath, volumes);
   // Its room is padding rather than a gap, so the trail's measure of it
   // counts the room too.
   const separator = (
     <span aria-hidden className="flex shrink-0 px-1">
-      <CaretRightIcon className="size-2.5 text-muted-foreground/70" />
+      <PathSeparator />
     </span>
   );
   const named = (at: number) => (
@@ -74,43 +111,61 @@ export function FolderTrail({
   const whole = labels.join(" › ");
   if (wrap) {
     // Plain text that breaks where Finder breaks a name: at spaces, and
-    // after a hyphen, underscore or dot. Each caret keeps to the start of
-    // the name after it, so no line begins or ends on a caret alone.
+    // after a hyphen, underscore or dot. Each mark between folders keeps to
+    // the start of the name after it, so no line begins or ends on one. A
+    // right click copies the path itself, which selecting the words would
+    // give with the marks lost.
     return (
-      <span
-        aria-label={whole}
-        className={cn("block min-w-0 select-text", className)}
-      >
-        {labels.map((label, at) => {
-          const [first = "", ...rest] = label.split(BREAK_AFTER);
-          return (
-            <Fragment key={`${String(at)}:${label}`}>
-              <span className="whitespace-nowrap">
-                {at === 0 && Lead ? (
-                  <Lead
-                    aria-hidden
-                    className="mr-1 inline size-3.5 align-[-0.15em]"
-                  />
-                ) : null}
-                {at > 0 ? (
-                  <CaretRightIcon
-                    aria-hidden
-                    className="mx-1 inline size-2.5 align-[0.05em] text-muted-foreground/70"
-                  />
-                ) : null}
-                {first}
-              </span>
-              {rest.map((chunk, index) => (
-                // oxlint-disable-next-line react/no-array-index-key -- a name's pieces never move
-                <Fragment key={index}>
-                  <wbr />
-                  {chunk}
+      <ContextMenu>
+        <ContextMenuTrigger asChild>
+          <span
+            aria-label={whole}
+            className={cn("block min-w-0 select-text", className)}
+          >
+            {labels.map((label, at) => {
+              const [first = "", ...rest] = label.split(BREAK_AFTER);
+              return (
+                <Fragment key={`${String(at)}:${label}`}>
+                  {at > 0 ? <wbr /> : null}
+                  <span className="whitespace-nowrap">
+                    {at === 0 && Lead ? (
+                      <Lead
+                        aria-hidden
+                        className="mr-1 inline size-3.5 align-[-0.15em]"
+                      />
+                    ) : null}
+                    {at > 0 ? <PathSeparator className="mx-1" /> : null}
+                    {first}
+                  </span>
+                  {rest.map((chunk, index) => (
+                    // oxlint-disable-next-line react/no-array-index-key -- a name's pieces never move
+                    <Fragment key={index}>
+                      <wbr />
+                      {chunk}
+                    </Fragment>
+                  ))}
                 </Fragment>
-              ))}{" "}
-            </Fragment>
-          );
-        })}
-      </span>
+              );
+            })}
+          </span>
+        </ContextMenuTrigger>
+        <ContextMenuContent>
+          <ContextMenuItem
+            onClick={() => {
+              void showInFolder(hostPath, { kind: "folder" });
+            }}
+          >
+            {showInFolderLabel("folder")}
+          </ContextMenuItem>
+          <ContextMenuItem
+            onClick={() => {
+              void copyText(hostPath);
+            }}
+          >
+            Copy Path
+          </ContextMenuItem>
+        </ContextMenuContent>
+      </ContextMenu>
     );
   }
   return (

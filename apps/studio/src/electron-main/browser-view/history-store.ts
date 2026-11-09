@@ -522,46 +522,26 @@ export function createHistoryStore(file: string) {
      */
     personHistory({
       limit,
-      path: onlyPath,
       since,
       until,
-      url: onlyUrl,
     }: {
       limit?: number;
-      /** Only the openings of the file at this path. */
-      path?: string;
       since: number;
       until: number;
-      /** Only the visits to this address. */
-      url?: string;
     }): HistoryAction[] {
-      const pages = onlyPath === undefined;
-      const files = onlyUrl === undefined;
       return database
         .prepare(
           `SELECT * FROM (
             SELECT visits.at AS at, 'page' AS kind, visits.id AS id, urls.url AS url, urls.title AS title, NULL AS path, NULL AS app
               FROM visits JOIN urls ON urls.id = visits.url_id
-              WHERE ${VISIBLE} AND visits.at BETWEEN ? AND ? AND ? AND (? IS NULL OR urls.url = ?)
+              WHERE ${VISIBLE} AND visits.at BETWEEN ? AND ?
             UNION ALL
             SELECT file_opens.at, CASE file_opens.via WHEN 'external' THEN 'open-with' ELSE 'file' END, file_opens.id, NULL, NULL, files.path, file_opens.app
               FROM file_opens JOIN files ON files.id = file_opens.file_id
-              WHERE file_opens.at BETWEEN ? AND ? AND ? AND (? IS NULL OR files.path = ?)
+              WHERE file_opens.at BETWEEN ? AND ?
           ) ORDER BY at DESC, kind DESC, id DESC LIMIT ?`,
         )
-        .all(
-          since,
-          until,
-          pages ? 1 : 0,
-          onlyUrl ?? null,
-          onlyUrl ?? null,
-          since,
-          until,
-          files ? 1 : 0,
-          onlyPath ?? null,
-          onlyPath ?? null,
-          limit ?? -1,
-        )
+        .all(since, until, since, until, limit ?? -1)
         .map((row): HistoryAction => {
           const at = new Date(Number(row.at)).toISOString();
           if (row.kind === "page") {

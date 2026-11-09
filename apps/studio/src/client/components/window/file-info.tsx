@@ -9,6 +9,7 @@ import {
   itemKindLabel,
 } from "@/client/components/extend/file-system";
 import { FolderTrail } from "@/client/components/folder-trail";
+import { Skeleton } from "@/client/components/ui/skeleton";
 import { OpenTargetIcon } from "@/client/components/open-target-icon";
 import { useIsActiveTab } from "@/client/hooks/use-active-tab";
 import { useFileOpenControl } from "@/client/hooks/use-file-open-control";
@@ -71,9 +72,12 @@ export function requestFileInfo() {
 export function useFileInfo({
   belowRow,
   file,
+  folder,
 }: {
   belowRow: boolean;
   file?: string | undefined;
+  /** The folder on screen, which the card is about when nothing is open or selected, as the Finder's is. */
+  folder?: string | undefined;
 }): {
   /** Rendered inside the screen, which it floats over. */
   card: ReactNode;
@@ -101,8 +105,22 @@ export function useFileInfo({
     setOnFile(false);
   }
   const showsFile = file !== undefined && (isOnFile || selection.length === 0);
-  const fileItem = useFileItem(isOpen && showsFile ? file : undefined);
-  const items = showsFile ? [fileItem ?? bareItem(file)] : selection;
+  const showsFolder =
+    !showsFile && selection.length === 0 && folder !== undefined;
+  const fileItem = useFileItem(
+    isOpen && showsFile ? file : isOpen && showsFolder ? folder : undefined,
+  );
+  const items = showsFile
+    ? [fileItem ?? bareItem(file)]
+    : showsFolder
+      ? [
+          {
+            ...(fileItem ?? bareItem(folder)),
+            kind: "folder" as const,
+            kindLabel: "Folder",
+          },
+        ]
+      : selection;
   const isShown = isOpen && items.length > 0;
 
   // Subscribed afresh each render, so a press reads what is selected now.
@@ -266,11 +284,9 @@ export function PathInfo({
   const name = folderNameFromPath(hostPath);
   const picture =
     kind === "file" ? (
-      <LargePicture
-        hostPath={hostPath}
-        name={name}
-        version={item?.modifiedAt}
-      />
+      // Asked for by its path alone, so the address does not change as
+      // the file's details arrive and the picture loads once.
+      <LargePicture hostPath={hostPath} name={name} />
     ) : null;
   if (item) {
     return (
@@ -287,6 +303,27 @@ export function PathInfo({
       </>
     );
   }
+  // Read for the first time: the same shapes as what comes, so moving
+  // from row to row never jumps.
+  if (listing.isPending) {
+    return (
+      <>
+        {picture}
+        <div className="flex items-center gap-3 border-b border-border p-3 pr-9">
+          <Skeleton className="size-11 shrink-0 rounded-md" />
+          <div className="min-w-0 flex-1 space-y-2">
+            <Skeleton className="h-3.5 w-3/4" />
+            <Skeleton className="h-3 w-1/3" />
+          </div>
+        </div>
+        <div className="space-y-3 px-3 py-3">
+          <Skeleton className="h-3 w-2/3" />
+          <Skeleton className="h-3 w-1/2" />
+          <Skeleton className="h-3 w-3/5" />
+        </div>
+      </>
+    );
+  }
   return (
     <InfoFrame
       name={name}
@@ -297,7 +334,7 @@ export function PathInfo({
           <FileTypeIcon className="size-9" fileName={name} />
         )
       }
-      sub={listing.isPending ? "" : "Can’t be found"}
+      sub="Can’t be found"
     >
       <WhereRow hostPath={hostPath} />
     </InfoFrame>
@@ -308,32 +345,32 @@ export function PathInfo({
  * A file as the system draws it, large: a picture, a PDF's first page, a
  * page as a page. A file with no picture shows its kind's icon instead.
  */
-function LargePicture({
-  hostPath,
-  name,
-  version,
-}: {
-  hostPath: string;
-  name: string;
-  version: string | undefined;
-}) {
+function LargePicture({ hostPath, name }: { hostPath: string; name: string }) {
   const { resolvedTheme } = useTheme();
   const url = getComputerThumbnailUrl({
     hostPath,
     size: 512,
     theme: resolvedTheme === "dark" ? "dark" : "light",
-    ...(version === undefined ? {} : { version }),
   });
   const [failed, setFailed] = useState<string | undefined>();
+  const [loaded, setLoaded] = useState<string | undefined>();
   return (
     <div className="flex h-52 shrink-0 items-center justify-center overflow-hidden border-b border-border bg-foreground/3 p-4">
       {url && failed !== url ? (
         <img
           alt=""
-          className="h-auto max-h-full w-auto max-w-full min-w-0 rounded-sm object-contain shadow-sm ring-1 ring-black/10"
+          // Shown once whole, over the box's own ground, so a picture never
+          // draws in part way.
+          className={cn(
+            "h-auto max-h-full w-auto max-w-full min-w-0 rounded-sm object-contain shadow-sm ring-1 ring-black/10",
+            loaded !== url && "invisible",
+          )}
           draggable={false}
           onError={() => {
             setFailed(url);
+          }}
+          onLoad={() => {
+            setLoaded(url);
           }}
           src={url}
         />

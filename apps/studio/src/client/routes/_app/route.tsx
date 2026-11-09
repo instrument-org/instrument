@@ -24,6 +24,10 @@ import {
 } from "@/client/components/window/app-tabs";
 import { useAppsBySlug } from "@/client/components/window/apps-by-slug";
 import { type PageChromeSlots } from "@/client/components/window/browser-tabs";
+import {
+  ChatFolderButton,
+  useChatFolderWithFiles,
+} from "@/client/components/window/chat-folder-button";
 import { ChatHeader } from "@/client/components/window/chat-header";
 import { chatListOptions } from "@/client/components/window/chat-list-query";
 import { ChatPane } from "@/client/components/window/chat-pane";
@@ -37,6 +41,7 @@ import { useInboxRoom } from "@/client/components/window/inbox-room";
 import { InboxToggle } from "@/client/components/window/inbox-toggle";
 import { NewChatView } from "@/client/components/window/new-chat-view";
 import { makeNewChatDraftAtom } from "@/client/drafts/new-chat-box";
+import { folderHref } from "@/shared/computer-href";
 import { draftGroupOf } from "@/shared/drafts";
 import { PaneTabs } from "@/client/components/window/pane-tabs";
 import { PaneToggle } from "@/client/components/window/pane-toggle";
@@ -223,6 +228,44 @@ function ChatView({
     />
   );
 
+  // The chat's own folder, while it has files in it, beside the pane's
+  // button: open in the pane as one tab, brought forward rather than opened
+  // again, and lit while the pane shows it.
+  const folderWithFiles = useChatFolderWithFiles(chat);
+  const folderTab =
+    folderWithFiles === null
+      ? undefined
+      : tabs.find(
+          (tab) =>
+            tab.kind === "screen" && tab.href === folderHref(folderWithFiles),
+        );
+  const isFolderShown =
+    showsPane && folderTab !== undefined && up.id === folderTab.id;
+  const chatTrailing = (
+    <>
+      {folderWithFiles !== null && chat !== undefined && (
+        <ChatFolderButton
+          isOpen={isFolderShown}
+          onToggle={() => {
+            if (isFolderShown) {
+              setPaneOpen(chat, false);
+            } else if (folderTab) {
+              windowTabs.select(folderTab.id);
+              setPaneOpen(chat, true);
+            } else {
+              windowTabs.openScreen(folderHref(folderWithFiles), {
+                group: chat,
+                select: true,
+              });
+              setPaneOpen(chat, true);
+            }
+          }}
+        />
+      )}
+      {paneToggle}
+    </>
+  );
+
   return (
     <div className="flex min-h-0 min-w-0 flex-1">
       <ChatColumn
@@ -353,7 +396,7 @@ function ChatView({
                             },
                           }}
                           projects={shell.projects}
-                          trailing={paneToggle}
+                          trailing={chatTrailing}
                         />
                         <div className="relative min-h-0 flex-1">
                           <div className="absolute inset-0">

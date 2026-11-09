@@ -331,13 +331,23 @@ const register = devOnly
   });
 
 /**
+ * The stand-in home folder a development build was given
+ * (`INSTRUMENT_SETUP_HOME`, studio-drive's scenarios), or none. Setup offers
+ * its folders inside it and judges a pick against it, so a folder there
+ * reads as the same folder in a real home does.
+ */
+function setupHome() {
+  return app.isPackaged ? undefined : process.env.INSTRUMENT_SETUP_HOME;
+}
+
+/**
  * The folders setup offers. A development build given
  * `INSTRUMENT_SETUP_HOME` (studio-drive's scenarios) offers them inside it,
  * so pressing Continue never makes a folder in the developer's own
  * Documents.
  */
 function setupFolders() {
-  const home = app.isPackaged ? undefined : process.env.INSTRUMENT_SETUP_HOME;
+  const home = setupHome();
   return {
     inDocuments: path.join(
       home === undefined
@@ -454,6 +464,7 @@ function checkPicked({
     },
     verdict: checkMoveTarget({
       target,
+      home: setupHome(),
       userDataDir: getUserDataDir(),
       workspace: workspaceToPlace(),
     }),
@@ -467,6 +478,7 @@ const checkFolder = base
   .handler(({ input }) =>
     checkMoveTarget({
       target: input.path,
+      home: setupHome(),
       userDataDir: getUserDataDir(),
       workspace: workspaceToPlace(),
     }),
@@ -484,6 +496,7 @@ const checkPick = base
     checkFolderPick({
       name: HOME_FOLDERS.instrument,
       picked: input.path,
+      home: setupHome(),
       userDataDir: getUserDataDir(),
       workspace: workspaceToPlace(),
     }),

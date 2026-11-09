@@ -168,6 +168,8 @@ const PICK_ITSELF_REFUSALS = new Set<MoveRefusal>([
 const FILE_MANAGER_RECORDS = new Set([".DS_Store", "desktop.ini", "Thumbs.db"]);
 
 type TargetFacts = {
+  /** The home folder places are judged against (`folderConcernHere`). */
+  home?: string;
   /** The folders the system empties on its own (`systemTemporaryDirs`). */
   temporaryDirs?: string[];
   userDataDir: string;
@@ -236,6 +238,7 @@ function hasOtherFiles(dir: string) {
  * anywhere `checkPlace` allows.
  */
 function checkNewFolderTarget({
+  home,
   target,
   temporaryDirs = systemTemporaryDirs(),
   userDataDir,
@@ -249,6 +252,7 @@ function checkNewFolderTarget({
   }
   const { refusal, warning } = checkPlace({
     from: workspace.path,
+    home,
     id: workspace.id,
     target,
     temporaryDirs,
@@ -275,6 +279,7 @@ function checkNewFolderTarget({
  * same answer says whether setup can place it there.
  */
 export function checkMoveTarget({
+  home,
   target,
   temporaryDirs = systemTemporaryDirs(),
   userDataDir,
@@ -301,6 +306,7 @@ export function checkMoveTarget({
   }
   const { refusal, warning } = checkPlace({
     from: workspace.path,
+    home,
     id: workspace.id,
     target,
     temporaryDirs,
@@ -355,6 +361,7 @@ function isUnsettled(
  */
 export function checkPlace({
   from,
+  home,
   id,
   target,
   temporaryDirs,
@@ -362,6 +369,7 @@ export function checkPlace({
 }: {
   /** The workspace's folder now, or none for a first launch's not placed yet. */
   from: string | undefined;
+  home?: string | undefined;
   id: string;
   target: string;
   temporaryDirs: string[];
@@ -373,6 +381,7 @@ export function checkPlace({
   const opensInstead = hasWorkspaceIdentity(target);
   const concern = folderConcernHere({
     folder: target,
+    home,
     // A workspace picked itself is one to open, never one around itself.
     otherWorkspaces: readRegistry(userDataDir)
       .workspaces.filter(

@@ -297,17 +297,22 @@ export function installDirOf(
  */
 export function folderConcernHere({
   folder,
+  home = os.homedir(),
   otherWorkspaces,
   temporaryDirs = systemTemporaryDirs(),
   userDataDir,
 }: {
   folder: string;
+  /**
+   * The home folder places are judged against: this account's, or the
+   * stand-in a development scenario keeps its folders in.
+   */
+  home?: string | undefined;
   otherWorkspaces: string[];
   /** The folders the system empties on its own (`systemTemporaryDirs`). */
   temporaryDirs?: string[];
   userDataDir: string;
 }): FolderConcern | undefined {
-  const home = os.homedir();
   return folderConcern(pathKey(folder), {
     home: pathKey(home),
     installDir: pathKey(installDirOf(process.execPath, platformHere())),

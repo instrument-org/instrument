@@ -281,6 +281,27 @@ describe("folderConcernHere", () => {
       }),
     ).toEqual({ kind: "refused", reason: "home" });
   });
+
+  it("judges a folder in a stand-in home as that folder in a real one", () => {
+    const appsData =
+      process.platform === "darwin"
+        ? ["Library", "Caches"]
+        : process.platform === "win32"
+          ? ["AppData", "Local"]
+          : [".cache"];
+    const standIn = path.join(os.homedir(), ...appsData, "scenario-home");
+    const check = {
+      folder: path.join(standIn, "Documents", "Instrument"),
+      otherWorkspaces: [],
+      temporaryDirs: [],
+      userDataDir: path.join(root, "userData"),
+    };
+    expect(folderConcernHere(check)).toEqual({
+      kind: "warning",
+      reason: "apps-data",
+    });
+    expect(folderConcernHere({ ...check, home: standIn })).toBeUndefined();
+  });
 });
 
 describe("folder copy", () => {

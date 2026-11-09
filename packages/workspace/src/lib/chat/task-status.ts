@@ -7,7 +7,7 @@ import { describeMessageError } from "../describe-message-error";
 import { cardLine } from "./asks";
 import { openAsksOf } from "./open-asks";
 import { ChatReads } from "../chat-reads";
-import { excerptOf } from "./reply-excerpt";
+import { excerptOf, lastAssistantTextIn, LINE_MAX } from "./reply-excerpt";
 import {
   type Derived,
   indexedByRecords,
@@ -15,12 +15,8 @@ import {
   unkept,
 } from "../workspace-index";
 import { latestStep, ownMessages, type SessionRef } from "./activity";
-import { lastAssistantTextIn } from "./latest-session";
 import { needsNamedIn } from "../parse-needs-block";
 import { sessionOfChat } from "../record-folders";
-
-/** How much of the agent's own words the list shows on a task's second line. */
-export const LINE_MAX = 90;
 
 /**
  * Where a task with no agent at work stands, read from its store alone, so it

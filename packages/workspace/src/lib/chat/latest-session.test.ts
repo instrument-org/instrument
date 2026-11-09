@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 
-import { cutForNote, lastAssistantTextIn } from "./latest-session";
+import { cutForNote } from "./latest-session";
+import { lastAssistantTextIn } from "./reply-excerpt";
 
 describe("lastAssistantTextIn", () => {
   const message = (text: string) =>

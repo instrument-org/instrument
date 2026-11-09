@@ -1,10 +1,8 @@
 import { type SessionMessage } from "../../schemas/session/message";
 import { type StoreId } from "../../schemas/store-id";
 import { describeMessageError } from "../describe-message-error";
-import { lastAssistantTextIn } from "./latest-session";
-import { excerptOf } from "./reply-excerpt";
+import { excerptOf, lastAssistantTextIn, LINE_MAX } from "./reply-excerpt";
 import { latestStepIn } from "./step-label";
-import { LINE_MAX } from "./task-status";
 
 /**
  * One stretch of a task's own log that a card in the chat stands for: from

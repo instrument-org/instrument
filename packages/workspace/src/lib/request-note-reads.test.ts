@@ -13,7 +13,7 @@ import { movedPastOf } from "./chat/ask-states";
 import { chatById } from "./chat/chats";
 import { sessionDeveloperNotes } from "./chat/session-developer-notes";
 import { stepInFlightIn } from "./chat/in-flight";
-import { lastAssistantTextIn } from "./chat/latest-session";
+import { lastAssistantTextIn } from "./chat/reply-excerpt";
 import { sessionSteps } from "./chat/steps";
 import { taskStatus } from "./chat/task-status";
 import { isStopNote } from "./chat/wake-event";

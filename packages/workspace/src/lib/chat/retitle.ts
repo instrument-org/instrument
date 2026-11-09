@@ -13,7 +13,7 @@ import { updateSessionTitle } from "../update-session-title";
 import { getWorkspaceConfig } from "../workspace-config";
 import { nameChat } from "./chat-name";
 import { settleChatTitle } from "./chats";
-import { lastAssistantTextIn } from "./latest-session";
+import { lastAssistantTextIn } from "./reply-excerpt";
 import { textForMessage } from "../text-for-message";
 import { type ChatId } from "../../schemas/chat-id";
 

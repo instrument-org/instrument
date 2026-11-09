@@ -3,6 +3,29 @@ import { stripMarkdown } from "@instrument-org/shared/strip-markdown";
 import { AGENT_FILES_LANGUAGE, AGENT_MESSAGE_LANGUAGE } from "../../constants";
 import { parseFilesBlock } from "../parse-files-block";
 import { parseMessage } from "../parse-message";
+import { type SessionMessage } from "../../schemas/session/message";
+
+/** How much of the agent's own words the list shows on a task's second line. */
+export const LINE_MAX = 90;
+
+/**
+ * What an agent last wrote in a transcript already in hand, whole. A reply
+ * stopped for repeating itself has none: what it streamed is the loop, and
+ * the turn reads as ending without words, by its error.
+ */
+export function lastAssistantTextIn(
+  messages: SessionMessage.WithParts[],
+): string | undefined {
+  const last = messages.findLast((message) => message.role === "assistant");
+  if (last?.metadata.error?.kind === "repetition") {
+    return undefined;
+  }
+  const text = last?.parts
+    .flatMap((part) => (part.type === "text" ? [part.text] : []))
+    .join("\n")
+    .trim();
+  return text || undefined;
+}
 
 /**
  * The one line a reply is read by, cut to what a row can show. Fenced blocks

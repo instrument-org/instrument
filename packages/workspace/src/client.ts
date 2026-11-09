@@ -96,6 +96,7 @@ export {
   waitsForStep,
 } from "./lib/transcript/turns-of";
 export { latestStepIn } from "./lib/chat/step-label";
+export { taskSlices } from "./lib/chat/task-slices";
 export type { Memory } from "./lib/memory/store";
 export { FILES_FENCE, parseFilesBlock } from "./lib/parse-files-block";
 export {

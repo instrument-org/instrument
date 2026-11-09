@@ -160,6 +160,13 @@ const accountChip = (email: string, service: AuthService) =>
 const group = (...children: unknown[]) =>
   html`<div class="flex flex-col items-center gap-5">${children}</div>`;
 
+// A heading with the line that goes with it, close under it. A button after
+// the pair keeps the page's wider gap, so the line reads as the heading's.
+const headed = (title: string, line: string) =>
+  html`<div class="flex flex-col items-center gap-2.5 pb-2">
+    ${heading(title)} ${subline(line)}
+  </div>`;
+
 // A success page's button sits further down than the others, past the
 // account it names.
 const openAppSpaced = html`<div class="pt-6">${openApp}</div>`;
@@ -233,7 +240,7 @@ function renderOutcome(outcome: AuthOutcome) {
       return {
         arrive: true,
         body: html`${appMark("size-20")}
-        ${group(heading(`${APP_NAME} is open`), subline("You can close this tab."))}`,
+        ${headed(`${APP_NAME} is open`, "You can close this tab.")}`,
         title: `${APP_NAME} is open`,
       };
     }
@@ -253,9 +260,9 @@ function renderOutcome(outcome: AuthOutcome) {
           WARNING_CIRCLE,
           "size-12 text-stone-400 dark:text-white/40",
         )}
-        ${group(
-          heading(`${APP_NAME} isn't open to new accounts yet`),
-          subline("You can still use your own ChatGPT, Claude or Grok plan."),
+        ${headed(
+          `${APP_NAME} isn't open to new accounts yet`,
+          "You can still use your own ChatGPT, Claude or Grok plan.",
         )}
         ${openApp}`,
         title: "Sign-up closed",

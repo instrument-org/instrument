@@ -11,7 +11,7 @@ import { type DeviceId } from "./device-id";
  * What a device says about itself to every other reader of the workspace,
  * in `.instrument/devices/<device>/device.json`, written by that device
  * alone: the name a person knows the computer by and its platform, so a
- * record's device id can be shown as "Jeremy's MacBook Pro".
+ * record's device id can be shown as "Alex's MacBook Pro".
  *
  * A device stands for a person. Devices whose files name no `person` are
  * all the workspace's owner, which is every device today. A service that
@@ -81,7 +81,7 @@ export async function readDeviceName({
 const run = promisify(execFile);
 
 /**
- * The name a person gave the computer: macOS's Computer Name ("Jeremy's
+ * The name a person gave the computer: macOS's Computer Name ("Alex's
  * MacBook Pro") where it can be read, the host name everywhere else.
  */
 export async function readComputerName(

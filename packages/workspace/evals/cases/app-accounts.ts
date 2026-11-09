@@ -87,7 +87,7 @@ export const APP_ACCOUNTS_EVALS = [
   defineEval({
     apps: [
       {
-        account: "jeremy@finalpoint.co",
+        account: "work@example.com",
         kind: "web",
         name: "Gmail",
         slug: "gmail",

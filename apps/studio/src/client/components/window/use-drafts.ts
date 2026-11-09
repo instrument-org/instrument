@@ -302,8 +302,8 @@ export function useDrafts({
   };
   /**
    * Closes a draft's window: one with anything in it is kept in Drafts the
-   * way mail keeps a draft, with a toast offering to go to Drafts or to
-   * discard it, and one left empty (`isLeftEmpty`, the rule the Chat
+   * way mail keeps a draft, with a toast offering to go to Drafts, and
+   * one left empty (`isLeftEmpty`, the rule the Chat
    * screen's new chat keeps too) is thrown away, so a draft opened and
    * closed again leaves nothing behind. The words come from the window,
    * since the record follows the box a beat behind. One still dictating is
@@ -321,16 +321,10 @@ export function useDrafts({
     compose.remove(draftGroupOf(id));
     toast("Your draft is saved in Drafts", {
       action: {
-        label: "View drafts",
+        label: "View",
         onClick: () => {
           setChatFilters({ ...NO_FILTERS, place: "drafts" });
           openDrafts();
-        },
-      },
-      cancel: {
-        label: "Discard",
-        onClick: () => {
-          discardDraft(id);
         },
       },
     });

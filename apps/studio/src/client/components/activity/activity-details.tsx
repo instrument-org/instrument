@@ -188,7 +188,9 @@ export function ActivityDetails({
           <XIcon className="size-4" />
         </Button>
       </div>
-      <div className="flex min-h-0 flex-1 flex-col overflow-y-auto">
+      {/* Block flow, so Files' Info rows keep their height rather than
+        shrinking to fit the card. */}
+      <div className="min-h-0 flex-1 overflow-y-auto">
         {request !== null ? (
           <div className="p-4">
             <RequestDetail id={request} />

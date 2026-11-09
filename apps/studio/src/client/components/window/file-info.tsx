@@ -326,11 +326,11 @@ function LargePicture({
   });
   const [failed, setFailed] = useState<string | undefined>();
   return (
-    <div className="grid h-52 shrink-0 place-items-center border-b border-border bg-foreground/3 p-4">
+    <div className="flex h-52 shrink-0 items-center justify-center overflow-hidden border-b border-border bg-foreground/3 p-4">
       {url && failed !== url ? (
         <img
           alt=""
-          className="max-h-full max-w-full rounded-sm object-contain shadow-sm ring-1 ring-black/10"
+          className="h-auto max-h-full w-auto max-w-full min-w-0 rounded-sm object-contain shadow-sm ring-1 ring-black/10"
           draggable={false}
           onError={() => {
             setFailed(url);

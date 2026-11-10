@@ -28,6 +28,10 @@ import { folderChangesModelNote } from "../../model-text/notes/folder-changes-mo
 import { backgroundProcessesModelNote } from "../../model-text/notes/background-processes-model-text";
 import { dateChangeModelNote } from "../../model-text/notes/date-change-model-text";
 import { environmentChangeModelNote } from "../../model-text/context/environment-model-text";
+import {
+  undoneChatsModelNote,
+  undoneProjectsModelNote,
+} from "../../model-text/notes/undone-changes-model-text";
 import { branchedFromModelNote } from "../../model-text/notes/branched-from-model-text";
 import { formatBytes } from "../../lib/format-bytes";
 import { fromChatModelText } from "../../model-text/notes/from-chat-model-text";
@@ -460,6 +464,33 @@ export namespace SessionMessage {
       parts: new Set<SessionMessagePart.DataPart>(),
       updated: new Set<string>(),
     };
+    // Changes cards the person took back with Undo, each with when.
+    const undoneCards = messages.flatMap((message) =>
+      message.parts.flatMap(
+        (
+          part,
+        ): {
+          at: number;
+          part: SessionMessagePart.DataPart;
+          text: string;
+        }[] => {
+          if (part.type === "data-setupChanges") {
+            const text = undoneProjectsModelNote(part.data);
+            return part.data.undone && text
+              ? [{ at: Date.parse(part.data.undone.at), part, text }]
+              : [];
+          }
+          if (part.type === "data-chatChanges") {
+            const text = undoneChatsModelNote(part.data);
+            return part.data.undone && text
+              ? [{ at: Date.parse(part.data.undone.at), part, text }]
+              : [];
+          }
+          return [];
+        },
+      ),
+    );
+    let lastUserAt = Number.NEGATIVE_INFINITY;
     return messages.map((message) => {
       const maxStepsPart = message.parts.find(
         (
@@ -613,6 +644,17 @@ export namespace SessionMessage {
           pendingSkillChanges.parts.clear();
           pendingSkillChanges.updated.clear();
         }
+
+        // A changes card undone since the user's last message goes on this
+        // one, read from when its Undo was clicked, so a turn already sent
+        // reads as it was.
+        const at = message.metadata.createdAt.getTime();
+        for (const card of undoneCards) {
+          if (card.at > lastUserAt && card.at <= at) {
+            inject(card.text, card.part);
+          }
+        }
+        lastUserAt = at;
 
         // When the harness appends synthetic context (uploaded files, attached
         // folders, browser status, external changes) to a user turn, fence the

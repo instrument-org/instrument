@@ -1,4 +1,5 @@
 import {
+  type ChatId,
   dataPartVisibility,
   isAddressableChatFilePath,
   type SessionMessagePart,
@@ -15,11 +16,23 @@ import { SetupChangesNote } from "../setup-changes-note";
 import { TaskEventNote } from "../task-event-note";
 import { SentAsksNote } from "../window/ask-pills";
 
-/** The note a row of the transcript draws for a part `turnsOf` kept. */
-export function renderDataPart(part: SessionMessagePart.DataPart): ReactNode {
+/**
+ * The note a row of the transcript draws for a part `turnsOf` kept. With the
+ * chat it is in, a changes card can mark itself undone.
+ */
+export function renderDataPart(
+  part: SessionMessagePart.DataPart,
+  chatId?: ChatId,
+): ReactNode {
   if (dataPartVisibility(part) !== "always") {
     return null;
   }
+  const card = chatId && {
+    chatId,
+    messageId: part.metadata.messageId,
+    partId: part.metadata.id,
+    sessionId: part.metadata.sessionId,
+  };
   switch (part.type) {
     case "data-permissionAnswer": {
       return <PermissionAnswerNote data={part.data} key={part.metadata.id} />;
@@ -53,12 +66,22 @@ export function renderDataPart(part: SessionMessagePart.DataPart): ReactNode {
     }
     case "data-chatChanges": {
       return (
-        <ChatChangesNote changes={part.data.changes} key={part.metadata.id} />
+        <ChatChangesNote
+          changes={part.data.changes}
+          key={part.metadata.id}
+          {...(card && { card })}
+          {...(part.data.undone && { undone: true })}
+        />
       );
     }
     case "data-setupChanges": {
       return (
-        <SetupChangesNote changes={part.data.changes} key={part.metadata.id} />
+        <SetupChangesNote
+          changes={part.data.changes}
+          key={part.metadata.id}
+          {...(card && { card })}
+          {...(part.data.undone && { undone: true })}
+        />
       );
     }
     case "data-taskEvent": {

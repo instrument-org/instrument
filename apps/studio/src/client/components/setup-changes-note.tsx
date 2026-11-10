@@ -14,7 +14,7 @@ import { CubeIcon } from "@phosphor-icons/react/Cube";
 import { useQuery } from "@tanstack/react-query";
 import { type ReactNode } from "react";
 
-import { ProjectChangesCard } from "./project-changes-card";
+import { type ChangesCard, ProjectChangesCard } from "./project-changes-card";
 import { ProjectPill } from "./window/chat-row";
 
 type SetupChange =
@@ -28,7 +28,17 @@ type SetupChange =
  * `instrument projects` commands changed, which they record field by field,
  * and the projects they made are a card of their own under the lines.
  */
-export function SetupChangesNote({ changes }: { changes: SetupChange[] }) {
+export function SetupChangesNote({
+  card,
+  changes,
+  undone = false,
+}: {
+  /** Where the card is, for its Undo to mark it undone. */
+  card?: ChangesCard;
+  changes: SetupChange[];
+  /** Undone already, by this device or another. */
+  undone?: boolean;
+}) {
   const onCard = (change: SetupChange) =>
     change.kind === "project" &&
     (change.fields !== undefined ||
@@ -51,7 +61,13 @@ export function SetupChangesNote({ changes }: { changes: SetupChange[] }) {
           ))}
         </div>
       )}
-      {projects.length > 0 && <ProjectChangesCard changes={projects} />}
+      {projects.length > 0 && (
+        <ProjectChangesCard
+          changes={projects}
+          {...(card && { card })}
+          undone={undone}
+        />
+      )}
     </>
   );
 }

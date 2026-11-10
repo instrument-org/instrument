@@ -15,6 +15,7 @@ import { CheckIcon } from "@phosphor-icons/react/Check";
 import { useQuery } from "@tanstack/react-query";
 import { type ReactNode, useContext, useState } from "react";
 
+import { type ChangesCard } from "./project-changes-card";
 import { type Chat, type Project } from "./window/chats";
 import { chatListOptions } from "./window/chat-list-query";
 import { WindowContext } from "./window/context";
@@ -34,14 +35,25 @@ const SHOWN_CHATS = 5;
  * Undo puts back whatever still stands as the turn left it, and the card
  * then shows every change struck through.
  */
-export function ChatChangesNote({ changes }: { changes: ChatChange[] }) {
+export function ChatChangesNote({
+  card,
+  changes,
+  undone: undoneBefore = false,
+}: {
+  /** Where the card is, for its Undo to mark it undone on every device. */
+  card?: ChangesCard;
+  changes: ChatChange[];
+  /** Undone already, by this device or another. */
+  undone?: boolean;
+}) {
   const appWindow = useContext(WindowContext);
   const { data: chats } = useQuery(chatListOptions());
   const { data: projects = [] } = useQuery(
     rpcClient.workspace.projects.list.queryOptions(),
   );
   const [undoing, setUndoing] = useState(false);
-  const [undone, setUndone] = useState(false);
+  const [undoneHere, setUndone] = useState(false);
+  const undone = undoneBefore || undoneHere;
   const [expanded, setExpanded] = useState(false);
 
   const rows = new Map(chats?.map((chat) => [chat.id, chat]));
@@ -54,7 +66,7 @@ export function ChatChangesNote({ changes }: { changes: ChatChange[] }) {
   const undo = () => {
     setUndoing(true);
     return rpcClient.workspace.chats.undoChanges
-      .call({ changes })
+      .call({ ...(card && { card }), changes })
       .then(({ skipped, undone: count }) => {
         if (count === 0) {
           toast.info("There was nothing left to undo.");

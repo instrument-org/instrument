@@ -51,6 +51,7 @@ import * as skillChanges from "./notes/skill-changes-model-text";
 import * as stoppedToolCall from "./notes/stopped-tool-call-model-text";
 import * as systemNote from "./notes/system-note";
 import * as taskEvent from "./notes/task-event-model-text";
+import * as undoneChanges from "./notes/undone-changes-model-text";
 import { DATA_PART_SAMPLES } from "../lib/transcript/developer-note-samples";
 import { TURN_NOTE } from "./request/turn-notes";
 import * as viewContext from "./notes/view-context-model-text";
@@ -564,6 +565,28 @@ describe.skipIf(WINDOWS)("the builders called directly", () => {
       skillChanges: skillChanges.skillChangesModelNote({
         created: ["pdf"],
         updated: ["slides"],
+      }),
+      undoneChats: undoneChanges.undoneChatsModelNote({
+        changes: [
+          {
+            after: true,
+            before: false,
+            chat: ChatIdSchema.parse("2026-11-10-trip-a1b2"),
+            field: "archived",
+          },
+        ],
+        undone: { at: "2026-11-10T10:00:00Z", skipped: 0 },
+      }),
+      undoneProjects: undoneChanges.undoneProjectsModelNote({
+        changes: [
+          {
+            change: "changed",
+            fields: [{ after: "Houseplants", before: "Plants", field: "name" }],
+            kind: "project",
+            name: "Houseplants",
+          },
+        ],
+        undone: { at: "2026-11-10T10:00:00Z", skipped: 1 },
       }),
       workspaceInstructionsEmpty:
         workspaceInstructions.workspaceInstructionsModelNote({

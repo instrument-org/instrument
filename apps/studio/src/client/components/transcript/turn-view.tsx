@@ -232,7 +232,7 @@ function OpenerView({
       {fromChat && <AssignmentBubble fromChat={fromChat} />}
       {text && <UserMessage part={text} />}
       {notes.map((part) => (
-        <NoteRow key={part.metadata.id} part={part} />
+        <NoteRow chatId={chatId} key={part.metadata.id} part={part} />
       ))}
     </div>
   );
@@ -651,7 +651,7 @@ function RowView({
           isNewest={isNewest}
         />
       ) : (
-        <NoteRow part={row.part} />
+        <NoteRow chatId={chatId} part={row.part} />
       );
     }
     case "task": {
@@ -693,6 +693,12 @@ function AskRow({
 }
 
 /** A note the person reads. */
-function NoteRow({ part }: { part: SessionMessagePart.DataPart }) {
-  return renderDataPart(part);
+function NoteRow({
+  chatId,
+  part,
+}: {
+  chatId: ChatId;
+  part: SessionMessagePart.DataPart;
+}) {
+  return renderDataPart(part, chatId);
 }

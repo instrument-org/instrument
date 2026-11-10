@@ -1,4 +1,5 @@
 import { renderWithProviders } from "@/tests/render";
+import { ChatIdSchema, StoreId } from "@instrument-org/workspace/client";
 import { fireEvent, screen, waitFor } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 
@@ -114,6 +115,27 @@ describe("ProjectChangesCard", () => {
     );
     expect(screen.getByText("Created a project")).toBeTruthy();
     expect(screen.getByText("New project")).toBeTruthy();
+  });
+
+  it("shows a card undone on another device or before a reload as undone", () => {
+    renderWithProviders(<ProjectChangesCard changes={changes} undone />);
+    expect(screen.getByText("Undone")).toBeTruthy();
+    expect(screen.queryByRole("button", { name: "Undo" })).toBeNull();
+  });
+
+  it("names its card to the undo, for it to be marked undone", async () => {
+    const card = {
+      chatId: ChatIdSchema.parse("2026-11-10-plants-a1b2"),
+      messageId: StoreId.newMessageId(),
+      partId: StoreId.newPartId(),
+      sessionId: StoreId.newSessionId(),
+    };
+    renderWithProviders(<ProjectChangesCard card={card} changes={changes} />);
+    fireEvent.click(screen.getByRole("button", { name: "Undo" }));
+    await waitFor(() => {
+      expect(screen.getByText("Undone")).toBeTruthy();
+    });
+    expect(undoChanges).toHaveBeenLastCalledWith({ card, changes });
   });
 
   it("undoes the changes and says so", async () => {

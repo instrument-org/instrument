@@ -484,6 +484,20 @@ export namespace SessionMessageDataPart {
 
   export type ChangedProjectLooks = z.output<typeof ChangedProjectLooksSchema>;
 
+  /**
+   * That the person took a changes card's changes back with its Undo: when
+   * (an ISO time), and how many changes stayed because the person had changed
+   * them since. Written onto the card's own part, so every device and every
+   * reload shows it undone, and the next message the person sends tells the
+   * agent.
+   */
+  export const CardUndoneSchema = z.object({
+    at: z.iso.datetime({ offset: true }),
+    skipped: z.number().int().nonnegative(),
+  });
+
+  export type CardUndone = z.output<typeof CardUndoneSchema>;
+
   export const SetupChangesDataPartSchema = z.object({
     changes: z
       .array(
@@ -506,6 +520,8 @@ export namespace SessionMessageDataPart {
         }),
       )
       .min(1),
+    /** Set once the person took the changes back with the card's Undo. */
+    undone: CardUndoneSchema.optional(),
     /**
      * What the agent now knows of each app, memory and skill it changed, so
      * the next message's notes do not tell it what it did itself: an app by
@@ -563,6 +579,8 @@ export namespace SessionMessageDataPart {
    */
   export const ChatChangesDataPartSchema = z.object({
     changes: z.array(ChatChangeSchema).min(1),
+    /** Set once the person took the changes back with the card's Undo. */
+    undone: CardUndoneSchema.optional(),
   });
 
   export type ChatChangesDataPart = z.output<typeof ChatChangesDataPartSchema>;

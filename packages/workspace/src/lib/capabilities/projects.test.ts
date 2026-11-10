@@ -8,6 +8,9 @@ import { AbsolutePathSchema, WorkspaceDirSchema } from "../../schemas/paths";
 import { StoreId } from "../../schemas/store-id";
 import { chatFor } from "../../test/helpers/chat-record";
 import { createMockChatConfig } from "../../test/helpers/mock-chat-config";
+import { ChatReads } from "../chat-reads";
+import { ChatWrites } from "../chat-writes";
+import { markCardUndone } from "../chat/card-undone";
 import { createProject, listProjects, updateProject } from "../chat/projects";
 import { undoProjectChanges } from "../chat/undo-project-changes";
 import { createLocalBashEnv } from "../create-bash-env";
@@ -366,5 +369,60 @@ describe("undoing a turn's project changes", () => {
       ),
     ).toEqual({ skipped: 0, undone: 1 });
     expect(await project("Mornings")).toMatchObject({ color: "#996d00" });
+  });
+});
+
+describe("marking a changes card undone", () => {
+  it("writes onto the card that its Undo put something back, once", async () => {
+    await createProject({ name: "Plants" });
+    const { changes } = await turn(
+      "instrument projects set Plants --name Houseplants",
+    );
+    const messageId = StoreId.newMessageId();
+    const partId = StoreId.newPartId();
+    const ids = { messageId, sessionId: own.sessionId };
+    (
+      await ChatWrites.saveMessageWithParts(
+        {
+          id: messageId,
+          metadata: {
+            createdAt: new Date(),
+            finishReason: "stop",
+            modelId: "glm-5.3-flash",
+            providerId: "openai-compatible",
+            sessionId: own.sessionId,
+          },
+          parts: [
+            {
+              data: { changes },
+              metadata: { ...ids, createdAt: new Date(), id: partId },
+              type: "data-setupChanges",
+            },
+          ],
+          role: "assistant",
+        },
+        own.chatId,
+      )
+    )._unsafeUnwrap();
+    const card = { ...ids, chatId: own.chatId, partId };
+    const undoneOf = async () => {
+      const transcript = (
+        await ChatReads.transcript({
+          chatId: own.chatId,
+          sessionId: own.sessionId,
+        })
+      )._unsafeUnwrap();
+      const part = transcript
+        .flatMap((message) => message.parts)
+        .find((each) => each.metadata.id === partId);
+      return part?.type === "data-setupChanges" ? part.data.undone : "missing";
+    };
+    await markCardUndone(card, { skipped: 0, undone: 0 });
+    expect(await undoneOf()).toBeUndefined();
+    await markCardUndone(card, { skipped: 1, undone: 2 });
+    const first = await undoneOf();
+    expect(first).toMatchObject({ skipped: 1 });
+    await markCardUndone(card, { skipped: 0, undone: 1 });
+    expect(await undoneOf()).toEqual(first);
   });
 });

@@ -13,6 +13,7 @@ import {
   ProjectSchema,
   updateProject,
 } from "../../lib/chat/projects";
+import { ChangesCardSchema, markCardUndone } from "../../lib/chat/card-undone";
 import { undoProjectChanges } from "../../lib/chat/undo-project-changes";
 import { watchFolder } from "../../lib/folder-watch";
 import { SessionMessageDataPart } from "../../schemas/session/message-data-part";
@@ -185,10 +186,18 @@ const undoProjectChangesRoute = base
           project: SessionMessageDataPart.ChangedProjectLooksSchema.optional(),
         }),
       ),
+      /** The card the Undo is on, which is marked undone. */
+      card: ChangesCardSchema.optional(),
     }),
   )
   .output(z.object({ skipped: z.number(), undone: z.number() }))
-  .handler(async ({ input }) => await undoProjectChanges(input.changes));
+  .handler(async ({ input }) => {
+    const outcome = await undoProjectChanges(input.changes);
+    if (input.card) {
+      await markCardUndone(input.card, outcome);
+    }
+    return outcome;
+  });
 
 export const projects = {
   create: createProjectRoute,

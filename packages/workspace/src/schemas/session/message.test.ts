@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import { TOOLS_FOR_MODEL_OUTPUT } from "../../tools/all";
+import { ChatIdSchema } from "../chat-id";
 import { StoreId } from "../store-id";
 import { SessionMessage } from "./message";
 import { SessionMessagePart } from "./message-part";
@@ -1215,6 +1216,109 @@ describe("SessionMessage.toModelMessages", () => {
           ],
           "role": "user",
         },
+      ]
+    `);
+  });
+
+  // An Undo is written onto its card's part, on an assistant message the
+  // model already read; its note goes on the first user message sent after
+  // the click, so a turn already sent reads as it was.
+  it("tells the next user turn after an Undo what the user put back", () => {
+    const { sessionId } = baseMetadata();
+    const at = (minute: number) =>
+      new Date(`2024-01-01T10:${String(minute).padStart(2, "0")}:00Z`);
+    const partMetadata = (messageId: StoreId.Message) => ({
+      createdAt: at(1),
+      id: StoreId.newPartId(),
+      messageId,
+      sessionId,
+    });
+    const user = (minute: number, text: string): SessionMessage.WithParts => {
+      const id = StoreId.newMessageId();
+      return {
+        id,
+        metadata: { createdAt: at(minute), sessionId },
+        parts: [
+          { metadata: partMetadata(id), state: "done", text, type: "text" },
+        ],
+        role: "user",
+      };
+    };
+    const replyId = StoreId.newMessageId();
+    const reply: SessionMessage.WithParts = {
+      id: replyId,
+      metadata: {
+        aiGatewayModel: undefined,
+        createdAt: at(1),
+        finishReason: "stop",
+        modelId: "gpt-4o",
+        providerId: "openai",
+        sessionId,
+      },
+      parts: [
+        {
+          data: {
+            changes: [
+              {
+                change: "changed",
+                fields: [
+                  { after: "Houseplants", before: "Plants", field: "name" },
+                  { after: "#218b30", before: null, field: "color" },
+                ],
+                kind: "project",
+                name: "Houseplants",
+              },
+              {
+                change: "changed",
+                fields: [{ after: "cooking-pot", before: null, field: "icon" }],
+                kind: "project",
+                name: "Kitchen",
+              },
+            ],
+            undone: { at: at(5).toISOString(), skipped: 0 },
+          },
+          metadata: partMetadata(replyId),
+          type: "data-setupChanges",
+        },
+        {
+          data: {
+            changes: [
+              {
+                after: true,
+                before: false,
+                chat: ChatIdSchema.parse("2026-11-10-trip-a1b2"),
+                field: "archived",
+              },
+            ],
+            undone: { at: at(20).toISOString(), skipped: 1 },
+          },
+          metadata: partMetadata(replyId),
+          type: "data-chatChanges",
+        },
+      ],
+      role: "assistant",
+    };
+    const messages = [
+      user(0, "Tidy my projects."),
+      reply,
+      user(10, "Give Kitchen a color too."),
+      user(30, "Thanks."),
+    ];
+    const notes: string[] = [];
+    SessionMessage.toUIMessages(messages, {
+      onNote: (note) => {
+        const index = messages.findIndex((each) => each.id === note.carriedOn);
+        notes.push(`${index.toString()}: ${note.text.trim()}`);
+      },
+    });
+    expect(notes).toMatchInlineSnapshot(`
+      [
+        "2: <instrument-system-note>
+      The user clicked Undo on your earlier project changes: Houseplants is Plants again, its color as before; Kitchen's mark as before. Do not redo them unless asked.
+      </instrument-system-note>",
+        "3: <instrument-system-note>
+      The user clicked Undo on your earlier chat changes: chat 2026-11-10-trip-a1b2's archive as before, except what they had changed since. Do not redo them unless asked.
+      </instrument-system-note>",
       ]
     `);
   });

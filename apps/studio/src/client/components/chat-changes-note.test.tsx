@@ -128,4 +128,19 @@ describe("ChatChangesNote", () => {
     expect(await screen.findByText("Undone")).toBeDefined();
     expect(screen.queryByRole("button", { name: "Undo" })).toBeNull();
   });
+
+  it("says Undone for a card undone on another device or before a reload", async () => {
+    chats.push({ archived: false, id: "a", starred: false, title: "Espresso" });
+    renderWithProviders(
+      <ChatChangesNote
+        changes={[
+          { after: true, before: false, chat: chat("a"), field: "archived" },
+        ]}
+        undone
+      />,
+    );
+
+    expect(await screen.findByText("Undone")).toBeDefined();
+    expect(screen.queryByRole("button", { name: "Undo" })).toBeNull();
+  });
 });

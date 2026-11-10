@@ -7,6 +7,7 @@ import { latestStepIn } from "../../lib/chat/step-label";
 import { taskSlices } from "../../lib/chat/task-slices";
 import { branchChat } from "../../lib/chat/branch-chat";
 import { ensureChat } from "../../lib/chat/chat-records";
+import { ChangesCardSchema, markCardUndone } from "../../lib/chat/card-undone";
 import {
   chatById,
   markChatRead,
@@ -346,10 +347,20 @@ const renameChatRoute = base
  */
 const undoChatChangesRoute = base
   .input(
-    z.object({ changes: z.array(SessionMessageDataPart.ChatChangeSchema) }),
+    z.object({
+      /** The card the Undo is on, which is marked undone. */
+      card: ChangesCardSchema.optional(),
+      changes: z.array(SessionMessageDataPart.ChatChangeSchema),
+    }),
   )
   .output(z.object({ skipped: z.number(), undone: z.number() }))
-  .handler(async ({ input }) => await undoChatChanges(input.changes));
+  .handler(async ({ input }) => {
+    const outcome = await undoChatChanges(input.changes);
+    if (input.card) {
+      await markCardUndone(input.card, outcome);
+    }
+    return outcome;
+  });
 
 /** Files a chat under a project, or under none with `null`. */
 const setChatProjectRoute = base

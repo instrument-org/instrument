@@ -2,7 +2,7 @@ import { openProjectDetails } from "@/client/atoms/project-details-modal";
 import { Button } from "@/client/components/ui/button";
 import { toast } from "@/client/lib/toast";
 import { cn } from "@/client/lib/utils";
-import { rpcClient } from "@/client/rpc/client";
+import { rpcClient, type RPCInput } from "@/client/rpc/client";
 import {
   type ChangedProject,
   projectChangeLines,
@@ -20,6 +20,11 @@ import { ProjectMark, type ProjectMarkSpec } from "./window/project-mark";
 /** How many projects show before the rest wait behind Show more. */
 const SHOWN_PROJECTS = 5;
 
+/** A changes card's part, by where it is in its chat. */
+export type ChangesCard = NonNullable<
+  RPCInput["workspace"]["projects"]["undoChanges"]["card"]
+>;
+
 /**
  * What a turn's `instrument projects` commands changed or made, as a card
  * under the reply in the chats card's frame: a heading drawn from the
@@ -30,21 +35,29 @@ const SHOWN_PROJECTS = 5;
  * made, and the card then shows every change struck through.
  */
 export function ProjectChangesCard({
+  card,
   changes,
+  undone: undoneBefore = false,
 }: {
+  /** Where the card is, for its Undo to mark it undone on every device. */
+  card?: ChangesCard;
   changes: readonly ChangedProject[];
+  /** Undone already, by this device or another. */
+  undone?: boolean;
 }) {
   const { data: projects = [] } = useQuery(
     rpcClient.workspace.projects.list.queryOptions(),
   );
   const [undoing, setUndoing] = useState(false);
-  const [undone, setUndone] = useState(false);
+  const [undoneHere, setUndone] = useState(false);
+  const undone = undoneBefore || undoneHere;
   const [expanded, setExpanded] = useState(false);
 
   const undo = () => {
     setUndoing(true);
     return rpcClient.workspace.projects.undoChanges
       .call({
+        ...(card && { card }),
         changes: changes.map(({ fields, name, project }) => ({
           fields: [...fields],
           name,

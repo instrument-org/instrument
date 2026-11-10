@@ -1766,6 +1766,14 @@ You added the skill "pdf" to the workspace skills folder, so it is not in the sk
   "stoppedByUser": "The user stopped this. Do not run it again unless they ask.",
   "timeZoneRegion": "Central European Time",
   "unanswered": "This call was stopped before it returned: it never ran, or was interrupted while it ran.",
+  "undoneChats": "
+<instrument-system-note>
+The user clicked Undo on your earlier chat changes: chat 2026-11-10-trip-a1b2's archive as before. Do not redo them unless asked.
+</instrument-system-note>",
+  "undoneProjects": "
+<instrument-system-note>
+The user clicked Undo on your earlier project changes: Houseplants is Plants again, except what they had changed since. Do not redo them unless asked.
+</instrument-system-note>",
   "workspaceInstructionsEmpty": "
 <instrument-system-note>
 The workspace instructions in \`/Users/mac-user/Instrument/AGENTS.md\` are empty or removed. Stop applying the previous workspace instructions.

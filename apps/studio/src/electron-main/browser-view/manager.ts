@@ -27,6 +27,7 @@ import { noop } from "radashi";
 import { applyProductBrandedMetadata } from "../lib/user-agent";
 import { pageEditorPreloadPath } from "../page-editor/sessions";
 import { isDrivenInstance } from "../windows/on-screen";
+import { carryAgentPointer } from "./agent-pointer";
 import { type DeviceEmulation, setDeviceEmulation } from "./device-emulation";
 import { sendCommand } from "./dispatch-command";
 import { captureDownloadWillBeginGuid } from "./downloads";
@@ -532,6 +533,7 @@ function createBrowserViewManager(): BrowserViewManager {
     });
     guest.on("dom-ready", () => {
       focusGuard.onLoadProgress(targetId);
+      carryAgentPointer(entry);
     });
     guest.on("did-finish-load", () => {
       focusGuard.onLoadProgress(targetId);

@@ -28,7 +28,7 @@ Each entry is the plan's title and the opening of its status.
 ### Open
 
 - [What the classic window took with it](after-the-classic-window.md): Open list.
-- [A host cursor for Agent Browser](agent-browser-cursor.md): Not started;
+- [An agent pointer in the in-app browser](agent-browser-cursor.md): The pointer is built;
 - [Cut the harness cost of an agent driving Studio](agent-driving-studio-friction.md): Proposal, largely addressed.
 - [Move the agent turn off the Electron main thread](agent-turn-off-the-main-thread.md): Active.
 - [The app directory, made connectable and drawn well](app-directory-uplift.md): In progress.

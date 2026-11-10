@@ -20,6 +20,8 @@ import {
   memo,
   type ReactNode,
   use,
+  useLayoutEffect,
+  useRef,
   useState,
 } from "react";
 
@@ -48,6 +50,7 @@ import {
   ActivityRowView,
   Badges,
   FoldedActivityView,
+  MidDot,
   RowLine,
   StepDetail,
 } from "./activity-row";
@@ -123,6 +126,7 @@ export const TurnView = memo(function TurnView({
   /** Its message is waiting on a step still going in the turn above it. */
   waitsForStep: boolean;
 }) {
+  const floorRef = useWorkingFloor(turn.phase === "working");
   return (
     <>
       {turn.opener && (
@@ -139,6 +143,7 @@ export const TurnView = memo(function TurnView({
       )}
       <MessageScrollerItem
         className="group/assistant-turn flex flex-col gap-2"
+        ref={floorRef}
         {...(turn.opener ? {} : { messageId: turn.id })}
       >
         {turn.wokenBy && <WakeLine woken={turn.wokenBy} />}
@@ -154,6 +159,52 @@ export const TurnView = memo(function TurnView({
     </>
   );
 });
+
+/**
+ * Keeps a working turn from getting shorter. The card goes the moment the agent
+ * says something, and the working line's second row with it, and the next
+ * activity puts them back a moment later: holding the turn at the tallest it
+ * has been leaves their room in place, so the end of the transcript does not
+ * rise and fall at every narrated step. Once the turn stops working the room
+ * it held closes on the fold's curve.
+ *
+ * The floor is set on the element as it is measured, before the frame paints,
+ * so a turn never draws a frame shorter than it was. It reads layout pixels
+ * (`offsetHeight`), which the window's zoom leaves alone.
+ */
+function useWorkingFloor(isWorking: boolean) {
+  const ref = useRef<HTMLDivElement>(null);
+  const isReduced = useReducedMotion();
+  useLayoutEffect(() => {
+    const element = ref.current;
+    if (!element) {
+      return;
+    }
+    if (!isWorking) {
+      if (element.style.minHeight) {
+        element.style.transition = isReduced
+          ? ""
+          : `min-height ${(FOLD_TRANSITION.duration * 1000).toString()}ms cubic-bezier(${FOLD_TRANSITION.ease.join(", ")})`;
+        // To a length rather than unset, since a transition has no way to `auto`.
+        element.style.minHeight = "0px";
+      }
+      return;
+    }
+    element.style.transition = "";
+    let tallest = 0;
+    const observer = new ResizeObserver(() => {
+      if (element.offsetHeight > tallest) {
+        tallest = element.offsetHeight;
+        element.style.minHeight = `${tallest.toString()}px`;
+      }
+    });
+    observer.observe(element);
+    return () => {
+      observer.disconnect();
+    };
+  }, [isWorking, isReduced]);
+  return ref;
+}
 
 function OpenerView({
   chatId,
@@ -446,7 +497,12 @@ export function ThinkingRow({
               }
             : undefined
         }
-        right={`· ${formatClock(now - since.getTime())}`}
+        right={
+          <>
+            <MidDot />
+            {formatClock(now - since.getTime())}
+          </>
+        }
       >
         {isOpen && thought && <div className="mt-1 ml-7">{thought}</div>}
       </RowLine>

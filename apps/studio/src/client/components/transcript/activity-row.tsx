@@ -136,6 +136,20 @@ export function RowLine({
   );
 }
 
+/**
+ * The dot between a row's words and its clock, drawn rather than typed: the
+ * font sets "·" at the middle of its lowercase letters, under the middle of
+ * the digits beside it, and a drawn one centers on the line with them.
+ */
+export function MidDot() {
+  return (
+    <span
+      aria-hidden
+      className="mr-1 size-0.5 shrink-0 rounded-full bg-current"
+    />
+  );
+}
+
 /** The sites and apps a row reached, joined on as they arrive. */
 export function Badges({
   apps,
@@ -226,20 +240,25 @@ export function ActivityRowView({
       places={<Badges apps={row.apps} sites={row.sites} />}
       right={
         <>
-          <RollingText rollKey={counts}>
-            {counts && (
-              <span className="mr-1.5 block text-foreground/70">{counts}</span>
-            )}
-          </RollingText>
-          {isLive && `· ${formatClock(now - row.startedAt.getTime())}`}
+          {counts && (
+            <span className="mr-1.5 block text-foreground/70">{counts}</span>
+          )}
+          {isLive && (
+            <>
+              <MidDot />
+              {formatClock(now - row.startedAt.getTime())}
+            </>
+          )}
         </>
       }
-      // A name still being written grows in place, and a new call moves it on.
+      // A row that has just come settles on its first words without a roll,
+      // its name arriving included, since it has only just moved into place;
+      // after that a new call in a row the agent didn't name rolls it on.
       rollKey={
         isLive
-          ? row.title
-            ? "named"
-            : (lastStep?.metadata.id ?? "thinking")
+          ? row.title === undefined && steps.length > 1
+            ? lastStep?.metadata.id
+            : "settled"
           : undefined
       }
     >

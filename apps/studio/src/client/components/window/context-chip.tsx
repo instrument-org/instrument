@@ -31,14 +31,18 @@ import { XIcon } from "@phosphor-icons/react/X";
 import { ToolbarTooltip } from "@/client/components/toolbar-tooltip";
 import { useQuery } from "@tanstack/react-query";
 import { AnimatePresence } from "motion/react";
-import { type ReactNode, useContext } from "react";
+import { type ReactNode, useContext, useState } from "react";
 
 import { type AppsBySlug, useAppsBySlug } from "./apps-by-slug";
 import { TabIcon } from "./browser-tabs";
 import { chatListOptions } from "./chat-list-query";
 import { useComputerVolumes } from "./computer-volumes";
 import { type OpenOptions, WindowContext } from "./context";
-import { type ContextItem } from "./context-items";
+import {
+  type ContextItem,
+  type DrawnChip,
+  drawnChipsOf,
+} from "./context-items";
 import { pageTabTitle } from "./file-tabs";
 import { segmentsOf } from "./host-path";
 import { screenPresentation, type ScreenNames } from "./screen-presentation";
@@ -250,13 +254,17 @@ export function ContextChips({
   };
   // Keyed by the tab where a chip is one, so a folder's chip that comes to
   // name what is selected in it changes in place rather than going and
-  // coming back.
+  // coming back; and a line's chip whose tab has just opened keeps the
+  // line's key, so it is never drawn twice for a moment (`drawnChipsOf`).
+  const [drawn, setDrawn] = useState<readonly DrawnChip[]>([]);
+  const chips = drawnChipsOf(items, drawn);
+  if (signatureOf(chips) !== signatureOf(drawn)) {
+    setDrawn(chips);
+  }
   return (
     <AnimatePresence initial={false}>
-      {items.map((item) => (
-        <ChipPresence
-          key={item.kind === "tab" ? `tab:${item.tab.id}` : item.key}
-        >
+      {items.map((item, index) => (
+        <ChipPresence key={chips[index]?.key ?? item.key}>
           {chipOf(item)}
         </ChipPresence>
       ))}
@@ -592,4 +600,11 @@ function keyOfChip(chip: SentChip) {
 /** The last name in a path, which is what a chip calls the thing. */
 function nameOfPath(path: string) {
   return segmentsOf(path).at(-1) ?? path;
+}
+
+/** What a set of drawn chips is, to tell whether it changed. */
+function signatureOf(chips: readonly DrawnChip[]): string {
+  return chips
+    .map((chip) => `${chip.identity}=${chip.key}:${chip.lines.join(",")}`)
+    .join("\n");
 }

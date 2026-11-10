@@ -485,3 +485,46 @@ function dedupeChats(items: ContextItem[]): ContextItem[] {
     return true;
   });
 }
+
+/** A chip as last drawn: the key it was drawn under, what it is, and the lines it stood for. */
+export interface DrawnChip {
+  identity: string;
+  key: string;
+  lines: string[];
+}
+
+/**
+ * The key each chip is drawn under, given the chips drawn before. A chip is
+ * known by its tab where it is one, else by its key, and keeps the key it
+ * was first drawn under. A chip new here that stands for a line a chip
+ * drawn before stood for, one that is gone now, takes that chip's key: a
+ * draft's line whose tab has just opened in its band is the same chip,
+ * changing in place, rather than one going out beside one coming in.
+ */
+export function drawnChipsOf(
+  items: readonly ContextItem[],
+  before: readonly DrawnChip[],
+): DrawnChip[] {
+  const identities = items.map((item) =>
+    item.kind === "tab" ? `tab:${item.tab.id}` : item.key,
+  );
+  const now = new Set(identities);
+  const kept = new Map(before.map((chip) => [chip.identity, chip.key]));
+  const gone = before.filter((chip) => !now.has(chip.identity));
+  const used = new Set<string>();
+  return items.map((item, index) => {
+    const identity = identities[index] ?? item.key;
+    const lines = linesOfItem(item).map(lineKeyOf);
+    const heir = kept.has(identity)
+      ? undefined
+      : gone.find(
+          (chip) =>
+            !used.has(chip.key) &&
+            chip.lines.some((line) => lines.includes(line)),
+        );
+    const wanted = kept.get(identity) ?? heir?.key ?? identity;
+    const key = used.has(wanted) ? identity : wanted;
+    used.add(key);
+    return { identity, key, lines };
+  });
+}

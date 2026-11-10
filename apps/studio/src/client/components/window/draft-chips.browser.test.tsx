@@ -164,6 +164,31 @@ const attribute = (name: string) => () =>
 const lines = attribute("data-context");
 const bandSize = attribute("data-band");
 
+/**
+ * The most chips the page ever has at once from here on, a chip on its way
+ * out included: one drawn twice for a moment shows as two.
+ */
+function mostChipsAtOnce() {
+  let most = 0;
+  const count = () => {
+    most = Math.max(
+      most,
+      document.querySelectorAll(
+        "[data-testid=chips] button[aria-label^='Leave out ']",
+      ).length,
+    );
+  };
+  const observer = new MutationObserver(count);
+  observer.observe(document.body, {
+    attributes: true,
+    childList: true,
+    subtree: true,
+  });
+  return () => {
+    count();
+    return most;
+  };
+}
 
 describe("a draft's chips", () => {
   it("offer what is in view without carrying it, and never offer the chat on screen", async () => {
@@ -304,5 +329,25 @@ describe("a draft's chips", () => {
     expect(lines()).toBe(SHOP.url);
     expect(offered()).toEqual([]);
     expect(bandSize()).toBe("0");
+  });
+
+  // Ask in Files with a document selected: the draft's line becomes a tab of
+  // its band a moment later, and its chip stays one chip throughout.
+  it("draw a line's chip once as its tab opens in the band", async () => {
+    const output = "/Users/casey/documents-output";
+    const plan = { kind: "file" as const, path: `${output}/plan.md` };
+    const most = mostChipsAtOnce();
+    await renderInBrowser(
+      <Chips
+        draft={{ ...DRAFT, context: [plan] }}
+        finder={{ folder: output, selected: [plan] }}
+        inView={screen(folderHref(output))}
+      />,
+    );
+    await expect.poll(bandSize).toBe("1");
+    await expect.poll(chipNames).toEqual(["Leave out plan.md"]);
+    // Past any chip's way out.
+    await new Promise((resolve) => setTimeout(resolve, 500));
+    expect(most()).toBe(1);
   });
 });

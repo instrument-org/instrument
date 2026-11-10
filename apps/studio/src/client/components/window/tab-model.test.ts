@@ -28,6 +28,7 @@ import {
   stepTrail,
   stepVisit,
   selectedTabIn,
+  titleAtNavigation,
   tabToScreen,
   visitScreen,
   type WindowTabs,
@@ -480,6 +481,24 @@ describe("a page announcing itself", () => {
     "with %s changes the tabs only when something differs",
     (_case, changes, same) => {
       expect(patchPage(state, "p", changes) === state).toBe(same);
+    },
+  );
+
+  it.each([
+    ["a new document at another address", true, "https://b.example", undefined],
+    ["a reload of the same address", true, "https://a.example", "a.example"],
+    ["a move inside the document", false, "https://b.example", "a.example"],
+  ])(
+    "keeps the guest's title through %s only when it is the page's",
+    (_case, isNewDocument, url, title) => {
+      expect(
+        titleAtNavigation({
+          guestTitle: "a.example",
+          isNewDocument,
+          url,
+          was: "https://a.example",
+        }),
+      ).toBe(title);
     },
   );
 

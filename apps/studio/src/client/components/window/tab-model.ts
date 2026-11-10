@@ -620,6 +620,27 @@ export function addPages(
 }
 
 /** What a page tab knows of its page, as the page announces it; nothing changes when nothing differs. */
+/**
+ * The title a page tab keeps as its guest commits an address. The browser
+ * names a new document by its address until the page's own title arrives,
+ * so a tab gone to another address keeps no title until the page announces
+ * one (`page-title-updated`) or finishes loading without one. A tab still on
+ * its document, or reloading the same address, keeps the guest's title.
+ */
+export function titleAtNavigation({
+  guestTitle,
+  isNewDocument,
+  url,
+  was,
+}: {
+  guestTitle: string;
+  isNewDocument: boolean;
+  url: string;
+  was: string | undefined;
+}): string | undefined {
+  return isNewDocument && url !== was ? undefined : guestTitle || undefined;
+}
+
 export function patchPage(
   state: WindowTabs,
   id: string,

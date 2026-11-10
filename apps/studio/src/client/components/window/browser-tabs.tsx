@@ -49,6 +49,7 @@ import {
   type PageTab,
   pageNavigated,
   patchPage,
+  titleAtNavigation,
   replaceTab,
   selectTab,
   selectedTabIn,
@@ -354,7 +355,7 @@ export function BrowserTabs({
       if (!guest) {
         return;
       }
-      const onNavigate = () => {
+      const onNavigate = ({ isNewDocument }: { isNewDocument: boolean }) => {
         const url = guest.url();
         // A guest gone since it was read has no page to report.
         if (url === "") {
@@ -373,10 +374,14 @@ export function BrowserTabs({
           change((current) => pageNavigated(current, id));
         }
         if (url && url !== "about:blank") {
-          const title = guest.title() || undefined;
           const was = latest.current.tabs.find((tab) => tab.id === id)?.url;
           patch(id, {
-            title,
+            title: titleAtNavigation({
+              guestTitle: guest.title(),
+              isNewDocument,
+              url,
+              was,
+            }),
             url,
             // A page on another site lets go of the last one's icon at
             // once, so the tab wears the new site's straight away (from
@@ -395,10 +400,27 @@ export function BrowserTabs({
       // the file, or loaded for real, and Edit never opens the file it names.
       const onNavigateInPage = () => {
         if (hostPathOfFileUrl(guest.url()) === undefined) {
-          onNavigate();
+          onNavigate({ isNewDocument: false });
         }
       };
       const onTitle = ({ title }: { title: string }) => {
+        if (title) {
+          patch(id, { title });
+        }
+      };
+      // A page that finished loading without a title of its own goes by the
+      // browser's name for it, its address.
+      const onStopLoading = () => {
+        const url = guest.url();
+        if (
+          url === "" ||
+          url === "about:blank" ||
+          isPageEditAddress(url) ||
+          latest.current.tabs.find((tab) => tab.id === id)?.title
+        ) {
+          return;
+        }
+        const title = guest.title();
         if (title) {
           patch(id, { title });
         }
@@ -431,11 +453,14 @@ export function BrowserTabs({
           }
         }
       };
-      onNavigate();
+      onNavigate({ isNewDocument: false });
       const stops = [
-        guest.on("did-navigate", onNavigate),
+        guest.on("did-navigate", () => {
+          onNavigate({ isNewDocument: true });
+        }),
         guest.on("did-navigate-in-page", onNavigateInPage),
         guest.on("page-title-updated", onTitle),
+        guest.on("did-stop-loading", onStopLoading),
         guest.on("page-favicon-updated", onFavicon),
       ];
       return () => {

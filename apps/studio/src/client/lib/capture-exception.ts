@@ -5,6 +5,11 @@ import {
 } from "@instrument-org/shared/exceptions";
 import type { ErrorInfo } from "react";
 
+import {
+  resizeLoopWitnesses,
+  watchResizeObservers,
+} from "./resize-loop-witness";
+
 /** How the main process names a captured exception: its event and its problem. */
 export type CapturedException = { fingerprint: string; id: string };
 
@@ -59,12 +64,17 @@ export function captureComponentError(error: unknown, errorInfo: ErrorInfo) {
 /**
  * Capture what nothing in the window caught: an uncaught throw and a
  * rejection nobody handled, both as unhandled. Also gives the renderer's
- * stacks as many frames as an event keeps.
+ * stacks as many frames as an event keeps. A ResizeObserver loop, which
+ * Chromium raises with no stack, carries the observers that ran in its frame
+ * (`resize-loop-witness.ts`).
  */
 export function initExceptionCapture() {
   Error.stackTraceLimit = STACK_FRAME_LIMIT;
+  watchResizeObservers();
   window.addEventListener("error", (event) => {
+    const observers = resizeLoopWitnesses(event.message);
     captureException(event.error ?? event.message, {
+      ...(observers && { data: { observers } }),
       handled: false,
       mechanism: "onerror",
     });

@@ -293,6 +293,12 @@ it("leaves a folder renamed into a key folder's name there when asked to undo", 
   });
 });
 
+it("reads a file that is not there as not found", async () => {
+  await expect(
+    call(files.read, { path: path.join(dir, "gone.md") }, options),
+  ).rejects.toMatchObject({ code: "FILE_NOT_FOUND" });
+});
+
 it("lets only one of two writers holding the same version write", async () => {
   const file = path.join(dir, "doc.txt");
   await fs.writeFile(file, "base");

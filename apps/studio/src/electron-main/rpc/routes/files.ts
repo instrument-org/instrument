@@ -1024,7 +1024,10 @@ const write = base
  * app's own data is not read (`isClosed`).
  */
 const read = base
-  .errors({ FORBIDDEN: { message: "That file is Instrument’s own data" } })
+  .errors({
+    FILE_NOT_FOUND: { message: "This file was moved or deleted." },
+    FORBIDDEN: { message: "That file is Instrument’s own data" },
+  })
   .input(z.object({ path: HostPathSchema }))
   .output(
     z.object({
@@ -1038,7 +1041,17 @@ const read = base
     if (await isClosed(input.path, filePath)) {
       throw errors.FORBIDDEN();
     }
-    const { saveable, text } = decodeFileText(await fs.readFile(filePath));
+    const bytes = await fs.readFile(filePath).catch((error: unknown) => {
+      if (
+        error instanceof Error &&
+        "code" in error &&
+        error.code === "ENOENT"
+      ) {
+        throw errors.FILE_NOT_FOUND();
+      }
+      throw error;
+    });
+    const { saveable, text } = decodeFileText(bytes);
     return { content: text, saveable, version: versionOf(text) };
   });
 

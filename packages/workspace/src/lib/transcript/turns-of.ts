@@ -460,6 +460,7 @@ function buildTurn(
     .flatMap((message) => message.parts)
     .findLast((part) => part.type === "data-workSummary")?.data.words;
   const folded = foldedRows(rows, { cutAcross, phase });
+  const live = isLive ? liveOf(rows, body, first) : undefined;
   const startedAt = first.metadata.createdAt;
   const ratingCard = body
     .flatMap((message) => message.parts)
@@ -478,7 +479,7 @@ function buildTurn(
     id: first.id,
     inherited:
       sessionId !== undefined && first.metadata.sessionId !== sessionId,
-    ...(isLive && { live: liveOf(rows, body, first) }),
+    ...(live && { live }),
     ...(opener && { opener }),
     phase,
     ...(ratingCard && { ratingCard }),
@@ -970,7 +971,7 @@ function liveOf(
   rows: readonly TurnRow[],
   body: readonly TranscriptMessage[],
   first: TranscriptMessage,
-): TurnLive {
+): TurnLive | undefined {
   const thought = thoughtGoingOn(body);
   const opens = thought && { thought };
   // An activity stays the working line between its calls, which is most of
@@ -978,6 +979,12 @@ function liveOf(
   // the model thinking between them, and a line flipping to Thinking for each
   // would only flicker. It says Thinking before there is any work to name.
   const last = rows.findLast((row) => row.kind !== "note");
+  // A task's card is the turn's last work: what the chat runs after it is the
+  // one line saying so (`shouldContinueAfterHandingOff`), which draws as its
+  // words when they come. Thinking under the card would read as more work.
+  if (last?.kind === "task") {
+    return undefined;
+  }
   if (last?.kind === "activity") {
     return { activityId: last.id, kind: "activity", ...opens };
   }

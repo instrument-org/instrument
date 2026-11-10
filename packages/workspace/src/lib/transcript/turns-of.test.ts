@@ -532,6 +532,42 @@ describe("turnsOf", () => {
     expect(working?.phase).toBe("working");
   });
 
+  it("puts no Thinking under a task's card, while the step after it draws what it shows", () => {
+    const task = StoreId.newSessionId();
+    const started = message("assistant", (id) => [
+      call(
+        id,
+        "bash",
+        { command: "task new" },
+        { exitCode: 0, handOffs: [{ kind: "created", sessionId: task }] },
+      ),
+    ]);
+    const live = (...after: Parameters<typeof turnsOf>[0]) =>
+      turnsOf([typed("Do the thing"), started, ...after], {
+        isRunning: true,
+      })[0]?.live;
+    expect(live()).toBeUndefined();
+    expect(
+      live(
+        message("assistant", (id) => [
+          {
+            metadata: meta(id),
+            state: "streaming",
+            text: "Let me think.",
+            type: "reasoning",
+          } as SessionMessagePart.Type,
+        ]),
+      ),
+    ).toBeUndefined();
+    expect(
+      live(
+        message("assistant", (id) => [
+          said(id, "It's on its way.", "streaming"),
+        ]),
+      )?.kind,
+    ).toBe("writing");
+  });
+
   it("keeps the card asking how it went out of the rows", () => {
     const card = (data: { outcome?: "dismissed" | "sent" }) =>
       turnsOf(

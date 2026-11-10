@@ -27,6 +27,7 @@ type Content = {
 
 let update: (patch: Partial<Content>) => void = noop;
 let follow: () => void = noop;
+let arrivals = 0;
 
 function ReadingHold({
   children,
@@ -37,14 +38,16 @@ function ReadingHold({
 }) {
   const { releaseAutoScroll, scrollToEnd } = useMessageScroller();
   follow = scrollToEnd;
-  const release = useHoldAtReplyStart({
+  useHoldAtReplyStart({
     contentRef,
     isFollowing: true,
+    onArrivedBelow: () => {
+      arrivals += 1;
+    },
     release: releaseAutoScroll,
-    resume: scrollToEnd,
   });
   return (
-    <TranscriptScrollContext value={release}>
+    <TranscriptScrollContext value={releaseAutoScroll}>
       {children}
     </TranscriptScrollContext>
   );
@@ -68,6 +71,7 @@ function ExpandableRow() {
 }
 
 function Harness({ height = 350, initialReply = 0 }) {
+  arrivals = 0;
   const contentRef = useRef<HTMLDivElement>(null);
   const [content, setContent] = useState<Content>({
     reply: initialReply,
@@ -193,13 +197,16 @@ it.each([350, 500])(
   },
 );
 
-it("resumes an automatic reading hold when a question arrives", async () => {
+it("stays at a held reply and says a question arrived under it", async () => {
   await renderInBrowser(<Harness />);
   await holdLongReply();
+  const before = viewport().scrollTop;
   update({ question: true });
-  await vi.waitFor(() => {
-    expect(bounds("[data-question]").bottom).toBeLessThanOrEqual(334);
-  });
+  await settle();
+  await settle();
+  expect(viewport().scrollTop).toBeCloseTo(before, 0);
+  expect(bounds("[data-reply-row]").top).toBeCloseTo(40, 0);
+  expect(arrivals).toBe(1);
 });
 
 it("keeps a long final reply at its start as more words arrive", async () => {
@@ -208,6 +215,7 @@ it("keeps a long final reply at its start as more words arrive", async () => {
   update({ reply: 850 });
   await settle();
   expect(bounds("[data-reply-row]").top).toBeCloseTo(40, 0);
+  expect(arrivals).toBe(0);
 });
 
 it("opens an existing long reply at its end", async () => {
@@ -217,25 +225,21 @@ it("opens an existing long reply at its end", async () => {
   });
 });
 
-it.each(["wheel", "touchmove", "keydown", "pointerdown"])(
-  "leaves a reading hold with the reader after %s input",
-  async (type) => {
-    await renderInBrowser(<Harness />);
-    await holdLongReply();
-    const event =
-      type === "keydown"
-        ? new KeyboardEvent(type, { key: "ArrowUp", bubbles: true })
-        : new Event(type, { bubbles: true });
-    viewport().dispatchEvent(event);
-    viewport().scrollTop -= 20;
-    const before = viewport().scrollTop;
-    update({ question: true });
-    await settle();
-    expect(viewport().scrollTop).toBeCloseTo(before, 0);
-  },
-);
+it("leaves the reader where they scrolled a held reply and still says what arrived", async () => {
+  await renderInBrowser(<Harness />);
+  await holdLongReply();
+  viewport().dispatchEvent(new WheelEvent("wheel", { bubbles: true }));
+  viewport().scrollTop += 120;
+  await settle();
+  const before = viewport().scrollTop;
+  update({ question: true });
+  await settle();
+  await settle();
+  expect(viewport().scrollTop).toBeCloseTo(before, 0);
+  expect(arrivals).toBe(1);
+});
 
-it("does not resume after the reader opens a row", async () => {
+it("does not move after the reader opens a row", async () => {
   const screen = await renderInBrowser(<Harness />);
   await holdLongReply();
   await screen.getByRole("button", { name: "Open details" }).click();
@@ -246,18 +250,6 @@ it("does not resume after the reader opens a row", async () => {
   expect(viewport().scrollTop).toBeCloseTo(before, 0);
 });
 
-it("keeps an automatic hold resumable after a non-scrolling key", async () => {
-  await renderInBrowser(<Harness />);
-  await holdLongReply();
-  viewport().dispatchEvent(
-    new KeyboardEvent("keydown", { key: "a", bubbles: true }),
-  );
-  update({ question: true });
-  await vi.waitFor(() => {
-    expect(bounds("[data-question]").bottom).toBeLessThanOrEqual(334);
-  });
-});
-
 it("keeps a new message at its send anchor after a reading hold", async () => {
   await renderInBrowser(<Harness />);
   await holdLongReply();
@@ -265,6 +257,7 @@ it("keeps a new message at its send anchor after a reading hold", async () => {
   await vi.waitFor(() => {
     expect(bounds("[data-new-message]").top).toBeCloseTo(96, 0);
   });
+  expect(arrivals).toBe(0);
 });
 
 it("follows again after the reader returns to the end", async () => {

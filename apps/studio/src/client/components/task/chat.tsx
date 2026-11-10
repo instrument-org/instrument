@@ -277,6 +277,9 @@ export function ChatConversation({
   // it stops, so any live session of the chat is output arriving.
   const isSettlingTurn = useTurnSettleWindow(isChatAlive);
   const isFollowingOutput = isChatAlive || isFollowingSubmit || isSettlingTurn;
+  // Something drawn after a reply held at its start, which the reader has not
+  // scrolled down to yet.
+  const [hasArrivedBelow, setHasArrivedBelow] = useState(false);
 
   // A question the chat is stopped on, which a reader scrolled back from the
   // end is told about by the scroll button rather than taken down to.
@@ -740,6 +743,9 @@ export function ChatConversation({
                         chatId={chatId}
                         contentRef={contentRef}
                         isFollowing={isFollowingOutput}
+                        onArrivedBelow={() => {
+                          setHasArrivedBelow(true);
+                        }}
                         hasOlder={messagesQuery.data?.hasOlder ?? false}
                         isDeveloperMode={isDeveloperMode}
                         isLoadingOlder={messagesQuery.isLoadingOlder}
@@ -784,10 +790,12 @@ export function ChatConversation({
               <div className="pointer-events-none absolute right-3 bottom-0 left-0 h-6 bg-linear-to-t from-background to-transparent" />
 
               <div className="pointer-events-none absolute inset-x-0 bottom-0 flex justify-center pb-4">
-                <MessageScrollerButton
+                <JumpToLatest
                   busy={isAgentRunning}
-                  // A slide counts as room left to scroll while it runs.
-                  className="pointer-events-auto group-data-sliding/message-scroller:opacity-0"
+                  hasArrivedBelow={hasArrivedBelow}
+                  onReachedEnd={() => {
+                    setHasArrivedBelow(false);
+                  }}
                   waiting={isWaiting}
                 />
               </div>
@@ -894,32 +902,68 @@ function SentPrompt({
 function TranscriptStream({
   contentRef,
   isFollowing,
+  onArrivedBelow,
   slideToSentRef,
   ...props
 }: ComponentProps<typeof Transcript> & {
   contentRef: RefObject<HTMLElement | null>;
   /** The scroller is following the end, rather than left where the reader put it. */
   isFollowing: boolean;
+  /** Something was drawn after a reply held at its start. */
+  onArrivedBelow: () => void;
   /** What a send calls, so the move to its message animates. */
   slideToSentRef: RefObject<() => void>;
 }) {
-  const { releaseAutoScroll, scrollToEnd } = useMessageScroller();
-  const releaseForReader = useHoldAtReplyStart({
+  const { releaseAutoScroll } = useMessageScroller();
+  useHoldAtReplyStart({
     contentRef,
     isFollowing,
+    onArrivedBelow,
     release: releaseAutoScroll,
-    resume: scrollToEnd,
   });
   useSlideToSent({
     armRef: slideToSentRef,
     contentRef,
-    release: releaseForReader,
+    release: releaseAutoScroll,
   });
 
   return (
-    <TranscriptScrollContext value={releaseForReader}>
+    <TranscriptScrollContext value={releaseAutoScroll}>
       <Transcript {...props} />
     </TranscriptScrollContext>
+  );
+}
+
+/**
+ * The button to the end, with a dot for a question the chat waits on or for
+ * what was drawn under a reply held at its start. Reaching the end, by the
+ * button or by scrolling, clears the second.
+ */
+function JumpToLatest({
+  busy,
+  hasArrivedBelow,
+  onReachedEnd,
+  waiting,
+}: {
+  busy: boolean;
+  hasArrivedBelow: boolean;
+  onReachedEnd: () => void;
+  waiting: boolean;
+}) {
+  const scrollable = useMessageScrollerScrollable();
+  const isAtEnd = !scrollable.end;
+  useEffect(() => {
+    if (hasArrivedBelow && isAtEnd) {
+      onReachedEnd();
+    }
+  }, [hasArrivedBelow, isAtEnd, onReachedEnd]);
+  return (
+    <MessageScrollerButton
+      busy={busy}
+      // A slide counts as room left to scroll while it runs.
+      className="pointer-events-auto group-data-sliding/message-scroller:opacity-0"
+      waiting={waiting || (hasArrivedBelow && scrollable.end)}
+    />
   );
 }
 

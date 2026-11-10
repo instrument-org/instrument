@@ -564,15 +564,16 @@ function HoldAtReplyStart({
   contentRef: React.RefObject<HTMLElement | null>;
   isFollowing: boolean;
 }) {
-  const { releaseAutoScroll, scrollToEnd } = useMessageScroller();
-  const releaseForReader = useHoldAtReplyStart({
+  const { releaseAutoScroll } = useMessageScroller();
+  useHoldAtReplyStart({
     contentRef,
     isFollowing,
+    // The debug page draws no jump button to put a dot on.
+    onArrivedBelow: noop,
     release: releaseAutoScroll,
-    resume: scrollToEnd,
   });
   return (
-    <TranscriptScrollContext value={releaseForReader}>
+    <TranscriptScrollContext value={releaseAutoScroll}>
       {children}
     </TranscriptScrollContext>
   );

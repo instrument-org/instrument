@@ -19,6 +19,11 @@ import {
   type DeveloperNoteBody,
 } from "../../lib/transcript/developer-notes";
 import {
+  findInTranscript,
+  type TurnMatches,
+} from "../../lib/transcript/find-in-transcript";
+import { transcriptMessage } from "../../lib/transcript/transcript-message";
+import {
   lastTurnsOf,
   type TranscriptFeed,
   type TranscriptFeedEvent,
@@ -337,6 +342,38 @@ const older = base
   });
 
 /**
+ * Which turns of the session have `query` in the words they show, and how
+ * many times, oldest first: what a chat's find counts of the turns it has
+ * not loaded to draw yet.
+ */
+const find = base
+  .input(
+    z.object({
+      id: ChatIdSchema,
+      query: z.string().min(1),
+      sessionId: StoreId.SessionSchema,
+    }),
+  )
+  .output(type<TurnMatches[]>())
+  .handler(async ({ errors, input }) => {
+    const messages = await ChatReads.transcript({
+      chatId: input.id,
+      sessionId: input.sessionId,
+    });
+    if (messages.isErr()) {
+      throw toORPCError(messages.error, errors);
+    }
+    return findInTranscript({
+      messages: messages.value.flatMap((message) => {
+        const light = transcriptMessage(message);
+        return light ? [light] : [];
+      }),
+      query: input.query,
+      sessionId: input.sessionId,
+    });
+  });
+
+/**
  * One message whole, as it changes: what a step opened in the transcript reads
  * for the command and output the feed leaves out.
  */
@@ -443,6 +480,7 @@ const developerNoteBody = base
 export const message = {
   create,
   developerNoteBody,
+  find,
   list: listWithParts,
   live: {
     developerNotes: liveDeveloperNotes,

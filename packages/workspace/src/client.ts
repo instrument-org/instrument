@@ -57,6 +57,7 @@ export {
   type TranscriptFeed,
   type TranscriptFeedEvent,
 } from "./lib/transcript/feed";
+export { type TurnMatches } from "./lib/transcript/find-in-transcript";
 export {
   cardsOf,
   type WorkCard,

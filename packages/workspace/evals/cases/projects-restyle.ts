@@ -80,7 +80,7 @@ const howItGotThere: Assertion = {
       ),
     );
     const first = commands.findIndex((command) =>
-      /\binstrument projects set\b/.test(command),
+      /\binstrument projects set\b(?![^;&|]*--help)/.test(command),
     );
     const bundle = commands.filter((command) => /\.asar\b/.test(command));
     return pass(

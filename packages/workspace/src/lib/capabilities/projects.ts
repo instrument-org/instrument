@@ -200,7 +200,7 @@ export const projectsSet = defineCapability({
         .min(1)
         .max(8)
         .optional()
-        .describe("one emoji to mark it with, in place of its icon"),
+        .describe("one emoji to mark it with, which replaces its icon"),
       icon: z
         .string()
         .refine(isProjectIconName, {
@@ -209,7 +209,7 @@ export const projectsSet = defineCapability({
         })
         .optional()
         .describe(
-          `an icon to mark it with, in place of its emoji, by its name: ${NAME} icons finds one`,
+          `an icon from the app's set, which replaces its emoji: ${NAME} icons finds one`,
         ),
       name: z
         .string()

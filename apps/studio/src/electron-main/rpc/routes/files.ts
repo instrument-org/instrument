@@ -950,7 +950,7 @@ const write = base
     CANNOT_WRITE: { message: "That file cannot be written to" },
     FORBIDDEN: { message: "That file is Instrument’s own data" },
     NOT_UTF8: {
-      message: "This file is not UTF-8 text, so it is not saved here",
+      message: "This isn’t a plain text file, so it can’t be saved here",
     },
   })
   .input(

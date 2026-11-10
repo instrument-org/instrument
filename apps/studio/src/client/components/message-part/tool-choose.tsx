@@ -757,7 +757,7 @@ export function ToolChoose({
     ask === undefined || output !== undefined
       ? undefined
       : given && !ask.here
-        ? `You answered from ${given.by}. It takes effect once ${ask.computer} picks it up.`
+        ? `You answered from ${given.by}. ${ask.computer} needs to be on for it to take effect.`
         : !given && ask.away
           ? `You answered from ${ask.away.by} while ${ask.here ? "this computer" : ask.computer} was away, so it’s asking again.`
           : undefined;

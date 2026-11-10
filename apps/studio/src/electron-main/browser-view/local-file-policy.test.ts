@@ -21,14 +21,20 @@ import {
   refuseLocalFilesIn,
 } from "./local-file-policy";
 
-const { liveFrames, userData } = vi.hoisted(() => ({
+const { downloads, liveFrames, userData } = vi.hoisted(() => ({
+  /** The person's Downloads folder, where a page reaches only itself. */
+  downloads: { dir: "/mock/downloads" },
   liveFrames: new Set<string>(),
   /** Electron's userData, this computer's folder. */
   userData: { dir: "/mock/user/data" },
 }));
 
 vi.mock("electron", () => ({
-  app: { getPath: () => userData.dir, on: vi.fn() },
+  app: {
+    getPath: (name: string) =>
+      name === "downloads" ? downloads.dir : userData.dir,
+    on: vi.fn(),
+  },
   webFrameMain: {
     fromId: (processId: number, routingId: number) =>
       liveFrames.has(`${processId}:${routingId}`) ? {} : undefined,
@@ -544,6 +550,117 @@ describe("this computer's folder", () => {
     expect(
       await response(at(chat, "style.css"), showing(`${chat}/index.html`)),
     ).toEqual({});
+  });
+});
+
+// Downloads is a pile of unrelated files a browser dropped there, so a page
+// in it needs none of them, and a page from the internet kept there by a
+// link can be opened straight away because it reads none of them.
+describe("a page in the Downloads folder", () => {
+  let root: string;
+  const at = (...segments: string[]) =>
+    pathToFileURL(path.join(root, ...segments)).href;
+
+  beforeAll(async () => {
+    root = await fs.realpath(
+      await fs.mkdtemp(path.join(os.tmpdir(), "downloads-page-")),
+    );
+    downloads.dir = path.join(root, "Downloads");
+    for (const file of [
+      "Downloads/page.html",
+      "Downloads/other.html",
+      "Downloads/notes.txt",
+      "Downloads/site/index.html",
+      "Downloads/site/chart.png",
+      "Work/page.html",
+      "Work/chart.png",
+    ]) {
+      await fs.mkdir(path.dirname(path.join(root, file)), { recursive: true });
+      await fs.writeFile(path.join(root, file), "");
+    }
+    // A folder elsewhere by name that is Downloads where it really leads.
+    await fs.symlink(
+      path.join(root, "Downloads"),
+      path.join(root, "Work", "pile"),
+    );
+  });
+
+  afterAll(async () => {
+    downloads.dir = "/mock/downloads";
+    await fs.rm(root, { force: true, recursive: true });
+  });
+
+  /** A guest whose main frame has loaded the page at `page`. */
+  const showing = (page: string) => {
+    const g = guest();
+    const main = g.frame();
+    g.load(main, at(page));
+    return {
+      ...g,
+      main,
+      read: (url: string) =>
+        localFileResponse({
+          frame: main as unknown as WebFrameMain,
+          resourceType: "xhr",
+          url,
+          webContentsId: g.contents.id,
+        }),
+    };
+  };
+
+  it("reads itself and nothing beside or below it", async () => {
+    const { read } = showing("Downloads/page.html");
+    expect(await read(at("Downloads/page.html"))).toEqual({});
+    expect(await read(at("Downloads/other.html"))).toEqual({ cancel: true });
+    expect(await read(at("Downloads/notes.txt"))).toEqual({ cancel: true });
+    expect(await read(at("Downloads/site/chart.png"))).toEqual({
+      cancel: true,
+    });
+  });
+
+  it("is held to the rule anywhere below the folder", async () => {
+    const { read } = showing("Downloads/site/index.html");
+    expect(await read(at("Downloads/site/index.html"))).toEqual({});
+    expect(await read(at("Downloads/site/chart.png"))).toEqual({
+      cancel: true,
+    });
+  });
+
+  it("is held to the rule where its folder really leads", async () => {
+    const { read } = showing("Work/pile/page.html");
+    expect(await read(at("Work/pile/page.html"))).toEqual({});
+    expect(await read(at("Work/pile/other.html"))).toEqual({ cancel: true });
+  });
+
+  it("leaves a page elsewhere its folder", async () => {
+    const { read } = showing("Work/page.html");
+    expect(await read(at("Work/chart.png"))).toEqual({});
+  });
+
+  it("downloads nothing but itself", () => {
+    const page = at("Downloads/page.html");
+    expect(isAllowedLocalDownload(page, page)).toBe(true);
+    expect(isAllowedLocalDownload(at("Downloads/other.html"), page)).toBe(
+      false,
+    );
+    expect(isAllowedLocalDownload(at("Downloads/site/chart.png"), page)).toBe(
+      false,
+    );
+    expect(
+      isAllowedLocalDownload(
+        at("Work/pile/other.html"),
+        at("Work/pile/page.html"),
+      ),
+    ).toBe(false);
+    expect(
+      isAllowedLocalDownload(at("Work/chart.png"), at("Work/page.html")),
+    ).toBe(true);
+  });
+
+  it("reaches only itself where names really lead", async () => {
+    const page = at("Downloads/page.html");
+    expect(await leadsBesidePage(page, page)).toBe(true);
+    expect(await leadsBesidePage(at("Downloads/other.html"), page)).toBe(false);
   });
 });
 

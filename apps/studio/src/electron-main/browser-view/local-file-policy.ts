@@ -1,4 +1,5 @@
 import {
+  app,
   type CallbackResponse,
   type OnBeforeRequestListenerDetails,
   type Session,
@@ -23,7 +24,12 @@ import { type GuestRole, guests } from "./guest-registry";
  * letting the page keep the pictures and styles it sits beside.
  *
  * So the rule is a static server's: a page at `/a/b/page.html` reaches
- * `/a/b/**` and nothing else. A navigation to another file is the person's
+ * `/a/b/**` and nothing else. A page in the person's Downloads folder, or
+ * anywhere below it, reaches only itself ({@link isInDownloads}): that
+ * folder is a pile of unrelated files a browser dropped there, so no page in
+ * it needs its neighbors, and a page from the internet kept there, which a
+ * `page` link from outside opens straight away (`hosted-page.ts`), reads
+ * none of them. A navigation to another file is the person's
  * own act (a link they clicked, a file they opened) and is left alone here;
  * the agent opens and reads only the files its own tools reach, which the CDP
  * bridge enforces. That holds only in a guest: a window a page opened never
@@ -150,10 +156,13 @@ export function isAllowedLocalRequest(
   const page = hostPathOf(
     guests.documentOf(details.webContentsId, details.frame),
   );
-  return (
-    page !== undefined &&
-    requested.startsWith(`${path.dirname(page)}${path.sep}`)
-  );
+  if (page === undefined) {
+    return false;
+  }
+  if (isInDownloads(page, downloadsFolder())) {
+    return requested === page;
+  }
+  return requested.startsWith(`${path.dirname(page)}${path.sep}`);
 }
 
 /**
@@ -206,8 +215,20 @@ export async function leadsBesidePage(
     return true;
   }
   const resolvedFolder = await realFolder;
+  if (resolvedFolder === undefined) {
+    return false;
+  }
+  const downloads = downloadsFolder();
+  if (
+    downloads !== undefined &&
+    isInDownloads(
+      path.join(resolvedFolder, path.basename(page)),
+      await realFolderOf(downloads),
+    )
+  ) {
+    return realRequested === (await realpathOrNothing(page));
+  }
   return (
-    resolvedFolder !== undefined &&
     realRequested.startsWith(`${resolvedFolder}${path.sep}`) &&
     !isRefusedByName(realRequested)
   );
@@ -272,6 +293,29 @@ function isUnderAnyRoot(hostPath: string, roots: readonly string[]) {
   });
 }
 
+/**
+ * The person's Downloads folder as the system names it; undefined where the
+ * system names none, and then no page is in it.
+ */
+function downloadsFolder(): string | undefined {
+  try {
+    return path.resolve(app.getPath("downloads"));
+  } catch {
+    return undefined;
+  }
+}
+
+/**
+ * Whether a page is in the Downloads folder or anywhere below it. Asked by
+ * name of the folder by name, and of the real folder by where the page's
+ * really is, so a page reached through a symlink into Downloads, or one
+ * whose folder is a symlink out of it, is held to the folder's rule either
+ * way.
+ */
+function isInDownloads(page: string, downloads: string | undefined) {
+  return downloads !== undefined && page.startsWith(`${downloads}${path.sep}`);
+}
+
 function realFolderOf(folder: string) {
   let resolved = realFolders.get(folder);
   if (resolved === undefined) {
@@ -310,6 +354,10 @@ function sitsBesidePage(requested: string, page: string | undefined) {
     return false;
   }
   const folder = path.dirname(page);
+  const downloads = downloadsFolder();
+  if (isInDownloads(page, downloads)) {
+    return requested === page;
+  }
   if (!requested.startsWith(`${folder}${path.sep}`)) {
     return false;
   }
@@ -324,6 +372,15 @@ function sitsBesidePage(requested: string, page: string | undefined) {
     realFolder = realpathSync(folder);
   } catch {
     return false;
+  }
+  if (
+    downloads !== undefined &&
+    isInDownloads(
+      path.join(realFolder, path.basename(page)),
+      realpathOrSelf(downloads),
+    )
+  ) {
+    return realRequested === realpathOrSelf(page);
   }
   return (
     realRequested.startsWith(`${realFolder}${path.sep}`) &&

@@ -16,6 +16,22 @@ vi.mock("@/client/lib/favicon-url", async (importOriginal) => ({
     "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNkYAAAAAYAAjCB0C8AAAAASUVORK5CYII=",
 }));
 
+// An app's chip looks its icon up among the apps the workspace has, which
+// only a running app answers; here Figma wears its directory mark.
+vi.mock("./window/apps-by-slug", () => ({
+  useAppsBySlug: () =>
+    new Map([
+      [
+        "figma",
+        {
+          icon: "instrument-local://directory-icon/figma.svg",
+          name: "Figma",
+          site: "https://figma.com",
+        },
+      ],
+    ]),
+}));
+
 // Both of these are questions about a stylesheet meeting a component, which is
 // the one thing jsdom cannot answer: it applies no CSS, so a chip that doubles
 // the height of its line and a link drawn as plain text both pass there.
@@ -198,6 +214,22 @@ describe("An inline link in a browser", () => {
     const { marginBottom, marginTop } = getComputedStyle(icon);
 
     expect([marginTop, marginBottom]).toEqual(["0px", "0px"]);
+  });
+
+  // The same margin pushed an app's mark out of the chip's clipped slot, so a
+  // reply naming an app drew its chip blank where the person's message, which
+  // is no prose, showed the mark.
+  it("keeps an app's icon inside its chip in a reply", async () => {
+    await renderReply("I'll retest the [Figma](instrument://app/figma) link.");
+
+    const icon = document.querySelector("img[alt=Figma]");
+    if (!icon) {
+      throw new Error("the app chip rendered without its icon");
+    }
+    const { marginBottom, marginTop } = getComputedStyle(icon);
+
+    expect([marginTop, marginBottom]).toEqual(["0px", "0px"]);
+    expect(icon.getBoundingClientRect().height).toBe(12);
   });
 
   // A page is a page whether its label is a sentence or the URL itself, and

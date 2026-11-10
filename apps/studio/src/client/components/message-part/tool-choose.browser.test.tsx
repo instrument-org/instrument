@@ -50,3 +50,26 @@ it("shows one step at a time and keeps the card's height as the person moves bet
     .element(screen.getByText("What does a good weekend look like?"))
     .not.toBeVisible();
 });
+
+it("keeps every header where it was through answering, skipping and moving between steps", async () => {
+  const screen = await renderInBrowser(
+    <div style={{ width: 480 }}>
+      <QuestionCard onAnswer={noop} questions={SEVERAL} status="open" />
+    </div>,
+  );
+  const headers = () =>
+    ["Morning", "Weekend", "Pets", "Review"].map((name) => {
+      const { left, top } = screen
+        .getByRole("button", { name: new RegExp(name) })
+        .element()
+        .getBoundingClientRect();
+      return { left, top };
+    });
+  const before = headers();
+
+  await screen.getByRole("radio", { name: /Coffee/ }).click();
+  await screen.getByRole("button", { name: "Skip" }).click();
+  await screen.getByRole("button", { name: /Review/ }).click();
+
+  expect(headers()).toEqual(before);
+});

@@ -488,19 +488,35 @@ function Steps({
             }}
             type="button"
           >
-            {isAnswered ? (
-              <CheckIcon
-                className="size-3 text-brand-600 dark:text-brand-400"
-                weight="bold"
-              />
-            ) : isSkipped ? (
-              <MinusIcon className="size-3" weight="bold" />
-            ) : draft ? (
-              <span className="text-muted-foreground/70 tabular-nums">
-                {index + 1}
+            {/* One width for the number and the marks that replace it, so
+                answering a question never moves the headers after it. */}
+            {draft ? (
+              <span className="grid w-3 shrink-0 place-items-center">
+                {isAnswered ? (
+                  <CheckIcon
+                    className="size-3 text-brand-600 dark:text-brand-400"
+                    weight="bold"
+                  />
+                ) : isSkipped ? (
+                  <MinusIcon className="size-3" weight="bold" />
+                ) : (
+                  <span className="text-muted-foreground/70 tabular-nums">
+                    {index + 1}
+                  </span>
+                )}
               </span>
             ) : null}
-            {label}
+            {/* As wide as the label in the current header's weight, so
+                moving between steps never moves the headers either. */}
+            <span className="grid">
+              <span className="col-start-1 row-start-1">{label}</span>
+              <span
+                aria-hidden
+                className="invisible col-start-1 row-start-1 font-medium"
+              >
+                {label}
+              </span>
+            </span>
           </button>
         );
       })}

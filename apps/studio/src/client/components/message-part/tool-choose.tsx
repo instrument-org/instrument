@@ -185,7 +185,7 @@ export function QuestionCard({
   const noteBox = (
     <DictatedTextarea
       aria-label="Note"
-      autoFocus={!isReview}
+      autoFocus={!isSeveral}
       className="mt-3 min-h-12"
       dictation={noteDictation}
       onChange={(event) => {
@@ -208,34 +208,64 @@ export function QuestionCard({
           />
         ) : null}
 
-        {isReview ? (
-          <>
-            <dl className="flex flex-col gap-1.5 text-sm">
-              {questions.map((each, index) => {
-                const reply = replyOf(draftAt(index));
-                return (
-                  <div className="flex items-baseline gap-3" key={index}>
-                    <dt className="w-28 shrink-0 truncate text-xs text-muted-foreground">
-                      {each.header || each.question}
-                    </dt>
-                    <dd
-                      className={cn(
-                        "min-w-0",
-                        "skipped" in reply && "text-muted-foreground",
-                      )}
-                    >
-                      {"skipped" in reply ? "Skipped" : reply.picked.join(", ")}
-                    </dd>
-                  </div>
-                );
-              })}
-            </dl>
-            {noteBox}
-          </>
+        {isSeveral ? (
+          // Every step is laid out in the one cell and all but the current
+          // one hidden, so the card keeps the height of its tallest step
+          // rather than resizing as the person moves between them.
+          <div className="grid">
+            {questions.map((each, index) => (
+              <div
+                className={cn(
+                  "col-start-1 row-start-1",
+                  index !== step && "invisible",
+                )}
+                inert={index !== step}
+                key={index}
+              >
+                <QuestionStep
+                  draft={draftAt(index)}
+                  onOwn={typeOwn}
+                  onPick={pick}
+                  onSubmitOwn={submitOwn}
+                  question={each}
+                />
+              </div>
+            ))}
+            <div
+              className={cn(
+                "col-start-1 row-start-1",
+                !isReview && "invisible",
+              )}
+              inert={!isReview}
+            >
+              <dl className="flex flex-col gap-1.5 text-sm">
+                {questions.map((each, index) => {
+                  const reply = replyOf(draftAt(index));
+                  return (
+                    <div className="flex items-baseline gap-3" key={index}>
+                      <dt className="w-28 shrink-0 truncate text-xs text-muted-foreground">
+                        {each.header || each.question}
+                      </dt>
+                      <dd
+                        className={cn(
+                          "min-w-0",
+                          "skipped" in reply && "text-muted-foreground",
+                        )}
+                      >
+                        {"skipped" in reply
+                          ? "Skipped"
+                          : reply.picked.join(", ")}
+                      </dd>
+                    </div>
+                  );
+                })}
+              </dl>
+              {noteBox}
+            </div>
+          </div>
         ) : question ? (
           <QuestionStep
             draft={current}
-            key={step}
             onOwn={typeOwn}
             onPick={pick}
             onSubmitOwn={submitOwn}

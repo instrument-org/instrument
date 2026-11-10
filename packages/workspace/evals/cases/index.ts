@@ -2,6 +2,7 @@ import { WORKSPACE_INSTRUCTIONS_EVALS } from "./workspace-instructions";
 import { ACTIVITY_CONTEXT_EVALS } from "./activity-context";
 import { AI_REQUESTS_EVALS } from "./ai-requests";
 import { APP_ACCOUNTS_EVALS } from "./app-accounts";
+import { APP_OWN_FOLDERS_EVALS } from "./app-own-folders";
 import { APP_IMPORT_FILE_EVALS } from "./app-import-file";
 import { APP_OTHER_COMPUTER_EVALS } from "./app-other-computer";
 import { APP_GUIDANCE_EVALS } from "./app-guidance";
@@ -73,6 +74,7 @@ export const EVALS = [
   ...ACTIVITY_CONTEXT_EVALS,
   ...AI_REQUESTS_EVALS,
   ...APP_ACCOUNTS_EVALS,
+  ...APP_OWN_FOLDERS_EVALS,
   ...APP_IMPORT_FILE_EVALS,
   ...APP_OTHER_COMPUTER_EVALS,
   ...APP_GUIDANCE_EVALS,

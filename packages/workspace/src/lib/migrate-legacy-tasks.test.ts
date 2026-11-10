@@ -973,11 +973,16 @@ describe("migrateLegacyTasks", () => {
       process.platform === "win32" ? 1 : "SIGKILL",
     );
     expect(fs.existsSync(`${database}-journal`)).toBe(true);
-    expect(() =>
-      new DatabaseSync(database, { readOnly: true })
-        .prepare("select key from sessions limit 1")
-        .get(),
-    ).toThrow();
+    // Closed before the migration runs: Windows refuses to rename a folder
+    // with a file in it still open.
+    const reader = new DatabaseSync(database, { readOnly: true });
+    try {
+      expect(() =>
+        reader.prepare("select key from sessions limit 1").get(),
+      ).toThrow();
+    } finally {
+      reader.close();
+    }
 
     expect(migrateLegacyTasks(root, machineDir)).toMatchObject({
       adoptedCount: 1,

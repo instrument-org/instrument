@@ -27,6 +27,7 @@ describe("withMacEditingCommands on macOS", () => {
     ["ArrowLeft", META, "moveToLeftEndOfLine"],
     ["ArrowRight", META, "moveToRightEndOfLine"],
     ["ArrowUp", META | SHIFT, "moveToBeginningOfDocumentAndModifySelection"],
+    ["KeyA", CONTROL, "selectAll"],
   ])("attaches %s+%d as %s", (code, modifiers, command) => {
     setPlatform("darwin");
     const result = withMacEditingCommands("Input.dispatchKeyEvent", {
@@ -59,6 +60,14 @@ describe("withMacEditingCommands on macOS", () => {
     [
       "a Command chord that also holds Alt",
       { code: "KeyA", modifiers: META | ALT, type: "rawKeyDown" },
+    ],
+    [
+      "Control+Shift+A",
+      { code: "KeyA", modifiers: CONTROL | SHIFT, type: "rawKeyDown" },
+    ],
+    [
+      "another Control chord",
+      { code: "KeyE", modifiers: CONTROL, type: "rawKeyDown" },
     ],
     [
       "an unmapped Command chord",

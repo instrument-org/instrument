@@ -16,13 +16,17 @@ const SHIFT = 8;
 // Keyed on the physical `code` in the same modifier order the mapping is
 // written in (Shift, Alt, Meta), with values as Chromium editing command names.
 //
-// Only Command chords are listed, for two reasons. Unmodified and Control-based
-// editing keys are handled by the renderer itself, so attaching commands to
-// those would change a path that already works. And the clipboard chords
-// (Meta+C/X/V) are deliberately absent: routing them through this trusted path
-// would hand a page the user's clipboard, which is a containment decision of
-// its own rather than a keyboard-routing fix. Chromium blocks untrusted paste
-// for the same reason.
+// Command chords are listed, and one Control chord. Unmodified editing keys are
+// handled by the renderer itself, so attaching commands to those would change
+// a path that already works. Control+A is the select-all of Windows and Linux,
+// and of agent-browser's own guide, which an agent sends wherever it runs; on
+// macOS it arrives as a bare keystroke that does nothing, so the text typed
+// after it appends. It is mapped to select-all, which is what the agent meant.
+// Only agent input goes through here, so a person's Control+A keeps its macOS
+// meaning. The clipboard chords (Meta+C/X/V) are deliberately absent: routing
+// them through this trusted path would hand a page the user's clipboard, which
+// is a containment decision of its own rather than a keyboard-routing fix.
+// Chromium blocks untrusted paste for the same reason.
 const MAC_COMMAND_CHORDS = new Map<string, string>([
   ["Meta+ArrowDown", "moveToEndOfDocument"],
   ["Meta+ArrowLeft", "moveToLeftEndOfLine"],
@@ -64,6 +68,9 @@ export function withMacEditingCommands(
   }
 
   const modifiers = event.modifiers ?? 0;
+  if (modifiers === CONTROL && event.code === "KeyA") {
+    return { ...event, commands: ["selectAll"] };
+  }
   // Control appears in editing chords of its own on macOS, none of which
   // combine with Command, so its presence means this is not a chord we map.
   if (!(modifiers & META) || modifiers & CONTROL || modifiers & ALT) {

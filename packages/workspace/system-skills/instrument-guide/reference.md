@@ -20,7 +20,7 @@ How Instrument looks, notifications, dictation, suggested messages, updates, and
 - **Version and updates** (`version`): Which version of Instrument you have, and updates. On it: Release notes (`release-notes`), Check for updates (`check-for-updates`).
 - **Open source** (`open-source`): View the source, or tell us about something that isn't working. On it: View source on GitHub (`view-source`), Send feedback (`send-feedback`), Third-party licenses (`third-party-licenses`).
 - **Suggest a next message** (`suggest-next-message`): After a reply, show a few things you might say next.
-- **Diagnostic log** (`diagnostic-log`): A local record to send with a problem report. On it: View log (`view-log`).
+- **Diagnostic log** (`diagnostic-log`): A log on this computer to send with a problem report. On it: View log (`view-log`).
 
 ### Account (`account`)
 
@@ -58,7 +58,7 @@ Which folders and places on this computer Instrument may use.
 
 ### Skills (`skills`)
 
-The skills Instrument's tasks can use, and making a new one.
+The skills Instrument can use, and making a new one.
 
 - **New skill** (`new-skill`): Ask for a skill that teaches a new way of working.
 

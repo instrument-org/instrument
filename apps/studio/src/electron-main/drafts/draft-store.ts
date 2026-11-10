@@ -566,7 +566,7 @@ function readFile(file: string): DraftFile | undefined {
 }
 
 function unreachable(id: string): never {
-  throw new Error(`No file holds draft ${id}`);
+  throw new Error(`No file has draft ${id}`);
 }
 
 /**

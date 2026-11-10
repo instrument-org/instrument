@@ -604,7 +604,7 @@ function srcAtIn(runs: TextRun[], d: number, isEnd = false) {
       : runs.find((x) => x.ds <= d && d < x.de)) ??
     runs.find((x) => x.ds <= d && d <= x.de);
   if (!r) {
-    throw new Error(`No text run holds offset ${d}`);
+    throw new Error(`No text run has offset ${d}`);
   }
   if (d === r.ds) {
     return r.s;

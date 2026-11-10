@@ -266,7 +266,7 @@ function PermissionAskCard({
       ) : null}
       {ask.away && !ask.answered ? (
         <p className="mt-2 text-[13px] text-muted-foreground">
-          {`You answered from ${ask.away.by} while ${ask.here ? "this computer" : ask.computer} was away, so it’s asking again.`}
+          {`You answered from ${ask.away.by} while ${ask.here ? "this computer" : ask.computer} was away, so the chat is asking again.`}
         </p>
       ) : null}
       {!ask.here && ask.answerable ? (
@@ -409,7 +409,7 @@ function cardTitle(ask: Ask, name: string): string {
  */
 function elsewhereLine(ask: Ask): string {
   if (ask.answered && !ask.answered.taken) {
-    return `You answered from ${ask.answered.by}. It takes effect once ${ask.computer} picks it up.`;
+    return `You answered from ${ask.answered.by}. ${ask.computer} needs to be on for it to take effect.`;
   }
   if (ask.answered) {
     return `You answered from ${ask.answered.by}, and ${ask.computer} needs you to finish it there.`;

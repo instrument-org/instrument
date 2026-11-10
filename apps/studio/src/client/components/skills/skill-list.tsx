@@ -7,7 +7,7 @@ import { isProvidedSource, skillSourceLabel } from "@/client/lib/skill-source";
 import { SKILL_NAME_MATCH_CLASS_NAME } from "@/client/lib/skill-tokens";
 import { cn } from "@/client/lib/utils";
 import { rpcClient, type RPCOutput } from "@/client/rpc/client";
-import { APP_NAME, APP_NAME_SLUG } from "@instrument-org/shared";
+import { APP_NAME_SLUG } from "@instrument-org/shared";
 import { FilesIcon } from "@phosphor-icons/react/Files";
 import { MagnifyingGlassIcon } from "@phosphor-icons/react/MagnifyingGlass";
 import { XIcon } from "@phosphor-icons/react/X";
@@ -71,7 +71,7 @@ export function SkillList({
       <div className="rounded-2xl border border-dashed p-10 text-center">
         <p className="font-medium">No skills yet</p>
         <p className="mt-2 text-sm text-muted-foreground">
-          {`Add a skill folder to a directory ${APP_NAME} reads, or ask for one.`}
+          {`Add a skill folder to Skills, or ask a chat for one.`}
         </p>
       </div>
     );

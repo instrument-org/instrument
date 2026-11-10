@@ -4231,7 +4231,8 @@ export function NotPermitted({
               {`Instrument keeps “${name}” private`}
             </p>
             <p className="mt-1 text-xs leading-5 text-muted-foreground">
-              It holds Instrument’s own data, so you can’t open it here.
+              Instrument keeps its data in this folder, so you can’t open it
+              here.
             </p>
           </div>
         </div>

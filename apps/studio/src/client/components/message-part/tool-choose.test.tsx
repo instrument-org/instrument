@@ -131,7 +131,7 @@ describe("ToolChoose", () => {
 
     await waitFor(() => {
       expect(container.textContent).toContain(
-        "You answered from Sam’s iPhone. It takes effect once Studio Mac picks it up.",
+        "You answered from Sam’s iPhone. Studio Mac needs to be on for it to take effect.",
       );
     });
     expect(container.textContent).toContain("Vue");

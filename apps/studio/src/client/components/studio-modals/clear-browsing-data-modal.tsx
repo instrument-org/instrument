@@ -29,7 +29,6 @@ import {
   type TimeRangeId,
 } from "@/client/lib/browsing-data";
 import { rpcClient } from "@/client/rpc/client";
-import { APP_NAME } from "@instrument-org/shared";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { useAtom } from "jotai";
 import { useId, useState } from "react";
@@ -131,7 +130,8 @@ function ClearBrowsingDataContent({
       <div className="flex flex-col gap-2">
         <DialogTitle>Clear browsing data</DialogTitle>
         <DialogDescription>
-          {`This clears what the browser in ${APP_NAME} has kept from the sites you visit. Your chats and files stay as they are.`}
+          This clears the browsing data you pick. Your chats and files stay as
+          they are.
         </DialogDescription>
       </div>
 

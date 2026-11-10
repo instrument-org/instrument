@@ -132,3 +132,34 @@ new RuleTester({
     `import { readFile } from "node:fs/promises"; await readFile(file);`,
   ],
 });
+
+const plainCopyRule = plugin.rules["plain-copy"];
+if (!plainCopyRule) {
+  throw new Error("The plugin has no studio/plain-copy rule");
+}
+
+/** A line that says a rejected phrase where a person reads it. */
+const says = (code: string) => ({ code, errors: [{ messageId: "plainCopy" }] });
+
+new RuleTester({
+  languageOptions: { parserOptions: { lang: "tsx" } },
+}).run("plain-copy", plainCopyRule, {
+  invalid: [
+    says(`const line = "This box holds up to 40 characters.";`),
+    says(`const line = <p>The chat carries on from here.</p>;`),
+    says("const line = `${APP_NAME} picks it up as soon as you're done.`;"),
+    says(`const line = "Choose where it should live.";`),
+    says(`const line = "Before each message, a chat hears what you did.";`),
+    says("const line = `It is ${APP_NAME}’s own data.`;"),
+    says(`const line = "Adds to your memories, never replaces them.";`),
+    says(`const line = "Fast — and private.";`),
+  ],
+  valid: [
+    `const line = "This box fits up to 40 characters.";`,
+    `const line = "Hold Shift to select a range.";`,
+    `const line = "The extension works on its own.";`,
+    `const el = <div data-slot="holds" />;`,
+    `if (kind === "holds") {}`,
+    `console.log("the queue holds 3 jobs");`,
+  ],
+});

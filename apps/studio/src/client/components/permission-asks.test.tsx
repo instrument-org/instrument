@@ -281,7 +281,7 @@ describe("PermissionAsksFoot", () => {
 
     expect(
       await screen.findByText(
-        "You answered from Sam’s iPhone while this computer was away, so it’s asking again.",
+        "You answered from Sam’s iPhone while this computer was away, so the chat is asking again.",
       ),
     ).toBeDefined();
     expect(buttons()).toContain("Allow in this chat");
@@ -319,7 +319,7 @@ describe("PermissionAsksFoot", () => {
         },
         "folder",
         "open",
-        "You answered from Alex's iPhone. It takes effect once Studio Mac picks it up.",
+        "You answered from Alex's iPhone. Studio Mac needs to be on for it to take effect.",
       ],
       [
         "a yes that macOS there is still asking about",

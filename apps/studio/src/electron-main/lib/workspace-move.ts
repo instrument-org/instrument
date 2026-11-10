@@ -628,7 +628,7 @@ function makeMove({
           if (entryExists(toData)) {
             clearPendingMove(userDataDir, workspace.id);
             done.push(
-              `did not move to ${to}, which holds a ${PRIVATE_FOLDER_NAME} this move did not put there; left everything where it was`,
+              `did not move to ${to}, which has a ${PRIVATE_FOLDER_NAME} this move did not put there; left everything where it was`,
             );
             return { done, workspace };
           }

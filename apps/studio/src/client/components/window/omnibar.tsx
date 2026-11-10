@@ -898,7 +898,7 @@ function useRows({
           ? {
               empty:
                 listed.reason === "app"
-                  ? `“${folderName}” has Instrument’s own files, so it stays closed.`
+                  ? `Instrument keeps its data in “${folderName}”, so it stays closed.`
                   : `Instrument can’t read “${displayHostPath(listed.refusedBy ?? path.folder, home)}”`,
             }
           : listed

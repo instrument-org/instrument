@@ -135,7 +135,7 @@ function ClashDialog({
   const body = isSource
     ? "Do you want to keep both?"
     : !clash.replaceable
-      ? `It’s one of the items you’re ${verb}, or holds one, so you can keep both or skip this one.`
+      ? `It’s one of the items you’re ${verb}, or has one inside it, so you can keep both or skip this one.`
       : clash.with.kind === "folder" && clash.kind !== "folder"
         ? `Do you want to replace the folder with the ${incoming} you’re ${verb}?`
         : `Do you want to replace it with the ${incoming} you’re ${verb}?`;

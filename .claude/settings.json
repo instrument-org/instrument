@@ -75,6 +75,11 @@
             "type": "command",
             "command": "d=$(git rev-parse --path-format=absolute --git-common-dir 2>/dev/null) || exit 0; node \"$(dirname \"$d\")/node_modules/@instrument-org/agent-hooks/format.mjs\"",
             "timeout": 180
+          },
+          {
+            "type": "command",
+            "command": "t=$(git rev-parse --show-toplevel 2>/dev/null) || exit 0; f=\"$t/scripts/ui-copy.ts\"; [ -f \"$f\" ] || exit 0; node \"$f\" --stop-hook",
+            "timeout": 30
           }
         ]
       }

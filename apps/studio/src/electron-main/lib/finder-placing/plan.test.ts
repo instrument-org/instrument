@@ -389,7 +389,7 @@ describe("planning a drop, a paste or a move", () => {
     ).toMatchInlineSnapshot(`
       [
         "clash notes.txt (file) with entry (file), not replaceable",
-        "refused: “notes.txt” can’t be replaced, since it is one of the items you’re putting there or holds one.",
+        "refused: “notes.txt” can’t be replaced, since it is one of the items you’re putting there or has one inside it.",
       ]
     `);
   });
@@ -416,7 +416,7 @@ describe("planning a drop, a paste or a move", () => {
     ).toMatchInlineSnapshot(`
       [
         "clash pics (folder) with entry (folder), not replaceable",
-        "refused: “pics” can’t be replaced, since it is one of the items you’re putting there or holds one.",
+        "refused: “pics” can’t be replaced, since it is one of the items you’re putting there or has one inside it.",
       ]
     `);
   });

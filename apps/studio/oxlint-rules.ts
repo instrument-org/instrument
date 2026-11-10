@@ -396,6 +396,109 @@ const noOsWords = defineRule({
   },
 });
 
+/**
+ * Phrases that review keeps sending back in text a person reads, each with
+ * what to write instead. They are the narrow, unambiguous tells: everything
+ * a pattern cannot judge (narrating how the app works, saying what is
+ * already on screen, the wrong word for a label) is the copy-review skill's.
+ */
+const PLAIN_COPY: { phrase: RegExp; write: string }[] = [
+  {
+    phrase: /\bholds\b/i,
+    write: "“has”, “fits” or “is in”",
+  },
+  {
+    phrase: /\bcarr(?:y|ies|ied) on\b/i,
+    write: "“continues”, or leave the clause out",
+  },
+  {
+    phrase: /\bpicks? (?:it |them )?up\b/i,
+    write:
+      "what the person does next, or nothing: the app picking something up is how it works, not what they get",
+  },
+  {
+    phrase: /\bsends? back\b/i,
+    write: "“shows” or “returns”",
+  },
+  {
+    phrase:
+      /\b(?:should|will|can|to|where (?:it|they|you|\w+)) live\b|\blive\?|\blives (?:in|on|at|here|there)\b/i,
+    write: "“is in”, “goes” or “a place for it”",
+  },
+  {
+    phrase: /\b(?:hears|is told|was told|gets told)\b/i,
+    write:
+      "the plain fact of what goes where (“Each message you send includes…”), with no software that hears or is told things",
+  },
+  {
+    phrase:
+      /['’]s own (?:data|tools?|folders?|files?)\b|\bInstrument['’]s AI\b/,
+    write:
+      "what it is for the person (“Instrument uses this folder”), or just “Instrument”",
+  },
+  {
+    phrase: /,\s+never\b|\bnot (?:just|only)\b/i,
+    write: "the positive statement alone",
+  },
+  {
+    phrase: /—/,
+    write: "a comma, a colon or two sentences",
+  },
+];
+
+/** An attribute that names markup (`data-slot="holds"`) rather than saying anything. */
+const MARKUP_ATTRIBUTE = /^(?:data-.*|className|id|key|name|role|slot|type)$/;
+
+function isMarkupValue(node: ESTree.Node): boolean {
+  const { parent } = node;
+  return (
+    parent?.type === "JSXAttribute" &&
+    parent.name.type === "JSXIdentifier" &&
+    MARKUP_ATTRIBUTE.test(parent.name.name)
+  );
+}
+
+const plainCopy = defineRule({
+  create(context) {
+    const check = (node: ESTree.Node, text: string, whole = node) => {
+      for (const { phrase, write } of PLAIN_COPY) {
+        const found = phrase.exec(text)?.[0];
+        if (found && !isCode(whole)) {
+          // A template is reported whole, so a disable comment can sit
+          // above it.
+          context.report({
+            data: { found, write },
+            messageId: "plainCopy",
+            node: whole,
+          });
+          return;
+        }
+      }
+    };
+    return {
+      JSXText(node) {
+        check(node, node.value);
+      },
+      Literal(node) {
+        if (typeof node.value === "string" && !isMarkupValue(node)) {
+          check(node, node.value);
+        }
+      },
+      TemplateElement(node) {
+        check(node, node.value.cooked ?? node.value.raw, node.parent);
+      },
+    };
+  },
+  meta: {
+    messages: {
+      plainCopy:
+        "“{{found}}” is a phrase copy review rejects in text a person reads. Write {{write}}. The copy-review skill has the rest of the checks. Text only the agent reads keeps it under `// oxlint-disable-next-line studio/plain-copy -- agent text`.",
+    },
+    schema: [],
+    type: "problem",
+  },
+});
+
 /** The modifier names a `||` chain reads, by the property it reads them through. */
 const modifiersRead = (node: ESTree.Expression): string[] => {
   if (node.type === "LogicalExpression" && node.operator === "||") {
@@ -549,5 +652,6 @@ export default definePlugin({
     "no-sync-content-read": noSyncContentRead,
     "no-transition-colors": noTransitionColors,
     "one-tooltip-provider": oneTooltipProvider,
+    "plain-copy": plainCopy,
   },
 });

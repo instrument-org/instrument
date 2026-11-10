@@ -340,8 +340,8 @@ export function FolderStep({ hold, onBack, onContinue }: SetupStepProps) {
           }
           title={
             lostPast === "new" && picked === null
-              ? "Where should your new Instrument folder live?"
-              : "Where should your Instrument folder live?"
+              ? "Where do you want your new Instrument folder?"
+              : "Where do you want your Instrument folder?"
           }
         >
           <div className="mt-8 flex w-140 max-w-full flex-col">
@@ -440,8 +440,8 @@ function MovingPage({
         !restarts
           ? undefined
           : how === "open"
-            ? `${APP_NAME} restarts once to open it, then picks up right here.`
-            : `${APP_NAME} restarts once to finish, then picks up right here.`
+            ? `${APP_NAME} restarts once to open it, then comes right back here.`
+            : `${APP_NAME} restarts once to finish, then comes right back here.`
       }
       title={
         how === "open"

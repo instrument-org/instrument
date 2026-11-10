@@ -150,7 +150,7 @@ function RemoteSignInCard({
         <div className="flex min-h-11 items-center justify-between gap-3 border-t border-border bg-muted/40 px-4 py-1.5">
           <span className="text-xs text-muted-foreground">
             {ask.answered
-              ? `You said not now from ${ask.answered.by}. It takes effect once ${ask.computer} picks it up.`
+              ? `You said not now from ${ask.answered.by}. ${ask.computer} needs to be on for it to take effect.`
               : `You can sign in on ${ask.computer}.`}
           </span>
           {ask.answerable ? (

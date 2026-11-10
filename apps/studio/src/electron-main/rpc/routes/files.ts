@@ -948,9 +948,9 @@ async function oneWriterAt<T>(filePath: string, work: () => Promise<T>) {
 const write = base
   .errors({
     CANNOT_WRITE: { message: "That file cannot be written to" },
-    FORBIDDEN: { message: "That file is Instrument’s own data" },
+    FORBIDDEN: { message: "That file is Instrument’s data" },
     NOT_UTF8: {
-      message: "This file is not UTF-8 text, so it is not saved here",
+      message: "Instrument can’t save files in this text format",
     },
   })
   .input(
@@ -1015,7 +1015,7 @@ const write = base
  * app's own data is not read (`isClosed`).
  */
 const read = base
-  .errors({ FORBIDDEN: { message: "That file is Instrument’s own data" } })
+  .errors({ FORBIDDEN: { message: "That file is Instrument’s data" } })
   .input(z.object({ path: HostPathSchema }))
   .output(
     z.object({ content: z.string(), utf8: z.boolean(), version: z.string() }),

@@ -395,7 +395,7 @@ export function useDictatedText({
       change(fitted.text);
       if (fitted.trimmed) {
         toast.info("Some of what you said didn't fit", {
-          description: `This box holds up to ${maxLength.toLocaleString("en-US")} characters, so the rest was left out.`,
+          description: `This box fits up to ${maxLength.toLocaleString("en-US")} characters, so the rest was left out.`,
         });
       }
     },

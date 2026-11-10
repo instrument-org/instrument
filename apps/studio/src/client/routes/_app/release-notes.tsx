@@ -328,7 +328,7 @@ function Unavailable({ onRetry }: { onRetry: () => void }) {
     <div className="flex flex-col items-center gap-3 rounded-xl bg-foreground/3 px-6 py-14 text-center">
       <WifiSlashIcon className="size-6 text-muted-foreground/60" />
       <p className="text-sm text-muted-foreground">
-        We couldn't load the release notes. Check your connection and try again.
+        Couldn't load the release notes. Check your connection and try again.
       </p>
       <Button onClick={onRetry} size="sm" variant="outline">
         Try again

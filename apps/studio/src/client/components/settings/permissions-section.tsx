@@ -264,10 +264,9 @@ export function PermissionsSection() {
         <div className="flex items-start gap-2 rounded-lg bg-muted p-3 text-sm text-muted-foreground">
           <InfoIcon className="mt-0.5 size-4 shrink-0" />
           <p>
-            On Windows, Instrument's own tools follow this list, but programs
-            the agent runs, including its Python and Node scripts, can reach any
-            file you can. That changes once Instrument can use Windows' own
-            sandbox.{" "}
+            On Windows, Instrument's built-in tools follow this list, but
+            programs the agent runs, including its Python and Node scripts, can
+            reach any file you can.{" "}
             <button
               className="underline underline-offset-2 hover:text-foreground"
               onClick={() => {

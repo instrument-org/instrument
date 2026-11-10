@@ -98,7 +98,7 @@ function ShortcutGuideContent({
       <div className="flex flex-col gap-3 px-6 pt-6 pb-4">
         <DialogTitle>Keyboard shortcuts</DialogTitle>
         <DialogDescription className="sr-only">
-          Every keyboard shortcut the app offers, grouped and searchable.
+          Every keyboard shortcut in Instrument.
         </DialogDescription>
         <div className="relative">
           <MagnifyingGlassIcon className="pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2 text-muted-foreground" />

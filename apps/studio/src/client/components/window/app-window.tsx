@@ -1192,7 +1192,7 @@ function WindowShell({
     return (
       <WindowFrame>
         <p className="p-4 pt-12 text-sm text-destructive">
-          Could not open the conversation: {ensure.error.message}
+          Couldn't open the chat: {ensure.error.message}
         </p>
       </WindowFrame>
     );

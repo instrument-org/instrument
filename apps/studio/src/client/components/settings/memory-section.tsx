@@ -326,6 +326,7 @@ function AnySourceTile({ onStart }: { onStart: (entry: string) => void }) {
  * that assistant's own features. Nothing is asked about work in flight, which
  * memory does not keep.
  */
+// oxlint-disable-next-line studio/plain-copy -- the person pastes this into another AI
 const EXPORT_PROMPT = `List everything you remember about me: your saved memories and anything you have learned about me from our past conversations. Keep my own words wherever you can, above all for instructions and preferences.
 
 Sort it under these headings, in this order:
@@ -349,6 +350,7 @@ Put the whole answer in a single code block so I can copy it in one go. After th
  * left behind. An entry's date is when that AI learned it, so a fact that
  * may have moved on since keeps its year rather than reading as current.
  */
+// oxlint-disable-next-line studio/plain-copy -- the person pastes this into another AI
 const KEEP_RULES = `Save the durable facts here as memories, one fact each, in my words where you can. Keep my instructions about tone, format, and style, since they say how I like things done. Skip an instruction only when it is about that assistant's own tools or features, or tells you not to do something you do here. Also skip anything that was only about one old conversation, anything you already remember about me, and anything sensitive such as keys, passwords, or payment details. Each entry starts with the date that AI learned it: when an old one could have changed since, such as a job, a city, or a project, keep the year in the memory ("As of 2024, you..."). Tell me what you saved and what you left out.`;
 
 /** A block of text set off as a Markdown quote, so the agent sends it as written. */
@@ -426,8 +428,7 @@ function PasteImport({ onStart }: { onStart: (answer: string) => void }) {
             Copy and paste from any AI
           </span>
           <span className="block text-xs text-muted-foreground">
-            Ask the AI you use a question, then paste its answer here. This
-            works with any AI.
+            Ask the AI you use a question, then paste its answer here.
           </span>
         </span>
         <CaretDownIcon className="size-4 shrink-0 text-muted-foreground" />
@@ -634,6 +635,7 @@ function localPrompt({ home, name }: { home: string; name: string }) {
   // for home, which is not a path the agent can open: home reaches it as one
   // of its own mounts, and its context already says which.
   const folder = home.replace(/^~\//, "");
+  // oxlint-disable-next-line studio/plain-copy -- text for the agent
   return `Import what ${name} knows about me from this computer.
 
 Have a task read the ${folder} folder inside my home folder, handed to it read-only and never writable: that folder is another tool's memory and losing it would cost me work. Ask it to report the durable facts about me, one per line, in my words where it can, and save each one here as a memory.

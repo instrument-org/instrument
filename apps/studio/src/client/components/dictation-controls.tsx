@@ -274,16 +274,26 @@ function DictationWave({
  * What stands in for the words when there are none to show: that it waits
  * on the system's microphone prompt, that it is listening, that the words
  * will come at Stop when live text isn't working, or that they are on their
- * way.
+ * way. A live stream that is gone loses no words, since the whole take is
+ * transcribed at Stop, so it is mentioned only while recording, where the
+ * words would otherwise be expected to show. After Stop, a stream that closed
+ * on the way out or lost the race with Stop changes nothing the person sees.
  */
 function quietLine({ live, phase }: Dictation) {
-  return phase.kind === "starting" && phase.asking
-    ? "Waiting for microphone access…"
-    : live?.status === "lost" || live?.status === "unavailable"
-      ? "Live text unavailable"
-      : phase.kind === "transcribing" && !phase.live
-        ? "Transcribing…"
-        : "Listening…";
+  if (phase.kind === "starting" && phase.asking) {
+    return "Waiting for microphone access…";
+  }
+  if (
+    phase.kind === "recording" &&
+    (live?.status === "lost" || live?.status === "unavailable")
+  ) {
+    return live.settled
+      ? "The rest will appear when you stop"
+      : "Your words will appear when you stop";
+  }
+  return phase.kind === "transcribing" && !phase.live
+    ? "Transcribing…"
+    : "Listening…";
 }
 
 /**

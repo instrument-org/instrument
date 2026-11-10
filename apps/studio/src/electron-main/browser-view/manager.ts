@@ -1064,6 +1064,7 @@ function createBrowserViewManager(): BrowserViewManager {
     }
     const dispatch = () =>
       sendCommand({
+        byAgent,
         describeHost,
         ensureDebuggerAttached,
         entries,

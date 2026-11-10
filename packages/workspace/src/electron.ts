@@ -34,6 +34,8 @@ export {
 } from "./lib/apps/catalog";
 export { type AppEvent, appChanged } from "./lib/apps/changed";
 export { accountSignedIn } from "./lib/chat/sign-in-wake";
+export { isDrivenByWorkingAgent } from "./lib/chat/driven-tabs";
+export { isPageWork } from "./logic/server/routes/cdp-task-bridge";
 export {
   type AccountCheck,
   checkAccountWithRequest,

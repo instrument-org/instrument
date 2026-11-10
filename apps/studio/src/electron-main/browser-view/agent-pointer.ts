@@ -1,405 +1,828 @@
 import type { WebContents } from "electron";
 
+import {
+  isDrivenByWorkingAgent,
+  isPageWork,
+} from "@instrument-org/workspace/electron";
 import { noop } from "radashi";
 
 import type { BrowserEntry } from "./entry";
 
 /**
- * The agent's pointer: an arrow drawn in the page at each point an agent's
- * mouse command lands, so the person watching the tab sees where it moves and
- * clicks. It is drawn the way a browser extension's content script draws over
- * a page: from a world of its own, so the page's scripts cannot reach its
- * state, into a closed shadow root the page's styles cannot reach, hidden from
- * assistive technology and from hit testing, and put in the top layer so a
- * page's dialog or full-screen element does not cover it. Being part of the
- * page, it is in every picture taken of the page except the agent's own
- * screenshots, which hide it while they are taken.
+ * The agent's pointer: a dart drawn in the page where an agent works, so the
+ * person watching the tab sees where it moves, clicks, types and scrolls. It
+ * comes in when an agent starts working in the page, stays at the last place
+ * it acted for as long as an agent with a turn running has driven the tab,
+ * drifting a little while the agent thinks, and goes once none has.
+ *
+ * It is drawn the way a browser extension's content script draws over a page:
+ * from a world of its own, so the page's scripts cannot reach its state, into
+ * a closed shadow root the page's styles cannot reach, hidden from assistive
+ * technology and from hit testing, and put in the top layer so a page's dialog
+ * or full-screen element does not cover it. Being part of the page, it is in
+ * every picture taken of the page except the agent's own screenshots, which
+ * hide it while they are taken.
  */
 
 /** The isolated world the pointer runs in, one no other script of the app uses. */
 const POINTER_WORLD = 1077;
 
-/** How long the pointer stays after the agent's last mouse command before it fades. */
-const POINTER_IDLE_MS = 5000;
-
 /** How long the page is given to apply a change before it is given up on: a page held by a dialog or a busy script answers late or never. */
 const PAGE_TIMEOUT_MS = 1000;
 
-type PointerUpdate = {
-  down: boolean;
-  /** How long the pointer stays before it fades. */
-  idleMs: number;
-  press: boolean;
-  x: number;
-  y: number;
-};
+/**
+ * The longest an agent's mouse move waits for the pointer to arrive before it
+ * is sent, so the page sees the move, and the press after it, as the pointer
+ * lands. Longer than the longest glide.
+ */
+const GLIDE_WAIT_MS = 450;
+
+/** How often a showing pointer asks whether an agent at work still drives the tab. */
+const PRESENCE_CHECK_MS = 1000;
+
+type Point = { x: number; y: number };
+
+/** What the page is told to show. */
+type Act =
+  | ({ kind: "move" | "press" | "release" } & Point)
+  | ({ kind: "restore" } & Point)
+  | ({ kind: "scroll"; dy: number } & Point)
+  | { kind: "here" | "hide" | "leave" | "type" | "unhide" };
+
+type Queued = { act: Act; done: () => void };
 
 type PointerState = {
-  /** Whether the agent's last press has not been released yet. */
-  down: boolean;
-  /** Where and when the agent last moved, pressed or released, for whether the pointer is still showing. */
-  last: { at: number; x: number; y: number } | undefined;
-  /** The newest update not yet sent; a newer one replaces it, keeping a press it carried. */
-  pending: PointerUpdate | undefined;
-  /** Whether an update is on its way to the page, so the next waits rather than racing it. */
+  /** Where the agent last moved, pressed, released or scrolled, for a document the tab loads next. */
+  at: Point | undefined;
+  /** Whether the pointer is showing: from an agent's first command in the tab until no agent at work drives it. */
+  present: boolean;
+  /** What is still to go to the page, oldest first; a move replaces a move waiting before it. */
+  queue: Queued[];
+  /** Whether an act is on its way to the page, so the next waits rather than racing it. */
   sending: boolean;
+  watch: ReturnType<typeof setInterval> | undefined;
 };
 
 const pointers = new WeakMap<BrowserEntry, PointerState>();
 
+function stateOf(entry: BrowserEntry): PointerState {
+  let state = pointers.get(entry);
+  if (!state) {
+    state = {
+      at: undefined,
+      present: false,
+      queue: [],
+      sending: false,
+      watch: undefined,
+    };
+    pointers.set(entry, state);
+  }
+  return state;
+}
+
 /**
- * Moves the pointer to where an agent's mouse command was delivered. Only a
- * command to the page itself moves it: one to a frame in a process of its own
- * is in the frame's coordinates. Never waits on the page and never throws, so
- * it cannot hold up or fail the command it follows.
+ * Shows an agent's command to a tab's page before it is sent. A mouse move
+ * resolves once the pointer has glided to its point, or after
+ * `GLIDE_WAIT_MS`, so the move and the press after it reach the page as the
+ * pointer lands; everything else resolves at once. Only the page's own
+ * commands place it: one to a frame in a process of its own is in the
+ * frame's coordinates, and only says the agent is at work. Never throws, so
+ * it cannot fail the command it shows.
  */
-export function showAgentPointer(
+export function showAgentCommand(
   entry: BrowserEntry,
   method: string,
   params: unknown,
   frameSession: string | undefined,
-): void {
-  if (method !== "Input.dispatchMouseEvent" || frameSession !== undefined) {
-    return;
+): Promise<void> {
+  const act = actOf(method, params, frameSession);
+  if (!act) {
+    return Promise.resolve();
   }
-  const { type, x, y } = (params ?? {}) as {
-    type?: string;
+  const state = stateOf(entry);
+  if ("x" in act) {
+    state.at = { x: act.x, y: act.y };
+  }
+  if (act.kind === "here" && state.present) {
+    return Promise.resolve();
+  }
+  arrive(entry, state);
+  return send(entry, state, act);
+}
+
+function actOf(
+  method: string,
+  params: unknown,
+  frameSession: string | undefined,
+): Act | undefined {
+  // agent-browser's bookkeeping (attaching, switching domains on, checking
+  // that a page answers) reaches every tab it can see, so only work in a page
+  // says the agent is in it.
+  if (!isPageWork(method, params)) {
+    return undefined;
+  }
+  if (frameSession !== undefined) {
+    return { kind: "here" };
+  }
+  const p = (params ?? {}) as {
+    deltaY?: unknown;
+    type?: unknown;
     x?: unknown;
     y?: unknown;
   };
+  if (method === "Input.dispatchMouseEvent") {
+    const { type, x, y } = p;
+    if (
+      typeof x !== "number" ||
+      typeof y !== "number" ||
+      !Number.isFinite(x) ||
+      !Number.isFinite(y)
+    ) {
+      return { kind: "here" };
+    }
+    switch (type) {
+      case "mouseMoved":
+        return { kind: "move", x, y };
+      case "mousePressed":
+        return { kind: "press", x, y };
+      case "mouseReleased":
+        return { kind: "release", x, y };
+      case "mouseWheel":
+        return {
+          dy: typeof p.deltaY === "number" ? p.deltaY : 0,
+          kind: "scroll",
+          x,
+          y,
+        };
+      default:
+        return { kind: "here" };
+    }
+  }
   if (
-    typeof x !== "number" ||
-    typeof y !== "number" ||
-    !Number.isFinite(x) ||
-    !Number.isFinite(y) ||
-    (type !== "mouseMoved" &&
-      type !== "mousePressed" &&
-      type !== "mouseReleased")
+    method === "Input.insertText" ||
+    (method === "Input.dispatchKeyEvent" &&
+      (p.type === "keyDown" || p.type === "rawKeyDown"))
   ) {
+    return { kind: "type" };
+  }
+  return { kind: "here" };
+}
+
+/** Marks the pointer showing and starts asking whether an agent at work still drives the tab. */
+function arrive(entry: BrowserEntry, state: PointerState) {
+  if (state.present) {
     return;
   }
-  const state = pointers.get(entry) ?? {
-    down: false,
-    last: undefined,
-    pending: undefined,
-    sending: false,
-  };
-  pointers.set(entry, state);
-  if (type === "mousePressed") {
-    state.down = true;
-  } else if (type === "mouseReleased") {
-    state.down = false;
+  state.present = true;
+  clearInterval(state.watch);
+  state.watch = setInterval(() => {
+    void stillDriven(entry, state);
+  }, PRESENCE_CHECK_MS);
+}
+
+async function stillDriven(entry: BrowserEntry, state: PointerState) {
+  const wc = entry.webContents;
+  const driven =
+    !!wc &&
+    !wc.isDestroyed() &&
+    // A tab whose drivers cannot be read keeps its pointer until they can.
+    (await isDrivenByWorkingAgent(entry.targetId).catch(() => true));
+  if (driven || !state.present) {
+    return;
   }
-  state.last = { at: Date.now(), x, y };
-  state.pending = {
-    down: state.down,
-    idleMs: POINTER_IDLE_MS,
-    press: type === "mousePressed" || (state.pending?.press ?? false),
-    x,
-    y,
-  };
-  void sendPending(entry, state);
+  state.present = false;
+  clearInterval(state.watch);
+  state.watch = undefined;
+  if (wc && !wc.isDestroyed()) {
+    void send(entry, state, { kind: "leave" });
+  }
 }
 
 /**
- * Puts the pointer back where it was on a document the page just loaded, for
- * the rest of the time it had left: a click that follows a link takes the old
- * document, and the pointer drawn in it, with it the moment the new one
- * commits, so without this the person would see the pointer go to the link
- * and vanish.
+ * Puts the pointer back on a document the page just loaded, where it last
+ * was: a click that follows a link takes the old document, and the pointer
+ * drawn in it, with it the moment the new one commits.
  */
 export function carryAgentPointer(entry: BrowserEntry): void {
   const state = pointers.get(entry);
-  const left = state?.last ? POINTER_IDLE_MS - (Date.now() - state.last.at) : 0;
-  if (!state?.last || left <= 0) {
+  if (!state?.present) {
     return;
   }
-  state.pending = {
-    down: false,
-    idleMs: left,
-    press: false,
-    x: state.last.x,
-    y: state.last.y,
-  };
-  void sendPending(entry, state);
-}
-
-/** Sends updates one at a time, the newest each time, so a drag's moves never queue up behind a slow page. */
-async function sendPending(entry: BrowserEntry, state: PointerState) {
-  if (state.sending) {
-    return;
-  }
-  state.sending = true;
-  try {
-    while (state.pending) {
-      const update = state.pending;
-      state.pending = undefined;
-      const wc = entry.webContents;
-      if (!wc || wc.isDestroyed()) {
-        return;
-      }
-      await runInPage(wc, `(${POINTER_SCRIPT})(${JSON.stringify(update)})`);
-    }
-  } finally {
-    state.sending = false;
-  }
+  void send(
+    entry,
+    state,
+    state.at ? { kind: "restore", ...state.at } : { kind: "here" },
+  );
 }
 
 /**
  * Runs `take` with the pointer hidden, for a screenshot the agent asked for:
  * the pointer is there for the person, and in the agent's own picture of the
- * page it would only cover what it is looking at. A pointer that has faded is
- * left alone.
+ * page it would only cover what it is looking at.
  */
 export async function withoutAgentPointer<T>(
   entry: BrowserEntry,
   take: () => Promise<T>,
 ): Promise<T> {
   const state = pointers.get(entry);
-  const wc = entry.webContents;
-  if (
-    !state ||
-    !wc ||
-    wc.isDestroyed() ||
-    !state.last ||
-    Date.now() - state.last.at > POINTER_IDLE_MS + FADE_MS
-  ) {
+  if (!state?.present) {
     return await take();
   }
-  await runInPage(wc, HIDE_FOR_CAPTURE_SCRIPT);
+  await send(entry, state, { kind: "hide" });
   try {
     return await take();
   } finally {
-    void runInPage(wc, SHOW_AFTER_CAPTURE_SCRIPT);
+    void send(entry, state, { kind: "unhide" });
   }
 }
 
-async function runInPage(wc: WebContents, code: string): Promise<void> {
+/** Queues an act for the page; resolves once the page has done it, or given up on. */
+function send(
+  entry: BrowserEntry,
+  state: PointerState,
+  act: Act,
+): Promise<void> {
+  return new Promise((done) => {
+    const last = state.queue.at(-1);
+    if (act.kind === "move" && last?.act.kind === "move") {
+      // A drag's moves never queue up behind a slow page: the newest is the
+      // one worth drawing, and the move it replaces is sent on at once.
+      state.queue.pop();
+      last.done();
+    }
+    state.queue.push({ act, done });
+    void drain(entry, state);
+  });
+}
+
+async function drain(entry: BrowserEntry, state: PointerState) {
+  if (state.sending) {
+    return;
+  }
+  state.sending = true;
+  try {
+    for (;;) {
+      const next = state.queue.shift();
+      if (!next) {
+        return;
+      }
+      const wc = entry.webContents;
+      if (wc && !wc.isDestroyed()) {
+        await applyInPage(wc, next.act);
+      }
+      next.done();
+    }
+  } finally {
+    state.sending = false;
+  }
+}
+
+/** Applies an act in the page, installing the pointer first in a document that has none. */
+async function applyInPage(wc: WebContents, act: Act): Promise<void> {
+  const payload = JSON.stringify(act);
+  const timeoutMs = act.kind === "move" ? GLIDE_WAIT_MS : PAGE_TIMEOUT_MS;
+  const answer = await runInPage(
+    wc,
+    `globalThis.__instrumentAgentPointer ? globalThis.__instrumentAgentPointer.apply(${payload}) : "${MISSING}"`,
+    timeoutMs,
+  );
+  // A document with no pointer has nothing to take away or hide.
+  if (
+    answer === MISSING &&
+    act.kind !== "leave" &&
+    act.kind !== "hide" &&
+    act.kind !== "unhide"
+  ) {
+    await runInPage(
+      wc,
+      `(${POINTER_SOURCE})(${JSON.stringify(POINTER_CONFIG)}).apply(${payload})`,
+      timeoutMs,
+    );
+  }
+}
+
+const MISSING = "__missing__";
+
+async function runInPage(
+  wc: WebContents,
+  code: string,
+  timeoutMs: number,
+): Promise<unknown> {
   let timer: ReturnType<typeof setTimeout> | undefined;
-  await Promise.race([
+  return await Promise.race([
     // Called inside the chain so a contents torn down meanwhile rejects
     // rather than throws.
     Promise.resolve()
-      .then(() =>
-        wc.executeJavaScriptInIsolatedWorld(POINTER_WORLD, [{ code }]),
+      .then(
+        // Cast: Electron types the script's answer as `any`.
+        () =>
+          wc.executeJavaScriptInIsolatedWorld(POINTER_WORLD, [
+            { code },
+          ]) as Promise<unknown>,
       )
       .catch(noop),
-    new Promise<void>((resolve) => {
-      timer = setTimeout(resolve, PAGE_TIMEOUT_MS);
+    new Promise<undefined>((resolve) => {
+      timer = setTimeout(() => {
+        resolve(undefined);
+      }, timeoutMs);
     }),
   ]).finally(() => {
     clearTimeout(timer);
   });
 }
 
-/** How long the pointer takes to fade once idle. */
-const FADE_MS = 600;
-/** How long the arrow takes to glide to a new point: long enough to see it travel, short enough to arrive with the click. */
-const GLIDE_MS = 160;
-/** The brand teal of the app, so the pointer reads as the app's agent rather than the page's own cursor. */
-const POINTER_COLOR = "#0e7869";
-/** The name on the tag beside the arrow, saying who is acting. */
-const POINTER_TAG = "Instrument";
+const POINTER_CONFIG = {
+  /** The brand teal of the app, so the pointer reads as the app's agent rather than the page's own cursor. */
+  color: "#0e7869",
+  /** The name on the tag beside the dart when it is not saying what it does. */
+  tag: "Instrument",
+};
 
-// Runs in the page's document, in the pointer's own world, so its state lives
-// on that world's global and a page that navigates starts over with none.
-// Everything is styled through the CSSOM rather than a <style> element or
-// markup, which a page's Content-Security-Policy or Trusted Types could
-// refuse, and with !important on the host, which the page's own rules can
-// reach.
-const POINTER_SCRIPT = String.raw`function (update) {
-  const FADE_MS = ${FADE_MS};
-  const GLIDE_MS = ${GLIDE_MS};
-  const COLOR = "${POINTER_COLOR}";
-  const TAG = "${POINTER_TAG}";
+// Runs in the page's document, in the pointer's own world, once per document:
+// it builds the pointer and returns what main drives it through, kept on that
+// world's global. Everything is styled through the CSSOM rather than a
+// <style> element or markup, which a page's Content-Security-Policy or Trusted
+// Types could refuse, and with !important on the host, which the page's own
+// rules can reach. The tag's words are drawn by a constructed stylesheet's
+// `content`, so the page's find-in-page and `window.find` never match them.
+const POINTER_SOURCE = String.raw`function (config) {
+  const COLOR = config.color;
   const SVG = "http://www.w3.org/2000/svg";
-  // Where the dart's tip is in its box, and the shift that puts it on the point.
+  // Where the dart's tip is in its box; the tag sits in its notch.
   const TIP = 2.78;
-  const AT_TIP = "translate(-" + TIP + "px, -" + TIP + "px)";
-  // The tag sits in the dart's notch, below and right of the tip.
   const TAG_X = 16.9;
   const TAG_Y = 12.4;
-  const GLIDE = "transform " + GLIDE_MS + "ms cubic-bezier(0.2, 0, 0, 1)";
-  const SHOWING = GLIDE + ", opacity 120ms ease";
-  const FADING = GLIDE + ", opacity " + FADE_MS + "ms ease";
+  // How long a verb stays on the tag after the act it names.
+  const VERB_MS = 1400;
+  // How long the pointer waits after the agent's last act before it idles.
+  const IDLE_AFTER_MS = 1800;
+  const clamp = (v, lo, hi) => Math.min(hi, Math.max(lo, v));
+  const smooth = (e0, e1, v) => {
+    const t = clamp((v - e0) / (e1 - e0), 0, 1);
+    return t * t * (3 - 2 * t);
+  };
+  const smoother = (t) => t * t * t * (t * (t * 6 - 15) + 10);
+  const still = () => matchMedia("(prefers-reduced-motion: reduce)").matches;
   const set = (element, styles, priority) => {
     for (const [name, value] of Object.entries(styles)) {
       element.style.setProperty(name, value, priority);
     }
   };
-  let state = globalThis.__instrumentAgentPointer;
-  if (!state || !state.host.isConnected) {
-    const host = document.createElement("div");
-    host.setAttribute("aria-hidden", "true");
-    host.setAttribute("popover", "manual");
-    set(host, {
-      position: "fixed",
-      inset: "0 auto auto 0",
-      width: "0",
-      height: "0",
-      margin: "0",
-      padding: "0",
-      border: "0",
-      overflow: "visible",
-      background: "transparent",
-      "pointer-events": "none",
-      "z-index": "2147483647",
-      display: "block",
-    }, "important");
-    const root = host.attachShadow({ mode: "closed" });
-    const ring = document.createElement("div");
-    set(ring, {
-      position: "absolute",
-      left: "-14px",
-      top: "-14px",
-      width: "28px",
-      height: "28px",
-      "border-radius": "50%",
-      border: "2px solid " + COLOR,
-      "box-sizing": "border-box",
-      opacity: "0",
-    });
-    const pointer = document.createElement("div");
-    set(pointer, {
-      position: "absolute",
-      left: "0",
-      top: "0",
-      opacity: "0",
-      transition: SHOWING,
-      "will-change": "transform",
-    });
-    const svg = document.createElementNS(SVG, "svg");
-    svg.setAttribute("width", "26");
-    svg.setAttribute("height", "26");
-    svg.setAttribute("viewBox", "0 0 26 26");
-    set(svg, {
-      display: "block",
-      overflow: "visible",
-      transform: AT_TIP,
-      "transform-origin": TIP + "px " + TIP + "px",
-      transition: "transform 90ms ease",
-      filter: "drop-shadow(0 1px 2px rgb(0 0 0 / 0.3))",
-    });
-    // A dart with rounded corners, its tip at (TIP, TIP) in the box.
-    const arrow = document.createElementNS(SVG, "path");
-    arrow.setAttribute("d", "M2.08 5.88A2.97 2.97 0 0 1 5.88 2.08L21.25 7.53A2.86 2.86 0 0 1 21.01 13L15.08 14.52A0.77 0.77 0 0 0 14.52 15.08L13 21.01A2.86 2.86 0 0 1 7.53 21.25Z");
-    arrow.setAttribute("fill", COLOR);
-    arrow.setAttribute("stroke", "white");
-    arrow.setAttribute("stroke-width", "1.5");
-    arrow.setAttribute("stroke-linejoin", "round");
-    svg.append(arrow);
-    // Every inherited property is set, since the shadow tree inherits the
-    // page's text styles through the host.
-    const tag = document.createElement("div");
-    tag.textContent = TAG;
-    set(tag, {
-      position: "absolute",
-      left: TAG_X + "px",
-      top: TAG_Y + "px",
-      width: "max-content",
-      padding: "1px 7px",
-      "border-radius": "99px",
-      "background-color": COLOR,
-      color: "white",
-      font: "500 11px/16px Inter, system-ui, sans-serif",
-      "font-feature-settings": "normal",
-      "letter-spacing": "normal",
-      "word-spacing": "normal",
-      "text-transform": "none",
-      "text-shadow": "none",
-      "text-align": "left",
-      "text-indent": "0",
-      "white-space": "nowrap",
-      direction: "ltr",
-      "writing-mode": "horizontal-tb",
-      "user-select": "none",
-      "box-shadow": "0 0 0 1px white, 0 1px 3px rgb(0 0 0 / 0.25)",
-    });
-    pointer.append(svg, tag);
-    root.append(ring, pointer);
-    document.documentElement.append(host);
-    state = globalThis.__instrumentAgentPointer = {
-      host,
-      pointer,
-      ring,
-      svg,
-      tag,
-      fade: 0,
-      at: null,
-      down: false,
-      movedAt: 0,
+
+  const host = document.createElement("div");
+  host.setAttribute("aria-hidden", "true");
+  host.setAttribute("popover", "manual");
+  set(host, {
+    position: "fixed",
+    inset: "0 auto auto 0",
+    width: "0",
+    height: "0",
+    margin: "0",
+    padding: "0",
+    border: "0",
+    overflow: "visible",
+    background: "transparent",
+    "pointer-events": "none",
+    "z-index": "2147483647",
+    display: "block",
+    visibility: "visible",
+  }, "important");
+  const root = host.attachShadow({ mode: "closed" });
+  let say = (element, words) => {
+    element.textContent = words;
+  };
+  try {
+    const sheet = new CSSStyleSheet();
+    sheet.replaceSync(".words::after { content: attr(data-words); }");
+    root.adoptedStyleSheets = [sheet];
+    say = (element, words) => {
+      element.setAttribute("data-words", words);
     };
-  }
-  const { host, pointer, ring, svg, tag } = state;
+  } catch {}
+
+  const ring = document.createElement("div");
+  set(ring, {
+    position: "absolute",
+    left: "0",
+    top: "0",
+    width: "30px",
+    height: "30px",
+    margin: "-15px 0 0 -15px",
+    "border-radius": "50%",
+    border: "2px solid " + COLOR,
+    "box-sizing": "border-box",
+    opacity: "0",
+  });
+  // The body sits on the point and fades; the pose turns and scales the dart
+  // about its tip; the breath swells it while the agent thinks.
+  const body = document.createElement("div");
+  set(body, {
+    position: "absolute",
+    left: "0",
+    top: "0",
+    opacity: "0",
+    "will-change": "transform, opacity",
+  });
+  const pose = document.createElement("div");
+  set(pose, { position: "absolute", left: "0", top: "0", "transform-origin": "0 0" });
+  const breath = document.createElement("div");
+  set(breath, { "transform-origin": "0 0" });
+  const svg = document.createElementNS(SVG, "svg");
+  svg.setAttribute("width", "26");
+  svg.setAttribute("height", "26");
+  svg.setAttribute("viewBox", "0 0 26 26");
+  set(svg, {
+    display: "block",
+    overflow: "visible",
+    transform: "translate(-" + TIP + "px, -" + TIP + "px)",
+    filter: "drop-shadow(0 1px 2px rgb(0 0 0 / 0.3))",
+  });
+  const dart = document.createElementNS(SVG, "path");
+  dart.setAttribute("d", "M2.08 5.88A2.97 2.97 0 0 1 5.88 2.08L21.25 7.53A2.86 2.86 0 0 1 21.01 13L15.08 14.52A0.77 0.77 0 0 0 14.52 15.08L13 21.01A2.86 2.86 0 0 1 7.53 21.25Z");
+  dart.setAttribute("fill", COLOR);
+  dart.setAttribute("stroke", "white");
+  dart.setAttribute("stroke-width", "1.5");
+  dart.setAttribute("stroke-linejoin", "round");
+  svg.append(dart);
+  breath.append(svg);
+  pose.append(breath);
+  // Every inherited property is set, since the shadow tree inherits the
+  // page's text styles through the host.
+  const tag = document.createElement("div");
+  tag.className = "words";
+  set(tag, {
+    position: "absolute",
+    left: TAG_X + "px",
+    top: TAG_Y + "px",
+    width: "max-content",
+    padding: "1px 7px",
+    "border-radius": "99px",
+    "background-color": COLOR,
+    color: "white",
+    font: "500 11px/16px Inter, system-ui, sans-serif",
+    "font-feature-settings": "normal",
+    "letter-spacing": "normal",
+    "word-spacing": "normal",
+    "text-transform": "none",
+    "text-shadow": "none",
+    "text-align": "left",
+    "text-indent": "0",
+    "white-space": "nowrap",
+    direction: "ltr",
+    "writing-mode": "horizontal-tb",
+    "user-select": "none",
+    "box-shadow": "0 0 0 1px white, 0 1px 3px rgb(0 0 0 / 0.25)",
+    transition: "opacity 120ms ease",
+  });
+  body.append(pose, tag);
+  root.append(ring, body);
+  document.documentElement.append(host);
+
+  const s = {
+    shown: false,
+    leaving: false,
+    x: 0,
+    y: 0,
+    prevX: 0,
+    // The point the agent last acted at, which the idle drift circles.
+    anchor: null,
+    flight: null,
+    side: 1,
+    lean: 0,
+    scale: 1,
+    scaleV: 0,
+    pressed: false,
+    nudge: 0,
+    nudgeV: 0,
+    raf: 0,
+    last: 0,
+    idle: 0,
+    breathing: null,
+    words: "",
+    verb: 0,
+    tagW: 0,
+    tagH: 0,
+    flip: "",
+  };
+
   const raise = () => {
     try {
       if (host.matches(":popover-open")) host.hidePopover();
       host.showPopover();
     } catch {}
   };
-  const moved = !state.at || state.at.x !== update.x || state.at.y !== update.y;
-  if (!state.at) {
-    // A new pointer appears where it is rather than gliding in from a corner.
-    pointer.style.transition = "none";
-    pointer.style.transform = "translate(" + update.x + "px, " + update.y + "px)";
-    pointer.getBoundingClientRect();
-    pointer.style.transition = SHOWING;
-    raise();
-  } else if (moved) {
-    pointer.style.transform = "translate(" + update.x + "px, " + update.y + "px)";
-  }
-  if (moved) {
-    state.movedAt = performance.now();
-  }
-  state.at = { x: update.x, y: update.y };
-  pointer.style.transition = SHOWING;
-  pointer.style.opacity = "1";
-  svg.style.transform = update.down ? AT_TIP + " scale(0.86)" : AT_TIP;
+
+  const label = (words) => {
+    if (s.words === words) return;
+    s.words = words;
+    say(tag, words);
+    s.tagW = tag.offsetWidth;
+    s.tagH = tag.offsetHeight;
+    s.flip = "";
+  };
+  const verb = (words) => {
+    label(words);
+    clearTimeout(s.verb);
+    s.verb = setTimeout(() => label(config.tag), VERB_MS);
+  };
+  label(config.tag);
+
   // Near the page's right or bottom edge the tag goes to the other side of
   // the tip, where it is not cut off.
-  const view = document.documentElement;
-  const flipX = update.x + TAG_X + tag.offsetWidth > view.clientWidth;
-  const flipY = update.y + TAG_Y + tag.offsetHeight > view.clientHeight;
-  tag.style.left = (flipX ? -tag.offsetWidth - 4 : TAG_X) + "px";
-  tag.style.top = (flipY ? -tag.offsetHeight - 4 : TAG_Y) + "px";
-  // Above whatever the page put in the top layer since: a dialog the press
-  // opens, or the one the click that follows its release opens.
-  if (update.press || (state.down && !update.down)) {
+  const placeTag = () => {
+    const view = document.documentElement;
+    const right = s.x + TAG_X + s.tagW + 2 > (view.clientWidth || innerWidth);
+    const below = s.y + TAG_Y + s.tagH + 2 > (view.clientHeight || innerHeight);
+    const flip = (right ? "r" : "") + (below ? "b" : "");
+    if (flip === s.flip) return;
+    s.flip = flip;
+    tag.style.left = (right ? -s.tagW - 4 : TAG_X) + "px";
+    tag.style.top = (below ? -s.tagH - 4 : TAG_Y) + "px";
+  };
+
+  const frame = (now) => {
+    s.raf = 0;
+    const dt = s.last ? Math.min(50, now - s.last) : 16;
+    s.last = now;
+    const f = s.flight;
+    if (f) {
+      const u = clamp((now - f.start) / f.dur, 0, 1);
+      const m = smoother(Math.min(1, u / f.mainEnds));
+      const a = 1 - m;
+      let x = a * a * a * f.x0 + 3 * a * a * m * f.c1x + 3 * a * m * m * f.c2x + m * m * m * f.ox;
+      let y = a * a * a * f.y0 + 3 * a * a * m * f.c1y + 3 * a * m * m * f.c2y + m * m * m * f.oy;
+      const fix = f.mainEnds < 1 ? smooth(f.fixStarts, 1, u) : 0;
+      x += (f.x1 - f.ox) * fix;
+      y += (f.y1 - f.oy) * fix;
+      s.x = x;
+      s.y = y;
+      if (u >= 1) {
+        s.x = f.x1;
+        s.y = f.y1;
+        s.flight = null;
+        f.resolve();
+      }
+    }
+    // The dart leans into its travel and rights itself as it lands.
+    const vx = (s.x - s.prevX) / dt;
+    s.prevX = s.x;
+    s.lean += (9 * Math.tanh(vx / 1.8) - s.lean) * (1 - Math.exp(-dt / 70));
+    // Springs: the press squeezes the dart and lets it bounce back; a scroll
+    // nudges it the way the page went.
+    const t = dt / 1000;
+    const target = s.leaving ? 0.6 : s.pressed ? 0.82 : 1;
+    s.scaleV += (-700 * (s.scale - target) - 26 * s.scaleV) * t;
+    s.scale += s.scaleV * t;
+    s.nudgeV += (-300 * s.nudge - 21 * s.nudgeV) * t;
+    s.nudge += s.nudgeV * t;
+    body.style.transform = "translate(" + s.x + "px, " + (s.y + s.nudge) + "px)";
+    pose.style.transform = "rotate(" + s.lean + "deg) scale(" + s.scale + ")";
+    placeTag();
+    const settled =
+      !s.flight &&
+      Math.abs(s.scale - target) < 0.002 &&
+      Math.abs(s.scaleV) < 0.02 &&
+      Math.abs(s.lean) < 0.05 &&
+      Math.abs(s.nudge) < 0.1 &&
+      Math.abs(s.nudgeV) < 0.1;
+    if (settled) {
+      s.last = 0;
+      return;
+    }
+    s.raf = requestAnimationFrame(frame);
+  };
+  const wake = () => {
+    if (!s.raf) s.raf = requestAnimationFrame(frame);
+  };
+
+  // Glides from where the dart is to a point on a curve that bows to one side,
+  // alternating, in a time that grows with the distance as a hand's does,
+  // overshooting a little and settling back. Resolves on arrival.
+  const fly = (x, y, idle) =>
+    new Promise((resolve) => {
+      if (s.flight) s.flight.resolve();
+      const dx = x - s.x;
+      const dy = y - s.y;
+      const d = Math.hypot(dx, dy);
+      if (d < 3 || still() || document.hidden) {
+        s.flight = null;
+        s.x = x;
+        s.y = y;
+        wake();
+        resolve();
+        return;
+      }
+      const dur = idle ? 1000 + Math.random() * 500 : clamp(80 + 70 * Math.log2(d / 24 + 1), 140, 380);
+      s.side = -s.side;
+      const nx = -dy / d;
+      const ny = dx / d;
+      const bow = (idle ? 0.3 : 1) * Math.min(0.1 * d, 30) * smooth(30, 160, d) * s.side;
+      const over = idle ? 0 : Math.min(0.03 * d, 4);
+      const ox = x + (dx / d) * over;
+      const oy = y + (dy / d) * over;
+      const flight = {
+        x0: s.x,
+        y0: s.y,
+        c1x: s.x + dx * 0.3 + nx * bow,
+        c1y: s.y + dy * 0.3 + ny * bow,
+        c2x: s.x + dx * 0.75 + nx * bow * 0.6,
+        c2y: s.y + dy * 0.75 + ny * bow * 0.6,
+        ox,
+        oy,
+        x1: x,
+        y1: y,
+        start: performance.now(),
+        dur,
+        mainEnds: over > 0 ? 0.8 : 1,
+        fixStarts: 0.66,
+        resolve,
+      };
+      s.flight = flight;
+      // A page that stops drawing mid-glide still answers.
+      setTimeout(resolve, dur + 150);
+      wake();
+    });
+
+  const stopIdle = () => {
+    clearTimeout(s.idle);
+    if (s.breathing) {
+      s.breathing.cancel();
+      s.breathing = null;
+    }
+  };
+  // While the agent thinks, the dart breathes and wanders a few pixels around
+  // the last place it acted, so it reads as waiting rather than gone.
+  const idleStep = () => {
+    if (!s.shown) return;
+    if (!s.flight && !s.pressed && s.anchor && !still()) {
+      if (!s.breathing) {
+        s.breathing = breath.animate(
+          [{ transform: "scale(1)" }, { transform: "scale(1.05)" }],
+          { duration: 1500, direction: "alternate", iterations: Infinity, easing: "ease-in-out" },
+        );
+      }
+      const angle = Math.random() * Math.PI * 2;
+      const reach = 4 + Math.random() * 8;
+      void fly(s.anchor.x + Math.cos(angle) * reach, s.anchor.y + Math.sin(angle) * reach, true);
+    }
+    s.idle = setTimeout(idleStep, 2400 + Math.random() * 1800);
+  };
+  const acting = () => {
+    stopIdle();
+    s.idle = setTimeout(idleStep, IDLE_AFTER_MS);
+  };
+
+  const center = () => ({
+    x: Math.round((document.documentElement.clientWidth || innerWidth) / 2),
+    y: Math.round((document.documentElement.clientHeight || innerHeight) / 2),
+  });
+  // Comes in at a point: fading in and popping up from small, or only fading
+  // in where it carries on from the document before.
+  const show = (point, pop) => {
+    if (!host.isConnected) document.documentElement.append(host);
+    if (s.shown && !s.leaving) return;
     raise();
-  }
-  state.down = update.down;
-  if (update.press) {
-    ring.style.left = (update.x - 14) + "px";
-    ring.style.top = (update.y - 14) + "px";
-    const glideLeft = Math.max(0, GLIDE_MS - (performance.now() - state.movedAt));
+    s.shown = true;
+    s.leaving = false;
+    s.flight = null;
+    s.x = s.prevX = point.x;
+    s.y = point.y;
+    s.anchor = { x: point.x, y: point.y };
+    body.style.transition = "opacity 160ms ease-out";
+    body.style.opacity = "1";
+    if (pop && !still()) {
+      s.scale = 0.55;
+      s.scaleV = 0;
+    }
+    wake();
+    acting();
+  };
+  const leave = () => {
+    if (!s.shown) return;
+    s.shown = false;
+    s.leaving = true;
+    s.pressed = false;
+    stopIdle();
+    clearTimeout(s.verb);
+    body.style.transition = "opacity 260ms ease-in";
+    body.style.opacity = "0";
+    wake();
+    setTimeout(() => {
+      if (s.shown) return;
+      s.leaving = false;
+      label(config.tag);
+      try {
+        host.hidePopover();
+      } catch {}
+    }, 300);
+  };
+
+  const pulse = (x, y) => {
+    ring.style.left = x + "px";
+    ring.style.top = y + "px";
     ring.animate(
       [
         { opacity: 0.9, transform: "scale(0.3)" },
-        { opacity: 0, transform: "scale(1.5)" },
+        { opacity: 0, transform: "scale(1.6)" },
       ],
-      { delay: glideLeft, duration: 450, easing: "ease-out" },
+      { duration: 480, easing: "cubic-bezier(0.2, 0, 0, 1)" },
     );
-  }
-  clearTimeout(state.fade);
-  state.fade = setTimeout(() => {
-    pointer.style.transition = FADING;
-    pointer.style.opacity = "0";
-  }, update.idleMs);
+  };
+
+  // Where typing goes: the focused field, through open shadow roots. Null
+  // when nothing but the page itself has focus.
+  const focused = () => {
+    let element = document.activeElement;
+    while (element && element.shadowRoot && element.shadowRoot.activeElement) {
+      element = element.shadowRoot.activeElement;
+    }
+    if (!element || element === document.body || element === document.documentElement) {
+      return null;
+    }
+    const r = element.getBoundingClientRect();
+    if (!r.width && !r.height) return null;
+    return r;
+  };
+
+  const api = {
+    apply(act) {
+      switch (act.kind) {
+        case "here":
+          if (!s.shown || s.leaving) show(center(), true);
+          return;
+        case "restore":
+          show(act, false);
+          return;
+        case "move":
+          // A pointer the agent never placed comes in mid-page and glides
+          // to its first point, rather than appearing on it from nowhere.
+          if (!s.shown || s.leaving) show(center(), true);
+          s.anchor = { x: act.x, y: act.y };
+          if (s.pressed) verb("Dragging");
+          acting();
+          return fly(act.x, act.y, false);
+        case "press":
+          if (!s.shown || s.leaving) show(act, true);
+          s.pressed = true;
+          s.anchor = { x: act.x, y: act.y };
+          raise();
+          pulse(act.x, act.y);
+          verb("Clicking");
+          acting();
+          wake();
+          return;
+        case "release":
+          if (!s.shown || s.leaving) show(act, false);
+          s.pressed = false;
+          raise();
+          acting();
+          wake();
+          return;
+        case "scroll": {
+          if (!s.shown || s.leaving) show(act, true);
+          verb("Scrolling");
+          if (Math.hypot(act.x - s.x, act.y - s.y) > 40) {
+            s.anchor = { x: act.x, y: act.y };
+            void fly(act.x, act.y, false);
+          }
+          s.nudgeV += Math.sign(act.dy) * 160;
+          acting();
+          wake();
+          return;
+        }
+        case "type": {
+          const r = focused();
+          if (!s.shown || s.leaving) show(r ? { x: r.left + 16, y: r.top + r.height / 2 } : center(), true);
+          verb("Typing");
+          if (r && !(s.x >= r.left && s.x <= r.right && s.y >= r.top && s.y <= r.bottom)) {
+            const x = r.left + Math.min(r.width / 2, Math.max(14, r.width * 0.15));
+            const y = r.top + Math.min(r.height / 2, 18);
+            s.anchor = { x, y };
+            void fly(x, y, false);
+          }
+          // A tap per key.
+          s.scaleV -= 1.4;
+          acting();
+          wake();
+          return;
+        }
+        case "leave":
+          leave();
+          return;
+        case "hide":
+          // Answers once the page has drawn a frame without it, so the
+          // screenshot that follows does not catch it on its way out.
+          host.style.setProperty("visibility", "hidden", "important");
+          return new Promise((resolve) => {
+            requestAnimationFrame(() => requestAnimationFrame(resolve));
+            setTimeout(resolve, 100);
+          });
+        case "unhide":
+          host.style.setProperty("visibility", "visible", "important");
+          return;
+      }
+    },
+  };
+  globalThis.__instrumentAgentPointer = api;
+  return api;
 }`;
-
-// Hides the pointer at once and answers once the page has drawn a frame
-// without it, so the screenshot that follows does not catch it on its way out.
-const HIDE_FOR_CAPTURE_SCRIPT = `(() => {
-  const state = globalThis.__instrumentAgentPointer;
-  if (!state || !state.host.isConnected) return;
-  state.host.style.setProperty("visibility", "hidden", "important");
-  return new Promise((resolve) => {
-    requestAnimationFrame(() => requestAnimationFrame(resolve));
-    setTimeout(resolve, 100);
-  });
-})()`;
-
-const SHOW_AFTER_CAPTURE_SCRIPT = `(() => {
-  const state = globalThis.__instrumentAgentPointer;
-  if (state) state.host.style.setProperty("visibility", "visible", "important");
-})()`;

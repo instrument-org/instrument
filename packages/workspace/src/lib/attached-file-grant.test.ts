@@ -120,14 +120,14 @@ describe("sending a file from the disk", () => {
 
   // Attaching a folder with the folder picker, dropping one in, or sending
   // one as a chip the person added or took says where the work is and opens
-  // it to the chat on this computer. A folder that went along only because a
-  // screen showed it, with no chip of its own, is a hint: the agent still
-  // asks for it.
+  // it to the chat on this computer; a file sent as a chip opens that file
+  // alone. A file or folder that went along only because a screen showed it,
+  // with no chip of its own, is a hint: the agent still asks for it.
   it.each([
     [
       "grants a folder sent with the folder picker or a drop",
       (folder: string) => ({ folders: [{ path: folder }] }),
-      true,
+      "folder" as const,
     ],
     [
       "grants a folder asked about from Files, as a chip of its own",
@@ -143,7 +143,7 @@ describe("sending a file from the disk", () => {
           screen: "home" as const,
         },
       }),
-      true,
+      "folder" as const,
     ],
     [
       "grants a folder tab taken into the message, as its chip",
@@ -159,7 +159,7 @@ describe("sending a file from the disk", () => {
           screen: "computer" as const,
         },
       }),
-      true,
+      "folder" as const,
     ],
     [
       "grants nothing for the folder the chat's own tab shows",
@@ -169,7 +169,7 @@ describe("sending a file from the disk", () => {
           screen: "computer" as const,
         },
       }),
-      false,
+      "none" as const,
     ],
     [
       "grants nothing for a folder selected in the chat's own tab",
@@ -180,10 +180,54 @@ describe("sending a file from the disk", () => {
           screen: "computer" as const,
         },
       }),
-      false,
+      "none" as const,
     ],
     [
-      "grants nothing for a file's chip, whose folder it is in",
+      "grants a file asked about from Files, as a chip of its own, and not its folder",
+      (folder: string) => ({
+        viewing: {
+          attached: [
+            {
+              items: [
+                { kind: "file" as const, path: path.join(folder, "report.md") },
+              ],
+              kind: "paths" as const,
+            },
+          ],
+          screen: "home" as const,
+        },
+      }),
+      "file" as const,
+    ],
+    [
+      "grants nothing for the file the chat's own tab shows",
+      (folder: string) => ({
+        viewing: {
+          file: { name: "report.md", path: path.join(folder, "report.md") },
+          screen: "file" as const,
+        },
+      }),
+      "none" as const,
+    ],
+    [
+      "grants nothing for a file selected in the chat's own tab",
+      (folder: string) => ({
+        viewing: {
+          chosen: [
+            {
+              kind: "file" as const,
+              name: "report.md",
+              path: path.join(folder, "report.md"),
+            },
+          ],
+          folder: { display: folder, selected: ["report.md"] },
+          screen: "computer" as const,
+        },
+      }),
+      "none" as const,
+    ],
+    [
+      "grants nothing for a file chip not on this computer",
       (folder: string) => ({
         viewing: {
           attached: [
@@ -191,7 +235,7 @@ describe("sending a file from the disk", () => {
               items: [
                 {
                   kind: "file" as const,
-                  path: path.join(folder, "report.md"),
+                  path: path.join(folder, "On another computer.md"),
                 },
               ],
               kind: "paths" as const,
@@ -200,7 +244,27 @@ describe("sending a file from the disk", () => {
           screen: "home" as const,
         },
       }),
-      false,
+      "none" as const,
+    ],
+    [
+      "grants nothing for a folder chip not on this computer",
+      (folder: string) => ({
+        viewing: {
+          attached: [
+            {
+              items: [
+                {
+                  kind: "folder" as const,
+                  path: path.join(folder, "On another computer"),
+                },
+              ],
+              kind: "paths" as const,
+            },
+          ],
+          screen: "home" as const,
+        },
+      }),
+      "none" as const,
     ],
   ])("%s", async (_how, attach, granted) => {
     const chatId = ChatIdSchema.parse(`attached-folder-${++chatCount}`);
@@ -231,8 +295,21 @@ describe("sending a file from the disk", () => {
 
     expect(sent.isOk()).toBe(true);
     const grants = await chatGrants(chatId);
-    if (!granted) {
+    if (granted === "none") {
       expect(grants).toEqual([]);
+      return;
+    }
+    if (granted === "file") {
+      expect(grants).toMatchObject([
+        { kind: "file", path: report, source: "attached" },
+      ]);
+      const rules = rulesWith(grants);
+      expect(reachOf(rules, report, "write").level).toBe("allow");
+      // The file alone: its folder's Not allowed still holds beside it.
+      expect(reachOf(rules, path.join(closed, "taxes.md"), "read").level).toBe(
+        "never",
+      );
+      expect(Object.keys(await folderReach(chatId))).not.toContain(closed);
       return;
     }
     expect(grants).toMatchObject([{ path: closed, source: "attached" }]);

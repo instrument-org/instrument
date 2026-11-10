@@ -1278,7 +1278,8 @@ export namespace SessionMessageDataPart {
     /**
      * The chips over the words as they were sent, in their order; for the
      * transcript, not the agent. Each is something the person added or took,
-     * so a folder among them is granted to the chat as the message is sent.
+     * so a file or folder among them is granted to the chat as the message is
+     * sent.
      */
     attached: z.array(SentChipSchema).optional(),
     /**

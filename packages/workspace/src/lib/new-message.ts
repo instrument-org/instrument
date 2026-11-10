@@ -200,8 +200,8 @@ export async function newMessage({
         : part,
     );
   }
-  for (const folder of chippedFolders(viewing)) {
-    await grantAttachedFolder(chatId, folder);
+  for (const item of chippedPaths(viewing)) {
+    await grantChipped(chatId, item);
   }
 
   const backgroundProcessesPart = await createBackgroundProcessesPart({
@@ -387,23 +387,39 @@ export async function newMessage({
 }
 
 /**
- * The folders the person put on the message as chips over the words
- * (`viewContext.attached`): one asked about or attached from Files, one a
- * draft names by its path, one taken from what the window offered. What
- * goes with a message without a chip of its own, such as the chat's own tab
- * up beside it or what is selected there, is not among them, and neither is
- * an offer the person never took, which goes with nothing.
+ * The files and folders the person put on the message as chips over the
+ * words (`viewContext.attached`): one asked about or attached from Files,
+ * one a draft names by its path, one taken from what the window offered.
+ * What goes with a message without a chip of its own, such as the chat's own
+ * tab up beside it or what is selected there, is not among them, and neither
+ * is an offer the person never took, which goes with nothing.
  */
-function chippedFolders(
+function chippedPaths(
   viewing: SessionMessageDataPart.ViewContextDataPart | undefined,
-): string[] {
+): { kind: "file" | "folder"; path: string }[] {
   return (viewing?.attached ?? []).flatMap((chip) =>
-    chip.kind === "paths"
-      ? chip.items
-          .filter((item) => item.kind === "folder")
-          .map((item) => item.path)
-      : [],
+    chip.kind === "paths" ? chip.items : [],
   );
+}
+
+/**
+ * Grants the chat a file or folder sent as a chip: a folder as one attached
+ * is, and a file where it is on disk, as one sent with the picker is, which
+ * opens that file alone and not its folder. A path not on this disk grants
+ * nothing.
+ */
+async function grantChipped(
+  chatId: ChatId,
+  item: { kind: "file" | "folder"; path: string },
+) {
+  if (item.kind === "folder") {
+    await grantAttachedFolder(chatId, item.path);
+    return;
+  }
+  const parsed = AbsolutePathSchema.safeParse(item.path);
+  if (parsed.success && (await pathExists(parsed.data))) {
+    await grantFile({ chatId, path: parsed.data });
+  }
 }
 
 /**

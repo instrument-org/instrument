@@ -1,4 +1,5 @@
 import { Markdown } from "@/client/components/markdown";
+import { Prose } from "@/client/components/prose";
 import { THOUGHT_PROSE } from "@/client/components/transcript/activity-row";
 import { SessionMarkdown } from "@/client/components/session-markdown";
 import { cn } from "@/client/lib/utils";
@@ -26,9 +27,6 @@ export const Route = createFileRoute("/debug/components/typography")({
  * were doing something and is not.
  */
 const TRANSCRIPT_COLUMN = "w-full max-w-[736px]";
-
-/** What an assistant turn sets over `SessionMarkdown`'s own base. */
-const TRANSCRIPT_PROSE = "text-[15px]/[1.5]";
 
 const PROSE = [
   "Revenue is up 11% on the quarter, but almost none of that is the price change we shipped in April. Stripping out the two enterprise renewals that happened to land in the same week, the underlying number is closer to 4%, which is the third quarter in a row at roughly that rate.",
@@ -155,9 +153,9 @@ function RouteComponent() {
           note="The same document without prose-session, the way a skill's instructions are set: serif headings, larger and editorial, over sans body text."
           title="Headings, editorial"
         >
-          <div className="prose prose-custom w-full text-sm/relaxed wrap-break-word dark:prose-invert prose-figcaption:text-sm prose-kbd:text-inherit prose-code:text-inherit prose-pre:text-sm prose-table:text-sm">
+          <Prose className="w-full" headings="document" size="sm">
             <Markdown markdown={HEADINGS} />
-          </div>
+          </Prose>
         </Specimen>
 
         <Specimen
@@ -245,10 +243,5 @@ function Specimen({
 
 /** Session Markdown exactly as an assistant turn sets it. */
 function TranscriptProse({ markdown }: { markdown: string }) {
-  return (
-    <SessionMarkdown
-      className={cn("w-full", TRANSCRIPT_PROSE)}
-      markdown={markdown}
-    />
-  );
+  return <SessionMarkdown className="w-full" markdown={markdown} size="md" />;
 }

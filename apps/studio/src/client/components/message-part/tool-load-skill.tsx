@@ -1,7 +1,6 @@
 import { type SessionMessagePart } from "@instrument-org/workspace/client";
 
 import { getToolLabel } from "../../lib/tool-display";
-import { cn } from "../../lib/utils";
 import { SessionMarkdown } from "../session-markdown";
 import { useToolCallSession } from "./tool-call-session";
 import {
@@ -48,19 +47,10 @@ export function ToolLoadSkill({ part }: { part: LoadSkillPart }) {
       {successOutput && (
         <ToolCardSection collapsedHeight={208}>
           <SessionMarkdown
-            className={cn(
-              "w-full",
-              "prose-headings:font-sans! prose-headings:font-medium!",
-              "prose-headings:mt-4 prose-headings:mb-2 prose-headings:leading-snug",
-              "prose-h1:text-base! prose-h2:text-sm! prose-h3:text-sm! prose-h4:text-xs! prose-h5:text-xs! prose-h6:text-xs!",
-              "prose-p:text-xs prose-li:text-xs prose-th:text-xs prose-td:text-xs",
-              "prose-pre:text-xs!",
-              "prose-th:font-medium",
-              "prose-p:leading-relaxed prose-li:leading-relaxed",
-              "prose-p:my-3 prose-ol:my-3 prose-ul:my-3 prose-li:my-1",
-              "[&>*:first-child]:mt-0",
-            )}
+            className="w-full"
+            headings="card"
             markdown={successOutput.content}
+            size="xs"
           />
 
           {successOutput.files.length > 0 && (

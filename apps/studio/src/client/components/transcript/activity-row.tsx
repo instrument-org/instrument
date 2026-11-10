@@ -29,10 +29,11 @@ import { formatClock, useTicking } from "./time";
 
 /**
  * A thought's words, set back from the work around them, with the space a
- * section label takes pulled in: a written answer's rhythm is too loose here.
+ * section label takes pulled in and lines set closer: a written answer's
+ * rhythm is too loose here.
  */
 export const THOUGHT_PROSE =
-  "opacity-50 prose-headings:mb-0! [&_:is(h1,h2,h3,h4,h5,h6)+p]:mt-1! [&>p.markdown-section-label]:mt-4! [&>p.markdown-section-label]:mb-0! [&>p.markdown-section-label+p]:mt-1!";
+  "leading-5 opacity-50 prose-headings:mb-0! [&_:is(h1,h2,h3,h4,h5,h6)+p]:mt-1! [&>p.markdown-section-label]:mt-4! [&>p.markdown-section-label]:mb-0! [&>p.markdown-section-label+p]:mt-1!";
 
 /** One line: a mark at the left, words, the places it touched, and how long. */
 export function RowLine({
@@ -326,7 +327,7 @@ export function StepDetail({
       <SessionMarkdown
         assetVersion={part.metadata.id}
         chatId={chatId}
-        className={cn("w-full text-sm", THOUGHT_PROSE)}
+        className={cn("w-full", THOUGHT_PROSE)}
         isStreaming={part.state === "streaming"}
         markdown={thoughtText(part.text)}
       />

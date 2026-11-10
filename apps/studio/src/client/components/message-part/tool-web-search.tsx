@@ -24,7 +24,7 @@ type WebSearchPart = Extract<
 // An excerpt is a passage of somebody else's page, so its headings are sized
 // down to sit inside the card rather than compete with the conversation.
 const EXCERPT_PROSE =
-  "w-full prose-headings:my-1 prose-headings:text-sm prose-headings:font-medium prose-p:my-1";
+  "w-full prose-headings:my-1 prose-headings:font-medium prose-p:my-1";
 
 // Keyed by the failure the tool reported, including `no-web-search-model` from
 // transcripts recorded before the search backends were named apart.

@@ -618,7 +618,11 @@ body {
     margin-top: 0;
   }
 
-  /* Session Markdown uses the app's interface face and compact type scale,
+  /* The heading variants `Prose` picks between (`components/prose.tsx`).
+     Every size is in em, so a variant follows the text size the surface set
+     and a heading never outgrows a small card.
+
+     Session Markdown uses the app's interface face and compact type scale,
      while documents rendered with `prose-custom` retain the editorial heading
      defaults below. Keep the variant here instead of overriding half of those
      defaults with `!important` modifiers inside the component. */
@@ -628,23 +632,23 @@ body {
   }
 
   .prose.prose-custom.prose-session h1 {
-    font-size: 1.25rem;
+    font-size: 1.4em;
   }
 
   .prose.prose-custom.prose-session h2 {
-    font-size: 1.125rem;
+    font-size: 1.25em;
   }
 
   .prose.prose-custom.prose-session h3 {
-    font-size: 1rem;
+    font-size: 1.125em;
   }
 
   .prose.prose-custom.prose-session h4 {
-    font-size: 0.875rem;
+    font-size: 1em;
   }
 
   .prose.prose-custom.prose-session :is(h5, h6) {
-    font-size: 0.75rem;
+    font-size: 0.875em;
   }
 
   /* A miniature of a document on a small card: headings stay within a step
@@ -732,6 +736,18 @@ body {
   code:not(:where(pre code, .not-prose *))::before,
   code:not(:where(pre code, .not-prose *))::after {
     content: none;
+  }
+
+  /* Code blocks, tables and captions at the body's size, where Typography
+     sets them a step smaller, but never above 14px, so a 15px reply still
+     sets them a step down. A key takes the text's color, as inline code does. */
+  :is(pre, table, figcaption):not(:where(.not-prose *)) {
+    font-size: min(1em, 0.875rem);
+    line-height: calc(1.25 / 0.875);
+  }
+
+  kbd:not(:where(.not-prose *)) {
+    color: inherit;
   }
 
   /* In a link's label or a file chip the code keeps its face and drops the
@@ -867,7 +883,7 @@ body {
   &.prose.prose-custom.prose-session h2 {
     margin-top: 1.5rem;
     margin-bottom: 0.5rem;
-    font-size: 0.875rem;
+    font-size: 1em;
     font-weight: 600;
   }
 }

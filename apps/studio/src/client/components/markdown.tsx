@@ -1085,6 +1085,16 @@ const loadMath = () =>
     import("katex/dist/katex.min.css"),
   ]);
 
+/**
+ * Markdown's elements, to be drawn inside a `Prose` (`prose.tsx`), which sets the
+ * one text size and heading scale they all follow.
+ *
+ * Nothing rendered here sets a font size of its own (`text-sm`, a rem): every
+ * size is relative, so a surface changes the size of all of it by changing
+ * its own, and one that is not stays put when the surface shrinks and sticks
+ * out of a smaller sentence. A component that also renders outside Markdown
+ * (a chip) follows the same rule and takes its size from its parent there too.
+ */
 export const Markdown = memo(
   ({
     assetVersion,

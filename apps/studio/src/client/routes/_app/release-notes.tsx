@@ -1,6 +1,7 @@
 import { displayLocale } from "@/client/lib/display-locale";
 import { ExternalLink } from "@/client/components/external-link";
 import { Markdown } from "@/client/components/markdown";
+import { Prose } from "@/client/components/prose";
 import { Button } from "@/client/components/ui/button";
 import { Skeleton } from "@/client/components/ui/skeleton";
 import { useRestartToUpdate } from "@/client/components/update-status-indicator";
@@ -139,14 +140,13 @@ function Notes({ release }: { release: Release }) {
         <p className="text-[15px] leading-6">{release.summary}</p>
       )}
       {detail && (
-        <div
-          className={cn(
-            "prose-session prose prose-custom prose-sm prose-release-notes wrap-break-word dark:prose-invert prose-figcaption:text-sm prose-kbd:text-inherit prose-code:text-inherit prose-pre:text-sm prose-table:text-sm",
-            release.summary && "mt-2",
-          )}
+        <Prose
+          className={cn("prose-release-notes", release.summary && "mt-2")}
+          headings="session"
+          size="sm"
         >
           <Markdown markdown={detail} />
-        </div>
+        </Prose>
       )}
     </div>
   );

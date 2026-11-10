@@ -21,6 +21,7 @@ import { use, useLayoutEffect, useRef, type ReactNode } from "react";
 import { useSyntaxHighlighting } from "../../hooks/use-syntax-highlighting";
 import { Favicon } from "../favicon";
 import { Markdown } from "../markdown";
+import { Prose } from "../prose";
 import { BorderSweep } from "../shimmer-sweep";
 import { useTheme } from "../theme-provider";
 import { type TranscriptSurface, TranscriptSurfaceContext } from "./surface";
@@ -279,12 +280,9 @@ function TypedWords({
       {isMarkdown ? (
         // A picture of the file: the card is the one control, so nothing in
         // the words answers a press or takes focus.
-        <div
-          className="prose-card prose prose-custom font-sans text-xs/relaxed wrap-break-word dark:prose-invert prose-code:text-inherit prose-pre:text-xs prose-table:text-xs"
-          inert
-        >
+        <Prose headings="card" inert size="xs">
           <Markdown hideImages isStreaming={isWriting} markdown={words} />
-        </div>
+        </Prose>
       ) : (
         <FileWords path={path} text={words} />
       )}

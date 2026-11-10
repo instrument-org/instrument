@@ -18,9 +18,10 @@ export const AssistantMessage = memo(function AssistantMessage({
     <div className="flex flex-col items-start">
       <SessionMarkdown
         assetVersion={part.metadata.id}
-        className="w-full text-[15px]/[1.5]"
+        className="w-full"
         isStreaming={part.state === "streaming"}
         markdown={part.text}
+        size="md"
         chatId={chatId}
       />
     </div>

@@ -1,5 +1,6 @@
 import { type ReactNode } from "react";
 
+import { Prose } from "./prose";
 import { Dialog, DialogContent, DialogTitle } from "./ui/dialog";
 
 /**
@@ -44,9 +45,13 @@ export function MarkdownTableModal({
           className="markdown-table-modal-body @container/transcript min-h-0 flex-1 overflow-y-auto px-5 pb-5"
           data-transcript
         >
-          <div className="prose prose-custom text-sm/relaxed [--transcript-room:100cqi] dark:prose-invert prose-table:text-sm">
+          <Prose
+            className="[--transcript-room:100cqi]"
+            headings="document"
+            size="sm"
+          >
             {children}
-          </div>
+          </Prose>
         </div>
       </DialogContent>
     </Dialog>

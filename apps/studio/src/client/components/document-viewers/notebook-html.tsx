@@ -6,6 +6,7 @@ import {
   UNTRUSTED_FILE_IMAGE_KINDS,
 } from "../../lib/image-policy";
 import { ExternalLink } from "../external-link";
+import { Prose } from "../prose";
 
 /**
  * An HTML output bundle, rendered as elements this app controls.
@@ -62,9 +63,9 @@ export function NotebookHtml({ html }: { html: string }) {
 
   return (
     <div className="max-w-full overflow-x-auto">
-      <div className="prose prose-custom text-sm/relaxed wrap-break-word dark:prose-invert prose-table:text-sm">
+      <Prose headings="document" size="sm">
         {toReactChildren(parsed.body, 0)}
-      </div>
+      </Prose>
     </div>
   );
 }

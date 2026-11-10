@@ -1,10 +1,13 @@
-import { type SessionMessagePart } from "@instrument-org/workspace/client";
+import {
+  type SessionMessagePart,
+  toolLabel,
+} from "@instrument-org/workspace/client";
 
 import { useNow } from "../../hooks/use-now";
 import { useStopBackgroundProcess } from "../../hooks/use-stop-background-process";
 import { useChatSession } from "../../hooks/use-chat-session";
 import { formatElapsed } from "../../lib/format-elapsed";
-import { getToolLabel, getToolStreamingLabel } from "../../lib/tool-display";
+import { getToolStreamingLabel } from "../../lib/tool-display";
 import { cn } from "../../lib/utils";
 import { StopProcessButton } from "../task/stop-process-button";
 import { BashCommandSection } from "./bash-command-section";
@@ -51,9 +54,7 @@ export function ToolBash({ part }: { part: BashPart }) {
   // returned a process id and stopped -- so the streaming label here said the
   // agent was still running a command when it had moved on. What is still going
   // is said beside it, in its own words.
-  const label = isStreaming
-    ? getToolStreamingLabel("bash")
-    : getToolLabel("bash");
+  const label = isStreaming ? getToolStreamingLabel("bash") : toolLabel("bash");
 
   return (
     <ToolCard>

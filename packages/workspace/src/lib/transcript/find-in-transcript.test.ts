@@ -88,6 +88,53 @@ describe("findInTranscript", () => {
     ]);
   });
 
+  it.each([
+    // A named activity of one call draws its name alone, so a line that
+    // repeats it counts once and one that differs counts not at all.
+    ["Comparing versions", "Comparing versions", "comparing versions", 1],
+    ["Comparing versions", "Diffing the two files", "diffing", 0],
+    // A call the agent said nothing about draws what kind of call it was.
+    [undefined, undefined, "ran terminal command", 1],
+  ])(
+    "counts a one-call activity named %j with the line %j as its row draws it",
+    (activity, explanation, query, count) => {
+      const first = typed("Go");
+      const messages = [
+        first,
+        message("assistant", (id) => [
+          said(id, "On it."),
+          {
+            ...(ran(id) as object),
+            input: { activity, explanation },
+          } as SessionMessagePart.Type,
+          said(id, "Done."),
+        ]),
+      ];
+      expect(findInTranscript({ messages, query, sessionId })).toEqual(
+        count === 0 ? [] : [{ count, folded: count, id: first.id }],
+      );
+    },
+  );
+
+  it("counts the summary on a folded turn's Worked row", () => {
+    const first = typed("Go");
+    const messages = [
+      first,
+      message("assistant", (id) => [
+        ran(id),
+        said(id, "Done."),
+        {
+          data: { words: "Checked the harbor budget" },
+          metadata: meta(id),
+          type: "data-workSummary",
+        } as unknown as SessionMessagePart.Type,
+      ]),
+    ];
+    expect(
+      findInTranscript({ messages, query: "harbor budget", sessionId }),
+    ).toEqual([{ count: 1, folded: 0, id: first.id }]);
+  });
+
   it("reads Markdown's marks out of a reply", () => {
     const messages = [
       typed("Go"),

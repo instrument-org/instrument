@@ -1,6 +1,8 @@
-import { type SessionMessagePart } from "@instrument-org/workspace/client";
+import {
+  type SessionMessagePart,
+  toolLabel,
+} from "@instrument-org/workspace/client";
 
-import { getToolLabel } from "../../lib/tool-display";
 import { SessionMarkdown } from "../session-markdown";
 import { SourceLink } from "../source-link";
 import { useToolCallSession } from "./tool-call-session";
@@ -40,7 +42,7 @@ export function ToolWebFetch({ part }: { part: WebFetchPart }) {
     ? "Web page unavailable"
     : isStreaming
       ? "Reading web page"
-      : getToolLabel("web_fetch");
+      : toolLabel("web_fetch");
   const hasContent =
     successOutput !== null && successOutput.text.trim().length > 0;
 

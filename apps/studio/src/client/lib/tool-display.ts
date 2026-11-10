@@ -1,4 +1,7 @@
-import { type ToolName } from "@instrument-org/workspace/client";
+import {
+  type ToolName,
+  toolWorkingLabel,
+} from "@instrument-org/workspace/client";
 import { type Icon } from "@phosphor-icons/react";
 import { BookOpenIcon } from "@phosphor-icons/react/BookOpen";
 import { CodeIcon } from "@phosphor-icons/react/Code";
@@ -13,53 +16,20 @@ import { QuestionIcon } from "@phosphor-icons/react/Question";
 import { TerminalIcon } from "@phosphor-icons/react/Terminal";
 import { WrenchIcon } from "@phosphor-icons/react/Wrench";
 
-// | undefined ensures runtime type safety
-const TOOL_DISPLAY_NAMES: Record<ToolName, string | undefined> = {
-  ask_permission: "Asked for permission",
-  bash: "Ran terminal command",
-  choose: "Waiting for answer",
-  connect_app: "Asked to connect an app",
-  edit_file: "Edited",
-  generate_image: "Generated image",
-  load_skill: "Loaded skill",
-  offer_feedback: "Offered to send feedback",
-  read_file: "Read",
-  unavailable: "Used unknown tool",
-  web_fetch: "Read web page",
-  web_search: "Searched web",
-  write_file: "Created",
-};
-
-const TOOL_STREAMING_DISPLAY_NAMES: Record<ToolName, string | undefined> = {
-  ask_permission: "Asking for permission",
-  bash: "Running terminal command",
-  choose: "Thinking about a question",
-  connect_app: "Asking to connect an app",
-  edit_file: "Editing a file",
-  generate_image: "Generating an image",
-  load_skill: "Loading skill",
-  offer_feedback: "Writing up a problem",
-  read_file: "Reading file",
-  unavailable: "Using unknown tool",
-  web_fetch: "Reading web page",
-  web_search: "Searching the web",
-  write_file: "Creating a file",
-};
-
 const TOOL_STREAMING_DISPLAY_NAMES_WITH_VALUE: Record<
   ToolName,
   string | undefined
 > = {
-  ask_permission: TOOL_STREAMING_DISPLAY_NAMES.ask_permission,
-  bash: TOOL_STREAMING_DISPLAY_NAMES.bash,
-  choose: TOOL_STREAMING_DISPLAY_NAMES.choose,
-  connect_app: TOOL_STREAMING_DISPLAY_NAMES.connect_app,
+  ask_permission: toolWorkingLabel("ask_permission"),
+  bash: toolWorkingLabel("bash"),
+  choose: toolWorkingLabel("choose"),
+  connect_app: toolWorkingLabel("connect_app"),
   edit_file: "Editing",
   generate_image: "Generating",
   load_skill: "Loading skill",
-  offer_feedback: TOOL_STREAMING_DISPLAY_NAMES.offer_feedback,
+  offer_feedback: toolWorkingLabel("offer_feedback"),
   read_file: "Reading",
-  unavailable: TOOL_STREAMING_DISPLAY_NAMES.unavailable,
+  unavailable: toolWorkingLabel("unavailable"),
   web_fetch: "Reading",
   web_search: "Searching for",
   write_file: "Creating",
@@ -122,18 +92,13 @@ export const TOOL_ICONS: Record<ToolName, Icon | undefined> = {
   write_file: CodeIcon,
 };
 
-export function getToolLabel(toolName: ToolName): string {
-  return TOOL_DISPLAY_NAMES[toolName] ?? "Unknown tool";
-}
-
 export function getToolStreamingLabel(
   toolName: ToolName,
   hasValue = false,
 ): string {
-  const names = hasValue
-    ? TOOL_STREAMING_DISPLAY_NAMES_WITH_VALUE
-    : TOOL_STREAMING_DISPLAY_NAMES;
-  return names[toolName] ?? "Processing";
+  return hasValue
+    ? (TOOL_STREAMING_DISPLAY_NAMES_WITH_VALUE[toolName] ?? "Processing")
+    : toolWorkingLabel(toolName);
 }
 
 /**

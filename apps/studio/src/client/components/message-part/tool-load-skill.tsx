@@ -1,6 +1,8 @@
-import { type SessionMessagePart } from "@instrument-org/workspace/client";
+import {
+  type SessionMessagePart,
+  toolLabel,
+} from "@instrument-org/workspace/client";
 
-import { getToolLabel } from "../../lib/tool-display";
 import { SessionMarkdown } from "../session-markdown";
 import { useToolCallSession } from "./tool-call-session";
 import {
@@ -30,7 +32,7 @@ export function ToolLoadSkill({ part }: { part: LoadSkillPart }) {
       ? part.output
       : null;
 
-  const label = notFoundOutput ? "Skill not found" : getToolLabel("load_skill");
+  const label = notFoundOutput ? "Skill not found" : toolLabel("load_skill");
   const availableText =
     notFoundOutput && notFoundOutput.available.length > 0
       ? notFoundOutput.available

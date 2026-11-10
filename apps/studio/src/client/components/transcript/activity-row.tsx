@@ -1,12 +1,12 @@
-import {
-  getToolLabel,
-  getToolStreamingLabel,
-  TOOL_ICONS,
-} from "@/client/lib/tool-display";
+import { getToolStreamingLabel, TOOL_ICONS } from "@/client/lib/tool-display";
 import { cn } from "@/client/lib/utils";
 import {
+  activityLine,
   type ActivityRow,
   type ChatId,
+  countsLine,
+  foldedActivityLines,
+  stepLine,
   thoughtText,
   type ToolName,
   type TurnStep,
@@ -194,11 +194,6 @@ function StepMark({ step }: { step: TurnStep | undefined }) {
   );
 }
 
-const countsText = (row: Pick<ActivityRow, "counts">) =>
-  row.counts
-    .map((counted) => `${counted.count.toString()} ${counted.label}`)
-    .join(", ");
-
 /**
  * An activity: while it works the line with its clock and a line under it
  * saying what it is at (`liveDetail`), and once done a quiet line opening onto its calls. Only
@@ -222,11 +217,10 @@ export function ActivityRowView({
   const steps = row.steps.filter((step) => step.tool !== "reasoning");
   const current = row.steps.findLast((step) => step.explanation !== undefined);
   const lastStep = steps.at(-1);
-  const counts = countsText(row);
+  const counts = countsLine(row.counts);
   const opened = thought ? [...row.steps, thought] : row.steps;
   const label =
-    row.title ??
-    (lastStep ? stepLabel(lastStep) : isLive ? "Thinking" : "Thought");
+    isLive && !lastStep ? (row.title ?? "Thinking") : activityLine(row);
   return (
     <RowLine
       isLive={isLive}
@@ -288,6 +282,7 @@ export function ActivityRowView({
  * once however its work was grouped. A run the agent didn't name has no
  * heading, since it would only repeat its call, and a named activity of one
  * call is that call's row under the activity's name, opening onto its card.
+ * Its words are `foldedActivityLines`, which a chat's find counts too.
  */
 export function FoldedActivityView({
   chatId,
@@ -296,21 +291,23 @@ export function FoldedActivityView({
   chatId: ChatId;
   row: ActivityRow;
 }) {
-  const counts = countsText(row);
-  const [onlyStep] = row.steps;
-  if (row.title && onlyStep && row.steps.length === 1) {
-    return <StepRow chatId={chatId} label={row.title} step={onlyStep} />;
-  }
+  const counts = countsLine(row.counts);
+  const { calls, heading } = foldedActivityLines(row);
   return (
     <div className="flex min-w-0 flex-col gap-0.5">
-      {row.title && (
+      {heading !== undefined && (
         <p className="flex h-7 min-w-0 items-center gap-1.5 text-xs text-muted-foreground">
-          <span className="min-w-0 truncate">{row.title}</span>
+          <span className="min-w-0 truncate">{heading}</span>
           {counts && <span className="shrink-0">· {counts}</span>}
         </p>
       )}
-      {row.steps.map((step) => (
-        <StepRow chatId={chatId} key={step.metadata.id} step={step} />
+      {calls.map(({ label, step }) => (
+        <StepRow
+          chatId={chatId}
+          key={step.metadata.id}
+          label={label}
+          step={step}
+        />
       ))}
     </div>
   );
@@ -337,19 +334,6 @@ function liveDetail(
   return said ?? (isRunning ? "Working" : "Thinking");
 }
 
-function stepLabel(step: TurnStep): string {
-  const tool = toolOf(step);
-  if (!tool) {
-    return "Thought";
-  }
-  if (step.explanation) {
-    return step.explanation;
-  }
-  return step.status === "running" || step.status === "writing"
-    ? getToolStreamingLabel(tool)
-    : getToolLabel(tool);
-}
-
 function StepRow({
   chatId,
   label,
@@ -364,7 +348,7 @@ function StepRow({
   return (
     <RowLine
       isOpen={isOpen}
-      label={label ?? stepLabel(step)}
+      label={label ?? stepLine(step)}
       mark={<StepMark step={step} />}
       onClick={() => {
         releaseAutoScroll();
@@ -413,7 +397,7 @@ export function StepDetail({
       />
     );
   }
-  const counts = countsText({ counts: step.facts?.counts ?? [] });
+  const counts = countsLine(step.facts?.counts ?? []);
   const apps = [...new Set((step.facts?.apps ?? []).map((call) => call.app))];
   return (
     <>

@@ -52,12 +52,24 @@ export {
 } from "./lib/chat/chat-list-events";
 export { joinedMidTurn, MID_TURN_NOTE } from "./lib/chat/mid-turn";
 export {
+  activityLine,
+  activityWords,
+  countsLine,
+  foldedActivityLines,
+  stepLine,
+  toolLabel,
+  toolWorkingLabel,
+} from "./lib/transcript/activity-lines";
+export {
   applyFeedEvent,
   applyOlder,
   type TranscriptFeed,
   type TranscriptFeedEvent,
 } from "./lib/transcript/feed";
-export { type TurnMatches } from "./lib/transcript/find-in-transcript";
+export {
+  countMatches,
+  type TurnMatches,
+} from "./lib/transcript/find-in-transcript";
 export {
   cardsOf,
   type WorkCard,

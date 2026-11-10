@@ -3,12 +3,12 @@ import { APP_NAME } from "@instrument-org/shared";
 import {
   readWebSearchResults,
   type SessionMessagePart,
+  toolLabel,
 } from "@instrument-org/workspace/client";
 import { MagnifyingGlassIcon } from "@phosphor-icons/react/MagnifyingGlass";
 
 import { formatDuration } from "../../lib/format-time";
 import { UNTRUSTED_FILE_IMAGE_KINDS } from "../../lib/image-policy";
-import { getToolLabel } from "../../lib/tool-display";
 import { AIProviderIcon } from "../ai-provider-icon";
 import { SessionMarkdown } from "../session-markdown";
 import { SourceLink } from "../source-link";
@@ -69,7 +69,7 @@ export function ToolWebSearch({
         <div className="flex min-w-0 items-center gap-2">
           <MagnifyingGlassIcon className="size-3.5 shrink-0 text-muted-foreground" />
           <p className="min-w-0 truncate text-xs font-medium text-foreground/80">
-            {query || getToolLabel("web_search")}
+            {query || toolLabel("web_search")}
           </p>
         </div>
         <SearchFacts part={part} results={results} searching={searching} />

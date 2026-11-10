@@ -1,4 +1,5 @@
 import { type StoreId } from "../../schemas/store-id";
+import { activityWords } from "./activity-lines";
 import { type TranscriptMessage } from "./transcript-message";
 import { isTurnFolded, type Turn, turnsOf } from "./turns-of";
 
@@ -16,10 +17,11 @@ export interface TurnMatches {
  * what the reader can search before the turns are loaded to draw, and which
  * folded work to open to draw its matches. What counts is what a turn shows
  * with its Worked row open: the person's message (or what the chat wrote to a
- * task), the replies, and in the work the words the agent wrote, each
- * activity's name and each step's line. Markdown is read without its marks,
- * so the count is close to what the drawn turn has, which is what the find
- * counts once it is loaded.
+ * task), the Worked row's summary, the replies, and in the work the words the
+ * agent wrote and the lines its activities draw (`activityWords`, which the
+ * rows are drawn from too). Markdown is read without its marks, so the count
+ * is close to what the drawn turn has, which is what the find counts once it
+ * is loaded.
  */
 export function findInTranscript({
   messages,
@@ -72,19 +74,18 @@ function turnWords(turn: Turn): { folded: string[]; shown: string[] } {
   const shown = [
     turn.opener?.text?.text ?? "",
     turn.opener?.fromChat?.text ?? "",
+    isFolded ? (turn.summary ?? "") : "",
   ];
   const folded: string[] = [];
   for (const row of turn.rows) {
+    const inFold = isFolded && turn.foldedRowIds.has(row.id);
     const words =
       row.kind === "text"
         ? [withoutMarks(row.part.text)]
         : row.kind === "activity"
-          ? [
-              row.title ?? "",
-              ...row.steps.map((step) => step.explanation ?? ""),
-            ]
+          ? activityWords(row, { inFold })
           : [];
-    (isFolded && turn.foldedRowIds.has(row.id) ? folded : shown).push(...words);
+    (inFold ? folded : shown).push(...words);
   }
   return { folded, shown };
 }

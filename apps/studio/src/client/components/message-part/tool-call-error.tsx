@@ -1,6 +1,7 @@
 import {
   getToolNameByType,
   type SessionMessagePart,
+  toolLabel,
 } from "@instrument-org/workspace/client";
 import { CaretDownIcon } from "@phosphor-icons/react/CaretDown";
 import { CopyIcon } from "@phosphor-icons/react/Copy";
@@ -8,7 +9,6 @@ import { useState } from "react";
 
 import { getToolExplanation } from "../../lib/get-tool-explanation";
 import { isCutOff } from "../../lib/is-cut-off";
-import { getToolLabel } from "../../lib/tool-display";
 import { cn } from "../../lib/utils";
 import { ConfirmedIconButton } from "../confirmed-icon-button";
 
@@ -35,7 +35,7 @@ export function ToolCallError({ part }: { part: ErrorPart }) {
         <p className="text-xs font-medium text-muted-foreground">
           {cutOff
             ? (getToolExplanation(part) ??
-              getToolLabel(getToolNameByType(part.type)))
+              toolLabel(getToolNameByType(part.type)))
             : "Tool call failed"}
         </p>
       </div>

@@ -4,6 +4,7 @@ import { describe, expect, it, vi } from "vitest";
 import {
   activeTab,
   BrowserFollowUp,
+  failureLine,
   LIVE_REGION_SETTLE_MS,
   liveRegionsArgs,
   liveRegionText,
@@ -308,6 +309,63 @@ describe("BrowserFollowUp", () => {
       startedAt: 0,
     });
     expect(await followUp.take(signal)).toBeUndefined();
+  });
+});
+
+describe("BrowserFollowUp failures", () => {
+  it("hands over, once, the failures the output does not show", () => {
+    const followUp = new BrowserFollowUp();
+    followUp.noteFailure(["click", "@e1"], "Element ref e1 is stale");
+    followUp.noteFailure(["get", "text", "@e2"], "Unknown ref: e2");
+    expect(followUp.takeFailures("✗ Unknown ref: e2\n")).toEqual({
+      failed: [{ command: "click @e1", error: "Element ref e1 is stale" }],
+      more: 0,
+    });
+    expect(followUp.takeFailures("")).toEqual({ failed: [], more: 0 });
+  });
+
+  it("names the first few and counts the rest", () => {
+    const followUp = new BrowserFollowUp();
+    for (let i = 1; i <= 5; i++) {
+      followUp.noteFailure(["click", `@e${i}`], `Unknown ref: e${i}`);
+    }
+    const { failed, more } = followUp.takeFailures("");
+    expect(failed.map(({ command }) => command)).toEqual([
+      "click @e1",
+      "click @e2",
+      "click @e3",
+    ]);
+    expect(more).toBe(2);
+  });
+
+  it("cuts a long command and skips a failure that said nothing", () => {
+    const followUp = new BrowserFollowUp();
+    followUp.noteFailure(["fill", "@e1", "x".repeat(200)], "Element not found");
+    followUp.noteFailure(["click", "@e2"], "");
+    const { failed } = followUp.takeFailures("");
+    expect(failed).toHaveLength(1);
+    expect(failed[0]?.command).toMatch(/^fill @e1 x+…$/);
+    expect(failed[0]?.command.length).toBe(81);
+  });
+});
+
+describe("failureLine", () => {
+  it.each([
+    [
+      "the first stderr line, without its mark",
+      "\n✗ Unknown ref: e9\nUsage\n",
+      "",
+      "Unknown ref: e9",
+    ],
+    [
+      "stdout when stderr is empty",
+      "",
+      "Error: timed out\n",
+      "Error: timed out",
+    ],
+    ["nothing when neither has a line", " \n", "", ""],
+  ])("takes %s", (_name, stderr, stdout, line) => {
+    expect(failureLine(stderr, stdout)).toBe(line);
   });
 });
 

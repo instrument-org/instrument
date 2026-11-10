@@ -52,6 +52,7 @@ import { watchSlowInvocation } from "./agent-browser-slow";
 import {
   currentBrowserFollowUp,
   activeTab,
+  failureLine,
   FOLLOW_UP_SNAPSHOT_ARGS,
   FOLLOW_UP_TABS_ARGS,
   FOLLOW_UP_WAIT_ARGS,
@@ -1159,9 +1160,18 @@ export function createAgentBrowserCommand({
       stderr: scrub(result.stderr),
       stdout: scrub(stdout),
     };
-    return cappedWait
+    const answer = cappedWait
       ? cappedWaitResult(cappedWait, output, elapsedMs)
       : output;
+    // For the end of the bash call to name, when the call's output does not
+    // show it, as when the command's output went to /dev/null.
+    if (answer.exitCode !== 0) {
+      currentBrowserFollowUp()?.noteFailure(
+        resolvedArgs,
+        failureLine(answer.stderr, answer.stdout),
+      );
+    }
+    return answer;
   });
 }
 

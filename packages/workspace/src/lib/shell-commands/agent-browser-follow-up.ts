@@ -481,7 +481,44 @@ function staysOnPage(args: string[]): boolean {
   );
 }
 
+/**
+ * A command of the call that failed: what was run, from its subcommand on,
+ * and the first line of what it printed about it.
+ */
+export const BrowserFailureSchema = z.object({
+  command: z.string(),
+  error: z.string(),
+});
+
+export type BrowserFailure = z.output<typeof BrowserFailureSchema>;
+
+/** The most failures a call names, the earliest first; past that it counts them. */
+const MAX_BROWSER_FAILURES = 3;
+
+/** Longest a failed command is quoted, so a `fill` with a page of text stays a line. */
+const FAILED_COMMAND_CHARS = 80;
+
+/**
+ * The line a failed agent-browser command printed to say why: the first that
+ * is not blank, from stderr, or from stdout when stderr has none, without the
+ * CLI's `✗` mark.
+ */
+export function failureLine(stderr: string, stdout: string): string {
+  const first = (text: string) =>
+    text
+      .split("\n")
+      .map((line) => line.trim())
+      .find((line) => line !== "");
+  return (first(stderr) ?? first(stdout) ?? "").replace(/^✗\s*/u, "").trim();
+}
+
 export class BrowserFollowUp {
+  /** The call's failed commands, the earliest first, up to {@link MAX_BROWSER_FAILURES}. */
+  #failures: BrowserFailure[] = [];
+
+  /** How many commands failed past the ones kept. */
+  #moreFailures = 0;
+
   /** The last change since the page was last read, which the snapshot is after. */
   #pending: { after: string; read: ReadPage } | undefined;
 
@@ -550,6 +587,42 @@ export class BrowserFollowUp {
         ...(baseline ? { before: baseline } : {}),
       };
     }
+  }
+
+  /** Records a command that failed, by what it said about it ({@link failureLine}). */
+  noteFailure(args: string[], error: string) {
+    if (error === "") {
+      return;
+    }
+    if (this.#failures.length >= MAX_BROWSER_FAILURES) {
+      this.#moreFailures += 1;
+      return;
+    }
+    const command = parseAgentBrowserArgs(args)
+      .subArgs.map(({ value }) => value)
+      .join(" ");
+    this.#failures.push({
+      command:
+        command.length > FAILED_COMMAND_CHARS
+          ? `${command.slice(0, FAILED_COMMAND_CHARS)}…`
+          : command,
+      error,
+    });
+  }
+
+  /**
+   * The call's failed commands whose error its output does not show, as when
+   * the command's output went to `/dev/null`, and how many more failed past
+   * the ones kept. Once.
+   */
+  takeFailures(output: string): { failed: BrowserFailure[]; more: number } {
+    const failed = this.#failures.filter(
+      ({ error }) => !output.includes(error),
+    );
+    const more = this.#moreFailures;
+    this.#failures = [];
+    this.#moreFailures = 0;
+    return { failed, more: failed.length > 0 ? more : 0 };
   }
 
   #screenshot: string | undefined;

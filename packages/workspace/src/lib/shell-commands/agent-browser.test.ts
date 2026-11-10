@@ -1179,6 +1179,28 @@ describe("agent-browser routing", () => {
     });
   });
 
+  it("records a failed command and the line it gave for failing", async () => {
+    await answerAgentBrowser((given) =>
+      given.includes("click")
+        ? {
+            exitCode: 1,
+            stderr: "\u2717 Element ref e621 is stale\nmore detail\n",
+            stdout: "",
+          }
+        : { exitCode: 0, stderr: "", stdout: "" },
+    );
+    const followUp = new BrowserFollowUp();
+
+    await withBrowserFollowUp(followUp, () =>
+      command.execute(["click", "@e621"], commandCtx),
+    );
+
+    expect(followUp.takeFailures("")).toEqual({
+      failed: [{ command: "click @e621", error: "Element ref e621 is stale" }],
+      more: 0,
+    });
+  });
+
   it("ignores connection env the agent exported into its shell", async () => {
     const { args, env } = await spawnedWith(
       ["open", "https://example.com"],

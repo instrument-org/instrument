@@ -152,6 +152,48 @@ describe("BashTool toModelOutput", () => {
     );
   });
 
+  it("names browser commands that failed where the output does not show it", () => {
+    expect({
+      quiet: renderedText({
+        browserFailures: {
+          failed: [
+            { command: "click @e621", error: "Element ref e621 is stale" },
+          ],
+          more: 0,
+        },
+        commands: ["agent-browser"],
+      }),
+      shown: renderedText({
+        browserFailures: {
+          failed: [{ command: "click @e1", error: "Unknown ref: e1" }],
+          more: 2,
+        },
+        commands: ["agent-browser"],
+        output: "https://example.com\n",
+      }),
+    }).toMatchInlineSnapshot(`
+      {
+        "quiet": "Exit code: 0
+
+      The command produced no output on stdout or stderr.
+
+      \`click @e621\` failed: Element ref e621 is stale
+
+      Duration: 0 ms",
+        "shown": "Exit code: 0
+
+      Command output:
+
+      https://example.com
+
+      \`click @e1\` failed: Unknown ref: e1
+      2 more agent-browser commands failed.
+
+      Duration: 0 ms",
+      }
+    `);
+  });
+
   describe("screenshots", () => {
     const screenshot = {
       base64Data: "iVBORw0KGgo=",

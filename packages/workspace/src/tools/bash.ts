@@ -50,6 +50,7 @@ import {
 import { describeImageSize } from "../lib/image-preview";
 import { AGENT_BROWSER_COMMAND } from "../lib/shell-commands/agent-browser";
 import {
+  BrowserFailureSchema,
   BrowserFollowUp,
   PageAfterSchema,
   pageAfterText,
@@ -233,6 +234,16 @@ const bashOutputSchema = z.object({
    * wrote it; for the session log, never the model, which reads `output`.
    */
   stderr: z.string().optional(),
+  /**
+   * The call's agent-browser commands that failed where its output does not
+   * show their error, and how many more failed past those.
+   */
+  browserFailures: z
+    .object({
+      failed: z.array(BrowserFailureSchema),
+      more: z.number().int(),
+    })
+    .optional(),
   /**
    * The page after the call's agent-browser commands changed it, when
    * nothing in the call read it afterwards.
@@ -549,6 +560,7 @@ const bashCapability = defineCapability({
           });
         }
 
+        const browserFailures = browserFollowUp.takeFailures(outcome.output);
         const pageAfter = await browserFollowUp.take(signal);
         const screenshotPath = browserFollowUp.takeScreenshot();
         const screenshot =
@@ -570,6 +582,7 @@ const bashCapability = defineCapability({
 
         return ok({
           ...(guidesShown.length > 0 ? { appGuides: guidesShown } : {}),
+          ...(browserFailures.failed.length > 0 ? { browserFailures } : {}),
           ...(browserSkill ? { browserSkill } : {}),
           command: input.command,
           commands,
@@ -700,6 +713,18 @@ function bashOutputText(output: z.output<typeof bashOutputSchema>): {
 
     const hasErrors = output.exitCode !== 0;
     const exitLine = `Exit code: ${output.exitCode ?? "unknown"}`;
+    const failures = output.browserFailures;
+    const failuresSection = failures
+      ? [
+          "",
+          ...failures.failed.map(
+            ({ command, error }) => `\`${command}\` failed: ${error}`,
+          ),
+          ...(failures.more > 0
+            ? [`${failures.more} more agent-browser commands failed.`]
+            : []),
+        ]
+      : [];
     const pageAfterSection = output.pageAfter
       ? ["", pageAfterText(output.pageAfter)]
       : [];
@@ -717,6 +742,7 @@ function bashOutputText(output: z.output<typeof bashOutputSchema>): {
           exitLine,
           "",
           "The command produced no output on stdout or stderr.",
+          ...failuresSection,
           "",
           durationLine,
           ...pageAfterSection,
@@ -744,6 +770,7 @@ function bashOutputText(output: z.output<typeof bashOutputSchema>): {
         exitLine,
         "",
         ...outputParts,
+        ...failuresSection,
         "",
         durationLine,
         ...pageAfterSection,

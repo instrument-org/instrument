@@ -29,6 +29,7 @@ import {
   type ExtensionConnection,
   openDesktopApp,
 } from "./extension-connection";
+import { reloadOpenTabsFor } from "./extension-open-tabs";
 import {
   type ExtensionManifest,
   permissionLines,
@@ -55,6 +56,9 @@ const tabsAsked: ((tab: WebContents, window: BaseWindow) => void)[] = [];
 
 /** What each extension's desktop app last said of this browser, by extension id. */
 const connections = new Map<string, ExtensionConnection | null>();
+
+/** Extensions the person let the store install, by id, until each loads. */
+const installsAllowed = new Set<string>();
 
 /** The store's install questions waiting on a window's answer, by ask id. */
 const installAsks = new Map<string, (allow: boolean) => void>();
@@ -106,6 +110,13 @@ export function enableBrowserExtensions(
     );
     publisher.publish("browser.extensions-changed", null);
     void recheckExtensionConnections();
+    // Just installed, so the tabs already open have none of its content
+    // scripts; one loaded at launch comes before any tab.
+    if (installsAllowed.delete(extension.id)) {
+      reloadOpenTabsFor(extension).catch((error: unknown) => {
+        log.error("open tabs could not be reloaded for an extension", error);
+      });
+    }
   });
   guestSession.extensions.on("extension-unloaded", (_event, extension) => {
     log.info(`extension unloaded ${extension.name} id=${extension.id}`);
@@ -138,6 +149,7 @@ export function enableBrowserExtensions(
  */
 function confirmInstall(details: {
   icon: NativeImage;
+  id: string;
   localizedName: string;
   manifest: ExtensionManifest;
 }): Promise<{ action: "allow" | "deny" }> {
@@ -145,6 +157,9 @@ function confirmInstall(details: {
   return new Promise((resolve) => {
     installAsks.set(askId, (allow) => {
       installAsks.delete(askId);
+      if (allow) {
+        installsAllowed.add(details.id);
+      }
       publisher.publish("browser.extension-install-answered", { askId });
       resolve({ action: allow ? "allow" : "deny" });
     });

@@ -1,4 +1,4 @@
-import { outsideLinkOf } from "@instrument-org/shared";
+import { outsideLinkOf, PAGES_DOMAIN } from "@instrument-org/shared";
 import fs from "node:fs/promises";
 import path from "node:path";
 
@@ -7,6 +7,8 @@ import { folderHref } from "@/shared/computer-href";
 import { type AppWindowAsk } from "../windows/app-window-asks";
 import { hostPathOfUrlPath } from "./computer-files";
 import { isFromInternet } from "./download-mark";
+import { logger } from "./electron-logger";
+import { fetchHostedPage, keepHostedPage } from "./hosted-page";
 import { isRefusedFile } from "./refused-files";
 
 /**
@@ -57,11 +59,16 @@ export function createLinkGate({
   };
 }
 
-/** How a path from a link is judged; each is the real one outside a test. */
+/**
+ * How a path from a link is judged, and how a hosted page is fetched and
+ * kept; each is the real one outside a test.
+ */
 type PathChecks = {
+  fetchPage?: typeof fetchHostedPage;
   hostPaths?: path.PlatformPath;
   isDownloaded?: (hostPath: string) => Promise<boolean>;
   isRefused?: (hostPath: string) => Promise<boolean>;
+  keepPage?: (id: string, body: Uint8Array) => Promise<string>;
   placeOf?: (hostPath: string) => Promise<Place>;
 };
 
@@ -112,6 +119,35 @@ export async function asksOfOutsideLink(
       }
       return all;
     }
+    case "page": {
+      return [await askOfPage(link.id, checks)];
+    }
+  }
+}
+
+/**
+ * What a hosted page asks of the window: the copy kept of it in Downloads,
+ * opened as a page, which is safe because a page there reaches only itself
+ * (`local-file-policy.ts`); or, when its host does not hand it over or the
+ * folder takes no file, the window saying so and opening nothing.
+ */
+async function askOfPage(
+  id: string,
+  { fetchPage = fetchHostedPage, keepPage = keepHostedPage }: PathChecks,
+): Promise<AppWindowAsk> {
+  const host = `${id}.${PAGES_DOMAIN}`;
+  const fetched = await fetchPage(id);
+  if ("failed" in fetched) {
+    logger.scope("outside-link").info(`${host} ${fetched.failed}`);
+    return { host, type: "pageNotOpened", why: "noAnswer" };
+  }
+  try {
+    return { hostPath: await keepPage(id, fetched.body), type: "openFile" };
+  } catch (error) {
+    logger
+      .scope("outside-link")
+      .warn(`A copy of ${host} could not be kept in Downloads`, error);
+    return { host, type: "pageNotOpened", why: "notKept" };
   }
 }
 

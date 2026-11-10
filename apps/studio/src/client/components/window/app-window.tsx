@@ -1120,6 +1120,18 @@ function WindowShell({
           },
         );
       },
+      pageNotOpened: (host, why) => {
+        if (why === "noAnswer") {
+          toast(`${host} didn't answer`, {
+            description: "Try the link again in a moment.",
+          });
+        } else {
+          toast(`Couldn't keep a copy of ${host}`, {
+            description:
+              "Instrument saves a page it opens into your Downloads folder, which didn't take it.",
+          });
+        }
+      },
       openFile: (hostPath) => {
         const href = fileHref(hostPath);
         if (!appTabs.selectShowing(href)) {

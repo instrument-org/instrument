@@ -15,6 +15,11 @@ export type AppWindowAsk =
   | { folder?: string; name: string; type: "missingFile" }
   /** How many paths past its cap a link to several files left unopened, said. */
   | { count: number; type: "notOpened" }
+  /**
+   * A hosted page a link named that could not be opened, said by its host:
+   * the host did not hand it over, or no copy could be kept in Downloads.
+   */
+  | { host: string; type: "pageNotOpened"; why: "noAnswer" | "notKept" }
   | { project?: string; type: "newChat"; words: string }
   /** New Chat pressed with no window open, for the window it opens. */
   | { type: "openNewChat" };
@@ -37,7 +42,8 @@ export function tabHrefOfAsk(ask: AppWindowAsk): string | undefined {
     }
     case "newChat":
     case "notOpened":
-    case "openNewChat": {
+    case "openNewChat":
+    case "pageNotOpened": {
       return undefined;
     }
   }

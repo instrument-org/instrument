@@ -47,6 +47,7 @@ const handlers = {
   newChat: vi.fn(),
   newChatFromLink: vi.fn(),
   notOpened: vi.fn(),
+  pageNotOpened: vi.fn(),
   newTab: vi.fn(),
   openFile: vi.fn(),
   openScreen: vi.fn(),
@@ -117,6 +118,24 @@ describe("useWindowCommands", () => {
         ],
       ]
     `);
+  });
+
+  it("says which hosted page a link named did not open", async () => {
+    renderWithDefaultStore(<Window />);
+    stream.push({
+      host: "weekly.instrument.page",
+      type: "pageNotOpened",
+      why: "noAnswer",
+    });
+    await vi.waitFor(
+      () => {
+        expect(handlers.pageNotOpened).toHaveBeenCalledWith(
+          "weekly.instrument.page",
+          "noAnswer",
+        );
+      },
+      { interval: 1 },
+    );
   });
 
   it("says how many files a link named past the most it opens", async () => {

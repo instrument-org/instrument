@@ -92,6 +92,8 @@ export function useWindowCommands(
     missingFile: (name: string, folder?: string) => void;
     /** How many files a link from outside named past the most one link opens: said. */
     notOpened: (count: number) => void;
+    /** A hosted page a link from outside named that could not be opened: said, by its host. */
+    pageNotOpened: (host: string, why: "noAnswer" | "notKept") => void;
     /** A file handed to the app from outside it: a double click, Open With, or a launch naming it. */
     openFile: (hostPath: string) => void;
     /** A screen by its route, from outside the app, so in no tab yet. */
@@ -494,11 +496,12 @@ function openOrCloseCommandMenu() {
   }
 }
 
-/** Puts up what something outside the window asked for: a file, a screen by its route, a missing file or files left unopened said, a new chat's words, or a new chat. */
+/** Puts up what something outside the window asked for: a file, a screen by its route, a missing file, files left unopened or a page not opened said, a new chat's words, or a new chat. */
 function answer(
   handlers: {
     missingFile: (name: string, folder?: string) => void;
     notOpened: (count: number) => void;
+    pageNotOpened: (host: string, why: "noAnswer" | "notKept") => void;
     newChat: () => void;
     newChatFromLink: (words: string, projectId?: string) => void;
     openFile: (hostPath: string) => void;
@@ -513,6 +516,10 @@ function answer(
     }
     case "notOpened": {
       handlers.notOpened(ask.count);
+      break;
+    }
+    case "pageNotOpened": {
+      handlers.pageNotOpened(ask.host, ask.why);
       break;
     }
     case "newChat": {

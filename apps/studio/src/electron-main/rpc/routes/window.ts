@@ -41,6 +41,11 @@ const AskSchema = z.discriminatedUnion("type", [
   }),
   z.object({ count: z.number(), type: z.literal("notOpened") }),
   z.object({
+    host: z.string(),
+    type: z.literal("pageNotOpened"),
+    why: z.enum(["noAnswer", "notKept"]),
+  }),
+  z.object({
     project: z.string().optional(),
     type: z.literal("newChat"),
     words: z.string(),

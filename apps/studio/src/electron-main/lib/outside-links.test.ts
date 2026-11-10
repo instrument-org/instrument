@@ -398,6 +398,89 @@ describe("asksOfOutsideLink with several files", () => {
   });
 });
 
+// A hosted page is kept as a copy in Downloads and opened from there, where
+// a page reaches only itself; one the host does not hand over is said.
+describe("a page link", () => {
+  const body = new TextEncoder().encode("<title>Weekly</title>");
+  const handed = () => Promise.resolve({ body });
+  const refused = () => Promise.resolve({ failed: "answered 404" });
+  const kept = (id: string) =>
+    Promise.resolve(`/Users/mac-user/Downloads/${id}.html`);
+
+  it("opens the copy kept of the page", async () => {
+    const fetched: string[] = [];
+    const keptAs: [string, Uint8Array][] = [];
+    expect(
+      await asksOfOutsideLink("instrument://page/weekly", {
+        fetchPage: (id) => {
+          fetched.push(id);
+          return handed();
+        },
+        keepPage: (id, bytes) => {
+          keptAs.push([id, bytes]);
+          return kept(id);
+        },
+      }),
+    ).toEqual([
+      { hostPath: "/Users/mac-user/Downloads/weekly.html", type: "openFile" },
+    ]);
+    expect(fetched).toEqual(["weekly"]);
+    expect(keptAs).toEqual([["weekly", body]]);
+  });
+
+  it("says the host did not answer, keeping nothing", async () => {
+    let keeps = 0;
+    expect(
+      await asksOfOutsideLink("instrument://page/weekly", {
+        fetchPage: refused,
+        keepPage: (id) => {
+          keeps += 1;
+          return kept(id);
+        },
+      }),
+    ).toEqual([
+      {
+        host: "weekly.instrument.page",
+        type: "pageNotOpened",
+        why: "noAnswer",
+      },
+    ]);
+    expect(keeps).toBe(0);
+  });
+
+  it("says when no copy could be kept", async () => {
+    expect(
+      await asksOfOutsideLink("instrument://page/weekly", {
+        fetchPage: handed,
+        keepPage: () => Promise.reject(new Error("EACCES")),
+      }),
+    ).toEqual([
+      { host: "weekly.instrument.page", type: "pageNotOpened", why: "notKept" },
+    ]);
+  });
+
+  it("passes the gate once and asks the window to open the file", async () => {
+    const gated: string[] = [];
+    const asked: unknown[] = [];
+    const logged: string[] = [];
+    await openOutsideLink("instrument://page/weekly", {
+      ask: (asks) => asked.push(asks),
+      checks: { fetchPage: handed, keepPage: kept },
+      gate: (each) => {
+        gated.push(each);
+        return true;
+      },
+      log: (line) => logged.push(line),
+      waiting: () => 0,
+    });
+    expect(gated).toEqual(["instrument://page/weekly"]);
+    expect(logged).toEqual(["A page link asks the window to openFile"]);
+    expect(asked).toEqual([
+      [{ hostPath: "/Users/mac-user/Downloads/weekly.html", type: "openFile" }],
+    ]);
+  });
+});
+
 describe("openOutsideLink", () => {
   const open = async (
     url: string,

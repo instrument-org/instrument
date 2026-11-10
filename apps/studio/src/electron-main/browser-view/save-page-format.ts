@@ -20,7 +20,12 @@ export function saveName({ title, url }: { title: string; url: string }) {
   return `${stem}.${SAVE_FORMATS[0].extension}`;
 }
 
-function cleanName(name: string) {
+/**
+ * A name as a file may carry it: what no file name may hold taken out,
+ * spaces collapsed, leading dots gone, at most a hundred characters. Empty
+ * when nothing of the name is left.
+ */
+export function cleanName(name: string) {
   return (
     name
       // oxlint-disable-next-line no-control-regex -- control characters are what is being removed

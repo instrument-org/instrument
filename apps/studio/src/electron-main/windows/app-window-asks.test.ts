@@ -94,12 +94,18 @@ describe("tabHrefOfAsk", () => {
       { type: "newChat", words: "Plan my week" },
       { type: "openNewChat" },
       { count: 3, type: "notOpened" },
+      {
+        host: "weekly.instrument.page",
+        type: "pageNotOpened",
+        why: "noAnswer",
+      },
     ];
     expect(asked.map(tabHrefOfAsk)).toMatchInlineSnapshot(`
       [
         "/files?file=%2FUsers%2Fmac-user%2Fa.pdf&path=&root=~",
         "/chats/abc",
         "/files?path=&root=%2FUsers%2Fmac-user%2FWork",
+        undefined,
         undefined,
         undefined,
         undefined,

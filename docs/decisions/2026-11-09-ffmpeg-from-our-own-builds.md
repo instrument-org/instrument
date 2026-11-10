@@ -8,7 +8,9 @@ Supersedes [ffmpeg and ffprobe come from a fork, pinned to a release candidate](
 
 ffmpeg and ffprobe come from [instrument-org/ffmpeg-build](https://github.com/instrument-org/ffmpeg-build), a repository of ours that builds a pinned FFmpeg release for every platform Studio ships and publishes each build as a GitHub release. `apps/studio/scripts/download-ffmpeg.ts` vendors the one for the build's target into `resources/ffmpeg/`, checked against the hashes in `electron-builder/ffmpeg-release.ts`, the same way uv and uutils arrive. The npm package `ffmpeg-ffprobe-static` and our patch to it are gone.
 
-The builds are GPL, with every codec library that license allows (x264 and x265 among them) and nothing from `--enable-nonfree`.
+The builds are GPL, with every codec library that license allows (x264 and x265 among them) and nothing from `--enable-nonfree`, except the few that another library in the build covers: libaom and rav1e (SVT-AV1 encodes AV1 and AVIF, dav1d decodes it) and openh264 (x264). The macOS builds also leave out Vulkan and libplacebo, which need a driver Macs do not have; VideoToolbox, Apple's hardware encoders, stays. That takes about a fifth off each Mac binary and loses no format.
+
+The agent's `ffmpeg` skill is a system skill (`packages/workspace/system-skills/ffmpeg/`), not a registry one, since it describes this build: its encoders, the hardware ones, and how FFmpeg 9 reads a tiled HEIC photo. A test holds the version it names to `FFMPEG_VERSION`.
 
 ## Why
 

@@ -7,7 +7,7 @@ import { lstatSync, readdirSync, readFileSync, readlinkSync } from "node:fs";
 import path from "node:path";
 
 /** The ffmpeg-build release tag. */
-export const FFMPEG_RELEASE = "2026.11.09";
+export const FFMPEG_RELEASE = "2026.11.10";
 
 /** The FFmpeg version that release builds, which the packaged binary reports. */
 export const FFMPEG_VERSION = "9.0.2";
@@ -31,28 +31,28 @@ export const FFMPEG_SHA256: Record<
   { archive: string; tree: string }
 > = {
   "darwin-arm64": {
-    archive: "0879123c1d44f9c60170befaa8efc27a4c50e274bda82cfd6adc1e0521e7a345",
-    tree: "cc92f2c5a9143c230ba00db9c89c16aa1de13a598175303a68820d0eb406bab6",
+    archive: "e9811063327e5cbe7fe9993297c79641d5856639cdd7f2040dbd29342e6060c4",
+    tree: "47c96064e2ea87ad55dd3e6b52c4573e4366278891a7b2a403b750da766bb083",
   },
   "darwin-x64": {
-    archive: "bb32cc5be400fd9bb8c12875ea0085dd98d344f9bf8b2d3128a276f5e5d93b3e",
-    tree: "79873a321da74b66c76eed0ac4a24f6187dddb32820f069176fac47cef0915ba",
+    archive: "31751f89b549fa6a2e779525eaf6064659d1133c2d005f3193636875de200cca",
+    tree: "b628b28d8b752a17f59a813884c793274585cf92dd5388899f4fe0c0586d09b8",
   },
   "linux-arm64": {
-    archive: "6d5d58fcd11e417238ddd6f5856858f9f6e4adcad9bad6f8dc9d5b2c41a1e4da",
-    tree: "6d547466f94fdf43e06be007674c7477e10964ac09bef318d3c4f9494a01944b",
+    archive: "f944f8146cb46b02cf950dcc9e320297324fa67f7af198d381c3f00ba6e4bcc5",
+    tree: "1203f3be404235ba5bf561bf0138c3f349585da3a1a8964931ea328eb624de1a",
   },
   "linux-x64": {
-    archive: "2fd3e53bb3efe509661108e829d8949db395ff2feaaa7e1a274e8b78e3d47e1b",
-    tree: "27cc69fb4d1e594d9fe9cf59dd42a10ddcadad241828617327d19315f6ade7df",
+    archive: "a31fcc6d5e697ea0b49878ca558098a65f212c9fb8ed24c4e5a9d909417edc01",
+    tree: "571c943fb4023ce1b8afdc0b8e88375b525601b722653438feee5b2b8657db88",
   },
   "win32-arm64": {
-    archive: "634c752d9f3a0be4bd9608c7811fa8c657f4557d4b50820a300790e13aee22d2",
-    tree: "70f824e3270fe2a6f43576f4c92b039be6f2c16e1af4e6daab633543f1c04411",
+    archive: "0f9c90f8d01da955ee20e58a6d09ade5578fe31812d02ddcb10fa0c370b623a2",
+    tree: "d1e7a4bc35674b73d76384e7038eed7c219fb1e8947e7bcac9788cda78e2d620",
   },
   "win32-x64": {
-    archive: "916fa48251ac5405be2674d1b0b0670369be8a03848f2079debf5a4f23f29572",
-    tree: "6672a9146487871334368c97c602a5838b06886f9c0633afa289552fde26b65a",
+    archive: "c5e45809f563fd4a7a7b52a2c3951a4883da1b4048e652b28e0a7e74ac8a40e3",
+    tree: "572ced0c26bd5366d5fe15a4f5be6721b64a30d8bba5e5cb0f667b02d6a5e01d",
   },
 };
 

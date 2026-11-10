@@ -14,7 +14,9 @@ import {
   captureUrl,
 } from "@/shared/captures";
 import { ArrowUpRightIcon } from "@phosphor-icons/react/ArrowUpRight";
+import { CopyIcon } from "@phosphor-icons/react/Copy";
 import { CropIcon } from "@phosphor-icons/react/Crop";
+import { FolderSimpleIcon } from "@phosphor-icons/react/FolderSimple";
 import { DropHalfIcon } from "@phosphor-icons/react/DropHalf";
 import { RectangleIcon } from "@phosphor-icons/react/Rectangle";
 import { useQuery } from "@tanstack/react-query";
@@ -220,6 +222,8 @@ export function CaptureEditor({ capture }: { capture: Capture }) {
   const [outward, setOutward] = useState(0);
   const hovered =
     underPointer[Math.min(outward, underPointer.length - 1)] ?? undefined;
+  // Elements are offered only until there is a crop; a click then clears it.
+  const snapping = tool === "crop" && crop === null && !press;
   const [saving, setSaving] = useState(false);
   const elements = capture.meta?.elements ?? [];
   const changed = crop !== null || marks.length > 0;
@@ -281,7 +285,7 @@ export function CaptureEditor({ capture }: { capture: Capture }) {
       ctx.strokeRect(cropShown.x, cropShown.y, cropShown.w, cropShown.h);
       ctx.restore();
     }
-    if (tool === "crop" && !press && hovered) {
+    if (snapping && hovered) {
       ctx.save();
       ctx.strokeStyle = "#3b82f6";
       ctx.lineWidth = line;
@@ -289,7 +293,7 @@ export function CaptureEditor({ capture }: { capture: Capture }) {
       ctx.strokeRect(hovered.x, hovered.y, hovered.w, hovered.h);
       ctx.restore();
     }
-  }, [crop, hovered, image, marks, press, tool]);
+  }, [crop, hovered, image, marks, press, snapping, tool]);
 
   const pointOf = (event: React.PointerEvent<HTMLCanvasElement>): Point => {
     const rect = event.currentTarget.getBoundingClientRect();
@@ -310,6 +314,8 @@ export function CaptureEditor({ capture }: { capture: Capture }) {
     if (tool === "crop") {
       if (moved) {
         setCrop(rectBetween(press.at, end));
+      } else if (crop) {
+        setCrop(null);
       } else {
         const holding = elementsAt(elements, end);
         const element = holding[Math.min(outward, holding.length - 1)];
@@ -490,25 +496,28 @@ export function CaptureEditor({ capture }: { capture: Capture }) {
             {capture.name}
           </span>
           <Button
+            aria-label="Copy"
+
             onClick={() => {
               void copy();
             }}
-            size="sm"
-            variant="outline"
+            size="icon-sm"
+            title="Copy"
+            variant="ghost"
           >
-            Copy
+            <CopyIcon className="size-4" />
           </Button>
           <Button
+            aria-label={showInFileManager}
+            className="mr-1"
             onClick={() => {
               void rpcClient.captures.show.call({ name: capture.name });
             }}
-            size="sm"
+            size="icon-sm"
+            title={showInFileManager}
             variant="ghost"
           >
-            {showInFileManager}
-          </Button>
-          <Button onClick={close} size="sm" variant="ghost">
-            Cancel
+            <FolderSimpleIcon className="size-4" />
           </Button>
           <Button
             disabled={saving}
@@ -559,11 +568,14 @@ export function CaptureEditor({ capture }: { capture: Capture }) {
             </span>
           ))}
           <span className="flex-1" />
-          {hovered && tool === "crop" && !press && (
+          {snapping && hovered && (
             <span className="truncate">
               Click to crop to {hovered.label} · ↑ or ↓ for a bigger or smaller
               area
             </span>
+          )}
+          {tool === "crop" && crop && !press && (
+            <span className="truncate">Click to clear the crop</span>
           )}
           {canRevert && (
             <button

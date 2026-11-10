@@ -153,6 +153,13 @@ new RuleTester({
     says("const line = `It is ${APP_NAME}’s own data.`;"),
     says(`const line = "Adds to your memories, never replaces them.";`),
     says(`const line = "Fast — and private.";`),
+    says(
+      "const line = `“${name}” has Instrument’s files, so it stays closed.`;",
+    ),
+    says(`const line = "The app keeps its data in this folder";`),
+    says("const line = `Instrument keeps “${name}” private`;"),
+    says(`const line = "Thanks, we got your feedback.";`),
+    says(`const line = <p>We're working hard on it.</p>;`),
   ],
   valid: [
     `const line = "This box fits up to 40 characters.";`,
@@ -161,5 +168,7 @@ new RuleTester({
     `const el = <div data-slot="holds" />;`,
     `if (kind === "holds") {}`,
     `console.log("the queue holds 3 jobs");`,
+    `const line = "Weekly usage resets on Monday.";`,
+    `const line = "Instrument stores data in this folder.";`,
   ],
 });

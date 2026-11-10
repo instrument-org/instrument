@@ -22,12 +22,13 @@ These rules cover text a person reads in the app and nothing else. Buttons, labe
 How a line that passes review is written:
 
 - **It says what the thing is or what the person can do.** How the app works inside, why something is on screen and what just happened to it stay out: "Importing adds to what Instrument remembers."
-- **The person or the thing is the subject.** Software does what software does (opens, shows, saves), and an error is a plain fact: "Couldn't load the release notes."
+- **The person or the thing is the subject.** Software does what software does (opens, shows, saves), and an error is a plain fact: "Couldn't load the release notes." The app is never a person, so no line says "we".
 - **Each word is one a person outside the company would say.** Everyday verbs (has, fits, continues, shows, is in), and the names people already use for things.
 - **A label borrows the standard word** that ChatGPT, macOS or Chrome use for the same act, and a service's own word for its own thing (ChatGPT's "sign out").
-- **It adds something the person can't already see.** One fact per line, and a fact another screen says is left to that screen.
+- **It adds something the person can't already see.** One fact per line, a fact another screen says is left to that screen, and a true clause that changes nothing ("then comes right back here") is cut. A line beside a button uses the button's words: "If it didn't show up, try sending again."
 - **It is true on every device, every system and in every state.** A switch's description reads right both on and off, and copy says nothing it can't know.
 - **A limit, error or sign-in names whose it is**: "ChatGPT's usage limit".
+- **It trusts the reader with the ordinary word**: "Scale the app", which people understand, over a plainer-sounding phrase that talks down to them.
 
 A line that works: "Importing adds to what Instrument remembers, so you can bring in memories from every AI you use."
 

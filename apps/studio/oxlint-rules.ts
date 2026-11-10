@@ -434,7 +434,22 @@ const PLAIN_COPY: { phrase: RegExp; write: string }[] = [
     phrase:
       /['’]s own (?:data|tools?|folders?|files?)\b|\bInstrument['’]s AI\b/,
     write:
-      "what it is for the person (“Instrument uses this folder”), or just “Instrument”",
+      "what it is for the person (“Instrument stores data in this folder”), or just “Instrument”",
+  },
+  {
+    phrase:
+      /\bkeeps? (?:its |your |the app['’]s |Instrument['’]s )?data\b|\bkeeps? (?:[“"][^”"]*[”"]|this \w+|it) private\b/i,
+    write:
+      "“stores data”, or “… is a protected folder” for one that won’t open",
+  },
+  {
+    phrase: /\bstays? (?:closed|shut)\b/i,
+    write: "what it is (“this folder is protected”), not what it does",
+  },
+  {
+    phrase: /\b[Ww]e(?:['’](?:ll|re|ve|d))?\b/,
+    write:
+      "a line with no one narrating (“Couldn’t load…”, “If it didn’t show up, try sending again”): the app is never “we”",
   },
   {
     phrase: /,\s+never\b|\bnot (?:just|only)\b/i,
@@ -484,8 +499,15 @@ const plainCopy = defineRule({
           check(node, node.value);
         }
       },
-      TemplateElement(node) {
-        check(node, node.value.cooked ?? node.value.raw, node.parent);
+      // Read whole, with "…" for each value, so a phrase split around one
+      // (keeps “${name}” private) is still seen.
+      TemplateLiteral(node) {
+        check(
+          node,
+          node.quasis
+            .map((quasi) => quasi.value.cooked ?? quasi.value.raw)
+            .join("…"),
+        );
       },
     };
   },

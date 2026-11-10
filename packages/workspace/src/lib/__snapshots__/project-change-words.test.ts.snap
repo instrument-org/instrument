@@ -2,9 +2,13 @@
 
 exports[`projectChangesHeading > a mix 1`] = `"Changed 3 projects"`;
 
+exports[`projectChangesHeading > a new project and a changed one 1`] = `"Changed 2 projects"`;
+
 exports[`projectChangesHeading > deletes 1`] = `"Deleted 2 projects"`;
 
 exports[`projectChangesHeading > icons and colors across projects 1`] = `"Changed the icons and colors of 3 projects"`;
+
+exports[`projectChangesHeading > one new project 1`] = `"Created a project"`;
 
 exports[`projectChangesHeading > one project's icon 1`] = `"Changed the icon of Pricing"`;
 

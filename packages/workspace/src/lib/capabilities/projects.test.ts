@@ -199,6 +199,69 @@ describe("instrument projects set", () => {
   });
 });
 
+describe("instrument projects create", () => {
+  it("makes the project's folder and file with its front matter, and records it as made", async () => {
+    const { changes, results } = await turn(
+      'instrument projects create Kitchen --icon cooking-pot --color deep-violet --about "Recipes and meal plans"',
+    );
+    const kitchen = await project("Kitchen");
+    expect(results[0]?.stdout).toBe(`Created Kitchen, id ${kitchen?.id}.\n`);
+    const file = fs.readFileSync(
+      path.join(getWorkspaceConfig().rootDir, "Projects/Kitchen/AGENTS.md"),
+      "utf8",
+    );
+    expect(
+      file.replace(/prj_\w+/, "<id>").replace(/created: .+/, "created: <at>"),
+    ).toMatchInlineSnapshot(`
+      "---
+      id: <id>
+      icon: cooking-pot
+      color: "#765fca"
+      about: Recipes and meal plans
+      created: <at>
+      ---
+      "
+    `);
+    expect(changes).toEqual([
+      {
+        change: "added",
+        kind: "project",
+        name: "Kitchen",
+        project: {
+          after: { color: "#765fca", icon: "cooking-pot", name: "Kitchen" },
+          id: kitchen?.id,
+        },
+      },
+    ]);
+  });
+
+  it("refuses a name a project in use has", async () => {
+    await createProject({ emoji: "🍳", name: "Kitchen" });
+    const { changes, results } = await turn(
+      "instrument projects create kitchen --icon sun",
+    );
+    expect(results[0]?.exitCode).not.toBe(0);
+    expect(results[0]?.stderr).toMatchInlineSnapshot(`
+      "instrument projects: there already is a project called Kitchen. instrument projects set changes it.
+      "
+    `);
+    expect(await project("Kitchen")).toMatchObject({ emoji: "🍳" });
+    expect(changes).toEqual([]);
+  });
+
+  it("brings back a retired project by that name, recorded as brought back", async () => {
+    const { id } = await createProject({ name: "Garden" });
+    await updateProject(id, { retired: true });
+    const { changes } = await turn("instrument projects create Garden");
+    expect((await project("Garden"))?.retired).toBeUndefined();
+    expect(changes[0]).toMatchObject({
+      change: "changed",
+      fields: [{ after: false, before: true, field: "retired" }],
+      project: { id },
+    });
+  });
+});
+
 describe("instrument projects retire and unretire", () => {
   it("takes a project out of the list and puts it back", async () => {
     await createProject({ name: "Day Planning" });
@@ -272,6 +335,20 @@ describe("undoing a turn's project changes", () => {
       ),
     );
     expect((await project("Events"))?.retired).toBeUndefined();
+  });
+
+  it("deletes a project the turn made, keeping its folder", async () => {
+    const { changes } = await turn("instrument projects create Pantry");
+    expect(
+      await undoProjectChanges(
+        changes.map(({ fields, name, project: looks }) => ({
+          fields: fields ?? [],
+          name,
+          ...(looks && { project: looks }),
+        })),
+      ),
+    ).toEqual({ skipped: 0, undone: 1 });
+    expect((await project("Pantry"))?.retired).toBe(true);
   });
 
   it("finds a project by its id when the person renamed it since", async () => {

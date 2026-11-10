@@ -21,13 +21,13 @@ import { ProjectMark, type ProjectMarkSpec } from "./window/project-mark";
 const SHOWN_PROJECTS = 5;
 
 /**
- * What a turn's `instrument projects` commands changed, as a card under the
- * reply in the chats card's frame: a heading drawn from the changes ("Changed
- * the icons and colors of 10 projects"), then each project with its mark as
- * it is now and a line for each kind of change: "Icon updated", "Renamed
- * from", "Deleted". Undo puts back whatever still
- * stands as the turn left it, and the card then shows every change struck
- * through.
+ * What a turn's `instrument projects` commands changed or made, as a card
+ * under the reply in the chats card's frame: a heading drawn from the
+ * changes ("Changed the icons and colors of 10 projects"), then each project
+ * with its mark as it is now and a line for each kind of change: "Icon
+ * updated", "Renamed from", "Deleted", "New project". Undo puts back
+ * whatever still stands as the turn left it, deletes a project the turn
+ * made, and the card then shows every change struck through.
  */
 export function ProjectChangesCard({
   changes,

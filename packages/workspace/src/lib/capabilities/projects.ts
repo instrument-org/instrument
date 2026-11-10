@@ -15,9 +15,11 @@ import {
 } from "../../model-text/commands/projects-command";
 import { type SessionMessageDataPart } from "../../schemas/session/message-data-part";
 import {
+  createProject,
   listProjects,
   type Project,
   type ProjectChange,
+  projectName,
   updateProject,
 } from "../chat/projects";
 import { recordProjectChange } from "../setup-changes";
@@ -141,6 +143,11 @@ async function changeProject(
   if (!after) {
     throw new Error(`${project.name} could not be changed.`);
   }
+  return recordedChange(project, after);
+}
+
+/** Records what changed between a project before and after, field by field, and says it. */
+function recordedChange(project: Project, after: Project): string {
   const fields: ProjectFieldChange[] = [];
   if (after.name !== project.name) {
     fields.push({ after: after.name, before: project.name, field: "name" });
@@ -196,6 +203,71 @@ function saidChange(change: ProjectFieldChange): string {
   }
 }
 
+const colorInput = z
+  .enum(PROJECT_COLOR_NAMES)
+  .optional()
+  .describe("its color, from the app's palette");
+
+const emojiInput = z.string().trim().min(1).max(8).optional();
+
+const iconInput = z
+  .string()
+  .refine(isProjectIconName, {
+    error: (issue) =>
+      `"${String(issue.input)}" is not one of the app's icons. ${NAME} icons <words> finds ones that fit.`,
+  })
+  .optional();
+
+/** A project shows an icon or an emoji, so a command takes one. */
+const oneMark = {
+  check: (input: { emoji?: string; icon?: string }) =>
+    !(input.icon && input.emoji),
+  error: "an icon or an emoji, not both: a project shows one.",
+};
+
+export const projectsCreate = defineCapability({
+  input: z
+    .object({
+      about: z.string().optional().describe("a line on what goes in it"),
+      color: colorInput,
+      emoji: emojiInput.describe("one emoji to mark it with"),
+      icon: iconInput.describe(
+        `an icon from the app's set: ${NAME} icons finds one`,
+      ),
+      name: z.string({ error: "what is the project called?" }),
+    })
+    .refine(oneMark.check, { error: oneMark.error }),
+  name: "projects.create",
+  output: z.string(),
+  async run({ about, color, emoji, icon, name }) {
+    const existing = projectNamed(await listProjects(), projectName(name));
+    if (existing && !existing.retired) {
+      throw new Error(
+        `there already is a project called ${existing.name}. ${NAME} set changes it.`,
+      );
+    }
+    const made = await createProject({
+      ...(about?.trim() ? { about: about.trim() } : {}),
+      ...(color ? { color: PROJECT_COLOR_HEXES[color] } : {}),
+      ...(emoji ? { emoji } : {}),
+      ...(icon ? { icon } : {}),
+      name,
+    });
+    if (existing) {
+      return recordedChange(existing, made);
+    }
+    recordProjectChange({ after: lookOf(made), id: made.id }, []);
+    return `Created ${made.name}, id ${made.id}.`;
+  },
+  summary:
+    "Make a project, with its icon or emoji, its color and its line on what goes in it. A retired one by that name comes back.",
+  surfaces: {
+    cli: { help: "", positional: ["name"], words: ["projects", "create"] },
+  },
+  text: (said) => said,
+  where: PROJECTS,
+});
+
 export const projectsSet = defineCapability({
   input: z
     .object({
@@ -203,36 +275,20 @@ export const projectsSet = defineCapability({
         .string()
         .optional()
         .describe("a line on what goes in it; empty takes it away"),
-      color: z
-        .enum(PROJECT_COLOR_NAMES)
-        .optional()
-        .describe("its color, from the app's palette"),
-      emoji: z
-        .string()
-        .trim()
-        .min(1)
-        .max(8)
-        .optional()
-        .describe("one emoji to mark it with, which replaces its icon"),
-      icon: z
-        .string()
-        .refine(isProjectIconName, {
-          error: (issue) =>
-            `"${String(issue.input)}" is not one of the app's icons. ${NAME} icons <words> finds ones that fit.`,
-        })
-        .optional()
-        .describe(
-          `an icon from the app's set, which replaces its emoji: ${NAME} icons finds one`,
-        ),
+      color: colorInput,
+      emoji: emojiInput.describe(
+        "one emoji to mark it with, which replaces its icon",
+      ),
+      icon: iconInput.describe(
+        `an icon from the app's set, which replaces its emoji: ${NAME} icons finds one`,
+      ),
       name: z
         .string()
         .optional()
         .describe("a new name, which renames its folder"),
       project: projectArg,
     })
-    .refine((input) => !(input.icon && input.emoji), {
-      error: "an icon or an emoji, not both: a project shows one.",
-    }),
+    .refine(oneMark.check, { error: oneMark.error }),
   name: "projects.set",
   output: z.string(),
   async run({ about, color, emoji, icon, name, project }) {

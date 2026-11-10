@@ -28,6 +28,11 @@ const deleted: ChangedProject = {
   fields: [{ after: true, before: false, field: "retired" }],
   name: "Events",
 };
+const created: ChangedProject = {
+  fields: [],
+  name: "Pantry",
+  project: { after: { icon: "jar", name: "Pantry" }, id: "prj_9" },
+};
 
 describe("projectChangesHeading", () => {
   it.each([
@@ -40,6 +45,8 @@ describe("projectChangesHeading", () => {
     ["one rename", [renamed]],
     ["deletes", [deleted, { ...deleted, name: "Old" }]],
     ["a mix", [renamed, deleted, color("Brand")]],
+    ["one new project", [created]],
+    ["a new project and a changed one", [created, color("Brand")]],
   ])("%s", (_, changes) => {
     expect(projectChangesHeading(changes)).toMatchSnapshot();
   });
@@ -57,6 +64,15 @@ describe("projectChangeLines", () => {
       { after: "Billing", before: "Invoices", kind: "renamed" },
       { kind: "deleted", words: "Deleted" },
     ]);
+  });
+
+  it("says a project the turn made is new, and nothing else", () => {
+    expect(
+      projectChangeLines({
+        ...created,
+        fields: [{ after: "#765fca", before: null, field: "color" }],
+      }),
+    ).toEqual([{ kind: "created", words: "New project" }]);
   });
 
   it("says emoji for a project marked with one now", () => {

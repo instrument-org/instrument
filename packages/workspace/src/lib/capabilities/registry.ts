@@ -31,6 +31,7 @@ import {
 import { type Capability } from "./define";
 import { memoryForget, memoryList, memorySave, memoryShow } from "./memory";
 import {
+  projectsCreate,
   projectsIcons,
   projectsList,
   projectsRetire,
@@ -87,6 +88,7 @@ export const CAPABILITIES: readonly Capability[] = [
   memoryShow,
   memoryForget,
   projectsList,
+  projectsCreate,
   projectsSet,
   projectsIcons,
   projectsRetire,

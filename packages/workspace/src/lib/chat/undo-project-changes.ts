@@ -1,5 +1,5 @@
 import { type SessionMessageDataPart } from "../../schemas/session/message-data-part";
-import { type ChangedProject } from "../project-change-words";
+import { type ChangedProject, wasCreated } from "../project-change-words";
 import {
   listProjects,
   type Project,
@@ -53,7 +53,8 @@ function putBack(field: ProjectFieldChange): ProjectChange {
 /**
  * Puts back what a turn's commands changed about each project, field by
  * field, where the project still has what the turn set: one the person has
- * changed since is theirs, and stays. A project is found by its id, or
+ * changed since is theirs, and stays. A project the turn made is retired.
+ * A project is found by its id, or
  * where none was recorded by the name the turn left it with. Answers how
  * many fields went back and how many stayed.
  */
@@ -63,10 +64,22 @@ export async function undoProjectChanges(
   const projects = await listProjects();
   let undone = 0;
   let skipped = 0;
-  for (const { fields, name, project: looks } of changes) {
+  for (const changed of changes) {
+    const { fields, name, project: looks } = changed;
     const project = projects.find((each) =>
       looks ? each.id === looks.id : each.name === name,
     );
+    // A project the turn made is retired, as the app deletes one, which
+    // keeps its folder and the chats filed under it since.
+    if (wasCreated(changed)) {
+      if (project && !project.retired) {
+        await updateProject(project.id, { retired: true });
+        undone += 1;
+      } else {
+        skipped += 1;
+      }
+      continue;
+    }
     const standing = project
       ? fields.filter((field) => stillStands(project, field))
       : [];

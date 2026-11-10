@@ -100,6 +100,22 @@ describe("ProjectChangesCard", () => {
     );
   });
 
+  it("shows a project the turn made as new", () => {
+    renderWithProviders(
+      <ProjectChangesCard
+        changes={[
+          {
+            fields: [],
+            name: "Pantry",
+            project: { after: { icon: "jar", name: "Pantry" }, id: "prj_4" },
+          },
+        ]}
+      />,
+    );
+    expect(screen.getByText("Created a project")).toBeTruthy();
+    expect(screen.getByText("New project")).toBeTruthy();
+  });
+
   it("undoes the changes and says so", async () => {
     renderWithProviders(<ProjectChangesCard changes={changes} />);
     fireEvent.click(screen.getByRole("button", { name: "Undo" }));

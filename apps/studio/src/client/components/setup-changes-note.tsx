@@ -26,23 +26,19 @@ type SetupChange =
  * writes are here, so each line is something this chat did. The name in a
  * line opens the item, unless the line says it is gone. What the
  * `instrument projects` commands changed, which they record field by field,
- * is a card of its own under the lines.
+ * and the projects they made are a card of their own under the lines.
  */
 export function SetupChangesNote({ changes }: { changes: SetupChange[] }) {
-  const projects = changes.flatMap((change) =>
-    change.kind === "project" && change.fields
-      ? [
-          {
-            fields: change.fields,
-            name: change.name,
-            ...(change.project ? { project: change.project } : {}),
-          },
-        ]
-      : [],
-  );
-  const lines = changes.filter(
-    (change) => !(change.kind === "project" && change.fields),
-  );
+  const onCard = (change: SetupChange) =>
+    change.kind === "project" &&
+    (change.fields !== undefined ||
+      (change.change === "added" && change.project !== undefined));
+  const projects = changes.filter(onCard).map((change) => ({
+    fields: change.fields ?? [],
+    name: change.name,
+    ...(change.project ? { project: change.project } : {}),
+  }));
+  const lines = changes.filter((change) => !onCard(change));
   return (
     <>
       {lines.length > 0 && (

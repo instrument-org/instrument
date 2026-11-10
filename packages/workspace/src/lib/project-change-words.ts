@@ -12,8 +12,8 @@ export interface ChangedProject {
   project?: SessionMessageDataPart.ChangedProjectLooks;
 }
 
-/** What a project's change comes to, as the person sees it: its mark, its color, its name, whether it is in use. */
-type ChangeKind = "back" | "color" | "deleted" | "mark" | "renamed";
+/** What a project's change comes to, as the person sees it: its mark, its color, its name, whether it is in use, or that it is new. */
+type ChangeKind = "back" | "color" | "created" | "deleted" | "mark" | "renamed";
 
 function kindOf(field: ProjectFieldChange): ChangeKind | undefined {
   switch (field.field) {
@@ -37,7 +37,16 @@ function kindOf(field: ProjectFieldChange): ChangeKind | undefined {
   }
 }
 
+/** Whether the turn made the project, which then had no look before it. */
+export function wasCreated(project: ChangedProject): boolean {
+  return project.project !== undefined && project.project.before === undefined;
+}
+
+/** A project the turn made is new, whatever else the turn set on it. */
 function kindsOf(project: ChangedProject): Set<ChangeKind> {
+  if (wasCreated(project)) {
+    return new Set(["created"]);
+  }
   return new Set(
     project.fields.flatMap((field) => {
       const kind = kindOf(field);
@@ -82,13 +91,15 @@ export function projectChangesHeading(
   if (kinds.size === 1) {
     const [kind] = kinds;
     const verb =
-      kind === "renamed"
-        ? "Renamed"
-        : kind === "deleted"
-          ? "Deleted"
-          : kind === "back"
-            ? "Brought back"
-            : undefined;
+      kind === "created"
+        ? "Created"
+        : kind === "renamed"
+          ? "Renamed"
+          : kind === "deleted"
+            ? "Deleted"
+            : kind === "back"
+              ? "Brought back"
+              : undefined;
     if (verb) {
       return `${verb} ${projectsWord}`;
     }
@@ -99,17 +110,21 @@ export function projectChangesHeading(
 /**
  * The lines under one project in the card: one for its look ("Icon and
  * color updated"), which the row's mark already shows as it is now, then one
- * each for a rename and for being deleted or brought back.
+ * each for a rename and for being deleted or brought back. A project the
+ * turn made has the one line, "New project".
  */
 export function projectChangeLines(
   project: ChangedProject,
 ): (
   | { kind: "look"; words: string }
   | { after: string; before: string; kind: "renamed" }
-  | { kind: "deleted" | "back"; words: string }
+  | { kind: "back" | "created" | "deleted"; words: string }
 )[] {
   const kinds = kindsOf(project);
   const lines: ReturnType<typeof projectChangeLines> = [];
+  if (kinds.has("created")) {
+    lines.push({ kind: "created", words: "New project" });
+  }
   if (kinds.has("mark") || kinds.has("color")) {
     const mark = project.fields.some(
       (field) => field.field === "emoji" && field.after !== null,

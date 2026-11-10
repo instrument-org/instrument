@@ -520,6 +520,7 @@ describe("the registry", () => {
         "chats.unstar": "only the chat organizes the user's chats. Say in your report what the chat should rename, archive, file or star.",
         "memory.forget": "only the chat saves and forgets memories. Say in your report what the chat should remember or forget.",
         "memory.save": "only the chat saves and forgets memories. Say in your report what the chat should remember or forget.",
+        "projects.create": "only the chat changes the user's projects. Say in your report what the chat should rename, mark or retire.",
         "projects.retire": "only the chat changes the user's projects. Say in your report what the chat should rename, mark or retire.",
         "projects.set": "only the chat changes the user's projects. Say in your report what the chat should rename, mark or retire.",
         "projects.unretire": "only the chat changes the user's projects. Say in your report what the chat should rename, mark or retire.",

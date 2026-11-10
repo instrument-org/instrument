@@ -810,6 +810,53 @@ describe("sendCommand", () => {
       );
     });
 
+    it("sends a press and its release into the first line of a link that wraps", async () => {
+      // A link from 508 to 643 on one line and 264 to 339 on the next: its
+      // box's center, 453,264, is on the text between the two.
+      const wrapped = {
+        model: { content: [264, 242, 643, 242, 643, 287, 264, 287] },
+      };
+      const wcSendCommand = vi.fn().mockImplementation((method: string) =>
+        Promise.resolve(
+          method === "DOM.getBoxModel"
+            ? wrapped
+            : method === "DOM.getContentQuads"
+              ? {
+                  quads: [
+                    [508, 242, 643, 242, 643, 261, 508, 261],
+                    [264, 268, 339, 268, 339, 287, 264, 287],
+                  ],
+                }
+              : {},
+        ),
+      );
+      const entries = new Map([
+        [TARGET_ID, makeEntry({ sendCommand: wcSendCommand })],
+      ]);
+      const send = (method: string, params: unknown) =>
+        dispatch({ entries, method, params });
+      const click = { button: "left", clickCount: 1, x: 453.5, y: 264.5 };
+
+      await send("DOM.getBoxModel", { backendNodeId: 7 });
+      await send("Input.dispatchMouseEvent", {
+        ...click,
+        type: "mousePressed",
+      });
+      await send("Input.dispatchMouseEvent", {
+        ...click,
+        type: "mouseReleased",
+      });
+
+      expect(
+        wcSendCommand.mock.calls
+          .filter(([m]) => m === "Input.dispatchMouseEvent")
+          .map(([, p]) => p as { x: number; y: number }),
+      ).toMatchObject([
+        { type: "mousePressed", x: 575.5, y: 251.5 },
+        { type: "mouseReleased", x: 575.5, y: 251.5 },
+      ]);
+    });
+
     it("runs any other evaluation once", async () => {
       const wcSendCommand = vi.fn().mockResolvedValue({ result: {} });
       const entry = makeEntry({ sendCommand: wcSendCommand });

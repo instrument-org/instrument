@@ -733,7 +733,14 @@ async function aimPressAtElement(
     );
   const now = await remeasure();
   if (now === undefined || (now && isNear(now, then))) {
-    return params;
+    return await aimIntoWrappedLine(
+      entry,
+      wc,
+      measured,
+      press,
+      params,
+      frameSession,
+    );
   }
   let settled = now;
   if (now) {
@@ -759,6 +766,62 @@ async function aimPressAtElement(
   log.info(`re-aimed press targetId=${entry.targetId}: ${moved}`);
   redirectedPress.set(entry, { frameSession, from: then, to: settled });
   return { ...press, x: settled.x, y: settled.y };
+}
+
+/**
+ * The press params to send for an element measured by its box: unchanged
+ * unless the element is an inline one broken across lines (a link that wraps),
+ * whose box's center can fall between its pieces, on the text around them, so
+ * the click lands on the paragraph and reports success. Then the press, and
+ * the release after it, go to the center of its first piece.
+ */
+async function aimIntoWrappedLine(
+  entry: BrowserEntry,
+  wc: WebContents,
+  measured: { method: string; params: unknown },
+  press: { x?: number; y?: number },
+  params: unknown,
+  frameSession: string | undefined,
+): Promise<unknown> {
+  if (
+    measured.method !== "DOM.getBoxModel" ||
+    press.x === undefined ||
+    press.y === undefined
+  ) {
+    return params;
+  }
+  const quads = await withinGuestProbeTimeout<number[][] | undefined>(
+    sendToDebugger(wc, "DOM.getContentQuads", measured.params, frameSession)
+      .then((result) => (result as { quads?: number[][] }).quads)
+      .catch(() => undefined),
+    () => undefined,
+  );
+  const pieces = (quads ?? []).filter((quad) => quad.length === 8);
+  const at = { x: press.x, y: press.y };
+  if (pieces.length < 2 || pieces.some((quad) => isInQuad(at, quad))) {
+    return params;
+  }
+  const [x1 = 0, y1 = 0, x2 = 0, y2 = 0, x3 = 0, y3 = 0, x4 = 0, y4 = 0] =
+    pieces[0] ?? [];
+  const to = { x: (x1 + x2 + x3 + x4) / 4, y: (y1 + y2 + y3 + y4) / 4 };
+  log.info(
+    `aimed press into wrapped line targetId=${entry.targetId}: ${at.x},${at.y} to ${to.x},${to.y}`,
+  );
+  redirectedPress.set(entry, { frameSession, from: at, to });
+  return { ...press, x: to.x, y: to.y };
+}
+
+// Whether a point is within a quad's bounding box; a line's piece of an
+// element is an upright rectangle unless the page transforms it.
+function isInQuad(point: Point, quad: number[]): boolean {
+  const xs = quad.filter((_, i) => i % 2 === 0);
+  const ys = quad.filter((_, i) => i % 2 === 1);
+  return (
+    point.x >= Math.min(...xs) &&
+    point.x <= Math.max(...xs) &&
+    point.y >= Math.min(...ys) &&
+    point.y <= Math.max(...ys)
+  );
 }
 
 // The release of a press that was sent to an element's new point, sent there

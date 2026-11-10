@@ -101,6 +101,8 @@ export function useWindowCommands(
     reopenTab: () => void;
     /** The caret into the window's field, wherever it was. */
     search: () => void;
+    /** The inbox's search, over every chat, brought up with the caret in it. */
+    searchChats: () => void;
     /** Activity, in the tab showing it or one of its own. */
     showActivity: () => void;
     /** The next or previous chat of the inbox, as listed. */
@@ -397,6 +399,10 @@ export function useWindowCommands(
             }
             case "search": {
               latest.current.search();
+              break;
+            }
+            case "searchChats": {
+              latest.current.searchChats();
               break;
             }
             case "openDebugPages": {

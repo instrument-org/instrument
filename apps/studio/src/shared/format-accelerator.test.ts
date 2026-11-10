@@ -135,6 +135,7 @@ describe("formatAcceleratorFor", () => {
         "reloadPage: ⌘ R  /  Ctrl R  /  Ctrl R",
         "reopenTab: ⇧ ⌘ T  /  Ctrl Shift T  /  Ctrl Shift T",
         "search: ⌘ L  /  Ctrl L  /  Ctrl L",
+        "searchChats: ⇧ ⌘ F  /  Ctrl Shift F  /  Ctrl Shift F",
         "showActivity: ⌘ Y  /  Ctrl H  /  Ctrl H",
         "toggleInbox: ⌘ B  /  Ctrl B  /  Ctrl B",
         "actualSize: ⌘ 0  /  Ctrl 0  /  Ctrl 0",

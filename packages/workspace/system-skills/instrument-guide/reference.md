@@ -96,6 +96,9 @@ Each is written as on a Mac, then as on Windows and Linux.
 
 - Close Window: ⇧⌘W / Ctrl+Shift+W
 - Command Menu: ⌘K / Ctrl+K
+- Find: ⌘F / Ctrl+F
+- Find Next: ⌘G / Ctrl+G
+- Find Previous: ⇧⌘G / Ctrl+Shift+G
 - Go to Apps: ⌃⌘4 / Alt+4
 - Go to Browser: ⌃⌘3 / Alt+3
 - Go to Chat: ⌃⌘1 / Alt+1
@@ -117,6 +120,7 @@ Each is written as on a Mac, then as on Windows and Linux.
 - Previous Chat: ⌥⌘↑ / Alt+Shift+↑
 - Previous Chat in List: ↑ / ↑
 - Reply to Chat: ↩ / Enter
+- Search Chats: ⇧⌘F / Ctrl+Shift+F
 - Toggle Inbox: ⌘B / Ctrl+B
 
 ### Files
@@ -145,9 +149,6 @@ Each is written as on a Mac, then as on Windows and Linux.
 
 - Back: ⌘[ / Alt+←
 - Edit Page: ⌘E / Ctrl+E
-- Find in Page: ⌘F / Ctrl+F
-- Find Next: ⌘G / Ctrl+G
-- Find Previous: ⇧⌘G / Ctrl+Shift+G
 - Forward: ⌘] / Alt+→
 - Print…: ⌘P / Ctrl+P
 - Reload Page: ⌘R / Ctrl+R

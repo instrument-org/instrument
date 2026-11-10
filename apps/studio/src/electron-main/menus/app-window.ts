@@ -77,6 +77,7 @@ const CHORD_SYMBOLS: Record<WindowShortcutId, string> = {
   reloadPage: "arrow.clockwise",
   reopenTab: "arrow.uturn.backward",
   search: "magnifyingglass",
+  searchChats: "text.magnifyingglass",
   showActivity: "clock.arrow.circlepath",
   toggleInbox: "sidebar.left",
 };
@@ -117,11 +118,17 @@ const FILE_CHORDS: WindowChord[] = [
     window.webContents.focus();
     commandWindow(window, "search");
   }),
-  // The renderer opens the find bar in the page on screen, and does nothing
-  // when none is.
+  // The renderer opens the find of the surface the keyboard is in (a chat,
+  // a file, a page), and does nothing when none is on screen.
   chord("findInPage"),
   chord("findNext"),
   chord("findPrevious"),
+  // The inbox's search, which the window brings up and gives the keyboard;
+  // like the field above, taken back from a page guest first.
+  chord("searchChats", (window) => {
+    window.webContents.focus();
+    commandWindow(window, "searchChats");
+  }),
   // The page the person is looking at; nothing when none is.
   chord("printPage"),
 ];

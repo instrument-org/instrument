@@ -216,7 +216,6 @@ export function ChatPane({
         chosenProject && "project-tint",
       )}
       data-project={chosenProject ? "" : undefined}
-      data-find-surface
       style={
         chosenProject ? projectTint(projectColor(chosenProject)) : undefined
       }

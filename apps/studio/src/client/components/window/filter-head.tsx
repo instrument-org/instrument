@@ -4,7 +4,7 @@ import {
   PopoverTrigger,
 } from "@/client/components/ui/popover";
 import { Switch } from "@/client/components/ui/switch";
-import { useFindTarget } from "@/client/hooks/use-find-target";
+import { chatSearchAskedAtom } from "@/client/atoms/window";
 import { cn } from "@/client/lib/utils";
 import { CaretLeftIcon } from "@phosphor-icons/react/CaretLeft";
 import { CheckIcon } from "@phosphor-icons/react/Check";
@@ -15,7 +15,7 @@ import { NotificationIcon } from "@phosphor-icons/react/Notification";
 import { RowsIcon } from "@phosphor-icons/react/Rows";
 import { StarIcon } from "@phosphor-icons/react/Star";
 import { useAtom } from "jotai";
-import { type ComponentType, useRef, useState } from "react";
+import { type ComponentType, useEffect, useRef, useState } from "react";
 
 import {
   type ChatFilters,
@@ -82,17 +82,26 @@ export function FilterHead({
   const searchRef = useRef<HTMLInputElement>(null);
   const [isSearchAsked, setSearchAsked] = useState(false);
   const isSearched = filters.search !== "" || filters.tags.length > 0;
-  useFindTarget({
-    anchor: searchRef,
-    openFind: () => {
+  // Search Chats (Shift+Cmd+F) from anywhere in the window. Cmd+F is the
+  // chat's own find, so the search over every chat has a chord of its own.
+  const [isChatSearchAsked, setChatSearchAsked] = useAtom(chatSearchAskedAtom);
+  useEffect(() => {
+    if (!isChatSearchAsked) {
+      return;
+    }
+    const frame = requestAnimationFrame(() => {
+      setChatSearchAsked(false);
       setSearchAsked(true);
       // Drawn on the next frame inside a project, where the field was folded.
       requestAnimationFrame(() => {
         searchRef.current?.focus();
         searchRef.current?.select();
       });
-    },
-  });
+    });
+    return () => {
+      cancelAnimationFrame(frame);
+    };
+  }, [isChatSearchAsked, setChatSearchAsked]);
   // A mark is offered while the view, as it stands before any mark narrows
   // it, holds a chat carrying it.
   const unmarked = { ...filters, search: "", tags: [] };

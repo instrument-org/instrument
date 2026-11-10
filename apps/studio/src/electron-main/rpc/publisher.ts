@@ -158,6 +158,7 @@ export type WindowCommand =
   | "reopenTab"
   | "toggleDeveloperStrip"
   | "search"
+  | "searchChats"
   | "showActivity"
   | "toggleInbox"
   | "zoomIn"

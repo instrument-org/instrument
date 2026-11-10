@@ -1,7 +1,14 @@
 // The lines over the inbox: the search with its marks as tokens, the view
 // button, and the places as tabs; inside a project, the way back out.
+import { chatSearchAskedAtom } from "@/client/atoms/window";
 import { renderWithProviders } from "@/tests/render";
-import { fireEvent, screen, within } from "@testing-library/react";
+import {
+  act,
+  fireEvent,
+  screen,
+  waitFor,
+  within,
+} from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 
 import {
@@ -54,7 +61,7 @@ function renderHead({
 } = {}) {
   const onFiltersChange = vi.fn();
   const onLeaveProject = vi.fn();
-  renderWithProviders(
+  const { store } = renderWithProviders(
     <FilterHead
       chats={chats}
       filters={filters}
@@ -67,6 +74,7 @@ function renderHead({
     head: within(screen.getByRole("group", { name: "Filters" })),
     onFiltersChange,
     onLeaveProject,
+    store,
   };
 }
 
@@ -145,5 +153,20 @@ describe("FilterHead", () => {
     expect(head.queryAllByRole("tab")).toEqual([]);
     fireEvent.click(head.getByRole("button", { name: "Inbox" }));
     expect(onLeaveProject).toHaveBeenCalledOnce();
+  });
+
+  it("unfolds the search and gives it the keyboard when Search Chats is asked for", async () => {
+    const { head, store } = renderHead({
+      filters: { ...NO_FILTERS, projects: ["house"] },
+      project: HOUSE,
+    });
+    expect(head.queryByRole("combobox")).toBeNull();
+    act(() => {
+      store.set(chatSearchAskedAtom, true);
+    });
+    await waitFor(() => {
+      expect(document.activeElement).toBe(head.getByRole("combobox"));
+    });
+    expect(store.get(chatSearchAskedAtom)).toBe(false);
   });
 });

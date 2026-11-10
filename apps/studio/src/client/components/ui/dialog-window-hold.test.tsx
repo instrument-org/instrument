@@ -46,6 +46,7 @@ function Commands({
       openScreen: vi.fn(),
       reopenTab: vi.fn(),
       search: vi.fn(),
+      searchChats: vi.fn(),
       selectChat: vi.fn(),
       showTab: vi.fn(() => false),
       selectRelative: vi.fn(),

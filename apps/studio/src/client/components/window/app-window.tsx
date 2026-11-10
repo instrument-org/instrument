@@ -16,6 +16,7 @@ import {
   chatFiltersAtom,
   chatGroupAtom,
   filesFolderAtom,
+  chatSearchAskedAtom,
   inboxOpenAtom,
   paneOpenByGroupAtom,
   chatsOutOf,
@@ -535,6 +536,7 @@ function WindowShell({
   const setFilesFolder = useSetAtom(filesFolderAtom);
   const [chatFilters, setChatFilters] = useAtom(chatFiltersAtom);
   const [isInboxOpen, setInboxOpen] = useAtom(inboxOpenAtom);
+  const setChatSearchAsked = useSetAtom(chatSearchAskedAtom);
   const pickNewChatProject = useSetAtom(pickNewChatProjectAtom);
   const setInboxLandsAtOnce = useSetAtom(inboxLandsAtOnceAtom);
   const sendContextRef = useRef<Shell["sendContext"]>(() =>
@@ -1138,6 +1140,16 @@ function WindowShell({
       receiveTab,
       reopenTab: appTabs.reopen,
       search: focusField,
+      searchChats: () => {
+        // A chat's inbox comes back if it was put away; anywhere else the
+        // tab goes to the chats, as the rail takes it there.
+        if (isChat) {
+          setInboxOpen(true);
+        } else {
+          choosePlace("chat");
+        }
+        setChatSearchAsked(true);
+      },
       showActivity: () => {
         showActivity();
       },

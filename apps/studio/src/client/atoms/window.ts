@@ -120,6 +120,12 @@ export const filesHrefAtom = atom(
 export const inboxOpenAtom = keptAtom<boolean>("window", "inbox-open.v1", true);
 
 /**
+ * Search Chats was asked for and the inbox's search has not taken the
+ * keyboard yet: the inbox of the tab up takes it once it is drawn.
+ */
+export const chatSearchAskedAtom = atom(false);
+
+/**
  * Whether each group's pane is open, by the chat's id or the draft's
  * key: the tabs beside the conversation, put away and brought back
  * by the toggle over it. A group not named here has its pane open, so a

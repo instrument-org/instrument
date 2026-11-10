@@ -52,6 +52,7 @@ const handlers = {
   openScreen: vi.fn(),
   reopenTab: vi.fn(),
   search: vi.fn(),
+  searchChats: vi.fn(),
   selectChat: vi.fn(),
   showTab: vi.fn(() => false),
   selectRelative: vi.fn(),
@@ -187,6 +188,17 @@ describe("useWindowCommands", () => {
     await vi.waitFor(
       () => {
         expect(handlers.showActivity).toHaveBeenCalledTimes(1);
+      },
+      { interval: 1 },
+    );
+  });
+
+  it("brings up the inbox's search from Search Chats", async () => {
+    renderWithDefaultStore(<Window />);
+    stream.push("searchChats");
+    await vi.waitFor(
+      () => {
+        expect(handlers.searchChats).toHaveBeenCalledTimes(1);
       },
       { interval: 1 },
     );

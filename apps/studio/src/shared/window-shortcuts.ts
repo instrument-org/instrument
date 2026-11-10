@@ -57,7 +57,8 @@ export const WINDOW_SHORTCUTS = {
   },
   commandMenu: { accelerator: "CmdOrCtrl+K", label: "Command Menu" },
   editPage: { accelerator: "CmdOrCtrl+E", label: "Edit Page" },
-  findInPage: { accelerator: "CmdOrCtrl+F", label: "Find in Page" },
+  // The search of the surface the keyboard is in: a chat, a file, a page.
+  findInPage: { accelerator: "CmdOrCtrl+F", label: "Find" },
   findNext: { accelerator: "CmdOrCtrl+G", label: "Find Next" },
   findPrevious: { accelerator: "Shift+CmdOrCtrl+G", label: "Find Previous" },
   forward: { accelerator: historyChord("]", "Right"), label: "Forward" },
@@ -75,6 +76,9 @@ export const WINDOW_SHORTCUTS = {
   reloadPage: { accelerator: "CmdOrCtrl+R", label: "Reload Page" },
   reopenTab: { accelerator: "Shift+CmdOrCtrl+T", label: "Reopen Closed Tab" },
   search: { accelerator: "CmdOrCtrl+L", label: "Search or Ask" },
+  // Find with Shift, as a code editor searches every file: the inbox's
+  // search, over every chat, where Find is the one chat on screen.
+  searchChats: { accelerator: "Shift+CmdOrCtrl+F", label: "Search Chats" },
   // Show All History's key: ⌘Y in Safari and Chrome on a Mac, and Ctrl+H in
   // browsers elsewhere.
   showActivity: {

@@ -9,8 +9,10 @@ import { z } from "zod";
 import type { BrowserEntry } from "./entry";
 
 import { type DownloadOrigin, trackDownload } from "./download-list";
+import { markFromInternet } from "../lib/download-mark";
 import { type GuestRegistry } from "./guest-registry";
 import { isAllowedLocalDownload } from "./local-file-policy";
+import { log } from "./log";
 
 /**
  * The part of `Browser.setDownloadBehavior` an agent's downloads follow. A
@@ -86,12 +88,25 @@ function takeAskedSave(webContentsId: number, item: DownloadItem) {
 // panel, and lands in their Downloads folder under its own name, or wherever
 // they say when that folder takes no file. Only a download from a contents no
 // tab's entry owns is canceled. One the person picked Save Image As… for asks
-// them where it goes, whatever the agent authorized.
+// them where it goes, whatever the agent authorized. Every finished download
+// carries the system's downloaded-from-the-internet mark, as a browser's does,
+// so a link from outside reveals a page saved here rather than opening it; a
+// mark that cannot be written leaves the download as it is.
 export function routeGuestDownloads(
   session: Session,
   registry: Pick<GuestRegistry, "documentOf" | "entryOf" | "get">,
+  {
+    markDownloaded = markFromInternet,
+  }: { markDownloaded?: (file: string) => Promise<void> } = {},
 ) {
   session.on("will-download", (_event, item, webContents) => {
+    item.once("done", (_doneEvent, state) => {
+      if (state === "completed") {
+        markDownloaded(item.getSavePath()).catch((error: unknown) => {
+          log.warn("Left a finished download without its download mark", error);
+        });
+      }
+    });
     // A download the person asked for again from the list comes from the
     // session rather than a page, so it is theirs whatever page is open.
     if (takeRetry(item)) {

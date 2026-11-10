@@ -48,6 +48,11 @@ vi.mock("@/electron-main/lib/get-workspace-folder", () => ({
   // Beside the folders a download lands in, so it refuses none of them.
   getUserDataDir: () => `${home.dir}/user-data`,
 }));
+// The download mark is written by a test that asks for it; the rest write
+// none, so no `xattr` runs against a fake download's path.
+vi.mock("@/electron-main/lib/download-mark", () => ({
+  markFromInternet: () => Promise.resolve(),
+}));
 // The download list's saved copy, in memory.
 const saved = vi.hoisted(() => ({ downloads: [] as unknown[] }));
 vi.mock("@/electron-main/stores/workspace/downloads", () => ({
@@ -256,6 +261,42 @@ describe("routeGuestDownloads", () => {
       expect(item.setSavePath).toHaveBeenCalledWith(
         path.join(home.downloads, "report.pdf"),
       );
+    });
+
+    it("marks it downloaded once it completes, and only then", async () => {
+      const entries = new Map<BrowserTargetId, BrowserEntry>();
+      const entry = makeEntry();
+      entries.set(TARGET_ID, entry);
+      const { session, trigger } = makeSession();
+      const marked: string[] = [];
+      const failing: string[] = [];
+      routeGuestDownloads(session, lookupIn(entries), {
+        markDownloaded: (file) => {
+          marked.push(file);
+          return file.endsWith("broken.html")
+            ? Promise.reject(new Error("no xattr")).finally(() =>
+                failing.push(file),
+              )
+            : Promise.resolve();
+        },
+      });
+
+      const items = ["page.html", "gone.html", "broken.html"].map((filename) =>
+        makeFakeItem({ filename, url: `https://example.com/${filename}` }),
+      );
+      for (const item of items) {
+        trigger(item, entry);
+      }
+      const [page, gone, broken] = items;
+      page?.emit("done", {}, "completed");
+      gone?.emit("done", {}, "cancelled");
+      broken?.emit("done", {}, "completed");
+      await vi.waitFor(() => expect(failing).toHaveLength(1));
+
+      expect(marked).toEqual([
+        path.join(home.downloads, "page.html"),
+        path.join(home.downloads, "broken.html"),
+      ]);
     });
 
     it("leaves nothing behind from proving the folder writable", () => {

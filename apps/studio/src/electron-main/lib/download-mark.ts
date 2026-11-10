@@ -1,3 +1,4 @@
+import { APP_NAME } from "@instrument-org/shared";
 import { app } from "electron";
 import { execFile } from "node:child_process";
 import fs from "node:fs/promises";
@@ -43,6 +44,37 @@ export async function isFromInternet(
       return isInDownloads(real, downloads);
     }
   }
+}
+
+/**
+ * Marks a file this app downloaded the way a browser marks what it saves, for
+ * the system and {@link isFromInternet} to tell it apart. Only macOS needs it:
+ * Chromium writes Windows's `Zone.Identifier` itself, and Linux has no mark
+ * Node reads. The attribute's value is `flags;hex seconds;agent;event id`,
+ * `0081` being a download not yet opened. Rejects when it cannot be written.
+ */
+export async function markFromInternet(
+  file: string,
+  {
+    now = Date.now,
+    platform = process.platform,
+    write = (args: string[]) => run("/usr/bin/xattr", args, { timeout: 2000 }),
+  }: {
+    now?: () => number;
+    platform?: NodeJS.Platform;
+    write?: (args: string[]) => Promise<unknown>;
+  } = {},
+): Promise<void> {
+  if (platform !== "darwin") {
+    return;
+  }
+  const seconds = Math.floor(now() / 1000).toString(16);
+  await write([
+    "-w",
+    "com.apple.quarantine",
+    `0081;${seconds};${APP_NAME};`,
+    file,
+  ]);
 }
 
 async function hasQuarantine(real: string) {

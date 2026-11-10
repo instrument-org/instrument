@@ -4,7 +4,7 @@ import os from "node:os";
 import path from "node:path";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
-import { isFromInternet, zoneOf } from "./download-mark";
+import { isFromInternet, markFromInternet, zoneOf } from "./download-mark";
 
 let folder: string;
 let downloads: string;
@@ -82,4 +82,53 @@ describe("zoneOf", () => {
   ])("reads %j as zone %s", (stream, zone) => {
     expect(zoneOf(stream)).toBe(zone);
   });
+});
+
+describe("markFromInternet", () => {
+  it("writes the quarantine attribute on macOS", async () => {
+    const written: string[][] = [];
+    await markFromInternet("/Users/mac-user/Downloads/page.html", {
+      now: () => 1_700_000_000_000,
+      platform: "darwin",
+      write: (args) => {
+        written.push(args);
+        return Promise.resolve();
+      },
+    });
+    expect(written).toMatchInlineSnapshot(`
+      [
+        [
+          "-w",
+          "com.apple.quarantine",
+          "0081;6553f100;Instrument;",
+          "/Users/mac-user/Downloads/page.html",
+        ],
+      ]
+    `);
+  });
+
+  it.each(["win32", "linux"] as const)(
+    "writes nothing on %s",
+    async (platform) => {
+      const written: string[][] = [];
+      await markFromInternet("/x/page.html", {
+        platform,
+        write: (args) => {
+          written.push(args);
+          return Promise.resolve();
+        },
+      });
+      expect(written).toEqual([]);
+    },
+  );
+
+  it.runIf(process.platform === "darwin")(
+    "leaves a mark isFromInternet reads",
+    async () => {
+      const page = path.join(folder, "saved.html");
+      await fs.writeFile(page, "");
+      await markFromInternet(page);
+      expect(await isFromInternet(page)).toBe(true);
+    },
+  );
 });

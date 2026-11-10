@@ -35,6 +35,11 @@ const AskSchema = z.discriminatedUnion("type", [
   z.object({ hostPath: z.string(), type: z.literal("openFile") }),
   z.object({ href: z.string(), type: z.literal("openScreen") }),
   z.object({
+    folder: z.string().optional(),
+    name: z.string(),
+    type: z.literal("missingFile"),
+  }),
+  z.object({
     project: z.string().optional(),
     type: z.literal("newChat"),
     words: z.string(),

@@ -1,3 +1,5 @@
+import { fileHref, folderHref } from "@/shared/computer-href";
+
 /**
  * What something outside the window asks it to put up: a screen by its
  * route, from a link, a file handed to the app, which the window places
@@ -6,9 +8,37 @@
 export type AppWindowAsk =
   | { hostPath: string; type: "openFile" }
   | { href: string; type: "openScreen" }
+  /**
+   * A file a link named that is not there, said by its name, with the folder
+   * it was in opened when that folder is there.
+   */
+  | { folder?: string; name: string; type: "missingFile" }
   | { project?: string; type: "newChat"; words: string }
   /** New Chat pressed with no window open, for the window it opens. */
   | { type: "openNewChat" };
+
+/**
+ * The address of the tab that shows what an ask puts up, for finding the
+ * window with a tab already showing it; undefined for an ask that makes
+ * something new.
+ */
+export function tabHrefOfAsk(ask: AppWindowAsk): string | undefined {
+  switch (ask.type) {
+    case "missingFile": {
+      return ask.folder === undefined ? undefined : folderHref(ask.folder);
+    }
+    case "openFile": {
+      return fileHref(ask.hostPath);
+    }
+    case "openScreen": {
+      return ask.href;
+    }
+    case "newChat":
+    case "openNewChat": {
+      return undefined;
+    }
+  }
+}
 
 /**
  * Where asks from outside the window wait until it can take them: while its

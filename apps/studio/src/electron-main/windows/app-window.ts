@@ -57,6 +57,7 @@ import {
 import {
   type AppWindowAsk,
   createAppWindowAsks,
+  tabHrefOfAsk,
 } from "@/electron-main/windows/app-window-asks";
 import {
   forgetAppWindowName,
@@ -300,15 +301,19 @@ export function appWindowForChat(chatId: string | undefined) {
 
 /**
  * Opens a file handed to the app from outside it, a double click, Open With,
- * or a drop on the Dock icon, in the window in front or the one this opens. A
- * folder opens in the folder view, standing in it.
+ * or a drop on the Dock icon: in the window with a tab already showing it,
+ * else in the window in front or the one this opens. A folder opens in the
+ * folder view, standing in it.
  */
 export function openAppFile(hostPath: string) {
   if (isFolder(hostPath)) {
     openAppScreen(folderHref(hostPath));
     return;
   }
-  askAppWindow({ hostPath, type: "openFile" });
+  const ask = { hostPath, type: "openFile" } satisfies AppWindowAsk;
+  if (!showInWindowHolding(ask)) {
+    askAppWindow(ask);
+  }
 }
 
 function isFolder(hostPath: string) {
@@ -325,22 +330,25 @@ function isFolder(hostPath: string) {
  * asks for.
  */
 export function openAppScreen(href: string) {
-  if (!showInWindowHolding(href)) {
-    askAppWindow({ href, type: "openScreen" });
+  const ask = { href, type: "openScreen" } satisfies AppWindowAsk;
+  if (!showInWindowHolding(ask)) {
+    askAppWindow(ask);
   }
 }
 
 /**
- * Brings forward the window that already has a screen in a tab, with that tab
- * up. False where no window has it.
+ * Brings forward the window that already has a tab showing what an ask puts
+ * up (`tabHrefOfAsk`), and hands it the ask, which brings that tab up. False
+ * where no window has one.
  */
-export function showInWindowHolding(href: string) {
-  const showing = appWindowShowing(href);
+export function showInWindowHolding(ask: AppWindowAsk) {
+  const href = tabHrefOfAsk(ask);
+  const showing = href === undefined ? null : appWindowShowing(href);
   if (!showing) {
     return false;
   }
   bringForward(showing);
-  askWindow(showing, { href, type: "openScreen" });
+  askWindow(showing, ask);
   return true;
 }
 

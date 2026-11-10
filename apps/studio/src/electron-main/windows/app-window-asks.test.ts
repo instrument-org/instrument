@@ -1,6 +1,10 @@
 import { describe, expect, it, vi } from "vitest";
 
-import { type AppWindowAsk, createAppWindowAsks } from "./app-window-asks";
+import {
+  type AppWindowAsk,
+  createAppWindowAsks,
+  tabHrefOfAsk,
+} from "./app-window-asks";
 
 // A file or link opened from outside while setup is up waits for setup, then
 // reaches the window: neither lost to a page that asked once and got nothing,
@@ -70,5 +74,35 @@ describe("createAppWindowAsks", () => {
     queue.ask(file);
     queue.release();
     expect(deliver).not.toHaveBeenCalled();
+  });
+});
+
+describe("tabHrefOfAsk", () => {
+  // The window with a tab already showing what an ask puts up is the one
+  // that answers it, so a file, a folder or a screen linked again comes up
+  // where it is rather than in another tab.
+  it("names the tab showing a file, a screen or a missing file's folder", () => {
+    const asked: AppWindowAsk[] = [
+      file,
+      link,
+      {
+        folder: "/Users/mac-user/Work",
+        name: "pricing.html",
+        type: "missingFile",
+      },
+      { name: "pricing.html", type: "missingFile" },
+      { type: "newChat", words: "Plan my week" },
+      { type: "openNewChat" },
+    ];
+    expect(asked.map(tabHrefOfAsk)).toMatchInlineSnapshot(`
+      [
+        "/files?file=%2FUsers%2Fmac-user%2Fa.pdf&path=&root=~",
+        "/chats/abc",
+        "/files?path=&root=%2FUsers%2Fmac-user%2FWork",
+        undefined,
+        undefined,
+        undefined,
+      ]
+    `);
   });
 });

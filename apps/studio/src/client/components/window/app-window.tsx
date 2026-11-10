@@ -1089,14 +1089,34 @@ function WindowShell({
       newChat: newDraft,
       newChatFromLink: draftFromLink,
       newTab: appTabs.openNewTab,
-      // A file from outside the app is the person's own, in a tab of its own
-      // or the one already showing it.
-      openFile: (hostPath) => {
-        appTabs.open(fileHref(hostPath));
+      // What arrives from outside the app comes up in the tab already showing
+      // it, however far that tab has walked within it, and in a tab of its
+      // own where none does. Main has already picked this window as the one
+      // showing it, or the one in front where none does.
+      missingFile: (name, folder) => {
+        toast(
+          `${name} is no longer there`,
+          folder === undefined
+            ? { description: "The folder it was in is gone too." }
+            : undefined,
+        );
+        if (folder !== undefined) {
+          const href = folderHref(folder);
+          if (!appTabs.selectShowing(href)) {
+            openScreen(href, { newTab: true });
+          }
+        }
       },
-      // A tab of its own, as every open of a window tab is.
+      openFile: (hostPath) => {
+        const href = fileHref(hostPath);
+        if (!appTabs.selectShowing(href)) {
+          appTabs.open(href);
+        }
+      },
       openScreen: (href) => {
-        openScreen(href, { newTab: true });
+        if (!appTabs.selectShowing(href)) {
+          openScreen(href, { newTab: true });
+        }
       },
       showTab: appTabs.selectShowing,
       moveTabToNewWindow: () => {

@@ -59,7 +59,8 @@ const MODAL_SAFE_COMMANDS = new Set([
  * What the main process asks of the window: back and forward from a trackpad
  * swipe, a thumb button or the History menu, the tab chords (close, new,
  * reopen, next and previous, one by number), the caret into the field, a
- * screen a link from outside the app named, and a file handed to the app.
+ * screen a link from outside the app named, a file it named that is not
+ * there, and a file handed to the app.
  * On a Mac and on Windows the thumb buttons reach the page as mouse events
  * and never as the window's app-command, so they are answered here; on
  * Linux they arrive through the main process. Chromium
@@ -85,9 +86,11 @@ export function useWindowCommands(
     /** A draft of a new chat with the words a link from outside brought, under the project it named. */
     newChatFromLink: (words: string, projectId?: string) => void;
     newTab: () => void;
+    /** A file a link from outside named that is not there: said, over the folder it was in when that is there. */
+    missingFile: (name: string, folder?: string) => void;
     /** A file handed to the app from outside it: a double click, Open With, or a launch naming it. */
     openFile: (hostPath: string) => void;
-    /** A screen by its route, in a tab of its own, since what asked is not in any tab. */
+    /** A screen by its route, from outside the app, so in no tab yet. */
     openScreen: (href: string) => void;
     /** The tab up to a window of its own. */
     moveTabToNewWindow: () => void;
@@ -477,9 +480,10 @@ function openOrCloseCommandMenu() {
   }
 }
 
-/** Puts up what something outside the window asked for: a file, a screen by its route, a new chat's words, or a new chat. */
+/** Puts up what something outside the window asked for: a file, a screen by its route, a missing file said, a new chat's words, or a new chat. */
 function answer(
   handlers: {
+    missingFile: (name: string, folder?: string) => void;
     newChat: () => void;
     newChatFromLink: (words: string, projectId?: string) => void;
     openFile: (hostPath: string) => void;
@@ -488,6 +492,10 @@ function answer(
   ask: RPCOutput["window"]["takePending"][number],
 ) {
   switch (ask.type) {
+    case "missingFile": {
+      handlers.missingFile(ask.name, ask.folder);
+      break;
+    }
     case "newChat": {
       handlers.newChatFromLink(ask.words, ask.project);
       break;

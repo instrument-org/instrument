@@ -68,10 +68,12 @@ export async function askOfOutsideLink(
     hostPaths = path,
     isDownloaded = isFromInternet,
     isRefused = isRefusedFile,
+    placeOf = placeOnDisk,
   }: {
     hostPaths?: path.PlatformPath;
     isDownloaded?: (hostPath: string) => Promise<boolean>;
     isRefused?: (hostPath: string) => Promise<boolean>;
+    placeOf?: (hostPath: string) => Promise<Place>;
   } = {},
 ): Promise<AppWindowAsk | undefined> {
   const link = outsideLinkOf(url);
@@ -100,8 +102,19 @@ export async function askOfOutsideLink(
       ) {
         return undefined;
       }
-      if (await isFolder(hostPath)) {
+      const place = await placeOf(hostPath);
+      if (place === "folder") {
         return { href: folderHref(hostPath), type: "openScreen" };
+      }
+      // Never a file to open: the window says it is not there, over the
+      // folder it was in when that is there.
+      if (place === "missing") {
+        const folder = hostPaths.dirname(hostPath);
+        return {
+          ...((await placeOf(folder)) === "folder" ? { folder } : {}),
+          name: hostPaths.basename(hostPath),
+          type: "missingFile",
+        };
       }
       if (PAGE.test(hostPath) && (await isDownloaded(hostPath))) {
         return {
@@ -116,11 +129,22 @@ export async function askOfOutsideLink(
   }
 }
 
-async function isFolder(hostPath: string) {
+/**
+ * What is at a path: a folder, nothing, or something else, which is also
+ * what a path the system will not say anything about counts as, so a file in
+ * a folder the app may not read is shown saying so rather than as missing.
+ */
+type Place = "folder" | "missing" | "other";
+
+async function placeOnDisk(hostPath: string): Promise<Place> {
   try {
-    return (await fs.stat(hostPath)).isDirectory();
-  } catch {
-    return false;
+    return (await fs.stat(hostPath)).isDirectory() ? "folder" : "other";
+  } catch (error) {
+    return error instanceof Error &&
+      "code" in error &&
+      (error.code === "ENOENT" || error.code === "ENOTDIR")
+      ? "missing"
+      : "other";
   }
 }
 

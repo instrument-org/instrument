@@ -43,6 +43,7 @@ const handlers = {
   closeTab: vi.fn(),
   forward: vi.fn(),
   goToPlace: vi.fn(),
+  missingFile: vi.fn(),
   newChat: vi.fn(),
   newChatFromLink: vi.fn(),
   newTab: vi.fn(),
@@ -86,6 +87,34 @@ describe("useWindowCommands", () => {
       { interval: 1 },
     );
     expect(handlers.openFile).toHaveBeenCalledWith("/Users/mac-user/a.pdf");
+  });
+
+  it("says a file a link named is not there, with the folder it was in", async () => {
+    renderWithDefaultStore(<Window />);
+    stream.push({
+      folder: "/Users/mac-user/Work",
+      name: "pricing.html",
+      type: "missingFile",
+    });
+    stream.push({ name: "gone.md", type: "missingFile" });
+    await vi.waitFor(
+      () => {
+        expect(handlers.missingFile).toHaveBeenCalledTimes(2);
+      },
+      { interval: 1 },
+    );
+    expect(handlers.missingFile.mock.calls).toMatchInlineSnapshot(`
+      [
+        [
+          "pricing.html",
+          "/Users/mac-user/Work",
+        ],
+        [
+          "gone.md",
+          undefined,
+        ],
+      ]
+    `);
   });
 
   it("starts a new chat's draft with the words a link brought", async () => {

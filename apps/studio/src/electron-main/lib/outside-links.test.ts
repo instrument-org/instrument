@@ -19,6 +19,7 @@ let folder: string;
 beforeAll(async () => {
   folder = await fs.mkdtemp(path.join(os.tmpdir(), "outside-links-"));
   await fs.mkdir(path.join(folder, "Notes"));
+  await fs.writeFile(path.join(folder, "plan.md"), "");
 });
 
 afterAll(async () => {
@@ -27,6 +28,8 @@ afterAll(async () => {
 
 const allowed = () => Promise.resolve(false);
 const marked = () => Promise.resolve(true);
+/** A path made up for a test, read as a file that is there. */
+const aFile = (): Promise<"other"> => Promise.resolve("other");
 
 describe("askOfOutsideLink", () => {
   it("opens a screen a noun names", async () => {
@@ -61,6 +64,7 @@ describe("askOfOutsideLink", () => {
           hostPaths: path.posix,
           isDownloaded: allowed,
           isRefused: allowed,
+          placeOf: aFile,
         },
       ),
     ).toMatchInlineSnapshot(`
@@ -77,6 +81,7 @@ describe("askOfOutsideLink", () => {
         hostPaths: path.win32,
         isDownloaded: allowed,
         isRefused: allowed,
+        placeOf: aFile,
       }),
     ).toMatchInlineSnapshot(`
       {
@@ -90,7 +95,12 @@ describe("askOfOutsideLink", () => {
     expect(
       await askOfOutsideLink(
         "instrument://file/Users/mac-user/Downloads/page.html",
-        { hostPaths: path.posix, isDownloaded: marked, isRefused: allowed },
+        {
+          hostPaths: path.posix,
+          isDownloaded: marked,
+          isRefused: allowed,
+          placeOf: aFile,
+        },
       ),
     ).toMatchInlineSnapshot(`
       {
@@ -104,7 +114,7 @@ describe("askOfOutsideLink", () => {
     expect(
       await askOfOutsideLink(
         "instrument://file/C:/Users/windows-user/report.pdf",
-        { hostPaths: path.win32, isRefused: allowed },
+        { hostPaths: path.win32, isRefused: allowed, placeOf: aFile },
       ),
     ).toEqual({
       hostPath: "C:\\Users\\windows-user\\report.pdf",
@@ -120,6 +130,7 @@ describe("askOfOutsideLink", () => {
       await askOfOutsideLink(url, {
         hostPaths: path.posix,
         isRefused: allowed,
+        placeOf: aFile,
       }),
     ).toEqual({ hostPath: "/home/linux-user/e2e/stats.py", type: "openFile" });
   });
@@ -165,6 +176,34 @@ describe("askOfOutsideLink", () => {
     ).toBeUndefined();
   });
 
+  // A file a link names that is not there is never one to open, so a page
+  // that turns up there later is not run straight from the link; the window
+  // says it is gone, over its folder when that is there.
+  it.each(["pricing.html", "notes.md"])(
+    "says %s is not there, over its folder",
+    async (name) => {
+      expect(
+        await askOfOutsideLink(
+          `instrument://file${encodeURI(path.join(folder, "Notes", name))}`,
+          { isDownloaded: allowed, isRefused: allowed },
+        ),
+      ).toEqual({
+        folder: path.join(folder, "Notes"),
+        name,
+        type: "missingFile",
+      });
+    },
+  );
+
+  it("says a file is not there with no folder when that is gone too", async () => {
+    expect(
+      await askOfOutsideLink(
+        `instrument://file${encodeURI(path.join(folder, "Gone", "pricing.html"))}`,
+        { isDownloaded: allowed, isRefused: allowed },
+      ),
+    ).toEqual({ name: "pricing.html", type: "missingFile" });
+  });
+
   it("opens nothing in a place the app refuses", async () => {
     expect(
       await askOfOutsideLink("instrument://file/Users/mac-user/a.md", {
@@ -189,6 +228,7 @@ describe("askOfOutsideLink", () => {
       hostPaths: path.posix,
       isDownloaded,
       isRefused: allowed,
+      placeOf: aFile,
     });
     expect(read).toEqual(["/Users/mac-user/b.html"]);
   });

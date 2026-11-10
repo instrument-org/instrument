@@ -37,6 +37,7 @@ function Commands({
       closeTab,
       forward: vi.fn(),
       goToPlace: vi.fn(),
+      missingFile: vi.fn(),
       newChat: vi.fn(),
       newChatFromLink: vi.fn(),
       newTab,

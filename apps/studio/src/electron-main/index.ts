@@ -532,12 +532,14 @@ function focusForegroundWindow() {
 /**
  * A link from outside the app: the website's "Try in Instrument", a reply's
  * address pasted somewhere else, a note linking a file. The window comes
- * forward only for one that opens something (`outside-links.ts`).
+ * forward only for one that opens something or says why it cannot
+ * (`outside-links.ts`), and the one with a tab already showing what it names
+ * brings that tab up.
  */
 function handleDeepLink(url: string) {
   void openOutsideLink(url, {
     ask: (ask) => {
-      if (ask.type === "openScreen" && showInWindowHolding(ask.href)) {
+      if (showInWindowHolding(ask)) {
         return;
       }
       focusForegroundWindow();

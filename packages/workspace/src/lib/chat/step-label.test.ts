@@ -73,6 +73,33 @@ describe("latestStepIn", () => {
       ],
       "Writing the brief",
     ],
+    [
+      "a whole phase before the next field has begun",
+      [
+        { input: { activity: "Finding the notes" } },
+        { input: { activity: "Writing the brief" }, streaming: true },
+      ],
+      "Finding the notes",
+    ],
+    [
+      "the call's label while a phase written after it is still arriving",
+      [
+        { input: { activity: "Finding the notes" } },
+        {
+          input: { explanation: "Writing the brief", activity: "Wri" },
+          streaming: true,
+        },
+      ],
+      "Writing the brief",
+    ],
+    [
+      "the call before while its only label is still arriving",
+      [
+        { input: { activity: "Finding the notes" } },
+        { input: { explanation: "Wri" }, streaming: true },
+      ],
+      "Finding the notes",
+    ],
   ])("reads %s", (_case, calls, expected) => {
     expect(latestStepIn([assistant(...calls)])).toBe(expected);
   });

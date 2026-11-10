@@ -343,7 +343,7 @@ function toolStep(
  * arriving and nothing after the field has begun. A field arrives whole only
  * once the next one starts, since a call's input is written in order.
  */
-function isStillArriving(
+export function isStillArriving(
   part: SessionMessagePart.ToolPart,
   field: string,
 ): boolean {

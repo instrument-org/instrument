@@ -1,5 +1,6 @@
 import { type SessionMessage } from "../../schemas/session/message";
 import { isToolPart } from "../is-tool-part";
+import { isStillArriving } from "../transcript/transcript-message";
 
 /** How much of a step's label the conversation shows. */
 const STEP_MAX_LENGTH = 80;
@@ -11,9 +12,10 @@ const STEP_MAX_LENGTH = 80;
  * happening, where the explanation changes on every call.
  *
  * A call still streaming in is read from the turn's own memory as its input
- * arrives, and the activity comes first, so a new phase would show a word at
- * a time. Its activity counts once another field has started after it; until
- * then the line stays on the call before.
+ * arrives, so a field would show a word at a time. A field counts once
+ * another has started after it (`isStillArriving`, the rule the transcript's
+ * rows read a call by too); until then the line reads the call's other
+ * field, or stays on the call before.
  */
 export function latestStepIn(
   messages: SessionMessage.WithParts[],
@@ -30,16 +32,15 @@ export function latestStepIn(
       if (typeof input !== "object" || input === null) {
         continue;
       }
-      const isActivityComplete =
-        part.state !== "input-streaming" ||
-        Object.keys(input).some((key) => key !== "activity");
       const label =
         "activity" in input &&
         typeof input.activity === "string" &&
         input.activity.trim() &&
-        isActivityComplete
+        !isStillArriving(part, "activity")
           ? input.activity
-          : "explanation" in input && typeof input.explanation === "string"
+          : "explanation" in input &&
+              typeof input.explanation === "string" &&
+              !isStillArriving(part, "explanation")
             ? input.explanation
             : undefined;
       if (label?.trim()) {

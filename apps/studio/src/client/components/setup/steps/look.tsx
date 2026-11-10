@@ -220,7 +220,7 @@ function AllSetPage({ onFinish }: { onFinish: () => void }) {
       align="center"
       className="setup-rise-in"
       footer={<SetupFooter back={false} next="none" />}
-      hero={<BrandMark className="setup-logo-rise-in mb-4" size={88} />}
+      hero={<BrandMark className="mb-4 setup-logo-rise-in" size={88} />}
       subtitle={`Welcome to ${APP_NAME}`}
       title={firstName ? `You're all set, ${firstName}!` : "You're all set!"}
     >

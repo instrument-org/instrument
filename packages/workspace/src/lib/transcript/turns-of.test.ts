@@ -1772,10 +1772,15 @@ describe("what a step carries", () => {
           "",
           "[g]: https://a.example/guide",
         ].join("\n"),
-      )?.words,
-    ).toMatchInlineSnapshot(
-      `"Cats purr when content. Care Feed them twice a day Brush weekly Play Quoted words Breed Size Siamese Small See the guide or https://a.example."`,
-    );
+      ),
+    ).toMatchInlineSnapshot(`
+      {
+        "kind": "fetch",
+        "title": "Cats",
+        "url": "https://a.example",
+        "words": "Cats purr when content. Care Feed them twice a day Brush weekly Play Quoted words Breed Size Siamese Small See the guide or https://a.example.",
+      }
+    `);
     expect(shows("Skip to main\nSign in")).toEqual({
       kind: "fetch",
       url: "https://a.example",

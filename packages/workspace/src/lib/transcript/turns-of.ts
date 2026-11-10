@@ -684,8 +684,8 @@ function rowsOf(
 }
 
 /**
- * Whether a step belongs to the open activity: it says nothing of its own, it
- * says the same, or it is the activity's name still being written.
+ * Whether a step belongs to the open activity: it says nothing of its own
+ * (a name still being written says nothing yet), or it says the same.
  */
 function joinsActivity(
   open: ActivityRow | undefined,
@@ -695,11 +695,7 @@ function joinsActivity(
     return false;
   }
   const { activity } = step;
-  return (
-    activity === undefined ||
-    activity === open.title ||
-    (step.status === "writing" && open.title?.startsWith(activity) === true)
-  );
+  return activity === undefined || activity === open.title;
 }
 
 function isThought(step: StepPart): boolean {

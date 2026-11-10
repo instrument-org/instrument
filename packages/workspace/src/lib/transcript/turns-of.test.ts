@@ -209,6 +209,60 @@ describe("turnsOf", () => {
     `);
   });
 
+  it.each([
+    [
+      "half of another name",
+      { activity: "Conn" },
+      ["activity: Setting up Linear x2"],
+    ],
+    [
+      "a name the next field has begun after",
+      { activity: "Connecting Linear", explanation: "Show" },
+      ["activity: Setting up Linear x1", "activity: Connecting Linear x1"],
+    ],
+    [
+      "a whole name that starts the open one's",
+      { activity: "Setting up", explanation: "Show" },
+      ["activity: Setting up Linear x1", "activity: Setting up x1"],
+    ],
+  ])("names a row for a call still arriving with %s", (_, input, rows) => {
+    const [turn] = turnsOf(
+      [
+        typed("Connect Linear"),
+        message("assistant", (id) => [
+          call(
+            id,
+            "bash",
+            { activity: "Setting up Linear", command: "ls" },
+            { exitCode: 0 },
+          ),
+          call(id, "connect_app", input, undefined, "input-streaming"),
+        ]),
+      ],
+      { isRunning: true },
+    );
+    expect(turn && shape(turn)).toEqual(rows);
+  });
+
+  it("leaves a first row unnamed while its name is half written", () => {
+    const [turn] = turnsOf(
+      [
+        typed("Connect Linear"),
+        message("assistant", (id) => [
+          call(
+            id,
+            "connect_app",
+            { activity: "Conn" },
+            undefined,
+            "input-streaming",
+          ),
+        ]),
+      ],
+      { isRunning: true },
+    );
+    expect(turn && shape(turn)).toEqual(["activity: (unnamed) x1"]);
+  });
+
   it("ends the activity at a task's card, and starts a new row after it", () => {
     const task = StoreId.newSessionId();
     const [turn] = turnsOf(

@@ -295,7 +295,9 @@ function toolStep(
       ? StepOutputSchema.safeParse(part.output)
       : undefined;
   const output = parsedOutput?.success ? parsedOutput.data : {};
-  const activity = input.activity?.trim();
+  const activity = isStillArriving(part, "activity")
+    ? undefined
+    : input.activity?.trim();
   const explanation = input.explanation?.trim();
   const startedTasks = (output.handOffs ?? []).flatMap((handOff) =>
     handOff.kind === "created" ? [handOff.sessionId as StoreId.Session] : [],
@@ -334,6 +336,23 @@ function toolStep(
     tool: part.type,
     type: "step",
   };
+}
+
+/**
+ * Whether a field of a call's input may still be half written: the input is
+ * arriving and nothing after the field has begun. A field arrives whole only
+ * once the next one starts, since a call's input is written in order.
+ */
+function isStillArriving(
+  part: SessionMessagePart.ToolPart,
+  field: string,
+): boolean {
+  return (
+    part.state === "input-streaming" &&
+    typeof part.input === "object" &&
+    part.input !== null &&
+    Object.keys(part.input).at(-1) === field
+  );
 }
 
 function stepStatus(

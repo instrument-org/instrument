@@ -33,14 +33,18 @@ const CaptureEditor = lazy(() =>
   import("./capture-editor").then((m) => ({ default: m.CaptureEditor })),
 );
 
-/** How long the white flash over the window lasts. */
-const FLASH_MS = 120;
+/** How long the white flash over the window takes to fade. */
+const FLASH_MS = 220;
 /** How long the picture takes to shrink into the corner. */
 const FLY_MS = 520;
 /** How long the thumbnail waits in the corner while the pointer is off it. */
 const THUMBNAIL_MS = 6000;
-/** The thumbnail's size and its distance from the corner, in layout px. */
-const THUMB = { gap: 12, h: 140, w: 224 };
+/** The thumbnail's width and its distance from the corner, in layout px. */
+const THUMB = { gap: 12, w: 224 };
+/** How far the thumbnail is dragged right before letting go sends it away. */
+const THROW_PX = 60;
+/** How long it takes to slide out once thrown. */
+const THROW_MS = 180;
 
 /** Puts a capture's picture on the clipboard. */
 async function copyImage(name: string) {
@@ -71,12 +75,18 @@ export function CaptureLayer() {
   const [thumbnail, setThumbnail] = useAtom(captureThumbnailAtom);
   const editing = useAtomValue(captureEditorAtom);
   const [hidden, setHidden] = useState(false);
-  const [flash, setFlash] = useState(false);
   // The capture shrinking into the corner, and whether it has started moving.
   const [flying, setFlying] = useState<Capture | null>(null);
   const [landing, setLanding] = useState(false);
   const [pointedAt, setPointedAt] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
+  // The thumbnail being dragged off to the right, and whether it was let go
+  // far enough to go.
+  const [swipe, setSwipe] = useState<{
+    dx: number;
+    from: number;
+    thrown: boolean;
+  } | null>(null);
   const [size, setSize] = useState({ height: 0, width: 0 });
   const rootRef = useRef<HTMLDivElement>(null);
   const { resolvedTheme } = useTheme();
@@ -114,7 +124,6 @@ export function CaptureLayer() {
           ...context,
           ...(chatTitle && { chatTitle }),
         });
-        capturesChanged();
         await loaded(captureUrl(capture));
         const root = rootRef.current;
         setSize({
@@ -125,17 +134,16 @@ export function CaptureLayer() {
         setLanding(false);
         setFlying(capture);
         setHidden(false);
-        setFlash(true);
-        setTimeout(() => {
-          setFlash(false);
-        }, FLASH_MS);
         await nextPaint();
+        // One render starts both the shrink and the flash fading, and nothing
+        // renders again until it lands, so the flight runs undisturbed.
         setLanding(true);
         await new Promise((resolve) => {
           setTimeout(resolve, FLY_MS);
         });
         setThumbnail(capture);
         setFlying(null);
+        capturesChanged();
       } catch (error) {
         toast.error("Couldn't capture the window", { cause: error });
       } finally {
@@ -159,21 +167,14 @@ export function CaptureLayer() {
   }, [editing, menuOpen, pointedAt, setThumbnail, thumbnail]);
 
   const { showInFileManager } = osConventions();
+  // Only a transform moves, so the shrink runs on the compositor: the picture
+  // keeps the window's size and is scaled to the thumbnail's width, landing
+  // where the thumbnail, drawn at the window's shape, then takes its place.
+  const scale = size.width > 0 ? THUMB.w / size.width : 1;
   const flight = landing
-    ? {
-        borderRadius: 8,
-        height: THUMB.h,
-        left: size.width - THUMB.gap - THUMB.w,
-        top: size.height - THUMB.gap - THUMB.h,
-        width: THUMB.w,
-      }
-    : {
-        borderRadius: 0,
-        height: size.height,
-        left: 0,
-        top: 0,
-        width: size.width,
-      };
+    ? `translate(${size.width - THUMB.gap - THUMB.w}px, ${size.height - THUMB.gap - size.height * scale}px) scale(${scale})`
+    : "none";
+  const shape = thumbnail?.meta?.edited ? undefined : thumbnail?.meta?.window;
 
   return (
     <div
@@ -184,32 +185,94 @@ export function CaptureLayer() {
       {flying && (
         <img
           alt=""
-          className="pointer-events-none! absolute z-[60] object-cover object-left-top shadow-2xl ring-1 ring-black/15"
+          className="pointer-events-none! absolute top-0 left-0 z-[60] shadow-2xl ring-1 ring-black/15"
           src={captureUrl(flying)}
           style={{
-            ...flight,
-            transition: `all ${FLY_MS}ms cubic-bezier(0.34, 1.2, 0.5, 1)`,
+            height: size.height,
+            transform: flight,
+            transformOrigin: "0 0",
+            transition: `transform ${FLY_MS}ms cubic-bezier(0.34, 1.2, 0.5, 1)`,
+            width: size.width,
+            willChange: "transform",
           }}
         />
       )}
-      {flash && (
-        <div className="pointer-events-none! absolute inset-0 z-[61] bg-white/20" />
+      {flying && (
+        <div
+          className="pointer-events-none! absolute inset-0 z-[61] bg-white/20"
+          style={{
+            opacity: landing ? 0 : 1,
+            transition: `opacity ${FLASH_MS}ms ease-out`,
+          }}
+        />
       )}
       {thumbnail && !hidden && !editing && (
         <div
-          className="group absolute right-3 bottom-3 z-50 w-56 overflow-hidden rounded-lg bg-background shadow-2xl ring-1 ring-black/15"
+          className="group absolute right-3 bottom-3 z-50 w-56 touch-none overflow-hidden rounded-lg bg-background shadow-2xl ring-1 ring-black/15"
+          onPointerCancel={() => {
+            setSwipe(null);
+          }}
+          onPointerDown={(event) => {
+            // The buttons on it take their own clicks.
+            if (
+              event.button !== 0 ||
+              (event.target instanceof Element &&
+                event.target.closest("button"))
+            ) {
+              return;
+            }
+            event.currentTarget.setPointerCapture(event.pointerId);
+            setSwipe({ dx: 0, from: event.clientX, thrown: false });
+          }}
           onPointerEnter={() => {
             setPointedAt(true);
           }}
           onPointerLeave={() => {
             setPointedAt(false);
           }}
+          onPointerMove={(event) => {
+            if (swipe && !swipe.thrown) {
+              setSwipe({
+                ...swipe,
+                dx: Math.max(0, event.clientX - swipe.from),
+              });
+            }
+          }}
+          onPointerUp={() => {
+            if (!swipe || swipe.thrown) {
+              return;
+            }
+            if (swipe.dx < THROW_PX) {
+              setSwipe(null);
+              return;
+            }
+            // Thrown off to the right: it slides out, then goes.
+            setSwipe({ ...swipe, dx: THUMB.w + THUMB.gap * 2, thrown: true });
+            setTimeout(() => {
+              setThumbnail(null);
+              setSwipe(null);
+              setPointedAt(false);
+            }, THROW_MS);
+          }}
+          style={{
+            opacity: swipe?.thrown ? 0 : 1,
+            transform: swipe ? `translateX(${swipe.dx}px)` : undefined,
+            transition:
+              swipe && !swipe.thrown && swipe.dx > 0
+                ? "none"
+                : `transform ${THROW_MS}ms ease-out, opacity ${THROW_MS}ms ease-out`,
+          }}
         >
           <img
             alt="The newest capture"
-            className="block aspect-[16/10] w-full object-cover object-left-top"
+            className="block w-full object-cover object-left-top"
             draggable={false}
             src={captureUrl(thumbnail, { small: true })}
+            style={{
+              aspectRatio: shape
+                ? `${shape.width} / ${shape.height}`
+                : "16 / 10",
+            }}
           />
           <div
             className={cn(

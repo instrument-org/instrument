@@ -236,7 +236,6 @@ export function CaptureEditor({ capture }: { capture: Capture }) {
     underPointer[Math.min(outward, underPointer.length - 1)] ?? undefined;
   // Elements are offered only until there is a crop; a click then clears it.
   const snapping = tool === "crop" && crop === null && !press;
-  const [saving, setSaving] = useState(false);
   const elements = capture.meta?.elements ?? [];
   const changed = crop !== null || marks.length > 0;
   const { showInFileManager } = osConventions();
@@ -246,8 +245,13 @@ export function CaptureEditor({ capture }: { capture: Capture }) {
     }),
   );
 
+  // Done with a capture puts its thumbnail away too, rather than bringing it
+  // back to the corner.
   const close = () => {
     setEditing(null);
+    setThumbnail((current) =>
+      current?.name === capture.name ? null : current,
+    );
   };
 
   useEffect(() => {
@@ -363,20 +367,18 @@ export function CaptureEditor({ capture }: { capture: Capture }) {
       close();
       return;
     }
-    setSaving(true);
+    // The editor goes at once and the edit saves behind it: making the PNG of
+    // a whole window takes a moment.
+    const edit = { crop, marks };
+    close();
     try {
-      const saved = await rpcClient.captures.saveEdit.call({
-        data: await exportPicture(image, marks, crop),
+      await rpcClient.captures.saveEdit.call({
+        data: await exportPicture(image, edit.marks, edit.crop),
         name: capture.name,
       });
-      setThumbnail((current) =>
-        current?.name === saved.name ? saved : current,
-      );
       capturesChanged();
-      close();
     } catch (error) {
       toast.error("Couldn't save the capture", { cause: error });
-      setSaving(false);
     }
   };
 
@@ -612,7 +614,6 @@ export function CaptureEditor({ capture }: { capture: Capture }) {
             <FolderSimpleIcon className="size-4" />
           </Button>
           <Button
-            disabled={saving}
             onClick={() => {
               void save();
             }}

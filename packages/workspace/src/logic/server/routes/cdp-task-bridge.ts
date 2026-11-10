@@ -273,7 +273,19 @@ export function handleTaskCdpClient(
       // here, and the answer waits for the page's load, the way a
       // navigation's does on any tab: `tab new <url>` then reads the page it
       // asked for.
-      await loadInNewTab(browser, targetId, address);
+      const refused = await loadInNewTab(browser, targetId, address);
+      if (refused !== undefined) {
+        // A tab left blank would answer every later command, a screenshot
+        // included, with an empty page the agent takes for the one it asked
+        // for.
+        forgetTab(targetId);
+        await askWindow({
+          action: { kind: "close", tabId },
+          askedBy: chatId,
+          group: resolveChat(chatId),
+        });
+        return `${address} did not open: ${refused}`;
+      }
       // Sending it to a page is this session's work in it; a blank one is
       // no work yet.
       noteTabCommand(targetId, actor);
@@ -752,12 +764,16 @@ function isMainFrame(params: unknown): boolean {
   return frame !== undefined && frame.parentId === undefined;
 }
 
-/** Sends a tab that was just made to its first page and waits for the load, capped. */
+/**
+ * Sends a tab that was just made to its first page and waits for the load,
+ * capped. Returns the browser's message when it refused the address outright
+ * (`Cannot navigate to invalid URL`), which leaves the tab blank.
+ */
 async function loadInNewTab(
   browser: WorkspaceConfig["browser"],
   targetId: BrowserTargetId,
   url: string,
-): Promise<void> {
+): Promise<string | undefined> {
   const gate = createMainFrameLoadGate();
   const stop = browser.subscribeEvents(
     targetId,
@@ -771,16 +787,23 @@ async function loadInNewTab(
   try {
     await browser.sendCommand(targetId, "Page.enable", {});
     const load = gate.nextMainFrameLoad(NAVIGATE_HOLD_CAP_MS);
-    const result: unknown = await browser
+    const result = await browser
       .sendCommand(targetId, "Page.navigate", { url })
-      .catch(noop);
-    if (hasLoaderId(result)) {
+      .then(
+        (answer: unknown) => ({ answer }),
+        (error: unknown) => ({
+          refused: error instanceof Error ? error.message : String(error),
+        }),
+      );
+    if ("answer" in result && hasLoaderId(result.answer)) {
       await load.promise;
     } else {
       load.cancel();
     }
+    return "refused" in result ? result.refused : undefined;
   } catch {
     // A guest that went away mid-load: the agent hears it as a closed tab.
+    return undefined;
   } finally {
     stop();
   }

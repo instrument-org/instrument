@@ -139,7 +139,9 @@ function connect(sessionId: StoreId.Session = SESSION_ID) {
       // The bridge's own frames, which are JSON objects.
       sent.push(JSON.parse(data) as Record<string, unknown>),
   };
-  const sendCommand = vi.fn(() => Promise.resolve({ ok: true }));
+  const sendCommand = vi.fn(
+    (..._args: unknown[]): Promise<unknown> => Promise.resolve({ ok: true }),
+  );
   const config = {
     browser: {
       createTarget: (targetId: BrowserTargetId) => {
@@ -486,6 +488,28 @@ describe("a session's browser", () => {
     const tabId = made.result?.targetId;
     expect(record.openedTabs.at(-1)).toEqual({ id: tabId });
     expect(created(events)).toContain(tabId);
+  });
+
+  it("refuses a new tab at an address the browser cannot load, and closes the blank tab it made", async () => {
+    tab();
+    const { command, sendCommand } = connect();
+    sendCommand.mockImplementation((...args: unknown[]) =>
+      args[1] === "Page.navigate"
+        ? Promise.reject(new Error("Cannot navigate to invalid URL"))
+        : Promise.resolve({ ok: true }),
+    );
+
+    const made = await command("Target.createTarget", {
+      url: "devil-symbolism/index.html",
+    });
+
+    expect(made.error?.message).toMatchInlineSnapshot(
+      `"devil-symbolism/index.html did not open: Cannot navigate to invalid URL"`,
+    );
+    const opened = asked.find((action) => action.kind === "open");
+    expect(opened).toBeDefined();
+    expect(asked.filter((action) => action.kind === "close")).toHaveLength(1);
+    expect(record.openedTabs).toEqual([]);
   });
 
   it("opens a page asked for with no address as a blank tab in the chat", async () => {

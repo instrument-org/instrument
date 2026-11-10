@@ -31,8 +31,20 @@ const described = () => ({
   diagnostics: item("diagnostics", "diagnostics", 100),
 });
 
+vi.mock("@/client/hooks/use-developer-mode", () => ({
+  useDeveloperMode: () => false,
+}));
+
 vi.mock("@/client/rpc/client", () => ({
   rpcClient: {
+    captures: {
+      build: {
+        queryOptions: () => ({
+          queryFn: () => null,
+          queryKey: ["captures.build"],
+        }),
+      },
+    },
     problems: {
       describeFeedback: {
         call: async () => described(),

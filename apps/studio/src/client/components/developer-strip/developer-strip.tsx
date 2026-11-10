@@ -31,6 +31,7 @@ import { type ReactNode } from "react";
 
 import { ChatNotesToggle } from "./chat-notes-toggle";
 import { DeveloperErrors } from "./developer-errors";
+import { StripCaptures } from "./strip-captures";
 import { StripHeading, StripPopover } from "./strip-popover";
 
 type AppEnvironment = RPCOutput["debug"]["getAppEnvironment"];
@@ -177,6 +178,7 @@ export function DeveloperStrip({
         value={workspace?.name ?? ""}
       />
       <div className="flex-1" />
+      {!isSetupUp && <StripCaptures cellClass={CELL_CLASS} />}
       <ChatNotesToggle className={CELL_CLASS} />
       <Fact
         className={ROOMY_CLASS}

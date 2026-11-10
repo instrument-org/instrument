@@ -156,6 +156,7 @@ export type WindowCommand =
   | "printPage"
   | "reloadPage"
   | "reopenTab"
+  | "takeCapture"
   | "toggleDeveloperStrip"
   | "search"
   | "searchChats"

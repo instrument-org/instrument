@@ -219,6 +219,7 @@ export function createDevToolsMenu({
                 label: "Debug Pages",
                 ...menuSymbol("ladybug"),
               },
+              { ...shortcutMenuItem("captureWindow"), ...menuSymbol("camera") },
               {
                 click: commandsFocusedWindow("toggleDeveloperStrip"),
                 label: "Toggle Developer Strip",

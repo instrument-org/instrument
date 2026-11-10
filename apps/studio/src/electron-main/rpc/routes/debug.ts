@@ -16,8 +16,8 @@ import {
   DEV_INSTANCE_COLORS,
   isDevInstanceColor,
 } from "@/shared/dev-instance-colors";
+import { worktreeName } from "@/electron-main/lib/worktree-name";
 import { app, shell } from "electron";
-import fsSync from "node:fs";
 import path from "node:path";
 import { z } from "zod";
 
@@ -221,28 +221,6 @@ function driveColor() {
 function userDataName() {
   const dir = process.env.ELECTRON_USER_DATA_DIR;
   return dir ? path.basename(dir) : undefined;
-}
-
-/**
- * The folder holding the checkout, for a linked worktree only: the main
- * checkout is what every other instance is a deviation from, so naming it says
- * nothing an empty slot doesn't. A linked worktree's `.git` is a file pointing
- * back at the main checkout, where the main checkout's is a directory.
- */
-function worktreeName() {
-  if (app.isPackaged) {
-    return;
-  }
-  // Dev runs Electron against apps/studio, so the checkout is two levels up.
-  const root = path.resolve(app.getAppPath(), "..", "..");
-  try {
-    if (fsSync.statSync(path.join(root, ".git")).isFile()) {
-      return path.basename(root);
-    }
-  } catch {
-    // Nothing above this run is a checkout, so there is no worktree to name.
-  }
-  return;
 }
 
 const getAppEnvironment = devOnly

@@ -147,6 +147,7 @@ describe("formatAcceleratorFor", () => {
         "toggleFullScreen: ⌃ ⌘ F  /  F11  /  F11",
         "zoomIn: ⌘ +  /  Ctrl =  /  Ctrl =",
         "zoomOut: ⌘ -  /  Ctrl -  /  Ctrl -",
+        "captureWindow: ⇧ ⌘ 2  /  Ctrl Shift 2  /  Ctrl Shift 2",
         "reloadApp: ⇧ ⌘ R  /  Ctrl Shift R  /  Ctrl Shift R",
         "settings: ⌘ ,  /  Ctrl ,  /  Ctrl ,",
         "themeDark: ⇧ ⌘ D  /  Ctrl Shift D  /  Ctrl Shift D",

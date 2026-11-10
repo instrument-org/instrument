@@ -25,8 +25,20 @@ const item = (
     label,
   }) satisfies FeedbackItem;
 
+vi.mock("@/client/hooks/use-developer-mode", () => ({
+  useDeveloperMode: () => false,
+}));
+
 vi.mock("@/client/rpc/client", () => ({
   rpcClient: {
+    captures: {
+      build: {
+        queryOptions: () => ({
+          queryFn: () => null,
+          queryKey: ["captures.build"],
+        }),
+      },
+    },
     problems: {
       describeFeedback: {
         queryOptions: () => ({

@@ -23,7 +23,38 @@ import {
   FeedbackItemSchema,
   ReportInputSchema,
 } from "@/shared/problem-reports";
+import { currentBuild } from "@/electron-main/lib/captures";
+import {
+  CAPTURES_REPORT_PATH,
+  type CaptureMeta,
+  CaptureMetaSchema,
+  isSameBuild,
+} from "@/shared/captures";
 import { z } from "zod";
+
+/**
+ * The file a report carries beside its captures: the build that sent it, and
+ * for each capture the build that took it and where, so whoever reads the
+ * report sees at once a capture taken in another build than the one sending.
+ */
+function capturesReportFile(
+  captures: readonly { image: string; meta: CaptureMeta }[],
+) {
+  const sentFrom = currentBuild();
+  const content = JSON.stringify(
+    {
+      captures: captures.map(({ image, meta: { elements: _, ...meta } }) => ({
+        image,
+        sameBuild: isSameBuild(meta.build, sentFrom),
+        ...meta,
+      })),
+      sentFrom,
+    },
+    null,
+    2,
+  );
+  return { content, path: CAPTURES_REPORT_PATH };
+}
 
 const live = {
   // The problems from earlier sessions waiting in the bell, read again when
@@ -137,6 +168,11 @@ const sendFeedback = base
         )
         .max(MAX_FEEDBACK_IMAGES)
         .optional(),
+      /** What each attached capture says about itself, by the name its image goes under. */
+      captures: z
+        .array(z.object({ image: z.string(), meta: CaptureMetaSchema }))
+        .max(MAX_FEEDBACK_IMAGES)
+        .optional(),
       items: z.array(FeedbackItemSchema),
       note: z.string().max(5000).optional(),
       surface: ReportInputSchema.shape.surface,
@@ -147,7 +183,14 @@ const sendFeedback = base
   .handler(async ({ errors, input }) => {
     try {
       const images = await readFeedbackImages(input.images ?? []);
-      return await sendReport(feedbackReportInput(input), images);
+      const report = feedbackReportInput(input);
+      if (input.captures && input.captures.length > 0) {
+        report.files = [
+          ...(report.files ?? []),
+          capturesReportFile(input.captures),
+        ];
+      }
+      return await sendReport(report, images);
     } catch (error) {
       if (
         !(error instanceof FeedbackTooLargeError) &&

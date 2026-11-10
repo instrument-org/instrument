@@ -46,15 +46,21 @@ import {
   type FeedbackTag,
   MAX_REPORT_BYTES,
 } from "@/shared/problem-reports";
+import { type Capture, captureUrl } from "@/shared/captures";
+import { useDeveloperMode } from "@/client/hooks/use-developer-mode";
 import { APP_NAME } from "@instrument-org/shared";
-import { ActionSchema } from "@instrument-org/workspace/client";
+import {
+  ActionSchema,
+  type ChatId,
+  ChatIdSchema,
+} from "@instrument-org/workspace/client";
+
+import { CapturePicker, NoteWithAttachments } from "./feedback-attachments";
 import { type ExceptionEvent } from "@instrument-org/shared/exceptions";
 import { ArrowLeftIcon } from "@phosphor-icons/react/ArrowLeft";
 import { CaretDownIcon } from "@phosphor-icons/react/CaretDown";
 import { CaretRightIcon } from "@phosphor-icons/react/CaretRight";
-import { ImageIcon } from "@phosphor-icons/react/Image";
 import { WarningCircleIcon } from "@phosphor-icons/react/WarningCircle";
-import { XIcon } from "@phosphor-icons/react/X";
 import { useQuery } from "@tanstack/react-query";
 import { Fragment, type ReactNode, useRef, useState } from "react";
 
@@ -107,8 +113,10 @@ const TAGS: readonly {
   { label: "Other", tag: "other" },
 ];
 
-/** An image the person attached: a picked, pasted or dropped file. */
+/** An image the person attached: a picked, pasted or dropped file, or a developer capture. */
 type AttachedImage = {
+  /** The capture it is, which says where it was taken. */
+  capture?: Capture;
   file: Blob;
   id: string;
   name: string;
@@ -161,6 +169,34 @@ async function offerImages(already: number, files: readonly File[]) {
   };
 }
 
+/** The captures picked, as images to attach after `already`, each still knowing its capture. */
+async function offerCaptures(already: number, captures: readonly Capture[]) {
+  const files = await Promise.all(
+    captures.map(async (capture) => {
+      const response = await fetch(captureUrl(capture));
+      if (!response.ok) {
+        throw new Error(`Couldn't read ${capture.name}`);
+      }
+      const blob = await response.blob();
+      return {
+        capture,
+        file: new File([blob], capture.name, { type: "image/png" }),
+      };
+    }),
+  );
+  const { accepted, problems } = await offerImages(
+    already,
+    files.map((each) => each.file),
+  );
+  return {
+    accepted: accepted.map((image) => ({
+      ...image,
+      capture: files.find((each) => each.file === image.file)?.capture,
+    })),
+    problems,
+  };
+}
+
 /** A part of what goes, as the dialog lists it and its review page shows it. */
 type Part = {
   item: FeedbackItem;
@@ -176,11 +212,14 @@ type Part = {
 function partsOf({
   described,
   sendActions,
+  sendChat,
   writeup,
   yourComputer,
 }: {
   described: FeedbackDescription | undefined;
   sendActions: NonNullable<Part["sending"]>;
+  /** The switch on a chat that came in with a capture rather than with the dialog. */
+  sendChat?: Part["sending"];
   writeup: FeedbackRequest["writeup"];
   yourComputer: string;
 }): Part[] {
@@ -210,6 +249,7 @@ function partsOf({
             : {
                 item: chat.item,
                 line: `Your messages, ${APP_NAME}'s replies and each step it took. What it read stays on ${yourComputer}, though an error message can quote a little of it.`,
+                ...(sendChat && { sending: sendChat }),
                 title: chat.title,
               },
         ]
@@ -274,6 +314,16 @@ export function FeedbackDialogContent({
   const [images, setImages] = useState<AttachedImage[]>([]);
   const [imageProblems, setImageProblems] = useState<string[]>([]);
   const pickerRef = useRef<HTMLInputElement>(null);
+  const [pickingCaptures, setPickingCaptures] = useState(false);
+  // A chat a capture was taken in, when the dialog opened about none.
+  const [captureChat, setCaptureChat] = useState<ChatId | undefined>();
+  const [sendChat, setSendChat] = useState(true);
+  const chatId = request.chatId ?? captureChat;
+  const isDeveloperMode = useDeveloperMode();
+  const { data: build } = useQuery({
+    ...rpcClient.captures.build.queryOptions(),
+    enabled: isDeveloperMode,
+  });
   const { thisComputer } = osConventions();
   const yourComputer = thisComputer.replace(/^this /, "your ");
 
@@ -286,19 +336,45 @@ export function FeedbackDialogContent({
     setImageProblems(problems);
   };
 
-  // Read once per opening: what the dialog shows is what Send sends.
+  const addCaptures = async (captures: readonly Capture[]) => {
+    try {
+      const { accepted, problems } = await offerCaptures(
+        images.length,
+        captures,
+      );
+      setImages((current) => [...current, ...accepted]);
+      setImageProblems(problems);
+      const takenIn = accepted.find((image) => image.capture?.meta?.chatId)
+        ?.capture?.meta?.chatId;
+      const parsed = ChatIdSchema.safeParse(takenIn);
+      if (!chatId && parsed.success) {
+        setCaptureChat(parsed.data);
+      }
+    } catch (error) {
+      setImageProblems([
+        error instanceof Error ? error.message : String(error),
+      ]);
+    }
+  };
+
+  // Read once per opening, and again for a chat a capture brings: what the
+  // dialog shows is what Send sends.
   const described = useQuery({
     ...rpcClient.problems.describeFeedback.queryOptions({
-      input: { chatId: request.chatId },
+      input: { chatId },
     }),
     gcTime: 0,
     staleTime: Infinity,
   });
 
   const sendActionsSwitch = { on: sendActions, set: setSendActions };
+  const sendChatSwitch = captureChat
+    ? { on: sendChat, set: setSendChat }
+    : undefined;
   const parts = partsOf({
     described: described.data,
     sendActions: sendActionsSwitch,
+    sendChat: sendChatSwitch,
     writeup: request.writeup,
     yourComputer,
   });
@@ -313,7 +389,7 @@ export function FeedbackDialogContent({
     }
     const gathered = await Promise.race([
       rpcClient.problems.describeFeedback
-        .call({ chatId: request.chatId })
+        .call({ chatId })
         .catch(() => undefined),
       new Promise<undefined>((resolve) => {
         setTimeout(resolve, GATHER_WAIT_MS);
@@ -323,6 +399,7 @@ export function FeedbackDialogContent({
       partsOf({
         described: gathered,
         sendActions: sendActionsSwitch,
+        sendChat: sendChatSwitch,
         writeup: request.writeup,
         yourComputer,
       }),
@@ -332,7 +409,13 @@ export function FeedbackDialogContent({
   // The dialog gets out of the way at once, and the toast follows the send.
   const send = () => {
     const trimmed = note.trim();
+    const captures = images.flatMap((image) =>
+      image.capture?.meta
+        ? [{ image: image.name, meta: image.capture.meta }]
+        : [],
+    );
     const feedback = {
+      ...(captures.length > 0 && { captures }),
       images: images.map((image) => ({ data: image.file, name: image.name })),
       note: trimmed || undefined,
       surface: request.surface,
@@ -340,7 +423,7 @@ export function FeedbackDialogContent({
       title:
         trimmed.split("\n")[0]?.slice(0, 300) ||
         request.writeup?.title ||
-        (request.chatId ? "Feedback about a chat" : "Feedback"),
+        (chatId ? "Feedback about a chat" : "Feedback"),
     };
     onClose();
     toast.work({
@@ -478,82 +561,79 @@ export function FeedbackDialogContent({
               </div>
             </div>
 
-            <DictatedTextarea
-              aria-label="Your note"
-              autoFocus
-              className="min-h-24"
-              dictation={noteDictation}
-              maxLength={NOTE_MAX_LENGTH}
-              onChange={(event) => {
-                setNote(event.target.value);
-              }}
-              placeholder={
-                request.writeup
-                  ? "Anything to add? You can also send it as it is."
-                  : (TAGS.find((each) => each.tag === tag)?.placeholder ??
-                    "What happened, and what did you expect?")
+            <NoteWithAttachments
+              build={isDeveloperMode ? build : undefined}
+              canAdd={images.length < MAX_FEEDBACK_IMAGES}
+              images={images}
+              onAddCaptures={
+                isDeveloperMode
+                  ? () => {
+                      setPickingCaptures(true);
+                    }
+                  : undefined
               }
-              value={note}
+              onAddImages={() => {
+                pickerRef.current?.click();
+              }}
+              onRemove={(id) => {
+                const removed = images.find((image) => image.id === id);
+                const rest = images.filter((image) => image.id !== id);
+                setImages(rest);
+                setImageProblems([]);
+                // The chat a capture brought leaves with the last capture taken in it.
+                if (
+                  captureChat &&
+                  removed?.capture?.meta?.chatId === captureChat &&
+                  !rest.some(
+                    (image) => image.capture?.meta?.chatId === captureChat,
+                  )
+                ) {
+                  setCaptureChat(undefined);
+                }
+              }}
+              problems={imageProblems}
+            >
+              <DictatedTextarea
+                aria-label="Your note"
+                autoFocus
+                className="min-h-24 bg-none shadow-none focus-visible:outline-none dark:border-0 dark:bg-transparent"
+                dictation={noteDictation}
+                maxLength={NOTE_MAX_LENGTH}
+                onChange={(event) => {
+                  setNote(event.target.value);
+                }}
+                placeholder={
+                  request.writeup
+                    ? "Anything to add? You can also send it as it is."
+                    : (TAGS.find((each) => each.tag === tag)?.placeholder ??
+                      "What happened, and what did you expect?")
+                }
+                value={note}
+              />
+            </NoteWithAttachments>
+            <input
+              accept={FEEDBACK_IMAGE_TYPES.join(",")}
+              className="hidden"
+              multiple
+              onChange={(event) => {
+                const files = [...(event.target.files ?? [])];
+                event.target.value = "";
+                void addImages(files);
+              }}
+              ref={pickerRef}
+              type="file"
             />
-
-            <div className="flex flex-col gap-2">
-              <div className="flex flex-wrap items-center gap-3">
-                {images.map((image) => (
-                  <div className="relative" key={image.id}>
-                    <img
-                      alt={image.name}
-                      className="block size-14 rounded-md border border-border bg-muted object-cover"
-                      src={image.src}
-                    />
-                    <button
-                      aria-label={`Remove ${image.name}`}
-                      className="absolute -top-1.5 -right-1.5 grid size-4.5 place-items-center rounded-full bg-foreground text-background hover:bg-foreground/80"
-                      onClick={() => {
-                        setImages((current) =>
-                          current.filter((other) => other.id !== image.id),
-                        );
-                        setImageProblems([]);
-                      }}
-                      type="button"
-                    >
-                      <XIcon className="size-2.5" weight="bold" />
-                    </button>
-                  </div>
-                ))}
-                <Button
-                  disabled={images.length >= MAX_FEEDBACK_IMAGES}
-                  onClick={() => {
-                    pickerRef.current?.click();
-                  }}
-                  size="sm"
-                  variant="outline"
-                >
-                  <ImageIcon />
-                  Add images
-                </Button>
-                <input
-                  accept={FEEDBACK_IMAGE_TYPES.join(",")}
-                  className="hidden"
-                  multiple
-                  onChange={(event) => {
-                    const files = [...(event.target.files ?? [])];
-                    event.target.value = "";
-                    void addImages(files);
-                  }}
-                  ref={pickerRef}
-                  type="file"
-                />
-              </div>
-              {imageProblems.map((line) => (
-                <p
-                  className="flex items-start gap-1.5 text-xs text-destructive"
-                  key={line}
-                >
-                  <WarningCircleIcon className="mt-px size-3.5 shrink-0" />
-                  {line}
-                </p>
-              ))}
-            </div>
+            {pickingCaptures && (
+              <CapturePicker
+                onClose={() => {
+                  setPickingCaptures(false);
+                }}
+                onPick={(captures) => {
+                  void addCaptures(captures);
+                }}
+                room={MAX_FEEDBACK_IMAGES - images.length}
+              />
+            )}
 
             <div className="flex flex-col gap-2">
               <p className="text-[13px] font-medium text-muted-foreground">

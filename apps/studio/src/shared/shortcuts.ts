@@ -26,6 +26,11 @@ export interface ShortcutDescriptor {
 export type ShortcutId = keyof typeof SHORTCUTS;
 
 export const SHORTCUTS = {
+  captureWindow: {
+    accelerator: "CmdOrCtrl+Shift+2",
+    group: "Developer",
+    label: "Capture Window",
+  },
   reloadApp: {
     accelerator: "CmdOrCtrl+Shift+R",
     group: "Developer",

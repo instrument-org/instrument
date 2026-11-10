@@ -40,6 +40,15 @@ type ShortcutAction = (context: {
  * chord.
  */
 const SHORTCUT_ACTIONS: Record<ShortcutId, ShortcutAction> = {
+  // The window takes its own picture, so it can hide the thumbnail first.
+  captureWindow: ({ focusedWindow }) => {
+    if (
+      focusedWindow instanceof BrowserWindow &&
+      appWindowIdOf(focusedWindow.webContents.id) !== undefined
+    ) {
+      commandWindow(focusedWindow, "takeCapture");
+    }
+  },
   reloadApp: ({ focusedWindow }) => {
     if (focusedWindow instanceof BrowserWindow) {
       focusedWindow.webContents.reload();

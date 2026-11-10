@@ -1,3 +1,6 @@
+import { capturePath } from "@/electron-main/lib/captures";
+import { isDeveloperMode } from "@/electron-main/stores/workspace/preferences";
+import { CAPTURE_NAME_PATTERN, CAPTURES_HOST } from "@/shared/captures";
 import { DIRECTORY_ICON_HOST } from "@/shared/directory-icon";
 import { APP_PROTOCOL } from "@instrument-org/shared";
 import {
@@ -63,6 +66,9 @@ export function registerAppProtocol(ses: Session) {
   ses.protocol.handle(APP_PROTOCOL, async (request) => {
     const url = new URL(request.url);
     switch (url.hostname) {
+      case CAPTURES_HOST: {
+        return handleCaptureRequest({ request, url });
+      }
       case DIRECTORY_ICON_HOST: {
         return handleDirectoryIconRequest({ request, url });
       }
@@ -87,6 +93,39 @@ export function registerAppProtocol(ses: Session) {
       }
     }
   });
+}
+
+/**
+ * A developer capture's picture, for the window's thumbnails and editor:
+ * only in developer mode, and only a name the captures folder holds. Readable
+ * across origins so the editor's canvas can export what it drew from it.
+ */
+async function handleCaptureRequest({
+  request,
+  url,
+}: {
+  request: Request;
+  url: URL;
+}) {
+  const name = decodeURIComponent(url.pathname.slice(1));
+  if (
+    request.method !== "GET" ||
+    !isDeveloperMode() ||
+    !CAPTURE_NAME_PATTERN.test(name)
+  ) {
+    return new Response(null, { status: 404 });
+  }
+  try {
+    return new Response(await fs.readFile(capturePath(name)), {
+      headers: {
+        "Access-Control-Allow-Origin": "*",
+        "Cache-Control": "no-store",
+        "Content-Type": "image/png",
+      },
+    });
+  } catch {
+    return new Response(null, { status: 404 });
+  }
 }
 
 /** Where site icons are kept, and the network they are fetched over. */

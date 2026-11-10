@@ -89,6 +89,7 @@ describe("SHORTCUT_GUIDE_ENTRIES", () => {
         "View: Toggle Full Screen  ⌃⌘F",
         "View: Zoom In  ⌘+",
         "View: Zoom Out  ⌘-",
+        "Developer: Capture Window  ⇧⌘2",
         "Developer: Reload App  ⇧⌘R",
         "Developer: Set Theme: Dark  ⇧⌘D",
         "Developer: Set Theme: Light  ⇧⌘L",
@@ -128,6 +129,7 @@ describe("matchShortcuts", () => {
     expect(highlighted("developer")).toMatchInlineSnapshot(`
       [
         "Reload App",
+        "Capture Window",
         "Set Theme: Dark",
         "Set Theme: Light",
         "Set Theme: System",

@@ -2,8 +2,15 @@ import {
   crashWindowAtom,
   useDeveloperStripShown,
 } from "@/client/atoms/developer-strip";
+import { useDeveloperMode } from "@/client/hooks/use-developer-mode";
 import { useAtomValue } from "jotai";
 import { lazy, type ReactNode, Suspense } from "react";
+
+const CaptureLayer = lazy(() =>
+  import("@/client/components/captures/capture-layer").then((m) => ({
+    default: m.CaptureLayer,
+  })),
+);
 
 const DeveloperStrip = lazy(() =>
   import("./developer-strip").then((m) => ({ default: m.DeveloperStrip })),
@@ -23,6 +30,7 @@ export function WithDeveloperStrip({
   onOpenDebugPages?: () => void;
 }) {
   const isShown = useDeveloperStripShown();
+  const isDeveloperMode = useDeveloperMode();
   const shouldCrash = useAtomValue(crashWindowAtom);
   if (shouldCrash) {
     throw new Error("Simulated render crash (App states page)");
@@ -30,7 +38,14 @@ export function WithDeveloperStrip({
 
   return (
     <div className="flex h-full flex-col">
-      <div className="relative min-h-0 flex-1">{children}</div>
+      <div className="relative min-h-0 flex-1">
+        {children}
+        {isDeveloperMode && (
+          <Suspense fallback={null}>
+            <CaptureLayer />
+          </Suspense>
+        )}
+      </div>
       {isShown && (
         <Suspense fallback={<div className="h-6 shrink-0 bg-ink" />}>
           <DeveloperStrip onOpenDebugPages={onOpenDebugPages} />

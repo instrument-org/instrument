@@ -197,6 +197,14 @@ async function offerCaptures(already: number, captures: readonly Capture[]) {
   };
 }
 
+/** The chat the first of these captures was taken in, when one was. */
+function chatTakenIn(images: readonly AttachedImage[]): ChatId | undefined {
+  const takenIn = images.find((image) => image.capture?.meta?.chatId)?.capture
+    ?.meta?.chatId;
+  const parsed = ChatIdSchema.safeParse(takenIn);
+  return parsed.success ? parsed.data : undefined;
+}
+
 /** A part of what goes, as the dialog lists it and its review page shows it. */
 type Part = {
   item: FeedbackItem;
@@ -337,23 +345,22 @@ export function FeedbackDialogContent({
   };
 
   const addCaptures = async (captures: readonly Capture[]) => {
-    try {
-      const { accepted, problems } = await offerCaptures(
-        images.length,
-        captures,
-      );
-      setImages((current) => [...current, ...accepted]);
-      setImageProblems(problems);
-      const takenIn = accepted.find((image) => image.capture?.meta?.chatId)
-        ?.capture?.meta?.chatId;
-      const parsed = ChatIdSchema.safeParse(takenIn);
-      if (!chatId && parsed.success) {
-        setCaptureChat(parsed.data);
-      }
-    } catch (error) {
-      setImageProblems([
-        error instanceof Error ? error.message : String(error),
-      ]);
+    const offered = await offerCaptures(images.length, captures).catch(
+      (error: unknown) => {
+        setImageProblems([
+          error instanceof Error ? error.message : String(error),
+        ]);
+        return undefined;
+      },
+    );
+    if (!offered) {
+      return;
+    }
+    setImages((current) => [...current, ...offered.accepted]);
+    setImageProblems(offered.problems);
+    const takenIn = chatTakenIn(offered.accepted);
+    if (!chatId && takenIn) {
+      setCaptureChat(takenIn);
     }
   };
 

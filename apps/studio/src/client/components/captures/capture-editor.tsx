@@ -34,6 +34,7 @@ import { type ReactNode, useEffect, useRef, useState } from "react";
 import {
   captureEditorAtom,
   capturesChanged,
+  copyCaptureText,
   captureThumbnailAtom,
   trashCapture,
 } from "./capture-store";
@@ -370,76 +371,69 @@ export function CaptureEditor({ capture }: { capture: Capture }) {
     }
     // The editor goes at once and the edit saves behind it: making the PNG of
     // a whole window takes a moment.
-    const edit = { crop, marks };
+    const picture = exportPicture(image, marks, crop);
     close();
-    try {
-      await rpcClient.captures.saveEdit.call({
-        data: await exportPicture(image, edit.marks, edit.crop),
-        name: capture.name,
+    await picture
+      .then((data) =>
+        rpcClient.captures.saveEdit.call({ data, name: capture.name }),
+      )
+      .then(capturesChanged, (error: unknown) => {
+        toast.error("Couldn't save the capture", { cause: error });
       });
-      capturesChanged();
-    } catch (error) {
-      toast.error("Couldn't save the capture", { cause: error });
-    }
   };
 
   const copy = async () => {
-    try {
-      await copyCaptureImage(
-        capture,
-        image && changed ? await exportPicture(image, marks, crop) : undefined,
-      );
-      toast.success("Copied the capture");
-    } catch (error) {
-      toast.error("Couldn't copy the capture", { cause: error });
-    }
+    const picture =
+      image && changed ? exportPicture(image, marks, crop) : undefined;
+    await copyCaptureImage(capture, picture).then(
+      () => toast.success("Copied the capture"),
+      (error: unknown) => {
+        toast.error("Couldn't copy the capture", { cause: error });
+      },
+    );
   };
 
   // What goes on the clipboard as text reads the file, so an edit not yet
   // saved is saved first, as Done would.
   const copyText = async (kind: "agent" | "path") => {
-    try {
-      if (image && changed) {
-        const saved = await rpcClient.captures.saveEdit.call({
-          data: await exportPicture(image, marks, crop),
-          name: capture.name,
-        });
-        setThumbnail((current) =>
-          current?.name === saved.name ? saved : current,
-        );
-        capturesChanged();
-        setCrop(null);
-        setMarks([]);
-        setImage(null);
-        setReloads((count) => count + 1);
-      }
-      const { note, path } = await rpcClient.captures.agentNote.call({
-        name: capture.name,
-      });
-      await navigator.clipboard.writeText(kind === "agent" ? note : path);
-      toast.success(
-        kind === "agent"
-          ? "Copied the capture for an agent"
-          : "Copied the path",
-      );
-    } catch (error) {
-      toast.error("Couldn't copy the capture", { cause: error });
-    }
+    const saving =
+      image && changed
+        ? exportPicture(image, marks, crop)
+            .then((data) =>
+              rpcClient.captures.saveEdit.call({ data, name: capture.name }),
+            )
+            .then((saved) => {
+              setThumbnail((current) =>
+                current?.name === saved.name ? saved : current,
+              );
+              capturesChanged();
+              setCrop(null);
+              setMarks([]);
+              setImage(null);
+              setReloads((count) => count + 1);
+            })
+        : Promise.resolve();
+    await saving.then(
+      () => copyCaptureText(capture.name, kind),
+      (error: unknown) => {
+        toast.error("Couldn't copy the capture", { cause: error });
+      },
+    );
   };
 
   const revert = async () => {
-    try {
-      const reverted = await rpcClient.captures.revert.call({
-        name: capture.name,
-      });
-      setThumbnail((current) =>
-        current?.name === reverted.name ? reverted : current,
-      );
-      capturesChanged();
-      close();
-    } catch (error) {
-      toast.error("Couldn't revert the capture", { cause: error });
-    }
+    await rpcClient.captures.revert.call({ name: capture.name }).then(
+      (reverted) => {
+        setThumbnail((current) =>
+          current?.name === reverted.name ? reverted : current,
+        );
+        capturesChanged();
+        close();
+      },
+      (error: unknown) => {
+        toast.error("Couldn't revert the capture", { cause: error });
+      },
+    );
   };
 
   const meta = capture.meta;

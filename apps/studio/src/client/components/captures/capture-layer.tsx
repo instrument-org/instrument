@@ -8,7 +8,11 @@ import {
 import { toast } from "@/client/lib/toast";
 import { cn, osConventions } from "@/client/lib/utils";
 import { rpcClient } from "@/client/rpc/client";
-import { type Capture, captureUrl } from "@/shared/captures";
+import {
+  type Capture,
+  type CaptureContext,
+  captureUrl,
+} from "@/shared/captures";
 import { ChatIdSchema } from "@instrument-org/workspace/client";
 import { CaretDownIcon } from "@phosphor-icons/react/CaretDown";
 import { FolderSimpleIcon } from "@phosphor-icons/react/FolderSimple";
@@ -65,6 +69,58 @@ function loaded(src: string) {
 }
 
 /**
+ * Takes the capture, then flies it into the corner: the picture appears at the
+ * window's size, one render starts the shrink and the flash fading, and
+ * nothing renders again until it lands, so the flight runs undisturbed.
+ */
+async function takeAndFly({
+  context,
+  measure,
+  setFlying,
+  setHidden,
+  setLanding,
+  setSize,
+  setThumbnail,
+}: {
+  context: CaptureContext;
+  measure: () => { height: number; width: number };
+  setFlying: (capture: Capture | null) => void;
+  setHidden: (hidden: boolean) => void;
+  setLanding: (landing: boolean) => void;
+  setSize: (size: { height: number; width: number }) => void;
+  setThumbnail: (capture: Capture | null) => void;
+}) {
+  const chatId = ChatIdSchema.safeParse(context.chatId);
+  const [chatTitle] = await Promise.all([
+    chatId.success
+      ? rpcClient.workspace.chats.byId
+          .call({ id: chatId.data })
+          .then((chat) => chat?.title)
+          .catch(() => undefined)
+      : undefined,
+    nextPaint(),
+  ]);
+  const capture = await rpcClient.captures.take.call({
+    ...context,
+    ...(chatTitle && { chatTitle }),
+  });
+  await loaded(captureUrl(capture));
+  setSize(measure());
+  setThumbnail(null);
+  setLanding(false);
+  setFlying(capture);
+  setHidden(false);
+  await nextPaint();
+  setLanding(true);
+  await new Promise((resolve) => {
+    setTimeout(resolve, FLY_MS);
+  });
+  setThumbnail(capture);
+  setFlying(null);
+  capturesChanged();
+}
+
+/**
  * Developer captures in one window: takes one when asked (the shortcut, the
  * strip's button), with the corner thumbnail hidden first so no capture shows
  * the one before it, shrinks the picture from the whole window into the
@@ -109,49 +165,25 @@ export function CaptureLayer() {
       workspace: workspace?.name,
     });
     setHidden(true);
-    void (async () => {
-      try {
-        const chatId = ChatIdSchema.safeParse(context.chatId);
-        const [chatTitle] = await Promise.all([
-          chatId.success
-            ? rpcClient.workspace.chats.byId
-                .call({ id: chatId.data })
-                .then((chat) => chat?.title)
-                .catch(() => undefined)
-            : undefined,
-          nextPaint(),
-        ]);
-        const capture = await rpcClient.captures.take.call({
-          ...context,
-          ...(chatTitle && { chatTitle }),
-        });
-        await loaded(captureUrl(capture));
-        const root = rootRef.current;
-        setSize({
-          height: root?.offsetHeight ?? 0,
-          width: root?.offsetWidth ?? 0,
-        });
-        setThumbnail(null);
-        setLanding(false);
-        setFlying(capture);
-        setHidden(false);
-        await nextPaint();
-        // One render starts both the shrink and the flash fading, and nothing
-        // renders again until it lands, so the flight runs undisturbed.
-        setLanding(true);
-        await new Promise((resolve) => {
-          setTimeout(resolve, FLY_MS);
-        });
-        setThumbnail(capture);
-        setFlying(null);
-        capturesChanged();
-      } catch (error) {
+    void takeAndFly({
+      context,
+      measure: () => ({
+        height: rootRef.current?.offsetHeight ?? 0,
+        width: rootRef.current?.offsetWidth ?? 0,
+      }),
+      setFlying,
+      setHidden,
+      setLanding,
+      setSize,
+      setThumbnail,
+    })
+      .catch((error: unknown) => {
         toast.error("Couldn't capture the window", { cause: error });
-      } finally {
+      })
+      .finally(() => {
         busy.current = false;
         setHidden(false);
-      }
-    })();
+      });
   }, [request, resolvedTheme, setThumbnail, workspace?.name]);
 
   // The thumbnail goes on its own after a while, unless the pointer is on it.

@@ -66,8 +66,9 @@ function fitted(ctx: CanvasRenderingContext2D, text: string, width: number) {
 }
 
 /** The picture with its band, as a PNG. `picture` is an edit not yet saved, when there is one. */
-async function stamped(capture: Capture, picture?: Blob) {
-  const source = picture ?? (await (await fetch(captureUrl(capture))).blob());
+async function stamped(capture: Capture, picture?: Promise<Blob>) {
+  const source =
+    (await picture) ?? (await (await fetch(captureUrl(capture))).blob());
   const meta = capture.meta;
   if (!meta) {
     return source;
@@ -107,7 +108,10 @@ async function stamped(capture: Capture, picture?: Blob) {
 }
 
 /** Puts a capture on the clipboard as a picture with its build band. */
-export async function copyCaptureImage(capture: Capture, picture?: Blob) {
+export async function copyCaptureImage(
+  capture: Capture,
+  picture?: Promise<Blob>,
+) {
   const blob = await stamped(capture, picture);
   await navigator.clipboard.write([new ClipboardItem({ "image/png": blob })]);
 }

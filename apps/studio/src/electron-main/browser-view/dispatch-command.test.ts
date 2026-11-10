@@ -269,7 +269,10 @@ describe("sendCommand", () => {
         sendCommand: vi.fn().mockResolvedValue({ frameId: "F" }),
       });
 
+      // Main's own page load: an agent's would start the pointer's own
+      // check for whether the agent is still at work.
       await dispatch({
+        byAgent: false,
         entries: new Map([[TARGET_ID, entry]]),
         method: "Page.navigate",
         params: { url: "https://example.com" },

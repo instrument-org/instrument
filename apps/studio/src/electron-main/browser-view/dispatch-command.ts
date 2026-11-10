@@ -12,7 +12,7 @@ import { noop, sleep } from "radashi";
 
 import type { BrowserEntry } from "./entry";
 
-import { showAgentPointer, withoutAgentPointer } from "./agent-pointer";
+import { showAgentCommand, withoutAgentPointer } from "./agent-pointer";
 import { captureFrame, FrameNotDrawnError } from "./capture-frame";
 import {
   DEFAULT_VIEWPORT_HEIGHT,
@@ -102,6 +102,7 @@ function isNavigationRace(error: unknown): boolean {
 }
 
 export async function sendCommand({
+  byAgent = true,
   describeHost,
   ensureDebuggerAttached,
   entries,
@@ -111,6 +112,8 @@ export async function sendCommand({
   requestGuestFocus,
   targetId,
 }: {
+  /** Whether an agent sent the command, which the agent's pointer shows; main's own page loads come through here too. */
+  byAgent?: boolean;
   // Whether the user could see the guest: its window's state and whether its
   // tab is shown or parked.
   describeHost: (targetId: BrowserTargetId) => Promise<string>;
@@ -136,6 +139,7 @@ export async function sendCommand({
 
   const forward = () =>
     forwardToDebugger({
+      byAgent,
       describeHost,
       entry,
       frameSession,
@@ -326,6 +330,7 @@ function noteUnknownMethod(method: string) {
  * that holds focus, and a budget on the answer.
  */
 async function forwardToDebugger({
+  byAgent,
   describeHost,
   entry,
   frameSession,
@@ -334,6 +339,7 @@ async function forwardToDebugger({
   requestGuestFocus,
   targetId,
 }: {
+  byAgent: boolean;
   describeHost: (targetId: BrowserTargetId) => Promise<string>;
   entry: BrowserEntry;
   frameSession: string | undefined;
@@ -442,6 +448,9 @@ async function forwardToDebugger({
     >(["Input.dispatchMouseEvent", "Input.synthesizeTapGesture"]);
     const timeoutMs = SLOW_COMMANDS.has(method) ? 20_000 : 5000;
     let timeout: ReturnType<typeof setTimeout> | undefined;
+    if (byAgent) {
+      await showAgentCommand(entry, method, delivered, frameSession);
+    }
     const sent = sendToDebugger(
       wc,
       method,
@@ -451,7 +460,6 @@ async function forwardToDebugger({
       ),
       frameSession,
     );
-    showAgentPointer(entry, method, delivered, frameSession);
     // oxlint-disable-next-line typescript/no-unsafe-assignment
     const result = await Promise.race([
       method === "Page.captureScreenshot" || method.startsWith("Input.")

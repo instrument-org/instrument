@@ -15,27 +15,25 @@ pnpm monorepo for the Instrument desktop app platform. The public website is htt
 
 ## UI copy
 
-Words a person reads in the app (subheads, descriptions, empty states, toasts, dialogs) are written in conversational plain language: full sentences, said the way you would say them out loud to a friend. Keep it short, and keep the grammar. Read the line aloud, and if no one would say it that way, rewrite it.
+Words a person reads in the app (subheads, descriptions, empty states, toasts, dialogs, errors) are written in conversational plain language: full sentences, said the way you would say them out loud to a friend. Keep it short, and keep the grammar. Read the line aloud, and if no one would say it that way, rewrite it.
 
-These rules cover prose a person reads in the app and nothing else. Buttons, labels and placeholders are a word or a few ("Send", not "Stop and send what you said"). Text written for the agent (system prompts, tool descriptions, skill and environment notes) is terse and direct, written the way an agent reads best. When a full sentence and a shorter matter-of-fact one both work, take the shorter.
+These rules cover text a person reads in the app and nothing else. Buttons, labels and placeholders are a word or a few: "Send", "Remove", "Search the web". Text written for the agent (system prompts, tool descriptions, skill and environment notes) is terse and direct, written the way an agent reads best. When a full sentence and a shorter matter-of-fact one both work, take the shorter.
 
-What to avoid:
+How a line that passes review is written:
 
-- **Telegraphic sentences** that drop the subject or the small words to sound punchy: "Adds to what Instrument already knows." Say what does it: "Importing adds to what Instrument remembers."
-- **Negative contrast**, "X, never Y" or "not X but Y", which adds emphasis by denying something nobody claimed: "Adds to your memories, never replaces them."
-- **Clipped commands with a vague "it"**: "Repeat it for each AI you use."
-- **Narrating the mechanism** instead of saying what the person gets: "Instrument reads it in a new chat and keeps what is worth keeping."
-- **Spelling out the obvious**: a clause describing what the person can already see or would assume anyway, which makes a short line long and a little condescending. "Drag a file here to add it to this folder you're looking at" is "Drag a file here to add it."
-- **Inventories** in a label, button or placeholder that list every kind of thing it covers: "Find tasks, files, people, and settings…" The results show the range; the label names the act in a few plain words. Labels, buttons and placeholders are the one place copy is not a full sentence.
-- **Odd verbs** in place of everyday ones: a chat "can hold" so much, a folder "holds" your keys, a task "carries on", an app "sends back" an answer. Say has, fits, continues, or shows. Agents reach for "hold" far more often than people do, so when it turns up in your own draft, rewrite the line.
-
-- **Software that hears, knows or is told things**: "Before each message, a chat hears what you just did." Say what goes where: "Each message you send includes a short list of what you just did here."
-- **Vague nouns** standing in for the real one: "what kind of thing you did", "something like". Name it, or cut the clause.
-- **A clause another screen already says**: a caveat the send dialog or the report already covers makes this line longer and no clearer.
+- **It says what the thing is or what the person can do.** How the app works inside, why something is on screen and what just happened to it stay out: "Importing adds to what Instrument remembers."
+- **The person or the thing is the subject.** Software does what software does (opens, shows, saves), and an error is a plain fact: "Couldn't load the release notes."
+- **Each word is one a person outside the company would say.** Everyday verbs (has, fits, continues, shows, is in), and the names people already use for things.
+- **A label borrows the standard word** that ChatGPT, macOS or Chrome use for the same act, and a service's own word for its own thing (ChatGPT's "sign out").
+- **It adds something the person can't already see.** One fact per line, and a fact another screen says is left to that screen.
+- **It is true on every device, every system and in every state.** A switch's description reads right both on and off, and copy says nothing it can't know.
+- **A limit, error or sign-in names whose it is**: "ChatGPT's usage limit".
 
 A line that works: "Importing adds to what Instrument remembers, so you can bring in memories from every AI you use."
 
 Warm words are welcome. "Create an account to enjoy free AI usage" says "enjoy" on purpose, so a cleanup pass leaves a word like that alone.
+
+Two checks back this up. `studio/plain-copy` fails lint on the phrases review always sends back. The `copy-review` skill is the checklist for the rest, with the lines review sent back and what replaced them; run it on any change that adds UI text (`node scripts/ui-copy.ts --new` lists it), and a Stop hook asks for it once a session adds some. A copy change lists each line before → after in its report or PR.
 
 ## Local references
 

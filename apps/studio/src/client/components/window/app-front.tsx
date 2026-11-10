@@ -39,9 +39,9 @@ import { appMentionToken } from "@/client/lib/app-mention";
 import { rpcClient, type RPCOutput } from "@/client/rpc/client";
 import { osConventions } from "@/client/lib/utils";
 import { CaretDownIcon } from "@phosphor-icons/react/CaretDown";
-import { useMutation, useQuery } from "@tanstack/react-query";
+import { useQuery } from "@tanstack/react-query";
 import { useState } from "react";
-import { toast } from "@/client/lib/toast";
+import { useAppTest } from "@/client/components/window/use-app-test";
 
 /** How many of the pages visited in the app its front lists. */
 const VISITS_SHOWN = 12;
@@ -143,21 +143,7 @@ export function AppFront({
   const visited = useRecentPages();
   const visits = visitsWithin(visited, [{ name, site }]).slice(0, VISITS_SHOWN);
 
-  const test = useMutation(
-    rpcClient.apps.test.mutationOptions({
-      onError: (error) => {
-        toast.error(`Couldn't test ${name}`, { cause: error });
-      },
-      onSuccess: (report) => {
-        if (!report.passed) {
-          const failure = report.checks.find(
-            (check) => check.status === "fail",
-          );
-          toast.error(`Couldn't connect ${name}`, { cause: failure?.detail });
-        }
-      },
-    }),
-  );
+  const test = useAppTest(name);
 
   if (list.isPending || catalog.isPending) {
     return (

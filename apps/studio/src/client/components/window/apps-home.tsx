@@ -10,6 +10,7 @@ import { Skeleton } from "@/client/components/ui/skeleton";
 import { AppIcon } from "@/client/components/window/app-icon";
 import { ChatMarkDot } from "@/client/components/window/chat-mark";
 import { useWindow } from "@/client/components/window/context";
+import { useAppTest } from "@/client/components/window/use-app-test";
 import { useConnectFromDirectory } from "@/client/components/window/use-connect-from-directory";
 import { AppContextMenu } from "@/client/components/window/app-menu";
 import { GlyphButton } from "@/client/components/window/glyph-button";
@@ -141,7 +142,7 @@ export function AppsHome({
       <CatalogTile
         entry={entry}
         key={entry.slug}
-        mine={mine.map((app) => app.slug)}
+        mine={mine}
         onConnect={() => {
           connect(entry);
         }}
@@ -444,9 +445,11 @@ function AddAppMark({ onOpen }: { onOpen: () => void }) {
  * A service the directory knows, still to connect: its icon, its name and
  * tagline, and the one control that starts connecting it. The tile itself
  * opens the service's page, which says what connecting takes. One already
- * here opens its own page, with connecting another account under its menu.
+ * here opens its own page, with connecting another account under its menu;
+ * one here that is not connected says what it waits for, and one whose
+ * connection failed offers to try it again.
  */
-function CatalogTile({
+export function CatalogTile({
   entry,
   mine,
   onConnect,
@@ -454,24 +457,29 @@ function CatalogTile({
   onOpen,
 }: {
   entry: CatalogEntry;
-  /** The workspace's own apps that are this service, when it has any. */
-  mine: string[];
+  /** The workspace's own apps that are this service, connected first, when it has any. */
+  mine: Pick<App, "name" | "slug" | "status">[];
   onConnect: () => void;
   onConnectAnother: () => void;
   onOpen: (slug: string) => void;
 }) {
-  const first = mine[0];
+  const app = mine[0];
+  const first = app?.slug;
+  const test = useAppTest(app?.name ?? entry.name);
   // A service already here opens its own page; one not yet here opens the
   // directory's page for it, which says what connecting takes.
   const target = first ?? entry.slug;
+  const failed = mine.length === 1 && app?.status === "failed";
   return (
     <Tile
       icon={entry.icon}
       line={
-        first === undefined
+        app === undefined
           ? entry.tagline
           : mine.length === 1
-            ? "In your apps"
+            ? app.status === "connected"
+              ? "In your apps"
+              : waitingLine(app)
             : `${mine.length} accounts in your apps`
       }
       name={entry.name}
@@ -487,15 +495,28 @@ function CatalogTile({
         </GlyphButton>
       ) : (
         <div className="flex shrink-0 items-center gap-1">
-          <Button
-            onClick={() => {
-              onOpen(first);
-            }}
-            size="sm"
-            variant="outline"
-          >
-            Open
-          </Button>
+          {failed ? (
+            <Button
+              disabled={test.isPending}
+              onClick={() => {
+                test.mutate({ slug: first });
+              }}
+              size="sm"
+              variant="outline"
+            >
+              {test.isPending ? "Trying…" : "Try again"}
+            </Button>
+          ) : (
+            <Button
+              onClick={() => {
+                onOpen(first);
+              }}
+              size="sm"
+              variant="outline"
+            >
+              Open
+            </Button>
+          )}
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
               <Button
@@ -717,7 +738,7 @@ function UnlistedTile({
 }
 
 /** What an app not yet connected is waiting for, in a few words under its name. */
-function waitingLine(app: App): string {
+function waitingLine(app: Pick<App, "status">): string {
   switch (app.status) {
     case "declined": {
       return "Not connected";

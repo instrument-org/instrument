@@ -16,6 +16,7 @@ import { type RefObject, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 
 import { ImageWithFallback } from "./image-with-fallback";
+import { Button } from "./ui/button";
 import {
   DropdownMenu,
   DropdownMenuCheckboxItem,
@@ -156,16 +157,18 @@ function ImageZoomMenu({
     // Non-modal, so the picture stays in reach while it is open.
     <DropdownMenu modal={false}>
       <DropdownMenuTrigger asChild>
-        <button
+        {/* The row's own button, as Source beside it is. As wide as its
+            reading, which changes a digit at a time in tabular figures. */}
+        <Button
           aria-label={`Zoom: ${label}`}
-          className="flex h-7 shrink-0 items-center gap-1.5 rounded-md px-2 text-xs font-medium text-foreground/70 tabular-nums outline-none hover:bg-foreground/8 hover:text-foreground focus-visible:outline-[3px] focus-visible:outline-ring/50 focus-visible:[outline-style:solid] data-[state=open]:bg-foreground/8 data-[state=open]:text-foreground"
-          type="button"
+          className="shrink-0 gap-1 px-1.5 text-xs text-muted-foreground tabular-nums has-[>svg]:px-1.5 data-[state=open]:bg-foreground/7 data-[state=open]:text-accent-foreground dark:data-[state=open]:bg-accent/50"
+          size="sm"
+          variant="ghost"
         >
           <MagnifyingGlassIcon className="size-3.5" />
-          {/* As wide as the longest reading, so the row stays still as it changes. */}
-          <span className="w-[5ch] text-right">{label}</span>
+          {label}
           <CaretDownIcon className="size-2.5 opacity-60" weight="bold" />
-        </button>
+        </Button>
       </DropdownMenuTrigger>
       <DropdownMenuContent
         align="end"

@@ -17,7 +17,6 @@ import { zoomAtom } from "@/client/atoms/zoom";
 import { cn } from "@/client/lib/utils";
 import { type Icon } from "@phosphor-icons/react";
 import { ArrowLeftIcon } from "@phosphor-icons/react/ArrowLeft";
-import { CaretRightIcon } from "@phosphor-icons/react/CaretRight";
 import { CubeIcon } from "@phosphor-icons/react/Cube";
 import { DesktopIcon } from "@phosphor-icons/react/Desktop";
 import { GlobeIcon } from "@phosphor-icons/react/Globe";
@@ -286,7 +285,6 @@ export function ComposerAddMenu({
               >
                 <PlaceIcon className="size-4" place="apps" />
                 <span className="min-w-0 flex-1">Apps</span>
-                <CaretRightIcon className="size-3.5 text-muted-foreground" />
               </DropdownMenuItem>
               {skills.length > 0 && (
                 <DropdownMenuItem
@@ -297,7 +295,6 @@ export function ComposerAddMenu({
                 >
                   <CubeIcon className="size-4" />
                   <span className="min-w-0 flex-1">Skills</span>
-                  <CaretRightIcon className="size-3.5 text-muted-foreground" />
                 </DropdownMenuItem>
               )}
               {actions

@@ -209,4 +209,59 @@ describe("a chat's plus", () => {
     );
     expect(onOpenApps).toHaveBeenCalledOnce();
   });
+
+  it("opens Apps and Skills as plain rows, with no submenu arrow", async () => {
+    await renderInBrowser(
+      <ChatPlus onNameApp={noop} onOpenApps={noop} onOpenWeb={noop} />,
+    );
+    await open();
+    const icons = (name: string) =>
+      page.getByRole("menuitem", { name }).element().querySelectorAll("svg")
+        .length;
+
+    expect([icons("Apps"), icons("Skills")]).toEqual([1, 1]);
+  });
+
+  it("cuts a long skill name short to keep where it came from in the menu", async () => {
+    const name = "summarize-every-meeting-transcript-in-the-shared-folder";
+    function LongSkill() {
+      const [view, setView] = useState<ComposerMenuView | null>("skills");
+      return (
+        <ComposerAddMenu
+          actions={[]}
+          onReturnFocus={noop}
+          onSelectSkill={noop}
+          onViewChange={setView}
+          places={{
+            apps: [],
+            computerName: "This Mac",
+            onNameApp: noop,
+            onOpenApps: noop,
+            onOpenComputer: noop,
+            onOpenWeb: noop,
+          }}
+          skills={[
+            {
+              aliases: [],
+              description: "Summarizes meetings",
+              id: `workspace:${name}`,
+              name,
+              path: `/skills/${name}`,
+              qualifiedName: name,
+              source: "workspace",
+              title: "Summarize",
+            },
+          ]}
+          view={view}
+        />
+      );
+    }
+    // A view set opens the menu on it, as the composer does.
+    await renderInBrowser(<LongSkill />);
+    const source = page.getByText("Your workspace").element();
+
+    expect(source.getBoundingClientRect().right).toBeLessThanOrEqual(
+      menuBox().right,
+    );
+  });
 });

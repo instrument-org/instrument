@@ -35,8 +35,9 @@ export function SkillMenuRow({ match }: { match: SkillMatch<ComposerSkill> }) {
     <>
       {/* The plain name, even where two sources share it: the source on the
           right is what tells them apart, and reading it there is easier than
-          reading a prefix. Choosing the row stores the stable ID. */}
-      <span className="shrink-0 text-sm font-medium">
+          reading a prefix. Choosing the row stores the stable ID. A long
+          one is cut short so the source keeps its place in the row. */}
+      <span className="min-w-0 truncate text-sm font-medium">
         /
         <FuzzyHighlight
           matchClassName={SKILL_NAME_MATCH_CLASS_NAME}

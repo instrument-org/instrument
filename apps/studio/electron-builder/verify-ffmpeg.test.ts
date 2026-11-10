@@ -1,8 +1,9 @@
-import { cpSync, mkdtempSync, writeFileSync } from "node:fs";
+import { cpSync, mkdtempSync, readFileSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { describe, expect, it } from "vitest";
 
+import { FFMPEG_VERSION } from "./ffmpeg-release";
 import {
   verifyFfmpegBinary,
   verifyFfmpegTree,
@@ -118,5 +119,18 @@ describe("verifyVersionBanner", () => {
         "ffprobe version 7.1 Copyright (c) 2007-2024 the FFmpeg developers",
       ),
     ).toThrow(/unexpected -version output/);
+  });
+});
+
+describe("the ffmpeg system skill", () => {
+  it("names the FFmpeg version the app ships", () => {
+    const skill = readFileSync(
+      path.resolve(
+        import.meta.dirname,
+        "../../../packages/workspace/system-skills/ffmpeg/SKILL.md",
+      ),
+      "utf8",
+    );
+    expect(skill).toContain(`FFmpeg ${FFMPEG_VERSION},`);
   });
 });

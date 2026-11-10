@@ -52,7 +52,7 @@ describe("projectChangeLines", () => {
         name: "Billing",
       }),
     ).toEqual([
-      { kind: "look", words: "New icon and color" },
+      { kind: "look", words: "Icon and color updated" },
       { before: "Invoices", kind: "renamed" },
       { kind: "deleted", words: "Deleted" },
     ]);
@@ -64,7 +64,7 @@ describe("projectChangeLines", () => {
         fields: [{ after: "🌵", before: null, field: "emoji" }],
         name: "Hard Times",
       }),
-    ).toEqual([{ kind: "look", words: "New emoji" }]);
+    ).toEqual([{ kind: "look", words: "Emoji updated" }]);
   });
 });
 

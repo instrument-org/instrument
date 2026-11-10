@@ -10,7 +10,6 @@ import {
   projectLookBefore,
 } from "@instrument-org/workspace/client";
 import { ArrowCounterClockwiseIcon } from "@phosphor-icons/react/ArrowCounterClockwise";
-import { ArrowRightIcon } from "@phosphor-icons/react/ArrowRight";
 import { CardsThreeIcon } from "@phosphor-icons/react/CardsThree";
 import { CheckIcon } from "@phosphor-icons/react/Check";
 import { useQuery } from "@tanstack/react-query";
@@ -24,8 +23,9 @@ const SHOWN_PROJECTS = 5;
 /**
  * What a turn's `instrument projects` commands changed, as a card under the
  * reply in the chats card's frame: a heading drawn from the changes ("Changed
- * the icons and colors of 10 projects"), then each project with its old mark
- * beside its new one, a rename, or a delete. Undo puts back whatever still
+ * the icons and colors of 10 projects"), then each project with its mark as
+ * it is now and a line for each kind of change: "Icon updated", "Renamed
+ * from", "Deleted". Undo puts back whatever still
  * stands as the turn left it, and the card then shows every change struck
  * through.
  */
@@ -195,14 +195,7 @@ function ProjectRow({
       <span className="mt-1 flex flex-col gap-0.5 pl-7">
         {projectChangeLines(change).map((line) => (
           <span className={lineClassName} key={line.kind}>
-            {line.kind === "look" ? (
-              <>
-                <ProjectMark project={before} />
-                <ArrowRightIcon className="size-2.75 text-muted-foreground/70" />
-                <ProjectMark project={now} />
-                <span>{line.words}</span>
-              </>
-            ) : line.kind === "renamed" ? (
+            {line.kind === "renamed" ? (
               <span>
                 Renamed from{" "}
                 <span className="text-muted-foreground/80">

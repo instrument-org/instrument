@@ -93,9 +93,9 @@ export function projectChangesHeading(
 }
 
 /**
- * The lines under one project in the card: one for its look, which the card
- * draws beside the old and new marks ("New icon and color"), then one each
- * for a rename and for being deleted or brought back.
+ * The lines under one project in the card: one for its look ("Icon and
+ * color updated"), which the row's mark already shows as it is now, then one
+ * each for a rename and for being deleted or brought back.
  */
 export function projectChangeLines(
   project: ChangedProject,
@@ -116,9 +116,9 @@ export function projectChangeLines(
       kind: "look",
       words: kinds.has("mark")
         ? kinds.has("color")
-          ? `New ${mark} and color`
-          : `New ${mark}`
-        : "New color",
+          ? `${mark === "emoji" ? "Emoji" : "Icon"} and color updated`
+          : `${mark === "emoji" ? "Emoji" : "Icon"} updated`
+        : "Color updated",
     });
   }
   const renamed = project.fields.find((field) => field.field === "name");

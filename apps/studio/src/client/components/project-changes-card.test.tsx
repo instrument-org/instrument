@@ -54,7 +54,7 @@ describe("ProjectChangesCard", () => {
     await waitFor(() => {
       expect(screen.getByRole("button", { name: "Kitchen" })).toBeTruthy();
     });
-    expect(screen.getByText("New icon")).toBeTruthy();
+    expect(screen.getByText("Icon updated")).toBeTruthy();
     expect(screen.getByText(/Renamed from/).textContent).toBe(
       "Renamed from “Remy”",
     );

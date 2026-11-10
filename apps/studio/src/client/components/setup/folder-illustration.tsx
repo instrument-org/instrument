@@ -5,6 +5,7 @@ import { cn } from "@/client/lib/utils";
 import { type ReactNode, useRef } from "react";
 
 import { useHeroPieces } from "./hero-morph";
+import { useSetupPictureEntrance } from "./setup-pictures";
 
 import {
   ChartIllustration,
@@ -27,8 +28,9 @@ import {
 export function PackedFolder() {
   const ref = useRef<HTMLDivElement>(null);
   const morph = useHeroPieces(ref);
+  const entrance = useSetupPictureEntrance();
   return (
-    <div aria-hidden className="relative h-46 w-140" ref={ref}>
+    <div aria-hidden className={cn("relative h-46 w-140", entrance)} ref={ref}>
       <img
         alt=""
         className="absolute top-[164.3px] left-[199.8px] h-9.5 w-[160.4px] max-w-none"

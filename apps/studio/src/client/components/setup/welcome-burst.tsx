@@ -3,6 +3,7 @@ import { cn } from "@/client/lib/utils";
 import { type ReactNode, useRef } from "react";
 
 import { useHeroPieces } from "./hero-morph";
+import { useSetupPictureEntrance } from "./setup-pictures";
 
 import {
   ChartIllustration,
@@ -86,8 +87,13 @@ const PAGES: {
 export function WelcomeBurst() {
   const ref = useRef<HTMLDivElement>(null);
   const morph = useHeroPieces(ref);
+  const entrance = useSetupPictureEntrance();
   return (
-    <div aria-hidden className="relative h-37.5 w-107" ref={ref}>
+    <div
+      aria-hidden
+      className={cn("relative h-37.5 w-107", entrance)}
+      ref={ref}
+    >
       <div className="absolute top-0 left-0 h-49 w-140 origin-top-left scale-[0.765] [--vignette-scale:0.765]">
         {PAGES.map(({ burst, className, name, page, rotate }) => (
           <div

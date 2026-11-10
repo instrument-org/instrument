@@ -26,6 +26,7 @@ import { toast } from "@/client/lib/toast";
 
 import { type CodeFind } from "./code-find";
 import { CodeFindCard } from "./code-find-card";
+import { CodeFindMarks } from "./code-find-marks";
 import {
   type CodeExternalChange,
   type CodeSession,
@@ -260,6 +261,12 @@ function LiveCodeDocument({
           createPortal(
             <CodeFindCard find={find} view={session.view} />,
             findHost,
+          )}
+        {session &&
+          find &&
+          createPortal(
+            <CodeFindMarks find={find} view={session.view} />,
+            session.view.dom,
           )}
         {(offscreen || status === "error") && (
           <div className="pointer-events-none absolute inset-x-0 bottom-4 z-10 flex flex-wrap justify-center gap-2">

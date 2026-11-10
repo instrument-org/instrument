@@ -24,6 +24,7 @@ import {
   parseNotebook,
 } from "./notebook-format";
 import { NotebookHtml } from "./notebook-html";
+import { FindScrollMarks, useRangeMarks } from "../find-scroll-marks";
 import { useFindHighlights } from "./use-find-highlights";
 import {
   ViewerFindControl,
@@ -229,8 +230,15 @@ function NotebookDocument({ text }: { text: string }) {
 
   const [query, setQuery] = useState("");
   const scrollRef = useRef<HTMLDivElement>(null);
-  const { activeMatch, goToMatch, matchCount, resetActiveMatch, styleSheet } =
-    useFindHighlights({ containerRef: scrollRef, query });
+  const {
+    activeMatch,
+    goToMatch,
+    matchCount,
+    ranges,
+    resetActiveMatch,
+    styleSheet,
+  } = useFindHighlights({ containerRef: scrollRef, query });
+  const marks = useRangeMarks(scrollRef, ranges, activeMatch);
 
   return (
     <>
@@ -261,17 +269,20 @@ function NotebookDocument({ text }: { text: string }) {
         />
       </ViewerToolbar>
 
-      <div className="min-h-0 flex-1 overflow-auto" ref={scrollRef}>
-        <div className="@container/notebook mx-auto flex max-w-4xl flex-col gap-6 p-4">
-          <NotebookScrollContext value={scrollRef}>
-            {notebook.cells.map((cell) => (
-              <NotebookCellView
-                cell={cell}
-                key={cell.id}
-                language={notebook.language}
-              />
-            ))}
-          </NotebookScrollContext>
+      <div className="relative flex min-h-0 flex-1 flex-col">
+        <FindScrollMarks marks={marks} />
+        <div className="min-h-0 flex-1 overflow-auto" ref={scrollRef}>
+          <div className="@container/notebook mx-auto flex max-w-4xl flex-col gap-6 p-4">
+            <NotebookScrollContext value={scrollRef}>
+              {notebook.cells.map((cell) => (
+                <NotebookCellView
+                  cell={cell}
+                  key={cell.id}
+                  language={notebook.language}
+                />
+              ))}
+            </NotebookScrollContext>
+          </div>
         </div>
       </div>
     </>

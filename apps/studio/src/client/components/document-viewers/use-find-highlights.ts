@@ -194,6 +194,8 @@ export function useFindHighlights({
       setActiveMatch(next < 0 ? next + ranges.length : next);
     },
     matchCount: ranges.length,
+    /** The matches, for marking where they are down the scroll. */
+    ranges,
     resetActiveMatch: () => {
       setActiveMatch(0);
     },

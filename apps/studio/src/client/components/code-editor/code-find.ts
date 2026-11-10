@@ -10,6 +10,8 @@ export interface CodeFind {
   query: SearchQuery;
   /** A file shown read only has no replace. */
   readOnly: boolean;
+  /** Where each match starts, in the file, for marking them down the scroll. */
+  starts: number[];
 }
 
 /**
@@ -22,16 +24,18 @@ export function readCodeFind(state: EditorState): CodeFind {
   const { from, to } = state.selection.main;
   let matches = 0;
   let active = 0;
+  const starts: number[] = [];
   if (query.valid) {
     const cursor = query.getCursor(state);
     for (let next = cursor.next(); !next.done; next = cursor.next()) {
       matches += 1;
+      starts.push(next.value.from);
       if (next.value.from === from && next.value.to === to) {
         active = matches;
       }
     }
   }
-  return { active, matches, query, readOnly: state.readOnly };
+  return { active, matches, query, readOnly: state.readOnly, starts };
 }
 
 /**

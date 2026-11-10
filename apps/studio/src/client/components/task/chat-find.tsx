@@ -5,6 +5,10 @@ import {
 } from "@/client/components/document-viewers/use-find-highlights";
 import { FindRow } from "@/client/components/find-row";
 import {
+  FindScrollMarks,
+  useRangeMarks,
+} from "@/client/components/find-scroll-marks";
+import {
   Popover,
   PopoverAnchor,
   PopoverContent,
@@ -269,6 +273,14 @@ export function ChatFind({
   const matchName = `chat-find-${instanceId}`;
   const activeName = `chat-find-active-${instanceId}`;
   const current = ranges[Math.min(active, ranges.length - 1)];
+  const viewportRef = useRef<HTMLElement | null>(null);
+  useLayoutEffect(() => {
+    viewportRef.current =
+      contentRef.current?.closest<HTMLElement>(
+        '[data-slot="message-scroller-viewport"]',
+      ) ?? null;
+  });
+  const marks = useRangeMarks(viewportRef, ranges, active);
   useEffect(() => {
     if (ranges.length === 0) {
       return;
@@ -323,6 +335,7 @@ export function ChatFind({
         {`::highlight(${matchName}) { background-color: ${MATCH_COLOR}; }\n` +
           `::highlight(${activeName}) { background-color: ${ACTIVE_MATCH_COLOR}; }`}
       </style>
+      {open && <FindScrollMarks marks={marks} />}
       <Popover open={open}>
         <PopoverAnchor asChild>
           <div

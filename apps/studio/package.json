@@ -93,7 +93,7 @@
     "semver": "^7.7.2",
     "typescript-result": "catalog:",
     "ulid": "^3.0.1",
-    "velopack": "1.2.161",
+    "velopack": "1.3.39-g8d2844f",
     "ws": "^8.22.0",
     "xstate": "^5.33.3",
     "zod": "catalog:"

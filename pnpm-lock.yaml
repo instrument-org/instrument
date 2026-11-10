@@ -244,8 +244,8 @@ importers:
         specifier: ^3.0.1
         version: 3.0.1
       velopack:
-        specifier: 1.2.161
-        version: 1.2.161
+        specifier: 1.3.39-g8d2844f
+        version: 1.3.39-g8d2844f
       ws:
         specifier: ^8.22.0
         version: 8.22.0
@@ -9592,8 +9592,8 @@ packages:
     resolution: {integrity: sha512-BNGbWLfd0eUPabhkXUVm0j8uuvREyTh5ovRa/dyow/BqAbZJyC+5fU+IzQOzmAKzYqYRAISoRhdQr3eIZ/PXqg==}
     engines: {node: '>= 0.8'}
 
-  velopack@1.2.161:
-    resolution: {integrity: sha512-N6wK4Z43MF1CBaq1X0Y2w6OTqO4CmVQIZ4Q7/nb8aJAGY31dIopAIh0HiV/SlfBYJ46cdcS+UUnHOWi0DXgHcg==}
+  velopack@1.3.39-g8d2844f:
+    resolution: {integrity: sha512-crA73sEuG8R3QTjbhaOIN7it+E5rQc0figyehStnXxAdKRblxeOKnbaFI/6uXXYpbjPE3TBD2vxB8vNMr+7L7Q==}
     engines: {node: '>=20.0.0 <26.0.0'}
 
   vfile-location@5.0.3:
@@ -18984,7 +18984,7 @@ snapshots:
 
   vary@1.1.2: {}
 
-  velopack@1.2.161:
+  velopack@1.3.39-g8d2844f:
     dependencies:
       '@neon-rs/load': 0.2.6
 

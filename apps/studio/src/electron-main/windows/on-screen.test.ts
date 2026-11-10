@@ -20,6 +20,7 @@ function fakeWindow() {
       isDestroyed: () => false,
       maximize: () => calls.push("maximize"),
       minimize: () => calls.push("minimize"),
+      moveTop: () => calls.push("moveTop"),
       once: (event: string, listener: () => void) => {
         calls.push(`once ${event}`);
         focus = listener;
@@ -108,6 +109,7 @@ describe("putting a window on screen", () => {
         "once focus",
         "showInactive",
         "setAlwaysOnTop off",
+        "moveTop",
       ],
     ],
     ["win32", ["maximize", "showInactive"]],
@@ -121,7 +123,7 @@ describe("putting a window on screen", () => {
         comeBackAsLeft("front");
         const { calls, focus, window } = fakeWindow();
         putOnScreen(window, { maximized: true });
-        // The first focus puts it back at the normal level.
+        // The first focus puts it back at the normal level, in front.
         focus();
         expect(calls).toEqual(expected);
       } finally {

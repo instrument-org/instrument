@@ -34,7 +34,7 @@ export function keepsOffScreen() {
 /** What this module asks of a window, so a test can hand it a stand-in. */
 type ScreenWindow = Pick<
   BrowserWindow,
-  "isDestroyed" | "maximize" | "minimize" | "show" | "showInactive"
+  "isDestroyed" | "maximize" | "minimize" | "moveTop" | "show" | "showInactive"
 > & {
   once: (event: "focus", listener: () => void) => unknown;
   setAlwaysOnTop: (flag: boolean, level?: "normal", relative?: number) => void;
@@ -108,11 +108,15 @@ export function putOnScreen(
     // Left in view behind the app the person was using, so it comes back
     // behind it: `showInactive` alone orders it over every other app's
     // windows on macOS. One level under normal keeps it below them until it
-    // is first focused, which puts it back at the normal level.
+    // is first focused, which puts it back at the normal level. The
+    // activation that focuses it ordered it front while it was still a level
+    // under, and a level change alone moves nothing, so it is ordered front
+    // again or it stays behind until the app is activated a second time.
     if (process.platform === "darwin") {
       window.setAlwaysOnTop(true, "normal", -1);
       window.once("focus", () => {
         window.setAlwaysOnTop(false);
+        window.moveTop();
       });
     }
     window.showInactive();

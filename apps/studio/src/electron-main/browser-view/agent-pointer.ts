@@ -198,6 +198,8 @@ const FADE_MS = 600;
 const GLIDE_MS = 160;
 /** The brand teal of the app, so the pointer reads as the app's agent rather than the page's own cursor. */
 const POINTER_COLOR = "#0e7869";
+/** The name on the tag beside the arrow, saying who is acting. */
+const POINTER_TAG = "Instrument";
 
 // Runs in the page's document, in the pointer's own world, so its state lives
 // on that world's global and a page that navigates starts over with none.
@@ -209,7 +211,14 @@ const POINTER_SCRIPT = String.raw`function (update) {
   const FADE_MS = ${FADE_MS};
   const GLIDE_MS = ${GLIDE_MS};
   const COLOR = "${POINTER_COLOR}";
+  const TAG = "${POINTER_TAG}";
   const SVG = "http://www.w3.org/2000/svg";
+  // Where the dart's tip is in its box, and the shift that puts it on the point.
+  const TIP = 2.78;
+  const AT_TIP = "translate(-" + TIP + "px, -" + TIP + "px)";
+  // The tag sits in the dart's notch, below and right of the tip.
+  const TAG_X = 16.9;
+  const TAG_Y = 12.4;
   const GLIDE = "transform " + GLIDE_MS + "ms cubic-bezier(0.2, 0, 0, 1)";
   const SHOWING = GLIDE + ", opacity 120ms ease";
   const FADING = GLIDE + ", opacity " + FADE_MS + "ms ease";
@@ -260,25 +269,53 @@ const POINTER_SCRIPT = String.raw`function (update) {
       "will-change": "transform",
     });
     const svg = document.createElementNS(SVG, "svg");
-    svg.setAttribute("width", "22");
+    svg.setAttribute("width", "26");
     svg.setAttribute("height", "26");
-    svg.setAttribute("viewBox", "0 0 22 26");
+    svg.setAttribute("viewBox", "0 0 26 26");
     set(svg, {
       display: "block",
       overflow: "visible",
-      transform: "translate(-3px, -2px)",
-      "transform-origin": "3px 2px",
+      transform: AT_TIP,
+      "transform-origin": TIP + "px " + TIP + "px",
       transition: "transform 90ms ease",
-      filter: "drop-shadow(0 1px 2px rgb(0 0 0 / 0.35))",
+      filter: "drop-shadow(0 1px 2px rgb(0 0 0 / 0.3))",
     });
+    // A dart with rounded corners, its tip at (TIP, TIP) in the box.
     const arrow = document.createElementNS(SVG, "path");
-    arrow.setAttribute("d", "M3 2 L3 20 L7.6 15.6 L10.6 22.6 L13.8 21.2 L10.8 14.4 L17 14.4 Z");
+    arrow.setAttribute("d", "M2.08 5.88A2.97 2.97 0 0 1 5.88 2.08L21.25 7.53A2.86 2.86 0 0 1 21.01 13L15.08 14.52A0.77 0.77 0 0 0 14.52 15.08L13 21.01A2.86 2.86 0 0 1 7.53 21.25Z");
     arrow.setAttribute("fill", COLOR);
     arrow.setAttribute("stroke", "white");
-    arrow.setAttribute("stroke-width", "1.6");
+    arrow.setAttribute("stroke-width", "1.5");
     arrow.setAttribute("stroke-linejoin", "round");
     svg.append(arrow);
-    pointer.append(svg);
+    // Every inherited property is set, since the shadow tree inherits the
+    // page's text styles through the host.
+    const tag = document.createElement("div");
+    tag.textContent = TAG;
+    set(tag, {
+      position: "absolute",
+      left: TAG_X + "px",
+      top: TAG_Y + "px",
+      width: "max-content",
+      padding: "1px 7px",
+      "border-radius": "99px",
+      "background-color": COLOR,
+      color: "white",
+      font: "500 11px/16px Inter, system-ui, sans-serif",
+      "font-feature-settings": "normal",
+      "letter-spacing": "normal",
+      "word-spacing": "normal",
+      "text-transform": "none",
+      "text-shadow": "none",
+      "text-align": "left",
+      "text-indent": "0",
+      "white-space": "nowrap",
+      direction: "ltr",
+      "writing-mode": "horizontal-tb",
+      "user-select": "none",
+      "box-shadow": "0 0 0 1px white, 0 1px 3px rgb(0 0 0 / 0.25)",
+    });
+    pointer.append(svg, tag);
     root.append(ring, pointer);
     document.documentElement.append(host);
     state = globalThis.__instrumentAgentPointer = {
@@ -286,13 +323,14 @@ const POINTER_SCRIPT = String.raw`function (update) {
       pointer,
       ring,
       svg,
+      tag,
       fade: 0,
       at: null,
       down: false,
       movedAt: 0,
     };
   }
-  const { host, pointer, ring, svg } = state;
+  const { host, pointer, ring, svg, tag } = state;
   const raise = () => {
     try {
       if (host.matches(":popover-open")) host.hidePopover();
@@ -316,7 +354,14 @@ const POINTER_SCRIPT = String.raw`function (update) {
   state.at = { x: update.x, y: update.y };
   pointer.style.transition = SHOWING;
   pointer.style.opacity = "1";
-  svg.style.transform = update.down ? "translate(-3px, -2px) scale(0.86)" : "translate(-3px, -2px)";
+  svg.style.transform = update.down ? AT_TIP + " scale(0.86)" : AT_TIP;
+  // Near the page's right or bottom edge the tag goes to the other side of
+  // the tip, where it is not cut off.
+  const view = document.documentElement;
+  const flipX = update.x + TAG_X + tag.offsetWidth > view.clientWidth;
+  const flipY = update.y + TAG_Y + tag.offsetHeight > view.clientHeight;
+  tag.style.left = (flipX ? -tag.offsetWidth - 4 : TAG_X) + "px";
+  tag.style.top = (flipY ? -tag.offsetHeight - 4 : TAG_Y) + "px";
   // Above whatever the page put in the top layer since: a dialog the press
   // opens, or the one the click that follows its release opens.
   if (update.press || (state.down && !update.down)) {

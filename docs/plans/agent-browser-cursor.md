@@ -2,7 +2,7 @@
 
 Status: open. The pointer is built; whether it ships is judged from use, and the checks below that never ran are still owed.
 
-The in-app browser shows what the agent did to a page only after the fact. An arrow that moves to each point the agent presses, with a pulse where it clicks, makes its actions visible as they happen. The person's own OS cursor stays theirs.
+The in-app browser shows what the agent did to a page only after the fact. An arrow that moves to each point the agent presses, with a pulse where it clicks and an "Instrument" tag saying who is acting, makes its actions visible as they happen. The person's own OS cursor stays theirs.
 
 ## The pointer is drawn in the page
 
@@ -22,6 +22,7 @@ A host overlay above the `<webview>` was the earlier plan. It kept the page from
 - It fades five seconds after the agent's last mouse command. A document the tab loads within that time gets the pointer back at its last point for the rest of the time (`carryAgentPointer` on `dom-ready`), since a click on a link otherwise takes the pointer away with the old document.
 - A frame's commands are in the frame's coordinates and do not move it. Wheel, keyboard and script commands give no point and leave it where it was.
 - The agent's own `Page.captureScreenshot` hides it for the capture: in the agent's picture it would only cover what it is looking at.
+- The tag sits in the arrow's notch and moves to the other side of the tip near the page's right or bottom edge. The chat card's thumbnail shows it too, a few pixels across at that size: keeping it out would mean hiding it for every thumbnail or drawing it outside the page, neither worth a smudge.
 
 ## Checked in the running app
 
@@ -36,4 +37,4 @@ Through agent-browser in a chat's sandbox, against a local test page and github.
 
 - [ ] Device preview ("View as") and a cross-origin frame, both expected to be right by construction or left alone, never looked at.
 - [ ] Windows and Linux.
-- [ ] Whether the 160 ms glide, the five-second fade and the arrow's size read well while watching a real agent turn.
+- [ ] Whether the 160 ms glide, the five-second fade, the arrow's size and the tag read well while watching a real agent turn.

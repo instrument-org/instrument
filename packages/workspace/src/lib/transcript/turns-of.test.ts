@@ -1138,22 +1138,22 @@ describe("the work card", () => {
     expect(shows?.kind === "file" && shows.words).toBe(words);
   });
 
-  it("holds the card through what the agent says while it works, and until the fold once the turn ends", () => {
+  it("ends the card at what the agent says after the work, working or ended, and puts one up again at the next call", () => {
     const searched = (id: Parameters<typeof call>[0]) =>
       call(id, "web_search", { activity: "Looking", query: "x" }, {});
     const spoke = [
       typed("Do the thing"),
       message("assistant", (id) => [searched(id), said(id, "Found it.")]),
     ];
+    const [searching] = turnsOf(
+      [typed("Do the thing"), message("assistant", (id) => [searched(id)])],
+      { isRunning: true },
+    );
+    expect(searching && workCardOf(searching)?.kind).toBe("web");
     const [speaking] = turnsOf(spoke, { isRunning: true });
-    expect(speaking && workCardOf(speaking)?.kind).toBe("web");
+    expect(speaking && workCardOf(speaking)).toBeUndefined();
     const [ended] = turnsOf(spoke, { isRunning: false });
-    expect(
-      ended && ended.foldedRowIds.size > 0 && workCardOf(ended)?.kind,
-    ).toBe("web");
-    expect(
-      ended && workCardOf({ ...ended, foldedRowIds: new Set() }),
-    ).toBeUndefined();
+    expect(ended && workCardOf(ended)).toBeUndefined();
     const [movedOn] = turnsOf(
       [
         typed("Do the thing"),
@@ -1312,9 +1312,9 @@ describe("the work card", () => {
     expect(cardIn([message("assistant", (id) => [wrote(id, "/b.md")])])).toBe(
       1,
     );
-    // Words in the turn still working leave the card where it was.
+    // Words in the turn still working end the card.
     expect(cardIn([message("assistant", (id) => [said(id, "On it.")])])).toBe(
-      0,
+      -1,
     );
   });
 
@@ -1415,10 +1415,11 @@ describe("the work card", () => {
       ).toBe("files");
     });
 
-    it("holds through what the agent says between them", () => {
+    it("ends at what the agent says between them, until the next activity shows something", () => {
       const spoke = (id: StoreId.Message) => said(id, "Now the next page.");
-      expect(cardAfter(browsed, spoke)?.kind).toBe("page");
-      expect(cardAfter(browsed, spoke, addingUp)?.kind).toBe("page");
+      expect(cardAfter(browsed, spoke)).toBeUndefined();
+      expect(cardAfter(browsed, spoke, addingUp)).toBeUndefined();
+      expect(cardAfter(browsed, spoke, browsed)?.kind).toBe("page");
     });
 
     it("goes for a task's card, and doesn't come back for an activity after it", () => {
@@ -1518,7 +1519,7 @@ describe("the work card", () => {
         "text: Found",
       ]);
       expect(turn?.rows[1]?.id).toBe(going.parts[1]?.metadata.id);
-      expect(turn && workCardOf(turn)?.kind).toBe("web");
+      expect(turn && workCardOf(turn)).toBeUndefined();
       expect(turn?.live?.kind).toBe("writing");
     });
   });

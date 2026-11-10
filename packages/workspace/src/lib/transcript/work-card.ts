@@ -88,17 +88,12 @@ function hasStarted(step: TurnStep, before: readonly TurnStep[]): boolean {
  * The card up now: the newest of the work in the turn. An activity with
  * nothing to show yet keeps the card of the one before it, so the card holds
  * through the gaps between activities rather than blinking, at the cost of
- * showing the earlier one's a little longer. It holds through what the agent
- * says too: a line before each command is how agents narrate, and a card that
- * went at each one would close and open again at every step. Once the turn
- * has ended, a turn that folds keeps its card until it does, so the card
- * closes with the work it shows; one that does not fold ends its card at the
- * words after the work. A task's card takes over the same way at any time,
- * since the task is what is moving now and carries a card of its own.
+ * showing the earlier one's a little longer. Words after the work end it, in
+ * a turn still working as in one that ended: the agent has moved on, and a card
+ * is never drawn above what it says. A task's card takes over the same way at
+ * any time, since the task is what is moving now and carries a card of its own.
  */
-export function workCardOf(
-  turn: Pick<Turn, "foldedRowIds" | "phase" | "rows">,
-): WorkCard | undefined {
+export function workCardOf(turn: Pick<Turn, "rows">): WorkCard | undefined {
   const found = walkBack(turn);
   return found === "ended" ? undefined : found;
 }
@@ -107,11 +102,11 @@ export function workCardOf(
  * The turn whose card is up, of a session's turns: the same walk as `workCardOf`,
  * carried back across turns, so one card is up in the whole transcript. A
  * message sent mid-turn starts a turn of its own, and the card stays where it
- * was until that turn's work shows something, ends with words, asks the
+ * was until that turn's work shows something, says something, asks the
  * person, or starts a task.
  */
 export function workCardTurnOf(
-  turns: readonly Pick<Turn, "foldedRowIds" | "id" | "phase" | "rows">[],
+  turns: readonly Pick<Turn, "id" | "rows">[],
 ): Turn["id"] | undefined {
   for (const turn of turns.toReversed()) {
     const found = walkBack(turn);
@@ -125,17 +120,10 @@ export function workCardTurnOf(
   return undefined;
 }
 
-/** The newest card of a turn's work, "ended" if a task, a card or step asking the person, or words once a turn that does not fold ended, came after it. */
-function walkBack(
-  turn: Pick<Turn, "foldedRowIds" | "phase" | "rows">,
-): WorkCard | "ended" | undefined {
-  const wordsEnd = turn.phase !== "working" && turn.foldedRowIds.size === 0;
+/** The newest card of a turn's work, "ended" if a task, a card or step asking the person, or words came after it. */
+function walkBack(turn: Pick<Turn, "rows">): WorkCard | "ended" | undefined {
   for (const row of turn.rows.toReversed()) {
-    if (
-      row.kind === "task" ||
-      row.kind === "ask" ||
-      (row.kind === "text" && wordsEnd)
-    ) {
+    if (row.kind === "task" || row.kind === "ask" || row.kind === "text") {
       return "ended";
     }
     if (row.kind !== "activity") {

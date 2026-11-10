@@ -256,8 +256,8 @@ function TurnBody({
   const card = isFolded || !hasCard ? undefined : workCardOf(turn);
   const cardOpens = useCardOpens(card !== undefined);
   // The card sits under the work it shows, whose working line it goes with,
-  // and never under words: what the agent says comes in below it, and the
-  // next command it shows takes it down past them.
+  // and only while that work is the last thing in the turn: words after it
+  // end it (`workCardOf`).
   const cardAt = turn.rows.findLastIndex((row) => row.kind === "activity");
   // The row a reply is held at: a note under the reply leaves it the reply.
   const replyTailAt = turn.rows.findLastIndex((row) => row.kind !== "note");
@@ -299,8 +299,8 @@ function TurnBody({
         out.push(
           // One key among the rows, so going from under one activity to under
           // the next keeps it mounted, with its picture and its sweep going,
-          // and moves it there in the frame the new activity arrives. It closes
-          // with the fold and goes at once as words end it.
+          // and moves it there in the frame the new activity arrives. It goes
+          // at once as words end it, so they never start below it.
           <CardPresence className="ml-7" key="work-card" opens={cardOpens}>
             <WorkCardView
               card={card}

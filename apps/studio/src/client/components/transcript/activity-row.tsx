@@ -265,6 +265,35 @@ export function ActivityRowView({
   );
 }
 
+/**
+ * An activity in an opened Worked row: its name as a quiet heading over its
+ * calls, listed flat at the heading's own edge, so the fold steps right only
+ * once however its work was grouped. A run the agent didn't name has no
+ * heading, since it would only repeat its call.
+ */
+export function FoldedActivityView({
+  chatId,
+  row,
+}: {
+  chatId: ChatId;
+  row: ActivityRow;
+}) {
+  const counts = countsText(row);
+  return (
+    <div className="flex min-w-0 flex-col gap-0.5">
+      {row.title && (
+        <p className="flex h-7 min-w-0 items-center gap-1.5 text-xs font-medium text-muted-foreground">
+          <span className="min-w-0 truncate">{row.title}</span>
+          {counts && <span className="shrink-0">· {counts}</span>}
+        </p>
+      )}
+      {row.steps.map((step) => (
+        <StepRow chatId={chatId} key={step.metadata.id} step={step} />
+      ))}
+    </div>
+  );
+}
+
 function stepLabel(step: TurnStep): string {
   const tool = toolOf(step);
   if (!tool) {

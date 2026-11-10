@@ -45,7 +45,13 @@ import {
   SlidesUnder,
   useCardOpens,
 } from "./card-motion";
-import { ActivityRowView, Badges, RowLine, StepDetail } from "./activity-row";
+import {
+  ActivityRowView,
+  Badges,
+  FoldedActivityView,
+  RowLine,
+  StepDetail,
+} from "./activity-row";
 import { BranchedFromLine } from "./branched-from-line";
 import { NextStepRows, useHasNextSteps } from "./next-steps";
 import { renderDataPart } from "./note-part";
@@ -509,12 +515,16 @@ function WorkedRow({
                   .filter((row) => turn.foldedRowIds.has(row.id))
                   .map((row) => (
                     <div data-transcript-row={row.id} key={row.id}>
-                      <RowView
-                        chatId={chatId}
-                        isLast={false}
-                        isLive={false}
-                        row={row}
-                      />
+                      {row.kind === "activity" ? (
+                        <FoldedActivityView chatId={chatId} row={row} />
+                      ) : (
+                        <RowView
+                          chatId={chatId}
+                          isLast={false}
+                          isLive={false}
+                          row={row}
+                        />
+                      )}
                     </div>
                   ))}
               </div>

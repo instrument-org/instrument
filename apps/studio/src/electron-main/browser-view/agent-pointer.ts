@@ -768,6 +768,9 @@ const POINTER_SOURCE = String.raw`function (config) {
           if (!s.shown || s.leaving) show(act, true);
           s.pressed = true;
           s.anchor = { x: act.x, y: act.y };
+          // A press away from the move before it, as one re-aimed into a
+          // wrapped link's first line, takes the dart with it.
+          if (Math.hypot(act.x - s.x, act.y - s.y) > 3) void fly(act.x, act.y, false);
           raise();
           pulse(act.x, act.y);
           verb("Clicking");

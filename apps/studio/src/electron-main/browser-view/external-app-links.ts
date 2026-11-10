@@ -36,13 +36,14 @@ export function isPersonUse(type: InputEvent["type"], byAgent: boolean) {
  * whether it counted the input as a person's.
  */
 export function noteUserInput(
-  record: Pick<GuestRecord, "userInputAt"> | undefined,
+  record: Pick<GuestRecord, "userInputAt" | "userInputType"> | undefined,
   type: InputEvent["type"],
   byAgent: boolean,
   now = Date.now(),
 ): boolean {
   if (record && !byAgent && ACTIVATING_INPUT.has(type)) {
     record.userInputAt = now;
+    record.userInputType = type;
     return true;
   }
   return false;

@@ -48,6 +48,13 @@ describe("recording a person's input", () => {
     noteUserInput(record, type, byAgent, 500);
     expect(record.userInputAt).toBe(recorded);
   });
+
+  it("keeps the kind of input it counted", () => {
+    const record: Parameters<typeof noteUserInput>[0] = { userInputAt: 0 };
+    noteUserInput(record, "rawKeyDown", false, 500);
+    noteUserInput(record, "mouseDown", true, 600);
+    expect(record).toEqual({ userInputAt: 500, userInputType: "rawKeyDown" });
+  });
 });
 
 describe("telling the person's use of a tab", () => {

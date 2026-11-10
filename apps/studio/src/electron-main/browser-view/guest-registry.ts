@@ -1,6 +1,12 @@
 import type { BrowserTargetId } from "@instrument-org/workspace/electron";
 
-import { app, type Session, type WebContents, webFrameMain } from "electron";
+import {
+  app,
+  type InputEvent,
+  type Session,
+  type WebContents,
+  webFrameMain,
+} from "electron";
 
 import type { BrowserEntry } from "./entry";
 
@@ -75,6 +81,8 @@ export interface GuestRecord {
    * not counted; see `noteUserInput` in `external-app-links.ts`.
    */
   userInputAt: number;
+  /** The kind of input `userInputAt` is from, for the log line that says what counted as the person. */
+  userInputType?: InputEvent["type"];
   /** A person has scrolled it, which leaves a place a reload can lose. It lets a page do nothing, unlike a click or a key. */
   wasScrolled: boolean;
 }

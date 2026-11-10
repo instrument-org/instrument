@@ -51,7 +51,11 @@ import {
 import { isBlocking } from "./content-blocking";
 import { attachGuestInteractions } from "./guest-interactions";
 import { forgetRasterBudget } from "./guest-surface";
-import { isPersonUse, noteUserInput } from "./external-app-links";
+import {
+  isPersonUse,
+  noteUserInput,
+  USER_INPUT_WINDOW_MS,
+} from "./external-app-links";
 import { resyncPagesAfterFullScreen } from "./full-screen-exit";
 import { guests } from "./guest-registry";
 import {
@@ -553,11 +557,26 @@ function createBrowserViewManager(): BrowserViewManager {
       if (record && input.type === "mouseWheel") {
         record.wasScrolled = true;
       }
+      const countedBefore = record?.userInputAt ?? 0;
       const byPerson = noteUserInput(
         record,
         input.type,
         focusGuard.isGuarded(targetId),
       );
+      // What started each run of input counted as the person's, which an
+      // agent is told of as the user using its tab: a key or click that
+      // reached the guest while no agent command held it, as a test harness
+      // driving the app window can send, counts too.
+      if (byPerson && Date.now() - countedBefore > USER_INPUT_WINDOW_MS) {
+        const host = hostOf(targetId);
+        const window =
+          host && !host.isDestroyed()
+            ? BrowserWindow.fromWebContents(host)
+            : null;
+        log.info(
+          `person input targetId=${targetId} type=${input.type} windowFocused=${String(window?.isFocused() ?? false)}`,
+        );
+      }
       if (isPersonUse(input.type, focusGuard.isGuarded(targetId))) {
         notePersonUsedTab(targetId, () => keptTabGroupOf(targetId));
       }

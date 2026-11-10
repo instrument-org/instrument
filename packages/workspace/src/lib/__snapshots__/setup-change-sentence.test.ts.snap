@@ -1,0 +1,17 @@
+// Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
+
+exports[`setupChangesHeading > app ["added"] 1`] = `"Added an app"`;
+
+exports[`setupChangesHeading > app ["removed","removed"] 1`] = `"Removed 2 apps"`;
+
+exports[`setupChangesHeading > memory ["added","added"] 1`] = `"Saved 2 memories"`;
+
+exports[`setupChangesHeading > memory ["added","changed","removed"] 1`] = `"Changed 3 memories"`;
+
+exports[`setupChangesHeading > memory ["added"] 1`] = `"Saved a memory"`;
+
+exports[`setupChangesHeading > memory ["removed"] 1`] = `"Forgot a memory"`;
+
+exports[`setupChangesHeading > skill ["added","changed"] 1`] = `"Changed 2 skills"`;
+
+exports[`setupChangesHeading > skill ["changed"] 1`] = `"Updated a skill"`;

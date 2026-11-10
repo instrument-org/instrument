@@ -155,7 +155,11 @@ export { MountedFolder } from "./schemas/mounted-folder";
 export { AbsolutePathSchema, RelativePathSchema } from "./schemas/paths";
 export { type SessionMessage } from "./schemas/session/message";
 export { type SessionMessageDataPart } from "./schemas/session/message-data-part";
-export { setupChangeSentence } from "./lib/setup-change-sentence";
+export {
+  setupChangeSentence,
+  setupChangesHeading,
+  setupChangeWord,
+} from "./lib/setup-change-sentence";
 export {
   type ChangedProject,
   projectChangeLines,

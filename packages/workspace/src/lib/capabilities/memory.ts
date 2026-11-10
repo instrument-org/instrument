@@ -12,7 +12,7 @@ import {
   saveMemory,
 } from "../memory/store";
 import { learnedIn } from "../memory/learned-in";
-import { recordSetupTouch } from "../setup-changes";
+import { recordMemoryChange } from "../setup-changes";
 import { APP_COMMAND } from "../../model-text/commands/app-command";
 import { MEMORY_COMMAND } from "../../model-text/commands/memory-command";
 import { type ChatId } from "../../schemas/chat-id";
@@ -151,15 +151,15 @@ export const memorySave = defineCapability({
         `save: not saved, it has a secret in it (${secrets.join(", ")}). A memory never keeps a key or password: save the fact without it. A service's key belongs to its app (\`${APP_COMMAND.name} new\`).`,
       );
     }
+    const before = await readMemory(memoryDir(), parsedName.data);
     const { memory, replaced } = await saveMemory(memoryDir(), {
       chat: ctx.chatId,
       name: parsedName.data,
       text: body,
     });
-    recordSetupTouch({
-      existedBefore: replaced,
-      kind: "memory",
-      name: memory.name,
+    recordMemoryChange(memory.name, {
+      after: memory.text,
+      before: before?.text ?? null,
     });
     return `${replaced ? "Replaced" : "Saved"} "${memory.name}": ${memoryHeadline(memory.text)}`;
   },
@@ -190,11 +190,7 @@ export const memoryForget = defineCapability({
     if (!memory) {
       throw noMemory(name);
     }
-    recordSetupTouch({
-      existedBefore: true,
-      kind: "memory",
-      name: memory.name,
-    });
+    recordMemoryChange(memory.name, { after: null, before: memory.text });
     return `Forgot "${memory.name}": ${memoryHeadline(memory.text)}`;
   },
   summary: "Drop it.",

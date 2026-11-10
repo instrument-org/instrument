@@ -16,13 +16,15 @@ export const ChangesCardSchema = z.object({
 export type ChangesCard = z.output<typeof ChangesCardSchema>;
 
 /**
- * Writes onto a projects or chats changes card that its Undo put something
- * back, once: every device then shows it undone, and the next message the
- * person sends tells the agent (`undone-changes-model-text.ts`).
+ * Writes onto a changes card that its Undo put something back, once: every
+ * device then shows it undone, and the next message the person sends tells
+ * the agent (`undone-changes-model-text.ts`). A turn's setup changes part
+ * has a card per kind, so `cardOf` names which of them was undone.
  */
 export async function markCardUndone(
   card: ChangesCard,
   { skipped, undone }: { skipped: number; undone: number },
+  { cardOf = "project" }: { cardOf?: "memory" | "project" } = {},
 ): Promise<void> {
   if (undone === 0) {
     return;
@@ -31,8 +33,14 @@ export async function markCardUndone(
   const written = await ChatWrites.updatePart(
     card,
     (part): SessionMessagePart.Type => {
-      if (part.type === "data-setupChanges" && !part.data.undone) {
-        return { ...part, data: { ...part.data, undone: mark } };
+      if (part.type === "data-setupChanges") {
+        if (cardOf === "memory" && !part.data.memoryUndone) {
+          return { ...part, data: { ...part.data, memoryUndone: mark } };
+        }
+        if (cardOf === "project" && !part.data.undone) {
+          return { ...part, data: { ...part.data, undone: mark } };
+        }
+        return part;
       }
       if (part.type === "data-chatChanges" && !part.data.undone) {
         return { ...part, data: { ...part.data, undone: mark } };

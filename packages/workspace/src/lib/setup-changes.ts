@@ -85,6 +85,8 @@ type ProjectLooks = SessionMessageDataPart.ChangedProjectLooks;
 
 export interface SetupChange {
   change: "added" | "changed" | "removed";
+  /** A memory `instrument memory` saved or forgot: its text on either side of the turn. */
+  memory?: MemoryTexts;
   /** What a command changed about a project, each with its value from before the turn. */
   fields?: ProjectFieldChange[];
   kind: SetupKind;
@@ -93,7 +95,15 @@ export interface SetupChange {
   project?: ProjectLooks;
 }
 
+/** A memory's text on either side of the turn, `null` for none. */
+interface MemoryTexts {
+  after: string | null;
+  before: string | null;
+}
+
 interface TurnTracker {
+  /** What `instrument memory` saved or forgot, by the memory's name. */
+  memoryTexts: Map<string, MemoryTexts>;
   /** What `instrument projects` set, by the project's name now and then by field. */
   fields: Map<string, Map<ProjectFieldChange["field"], ProjectFieldChange>>;
   /** How each project a command changed or made looked before the turn and now, by its name now. */
@@ -125,6 +135,7 @@ export function setSetupTouchForwarder(next: (touch: SetupTouch) => void) {
 export function beginSetupChangeTracking(turn: TurnKey): void {
   TURNS.set(turnKey(turn), {
     fields: new Map(),
+    memoryTexts: new Map(),
     looks: new Map(),
     renamedFrom: new Set(),
     touched: new Map(),
@@ -211,6 +222,32 @@ export function recordProjectChange(
 }
 
 /**
+ * Records what `instrument memory` saved or forgot in the turn running now:
+ * a touch of the memory, and its text before and after. A second change to
+ * the same memory keeps the text from before the first, so the card says
+ * what the turn did as a whole and Undo goes back to before it.
+ */
+export function recordMemoryChange(name: string, texts: MemoryTexts): void {
+  const tracker = trackerForCurrentTurn();
+  if (!tracker) {
+    return;
+  }
+  const first = tracker.memoryTexts.get(name);
+  tracker.memoryTexts.set(name, {
+    after: texts.after,
+    before: first ? first.before : texts.before,
+  });
+  const key = `memory:${name}`;
+  if (!tracker.touched.has(key)) {
+    tracker.touched.set(key, {
+      existedBefore: texts.before !== null,
+      kind: "memory",
+      name,
+    });
+  }
+}
+
+/**
  * What the turn's writes did, by comparing each item it touched as it is now
  * against whether it was there before its first write. Ends the tracking.
  */
@@ -258,11 +295,16 @@ export async function consumeSetupChanges(
           looks && change === "added"
             ? { after: looks.after, id: looks.id }
             : looks;
+        const memory =
+          touch.kind === "memory"
+            ? tracker.memoryTexts.get(touch.name)
+            : undefined;
         return [
           {
             change,
             ...(fields.length > 0 ? { fields } : {}),
             kind: touch.kind,
+            ...(memory ? { memory } : {}),
             name: touch.name,
             ...(project ? { project } : {}),
           },

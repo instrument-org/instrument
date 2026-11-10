@@ -63,3 +63,62 @@ export function setupChangeSentence(
     }
   }
 }
+
+/** The kinds a card of their own lists, which every one but projects is. */
+type CardKind = Exclude<SetupChange["kind"], "project">;
+
+const CARD_WORDS: Record<
+  CardKind,
+  {
+    a: string;
+    did: Record<SetupChange["change"], string>;
+    line: Record<SetupChange["change"], string>;
+    many: string;
+  }
+> = {
+  app: {
+    a: "an app",
+    did: { added: "Added", changed: "Updated", removed: "Removed" },
+    line: { added: "Added", changed: "Updated", removed: "Removed" },
+    many: "apps",
+  },
+  memory: {
+    a: "a memory",
+    did: { added: "Saved", changed: "Updated", removed: "Forgot" },
+    line: { added: "Saved", changed: "Updated", removed: "Forgotten" },
+    many: "memories",
+  },
+  skill: {
+    a: "a skill",
+    did: { added: "Created", changed: "Updated", removed: "Removed" },
+    line: { added: "Created", changed: "Updated", removed: "Removed" },
+    many: "skills",
+  },
+};
+
+/**
+ * A card's heading, from what the turn did to its memories, skills or apps:
+ * what was done when it did one thing ("Saved 2 memories", "Added an app"),
+ * else how many changed ("Changed 3 memories").
+ */
+export function setupChangesHeading(
+  kind: CardKind,
+  changes: readonly Pick<SetupChange, "change">[],
+): string {
+  const words = CARD_WORDS[kind];
+  const count = changes.length;
+  const things = count === 1 ? words.a : `${count.toString()} ${words.many}`;
+  const done = new Set(changes.map((change) => change.change));
+  const [only] = done;
+  return done.size === 1 && only
+    ? `${words.did[only]} ${things}`
+    : `Changed ${things}`;
+}
+
+/** What happened to one memory, skill or app, as its row's line says it: "Saved", "Forgotten". */
+export function setupChangeWord(
+  kind: CardKind,
+  change: SetupChange["change"],
+): string {
+  return CARD_WORDS[kind].line[change];
+}

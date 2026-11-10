@@ -12,6 +12,8 @@ import {
   MemorySchema,
   readMemory,
 } from "../../lib/memory/store";
+import { ChangesCardSchema, markCardUndone } from "../../lib/chat/card-undone";
+import { undoMemoryChanges } from "../../lib/memory/undo-memory-changes";
 import { startWatchingMemory } from "../../lib/memory/watch";
 import { base } from "../base";
 import { liveRead } from "../live-read";
@@ -65,9 +67,40 @@ const forgetMemoryRoute = base
     await forgetMemories(memoryDir(), input.names);
   });
 
+/**
+ * Puts back what a turn's `instrument memory` commands saved or forgot,
+ * where each memory still says what the turn left, and marks the card
+ * undone.
+ */
+const undoMemoryChangesRoute = base
+  .input(
+    z.object({
+      /** The card the Undo is on, which is marked undone. */
+      card: ChangesCardSchema.optional(),
+      changes: z.array(
+        z.object({
+          memory: z.object({
+            after: z.string().nullable(),
+            before: z.string().nullable(),
+          }),
+          name: z.string(),
+        }),
+      ),
+    }),
+  )
+  .output(z.object({ skipped: z.number(), undone: z.number() }))
+  .handler(async ({ input }) => {
+    const outcome = await undoMemoryChanges(input.changes);
+    if (input.card) {
+      await markCardUndone(input.card, outcome, { cardOf: "memory" });
+    }
+    return outcome;
+  });
+
 export const memory = {
   forget: forgetMemoryRoute,
   live: { list: liveListMemoryRoute },
   locate: locateMemoryRoute,
   sources: listMemorySourcesRoute,
+  undoChanges: undoMemoryChangesRoute,
 };

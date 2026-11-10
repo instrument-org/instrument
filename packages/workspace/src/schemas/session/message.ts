@@ -30,6 +30,7 @@ import { dateChangeModelNote } from "../../model-text/notes/date-change-model-te
 import { environmentChangeModelNote } from "../../model-text/context/environment-model-text";
 import {
   undoneChatsModelNote,
+  undoneMemoriesModelNote,
   undoneProjectsModelNote,
 } from "../../model-text/notes/undone-changes-model-text";
 import { branchedFromModelNote } from "../../model-text/notes/branched-from-model-text";
@@ -475,10 +476,28 @@ export namespace SessionMessage {
           text: string;
         }[] => {
           if (part.type === "data-setupChanges") {
-            const text = undoneProjectsModelNote(part.data);
-            return part.data.undone && text
-              ? [{ at: Date.parse(part.data.undone.at), part, text }]
-              : [];
+            const projects = undoneProjectsModelNote(part.data);
+            const memories = undoneMemoriesModelNote(part.data);
+            return [
+              ...(part.data.undone && projects
+                ? [
+                    {
+                      at: Date.parse(part.data.undone.at),
+                      part,
+                      text: projects,
+                    },
+                  ]
+                : []),
+              ...(part.data.memoryUndone && memories
+                ? [
+                    {
+                      at: Date.parse(part.data.memoryUndone.at),
+                      part,
+                      text: memories,
+                    },
+                  ]
+                : []),
+            ];
           }
           if (part.type === "data-chatChanges") {
             const text = undoneChatsModelNote(part.data);

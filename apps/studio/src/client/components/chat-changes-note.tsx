@@ -1,5 +1,3 @@
-import { Button } from "@/client/components/ui/button";
-import { toast } from "@/client/lib/toast";
 import { cn } from "@/client/lib/utils";
 import { rpcClient } from "@/client/rpc/client";
 import {
@@ -8,13 +6,12 @@ import {
   type ChatId,
   type SessionMessageDataPart,
 } from "@instrument-org/workspace/client";
-import { ArrowCounterClockwiseIcon } from "@phosphor-icons/react/ArrowCounterClockwise";
 import { BroomIcon } from "@phosphor-icons/react/Broom";
 import { ChatCircleIcon } from "@phosphor-icons/react/ChatCircle";
-import { CheckIcon } from "@phosphor-icons/react/Check";
 import { useQuery } from "@tanstack/react-query";
 import { type ReactNode, useContext, useState } from "react";
 
+import { ChangeCard, SHOWN_ROWS, useChangeCardUndo } from "./change-card";
 import { type ChangesCard } from "./project-changes-card";
 import { type Chat, type Project } from "./window/chats";
 import { chatListOptions } from "./window/chat-list-query";
@@ -24,9 +21,6 @@ import { projectTint } from "./window/project-tint";
 import { chatHref } from "./window/window-href";
 
 type ChatChange = SessionMessageDataPart.ChatChange;
-
-/** How many chats show before the rest wait behind Show all. */
-const SHOWN_CHATS = 5;
 
 /**
  * What a turn did to the person's chats, as a card under the reply: a
@@ -51,10 +45,19 @@ export function ChatChangesNote({
   const { data: projects = [] } = useQuery(
     rpcClient.workspace.projects.list.queryOptions(),
   );
-  const [undoing, setUndoing] = useState(false);
-  const [undoneHere, setUndone] = useState(false);
-  const undone = undoneBefore || undoneHere;
   const [expanded, setExpanded] = useState(false);
+  const { undo, undone, undoing } = useChangeCardUndo({
+    call: () =>
+      rpcClient.workspace.chats.undoChanges.call({
+        ...(card && { card }),
+        changes,
+      }),
+    said: {
+      all: "Your chats are back the way they were.",
+      some: "Your chats are back the way they were, except the ones you changed since.",
+    },
+    undoneBefore,
+  });
 
   const rows = new Map(chats?.map((chat) => [chat.id, chat]));
   // A change the person has since changed themselves is theirs, and stays.
@@ -63,105 +66,44 @@ export function ChatChangesNote({
     return row !== undefined && stillStands(change, row);
   });
 
-  const undo = () => {
-    setUndoing(true);
-    return rpcClient.workspace.chats.undoChanges
-      .call({ ...(card && { card }), changes })
-      .then(({ skipped, undone: count }) => {
-        if (count === 0) {
-          toast.info("There was nothing left to undo.");
-          return;
-        }
-        setUndone(true);
-        toast.success(
-          skipped === 0
-            ? "Your chats are back the way they were."
-            : "Your chats are back the way they were, except the ones you changed since.",
-        );
-      })
-      .catch((error: unknown) => {
-        toast.error("Couldn't undo that", { cause: error });
-      })
-      .finally(() => {
-        setUndoing(false);
-      });
-  };
-
   const byChat = chatChangesByChat(changes);
-  const shown = expanded ? byChat : byChat.slice(0, SHOWN_CHATS);
-  const hidden = byChat.length - shown.length;
+  const shown = expanded ? byChat : byChat.slice(0, SHOWN_ROWS);
 
   return (
-    <div
-      className={cn(
-        "mt-3 max-w-115 overflow-hidden rounded-2xl border border-border/80 bg-card shadow-[0_1px_2px_rgb(0_0_0/0.04)]",
-        undone && "bg-muted/40",
-      )}
-      data-slot="chat-changes"
+    <ChangeCard
+      heading={chatChangesHeading(changes)}
+      hidden={byChat.length - shown.length}
+      icon={BroomIcon}
+      onShowMore={() => {
+        setExpanded(true);
+      }}
+      slot="chat-changes"
+      {...(standing.length > 0 && {
+        undo: {
+          busy: undoing,
+          onUndo: () => {
+            void undo();
+          },
+        },
+      })}
+      undone={undone}
     >
-      <div className="flex h-11 items-center gap-2 border-b border-border/70 px-4">
-        <span className="flex h-5 w-4 shrink-0 items-center justify-center">
-          <BroomIcon className="size-4 text-muted-foreground" />
-        </span>
-        <span
-          className={cn(
-            "flex-1 truncate text-sm leading-5 font-medium",
-            undone ? "text-muted-foreground" : "text-foreground",
-          )}
-        >
-          {chatChangesHeading(changes)}
-        </span>
-        {undone ? (
-          <span className="-mr-1.5 flex h-7 items-center gap-1 px-2 text-xs text-muted-foreground">
-            <CheckIcon className="size-3" />
-            Undone
-          </span>
-        ) : (
-          standing.length > 0 && (
-            <Button
-              className="-mr-1.5 h-7 gap-1 px-2 text-xs text-muted-foreground"
-              disabled={undoing}
-              onClick={() => {
-                void undo();
-              }}
-              size="sm"
-              variant="ghost"
-            >
-              <ArrowCounterClockwiseIcon className="size-3" />
-              Undo
-            </Button>
-          )
-        )}
-      </div>
-      <ul className="divide-y divide-border/60 px-4">
-        {shown.map(({ changes: chatChanges, chat }) => (
-          <ChatRow
-            changes={chatChanges}
-            key={chat}
-            {...(appWindow && {
-              onOpen: () => {
-                appWindow.openScreen(chatHref(chat));
-              },
-            })}
-            projects={projects}
-            row={rows.get(chat)}
-            title={titleOf(chat, chatChanges, rows.get(chat))}
-            undone={undone}
-          />
-        ))}
-      </ul>
-      {hidden > 0 && (
-        <button
-          className="w-full border-t border-border/60 px-4 py-2.5 text-left text-xs text-muted-foreground hover:text-foreground"
-          onClick={() => {
-            setExpanded(true);
-          }}
-          type="button"
-        >
-          Show {hidden.toString()} more
-        </button>
-      )}
-    </div>
+      {shown.map(({ changes: chatChanges, chat }) => (
+        <ChatRow
+          changes={chatChanges}
+          key={chat}
+          {...(appWindow && {
+            onOpen: () => {
+              appWindow.openScreen(chatHref(chat));
+            },
+          })}
+          projects={projects}
+          row={rows.get(chat)}
+          title={titleOf(chat, chatChanges, rows.get(chat))}
+          undone={undone}
+        />
+      ))}
+    </ChangeCard>
   );
 }
 

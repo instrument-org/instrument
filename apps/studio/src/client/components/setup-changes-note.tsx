@@ -1,63 +1,74 @@
 import { openProjectDetails } from "@/client/atoms/project-details-modal";
-import { ScreenLink } from "@/client/components/skill-link";
-import { memoryHref, skillHref } from "@/client/components/window/tab-location";
-import { SKILL_LIST_STALE_TIME_MS } from "@/client/lib/skill-query";
-import { SKILL_TOKEN_CLASS_NAME } from "@/client/lib/skill-tokens";
 import { rpcClient } from "@/client/rpc/client";
 import {
   type SessionMessageDataPart,
   setupChangeSentence,
 } from "@instrument-org/workspace/client";
-import { AppWindowIcon } from "@phosphor-icons/react/AppWindow";
-import { BrainIcon } from "@phosphor-icons/react/Brain";
-import { CubeIcon } from "@phosphor-icons/react/Cube";
 import { useQuery } from "@tanstack/react-query";
 import { type ReactNode } from "react";
 
 import { type ChangesCard, ProjectChangesCard } from "./project-changes-card";
+import {
+  AppChangesCard,
+  MemoryChangesCard,
+  SkillChangesCard,
+} from "./setup-change-cards";
 import { ProjectPill } from "./window/chat-row";
 
 type SetupChange =
   SessionMessageDataPart.SetupChangesDataPart["changes"][number];
 
 /**
- * What a turn did to the person's skills, apps, projects and memories, a line
- * each, in the voice of the other notes under a reply. Only the turn's own
- * writes are here, so each line is something this chat did. The name in a
- * line opens the item, unless the line says it is gone. What the
- * `instrument projects` commands changed, which they record field by field,
- * and the projects they made are a card of their own under the lines.
+ * What a turn did to the person's projects, memories, skills and apps: a
+ * card for each kind, in that order, each with Undo where its changes can
+ * be taken back. Only the turn's own writes are here, so each row is
+ * something this chat did. A project whose file was only written to, with
+ * nothing recorded of what changed, keeps a line of its own above them.
  */
 export function SetupChangesNote({
   card,
   changes,
+  memoryUndone = false,
   undone = false,
 }: {
   /** Where the card is, for its Undo to mark it undone. */
   card?: ChangesCard;
   changes: SetupChange[];
-  /** Undone already, by this device or another. */
+  /** The memories card undone already, by this device or another. */
+  memoryUndone?: boolean;
+  /** The projects card undone already, by this device or another. */
   undone?: boolean;
 }) {
-  const onCard = (change: SetupChange) =>
+  const onProjectCard = (change: SetupChange) =>
     change.kind === "project" &&
     (change.fields !== undefined ||
       (change.change === "added" && change.project !== undefined));
-  const projects = changes.filter(onCard).map((change) => ({
+  const projects = changes.filter(onProjectCard).map((change) => ({
     fields: change.fields ?? [],
     name: change.name,
     ...(change.project ? { project: change.project } : {}),
   }));
-  const lines = changes.filter((change) => !onCard(change));
+  const lines = changes.filter(
+    (change) => change.kind === "project" && !onProjectCard(change),
+  );
+  const of = (kind: SetupChange["kind"]) =>
+    changes.filter((change) => change.kind === kind);
+  const memories = of("memory");
+  const skills = of("skill");
+  const apps = of("app");
   return (
     <>
       {lines.length > 0 && (
         <div className="mt-2 flex flex-col gap-1">
           {lines.map((change) => (
-            <SetupChangeLine
-              change={change}
-              key={`${change.kind}:${change.name}`}
-            />
+            <p
+              className="flex items-center gap-1.5 text-xs text-muted-foreground"
+              key={change.name}
+            >
+              <span className="min-w-0">
+                <ProjectSentence change={change} />
+              </span>
+            </p>
           ))}
         </div>
       )}
@@ -68,48 +79,16 @@ export function SetupChangesNote({
           undone={undone}
         />
       )}
+      {memories.length > 0 && (
+        <MemoryChangesCard
+          changes={memories}
+          {...(card && { card })}
+          undone={memoryUndone}
+        />
+      )}
+      {skills.length > 0 && <SkillChangesCard changes={skills} />}
+      {apps.length > 0 && <AppChangesCard changes={apps} />}
     </>
-  );
-}
-
-// A project has no icon of its own: its line wears the project's pill.
-const ICONS = {
-  app: AppWindowIcon,
-  memory: BrainIcon,
-  skill: CubeIcon,
-  project: undefined,
-} as const;
-
-const LINK_CLASS_NAME =
-  "inline font-medium text-foreground underline-offset-2 hover:underline";
-
-function SetupChangeLine({ change }: { change: SetupChange }) {
-  const Icon = ICONS[change.kind];
-  return (
-    <p className="flex items-center gap-1.5 text-xs text-muted-foreground">
-      {Icon && <Icon className="size-3.5 shrink-0" />}
-      <span className="min-w-0">
-        {change.kind === "app" ? (
-          <AppSentence change={change} />
-        ) : change.kind === "memory" ? (
-          <Sentence
-            change={change}
-            link={(label) => (
-              <ScreenLink
-                className={LINK_CLASS_NAME}
-                href={memoryHref(change.name)}
-              >
-                {label}
-              </ScreenLink>
-            )}
-          />
-        ) : change.kind === "skill" ? (
-          <SkillSentence change={change} />
-        ) : (
-          <ProjectSentence change={change} />
-        )}
-      </span>
-    </p>
   );
 }
 
@@ -135,58 +114,6 @@ function Sentence({
         : sentence.label}
       {sentence.after}
     </>
-  );
-}
-
-function AppSentence({ change }: { change: SetupChange }) {
-  const { data } = useQuery(
-    rpcClient.apps.live.list.experimental_liveOptions(),
-  );
-  // The line names the app's folder; its page is at the id its file gives.
-  const app = data?.apps.find((each) => each.name === change.name);
-  return (
-    <Sentence
-      change={change}
-      {...(app && {
-        link: (label) => (
-          <ScreenLink className={LINK_CLASS_NAME} href={`/apps/${app.slug}`}>
-            {label}
-          </ScreenLink>
-        ),
-      })}
-    />
-  );
-}
-
-function SkillSentence({ change }: { change: SetupChange }) {
-  // Shares the cache the composer's slash menu fills, so finding the skill is
-  // a lookup rather than another walk of every skill source.
-  const { data: skills = [] } = useQuery(
-    rpcClient.workspace.skill.list.queryOptions({
-      staleTime: SKILL_LIST_STALE_TIME_MS,
-    }),
-  );
-  // The names are folders in the workspace's skills, which `editable` marks.
-  const skill = skills.find(
-    (each) => each.editable && each.name === change.name,
-  );
-  return (
-    <Sentence
-      change={change}
-      // A skill that opted out of being invoked by hand gets its bare name,
-      // since the slash form would say it can be.
-      {...(skill?.userInvocable === false && { label: skill.name })}
-      link={(label) => {
-        const token = <span className={SKILL_TOKEN_CLASS_NAME}>{label}</span>;
-        return skill ? (
-          <ScreenLink className="inline" href={skillHref(skill.id)}>
-            {token}
-          </ScreenLink>
-        ) : (
-          token
-        );
-      }}
-    />
   );
 }
 

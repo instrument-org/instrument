@@ -1,6 +1,4 @@
 import { openProjectDetails } from "@/client/atoms/project-details-modal";
-import { Button } from "@/client/components/ui/button";
-import { toast } from "@/client/lib/toast";
 import { cn } from "@/client/lib/utils";
 import { rpcClient, type RPCInput } from "@/client/rpc/client";
 import {
@@ -9,16 +7,12 @@ import {
   projectChangesHeading,
   projectLooks,
 } from "@instrument-org/workspace/client";
-import { ArrowCounterClockwiseIcon } from "@phosphor-icons/react/ArrowCounterClockwise";
 import { CardsThreeIcon } from "@phosphor-icons/react/CardsThree";
-import { CheckIcon } from "@phosphor-icons/react/Check";
 import { useQuery } from "@tanstack/react-query";
 import { useState } from "react";
 
+import { ChangeCard, SHOWN_ROWS, useChangeCardUndo } from "./change-card";
 import { ProjectMark, type ProjectMarkSpec } from "./window/project-mark";
-
-/** How many projects show before the rest wait behind Show more. */
-const SHOWN_PROJECTS = 5;
 
 /** A changes card's part, by where it is in its chat. */
 export type ChangesCard = NonNullable<
@@ -48,111 +42,56 @@ export function ProjectChangesCard({
   const { data: projects = [] } = useQuery(
     rpcClient.workspace.projects.list.queryOptions(),
   );
-  const [undoing, setUndoing] = useState(false);
-  const [undoneHere, setUndone] = useState(false);
-  const undone = undoneBefore || undoneHere;
   const [expanded, setExpanded] = useState(false);
-
-  const undo = () => {
-    setUndoing(true);
-    return rpcClient.workspace.projects.undoChanges
-      .call({
+  const { undo, undone, undoing } = useChangeCardUndo({
+    call: () =>
+      rpcClient.workspace.projects.undoChanges.call({
         ...(card && { card }),
         changes: changes.map(({ fields, name, project }) => ({
           fields: [...fields],
           name,
           ...(project ? { project } : {}),
         })),
-      })
-      .then(({ skipped, undone: count }) => {
-        if (count === 0) {
-          toast.info("There was nothing left to undo.");
-          return;
-        }
-        setUndone(true);
-        toast.success(
-          skipped === 0
-            ? "Your projects are back the way they were."
-            : "Your projects are back the way they were, except what you changed since.",
-        );
-      })
-      .catch((error: unknown) => {
-        toast.error("Couldn't undo that", { cause: error });
-      })
-      .finally(() => {
-        setUndoing(false);
-      });
-  };
+      }),
+    said: {
+      all: "Your projects are back the way they were.",
+      some: "Your projects are back the way they were, except what you changed since.",
+    },
+    undoneBefore,
+  });
 
-  const shown = expanded ? changes : changes.slice(0, SHOWN_PROJECTS);
-  const hidden = changes.length - shown.length;
+  const shown = expanded ? changes : changes.slice(0, SHOWN_ROWS);
 
   return (
-    <div
-      className={cn(
-        "mt-3 max-w-115 overflow-hidden rounded-2xl border border-border/80 bg-card shadow-[0_1px_2px_rgb(0_0_0/0.04)]",
-        undone && "bg-muted/40",
-      )}
-      data-slot="project-changes"
+    <ChangeCard
+      heading={projectChangesHeading(changes)}
+      hidden={changes.length - shown.length}
+      icon={CardsThreeIcon}
+      onShowMore={() => {
+        setExpanded(true);
+      }}
+      slot="project-changes"
+      undo={{
+        busy: undoing,
+        onUndo: () => {
+          void undo();
+        },
+      }}
+      undone={undone}
     >
-      <div className="flex h-11 items-center gap-2 border-b border-border/70 px-4">
-        <span className="flex h-5 w-4 shrink-0 items-center justify-center">
-          <CardsThreeIcon className="size-4 text-muted-foreground" />
-        </span>
-        <span
-          className={cn(
-            "flex-1 truncate text-sm leading-5 font-medium",
-            undone ? "text-muted-foreground" : "text-foreground",
+      {shown.map((change) => (
+        <ProjectRow
+          change={change}
+          key={change.name}
+          project={projects.find((each) =>
+            change.project
+              ? each.id === change.project.id
+              : each.name === change.name,
           )}
-        >
-          {projectChangesHeading(changes)}
-        </span>
-        {undone ? (
-          <span className="-mr-1.5 flex h-7 items-center gap-1 px-2 text-xs text-muted-foreground">
-            <CheckIcon className="size-3" />
-            Undone
-          </span>
-        ) : (
-          <Button
-            className="-mr-1.5 h-7 gap-1 px-2 text-xs text-muted-foreground"
-            disabled={undoing}
-            onClick={() => {
-              void undo();
-            }}
-            size="sm"
-            variant="ghost"
-          >
-            <ArrowCounterClockwiseIcon className="size-3" />
-            Undo
-          </Button>
-        )}
-      </div>
-      <ul className="divide-y divide-border/60 px-4">
-        {shown.map((change) => (
-          <ProjectRow
-            change={change}
-            key={change.name}
-            project={projects.find((each) =>
-              change.project
-                ? each.id === change.project.id
-                : each.name === change.name,
-            )}
-            undone={undone}
-          />
-        ))}
-      </ul>
-      {hidden > 0 && (
-        <button
-          className="w-full border-t border-border/60 px-4 py-2.5 text-left text-xs text-muted-foreground hover:text-foreground"
-          onClick={() => {
-            setExpanded(true);
-          }}
-          type="button"
-        >
-          Show {hidden.toString()} more
-        </button>
-      )}
-    </div>
+          undone={undone}
+        />
+      ))}
+    </ChangeCard>
   );
 }
 

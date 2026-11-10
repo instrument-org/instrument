@@ -517,11 +517,25 @@ export namespace SessionMessageDataPart {
            * a part from before it was recorded.
            */
           project: ChangedProjectLooksSchema.optional(),
+          /**
+           * A memory `instrument memory` saved or forgot: its text before
+           * the turn and as the turn left it, `null` for none. Absent where
+           * its file was written by hand, and in a part from before it was
+           * recorded.
+           */
+          memory: z
+            .object({
+              after: z.string().nullable(),
+              before: z.string().nullable(),
+            })
+            .optional(),
         }),
       )
       .min(1),
-    /** Set once the person took the changes back with the card's Undo. */
+    /** Set once the person took the project changes back with their card's Undo. */
     undone: CardUndoneSchema.optional(),
+    /** Set once the person took the memory changes back with their card's Undo. */
+    memoryUndone: CardUndoneSchema.optional(),
     /**
      * What the agent now knows of each app, memory and skill it changed, so
      * the next message's notes do not tell it what it did itself: an app by

@@ -81,6 +81,7 @@ export function renderDataPart(
           key={part.metadata.id}
           {...(card && { card })}
           {...(part.data.undone && { undone: true })}
+          {...(part.data.memoryUndone && { memoryUndone: true })}
         />
       );
     }

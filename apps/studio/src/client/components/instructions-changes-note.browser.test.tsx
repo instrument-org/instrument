@@ -8,7 +8,7 @@ import { InstructionsChangesNote } from "./instructions-changes-note";
 const gaming = { emoji: "🎮", id: "gaming", name: "Gaming" };
 
 describe("InstructionsChangesNote", () => {
-  it("says each change, naming the project by its pill", async () => {
+  it("lists each place that changed, a project opening its details", async () => {
     const { container, queryClient } = await renderInBrowser(
       <div className="w-[640px] bg-background p-4">
         <InstructionsChangesNote
@@ -35,13 +35,18 @@ describe("InstructionsChangesNote", () => {
     await expect
       .element(page.getByRole("button", { name: /Gaming/ }))
       .toBeVisible();
-    const lines = [...container.querySelectorAll("p")].map(
-      (line) => line.textContent,
+    const cards = [
+      ...container.querySelectorAll('[data-slot="instructions-changes"]'),
+    ].map((card) =>
+      [...card.querySelectorAll("li")].map((row) => row.textContent),
     );
-    expect(lines).toEqual([
-      "Updated instructions, added 1 folder from🎮Gaming",
-      "Updated workspace instructions",
-      "Moved toOld",
+    expect(cards).toEqual([
+      [
+        "🎮GamingInstructions updated1 folder added",
+        "Workspace instructionsUpdated",
+      ],
+      ["OOldThis chat moved here"],
     ]);
+    expect(page.getByText("Changed 2 instructions")).toBeTruthy();
   });
 });

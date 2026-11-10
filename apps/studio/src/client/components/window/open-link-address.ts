@@ -35,6 +35,15 @@ const OPEN_LINK = {
     openShortcutGuide();
     return undefined;
   },
+  // A project has no screen: its details open over the window, once the
+  // workspace has said which project the id or name is. The opener is
+  // loaded when used, as a skill's is.
+  project: (project) => {
+    void import("@/client/lib/show-project").then(({ showProject }) =>
+      showProject(project),
+    );
+    return undefined;
+  },
   // A setting is shown in Settings, on its page and lit; a name Settings has
   // no row or page for is searched for there instead.
   setting: (setting) => {
@@ -71,6 +80,7 @@ export function openLinkAddress(href: string): string | undefined {
   switch (screen.kind) {
     case "memory":
     case "namedScreen":
+    case "project":
     case "setting":
     case "skill": {
       return OPEN_LINK[screen.kind](screen.name);

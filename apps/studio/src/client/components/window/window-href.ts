@@ -30,6 +30,8 @@ export type Screen =
   | { kind: "memory"; name: string }
   | { kind: "namedScreen"; name: string }
   | { kind: "newTab" }
+  /** A project, by its id or its name: its details open over the window. */
+  | { kind: "project"; name: string }
   | { kind: "releaseNotes" }
   | { kind: "setting"; name: string }
   /** A site opened at the window's own level, by the id its group is kept under. */
@@ -78,6 +80,7 @@ export const SCREEN_ROUTES = {
 export const LINK_ADDRESSES = {
   memory: "/memory/$name",
   namedScreen: "/screen/$name",
+  project: "/projects/$name",
   setting: "/settings/$name",
   skill: "/skills/$name",
 } as const;
@@ -216,7 +219,13 @@ export function matchScreen(href: string): Screen {
   if (matchPath(SCREEN_ROUTES.debug, pathname, { under: true })) {
     return { kind: "debug", pathname };
   }
-  for (const kind of ["memory", "namedScreen", "setting", "skill"] as const) {
+  for (const kind of [
+    "memory",
+    "namedScreen",
+    "project",
+    "setting",
+    "skill",
+  ] as const) {
     const link = at(LINK_ADDRESSES[kind]);
     if (link) {
       return { kind, name: link.name };

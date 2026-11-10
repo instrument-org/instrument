@@ -130,6 +130,7 @@ it("reads every kind of address", () => {
     "/memory/trip-notes",
     "/memory/a/b",
     "/skills/provider%3Aweb",
+    "/projects/prj_01JDAILY",
     "/settings/theme",
     "/screen/shortcuts",
     "/nowhere",
@@ -210,6 +211,10 @@ it("reads every kind of address", () => {
         },
         "/nowhere": {
           "kind": "unknown",
+        },
+        "/projects/prj_01JDAILY": {
+          "kind": "project",
+          "name": "prj_01JDAILY",
         },
         "/release-notes": {
           "kind": "releaseNotes",

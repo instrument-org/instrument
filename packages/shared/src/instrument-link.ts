@@ -21,6 +21,7 @@ type InstrumentLinkKind =
   | "app"
   | "chat"
   | "memory"
+  | "project"
   | "screen"
   | "settings"
   | "skill"
@@ -34,6 +35,7 @@ const HOSTS = {
   app: { kind: "app", prefix: "/apps" },
   chat: { kind: "chat", prefix: "/chats" },
   memory: { kind: "memory", prefix: "/memory" },
+  project: { kind: "project", prefix: "/projects" },
   screen: { kind: "screen", prefix: "/screen" },
   settings: { kind: "settings", prefix: "/settings" },
   skill: { kind: "skill", prefix: "/skills" },
@@ -166,6 +168,23 @@ export function chatIdNamedBy(value: string): string | undefined {
   }
   const link = instrumentLinkOf(named);
   return link?.kind === "chat" ? link.name : undefined;
+}
+
+/**
+ * The project a project's address names, among the projects in use: by its
+ * id, which a rename leaves alone, or else by its name whatever its case, the
+ * way the agent's own `projects` command takes one. A retired project is
+ * named by nothing, since no list shows it.
+ */
+export function projectOfLink<
+  T extends { id: string; name: string; retired?: boolean },
+>(projects: readonly T[], name: string): T | undefined {
+  const inUse = projects.filter((project) => project.retired !== true);
+  const lowered = name.toLowerCase();
+  return (
+    inUse.find((project) => project.id === name) ??
+    inUse.find((project) => project.name.toLowerCase() === lowered)
+  );
 }
 
 /** What an address names inside the app, or undefined for one that names nothing here. */

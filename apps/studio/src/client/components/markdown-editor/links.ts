@@ -380,6 +380,7 @@ const APP_CHIP_ICONS: Record<
   app: "appWindow",
   chat: "chatTeardropText",
   memory: "fingerprint",
+  project: "folderSimple",
   screen: "appWindow",
   settings: "fadersHorizontal",
   skill: "cube",

@@ -20,6 +20,10 @@ const { showSkillFolder } = vi.hoisted(() => ({
   showSkillFolder: vi.fn<(name: string) => Promise<void>>(),
 }));
 vi.mock("@/client/lib/show-in-files", () => ({ showSkillFolder }));
+const { showProject } = vi.hoisted(() => ({
+  showProject: vi.fn<(name: string) => Promise<void>>(),
+}));
+vi.mock("@/client/lib/show-project", () => ({ showProject }));
 
 const CHAT = ChatIdSchema.parse("2026-10-01-roofer");
 const TAB = TabIdSchema.parse("tab");
@@ -28,6 +32,7 @@ afterEach(() => {
   getDefaultStore().set(settingsModalAtom, null);
   getDefaultStore().set(shortcutGuideModalAtom, null);
   showSkillFolder.mockReset();
+  showProject.mockReset();
 });
 
 describe("openLinkAddress", () => {
@@ -47,6 +52,17 @@ describe("openLinkAddress", () => {
     await vi.waitFor(
       () => {
         expect(showSkillFolder).toHaveBeenCalledWith("agents:handoff");
+      },
+      { interval: 1 },
+    );
+    expect(getDefaultStore().get(settingsModalAtom)).toBeNull();
+  });
+
+  it("opens a project's details and leaves no address for a tab", async () => {
+    expect(openLinkAddress("/projects/prj_01JDAILY")).toBeUndefined();
+    await vi.waitFor(
+      () => {
+        expect(showProject).toHaveBeenCalledWith("prj_01JDAILY");
       },
       { interval: 1 },
     );

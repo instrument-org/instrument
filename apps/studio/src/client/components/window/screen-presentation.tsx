@@ -95,6 +95,7 @@ export function screenLocation(
     case "memory":
     case "namedScreen":
     case "newTab":
+    case "project":
     case "releaseNotes":
     case "setting":
     case "site":
@@ -201,6 +202,7 @@ export function screenPresentation(
     }
     case "memory":
     case "namedScreen":
+    case "project":
     case "setting":
     case "site":
     case "skill":

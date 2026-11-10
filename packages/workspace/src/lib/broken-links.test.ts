@@ -50,6 +50,11 @@ describe("brokenLinksIn", () => {
     await fs.writeFile(path.join(chatRoot, "Drafts (2026)", "a b.txt"), "a");
     await fs.mkdir(path.join(root, "Memory"));
     await fs.writeFile(path.join(root, "Memory", "no-stevia.md"), "No stevia.");
+    await fs.mkdir(path.join(root, "Projects", "Daily"), { recursive: true });
+    await fs.writeFile(
+      path.join(root, "Projects", "Daily", "AGENTS.md"),
+      "---\nid: prj_01JDAILY\n---\n",
+    );
     await fs.mkdir(path.join(systemSkills, "instrument-guide"), {
       recursive: true,
     });
@@ -83,6 +88,8 @@ describe("brokenLinksIn", () => {
     ["a reference link", "See [the report][r].\n\n[r]: sales/report.md"],
     ["link text with brackets", "[Q3 [v2] report](sales/report.md)"],
     ["a memory", "[no stevia](instrument://memory/no-stevia)"],
+    ["a project by its id", "[Daily](instrument://project/prj_01JDAILY)"],
+    ["a project by its name", "[Daily](instrument://project/daily)"],
     ["a skill", "[the guide](instrument://skill/instrument-guide)"],
     [
       "a setting page and row",
@@ -162,6 +169,7 @@ describe("brokenLinksIn", () => {
           "[s](instrument://screen/nowhere)",
           "[app](instrument://app/no-such-service-xyz)",
           "[chat](instrument://chat/nosuchchat)",
+          "[weekly](instrument://project/prj_01JWEEKLY)",
           "[Q3 plan [v2].txt](q3-plan.txt)",
           "[gone](file:///nowhere/gone.md)",
           "[by ref][gone]",
@@ -243,6 +251,10 @@ describe("brokenLinksIn", () => {
         {
           "link": "instrument://chat/nosuchchat",
           "reason": "no chat by that id",
+        },
+        {
+          "link": "instrument://project/prj_01JWEEKLY",
+          "reason": "no project by that id or name",
         },
       ]
     `);

@@ -2,12 +2,14 @@ import {
   filePathOfInstrumentLink,
   instrumentLinkOf,
   isInstrumentAddress,
+  projectOfLink,
 } from "@instrument-org/shared";
 import fs from "node:fs/promises";
 import path from "node:path";
 
 import { ChatIdSchema, type ChatId } from "../schemas/chat-id";
 import { getAppCatalog } from "./apps/catalog";
+import { listProjects } from "./chat/projects";
 import { listApps } from "./apps/store";
 import { chatFilePathFromHref, isChatFileHref } from "./chat-file-href";
 import { memoryDir, readMemory } from "./memory/store";
@@ -29,7 +31,7 @@ interface BrokenLink {
  * Every link in a reply that would open nothing: a files fence line or a
  * file link naming no file or folder the chat can reach, an app address the
  * window opens no screen for, and one (`instrument://memory/<name>`) naming
- * a memory, skill, app, chat, setting or screen there is none of. A web
+ * a memory, skill, app, chat, project, setting or screen there is none of. A web
  * address is not checked: whether it answers depends on the network. An
  * address this cannot settle (a task, a chat by a short prefix) is left
  * alone.
@@ -220,6 +222,11 @@ async function missingThing({
       return (await readMemory(memoryDir(), name))
         ? undefined
         : "no memory by that name";
+    }
+    case "project": {
+      return projectOfLink(await listProjects(), name)
+        ? undefined
+        : "no project by that id or name";
     }
     case "screen":
     case "settings": {

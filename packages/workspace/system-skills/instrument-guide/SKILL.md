@@ -14,6 +14,7 @@ A setting, a page of Settings, or a screen is linked the way anything else in th
 - A row of Settings: [Zoom](instrument://settings/zoom). Settings opens on its page with the row lit.
 - A page of Settings: [Memory](instrument://settings/memory).
 - A screen: [Keyboard shortcuts](instrument://screen/shortcuts).
+- A project: `instrument://project/<id>`, with the id `instrument projects list` prints. Its details open over the window.
 
 The label is the thing in the user's words, and the name in the address comes from `reference.md`. Give the keyboard shortcut beside the link when there is one. Answer the question first, then link where they would click through; a reply that is only a link makes them do the reading.
 

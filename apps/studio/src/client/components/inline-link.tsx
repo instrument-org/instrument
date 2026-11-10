@@ -26,6 +26,7 @@ import { CubeIcon } from "@phosphor-icons/react/Cube";
 import { EnvelopeSimpleIcon } from "@phosphor-icons/react/EnvelopeSimple";
 import { FadersHorizontalIcon } from "@phosphor-icons/react/FadersHorizontal";
 import { FingerprintIcon } from "@phosphor-icons/react/Fingerprint";
+import { FolderSimpleIcon } from "@phosphor-icons/react/FolderSimple";
 import { KeyboardIcon } from "@phosphor-icons/react/Keyboard";
 import { skipToken, useQuery } from "@tanstack/react-query";
 import { Children, type ReactNode } from "react";
@@ -337,6 +338,10 @@ function AppLinkIcon({ link }: { link: InstrumentLink }) {
     }
     case "memory": {
       return <FingerprintIcon className={INLINE_CHIP_ICON_CLASS_NAME} />;
+    }
+    // A project is a folder of the workspace's, whatever mark it wears.
+    case "project": {
+      return <FolderSimpleIcon className={INLINE_CHIP_ICON_CLASS_NAME} />;
     }
     case "screen": {
       return link.name === "shortcuts" ? (

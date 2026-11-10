@@ -8,6 +8,7 @@ import {
   instrumentUrlOf,
   OUTSIDE_WORDS_MAX,
   outsideLinkOf,
+  projectOfLink,
 } from "./instrument-link";
 
 describe("instrumentLinkOf", () => {
@@ -73,6 +74,10 @@ describe("instrumentLinkOf", () => {
       { href: "/screen/shortcuts", kind: "screen", name: "shortcuts" },
     ],
     [
+      "instrument://project/prj_01JDAILY",
+      { href: "/projects/prj_01JDAILY", kind: "project", name: "prj_01JDAILY" },
+    ],
+    [
       "INSTRUMENT://Task/ses_01J9TASK",
       {
         href: "/tasks/ses_01J9TASK",
@@ -88,7 +93,7 @@ describe("instrumentLinkOf", () => {
     ["a task with no id", "instrument://task"],
     ["a name with a path under it", "instrument://task/ses_01J9TASK/files"],
     ["a name with characters no name has", "instrument://memory/no%20stevia"],
-    ["a noun the app has no screen for", "instrument://project/general"],
+    ["a noun the app has no screen for", "instrument://topic/general"],
     ["a chat by its old name", "instrument://thread/ses_01J9"],
     ["a name every object has", "instrument://constructor/x"],
     ["the file channel", "instrument://computer-abc123/Users/me/notes.md"],
@@ -107,6 +112,7 @@ describe("instrumentUrlOf", () => {
     ["/memory/no-stevia", "instrument://memory/no-stevia"],
     ["/apps/linear", "instrument://app/linear"],
     ["/skills/create-page", "instrument://skill/create-page"],
+    ["/projects/prj_01JDAILY", "instrument://project/prj_01JDAILY"],
     [
       "/skills/instrument%3Acreate-page",
       "instrument://skill/instrument:create-page",
@@ -129,6 +135,26 @@ describe("instrumentUrlOf", () => {
   it("reads back what it wrote", () => {
     const href = "/skills/create-page";
     expect(instrumentLinkOf(instrumentUrlOf(href) ?? "")?.href).toBe(href);
+  });
+});
+
+describe("projectOfLink", () => {
+  const projects = [
+    { id: "prj_01JDAILY", name: "Daily" },
+    { id: "prj_01JTRIPS", name: "Trips", retired: true },
+    // A name that is another project's id loses to the id.
+    { id: "prj_01JODD", name: "prj_01JDAILY" },
+  ];
+
+  it.each([
+    ["an id", "prj_01JDAILY", "prj_01JDAILY"],
+    ["a name", "Daily", "prj_01JDAILY"],
+    ["a name in another case", "daily", "prj_01JDAILY"],
+    ["a retired project", "prj_01JTRIPS", undefined],
+    ["a retired project by name", "Trips", undefined],
+    ["no project", "Weekly", undefined],
+  ])("reads %s", (_case, name, id) => {
+    expect(projectOfLink(projects, name)?.id).toBe(id);
   });
 });
 

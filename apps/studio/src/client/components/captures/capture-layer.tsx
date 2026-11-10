@@ -246,11 +246,13 @@ export function CaptureLayer() {
             setSwipe(null);
           }}
           onPointerDown={(event) => {
-            // The buttons on it take their own clicks.
+            // The buttons on it take their own clicks, and so does its copy
+            // menu, a portal whose presses React passes up to here.
             if (
               event.button !== 0 ||
-              (event.target instanceof Element &&
-                event.target.closest("button"))
+              !(event.target instanceof Element) ||
+              !event.currentTarget.contains(event.target) ||
+              event.target.closest("button")
             ) {
               return;
             }

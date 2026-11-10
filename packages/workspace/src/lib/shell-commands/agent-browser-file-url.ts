@@ -9,7 +9,8 @@ import {
 import { parseAgentBrowserArgs } from "./agent-browser-args";
 
 /**
- * Subcommands whose first positional is a URL to load. Deliberately narrow:
+ * Subcommands whose first positional is a URL to load, besides `tab new`,
+ * whose URL comes after `new`. Deliberately narrow:
  * the other path-taking subcommands (`screenshot`, `pdf`, `download`) name an
  * output file that must stay a sandbox path, not become an address, and
  * `pushstate` takes a same-document route that a new address would break.
@@ -42,14 +43,21 @@ export async function rewriteNavigationArgToFileUrl(
   },
 ): Promise<{ args: string[] } | { error: string }> {
   const { subArgs, subcommand } = parseAgentBrowserArgs(args);
-  if (subcommand === undefined || !NAVIGATION_SUBCOMMANDS.has(subcommand)) {
+  // `tab new <url>` opens a tab at its address, the URL after `new`.
+  const opensTab = subcommand === "tab" && subArgs[1]?.value === "new";
+  if (
+    subcommand === undefined ||
+    (!opensTab && !NAVIGATION_SUBCOMMANDS.has(subcommand))
+  ) {
     return { args };
   }
 
   // `--` rather than `-`, matching how the CLI itself picks the URL out of a
   // navigation command's remaining args, so the rewrite lands on exactly the
   // argument the browser will be told to load.
-  const target = subArgs.slice(1).find(({ value }) => !value.startsWith("--"));
+  const target = subArgs
+    .slice(opensTab ? 2 : 1)
+    .find(({ value }) => !value.startsWith("--"));
   if (target === undefined) {
     return { args };
   }

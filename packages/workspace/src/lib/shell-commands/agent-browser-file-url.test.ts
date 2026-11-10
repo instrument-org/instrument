@@ -87,6 +87,19 @@ describe("rewriteNavigationArgToFileUrl", () => {
     expect(result[1]).toBe(addressOf(TASK_HOST, "output", "report.html"));
   });
 
+  it.each([
+    { name: "a path relative to the chat's folder", url: "output/report.html" },
+    { name: "an absolute path", url: `${TASK}/output/report.html` },
+  ])("opens a new tab at $name by the file's own address", async ({ url }) => {
+    const result = await rewritten(["tab", "new", url]);
+
+    expect(result).toEqual([
+      "tab",
+      "new",
+      addressOf(TASK_HOST, "output", "report.html"),
+    ]);
+  });
+
   it("keeps query and hash from a file url", async () => {
     const result = await rewritten([
       "open",

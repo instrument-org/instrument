@@ -14,6 +14,7 @@ import { CubeIcon } from "@phosphor-icons/react/Cube";
 import { useQuery } from "@tanstack/react-query";
 import { type ReactNode } from "react";
 
+import { ProjectChangesCard } from "./project-changes-card";
 import { ProjectPill } from "./window/chat-row";
 
 type SetupChange =
@@ -23,18 +24,33 @@ type SetupChange =
  * What a turn did to the person's skills, apps, projects and memories, a line
  * each, in the voice of the other notes under a reply. Only the turn's own
  * writes are here, so each line is something this chat did. The name in a
- * line opens the item, unless the line says it is gone.
+ * line opens the item, unless the line says it is gone. What the
+ * `instrument projects` commands changed, which they record field by field,
+ * is a card of its own under the lines.
  */
 export function SetupChangesNote({ changes }: { changes: SetupChange[] }) {
+  const projects = changes.flatMap((change) =>
+    change.kind === "project" && change.fields
+      ? [{ fields: change.fields, name: change.name }]
+      : [],
+  );
+  const lines = changes.filter(
+    (change) => !(change.kind === "project" && change.fields),
+  );
   return (
-    <div className="mt-2 flex flex-col gap-1">
-      {changes.map((change) => (
-        <SetupChangeLine
-          change={change}
-          key={`${change.kind}:${change.name}`}
-        />
-      ))}
-    </div>
+    <>
+      {lines.length > 0 && (
+        <div className="mt-2 flex flex-col gap-1">
+          {lines.map((change) => (
+            <SetupChangeLine
+              change={change}
+              key={`${change.kind}:${change.name}`}
+            />
+          ))}
+        </div>
+      )}
+      {projects.length > 0 && <ProjectChangesCard changes={projects} />}
+    </>
   );
 }
 

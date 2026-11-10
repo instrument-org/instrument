@@ -13,7 +13,9 @@ import {
   ProjectSchema,
   updateProject,
 } from "../../lib/chat/projects";
+import { undoProjectChanges } from "../../lib/chat/undo-project-changes";
 import { watchFolder } from "../../lib/folder-watch";
+import { SessionMessageDataPart } from "../../schemas/session/message-data-part";
 import { base } from "../base";
 import { publisher } from "../publisher";
 
@@ -169,11 +171,30 @@ const changedProjectsRoute = base
     }
   });
 
+/**
+ * Puts back what a turn's `instrument projects` commands changed, where each
+ * project still has what the turn set.
+ */
+const undoProjectChangesRoute = base
+  .input(
+    z.object({
+      changes: z.array(
+        z.object({
+          fields: z.array(SessionMessageDataPart.ProjectFieldChangeSchema),
+          name: z.string(),
+        }),
+      ),
+    }),
+  )
+  .output(z.object({ skipped: z.number(), undone: z.number() }))
+  .handler(async ({ input }) => await undoProjectChanges(input.changes));
+
 export const projects = {
   create: createProjectRoute,
   events: { changed: changedProjectsRoute },
   get: getProjectRoute,
   list: listProjectsRoute,
   retire: retireProjectRoute,
+  undoChanges: undoProjectChangesRoute,
   update: updateProjectRoute,
 };

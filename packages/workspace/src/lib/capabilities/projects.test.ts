@@ -8,7 +8,8 @@ import { AbsolutePathSchema, WorkspaceDirSchema } from "../../schemas/paths";
 import { StoreId } from "../../schemas/store-id";
 import { chatFor } from "../../test/helpers/chat-record";
 import { createMockChatConfig } from "../../test/helpers/mock-chat-config";
-import { createProject, listProjects } from "../chat/projects";
+import { createProject, listProjects, updateProject } from "../chat/projects";
+import { undoProjectChanges } from "../chat/undo-project-changes";
 import { createLocalBashEnv } from "../create-bash-env";
 import {
   beginSetupChangeTracking,
@@ -196,5 +197,43 @@ describe("instrument projects list", () => {
         Reading  <id>  emoji 📚
       "
     `);
+  });
+});
+
+describe("undoing a turn's project changes", () => {
+  it("puts back the emoji, color and name, and leaves what the person changed since", async () => {
+    await createProject({ color: "#996d00", emoji: "🐭", name: "Remy" });
+    await createProject({ color: "#d4bc79", emoji: "📚", name: "Reading" });
+    const { changes } = await turn(
+      "instrument projects set Remy --icon cooking-pot --color deep-violet --name Kitchen",
+      "instrument projects set Reading --color pale-violet",
+    );
+    // The person picks another color for Reading before undoing.
+    const reading = await project("Reading");
+    await updateProject(reading?.id ?? "", { color: "#82c7f0" });
+    const recorded = changes.flatMap((change) =>
+      change.fields ? [{ fields: change.fields, name: change.name }] : [],
+    );
+    expect(await undoProjectChanges(recorded)).toEqual({
+      skipped: 1,
+      undone: 4,
+    });
+    expect(await project("Remy")).toMatchObject({
+      color: "#996d00",
+      emoji: "🐭",
+    });
+    expect((await project("Remy"))?.icon).toBeUndefined();
+    expect(await project("Reading")).toMatchObject({ color: "#82c7f0" });
+  });
+
+  it("brings a deleted project back", async () => {
+    await createProject({ name: "Events" });
+    const { changes } = await turn("instrument projects retire Events");
+    await undoProjectChanges(
+      changes.flatMap((change) =>
+        change.fields ? [{ fields: change.fields, name: change.name }] : [],
+      ),
+    );
+    expect((await project("Events"))?.retired).toBeUndefined();
   });
 });

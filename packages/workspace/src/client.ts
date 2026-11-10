@@ -141,6 +141,12 @@ export { type SessionMessage } from "./schemas/session/message";
 export { type SessionMessageDataPart } from "./schemas/session/message-data-part";
 export { setupChangeSentence } from "./lib/setup-change-sentence";
 export {
+  type ChangedProject,
+  projectChangeLines,
+  projectChangesHeading,
+  projectLookBefore,
+} from "./lib/project-change-words";
+export {
   chatChangesByChat,
   chatChangesHeading,
 } from "./lib/chat-change-groups";

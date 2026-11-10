@@ -72,7 +72,9 @@ export type ListedProject = z.output<typeof ListedProjectSchema>;
 
 /** What the user picks about a project. Anything left out is left alone. */
 export interface ProjectChange {
+  /** Empty takes it away. */
   about?: string;
+  /** Empty takes it away, leaving the color its name gives it. */
   color?: string;
   emoji?: string;
   folders?: ProjectFolder[];
@@ -622,12 +624,17 @@ function updateProjectNow(projectId: string, change: ProjectChange): boolean {
   }
   rewriteProjectSync(rootDir, { ...project, name }, (current) => {
     const {
+      about,
+      color,
       emoji: _emoji,
       icon: _icon,
       instructions,
       retired,
       ...rest
     } = current;
+    // Empty takes the line away, as it does for instructions.
+    const nextAbout = change.about ?? about;
+    const nextColor = change.color ?? color;
     const nextRetired = change.retired ?? retired;
     const nextInstructions =
       change.instructions === undefined
@@ -635,8 +642,8 @@ function updateProjectNow(projectId: string, change: ProjectChange): boolean {
         : change.instructions.trim();
     return {
       ...rest,
-      ...(change.about === undefined ? {} : { about: change.about }),
-      ...(change.color === undefined ? {} : { color: change.color }),
+      ...(nextAbout ? { about: nextAbout } : {}),
+      ...(nextColor ? { color: nextColor } : {}),
       ...markAfter(current, change),
       ...(nextInstructions ? { instructions: nextInstructions } : {}),
       ...(nextRetired ? { retired: true } : {}),

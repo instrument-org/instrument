@@ -1,0 +1,19 @@
+// Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
+
+exports[`projectChangesHeading > a mix 1`] = `"Changed 3 projects"`;
+
+exports[`projectChangesHeading > deletes 1`] = `"Deleted 2 projects"`;
+
+exports[`projectChangesHeading > icons and colors across projects 1`] = `"Changed the icons and colors of 3 projects"`;
+
+exports[`projectChangesHeading > one project's icon 1`] = `"Changed the icon of Pricing"`;
+
+exports[`projectChangesHeading > one project's icon and color 1`] = `"Changed the icon and color of Pricing"`;
+
+exports[`projectChangesHeading > one rename 1`] = `"Renamed a project"`;
+
+exports[`projectChangesHeading > only colors 1`] = `"Changed the colors of 3 projects"`;
+
+exports[`projectChangesHeading > only icons 1`] = `"Changed the icons of 2 projects"`;
+
+exports[`projectChangesHeading > renames 1`] = `"Renamed 2 projects"`;

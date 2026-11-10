@@ -110,3 +110,24 @@ it("puts the keyboard in a screen's home without a ring until a key is pressed",
   expect(document.activeElement).toBe(second);
   expect(outline(second)).toBe("solid");
 });
+
+it("leaves a keyboard let go onto nothing where something outside the screen took it", async () => {
+  document.body.innerHTML = `
+    <div data-app-tab-active>
+      <div data-keyboard-home>
+        <button type="button">First</button>
+      </div>
+    </div>
+    <textarea aria-label="Prompt"></textarea>
+  `;
+  const prompt = document.querySelector("textarea");
+  if (!prompt) {
+    throw new Error("fixture missing");
+  }
+
+  focusScreenHome({ leaving: false });
+  prompt.focus();
+  await frames(3);
+
+  expect(document.activeElement).toBe(prompt);
+});

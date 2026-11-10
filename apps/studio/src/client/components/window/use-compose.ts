@@ -7,9 +7,19 @@ import {
 } from "@/client/atoms/window";
 import { zoomAtom } from "@/client/atoms/zoom";
 import { type ChatId } from "@instrument-org/workspace/client";
-import { useAtom, useAtomValue } from "jotai";
+import { atom, useAtom, useAtomValue, useSetAtom } from "jotai";
 
 import { layoutCompose } from "./compose-layout";
+
+/**
+ * The draft window last asked to come up, by its group, counted so asking
+ * again for one already up is a change too: that window puts the keyboard
+ * in its prompt.
+ */
+export const composeFocusAtom = atom<{ count: number; group: string }>({
+  count: 0,
+  group: "",
+});
 
 /**
  * The windows along the foot of the row: the drafts being written and the
@@ -29,6 +39,7 @@ export function useCompose(width: number) {
         ? entry
         : { ...entry, placement: "docked" },
   );
+  const askFocus = useSetAtom(composeFocusAtom);
   const zoom = useAtomValue(zoomAtom);
   const placed = layoutCompose(entries, width, zoom);
   /** Whether a window is standing: a new one at the right, or the bar it was put down to, raised. */
@@ -45,7 +56,9 @@ export function useCompose(width: number) {
   };
   /** Brings a draft up in a window: a new window at the right, or the bar it was put down to, raised. */
   const open = (draftId: string) => {
-    raise(draftGroupOf(draftId), () => ({
+    const group = draftGroupOf(draftId);
+    askFocus((current) => ({ count: current.count + 1, group }));
+    raise(group, () => ({
       draftId,
       kind: "draft",
       placement: "docked",

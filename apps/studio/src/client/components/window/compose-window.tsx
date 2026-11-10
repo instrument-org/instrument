@@ -20,6 +20,7 @@ import {
 } from "@/client/components/ui/tooltip";
 import { fileUrlOf } from "@/client/lib/file-url";
 import { getFileType } from "@/client/lib/get-file-type";
+import { focusOnceLayersClose } from "@/client/lib/keyboard-home";
 import { osConventions } from "@/client/lib/utils";
 import {
   itemsOf,
@@ -39,6 +40,7 @@ import { useAtomValue, useSetAtom } from "jotai";
 import { AnimatePresence, motion, useIsPresent } from "motion/react";
 import {
   type ReactNode,
+  useEffect,
   useEffectEvent,
   useLayoutEffect,
   useRef,
@@ -70,6 +72,7 @@ import { projectColor } from "./project-colors";
 import { ProjectMark } from "./project-mark";
 import { AddProjectChip, ProjectPicker } from "./project-picker";
 import { projectTint } from "./project-tint";
+import { composeFocusAtom } from "./use-compose";
 import { useDraftChips } from "./use-draft-chips";
 import { useDraftProjectSuggestion } from "./use-draft-project-suggestion";
 import { useTabInView } from "./use-tab-in-view";
@@ -236,6 +239,29 @@ export function ComposeWindow({
 
   const inputRef = useRef<PromptInputRef>(null);
   const [dictating, setDictating] = useState(false);
+
+  // However the window was opened (New, an Ask, a menu's Ask), the keyboard
+  // goes to its words, as it comes up and each time it is asked for again.
+  const windowRef = useRef<HTMLDivElement>(null);
+  const focusRequest = useAtomValue(composeFocusAtom);
+  const asked = focusRequest.group === group ? focusRequest.count : 0;
+  useEffect(
+    () =>
+      focusOnceLayersClose({
+        focus: () => {
+          inputRef.current?.focus();
+        },
+        holds: () => {
+          const focused = document.activeElement;
+          return (
+            focused instanceof HTMLElement &&
+            focused.isContentEditable &&
+            windowRef.current?.contains(focused) === true
+          );
+        },
+      }),
+    [asked],
+  );
 
   // What the box holds besides its words, kept with the draft.
   const staging = useDraftStaging({
@@ -440,6 +466,7 @@ export function ComposeWindow({
       // line.
       className="pointer-events-auto absolute bottom-[calc(1px/var(--app-zoom))] z-40 flex max-h-[calc(100%-3.5rem)] flex-col overflow-hidden rounded-t-2xl bg-gray-100 text-foreground shadow-xl-soft ring-1 ring-gray-300 [clip-path:inset(-4rem_-4rem_0_-4rem)] dark:bg-gray-900 dark:ring-gray-600"
       data-slot="compose-window"
+      ref={windowRef}
       exit={{ opacity: 0, y: 24 }}
       inert={!isPresent}
       initial={{ opacity: 0, right, y: 24 }}

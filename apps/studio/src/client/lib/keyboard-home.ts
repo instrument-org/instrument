@@ -36,11 +36,14 @@ export function setHomeFocus(home: Element, focus: () => void) {
 /**
  * Puts the keyboard in the screen on show once it has drawn, unless
  * something on it took the keyboard first (a composer focusing itself as it
- * mounts). `leaving` is a press that changes the screen: the keyboard still
- * in the screen going away waits for the new one rather than counting.
+ * mounts), or, when the keyboard was on nothing, anything a person can see
+ * took it (a draft's window along the foot). `leaving` is a press that
+ * changes the screen: the keyboard still in the screen going away waits for
+ * the new one rather than counting.
  */
 export function focusScreenHome({ leaving }: { leaving: boolean }) {
   const from = document.activeElement;
+  const fromNothing = from === null || from === document.body;
   let frames = 0;
   const attempt = () => {
     const now = document.activeElement;
@@ -50,6 +53,14 @@ export function focusScreenHome({ leaving }: { leaving: boolean }) {
       from?.isConnected === true &&
       from.closest(ACTIVE_TAB) !== null;
     if (!isOldScreen && isInScreen(now)) {
+      return;
+    }
+    if (
+      fromNothing &&
+      now instanceof HTMLElement &&
+      now !== document.body &&
+      isShown(now)
+    ) {
       return;
     }
     const home = isOldScreen ? null : homeOnShow();
@@ -154,6 +165,63 @@ function isShown(element: HTMLElement) {
     element.closest("[inert]") === null &&
     element.checkVisibility({ visibilityProperty: true })
   );
+}
+
+/** How long something that just opened waits for a menu or dialog to go before it takes the keyboard, in frames. */
+const LAYER_WAIT_FRAMES = 60;
+
+/**
+ * Puts the keyboard in something that just opened, such as a draft's prompt,
+ * once the menu or dialog it was chosen from has gone. While one is up its
+ * focus trap pulls the keyboard back into it, and as it goes it hands the
+ * keyboard back to what opened it on a timer, so a focus made as the new
+ * thing mounts does not last. Radix marks the window with its focus guards
+ * while a modal layer is up; once they are gone, a timer of its own runs
+ * after the layer's. Nothing moves when `holds` says the keyboard is already
+ * there, or once the person presses a key or the pointer. Returns a way to
+ * give up.
+ */
+export function focusOnceLayersClose({
+  focus,
+  holds,
+}: {
+  focus: () => void;
+  holds: () => boolean;
+}) {
+  const controller = new AbortController();
+  let frame = 0;
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  const stop = () => {
+    cancelAnimationFrame(frame);
+    clearTimeout(timer);
+    controller.abort();
+  };
+  window.addEventListener("pointerdown", stop, {
+    capture: true,
+    signal: controller.signal,
+  });
+  window.addEventListener("keydown", stop, {
+    capture: true,
+    signal: controller.signal,
+  });
+  let frames = 0;
+  const attempt = () => {
+    frames += 1;
+    if (document.querySelector("[data-radix-focus-guard]") === null) {
+      timer = setTimeout(() => {
+        if (!holds()) {
+          focus();
+        }
+        stop();
+      });
+    } else if (frames < LAYER_WAIT_FRAMES) {
+      frame = requestAnimationFrame(attempt);
+    } else {
+      stop();
+    }
+  };
+  frame = requestAnimationFrame(attempt);
+  return stop;
 }
 
 /**

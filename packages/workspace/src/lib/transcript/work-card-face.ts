@@ -162,6 +162,11 @@ function pageFace(
     .at(-1);
   const target = newest?.kind === "opened" ? newest.target : undefined;
   const place = drivenPage?.url ?? address ?? target;
+  // With no address yet, the call is still bringing the page up, said as a
+  // web card says a fetch whose address has not come.
+  const isGoing = steps.some(
+    (step) => step.status !== "done" && step.status !== "failed",
+  );
   return {
     ...(place && {
       open: isAddress(place)
@@ -171,7 +176,7 @@ function pageFace(
     title:
       drivenPage?.title ??
       hostOf(drivenPage?.url ?? address) ??
-      (target ? baseName(target) : "A page"),
+      (target ? baseName(target) : isGoing ? "Opening a page" : "Browser"),
     view: "page/picture",
   };
 }

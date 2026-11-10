@@ -639,6 +639,12 @@ describe("a page card's face", () => {
       nowhere,
     ],
     [
+      "nothing known yet",
+      "page/picture",
+      card("page", [step({ changesPage: true, kind: "page" }, "running")]),
+      nowhere,
+    ],
+    [
       "an address",
       "page/picture",
       card("page", [
@@ -700,7 +706,11 @@ describe("a page card's face", () => {
           "view": "page/picture",
         },
         "nothing known": {
-          "title": "A page",
+          "title": "Browser",
+          "view": "page/picture",
+        },
+        "nothing known yet": {
+          "title": "Opening a page",
           "view": "page/picture",
         },
         "the tab driven": {

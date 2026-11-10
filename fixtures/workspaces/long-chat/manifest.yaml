@@ -1,0 +1,10 @@
+description: >-
+  One long chat, sixty turns of a made-up conversation, for trying find in a
+  chat across turns that start out unloaded. Generated, not recorded.
+settings:
+  preferences:
+    developerMode: true
+chats:
+  - key: harbor-notes
+    name: Harbor notes
+    agedMinutes: 5

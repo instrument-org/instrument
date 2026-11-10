@@ -1,9 +1,16 @@
 import { useTheme } from "@/client/components/theme-provider";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/client/components/ui/dropdown-menu";
 import { toast } from "@/client/lib/toast";
 import { cn, osConventions } from "@/client/lib/utils";
 import { rpcClient } from "@/client/rpc/client";
 import { type Capture, captureUrl } from "@/shared/captures";
 import { ChatIdSchema } from "@instrument-org/workspace/client";
+import { CaretDownIcon } from "@phosphor-icons/react/CaretDown";
 import { FolderSimpleIcon } from "@phosphor-icons/react/FolderSimple";
 import { XIcon } from "@phosphor-icons/react/X";
 import { useQuery } from "@tanstack/react-query";
@@ -14,6 +21,7 @@ import {
   CAPTURE_UI_ATTRIBUTE,
   captureContext,
   capturesChanged,
+  copyCaptureText,
   captureEditorAtom,
   captureRequestAtom,
   captureThumbnailAtom,
@@ -28,11 +36,21 @@ const CaptureEditor = lazy(() =>
 /** How long the white flash over the window lasts. */
 const FLASH_MS = 120;
 /** How long the picture takes to shrink into the corner. */
-const FLY_MS = 650;
+const FLY_MS = 520;
 /** How long the thumbnail waits in the corner while the pointer is off it. */
 const THUMBNAIL_MS = 6000;
 /** The thumbnail's size and its distance from the corner, in layout px. */
 const THUMB = { gap: 12, h: 140, w: 224 };
+
+/** Puts a capture's picture on the clipboard. */
+async function copyImage(name: string) {
+  try {
+    await rpcClient.captures.copy.call({ name });
+    toast.success("Copied the capture");
+  } catch (error) {
+    toast.error("Couldn't copy the capture", { cause: error });
+  }
+}
 
 /** Loads a picture before it is shown, so the shrink never starts on a blank. */
 function loaded(src: string) {
@@ -58,6 +76,7 @@ export function CaptureLayer() {
   const [flying, setFlying] = useState<Capture | null>(null);
   const [landing, setLanding] = useState(false);
   const [pointedAt, setPointedAt] = useState(false);
+  const [menuOpen, setMenuOpen] = useState(false);
   const [size, setSize] = useState({ height: 0, width: 0 });
   const rootRef = useRef<HTMLDivElement>(null);
   const { resolvedTheme } = useTheme();
@@ -128,7 +147,7 @@ export function CaptureLayer() {
 
   // The thumbnail goes on its own after a while, unless the pointer is on it.
   useEffect(() => {
-    if (!thumbnail || pointedAt || editing) {
+    if (!thumbnail || pointedAt || menuOpen || editing) {
       return;
     }
     const timer = setTimeout(() => {
@@ -137,7 +156,7 @@ export function CaptureLayer() {
     return () => {
       clearTimeout(timer);
     };
-  }, [editing, pointedAt, setThumbnail, thumbnail]);
+  }, [editing, menuOpen, pointedAt, setThumbnail, thumbnail]);
 
   const { showInFileManager } = osConventions();
   const flight = landing
@@ -169,7 +188,7 @@ export function CaptureLayer() {
           src={captureUrl(flying)}
           style={{
             ...flight,
-            transition: `all ${FLY_MS}ms cubic-bezier(0.45, 0, 0.25, 1)`,
+            transition: `all ${FLY_MS}ms cubic-bezier(0.34, 1.2, 0.5, 1)`,
           }}
         />
       )}
@@ -190,12 +209,13 @@ export function CaptureLayer() {
             alt="The newest capture"
             className="block aspect-[16/10] w-full object-cover object-left-top"
             draggable={false}
-            src={captureUrl(thumbnail)}
+            src={captureUrl(thumbnail, { small: true })}
           />
           <div
             className={cn(
               "absolute inset-0 flex flex-col justify-between bg-black/45 p-2 opacity-0 transition-opacity",
               "group-hover:opacity-100 has-focus-visible:opacity-100",
+              menuOpen && "opacity-100",
             )}
           >
             <div className="flex justify-between">
@@ -223,17 +243,51 @@ export function CaptureLayer() {
               </button>
             </div>
             <div className="flex gap-1.5">
-              <button
-                className="flex-1 rounded-md bg-white py-1 text-xs font-medium text-black hover:bg-white/90"
-                onClick={() => {
-                  void rpcClient.captures.copy
-                    .call({ name: thumbnail.name })
-                    .then(() => toast.success("Copied the capture"));
-                }}
-                type="button"
-              >
-                Copy
-              </button>
+              <div className="flex flex-1 overflow-hidden rounded-md bg-white text-xs font-medium text-black">
+                <button
+                  className="flex-1 py-1 hover:bg-black/5"
+                  onClick={() => {
+                    void copyImage(thumbnail.name);
+                  }}
+                  type="button"
+                >
+                  Copy
+                </button>
+                <DropdownMenu onOpenChange={setMenuOpen}>
+                  <DropdownMenuTrigger asChild>
+                    <button
+                      aria-label="More ways to copy"
+                      className="grid w-6 place-items-center border-l border-black/10 hover:bg-black/5"
+                      type="button"
+                    >
+                      <CaretDownIcon className="size-3" weight="bold" />
+                    </button>
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent align="end" side="top">
+                    <DropdownMenuItem
+                      onSelect={() => {
+                        void copyImage(thumbnail.name);
+                      }}
+                    >
+                      Copy image
+                    </DropdownMenuItem>
+                    <DropdownMenuItem
+                      onSelect={() => {
+                        void copyCaptureText(thumbnail.name, "agent");
+                      }}
+                    >
+                      Copy for an agent
+                    </DropdownMenuItem>
+                    <DropdownMenuItem
+                      onSelect={() => {
+                        void copyCaptureText(thumbnail.name, "path");
+                      }}
+                    >
+                      Copy path
+                    </DropdownMenuItem>
+                  </DropdownMenuContent>
+                </DropdownMenu>
+              </div>
               <button
                 className="flex-1 rounded-md bg-white py-1 text-xs font-medium text-black hover:bg-white/90"
                 onClick={() => {

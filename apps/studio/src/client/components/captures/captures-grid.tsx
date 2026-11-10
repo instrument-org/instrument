@@ -91,7 +91,7 @@ export function CapturesGrid({
                       className="size-full object-cover object-top"
                       draggable={false}
                       loading="lazy"
-                      src={captureUrl(capture)}
+                      src={captureUrl(capture, { small: true })}
                     />
                     {selected && (
                       <span

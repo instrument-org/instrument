@@ -13,6 +13,7 @@ import {
   app,
   clipboard,
   ClipboardItem,
+  nativeImage,
   shell,
   type WebContents,
 } from "electron";
@@ -95,6 +96,33 @@ export function capturePath(name: string) {
   return path.join(capturesDir(), checkedName(name));
 }
 
+/** The width a capture's small picture is made at, enough for a 2x screen. */
+const THUMBNAIL_WIDTH = 640;
+const thumbnails = new Map<string, Buffer>();
+
+/**
+ * A capture made small with a good filter, for the lists and the corner: a
+ * whole window scaled down by the browser to a tile's width comes out jagged.
+ * Kept per file and version until the app quits.
+ */
+export async function captureThumbnail(name: string) {
+  const file = capturePath(name);
+  const stat = await fs.stat(file);
+  const key = `${name}@${stat.mtimeMs}`;
+  const kept = thumbnails.get(key);
+  if (kept) {
+    return kept;
+  }
+  const image = nativeImage.createFromBuffer(await fs.readFile(file));
+  const small =
+    image.getSize().width > THUMBNAIL_WIDTH
+      ? image.resize({ quality: "best", width: THUMBNAIL_WIDTH })
+      : image;
+  const jpeg = small.toJPEG(88);
+  thumbnails.set(key, jpeg);
+  return jpeg;
+}
+
 async function readMeta(file: string): Promise<CaptureMeta | undefined> {
   const handle = await fs.open(file, "r");
   try {
@@ -166,6 +194,7 @@ export async function takeCapture(
 
 /** Every capture in the folder, newest first. */
 export async function listCaptures(): Promise<Capture[]> {
+  void sweepTrashed();
   let names: string[];
   try {
     names = await fs.readdir(capturesDir());
@@ -250,10 +279,87 @@ export async function copyCapture(name: string) {
   ]);
 }
 
-/** Moves a capture to the Trash, with its picture from before an edit. */
+/**
+ * Where a capture waits between Move to Trash and the system Trash, so its
+ * Undo can put it back: the Trash itself gives nothing back to an app.
+ */
+function trashedDir() {
+  return path.join(capturesDir(), ".trashed");
+}
+
+/** How long a capture waits there before it goes to the system Trash regardless. */
+const TRASHED_GRACE_MS = 2 * 60_000;
+
+/** The capture's own file and its picture from before an edit, each with where it waits. */
+function trashPairs(name: string) {
+  const checked = checkedName(name);
+  return [
+    [path.join(capturesDir(), checked), path.join(trashedDir(), checked)],
+    [
+      path.join(originalsDir(), checked),
+      path.join(trashedDir(), `${checked}.original`),
+    ],
+  ] as const;
+}
+
+async function moveIfThere(from: string, to: string) {
+  try {
+    await fs.rename(from, to);
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code !== "ENOENT") {
+      throw error;
+    }
+  }
+}
+
+/** Takes a capture out of the list, holding it where Undo can put it back. */
 export async function trashCapture(name: string) {
-  await shell.trashItem(capturePath(name));
-  await fs.rm(path.join(originalsDir(), checkedName(name)), { force: true });
+  await fs.mkdir(trashedDir(), { recursive: true });
+  for (const [from, to] of trashPairs(name)) {
+    await moveIfThere(from, to);
+  }
+}
+
+/** Puts back a capture Move to Trash took out. */
+export async function restoreCapture(name: string) {
+  await fs.mkdir(originalsDir(), { recursive: true });
+  for (const [to, from] of trashPairs(name)) {
+    await moveIfThere(from, to);
+  }
+}
+
+/** Sends a capture taken out to the system Trash, once its Undo has gone. */
+export async function finishTrashingCapture(name: string) {
+  for (const [, held] of trashPairs(name)) {
+    try {
+      await shell.trashItem(held);
+    } catch {
+      // Already gone, or already sent.
+    }
+  }
+}
+
+/** Sends to the system Trash what waited past its grace, as after a quit with the toast up. */
+async function sweepTrashed() {
+  let names: string[];
+  try {
+    names = await fs.readdir(trashedDir());
+  } catch {
+    return;
+  }
+  await Promise.all(
+    names.map(async (name) => {
+      const file = path.join(trashedDir(), name);
+      try {
+        const stat = await fs.stat(file);
+        if (Date.now() - stat.ctimeMs > TRASHED_GRACE_MS) {
+          await shell.trashItem(file);
+        }
+      } catch {
+        // Gone while sweeping.
+      }
+    }),
+  );
 }
 
 /**

@@ -194,18 +194,19 @@ function ToolButton({
 }) {
   return (
     <button
+      aria-label={label}
       aria-pressed={on}
       className={cn(
-        "flex h-8 items-center gap-1.5 rounded-lg px-2.5 text-[13px] outline-none focus-visible:ring-[3px] focus-visible:ring-ring/50",
+        "grid size-8 place-items-center rounded-lg outline-none focus-visible:ring-[3px] focus-visible:ring-ring/50",
         on
-          ? "bg-foreground/8 font-medium text-foreground"
+          ? "bg-foreground/8 text-foreground"
           : "text-foreground/75 hover:bg-foreground/5",
       )}
       onClick={onClick}
+      title={label}
       type="button"
     >
       {children}
-      {label}
     </button>
   );
 }
@@ -567,7 +568,7 @@ export function CaptureEditor({ capture }: { capture: Capture }) {
                     void copy();
                   }}
                 >
-                  Copy picture
+                  Copy image
                 </DropdownMenuItem>
                 <DropdownMenuItem
                   onSelect={() => {

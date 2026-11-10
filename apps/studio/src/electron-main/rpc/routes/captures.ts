@@ -1,6 +1,8 @@
 import {
   captureAgentNote,
   copyCapture,
+  finishTrashingCapture,
+  restoreCapture,
   currentBuild,
   hasOriginal,
   listCaptures,
@@ -43,6 +45,12 @@ export const captures = {
     .handler(({ input }) => {
       showCapture(input.name);
     }),
+  finishTrash: devOnly
+    .input(NameSchema)
+    .handler(({ input }) => finishTrashingCapture(input.name)),
+  restore: devOnly
+    .input(NameSchema)
+    .handler(({ input }) => restoreCapture(input.name)),
   trash: devOnly
     .input(NameSchema)
     .handler(({ input }) => trashCapture(input.name)),

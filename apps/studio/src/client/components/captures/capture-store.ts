@@ -5,7 +5,7 @@ import { type Capture, type CaptureContext } from "@/shared/captures";
 import { toast } from "@/client/lib/toast";
 import { osConventions } from "@/client/lib/utils";
 import { rpcClient } from "@/client/rpc/client";
-import { useQuery } from "@tanstack/react-query";
+import { keepPreviousData, useQuery } from "@tanstack/react-query";
 import { atom, getDefaultStore, useAtomValue } from "jotai";
 
 /** The newest capture, shown in the corner until it is put away. */
@@ -26,14 +26,35 @@ export function capturesChanged() {
   store.set(capturesVersionAtom, store.get(capturesVersionAtom) + 1);
 }
 
+/** Captures just taken out, left out of every list at once, before it is read again. */
+const trashedAtom = atom<ReadonlySet<string>>(new Set<string>());
+
 /** The captures in the folder, newest first, read again whenever one changes. */
 export function useCaptures() {
   const version = useAtomValue(capturesVersionAtom);
   const { data = [] } = useQuery({
     ...rpcClient.captures.list.queryOptions(),
+    // The list as it was until the new one arrives, so nothing empties out.
+    placeholderData: keepPreviousData,
     queryKey: [...rpcClient.captures.list.queryKey(), version],
   });
-  return data;
+  const gone = useAtomValue(trashedAtom);
+  return gone.size === 0
+    ? data
+    : data.filter((capture) => !gone.has(capture.name));
+}
+
+/** The text a capture puts on the clipboard: a note for a coding agent, or its path. */
+export async function copyCaptureText(name: string, kind: "agent" | "path") {
+  try {
+    const { note, path } = await rpcClient.captures.agentNote.call({ name });
+    await navigator.clipboard.writeText(kind === "agent" ? note : path);
+    toast.success(
+      kind === "agent" ? "Copied the capture for an agent" : "Copied the path",
+    );
+  } catch (error) {
+    toast.error("Couldn't copy the capture", { cause: error });
+  }
 }
 
 /** Bumped to ask the window's capture layer for a capture. */
@@ -49,17 +70,32 @@ export function openCaptureEditor(capture: Capture) {
   getDefaultStore().set(captureEditorAtom, capture);
 }
 
-/** Moves a capture to the Trash, putting away its thumbnail and editor. */
+/**
+ * Moves a capture to the Trash, putting away its thumbnail and editor, with
+ * Undo on a toast. It waits aside until the toast goes, and only then goes to
+ * the system Trash, which gives nothing back.
+ */
 export async function trashCapture(name: string) {
+  const store = getDefaultStore();
+  const setGone = (on: boolean) => {
+    const next = new Set(store.get(trashedAtom));
+    if (on) {
+      next.add(name);
+    } else {
+      next.delete(name);
+    }
+    store.set(trashedAtom, next);
+  };
+  setGone(true);
   try {
     await rpcClient.captures.trash.call({ name });
   } catch (error) {
+    setGone(false);
     toast.error(`Couldn't move the capture to the ${osConventions().trash}`, {
       cause: error,
     });
     return;
   }
-  const store = getDefaultStore();
   if (store.get(captureThumbnailAtom)?.name === name) {
     store.set(captureThumbnailAtom, null);
   }
@@ -67,6 +103,31 @@ export async function trashCapture(name: string) {
     store.set(captureEditorAtom, null);
   }
   capturesChanged();
+  let undone = false;
+  const finish = () => {
+    if (!undone) {
+      void rpcClient.captures.finishTrash.call({ name });
+    }
+  };
+  toast(`Moved the capture to the ${osConventions().trash}`, {
+    action: {
+      label: "Undo",
+      onClick: () => {
+        undone = true;
+        void rpcClient.captures.restore
+          .call({ name })
+          .then(() => {
+            setGone(false);
+            capturesChanged();
+          })
+          .catch((error: unknown) => {
+            toast.error("Couldn't put the capture back", { cause: error });
+          });
+      },
+    },
+    onAutoClose: finish,
+    onDismiss: finish,
+  });
 }
 
 /** Marks what the capture UI draws, so a capture's elements leave it out. */

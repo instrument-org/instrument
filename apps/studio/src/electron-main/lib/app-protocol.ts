@@ -1,4 +1,4 @@
-import { capturePath } from "@/electron-main/lib/captures";
+import { capturePath, captureThumbnail } from "@/electron-main/lib/captures";
 import { isDeveloperMode } from "@/electron-main/stores/workspace/preferences";
 import { CAPTURE_NAME_PATTERN, CAPTURES_HOST } from "@/shared/captures";
 import { DIRECTORY_ICON_HOST } from "@/shared/directory-icon";
@@ -116,13 +116,19 @@ async function handleCaptureRequest({
     return new Response(null, { status: 404 });
   }
   try {
-    return new Response(await fs.readFile(capturePath(name)), {
-      headers: {
-        "Access-Control-Allow-Origin": "*",
-        "Cache-Control": "no-store",
-        "Content-Type": "image/png",
+    const small = url.searchParams.get("size") === "thumb";
+    return new Response(
+      small
+        ? new Uint8Array(await captureThumbnail(name))
+        : await fs.readFile(capturePath(name)),
+      {
+        headers: {
+          "Access-Control-Allow-Origin": "*",
+          "Cache-Control": "no-store",
+          "Content-Type": small ? "image/jpeg" : "image/png",
+        },
       },
-    });
+    );
   } catch {
     return new Response(null, { status: 404 });
   }

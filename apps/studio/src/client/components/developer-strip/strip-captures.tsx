@@ -64,7 +64,7 @@ export function StripCaptures({ cellClass }: { cellClass: string }) {
           >
             captures
           </StripHeading>
-          <div className="max-h-[28rem] overflow-y-auto p-3 font-sans">
+          <div className="h-[20.5rem] overflow-y-auto p-3 font-sans">
             {captures.length === 0 ? (
               <p className="py-6 text-center text-sm text-muted-foreground">
                 Press {shortcut} to capture the window.

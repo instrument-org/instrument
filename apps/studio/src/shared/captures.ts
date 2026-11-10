@@ -87,8 +87,11 @@ const CaptureSchema = z.object({
 export type Capture = z.output<typeof CaptureSchema>;
 
 /** A capture's picture as the window loads it. */
-export function captureUrl(capture: Pick<Capture, "name" | "stamp">) {
-  return `${APP_PROTOCOL}://${CAPTURES_HOST}/${encodeURIComponent(capture.name)}?v=${capture.stamp}`;
+export function captureUrl(
+  capture: Pick<Capture, "name" | "stamp">,
+  { small = false }: { small?: boolean } = {},
+) {
+  return `${APP_PROTOCOL}://${CAPTURES_HOST}/${encodeURIComponent(capture.name)}?v=${capture.stamp}${small ? "&size=thumb" : ""}`;
 }
 
 /** The build a capture came from, short enough for a label on its picture. */

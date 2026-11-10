@@ -218,7 +218,9 @@ export function ChatFind({
     setIsStepping(true);
     const words = latestQuery.current;
     const before = ranges[0]?.cloneRange();
-    try {
+    // A promise's `finally` rather than a `try` one, which the React
+    // Compiler does not lower yet.
+    const loadAndLand = async () => {
       if (await loadOlderThrough(step.turn.id)) {
         await drawn(content, step.turn.id);
       }
@@ -230,10 +232,11 @@ export function ChatFind({
       setRanges(next);
       setActive(at);
       reveal(next[at]);
-    } finally {
+    };
+    await loadAndLand().finally(() => {
       stepping.current = false;
       setIsStepping(false);
-    }
+    });
   };
   const step = (forward: boolean) => {
     void run(

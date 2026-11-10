@@ -92,16 +92,15 @@ export function useTranscriptFeed(
    * Asks for pages before what the query holds until it holds `id`, or there
    * are none left; says whether it holds it then.
    */
-  const loadOlderThrough = async (id: StoreId.Message): Promise<boolean> => {
+  const loadOlderThrough = (id: StoreId.Message): Promise<boolean> => {
     setIsLoadingOlder(true);
-    try {
-      for (;;) {
-        const held = client.getQueryData<TranscriptFeed>(options.queryKey);
-        if (held?.messages.some((message) => message.id === id)) {
-          return true;
-        }
-        const before = held?.messages[0]?.id;
-        if (!held?.hasOlder || before === undefined) {
+    // A promise's `finally` rather than a `try` one, which the React
+    // Compiler does not lower yet.
+    const held = () => client.getQueryData<TranscriptFeed>(options.queryKey);
+    const loadThrough = async (): Promise<boolean> => {
+      while (!held()?.messages.some((message) => message.id === id)) {
+        const before = held()?.messages[0]?.id;
+        if (!held()?.hasOlder || before === undefined) {
           return false;
         }
         const older = await rpcClient.workspace.message.older.call({
@@ -112,9 +111,11 @@ export function useTranscriptFeed(
           applyOlder(current, older),
         );
       }
-    } finally {
+      return true;
+    };
+    return loadThrough().finally(() => {
       setIsLoadingOlder(false);
-    }
+    });
   };
   return { ...query, isLoadingOlder, loadOlder, loadOlderThrough };
 }

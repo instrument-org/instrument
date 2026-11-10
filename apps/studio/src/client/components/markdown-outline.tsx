@@ -13,6 +13,7 @@ import { CaretLineRightIcon } from "@phosphor-icons/react/CaretLineRight";
 import { useAtomValue } from "jotai";
 import { type ReactNode, useEffect, useRef, useState } from "react";
 
+import { MarkdownFind } from "./markdown-find";
 import { Button } from "./ui/button";
 import { toolbarClassName } from "./ui/toggle";
 import { Tooltip, TooltipContent, TooltipTrigger } from "./ui/tooltip";
@@ -77,6 +78,8 @@ export function MarkdownDocument({
   const [layoutElement, setLayoutElement] = useState<HTMLDivElement | null>(
     null,
   );
+  const scrollRef = useRef<HTMLDivElement>(null);
+  const contentRef = useRef<HTMLDivElement>(null);
   const [preference, setPreference] = useState<"column" | "rail" | null>(null);
   const headings = useMarkdownHeadings(scrollElement, headingSelector);
   const layout = useOutlineLayout(scrollElement, layoutElement);
@@ -92,25 +95,31 @@ export function MarkdownDocument({
       className="@container/markdown flex min-h-0 flex-1"
       ref={setLayoutElement}
     >
-      <div
-        className="relative min-w-0 flex-1 overflow-auto"
-        ref={setScrollElement}
-      >
-        {hasOutline && !column && (
-          <MarkdownOutline
-            // A rail the reader just made out of the column has the pointer
-            // sitting on it, right where the column's control was.
-            armOnLeave={preference === "rail"}
-            headings={headings}
-            layout={layout}
-            onToggle={() => {
-              setPreference("column");
-            }}
-            scrollElement={scrollElement}
-            variant="rail"
-          />
-        )}
-        {children}
+      <div className="relative flex min-w-0 flex-1">
+        <div
+          className="relative min-w-0 flex-1 overflow-auto"
+          ref={(element) => {
+            scrollRef.current = element;
+            setScrollElement(element);
+          }}
+        >
+          {hasOutline && !column && (
+            <MarkdownOutline
+              // A rail the reader just made out of the column has the pointer
+              // sitting on it, right where the column's control was.
+              armOnLeave={preference === "rail"}
+              headings={headings}
+              layout={layout}
+              onToggle={() => {
+                setPreference("column");
+              }}
+              scrollElement={scrollElement}
+              variant="rail"
+            />
+          )}
+          <div ref={contentRef}>{children}</div>
+        </div>
+        <MarkdownFind contentRef={contentRef} scrollRef={scrollRef} />
       </div>
       {column && (
         <MarkdownOutline

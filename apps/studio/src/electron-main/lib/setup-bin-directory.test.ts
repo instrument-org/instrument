@@ -111,3 +111,94 @@ describe.runIf(process.platform !== "win32")("setupBinDirectory", () => {
     expect(captureServerException).toHaveBeenCalledWith(failure);
   });
 });
+
+// Run anywhere: a hardlink and a .cmd file are plain `fs` work on every system.
+describe("setupBinDirectory on Windows", () => {
+  const originalPath = process.env.PATH;
+  const platform = process.platform;
+  const execPath = process.execPath;
+  let appDir = "";
+
+  beforeEach(async () => {
+    vi.clearAllMocks();
+    vi.restoreAllMocks();
+    userDataDir = await fs.mkdtemp(
+      path.join(os.tmpdir(), "setup-bin-directory-"),
+    );
+    // An app folder of its own: the program, and the files it starts from.
+    appDir = await fs.mkdtemp(path.join(os.tmpdir(), "setup-bin-app-"));
+    for (const file of [
+      "Instrument.exe",
+      "icudtl.dat",
+      "snapshot_blob.bin",
+      "v8_context_snapshot.bin",
+    ]) {
+      await fs.writeFile(path.join(appDir, file), file);
+    }
+    Object.defineProperty(process, "platform", { value: "win32" });
+    Object.defineProperty(process, "execPath", {
+      value: path.join(appDir, "Instrument.exe"),
+    });
+
+    return async () => {
+      Object.defineProperty(process, "platform", { value: platform });
+      Object.defineProperty(process, "execPath", { value: execPath });
+      process.env.PATH = originalPath;
+      await fs.rm(userDataDir, { force: true, recursive: true });
+      await fs.rm(appDir, { force: true, recursive: true });
+    };
+  });
+
+  it("links node.exe to the app's program, with the files it starts from beside it", async () => {
+    await setupBinDirectory();
+
+    for (const file of [
+      "icudtl.dat",
+      "snapshot_blob.bin",
+      "v8_context_snapshot.bin",
+    ]) {
+      const [linked, original] = await Promise.all([
+        fs.stat(path.join(binDir(), file)),
+        fs.stat(path.join(appDir, file)),
+      ]);
+      expect(linked.ino).toBe(original.ino);
+    }
+    const [node, program] = await Promise.all([
+      fs.stat(path.join(binDir(), "node.exe")),
+      fs.stat(path.join(appDir, "Instrument.exe")),
+    ]);
+    expect(node.ino).toBe(program.ino);
+    await expect(fs.access(path.join(binDir(), "node.cmd"))).rejects.toThrow();
+  });
+
+  it("writes a node.cmd shim when the program cannot be linked", async () => {
+    const failure = Object.assign(new Error("EXDEV: cross-device link"), {
+      code: "EXDEV",
+    });
+    vi.spyOn(fs, "link").mockRejectedValue(failure);
+
+    await setupBinDirectory();
+
+    await expect(
+      fs.readFile(path.join(binDir(), "node.cmd"), "utf8"),
+    ).resolves.toContain(process.execPath);
+    await expect(fs.access(path.join(binDir(), "node.exe"))).rejects.toThrow();
+    expect(captureServerException).toHaveBeenCalledWith(failure);
+  });
+
+  it("links again once an update writes a new program at the same path", async () => {
+    await setupBinDirectory();
+    const link = vi.spyOn(fs, "link");
+    await setupBinDirectory();
+    expect(link).not.toHaveBeenCalled();
+
+    // An update replaces the file: a new one at the same path.
+    await fs.rm(path.join(appDir, "Instrument.exe"));
+    await fs.writeFile(path.join(appDir, "Instrument.exe"), "a newer build");
+    await setupBinDirectory();
+
+    await expect(
+      fs.readFile(path.join(binDir(), "node.exe"), "utf8"),
+    ).resolves.toBe("a newer build");
+  });
+});

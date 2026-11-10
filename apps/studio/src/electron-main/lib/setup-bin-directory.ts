@@ -85,14 +85,31 @@ export async function setupBinDirectory(): Promise<string> {
 /** What the last launch linked, in the bin folder beside the links. */
 const LINKS_RECORD = ".links.json";
 
-/** The bundled binaries this build has on disk, each with where it is. */
-async function presentLinks(): Promise<{ name: string; targetPath: string }[]> {
-  const links = [{ name: "node", targetPath: process.execPath }];
-  for (const binary of getBinaryConfigs()) {
+type BinLink = { name: string; stamp?: string; targetPath: string };
+
+/**
+ * The bundled binaries this build has on disk, each with where it is. On
+ * Windows each also names the size and time of the file it points at: a
+ * hardlink is a second name for the file it was made from, so an update
+ * that writes a new program at the same path leaves it naming the old one
+ * until it is made again.
+ */
+async function presentLinks(): Promise<BinLink[]> {
+  const links: BinLink[] = [];
+  for (const binary of [
+    { getTargetPath: () => process.execPath, name: "node" },
+    ...getBinaryConfigs(),
+  ]) {
     try {
       const targetPath = binary.getTargetPath();
-      await fs.access(targetPath);
-      links.push({ name: binary.name, targetPath });
+      const stat = await fs.stat(targetPath);
+      links.push({
+        name: binary.name,
+        ...(process.platform === "win32" && {
+          stamp: `${stat.size}-${stat.mtimeMs}`,
+        }),
+        targetPath,
+      });
     } catch {
       // Not in this build, or not on this platform.
     }
@@ -115,9 +132,12 @@ async function linksAreCurrent(
   const present = await Promise.all(
     links.map((link) =>
       fs
-        .lstat(path.join(binDir, isWindows ? `${link.name}.cmd` : link.name))
+        .lstat(path.join(binDir, isWindows ? `${link.name}.exe` : link.name))
+        .catch(() =>
+          isWindows ? fs.lstat(path.join(binDir, `${link.name}.cmd`)) : null,
+        )
         .then(
-          () => true,
+          (stat) => stat !== null,
           () => false,
         ),
     ),
@@ -140,6 +160,47 @@ async function cleanBinDirectory(binDir: string): Promise<void> {
   } catch (error) {
     captureServerException(error);
   }
+}
+
+/**
+ * The files Electron reads from beside the program it was started as, which
+ * a `node.exe` elsewhere needs beside it too, or it stops at startup.
+ */
+const ELECTRON_STARTUP_FILES = [
+  "icudtl.dat",
+  "snapshot_blob.bin",
+  "v8_context_snapshot.bin",
+];
+
+/**
+ * `node.exe`, a hardlink to the app's own program, with the files it starts
+ * from beside it, so a program that starts `node` without a shell (a Python
+ * `subprocess.run(["node", ...])`) finds it: Windows starts only an `.exe`
+ * by name, never a `.cmd`. A hardlink cannot reach another drive, so where
+ * one cannot be made, a `node.cmd` shim, which a shell still finds.
+ */
+async function linkWindowsNode(
+  binDir: string,
+  nodeExePath: string,
+): Promise<void> {
+  const appDir = path.dirname(nodeExePath);
+  try {
+    await hardlink(nodeExePath, path.join(binDir, "node.exe"));
+    for (const file of ELECTRON_STARTUP_FILES) {
+      await hardlink(path.join(appDir, file), path.join(binDir, file));
+    }
+  } catch (error) {
+    captureServerException(error);
+    for (const file of ["node.exe", ...ELECTRON_STARTUP_FILES]) {
+      await fs.rm(path.join(binDir, file), { force: true }).catch(() => {});
+    }
+    await createNodeShim(binDir, nodeExePath);
+  }
+}
+
+async function hardlink(targetPath: string, linkPath: string): Promise<void> {
+  await fs.rm(linkPath, { force: true });
+  await fs.link(targetPath, linkPath);
 }
 
 async function createNodeShim(
@@ -211,6 +272,13 @@ function getRipgrepBinaryPath(): string {
   return rgPath;
 }
 
+/**
+ * Programs that run from any folder, linked on Windows as an `.exe` that a
+ * program starting them without a shell finds. git is not one: dugite's
+ * `git.exe` finds the rest of git from where it is.
+ */
+const HARDLINKED = new Set(["rg", "uv"]);
+
 async function linkDirect(
   binDir: string,
   name: string,
@@ -218,6 +286,15 @@ async function linkDirect(
 ): Promise<void> {
   const isWindows = process.platform === "win32";
 
+  if (isWindows && HARDLINKED.has(name)) {
+    try {
+      await hardlink(targetPath, path.join(binDir, `${name}.exe`));
+      return;
+    } catch (error) {
+      // Another drive: a shim, which a shell still finds.
+      captureServerException(error);
+    }
+  }
   if (isWindows) {
     const { default: cmdShim } = await import("@zkochan/cmd-shim");
     const outputPath = path.join(binDir, name);
@@ -273,7 +350,7 @@ async function setupNodeLink(binDir: string): Promise<void> {
 
   try {
     await (isWindows
-      ? createNodeShim(binDir, nodeExePath)
+      ? linkWindowsNode(binDir, nodeExePath)
       : replaceSymlink(nodeExePath, path.join(binDir, "node")));
   } catch (error) {
     // The node link is a PATH convenience for user-app child processes, the

@@ -7,6 +7,7 @@ import { type ChatId } from "../../schemas/chat-id";
 import { AbsolutePathSchema } from "../../schemas/paths";
 import { ffmpegSubprocessEnv } from "../ffmpeg";
 import { gitSubprocessEnv } from "../git";
+import { RG_DISK_PATH } from "../ripgrep";
 import { foundManagedPython } from "../run-uv";
 import { uvSubprocessEnv } from "../uv";
 import { getWorkspaceConfig } from "../workspace-config";
@@ -110,15 +111,19 @@ export function resolveCommandContext(
   // that starts `python` or `python3` gets the one the shell's `python` runs.
   const managedPython =
     uvEnv.VIRTUAL_ENV === undefined ? foundManagedPython() : undefined;
-  const pythonPath = managedPython
-    ? [path.dirname(managedPython), uvEnv.PATH].join(path.delimiter)
-    : uvEnv.PATH;
+  // And the bundled rg's, which no command of its own puts there.
+  const basePath = [
+    path.dirname(RG_DISK_PATH),
+    ...(managedPython ? [path.dirname(managedPython)] : []),
+    uvEnv.PATH,
+  ].join(path.delimiter);
   const shellEnv: Record<string, string> = {
     ...Object.fromEntries(ctx.env),
     ...uvEnv,
     // The bundled ffmpeg and ffprobe first on PATH, so a script or program
-    // that starts them by name gets the build the shell's own command runs.
-    ...ffmpegSubprocessEnv(pythonPath),
+    // that starts them, rg or python by name gets the one the shell's own
+    // command runs.
+    ...ffmpegSubprocessEnv(basePath),
   };
   // The shell's TZ is an IANA name (America/Chicago), which Windows' C
   // runtime does not read: it takes TZ as `CST6CDT` or nothing, and a name

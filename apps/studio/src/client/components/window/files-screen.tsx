@@ -65,6 +65,7 @@ import { FileAskButton } from "./file-ask-button";
 import { reachablePath } from "./file-tabs";
 import { useGroupTab } from "./group-tab";
 import { type SettledStep } from "./files-step";
+import { scrollOpenFileOnSpace } from "./scroll-open-file";
 import { useFilesStep } from "./use-files-step";
 import { folderOf, relativeHostPath, segmentsOf } from "./host-path";
 import { useHostedPage, useHostedPageNavigation } from "./hosted-page";
@@ -305,6 +306,8 @@ export function FilesScreen({
     );
   };
   const isArrowHeld = useRef(false);
+  const besideFolderRef = useRef<HTMLDivElement>(null);
+  const besideFileRef = useRef<HTMLDivElement>(null);
   const heldShow = useRef<{ path: string; timer: number } | null>(null);
   const clearHeldShow = () => {
     if (heldShow.current) {
@@ -764,6 +767,16 @@ export function FilesScreen({
               return;
             }
             if (
+              isFileOpen &&
+              scrollOpenFileOnSpace(event, {
+                file: besideFileRef.current,
+                folder: besideFolderRef.current,
+              })
+            ) {
+              event.preventDefault();
+              return;
+            }
+            if (
               event.key !== "Escape" ||
               !isFileOpen ||
               event.defaultPrevented ||
@@ -796,6 +809,7 @@ export function FilesScreen({
             )}
             // Folded away, nothing in it takes the keyboard.
             inert={isFileOpen && !isFolderShown}
+            ref={besideFolderRef}
             style={{ width: isFileOpen ? fileOffset : "100%" }}
           >
             {/* Never narrower than it stands beside the file, so folding it
@@ -891,7 +905,10 @@ export function FilesScreen({
               />
             </div>
           )}
-          <div className="relative h-full min-w-0 flex-1 overflow-hidden">
+          <div
+            className="relative h-full min-w-0 flex-1 overflow-hidden"
+            ref={besideFileRef}
+          >
             <AnimatePresence
               onExitComplete={() => {
                 setClosing(false);

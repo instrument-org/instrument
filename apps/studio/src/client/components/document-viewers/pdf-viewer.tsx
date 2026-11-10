@@ -61,6 +61,7 @@ import {
 import { useEffect, useState } from "react";
 
 import { FileLoading } from "../file-loading";
+import { FILE_SCROLLER_ATTRIBUTE } from "../window/scroll-open-file";
 import { useAskSelection } from "./ask-selection-context";
 import { useCopyShortcut } from "./use-copy-shortcut";
 import { PdfOpenError } from "./viewer-error";
@@ -472,7 +473,14 @@ function PdfDocumentView({ documentId }: { documentId: string }) {
         <div
           className="absolute inset-0 outline-none select-none"
           onPointerDownCapture={(event) => {
-            event.currentTarget.focus({ preventScroll: true });
+            // The viewport is what scrolls, so it takes the focus: Space,
+            // Shift+Space, the page keys and the arrows scroll the focused
+            // element and its ancestors, never what sits inside it.
+            (
+              event.currentTarget.querySelector<HTMLElement>(
+                `[${FILE_SCROLLER_ATTRIBUTE}]`,
+              ) ?? event.currentTarget
+            ).focus({ preventScroll: true });
             if (event.button === 2) {
               event.stopPropagation();
             }
@@ -482,8 +490,10 @@ function PdfDocumentView({ documentId }: { documentId: string }) {
         >
           <GlobalPointerProvider documentId={documentId}>
             <Viewport
-              className="absolute inset-0 bg-muted/40"
+              className="absolute inset-0 bg-muted/40 outline-none"
+              data-file-scroller
               documentId={documentId}
+              tabIndex={-1}
             >
               <Scroller
                 documentId={documentId}

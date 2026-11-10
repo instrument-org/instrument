@@ -88,5 +88,33 @@ export function useTranscriptFeed(
         setIsLoadingOlder(false);
       });
   };
-  return { ...query, isLoadingOlder, loadOlder };
+  /**
+   * Asks for pages before what the query holds until it holds `id`, or there
+   * are none left; says whether it holds it then.
+   */
+  const loadOlderThrough = async (id: StoreId.Message): Promise<boolean> => {
+    setIsLoadingOlder(true);
+    try {
+      for (;;) {
+        const held = client.getQueryData<TranscriptFeed>(options.queryKey);
+        if (held?.messages.some((message) => message.id === id)) {
+          return true;
+        }
+        const before = held?.messages[0]?.id;
+        if (!held?.hasOlder || before === undefined) {
+          return false;
+        }
+        const older = await rpcClient.workspace.message.older.call({
+          ...input,
+          before,
+        });
+        client.setQueryData(options.queryKey, (current) =>
+          applyOlder(current, older),
+        );
+      }
+    } finally {
+      setIsLoadingOlder(false);
+    }
+  };
+  return { ...query, isLoadingOlder, loadOlder, loadOlderThrough };
 }

@@ -1,6 +1,6 @@
 import { type RefObject, useEffect, useId, useRef, useState } from "react";
 
-const ACTIVE_MATCH_COLOR = "rgb(234 179 8 / 0.65)";
+export const ACTIVE_MATCH_COLOR = "rgb(234 179 8 / 0.65)";
 
 // Elements whose text is its own run rather than a continuation of what came
 // before, so a match may not cross out of one and into the next.
@@ -33,7 +33,7 @@ const BLOCK_TAGS = new Set([
   "ul",
 ]);
 
-const MATCH_COLOR = "rgb(234 179 8 / 0.3)";
+export const MATCH_COLOR = "rgb(234 179 8 / 0.3)";
 
 /**
  * Find-in-document over whatever a viewer has actually rendered.
@@ -239,7 +239,7 @@ function clamp(offset: number, node: Text): number {
  * node would fail on any query spanning more than one token -- which is most of
  * them, `import os` included.
  */
-function findRanges(container: HTMLElement, query: string): Range[] {
+export function findRanges(container: HTMLElement, query: string): Range[] {
   const nodes: Text[] = [];
   const starts: number[] = [];
   let haystack = "";

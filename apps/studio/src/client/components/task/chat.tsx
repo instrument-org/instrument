@@ -93,6 +93,7 @@ import {
   pendingPrompt,
   unsettledPrompts,
 } from "./pending-prompts";
+import { ChatFind } from "./chat-find";
 import { ScrollToEndBridge } from "./scroll-to-end-bridge";
 
 // How long a submitted prompt follows the transcript on its own before the
@@ -166,6 +167,8 @@ export function ChatConversation({
   const promptInputRef = useRef<PromptInputRef>(null);
   const [composerDictating, setComposerDictating] = useState(false);
   const contentRef = useRef<HTMLDivElement>(null);
+  const conversationRef = useRef<HTMLDivElement>(null);
+  const [isFindOpen, setFindOpen] = useState(false);
   const [isFollowingSubmit, setIsFollowingSubmit] = useState(false);
   const slideToSentRef = useRef<() => void>(noop);
 
@@ -674,7 +677,8 @@ export function ChatConversation({
     <ComposerDraftContext value={draftKey}>
       <LiveTranscriptSurface chat={id}>
         <MessageScrollerProvider
-          autoScroll={isFollowingOutput}
+          // Never while the find is up, which puts the reader on a match.
+          autoScroll={isFollowingOutput && !isFindOpen}
           defaultScrollPosition="end"
           key={selectedSessionId}
           scrollPreviousItemPeek={TRANSCRIPT_PREVIOUS_TURN_PEEK}
@@ -689,7 +693,11 @@ export function ChatConversation({
             contentRef={contentRef}
             signal={`${selectedSessionId}:${isLoadingMessages ? "loading" : "loaded"}`}
           />
-          <div className="flex h-full min-h-0 flex-col">
+          <div
+            className="flex h-full min-h-0 flex-col"
+            data-find-surface
+            ref={conversationRef}
+          >
             <MessageScroller className="min-h-0 flex-1">
               {/* Named so a block inside a message can measure the pane rather
               than the column it sits in, and `--transcript-room` declared one
@@ -782,6 +790,21 @@ export function ChatConversation({
               </MessageScrollerViewport>
 
               <TranscriptTopFade />
+
+              <ChatFind
+                chatId={id}
+                contentRef={contentRef}
+                hasOlder={messagesQuery.data?.hasOlder ?? false}
+                loadOlderThrough={messagesQuery.loadOlderThrough}
+                loadedIds={new Set(shownMessages.map((message) => message.id))}
+                onClose={() => {
+                  promptInputRef.current?.focus();
+                }}
+                onOpenChange={setFindOpen}
+                open={isFindOpen}
+                sessionId={selectedSessionId}
+                surfaceRef={conversationRef}
+              />
 
               {/* Fade the transcript into the composer with a background gradient
               rather than a viewport mask, so the scrollbar stays crisp. The

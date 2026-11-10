@@ -29,9 +29,10 @@ import {
 
 /**
  * A single image, fitted to the space it is given on a ground of its own, with
- * pinch and Cmd+wheel zoom and a two-finger scroll that moves around it. A press
- * gives it the keyboard, where the window's zoom chords zoom it and the arrows
- * move around it.
+ * pinch and Cmd+wheel zoom and a two-finger scroll that moves around it. A
+ * click on a picture larger than its pane zooms in there, and a click while
+ * zoomed fits it again. A press gives it the keyboard, where the window's zoom
+ * chords zoom it and the arrows move around it.
  *
  * Nothing is drawn over the picture: its zoom menu goes into `controlsInto`,
  * the row above it, which the host owns.
@@ -73,7 +74,12 @@ export function ImageViewer({
       <div
         className={cn(
           "flex size-full touch-none items-center justify-center overflow-hidden p-6 -outline-offset-3 outline-none focus-visible:outline-[3px] focus-visible:outline-ring/50 focus-visible:[outline-style:solid]",
-          zoom.canPan && "cursor-grab active:cursor-grabbing",
+          // A browser's own image view: grab to move around a zoomed
+          // picture, and where there is nothing to move, a click's way out.
+          zoom.isZoomed &&
+            (zoom.canPan
+              ? "cursor-grab active:cursor-grabbing"
+              : "cursor-zoom-out"),
         )}
         // After the file list: the picture has the keyboard when the folder
         // beside it is put away.
@@ -89,7 +95,10 @@ export function ImageViewer({
         >
           <ImageWithFallback
             alt={filename}
-            className="size-auto max-h-full max-w-full object-contain shadow-sm ring-1 ring-foreground/10 select-none"
+            className={cn(
+              "size-auto max-h-full max-w-full object-contain shadow-sm ring-1 ring-foreground/10 select-none",
+              zoom.clickZoomsIn && "cursor-zoom-in",
+            )}
             filename={filename}
             onError={onError}
             onLoad={() => {

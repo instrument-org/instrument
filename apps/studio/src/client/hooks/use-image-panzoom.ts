@@ -20,8 +20,8 @@ import { type RefObject, useEffect, useRef, useState } from "react";
 export const IMAGE_PANZOOM_VIEWPORT_CLASS = "image-panzoom-viewport";
 
 const ZOOMED_IN_THRESHOLD = 1.01;
-// Where a double-click lands on a picture already at its actual size or smaller.
-const DOUBLE_CLICK_SCALE = 2;
+// How far a press may travel, in on-screen px, and still count as a click.
+const CLICK_SLOP = 4;
 // How far zoom goes, from a picture's fit size or its actual size, whichever
 // is further in: far enough to read a diagram or count a screenshot's pixels.
 const MAX_ZOOM = 8;
@@ -45,7 +45,7 @@ const ARROWS: Record<string, { x: number; y: number }> = {
 
 /**
  * Pan and zoom for the picture in `contentRef`, inside `viewportRef`, its DOM
- * parent. Every input (wheel, drag, pinch, double-click, the menu, the keys, a
+ * parent. Every input (wheel, drag, pinch, click, the menu, the keys, a
  * resize) proposes a view, and `show` settles it (`settleView`) and writes it
  * as `contentRef`'s transform, so none can leave the picture off its edges.
  */
@@ -236,19 +236,27 @@ export function useImagePanzoom({
       }
     };
 
-    const handleDoubleClick = (event: MouseEvent) => {
+    // A click, as a browser's own image view takes one: on a picture shown
+    // at Fit that is larger than its pane, it zooms to the actual size with
+    // the spot clicked staying under the pointer; anywhere while zoomed, it
+    // goes back to Fit. A press that moved is a drag, never a click.
+    const handleClick = (event: MouseEvent) => {
+      if (pressMoved || event.button !== 0) {
+        return;
+      }
       if (view.scale > ZOOMED_IN_THRESHOLD) {
         fit();
         return;
       }
       const actual = img && getActualScale(img, viewport);
+      if (!img || !actual || actual <= ZOOMED_IN_THRESHOLD) {
+        return;
+      }
+      if (!(event.target instanceof Node) || !img.contains(event.target)) {
+        return;
+      }
       show(
-        zoomedAt(
-          view,
-          actual && actual > ZOOMED_IN_THRESHOLD ? actual : DOUBLE_CLICK_SCALE,
-          pointIn(event),
-          boxNow(),
-        ),
+        zoomedAt(view, actual, pointIn(event), boxNow()),
         ANIMATED_TRANSITION,
       );
     };
@@ -273,10 +281,23 @@ export function useImagePanzoom({
         : null;
     };
     let drag: null | { press: PointLike; start: PictureView } = null;
+    // Whether the press under way, or the last one, moved past a click's
+    // slop or became a pinch. Read by the click that ends it.
+    let pressMoved = false;
+    let press: null | PointLike = null;
     let stopFollowing: (() => void) | undefined;
     const handlePointerMove = (event: PointerEvent) => {
       if (touches.has(event.pointerId)) {
         touches.set(event.pointerId, event);
+      }
+      if (
+        press &&
+        Math.hypot(
+          event.clientX - press.clientX,
+          event.clientY - press.clientY,
+        ) > CLICK_SLOP
+      ) {
+        pressMoved = true;
       }
       const now = pinch && fingers();
       if (pinch && now) {
@@ -303,6 +324,7 @@ export function useImagePanzoom({
       touches.delete(event.pointerId);
       pinch = null;
       drag = null;
+      press = null;
       if (touches.size === 0) {
         stopFollowing?.();
         stopFollowing = undefined;
@@ -329,11 +351,14 @@ export function useImagePanzoom({
       if (event.button !== 0 || event.ctrlKey) {
         return;
       }
+      press = event;
+      pressMoved = false;
       if (event.pointerType === "touch") {
         touches.set(event.pointerId, event);
         const now = fingers();
         if (now) {
           drag = null;
+          pressMoved = true;
           pinch = { ...now, start: view };
           follow();
           return;
@@ -348,9 +373,9 @@ export function useImagePanzoom({
         event.stopPropagation();
         drag = { press: event, start: view };
       }
-      if (drag || touches.size > 0) {
-        follow();
-      }
+      // Followed at Fit too, so a press that wanders off and comes back is
+      // still seen to have moved.
+      follow();
     };
 
     let resizeFrame: number | undefined;
@@ -379,7 +404,7 @@ export function useImagePanzoom({
     resizeObserver.observe(viewport);
 
     viewport.addEventListener("wheel", handleWheel, { passive: false });
-    viewport.addEventListener("dblclick", handleDoubleClick);
+    viewport.addEventListener("click", handleClick);
     viewport.addEventListener("pointerdown", handlePointerDown);
 
     return () => {
@@ -393,7 +418,7 @@ export function useImagePanzoom({
       stopFollowing?.();
       viewport.removeEventListener("pointerdown", handlePointerDown);
       viewport.removeEventListener("wheel", handleWheel);
-      viewport.removeEventListener("dblclick", handleDoubleClick);
+      viewport.removeEventListener("click", handleClick);
       img?.removeEventListener("load", readSizes);
       window.removeEventListener("keydown", handleKeyDown);
       stopAnsweringKeys();
@@ -409,6 +434,11 @@ export function useImagePanzoom({
       controlsRef.current?.actualSize();
     },
     canPan,
+    /** At Fit, and larger than its pane, so a click on it zooms in. */
+    clickZoomsIn:
+      scale <= ZOOMED_IN_THRESHOLD &&
+      actualScale !== null &&
+      actualScale > ZOOMED_IN_THRESHOLD,
     fit: () => {
       controlsRef.current?.fit();
     },

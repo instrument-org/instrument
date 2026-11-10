@@ -91,8 +91,8 @@ describe("ImageViewer", () => {
     await new Promise(requestAnimationFrame);
     await new Promise(requestAnimationFrame);
     expect(scaleOf(image)).toBe(1);
-    // An arrow while nothing can move, an open hand once something can.
-    expect(globalThis.getComputedStyle(image).cursor).toBe("auto");
+    // A magnifier while a click would zoom in, an open hand once it can move.
+    expect(globalThis.getComputedStyle(image).cursor).toBe("zoom-in");
 
     wheel(image, { ctrlKey: true, deltaY: -400 });
     await vi.waitFor(() => {
@@ -298,5 +298,135 @@ describe("ImageViewer", () => {
     });
     screen.getByRole("img").element().dispatchEvent(event);
     expect(event.defaultPrevented).toBe(false);
+  });
+
+  describe("by a click, as a browser shows a picture", () => {
+    const SMALL = `data:image/svg+xml,${encodeURIComponent(`<svg xmlns="http://www.w3.org/2000/svg" width="40" height="30"><rect width="100%" height="100%" fill="red"/></svg>`)}`;
+
+    const atFit = async (url?: string) => {
+      const screen = await renderInBrowser(
+        <Viewer {...(url ? { url } : {})} />,
+      );
+      await expect
+        .element(screen.getByRole("button", { name: "Zoom: Fit" }))
+        .toBeVisible();
+      const image = screen.getByRole("img").element();
+      const pane = image.closest("[data-picture-keys]");
+      if (!(pane instanceof HTMLElement)) {
+        throw new Error("the picture should be in a pane");
+      }
+      return { image, pane, screen };
+    };
+    const cursorOf = (element: Element) =>
+      globalThis.getComputedStyle(element).cursor;
+    /** A press at a point, moved by `by`, let go, and the click the browser sends after it. */
+    const press = (
+      target: Element,
+      at: { x: number; y: number },
+      by = { x: 0, y: 0 },
+    ) => {
+      const point = (x: number, y: number) => ({
+        bubbles: true,
+        button: 0,
+        cancelable: true,
+        clientX: x,
+        clientY: y,
+      });
+      target.dispatchEvent(new PointerEvent("pointerdown", point(at.x, at.y)));
+      if (by.x !== 0 || by.y !== 0) {
+        window.dispatchEvent(
+          new PointerEvent("pointermove", point(at.x + by.x, at.y + by.y)),
+        );
+      }
+      window.dispatchEvent(
+        new PointerEvent("pointerup", point(at.x + by.x, at.y + by.y)),
+      );
+      target.dispatchEvent(
+        new MouseEvent("click", point(at.x + by.x, at.y + by.y)),
+      );
+    };
+    /** Where a point falls across the picture, as fractions of its box. */
+    const spotOf = (image: Element, x: number, y: number) => {
+      const box = image.getBoundingClientRect();
+      return {
+        x: (x - box.left) / box.width,
+        y: (y - box.top) / box.height,
+      };
+    };
+    const settled = async (image: Element) => {
+      let last = "";
+      await vi.waitFor(() => {
+        const now = JSON.stringify(image.getBoundingClientRect());
+        const same = now === last;
+        last = now;
+        expect(same).toBe(true);
+      });
+    };
+
+    it("shows the zoom-in cursor on a picture larger than its pane", async () => {
+      const { image } = await atFit();
+      expect(cursorOf(image)).toBe("zoom-in");
+    });
+
+    it("leaves a picture that fits at its actual size without one", async () => {
+      const { image } = await atFit(SMALL);
+      expect(cursorOf(image)).toBe("auto");
+      const box = image.getBoundingClientRect();
+      press(image, { x: box.left + 5, y: box.top + 5 });
+      await new Promise(requestAnimationFrame);
+      expect(scaleOf(image)).toBe(1);
+    });
+
+    it("zooms in at the spot clicked, then fits again on the next click", async () => {
+      const { image, pane } = await atFit();
+      const box = image.getBoundingClientRect();
+      const at = {
+        x: box.left + box.width * 0.25,
+        y: box.top + box.height * 0.3,
+      };
+      const before = spotOf(image, at.x, at.y);
+
+      press(image, at);
+      await vi.waitFor(() => {
+        expect(scaleOf(image)).toBeGreaterThan(2);
+      });
+      await settled(image);
+      const after = spotOf(image, at.x, at.y);
+      expect(after.x).toBeCloseTo(before.x, 2);
+      expect(after.y).toBeCloseTo(before.y, 2);
+      expect(cursorOf(pane)).toBe("grab");
+
+      press(image, at);
+      await vi.waitFor(() => {
+        expect(scaleOf(image)).toBe(1);
+      });
+      expect(cursorOf(image)).toBe("zoom-in");
+    });
+
+    it("moves a zoomed picture on a drag and leaves its zoom alone", async () => {
+      const { image } = await atFit();
+      const box = image.getBoundingClientRect();
+      const at = { x: box.left + box.width / 2, y: box.top + box.height / 2 };
+      press(image, at);
+      await vi.waitFor(() => {
+        expect(scaleOf(image)).toBeGreaterThan(2);
+      });
+      await settled(image);
+      const zoomed = scaleOf(image);
+      const was = transformOf(image);
+
+      press(image, at, { x: 60, y: 40 });
+      await new Promise(requestAnimationFrame);
+      expect(scaleOf(image)).toBe(zoomed);
+      expect(transformOf(image)).not.toBe(was);
+    });
+
+    it("takes a drag at Fit for no click", async () => {
+      const { image } = await atFit();
+      const box = image.getBoundingClientRect();
+      press(image, { x: box.left + 20, y: box.top + 20 }, { x: 30, y: 0 });
+      await new Promise(requestAnimationFrame);
+      expect(scaleOf(image)).toBe(1);
+    });
   });
 });

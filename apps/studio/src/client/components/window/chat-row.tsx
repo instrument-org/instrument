@@ -58,6 +58,7 @@ import { HoldMarks } from "./hold-marks";
 import { ROW_CONTROL, RowActionBar } from "./row-action-bar";
 import { type RowAction, rowClassName, stopHere } from "./row-shell";
 import { projectColor } from "./project-colors";
+import { projectIcon } from "./project-icons";
 import { ProjectMark } from "./project-mark";
 import { ProjectPicker } from "./project-picker";
 import { projectTint } from "./project-tint";
@@ -557,7 +558,8 @@ export function ProjectPill({
   );
   const inside = (
     <>
-      {project.emoji ? (
+      {/* An icon wins over an emoji, as on the project's mark. */}
+      {project.emoji && !projectIcon(project.icon) ? (
         <span className="text-[10px]">{project.emoji}</span>
       ) : (
         <ProjectMark className="size-3.5 text-[10px]" project={project} />

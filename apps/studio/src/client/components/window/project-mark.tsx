@@ -76,9 +76,15 @@ function ProjectFace({
   const icon = projectIcon(project.icon);
   if (icon) {
     // A share of the box rather than of the type, so the glyph sits in the
-    // tile with a margin, and fills the box where there is no tile.
+    // tile with a margin, and fills the box where there is no tile. A `size-`
+    // class rather than the `size` prop, since a menu item sizes every svg in
+    // it that has no `size-` class of its own.
     return (
-      <icon.Icon size={plain ? "100%" : "62%"} style={ink} weight="fill" />
+      <icon.Icon
+        className={plain ? "size-full" : "size-[62%]"}
+        style={ink}
+        weight="fill"
+      />
     );
   }
   if (project.emoji) {

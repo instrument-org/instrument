@@ -84,12 +84,7 @@ export function ProjectChangesCard({
     >
       <div className="flex h-11 items-center gap-2 border-b border-border/70 px-4">
         <span className="flex h-5 w-4 shrink-0 items-center justify-center">
-          <CardsThreeIcon
-            className={cn(
-              "size-4",
-              undone ? "text-muted-foreground" : "text-brand-600",
-            )}
-          />
+          <CardsThreeIcon className="size-4 text-muted-foreground" />
         </span>
         <span
           className={cn(

@@ -89,12 +89,7 @@ export function ChatChangesNote({ changes }: { changes: ChatChange[] }) {
     >
       <div className="flex h-11 items-center gap-2 border-b border-border/70 px-4">
         <span className="flex h-5 w-4 shrink-0 items-center justify-center">
-          <BroomIcon
-            className={cn(
-              "size-4",
-              undone ? "text-muted-foreground" : "text-brand-600",
-            )}
-          />
+          <BroomIcon className="size-4 text-muted-foreground" />
         </span>
         <span
           className={cn(

@@ -55,6 +55,7 @@ import {
   StepDetail,
 } from "./activity-row";
 import { BranchedFromLine } from "./branched-from-line";
+import { FoldsOpenedByFind } from "./folds-opened-by-find";
 import { NextStepRows, useHasNextSteps } from "./next-steps";
 import { renderDataPart } from "./note-part";
 import { PageTakeoverNote } from "./page-takeover-note";
@@ -300,6 +301,7 @@ function TurnBody({
 }) {
   const isFolded = useIsFolded(turn);
   const [isOpened, setIsOpened] = useState(false);
+  const isOpenedForFind = use(FoldsOpenedByFind).has(turn.id);
   const releaseAutoScroll = useReleaseAutoScroll();
   const { onBranch } = use(TranscriptActionsContext);
   // A branch carries the conversation through the reply's last message.
@@ -318,7 +320,7 @@ function TurnBody({
       out.push(
         <WorkedRow
           chatId={chatId}
-          isOpened={isOpened}
+          isOpened={isOpened || isOpenedForFind}
           key="worked"
           onToggle={() => {
             releaseAutoScroll();

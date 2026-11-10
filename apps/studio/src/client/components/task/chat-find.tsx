@@ -49,8 +49,9 @@ const DRAW_WAIT_FRAMES = 120;
  * Highlight API so React's DOM is never touched. A chat loads from its end, so
  * the turns above what is drawn are searched in the records
  * (`message.find`), counted in the readout above the drawn matches, and
- * loaded when a step reaches one. Work folded behind a Worked row is not
- * searched until it is opened, as it is not on screen.
+ * loaded when a step reaches one. The records also say which turns have
+ * matches in the work a Worked row folds, and the find holds those rows open
+ * (`onFoldsToOpen`) while it has the words, so their matches are drawn.
  *
  * While the card is up the transcript stops following the end (the
  * conversation reads `open`), so a match stepped to stays where it is put.
@@ -62,6 +63,7 @@ export function ChatFind({
   loadOlderThrough,
   loadedIds,
   onClose,
+  onFoldsToOpen,
   onOpenChange,
   open,
   sessionId,
@@ -76,6 +78,8 @@ export function ChatFind({
   loadedIds: ReadonlySet<string>;
   /** Closed from the card, with the keyboard in its field: where it goes next. */
   onClose: () => void;
+  /** The turns, by id, whose Worked row is to be held open for their matches. */
+  onFoldsToOpen: (turns: ReadonlySet<string>) => void;
   onOpenChange: (open: boolean) => void;
   open: boolean;
   sessionId: StoreId.Session;
@@ -98,21 +102,27 @@ export function ChatFind({
   const { data: found } = useQuery({
     ...rpcClient.workspace.message.find.queryOptions({
       input:
-        open && hasOlder && rested !== "" && rested === query
+        open && rested !== "" && rested === query
           ? { id: chatId, query: rested, sessionId }
           : skipToken,
     }),
   });
-  const isSearchingUnloaded = open && hasOlder && query !== "";
+  const searchedFound = open && query !== "" ? found : undefined;
+  const foldKey = (searchedFound ?? [])
+    .filter((turn) => turn.folded > 0)
+    .map((turn) => turn.id)
+    .join(" ");
+  useEffect(() => {
+    onFoldsToOpen(new Set(foldKey === "" ? [] : foldKey.split(" ")));
+  }, [foldKey, onFoldsToOpen]);
   const unloaded = unloadedMatches(
-    isSearchingUnloaded ? found : undefined,
+    hasOlder ? searchedFound : undefined,
     loadedIds,
   );
-  // No count until the turns not loaded have been searched for these words.
+  // No count until the records have been searched for these words, which
+  // also opens the folded work holding some.
   const isCounting =
-    query === "" ||
-    rested !== query ||
-    (isSearchingUnloaded && found === undefined);
+    query === "" || rested !== query || searchedFound === undefined;
 
   const { releaseAutoScroll, scrollToMessage } = useMessageScroller();
   const [ranges, setRanges] = useState<Range[]>([]);

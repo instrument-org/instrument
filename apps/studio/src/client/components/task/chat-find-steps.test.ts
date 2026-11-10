@@ -3,9 +3,9 @@ import { describe, expect, it } from "vitest";
 
 import { findReadout, stepFind, unloadedMatches } from "./chat-find-steps";
 
-const older = { count: 2, id: StoreId.newMessageId() };
-const old = { count: 1, id: StoreId.newMessageId() };
-const drawnTurn = { count: 3, id: StoreId.newMessageId() };
+const older = { count: 2, folded: 0, id: StoreId.newMessageId() };
+const old = { count: 1, folded: 0, id: StoreId.newMessageId() };
+const drawnTurn = { count: 3, folded: 0, id: StoreId.newMessageId() };
 
 describe("unloadedMatches", () => {
   it("keeps the turns the transcript does not hold", () => {

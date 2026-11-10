@@ -93,6 +93,7 @@ import {
   pendingPrompt,
   unsettledPrompts,
 } from "./pending-prompts";
+import { FoldsOpenedByFind } from "../transcript/folds-opened-by-find";
 import { ChatFind } from "./chat-find";
 import { ScrollToEndBridge } from "./scroll-to-end-bridge";
 
@@ -169,6 +170,9 @@ export function ChatConversation({
   const contentRef = useRef<HTMLDivElement>(null);
   const conversationRef = useRef<HTMLDivElement>(null);
   const [isFindOpen, setFindOpen] = useState(false);
+  const [foldsOpenedByFind, setFoldsOpenedByFind] = useState<
+    ReadonlySet<string>
+  >(() => new Set());
   const [isFollowingSubmit, setIsFollowingSubmit] = useState(false);
   const slideToSentRef = useRef<() => void>(noop);
 
@@ -747,40 +751,42 @@ export function ChatConversation({
                         onSend: sendNextStep,
                       }}
                     >
-                      <TranscriptStream
-                        chatId={chatId}
-                        contentRef={contentRef}
-                        isFollowing={isFollowingOutput}
-                        onArrivedBelow={() => {
-                          setHasArrivedBelow(true);
-                        }}
-                        hasOlder={messagesQuery.data?.hasOlder ?? false}
-                        isDeveloperMode={isDeveloperMode}
-                        isLoadingOlder={messagesQuery.isLoadingOlder}
-                        // Through the send too, so the turn does not read as finished
-                        // between its message being stored and its session starting.
-                        isRunning={
-                          isAgentRunning ||
-                          runTurn.isPending ||
-                          isAgentAlive ||
-                          isFollowingSubmit ||
-                          shownMessages.length > messages.length
-                        }
-                        messages={shownMessages}
-                        onBranch={handleBranch}
-                        onLoadOlder={messagesQuery.loadOlder}
-                        slideToSentRef={slideToSentRef}
-                        sessionId={selectedSessionId}
-                        onContinue={handleContinue}
-                        onModelChange={(modelURI) => {
-                          setSelectedModelURI(modelURI);
-                          handleRunAgain(modelURI);
-                        }}
-                        onRetry={handleRetry}
-                        onRunAgain={(options) => {
-                          handleRunAgain(undefined, options);
-                        }}
-                      />
+                      <FoldsOpenedByFind value={foldsOpenedByFind}>
+                        <TranscriptStream
+                          chatId={chatId}
+                          contentRef={contentRef}
+                          isFollowing={isFollowingOutput}
+                          onArrivedBelow={() => {
+                            setHasArrivedBelow(true);
+                          }}
+                          hasOlder={messagesQuery.data?.hasOlder ?? false}
+                          isDeveloperMode={isDeveloperMode}
+                          isLoadingOlder={messagesQuery.isLoadingOlder}
+                          // Through the send too, so the turn does not read as finished
+                          // between its message being stored and its session starting.
+                          isRunning={
+                            isAgentRunning ||
+                            runTurn.isPending ||
+                            isAgentAlive ||
+                            isFollowingSubmit ||
+                            shownMessages.length > messages.length
+                          }
+                          messages={shownMessages}
+                          onBranch={handleBranch}
+                          onLoadOlder={messagesQuery.loadOlder}
+                          slideToSentRef={slideToSentRef}
+                          sessionId={selectedSessionId}
+                          onContinue={handleContinue}
+                          onModelChange={(modelURI) => {
+                            setSelectedModelURI(modelURI);
+                            handleRunAgain(modelURI);
+                          }}
+                          onRetry={handleRetry}
+                          onRunAgain={(options) => {
+                            handleRunAgain(undefined, options);
+                          }}
+                        />
+                      </FoldsOpenedByFind>
                     </NextStepsContext>
                   )}
                   {pendingModelChange && (
@@ -800,6 +806,7 @@ export function ChatConversation({
                 onClose={() => {
                   promptInputRef.current?.focus();
                 }}
+                onFoldsToOpen={setFoldsOpenedByFind}
                 onOpenChange={setFindOpen}
                 open={isFindOpen}
                 sessionId={selectedSessionId}

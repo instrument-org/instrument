@@ -13,7 +13,7 @@ import {
   type TurnMatches,
 } from "@instrument-org/workspace/client";
 import { useRef, useState } from "react";
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { page, userEvent } from "vitest/browser";
 
 import "../../styles/globals.css";
@@ -44,7 +44,8 @@ vi.mock("@/client/rpc/client", () => ({
 const CHAT = "chat_01M6Y425TKVX7ETRAJ07DGTRNP" as ChatId;
 const SESSION = StoreId.newSessionId();
 
-type Turn = { id: StoreId.Message; text: string };
+/** A turn's words, and those its Worked row folds away until opened. */
+type Turn = { folded?: string; id: StoreId.Message; text: string };
 
 const filler = (label: string) =>
   `${label}. ${"Some words that fill the turn out. ".repeat(12)}`;
@@ -64,6 +65,7 @@ function Conversation({
   const contentRef = useRef<HTMLDivElement>(null);
   const surfaceRef = useRef<HTMLDivElement>(null);
   const [open, setOpen] = useState(false);
+  const [opened, setOpened] = useState<ReadonlySet<string>>(new Set());
   const [held, setHeld] = useState(initiallyHeld);
   const unheld = older.filter((turn) => !held.includes(turn));
   return (
@@ -75,6 +77,9 @@ function Conversation({
               {held.map((turn) => (
                 <MessageScrollerItem key={turn.id} messageId={turn.id}>
                   <p>{turn.text}</p>
+                  {turn.folded !== undefined && opened.has(turn.id) && (
+                    <p>{turn.folded}</p>
+                  )}
                 </MessageScrollerItem>
               ))}
             </MessageScrollerContent>
@@ -91,6 +96,7 @@ function Conversation({
             }}
             loadedIds={new Set(held.map((turn) => turn.id))}
             onClose={() => undefined}
+            onFoldsToOpen={setOpened}
             onOpenChange={setOpen}
             open={open}
             sessionId={SESSION}
@@ -124,6 +130,10 @@ function activeMatchInView(): boolean {
   const rect = range.getBoundingClientRect();
   return rect.top >= view.top && rect.bottom <= view.bottom;
 }
+
+beforeEach(() => {
+  rpc.find.mockResolvedValue([]);
+});
 
 afterEach(() => {
   rpc.find.mockReset();
@@ -168,7 +178,7 @@ describe("ChatFind", () => {
   it("counts matches in turns not loaded yet and loads the one a step reaches", async () => {
     const early = turn(`The apple turn from long ago. ${filler("Early")}`);
     const middle = turn(filler("Middle"));
-    rpc.find.mockResolvedValue([{ count: 1, id: early.id }]);
+    rpc.find.mockResolvedValue([{ count: 1, folded: 0, id: early.id }]);
     await renderInBrowser(
       <Conversation
         held={[turn(`An apple today. ${filler("Today")}`)]}
@@ -196,7 +206,7 @@ describe("ChatFind", () => {
 
   it("goes up to a match above when none is drawn", async () => {
     const early = turn(`A pear from long ago. ${filler("Early")}`);
-    rpc.find.mockResolvedValue([{ count: 1, id: early.id }]);
+    rpc.find.mockResolvedValue([{ count: 1, folded: 0, id: early.id }]);
     await renderInBrowser(
       <Conversation held={[turn(filler("Today"))]} older={[early]} />,
     );
@@ -206,5 +216,24 @@ describe("ChatFind", () => {
     await userEvent.keyboard("pear");
     await expect.poll(readout).toBe("1 of 1");
     await expect.poll(activeMatchInView).toBe(true);
+  });
+
+  it("opens the folded work holding a match, and folds it again on close", async () => {
+    const worked = {
+      ...turn(`Today's turn. ${filler("Today")}`),
+      folded: "Checked the quokka enclosure.",
+    };
+    rpc.find.mockResolvedValue([{ count: 1, folded: 1, id: worked.id }]);
+    await renderInBrowser(<Conversation held={[worked]} />);
+    viewport()?.focus();
+    openFindForKeyboard();
+    await expect.element(field()).toHaveFocus();
+    expect(document.body.textContent).not.toContain("quokka");
+    await userEvent.keyboard("quokka");
+    await expect.poll(readout).toBe("1 of 1");
+    await expect.poll(activeMatchInView).toBe(true);
+
+    await userEvent.keyboard("{Escape}");
+    await expect.poll(() => document.body.textContent).not.toContain("quokka");
   });
 });

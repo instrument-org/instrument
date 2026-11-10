@@ -67,7 +67,7 @@ const ran = (id: StoreId.Message) => {
 };
 
 describe("findInTranscript", () => {
-  it("counts the words each turn shows, leaving out what its fold hides", () => {
+  it("counts the words each turn shows, and apart those its fold hides", () => {
     const first = typed("Find the apple");
     const messages = [
       first,
@@ -83,8 +83,8 @@ describe("findInTranscript", () => {
       typed("APPLE again"),
     ];
     expect(findInTranscript({ messages, query: "apple", sessionId })).toEqual([
-      { count: 4, id: first.id },
-      { count: 1, id: messages[4]?.id },
+      { count: 5, folded: 1, id: first.id },
+      { count: 1, folded: 0, id: messages[4]?.id },
     ]);
   });
 

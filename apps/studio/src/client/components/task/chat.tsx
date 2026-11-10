@@ -828,7 +828,7 @@ export function ChatConversation({
 function ArchivedFoot({ chatId }: { chatId: ChatId }) {
   const queryClient = useQueryClient();
   return (
-    <div className="flex items-center justify-between gap-3 rounded-xl border bg-card py-2.5 pr-2.5 pl-4 text-sm text-muted-foreground shadow-xs">
+    <div className="flex items-center justify-between gap-3 rounded-xl bg-card py-2.5 pr-2.5 pl-4 text-sm text-muted-foreground">
       This chat is archived.
       <Button
         onClick={() => {

@@ -1,10 +1,13 @@
 import { type ByteString, latin1FromBytes } from "just-bash";
+import path from "node:path";
 import { parseArgs, type ParseArgsConfig } from "node:util";
 
 import { FOLDER_VARIABLES } from "../../constants";
 import { type ChatId } from "../../schemas/chat-id";
 import { AbsolutePathSchema } from "../../schemas/paths";
+import { ffmpegSubprocessEnv } from "../ffmpeg";
 import { gitSubprocessEnv } from "../git";
+import { foundManagedPython } from "../run-uv";
 import { uvSubprocessEnv } from "../uv";
 import { getWorkspaceConfig } from "../workspace-config";
 import { hostPathOf } from "../workspace-fs-layout";
@@ -102,9 +105,20 @@ export function resolveCommandContext(
   const hostCwd = AbsolutePathSchema.parse(
     hostPathOf(ctx.fs.resolvePath(ctx.cwd, ".")),
   );
+  const uvEnv = uvSubprocessEnv({ chatId, cwd: hostCwd });
+  // Where no virtualenv is near, the managed Python's folder, so a script
+  // that starts `python` or `python3` gets the one the shell's `python` runs.
+  const managedPython =
+    uvEnv.VIRTUAL_ENV === undefined ? foundManagedPython() : undefined;
+  const pythonPath = managedPython
+    ? [path.dirname(managedPython), uvEnv.PATH].join(path.delimiter)
+    : uvEnv.PATH;
   const shellEnv: Record<string, string> = {
     ...Object.fromEntries(ctx.env),
-    ...uvSubprocessEnv({ chatId, cwd: hostCwd }),
+    ...uvEnv,
+    // The bundled ffmpeg and ffprobe first on PATH, so a script or program
+    // that starts them by name gets the build the shell's own command runs.
+    ...ffmpegSubprocessEnv(pythonPath),
   };
   // The shell's TZ is an IANA name (America/Chicago), which Windows' C
   // runtime does not read: it takes TZ as `CST6CDT` or nothing, and a name

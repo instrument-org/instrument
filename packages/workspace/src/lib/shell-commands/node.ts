@@ -2,7 +2,6 @@ import { defineCommand, latin1FromBytes } from "just-bash";
 
 import { type AbsolutePath } from "../../schemas/paths";
 import { type ChatId } from "../../schemas/chat-id";
-import { ffmpegSubprocessEnv } from "../ffmpeg";
 import { filterShellOutput } from "../filter-shell-output";
 import { type ChannelAnswer, openScriptChannel } from "../capabilities/channel";
 import { scriptSurfaceOpen } from "../capabilities/script-surface";
@@ -67,8 +66,6 @@ export async function execNode(
           // A script that installs or builds a native addon uses the app's own
           // npm config, store and node-gyp headers, never the person's.
           ...nodeToolsEnv(),
-          // After ...env so the ffmpeg dirs win over ctx.env's host PATH.
-          ...ffmpegSubprocessEnv(env?.PATH),
         },
         ...(stdin ? { input: stdin } : { stdin: "ignore" as const }),
       },

@@ -8,6 +8,7 @@ import path from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { ChatIdSchema } from "../../schemas/chat-id";
+import { FFMPEG_PATH } from "../ffmpeg";
 import { AbsolutePathSchema } from "../../schemas/paths";
 import { createMockChatConfig } from "../../test/helpers/mock-chat-config";
 import { runtimeLayout } from "../runtime-dir";
@@ -81,6 +82,29 @@ describe("python", () => {
       expect.objectContaining({
         env: expect.objectContaining({ PYTHONNOUSERSITE: "1" }),
       }),
+    );
+  });
+
+  it("puts the bundled ffmpeg ahead of the computer's PATH for a script", async () => {
+    const { execa } = await import("execa");
+    vi.mocked(execa).mockResolvedValueOnce({
+      all: "",
+      exitCode: 0,
+    } as never);
+
+    await command.execute(["-c", "print(1)"], mockCtx);
+
+    // execa's mock is typed by its two-argument overload; the call took three.
+    const call = vi.mocked(execa).mock.lastCall as unknown as
+      | [string, string[], { env?: Record<string, string> }]
+      | undefined;
+    const env = call?.[2].env;
+    expect(env?.FFMPEG_PATH).toBe(FFMPEG_PATH);
+    const entries = env?.PATH?.split(path.delimiter) ?? [];
+    const ffmpegAt = entries.indexOf(path.dirname(FFMPEG_PATH));
+    expect(ffmpegAt).toBeGreaterThan(-1);
+    expect(ffmpegAt).toBeLessThan(
+      entries.indexOf(process.env.PATH?.split(path.delimiter)[0] ?? ""),
     );
   });
 

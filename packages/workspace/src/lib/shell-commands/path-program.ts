@@ -10,7 +10,6 @@ import nodePath from "node:path";
 import { type ChatId } from "../../schemas/chat-id";
 import { type Asker } from "../chat/asks";
 import { appRefusal, type MacApp, REACHABLE_APPS } from "../permissions/apps";
-import { ffmpegSubprocessEnv } from "../ffmpeg";
 import { filterShellOutput } from "../filter-shell-output";
 import { nodeToolsEnv } from "../tool-isolation";
 import { uvSubprocessEnv } from "../uv";
@@ -289,8 +288,6 @@ function createPathProgramCommand(
       // A program that builds or installs packages uses the app's own npm
       // config, store and node-gyp headers, never the person's.
       ...nodeToolsEnv(),
-      // After ...env so the bundled ffmpeg dirs win over the shell's PATH.
-      ...ffmpegSubprocessEnv(env.PATH),
     };
     return runNative(
       ctx,

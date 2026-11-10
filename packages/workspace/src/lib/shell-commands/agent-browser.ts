@@ -27,7 +27,6 @@ import {
 } from "../agent-browser-plugin";
 import { agentBrowserGuide } from "../../model-text/guides/agent-browser-guide";
 import { recordVisitedHosts } from "../browser-state";
-import { ffmpegSubprocessEnv } from "../ffmpeg";
 import { agentSpellingOfFileUrls } from "../local-page-address";
 import {
   getAgentBrowserHomeDir,
@@ -898,12 +897,9 @@ export function createAgentBrowserCommand({
     const agentBrowserStateDir = screenshotDir;
 
     const spawnEnv = {
+      // `agent-browser record` starts `ffmpeg` by bare name, which the
+      // command env's PATH resolves to the bundled build.
       ...env,
-      // `agent-browser record` spawns a real `ffmpeg` process by bare name,
-      // resolved against PATH. The bundled ffmpeg binary isn't on the sandbox
-      // PATH, so prepend its dir (the in-bash `ffmpeg` command is a just-bash
-      // intercept that a separate subprocess can't see).
-      ...ffmpegSubprocessEnv(env.PATH),
       // Null out env-var equivalents of harness-owned and connection flags so
       // the user shell can't bypass flag policy. Connection targeting must
       // arrive as CLI flags, where they are refused.

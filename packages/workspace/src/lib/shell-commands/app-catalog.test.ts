@@ -123,13 +123,12 @@ describe("app catalog", () => {
     );
   });
 
-  // Figma's hosted server only registers clients Figma has approved, so the
-  // desktop app's own server is the way in; it wants no sign-in, and the line
-  // has to say so, since an MCP app defaults to a sign-in card.
+  // Paper's server runs in its desktop app and wants no sign-in, and the
+  // line has to say so, since an MCP app defaults to a sign-in card.
   it("puts --auth none on a keyless MCP server's line", async () => {
-    const text = await catalog("figma");
+    const text = await catalog("paper");
     expect(text).toContain(
-      "set up: instrument app new figma --name 'Figma' --mcp http://127.0.0.1:3845/mcp --auth none",
+      "set up: instrument app new paper --name 'Paper' --mcp http://127.0.0.1:29979/mcp --auth none",
     );
   });
 
@@ -137,6 +136,12 @@ describe("app catalog", () => {
   // approve, so the line sets the service up on its own site instead.
   it.each([
     ["zoom", "instrument app new zoom --name 'Zoom' --web https://zoom.us"],
+    // Figma's desktop server needs a paid seat, so a free account is led
+    // to the site rather than to a server it cannot turn on.
+    [
+      "figma",
+      "instrument app new figma --name 'Figma' --web https://www.figma.com/files",
+    ],
   ])(
     "sets %s up as a web app when every way in needs a client the card cannot make",
     async (slug, line) => {

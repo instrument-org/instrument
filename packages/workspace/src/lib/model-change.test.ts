@@ -124,6 +124,36 @@ describe("modelChangeSincePreviousTurn", () => {
     ).toBeUndefined();
   });
 
+  // A reply written by 1.x kept no model record, only the ids, so the note on
+  // an old chat moved to another model drew the old side without its mark.
+  it("names the provider of a reply recorded before the model was stored", () => {
+    const fromOneX = {
+      metadata: { modelId: "auto", providerId: "instrument" },
+      parts: [],
+      role: "assistant",
+    } as unknown as SessionMessage.WithParts;
+    expect(
+      modelChangeSincePreviousTurn({
+        messages: [user(), fromOneX, user()],
+        model,
+      })?.from,
+    ).toEqual({ modelId: "auto", provider: "instrument" });
+  });
+
+  it("names no provider for a message the workspace wrote", () => {
+    const synthetic = {
+      metadata: { modelId: "synthetic", providerId: "system", synthetic: true },
+      parts: [],
+      role: "assistant",
+    } as unknown as SessionMessage.WithParts;
+    expect(
+      modelChangeSincePreviousTurn({
+        messages: [user(), synthetic, user()],
+        model,
+      })?.from.provider,
+    ).toBeUndefined();
+  });
+
   it("carries an absent window through rather than inventing one", () => {
     expect(
       modelChangeSincePreviousTurn({

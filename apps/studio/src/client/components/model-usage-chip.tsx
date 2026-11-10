@@ -29,7 +29,7 @@ export function ModelUsageChip({
         substitutedBy(usage) ??
         modelDisplayName(usage.modelId, usage.requested?.name)
       }
-      provider={usage.requested?.params.provider}
+      provider={usage.provider}
       rows={getModelInfoRows(usage)}
     />
   );

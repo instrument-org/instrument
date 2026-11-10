@@ -96,6 +96,24 @@ function step({
 }
 
 describe("modelsAnswering", () => {
+  // A reply written by 1.x kept no model record, only the ids, and its chip
+  // drew the model without its provider's mark.
+  it("takes the provider of a reply recorded before the model was stored", () => {
+    const fromOneX: SessionMessage.Assistant = {
+      ...step({ aiGatewayModel: auto }),
+      metadata: {
+        createdAt: new Date("2026-08-29T00:00:00.000Z"),
+        finishReason: "stop",
+        modelId: "auto",
+        providerId: "instrument",
+        sessionId,
+      },
+    };
+    expect(modelsAnswering([fromOneX])).toMatchObject([
+      { modelId: "auto", provider: "instrument", requested: undefined },
+    ]);
+  });
+
   it("reads a turn the provider served as asked as ordinary", () => {
     expect(modelsAnswering([step({ aiGatewayModel: haiku })])).toMatchObject([
       { kind: "ordinary", served: [] },

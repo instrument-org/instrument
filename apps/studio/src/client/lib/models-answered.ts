@@ -4,7 +4,11 @@ import {
   modelDisplayName,
   namesSameModel,
 } from "@instrument-org/ai-gateway/client";
-import { type SessionMessage } from "@instrument-org/workspace/client";
+import { type AIProviderType } from "@instrument-org/shared";
+import {
+  providerAsked,
+  type SessionMessage,
+} from "@instrument-org/workspace/client";
 
 /**
  * A model that answered, as far as the transcript can say. The record when the
@@ -26,6 +30,8 @@ export interface AnsweringModel {
 export interface ModelUsage {
   kind: "ordinary" | "routed" | "substituted";
   modelId: string;
+  /** The kind of provider asked, the mark its chip is drawn with. */
+  provider?: AIProviderType;
   requested?: AIGatewayModel.Type;
   served: AnsweringModel[];
 }
@@ -59,6 +65,7 @@ export function modelsAnswering(
     const usage: ModelUsage = usageByRequest.get(key) ?? {
       kind: "ordinary",
       modelId,
+      provider: providerAsked(message.metadata),
       requested: aiGatewayModel,
       served: [],
     };

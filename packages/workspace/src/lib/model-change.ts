@@ -1,4 +1,8 @@
 import { type AIGatewayModel } from "@instrument-org/ai-gateway";
+import {
+  type AIProviderType,
+  AIProviderTypeSchema,
+} from "@instrument-org/shared";
 
 import { type SessionMessage } from "../schemas/session/message";
 import { type SessionMessageDataPart } from "../schemas/session/message-data-part";
@@ -59,7 +63,7 @@ export function modelChangeSincePreviousTurn({
         contextLength: message.metadata.aiGatewayModel?.contextLength,
         modelId: message.metadata.modelId,
         name: message.metadata.aiGatewayModel?.name,
-        provider: message.metadata.aiGatewayModel?.params.provider,
+        provider: providerAsked(message.metadata),
         providerName: message.metadata.aiGatewayModel?.providerName,
       },
       to: {
@@ -75,4 +79,19 @@ export function modelChangeSincePreviousTurn({
   // Nothing has answered yet, so there is no model to have moved from. The
   // first turn of a session is not a change of anything.
   return undefined;
+}
+
+/**
+ * The kind of provider an assistant message asked: from the model record, or,
+ * on a message written before that record was kept (1.x), from the provider id
+ * stored beside the model id, which named the same kind. Absent on a synthetic
+ * message, whose provider id is no provider.
+ */
+export function providerAsked(
+  metadata: SessionMessage.Assistant["metadata"],
+): AIProviderType | undefined {
+  return (
+    metadata.aiGatewayModel?.params.provider ??
+    AIProviderTypeSchema.safeParse(metadata.providerId).data
+  );
 }

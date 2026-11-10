@@ -21,7 +21,7 @@ export function contextRolloverNotice(
   const preamble =
     summarized === undefined
       ? `This conversation ran out of context and continued in a fresh window. ${carried} Your own earlier turns have not been carried across at all: the work you did, what you read, and anything you worked out before the cut are no longer in front of you.`
-      : `This conversation was summarized to keep it small, and continued in a fresh window. ${carried} Your own earlier turns are replaced by the summary below, which you wrote at the cut: treat what it says as established rather than something to rediscover.${summarized.transcriptPath === undefined ? "" : ` The whole conversation so far is in \`${summarized.transcriptPath}\`, if a detail the summary left out matters.`}`;
+      : `This conversation was summarized to keep it small, and continued in a fresh window. ${carried} Your own earlier turns are replaced by the summary below, which you wrote at the cut: treat what it says as established rather than something to rediscover. It covers the conversation only up to the cut, though it comes last here: anything in this window from after the cut, your own turns included, is newer, and wins where the two differ.${summarized.transcriptPath === undefined ? "" : ` The whole conversation so far is in \`${summarized.transcriptPath}\`, if a detail the summary left out matters.`}`;
   const summary =
     summarized === undefined
       ? []

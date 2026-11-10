@@ -2237,6 +2237,24 @@ a.cursor-pointer {
   }
 }
 
+/* All set's logo, inside the rising page: 12px more over a longer time, so
+ * it travels about 24px and lands last. */
+@utility setup-logo-rise-in {
+  @media (prefers-reduced-motion: no-preference) {
+    animation: setup-logo-rise-in 800ms cubic-bezier(0.22, 1, 0.36, 1) 120ms
+      both;
+  }
+}
+
+@keyframes setup-logo-rise-in {
+  from {
+    transform: translateY(12px);
+  }
+  to {
+    transform: translateY(0);
+  }
+}
+
 @keyframes welcome-burst-fade {
   0% {
     opacity: 0;

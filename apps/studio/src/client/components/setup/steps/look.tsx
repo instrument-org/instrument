@@ -210,7 +210,7 @@ function AppPicture({ dark }: { dark: boolean }) {
 /**
  * The last page (frame 15): one line and one button, which finishes setup.
  * The first name only when the Instrument account gave one. Its words rise
- * in as it arrives.
+ * in as it arrives, and the logo rises further and slower.
  */
 function AllSetPage({ onFinish }: { onFinish: () => void }) {
   const { data: user } = useLiveUser();
@@ -220,7 +220,7 @@ function AllSetPage({ onFinish }: { onFinish: () => void }) {
       align="center"
       className="setup-rise-in"
       footer={<SetupFooter back={false} next="none" />}
-      hero={<BrandMark className="mb-4" size={88} />}
+      hero={<BrandMark className="setup-logo-rise-in mb-4" size={88} />}
       subtitle={`Welcome to ${APP_NAME}`}
       title={firstName ? `You're all set, ${firstName}!` : "You're all set!"}
     >

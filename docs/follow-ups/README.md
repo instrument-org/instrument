@@ -32,6 +32,7 @@ Each entry is the follow-up's title and the opening of its own `Status:` line.
 - [How often the app restarts itself to install an update, and whether anyone notices](automatic-update-restarts.md): closed as answered: automatic installs reached their requested builds on all three computers · Last checked: 2026-11-08
 - [Whether the chat list reads rows again it did not need to](chat-list-rereads.md): open · Check after: 2026-11-29, after a week or more on a beta that carries the re-read warnings · Last checked: never
 - [Whether ChatGPT citation markers have become common enough to strip](chatgpt-citation-marker-rate.md): open · Check after: 2026-11-21 · Last checked: 2026-10-24
+- [Whether CI stays near four minutes a run](ci-wall-clock.md): open · Check after: 2026-11-24 · Last checked: 2026-11-10
 - [Why Claude account sessions cold-start, counted over real use](claude-account-cold-starts.md): open · Check after: a week of real chats on a Claude account · Last checked: 2026-11-08 (no Claude account requests in the inspected activity)
 - [Why reply streams drop partway](dropped-reply-streams.md): open · Check after: 2026-11-22, or when production exception reports are accessible · Last checked: 2026-11-08
 - [Which parts of the app write their log too fast](log-volume.md): open · Check after: 2026-11-29, after a week or more on a beta that carries the log volume warnings · Last checked: never
@@ -46,6 +47,7 @@ Each entry is the follow-up's title and the opening of its own `Status:` line.
 - [Which processes stay busy in real use, and whether tab sleep ended the hidden-tab cost](sustained-cpu-and-tab-sleep.md): closed as answered: no sustained-CPU episode in about two weeks of daily use, and tab sleep holds (see Result) · Last checked: 2026-11-08
 - [Whether a task's page card still shows only the site's icon](task-card-page-pictures.md): open · Check after: 2026-11-22, after a week on a beta carrying the fix below · Last checked: never
 - [Why some Windows differential updates fail](windows-differential-update-failures.md): closed 2026-10-24: the failures are a stale base, every one recovered with a full download, and nothing needs changing · Last checked: 2026-10-24
+- [Whether tests still go red only on Windows after they land](windows-only-test-failures.md): open · Check after: 2026-11-24 · Last checked: 2026-11-10
 - [Whether the Worked row's line earns its model call](work-summary-line.md): open · Check after: 2026-11-26 · Last checked: never
 
 <!-- index:end -->

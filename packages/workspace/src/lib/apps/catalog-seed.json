@@ -1,7 +1,7 @@
 {
   "generatedFrom": "integrations.sh curated catalog",
-  "revision": "2026-11-10T22:20:28.131Z",
-  "entriesHash": "f5d3bcec549acd0a",
+  "revision": "2026-11-10T22:25:29.693Z",
+  "entriesHash": "045c91d1e7dc02cd",
   "entries": [
     {
       "slug": "ahrefs",
@@ -536,7 +536,7 @@
       "slug": "audible",
       "name": "Audible",
       "tagline": "Audiobooks and podcasts in the catalog.",
-      "description": "Ask by genre, mood, topic or anything else that comes to mind. Note: If you're outside the United States, results may redirect you to your local marketplace.",
+      "description": "Ask by genre, mood, topic or anything else that comes to mind. Note: If you're outside the United States, results may redirect you to your local marketplace. Its server refuses every request from outside the clients Audible allows (a 403 from its CDN for the endpoint and every well-known address), so it is not a way in from here.",
       "domain": "audible.com",
       "authMethods": [],
       "interfaces": [
@@ -549,7 +549,7 @@
       ],
       "home": "https://www.audible.com",
       "category": "life",
-      "tier": "listed",
+      "tier": "hidden",
       "rank": 189,
       "examples": [
         "Find a gripping mystery for a road trip",
@@ -902,15 +902,21 @@
       "slug": "clerk",
       "name": "Clerk",
       "tagline": "Clerk SDK snippets for the framework in hand.",
-      "description": "Clerk's MCP server hands back the SDK snippet for a task and framework. It reaches no account, so it helps write the auth code rather than manage the users behind it.",
+      "description": "Clerk's MCP server signs in with the user's Clerk Dashboard account and acts as them, within their workspace role: it creates and configures applications, manages users, and sets up production instances, and it hands back SDK snippets for a task and framework. It never returns secret keys.",
       "domain": "clerk.com",
-      "authMethods": [],
+      "authMethods": [
+        {
+          "type": "oauth2",
+          "label": "OAuth 2.0",
+          "note": "Signs in with OAuth in the browser; the MCP server registers a client on the spot, so there is no key to paste."
+        }
+      ],
       "interfaces": [
         {
           "format": "mcp",
           "name": "Clerk MCP server",
           "endpoint": "https://mcp.clerk.com/mcp",
-          "auth": "none"
+          "auth": "oauth"
         }
       ],
       "home": "https://dashboard.clerk.com",
@@ -922,7 +928,8 @@
         "How do I add sign-in to my app?",
         "How do I protect an API route?",
         "How do I get the signed-in user?"
-      ]
+      ],
+      "docsUrl": "https://clerk.com/docs/guides/ai/mcp/clerk-mcp-server"
     },
     {
       "slug": "clickup",
@@ -2818,15 +2825,21 @@
       "slug": "mermaid-chart",
       "name": "Mermaid Chart",
       "tagline": "Mermaid diagrams, validated and rendered before they ship.",
-      "description": "Mermaid Chart's MCP server validates a Mermaid diagram and renders it, searches the icon sets a diagram can draw from, and reads the syntax reference for the diagram type in hand.",
+      "description": "Mermaid Chart's MCP server validates a Mermaid diagram and renders it, searches the icon sets a diagram can draw from, and reads the syntax reference for the diagram type in hand. Every tool needs a Mermaid account; the free Basic tier is enough.",
       "domain": "mermaidchart.com",
-      "authMethods": [],
+      "authMethods": [
+        {
+          "type": "oauth2",
+          "label": "OAuth 2.0",
+          "note": "Signs in with OAuth in the browser; the MCP server registers a client on the spot, so there is no key to paste."
+        }
+      ],
       "interfaces": [
         {
           "format": "mcp",
           "name": "Mermaid Chart MCP server",
-          "endpoint": "https://mcp.mermaidchart.com/mcp",
-          "auth": "none"
+          "endpoint": "https://mcp.mermaid.ai/mcp",
+          "auth": "oauth"
         }
       ],
       "home": "https://www.mermaidchart.com",
@@ -2839,7 +2852,8 @@
         "Draw a sequence diagram of a login flow",
         "Make a flowchart of a typical refund",
         "Draw a state diagram for a traffic light"
-      ]
+      ],
+      "docsUrl": "https://mermaid.ai/docs/ai/mcp-server"
     },
     {
       "slug": "microsoft-learn",
@@ -3680,7 +3694,7 @@
       "slug": "quickbooks",
       "name": "QuickBooks",
       "tagline": "Invoices, expenses, and reports.",
-      "description": "Turn your business's raw financial data into clear financial insights. Analyze profitability, cash flow, and compare your performance against similar businesses in your industry and region.",
+      "description": "Turn your business's raw financial data into clear financial insights. Analyze profitability, cash flow, and compare your performance against similar businesses in your industry and region. Its server refuses every request from outside the clients Intuit allows (an Akamai 403 for the endpoint, the host and every well-known address), so it is not a way in from here.",
       "domain": "quickbooks.intuit.com",
       "authMethods": [
         {
@@ -3700,7 +3714,7 @@
       "home": "https://app.qbo.intuit.com",
       "category": "money",
       "aliases": ["intuit"],
-      "tier": "listed",
+      "tier": "hidden",
       "rank": 45,
       "examples": [
         "Which invoices are overdue?",

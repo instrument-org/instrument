@@ -98,21 +98,26 @@ export function SetupRowList({
   );
 }
 
-/** The small button at a row's end: `primary` for the way on, plain otherwise. */
+/**
+ * The small button at a row's end: `primary` for the way on, plain otherwise.
+ * `large` for a row whose button is the page's one ask.
+ */
 export function SetupRowButton({
   children,
   disabled,
+  isLarge = false,
   onClick,
   primary = false,
 }: {
   children: ReactNode;
   disabled?: boolean;
+  isLarge?: boolean;
   onClick: () => void;
   primary?: boolean;
 }) {
   return (
     <Button
-      className="h-7.5 px-4.5 text-xs"
+      className={isLarge ? "h-9 px-5 text-sm" : "h-7.5 px-4.5 text-xs"}
       disabled={disabled}
       onClick={onClick}
       variant={primary ? "brand" : "default"}
@@ -133,7 +138,7 @@ export function NotificationRow({
   onSendAgain,
   state,
 }: {
-  /** The line under "Notifications" while asking, which Figma words two ways. */
+  /** The line under "Allow notifications?" while asking, which Figma words two ways. */
   line?: string;
   onAllow?: () => void;
   onOpenSettings?: () => void;
@@ -146,14 +151,14 @@ export function NotificationRow({
         <SetupRow
           end={
             onAllow && (
-              <SetupRowButton onClick={onAllow} primary>
+              <SetupRowButton isLarge onClick={onAllow} primary>
                 Allow
               </SetupRowButton>
             )
           }
           icon={<BellSimpleIcon />}
           line={line ?? "Finished tasks and questions"}
-          title="Notifications"
+          title="Allow notifications?"
         />
       );
     }

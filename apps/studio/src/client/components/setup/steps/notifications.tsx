@@ -105,6 +105,7 @@ export function NotificationsStep({
       footer={
         <SetupFooter
           back={!isNewStepOnly}
+          label={state === "allowed" ? "Continue" : "Skip"}
           next={continueFor(state)}
           onBack={onBack}
           onContinue={isLast ? onFinish : onContinue}

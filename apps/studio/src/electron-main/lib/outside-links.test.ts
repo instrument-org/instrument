@@ -11,7 +11,8 @@ import {
 
 // A link from outside can come from any site the person visits, so it puts
 // something in front of them and nothing more: no path past a plain
-// absolute one, no refused place, and no page run straight from a link.
+// absolute one, no refused place, and no downloaded page run straight from
+// a link.
 
 let folder: string;
 
@@ -25,6 +26,7 @@ afterAll(async () => {
 });
 
 const allowed = () => Promise.resolve(false);
+const marked = () => Promise.resolve(true);
 
 describe("askOfOutsideLink", () => {
   it("opens a screen a noun names", async () => {
@@ -51,11 +53,44 @@ describe("askOfOutsideLink", () => {
     ).toMatchObject({ type: "openScreen" });
   });
 
-  it("shows a page selected in its folder rather than opening it", async () => {
+  it("opens a page the system does not mark as downloaded", async () => {
+    expect(
+      await askOfOutsideLink(
+        "instrument://file/Users/mac-user/Work/page.html",
+        {
+          hostPaths: path.posix,
+          isDownloaded: allowed,
+          isRefused: allowed,
+        },
+      ),
+    ).toMatchInlineSnapshot(`
+      {
+        "hostPath": "/Users/mac-user/Work/page.html",
+        "type": "openFile",
+      }
+    `);
+  });
+
+  it("opens a Windows page by its drive letter", async () => {
+    expect(
+      await askOfOutsideLink("instrument://file/C:/Users/windows-user/a.html", {
+        hostPaths: path.win32,
+        isDownloaded: allowed,
+        isRefused: allowed,
+      }),
+    ).toMatchInlineSnapshot(`
+      {
+        "hostPath": "C:\\Users\\windows-user\\a.html",
+        "type": "openFile",
+      }
+    `);
+  });
+
+  it("shows a downloaded page selected in its folder rather than opening it", async () => {
     expect(
       await askOfOutsideLink(
         "instrument://file/Users/mac-user/Downloads/page.html",
-        { hostPaths: path.posix, isRefused: allowed },
+        { hostPaths: path.posix, isDownloaded: marked, isRefused: allowed },
       ),
     ).toMatchInlineSnapshot(`
       {
@@ -137,6 +172,25 @@ describe("askOfOutsideLink", () => {
         isRefused: () => Promise.resolve(true),
       }),
     ).toBeUndefined();
+  });
+
+  it("reads a page's mark only once the app shows its place", async () => {
+    const read: string[] = [];
+    const isDownloaded = (hostPath: string) => {
+      read.push(hostPath);
+      return Promise.resolve(false);
+    };
+    await askOfOutsideLink("instrument://file/Users/mac-user/a.html", {
+      hostPaths: path.posix,
+      isDownloaded,
+      isRefused: marked,
+    });
+    await askOfOutsideLink("instrument://file/Users/mac-user/b.html", {
+      hostPaths: path.posix,
+      isDownloaded,
+      isRefused: allowed,
+    });
+    expect(read).toEqual(["/Users/mac-user/b.html"]);
   });
 });
 

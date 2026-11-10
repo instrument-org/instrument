@@ -6,6 +6,7 @@ import { folderHref } from "@/shared/computer-href";
 
 import { type AppWindowAsk } from "../windows/app-window-asks";
 import { hostPathOfUrlPath } from "./computer-files";
+import { isFromInternet } from "./download-mark";
 import { isRefusedFile } from "./refused-files";
 
 /**
@@ -27,9 +28,10 @@ const PER_MINUTE = 10;
 const WAITING_MAX = 10;
 
 /**
- * A page runs, and one opened in the app's browser reads the files beside it,
- * so a page a site just saved into Downloads could read the rest. A link to
- * one opens its folder with it selected, for the person to open themselves.
+ * A page runs, and one opened in the app's browser reads its folder and
+ * below, so a page a site just saved into Downloads could read the rest. A
+ * link to a page the system marks as downloaded opens its folder with it
+ * selected, for the person to open themselves; any other page opens.
  */
 const PAGE = /\.(?:x?html?|shtml)$/i;
 
@@ -64,9 +66,11 @@ export async function askOfOutsideLink(
   url: string,
   {
     hostPaths = path,
+    isDownloaded = isFromInternet,
     isRefused = isRefusedFile,
   }: {
     hostPaths?: path.PlatformPath;
+    isDownloaded?: (hostPath: string) => Promise<boolean>;
     isRefused?: (hostPath: string) => Promise<boolean>;
   } = {},
 ): Promise<AppWindowAsk | undefined> {
@@ -99,7 +103,7 @@ export async function askOfOutsideLink(
       if (await isFolder(hostPath)) {
         return { href: folderHref(hostPath), type: "openScreen" };
       }
-      if (PAGE.test(hostPath)) {
+      if (PAGE.test(hostPath) && (await isDownloaded(hostPath))) {
         return {
           href: folderHref(hostPaths.dirname(hostPath), {
             select: hostPaths.basename(hostPath),

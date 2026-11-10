@@ -12,6 +12,7 @@ import { noop, sleep } from "radashi";
 
 import type { BrowserEntry } from "./entry";
 
+import { showAgentPointer, withoutAgentPointer } from "./agent-pointer";
 import { captureFrame, FrameNotDrawnError } from "./capture-frame";
 import {
   DEFAULT_VIEWPORT_HEIGHT,
@@ -241,14 +242,16 @@ export const MAIN_OVERRIDES: {
     }
     // Element clips (a clip without beyond-viewport) still use real CDP.
     if (p.clip) {
-      return await forward();
+      return await withoutAgentPointer(entry, forward);
     }
     // Plain viewport capture (no clip) -- the shape the recorder polls at 10fps and
     // `screenshot` uses. capturePage reads the paint-host guest's live surface,
     // which the debugger's fromSurface screenshot can't when the window is
     // occluded.
     try {
-      return await captureViewportScreenshot(entry, p);
+      return await withoutAgentPointer(entry, () =>
+        captureViewportScreenshot(entry, p),
+      );
     } catch (error) {
       log.error(
         `sendCommand error targetId=${targetId} method=Page.captureScreenshot error=${String(error)}`,
@@ -448,6 +451,7 @@ async function forwardToDebugger({
       ),
       frameSession,
     );
+    showAgentPointer(entry, method, delivered, frameSession);
     // oxlint-disable-next-line typescript/no-unsafe-assignment
     const result = await Promise.race([
       method === "Page.captureScreenshot" || method.startsWith("Input.")

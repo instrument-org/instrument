@@ -80,7 +80,7 @@ export function readOnlyReason(text: string): null | string {
   if (text.length > MAX_EDITABLE_CHARS) {
     return "This file is too large to edit here, so it opens read only.";
   }
-  if (/[\0\uFFFD]/.test(text)) {
+  if (text.includes("\0")) {
     return "This file has bytes that are not text, so it opens read only.";
   }
   let start = 0;

@@ -1,6 +1,10 @@
 import "./code-editor.css";
 
 import { FileLoading } from "@/client/components/file-loading";
+import {
+  ReadOnlyNote,
+  UNSAVEABLE_TEXT_NOTE,
+} from "@/client/components/read-only-note";
 import { SaveFailedPill } from "@/client/components/save-failed-pill";
 import { UpdatedPill } from "@/client/components/updated-pill";
 import { useAskMarks } from "@/client/components/window/ask-marks";
@@ -115,7 +119,7 @@ function LiveCodeDocument({
 }: {
   filename: string;
   hostPath: string;
-  initial: { content: string; version: string };
+  initial: { content: string; saveable: boolean; version: string };
   variant: "code" | "text";
   wrapLines: boolean;
 }) {
@@ -126,7 +130,9 @@ function LiveCodeDocument({
   const [find, setFind] = useState<CodeFind | null>(null);
   const [status, setStatus] = useState<SaveStatus>("saved");
   const [offscreen, setOffscreen] = useState<Offscreen>(null);
-  const [readOnly] = useState(() => readOnlyReason(initial.content));
+  const [readOnly, setReadOnly] = useState(() =>
+    initial.saveable ? readOnlyReason(initial.content) : UNSAVEABLE_TEXT_NOTE,
+  );
   const changedAt = useRef(0);
   const { begin, card } = useAskCard(hostPath);
   const { mark } = useAskMarks(hostPath, session);
@@ -204,6 +210,9 @@ function LiveCodeDocument({
           toast.error("Couldn't save your changes", { cause: detail });
         }
       },
+      onUnsaveable: () => {
+        setReadOnly(UNSAVEABLE_TEXT_NOTE);
+      },
       parent,
       readOnly: readOnly !== null,
       variant,
@@ -245,11 +254,7 @@ function LiveCodeDocument({
 
   return (
     <div className="flex size-full min-h-0 flex-col">
-      {readOnly && (
-        <div className="shrink-0 px-4 py-2 text-xs text-muted-foreground viewer-chrome-stroke">
-          {readOnly}
-        </div>
-      )}
+      {readOnly && <ReadOnlyNote>{readOnly}</ReadOnlyNote>}
       <div
         className="code-editor min-h-0 flex-1"
         data-status={status}

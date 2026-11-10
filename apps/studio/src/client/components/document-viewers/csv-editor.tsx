@@ -1,4 +1,8 @@
 import { displayLocale } from "@/client/lib/display-locale";
+import {
+  ReadOnlyNote,
+  UNSAVEABLE_TEXT_NOTE,
+} from "@/client/components/read-only-note";
 import { SaveFailedPill } from "@/client/components/save-failed-pill";
 import { WindowContext } from "@/client/components/window/context";
 import {
@@ -162,6 +166,8 @@ function createCsvSession(options: {
   onChange: (doc: CsvDocument, flashed?: ReadonlySet<string>) => void;
   onNotes: (notes: ReplayNotes) => void;
   onStatus: (status: SaveStatus, detail?: string) => void;
+  /** The file on disk turned out to be in an encoding the app only reads. */
+  onUnsaveable: () => void;
 }) {
   const { hostPath } = options;
   let disk = {
@@ -234,6 +240,10 @@ function createCsvSession(options: {
     }
     saves.pull(async () => {
       const result = await rpcClient.files.read.call({ path: hostPath });
+      if (!result.saveable) {
+        options.onUnsaveable();
+        return;
+      }
       // Our own save's echo.
       if (result.version === disk.version || result.content === disk.text) {
         return;
@@ -353,7 +363,7 @@ function LiveTable({
 }: {
   filename: string;
   hostPath: string;
-  initial: { content: string; version: string };
+  initial: { content: string; saveable: boolean; version: string };
 }) {
   const [doc, setDoc] = useState(() =>
     parseCsv(initial.content, detectDelimiter(filename, initial.content)),
@@ -361,7 +371,9 @@ function LiveTable({
   const [flashed, setFlashed] = useState<ReadonlySet<string>>(NO_FLASH);
   const [session, setSession] = useState<CsvSession | null>(null);
   const [status, setStatus] = useState<SaveStatus>("saved");
-  const readOnly = useMemo(() => readOnlyReason(doc), [doc]);
+  const [unsaveable, setUnsaveable] = useState(!initial.saveable);
+  const tooLarge = useMemo(() => readOnlyReason(doc), [doc]);
+  const readOnly = unsaveable || tooLarge !== null;
   const appWindow = useContext(WindowContext);
   const { begin, card } = useAskCard(hostPath);
   // The asks staged on this file, each marked at the cell it starts at.
@@ -394,7 +406,7 @@ function LiveTable({
   });
 
   const startSession = useEffectEvent(() => {
-    if (readOnlyReason(doc)) {
+    if (unsaveable || readOnlyReason(doc)) {
       return;
     }
     let flashTimer: ReturnType<typeof setTimeout> | undefined;
@@ -414,6 +426,9 @@ function LiveTable({
         }
       },
       onNotes: reportNotes,
+      onUnsaveable: () => {
+        setUnsaveable(true);
+      },
       onStatus: (saveStatus, detail) => {
         setStatus(saveStatus);
         if (saveStatus === "error") {
@@ -547,11 +562,12 @@ function LiveTable({
     // The viewer's own column, positioned so the save failure can stand at
     // its foot over the grid.
     <div className="relative flex min-h-0 flex-1 flex-col">
+      {unsaveable && <ReadOnlyNote>{UNSAVEABLE_TEXT_NOTE}</ReadOnlyNote>}
       <DataGrid
         columns={columns}
         editing={editing}
         marks={marks}
-        note={readOnly ?? undefined}
+        note={tooLarge ?? undefined}
         onAsk={appWindow ? ask : undefined}
         revealRef={revealRef}
         rows={rows}
@@ -609,11 +625,8 @@ function quoteBlock(
   return { lines: [from, to], quote: lines.join("\n") };
 }
 
-/** Why a file opens read-only, or null when it can be edited. */
+/** Why a table too large to edit opens read-only, or null when it can be edited. */
 function readOnlyReason(doc: CsvDocument) {
-  if (doc.text.includes("�")) {
-    return "read-only: not UTF-8 text";
-  }
   if (
     doc.rowRecords.length > MAX_EDITABLE_ROWS ||
     doc.text.length > MAX_EDITABLE_LENGTH

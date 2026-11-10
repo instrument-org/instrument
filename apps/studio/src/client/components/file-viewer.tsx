@@ -17,6 +17,7 @@ import {
 } from "@/client/lib/document-viewers";
 import { copyFileToClipboard, downloadFile } from "@/client/lib/file-actions";
 import { getLanguageFromFilePath } from "@/client/lib/file-extension-to-language";
+import { textToShow } from "@/shared/text-encoding";
 import { flushFileWrites } from "@/client/lib/file-flush";
 import {
   type FileType,
@@ -308,7 +309,7 @@ function useFileText(url: string) {
       if (!response.ok) {
         throw new Error(`Failed to fetch file: ${response.statusText}`);
       }
-      return response.text();
+      return textToShow(new Uint8Array(await response.arrayBuffer()));
     },
     queryKey: ["file-text", url],
     retry: false, // Ensures fast failure

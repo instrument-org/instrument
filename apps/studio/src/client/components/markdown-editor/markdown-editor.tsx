@@ -7,6 +7,10 @@ import { FileLoading } from "@/client/components/file-loading";
 import { MarkdownDocument } from "@/client/components/markdown-outline";
 import { MarkdownChatContext } from "@/client/components/markdown-chat-context";
 import { MermaidDiagram } from "@/client/components/mermaid-diagram";
+import {
+  ReadOnlyNote,
+  UNSAVEABLE_TEXT_NOTE,
+} from "@/client/components/read-only-note";
 import { MessageActions, MessageCard } from "@/client/components/message-card";
 import { messageKindOf } from "@/client/components/message-kind";
 import { SaveFailedPill } from "@/client/components/save-failed-pill";
@@ -94,8 +98,8 @@ export function MarkdownEditor({
 }: {
   hostPath: string;
   /**
-   * What shows instead when the file is not UTF-8, which saving would
-   * corrupt, or is a chat's `CHAT.md`, which the app rewrites after every
+   * What shows instead when the file is in an encoding the app only reads,
+   * or is a chat's `CHAT.md`, which the app rewrites after every
    * reply and whose own head says so.
    */
   readOnlyView: ReactNode;
@@ -107,6 +111,8 @@ export function MarkdownEditor({
     refetchOnWindowFocus: false,
     staleTime: Infinity,
   });
+  // Set once the file on disk changes to an encoding the app only reads.
+  const [unsaveable, setUnsaveable] = useState(false);
 
   // Another view of the file may have just left its own read in the cache,
   // from before it saved; the document starts from a read of this mount's.
@@ -120,12 +126,10 @@ export function MarkdownEditor({
       </div>
     );
   }
-  if (!initial.data.utf8) {
+  if (!initial.data.saveable || unsaveable) {
     return (
       <div className="flex size-full min-h-0 flex-col">
-        <div className="shrink-0 px-4 py-2 text-xs text-muted-foreground viewer-chrome-stroke">
-          This file is not UTF-8 text, so it opens read only.
-        </div>
+        <ReadOnlyNote>{UNSAVEABLE_TEXT_NOTE}</ReadOnlyNote>
         <div className="relative min-h-0 flex-1">{readOnlyView}</div>
       </div>
     );
@@ -133,7 +137,15 @@ export function MarkdownEditor({
   if (isChatTranscript(hostPath, initial.data.content)) {
     return readOnlyView;
   }
-  return <LiveDocument hostPath={hostPath} initial={initial.data} />;
+  return (
+    <LiveDocument
+      hostPath={hostPath}
+      initial={initial.data}
+      onUnsaveable={() => {
+        setUnsaveable(true);
+      }}
+    />
+  );
 }
 
 /** Opens a fence's source in a popover and writes the edit back into its code block. */
@@ -254,9 +266,12 @@ function FenceView({
 function LiveDocument({
   hostPath,
   initial,
+  onUnsaveable,
 }: {
   hostPath: string;
   initial: { content: string; version: string };
+  /** The file on disk turned out to be in an encoding the app only reads. */
+  onUnsaveable: () => void;
 }) {
   const rootRef = useRef<HTMLDivElement>(null);
   const [session, setSession] = useState<EditorSession | null>(null);
@@ -371,6 +386,7 @@ function LiveDocument({
         ]);
         return `<div class="md-fence" data-fence-id="${id}"></div>`;
       },
+      onUnsaveable,
       resolveSrc: (src) => resolveImageSrc(src, folder),
       root,
     });

@@ -43,6 +43,7 @@ export async function openMarkdownEditor(
     onFrontMatter: vi.fn(),
     onOpenLink,
     onStatus: vi.fn(),
+    onUnsaveable: vi.fn(),
     renderFence: () => null,
     resolveSrc: (src) => src,
     root,

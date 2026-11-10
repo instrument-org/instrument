@@ -15,6 +15,7 @@ import {
   flushOnLeave,
   type SaveStatus,
 } from "@/client/lib/live-file";
+import { CANT_SAVE_TEXT_FORMAT } from "@/client/components/read-only-note";
 import { logger } from "@/client/lib/logger";
 import { rpcClient } from "@/client/rpc/client";
 import { syntaxLanguages } from "@/shared/syntax-highlight";
@@ -96,6 +97,11 @@ export interface CodeSessionOptions {
   /** The find as it stands after each change while it is open, and null once it closes. */
   onFind: (find: CodeFind | null) => void;
   onStatus: (status: SaveStatus, detail?: string) => void;
+  /**
+   * The file on disk turned out to be in an encoding the app only reads: the
+   * editor has gone read only, and what is still unsaved stays unsaved.
+   */
+  onUnsaveable: () => void;
   parent: HTMLElement;
   /** Whether the file is shown but not edited; it still follows the disk. */
   readOnly: boolean;
@@ -226,6 +232,7 @@ export function createCodeSession(options: CodeSessionOptions) {
   // The person's edits since the save in flight started, when there is one.
   let sinceSave: ChangeSet | null = null;
   let destroyed = false;
+  let readOnly = options.readOnly;
 
   // Up first, empty, so everything below can refer to it; its document and
   // extensions are set once they are all defined.
@@ -234,6 +241,7 @@ export function createCodeSession(options: CodeSessionOptions) {
   const language = new Compartment();
   const wrap = new Compartment();
   const lineSeparator = new Compartment();
+  const editable = new Compartment();
 
   const bodyOf = (state: EditorState) =>
     state.doc.sliceString(0, state.doc.length, disk.form.lineBreak);
@@ -253,6 +261,9 @@ export function createCodeSession(options: CodeSessionOptions) {
     if (text === disk.text) {
       options.onStatus("saved");
       return;
+    }
+    if (readOnly) {
+      throw new Error(CANT_SAVE_TEXT_FORMAT);
     }
     options.onStatus("saving");
     const base = disk;
@@ -301,13 +312,31 @@ export function createCodeSession(options: CodeSessionOptions) {
     }
     saves.pull(async () => {
       const r = await rpcClient.files.read.call({ path: hostPath });
-      // Our own save's echo: the version we already hold.
-      if (destroyed || r.version === disk.version || r.content === disk.text) {
+      if (destroyed) {
         return;
       }
-      mergeIn(r.content, r.version);
+      // Our own save's echo: the version we already hold.
+      if (r.version !== disk.version && r.content !== disk.text) {
+        mergeIn(r.content, r.version);
+      }
+      if (!r.saveable && !readOnly) {
+        stopEditing();
+      }
     });
   };
+
+  /** Turns the editor read only once the file on disk can no longer be saved. */
+  function stopEditing() {
+    readOnly = true;
+    saves.cancel();
+    view.dispatch({
+      effects: editable.reconfigure(EditorState.readOnly.of(true)),
+    });
+    options.onUnsaveable();
+    if (currentText() !== disk.text) {
+      options.onStatus("error", CANT_SAVE_TEXT_FORMAT);
+    }
+  }
 
   function mergeIn(content: string, version: string) {
     const before = disk;
@@ -498,7 +527,7 @@ export function createCodeSession(options: CodeSessionOptions) {
         indentUnit.of(detectIndent(form.body)),
         EditorState.tabSize.of(4),
         EditorState.allowMultipleSelections.of(true),
-        EditorState.readOnly.of(options.readOnly),
+        editable.of(EditorState.readOnly.of(options.readOnly)),
         search({ createPanel: () => ({ dom: options.findHost, top: true }) }),
         keymap.of(CODE_EDITOR_KEYS),
         reportFocus,

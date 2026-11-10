@@ -89,6 +89,8 @@ export interface EditorSessionOptions {
   /** Opens what a followed link names; `newTab` asks for a tab of its own. */
   onOpenLink: (target: OpenTarget, newTab: boolean) => void;
   onStatus: (status: SaveStatus, detail?: string) => void;
+  /** The file on disk turned out to be in an encoding the app only reads. */
+  onUnsaveable: () => void;
   /** Draws a fence Studio shows as something other than code; the element is filled in by the caller. */
   renderFence: (language: string, content: string) => null | string;
   resolveSrc: (src: string) => string;
@@ -237,6 +239,10 @@ export async function createEditorSession(options: EditorSessionOptions) {
         return;
       }
       const r = await rpcClient.files.read.call({ path: hostPath });
+      if (!r.saveable) {
+        options.onUnsaveable();
+        return;
+      }
       // Our own save's echo: the version we already hold.
       if (r.version === disk.version || r.content === disk.text) {
         return;

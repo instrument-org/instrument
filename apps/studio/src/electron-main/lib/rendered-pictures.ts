@@ -1,6 +1,7 @@
 import CODE_COLORS from "@/client/styles/code-colors.css?raw";
 import { frontMatterTitle, isMapping } from "@/shared/front-matter";
 import { highlightLines } from "@/shared/syntax-highlight";
+import { textToShow } from "@/shared/text-encoding";
 import { splitFrontMatter } from "@instrument-org/shared";
 import {
   BrowserWindow,
@@ -381,10 +382,11 @@ async function readHead(hostPath: string) {
   try {
     const buffer = Buffer.alloc(READ_BYTES);
     const { bytesRead } = await handle.read(buffer, 0, READ_BYTES, 0);
+    const cut = bytesRead === READ_BYTES;
     return {
       /** Whether the file goes on past what was read. */
-      cut: bytesRead === READ_BYTES,
-      text: buffer.subarray(0, bytesRead).toString("utf8"),
+      cut,
+      text: textToShow(buffer.subarray(0, bytesRead), cut),
     };
   } finally {
     await handle.close();

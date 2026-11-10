@@ -316,30 +316,48 @@ it("lets only one of two writers holding the same version write", async () => {
 // "café" in Windows-1252: the é is one byte, 0xE9, which is not UTF-8.
 const LATIN_1 = Buffer.from([0x63, 0x61, 0x66, 0xe9]);
 
-it("reads a file that is not UTF-8 as not editable and refuses to write over it", async () => {
+it("reads a Windows-1252 file as its text, not saveable, and refuses to write over it", async () => {
   const file = path.join(dir, "notes.md");
   await fs.writeFile(file, LATIN_1);
   const read = await call(files.read, { path: file }, options);
-  expect(read).toMatchObject({ content: "caf\uFFFD", utf8: false });
+  expect(read).toMatchObject({ content: "café", saveable: false });
 
   await expect(
     call(
       files.write,
-      { baseVersion: read.version, content: "caf\uFFFD!", path: file },
+      { baseVersion: read.version, content: "café!", path: file },
       options,
     ),
-  ).rejects.toMatchObject({ code: "NOT_UTF8" });
+  ).rejects.toMatchObject({ code: "UNSAVEABLE_ENCODING" });
   await expect(
     call(files.write, { content: "replaced", path: file }, options),
-  ).rejects.toMatchObject({ code: "NOT_UTF8" });
+  ).rejects.toMatchObject({ code: "UNSAVEABLE_ENCODING" });
   expect(await fs.readFile(file)).toEqual(LATIN_1);
+});
+
+it("reads a UTF-16 file as its text and writes it back in UTF-16", async () => {
+  const file = path.join(dir, "notes.txt");
+  // "café" in UTF-16LE, after its byte-order mark.
+  await fs.writeFile(file, Buffer.from("fffe630061006600e900", "hex"));
+  const read = await call(files.read, { path: file }, options);
+  expect(read).toMatchObject({ content: "\uFEFFcafé", saveable: true });
+
+  const written = await call(
+    files.write,
+    { baseVersion: read.version, content: "\uFEFFcafé!", path: file },
+    options,
+  );
+  expect(written.ok).toBe(true);
+  expect((await fs.readFile(file)).toString("hex")).toBe(
+    "fffe630061006600e9002100",
+  );
 });
 
 it("keeps a UTF-8 file's byte-order mark in what it reads", async () => {
   const file = path.join(dir, "bom.txt");
   await fs.writeFile(file, "\uFEFFhello");
   const read = await call(files.read, { path: file }, options);
-  expect(read).toMatchObject({ content: "\uFEFFhello", utf8: true });
+  expect(read).toMatchObject({ content: "\uFEFFhello", saveable: true });
   const written = await call(
     files.write,
     { baseVersion: read.version, content: "\uFEFFhello!", path: file },
@@ -369,7 +387,7 @@ it("reads and writes the file a Finder alias leads to", async () => {
   aliasTargets.set(alias, target);
 
   const read = await call(files.read, { path: alias }, options);
-  expect(read).toMatchObject({ content: "# notes", utf8: true });
+  expect(read).toMatchObject({ content: "# notes", saveable: true });
   await call(
     files.write,
     { baseVersion: read.version, content: "# notes!", path: alias },

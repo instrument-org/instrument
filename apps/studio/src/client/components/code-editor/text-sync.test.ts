@@ -83,7 +83,7 @@ describe("readOnlyReason", () => {
   it.each([
     ["plain", "hello\n", false],
     ["nul", "a\0b", true],
-    ["replacement", "a\uFFFDb", true],
+    ["a replacement character the file has", "a\uFFFDb", false],
     ["long line", "x".repeat(600_000), true],
   ])("%s", (_name, text, readOnly) => {
     expect(readOnlyReason(text) !== null).toBe(readOnly);

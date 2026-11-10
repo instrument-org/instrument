@@ -1,6 +1,8 @@
 import { useQuery } from "@tanstack/react-query";
 import Papa from "papaparse";
 
+import { textToShow } from "@/shared/text-encoding";
+
 import { FileLoading } from "../file-loading";
 import { CsvEditor } from "./csv-editor";
 import { type CellValue, DataGrid, type GridColumn } from "./data-grid";
@@ -41,7 +43,7 @@ function CsvReader({ filename, url }: { filename: string; url: string }) {
       if (!response.ok) {
         throw new Error(`Failed to load file: ${response.statusText}`);
       }
-      return response.text();
+      return textToShow(new Uint8Array(await response.arrayBuffer()));
     },
     queryKey: ["csv-file", url],
     retry: false,

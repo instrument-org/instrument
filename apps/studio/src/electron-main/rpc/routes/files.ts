@@ -37,7 +37,11 @@ import {
   isRefusedFile,
 } from "@/electron-main/lib/refused-files";
 import { openPathOnComputer } from "@/electron-main/lib/open-path";
-import { utf8Text } from "@/electron-main/lib/utf8-text";
+import {
+  decodeFileText,
+  encodeFileText,
+  isSaveableEncoding,
+} from "@/shared/text-encoding";
 import {
   videoStoryboard,
   videoStoryboardDeps,
@@ -892,7 +896,7 @@ function versionOf(text: string) {
  * than half of the new. The file keeps its permissions, and a link is
  * written through to the file it points at.
  */
-async function writeWhole(filePath: string, content: string) {
+async function writeWhole(filePath: string, content: Uint8Array) {
   const target = await fs.realpath(filePath).catch(() => filePath);
   const mode = await fs.stat(target).then(
     (stats) => stats.mode & 0o7777,
@@ -949,7 +953,7 @@ const write = base
   .errors({
     CANNOT_WRITE: { message: "That file cannot be written to" },
     FORBIDDEN: { message: "That file is Instrument’s own data" },
-    NOT_UTF8: {
+    UNSAVEABLE_ENCODING: {
       message: "Instrument can’t save files in this text format",
     },
   })
@@ -983,23 +987,28 @@ const write = base
           input.baseVersion === undefined
             ? await fs.readFile(filePath).catch(() => null)
             : await fs.readFile(filePath);
-        // Text in another encoding came to the editor with its unreadable
-        // bytes replaced, so saving it would replace them on disk too.
-        const disk = bytes ? utf8Text(bytes) : null;
-        if (bytes && disk === null) {
-          throw errors.NOT_UTF8();
+        // The text goes back in the file's own encoding, and a file in one
+        // the app only reads (`decodeFileText`) is not written at all.
+        const disk = bytes ? decodeFileText(bytes) : null;
+        const encoding = disk?.encoding ?? "utf-8";
+        if ((disk && !disk.saveable) || !isSaveableEncoding(encoding)) {
+          throw errors.UNSAVEABLE_ENCODING();
         }
         if (input.baseVersion !== undefined && disk !== null) {
-          const diskVersion = versionOf(disk);
+          const diskVersion = versionOf(disk.text);
           if (diskVersion !== input.baseVersion) {
-            return { content: disk, ok: false as const, version: diskVersion };
+            return {
+              content: disk.text,
+              ok: false as const,
+              version: diskVersion,
+            };
           }
         }
-        await writeWhole(filePath, input.content);
+        await writeWhole(filePath, encodeFileText(input.content, encoding));
         return { ok: true as const, version: versionOf(input.content) };
       });
     } catch (error) {
-      if (error instanceof ORPCError && error.code === "NOT_UTF8") {
+      if (error instanceof ORPCError && error.code === "UNSAVEABLE_ENCODING") {
         throw error;
       }
       throw errors.CANNOT_WRITE({
@@ -1010,25 +1019,27 @@ const write = base
 
 /**
  * A text file's contents and version, for an editor that will write it back.
- * A file that is not UTF-8 still reads, its unreadable bytes replaced, with
- * `utf8` false so the editor opens it read only: `write` refuses it. The
+ * A file in an encoding the app only reads (`decodeFileText`) comes back with
+ * `saveable` false, so the editor opens it read only: `write` refuses it. The
  * app's own data is not read (`isClosed`).
  */
 const read = base
   .errors({ FORBIDDEN: { message: "That file is Instrument’s own data" } })
   .input(z.object({ path: HostPathSchema }))
   .output(
-    z.object({ content: z.string(), utf8: z.boolean(), version: z.string() }),
+    z.object({
+      content: z.string(),
+      saveable: z.boolean(),
+      version: z.string(),
+    }),
   )
   .handler(async ({ errors, input }) => {
     const filePath = await followAliases(input.path);
     if (await isClosed(input.path, filePath)) {
       throw errors.FORBIDDEN();
     }
-    const bytes = await fs.readFile(filePath);
-    const strict = utf8Text(bytes);
-    const content = strict ?? bytes.toString("utf8");
-    return { content, utf8: strict !== null, version: versionOf(content) };
+    const { saveable, text } = decodeFileText(await fs.readFile(filePath));
+    return { content: text, saveable, version: versionOf(text) };
   });
 
 /**

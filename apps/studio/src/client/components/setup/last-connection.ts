@@ -1,3 +1,4 @@
+import { type PlanProvider } from "@/client/hooks/use-connected-plans";
 import { type ConnectProvider } from "@/shared/connect-outcome";
 import { type AIProviderConfigId } from "@instrument-org/shared";
 
@@ -19,4 +20,13 @@ export function noteConnection(connection: LastConnection): void {
 
 export function lastConnection(): LastConnection | undefined {
   return connected;
+}
+
+/** The subscription a connection signed in to, when it is one (not a key, not the app's own). */
+export function planOf(
+  connection: LastConnection | undefined,
+): PlanProvider | undefined {
+  return connection?.kind === "sign-in" && connection.provider !== "instrument"
+    ? connection.provider
+    : undefined;
 }

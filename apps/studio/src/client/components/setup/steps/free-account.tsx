@@ -1,13 +1,15 @@
 import { ConnectButton } from "@/client/components/connect-button";
 import { type ConnectResult } from "@/client/hooks/use-connect-flow";
+import { CONNECT_NAMES } from "@/client/lib/connect-copy";
 import { cn } from "@/client/lib/utils";
 import { APP_NAME } from "@instrument-org/shared";
 import { GlobeSimpleIcon } from "@phosphor-icons/react/GlobeSimple";
 import { ImageIcon } from "@phosphor-icons/react/Image";
 import { MicrophoneIcon } from "@phosphor-icons/react/Microphone";
-import { type ReactNode } from "react";
+import { type ReactNode, useState } from "react";
 
 import { SetupFooter, SetupPage } from "../kit/setup-page";
+import { lastConnection, planOf } from "../last-connection";
 import { type SetupStepProps } from "../step-props";
 
 type PerkTitle = "Dictation" | "Images" | "Web search";
@@ -43,6 +45,7 @@ const PERKS: {
  * brought the AI: what it adds, Google, or Not now.
  */
 export function FreeAccountStep({ hold, onBack, onContinue }: SetupStepProps) {
+  const [plan] = useState(() => planOf(lastConnection()));
   return (
     <FreeAccountPage
       footer={
@@ -58,6 +61,7 @@ export function FreeAccountStep({ hold, onBack, onContinue }: SetupStepProps) {
           hold();
         }
       }}
+      planName={plan && CONNECT_NAMES[plan]}
     />
   );
 }
@@ -65,7 +69,8 @@ export function FreeAccountStep({ hold, onBack, onContinue }: SetupStepProps) {
 /**
  * What a free account adds, and Google to make one: setup's step, and the
  * page a feature that needs the account opens. `calledOut` marks the perk
- * that feature is, so the person sees why they were asked.
+ * that feature is, so the person sees why they were asked. `planName` is the
+ * subscription setup just signed in to, which the line under the title names.
  */
 export function FreeAccountPage({
   calledOut,
@@ -73,19 +78,21 @@ export function FreeAccountPage({
   footer,
   onSignedIn,
   onWaitingChange,
+  planName,
 }: {
   calledOut?: PerkTitle;
   fit?: "dialog" | "window";
   footer: ReactNode;
   onSignedIn: (result: ConnectResult) => void;
   onWaitingChange?: (waiting: boolean) => void;
+  planName?: string;
 }) {
   return (
     <SetupPage
       align="center"
       fit={fit}
       footer={footer}
-      subtitle="Sign in with Google for a few extras that work with any AI. It's free, and it doesn't use your plan or your key."
+      subtitle={`Sign in with Google for a few extras that work with any AI. It's free, and ${planName ? `it doesn't count against your ${planName} plan` : "it doesn't use your plan or your key"}.`}
       title={`Add a free ${APP_NAME} account`}
     >
       <div className="mt-7 flex max-w-full flex-wrap justify-center gap-1">

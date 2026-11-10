@@ -1,8 +1,10 @@
 import { type ConnectResult } from "@/client/hooks/use-connect-flow";
 import { renderWithDefaultStore } from "@/tests/render";
+import { AIProviderConfigIdSchema } from "@instrument-org/shared";
 import { fireEvent, screen } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 
+import { type LastConnection, noteConnection } from "../last-connection";
 import { FreeAccountPage, FreeAccountStep } from "./free-account";
 
 const calls = vi.hoisted(() => [] as string[]);
@@ -66,6 +68,24 @@ describe("FreeAccountStep", () => {
     renderStep();
     fireEvent.click(screen.getByRole("button", { name: "Not now" }));
     expect(calls).toEqual(["continue"]);
+  });
+
+  it.each<[LastConnection, string]>([
+    [
+      { kind: "sign-in", provider: "chatgpt" },
+      "doesn't count against your ChatGPT plan",
+    ],
+    [
+      {
+        kind: "key",
+        providerConfigId: AIProviderConfigIdSchema.parse("openai"),
+      },
+      "doesn't use your plan or your key",
+    ],
+  ])("says what a free account leaves alone after %o", (connection, line) => {
+    noteConnection(connection);
+    renderStep();
+    expect(screen.getByText(line, { exact: false })).toBeDefined();
   });
 });
 

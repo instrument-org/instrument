@@ -1,6 +1,7 @@
 import {
   requestCapture,
   openCaptureEditor,
+  trashCapture,
   useCaptures,
 } from "@/client/components/captures/capture-store";
 import { CapturesGrid } from "@/client/components/captures/captures-grid";
@@ -74,6 +75,9 @@ export function StripCaptures({ cellClass }: { cellClass: string }) {
                 onPick={(capture) => {
                   setOpen(false);
                   openCaptureEditor(capture);
+                }}
+                onTrash={(capture) => {
+                  void trashCapture(capture.name);
                 }}
               />
             )}

@@ -28,7 +28,7 @@ const CaptureEditor = lazy(() =>
 /** How long the white flash over the window lasts. */
 const FLASH_MS = 120;
 /** How long the picture takes to shrink into the corner. */
-const FLY_MS = 420;
+const FLY_MS = 650;
 /** How long the thumbnail waits in the corner while the pointer is off it. */
 const THUMBNAIL_MS = 6000;
 /** The thumbnail's size and its distance from the corner, in layout px. */
@@ -169,12 +169,12 @@ export function CaptureLayer() {
           src={captureUrl(flying)}
           style={{
             ...flight,
-            transition: `all ${FLY_MS}ms cubic-bezier(0.32, 0.72, 0, 1)`,
+            transition: `all ${FLY_MS}ms cubic-bezier(0.45, 0, 0.25, 1)`,
           }}
         />
       )}
       {flash && (
-        <div className="pointer-events-none! absolute inset-0 z-[61] bg-white/40" />
+        <div className="pointer-events-none! absolute inset-0 z-[61] bg-white/20" />
       )}
       {thumbnail && !hidden && !editing && (
         <div

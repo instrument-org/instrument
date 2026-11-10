@@ -2,6 +2,8 @@ import { appTabsAtom } from "@/client/components/window/app-tabs";
 import { matchScreen } from "@/client/components/window/window-href";
 import { zoomAtom } from "@/client/atoms/zoom";
 import { type Capture, type CaptureContext } from "@/shared/captures";
+import { toast } from "@/client/lib/toast";
+import { osConventions } from "@/client/lib/utils";
 import { rpcClient } from "@/client/rpc/client";
 import { useQuery } from "@tanstack/react-query";
 import { atom, getDefaultStore, useAtomValue } from "jotai";
@@ -45,6 +47,26 @@ export function requestCapture() {
 
 export function openCaptureEditor(capture: Capture) {
   getDefaultStore().set(captureEditorAtom, capture);
+}
+
+/** Moves a capture to the Trash, putting away its thumbnail and editor. */
+export async function trashCapture(name: string) {
+  try {
+    await rpcClient.captures.trash.call({ name });
+  } catch (error) {
+    toast.error(`Couldn't move the capture to the ${osConventions().trash}`, {
+      cause: error,
+    });
+    return;
+  }
+  const store = getDefaultStore();
+  if (store.get(captureThumbnailAtom)?.name === name) {
+    store.set(captureThumbnailAtom, null);
+  }
+  if (store.get(captureEditorAtom)?.name === name) {
+    store.set(captureEditorAtom, null);
+  }
+  capturesChanged();
 }
 
 /** Marks what the capture UI draws, so a capture's elements leave it out. */

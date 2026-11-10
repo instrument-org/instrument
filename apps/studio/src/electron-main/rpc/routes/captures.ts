@@ -1,4 +1,5 @@
 import {
+  captureAgentNote,
   copyCapture,
   currentBuild,
   hasOriginal,
@@ -7,6 +8,7 @@ import {
   saveCaptureEdit,
   showCapture,
   takeCapture,
+  trashCapture,
 } from "@/electron-main/lib/captures";
 import { devOnly } from "@/electron-main/rpc/base";
 import { CaptureContextSchema } from "@/shared/captures";
@@ -17,6 +19,9 @@ const NameSchema = z.object({ name: z.string() });
 
 /** The developer's captures of the window: taken, listed, edited and handed out. */
 export const captures = {
+  agentNote: devOnly
+    .input(NameSchema)
+    .handler(({ input }) => captureAgentNote(input.name)),
   build: devOnly.handler(() => currentBuild()),
   copy: devOnly
     .input(NameSchema)
@@ -38,6 +43,9 @@ export const captures = {
     .handler(({ input }) => {
       showCapture(input.name);
     }),
+  trash: devOnly
+    .input(NameSchema)
+    .handler(({ input }) => trashCapture(input.name)),
   take: devOnly.input(CaptureContextSchema).handler(({ context, input }) => {
     const contents = webContents.fromId(context.webContentsId);
     if (!contents) {

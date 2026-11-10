@@ -136,7 +136,7 @@ export async function takeCapture(
     os: {
       arch: process.arch,
       platform: process.platform,
-      release: os.release(),
+      release: process.getSystemVersion(),
     },
     screen: context.screen,
     takenAt: Date.now(),
@@ -248,6 +248,48 @@ export async function copyCapture(name: string) {
   await clipboard.write([
     new ClipboardItem({ "image/png": new Blob([png], { type: "image/png" }) }),
   ]);
+}
+
+/** Moves a capture to the Trash, with its picture from before an edit. */
+export async function trashCapture(name: string) {
+  await shell.trashItem(capturePath(name));
+  await fs.rm(path.join(originalsDir(), checkedName(name)), { force: true });
+}
+
+/**
+ * What a coding agent needs to look into a capture: where the picture is on
+ * disk, and what the window was showing, so a pasted note is enough to open
+ * the picture and find the screen and build it came from.
+ */
+export async function captureAgentNote(name: string) {
+  const file = capturePath(name);
+  const meta = await readMeta(file);
+  const lines = [
+    `Screenshot of the Instrument app window: ${file}`,
+    "Open the image at that path to see what I captured.",
+  ];
+  if (meta) {
+    const build = meta.build;
+    const checkout = [
+      build.name && `worktree ${build.name}`,
+      build.branch && `branch ${build.branch}`,
+      build.commit && `commit ${build.commit}`,
+    ].filter(Boolean);
+    lines.push(
+      "",
+      `Taken: ${new Date(meta.takenAt).toLocaleString()}`,
+      `Build: ${build.version} ${build.env}${checkout.length > 0 ? ` (${checkout.join(", ")})` : ""}`,
+      `Screen: ${meta.screen}${meta.chatTitle ? `, chat "${meta.chatTitle}"` : ""}${meta.chatId ? ` (id ${meta.chatId})` : ""}`,
+      `Window: ${meta.window.width} × ${meta.window.height} at ${Math.round(meta.zoom * 100)}% zoom, ${meta.theme} theme, ${meta.os.platform} ${meta.os.release} ${meta.os.arch}`,
+      ...(meta.workspace ? [`Workspace: ${meta.workspace}`] : []),
+      ...(meta.edited
+        ? ["The picture was cropped or marked up after it was taken."]
+        : []),
+      "",
+      `The PNG also carries this as JSON in an iTXt chunk with the keyword "instrument-capture", including the on-screen box of every element when it was taken${meta.edited ? " (dropped by the edit)" : ""}.`,
+    );
+  }
+  return { note: lines.join("\n"), path: file };
 }
 
 export function showCapture(name?: string) {

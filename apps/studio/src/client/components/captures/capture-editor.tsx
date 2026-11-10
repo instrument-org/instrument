@@ -14,7 +14,15 @@ import {
   captureUrl,
 } from "@/shared/captures";
 import { ArrowUpRightIcon } from "@phosphor-icons/react/ArrowUpRight";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/client/components/ui/dropdown-menu";
+import { CaretDownIcon } from "@phosphor-icons/react/CaretDown";
 import { CopyIcon } from "@phosphor-icons/react/Copy";
+import { TrashIcon } from "@phosphor-icons/react/Trash";
 import { CropIcon } from "@phosphor-icons/react/Crop";
 import { FolderSimpleIcon } from "@phosphor-icons/react/FolderSimple";
 import { DropHalfIcon } from "@phosphor-icons/react/DropHalf";
@@ -27,6 +35,7 @@ import {
   captureEditorAtom,
   capturesChanged,
   captureThumbnailAtom,
+  trashCapture,
 } from "./capture-store";
 
 type Rect = { h: number; w: number; x: number; y: number };
@@ -212,6 +221,8 @@ export function CaptureEditor({ capture }: { capture: Capture }) {
   const setThumbnail = useSetAtom(captureThumbnailAtom);
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const [image, setImage] = useState<HTMLImageElement | null>(null);
+  // Bumped to load the picture again once an edit is saved in place.
+  const [reloads, setReloads] = useState(0);
   const [tool, setTool] = useState<Tool>("crop");
   const [crop, setCrop] = useState<Rect | null>(null);
   const [marks, setMarks] = useState<Mark[]>([]);
@@ -244,8 +255,8 @@ export function CaptureEditor({ capture }: { capture: Capture }) {
     next.addEventListener("load", () => {
       setImage(next);
     });
-    next.src = captureUrl(capture);
-  }, [capture]);
+    next.src = `${captureUrl(capture)}&r=${reloads}`;
+  }, [capture, reloads]);
 
   // The picture with its marks, a draft of the one being drawn, the crop's
   // dimmed surround, and the element a click would crop to.
@@ -384,6 +395,38 @@ export function CaptureEditor({ capture }: { capture: Capture }) {
     }
   };
 
+  // What goes on the clipboard as text reads the file, so an edit not yet
+  // saved is saved first, as Done would.
+  const copyText = async (kind: "agent" | "path") => {
+    try {
+      if (image && changed) {
+        const saved = await rpcClient.captures.saveEdit.call({
+          data: await exportPicture(image, marks, crop),
+          name: capture.name,
+        });
+        setThumbnail((current) =>
+          current?.name === saved.name ? saved : current,
+        );
+        capturesChanged();
+        setCrop(null);
+        setMarks([]);
+        setImage(null);
+        setReloads((count) => count + 1);
+      }
+      const { note, path } = await rpcClient.captures.agentNote.call({
+        name: capture.name,
+      });
+      await navigator.clipboard.writeText(kind === "agent" ? note : path);
+      toast.success(
+        kind === "agent"
+          ? "Copied the capture for an agent"
+          : "Copied the path",
+      );
+    } catch (error) {
+      toast.error("Couldn't copy the capture", { cause: error });
+    }
+  };
+
   const revert = async () => {
     try {
       const reverted = await rpcClient.captures.revert.call({
@@ -495,17 +538,65 @@ export function CaptureEditor({ capture }: { capture: Capture }) {
           <span className="min-w-0 flex-1 truncate px-3 text-center font-mono text-[11px] text-muted-foreground">
             {capture.name}
           </span>
+          <div className="flex items-center rounded-md ring-1 ring-border">
+            <Button
+              className="h-8 rounded-r-none px-2.5"
+              onClick={() => {
+                void copy();
+              }}
+              size="sm"
+              variant="ghost"
+            >
+              <CopyIcon className="size-4" />
+              Copy
+            </Button>
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button
+                  aria-label="More ways to copy"
+                  className="h-8 w-7 rounded-l-none border-l border-border"
+                  size="icon-sm"
+                  variant="ghost"
+                >
+                  <CaretDownIcon className="size-3.5" />
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end">
+                <DropdownMenuItem
+                  onSelect={() => {
+                    void copy();
+                  }}
+                >
+                  Copy picture
+                </DropdownMenuItem>
+                <DropdownMenuItem
+                  onSelect={() => {
+                    void copyText("agent");
+                  }}
+                >
+                  Copy for an agent
+                </DropdownMenuItem>
+                <DropdownMenuItem
+                  onSelect={() => {
+                    void copyText("path");
+                  }}
+                >
+                  Copy path
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
+          </div>
           <Button
-            aria-label="Copy"
-
+            aria-label={`Move to ${osConventions().trash}`}
+            className="ml-1"
             onClick={() => {
-              void copy();
+              void trashCapture(capture.name);
             }}
             size="icon-sm"
-            title="Copy"
+            title={`Move to ${osConventions().trash}`}
             variant="ghost"
           >
-            <CopyIcon className="size-4" />
+            <TrashIcon className="size-4" />
           </Button>
           <Button
             aria-label={showInFileManager}

@@ -596,7 +596,7 @@ export function FeedbackDialogContent({
               <DictatedTextarea
                 aria-label="Your note"
                 autoFocus
-                className="min-h-24 bg-none shadow-none focus-visible:outline-none dark:border-0 dark:bg-transparent"
+                className="min-h-24 bg-none shadow-none focus-visible:outline-0 focus-visible:[outline-style:none] dark:border-0 dark:bg-transparent"
                 dictation={noteDictation}
                 maxLength={NOTE_MAX_LENGTH}
                 onChange={(event) => {

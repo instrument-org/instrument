@@ -1,6 +1,7 @@
-import { cn } from "@/client/lib/utils";
+import { cn, osConventions } from "@/client/lib/utils";
 import { buildLabel, type Capture, captureUrl } from "@/shared/captures";
 import { CheckIcon } from "@phosphor-icons/react/Check";
+import { TrashIcon } from "@phosphor-icons/react/Trash";
 
 const dayFormat = new Intl.DateTimeFormat(undefined, {
   day: "numeric",
@@ -36,13 +37,17 @@ function dayName(time: number) {
 export function CapturesGrid({
   captures,
   onPick,
+  onTrash,
   selected,
 }: {
   captures: readonly Capture[];
   onPick: (capture: Capture) => void;
+  /** Moves a capture to the Trash, from a button on its picture. */
+  onTrash?: (capture: Capture) => void;
   /** The names picked, for a grid that picks several. */
   selected?: ReadonlySet<string>;
 }) {
+  const trashWord = osConventions().trash;
   const days: { captures: Capture[]; name: string }[] = [];
   for (const capture of captures) {
     const name = dayName(takenAt(capture));
@@ -63,7 +68,7 @@ export function CapturesGrid({
           <div className="grid grid-cols-3 gap-3">
             {day.captures.map((capture) => {
               const on = selected?.has(capture.name) === true;
-              return (
+              const tile = (
                 <button
                   aria-pressed={selected ? on : undefined}
                   className="group flex min-w-0 flex-col gap-1 rounded-lg text-left outline-none focus-visible:ring-[3px] focus-visible:ring-ring/50"
@@ -110,6 +115,24 @@ export function CapturesGrid({
                     </span>
                   )}
                 </button>
+              );
+              return onTrash ? (
+                <div className="group/tile relative min-w-0" key={capture.name}>
+                  {tile}
+                  <button
+                    aria-label={`Move to ${trashWord}`}
+                    className="absolute top-1.5 right-1.5 grid size-6 place-items-center rounded-full bg-black/60 text-white opacity-0 group-hover/tile:opacity-100 hover:bg-black/80 focus-visible:opacity-100"
+                    onClick={() => {
+                      onTrash(capture);
+                    }}
+                    title={`Move to ${trashWord}`}
+                    type="button"
+                  >
+                    <TrashIcon className="size-3.5" />
+                  </button>
+                </div>
+              ) : (
+                tile
               );
             })}
           </div>

@@ -211,8 +211,10 @@ export function useChatNote({
           statusReadAt: dataUpdatedAt,
         })
       : undefined;
-  // A trial started from this note's button leads back into the chat once
-  // the status has it running, whatever the stopped turn's record says.
+  // A trial started from this note's button is said once the status has it
+  // running, whatever the stopped turn's record says. Continue goes with it
+  // only where a turn was stopped: one started from the note a chat shows
+  // before any refusal has nothing to send again.
   const startedTrial =
     trialStartedAt !== undefined &&
     status?.account.tier === "trial" &&
@@ -294,6 +296,16 @@ export function useChatNote({
   if (billing) {
     const key = `${refused?.id ?? (billing === startedTrial ? `trial:${trialStartedAt ?? 0}` : "account")}:${noticeName(billing)}`;
     const isReady = billing.kind === "resumed";
+    const step = nextStepFor(
+      {
+        blocked: "models",
+        notice: billing,
+        otherModelCan: hasOtherModel,
+        status,
+      },
+      now,
+    );
+    const { action: stepAction, ...withoutAction } = step;
     if (!(isReady && dismissed === key)) {
       return {
         holdsSend:
@@ -319,15 +331,9 @@ export function useChatNote({
                   }
                 : undefined
             }
-            step={nextStepFor(
-              {
-                blocked: "models",
-                notice: billing,
-                otherModelCan: hasOtherModel,
-                status,
-              },
-              now,
-            )}
+            step={
+              stepAction?.kind === "continue" && !refusal ? withoutAction : step
+            }
           />
         ),
       };

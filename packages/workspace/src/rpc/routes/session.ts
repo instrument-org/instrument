@@ -14,6 +14,7 @@ import { closeAsksOf } from "../../lib/chat/asks";
 import { openAsksOf, openQuestions } from "../../lib/chat/open-asks";
 import { sessionOfChat } from "../../lib/record-folders";
 import { ChatReads } from "../../lib/chat-reads";
+import { type SessionMessage } from "../../schemas/session/message";
 import { StoreId } from "../../schemas/store-id";
 import { type ChatId, ChatIdSchema } from "../../schemas/chat-id";
 import { base, toORPCError } from "../base";
@@ -35,6 +36,14 @@ const run = base
   .output(z.void())
   .handler(async ({ context, errors, input }) => {
     const { id, ifIdle, modelURI, sessionId } = input;
+
+    // A session whose last word is a reply the model finished has no request
+    // in it to answer, and a provider handed a conversation ending on its own
+    // turn refuses it, so the run is a no-op there.
+    const history = await ChatReads.history({ chatId: id, sessionId });
+    if (history.isOk() && endsOnFinishedReply(history.value)) {
+      return;
+    }
 
     const modelResult = await fetchModel({
       captureException: context.workspaceConfig.captureException,
@@ -58,6 +67,21 @@ const run = base
       },
     });
   });
+
+/**
+ * Whether the conversation ends on a reply the model ended on its own: not
+ * one that failed, was stopped, or ran out of steps or room.
+ */
+function endsOnFinishedReply(messages: readonly SessionMessage.WithParts[]) {
+  const last = messages.findLast(
+    (message) => message.role === "assistant" || message.role === "user",
+  );
+  return (
+    last?.role === "assistant" &&
+    last.metadata.error === undefined &&
+    last.metadata.finishReason === "stop"
+  );
+}
 
 /**
  * Stops a record's agents: a chat's, which is its own conversation and every

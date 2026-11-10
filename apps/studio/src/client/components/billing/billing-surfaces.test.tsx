@@ -855,6 +855,53 @@ describe("the chat's billing notice", () => {
     );
   });
 
+  it("says a trial started before any refusal has started, with no Continue", async () => {
+    platform.offer = OFFER_WITH_TRIAL;
+    platform.status = onFree();
+    const finished = [
+      {
+        id: "msg_user",
+        metadata: { createdAt: new Date(Date.now() - 5000), sessionId: "s" },
+        parts: [],
+        role: "user",
+      },
+      {
+        id: "msg_reply",
+        metadata: {
+          aiGatewayModel: { name: "Auto", params: { provider: "instrument" } },
+          createdAt: new Date(Date.now() - 4000),
+          finishReason: "stop",
+          sessionId: "s",
+        },
+        parts: [],
+        role: "assistant",
+      },
+    ] as unknown as SessionMessage.WithParts[];
+    const { queryClient } = renderWithProviders(
+      <ChatNoteHarness isAgentRunning={false} messages={finished} />,
+    );
+
+    fireEvent.click(
+      await screen.findByRole("button", { name: "Start free trial" }),
+    );
+    platform.status = onTrial();
+    act(() => {
+      queryClient.setQueryData(["focus"], 1);
+    });
+
+    expect(
+      await screen.findByText("Your free trial has started."),
+    ).toBeDefined();
+    expect(screen.queryByRole("button", { name: "Continue" })).toBeNull();
+    fireEvent.click(screen.getByRole("button", { name: "Dismiss" }));
+    await vi.waitFor(
+      () => {
+        expect(screen.queryByText("Your free trial has started.")).toBeNull();
+      },
+      { interval: 1 },
+    );
+  });
+
   it("holds a send on Instrument's models on the free allowance before any refusal", async () => {
     platform.offer = OFFER_WITH_TRIAL;
     platform.status = onFree();

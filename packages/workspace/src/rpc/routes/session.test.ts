@@ -522,3 +522,56 @@ describe("session.stop", () => {
     ).toMatchObject({ status: "running" });
   });
 });
+
+describe("session.run", () => {
+  const modelURI = AIGatewayModelURI.Schema.parse(
+    "zai-org/glm-5.3-flash?provider=openrouter&providerConfigId=mock-provider-config-id",
+  );
+
+  /** Whether running the chat's own session asked the workspace for a turn. */
+  async function runs(chatId: ChatId, sessionId: StoreId.Session) {
+    const before = sent.length;
+    await call(
+      session.run,
+      { id: chatId, modelURI, sessionId },
+      { context: context() },
+    );
+    return sent.slice(before).some((event) => event.type === "runTurn");
+  }
+
+  it("runs a session whose last word is the person's", async () => {
+    const { chatId, own } = await chatWithTask();
+    expect(await runs(chatId, own)).toBe(true);
+  });
+
+  it("does nothing for a session that ends on a finished reply", async () => {
+    const { chatId, own } = await chatWithTask();
+    await said(chatId, own, "Here's what I found.");
+    expect(await runs(chatId, own)).toBe(false);
+  });
+
+  it("runs again over a reply the person stopped", async () => {
+    const { chatId, own } = await chatWithTask();
+    const createdAt = new Date();
+    const written = await ChatWrites.saveMessageWithParts(
+      {
+        id: StoreId.newMessageId(),
+        metadata: {
+          createdAt,
+          error: { kind: "aborted", message: "Stopped" },
+          finishReason: "stop",
+          modelId: "glm-5.3-flash",
+          providerId: "openai-compatible",
+          sessionId: own,
+        },
+        parts: [],
+        role: "assistant",
+      },
+      chatId,
+    );
+    if (written.isErr()) {
+      throw written.error;
+    }
+    expect(await runs(chatId, own)).toBe(true);
+  });
+});

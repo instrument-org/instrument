@@ -2,7 +2,7 @@
 
 Status: open. The pointer is built; whether it ships is judged from use, and the checks below that never ran are still owed.
 
-The in-app browser shows what the agent did to a page only after the fact. A teal dart with an "Instrument" tag, in the page for as long as the agent works there, moving to each point it clicks, types or scrolls, makes its actions visible as they happen. The person's own OS cursor stays theirs.
+The in-app browser shows what the agent did to a page only after the fact. A teal dart with a tag saying what it is doing, in the page for as long as the agent works there, moving to each point it clicks, types or scrolls, makes its actions visible as they happen. The person's own OS cursor stays theirs.
 
 ## The pointer is drawn in the page
 
@@ -26,7 +26,7 @@ A host overlay above the `<webview>` was the earlier plan. It kept the page from
 
 - A move glides along a curve that bows to one side, alternating, in 140 to 380 ms growing with the distance as a hand's does, leaning into its travel and overshooting a few pixels before it settles.
 - Main holds each `Input.dispatchMouseEvent` move until the pointer has arrived, at most 450 ms, so the page sees the move, and the press after it, as the pointer lands. Nothing else waits on it, and it never fails a command.
-- A press squeezes the dart and pulses a ring; the release lets it bounce back. Typing glides it to the focused field and taps it per key; a wheel glides it to the scroll point and nudges it the way the page went. The tag names the act ("Clicking", "Typing", "Scrolling", "Dragging") for a moment, then reads "Instrument" again.
+- A press squeezes the dart and pulses a ring; the release lets it bounce back. Typing glides it to the focused field and taps it per key; a wheel glides it to the scroll point and nudges it the way the page went. The tag names the act ("Clicking", "Typing", "Scrolling", "Dragging") for a moment, then reads "Thinking" until the next act.
 - The tag sits in the dart's notch and moves to the other side of the tip near the page's right or bottom edge.
 - One act is in flight per tab, and a move replaces a move waiting, so a drag never queues behind a slow page. A page that does not answer in a second is given up on.
 - A frame's commands are in the frame's coordinates: they keep the pointer in the page but do not move it.

@@ -334,8 +334,8 @@ async function runInPage(
 const POINTER_CONFIG = {
   /** The brand teal of the app, so the pointer reads as the app's agent rather than the page's own cursor. */
   color: "#0e7869",
-  /** The name on the tag beside the dart when it is not saying what it does. */
-  tag: "Instrument",
+  /** What the tag beside the dart says between acts, while the agent works out its next step. */
+  resting: "Thinking",
 };
 
 // Runs in the page's document, in the pointer's own world, once per document:
@@ -523,9 +523,9 @@ const POINTER_SOURCE = String.raw`function (config) {
   const verb = (words) => {
     label(words);
     clearTimeout(s.verb);
-    s.verb = setTimeout(() => label(config.tag), VERB_MS);
+    s.verb = setTimeout(() => label(config.resting), VERB_MS);
   };
-  label(config.tag);
+  label(config.resting);
 
   // Near the page's right or bottom edge the tag goes to the other side of
   // the tip, where it is not cut off.
@@ -710,7 +710,7 @@ const POINTER_SOURCE = String.raw`function (config) {
     setTimeout(() => {
       if (s.shown) return;
       s.leaving = false;
-      label(config.tag);
+      label(config.resting);
       try {
         host.hidePopover();
       } catch {}

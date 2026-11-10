@@ -190,7 +190,7 @@ export function GroupItem({
             {location.kind === "page" && <BrowserExtensionButtons />}
             {/* A page's file has the file's own Ask among its actions. */}
             {before && location.kind === "page" && (
-              <PageAskButton onAsk={appWindow.focusComposer} />
+              <PageAskButton onAsk={appWindow.askAboutView} />
             )}
             {rowProps.trailing}
           </>

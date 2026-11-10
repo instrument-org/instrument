@@ -13,7 +13,9 @@ import { describe, expect, it, vi } from "vitest";
 import { page, userEvent } from "vitest/browser";
 
 import { ContextChips, ContextSuggestion } from "./context-chip";
-import { type BandTarget, targetsOf } from "./draft-band";
+import { inViewLines, linesOfItem, withContextLines } from "./context-items";
+import { type BandTarget } from "./draft-band";
+import { siteGroupOf } from "./app-tabs";
 import { useDraftChips } from "./use-draft-chips";
 import { chatHref } from "./window-href";
 
@@ -46,21 +48,21 @@ const screen = (href: string): WindowTab => ({
 const PLAN = screen(fileHref("/Users/casey/Notes/plan.md"));
 const DOCUMENTS = screen(folderHref("/Users/casey/Documents"));
 const CHAT_SCREEN = screen(chatHref(CHAT));
+/** A page of the person's own, in the window's Browser tab. */
+const SHOP: WindowTab = {
+  group: siteGroupOf("s1"),
+  id: "theirs",
+  kind: "page",
+  openedAt: 0,
+  title: "Checkout",
+  url: "https://shop.example/checkout",
+};
 
 let opened = 0;
 
 /** The tab a target opens as in the band, as the window opens it. */
 function bandTabOf(target: BandTarget): WindowTab {
   const id = `band-${opened++}`;
-  if (target.kind === "page" || target.kind === "tab") {
-    return {
-      group: GROUP,
-      id,
-      kind: "page",
-      openedAt: 0,
-      url: target.url ?? "about:blank",
-    };
-  }
   return {
     group: GROUP,
     href:
@@ -83,8 +85,8 @@ const lineOf = (entry: DraftContextItem) =>
 
 /**
  * A draft's chip row, and what the window has in view offered beside it,
- * with taking it opening it as a tab of the draft's band. The draft's lines
- * of `context`, as its file has them, stand in `data-context`, and how many
+ * with taking it writing its lines into the draft. The draft's lines of
+ * `context`, as its file has them, stand in `data-context`, and how many
  * tabs its band has in `data-band`.
  */
 function Chips({
@@ -108,7 +110,8 @@ function Chips({
     return tab.id;
   };
   const { items, leaveOut, suggestion } = useDraftChips({
-    allTabs: band,
+    // The person's own tab in view is one of the window's too.
+    allTabs: [...band, inView],
     band,
     closeTab: (id) => {
       setBand((current) => current.filter((tab) => tab.id !== id));
@@ -140,9 +143,9 @@ function Chips({
         <ContextSuggestion
           item={suggestion}
           onTake={() => {
-            for (const target of targetsOf(suggestion)) {
-              open(target);
-            }
+            setDraft((current) =>
+              withContextLines(current, linesOfItem(suggestion)),
+            );
           }}
         />
       ) : undefined}
@@ -160,6 +163,7 @@ const attribute = (name: string) => () =>
   page.getByTestId("chips").element().getAttribute(name);
 const lines = attribute("data-context");
 const bandSize = attribute("data-band");
+
 
 describe("a draft's chips", () => {
   it("offer what is in view without carrying it, and never offer the chat on screen", async () => {
@@ -220,6 +224,8 @@ describe("a draft's chips", () => {
     expect(bandSize()).toBe("0");
   });
 
+  // A web page is carried by its address and opens only as the chat's, at
+  // the send; the folder opens in the band.
   it("open what the draft's file names as tabs, one chip each, and keep it in the file", async () => {
     const report = "https://example.com/report";
     await renderInBrowser(
@@ -235,7 +241,7 @@ describe("a draft's chips", () => {
         inView={CHAT_SCREEN}
       />,
     );
-    await expect.poll(bandSize).toBe("2");
+    await expect.poll(bandSize).toBe("1");
     await expect.poll(() => chipNames().length).toBe(3);
     expect(lines()).toBe(`${report} /Users/casey/Documents/ ${CHAT}`);
   });
@@ -253,21 +259,50 @@ describe("a draft's chips", () => {
         }}
         elsewhere={(draft) => ({
           ...draft,
-          context: [{ kind: "folder", path: "/Users/casey/Documents/" }],
+          context: [{ kind: "link", url: report }],
         })}
         inView={PLAN}
       />,
     );
-    await expect.poll(bandSize).toBe("2");
+    await expect.poll(bandSize).toBe("1");
+    await expect.poll(() => chipNames().length).toBe(2);
 
     await userEvent.click(page.getByRole("button", { name: "Elsewhere" }));
-    await expect.poll(bandSize).toBe("1");
-    await expect.poll(chipNames).toEqual(["Leave out Documents"]);
+    await expect.poll(bandSize).toBe("0");
+    await expect.poll(() => chipNames().length).toBe(1);
 
     // Taking something else afterward writes the band back without it.
     await userEvent.click(page.getByRole("button", { name: "Add plan.md" }));
-    await expect
-      .poll(lines)
-      .toBe("/Users/casey/Documents/ /Users/casey/Notes/plan.md");
+    await expect.poll(lines).toBe(`${report} /Users/casey/Notes/plan.md`);
+  });
+
+  // Ask on a page puts the page on the draft it opens, with nothing to take
+  // and nothing moved: the person's tab stays theirs.
+  it("carry the page an Ask was made on, with no offer and no tab of their own", async () => {
+    const asked = inViewLines({ finderOf: () => null, inView: SHOP });
+    expect(asked).toEqual([{ kind: "link", url: SHOP.url }]);
+    await renderInBrowser(
+      <Chips draft={{ ...DRAFT, context: asked }} inView={SHOP} />,
+    );
+    await expect.poll(chipNames).toEqual(["Leave out Checkout"]);
+    expect(offered()).toEqual([]);
+    expect(bandSize()).toBe("0");
+  });
+
+  // A draft opened any other way (the chord, the new chat button) only
+  // offers what is in view.
+  it("only offer the page in view to a draft opened empty", async () => {
+    await renderInBrowser(<Chips inView={SHOP} />);
+    await expect.poll(offered).toEqual(["Add Checkout"]);
+    expect(chipNames()).toEqual([]);
+  });
+
+  it("carry the page taken from the offer by its address, opening no tab", async () => {
+    await renderInBrowser(<Chips inView={SHOP} />);
+    await userEvent.click(page.getByRole("button", { name: "Add Checkout" }));
+    await expect.poll(chipNames).toEqual(["Leave out Checkout"]);
+    expect(lines()).toBe(SHOP.url);
+    expect(offered()).toEqual([]);
+    expect(bandSize()).toBe("0");
   });
 });

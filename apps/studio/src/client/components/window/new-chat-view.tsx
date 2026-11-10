@@ -52,10 +52,7 @@ import { projectColor } from "./project-colors";
 import { ProjectMark } from "./project-mark";
 import { projectTint } from "./project-tint";
 import { ProjectSlot } from "./compose-window";
-import { useWindow } from "./context";
 import { ContextChips } from "./context-chip";
-import { appTabsAtom } from "./app-tabs";
-import { putBackTakenTab } from "./take-tab";
 import { type BandTarget, openInBand } from "./draft-band";
 import { includedItemsOf } from "./draft-context";
 import { isHomeTab } from "./tab-model";
@@ -105,8 +102,6 @@ export function NewChatView({
   trailing?: ReactNode;
 }) {
   const shell = useShell();
-  const appWindow = useWindow();
-  const appTabs = useAtomValue(appTabsAtom).tabs;
   const router = useRouter();
   const windowTabs = useWindowTabs();
   const filesHref = useAtomValue(filesHrefAtom);
@@ -223,13 +218,7 @@ export function NewChatView({
     open: (target) =>
       group === undefined
         ? undefined
-        : openInBand({
-            appTabs,
-            browser: appWindow.browser,
-            group,
-            target,
-            windowTabs,
-          }),
+        : openInBand({ group, target, windowTabs }),
     selectedId: up?.id,
   });
 
@@ -477,11 +466,8 @@ function useNewChatChips(
   const { items, leaveOut } = useDraftChips({
     allTabs: windowTabs.allTabs,
     band,
-    // A tab of the person's own goes back where it came from, if it still can.
     closeTab: (id) => {
-      if (!putBackTakenTab({ tabId: id, windowTabs })) {
-        windowTabs.close(id);
-      }
+      windowTabs.close(id);
     },
     draft: draft ?? NO_DRAFT,
     finderOf: (id) => surfaces[id]?.finder ?? null,

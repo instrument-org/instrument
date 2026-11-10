@@ -6,81 +6,36 @@ import {
 } from "@/shared/drafts";
 import { fileHref, folderHref } from "@/shared/computer-href";
 import { instrumentLinkOf } from "@instrument-org/shared";
+import { type ChatId } from "@instrument-org/workspace/client";
 import { useEffect, useEffectEvent, useRef } from "react";
 
 import { type BrowserTabsHandle } from "./browser-tabs";
-import { takePersonsTab } from "./take-tab";
-import {
-  attachedPaths,
-  bandTabLines,
-  type ContextItem,
-  lineKeyOf,
-} from "./context-items";
+import { attachedPaths, bandTabLines, lineKeyOf } from "./context-items";
 import { type useWindowTabs } from "./window-tabs";
 
 /**
- * Something a draft can have open in its band: a file or folder, a page, a
- * screen such as an app's front, or a tab of the person's own, which moves
- * in as it is (`url` is where it stands, for when it has gone since).
+ * Something a draft can have open in its band: a file or folder, or a
+ * screen such as an app's front. A web page a line names is not one: the
+ * draft carries it by its address, and its chat opens it at the send
+ * (`pageToChat`).
  */
-export type BandTarget =
-  | ChosenItem
-  | { kind: "page"; url: string }
-  | { href: string; kind: "screen" }
-  | { kind: "tab"; tabId: string; url?: string };
+export type BandTarget = ChosenItem | { href: string; kind: "screen" };
 
 /**
  * Opens a target as a tab of a draft's band without putting it up: it joins
  * the draft's chips, and the well or the side panel shows it only once its
- * chip is pressed. A target the band already has open is left as it is. A
- * tab of the person's own moves into the band itself, page and all
- * (`takePersonsTab`), and goes with the draft to its chat at the send; one
- * gone since opens again at its address. Answers the id of the tab that
- * shows it, when there is one.
+ * chip is pressed. A target the band already has open is left as it is.
+ * Answers the id of the tab that shows it.
  */
 export function openInBand({
-  appTabs,
-  browser,
   group,
   target,
   windowTabs,
 }: {
-  appTabs: Parameters<typeof takePersonsTab>[0]["appTabs"];
-  browser: BrowserTabsHandle | null;
   group: string;
   target: BandTarget;
-  windowTabs: Pick<
-    ReturnType<typeof useWindowTabs>,
-    "allTabs" | "moveToGroup" | "openOrFocusScreen"
-  >;
+  windowTabs: Pick<ReturnType<typeof useWindowTabs>, "openOrFocusScreen">;
 }): string | undefined {
-  if (target.kind === "tab") {
-    const taken = takePersonsTab({
-      appTabs,
-      group,
-      tabId: target.tabId,
-      windowTabs,
-    });
-    if (taken) {
-      return taken.id;
-    }
-    return target.url === undefined
-      ? undefined
-      : openInBand({
-          appTabs,
-          browser,
-          group,
-          target: { kind: "page", url: target.url },
-          windowTabs,
-        });
-  }
-  if (target.kind === "page") {
-    const open = windowTabs.allTabs.find(
-      (tab) =>
-        tab.group === group && tab.kind === "page" && tab.url === target.url,
-    );
-    return open?.id ?? browser?.openBehind(target.url, group);
-  }
   return windowTabs.openOrFocusScreen(
     target.kind === "screen"
       ? target.href
@@ -91,39 +46,64 @@ export function openInBand({
   );
 }
 
-/** What taking an offered chip opens in the band: the files or folders it points at, or the page or screen itself. */
-export function targetsOf(item: ContextItem): BandTarget[] {
-  if (item.kind === "chosen") {
-    return [item.item];
-  }
-  if (item.kind === "chat") {
-    return [];
-  }
-  if (item.items !== undefined && item.items.length > 0) {
-    return item.items;
-  }
-  return item.tab.kind === "page"
-    ? [
-        {
-          kind: "tab",
-          tabId: item.tab.id,
-          ...(item.tab.url === undefined ? {} : { url: item.tab.url }),
-        },
-      ]
-    : [{ href: item.tab.href, kind: "screen" }];
+/**
+ * The web pages a draft names by their address that no tab of its band
+ * shows, which its chat opens at the send (`pageToChat`). A page the band
+ * has open, from the plus, goes with the band's tabs instead.
+ */
+export function pagesForChat(
+  draft: Draft,
+  band: readonly WindowTab[],
+): string[] {
+  const shown = new Set(
+    band.flatMap((tab) => (tab.kind === "page" && tab.url ? [tab.url] : [])),
+  );
+  return (draft.context ?? []).flatMap((entry) =>
+    entry.kind === "link" &&
+    instrumentLinkOf(entry.url) === undefined &&
+    !shown.has(entry.url)
+      ? [entry.url]
+      : [],
+  );
 }
 
-/** The tab a line of `context` opens as in a draft's band. */
-function targetOfLine(
-  entry: Exclude<DraftContextItem, { kind: "chat" }>,
-): BandTarget {
+/**
+ * How a page a draft names reaches its chat at the send: by its address, as
+ * a new tab of the chat's own, the one up in its pane when `isUp` (nothing
+ * else of the draft's went to the chat). The person's own tab showing it
+ * stays where it is. Sign-ins come along, since every tab shares one browser
+ * session; what was typed into the person's page and where it was scrolled
+ * to do not.
+ */
+export function pageToChat({
+  browser,
+  chatId,
+  isUp,
+  url,
+  windowTabs,
+}: {
+  browser: Pick<BrowserTabsHandle, "openBehind"> | null;
+  chatId: ChatId;
+  isUp: boolean;
+  url: string;
+  windowTabs: Pick<ReturnType<typeof useWindowTabs>, "select">;
+}): void {
+  const id = browser?.openBehind(url, chatId);
+  if (id !== undefined && isUp) {
+    windowTabs.select(id);
+  }
+}
+
+/** The tab a line of `context` opens as in a draft's band: none for another chat, or for a web page, which its chat opens at the send. */
+function targetOfLine(entry: DraftContextItem): BandTarget | undefined {
+  if (entry.kind === "chat") {
+    return undefined;
+  }
   if (entry.kind !== "link") {
     return entry;
   }
   const href = instrumentLinkOf(entry.url)?.href;
-  return href === undefined
-    ? { kind: "page", url: entry.url }
-    : { href, kind: "screen" };
+  return href === undefined ? undefined : { href, kind: "screen" };
 }
 
 /**
@@ -207,13 +187,14 @@ const openingNow = new Set<string>();
 /**
  * Keeps a draft's `context` and the band that shows it as one: the file's
  * lines are the record, which goes to every device, and the band is how this
- * window shows them. As the draft is shown, each file, folder, page or app's
- * front a line names and no tab stands for opens as a tab of the band, once
- * for the draft. As the band changes, its tabs are written back: a tab
- * taken from the offer or opened from the plus is a line, a tab closed takes
- * its line out, and a tab that goes somewhere else (a page browsed on, a
- * folder with a file picked in it) names where it is now. Another chat is
- * only ever a line, since it has no place in a band.
+ * window shows them. As the draft is shown, each file, folder or app's front
+ * a line names and no tab stands for opens as a tab of the band, once for
+ * the draft. As the band changes, its tabs are written back: a tab opened
+ * from the plus is a line, a tab closed takes its line out, and a tab that
+ * goes somewhere else (a page browsed on, a folder with a file picked in it)
+ * names where it is now. Another chat is only ever a line, since it has no
+ * place in a band, and so is a web page the draft was given, which its chat
+ * opens at the send (`pageToChat`).
  */
 export function useBandContext({
   band,
@@ -276,7 +257,8 @@ export function useBandContext({
     const shown = new Set([...lines.values()].flat().map(lineKeyOf));
     for (const entry of draft.context ?? []) {
       const key = lineKeyOf(entry);
-      if (entry.kind === "chat" || shown.has(key) || state.asked.has(key)) {
+      const target = targetOfLine(entry);
+      if (target === undefined || shown.has(key) || state.asked.has(key)) {
         continue;
       }
       state.asked.add(key);
@@ -286,7 +268,7 @@ export function useBandContext({
       }
       openingNow.add(across);
       queueMicrotask(() => openingNow.delete(across));
-      const id = open(targetOfLine(entry));
+      const id = open(target);
       if (id !== undefined) {
         state.opening.set(id, [...(state.opening.get(id) ?? []), key]);
       }

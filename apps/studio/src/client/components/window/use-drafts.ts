@@ -12,7 +12,6 @@ import {
   removeDraftAtom,
 } from "@/client/drafts/store";
 import {
-  type ChosenItem,
   type Draft,
   type DraftContextItem,
   draftGroupOf,
@@ -41,7 +40,8 @@ import { asksPart, stagedAsksAtom, useStagedAskActions } from "./staged-asks";
 import { type useCompose } from "./use-compose";
 import { isHomeTab } from "./tab-model";
 import { type useWindowTabs } from "./window-tabs";
-import { forgetTakenTab, putBackTakenTab } from "./take-tab";
+import { type BrowserTabsHandle } from "./browser-tabs";
+import { pageToChat, pagesForChat } from "./draft-band";
 
 /** How long a chat just started from a draft is marked as arriving in the inbox; the row's own motion is shorter. */
 const CHAT_ARRIVAL_MS = ms("3 seconds");
@@ -55,6 +55,7 @@ const CHAT_ARRIVAL_MS = ms("3 seconds");
  * out of one.
  */
 export function useDrafts({
+  browser,
   folders,
   compose,
   draftContext,
@@ -68,6 +69,8 @@ export function useDrafts({
   projects,
   windowTabs,
 }: {
+  /** The window's browser, which opens the pages a draft names as its chat's tabs at the send. */
+  browser: BrowserTabsHandle | null;
   /** The folders the window reaches, for how the agent reaches a file an ask is on. */
   folders: Record<string, { path: string }>;
   /** The windows along the row's foot, which a draft is written in. */
@@ -179,12 +182,9 @@ export function useDrafts({
   const startDraft = (
     projectId: string | undefined,
     words = "",
-    chosen: ChosenItem[] = [],
+    context: DraftContextItem[] = [],
   ) => {
     const now = Date.now();
-    // Only what the person chose is kept with the draft; what is on screen
-    // goes with it as chips worked out at the moment (draftContextItems).
-    const context: DraftContextItem[] = chosen;
     const draft: Draft = {
       ...(context.length > 0 ? { context } : {}),
       createdAt: now,
@@ -219,8 +219,8 @@ export function useDrafts({
    * A draft a button hands over a line or what to ask about to, made at once
    * since it has something in it, filed as New files one.
    */
-  const draftWith = (words = "", chosen?: ChosenItem[]) =>
-    startDraft(inboxProject(), words, chosen);
+  const draftWith = (words = "", context?: DraftContextItem[]) =>
+    startDraft(inboxProject(), words, context);
   /**
    * A new chat a link from outside asked for, with its words: a draft of its
    * own beside any already open, so nothing the person wrote is replaced,
@@ -250,13 +250,6 @@ export function useDrafts({
     returnAsks({ draftId: id, kind: "draft" });
     compose.remove(draftGroupOf(id));
     const removed = removeDraft(id);
-    // A tab of the person's own goes back where it came from, if it still
-    // can; the rest go with the draft.
-    for (const tab of windowTabs.allTabs) {
-      if (tab.group === draftGroupOf(id)) {
-        putBackTakenTab({ tabId: tab.id, windowTabs });
-      }
-    }
     windowTabs.dropGroup(draftGroupOf(id));
     return removed;
   };
@@ -421,7 +414,7 @@ export function useDrafts({
         // Written in the Chat screen, the draft's pages stand in the side
         // panel, so they become the chat's as the tab moves to it: the panel
         // stays put rather than closing and opening again.
-        handOverTabs(id, chatId);
+        handOverTabs(draft, chatId);
         openChat(chatId);
       } else {
         compose.becomeChat(id, chatId);
@@ -475,23 +468,20 @@ export function useDrafts({
       removeAsks(marked.map((ask) => ask.id));
       setArrived({ chatId, draftId: id });
       if (!opensWhole) {
-        handOverTabs(id, chatId);
+        handOverTabs(draft, chatId);
       }
     })();
   };
   /**
-   * What a draft gathered becomes its chat's tabs, the pages and folders as
-   * they stand; new-tab pages a build before this one opened a draft on are
-   * not carried over, and a draft that gathered nothing hands over nothing,
-   * so the chat opens with no pane.
+   * What a draft gathered becomes its chat's tabs, the pages and folders of
+   * its band as they stand, and each web page it names by its address opens
+   * as a tab of the chat's (`pageToChat`); new-tab pages a build before this
+   * one opened a draft on are not carried over, and a draft that gathered
+   * nothing hands over nothing, so the chat opens with no pane.
    */
-  const handOverTabs = (id: string, chatId: ChatId) => {
-    const group = draftGroupOf(id);
+  const handOverTabs = (draft: Draft, chatId: ChatId) => {
+    const group = draftGroupOf(draft.id);
     const own = windowTabs.allTabs.filter((tab) => tab.group === group);
-    // Its tabs are the chat's now, and none goes back to a Browser.
-    for (const tab of own) {
-      forgetTakenTab(tab.id);
-    }
     const homes = own.filter((tab) => isHomeTab(tab));
     for (const home of homes) {
       windowTabs.close(home.id);
@@ -501,6 +491,15 @@ export function useDrafts({
     } else {
       windowTabs.adoptGroup(group, chatId);
     }
+    pagesForChat(draft, own).forEach((url, index) => {
+      pageToChat({
+        browser,
+        chatId,
+        isUp: index === 0 && homes.length === own.length,
+        url,
+        windowTabs,
+      });
+    });
   };
   return {
     arrivedId: arrived?.chatId,

@@ -67,7 +67,7 @@ async function renderTitle() {
       value={{
         ask: vi.fn(),
         browser: null,
-        focusComposer: vi.fn(),
+        askAboutView: vi.fn(),
         openPage: vi.fn(),
         openPath: vi.fn(),
         openScreen: vi.fn(),

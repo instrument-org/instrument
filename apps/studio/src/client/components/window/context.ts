@@ -70,10 +70,14 @@ export interface WindowContextValue {
    * no new draft to open, as inside one.
    */
   askAbout?: (items: ChosenItem[], words?: string) => void;
+  /**
+   * Ask on a screen: opens a draft of a new chat carrying what the window has
+   * in view as a chip (a page, a file, a folder or what is selected in it, an
+   * app's front); inside a draft, puts the caret back in its words.
+   */
+  askAboutView: () => void;
   /** The window's browser, mounted once by the layout and kept across screens; null until it is. */
   browser: BrowserTabsHandle | null;
-  /** Puts the caret in the conversation's composer, for a screen handing something over to be asked about. */
-  focusComposer: () => void;
   /**
    * Opens a new draft and moves these staged asks into it as pills, for a
    * file with no chat beside it; inside a draft, moves them into that one.

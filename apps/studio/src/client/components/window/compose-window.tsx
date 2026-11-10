@@ -58,9 +58,8 @@ import {
 } from "./compose-layout";
 import { asksOwnPlace, useWindow, WindowContext } from "./context";
 import { ContextChips, ContextSuggestion } from "./context-chip";
-import { appTabsAtom } from "./app-tabs";
-import { putBackTakenTab } from "./take-tab";
-import { type BandTarget, openInBand, targetsOf } from "./draft-band";
+import { linesOfItem, withContextLines } from "./context-items";
+import { type BandTarget, openInBand } from "./draft-band";
 import { includedItemsOf } from "./draft-context";
 import { GroupItem } from "./group-item";
 import { usePageHost } from "./page-hosts";
@@ -204,7 +203,6 @@ export function ComposeWindow({
   // it left, so it takes no input then.
   const isPresent = useIsPresent();
   const appWindow = useWindow();
-  const appTabs = useAtomValue(appTabsAtom).tabs;
   const windowTabs = useWindowTabs();
   const filesHref = useAtomValue(filesHrefAtom);
   const group = draftGroupOf(draft.id);
@@ -371,10 +369,7 @@ export function ComposeWindow({
     if (id === up?.id) {
       setWellOpen(false);
     }
-    // A tab of the person's own goes back where it came from, if it still can.
-    if (!putBackTakenTab({ tabId: id, windowTabs })) {
-      windowTabs.close(id);
-    }
+    windowTabs.close(id);
   };
   /** A chip pressed: its tab comes up in the well, or the well closes when it already shows it. */
   const showTab = (id: string) => {
@@ -386,7 +381,7 @@ export function ComposeWindow({
     setWellOpen(true);
   };
   const open = (target: BandTarget) =>
-    openInBand({ appTabs, browser, group, target, windowTabs });
+    openInBand({ group, target, windowTabs });
   // What the draft carries besides its words, as its chips: the same list
   // its chat is told at the press (see draftContextItems).
   const {
@@ -483,7 +478,7 @@ export function ComposeWindow({
           // come up behind the one being written.
           askAbout: undefined,
           // What a file in its band marked goes into this draft.
-          focusComposer: () => {
+          askAboutView: () => {
             inputRef.current?.focus();
           },
           moveAsksToDraft: (ids) => {
@@ -608,9 +603,12 @@ export function ComposeWindow({
                           <ContextSuggestion
                             item={suggestion}
                             onTake={() => {
-                              for (const target of targetsOf(suggestion)) {
-                                open(target);
-                              }
+                              onChange((current) =>
+                                withContextLines(
+                                  current,
+                                  linesOfItem(suggestion),
+                                ),
+                              );
                             }}
                           />
                         </ChipPresence>

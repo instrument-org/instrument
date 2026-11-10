@@ -117,14 +117,72 @@ export function bandTabLines(
     held,
     key: keyOfTab(tab),
   });
-  if (item?.kind !== "tab") {
-    return [];
+  return item ? linesOfItem(item) : [];
+}
+
+/**
+ * The lines of `context` a chip stands for, as a draft's file keeps them:
+ * the files or folders it points at on this computer, else a page's address
+ * or an app's front by its own address, or another chat.
+ */
+export function linesOfItem(item: ContextItem): DraftContextItem[] {
+  if (item.kind === "chosen") {
+    return [{ kind: item.item.kind, path: item.item.path }];
+  }
+  if (item.kind === "chat") {
+    return [{ chat: item.chat, kind: "chat" }];
   }
   if (item.items !== undefined) {
     return item.items.map((entry) => ({ kind: entry.kind, path: entry.path }));
   }
-  const url = tab.kind === "page" ? tab.url : instrumentUrlOf(tab.href);
+  const url =
+    item.tab.kind === "page" ? item.tab.url : instrumentUrlOf(item.tab.href);
   return url === undefined ? [] : [{ kind: "link", url }];
+}
+
+/**
+ * A draft brought up to carry these lines too, each one it does not carry
+ * yet added after its own: what taking an offered chip and an Ask write.
+ */
+export function withContextLines(
+  draft: Draft,
+  lines: readonly DraftContextItem[],
+): Draft {
+  const had = new Set((draft.context ?? []).map(lineKeyOf));
+  const added = lines.filter((entry) => {
+    const key = lineKeyOf(entry);
+    if (had.has(key)) {
+      return false;
+    }
+    had.add(key);
+    return true;
+  });
+  return added.length === 0
+    ? draft
+    : { ...draft, context: [...(draft.context ?? []), ...added] };
+}
+
+/**
+ * The lines of what the window has in view, as Ask puts them on the draft
+ * it opens: what is selected in a folder, else the folder, a file, a page or
+ * an app's front. None where the screen names nothing or is a chat's.
+ */
+export function inViewLines({
+  finderOf,
+  inView,
+}: {
+  finderOf: (id: string) => null | { folder: string; selected: ChosenItem[] };
+  inView: undefined | WindowTab;
+}): DraftContextItem[] {
+  const item = inView
+    ? itemOfTab(inView, {
+        finderOf,
+        group: "",
+        held: [],
+        key: keyOfTab(inView),
+      })
+    : undefined;
+  return item ? linesOfItem(item) : [];
 }
 
 /** Which thing a line of `context` names, the same however a folder's path ends: what a band tab and a line are matched by. */
@@ -145,9 +203,10 @@ export function lineKeyOf(entry: DraftContextItem): string {
  * no chip of its own: the attachment's chip is it. Two tabs showing the same
  * thing are one chip, the first in the band's order.
  *
- * What the window has in view behind the draft is never one of them: it is
- * offered beside the chips (`draftSuggestionOf`), and goes only once the
- * person takes it, which opens it in the band.
+ * What the window has in view behind the draft is never one of them by
+ * itself: it is offered beside the chips (`draftSuggestionOf`), and goes
+ * only once the person takes it or opened the draft with Ask, either of
+ * which writes its lines into `context` (`withContextLines`).
  */
 export function draftContextItems({
   allTabs,
@@ -203,10 +262,10 @@ export function draftContextItems({
 /**
  * What the window has in view behind a draft, offered to it as the chip it
  * would be: what is selected in a folder, else the folder, a file, a page or
- * an app's front. Taking it opens it in the draft's band (`openInBand`).
- * Nothing where the screen names nothing, where it is another chat's, or
- * where the draft already has it: a selection the draft has is not offered
- * again as the folder around it.
+ * an app's front. Taking it writes its lines into the draft's `context`
+ * (`linesOfItem`). Nothing where the screen names nothing, where it is
+ * another chat's, or where the draft already carries every line of it: a
+ * selection the draft has is not offered again as the folder around it.
  */
 export function draftSuggestionOf({
   allTabs,
@@ -235,24 +294,23 @@ export function draftSuggestionOf({
   if (item?.kind !== "tab") {
     return undefined;
   }
-  if (item.items !== undefined) {
-    const carried = draftContextItems({
-      allTabs,
-      band,
-      draft,
-      finderOf,
-      group,
-    });
-    const held = new Set(
-      [...attachedPaths(draft), ...heldPaths(carried)].map((entry) =>
-        withoutSlash(entry.path),
+  const carried = new Set(
+    [
+      ...attachedPaths(draft),
+      ...linesCarried(
+        draftContextItems({ allTabs, band, draft, finderOf, group }),
       ),
-    );
-    if (item.items.every((entry) => held.has(withoutSlash(entry.path)))) {
-      return undefined;
-    }
-  }
-  return item;
+    ].map(lineKeyOf),
+  );
+  const lines = linesOfItem(item);
+  return lines.length > 0 && lines.every((line) => carried.has(lineKeyOf(line)))
+    ? undefined
+    : item;
+}
+
+/** Every line the chips stand for, so what one of them carries is not offered again. */
+function linesCarried(items: ContextItem[]): DraftContextItem[] {
+  return items.flatMap(linesOfItem);
 }
 
 /** What is attached to a draft by its path, which a tab of its band showing the same thing does not say again. */

@@ -15,7 +15,7 @@ const windowWith = (askAbout?: WindowContextValue["askAbout"]) =>
     ...(askAbout ? { askAbout } : {}),
     browser: null,
     chatId: ChatIdSchema.parse("2026-10-31-convert"),
-    focusComposer: vi.fn(),
+    askAboutView: vi.fn(),
     openPage: vi.fn(),
     openPath: vi.fn(),
     openScreen: vi.fn(),

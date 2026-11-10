@@ -27,9 +27,9 @@ export function FileAskButton({ name, path }: { name: string; path: string }) {
 }
 
 /**
- * Ask, among a site's actions: a new draft opened over the page, which the
- * draft carries the way it carries any tab it was opened over. For a site of
- * the window's own; the browser beside a chat is already that chat's.
+ * Ask, among a site's actions: a new draft carrying the page by its address,
+ * as a file's Ask carries the file. For a site of the window's own; the
+ * browser beside a chat is already that chat's.
  */
 export function PageAskButton({ onAsk }: { onAsk: () => void }) {
   return <AskButton onAsk={onAsk} title="Ask about this page" />;

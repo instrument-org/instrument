@@ -897,6 +897,7 @@ function WindowShell({
     startChat,
     startingIds,
   } = useDrafts({
+    browser,
     folders: opened?.folders ?? {},
     compose,
     draftContext,
@@ -1192,8 +1193,10 @@ function WindowShell({
           draftWith(words, items);
         },
         browser,
-        focusComposer: () => {
-          newDraft();
+        // What is in view goes on the draft as a chip of its own, the
+        // way a file's Ask puts the file there.
+        askAboutView: () => {
+          draftWith("", readersNow().askLines());
         },
         // With no chat beside the file, a new draft takes what was marked,
         // opened over the file now that the marking is done.

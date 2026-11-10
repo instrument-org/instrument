@@ -1,9 +1,4 @@
-import { BROWSER_HREF, type WindowTab } from "@/client/atoms/window";
-import {
-  pruneTabRouters,
-  setTabRouter,
-} from "@/client/lib/tab-router-registry";
-import { TabIdSchema } from "@/shared/tabs";
+import { type WindowTab } from "@/client/atoms/window";
 import { draftFileOf, draftOf } from "@/electron-main/drafts/draft-record";
 import { fileHref, folderHref } from "@/shared/computer-href";
 import {
@@ -12,14 +7,18 @@ import {
   draftGroupOf,
 } from "@/shared/drafts";
 import { ChatIdSchema, StoreId } from "@instrument-org/workspace/client";
+import { renderHook } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 
-import { pageHrefOf, siteGroupOf } from "./app-tabs";
-import { type BrowserTabsHandle } from "./browser-tabs";
-import { forgetTakenTab, putBackTakenTab } from "./take-tab";
+import { siteGroupOf } from "./app-tabs";
 
 import { bandTabLines, draftContextItems } from "./context-items";
-import { contextFollowingBand, openInBand, targetsOf } from "./draft-band";
+import {
+  contextFollowingBand,
+  pagesForChat,
+  pageToChat,
+  useBandContext,
+} from "./draft-band";
 
 const DRAFT: Draft = { createdAt: 0, id: "d1", updatedAt: 0, words: "" };
 const GROUP = draftGroupOf(DRAFT.id);
@@ -161,125 +160,62 @@ describe("a draft shown with its band", () => {
   });
 });
 
-describe("taking the page chip", () => {
-  const site = siteGroupOf("s1");
-  const browserTab = TabIdSchema.parse("app-browser");
+describe("a page the draft names, at the send", () => {
   const theirs: WindowTab = {
-    group: site,
+    group: siteGroupOf("s1"),
     id: "tab_theirs",
     kind: "page",
     openedAt: 0,
     url: "https://shop.example/checkout",
   };
+  const asked: Draft = {
+    ...DRAFT,
+    context: [
+      { kind: "link", url: theirs.url ?? "" },
+      { kind: "link", url: "instrument://app/notion" },
+      PLAN,
+      { chat: CHAT, kind: "chat" },
+    ],
+  };
 
-  function take(allTabs: WindowTab[]) {
-    const moveToGroup = vi.fn();
-    const openBehind = vi.fn(() => StoreId.newTabId());
-    // The Browser tab's history: where it is, and who hears it move.
-    const history = {
-      listeners: new Set<() => void>(),
-      location: { href: pageHrefOf(site) },
-      replace: vi.fn((href: string) => {
-        history.location = { href };
-      }),
-      subscribe: (listener: () => void) => {
-        history.listeners.add(listener);
-        return () => history.listeners.delete(listener);
-      },
-    };
-    const replace = history.replace;
-    // Only the history of the Browser tab's router is read here.
-    setTabRouter(browserTab, {
-      history,
-    } as unknown as Parameters<typeof setTabRouter>[1]);
-    // The page chip as the offer makes it; `targetsOf` reads only its tab.
-    const [target] = targetsOf({
-      key: "k",
-      kind: "tab",
-      tab: theirs,
-    } as Parameters<typeof targetsOf>[0]);
-    const id = target
-      ? openInBand({
-          appTabs: [{ id: browserTab, pathname: pageHrefOf(site) }],
-          browser: { openBehind } as unknown as BrowserTabsHandle,
-          group: GROUP,
-          target,
-          windowTabs: {
-            allTabs,
-            moveToGroup,
-            openOrFocusScreen: vi.fn(),
-          },
-        })
-      : undefined;
-    /** The person takes their Browser tab somewhere else. */
-    const browse = (href: string) => {
-      history.location = { href };
-      for (const listener of history.listeners) {
-        listener();
-      }
-    };
-    return { browse, id, moveToGroup, openBehind, replace };
-  }
-
-  it("moves the person's own tab into the draft, page and all, and puts their Browser back at its start", () => {
-    const { id, moveToGroup, openBehind, replace } = take([theirs]);
-
-    expect(id).toBe(theirs.id);
-    expect(moveToGroup).toHaveBeenCalledWith(theirs.id, GROUP);
-    expect(replace).toHaveBeenCalledWith(BROWSER_HREF);
-    expect(openBehind).not.toHaveBeenCalled();
+  it("goes to the chat by its address, apart from what the band already shows", () => {
+    expect(pagesForChat(asked, [])).toEqual([theirs.url]);
+    expect(pagesForChat(asked, [page("t", theirs.url ?? "")])).toEqual([]);
   });
 
-  it("opens the page at its address when the tab has gone since", () => {
-    const { moveToGroup, openBehind } = take([]);
-
-    expect(moveToGroup).not.toHaveBeenCalled();
-    expect(openBehind).toHaveBeenCalledWith(
-      "https://shop.example/checkout",
-      GROUP,
-    );
+  it("opens as a tab of the chat's own, leaving the person's tab where it is", () => {
+    const id = StoreId.newTabId();
+    const openBehind = vi.fn(() => id);
+    const select = vi.fn();
+    for (const url of pagesForChat(asked, [])) {
+      pageToChat({
+        browser: { openBehind },
+        chatId: CHAT,
+        isUp: true,
+        url,
+        windowTabs: { select },
+      });
+    }
+    expect(openBehind.mock.calls).toEqual([[theirs.url, CHAT]]);
+    // Up in the chat's pane, which only ever selects the chat's own tab.
+    expect(select.mock.calls).toEqual([[id]]);
   });
 
-  it("puts the tab back in its Browser tab when the chip comes out while that tab is still at its start", () => {
-    const { id, moveToGroup, replace } = take([theirs]);
-
-    expect(
-      putBackTakenTab({ tabId: id ?? "", windowTabs: { moveToGroup } }),
-    ).toBe(true);
-    expect(moveToGroup).toHaveBeenLastCalledWith(theirs.id, site);
-    expect(replace).toHaveBeenLastCalledWith(pageHrefOf(site));
-    // Once.
-    expect(
-      putBackTakenTab({ tabId: id ?? "", windowTabs: { moveToGroup } }),
-    ).toBe(false);
-  });
-
-  it("leaves the tab to close once its Browser tab has shown anything else", () => {
-    const { browse, id, moveToGroup } = take([theirs]);
-    browse("/browser/site/other");
-    browse(BROWSER_HREF);
-
-    expect(
-      putBackTakenTab({ tabId: id ?? "", windowTabs: { moveToGroup } }),
-    ).toBe(false);
-    expect(moveToGroup).toHaveBeenCalledTimes(1);
-  });
-
-  it("leaves the tab to close once its Browser tab is gone", () => {
-    const { id, moveToGroup } = take([theirs]);
-    pruneTabRouters(new Set());
-
-    expect(
-      putBackTakenTab({ tabId: id ?? "", windowTabs: { moveToGroup } }),
-    ).toBe(false);
-  });
-
-  it("forgets where the tab came from once it goes on to a chat", () => {
-    const { id, moveToGroup } = take([theirs]);
-    forgetTakenTab(id ?? "");
-
-    expect(
-      putBackTakenTab({ tabId: id ?? "", windowTabs: { moveToGroup } }),
-    ).toBe(false);
+  it("never opens in the draft's band while it is a draft", () => {
+    const open = vi.fn();
+    renderHook(() => {
+      useBandContext({
+        band: [],
+        close: vi.fn(),
+        draft: asked,
+        finderOf: () => null,
+        onChange: vi.fn(),
+        open,
+      });
+    });
+    expect(open.mock.calls).toEqual([
+      [{ href: "/apps/notion", kind: "screen" }],
+      [PLAN],
+    ]);
   });
 });

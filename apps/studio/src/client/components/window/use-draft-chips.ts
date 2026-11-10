@@ -11,10 +11,10 @@ import { type BandTarget, useBandContext } from "./draft-band";
 
 /**
  * A draft's chips (see `draftContextItems`) and what the window has in view
- * offered beside them (see `draftSuggestionOf`), which the caller opens in
- * the band when taken. The band and the draft's `context` are kept as one
- * (`useBandContext`), so whatever the band opens is written into the draft's
- * file. Taking a chip off closes its tab when it is one of the band's, and
+ * offered beside them (see `draftSuggestionOf`), whose lines the caller
+ * writes into the draft's `context` when taken. The band and `context` are
+ * kept as one (`useBandContext`), so a line opens in the band where it has a
+ * place there, and whatever the band opens is written into the draft's file. Taking a chip off closes its tab when it is one of the band's, and
  * takes its line out of `context` otherwise.
  */
 export function useDraftChips({

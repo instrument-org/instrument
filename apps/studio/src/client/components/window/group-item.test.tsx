@@ -46,7 +46,7 @@ vi.mock("./file-ask-button", () => ({ PageAskButton: () => null }));
 const appWindow: WindowContextValue = {
   ask: vi.fn(),
   browser: null,
-  focusComposer: vi.fn(),
+  askAboutView: vi.fn(),
   openPage: vi.fn(),
   openPath: vi.fn(),
   openScreen: calls.openScreen,

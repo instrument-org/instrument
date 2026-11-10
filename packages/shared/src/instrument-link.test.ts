@@ -234,6 +234,47 @@ describe("outsideLinkOf", () => {
     expect(outsideLinkOf(url)).toBeUndefined();
   });
 
+  describe("page", () => {
+    it.each([
+      ["a slug", "weekly-plan-g6hgcknla553"],
+      ["one character", "a"],
+      ["digits", "2026"],
+      ["sixty-three characters", "a".repeat(63)],
+      ["a hyphen inside", "a-b"],
+    ])("reads an id of %s", (_case, id) => {
+      expect(outsideLinkOf(`instrument://page/${id}`)).toEqual({
+        id,
+        kind: "page",
+      });
+    });
+
+    it("reads the noun in any case", () => {
+      expect(outsideLinkOf("instrument://PAGE/weekly-plan")).toEqual({
+        id: "weekly-plan",
+        kind: "page",
+      });
+    });
+
+    it.each([
+      ["no id", "instrument://page"],
+      ["no id but a slash", "instrument://page/"],
+      ["a leading hyphen", "instrument://page/-weekly"],
+      ["a trailing hyphen", "instrument://page/weekly-"],
+      ["a capital letter", "instrument://page/Weekly"],
+      ["a dot, which would name another host", "instrument://page/a.b"],
+      ["an underscore", "instrument://page/a_b"],
+      ["a space", "instrument://page/a%20b"],
+      ["a percent sign", "instrument://page/a%25b"],
+      ["sixty-four characters", `instrument://page/${"a".repeat(64)}`],
+      ["a segment under the id", "instrument://page/weekly/index.html"],
+      ["a query", "instrument://page/weekly?x=1"],
+      ["a fragment", "instrument://page/weekly#top"],
+      ["a web address", "https://weekly.instrument.page/"],
+    ])("opens nothing for %s", (_case, url) => {
+      expect(outsideLinkOf(url)).toBeUndefined();
+    });
+  });
+
   describe("files", () => {
     // Written by the website as `encodeURIComponent` writes each path.
     const filesLink = (...paths: string[]) =>

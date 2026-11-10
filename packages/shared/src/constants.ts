@@ -108,6 +108,8 @@ export const GITHUB_ORG = "instrument-org";
 export const APP_REPO_URL = `https://github.com/${GITHUB_ORG}/${APP_REPO_NAME}`;
 export const APP_DOMAIN = "tryinstrument.com";
 export const APP_URL = `https://${APP_DOMAIN}`;
+// Where a shared page is hosted, each at `https://<id>.instrument.page/`.
+export const PAGES_DOMAIN = "instrument.page";
 export const RELEASE_NOTES_URL = `${APP_REPO_URL}/releases`;
 // What Settings › Permissions links to on Windows, where programs the agent
 // runs are not yet held to the list. Kept to this one constant so the link

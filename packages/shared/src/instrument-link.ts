@@ -101,7 +101,9 @@ export type OutsideLink =
   | { kind: "file"; path: string }
   /** The paths to open, in the order written, and how many past the cap were left. */
   | { kind: "files"; notOpened: number; paths: string[] }
-  | { kind: "new"; project?: string; words: string };
+  | { kind: "new"; project?: string; words: string }
+  /** A hosted page by its id, the label of its `<id>.instrument.page` host. */
+  | { id: string; kind: "page" };
 
 /** The longest words a `new` link may bring; a longer one opens nothing. */
 export const OUTSIDE_WORDS_MAX = 2000;
@@ -111,6 +113,14 @@ export const OUTSIDE_FILES_MAX = 20;
 
 /** A web address, which a `files` link never opens: it takes only paths. */
 const WEB_ADDRESS = /^https?:/i;
+
+/**
+ * A hosted page's id, which is one DNS label of its host: lowercase letters,
+ * digits and hyphens, 1 to 63 of them, with a hyphen at neither end. The
+ * link carries the id and nothing else, so the host it leads to is always
+ * one under the pages domain.
+ */
+const PAGE_ID = /^(?!-)[a-z0-9-]{1,63}(?<!-)$/;
 
 /**
  * Characters that change nothing a person sees but reach the model: zero
@@ -125,8 +135,10 @@ const UNSEEN =
  * Reads a link handed to the app from outside: a browser, another app, a
  * note. Everything a noun names is a screen, `file` a path, `files` several
  * (`instrument://files?path=<path>&path=<path>`, which Instrument's website
- * writes), and `new` the one verb, `instrument://new?text=<words>&project=<id>`,
- * a new chat's draft that is never sent for the person.
+ * writes), `page` a hosted page by its id (`instrument://page/<id>`, which
+ * the website writes for a page's Open in Instrument), and `new` the one
+ * verb, `instrument://new?text=<words>&project=<id>`, a new chat's draft
+ * that is never sent for the person.
  */
 export function outsideLinkOf(url: string): OutsideLink | undefined {
   const link = instrumentLinkOf(url);
@@ -142,7 +154,13 @@ export function outsideLinkOf(url: string): OutsideLink | undefined {
   }
   const parsed = new URL(url);
   const host = parsed.host.toLowerCase();
-  if (!SCHEMES.has(parsed.protocol) || !["", "/"].includes(parsed.pathname)) {
+  if (!SCHEMES.has(parsed.protocol)) {
+    return undefined;
+  }
+  if (host === "page") {
+    return pageOf(parsed);
+  }
+  if (!["", "/"].includes(parsed.pathname)) {
     return undefined;
   }
   if (host === "files") {
@@ -163,6 +181,28 @@ export function outsideLinkOf(url: string): OutsideLink | undefined {
     ...(project !== undefined && NAME.test(project) ? { project } : {}),
     words,
   };
+}
+
+/**
+ * The hosted page a `page` link names: its id as the one path segment, with
+ * no query and no fragment, since the link says which page and nothing
+ * about it. An id that is not a label of a host is no page.
+ */
+function pageOf(
+  parsed: URL,
+): Extract<OutsideLink, { kind: "page" }> | undefined {
+  const segments = parsed.pathname.split("/").filter(Boolean);
+  const id = segments[0];
+  if (
+    segments.length !== 1 ||
+    id === undefined ||
+    !PAGE_ID.test(id) ||
+    parsed.search !== "" ||
+    parsed.hash !== ""
+  ) {
+    return undefined;
+  }
+  return { id, kind: "page" };
 }
 
 /**

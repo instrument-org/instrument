@@ -2,6 +2,7 @@ import type { Protocol } from "devtools-protocol";
 
 import { WebSocket } from "ws";
 
+import { noteBrowserAgentActivity } from "../../../lib/browser-agent-activity";
 import { isLocalAddress } from "../../../lib/local-page-address";
 import { chatDir, resolveChat } from "../../../lib/record-folders";
 import { askWindow, requestWindowTab } from "../../../lib/chat/window-tab";
@@ -276,6 +277,7 @@ export function handleTaskCdpClient(
       // Sending it to a page is this session's work in it; a blank one is
       // no work yet.
       noteTabCommand(targetId, actor);
+      noteBrowserAgentActivity(targetId);
     }
     await noteOpenedTab(chatId, targetId, sessionId);
     // One more tab out of sight may put the chat past what it may keep.

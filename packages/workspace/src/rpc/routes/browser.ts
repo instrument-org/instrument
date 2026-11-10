@@ -10,10 +10,12 @@ import {
 } from "../../lib/browser-state";
 import { CdpCommandTimeoutError } from "../../lib/cdp-command-timeout-error";
 import { getBrowserSessionDir } from "../../lib/chat-dir-utils";
+import { isWorkedInNow } from "../../lib/chat/driven-tabs";
 import { lastActOf } from "../../lib/tab-activity";
 import { StoreId } from "../../schemas/store-id";
 import { BrowserTargetIdSchema } from "../../types";
 import { base } from "../base";
+import { distinct, liveRead } from "../live-read";
 import { publisher } from "../publisher";
 
 const PresenceSchema = z.object({ active: z.literal(true) });
@@ -158,7 +160,10 @@ const presence = base
  * ends is not a question this side can answer: the commands arrive as separate
  * tool calls seconds apart, and only whoever is drawing the result knows how
  * long a gap should still read as one piece of work. So this reports arrivals
- * and the client decides how long each one lasts.
+ * and the client decides how long each one lasts. Beside it, `inUse` says
+ * whether a session with a turn running is at work in the tab now
+ * (`isWorkedInNow`), read again on every agent's command in any tab and as
+ * each session finishes, so a tab an agent moved on from loses it.
  *
  * Revision 0 is emitted as soon as the subscription is live, before any
  * command, so a stream that has yet to see one still yields. It also means a
@@ -176,6 +181,8 @@ const agentActivity = base
   .output(
     eventIterator(
       z.object({
+        /** Whether a session with a turn running is at work in the guest now; only when no session was asked about. */
+        inUse: z.boolean().optional(),
         /** When an agent (or the session asked about) last worked in the guest, in ms; absent when none has. */
         lastAt: z.number().optional(),
         revision: z.number(),
@@ -184,22 +191,28 @@ const agentActivity = base
   )
   .handler(async function* ({ input, signal }) {
     const { sessionId, targetId } = input;
-    const read = () =>
-      sessionId === undefined
-        ? lastBrowserAgentActivity(targetId)
-        : lastActOf(targetId, sessionId);
+    const read = () => {
+      const lastAt =
+        sessionId === undefined
+          ? lastBrowserAgentActivity(targetId)
+          : lastActOf(targetId, sessionId);
+      return {
+        ...(sessionId === undefined ? { inUse: isWorkedInNow(targetId) } : {}),
+        ...(lastAt === undefined ? {} : { lastAt }),
+      };
+    };
     let revision = 0;
-    let lastAt = read();
-    yield { revision, ...(lastAt === undefined ? {} : { lastAt }) };
-    for await (const event of publisher.subscribe("browser.agentActivity", {
-      signal,
-    })) {
-      const now = event.targetId === targetId ? read() : undefined;
-      if (now !== undefined && now !== lastAt) {
-        lastAt = now;
-        revision += 1;
-        yield { lastAt, revision };
-      }
+    for await (const reading of distinct(
+      liveRead({
+        changes: [
+          publisher.subscribe("browser.agentActivity", { signal }),
+          publisher.subscribe("session.done", { signal }),
+        ],
+        read,
+      }),
+    )) {
+      yield { ...reading, revision };
+      revision += 1;
     }
   });
 

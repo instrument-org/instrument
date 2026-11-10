@@ -12,9 +12,11 @@ const JOINED_LATE_MS = 30_000;
 
 /**
  * Which of some guests an agent is using: one it sent a command since the
- * chat's work began, for as long as that work goes on (`isWorking`, the chat
- * or any task of it at work). A pause between commands, however long, keeps
- * the mark, and the mark goes the moment the work stops. A tab of the
+ * chat's work began, while a session with a turn running is at work in it
+ * (`inUse`: of the tabs that session drove, the one it drove last), and only
+ * while the chat or any task of it is at work (`isWorking`). A pause between
+ * commands, however long, keeps the mark; it moves with the agent to the
+ * next tab it works in and goes the moment the work stops. A tab of the
  * window's handed to a task is the task's, which the chat's work includes.
  * The stream says when a guest was last worked in as it is subscribed to, so
  * a tab drawn after the agent opened it shows the mark from the start.
@@ -24,7 +26,10 @@ export function useTargetsAgentActivity(
   isWorking: boolean,
 ): ReadonlySet<BrowserTargetId> {
   const lastAts = useQueries({
-    combine: (results) => results.map((result) => result.data?.lastAt),
+    combine: (results) =>
+      results.map((result) =>
+        result.data?.inUse === false ? undefined : result.data?.lastAt,
+      ),
     queries: targetIds.map((targetId) =>
       rpcClient.workspace.browser.events.agentActivity.experimental_liveOptions(
         { input: { targetId } },

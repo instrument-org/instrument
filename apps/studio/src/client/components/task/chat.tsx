@@ -173,6 +173,25 @@ export function ChatConversation({
   const [foldsOpenedByFind, setFoldsOpenedByFind] = useState<
     ReadonlySet<string>
   >(() => new Set());
+  // The find card's room above the transcript moves the rows only for a
+  // reader at the very top, who is the one it is there for: anywhere else
+  // the scroll takes up the room's change, so what is in view stays put.
+  const findRoomRef = useRef<number | undefined>(undefined);
+  useLayoutEffect(() => {
+    const content = contentRef.current;
+    const viewport = content?.closest<HTMLElement>(
+      '[data-slot="message-scroller-viewport"]',
+    );
+    if (!content || !viewport) {
+      return;
+    }
+    const room = Number.parseFloat(getComputedStyle(content).paddingTop);
+    const was = findRoomRef.current;
+    findRoomRef.current = room;
+    if (was !== undefined && viewport.scrollTop > 0) {
+      viewport.scrollTop += room - was;
+    }
+  }, [isFindOpen]);
   const [isFollowingSubmit, setIsFollowingSubmit] = useState(false);
   const slideToSentRef = useRef<() => void>(noop);
 
@@ -712,7 +731,12 @@ export function ChatConversation({
                 data-transcript
               >
                 <MessageScrollerContent
-                  className="mx-auto w-full max-w-3xl gap-4 p-4 pb-8 [--transcript-room:100cqi]"
+                  className={cn(
+                    "mx-auto w-full max-w-3xl gap-4 p-4 pb-8 [--transcript-room:100cqi]",
+                    // Room for the find card over the top of the transcript,
+                    // so the chat's first lines can be read below it.
+                    isFindOpen && "pt-15",
+                  )}
                   ref={contentRef}
                 >
                   {sentPrompt !== undefined && messages.length === 0 ? (

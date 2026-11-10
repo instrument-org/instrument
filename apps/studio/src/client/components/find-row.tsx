@@ -79,10 +79,13 @@ export function FindRow({
           spellCheck={false}
           value={query}
         />
-        {readout && (
+        {/* Its room is kept from the first letter typed, counted or not: a
+            field narrowed after typing leaves the end of the words, where
+            the caret is, out of view. */}
+        {query !== "" && (
           <InputGroupAddon
             align="inline-end"
-            className="text-xs font-normal tabular-nums"
+            className="min-w-20 justify-end text-xs font-normal tabular-nums"
           >
             <span aria-live="polite">{readout}</span>
           </InputGroupAddon>

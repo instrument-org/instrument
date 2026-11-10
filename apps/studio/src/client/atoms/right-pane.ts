@@ -15,7 +15,7 @@ export const CONVERSATION_WIDTH_MIN = 350;
 export const PANE_COLLAPSE_THRESHOLD = 220;
 
 /** Share of the row the pane takes before the user moves the handle. */
-export const PANE_DEFAULT_SHARE = 0.65;
+export const PANE_DEFAULT_SHARE = 0.5;
 
 /** ...and back, for a drag that ends holding a width and stores a share. */
 export function shareOfWidth(width: number, rowWidth: number) {

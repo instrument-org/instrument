@@ -3,6 +3,7 @@ import { MotionGlobalConfig } from "motion/react";
 import { useState } from "react";
 import { flushSync } from "react-dom";
 import { describe, expect, it, onTestFinished } from "vitest";
+import { userEvent } from "vitest/browser";
 
 import { TabStrip } from "./tab-strip";
 
@@ -502,5 +503,46 @@ describe("a strip that squeezes", () => {
     expect(tab("t0").getBoundingClientRect().width).toBeGreaterThan(32);
     const row = scroller();
     expect(row && row.scrollWidth > row.clientWidth).toBe(true);
+  });
+});
+
+describe("a page tab's tooltip", () => {
+  it("keeps a long address inside it", async () => {
+    const address = `example.com/${"a-very-long-path-segment-".repeat(12)}?q=${"x".repeat(80)}`;
+    await renderInBrowser(
+      <TabStrip
+        onClose={() => undefined}
+        onSelect={() => undefined}
+        selectedKey="a"
+        tabs={[
+          {
+            icon: <span />,
+            key: "a",
+            title: "A page",
+            tooltip: { detail: address, title: "A page" },
+          },
+        ]}
+      />,
+    );
+
+    await userEvent.hover(tab("a"));
+    const tooltip = () =>
+      document.querySelector<HTMLElement>('[data-slot="tooltip-content"]');
+    await expect.poll(tooltip).toBeTruthy();
+    const content = tooltip();
+    if (!content) {
+      throw new Error("no tooltip");
+    }
+    const detail = [...content.querySelectorAll("div")].find(
+      (element) => element.textContent === address,
+    );
+    if (!detail) {
+      throw new Error("no address line");
+    }
+
+    expect(detail.scrollWidth).toBeLessThanOrEqual(detail.clientWidth);
+    expect(detail.getBoundingClientRect().right).toBeLessThanOrEqual(
+      content.getBoundingClientRect().right,
+    );
   });
 });

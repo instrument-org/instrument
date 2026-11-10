@@ -1094,7 +1094,9 @@ function Tab({
         <TooltipContent maxWidth="28rem" side="bottom">
           <div className="font-medium break-words">{tab.tooltip.title}</div>
           {tab.tooltip.detail ? (
-            <div className="mt-0.5 text-muted-foreground">
+            // An address breaks anywhere to stay in the tooltip, and a long
+            // query string stops after three lines rather than filling it.
+            <div className="mt-0.5 line-clamp-3 break-all text-muted-foreground">
               {tab.tooltip.detail}
             </div>
           ) : null}

@@ -1,9 +1,11 @@
 import { ChatIdSchema, StoreId } from "@instrument-org/workspace/client";
+import { COMPUTER_ROOT } from "@/shared/computer-href";
 import { describe, expect, it } from "vitest";
 
 import {
   chatOfTaskAddress,
   locationCrumbs,
+  locationSection,
   type TabLocation,
   tasksOfHref,
 } from "./tab-location";
@@ -268,6 +270,52 @@ describe("locationCrumbs", () => {
         "Instrument",
       ]
     `);
+  });
+});
+
+describe("locationSection", () => {
+  it.each<[string, TabLocation, "apps" | "files" | undefined]>([
+    ["an app page", { kind: "app", name: "Gmail" }, "apps"],
+    [
+      "a file under folders",
+      { kind: "file", name: "a.md", path: "~/Documents/a.md" },
+      "files",
+    ],
+    [
+      "a folder under folders",
+      { kind: "folder", path: "~/Documents/Instrument" },
+      "files",
+    ],
+    [
+      "several picked in a folder",
+      { kind: "folder", path: "~/Documents", picked: 3 },
+      "files",
+    ],
+    ["the home folder alone", { kind: "folder", path: "~" }, undefined],
+    [
+      "several picked from the recents",
+      { kind: "folder", path: "", picked: 2 },
+      undefined,
+    ],
+    ["Apps", { kind: "apps" }, undefined],
+    ["a chat", { kind: "chat", title: "Caffeine mixes" }, undefined],
+    ["a task", { kind: "task", title: "Book the hotel" }, undefined],
+    ["a page", { kind: "page", url: "https://example.com/" }, undefined],
+    ["a new tab", { kind: "newTab" }, undefined],
+    ["Extensions", { kind: "screen", screen: "extensions" }, undefined],
+  ])("%s", (_, location, section) => {
+    expect(
+      locationSection(location, locationCrumbs(location, { home: HOME })),
+    ).toBe(section);
+  });
+
+  // The top of the computer is one part, named for the system it runs on.
+  it("leads the top of the computer with Files", () => {
+    expect(
+      locationSection({ kind: "folder", path: COMPUTER_ROOT }, [
+        { label: "This Mac" },
+      ]),
+    ).toBe("files");
   });
 });
 

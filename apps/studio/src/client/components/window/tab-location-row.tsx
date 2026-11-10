@@ -53,6 +53,7 @@ import { ArrowRightIcon } from "@phosphor-icons/react/ArrowRight";
 import { ArrowsOutSimpleIcon } from "@phosphor-icons/react/ArrowsOutSimple";
 import { CaretRightIcon } from "@phosphor-icons/react/CaretRight";
 import { DotsThreeIcon } from "@phosphor-icons/react/DotsThree";
+import { FilesIcon } from "@phosphor-icons/react/Files";
 import { ChatCircleIcon } from "@phosphor-icons/react/ChatCircle";
 import { CheckSquareIcon } from "@phosphor-icons/react/CheckSquare";
 import { InfoIcon } from "@phosphor-icons/react/Info";
@@ -61,11 +62,13 @@ import { PuzzlePieceIcon } from "@phosphor-icons/react/PuzzlePiece";
 import { WarningIcon } from "@phosphor-icons/react/Warning";
 import { useQuery } from "@tanstack/react-query";
 import { useSetAtom } from "jotai";
-import { Fragment, type ReactNode, useState } from "react";
+import { Fragment, type ReactNode, useContext, useState } from "react";
 
+import { ShellContext } from "./shell-context";
 import {
   type LocationCrumb,
   locationCrumbs,
+  locationSection,
   type TabLocation,
 } from "./tab-location";
 
@@ -314,6 +317,10 @@ function Field({ location }: { location: TabLocation }) {
       </>
     );
   }
+  const section = locationSection(location, crumbs);
+  // Where the place's rail mark leads, the location's own mark moves beside
+  // its name, so two marks never sit side by side.
+  const itemMark = section ? locationItemMark(location) : null;
   const separator = (
     <CaretRightIcon className="size-3 shrink-0 text-muted-foreground/50" />
   );
@@ -375,13 +382,21 @@ function Field({ location }: { location: TabLocation }) {
         className={cn(
           "px-1 select-text",
           size,
+          isHere && itemMark && "flex items-center gap-1.5",
           // A part with nowhere to go, before the last, is a place
           // the window cannot open: it reads as the lead it is.
           !isHere && "text-muted-foreground",
           menu && "rounded data-[state=open]:bg-foreground/8",
         )}
       >
-        {crumb.label}
+        {isHere && itemMark ? (
+          <>
+            {itemMark}
+            <span className="min-w-0 truncate">{crumb.label}</span>
+          </>
+        ) : (
+          crumb.label
+        )}
       </span>
     );
     return (
@@ -400,7 +415,11 @@ function Field({ location }: { location: TabLocation }) {
   };
   return (
     <>
-      <LocationMark location={location} />
+      {section ? (
+        <SectionMark place={section} />
+      ) : (
+        <LocationMark location={location} />
+      )}
       {/* The parts pulled out to the box's own edge, so the place reads from
           where it read before there was anything to press. */}
       <FoldingTrail
@@ -456,6 +475,8 @@ function Field({ location }: { location: TabLocation }) {
           const crumb = crumbs[at];
           return crumb ? crumbAt(crumb, at) : null;
         }}
+        // The mark beside the last name, and the gap after it.
+        reserve={itemMark ? 22 : 0}
         separator={separator}
       />
     </>
@@ -535,6 +556,54 @@ function LocationMark({ location }: { location: TabLocation }) {
       {locationMark(location)}
     </span>
   );
+}
+
+const SECTION_NAMES = { apps: "Apps", files: "Files" } as const;
+
+/**
+ * The rail's mark for the place a location belongs to, at the field's start.
+ * A press does what the rail's own entry does: the place, at its root when
+ * the window is already in it.
+ */
+function SectionMark({ place }: { place: keyof typeof SECTION_NAMES }) {
+  const shell = useContext(ShellContext);
+  const mark = <PlaceIcon className="size-3.5 shrink-0" place={place} />;
+  if (!shell) {
+    return (
+      <span className="flex shrink-0 items-center text-muted-foreground">
+        {mark}
+      </span>
+    );
+  }
+  return (
+    <button
+      aria-label={SECTION_NAMES[place]}
+      className="-mx-1 grid size-5.5 shrink-0 cursor-default place-items-center rounded text-muted-foreground group-hover/field:text-foreground/70 hover:bg-foreground/8 hover:text-foreground"
+      onClick={() => {
+        shell.goToPlace(place);
+      }}
+      type="button"
+    >
+      {mark}
+    </button>
+  );
+}
+
+/**
+ * The location's own mark where it sits beside its name: the app's icon, the
+ * file's or folder's mark, still dragged out from there, and a stack for
+ * several picked. The top of the computer has none.
+ */
+function locationItemMark(location: TabLocation): ReactNode {
+  if (location.kind === "folder") {
+    if (location.path === COMPUTER_ROOT) {
+      return null;
+    }
+    if (location.picked !== undefined) {
+      return <FilesIcon className="size-3.5 shrink-0 text-muted-foreground" />;
+    }
+  }
+  return <LocationMark location={location} />;
 }
 
 /** The file or folder on disk a location's mark stands for, if it is one. */

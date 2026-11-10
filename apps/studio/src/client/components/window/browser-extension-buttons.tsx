@@ -280,9 +280,7 @@ function ExtensionRow({
           </span>
         )}
       </button>
-      <ToolbarTooltip
-        label={extension.pinned ? "Take out of the row" : "Show in the row"}
-      >
+      <ToolbarTooltip label={extension.pinned ? "Unpin" : "Pin"}>
         <Button
           aria-label={extension.pinned ? "Unpin" : "Pin"}
           className={cn("size-7", !extension.pinned && "text-muted-foreground")}

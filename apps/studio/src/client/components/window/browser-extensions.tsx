@@ -153,8 +153,8 @@ export function NotConnectedSteps({
     return (
       <div className={`text-[13px] ${words}`}>
         <p>
-          On this computer {appName} cannot be told to trust {APP_NAME}, so the
-          extension works on its own: sign in to it from its button.
+          {appName} can’t connect to {APP_NAME} on this computer, so sign in
+          from the extension’s button.
         </p>
         <div className="mt-2 flex items-center gap-2">
           {help && (

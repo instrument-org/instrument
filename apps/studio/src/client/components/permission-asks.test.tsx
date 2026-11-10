@@ -319,7 +319,7 @@ describe("PermissionAsksFoot", () => {
         },
         "folder",
         "open",
-        "You answered from Alex's iPhone. It takes effect once Studio Mac picks it up.",
+        "You answered from Alex's iPhone. Studio Mac needs to be on for it to take effect.",
       ],
       [
         "a yes that macOS there is still asking about",

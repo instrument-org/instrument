@@ -21,7 +21,7 @@ export function ToolUnavailable({
       <ToolCardHeader className="flex items-center gap-2">
         <WarningIcon className="size-3 shrink-0 text-muted-foreground" />
         <p className="text-xs font-medium text-muted-foreground">
-          Tool did not match known tools
+          Unknown tool
         </p>
       </ToolCardHeader>
 

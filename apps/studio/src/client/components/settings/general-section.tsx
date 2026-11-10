@@ -569,10 +569,9 @@ function DiagnosticLog() {
         <div className="space-y-1">
           <div className="text-sm font-medium">Diagnostic log</div>
           <p className="text-xs text-muted-foreground">
-            {APP_NAME} keeps a private, local-only record of what it did while
-            running. A report about the app includes its last lines, which can
-            name files and tasks you worked on, so you can read them in the
-            report before you send it.
+            {APP_NAME} keeps a private log on this computer. Problem reports
+            include its last lines, which can name your files, so you can read
+            them before you send one.
           </p>
         </div>
         <div className="flex flex-wrap gap-2">

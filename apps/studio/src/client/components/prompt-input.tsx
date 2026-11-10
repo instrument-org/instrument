@@ -1015,7 +1015,7 @@ export const PromptInput = ({
       reader.readAsDataURL(blob);
 
       toast.info(
-        `Large text (${text.length.toLocaleString(displayLocale)} characters) converted to file attachment`,
+        `Attached your long text (${text.length.toLocaleString(displayLocale)} characters) as a file`,
       );
       return true;
     }

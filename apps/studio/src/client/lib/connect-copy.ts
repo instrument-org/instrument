@@ -72,13 +72,13 @@ export function waitingPageCopy(
   switch (stage) {
     case "back": {
       return {
-        subtitle: `You can close the browser tab. ${APP_NAME} is getting your ${name} account ready.`,
+        subtitle: `${APP_NAME} is getting your ${name} account ready.`,
         title: `You're signed in to ${name}`,
       };
     }
     case "browser": {
       return {
-        subtitle: `We opened ${name} in your browser. ${APP_NAME} picks it up as soon as you're done.`,
+        subtitle: `${name} is open in your browser.`,
         title: `Finish signing in to ${name}`,
       };
     }

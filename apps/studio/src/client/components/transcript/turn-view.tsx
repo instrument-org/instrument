@@ -42,7 +42,6 @@ import {
   CardPresence,
   FOLD_TRANSITION,
   ROW_GAP,
-  SlidesUnder,
   useCardOpens,
 } from "./card-motion";
 import {
@@ -297,16 +296,14 @@ function TurnBody({
         out.push(
           // One key among the rows, so going from under one activity to under
           // the next keeps it mounted, with its picture and its sweep going,
-          // and slides it there. It closes with the fold and goes at once as
-          // words end it.
+          // and moves it there in the frame the new activity arrives. It closes
+          // with the fold and goes at once as words end it.
           <CardPresence className="ml-7" key="work-card" opens={cardOpens}>
-            <SlidesUnder under={row.id}>
-              <WorkCardView
-                card={card}
-                isCurrent={turn.phase === "working"}
-                sessionId={sessionId}
-              />
-            </SlidesUnder>
+            <WorkCardView
+              card={card}
+              isCurrent={turn.phase === "working"}
+              sessionId={sessionId}
+            />
           </CardPresence>,
         );
       }

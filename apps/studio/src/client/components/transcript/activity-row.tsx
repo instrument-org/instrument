@@ -186,8 +186,8 @@ const countsText = (row: Pick<ActivityRow, "counts">) =>
     .join(", ");
 
 /**
- * An activity: while it works the line with its clock and the current call's
- * explanation under it, and once done a quiet line opening onto its calls. Only
+ * An activity: while it works the line with its clock and a line under it
+ * saying what it is at (`liveDetail`), and once done a quiet line opening onto its calls. Only
  * the one working has a clock.
  */
 export function ActivityRowView({
@@ -243,12 +243,10 @@ export function ActivityRowView({
           : undefined
       }
     >
-      {isLive && current?.explanation && (
-        <RollingText className="ml-7" rollKey={current.metadata.id}>
-          <span className="block truncate text-xs text-muted-foreground">
-            {current.explanation}
-          </span>
-        </RollingText>
+      {isLive && (
+        <span className="ml-7 block truncate text-xs text-muted-foreground">
+          {liveDetail(label, current, lastStep)}
+        </span>
       )}
       {isOpen && (
         <div className="mt-1 ml-7 flex flex-col gap-1.5">
@@ -297,6 +295,27 @@ export function FoldedActivityView({
       ))}
     </div>
   );
+}
+
+/**
+ * The line under a working activity, there for as long as it works so the row
+ * keeps one height, its words changing in place: the current call's
+ * explanation, or what the call in flight is doing, or Thinking between calls.
+ * Never the row's own label again.
+ */
+function liveDetail(
+  label: string,
+  current: TurnStep | undefined,
+  lastStep: TurnStep | undefined,
+): string {
+  const tool = lastStep && toolOf(lastStep);
+  const isRunning =
+    lastStep?.status === "running" || lastStep?.status === "writing";
+  const said = [
+    current?.explanation,
+    tool && isRunning ? getToolStreamingLabel(tool) : undefined,
+  ].find((words) => words !== undefined && words !== label);
+  return said ?? (isRunning ? "Working" : "Thinking");
 }
 
 function stepLabel(step: TurnStep): string {

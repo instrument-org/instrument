@@ -1,6 +1,5 @@
 import { execFileSync, spawnSync } from "node:child_process";
 import fs from "node:fs/promises";
-import { createRequire } from "node:module";
 import os from "node:os";
 import path from "node:path";
 import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
@@ -18,9 +17,15 @@ vi.mock("./electron-logger", () => ({
 const { storyboardKey, storyboardSheet, videoStoryboard } =
   await import("./video-storyboard");
 
-const binaries = createRequire(import.meta.url)("ffmpeg-ffprobe-static") as {
-  ffmpegPath: string;
-  ffprobePath: string;
+/** What `ffmpeg:download` vendored for this machine. */
+const ffmpegBin = path.resolve(
+  import.meta.dirname,
+  "../../../resources/ffmpeg/bin",
+);
+const exe = process.platform === "win32" ? ".exe" : "";
+const binaries = {
+  ffmpegPath: path.join(ffmpegBin, `ffmpeg${exe}`),
+  ffprobePath: path.join(ffmpegBin, `ffprobe${exe}`),
 };
 
 let root: string;

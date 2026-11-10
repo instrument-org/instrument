@@ -4,7 +4,7 @@ import fs from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 
-import { FFMPEG_PATH } from "./ffmpeg";
+import { FFMPEG_PATH, FFPROBE_PATH } from "./ffmpeg";
 import { type ImageSize } from "./image-view-size";
 
 export interface ImageRegion {
@@ -162,8 +162,8 @@ export async function renderImage({
   if (!staged) {
     return { state: "unavailable" };
   }
-
   try {
+    const input = await pictureInput(staged.file, source?.format);
     let attempt = target;
 
     for (let step = 0; step < SHRINK_STEPS; step++) {
@@ -175,6 +175,7 @@ export async function renderImage({
       for (const candidate of candidates) {
         const rendered = await runFfmpeg({
           ...candidate,
+          input,
           inputPath: staged.file,
           region,
           signal,
@@ -214,12 +215,14 @@ export async function renderImage({
 }
 
 async function runFfmpeg({
+  input,
   inputPath,
   region,
   signal,
   target,
   ...encoding
 }: {
+  input: string;
   inputPath: string;
   pixelFormat?: string;
   quality?: number;
@@ -249,9 +252,9 @@ async function runFfmpeg({
         "-i",
         `color=c=white:s=${target.width}x${target.height}`,
         "-filter_complex",
-        `[0:v]${steps.join(",")}[fg];[1:v][fg]overlay=format=auto`,
+        `${input}${steps.join(",")}[fg];[1:v][fg]overlay=format=auto`,
       ]
-    : ["-vf", steps.join(",")];
+    : ["-filter_complex", `${input}${steps.join(",")}`];
 
   const encoder = toJpeg
     ? [
@@ -312,19 +315,50 @@ async function runFfmpeg({
   return Buffer.from(result.stdout);
 }
 
+/** What image-size calls the HEIF family, whose pictures can be tile grids. */
+const HEIF_FORMATS = new Set(["avif", "heic", "heif"]);
+
+/**
+ * The filtergraph input that is the whole picture.
+ *
+ * A HEIF file (HEIC, which is every iPhone photo, or AVIF) can store its
+ * picture as a grid of tiles that ffmpeg exposes as a stream group. The group
+ * is the picture; its first stream, `[0:v]`, is the top-left tile alone. Only
+ * a file the header names as one of these is probed, and a probe that fails
+ * leaves `[0:v]`.
+ */
+async function pictureInput(file: string, format: string | undefined) {
+  if (format === undefined || !HEIF_FORMATS.has(format)) {
+    return "[0:v]";
+  }
+  const probe = await execa(
+    FFPROBE_PATH,
+    [
+      "-v",
+      "error",
+      "-show_entries",
+      "stream_group=index,type",
+      "-of",
+      "csv=p=0",
+      file,
+    ],
+    { reject: false, stdin: "ignore" },
+  );
+  const grid = probe.stdout
+    .split("\n")
+    .map((line) => line.split(","))
+    .find(([, type]) => type === "Tile Grid");
+  return grid?.[0] ? `[0:g:${grid[0]}]` : "[0:v]";
+}
+
 /**
  * Whether the bundled binary this build points at is absent from disk.
  *
  * Absence is a fact about the machine: a build that did not ship it, a
  * quarantine that removed it. Nothing decoded, so nothing is known about the
- * bytes. A platform the package publishes no binary for leaves a bare name
- * behind, which the OS resolves against PATH -- there is no path to look for
- * then, and whatever ran keeps its own verdict.
+ * bytes.
  */
 async function ffmpegIsMissing() {
-  if (!path.isAbsolute(FFMPEG_PATH)) {
-    return false;
-  }
   try {
     await fs.access(FFMPEG_PATH);
     return false;

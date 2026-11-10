@@ -1,26 +1,38 @@
-import { createRequire } from "node:module";
 import path from "node:path";
 
-import { unpackAsarPath } from "./asar";
+/**
+ * The folder holding ffmpeg's `bin/` (and `lib/` on Linux), as
+ * apps/studio/scripts/download-ffmpeg.ts vendors it into Studio's
+ * `resources/ffmpeg/`. Dev, tests and scripts bake in its absolute path. A
+ * packaged build bakes in null: electron-builder unpacks `resources/**` into
+ * `app.asar.unpacked/` beside the asar, under the process's resources path.
+ */
+declare const __FFMPEG_DIR__: null | string;
 
-declare const __FFMPEG_FFPROBE_STATIC_PATH__: string;
+const FFMPEG_DIR =
+  __FFMPEG_DIR__ ??
+  path.join(
+    electronResourcesPath(),
+    "app.asar.unpacked",
+    "resources",
+    "ffmpeg",
+  );
 
-// ffmpeg-ffprobe-static is CJS and uses __dirname, which breaks if bundled into
-// ESM. In dev the vite config bakes in the absolute resolved path so
-// createRequire can find it without node_modules alongside the output. In prod
-// it bakes in the bare specifier, which the packaged node_modules resolves
-// correctly at runtime.
-const req = createRequire(import.meta.url);
+/** Electron's `process.resourcesPath`, which Node's own types do not declare. */
+function electronResourcesPath(): string {
+  const value: unknown = Reflect.get(process, "resourcesPath");
+  if (typeof value !== "string") {
+    throw new TypeError(
+      "ffmpeg is resolved from Electron's resources path, and this process has none",
+    );
+  }
+  return value;
+}
 
-// Both paths come from one package, which returns null for a platform/arch it
-// publishes no binary for.
-// oxlint-disable-next-line typescript/no-unsafe-assignment
-const binaries: { ffmpegPath: null | string; ffprobePath: null | string } = req(
-  __FFMPEG_FFPROBE_STATIC_PATH__,
-);
+const EXE = process.platform === "win32" ? ".exe" : "";
 
-export const FFMPEG_PATH = unpackAsarPath(binaries.ffmpegPath ?? "ffmpeg");
-export const FFPROBE_PATH = unpackAsarPath(binaries.ffprobePath ?? "ffprobe");
+export const FFMPEG_PATH = path.join(FFMPEG_DIR, "bin", `ffmpeg${EXE}`);
+export const FFPROBE_PATH = path.join(FFMPEG_DIR, "bin", `ffprobe${EXE}`);
 
 /**
  * Env overlay that makes the bundled ffmpeg/ffprobe binaries resolvable from the

@@ -1,25 +1,21 @@
-import { copyFileSync, mkdtempSync, writeFileSync } from "node:fs";
-import { createRequire } from "node:module";
+import { cpSync, mkdtempSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { describe, expect, it } from "vitest";
 
 import {
   verifyFfmpegBinary,
-  verifyFfmpegChecksum,
+  verifyFfmpegTree,
   verifyVersionBanner,
 } from "./verify-ffmpeg";
 
-// The binaries live in the workspace package's dependencies, not studio's.
-const workspaceRequire = createRequire(
-  createRequire(import.meta.url).resolve(
-    "@instrument-org/workspace/package.json",
-  ),
-);
-
-const binaries: { ffmpegPath: string; ffprobePath: string } = workspaceRequire(
-  "ffmpeg-ffprobe-static",
-);
+/** What `ffmpeg:download` vendored for this machine. */
+const FFMPEG_DIR = path.resolve(import.meta.dirname, "../resources/ffmpeg");
+const exe = process.platform === "win32" ? ".exe" : "";
+const binaries = {
+  ffmpegPath: path.join(FFMPEG_DIR, "bin", `ffmpeg${exe}`),
+  ffprobePath: path.join(FFMPEG_DIR, "bin", `ffprobe${exe}`),
+};
 
 describe("verifyFfmpegBinary", () => {
   it.each([
@@ -29,7 +25,7 @@ describe("verifyFfmpegBinary", () => {
     "accepts the installed $name and reports its version",
     ({ binaryPath, name }) => {
       const { size, version } = verifyFfmpegBinary(binaryPath, { name });
-      expect(size).toBeGreaterThan(10_000_000);
+      expect(size).toBeGreaterThan(100_000);
       expect(version).toContain(`${name} version`);
     },
   );
@@ -60,36 +56,30 @@ describe("verifyFfmpegBinary", () => {
   });
 });
 
-describe("verifyFfmpegChecksum", () => {
+describe("verifyFfmpegTree", () => {
   const host = { arch: process.arch, platform: process.platform };
 
-  it.each([
-    { binaryPath: binaries.ffmpegPath, name: "ffmpeg" as const },
-    { binaryPath: binaries.ffprobePath, name: "ffprobe" as const },
-  ])("accepts the installed $name for this host", ({ binaryPath, name }) => {
-    expect(() =>
-      verifyFfmpegChecksum(binaryPath, { ...host, name }),
-    ).not.toThrow();
+  it("accepts the vendored folder for this host", () => {
+    expect(() => verifyFfmpegTree(FFMPEG_DIR, host)).not.toThrow();
   });
 
-  it("throws when the bytes differ from the pin", () => {
-    const dir = mkdtempSync(path.join(tmpdir(), "ffmpeg-checksum-"));
-    const tampered = path.join(dir, "ffmpeg");
-    copyFileSync(binaries.ffmpegPath, tampered);
-    writeFileSync(tampered, "x", { flag: "a" });
-    expect(() =>
-      verifyFfmpegChecksum(tampered, { ...host, name: "ffmpeg" }),
-    ).toThrow(/is pinned to/);
+  it("throws when a file differs from the pin", () => {
+    const dir = mkdtempSync(path.join(tmpdir(), "ffmpeg-tree-"));
+    cpSync(FFMPEG_DIR, dir, { recursive: true, verbatimSymlinks: true });
+    writeFileSync(path.join(dir, "bin", `ffprobe${exe}`), "x", { flag: "a" });
+    expect(() => verifyFfmpegTree(dir, host)).toThrow(/is pinned to/);
   });
 
-  it("throws for a target with no pin", () => {
+  it("throws when the folder is missing", () => {
     expect(() =>
-      verifyFfmpegChecksum(binaries.ffmpegPath, {
-        arch: "ia32",
-        name: "ffmpeg",
-        platform: "win32",
-      }),
-    ).toThrow(/No pinned SHA-256 for ffmpeg-win32-ia32/);
+      verifyFfmpegTree(path.join(tmpdir(), "definitely-not-here-ffmpeg"), host),
+    ).toThrow(/ffmpeg not found/);
+  });
+
+  it("throws for a target with no build", () => {
+    expect(() =>
+      verifyFfmpegTree(FFMPEG_DIR, { arch: "ia32", platform: "win32" }),
+    ).toThrow(/No ffmpeg build for win32-ia32/);
   });
 });
 
@@ -103,8 +93,8 @@ describe("verifyVersionBanner", () => {
   };
 
   // The reason the version floor exists: an older binary passes every other
-  // check we have, because the rest of the suite runs against node_modules
-  // rather than the packaged tree.
+  // check we have, because the rest of the suite runs against the copy in
+  // resources/ rather than the packaged tree.
   it("refuses a build too old to read HEIC", () => {
     expect(
       check("ffmpeg version 6.0 Copyright (c) 2000-2023 the FFmpeg developers"),

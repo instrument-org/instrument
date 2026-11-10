@@ -27,6 +27,7 @@ import path from "node:path";
 
 import type { ElectronPlatform } from "./paths";
 
+import { FFMPEG_RELEASE, FFMPEG_VERSION } from "./ffmpeg-release";
 import { THIRD_PARTY_NOTICES_FILE_NAME } from "./third-party-notices";
 
 const STUDIO_DIR = path.resolve(import.meta.dirname, "..");
@@ -40,9 +41,6 @@ const CHECKED_IN_LICENSES_DIR = path.join(STUDIO_DIR, "licenses");
 
 // The upstream versions the checked-in texts and source pointers were taken
 // for. Each is compared with what is installed when the app is packaged.
-const FFMPEG_PACKAGE_VERSION = "7.1.0-rc.1";
-const FFMPEG_RELEASE_TAG = "b7.1.0-rc.1";
-const FFMPEG_UPSTREAM_TAG = "n7.1";
 const DUGITE_NATIVE_TAG = "v2.56.0-2";
 const GIT_TAG = "v2.56.0";
 const MINGIT_TAG = "v2.56.0.windows.4";
@@ -109,24 +107,21 @@ function dugiteGitTag(dugiteDir: string) {
 
 export const THIRD_PARTY_COMPONENTS: ThirdPartyComponent[] = [
   {
-    checkedIn: ["LICENSE.md", "COPYING.GPLv2", "COPYING.GPLv3"],
-    files: [{ from: "LICENSE", to: "LICENSE.ffmpeg-ffprobe-static" }],
+    // Vendored by scripts/download-ffmpeg.ts, whose archive carries the
+    // license text and a BUILDINFO.txt naming what it was built from.
+    files: ["licenses", "BUILDINFO.txt"],
     id: "ffmpeg",
-    // The macOS builds are configured `--enable-gpl` (GPLv2 or later, as
-    // `ffmpeg -L` prints); the Linux and Windows builds add
-    // `--enable-version3`, and the release ships GPLv3 as their license.
-    license: (platform) =>
-      platform === "darwin" ? "GPL-2.0-or-later" : "GPL-3.0-or-later",
+    // Every build is configured `--enable-gpl --enable-version3`.
+    license: () => "GPL-3.0-or-later",
     name: "FFmpeg (ffmpeg and ffprobe)",
-    origin: { from: "workspace", package: "ffmpeg-ffprobe-static" },
-    pin: { installed: packageVersion, version: FFMPEG_PACKAGE_VERSION },
-    ships: ["node_modules/ffmpeg-ffprobe-static/"],
+    origin: { dir: path.join(STUDIO_DIR, "resources", "ffmpeg") },
+    ships: ["resources/ffmpeg/"],
     source: (platform) => [
-      `Binaries: the ffmpeg-ffprobe-static ${FFMPEG_RELEASE_TAG} release, https://github.com/descriptinc/ffmpeg-ffprobe-static/releases/tag/${FFMPEG_RELEASE_TAG}`,
-      `Build recipe: https://github.com/descriptinc/ffmpeg-ffprobe-static/blob/${FFMPEG_RELEASE_TAG}/build/index.sh, which takes the ${platformFfmpegBuilder(platform)}`,
-      `FFmpeg 7.1 source: https://ffmpeg.org/releases/ffmpeg-7.1.tar.xz (tag ${FFMPEG_UPSTREAM_TAG}, https://github.com/FFmpeg/FFmpeg/tree/${FFMPEG_UPSTREAM_TAG})`,
+      `Binaries: the instrument-org/ffmpeg-build ${FFMPEG_RELEASE} release, https://github.com/instrument-org/ffmpeg-build/releases/tag/${FFMPEG_RELEASE}`,
+      `Build recipe: https://github.com/instrument-org/ffmpeg-build/tree/${FFMPEG_RELEASE}, which builds ${platformFfmpegBuilder(platform)}`,
+      `FFmpeg ${FFMPEG_VERSION} source: https://ffmpeg.org/releases/ffmpeg-${FFMPEG_VERSION}.tar.xz (tag n${FFMPEG_VERSION}, https://github.com/FFmpeg/FFmpeg/tree/n${FFMPEG_VERSION})`,
     ],
-    version: (dir) => `7.1, from ffmpeg-ffprobe-static ${packageVersion(dir)}`,
+    version: () => `${FFMPEG_VERSION}, from ffmpeg-build ${FFMPEG_RELEASE}`,
   },
   {
     checkedIn: ["COPYING"],
@@ -286,17 +281,9 @@ export const THIRD_PARTY_COMPONENTS: ThirdPartyComponent[] = [
 ];
 
 function platformFfmpegBuilder(platform: ElectronPlatform) {
-  switch (platform) {
-    case "darwin": {
-      return "macOS build from osxexperts.net (https://www.osxexperts.net).";
-    }
-    case "linux": {
-      return "Linux build from johnvansickle.com (https://johnvansickle.com/ffmpeg/).";
-    }
-    case "win32": {
-      return "Windows build from gyan.dev (https://www.gyan.dev/ffmpeg/builds/).";
-    }
-  }
+  return platform === "darwin"
+    ? "macOS with markus-perl/ffmpeg-build-script (https://github.com/markus-perl/ffmpeg-build-script) at the commit its versions.env names."
+    : "Linux and Windows with BtbN/FFmpeg-Builds (https://github.com/BtbN/FFmpeg-Builds) at the commit and images its versions.env names.";
 }
 
 /**

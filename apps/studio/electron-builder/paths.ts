@@ -10,28 +10,21 @@ export function isElectronPlatform(value: string): value is ElectronPlatform {
 }
 
 /**
- * Locate a packaged ffmpeg or ffprobe binary within the unpacked tree, or
- * `undefined` if it is missing. Both ship in `ffmpeg-ffprobe-static`, at the
- * package root rather than under `bin/`.
- *
- * They are spawned as subprocesses, so they have to be on the real filesystem
- * rather than inside the asar -- `unpackAsarPath` in the workspace package
- * rewrites their path on that assumption, and a binary that never got unpacked
- * would leave it pointing at nothing.
+ * The packaged ffmpeg folder within the unpacked tree, vendored into
+ * `resources/ffmpeg/` by scripts/download-ffmpeg.ts: `bin/` with both
+ * programs, and `lib/` with FFmpeg's libraries on Linux. They are spawned as
+ * subprocesses, so they have to be on the real filesystem rather than inside
+ * the asar.
  */
-export function resolvePackagedFfmpeg(
+export function resolvePackagedFfmpegDir(
   appOutDir: string,
   platformName: ElectronPlatform,
-  name: "ffmpeg" | "ffprobe",
 ) {
-  const candidate = path.join(
+  return path.join(
     resolveUnpackedDir(appOutDir, platformName),
-    "node_modules",
-    "ffmpeg-ffprobe-static",
-    platformName === "win32" ? `${name}.exe` : name,
+    "resources",
+    "ffmpeg",
   );
-
-  return existsSync(candidate) ? candidate : undefined;
 }
 
 /**

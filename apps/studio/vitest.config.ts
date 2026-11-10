@@ -22,9 +22,9 @@ const require = createRequire(import.meta.url);
 // (e.g. `@instrument-org/workspace/electron`) blows up at module init in
 // the test runner.
 //
-// `agent-browser` and `ffmpeg-ffprobe-static` live in
-// `@instrument-org/workspace`'s deps (not studio's), so resolve them relative
-// to that package's `package.json` instead of `apps/studio`.
+// `agent-browser` lives in `@instrument-org/workspace`'s deps (not studio's),
+// so resolve it relative to that package's `package.json` instead of
+// `apps/studio`. ffmpeg is the copy `ffmpeg:download` vendors here.
 const workspacePkgRequire = createRequire(
   require.resolve("@instrument-org/workspace/package.json"),
 );
@@ -33,9 +33,7 @@ const GLOBAL_DEFINES = {
   __AGENT_BROWSER_BIN_DIR__: path.dirname(
     workspacePkgRequire.resolve("agent-browser/bin/agent-browser.js"),
   ),
-  __FFMPEG_FFPROBE_STATIC_PATH__: workspacePkgRequire.resolve(
-    "ffmpeg-ffprobe-static",
-  ),
+  __FFMPEG_DIR__: path.resolve(__dirname, "resources/ffmpeg"),
 } as const;
 
 const reactCompilerBabel = await babel({

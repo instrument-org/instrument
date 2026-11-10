@@ -1,5 +1,7 @@
 # ffmpeg and ffprobe come from a fork, pinned to a release candidate
 
+> Superseded by [ffmpeg comes from our own builds](2026-11-09-ffmpeg-from-our-own-builds.md).
+
 Date: 2026-08-06
 
 ## Decision

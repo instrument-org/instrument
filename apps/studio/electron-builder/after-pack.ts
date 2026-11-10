@@ -12,7 +12,7 @@ import { documentTypesWearingAppIcon } from "./file-associations";
 import {
   type ElectronPlatform,
   isElectronPlatform,
-  resolvePackagedFfmpeg,
+  resolvePackagedFfmpegDir,
   resolvePackagedPnpm,
   resolvePackagedRipgrep,
   resolvePackagedUutilsDir,
@@ -30,7 +30,7 @@ import {
   THIRD_PARTY_COMPONENTS,
   writeThirdPartyLicenses,
 } from "./third-party-licenses";
-import { verifyFfmpegBinary, verifyFfmpegChecksum } from "./verify-ffmpeg";
+import { verifyFfmpegBinary, verifyFfmpegTree } from "./verify-ffmpeg";
 import { writeThirdPartyNotices } from "./third-party-notices";
 import {
   findUnlicensedBinaries,
@@ -196,26 +196,17 @@ function verifyPackagedFfmpeg(context: AfterPackContext) {
     throw new Error(`Unsupported electron platform: ${platformName}`);
   }
 
+  const dir = resolvePackagedFfmpegDir(context.appOutDir, platformName);
+  verifyFfmpegTree(dir, { arch: Arch[context.arch], platform: platformName });
   for (const name of ["ffmpeg", "ffprobe"] as const) {
-    const binaryPath = resolvePackagedFfmpeg(
-      context.appOutDir,
-      platformName,
-      name,
+    const binaryPath = path.join(
+      dir,
+      "bin",
+      platformName === "win32" ? `${name}.exe` : name,
     );
-    if (!binaryPath) {
-      throw new Error(
-        `Could not locate packaged ${name} binary under ${context.appOutDir} for ${platformName} ${Arch[context.arch]}. It has to reach app.asar.unpacked, since every image and video read spawns it as a subprocess.`,
-      );
-    }
-
     const { size, version } = verifyFfmpegBinary(binaryPath, {
       execute: canExecuteForTarget({ arch: context.arch, platformName }),
       name,
-    });
-    verifyFfmpegChecksum(binaryPath, {
-      arch: Arch[context.arch],
-      name,
-      platform: platformName,
     });
     const detail = `${version ?? "size-only"}, sha256 pinned`;
     console.log(

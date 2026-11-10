@@ -53,7 +53,6 @@ const mainKeepsExternal = [
   "@vscode/ripgrep",
   "agent-browser",
   "dugite",
-  "ffmpeg-ffprobe-static",
   "just-bash",
   // Loads its native addon by a path relative to its own files.
   "velopack",
@@ -424,14 +423,12 @@ function externalizeJustBashInDev(): Plugin {
 
 export default defineConfig(({ command }) => {
   const require = createRequire(import.meta.url);
-  // In dev, ffmpeg-ffprobe-static is external but node_modules isn't next to
-  // the output, so we resolve and bake in the absolute path. In prod, the
-  // packaged app has node_modules alongside the bundle, so a bare specifier
-  // resolves correctly.
-  const ffmpegFfprobeStaticValue =
+  // In dev, ffmpeg runs from the copy `ffmpeg:download` vendors into
+  // resources/; a packaged build finds it under its own resources path.
+  const ffmpegDir =
     command === "serve"
-      ? require.resolve("ffmpeg-ffprobe-static")
-      : "ffmpeg-ffprobe-static";
+      ? path.resolve(import.meta.dirname, "resources/ffmpeg")
+      : null;
   const agentBrowserBinDir =
     command === "serve"
       ? path.dirname(require.resolve("agent-browser/bin/agent-browser.js"))
@@ -505,9 +502,7 @@ export default defineConfig(({ command }) => {
           process.env.INSTRUMENT_VELOPACK_FEED_URL ?? "",
         ),
         __AGENT_BROWSER_BIN_DIR__: JSON.stringify(agentBrowserBinDir),
-        __FFMPEG_FFPROBE_STATIC_PATH__: JSON.stringify(
-          ffmpegFfprobeStaticValue,
-        ),
+        __FFMPEG_DIR__: JSON.stringify(ffmpegDir),
       },
       plugins: [
         ...(command === "serve" ? [externalizeJustBashInDev()] : []),

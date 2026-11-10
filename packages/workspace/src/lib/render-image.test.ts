@@ -89,11 +89,14 @@ const MAX_BYTES = 5 * 1024 * 1024;
 let landscape: Buffer;
 
 beforeAll(async () => {
+  // testsrc2 rather than testsrc: FFmpeg 9's PNG encoder packs testsrc's
+  // flat bars smaller than any JPEG of them, and the fallbacks below need a
+  // picture PNG cannot win on (about 35 KB as PNG, 12 KB as the smallest JPEG).
   landscape = await drawTestImage([
     "-f",
     "lavfi",
     "-i",
-    "testsrc=size=800x400:duration=1:rate=1",
+    "testsrc2=size=800x400:duration=1:rate=1",
   ]);
 }, 30_000);
 
@@ -243,16 +246,46 @@ describe("renderImage", () => {
     });
   }, 30_000);
 
+  // An iPhone photo is a grid of 512-pixel tiles, and the first stream ffmpeg
+  // offers is the top-left tile alone. The fixture's bottom-right corner is
+  // white in the whole picture; a crop of the first tile, which ffmpeg clamps
+  // into it rather than refusing, lands on its colored bars.
+  it("reads a HEIC photo's whole tile grid", async () => {
+    const result = await renderImage({
+      bytes: await fs.readFile(HEIC_FIXTURE),
+      maxBytes: MAX_BYTES,
+      region: { height: 60, left: 944, top: 688, width: 60 },
+      target: { height: 60, width: 60 },
+    });
+
+    const rgb = await execa(
+      FFMPEG_PATH,
+      [
+        "-v",
+        "error",
+        "-i",
+        "pipe:0",
+        "-f",
+        "rawvideo",
+        "-pix_fmt",
+        "gray",
+        "pipe:1",
+      ],
+      { encoding: "buffer", input: renderedImage(result)?.bytes },
+    );
+    expect(Math.min(...Buffer.from(rgb.stdout))).toBeGreaterThan(230);
+  }, 30_000);
+
   it("falls back to JPEG when the byte budget is too small for PNG", async () => {
     const result = await renderImage({
       bytes: landscape,
-      maxBytes: 6000,
+      maxBytes: 20_000,
       target: { height: 400, width: 800 },
     });
 
     const image = renderedImage(result);
     expect(image?.mediaType).toBe("image/jpeg");
-    expect(image?.bytes.byteLength).toBeLessThanOrEqual(6000);
+    expect(image?.bytes.byteLength).toBeLessThanOrEqual(20_000);
   }, 30_000);
 
   it("shrinks past the target when no encoding of it fits", async () => {

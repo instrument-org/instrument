@@ -48,7 +48,7 @@ const RELAUNCH_EXIT_CODE = 75;
 
 // The bin shim rather than electron-vite's .js entry, because the shim is what
 // exports the NODE_PATH into .pnpm that the config's `require.resolve` of
-// ffmpeg-static and friends resolves through.
+// agent-browser resolves through.
 const ELECTRON_VITE = path.resolve(
   import.meta.dirname,
   "../node_modules/.bin",

@@ -171,7 +171,6 @@ describe("writeThirdPartyLicenses", () => {
     expect(entries.map(({ folder, license }) => `${folder}: ${license}`))
       .toMatchInlineSnapshot(`
         [
-          "ffmpeg: GPL-2.0-or-later",
           "git: GPL-2.0-only",
           "ripgrep: MIT OR Unlicense",
           "pnpm: MIT",

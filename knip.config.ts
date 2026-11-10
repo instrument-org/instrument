@@ -68,7 +68,6 @@ const config: KnipConfig = {
         "reg", // Windows registry tool (src/electron-main/lib/capture-in-use.ts)
       ],
       ignoreDependencies: [
-        "ffmpeg-ffprobe-static", // Imported in Vite build to fix import issues
         "node-api-headers", // Resolved by path in scripts/build-mac-helper.ts
         "dugite", // Needed to ensure the git binary is available
         "agent-browser", // Imported in Vite build to resolve the binary path

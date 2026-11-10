@@ -14,14 +14,13 @@ runs:
         key: dugite-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('pnpm-lock.yaml') }}
         path: ~/.cache/dugite/
 
+    # download-ffmpeg.ts pins every archive by sha256 and skips when the
+    # vendored folder's marker matches, so the folder itself is the cache.
     - name: Cache ffmpeg/ffprobe binaries
       uses: actions/cache@668228422ae6a00e4ad889ee87cd7109ec5666a7 # v5.0.4
       with:
-        key: ffmpeg-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('pnpm-lock.yaml') }}
-        path: |
-          ~/.cache/ffmpeg-ffprobe-static-nodejs
-          ~/Library/Caches/ffmpeg-ffprobe-static-nodejs
-          ~/AppData/Local/ffmpeg-ffprobe-static-nodejs/Cache
+        key: ffmpeg-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('apps/studio/electron-builder/ffmpeg-release.ts') }}
+        path: apps/studio/resources/ffmpeg
 
     # download-uutils.ts pins every archive by sha256 and skips when the
     # vendored folder's marker matches, so the folder itself is the cache.

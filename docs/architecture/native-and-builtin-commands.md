@@ -118,7 +118,7 @@ Only `find`'s start points are held to the rules as paths, and it gets no prune:
 | `python`, `pip`, `uv` | the chat's virtualenv interpreter and the bundled uv; `python` scripts get the `instrument` module over loopback | all |
 | `node` | Electron run as Node, with an `instrument` global over loopback | all |
 | `pnpm`, `pnx`, `pnpx`, `npx` | the bundled pnpm (`npx` and `pnpx` are `pnpm dlx`, whose install takes pnpm's install step outside the sandbox where MXC holds commands) | all |
-| `ffmpeg`, `ffprobe` | `ffmpeg-ffprobe-static` | all |
+| `ffmpeg`, `ffprobe` | GPL FFmpeg from instrument-org/ffmpeg-build, vendored into `resources/ffmpeg/` by `ffmpeg:download` | all |
 | `agent-browser` | the agent-browser CLI, spawned directly with its own flag policy rather than under the native sandbox | all |
 | `instrument app call apple-calendar` and the other Mac apps | the Mac apps' MCP server the app ships (`lib/mac-apps`), run as a local MCP app's server outside the sandbox; it runs the Mac helper (`instrument-mac`) for Calendar, Reminders and Contacts, and `/usr/bin/osascript` with the app's own scripts for Mail, Notes and Messages | macOS |
 | `osascript` | refused by its bare name; by its path, `/usr/bin/osascript` in the profile, where no app takes its events | macOS |

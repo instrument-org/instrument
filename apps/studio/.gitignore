@@ -15,6 +15,9 @@ dist/
 # Vendored uv binary (downloaded by scripts/download-uv.ts)
 resources/uv/
 
+# Vendored ffmpeg and ffprobe (downloaded by scripts/download-ffmpeg.ts)
+resources/ffmpeg/
+
 # Vendored uutils binaries (downloaded by scripts/download-uutils.ts)
 resources/uutils/
 

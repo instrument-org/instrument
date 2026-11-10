@@ -292,13 +292,21 @@ describe("Studio Smoke Test", () => {
   }, 120_000);
 
   // ripgrep and uv already run their `--version` in the afterPack hook. These
-  // three do not, and each finds its binary through its own package's path
-  // math, so resolve them the way the app does rather than by hand: a binary
-  // still inside the archive cannot be executed at all, and a foreign-arch one
-  // left behind by pruning only fails when something runs it.
+  // three do not where the build host cannot run them, so resolve them the way
+  // the app does rather than by hand: a binary still inside the archive cannot
+  // be executed at all, and a foreign-arch one left behind by pruning only
+  // fails when something runs it.
   it("runs the vendored binaries the sandbox shells out to", async () => {
     const executablePath = await resolveExecutablePath(distPath);
     const nodeModules = path.join(asarPath(executablePath), "node_modules");
+    // Where electron-builder unpacks `resources/**`, which download-ffmpeg.ts
+    // fills; the app reads it from beside the asar.
+    const ffmpegBin = path.join(
+      `${asarPath(executablePath)}.unpacked`,
+      "resources",
+      "ffmpeg",
+      "bin",
+    );
 
     const { code, stderr, stdout } = await runAsNode(
       executablePath,
@@ -308,14 +316,11 @@ describe("Studio Smoke Test", () => {
       const { createRequire } = require("node:module");
       try {
         const req = createRequire(path.join(${JSON.stringify(nodeModules)}, "probe.js"));
-        // ffmpeg-ffprobe-static exports paths into the archive; the app
-        // rewrites them the same way to reach the executable copies.
-        const unpack = (binary) =>
-          binary.replace(/[\\\\/]app\\.asar[\\\\/]/, path.sep + "app.asar.unpacked" + path.sep);
-        const ffmpeg = req("ffmpeg-ffprobe-static");
+        const exe = process.platform === "win32" ? ".exe" : "";
+        const ffmpegBin = ${JSON.stringify(ffmpegBin)};
         const probes = [
-          ["ffmpeg", unpack(ffmpeg.ffmpegPath), "-version"],
-          ["ffprobe", unpack(ffmpeg.ffprobePath), "-version"],
+          ["ffmpeg", path.join(ffmpegBin, "ffmpeg" + exe), "-version"],
+          ["ffprobe", path.join(ffmpegBin, "ffprobe" + exe), "-version"],
           ["git", req("dugite").resolveGitBinary(), "--version"],
         ];
         const report = {};

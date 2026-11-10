@@ -81,6 +81,8 @@ export interface ProjectChange {
   /** Empty takes them away. */
   instructions?: string;
   name?: string;
+  /** Out of the menus, or back in them. */
+  retired?: boolean;
 }
 
 /** A name a project's folder cannot take, said to the person who typed it. */
@@ -619,7 +621,14 @@ function updateProjectNow(projectId: string, change: ProjectChange): boolean {
     }
   }
   rewriteProjectSync(rootDir, { ...project, name }, (current) => {
-    const { emoji: _emoji, icon: _icon, instructions, ...rest } = current;
+    const {
+      emoji: _emoji,
+      icon: _icon,
+      instructions,
+      retired,
+      ...rest
+    } = current;
+    const nextRetired = change.retired ?? retired;
     const nextInstructions =
       change.instructions === undefined
         ? instructions
@@ -630,6 +639,7 @@ function updateProjectNow(projectId: string, change: ProjectChange): boolean {
       ...(change.color === undefined ? {} : { color: change.color }),
       ...markAfter(current, change),
       ...(nextInstructions ? { instructions: nextInstructions } : {}),
+      ...(nextRetired ? { retired: true } : {}),
     };
   });
   return true;

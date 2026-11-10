@@ -1,0 +1,16 @@
+// Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
+
+exports[`instrument projects set > refuses a color outside the palette and writes nothing 1`] = `
+"instrument projects: color: Invalid option: expected one of "pale-red"|"pale-orange"|"pale-gold"|"pale-green"|"pale-teal"|"pale-blue"|"pale-violet"|"pale-pink"|"deep-red"|"deep-orange"|"deep-gold"|"deep-green"|"deep-teal"|"deep-blue"|"deep-violet"|"deep-pink"
+"
+`;
+
+exports[`instrument projects set > refuses an icon and an emoji at once and writes nothing 1`] = `
+"instrument projects: an icon or an emoji, not both: a project shows one.
+"
+`;
+
+exports[`instrument projects set > refuses an icon outside the set and writes nothing 1`] = `
+"instrument projects: "cactus" is not one of the app's icons. instrument projects icons <words> finds ones that fit.
+"
+`;

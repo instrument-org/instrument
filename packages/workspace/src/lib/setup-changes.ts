@@ -7,6 +7,7 @@ import {
   PROJECT_FILE_NAME,
   PROJECTS_FOLDER_NAME,
 } from "../constants";
+import { type SessionMessageDataPart } from "../schemas/session/message-data-part";
 import { APP_FILE_NAME } from "./apps/app-file";
 import { memoryDir } from "./memory/store";
 import {
@@ -79,13 +80,21 @@ export interface SetupTouch {
   name: string;
 }
 
+type ProjectFieldChange = SessionMessageDataPart.ProjectFieldChange;
+
 export interface SetupChange {
   change: "added" | "changed" | "removed";
+  /** What a command changed about a project, each with its value from before the turn. */
+  fields?: ProjectFieldChange[];
   kind: SetupKind;
   name: string;
 }
 
 interface TurnTracker {
+  /** What `instrument projects` set, by the project's name now and then by field. */
+  fields: Map<string, Map<ProjectFieldChange["field"], ProjectFieldChange>>;
+  /** Projects a command renamed, by their old names, which are not projects gone. */
+  renamedFrom: Set<string>;
   /** By `kind:name`; the first touch says whether the item was there before. */
   touched: Map<string, SetupTouch>;
   turnId: TurnId;
@@ -109,7 +118,12 @@ export function setSetupTouchForwarder(next: (touch: SetupTouch) => void) {
 }
 
 export function beginSetupChangeTracking(turn: TurnKey): void {
-  TURNS.set(turnKey(turn), { touched: new Map(), turnId: beginTurn(turn) });
+  TURNS.set(turnKey(turn), {
+    fields: new Map(),
+    renamedFrom: new Set(),
+    touched: new Map(),
+    turnId: beginTurn(turn),
+  });
 }
 
 /**
@@ -132,6 +146,52 @@ export function recordSetupTouch(touch: SetupTouch): void {
 }
 
 /**
+ * Records what a command set about one project in the turn running now, as
+ * a touch of the project and the fields it changed. A second change to a
+ * field keeps the value from before the first, so the note says what the
+ * turn did as a whole. A rename moves what was recorded under the old name
+ * to the new one.
+ */
+export function recordProjectChange(
+  name: { after: string; before: string },
+  changes: readonly ProjectFieldChange[],
+): void {
+  const tracker = trackerForCurrentTurn();
+  if (!tracker) {
+    return;
+  }
+  const fields =
+    tracker.fields.get(name.before) ??
+    new Map<ProjectFieldChange["field"], ProjectFieldChange>();
+  tracker.fields.delete(name.before);
+  const touched = tracker.touched.get(`project:${name.before}`);
+  if (name.before !== name.after) {
+    tracker.touched.delete(`project:${name.before}`);
+    tracker.renamedFrom.add(name.before);
+  }
+  for (const change of changes) {
+    const first = fields.get(change.field);
+    fields.set(
+      change.field,
+      first === undefined
+        ? change
+        : // The changes of one key are of one field, so the first's `before`
+          // is of this change's kind.
+          ({ ...change, before: first.before } as ProjectFieldChange),
+    );
+  }
+  tracker.fields.set(name.after, fields);
+  const key = `project:${name.after}`;
+  if (!tracker.touched.has(key)) {
+    tracker.touched.set(key, {
+      existedBefore: touched?.existedBefore ?? true,
+      kind: "project",
+      name: name.after,
+    });
+  }
+}
+
+/**
  * What the turn's writes did, by comparing each item it touched as it is now
  * against whether it was there before its first write. Ends the tracking.
  */
@@ -146,17 +206,39 @@ export async function consumeSetupChanges(
     return [];
   }
   const changes = await Promise.all(
-    [...tracker.touched.values()].map(async (touch) => {
-      const exists = await setupItemExists(touch.kind, touch.name);
-      const change: SetupChange["change"] | undefined = touch.existedBefore
-        ? exists
-          ? "changed"
-          : "removed"
-        : exists
-          ? "added"
-          : undefined;
-      return change ? [{ change, kind: touch.kind, name: touch.name }] : [];
-    }),
+    [...tracker.touched.values()]
+      // A folder a rename moved is seen gone by whatever watched the write.
+      .filter(
+        (touch) =>
+          touch.kind !== "project" || !tracker.renamedFrom.has(touch.name),
+      )
+      .map(async (touch) => {
+        const exists = await setupItemExists(touch.kind, touch.name);
+        const change: SetupChange["change"] | undefined = touch.existedBefore
+          ? exists
+            ? "changed"
+            : "removed"
+          : exists
+            ? "added"
+            : undefined;
+        if (!change) {
+          return [];
+        }
+        const fields =
+          change === "changed" && touch.kind === "project"
+            ? [...(tracker.fields.get(touch.name)?.values() ?? [])].filter(
+                (field) => field.before !== field.after,
+              )
+            : [];
+        return [
+          {
+            change,
+            ...(fields.length > 0 ? { fields } : {}),
+            kind: touch.kind,
+            name: touch.name,
+          },
+        ];
+      }),
   );
   return changes
     .flat()

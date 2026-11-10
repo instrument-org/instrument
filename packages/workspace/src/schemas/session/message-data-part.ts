@@ -437,11 +437,42 @@ export namespace SessionMessageDataPart {
    * where the chat tells the person, and where the skill catalog's
    * correction for the model comes from.
    */
+  /**
+   * One thing about a project a command set, with what it was before: its
+   * name, its mark, its color, its line about what goes there, whether it is
+   * retired. `null` is none.
+   */
+  export const ProjectFieldChangeSchema = z.discriminatedUnion("field", [
+    z.object({
+      after: z.string(),
+      before: z.string(),
+      field: z.literal("name"),
+    }),
+    z.object({
+      after: z.string().nullable(),
+      before: z.string().nullable(),
+      field: z.enum(["about", "color", "emoji", "icon"]),
+    }),
+    z.object({
+      after: z.boolean(),
+      before: z.boolean(),
+      field: z.literal("retired"),
+    }),
+  ]);
+
+  export type ProjectFieldChange = z.output<typeof ProjectFieldChangeSchema>;
+
   export const SetupChangesDataPartSchema = z.object({
     changes: z
       .array(
         z.object({
           change: z.enum(["added", "changed", "removed"]),
+          /**
+           * What a command changed about a project, field by field, each
+           * with its value from before the turn. Absent where the change
+           * was a write to its file, which says only that it changed.
+           */
+          fields: z.array(ProjectFieldChangeSchema).min(1).optional(),
           kind: z.enum(["app", "memory", "skill", "project"]),
           name: z.string(),
         }),

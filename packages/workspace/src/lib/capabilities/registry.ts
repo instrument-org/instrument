@@ -30,7 +30,13 @@ import {
 } from "./chats";
 import { type Capability } from "./define";
 import { memoryForget, memoryList, memorySave, memoryShow } from "./memory";
-import { projectsList } from "./projects";
+import {
+  projectsIcons,
+  projectsList,
+  projectsRetire,
+  projectsSet,
+  projectsUnretire,
+} from "./projects";
 import { taskNew } from "./task/fork";
 import { taskList } from "./task/list";
 import { taskLog } from "./task/log";
@@ -81,6 +87,10 @@ export const CAPABILITIES: readonly Capability[] = [
   memoryShow,
   memoryForget,
   projectsList,
+  projectsSet,
+  projectsIcons,
+  projectsRetire,
+  projectsUnretire,
   taskNew,
   taskSend,
   taskStop,

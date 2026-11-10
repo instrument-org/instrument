@@ -71,12 +71,19 @@ describe("runUvCommand", () => {
 });
 
 describe("ensureManagedPython", () => {
-  it("installs the managed Python as the app, again after a failure, then not again", async () => {
+  it("installs the managed Python as the app, reinstalls one that fails, again after a failure, then not again", async () => {
     const { execa } = await import("execa");
     vi.mocked(execa).mockClear();
     vi.mocked(wrapNativeCommand).mockClear();
     vi.mocked(execa)
+      // Offline: the install and the reinstall both fail.
       .mockResolvedValueOnce({ all: "offline", exitCode: 2 } as never)
+      .mockResolvedValueOnce({ all: "offline", exitCode: 2 } as never)
+      // An install with files missing, which only a reinstall repairs.
+      .mockResolvedValueOnce({
+        all: "Python installation is missing a `_sysconfigdata_` file",
+        exitCode: 2,
+      } as never)
       .mockResolvedValueOnce({ all: "", exitCode: 0 } as never);
 
     await expect(ensureManagedPython()).resolves.toEqual({
@@ -86,13 +93,13 @@ describe("ensureManagedPython", () => {
     await expect(ensureManagedPython()).resolves.toBeUndefined();
     await expect(ensureManagedPython()).resolves.toBeUndefined();
 
-    expect(execa).toHaveBeenCalledTimes(2);
+    expect(execa).toHaveBeenCalledTimes(4);
     // execa's overloads type the mock's calls as its no-argument form, so the
     // call is read as the (file, args, options) form uv is run with.
     const [file, args, options] = (vi.mocked(execa).mock.lastCall ??
       []) as unknown as [string?, string[]?, { env?: Record<string, string> }?];
     expect([file, ...(args ?? [])].join(" ")).toMatch(
-      /python install --no-bin --no-registry 3\.12$/,
+      /python install --reinstall --no-bin --no-registry 3\.12$/,
     );
     // Outside any chat's reach, with downloads on for this one install.
     expect(wrapNativeCommand).not.toHaveBeenCalled();

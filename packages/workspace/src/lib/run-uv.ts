@@ -214,9 +214,18 @@ export async function managedPythonInterpreter(): Promise<
  * installed Python makes it a no-op of about 50 ms.
  */
 async function installManagedPython() {
+  const result = await runPythonInstall([]);
+  // An install with files gone (macOS prunes a temp folder's unread files,
+  // which is where the evals and the shell runner keep theirs) fails every
+  // install and every run of it until it is installed again.
+  return result.exitCode === 0 ? result : runPythonInstall(["--reinstall"]);
+}
+
+async function runPythonInstall(flags: string[]) {
   const spawned = withInstallerClosed(getUvBinPath(), [
     "python",
     "install",
+    ...flags,
     // Into the runtime folder's `python/` alone: no `python3.12` in
     // ~/.local/bin, and nothing in the Windows registry, where the person's
     // own tools would find it.

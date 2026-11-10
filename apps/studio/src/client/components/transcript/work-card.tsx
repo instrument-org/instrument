@@ -16,7 +16,14 @@ import { GlobeIcon } from "@phosphor-icons/react/Globe";
 import { ImageIcon } from "@phosphor-icons/react/Image";
 import { MagnifyingGlassIcon } from "@phosphor-icons/react/MagnifyingGlass";
 import { motion, useReducedMotion } from "motion/react";
-import { use, useLayoutEffect, useRef, type ReactNode } from "react";
+import {
+  use,
+  useEffect,
+  useLayoutEffect,
+  useRef,
+  useState,
+  type ReactNode,
+} from "react";
 
 import { useSyntaxHighlighting } from "../../hooks/use-syntax-highlighting";
 import { Favicon, PageFavicon } from "../favicon";
@@ -393,7 +400,12 @@ function PictureRow({
   );
 }
 
-/** A file drawn small by the system: a picture, a page, a document's first page. */
+/**
+ * A file drawn small by the system: a picture, a page, a document's first page.
+ * Nothing shows until the picture has loaded, and a new version takes the old
+ * one's place only once it has, so the card never shows a picture loading or
+ * one that failed.
+ */
 function FilePicture({
   className = "size-full object-cover object-top",
   picture: { place, version },
@@ -408,5 +420,25 @@ function FilePicture({
     theme: resolvedTheme,
     ...(version !== undefined && { version }),
   });
-  return <img alt="" className={className} draggable={false} src={src} />;
+  const [shown, setShown] = useState<{ place: string; src: string }>();
+  useEffect(() => {
+    if (src === "") {
+      return;
+    }
+    let isCurrent = true;
+    const image = new Image();
+    image.addEventListener("load", () => {
+      if (isCurrent) {
+        setShown({ place, src });
+      }
+    });
+    image.src = src;
+    return () => {
+      isCurrent = false;
+    };
+  }, [place, src]);
+  // Another file's picture never stands in for this one's.
+  return shown?.place === place ? (
+    <img alt="" className={className} draggable={false} src={shown.src} />
+  ) : null;
 }

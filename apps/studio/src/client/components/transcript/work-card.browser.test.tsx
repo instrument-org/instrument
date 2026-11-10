@@ -10,12 +10,27 @@ import { WorkCardView } from "./work-card";
 import { TranscriptRecordsContext } from "./transcript-data";
 
 // A file's picture comes over the app protocol, which only the main process
-// answers, so here it is an address named by the file.
+// answers, so here it is a picture naming the file, and one that fails to
+// load for a file under `/broken/`.
 vi.mock("@/client/lib/computer-file-url", async (importOriginal) => ({
   ...(await importOriginal<typeof ComputerFileUrl>()),
-  getComputerThumbnailUrl: ({ hostPath }: { hostPath: string }) =>
-    `https://pictures.test${hostPath}`,
+  getComputerThumbnailUrl: ({
+    hostPath,
+    version,
+  }: {
+    hostPath: string;
+    version?: number;
+  }) =>
+    hostPath.startsWith("/broken/")
+      ? `data:image/png;base64,AAAA#${hostPath}`
+      : `data:image/svg+xml,${encodeURIComponent(
+          "<svg xmlns='http://www.w3.org/2000/svg' width='4' height='4'/>",
+        )}#${hostPath}${version === undefined ? "" : `@${version.toString()}`}`,
 }));
+
+/** The file a picture on the card is of, from its address. */
+const pictured = (picture: Element) =>
+  picture.getAttribute("src")?.replace(/^.*#/, "");
 
 // Every path is where the call said it was, and nothing else is asked for.
 const RECORDS = transcriptRecords();
@@ -50,20 +65,26 @@ async function renderStep(shown: TurnStep) {
   return renderSteps("files", [shown]);
 }
 
-async function renderSteps(kind: "files" | "images", steps: TurnStep[]) {
-  return renderInBrowser(
+const SESSION = StoreId.newSessionId();
+
+function cardOf(kind: "files" | "images", steps: TurnStep[]) {
+  return (
     <ThemeProvider>
       <TranscriptRecordsContext value={RECORDS}>
         <div style={{ width: 460 }}>
           <WorkCardView
             card={{ changedFile: undefined, kind, steps }}
             isCurrent
-            sessionId={StoreId.newSessionId()}
+            sessionId={SESSION}
           />
         </div>
       </TranscriptRecordsContext>
-    </ThemeProvider>,
+    </ThemeProvider>
   );
+}
+
+async function renderSteps(kind: "files" | "images", steps: TurnStep[]) {
+  return renderInBrowser(cardOf(kind, steps));
 }
 
 describe("a live card's file as it is written", () => {
@@ -134,7 +155,7 @@ describe("a live card's file as it is written", () => {
       ),
     );
     const card = screen.container.querySelector("[data-work-card]");
-    expect(card?.querySelector("img")).not.toBeNull();
+    await expect.poll(() => card?.querySelector("img")).not.toBeNull();
     expect(card?.textContent).not.toContain("Roasted");
   });
 });
@@ -144,9 +165,51 @@ describe("a live card's pictures", () => {
 
   it("shows one picture alone", async () => {
     const screen = await renderSteps("images", [read("/work/a.png")]);
-    expect(
-      screen.container.querySelectorAll("[data-work-card] img"),
-    ).toHaveLength(1);
+    await expect
+      .poll(
+        () => screen.container.querySelectorAll("[data-work-card] img").length,
+      )
+      .toBe(1);
+  });
+
+  it("shows no picture that failed to load", async () => {
+    const screen = await renderSteps("images", [read("/broken/a.png")]);
+    // The picture that loads is the sign the broken one had its chance too.
+    await renderSteps("images", [read("/work/b.png")]);
+    await expect
+      .poll(() => document.querySelectorAll("[data-work-card] img").length)
+      .toBe(1);
+    expect(screen.container.querySelector("img")).toBeNull();
+  });
+
+  it("keeps a picture up until its new version has loaded", async () => {
+    const version = (modifiedAt: number) =>
+      step({ kind: "image", modifiedAt, path: "/work/a.png" }, "done");
+    const screen = await renderSteps("images", [version(1)]);
+    const picture = () =>
+      screen.container.querySelector<HTMLImageElement>("[data-work-card] img");
+    await expect.poll(() => picture()).not.toBeNull();
+    // Whether the card shows a whole picture each time anything in it changes.
+    const seen: boolean[] = [];
+    const observer = new MutationObserver(() => {
+      const shown = picture();
+      seen.push(shown !== null && shown.complete && shown.naturalWidth > 0);
+    });
+    observer.observe(screen.container, {
+      attributes: true,
+      childList: true,
+      subtree: true,
+    });
+    await screen.rerender(cardOf("images", [version(2)]));
+    await expect
+      .poll(() => {
+        const shown = picture();
+        return shown && pictured(shown);
+      })
+      .toBe("/work/a.png@2");
+    observer.disconnect();
+    expect(seen.length).toBeGreaterThan(0);
+    expect(seen).not.toContain(false);
   });
 
   it("puts every picture along a strip under the newest, the newest ringed", async () => {
@@ -155,15 +218,18 @@ describe("a live card's pictures", () => {
       (_, index) => `/work/${index.toString()}.png`,
     );
     const screen = await renderSteps("images", paths.map(read));
+    await expect
+      .poll(
+        () => screen.container.querySelectorAll("[data-work-card] img").length,
+      )
+      .toBe(7);
     const pictures = [
       ...screen.container.querySelectorAll("[data-work-card] img"),
     ];
     // The newest large, then the strip of the last six, oldest first.
-    expect(
-      pictures.map((picture) =>
-        picture.getAttribute("src")?.replace("https://pictures.test", ""),
-      ),
-    ).toEqual(["7", "2", "3", "4", "5", "6", "7"].map((n) => `/work/${n}.png`));
+    expect(pictures.map((picture) => pictured(picture))).toEqual(
+      ["7", "2", "3", "4", "5", "6", "7"].map((n) => `/work/${n}.png`),
+    );
     expect(pictures.at(-1)?.className).toContain("ring-brand-500");
   });
 });

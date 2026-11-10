@@ -46,6 +46,7 @@ const handlers = {
   missingFile: vi.fn(),
   newChat: vi.fn(),
   newChatFromLink: vi.fn(),
+  notOpened: vi.fn(),
   newTab: vi.fn(),
   openFile: vi.fn(),
   openScreen: vi.fn(),
@@ -115,6 +116,19 @@ describe("useWindowCommands", () => {
         ],
       ]
     `);
+  });
+
+  it("says how many files a link named past the most it opens", async () => {
+    renderWithDefaultStore(<Window />);
+    stream.push({ hostPath: "/Users/mac-user/a.pdf", type: "openFile" });
+    stream.push({ count: 3, type: "notOpened" });
+    await vi.waitFor(
+      () => {
+        expect(handlers.notOpened).toHaveBeenCalledWith(3);
+      },
+      { interval: 1 },
+    );
+    expect(handlers.openFile).toHaveBeenCalledWith("/Users/mac-user/a.pdf");
   });
 
   it("starts a new chat's draft with the words a link brought", async () => {

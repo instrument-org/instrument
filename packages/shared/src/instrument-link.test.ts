@@ -6,6 +6,7 @@ import {
   filePathOfInstrumentLink,
   instrumentLinkOf,
   instrumentUrlOf,
+  OUTSIDE_FILES_MAX,
   OUTSIDE_WORDS_MAX,
   outsideLinkOf,
   projectOfLink,
@@ -231,6 +232,100 @@ describe("outsideLinkOf", () => {
     ["a noun with no name", "instrument://chat"],
   ])("opens nothing for %s", (_case, url) => {
     expect(outsideLinkOf(url)).toBeUndefined();
+  });
+
+  describe("files", () => {
+    // Written by the website as `encodeURIComponent` writes each path.
+    const filesLink = (...paths: string[]) =>
+      `instrument://files?${paths.map((each) => `path=${encodeURIComponent(each)}`).join("&")}`;
+
+    it.each([
+      ["a space", "/Users/mac-user/My Notes/a.md"],
+      ["a plus", "/Users/mac-user/C++/notes+ideas.md"],
+      ["an ampersand and an equals sign", "/Users/mac-user/Q&A=1.md"],
+      ["a percent sign", "/Users/mac-user/100% done.md"],
+      ["unicode", "/Users/mac-user/Café/日本語 📝.md"],
+      ["a Windows drive", "C:/Users/windows-user/report.pdf"],
+    ])("reads a path with %s as it was written", (_case, written) => {
+      expect(outsideLinkOf(filesLink(written))).toEqual({
+        kind: "files",
+        notOpened: 0,
+        paths: [written],
+      });
+    });
+
+    it("reads a plus written bare as the space it means in a query", () => {
+      expect(
+        outsideLinkOf("instrument://files/?path=/Users/mac-user/a+b.md"),
+      ).toEqual({
+        kind: "files",
+        notOpened: 0,
+        paths: ["/Users/mac-user/a b.md"],
+      });
+    });
+
+    it("keeps the order written, each path once", () => {
+      expect(
+        outsideLinkOf(
+          filesLink(
+            "/Users/mac-user/b.md",
+            "/Users/mac-user/a.md",
+            "/Users/mac-user/b.md",
+            "/Users/mac-user/Notes",
+          ),
+        ),
+      ).toMatchInlineSnapshot(`
+        {
+          "kind": "files",
+          "notOpened": 0,
+          "paths": [
+            "/Users/mac-user/b.md",
+            "/Users/mac-user/a.md",
+            "/Users/mac-user/Notes",
+          ],
+        }
+      `);
+    });
+
+    it("leaves out web addresses and empty paths", () => {
+      expect(
+        outsideLinkOf(
+          `${filesLink("https://example.com/a.html", "/Users/mac-user/a.md", "HTTP://example.com")}&path=`,
+        ),
+      ).toMatchInlineSnapshot(`
+        {
+          "kind": "files",
+          "notOpened": 0,
+          "paths": [
+            "/Users/mac-user/a.md",
+          ],
+        }
+      `);
+    });
+
+    it("opens the first paths up to the cap and counts the rest", () => {
+      const paths = Array.from(
+        { length: OUTSIDE_FILES_MAX + 3 },
+        (_, at) => `/Users/mac-user/${at.toString()}.md`,
+      );
+      expect(outsideLinkOf(filesLink(...paths, paths[0] ?? ""))).toEqual({
+        kind: "files",
+        notOpened: 3,
+        paths: paths.slice(0, OUTSIDE_FILES_MAX),
+      });
+    });
+
+    it.each([
+      ["no path", "instrument://files"],
+      [
+        "only web addresses",
+        "instrument://files?path=https%3A%2F%2Fexample.com",
+      ],
+      ["a path under the verb", "instrument://files/Users?path=%2Fa.md"],
+      ["another parameter", "instrument://files?file=%2FUsers%2Fa.md"],
+    ])("opens nothing for %s", (_case, url) => {
+      expect(outsideLinkOf(url)).toBeUndefined();
+    });
   });
 });
 

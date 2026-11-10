@@ -57,76 +57,111 @@ export function createLinkGate({
   };
 }
 
+/** How a path from a link is judged; each is the real one outside a test. */
+type PathChecks = {
+  hostPaths?: path.PlatformPath;
+  isDownloaded?: (hostPath: string) => Promise<boolean>;
+  isRefused?: (hostPath: string) => Promise<boolean>;
+  placeOf?: (hostPath: string) => Promise<Place>;
+};
+
 /**
- * What a link asks of the window, or nothing for a link that names nothing,
- * a path that is not plainly one on this computer (a step up, a network
- * share, a relative one), or a place the app refuses to show.
+ * What a link asks of the window, in order: nothing for a link that names
+ * nothing. A link to several files asks for each just as a link to one does,
+ * once each however many ways it is written, and then says how many it left
+ * past the cap.
  */
-export async function askOfOutsideLink(
+export async function asksOfOutsideLink(
   url: string,
+  checks: PathChecks = {},
+): Promise<AppWindowAsk[]> {
+  const link = outsideLinkOf(url);
+  switch (link?.kind) {
+    case undefined: {
+      return [];
+    }
+    case "screen": {
+      return [{ href: link.href, type: "openScreen" }];
+    }
+    case "new": {
+      return [
+        {
+          ...(link.project === undefined ? {} : { project: link.project }),
+          type: "newChat",
+          words: link.words,
+        },
+      ];
+    }
+    case "file": {
+      const ask = await askOfPath(link.path, checks);
+      return ask ? [ask] : [];
+    }
+    case "files": {
+      const asks = new Map<string, AppWindowAsk>();
+      for (const ask of await Promise.all(
+        link.paths.map((each) => askOfPath(each, checks)),
+      )) {
+        // Two spellings of one path ask for the same thing.
+        if (ask) {
+          asks.set(JSON.stringify(ask), ask);
+        }
+      }
+      const all = [...asks.values()];
+      if (link.notOpened > 0) {
+        all.push({ count: link.notOpened, type: "notOpened" });
+      }
+      return all;
+    }
+  }
+}
+
+/**
+ * What a path from a link asks of the window, or nothing for a path that is
+ * not plainly one on this computer (a step up, a network share, a relative
+ * one) or a place the app refuses to show.
+ */
+async function askOfPath(
+  linkPath: string,
   {
     hostPaths = path,
     isDownloaded = isFromInternet,
     isRefused = isRefusedFile,
     placeOf = placeOnDisk,
-  }: {
-    hostPaths?: path.PlatformPath;
-    isDownloaded?: (hostPath: string) => Promise<boolean>;
-    isRefused?: (hostPath: string) => Promise<boolean>;
-    placeOf?: (hostPath: string) => Promise<Place>;
-  } = {},
+  }: PathChecks,
 ): Promise<AppWindowAsk | undefined> {
-  const link = outsideLinkOf(url);
-  switch (link?.kind) {
-    case undefined: {
-      return undefined;
-    }
-    case "screen": {
-      return { href: link.href, type: "openScreen" };
-    }
-    case "new": {
-      return {
-        ...(link.project === undefined ? {} : { project: link.project }),
-        type: "newChat",
-        words: link.words,
-      };
-    }
-    case "file": {
-      const hostPath = hostPathOfUrlPath(link.path, hostPaths);
-      if (
-        hostPath === undefined ||
-        // On Windows a path from a link names its drive: one starting at a
-        // slash is on whichever drive is current.
-        (hostPaths.sep === "\\" && !/^[A-Z]:\\/i.test(hostPath)) ||
-        (await isRefused(hostPath))
-      ) {
-        return undefined;
-      }
-      const place = await placeOf(hostPath);
-      if (place === "folder") {
-        return { href: folderHref(hostPath), type: "openScreen" };
-      }
-      // Never a file to open: the window says it is not there, over the
-      // folder it was in when that is there.
-      if (place === "missing") {
-        const folder = hostPaths.dirname(hostPath);
-        return {
-          ...((await placeOf(folder)) === "folder" ? { folder } : {}),
-          name: hostPaths.basename(hostPath),
-          type: "missingFile",
-        };
-      }
-      if (PAGE.test(hostPath) && (await isDownloaded(hostPath))) {
-        return {
-          href: folderHref(hostPaths.dirname(hostPath), {
-            select: hostPaths.basename(hostPath),
-          }),
-          type: "openScreen",
-        };
-      }
-      return { hostPath, type: "openFile" };
-    }
+  const hostPath = hostPathOfUrlPath(linkPath, hostPaths);
+  if (
+    hostPath === undefined ||
+    // On Windows a path from a link names its drive: one starting at a
+    // slash is on whichever drive is current.
+    (hostPaths.sep === "\\" && !/^[A-Z]:\\/i.test(hostPath)) ||
+    (await isRefused(hostPath))
+  ) {
+    return undefined;
   }
+  const place = await placeOf(hostPath);
+  if (place === "folder") {
+    return { href: folderHref(hostPath), type: "openScreen" };
+  }
+  // Never a file to open: the window says it is not there, over the folder
+  // it was in when that is there.
+  if (place === "missing") {
+    const folder = hostPaths.dirname(hostPath);
+    return {
+      ...((await placeOf(folder)) === "folder" ? { folder } : {}),
+      name: hostPaths.basename(hostPath),
+      type: "missingFile",
+    };
+  }
+  if (PAGE.test(hostPath) && (await isDownloaded(hostPath))) {
+    return {
+      href: folderHref(hostPaths.dirname(hostPath), {
+        select: hostPaths.basename(hostPath),
+      }),
+      type: "openScreen",
+    };
+  }
+  return { hostPath, type: "openFile" };
 }
 
 /**
@@ -153,7 +188,9 @@ const processGate = createLinkGate();
 
 /**
  * Opens what a link from outside names, through `ask`, which puts it in
- * front of the person once the window can show it. Every link says in the
+ * front of the person once the window can show it: everything one link asks
+ * for in one call, so the window comes forward once. A link counts once
+ * against the gate, however many paths it carries. Every link says in the
  * log what came of it, by its noun alone, since a `new` link's words and a
  * file's path are the person's.
  */
@@ -161,11 +198,13 @@ export async function openOutsideLink(
   url: string,
   {
     ask,
+    checks,
     gate = processGate,
     log,
     waiting,
   }: {
-    ask: (ask: AppWindowAsk) => void;
+    ask: (asks: readonly AppWindowAsk[]) => void;
+    checks?: PathChecks;
     gate?: (url: string) => boolean;
     log: (line: string) => void;
     /** How many asks wait for the window now. */
@@ -183,14 +222,16 @@ export async function openOutsideLink(
     log(`Let a ${noun} link go: the same link again, or too many this minute`);
     return;
   }
-  const asked = await askOfOutsideLink(url);
-  if (!asked) {
+  const asked = await asksOfOutsideLink(url, checks);
+  if (asked.length === 0) {
     log(
       `A ${noun} link opens nothing: it names nothing here, or a path that is not plainly this computer's or that the app refuses`,
     );
     return;
   }
-  log(`A ${noun} link asks the window to ${asked.type}`);
+  log(
+    `A ${noun} link asks the window to ${asked.map((each) => each.type).join(", ")}`,
+  );
   ask(asked);
 }
 

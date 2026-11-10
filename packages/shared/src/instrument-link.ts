@@ -93,15 +93,24 @@ export function filePathOfInstrumentLink(url: string): string | undefined {
 /**
  * What a link from outside the app asks for: a screen one of the nouns
  * names, a file or folder by its path (spelled as the address has it, which
- * the opener still checks), or a new chat with words already written.
+ * the opener still checks), several of them at once, or a new chat with
+ * words already written.
  */
 export type OutsideLink =
   | { href: string; kind: "screen" }
   | { kind: "file"; path: string }
+  /** The paths to open, in the order written, and how many past the cap were left. */
+  | { kind: "files"; notOpened: number; paths: string[] }
   | { kind: "new"; project?: string; words: string };
 
 /** The longest words a `new` link may bring; a longer one opens nothing. */
 export const OUTSIDE_WORDS_MAX = 2000;
+
+/** The most paths one `files` link opens; the rest are counted, not opened. */
+export const OUTSIDE_FILES_MAX = 20;
+
+/** A web address, which a `files` link never opens: it takes only paths. */
+const WEB_ADDRESS = /^https?:/i;
 
 /**
  * Characters that change nothing a person sees but reach the model: zero
@@ -114,9 +123,10 @@ const UNSEEN =
 
 /**
  * Reads a link handed to the app from outside: a browser, another app, a
- * note. Everything a noun names is a screen, `file` a path, and `new` the
- * one verb, `instrument://new?text=<words>&project=<id>`, a new chat's draft
- * that is never sent for the person.
+ * note. Everything a noun names is a screen, `file` a path, `files` several
+ * (`instrument://files?path=<path>&path=<path>`, which Instrument's website
+ * writes), and `new` the one verb, `instrument://new?text=<words>&project=<id>`,
+ * a new chat's draft that is never sent for the person.
  */
 export function outsideLinkOf(url: string): OutsideLink | undefined {
   const link = instrumentLinkOf(url);
@@ -131,11 +141,14 @@ export function outsideLinkOf(url: string): OutsideLink | undefined {
     return undefined;
   }
   const parsed = new URL(url);
-  if (
-    !SCHEMES.has(parsed.protocol) ||
-    parsed.host.toLowerCase() !== "new" ||
-    !["", "/"].includes(parsed.pathname)
-  ) {
+  const host = parsed.host.toLowerCase();
+  if (!SCHEMES.has(parsed.protocol) || !["", "/"].includes(parsed.pathname)) {
+    return undefined;
+  }
+  if (host === "files") {
+    return filesOf(parsed.searchParams);
+  }
+  if (host !== "new") {
     return undefined;
   }
   const words = (parsed.searchParams.get("text") ?? "")
@@ -149,6 +162,32 @@ export function outsideLinkOf(url: string): OutsideLink | undefined {
     kind: "new",
     ...(project !== undefined && NAME.test(project) ? { project } : {}),
     words,
+  };
+}
+
+/**
+ * The paths a `files` link names, each written whole in a `path` parameter:
+ * once each, in the order written, up to `OUTSIDE_FILES_MAX`. A web address
+ * or an empty one is not a path and counts for nothing; what is past the cap
+ * is counted for the person to be told.
+ */
+function filesOf(
+  params: URLSearchParams,
+): Extract<OutsideLink, { kind: "files" }> | undefined {
+  const paths = [
+    ...new Set(
+      params
+        .getAll("path")
+        .filter((path) => path !== "" && !WEB_ADDRESS.test(path)),
+    ),
+  ];
+  if (paths.length === 0) {
+    return undefined;
+  }
+  return {
+    kind: "files",
+    notOpened: Math.max(0, paths.length - OUTSIDE_FILES_MAX),
+    paths: paths.slice(0, OUTSIDE_FILES_MAX),
   };
 }
 

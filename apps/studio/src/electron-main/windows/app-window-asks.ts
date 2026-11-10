@@ -13,6 +13,8 @@ export type AppWindowAsk =
    * it was in opened when that folder is there.
    */
   | { folder?: string; name: string; type: "missingFile" }
+  /** How many paths past its cap a link to several files left unopened, said. */
+  | { count: number; type: "notOpened" }
   | { project?: string; type: "newChat"; words: string }
   /** New Chat pressed with no window open, for the window it opens. */
   | { type: "openNewChat" };
@@ -34,6 +36,7 @@ export function tabHrefOfAsk(ask: AppWindowAsk): string | undefined {
       return ask.href;
     }
     case "newChat":
+    case "notOpened":
     case "openNewChat": {
       return undefined;
     }

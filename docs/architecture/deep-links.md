@@ -18,6 +18,7 @@ Each build answers to its own scheme (`appProtocolOf` in [`constants.ts`](../../
 | `instrument://settings/<name>` | the settings section (`settings/models`) |
 | `instrument://screen/<name>` | one of `SCREENS` in [`instrument-screens.ts`](../../apps/studio/src/shared/instrument-screens.ts) |
 | `instrument://file/<absolute path>` | a file in its viewer, or a folder in Files |
+| `instrument://files?path=<path>&path=<path>` | each file or folder as `file/` opens one, up to 20, in tabs of their own |
 | `instrument://new?text=<words>&project=<id>` | a new chat's draft with the words in it |
 
 A noun names one thing by one path segment and only takes the person to it. `new` is the one verb, and what it makes is written in query parameters, so a later verb has the same shape. A Windows path keeps its drive letter as the first segment (`instrument://file/C:/Users/windows-user/report.pdf`).
@@ -38,6 +39,14 @@ An agent usually links a file again because it has just rewritten it, and the ta
 
 A link to a path with nothing at it opens the folder it was in, in the tab already showing that folder where there is one, and the window says the file is no longer there. Where the folder is gone too, nothing opens and the window says that as well. A path the system won't say anything about (a folder the app may not read) is not counted as missing, so the file opens and its viewer says whose refusal it is.
 
+## Several files at once
+
+Instrument's own website writes `files`, from its `/open` page: a `path` parameter for each file or folder, each value as `encodeURIComponent` writes it and read back with `URLSearchParams`, so a space, a `+`, a `&` or a `#` in a name comes through as it was. A value is the plain path, `/Users/mac-user/a.md` or `C:/Users/windows-user/a.md`, with no slash before a drive letter.
+
+Each path goes through everything a `file/` link's does and comes to the same thing: refused, a downloaded page shown in its folder, a folder in Files, a missing file said over its folder, or the file in a tab of its own, or in the tab already showing it. They come up in the order written, and a path written twice, or two ways that lead to one place, opens once. A path is read as written, with no step up taken out of it first, so one with a `..` opens nothing. A web address opens nothing either: the link takes only paths. At most `OUTSIDE_FILES_MAX` (20) open, and the window says how many more the link named, the way it says a file is missing.
+
+However many paths a link has, one window comes forward, once (`showFromOutside` in [`app-window.ts`](../../apps/studio/src/electron-main/windows/app-window.ts)): the window with a tab showing the first path, else the one in front, and every path no window shows goes to that one too. A path another window shows comes up there, behind it.
+
 ## What keeps a link harmless
 
 A link carries no word of who wrote it, and a site the person has let open Instrument can send one with no click at all. So a link only ever puts something in front of the person:
@@ -46,7 +55,7 @@ A link carries no word of who wrote it, and a site the person has let open Instr
 - **A downloaded page is shown, not opened.** A page opened in the app's browser can read its folder and everything below it ([`local-file-policy.ts`](../../apps/studio/src/electron-main/browser-view/local-file-policy.ts)), so a page a site dropped into Downloads could read the rest of the folder. What tells such a page apart is the mark the system puts on a file downloaded from the internet ([`download-mark.ts`](../../apps/studio/src/electron-main/lib/download-mark.ts)), read where the path really leads, so a link to the page carries it too: the `com.apple.quarantine` attribute on macOS, and on Windows a `Zone.Identifier` stream naming zone 3 (Internet) or higher. Linux browsers record the source in `user.xdg.origin.url`, which Node cannot read without a native module, so there a page under the Downloads folder counts as marked, and only there: a page saved anywhere else carries no mark Linux can read. The app's own browser marks what it downloads the same way ([`downloads.ts`](../../apps/studio/src/electron-main/browser-view/downloads.ts)): Chromium writes the Windows stream itself, the app writes the macOS attribute when a download finishes, and on Linux its downloads land in the Downloads folder unless the person picks another place, where they are not marked. A link to a marked page opens its folder in Files with the page selected, and the person opens it from there. Any other page opens like every other file: an image, a PDF, Markdown and text run nothing.
 - **A path with nothing at it is never a file to open.** It becomes the missing file's ask, the folder and the name and nothing the window could load, so a page a site manages to put there a moment later is still not run from the link. The mark reader counts a path that leads nowhere as marked too, for the same reason.
 - **A new chat is never sent.** Its words are a draft of its own beside any already open, so nothing the person wrote is replaced, and, like every draft, it carries only what the person adds, never what is on screen. The characters a person cannot see but the model reads (zero-width ones, the marks that turn text around, the tag block) are taken out, longer words than `OUTSIDE_WORDS_MAX` open nothing, and the project is used only when one has that id.
-- **A site cannot flood the window.** The same link again within a few seconds is one click, at most ten links a minute open, and once ten asks wait for the window another link is let go (`createLinkGate`).
+- **A site cannot flood the window.** The same link again within a few seconds is one click, at most ten links a minute open, and once ten asks wait for the window another link is let go (`createLinkGate`). A link to several files counts once against the minute however many paths it has, while each of its paths is an ask that waits.
 
 There is no link that opens a web page. One would add nothing a link to the person's own browser does not, and paired with `new` it would put a page a site chose in front of the agent, signed in as the person.
 

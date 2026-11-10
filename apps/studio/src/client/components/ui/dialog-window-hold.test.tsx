@@ -40,6 +40,7 @@ function Commands({
       missingFile: vi.fn(),
       newChat: vi.fn(),
       newChatFromLink: vi.fn(),
+      notOpened: vi.fn(),
       newTab,
       openFile: vi.fn(),
       openScreen: vi.fn(),

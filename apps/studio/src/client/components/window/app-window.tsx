@@ -1,4 +1,5 @@
 import { useSteadyCallbacks } from "@/client/hooks/use-steady-callbacks";
+import { OUTSIDE_FILES_MAX } from "@instrument-org/shared";
 import { showProjectInFiles } from "@/client/lib/show-in-files";
 import {
   draftsAtom,
@@ -1106,6 +1107,16 @@ function WindowShell({
             openScreen(href, { newTab: true });
           }
         }
+      },
+      notOpened: (count) => {
+        toast(
+          count === 1
+            ? "1 more file didn't open"
+            : `${count} more files didn't open`,
+          {
+            description: `One link opens up to ${OUTSIDE_FILES_MAX} files at a time.`,
+          },
+        );
       },
       openFile: (hostPath) => {
         const href = fileHref(hostPath);

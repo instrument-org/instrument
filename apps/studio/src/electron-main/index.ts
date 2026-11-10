@@ -40,12 +40,11 @@ import {
 } from "@/electron-main/stores/machine/state";
 import { getDefaultModelURI } from "@/electron-main/stores/workspace/preferences";
 import {
-  askAppWindow,
   openAppFile,
   openAppWindow,
   openNewAppWindow,
   restoreAppWindows,
-  showInWindowHolding,
+  showFromOutside,
   updateAppWindowBackgroundColor,
   waitingAppWindowAsks,
 } from "@/electron-main/windows/app-window";
@@ -533,17 +532,13 @@ function focusForegroundWindow() {
  * A link from outside the app: the website's "Try in Instrument", a reply's
  * address pasted somewhere else, a note linking a file. The window comes
  * forward only for one that opens something or says why it cannot
- * (`outside-links.ts`), and the one with a tab already showing what it names
- * brings that tab up.
+ * (`outside-links.ts`), once however many files it names, and the one with
+ * a tab already showing what it names brings that tab up.
  */
 function handleDeepLink(url: string) {
   void openOutsideLink(url, {
-    ask: (ask) => {
-      if (showInWindowHolding(ask)) {
-        return;
-      }
-      focusForegroundWindow();
-      askAppWindow(ask);
+    ask: (asks) => {
+      showFromOutside(asks, focusForegroundWindow);
     },
     log: (line) => {
       // Scoped here, not at the top: a launch's own link comes through

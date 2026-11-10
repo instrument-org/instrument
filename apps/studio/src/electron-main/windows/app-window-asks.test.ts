@@ -93,12 +93,14 @@ describe("tabHrefOfAsk", () => {
       { name: "pricing.html", type: "missingFile" },
       { type: "newChat", words: "Plan my week" },
       { type: "openNewChat" },
+      { count: 3, type: "notOpened" },
     ];
     expect(asked.map(tabHrefOfAsk)).toMatchInlineSnapshot(`
       [
         "/files?file=%2FUsers%2Fmac-user%2Fa.pdf&path=&root=~",
         "/chats/abc",
         "/files?path=&root=%2FUsers%2Fmac-user%2FWork",
+        undefined,
         undefined,
         undefined,
         undefined,

@@ -341,15 +341,53 @@ export function openAppScreen(href: string) {
  * up (`tabHrefOfAsk`), and hands it the ask, which brings that tab up. False
  * where no window has one.
  */
-export function showInWindowHolding(ask: AppWindowAsk) {
-  const href = tabHrefOfAsk(ask);
-  const showing = href === undefined ? null : appWindowShowing(href);
+function showInWindowHolding(ask: AppWindowAsk) {
+  const showing = windowHolding(ask);
   if (!showing) {
     return false;
   }
   bringForward(showing);
   askWindow(showing, ask);
   return true;
+}
+
+/**
+ * Puts up everything one link from outside asks for, in the order given:
+ * each in the window with a tab already showing it, and the rest in the
+ * window the first went to, which is the one with its tab, else the one in
+ * front or the one this opens. That window alone comes forward, once, by
+ * `comeForward` where no window has the first's tab.
+ */
+export function showFromOutside(
+  asked: readonly AppWindowAsk[],
+  comeForward: () => void,
+) {
+  const [first, ...rest] = asked;
+  if (first === undefined) {
+    return;
+  }
+  const front = windowHolding(first);
+  if (front) {
+    bringForward(front);
+    askWindow(front, first);
+  } else {
+    comeForward();
+    askAppWindow(first);
+  }
+  for (const ask of rest) {
+    const window = windowHolding(ask) ?? front;
+    if (window) {
+      askWindow(window, ask);
+    } else {
+      asks.ask(ask);
+    }
+  }
+}
+
+/** The window with a tab already showing what an ask puts up (`tabHrefOfAsk`). */
+function windowHolding(ask: AppWindowAsk) {
+  const href = tabHrefOfAsk(ask);
+  return href === undefined ? null : appWindowShowing(href);
 }
 
 /** A window to the front, the person having asked for something it shows. */
@@ -1216,7 +1254,7 @@ export function updateAppWindowBackgroundColor() {
  * Puts up what something outside the window asked for, in the window in front
  * or the one this opens, once it can show it.
  */
-export function askAppWindow(ask: AppWindowAsk) {
+function askAppWindow(ask: AppWindowAsk) {
   const window = getAppWindow();
   if (window) {
     if (!isHeldOffScreen(window)) {

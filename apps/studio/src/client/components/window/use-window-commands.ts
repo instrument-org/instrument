@@ -88,6 +88,8 @@ export function useWindowCommands(
     newTab: () => void;
     /** A file a link from outside named that is not there: said, over the folder it was in when that is there. */
     missingFile: (name: string, folder?: string) => void;
+    /** How many files a link from outside named past the most one link opens: said. */
+    notOpened: (count: number) => void;
     /** A file handed to the app from outside it: a double click, Open With, or a launch naming it. */
     openFile: (hostPath: string) => void;
     /** A screen by its route, from outside the app, so in no tab yet. */
@@ -480,10 +482,11 @@ function openOrCloseCommandMenu() {
   }
 }
 
-/** Puts up what something outside the window asked for: a file, a screen by its route, a missing file said, a new chat's words, or a new chat. */
+/** Puts up what something outside the window asked for: a file, a screen by its route, a missing file or files left unopened said, a new chat's words, or a new chat. */
 function answer(
   handlers: {
     missingFile: (name: string, folder?: string) => void;
+    notOpened: (count: number) => void;
     newChat: () => void;
     newChatFromLink: (words: string, projectId?: string) => void;
     openFile: (hostPath: string) => void;
@@ -494,6 +497,10 @@ function answer(
   switch (ask.type) {
     case "missingFile": {
       handlers.missingFile(ask.name, ask.folder);
+      break;
+    }
+    case "notOpened": {
+      handlers.notOpened(ask.count);
       break;
     }
     case "newChat": {

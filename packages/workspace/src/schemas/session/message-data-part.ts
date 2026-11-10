@@ -1275,7 +1275,11 @@ export namespace SessionMessageDataPart {
    * against what the user was actually looking at and nothing else.
    */
   export const ViewContextDataPartSchema = z.object({
-    /** The chips over the words as they were sent, in their order; for the transcript, not the agent. */
+    /**
+     * The chips over the words as they were sent, in their order; for the
+     * transcript, not the agent. Each is something the person added or took,
+     * so a folder among them is granted to the chat as the message is sent.
+     */
     attached: z.array(SentChipSchema).optional(),
     /**
      * Another chat the user had open, by its id and title: named and nothing

@@ -200,6 +200,9 @@ export async function newMessage({
         : part,
     );
   }
+  for (const folder of chippedFolders(viewing)) {
+    await grantAttachedFolder(chatId, folder);
+  }
 
   const backgroundProcessesPart = await createBackgroundProcessesPart({
     createdAt,
@@ -384,11 +387,31 @@ export async function newMessage({
 }
 
 /**
- * Grants the chat a folder the person attached to a message, on this
- * computer: attaching one with the folder picker, or dropping it in, says
- * where the work is and opens it to the chat. A folder in a chip over the
- * words (`viewContext.chosen`, or the one a screen in view shows) is a hint,
- * which the agent still asks for.
+ * The folders the person put on the message as chips over the words
+ * (`viewContext.attached`): one asked about or attached from Files, one a
+ * draft names by its path, one taken from what the window offered. What
+ * goes with a message without a chip of its own, such as the chat's own tab
+ * up beside it or what is selected there, is not among them, and neither is
+ * an offer the person never took, which goes with nothing.
+ */
+function chippedFolders(
+  viewing: SessionMessageDataPart.ViewContextDataPart | undefined,
+): string[] {
+  return (viewing?.attached ?? []).flatMap((chip) =>
+    chip.kind === "paths"
+      ? chip.items
+          .filter((item) => item.kind === "folder")
+          .map((item) => item.path)
+      : [],
+  );
+}
+
+/**
+ * Grants the chat a folder the person put on a message, on this computer:
+ * attaching one with the folder picker, dropping it in, or sending it as a
+ * chip they added or took says where the work is and opens it to the chat.
+ * A folder that only went with the message because a screen showed it is a
+ * hint, which the agent still asks for.
  * A path not on this disk, such as one a draft synced from another computer
  * names, grants nothing.
  */

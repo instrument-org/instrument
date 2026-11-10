@@ -118,22 +118,86 @@ describe("sending a file from the disk", () => {
     );
   });
 
-  // Attaching a folder with the folder picker, or dropping one in, says
-  // where the work is and opens it to the chat on this computer. A folder
-  // that rides along as a chip over the words is a hint: the agent still
+  // Attaching a folder with the folder picker, dropping one in, or sending
+  // one as a chip the person added or took says where the work is and opens
+  // it to the chat on this computer. A folder that went along only because a
+  // screen showed it, with no chip of its own, is a hint: the agent still
   // asks for it.
   it.each([
     [
-      "grants a folder sent with the message",
+      "grants a folder sent with the folder picker or a drop",
       (folder: string) => ({ folders: [{ path: folder }] }),
       true,
     ],
     [
-      "grants nothing for a folder in a chip over the words",
+      "grants a folder asked about from Files, as a chip of its own",
+      (folder: string) => ({
+        viewing: {
+          attached: [
+            {
+              items: [{ kind: "folder" as const, path: folder }],
+              kind: "paths" as const,
+            },
+          ],
+          chosen: [{ kind: "folder" as const, name: "Private", path: folder }],
+          screen: "home" as const,
+        },
+      }),
+      true,
+    ],
+    [
+      "grants a folder tab taken into the message, as its chip",
+      (folder: string) => ({
+        viewing: {
+          attached: [
+            {
+              items: [{ kind: "folder" as const, path: folder }],
+              kind: "paths" as const,
+            },
+          ],
+          folder: { display: folder, selected: [] },
+          screen: "computer" as const,
+        },
+      }),
+      true,
+    ],
+    [
+      "grants nothing for the folder the chat's own tab shows",
+      (folder: string) => ({
+        viewing: {
+          folder: { display: folder, selected: [] },
+          screen: "computer" as const,
+        },
+      }),
+      false,
+    ],
+    [
+      "grants nothing for a folder selected in the chat's own tab",
       (folder: string) => ({
         viewing: {
           chosen: [{ kind: "folder" as const, name: "Private", path: folder }],
-          screen: "conversation" as const,
+          folder: { display: root, selected: ["Private/"] },
+          screen: "computer" as const,
+        },
+      }),
+      false,
+    ],
+    [
+      "grants nothing for a file's chip, whose folder it is in",
+      (folder: string) => ({
+        viewing: {
+          attached: [
+            {
+              items: [
+                {
+                  kind: "file" as const,
+                  path: path.join(folder, "report.md"),
+                },
+              ],
+              kind: "paths" as const,
+            },
+          ],
+          screen: "home" as const,
         },
       }),
       false,

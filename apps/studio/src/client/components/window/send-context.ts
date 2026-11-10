@@ -338,7 +338,8 @@ export function contextReaders({
     if (!shown && !chat && chosen.length === 0 && own.length === 0) {
       return;
     }
-    // The chips the composer drew: a chat's own tab goes without one.
+    // The chips the composer drew, which are what the person put on the
+    // message and what the chat is granted: a chat's own tab goes without one.
     const attached = items
       .filter(
         (item) =>

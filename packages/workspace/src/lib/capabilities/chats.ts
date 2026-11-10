@@ -43,6 +43,8 @@ const ListedChat = z.object({
   /** The project it is filed under, by name. */
   project: z.string().optional(),
   starred: z.boolean(),
+  /** Set on the chat running the command, so a request about another chat never lands on it. */
+  this_chat: z.literal(true).optional(),
   title: z.string(),
 });
 
@@ -139,7 +141,7 @@ export const chatsList = defineCapability({
   }),
   name: "chats.list",
   output: z.array(ListedChat),
-  async run({ archived, project, unnamed }) {
+  async run({ archived, project, unnamed }, ctx) {
     const projects = await listProjects();
     const names = new Map(projects.map((each) => [each.id, each.name]));
     let under: null | string | undefined;
@@ -172,6 +174,7 @@ export const chatsList = defineCapability({
           named: chat.titled,
           ...(name ? { project: name } : {}),
           starred: chat.starred,
+          ...(chat.id === ctx.chatId ? { this_chat: true as const } : {}),
           title: chat.title,
         };
       });
@@ -193,7 +196,7 @@ day was never come back to.`,
       : `${chats.length} ${chats.length === 1 ? "chat" : "chats"}, newest first (id, began, last active, title):\n${chats
           .map(
             (chat) =>
-              `  ${chat.id}  ${chat.began}  ${chat.last_activity}  ${chat.project ? `[${chat.project}]  ` : ""}${chat.title}${chat.named ? "" : "  (unnamed)"}${chat.starred ? "  (starred)" : ""}`,
+              `  ${chat.id}  ${chat.began}  ${chat.last_activity}  ${chat.project ? `[${chat.project}]  ` : ""}${chat.title}${chat.named ? "" : "  (unnamed)"}${chat.starred ? "  (starred)" : ""}${chat.this_chat ? "  (this chat)" : ""}`,
           )
           .join("\n")}`,
   where: CHATS,

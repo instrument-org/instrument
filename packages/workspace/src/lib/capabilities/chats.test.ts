@@ -165,7 +165,7 @@ describe("instrument chats list", () => {
     expect((await one("instrument chats list")).stdout).toMatchInlineSnapshot(
       `
       "4 chats, newest first (id, began, last active, title):
-        organizer  2026-09-16  2026-09-16  Tidy up my chats
+        organizer  2026-09-16  2026-09-16  Tidy up my chats  (this chat)
         groceries  2026-09-16  2026-09-16  Groceries for the week
         porto  2026-09-16  2026-09-16  about porto  (unnamed)
         lisbon  2026-09-16  2026-09-16  [Travel]  Trip to Lisbon
@@ -202,7 +202,7 @@ describe("instrument chats list", () => {
     expect((await one("instrument chats list --project none")).stdout)
       .toMatchInlineSnapshot(`
         "1 chat, newest first (id, began, last active, title):
-          organizer  2026-09-16  2026-09-16  Tidy up my chats
+          organizer  2026-09-16  2026-09-16  Tidy up my chats  (this chat)
         "
       `);
   });

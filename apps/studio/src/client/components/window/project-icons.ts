@@ -1,6 +1,13 @@
 // The icons a project can be marked with: a curated set of a few hundred,
 // chosen for what people file work under, each imported on its own so the
 // bundle carries only these and never the whole library.
+import {
+  PROJECT_ICON_GROUPS as SHARED_GROUPS,
+  type ProjectIconEntry,
+  type ProjectIconName,
+  searchProjectIcons as searchShared,
+  suggestProjectIcons as suggestShared,
+} from "@instrument-org/shared/project-marks";
 import { type Icon } from "@phosphor-icons/react";
 import { HouseIcon } from "@phosphor-icons/react/House";
 import { SunIcon } from "@phosphor-icons/react/Sun";
@@ -255,1145 +262,279 @@ import { StackIcon } from "@phosphor-icons/react/Stack";
 import { SquaresFourIcon } from "@phosphor-icons/react/SquaresFour";
 
 /** One icon a project can wear: its Phosphor name, its drawing, and the words a search finds it by. */
-export interface ProjectIcon {
+export interface ProjectIcon extends ProjectIconEntry {
   Icon: Icon;
-  name: string;
-  words: readonly string[];
+}
+
+/** Each icon's drawing, by its name; the set's names are `@instrument-org/shared`'s. */
+const DRAWINGS = {
+  house: HouseIcon,
+  sun: SunIcon,
+  "moon-stars": MoonStarsIcon,
+  coffee: CoffeeIcon,
+  heart: HeartIcon,
+  star: StarIcon,
+  smiley: SmileyIcon,
+  leaf: LeafIcon,
+  plant: PlantIcon,
+  flower: FlowerIcon,
+  tree: TreeIcon,
+  mountains: MountainsIcon,
+  airplane: AirplaneIcon,
+  car: CarIcon,
+  bicycle: BicycleIcon,
+  barbell: BarbellIcon,
+  "person-simple-run": PersonSimpleRunIcon,
+  basketball: BasketballIcon,
+  "soccer-ball": SoccerBallIcon,
+  "music-notes": MusicNotesIcon,
+  "film-slate": FilmSlateIcon,
+  camera: CameraIcon,
+  palette: PaletteIcon,
+  "pencil-simple": PencilSimpleIcon,
+  "paint-brush": PaintBrushIcon,
+  "cooking-pot": CookingPotIcon,
+  "fork-knife": ForkKnifeIcon,
+  gift: GiftIcon,
+  calendar: CalendarIcon,
+  alarm: AlarmIcon,
+  clock: ClockIcon,
+  umbrella: UmbrellaIcon,
+  dog: DogIcon,
+  cat: CatIcon,
+  bird: BirdIcon,
+  fish: FishIcon,
+  "paw-print": PawPrintIcon,
+  baby: BabyIcon,
+  "users-three": UsersThreeIcon,
+  user: UserIcon,
+  briefcase: BriefcaseIcon,
+  flask: FlaskIcon,
+  "rocket-launch": RocketLaunchIcon,
+  lightbulb: LightbulbIcon,
+  image: ImageIcon,
+  code: CodeIcon,
+  "terminal-window": TerminalWindowIcon,
+  "envelope-simple": EnvelopeSimpleIcon,
+  "chats-circle": ChatsCircleIcon,
+  phone: PhoneIcon,
+  "presentation-chart": PresentationChartIcon,
+  "chart-line-up": ChartLineUpIcon,
+  "chart-bar": ChartBarIcon,
+  "chart-pie-slice": ChartPieSliceIcon,
+  target: TargetIcon,
+  kanban: KanbanIcon,
+  "list-checks": ListChecksIcon,
+  "check-square": CheckSquareIcon,
+  "clipboard-text": ClipboardTextIcon,
+  "note-pencil": NotePencilIcon,
+  notebook: NotebookIcon,
+  "file-text": FileTextIcon,
+  files: FilesIcon,
+  "folder-simple": FolderSimpleIcon,
+  archive: ArchiveIcon,
+  tray: TrayIcon,
+  printer: PrinterIcon,
+  handshake: HandshakeIcon,
+  megaphone: MegaphoneIcon,
+  storefront: StorefrontIcon,
+  buildings: BuildingsIcon,
+  "identification-card": IdentificationCardIcon,
+  "user-plus": UserPlusIcon,
+  users: UsersIcon,
+  gavel: GavelIcon,
+  scales: ScalesIcon,
+  "shield-check": ShieldCheckIcon,
+  lock: LockIcon,
+  key: KeyIcon,
+  wrench: WrenchIcon,
+  gear: GearIcon,
+  hammer: HammerIcon,
+  toolbox: ToolboxIcon,
+  bug: BugIcon,
+  "git-branch": GitBranchIcon,
+  database: DatabaseIcon,
+  cloud: CloudIcon,
+  cpu: CpuIcon,
+  desktop: DesktopIcon,
+  laptop: LaptopIcon,
+  "device-mobile": DeviceMobileIcon,
+  robot: RobotIcon,
+  sparkle: SparkleIcon,
+  "magic-wand": MagicWandIcon,
+  "puzzle-piece": PuzzlePieceIcon,
+  plug: PlugIcon,
+  globe: GlobeIcon,
+  link: LinkIcon,
+  browser: BrowserIcon,
+  newspaper: NewspaperIcon,
+  article: ArticleIcon,
+  "pen-nib": PenNibIcon,
+  quotes: QuotesIcon,
+  translate: TranslateIcon,
+  microphone: MicrophoneIcon,
+  headphones: HeadphonesIcon,
+  "video-camera": VideoCameraIcon,
+  "currency-dollar": CurrencyDollarIcon,
+  money: MoneyIcon,
+  wallet: WalletIcon,
+  "credit-card": CreditCardIcon,
+  bank: BankIcon,
+  "piggy-bank": PiggyBankIcon,
+  coins: CoinsIcon,
+  receipt: ReceiptIcon,
+  calculator: CalculatorIcon,
+  invoice: InvoiceIcon,
+  "shopping-cart": ShoppingCartIcon,
+  "shopping-bag": ShoppingBagIcon,
+  tag: TagIcon,
+  package: PackageIcon,
+  truck: TruckIcon,
+  "trend-up": TrendUpIcon,
+  "map-trifold": MapTrifoldIcon,
+  "map-pin": MapPinIcon,
+  compass: CompassIcon,
+  "suitcase-rolling": SuitcaseRollingIcon,
+  "airplane-tilt": AirplaneTiltIcon,
+  train: TrainIcon,
+  bus: BusIcon,
+  boat: BoatIcon,
+  sailboat: SailboatIcon,
+  tent: TentIcon,
+  campfire: CampfireIcon,
+  island: IslandIcon,
+  park: ParkIcon,
+  city: CityIcon,
+  bed: BedIcon,
+  "building-apartment": BuildingApartmentIcon,
+  "house-line": HouseLineIcon,
+  pizza: PizzaIcon,
+  hamburger: HamburgerIcon,
+  carrot: CarrotIcon,
+  "orange-slice": OrangeSliceIcon,
+  cake: CakeIcon,
+  cookie: CookieIcon,
+  bread: BreadIcon,
+  wine: WineIcon,
+  "beer-stein": BeerSteinIcon,
+  martini: MartiniIcon,
+  "bowl-food": BowlFoodIcon,
+  egg: EggIcon,
+  "first-aid-kit": FirstAidKitIcon,
+  heartbeat: HeartbeatIcon,
+  pill: PillIcon,
+  stethoscope: StethoscopeIcon,
+  tooth: ToothIcon,
+  brain: BrainIcon,
+  "hand-heart": HandHeartIcon,
+  "person-simple-tai-chi": PersonSimpleTaiChiIcon,
+  drop: DropIcon,
+  bandaids: BandaidsIcon,
+  "book-open": BookOpenIcon,
+  books: BooksIcon,
+  "book-bookmark": BookBookmarkIcon,
+  "bookmark-simple": BookmarkSimpleIcon,
+  "graduation-cap": GraduationCapIcon,
+  student: StudentIcon,
+  "chalkboard-teacher": ChalkboardTeacherIcon,
+  exam: ExamIcon,
+  certificate: CertificateIcon,
+  atom: AtomIcon,
+  dna: DnaIcon,
+  microscope: MicroscopeIcon,
+  "globe-hemisphere-west": GlobeHemisphereWestIcon,
+  "math-operations": MathOperationsIcon,
+  "pencil-ruler": PencilRulerIcon,
+  pen: PenIcon,
+  "paint-bucket": PaintBucketIcon,
+  scissors: ScissorsIcon,
+  needle: NeedleIcon,
+  guitar: GuitarIcon,
+  "piano-keys": PianoKeysIcon,
+  "microphone-stage": MicrophoneStageIcon,
+  "film-strip": FilmStripIcon,
+  aperture: ApertureIcon,
+  "frame-corners": FrameCornersIcon,
+  shapes: ShapesIcon,
+  cube: CubeIcon,
+  "sketch-logo": SketchLogoIcon,
+  "figma-logo": FigmaLogoIcon,
+  "game-controller": GameControllerIcon,
+  "dice-five": DiceFiveIcon,
+  crown: CrownIcon,
+  trophy: TrophyIcon,
+  medal: MedalIcon,
+  confetti: ConfettiIcon,
+  balloon: BalloonIcon,
+  ticket: TicketIcon,
+  "mask-happy": MaskHappyIcon,
+  couch: CouchIcon,
+  armchair: ArmchairIcon,
+  lamp: LampIcon,
+  broom: BroomIcon,
+  "washing-machine": WashingMachineIcon,
+  shower: ShowerIcon,
+  "toilet-paper": ToiletPaperIcon,
+  door: DoorIcon,
+  garage: GarageIcon,
+  lightning: LightningIcon,
+  fire: FireIcon,
+  snowflake: SnowflakeIcon,
+  "cloud-rain": CloudRainIcon,
+  thermometer: ThermometerIcon,
+  "t-shirt": TShirtIcon,
+  dress: DressIcon,
+  sneaker: SneakerIcon,
+  watch: WatchIcon,
+  eyeglasses: EyeglassesIcon,
+  "baby-carriage": BabyCarriageIcon,
+  church: ChurchIcon,
+  "hands-praying": HandsPrayingIcon,
+  flag: FlagIcon,
+  bell: BellIcon,
+  info: InfoIcon,
+  question: QuestionIcon,
+  warning: WarningIcon,
+  "check-circle": CheckCircleIcon,
+  "x-circle": XCircleIcon,
+  hash: HashIcon,
+  at: AtIcon,
+  asterisk: AsteriskIcon,
+  infinity: InfinityIcon,
+  hourglass: HourglassIcon,
+  "lightning-a": LightningAIcon,
+  anchor: AnchorIcon,
+  fingerprint: FingerprintIcon,
+  eye: EyeIcon,
+  "magnifying-glass": MagnifyingGlassIcon,
+  "sun-horizon": SunHorizonIcon,
+  rainbow: RainbowIcon,
+  peace: PeaceIcon,
+  "yin-yang": YinYangIcon,
+  circle: CircleIcon,
+  square: SquareIcon,
+  triangle: TriangleIcon,
+  diamond: DiamondIcon,
+  hexagon: HexagonIcon,
+  "cards-three": CardsThreeIcon,
+  stack: StackIcon,
+  "squares-four": SquaresFourIcon,
+} satisfies Record<ProjectIconName, Icon>;
+
+function withDrawing(icon: ProjectIconEntry): ProjectIcon {
+  return { ...icon, Icon: DRAWINGS[icon.name] };
 }
 
 /** The set in the picker's order, a heading over each group. */
 export const PROJECT_ICON_GROUPS: readonly {
   icons: readonly ProjectIcon[];
   label: string;
-}[] = [
-  {
-    icons: [
-      { Icon: HouseIcon, name: "house", words: ["home", "house", "family"] },
-      {
-        Icon: SunIcon,
-        name: "sun",
-        words: ["sun", "summer", "day", "weather"],
-      },
-      {
-        Icon: MoonStarsIcon,
-        name: "moon-stars",
-        words: ["night", "sleep", "moon", "evening"],
-      },
-      {
-        Icon: CoffeeIcon,
-        name: "coffee",
-        words: ["coffee", "cafe", "morning", "drink"],
-      },
-      {
-        Icon: HeartIcon,
-        name: "heart",
-        words: ["love", "heart", "health", "favorite", "dating"],
-      },
-      {
-        Icon: StarIcon,
-        name: "star",
-        words: ["star", "favorite", "important"],
-      },
-      {
-        Icon: SmileyIcon,
-        name: "smiley",
-        words: ["smile", "happy", "fun", "mood"],
-      },
-      {
-        Icon: LeafIcon,
-        name: "leaf",
-        words: ["leaf", "plant", "nature", "green"],
-      },
-      { Icon: PlantIcon, name: "plant", words: ["plant", "garden", "grow"] },
-      {
-        Icon: FlowerIcon,
-        name: "flower",
-        words: ["flower", "garden", "spring"],
-      },
-      {
-        Icon: TreeIcon,
-        name: "tree",
-        words: ["tree", "nature", "forest", "outdoors"],
-      },
-      {
-        Icon: MountainsIcon,
-        name: "mountains",
-        words: ["mountain", "hike", "outdoors", "climb"],
-      },
-      {
-        Icon: AirplaneIcon,
-        name: "airplane",
-        words: ["travel", "flight", "trip", "airplane", "vacation"],
-      },
-      {
-        Icon: CarIcon,
-        name: "car",
-        words: ["car", "drive", "auto", "vehicle"],
-      },
-      {
-        Icon: BicycleIcon,
-        name: "bicycle",
-        words: ["bike", "cycling", "bicycle", "ride"],
-      },
-      {
-        Icon: BarbellIcon,
-        name: "barbell",
-        words: ["gym", "fitness", "workout", "weights", "exercise"],
-      },
-      {
-        Icon: PersonSimpleRunIcon,
-        name: "person-simple-run",
-        words: ["run", "running", "exercise", "fitness"],
-      },
-      {
-        Icon: BasketballIcon,
-        name: "basketball",
-        words: ["sports", "ball", "basketball"],
-      },
-      {
-        Icon: SoccerBallIcon,
-        name: "soccer-ball",
-        words: ["soccer", "football", "sports"],
-      },
-      {
-        Icon: MusicNotesIcon,
-        name: "music-notes",
-        words: ["music", "song", "band"],
-      },
-      {
-        Icon: FilmSlateIcon,
-        name: "film-slate",
-        words: ["film", "movie", "video"],
-      },
-      {
-        Icon: CameraIcon,
-        name: "camera",
-        words: ["camera", "photo", "photography"],
-      },
-      {
-        Icon: PaletteIcon,
-        name: "palette",
-        words: ["art", "paint", "color", "design"],
-      },
-      {
-        Icon: PencilSimpleIcon,
-        name: "pencil-simple",
-        words: ["write", "pencil", "edit", "draft"],
-      },
-      {
-        Icon: PaintBrushIcon,
-        name: "paint-brush",
-        words: ["paint", "art", "brush"],
-      },
-      {
-        Icon: CookingPotIcon,
-        name: "cooking-pot",
-        words: ["cooking", "recipe", "kitchen", "food", "meal"],
-      },
-      {
-        Icon: ForkKnifeIcon,
-        name: "fork-knife",
-        words: ["food", "restaurant", "dinner", "eat", "meal"],
-      },
-      {
-        Icon: GiftIcon,
-        name: "gift",
-        words: ["gift", "present", "birthday", "holiday"],
-      },
-      {
-        Icon: CalendarIcon,
-        name: "calendar",
-        words: ["calendar", "schedule", "date", "plan", "events"],
-      },
-      {
-        Icon: AlarmIcon,
-        name: "alarm",
-        words: ["alarm", "reminder", "time", "wake"],
-      },
-      {
-        Icon: ClockIcon,
-        name: "clock",
-        words: ["time", "clock", "hours", "schedule"],
-      },
-      {
-        Icon: UmbrellaIcon,
-        name: "umbrella",
-        words: ["umbrella", "rain", "weather", "insurance"],
-      },
-      { Icon: DogIcon, name: "dog", words: ["dog", "pet", "puppy"] },
-      { Icon: CatIcon, name: "cat", words: ["cat", "pet", "kitten"] },
-      { Icon: BirdIcon, name: "bird", words: ["bird", "birding", "twitter"] },
-      { Icon: FishIcon, name: "fish", words: ["fish", "fishing", "aquarium"] },
-      {
-        Icon: PawPrintIcon,
-        name: "paw-print",
-        words: ["pet", "animal", "paw", "vet"],
-      },
-      {
-        Icon: BabyIcon,
-        name: "baby",
-        words: ["baby", "kid", "child", "parenting"],
-      },
-      {
-        Icon: UsersThreeIcon,
-        name: "users-three",
-        words: ["family", "people", "team", "group", "friends"],
-      },
-      {
-        Icon: UserIcon,
-        name: "user",
-        words: ["person", "profile", "me", "personal"],
-      },
-    ],
-    label: "Everyday",
-  },
-  {
-    icons: [
-      {
-        Icon: BriefcaseIcon,
-        name: "briefcase",
-        words: ["work", "job", "career", "business", "office"],
-      },
-      {
-        Icon: FlaskIcon,
-        name: "flask",
-        words: ["science", "lab", "research", "experiment", "chemistry"],
-      },
-      {
-        Icon: RocketLaunchIcon,
-        name: "rocket-launch",
-        words: ["launch", "startup", "ship", "rocket", "project"],
-      },
-      {
-        Icon: LightbulbIcon,
-        name: "lightbulb",
-        words: ["idea", "brainstorm", "invention", "lightbulb"],
-      },
-      {
-        Icon: ImageIcon,
-        name: "image",
-        words: ["image", "picture", "photo", "gallery", "design"],
-      },
-      {
-        Icon: CodeIcon,
-        name: "code",
-        words: ["code", "programming", "developer", "software"],
-      },
-      {
-        Icon: TerminalWindowIcon,
-        name: "terminal-window",
-        words: ["terminal", "command", "shell", "scripting"],
-      },
-      {
-        Icon: EnvelopeSimpleIcon,
-        name: "envelope-simple",
-        words: ["email", "mail", "inbox", "newsletter"],
-      },
-      {
-        Icon: ChatsCircleIcon,
-        name: "chats-circle",
-        words: ["chat", "messages", "conversation", "support"],
-      },
-      { Icon: PhoneIcon, name: "phone", words: ["phone", "call", "contact"] },
-      {
-        Icon: PresentationChartIcon,
-        name: "presentation-chart",
-        words: ["presentation", "slides", "deck", "pitch"],
-      },
-      {
-        Icon: ChartLineUpIcon,
-        name: "chart-line-up",
-        words: ["growth", "chart", "metrics", "analytics", "stocks"],
-      },
-      {
-        Icon: ChartBarIcon,
-        name: "chart-bar",
-        words: ["chart", "stats", "report", "data"],
-      },
-      {
-        Icon: ChartPieSliceIcon,
-        name: "chart-pie-slice",
-        words: ["chart", "pie", "budget", "share"],
-      },
-      {
-        Icon: TargetIcon,
-        name: "target",
-        words: ["goal", "target", "objective", "focus"],
-      },
-      { Icon: KanbanIcon, name: "kanban", words: ["kanban", "board", "tasks"] },
-      {
-        Icon: ListChecksIcon,
-        name: "list-checks",
-        words: ["checklist", "todo", "tasks", "list"],
-      },
-      {
-        Icon: CheckSquareIcon,
-        name: "check-square",
-        words: ["done", "todo", "task", "check"],
-      },
-      {
-        Icon: ClipboardTextIcon,
-        name: "clipboard-text",
-        words: ["clipboard", "notes", "report"],
-      },
-      {
-        Icon: NotePencilIcon,
-        name: "note-pencil",
-        words: ["notes", "note", "writing", "journal"],
-      },
-      {
-        Icon: NotebookIcon,
-        name: "notebook",
-        words: ["notebook", "notes", "journal", "diary"],
-      },
-      {
-        Icon: FileTextIcon,
-        name: "file-text",
-        words: ["document", "file", "text", "doc"],
-      },
-      {
-        Icon: FilesIcon,
-        name: "files",
-        words: ["files", "documents", "folder", "paperwork"],
-      },
-      {
-        Icon: FolderSimpleIcon,
-        name: "folder-simple",
-        words: ["folder", "files", "archive"],
-      },
-      {
-        Icon: ArchiveIcon,
-        name: "archive",
-        words: ["archive", "storage", "boxes"],
-      },
-      { Icon: TrayIcon, name: "tray", words: ["inbox", "tray"] },
-      {
-        Icon: PrinterIcon,
-        name: "printer",
-        words: ["print", "printer", "office"],
-      },
-      {
-        Icon: HandshakeIcon,
-        name: "handshake",
-        words: ["deal", "partnership", "client", "agreement"],
-      },
-      {
-        Icon: MegaphoneIcon,
-        name: "megaphone",
-        words: ["marketing", "announcement", "campaign", "ads", "promotion"],
-      },
-      {
-        Icon: StorefrontIcon,
-        name: "storefront",
-        words: ["store", "shop", "retail", "business"],
-      },
-      {
-        Icon: BuildingsIcon,
-        name: "buildings",
-        words: ["company", "office", "building", "real", "estate", "city"],
-      },
-      {
-        Icon: IdentificationCardIcon,
-        name: "identification-card",
-        words: ["id", "card", "identity", "hr", "hiring"],
-      },
-      {
-        Icon: UserPlusIcon,
-        name: "user-plus",
-        words: ["hiring", "recruiting", "new", "person"],
-      },
-      {
-        Icon: UsersIcon,
-        name: "users",
-        words: ["team", "people", "members", "clients"],
-      },
-      {
-        Icon: GavelIcon,
-        name: "gavel",
-        words: ["legal", "law", "court", "contract"],
-      },
-      {
-        Icon: ScalesIcon,
-        name: "scales",
-        words: ["legal", "law", "justice", "balance"],
-      },
-      {
-        Icon: ShieldCheckIcon,
-        name: "shield-check",
-        words: ["security", "safety", "privacy", "compliance"],
-      },
-      {
-        Icon: LockIcon,
-        name: "lock",
-        words: ["lock", "security", "password", "private"],
-      },
-      { Icon: KeyIcon, name: "key", words: ["key", "access", "password"] },
-      {
-        Icon: WrenchIcon,
-        name: "wrench",
-        words: ["tools", "repair", "fix", "maintenance"],
-      },
-      {
-        Icon: GearIcon,
-        name: "gear",
-        words: ["settings", "config", "gear", "system"],
-      },
-      {
-        Icon: HammerIcon,
-        name: "hammer",
-        words: ["build", "construction", "diy", "tools"],
-      },
-      {
-        Icon: ToolboxIcon,
-        name: "toolbox",
-        words: ["tools", "toolbox", "diy", "repair"],
-      },
-      {
-        Icon: BugIcon,
-        name: "bug",
-        words: ["bug", "debugging", "issue", "testing"],
-      },
-      {
-        Icon: GitBranchIcon,
-        name: "git-branch",
-        words: ["git", "branch", "code", "version"],
-      },
-      {
-        Icon: DatabaseIcon,
-        name: "database",
-        words: ["database", "data", "sql", "storage"],
-      },
-      {
-        Icon: CloudIcon,
-        name: "cloud",
-        words: ["cloud", "server", "hosting", "weather"],
-      },
-      { Icon: CpuIcon, name: "cpu", words: ["computer", "hardware", "chip"] },
-      {
-        Icon: DesktopIcon,
-        name: "desktop",
-        words: ["computer", "desktop", "monitor"],
-      },
-      { Icon: LaptopIcon, name: "laptop", words: ["laptop", "computer"] },
-      {
-        Icon: DeviceMobileIcon,
-        name: "device-mobile",
-        words: ["phone", "mobile", "app", "ios", "android"],
-      },
-      {
-        Icon: RobotIcon,
-        name: "robot",
-        words: ["robot", "ai", "automation", "bot"],
-      },
-      {
-        Icon: SparkleIcon,
-        name: "sparkle",
-        words: ["ai", "magic", "new", "sparkle"],
-      },
-      {
-        Icon: MagicWandIcon,
-        name: "magic-wand",
-        words: ["magic", "ai", "wand", "automation"],
-      },
-      {
-        Icon: PuzzlePieceIcon,
-        name: "puzzle-piece",
-        words: ["puzzle", "plugin", "integration", "extension"],
-      },
-      {
-        Icon: PlugIcon,
-        name: "plug",
-        words: ["plug", "integration", "power", "connection"],
-      },
-      {
-        Icon: GlobeIcon,
-        name: "globe",
-        words: ["web", "website", "world", "internet", "global"],
-      },
-      { Icon: LinkIcon, name: "link", words: ["link", "url", "web"] },
-      {
-        Icon: BrowserIcon,
-        name: "browser",
-        words: ["browser", "website", "web", "page"],
-      },
-      {
-        Icon: NewspaperIcon,
-        name: "newspaper",
-        words: ["news", "newspaper", "press", "article", "blog"],
-      },
-      {
-        Icon: ArticleIcon,
-        name: "article",
-        words: ["article", "blog", "post", "writing"],
-      },
-      {
-        Icon: PenNibIcon,
-        name: "pen-nib",
-        words: ["writing", "pen", "design", "copy"],
-      },
-      {
-        Icon: QuotesIcon,
-        name: "quotes",
-        words: ["quotes", "writing", "quote"],
-      },
-      {
-        Icon: TranslateIcon,
-        name: "translate",
-        words: ["language", "translate", "translation"],
-      },
-      {
-        Icon: MicrophoneIcon,
-        name: "microphone",
-        words: ["podcast", "audio", "mic", "recording", "voice"],
-      },
-      {
-        Icon: HeadphonesIcon,
-        name: "headphones",
-        words: ["music", "audio", "podcast", "listening"],
-      },
-      {
-        Icon: VideoCameraIcon,
-        name: "video-camera",
-        words: ["video", "recording", "youtube", "vlog"],
-      },
-    ],
-    label: "Work",
-  },
-  {
-    icons: [
-      {
-        Icon: CurrencyDollarIcon,
-        name: "currency-dollar",
-        words: ["money", "dollar", "finance", "pay"],
-      },
-      {
-        Icon: MoneyIcon,
-        name: "money",
-        words: ["money", "cash", "finance", "budget"],
-      },
-      {
-        Icon: WalletIcon,
-        name: "wallet",
-        words: ["wallet", "money", "spending", "budget"],
-      },
-      {
-        Icon: CreditCardIcon,
-        name: "credit-card",
-        words: ["card", "payment", "credit", "bills"],
-      },
-      { Icon: BankIcon, name: "bank", words: ["bank", "finance", "savings"] },
-      {
-        Icon: PiggyBankIcon,
-        name: "piggy-bank",
-        words: ["savings", "piggy", "bank", "money", "budget"],
-      },
-      {
-        Icon: CoinsIcon,
-        name: "coins",
-        words: ["coins", "money", "crypto", "savings"],
-      },
-      {
-        Icon: ReceiptIcon,
-        name: "receipt",
-        words: ["receipt", "expenses", "bills", "taxes"],
-      },
-      {
-        Icon: CalculatorIcon,
-        name: "calculator",
-        words: ["calculator", "math", "taxes", "accounting"],
-      },
-      {
-        Icon: InvoiceIcon,
-        name: "invoice",
-        words: ["invoice", "billing", "accounting"],
-      },
-      {
-        Icon: ShoppingCartIcon,
-        name: "shopping-cart",
-        words: ["shopping", "cart", "groceries", "store", "buy"],
-      },
-      {
-        Icon: ShoppingBagIcon,
-        name: "shopping-bag",
-        words: ["shopping", "bag", "store", "buy", "clothes"],
-      },
-      { Icon: TagIcon, name: "tag", words: ["tag", "price", "label", "sale"] },
-      {
-        Icon: PackageIcon,
-        name: "package",
-        words: ["package", "shipping", "delivery", "box", "order"],
-      },
-      {
-        Icon: TruckIcon,
-        name: "truck",
-        words: ["truck", "shipping", "delivery", "moving"],
-      },
-      {
-        Icon: TrendUpIcon,
-        name: "trend-up",
-        words: ["trend", "growth", "investing", "up", "stocks"],
-      },
-    ],
-    label: "Money",
-  },
-  {
-    icons: [
-      {
-        Icon: MapTrifoldIcon,
-        name: "map-trifold",
-        words: ["map", "travel", "trip", "directions"],
-      },
-      {
-        Icon: MapPinIcon,
-        name: "map-pin",
-        words: ["place", "location", "pin", "map", "address"],
-      },
-      {
-        Icon: CompassIcon,
-        name: "compass",
-        words: ["compass", "explore", "navigation"],
-      },
-      {
-        Icon: SuitcaseRollingIcon,
-        name: "suitcase-rolling",
-        words: ["luggage", "travel", "trip", "vacation", "packing"],
-      },
-      {
-        Icon: AirplaneTiltIcon,
-        name: "airplane-tilt",
-        words: ["flight", "airplane", "travel", "takeoff"],
-      },
-      {
-        Icon: TrainIcon,
-        name: "train",
-        words: ["train", "travel", "rail", "commute"],
-      },
-      { Icon: BusIcon, name: "bus", words: ["bus", "transit", "commute"] },
-      { Icon: BoatIcon, name: "boat", words: ["boat", "sailing", "sea"] },
-      {
-        Icon: SailboatIcon,
-        name: "sailboat",
-        words: ["sailing", "boat", "sea"],
-      },
-      { Icon: TentIcon, name: "tent", words: ["camping", "tent", "outdoors"] },
-      {
-        Icon: CampfireIcon,
-        name: "campfire",
-        words: ["camping", "fire", "outdoors"],
-      },
-      {
-        Icon: IslandIcon,
-        name: "island",
-        words: ["island", "beach", "vacation", "holiday"],
-      },
-      { Icon: ParkIcon, name: "park", words: ["park", "outdoors", "city"] },
-      { Icon: CityIcon, name: "city", words: ["city", "urban", "town"] },
-      { Icon: BedIcon, name: "bed", words: ["bed", "sleep", "hotel", "rest"] },
-      {
-        Icon: BuildingApartmentIcon,
-        name: "building-apartment",
-        words: ["apartment", "flat", "rent", "housing"],
-      },
-      {
-        Icon: HouseLineIcon,
-        name: "house-line",
-        words: ["house", "real", "estate", "property"],
-      },
-    ],
-    label: "Travel and places",
-  },
-  {
-    icons: [
-      { Icon: PizzaIcon, name: "pizza", words: ["pizza", "food"] },
-      {
-        Icon: HamburgerIcon,
-        name: "hamburger",
-        words: ["burger", "food", "fast", "food"],
-      },
-      {
-        Icon: CarrotIcon,
-        name: "carrot",
-        words: ["carrot", "vegetables", "food", "garden"],
-      },
-      {
-        Icon: OrangeSliceIcon,
-        name: "orange-slice",
-        words: ["fruit", "orange", "food"],
-      },
-      {
-        Icon: CakeIcon,
-        name: "cake",
-        words: ["cake", "birthday", "baking", "dessert"],
-      },
-      {
-        Icon: CookieIcon,
-        name: "cookie",
-        words: ["cookie", "baking", "dessert"],
-      },
-      { Icon: BreadIcon, name: "bread", words: ["bread", "baking", "food"] },
-      { Icon: WineIcon, name: "wine", words: ["wine", "drink", "alcohol"] },
-      {
-        Icon: BeerSteinIcon,
-        name: "beer-stein",
-        words: ["beer", "drink", "pub"],
-      },
-      {
-        Icon: MartiniIcon,
-        name: "martini",
-        words: ["cocktail", "drink", "bar"],
-      },
-      {
-        Icon: BowlFoodIcon,
-        name: "bowl-food",
-        words: ["bowl", "food", "meal", "soup"],
-      },
-      { Icon: EggIcon, name: "egg", words: ["egg", "breakfast", "food"] },
-    ],
-    label: "Food and drink",
-  },
-  {
-    icons: [
-      {
-        Icon: FirstAidKitIcon,
-        name: "first-aid-kit",
-        words: ["first", "aid", "health", "medical"],
-      },
-      {
-        Icon: HeartbeatIcon,
-        name: "heartbeat",
-        words: ["health", "heart", "medical", "fitness"],
-      },
-      {
-        Icon: PillIcon,
-        name: "pill",
-        words: ["pill", "medicine", "health", "pharmacy"],
-      },
-      {
-        Icon: StethoscopeIcon,
-        name: "stethoscope",
-        words: ["doctor", "medical", "health"],
-      },
-      { Icon: ToothIcon, name: "tooth", words: ["dentist", "tooth", "teeth"] },
-      {
-        Icon: BrainIcon,
-        name: "brain",
-        words: ["brain", "mind", "psychology", "thinking", "mental"],
-      },
-      {
-        Icon: HandHeartIcon,
-        name: "hand-heart",
-        words: ["care", "charity", "volunteer", "kindness"],
-      },
-      {
-        Icon: PersonSimpleTaiChiIcon,
-        name: "person-simple-tai-chi",
-        words: ["yoga", "meditation", "wellness"],
-      },
-      { Icon: DropIcon, name: "drop", words: ["water", "drop", "hydration"] },
-      {
-        Icon: BandaidsIcon,
-        name: "bandaids",
-        words: ["bandaid", "injury", "first", "aid"],
-      },
-    ],
-    label: "Health",
-  },
-  {
-    icons: [
-      {
-        Icon: BookOpenIcon,
-        name: "book-open",
-        words: ["book", "reading", "study", "library"],
-      },
-      {
-        Icon: BooksIcon,
-        name: "books",
-        words: ["books", "reading", "library", "study"],
-      },
-      {
-        Icon: BookBookmarkIcon,
-        name: "book-bookmark",
-        words: ["book", "reading", "bookmark"],
-      },
-      {
-        Icon: BookmarkSimpleIcon,
-        name: "bookmark-simple",
-        words: ["bookmark", "save", "reading"],
-      },
-      {
-        Icon: GraduationCapIcon,
-        name: "graduation-cap",
-        words: ["school", "graduation", "university", "college", "education"],
-      },
-      {
-        Icon: StudentIcon,
-        name: "student",
-        words: ["student", "school", "class", "learning"],
-      },
-      {
-        Icon: ChalkboardTeacherIcon,
-        name: "chalkboard-teacher",
-        words: ["teaching", "class", "lesson", "teacher"],
-      },
-      {
-        Icon: ExamIcon,
-        name: "exam",
-        words: ["exam", "test", "quiz", "study"],
-      },
-      {
-        Icon: CertificateIcon,
-        name: "certificate",
-        words: ["certificate", "award", "degree"],
-      },
-      { Icon: AtomIcon, name: "atom", words: ["physics", "science", "atom"] },
-      {
-        Icon: DnaIcon,
-        name: "dna",
-        words: ["biology", "dna", "genetics", "science"],
-      },
-      {
-        Icon: MicroscopeIcon,
-        name: "microscope",
-        words: ["science", "lab", "research", "biology"],
-      },
-      {
-        Icon: GlobeHemisphereWestIcon,
-        name: "globe-hemisphere-west",
-        words: ["geography", "world", "earth"],
-      },
-      {
-        Icon: MathOperationsIcon,
-        name: "math-operations",
-        words: ["math", "numbers", "calculation"],
-      },
-    ],
-    label: "Learning",
-  },
-  {
-    icons: [
-      {
-        Icon: PencilRulerIcon,
-        name: "pencil-ruler",
-        words: ["design", "drafting", "architecture"],
-      },
-      { Icon: PenIcon, name: "pen", words: ["pen", "writing", "sign"] },
-      {
-        Icon: PaintBucketIcon,
-        name: "paint-bucket",
-        words: ["paint", "fill", "color"],
-      },
-      {
-        Icon: ScissorsIcon,
-        name: "scissors",
-        words: ["scissors", "craft", "cut"],
-      },
-      {
-        Icon: NeedleIcon,
-        name: "needle",
-        words: ["sewing", "craft", "knitting"],
-      },
-      { Icon: GuitarIcon, name: "guitar", words: ["guitar", "music", "band"] },
-      {
-        Icon: PianoKeysIcon,
-        name: "piano-keys",
-        words: ["piano", "music", "keys"],
-      },
-      {
-        Icon: MicrophoneStageIcon,
-        name: "microphone-stage",
-        words: ["singing", "stage", "performance", "concert"],
-      },
-      {
-        Icon: FilmStripIcon,
-        name: "film-strip",
-        words: ["film", "movie", "photo"],
-      },
-      {
-        Icon: ApertureIcon,
-        name: "aperture",
-        words: ["photography", "camera", "lens"],
-      },
-      {
-        Icon: FrameCornersIcon,
-        name: "frame-corners",
-        words: ["frame", "design", "crop"],
-      },
-      {
-        Icon: ShapesIcon,
-        name: "shapes",
-        words: ["shapes", "design", "geometry"],
-      },
-      {
-        Icon: CubeIcon,
-        name: "cube",
-        words: ["3d", "cube", "model", "product"],
-      },
-      {
-        Icon: SketchLogoIcon,
-        name: "sketch-logo",
-        words: ["sketch", "design", "ui"],
-      },
-      {
-        Icon: FigmaLogoIcon,
-        name: "figma-logo",
-        words: ["figma", "design", "ui"],
-      },
-      {
-        Icon: GameControllerIcon,
-        name: "game-controller",
-        words: ["games", "gaming", "video", "games"],
-      },
-      {
-        Icon: DiceFiveIcon,
-        name: "dice-five",
-        words: ["dice", "games", "board", "games"],
-      },
-      {
-        Icon: CrownIcon,
-        name: "crown",
-        words: ["crown", "king", "royal", "premium"],
-      },
-      {
-        Icon: TrophyIcon,
-        name: "trophy",
-        words: ["trophy", "award", "winner", "competition"],
-      },
-      {
-        Icon: MedalIcon,
-        name: "medal",
-        words: ["medal", "award", "achievement"],
-      },
-      {
-        Icon: ConfettiIcon,
-        name: "confetti",
-        words: ["party", "celebration", "event"],
-      },
-      {
-        Icon: BalloonIcon,
-        name: "balloon",
-        words: ["balloon", "party", "birthday"],
-      },
-      {
-        Icon: TicketIcon,
-        name: "ticket",
-        words: ["ticket", "event", "concert", "show"],
-      },
-      {
-        Icon: MaskHappyIcon,
-        name: "mask-happy",
-        words: ["theater", "drama", "acting"],
-      },
-    ],
-    label: "Creative",
-  },
-  {
-    icons: [
-      {
-        Icon: CouchIcon,
-        name: "couch",
-        words: ["couch", "living", "room", "furniture"],
-      },
-      {
-        Icon: ArmchairIcon,
-        name: "armchair",
-        words: ["chair", "furniture", "interior"],
-      },
-      { Icon: LampIcon, name: "lamp", words: ["lamp", "light", "interior"] },
-      {
-        Icon: BroomIcon,
-        name: "broom",
-        words: ["cleaning", "chores", "broom"],
-      },
-      {
-        Icon: WashingMachineIcon,
-        name: "washing-machine",
-        words: ["laundry", "chores"],
-      },
-      { Icon: ShowerIcon, name: "shower", words: ["bathroom", "shower"] },
-      {
-        Icon: ToiletPaperIcon,
-        name: "toilet-paper",
-        words: ["bathroom", "supplies"],
-      },
-      { Icon: DoorIcon, name: "door", words: ["door", "house", "entrance"] },
-      { Icon: GarageIcon, name: "garage", words: ["garage", "car", "storage"] },
-      {
-        Icon: LightningIcon,
-        name: "lightning",
-        words: ["electric", "power", "energy", "lightning", "fast"],
-      },
-      {
-        Icon: FireIcon,
-        name: "fire",
-        words: ["fire", "hot", "trending", "fireplace"],
-      },
-      {
-        Icon: SnowflakeIcon,
-        name: "snowflake",
-        words: ["winter", "snow", "cold", "ski"],
-      },
-      { Icon: CloudRainIcon, name: "cloud-rain", words: ["rain", "weather"] },
-      {
-        Icon: ThermometerIcon,
-        name: "thermometer",
-        words: ["temperature", "weather", "heat"],
-      },
-      {
-        Icon: TShirtIcon,
-        name: "t-shirt",
-        words: ["clothes", "fashion", "shirt"],
-      },
-      {
-        Icon: DressIcon,
-        name: "dress",
-        words: ["dress", "fashion", "clothes"],
-      },
-      {
-        Icon: SneakerIcon,
-        name: "sneaker",
-        words: ["shoes", "sneaker", "running", "fashion"],
-      },
-      { Icon: WatchIcon, name: "watch", words: ["watch", "time"] },
-      {
-        Icon: EyeglassesIcon,
-        name: "eyeglasses",
-        words: ["glasses", "reading", "vision"],
-      },
-      {
-        Icon: BabyCarriageIcon,
-        name: "baby-carriage",
-        words: ["baby", "stroller", "parenting"],
-      },
-      {
-        Icon: ChurchIcon,
-        name: "church",
-        words: ["church", "religion", "faith"],
-      },
-      {
-        Icon: HandsPrayingIcon,
-        name: "hands-praying",
-        words: ["prayer", "faith", "gratitude"],
-      },
-    ],
-    label: "Home and life",
-  },
-  {
-    icons: [
-      {
-        Icon: FlagIcon,
-        name: "flag",
-        words: ["flag", "goal", "milestone", "country"],
-      },
-      {
-        Icon: BellIcon,
-        name: "bell",
-        words: ["bell", "notification", "alerts", "reminder"],
-      },
-      { Icon: InfoIcon, name: "info", words: ["info", "information", "help"] },
-      {
-        Icon: QuestionIcon,
-        name: "question",
-        words: ["question", "help", "faq"],
-      },
-      {
-        Icon: WarningIcon,
-        name: "warning",
-        words: ["warning", "alert", "caution", "risk"],
-      },
-      {
-        Icon: CheckCircleIcon,
-        name: "check-circle",
-        words: ["done", "complete", "check", "approved"],
-      },
-      {
-        Icon: XCircleIcon,
-        name: "x-circle",
-        words: ["cancel", "no", "reject"],
-      },
-      {
-        Icon: HashIcon,
-        name: "hash",
-        words: ["hashtag", "number", "channel", "tag"],
-      },
-      { Icon: AtIcon, name: "at", words: ["at", "email", "mention"] },
-      { Icon: AsteriskIcon, name: "asterisk", words: ["asterisk", "note"] },
-      {
-        Icon: InfinityIcon,
-        name: "infinity",
-        words: ["infinity", "forever", "loop"],
-      },
-      {
-        Icon: HourglassIcon,
-        name: "hourglass",
-        words: ["hourglass", "time", "waiting", "deadline"],
-      },
-      {
-        Icon: LightningAIcon,
-        name: "lightning-a",
-        words: ["automation", "flash"],
-      },
-      {
-        Icon: AnchorIcon,
-        name: "anchor",
-        words: ["anchor", "sea", "navy", "stable"],
-      },
-      {
-        Icon: FingerprintIcon,
-        name: "fingerprint",
-        words: ["fingerprint", "identity", "security"],
-      },
-      {
-        Icon: EyeIcon,
-        name: "eye",
-        words: ["eye", "watch", "view", "visibility"],
-      },
-      {
-        Icon: MagnifyingGlassIcon,
-        name: "magnifying-glass",
-        words: ["search", "find", "research"],
-      },
-      {
-        Icon: SunHorizonIcon,
-        name: "sun-horizon",
-        words: ["sunrise", "sunset", "morning"],
-      },
-      {
-        Icon: RainbowIcon,
-        name: "rainbow",
-        words: ["rainbow", "pride", "color"],
-      },
-      { Icon: PeaceIcon, name: "peace", words: ["peace", "calm"] },
-      {
-        Icon: YinYangIcon,
-        name: "yin-yang",
-        words: ["balance", "yin", "yang"],
-      },
-      { Icon: CircleIcon, name: "circle", words: ["circle", "dot", "shape"] },
-      { Icon: SquareIcon, name: "square", words: ["square", "shape"] },
-      { Icon: TriangleIcon, name: "triangle", words: ["triangle", "shape"] },
-      {
-        Icon: DiamondIcon,
-        name: "diamond",
-        words: ["diamond", "gem", "shape"],
-      },
-      { Icon: HexagonIcon, name: "hexagon", words: ["hexagon", "shape"] },
-      {
-        Icon: CardsThreeIcon,
-        name: "cards-three",
-        words: ["cards", "projects", "stack"],
-      },
-      { Icon: StackIcon, name: "stack", words: ["stack", "layers", "pile"] },
-      {
-        Icon: SquaresFourIcon,
-        name: "squares-four",
-        words: ["grid", "apps", "dashboard"],
-      },
-    ],
-    label: "Symbols",
-  },
-];
+}[] = SHARED_GROUPS.map(({ icons, label }) => ({
+  icons: icons.map(withDrawing),
+  label,
+}));
 
-const BY_NAME = new Map(
+const BY_NAME: ReadonlyMap<string, ProjectIcon> = new Map(
   PROJECT_ICON_GROUPS.flatMap(({ icons }) =>
     icons.map((icon) => [icon.name, icon] as const),
   ),
@@ -1404,62 +545,12 @@ export function projectIcon(name: string | undefined): ProjectIcon | undefined {
   return name === undefined ? undefined : BY_NAME.get(name);
 }
 
-/** Every icon once, in the picker's order. */
-const EVERY_ICON = [...BY_NAME.values()];
-
-/** A word with a plural's `s` taken off, so "books" finds "book". */
-function stem(word: string) {
-  return word.length > 3 && word.endsWith("s") ? word.slice(0, -1) : word;
-}
-
-/** How well one icon fits the words: 3 for a word it is found by, 1 for a start of one, 0 for none. */
-function fit(icon: ProjectIcon, words: readonly string[]) {
-  let score = 0;
-  for (const word of words) {
-    const wanted = stem(word);
-    const best = Math.max(
-      0,
-      ...[...icon.words, ...icon.name.split("-")].map((own) => {
-        const mine = stem(own);
-        if (mine === wanted) {
-          return 3;
-        }
-        return wanted.length >= 3 && mine.startsWith(wanted) ? 1 : 0;
-      }),
-    );
-    score += best;
-  }
-  return score;
-}
-
-function wordsOf(text: string) {
-  return text
-    .toLowerCase()
-    .split(/[^\p{L}\p{N}]+/u)
-    .filter((word) => word.length >= 2);
-}
-
 /**
  * The icons a search finds, best fit first: every word typed has to match
  * the start of one of an icon's words, so the list narrows as it is typed.
  */
 export function searchProjectIcons(query: string): ProjectIcon[] {
-  const words = wordsOf(query);
-  if (words.length === 0) {
-    return [];
-  }
-  return EVERY_ICON.map((icon) => ({
-    icon,
-    matched: words.every((word) =>
-      [...icon.words, ...icon.name.split("-")].some((own) =>
-        own.startsWith(word),
-      ),
-    ),
-    score: fit(icon, words),
-  }))
-    .filter(({ matched }) => matched)
-    .toSorted((a, b) => b.score - a.score)
-    .map(({ icon }) => icon);
+  return searchShared(query).map(withDrawing);
 }
 
 /**
@@ -1467,13 +558,5 @@ export function searchProjectIcons(query: string): ProjectIcon[] {
  * words before starts of words, the set's own order breaking ties.
  */
 export function suggestProjectIcons(name: string, limit = 8): ProjectIcon[] {
-  const words = wordsOf(name);
-  if (words.length === 0) {
-    return [];
-  }
-  return EVERY_ICON.map((icon) => ({ icon, score: fit(icon, words) }))
-    .filter(({ score }) => score > 0)
-    .toSorted((a, b) => b.score - a.score)
-    .slice(0, limit)
-    .map(({ icon }) => icon);
+  return suggestShared(name, limit).map(withDrawing);
 }

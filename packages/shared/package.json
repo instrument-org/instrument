@@ -24,6 +24,7 @@
     "./icons": "./src/icons.ts",
     "./merge-generators": "./src/merge-generators.ts",
     "./page-text": "./src/page-text.ts",
+    "./project-marks": "./src/project-marks.ts",
     "./secrets": "./src/secrets.ts",
     "./skill-mention": "./src/skill-mention.ts",
     "./strip-markdown": "./src/strip-markdown.ts"

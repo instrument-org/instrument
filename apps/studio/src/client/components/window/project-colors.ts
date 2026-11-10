@@ -4,36 +4,12 @@
  * what matters is that two of them are never mistaken for each other.
  */
 
-/**
- * The palette, as eight hues in two tiers, each hue rebuilt at one lightness
- * and chroma in OKLCH so no two are louder or quieter than each other. Only a
- * color's hue and its tier survive the tint, so the pairs are what a person
- * actually picks between: the same hue, once pale and once deep. Laid out as
- * two rows of eight, a hue to a column.
- */
-export const PROJECT_COLORS = [
-  // Pale.
-  "#f2a7a6",
-  "#ebaf86",
-  "#d4bc79",
-  "#99ce9a",
-  "#78d1c0",
-  "#82c7f0",
-  "#bcb4f4",
-  "#e8a7cb",
-  // Deep.
-  "#c0434c",
-  "#b85300",
-  "#996d00",
-  "#218b30",
-  "#009178",
-  "#007fc3",
-  "#765fca",
-  "#b2468a",
-];
+import {
+  PROJECT_COLORS,
+  PROJECT_HUES,
+} from "@instrument-org/shared/project-marks";
 
-/** How many hues the palette holds, which is the width of a row of swatches. */
-const PROJECT_HUES = 8;
+export { PROJECT_COLORS };
 
 /** What stands in when a project was never given a color and has no name to take one from. */
 const FALLBACK_COLOR = "#007fc3";

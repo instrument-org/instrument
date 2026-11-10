@@ -9,9 +9,12 @@ import {
 import { Skeleton } from "@/client/components/ui/skeleton";
 import { Switch } from "@/client/components/ui/switch";
 import {
-  DictatedTextarea,
+  DictationControls,
+  DictationReadout,
+  useCanDictate,
   useDictatedText,
 } from "@/client/components/dictation-controls";
+import { Textarea } from "@/client/components/ui/textarea";
 import { isDictating } from "@/client/hooks/use-dictation";
 import { useModalBack } from "@/client/hooks/use-modal-back";
 import { EntryIcon } from "@/client/components/activity/activity-icons";
@@ -316,6 +319,7 @@ export function FeedbackDialogContent({
     surface: "report",
     value: note,
   });
+  const canDictate = useCanDictate();
   const [viewing, setViewing] = useState<string | null>(null);
   // Offered, never assumed: it is about more than what is being reported.
   const [sendActions, setSendActions] = useState(false);
@@ -542,7 +546,7 @@ export function FeedbackDialogContent({
           </div>
 
           <DialogBody className="mx-0 flex flex-col gap-5">
-            <div className="flex flex-col gap-2">
+            <div className="flex shrink-0 flex-col gap-2">
               <p className="text-[13px] font-medium text-muted-foreground">
                 What's it about?
               </p>
@@ -599,12 +603,25 @@ export function FeedbackDialogContent({
                 }
               }}
               problems={imageProblems}
+              status={
+                isDictating(noteDictation.phase) ? (
+                  <DictationReadout dictation={noteDictation} />
+                ) : undefined
+              }
+              trailing={
+                canDictate || isDictating(noteDictation.phase) ? (
+                  <DictationControls
+                    className="ml-auto"
+                    dictation={noteDictation}
+                    size="sm"
+                  />
+                ) : undefined
+              }
             >
-              <DictatedTextarea
+              <Textarea
                 aria-label="Your note"
                 autoFocus
                 className="min-h-24 bg-none shadow-none focus-visible:outline-0 focus-visible:[outline-style:none] dark:border-0 dark:bg-transparent"
-                dictation={noteDictation}
                 maxLength={NOTE_MAX_LENGTH}
                 onChange={(event) => {
                   setNote(event.target.value);
@@ -642,7 +659,7 @@ export function FeedbackDialogContent({
               />
             )}
 
-            <div className="flex flex-col gap-2">
+            <div className="flex shrink-0 flex-col gap-2">
               <p className="text-[13px] font-medium text-muted-foreground">
                 Sent with your note
               </p>

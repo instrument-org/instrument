@@ -29,6 +29,13 @@ import { XIcon } from "@phosphor-icons/react/X";
 
 import { type ReactNode, useState } from "react";
 
+/** The least the note's field shrinks to: its `min-h-24`. */
+const NOTE_FLOOR = "6rem";
+/** The row with the plus: `size-7` and `pb-1.5`. */
+const ROW_HEIGHT = "2.125rem";
+/** One line of pictures: `h-16` and `py-1`. */
+const IMAGES_HEIGHT = "4.5rem";
+
 /** An image in the note, and the capture it came from when it is one. */
 export type NoteImage = {
   capture?: Capture;
@@ -39,8 +46,10 @@ export type NoteImage = {
 
 /**
  * The note's field with what goes with it inside: the words, then the
- * pictures, then the plus that adds more. In developer mode a capture wears
- * the build that took it, amber when that isn't the build sending.
+ * pictures, then a row with the plus that adds more and `trailing` at its
+ * right. In developer mode a capture wears the build that took it, amber when
+ * that isn't the build sending. The field takes the room left to it and
+ * scrolls inside, while the pictures and the row below it stay in view.
  */
 export function NoteWithAttachments({
   build,
@@ -51,6 +60,8 @@ export function NoteWithAttachments({
   onAddImages,
   onRemove,
   problems,
+  status,
+  trailing,
 }: {
   /** The build running, when developer mode shows captures' builds. */
   build?: CaptureBuild;
@@ -63,6 +74,10 @@ export function NoteWithAttachments({
   onAddImages: () => void;
   onRemove: (id: string) => void;
   problems: readonly string[];
+  /** Shown in the row in place of the line about adding images. */
+  status?: ReactNode;
+  /** At the right of the row below the field. */
+  trailing?: ReactNode;
 }) {
   const others = build
     ? images.filter(
@@ -92,17 +107,26 @@ export function NoteWithAttachments({
   );
 
   return (
-    <div className="flex flex-col gap-2">
+    // The field grows with its words and gives them back when the dialog runs
+    // out of room, while the rows below it keep their height. The floor is
+    // spelled out because a column's item can shrink no further than its
+    // laid-out height, which here is all of the words.
+    <div
+      className="flex flex-col gap-2"
+      style={{
+        minHeight: `calc(${NOTE_FLOOR} + ${ROW_HEIGHT}${images.length > 0 ? ` + ${IMAGES_HEIGHT}` : ""})`,
+      }}
+    >
       <div
         className={cn(
-          "flex flex-col rounded-xl bg-linear-to-b from-white to-[#fafaf9] shadow-sm",
+          "flex min-h-0 flex-col rounded-xl bg-linear-to-b from-white to-[#fafaf9] shadow-sm",
           "dark:border dark:border-input dark:bg-input/30 dark:bg-none dark:from-transparent dark:to-transparent",
           "focus-within:outline-[3px] focus-within:outline-offset-0 focus-within:outline-ring/50 focus-within:[outline-style:solid]",
         )}
       >
         {children}
         {images.length > 0 && (
-          <div className="flex flex-wrap gap-3 px-3 pt-1 pb-1">
+          <div className="flex shrink-0 flex-wrap gap-3 px-3 pt-1 pb-1">
             {images.map((image) => {
               const meta = image.capture?.meta;
               const other = build && meta && !isSameBuild(meta.build, build);
@@ -139,7 +163,7 @@ export function NoteWithAttachments({
             })}
           </div>
         )}
-        <div className="flex items-center gap-1 px-1.5 pb-1.5">
+        <div className="flex shrink-0 items-center gap-1 px-1.5 pb-1.5">
           {onAddCaptures ? (
             <DropdownMenu>
               <DropdownMenuTrigger asChild>{plus}</DropdownMenuTrigger>
@@ -158,11 +182,13 @@ export function NoteWithAttachments({
           ) : (
             plus
           )}
-          {images.length === 0 && (
-            <span className="text-xs text-muted-foreground">
-              Add images, or paste or drop them here
-            </span>
-          )}
+          {status ??
+            (images.length === 0 && (
+              <span className="truncate text-xs text-muted-foreground">
+                Add images, or paste or drop them here
+              </span>
+            ))}
+          {trailing}
         </div>
       </div>
       {otherBuilds.length > 0 && (

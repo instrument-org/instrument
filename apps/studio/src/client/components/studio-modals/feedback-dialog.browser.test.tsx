@@ -1,8 +1,11 @@
+import { zoomAtom } from "@/client/atoms/zoom";
 import { Dialog } from "@/client/components/ui/dialog";
+import { ZoomRoot } from "@/client/components/zoom-root";
 import { renderInBrowser } from "@/tests/render-browser";
 import { type FeedbackItem, MAX_REPORT_BYTES } from "@/shared/problem-reports";
-import { describe, expect, it, vi } from "vitest";
-import { userEvent } from "vitest/browser";
+import { createStore } from "jotai";
+import { afterEach, describe, expect, it, vi } from "vitest";
+import { page, userEvent } from "vitest/browser";
 
 import { FeedbackDialogContent } from "./feedback-dialog";
 
@@ -59,29 +62,34 @@ vi.mock("@/client/rpc/client", () => ({
   },
 }));
 
-vi.mock("@/client/components/dictation-controls", async () => {
-  const { Textarea } = await import("@/client/components/ui/textarea");
-  return {
-    DictatedTextarea: ({
-      dictation: _,
-      ...props
-    }: React.ComponentProps<typeof Textarea> & { dictation: unknown }) => (
-      <Textarea {...props} />
-    ),
-    useDictatedText: () => ({ phase: { kind: "idle" } }),
-  };
+vi.mock("@/client/components/dictation-controls", () => ({
+  DictationControls: ({ className }: { className?: string }) => (
+    <button aria-label="Dictate" className={className} type="button" />
+  ),
+  DictationReadout: () => null,
+  useCanDictate: () => true,
+  useDictatedText: () => ({ phase: { kind: "idle" } }),
+}));
+
+afterEach(async () => {
+  await page.viewport(1280, 900);
 });
 
-async function open({ stuck = false } = {}) {
+async function open({ stuck = false, zoom = 1 } = {}) {
   rpc.stuck = stuck;
+  const store = createStore();
+  store.set(zoomAtom, zoom);
   const screen = await renderInBrowser(
-    <Dialog open>
-      <FeedbackDialogContent
-        onClose={() => {}}
-        onExitComplete={() => {}}
-        request={{ chatId: undefined, kind: "feedback", surface: "test" }}
-      />
-    </Dialog>,
+    <ZoomRoot>
+      <Dialog open>
+        <FeedbackDialogContent
+          onClose={() => {}}
+          onExitComplete={() => {}}
+          request={{ chatId: undefined, kind: "feedback", surface: "test" }}
+        />
+      </Dialog>
+    </ZoomRoot>,
+    { store },
   );
   if (!stuck) {
     await expect
@@ -111,6 +119,54 @@ describe("FeedbackDialogContent in a browser", () => {
       onScreen: send.bottom <= globalThis.innerHeight,
     }).toEqual({ inDialog: true, onScreen: true });
   });
+
+  // A first-run session on a short window had the whole form scrolling, the
+  // tags and what goes with the note sliding away with a long note.
+  it.each([1, 1.5])(
+    "on a short window at %sx, scrolls only the note as it grows",
+    async (zoom) => {
+      await page.viewport(1280, 640 * zoom);
+      const screen = await open({ zoom });
+      const note = screen.getByRole("textbox", { name: "Your note" });
+      await userEvent.fill(note, "A line of what happened.\n".repeat(120));
+
+      const box = (selector: string) =>
+        document.querySelector(selector)?.getBoundingClientRect();
+      const body = document.querySelector("[data-slot='dialog-body']");
+      const dialog = box("[data-slot='dialog-content']");
+      const send = screen
+        .getByRole("button", { name: "Send" })
+        .element()
+        .getBoundingClientRect();
+      const dictate = screen
+        .getByRole("button", { name: "Dictate" })
+        .element()
+        .getBoundingClientRect();
+      const hint = screen
+        .getByText("Add images, or paste or drop them here")
+        .element()
+        .getBoundingClientRect();
+      const field = note.element();
+      expect({
+        bodyScrolls: body !== null && body.scrollHeight > body.clientHeight + 1,
+        dictateBesideHint:
+          dictate.top >= field.getBoundingClientRect().bottom &&
+          Math.abs(
+            (dictate.top + dictate.bottom) / 2 - (hint.top + hint.bottom) / 2,
+          ) < 4,
+        noteScrolls: field.scrollHeight > field.clientHeight,
+        sendOnScreen:
+          dialog !== undefined &&
+          send.bottom <= dialog.bottom &&
+          dialog.bottom <= globalThis.innerHeight,
+      }).toEqual({
+        bodyScrolls: false,
+        dictateBesideHint: true,
+        noteScrolls: true,
+        sendOnScreen: true,
+      });
+    },
+  );
 
   it("sends without a chat too big to go, and says so", async () => {
     const screen = await open();

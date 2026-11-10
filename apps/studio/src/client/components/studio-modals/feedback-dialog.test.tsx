@@ -102,9 +102,9 @@ vi.mock("@/client/rpc/client", () => ({
 }));
 
 vi.mock("@/client/components/dictation-controls", () => ({
-  DictatedTextarea: ({ dictation: _, ...props }: { dictation: unknown }) => (
-    <textarea {...props} />
-  ),
+  DictationControls: () => null,
+  DictationReadout: () => null,
+  useCanDictate: () => true,
   useDictatedText: () => ({ phase: { kind: "idle" } }),
 }));
 

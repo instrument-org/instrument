@@ -209,7 +209,7 @@ node $DRIVE wait --idle --chat <chat-id> --task <session-id>   # one task in it
 
 Two things about that status are worth knowing before trusting a wait built on it by hand:
 
-- A chat is busy while `chats.byId` reports its `state` as `working`: its own agent is alive, a task it started is moving, or a message it was just sent waits for its agent. A task is busy while its `chats.tasks` row is `stoppable`, meaning its session carries the `agent.alive` tag, which every non-final state of the session machine does. A turn that is over reports not working rather than `agent.done`, because the workspace machine drops the ref when the session finishes.
+- A chat is busy while `chats.byId` reports `working: true`: its own turn is under way, a task it started is moving, or a wake is on its way to start a turn. Read `working`, not `status`, which says `waiting` over work while a card waits on the person. A task is busy while its `chats.tasks` row is `stoppable`, meaning its session carries the `agent.alive` tag, which every non-final state of the session machine does. A turn that is over reports not working rather than `agent.done`, because the workspace machine drops the ref when the session finishes.
 - Which makes "not working" also what a chat or task reports _before_ its turn starts. `wait --idle` covers that by requiring idle to hold for `--settle` (2s) until it has seen it busy, and reports `sawBusy` so you can tell which happened. `sawBusy: false` on a wait that was meant to follow a prompt means the prompt never started an agent.
 
 ## Page model

@@ -98,7 +98,7 @@ async function waitForTurn(app, chat, timeoutMs) {
   while (Date.now() < deadline) {
     await sleep(1000);
     const info = await app.rpc("workspace.chats.byId", { id: chat });
-    if (info?.state === "working") {
+    if (info?.working) {
       sawWorking = true;
     } else if (sawWorking) {
       await sleep(1500);

@@ -41,7 +41,7 @@ Never `sleep` for this, and never regex the page text for a spinner. Both are gu
 node $DRIVE wait --idle --chat <chat-id>
 ```
 
-It blocks on the same state the app's own indicators read (the chat's `state` from `chats.byId`, or with `--task <session-id>` that task's row in `chats.tasks`) and returns when nothing there is at work. The main SKILL.md covers what "no live agent" means and the `sawBusy` field.
+It blocks on the same state the app's own indicators read (the chat's `working` from `chats.byId`, or with `--task <session-id>` that task's row in `chats.tasks`) and returns when nothing there is at work. The main SKILL.md covers what "no live agent" means and the `sawBusy` field.
 
 ## Inspecting a `<webview>` guest's real internal state
 

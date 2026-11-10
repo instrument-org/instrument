@@ -124,7 +124,9 @@ async function waitForTurn(app, chat, timeoutMs) {
         })),
       };
     }
-    if (info?.state === "working") {
+    // `working` is whether anything of the chat's still moves; `status` can
+    // say waiting while it does.
+    if (info?.working) {
       sawBusy = true;
       idleSince = 0;
     } else {

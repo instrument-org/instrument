@@ -1362,8 +1362,8 @@ export async function waitIdle(
       fail(`No chat ${chatId}.`);
     }
     return {
-      busy: chat.state === "working",
-      status: { runningTasks: chat.runningTasks, state: chat.state },
+      busy: chat.working === true,
+      status: { status: chat.status, working: chat.working },
     };
   };
 

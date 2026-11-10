@@ -93,4 +93,20 @@ describe("FoldedActivityView", () => {
       screen.getAllByRole("button").map((button) => button.textContent),
     ).toEqual(["Multiplying each plan by ten seats"]);
   });
+
+  it("draws a named activity of one call as that call's row under its name", () => {
+    renderWithProviders(
+      <FoldedActivityView
+        chatId={chatId}
+        row={activity(
+          [call("Opening the plan sheet")],
+          "Reading your plan sheet",
+        )}
+      />,
+    );
+    expect(screen.queryByText("· 3 pages")).toBeNull();
+    expect(
+      screen.getAllByRole("button").map((button) => button.textContent),
+    ).toEqual(["Reading your plan sheet"]);
+  });
 });

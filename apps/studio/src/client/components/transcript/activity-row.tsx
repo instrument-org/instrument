@@ -269,7 +269,8 @@ export function ActivityRowView({
  * An activity in an opened Worked row: its name as a quiet heading over its
  * calls, listed flat at the heading's own edge, so the fold steps right only
  * once however its work was grouped. A run the agent didn't name has no
- * heading, since it would only repeat its call.
+ * heading, since it would only repeat its call, and a named activity of one
+ * call is that call's row under the activity's name, opening onto its card.
  */
 export function FoldedActivityView({
   chatId,
@@ -279,10 +280,14 @@ export function FoldedActivityView({
   row: ActivityRow;
 }) {
   const counts = countsText(row);
+  const [onlyStep] = row.steps;
+  if (row.title && onlyStep && row.steps.length === 1) {
+    return <StepRow chatId={chatId} label={row.title} step={onlyStep} />;
+  }
   return (
     <div className="flex min-w-0 flex-col gap-0.5">
       {row.title && (
-        <p className="flex h-7 min-w-0 items-center gap-1.5 text-xs font-medium text-muted-foreground">
+        <p className="flex h-7 min-w-0 items-center gap-1.5 text-xs text-muted-foreground">
           <span className="min-w-0 truncate">{row.title}</span>
           {counts && <span className="shrink-0">· {counts}</span>}
         </p>
@@ -307,13 +312,21 @@ function stepLabel(step: TurnStep): string {
     : getToolLabel(tool);
 }
 
-function StepRow({ chatId, step }: { chatId: ChatId; step: TurnStep }) {
+function StepRow({
+  chatId,
+  label,
+  step,
+}: {
+  chatId: ChatId;
+  label?: string;
+  step: TurnStep;
+}) {
   const [isOpen, setIsOpen] = useState(false);
   const releaseAutoScroll = useReleaseAutoScroll();
   return (
     <RowLine
       isOpen={isOpen}
-      label={stepLabel(step)}
+      label={label ?? stepLabel(step)}
       mark={<StepMark step={step} />}
       onClick={() => {
         releaseAutoScroll();

@@ -683,6 +683,16 @@ export function ToolChoose({
   // not taking. A failure clears it so the card opens again.
   const [sending, setSending] = useState<ChooseOutput>();
 
+  // A call still streaming in has asked nothing yet, and the questions it
+  // asks go up by the composer once its turn is over, so drawing them here
+  // first would show each one twice.
+  if (
+    ask === undefined &&
+    (part.state === "input-streaming" || part.state === "input-available")
+  ) {
+    return null;
+  }
+
   const questions = chooseQuestions(part.input);
   if (questions.length === 0) {
     return <ToolCardEmpty message="The question has not arrived yet." />;

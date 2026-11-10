@@ -47,31 +47,17 @@ const sessionId = StoreId.newSessionId();
 const chatId = ChatIdSchema.parse("test-task");
 
 describe("ToolChoose", () => {
-  // Every row draws a chevron, because whether a body has anything in it is
-  // only knowable inside the body. So opening one always has to land on
-  // something: a row that opens onto nothing reads as a row that failed to
-  // open, and the reader has no way to tell those apart or report either.
-  it("says so rather than drawing nothing when the input has not arrived", () => {
-    const { container } = renderWithProviders(
-      <ToolChoose part={part()} chatId={chatId} />,
-    );
-
-    expect(container.textContent).toBe("The question has not arrived yet.");
-  });
-
+  // The questions go up by the composer once the turn is over; drawn here as
+  // the call streams in, they showed in the chat first and then jumped down.
   it.each([
-    { input: { questions: ONE }, name: "a card of questions" },
-    {
-      input: { choices: ["React", "Vue"], question: "Which one?" },
-      name: "an earlier build's one question",
-    },
-  ])("draws $name once it has arrived", ({ input }) => {
+    { input: undefined, name: "before its input arrives" },
+    { input: { questions: ONE }, name: "with its questions in" },
+  ])("draws nothing while the call streams in, $name", ({ input }) => {
     const { container } = renderWithProviders(
       <ToolChoose part={part(input)} chatId={chatId} />,
     );
 
-    expect(container.textContent).toContain("Which one?");
-    expect(container.textContent).not.toContain("has not arrived");
+    expect(container.textContent).toBe("");
   });
 
   /** Renders the card with the chat's open asks as given. */

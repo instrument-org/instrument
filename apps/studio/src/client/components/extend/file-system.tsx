@@ -5278,6 +5278,21 @@ function listCellText(
     }
   }
 }
+// The whole date behind a shortened one, for the cell's hover.
+function listCellTitle(entry: FileSystemEntry, column: FileSystemListColumn) {
+  switch (column) {
+    case "createdAt": {
+      return formatListDate(entry.createdAt);
+    }
+    case "updatedAt": {
+      return formatListDate(entry.updatedAt);
+    }
+    case "kind":
+    case "size": {
+      return undefined;
+    }
+  }
+}
 // One sortable column header for the table; the active column shows the
 // direction chevron on its right.
 function FileSystemListColumnHeader({
@@ -6338,7 +6353,10 @@ function FileSystemListView({
                 {shownName(entry)}
               </span>
             )}
-            <span className={cn("shrink-0 text-xs tabular-nums", secondary)}>
+            <span
+              className={cn("shrink-0 text-xs tabular-nums", secondary)}
+              title={isShort ? listCellTitle(entry, sortedColumn) : undefined}
+            >
               {listCellText(entry, sortedColumn, {
                 isDayNamed:
                   line.group !== undefined && groupedBy === sortedColumn,
@@ -6377,7 +6395,10 @@ function FileSystemListView({
               <span className="min-w-0 flex-1 truncate">
                 {hasTitle ? shownName(entry) : fileKindLabel(entry)}
               </span>
-              <span className="shrink-0 tabular-nums">
+              <span
+                className="shrink-0 tabular-nums"
+                title={isShort ? listCellTitle(entry, sortedColumn) : undefined}
+              >
                 {listCellText(entry, sortedColumn, {
                   // Its group's heading names the day by the date shown.
                   isDayNamed:

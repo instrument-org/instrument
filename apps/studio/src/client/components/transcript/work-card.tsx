@@ -25,12 +25,19 @@ import {
   type ReactNode,
 } from "react";
 
+import {
+  codeBlockLines,
+  highlightedLineSpans,
+  plainLineSpan,
+} from "@/shared/syntax-highlight";
+
 import { useSyntaxHighlighting } from "../../hooks/use-syntax-highlighting";
 import { Favicon, PageFavicon } from "../favicon";
 import { Markdown } from "../markdown";
 import { Prose } from "../prose";
 import { BorderSweep } from "../shimmer-sweep";
 import { useTheme } from "../theme-provider";
+import { type ColoredLines, streamedCode } from "./streamed-code";
 import { type TranscriptSurface, TranscriptSurfaceContext } from "./surface";
 import { useDrivenPage, useTranscriptHostPaths } from "./transcript-data";
 
@@ -301,7 +308,7 @@ function TypedWords({
           <Markdown hideImages isStreaming={isWriting} markdown={words} />
         </Prose>
       ) : (
-        <FileWords path={path} text={words} />
+        <FileWords isWriting={isWriting} path={path} text={words} />
       )}
     </div>
   );
@@ -312,14 +319,17 @@ const extensionOf = (path: string) =>
 
 /**
  * Some of a file's words as its source reads: code in monospace and its
- * grammar's colors, and anything else, Markdown included, as typed.
+ * grammar's colors, and anything else, Markdown included, as typed. Words
+ * still arriving keep the colors they were shown in (`streamedCode`).
  */
 function FileWords({
   className,
+  isWriting = false,
   path,
   text,
 }: {
   className?: string;
+  isWriting?: boolean;
   path: string;
   text: string;
 }) {
@@ -327,17 +337,33 @@ function FileWords({
   const language = MARKDOWN_EXTENSIONS.has(extension ?? "")
     ? undefined
     : extension;
-  const { highlightedHtml, isLanguageSupported } = useSyntaxHighlighting({
-    code: language === undefined ? undefined : text,
-    language,
-  });
-  return highlightedHtml ? (
+  const { grammar, highlightedHtml, isLanguageSupported } =
+    useSyntaxHighlighting({
+      code: language === undefined || isWriting ? undefined : text,
+      language,
+    });
+  const [colored, setColored] = useState<ColoredLines>();
+  const streamed =
+    isWriting && grammar
+      ? streamedCode(colored, text, {
+          highlight: (code) => highlightedLineSpans(code, grammar),
+          plain: plainLineSpan,
+        })
+      : undefined;
+  if (streamed && streamed.colored !== colored) {
+    setColored(streamed.colored);
+  }
+  const html =
+    streamed && grammar
+      ? codeBlockLines(streamed.spans, grammar)
+      : highlightedHtml;
+  return html ? (
     <div
       className={cn(
         "font-mono [&_pre]:break-words [&_pre]:whitespace-pre-wrap",
         className,
       )}
-      dangerouslySetInnerHTML={{ __html: highlightedHtml.join("\n") }}
+      dangerouslySetInnerHTML={{ __html: html.join("\n") }}
     />
   ) : (
     <div

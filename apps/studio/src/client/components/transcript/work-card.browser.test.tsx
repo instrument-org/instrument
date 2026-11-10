@@ -104,16 +104,21 @@ describe("a live card's file as it is written", () => {
     expect(card?.querySelector("[inert] a")).not.toBeNull();
   });
 
-  it("shows code in its colors", async () => {
+  it("shows code in its colors, with the line still arriving plain", async () => {
     const screen = await renderCard(
       "/work/raw.json",
-      '[{"q": ["website"], "count": 2}]',
+      '[{"q": ["website"],\n  "count": "two"',
     );
     await expect
       .poll(() =>
-        screen.container.querySelector(".code-highlight .syntax-string"),
+        [...screen.container.querySelectorAll(".code-highlight .line")].map(
+          (line) =>
+            [...line.querySelectorAll(".syntax-string")].map(
+              (string) => string.textContent,
+            ),
+        ),
       )
-      .not.toBeNull();
+      .toEqual([['"website"'], []]);
   });
 
   it("shows both sides of an edit to code in its colors", async () => {

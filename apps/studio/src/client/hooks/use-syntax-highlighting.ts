@@ -49,6 +49,8 @@ export function useSyntaxHighlighting({
   }, [description]);
 
   return {
+    /** The language's grammar once it has loaded, for a caller coloring code itself. */
+    grammar: isLoaded ? description : undefined,
     highlightedHtml:
       description && isLoaded && highlightableCode
         ? highlightLoaded(highlightableCode, description)

@@ -180,6 +180,17 @@ export function highlightLoaded(
   code: string,
   description: LanguageDescription,
 ): string[] {
+  return codeBlockLines(highlightedLineSpans(code, description), description);
+}
+
+/**
+ * The code's lines as {@link highlightLoaded} marks them up, each a
+ * `<span class="line">`, with no block around them.
+ */
+export function highlightedLineSpans(
+  code: string,
+  description: LanguageDescription,
+): string[] {
   const grammar = description.support?.language;
   if (!grammar) {
     throw new Error(`The ${description.name} grammar is not loaded yet`);
@@ -196,11 +207,24 @@ export function highlightLoaded(
         : escapeHtml(text);
     },
     () => {
-      lines.push(`<span class="line">${line}</span>`);
+      lines.push(lineSpan(line));
       line = "";
     },
   );
-  lines.push(`<span class="line">${line}</span>`);
+  lines.push(lineSpan(line));
+  return lines;
+}
+
+/** A line of text as {@link highlightedLineSpans} marks one up, uncolored. */
+export function plainLineSpan(text: string): string {
+  return lineSpan(escapeHtml(text));
+}
+
+/** Line spans inside the block {@link highlightLoaded} puts them in. */
+export function codeBlockLines(
+  lines: readonly string[],
+  description: LanguageDescription,
+): string[] {
   const name = escapeHtml(description.name.toLowerCase());
   const last = lines.length - 1;
   return lines.map(
@@ -208,6 +232,8 @@ export function highlightLoaded(
       `${index === 0 ? `<pre class="code-highlight" data-language="${name}"><code>` : ""}${each}${index === last ? "</code></pre>" : ""}`,
   );
 }
+
+const lineSpan = (markup: string) => `<span class="line">${markup}</span>`;
 
 /**
  * {@link highlightLoaded}, loading the grammar first. Undefined when there is

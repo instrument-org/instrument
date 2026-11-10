@@ -4,7 +4,7 @@ import { type SessionMessageDataPart } from "../schemas/session/message-data-par
 type ChatChange = SessionMessageDataPart.ChatChange;
 
 /** The changes of a turn that did one thing, to however many chats. */
-export interface ChatChangeGroup {
+interface ChatChangeGroup {
   changes: ChatChange[];
   /** Tells groups apart: the field and what it was set to. */
   key: string;
@@ -35,14 +35,14 @@ function groupOf(change: ChatChange): Omit<ChatChangeGroup, "changes"> {
         : {
             key: `project:${change.after}`,
             project: change.after,
-            verb: "Filed",
+            verb: "Moved",
           };
     }
   }
 }
 
 /** A turn's changes to chats, grouped by what was done, in the order first done. */
-export function chatChangeGroups(
+function chatChangeGroups(
   changes: readonly ChatChange[],
 ): ChatChangeGroup[] {
   const groups = new Map<string, ChatChangeGroup>();
@@ -59,25 +59,32 @@ export function chatChangeGroups(
 }
 
 /**
- * A group's words: "Renamed 12 chats", "Filed 9 under Travel". Only the
- * first group of a line says "chats", and `projectName` is the name its
- * project goes by now, where it still has one.
+ * The heading over what a turn did to chats, from what it did: one kind of
+ * change names it ("Archived 2 chats", "Starred a chat"), and several kinds
+ * across the same chats say "Organized 5 chats".
  */
-export function chatChangeGroupWords(
-  group: ChatChangeGroup,
-  { first, projectName }: { first: boolean; projectName?: string },
-): string {
-  const count = group.changes.length;
-  const chats = first ? (count === 1 ? " chat" : " chats") : "";
-  const where =
-    group.project === undefined
-      ? ""
-      : group.project === null
-        ? count === 1
-          ? " from its project"
-          : " from their projects"
-        : ` under ${projectName ?? "a project"}`;
-  return `${group.verb} ${count.toString()}${chats}${where}`;
+export function chatChangesHeading(changes: readonly ChatChange[]): string {
+  const groups = chatChangeGroups(changes);
+  const [only] = groups;
+  const count = chatsChanged(changes).length;
+  const chats = count === 1 ? "a chat" : `${count.toString()} chats`;
+  if (groups.length !== 1 || !only) {
+    return `Organized ${chats}`;
+  }
+  if (only.project === null) {
+    return `Removed ${chats} from ${count === 1 ? "its project" : "their projects"}`;
+  }
+  return `${only.verb} ${chats}`;
+}
+
+/** A turn's changes to each chat, the chats in the order first changed. */
+export function chatChangesByChat(
+  changes: readonly ChatChange[],
+): { changes: ChatChange[]; chat: ChatId }[] {
+  return chatsChanged(changes).map((chat) => ({
+    changes: changes.filter((change) => change.chat === chat),
+    chat,
+  }));
 }
 
 /** The chats a turn's changes name, each once, in the order first changed. */

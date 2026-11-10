@@ -2,51 +2,97 @@ import { describe, expect, it } from "vitest";
 
 import { ChatIdSchema } from "../schemas/chat-id";
 import { type SessionMessageDataPart } from "../schemas/session/message-data-part";
-import { chatChangeGroups, chatChangeGroupWords } from "./chat-change-groups";
+import { chatChangesByChat, chatChangesHeading } from "./chat-change-groups";
+
+type ChatChange = SessionMessageDataPart.ChatChange;
 
 const chat = (name: string) => ChatIdSchema.parse(name);
 
 const TRAVEL = "prj_travel";
 
-function line(changes: SessionMessageDataPart.ChatChange[]) {
-  return chatChangeGroups(changes)
-    .map((group, index) =>
-      chatChangeGroupWords(group, {
-        first: index === 0,
-        ...(group.project === TRAVEL && { projectName: "Travel" }),
-      }),
-    )
-    .join(" · ");
-}
+const archived = (name: string): ChatChange => ({
+  after: true,
+  before: false,
+  chat: chat(name),
+  field: "archived",
+});
 
-describe("chatChangeGroups", () => {
-  it("groups a turn's changes by what was done, in the order first done", () => {
-    expect(
-      line([
-        { after: "Lisbon", before: "Trip", chat: chat("a"), field: "title" },
-        { after: true, before: false, chat: chat("b"), field: "archived" },
-        { after: "Porto", before: "Trip 2", chat: chat("c"), field: "title" },
+describe("chatChangesHeading", () => {
+  const cases: [string, ChatChange[]][] = [
+    ["two archived", [archived("a"), archived("b")]],
+    ["one archived", [archived("a")]],
+    [
+      "one unarchived",
+      [{ after: false, before: true, chat: chat("a"), field: "archived" }],
+    ],
+    [
+      "one starred",
+      [{ after: true, before: false, chat: chat("a"), field: "starred" }],
+    ],
+    [
+      "one renamed",
+      [{ after: "Lisbon", before: "Trip", chat: chat("a"), field: "title" }],
+    ],
+    [
+      "two filed",
+      [
         { after: TRAVEL, before: null, chat: chat("a"), field: "project" },
-        { after: TRAVEL, before: null, chat: chat("c"), field: "project" },
-        { after: null, before: TRAVEL, chat: chat("d"), field: "project" },
-        { after: false, before: true, chat: chat("e"), field: "starred" },
-      ]),
-    ).toMatchInlineSnapshot(
-      `"Renamed 2 chats · Archived 1 · Filed 2 under Travel · Removed 1 from its project · Unstarred 1"`,
-    );
-  });
+        { after: TRAVEL, before: null, chat: chat("b"), field: "project" },
+      ],
+    ],
+    [
+      "one taken out",
+      [{ after: null, before: TRAVEL, chat: chat("a"), field: "project" }],
+    ],
+    [
+      "one renamed and filed",
+      [
+        { after: "Lisbon", before: "Trip", chat: chat("a"), field: "title" },
+        { after: TRAVEL, before: null, chat: chat("a"), field: "project" },
+      ],
+    ],
+    [
+      "filed and archived",
+      [
+        { after: TRAVEL, before: null, chat: chat("a"), field: "project" },
+        { after: TRAVEL, before: null, chat: chat("b"), field: "project" },
+        archived("c"),
+      ],
+    ],
+  ];
 
-  it("says one chat as one", () => {
+  it("names one kind of change, and says Organized for several", () => {
     expect(
-      line([{ after: true, before: false, chat: chat("a"), field: "starred" }]),
-    ).toMatchInlineSnapshot(`"Starred 1 chat"`);
+      Object.fromEntries(
+        cases.map(([name, changes]) => [name, chatChangesHeading(changes)]),
+      ),
+    ).toMatchInlineSnapshot(`
+      {
+        "filed and archived": "Organized 3 chats",
+        "one archived": "Archived a chat",
+        "one renamed": "Renamed a chat",
+        "one renamed and filed": "Organized a chat",
+        "one starred": "Starred a chat",
+        "one taken out": "Removed a chat from its project",
+        "one unarchived": "Unarchived a chat",
+        "two archived": "Archived 2 chats",
+        "two filed": "Moved 2 chats",
+      }
+    `);
   });
+});
 
-  it("names a project that is gone as a project", () => {
+describe("chatChangesByChat", () => {
+  it("gathers each chat's changes, chats in the order first changed", () => {
     expect(
-      line([
-        { after: "prj_gone", before: null, chat: chat("a"), field: "project" },
-      ]),
-    ).toMatchInlineSnapshot(`"Filed 1 chat under a project"`);
+      chatChangesByChat([
+        { after: TRAVEL, before: null, chat: chat("a"), field: "project" },
+        archived("b"),
+        { after: "Lisbon", before: "Trip", chat: chat("a"), field: "title" },
+      ]).map(({ changes, chat: id }) => [id, changes.map((c) => c.field)]),
+    ).toEqual([
+      ["a", ["project", "title"]],
+      ["b", ["archived"]],
+    ]);
   });
 });

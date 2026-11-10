@@ -8,11 +8,13 @@ import { chatSearchAskedAtom } from "@/client/atoms/window";
 import { cn } from "@/client/lib/utils";
 import { CaretLeftIcon } from "@phosphor-icons/react/CaretLeft";
 import { CheckIcon } from "@phosphor-icons/react/Check";
-import { ListIcon } from "@phosphor-icons/react/List";
-import { ListDashesIcon } from "@phosphor-icons/react/ListDashes";
 import { MagnifyingGlassIcon } from "@phosphor-icons/react/MagnifyingGlass";
 import { NotificationIcon } from "@phosphor-icons/react/Notification";
-import { RowsIcon } from "@phosphor-icons/react/Rows";
+import {
+  OneLineIcon,
+  ThreeLinesIcon,
+  TwoLinesIcon,
+} from "@/client/components/icons/row-density-icons";
 import { StarIcon } from "@phosphor-icons/react/Star";
 import { useAtom } from "jotai";
 import { type ComponentType, useEffect, useRef, useState } from "react";
@@ -240,18 +242,18 @@ const DENSITIES: {
   note: string;
 }[] = [
   {
-    icon: RowsIcon,
+    icon: ThreeLinesIcon,
     id: "three",
     label: "Three lines",
     note: "Title, preview, project and files",
   },
   {
-    icon: ListDashesIcon,
+    icon: TwoLinesIcon,
     id: "two",
     label: "Two lines",
     note: "Title, then project or last reply",
   },
-  { icon: ListIcon, id: "one", label: "One line", note: "Just the titles" },
+  { icon: OneLineIcon, id: "one", label: "One line", note: "Just the titles" },
 ];
 
 /**
@@ -263,7 +265,7 @@ function ViewButton() {
   const [density, setDensity] = useAtom(rowDensityAtom);
   const [groupByDay, setGroupByDay] = useAtom(groupByDayAtom);
   const Current =
-    DENSITIES.find((entry) => entry.id === density)?.icon ?? RowsIcon;
+    DENSITIES.find((entry) => entry.id === density)?.icon ?? ThreeLinesIcon;
   return (
     <Popover>
       <PopoverTrigger asChild>

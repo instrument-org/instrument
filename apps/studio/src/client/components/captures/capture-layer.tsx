@@ -28,6 +28,7 @@ import {
   nextPaint,
   openCaptureEditor,
 } from "./capture-store";
+import { copyCaptureImage } from "./capture-stamp";
 
 const CaptureEditor = lazy(() =>
   import("./capture-editor").then((m) => ({ default: m.CaptureEditor })),
@@ -47,9 +48,9 @@ const THROW_PX = 60;
 const THROW_MS = 180;
 
 /** Puts a capture's picture on the clipboard. */
-async function copyImage(name: string) {
+async function copyImage(capture: Capture) {
   try {
-    await rpcClient.captures.copy.call({ name });
+    await copyCaptureImage(capture);
     toast.success("Copied the capture");
   } catch (error) {
     toast.error("Couldn't copy the capture", { cause: error });
@@ -310,7 +311,7 @@ export function CaptureLayer() {
                 <button
                   className="flex-1 py-1 hover:bg-black/5"
                   onClick={() => {
-                    void copyImage(thumbnail.name);
+                    void copyImage(thumbnail);
                   }}
                   type="button"
                 >
@@ -329,7 +330,7 @@ export function CaptureLayer() {
                   <DropdownMenuContent align="end" side="top">
                     <DropdownMenuItem
                       onSelect={() => {
-                        void copyImage(thumbnail.name);
+                        void copyImage(thumbnail);
                       }}
                     >
                       Copy image

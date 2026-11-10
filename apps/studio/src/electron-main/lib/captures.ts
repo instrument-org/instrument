@@ -9,14 +9,7 @@ import {
   CaptureMetaSchema,
 } from "@/shared/captures";
 import { APP_FLAVOR } from "@instrument-org/shared";
-import {
-  app,
-  clipboard,
-  ClipboardItem,
-  nativeImage,
-  shell,
-  type WebContents,
-} from "electron";
+import { app, nativeImage, shell, type WebContents } from "electron";
 import { execFileSync } from "node:child_process";
 import fs from "node:fs/promises";
 import os from "node:os";
@@ -270,13 +263,6 @@ export async function hasOriginal(name: string) {
   } catch {
     return false;
   }
-}
-
-export async function copyCapture(name: string) {
-  const png = await fs.readFile(capturePath(name));
-  await clipboard.write([
-    new ClipboardItem({ "image/png": new Blob([png], { type: "image/png" }) }),
-  ]);
 }
 
 /**

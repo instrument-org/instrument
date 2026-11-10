@@ -37,6 +37,7 @@ import {
   captureThumbnailAtom,
   trashCapture,
 } from "./capture-store";
+import { copyCaptureImage } from "./capture-stamp";
 
 type Rect = { h: number; w: number; x: number; y: number };
 type Point = { x: number; y: number };
@@ -384,14 +385,10 @@ export function CaptureEditor({ capture }: { capture: Capture }) {
 
   const copy = async () => {
     try {
-      if (image && changed) {
-        const blob = await exportPicture(image, marks, crop);
-        await navigator.clipboard.write([
-          new ClipboardItem({ "image/png": blob }),
-        ]);
-      } else {
-        await rpcClient.captures.copy.call({ name: capture.name });
-      }
+      await copyCaptureImage(
+        capture,
+        image && changed ? await exportPicture(image, marks, crop) : undefined,
+      );
       toast.success("Copied the capture");
     } catch (error) {
       toast.error("Couldn't copy the capture", { cause: error });

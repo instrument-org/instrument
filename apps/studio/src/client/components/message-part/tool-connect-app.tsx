@@ -14,7 +14,7 @@ import {
 import { skipToken, useMutation, useQuery } from "@tanstack/react-query";
 import { useContext } from "react";
 
-import { ToolCard, ToolCardEmpty, ToolCardSection } from "./tool-card";
+import { ToolCard, ToolCardSection } from "./tool-card";
 import { ConnectAppCard } from "./tool-connect-app-card";
 
 type ConnectAppPart = Extract<
@@ -41,10 +41,9 @@ export function ToolConnectApp({ part }: { part: ConnectAppPart }) {
           input: { id: chatId, partId: part.metadata.id },
         }),
   );
-  if (!part.input) {
-    return <ToolCardEmpty message="The request has not arrived yet." />;
-  }
-  if (part.state !== "output-available") {
+  // Nothing until the call returns: a placeholder while it streams in would
+  // show for a moment and go before the card comes up.
+  if (part.state !== "output-available" || !part.input) {
     return null;
   }
   if (chatId !== undefined) {

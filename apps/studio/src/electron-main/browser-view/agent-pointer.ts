@@ -46,7 +46,7 @@ type Point = { x: number; y: number };
 type Act =
   | ({ kind: "move" | "press" | "release" } & Point)
   | ({ kind: "restore" } & Point)
-  | ({ kind: "scroll"; dy: number } & Point)
+  | ({ kind: "scroll"; dy: number } & Partial<Point>)
   | { kind: "here" | "hide" | "leave" | "type" | "unhide" };
 
 type Queued = { act: Act; done: () => void };
@@ -100,7 +100,7 @@ export function showAgentCommand(
     return Promise.resolve();
   }
   const state = stateOf(entry);
-  if ("x" in act) {
+  if ("x" in act && act.x !== undefined && act.y !== undefined) {
     state.at = { x: act.x, y: act.y };
   }
   if (act.kind === "here" && state.present) {
@@ -147,13 +147,16 @@ function actOf(
         return { kind: "press", x, y };
       case "mouseReleased":
         return { kind: "release", x, y };
-      case "mouseWheel":
-        return {
-          dy: typeof p.deltaY === "number" ? p.deltaY : 0,
-          kind: "scroll",
-          x,
-          y,
-        };
+      case "mouseWheel": {
+        const dy = typeof p.deltaY === "number" ? p.deltaY : 0;
+        // agent-browser sends a wheel where its own mouse last was, and
+        // that starts at the page's corner until it first moves the mouse:
+        // a wheel there has no point of its own and scrolls where the
+        // pointer is.
+        return x === 0 && y === 0
+          ? { dy, kind: "scroll" }
+          : { dy, kind: "scroll", x, y };
+      }
       default:
         return { kind: "here" };
     }
@@ -779,11 +782,13 @@ const POINTER_SOURCE = String.raw`function (config) {
           wake();
           return;
         case "scroll": {
-          if (!s.shown || s.leaving) show(act, true);
+          // A wheel with no point of its own scrolls where the pointer is.
+          const at = typeof act.x === "number" ? act : null;
+          if (!s.shown || s.leaving) show(at || center(), true);
           verb("Scrolling");
-          if (Math.hypot(act.x - s.x, act.y - s.y) > 40) {
-            s.anchor = { x: act.x, y: act.y };
-            void fly(act.x, act.y, false);
+          if (at && Math.hypot(at.x - s.x, at.y - s.y) > 40) {
+            s.anchor = { x: at.x, y: at.y };
+            void fly(at.x, at.y, false);
           }
           s.nudgeV += Math.sign(act.dy) * 160;
           acting();

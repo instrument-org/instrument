@@ -180,6 +180,26 @@ describe("showAgentCommand", () => {
     `);
   });
 
+  it("scrolls in place for a wheel at the page's corner, which has no point of its own", async () => {
+    const guest = makeGuest();
+    void mouse(guest.entry, "mouseMoved", 30, 40);
+    await guest.answer();
+    void showAgentCommand(
+      guest.entry,
+      "Input.dispatchMouseEvent",
+      { deltaY: 100, type: "mouseWheel", x: 0, y: 0 },
+      undefined,
+    );
+    await guest.answer();
+    carryAgentPointer(guest.entry);
+    await guest.answer();
+    expect(guest.acts()).toEqual([
+      { kind: "move", x: 30, y: 40 },
+      { dy: 100, kind: "scroll" },
+      { kind: "restore", x: 30, y: 40 },
+    ]);
+  });
+
   it("leaves once no agent at work drives the tab", async () => {
     vi.useFakeTimers({ toFake: ["setInterval", "clearInterval"] });
     const guest = makeGuest();

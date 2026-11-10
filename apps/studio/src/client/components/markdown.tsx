@@ -4,6 +4,7 @@ import { type ViewerFile } from "@/client/atoms/viewer-file";
 import { useComposerDraft } from "@/client/components/composer-draft-context";
 import { FileOpenContext } from "@/client/components/file-open-context";
 import { useFileDrag } from "@/client/hooks/use-file-drag";
+import { useImageArrival } from "@/client/hooks/use-image-arrival";
 import { useTranscriptHostPaths } from "@/client/components/transcript/transcript-data";
 import { wantsNewTab, wantsNewWindow } from "@/client/hooks/use-open-target";
 import { useShowChatFile } from "@/client/hooks/use-show-chat-file";
@@ -958,7 +959,7 @@ const MarkdownImage = ({
   }
 
   return (
-    <img
+    <ArrivingImage
       {...props}
       alt={alt}
       className={cn("max-w-full cursor-pointer! rounded-md", className)}
@@ -973,6 +974,31 @@ const MarkdownImage = ({
     />
   );
 };
+
+/**
+ * An image held invisible until all of it has arrived, then faded in. A
+ * picture read from the computer comes over the app's own protocol, which
+ * the main process answers a piece at a time, and Chromium draws each piece
+ * as it lands: left showing, a large one fills in top to bottom in bands.
+ * Its box takes the picture's size as soon as the first bytes say what it
+ * is, so the text around it moves once, before anything is seen.
+ */
+function ArrivingImage({
+  className,
+  src,
+  ...props
+}: React.ImgHTMLAttributes<HTMLImageElement> & { src: string }) {
+  const { attach, className: arrivalClassName, onLoad } = useImageArrival(src);
+  return (
+    <img
+      {...props}
+      className={cn(className, arrivalClassName)}
+      onLoad={onLoad}
+      ref={attach}
+      src={src}
+    />
+  );
+}
 
 /**
  * Where an `![](...)` source points, and which kind the allow-list judges it

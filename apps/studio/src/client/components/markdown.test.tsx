@@ -909,6 +909,20 @@ describe("Markdown image sources", () => {
     ]);
   });
 
+  // Drawn as its bytes arrive, a slow picture would fill in top to bottom.
+  it("keeps an image invisible until all of it has loaded", () => {
+    const { container } = renderWithProviders(
+      <Markdown markdown="![a](data:image/png;base64,QUJE)" />,
+    );
+    const image = container.querySelector("img");
+    if (!image) {
+      throw new Error("no image");
+    }
+    expect(image.className).toContain("opacity-0");
+    fireEvent.load(image);
+    expect(image.className).not.toContain("opacity-0");
+  });
+
   // A path in a task's terms names a file only through that task's layout, so
   // outside a task there is nowhere to read it from and nothing is drawn.
   it("draws nothing for a path relative to a task it is not in", () => {

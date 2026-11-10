@@ -65,6 +65,8 @@ Quote a name the user chose — a folder, project, skill, or their own search te
 
 A word or key that belongs to one OS (Finder, File Explorer, Recycle Bin, System Settings, This Mac, ⌘) is read from `shared/os-conventions.ts` for the system the app runs on, and added there when it is new. `studio/no-os-words` fails on one written anywhere else; text only ever shown on one system keeps it under `// oxlint-disable-next-line studio/no-os-words -- <where it shows>`.
 
+`studio/plain-copy` fails on the phrases copy review always sends back (holds, carries on, picks it up, should live, hears, "Instrument's own", ", never", em dashes), each message naming what to write instead. Text only the agent reads keeps one under `// oxlint-disable-next-line studio/plain-copy -- agent text`. The rest of the copy rules are in the root `CLAUDE.md` and the `copy-review` skill.
+
 ## UI zoom
 
 The whole window scales with CSS `zoom` on `ZoomRoot` (`zoomAtom`, user-adjustable 0.5x–2x). `zoom` compounds down the tree and floating-ui doesn't yet correct for an ancestor's zoom, so anything positioned, sized, or measured against the viewport needs care when zoom ≠ 1 — and it's silently fine at the 1x default, so check other levels. `docs/architecture/responsive-layout.md` and `use-app-zoom.ts` carry the full rationale and the per-unit rules; what you need before reading them:

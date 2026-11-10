@@ -91,6 +91,7 @@ const SIGNIFICANT_VISITS = 4;
 
 const SCHEMA_VERSION = 2;
 
+// oxlint-disable-next-line studio/plain-copy -- SQL
 const SCHEMA = `
 CREATE TABLE IF NOT EXISTS urls (
   id INTEGER PRIMARY KEY,

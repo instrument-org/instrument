@@ -2,6 +2,7 @@
  * Where a site's name is joined to the page's in a title, in the order a
  * title's own words would be read.
  */
+// oxlint-disable-next-line studio/plain-copy -- separators a site writes in its titles
 const SEPARATORS = [": ", " - ", " – ", " — ", " | ", " · ", " • "];
 
 /**

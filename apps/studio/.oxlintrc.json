@@ -37,7 +37,15 @@
       "files": ["src/**"],
       "rules": {
         "studio/no-either-command-key": "error",
-        "studio/no-os-words": "error"
+        "studio/no-os-words": "error",
+        "studio/plain-copy": "error"
+      }
+    },
+    {
+      // Tests write rejected copy on purpose, and debug pages are for us.
+      "files": ["**/*.test.*", "src/tests/**", "src/client/routes/debug/**"],
+      "rules": {
+        "studio/plain-copy": "off"
       }
     },
     {

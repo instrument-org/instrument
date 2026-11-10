@@ -442,6 +442,7 @@ function drawn(window: BrowserWindow) {
 function drawnHolding(window: BrowserWindow, tabs: readonly Tab[]) {
   return drawnOnce(
     window,
+    // oxlint-disable-next-line studio/plain-copy -- script run in the window
     `(() => {
       const holds = new Set(${JSON.stringify(tabs.map((tab) => tab.id))});
       const strip = document.querySelector("[data-app-tab-strip] [data-tab-count]");

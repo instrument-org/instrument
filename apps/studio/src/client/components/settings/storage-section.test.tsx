@@ -1,4 +1,5 @@
 import { renderWithProviders } from "@/tests/render";
+import { APP_NAME, HOME_FOLDERS } from "@instrument-org/shared";
 import { fireEvent, screen } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -117,6 +118,23 @@ describe("InstrumentFolder", () => {
 
     expect(await screen.findByLabelText("sam › Notes")).toBeDefined();
     expect(screen.getByText("Already contains some files")).toBeDefined();
+  });
+
+  it("says files in a folder named for the app are its own", async () => {
+    calls.set("workspaces.checkPick", () => ({
+      folder: {
+        contents: "files",
+        path: `${NOTES}/${HOME_FOLDERS.instrument}`,
+        verdict: { kind: "movable" },
+      },
+    }));
+    await pickNotes();
+
+    expect(
+      await screen.findByText(
+        `You already have some files made by ${APP_NAME} here. ${APP_NAME} will set up a new folder structure alongside these existing files.`,
+      ),
+    ).toBeDefined();
   });
 
   it("won't move into another Instrument folder, and says why", async () => {

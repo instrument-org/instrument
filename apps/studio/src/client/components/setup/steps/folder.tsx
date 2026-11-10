@@ -440,8 +440,8 @@ function MovingPage({
         !restarts
           ? undefined
           : how === "open"
-            ? `${APP_NAME} restarts once to open it, then picks up right here.`
-            : `${APP_NAME} restarts once to finish, then picks up right here.`
+            ? `${APP_NAME} will restart to open it`
+            : `${APP_NAME} will restart to finish`
       }
       title={
         how === "open"

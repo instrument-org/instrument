@@ -23,7 +23,7 @@ import { toast } from "@/client/lib/toast";
 import { cn } from "@/client/lib/utils";
 import { rpcClient } from "@/client/rpc/client";
 import { folderWarningSentence } from "@/shared/workspace-folder-refusal";
-import { APP_NAME } from "@instrument-org/shared";
+import { APP_NAME, HOME_FOLDERS } from "@instrument-org/shared";
 import { EyeIcon } from "@phosphor-icons/react/Eye";
 import { skipToken, useQuery } from "@tanstack/react-query";
 import { type ReactNode, useState } from "react";
@@ -65,6 +65,8 @@ function useFolderName(path: string) {
 /**
  * What a destination already is, under its path, where that is worth
  * saying: one with other files in it, or an Instrument folder and its chats.
+ * Files in a folder with the app's own name are taken for the finished work
+ * an earlier build saved there.
  * A folder still to be made, or an empty one, says nothing. And what the
  * place is warned of, where that wasn't asked already.
  */
@@ -86,9 +88,11 @@ function DestinationLine({
     ? chats > 0
       ? `${APP_NAME} folder with ${String(chats)} ${chats === 1 ? "chat" : "chats"}`
       : `${APP_NAME} folder`
-    : destination.contents === "files"
-      ? "Already contains some files"
-      : undefined;
+    : destination.contents !== "files"
+      ? undefined
+      : nameOf(destination.path) === HOME_FOLDERS.instrument
+        ? `You already have some files made by ${APP_NAME} here. ${APP_NAME} will set up a new folder structure alongside these existing files.`
+        : "Already contains some files";
   const { warning } = destination.verdict;
   const warned =
     warning === undefined ? undefined : folderWarningSentence(warning);

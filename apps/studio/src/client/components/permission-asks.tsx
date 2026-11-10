@@ -266,7 +266,7 @@ function PermissionAskCard({
       ) : null}
       {ask.away && !ask.answered ? (
         <p className="mt-2 text-[13px] text-muted-foreground">
-          {`You answered from ${ask.away.by} while ${ask.here ? "this computer" : ask.computer} was away, so it’s asking again.`}
+          {`You answered from ${ask.away.by} while ${ask.here ? "this computer" : ask.computer} was away, so the chat is asking again.`}
         </p>
       ) : null}
       {!ask.here && ask.answerable ? (

@@ -360,7 +360,7 @@ function InstrumentFolder() {
       </h4>
       <p className="text-sm text-muted-foreground">
         {folder.inAppData
-          ? `Your chats, projects and memories are kept in your Instrument folder, with ${APP_NAME}’s own data. You can move it to a folder you choose, and what ${APP_NAME} makes for you will go there too.`
+          ? `Your chats, projects and memories are kept in your Instrument folder, with ${APP_NAME}’s data. You can move it to a folder you choose, and what ${APP_NAME} makes for you will go there too.`
           : `Your chats, projects and memories are kept in your Instrument folder, and what ${APP_NAME} makes for you goes there too.`}
       </p>
       <div className="overflow-hidden rounded-lg border">

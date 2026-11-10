@@ -270,7 +270,7 @@ export function planPlacing(request: PlaceRequest): Plan {
         refusal:
           clash.with.by === "source"
             ? `“${clash.name}” can’t replace another item you’re putting there.`
-            : `“${clash.name}” can’t be replaced, since it is one of the items you’re putting there or holds one.`,
+            : `“${clash.name}” can’t be replaced, since it is one of the items you’re putting there or has one inside it.`,
       };
     }
   }

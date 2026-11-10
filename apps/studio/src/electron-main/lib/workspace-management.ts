@@ -296,7 +296,7 @@ export function whyNotDeletable(
     return "The default workspace cannot be deleted";
   }
   if (pathWithin(userDataDir, listing.path)) {
-    return "This folder holds the app's own data";
+    return "The app keeps its data in this folder";
   }
   if (listing.isResolved) {
     return "Switch to another workspace before deleting this one";

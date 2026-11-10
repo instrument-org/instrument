@@ -76,7 +76,7 @@ export function QuestionDock({ chatId }: { chatId: ChatId }) {
       </div>
       {first.away ? (
         <p className="relative mt-1.5 px-1 text-[13px] text-muted-foreground">
-          {`You answered from ${first.away.by} while ${first.here ? "this computer" : first.computer} was away, so it’s asking again.`}
+          {`You answered from ${first.away.by} while ${first.here ? "this computer" : first.computer} was away, so the chat is asking again.`}
         </p>
       ) : null}
     </div>

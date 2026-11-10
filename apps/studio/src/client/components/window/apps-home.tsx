@@ -204,8 +204,8 @@ export function AppsHome({
               Apps
             </h1>
             <p className="mt-3 text-[15px] leading-relaxed text-muted-foreground">
-              Connect the services you already use. Instrument does the setup,
-              then works in them from your chats.
+              Connect the services you already use, so your chats can work in
+              them.
             </p>
           </header>
         ) : null}

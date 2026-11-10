@@ -153,7 +153,7 @@ export function LostFolderPage({
           />
         }
         hero={<PackedFolder />}
-        subtitle={`${APP_NAME} can’t keep your folder there anymore. Choose where it should live instead.`}
+        subtitle={`${APP_NAME} can’t keep your folder there anymore. Choose a new place for it.`}
         title="Your Instrument folder can’t stay there"
       >
         <div className="mt-8 flex w-140 max-w-full flex-col">

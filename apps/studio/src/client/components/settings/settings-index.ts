@@ -121,7 +121,7 @@ export const SETTINGS_INDEX = [
     title: "Suggest a next message",
   },
   {
-    detail: "A local record to send with a problem report",
+    detail: "A log on this computer to send with a problem report",
     id: "diagnostic-log",
     tab: "General",
     title: "Diagnostic log",
@@ -348,7 +348,7 @@ export const SETTINGS_PAGES: Record<
     detail: `Which folders and places on this computer ${APP_NAME} may use.`,
   },
   Skills: {
-    detail: `The skills ${APP_NAME}'s tasks can use, and making a new one.`,
+    detail: `The skills ${APP_NAME} can use, and making a new one.`,
   },
   Storage: {
     detail:

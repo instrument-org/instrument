@@ -426,8 +426,7 @@ function PasteImport({ onStart }: { onStart: (answer: string) => void }) {
             Copy and paste from any AI
           </span>
           <span className="block text-xs text-muted-foreground">
-            Ask the AI you use a question, then paste its answer here. This
-            works with any AI.
+            Ask the AI you use a question, then paste its answer here.
           </span>
         </span>
         <CaretDownIcon className="size-4 shrink-0 text-muted-foreground" />

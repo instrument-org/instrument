@@ -577,7 +577,7 @@ function UpdateReadyCardBody({
       ) : (
         !isPending && (
           <p className="text-[13px] leading-5 text-muted-foreground">
-            We couldn't load the notes for this version yet.
+            Couldn't load the notes for this version.
           </p>
         )
       )}

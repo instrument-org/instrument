@@ -16,7 +16,7 @@ export function noteFor(v: Blocked) {
     }
     case "data": {
       const n = v.shadows?.length ?? 0;
-      return `This text also lives in the page's data (${n} ${n === 1 ? "place" : "places"}), so the agent should change every copy.`;
+      return `This text is also in the page's data (${n} ${n === 1 ? "place" : "places"}), so the agent should change every copy.`;
     }
     case "generated": {
       return "A script draws this, so it is not in the file as you see it. The agent will change the data or code behind it.";

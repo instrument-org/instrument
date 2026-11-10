@@ -19,7 +19,7 @@ import { motion, useReducedMotion } from "motion/react";
 import { use, useLayoutEffect, useRef, type ReactNode } from "react";
 
 import { useSyntaxHighlighting } from "../../hooks/use-syntax-highlighting";
-import { Favicon } from "../favicon";
+import { Favicon, PageFavicon } from "../favicon";
 import { Markdown } from "../markdown";
 import { Prose } from "../prose";
 import { BorderSweep } from "../shimmer-sweep";
@@ -88,7 +88,17 @@ export function WorkCardView({
         </div>
         <div className="flex h-8 items-center gap-1.5 border-t border-border px-2.5 text-xs">
           <span className="flex size-4 shrink-0 items-center justify-center text-muted-foreground">
-            {MARKS[card.kind]}
+            {card.kind === "page" ? (
+              // The page's own icon, as its tab shows it.
+              <PageFavicon
+                className="size-3.5"
+                favicon={drivenPage?.favicon}
+                hasTooltip={false}
+                url={target && "url" in target ? target.url : undefined}
+              />
+            ) : (
+              MARKS[card.kind]
+            )}
           </span>
           <span className="min-w-0 truncate text-foreground/80">
             {face.title}

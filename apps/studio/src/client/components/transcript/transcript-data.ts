@@ -208,11 +208,12 @@ export function useDrivenTab(
 /** What the page a session's work is on says it is, as its tab last heard. */
 export function useDrivenPage(
   sessionId: StoreId.Session | undefined,
-): { title?: string; url?: string } | undefined {
+): { favicon?: string; title?: string; url?: string } | undefined {
   const tab = useDrivenTab(sessionId);
   const url = tab?.url ?? tab?.openedUrl;
   return (
     tab && {
+      ...(tab.favicon && { favicon: tab.favicon }),
       ...(tab.title && { title: tab.title }),
       ...(url && { url }),
     }

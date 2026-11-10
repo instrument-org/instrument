@@ -322,7 +322,9 @@ export function ChatFind({
         </PopoverAnchor>
         <PopoverContent
           align="end"
-          alignOffset={-8}
+          // The transcript runs to the window's edge: inside it by the
+          // scrollbar's width, as the bottom fade is.
+          alignOffset={12}
           className="w-90 p-1.5"
           onCloseAutoFocus={(event) => {
             event.preventDefault();

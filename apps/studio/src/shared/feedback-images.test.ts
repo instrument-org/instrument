@@ -62,9 +62,9 @@ describe("checkFeedbackImages", () => {
     ]);
     expect(problems).toMatchInlineSnapshot(`
       [
-        "“notes.pdf” isn't an image, so we left it out. You can attach PNG, JPEG, WebP or GIF.",
-        "“big.png” is over 5 MB, so we left it out.",
-        "You can attach up to 4 images, so we left out “x.png”.",
+        "“notes.pdf” isn't an image, so it was left out. You can attach PNG, JPEG, WebP or GIF.",
+        "“big.png” is over 5 MB, so it was left out.",
+        "You can attach up to 4 images, so “x.png” was left out.",
       ]
     `);
   });

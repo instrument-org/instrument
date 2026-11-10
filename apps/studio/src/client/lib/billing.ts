@@ -402,7 +402,7 @@ export function nextStep(
         case "access-revoked": {
           return {
             ...step,
-            line: "Get in touch and we'll sort it out.",
+            line: "Get in touch to sort it out.",
             title: `${APP_NAME} isn't available on this account.`,
           };
         }

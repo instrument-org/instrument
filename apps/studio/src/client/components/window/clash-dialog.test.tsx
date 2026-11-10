@@ -55,7 +55,7 @@ describe("asking about names already taken", () => {
     const settled = askAbout([FILE_OVER_FILE]);
 
     expect(screen.getByRole("alertdialog").textContent).toMatchInlineSnapshot(
-      `"“notes.txt” already exists in “Reports”Do you want to replace it with the one you’re moving?StopReplaceKeep Both"`,
+      `"“notes.txt” already exists in “Reports”Do you want to replace it with the one you’re moving?Keep BothStopReplace"`,
     );
     await waitFor(
       () => {

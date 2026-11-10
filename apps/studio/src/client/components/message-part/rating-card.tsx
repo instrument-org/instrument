@@ -97,8 +97,7 @@ export function RatingCard({
           ) : (
             <>
               <p className="mt-1 text-[13px] text-pretty text-muted-foreground">
-                We're working hard to improve it, and we read every note you
-                send.
+                Every note you send is read by the people building Instrument.
               </p>
               <ButtonGroup aria-label="Your answer" className="mt-2.5">
                 {ANSWERS.map(({ Icon, label, tag }) => (

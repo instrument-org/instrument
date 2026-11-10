@@ -5,7 +5,6 @@ import {
   Dialog,
   DialogBody,
   DialogContent,
-  DialogDescription,
   DialogFooter,
   DialogTitle,
 } from "@/client/components/ui/dialog";
@@ -126,13 +125,13 @@ function ClearBrowsingDataContent({
   const note = allTimeNote({ ...picked, range });
 
   return (
-    <DialogContent maxWidth="28rem" onExitComplete={onExitComplete}>
+    <DialogContent
+      aria-describedby={undefined}
+      maxWidth="28rem"
+      onExitComplete={onExitComplete}
+    >
       <div className="flex flex-col gap-2">
         <DialogTitle>Clear browsing data</DialogTitle>
-        <DialogDescription>
-          This clears the browsing data you pick. Your chats and files stay as
-          they are.
-        </DialogDescription>
       </div>
 
       <DialogBody className="flex flex-col gap-4">

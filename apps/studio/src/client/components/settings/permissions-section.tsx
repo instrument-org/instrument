@@ -550,7 +550,7 @@ function EveryChatCanUse({
         <p className="text-xs text-muted-foreground">
           Every chat can use these, since Instrument needs them to work. A chat
           can read your past chats but can’t change them, and your browsers’
-          caches stay closed.
+          caches are protected.
         </p>
         <div className="divide-y overflow-hidden rounded-lg border">
           {rows.map((row) => (
@@ -724,8 +724,8 @@ function PlaceRow({
           line:
             place.level === "ask"
               ? passwordStore
-                ? `Folders like .ssh ask first. Your browsers and ${passwordStore} stay closed.`
-                : "Folders like .ssh ask first. Your browsers stay closed."
+                ? `Folders like .ssh ask first. Your browsers and ${passwordStore} are protected.`
+                : "Folders like .ssh ask first. Your browsers are protected."
               : "Keys, sign-ins and browser cookies",
           mark: <PlaceTile icon={KeyIcon} />,
           name: "Passwords and keys",

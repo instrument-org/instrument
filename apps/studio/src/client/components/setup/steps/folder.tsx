@@ -340,8 +340,8 @@ export function FolderStep({ hold, onBack, onContinue }: SetupStepProps) {
           }
           title={
             lostPast === "new" && picked === null
-              ? "Where do you want your new Instrument folder?"
-              : "Where do you want your Instrument folder?"
+              ? "Where do you want to place your new Instrument folder?"
+              : "Where do you want to place your Instrument folder?"
           }
         >
           <div className="mt-8 flex w-140 max-w-full flex-col">
@@ -366,7 +366,7 @@ export function FolderStep({ hold, onBack, onContinue }: SetupStepProps) {
                       }
                     },
                   }}
-                  line="Most users place their Instrument folder in Documents. If you don't allow access, we'll place it in your home folder instead."
+                  line="Most users place their Instrument folder in Documents. If you don't allow access, it goes in your home folder instead."
                   title={`${APP_NAME} was denied access to your Documents folder.`}
                 />
               )}
@@ -437,11 +437,7 @@ function MovingPage({
       align="center"
       hero={<Spinner className="size-6 text-muted-foreground" />}
       subtitle={
-        !restarts
-          ? undefined
-          : how === "open"
-            ? `${APP_NAME} restarts once to open it, then comes right back here.`
-            : `${APP_NAME} restarts once to finish, then comes right back here.`
+        !restarts ? undefined : `${APP_NAME} will restart to finish setup.`
       }
       title={
         how === "open"

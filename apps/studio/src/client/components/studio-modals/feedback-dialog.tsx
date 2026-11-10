@@ -344,7 +344,7 @@ export function FeedbackDialogContent({
     };
     onClose();
     toast.work({
-      done: "Thanks, we got your feedback.",
+      done: "Thanks for your feedback.",
       failed: "Couldn't send your feedback",
       onDone: request.onSent,
       run: async () => {
@@ -364,7 +364,7 @@ export function FeedbackDialogContent({
   }, reviewed !== undefined);
 
   const problem = described.error
-    ? `We couldn't gather what goes with your feedback: ${described.error.message}`
+    ? `Couldn't gather what goes with your feedback: ${described.error.message}`
     : undefined;
 
   const sendButton = (
@@ -735,7 +735,7 @@ function ActionsReview({
   return (
     <div className="flex flex-col">
       <p className="px-3 pt-1 pb-2 text-xs text-muted-foreground">
-        {`From ${timeOfDay(readAt - FEEDBACK_ACTIONS_MS)} to ${timeOfDay(readAt)}, exactly as we'll see it.`}
+        {`From ${timeOfDay(readAt - FEEDBACK_ACTIONS_MS)} to ${timeOfDay(readAt)}, exactly as it will be sent.`}
       </p>
       {actions.map((action, index) => {
         const text = actionText(action, words);

@@ -718,9 +718,7 @@ export function ToolChoose({
       ? undefined
       : given && !ask.here
         ? `You answered from ${given.by}. ${ask.computer} needs to be on for it to take effect.`
-        : !given && ask.away
-          ? `You answered from ${ask.away.by} while ${ask.here ? "this computer" : ask.computer} was away, so the chat is asking again.`
-          : undefined;
+        : undefined;
 
   const card = (
     <QuestionCard

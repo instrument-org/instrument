@@ -280,11 +280,10 @@ describe("PermissionAsksFoot", () => {
     );
 
     expect(
-      await screen.findByText(
-        "You answered from Sam’s iPhone while this computer was away, so the chat is asking again.",
-      ),
+      await screen.findByText("Can Instrument use this folder?"),
     ).toBeDefined();
     expect(buttons()).toContain("Allow in this chat");
+    expect(screen.queryByText(/was away/)).toBeNull();
   });
 
   describe("raised on another computer", () => {

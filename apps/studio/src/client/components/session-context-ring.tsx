@@ -172,8 +172,8 @@ export function SessionContextRing({
           </div>
           {estimated && (
             <div className="max-w-52 opacity-60">
-              This provider doesn’t share the model’s limit, so this is an
-              estimate. The real limit may be higher.
+              This provider doesn’t share model limits, so this is an estimate.
+              The real limit may be higher.
             </div>
           )}
         </div>

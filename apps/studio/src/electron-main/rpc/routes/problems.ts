@@ -160,7 +160,7 @@ const sendFeedback = base
         cause: error,
         message:
           error instanceof TypeError
-            ? "We couldn't be reached, so it didn't send. Check your connection and try again."
+            ? "Couldn't reach Instrument, so it didn't send. Check your connection and try again."
             : error instanceof Error
               ? error.message
               : String(error),

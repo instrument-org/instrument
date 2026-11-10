@@ -425,10 +425,11 @@ function PasteImport({ onStart }: { onStart: (answer: string) => void }) {
         <ClipboardTextIcon className="size-5 shrink-0 text-muted-foreground" />
         <span className="min-w-0 flex-1">
           <span className="block text-sm font-medium">
-            Copy and paste from any AI
+            Copy and paste from your existing AI tool
           </span>
           <span className="block text-xs text-muted-foreground">
-            Ask the AI you use a question, then paste its answer here.
+            Submit this prompt to your existing AI tool, then paste its answer
+            here.
           </span>
         </span>
         <CaretDownIcon className="size-4 shrink-0 text-muted-foreground" />

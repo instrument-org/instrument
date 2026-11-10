@@ -461,7 +461,7 @@ function InterfaceAndTheme() {
             <div className="space-y-0.5">
               <Label>Zoom</Label>
               <p className="text-xs text-muted-foreground">
-                Make the app larger or smaller. Web pages zoom separately.
+                Scale the app. Web pages zoom separately.
               </p>
             </div>
             <ZoomStepper />

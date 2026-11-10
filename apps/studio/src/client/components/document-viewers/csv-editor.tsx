@@ -633,7 +633,7 @@ function reportNotes(notes: ReplayNotes) {
     });
   }
   if (notes.byPosition > 0) {
-    toast.message("Check where your edits went", {
+    toast.message("Please check your edits", {
       description: "Instrument changed the rows or columns you edited.",
     });
   }

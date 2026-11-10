@@ -693,7 +693,7 @@ describe("feedback images", () => {
         },
       ]),
     ).rejects.toThrow(
-      "“notes.pdf” isn't an image, so we left it out. You can attach PNG, JPEG, WebP or GIF.",
+      "“notes.pdf” isn't an image, so it was left out. You can attach PNG, JPEG, WebP or GIF.",
     );
     await expect(
       reports.readFeedbackImages(

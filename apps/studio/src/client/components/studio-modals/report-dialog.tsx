@@ -150,7 +150,7 @@ function ReportDialogContent({
     };
     onClose();
     toast.work({
-      done: "Thanks, we got your report.",
+      done: "Thanks for your report.",
       failed: "Couldn't send your report",
       onDone: request.onSent,
       run: async () => {

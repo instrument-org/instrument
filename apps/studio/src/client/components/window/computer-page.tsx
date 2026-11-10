@@ -4173,7 +4173,7 @@ function refusalLine(reason: ComputerRefusal["reason"]) {
     case "account":
       return "Your account can’t read this folder";
     case "app":
-      return "Instrument keeps this folder private";
+      return "This folder is protected";
     case "system":
       return "macOS hasn’t let Instrument read this folder";
   }
@@ -4228,10 +4228,10 @@ export function NotPermitted({
           <FileSystemFolderGlyph className="h-10 w-auto opacity-60" />
           <div>
             <p className="text-sm font-medium">
-              {`Instrument keeps “${name}” private`}
+              {`“${name}” is a protected folder`}
             </p>
             <p className="mt-1 text-xs leading-5 text-muted-foreground">
-              Instrument keeps its data in this folder, so you can’t open it
+              Instrument stores its data in this folder, so you can’t open it
               here.
             </p>
           </div>

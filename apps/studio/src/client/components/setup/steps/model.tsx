@@ -33,8 +33,7 @@ import { type SetupStepProps } from "../step-props";
 /** How long the list may load before Continue becomes a skip. */
 const SLOW_LIST_MS = 10_000;
 
-const LATER =
-  "We'll use the one you pick for new chats, and you can change it any time.";
+const LATER = "New chats use the one you pick, and you can change it any time.";
 
 export const MAIN_MODEL_TITLE = "Pick your main model";
 

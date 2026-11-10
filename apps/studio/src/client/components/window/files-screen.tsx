@@ -598,7 +598,7 @@ export function FilesScreen({
         return;
       }
       if (response.status === 403) {
-        toast(`Instrument keeps “${name}” private`, {
+        toast(`“${name}” is a protected file`, {
           description:
             "It’s one of Instrument’s data files, so you can’t open it here.",
         });

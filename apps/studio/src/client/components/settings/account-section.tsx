@@ -121,7 +121,7 @@ function PlanGroup({ status }: { status: Status }) {
             <Row
               {...settingAnchor("plan")}
               data-billing-row="access-revoked"
-              detail="Get in touch and we'll sort it out."
+              detail="Get in touch to sort it out."
               title={`${APP_NAME} isn't available on this account`}
             >
               <Button

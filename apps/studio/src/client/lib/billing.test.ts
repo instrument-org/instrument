@@ -374,7 +374,7 @@ describe("accountNotice", () => {
         "the free allowance: Start your free trial to use Instrument's models. [Start free trial]",
         "a spent window: You've reached your plan's limit for now. It resets at 3:40 PM. [Upgrade]",
         "a failed payment: Your payment didn't go through. Update your card to keep going. [Update card]",
-        "revoked access: Instrument isn't available on this account. Get in touch and we'll sort it out. [Contact support]",
+        "revoked access: Instrument isn't available on this account. Get in touch to sort it out. [Contact support]",
       ]
     `);
   });
@@ -564,7 +564,7 @@ describe("nextStep", () => {
         "no plan, a search: Choose a plan to use Instrument's web search. [Choose a plan→choose-plan]",
         "trial ended: Your free trial has ended. [Choose a plan→choose-plan]",
         "card failed: Your payment didn't go through. Update your card to keep going. [Update card→update-card]",
-        "access revoked: Instrument isn't available on this account. Get in touch and we'll sort it out. [Contact support→contact]",
+        "access revoked: Instrument isn't available on this account. Get in touch to sort it out. [Contact support→contact]",
         "an outcome this build doesn't know: You can't make images right now. [Ask your admin→website /team]",
         "an action with no page: Choose a plan to make images.",
         "usage back: Your usage limit has reset. [Continue→continue]",

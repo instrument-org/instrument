@@ -166,7 +166,7 @@ export function NotificationRow({
             )
           }
           icon={<BellRingingIcon />}
-          line="If it didn't show up, we can send another one"
+          line="If it didn’t show up, try sending again."
           title="Click the notification Instrument just sent"
         />
       );

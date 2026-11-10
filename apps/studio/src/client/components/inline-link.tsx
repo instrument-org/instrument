@@ -59,9 +59,13 @@ import { InstrumentGlyph } from "./wordmark";
  * one under it; a table cell, whose line box is exactly twenty pixels, is
  * where that binds hardest. Only the right side is wider than the left, where
  * the label ends rather than an icon.
+ *
+ * No font size of its own: the label is the size of the sentence it sits in,
+ * which the surface around it set (a reply's 14px, a card's 12px). See the
+ * sizing note on `Markdown`.
  */
 export const INLINE_CHIP_CLASS_NAME =
-  "inline rounded-md border border-border bg-muted/50 py-px pr-1.5 pl-[3px] box-decoration-clone text-sm/4 font-medium text-foreground no-underline! hover:bg-muted";
+  "inline rounded-md border border-border bg-muted/50 py-px pr-1.5 pl-[3px] box-decoration-clone leading-4 font-medium text-foreground no-underline! hover:bg-muted";
 
 /**
  * The box a chip's icon sits in, ahead of its label. Joined to the label's

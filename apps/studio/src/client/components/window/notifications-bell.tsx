@@ -10,6 +10,7 @@ import {
 } from "@/client/components/ui/popover";
 import { useAppTabs } from "@/client/components/window/app-tabs";
 import { pendingProblemReport } from "@/client/lib/problem-reports";
+import { formatAbsoluteTime } from "@/client/lib/relative-time";
 import { toast } from "@/client/lib/toast";
 import { rpcClient } from "@/client/rpc/client";
 import { cn } from "@/client/lib/utils";
@@ -279,7 +280,10 @@ function NoticeItem({
           <span className="min-w-0 flex-1 text-[13px] font-medium">
             {notice.title}
           </span>
-          <span className="shrink-0 text-[11px] text-muted-foreground/60">
+          <span
+            className="shrink-0 text-[11px] text-muted-foreground/60"
+            title={formatAbsoluteTime(new Date(notice.publishedAt))}
+          >
             {formatWhen(Date.parse(notice.publishedAt))}
           </span>
         </div>
@@ -338,7 +342,10 @@ function ProblemItem({
           <span className="min-w-0 flex-1 text-[13px] font-medium">
             {title}
           </span>
-          <span className="shrink-0 text-[11px] text-muted-foreground/60">
+          <span
+            className="shrink-0 text-[11px] text-muted-foreground/60"
+            title={formatAbsoluteTime(new Date(problem.lastAt))}
+          >
             {formatWhen(problem.lastAt)}
           </span>
         </div>

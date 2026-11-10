@@ -5,6 +5,7 @@ import {
 } from "@/client/drafts/chat-box";
 import { draftsAtom } from "@/client/drafts/store";
 import { withoutPathQuotes } from "@/client/lib/path-text";
+import { formatAbsoluteTime } from "@/client/lib/relative-time";
 import { stripDictatedMarks } from "@instrument-org/shared/dictated-text";
 import { type ChatId } from "@instrument-org/workspace/client";
 import { CircleDashedIcon } from "@phosphor-icons/react/CircleDashed";
@@ -77,7 +78,10 @@ export function RepliesWaiting({
             <span className="line-clamp-2 w-full">
               {firstWords(draft.words) || "Nothing written yet"}
             </span>
-            <span className="text-xs text-muted-foreground">
+            <span
+              className="text-xs text-muted-foreground"
+              title={formatAbsoluteTime(new Date(draft.updatedAt))}
+            >
               <RelativeTime date={new Date(draft.updatedAt)} tooltip={false} />
             </span>
           </DropdownMenuItem>

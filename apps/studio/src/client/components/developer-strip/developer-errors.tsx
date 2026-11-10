@@ -3,7 +3,10 @@ import { CopyButton } from "@/client/components/copy-button";
 import { useIsSetupUp } from "@/client/components/setup/use-setup-state";
 import { Popover, PopoverTrigger } from "@/client/components/ui/popover";
 import { useNow } from "@/client/components/window/use-now";
-import { formatRelativeTime } from "@/client/lib/relative-time";
+import {
+  formatAbsoluteTime,
+  formatRelativeTime,
+} from "@/client/lib/relative-time";
 import { cn } from "@/client/lib/utils";
 import { rpcClient } from "@/client/rpc/client";
 import {
@@ -169,7 +172,10 @@ function ErrorsPanel({
                 >
                   {timesLabel(event.count)}
                 </span>
-                <span className="mt-1 block">
+                <span
+                  className="mt-1 block"
+                  title={formatAbsoluteTime(new Date(event.lastAt))}
+                >
                   {formatRelativeTime(new Date(event.lastAt), now)}
                 </span>
               </span>

@@ -29,3 +29,4 @@ Principles are edited in place, like architecture: when one is refined, fix the 
 | [Decision models are sugar, never the hinge](decision-models-are-sugar.md) | Judgment a feature needs comes from the chat's own model |
 | [The agent's context only grows forward](context-only-grows-forward.md) | Append what changed, never rewrite what the agent was told |
 | [Trust the person and their agent; defend real threats](trust-the-person-and-their-agent.md) | Protect what matters, not vectors that only exist in theory |
+| [A shortened date shows the whole one on hover](a-shortened-date-shows-the-whole-one-on-hover.md) | Short dates in rows, the full date and time in a native `title` |

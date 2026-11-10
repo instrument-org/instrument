@@ -14,7 +14,10 @@ import {
 import { Spinner } from "@/client/components/ui/spinner";
 import { useAppTabs } from "@/client/components/window/app-tabs";
 import { useNow } from "@/client/components/window/use-now";
-import { formatRelativeTime } from "@/client/lib/relative-time";
+import {
+  formatAbsoluteTime,
+  formatRelativeTime,
+} from "@/client/lib/relative-time";
 import { cn } from "@/client/lib/utils";
 import {
   showsAsRestarting,
@@ -553,7 +556,10 @@ function UpdateReadyCardBody({
             {version ? `Version ${version} is ready` : "An update is ready"}
           </div>
           {notes && (
-            <div className="text-xs text-muted-foreground">
+            <div
+              className="text-xs text-muted-foreground"
+              title={formatAbsoluteTime(new Date(notes.publishedAt))}
+            >
               Released{" "}
               {formatRelativeTime(new Date(notes.publishedAt), now.getTime())}
             </div>

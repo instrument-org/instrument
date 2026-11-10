@@ -20,6 +20,7 @@ import {
 import { MenuScrollArea } from "@/client/components/ui/menu-scroll-area";
 import { openClickGestures } from "@/client/hooks/use-open-target";
 import { withoutPathQuotes } from "@/client/lib/path-text";
+import { formatAbsoluteTime } from "@/client/lib/relative-time";
 import { cn } from "@/client/lib/utils";
 import { type ChatId } from "@instrument-org/workspace/client";
 import { PencilSimpleIcon } from "@phosphor-icons/react/PencilSimple";
@@ -240,6 +241,7 @@ export function ChatRow({
         "shrink-0 text-right text-[11px] text-muted-foreground/70 tabular-nums",
         isUnseen && "font-semibold",
       )}
+      title={formatAbsoluteTime(new Date(chat.lastUserMessageAt))}
     >
       {activityLabel(new Date(chat.lastUserMessageAt), now)}
     </span>

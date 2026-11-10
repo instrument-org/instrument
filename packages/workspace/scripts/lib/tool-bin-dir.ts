@@ -13,11 +13,18 @@ export function makeToolBinIn(runtimeDir: string): void {
   const binDir = runtimeLayout(runtimeDir).bin;
   fs.mkdirSync(binDir, { recursive: true });
   // Made beside it and renamed over it, so processes sharing one runtime
-  // folder never find the link missing or race to make it.
-  const link = path.join(binDir, "node");
+  // folder never find the link missing or race to make it. On Windows a
+  // hardlink named node.exe: a symlink needs Developer Mode or an elevated
+  // shell, and only an .exe is found by a program started without a shell.
+  const isWindows = process.platform === "win32";
+  const link = path.join(binDir, isWindows ? "node.exe" : "node");
   const staging = `${link}.${process.pid}`;
   fs.rmSync(staging, { force: true });
-  fs.symlinkSync(process.execPath, staging);
+  if (isWindows) {
+    fs.linkSync(process.execPath, staging);
+  } else {
+    fs.symlinkSync(process.execPath, staging);
+  }
   fs.renameSync(staging, link);
   process.env.PATH = [binDir, process.env.PATH]
     .filter(Boolean)

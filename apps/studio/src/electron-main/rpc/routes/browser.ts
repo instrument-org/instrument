@@ -258,19 +258,26 @@ const rememberPageIcon = base
  * of the guest by its contents id while it is on screen, and read back by the
  * tab's id whenever the tile is drawn, including after a relaunch.
  */
+/** A page's picture, and the address of the page it shows when known. */
+const PagePictureOutput = z.object({
+  page: z.string().optional(),
+  url: z.string().nullable(),
+});
+
 const thumbnails = {
   capture: base
     .input(z.object({ key: z.string(), webContentsId: z.number() }))
-    .output(z.object({ url: z.string().nullable() }))
-    .handler(async ({ input }) => ({
-      url: await capturePageThumbnail(input),
-    })),
+    .output(PagePictureOutput)
+    .handler(
+      async ({ input }) => (await capturePageThumbnail(input)) ?? { url: null },
+    ),
   get: base
     .input(z.object({ key: z.string() }))
-    .output(z.object({ url: z.string().nullable() }))
-    .handler(async ({ input }) => ({
-      url: await readPageThumbnail(input.key),
-    })),
+    .output(PagePictureOutput)
+    .handler(
+      async ({ input }) =>
+        (await readPageThumbnail(input.key)) ?? { url: null },
+    ),
   /** The pictures of tabs that are gone, a closed tab's or a trashed chat's. */
   forget: base
     .input(z.object({ keys: z.array(z.string()) }))

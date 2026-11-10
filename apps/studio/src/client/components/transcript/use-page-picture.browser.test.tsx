@@ -4,7 +4,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { usePagePicture } from "./use-page-picture";
 
-type Picture = { url: null | string };
+type Picture = { page?: string; url: null | string };
 
 // The main process's two answers, each settled by the test when it likes.
 const rpc = vi.hoisted(() => ({
@@ -42,8 +42,8 @@ vi.mock("@/client/hooks/use-target-agent-activity", () => ({
 const TAB = "tab_01M6Y425TKVX7ETRAJ07DGTRNP";
 const GUEST = { on: () => () => undefined, webContentsId: 7 };
 
-function Picture() {
-  const url = usePagePicture(TAB, browserTargetOf(TAB));
+function Picture({ page }: { page?: string }) {
+  const url = usePagePicture(TAB, browserTargetOf(TAB), page);
   return <output>{url ?? "none"}</output>;
 }
 
@@ -121,6 +121,26 @@ describe("usePagePicture", () => {
       .element(view.getByRole("status"), { timeout: 4000 })
       .toHaveTextContent("data:second");
     expect(rpc.capture).toHaveBeenCalledTimes(2);
+  });
+
+  it("shows no picture of the page the tab has left until one of its new page arrives", async () => {
+    const ONE = "https://one.example/";
+    const TWO = "https://two.example/";
+    rpc.get.mockResolvedValue({ page: ONE, url: "data:one" });
+    const second = deferred<Picture>();
+    rpc.capture.mockReturnValue(second.promise);
+    pool.guest = GUEST;
+    const view = await renderInBrowser(<Picture page={`${ONE}#top`} />);
+    await expect
+      .element(view.getByRole("status"))
+      .toHaveTextContent("data:one");
+    await view.rerender(<Picture page={TWO} />);
+    await expect.element(view.getByRole("status")).toHaveTextContent("none");
+    await expect.poll(() => rpc.capture.mock.calls.length).toBeGreaterThan(0);
+    second.resolve({ page: TWO, url: "data:two" });
+    await expect
+      .element(view.getByRole("status"))
+      .toHaveTextContent("data:two");
   });
 
   it("asks nothing more once the card is gone", async () => {

@@ -16,8 +16,14 @@ const CAPTURE_DEADLINE_MS = 3000;
 /** How many pictures are held in memory; the rest are read back from disk when drawn. */
 const HELD = 48;
 
-/** The pictures read or taken lately, by their key, as data URLs, oldest first. */
-const pictures = new Map<string, string>();
+/**
+ * A picture of a page as a data URL, and the address of the page it shows
+ * when known: a picture read back from disk does not say.
+ */
+export type PagePicture = { page?: string; url: string };
+
+/** The pictures read or taken lately, by their key, oldest first. */
+const pictures = new Map<string, PagePicture>();
 
 /**
  * The newest capture kept for each key, by the order they were asked for, so
@@ -43,7 +49,8 @@ const fileWork = new Map<string, Promise<void>>();
  * `<webview>` guest is captured; any other contents is refused. The window
  * is kept drawing while the picture is taken, so a page behind another app's
  * window or a minimized one still gives a frame. Nothing when the guest is
- * gone, drew nothing, or a newer capture of the same key was kept meanwhile.
+ * gone, drew nothing, moved to another address while it was taken, or a newer
+ * capture of the same key was kept meanwhile.
  */
 export async function capturePageThumbnail({
   key,
@@ -51,11 +58,12 @@ export async function capturePageThumbnail({
 }: {
   key: string;
   webContentsId: number;
-}): Promise<null | string> {
+}): Promise<null | PagePicture> {
   const guest = webContents.fromId(webContentsId);
   if (!guest || guest.isDestroyed() || guest.getType() !== "webview") {
     return null;
   }
+  const page = guest.getURL();
   captures += 1;
   const mine = captures;
   const era = forgotten.get(key) ?? 0;
@@ -75,14 +83,20 @@ export async function capturePageThumbnail({
     );
     return null;
   }
-  // A tab closed while its picture was taken keeps nothing of it.
-  if (isForgotten() || (keptCapture.get(key) ?? 0) > mine) {
+  // A tab closed while its picture was taken keeps nothing of it, and a page
+  // that moved meanwhile may show either address in it.
+  if (
+    isForgotten() ||
+    (keptCapture.get(key) ?? 0) > mine ||
+    guest.isDestroyed() ||
+    guest.getURL() !== page
+  ) {
     return null;
   }
   keptCapture.set(key, mine);
   const jpeg = image.resize({ quality: "good", width: WIDTH }).toJPEG(QUALITY);
-  const url = asDataUrl(jpeg);
-  hold(key, url);
+  const picture = { page, url: asDataUrl(jpeg) };
+  hold(key, picture);
   await inTurn(key, async () => {
     // A newer picture kept, or the tab gone, while an earlier write ran.
     if (isForgotten() || keptCapture.get(key) !== mine) {
@@ -94,7 +108,7 @@ export async function capturePageThumbnail({
     await fs.writeFile(partial, jpeg);
     await fs.rename(partial, file);
   });
-  return url;
+  return picture;
 }
 
 /** Throws away the pictures of pages that are gone: a tab closed, or its chat trashed. */
@@ -140,16 +154,20 @@ export async function keepOnlyPageThumbnails(keys: string[]): Promise<void> {
 }
 
 /** The last picture kept under `key`, or nothing when none was ever taken. */
-export async function readPageThumbnail(key: string): Promise<null | string> {
+export async function readPageThumbnail(
+  key: string,
+): Promise<null | PagePicture> {
   const kept = pictures.get(key);
   if (kept) {
     hold(key, kept);
     return kept;
   }
   try {
-    const url = asDataUrl(await fs.readFile(path.join(folder(), nameOf(key))));
-    hold(key, url);
-    return url;
+    const picture = {
+      url: asDataUrl(await fs.readFile(path.join(folder(), nameOf(key)))),
+    };
+    hold(key, picture);
+    return picture;
   } catch {
     return null;
   }
@@ -185,9 +203,9 @@ function folder() {
   return path.join(workspaceBrowserDir(), "page-thumbnails");
 }
 
-function hold(key: string, url: string) {
+function hold(key: string, picture: PagePicture) {
   pictures.delete(key);
-  pictures.set(key, url);
+  pictures.set(key, picture);
   for (const oldest of pictures.keys()) {
     if (pictures.size <= HELD) {
       break;

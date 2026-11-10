@@ -50,17 +50,19 @@ function PageShot({
   tab: PageTab;
   targetId: BrowserTargetId;
 }) {
-  const url = usePagePicture(tab.id, targetId);
-  const [hasDrawn, setHasDrawn] = useState(false);
-  // The page's icon, which its first picture fades in over once it has drawn;
-  // a later picture replaces the one before in place.
+  const page = tab.url ?? tab.openedUrl;
+  const url = usePagePicture(tab.id, targetId, page);
+  // A picture already there when the card comes up is drawn at once.
+  const [hasDrawn, setHasDrawn] = useState(url !== undefined);
+  if (url === undefined && hasDrawn) {
+    setHasDrawn(false);
+  }
+  // The page's icon, which each page's first picture fades in over once it
+  // has drawn; a later picture of the page replaces the one before in place.
   return (
     <>
       <div className="flex h-full items-center justify-center [&_img]:size-6 [&_svg]:size-6">
-        <PageFavicon
-          favicon={tab.favicon}
-          url={tab.url ?? tab.openedUrl ?? ""}
-        />
+        <PageFavicon favicon={tab.favicon} url={page ?? ""} />
       </div>
       {url && (
         <img

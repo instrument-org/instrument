@@ -23,18 +23,39 @@ const RETRY_MS = 2000;
 /** How many pictures in a row may fail, while none is shown, before the next change is waited for. */
 const RETRIES = 3;
 
-type Picture = { url: null | string };
+/** A picture, and the address of the page it shows when known. */
+type Picture = { page?: string; url: null | string };
+
+/** Two addresses for one page, whatever their fragment or a trailing slash. */
+const sameAddress = (one: string, other: string) => {
+  const plain = (url: string) => url.replace(/#.*$/, "").replace(/\/+$/, "");
+  return plain(one) === plain(other);
+};
 
 /**
- * A picture of the page, taken once its guest is ready, again shortly after
- * it loads, moves or renames itself and after each agent command in it, and
- * again a few times while none could be taken yet. Every picture the main
- * process hands back is shown: it answers nothing for a capture a newer one
- * replaced, so a newer capture that fails never hides an older one that worked.
+ * Whether a picture shows the page at `page`: one that was taken of it, or
+ * one read back from disk, which does not say and was the tab's last.
+ */
+const shows = (picture: Picture | undefined, page: string | undefined) =>
+  !!picture?.url &&
+  (picture.page === undefined ||
+    page === undefined ||
+    sameAddress(picture.page, page));
+
+/**
+ * A picture of the page at `page`, the tab's address, taken once its guest is
+ * ready, again shortly after it loads, moves or renames itself and after each
+ * agent command in it, and again a few times while none of this page could be
+ * taken yet. Every picture the main process hands back is kept: it answers
+ * nothing for a capture a newer one replaced, so a newer capture that fails
+ * never hides an older one that worked. One kept of the address the tab has
+ * just left is never shown, so a card never draws one page's picture under
+ * another's name.
  */
 export function usePagePicture(
   key: string,
   targetId: BrowserTargetId,
+  page: string | undefined,
 ): string | undefined {
   const queryClient = useQueryClient();
   const queryKey = thumbnailKey(key);
@@ -71,11 +92,11 @@ export function usePagePicture(
       // The main process keeps the newest picture that worked and answers
       // nothing for one a newer capture already replaced, so every picture
       // that comes back is the one to show.
-      const answered = (url: null | string) => {
+      const answered = (taken: Picture) => {
         inFlight.current -= 1;
-        if (url) {
+        if (taken.url) {
           misses.current = 0;
-          queryClient.setQueryData<Picture>(queryKey, { url });
+          queryClient.setQueryData<Picture>(queryKey, taken);
           return;
         }
         // A capture still on its way answers for this one, which may only
@@ -86,7 +107,7 @@ export function usePagePicture(
         misses.current += 1;
         if (
           misses.current <= RETRIES &&
-          !queryClient.getQueryData<Picture>(queryKey)?.url
+          !shows(queryClient.getQueryData<Picture>(queryKey), page)
         ) {
           clearTimeout(retry.current);
           retry.current = setTimeout(() => {
@@ -96,14 +117,9 @@ export function usePagePicture(
       };
       void rpcClient.browser.thumbnails.capture
         .call({ key, webContentsId })
-        .then(
-          (result) => {
-            answered(result.url);
-          },
-          () => {
-            answered(null);
-          },
-        );
+        .then(answered, () => {
+          answered({ url: null });
+        });
     };
   });
   useEffect(() => {
@@ -153,5 +169,7 @@ export function usePagePicture(
       clearTimeout(pending);
     };
   }, [agentAt]);
-  return picture.data?.url ?? undefined;
+  return shows(picture.data, page)
+    ? (picture.data?.url ?? undefined)
+    : undefined;
 }

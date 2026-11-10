@@ -43,14 +43,26 @@ vi.mock("@/electron-main/browser-view/capture-frame", () => ({
       });
     }),
 }));
+// The address the guest is at, moved by the test.
+const guest = vi.hoisted(() => ({ url: "https://one.example/" }));
 vi.mock("electron", () => ({
   webContents: {
-    fromId: () => ({ getType: () => "webview", isDestroyed: () => false }),
+    fromId: () => ({
+      getType: () => "webview",
+      getURL: () => guest.url,
+      isDestroyed: () => false,
+    }),
   },
 }));
 
 const pictureOf = (name: string) =>
   `data:image/jpeg;base64,${Buffer.from(name).toString("base64")}`;
+
+/** A picture taken of the page at the guest's first address. */
+const taken = (name: string) => ({
+  page: "https://one.example/",
+  url: pictureOf(name),
+});
 
 afterAll(() => {
   fs.rmSync(folder, { force: true, recursive: true });
@@ -64,8 +76,8 @@ describe("capturePageThumbnail", () => {
     second?.fail(new Error("No frame within 3000ms"));
     first?.show("older");
     await expect(newer).resolves.toBeNull();
-    await expect(older).resolves.toBe(pictureOf("older"));
-    await expect(readPageThumbnail("tab_a")).resolves.toBe(pictureOf("older"));
+    await expect(older).resolves.toEqual(taken("older"));
+    await expect(readPageThumbnail("tab_a")).resolves.toEqual(taken("older"));
   });
 
   it("never replaces a newer picture with an older one finishing late", async () => {
@@ -73,10 +85,10 @@ describe("capturePageThumbnail", () => {
     const newer = capturePageThumbnail({ key: "tab_b", webContentsId: 1 });
     const [first, second] = frames.splice(0);
     second?.show("newer");
-    await expect(newer).resolves.toBe(pictureOf("newer"));
+    await expect(newer).resolves.toEqual(taken("newer"));
     first?.show("older");
     await expect(older).resolves.toBeNull();
-    await expect(readPageThumbnail("tab_b")).resolves.toBe(pictureOf("newer"));
+    await expect(readPageThumbnail("tab_b")).resolves.toEqual(taken("newer"));
   });
 
   it("keeps nothing of a picture that finishes after its tab closed", async () => {
@@ -86,6 +98,16 @@ describe("capturePageThumbnail", () => {
     frame?.show("closed");
     await expect(taking).resolves.toBeNull();
     await expect(readPageThumbnail("tab_c")).resolves.toBeNull();
+  });
+
+  it("keeps nothing of a picture taken while the page moved to another address", async () => {
+    const taking = capturePageThumbnail({ key: "tab_e", webContentsId: 1 });
+    const [frame] = frames.splice(0);
+    guest.url = "https://two.example/";
+    frame?.show("between");
+    await expect(taking).resolves.toBeNull();
+    await expect(readPageThumbnail("tab_e")).resolves.toBeNull();
+    guest.url = "https://one.example/";
   });
 
   it("leaves the newer picture on disk when two finish one after the other", async () => {

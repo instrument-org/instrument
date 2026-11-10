@@ -42,9 +42,7 @@ function groupOf(change: ChatChange): Omit<ChatChangeGroup, "changes"> {
 }
 
 /** A turn's changes to chats, grouped by what was done, in the order first done. */
-function chatChangeGroups(
-  changes: readonly ChatChange[],
-): ChatChangeGroup[] {
+function chatChangeGroups(changes: readonly ChatChange[]): ChatChangeGroup[] {
   const groups = new Map<string, ChatChangeGroup>();
   for (const change of changes) {
     const group = groupOf(change);

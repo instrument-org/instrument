@@ -89,7 +89,12 @@ describe("instrument projects set", () => {
       icon: "cooking-pot",
     });
     expect((await project("Remy"))?.emoji).toBeUndefined();
-    expect(changes).toMatchInlineSnapshot(`
+    expect(
+      changes.map((change) => ({
+        ...change,
+        ...(change.project && { project: { ...change.project, id: "<id>" } }),
+      })),
+    ).toMatchInlineSnapshot(`
       [
         {
           "change": "changed",
@@ -112,6 +117,19 @@ describe("instrument projects set", () => {
           ],
           "kind": "project",
           "name": "Remy",
+          "project": {
+            "after": {
+              "color": "#765fca",
+              "icon": "cooking-pot",
+              "name": "Remy",
+            },
+            "before": {
+              "color": "#996d00",
+              "emoji": "🐭",
+              "name": "Remy",
+            },
+            "id": "<id>",
+          },
         },
       ]
     `);
@@ -129,7 +147,7 @@ describe("instrument projects set", () => {
   });
 
   it("follows a rename, recording it under the new name", async () => {
-    await createProject({ name: "Old Habit" });
+    const { id } = await createProject({ name: "Old Habit" });
     const { changes } = await turn(
       'instrument projects set "Old Habit" --name Habits --icon bank',
     );
@@ -142,8 +160,27 @@ describe("instrument projects set", () => {
         ],
         kind: "project",
         name: "Habits",
+        project: {
+          after: { icon: "bank", name: "Habits" },
+          before: { name: "Old Habit" },
+          id,
+        },
       },
     ]);
+  });
+
+  it("records the look from before the turn's first change, under the old name", async () => {
+    const { id } = await createProject({ name: "Plants" });
+    const { changes } = await turn(
+      "instrument projects set Plants --name Houseplants",
+      "instrument projects set Houseplants --color deep-green",
+      "instrument projects set Houseplants --icon plant",
+    );
+    expect(changes[0]?.project).toEqual({
+      after: { color: "#218b30", icon: "plant", name: "Houseplants" },
+      before: { name: "Plants" },
+      id,
+    });
   });
 
   it.each([
@@ -235,5 +272,22 @@ describe("undoing a turn's project changes", () => {
       ),
     );
     expect((await project("Events"))?.retired).toBeUndefined();
+  });
+
+  it("finds a project by its id when the person renamed it since", async () => {
+    await createProject({ color: "#996d00", name: "Daily" });
+    const { changes } = await turn(
+      "instrument projects set Daily --color deep-violet",
+    );
+    const daily = await project("Daily");
+    await updateProject(daily?.id ?? "", { name: "Mornings" });
+    expect(
+      await undoProjectChanges(
+        changes.flatMap(({ fields, name, project: looks }) =>
+          fields ? [{ fields, name, ...(looks && { project: looks }) }] : [],
+        ),
+      ),
+    ).toEqual({ skipped: 0, undone: 1 });
+    expect(await project("Mornings")).toMatchObject({ color: "#996d00" });
   });
 });

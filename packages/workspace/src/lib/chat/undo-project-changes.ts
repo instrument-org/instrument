@@ -53,8 +53,9 @@ function putBack(field: ProjectFieldChange): ProjectChange {
 /**
  * Puts back what a turn's commands changed about each project, field by
  * field, where the project still has what the turn set: one the person has
- * changed since is theirs, and stays. A project is found by the name the
- * turn left it with. Answers how many fields went back and how many stayed.
+ * changed since is theirs, and stays. A project is found by its id, or
+ * where none was recorded by the name the turn left it with. Answers how
+ * many fields went back and how many stayed.
  */
 export async function undoProjectChanges(
   changes: readonly ChangedProject[],
@@ -62,8 +63,10 @@ export async function undoProjectChanges(
   const projects = await listProjects();
   let undone = 0;
   let skipped = 0;
-  for (const { fields, name } of changes) {
-    const project = projects.find((each) => each.name === name);
+  for (const { fields, name, project: looks } of changes) {
+    const project = projects.find((each) =>
+      looks ? each.id === looks.id : each.name === name,
+    );
     const standing = project
       ? fields.filter((field) => stillStands(project, field))
       : [];

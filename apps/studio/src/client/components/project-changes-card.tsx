@@ -7,7 +7,7 @@ import {
   type ChangedProject,
   projectChangeLines,
   projectChangesHeading,
-  projectLookBefore,
+  projectLooks,
 } from "@instrument-org/workspace/client";
 import { ArrowCounterClockwiseIcon } from "@phosphor-icons/react/ArrowCounterClockwise";
 import { CardsThreeIcon } from "@phosphor-icons/react/CardsThree";
@@ -45,9 +45,10 @@ export function ProjectChangesCard({
     setUndoing(true);
     return rpcClient.workspace.projects.undoChanges
       .call({
-        changes: changes.map(({ fields, name }) => ({
+        changes: changes.map(({ fields, name, project }) => ({
           fields: [...fields],
           name,
+          ...(project ? { project } : {}),
         })),
       })
       .then(({ skipped, undone: count }) => {
@@ -123,7 +124,11 @@ export function ProjectChangesCard({
           <ProjectRow
             change={change}
             key={change.name}
-            project={projects.find((each) => each.name === change.name)}
+            project={projects.find((each) =>
+              change.project
+                ? each.id === change.project.id
+                : each.name === change.name,
+            )}
             undone={undone}
           />
         ))}
@@ -143,27 +148,27 @@ export function ProjectChangesCard({
   );
 }
 
-/** One project the turn touched: its mark and name, then a line for each change. */
+/**
+ * One project the turn touched: its mark and name, then a line for each
+ * change. Undone, it is named and marked as it is again, before the turn,
+ * with the changes struck through.
+ */
 function ProjectRow({
   change,
   project,
   undone,
 }: {
   change: ChangedProject;
-  /** The project as the list has it now; absent for one since renamed or gone. */
+  /** The project as the list has it now; absent for one gone. */
   project: (ProjectMarkSpec & { id: string; retired?: boolean }) | undefined;
   undone: boolean;
 }) {
-  const now: ProjectMarkSpec = { ...project, name: change.name };
-  const before: ProjectMarkSpec = {
-    ...projectLookBefore(now, change.fields),
-    name: change.name,
-  };
+  const { after: now, before } = projectLooks(change, { ...project });
+  const name = (undone ? before.name : now.name) ?? change.name;
   const away = !undone && project?.retired === true;
   const quiet = away || undone;
   const nameClassName = cn(
     "min-w-0 truncate text-sm leading-5",
-    undone && "line-through",
     quiet ? "text-muted-foreground" : "text-foreground",
   );
   const lineClassName = cn(
@@ -186,10 +191,10 @@ function ProjectRow({
             }}
             type="button"
           >
-            {change.name}
+            {name}
           </button>
         ) : (
-          <span className={nameClassName}>{change.name}</span>
+          <span className={nameClassName}>{name}</span>
         )}
       </span>
       <span className="mt-1 flex flex-col gap-0.5 pl-7">
@@ -197,9 +202,9 @@ function ProjectRow({
           <span className={lineClassName} key={line.kind}>
             {line.kind === "renamed" ? (
               <span>
-                Renamed from{" "}
+                {undone ? "Renamed to" : "Renamed from"}{" "}
                 <span className="text-muted-foreground/80">
-                  “{line.before}”
+                  “{undone ? line.after : line.before}”
                 </span>
               </span>
             ) : (

@@ -462,6 +462,28 @@ export namespace SessionMessageDataPart {
 
   export type ProjectFieldChange = z.output<typeof ProjectFieldChangeSchema>;
 
+  /** What a project's mark is drawn from: its name, and the mark and color it has. */
+  export const ProjectLookSchema = z.object({
+    color: z.string().optional(),
+    emoji: z.string().optional(),
+    icon: z.string().optional(),
+    name: z.string(),
+  });
+
+  export type ProjectLook = z.output<typeof ProjectLookSchema>;
+
+  /**
+   * A project a command changed or made, by its id, as it looked before the
+   * turn (absent for one the turn made) and as the turn left it.
+   */
+  export const ChangedProjectLooksSchema = z.object({
+    after: ProjectLookSchema,
+    before: ProjectLookSchema.optional(),
+    id: z.string(),
+  });
+
+  export type ChangedProjectLooks = z.output<typeof ChangedProjectLooksSchema>;
+
   export const SetupChangesDataPartSchema = z.object({
     changes: z
       .array(
@@ -475,6 +497,12 @@ export namespace SessionMessageDataPart {
           fields: z.array(ProjectFieldChangeSchema).min(1).optional(),
           kind: z.enum(["app", "memory", "skill", "project"]),
           name: z.string(),
+          /**
+           * A project a command changed or made, as it looked on either side
+           * of the turn. Absent where only its file was written to, and in
+           * a part from before it was recorded.
+           */
+          project: ChangedProjectLooksSchema.optional(),
         }),
       )
       .min(1),

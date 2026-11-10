@@ -63,6 +63,43 @@ describe("ProjectChangesCard", () => {
     expect(screen.queryByRole("button", { name: "Events" })).toBeNull();
   });
 
+  it("after Undo names and marks the project as it was before the turn", async () => {
+    const recorded = [
+      {
+        fields: [
+          { after: "Houseplants", before: "Plants", field: "name" as const },
+          { after: "#218b30", before: null, field: "color" as const },
+        ],
+        name: "Houseplants",
+        project: {
+          after: { color: "#218b30", name: "Houseplants" },
+          before: { name: "Plants" },
+          id: "prj_3",
+        },
+      },
+    ];
+    const { container } = renderWithProviders(
+      <ProjectChangesCard changes={recorded} />,
+    );
+    const marks = () =>
+      [...container.querySelectorAll("[title]")].map((mark) =>
+        mark.getAttribute("title"),
+      );
+    expect(marks()).toEqual(["Houseplants"]);
+    expect(screen.getByText(/Renamed from/).textContent).toBe(
+      "Renamed from “Plants”",
+    );
+    fireEvent.click(screen.getByRole("button", { name: "Undo" }));
+    await waitFor(() => {
+      expect(screen.getByText("Undone")).toBeTruthy();
+    });
+    expect(screen.getByText("Plants")).toBeTruthy();
+    expect(marks()).toEqual(["Plants"]);
+    expect(screen.getByText(/Renamed to/).textContent).toBe(
+      "Renamed to “Houseplants”",
+    );
+  });
+
   it("undoes the changes and says so", async () => {
     renderWithProviders(<ProjectChangesCard changes={changes} />);
     fireEvent.click(screen.getByRole("button", { name: "Undo" }));

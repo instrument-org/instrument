@@ -2,10 +2,14 @@ import { type SessionMessageDataPart } from "../schemas/session/message-data-par
 
 type ProjectFieldChange = SessionMessageDataPart.ProjectFieldChange;
 
-/** One project a turn changed by command: its name now, and each field it set. */
+/**
+ * One project a turn changed by command: its name now, each field it set,
+ * and how it looked before and after, where that was recorded.
+ */
 export interface ChangedProject {
   fields: readonly ProjectFieldChange[];
   name: string;
+  project?: SessionMessageDataPart.ChangedProjectLooks;
 }
 
 /** What a project's change comes to, as the person sees it: its mark, its color, its name, whether it is in use. */
@@ -101,7 +105,7 @@ export function projectChangeLines(
   project: ChangedProject,
 ): (
   | { kind: "look"; words: string }
-  | { before: string; kind: "renamed" }
+  | { after: string; before: string; kind: "renamed" }
   | { kind: "deleted" | "back"; words: string }
 )[] {
   const kinds = kindsOf(project);
@@ -123,7 +127,11 @@ export function projectChangeLines(
   }
   const renamed = project.fields.find((field) => field.field === "name");
   if (renamed) {
-    lines.push({ before: renamed.before, kind: "renamed" });
+    lines.push({
+      after: renamed.after,
+      before: renamed.before,
+      kind: "renamed",
+    });
   }
   if (kinds.has("deleted")) {
     lines.push({ kind: "deleted", words: "Deleted" });
@@ -134,17 +142,39 @@ export function projectChangeLines(
   return lines;
 }
 
-/** What a project's mark is drawn from. */
+/**
+ * What a project's mark is drawn from. With no icon or emoji it shows its
+ * name's first letter, and with no color one its name picks.
+ */
 export interface ProjectLook {
   color?: string;
   emoji?: string;
   icon?: string;
+  name?: string;
 }
 
 /**
- * A project's mark and color before the turn, from what it is now and what
- * the turn set: each field the turn changed goes back to its value from
- * before, so the card can draw the old mark beside the new one.
+ * How a project looked before the turn and as the turn left it, for the
+ * card to draw side by side: as recorded when the command ran, or, for a
+ * change recorded before that, worked back from `now`, how the project
+ * looks at the moment.
+ */
+export function projectLooks(
+  change: ChangedProject,
+  now: ProjectLook,
+): { after: ProjectLook; before: ProjectLook } {
+  if (change.project) {
+    const { after, before } = change.project;
+    return { after, before: before ?? after };
+  }
+  const after = { ...now, name: change.name };
+  return { after, before: projectLookBefore(after, change.fields) };
+}
+
+/**
+ * A project's mark, color and name before the turn, from what it is now and
+ * what the turn set: each field the turn changed goes back to its value
+ * from before, so the card can draw the old mark beside the new one.
  */
 export function projectLookBefore(
   now: ProjectLook,
@@ -154,8 +184,12 @@ export function projectLookBefore(
     ...(now.color === undefined ? {} : { color: now.color }),
     ...(now.emoji === undefined ? {} : { emoji: now.emoji }),
     ...(now.icon === undefined ? {} : { icon: now.icon }),
+    ...(now.name === undefined ? {} : { name: now.name }),
   };
   for (const field of fields) {
+    if (field.field === "name") {
+      look.name = field.before;
+    }
     if (
       field.field === "color" ||
       field.field === "emoji" ||

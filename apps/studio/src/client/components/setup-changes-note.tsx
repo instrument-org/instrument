@@ -31,7 +31,13 @@ type SetupChange =
 export function SetupChangesNote({ changes }: { changes: SetupChange[] }) {
   const projects = changes.flatMap((change) =>
     change.kind === "project" && change.fields
-      ? [{ fields: change.fields, name: change.name }]
+      ? [
+          {
+            fields: change.fields,
+            name: change.name,
+            ...(change.project ? { project: change.project } : {}),
+          },
+        ]
       : [],
   );
   const lines = changes.filter(

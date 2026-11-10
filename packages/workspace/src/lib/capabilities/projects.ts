@@ -162,8 +162,21 @@ async function changeProject(
   if (fields.length === 0) {
     return `${after.name} already was that; nothing changed.`;
   }
-  recordProjectChange({ after: after.name, before: project.name }, fields);
+  recordProjectChange(
+    { after: lookOf(after), before: lookOf(project), id: after.id },
+    fields,
+  );
   return `Changed ${after.name}: ${fields.map(saidChange).join(", ")}.`;
+}
+
+/** What a project's mark is drawn from, as the changes card draws it. */
+function lookOf(project: Project): SessionMessageDataPart.ProjectLook {
+  return {
+    ...(project.color ? { color: project.color } : {}),
+    ...(project.emoji ? { emoji: project.emoji } : {}),
+    ...(project.icon ? { icon: project.icon } : {}),
+    name: project.name,
+  };
 }
 
 function saidChange(change: ProjectFieldChange): string {

@@ -5,6 +5,7 @@ import {
   projectChangeLines,
   projectChangesHeading,
   projectLookBefore,
+  projectLooks,
 } from "./project-change-words";
 
 const icon = (name: string): ChangedProject => ({
@@ -53,7 +54,7 @@ describe("projectChangeLines", () => {
       }),
     ).toEqual([
       { kind: "look", words: "Icon and color updated" },
-      { before: "Invoices", kind: "renamed" },
+      { after: "Billing", before: "Invoices", kind: "renamed" },
       { kind: "deleted", words: "Deleted" },
     ]);
   });
@@ -77,5 +78,41 @@ describe("projectLookBefore", () => {
         { after: "#765fca", before: "#996d00", field: "color" },
       ]),
     ).toEqual({ color: "#996d00", emoji: "🐭" });
+  });
+});
+
+describe("projectLooks", () => {
+  const renamedAndColored: ChangedProject = {
+    fields: [
+      { after: "Houseplants", before: "Plants", field: "name" },
+      { after: "#218b30", before: null, field: "color" },
+    ],
+    name: "Houseplants",
+  };
+
+  it("draws both sides from what was recorded, whatever the project is now", () => {
+    expect(
+      projectLooks(
+        {
+          ...renamedAndColored,
+          project: {
+            after: { color: "#218b30", name: "Houseplants" },
+            before: { name: "Plants" },
+            id: "prj_1",
+          },
+        },
+        { name: "Plants" },
+      ),
+    ).toEqual({
+      after: { color: "#218b30", name: "Houseplants" },
+      before: { name: "Plants" },
+    });
+  });
+
+  it("works back to the old name where only the fields were recorded", () => {
+    expect(projectLooks(renamedAndColored, { color: "#218b30" })).toEqual({
+      after: { color: "#218b30", name: "Houseplants" },
+      before: { name: "Plants" },
+    });
   });
 });

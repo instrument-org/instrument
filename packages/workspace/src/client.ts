@@ -157,7 +157,7 @@ export {
   type ChangedProject,
   projectChangeLines,
   projectChangesHeading,
-  projectLookBefore,
+  projectLooks,
 } from "./lib/project-change-words";
 export {
   chatChangesByChat,

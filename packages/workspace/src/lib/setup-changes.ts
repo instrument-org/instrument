@@ -81,6 +81,7 @@ export interface SetupTouch {
 }
 
 type ProjectFieldChange = SessionMessageDataPart.ProjectFieldChange;
+type ProjectLooks = SessionMessageDataPart.ChangedProjectLooks;
 
 export interface SetupChange {
   change: "added" | "changed" | "removed";
@@ -88,11 +89,15 @@ export interface SetupChange {
   fields?: ProjectFieldChange[];
   kind: SetupKind;
   name: string;
+  /** A project a command changed or made, as it looked before the turn and after. */
+  project?: ProjectLooks;
 }
 
 interface TurnTracker {
   /** What `instrument projects` set, by the project's name now and then by field. */
   fields: Map<string, Map<ProjectFieldChange["field"], ProjectFieldChange>>;
+  /** How each project a command changed or made looked before the turn and now, by its name now. */
+  looks: Map<string, ProjectLooks>;
   /** Projects a command renamed, by their old names, which are not projects gone. */
   renamedFrom: Set<string>;
   /** By `kind:name`; the first touch says whether the item was there before. */
@@ -120,6 +125,7 @@ export function setSetupTouchForwarder(next: (touch: SetupTouch) => void) {
 export function beginSetupChangeTracking(turn: TurnKey): void {
   TURNS.set(turnKey(turn), {
     fields: new Map(),
+    looks: new Map(),
     renamedFrom: new Set(),
     touched: new Map(),
     turnId: beginTurn(turn),
@@ -146,24 +152,32 @@ export function recordSetupTouch(touch: SetupTouch): void {
 }
 
 /**
- * Records what a command set about one project in the turn running now, as
- * a touch of the project and the fields it changed. A second change to a
- * field keeps the value from before the first, so the note says what the
- * turn did as a whole. A rename moves what was recorded under the old name
- * to the new one.
+ * Records what a command set about one project in the turn running now, or
+ * that it made one (`before` absent), as a touch of the project, the fields
+ * it changed and how it looked on either side. A second change to a field
+ * keeps the value from before the first, and a second change to a project
+ * its look from before the first, so the note says what the turn did as a
+ * whole. A rename moves what was recorded under the old name to the new one.
  */
 export function recordProjectChange(
-  name: { after: string; before: string },
+  project: ProjectLooks,
   changes: readonly ProjectFieldChange[],
 ): void {
   const tracker = trackerForCurrentTurn();
   if (!tracker) {
     return;
   }
+  const name = {
+    after: project.after.name,
+    before: project.before?.name ?? project.after.name,
+  };
   const fields =
     tracker.fields.get(name.before) ??
     new Map<ProjectFieldChange["field"], ProjectFieldChange>();
   tracker.fields.delete(name.before);
+  const looks = tracker.looks.get(name.before);
+  tracker.looks.delete(name.before);
+  const before = looks ? looks.before : project.before;
   const touched = tracker.touched.get(`project:${name.before}`);
   if (name.before !== name.after) {
     tracker.touched.delete(`project:${name.before}`);
@@ -181,10 +195,15 @@ export function recordProjectChange(
     );
   }
   tracker.fields.set(name.after, fields);
+  tracker.looks.set(name.after, {
+    after: project.after,
+    ...(before ? { before } : {}),
+    id: project.id,
+  });
   const key = `project:${name.after}`;
   if (!tracker.touched.has(key)) {
     tracker.touched.set(key, {
-      existedBefore: touched?.existedBefore ?? true,
+      existedBefore: touched?.existedBefore ?? project.before !== undefined,
       kind: "project",
       name: name.after,
     });
@@ -230,12 +249,22 @@ export async function consumeSetupChanges(
                 (field) => field.before !== field.after,
               )
             : [];
+        const looks =
+          touch.kind === "project" && change !== "removed"
+            ? tracker.looks.get(touch.name)
+            : undefined;
+        // A project the turn made had no look before it.
+        const project =
+          looks && change === "added"
+            ? { after: looks.after, id: looks.id }
+            : looks;
         return [
           {
             change,
             ...(fields.length > 0 ? { fields } : {}),
             kind: touch.kind,
             name: touch.name,
+            ...(project ? { project } : {}),
           },
         ];
       }),

@@ -182,6 +182,7 @@ const undoProjectChangesRoute = base
         z.object({
           fields: z.array(SessionMessageDataPart.ProjectFieldChangeSchema),
           name: z.string(),
+          project: SessionMessageDataPart.ChangedProjectLooksSchema.optional(),
         }),
       ),
     }),

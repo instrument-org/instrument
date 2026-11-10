@@ -20,6 +20,7 @@ import { BROWSER_DATA_EVALS } from "./browser-data";
 import { BROWSER_SELECTION_EVALS } from "./browser-selection";
 import { CHAT_HISTORY_EVALS } from "./chat-history";
 import { CHATS_ORGANIZE_EVALS } from "./chats-organize";
+import { PROJECTS_LIFECYCLE_EVALS } from "./projects-lifecycle";
 import { PROJECTS_RESTYLE_EVALS } from "./projects-restyle";
 import { CONTEXT_ROLLOVER_EVALS } from "./context-rollover";
 import { COST_STUDY_EVALS } from "./cost-study";
@@ -93,6 +94,7 @@ export const EVALS = [
   ...CHAT_HISTORY_EVALS,
   ...CHATS_ORGANIZE_EVALS,
   ...PROJECTS_RESTYLE_EVALS,
+  ...PROJECTS_LIFECYCLE_EVALS,
   ...CONTEXT_ROLLOVER_EVALS,
   ...COST_STUDY_EVALS,
   ...CREATE_PAGE_SKILL_EVALS,

@@ -338,13 +338,13 @@ function retiredCapability({
 
 export const projectsRetire = retiredCapability({
   summary:
-    "Retire a project: out of the menus, its folder and the chats filed under it left as they are.",
+    "Delete a project as the app does, which the user can undo: out of the menus, its folder and the chats filed under it left as they are.",
   to: true,
   word: "retire",
 });
 
 export const projectsUnretire = retiredCapability({
-  summary: "Bring a retired project back into the menus.",
+  summary: "Bring a deleted project back into the menus.",
   to: false,
   word: "unretire",
 });

@@ -91,7 +91,11 @@ function takeAskedSave(webContentsId: number, item: DownloadItem) {
 // them where it goes, whatever the agent authorized. Every finished download
 // carries the system's downloaded-from-the-internet mark, as a browser's does,
 // so a link from outside reveals a page saved here rather than opening it; a
-// mark that cannot be written leaves the download as it is.
+// mark that cannot be written leaves the download as it is. The agent hears
+// its download finished only once the mark is written or has failed (and
+// never from Chromium itself, see {@link holdsDownloadEvent}), since
+// agent-browser moves the file off its GUID name the moment it hears, and a
+// rename keeps the mark where a write after it finds no file.
 export function routeGuestDownloads(
   session: Session,
   registry: Pick<GuestRegistry, "documentOf" | "entryOf" | "get">,
@@ -100,12 +104,23 @@ export function routeGuestDownloads(
   }: { markDownloaded?: (file: string) => Promise<void> } = {},
 ) {
   session.on("will-download", (_event, item, webContents) => {
-    item.once("done", (_doneEvent, state) => {
-      if (state === "completed") {
-        markDownloaded(item.getSavePath()).catch((error: unknown) => {
-          log.warn("Left a finished download without its download mark", error);
-        });
-      }
+    // Settles once the download is done and, when it completed, its mark is
+    // written or could not be.
+    const marked = new Promise<void>((resolve) => {
+      item.once("done", (_doneEvent, state) => {
+        if (state !== "completed") {
+          resolve();
+          return;
+        }
+        markDownloaded(item.getSavePath())
+          .catch((error: unknown) => {
+            log.warn(
+              "Left a finished download without its download mark",
+              error,
+            );
+          })
+          .finally(resolve);
+      });
     });
     // A download the person asked for again from the list comes from the
     // session rather than a page, so it is theirs whatever page is open.
@@ -146,7 +161,11 @@ export function routeGuestDownloads(
     if (takeAskedSave(webContents.id, item)) {
       askWhereToSave(item, origin);
     } else if (entry.authorizedDownloadPath) {
-      saveForAgent(entry, item, entry.authorizedDownloadPath, stillOwned);
+      saveForAgent(entry, item, {
+        authorizedDownloadPath: entry.authorizedDownloadPath,
+        marked,
+        stillOwned,
+      });
     } else {
       saveForPerson(item, origin);
     }
@@ -195,6 +214,26 @@ export function captureDownloadWillBeginGuid(
   if (p.guid && p.url) {
     entry.pendingDownloadGuids.set(p.url, p.guid);
   }
+}
+
+/**
+ * Whether an event of the guest's debugger is Chromium's own word that one of
+ * the agent's downloads finished, which goes no further: Chromium says so
+ * before the download's `done`, and agent-browser moves the file the moment
+ * it hears, so only the `Page.downloadProgress` {@link routeGuestDownloads}
+ * sends once the file is marked may tell it.
+ */
+export function holdsDownloadEvent(
+  entry: BrowserEntry,
+  method: string,
+  params: unknown,
+): boolean {
+  if (method !== "Page.downloadProgress") {
+    return false;
+  }
+  // Chromium's own event, so its shape is the protocol's.
+  const { guid, state } = params as Protocol.Page.DownloadProgressEvent;
+  return state !== "inProgress" && entry.agentDownloads.has(guid);
 }
 
 // `findAvailableName`'s convention, done synchronously: the save path has to
@@ -261,11 +300,20 @@ function refuseForAgent(entry: BrowserEntry, item: DownloadItem) {
 
 // `stillOwned` says whether the guest the download came from is still this
 // entry's when it finishes; a guest gone by then has nobody left to tell.
+// `marked` settles once the finished file carries its download mark, or the
+// mark failed.
 function saveForAgent(
   entry: BrowserEntry,
   item: DownloadItem,
-  authorizedDownloadPath: string,
-  stillOwned: () => boolean,
+  {
+    authorizedDownloadPath,
+    marked,
+    stillOwned,
+  }: {
+    authorizedDownloadPath: string;
+    marked: Promise<void>;
+    stillOwned: () => boolean;
+  },
 ) {
   const { targetId } = entry;
 
@@ -273,6 +321,7 @@ function saveForAgent(
     entry.pendingDownloadGuids.get(item.getURL()) ?? crypto.randomUUID();
   entry.pendingDownloadGuids.delete(item.getURL());
   item.setSavePath(`${authorizedDownloadPath}/${guid}`);
+  entry.agentDownloads.add(guid);
 
   // Synthesize Page.downloadWillBegin so agent-browser's download command
   // can capture the GUID and start waiting for completion.
@@ -288,6 +337,7 @@ function saveForAgent(
 
   item.once("done", (_doneEvent, state) => {
     if (!stillOwned()) {
+      entry.agentDownloads.delete(guid);
       return;
     }
     // The authorization was for this one transfer: agent-browser sends a
@@ -302,9 +352,15 @@ function saveForAgent(
       state: state === "completed" ? "completed" : "canceled",
       totalBytes: item.getTotalBytes(),
     };
-    for (const listener of entry.eventListeners) {
-      listener("Page.downloadProgress", progress);
-    }
+    void marked.then(() => {
+      entry.agentDownloads.delete(guid);
+      if (!stillOwned()) {
+        return;
+      }
+      for (const listener of entry.eventListeners) {
+        listener("Page.downloadProgress", progress);
+      }
+    });
   });
 }
 

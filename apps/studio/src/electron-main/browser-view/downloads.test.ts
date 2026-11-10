@@ -15,6 +15,7 @@ import { clearDownloads, listDownloads } from "./download-list";
 import {
   applyDownloadBehavior,
   captureDownloadWillBeginGuid,
+  holdsDownloadEvent,
   retryDownloadFrom,
   routeGuestDownloads,
   saveAsFromPage,
@@ -90,6 +91,11 @@ interface FakeItem extends EventEmitter {
   savePath: string;
   setSaveDialogOptions: ReturnType<typeof vi.fn>;
   setSavePath: ReturnType<typeof vi.fn>;
+}
+
+interface Deferred {
+  reject: (error: Error) => void;
+  resolve: () => void;
 }
 
 // A path no folder can be made at: its parent is a file.
@@ -650,7 +656,7 @@ describe("routeGuestDownloads", () => {
     { expectedState: "canceled" as const, state: "cancelled" as const },
   ])(
     "emits Page.downloadProgress with state=$expectedState when item finishes with $state",
-    ({ expectedState, state }) => {
+    async ({ expectedState, state }) => {
       const entries = new Map<BrowserTargetId, BrowserEntry>();
       const entry = makeEntry();
       entry.authorizedDownloadPath = "/tmp/dl";
@@ -668,14 +674,96 @@ describe("routeGuestDownloads", () => {
       onEvent.mockClear();
       (item as unknown as EventEmitter).emit("done", {}, state);
 
-      expect(onEvent).toHaveBeenCalledWith("Page.downloadProgress", {
-        guid: "g",
-        receivedBytes: 1024,
-        state: expectedState,
-        totalBytes: 1024,
-      });
+      await vi.waitFor(() =>
+        expect(onEvent).toHaveBeenCalledWith("Page.downloadProgress", {
+          guid: "g",
+          receivedBytes: 1024,
+          state: expectedState,
+          totalBytes: 1024,
+        }),
+      );
     },
   );
+
+  // agent-browser moves the file off its GUID name as soon as it reads
+  // completed, so a mark written after that finds no file.
+  it.each([
+    { mark: "written", settle: (d: Deferred) => d.resolve() },
+    {
+      mark: "refused",
+      settle: (d: Deferred) => d.reject(new Error("no xattr")),
+    },
+  ])(
+    "tells the agent its download completed only once the mark is $mark",
+    async ({ settle }) => {
+      const entries = new Map<BrowserTargetId, BrowserEntry>();
+      const entry = makeEntry();
+      entry.authorizedDownloadPath = "/tmp/dl";
+      entry.pendingDownloadGuids.set("https://example.com/report.pdf", "g");
+      const heard: string[] = [];
+      entry.eventListeners.add((method) => heard.push(method));
+      entries.set(TARGET_ID, entry);
+      const marking: { deferred?: Deferred; file?: string } = {};
+      const { session, trigger } = makeSession();
+      routeGuestDownloads(session, lookupIn(entries), {
+        markDownloaded: (file) => {
+          marking.file = file;
+          return new Promise((resolve, reject) => {
+            marking.deferred = { reject, resolve };
+          });
+        },
+      });
+
+      const item = makeFakeItem();
+      trigger(item, entry);
+      // Chromium's own word comes through the guest's debugger, ahead of done.
+      const chromiumSays = (state: string) =>
+        holdsDownloadEvent(entry, "Page.downloadProgress", {
+          guid: "g",
+          state,
+        });
+      expect(chromiumSays("inProgress")).toBe(false);
+      expect(chromiumSays("completed")).toBe(true);
+      item.emit("done", {}, "completed");
+      await Promise.resolve();
+      await Promise.resolve();
+
+      expect(marking.file).toBe("/tmp/dl/g");
+      expect(heard).toEqual(["Page.downloadWillBegin"]);
+      expect(entry.authorizedDownloadPath).toBeNull();
+      expect(chromiumSays("completed")).toBe(true);
+
+      if (!marking.deferred) {
+        throw new Error("the mark was never asked for");
+      }
+      settle(marking.deferred);
+      await vi.waitFor(() =>
+        expect(heard).toEqual([
+          "Page.downloadWillBegin",
+          "Page.downloadProgress",
+        ]),
+      );
+      expect(chromiumSays("completed")).toBe(false);
+    },
+  );
+
+  it("lets Chromium's word on the person's own download through", () => {
+    const entries = new Map<BrowserTargetId, BrowserEntry>();
+    const entry = makeEntry();
+    entry.pendingDownloadGuids.set("https://example.com/report.pdf", "g");
+    entries.set(TARGET_ID, entry);
+    const { session, trigger } = makeSession();
+    routeGuestDownloads(session, lookupIn(entries));
+
+    trigger(makeFakeItem(), entry);
+
+    expect(
+      holdsDownloadEvent(entry, "Page.downloadProgress", {
+        guid: "g",
+        state: "completed",
+      }),
+    ).toBe(false);
+  });
 
   // agent-browser authorizes ahead of each `download` and never rescinds, so
   // the authorization ends with the transfer it was for: the person's next

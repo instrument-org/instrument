@@ -30,7 +30,7 @@ import { isDrivenInstance } from "../windows/on-screen";
 import { carryAgentPointer } from "./agent-pointer";
 import { type DeviceEmulation, setDeviceEmulation } from "./device-emulation";
 import { sendCommand } from "./dispatch-command";
-import { captureDownloadWillBeginGuid } from "./downloads";
+import { captureDownloadWillBeginGuid, holdsDownloadEvent } from "./downloads";
 import { registerExtensionTab, selectExtensionTab } from "./extensions";
 import {
   advanceEntry,
@@ -317,6 +317,9 @@ function createBrowserViewManager(): BrowserViewManager {
         const frameSession = sessionId || undefined;
         if (method === "Page.downloadWillBegin" && frameSession === undefined) {
           captureDownloadWillBeginGuid(current, params);
+        }
+        if (holdsDownloadEvent(current, method, params)) {
+          return;
         }
         for (const listener of current.eventListeners) {
           listener(method, params, frameSession);

@@ -132,6 +132,9 @@ export interface BrowserEntry {
   partitionDir: AbsolutePath;
   // Maps download URL -> GUID from Page.downloadWillBegin, consumed by will-download.
   pendingDownloadGuids: Map<string, string>;
+  // GUIDs of the agent's downloads not yet reported finished, whose finish
+  // only `downloads.ts` reports (`holdsDownloadEvent`).
+  agentDownloads: Set<string>;
   screencastInterval: null | ReturnType<typeof setInterval>;
   screencastSessionId: number;
   // Whether a slot in the window shows this guest rather than parking it, as
@@ -193,6 +196,7 @@ export function createEntry({
     navigated: false,
     partitionDir,
     pendingDownloadGuids: new Map(),
+    agentDownloads: new Set(),
     phase: "pending",
     restoreHistory,
     src,

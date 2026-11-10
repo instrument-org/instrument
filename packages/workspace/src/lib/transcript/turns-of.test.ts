@@ -1747,6 +1747,35 @@ describe("what a step carries", () => {
         "words": "The body words",
       }
     `);
+    expect(
+      shows(
+        [
+          "# Cats",
+          "",
+          "Cats **purr** when _content_.",
+          "",
+          "## Care",
+          "",
+          "- Feed them [twice](https://a.example/feed) a day",
+          "* Brush `weekly`",
+          "1. Play",
+          "",
+          "> Quoted ~~words~~",
+          "",
+          "---",
+          "",
+          "| Breed | Size |",
+          "| :--- | ---: |",
+          "| Siamese | Small |",
+          "",
+          "See [the guide][g] or <https://a.example>.",
+          "",
+          "[g]: https://a.example/guide",
+        ].join("\n"),
+      )?.words,
+    ).toMatchInlineSnapshot(
+      `"Cats purr when content. Care Feed them twice a day Brush weekly Play Quoted words Breed Size Siamese Small See the guide or https://a.example."`,
+    );
     expect(shows("Skip to main\nSign in")).toEqual({
       kind: "fetch",
       url: "https://a.example",

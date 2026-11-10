@@ -544,18 +544,34 @@ function pageOf(
   if (text === undefined || heading?.[1] === undefined) {
     return title === undefined ? {} : { title };
   }
-  const words = text
-    .slice(heading.index + heading[0].length)
-    .replaceAll(/!\[[^\]]*\]\([^)]*\)/g, "")
-    .replaceAll(/\[([^\]]*)\]\([^)]*\)/g, "$1")
-    .replaceAll(/[#*_`>]/g, "")
-    .replaceAll(/\n{2,}/g, "\n")
-    .trim()
-    .slice(0, PAGE_WORDS_CHARS);
+  const words = runningText(
+    text.slice(heading.index + heading[0].length),
+  ).slice(0, PAGE_WORDS_CHARS);
   return {
     title: title ?? heading[1].trim(),
     ...(words !== "" && { words }),
   };
+}
+
+/**
+ * A page's Markdown as one paragraph of its words, so a card shows as much of
+ * the page as its few lines fit: no pictures, links as their words, and no
+ * heading, list, quote, table or emphasis marks or line breaks.
+ */
+function runningText(markdown: string): string {
+  return markdown
+    .replaceAll(/!\[[^\]]*\]\([^)]*\)/g, "")
+    .replaceAll(/\[([^\]]*)\]\([^)]*\)/g, "$1")
+    .replaceAll(/\[([^\]]*)\]\[[^\]]*\]/g, "$1")
+    .replaceAll(/^\s*\[[^\]]+\]:\s+\S.*$/gm, "")
+    .replaceAll(/<((?:https?:\/\/|mailto:)[^>]*)>/g, "$1")
+    .replaceAll(/^\s*(?:[-*_]\s*){3,}$/gm, "")
+    .replaceAll(/^\s*\|?(?:\s*:?-+:?\s*\|)+\s*:?-*:?\s*$/gm, "")
+    .replaceAll(/^\s*(?:>\s*)*(?:#{1,6}\s+|[-*+]\s+|\d+[.)]\s+)?/gm, "")
+    .replaceAll("|", " ")
+    .replaceAll(/[*_`~#]+/g, "")
+    .replaceAll(/\s+/g, " ")
+    .trim();
 }
 
 /** Where a program starts in a shell line, and not a word its arguments say. */

@@ -4,6 +4,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { INTERRUPTED_TOOL_CALL_ERROR_TEXT } from "../../constants";
 import { publisher } from "../../rpc/publisher";
+import { type AskRecord } from "../../schemas/ask";
 import { ChatIdSchema } from "../../schemas/chat-id";
 import { type SessionMessagePart } from "../../schemas/session/message-part";
 import { withTestRecords } from "../../test/helpers/with-test-records";
@@ -689,6 +690,41 @@ describe("ChatRecords", () => {
       (await foldedFromDisk()).sessions[0]?.messages.map(({ id }) => id),
     ).toEqual([messageId(1), messageId(2), messageId(3)]);
     await asked;
+  });
+
+  it("reads an ask and an answer still on their way over the fold once the session's other writes have landed", async () => {
+    await replyUnderWay();
+    const question = (held: boolean): AskRecord => ({
+      askedAt: at(3),
+      askers: [{ at: at(3), partId: partId(3), sessionId: chatSession }],
+      device: DEVICE_A,
+      ...(held && { held: true as const }),
+      id: partId(3),
+      kind: "question",
+      messageId: messageId(2),
+      partId: partId(3),
+      questions: ["How much light does your room get?"],
+      stage: { is: "open" },
+    });
+    void records.service.ask(CHAT, chatSession, question(true));
+    const part = records.service.appendPart(
+      CHAT,
+      bashCall(4, "input-available"),
+    );
+    const shown = records.service.ask(CHAT, chatSession, question(false));
+    const answered = records.service.answer(CHAT, chatSession, {
+      ask: partId(3),
+      given: { kind: "stopped", askers: [] },
+    });
+
+    // The part is in the file, and the shown ask and the answer behind it
+    // are not yet.
+    const read = await part.then(() => records.service.read(CHAT));
+
+    const [session] = read.chat.sessions;
+    expect(session?.asks).toEqual([question(false)]);
+    expect(session?.answers?.map(({ ask }) => ask)).toEqual([partId(3)]);
+    await Promise.all([shown, answered]);
   });
 
   it("is the process's records, made from the workspace's config when none stands in", () => {

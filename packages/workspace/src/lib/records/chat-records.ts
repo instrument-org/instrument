@@ -1575,18 +1575,30 @@ function unhold(
     return;
   }
   release(session);
-  if (
-    !session.header &&
-    !session.rollover &&
-    !session.sites &&
-    !session.stopped &&
-    session.settings.size === 0 &&
-    session.messages.size === 0 &&
-    session.parts.size === 0 &&
-    session.retracted.size === 0
-  ) {
+  if (!isQueued(session)) {
     chat.pending.delete(sessionId);
   }
+}
+
+/**
+ * Whether anything of a session is still queued, by every kind of record
+ * `PendingSession` keeps, so a kind added there has to be named here and a
+ * read never loses one still on its way.
+ */
+function isQueued(session: PendingSession): boolean {
+  const queued = {
+    answers: session.answers.size > 0,
+    asks: session.asks.size > 0,
+    header: session.header !== undefined,
+    messages: session.messages.size > 0,
+    parts: session.parts.size > 0,
+    retracted: session.retracted.size > 0,
+    rollover: session.rollover !== undefined,
+    settings: session.settings.size > 0,
+    sites: session.sites !== undefined,
+    stopped: session.stopped !== undefined,
+  } satisfies Record<Exclude<keyof PendingSession, "at">, boolean>;
+  return Object.values(queued).some(Boolean);
 }
 
 function knows(chat: OpenChat, sessionId: StoreId.Session): boolean {

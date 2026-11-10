@@ -61,7 +61,7 @@ export function focusScreenHome({ leaving }: { leaving: boolean }) {
     // A home whose rows are still on their way is waited for too.
     const target = home && targetIn(home);
     if (target) {
-      target.focus({ preventScroll: true });
+      focusQuietly(target);
       return;
     }
     frames += 1;
@@ -70,6 +70,33 @@ export function focusScreenHome({ leaving }: { leaving: boolean }) {
     }
   };
   requestAnimationFrame(attempt);
+}
+
+/**
+ * Focuses a home with no ring until the next key press: nobody moved the
+ * keyboard there, so the ring would mark a place the person is not looking
+ * at. `data-quiet-focus` hides it (`globals.css`), since Chromium draws the
+ * ring on a script's focus while nothing else has been interacted with and
+ * does not honor `focus({ focusVisible: false })`. A composer keeps no mark:
+ * its caret shows where the keyboard is either way.
+ */
+function focusQuietly(target: HTMLElement) {
+  if (target.isContentEditable) {
+    target.focus({ preventScroll: true });
+    return;
+  }
+  const controller = new AbortController();
+  const unmark = () => {
+    target.removeAttribute("data-quiet-focus");
+    controller.abort();
+  };
+  target.setAttribute("data-quiet-focus", "");
+  target.focus({ preventScroll: true });
+  window.addEventListener("keydown", unmark, {
+    capture: true,
+    signal: controller.signal,
+  });
+  target.addEventListener("blur", unmark, { signal: controller.signal });
 }
 
 /** The part of the screen on show it is worked from, or null while it has none drawn. */

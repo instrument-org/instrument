@@ -1,7 +1,7 @@
 import { afterEach, beforeEach, expect, it } from "vitest";
 import { userEvent } from "vitest/browser";
 
-import { installKeyboardHome } from "./keyboard-home";
+import { focusScreenHome, installKeyboardHome } from "./keyboard-home";
 
 let uninstall: () => void;
 
@@ -77,4 +77,36 @@ it("leaves the keyboard in a popover a button opens while it fades in", async ()
   await frames(3);
 
   expect(document.activeElement?.tagName).toBe("INPUT");
+});
+
+it("puts the keyboard in a screen's home without a ring until a key is pressed", async () => {
+  document.body.innerHTML = `
+    <div data-app-tab-active>
+      <div data-keyboard-home>
+        <button type="button">First</button>
+        <button type="button">Second</button>
+      </div>
+    </div>
+  `;
+  const [first, second] = document.querySelectorAll("button");
+  if (!first || !second) {
+    throw new Error("fixture missing");
+  }
+  const outline = (element: Element) => getComputedStyle(element).outlineStyle;
+
+  focusScreenHome({ leaving: false });
+  await frames(3);
+
+  expect(document.activeElement).toBe(first);
+  expect(outline(first)).toBe("none");
+
+  await userEvent.keyboard("{ArrowDown}");
+
+  expect(document.activeElement).toBe(first);
+  expect(outline(first)).toBe("solid");
+
+  await userEvent.keyboard("{Tab}");
+
+  expect(document.activeElement).toBe(second);
+  expect(outline(second)).toBe("solid");
 });

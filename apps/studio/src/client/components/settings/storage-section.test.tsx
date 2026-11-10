@@ -120,7 +120,7 @@ describe("InstrumentFolder", () => {
     expect(screen.getByText("Already contains some files")).toBeDefined();
   });
 
-  it("says files in a folder named for the app are its own", async () => {
+  it("says once that files in a folder named for the app are its own", async () => {
     calls.set("workspaces.checkPick", () => ({
       folder: {
         contents: "files",
@@ -130,11 +130,16 @@ describe("InstrumentFolder", () => {
     }));
     await pickNotes();
 
-    expect(
-      await screen.findByText(
-        `You already have some files made by ${APP_NAME} here. ${APP_NAME} will set up a new folder structure alongside these existing files.`,
-      ),
-    ).toBeDefined();
+    const madeBy = `It has files ${APP_NAME} made for you before, and ${APP_NAME}’s new files will go in beside them.`;
+    const dialog = await screen.findByRole("alertdialog");
+    expect(dialog.textContent).toContain(
+      `“Notes” already has a folder named “${HOME_FOLDERS.instrument}”${madeBy}`,
+    );
+    expect(screen.getAllByText(madeBy)).toHaveLength(1);
+    expect(dialog.textContent).not.toContain("other files");
+
+    fireEvent.click(screen.getByRole("button", { name: "Use it anyway" }));
+    expect(await screen.findByText(madeBy)).toBeDefined();
   });
 
   it("won't move into another Instrument folder, and says why", async () => {

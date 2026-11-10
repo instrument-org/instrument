@@ -63,19 +63,32 @@ function useFolderName(path: string) {
 }
 
 /**
+ * Files in a folder with the app's own name, taken for the finished work an
+ * earlier build saved there, said the same under its path and in the
+ * question about using it.
+ */
+function madeByAppSentence(destination: Destination) {
+  return destination.contents === "files" &&
+    nameOf(destination.path) === HOME_FOLDERS.instrument
+    ? `It has files ${APP_NAME} made for you before, and ${APP_NAME}’s new files will go in beside them.`
+    : undefined;
+}
+
+/**
  * What a destination already is, under its path, where that is worth
  * saying: one with other files in it, or an Instrument folder and its chats.
- * Files in a folder with the app's own name are taken for the finished work
- * an earlier build saved there.
- * A folder still to be made, or an empty one, says nothing. And what the
- * place is warned of, where that wasn't asked already.
+ * A folder still to be made, or an empty one, says nothing, and neither does
+ * one a question is about (`withContents`), whose own words say it. And what
+ * the place is warned of, where that wasn't asked already.
  */
 function DestinationLine({
   className,
   destination,
+  withContents,
 }: {
   className?: string;
   destination: Destination;
+  withContents: boolean;
 }) {
   const isWorkspace = destination.verdict.kind === "workspace";
   const { data: summary } = useQuery(
@@ -88,11 +101,9 @@ function DestinationLine({
     ? chats > 0
       ? `${APP_NAME} folder with ${String(chats)} ${chats === 1 ? "chat" : "chats"}`
       : `${APP_NAME} folder`
-    : destination.contents !== "files"
+    : !withContents || destination.contents !== "files"
       ? undefined
-      : nameOf(destination.path) === HOME_FOLDERS.instrument
-        ? `You already have some files made by ${APP_NAME} here. ${APP_NAME} will set up a new folder structure alongside these existing files.`
-        : "Already contains some files";
+      : (madeByAppSentence(destination) ?? "Already contains some files");
   const { warning } = destination.verdict;
   const warned =
     warning === undefined ? undefined : folderWarningSentence(warning);
@@ -126,6 +137,7 @@ export function DestinationRow({
   end,
   path,
   trailClassName,
+  withContents = true,
 }: {
   className?: string;
   destination?: Destination | undefined;
@@ -134,6 +146,8 @@ export function DestinationRow({
   end?: ReactNode;
   path: string;
   trailClassName?: string;
+  /** Says what is in the folder already; a question about it says that itself. */
+  withContents?: boolean;
 }) {
   return (
     <div className={cn("flex min-w-0 items-center gap-3 p-3", className)}>
@@ -153,7 +167,10 @@ export function DestinationRow({
       >
         <FolderTrail className={cn("text-sm", trailClassName)} path={path} />
         {destination === undefined ? null : (
-          <DestinationLine destination={destination} />
+          <DestinationLine
+            destination={destination}
+            withContents={withContents}
+          />
         )}
       </span>
       {end}
@@ -296,6 +313,7 @@ function MakeQuestion({
           destination={itself}
           end={<ShowButton path={itself.path} />}
           path={itself.path}
+          withContents={false}
         />
       </div>
       <AlertDialogFooter>
@@ -327,13 +345,14 @@ function HasFilesQuestion({
       <AlertDialogHeader>
         <AlertDialogTitle>
           {folder.path === picked
-            ? `${folderName} already has other files in it`
+            ? `${folderName} already has files in it`
             : `${pickedName} already has a folder named ${folderName}`}
         </AlertDialogTitle>
         <AlertDialogDescription>
-          {folder.path === picked
-            ? `${APP_NAME}’s files would go in beside them.`
-            : `It has other files in it, and ${APP_NAME}’s files would go in beside them.`}
+          {madeByAppSentence(folder) ??
+            (folder.path === picked
+              ? `${APP_NAME}’s files would go in beside them.`
+              : `It has other files in it, and ${APP_NAME}’s files would go in beside them.`)}
         </AlertDialogDescription>
       </AlertDialogHeader>
       <div className="overflow-hidden rounded-lg border">
@@ -341,6 +360,7 @@ function HasFilesQuestion({
           destination={folder}
           end={<ShowButton path={folder.path} />}
           path={folder.path}
+          withContents={false}
         />
       </div>
       <AlertDialogFooter>

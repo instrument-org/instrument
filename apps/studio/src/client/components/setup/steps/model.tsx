@@ -15,10 +15,16 @@ import { OUR_MODELS } from "@instrument-org/shared";
 import { MagnifyingGlassIcon } from "@phosphor-icons/react/MagnifyingGlass";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { useEffect, useRef, useState } from "react";
+import { CONNECT_NAMES } from "@/client/lib/connect-copy";
 
+import { BrandTile } from "../kit/brand-tile";
 import { ModelGroupLabel, ModelRow } from "../kit/model-row";
 import { SetupFooter, SetupPage } from "../kit/setup-page";
-import { type LastConnection, lastConnection } from "../last-connection";
+import {
+  type LastConnection,
+  lastConnection,
+  planOf,
+} from "../last-connection";
 import {
   choosableModels,
   isShortList,
@@ -29,6 +35,7 @@ import {
   shortList,
 } from "../model-choices";
 import { type SetupStepProps } from "../step-props";
+import { SubscriptionMark } from "./choose-ai";
 
 /** How long the list may load before Continue becomes a skip. */
 const SLOW_LIST_MS = 10_000;
@@ -42,11 +49,13 @@ export const MAIN_MODEL_TITLE = "Pick your main model";
  * The main model (frames 04, 28 and 29): every model the connections list,
  * as one short list or, past a few, a searchable box that opens on
  * suggestions. The recommended row is what the default would have been, and
- * Continue makes the one picked the default.
+ * Continue makes the one picked the default. After a subscription's sign-in
+ * the title names it, under its mark.
  */
 export function ModelStep({ onBack, onContinue }: SetupStepProps) {
   const [connection] = useState(lastConnection);
   const choice = useMainModelChoice(connection);
+  const plan = planOf(connection);
   return (
     <SetupPage
       footer={
@@ -65,8 +74,17 @@ export function ModelStep({ onBack, onContinue }: SetupStepProps) {
           pending={choice.isSaving}
         />
       }
+      hero={
+        plan && (
+          <BrandTile>
+            <SubscriptionMark provider={plan} />
+          </BrandTile>
+        )
+      }
       subtitle={choice.subtitle}
-      title={MAIN_MODEL_TITLE}
+      title={
+        plan ? `Pick your main ${CONNECT_NAMES[plan]} model` : MAIN_MODEL_TITLE
+      }
     >
       <MainModelList choice={choice} className="mt-7" />
     </SetupPage>

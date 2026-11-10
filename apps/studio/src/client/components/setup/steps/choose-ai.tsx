@@ -838,7 +838,7 @@ const SUBSCRIPTION_TYPES = {
 } as const;
 
 /** A subscription's mark, in its brand's colors where it has them. */
-function SubscriptionMark({
+export function SubscriptionMark({
   className,
   provider,
 }: {

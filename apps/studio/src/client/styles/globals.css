@@ -371,10 +371,9 @@ body {
   /* The app's card under the inbox and the chat, a hair below the background,
    * so a row in the card's own white stands out from the list. */
   --pane: color-mix(in oklab, var(--gray-50) 35%, var(--gray-100));
-  /* A resize line while it is held, a light step of the brand's teal: every
-   * grey in the window reads as part of the layout rather than a thing in
-   * the hand. */
-  --resize-held: var(--brand-300);
+  /* A resize line while it is held: a grey of the ink, a step past the faint
+   * one it shows on hover, so the edge in the hand stays neutral and quiet. */
+  --resize-held: color-mix(in oklab, var(--foreground) 28%, transparent);
   --sidebar-foreground: var(--gray-950);
   --sidebar-primary: var(--brand-600);
   --sidebar-primary-foreground: #ffffff;
@@ -552,7 +551,7 @@ body {
   --ground: color-mix(in oklab, #0f0d0c 50%, var(--gray-900));
   --ink: #0a0908;
   --pane: var(--background);
-  --resize-held: var(--brand-400);
+  --resize-held: color-mix(in oklab, var(--foreground) 28%, transparent);
   --sidebar-foreground: #ffffff;
   --sidebar-primary: var(--brand-600);
   --sidebar-primary-foreground: #ffffff;

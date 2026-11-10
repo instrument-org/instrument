@@ -285,7 +285,6 @@ export function RightPane({
               draggingRef.current = true;
             }}
             value={widthOfShare(storedShare, rowWidth)}
-            variant="grip"
           />
         )}
       </motion.div>

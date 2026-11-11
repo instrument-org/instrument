@@ -46,6 +46,8 @@ describe("suggestionsFrom", () => {
     ["Yes. Save it as rain.txt", ["Yes. Save it as rain.txt"]],
     ["Make it **bold**", []],
     ["Why merino instead of fleece?", ["Why merino instead of fleece?"]],
+    ["????", []],
+    ["...\nSave it", ["Save it"]],
   ])("reads %j as %j", (answer, expected) => {
     expect(suggestionsFrom(answer)).toEqual(expected);
   });

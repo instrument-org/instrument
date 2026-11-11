@@ -291,13 +291,15 @@ function looksLikeCommentary(line: string): boolean {
 }
 
 /**
- * Whether a line is not something the person would send: praise alone
- * ("Looks good"), the agent's voice ("Let me…"), or Markdown. "Sure, save
+ * Whether a line is not something the person would send: punctuation with no
+ * word in it ("????"), praise alone ("Looks good"), the agent's voice ("Let
+ * me…"), or Markdown. "Sure, save
  * it" and "Yes. Save it" are the person answering an offer, so neither a
  * "sure" nor a second sentence rules one out.
  */
 function looksUnsendable(line: string): boolean {
   return (
+    !/[\p{L}\p{N}]/u.test(line) ||
     /^(?:thanks|thank you|looks good|sounds good|great|perfect|nice|makes sense)\b[\s!.]*$/i.test(
       line,
     ) ||

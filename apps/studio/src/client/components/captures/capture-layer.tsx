@@ -1,3 +1,5 @@
+import { openReportDialog } from "@/client/atoms/report-dialog";
+import { RailMegaphoneIcon } from "@/client/components/icons/rail-megaphone-icon";
 import { useTheme } from "@/client/components/theme-provider";
 import {
   DropdownMenu,
@@ -5,6 +7,7 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/client/components/ui/dropdown-menu";
+import { feedbackReport } from "@/client/lib/problem-reports";
 import { toast } from "@/client/lib/toast";
 import { cn, osConventions } from "@/client/lib/utils";
 import { rpcClient } from "@/client/rpc/client";
@@ -328,17 +331,37 @@ export function CaptureLayer() {
               >
                 <XIcon className="size-3" weight="bold" />
               </button>
-              <button
-                aria-label={showInFileManager}
-                className="grid size-6 place-items-center rounded-full bg-white/90 text-black hover:bg-white"
-                onClick={() => {
-                  void rpcClient.captures.show.call({ name: thumbnail.name });
-                }}
-                title={showInFileManager}
-                type="button"
-              >
-                <FolderSimpleIcon className="size-3.5" />
-              </button>
+              <div className="flex gap-1.5">
+                <button
+                  aria-label="Send feedback"
+                  className="grid size-6 place-items-center rounded-full bg-white/90 text-black hover:bg-white"
+                  onClick={() => {
+                    setThumbnail(null);
+                    setPointedAt(false);
+                    openReportDialog(
+                      feedbackReport({
+                        captures: [thumbnail],
+                        surface: "capture",
+                      }),
+                    );
+                  }}
+                  title="Send feedback"
+                  type="button"
+                >
+                  <RailMegaphoneIcon className="size-3.5" />
+                </button>
+                <button
+                  aria-label={showInFileManager}
+                  className="grid size-6 place-items-center rounded-full bg-white/90 text-black hover:bg-white"
+                  onClick={() => {
+                    void rpcClient.captures.show.call({ name: thumbnail.name });
+                  }}
+                  title={showInFileManager}
+                  type="button"
+                >
+                  <FolderSimpleIcon className="size-3.5" />
+                </button>
+              </div>
             </div>
             <div className="flex gap-1.5">
               <div className="flex flex-1 overflow-hidden rounded-md bg-white text-xs font-medium text-black">

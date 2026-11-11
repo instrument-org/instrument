@@ -241,6 +241,42 @@ describe("FeedbackDialogContent", () => {
     });
   });
 
+  it("attaches the captures it opened with", async () => {
+    // A response of the test's own, since jsdom's File reads only jsdom's
+    // own Blob and a real Response hands back another kind.
+    const png = new Uint8Array([137, 80, 78, 71, 13, 10, 26, 10, 0, 0, 0, 13]);
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(() =>
+        Promise.resolve({
+          blob: () => Promise.resolve(new Blob([png], { type: "image/png" })),
+          ok: true,
+        }),
+      ),
+    );
+    renderWithDefaultStore(<ReportDialog />);
+    act(() => {
+      getDefaultStore().set(
+        reportDialogAtom,
+        feedbackReport({
+          captures: [{ name: "capture-1.png", stamp: 1 }],
+          surface: "capture",
+        }),
+      );
+    });
+    await screen.findByRole("button", { name: "Remove capture-1.png" });
+    fireEvent.click(screen.getByRole("button", { name: "Send" }));
+    await waitFor(() => {
+      expect(
+        vi
+          .mocked(rpcClient.problems.sendFeedback.call)
+          .mock.calls.at(-1)?.[0]
+          .images?.map((image) => image.name),
+      ).toEqual(["capture-1.png"]);
+    });
+    vi.unstubAllGlobals();
+  });
+
   it("shows what the person did a line each, with its switch at the foot", async () => {
     await open();
     fireEvent.click(screen.getByRole("button", { name: "View Your activity" }));

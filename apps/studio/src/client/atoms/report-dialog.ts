@@ -1,4 +1,5 @@
 import { studioModalAtom } from "@/client/atoms/studio-modal";
+import { type Capture } from "@/shared/captures";
 import {
   type Condition,
   type FeedbackTag,
@@ -17,6 +18,8 @@ export type ReportRequest = FeedbackRequest | ProblemReportRequest;
  * theirs to leave out.
  */
 export type FeedbackRequest = {
+  /** Captures attached as it opens, as from a capture's own thumbnail. */
+  captures?: readonly Capture[];
   /** The chat the feedback is about; none from the Help menu or a new draft. */
   chatId?: ChatId;
   kind: "feedback";

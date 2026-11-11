@@ -65,7 +65,7 @@ import { CaretDownIcon } from "@phosphor-icons/react/CaretDown";
 import { CaretRightIcon } from "@phosphor-icons/react/CaretRight";
 import { WarningCircleIcon } from "@phosphor-icons/react/WarningCircle";
 import { useQuery } from "@tanstack/react-query";
-import { Fragment, type ReactNode, useRef, useState } from "react";
+import { Fragment, type ReactNode, useEffect, useRef, useState } from "react";
 
 /** The agent's write-up as one file of what goes, sent like the rest. */
 function writeupItem(writeup: { text: string; title: string }): FeedbackItem {
@@ -367,6 +367,17 @@ export function FeedbackDialogContent({
       setCaptureChat(takenIn);
     }
   };
+
+  // Captures the dialog was opened with go in once, as if picked; the chat
+  // the first was taken in comes with them.
+  const offeredOnOpen = useRef(false);
+  useEffect(() => {
+    if (offeredOnOpen.current || !request.captures?.length) {
+      return;
+    }
+    offeredOnOpen.current = true;
+    void addCaptures(request.captures);
+  });
 
   // Read once per opening, and again for a chat a capture brings: what the
   // dialog shows is what Send sends.

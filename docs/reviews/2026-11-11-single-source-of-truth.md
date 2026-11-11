@@ -28,7 +28,7 @@ Letters go to the finding; a `plus N similar` names siblings with the same root 
 
 ### D. The converter lists by hand which record kinds count as a restatement
 
-- Status: open
+- Status: fixed
 - Where: [convert-chat.ts:365](/packages/workspace/src/lib/records/convert/convert-chat.ts#L365), [record.ts:46](/packages/workspace/src/lib/records/record.ts#L46)
 - What: `RESTATED = new Set(["rollover", "session", "set", "sites", "stop"])` decides in `restatesOnly` whether a device's files may be removed and rewritten from `chat.db`; a file holding any other kind is "history" and the database stays. The converter writes exactly those kinds today (`:550-588`, `:624`), and nothing derives the set from what it emits or from the record union. One more header-level kind written by the converter and every chat still on its `chat.db` is judged history at the next launch, never converted, and listed unavailable from then on, the failure the comment at `:405-411` describes for another cause.
 

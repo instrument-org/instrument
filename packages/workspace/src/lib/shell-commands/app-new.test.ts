@@ -836,6 +836,45 @@ describe("app new refuses what cannot connect", () => {
     expect(result.stderr).toContain("--web <the service's site>");
   });
 
+  it("sets up an unlisted server that answers without sign-in with no auth", async () => {
+    vi.mocked(mcpSignInSupport).mockClear().mockResolvedValueOnce("open");
+
+    const result = await app(
+      "new",
+      "open-wiki",
+      "--name",
+      "Open Wiki",
+      "--mcp",
+      "https://open-wiki.example/api/mcp",
+    );
+
+    expect(result.exitCode).toBe(0);
+    expect(await manifestOf("open-wiki")).toMatchObject({
+      auth: { kind: "none" },
+    });
+    expect(result.stdout).toContain("Run `instrument app test open-wiki`");
+    expect(mcpSignInSupport).toHaveBeenCalledTimes(1);
+  });
+
+  it("keeps the auth it is given for a server that answers without sign-in", async () => {
+    vi.mocked(mcpSignInSupport).mockResolvedValueOnce("open");
+
+    await app(
+      "new",
+      "keyed-wiki",
+      "--name",
+      "Keyed Wiki",
+      "--mcp",
+      "https://open-wiki.example/api/mcp",
+      "--auth",
+      "bearer",
+    );
+
+    expect(await manifestOf("keyed-wiki")).toMatchObject({
+      auth: { kind: "bearer" },
+    });
+  });
+
   it("refuses a local server whose package does not exist", async () => {
     vi.mocked(packageExists).mockResolvedValueOnce("missing");
 

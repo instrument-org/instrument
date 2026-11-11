@@ -474,9 +474,18 @@ async function runNew(input: z.output<typeof NewInput>) {
       "a web app takes no --auth: the user signs in on the site itself.",
     );
   }
+  // A server the directory does not list is asked how it signs in once, here,
+  // and one that answers without any sign-in is set up with none when no
+  // --auth was given, since a sign-in card for it can only fail.
+  const signInSupport =
+    mcp !== undefined && !mcpEndpointListed(mcp)
+      ? await mcpSignInSupport(mcp)
+      : undefined;
   const auth = web
     ? undefined
-    : parseAuth(input.auth, local ? "mcp-local" : mcp ? "mcp" : "api");
+    : mcp !== undefined && input.auth === undefined && signInSupport === "open"
+      ? { kind: "none" as const }
+      : parseAuth(input.auth, local ? "mcp-local" : mcp ? "mcp" : "api");
   const headers = Object.fromEntries(
     input.header.map((header) => {
       const [key, ...valueParts] = header.split(":");
@@ -563,7 +572,7 @@ async function runNew(input: z.output<typeof NewInput>) {
       `${appsFolder()}/${existing.value.name}/${APP_FILE_NAME} is already "${slug}". Edit it with your file tools, or pass --force to replace it.`,
     );
   }
-  await refuseWhatCannotConnect(slug, name, manifest);
+  await refuseWhatCannotConnect(slug, name, manifest, signInSupport);
   const guide = guideSkeleton(manifest, entry, slug);
   // A guide written for another way in describes tools this one does not have.
   const reachChanged =
@@ -626,6 +635,7 @@ async function refuseWhatCannotConnect(
   slug: AppSlug,
   name: string,
   manifest: AppManifest,
+  signInSupport: Awaited<ReturnType<typeof mcpSignInSupport>> | undefined,
 ) {
   // A service the directory lists has its hosted servers on record, so a
   // server for it at any other host is one the agent made up.
@@ -662,17 +672,11 @@ async function refuseWhatCannotConnect(
     const entry = findCatalogEntry(slug, manifest.url);
     const site = entry ? (entry.home ?? `https://${entry.domain}`) : undefined;
     const instead = `Set it up on the web instead: \`${APP_COMMAND.name} new ${slug} --name '${name}' --web ${site ?? "<the service's site>"}\`${entry ? `, or the way \`${APP_COMMAND.name} catalog ${entry.slug}\` says` : ""}.`;
-    const endpointListed = getAppCatalog().some((candidate) =>
-      candidate.interfaces.some(
-        (surface) =>
-          surface.endpoint?.replace(/\/+$/, "") ===
-          manifest.url.replace(/\/+$/, ""),
-      ),
-    );
     if (
       catalogEndpointNeedsClient(manifest.url) ||
-      (!endpointListed &&
-        (await mcpSignInSupport(manifest.url)) === "needs-client")
+      (!mcpEndpointListed(manifest.url) &&
+        (signInSupport ?? (await mcpSignInSupport(manifest.url))) ===
+          "needs-client")
     ) {
       throw new Error(
         `${manifest.url} signs in only with a client registered with its vendor ahead of time, which ${APP_NAME} does not have yet, so the sign-in card would fail. ${instead}`,
@@ -688,6 +692,15 @@ async function refuseWhatCannotConnect(
       `${manifest.package} is not on ${manifest.runtime === "node" ? "npm" : "PyPI"}: there is no such package to install. Use the set-up line \`${APP_COMMAND.name} catalog\` gives for the service, and never a package name you have not seen in it or in the service's own docs.`,
     );
   }
+}
+
+function mcpEndpointListed(url: string) {
+  const wanted = url.replace(/\/+$/, "");
+  return getAppCatalog().some((candidate) =>
+    candidate.interfaces.some(
+      (surface) => surface.endpoint?.replace(/\/+$/, "") === wanted,
+    ),
+  );
 }
 
 async function runTest(slug: string, signal: AbortSignal | undefined) {

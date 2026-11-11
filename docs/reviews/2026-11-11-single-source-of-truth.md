@@ -58,7 +58,7 @@ Letters go to the finding; a `plus N similar` names siblings with the same root 
 
 ### I. Front matter is split four ways, against a contract that there is one splitter
 
-- Status: open
+- Status: fixed
 - Where: [parse-message.ts:161](/packages/workspace/src/lib/parse-message.ts#L161), [computer-titles.ts:110](/packages/workspace/src/lib/chat/computer-titles.ts#L110), [front-matter.ts:6](/apps/studio/src/client/components/markdown-editor/front-matter.ts#L6), [front-matter.ts:33](/packages/shared/src/front-matter.ts#L33)
 - What: `1fa84d947` committed to "front matter is split only by `splitFrontMatter` from `@instrument-org/shared`" and touched `parse-message.ts`, where `splitHeaders` still requires `---\n` exactly and a `---` closer, while `isMessageDocument` two functions above uses the shared splitter (BOM, trailing blanks, `...` closer). The markdown editor calls both on one text (`markdown-editor.tsx:487-488`): a draft saved with a BOM is a message to one and plain text to the other, so the card shows `---` and the YAML as the body with no recipient. `computer-titles.ts` and the editor's `FENCES` are two more grammars; the Files list misses a `title:` under a BOM and lists the heading instead.
 

@@ -1,3 +1,4 @@
+import { splitFrontMatter } from "@instrument-org/shared";
 import fs from "node:fs/promises";
 import path from "node:path";
 
@@ -107,14 +108,14 @@ async function readHead(filePath: string, limit: number, end: RegExp) {
 
 /** A Markdown file's front matter `title:`, or its first heading. */
 export function markdownTitle(markdown: string): null | string {
-  const front = /^---\r?\n([\s\S]*?)\r?\n---/.exec(markdown);
-  const declared = front?.[1]
+  const front = splitFrontMatter(markdown);
+  const declared = front.ok
     ? /^title:\s*(.+)$/m
-        .exec(front[1])?.[1]
+        .exec(front.block)?.[1]
         ?.trim()
         .replace(/^(["'])(.*)\1$/, "$2")
     : undefined;
-  const body = front ? markdown.slice(front[0].length) : markdown;
+  const body = front.body;
   const heading = /^#{1,6}[ \t]+(.+?)[ \t#]*$/m.exec(body)?.[1];
   return (
     plainText(declared) ?? plainText(heading?.replace(/[*_`]/g, "")) ?? null

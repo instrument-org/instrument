@@ -1,4 +1,6 @@
-import { splitFrontMatter } from "@instrument-org/shared";
+import { OPENING_FENCE, splitFrontMatter } from "@instrument-org/shared";
+
+const OPENING = new RegExp(`^${OPENING_FENCE}`);
 import { parse as parseYaml } from "yaml";
 
 import { AGENT_MESSAGE_LANGUAGE } from "../constants";
@@ -158,15 +160,16 @@ function splitHeaders(text: string): {
   body: string;
   fields: Partial<Record<Field, string>>;
 } {
-  if (text.startsWith("---\n")) {
-    const end = /\n---[ \t]*(?:\n|$)/.exec(text.slice(3));
-    if (!end) {
-      return { body: "", fields: readFrontMatter(text.slice(4)) };
-    }
-    const close = 3 + end.index;
+  const split = splitFrontMatter(text);
+  if (split.ok) {
+    return { body: split.body, fields: readFrontMatter(split.block) };
+  }
+  // A message still being written has opened its front matter and not closed
+  // it: every line after the fence is a header.
+  if (split.reason === "unterminated") {
     return {
-      body: text.slice(close + end[0].length),
-      fields: readFrontMatter(text.slice(4, close)),
+      body: "",
+      fields: readFrontMatter(text.slice(OPENING.exec(text)?.[0].length)),
     };
   }
 

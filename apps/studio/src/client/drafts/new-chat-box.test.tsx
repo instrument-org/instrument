@@ -5,6 +5,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
   bindNewChatBoxAtom,
   draftInNewChatBox,
+  isNewChatEmptied,
   newChatBoxesAtom,
   pickNewChatProjectAtom,
 } from "./new-chat-box";
@@ -123,4 +124,25 @@ describe("a new chat in the Chat screen", () => {
       "Flights",
     ]);
   });
+});
+
+describe("whether a new chat was emptied", () => {
+  /** A draft a paste just made: no words, its bytes not yet written into its folder. */
+  const madeByPaste = { createdAt: 1, id: "d1", updatedAt: 1, words: "" };
+
+  it.each([
+    {
+      expected: false,
+      isBoxEmpty: false,
+      why: "the box still shows the paste",
+    },
+    { expected: true, isBoxEmpty: true, why: "the box was emptied too" },
+  ])(
+    "is $expected for a draft with nothing yet when $why",
+    ({ expected, isBoxEmpty }) => {
+      expect(
+        isNewChatEmptied(madeByPaste, { hasTabs: false, isBoxEmpty }),
+      ).toBe(expected);
+    },
+  );
 });

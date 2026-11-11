@@ -20,6 +20,7 @@ import {
 import {
   bindNewChatBoxAtom,
   draftInNewChatBox,
+  isNewChatEmptied,
   makeNewChatDraftAtom,
   newChatBoxesAtom,
   newChatWordsKey,
@@ -32,7 +33,7 @@ import {
   removeDraftAtom,
   updateDraftAtom,
 } from "@/client/drafts/store";
-import { type Draft, draftGroupOf, isLeftEmpty } from "@/shared/drafts";
+import { type Draft, draftGroupOf } from "@/shared/drafts";
 import { osConventions } from "@/client/lib/utils";
 import { useRouter } from "@tanstack/react-router";
 import { useAtomValue, useSetAtom, useStore } from "jotai";
@@ -42,6 +43,7 @@ import {
   useEffectEvent,
   useLayoutEffect,
   useRef,
+  useState,
 } from "react";
 import { ulid } from "ulid";
 
@@ -224,10 +226,11 @@ export function NewChatView({
 
   // Emptied of everything it had, the draft goes, and the screen is a new
   // chat again.
-  const isEmptied =
-    draft !== undefined &&
-    draft.sendingTo === undefined &&
-    isLeftEmpty(draft, { hasTabs: tabs.length > 0 });
+  const [isBoxEmpty, setIsBoxEmpty] = useState(true);
+  const isEmptied = isNewChatEmptied(draft, {
+    hasTabs: tabs.length > 0,
+    isBoxEmpty,
+  });
   useEffect(() => {
     if (!isEmptied || !draft) {
       return;
@@ -384,6 +387,7 @@ export function NewChatView({
             }
           }}
           shownPath={shownPath}
+          onEmptyChange={setIsBoxEmpty}
           onModelChange={shell.setDefaultModelURI}
           onSubmit={(sending) => {
             const send = staging.asStaged(sending);

@@ -1,4 +1,4 @@
-import { type Draft } from "@/shared/drafts";
+import { type Draft, isLeftEmpty } from "@/shared/drafts";
 import { atom } from "jotai";
 import { ulid } from "ulid";
 
@@ -46,6 +46,25 @@ export function draftInNewChatBox(
   return id === null || id === undefined
     ? undefined
     : drafts.find((draft) => draft.id === id);
+}
+
+/**
+ * Whether a tab's new chat was emptied of everything it had, so its draft is
+ * thrown away. The box counts as well as the draft: a paste makes the draft
+ * before its bytes are written into the draft's folder, so for a moment the
+ * draft has nothing while the box shows the picture, and throwing it away
+ * then takes the picture to the Trash with it.
+ */
+export function isNewChatEmptied(
+  draft: Draft | undefined,
+  { hasTabs, isBoxEmpty }: { hasTabs: boolean; isBoxEmpty: boolean },
+): boolean {
+  return (
+    draft !== undefined &&
+    draft.sendingTo === undefined &&
+    isBoxEmpty &&
+    isLeftEmpty(draft, { hasTabs })
+  );
 }
 
 /**

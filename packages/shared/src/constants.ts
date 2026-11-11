@@ -157,6 +157,31 @@ export const WINDOWS_PUBLISHER_NAMES = [
   "Old Habit Software, LLC",
   "OLD HABIT SOFTWARE, LLC",
 ];
+
+/**
+ * What the packaged app carries under its resources folder beside the asar,
+ * by the name the builder copies it to and the app reads it from. Named here
+ * because the builder config and the readers in the app and the workspace
+ * package are the only things that have to agree, and a build fails on none
+ * of them when they do not.
+ */
+export const PACKAGED_RESOURCES = {
+  /** The `instrument-org/skills` checkout, the submodule in development. */
+  registry: "registry",
+  /** The skills the workspace package ships. */
+  systemSkills: "system-skills",
+  /** The app directory's icons, from the workspace package. */
+  directoryIcons: "directory-icons",
+  /** The Mac bridge's binaries (`MAC_BRIDGE_FILES`). */
+  bin: "bin",
+} as const;
+
+/** The files the Mac helper build produces, by the names the app loads them under. */
+export const MAC_BRIDGE_FILES = {
+  helper: "instrument-mac",
+  module: "instrument-mac.node",
+  seatbelt: "instrument-seatbelt",
+} as const;
 export const PRIVATE_FOLDER_NAME = `.instrument`;
 
 /**

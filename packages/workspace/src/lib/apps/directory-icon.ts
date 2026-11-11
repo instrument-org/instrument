@@ -1,3 +1,4 @@
+import { PACKAGED_RESOURCES } from "@instrument-org/shared";
 import fs from "node:fs/promises";
 import { z } from "zod";
 
@@ -13,7 +14,7 @@ import { AppSlugSchema } from "./manifest";
  * Drawn after the app's own icon and its Mac app's, and before its site's
  * favicon, which stays the answer for an entry with no file here.
  */
-export const DIRECTORY_ICONS_DIR_NAME = "directory-icons";
+export const DIRECTORY_ICONS_DIR_NAME = PACKAGED_RESOURCES.directoryIcons;
 
 export const DIRECTORY_ICON_MANIFEST_FILE_NAME = "manifest.json";
 

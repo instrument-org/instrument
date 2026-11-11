@@ -16,7 +16,7 @@ Letters go to the finding; a `plus N similar` names siblings with the same root 
 
 ### B. The packaged resource folders are named in the builder and again in the code that reads them
 
-- Status: open
+- Status: fixed
 - Where: [electron-builder.ts:165](/apps/studio/electron-builder.ts#L165), [registry-dir.ts:7](/apps/studio/src/electron-main/lib/registry-dir.ts#L7), [create-workspace-actor.ts:107](/apps/studio/src/electron-main/lib/create-workspace-actor.ts#L107), [directory-icon.ts:16](/packages/workspace/src/lib/apps/directory-icon.ts#L16), [mac-native.ts:46](/apps/studio/src/electron-main/lib/mac-native.ts#L46)
 - What: `registry/skills`, `system-skills`, `directory-icons` and `bin/instrument-mac`, `bin/instrument-mac.node`, `bin/instrument-seatbelt` are each a `to:` string in the builder and a separate literal where the app reads them. `DIRECTORY_ICONS_DIR_NAME` exists and the builder ignores it. Rename one in either place and `pnpm dev` keeps working (it reads the unpackaged path) while the packaged app has no system skills, no directory icons or no Mac bridge, with nothing failing at build.
 

@@ -1,14 +1,14 @@
+import { PACKAGED_RESOURCES } from "@instrument-org/shared";
 import { app } from "electron";
 import { existsSync } from "node:fs";
 import path from "node:path";
 
 import { logger } from "./electron-logger";
 
-const REGISTRY_DIR_NAME = "registry";
-
+/** The submodule at the repo's root. */
 let unpackagedRegistryDir = path.resolve(
   import.meta.dirname,
-  `../../../../${REGISTRY_DIR_NAME}`,
+  "../../../../registry",
 );
 
 const ENV_REGISTRY_DIR = import.meta.env.MAIN_VITE_APP_REGISTRY_DIR_PATH;
@@ -36,6 +36,6 @@ if (ENV_REGISTRY_DIR) {
  */
 export function getRegistryDir(): string {
   return app.isPackaged
-    ? path.join(process.resourcesPath, REGISTRY_DIR_NAME)
+    ? path.join(process.resourcesPath, PACKAGED_RESOURCES.registry)
     : unpackagedRegistryDir;
 }

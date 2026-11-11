@@ -1,3 +1,4 @@
+import { PACKAGED_RESOURCES } from "@instrument-org/shared";
 import {
   appWindowForChat,
   getAppWindows,
@@ -103,8 +104,6 @@ import {
   getUutilsDir,
   getUvBinPath,
 } from "./setup-bin-directory";
-
-const SYSTEM_SKILLS_DIR_NAME = "system-skills";
 
 /**
  * What quit teardown allows the skills watcher on top of the slowest thing it
@@ -250,7 +249,7 @@ export async function createWorkspaceActor(deviceId: DeviceId) {
       rootDir,
       runtimeDir: getRuntimeDir(),
       systemSkillsDir: app.isPackaged
-        ? path.join(process.resourcesPath, SYSTEM_SKILLS_DIR_NAME)
+        ? path.join(process.resourcesPath, PACKAGED_RESOURCES.systemSkills)
         : UNPACKAGED_SYSTEM_SKILLS_DIR,
       trashItem: (pathToTrash) => shell.trashItem(pathToTrash),
       uvBinPath: getUvBinPath(),

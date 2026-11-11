@@ -8,6 +8,8 @@ import {
   APP_PROTOCOL,
   APP_UPDATER_CACHE_DIR_NAME,
   COMPANY_NAME,
+  MAC_BRIDGE_FILES,
+  PACKAGED_RESOURCES,
   SUPPORT_EMAIL,
   WINDOWS_PUBLISHER_NAMES,
 } from "@instrument-org/shared";
@@ -164,19 +166,19 @@ const config: Configuration = {
     {
       filter: ["**/*"],
       from: "../../registry/skills",
-      to: "registry/skills",
+      to: `${PACKAGED_RESOURCES.registry}/skills`,
     },
     {
       filter: ["**/*"],
       from: "../../packages/workspace/system-skills",
-      to: "system-skills",
+      to: PACKAGED_RESOURCES.systemSkills,
     },
     // The directory's icons; the manifest beside them is for the refresh
     // script and stays behind.
     {
       filter: ["*.png", "*.svg"],
       from: "../../packages/workspace/directory-icons",
-      to: "directory-icons",
+      to: PACKAGED_RESOURCES.directoryIcons,
     },
   ],
   files: [
@@ -308,17 +310,17 @@ const config: Configuration = {
     // loads, built by `pnpm build:mac-helper` before packaging.
     extraResources: [
       {
-        from: "native/mac-helper/.build/bridge/instrument-mac",
-        to: "bin/instrument-mac",
+        from: `native/mac-helper/.build/bridge/${MAC_BRIDGE_FILES.helper}`,
+        to: `${PACKAGED_RESOURCES.bin}/${MAC_BRIDGE_FILES.helper}`,
       },
       {
-        from: "native/mac-helper/.build/bridge/instrument-mac.node",
-        to: "bin/instrument-mac.node",
+        from: `native/mac-helper/.build/bridge/${MAC_BRIDGE_FILES.module}`,
+        to: `${PACKAGED_RESOURCES.bin}/${MAC_BRIDGE_FILES.module}`,
       },
       // The Seatbelt launcher native commands start through.
       {
-        from: "native/mac-helper/.build/bridge/instrument-seatbelt",
-        to: "bin/instrument-seatbelt",
+        from: `native/mac-helper/.build/bridge/${MAC_BRIDGE_FILES.seatbelt}`,
+        to: `${PACKAGED_RESOURCES.bin}/${MAC_BRIDGE_FILES.seatbelt}`,
       },
     ],
     extendInfo: {

@@ -9,9 +9,9 @@ import {
   setupChangeWord,
 } from "@instrument-org/workspace/client";
 import { skillMentionLabel } from "@instrument-org/shared/skill-mention";
-import { AppWindowIcon } from "@phosphor-icons/react/AppWindow";
 import { CubeIcon } from "@phosphor-icons/react/Cube";
 import { FingerprintIcon } from "@phosphor-icons/react/Fingerprint";
+import { ShapesIcon } from "@phosphor-icons/react/Shapes";
 import { useQuery } from "@tanstack/react-query";
 import { type ReactNode, useState } from "react";
 
@@ -239,7 +239,7 @@ export function AppChangesCard({
     <ChangeCard
       heading={setupChangesHeading("app", changes)}
       hidden={hidden}
-      icon={AppWindowIcon}
+      icon={ShapesIcon}
       onShowMore={onShowMore}
       slot="app-changes"
     >
@@ -260,12 +260,16 @@ export function AppChangesCard({
                   size="sm"
                 />
               ) : (
-                <RowGlyph icon={AppWindowIcon} />
+                <RowGlyph icon={ShapesIcon} />
               )
             }
             lines={[
-              { key: "done", words: setupChangeWord("app", change.change) },
-              ...(needs ? [{ key: "needs", words: needs }] : []),
+              {
+                key: "done",
+                words: [setupChangeWord("app", change.change), needs]
+                  .filter(Boolean)
+                  .join(" · "),
+              },
             ]}
             name={
               app && !gone ? (

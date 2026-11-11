@@ -82,7 +82,7 @@ export function ChangeCard({
       data-slot={slot}
     >
       <div className="flex h-11 items-center gap-2 border-b border-border/70 px-4">
-        <span className="flex h-5 w-4 shrink-0 items-center justify-center">
+        <span className="flex h-5 w-5 shrink-0 items-center justify-center">
           <HeadIcon className="size-4 text-muted-foreground" />
         </span>
         <span

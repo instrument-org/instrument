@@ -2,7 +2,11 @@ import { page } from "vitest/browser";
 import { describe, expect, it, vi } from "vitest";
 
 import { renderInBrowser } from "../../tests/render-browser";
-import { MemoryChangesCard, SkillChangesCard } from "./setup-change-cards";
+import {
+  AppChangesCard,
+  MemoryChangesCard,
+  SkillChangesCard,
+} from "./setup-change-cards";
 
 const { undoChanges } = vi.hoisted(() => ({
   undoChanges: vi.fn(() => Promise.resolve({ skipped: 0, undone: 2 })),
@@ -10,6 +14,25 @@ const { undoChanges } = vi.hoisted(() => ({
 
 vi.mock("@/client/rpc/client", () => ({
   rpcClient: {
+    apps: {
+      live: {
+        list: {
+          experimental_liveOptions: () => ({
+            queryFn: () => ({
+              apps: [
+                {
+                  name: "Zendesk",
+                  site: "zendesk.com",
+                  slug: "zendesk",
+                  status: "needs-sign-in",
+                },
+              ],
+            }),
+            queryKey: ["apps"],
+          }),
+        },
+      },
+    },
     utils: { openExternalLink: { mutationOptions: () => ({}) } },
     workspace: {
       memory: { undoChanges: { call: undoChanges } },
@@ -84,5 +107,21 @@ describe("SkillChangesCard", () => {
       [...container.querySelectorAll("li")].map((row) => row.textContent),
     ).toEqual(["/price-checkCreated", "/pricing-faqUpdated"]);
     expect(page.getByRole("button", { name: "Undo" }).query()).toBeNull();
+  });
+});
+
+describe("AppChangesCard", () => {
+  it("says what an app still needs on the line with what was done", async () => {
+    const { container } = await renderInBrowser(
+      <AppChangesCard
+        changes={[{ change: "added", kind: "app", name: "Zendesk" }]}
+      />,
+    );
+    await expect
+      .element(page.getByText("Added · Needs you to sign in"))
+      .toBeVisible();
+    expect(
+      [...container.querySelectorAll("li")].map((row) => row.textContent),
+    ).toEqual(["ZZendeskAdded · Needs you to sign in"]);
   });
 });

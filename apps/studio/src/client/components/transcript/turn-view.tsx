@@ -20,8 +20,6 @@ import {
   memo,
   type ReactNode,
   use,
-  useLayoutEffect,
-  useRef,
   useState,
 } from "react";
 
@@ -65,6 +63,7 @@ import { useTranscriptCommands } from "./transcript-data";
 import { TranscriptActionsContext } from "./transcript-actions";
 import { TaskCardRow } from "./task-card";
 import { formatClock, usePassed, useTicking } from "./time";
+import { useWorkingFloor } from "./use-working-floor";
 import { WakeLine } from "./wake-line";
 
 /** How long the agent may sit between things before the transcript says it is thinking. */
@@ -160,52 +159,6 @@ export const TurnView = memo(function TurnView({
     </>
   );
 });
-
-/**
- * Keeps a working turn from getting shorter. The card goes the moment the agent
- * says something, and the working line's second row with it, and the next
- * activity puts them back a moment later: holding the turn at the tallest it
- * has been leaves their room in place, so the end of the transcript does not
- * rise and fall at every narrated step. Once the turn stops working the room
- * it held closes on the fold's curve.
- *
- * The floor is set on the element as it is measured, before the frame paints,
- * so a turn never draws a frame shorter than it was. It reads layout pixels
- * (`offsetHeight`), which the window's zoom leaves alone.
- */
-function useWorkingFloor(isWorking: boolean) {
-  const ref = useRef<HTMLDivElement>(null);
-  const isReduced = useReducedMotion();
-  useLayoutEffect(() => {
-    const element = ref.current;
-    if (!element) {
-      return;
-    }
-    if (!isWorking) {
-      if (element.style.minHeight) {
-        element.style.transition = isReduced
-          ? ""
-          : `min-height ${(FOLD_TRANSITION.duration * 1000).toString()}ms cubic-bezier(${FOLD_TRANSITION.ease.join(", ")})`;
-        // To a length rather than unset, since a transition has no way to `auto`.
-        element.style.minHeight = "0px";
-      }
-      return;
-    }
-    element.style.transition = "";
-    let tallest = 0;
-    const observer = new ResizeObserver(() => {
-      if (element.offsetHeight > tallest) {
-        tallest = element.offsetHeight;
-        element.style.minHeight = `${tallest.toString()}px`;
-      }
-    });
-    observer.observe(element);
-    return () => {
-      observer.disconnect();
-    };
-  }, [isWorking, isReduced]);
-  return ref;
-}
 
 function OpenerView({
   chatId,

@@ -228,6 +228,19 @@ describe("FeedbackDialogContent", () => {
     });
   });
 
+  it("sends the open chat unless the person switches it off", async () => {
+    await open();
+    const chat = screen.getByRole("switch", {
+      name: "Send “star my first email”",
+    });
+    expect(chat.getAttribute("aria-checked")).toBe("true");
+    fireEvent.click(chat);
+    fireEvent.click(screen.getByRole("button", { name: "Send" }));
+    await waitFor(() => {
+      expect(sentItems()).toEqual(["diagnostics"]);
+    });
+  });
+
   it("shows what the person did a line each, with its switch at the foot", async () => {
     await open();
     fireEvent.click(screen.getByRole("button", { name: "View Your activity" }));

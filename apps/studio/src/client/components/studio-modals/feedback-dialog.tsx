@@ -229,8 +229,7 @@ function partsOf({
 }: {
   described: FeedbackDescription | undefined;
   sendActions: NonNullable<Part["sending"]>;
-  /** The switch on a chat that came in with a capture rather than with the dialog. */
-  sendChat?: Part["sending"];
+  sendChat: NonNullable<Part["sending"]>;
   writeup: FeedbackRequest["writeup"];
   yourComputer: string;
 }): Part[] {
@@ -260,7 +259,7 @@ function partsOf({
             : {
                 item: chat.item,
                 line: `Your messages, ${APP_NAME}'s replies and each step it took. What it read stays on ${yourComputer}, though an error message can quote a little of it.`,
-                ...(sendChat && { sending: sendChat }),
+                sending: sendChat,
                 title: chat.title,
               },
         ]
@@ -299,8 +298,9 @@ function itemsGoing(parts: readonly Part[]) {
  * what the person did in the app, and the diagnostics). View turns the
  * dialog into a page that shows each as it will be sent, a row per record.
  * Everything listed goes, except a chat too big to send, whose row says it
- * stays behind, and what the person did in the app, which goes only when
- * they switch it on.
+ * stays behind, a chat the person switches off, since feedback sent while a
+ * chat is open is not always about it, and what the person did in the app,
+ * which goes only when they switch it on.
  */
 export function FeedbackDialogContent({
   onClose,
@@ -379,9 +379,7 @@ export function FeedbackDialogContent({
   });
 
   const sendActionsSwitch = { on: sendActions, set: setSendActions };
-  const sendChatSwitch = captureChat
-    ? { on: sendChat, set: setSendChat }
-    : undefined;
+  const sendChatSwitch = { on: sendChat, set: setSendChat };
   const parts = partsOf({
     described: described.data,
     sendActions: sendActionsSwitch,

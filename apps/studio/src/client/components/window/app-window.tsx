@@ -903,6 +903,7 @@ function WindowShell({
     draftContext,
     isOpen: opened !== undefined,
     isChat,
+    isChatAlone: chatUp !== undefined && !isInboxOpen,
     openChat: (chatId) => {
       appTabs.navigate(chatHref(chatId));
     },

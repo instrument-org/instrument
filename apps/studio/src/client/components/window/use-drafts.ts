@@ -60,6 +60,7 @@ export function useDrafts({
   compose,
   draftContext,
   isChat,
+  isChatAlone,
   isOpen,
   openChat,
   openDraftInChat,
@@ -81,6 +82,8 @@ export function useDrafts({
   ) => Promise<SessionMessageDataPart.ViewContextDataPart | undefined>;
   /** Whether the tab up is the chat, whose inbox's project a new draft is filed under, and where a draft sent from there opens. */
   isChat: boolean;
+  /** Whether the tab up is on a chat with the chat list put away, where New leaves the chat up and writes the new one in a window along the foot. */
+  isChatAlone: boolean;
   /** Whether what the window opens on is made; no chat starts before it is. */
   isOpen: boolean;
   /** Puts the tab up on a chat, whole, for a draft sent from the chat. */
@@ -176,13 +179,15 @@ export function useDrafts({
   /**
    * Makes a draft, filed under a project when the pane stands in one and with
    * words already in it when a button handed some over, and brings it up
-   * where drafts are written from where the tab stands (see `showDraft`).
-   * Every ask is a new draft, beside the ones already open.
+   * where drafts are written from where the tab stands (see `showDraft`), or
+   * in a window along the foot when `show` says so. Every ask is a new
+   * draft, beside the ones already open.
    */
   const startDraft = (
     projectId: string | undefined,
     words = "",
     context: DraftContextItem[] = [],
+    show: (id: string) => void = showDraft,
   ) => {
     const now = Date.now();
     const draft: Draft = {
@@ -194,7 +199,7 @@ export function useDrafts({
       words,
     };
     createDraft(draft);
-    showDraft(draft.id);
+    show(draft.id);
     return draft.id;
   };
   /** The project the inbox stands in, while the tab is on Chat and the inbox stands in one. */
@@ -205,11 +210,13 @@ export function useDrafts({
   /**
    * New, from the rail or its chord: on Chat, a new chat beside the chat
    * list with nothing made until something is written in it, filed under the
-   * project the inbox stands in; anywhere else, a draft in a window along
-   * the foot.
+   * project the inbox stands in; on a chat with the list put away, and
+   * anywhere else, a draft in a window along the foot.
    */
   const newDraft = () => {
-    if (isChat) {
+    if (isChatAlone) {
+      startDraft(undefined, "", [], compose.open);
+    } else if (isChat) {
       openNewChat(inboxProject());
     } else {
       startDraft(undefined);

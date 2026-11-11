@@ -10,7 +10,7 @@ Letters go to the finding; a `plus N similar` names siblings with the same root 
 
 ### A. The Windows publisher names are typed once for the build and once for the installed app's check
 
-- Status: open
+- Status: fixed
 - Where: [constants.ts:154](/packages/shared/src/constants.ts#L154), [electron-builder.ts:407](/apps/studio/electron-builder.ts#L407)
 - What: `WINDOWS_PUBLISHER_NAMES` is what the app's own signature verdict accepts on a downloaded Setup (`update-bridge.ts:235`, `update-velopack.ts:90`, `velopack-pack.ts:201`); `publisherName` in the builder is what lands in `app-update.yml` for electron-updater's check. The same four strings, and the builder file already imports from `@instrument-org/shared` without this one. The contract on `d1e890460` ("a publisher name ships in `WINDOWS_PUBLISHER_NAMES` and `publisherName` at least one release before any certificate is issued under it") names both places and nothing holds them equal, so the next certificate rename added to one list leaves one update path refusing a correctly signed build as unsigned.
 

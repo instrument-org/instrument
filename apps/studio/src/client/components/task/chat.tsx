@@ -288,10 +288,11 @@ export function ChatConversation({
   const isLoadingMessages = messagesQuery.isLoading;
   const refetch = messagesQuery.refetch;
 
-  const { isAgentAlive, isAgentRunning, isChatAlive } = useAgentSessionStatus({
-    id,
-    sessionId: selectedSessionId,
-  });
+  const { isAgentAlive, isAgentRunning, isChatAlive, isChatRunning } =
+    useAgentSessionStatus({
+      id,
+      sessionId: selectedSessionId,
+    });
 
   // The live session takes over following the transcript as soon as it reports
   // itself alive, so the submit's own reason to follow ends there.
@@ -585,7 +586,9 @@ export function ChatConversation({
       onItemRemoved={draftKey.scope === "chat" ? staging.removeItem : undefined}
       onItemsChange={draftKey.scope === "chat" ? staging.keepItems : undefined}
       onModelChange={setSelectedModelURI}
-      {...(isAgentRunning && {
+      // Stop reaches the chat's own turn and every task it started, so it is
+      // offered while any of them is working.
+      {...(isChatRunning && {
         onStop: () => {
           stopChat.mutate({ id });
         },

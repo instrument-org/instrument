@@ -167,7 +167,7 @@ Letters go to the finding; a `plus N similar` names siblings with the same root 
 
 ### AA. Prompts send downloads to "the chat's folder"; the code puts them in the work folder
 
-- Status: open
+- Status: fixed
 - Where: [web-fetch.ts:687](/packages/workspace/src/tools/web-fetch.ts#L687), [agent-browser-guide.ts:39](/packages/workspace/src/model-text/guides/agent-browser-guide.ts#L39), [agent-browser.ts:897](/packages/workspace/src/lib/shell-commands/agent-browser.ts#L897), [system-prompt.ts:137](/packages/workspace/src/model-text/system-prompt.ts#L137)
 - What: the system prompt defines "this conversation's own folder" as the one the person browses and says browser downloads land in `downloads/` under the work folder; the fetch tool and the browser guide both say "the chat's folder". An agent reading that as the person's folder `curl`s scratch PDFs into `Chats/`, against the prompt's own rule that nothing but finished work goes there.
 

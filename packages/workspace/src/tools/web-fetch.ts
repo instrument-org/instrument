@@ -6,7 +6,7 @@ import path from "node:path";
 import { dedent } from "radashi";
 import { z } from "zod";
 
-import { CHAT_FOLDER_NAMES } from "../constants";
+import { CHAT_FOLDER_NAMES, FOLDER_VARIABLES } from "../constants";
 import { absolutePathJoin } from "../lib/absolute-path-join";
 import { pageTitle } from "../lib/page-title";
 import { truncateWithoutSplitting } from "../lib/sanitize-model-text";
@@ -684,7 +684,7 @@ function requestHeaders(userAgent: string): Record<string, string> {
 function unsupportedContentMessage(mime: string): string {
   const label = mime || "unknown";
   if (DOCUMENT_MIMES.has(mime)) {
-    return `${TOOL_NAMES.webFetch} cannot read "${label}" documents directly. Download the file into the chat's folder (for example \`curl -L -o\`), then use the \`${SKILL_NAMES.pdf}\` or \`${SKILL_NAMES.documentToMarkdown}\` skill to extract its text.`;
+    return `${TOOL_NAMES.webFetch} cannot read "${label}" documents directly. Download the file into your work folder, \`$${FOLDER_VARIABLES.work}\` (for example \`curl -L -o\`), then use the \`${SKILL_NAMES.pdf}\` or \`${SKILL_NAMES.documentToMarkdown}\` skill to extract its text.`;
   }
   return `Unsupported content type "${label}". ${TOOL_NAMES.webFetch} reads text, HTML, and JSON pages. If the page needs JavaScript, a login, or interaction, use the browser instead.`;
 }

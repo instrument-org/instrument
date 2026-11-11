@@ -3,6 +3,8 @@ import os from "node:os";
 import path from "node:path";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
+type WorkspaceElectron = typeof import("@instrument-org/workspace/electron");
+
 import {
   buildExceptionEvent,
   type ExceptionEvent,
@@ -35,8 +37,8 @@ vi.mock("./exception-store", () => ({
 }));
 
 vi.mock(
-  import("@instrument-org/workspace/electron"),
-  async (importOriginal) => ({
+  "@instrument-org/workspace/electron",
+  async (importOriginal: () => Promise<WorkspaceElectron>) => ({
     // The record file parser is pure, and what the feedback picks turns on it.
     parseRecordFileName: (await importOriginal()).parseRecordFileName,
     chatDir: () => {

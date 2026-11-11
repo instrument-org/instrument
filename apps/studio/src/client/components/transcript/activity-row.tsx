@@ -117,7 +117,9 @@ export function RowLine({
         )}
         {places}
         {right && (
-          <span className="flex shrink-0 items-center text-xs text-muted-foreground tabular-nums">
+          // Centered beside the larger label, the smaller type sits a pixel
+          // above its baseline; the nudge sets the two on one line.
+          <span className="flex shrink-0 translate-y-px items-center text-xs text-muted-foreground tabular-nums">
             {right}
           </span>
         )}

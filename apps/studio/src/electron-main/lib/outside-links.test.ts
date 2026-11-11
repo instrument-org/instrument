@@ -428,6 +428,18 @@ describe("a page link", () => {
     expect(keptAs).toEqual([["weekly", body]]);
   });
 
+  it("fetches the page under the link token the link names", async () => {
+    const tokens: (string | undefined)[] = [];
+    await asksOfOutsideLink("instrument://page/weekly/abcdefghijklmnop", {
+      fetchPage: (_id, options) => {
+        tokens.push(options?.token);
+        return handed();
+      },
+      keepPage: kept,
+    });
+    expect(tokens).toEqual(["abcdefghijklmnop"]);
+  });
+
   it("says the host did not answer, keeping nothing", async () => {
     let keeps = 0;
     expect(

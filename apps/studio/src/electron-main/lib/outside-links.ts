@@ -120,7 +120,7 @@ export async function asksOfOutsideLink(
       return all;
     }
     case "page": {
-      return [await askOfPage(link.id, checks)];
+      return [await askOfPage(link, checks)];
     }
   }
 }
@@ -132,11 +132,11 @@ export async function asksOfOutsideLink(
  * folder takes no file, the window saying so and opening nothing.
  */
 async function askOfPage(
-  id: string,
+  { id, token }: { id: string; token?: string },
   { fetchPage = fetchHostedPage, keepPage = keepHostedPage }: PathChecks,
 ): Promise<AppWindowAsk> {
   const host = `${id}.${PAGES_DOMAIN}`;
-  const fetched = await fetchPage(id);
+  const fetched = await fetchPage(id, token === undefined ? {} : { token });
   if ("failed" in fetched) {
     logger.scope("outside-link").info(`${host} ${fetched.failed}`);
     return { host, type: "pageNotOpened", why: "noAnswer" };

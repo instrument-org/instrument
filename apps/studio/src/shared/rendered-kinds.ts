@@ -1,8 +1,12 @@
 /**
  * Which files the app draws itself (`rendered-pictures.ts`) rather than
  * leaving to the system's thumbnailer, by extension alone, so asking costs
- * nothing and loads none of the drawing's machinery.
+ * nothing and loads none of the drawing's machinery. Shared with the
+ * renderer, which asks for a picture of exactly these and of what the system
+ * draws.
  */
+
+import { MARKDOWN_EXTENSIONS as MARKDOWN } from "@instrument-org/shared";
 
 export type RenderedKind =
   | "code"
@@ -19,7 +23,7 @@ const PAGE_EXTENSIONS = new Set(["htm", "html"]);
  * the top of a white square.
  */
 const PICTURE_EXTENSIONS = new Set(["svg"]);
-const MARKDOWN_EXTENSIONS = new Set(["markdown", "md", "mdx"]);
+const MARKDOWN_EXTENSIONS = new Set(MARKDOWN);
 /** Code, set as a sheet: highlighted where there is a grammar for it, plain where not. */
 const CODE_EXTENSIONS = new Set([
   "c",
@@ -61,6 +65,16 @@ const CODE_EXTENSIONS = new Set([
 const TABLE_EXTENSIONS = new Set(["csv", "tsv"]);
 /** Plain text, set as the viewer reads it: in the reading typeface, never highlighted. */
 const TEXT_EXTENSIONS = new Set(["log", "txt"]);
+
+/** Every extension the app draws a picture of. */
+export const RENDERED_EXTENSIONS: ReadonlySet<string> = new Set([
+  ...PAGE_EXTENSIONS,
+  ...PICTURE_EXTENSIONS,
+  ...MARKDOWN_EXTENSIONS,
+  ...CODE_EXTENSIONS,
+  ...TABLE_EXTENSIONS,
+  ...TEXT_EXTENSIONS,
+]);
 
 /** A file's extension, lowercased; empty for none. */
 export function extensionOf(hostPath: string) {

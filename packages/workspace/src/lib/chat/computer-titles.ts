@@ -1,4 +1,7 @@
-import { splitFrontMatter } from "@instrument-org/shared";
+import {
+  MARKDOWN_EXTENSIONS as MARKDOWN,
+  splitFrontMatter,
+} from "@instrument-org/shared";
 import fs from "node:fs/promises";
 import path from "node:path";
 
@@ -48,7 +51,7 @@ const KEPT = 5000;
 const kept = new Map<string, null | string>();
 
 const PAGE_EXTENSIONS = new Set([".htm", ".html", ".xhtml"]);
-const MARKDOWN_EXTENSIONS = new Set([".markdown", ".md", ".mdx"]);
+const MARKDOWN_EXTENSIONS = new Set(MARKDOWN.map((each) => `.${each}`));
 
 /** Whether a file is one this reads a title out of, by its name alone. */
 function hasOwnTitle(name: string) {

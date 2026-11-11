@@ -1,3 +1,4 @@
+import { MARKDOWN_EXTENSIONS as MARKDOWN } from "@instrument-org/shared";
 import { getComputerThumbnailUrl } from "@/client/lib/computer-file-url";
 import { cn } from "@/client/lib/utils";
 import {
@@ -42,7 +43,7 @@ import { type TranscriptSurface, TranscriptSurfaceContext } from "./surface";
 import { useDrivenPage, useTranscriptHostPaths } from "./transcript-data";
 
 /** The files whose words a card shows as they read rather than as typed. */
-const MARKDOWN_EXTENSIONS = new Set(["markdown", "md", "mdx"]);
+const MARKDOWN_EXTENSIONS = new Set(MARKDOWN);
 
 const MARKS: Record<WorkCardKind, ReactNode> = {
   files: <FileTextIcon className="size-3.5" />,

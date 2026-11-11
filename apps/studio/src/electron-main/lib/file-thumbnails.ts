@@ -5,7 +5,7 @@ import path from "node:path";
 
 import { createScopedLogger } from "./electron-logger";
 import { fileIcon } from "./mac-native";
-import { renderedKindOf } from "./rendered-kinds";
+import { renderedKindOf } from "@/shared/rendered-kinds";
 import { renderPicture } from "./rendered-pictures";
 
 const log = createScopedLogger("FileThumbnails");

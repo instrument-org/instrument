@@ -173,7 +173,7 @@ Letters go to the finding; a `plus N similar` names siblings with the same root 
 
 ### AB. The ffmpeg skill says to run a system copy by path; the shell's tool text says never by path
 
-- Status: open
+- Status: fixed
 - Where: [SKILL.md:20](/packages/workspace/system-skills/ffmpeg/SKILL.md#L20), [create-bash-env.ts:807](/packages/workspace/src/lib/create-bash-env.ts#L807), [path-program.ts:170](/packages/workspace/src/lib/shell-commands/path-program.ts#L170)
 - What: slash paths run natively, so the skill's advice works and the tool text ("invoked by bare name only, never by an absolute path") is the stale one. An agent that trusts the tool definition never reaches for `/opt/homebrew/bin/ffmpeg` when the bundled build lacks an encoder.
 

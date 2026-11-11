@@ -403,9 +403,20 @@ async function runWithTransport<T>(
  * What the SDK threw, as the agent should read it: the HTTP status, the OAuth
  * error code, or the JSON-RPC error's data beside the message, since the SDK
  * keeps those out of `message` and a badly written server is only debuggable
- * from what it actually said.
+ * from what it actually said. Cut short past `FAILURE_CHARS`: a server that
+ * answers with a web page has the SDK quote the whole page as its raw body,
+ * and every reader of this (the agent, a toast, the log) wants only the start.
  */
 export function describeMcpFailure(error: unknown): string {
+  const said = describeMcpFailureWhole(error);
+  return said.length > FAILURE_CHARS
+    ? `${said.slice(0, FAILURE_CHARS).trimEnd()}…`
+    : said;
+}
+
+const FAILURE_CHARS = 1000;
+
+function describeMcpFailureWhole(error: unknown): string {
   if (error instanceof StreamableHTTPError) {
     // -1 is the SDK's own code for a response it could not read (an
     // unexpected content type), not a status.

@@ -283,4 +283,17 @@ describe("describeMcpFailure", () => {
       }
     `);
   });
+
+  it("cuts a web page the server answered with down to its start", () => {
+    const page = `<!DOCTYPE html><html>${"<div></div>".repeat(500)}</html>`;
+    const described = describeMcpFailure(
+      new ServerError(
+        `HTTP 404: Invalid OAuth error response. Raw body: ${page}`,
+      ),
+    );
+
+    expect(described.length).toBe(1001);
+    expect(described).toMatch(/^OAuth server_error: HTTP 404: Invalid OAuth/);
+    expect(described.endsWith("…")).toBe(true);
+  });
 });

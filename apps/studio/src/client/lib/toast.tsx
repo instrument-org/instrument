@@ -110,7 +110,9 @@ function errorDescription(
       {said}
       <span className="mt-1 flex items-start gap-1 font-mono text-[11px] break-all text-dev-700 dark:text-dev-300">
         <EyeIcon className="mt-0.5 size-3 shrink-0" />
-        {detail}
+        {/* The whole error is in the log; a server's web page quoted in one
+            would otherwise run the toast past the window. */}
+        <span className="line-clamp-6">{detail}</span>
       </span>
     </>
   );

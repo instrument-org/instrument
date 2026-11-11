@@ -22,8 +22,13 @@ const HEIC_FIXTURE = path.resolve(
 const CMYK_JPEG_BASE64 =
   "/9j/7gAOQWRvYmUAZAAAAAAA/9sAQwANCQoLCggNCwoLDg4NDxMgFRMSEhMnHB4XIC4pMTAuKS0sMzpKPjM2RjcsLUBXQUZMTlJTUjI+WmFaUGBKUVJP/8AAFAgACAAIBEMRAE0RAFkRAEsRAP/EAB8AAAEFAQEBAQEBAAAAAAAAAAABAgMEBQYHCAkKC//EALUQAAIBAwMCBAMFBQQEAAABfQECAwAEEQUSITFBBhNRYQcicRQygZGhCCNCscEVUtHwJDNicoIJChYXGBkaJSYnKCkqNDU2Nzg5OkNERUZHSElKU1RVVldYWVpjZGVmZ2hpanN0dXZ3eHl6g4SFhoeIiYqSk5SVlpeYmZqio6Slpqeoqaqys7S1tre4ubrCw8TFxsfIycrS09TV1tfY2drh4uPk5ebn6Onq8fLz9PX29/j5+v/aAA4EQwBNAFkASwAAPwBlgzWt3p1ocNMpiEZkBdP+XjZ8wyDwy45/kadpiixt9SuNL5jk/s/yBbHzGG0DduVckfxZz15pbsC/HhJvDvyraf3v3RP3N23djf0bO3NenV//2Q==";
 
-const SVG_BYTES = Buffer.from(
-  '<svg xmlns="http://www.w3.org/2000/svg" width="64" height="64"><rect width="64" height="64" fill="red"/></svg>',
+/**
+ * The header of a 64x64 KTX texture: a GPU format that sniffs as an image but
+ * that no ffmpeg build reads.
+ */
+const KTX_BYTES = Buffer.from(
+  "q0tUWCAxMbsNChoKAQIDBAAAAAAAAAAAAAAAAAAAAAAAAAAAQAAAAEAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA==",
+  "base64",
 );
 
 async function drawTestImage(args: string[], encoder: string[]) {
@@ -107,15 +112,13 @@ describe("prepareSourceImage", () => {
   }, 60_000);
 
   it("names the file and the format when the format cannot be converted", async () => {
-    // A vector, which ffmpeg has no decoder for at any version: there are no
-    // pixels in it to condition on until something rasterizes it.
     const result = await prepareSourceImage({
-      bytes: SVG_BYTES,
-      displayPath: "output/logo.svg",
+      bytes: KTX_BYTES,
+      displayPath: "output/texture.ktx",
     });
 
     expect(result._unsafeUnwrapErr()).toMatchInlineSnapshot(
-      `"Source image output/logo.svg is in a format the image model does not accept (SVG), and it could not be converted here. Pass a PNG, JPEG, or WebP copy instead."`,
+      `"Source image output/texture.ktx is in a format the image model does not accept (KTX), and it could not be converted here. Pass a PNG, JPEG, or WebP copy instead."`,
     );
   }, 60_000);
 

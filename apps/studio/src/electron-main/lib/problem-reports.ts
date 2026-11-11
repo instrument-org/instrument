@@ -43,6 +43,7 @@ import {
   listApps,
   listMemories,
   memoryDir,
+  parseRecordFileName,
   readActions,
 } from "@instrument-org/workspace/electron";
 import { outlineSessionLog } from "@instrument-org/workspace/report-outline";
@@ -505,12 +506,6 @@ export const FEEDBACK_ACTIONS_PATH = "diagnostics/actions.jsonl";
  */
 const FEEDBACK_ACTIONS_BYTES = 256 * 1024;
 
-/** A session's log, `<session>.<device>.jsonl` and its later generations. */
-const SESSION_LOG = /^(ses_[0-9A-Za-z]+)\..+\.jsonl$/;
-
-/** The chat's own files the outline sends beside its logs: each device's settings and marks. */
-const CHAT_SETTINGS = /^(?:settings|marks)\..+\.jsonl$/;
-
 /** A name that can stand in a report's path, which a sync engine's copy (`… 2.jsonl`) cannot. */
 const PLAIN_NAME = /^[A-Za-z0-9._-]+$/;
 
@@ -534,8 +529,9 @@ export function chatFeedback({
   const plain = files.filter((file) => PLAIN_NAME.test(file.name));
   const logs = new Map<string, ChatFile[]>();
   for (const file of plain) {
-    const session = SESSION_LOG.exec(file.name)?.[1];
-    if (session) {
+    const record = parseRecordFileName(file.name);
+    if (record?.kind === "log") {
+      const session = record.session;
       logs.set(session, [...(logs.get(session) ?? []), file]);
     }
   }
@@ -562,7 +558,9 @@ export function chatFeedback({
   if (outline.length === 0) {
     return undefined;
   }
-  for (const file of plain.filter((each) => CHAT_SETTINGS.test(each.name))) {
+  for (const file of plain.filter(
+    (each) => parseRecordFileName(each.name)?.kind === "settings",
+  )) {
     outline.push({
       content: file.content,
       label: "Chat settings",
@@ -797,8 +795,7 @@ async function describeChatFeedback(chatId: ChatId, redactor: ReportRedactor) {
     entries
       .filter(
         (entry) =>
-          entry.isFile() &&
-          (SESSION_LOG.test(entry.name) || CHAT_SETTINGS.test(entry.name)),
+          entry.isFile() && parseRecordFileName(entry.name) !== undefined,
       )
       .map(async (entry) => {
         const content = await fs.promises.readFile(

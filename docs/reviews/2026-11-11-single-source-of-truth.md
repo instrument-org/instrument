@@ -22,7 +22,7 @@ Letters go to the finding; a `plus N similar` names siblings with the same root 
 
 ### C. A record file's name is parsed by three hand-written patterns beside the workspace's parser, and one already names a file nothing writes
 
-- Status: open
+- Status: fixed
 - Where: [file-names.ts:72](/packages/workspace/src/lib/records/file-names.ts#L72), [tested-before.ts:56](/apps/studio/src/electron-main/lib/tested-before.ts#L56), [problem-reports.ts:509](/apps/studio/src/electron-main/lib/problem-reports.ts#L509), [store-id.ts:14](/packages/workspace/src/schemas/store-id.ts#L14)
 - What: `parseRecordFileName` is not reachable from the package's `exports`, so Studio main respells the session log name twice (`/^ses_[0-9A-HJKMNP-TV-Z]{26}\..+\.jsonl$/` and `/^(ses_[0-9A-Za-z]+)\..+\.jsonl$/`), and the settings pattern beside it matches `settings|marks` though `15aeb74f5` stopped writing `marks.<device>.jsonl`. Inside the workspace the session id's alphabet is typed once in `ULID_REGEX` (case-insensitive) and again in `LOG_NAME` (uppercase only), so a lowercase id that validates names a log the fold never reads. Change the session id shape or add a per-device file (`state.<device>.json` already exists beside `settings.<device>.jsonl`) and problem reports silently omit it and "tested before" reads no log header.
 

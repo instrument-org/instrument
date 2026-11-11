@@ -34,16 +34,21 @@ vi.mock("./exception-store", () => ({
   listExceptionEvents: () => stored.events,
 }));
 
-vi.mock("@instrument-org/workspace/electron", () => ({
-  chatDir: () => {
-    throw new Error("No chat in these tests");
-  },
-  chatIds: () => [],
-  chatSessions: () => Promise.resolve([]),
-  chatStartedWithApp: () => Promise.resolve(undefined),
-  listMemories: () => Promise.resolve([]),
-  memoryDir: () => "/no-memory",
-}));
+vi.mock(
+  import("@instrument-org/workspace/electron"),
+  async (importOriginal) => ({
+    // The record file parser is pure, and what the feedback picks turns on it.
+    parseRecordFileName: (await importOriginal()).parseRecordFileName,
+    chatDir: () => {
+      throw new Error("No chat in these tests");
+    },
+    chatIds: () => [],
+    chatSessions: () => Promise.resolve([]),
+    chatStartedWithApp: () => Promise.resolve(undefined),
+    listMemories: () => Promise.resolve([]),
+    memoryDir: () => "/no-memory",
+  }),
+);
 
 // `now` is who is known without asking, `later` who asking adds.
 vi.mock("@/electron-main/lib/apps", () => ({ getAppsDir: () => undefined }));
@@ -392,20 +397,20 @@ describe("feedback", () => {
     const chat = reports.chatFeedback({
       files: [
         file(
-          "state.mac1.json",
+          "state.dev_AAAAAAAA.json",
           JSON.stringify({
             closedTabs: [
               { title: "Inbox (3)", url: "https://mail.google.com/mail/u/0" },
             ],
           }),
         ),
-        file(`${TASK}.mac1.jsonl`, `${step}\n`),
-        file(`${OWN}.mac1.jsonl`),
-        file(`${OWN}.win1.jsonl`),
-        file("settings.mac1.jsonl"),
+        file(`${TASK}.dev_AAAAAAAA.jsonl`, `${step}\n`),
+        file(`${OWN}.dev_AAAAAAAA.jsonl`),
+        file(`${OWN}.dev_BBBBBBBB.jsonl`),
+        file("settings.dev_AAAAAAAA.jsonl"),
         file("handoff-notes.md"),
         // A sync engine's copy, and what is not a record, stay home.
-        file(`${OWN}.mac1 2.jsonl`),
+        file(`${OWN}.dev_AAAAAAAA 2.jsonl`),
         file("CHAT.md"),
         file("chat.db"),
       ],
@@ -419,10 +424,10 @@ describe("feedback", () => {
     expect(chat?.item.files.map((each) => `${each.label ?? ""}: ${each.path}`))
       .toMatchInlineSnapshot(`
       [
-        "“Help desk pricing”: chat/ses_01JB2W0000000000000000000A.mac1.jsonl",
-        "“Help desk pricing”: chat/ses_01JB2W0000000000000000000A.win1.jsonl",
-        "Task: Competitor pricing pages: chat/ses_01JB2W0000000000000000000B.mac1.jsonl",
-        "Chat settings: chat/settings.mac1.jsonl",
+        "“Help desk pricing”: chat/ses_01JB2W0000000000000000000A.dev_AAAAAAAA.jsonl",
+        "“Help desk pricing”: chat/ses_01JB2W0000000000000000000A.dev_BBBBBBBB.jsonl",
+        "Task: Competitor pricing pages: chat/ses_01JB2W0000000000000000000B.dev_AAAAAAAA.jsonl",
+        "Chat settings: chat/settings.dev_AAAAAAAA.jsonl",
       ]
     `);
     // What the task read, the pages a device's tabs had open and the notes a
@@ -476,13 +481,15 @@ describe("feedback", () => {
 
   it("sends the items' files and events, with no details", () => {
     const sent = input([
-      item("chat", [{ content: "{}\n", path: `chat/${OWN}.mac1.jsonl` }]),
+      item("chat", [
+        { content: "{}\n", path: `chat/${OWN}.dev_AAAAAAAA.jsonl` },
+      ]),
       item("errors", [], [crashEvent()]),
     ]);
 
     expect(sent).toMatchObject({
       automatic: false,
-      files: [{ path: `chat/${OWN}.mac1.jsonl` }],
+      files: [{ path: `chat/${OWN}.dev_AAAAAAAA.jsonl` }],
       kind: "feedback",
     });
     expect(sent.events).toHaveLength(1);
@@ -497,7 +504,7 @@ describe("feedback", () => {
     );
     const chat = "y".repeat(800_000);
     const sent = input([
-      item("chat", [{ content: chat, path: `chat/${OWN}.mac1.jsonl` }]),
+      item("chat", [{ content: chat, path: `chat/${OWN}.dev_AAAAAAAA.jsonl` }]),
       item("errors", [], [crashEvent()]),
       item("log", [{ content: log, path: reports.FEEDBACK_LOG_PATH }]),
     ]);

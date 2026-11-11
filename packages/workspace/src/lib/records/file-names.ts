@@ -1,4 +1,4 @@
-import { StoreId } from "../../schemas/store-id";
+import { SESSION_ID_PATTERN, StoreId } from "../../schemas/store-id";
 import { DEVICE_ID_PATTERN, type DeviceId, DeviceIdSchema } from "./device-id";
 
 /**
@@ -72,7 +72,7 @@ export const COPY_PATTERN = [
 export const COPY_SUFFIXES = `(?:(?=(?<copy>(?:${COPY_PATTERN})+))\\k<copy>)?`;
 
 const LOG_NAME = new RegExp(
-  `^(ses_[0-9A-HJKMNP-TV-Z]{26})\\.(${DEVICE_ID_PATTERN})(?:\\.(${GENERATION_PATTERN}))?${COPY_SUFFIXES}\\.jsonl$`,
+  `^(${SESSION_ID_PATTERN})\\.(${DEVICE_ID_PATTERN})(?:\\.(${GENERATION_PATTERN}))?${COPY_SUFFIXES}\\.jsonl$`,
 );
 
 const SETTINGS_NAME = new RegExp(

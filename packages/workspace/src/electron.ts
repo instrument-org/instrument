@@ -33,6 +33,7 @@ export {
   searchAppCatalogByMeaning,
 } from "./lib/apps/catalog";
 export { type AppEvent, appChanged } from "./lib/apps/changed";
+export { parseRecordFileName } from "./lib/records/file-names";
 export { accountSignedIn } from "./lib/chat/sign-in-wake";
 export { isDrivenByWorkingAgent } from "./lib/chat/driven-tabs";
 export { isPageWork } from "./logic/server/routes/cdp-task-bridge";

@@ -11,7 +11,11 @@ const PREFIXES = {
 } as const;
 
 // via https://github.com/colinhacks/zod/blob/2c333e268c316deef829c736b8c46ec95ee03e39/packages/zod/src/v4/core/regexes.ts#L3
-const ULID_REGEX = /^[0-9A-HJKMNP-TV-Z]{26}$/i;
+const ULID_PATTERN = "[0-9A-HJKMNP-TV-Z]{26}";
+const ULID_REGEX = new RegExp(`^${ULID_PATTERN}$`, "i");
+
+/** A session id as it is minted and written: the prefix, then an uppercase ULID. */
+export const SESSION_ID_PATTERN = `${PREFIXES.session}${ULID_PATTERN}`;
 
 function createIdSchema<T extends string>(prefix: string, brandName: T) {
   return z

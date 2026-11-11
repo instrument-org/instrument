@@ -1,6 +1,7 @@
 import {
   CHAT_DB_FILE_NAME,
   LEGACY_TASK_DB_FILE_NAME,
+  parseRecordFileName,
   TASKS_DIR_NAME,
 } from "@instrument-org/workspace/electron";
 import { workspaceLayout } from "@instrument-org/workspace/layout";
@@ -52,9 +53,6 @@ const TASK_RECORDS_SET_ASIDE = "task-records";
  */
 const SET_ASIDE_CHAT_DB = path.join("set-aside", "chat-db");
 
-/** A session log's name: `<session>.<device>[.<n>][<copy>].jsonl`. */
-const LOG_NAME = /^ses_[0-9A-HJKMNP-TV-Z]{26}\..+\.jsonl$/;
-
 /** The longest first line read for a log's header. */
 const HEADER_BYTES = 16 * 1024;
 
@@ -98,7 +96,7 @@ function chatFromTestBuild(chatDir: string): boolean {
     return true;
   }
   for (const name of names) {
-    if (!LOG_NAME.test(name)) {
+    if (parseRecordFileName(name)?.kind !== "log") {
       continue;
     }
     const header = readHeader(path.join(chatDir, name));

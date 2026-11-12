@@ -123,9 +123,10 @@ export function writeDeviceStatusFileSync({
 }): void {
   const file = statusFilePath(devicesDir, device);
   const next = Object.fromEntries(
-    Object.entries({ ...written, ...deviceStatusFile(status, writtenAt) }).filter(
-      ([, value]) => value !== undefined,
-    ),
+    Object.entries({
+      ...written,
+      ...deviceStatusFile(status, writtenAt),
+    }).filter(([, value]) => value !== undefined),
   );
   const temporary = `${file}.${process.pid.toString()}.closing.tmp`;
   fs.mkdirSync(path.dirname(file), { recursive: true });

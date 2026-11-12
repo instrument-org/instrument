@@ -97,6 +97,7 @@ export {
   transcriptMessage,
   type TranscriptPart,
   type WebResult,
+  type WrittenOn,
 } from "./lib/transcript/transcript-message";
 export {
   type ActivityRow,

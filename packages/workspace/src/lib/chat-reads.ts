@@ -6,6 +6,7 @@ import { type SessionMessage } from "../schemas/session/message";
 import { type StoreId } from "../schemas/store-id";
 import { TypedError } from "./errors";
 import { type ChatRead, writingChatRecords } from "./records/chat-records";
+import { type DeviceId } from "./records/device-id";
 import { type FoldedSession, type FoldedSettings } from "./records/fold";
 import { sessionOf } from "./records/session-of";
 import {
@@ -148,6 +149,22 @@ export namespace ChatReads {
         storageError,
       );
     });
+  }
+
+  /**
+   * The device that wrote each message of the chat, by message id, every
+   * session's together, so a task's inherited messages are named too. A
+   * message only the running turn holds is this device's and has none.
+   */
+  export function writers({
+    chatId,
+  }: {
+    chatId: ChatId;
+  }): ResultAsync<ReadonlyMap<string, DeviceId>, Failure> {
+    return read(chatId).map(
+      (chat) =>
+        new Map(chat.chat.sessions.flatMap(({ writtenBy }) => [...writtenBy])),
+    );
   }
 
   /**

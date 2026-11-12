@@ -64,7 +64,8 @@ This is the only rung that tells you whether a model finds and uses what you
 built.
 
 ```bash
-pnpm eval run --yes --prompt "<task for the agent>" --model cf:zai-org/glm-5.3-flash
+APP_CLAUDE_CODE_PATH=$HOME/.local/bin/claude pnpm eval run --yes --prompt "<task for the agent>" \
+  --model 'anthropic/claude-haiku-5.5?provider=claude-account&providerConfigId=claude-account' --paid
 ```
 
 - Runs from the repo root; no `cd` first.
@@ -76,12 +77,13 @@ pnpm eval run --yes --prompt "<task for the agent>" --model cf:zai-org/glm-5.3-f
   each row spelled the way `--model` takes it. Pick for the question you are
   actually asking, and say which models you ran and why when you report the
   result.
-- **Workers AI unless the question needs a model only another provider has.**
-  Workers AI runs unmetered here and everything else is metered, so
-  `cf:<id>` is the spelling to reach for, and anything metered is refused until
-  `--paid` is passed. "Does a model find this affordance" is answered by the
-  cheap models; answering it on a frontier model spends real money on a question
-  that did not need one.
+- **Claude Haiku 5.5 on the Claude account, as above.** It is the lowest
+  intelligence level the product supports, so "does a model find this
+  affordance" is answered there; answering it on a frontier model spends real
+  money on a question that did not need one. It is metered, and anything
+  metered is refused until `--paid` is passed. Workers AI (`cf:<id>`) runs
+  unmetered, but its models leave finished work in the chat's folder rather
+  than the person's, so a run on one says nothing about where work goes.
 - `--model` repeats to build a case x model matrix. Different models fail
   differently; one model succeeding is weak evidence. `--repeat` samples the
   same model more than once, which is what a nondeterministic result needs.

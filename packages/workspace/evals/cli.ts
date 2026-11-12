@@ -177,13 +177,16 @@ const models = (values.model ?? []).map((model) => {
  * between the day it was written and the day it decides what a change was
  * tested against.
  */
+/** The house floor on the signed-in Claude account, spelled as `--model` takes it. */
+const houseFloorModel = `'${HOUSE_FLOOR}?provider=claude-account&providerConfigId=claude-account'`;
+
 if (subcommand === "run" && models.length === 0) {
   write(`${c.red}--model is required.${c.reset}\n\n`);
   write(
     `\`pnpm eval models\` lists what the configured providers can run right now, newest first.\nPick for the question being asked and say which you picked and why.\n\n`,
   );
   write(
-    `\`--model ${HOUSE_FLOOR} --paid\` is where to start: the model this project is\nusually tested against, about two cents for five cases. Workers AI (\`--model\ncf:<id>\`) runs without --paid and is free, but every model on it leaves finished\nwork in the chat's folder rather than the person's, so a run on one says\nnothing about where work goes.\n`,
+    `\`--model ${houseFloorModel} --paid\`,\nwith APP_CLAUDE_CODE_PATH set to a signed-in Claude Code, is where to start: the\nmodel this project is tested against. Workers AI (\`--model cf:<id>\`) runs\nwithout --paid and is free, but every model on it leaves finished work in the\nchat's folder rather than the person's, so a run on one says nothing about\nwhere work goes.\n`,
   );
   process.exit(1);
 }
@@ -205,7 +208,7 @@ if (paidModels.length > 0 && !values.paid) {
     write(`  ${model.split("?")[0] ?? model}\n`);
   }
   write(
-    `\nWorkers AI runs without --paid: pass one as \`--model cf:<id>\`, or\n\`pnpm eval models\` to see what is there. Pass --paid when the question is\nspecifically about a model only another provider has.\n`,
+    `\nPass --paid to run them. \`--model ${houseFloorModel}\`\nis the model this project is tested against. Workers AI (\`--model cf:<id>\`)\nruns without --paid, but its models leave finished work in the chat's folder\nrather than the person's.\n`,
   );
   process.exit(1);
 }

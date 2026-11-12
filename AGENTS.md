@@ -135,11 +135,13 @@ A commit that makes a choice ends with decision trailers, so the reasoning outli
 
 ## Problem reports
 
-Feedback, crashes, hangs and errors people send from the app are problem reports, each with a fingerprint (`feedback:<id>`), read with the reports CLI in the `internal` reference (`agent-reference get internal`). A fix for one is tied to it in both places, so the report says what fixed it and the fix says what it was for:
+Feedback, crashes, hangs and errors people send from the app are problem reports, each with a fingerprint (`feedback:<id>`), read with the reports CLI in the `internal` reference (`agent-reference get internal`). A #customers card's "Open report" link names the report's id (`reports.tryinstrument.com/reports/<id>`), which `pnpm --filter @instrument/reports reports files <id>` reads there; `reports show <fingerprint>` lists the issue's reports, the commits made for it and its history.
 
-- The commit carries `Report: <fingerprint>`, one line per report it fixes.
-- Once the commit is pushed, resolve the report with the pushed commit's URL: `pnpm --filter @instrument/reports reports resolve <fingerprint> --in <next version> --note "<what changed, in a line> <commit URL>"`. Its Slack card updates itself. Run it from a checkout at the internal repo's `origin/main`, and check that `reports show <fingerprint>` lists the note, since an older CLI ignores `--note`.
-- A report with several complaints names in the note the ones the fix leaves open.
+A fix is tied to its report by the commit alone:
+
+- The commit carries `Report: <fingerprint>`, one line per report it fixes; `Report: <fingerprint> (partly)` when it leaves part of the report open, and `Related-report: <fingerprint>` for a change that fixes nothing. A squash-merged pull request carries the lines in its description, which becomes the commit's message.
+- Once the commit is on `main`, the reports worker ties it to the issue within ten minutes, resolves it, and tells its Slack card; when a release tag contains it, the issue records the version, and only a report from that version or later reopens it. Nothing is resolved by hand for a fix.
+- What you learned that no commit records goes into the issue's history with `reports note <fingerprint> "<text>" --finding`: a cause, a report artifact that is not a bug, a complaint the fix leaves open. A commit that went out without its line is tied with `reports link <fingerprint> instrument <sha>`.
 
 ## Repository knowledge base
 

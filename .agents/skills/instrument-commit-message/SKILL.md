@@ -37,7 +37,7 @@ The final paragraph, one `Key: value` per line. Never wrap a value onto a second
 | `Follow-up: <file>`                   | A `docs/follow-ups/` file whose check this commit collects evidence for (logging, a counter, a cap to watch), as `docs/follow-ups/stuck-agent-browser-commands.md`. The same commit adds or updates that file. |
 | `Tested:`                             | Only a check beyond the unit suites: the running app, a real agent run, a test host. Never test counts.                                                                                                             |
 | `Review: <file> <letter>`             | A `docs/reviews/` finding this commit fixes, as `2026-10-21-last-day A`. The same commit sets that finding's `Status:` to fixed.                                                                                    |
-| `Report: <fingerprint>`               | A problem report or feedback this commit fixes, as `feedback:hr7mi75dukkl`. Once it is pushed, resolve the report with the commit's URL (`AGENTS.md`, Problem reports).                                             |
+| `Report: <fingerprint>` | A problem report or feedback this commit fixes, as `feedback:hr7mi75dukkl`; `Report: <fingerprint> (partly)` for one it fixes in part, and `Related-report: <fingerprint>` for one it only touches. The reports worker reads it from `main` and resolves the report itself (`AGENTS.md`, Problem reports). |
 
 Every reason stands without the session. `Rejected: per-folder read-only setting | user dropped it` is chat history; `Rejected: per-folder read-only setting | the allowlist and task grants already limit writes` is a reason.
 

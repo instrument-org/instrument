@@ -19,6 +19,7 @@ Each entry is the finding's title and the opening of its own `Status:` line.
 - [A file the user asks for gets copied somewhere writable](a-fetched-file-gets-copied-somewhere-writable.md): fixed in 0c256870d, measured below;
 - [A part the store took is not a record yet](a-part-the-store-took-is-not-a-record-yet.md): closed 2026-10-15.
 - [A reply that arrives twice](a-reply-that-arrives-twice.md): fixed in f35744340, checked 2026-10-02.
+- [A sleeping Mac answers in dark wakes, late and with no promise](a-sleeping-mac-answers-in-dark-wakes.md): working as the platform designs it, researched and observed 2026-11-12.
 - [A stalled disk parks whatever reads it, the app and a test run alike](a-stalled-disk-parks-the-whole-test-run.md): the app path is bounded;
 - [A task cannot look at what it drew](a-task-cannot-look-at-what-it-drew.md): harness gap fixed in 95af4cfc3 (`hasNoWindow`;
 - [A thumbnail request nobody wants is still drawn](a-thumbnail-request-nobody-wants-is-still-drawn.md): contained, checked 2026-10-27.

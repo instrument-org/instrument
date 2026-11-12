@@ -107,6 +107,8 @@ export {
   type TurnLive,
   type TurnOpener,
   type TurnRow,
+  type ReplyEnd,
+  repliesOf,
   type TurnsCache,
   type TurnStep,
   turnsOf,

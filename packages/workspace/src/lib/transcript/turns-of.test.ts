@@ -13,6 +13,7 @@ import {
   FOLD_WAIT_MS,
   isTurnFolded,
   type Turn,
+  repliesOf,
   turnsOf,
   type TurnsCache,
   waitsForStep,
@@ -855,7 +856,17 @@ describe("the work card", () => {
       { opener: false, rows: ["text"] },
     ]);
     expect(answered[0]?.foldedRowIds.size).toBe(1);
-    expect(answered[1]?.wokenBy).toBeUndefined();
+    const replies = repliesOf(answered);
+    expect([...replies.carriedOn]).toEqual([answered[1]?.id]);
+    expect([...replies.ends.keys()]).toEqual([answered[1]?.id]);
+    expect(
+      replies.ends.get(answered[1]!.id)?.replies.map((reply) => reply.id),
+    ).toEqual(
+      answered.flatMap((turn) => turn.replies.map((reply) => reply.id)),
+    );
+    expect(repliesOf(answered).ends.get(answered[1]!.id)).toBe(
+      replies.ends.get(answered[1]!.id),
+    );
     const finished = turnsOf(
       [
         typed("Do the thing"),
@@ -880,7 +891,27 @@ describe("the work card", () => {
       ],
       { isRunning: false },
     );
-    expect(finished[1]?.wokenBy).toEqual({ count: 1, kind: "task-finished" });
+    expect(finished.map((turn) => turn.opener !== undefined)).toEqual([
+      true,
+      false,
+    ]);
+    expect(
+      [...repliesOf(finished).ends.values()].map((end) => end.hasFooter),
+    ).toEqual([true]);
+    // While the wake's work goes on, neither turn has a footer yet.
+    const goingOn = turnsOf(
+      [
+        typed("Do the thing"),
+        message("assistant", (id) => [said(id, "I've started on it.")]),
+        wake(),
+        message("assistant", (id) => [
+          call(id, "bash", { activity: "Working" }),
+        ]),
+      ],
+      { isRunning: true },
+    );
+    expect(goingOn).toHaveLength(2);
+    expect(repliesOf(goingOn).ends.size).toBe(0);
     const working = turnsOf(
       [
         typed("Do the thing"),

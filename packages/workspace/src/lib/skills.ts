@@ -197,6 +197,9 @@ const APP_SKILL_SOURCES = new Set<SkillSourceKind>([
   "workspace",
 ]);
 
+/** Skills for agents outside Instrument, left out unless the workspace's own `Skills/` has them. */
+const OUTSIDE_AGENT_SKILLS = new Set(["open-in-instrument"]);
+
 /** The same set as {@link BUNDLED_SOURCES}, by the id that names a mount. */
 export const BUNDLED_SOURCE_IDS = new Set<SkillSourceId>([
   APP_NAME_SLUG,
@@ -287,7 +290,10 @@ export async function findSkills(sources: SkillSource[]): Promise<SkillInfo[]> {
   const skills = qualifySkillNames(
     await dedupeIdenticalCopies(
       [...skillMap.values()].filter(
-        (skill) => skill.name !== AGENT_BROWSER_GUIDE_NAME,
+        (skill) =>
+          skill.name !== AGENT_BROWSER_GUIDE_NAME &&
+          (skill.source === "workspace" ||
+            !OUTSIDE_AGENT_SKILLS.has(skill.name)),
       ),
     ),
   );

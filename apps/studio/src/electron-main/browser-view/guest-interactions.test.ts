@@ -131,6 +131,29 @@ describe("the guest context menu", () => {
     );
   });
 
+  it("opens an app link to a file as the file, in a tab or here", () => {
+    const { click, labels, loadURL, openInNewTab } = buildMenu(
+      "instrument://file//Users/mac-user/wireframes/a.html",
+    );
+
+    expect(labels).toEqual(
+      expect.arrayContaining([
+        "Open Link",
+        "Open Link in New Tab",
+        "Open Link in New Window",
+        "Copy Link",
+      ]),
+    );
+    click("Open Link in New Tab");
+    click("Open Link");
+    expect(openInNewTab).toHaveBeenCalledWith(
+      "file:///Users/mac-user/wireframes/a.html",
+    );
+    expect(loadURL).toHaveBeenCalledWith(
+      "file:///Users/mac-user/wireframes/a.html",
+    );
+  });
+
   it("offers the link in a tab of the window's own", () => {
     const { openInNewTab, openLinkInNewTab } = buildMenu(
       "file:///Users/me/site/b.html",

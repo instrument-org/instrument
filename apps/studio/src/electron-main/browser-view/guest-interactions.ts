@@ -9,7 +9,7 @@ import {
 import { noop } from "radashi";
 
 import { saveAsFromPage } from "./downloads";
-import { isFileUrl, isHttpUrl } from "./window-open-policy";
+import { isFileUrl, isHttpUrl, pageAddressOfLink } from "./window-open-policy";
 
 /**
  * Where a link in the guest can go besides the guest itself: a tab of the
@@ -71,7 +71,7 @@ function contextMenuTemplate(
   ];
 
   if (params.linkURL) {
-    const url = params.linkURL;
+    const url = pageAddressOfLink(params.linkURL);
     // "Open Link" is the manual path for a link the guest would otherwise
     // decline, and the only one for a link that opens no tab at all -- a
     // download target, a form-driven link. Offered only for what the guest

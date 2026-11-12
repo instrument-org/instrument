@@ -89,6 +89,7 @@ import {
   isFileUrl,
   newTabOpenOf,
   newWindowOpenOf,
+  pageAddressOfLink,
   sameTabNavigationUrl,
 } from "./window-open-policy";
 
@@ -413,7 +414,10 @@ function createBrowserViewManager(): BrowserViewManager {
     // guestWindowOpenHandler), so the opener/postMessage channel that
     // "Continue with Google" and similar flows complete through stays intact
     // instead of hanging.
-    guest.setWindowOpenHandler((details) => {
+    guest.setWindowOpenHandler((asked) => {
+      // A link to a file in the app's own scheme opens as the page's link to
+      // that file would, rather than going to the system.
+      const details = { ...asked, url: pageAddressOfLink(asked.url) };
       const response: WindowOpenHandlerResponse = focusGuard.isGuarded(targetId)
         ? { action: "deny" }
         : guestWindowOpenHandler(details);

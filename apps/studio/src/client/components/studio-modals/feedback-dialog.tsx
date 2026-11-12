@@ -47,7 +47,6 @@ import {
   type FeedbackDescription,
   type FeedbackItem,
   type FeedbackTag,
-  MAX_REPORT_BYTES,
 } from "@/shared/problem-reports";
 import { type Capture, captureUrl } from "@/shared/captures";
 import { useDeveloperMode } from "@/client/hooks/use-developer-mode";
@@ -84,12 +83,6 @@ const DIALOG_WIDTH = "38rem";
 const REVIEW_HEIGHT = "40rem";
 
 const NOTE_MAX_LENGTH = 5000;
-
-/**
- * Room the report keeps for what is sent beside the chat and never cut
- * short: the note, the title, and the diagnostics' own details.
- */
-const BESIDE_THE_CHAT_BYTES = 64 * 1024;
 
 /**
  * How long a Send pressed before the dialog finished gathering waits for it,
@@ -211,8 +204,6 @@ function chatTakenIn(images: readonly AttachedImage[]): ChatId | undefined {
 /** A part of what goes, as the dialog lists it and its review page shows it. */
 type Part = {
   item: FeedbackItem;
-  /** Listed so the person knows it was meant to go, but too big to send. */
-  leftOut?: true;
   line: string;
   /** Whether it goes, for the one part the person may leave out. */
   sending?: { on: boolean; set: (on: boolean) => void };
@@ -234,9 +225,6 @@ function partsOf({
   yourComputer: string;
 }): Part[] {
   const chat = described?.chat;
-  const chatTooLarge = chat
-    ? chat.item.bytes > MAX_REPORT_BYTES - BESIDE_THE_CHAT_BYTES
-    : false;
   return [
     ...(writeup
       ? [
@@ -249,19 +237,12 @@ function partsOf({
       : []),
     ...(chat
       ? [
-          chatTooLarge
-            ? {
-                item: chat.item,
-                leftOut: true as const,
-                line: "This chat is too big to send, so your feedback will go without it.",
-                title: chat.title,
-              }
-            : {
-                item: chat.item,
-                line: `Your messages, ${APP_NAME}'s replies and each step it took. What it read stays on ${yourComputer}, though an error message can quote a little of it.`,
-                sending: sendChat,
-                title: chat.title,
-              },
+          {
+            item: chat.item,
+            line: chat.title,
+            sending: sendChat,
+            title: "The chat",
+          },
         ]
       : []),
     ...(described?.actions
@@ -288,7 +269,7 @@ function partsOf({
 
 function itemsGoing(parts: readonly Part[]) {
   return parts.flatMap((part) =>
-    part.leftOut || part.sending?.on === false ? [] : [part.item],
+    part.sending?.on === false ? [] : [part.item],
   );
 }
 
@@ -297,8 +278,7 @@ function itemsGoing(parts: readonly Part[]) {
  * with them, a row each (the agent's write-up, the chat when there is one,
  * what the person did in the app, and the diagnostics). View turns the
  * dialog into a page that shows each as it will be sent, a row per record.
- * Everything listed goes, except a chat too big to send, whose row says it
- * stays behind, a chat the person switches off, since feedback sent while a
+ * Everything listed goes, except a chat the person switches off, since feedback sent while a
  * chat is open is not always about it, and what the person did in the app,
  * which goes only when they switch it on.
  */
@@ -726,16 +706,14 @@ function PartRow({ onView, part }: { onView: () => void; part: Part }) {
           onCheckedChange={part.sending.set}
         />
       )}
-      {!part.leftOut && (
-        <Button
-          aria-label={`View ${part.title}`}
-          onClick={onView}
-          size="sm"
-          variant="outline"
-        >
-          View
-        </Button>
-      )}
+      <Button
+        aria-label={`View ${part.title}`}
+        onClick={onView}
+        size="sm"
+        variant="outline"
+      >
+        View
+      </Button>
     </div>
   );
 }

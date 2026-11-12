@@ -506,6 +506,14 @@ export const FEEDBACK_ACTIONS_PATH = "diagnostics/actions.jsonl";
  */
 const FEEDBACK_ACTIONS_BYTES = 256 * 1024;
 
+/**
+ * The most a chat may add to a feedback report: the report's cap, less what
+ * the person did in the app, which is never cut, and room for the note, the
+ * title and the diagnostics' own details.
+ */
+const FEEDBACK_CHAT_BYTES =
+  MAX_REPORT_BYTES - FEEDBACK_ACTIONS_BYTES - 64 * 1024;
+
 /** A name that can stand in a report's path, which a sync engine's copy (`… 2.jsonl`) cannot. */
 const PLAIN_NAME = /^[A-Za-z0-9._-]+$/;
 
@@ -518,12 +526,15 @@ type ChatFile = { content: string; name: string };
  * again from the report. A device's state, the notes a handoff leaves,
  * blobs, attachments and the work folder never go: the state names the pages
  * its tabs had open, and the notes are the agent's summary of what it read.
+ * A chat over `maxBytes` keeps its newest records (`trimmedToFit`).
  */
 export function chatFeedback({
   files,
+  maxBytes = FEEDBACK_CHAT_BYTES,
   sessions,
 }: {
   files: readonly ChatFile[];
+  maxBytes?: number;
   sessions: readonly { id: string; parentId?: string; title: string }[];
 }): ChatFeedbackDescription | undefined {
   const plain = files.filter((file) => PLAIN_NAME.test(file.name));
@@ -544,8 +555,12 @@ export function chatFeedback({
       .map((id) => ({ id, parentId: id, title: id })),
   ];
   const outline: FeedbackFile[] = [];
+  // The logs in the order they lose records to fit: the tasks', then the chat's own.
+  const taskLogs: number[] = [];
+  const ownLogs: number[] = [];
   for (const session of ordered) {
     for (const file of logs.get(session.id) ?? []) {
+      (session.parentId ? taskLogs : ownLogs).push(outline.length);
       outline.push({
         content: outlineSessionLog(file.content).content,
         label: session.parentId
@@ -570,13 +585,46 @@ export function chatFeedback({
   const own = ordered.find((session) => !session.parentId);
   return {
     item: feedbackItem({
-      files: outline,
+      files: trimmedToFit(outline, [...taskLogs, ...ownLogs], maxBytes),
       id: "chat",
       kind: "chat",
       label: "This chat",
     }),
     title: own ? `“${own.title}”` : "This chat",
   };
+}
+
+/**
+ * A chat's files cut to add at most `maxBytes` to a report: the oldest
+ * records go from each log in `logs` in turn, each keeping its first line,
+ * the session's header, so every file is still whole records and the folder
+ * still lays out as a shorter chat.
+ */
+function trimmedToFit(
+  files: readonly FeedbackFile[],
+  logs: readonly number[],
+  maxBytes: number,
+): FeedbackFile[] {
+  const trimmed = [...files];
+  let over = itemBytes({ files: trimmed }) - maxBytes;
+  for (const index of logs) {
+    const file = trimmed[index];
+    if (over <= 0 || !file) {
+      break;
+    }
+    // A line's share of the body is its own JSON escaping.
+    const lines = file.content.split(/(?<=\n)/);
+    let drop = 1;
+    while (drop < lines.length && over > 0) {
+      over -= jsonBytes(lines[drop]) - 2;
+      drop += 1;
+    }
+    trimmed[index] = {
+      ...file,
+      content: [lines[0] ?? "", ...lines.slice(drop)].join(""),
+    };
+  }
+  return trimmed;
 }
 
 function feedbackItem(item: Omit<FeedbackItem, "bytes">): FeedbackItem {

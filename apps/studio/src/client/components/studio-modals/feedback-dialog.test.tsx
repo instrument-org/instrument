@@ -153,12 +153,8 @@ describe("FeedbackDialogContent", () => {
 
   it("shows the chat on a page of its own, steps folded, and goes back", async () => {
     await open();
-    fireEvent.click(
-      screen.getByRole("button", { name: "View “Star my first email”" }),
-    );
-    expect(
-      screen.getByRole("heading", { name: "“Star my first email”" }),
-    ).toBeTruthy();
+    fireEvent.click(screen.getByRole("button", { name: "View The chat" }));
+    expect(screen.getByRole("heading", { name: "The chat" })).toBeTruthy();
     expect(screen.getByText("favorite my first email")).toBeTruthy();
     expect(screen.queryByText("app test gmail")).toBeNull();
     fireEvent.click(screen.getByRole("button", { name: /1 step/ }));
@@ -196,7 +192,7 @@ describe("FeedbackDialogContent", () => {
       .map((button) => button.getAttribute("aria-label"));
     expect(views).toEqual([
       "View Instrument's write-up",
-      "View “Star my first email”",
+      "View The chat",
       "View Your activity",
       "View Diagnostics",
     ]);
@@ -231,7 +227,7 @@ describe("FeedbackDialogContent", () => {
   it("sends the open chat unless the person switches it off", async () => {
     await open();
     const chat = screen.getByRole("switch", {
-      name: "Send “star my first email”",
+      name: "Send the chat",
     });
     expect(chat.getAttribute("aria-checked")).toBe("true");
     fireEvent.click(chat);

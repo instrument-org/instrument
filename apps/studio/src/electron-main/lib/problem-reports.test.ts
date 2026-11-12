@@ -449,6 +449,47 @@ describe("feedback", () => {
     );
   });
 
+  it("keeps a long chat's header and newest records, cutting its tasks first", () => {
+    const log = (session: string, count: number) =>
+      [
+        JSON.stringify({ session, t: "header" }),
+        ...Array.from({ length: count }, (_, seq) =>
+          JSON.stringify({ seq, t: "note", text: "x".repeat(100) }),
+        ),
+      ].join("\n") + "\n";
+    const offer = (maxBytes: number) =>
+      reports.chatFeedback({
+        files: [
+          file(`${OWN}.dev_AAAAAAAA.jsonl`, log(OWN, 40)),
+          file(`${TASK}.dev_AAAAAAAA.jsonl`, log(TASK, 40)),
+        ],
+        maxBytes,
+        sessions: [
+          { id: OWN, title: "Help desk pricing" },
+          { id: TASK, parentId: OWN, title: "Competitor pricing pages" },
+        ],
+      });
+    // Half the whole chat: more than the task alone gives back.
+    const maxBytes = Math.floor((offer(Infinity)?.item.bytes ?? 0) / 2);
+    const chat = offer(maxBytes);
+    const kept = chat?.item.files.map((each) =>
+      each.content
+        .split("\n")
+        .filter(Boolean)
+        .map((line) => {
+          const record = JSON.parse(line) as { seq?: number; t: string };
+          return record.seq ?? record.t;
+        }),
+    );
+
+    expect(chat?.item.bytes).toBeLessThanOrEqual(maxBytes);
+    // The task keeps only its header; the chat's own keeps its newest.
+    expect(kept?.[1]).toEqual(["header"]);
+    expect(kept?.[0]?.[0]).toBe("header");
+    expect(kept?.[0]?.at(-1)).toBe(39);
+    expect(kept?.[0]?.length).toBeLessThan(41);
+  });
+
   const item = (
     id: string,
     files: { content: string; path: string }[],

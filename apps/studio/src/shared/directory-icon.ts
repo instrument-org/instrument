@@ -3,9 +3,8 @@ import { APP_PROTOCOL } from "@instrument-org/shared";
 /**
  * Where the directory's bundled icons are served (`directory-icons.ts` in the
  * main process). A service's mark, like its site's favicon, so an icon from
- * here is drawn on the same plate a favicon is, where an app's own icon or its
- * Mac app's carries its own background and is drawn whole, corners cut to the
- * plate's.
+ * here is drawn inset the way a favicon is, where an app's own icon or its
+ * Mac app's carries its own background and is drawn whole, filling its box.
  */
 export const DIRECTORY_ICON_HOST = "directory-icon";
 

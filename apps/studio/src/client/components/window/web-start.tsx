@@ -116,12 +116,9 @@ export function WebStart({
             <div className="-ml-4 flex flex-wrap gap-x-2 gap-y-3">
               {bookmarks.map((bookmark) => {
                 const name = bookmark.title || hostOf(bookmark.url);
-                // The site's mark on the plate every app's mark sits on, so
-                // a site that brings a square of its own and one that is bare
-                // read as the same kind of thing, the way Apps draws them.
+                // The site's mark drawn the way Apps draws every app's.
                 const mark = (
                   <AppIcon
-                    className="transition-shadow group-hover:shadow-md group-data-[state=open]:shadow-md"
                     name={name}
                     site={originOf(bookmark.url)}
                     size="xl"

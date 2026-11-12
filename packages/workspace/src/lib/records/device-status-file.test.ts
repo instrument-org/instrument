@@ -96,15 +96,51 @@ describe("writeDeviceStatusFile", () => {
       status: awake,
       writtenAt,
     });
-    writeDeviceStatusFileSync({
+    await writeDeviceStatusFile({
       device,
       devicesDir,
-      status: { ...awake, darkWake: undefined, state: "closed" },
+      status: { ...awake, darkWake: undefined },
       writtenAt,
     });
 
     expect(JSON.parse(read())).not.toHaveProperty("darkWake");
-    expect(JSON.parse(read())).toHaveProperty("state", "closed");
+  });
+
+  // The quit's write reads nothing, and keeps what a newer build wrote
+  // through the file the last write left.
+  it("writes closed over the last file it wrote", async () => {
+    fs.mkdirSync(path.join(devicesDir, device), { recursive: true });
+    fs.writeFileSync(
+      path.join(devicesDir, device, DEVICE_STATUS_FILE_NAME),
+      JSON.stringify({ thermal: "nominal" }),
+    );
+    const written = await writeDeviceStatusFile({
+      device,
+      devicesDir,
+      status: awake,
+      writtenAt,
+    });
+    writeDeviceStatusFileSync({
+      device,
+      devicesDir,
+      status: { ...awake, busy: 0, darkWake: undefined, state: "closed" },
+      written,
+      writtenAt,
+    });
+
+    expect(JSON.parse(read())).toMatchInlineSnapshot(`
+      {
+        "app": "2.4.0",
+        "busy": 0,
+        "format": 1,
+        "locked": false,
+        "power": "plugged-in",
+        "since": "2026-11-12T17:40:00.000Z",
+        "state": "closed",
+        "thermal": "nominal",
+        "writtenAt": "2026-11-12T18:04:00.000Z",
+      }
+    `);
   });
 });
 

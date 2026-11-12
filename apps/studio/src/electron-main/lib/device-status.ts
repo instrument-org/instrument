@@ -48,6 +48,8 @@ export function startDeviceStatus({
     state: "awake",
   };
   let written: DeviceStatus | undefined;
+  // The file as the last write left it, which the quit's write goes over.
+  let writtenFile: Awaited<ReturnType<typeof writeDeviceStatusFile>> = {};
   // One write at a time, so a slow read for one cannot land after the next.
   let queue = Promise.resolve();
 
@@ -78,7 +80,11 @@ export function startDeviceStatus({
         return;
       }
       try {
-        await writeDeviceStatusFile({ device: deviceId, devicesDir, status });
+        writtenFile = await writeDeviceStatusFile({
+          device: deviceId,
+          devicesDir,
+          status,
+        });
         written = next;
       } catch (error) {
         log.warn(`Could not write the device status (${reason})`, error);
@@ -134,6 +140,7 @@ export function startDeviceStatus({
         device: deviceId,
         devicesDir,
         status: closed,
+        written: writtenFile,
       });
     } catch (error) {
       log.warn("Could not write the device status (quit)", error);

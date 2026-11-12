@@ -1,12 +1,9 @@
 import { execFile } from "node:child_process";
+import fs from "node:fs";
 import path from "node:path";
 import { promisify } from "node:util";
 
-import {
-  type JsonRecord,
-  updateJsonRecord,
-  updateJsonRecordSync,
-} from "../json-record-file";
+import { type JsonRecord, updateJsonRecord } from "../json-record-file";
 import { type DeviceId } from "./device-id";
 
 /**
@@ -84,8 +81,11 @@ function statusFilePath(devicesDir: string, device: DeviceId): string {
   return path.join(devicesDir, device, DEVICE_STATUS_FILE_NAME);
 }
 
-/** Writes this device's status file. */
-export async function writeDeviceStatusFile({
+/**
+ * Writes this device's status file. Answers with the file as it stands
+ * afterward, for `writeDeviceStatusFileSync` to write over.
+ */
+export function writeDeviceStatusFile({
   device,
   devicesDir,
   status,
@@ -96,30 +96,46 @@ export async function writeDeviceStatusFile({
   devicesDir: string;
   status: DeviceStatus;
   writtenAt?: Date;
-}): Promise<void> {
-  await updateJsonRecord(statusFilePath(devicesDir, device), () =>
+}): Promise<JsonRecord> {
+  return updateJsonRecord(statusFilePath(devicesDir, device), () =>
     deviceStatusFile(status, writtenAt),
   );
 }
 
 /**
  * `writeDeviceStatusFile` for the last moment of a quit, which ends in
- * `app.exit` and waits on nothing.
+ * `app.exit` and waits on nothing. Atomic like it, and reads nothing, since
+ * a synced file may not be on disk to read: it writes over `written`, the
+ * file as the last write left it, so fields a newer build wrote are kept.
  */
 export function writeDeviceStatusFileSync({
   device,
   devicesDir,
   status,
+  written = {},
   writtenAt = new Date(),
 }: {
   device: DeviceId;
   devicesDir: string;
   status: DeviceStatus;
+  written?: JsonRecord;
   writtenAt?: Date;
 }): void {
-  updateJsonRecordSync(statusFilePath(devicesDir, device), () =>
-    deviceStatusFile(status, writtenAt),
+  const file = statusFilePath(devicesDir, device);
+  const next = Object.fromEntries(
+    Object.entries({ ...written, ...deviceStatusFile(status, writtenAt) }).filter(
+      ([, value]) => value !== undefined,
+    ),
   );
+  const temporary = `${file}.${process.pid.toString()}.closing.tmp`;
+  fs.mkdirSync(path.dirname(file), { recursive: true });
+  try {
+    fs.writeFileSync(temporary, JSON.stringify(next, null, 2), "utf8");
+    fs.renameSync(temporary, file);
+  } catch (error) {
+    fs.rmSync(temporary, { force: true });
+    throw error;
+  }
 }
 
 /**

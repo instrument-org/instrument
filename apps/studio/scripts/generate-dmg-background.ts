@@ -5,19 +5,21 @@
  * HiDPI TIFF, so the window is sharp on a Retina display.
  *
  * The picture takes the website's link preview: a wedge of pale mint light
- * falling from the top left into sage, with a fine grain, and nothing on it
- * but the arrow from the app to Applications.
+ * falling from the top left into its pale sage, soft mottling and a fine
+ * grain, a line saying what to do, and the arrow from the app to
+ * Applications.
  *
- * Finder draws the icon labels over this image, black in light mode and white
- * in dark mode, so the sage under them is the one tone both read against at
- * 4.5:1 or better. Each run measures that and fails when either falls short.
+ * Finder draws the icon labels over this image in black on a light picture,
+ * in dark mode too, so the sage under them stays light enough for black at
+ * 4.5:1 or better. Each run measures that and fails when it falls short.
  *
- * Requires macOS (sips renders the SVG) and ImageMagick (the grain).
+ * Requires macOS (sips renders the SVG) and ImageMagick (the text, the
+ * mottling and the grain).
  *
  * Usage:
  *   node scripts/generate-dmg-background.ts
  *   node scripts/generate-dmg-background.ts --preview <dir>
- *     also writes what the mounted window looks like, in light and dark mode
+ *     also writes what the mounted window looks like
  */
 import { execFileSync } from "node:child_process";
 import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
@@ -40,19 +42,32 @@ const { appIcon, applicationsIcon, height, iconSize, width } = DMG_LAYOUT;
 // the light fades.
 const EDGE = { left: 165, right: 15, soft: 190 };
 
-// Along the light, from its brightest to the sage. The sage the labels sit on
-// is the luminance (about 0.18) where black and white text contrast alike.
+// Along the light, from its brightest to the link preview's sage.
 const LIGHT: [offset: number, color: string][] = [
   [0, "#f4fcf5"],
-  [0.32, "#dcefe4"],
-  [0.5, "#a9bcb5"],
-  [0.72, "#7d8c87"],
-  [0.86, "#6b7974"],
-  [1, "#6b7974"],
+  [0.35, "#e2f2e8"],
+  [0.58, "#c3d2cc"],
+  [0.8, "#aebcb7"],
+  [1, "#a9b7b3"],
 ];
+
+// The text and the arrow.
+const INK = "#1f2d29";
+
+// What to do, centered across the window above the icons. `top` is where the
+// text's box starts, in points.
+const HEADLINE = {
+  size: 17,
+  text: "Drag Instrument into your Applications folder to install it.",
+  top: 52,
+};
 
 // Gaussian noise strength (ImageMagick -attenuate), the link preview's grain.
 const GRAIN = 0.08;
+
+// Soft patches of lighter ground: how much the brightest one lifts toward
+// white, and the size in points of the cells the patches grow from.
+const MOTTLE = { cell: 12, lift: 0.3 };
 
 function svg(scale: number) {
   const dx = width;
@@ -81,8 +96,10 @@ function svg(scale: number) {
     </linearGradient>
   </defs>
   <rect width="${width}" height="${height}" fill="url(#light)"/>
-  <path d="M ${from} ${y} L ${to} ${y}" stroke="#ffffff" stroke-width="3" stroke-linecap="round"/>
-  <path d="M ${to - head * 1.2} ${y - head} L ${to} ${y} L ${to - head * 1.2} ${y + head}" stroke="#ffffff" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" fill="none"/>
+  <g stroke="${INK}" stroke-opacity="0.7" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" fill="none">
+    <path d="M ${from} ${y} L ${to} ${y}"/>
+    <path d="M ${to - head * 1.2} ${y - head} L ${to} ${y} L ${to - head * 1.2} ${y + head}"/>
+  </g>
 </svg>
 `;
 }
@@ -102,6 +119,43 @@ function render(scale: number, out: string, scratch: string) {
     smooth,
     "-alpha",
     "off",
+    // The mottling, from one seeded field at the 1x cell size so both scales
+    // get the same patches, screened over the ground.
+    "(",
+    "-size",
+    `${Math.round(width / MOTTLE.cell)}x${Math.round(height / MOTTLE.cell)}`,
+    "xc:gray50",
+    "-seed",
+    "7",
+    "+noise",
+    "Random",
+    "-colorspace",
+    "gray",
+    "-resize",
+    `${width * scale}x${height * scale}!`,
+    "-blur",
+    `0x${MOTTLE.cell * 2 * scale}`,
+    "-auto-level",
+    "-level",
+    "45%,100%",
+    "-evaluate",
+    "multiply",
+    `${MOTTLE.lift}`,
+    ")",
+    "-compose",
+    "Screen",
+    "-composite",
+    "-font",
+    "/System/Library/Fonts/SFNS.ttf",
+    "-pointsize",
+    `${HEADLINE.size * scale}`,
+    "-fill",
+    INK,
+    "-gravity",
+    "North",
+    "-annotate",
+    `+0+${HEADLINE.top * scale}`,
+    HEADLINE.text,
     "-seed",
     `${scale}`,
     "-attenuate",
@@ -117,7 +171,7 @@ function render(scale: number, out: string, scratch: string) {
   ]);
 }
 
-/** WCAG contrast of black and white text on the ground under one label. */
+/** WCAG contrast of black text on the ground under one label. */
 function labelContrast(image: string, at: { x: number; y: number }) {
   const strip = { h: 16, w: 80 };
   const hex = run("magick", [
@@ -139,13 +193,12 @@ function labelContrast(image: string, at: { x: number; y: number }) {
   return {
     black: (luminance + 0.05) / 0.05,
     hex: `#${hex.slice(0, 6)}`,
-    white: 1.05 / (luminance + 0.05),
   };
 }
 
 /**
  * The window as Finder shows it: the 2x background with the app icon and the
- * Applications folder at their configured places, labels in the mode's color.
+ * Applications folder at their configured places, labels in black.
  */
 function preview(dir: string, scratch: string) {
   mkdirSync(dir, { recursive: true });
@@ -167,39 +220,37 @@ function preview(dir: string, scratch: string) {
     { file: build("icon.png"), label: "Instrument", ...appIcon },
     { file: folder, label: "Applications", ...applicationsIcon },
   ];
-  for (const mode of ["light", "dark"] as const) {
-    const args = [build("background@2x.png")];
-    for (const item of items) {
-      const left = (item.x - iconSize / 2) * scale;
-      const top = (item.y - iconSize / 2) * scale;
-      args.push(
-        "(",
-        item.file,
-        "-resize",
-        `${size}x${size}`,
-        ")",
-        "-gravity",
-        "NorthWest",
-        "-geometry",
-        `+${left}+${top}`,
-        "-composite",
-        "-font",
-        "/System/Library/Fonts/SFNS.ttf",
-        "-pointsize",
-        `${DMG_LAYOUT.iconTextSize * scale}`,
-        "-fill",
-        mode === "light" ? "black" : "white",
-        // North gravity measures x from the image's center line.
-        "-gravity",
-        "North",
-        "-annotate",
-        `${item.x - width / 2 >= 0 ? "+" : ""}${(item.x - width / 2) * scale}+${(item.y + iconSize / 2 + 5) * scale}`,
-        item.label,
-      );
-    }
-    args.push(path.join(dir, `dmg-window-${mode}.png`));
-    run("magick", args);
+  const args = [build("background@2x.png")];
+  for (const item of items) {
+    const left = (item.x - iconSize / 2) * scale;
+    const top = (item.y - iconSize / 2) * scale;
+    args.push(
+      "(",
+      item.file,
+      "-resize",
+      `${size}x${size}`,
+      ")",
+      "-gravity",
+      "NorthWest",
+      "-geometry",
+      `+${left}+${top}`,
+      "-composite",
+      "-font",
+      "/System/Library/Fonts/SFNS.ttf",
+      "-pointsize",
+      `${DMG_LAYOUT.iconTextSize * scale}`,
+      "-fill",
+      "black",
+      // North gravity measures x from the image's center line.
+      "-gravity",
+      "North",
+      "-annotate",
+      `${item.x - width / 2 >= 0 ? "+" : ""}${(item.x - width / 2) * scale}+${(item.y + iconSize / 2 + 5) * scale}`,
+      item.label,
+    );
   }
+  args.push(path.join(dir, "dmg-window.png"));
+  run("magick", args);
 }
 
 const scratch = mkdtempSync(path.join(tmpdir(), "dmg-background-"));
@@ -210,11 +261,9 @@ try {
     ["Instrument", appIcon],
     ["Applications", applicationsIcon],
   ] as const) {
-    const { black, hex, white } = labelContrast(build("background.png"), at);
-    console.log(
-      `${name} on ${hex}: black ${black.toFixed(2)}, white ${white.toFixed(2)}`,
-    );
-    if (black < 4.5 || white < 4.5) {
+    const { black, hex } = labelContrast(build("background.png"), at);
+    console.log(`${name} on ${hex}: black ${black.toFixed(2)}`);
+    if (black < 4.5) {
       throw new Error(`The ground under “${name}” is under 4.5:1 for a label`);
     }
   }

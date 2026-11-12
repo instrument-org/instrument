@@ -194,10 +194,6 @@ export const CDP_METHODS = {
   "Network.setExtraHTTPHeaders": {
     why: "also sent by the bridge when a connection closes, to put the page back",
   },
-  "Network.setRequestInterception": {
-    sender: "bridge",
-    why: "sent when a connection closes, so an interception does not hold the person's page",
-  },
   "Page.addScriptToEvaluateOnNewDocument": {
     session: "wrapped",
     why: "recorded, and taken back when the connection closes, so nothing the agent left runs on the person's later loads in the tab",

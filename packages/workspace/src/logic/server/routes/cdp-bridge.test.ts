@@ -703,11 +703,6 @@ describe("openTargetSession on a local page", () => {
     await second.command("Page.enable");
     first.close();
     expect(first.sendCommand).toHaveBeenCalledWith(target, "Fetch.disable", {});
-    expect(first.sendCommand).toHaveBeenCalledWith(
-      target,
-      "Network.setRequestInterception",
-      { patterns: [] },
-    );
     expect(first.setAgentFileRoots).not.toHaveBeenCalledWith(target, null);
     second.close();
     expect(second.setAgentFileRoots).toHaveBeenCalledWith(target, null);

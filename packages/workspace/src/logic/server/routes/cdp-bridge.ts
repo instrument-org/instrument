@@ -163,7 +163,6 @@ function frameAutoAttach(
  */
 const RELEASED_ON_LEAVING: [string, Record<string, unknown>][] = [
   ["Fetch.disable", {}],
-  ["Network.setRequestInterception", { patterns: [] }],
   ["Debugger.disable", {}],
 ];
 

@@ -488,6 +488,34 @@ describe("feedback", () => {
     expect(kept?.[0]?.[0]).toBe("header");
     expect(kept?.[0]?.at(-1)).toBe(39);
     expect(kept?.[0]?.length).toBeLessThan(41);
+    expect(chat?.trimmed).toEqual({
+      droppedLogs: 0,
+      droppedRecords: 40 + 41 - (kept?.[0]?.length ?? 0),
+    });
+    expect(offer(Infinity)?.trimmed).toBeUndefined();
+  });
+
+  it("leaves out the oldest tasks' logs when a chat has more than a report may carry", () => {
+    const tasks = ["B", "C", "D"].map(
+      (letter) => `ses_01JB2W000000000000000000${letter}${letter}`,
+    );
+    const chat = reports.chatFeedback({
+      files: [OWN, ...tasks].map((session) =>
+        file(`${session}.dev_AAAAAAAA.jsonl`),
+      ),
+      maxFiles: 2,
+      sessions: [
+        { id: OWN, title: "Help desk pricing" },
+        // Listed newest first, which the cut does not go by.
+        ...tasks.toReversed().map((id) => ({ id, parentId: OWN, title: id })),
+      ],
+    });
+
+    expect(chat?.item.files.map((each) => each.label)).toEqual([
+      "“Help desk pricing”",
+      `Task: ${tasks[2]}`,
+    ]);
+    expect(chat?.trimmed).toEqual({ droppedLogs: 2, droppedRecords: 2 });
   });
 
   const item = (

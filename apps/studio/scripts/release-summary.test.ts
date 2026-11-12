@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { buildPost, mrkdwn, richInline, updateBody } from "./release-summary";
+import { buildPost, mrkdwn, richInline, updateBodies } from "./release-summary";
 
 const NOTES = `A release focused on a cleaner, more private built-in browser, more ways to connect AI providers, and app icons.
 
@@ -329,9 +329,9 @@ describe("buildPost", () => {
   });
 });
 
-describe("updateBody", () => {
+describe("updateBodies", () => {
   it("redraws a posted card as published, with the tag's page", () => {
-    const body = updateBody(
+    const [body] = updateBodies(
       { channel: "C1", release, ts: "1.0" },
       {
         published: true,
@@ -390,12 +390,28 @@ describe("updateBody", () => {
   });
 
   it("keeps the stored address when the update names none", () => {
-    const body = updateBody(
+    const [body] = updateBodies(
       { channel: "C1", release, ts: "1.0" },
       { published: false },
     );
-    expect(body.blocks.at(-1)).toMatchObject({
+    expect(body?.blocks?.at(-1)).toMatchObject({
       elements: [{ url: release.releaseUrl }],
     });
+  });
+
+  it("drops the ask to publish from the thread reply once the notes are published", () => {
+    const posted = { channel: "C1", release, threadTs: "1.1", ts: "1.0" };
+    const [, draft] = updateBodies(posted, { published: false });
+    const [, published] = updateBodies(posted, { published: true });
+    expect(draft?.text).toMatch(/^<@U0123> the notes for 2\.1\.0 are a draft/);
+    expect(published).toMatchObject({ channel: "C1", ts: "1.1" });
+    expect(published?.text).not.toContain("are a draft");
+    expect(published?.text?.split("\n")[0]).toBe("*Browser*");
+  });
+
+  it("leaves the thread reply alone when the card file has no thread ts", () => {
+    expect(
+      updateBodies({ channel: "C1", release, ts: "1.0" }, { published: true }),
+    ).toHaveLength(1);
   });
 });

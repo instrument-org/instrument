@@ -1,8 +1,8 @@
 name: Release card
 
-# Redraws a release's Slack card to match the release on GitHub: "Published"
-# once someone publishes the draft notes, "Notes in draft" again if they
-# unpublish it. Publishing with a workflow's GITHUB_TOKEN triggers no workflow,
+# Redraws a release's Slack card and its thread reply to match the release on
+# GitHub: "Published", with no ask to publish in the thread, once someone
+# publishes the draft notes, and "Notes in draft" again if they unpublish it. Publishing with a workflow's GITHUB_TOKEN triggers no workflow,
 # so after an automated publish, run this by hand with the tag to resync.
 
 on:
@@ -39,7 +39,7 @@ jobs:
       # The release run for the tag kept the card's channel and `ts` as its
       # slack-card artifact. Releases posted before that artifact existed
       # have none, and their card stays as it is.
-      - name: Update the Slack card
+      - name: Update the Slack card and its thread reply
         env:
           GH_TOKEN: ${{ github.token }}
           SLACK_BOT_TOKEN: ${{ secrets.SLACK_BOT_TOKEN }}

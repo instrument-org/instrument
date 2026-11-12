@@ -13,9 +13,10 @@
  * `--notes` holds the tag's message (empty for a tag cut without notes);
  * `--commits` and `--skills-commits` hold `git log --pretty="%h %s"` output.
  * Posts the card and its thread reply as the bot, with SLACK_BOT_TOKEN and
- * SLACK_RELEASE_CHANNEL, and `--save` writes the card's channel, `ts` and
- * release to a file. `update` reads that file and rebuilds
- * the card for the GitHub release's state, which `release-card.yml` runs
+ * SLACK_RELEASE_CHANNEL, and `--save` writes the card's channel, the card's
+ * and the thread reply's `ts`, and the release to a file. `update` reads that
+ * file and rebuilds the card and the thread reply for the GitHub release's
+ * state, which `release-card.yml` runs
  * whenever the release is published or unpublished. Dependency-free so a
  * release job can run it with Node alone. The internal repository's
  * scripts/release-summary.ts grew from this file.
@@ -316,8 +317,17 @@ function commitsText(release: Release) {
   return lines.length > 0 ? lines.join("\n") : undefined;
 }
 
-/** Where a posted card is, and the release it was built from, for `update`. */
-type PostedCard = { channel: string; release: Release; ts: string };
+/**
+ * Where a posted card and its thread reply are, and the release they were
+ * built from, for `update`. Cards posted before `threadTs` was kept have none,
+ * and their thread reply stays as it is.
+ */
+type PostedCard = {
+  channel: string;
+  release: Release;
+  threadTs?: string;
+  ts: string;
+};
 
 /** Posts the card as the bot, then its thread reply, and returns where the card is. */
 export async function post(
@@ -337,20 +347,29 @@ export async function post(
   if (!posted.ts) {
     throw new Error("chat.postMessage answered without a ts");
   }
-  if (thread) {
-    await slackApi(token, "chat.postMessage", {
-      channel,
-      text: thread,
-      thread_ts: posted.ts,
-      unfurl_links: false,
-      unfurl_media: false,
-    });
-  }
-  return { channel: posted.channel ?? channel, release, ts: posted.ts };
+  const reply = thread
+    ? await slackApi(token, "chat.postMessage", {
+        channel,
+        text: thread,
+        thread_ts: posted.ts,
+        unfurl_links: false,
+        unfurl_media: false,
+      })
+    : undefined;
+  return {
+    channel: posted.channel ?? channel,
+    release,
+    threadTs: reply?.ts,
+    ts: posted.ts,
+  };
 }
 
-/** The `chat.update` body that redraws a posted card for its release's state. */
-export function updateBody(
+/**
+ * The `chat.update` bodies that redraw a posted card and its thread reply for
+ * the release's state, so publishing the notes also drops the reply's ask to
+ * publish them.
+ */
+export function updateBodies(
   posted: PostedCard,
   { published, releaseUrl }: { published: boolean; releaseUrl?: string },
 ) {
@@ -359,13 +378,18 @@ export function updateBody(
     published,
     releaseUrl: releaseUrl || posted.release.releaseUrl,
   };
-  const { card } = buildPost(release);
-  return {
-    blocks: card.blocks,
-    channel: posted.channel,
-    text: card.text,
-    ts: posted.ts,
-  };
+  const { card, thread } = buildPost(release);
+  return [
+    {
+      blocks: card.blocks,
+      channel: posted.channel,
+      text: card.text,
+      ts: posted.ts,
+    },
+    ...(posted.threadTs && thread
+      ? [{ channel: posted.channel, text: thread, ts: posted.threadTs }]
+      : []),
+  ];
 }
 
 async function slackApi(
@@ -430,14 +454,13 @@ if (
     }
     // The file `post --save` wrote, so this shape.
     const posted = JSON.parse(readArg(args, "--card")) as PostedCard;
-    await slackApi(
-      token,
-      "chat.update",
-      updateBody(posted, {
-        published: readFlag(args, "--published") === "true",
-        releaseUrl: readFlag(args, "--release-url"),
-      }),
-    );
+    const bodies = updateBodies(posted, {
+      published: readFlag(args, "--published") === "true",
+      releaseUrl: readFlag(args, "--release-url"),
+    });
+    for (const body of bodies) {
+      await slackApi(token, "chat.update", body);
+    }
   } else if (command === "post" || command === "preview") {
     const release = {
       commits: readArg(args, "--commits"),

@@ -22,7 +22,7 @@ Each build answers to its own scheme (`appProtocolOf` in [`constants.ts`](../../
 | `instrument://page/<id>/<token>` | a copy of the page hosted at `https://<id>.instrument.page/<token>/`, kept in Downloads |
 | `instrument://new?text=<words>&project=<id>` | a new chat's draft with the words in it |
 
-A noun names one thing by one path segment and only takes the person to it. `new` is the one verb, and what it makes is written in query parameters, so a later verb has the same shape. A Windows path keeps its drive letter as the first segment (`instrument://file/C:/Users/windows-user/report.pdf`).
+A noun names one thing by one path segment and only takes the person to it. `new` is the one verb, and what it makes is written in query parameters, so a later verb has the same shape. A Windows path keeps its drive letter as the first segment (`instrument://file/C:/Users/windows-user/report.pdf`). A `~/` at the start of a file path means the person's home folder, on this computer whatever their user name on it (`instrument://file/~/wireframes/x.html`, `files?path=~/wireframes/x.html`), and nothing else is expanded: `~user/` is read as written.
 
 ## How a link arrives
 

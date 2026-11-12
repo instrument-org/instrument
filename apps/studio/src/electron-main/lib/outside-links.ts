@@ -1,5 +1,6 @@
 import { outsideLinkOf, PAGES_DOMAIN } from "@instrument-org/shared";
 import fs from "node:fs/promises";
+import os from "node:os";
 import path from "node:path";
 
 import { folderHref } from "@/shared/computer-href";
@@ -68,6 +69,8 @@ export function createLinkGate({
  */
 type PathChecks = {
   fetchPage?: typeof fetchHostedPage;
+  /** The person's home folder, which `~` at the start of a path means. */
+  home?: string;
   hostPaths?: path.PlatformPath;
   isDownloaded?: (hostPath: string) => Promise<boolean>;
   isRefused?: (hostPath: string) => Promise<boolean>;
@@ -159,18 +162,24 @@ async function askOfPage(
 /**
  * What a path from a link asks of the window, or nothing for a path that is
  * not plainly one on this computer (a step up, a network share, a relative
- * one) or a place the app refuses to show.
+ * one) or a place the app refuses to show. A path starting at `~` is read
+ * from the person's home folder first, so every check judges the path it
+ * leads to.
  */
 async function askOfPath(
   linkPath: string,
   {
+    home = os.homedir(),
     hostPaths = path,
     isDownloaded = isFromInternet,
     isRefused = isRefusedFile,
     placeOf = placeOnDisk,
   }: PathChecks,
 ): Promise<AppWindowAsk | undefined> {
-  const hostPath = hostPathOfUrlPath(linkPath, hostPaths);
+  const hostPath = hostPathOfUrlPath(
+    fromHome(linkPath, home, hostPaths),
+    hostPaths,
+  );
   if (
     hostPath === undefined ||
     // On Windows a path from a link names its drive: one starting at a
@@ -203,6 +212,34 @@ async function askOfPath(
     };
   }
   return { hostPath, type: "openFile" };
+}
+
+/**
+ * A `~` alone or a `~/` at the start of a link's path, which is how a link
+ * read on two computers names a folder under home on both, whatever the
+ * person's name on each.
+ */
+const HOME = /^\/?~(?=\/|$)/;
+
+/**
+ * A link's path with a leading `~` read as the person's home folder, in the
+ * link's own spelling (forward slashes, a `file/` link's leading slash taken
+ * off as it is off a drive letter), so what follows is judged as a link
+ * written absolute is. `~user` is nobody's home here and stays as written.
+ */
+function fromHome(
+  linkPath: string,
+  home: string,
+  hostPaths: path.PlatformPath,
+): string {
+  const tilde = HOME.exec(linkPath);
+  if (tilde === null) {
+    return linkPath;
+  }
+  const linkHome = (
+    hostPaths.sep === "\\" ? home.replaceAll("\\", "/") : home
+  ).replace(/\/+$/, "");
+  return linkHome + linkPath.slice(tilde[0].length);
 }
 
 /**

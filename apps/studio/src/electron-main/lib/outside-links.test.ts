@@ -3,6 +3,7 @@ import os from "node:os";
 import path from "node:path";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
+import { tabHrefOfAsk } from "../windows/app-window-asks";
 import {
   asksOfOutsideLink,
   createLinkGate,
@@ -248,6 +249,159 @@ describe("asksOfOutsideLink", () => {
       placeOf: aFile,
     });
     expect(read).toEqual(["/Users/mac-user/b.html"]);
+  });
+});
+
+// A link written `~/…` is read on two of the person's computers whose user
+// names differ but whose folders under home agree, so `~` is read as this
+// one's home before anything judges the path.
+describe("a path from home", () => {
+  const home = "/Users/mac-user";
+
+  it.each([
+    [
+      "instrument://file/~/wireframes/x.html",
+      "/Users/mac-user/wireframes/x.html",
+    ],
+    [
+      "instrument://files?path=~%2Fwireframes%2Fx.html",
+      "/Users/mac-user/wireframes/x.html",
+    ],
+    ["instrument://file/~", "/Users/mac-user"],
+    ["instrument://files?path=~", "/Users/mac-user"],
+  ])("reads %s from the person's home folder", async (url, hostPath) => {
+    expect(
+      await asksOfOutsideLink(url, {
+        home,
+        hostPaths: path.posix,
+        isDownloaded: allowed,
+        isRefused: allowed,
+        placeOf: aFile,
+      }),
+    ).toEqual([{ hostPath, type: "openFile" }]);
+  });
+
+  it("reads a Windows home folder the way the link spells a path", async () => {
+    expect(
+      await asksOfOutsideLink("instrument://file/~/Work/report.pdf", {
+        home: "C:\\Users\\windows-user",
+        hostPaths: path.win32,
+        isRefused: allowed,
+        placeOf: aFile,
+      }),
+    ).toEqual([
+      {
+        hostPath: "C:\\Users\\windows-user\\Work\\report.pdf",
+        type: "openFile",
+      },
+    ]);
+  });
+
+  it("leaves another user's home as written", async () => {
+    const judged: string[] = [];
+    expect(
+      await asksOfOutsideLink(
+        "instrument://files?path=~mac-user%2Fa.md&path=%2F~mac-user%2Fa.md",
+        {
+          home,
+          hostPaths: path.posix,
+          isRefused: (hostPath) => {
+            judged.push(hostPath);
+            return Promise.resolve(false);
+          },
+          placeOf: aFile,
+        },
+      ),
+    ).toEqual([{ hostPath: "/~mac-user/a.md", type: "openFile" }]);
+    expect(judged).toEqual(["/~mac-user/a.md"]);
+  });
+
+  it("judges the path home leads to: refused, marked, missing, and shown", async () => {
+    const judged: string[] = [];
+    const noting = (hostPath: string) => {
+      judged.push(hostPath);
+      return Promise.resolve(false);
+    };
+    expect(
+      await asksOfOutsideLink("instrument://file/~/Notes/gone.md", {
+        home: folder,
+        isDownloaded: noting,
+        isRefused: noting,
+      }),
+    ).toEqual([
+      {
+        folder: path.join(folder, "Notes"),
+        name: "gone.md",
+        type: "missingFile",
+      },
+    ]);
+    expect(
+      await asksOfOutsideLink("instrument://file/~/plan.md", {
+        home: folder,
+        isDownloaded: noting,
+        isRefused: noting,
+      }),
+    ).toEqual([{ hostPath: path.join(folder, "plan.md"), type: "openFile" }]);
+    expect(judged).toEqual([
+      path.join(folder, "Notes", "gone.md"),
+      path.join(folder, "plan.md"),
+    ]);
+    expect(
+      await asksOfOutsideLink("instrument://file/~/Downloads/page.html", {
+        home,
+        hostPaths: path.posix,
+        isDownloaded: marked,
+        isRefused: allowed,
+        placeOf: aFile,
+      }),
+    ).toEqual([
+      {
+        href: "/files?path=&root=%2FUsers%2Fmac-user%2FDownloads&select=page.html",
+        type: "openScreen",
+      },
+    ]);
+    expect(
+      await asksOfOutsideLink("instrument://file/~/.ssh/id_ed25519", {
+        home,
+        hostPaths: path.posix,
+        isRefused: (hostPath) => Promise.resolve(hostPath.includes("/.ssh")),
+      }),
+    ).toEqual([]);
+  });
+
+  it("names the tab showing the file by the path home leads to", async () => {
+    const asked = await asksOfOutsideLink("instrument://file/~/a.pdf", {
+      home,
+      hostPaths: path.posix,
+      isDownloaded: allowed,
+      isRefused: allowed,
+      placeOf: aFile,
+    });
+    expect(asked.map(tabHrefOfAsk)).toEqual([
+      "/files?file=%2FUsers%2Fmac-user%2Fa.pdf&path=&root=~",
+    ]);
+  });
+
+  it("opens once a file named from home and by its whole path", async () => {
+    expect(
+      await asksOfOutsideLink(
+        "instrument://files?path=~%2FWork%2Fplan.md&path=%2FUsers%2Fmac-user%2FWork%2Fplan.md&path=~%2FWork",
+        {
+          home,
+          hostPaths: path.posix,
+          isDownloaded: allowed,
+          isRefused: allowed,
+          placeOf: (hostPath): Promise<"folder" | "other"> =>
+            Promise.resolve(hostPath.endsWith("/Work") ? "folder" : "other"),
+        },
+      ),
+    ).toEqual([
+      { hostPath: "/Users/mac-user/Work/plan.md", type: "openFile" },
+      {
+        href: "/files?path=&root=%2FUsers%2Fmac-user%2FWork",
+        type: "openScreen",
+      },
+    ]);
   });
 });
 

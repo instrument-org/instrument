@@ -19,6 +19,7 @@ import {
 import { refreshExpiredTokens } from "@/electron-main/lib/chatgpt-account";
 import { refreshExpiredGrokTokens } from "@/electron-main/lib/grok-account";
 import { getAIProviderConfigs } from "@/electron-main/lib/get-ai-provider-configs";
+import { writeDeviceStatusClosed } from "@/electron-main/lib/device-status";
 import { getSignedInUser } from "@/electron-main/lib/get-signed-in-user";
 import {
   finderEntries,
@@ -402,6 +403,7 @@ export async function createWorkspaceActor(deviceId: DeviceId) {
           // app.exit skips everything after it, so what the windows wrote in
           // the last moments goes to disk here.
           flushKeptState();
+          writeDeviceStatusClosed();
           app.exit(quitExitCode());
         },
         reportBrowserSessionsTimeout: () => {

@@ -179,6 +179,14 @@ export {
   newDeviceId,
 } from "./lib/records/device-id";
 export { readComputerName, writeDeviceFile } from "./lib/records/device-file";
+export {
+  DEVICE_STATUS_HEARTBEAT_MS,
+  type DeviceStatus,
+  isSameDeviceStatus,
+  readDarkWake,
+  writeDeviceStatusFile,
+  writeDeviceStatusFileSync,
+} from "./lib/records/device-status-file";
 export { readMachineId } from "./lib/records/machine-id";
 export {
   startRecordArrivals,

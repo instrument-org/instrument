@@ -19,6 +19,7 @@ import { revealChat } from "../windows/reveal-chat";
 import { startAgentCompletionNotifications } from "./agent-completion-notifications";
 import { timeBootStep, timeBootStepSync } from "./boot-timing";
 import { createWorkspaceActor } from "./create-workspace-actor";
+import { startDeviceStatus } from "./device-status";
 import { chooseLaunchDeviceId, describeLaunchDevice } from "./launch-device-id";
 import { quitsWithLastWindow } from "./quit";
 import { startRun } from "./workspace-run";
@@ -52,6 +53,21 @@ export function startWorkspace(): Promise<void> {
     // A draft a phone asked this computer to send, which it sends on the
     // chat's own model, or a new chat's on the default, as a window would.
     const context = { workspaceConfig, workspaceRef };
+    // Says in the workspace whether this computer is awake to answer, for a
+    // phone choosing which computer sends its draft.
+    timeBootStepSync("startDeviceStatus", () =>
+      startDeviceStatus({
+        countBusy: async () =>
+          (
+            await call(
+              workspaceRouter.chats.agentStatus.aliveAgentCount,
+              undefined,
+              { context },
+            )
+          ).count,
+        deviceId,
+      }),
+    );
     timeBootStepSync("startSendingAskedDrafts", () =>
       startSendingAskedDrafts({
         apply: applyDraftOpsInMain,

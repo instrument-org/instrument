@@ -39,6 +39,7 @@ Each entry is the follow-up's title and the opening of its own `Status:` line.
 - [Which parts of the app write their log too fast](log-volume.md): open · Check after: 2026-11-29, after a week or more on a beta that carries the log volume warnings · Last checked: never
 - [How often and how long the main thread stalls in real use](main-thread-stalls.md): open · Check after: 2026-11-22, with OS wake periods separated from foreground stalls · Last checked: 2026-11-08
 - [What a second computer shows of a chat whose task waits on a card](multi-computer-sync-audit.md): open (cards resolved, see Result) · Check after: when using one workspace from more than one computer is taken on · Last checked: 2026-10-30
+- [Whether page links without a link token can stop opening](page-links-without-a-token.md): open · Check after: 2026-12-13, 30 days after the pages worker began giving every new page a link token, plus a day for its bucket's lifecycle rule · Last ch...
 - [A third sighting of the quit-teardown livelock](quit-teardown-livelock.md): open, passive · Check after: 2026-12-01, or at once after an update that left the app spinning with no window · Last checked: 2026-10-24
 - [Why Responses streams end without a terminal event](responses-streams-ending-early.md): open · Check after: 2026-11-22, or when production exception reports are accessible · Last checked: 2026-11-08
 - [Which RPC procedures send a window megabytes](rpc-payload-sizes.md): open · Check after: 2026-11-29, after a week or more on a beta that carries the payload warnings · Last checked: never

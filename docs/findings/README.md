@@ -27,6 +27,7 @@ Each entry is the finding's title and the opening of its own `Status:` line.
 - [Agent-browser's network-idle wait reports success when it times out](agent-browser-network-idle-reports-done-on-timeout.md): worked around in the wrapper (`agent-browser-wait.ts`), which gives an uncapped `wait --load networkidle` a five-second timeout and says so when the network...
 - [Orphaned agent-browser daemons](agent-browser-orphaned-daemons.md): partly fixed.
 - [Agent-browser snapshot refs die on the daemon idle timeout](agent-browser-ref-map-idle-ttl.md): fixed in 20647086c by raising the daemon idle timeout to five minutes;
+- [Agent-browser's `type` presses Enter for every line break](agent-browser-type-presses-enter-for-line-breaks.md): worked around in the wrapper (`agent-browser-typed-text.ts`), which types text with a line break inside it as one insertion;
 - [Agent clicks land where the element was, not where it is](agent-clicks-land-where-the-element-was.md): understood and worked around in the gateway (`apps/studio/src/electron-main/browser-view/dispatch-command.ts`);
 - [The agent's filesystem work stalls the window, and not by blocking it](agent-filesystem-work-stalls-the-window.md): contained: every agent shell runs in a worker thread since 57faeef2c (`packages/workspace/src/lib/bash-worker/`), which takes this stall off main;
 - [Agent prompt surface: what we measured, and what is still open](agent-prompt-surface-review.md): open items, measured once.

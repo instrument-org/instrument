@@ -42,7 +42,7 @@ Each entry is the finding's title and the opening of its own `Status:` line.
 - [In-app browser: the guest's rasterized surface is capped at 1.3x the viewport](browser-guest-raster-cap.md): open — mechanism traced to Blink source, bound confirmed on macOS, Linux and Windows.
 - [The browser guest stacks under the renderer's own layers](browser-guest-stacks-under-the-renderer.md): verified on macOS.
 - [A page the user asked to see does not appear, because driving the browser never opens the pane](browsing-never-opens-the-pane.md): resolved in the 1.x window, likely moot in 2.0.
-- [CDP keyboard input goes to the focused widget, not the target you sent it on](cdp-keyboard-input-follows-window-focus.md): mitigated: keyboard commands reclaim guest focus before dispatching, refusing only when the guest never takes it back (19f9dd72e);
+- [CDP keyboard input goes to the focused widget, not the target you sent it on](cdp-keyboard-input-follows-window-focus.md): fixed for typing: text and keys go to the guest itself, or to a cross-origin frame on its own session, without taking the window's focus (`keyboard-without-f...
 - [Every tool-output budget counts characters, and moving them to tokens buys less than it looks like](character-budgets-are-a-token-proxy.md): open question, nothing planned.
 - [A chat's pane tabs drift from the window's tabs](chat-pane-tabs-drift-from-window-tabs.md): resolved in 6271b8163 and e77442cdb, checked 2026-11-07: the pane draws the window's strip in its squeezing mode.
 - [A ChatGPT account cannot generate images, so a plan-only user has no image tool](chatgpt-account-cannot-generate-images.md): known, by design upstream.

@@ -79,6 +79,7 @@ import {
   type TabRecorder,
 } from "./history-recorder";
 import { getHistoryStore } from "./history-store";
+import { noteFrameSession } from "./keyboard-without-focus";
 import { mayPageNavigateTo } from "./local-file-policy";
 import { log } from "./log";
 import { createPutAwaySound } from "./put-away-sound";
@@ -332,6 +333,7 @@ function createBrowserViewManager(): BrowserViewManager {
     }
     const { targetId } = entry;
     wc.debugger.attach("1.3");
+    entry.frameSessions.clear();
     // Pairs with the guest session's product-branded client hints: the headers
     // and navigator.userAgentData have to name the same browser, and this is
     // the only side that needs the debugger.
@@ -347,6 +349,7 @@ function createBrowserViewManager(): BrowserViewManager {
           return;
         }
         const frameSession = sessionId || undefined;
+        noteFrameSession(current, method, params);
         if (method === "Page.downloadWillBegin" && frameSession === undefined) {
           captureDownloadWillBeginGuid(current, params);
         }

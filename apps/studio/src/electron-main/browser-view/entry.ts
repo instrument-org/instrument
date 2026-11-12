@@ -99,6 +99,8 @@ export interface BrowserEntry {
   eventListeners: Set<
     (method: string, params: unknown, frameSession?: string) => void
   >;
+  /** The session the guest's debugger attached each frame in a process of its own under, by the frame's id. */
+  frameSessions: Map<string, string>;
   // Monotonic per-entry id, bumped on every createEntry. The renderer pool keys
   // its `<webview>` by targetId, which is stable across a destroy+recreate of
   // the same tab; the generation lets the pool notice that recreate
@@ -194,6 +196,7 @@ export function createEntry({
     disposers: new Set(),
     downloadsRunning: 0,
     eventListeners: new Set(),
+    frameSessions: new Map(),
     generation: ++generationCounter,
     hostId,
     hasAgentInput: false,

@@ -99,7 +99,7 @@ On a Mac these are the menu bar's menus, the first named for Instrument; on Wind
 - **History**: Back, Forward, Show Activity, Clear Browsing Data…
 - **Tab**: Show Next Tab, Show Previous Tab, Move Tab to New Window
 - **Window**: Merge All Windows
-- **Help**: Keyboard Shortcuts, Learn More, Send Feedback…
+- **Help**: Send Feedback…, Support, Keyboard Shortcuts
 
 ## Keyboard shortcuts
 

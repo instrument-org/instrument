@@ -1,8 +1,17 @@
 import { openReportDialog } from "@/client/atoms/report-dialog";
 import { openSettings } from "@/client/atoms/settings-modal";
 import { type AppPlace } from "@/client/atoms/window";
-import { RailMegaphoneIcon } from "@/client/components/icons/rail-megaphone-icon";
+import { RailHelpIcon } from "@/client/components/icons/rail-help-icon";
+import { openShortcutGuide } from "@/client/atoms/shortcut-guide-modal";
 import { ToolbarTooltip } from "@/client/components/toolbar-tooltip";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuShortcut,
+  DropdownMenuTrigger,
+} from "@/client/components/ui/dropdown-menu";
 import { ChatMarkDot } from "@/client/components/window/chat-mark";
 import { type RailChatMark } from "@/client/components/window/chats";
 import { PlaceIcon } from "@/client/components/window/place-icons";
@@ -12,14 +21,19 @@ import {
   AvatarImage,
 } from "@/client/components/ui/avatar";
 import { useLiveUser } from "@/client/hooks/use-live-user";
+import { useOpenExternalLink } from "@/client/hooks/use-open-external-link";
 import { wantsNewTab, wantsNewWindow } from "@/client/hooks/use-open-target";
 import { getInitials } from "@/client/lib/get-initials";
 import { feedbackReport } from "@/client/lib/problem-reports";
 import { focusScreenHome } from "@/client/lib/keyboard-home";
 import { cn } from "@/client/lib/utils";
 import { rpcClient } from "@/client/rpc/client";
+import { SUPPORT_URL } from "@instrument-org/shared";
 import { type ChatId } from "@instrument-org/workspace/client";
+import { ChatTeardropTextIcon } from "@phosphor-icons/react/ChatTeardropText";
 import { FadersHorizontalIcon } from "@phosphor-icons/react/FadersHorizontal";
+import { KeyboardIcon } from "@phosphor-icons/react/Keyboard";
+import { LifebuoyIcon } from "@phosphor-icons/react/Lifebuoy";
 import { NotePencilIcon } from "@phosphor-icons/react/NotePencil";
 import { type ReactNode } from "react";
 
@@ -39,7 +53,7 @@ export const APP_RAIL_WIDTH = 76;
 
 /**
  * The rail down the window's left edge: New at its top, then one entry per
- * place, each a mark with its word close under it, and at its foot Feedback's
+ * place, each a mark with its word close under it, and at its foot Help's
  * mark alone over the user, who is the way to Settings. The one the window stands in sits in a soft well
  * around the whole entry, mark and word together. Narrow enough to be
  * chrome rather than a column: a mark, a word, and nothing wider than
@@ -57,7 +71,7 @@ export function AppRail({
 }: {
   /** Whether Apps wears a dot: an app lost its sign-in since Apps was last shown. */
   appsMark?: boolean;
-  /** The chat the tab up shows, which Feedback is about when there is one. */
+  /** The chat the tab up shows, which Send feedback is about when there is one. */
   chatInView?: ChatId;
   /** The dot Chat wears while the window stands in another place. */
   chatMark?: RailChatMark;
@@ -128,7 +142,7 @@ export function AppRail({
       </div>
       <div className="flex-1" />
       <div className="flex flex-col items-center gap-1">
-        <RailFeedback chatId={chatInView} />
+        <RailHelp chatId={chatInView} />
         <RailUser />
       </div>
     </nav>
@@ -227,23 +241,50 @@ function RailEntry({
 }
 
 /**
- * Send feedback, kept in sight above the user rather than only in the Help
- * menu: the feedback dialog, about the chat on screen when there is one,
- * since that is what someone pressing it is most likely telling us about.
+ * Help, kept in sight above the user: a menu in the native Help menu's order.
+ * Send feedback opens the feedback dialog about the chat on screen when there
+ * is one, since that is what someone pressing it is most likely telling us
+ * about.
  */
-function RailFeedback({ chatId }: { chatId?: ChatId }) {
+function RailHelp({ chatId }: { chatId?: ChatId }) {
+  const openExternalLink = useOpenExternalLink();
   return (
-    <ToolbarTooltip label="Feedback">
-      <button
-        className="grid w-15 place-items-center rounded-xl py-1.5 text-muted-foreground hover:bg-foreground/5 hover:text-foreground"
-        onClick={() => {
-          openReportDialog(feedbackReport({ chatId, surface: "rail" }));
-        }}
-        type="button"
-      >
-        <RailMegaphoneIcon className="size-6" />
-      </button>
-    </ToolbarTooltip>
+    <DropdownMenu>
+      <ToolbarTooltip label="Help">
+        <DropdownMenuTrigger asChild>
+          <button
+            className="grid w-15 place-items-center rounded-xl py-1.5 text-muted-foreground hover:bg-foreground/5 hover:text-foreground"
+            type="button"
+          >
+            <RailHelpIcon className="size-6" />
+          </button>
+        </DropdownMenuTrigger>
+      </ToolbarTooltip>
+      <DropdownMenuContent align="end" className="min-w-52" side="right">
+        <DropdownMenuItem
+          onSelect={() => {
+            openReportDialog(feedbackReport({ chatId, surface: "rail" }));
+          }}
+        >
+          <ChatTeardropTextIcon className="size-4" />
+          Send feedback…
+        </DropdownMenuItem>
+        <DropdownMenuItem
+          onSelect={() => {
+            openExternalLink(SUPPORT_URL);
+          }}
+        >
+          <LifebuoyIcon className="size-4" />
+          Support
+        </DropdownMenuItem>
+        <DropdownMenuSeparator />
+        <DropdownMenuItem onSelect={openShortcutGuide}>
+          <KeyboardIcon className="size-4" />
+          Keyboard shortcuts
+          <DropdownMenuShortcut>?</DropdownMenuShortcut>
+        </DropdownMenuItem>
+      </DropdownMenuContent>
+    </DropdownMenu>
   );
 }
 

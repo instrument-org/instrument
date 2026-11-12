@@ -183,6 +183,32 @@ describe("the app menu and the Window menu", () => {
   });
 });
 
+describe("the Help menu", () => {
+  it("lists feedback, then Support, then the shortcut guide, as the rail's Help does", async () => {
+    const { createHelpMenu } = await menusOn("darwin");
+    const help = (options?: Parameters<typeof createHelpMenu>[0]) => {
+      const { submenu } = createHelpMenu(options);
+      return Array.isArray(submenu) ? rows(submenu) : [];
+    };
+    expect({
+      appWindow: help({ reportProblem: vi.fn(), shortcutGuide: vi.fn() }),
+      otherWindow: help(),
+    }).toMatchInlineSnapshot(`
+      {
+        "appWindow": [
+          "Send Feedback…",
+          "Support",
+          "---",
+          "Keyboard Shortcuts",
+        ],
+        "otherWindow": [
+          "Support",
+        ],
+      }
+    `);
+  });
+});
+
 describe("the app menu's update item", () => {
   it("checks for updates, and offers to restart while one is ready", async () => {
     const { setMenuUpdateReady, withAppMenu } = await menusOn("darwin");

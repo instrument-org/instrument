@@ -1,7 +1,7 @@
 import { type AppPlace } from "@/client/atoms/window";
 import { type ChatId } from "@instrument-org/workspace/client";
 // The rail down the window's edge: New, one entry per place with the one
-// stood in in its well, and at the foot Feedback over the user, the way to
+// stood in in its well, and at the foot Help over the user, the way to
 // Settings.
 import { renderWithProviders } from "@/tests/render";
 import { fireEvent, screen, within } from "@testing-library/react";
@@ -47,8 +47,14 @@ function renderRail(place: AppPlace = "chat", chatMark?: RailChatMark) {
   };
 }
 
+/** Opens the Help menu from its button and chooses one of its items. */
+function chooseFromHelp(button: HTMLElement, item: string) {
+  fireEvent.pointerDown(button, { button: 0, ctrlKey: false });
+  fireEvent.click(screen.getByRole("menuitem", { name: item }));
+}
+
 describe("AppRail", () => {
-  it("names New and the places by the word under each mark, Feedback and Settings by their marks alone, with the place stood in current", () => {
+  it("names New and the places by the word under each mark, Help and Settings by their marks alone, with the place stood in current", () => {
     const { rail } = renderRail("chat");
     expect(
       rail
@@ -63,7 +69,7 @@ describe("AppRail", () => {
       ["Files", null],
       ["Browser", null],
       ["Apps", null],
-      ["Feedback", null],
+      ["Help", null],
       ["Settings", null],
     ]);
   });
@@ -132,7 +138,10 @@ describe("AppRail", () => {
         place="chat"
       />,
     );
-    fireEvent.click(screen.getByRole("button", { name: "Feedback" }));
+    chooseFromHelp(
+      screen.getByRole("button", { name: "Help" }),
+      "Send feedback…",
+    );
     expect(openReportDialog).toHaveBeenLastCalledWith({
       chatId: "cht_1",
       kind: "feedback",
@@ -140,13 +149,27 @@ describe("AppRail", () => {
     });
   });
 
-  it("opens the feedback dialog, about no chat, from Feedback", () => {
+  it("opens the feedback dialog, about no chat, from Help", () => {
     const { rail } = renderRail();
-    fireEvent.click(rail.getByRole("button", { name: "Feedback" }));
+    chooseFromHelp(
+      rail.getByRole("button", { name: "Help" }),
+      "Send feedback…",
+    );
     expect(openReportDialog).toHaveBeenCalledWith({
       kind: "feedback",
       surface: "rail",
     });
+  });
+
+  it("lists Send feedback, Support and Keyboard shortcuts under Help", () => {
+    const { rail } = renderRail();
+    fireEvent.pointerDown(rail.getByRole("button", { name: "Help" }), {
+      button: 0,
+      ctrlKey: false,
+    });
+    expect(
+      screen.getAllByRole("menuitem").map((item) => item.textContent),
+    ).toEqual(["Send feedback…", "Support", "Keyboard shortcuts?"]);
   });
 
   it("opens Settings from the foot", () => {

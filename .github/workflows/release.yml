@@ -663,9 +663,10 @@ jobs:
           name: "*"
           failOnError: false
 
-      # A stable release's card asks someone to publish its draft notes. Its
-      # link is the draft's `untagged-` editing URL, which only works until
-      # someone publishes, after which the tag page is the permanent address.
+      # A stable release's card is tagged as a draft and links the draft's
+      # `untagged-` editing URL, which only works until someone publishes.
+      # release-card.yml then redraws the card from the slack-card artifact
+      # this job keeps, with the tag page as its address.
       - name: Post to Slack
         env:
           SLACK_BOT_TOKEN: ${{ secrets.SLACK_BOT_TOKEN }}
@@ -678,4 +679,14 @@ jobs:
             --mention "${{ vars.SLACK_RELEASE_NOTES_MENTION || '<!channel>' }}" \
             --notes /tmp/release-notes.md \
             --commits /tmp/app-commits.txt \
-            --skills-commits /tmp/skills-commits.txt
+            --skills-commits /tmp/skills-commits.txt \
+            --save slack-card.json
+
+      # Uploaded after "Delete workflow artifacts" so that step leaves it.
+      - name: Keep the Slack card's address
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: slack-card
+          path: slack-card.json
+          retention-days: 90
+          if-no-files-found: ignore

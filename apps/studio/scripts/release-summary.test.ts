@@ -1,11 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import {
-  buildPost,
-  mrkdwn,
-  summarizeCommits,
-  summarizeNotes,
-} from "./release-summary";
+import { buildPost, mrkdwn, richInline, updateBody } from "./release-summary";
 
 const NOTES = `A release focused on a cleaner, more private built-in browser, more ways to connect AI providers, and app icons.
 
@@ -24,79 +19,15 @@ const NOTES = `A release focused on a cleaner, more private built-in browser, mo
 - Tasks refuse instructions that point at places they cannot reach.
 `;
 
-describe("summarizeNotes", () => {
-  it("keeps the summary line and the first bullets of each section", () => {
-    expect(summarizeNotes(NOTES)).toMatchInlineSnapshot(`
-      "A release focused on a cleaner, more private built-in browser, more ways to connect AI providers, and app icons.
-      *Browser*: Ads and trackers are blocked by default; Searches go to DuckDuckGo _(+1 more)_
-      *Providers*: Sign in to several ChatGPT accounts
-      *Fixes and polish*: Tasks refuse instructions that point at places they cannot reach"
-    `);
-  });
-
-  it("cuts a long lead at a word boundary", () => {
-    const summary = summarizeNotes(
-      `## Browser\n\n- ${"word ".repeat(40)}ends here. Detail.`,
-    );
-    expect(summary).toMatch(/^\*Browser\*: (word ){10,}word…$/);
-  });
-
-  it("is undefined for a tag cut without notes", () => {
-    expect(summarizeNotes("")).toBeUndefined();
-    expect(summarizeNotes("\n\n")).toBeUndefined();
-  });
-
-  it("skips a section with no bullets", () => {
-    expect(summarizeNotes("Just a summary.\n\n## Empty\n")).toBe(
-      "Just a summary.",
-    );
-  });
-});
-
-describe("summarizeCommits", () => {
-  it("groups user-facing commits by scope, largest first", () => {
-    const log = [
-      "d68324e9d workspace: let a task turn ad blocking off for its own tabs",
-      "7dac2a4aa studio: reload only the task tab on agent-browser reload",
-      "2699ce60e studio: block ads and trackers in the task browser by default",
-      "88c5550c2 studio: search and complete address-field words with DuckDuckGo",
-      "bb9cfff4a ai-gateway: add OpenCode Go and Zen as API-key providers",
-      "5ccd84067 lint: rename shadowed path and fs, and unexport file-local names",
-      "248077b15 registry: pin skills to fa76d13",
-      "66ff24909 release: v2.0.0-beta.46",
-      "1a2b3c4d5 docs: plan the app directory uplift",
-      "9f8e7d6c5 feat(apps): bundle an icon for 121 directory services",
-    ].join("\n");
-    expect(summarizeCommits(log)).toMatchInlineSnapshot(`
-      "*App* (3): reload only the task tab on agent-browser reload; block ads and trackers in the task browser by default
-      *Agent* (1): let a task turn ad blocking off for its own tabs
-      *Models* (1): add OpenCode Go and Zen as API-key providers
-      *Apps* (1): bundle an icon for 121 directory services"
-    `);
-  });
-
-  it("puts skills under their own area and drops their plumbing", () => {
-    expect(
-      summarizeCommits(
-        "",
-        "fa76d13 dx: pin agent-hooks to 1.4.1\n1234567 create-page: scope the wireframe template",
-      ),
-    ).toMatchInlineSnapshot(`"*Skills* (1): scope the wireframe template"`);
-  });
-
-  it("collapses areas past the first five", () => {
-    const log = ["a", "b", "c", "d", "e", "f", "g"]
-      .map((scope, i) => `abcdef${i} ${scope}: change ${i}`)
-      .join("\n");
-    expect(summarizeCommits(log).split("\n").at(-1)).toBe("_+2 more areas_");
-  });
-
-  it("says so when nothing is user-facing", () => {
-    expect(summarizeCommits("abcdef1 dx: tidy\nabcdef2 docs: note")).toBe(
-      "_No user-facing changes in this release._",
-    );
-  });
-});
+const release = {
+  commits:
+    "abc1234 studio: show typing dots right after you send\nabc1235 ci: cache the build",
+  mention: "<@U0123>",
+  notes: NOTES,
+  releaseUrl: "https://github.com/o/r/releases/tag/untagged-1a2b3c",
+  skillsCommits: "def5678 skills: teach the page skill to share",
+  tag: "v2.1.0",
+};
 
 describe("mrkdwn", () => {
   it.each([
@@ -111,61 +42,112 @@ describe("mrkdwn", () => {
   });
 });
 
-describe("buildPost", () => {
-  const release = {
-    commits:
-      "abc1234 studio: show typing dots right after you send\nabc1235 ci: cache the build",
-    mention: "<!channel>",
-    notes: NOTES,
-    releaseUrl: "https://github.com/o/r/releases/tag/v2.0.0-beta.101",
-    skillsCommits: "def5678 skills: teach the page skill to share",
-    tag: "v2.0.0-beta.101",
-  };
+describe("richInline", () => {
+  it("keeps text as written and turns bold and links into elements", () => {
+    expect(
+      richInline("Use **Ask** & see [the page](https://example.com) <now>"),
+    ).toMatchInlineSnapshot(`
+      [
+        {
+          "text": "Use ",
+          "type": "text",
+        },
+        {
+          "style": {
+            "bold": true,
+          },
+          "text": "Ask",
+          "type": "text",
+        },
+        {
+          "text": " & see ",
+          "type": "text",
+        },
+        {
+          "text": "the page",
+          "type": "link",
+          "url": "https://example.com",
+        },
+        {
+          "text": " <now>",
+          "type": "text",
+        },
+      ]
+    `);
+  });
+});
 
-  it("leads a beta card with the notes and puts every bullet in the thread", () => {
+describe("buildPost", () => {
+  it("tags a stable release's card as a draft and asks for it in the thread", () => {
     const { card, thread } = buildPost(release);
     expect(card).toMatchInlineSnapshot(`
       {
-        "attachments": [
+        "blocks": [
           {
-            "blocks": [
-              {
-                "text": {
-                  "text": ":desktop_computer: *Instrument beta v2.0.0-beta.101 is out*",
-                  "type": "mrkdwn",
-                },
-                "type": "section",
-              },
-              {
-                "text": {
-                  "text": "A release focused on a cleaner, more private built-in browser, more ways to connect AI providers, and app icons.
-      *Browser*: Ads and trackers are blocked by default; Searches go to DuckDuckGo _(+1 more)_
-      *Providers*: Sign in to several ChatGPT accounts
-      *Fixes and polish*: Tasks refuse instructions that point at places they cannot reach",
-                  "type": "mrkdwn",
-                },
-                "type": "section",
-              },
+            "elements": [
               {
                 "elements": [
                   {
-                    "text": "2 changes · 1 skill change · <https://github.com/o/r/releases/tag/v2.0.0-beta.101|Release notes>",
-                    "type": "mrkdwn",
+                    "style": {
+                      "bold": true,
+                    },
+                    "text": "Instrument 2.1.0 is out",
+                    "type": "text",
+                  },
+                  {
+                    "text": "  ",
+                    "type": "text",
+                  },
+                  {
+                    "color": "yellow",
+                    "text": "Notes in draft",
+                    "type": "tag",
                   },
                 ],
-                "type": "context",
+                "type": "rich_text_section",
               },
             ],
-            "color": "#14B8A6",
+            "type": "rich_text",
+          },
+          {
+            "elements": [
+              {
+                "elements": [
+                  {
+                    "text": "A release focused on a cleaner, more private built-in browser, more ways to connect AI providers, and app icons.",
+                    "type": "text",
+                  },
+                ],
+                "type": "rich_text_section",
+              },
+            ],
+            "type": "rich_text",
+          },
+          {
+            "elements": [
+              {
+                "action_id": "review_draft",
+                "style": "primary",
+                "text": {
+                  "text": "Review the draft",
+                  "type": "plain_text",
+                },
+                "type": "button",
+                "url": "https://github.com/o/r/releases/tag/untagged-1a2b3c",
+              },
+            ],
+            "type": "actions",
           },
         ],
-        "text": "Instrument beta v2.0.0-beta.101 is out",
+        "text": "Instrument 2.1.0 is out, and its notes are a draft",
         "unfurl_links": false,
         "unfurl_media": false,
       }
     `);
     expect(thread).toMatchInlineSnapshot(`
-      "*Browser*
+      "<@U0123> the notes for 2.1.0 are a draft on GitHub. Read them over and publish them when they look right.
+
+      *Browser*
       • Ads and trackers are blocked by default. The filter lists are the ones popular ad blockers use; turn it off from "Block ads" in a page's menu.
       • Searches go to DuckDuckGo. Address bar suggestions come from DuckDuckGo too.
       • Agents can lift blocking for their own tabs. Your setting stays as you left it.
@@ -174,22 +156,121 @@ describe("buildPost", () => {
       • Sign in to several ChatGPT accounts. Each is listed as its own provider.
 
       *Fixes and polish*
-      • Tasks refuse instructions that point at places they cannot reach."
+      • Tasks refuse instructions that point at places they cannot reach.
+
+      _2 changes · 1 skill change · <https://github.com/o/r/releases/tag/v2.1.0|Release on GitHub>_"
     `);
   });
 
-  it("asks for the draft to be published on a stable release", () => {
-    const { card } = buildPost({ ...release, notes: "", tag: "v2.1.0" });
+  it("tags a published release and drops the button", () => {
+    const { card, thread } = buildPost({ ...release, published: true });
     expect(card.blocks).toMatchInlineSnapshot(`
       [
         {
-          "text": {
-            "text": "<!channel>: review and publish the draft GitHub release notes for this version.",
-            "type": "mrkdwn",
-          },
-          "type": "section",
+          "elements": [
+            {
+              "elements": [
+                {
+                  "style": {
+                    "bold": true,
+                  },
+                  "text": "Instrument 2.1.0 is out",
+                  "type": "text",
+                },
+                {
+                  "text": "  ",
+                  "type": "text",
+                },
+                {
+                  "color": "green",
+                  "text": "Published",
+                  "type": "tag",
+                },
+              ],
+              "type": "rich_text_section",
+            },
+          ],
+          "type": "rich_text",
+        },
+        {
+          "elements": [
+            {
+              "elements": [
+                {
+                  "text": "A release focused on a cleaner, more private built-in browser, more ways to connect AI providers, and app icons.",
+                  "type": "text",
+                },
+              ],
+              "type": "rich_text_section",
+            },
+          ],
+          "type": "rich_text",
         },
       ]
+    `);
+    expect(thread?.split("\n")[0]).toBe("*Browser*");
+  });
+
+  it("names a beta plainly, with no tag or button", () => {
+    const { card } = buildPost({
+      ...release,
+      releaseUrl: "https://github.com/o/r/releases/tag/v2.0.0-beta.139",
+      tag: "v2.0.0-beta.139",
+    });
+    expect(card.text).toBe("Instrument 2.0.0 beta 139 is out");
+    expect(card.blocks).toHaveLength(2);
+    expect(card.blocks[0]).toMatchInlineSnapshot(`
+      {
+        "elements": [
+          {
+            "elements": [
+              {
+                "style": {
+                  "bold": true,
+                },
+                "text": "Instrument 2.0.0 beta 139 is out",
+                "type": "text",
+              },
+            ],
+            "type": "rich_text_section",
+          },
+        ],
+        "type": "rich_text",
+      }
+    `);
+  });
+
+  it("says when a release has no notes, and lists the commits in the thread", () => {
+    const { card, thread } = buildPost({ ...release, notes: "" });
+    expect(card.blocks[1]).toMatchInlineSnapshot(`
+      {
+        "elements": [
+          {
+            "elements": [
+              {
+                "text": "This release has no notes. Its 2 changes are listed in the thread.",
+                "type": "text",
+              },
+            ],
+            "type": "rich_text_section",
+          },
+        ],
+        "type": "rich_text",
+      }
+    `);
+    expect(thread).toMatchInlineSnapshot(`
+      "<@U0123> the notes for 2.1.0 are a draft on GitHub. Read them over and publish them when they look right.
+
+      *App* (1)
+      • show typing dots right after you send
+
+      *ci* (1)
+      • cache the build
+
+      *Skills* (1)
+      • teach the page skill to share
+
+      _2 changes · 1 skill change · <https://github.com/o/r/releases/tag/v2.1.0|Release on GitHub>_"
     `);
   });
 
@@ -199,20 +280,122 @@ describe("buildPost", () => {
       (_, i) => `${String(i).padStart(7, "0")} studio: change ${i}`,
     ).join("\n");
     const { card, thread } = buildPost({ ...release, commits, notes: "" });
-    expect(card.attachments[0]?.blocks[1]).toMatchInlineSnapshot(`
+    expect(card.blocks[1]).toMatchInlineSnapshot(`
       {
-        "text": {
-          "text": ":warning: *Big release:* 16 changes went out without release notes.",
-          "type": "mrkdwn",
-        },
-        "type": "section",
+        "elements": [
+          {
+            "elements": [
+              {
+                "text": "16 changes went out without release notes. They are listed in the thread.",
+                "type": "text",
+              },
+            ],
+            "type": "rich_text_section",
+          },
+        ],
+        "type": "rich_text",
       }
     `);
-    expect(thread?.split("\n").slice(0, 2)).toMatchInlineSnapshot(`
+    expect(thread?.split("\n").slice(2, 4)).toMatchInlineSnapshot(`
       [
         "*App* (16)",
         "• change 0",
       ]
     `);
+  });
+
+  it("names the sections when the notes have no summary line", () => {
+    const { card } = buildPost({
+      ...release,
+      notes:
+        "## Chats\n\n- One.\n\n## Apps\n\n- Two.\n\n## Fixes\n\n- Three.\n",
+    });
+    expect(card.blocks[1]).toMatchInlineSnapshot(`
+      {
+        "elements": [
+          {
+            "elements": [
+              {
+                "text": "The notes in the thread cover Chats, Apps, and Fixes.",
+                "type": "text",
+              },
+            ],
+            "type": "rich_text_section",
+          },
+        ],
+        "type": "rich_text",
+      }
+    `);
+  });
+});
+
+describe("updateBody", () => {
+  it("redraws a posted card as published, with the tag's page", () => {
+    const body = updateBody(
+      { channel: "C1", release, ts: "1.0" },
+      {
+        published: true,
+        releaseUrl: "https://github.com/o/r/releases/tag/v2.1.0",
+      },
+    );
+    expect(body).toMatchInlineSnapshot(`
+      {
+        "blocks": [
+          {
+            "elements": [
+              {
+                "elements": [
+                  {
+                    "style": {
+                      "bold": true,
+                    },
+                    "text": "Instrument 2.1.0 is out",
+                    "type": "text",
+                  },
+                  {
+                    "text": "  ",
+                    "type": "text",
+                  },
+                  {
+                    "color": "green",
+                    "text": "Published",
+                    "type": "tag",
+                  },
+                ],
+                "type": "rich_text_section",
+              },
+            ],
+            "type": "rich_text",
+          },
+          {
+            "elements": [
+              {
+                "elements": [
+                  {
+                    "text": "A release focused on a cleaner, more private built-in browser, more ways to connect AI providers, and app icons.",
+                    "type": "text",
+                  },
+                ],
+                "type": "rich_text_section",
+              },
+            ],
+            "type": "rich_text",
+          },
+        ],
+        "channel": "C1",
+        "text": "Instrument 2.1.0 is out",
+        "ts": "1.0",
+      }
+    `);
+  });
+
+  it("keeps the stored address when the update names none", () => {
+    const body = updateBody(
+      { channel: "C1", release, ts: "1.0" },
+      { published: false },
+    );
+    expect(body.blocks.at(-1)).toMatchObject({
+      elements: [{ url: release.releaseUrl }],
+    });
   });
 });

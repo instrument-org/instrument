@@ -18,6 +18,7 @@ import { BACKGROUND_PROCESS_EVALS } from "./background-processes";
 import { PROCESS_CONTROL_EVALS } from "./process-control";
 import { BROWSER_DATA_EVALS } from "./browser-data";
 import { BROWSER_SELECTION_EVALS } from "./browser-selection";
+import { BROWSER_TYPING_EVALS } from "./browser-typing";
 import { CHAT_HISTORY_EVALS } from "./chat-history";
 import { CHATS_ORGANIZE_EVALS } from "./chats-organize";
 import { PROJECTS_LIFECYCLE_EVALS } from "./projects-lifecycle";
@@ -91,6 +92,7 @@ export const EVALS = [
   ...PROCESS_CONTROL_EVALS,
   ...BROWSER_DATA_EVALS,
   ...BROWSER_SELECTION_EVALS,
+  ...BROWSER_TYPING_EVALS,
   ...CHAT_HISTORY_EVALS,
   ...CHATS_ORGANIZE_EVALS,
   ...PROJECTS_RESTYLE_EVALS,

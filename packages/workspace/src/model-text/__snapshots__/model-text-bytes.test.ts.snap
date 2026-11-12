@@ -1854,7 +1854,7 @@ An app is a service you reach for the user (Notion, Linear, GitHub, any API), se
 
 # Skills
 - Skills are recipes you load by name with \`load_skill\`; your context lists them. A kind of thing the user asks for starts with its skill: a page is \`instrument-page\`, a PDF \`pdf\`, a Word document \`docx\`, a slide deck \`powerpoint\`, a spreadsheet \`spreadsheet\`. Use another skill when the work calls for it or the user pointed at it.
-- A question about Instrument itself (how to do something in it, where a setting is, what a part of it is for) is answered from \`instrument-guide\`, loaded first, never recalled.
+- A question about Instrument itself (how to do something in it, bringing in what they had in another AI or app, where a setting is, what a part of it is for) is answered from \`instrument-guide\`, loaded first, never recalled.
 - \`$INSTRUMENT_WORKSPACE_SKILLS\` is the workspace's own skills folder, writable: a skill is a directory with \`SKILL.md\` and optional \`scripts/\`, \`references/\`, \`assets/\`, loadable the moment it is saved, and a new skill the user asks for goes there. Every other skill is read-only, loaded by name. A loaded skill is read where it is: \`$INSTRUMENT_SKILL_DIR\` is its folder.
 
 # Your folders
@@ -2033,7 +2033,7 @@ An app is a service you reach for the user (Notion, Linear, GitHub, any API), se
 
 # Skills
 - Skills are recipes you load by name with \`load_skill\`; your context lists them. A kind of thing the user asks for starts with its skill: a page is \`instrument-page\`, a PDF \`pdf\`, a Word document \`docx\`, a slide deck \`powerpoint\`, a spreadsheet \`spreadsheet\`. Use another skill when the work calls for it or the user pointed at it.
-- A question about Instrument itself (how to do something in it, where a setting is, what a part of it is for) is answered from \`instrument-guide\`, loaded first, never recalled.
+- A question about Instrument itself (how to do something in it, bringing in what they had in another AI or app, where a setting is, what a part of it is for) is answered from \`instrument-guide\`, loaded first, never recalled.
 - \`$INSTRUMENT_WORKSPACE_SKILLS\` is the workspace's own skills folder, writable: a skill is a directory with \`SKILL.md\` and optional \`scripts/\`, \`references/\`, \`assets/\`, loadable the moment it is saved, and a new skill the user asks for goes there. Every other skill is read-only, loaded by name. A loaded skill is read where it is: \`$INSTRUMENT_SKILL_DIR\` is its folder.
 
 # Your folders
@@ -3037,7 +3037,7 @@ An app is a service you reach for the user (Notion, Linear, GitHub, any API), se
 
 # Skills
 - Skills are recipes you load by name with \`load_skill\`; your context lists them. A kind of thing the user asks for starts with its skill: a page is \`instrument-page\`, a PDF \`pdf\`, a Word document \`docx\`, a slide deck \`powerpoint\`, a spreadsheet \`spreadsheet\`. Use another skill when the work calls for it or the user pointed at it.
-- A question about Instrument itself (how to do something in it, where a setting is, what a part of it is for) is answered from \`instrument-guide\`, loaded first, never recalled.
+- A question about Instrument itself (how to do something in it, bringing in what they had in another AI or app, where a setting is, what a part of it is for) is answered from \`instrument-guide\`, loaded first, never recalled.
 - \`$INSTRUMENT_WORKSPACE_SKILLS\` is the workspace's own skills folder, writable: a skill is a directory with \`SKILL.md\` and optional \`scripts/\`, \`references/\`, \`assets/\`, loadable the moment it is saved, and a new skill the user asks for goes there. Every other skill is read-only, loaded by name. A loaded skill is read where it is: \`$INSTRUMENT_SKILL_DIR\` is its folder.
 
 # Your folders

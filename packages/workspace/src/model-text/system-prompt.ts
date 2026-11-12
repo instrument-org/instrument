@@ -130,7 +130,7 @@ export function systemPrompt(): string {
 
     # Skills
     - Skills are recipes you load by name with \`${TOOL_NAMES.loadSkill}\`; your context lists them. A kind of thing the user asks for starts with its skill: a page is \`${SKILL_NAMES.instrumentPage}\`, a PDF \`${SKILL_NAMES.pdf}\`, a Word document \`${SKILL_NAMES.docx}\`, a slide deck \`${SKILL_NAMES.powerpoint}\`, a spreadsheet \`${SKILL_NAMES.spreadsheet}\`. Use another skill when the work calls for it or the user pointed at it.
-    - A question about ${APP_NAME} itself (how to do something in it, where a setting is, what a part of it is for) is answered from \`${SKILL_NAMES.instrumentGuide}\`, loaded first, never recalled.
+    - A question about ${APP_NAME} itself (how to do something in it, bringing in what they had in another AI or app, where a setting is, what a part of it is for) is answered from \`${SKILL_NAMES.instrumentGuide}\`, loaded first, never recalled.
     - \`$${V.workspaceSkills}\` is the workspace's own skills folder, writable: a skill is a directory with \`SKILL.md\` and optional \`scripts/\`, \`references/\`, \`assets/\`, loadable the moment it is saved, and a new skill the user asks for goes there. Every other skill is read-only, loaded by name. A loaded skill is read where it is: \`$${V.skill}\` is its folder.
 
     # Your folders

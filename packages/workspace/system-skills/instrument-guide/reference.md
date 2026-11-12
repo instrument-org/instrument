@@ -85,6 +85,7 @@ Link one as `[Label](instrument://screen/<name>)`.
 - **Activity** (`activity`): What you did in Instrument, with the AI requests your chats made, to search and clear.
 - **Apps** (`apps`): The services Instrument can work in for you, and connecting one.
 - **Browser** (`browser`): A browser of your own, which tasks can work in beside you.
+- **Extensions** (`extensions`): The Chrome extensions in your browser, and adding more from the Chrome Web Store.
 - **Release notes** (`release-notes`): What changed in each version.
 - **Keyboard shortcuts** (`shortcuts`): Every keyboard shortcut, by section.
 

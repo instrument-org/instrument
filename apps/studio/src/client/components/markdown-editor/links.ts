@@ -22,9 +22,10 @@ import { $prose } from "@milkdown/kit/utils";
 import { icon, type IconName, instrumentMark } from "./icons";
 
 // Links in the Markdown editor. A plain click edits, as it does anywhere in
-// the text, and shows the link's tooltip, whose address opens the link in
-// place. A Cmd-click (Ctrl off macOS) or a middle click, on the link or on
-// that address, opens it in a tab of its own, as anywhere else in the window.
+// the text, and shows the link's tooltip, whose address opens a file or a
+// screen in place and a web page in a tab of its own, beside the file. A
+// Cmd-click (Ctrl off macOS) or a middle click, on the link or on that
+// address, opens anything in a tab of its own, as anywhere else in the window.
 // A link written relative to the file names a file beside it and opens in the
 // app's viewer; one that names nothing on disk is marked, so a renamed or
 // deleted file shows where it was linked.
@@ -131,7 +132,7 @@ export function linksPlugin({
         ? openTargetOfHref(href, folder)
         : { kind: "path" as const, path: there };
     if (target) {
-      open(target, newTab);
+      open(target, newTab || target.kind === "page");
     }
   };
 

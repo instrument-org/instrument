@@ -12,10 +12,9 @@
  *
  * `--notes` holds the tag's message (empty for a tag cut without notes);
  * `--commits` and `--skills-commits` hold `git log --pretty="%h %s"` output.
- * With SLACK_BOT_TOKEN and SLACK_RELEASE_CHANNEL set, posts the card and its
- * thread reply as the bot, and `--save` writes the card's channel, `ts` and
- * release to a file; otherwise, or when the bot cannot post, the card alone
- * goes to SLACK_RELEASE_WEBHOOK_URL. `update` reads that file and rebuilds
+ * Posts the card and its thread reply as the bot, with SLACK_BOT_TOKEN and
+ * SLACK_RELEASE_CHANNEL, and `--save` writes the card's channel, `ts` and
+ * release to a file. `update` reads that file and rebuilds
  * the card for the GitHub release's state, which `release-card.yml` runs
  * whenever the release is published or unpublished. Dependency-free so a
  * release job can run it with Node alone. The internal repository's
@@ -320,60 +319,34 @@ function commitsText(release: Release) {
 /** Where a posted card is, and the release it was built from, for `update`. */
 type PostedCard = { channel: string; release: Release; ts: string };
 
-/**
- * Posts the card, then its thread reply when a bot token can make one, and
- * returns where the card is. A card the bot cannot post, such as when it is
- * not in the channel, goes through the webhook instead and has no `ts`.
- */
+/** Posts the card as the bot, then its thread reply, and returns where the card is. */
 export async function post(
   release: Release,
   env: Record<string, string | undefined>,
-): Promise<PostedCard | undefined> {
+): Promise<PostedCard> {
   const { card, thread } = buildPost(release);
   const token = env.SLACK_BOT_TOKEN;
   const channel = env.SLACK_RELEASE_CHANNEL;
-  const webhook = env.SLACK_RELEASE_WEBHOOK_URL;
-  if (token && channel) {
-    let posted: Awaited<ReturnType<typeof slackApi>> | undefined;
-    try {
-      posted = await slackApi(token, "chat.postMessage", { ...card, channel });
-    } catch (error) {
-      if (!webhook) {
-        throw error;
-      }
-      console.warn(
-        `::warning::Posting as the bot failed, using the webhook: ${String(error)}`,
-      );
-    }
-    if (posted?.ts) {
-      if (thread) {
-        await slackApi(token, "chat.postMessage", {
-          channel,
-          text: thread,
-          thread_ts: posted.ts,
-          unfurl_links: false,
-          unfurl_media: false,
-        });
-      }
-      return { channel: posted.channel ?? channel, release, ts: posted.ts };
-    }
+  if (!token || !channel) {
+    throw new Error("Set SLACK_BOT_TOKEN and SLACK_RELEASE_CHANNEL");
   }
-  if (!webhook) {
-    throw new Error(
-      "Set SLACK_BOT_TOKEN and SLACK_RELEASE_CHANNEL, or SLACK_RELEASE_WEBHOOK_URL",
-    );
-  }
-  const response = await fetch(webhook, {
-    body: JSON.stringify(card),
-    headers: { "Content-Type": "application/json" },
-    method: "POST",
+  const posted = await slackApi(token, "chat.postMessage", {
+    ...card,
+    channel,
   });
-  if (!response.ok) {
-    throw new Error(
-      `Slack webhook answered ${response.status}: ${await response.text()}`,
-    );
+  if (!posted.ts) {
+    throw new Error("chat.postMessage answered without a ts");
   }
-  return undefined;
+  if (thread) {
+    await slackApi(token, "chat.postMessage", {
+      channel,
+      text: thread,
+      thread_ts: posted.ts,
+      unfurl_links: false,
+      unfurl_media: false,
+    });
+  }
+  return { channel: posted.channel ?? channel, release, ts: posted.ts };
 }
 
 /** The `chat.update` body that redraws a posted card for its release's state. */
@@ -479,7 +452,7 @@ if (
     } else {
       const posted = await post(release, process.env);
       const save = readFlag(args, "--save");
-      if (posted && save) {
+      if (save) {
         writeFileSync(save, JSON.stringify(posted));
       }
     }

@@ -37,8 +37,8 @@ jobs:
           node-version: "24"
 
       # The release run for the tag kept the card's channel and `ts` as its
-      # slack-card artifact. Releases posted through the webhook, or before
-      # that artifact existed, have none, and their card stays as it is.
+      # slack-card artifact. Releases posted before that artifact existed
+      # have none, and their card stays as it is.
       - name: Update the Slack card
         env:
           GH_TOKEN: ${{ github.token }}

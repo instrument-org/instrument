@@ -8,20 +8,17 @@ import { useQuery } from "@tanstack/react-query";
 import { type ReactNode } from "react";
 
 import { type ChangesCard, ProjectChangesCard } from "./project-changes-card";
-import {
-  AppChangesCard,
-  MemoryChangesCard,
-  SkillChangesCard,
-} from "./setup-change-cards";
+import { MemoryChangesCard, SkillChangesCard } from "./setup-change-cards";
 import { ProjectPill } from "./window/chat-row";
 
 type SetupChange =
   SessionMessageDataPart.SetupChangesDataPart["changes"][number];
 
 /**
- * What a turn did to the person's projects, memories, skills and apps: a
- * card for each kind, in that order, each with Undo where its changes can
- * be taken back. Only the turn's own writes are here, so each row is
+ * What a turn did to the person's projects, memories and skills: a card
+ * for each kind, in that order, each with Undo where its changes can be
+ * taken back. An app gets no card: the sign-in card and the reply already
+ * say what happened to it. Only the turn's own writes are here, so each row is
  * something this chat did. A project whose file was only written to, with
  * nothing recorded of what changed, keeps a line of its own above them.
  */
@@ -55,7 +52,6 @@ export function SetupChangesNote({
     changes.filter((change) => change.kind === kind);
   const memories = of("memory");
   const skills = of("skill");
-  const apps = of("app");
   return (
     <>
       {lines.length > 0 && (
@@ -87,7 +83,6 @@ export function SetupChangesNote({
         />
       )}
       {skills.length > 0 && <SkillChangesCard changes={skills} />}
-      {apps.length > 0 && <AppChangesCard changes={apps} />}
     </>
   );
 }

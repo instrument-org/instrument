@@ -64,8 +64,8 @@ export function setupChangeSentence(
   }
 }
 
-/** The kinds a card of their own lists, which every one but projects is. */
-type CardKind = Exclude<SetupChange["kind"], "project">;
+/** The kinds a card of their own lists: memories and skills. */
+type CardKind = Exclude<SetupChange["kind"], "app" | "project">;
 
 const CARD_WORDS: Record<
   CardKind,
@@ -76,12 +76,6 @@ const CARD_WORDS: Record<
     many: string;
   }
 > = {
-  app: {
-    a: "an app",
-    did: { added: "Added", changed: "Updated", removed: "Removed" },
-    line: { added: "Added", changed: "Updated", removed: "Removed" },
-    many: "apps",
-  },
   memory: {
     a: "a memory",
     did: { added: "Saved", changed: "Updated", removed: "Forgot" },
@@ -97,8 +91,8 @@ const CARD_WORDS: Record<
 };
 
 /**
- * A card's heading, from what the turn did to its memories, skills or apps:
- * what was done when it did one thing ("Saved 2 memories", "Added an app"),
+ * A card's heading, from what the turn did to its memories or skills: what
+ * was done when it did one thing ("Saved 2 memories", "Created a skill"),
  * else how many changed ("Changed 3 memories").
  */
 export function setupChangesHeading(
@@ -115,7 +109,7 @@ export function setupChangesHeading(
     : `Changed ${things}`;
 }
 
-/** What happened to one memory, skill or app, as its row's line says it: "Saved", "Forgotten". */
+/** What happened to one memory or skill, as its row's line says it: "Saved", "Forgotten". */
 export function setupChangeWord(
   kind: CardKind,
   change: SetupChange["change"],

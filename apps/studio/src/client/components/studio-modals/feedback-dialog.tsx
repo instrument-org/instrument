@@ -447,8 +447,8 @@ export function FeedbackDialogContent({
     };
     onClose();
     toast.work({
-      done: "Thanks, we got your feedback.",
-      failed: "Couldn't send your feedback",
+      done: "Thanks! Feedback submitted.",
+      failed: "Error sending your feedback",
       onDone: request.onSent,
       run: async () => {
         await rpcClient.problems.sendFeedback.call({

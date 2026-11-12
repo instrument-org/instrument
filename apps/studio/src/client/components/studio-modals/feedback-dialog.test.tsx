@@ -183,8 +183,8 @@ describe("FeedbackDialogContent", () => {
     fireEvent.click(screen.getByRole("button", { name: "Send" }));
     expect(getDefaultStore().get(reportDialogAtom)).toBeNull();
     expect(work.mock.calls[0]?.[0]).toMatchObject({
-      done: "Thanks, we got your feedback.",
-      failed: "Couldn't send your feedback",
+      done: "Thanks! Feedback submitted.",
+      failed: "Error sending your feedback",
       running: "Sending your feedback…",
     });
   });

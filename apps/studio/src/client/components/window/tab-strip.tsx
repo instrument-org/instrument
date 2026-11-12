@@ -661,6 +661,32 @@ export function NewTabButton(props: ComponentProps<"button">) {
 }
 
 /**
+ * Lights the tab with `key` for a moment (`[data-tab-flash]` in globals.css),
+ * so the eye lands on the tab something was brought up in rather than opened.
+ * An attribute rather than a class, since the tab's className is React's and a
+ * class put there would go with the render that selects the tab. Taken off and
+ * put back with a layout read between, so a tab still lit starts over.
+ */
+export function flashStripTab(key: string) {
+  const tab = document.querySelector<HTMLElement>(
+    `[data-tab-key="${CSS.escape(key)}"]`,
+  );
+  if (!tab) {
+    return;
+  }
+  tab.removeAttribute("data-tab-flash");
+  tab.getBoundingClientRect();
+  tab.setAttribute("data-tab-flash", "");
+  const done = (event: AnimationEvent) => {
+    if (event.animationName === "tab-flash") {
+      tab.removeAttribute("data-tab-flash");
+      tab.removeEventListener("animationend", done);
+    }
+  };
+  tab.addEventListener("animationend", done);
+}
+
+/**
  * Scrolls a tab clear of its row's ends and of their fades, which are there only
  * where the row goes on: at its very end the scroll stops short, with the
  * padding's room left. Offsets are layout px, which is what scrollLeft is in

@@ -1321,6 +1321,26 @@ a.cursor-pointer {
   }
 }
 
+/* A window tab an outside link brought up rather than opened; see
+ * `flashStripTab`. The heading flash's tint and timing, laid as an image over
+ * the tab's own color so the tab up keeps its surface and shadow throughout. */
+[data-tab-flash] {
+  animation: tab-flash 1.2s ease-out both;
+}
+
+@keyframes tab-flash {
+  0%,
+  33% {
+    background-image: linear-gradient(
+      --alpha(var(--primary) / 12%),
+      --alpha(var(--primary) / 12%)
+    );
+  }
+  100% {
+    background-image: linear-gradient(transparent, transparent);
+  }
+}
+
 /* A send the composer's model notice refused: the row lights in its own yellow
  * and settles back, so the eye goes to the reason already on screen. Drawn
  * inside the row, so a parent that clips cannot cut it off, and a color rather

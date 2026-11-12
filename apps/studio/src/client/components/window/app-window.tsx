@@ -161,6 +161,7 @@ import {
   useWindowTabs,
   windowTabsAtom,
 } from "./window-tabs";
+import { flashStripTab } from "./tab-strip";
 import { useFollowFolderMoves } from "./follow-folder-moves";
 import {
   forgetMovedAway,
@@ -1073,6 +1074,19 @@ function WindowShell({
   useWindowDropFallback(({ hostPath, isFolder }) => {
     appTabs.open(isFolder ? folderHref(hostPath) : fileHref(hostPath));
   });
+  // Something from outside the app that a tab already shows comes up there
+  // and lights that tab, since a switch alone, or no change at all when the
+  // tab was already up, is easy to miss.
+  const showFromOutside = (href: string): boolean => {
+    if (!appTabs.selectShowing(href)) {
+      return false;
+    }
+    const shown = store.get(appTabsAtom).selectedId;
+    if (shown) {
+      flashStripTab(shown);
+    }
+    return true;
+  };
   useWindowCommands(
     {
       back: () => {
@@ -1113,7 +1127,7 @@ function WindowShell({
         );
         if (folder !== undefined) {
           const href = folderHref(folder);
-          if (!appTabs.selectShowing(href)) {
+          if (!showFromOutside(href)) {
             openScreen(href, { newTab: true });
           }
         }
@@ -1156,16 +1170,16 @@ function WindowShell({
       },
       openFile: (hostPath) => {
         const href = fileHref(hostPath);
-        if (!appTabs.selectShowing(href)) {
+        if (!showFromOutside(href)) {
           appTabs.open(href);
         }
       },
       openScreen: (href) => {
-        if (!appTabs.selectShowing(href)) {
+        if (!showFromOutside(href)) {
           openScreen(href, { newTab: true });
         }
       },
-      showTab: appTabs.selectShowing,
+      showTab: showFromOutside,
       moveTabToNewWindow: () => {
         if (appTabs.model.selectedId) {
           void moveTabOut(appTabs.model.selectedId, { kind: "new" });

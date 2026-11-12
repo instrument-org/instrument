@@ -807,6 +807,9 @@ function WindowShell({
       onSuccess: () => void projectsQuery.refetch(),
     }),
   );
+  const checkForUpdates = useMutation(
+    rpcClient.preferences.checkForUpdates.mutationOptions(),
+  );
   const setChatProject = useSetChatProject();
   // The new-project dialog, asked for from a chat's head or a draft's, with
   // what was typed in the picker: the project it makes files that chat or
@@ -1133,6 +1136,20 @@ function WindowShell({
               "Instrument saves a page it opens into your Downloads folder, which didn't take it.",
           });
         }
+      },
+      // Fixed words: the link's own are in no toast, since a site can send
+      // one with no click at all.
+      linkNotOpened: () => {
+        toast("Couldn't open that link", {
+          action: {
+            label: "Check for updates",
+            onClick: () => {
+              checkForUpdates.mutate();
+            },
+          },
+          description:
+            "This version of Instrument doesn't know that kind of link, but a newer one might.",
+        });
       },
       openFile: (hostPath) => {
         const href = fileHref(hostPath);

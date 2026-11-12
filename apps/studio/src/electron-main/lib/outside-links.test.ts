@@ -497,14 +497,20 @@ describe("openOutsideLink", () => {
   const open = async (
     url: string,
     {
+      checks,
       gate = () => true,
       waiting = 0,
-    }: { gate?: (url: string) => boolean; waiting?: number } = {},
+    }: {
+      checks?: Parameters<typeof openOutsideLink>[1]["checks"];
+      gate?: (url: string) => boolean;
+      waiting?: number;
+    } = {},
   ) => {
     const asked: unknown[] = [];
     const logged: string[] = [];
     await openOutsideLink(url, {
       ask: (ask) => asked.push(ask),
+      checks,
       gate,
       log: (line) => logged.push(line),
       waiting: () => waiting,
@@ -565,11 +571,18 @@ describe("openOutsideLink", () => {
           ],
         }
       `);
-    expect(await open("instrument://chat")).toMatchInlineSnapshot(`
+    expect(
+      await open("instrument://file/home/linux-user/.ssh/id_ed25519", {
+        checks: {
+          hostPaths: path.posix,
+          isRefused: () => Promise.resolve(true),
+        },
+      }),
+    ).toMatchInlineSnapshot(`
       {
         "asked": [],
         "logged": [
-          "A chat link opens nothing: it names nothing here, or a path that is not plainly this computer's or that the app refuses",
+          "A file link opens nothing: it names a path that is not plainly this computer's or that the app refuses",
         ],
       }
     `);
@@ -592,6 +605,61 @@ describe("openOutsideLink", () => {
         ],
       }
     `);
+  });
+
+  // A link this build cannot read may be one a newer build writes, so the
+  // window says so and offers an update, in words that carry nothing of the
+  // link: a site can send one with no click at all. Its text goes to the log
+  // alone, where it can be looked at.
+  describe("with a link the app does not know", () => {
+    it.each([
+      ["a noun it has no screen for", "instrument://recipe/abc"],
+      ["a noun with no name", "instrument://chat"],
+      ["a name with a second segment", "instrument://chat/abc/def"],
+      ["a page id that is no host label", "instrument://page/Weekly_Report"],
+      ["a page with a query", "instrument://page/weekly?from=mail"],
+      [
+        "a files link naming only a web address",
+        "instrument://files?path=https%3A%2F%2Fexample.com",
+      ],
+      ["an address that is not the app's scheme", "https://example.com/open"],
+      ["something that is no address", "not a link"],
+    ])("says so for %s", async (_, url) => {
+      expect((await open(url)).asked).toEqual([[{ type: "linkNotOpened" }]]);
+    });
+
+    it("keeps the link in the log, and only its first 200 characters", async () => {
+      const long = `instrument://recipe/${"a".repeat(300)}`;
+      const { logged } = await open(long);
+      expect(logged).toEqual([
+        `A link the app does not know asks the window to say so: ${long.slice(0, 200)}`,
+      ]);
+    });
+
+    it("counts against the gate like any other link, and is let go silently when the gate says so", async () => {
+      const gated: string[] = [];
+      const { asked, logged } = await open("instrument://recipe/abc", {
+        gate: (each) => {
+          gated.push(each);
+          return false;
+        },
+      });
+      expect(gated).toEqual(["instrument://recipe/abc"]);
+      expect(asked).toEqual([]);
+      expect(logged).toEqual([
+        "Let a recipe link go: the same link again, or too many this minute",
+      ]);
+    });
+
+    it("is let go while ten asks wait, before the link is read", async () => {
+      const { asked, logged } = await open("https://example.com/open", {
+        waiting: 10,
+      });
+      expect(asked).toEqual([]);
+      expect(logged).toEqual([
+        "Let a example.com link go: 10 asks already wait for the window",
+      ]);
+    });
   });
 });
 

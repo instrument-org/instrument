@@ -135,6 +135,11 @@ export interface BrowserEntry {
   // GUIDs of the agent's downloads not yet reported finished, whose finish
   // only `downloads.ts` reports (`holdsDownloadEvent`).
   agentDownloads: Set<string>;
+  // Whether the window holds this page only as a step of a tab's history,
+  // back or forward from what the tab shows, as its renderer last reported
+  // (`syncGuestsPutAway`). Such a page is closed once it makes sound
+  // (`put-away-sound.ts`).
+  putAway: boolean;
   screencastInterval: null | ReturnType<typeof setInterval>;
   screencastSessionId: number;
   // Whether a slot in the window shows this guest rather than parking it, as
@@ -198,6 +203,7 @@ export function createEntry({
     pendingDownloadGuids: new Map(),
     agentDownloads: new Set(),
     phase: "pending",
+    putAway: false,
     restoreHistory,
     src,
     screencastInterval: null,

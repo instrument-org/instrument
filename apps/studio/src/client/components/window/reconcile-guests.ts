@@ -24,6 +24,26 @@ export const EMPTY_GUEST_MEMO: GuestMemo = {
 };
 
 /**
+ * The attached guests the window holds only as a step of a tab's history,
+ * back or forward from what the tab shows, whose pages run on out of sight.
+ */
+export function putAwayGuests({
+  attached,
+  heldIds,
+  upIds,
+}: {
+  attached: ReadonlySet<BrowserTargetId>;
+  /** Every tab id the window holds, visits in a tab's history included. */
+  heldIds: ReadonlySet<string>;
+  /** The id of what each tab shows. */
+  upIds: ReadonlySet<string>;
+}): BrowserTargetId[] {
+  return [...attached]
+    .filter((target) => heldIds.has(target) && !upIds.has(target))
+    .toSorted();
+}
+
+/**
  * The attached guests set against the tabs the window holds.
  *
  * A guest is one of the window's page tabs, keyed by the tab's id, and

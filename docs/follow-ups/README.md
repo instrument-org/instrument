@@ -46,6 +46,7 @@ Each entry is the follow-up's title and the opening of its own `Status:` line.
 - [Which RPC procedures send a window megabytes](rpc-payload-sizes.md): open · Check after: 2026-11-29, after a week or more on a beta that carries the payload warnings · Last checked: never
 - [Whether the unattended-step and output-limit caps ever trip](step-and-output-caps.md): open · Check after: 2026-11-21 · Last checked: 2026-10-24
 - [Why the stopped-reply test fails on Linux CI](stopped-reply-words-on-disk.md): closed 2026-10-26 · Check after: 2026-11-08, or the next CI failure of the test · Last checked: 2026-10-26
+- [Pages that keep playing after their tab steps away](stray-sound.md): open · Check after: 2026-12-03, after a week or more on a beta that closes put-away pages for their sound · Last checked: never
 - [Why an agent-browser command sometimes never comes back](stuck-agent-browser-commands.md): open · Check after: 2026-11-21, or once a beta carrying cd075493c has run on the Linux and Windows test hosts for a week, whichever is later · Last checked:...
 - [Which processes stay busy in real use, and whether tab sleep ended the hidden-tab cost](sustained-cpu-and-tab-sleep.md): closed as answered: no sustained-CPU episode in about two weeks of daily use, and tab sleep holds (see Result) · Last checked: 2026-11-08
 - [Whether a task's page card still shows only the site's icon](task-card-page-pictures.md): open · Check after: 2026-11-22, after a week on a beta carrying the fix below · Last checked: never

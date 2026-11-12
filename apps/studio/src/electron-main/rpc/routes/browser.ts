@@ -190,6 +190,18 @@ const syncGuestShown = base
     }
   });
 
+// The window's pages it holds only as a step of a tab's history, back or
+// forward from what the tab shows, reported whole on each change. Main closes
+// one of them that makes sound.
+const syncGuestsPutAway = base
+  .input(z.object({ targetIds: z.array(BrowserTargetIdSchema) }))
+  .handler(({ context, input }) => {
+    getBrowserViewManager().setGuestsPutAway(
+      context.webContentsId,
+      input.targetIds,
+    );
+  });
+
 const syncHostFocus = base.handler(() => {
   getBrowserViewManager().setHostFocus();
 });
@@ -427,6 +439,7 @@ export const browser = {
   setEmulatedDevice,
   syncFocus,
   syncGuestShown,
+  syncGuestsPutAway,
   syncGuestSurface,
   syncHostFocus,
   syncRasterBudget,

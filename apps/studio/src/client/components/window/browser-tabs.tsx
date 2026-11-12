@@ -39,7 +39,11 @@ import { segmentsOf } from "./host-path";
 import { PageEditSession, PageEditToggle } from "./page-edit";
 import { pageHostsAtom, type PageHost } from "./page-hosts";
 import { pageEditTabsAtom, usePageEditToggleOnScreen } from "./page-edit-state";
-import { EMPTY_GUEST_MEMO, reconcileGuests } from "./reconcile-guests";
+import {
+  EMPTY_GUEST_MEMO,
+  putAwayGuests,
+  reconcileGuests,
+} from "./reconcile-guests";
 import { visitInTab } from "./tab-history";
 import { chatOfGroup } from "./window-href";
 import {
@@ -330,6 +334,26 @@ export function BrowserTabs({
         });
     }
   }, [attached, everyTabId]);
+
+  // Main closes a page the window keeps only as a step of a tab's history
+  // once it makes sound, so it is told which pages those are.
+  const upIds = allTabs.map((tab) => tab.id).join("\n");
+  const putAwayReported = useRef<null | string>(null);
+  useEffect(() => {
+    const targetIds = putAwayGuests({
+      attached,
+      heldIds: everyTabId,
+      upIds: new Set(upIds.split("\n")),
+    });
+    const reported = targetIds.join("\n");
+    if (reported === putAwayReported.current) {
+      return;
+    }
+    putAwayReported.current = reported;
+    void rpcClient.browser.syncGuestsPutAway.call({ targetIds }).catch(() => {
+      putAwayReported.current = null;
+    });
+  }, [attached, everyTabId, upIds]);
 
   // Titles, addresses and icons come off the guests as the pages announce
   // them: the pages navigate by the user's hand and by an agent's, so the

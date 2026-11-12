@@ -161,6 +161,7 @@ import {
   useWindowTabs,
   windowTabsAtom,
 } from "./window-tabs";
+import { useFollowFolderMoves } from "./follow-folder-moves";
 import {
   forgetMovedAway,
   hasMovedAway,
@@ -567,6 +568,8 @@ function WindowShell({
   const windowSteps = useWindowSteps();
   // Every screen a group's tab stands on is walked by a router of its own.
   useGroupTabRouters(windowTabs.allTabs, windowTabs.screenMoved);
+  // And each follows a chat's folder moving to the chat's title.
+  useFollowFolderMoves(opened !== undefined);
 
   // Apps in the rail wears a dot for an app signed out since Apps was last
   // shown; showing Apps is what counts as seeing it.

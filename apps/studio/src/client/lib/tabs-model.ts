@@ -1,5 +1,6 @@
 import { matchScreen } from "@/client/components/window/window-href";
 import {
+  movedTabHistory,
   neighborAt,
   type Tab,
   type TabId,
@@ -295,6 +296,30 @@ export function setTabPathname(
       tab.id === id ? { ...tab, history, pathname } : tab,
     ),
   };
+}
+
+/**
+ * Every tab's address and history, open and closed, at the address `move`
+ * gives each, the way a folder they stand in moving takes them: the same
+ * model when nothing moved.
+ */
+export function tabsModelAfterMove(
+  model: TabsModel,
+  move: (href: string) => string,
+): TabsModel {
+  const tabMoved = <T extends Tab>(tab: T): T => {
+    const pathname = move(tab.pathname);
+    const history = movedTabHistory(tab.history, move);
+    return pathname === tab.pathname && history === tab.history
+      ? tab
+      : { ...tab, pathname, ...(history === undefined ? {} : { history }) };
+  };
+  const tabs = model.tabs.map(tabMoved);
+  const recentlyClosed = model.recentlyClosed.map(tabMoved);
+  return tabs.every((tab, at) => tab === model.tabs[at]) &&
+    recentlyClosed.every((tab, at) => tab === model.recentlyClosed[at])
+    ? model
+    : { ...model, recentlyClosed, tabs };
 }
 
 /**

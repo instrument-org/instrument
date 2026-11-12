@@ -72,10 +72,13 @@ export const publisher = new EventPublisher<{
   /**
    * A chat's own folder under `Chats/` moved to its title. Published by
    * `followTitle` once the new name is recorded; what a chat's messages
-   * name in the folder is found again under it.
+   * name in the folder is found again under it, and a tab standing in it
+   * follows it from `from` to `to`, both where the folder is on the computer.
    */
   "chat.folderMoved": {
+    from: string;
     id: ChatId;
+    to: string;
   };
   /**
    * A chat stopped working: its agent, every task filed from it and every

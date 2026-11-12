@@ -3,6 +3,8 @@ import os from "node:os";
 import path from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
+import { folderHref } from "@/shared/computer-href";
+
 import { createKeptStateStore, rewriteFolderAddresses } from "./kept-state";
 
 let dir: string;
@@ -142,6 +144,8 @@ describe("the Files addresses a window is left on", () => {
               href: `/files?file=${encodeURIComponent("/data/workspace/report.pdf")}&path=&root=~`,
             },
             { href: "/files?path=Documents%2F&root=~" },
+            // As the router writes a search, each space a `+`.
+            { href: folderHref("/data/workspace/Chats/Garden plans") },
             { href: "/chats/c1" },
           ],
         },
@@ -173,6 +177,9 @@ describe("the Files addresses a window is left on", () => {
                 "href": "/files?path=Documents%2F&root=~",
               },
               {
+                "href": "/files?path=&root=%2FUsers%2Fsam%2FDocuments%2FInstrument%2FChats%2FGarden+plans",
+              },
+              {
                 "href": "/chats/c1",
               },
             ],
@@ -181,7 +188,7 @@ describe("the Files addresses a window is left on", () => {
         }
       `);
     expect(done).toEqual([
-      `wrote 2 address(es) where they went in ${path.join(dir, "layout.json")}`,
+      `wrote 3 address(es) where they went in ${path.join(dir, "layout.json")}`,
     ]);
   });
 

@@ -1,5 +1,6 @@
 import { workspaceWindowDir } from "@/electron-main/lib/get-workspace-folder";
 import { appWindowIdOf } from "@/electron-main/windows/app-window-ids";
+import { movedFilesAddress } from "@/shared/computer-href";
 import {
   isKeptFile,
   KEPT_STATE_CHANNEL,
@@ -128,9 +129,6 @@ function writeObject(target: string, keys: Record<string, unknown>) {
   fs.renameSync(temporary, target);
 }
 
-/** The query keys of a Files address that name a folder or a file by its path. */
-const FILES_ADDRESS_PATHS = new Set(["file", "root", "tree"]);
-
 /**
  * Writes every Files address in where the person left off (a tab's, and a
  * step of its history: `/files?root=<path>`) naming its folder or its file
@@ -172,7 +170,9 @@ function rewriteAddressesIn(
       if (!value.startsWith("/files?")) {
         return value;
       }
-      const moved = movedFilesAddress(value, where);
+      const moved = movedFilesAddress(value, (hostPath) =>
+        path.isAbsolute(hostPath) ? where(hostPath) : hostPath,
+      );
       if (moved !== value) {
         rewritten += 1;
       }
@@ -205,35 +205,6 @@ function rewriteAddressesIn(
   return [
     `wrote ${rewritten.toString()} address(es) where they went in ${file}`,
   ];
-}
-
-function movedFilesAddress(
-  address: string,
-  where: (hostPath: string) => string,
-): string {
-  const at = address.indexOf("?");
-  const query = address
-    .slice(at + 1)
-    .split("&")
-    .map((pair) => {
-      const equals = pair.indexOf("=");
-      const key = pair.slice(0, equals);
-      if (equals === -1 || !FILES_ADDRESS_PATHS.has(key)) {
-        return pair;
-      }
-      let hostPath: string;
-      try {
-        hostPath = decodeURIComponent(pair.slice(equals + 1));
-      } catch {
-        return pair;
-      }
-      if (!path.isAbsolute(hostPath)) {
-        return pair;
-      }
-      const moved = where(hostPath);
-      return moved === hostPath ? pair : `${key}=${encodeURIComponent(moved)}`;
-    });
-  return `${address.slice(0, at)}?${query.join("&")}`;
 }
 
 /**

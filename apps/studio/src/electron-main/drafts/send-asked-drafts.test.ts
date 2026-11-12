@@ -2,7 +2,7 @@ import { type Draft, type DraftOp, type DraftsSnapshot } from "@/shared/drafts";
 import { type ChatId } from "@instrument-org/workspace/electron";
 import { describe, expect, it, vi } from "vitest";
 
-import { ASK_FRESH_MS } from "@instrument-org/shared";
+import { ASK_FRESH_MS, SEND_FRESH_MS } from "@instrument-org/shared";
 
 import { type AskedReply, startSendingAskedDrafts } from "./send-asked-drafts";
 
@@ -93,9 +93,18 @@ describe("startSendingAskedDrafts", () => {
     });
   });
 
+  // A sleeping Mac takes a phone's draft only in a short wake.
+  it("sends a reply asked for longer ago than an answer stays fresh", async () => {
+    const send = vi.fn(() => Promise.resolve());
+    run([reply({ updatedAt: NOW - ASK_FRESH_MS - 1 })], send);
+    await vi.waitFor(() => {
+      expect(send).toHaveBeenCalledOnce();
+    });
+  });
+
   it("leaves a reply asked too long ago in its box, unsent", async () => {
     const send = vi.fn(() => Promise.resolve());
-    const applied = run([reply({ updatedAt: NOW - ASK_FRESH_MS - 1 })], send);
+    const applied = run([reply({ updatedAt: NOW - SEND_FRESH_MS - 1 })], send);
     await vi.waitFor(
       () => {
         expect(applied).toEqual([

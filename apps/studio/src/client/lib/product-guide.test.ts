@@ -3,13 +3,48 @@
 import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 
 import { settingsTargetOf } from "@/client/components/settings/settings-index";
 import { instrumentLinkOf } from "@instrument-org/shared";
 import { isScreenName } from "@/shared/instrument-screens";
 
 import { productGuideReference } from "./product-guide";
+
+// The menu bar is built as the main process builds it on a Mac, with the
+// little of Electron it touches while building stood in for.
+vi.mock("electron", () => ({
+  app: { getName: () => "Instrument" },
+  BrowserWindow: { getFocusedWindow: () => null },
+  Menu: { getApplicationMenu: () => null },
+  nativeImage: { createMenuSymbol: () => ({}) },
+  shell: {},
+}));
+vi.mock("@/electron-main/stores/workspace/preferences", () => ({
+  getWorkspacePreferences: () => ({ get: () => undefined }),
+  isDeveloperMode: () => false,
+}));
+vi.mock("@/electron-main/lib/setup-state", () => ({ isSetupUp: () => false }));
+
+async function macMenuBar() {
+  const platform = process.platform;
+  Object.defineProperty(process, "platform", { value: "darwin" });
+  vi.resetModules();
+  try {
+    const { createAppWindowMenu } =
+      await import("@/electron-main/menus/app-window");
+    return createAppWindowMenu({
+      canMerge: true,
+      canReopenClosed: true,
+      mergeAll: () => {},
+      openNew: () => {},
+      openNewWithChat: () => {},
+      reopenClosed: () => {},
+    });
+  } finally {
+    Object.defineProperty(process, "platform", { value: platform });
+  }
+}
 
 const GUIDE_DIR = path.resolve(
   path.dirname(fileURLToPath(import.meta.url)),
@@ -19,9 +54,9 @@ const WORKSPACE_DIR = path.resolve(GUIDE_DIR, "../..");
 
 describe("the product guide skill", () => {
   it("carries the reference as the app has it, so a new setting reaches the agent with the change that adds it", async () => {
-    await expect(productGuideReference()).toMatchFileSnapshot(
-      path.join(GUIDE_DIR, "reference.md"),
-    );
+    await expect(
+      productGuideReference({ menus: await macMenuBar() }),
+    ).toMatchFileSnapshot(path.join(GUIDE_DIR, "reference.md"));
   });
 
   it("links only settings and screens the app has", () => {

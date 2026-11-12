@@ -1,3 +1,4 @@
+import { useRef } from "react";
 import { useTabDeveloperMode } from "@/client/hooks/use-developer-mode";
 import { FileOpenContext } from "@/client/components/file-open-context";
 import {
@@ -10,6 +11,7 @@ import { StoppedLine } from "@/client/components/stopped-line";
 import { LiveTranscriptSurface } from "@/client/components/transcript/live-surface";
 import { Transcript } from "@/client/components/transcript/transcript";
 import { useTranscriptFeed } from "@/client/components/transcript/use-transcript-feed";
+import { ScrollToEndBridge } from "@/client/components/task/scroll-to-end-bridge";
 import { Spinner } from "@/client/components/ui/spinner";
 import { ChatSessionProvider } from "@/client/hooks/use-chat-session";
 import { rpcClient } from "@/client/rpc/client";
@@ -49,6 +51,7 @@ export function ChildTranscript({
 }) {
   const isDeveloperMode = useTabDeveloperMode();
   const feed = useTranscriptFeed({ id: chat, sessionId });
+  const contentRef = useRef<HTMLDivElement>(null);
 
   const openFile = useOpenFileNamedByTask(chat);
 
@@ -66,12 +69,21 @@ export function ChildTranscript({
         defaultScrollPosition="end"
         key={sessionId}
       >
+        {/* A finished task follows nothing, so without this the end is taken
+            once, before what lays out after (open folds, cards, pictures),
+            and the page opens short of it. */}
+        <ScrollToEndBridge contentRef={contentRef} signal={sessionId} />
         <MessageScroller className="min-h-0 flex-1">
           <MessageScrollerViewport
             className="@container/transcript"
             data-transcript
           >
-            <MessageScrollerContent className="mx-auto w-full max-w-3xl gap-2 p-4 pb-8 [--transcript-room:100cqi]">
+            {/* No composer below, so the last turn gets more room above the
+                pane's edge than a chat's does. */}
+            <MessageScrollerContent
+              className="mx-auto w-full max-w-3xl gap-2 p-4 pb-16 [--transcript-room:100cqi]"
+              ref={contentRef}
+            >
               {/* Names the task and session for the links inside, so a page
                   the task names offers its browser as well as the user's. */}
               <ChatSessionProvider sessionId={sessionId} chatId={chat}>
@@ -103,6 +115,9 @@ export function ChildTranscript({
               )}
             </MessageScrollerContent>
           </MessageScrollerViewport>
+          {/* The chat's bottom fade: a background gradient rather than a
+              mask, so the scrollbar it clears stays crisp. */}
+          <div className="pointer-events-none absolute right-3 bottom-0 left-0 h-6 bg-linear-to-t from-background to-transparent" />
         </MessageScroller>
       </MessageScrollerProvider>
     </div>

@@ -1,7 +1,5 @@
-import { draftOfGroup } from "@/shared/drafts";
 import {
   type BrowserTab,
-  NEW_TAB_HREF,
   newTabHrefOf,
   type TabVisit,
   type WindowTab,
@@ -508,15 +506,10 @@ export function stepTrail(
 
 /**
  * A tab closed. The tab up in its group gives way to the one before it, or
- * the first left. A chat's or a draft's last tab is replaced by a new tab,
- * since a tab group always has a tab; any other group's last tab closes like
- * any other.
+ * the first left. A group's last tab closes like any other, leaving the
+ * group with none.
  */
-export function closeTab(
-  state: WindowTabs,
-  id: string,
-  { homeId }: { homeId: string },
-): WindowTabs {
+export function closeTab(state: WindowTabs, id: string): WindowTabs {
   const index = state.tabs.findIndex((tab) => tab.id === id);
   const closing = state.tabs[index];
   if (!closing) {
@@ -527,25 +520,6 @@ export function closeTab(
   const wasUp = selectedTabIn(state, group)?.id === id;
   if (group === undefined) {
     return { ...state, tabs: remaining };
-  }
-  if (
-    (draftOfGroup(group) !== undefined || chatOfGroup(group) !== undefined) &&
-    !remaining.some((tab) => tab.group === group)
-  ) {
-    const home: WindowTab = {
-      group,
-      href: NEW_TAB_HREF,
-      id: homeId,
-      kind: "screen",
-    };
-    const tabs = [
-      ...remaining.slice(0, index),
-      home,
-      ...remaining.slice(index),
-    ];
-    return wasUp
-      ? pointAt({ ...state, tabs }, group, homeId)
-      : { ...state, tabs };
   }
   if (!wasUp) {
     return { ...state, tabs: remaining };

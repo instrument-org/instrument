@@ -62,18 +62,18 @@ describe("shownPaneTab", () => {
     expect(shownPaneTab(state, group, paneOpenByGroup)?.id).toBe(expected);
   });
 
-  it("drains the pane one tab a press, down to a new tab in its place", () => {
+  it("drains the pane one tab a press, then leaves nothing for the next", () => {
     let current = windowOf([page("a", CHAT), page("b", CHAT)], { [CHAT]: "b" });
     const closed: string[] = [];
-    for (let press = 0; press < 2; press++) {
+    for (let press = 0; press < 3; press++) {
       const tab = shownPaneTab(current, CHAT, {});
       if (tab === undefined) {
+        closed.push("window's tab");
         break;
       }
       closed.push(tab.id);
-      current = closeTab(current, tab.id, { homeId: "home" });
+      current = closeTab(current, tab.id);
     }
-    expect(closed).toEqual(["b", "a"]);
-    expect(shownPaneTab(current, CHAT, {})?.id).toBe("home");
+    expect(closed).toEqual(["b", "a", "window's tab"]);
   });
 });

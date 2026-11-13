@@ -120,7 +120,6 @@ import { isPaneOpen } from "./draft-context";
 import {
   closedGroupTabOf,
   isBlankNewTab,
-  isHomeTab,
   selectedTabIn,
 } from "./tab-model";
 import { useSignInLanding } from "./use-sign-in-landing";
@@ -1181,21 +1180,15 @@ function WindowShell({
         windowSteps.go("back");
       },
       // The tab up in the group on screen, wherever the keyboard is, and
-      // the group itself only once it has none left: one close a press,
-      // read from the tabs as they are at that moment. A group puts a new
-      // tab back as its last closes, so that new tab alone counts as none.
+      // the group itself only once it has none left, its chat alone: one
+      // close a press, read from the tabs as they are at that moment.
       closeTab: () => {
         const group = store.get(groupOnScreenAtom);
         if (group === undefined) {
           return;
         }
-        const state = store.get(windowTabsAtom);
-        const up = selectedTabIn(state, group);
-        const isOnlyNewTab =
-          up !== undefined &&
-          isHomeTab(up) &&
-          state.tabs.filter((tab) => tab.group === group).length === 1;
-        if (up && !isOnlyNewTab) {
+        const up = selectedTabIn(store.get(windowTabsAtom), group);
+        if (up) {
           requestClose(up.id);
           return;
         }

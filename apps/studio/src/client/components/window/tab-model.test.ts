@@ -205,21 +205,21 @@ describe("closeTab", () => {
       closing === "only"
         ? windowOf([screenTab("only", "/apps", CHAT)])
         : selectTab(THREE, up);
-    const closed = closeTab(state, closing, { homeId: "home" });
+    const closed = closeTab(state, closing);
     expect(shape(closed)[CHAT] ?? "").toBe(expected);
   });
 
   it.each([
     ["a draft's", DRAFT],
     ["a chat's", ChatIdSchema.parse("2026-10-01-roofer")],
-  ])("puts a new tab in place of %s last tab, up", (_case, group) => {
+  ])("leaves %s group with no tab once its last closes", (_case, group) => {
     const state = selectTab(
       windowOf([pageTab("p", "https://example.com", group)]),
       "p",
     );
-    const closed = closeTab(state, "p", { homeId: "home" });
-    expect(shape(closed)).toEqual({ [group]: "*home" });
-    expect(closed.tabs[0]).toMatchObject({ href: NEW_TAB_HREF });
+    const closed = closeTab(state, "p");
+    expect(closed.tabs).toEqual([]);
+    expect(closed.activeByGroup).toEqual({});
   });
 
   it("forgets what a closed group had up", () => {
@@ -227,9 +227,7 @@ describe("closeTab", () => {
       windowOf([screenTab("only", "/apps", CHAT)]),
       "only",
     );
-    expect(closeTab(state, "only", { homeId: "home" }).activeByGroup).toEqual(
-      {},
-    );
+    expect(closeTab(state, "only").activeByGroup).toEqual({});
   });
 });
 

@@ -248,7 +248,7 @@ export function useWindowTabs() {
       apply((current) => addPages(current, pages));
     },
     close: (id: string) => {
-      apply((current) => closeTab(current, id, { homeId: newScreenId() }));
+      apply((current) => closeTab(current, id));
     },
     dropGroup: (group: string) => {
       apply((current) => dropGroup(current, group));

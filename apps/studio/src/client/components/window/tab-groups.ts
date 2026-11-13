@@ -341,18 +341,19 @@ export function useTabGroupActions() {
   };
 
   /**
-   * A new group at the bottom of the list, on a new tab unless something
-   * else is to open in it, filed under a project when one is named.
+   * A new group at the bottom of the list, its chat alone unless something
+   * is to open in it, filed under a project when one is named.
    */
   const make = ({
     fill,
-    href = NEW_TAB_HREF,
+    href,
     isShownHere = true,
     moving,
     projectId,
   }: {
-    /** Opens what the group starts with, in place of a new tab. */
+    /** Opens what the group starts with. */
     fill?: (group: string) => void;
+    /** A screen the group starts on, as a tab. */
     href?: string;
     /** Whether this window comes up on it: not for one a window of its own is opening on. */
     isShownHere?: boolean;
@@ -377,10 +378,10 @@ export function useTabGroupActions() {
     }
     if (fill) {
       fill(group);
-    } else if (moving === undefined) {
-      windowTabs.openScreen(href, { group, select: true });
-    } else {
+    } else if (moving !== undefined) {
       moveTab(moving, group);
+    } else if (href !== undefined) {
+      windowTabs.openScreen(href, { group, select: true });
     }
     if (isShownHere) {
       // From a screen or page that is no tab group's, the new group takes its place.

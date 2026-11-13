@@ -20,7 +20,6 @@ import {
 import {
   bindNewChatBoxAtom,
   draftInNewChatBox,
-  isNewChatEmptied,
   makeNewChatDraftAtom,
   newChatBoxesAtom,
   newChatWordsKey,
@@ -30,7 +29,6 @@ import { cancelWords } from "@/client/drafts/settle-words";
 import {
   createDraftAtom,
   draftsAtom,
-  removeDraftAtom,
   updateDraftAtom,
 } from "@/client/drafts/store";
 import { type Draft, draftGroupOf } from "@/shared/drafts";
@@ -43,7 +41,6 @@ import {
   useEffectEvent,
   useLayoutEffect,
   useRef,
-  useState,
 } from "react";
 import { ulid } from "ulid";
 
@@ -76,9 +73,8 @@ import { useWindowTabs } from "./window-tabs";
  * project it will be filed under after its name, the pop-out under a hand,
  * and at its right whatever the screen adds.
  *
- * Emptied of everything it had (its words, what was attached, every page
- * beside it, a project picked), its draft is thrown away, so a new chat
- * opened and left leaves nothing in Drafts.
+ * Its draft is its tab group's, kept however empty it gets while the group
+ * is open; closing the group throws away one that holds nothing.
  */
 export function NewChatView({
   draftId,
@@ -114,7 +110,6 @@ export function NewChatView({
   const makeDraft = useSetAtom(makeNewChatDraftAtom);
   const pickProject = useSetAtom(pickNewChatProjectAtom);
   const updateDraft = useSetAtom(updateDraftAtom);
-  const removeDraft = useSetAtom(removeDraftAtom);
   const snapshots = useAtomValue(draftSnapshotsAtom);
   const setSnapshots = useSetAtom(draftSnapshotsAtom);
   const createDraft = useSetAtom(createDraftAtom);
@@ -224,21 +219,6 @@ export function NewChatView({
     selectedId: up?.id,
   });
 
-  // Emptied of everything it had, the draft goes, and the screen is a new
-  // chat again.
-  const [isBoxEmpty, setIsBoxEmpty] = useState(true);
-  const isEmptied = isNewChatEmptied(draft, {
-    hasTabs: tabs.length > 0,
-    isBoxEmpty,
-  });
-  useEffect(() => {
-    if (!isEmptied || !draft) {
-      return;
-    }
-    void removeDraft(draft.id);
-    bindBox({ draftId: null, tabId });
-    router.history.replace(newChatHref());
-  }, [bindBox, draft, isEmptied, removeDraft, router, tabId]);
 
   const staging = useDraftStaging({
     // A paste is on disk the moment it arrives, so it makes the draft.
@@ -388,7 +368,6 @@ export function NewChatView({
             }
           }}
           shownPath={shownPath}
-          onEmptyChange={setIsBoxEmpty}
           onModelChange={shell.setDefaultModelURI}
           onSubmit={(sending) => {
             const send = staging.asStaged(sending);

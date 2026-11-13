@@ -4,7 +4,6 @@ import {
   chatShareAtom,
   sidebarOpenAtom,
 } from "@/client/atoms/tab-groups";
-import { ToolbarTooltip } from "@/client/components/toolbar-tooltip";
 import { CaptionRoom } from "@/client/components/window-controls";
 import { WorkingDots } from "@/client/components/transcript/task-card";
 import { useIsActiveTab, useTabId } from "@/client/hooks/use-active-tab";
@@ -12,10 +11,9 @@ import { cn } from "@/client/lib/utils";
 import { draftGroupOf } from "@/shared/drafts";
 import { type ChatId } from "@instrument-org/workspace/client";
 import { ChatCircleIcon } from "@phosphor-icons/react/ChatCircle";
-import { XIcon } from "@phosphor-icons/react/X";
 import { useQuery } from "@tanstack/react-query";
 import { useAtomValue } from "jotai";
-import { useLayoutEffect, useState } from "react";
+import { type ReactNode, useEffect, useLayoutEffect, useState } from "react";
 
 import { type PageChromeSlots } from "./browser-tabs";
 import { ChatHeader } from "./chat-header";
@@ -25,7 +23,6 @@ import { ChatScreen } from "./chat-screen";
 import { useWindow } from "./context";
 import { GroupItem } from "./group-item";
 import { SidebarToggleRoom } from "./inbox-toggle";
-import { isHomeTab } from "./tab-model";
 import { NewChatView } from "./new-chat-view";
 import { PaneTabs } from "./pane-tabs";
 import { RightPane } from "./right-pane";
@@ -45,11 +42,13 @@ import { useTabSurface } from "./tab-surface";
 import { useWindowTabs } from "./window-tabs";
 
 /**
- * One tab group, as the window's tab shows it: its tabs over the work, the
- * toolbar under them, and its chat in a column on the right, closed by its
- * X to a Chat button at the end of the tabs. The tabs and the chat's head
- * share the window's top line, and the room between their controls drags
- * the window. A group always has a tab, a new tab when it has nothing else.
+ * One tab group, as the window's tab shows it. The tab bar is always the
+ * window's top line, with the chat's tab fixed at its right end. A group
+ * with no tabs is its chat, filling the work area under the bar. Once a tab
+ * is open the chat moves to a column on the right, its head sharing the top
+ * line with the tabs, and the chat's tab opens and closes that column; the
+ * toolbar and what the tab up shows take the rest. Closing the last tab
+ * brings the chat back to the middle.
  */
 export function GroupView({
   chat,
@@ -89,6 +88,8 @@ export function GroupView({
         .toSpliced(incoming.index, 0, incoming.tab)
     : tabs;
   const isListed = group !== undefined && listed?.includes(group) === true;
+  // With no tab open, the chat is what the group shows.
+  const isChatFirst = tabs.length === 0;
 
   const { data: chatRecord } = useQuery({
     ...chatListOptions(),
@@ -104,22 +105,24 @@ export function GroupView({
       : chatRecord;
   const isWorking = chatRecord?.working === true;
   const chatClosed = group === undefined || closedByGroup[group] === true;
-  // The new tab has nothing to type into, so the chat's composer takes the
-  // caret while it is up.
-  const takesCaret = !chatClosed && up !== undefined && isHomeTab(up);
 
-  // A group with no tab, such as a chat opened from History, gets a new
-  // tab, and a chat's group with tabs but none up brings up its first. Only
-  // a group this window lists: a draft's group handed to its chat is not.
+  // A chat's group with tabs but none up brings up its first. Only a group
+  // this window lists: a draft's group handed to its chat is not.
   useLayoutEffect(() => {
     if (!isActive || group === undefined || !isListed) {
       return;
     }
     const [first] = tabs;
-    if (first === undefined) {
-      groups.newTab(group);
-    } else if (up === undefined) {
+    if (first !== undefined && up === undefined) {
       windowTabs.select(first.id);
+    }
+  });
+
+  // The chat in the middle is open, so the column it moves to when a tab
+  // opens is open too, whatever its tab did before the last tab closed.
+  useEffect(() => {
+    if (isChatFirst && group !== undefined && closedByGroup[group] === true) {
+      groups.setChatOpen(group, true);
     }
   });
 
@@ -140,23 +143,19 @@ export function GroupView({
   const leave = () => {
     groups.close(group, open);
   };
-  const closeColumn = (
-    <ToolbarTooltip label="Close chat">
-      <button
-        aria-label="Close chat"
-        className="grid size-7 shrink-0 place-items-center rounded-md text-muted-foreground hover:bg-foreground/8 hover:text-foreground"
-        onClick={() => {
-          groups.setChatOpen(group, false);
-        }}
-        type="button"
-      >
-        <XIcon className="size-4" />
-      </button>
-    </ToolbarTooltip>
-  );
-  const headTrailing = (
+  // The chat's tab, where the tab bar ends, with the room for the caption
+  // buttons off the Mac after it.
+  const chatTab = (
     <>
-      {closeColumn}
+      <ChatTab
+        isWorking={isWorking}
+        onPress={() => {
+          if (!isChatFirst) {
+            groups.setChatOpen(group, chatClosed);
+          }
+        }}
+        state={isChatFirst ? "selected" : chatClosed ? "closed" : "open"}
+      />
       <CaptionRoom />
     </>
   );
@@ -170,8 +169,8 @@ export function GroupView({
         isPaneShown
         onOpenBeside={() => undefined}
         tabId={tabId}
-        takesCaret={takesCaret}
-        trailing={headTrailing}
+        takesCaret={isChatFirst}
+        trailing={isChatFirst ? undefined : chatTab}
       />
     ) : (
       <div className="flex h-full min-h-0 flex-col">
@@ -192,7 +191,7 @@ export function GroupView({
               shell.setChatProject(chat, next);
             }}
             projects={shell.projects}
-            trailing={headTrailing}
+            trailing={isChatFirst ? undefined : chatTab}
           />
         </div>
         <div className="relative min-h-0 flex-1">
@@ -213,75 +212,50 @@ export function GroupView({
                 })
               }
               sentPrompt={shell.sentWords.get(chat)}
-              takesCaret={takesCaret}
+              takesCaret={isChatFirst}
             />
           </div>
         </div>
       </div>
     );
 
-  const chatButton = chatClosed ? (
-    <button
-      aria-label="Chat"
-      className={cn(
-        "ml-2 flex h-8 shrink-0 items-center gap-1.5 rounded-xl bg-card text-sm font-medium shadow-xs ring-1 ring-border hover:bg-foreground/[0.03]",
-        isWorking ? "px-3 text-brand-600 dark:text-brand-400" : "px-2.5",
-      )}
-      onClick={() => {
-        groups.setChatOpen(group, true);
+  const tabBar = (trailing: ReactNode) => (
+    <PaneTabs
+      carriedKey={carry.carriedKey}
+      chatTitles={shell.chatTitles}
+      chosenId={incoming ? incoming.tab.id : up?.id}
+      heldAt={incoming ? incoming.heldAt : carry.held}
+      isChatWorking={isWorking}
+      isIncoming={incoming !== undefined}
+      lead={isSidebarOpen ? null : <SidebarToggleRoom />}
+      onClose={shell.requestClose}
+      onDuplicate={(tab) => {
+        if (tab.kind === "page") {
+          appWindow.browser?.open(tab.url ?? tab.openedUrl, { group });
+        } else {
+          windowTabs.openScreen(tab.href, { group, select: true });
+        }
       }}
-      type="button"
-    >
-      {isWorking ? (
-        <WorkingDots />
-      ) : (
-        <>
-          <ChatCircleIcon className="size-4" />
-          Chat
-        </>
-      )}
-    </button>
-  ) : null;
+      onNew={() => {
+        groups.newTab(group);
+      }}
+      onSelect={(id) => {
+        windowTabs.select(id);
+      }}
+      onTabDrag={carry.onDrag}
+      onTabDragEnd={carry.onDragEnd}
+      onTabDragStart={carry.onDragStart}
+      tabs={stripTabs}
+      taskTitles={shell.childTitles}
+      trailing={trailing}
+    />
+  );
 
-  // Whichever row reaches the card's top right ends clear of the caption
-  // buttons off the Mac: the chat's head while its column is open, else
-  // the tabs.
+  // The tabs over the work, ending in the chat's tab while its column is
+  // closed; while it is open, the chat's tab ends the column's head.
   const work = (
     <div className="flex h-full min-h-0 flex-col">
-      <PaneTabs
-        carriedKey={carry.carriedKey}
-        chatTitles={shell.chatTitles}
-        chosenId={incoming ? incoming.tab.id : up?.id}
-        heldAt={incoming ? incoming.heldAt : carry.held}
-        isChatWorking={isWorking}
-        isIncoming={incoming !== undefined}
-        lead={isSidebarOpen ? null : <SidebarToggleRoom />}
-        onClose={shell.requestClose}
-        onDuplicate={(tab) => {
-          if (tab.kind === "page") {
-            appWindow.browser?.open(tab.url ?? tab.openedUrl, { group });
-          } else {
-            windowTabs.openScreen(tab.href, { group, select: true });
-          }
-        }}
-        onNew={() => {
-          groups.newTab(group);
-        }}
-        onSelect={(id) => {
-          windowTabs.select(id);
-        }}
-        onTabDrag={carry.onDrag}
-        onTabDragEnd={carry.onDragEnd}
-        onTabDragStart={carry.onDragStart}
-        tabs={stripTabs}
-        taskTitles={shell.childTitles}
-        trailing={
-          <>
-            {chatButton}
-            {chatClosed && <CaptionRoom />}
-          </>
-        }
-      />
+      {!isChatFirst && tabBar(chatClosed ? chatTab : null)}
       <div className="relative min-h-0 flex-1 [--guest-bottom-radius:0]">
         {up !== undefined && (
           <GroupItem
@@ -298,21 +272,80 @@ export function GroupView({
     </div>
   );
 
+  // The chat stays where it is in the tree as it moves between the middle
+  // and the column, so its transcript and composer are never drawn afresh.
   return (
-    <div className="relative flex min-h-0 min-w-0 flex-1">
-      <RightPane
-        conversation={work}
-        isOpen={!chatClosed}
-        onCollapse={() => {
-          groups.setChatOpen(group, false);
-        }}
-        paneKey={group}
-        share={{ atom: chatShareAtom, initial: CHAT_DEFAULT_SHARE }}
-      >
-        <div className="flex h-full min-h-0 w-full flex-col overflow-hidden border-l border-border bg-background">
-          {conversation}
-        </div>
-      </RightPane>
+    <div className="relative flex min-h-0 min-w-0 flex-1 flex-col">
+      {isChatFirst && tabBar(chatTab)}
+      <div className="relative flex min-h-0 min-w-0 flex-1">
+        <RightPane
+          conversation={work}
+          fills={isChatFirst}
+          isOpen={!chatClosed}
+          onCollapse={() => {
+            groups.setChatOpen(group, false);
+          }}
+          paneKey={group}
+          share={{ atom: chatShareAtom, initial: CHAT_DEFAULT_SHARE }}
+        >
+          <div
+            className={cn(
+              "flex h-full min-h-0 w-full flex-col overflow-hidden bg-background",
+              !isChatFirst && "border-l border-border",
+            )}
+          >
+            {conversation}
+          </div>
+        </RightPane>
+      </div>
     </div>
+  );
+}
+
+/**
+ * The chat's tab, fixed at the tab bar's right end in every state: selected
+ * while the chat fills the middle, and the switch for its column once a tab
+ * is open. A little more forward than a tab, so the chat is always found in
+ * the same corner. While the agent works, the bubble gives way to the
+ * working dots.
+ */
+function ChatTab({
+  isWorking,
+  onPress,
+  state,
+}: {
+  isWorking: boolean;
+  onPress: () => void;
+  state: "closed" | "open" | "selected";
+}) {
+  return (
+    <button
+      aria-label="Chat"
+      aria-pressed={state !== "closed"}
+      className={cn(
+        "ml-2 flex h-8 shrink-0 cursor-default items-center gap-1.5 rounded-xl px-2.5 text-sm font-medium text-foreground",
+        state === "selected"
+          ? "bg-card shadow-xs-soft"
+          : state === "open"
+            ? "bg-foreground/8 hover:bg-foreground/10"
+            : "bg-card shadow-xs ring-1 ring-border hover:bg-foreground/[0.03]",
+      )}
+      data-chat-tab=""
+      onClick={onPress}
+      // A press here selects nothing, so it leaves the keyboard where it was.
+      onMouseDown={(event) => {
+        event.preventDefault();
+      }}
+      type="button"
+    >
+      <span className="grid size-4 place-items-center text-brand-600 dark:text-brand-400">
+        {isWorking ? (
+          <WorkingDots />
+        ) : (
+          <ChatCircleIcon className="size-4" weight="fill" />
+        )}
+      </span>
+      Chat
+    </button>
   );
 }

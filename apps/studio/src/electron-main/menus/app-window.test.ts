@@ -40,7 +40,9 @@ vi.mock("./utils", () => ({
 const PLATFORM = process.platform;
 
 const NO_WINDOW_ACTIONS = {
+  canMerge: false,
   canReopenClosed: false,
+  mergeAll: () => {},
   openNew: () => {},
   openNewWithChat: () => {},
   reopenClosed: () => {},

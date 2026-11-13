@@ -98,6 +98,7 @@ On a Mac these are the menu bar's menus, the first named for Instrument; on Wind
 - **View**: Toggle Sidebar, Edit Page, Reload Page, Go to Chat, Go to Files, Go to Browser, Go to Apps, Next Tab Group, Previous Tab Group, Actual Size, Zoom In, Zoom Out
 - **History**: Back, Forward, Show History, Clear Browsing Data…
 - **Tab**: Show Next Tab, Show Previous Tab, Move Tab to New Window
+- **Window**: Merge All Windows
 - **Help**: Send Feedback…, Support, Keyboard Shortcuts
 
 ## Keyboard shortcuts

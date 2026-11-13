@@ -34,7 +34,9 @@ async function macMenuBar() {
     const { createAppWindowMenu } =
       await import("@/electron-main/menus/app-window");
     return createAppWindowMenu({
+      canMerge: true,
       canReopenClosed: true,
+      mergeAll: () => {},
       openNew: () => {},
       openNewWithChat: () => {},
       reopenClosed: () => {},

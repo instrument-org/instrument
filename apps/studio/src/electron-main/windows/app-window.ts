@@ -786,10 +786,18 @@ export function reopenClosedAppWindow({ after }: { after?: number } = {}) {
   return true;
 }
 
+/** Whether there is more than one window to merge. */
+export function canMergeWindows() {
+  return getAppWindows().length > 1;
+}
+
 /**
- * Every other window's tabs, pages and floats into the one in front, and those
- * windows gone with nothing to come back to. Only one window can stay itself, so
- * the tabs open afresh there, each from its address and history.
+ * Every other window's tab groups, pages and floats into the one in front,
+ * and those windows gone with nothing to come back to. Each window's groups
+ * join the end of the front one's list in their own order, less any it
+ * lists already; a group's tabs are the group's wherever it is listed, so
+ * they come with it. The front window keeps its one app tab, on the group
+ * it shows.
  */
 export function mergeAllWindows() {
   const [front, ...others] = getAppWindows();
@@ -799,15 +807,16 @@ export function mergeAllWindows() {
   }
   const manager = getBrowserViewManager();
   const kept = keptTabsOf(to);
-  const tabs = [...kept.tabs];
   const recentlyClosed = [...kept.recentlyClosed];
+  const groups = new Set(keptTabGroupsOfWindow(to));
   let floats = getWindowKeptState(to, COMPOSE_KEY);
   for (const other of others) {
     const from = appWindowIdOfWindow(other);
     if (from !== undefined) {
-      const model = keptTabsOf(from);
-      tabs.push(...model.tabs);
-      recentlyClosed.push(...model.recentlyClosed);
+      recentlyClosed.push(...keptTabsOf(from).recentlyClosed);
+      for (const group of keptTabGroupsOfWindow(from)) {
+        groups.add(group);
+      }
       floats = mergeFloats(floats, getWindowKeptState(from, COMPOSE_KEY));
       manager.handOffGuestsOf(
         other.webContents.id,
@@ -819,8 +828,8 @@ export function mergeAllWindows() {
   tellWindowKeptState(to, front.webContents, APP_TABS_KEY, {
     ...kept,
     recentlyClosed,
-    tabs,
   });
+  tellWindowKeptState(to, front.webContents, TAB_GROUPS_KEY, [...groups]);
   tellWindowKeptState(to, front.webContents, COMPOSE_KEY, floats);
   for (const other of others) {
     closeEmptiedWindow(other);

@@ -3,8 +3,10 @@ import { isSetupUp } from "@/electron-main/lib/setup-state";
 import { publisher } from "@/electron-main/rpc/publisher";
 import {
   askWindow,
+  canMergeWindows,
   canReopenClosedAppWindow,
   isAppWindow,
+  mergeAllWindows,
   openNewAppWindow,
   reopenClosedAppWindow,
 } from "@/electron-main/windows/app-window";
@@ -44,7 +46,7 @@ export function createApplicationMenu(): void {
   // Only when what it offers changes: a window's title changes as its tabs do.
   let offered = "";
   void publisher.subscribe("windows.changed", () => {
-    const now = JSON.stringify(canReopenClosedAppWindow());
+    const now = JSON.stringify([canMergeWindows(), canReopenClosedAppWindow()]);
     if (now !== offered) {
       offered = now;
       updateApplicationMenu();
@@ -82,7 +84,9 @@ function updateApplicationMenu(): void {
     ...((focusedWindow && !isAppWindow(focusedWindow)) || isSetupUp()
       ? createOtherWindowMenu()
       : createAppWindowMenu({
+          canMerge: canMergeWindows(),
           canReopenClosed: canReopenClosedAppWindow(),
+          mergeAll: mergeAllWindows,
           openNew: openNewAppWindow,
           openNewWithChat: () => {
             const window = openNewAppWindow();

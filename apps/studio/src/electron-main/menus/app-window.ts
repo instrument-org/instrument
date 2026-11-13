@@ -297,7 +297,9 @@ export function bindAppWindowChords(webContents: WebContents) {
 
 /** What the menu does with the windows themselves, which the windows' own module answers. */
 export interface WindowMenuActions {
+  canMerge: boolean;
   canReopenClosed: boolean;
+  mergeAll: () => void;
   openNew: () => void;
   /** A new window, with a new tab group up in it. */
   openNewWithChat: () => void;
@@ -425,8 +427,16 @@ export function createAppWindowMenu(
     viewMenu,
     historyMenu,
     tabMenu,
-    // Every window lists every tab group, so there is nothing to merge.
-    ...createWindowMenu(),
+    ...createWindowMenu([
+      {
+        click: () => {
+          windows.mergeAll();
+        },
+        enabled: windows.canMerge,
+        label: "Merge All Windows",
+        ...menuSymbol("rectangle.stack"),
+      },
+    ]),
     createHelpMenu({
       reportProblem: () => {
         const window = BrowserWindow.getFocusedWindow();

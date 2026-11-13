@@ -182,7 +182,6 @@ export function useMainModelChoice(connection?: LastConnection) {
     isSlow,
     models,
     newFrom: only?.name,
-    newFromProvider: only?.provider,
     recommended,
     save,
     setPicked,
@@ -268,7 +267,7 @@ export function MainModelList({
  * Current, over a rule and the name of the connection whose models follow.
  */
 function CurrentModel({ choice }: { choice: MainModelChoice }) {
-  const { chosen, current, newFrom, newFromProvider } = choice;
+  const { chosen, current, newFrom } = choice;
   if (!current) {
     return null;
   }
@@ -285,18 +284,7 @@ function CurrentModel({ choice }: { choice: MainModelChoice }) {
         value={current.uri}
       />
       <div className="mx-2 mt-2 h-px bg-border" />
-      <ModelGroupLabel>
-        <span className="flex items-center gap-2">
-          {newFromProvider && (
-            <AIProviderIcon
-              className="size-3.5"
-              colored
-              type={newFromProvider}
-            />
-          )}
-          New from {newFrom}
-        </span>
-      </ModelGroupLabel>
+      <ModelGroupLabel>New from {newFrom}</ModelGroupLabel>
     </>
   );
 }

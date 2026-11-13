@@ -65,7 +65,7 @@ export function ModelRow({
 /** A group's heading in a long list of models: Suggested, or a maker's name. */
 export function ModelGroupLabel({ children }: { children: ReactNode }) {
   return (
-    <p className="px-2 pt-3 pb-1 text-xs font-medium text-muted-foreground">
+    <p className="px-4 pt-3 pb-1 text-xs font-medium text-muted-foreground">
       {children}
     </p>
   );

@@ -8,6 +8,7 @@ import {
   canReopenClosedAppWindow,
   reopenClosedAppWindow,
   showInOtherWindow as showElsewhere,
+  tabGroupsInOtherWindows,
   tabShown as noteTabShown,
   takeLaunchSweep as takeSweep,
   takePendingAppWindowAsks,
@@ -116,6 +117,17 @@ const others = base.handler(async function* ({ context, signal }) {
   yield* liveRead({
     changes: [publisher.subscribe("windows.changed", { signal })],
     read: () => otherAppWindows(context.webContentsId),
+  });
+});
+
+/** The tab groups the other open windows have open, as they change. */
+const tabGroupsElsewhere = base.handler(async function* ({ context, signal }) {
+  yield* liveRead({
+    changes: [
+      publisher.subscribe("windows.changed", { signal }),
+      publisher.subscribe("window.tab-groups-changed", { signal }),
+    ],
+    read: () => tabGroupsInOtherWindows(context.webContentsId),
   });
 });
 
@@ -259,7 +271,7 @@ export const window = {
   endGroupTabPull,
   endTabCarry,
   events,
-  live: { others },
+  live: { others, tabGroupsElsewhere },
   mergeAll,
   moveTab,
   noteGroupTabPull,

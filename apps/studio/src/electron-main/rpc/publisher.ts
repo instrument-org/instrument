@@ -113,6 +113,8 @@ interface PublisherEvents {
   // The windows open changed, or one of them is called something else: what a
   // tab's menu offers to move it to, and what the Window menu's commands can do.
   "windows.changed": null;
+  // A window changed which tab groups it has open.
+  "window.tab-groups-changed": null;
   // What a window's strip shows of a tab held by the pointer.
   "window.tab-carry": {
     view: TabCarryView;

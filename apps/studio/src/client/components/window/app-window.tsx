@@ -102,7 +102,6 @@ import {
   appTabsAtom,
   groupOfHref,
   isChatHref,
-  openInNewWindow,
   isSiteGroup,
   placeOfHref,
   putAwaySitesAtom,
@@ -148,10 +147,12 @@ import { isGroupScreenHref } from "./group-screen";
 import { useGroupTabDrag } from "./tab-drag";
 import {
   groupAlong,
-  groupHref,
+  startTabGroupsFromZero,
   type TabGroup,
   useOpenGroups,
   useTabGroupActions,
+  useTabGroupUpkeep,
+  windowTabGroupsAtom,
 } from "./tab-groups";
 import { sidebarOpenAtom, sidebarViewAtom } from "@/client/atoms/tab-groups";
 import { formatAcceleratorText } from "@/client/lib/format-accelerator";
@@ -269,6 +270,12 @@ function SetupWindow() {
 }
 
 function WorkspaceWindow() {
+  // Before the tabs are read, so a window that has kept no tab groups opens
+  // on none of what an earlier build left in them.
+  const store = useStore();
+  useState(() => {
+    startTabGroupsFromZero(store);
+  });
   const model = useAtomValue(appTabsAtom);
   const routers = useTabRouters(model.tabs);
   const activeRouter = getTabRouter(model.selectedId);
@@ -483,6 +490,10 @@ function WindowShell({
   const groupUp = useRouterState({
     select: (routerState) => groupOfHref(routerState.location.href),
   });
+  const appTabHref = useRouterState({
+    select: (routerState) => routerState.location.href,
+  });
+  useTabGroupUpkeep(appTabHref, groupList.open);
   // A group asked to close while its agent works, waiting on the person's say.
   const [closing, setClosing] = useState<TabGroup>();
   /** Closes a group, asking first while its agent works. */
@@ -780,6 +791,13 @@ function WindowShell({
     paneOpenByGroup,
     revealPane,
     setPaneOpen,
+    showGroup: (group, { newWindow = false } = {}) => {
+      if (newWindow) {
+        groups.moveToNewWindow(group, groupList.open);
+      } else {
+        groups.show(group);
+      }
+    },
     windowTabs,
   });
 
@@ -979,7 +997,10 @@ function WindowShell({
     isOpen: opened !== undefined,
     isChat,
     isChatAlone: chatUp !== undefined && !isInboxOpen,
-    openChat: (chatId) => {
+    // The draft's group becomes the chat's in its place in the list first,
+    // so the chat is never a group this window does not have open.
+    openChat: (chatId, fromDraft) => {
+      groups.becomeChat(fromDraft, chatId);
       appTabs.navigate(chatHref(chatId));
     },
     openDraftInChat: (id) => {
@@ -1273,7 +1294,18 @@ function WindowShell({
           openScreen(href);
         }
       },
-      showTab: showFromOutside,
+      // A group this window has open comes up, as a tab here showing it does.
+      showTab: (href) => {
+        const group = groupOfHref(href);
+        if (
+          group !== undefined &&
+          store.get(windowTabGroupsAtom)?.includes(group)
+        ) {
+          groups.show(group);
+          return true;
+        }
+        return showFromOutside(href);
+      },
       // The tab up in the group, to a group and a window of its own, as
       // dragging it off the window does.
       moveTabToNewWindow: () => {
@@ -1474,8 +1506,9 @@ function WindowShell({
               isSidebarOpen ? (
                 <GroupSidebar
                   chatTitles={chatTitles}
-                  closed={groupList.closed}
+                  elsewhere={groupList.elsewhere}
                   groupUp={groupUp}
+                  history={groupList.history}
                   onClose={(group) => {
                     askToClose(group);
                   }}
@@ -1486,14 +1519,11 @@ function WindowShell({
                     setNewProject({});
                   }}
                   onRestore={(group) => {
-                    const chat = chatOfGroup(group);
-                    if (chat) {
-                      groups.restore(chat);
-                    }
+                    groups.restore(group);
                   }}
                   onShow={(group, { newWindow }) => {
                     if (newWindow) {
-                      openInNewWindow(groupHref(group));
+                      groups.moveToNewWindow(group, groupList.open);
                     } else {
                       groups.show(group);
                     }

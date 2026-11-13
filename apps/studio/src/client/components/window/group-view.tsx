@@ -8,7 +8,6 @@ import {
 import { ToolbarTooltip } from "@/client/components/toolbar-tooltip";
 import { CaptionRoom } from "@/client/components/window-controls";
 import { WorkingDots } from "@/client/components/transcript/task-card";
-import { draftsAtom } from "@/client/drafts/store";
 import { useIsActiveTab, useTabId } from "@/client/hooks/use-active-tab";
 import { cn, isMacOS } from "@/client/lib/utils";
 import { draftGroupOf } from "@/shared/drafts";
@@ -18,7 +17,7 @@ import { PlusIcon } from "@phosphor-icons/react/Plus";
 import { XIcon } from "@phosphor-icons/react/X";
 import { useQuery } from "@tanstack/react-query";
 import { useAtomValue } from "jotai";
-import { type ReactNode, useEffect, useRef, useState } from "react";
+import { type ReactNode, useState } from "react";
 
 import { type PageChromeSlots } from "./browser-tabs";
 import { ChatHeader } from "./chat-header";
@@ -57,7 +56,6 @@ export function GroupView({
   const windowTabs = useWindowTabs();
   const groups = useTabGroupActions();
   const { open } = useOpenGroups();
-  const drafts = useAtomValue(draftsAtom);
   const closedByGroup = useAtomValue(chatClosedByGroupAtom);
   const isSidebarOpen = useAtomValue(sidebarOpenAtom);
   const isActive = useIsActiveTab();
@@ -71,28 +69,6 @@ export function GroupView({
       : windowTabs.allTabs.filter((tab) => tab.group === group);
   const up = windowTabs.selectedTabIn(group);
   const hasWork = up !== undefined && tabs.length > 0;
-  const isDraftGone =
-    draft !== undefined &&
-    tabs.length === 0 &&
-    !drafts.some((entry) => entry.id === draft);
-
-  // A window with no group up (a first launch, a draft swept away) opens a
-  // new one, once.
-  const isMaking = useRef(false);
-  useEffect(() => {
-    if (!isActive || isMaking.current) {
-      return;
-    }
-    if (group === undefined || isDraftGone) {
-      isMaking.current = true;
-      const first = open[0];
-      if (first && group === undefined) {
-        groups.show(first.group);
-      } else {
-        groups.make();
-      }
-    }
-  });
 
   const { data: chatRecord } = useQuery({
     ...chatListOptions(),
@@ -119,10 +95,10 @@ export function GroupView({
       : null,
   );
 
-  /** Off this group, to the next in the list, once it is archived or deleted. */
+  /** This group closed, once its chat is archived or deleted. */
   const leave = () => {
     if (group !== undefined) {
-      groups.moveOff(group, open);
+      groups.close(group, open);
     }
   };
   const newTab = () => {

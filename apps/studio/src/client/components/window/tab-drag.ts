@@ -1,8 +1,9 @@
 import { freshTabId } from "@/client/lib/tab-actions";
 import { rpcClient } from "@/client/rpc/client";
+import { draftOfGroup } from "@/shared/drafts";
 import { browserTargetOf } from "@instrument-org/workspace/client";
 
-import { groupHref, useTabGroupActions } from "./tab-groups";
+import { groupHref, useOpenGroups, useTabGroupActions } from "./tab-groups";
 import { isOffWindow } from "./tab-pull";
 import { useWindowTabs } from "./window-tabs";
 
@@ -49,10 +50,12 @@ function offWindowAt(event: PointerEvent) {
 export function useGroupTabDrag() {
   const windowTabs = useWindowTabs();
   const groups = useTabGroupActions();
+  const { open } = useOpenGroups();
 
   /**
    * A tab to a group of its own in a window of its own, under the pointer
-   * when a drag let it go there, and otherwise a step off this one.
+   * when a drag let it go there, and otherwise a step off this one. The only
+   * tab of a group whose chat has not started takes its group along.
    */
   const toNewWindow = (
     id: string,
@@ -62,7 +65,18 @@ export function useGroupTabDrag() {
     if (!tab) {
       return;
     }
-    const group = groups.make({ isShownHere: false, moving: id });
+    const from = tab.group;
+    const isWholeGroup =
+      from !== undefined &&
+      draftOfGroup(from) !== undefined &&
+      windowTabs.allTabs.every((each) => each.id === id || each.group !== from);
+    let group: string;
+    if (isWholeGroup) {
+      group = from;
+      groups.letGo(from, open);
+    } else {
+      group = groups.make({ isShownHere: false, moving: id });
+    }
     void rpcClient.window.endGroupTabPull
       .call({
         open: {

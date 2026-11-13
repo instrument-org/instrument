@@ -11,12 +11,14 @@ describe("isGroupScreenHref", () => {
     "/apps/linear",
     "/tasks/ses_01ARZ3NDEKTSV4RRFFQ69G5FAV?chat=2026-10-01-roofer",
     "/files?path=&root=~",
+    "/activity",
+    "/release-notes",
+    "/extensions",
   ])("lets a group's tab stand at %s", (href) => {
     expect(isGroupScreenHref(href)).toBe(true);
   });
 
   it.each([
-    "/release-notes",
     "/debug/errors",
     "/skills/create-page",
     "/memory/no-stevia",
@@ -37,7 +39,7 @@ describe("groupScreenTabsOnly", () => {
         openedAt: 0,
         url: "https://example.com",
       },
-      { group: "g", href: "/release-notes", id: "notes", kind: "screen" },
+      { group: "g", href: "/debug/errors", id: "debug", kind: "screen" },
       {
         group: "g",
         href: "/apps",

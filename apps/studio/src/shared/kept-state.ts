@@ -1,3 +1,5 @@
+import { z } from "zod";
+
 /**
  * The files that hold what the app's windows keep across launches. The main
  * process owns them; a window reads them all once as it loads and writes a
@@ -26,6 +28,18 @@ export type KeptFile = (typeof KEPT_FILES)[number];
 
 /** The key a window keeps its strip of tabs under. */
 export const APP_TABS_KEY = "app-tabs.v2";
+
+/**
+ * The key a window keeps its open tab groups under, in its own order: a
+ * chat's id, or a draft's group for a chat not started yet. A window with
+ * nothing under it has opened none.
+ */
+export const TAB_GROUPS_KEY = "tab-groups.v1";
+
+/** The tab groups a window kept, or undefined for a value that is not a list of them. */
+export function keptTabGroupsOf(value: unknown): string[] | undefined {
+  return z.array(z.string()).safeParse(value).data;
+}
 
 /** The key a window keeps its floating drafts and chats under. */
 export const COMPOSE_KEY = "compose.v2";

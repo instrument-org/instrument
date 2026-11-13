@@ -43,7 +43,8 @@ function focusAddressField() {
  * A new tab in a group: today's composer, centered with the caret in it,
  * and Browse and Files under it. What is sent goes to the group's chat,
  * starting it in a group that has none, and the tab closes as the chat
- * takes its place.
+ * takes its place. In a group whose chat has not started, what is typed is
+ * written into the group's draft, so closing the group keeps it.
  */
 export function NewTabComposer({
   group,
@@ -127,7 +128,11 @@ export function NewTabComposer({
       <div className="w-full max-w-160">
         <PromptInput
           autoFocus
-          draftKey={{ id: `new-tab:${tabId}`, scope: "transient" }}
+          draftKey={
+            draftId === undefined
+              ? { id: `new-tab:${tabId}`, scope: "transient" }
+              : { draftId, scope: "draft" }
+          }
           isLoading={false}
           keyboardHome
           {...(modelURI ? { modelURI } : {})}

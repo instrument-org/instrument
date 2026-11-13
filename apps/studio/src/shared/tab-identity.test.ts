@@ -1,7 +1,12 @@
 import { fileHref, folderHref } from "@/shared/computer-href";
 import { describe, expect, it } from "vitest";
 
-import { asksMoreThan, isSameTabIdentity, tabIdentityOf } from "./tab-identity";
+import {
+  asksMoreThan,
+  isSameTabIdentity,
+  tabGroupOfAddress,
+  tabIdentityOf,
+} from "./tab-identity";
 
 const HOME = "/Users/mac-user";
 const NOTES = `${HOME}/notes.md`;
@@ -91,5 +96,19 @@ describe("asksMoreThan", () => {
     ["a task by its chat", "/tasks/s1?chat=c1", "/tasks/s1", false],
   ])("%s", (_, asked, shown, expected) => {
     expect(asksMoreThan(asked, shown)).toBe(expected);
+  });
+});
+
+describe("tabGroupOfAddress", () => {
+  it.each([
+    ["/chats/2026-10-01-roofer", "2026-10-01-roofer"],
+    ["/chats/2026-10-01-roofer?x=1", "2026-10-01-roofer"],
+    ["/chats?draft=d1", "draft:d1"],
+    ["/chats", undefined],
+    ["/apps", undefined],
+    ["/tasks/s1?chat=c1", undefined],
+    [folderHref(HOME), undefined],
+  ])("%s stands on %s", (href, group) => {
+    expect(tabGroupOfAddress(href)).toBe(group);
   });
 });

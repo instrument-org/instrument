@@ -29,8 +29,11 @@ import {
   APP_TABS_KEY,
   COMPOSE_KEY,
   isHostedPageKey,
+  keptTabGroupsOf,
+  TAB_GROUPS_KEY,
   WINDOW_KEPT_KEYS,
 } from "@/shared/kept-state";
+import { tabGroupOfAddress } from "@/shared/tab-identity";
 import { type Tab, type TabsModel, TabsModelSchema } from "@/shared/tabs";
 import { homedir } from "node:os";
 import {
@@ -218,6 +221,41 @@ export function otherAppWindows(webContentsId: number) {
     });
 }
 
+/** The tab groups a window has open, as it keeps them. */
+function keptTabGroupsOfWindow(id: string): string[] {
+  return keptTabGroupsOf(getWindowKeptState(id, TAB_GROUPS_KEY)) ?? [];
+}
+
+/**
+ * The first of some windows with the tab group an address stands on open
+ * (`TAB_GROUPS_KEY`), up or not.
+ */
+function windowListingGroupOf(
+  href: string,
+  among: readonly BrowserWindow[],
+): BrowserWindow | null {
+  const group = tabGroupOfAddress(href);
+  if (group === undefined) {
+    return null;
+  }
+  return (
+    among.find((window) => {
+      const id = appWindowIdOfWindow(window);
+      return id !== undefined && keptTabGroupsOfWindow(id).includes(group);
+    }) ?? null
+  );
+}
+
+/** The tab groups the open windows other than this one have open. */
+export function tabGroupsInOtherWindows(webContentsId: number): string[] {
+  return getAppWindows()
+    .filter((window) => window.webContents.id !== webContentsId)
+    .flatMap((window) => {
+      const id = appWindowIdOfWindow(window);
+      return id === undefined ? [] : keptTabGroupsOfWindow(id);
+    });
+}
+
 /** A window's tabs, as it keeps them. */
 export function keptTabsOf(id: string): TabsModel {
   const parsed = TabsModelSchema.safeParse(
@@ -248,13 +286,16 @@ export function hostedPagesOf(id: string): BrowserTargetId[] {
  * The window that has a screen in a tab, by its address or by what it shows
  * (`tabIdentityOf`: a file, a folder, a chat, however far its tab has walked
  * within it): the one with that tab up if there is one, else the one in front
- * of the others with it behind.
+ * of the others with it behind, else the one with its tab group open.
  */
 export function appWindowShowing(
   href: string,
   among: readonly BrowserWindow[] = getAppWindows(),
 ): BrowserWindow | null {
-  return stripShowing(href, stripsOf(among), homedir());
+  return (
+    stripShowing(href, stripsOf(among), homedir()) ??
+    windowListingGroupOf(href, among)
+  );
 }
 
 /** Each window's strip as it keeps it, in the order given. */
@@ -426,7 +467,12 @@ export async function showInOtherWindow(
   const hearing = getAppWindows().filter((window) =>
     listening.has(window.webContents.id),
   );
-  const showing = otherStripShowing(href, stripsOf(hearing), asking, homedir());
+  const showing =
+    otherStripShowing(href, stripsOf(hearing), asking, homedir()) ??
+    windowListingGroupOf(
+      href,
+      hearing.filter((window) => window.webContents.id !== asking),
+    );
   if (!showing) {
     return false;
   }
@@ -550,6 +596,16 @@ export function openNewAppWindow(
       selectedId: first.id,
       tabs: [...tabs],
     });
+    // Opened on these tabs, the window has open the tab groups they stand
+    // on, and only those.
+    setWindowKeptState(id, TAB_GROUPS_KEY, [
+      ...new Set(
+        tabs.flatMap((tab) => {
+          const group = tabGroupOfAddress(tab.pathname);
+          return group === undefined ? [] : [group];
+        }),
+      ),
+    ]);
   }
   return createAppWindow(id, { bounds });
 }

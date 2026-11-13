@@ -112,7 +112,7 @@ describe("where a screen opens", () => {
     ],
     [
       "a screen no group's tab stands on in the window's tab",
-      "/release-notes",
+      "/debug/errors",
       { group: OTHER },
       inChat(SCREEN),
       { kind: "window-navigate" },

@@ -1,4 +1,5 @@
 import { workspaceWindowDir } from "@/electron-main/lib/get-workspace-folder";
+import { publisher } from "@/electron-main/rpc/publisher";
 import { appWindowIdOf } from "@/electron-main/windows/app-window-ids";
 import { movedFilesAddress } from "@/shared/computer-href";
 import {
@@ -7,6 +8,7 @@ import {
   type KeptFile,
   type KeptSnapshot,
   SHARED_KEPT_FILES,
+  TAB_GROUPS_KEY,
   WINDOW_KEPT_FILE,
   WINDOW_KEPT_KEYS,
   WINDOW_TABS_KEY,
@@ -428,6 +430,10 @@ export function serveKeptState() {
         const windowId = appWindowIdOf(event.sender.id);
         if (windowId !== undefined) {
           windowStoreOf(windowId).set(file, key, value);
+        }
+        // Every window lists what the others have open.
+        if (key === TAB_GROUPS_KEY) {
+          publisher.publish("window.tab-groups-changed", null);
         }
         return;
       }

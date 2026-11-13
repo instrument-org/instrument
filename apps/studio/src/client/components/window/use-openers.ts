@@ -1,4 +1,3 @@
-import { BROWSER_HREF } from "@/client/atoms/window";
 import { useSteadyCallbacks } from "@/client/hooks/use-steady-callbacks";
 import { takeKeyboardOnArrival } from "@/client/lib/browser-pool";
 import { rpcClient } from "@/client/rpc/client";
@@ -17,16 +16,12 @@ import { useQueryClient } from "@tanstack/react-query";
 import { useEffect, useRef } from "react";
 import { toast } from "@/client/lib/toast";
 
-import {
-  newSiteGroup,
-  openInNewWindow,
-  pageHrefOf,
-  type useAppTabs,
-} from "./app-tabs";
+import { isSiteGroup, type useAppTabs } from "./app-tabs";
 import { type BrowserTabsHandle } from "./browser-tabs";
 import { chatListOptions } from "./chat-list-query";
 import { type OpenOptions } from "./context";
 import { isGroupShown } from "./draft-context";
+import { isGroupScreenHref } from "./group-screen";
 import { openMenuLink } from "./menu-link";
 import { openLinkAddress } from "./open-link-address";
 import {
@@ -64,6 +59,7 @@ export function useOpeners({
   paneOpenByGroup,
   revealPane,
   setPaneOpen,
+  showGroup,
   windowTabs,
 }: {
   /** The window's tabs: what is not a chat's opens by moving the tab up, or in a tab of its own. */
@@ -80,6 +76,8 @@ export function useOpeners({
   /** Brings the pane up for the group on screen, for something opened into it. */
   revealPane: () => void;
   setPaneOpen: (group: string, isOpen: boolean) => void;
+  /** Brings a tab group up, here or in the window that has it open, or moves it to a window of its own. */
+  showGroup: (group: string, options?: { newWindow?: boolean }) => void;
   windowTabs: ReturnType<typeof useWindowTabs>;
 }) {
   const queryClient = useQueryClient();
@@ -102,7 +100,7 @@ export function useOpeners({
   const goToChatOf = (into: string) => {
     const chat = chatOfGroup(into);
     if (chat) {
-      appTabs.go(chatHref(chat));
+      showGroup(chat);
     }
   };
   /**
@@ -155,39 +153,22 @@ export function useOpeners({
         revealPane();
         return browser?.openOrFocus(url);
       }
-      case "window-site": {
-        // The site is the window tab's page, and back from it returns here,
-        // unless the screen was only handing its file over, in which case
-        // the page takes its place.
-        const group = newSiteGroup();
-        const id = browser?.open(url, { group });
-        appTabs.navigate(pageHrefOf(group), { replace: placement.replace });
+      case "window-site":
+      case "window-tab": {
+        // With no tab group up, the page is the first tab of a new one.
+        let id: string | undefined;
+        newGroup((group) => {
+          id = browser?.open(url, { group });
+        });
         if (!options.ownTab && id !== undefined) {
           takeKeyboardOnArrival(browserTargetOf(id));
         }
         return id;
       }
-      case "window-tab": {
-        const group = newSiteGroup();
-        const id = browser?.open(url, { group });
-        // The browser's start behind the page, as a browser's new tab is
-        // behind the page opened in it, so back from the page reaches it.
-        appTabs.open(pageHrefOf(group), {
-          behind: [BROWSER_HREF],
-          newTab: true,
-          select: !placement.behind,
-        });
-        return id;
-      }
     }
   };
   const openScreen = (href: string, options: OpenOptions = {}): void => {
-    const {
-      behind = false,
-      group: into,
-      here = false,
-      newTab = false,
-    } = options;
+    const { group: into, here = false } = options;
     // A chat named by its session, as an older reply's link names it,
     // opens at the chat that session is.
     const session = chatSessionOfHref(href);
@@ -222,13 +203,9 @@ export function useOpeners({
         chatOfSessionPrefix(href, chats))
       : chatOfHref(href);
     if (chat) {
-      // A chat is a place a tab stands: the tab up goes there, a step on in
-      // its history, and the chat comes up at the tab it last had up.
-      if (options.newWindow) {
-        openInNewWindow(chatHref(chat));
-      } else {
-        appTabs.navigate(chatHref(chat));
-      }
+      // A chat is a tab group: it comes up here, or in the window that has
+      // it open, at the tab it last had up.
+      showGroup(chat, { newWindow: options.newWindow === true });
       return;
     }
     const screen = matchScreen(href);
@@ -297,12 +274,12 @@ export function useOpeners({
           select: true,
         });
         setPaneOpen(owner, true);
-        openInNewWindow(chatHref(owner));
+        showGroup(owner, { newWindow: true });
         return;
       }
-      // In a tab of the window's own, the chat comes up there at its tasks.
+      // The chat's tab group comes up, at its tasks.
       if (placement.navigatesWindow) {
-        appTabs.go(chatHref(owner), { behind, newTab });
+        showGroup(owner);
       }
       windowTabs.openOrFocusScreen(at, {
         group: owner,
@@ -357,16 +334,25 @@ export function useOpeners({
         windowTabs.openOrFocusScreen(href);
         return;
       }
-      case "window-navigate": {
-        if (here) {
-          appTabs.navigate(href);
-        } else {
-          appTabs.go(href);
-        }
-        return;
-      }
+      case "window-navigate":
       case "window-tab": {
-        appTabs.open(href, { newTab: true, select: !placement.behind });
+        // What the window shows sits in a tab group: a tab of the group up,
+        // or of a new one with none up. Only a screen no group's tab can
+        // stand at (the debug pages) is the window's own.
+        const { groupOnScreen } = windowTabs;
+        if (!isGroupScreenHref(href)) {
+          appTabs.navigate(href);
+        } else if (groupOnScreen === undefined || isSiteGroup(groupOnScreen)) {
+          newGroup((group) => {
+            windowTabs.openScreen(href, { group, select: true });
+          });
+        } else {
+          windowTabs.openOrFocusScreen(href, {
+            group: groupOnScreen,
+            isOpened: true,
+            select: placement.kind === "window-navigate" || !placement.behind,
+          });
+        }
         return;
       }
     }

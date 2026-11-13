@@ -66,6 +66,18 @@ export function tabIdentityOf(
   }
 }
 
+/**
+ * The tab group an address stands on: a chat's id, or a draft's group
+ * (`draft:<id>`) for a chat not started yet. Undefined for any other screen.
+ */
+export function tabGroupOfAddress(href: string): string | undefined {
+  const identity = tabIdentityOf(href);
+  if (identity?.startsWith("chat:")) {
+    return identity.slice("chat:".length);
+  }
+  return identity?.startsWith("draft:") ? identity : undefined;
+}
+
 /** Whether two addresses show the same one-of-a-kind thing. */
 export function isSameTabIdentity(a: string, b: string, homeDir?: string) {
   const identity = tabIdentityOf(a, homeDir);

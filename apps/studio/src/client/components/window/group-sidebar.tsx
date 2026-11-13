@@ -45,7 +45,7 @@ import { pageTabTitle } from "./file-tabs";
 import { ScreenMark } from "./pane-tabs";
 import { screenPresentation } from "./screen-presentation";
 import { SearchField } from "./search-field";
-import { type TabGroup } from "./tab-groups";
+import { lastActiveAt, type TabGroup } from "./tab-groups";
 import { chatOfGroup } from "./window-href";
 import { useWindowTabs } from "./window-tabs";
 
@@ -67,8 +67,9 @@ export function SoftKey({ children }: { children: ReactNode }) {
  */
 export function GroupSidebar({
   chatTitles,
-  closed,
+  elsewhere,
   groupUp,
+  history,
   onClose,
   onNew,
   onNewProject,
@@ -79,10 +80,12 @@ export function GroupSidebar({
   searchRef,
 }: {
   chatTitles: Map<ChatId, string>;
-  /** The groups in History, newest last. */
-  closed: TabGroup[];
+  /** The chats other windows have open, which choosing brings forward there. */
+  elsewhere: TabGroup[];
   /** The group this window shows. */
   groupUp: string | undefined;
+  /** History: every chat and kept draft no window has open, most recently active first. */
+  history: TabGroup[];
   onClose: (group: string) => void;
   onNew: (projectId?: string) => void;
   onNewProject: () => void;
@@ -116,13 +119,16 @@ export function GroupSidebar({
     entry.kind === "chat" ? [entry.chat] : [],
   );
 
-  const row = (entry: TabGroup, extra?: { restore?: boolean }) => (
+  const row = (
+    entry: TabGroup,
+    extra?: { isElsewhere?: boolean; restore?: boolean },
+  ) => (
     <GroupRow
       chatTitles={chatTitles}
       entry={entry}
       isUp={entry.group === groupUp}
       key={entry.group}
-      onClose={onClose}
+      {...(extra?.isElsewhere ? {} : { onClose })}
       onShow={onShow}
       {...(extra?.restore
         ? {
@@ -139,21 +145,21 @@ export function GroupSidebar({
   let body: ReactNode;
   if (isSearching) {
     const found = matching(open);
-    const fromHistory = matching(closed).toReversed();
+    const inOtherWindows = matching(elsewhere);
+    const fromHistory = matching(history);
     body = (
       <>
         {found.map((entry) => row(entry))}
-        {found.length === 0 && fromHistory.length === 0 && (
-          <p className="px-2.5 py-2 text-[13px] text-muted-foreground">
-            Nothing matches that.
-          </p>
-        )}
-        {fromHistory.length > 0 && (
-          <div className="mx-1 mt-2 mb-1 flex items-center gap-2 px-1.5 text-xs font-medium text-muted-foreground">
-            <span>From History</span>
-            <span className="h-px flex-1 bg-border" />
-          </div>
-        )}
+        {found.length === 0 &&
+          inOtherWindows.length === 0 &&
+          fromHistory.length === 0 && (
+            <p className="px-2.5 py-2 text-[13px] text-muted-foreground">
+              Nothing matches that.
+            </p>
+          )}
+        {inOtherWindows.length > 0 && <SearchSection label="In Other Windows" />}
+        {inOtherWindows.map((entry) => row(entry, { isElsewhere: true }))}
+        {fromHistory.length > 0 && <SearchSection label="From History" />}
         {fromHistory.map((entry) => row(entry, { restore: true }))}
       </>
     );
@@ -167,7 +173,7 @@ export function GroupSidebar({
           }}
         />
         <HistoryList
-          closed={closed}
+          history={history}
           row={(entry) => row(entry, { restore: true })}
         />
       </>
@@ -369,27 +375,34 @@ function BackRow({ label, onBack }: { label: string; onBack: () => void }) {
   );
 }
 
-/** The groups closed to History, newest first, under the day each was last written in. */
+/** A line over a part of the search's results, naming where they are. */
+function SearchSection({ label }: { label: string }) {
+  return (
+    <div className="mx-1 mt-2 mb-1 flex items-center gap-2 px-1.5 text-xs font-medium text-muted-foreground">
+      <span>{label}</span>
+      <span className="h-px flex-1 bg-border" />
+    </div>
+  );
+}
+
+/** The chats and drafts in History, most recently active first, under the day each last had something happen. */
 function HistoryList({
-  closed,
+  history,
   row,
 }: {
-  closed: TabGroup[];
+  history: TabGroup[];
   row: (entry: TabGroup) => ReactNode;
 }) {
-  const newest = closed
-    .flatMap((entry) => (entry.kind === "chat" ? [entry] : []))
-    .toSorted((a, b) => b.chat.lastUserMessageAt - a.chat.lastUserMessageAt);
-  if (newest.length === 0) {
+  if (history.length === 0) {
     return (
       <p className="px-2.5 py-2 text-[13px] text-muted-foreground">
         Tab groups you close show up here.
       </p>
     );
   }
-  const days = new Map<string, typeof newest>();
-  for (const entry of newest) {
-    const day = dayLabel(entry.chat.lastUserMessageAt);
+  const days = new Map<string, TabGroup[]>();
+  for (const entry of history) {
+    const day = dayLabel(lastActiveAt(entry));
     days.set(day, [...(days.get(day) ?? []), entry]);
   }
   return (
@@ -514,7 +527,7 @@ export function GroupRow({
           }}
           type="button"
         >
-          Restore
+          Open
         </button>
       )}
     </div>

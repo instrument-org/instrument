@@ -86,8 +86,8 @@ export function useDrafts({
   isChatAlone: boolean;
   /** Whether what the window opens on is made; no chat starts before it is. */
   isOpen: boolean;
-  /** Puts the tab up on a chat, whole, for a draft sent from the chat. */
-  openChat: (chatId: ChatId) => void;
+  /** Puts the tab up on a chat, whole, for a draft sent from the chat: the draft `fromDraft` that started it. */
+  openChat: (chatId: ChatId, fromDraft: string) => void;
   /** Puts the tab up on the Chat screen writing a draft, beside the chat list. */
   openDraftInChat: (id: string) => void;
   /** Puts the tab up on the chat with its inbox out, wherever the window stood. */
@@ -422,7 +422,7 @@ export function useDrafts({
         // panel, so they become the chat's as the tab moves to it: the panel
         // stays put rather than closing and opening again.
         handOverTabs(draft, chatId);
-        openChat(chatId);
+        openChat(chatId, id);
       } else {
         compose.becomeChat(id, chatId);
       }

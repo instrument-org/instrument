@@ -4,6 +4,7 @@ import {
   groupSearchAtom,
   SIDEBAR_WIDTH_MAX,
   SIDEBAR_WIDTH_MIN,
+  sidebarProjectAtom,
   sidebarViewAtom,
 } from "@/client/atoms/tab-groups";
 import { type WindowTab } from "@/client/atoms/window";
@@ -171,7 +172,7 @@ export function GroupSidebar({
 }) {
   const [view, setView] = useAtom(sidebarViewAtom);
   const [search, setSearch] = useAtom(groupSearchAtom);
-  const [projectId, setProjectId] = useState<string>();
+  const [projectId, setProjectId] = useAtom(sidebarProjectAtom);
   const project = projects.find((entry) => entry.id === projectId);
   // The search and the list slide in together as the sidebar steps into a
   // project or back out of one.

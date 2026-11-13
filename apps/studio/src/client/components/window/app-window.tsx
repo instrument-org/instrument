@@ -112,7 +112,7 @@ import { COMPOSE_KEY } from "@/shared/kept-state";
 import { useAppsBySlug } from "./apps-by-slug";
 import { BrowserTabs, type BrowserTabsHandle } from "./browser-tabs";
 import { chatListOptions, chromeOfChats } from "./chat-list-query";
-import { inPlace, NO_FILTERS } from "./chats";
+import { inPlace } from "./chats";
 import { ComposeLayer } from "./compose-layer";
 import { useComputerVolumes } from "./computer-volumes";
 import { type WindowContextValue as Screens, WindowContext } from "./context";
@@ -156,7 +156,9 @@ import {
   windowTabGroupsAtom,
 } from "./tab-groups";
 import {
+  groupSearchAtom,
   sidebarOpenAtom,
+  sidebarProjectAtom,
   sidebarViewAtom,
   sidebarWidthAtom,
 } from "@/client/atoms/tab-groups";
@@ -1059,32 +1061,15 @@ function WindowShell({
     setLeavingChat(undefined);
   }
   /**
-   * The list standing in a project, from its row, the command menu, or a
-   * project just made, from wherever the tab is: the inbox comes up, and
-   * whatever chat or draft was up beside it is put away for a new chat
-   * filed under the project, and remembered for the way back out. A search
-   * or a place left over from before would hide the chats it was asked for,
-   * so both go.
+   * The sidebar standing in a project, from the command menu: out if it was
+   * put away, and on the open groups with no search left over, which would
+   * hide the groups asked for.
    */
   const enterProject = (projectId: string) => {
-    const tabId = appTabs.model.selectedId;
-    if (tabId && isChat && chatFilters.projects.length === 0) {
-      if (sameHref(hrefNow(), newChatHref())) {
-        beforeProject.current.delete(tabId);
-      } else {
-        beforeProject.current.set(tabId, hrefNow());
-      }
-    }
-    setLeavingChat(chatUp);
-    setChatFilters({ ...NO_FILTERS, projects: [projectId] });
-    if (inboxPeek.isOpen) {
-      setInboxLandsAtOnce(true);
-    }
-    setInboxOpen(true);
-    if (tabId) {
-      pickNewChatProject({ projectId, tabId });
-    }
-    appTabs.navigate(newChatHref());
+    setSidebarOpen(true);
+    setSidebarView("list");
+    store.set(groupSearchAtom, "");
+    store.set(sidebarProjectAtom, projectId);
   };
   /**
    * The list back in the inbox from its project. The new chat the project

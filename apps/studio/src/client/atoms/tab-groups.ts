@@ -21,6 +21,9 @@ export const chatClosedByGroupAtom = keptAtom<Record<string, true>>(
 /** What the sidebar's list shows in this window: the open groups, or History. */
 export const sidebarViewAtom = atom<"history" | "list">("list");
 
+/** The project the sidebar's list stands in, in this window: none for every open group. */
+export const sidebarProjectAtom = atom<string | undefined>(undefined);
+
 /** The sidebar's search, in this window. */
 export const groupSearchAtom = atom("");
 

@@ -139,6 +139,7 @@ export function GroupSidebar({
   groupUp,
   history,
   onClose,
+  onCloseAll,
   onNew,
   onNewProject,
   onNewProjectFor,
@@ -156,6 +157,8 @@ export function GroupSidebar({
   /** History: every chat and kept draft no window has open, most recently active first. */
   history: TabGroup[];
   onClose: (group: string) => void;
+  /** Closes several groups at once, from the row whose menu asked (`keep`). */
+  onCloseAll: (groups: string[], keep: string) => void;
   onNew: (projectId?: string) => void;
   onNewProject: () => void;
   /** The new-project dialog for one group, which files it under the project it makes. */
@@ -207,44 +210,67 @@ export function GroupSidebar({
   const roomSnaps = useAtomValue(roomSnapsAtom);
   const filled = useAtomValue(filledRoomAtom);
   const room = drop?.kind === "between" ? drop : undefined;
+  const isPinned = (entry: TabGroup) =>
+    entry.kind === "chat" && entry.chat.starred;
+  // The rows the list shows, in its order, which a row's menu closes around.
+  const shownRows = isSearching ? matching(open) : [...pinned, ...rest];
   const liftedEntry =
     lifted && open.find((entry) => entry.group === lifted.group);
   const actionsFor = useChatActionsFor();
   const setChatProject = useSetChatProject();
   const updateDraft = useSetAtom(updateDraftAtom);
-  const menuOf = (entry: TabGroup): GroupRowMenuActions => ({
-    actions: entry.kind === "chat" ? actionsFor(entry.chat) : [],
-    onClose: () => {
-      onClose(entry.group);
-    },
-    onNewProject: () => {
-      onNewProjectFor(
-        entry.kind === "chat"
-          ? { chatId: entry.chat.id }
-          : { draftId: entry.draft.id },
+  const menuOf = (entry: TabGroup): GroupRowMenuActions => {
+    // Pinned rows stay open, as a browser's pinned tabs do.
+    const closing = (around: TabGroup[]) => {
+      const groups = around.flatMap((each) =>
+        isPinned(each) ? [] : [each.group],
       );
-    },
-    onNewWindow: () => {
-      onShow(entry.group, { newWindow: true });
-    },
-    onSetProject: (filed) => {
-      if (entry.kind === "chat") {
-        setChatProject(entry.chat.id, filed);
-        return;
-      }
-      updateDraft({
-        id: entry.draft.id,
-        update: (draft) => {
-          if (filed !== null) {
-            return { ...draft, projectId: filed, projectSource: "chosen" };
-          }
-          const { projectId: _dropped, ...unfiled } = draft;
-          return { ...unfiled, projectSource: "chosen" };
-        },
-      });
-    },
-    projects,
-  });
+      return groups.length === 0
+        ? undefined
+        : () => {
+            onCloseAll(groups, entry.group);
+          };
+    };
+    const at = shownRows.findIndex((each) => each.group === entry.group);
+    return {
+      actions: entry.kind === "chat" ? actionsFor(entry.chat) : [],
+      onClose: () => {
+        onClose(entry.group);
+      },
+      onCloseAbove: at === -1 ? undefined : closing(shownRows.slice(0, at)),
+      onCloseBelow: at === -1 ? undefined : closing(shownRows.slice(at + 1)),
+      onCloseOthers: closing(
+        shownRows.filter((each) => each.group !== entry.group),
+      ),
+      onNewProject: () => {
+        onNewProjectFor(
+          entry.kind === "chat"
+            ? { chatId: entry.chat.id }
+            : { draftId: entry.draft.id },
+        );
+      },
+      onNewWindow: () => {
+        onShow(entry.group, { newWindow: true });
+      },
+      onSetProject: (filed) => {
+        if (entry.kind === "chat") {
+          setChatProject(entry.chat.id, filed);
+          return;
+        }
+        updateDraft({
+          id: entry.draft.id,
+          update: (draft) => {
+            if (filed !== null) {
+              return { ...draft, projectId: filed, projectSource: "chosen" };
+            }
+            const { projectId: _dropped, ...unfiled } = draft;
+            return { ...unfiled, projectSource: "chosen" };
+          },
+        });
+      },
+      projects,
+    };
+  };
 
   const row = (
     entry: TabGroup,

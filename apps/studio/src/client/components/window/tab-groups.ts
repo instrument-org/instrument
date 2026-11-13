@@ -436,6 +436,12 @@ export function useTabGroupActions() {
    * goes. The window moves on to the next group when it was showing this one.
    */
   const close = (group: string, list: readonly TabGroup[]) => {
+    unlist(group);
+    moveOff(group, list);
+  };
+
+  /** A group off this window's list as `close` takes it, a draft with nothing in it thrown away. */
+  const unlist = (group: string) => {
     setListed((listed) => listedWithout(listed, group));
     const draftId = draftOfGroup(group);
     const draft = store.get(draftsAtom).find((entry) => entry.id === draftId);
@@ -443,7 +449,21 @@ export function useTabGroupActions() {
       windowTabs.dropGroup(group);
       void removeDraft(draftId);
     }
-    moveOff(group, list);
+  };
+
+  /**
+   * Closes several groups to History at once, each as `close` does, the way
+   * a tab's menu closes the tabs around it: when the window was showing one
+   * of them, it moves to `keep`, the group whose menu asked.
+   */
+  const closeAll = (groups: readonly string[], keep: string) => {
+    const up = groupUp();
+    for (const group of groups) {
+      unlist(group);
+    }
+    if (up !== undefined && groups.includes(up)) {
+      appTabs.navigate(groupHref(keep), { replace: true });
+    }
   };
 
   /** A group off this window's list, for another window to have open, with nothing about it changed. */
@@ -536,6 +556,7 @@ export function useTabGroupActions() {
   return {
     becomeChat,
     close,
+    closeAll,
     groupUp,
     hasTabs,
     letGo,

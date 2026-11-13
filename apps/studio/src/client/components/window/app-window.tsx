@@ -495,16 +495,40 @@ function WindowShell({
     select: (routerState) => routerState.location.href,
   });
   useTabGroupUpkeep(appTabHref, groupList.open);
-  // A group asked to close while its agent works, waiting on the person's say.
-  const [closing, setClosing] = useState<TabGroup>();
-  /** Closes a group, asking first while its agent works. */
-  const askToClose = (group: string) => {
-    const entry = groupList.open.find((each) => each.group === group);
-    if (entry?.kind === "chat" && entry.chat.working) {
-      setClosing(entry);
+  // Groups asked to close while an agent among them works, waiting on the
+  // person's say: all of them, those working, and the group a row's menu
+  // asked from, which the window moves to.
+  const [closing, setClosing] = useState<{
+    groups: readonly string[];
+    keep?: string;
+    working: TabGroup[];
+  }>();
+  const closeNow = (closed: readonly string[], keep?: string) => {
+    if (keep === undefined) {
+      for (const group of closed) {
+        groups.close(group, groupList.open);
+      }
+    } else {
+      groups.closeAll(closed, keep);
+    }
+  };
+  /** Closes groups, asking once first while any of their agents works. */
+  const askToClose = (closed: readonly string[], keep?: string) => {
+    const working = groupList.open.filter(
+      (entry) =>
+        closed.includes(entry.group) &&
+        entry.kind === "chat" &&
+        entry.chat.working,
+    );
+    if (working.length > 0) {
+      setClosing({
+        groups: closed,
+        ...(keep === undefined ? {} : { keep }),
+        working,
+      });
       return;
     }
-    groups.close(group, groupList.open);
+    closeNow(closed, keep);
   };
   // The group a first Cmd+W on a group with no tabs left named, and when.
   const closeHint = useRef<{
@@ -1195,7 +1219,7 @@ function WindowShell({
         if (hint?.group === group && Date.now() - hint.at < CLOSE_AGAIN_MS) {
           closeHint.current = undefined;
           toast.dismiss(hint.toast);
-          askToClose(group);
+          askToClose([group]);
           return;
         }
         closeHint.current = {
@@ -1507,7 +1531,10 @@ function WindowShell({
                   groupUp={groupUp}
                   history={groupList.history}
                   onClose={(group) => {
-                    askToClose(group);
+                    askToClose([group]);
+                  }}
+                  onCloseAll={(closed, keep) => {
+                    askToClose(closed, keep);
                   }}
                   onNew={(projectId) => {
                     groups.make(projectId === undefined ? {} : { projectId });
@@ -1622,18 +1649,23 @@ function WindowShell({
               )}
             />
             <CloseGroupDialog
-              entry={closing}
+              entries={closing?.working}
               onCancel={() => {
                 setClosing(undefined);
               }}
-              onConfirm={(entry) => {
+              onConfirm={() => {
                 setClosing(undefined);
-                if (entry.kind === "chat") {
-                  void rpcClient.workspace.session.stop.call({
-                    id: entry.chat.id,
-                  });
+                if (!closing) {
+                  return;
                 }
-                groups.close(entry.group, groupList.open);
+                for (const entry of closing.working) {
+                  if (entry.kind === "chat") {
+                    void rpcClient.workspace.session.stop.call({
+                      id: entry.chat.id,
+                    });
+                  }
+                }
+                closeNow(closing.groups, closing.keep);
               }}
             />
           </WindowFrame>

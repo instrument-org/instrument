@@ -13,12 +13,15 @@ import { contextMenuComponents } from "@/client/components/ui/menu-components";
 import { MenuScrollArea } from "@/client/components/ui/menu-scroll-area";
 import { cn } from "@/client/lib/utils";
 import { AppWindowIcon } from "@phosphor-icons/react/AppWindow";
+import { ArrowLineDownIcon } from "@phosphor-icons/react/ArrowLineDown";
+import { ArrowLineUpIcon } from "@phosphor-icons/react/ArrowLineUp";
 import { CardsThreeIcon } from "@phosphor-icons/react/CardsThree";
 import { PencilSimpleIcon } from "@phosphor-icons/react/PencilSimple";
 import { PlusIcon } from "@phosphor-icons/react/Plus";
 import { PushPinIcon } from "@phosphor-icons/react/PushPin";
 import { PushPinSlashIcon } from "@phosphor-icons/react/PushPinSlash";
 import { XIcon } from "@phosphor-icons/react/X";
+import { XSquareIcon } from "@phosphor-icons/react/XSquare";
 import { type ReactNode, useRef } from "react";
 
 import { chatMenuGroups } from "./chat-actions";
@@ -33,6 +36,14 @@ export interface GroupRowMenuActions {
   /** The chat's actions (`useChatActionsFor`), none for a group whose chat has not started. */
   actions: RowAction[];
   onClose: () => void;
+  /**
+   * Closes the groups listed above this one, below it, or every other, as a
+   * tab's menu closes the tabs around it, pinned ones left open; none where
+   * there is nothing to close.
+   */
+  onCloseAbove: (() => void) | undefined;
+  onCloseBelow: (() => void) | undefined;
+  onCloseOthers: (() => void) | undefined;
   /** The new-project dialog, which files this group under the project it makes. */
   onNewProject: () => void;
   onNewWindow: () => void;
@@ -64,9 +75,10 @@ function asPin(action: RowAction): RowAction {
  * A tab group row's menu, with the chat row's items as the chat list's menu
  * has them: Open in New Window; marking the chat read or unread and pinning
  * it; renaming it and filing it under a project; copying its paths; and
- * closing the group. A group whose chat has not started has its project, a
- * window of its own and Close. Not modal, as the chat row's is not, so the
- * click that puts it away lands on what it was meant for.
+ * closing the group, or the groups around it, as a tab's menu closes tabs. A
+ * group whose chat has not started has its project, a window of its own and
+ * the closing. Not modal, as the chat row's is not, so the click that puts it
+ * away lands on what it was meant for.
  */
 export function GroupRowMenu({
   children,
@@ -176,6 +188,24 @@ export function GroupRowMenu({
           <XIcon className="size-4" />
           Close Tab Group
         </ContextMenuItem>
+        {menu.onCloseOthers && (
+          <ContextMenuItem onSelect={menu.onCloseOthers}>
+            <XSquareIcon className="size-4" />
+            Close Other Tab Groups
+          </ContextMenuItem>
+        )}
+        {menu.onCloseAbove && (
+          <ContextMenuItem onSelect={menu.onCloseAbove}>
+            <ArrowLineUpIcon className="size-4" />
+            Close Tab Groups Above
+          </ContextMenuItem>
+        )}
+        {menu.onCloseBelow && (
+          <ContextMenuItem onSelect={menu.onCloseBelow}>
+            <ArrowLineDownIcon className="size-4" />
+            Close Tab Groups Below
+          </ContextMenuItem>
+        )}
       </ContextMenuContent>
     </ContextMenu>
   );

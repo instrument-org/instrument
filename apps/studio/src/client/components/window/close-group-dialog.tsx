@@ -36,18 +36,18 @@ function KeyCap({
 }
 
 /**
- * Asked before a group whose agent is working closes: the group's row as the
- * sidebar draws it, then Stop and close under Return and Keep open under
- * Escape.
+ * Asked before groups whose agents are working close, once for all of them:
+ * each group's row as the sidebar draws it, then Stop and close under Return
+ * and Keep open under Escape, which closes none of what was asked.
  */
 export function CloseGroupDialog({
-  entry,
+  entries,
   onCancel,
   onConfirm,
 }: {
-  entry: TabGroup | undefined;
+  entries: readonly TabGroup[] | undefined;
   onCancel: () => void;
-  onConfirm: (entry: TabGroup) => void;
+  onConfirm: () => void;
 }) {
   const stopRef = useRef<HTMLButtonElement>(null);
   return (
@@ -57,7 +57,7 @@ export function CloseGroupDialog({
           onCancel();
         }
       }}
-      open={entry !== undefined}
+      open={entries !== undefined}
     >
       <AlertDialogContent
         className="max-w-100"
@@ -67,11 +67,20 @@ export function CloseGroupDialog({
         }}
       >
         <AlertDialogTitle className="sr-only">
-          Stop and close this tab group?
+          {entries && entries.length > 1
+            ? "Stop and close these tab groups?"
+            : "Stop and close this tab group?"}
         </AlertDialogTitle>
-        {entry && (
-          <div className="pointer-events-none rounded-xl bg-foreground/[0.03] p-1">
-            <GroupRow chatTitles={NO_TITLES} entry={entry} isUp />
+        {entries && (
+          <div className="pointer-events-none flex max-h-80 flex-col gap-0.5 overflow-hidden rounded-xl bg-foreground/[0.03] p-1">
+            {entries.map((entry) => (
+              <GroupRow
+                chatTitles={NO_TITLES}
+                entry={entry}
+                isUp
+                key={entry.group}
+              />
+            ))}
           </div>
         )}
         <AlertDialogFooter>
@@ -79,15 +88,7 @@ export function CloseGroupDialog({
             Keep open
             <KeyCap>Esc</KeyCap>
           </Button>
-          <Button
-            onClick={() => {
-              if (entry) {
-                onConfirm(entry);
-              }
-            }}
-            ref={stopRef}
-            variant="destructive"
-          >
+          <Button onClick={onConfirm} ref={stopRef} variant="destructive">
             Stop and close
             <KeyCap onColor>{osConventions().returnKey}</KeyCap>
           </Button>

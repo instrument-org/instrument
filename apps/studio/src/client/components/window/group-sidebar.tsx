@@ -34,7 +34,7 @@ import { PushPinIcon } from "@phosphor-icons/react/PushPin";
 import { XIcon } from "@phosphor-icons/react/X";
 import { type ChatId } from "@instrument-org/workspace/client";
 import { useQuery } from "@tanstack/react-query";
-import { useAtom, useAtomValue } from "jotai";
+import { useAtom, useAtomValue, useSetAtom } from "jotai";
 import {
   AnimatePresence,
   motion,
@@ -50,6 +50,11 @@ import {
   useState,
 } from "react";
 
+import { updateDraftAtom } from "@/client/drafts/store";
+
+import { useChatActionsFor } from "./chat-actions";
+import { ChatTitleField } from "./chat-title";
+import { GroupRowMenu, type GroupRowMenuActions } from "./group-row-menu";
 import { HelpMenu } from "./help-menu";
 import { toggleLeft } from "./inbox-toggle";
 import { useAppsBySlug } from "./apps-by-slug";
@@ -61,6 +66,7 @@ import { projectColor } from "./project-colors";
 import { projectTint } from "./project-tint";
 import { ProjectsSection } from "./projects-section";
 import { RowActionBar } from "./row-action-bar";
+import { stopHere } from "./row-shell";
 import { pageTabTitle } from "./file-tabs";
 import { ScreenMark } from "./pane-tabs";
 import { screenPresentation } from "./screen-presentation";
@@ -72,7 +78,9 @@ import {
   sidebarDropAtom,
 } from "./sidebar-drop";
 import { useGroupRowDrag } from "./tab-drag";
+import { useChatRename } from "./use-chat-rename";
 import { useProjectShift } from "./use-project-shift";
+import { useSetChatProject } from "./use-set-chat-project";
 import { lastActiveAt, type TabGroup, windowTabGroupsAtom } from "./tab-groups";
 import { isHomeTab } from "./tab-model";
 import { useNow } from "./use-now";
@@ -129,6 +137,7 @@ export function GroupSidebar({
   onClose,
   onNew,
   onNewProject,
+  onNewProjectFor,
   onRestore,
   onShow,
   open,
@@ -145,6 +154,8 @@ export function GroupSidebar({
   onClose: (group: string) => void;
   onNew: (projectId?: string) => void;
   onNewProject: () => void;
+  /** The new-project dialog for one group, which files it under the project it makes. */
+  onNewProjectFor: (target: { chatId: ChatId } | { draftId: string }) => void;
   onRestore: (group: string) => void;
   onShow: (group: string, options: { newWindow: boolean }) => void;
   open: TabGroup[];
@@ -194,6 +205,42 @@ export function GroupSidebar({
   const room = drop?.kind === "between" ? drop : undefined;
   const liftedEntry =
     lifted && open.find((entry) => entry.group === lifted.group);
+  const actionsFor = useChatActionsFor();
+  const setChatProject = useSetChatProject();
+  const updateDraft = useSetAtom(updateDraftAtom);
+  const menuOf = (entry: TabGroup): GroupRowMenuActions => ({
+    actions: entry.kind === "chat" ? actionsFor(entry.chat) : [],
+    onClose: () => {
+      onClose(entry.group);
+    },
+    onNewProject: () => {
+      onNewProjectFor(
+        entry.kind === "chat"
+          ? { chatId: entry.chat.id }
+          : { draftId: entry.draft.id },
+      );
+    },
+    onNewWindow: () => {
+      onShow(entry.group, { newWindow: true });
+    },
+    onSetProject: (filed) => {
+      if (entry.kind === "chat") {
+        setChatProject(entry.chat.id, filed);
+        return;
+      }
+      updateDraft({
+        id: entry.draft.id,
+        update: (draft) => {
+          if (filed !== null) {
+            return { ...draft, projectId: filed, projectSource: "chosen" };
+          }
+          const { projectId: _dropped, ...unfiled } = draft;
+          return { ...unfiled, projectSource: "chosen" };
+        },
+      });
+    },
+    projects,
+  });
 
   const row = (
     entry: TabGroup,
@@ -207,6 +254,7 @@ export function GroupSidebar({
       key={entry.group}
       {...(extra?.isElsewhere ? {} : { onClose })}
       {...(extra?.isListed ? { onPress: pressRow } : {})}
+      {...(extra?.isElsewhere || extra?.restore ? {} : { menu: menuOf(entry) })}
       onShow={onShow}
       {...(extra?.restore
         ? {
@@ -705,7 +753,8 @@ function dayLabel(at: number): string {
  * group's tabs at the line's end. A group whose chat has not started has
  * only its tabs' marks there. While the pointer is on a row that closes, a
  * close X stands in the time's place, and a middle click closes it too. It
- * lights while a tab held over it would land in its group.
+ * lights while a tab held over it would land in its group. A right click
+ * raises its menu (`GroupRowMenu`), whose Rename turns the title into a field.
  */
 export function GroupRow({
   chatTitles,
@@ -713,6 +762,7 @@ export function GroupRow({
   isDropInto = false,
   isLifted = false,
   isUp,
+  menu,
   onClose,
   onPress,
   onShow,
@@ -724,6 +774,8 @@ export function GroupRow({
   /** The copy of a row lifted out of the list, which stands for it under the pointer. */
   isLifted?: boolean;
   isUp: boolean;
+  /** What its menu does, for a row of this window's own groups. */
+  menu?: GroupRowMenuActions;
   onClose?: (group: string) => void;
   /** A press that may become a drag of the row. */
   onPress?: (group: string, event: ReactPointerEvent<HTMLElement>) => void;
@@ -732,6 +784,7 @@ export function GroupRow({
 }) {
   const chat = entry.kind === "chat" ? entry.chat : undefined;
   const isUnread = chat?.unread === true;
+  const rename = useChatRename(chat);
   const now = useNow();
   const { selectedTabIn } = useWindowTabs();
   const appsBySlug = useAppsBySlug();
@@ -746,7 +799,7 @@ export function GroupRow({
   } else if (up !== undefined) {
     title = screenPresentation(up.href, { appsBySlug, chatTitles }).title;
   }
-  return (
+  const shown = (
     <div
       className={cn(
         "group/row flex shrink-0 items-center gap-2 rounded-lg px-2.5 py-1.5",
@@ -786,33 +839,39 @@ export function GroupRow({
             }
           : undefined
       }
-      onContextMenu={(event) => {
-        if (!onClose || restore) {
-          return;
-        }
-        event.preventDefault();
-        void rowMenu(entry).then((picked) => {
-          if (picked === "close") {
-            onClose(entry.group);
-          } else if (picked === "newWindow") {
-            onShow?.(entry.group, { newWindow: true });
-          }
-        });
-      }}
       role={restore || isLifted ? undefined : "button"}
     >
       <div className="min-w-0 flex-1">
         <div className="flex h-5 min-w-0 items-center gap-1.5">
-          <span
-            className={cn(
-              "min-w-0 flex-1 truncate text-[13px] leading-5",
-              isUnread
-                ? "font-semibold text-foreground"
-                : "font-medium text-foreground/85",
-            )}
-          >
-            {title}
-          </span>
+          {rename.isEditing ? (
+            // Clicks, presses and keys in the field are the field's, not the row's.
+            <span
+              className="-my-1.5 flex min-w-0 flex-1"
+              onAuxClick={stopHere}
+              onClick={stopHere}
+              onKeyDown={stopHere}
+              onMouseDown={stopHere}
+              onPointerDown={stopHere}
+            >
+              <ChatTitleField
+                className="text-[13px] font-medium"
+                grow
+                rename={rename}
+                width={undefined}
+              />
+            </span>
+          ) : (
+            <span
+              className={cn(
+                "min-w-0 flex-1 truncate text-[13px] leading-5",
+                isUnread
+                  ? "font-semibold text-foreground"
+                  : "font-medium text-foreground/85",
+              )}
+            >
+              {title}
+            </span>
+          )}
           {/* The time steps aside for the close X while the pointer is on the row. */}
           <RowActionBar
             actions={
@@ -862,30 +921,17 @@ export function GroupRow({
       )}
     </div>
   );
-}
-
-async function rowMenu(entry: TabGroup) {
-  const items = [
-    ...(entry.kind === "chat"
-      ? [
-          {
-            id: entry.chat.starred ? "unpin" : "pin",
-            label: entry.chat.starred ? "Unpin" : "Pin",
-          },
-        ]
-      : []),
-    { id: "newWindow", label: "Open in New Window" },
-    { separator: true as const },
-    { id: "close", label: "Close Tab Group" },
-  ];
-  const picked = await rpcClient.utils.showContextMenu.call({ items });
-  if (entry.kind === "chat" && (picked.id === "pin" || picked.id === "unpin")) {
-    await rpcClient.workspace.chats.star.call({
-      id: entry.chat.id,
-      starred: picked.id === "pin",
-    });
-  }
-  return picked.id;
+  return menu ? (
+    <GroupRowMenu
+      entry={entry}
+      menu={menu}
+      {...(chat ? { onRename: rename.start } : {})}
+    >
+      {shown}
+    </GroupRowMenu>
+  ) : (
+    shown
+  );
 }
 
 /**

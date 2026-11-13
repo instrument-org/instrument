@@ -109,6 +109,7 @@ Every phase in the order of work is built. What is rough or missing:
 - **The composer's address rows** show for a line of four words or fewer and 80 letters or fewer, so the start of every new chat's message still goes to the search engine's suggestions as it is typed. A path typed there stays words for the chat.
 - **Ask on a selection** stays, and in a group whose chat has not started, its "Add to new chat" still moves the comments into a new draft, which is a new group.
 - **Rows** are in the window's own order: a new group, or one opened from History or search, lands at the top, under New, and stays there once its chat starts. A group whose chat has not started and whose draft has nothing is gone after a relaunch, since an empty draft is never written.
+- **A row's menu** has the chat list's items for a chat: Open in New Window, Mark as read or unread, Pin, Rename, Project, Copy, and Close Tab Group. A group whose chat has not started has Open in New Window, Project and Close Tab Group. Neither has Delete or Archive.
 - **Search and History** are per window and not kept; opening a group from History returns the sidebar to the list. History has no Delete; a chat's own menu still has one, and the chat head's Archive still archives the chat and closes its group.
 - **A file or link opened from outside** makes a new group every time, even when a group already shows that file.
 

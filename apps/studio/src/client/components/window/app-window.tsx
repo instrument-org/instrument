@@ -1519,6 +1519,7 @@ function WindowShell({
                   onNewProject={() => {
                     setNewProject({});
                   }}
+                  onNewProjectFor={setNewProject}
                   onRestore={(group) => {
                     groups.restore(group);
                   }}

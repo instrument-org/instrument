@@ -209,10 +209,16 @@ describe("closeTab", () => {
     expect(shape(closed)[CHAT] ?? "").toBe(expected);
   });
 
-  it("puts a draft's new tab back in place of its last, up", () => {
-    const state = windowOf([pageTab("p", "https://example.com", DRAFT)]);
+  it.each([
+    ["a draft's", DRAFT],
+    ["a chat's", ChatIdSchema.parse("2026-10-01-roofer")],
+  ])("puts a new tab in place of %s last tab, up", (_case, group) => {
+    const state = selectTab(
+      windowOf([pageTab("p", "https://example.com", group)]),
+      "p",
+    );
     const closed = closeTab(state, "p", { homeId: "home" });
-    expect(shape(closed)).toEqual({ [DRAFT]: "*home" });
+    expect(shape(closed)).toEqual({ [group]: "*home" });
     expect(closed.tabs[0]).toMatchObject({ href: NEW_TAB_HREF });
   });
 

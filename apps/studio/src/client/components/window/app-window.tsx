@@ -9,12 +9,7 @@ import {
   newChatBoxesAtom,
   pickNewChatProjectAtom,
 } from "@/client/drafts/new-chat-box";
-import {
-  type Draft,
-  draftGroupOf,
-  draftOfGroup,
-  holdsSomething,
-} from "@/shared/drafts";
+import { type Draft, draftGroupOf, holdsSomething } from "@/shared/drafts";
 import {
   type AppPlace,
   chatFiltersAtom,
@@ -1187,9 +1182,8 @@ function WindowShell({
       },
       // The tab up in the group on screen, wherever the keyboard is, and
       // the group itself only once it has none left: one close a press,
-      // read from the tabs as they are at that moment. A group whose chat
-      // has not started puts a new tab back as its last closes, so that new
-      // tab alone counts as none.
+      // read from the tabs as they are at that moment. A group puts a new
+      // tab back as its last closes, so that new tab alone counts as none.
       closeTab: () => {
         const group = store.get(groupOnScreenAtom);
         if (group === undefined) {
@@ -1199,7 +1193,6 @@ function WindowShell({
         const up = selectedTabIn(state, group);
         const isOnlyNewTab =
           up !== undefined &&
-          draftOfGroup(group) !== undefined &&
           isHomeTab(up) &&
           state.tabs.filter((tab) => tab.group === group).length === 1;
         if (up && !isOnlyNewTab) {

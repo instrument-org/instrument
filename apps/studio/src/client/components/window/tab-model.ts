@@ -1,6 +1,7 @@
 import { draftOfGroup } from "@/shared/drafts";
 import {
   type BrowserTab,
+  NEW_TAB_HREF,
   newTabHrefOf,
   type TabVisit,
   type WindowTab,
@@ -507,9 +508,9 @@ export function stepTrail(
 
 /**
  * A tab closed. The tab up in its group gives way to the one before it, or
- * the first left. A draft's last tab is replaced by its new tab, since the
- * draft is what is gathered beside the words and the page is where gathering
- * starts; a chat's last tab closes like any other.
+ * the first left. A chat's or a draft's last tab is replaced by a new tab,
+ * since a tab group always has a tab; any other group's last tab closes like
+ * any other.
  */
 export function closeTab(
   state: WindowTabs,
@@ -528,11 +529,15 @@ export function closeTab(
     return { ...state, tabs: remaining };
   }
   if (
-    draftOfGroup(group) !== undefined &&
+    (draftOfGroup(group) !== undefined || chatOfGroup(group) !== undefined) &&
     !remaining.some((tab) => tab.group === group)
   ) {
-    const href = newTabHrefOf(group);
-    const home: WindowTab = { group, href, id: homeId, kind: "screen" };
+    const home: WindowTab = {
+      group,
+      href: NEW_TAB_HREF,
+      id: homeId,
+      kind: "screen",
+    };
     const tabs = [
       ...remaining.slice(0, index),
       home,

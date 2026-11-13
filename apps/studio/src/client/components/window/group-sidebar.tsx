@@ -27,6 +27,7 @@ import { CaretLeftIcon } from "@phosphor-icons/react/CaretLeft";
 import { ClockCounterClockwiseIcon } from "@phosphor-icons/react/ClockCounterClockwise";
 import { GearSixIcon } from "@phosphor-icons/react/GearSix";
 import { PlusIcon } from "@phosphor-icons/react/Plus";
+import { XIcon } from "@phosphor-icons/react/X";
 import { type ChatId } from "@instrument-org/workspace/client";
 import { useQuery } from "@tanstack/react-query";
 import { useAtom } from "jotai";
@@ -41,6 +42,7 @@ import { ProjectBanner } from "./project-banner";
 import { projectColor } from "./project-colors";
 import { projectTint } from "./project-tint";
 import { ProjectsSection } from "./projects-section";
+import { RowActionBar } from "./row-action-bar";
 import { pageTabTitle } from "./file-tabs";
 import { ScreenMark } from "./pane-tabs";
 import { screenPresentation } from "./screen-presentation";
@@ -445,7 +447,8 @@ function dayLabel(at: number): string {
  * its chat at the line's end; then its chat's latest line (the step it is
  * on, the question it waits on, or its last reply), with the marks of the
  * group's tabs at the line's end. A group whose chat has not started has
- * only its tabs' marks there.
+ * only its tabs' marks there. While the pointer is on a row that closes, a
+ * close X stands in the time's place.
  */
 export function GroupRow({
   chatTitles,
@@ -521,17 +524,36 @@ export function GroupRow({
           >
             {title}
           </span>
-          {chat && (
-            <span
-              className={cn(
-                "shrink-0 text-right text-[11px] text-muted-foreground/70 tabular-nums",
-                isUnread && "font-semibold",
-              )}
-              title={formatAbsoluteTime(new Date(chat.lastUserMessageAt))}
-            >
-              {activityLabel(new Date(chat.lastUserMessageAt), now)}
-            </span>
-          )}
+          {/* The time steps aside for the close X while the pointer is on the row. */}
+          <RowActionBar
+            actions={
+              onClose && !restore
+                ? [
+                    {
+                      icon: <XIcon />,
+                      id: "close",
+                      label: "Close Tab Group",
+                      run: () => {
+                        onClose(entry.group);
+                      },
+                    },
+                  ]
+                : []
+            }
+            resting={
+              chat && (
+                <span
+                  className={cn(
+                    "shrink-0 text-right text-[11px] text-muted-foreground/70 tabular-nums",
+                    isUnread && "font-semibold",
+                  )}
+                  title={formatAbsoluteTime(new Date(chat.lastUserMessageAt))}
+                >
+                  {activityLabel(new Date(chat.lastUserMessageAt), now)}
+                </span>
+              )
+            }
+          />
         </div>
         <div className="flex h-5 min-w-0 items-center gap-2 text-[12px] leading-5">
           <SecondLine chatTitles={chatTitles} entry={entry} />

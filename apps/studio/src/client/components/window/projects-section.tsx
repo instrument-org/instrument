@@ -58,7 +58,7 @@ export function ProjectsSection({
         style={projectTint(projectColor(project))}
       >
         <button
-          className="flex h-full min-w-0 flex-1 items-center gap-2.5 pl-1.5 text-left text-sm font-medium text-(--project-tint-ink) outline-hidden"
+          className="flex h-full min-w-0 flex-1 items-center gap-1.5 pl-1.5 text-left text-sm font-medium text-(--project-tint-ink) outline-hidden"
           onClick={() => {
             onChoose(project);
           }}
@@ -84,9 +84,9 @@ export function ProjectsSection({
     </ProjectContextMenu>
   );
   return (
-    <section aria-label="Projects" className="px-2 pt-1 pb-2">
+    <section aria-label="Projects" className="pt-1 pb-2">
       <div
-        className="group/heading flex h-8 items-center justify-between pr-0.5 pl-2"
+        className="group/heading flex h-8 items-center justify-between pr-1 pl-2.5"
         onContextMenu={(event) => {
           event.preventDefault();
           void rpcClient.utils.showContextMenu
@@ -136,7 +136,7 @@ export function ProjectsSection({
           )}
           {isFolding && (
             <button
-              className="flex h-9 items-center gap-2.5 rounded-lg bg-foreground/4 pl-1.5 text-left text-sm text-muted-foreground hover:bg-foreground/6 hover:text-foreground"
+              className="flex h-9 items-center gap-1.5 rounded-lg bg-foreground/4 pl-1.5 text-left text-sm text-muted-foreground hover:bg-foreground/6 hover:text-foreground"
               onClick={() => {
                 setAllShown(!isAllShown);
               }}

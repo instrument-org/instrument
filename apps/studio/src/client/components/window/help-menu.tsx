@@ -32,10 +32,10 @@ export function HelpMenu({ chatId }: { chatId?: ChatId }) {
         <DropdownMenuTrigger asChild>
           <button
             aria-label="Help"
-            className="grid size-8 place-items-center rounded-lg text-muted-foreground hover:bg-foreground/5 hover:text-foreground"
+            className="grid size-7 place-items-center rounded-lg text-muted-foreground hover:bg-foreground/5 hover:text-foreground"
             type="button"
           >
-            <QuestionIcon className="size-4.5" />
+            <QuestionIcon className="size-4" />
           </button>
         </DropdownMenuTrigger>
       </ToolbarTooltip>

@@ -29,10 +29,11 @@ export function InboxToggle() {
 /**
  * How far the sidebar toggle stands from the window's left edge: just past
  * the traffic lights on a Mac, which keep their size whatever the app's
- * zoom, or 8px in elsewhere.
+ * zoom, or 12px in elsewhere, where its mark stands on the sidebar's column
+ * of icons.
  */
 export function toggleLeft() {
-  return isMacOS() ? "calc(4.5rem / var(--app-zoom, 1))" : "8px";
+  return isMacOS() ? "calc(4.5rem / var(--app-zoom, 1))" : "12px";
 }
 
 /**

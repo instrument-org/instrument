@@ -297,6 +297,7 @@ export function GroupSidebar({
             <div className="flex shrink-0 items-center gap-1 px-2">
               <div className="relative flex min-w-0 flex-1">
                 <SearchField
+                  className="pl-8.75 [&>svg]:left-2.25 [&>svg]:size-4"
                   inputRef={searchRef}
                   label="Search Tab Groups"
                   onChange={setSearch}
@@ -304,7 +305,7 @@ export function GroupSidebar({
                   value={search}
                 />
                 {!isSearching && (
-                  <span className="pointer-events-none absolute top-1/2 right-2 -translate-y-1/2">
+                  <span className="pointer-events-none absolute top-1/2 right-2.5 -translate-y-1/2">
                     <SoftKey>
                       {formatAcceleratorText(
                         WINDOW_SHORTCUTS.searchChats.accelerator,
@@ -423,11 +424,13 @@ function NewRow({ onNew }: { onNew: () => void }) {
 function BackRow({ label, onBack }: { label: string; onBack: () => void }) {
   return (
     <button
-      className="flex h-8 shrink-0 items-center gap-1 self-start rounded-md px-2 text-[13px] font-medium text-foreground/75 hover:bg-foreground/5"
+      className="flex h-8 w-full shrink-0 items-center gap-2.5 rounded-lg px-2.5 text-[13px] font-medium text-foreground/75 hover:bg-foreground/5"
       onClick={onBack}
       type="button"
     >
-      <CaretLeftIcon className="size-3.5" />
+      <span className="grid size-4 place-items-center">
+        <CaretLeftIcon className="size-3.5" />
+      </span>
       {label}
     </button>
   );
@@ -743,7 +746,7 @@ function TabMark({
 function SidebarTop() {
   return (
     <div
-      className="flex h-10 shrink-0 items-center gap-1 pr-2 [-webkit-app-region:drag] [&_button]:[-webkit-app-region:no-drag]"
+      className="flex h-10 shrink-0 items-center gap-1 pr-3 [-webkit-app-region:drag] [&_button]:[-webkit-app-region:no-drag]"
       style={{ paddingLeft: `calc(${toggleLeft()} + 2rem)` }}
     >
       {!isMacOS() && <AppMenuButton />}
@@ -780,9 +783,9 @@ function SidebarFoot({ chatId }: { chatId: ReturnType<typeof chatOfGroup> }) {
     rpcClient.workspaces.current.queryOptions(),
   );
   return (
-    <div className="flex h-12 shrink-0 items-center gap-1 border-t border-border/60 px-2">
+    <div className="flex h-12 shrink-0 items-center gap-1 border-t border-border/60 pr-3 pl-2">
       <button
-        className="flex h-9 min-w-0 flex-1 items-center gap-2 rounded-lg px-1.5 text-left hover:bg-foreground/5"
+        className="flex h-9 min-w-0 flex-1 items-center gap-1.5 rounded-lg px-1.5 text-left hover:bg-foreground/5"
         onClick={() => {
           openSettings({ tab: "General" });
         }}
@@ -801,13 +804,13 @@ function SidebarFoot({ chatId }: { chatId: ReturnType<typeof chatOfGroup> }) {
       <ToolbarTooltip label="Settings">
         <button
           aria-label="Settings"
-          className="grid size-8 shrink-0 place-items-center rounded-lg text-muted-foreground hover:bg-foreground/5 hover:text-foreground"
+          className="grid size-7 shrink-0 place-items-center rounded-lg text-muted-foreground hover:bg-foreground/5 hover:text-foreground"
           onClick={() => {
             openSettings({ tab: "General" });
           }}
           type="button"
         >
-          <GearSixIcon className="size-4.5" />
+          <GearSixIcon className="size-4" />
         </button>
       </ToolbarTooltip>
       <HelpMenu chatId={chatId} />

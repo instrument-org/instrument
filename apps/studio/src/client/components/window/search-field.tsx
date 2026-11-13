@@ -28,6 +28,7 @@ export interface SearchToken<T extends string> {
  * offer while the keyboard stays in the field.
  */
 export function SearchField<T extends string>({
+  className,
   inputRef,
   label,
   offered = [],
@@ -38,6 +39,8 @@ export function SearchField<T extends string>({
   tokens = [],
   value,
 }: {
+  /** The field's own box, where a list lines it up with its rows. */
+  className?: string;
   inputRef?: Ref<HTMLInputElement>;
   /** The name a screen reader gives the field; the placeholder when left out. */
   label?: string;
@@ -85,6 +88,7 @@ export function SearchField<T extends string>({
             "bg-foreground/4 hover:bg-foreground/6",
             "focus-within:border-input focus-within:bg-background focus-within:shadow-sm focus-within:hover:bg-background",
             "dark:focus-within:bg-input/30",
+            className,
           )}
         >
           <MagnifyingGlassIcon className="pointer-events-none absolute top-1/2 left-3 size-3.5 -translate-y-1/2 text-muted-foreground" />

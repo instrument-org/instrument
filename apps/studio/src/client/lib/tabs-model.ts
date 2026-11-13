@@ -1,3 +1,4 @@
+import { type WindowTab } from "@/client/atoms/window";
 import { matchScreen } from "@/client/components/window/window-href";
 import {
   movedTabHistory,
@@ -101,6 +102,37 @@ export function closeTab(
       : model.selectedId;
 
   return { recentlyClosed, selectedId, tabs };
+}
+
+/**
+ * A tab group's tab closed, on the window's closed list beside its own tabs:
+ * at its group's address, holding the tab as its group had it and its place
+ * among the group's tabs, where a reopen puts it back.
+ */
+export function closeGroupTab(
+  model: TabsModel,
+  {
+    id,
+    index,
+    pathname,
+    tab,
+  }: { id: TabId; index: number; pathname: string; tab: WindowTab },
+): TabsModel {
+  return {
+    ...model,
+    recentlyClosed: [
+      { closedAt: Date.now(), groupTab: tab, id, index, pathname },
+      ...model.recentlyClosed,
+    ].slice(0, MAX_RECENTLY_CLOSED),
+  };
+}
+
+/** The closed list without one entry, by its id: one reopened. */
+export function forgetClosed(model: TabsModel, { id }: { id: TabId }) {
+  return {
+    ...model,
+    recentlyClosed: model.recentlyClosed.filter((each) => each.id !== id),
+  };
 }
 
 /**

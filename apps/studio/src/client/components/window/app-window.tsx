@@ -22,7 +22,6 @@ import {
   filesFolderAtom,
   inboxOpenAtom,
   paneOpenByGroupAtom,
-  type WindowTab,
 } from "@/client/atoms/window";
 import { settingsModalAtom } from "@/client/atoms/settings-modal";
 import { AppErrorFallback } from "@/client/components/app-error-fallback";
@@ -62,7 +61,12 @@ import { sharedQueryClient, type TabRouter } from "@/client/lib/tab-router";
 import { getRouterHistory } from "@/client/lib/tab-router-history";
 import { getTabRouter } from "@/client/lib/tab-router-registry";
 import { restoreTabView } from "@/client/lib/tab-view-state";
-import { setTabPathname } from "@/client/lib/tabs-model";
+import {
+  closeGroupTab,
+  forgetClosed,
+  setTabPathname,
+} from "@/client/lib/tabs-model";
+import { freshTabId } from "@/client/lib/tab-actions";
 import { spokenMessage, toast } from "@/client/lib/toast";
 import { captureComponentError } from "@/client/lib/capture-exception";
 import { cn } from "@/client/lib/utils";
@@ -71,7 +75,7 @@ import { fileHref, folderHref } from "@/shared/computer-href";
 import { type Tab } from "@/shared/tabs";
 
 import { useRestoredTabsWaiting } from "./use-restored-tabs-waiting";
-import { browserTargetOf, type ChatId } from "@instrument-org/workspace/client";
+import { type ChatId } from "@instrument-org/workspace/client";
 import { IconContext } from "@phosphor-icons/react/dist/lib/context";
 import {
   QueryClientProvider,
@@ -118,7 +122,12 @@ import { ComposeLayer } from "./compose-layer";
 import { useComputerVolumes } from "./computer-volumes";
 import { type WindowContextValue as Screens, WindowContext } from "./context";
 import { isPaneOpen } from "./draft-context";
-import { isHomeTab, selectedTabIn } from "./tab-model";
+import {
+  closedGroupTabOf,
+  isBlankNewTab,
+  isHomeTab,
+  selectedTabIn,
+} from "./tab-model";
 import { useSignInLanding } from "./use-sign-in-landing";
 import { inboxLandsAtOnceAtom } from "./inbox-room";
 import { WindowLook } from "./look-panel";
@@ -200,16 +209,6 @@ function floatingDraftIdsOf(kept: unknown): string[] {
 
 /** How long after a first Cmd+W on a group with no tabs a second one closes the group. */
 const CLOSE_AGAIN_MS = 3000;
-
-/** How many closed tabs a window keeps for Shift+Cmd+T, as a browser keeps a short list. */
-const CLOSED_TABS_KEPT = 25;
-
-/** A tab this window closed, with its place among its group's tabs. */
-interface ClosedGroupTab {
-  closedAt: number;
-  index: number;
-  tab: WindowTab;
-}
 
 /** The groups the window's places once kept their tabs under, which nothing shows now. */
 const RETIRED_GROUPS = [
@@ -829,23 +828,23 @@ function WindowShell({
     void activeRouter?.loadRouteChunk(activeRouter.routesById["/_app/new-tab"]);
   }, [activeRouter, opened, queryClient]);
 
-  // The group tabs this window closed, newest first, for Shift+Cmd+T.
-  const closedTabs = useRef<ClosedGroupTab[]>([]);
+  // A group's tab closed goes on the window's closed list, with the window's
+  // own tabs, so Shift+Cmd+T brings it back.
   const requestClose = (id: string) => {
     const tab = windowTabs.allTabs.find((each) => each.id === id);
-    // A new tab has nothing to come back to.
-    if (tab?.group !== undefined && !isHomeTab(tab)) {
+    if (tab?.group !== undefined && !isBlankNewTab(tab)) {
       const { group } = tab;
-      closedTabs.current = [
-        {
-          closedAt: Date.now(),
-          index: windowTabs.allTabs
-            .filter((each) => each.group === group)
-            .indexOf(tab),
+      const index = windowTabs.allTabs
+        .filter((each) => each.group === group)
+        .indexOf(tab);
+      store.set(appTabsAtom, (current) =>
+        closeGroupTab(current, {
+          id: freshTabId(),
+          index,
+          pathname: groupHref(group),
           tab,
-        },
-        ...closedTabs.current,
-      ].slice(0, CLOSED_TABS_KEPT);
+        }),
+      );
     }
     // Any group's: a popped-out chat's rail closes its tabs here too.
     windowTabs.close(id);
@@ -858,30 +857,29 @@ function WindowShell({
   const reopenTab = () => {
     const isOpen = (group: string) =>
       groupList.open.some((entry) => entry.group === group);
-    const entry = closedTabs.current.find(
-      ({ tab }) => tab.group !== undefined && isOpen(tab.group),
-    );
+    const entry = store.get(appTabsAtom).recentlyClosed.find((each) => {
+      const group = closedGroupTabOf(each)?.group;
+      return group !== undefined && isOpen(group);
+    });
     void rpcClient.window.reopenClosed
-      .call(entry && { after: entry.closedAt })
+      .call(entry && { after: entry.closedAt ?? 0 })
       .catch(() => false)
       .then((windowCameBack) => {
-        if (!entry || windowCameBack || entry.tab.group === undefined) {
+        const tab = entry && closedGroupTabOf(entry);
+        if (!entry || !tab || windowCameBack) {
           return;
         }
-        closedTabs.current = closedTabs.current.filter(
-          (each) => each !== entry,
+        store.set(appTabsAtom, (current) =>
+          forgetClosed(current, { id: entry.id }),
         );
-        // A tab id is never opened twice, and a page's guest went with it.
-        const id = newScreenId();
-        windowTabs.reopen({ ...entry.tab, id }, entry.index);
-        if (entry.tab.kind === "page") {
-          const url = entry.tab.url ?? entry.tab.openedUrl;
-          void rpcClient.workspace.browser.open.call({
-            targetId: browserTargetOf(id),
-            ...(url ? { url } : {}),
-          });
-        }
-        groups.show(entry.tab.group);
+        // A tab id is never opened twice. A page's guest went with it, and
+        // comes back when the page shows, at the address it had, the way a
+        // launch brings a tab's page back.
+        windowTabs.reopen(
+          { ...tab, id: newScreenId() },
+          entry.index ?? Number.POSITIVE_INFINITY,
+        );
+        groups.show(tab.group);
       });
   };
 

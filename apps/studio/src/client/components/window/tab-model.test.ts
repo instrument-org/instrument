@@ -4,15 +4,19 @@ import {
   NEW_TAB_HREF,
   type WindowTab,
 } from "@/client/atoms/window";
+import { closeGroupTab, emptyTabsModel } from "@/client/lib/tabs-model";
 import { fileHref } from "@/shared/computer-href";
+import { TabIdSchema, TabsModelSchema } from "@/shared/tabs";
 import { ChatIdSchema, StoreId } from "@instrument-org/workspace/client";
 import { describe, expect, it } from "vitest";
 
 import {
   addScreen,
   adoptGroup,
+  closedGroupTabOf,
   closeTab,
   dropGroup,
+  isBlankNewTab,
   navigateScreen,
   normalizeWindowTabs,
   openOrFocusScreen,
@@ -605,6 +609,43 @@ describe("reopenTab", () => {
       tab: screenTab("r", "/apps", CHAT),
     });
     expect(shape(state)).toEqual({ [CHAT]: "*r", [OTHER]: "*x" });
+  });
+});
+
+describe("closeGroupTab", () => {
+  it("keeps a group's tab on the window's closed list through what the window keeps", () => {
+    const tab = { ...pageTab("p", "https://example.com/", CHAT), past: [] };
+    const closed = closeGroupTab(emptyTabsModel(), {
+      id: TabIdSchema.parse("closed"),
+      index: 2,
+      pathname: `/chats/${CHAT}`,
+      tab,
+    });
+    const kept = TabsModelSchema.parse(
+      JSON.parse(JSON.stringify(closed)),
+    ).recentlyClosed;
+    expect(kept.map((entry) => entry.index)).toEqual([2]);
+    expect(kept.map(closedGroupTabOf)).toEqual([tab]);
+  });
+
+  it("reads no group's tab from a closed tab of the window's own", () => {
+    expect(closedGroupTabOf({})).toBeUndefined();
+    expect(closedGroupTabOf({ groupTab: { id: "p" } })).toBeUndefined();
+  });
+
+  it.each([
+    ["a new tab", screenTab("n", NEW_TAB_HREF, DRAFT), true],
+    [
+      "a new tab come back from a page",
+      {
+        ...screenTab("n", NEW_TAB_HREF, DRAFT),
+        past: [pageTab("p", "", DRAFT)],
+      },
+      false,
+    ],
+    ["a folder", screenTab("f", "/files", DRAFT), false],
+  ])("counts %s as blank: %s", (_case, tab, isBlank) => {
+    expect(isBlankNewTab(tab)).toBe(isBlank);
   });
 });
 

@@ -211,6 +211,46 @@ export function isHomeTab(tab: WindowTab): boolean {
   return tab.kind === "screen" && matchScreen(tab.href).kind === "newTab";
 }
 
+/**
+ * A new tab that never went anywhere, which a reopen would give back as a new
+ * one would: not worth keeping on the closed list.
+ */
+export function isBlankNewTab(tab: WindowTab): boolean {
+  return (
+    isHomeTab(tab) &&
+    (tab.past?.length ?? 0) === 0 &&
+    (tab.kind !== "screen" || (tab.history?.entries.length ?? 0) <= 1)
+  );
+}
+
+/**
+ * The tab group's tab a closed entry of the window holds (`closeGroupTab`),
+ * in a group; none for a closed tab of the window's own.
+ */
+export function closedGroupTabOf({
+  groupTab,
+}: {
+  groupTab?: unknown;
+}): (WindowTab & { group: string }) | undefined {
+  return isGroupTabRecord(groupTab) ? groupTab : undefined;
+}
+
+/** Whether a kept value is a tab of a group, as `closeGroupTab` alone writes one. */
+function isGroupTabRecord(
+  value: unknown,
+): value is WindowTab & { group: string } {
+  return (
+    typeof value === "object" &&
+    value !== null &&
+    "id" in value &&
+    typeof value.id === "string" &&
+    "group" in value &&
+    typeof value.group === "string" &&
+    "kind" in value &&
+    (value.kind === "page" || value.kind === "screen")
+  );
+}
+
 /** One tab of its group up; a tab in no group has nothing to be up in. */
 export function selectTab(state: WindowTabs, id: string): WindowTabs {
   const tab = state.tabs.find((entry) => entry.id === id);

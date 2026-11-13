@@ -468,7 +468,7 @@ function watchCaptureInPage(names: {
    * for the site, in place in the stream it was handed, so the page's first
    * picture and sound come from the device the person chose.
    */
-  const usePicked = async (
+  const swapToPicked = async (
     stream: MediaStream,
     constraints: MediaStreamConstraints | undefined,
   ) => {
@@ -509,7 +509,7 @@ function watchCaptureInPage(names: {
   };
   devices.getUserMedia = async (constraints) => {
     const stream = await getUserMedia(constraints);
-    await usePicked(stream, constraints).catch(() => undefined);
+    await swapToPicked(stream, constraints).catch(() => undefined);
     stream.getTracks().forEach(watch);
     tell();
     return stream;

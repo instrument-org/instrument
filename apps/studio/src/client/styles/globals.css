@@ -2309,3 +2309,57 @@ a.cursor-pointer {
     opacity: 1;
   }
 }
+
+/* A new tab's field arriving: a pale outline that holds for a moment, with a
+ * brighter length of it crossing the way the eye reads, then fading. The ring
+ * is the whole element and the glint a band of background lit through it:
+ * the mask keeps the border box and drops the padding box, leaving a 2px ring
+ * for both to paint on. The band is three boxes wide, so its lit stretch is a
+ * fraction of the box, and it runs from just off the left edge to just off the
+ * right. Ink rather than the brand, and pale. Under reduced motion the pass is
+ * dropped and the outline still fades in and out. */
+@utility field-glint {
+  --field-glint-line: color-mix(in oklab, var(--foreground) 12%, transparent);
+  --field-glint-band: color-mix(in oklab, var(--foreground) 28%, transparent);
+
+  border: 2px solid var(--field-glint-line);
+  background: linear-gradient(
+      115deg,
+      transparent 45%,
+      var(--field-glint-band) 50%,
+      transparent 55%
+    )
+    border-box;
+  background-position: 100% 0;
+  background-size: 300% 100%;
+  mask:
+    linear-gradient(#000 0 0) padding-box,
+    linear-gradient(#000 0 0);
+  mask-composite: exclude;
+  animation:
+    field-glint-band 550ms ease-out,
+    field-glint-ring 750ms ease-out both;
+
+  @media (prefers-reduced-motion: reduce) {
+    animation: field-glint-ring 750ms ease-out both;
+  }
+}
+
+@keyframes field-glint-band {
+  from {
+    background-position: 100% 0;
+  }
+  to {
+    background-position: 0 0;
+  }
+}
+
+@keyframes field-glint-ring {
+  0%,
+  76% {
+    opacity: 1;
+  }
+  100% {
+    opacity: 0;
+  }
+}

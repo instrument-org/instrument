@@ -1,41 +1,33 @@
+import { AnimatedOutlineBrandIconGlyph } from "@/client/components/brand-icon";
+import { draftsAtom } from "@/client/drafts/store";
 import { useIsActiveTab } from "@/client/hooks/use-active-tab";
-import { formatAcceleratorText } from "@/client/lib/format-accelerator";
 import { projectFolderPath } from "@/client/lib/show-in-files";
 import { storageLocationQueryOptions } from "@/client/lib/output-folder";
-import { commandKeyHeld } from "@/client/lib/utils";
-import { draftsAtom } from "@/client/drafts/store";
+import { rpcClient } from "@/client/rpc/client";
 import { folderHref } from "@/shared/computer-href";
 import { draftOfGroup } from "@/shared/drafts";
-import { WINDOW_SHORTCUTS } from "@/shared/window-shortcuts";
-import { FolderSimpleIcon } from "@phosphor-icons/react/FolderSimple";
-import { GlobeIcon } from "@phosphor-icons/react/Globe";
+import { NO_SIDEBAR_CHANGES, pinnedPlaces } from "@/shared/sidebar-places";
+import { folderNameFromPath } from "@instrument-org/shared";
+import { MagnifyingGlassIcon } from "@phosphor-icons/react/MagnifyingGlass";
 import { useQuery } from "@tanstack/react-query";
 import { useAtomValue } from "jotai";
-import { type ReactNode, useEffect } from "react";
+import { type ReactNode, useEffect, useRef } from "react";
 
 import { chatListOptions } from "./chat-list-query";
-import { SoftKey } from "./group-sidebar";
+import { useWindow } from "./context";
+import { FolderMark } from "./folder-mark";
+import { Omnibar } from "./omnibar";
+import { ProjectMark } from "./project-mark";
 import { useShell } from "./shell-context";
 import { chatOfGroup } from "./window-href";
 import { useWindowTabs } from "./window-tabs";
 
-/** The keys Files takes on a new tab, which the window leaves alone elsewhere so Files' own ⌘O still opens. */
-const FILES_KEY = { darwin: "CmdOrCtrl+O", default: "CmdOrCtrl+O" };
-
-/** The caret into the address field of the tab up, with what is in it selected. */
-function focusAddressField() {
-  const field = document.querySelector<HTMLInputElement>(
-    "[data-app-tab-active] [data-tab-location] input",
-  );
-  field?.focus();
-  field?.select();
-}
-
 /**
- * A new tab in a group: Browse and Files, centered. Browse puts the caret in
- * the address field, and Files turns the tab into the Files browser at the
- * group's project folder, or the workspace when it has none. Words go in
- * the chat's composer beside it, the one place to type.
+ * A new tab in a group, the way a browser's is: the Instrument mark over the
+ * address field, which has the caret, finishes addresses and searches the
+ * web, and under it the Files sidebar's places in a light row, each turning
+ * the tab into Files there. A pale glint crosses the field as the tab
+ * arrives. The top of the tab is left to the toolbar over it.
  */
 export function GroupNewTab({
   group,
@@ -44,94 +36,127 @@ export function GroupNewTab({
   group: string;
   tabId: string;
 }) {
-  const shell = useShell();
   const windowTabs = useWindowTabs();
+  const { browser } = useWindow();
   const isActive = useIsActiveTab();
-  const chatId = chatOfGroup(group);
-  const draftId = draftOfGroup(group);
-  const drafts = useAtomValue(draftsAtom);
-  const draft = drafts.find((entry) => entry.id === draftId);
-  const location = useQuery(storageLocationQueryOptions()).data;
-  const { data: chatProject } = useQuery({
-    ...chatListOptions(),
-    select: (chats) => chats.find((entry) => entry.id === chatId)?.project,
-  });
-  const project = shell.projects.find(
-    (entry) => entry.id === (draft?.projectId ?? chatProject),
-  );
+  const fieldRef = useRef<HTMLDivElement>(null);
+  const places = useFilesPlaces(group);
 
-  const openFiles = () => {
-    if (!location) {
-      return;
+  // The caret in the field whenever the tab comes up, wherever the keyboard
+  // was: a new tab is asked for to type an address.
+  useEffect(() => {
+    if (isActive) {
+      fieldRef.current?.querySelector("input")?.focus();
     }
-    const folder = project
-      ? projectFolderPath(location.rootDir, project.name)
-      : location.rootDir;
-    windowTabs.visitHref(tabId, folderHref(folder));
+  }, [isActive]);
+
+  const openFolder = (path: string) => {
+    windowTabs.visitHref(tabId, folderHref(path));
   };
 
-  // Files' key works here alone, so a Files tab keeps ⌘O for opening what is selected.
-  useEffect(() => {
-    if (!isActive) {
-      return;
-    }
-    const onKey = (event: KeyboardEvent) => {
-      if (
-        event.key.toLowerCase() === "o" &&
-        commandKeyHeld(event) &&
-        !event.shiftKey &&
-        !event.altKey
-      ) {
-        event.preventDefault();
-        openFiles();
-      }
-    };
-    window.addEventListener("keydown", onKey, true);
-    return () => {
-      window.removeEventListener("keydown", onKey, true);
-    };
-  });
-
   return (
-    <div className="grid h-full place-items-center overflow-y-auto bg-background px-8 pb-20">
-      <div className="flex w-full max-w-115 gap-3">
-        <NewTabButton
-          icon={<GlobeIcon className="size-4.5 text-foreground/60" />}
-          keys={formatAcceleratorText(WINDOW_SHORTCUTS.search.accelerator)}
-          label="Browse"
-          onClick={focusAddressField}
-        />
-        <NewTabButton
-          icon={<FolderSimpleIcon className="size-4.5 text-foreground/60" />}
-          keys={formatAcceleratorText(FILES_KEY)}
-          label="Files"
-          onClick={openFiles}
-        />
+    <div className="h-full overflow-y-auto bg-background px-8">
+      <div className="mx-auto flex w-full max-w-160 flex-col items-center pt-[18vh] pb-16">
+        <AnimatedOutlineBrandIconGlyph className="size-14 text-brown-500/34 dark:text-brown-900/60" />
+        <div
+          className="relative mt-8 flex h-12 w-full items-center gap-3 rounded-2xl bg-card px-4 text-sm shadow-sm-soft ring-1 ring-border"
+          ref={fieldRef}
+        >
+          <MagnifyingGlassIcon className="size-4 shrink-0 text-muted-foreground" />
+          <Omnibar
+            location={{ kind: "newTab" }}
+            onSite={(url) => {
+              const tab = windowTabs.allTabs.find(
+                (entry) => entry.id === tabId,
+              );
+              browser?.open(url, {
+                group,
+                ...(tab ? { replacing: tab } : {}),
+              });
+            }}
+            onVisit={(href) => {
+              windowTabs.visitHref(tabId, href);
+            }}
+          />
+          <span
+            aria-hidden
+            className="pointer-events-none absolute -inset-0.5 field-glint rounded-[18px]"
+          />
+        </div>
+        {places.length > 0 && (
+          <div className="mt-5 flex flex-wrap justify-center gap-1">
+            {places.map((place) => (
+              <button
+                className="flex h-7 items-center gap-1.5 rounded-lg px-2 text-[13px] text-muted-foreground hover:bg-foreground/6 hover:text-foreground"
+                key={place.path}
+                onClick={() => {
+                  openFolder(place.path);
+                }}
+                title={place.path}
+                type="button"
+              >
+                {place.icon}
+                {place.name}
+              </button>
+            ))}
+          </div>
+        )}
       </div>
     </div>
   );
 }
 
-function NewTabButton({
-  icon,
-  keys,
-  label,
-  onClick,
-}: {
-  icon: ReactNode;
-  keys: string;
-  label: string;
-  onClick: () => void;
-}) {
-  return (
-    <button
-      className="flex h-10 flex-1 items-center gap-2.5 rounded-xl bg-card px-3.5 text-[13px] font-medium text-foreground/80 shadow-xs ring-1 ring-border hover:bg-foreground/[0.03] hover:text-foreground"
-      onClick={onClick}
-      type="button"
-    >
-      {icon}
-      <span className="flex-1 text-left">{label}</span>
-      <SoftKey>{keys}</SoftKey>
-    </button>
+/**
+ * The places the Files sidebar keeps, in its order, with the group's
+ * project folder first when it is filed under one: the workspace, then
+ * Pinned as the person left it. Recents and the disks stay in Files.
+ */
+function useFilesPlaces(
+  group: string,
+): { icon: ReactNode; name: string; path: string }[] {
+  const shell = useShell();
+  const drafts = useAtomValue(draftsAtom);
+  const location = useQuery(storageLocationQueryOptions()).data;
+  const computer = useQuery(rpcClient.workspace.computer.places.queryOptions());
+  const preferences = useQuery(
+    rpcClient.preferences.live.get.experimental_liveOptions(),
   );
+  const chatId = chatOfGroup(group);
+  const { data: chatProject } = useQuery({
+    ...chatListOptions(),
+    select: (chats) => chats.find((entry) => entry.id === chatId)?.project,
+  });
+  const draftProject = drafts.find(
+    (entry) => entry.id === draftOfGroup(group),
+  )?.projectId;
+  const project = shell.projects.find(
+    (entry) => entry.id === (draftProject ?? chatProject),
+  );
+
+  const instrumentPlace = computer.data?.pinned.find(
+    (place) => place.kind === "output",
+  );
+  const pinned = pinnedPlaces(
+    (computer.data?.pinned ?? []).filter((place) => place !== instrumentPlace),
+    preferences.data?.sidebarPlaces ?? NO_SIDEBAR_CHANGES,
+    (path) => ({ name: folderNameFromPath(path), path }),
+  );
+  return [
+    ...(project && location
+      ? [
+          {
+            icon: <ProjectMark project={project} size="sm" />,
+            name: project.name,
+            path: projectFolderPath(location.rootDir, project.name),
+          },
+        ]
+      : []),
+    ...[...(instrumentPlace ? [instrumentPlace] : []), ...pinned].map(
+      (place) => ({
+        icon: <FolderMark path={place.path} />,
+        name: place.name,
+        path: place.path,
+      }),
+    ),
+  ];
 }

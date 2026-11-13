@@ -17,6 +17,7 @@ import {
 } from "react";
 
 import { useAppsBySlug } from "./apps-by-slug";
+import { BookmarksBar, useHasBookmarksBar } from "./bookmarks-bar";
 import { type PageChromeSlots } from "./browser-tabs";
 import { asksOwnPlace, useWindow, WindowContext } from "./context";
 import { useRowSlots } from "./row-slots";
@@ -102,6 +103,7 @@ export function GroupItem({
   const chatId = chatOfGroup(group);
   const page = targetId ? getGuest(targetId) : null;
   const isNewTab = isHomeTab(up);
+  const hasBookmarksBar = useHasBookmarksBar(isNewTab);
   /** A site in this tab: the page's own next stop, or a page in place of the screen up. */
   const openHere = (url: string) => {
     if (up.kind === "page" && page) {
@@ -162,7 +164,10 @@ export function GroupItem({
    * arrows walk the page's own history or the screen's trail, and its field
    * sends a page somewhere else, or takes a screen's tab to a site.
    */
-  const row = (location: TabLocation) => {
+  const row = (
+    location: TabLocation,
+    { isOverBar = false }: { isOverBar?: boolean } = {},
+  ) => {
     return (
       <TabLocationRow
         canGoBack={canGoBack}
@@ -170,6 +175,7 @@ export function GroupItem({
         {...(location.kind === "file"
           ? { liveAddress: () => liveAddressOf(location.path) }
           : {})}
+        {...(isOverBar ? { className: "border-b-0" } : {})}
         location={location}
         {...(before ? {} : { onBack: goBack, onForward: goForward })}
         onSite={openHere}
@@ -202,16 +208,22 @@ export function GroupItem({
     return (
       <Bare
         anchorRef={anchorRef}
-        head={row(
-          filePath === undefined
-            ? { kind: "page", url: up.url ?? "" }
-            : {
-                asPage: true,
-                kind: "file",
-                name: segmentsOf(filePath).at(-1) ?? filePath,
-                path: filePath,
-              },
-        )}
+        head={
+          <>
+            {row(
+              filePath === undefined
+                ? { kind: "page", url: up.url ?? "" }
+                : {
+                    asPage: true,
+                    kind: "file",
+                    name: segmentsOf(filePath).at(-1) ?? filePath,
+                    path: filePath,
+                  },
+              { isOverBar: hasBookmarksBar },
+            )}
+            {hasBookmarksBar && <BookmarksBar onOpen={openHere} />}
+          </>
+        }
       >
         <div className="relative h-full">
           <div className="h-full" ref={onPageHost} />
@@ -229,29 +241,33 @@ export function GroupItem({
   // The new tab every group opens on, and keeps when nothing else is open:
   // the web's start, whose page takes its place. Its own page takes
   // addresses, so its toolbar is the arrows and a reload with no page to
-  // reload.
+  // reload, over the bookmarks.
   if (isNewTab) {
     return (
       <Bare
         anchorRef={anchorRef}
         head={
-          <TabLocationRow
-            canGoBack={canGoBack}
-            canGoForward={canGoForward}
-            hasField={false}
-            location={screenLocation(up.href, { appsBySlug, taskTitles })}
-            onBack={goBack}
-            onForward={goForward}
-            reload={
-              <TabRowControl
-                chord="reloadPage"
-                disabled
-                icon={<ArrowClockwiseIcon className="size-4" />}
-                label="Reload"
-                onClick={noop}
-              />
-            }
-          />
+          <>
+            <TabLocationRow
+              canGoBack={canGoBack}
+              canGoForward={canGoForward}
+              className="border-b-0"
+              hasField={false}
+              location={screenLocation(up.href, { appsBySlug, taskTitles })}
+              onBack={goBack}
+              onForward={goForward}
+              reload={
+                <TabRowControl
+                  chord="reloadPage"
+                  disabled
+                  icon={<ArrowClockwiseIcon className="size-4" />}
+                  label="Reload"
+                  onClick={noop}
+                />
+              }
+            />
+            <BookmarksBar onOpen={openHere} />
+          </>
         }
       >
         <GroupNewTab group={group} tabId={up.id} />

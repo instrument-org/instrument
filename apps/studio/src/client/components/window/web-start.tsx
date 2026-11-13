@@ -33,34 +33,18 @@ export function WebStart({
   onOpenPage: (url: string) => void;
 }) {
   const bookmarks = useAtomValue(bookmarksAtom);
-  const applyBookmarkOps = useSetAtom(applyBookmarkOpsAtom);
   const { recent, frequent } = useBrowserStartPages(
     bookmarks.map((bookmark) => bookmark.url),
   );
   const clicksFor = usePageClicks();
+  const edits = useBookmarkEdits();
   // The bookmark whose name is being typed over, by id.
   const [renamingId, setRenamingId] = useState<string>();
   const rename = (bookmark: Bookmark, title: string) => {
     setRenamingId(undefined);
-    const named = title.trim();
-    if (named === bookmark.title || !named) {
-      return;
-    }
-    void applyBookmarkOps([{ id: bookmark.id, title: named, type: "rename" }]);
+    edits.rename(bookmark, title);
   };
-  const remove = (bookmark: Bookmark) => {
-    void applyBookmarkOps([{ id: bookmark.id, type: "remove" }]);
-    toast("Removed from Bookmarks", {
-      action: {
-        label: "Undo",
-        // Back where it was, by the order it had.
-        onClick: () => {
-          void applyBookmarkOps([{ bookmark, type: "add" }]);
-        },
-      },
-      description: bookmark.title || hostOf(bookmark.url),
-    });
-  };
+  const { remove } = edits;
   // Off the row only: the site's pages stay in history and in Recent pages.
   const setFrequentHidden = (url: string, isHidden: boolean) =>
     rpcClient.history.setFrequentHidden.call({ isHidden, url });
@@ -115,7 +99,7 @@ export function WebStart({
             // icons line up under the heading.
             <div className="-ml-4 flex flex-wrap gap-x-2 gap-y-3">
               {bookmarks.map((bookmark) => {
-                const name = bookmark.title || hostOf(bookmark.url);
+                const name = bookmarkName(bookmark);
                 // The site's mark drawn the way Apps draws every app's.
                 const mark = (
                   <AppIcon
@@ -236,6 +220,44 @@ export function WebStart({
   );
 }
 
+/** What a bookmark is called where it is shown: its own title, or its site's. */
+export function bookmarkName(bookmark: Bookmark): string {
+  return bookmark.title || hostOf(bookmark.url);
+}
+
+/**
+ * Renaming a bookmark and removing one, wherever bookmarks are shown: a
+ * name left empty or unchanged keeps the old one, and a removal says so
+ * with a way to undo it.
+ */
+export function useBookmarkEdits() {
+  const applyBookmarkOps = useSetAtom(applyBookmarkOpsAtom);
+  return {
+    remove: (bookmark: Bookmark) => {
+      void applyBookmarkOps([{ id: bookmark.id, type: "remove" }]);
+      toast("Removed from Bookmarks", {
+        action: {
+          label: "Undo",
+          // Back where it was, by the order it had.
+          onClick: () => {
+            void applyBookmarkOps([{ bookmark, type: "add" }]);
+          },
+        },
+        description: bookmarkName(bookmark),
+      });
+    },
+    rename: (bookmark: Bookmark, title: string) => {
+      const named = title.trim();
+      if (named === bookmark.title || !named) {
+        return;
+      }
+      void applyBookmarkOps([
+        { id: bookmark.id, title: named, type: "rename" },
+      ]);
+    },
+  };
+}
+
 /**
  * Where the bookmarks will be, before there are any: a quiet panel the
  * width of the column, and in it a bookmark drawn the way the shelf draws
@@ -296,7 +318,7 @@ function NoBookmarks() {
  * to begin with, Return or a press elsewhere keeping what was typed, Escape
  * putting the old name back.
  */
-function BookmarkNameField({
+export function BookmarkNameField({
   name,
   onCancel,
   onCommit,

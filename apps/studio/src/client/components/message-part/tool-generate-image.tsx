@@ -24,6 +24,7 @@ import { ConfirmedIconButton } from "../confirmed-icon-button";
 import { FileTypeIcon } from "../extend/file-system";
 import { IconButton } from "../icon-button";
 import { ImageWithFallback } from "../image-with-fallback";
+import { ImageWaitBloom } from "./image-wait-bloom";
 import { isActiveToolPart } from "./tool-call-utils";
 import { Tooltip, TooltipContent, TooltipTrigger } from "../ui/tooltip";
 import { ToolCapabilityFailure } from "./tool-capability-failure";
@@ -571,19 +572,21 @@ function StreamingImagePreview({
           src={src}
         />
       ) : (
-        <PreviewSkeleton />
+        <ImageWaitBloom fallback={<PreviewSkeleton />} />
       )}
 
-      {/* Faint edge glow that breathes to signal generation is still active,
-          without motion competing with the streaming preview itself. */}
-      <span
-        aria-hidden
-        className="pointer-events-none absolute inset-0 animate-pulse"
-        style={{
-          boxShadow:
-            "inset 0 0 26px -4px color-mix(in srgb, var(--ring) 60%, transparent)",
-        }}
-      />
+      {/* Over a partial frame, a faint edge glow that breathes to signal the
+          image is still coming, without motion competing with the frame. */}
+      {image && src && (
+        <span
+          aria-hidden
+          className="pointer-events-none absolute inset-0 animate-pulse"
+          style={{
+            boxShadow:
+              "inset 0 0 26px -4px color-mix(in srgb, var(--ring) 60%, transparent)",
+          }}
+        />
+      )}
 
       <GeneratingPill />
     </div>

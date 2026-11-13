@@ -480,29 +480,20 @@ export function useDrafts({
     })();
   };
   /**
-   * What a draft gathered becomes its chat's tabs, the pages and folders of
-   * its band as they stand, and each web page it names by its address opens
-   * as a tab of the chat's (`pageToChat`); new-tab pages a build before this
-   * one opened a draft on are not carried over, and a draft that gathered
-   * nothing hands over nothing, so the chat opens with no pane.
+   * What a draft gathered becomes its chat's tabs exactly as they stand, its
+   * new tab included, so nothing on screen moves as the chat starts, and
+   * each web page it names by its address opens as a tab of the chat's
+   * (`pageToChat`), behind the tab up.
    */
   const handOverTabs = (draft: Draft, chatId: ChatId) => {
     const group = draftGroupOf(draft.id);
     const own = windowTabs.allTabs.filter((tab) => tab.group === group);
-    const homes = own.filter((tab) => isHomeTab(tab));
-    for (const home of homes) {
-      windowTabs.close(home.id);
-    }
-    if (homes.length === own.length) {
-      windowTabs.dropGroup(group);
-    } else {
-      windowTabs.adoptGroup(group, chatId);
-    }
+    windowTabs.adoptGroup(group, chatId);
     pagesForChat(draft, own).forEach((url, index) => {
       pageToChat({
         browser,
         chatId,
-        isUp: index === 0 && homes.length === own.length,
+        isUp: index === 0 && own.length === 0,
         url,
         windowTabs,
       });

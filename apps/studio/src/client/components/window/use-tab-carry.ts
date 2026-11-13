@@ -22,6 +22,14 @@ export interface CarryStrip {
   /** The band its row stands in, in the window's px: off it a tab leaves its row. */
   band: () => { bottom: number; top: number };
   /**
+   * Where the strip is not a row across the window, such as the sidebar's list
+   * down its side: the element of a key and the strip's own, in place of
+   * `[data-tab-key]` and `[role=tablist]` under `root`.
+   */
+  find?: { item: (key: string) => Element | null; row: () => Element | null };
+  /** Whether the pointer has left the strip, where that is not a matter of its band. */
+  isOff?: (path: readonly PointerSample[], wasOff: boolean) => boolean;
+  /**
    * Whether the pointer is over a place of the window's own that takes the tab
    * (another group in the sidebar): off its row, yet not leaving the window.
    */
@@ -107,7 +115,9 @@ export function useTabCarry({
   };
 
   const onDragStart = (key: string, event: PointerEvent, moved = 0) => {
-    const pressed = document.querySelector(`${root} [data-tab-key="${key}"]`);
+    const pressed = other?.find
+      ? other.find.item(key)
+      : document.querySelector(`${root} [data-tab-key="${key}"]`);
     if (!pressed) {
       return;
     }
@@ -172,9 +182,11 @@ export function useTabCarry({
     // The press selected the tab, which is what a tab's page has to show.
     void afterNextPaint().then(async () => {
       const moving = other ? other.standing(key) : tabStanding(key as TabId);
-      const strip = document
-        .querySelector(`${root} [role=tablist]`)
-        ?.getBoundingClientRect();
+      const strip = (
+        other?.find
+          ? other.find.row()
+          : document.querySelector(`${root} [role=tablist]`)
+      )?.getBoundingClientRect();
       if (dragging.current !== drag || drag.canceled || !moving || !strip) {
         return;
       }
@@ -224,14 +236,16 @@ export function useTabCarry({
     drag.isOffRow =
       isOnlyTab ||
       isOverOwnTarget ||
-      isOffRow({
-        path: drag.path,
-        // The window's strip has the whole bar, since main takes all of it for
-        // the strip: anywhere on it the tab is back in its row.
-        strip: other?.band() ?? { bottom: TOOLBAR_HEIGHT * zoom, top: 0 },
-        wasOff: drag.isOffRow,
-        windowWidth: window.innerWidth,
-      });
+      (other?.isOff
+        ? other.isOff(drag.path, drag.isOffRow)
+        : isOffRow({
+            path: drag.path,
+            // The window's strip has the whole bar, since main takes all of it for
+            // the strip: anywhere on it the tab is back in its row.
+            strip: other?.band() ?? { bottom: TOOLBAR_HEIGHT * zoom, top: 0 },
+            wasOff: drag.isOffRow,
+            windowWidth: window.innerWidth,
+          }));
     const left = event.clientX - drag.pointInTab;
     if (!isOnlyTab && !(drag.isOffRow && drag.collapsesOffRow)) {
       setHeld({ key, left });

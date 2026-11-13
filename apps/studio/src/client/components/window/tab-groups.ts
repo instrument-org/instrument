@@ -17,8 +17,9 @@ import {
   isLeftEmpty,
 } from "@/shared/drafts";
 import { keptTabGroupsOf, TAB_GROUPS_KEY } from "@/shared/kept-state";
+import { type SidebarPlace } from "@/shared/tabs";
 import { type ChatId } from "@instrument-org/workspace/client";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useAtomValue, useSetAtom, useStore } from "jotai";
 import { useEffect, useEffectEvent, useRef } from "react";
 import { ulid } from "ulid";
@@ -37,7 +38,7 @@ import {
   contextWithoutTab,
   withContextLines,
 } from "./context-items";
-import { chatListOptions } from "./chat-list-query";
+import { chatListOptions, paintChatRow } from "./chat-list-query";
 import { type Chat, draftTitle } from "./chats";
 import { isGroupScreenHref } from "./group-screen";
 import { chatHref, matchScreen, newChatHref } from "./window-href";
@@ -63,12 +64,6 @@ export const windowTabGroupsAtom = keptAtom<null | readonly string[]>(
   (value) => keptTabGroupsOf(value) ?? null,
 );
 
-/** Where a group goes in a window's list: just before one group, or else just after another. */
-export interface ListPlace {
-  after?: string;
-  before?: string;
-}
-
 /**
  * A window's groups with one more: at the top, under New, unless it has it
  * already, or at a place, where it moves to when it is listed already. A
@@ -78,7 +73,7 @@ export interface ListPlace {
 export function listedWith(
   list: null | readonly string[],
   group: string,
-  place?: ListPlace,
+  place?: SidebarPlace,
 ): string[] {
   const listed = list ?? [];
   if (place === undefined) {
@@ -258,6 +253,14 @@ export function useTabGroupActions() {
   const removeDraft = useSetAtom(removeDraftAtom);
   const updateDraft = useSetAtom(updateDraftAtom);
   const setChatClosed = useSetAtom(chatClosedByGroupAtom);
+  const queryClient = useQueryClient();
+  /** A chat as the chat list has it now. */
+  const byId = (group: string) =>
+    draftOfGroup(group) === undefined
+      ? queryClient
+          .getQueryData(chatListOptions().queryKey)
+          ?.find((chat) => chat.id === group)
+      : undefined;
 
   /** The group the window shows now, read at the call. */
   const groupUp = () => {
@@ -383,7 +386,7 @@ export function useTabGroupActions() {
     /** A tab to move into the new group in place of opening one. */
     moving?: string;
     /** Where it goes in the list, when not at the top. */
-    place?: ListPlace;
+    place?: SidebarPlace;
     projectId?: string;
   } = {}) => {
     const now = Date.now();
@@ -455,6 +458,31 @@ export function useTabGroupActions() {
     openInNewWindow(groupHref(group));
   };
 
+  /**
+   * A group to a place in this window's list, pinned there or unpinned when
+   * the place says and it is a chat's: pinning is the chat's star. The star
+   * is painted on the chat's row at once, so the row lands where it was let go.
+   */
+  const place = (group: string, at: SidebarPlace) => {
+    const chat = byId(group);
+    if (chat && at.pinned !== undefined && chat.starred !== at.pinned) {
+      const painting = paintChatRow(queryClient, chat.id, {
+        starred: at.pinned,
+      });
+      rpcClient.workspace.chats.star
+        .call({ id: chat.id, starred: at.pinned })
+        .then(
+          (landed) => {
+            painting.landed(landed);
+          },
+          () => {
+            painting.failed();
+          },
+        );
+    }
+    setListed((list) => listedWith(list, group, at));
+  };
+
   /** A draft's group becomes its chat's, in the same place in the list. */
   const becomeChat = (draftId: string, chat: ChatId) => {
     setListed((list) => listedReplacing(list, draftGroupOf(draftId), chat));
@@ -516,6 +544,7 @@ export function useTabGroupActions() {
     moveTab,
     moveToNewWindow,
     newTab,
+    place,
     restore,
     setChatOpen,
     show,

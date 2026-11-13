@@ -30,6 +30,7 @@ import { CaretRightIcon } from "@phosphor-icons/react/CaretRight";
 import { ClockCounterClockwiseIcon } from "@phosphor-icons/react/ClockCounterClockwise";
 import { GearSixIcon } from "@phosphor-icons/react/GearSix";
 import { PlusIcon } from "@phosphor-icons/react/Plus";
+import { PushPinIcon } from "@phosphor-icons/react/PushPin";
 import { XIcon } from "@phosphor-icons/react/X";
 import { type ChatId } from "@instrument-org/workspace/client";
 import { useQuery } from "@tanstack/react-query";
@@ -40,7 +41,14 @@ import {
   useIsPresent,
   useReducedMotion,
 } from "motion/react";
-import { type ReactNode, type Ref, useEffect, useRef, useState } from "react";
+import {
+  type PointerEvent as ReactPointerEvent,
+  type ReactNode,
+  type Ref,
+  useEffect,
+  useRef,
+  useState,
+} from "react";
 
 import { HelpMenu } from "./help-menu";
 import { toggleLeft } from "./inbox-toggle";
@@ -57,12 +65,15 @@ import { pageTabTitle } from "./file-tabs";
 import { ScreenMark } from "./pane-tabs";
 import { screenPresentation } from "./screen-presentation";
 import { SearchField } from "./search-field";
-import { useProjectShift } from "./use-project-shift";
 import {
-  lastActiveAt,
-  type TabGroup,
-  windowTabGroupsAtom,
-} from "./tab-groups";
+  filledRoomAtom,
+  liftedRowAtom,
+  roomSnapsAtom,
+  sidebarDropAtom,
+} from "./sidebar-drop";
+import { useGroupRowDrag } from "./tab-drag";
+import { useProjectShift } from "./use-project-shift";
+import { lastActiveAt, type TabGroup, windowTabGroupsAtom } from "./tab-groups";
 import { isHomeTab } from "./tab-model";
 import { useNow } from "./use-now";
 import { chatOfGroup } from "./window-href";
@@ -106,7 +117,9 @@ export function sidebarBounds(width: number): RailBounds {
  * the search, the projects, the pinned groups over a plain line, New, the
  * rest under it, newest first, and the way into History at the list's end,
  * and the account, Settings and Help at its foot. Opening a project takes the list over,
- * under its banner.
+ * under its banner. A row dragged within the list lands where it is let
+ * go, pinned above the line or unpinned below it, and one dragged out goes
+ * to a window of its own or to another window's list (`useGroupRowDrag`).
  */
 export function GroupSidebar({
   chatTitles,
@@ -173,17 +186,27 @@ export function GroupSidebar({
     entry.kind === "chat" ? [entry.chat] : [],
   );
   const arriving = useArrivals(useAtomValue(windowTabGroupsAtom) ?? NO_GROUPS);
+  const pressRow = useGroupRowDrag();
+  const drop = useAtomValue(sidebarDropAtom);
+  const lifted = useAtomValue(liftedRowAtom);
+  const roomSnaps = useAtomValue(roomSnapsAtom);
+  const filled = useAtomValue(filledRoomAtom);
+  const room = drop?.kind === "between" ? drop : undefined;
+  const liftedEntry =
+    lifted && open.find((entry) => entry.group === lifted.group);
 
   const row = (
     entry: TabGroup,
-    extra?: { isElsewhere?: boolean; restore?: boolean },
+    extra?: { isElsewhere?: boolean; isListed?: boolean; restore?: boolean },
   ) => (
     <GroupRow
       chatTitles={chatTitles}
       entry={entry}
+      isDropInto={drop?.kind === "into" && drop.group === entry.group}
       isUp={entry.group === groupUp}
       key={entry.group}
       {...(extra?.isElsewhere ? {} : { onClose })}
+      {...(extra?.isListed ? { onPress: pressRow } : {})}
       onShow={onShow}
       {...(extra?.restore
         ? {
@@ -236,6 +259,36 @@ export function GroupSidebar({
       </>
     );
   } else {
+    // What the list shows in order, for the room a drag opens in it: the
+    // items from the one it opens in front of on move aside.
+    const items = [
+      ...pinned.map((entry) => `row:${entry.group}`),
+      ...(pinned.length > 0 ? [":divider"] : []),
+      ":new",
+      ...rest.map((entry) => `row:${entry.group}`),
+      ...(project ? [] : [":history"]),
+    ];
+    const roomAt = room?.before === undefined ? -1 : items.indexOf(room.before);
+    const place = (item: string) => ({
+      item,
+      ...(room && roomAt !== -1 && items.indexOf(item) >= roomAt
+        ? { shift: room.gap }
+        : {}),
+      ...(room && room.before === item ? { room } : {}),
+      snaps: roomSnaps,
+    });
+    const listItem = (entry: TabGroup, section: "pinned" | "rest") => (
+      <ListItem
+        group={entry.group}
+        isArriving={arriving.has(entry.group) && entry.group !== filled}
+        isLifted={lifted?.group === entry.group}
+        key={`row:${entry.group}`}
+        section={section}
+        {...place(`row:${entry.group}`)}
+      >
+        {row(entry, { isListed: true })}
+      </ListItem>
+    );
     body = (
       <>
         {project ? (
@@ -270,36 +323,22 @@ export function GroupSidebar({
           />
         )}
         <AnimatePresence>
-          {pinned.map((entry) => (
-            <ListItem
-              isArriving={arriving.has(entry.group)}
-              key={`row:${entry.group}`}
-            >
-              {row(entry)}
-            </ListItem>
-          ))}
+          {pinned.map((entry) => listItem(entry, "pinned"))}
           {pinned.length > 0 && (
-            <ListItem key=":divider">
+            <ListItem isInstant key=":divider" {...place(":divider")}>
               <div className="mx-2.5 my-1.5 h-px bg-border" />
             </ListItem>
           )}
-          <ListItem key=":new">
+          <ListItem key=":new" {...place(":new")}>
             <NewRow
               onNew={() => {
                 onNew(project?.id);
               }}
             />
           </ListItem>
-          {rest.map((entry) => (
-            <ListItem
-              isArriving={arriving.has(entry.group)}
-              key={`row:${entry.group}`}
-            >
-              {row(entry)}
-            </ListItem>
-          ))}
+          {rest.map((entry) => listItem(entry, "rest"))}
           {!project && (
-            <ListItem key=":history">
+            <ListItem key=":history" {...place(":history")}>
               <HistoryRow
                 onOpen={() => {
                   setView("history");
@@ -308,6 +347,16 @@ export function GroupSidebar({
             </ListItem>
           )}
         </AnimatePresence>
+        {room && room.before === undefined && (
+          <div className="relative shrink-0" style={{ height: room.gap }}>
+            <div
+              className="absolute inset-x-0"
+              style={{ top: (room.gap - LIST_GAP_PX) / 2 }}
+            >
+              <DropLine isPinning={room.isPinning} />
+            </div>
+          </div>
+        )}
       </>
     );
   }
@@ -362,7 +411,23 @@ export function GroupSidebar({
               </div>
             </div>
           )}
-          <GroupList>{body}</GroupList>
+          <GroupList>
+            {body}
+            {liftedEntry && !lifted?.isOff && (
+              <div
+                className="pointer-events-none absolute inset-x-2 z-10 rotate-1 rounded-lg bg-card shadow-xl ring-1 ring-black/[0.06]"
+                data-lifted-copy=""
+                style={{ top: lifted?.top }}
+              >
+                <GroupRow
+                  chatTitles={chatTitles}
+                  entry={liftedEntry}
+                  isLifted
+                  isUp={liftedEntry.group === groupUp}
+                />
+              </div>
+            )}
+          </GroupList>
         </div>
         <SidebarFoot chatId={chatOfGroup(groupUp)} />
       </div>
@@ -415,40 +480,105 @@ function useArrivals(listed: readonly string[]): ReadonlySet<string> {
 /**
  * One thing in the list: a row arriving opens its room as it slides into
  * it the way a chat arrives in the inbox, and one leaving closes its room as
- * it fades, out of reach meanwhile.
+ * it fades, out of reach meanwhile. While a drag over the list opens a room
+ * in front of it, it and everything after it move aside, the line across
+ * the room above it; a row lifted out of the list shuts its place. Marked for
+ * where a drag lands (`sidebarDropAt`), which measures it as laid out.
  */
 function ListItem({
   children,
+  group,
   isArriving = false,
+  isInstant = false,
+  isLifted = false,
+  item,
+  room,
+  section,
+  shift = 0,
+  snaps,
 }: {
   children: ReactNode;
+  group?: string;
   isArriving?: boolean;
+  /** It comes and goes at once, as the line under the pinned rows does with the first pinned and the last unpinned. */
+  isInstant?: boolean;
+  isLifted?: boolean;
+  item: string;
+  room?: { isPinning: boolean };
+  section?: "pinned" | "rest";
+  shift?: number;
+  /** The room moves at once rather than sliding. */
+  snaps: boolean;
 }) {
   const isPresent = useIsPresent();
   const isReduced = useReducedMotion() === true;
   return (
     <motion.div
-      animate={{ height: "auto", opacity: 1, transitionEnd: { overflow: "visible" } }}
-      className={cn("shrink-0", isArriving && "chat-arrive")}
+      animate={{
+        height: "auto",
+        opacity: 1,
+        transitionEnd: { overflow: "visible" },
+      }}
+      className={cn(
+        "relative shrink-0",
+        isArriving && "chat-arrive",
+        isLifted && "hidden",
+      )}
+      data-drop-group={group}
+      data-drop-item={item}
+      data-drop-section={section}
       data-leaving={isPresent ? undefined : ""}
+      data-lifted={isLifted ? "" : undefined}
       exit={{ height: 0, opacity: 0, overflow: "hidden" }}
       inert={!isPresent}
       initial={isArriving ? { height: 0, overflow: "hidden" } : false}
-      transition={isReduced ? { duration: 0 } : ROW_MOTION}
+      transition={isReduced || isInstant ? { duration: 0 } : ROW_MOTION}
     >
-      {children}
+      {room && (
+        <div
+          className="absolute inset-x-0"
+          style={{ top: (shift - LIST_GAP_PX) / 2 }}
+        >
+          <DropLine isPinning={room.isPinning} />
+        </div>
+      )}
+      <div
+        className={cn(
+          !snaps &&
+            "transition-[translate] duration-200 ease-[cubic-bezier(0.2,0.8,0.2,1)] motion-reduce:transition-none",
+        )}
+        style={shift === 0 ? undefined : { translate: `0 ${shift}px` }}
+      >
+        {children}
+      </div>
     </motion.div>
   );
 }
 
+/** The space between the list's items (`gap-0.5`). */
+const LIST_GAP_PX = 2;
+
+/** The line across a room a drag opened in the list, with a pin where landing there pins the group. */
+function DropLine({ isPinning }: { isPinning: boolean }) {
+  return (
+    <div
+      aria-hidden
+      className="pointer-events-none absolute inset-x-1 top-0 flex h-0 items-center gap-1 text-brand-500"
+    >
+      {isPinning && <PushPinIcon className="size-3.5 shrink-0" weight="fill" />}
+      <span className="h-0.5 flex-1 rounded-full bg-brand-500" />
+    </div>
+  );
+}
+
 /**
- * The list, which scrolls whole, New with it. A tab let go of over the
- * list's empty space becomes a group of its own (`useGroupTabCarry`).
+ * The list, which scrolls whole, New with it, and where a drag over it
+ * shows where it lands (`sidebarDropAt`) and a lifted row stands.
  */
 function GroupList({ children }: { children: ReactNode }) {
   return (
     <div
-      className="mt-2 flex min-h-0 flex-1 flex-col gap-0.5 overflow-y-auto px-2 pb-2 data-drop-target:bg-brand-500/5"
+      className="relative mt-2 flex min-h-0 flex-1 flex-col gap-0.5 overflow-y-auto px-2 pb-2"
       data-group-list=""
     >
       {children}
@@ -574,20 +704,29 @@ function dayLabel(at: number): string {
  * on, the question it waits on, or its last reply), with the marks of the
  * group's tabs at the line's end. A group whose chat has not started has
  * only its tabs' marks there. While the pointer is on a row that closes, a
- * close X stands in the time's place, and a middle click closes it too.
+ * close X stands in the time's place, and a middle click closes it too. It
+ * lights while a tab held over it would land in its group.
  */
 export function GroupRow({
   chatTitles,
   entry,
+  isDropInto = false,
+  isLifted = false,
   isUp,
   onClose,
+  onPress,
   onShow,
   restore,
 }: {
   chatTitles: Map<ChatId, string>;
   entry: TabGroup;
+  isDropInto?: boolean;
+  /** The copy of a row lifted out of the list, which stands for it under the pointer. */
+  isLifted?: boolean;
   isUp: boolean;
   onClose?: (group: string) => void;
+  /** A press that may become a drag of the row. */
+  onPress?: (group: string, event: ReactPointerEvent<HTMLElement>) => void;
   onShow?: (group: string, options: { newWindow: boolean }) => void;
   restore?: () => void;
 }) {
@@ -614,10 +753,13 @@ export function GroupRow({
         isUp
           ? "bg-card shadow-xs ring-1 ring-black/[0.04]"
           : "hover:bg-foreground/[0.04]",
-        "data-drop-target:bg-brand-500/10 data-drop-target:ring-2 data-drop-target:ring-brand-500",
+        isDropInto && "bg-brand-500/10 ring-2 ring-brand-500",
         onShow && "cursor-default",
+        onPress && "select-none",
       )}
-      {...(restore ? {} : { "data-group-row": entry.group })}
+      {...(restore || isLifted ? {} : { "data-group-row": entry.group })}
+      data-drop-into={isDropInto ? "" : undefined}
+      data-up={isUp && !isLifted ? "" : undefined}
       onAuxClick={(event) => {
         // A middle click closes the group the way its X does, asking first
         // while its agent works.
@@ -637,6 +779,13 @@ export function GroupRow({
           event.preventDefault();
         }
       }}
+      onPointerDown={
+        onPress
+          ? (event) => {
+              onPress(entry.group, event);
+            }
+          : undefined
+      }
       onContextMenu={(event) => {
         if (!onClose || restore) {
           return;
@@ -650,7 +799,7 @@ export function GroupRow({
           }
         });
       }}
-      role={restore ? undefined : "button"}
+      role={restore || isLifted ? undefined : "button"}
     >
       <div className="min-w-0 flex-1">
         <div className="flex h-5 min-w-0 items-center gap-1.5">

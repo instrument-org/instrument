@@ -34,6 +34,7 @@ import {
 } from "@/shared/kept-state";
 import {
   type GroupTabLanding,
+  groupOfWholeKey,
   type IncomingTab,
   neighborAt,
   type Tab,
@@ -492,10 +493,15 @@ async function drawnWithTab(window: BrowserWindow, id: string, tab: Tab) {
 
 /**
  * Resolves when a window handed a tab group's tab shows it among the tabs of the
- * group it has up, no longer held, or soon anyway.
+ * group it has up, no longer held, or a whole group as the group it has up, or
+ * soon anyway.
  */
 function drawnShowingGroupTab(window: BrowserWindow, key: string) {
-  const selector = `[data-group-tabs]:not([data-incoming]) [data-tab-key=${JSON.stringify(key)}]`;
+  const group = groupOfWholeKey(key);
+  const selector =
+    group === undefined
+      ? `[data-group-tabs]:not([data-incoming]) [data-tab-key=${JSON.stringify(key)}]`
+      : `[data-group-row=${JSON.stringify(group)}][data-up]`;
   return drawnOnce(
     window,
     `document.querySelector(${JSON.stringify(selector)}) !== null`,

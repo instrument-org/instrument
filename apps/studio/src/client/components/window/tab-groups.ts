@@ -1,5 +1,8 @@
 import { NEW_TAB_HREF, type WindowTab } from "@/client/atoms/window";
-import { chatClosedByGroupAtom } from "@/client/atoms/tab-groups";
+import {
+  chatClosedByGroupAtom,
+  groupNamesAtom,
+} from "@/client/atoms/tab-groups";
 import {
   createDraftAtom,
   draftsAtom,
@@ -46,11 +49,19 @@ import { useWindowTabs, windowTabsAtom } from "./window-tabs";
 
 /**
  * One tab group as the sidebar lists it: a chat with its tabs, or a draft
- * whose chat has not started yet, with the tabs gathered beside it.
+ * whose chat has not started yet, with the tabs gathered beside it. A
+ * draft's group the person named (`groupNamesAtom`) has the name as its
+ * title, and keeps it as `name`.
  */
 export type TabGroup =
   | { chat: Chat; group: ChatId; kind: "chat"; title: string }
-  | { draft: Draft; group: string; kind: "draft"; title: string };
+  | {
+      draft: Draft;
+      group: string;
+      kind: "draft";
+      name?: string;
+      title: string;
+    };
 
 /**
  * The tab groups this window has open, in its own order: a chat's id, or a
@@ -136,14 +147,22 @@ function useTabGroupsElsewhere(): readonly string[] | undefined {
   ).data;
 }
 
-/** A group whose chat has not started, as the sidebar lists it. */
-function draftGroup(draft: Draft): TabGroup {
+/** A group whose chat has not started, as the sidebar lists it: by the name the person gave it, else by its words. */
+function draftGroup(draft: Draft, names: Record<string, string>): TabGroup {
+  const group = draftGroupOf(draft.id);
+  const name = names[group];
   return {
     draft,
-    group: draftGroupOf(draft.id),
+    group,
     kind: "draft",
-    title: draft.words.trim() === "" ? "New chat" : draftTitle(draft.words),
+    ...(name === undefined ? {} : { name }),
+    title: name ?? draftWordsTitle(draft),
   };
+}
+
+/** What a group whose chat has not started is called by its words alone: "New chat" until it has some. */
+export function draftWordsTitle(draft: Draft): string {
+  return draft.words.trim() === "" ? "New chat" : draftTitle(draft.words);
 }
 
 /**
@@ -182,13 +201,14 @@ export function useOpenGroups(): {
 } {
   const chats = useQuery(chatListOptions()).data ?? [];
   const drafts = useAtomValue(draftsAtom);
+  const names = useAtomValue(groupNamesAtom);
   const listed = useAtomValue(windowTabGroupsAtom) ?? [];
   const elsewhereGroups = new Set(useTabGroupsElsewhere());
   const byId = new Map<string, Chat>(chats.map((chat) => [chat.id, chat]));
   const isListed = new Set(listed);
   const unlisted = [
     ...chats.map(chatGroup),
-    ...drafts.filter(isKeptDraft).map(draftGroup),
+    ...drafts.filter(isKeptDraft).map((draft) => draftGroup(draft, names)),
   ].filter((entry) => !isListed.has(entry.group));
   const newestFirst = (list: TabGroup[]) =>
     list.toSorted((a, b) => lastActiveAt(b) - lastActiveAt(a));
@@ -206,7 +226,7 @@ export function useOpenGroups(): {
         return chat ? [chatGroup(chat)] : [];
       }
       const draft = drafts.find((entry) => entry.id === draftId);
-      return draft ? [draftGroup(draft)] : [];
+      return draft ? [draftGroup(draft, names)] : [];
     }),
   };
 }
@@ -234,6 +254,26 @@ export function groupAlong(
   return listed[at + direction]?.group;
 }
 
+/**
+ * The names with `group` named `name`, or with its name taken off where
+ * `name` is blank, which gives the group its own title back.
+ */
+export function namedWith(
+  names: Record<string, string>,
+  group: string,
+  name: string,
+): Record<string, string> {
+  const trimmed = name.trim();
+  if (trimmed !== "") {
+    return names[group] === trimmed ? names : { ...names, [group]: trimmed };
+  }
+  if (!(group in names)) {
+    return names;
+  }
+  const { [group]: _cleared, ...rest } = names;
+  return rest;
+}
+
 /** The address a group stands on in the window's one app tab. */
 export function groupHref(group: string): string {
   const draft = draftOfGroup(group);
@@ -253,6 +293,7 @@ export function useTabGroupActions() {
   const removeDraft = useSetAtom(removeDraftAtom);
   const updateDraft = useSetAtom(updateDraftAtom);
   const setChatClosed = useSetAtom(chatClosedByGroupAtom);
+  const setNames = useSetAtom(groupNamesAtom);
   const queryClient = useQueryClient();
   /** A chat as the chat list has it now. */
   const byId = (group: string) =>
@@ -358,6 +399,7 @@ export function useTabGroupActions() {
       const { group: emptied } = tab;
       setListed((list) => listedWithout(list, emptied));
       windowTabs.dropGroup(emptied);
+      forgetName(emptied);
       void removeDraft(draft.id);
       return;
     }
@@ -447,8 +489,14 @@ export function useTabGroupActions() {
     const draft = store.get(draftsAtom).find((entry) => entry.id === draftId);
     if (draftId !== undefined && !(draft && holdsSomething(draft))) {
       windowTabs.dropGroup(group);
+      forgetName(group);
       void removeDraft(draftId);
     }
+  };
+
+  /** The name of a group thrown away, which nothing shows again. */
+  const forgetName = (group: string) => {
+    setNames((names) => namedWith(names, group, ""));
   };
 
   /**

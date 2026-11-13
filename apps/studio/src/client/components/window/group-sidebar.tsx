@@ -82,11 +82,16 @@ import {
   sidebarDropAtom,
 } from "./sidebar-drop";
 import { useGroupRowDrag } from "./tab-drag";
-import { useChatRename } from "./use-chat-rename";
 import { useChatSearchFallback } from "./use-chat-search-fallback";
+import { useGroupRename } from "./use-group-rename";
 import { useProjectShift } from "./use-project-shift";
 import { useSetChatProject } from "./use-set-chat-project";
-import { lastActiveAt, type TabGroup, windowTabGroupsAtom } from "./tab-groups";
+import {
+  draftWordsTitle,
+  lastActiveAt,
+  type TabGroup,
+  windowTabGroupsAtom,
+} from "./tab-groups";
 import { isHomeTab } from "./tab-model";
 import { useNow } from "./use-now";
 import { chatOfGroup } from "./window-href";
@@ -922,7 +927,8 @@ function dayLabel(at: number): string {
  * close X stands in the time's place, and a middle click closes it too.
  * While a tab held over it would land in its group, it takes the tone of the
  * row up. A right click raises its menu (`GroupRowMenu`), whose Rename turns
- * the title into a field.
+ * the title into a field, as a double click on the title does. A group whose
+ * chat has not started shows the name the person gave it, else its own title.
  */
 export function GroupRow({
   chatTitles,
@@ -952,21 +958,24 @@ export function GroupRow({
 }) {
   const chat = entry.kind === "chat" ? entry.chat : undefined;
   const isUnread = chat?.unread === true;
-  const rename = useChatRename(chat);
   const now = useNow();
   const { selectedTabIn } = useWindowTabs();
   const appsBySlug = useAppsBySlug();
-  // A group whose chat has no words yet is named by the tab it has up.
+  // A group whose chat has no words yet is named by the tab it has up,
+  // until the person names it.
   const up =
     entry.kind === "draft" && entry.draft.words.trim() === ""
       ? selectedTabIn(entry.group)
       : undefined;
-  let title = entry.title;
+  let ownTitle =
+    entry.kind === "draft" ? draftWordsTitle(entry.draft) : entry.title;
   if (up?.kind === "page") {
-    title = pageTabTitle(up) || title;
+    ownTitle = pageTabTitle(up) || ownTitle;
   } else if (up !== undefined) {
-    title = screenPresentation(up.href, { appsBySlug, chatTitles }).title;
+    ownTitle = screenPresentation(up.href, { appsBySlug, chatTitles }).title;
   }
+  const title = entry.kind === "draft" ? (entry.name ?? ownTitle) : ownTitle;
+  const rename = useGroupRename(entry, ownTitle);
   const shown = (
     <div
       className={cn(
@@ -1023,6 +1032,7 @@ export function GroupRow({
               <ChatTitleField
                 className="text-[13px] font-medium"
                 grow
+                {...(entry.kind === "draft" ? { placeholder: ownTitle } : {})}
                 rename={rename}
                 width={undefined}
               />
@@ -1035,6 +1045,9 @@ export function GroupRow({
                   ? "font-semibold text-foreground"
                   : "font-medium text-foreground/85",
               )}
+              // A row with a menu renames from it, and from a double click
+              // on its title.
+              onDoubleClick={menu ? rename.start : undefined}
             >
               {title}
             </span>
@@ -1089,11 +1102,7 @@ export function GroupRow({
     </div>
   );
   return menu ? (
-    <GroupRowMenu
-      entry={entry}
-      menu={menu}
-      {...(chat ? { onRename: rename.start } : {})}
-    >
+    <GroupRowMenu entry={entry} menu={menu} onRename={rename.start}>
       {shown}
     </GroupRowMenu>
   ) : (

@@ -2,6 +2,7 @@ import {
   draftKeyString,
   draftSnapshotsAtom,
 } from "@/client/atoms/prompt-value";
+import { groupNamesAtom } from "@/client/atoms/tab-groups";
 import { cancelWords } from "@/client/drafts/settle-words";
 import {
   claimDraftAtom,
@@ -32,6 +33,7 @@ import { ulid } from "ulid";
 import { NO_FILTERS, type Project } from "./chats";
 import { type DraftSend } from "./compose-window";
 import { asksPart, stagedAsksAtom, useStagedAskActions } from "./staged-asks";
+import { namedWith } from "./tab-groups";
 import { type useCompose } from "./use-compose";
 import { isHomeTab } from "./tab-model";
 import { type useWindowTabs } from "./window-tabs";
@@ -118,6 +120,12 @@ export function useDrafts({
   const [sentProjects, setSentProjects] = useState<ReadonlyMap<ChatId, string>>(
     () => new Map(),
   );
+  // The name each of those chats started under, by chat, where its tab
+  // group had one: the chat's tab wears it until the chat's record has it.
+  const [sentNames, setSentNames] = useState<ReadonlyMap<ChatId, string>>(
+    () => new Map(),
+  );
+  const setGroupNames = useSetAtom(groupNamesAtom);
   const [startingIds, setStartingIds] = useState<ReadonlySet<string>>(
     () => new Set(),
   );
@@ -140,6 +148,7 @@ export function useDrafts({
       setArrived(undefined);
       setSentWords((current) => withoutKey(current, arrived.chatId));
       setSentProjects((current) => withoutKey(current, arrived.chatId));
+      setSentNames((current) => withoutKey(current, arrived.chatId));
     }, CHAT_ARRIVAL_MS);
     return () => {
       clearTimeout(timer);
@@ -368,6 +377,22 @@ export function useDrafts({
         toast.error("Couldn't start the chat", { cause: error });
         return;
       }
+      // A tab group the person named starts its chat under that name, as
+      // its title, settled as a rename is, so the app never names the chat
+      // from its conversation. A rename that fails leaves the chat to be
+      // named as any other is.
+      const name = store.get(groupNamesAtom)[draftGroupOf(id)];
+      if (name !== undefined) {
+        const isNamed = await rpcClient.workspace.chats.rename
+          .call({ id: chatId, title: name })
+          .then(
+            () => true,
+            () => false,
+          );
+        if (isNamed) {
+          setSentNames((current) => new Map(current).set(chatId, name));
+        }
+      }
       // The draft is claimed for its chat before anything is written to the
       // chat: from here it is the message on its way rather than a draft to
       // list or a reply in the chat, and its file names the chat, since the
@@ -429,6 +454,7 @@ export function useDrafts({
         }
         setSentWords((current) => withoutKey(current, chatId));
         setSentProjects((current) => withoutKey(current, chatId));
+        setSentNames((current) => withoutKey(current, chatId));
         toast.error("Couldn't start the chat", { cause: failed.error });
       }
       opened();
@@ -441,6 +467,8 @@ export function useDrafts({
       // with it. A launch that finds the folder still there finds that
       // message too, and takes the folder away then.
       draftSent(id);
+      // The group is its chat's now, which goes by the chat's title.
+      setGroupNames((names) => namedWith(names, draftGroupOf(id), ""));
       removeAsks(marked.map((ask) => ask.id));
       setArrived({ chatId, draftId: id });
       if (!opensWhole) {
@@ -486,6 +514,7 @@ export function useDrafts({
     draftWith,
     expandDraft,
     popOutDraft,
+    sentNames,
     sentProjects,
     sentWords,
     showDraft,

@@ -20,14 +20,23 @@ const FIELD_MIN_WIDTH = 160;
 const FIELD_DEFAULT_WIDTH = 320;
 
 /**
+ * What a title field renames: a chat's, which can also be named from its
+ * conversation (`suggest`), or a name with no conversation behind it.
+ */
+export type TitleRename = Omit<ChatRename, "isSuggesting" | "suggest"> &
+  Partial<Pick<ChatRename, "isSuggesting" | "suggest">>;
+
+/**
  * Where a chat's title is renamed, in the title's place: a field the width
  * of the title it replaced, with the sparkle at its far end that names the
- * chat from its conversation. Only where the chat is being viewed, its head
- * and its small view; the inbox's rows rename from their menu's dialog.
+ * chat from its conversation, where there is one to name it from. Only where
+ * the chat is being viewed, its head and its small view; the inbox's rows
+ * rename from their menu's dialog.
  */
 export function ChatTitleField({
   className,
   grow = false,
+  placeholder,
   rename,
   width,
 }: {
@@ -35,10 +44,13 @@ export function ChatTitleField({
   className: string;
   /** Whether the field takes the row's free width rather than the title's own. */
   grow?: boolean;
-  rename: ChatRename;
+  /** What the field shows while it is empty. */
+  placeholder?: string;
+  rename: TitleRename;
   /** The title's width in layout px, measured as renaming began; a plain medium field without one. */
   width: number | undefined;
 }) {
+  const { suggest } = rename;
   // select-text because the window turns selection off, which would leave a
   // name you can't drag a selection through.
   return (
@@ -59,33 +71,40 @@ export function ChatTitleField({
       }
     >
       <Input
-        className={cn("h-7 pr-8 focus-visible:-outline-offset-3", className)}
+        className={cn(
+          "h-7 focus-visible:-outline-offset-3",
+          suggest && "pr-8",
+          className,
+        )}
         {...rename.inputProps}
+        placeholder={placeholder}
         readOnly={rename.isSuggesting}
       />
-      <div className="absolute right-1 flex">
-        <ToolbarTooltip label="Name it from the conversation">
-          <Button
-            aria-label="Name it from the conversation"
-            className="size-6"
-            disabled={rename.isSuggesting}
-            onClick={rename.suggest}
-            // Keeps the field focused: a blur would save and close it
-            // before the press lands.
-            onMouseDown={(event) => {
-              event.preventDefault();
-            }}
-            size="icon-sm"
-            variant="ghost"
-          >
-            {rename.isSuggesting ? (
-              <Spinner className="size-3.5" delay={0} />
-            ) : (
-              <SparkleIcon className="size-3.5" />
-            )}
-          </Button>
-        </ToolbarTooltip>
-      </div>
+      {suggest && (
+        <div className="absolute right-1 flex">
+          <ToolbarTooltip label="Name it from the conversation">
+            <Button
+              aria-label="Name it from the conversation"
+              className="size-6"
+              disabled={rename.isSuggesting}
+              onClick={suggest}
+              // Keeps the field focused: a blur would save and close it
+              // before the press lands.
+              onMouseDown={(event) => {
+                event.preventDefault();
+              }}
+              size="icon-sm"
+              variant="ghost"
+            >
+              {rename.isSuggesting ? (
+                <Spinner className="size-3.5" delay={0} />
+              ) : (
+                <SparkleIcon className="size-3.5" />
+              )}
+            </Button>
+          </ToolbarTooltip>
+        </div>
+      )}
     </div>
   );
 }

@@ -2,7 +2,37 @@ import { describe, expect, it, vi } from "vitest";
 
 vi.mock("@/client/rpc/client", () => ({ rpcClient: {} }));
 
-import { listedReplacing, listedWith, listedWithout } from "./tab-groups";
+import {
+  listedReplacing,
+  listedWith,
+  listedWithout,
+  namedWith,
+} from "./tab-groups";
+
+describe("a tab group's name", () => {
+  const NAMES = { "draft:a": "Wireframes" };
+
+  it.each([
+    ["names a group", {}, "draft:a", "Wireframes", NAMES],
+    ["trims the name", {}, "draft:a", "  Wireframes ", NAMES],
+    [
+      "renames a named group",
+      NAMES,
+      "draft:a",
+      "Keepers",
+      { "draft:a": "Keepers" },
+    ],
+    ["takes the name off with a blank one", NAMES, "draft:a", "  ", {}],
+    ["leaves another group's name", NAMES, "draft:b", "", NAMES],
+  ])("%s", (_, names, group, name, expected) => {
+    expect(namedWith(names, group, name)).toEqual(expected);
+  });
+
+  it("keeps the names as they were when nothing changes", () => {
+    expect(namedWith(NAMES, "draft:a", "Wireframes")).toBe(NAMES);
+    expect(namedWith(NAMES, "draft:b", "")).toBe(NAMES);
+  });
+});
 
 describe("a window's list of tab groups", () => {
   it.each([

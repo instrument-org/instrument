@@ -76,9 +76,9 @@ function asPin(action: RowAction): RowAction {
  * has them: Open in New Window; marking the chat read or unread and pinning
  * it; renaming it and filing it under a project; copying its paths; and
  * closing the group, or the groups around it, as a tab's menu closes tabs. A
- * group whose chat has not started has its project, a window of its own and
- * the closing. Not modal, as the chat row's is not, so the click that puts it
- * away lands on what it was meant for.
+ * group whose chat has not started has a window of its own, its name, its
+ * project and the closing. Not modal, as the chat row's is not, so the click
+ * that puts it away lands on what it was meant for.
  */
 export function GroupRowMenu({
   children,
@@ -89,8 +89,8 @@ export function GroupRowMenu({
   children: ReactNode;
   entry: TabGroup;
   menu: GroupRowMenuActions;
-  /** Starts renaming the chat in its row, for a chat that has started. */
-  onRename?: () => void;
+  /** Starts renaming the group in its row: its chat, once the chat has started. */
+  onRename: () => void;
 }) {
   // The menu hands focus back to the row as it closes, which would land
   // after the field took it and blur the rename shut.
@@ -128,17 +128,15 @@ export function GroupRowMenu({
           </>
         )}
         <ContextMenuSeparator />
-        {onRename && (
-          <ContextMenuItem
-            onSelect={() => {
-              isStartingRename.current = true;
-              onRename();
-            }}
-          >
-            <PencilSimpleIcon className="size-4" />
-            Rename
-          </ContextMenuItem>
-        )}
+        <ContextMenuItem
+          onSelect={() => {
+            isStartingRename.current = true;
+            onRename();
+          }}
+        >
+          <PencilSimpleIcon className="size-4" />
+          Rename
+        </ContextMenuItem>
         <ContextMenuSub>
           <ContextMenuSubTrigger>
             <CardsThreeIcon className="size-4" />

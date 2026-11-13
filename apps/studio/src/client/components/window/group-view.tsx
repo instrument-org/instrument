@@ -122,9 +122,11 @@ export function GroupView({
     select: (chats) => chats.find((entry) => entry.id === chat),
   });
   const sentWords = chat === undefined ? undefined : shell.sentWords.get(chat);
+  const sentName = chat === undefined ? undefined : shell.sentNames.get(chat);
   const headChat =
     chatRecord && sentWords !== undefined && chat !== undefined
       ? chatAsSent(chatRecord, {
+          name: sentName,
           project: shell.sentProjects.get(chat),
           words: sentWords,
         })
@@ -200,7 +202,10 @@ export function GroupView({
       return (
         <ChatTab
           {...placement}
-          title={sentWords === undefined ? "New chat" : draftTitle(sentWords)}
+          title={
+            sentName ??
+            (sentWords === undefined ? "New chat" : draftTitle(sentWords))
+          }
         />
       );
     }

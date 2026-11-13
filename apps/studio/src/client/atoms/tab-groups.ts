@@ -18,6 +18,17 @@ export const chatClosedByGroupAtom = keptAtom<Record<string, true>>(
   {},
 );
 
+/**
+ * The names the person gave groups whose chat has not started, by group. A
+ * group whose chat has started is named by its chat's title, so it has none
+ * here; its chat starts under the name instead (`useDrafts`' `startChat`).
+ */
+export const groupNamesAtom = keptAtom<Record<string, string>>(
+  "view",
+  "tab-groups-names.v1",
+  {},
+);
+
 /** What the sidebar's list shows in this window: the open groups, or History. */
 export const sidebarViewAtom = atom<"history" | "list">("list");
 

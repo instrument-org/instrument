@@ -5,12 +5,15 @@ import { useEffect, useRef, useState } from "react";
 /**
  * An inline field for renaming something, which closes once `onSave` is
  * done; `onSave` has the new name showing by then, so the old one never
- * shows again between the two.
+ * shows again between the two. A blank name is no name and keeps the field
+ * open, unless `allowsBlank`, where it is saved as `""`.
  */
 export function useInlineRename({
+  allowsBlank = false,
   onSave,
   value,
 }: {
+  allowsBlank?: boolean;
   onSave: (next: string) => Promise<void>;
   value: string;
 }) {
@@ -42,7 +45,7 @@ export function useInlineRename({
 
   const save = async () => {
     const next = editValue.trim();
-    if (!next) {
+    if (!next && !allowsBlank) {
       return;
     }
 

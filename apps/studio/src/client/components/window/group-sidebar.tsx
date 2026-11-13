@@ -49,6 +49,7 @@ import { pageTabTitle } from "./file-tabs";
 import { ScreenMark } from "./pane-tabs";
 import { screenPresentation } from "./screen-presentation";
 import { SearchField } from "./search-field";
+import { useProjectShift } from "./use-project-shift";
 import { lastActiveAt, type TabGroup } from "./tab-groups";
 import { isHomeTab } from "./tab-model";
 import { useNow } from "./use-now";
@@ -128,6 +129,17 @@ export function GroupSidebar({
   const [search, setSearch] = useAtom(groupSearchAtom);
   const [projectId, setProjectId] = useState<string>();
   const project = projects.find((entry) => entry.id === projectId);
+  // The search and the list slide in together as the sidebar steps into a
+  // project or back out of one.
+  const shiftRef = useRef<HTMLDivElement>(null);
+  useProjectShift(shiftRef, project?.id);
+  // The wash keeps the last project's color while it fades out, since the
+  // sidebar's own tint goes the moment the list leaves.
+  const [lastProject, setLastProject] = useState<Project>();
+  if (project && project !== lastProject) {
+    setLastProject(project);
+  }
+  const washProject = project ?? lastProject;
   const isSearching = search.trim() !== "";
 
   const inProject = (entry: TabGroup) =>
@@ -254,68 +266,85 @@ export function GroupSidebar({
 
   const showsNew = !isSearching && view === "list";
   return (
+    // Its own stacking context, so the project's wash can sit under the rows.
     <nav
       aria-label="Tab groups"
-      className="relative flex h-full w-full flex-col"
-      style={project ? projectTint(projectColor(project)) : {}}
+      className={cn(
+        "relative isolate flex h-full w-full flex-col",
+        project && "project-tint",
+      )}
+      style={project ? projectTint(projectColor(project)) : undefined}
     >
-      {project && (
-        <div className="pointer-events-none absolute inset-x-0 top-0 h-80 bg-linear-to-b from-(--project-tint-surface)/70 to-transparent" />
+      {/* While the list is one project, its tint washes down from the
+          window's top and fades out past the banner, behind the first rows;
+          sized against the whole sidebar, so a taller window washes further
+          down it. */}
+      {washProject && (
+        <div
+          aria-hidden
+          className={cn(
+            "pointer-events-none absolute inset-x-0 top-0 -z-10 h-[calc(20%+14rem)] bg-linear-to-b from-(--project-tint-surface)/50 to-transparent transition-opacity duration-300 ease-out project-tint motion-reduce:transition-none dark:from-(--project-tint-surface)/25 starting:opacity-0",
+            !project && "opacity-0",
+          )}
+          style={projectTint(projectColor(washProject))}
+        />
       )}
       <div className="relative flex min-h-0 flex-1 flex-col">
         <SidebarTop />
-        {!project && (
-          <div className="flex shrink-0 items-center gap-1 px-2">
-            <div className="relative flex min-w-0 flex-1">
-              <SearchField
-                inputRef={searchRef}
-                label="Search Tab Groups"
-                onChange={setSearch}
-                placeholder="Search"
-                value={search}
-              />
-              {!isSearching && (
-                <span className="pointer-events-none absolute top-1/2 right-2 -translate-y-1/2">
-                  <SoftKey>
-                    {formatAcceleratorText(
-                      WINDOW_SHORTCUTS.searchChats.accelerator,
-                    )}
-                  </SoftKey>
-                </span>
-              )}
-            </div>
-            <ToolbarTooltip label="History">
-              <button
-                aria-label="History"
-                aria-pressed={view === "history"}
-                className={cn(
-                  "grid size-9 shrink-0 place-items-center rounded-lg",
-                  view === "history"
-                    ? "bg-foreground/8 text-foreground"
-                    : "text-muted-foreground hover:bg-foreground/5 hover:text-foreground",
+        <div className="flex min-h-0 flex-1 flex-col" ref={shiftRef}>
+          {!project && (
+            <div className="flex shrink-0 items-center gap-1 px-2">
+              <div className="relative flex min-w-0 flex-1">
+                <SearchField
+                  inputRef={searchRef}
+                  label="Search Tab Groups"
+                  onChange={setSearch}
+                  placeholder="Search"
+                  value={search}
+                />
+                {!isSearching && (
+                  <span className="pointer-events-none absolute top-1/2 right-2 -translate-y-1/2">
+                    <SoftKey>
+                      {formatAcceleratorText(
+                        WINDOW_SHORTCUTS.searchChats.accelerator,
+                      )}
+                    </SoftKey>
+                  </span>
                 )}
-                onClick={() => {
-                  setView(view === "history" ? "list" : "history");
-                }}
-                type="button"
-              >
-                <ClockCounterClockwiseIcon className="size-4.5" />
-              </button>
-            </ToolbarTooltip>
-          </div>
-        )}
-        <ScrollingList
-          body={body}
-          newRow={
-            showsNew ? (
-              <NewRow
-                onNew={() => {
-                  onNew(project?.id);
-                }}
-              />
-            ) : null
-          }
-        />
+              </div>
+              <ToolbarTooltip label="History">
+                <button
+                  aria-label="History"
+                  aria-pressed={view === "history"}
+                  className={cn(
+                    "grid size-9 shrink-0 place-items-center rounded-lg",
+                    view === "history"
+                      ? "bg-foreground/8 text-foreground"
+                      : "text-muted-foreground hover:bg-foreground/5 hover:text-foreground",
+                  )}
+                  onClick={() => {
+                    setView(view === "history" ? "list" : "history");
+                  }}
+                  type="button"
+                >
+                  <ClockCounterClockwiseIcon className="size-4.5" />
+                </button>
+              </ToolbarTooltip>
+            </div>
+          )}
+          <ScrollingList
+            body={body}
+            newRow={
+              showsNew ? (
+                <NewRow
+                  onNew={() => {
+                    onNew(project?.id);
+                  }}
+                />
+              ) : null
+            }
+          />
+        </div>
         <SidebarFoot chatId={chatOfGroup(groupUp)} />
       </div>
     </nav>

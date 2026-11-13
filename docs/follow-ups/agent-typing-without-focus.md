@@ -6,6 +6,8 @@
 
 An agent's typing into a page that does not hold the window's focus goes to the page itself, or to a cross-origin frame on its own debugger session, and leaves the person's caret where it was (`keyboard-without-focus.ts`). What those routes cannot carry still takes focus first. We want to know how often that happens in real use, for which reasons, and whether a reason worth a route of its own stands out. The commit that adds it is `studio: type into in-app pages without taking the window's focus`.
 
+It has run only on macOS. Owed on Windows and Linux, in the first build that carries it: an agent fills a form and sends it with `press Tab` and `press Enter` while the person types in the message box, and every value and key arrives in the page while the person's text and caret stay whole. Keys are the route to watch there: a key the page never reports handling counts as delivered after a second, logged only at debug level (`did not report handling it`), so a key that never arrives fails quietly rather than taking focus.
+
 ## The signal
 
 - `typed without focus targetId=… text=N keys=M` in the main log, one line per tab once its typing has been quiet for three seconds: how much went the focus-free way.
@@ -26,6 +28,7 @@ The main log of a build in daily use: `apps/studio/.logs/` in development, the r
 - `focus in a frame with no debugger session` shows up: read which site. Same-site frames want a route of their own (they share the page's renderer, so `insertText` may reach them); a frame agent-browser had not attached means the lookup needs another way in.
 - `text sent without focus … did not say` shows up beside text typed twice or not at all: the busy-page guess is wrong, so wait longer for the check's answer.
 - Any guest crash after focus-free typing: find the page state and widen the check before anything else.
+- On Windows or Linux, text arrives but `press Tab` or `press Enter` does not: `sendInputEvent` behaves differently there, so send keys through the focus-taking path on that system until it is understood.
 
 ## Result
 

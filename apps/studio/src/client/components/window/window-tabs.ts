@@ -26,6 +26,7 @@ import {
   pageNavigated,
   pageTakesOver,
   patchPage,
+  reopenTab,
   reorderGroup,
   replaceTab,
   restoreGroup,
@@ -411,6 +412,10 @@ export function useWindowTabs() {
     },
     restoreGroup: (group: string, tabs: WindowTab[]) => {
       apply((current) => restoreGroup(current, group, tabs));
+    },
+    /** A closed tab back where it stood in its group, up in it. */
+    reopen: (tab: WindowTab, index: number) => {
+      apply((current) => reopenTab(current, { index, tab }));
     },
     /** One tab up in its group: on screen when the group is, and what a host drawing the group elsewhere shows. */
     select: (id: string) => {

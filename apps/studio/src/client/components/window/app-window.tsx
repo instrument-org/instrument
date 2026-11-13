@@ -22,6 +22,7 @@ import {
   filesFolderAtom,
   inboxOpenAtom,
   paneOpenByGroupAtom,
+  type WindowTab,
 } from "@/client/atoms/window";
 import { settingsModalAtom } from "@/client/atoms/settings-modal";
 import { AppErrorFallback } from "@/client/components/app-error-fallback";
@@ -70,7 +71,7 @@ import { fileHref, folderHref } from "@/shared/computer-href";
 import { type Tab } from "@/shared/tabs";
 
 import { useRestoredTabsWaiting } from "./use-restored-tabs-waiting";
-import { type ChatId } from "@instrument-org/workspace/client";
+import { browserTargetOf, type ChatId } from "@instrument-org/workspace/client";
 import { IconContext } from "@phosphor-icons/react/dist/lib/context";
 import {
   QueryClientProvider,
@@ -165,6 +166,7 @@ import {
 } from "./window-href";
 import {
   groupOnScreenAtom,
+  newScreenId,
   useWindowTabs,
   windowTabsAtom,
 } from "./window-tabs";
@@ -191,6 +193,16 @@ function floatingDraftIdsOf(kept: unknown): string[] {
 
 /** How long after a first Cmd+W on a group with no tabs a second one closes the group. */
 const CLOSE_AGAIN_MS = 3000;
+
+/** How many closed tabs a window keeps for Shift+Cmd+T, as a browser keeps a short list. */
+const CLOSED_TABS_KEPT = 25;
+
+/** A tab this window closed, with its place among its group's tabs. */
+interface ClosedGroupTab {
+  closedAt: number;
+  index: number;
+  tab: WindowTab;
+}
 
 /** The groups the window's places once kept their tabs under, which nothing shows now. */
 const RETIRED_GROUPS = [
@@ -792,9 +804,60 @@ function WindowShell({
     void activeRouter?.loadRouteChunk(activeRouter.routesById["/_app/new-tab"]);
   }, [activeRouter, opened, queryClient]);
 
+  // The group tabs this window closed, newest first, for Shift+Cmd+T.
+  const closedTabs = useRef<ClosedGroupTab[]>([]);
   const requestClose = (id: string) => {
+    const tab = windowTabs.allTabs.find((each) => each.id === id);
+    // A new tab has nothing to come back to.
+    if (tab?.group !== undefined && !isHomeTab(tab)) {
+      const { group } = tab;
+      closedTabs.current = [
+        {
+          closedAt: Date.now(),
+          index: windowTabs.allTabs
+            .filter((each) => each.group === group)
+            .indexOf(tab),
+          tab,
+        },
+        ...closedTabs.current,
+      ].slice(0, CLOSED_TABS_KEPT);
+    }
     // Any group's: a popped-out chat's rail closes its tabs here too.
     windowTabs.close(id);
+  };
+  /**
+   * The tab this window closed last back in its group, up there, unless a
+   * window closed since, which comes back instead, the way a browser's one
+   * chord brings back either. A tab whose group has closed too is passed over.
+   */
+  const reopenTab = () => {
+    const isOpen = (group: string) =>
+      groupList.open.some((entry) => entry.group === group);
+    const entry = closedTabs.current.find(
+      ({ tab }) => tab.group !== undefined && isOpen(tab.group),
+    );
+    void rpcClient.window.reopenClosed
+      .call(entry && { after: entry.closedAt })
+      .catch(() => false)
+      .then((windowCameBack) => {
+        if (!entry || windowCameBack || entry.tab.group === undefined) {
+          return;
+        }
+        closedTabs.current = closedTabs.current.filter(
+          (each) => each !== entry,
+        );
+        // A tab id is never opened twice, and a page's guest went with it.
+        const id = newScreenId();
+        windowTabs.reopen({ ...entry.tab, id }, entry.index);
+        if (entry.tab.kind === "page") {
+          const url = entry.tab.url ?? entry.tab.openedUrl;
+          void rpcClient.workspace.browser.open.call({
+            targetId: browserTargetOf(id),
+            ...(url ? { url } : {}),
+          });
+        }
+        groups.show(entry.tab.group);
+      });
   };
 
   usePageThumbnailHousekeeping();
@@ -1220,7 +1283,7 @@ function WindowShell({
         }
       },
       receiveTab,
-      reopenTab: appTabs.reopen,
+      reopenTab,
       search: focusField,
       searchChats: () => {
         setSidebarOpen(true);

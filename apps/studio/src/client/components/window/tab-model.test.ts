@@ -21,6 +21,7 @@ import {
   pageNavigated,
   pageTakesOver,
   patchPage,
+  reopenTab,
   reorderGroup,
   replaceTab,
   screenMoved,
@@ -552,6 +553,30 @@ describe("reorderGroup", () => {
       .map((tab) => tab.id)
       .join(" ");
     expect(order).toBe(expected);
+  });
+});
+
+describe("reopenTab", () => {
+  it.each([
+    ["first", 0, "*r a b c"],
+    ["between", 1, "a *r b c"],
+    ["last", 3, "a b c *r"],
+    ["past the tabs left", 9, "a b c *r"],
+  ])("puts a tab back %s in its group, up", (_case, index, expected) => {
+    const state = reopenTab(THREE, {
+      index,
+      tab: screenTab("r", "/apps", CHAT),
+    });
+    expect(shape(state)[CHAT]).toBe(expected);
+    expect(shape(state)[OTHER]).toBe("*x");
+  });
+
+  it("puts a tab back in a group with none left", () => {
+    const state = reopenTab(windowOf([screenTab("x", "/apps", OTHER)]), {
+      index: 2,
+      tab: screenTab("r", "/apps", CHAT),
+    });
+    expect(shape(state)).toEqual({ [CHAT]: "*r", [OTHER]: "*x" });
   });
 });
 

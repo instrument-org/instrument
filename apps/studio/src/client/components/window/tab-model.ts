@@ -740,6 +740,30 @@ export function restoreGroup(
   return first ? pointAt(restored, group, first.id) : restored;
 }
 
+/**
+ * A closed tab back in its group, at the place it had among the group's tabs
+ * (as near as the tabs left allow), and up in it.
+ */
+export function reopenTab(
+  state: WindowTabs,
+  { index, tab }: { index: number; tab: WindowTab },
+): WindowTabs {
+  const { group } = tab;
+  if (group === undefined) {
+    return state;
+  }
+  const inGroup = tabsIn(state, group);
+  const after = inGroup[Math.min(index, inGroup.length) - 1];
+  const first = inGroup[0];
+  const at = after
+    ? state.tabs.indexOf(after) + 1
+    : first
+      ? state.tabs.indexOf(first)
+      : state.tabs.length;
+  const tabs = [...state.tabs.slice(0, at), tab, ...state.tabs.slice(at)];
+  return pointAt({ ...state, tabs }, group, tab.id);
+}
+
 /** Every tab id the window holds, past and future visits included, so nothing is opened twice. */
 export function everyTabId(state: WindowTabs): Set<string> {
   return new Set(

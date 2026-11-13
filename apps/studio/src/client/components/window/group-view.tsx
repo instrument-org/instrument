@@ -158,24 +158,34 @@ export function GroupView({
       )
     ) : (
       <div className="flex h-full min-h-0 flex-col">
-        <ChatHeader
-          chat={headChat}
-          fallbackTitle={
-            sentWords === undefined ? undefined : draftTitle(sentWords)
-          }
-          leading={leading}
-          onArchived={leave}
-          onDeleted={() => {
-            windowTabs.dropGroup(chat);
-            leave();
-          }}
-          onNewProject={shell.onNewProject}
-          onSetProject={(next) => {
-            shell.setChatProject(chat, next);
-          }}
-          projects={shell.projects}
-          trailing={trailing}
-        />
+        {/* With the chat alone in the card, its head is the window's top
+            row, so the room between its controls drags the window. */}
+        <div
+          className={cn(
+            "shrink-0",
+            !hasWork &&
+              "[-webkit-app-region:drag] [&_button]:[-webkit-app-region:no-drag] [&_input]:[-webkit-app-region:no-drag]",
+          )}
+        >
+          <ChatHeader
+            chat={headChat}
+            fallbackTitle={
+              sentWords === undefined ? undefined : draftTitle(sentWords)
+            }
+            leading={leading}
+            onArchived={leave}
+            onDeleted={() => {
+              windowTabs.dropGroup(chat);
+              leave();
+            }}
+            onNewProject={shell.onNewProject}
+            onSetProject={(next) => {
+              shell.setChatProject(chat, next);
+            }}
+            projects={shell.projects}
+            trailing={trailing}
+          />
+        </div>
         <div className="relative min-h-0 flex-1">
           <div className="absolute inset-0">
             <ChatScreen

@@ -38,7 +38,9 @@ export function GroupNewTab({
     <div className="h-full overflow-y-auto bg-background px-8">
       <nav
         aria-label="Places"
-        className="mx-auto flex w-full max-w-64 flex-col gap-4 pt-[max(14vh,--spacing(12))] pb-12 text-[13px]"
+        // As wide as its longest row, centered as a block, its rows' names
+        // aligned down its left.
+        className="mx-auto flex w-fit max-w-64 min-w-44 flex-col gap-4 pt-[max(14vh,--spacing(12))] pb-12 text-[13px]"
       >
         {project && (
           <PlaceSection label="Project">

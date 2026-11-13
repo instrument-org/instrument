@@ -21,6 +21,7 @@ import { fileUrlOf } from "@/client/lib/file-url";
 import { COMPUTER_FILE_REFUSAL_HEADER } from "@/shared/computer-file-refusal";
 import { getFileType } from "@/client/lib/get-file-type";
 import { isTypingTarget } from "@/client/lib/is-typing-target";
+import { keptByTab } from "@/client/lib/kept-by-tab";
 import { giveKeyboardTo } from "@/client/lib/browser-pool";
 import { setHomeFocus } from "@/client/lib/keyboard-home";
 import { togglePlayerIn } from "@/client/lib/media-players";
@@ -46,7 +47,7 @@ import {
   useRef,
   useState,
 } from "react";
-import { createPortal } from "react-dom";
+import { createPortal, flushSync } from "react-dom";
 import { omit } from "radashi";
 import { useSteadyCallbacks } from "@/client/hooks/use-steady-callbacks";
 import { toast } from "@/client/lib/toast";
@@ -102,6 +103,11 @@ const BESIDE_EXIT_TRANSITION = {
   duration: 0.38,
   ease: [0.2, 0, 0, 1],
 } as const;
+/**
+ * Whether the folder beside a file was shown or folded away, by tab, with the
+ * file it was beside, for the screen drawn again as its tab comes back up.
+ */
+const folderShownByTab = keptByTab<{ file: string; isShown: boolean }>();
 /** The pile several picked make beside the folder, the way the columns draw one. */
 const PILE_POSES = [
   { rotate: 9, x: 24, y: -12 },
@@ -152,6 +158,8 @@ export function FilesScreen({
   // The tab of a chat's or a draft's group this screen is in, when it is
   // not one of the window's own.
   const groupTab = useGroupTab();
+  // The tab this screen is in, of a group or the window's own.
+  const tabId = groupTab?.id ?? appTabId;
   const leaveFile = () => {
     // The tab's own history; or, at its start, a group's tab closes and a
     // window tab goes to the folder the file is in.
@@ -201,7 +209,13 @@ export function FilesScreen({
   // scrolled to is all still there either way.
   const isBesideLayout = file === undefined || tree !== undefined;
   const isFileOpen = isBesideLayout && file !== undefined;
-  const [isFolderShown, setFolderShown] = useState(true);
+  // Drawn again as its tab comes back up, the folder is shown or folded away
+  // as it was left beside the same file.
+  const [keptFolderShown] = useState(() => {
+    const kept = folderShownByTab.get(tabId);
+    return kept !== undefined && kept.file === file ? kept.isShown : undefined;
+  });
+  const [isFolderShown, setFolderShown] = useState(keptFolderShown ?? true);
   const [besidePicked, setBesidePicked] = useState<ChosenItem[]>([]);
   // Where the folder puts Ask and its menu for several picked.
   const [pickedSlot, setPickedSlot] = useState<HTMLDivElement | null>(null);
@@ -258,6 +272,10 @@ export function FilesScreen({
       window.removeEventListener("keydown", onKeyDown);
     };
   }, [isActiveTab, layout]);
+  // Whether the width was read from a frame laid out since the screen was
+  // drawn. Until then a tab drawn as its group comes up stands in a split
+  // still at the last group's widths.
+  const [isLaidOut, setLaidOut] = useState(false);
   useLayoutEffect(() => {
     if (!layout) {
       return;
@@ -267,7 +285,20 @@ export function FilesScreen({
       setLayoutWidth(layout.offsetWidth);
     };
     measure();
-    const observer = new ResizeObserver(measure);
+    let isFirst = true;
+    const observer = new ResizeObserver(() => {
+      if (!isFirst) {
+        measure();
+        return;
+      }
+      isFirst = false;
+      // Ahead of the frame's paint, so a file is first seen with the folder
+      // fitted to the width it is shown at.
+      flushSync(() => {
+        measure();
+        setLaidOut(true);
+      });
+    });
     observer.observe(layout);
     return () => {
       observer.disconnect();
@@ -280,20 +311,29 @@ export function FilesScreen({
       : Math.max(BESIDE_BOUNDS.min, Math.round(layoutWidth / 2)),
   );
   // A file opening from the folder leaves the folder beside it only when the
-  // tab has room for both, measured once the tab has a width.
+  // tab has room for both, measured once the tab is laid out with a width.
   const isFileShown = file !== undefined;
   const [wasFileShown, setWasFileShown] = useState(isFileShown);
-  const [isFitPending, setFitPending] = useState(isFileShown);
+  const [isFitPending, setFitPending] = useState(
+    isFileShown && keptFolderShown === undefined,
+  );
   if (wasFileShown !== isFileShown) {
     setWasFileShown(isFileShown);
     setFitPending(isFileShown);
   }
-  if (isFitPending && layoutWidth !== null) {
+  if (isFitPending && isLaidOut && layoutWidth !== null && layoutWidth > 0) {
     setFitPending(false);
     if (isBesideLayout) {
       setFolderShown(layoutWidth - besideWidth >= FILE_ROOM);
     }
   }
+  useEffect(() => {
+    if (file === undefined) {
+      folderShownByTab.delete(tabId);
+    } else if (!isFitPending) {
+      folderShownByTab.set(tabId, { file, isShown: isFolderShown });
+    }
+  }, [file, isFitPending, isFolderShown, tabId]);
   const clampBesideWidth = (width: number) =>
     Math.min(BESIDE_BOUNDS.max, Math.max(BESIDE_BOUNDS.min, Math.round(width)));
   const closeBeside = () => {
@@ -392,7 +432,6 @@ export function FilesScreen({
   // a tab behind, or a pane put away, keeps its page parked rather than
   // drawn. Its reload and zoom go into the row the way a page tab's do; its
   // menu is the file's own.
-  const tabId = groupTab?.id ?? appTabId;
   const hostGroup = hostGroupOf(tabId);
   const hostedFile = isPageFile ? activeFile.hostPath : undefined;
   const {

@@ -55,6 +55,21 @@ export function captureTabView(root: HTMLElement | null): TabView | undefined {
 }
 
 /**
+ * Where the scrolling stands in a tab, from the offsets its elements last
+ * reported as they scrolled, so a tab on its way out is read without laying
+ * the page out again. An element no longer in the tab is passed over.
+ */
+export function scrollsOf(
+  root: Element,
+  offsets: ReadonlyMap<Element, { left: number; top: number }>,
+): TabView["scrolls"] {
+  return [...offsets].flatMap(([element, { left, top }]) => {
+    const path = left !== 0 || top !== 0 ? pathTo(root, element) : null;
+    return path ? [{ left, path, top }] : [];
+  });
+}
+
+/**
  * Puts a tab's keyboard and scrolling back as what they stand on comes in, and
  * says when that is done or no longer worth waiting for. Gives back how to stop.
  */

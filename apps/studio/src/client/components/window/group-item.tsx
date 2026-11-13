@@ -27,6 +27,7 @@ import { PageAgentOverlay } from "./page-agent-overlay";
 import { GroupNewTab } from "./group-new-tab";
 import { GroupTabContext } from "./group-tab";
 import { liveFileAddress, liveHostedFileAddress } from "./hosted-page";
+import { KeptScrolls } from "./kept-scrolls";
 import { segmentsOf } from "./host-path";
 import { screenLocation } from "./screen-presentation";
 import { type TabLocation, tasksOfHref } from "./tab-location";
@@ -346,7 +347,9 @@ export function GroupItem({
             rowTail: slots.tail,
           }}
         >
-          {router ? <RouterProvider router={router} /> : null}
+          <KeptScrolls href={up.href} tabId={up.id}>
+            {router ? <RouterProvider router={router} /> : null}
+          </KeptScrolls>
         </WindowContext>
       </GroupTabContext>
     </Bare>

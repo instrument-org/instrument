@@ -143,6 +143,7 @@ import { useWindowDropFallback } from "./use-window-drop-fallback";
 import { WindowFrame } from "./window-frame";
 import { CloseGroupDialog } from "./close-group-dialog";
 import { GroupSidebar, sidebarBounds } from "./group-sidebar";
+import { SidebarToggleCorner } from "./inbox-toggle";
 import { isGroupScreenHref } from "./group-screen";
 import { useGroupTabDrag } from "./tab-drag";
 import {
@@ -1477,6 +1478,7 @@ function WindowShell({
       >
         <PageOpenContext value={openPage}>
           <WindowFrame
+            corner={<SidebarToggleCorner />}
             hasBar={false}
             overlay={
               <ComposeLayer

@@ -51,7 +51,6 @@ export function GroupItem({
   isShown = true,
   onPageChrome,
   onPageHost,
-  rowLeading,
   up,
 }: {
   /** Where back goes from the start of the tab: the window's own tab history, for a site standing at the window's level. */
@@ -69,8 +68,6 @@ export function GroupItem({
   onPageChrome: (slots: PageChromeSlots | undefined) => void;
   /** The element the page is drawn into, while a page is up. */
   onPageHost: (element: HTMLDivElement | null) => void;
-  /** What the address row puts ahead of its arrows: the sidebar's toggle. */
-  rowLeading?: ReactNode;
   up: WindowTab;
 }) {
   const windowTabs = useWindowTabs();
@@ -185,12 +182,7 @@ export function GroupItem({
           }
         }}
         {...rowProps}
-        leading={
-          <>
-            {rowLeading}
-            {rowProps.leading}
-          </>
-        }
+        leading={rowProps.leading}
         trailing={
           <>
             {/* The extensions' buttons go before Ask, with the page's own

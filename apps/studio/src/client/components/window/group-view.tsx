@@ -8,7 +8,7 @@ import { ToolbarTooltip } from "@/client/components/toolbar-tooltip";
 import { CaptionRoom } from "@/client/components/window-controls";
 import { WorkingDots } from "@/client/components/transcript/task-card";
 import { useIsActiveTab, useTabId } from "@/client/hooks/use-active-tab";
-import { cn, isMacOS } from "@/client/lib/utils";
+import { cn } from "@/client/lib/utils";
 import { draftGroupOf } from "@/shared/drafts";
 import { type ChatId } from "@instrument-org/workspace/client";
 import { ChatCircleIcon } from "@phosphor-icons/react/ChatCircle";
@@ -25,7 +25,7 @@ import { chatAsSent, draftTitle } from "./chats";
 import { ChatScreen } from "./chat-screen";
 import { useWindow } from "./context";
 import { GroupItem } from "./group-item";
-import { InboxToggle } from "./inbox-toggle";
+import { SidebarToggleRoom } from "./inbox-toggle";
 import { isHomeTab } from "./tab-model";
 import { NewChatView } from "./new-chat-view";
 import { PaneTabs } from "./pane-tabs";
@@ -212,20 +212,12 @@ export function GroupView({
             {plus}
             <CaptionRoom />
           </>,
-          isSidebarOpen ? undefined : <SidebarLead />,
+          isSidebarOpen ? undefined : <SidebarToggleRoom />,
         )}
       </div>
     );
   }
 
-  // Room for the traffic lights, which sit over the tab row's start while the sidebar is away.
-  const lightsRoom =
-    !isSidebarOpen && isMacOS() ? (
-      <div
-        className="shrink-0"
-        style={{ width: "calc(4.5rem / var(--app-zoom, 1))" }}
-      />
-    ) : null;
   const chatButton =
     chatClosed && !isOnlyNewTabs ? (
       <button
@@ -256,7 +248,7 @@ export function GroupView({
         chatTitles={shell.chatTitles}
         chosenId={up.id}
         isChatWorking={isWorking}
-        lead={lightsRoom}
+        lead={isSidebarOpen ? null : <SidebarToggleRoom />}
         onClose={shell.requestClose}
         onDuplicate={(tab) => {
           if (tab.kind === "page") {
@@ -291,7 +283,6 @@ export function GroupView({
           isShown
           onPageChrome={setPageChrome}
           onPageHost={setPageHost}
-          rowLeading={<InboxToggle />}
           up={up}
         />
       </div>
@@ -319,20 +310,5 @@ export function GroupView({
         </div>
       </RightPane>
     </div>
-  );
-}
-
-/** The sidebar's toggle ahead of a chat's title, with room for the traffic lights before it while the sidebar is away. */
-function SidebarLead() {
-  return (
-    <>
-      {isMacOS() && (
-        <div
-          className="shrink-0"
-          style={{ width: "calc(4rem / var(--app-zoom, 1))" }}
-        />
-      )}
-      <InboxToggle />
-    </>
   );
 }

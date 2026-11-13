@@ -31,6 +31,7 @@ const BELL_CORNER = { right: 8, top: TOOLBAR_HEIGHT + 4 };
 export function WindowFrame({
   bar,
   children,
+  corner,
   hasBar = true,
   overlay,
   rail,
@@ -39,6 +40,8 @@ export function WindowFrame({
 }: {
   bar?: ReactNode;
   children: ReactNode;
+  /** Laid over the window's top left corner, where it stays whatever comes and goes under it. */
+  corner?: ReactNode;
   /** Whether the window keeps a row across its top; without one, the columns reach the top and drag the window there themselves. */
   hasBar?: boolean;
   /** Laid over the whole window, for the draft windows that float over it. */
@@ -125,6 +128,7 @@ export function WindowFrame({
             <WindowControls />
           </div>
         )}
+        {corner}
         {/* Over the whole window, so a draft or a popped-out chat stands on
           the window's own foot and right edge rather than inside the card's
           margin, and a grown one is centered over the bar and the rail too. */}

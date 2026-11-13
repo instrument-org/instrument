@@ -36,6 +36,7 @@ import { useAtom } from "jotai";
 import { type ReactNode, type Ref, useEffect, useRef, useState } from "react";
 
 import { HelpMenu } from "./help-menu";
+import { toggleLeft } from "./inbox-toggle";
 import { useAppsBySlug } from "./apps-by-slug";
 import { activityLabel, hasWords, type Project } from "./chats";
 import { Peek } from "./chat-row";
@@ -734,25 +735,22 @@ function TabMark({
 }
 
 /**
- * The sidebar's top row, which drags the window: past the traffic lights on
- * a Mac, or after the app's menu elsewhere, the bell; the update and network
- * pills at its end.
+ * The sidebar's top row, which drags the window: room for the traffic lights
+ * on a Mac and for the sidebar's toggle, which stands over the row's start
+ * (`SidebarToggleCorner`), then the app's menu off the Mac; the network and
+ * update pills, and the bell at its end.
  */
 function SidebarTop() {
   return (
     <div
       className="flex h-10 shrink-0 items-center gap-1 pr-2 [-webkit-app-region:drag] [&_button]:[-webkit-app-region:no-drag]"
-      style={
-        isMacOS()
-          ? { paddingLeft: "calc(5rem / var(--app-zoom, 1))" }
-          : { paddingLeft: 8 }
-      }
+      style={{ paddingLeft: `calc(${toggleLeft()} + 2rem)` }}
     >
       {!isMacOS() && <AppMenuButton />}
-      <NotificationsBell />
       <span className="flex-1" />
       <NetworkStatusIndicator />
       <UpdateStatusIndicator />
+      <NotificationsBell />
     </div>
   );
 }

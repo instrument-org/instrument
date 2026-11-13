@@ -41,7 +41,9 @@ import { ProjectBanner } from "./project-banner";
 import { projectColor } from "./project-colors";
 import { projectTint } from "./project-tint";
 import { ProjectsSection } from "./projects-section";
+import { pageTabTitle } from "./file-tabs";
 import { ScreenMark } from "./pane-tabs";
+import { screenPresentation } from "./screen-presentation";
 import { SearchField } from "./search-field";
 import { type TabGroup } from "./tab-groups";
 import { chatOfGroup } from "./window-href";
@@ -443,6 +445,19 @@ export function GroupRow({
 }) {
   const chat = entry.kind === "chat" ? entry.chat : undefined;
   const isUnread = chat?.unread === true;
+  const { selectedTabIn } = useWindowTabs();
+  const appsBySlug = useAppsBySlug();
+  // A group whose chat has no words yet is named by the tab it has up.
+  const up =
+    entry.kind === "draft" && entry.draft.words.trim() === ""
+      ? selectedTabIn(entry.group)
+      : undefined;
+  let title = entry.title;
+  if (up?.kind === "page") {
+    title = pageTabTitle(up) || title;
+  } else if (up !== undefined) {
+    title = screenPresentation(up.href, { appsBySlug, chatTitles }).title;
+  }
   return (
     <div
       className={cn(
@@ -483,7 +498,7 @@ export function GroupRow({
               : "font-medium text-foreground/85",
           )}
         >
-          {entry.title}
+          {title}
         </div>
         <div className="flex h-5 min-w-0 items-center text-[12px] leading-5">
           <SecondLine chatTitles={chatTitles} entry={entry} />

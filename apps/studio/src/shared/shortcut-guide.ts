@@ -17,18 +17,18 @@ export const SHORTCUT_GUIDE = {
 } as const;
 
 export type ShortcutGuideGroup =
-  | "Chats"
   | "Developer"
   | "Files"
   | "General"
   | "Pages"
+  | "Tab Groups"
   | "Tabs"
   | "View";
 
 /** The order the guide draws its sections in. */
 export const SHORTCUT_GUIDE_GROUPS: ShortcutGuideGroup[] = [
   "General",
-  "Chats",
+  "Tab Groups",
   "Files",
   "Tabs",
   "Pages",
@@ -72,20 +72,20 @@ const WINDOW_GROUPS: Record<
   newChat: "General",
   newTab: "Tabs",
   newWindow: "General",
-  nextChat: "Chats",
+  nextChat: "Tab Groups",
   nextTab: "Tabs",
-  previousChat: "Chats",
+  previousChat: "Tab Groups",
   previousTab: "Tabs",
   printPage: "Pages",
   quit: "General",
   reloadPage: "Pages",
   reopenTab: "Tabs",
   search: "General",
-  searchChats: "Chats",
+  searchChats: "Tab Groups",
   showActivity: "General",
   tabByPlace: "Tabs",
   toggleFullScreen: "View",
-  toggleInbox: "Chats",
+  toggleInbox: "Tab Groups",
   zoomIn: "View",
   zoomOut: "View",
 };
@@ -106,35 +106,10 @@ const PASTE_AS_TEXT = {
 } as const;
 
 /**
- * The keys of the chat list and of a page open beside a folder, which the
- * list or the folder answers while it has the keyboard (`chat-list.tsx`,
- * `computer-page.tsx`), not a menu or the window.
+ * The keys of a page open beside a folder, which the folder answers while it
+ * has the keyboard (`computer-page.tsx`), not a menu or the window.
  */
 const LIST_KEYS: ShortcutGuideEntry[] = [
-  {
-    accelerator: "Down",
-    group: "Chats",
-    id: "nextChatInList",
-    label: "Next Chat in List",
-  },
-  {
-    accelerator: "Up",
-    group: "Chats",
-    id: "previousChatInList",
-    label: "Previous Chat in List",
-  },
-  {
-    accelerator: "Return",
-    group: "Chats",
-    id: "replyFromList",
-    label: "Reply to Chat",
-  },
-  {
-    accelerator: "Escape",
-    group: "Chats",
-    id: "backToList",
-    label: "Back to List",
-  },
   {
     accelerator: "Right",
     group: "Files",
@@ -200,7 +175,7 @@ const PICTURE_KEYS: ShortcutGuideEntry[] = [
  */
 export const SHORTCUT_GUIDE_ENTRIES: ShortcutGuideEntry[] = [
   { ...SHORTCUT_GUIDE, group: "General", id: "shortcutGuide" },
-  { ...PASTE_AS_TEXT, group: "Chats", id: "pasteAsText" },
+  { ...PASTE_AS_TEXT, group: "General", id: "pasteAsText" },
   ...LIST_KEYS,
   ...PICTURE_KEYS,
   ...Object.entries(WINDOW_CHORDS).map(

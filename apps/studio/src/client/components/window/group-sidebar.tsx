@@ -235,6 +235,7 @@ export function GroupSidebar({
             <div className="relative flex min-w-0 flex-1">
               <SearchField
                 inputRef={searchRef}
+                label="Search Tab Groups"
                 onChange={setSearch}
                 placeholder="Search"
                 value={search}

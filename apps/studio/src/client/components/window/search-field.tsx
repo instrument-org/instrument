@@ -29,6 +29,7 @@ export interface SearchToken<T extends string> {
  */
 export function SearchField<T extends string>({
   inputRef,
+  label,
   offered = [],
   onChange,
   onFocusChange,
@@ -38,6 +39,8 @@ export function SearchField<T extends string>({
   value,
 }: {
   inputRef?: Ref<HTMLInputElement>;
+  /** The name a screen reader gives the field; the placeholder when left out. */
+  label?: string;
   /** The tokens there are any of in this view, offered under the field while it is empty. */
   offered?: SearchToken<T>[];
   onChange: (value: string) => void;
@@ -118,7 +121,7 @@ export function SearchField<T extends string>({
             aria-autocomplete="list"
             aria-controls={suggestions.length > 0 ? listId : undefined}
             aria-expanded={suggestions.length > 0}
-            aria-label="Search chats"
+            aria-label={label ?? placeholder}
             role="combobox"
             className="h-full w-0 min-w-12 flex-1 bg-transparent text-ellipsis outline-hidden placeholder:text-muted-foreground"
             onBlur={() => {

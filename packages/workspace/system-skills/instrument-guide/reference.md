@@ -118,20 +118,16 @@ Each is written as on a Mac, then as on Windows and Linux.
 - Keyboard Shortcuts: ? / ?
 - New Tab Group: ⌘N / Ctrl+N
 - New Window: ⇧⌘N / Ctrl+Shift+N
+- Paste as Text: ⇧⌘V / Ctrl+Shift+V
 - Quit: ⌘Q / Ctrl+Q (not on Windows)
 - Search or Ask: ⌘L / Ctrl+L
 - Settings…: ⌘, / Ctrl+,
 - Show History: ⌘Y / Ctrl+H
 
-### Chats
+### Tab Groups
 
-- Back to List: Esc / Esc
-- Next Chat in List: ↓ / ↓
 - Next Tab Group: ⌥⌘↓ / Alt+Shift+↓
-- Paste as Text: ⇧⌘V / Ctrl+Shift+V
-- Previous Chat in List: ↑ / ↑
 - Previous Tab Group: ⌥⌘↑ / Alt+Shift+↑
-- Reply to Chat: ↩ / Enter
 - Search Tab Groups: ⇧⌘F / Ctrl+Shift+F
 - Toggle Sidebar: ⌘B / Ctrl+B
 

@@ -34,8 +34,6 @@ import { createPortal } from "react-dom";
 import { z } from "zod";
 
 import { AskTray } from "./ask-tray";
-import { FileAskButton } from "./file-ask-button";
-import { segmentsOf } from "./host-path";
 import { PageEditSession, PageEditToggle } from "./page-edit";
 import { pageHostsAtom, type PageHost } from "./page-hosts";
 import { pageEditTabsAtom, usePageEditToggleOnScreen } from "./page-edit-state";
@@ -45,7 +43,6 @@ import {
   reconcileGuests,
 } from "./reconcile-guests";
 import { visitInTab } from "./tab-history";
-import { chatOfGroup } from "./window-href";
 import {
   addPages,
   isHomeTab,
@@ -791,23 +788,7 @@ export function BrowserTabs({
           {...(editableId === undefined
             ? {}
             : {
-                // A page's file asks about itself the way every file tab
-                // does, beside the Edit control, except in a chat's group,
-                // where asking is the chat itself.
-                pageControls: (
-                  <>
-                    <PageEditToggle tabId={editableId} />
-                    {activeFilePath !== undefined &&
-                      chatOfGroup(active.group) === undefined && (
-                        <FileAskButton
-                          name={
-                            segmentsOf(activeFilePath).at(-1) ?? activeFilePath
-                          }
-                          path={activeFilePath}
-                        />
-                      )}
-                  </>
-                ),
+                pageControls: <PageEditToggle tabId={editableId} />,
               })}
           {...(activeFilePath === undefined
             ? {}

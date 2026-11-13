@@ -41,12 +41,10 @@ vi.mock("./use-tab-steps", () => ({
 
 vi.mock("./apps-by-slug", () => ({ useAppsBySlug: () => new Map() }));
 vi.mock("./task-titles", () => ({ useTaskTitles: () => new Map() }));
-vi.mock("./file-ask-button", () => ({ PageAskButton: () => null }));
 
 const appWindow: WindowContextValue = {
   ask: vi.fn(),
   browser: null,
-  askAboutView: vi.fn(),
   openPage: vi.fn(),
   openPath: vi.fn(),
   openScreen: calls.openScreen,

@@ -21,7 +21,6 @@ import { asksOwnPlace, useWindow, WindowContext } from "./context";
 import { useRowSlots } from "./row-slots";
 import { BrowserExtensionButtons } from "./browser-extension-buttons";
 import { PageAgentOverlay } from "./page-agent-overlay";
-import { PageAskButton } from "./file-ask-button";
 import { GroupNewTab } from "./group-new-tab";
 import { GroupTabContext } from "./group-tab";
 import { liveFileAddress, liveHostedFileAddress } from "./hosted-page";
@@ -185,13 +184,8 @@ export function GroupItem({
         leading={rowProps.leading}
         trailing={
           <>
-            {/* The extensions' buttons go before Ask, with the page's own
-              controls after it. */}
+            {/* The extensions' buttons go before the page's own controls. */}
             {location.kind === "page" && <BrowserExtensionButtons />}
-            {/* A page's file has the file's own Ask among its actions. */}
-            {before && location.kind === "page" && (
-              <PageAskButton onAsk={appWindow.askAboutView} />
-            )}
             {rowProps.trailing}
           </>
         }
@@ -268,11 +262,6 @@ export function GroupItem({
         <WindowContext
           value={{
             ...appWindow,
-            // Beside a chat, a screen's Ask would only open a draft over the
-            // chat that is already there to ask.
-            ...(chatOfGroup(group) === undefined
-              ? {}
-              : { askAbout: undefined }),
             // A chat's tasks and each task's page walk this tab in place.
             openScreen: (href, options) => {
               if (tasksOfHref(href) && !asksOwnPlace(options) && router) {

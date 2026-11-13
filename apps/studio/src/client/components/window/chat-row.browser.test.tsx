@@ -238,7 +238,6 @@ function paneWindow(openScreen = vi.fn()): WindowContextValue {
   return {
     ask: vi.fn(),
     browser: null,
-    askAboutView: vi.fn(),
     openPage: vi.fn(),
     openPath: vi.fn(),
     openScreen,

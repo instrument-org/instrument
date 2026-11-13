@@ -474,13 +474,7 @@ export function ComposeWindow({
       <WindowContext
         value={{
           ...appWindow,
-          // A draft is already open here; a new one from inside it would
-          // come up behind the one being written.
-          askAbout: undefined,
           // What a file in its band marked goes into this draft.
-          askAboutView: () => {
-            inputRef.current?.focus();
-          },
           moveAsksToDraft: (ids) => {
             moveAsks(ids, { draftId: draft.id, kind: "draft" });
           },

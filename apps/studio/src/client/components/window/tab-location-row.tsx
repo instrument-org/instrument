@@ -290,7 +290,7 @@ function Field({ location }: { location: TabLocation }) {
       <>
         {locationMark(location)}
         <span className="min-w-0 flex-1 truncate text-muted-foreground">
-          Search, open a file, or ask
+          Search or open a file
         </span>
       </>
     );

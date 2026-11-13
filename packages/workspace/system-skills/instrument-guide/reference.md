@@ -94,7 +94,7 @@ Link one as `[Label](instrument://screen/<name>)`.
 On a Mac these are the menu bar's menus, the first named for Instrument; on Windows and Linux the same menus open from the Menu button in the window's bar, with Settings and Quit at the end of File and updates and About at the end of Help.
 
 - **Instrument**: Check for Updates…, Settings…
-- **File**: New Tab Group, Command Menu, Search or Ask, Find, Find Next, Find Previous, Search Tab Groups, Print…, Info, New Window, New Tab, Close Tab, Reopen Closed Tab, Reopen Closed Window, Close Window
+- **File**: New Tab Group, Command Menu, Open Location…, Find, Find Next, Find Previous, Search Tab Groups, Print…, Info, New Window, New Tab, Close Tab, Reopen Closed Tab, Reopen Closed Window, Close Window
 - **View**: Toggle Sidebar, Edit Page, Reload Page, Go to Chat, Go to Files, Go to Browser, Go to Apps, Next Tab Group, Previous Tab Group, Actual Size, Zoom In, Zoom Out
 - **History**: Back, Forward, Show History, Clear Browsing Data…
 - **Tab**: Show Next Tab, Show Previous Tab, Move Tab to New Window
@@ -118,9 +118,9 @@ Each is written as on a Mac, then as on Windows and Linux.
 - Keyboard Shortcuts: ? / ?
 - New Tab Group: ⌘N / Ctrl+N
 - New Window: ⇧⌘N / Ctrl+Shift+N
+- Open Location…: ⌘L / Ctrl+L
 - Paste as Text: ⇧⌘V / Ctrl+Shift+V
 - Quit: ⌘Q / Ctrl+Q (not on Windows)
-- Search or Ask: ⌘L / Ctrl+L
 - Settings…: ⌘, / Ctrl+,
 - Show History: ⌘Y / Ctrl+H
 

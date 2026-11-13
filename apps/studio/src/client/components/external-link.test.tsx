@@ -45,7 +45,6 @@ function inWindow(
       readPageText: vi.fn(),
       restore: vi.fn(),
     },
-    askAboutView: vi.fn(),
     openPage,
     openPath: vi.fn(),
     openScreen: vi.fn(),

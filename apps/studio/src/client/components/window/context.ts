@@ -1,4 +1,3 @@
-import { type ChosenItem } from "@/shared/drafts";
 import { type ChatId } from "@instrument-org/workspace/client";
 import { createContext, useContext } from "react";
 
@@ -64,18 +63,6 @@ export function asksOwnPlace(options?: OpenOptions): boolean {
 export interface WindowContextValue {
   /** Opens a draft of a new chat with the line already in it, to be read and sent by the person; inside a chat, sends the line there. */
   ask: (prompt: string) => void;
-  /**
-   * Opens a draft of a new chat with these files or folders picked to go
-   * with it, and `words` already written when given; absent where there is
-   * no new draft to open, as inside one.
-   */
-  askAbout?: (items: ChosenItem[], words?: string) => void;
-  /**
-   * Ask on a screen: opens a draft of a new chat carrying what the window has
-   * in view as a chip (a page, a file, a folder or what is selected in it, an
-   * app's front); inside a draft, puts the caret back in its words.
-   */
-  askAboutView: () => void;
   /** The window's browser, mounted once by the layout and kept across screens; null until it is. */
   browser: BrowserTabsHandle | null;
   /**

@@ -75,7 +75,7 @@ export const WINDOW_SHORTCUTS = {
   printPage: { accelerator: "CmdOrCtrl+P", label: "Print…" },
   reloadPage: { accelerator: "CmdOrCtrl+R", label: "Reload Page" },
   reopenTab: { accelerator: "Shift+CmdOrCtrl+T", label: "Reopen Closed Tab" },
-  search: { accelerator: "CmdOrCtrl+L", label: "Search or Ask" },
+  search: { accelerator: "CmdOrCtrl+L", label: "Open Location…" },
   // Find with Shift, as a code editor searches every file: the sidebar's
   // search, over every tab group, where Find is the one chat on screen.
   searchChats: {

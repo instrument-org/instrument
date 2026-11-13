@@ -61,7 +61,6 @@ import {
   RECENTS_ROOT,
 } from "./computer-page";
 import { asksOwnPlace, type OpenOptions, useWindow } from "./context";
-import { FileAskButton } from "./file-ask-button";
 import { reachablePath } from "./file-tabs";
 import { useGroupTab } from "./group-tab";
 import { type SettledStep } from "./files-step";
@@ -651,17 +650,9 @@ export function FilesScreen({
         }
       : undefined;
 
-  const askButton = activeFile && (
-    <FileAskButton name={activeFile.name} path={activeFile.hostPath} />
-  );
   const actionsLead =
-    hostedTabId === undefined ? (
-      askButton
-    ) : (
-      <>
-        <PageEditToggle tabId={hostedTabId} />
-        {askButton}
-      </>
+    hostedTabId === undefined ? undefined : (
+      <PageEditToggle tabId={hostedTabId} />
     );
   // The page's file drawn into the slot the viewer gives it: square at the
   // bottom left while something stands against it, and at the right

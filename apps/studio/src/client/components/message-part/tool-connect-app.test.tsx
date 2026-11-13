@@ -129,7 +129,6 @@ function renderCard(
     ask: vi.fn(),
     // Only whether there is one is read here.
     browser: {} as BrowserTabsHandle,
-    askAboutView: vi.fn(),
     openPage,
     openPath: vi.fn(),
     openScreen: vi.fn(),
@@ -449,7 +448,6 @@ function renderGroupCard() {
     ask: vi.fn(),
     browser: {} as BrowserTabsHandle,
     chatId: ChatIdSchema.parse("2026-10-27-google"),
-    askAboutView: vi.fn(),
     openPage,
     openPath: vi.fn(),
     openScreen: vi.fn(),

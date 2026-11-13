@@ -27,15 +27,11 @@ import {
   type FileSystemSortState,
   type FileSystemView,
 } from "@/client/components/extend/file-system";
-import {
-  TOOLBAR_CONTROL_CLASSNAME,
-  TOOLBAR_ICON_BUTTON_CLASSNAME,
-} from "@/client/components/toolbar-control";
+import { TOOLBAR_ICON_BUTTON_CLASSNAME } from "@/client/components/toolbar-control";
 import {
   isQuickLookPress,
   listingKeys,
 } from "@/client/components/extend/file-system-keys";
-import { InstrumentGlyph } from "@/client/components/wordmark";
 import { instrumentFolderGlyphUrl } from "@/client/components/icons/folder-glyph";
 import { NewTabIcon } from "@/client/components/icons/new-tab-icon";
 import { RevealInFolderIcon } from "@/client/components/icons/reveal-in-folder";
@@ -185,7 +181,6 @@ import { FolderMark } from "./folder-mark";
 import { type FileInfoItem, TITLED_NAME } from "./file-info";
 import { lookPathOf, type LookTarget } from "./look-at";
 import { FolderNameMenu } from "./folder-name-menu";
-import { GlyphButton } from "./glyph-button";
 import {
   folderOf,
   homeRelative,
@@ -198,7 +193,6 @@ import {
 } from "./host-path";
 import { useChatFolderTrash } from "./chat-folder-trash";
 import { useClashQuestions } from "./clash-dialog";
-import { ConvertMenuItem } from "./convert-files";
 import { createPasteTarget } from "./paste-target";
 import { toastWithUndo, withdrawUndoOffer } from "./undo-offers";
 
@@ -398,7 +392,7 @@ export function ComputerPage({
   /** The layout this step of the tab's history shows the folder in. */
   view: FileSystemView;
 }) {
-  const { askAbout, openScreen, rowLead, rowTail } = useWindow();
+  const { openScreen, rowLead, rowTail } = useWindow();
   const isBesideOpen = beside !== undefined && !beside.isClosing;
   const [rowTools, setRowTools] = useState<HTMLElement | null>(null);
   const placesWidth = useAtomValue(finderPlacesWidthAtom);
@@ -1183,18 +1177,6 @@ export function ComputerPage({
   const folderOnScreenPath = isFolderless
     ? undefined
     : (currentListing?.path ?? hostPathOf(onScreen, rootHostPath ?? root));
-  /** A draft with the rows picked to go with it, or with the folder on screen when there are none. */
-  const draftAbout = (picked: (FileSystemItem | undefined)[]) => {
-    const chosen = picked.flatMap((item) => {
-      const itemPath = hostPathOfItem(item);
-      return item && itemPath ? [{ kind: item.kind, path: itemPath }] : [];
-    });
-    if (chosen.length > 0) {
-      askAbout?.(chosen);
-    } else if (folderOnScreenPath !== undefined) {
-      askAbout?.([{ kind: "folder", path: folderOnScreenPath }]);
-    }
-  };
 
   // The folder on screen is one the operating system would not let this app
   // read. On a Mac the first read of a protected folder is the system's own
@@ -2011,11 +1993,6 @@ export function ComputerPage({
   // Steady, so the places beside the folder are not drawn again each time
   // the selection moves.
   const placeActions = useSteadyCallbacks({
-    askAbout:
-      askAbout &&
-      ((place: string) => {
-        askAbout([{ kind: "folder", path: place }]);
-      }),
     openInNewTab: (place: string) => {
       openScreen(folderHref(place), { behind: true, newTab: true });
     },
@@ -2051,27 +2028,6 @@ export function ComputerPage({
     afterMenu.current?.();
     afterMenu.current = null;
   };
-  /** Ask about what is selected, or the folder on screen where nothing is. */
-  const askButton = () => {
-    const about =
-      selectedItems.length > 1
-        ? `${selectedItems.length} items`
-        : (segmentsOf(
-            hostPathOfItem(selectedItem) || (folderOnScreenPath ?? ""),
-          ).at(-1) ?? "this folder");
-    return (
-      <GlyphButton
-        className={cn(TOOLBAR_CONTROL_CLASSNAME, "text-foreground")}
-        onClick={() => {
-          draftAbout(selectedItems.length > 0 ? selectedItems : [selectedItem]);
-        }}
-        size="sm"
-        title={`Ask about “${about}”`}
-      >
-        <span className="@max-lg/finder:sr-only">Ask</span>
-      </GlyphButton>
-    );
-  };
   /** What the folder's menus do to a row, or to the folder where there is none. */
   const menuActionsFor = (item: FileSystemItem | undefined) => {
     // A row of several selected stands for all of them, as it does in the
@@ -2093,12 +2049,6 @@ export function ComputerPage({
         onInfoShow && picked.length > 0
           ? () => {
               onInfoShow(picked.flatMap(infoItemOf));
-            }
-          : undefined,
-      onNewDraft:
-        askAbout && (item || folderOnScreenPath !== undefined)
-          ? () => {
-              draftAbout(picked);
             }
           : undefined,
       onTrash: () => void trash(picked),
@@ -2470,14 +2420,11 @@ export function ComputerPage({
         beside.pickedInto &&
         selectedItems.length > 1 &&
         createPortal(
-          <>
-            {askAbout ? askButton() : null}
-            <FolderOverflowMenu
-              {...menuActionsFor(selectedItem)}
-              item={selectedItem}
-              onClosed={afterMenuClosed}
-            />
-          </>,
+          <FolderOverflowMenu
+            {...menuActionsFor(selectedItem)}
+            item={selectedItem}
+            onClosed={afterMenuClosed}
+          />,
           beside.pickedInto,
         )}
       {isNarrow && isPlacesOpen && (
@@ -2833,12 +2780,6 @@ export function ComputerPage({
                       onClosed={afterMenuClosed}
                     />
                   )}
-                  renderHeaderPrimary={
-                    askAbout &&
-                    (selectedItem || folderOnScreenPath !== undefined)
-                      ? askButton
-                      : undefined
-                  }
                   // Where the folder's contents would be: the whole browser for
                   // the folder on screen, its column's place beside the folder
                   // above it in the columns, a line under it in the list.
@@ -2968,8 +2909,6 @@ type FolderMenuActions = {
   onDuplicate: () => void;
   /** Left out where nothing shows a file's info, or the menu is on the folder's empty space. */
   onInfo: (() => void) | undefined;
-  /** A draft with the row, or the folder its empty space is, picked to go with it; left out where no draft can be opened. */
-  onNewDraft?: (() => void) | undefined;
   /** Left out where there is no folder to make one in. */
   onNewFolder: (() => void) | undefined;
   /** What a double-click does: a folder is gone into, a file opened here. */
@@ -3089,9 +3028,9 @@ function FolderOverflowMenu({
   item: FileSystemItem | undefined;
   onClosed: () => void;
 }) {
-  // The recents with nothing selected have nothing to make, paste or ask
-  // about, so the menu would open empty.
-  if (!props.item && !props.onNewFolder && !props.onNewDraft && !props.paste) {
+  // The recents with nothing selected have nothing to make or paste, so the
+  // menu would open empty.
+  if (!props.item && !props.onNewFolder && !props.paste) {
     return null;
   }
   return (
@@ -3137,7 +3076,6 @@ function FolderMenuItems({
   onCut,
   onDuplicate,
   onInfo,
-  onNewDraft,
   onNewFolder,
   onOpen,
   onOpenInNewTab,
@@ -3182,11 +3120,6 @@ function FolderMenuItems({
     isMacOS() && itemHostPath && !opensUnnamed
       ? { hostPath: itemHostPath }
       : undefined;
-  // The files among what the menu is about; a folder has no format to change.
-  const convertPaths = (group ?? (item ? [item] : [])).flatMap((each) => {
-    const hostPath = each.kind === "file" ? hostPathOfItem(each) : undefined;
-    return hostPath ? [hostPath] : [];
-  });
   // The rest of the selection, opened along with the row in the app picked.
   const openInOthers = (group ?? []).flatMap((each) => {
     const hostPath = hostPathOfItem(each);
@@ -3201,19 +3134,7 @@ function FolderMenuItems({
             <span>New Folder</span>
             <Shortcut>{keys.newFolder}</Shortcut>
           </Item>
-          {item || onNewDraft || (canPaste && paste) || emptyTail ? (
-            <Separator />
-          ) : null}
-        </>
-      ) : null}
-      {onNewDraft ? (
-        <>
-          <Item onClick={onNewDraft}>
-            <InstrumentGlyph className="size-4 text-brand-600 dark:text-brand-400" />
-            <span>Ask</span>
-          </Item>
-          {/* Nothing comes after it on a folder's More menu. */}
-          {item || !newFolderFirst ? <Separator /> : null}
+          {item || (canPaste && paste) || emptyTail ? <Separator /> : null}
         </>
       ) : null}
       {item ? (
@@ -3312,10 +3233,6 @@ function FolderMenuItems({
             <span>Duplicate</span>
             {keys.duplicate ? <Shortcut>{keys.duplicate}</Shortcut> : null}
           </Item>
-          <ConvertMenuItem
-            hostPaths={convertPaths}
-            menuComponents={menuComponents}
-          />
           {!several && onQuickLook ? (
             <Item onClick={onQuickLook}>
               <EyeIcon className="size-4" />
@@ -3570,8 +3487,6 @@ function useListedItems({
 
 /** What a place's menu and the place lists do, steady for the life of the screen. */
 type PlaceActions = {
-  /** Left out where the window has no chat to ask in. */
-  askAbout?: (place: string) => void;
   openInNewTab: (place: string) => void;
   openInNewWindow: (place: string) => void;
   restoreDefaults: () => void;
@@ -3584,16 +3499,9 @@ function placeMenuOf(
   place: string,
   { actions, isPinned }: { actions: PlaceActions; isPinned: boolean },
 ) {
-  const { askAbout } = actions;
   return (
     <PlaceMenu
       hostPath={place}
-      onNewDraft={
-        askAbout &&
-        (() => {
-          askAbout(place);
-        })
-      }
       onOpenInNewTab={() => {
         actions.openInNewTab(place);
       }}

@@ -18,7 +18,6 @@ import {
   ContextMenuTrigger,
 } from "./ui/context-menu";
 import { contextMenuComponents } from "./ui/menu-components";
-import { ConvertButton } from "./window/convert-files";
 
 export function FilePreviewFallback({
   fallbackExtension,
@@ -67,7 +66,6 @@ export function FilePreviewFallback({
             </Button>
           )
         )}
-        {file ? <ConvertButton hostPath={file.hostPath} /> : null}
       </div>
     </div>
   );

@@ -17,7 +17,6 @@ import {
   chatContextItems,
   type ContextItem,
   draftContextItems,
-  inViewLines,
 } from "./context-items";
 import { isGroupShown, tabInView } from "./draft-context";
 import { computerTabOf, reachablePath } from "./file-tabs";
@@ -410,7 +409,5 @@ export function contextReaders({
         up: isViewOpen ? windowTabs.selectedTabIn(chatId) : undefined,
       }),
     );
-  /** What Ask puts on the draft it opens: the lines of what the window has in view. */
-  const askLines = () => inViewLines({ finderOf, inView });
-  return { askLines, draftContext, draftItems, sendContext };
+  return { draftContext, draftItems, sendContext };
 }

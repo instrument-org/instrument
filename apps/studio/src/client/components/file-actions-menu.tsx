@@ -24,7 +24,6 @@ import {
   dropdownMenuComponents,
   type MenuComponents,
 } from "./ui/menu-components";
-import { ConvertMenuItem } from "./window/convert-files";
 
 export function FileActionsMenu({ file }: { file: ViewerFile }) {
   const fileActions = useFileActionVisibility(file);
@@ -159,10 +158,6 @@ export function FileActionsMenuItems({
           <span>Save as…</span>
         </Item>
       )}
-      <ConvertMenuItem
-        hostPaths={[file.hostPath]}
-        menuComponents={menuComponents}
-      />
       {(showCopy || fileActions.showDownload) && fileActions.showReveal && (
         <Separator />
       )}

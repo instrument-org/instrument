@@ -223,11 +223,10 @@ export function useDrafts({
     }
   };
   /**
-   * A draft a button hands over a line or what to ask about to, made at once
-   * since it has something in it, filed as New files one.
+   * A draft a button hands over a line to, made at once since it has
+   * something in it, filed as New files one.
    */
-  const draftWith = (words = "", context?: DraftContextItem[]) =>
-    startDraft(inboxProject(), words, context);
+  const draftWith = (words = "") => startDraft(inboxProject(), words);
   /**
    * A new chat a link from outside asked for, with its words: a draft of its
    * own beside any already open, so nothing the person wrote is replaced,

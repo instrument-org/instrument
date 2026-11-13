@@ -20,7 +20,6 @@ import {
 import { UpdateStatusIndicator } from "@/client/components/update-status-indicator";
 import { useLiveUser } from "@/client/hooks/use-live-user";
 import { formatAcceleratorText } from "@/client/lib/format-accelerator";
-import { formatAbsoluteTime } from "@/client/lib/relative-time";
 import { getInitials } from "@/client/lib/get-initials";
 import { showProjectInFiles } from "@/client/lib/show-in-files";
 import { cn, isMacOS } from "@/client/lib/utils";
@@ -60,7 +59,7 @@ import { GroupRowMenu, type GroupRowMenuActions } from "./group-row-menu";
 import { HelpMenu } from "./help-menu";
 import { toggleLeft } from "./inbox-toggle";
 import { useAppsBySlug } from "./apps-by-slug";
-import { activityLabel, hasWords, matchesSearch, type Project } from "./chats";
+import { hasWords, matchesSearch, type Project } from "./chats";
 import { Peek } from "./chat-row";
 import { NotificationsBell } from "./notifications-bell";
 import { ProjectBanner } from "./project-banner";
@@ -93,7 +92,6 @@ import {
   windowTabGroupsAtom,
 } from "./tab-groups";
 import { isHomeTab } from "./tab-model";
-import { useNow } from "./use-now";
 import { chatOfGroup } from "./window-href";
 import { useWindowTabs } from "./window-tabs";
 
@@ -208,13 +206,15 @@ export function GroupSidebar({
   const { allTabs } = useWindowTabs();
   const projectNames = new Map(projects.map((each) => [each.id, each.name]));
   /**
-   * Whether a group turns up for the search: a chat by what the chat list
-   * searches on its row, a draft by its words, its project, and the pages
-   * its tabs have open, one of which names its row while it has no words.
+   * Whether a group turns up for the search: by the name the person gave it,
+   * a chat by what the chat list searches on its row, a draft by its words,
+   * its project, and the pages its tabs have open, one of which names its
+   * row while it has no words.
    */
   const matches = (entry: TabGroup) =>
     entry.kind === "chat"
-      ? matchesSearch(entry.chat, search, projectNames)
+      ? matchesSearch(entry.chat, search, projectNames) ||
+        (entry.name !== undefined && hasWords(search, [entry.name]))
       : hasWords(search, [
           entry.title,
           entry.draft.words,
@@ -918,17 +918,17 @@ function dayLabel(at: number): string {
 }
 
 /**
- * One tab group as two lines, the inbox's two-line row: its title, bold
- * while it holds something not yet seen, with when the person last wrote in
- * its chat at the line's end; then its chat's latest line (the step it is
- * on, the question it waits on, or its last reply), with the marks of the
- * group's tabs at the line's end. A group whose chat has not started has
- * only its tabs' marks there. While the pointer is on a row that closes, a
- * close X stands in the time's place, and a middle click closes it too.
- * While a tab held over it would land in its group, it takes the tone of the
- * row up. A right click raises its menu (`GroupRowMenu`), whose Rename turns
- * the title into a field, as a double click on the title does. A group whose
- * chat has not started shows the name the person gave it, else its own title.
+ * One tab group as two lines: its title, bold while it holds something not
+ * yet seen; then its chat's latest line (the step it is on, the question it
+ * waits on, or its last reply), with the marks of the group's tabs at the
+ * line's end. A group whose chat has not started has only its tabs' marks
+ * there. While the pointer is on a row that closes, a close X stands at the
+ * title line's end, and a middle click closes it too. While a tab held over
+ * it would land in its group, it takes the tone of the row up. A right click
+ * raises its menu (`GroupRowMenu`), whose Rename turns the title into a
+ * field, as a double click on the title does. The title is the name the
+ * person gave the group, else its own: its chat's title, or what a group
+ * whose chat has not started is called.
  */
 export function GroupRow({
   chatTitles,
@@ -958,7 +958,6 @@ export function GroupRow({
 }) {
   const chat = entry.kind === "chat" ? entry.chat : undefined;
   const isUnread = chat?.unread === true;
-  const now = useNow();
   const { selectedTabIn } = useWindowTabs();
   const appsBySlug = useAppsBySlug();
   // A group whose chat has no words yet is named by the tab it has up,
@@ -968,13 +967,13 @@ export function GroupRow({
       ? selectedTabIn(entry.group)
       : undefined;
   let ownTitle =
-    entry.kind === "draft" ? draftWordsTitle(entry.draft) : entry.title;
+    entry.kind === "draft" ? draftWordsTitle(entry.draft) : entry.chat.title;
   if (up?.kind === "page") {
     ownTitle = pageTabTitle(up) || ownTitle;
   } else if (up !== undefined) {
     ownTitle = screenPresentation(up.href, { appsBySlug, chatTitles }).title;
   }
-  const title = entry.kind === "draft" ? (entry.name ?? ownTitle) : ownTitle;
+  const title = entry.name ?? ownTitle;
   const rename = useGroupRename(entry, ownTitle);
   const shown = (
     <div
@@ -1032,7 +1031,7 @@ export function GroupRow({
               <ChatTitleField
                 className="text-[13px] font-medium"
                 grow
-                {...(entry.kind === "draft" ? { placeholder: ownTitle } : {})}
+                placeholder={ownTitle}
                 rename={rename}
                 width={undefined}
               />
@@ -1052,7 +1051,6 @@ export function GroupRow({
               {title}
             </span>
           )}
-          {/* The time steps aside for the close X while the pointer is on the row. */}
           <RowActionBar
             actions={
               onClose && !restore
@@ -1067,19 +1065,6 @@ export function GroupRow({
                     },
                   ]
                 : []
-            }
-            resting={
-              chat && (
-                <span
-                  className={cn(
-                    "shrink-0 text-right text-[11px] text-muted-foreground/70 tabular-nums",
-                    isUnread && "font-semibold",
-                  )}
-                  title={formatAbsoluteTime(new Date(chat.lastUserMessageAt))}
-                >
-                  {activityLabel(new Date(chat.lastUserMessageAt), now)}
-                </span>
-              )
             }
           />
         </div>

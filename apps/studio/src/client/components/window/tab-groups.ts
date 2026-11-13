@@ -50,12 +50,12 @@ import { useWindowTabs, windowTabsAtom } from "./window-tabs";
 
 /**
  * One tab group as the sidebar lists it: a chat with its tabs, or a draft
- * whose chat has not started yet, with the tabs gathered beside it. A
- * draft's group the person named (`groupNamesAtom`) has the name as its
- * title, and keeps it as `name`.
+ * whose chat has not started yet, with the tabs gathered beside it. A group
+ * the person named (`groupNamesAtom`) has the name as its title, and keeps
+ * it as `name`.
  */
 export type TabGroup =
-  | { chat: Chat; group: ChatId; kind: "chat"; title: string }
+  | { chat: Chat; group: ChatId; kind: "chat"; name?: string; title: string }
   | {
       draft: Draft;
       group: string;
@@ -184,7 +184,11 @@ export function lastActiveAt(entry: TabGroup): number {
  * relaunch brings these back with no draft (`restoreKeptDraftGroups`).
  */
 export const keptDraftGroupsAtom = atom((get) => {
-  const kept = new Set(Object.keys(get(groupNamesAtom)));
+  const kept = new Set(
+    Object.keys(get(groupNamesAtom)).filter(
+      (group) => draftOfGroup(group) !== undefined,
+    ),
+  );
   for (const tab of get(windowTabsAtom).tabs) {
     const { group } = tab;
     if (group !== undefined && draftOfGroup(group) !== undefined) {
@@ -249,8 +253,15 @@ function isKeptDraft(draft: Draft, kept: ReadonlySet<string>): boolean {
   );
 }
 
-function chatGroup(chat: Chat): TabGroup {
-  return { chat, group: chat.id, kind: "chat", title: chat.title };
+function chatGroup(chat: Chat, names: Record<string, string>): TabGroup {
+  const name = names[chat.id];
+  return {
+    chat,
+    group: chat.id,
+    kind: "chat",
+    ...(name === undefined ? {} : { name }),
+    title: name ?? chat.title,
+  };
 }
 
 /**
@@ -272,7 +283,7 @@ export function useOpenGroups(): {
   const byId = new Map<string, Chat>(chats.map((chat) => [chat.id, chat]));
   const isListed = new Set(listed);
   const unlisted = [
-    ...chats.map(chatGroup),
+    ...chats.map((chat) => chatGroup(chat, names)),
     ...drafts
       .filter((draft) => isKeptDraft(draft, kept))
       .map((draft) => draftGroup(draft, names)),
@@ -290,7 +301,7 @@ export function useOpenGroups(): {
       const draftId = draftOfGroup(group);
       if (draftId === undefined) {
         const chat = byId.get(group);
-        return chat ? [chatGroup(chat)] : [];
+        return chat ? [chatGroup(chat, names)] : [];
       }
       const draft = drafts.find((entry) => entry.id === draftId);
       return draft ? [draftGroup(draft, names)] : [];
@@ -339,6 +350,20 @@ export function namedWith(
   }
   const { [group]: _cleared, ...rest } = names;
   return rest;
+}
+
+/**
+ * The names with `to` named as `from` is, for a group that goes on under
+ * another key: a draft's group as it becomes its chat's. `from` keeps its
+ * name, for a send that fails to come back to.
+ */
+export function nameCarried(
+  names: Record<string, string>,
+  from: string,
+  to: string,
+): Record<string, string> {
+  const name = names[from];
+  return name === undefined ? names : namedWith(names, to, name);
 }
 
 /** The address a group stands on in the window's one app tab. */

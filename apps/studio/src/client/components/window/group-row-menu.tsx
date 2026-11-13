@@ -74,7 +74,7 @@ function asPin(action: RowAction): RowAction {
 /**
  * A tab group row's menu, with the chat row's items as the chat list's menu
  * has them: Open in New Window; marking the chat read or unread and pinning
- * it; renaming it and filing it under a project; copying its paths; and
+ * it; naming the group and filing it under a project; copying its paths; and
  * closing the group, or the groups around it, as a tab's menu closes tabs. A
  * group whose chat has not started has a window of its own, its name, its
  * project and the closing. Not modal, as the chat row's is not, so the click
@@ -89,7 +89,7 @@ export function GroupRowMenu({
   children: ReactNode;
   entry: TabGroup;
   menu: GroupRowMenuActions;
-  /** Starts renaming the group in its row: its chat, once the chat has started. */
+  /** Starts naming the group in its row (`useGroupRename`). */
   onRename: () => void;
 }) {
   // The menu hands focus back to the row as it closes, which would land

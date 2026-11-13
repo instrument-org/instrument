@@ -311,27 +311,21 @@ export function draftTitle(words: string): string {
 
 /**
  * A chat whose first message is on its way, as its head shows it: named by
- * the name its tab group gave it, else by the words sent, and filed under the
- * project they were sent under until its record has the message, so the head
- * reads from the press as it will once the chat has started.
+ * the words sent and filed under the project they were sent under until its
+ * record has the message, so the head reads from the press as it will once
+ * the chat has started.
  */
 export function chatAsSent(
   chat: Chat,
-  sent: {
-    /** The name its tab group gave it, which it started under. */
-    name?: string | undefined;
-    project: string | undefined;
-    words: string;
-  },
+  sent: { project: string | undefined; words: string },
 ): Chat {
   if (chat.firstAsk !== "") {
     return chat;
   }
   return {
     ...chat,
-    // With no message there is nothing the chat could be named by yet, but
-    // the name it started under.
-    title: sent.name ?? draftTitle(sent.words),
+    // With no message there is nothing the chat could be named by yet.
+    title: draftTitle(sent.words),
     ...(chat.project === undefined && sent.project !== undefined
       ? { project: sent.project }
       : {}),

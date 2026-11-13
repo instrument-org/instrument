@@ -7,6 +7,7 @@ import {
   listedReplacing,
   listedWith,
   listedWithout,
+  nameCarried,
   namedWith,
 } from "./tab-groups";
 
@@ -47,6 +48,14 @@ describe("a tab group's name", () => {
   it("keeps the names as they were when nothing changes", () => {
     expect(namedWith(NAMES, "draft:a", "Wireframes")).toBe(NAMES);
     expect(namedWith(NAMES, "draft:b", "")).toBe(NAMES);
+  });
+
+  it("goes on with a group whose chat starts, and stays the draft's", () => {
+    expect(nameCarried(NAMES, "draft:a", "chat")).toEqual({
+      chat: "Wireframes",
+      "draft:a": "Wireframes",
+    });
+    expect(nameCarried(NAMES, "draft:b", "chat")).toBe(NAMES);
   });
 });
 

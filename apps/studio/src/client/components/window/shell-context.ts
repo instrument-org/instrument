@@ -55,8 +55,6 @@ export interface WindowShell {
   leaveProject: () => void;
   /** Opens a project's folder in Files. */
   openProjectInFiles: (project: Project) => void;
-  /** The name each chat being started from a named tab group started under, by the chat, worn by its tab until its record has it. */
-  sentNames: ReadonlyMap<ChatId, string>;
   /** The project each chat being started from a draft was sent under, by the chat, worn by its head until its record files it. */
   sentProjects: ReadonlyMap<ChatId, string>;
   /** What each chat being started from a draft sent, by the chat, shown until its transcript has it. */

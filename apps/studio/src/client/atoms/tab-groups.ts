@@ -19,9 +19,10 @@ export const chatClosedByGroupAtom = keptAtom<Record<string, true>>(
 );
 
 /**
- * The names the person gave groups whose chat has not started, by group. A
- * group whose chat has started is named by its chat's title, so it has none
- * here; its chat starts under the name instead (`useDrafts`' `startChat`).
+ * The names the person gave tab groups, by group, a chat's or not. A row
+ * shows its group's name over its own title (its chat's title, or what a
+ * group whose chat has not started is called). Only the person names a
+ * group: the name and the chat's title never set each other.
  */
 export const groupNamesAtom = keptAtom<Record<string, string>>(
   "view",

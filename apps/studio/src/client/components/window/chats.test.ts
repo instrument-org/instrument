@@ -681,12 +681,6 @@ describe("a chat's head while its first message is on its way", () => {
       SENT,
       { title: "Bean watering" },
     ],
-    [
-      "one started under its tab group's name",
-      {},
-      { ...SENT, name: "Garden chores" },
-      { project: "garden", title: "Garden chores" },
-    ],
   ])("%s", (_label, record, sent, shown) => {
     const head = chatAsSent(started(record), sent);
     expect({ project: head.project, title: head.title }).toEqual({

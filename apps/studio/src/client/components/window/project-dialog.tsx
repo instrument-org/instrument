@@ -253,9 +253,12 @@ function samePaths(a: ProjectFolder[], b: ProjectFolder[]) {
 function ProjectFolders({
   folders,
   onChange,
+  onOpenFolder,
 }: {
   folders: ProjectFolder[];
   onChange: (folders: ProjectFolder[]) => void;
+  /** Opens a folder in Files, the dialog closing so the tab shows. */
+  onOpenFolder: (path: string) => void;
 }) {
   const remove = (folder: ProjectFolder) => {
     onChange(folders.filter((entry) => entry !== folder));
@@ -322,7 +325,7 @@ function ProjectFolders({
                   },
                 ]}
                 onOpen={() => {
-                  void showInFolder(folder.path, { kind: "folder" });
+                  onOpenFolder(folder.path);
                 }}
                 path={folder.path}
               />
@@ -664,6 +667,10 @@ function ProjectForm({
               folders={folders}
               onChange={(next) => {
                 edit({ folders: next });
+              }}
+              onOpenFolder={(path) => {
+                onOpenChange(false);
+                void showInFolder(path, { kind: "folder" });
               }}
             />
             {projectFolder !== undefined && (

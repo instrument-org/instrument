@@ -6,7 +6,7 @@ import { SidebarSimpleIcon } from "@phosphor-icons/react/SidebarSimple";
 import { useAtom } from "jotai";
 
 /** Puts the sidebar of tab groups away and brings it back. */
-export function InboxToggle() {
+function InboxToggle() {
   const [isOpen, setOpen] = useAtom(sidebarOpenAtom);
   const label = isOpen ? "Hide the sidebar" : "Show the sidebar";
   return (

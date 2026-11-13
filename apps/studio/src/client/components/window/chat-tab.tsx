@@ -11,7 +11,7 @@ import {
 import { cn } from "@/client/lib/utils";
 import { ChatCircleIcon } from "@phosphor-icons/react/ChatCircle";
 import { XIcon } from "@phosphor-icons/react/X";
-import { type ReactNode, useRef } from "react";
+import { type ReactNode, useLayoutEffect, useRef, useState } from "react";
 
 import { ChatTitleField } from "./chat-title";
 import { type ChatRename } from "./use-chat-rename";
@@ -23,7 +23,8 @@ import { type TitleArrival } from "./use-title-arrival";
  * agent works. While the chat is the whole group it is the one tab on the
  * tab bar, lifted off it as the tab up is; while the chat has a card beside
  * the work it is that card's head. The X at its end closes it, and a
- * right-click anywhere on it opens the chat's menu.
+ * right-click anywhere on it opens the chat's menu. A closed card leaves
+ * `ClosedChatTab` in its place.
  */
 export function ChatTab({
   badge,
@@ -66,15 +67,7 @@ export function ChatTab({
       event.preventDefault();
     }
   };
-  const glyph = (
-    <span className="grid size-4 shrink-0 place-items-center text-brand-600 dark:text-brand-400">
-      {isWorking ? (
-        <WorkingDots />
-      ) : (
-        <ChatCircleIcon className="size-4" weight="fill" />
-      )}
-    </span>
-  );
+  const glyph = <ChatGlyph isWorking={isWorking} />;
 
   const tab = (
     <div
@@ -147,6 +140,68 @@ export function ChatTab({
         />
       </ContextMenuContent>
     </ContextMenu>
+  );
+}
+
+/**
+ * The chat's tab while its card is closed: at the right end of the work's
+ * tabs, as wide as its title up to a tab's width, and dim as a tab not up
+ * is, where a press opens the card again. A title cut short fades out at its
+ * end, as a tab's does.
+ */
+export function ClosedChatTab({
+  isWorking,
+  onOpen,
+  title,
+}: {
+  isWorking: boolean;
+  onOpen: () => void;
+  title: string;
+}) {
+  const name = useRef<HTMLSpanElement>(null);
+  const [isCut, setCut] = useState(false);
+  useLayoutEffect(() => {
+    const element = name.current;
+    if (element) {
+      setCut(element.scrollWidth > element.clientWidth);
+    }
+  }, [title]);
+  return (
+    <button
+      aria-label={`Show ${title}`}
+      className="ml-1 flex h-8 max-w-60 min-w-0 shrink cursor-default items-center gap-2 rounded-xl px-2.5 text-left text-sm font-medium text-foreground/55 [-webkit-app-region:no-drag] hover:bg-foreground/8 hover:text-foreground dark:text-foreground/65"
+      onClick={onOpen}
+      // A press here selects nothing, so it leaves the keyboard where it was.
+      onMouseDown={(event) => {
+        event.preventDefault();
+      }}
+      title={title}
+      type="button"
+    >
+      <ChatGlyph isWorking={isWorking} />
+      <span
+        className={cn(
+          "min-w-0 overflow-hidden whitespace-nowrap",
+          isCut && "tab-title-fade",
+        )}
+        ref={name}
+      >
+        {title}
+      </span>
+    </button>
+  );
+}
+
+/** The chat's mark on its tab: the bubble, or the working dots while the agent works. */
+function ChatGlyph({ isWorking }: { isWorking: boolean }) {
+  return (
+    <span className="grid size-4 shrink-0 place-items-center text-brand-600 dark:text-brand-400">
+      {isWorking ? (
+        <WorkingDots />
+      ) : (
+        <ChatCircleIcon className="size-4" weight="fill" />
+      )}
+    </span>
   );
 }
 

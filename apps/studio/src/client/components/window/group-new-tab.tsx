@@ -8,6 +8,7 @@ import { NO_SIDEBAR_CHANGES, pinnedPlaces } from "@/shared/sidebar-places";
 import { folderNameFromPath } from "@instrument-org/shared";
 import { useQuery } from "@tanstack/react-query";
 import { useAtomValue } from "jotai";
+import { unique } from "radashi";
 import { type ReactNode } from "react";
 
 import { chatListOptions } from "./chat-list-query";
@@ -77,7 +78,7 @@ function PlaceSection({
   );
 }
 
-interface Place {
+export interface Place {
   icon: ReactNode;
   name: string;
   path: string;
@@ -112,10 +113,11 @@ function PlaceRow({
 
 /**
  * The places the Files sidebar keeps, in its order: the workspace, then
- * Pinned as the person left it, and apart from them the group's project
- * folder when it is filed under one. Recents and the disks stay in Files.
+ * Pinned as the person left it, each folder once, and apart from them the
+ * group's project folder when it is filed under one. Recents and the disks
+ * stay in Files.
  */
-function useFilesPlaces(group: string): {
+export function useFilesPlaces(group: string): {
   places: Place[];
   project: Place | undefined;
 } {
@@ -147,13 +149,14 @@ function useFilesPlaces(group: string): {
     (path) => ({ name: folderNameFromPath(path), path }),
   );
   return {
-    places: [...(instrumentPlace ? [instrumentPlace] : []), ...pinned].map(
-      (place) => ({
-        icon: <FolderMark path={place.path} size="large" />,
-        name: place.name,
-        path: place.path,
-      }),
-    ),
+    places: unique(
+      [...(instrumentPlace ? [instrumentPlace] : []), ...pinned],
+      (place) => place.path,
+    ).map((place) => ({
+      icon: <FolderMark path={place.path} size="large" />,
+      name: place.name,
+      path: place.path,
+    })),
     project:
       project && location
         ? {

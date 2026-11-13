@@ -4,17 +4,23 @@ import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/client/components/ui/dropdown-menu";
 import { noteTypedPage } from "@/client/hooks/use-browser-history";
+import { filesHrefAtom } from "@/client/atoms/window";
 import { cn } from "@/client/lib/utils";
 import { type Bookmark } from "@/shared/bookmarks";
+import { folderHref } from "@/shared/computer-href";
 import { FileSystemFolderGlyph } from "@/client/components/extend/file-system";
 import { CaretDoubleRightIcon } from "@phosphor-icons/react/CaretDoubleRight";
+import { CaretDownIcon } from "@phosphor-icons/react/CaretDown";
 import { DotsThreeVerticalIcon } from "@phosphor-icons/react/DotsThreeVertical";
 import { useAtomValue } from "jotai";
 import { useLayoutEffect, useRef, useState } from "react";
 
+import { type Place, useFilesPlaces } from "./group-new-tab";
 import { PageContextMenu, usePageClicks } from "./page-menu";
 import { BookmarkNameField, bookmarkName, useBookmarkEdits } from "./web-start";
 
@@ -31,16 +37,17 @@ export function useHasBookmarksBar(isNewTab: boolean): boolean {
 /**
  * The bookmarks in a row under a tab's toolbar, each its site's favicon and
  * a short name, the way a browser's bookmarks bar keeps them, after Files
- * where the row is given it (`onFiles`). Those past the row's end are under
+ * where the row is given it (`files`). Those past the row's end are under
  * a chevron at its right. A click opens one in this tab (`onOpen`), a
  * Cmd-click or a middle click in a tab of its own behind this one, and a
  * right click offers to rename it or remove it.
  */
 export function BookmarksBar({
-  onFiles,
+  files,
   onOpen,
 }: {
-  onFiles?: () => void;
+  /** Files for a group, opening a folder (`onOpen`) as that group's bar does. */
+  files?: { group: string; onOpen: (href: string) => void };
   onOpen: (url: string) => void;
 }) {
   const bookmarks = useAtomValue(bookmarksAtom);
@@ -87,16 +94,9 @@ export function BookmarksBar({
       className="flex h-8 shrink-0 items-center gap-1 border-b border-border bg-background px-1.5"
       role="toolbar"
     >
-      {onFiles && (
+      {files && (
         <>
-          <button
-            className="flex h-6 shrink-0 cursor-default items-center gap-1.5 rounded-md px-1.5 text-xs text-foreground/80 hover:bg-foreground/8 hover:text-foreground"
-            onClick={onFiles}
-            type="button"
-          >
-            <FileSystemFolderGlyph className="h-3 w-auto" />
-            Files
-          </button>
+          <FilesMark group={files.group} onOpen={files.onOpen} />
           <span aria-hidden className="mx-1 h-4 w-px shrink-0 bg-border" />
         </>
       )}
@@ -187,6 +187,73 @@ export function BookmarksBar({
           </DropdownMenuContent>
         </DropdownMenu>
       )}
+    </div>
+  );
+}
+
+/**
+ * Files at the bar's start: a press opens it where it last stood, and the
+ * chevron beside it lists the places the Files sidebar keeps, the group's
+ * project first, to open it at one of them.
+ */
+function FilesMark({
+  group,
+  onOpen,
+}: {
+  group: string;
+  onOpen: (href: string) => void;
+}) {
+  const filesHref = useAtomValue(filesHrefAtom);
+  const { places, project } = useFilesPlaces(group);
+  const placeItem = (place: Place) => (
+    <DropdownMenuItem
+      key={place.path}
+      onSelect={() => {
+        onOpen(folderHref(place.path));
+      }}
+      title={place.path}
+    >
+      <span className="flex size-4 shrink-0 items-center justify-center">
+        {place.icon}
+      </span>
+      <span className="min-w-0 truncate">{place.name}</span>
+    </DropdownMenuItem>
+  );
+  return (
+    <div className="flex h-6 shrink-0 items-center rounded-md text-xs text-foreground/80 has-data-[state=open]:bg-foreground/8 has-[button:hover]:bg-foreground/5">
+      <button
+        className="flex h-6 cursor-default items-center gap-1.5 rounded-l-md pr-1 pl-1.5 hover:bg-foreground/8 hover:text-foreground"
+        onClick={() => {
+          onOpen(filesHref);
+        }}
+        type="button"
+      >
+        <FileSystemFolderGlyph className="h-3 w-auto" />
+        Files
+      </button>
+      <DropdownMenu modal={false}>
+        <DropdownMenuTrigger
+          aria-label="Open Files at a place"
+          className="grid h-6 w-4.5 cursor-default place-items-center rounded-r-md text-foreground/60 hover:bg-foreground/8 hover:text-foreground data-[state=open]:text-foreground"
+        >
+          <CaretDownIcon className="size-2.5" weight="bold" />
+        </DropdownMenuTrigger>
+        <DropdownMenuContent align="start" className="max-w-72 min-w-48">
+          {project && (
+            <>
+              <DropdownMenuLabel>Project</DropdownMenuLabel>
+              {placeItem(project)}
+              {places.length > 0 && <DropdownMenuSeparator />}
+            </>
+          )}
+          {places.length > 0 && (
+            <>
+              <DropdownMenuLabel>Places</DropdownMenuLabel>
+              {places.map(placeItem)}
+            </>
+          )}
+        </DropdownMenuContent>
+      </DropdownMenu>
     </div>
   );
 }

@@ -4,7 +4,6 @@ import {
   chatShareAtom,
   sidebarOpenAtom,
 } from "@/client/atoms/tab-groups";
-import { filesHrefAtom } from "@/client/atoms/window";
 import { TaskBackgroundProcesses } from "@/client/components/task/task-background-processes";
 import { CaptionRoom } from "@/client/components/window-controls";
 import { useIsActiveTab, useTabId } from "@/client/hooks/use-active-tab";
@@ -32,7 +31,7 @@ import { ChatMenuItems } from "./chat-header";
 import { chatListOptions } from "./chat-list-query";
 import { type Chat, chatAsSent, draftTitle } from "./chats";
 import { ChatScreen } from "./chat-screen";
-import { ChatTab } from "./chat-tab";
+import { ChatTab, ClosedChatTab } from "./chat-tab";
 import { useWindow } from "./context";
 import { DeleteChatDialog } from "./delete-chat-dialog";
 import { GroupItem } from "./group-item";
@@ -66,8 +65,8 @@ import { useWindowTabs } from "./window-tabs";
  * moves to a card of its own on the right, its tab the card's head, and the
  * work's card beside it has the tabs, the toolbar and what the tab up shows.
  * The X on the chat's tab closes its card, leaving the work the whole group
- * until Go to Chat opens it again, and closes the group while the chat is
- * all of it. Closing the last tab brings the chat back to the whole group.
+ * and the chat's tab at the end of the work's tabs, where a press opens it
+ * again, and closes the group while the chat is all of it. Closing the last tab brings the chat back to the whole group.
  */
 export function GroupView({
   chat,
@@ -124,7 +123,6 @@ export function GroupView({
       : chatRecord;
   const isWorking = chatRecord?.working === true;
   const chatClosed = group === undefined || closedByGroup[group] === true;
-  const filesHref = useAtomValue(filesHrefAtom);
 
   // A chat's group with tabs but none up brings up its first. Only a group
   // this window lists: a draft's group handed to its chat is not.
@@ -167,9 +165,9 @@ export function GroupView({
   const openPage = (url: string) => {
     appWindow.browser?.open(url, { group });
   };
-  /** Files, where it last stood, as a tab of this group. */
-  const openFiles = () => {
-    windowTabs.openScreen(filesHref, { group, select: true });
+  /** Files at a folder, as a tab of this group. */
+  const openFiles = (href: string) => {
+    windowTabs.openScreen(href, { group, select: true });
   };
   // The chat's tab: the tab up, first on the tab bar, while the chat is the
   // whole group, and its card's head while the card is open. Its X closes
@@ -297,7 +295,8 @@ export function GroupView({
 
   // The work's card: its tabs, the toolbar and what the tab up shows. While
   // the chat's card is closed, this card reaches the window's top right, so
-  // its tabs end in the room for the caption buttons off the Mac.
+  // its tabs end in the chat's tab and the room for the caption buttons off
+  // the Mac.
   const work = {
     body:
       up === undefined ? null : (
@@ -315,7 +314,21 @@ export function GroupView({
       ? null
       : tabBar({
           className: WORK_TABS,
-          trailing: chatClosed && <CaptionRoom />,
+          trailing: chatClosed && (
+            <>
+              <ClosedChatTab
+                isWorking={isWorking}
+                onOpen={() => {
+                  groups.setChatOpen(group, true);
+                }}
+                title={
+                  headChat?.title ??
+                  (sentWords === undefined ? "New chat" : draftTitle(sentWords))
+                }
+              />
+              <CaptionRoom />
+            </>
+          ),
         }),
   };
 
@@ -349,7 +362,7 @@ export function GroupView({
           />
         }
       />
-      <BookmarksBar onFiles={openFiles} onOpen={openPage} />
+      <BookmarksBar files={{ group, onOpen: openFiles }} onOpen={openPage} />
     </>
   );
   // The chat's card. As the whole group, its head is a browser's tab bar

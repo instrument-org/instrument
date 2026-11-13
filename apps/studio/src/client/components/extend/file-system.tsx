@@ -242,6 +242,15 @@ export type FileSystemProps = {
    */
   emptyState?: { description: string; title: string };
   /**
+   * That the folder on screen has more than `items` lists: how many it has,
+   * and where the rest are seen. Said in the status bar, which counts the
+   * listed ones as the most recent.
+   */
+  partialFolder?: {
+    action: { label: string; onPress: () => void };
+    total: number;
+  };
+  /**
    * Where an item lives on this computer, for dragging it out of the window
    * and into another app the way a row in the Finder drags. Left out, nothing
    * drags; an item it names nothing for does not either.
@@ -1937,6 +1946,7 @@ export function FileSystem({
   defaultView = "icons",
   emptyState,
   getHostPath,
+  partialFolder,
   group: groupProp,
   items,
   pendingFolders,
@@ -3798,6 +3808,7 @@ export function FileSystem({
                   ) ?? []
                 ).length
           }
+          partialFolder={partialFolder}
           selected={selectedPaths.length}
         />
       ) : null}
@@ -4567,21 +4578,35 @@ function useSlowLoads(loading: ReadonlySet<string>, ms = LOADER_DELAY_MS) {
  */
 function FileSystemStatusBar({
   count,
+  partialFolder,
   selected,
 }: {
   count: number;
+  partialFolder: FileSystemProps["partialFolder"];
   selected: number;
 }) {
+  const counted = count.toLocaleString();
   return (
     <div
-      className="flex h-6 shrink-0 items-center justify-center border-t px-3 text-xs text-muted-foreground tabular-nums"
+      className="flex h-6 shrink-0 items-center justify-center gap-2 border-t px-3 text-xs text-muted-foreground tabular-nums"
       data-file-system-status=""
     >
       <span className="truncate">
         {selected > 0
-          ? `${selected} of ${count} selected`
-          : `${count} ${count === 1 ? "item" : "items"}`}
+          ? `${selected.toLocaleString()} of ${counted} selected`
+          : partialFolder
+            ? `${counted} most recent of ${partialFolder.total.toLocaleString()} items`
+            : `${counted} ${count === 1 ? "item" : "items"}`}
       </span>
+      {partialFolder ? (
+        <button
+          className="shrink-0 text-foreground hover:underline"
+          onClick={partialFolder.action.onPress}
+          type="button"
+        >
+          {partialFolder.action.label}
+        </button>
+      ) : null}
     </div>
   );
 }

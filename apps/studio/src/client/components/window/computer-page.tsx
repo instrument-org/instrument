@@ -2614,6 +2614,19 @@ export function ComputerPage({
                         ? (menuItem?.path ?? null)
                         : null
                   }
+                  {...(currentListing?.truncated
+                    ? {
+                        partialFolder: {
+                          action: {
+                            label: `Open in ${osConventions().fileManager}`,
+                            onPress: () => {
+                              handOff.mutate({ filepath: currentListing.path });
+                            },
+                          },
+                          total: currentListing.total,
+                        },
+                      }
+                    : {})}
                   // Every row here is a thing on this computer, and drags out of
                   // the window as one: to the desktop, a Finder window, another
                   // app. What lands there is the OS's copy; nothing here moves.

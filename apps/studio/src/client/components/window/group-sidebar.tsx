@@ -60,7 +60,12 @@ import { GroupRowMenu, type GroupRowMenuActions } from "./group-row-menu";
 import { HelpMenu } from "./help-menu";
 import { toggleLeft } from "./inbox-toggle";
 import { useAppsBySlug } from "./apps-by-slug";
-import { activityLabel, hasWords, type Project } from "./chats";
+import {
+  activityLabel,
+  hasWords,
+  matchesSearch,
+  type Project,
+} from "./chats";
 import { Peek } from "./chat-row";
 import { NotificationsBell } from "./notifications-bell";
 import { ProjectBanner } from "./project-banner";
@@ -83,6 +88,7 @@ import {
 } from "./sidebar-drop";
 import { useGroupRowDrag } from "./tab-drag";
 import { useChatRename } from "./use-chat-rename";
+import { useChatSearchFallback } from "./use-chat-search-fallback";
 import { useProjectShift } from "./use-project-shift";
 import { useSetChatProject } from "./use-set-chat-project";
 import { lastActiveAt, type TabGroup, windowTabGroupsAtom } from "./tab-groups";
@@ -199,8 +205,29 @@ export function GroupSidebar({
   const rest = listed.filter(
     (entry) => !(entry.kind === "chat" && entry.chat.starred),
   );
-  const matching = (entries: TabGroup[]) =>
-    entries.filter((entry) => hasWords(search, [entry.title]));
+  const { allTabs } = useWindowTabs();
+  const projectNames = new Map(projects.map((each) => [each.id, each.name]));
+  /**
+   * Whether a group turns up for the search: a chat by what the chat list
+   * searches on its row, a draft by its words, its project, and the pages
+   * its tabs have open, one of which names its row while it has no words.
+   */
+  const matches = (entry: TabGroup) =>
+    entry.kind === "chat"
+      ? matchesSearch(entry.chat, search, projectNames)
+      : hasWords(search, [
+          entry.title,
+          entry.draft.words,
+          entry.draft.projectId === undefined
+            ? ""
+            : (projectNames.get(entry.draft.projectId) ?? ""),
+          ...allTabs.flatMap((tab) =>
+            tab.group === entry.group && tab.kind === "page"
+              ? [pageTabTitle(tab) || (tab.url ?? "")]
+              : [],
+          ),
+        ]);
+  const matching = (entries: TabGroup[]) => entries.filter(matches);
   const chats = open.flatMap((entry) =>
     entry.kind === "chat" ? [entry.chat] : [],
   );
@@ -299,21 +326,51 @@ export function GroupSidebar({
     />
   );
 
+  const found = isSearching ? matching(open) : [];
+  const inOtherWindows = isSearching ? matching(elsewhere) : [];
+  const fromHistory = isSearching ? matching(history) : [];
+  const isNothingFound =
+    found.length === 0 &&
+    inOtherWindows.length === 0 &&
+    fromHistory.length === 0;
+  // Words that turn up in no group anywhere go to the decision model, which
+  // reads the chats' titles for the ones the search means, as the chat list
+  // does.
+  const everyGroup = [...open, ...elsewhere, ...history];
+  const aiSearch = useChatSearchFallback({
+    active: isSearching && isNothingFound,
+    candidates: everyGroup.flatMap((entry) =>
+      entry.kind === "chat" ? [entry.chat] : [],
+    ),
+    search,
+  });
+
   let body: ReactNode;
   if (isSearching) {
-    const found = matching(open);
-    const inOtherWindows = matching(elsewhere);
-    const fromHistory = matching(history);
+    const aiFound = isNothingFound
+      ? aiSearch.chats.flatMap((chat) => {
+          const entry = everyGroup.find((each) => each.group === chat.id);
+          return entry ? [entry] : [];
+        })
+      : [];
     body = (
       <>
         {found.map((entry) => row(entry))}
-        {found.length === 0 &&
-          inOtherWindows.length === 0 &&
-          fromHistory.length === 0 && (
-            <p className="px-2.5 py-2 text-[13px] text-muted-foreground">
-              Nothing matches that.
-            </p>
-          )}
+        {isNothingFound && aiFound.length === 0 && (
+          <p className="px-2.5 py-2 text-[13px] text-muted-foreground">
+            {aiSearch.isLooking
+              ? "Looking through your chats…"
+              : "Nothing matches that."}
+          </p>
+        )}
+        {aiFound.length > 0 && <SearchSection label="AI Results" />}
+        {aiFound.map((entry) =>
+          open.includes(entry)
+            ? row(entry)
+            : elsewhere.includes(entry)
+              ? row(entry, { isElsewhere: true })
+              : row(entry, { restore: true }),
+        )}
         {inOtherWindows.length > 0 && (
           <SearchSection label="In Other Windows" />
         )}

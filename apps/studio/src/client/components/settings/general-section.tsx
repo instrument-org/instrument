@@ -1056,7 +1056,7 @@ function NotificationsPermission({
           <BellSimpleIcon className="size-5" weight="fill" />
         </span>
         <div className="min-w-0 flex-1 space-y-0.5">
-          <p className="text-sm font-medium">Know when it's done</p>
+          <p className="text-sm font-medium">Notify when tasks finish</p>
           <p className="text-xs text-muted-foreground">{detail}</p>
         </div>
         <Button

@@ -7,6 +7,7 @@ import {
 import { dropdownMenuComponents } from "@/client/components/ui/menu-components";
 import { useTargetsAgentActivity } from "@/client/hooks/use-target-agent-activity";
 import { getGuest } from "@/client/lib/browser-pool";
+import { cn } from "@/client/lib/utils";
 import { browserTargetOf } from "@instrument-org/workspace/client";
 import { PlusIcon } from "@phosphor-icons/react/Plus";
 import { type ReactNode, useContext, useState } from "react";
@@ -38,16 +39,17 @@ export function stripKeyOf(tab: WindowTab): string {
 }
 
 /**
- * A tab group's tabs, on the group's top line, drawn the way a browser draws
- * its tab strip (`group-strip`): what its agent browses and the person
- * opened, oldest at the left, narrowing to icons when there are many. They
- * are the window's own strip, so they open, close, reorder and answer the
- * keyboard as the window's tabs do. The new tab control follows them, named
- * while there are none, and the row keeps what it is given at its right end.
+ * A tab group's tabs, across the head of the work's card: what its agent
+ * browses and the person opened, oldest at the left, narrowing to icons when
+ * there are many. They are the window's own strip, so they open, close,
+ * reorder and answer the keyboard as the window's tabs do. The new tab
+ * control follows them, named while there are none, and the row keeps what
+ * it is given at its right end.
  */
 export function PaneTabs({
   carriedKey,
   chatTitles,
+  className,
   chosenId,
   heldAt,
   isChatWorking,
@@ -69,6 +71,8 @@ export function PaneTabs({
   carriedKey?: string | undefined;
   chatTitles: Presentation["chatTitles"];
   chosenId: string | undefined;
+  /** The row's ground and the room at its ends, as the card it heads draws them. */
+  className?: string;
   /** A tab in the pointer's hand, by its strip key, drawn with its left edge at this point. */
   heldAt?: { key: string; left: number } | undefined;
   /** The tab in hand is another window's, held over this strip. */
@@ -91,7 +95,7 @@ export function PaneTabs({
   onTabDragStart?: (key: string, event: PointerEvent, moved: number) => void;
   tabs: WindowTab[];
   taskTitles: Presentation["taskTitles"];
-  /** What the row keeps at its right end: the chat's tab, unless its column is open. */
+  /** What the row keeps at its right end: the chat's tab, while it is not a card of its own. */
   trailing?: ReactNode;
 }) {
   const appsBySlug = useAppsBySlug();
@@ -168,7 +172,10 @@ export function PaneTabs({
 
   return (
     <div
-      className="group-strip flex h-10 shrink-0 items-center pr-2.5 [-webkit-app-region:drag] [&_[role=tab]]:[-webkit-app-region:no-drag] [&_button]:[-webkit-app-region:no-drag]"
+      className={cn(
+        "flex h-10 shrink-0 items-center pr-1.5 [-webkit-app-region:drag] [&_[role=tab]]:[-webkit-app-region:no-drag] [&_button]:[-webkit-app-region:no-drag]",
+        className,
+      )}
       data-group-tabs=""
       {...(isIncoming ? { "data-incoming": "" } : {})}
     >
@@ -176,9 +183,9 @@ export function PaneTabs({
       <TabStrip
         carriedKey={carriedKey}
         heldAt={heldAt}
-        // The first tab starts clear of the strip's edge by the curve at its
-        // foot.
-        className="min-w-0 flex-1 pr-0 pl-2.5"
+        // The first tab starts at the location row's 6px inset, over its
+        // back button.
+        className="min-w-0 flex-1 pr-0 pl-1.5"
         label="What this chat has open"
         newControl={
           tabs.length === 0 ? (

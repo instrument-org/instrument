@@ -2364,23 +2364,18 @@ a.cursor-pointer {
   }
 }
 
-/* A tab group's top line, drawn the way a browser draws its tab strip: a
- * ground of its own (`--group-strip`), and the tab up standing on the
- * ground of what is under it (`--tab-selected`), flat along its foot and
- * running on into it, with the strip's corners curving out on either side.
- * The tab up is a selected `[role=tab]` or a `[data-joined]`; it is 36px
- * tall and sits 2px low, so in a 40px row its foot meets the row's. The
- * tablist lets the curves past its edges. */
+/* The tab bar over a chat that is its whole tab group, drawn the way a
+ * browser draws its tab strip: a ground of its own (`--group-strip`), and
+ * the chat's tab (`[data-joined]`) standing on the ground of what is under
+ * it (`--tab-selected`), flat along its foot and running on into it, with
+ * the strip's corners curving out on either side. It is 36px tall and sits
+ * 2px low, so in a 40px row its foot meets the row's. */
 @utility group-strip {
   --tab-selected: var(--background);
 
   background-color: var(--group-strip);
 
-  & [role="tablist"] {
-    overflow-clip-margin: 12px;
-  }
-
-  & :is([role="tab"][aria-selected="true"], [data-joined]) {
+  & [data-joined] {
     height: 36px;
     translate: 0 2px;
     border-bottom-right-radius: 0;

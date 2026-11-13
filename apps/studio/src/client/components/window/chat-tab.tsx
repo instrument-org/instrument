@@ -27,11 +27,13 @@ import { type TitleArrival } from "./use-title-arrival";
  * The chat's tab, at the top right of its tab group in every state, named
  * for the chat: its title, or "New chat" until it starts, after the bubble,
  * which gives way to the working dots while the agent works. While the chat
- * is shown it is the tab up, on the ground under it: at the tab bar's end
- * while the chat fills the group, and across the column's top while the
- * column is open. Once the group has tabs, a press on it opens and closes
- * the column. Its menu is the chat's, on a right-click anywhere on it and on
- * the caret at its end while the chat is shown.
+ * is the whole group it is the tab up at the tab bar's end, joined to the
+ * toolbar under it (`data-joined`, the `group-strip` utility); while the
+ * chat has a card beside the work it is that card's head; while that card
+ * is closed it is a plain button at the end of the work's tabs. Once the
+ * group has tabs, a press on it opens and closes the chat's card. Its menu
+ * is the chat's, on a right-click anywhere on it and on the caret at its end
+ * while the chat is shown.
  */
 export function ChatTab({
   badge,
@@ -40,8 +42,7 @@ export function ChatTab({
   menu,
   onPress,
   rename,
-  spans = false,
-  state,
+  stands,
   title,
   titleArrival,
 }: {
@@ -55,14 +56,15 @@ export function ChatTab({
   onPress: () => void;
   /** Renaming the chat in the tab, for a chat that has started. */
   rename?: ChatRename | undefined;
-  /** Whether it spans the column's top rather than standing at the tab bar's end. */
-  spans?: boolean;
-  /** Whether the chat is on screen, filling the group or in its open column, or put away in its closed column. */
-  state: "closed" | "shown";
+  /**
+   * Where it stands: the tab up while the chat is the whole group, the head
+   * of the chat's open card, or a button for the closed card.
+   */
+  stands: "button" | "head" | "up";
   title: string;
   titleArrival?: TitleArrival | undefined;
 }) {
-  const isShown = state === "shown";
+  const isShown = stands !== "button";
   // A menu hands focus back to where it opened as it closes, which would
   // land after the rename field took it and blur the rename shut.
   const isStartingRename = useRef(false);
@@ -92,14 +94,15 @@ export function ChatTab({
     <div
       className={cn(
         "relative flex h-8 min-w-0 items-center rounded-xl text-sm font-medium [-webkit-app-region:no-drag]",
-        spans ? "flex-1" : "w-60 shrink",
+        stands === "head" ? "flex-1" : "w-60 shrink",
         isShown
           ? "text-foreground"
           : "text-foreground/65 hover:bg-foreground/8 hover:text-foreground",
+        stands === "head" && "hover:bg-foreground/5",
         className,
       )}
       data-chat-tab=""
-      {...(isShown ? { "data-joined": "" } : {})}
+      {...(stands === "up" ? { "data-joined": "" } : {})}
     >
       {rename?.isEditing ? (
         <div className="flex h-full min-w-0 flex-1 items-center gap-1.5 pr-1 pl-2.5">

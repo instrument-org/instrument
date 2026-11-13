@@ -24,6 +24,13 @@ const CARD_CORNER = { bottom: 8 + 12, left: 8 + 12 };
 // Just under the bell, at the bar's right end.
 const BELL_CORNER = { right: 8, top: TOOLBAR_HEIGHT + 4 };
 
+/** The card everything past the rail stands on: rounded, lifted off the window's ground. */
+export const WINDOW_CARD =
+  "overflow-hidden rounded-[18px] bg-background shadow-xs";
+
+/** The ground left between the card and the window's edges, in layout px, and between two cards side by side. */
+export const WINDOW_CARD_GAP = 8;
+
 /**
  * The window's chrome: no title bar, so it drags by its top-left corner,
  * which is the chat pane's top, past the traffic lights.
@@ -104,11 +111,15 @@ export function WindowFrame({
             the row is sized against the width the columns actually share. */}
           {/* Two planes: the rail and the bar on the window's own ground,
             and everything else on one card inset from it, rounded, with room
-            left at its right and foot. */}
+            left at its right and foot. A view that draws cards of its own
+            (`data-own-cards`) stands in the card's place, which keeps only
+            its bounds. */}
           <div className="relative flex min-h-0 min-w-0 flex-1 flex-col">
             <div
               className={cn(
-                "relative mr-2 mb-2 flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden rounded-[18px] bg-background shadow-xs [--background:var(--pane)] [--guest-bottom-radius:18px]",
+                "relative mr-2 mb-2 flex min-h-0 min-w-0 flex-1 flex-col [--background:var(--pane)] [--guest-bottom-radius:18px]",
+                WINDOW_CARD,
+                "has-[[data-own-cards]]:overflow-visible has-[[data-own-cards]]:bg-transparent has-[[data-own-cards]]:shadow-none",
                 // Clear of the rail too, which comes and goes beside it.
                 !hasBar && "mt-2 ml-2",
               )}

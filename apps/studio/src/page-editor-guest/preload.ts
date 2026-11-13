@@ -1,5 +1,7 @@
 import {
   PAGE_CAPTURE_CHANNEL,
+  PAGE_CAPTURE_DEVICES_CHANNEL,
+  PAGE_CAPTURE_PAUSE_CHANNEL,
   PAGE_CAPTURE_STOP_CHANNEL,
   PAGE_EDITOR_BOOT_CHANNEL,
   PAGE_EDGE_CHANNEL,
@@ -365,9 +367,13 @@ function swallow(event: MouseEvent) {
   }
 }
 
-/** The DOM events between the page's world and this one: what the page captures, and the window's Stop. */
-const CAPTURE_EVENT = "instrument-page-capture";
-const CAPTURE_STOP_EVENT = "instrument-page-capture-stop";
+/** The DOM events between the page's world and this one: what the page captures, and the window's Stop, Pause and picked devices. */
+const CAPTURE_EVENTS = {
+  devices: "instrument-page-capture-devices",
+  pause: "instrument-page-capture-pause",
+  report: "instrument-page-capture",
+  stop: "instrument-page-capture-stop",
+};
 
 /**
  * Tells main what the page is capturing, which no Electron event says: the
@@ -375,23 +381,36 @@ const CAPTURE_STOP_EVENT = "instrument-page-capture-stop";
  * page's own world before its first script, and each change goes out as a
  * DOM event this world hears, with only a string on it (an object would not
  * cross between the worlds). Main's Stop comes back the same way, and ends
- * every track as though its device went away.
+ * every track as though its device went away; so do Pause, which turns the
+ * tracks off without ending them, and the devices the person picked for the
+ * site, which replace a default device the page did not choose itself.
  */
 function reportCapture() {
   if (!/^https?:$/.test(location.protocol)) {
     return;
   }
-  document.addEventListener(CAPTURE_EVENT, (event) => {
+  document.addEventListener(CAPTURE_EVENTS.report, (event) => {
     if (event instanceof CustomEvent && typeof event.detail === "string") {
       ipcRenderer.send(PAGE_CAPTURE_CHANNEL, event.detail);
     }
   });
+  const toPage = (name: string, detail = "") => {
+    document.dispatchEvent(new CustomEvent(name, { detail }));
+  };
   ipcRenderer.on(PAGE_CAPTURE_STOP_CHANNEL, () => {
-    document.dispatchEvent(new Event(CAPTURE_STOP_EVENT));
+    toPage(CAPTURE_EVENTS.stop);
+  });
+  ipcRenderer.on(PAGE_CAPTURE_PAUSE_CHANNEL, (_event, paused: unknown) => {
+    toPage(CAPTURE_EVENTS.pause, paused === true ? "1" : "");
+  });
+  ipcRenderer.on(PAGE_CAPTURE_DEVICES_CHANNEL, (_event, devices: unknown) => {
+    if (typeof devices === "string") {
+      toPage(CAPTURE_EVENTS.devices, devices);
+    }
   });
   try {
     contextBridge.executeInMainWorld({
-      args: [CAPTURE_EVENT, CAPTURE_STOP_EVENT],
+      args: [CAPTURE_EVENTS],
       func: watchCaptureInPage,
     });
   } catch {
@@ -400,7 +419,12 @@ function reportCapture() {
 }
 
 /** Runs in the page's world, so everything it uses is its own. */
-function watchCaptureInPage(eventName: string, stopName: string) {
+function watchCaptureInPage(names: {
+  devices: string;
+  pause: string;
+  report: string;
+  stop: string;
+}) {
   const devices = navigator.mediaDevices as MediaDevices | undefined;
   if (!devices || typeof devices.getUserMedia !== "function") {
     return;
@@ -424,16 +448,68 @@ function watchCaptureInPage(eventName: string, stopName: string) {
       .join(",");
     if (kinds !== told) {
       told = kinds;
-      document.dispatchEvent(new CustomEvent(eventName, { detail: kinds }));
+      document.dispatchEvent(new CustomEvent(names.report, { detail: kinds }));
     }
   };
+  let paused = false;
+  /** The devices picked for the site, by name, as main last said. */
+  let picked: { audio?: string; video?: string } = {};
   const watch = (track: MediaStreamTrack) => {
     live.add(track);
     track.addEventListener("ended", tell);
+    if (paused) {
+      track.enabled = false;
+    }
   };
   const getUserMedia = devices.getUserMedia.bind(devices);
+  const enumerate = devices.enumerateDevices.bind(devices);
+  /**
+   * Swaps a track the page left to the default device for the one picked
+   * for the site, in place in the stream it was handed, so the page's first
+   * picture and sound come from the device the person chose.
+   */
+  const usePicked = async (
+    stream: MediaStream,
+    constraints: MediaStreamConstraints | undefined,
+  ) => {
+    for (const kind of ["audio", "video"] as const) {
+      const asked = constraints?.[kind];
+      const name = picked[kind];
+      const track = stream.getTracks().find((each) => each.kind === kind);
+      if (
+        !asked ||
+        !name ||
+        !track ||
+        track.label === name ||
+        (typeof asked === "object" && asked.deviceId !== undefined)
+      ) {
+        continue;
+      }
+      const device = (await enumerate()).find(
+        (each) => each.kind === `${kind}input` && each.label === name,
+      );
+      if (!device) {
+        continue;
+      }
+      const swap = await getUserMedia({
+        [kind]: {
+          ...(typeof asked === "object" ? asked : {}),
+          deviceId: { exact: device.deviceId },
+        },
+      }).catch(() => null);
+      const fresh = swap?.getTracks()[0];
+      if (!fresh) {
+        continue;
+      }
+      stream.removeTrack(track);
+      stop.call(track);
+      live.delete(track);
+      stream.addTrack(fresh);
+    }
+  };
   devices.getUserMedia = async (constraints) => {
     const stream = await getUserMedia(constraints);
+    await usePicked(stream, constraints).catch(() => undefined);
     stream.getTracks().forEach(watch);
     tell();
     return stream;
@@ -465,7 +541,22 @@ function watchCaptureInPage(eventName: string, stopName: string) {
     }
     return copy;
   };
-  document.addEventListener(stopName, () => {
+  document.addEventListener(names.devices, (event) => {
+    if (event instanceof CustomEvent && typeof event.detail === "string") {
+      try {
+        picked = JSON.parse(event.detail) as typeof picked;
+      } catch {
+        picked = {};
+      }
+    }
+  });
+  document.addEventListener(names.pause, (event) => {
+    paused = event instanceof CustomEvent && event.detail === "1";
+    for (const track of live) {
+      track.enabled = !paused;
+    }
+  });
+  document.addEventListener(names.stop, () => {
     for (const track of live) {
       stop.call(track);
       track.dispatchEvent(new Event("ended"));

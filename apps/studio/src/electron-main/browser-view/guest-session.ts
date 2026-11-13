@@ -18,15 +18,11 @@ import { mayEnterFullScreen } from "./full-screen-policy";
 import { attachGuestInteractions } from "./guest-interactions";
 import { guests } from "./guest-registry";
 import { log } from "./log";
-import { mayCaptureMedia } from "./media-capture-policy";
 import {
   grantedTo,
+  handleMediaRequest,
   listenForPageCapture,
-  noteGranted,
-  noteRefused,
-  noteSystemRefused,
   originOf,
-  systemRefusal,
 } from "./page-capture";
 import { refusePasskeys } from "./passkey-policy";
 import {
@@ -118,56 +114,23 @@ export function configureGuestSession(profileDir: string): Session {
   // (`full-screen-exit.ts`). A page no slot is showing is still taken back
   // out (`leaveFullScreen` in `browser-pool.ts`). A link to another app (`slack://`) goes to that app
   // when a person just used the tab and says yes, or said its site always
-  // may. The microphone and camera go to a tab a person is looking at and
-  // just clicked in (`mayCaptureMedia`), once the system allows the app them
-  // too, and then to that page's origin in that tab again while it is shown.
+  // may. The microphone and camera are decided in `page-capture.ts`: a site
+  // told always or never, an ask at the omnibar's mark after a person's
+  // click in the tab, and refused otherwise.
   guestSession.setPermissionRequestHandler(
     (wc, permission, callback, details) => {
       if (permission === "media") {
-        const origin = originOf(
-          "securityOrigin" in details ? details.securityOrigin : undefined,
-        );
-        const mediaTypes =
-          "mediaTypes" in details ? (details.mediaTypes ?? []) : [];
-        const record = guests.get(wc.id);
-        const host = wc.hostWebContents;
-        const asked = {
-          grantedBefore: grantedTo(wc, origin),
-          record,
-          shown: record?.entry?.shown ?? false,
-          windowFocused:
-            !!host &&
-            !host.isDestroyed() &&
-            !!BrowserWindow.fromWebContents(host)?.isFocused(),
-        };
-        const allowed = !!origin && mayCaptureMedia(asked);
-        log.info(
-          `media ${allowed ? "allowed" : "refused"} guest=${wc.id} types=${mediaTypes.join("+") || "none"} origin=${origin || "none"} grantedBefore=${String(asked.grantedBefore)} shown=${String(asked.shown)} windowFocused=${String(asked.windowFocused)} inputAgoMs=${record?.userInputAt ? Date.now() - record.userInputAt : "never"}`,
-        );
-        if (!allowed) {
-          // A tab's page, which the person can allow from its omnibar; a
-          // popup has none.
-          if (record?.role === "webview") {
-            noteRefused(wc, origin, mediaTypes);
-          }
-          callback(false);
-          return;
-        }
-        systemRefusal(mediaTypes).then(
-          (refused) => {
-            log.info(`media system=${refused ?? "allowed"} guest=${wc.id}`);
-            if (!wc.isDestroyed()) {
-              if (refused) {
-                noteSystemRefused(wc, refused);
-              } else {
-                noteGranted(wc, origin);
-              }
-            }
-            callback(!refused);
+        handleMediaRequest(
+          wc,
+          {
+            ...("mediaTypes" in details && details.mediaTypes
+              ? { mediaTypes: details.mediaTypes }
+              : {}),
+            ...("securityOrigin" in details && details.securityOrigin
+              ? { securityOrigin: details.securityOrigin }
+              : {}),
           },
-          () => {
-            callback(false);
-          },
+          callback,
         );
         return;
       }

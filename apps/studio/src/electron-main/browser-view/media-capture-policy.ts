@@ -1,34 +1,51 @@
+import type { SiteCaptureSetting } from "@/shared/browser";
+
 import type { GuestRecord } from "./guest-registry";
 
 import { personJustUsedTab } from "./external-app-links";
 
 /**
- * Whether a page may use the microphone or camera (`getUserMedia`). The first
- * time, only a tab's guest a person is looking at and just used may: shown in
- * its slot, in the focused window, clicked, tapped or typed in within the last
- * few seconds, as for full screen. An agent's CDP click is left out of that
- * record of input (`noteUserInput`), so an agent never turns either on.
+ * What to do with a page's request for the microphone or camera:
  *
- * Once a page's origin was granted in a guest, it may ask again while the tab
- * is shown in the focused window, without a fresh click: a call page asks
- * again when it switches devices or comes back from mute after a delay.
+ * - `blocked`: the site was told never for one of them, so it gets nothing
+ *   and nobody is asked.
+ * - `allow`: a tab's guest a person is looking at (shown in its slot, in the
+ *   focused window) whose site was told always for everything it asks, or
+ *   whose origin was let have them in this guest already.
+ * - `ask`: the same tab, clicked, tapped or typed in by a person within the
+ *   last few seconds, as for full screen. An agent's CDP click is left out of
+ *   that record of input (`noteUserInput`), so an agent never raises the ask.
+ * - `refuse`: anything else, which the person can still allow from the mark.
  */
-export function mayCaptureMedia(
+export function mediaDecision(
   guest: {
     record: Pick<GuestRecord, "role" | "userInputAt"> | undefined;
     /** Whether a slot in the guest's window shows it, as the renderer pool last reported. */
     shown: boolean;
     windowFocused: boolean;
-    /** Whether this guest already granted the asking page's origin. */
+    /** Whether this guest already let the asking page's origin have them. */
     grantedBefore: boolean;
+    /** What the site was told for each device the page asks for. */
+    settings: readonly SiteCaptureSetting[];
   },
   now = Date.now(),
-): boolean {
-  if (guest.record?.role !== "webview" || !guest.shown) {
-    return false;
+): "allow" | "ask" | "blocked" | "refuse" {
+  if (guest.settings.includes("block")) {
+    return "blocked";
   }
-  if (!guest.windowFocused) {
-    return false;
+  if (
+    guest.record?.role !== "webview" ||
+    !guest.shown ||
+    !guest.windowFocused
+  ) {
+    return "refuse";
   }
-  return guest.grantedBefore || personJustUsedTab(guest.record, now);
+  if (
+    guest.grantedBefore ||
+    (guest.settings.length > 0 &&
+      guest.settings.every((setting) => setting === "allow"))
+  ) {
+    return "allow";
+  }
+  return personJustUsedTab(guest.record, now) ? "ask" : "refuse";
 }

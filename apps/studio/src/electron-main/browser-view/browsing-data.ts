@@ -4,6 +4,7 @@ import { type Cookie, type Session } from "electron";
 import { getDomain } from "tldts";
 
 import { configureGuestSession } from "./guest-session";
+import { forgetSiteCapture } from "./page-capture";
 
 /** The in-app browser's session, opened if no page has opened it yet this run. */
 function browserSession(): Session {
@@ -80,6 +81,7 @@ export async function clearBrowsingData({
     // The sites told they may always open another app's links are a site's
     // data too, kept by the app rather than the session.
     getExternalAppLinksStore().set("allowed", []);
+    forgetSiteCapture();
   }
   if (cache) {
     await ses.clearCache();

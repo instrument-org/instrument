@@ -57,3 +57,9 @@ export const PAGE_CAPTURE_CHANNEL = "page-capture";
 
 /** From main to the guest's preload: end every track the page is capturing. */
 export const PAGE_CAPTURE_STOP_CHANNEL = "page-capture:stop";
+
+/** From main to the guest's preload: the devices picked for the site, as JSON of their names. */
+export const PAGE_CAPTURE_DEVICES_CHANNEL = "page-capture:devices";
+
+/** From main to the guest's preload: `true` to send silence and a black picture, `false` to resume. */
+export const PAGE_CAPTURE_PAUSE_CHANNEL = "page-capture:pause";

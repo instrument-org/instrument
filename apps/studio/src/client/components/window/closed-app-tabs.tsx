@@ -70,20 +70,18 @@ export function useAppTabPresentation({
       if (up?.kind === "page") {
         // A page of the tab's using the microphone or camera, up or not,
         // marks the tab, so the one in a call is the one to look for.
-        const using = captures.find((capture) =>
+        const capture = captures.find(({ targetId }) =>
           own.some(
             (tab) =>
-              tab.kind === "page" &&
-              capture.targetId === browserTargetOf(tab.id),
+              tab.kind === "page" && targetId === browserTargetOf(tab.id),
           ),
-        )?.using;
+        );
         return {
-          icon:
-            using && (using.audio || using.video) ? (
-              <CaptureTabIcon using={using} />
-            ) : (
-              <TabIcon favicon={up.favicon} url={up.url} />
-            ),
+          icon: capture ? (
+            <CaptureTabIcon paused={capture.paused} using={capture.using} />
+          ) : (
+            <TabIcon favicon={up.favicon} url={up.url} />
+          ),
           title: up.title || pageTabTitle(up) || "Page",
           url: up.url,
         };

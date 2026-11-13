@@ -440,7 +440,16 @@ export function useTabGroupActions() {
 
   /** Opens or closes a group's chat column. */
   const setChatOpen = (group: string, isOpen: boolean) => {
-    setChatClosed((current) => ({ ...current, [group]: !isOpen }));
+    setChatClosed((current) => {
+      if (!isOpen) {
+        return { ...current, [group]: true };
+      }
+      if (!(group in current)) {
+        return current;
+      }
+      const { [group]: _opened, ...rest } = current;
+      return rest;
+    });
   };
 
   /** Whether a group has tabs, read now. */

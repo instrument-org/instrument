@@ -9,7 +9,7 @@ A throwaway prototype of a new window layout, on its own branch, for the two cof
 - A left **sidebar of tab groups** replaces the app rail, the chat list and the window tab strip.
 - The open tab group's **tabs** sit over the center, styled like today's side pane tabs (`pane-tabs.tsx`): attached to the content below them, not app-level window tabs.
 - Under the tabs, a **toolbar**: sidebar toggle, back, forward, reload, then the address field. No dividers between them.
-- The group's **chat** sits in a column on the right, joined to the work by a divider. An X at the chat column's top right collapses it; collapsed, the chat is a "Chat" button with the bubble at the top right of the tab strip, and while the agent works that button shows only the app's working dots.
+- The group's **chat** sits in a column on the right, joined to the work by a divider, open in every group with tabs and narrow until the divider is dragged. An X at the chat column's top right collapses it, and nothing else does: a tab added to a group whose chat had the whole card leaves the column open; collapsed, the chat is a "Chat" button with the bubble at the top right of the tab strip, and while the agent works that button shows only the app's working dots.
 - A group with only a chat shows the chat full width with no tab row. Adding a tab moves the chat to the right; closing the last tab brings it back to full width.
 
 The look is the app's current colors, type and components. Nothing is restyled beyond what the move needs.
@@ -97,7 +97,7 @@ Every phase in the order of work is built. What is rough or missing:
 - **Activity** has no button, as the plan says. Its chord (Cmd+Y) opens History, and Activity stays in the command menu.
 - **The Apps dot** for an app signed out since Apps was last shown went with the rail.
 - **The menu** names tab groups and the sidebar. The shortcut guide's Chats section still lists the old chat list's keys (Back to List, Next Chat in List), and the sidebar's search field is still labeled "Search chats" for screen readers.
-- **A group whose chat has not started** is titled "New tab" until its composer has words, and its chat column starts closed; with only a new tab up it has no Chat button, since the new tab's composer starts the chat.
+- **A group whose chat has not started** is titled "New tab" until its composer has words. Its chat column shows the new chat composer once it has a tab other than a new tab; with only new tabs it has no column and no Chat button, since the new tab's composer starts the chat.
 - **Rows** are in the window's own order: a new group, or one opened from History or search, lands at the bottom and stays there once its chat starts. A group whose chat has not started and whose draft has nothing is gone after a relaunch, since an empty draft is never written.
 - **Search and History** are per window and not kept; opening a group from History returns the sidebar to the list. History has no Delete; a chat's own menu still has one, and the chat head's Archive still archives the chat and closes its group.
 - **A file or link opened from outside** makes a new group every time, even when a group already shows that file.

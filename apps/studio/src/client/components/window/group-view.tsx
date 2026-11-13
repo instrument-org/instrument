@@ -2,7 +2,6 @@ import {
   CHAT_DEFAULT_SHARE,
   chatClosedByGroupAtom,
   chatShareAtom,
-  isChatClosed,
   sidebarOpenAtom,
 } from "@/client/atoms/tab-groups";
 import { ToolbarTooltip } from "@/client/components/toolbar-tooltip";
@@ -17,7 +16,7 @@ import { PlusIcon } from "@phosphor-icons/react/Plus";
 import { XIcon } from "@phosphor-icons/react/X";
 import { useQuery } from "@tanstack/react-query";
 import { useAtomValue } from "jotai";
-import { type ReactNode, useState } from "react";
+import { type ReactNode, useEffect, useState } from "react";
 
 import { type PageChromeSlots } from "./browser-tabs";
 import { ChatHeader } from "./chat-header";
@@ -83,8 +82,19 @@ export function GroupView({
         })
       : chatRecord;
   const isWorking = chatRecord?.working === true;
-  const chatClosed = group === undefined || isChatClosed(group, closedByGroup);
-  const showsColumn = hasWork && !chatClosed;
+  const chatClosed = group === undefined || closedByGroup[group] === true;
+  // A group whose chat has not started and has only new tabs has nothing
+  // to show in the column: the new tab's composer starts the chat.
+  const isOnlyNewTabs = draft !== undefined && tabs.every(isHomeTab);
+  const showsColumn = hasWork && !chatClosed && !isOnlyNewTabs;
+
+  // A chat across the whole card is open, so the column it moves to when a
+  // tab arrives is open too, whatever its X did before the tabs went.
+  useEffect(() => {
+    if (!hasWork && group !== undefined && closedByGroup[group] === true) {
+      groups.setChatOpen(group, true);
+    }
+  });
 
   const [pageHost, setPageHost] = useState<HTMLDivElement | null>(null);
   const [pageChrome, setPageChrome] = useState<PageChromeSlots>();
@@ -216,9 +226,8 @@ export function GroupView({
         style={{ width: "calc(4.5rem / var(--app-zoom, 1))" }}
       />
     ) : null;
-  // A group whose chat has not started has nothing to open beside a new tab, whose composer starts it.
   const chatButton =
-    chatClosed && !(draft !== undefined && isHomeTab(up)) ? (
+    chatClosed && !isOnlyNewTabs ? (
       <button
         aria-label="Chat"
         className={cn(

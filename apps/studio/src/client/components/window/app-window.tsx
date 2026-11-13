@@ -123,7 +123,6 @@ import { type WindowContextValue as Screens, WindowContext } from "./context";
 import { isPaneOpen } from "./draft-context";
 import { closedGroupTabOf, isBlankNewTab, selectedTabIn } from "./tab-model";
 import { useSignInLanding } from "./use-sign-in-landing";
-import { inboxLandsAtOnceAtom } from "./inbox-room";
 import { WindowLook } from "./look-panel";
 import { ProjectDialog } from "./project-dialog";
 import { screenActionOf, useRecordScreen } from "./screen-action";
@@ -134,7 +133,6 @@ import { tabSurfaceAtom } from "./tab-surface";
 import { useTaskTitles } from "./task-titles";
 import { useCompose } from "./use-compose";
 import { useDrafts } from "./use-drafts";
-import { useInboxPeek } from "./use-inbox-peek";
 import { useOpeners } from "./use-openers";
 import { CommandMenu } from "./command-menu";
 import { usePageThumbnailHousekeeping } from "./use-page-thumbnail-housekeeping";
@@ -609,9 +607,8 @@ function WindowShell({
   const setChatGroup = useSetAtom(chatGroupAtom);
   const setFilesFolder = useSetAtom(filesFolderAtom);
   const [chatFilters, setChatFilters] = useAtom(chatFiltersAtom);
-  const [isInboxOpen, setInboxOpen] = useAtom(inboxOpenAtom);
+  const setInboxOpen = useSetAtom(inboxOpenAtom);
   const pickNewChatProject = useSetAtom(pickNewChatProjectAtom);
-  const setInboxLandsAtOnce = useSetAtom(inboxLandsAtOnceAtom);
   const sendContextRef = useRef<Shell["sendContext"]>(() =>
     Promise.resolve(undefined),
   );
@@ -956,11 +953,6 @@ function WindowShell({
       backfillCandidates(chats.filter((chat) => chat.id !== projectFor)),
     // Followed only while the dialog is up.
     subscribed: newProject !== undefined,
-  });
-  // The inbox is on screen in Chat unless it was put away beside a chat;
-  // anywhere else, Chat in the rail peeks it out.
-  const inboxPeek = useInboxPeek({
-    canPeek: !isChat || (chatUp !== undefined && !isInboxOpen),
   });
 
   // What the tab in view says it shows: a chat's or a site's tab up while

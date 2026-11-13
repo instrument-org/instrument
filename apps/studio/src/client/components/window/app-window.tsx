@@ -141,6 +141,7 @@ import { useSetChatProject } from "./use-set-chat-project";
 import { backfillCandidates } from "./use-project-backfill";
 import { useWindowCommands } from "./use-window-commands";
 import { useWindowDropFallback } from "./use-window-drop-fallback";
+import { useFileDrops, useLandFiles } from "./file-drops";
 import { WindowFrame } from "./window-frame";
 import { CloseGroupDialog } from "./close-group-dialog";
 import { GroupSidebar, sidebarBounds } from "./group-sidebar";
@@ -1161,10 +1162,13 @@ function WindowShell({
     }
     appTabs.goToPlace(next, { behind: newTab, newTab });
   };
-  // A file let go of where nothing else takes it opens the way one dropped
-  // on the Dock icon does: as a tab group of its own.
-  useWindowDropFallback(({ hostPath, isFolder }) => {
-    groups.make({ href: isFolder ? folderHref(hostPath) : fileHref(hostPath) });
+  // Files let go over the sidebar, the tab strip or a new tab land there as
+  // a tab let go there does, and anywhere nothing else takes them they open
+  // the way files dropped on the Dock icon do: as a tab group of their own.
+  const landFiles = useLandFiles();
+  useFileDrops(landFiles);
+  useWindowDropFallback((files) => {
+    landFiles(files, { kind: "new" });
   });
   // Something from outside the app that a tab already shows comes up there
   // and lights that tab, since a switch alone, or no change at all when the

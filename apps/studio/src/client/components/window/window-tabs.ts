@@ -340,9 +340,16 @@ export function useWindowTabs() {
       to: string,
       {
         group,
+        id: given,
         isOpened = false,
         select = false,
-      }: { group?: string; isOpened?: boolean; select?: boolean } = {},
+      }: {
+        group?: string;
+        /** The tab's id, for one the strip already draws by it: a file held over it. */
+        id?: string;
+        isOpened?: boolean;
+        select?: boolean;
+      } = {},
     ): string | undefined => {
       const href = openLinkAddress(to);
       if (href === undefined) {
@@ -353,7 +360,7 @@ export function useWindowTabs() {
         if (key === undefined) {
           return { state: current, value: undefined };
         }
-        const id = newScreenId();
+        const id = given ?? newScreenId();
         return {
           state: addScreen(current, {
             group: key,

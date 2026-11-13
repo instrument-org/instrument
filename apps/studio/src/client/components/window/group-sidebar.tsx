@@ -708,7 +708,7 @@ const TAB_HANGS_PX = 10;
  * another's, drawn at the pointer as a row: a tab as a one-line row of its
  * mark and title, a whole group from another window as its row. It stands in
  * for main's picture of the window, which shows only where letting go would
- * make a window.
+ * make a window. Files dragged in are drawn as the tab the first would be.
  */
 function HeldPicture({
   chatTitles,
@@ -748,18 +748,22 @@ function HeldPicture({
       : entries.find((each) => each.group === whole);
   const tab =
     whole === undefined
-      ? allTabs.find((each) => stripKeyOf(each) === held.key)
+      ? (held.files?.[0] ??
+        allTabs.find((each) => stripKeyOf(each) === held.key))
       : undefined;
+  // Files dragged in go as the first of them, saying how many more there are.
+  const more = (held.files?.length ?? 1) - 1;
   let shown: ReactNode = null;
   if (entry) {
     shown = (
       <GroupRow chatTitles={chatTitles} entry={entry} isLifted isUp={false} />
     );
   } else if (tab) {
-    const title =
+    const title = `${
       tab.kind === "page"
         ? pageTabTitle(tab) || (tab.url ?? tab.openedUrl ?? "")
-        : screenPresentation(tab.href, { appsBySlug, chatTitles }).title;
+        : screenPresentation(tab.href, { appsBySlug, chatTitles }).title
+    }${more > 0 ? ` and ${more} more` : ""}`;
     shown = (
       <div className="flex h-9 items-center gap-2.5 px-2.5">
         <span className="grid size-4 shrink-0 place-items-center">

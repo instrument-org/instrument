@@ -1,3 +1,4 @@
+import { type WindowTab } from "@/client/atoms/window";
 import { type SidebarPlace } from "@/shared/tabs";
 import { atom } from "jotai";
 
@@ -32,10 +33,17 @@ export const sidebarDropAtom = atom<SidebarDrop | undefined>(undefined);
  * A tab or a whole group held over this window's sidebar, by the key it is
  * carried under, and where the pointer is in the window's px: the sidebar
  * draws it there as a row, since main's picture of a window shows only where
- * letting go would make one.
+ * letting go would make one. Files dragged in come as the tabs they would
+ * be, the first under the key.
  */
 export const heldOverSidebarAtom = atom<
-  undefined | { clientX: number; clientY: number; key: string }
+  | undefined
+  | {
+      clientX: number;
+      clientY: number;
+      files?: readonly WindowTab[];
+      key: string;
+    }
 >(undefined);
 
 /**

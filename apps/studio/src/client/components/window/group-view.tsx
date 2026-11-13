@@ -34,6 +34,7 @@ import { ChatScreen } from "./chat-screen";
 import { ChatTab, ClosedChatTab } from "./chat-tab";
 import { useWindow } from "./context";
 import { DeleteChatDialog } from "./delete-chat-dialog";
+import { heldFilesAtom, stripWithHeldFiles } from "./file-drops";
 import { GroupItem } from "./group-item";
 import { SidebarToggleRoom } from "./inbox-toggle";
 import { NewChatView } from "./new-chat-view";
@@ -100,11 +101,18 @@ export function GroupView({
     useAtomValue(groupTabLandingAtom),
     windowTabs.allTabs,
   );
+  // Files dragged in and held over the strip, or over a new tab, stand
+  // where they would land.
+  const withFiles = stripWithHeldFiles(
+    group,
+    tabs,
+    useAtomValue(heldFilesAtom),
+  );
   const stripTabs = incoming
     ? tabs
         .filter((tab) => tab.id !== incoming.tab.id)
         .toSpliced(incoming.index, 0, incoming.tab)
-    : tabs;
+    : (withFiles?.tabs ?? tabs);
   const isListed = group !== undefined && listed?.includes(group) === true;
   // With no tab open, the chat is what the group shows.
   const isChatFirst = tabs.length === 0;
@@ -259,9 +267,9 @@ export function GroupView({
     <PaneTabs
       carriedKey={carry.carriedKey}
       chatTitles={shell.chatTitles}
-      chosenId={incoming ? incoming.tab.id : up?.id}
+      chosenId={incoming ? incoming.tab.id : (withFiles?.chosenId ?? up?.id)}
       className={className}
-      heldAt={incoming ? incoming.heldAt : carry.held}
+      heldAt={incoming ? incoming.heldAt : (withFiles?.heldAt ?? carry.held)}
       isChatWorking={isWorking}
       isIncoming={incoming !== undefined}
       lead={

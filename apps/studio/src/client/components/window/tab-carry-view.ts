@@ -68,12 +68,13 @@ export function tabsInView(
  * Where a tab with its left edge at a point stands among the tabs other than itself, which are
  * taken where they would stand without it, as the strip lays them out. Layout and
  * not what is drawn, since a tab making way is on its way there, and the answer
- * would move it again.
+ * would move it again. Several held together (files held over the strip, one a
+ * tab) stand side by side and are left out as one.
  */
 export function stripIndexAt(
   clientX: number,
   tabs: readonly { id: string }[],
-  except: string,
+  except: readonly string[] | string,
   /** What the strip's row is found under: the window's strip unless named. */
   root = "[data-app-tab-strip]",
 ) {
@@ -81,6 +82,10 @@ export function stripIndexAt(
   if (!list) {
     return 0;
   }
+  const isHeld = (key: string | undefined) =>
+    typeof except === "string"
+      ? key === except
+      : key !== undefined && except.includes(key);
   const { left: listLeft, width: listWidth } = list.getBoundingClientRect();
   // On screen px from layout px, which differ by the window's zoom.
   const zoom = listWidth / list.offsetWidth;
@@ -91,21 +96,23 @@ export function stripIndexAt(
       width: element.offsetWidth,
     }),
   );
-  const heldAt = drawn.findIndex(({ key }) => key === except);
+  const heldAt = drawn.findIndex(({ key }) => isHeld(key));
+  const heldTo = drawn.findLastIndex(({ key }) => isHeld(key));
   const held = drawn[heldAt];
-  const slot = held
-    ? (drawn[heldAt + 1]?.left ?? held.left + held.width) - held.left
-    : 0;
+  const last = drawn[heldTo];
+  const slot =
+    held && last
+      ? (drawn[heldTo + 1]?.left ?? last.left + last.width) - held.left
+      : 0;
   const before = drawn.filter(({ key, left, width }, index) => {
-    const standsAt = held && index > heldAt ? left - slot : left;
+    const standsAt = held && index > heldTo ? left - slot : left;
     const past =
       held && index < heldAt ? -TAKES_PLACE_PAST_PX : TAKES_PLACE_PAST_PX;
     return (
-      key !== except &&
-      clientX > listLeft + (standsAt + width / 2 + past) * zoom
+      !isHeld(key) && clientX > listLeft + (standsAt + width / 2 + past) * zoom
     );
   });
-  const others = tabs.filter((tab) => tab.id !== except);
+  const others = tabs.filter((tab) => !isHeld(tab.id));
   const at = others.findIndex((tab) => tab.id === before.at(-1)?.key);
   return at === -1 ? 0 : at + 1;
 }

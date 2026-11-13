@@ -268,6 +268,8 @@ export function GroupItem({
     return (
       <Bare
         anchorRef={anchorRef}
+        // Files let go here turn this tab into the first of them.
+        dropNewTab={up.id}
         head={
           <>
             <TabLocationRow
@@ -355,14 +357,21 @@ export function GroupItem({
 function Bare({
   anchorRef,
   children,
+  dropNewTab,
   head,
 }: {
   anchorRef?: Ref<HTMLDivElement>;
   children: ReactNode;
+  /** The new tab this shows, which files let go over it turn into (`useFileDrops`). */
+  dropNewTab?: string;
   head?: ReactNode;
 }) {
   return (
-    <div className="flex h-full flex-col bg-background" ref={anchorRef}>
+    <div
+      className="flex h-full flex-col bg-background"
+      data-drop-new-tab={dropNewTab}
+      ref={anchorRef}
+    >
       {head}
       <div className="min-h-0 flex-1">{children}</div>
     </div>

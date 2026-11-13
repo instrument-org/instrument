@@ -68,13 +68,13 @@ describe("sidebar places", () => {
     ]);
   });
 
-  it("adopts the file manager's pins, hiding the defaults it leaves out", () => {
+  it("adopts the file manager's pins in its order, hiding the defaults it leaves out", () => {
     const places = adoptSystemSidebar(
       NO_SIDEBAR_CHANGES,
-      ["/Users/casey/Desktop", "/Users/casey/code", "/Applications"],
+      ["/Users/casey/code", "/Users/casey/Desktop", "/Applications"],
       defaults.map((place) => place.path),
     );
-    expect(rows(places)).toEqual(["Desktop", "code", "Applications"]);
+    expect(rows(places)).toEqual(["code", "Desktop", "Applications"]);
   });
 
   it("keeps what the person pinned when adopting the file manager's pins", () => {
@@ -85,6 +85,7 @@ describe("sidebar places", () => {
       ["/Users/casey/code"],
       defaults.map((place) => place.path),
     );
-    expect(rows(places)).toEqual(["casey", "Work", "code"]);
+    expect(rows(places)).toEqual(["code", "casey", "Work"]);
+    expect(rows(pinPlace(places, "/Volumes/Archive")).at(-1)).toBe("Archive");
   });
 });

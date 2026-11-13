@@ -1,7 +1,6 @@
 import { type WindowTab } from "@/client/atoms/window";
 import { rpcClient, type RPCOutput } from "@/client/rpc/client";
-import { draftsAtom } from "@/client/drafts/store";
-import { draftGroupOf, draftOfGroup } from "@/shared/drafts";
+import { draftOfGroup } from "@/shared/drafts";
 import {
   type GroupTabLanding,
   groupOfWholeKey,
@@ -439,24 +438,24 @@ export function useGroupTabMoves() {
   const { open } = useOpenGroups();
   const letGoOfWholeGroup = useLetGoOfWholeGroup();
   /**
-   * A whole group from another window: listed where it was let go, or at
-   * the top, and up. A window come up for it lets go of the new group it
-   * came up on.
+   * A window come up for what landed lists it alone: the new group it came
+   * up on leaves its list, along with any other it had.
    */
+  const listAlone = (group: string) => {
+    const others = (store.get(windowTabGroupsAtom) ?? []).filter(
+      (each) => each !== group,
+    );
+    if (others.length > 0) {
+      groups.closeAll(others, group);
+    }
+  };
+  /** A whole group from another window: listed where it was let go, or at the top, and up. */
   const receiveWhole = (group: string, landing: GroupTabLanding) => {
-    const own =
-      landing.kind === "new" && landing.isWindowOfItsOwn === true
-        ? store.get(groupOnScreenAtom)
-        : undefined;
     groups.place(group, landing.kind === "new" && landing.at ? landing.at : {});
     fillRoom(group);
     groups.show(group);
-    const list = store.get(windowTabGroupsAtom) ?? [];
-    if (own !== undefined && own !== group && list.includes(own)) {
-      groups.close(
-        own,
-        open.filter((entry) => entry.group !== group),
-      );
+    if (landing.kind === "new" && landing.isWindowOfItsOwn === true) {
+      listAlone(group);
     }
   };
   return {
@@ -485,11 +484,11 @@ export function useGroupTabMoves() {
           ? neighborAt(left, left.indexOf(tab))
           : undefined;
       const groupUp = store.get(groupOnScreenAtom);
-      // A window come up for the tab, on a new tab of its own making.
-      const own =
-        landing.kind === "new" && landing.isWindowOfItsOwn === true
-          ? groupUp
-          : undefined;
+      const isOwnWindow =
+        landing.kind === "new" && landing.isWindowOfItsOwn === true;
+      // A window come up for the tab, on a new tab of its own making, which
+      // may not be up yet in a window out of sight.
+      const own = isOwnWindow ? groupUp : undefined;
       if (
         landing.kind === "new" &&
         from !== undefined &&
@@ -497,11 +496,8 @@ export function useGroupTabMoves() {
       ) {
         // Its group comes along whole, and the window it leaves lets go of it.
         groups.showHere(from);
-        const draft = store
-          .get(draftsAtom)
-          .find((entry) => draftGroupOf(entry.id) === from);
-        if (own !== undefined && own !== from && draft) {
-          groups.close(own, [{ draft, group: from, kind: "draft", title: "" }]);
+        if (isOwnWindow) {
+          listAlone(from);
         }
       } else if (landing.kind === "group") {
         groups.moveTab(tab.id, landing.group);
@@ -513,8 +509,12 @@ export function useGroupTabMoves() {
         for (const blank of blanks) {
           windowTabs.close(blank.id);
         }
+        listAlone(own);
       } else if (landing.kind === "new" || groupUp === undefined) {
-        groups.make({ moving: tab.id });
+        const made = groups.make({ moving: tab.id });
+        if (isOwnWindow) {
+          listAlone(made);
+        }
       } else {
         groups.moveTab(tab.id, groupUp);
         const keys = tabsIn(store.get(windowTabsAtom), groupUp)

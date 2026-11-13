@@ -1,7 +1,5 @@
-import { rpcClient } from "@/client/rpc/client";
 import { type TabCarryView, type TabId } from "@/shared/tabs";
 import { atom, getDefaultStore } from "jotai";
-import { useEffect } from "react";
 
 /**
  * What main has this window's strip show of a tab's drag. A tab held over the
@@ -11,7 +9,7 @@ import { useEffect } from "react";
 export const tabCarryViewAtom = atom<TabCarryView>({ kind: "row" });
 
 /** Where the tab held over this window's strip stands along it. */
-export const tabCarryIndexAtom = atom<number | undefined>(undefined);
+const tabCarryIndexAtom = atom<number | undefined>(undefined);
 
 export function showTabCarryView(view: TabCarryView) {
   const store = getDefaultStore();
@@ -19,30 +17,6 @@ export function showTabCarryView(view: TabCarryView) {
   if (view.kind !== "incoming") {
     store.set(tabCarryIndexAtom, undefined);
   }
-}
-
-async function followTabCarry(signal: AbortSignal) {
-  try {
-    const views = await rpcClient.window.events.tabCarry.call(undefined, {
-      signal,
-    });
-    for await (const view of views) {
-      showTabCarryView(view);
-    }
-  } catch {
-    // The window closing ends the stream.
-  }
-}
-
-/** Follows what main says the strip shows, for as long as the window is up. */
-export function useTabCarryView() {
-  useEffect(() => {
-    const controller = new AbortController();
-    void followTabCarry(controller.signal);
-    return () => {
-      controller.abort();
-    };
-  }, []);
 }
 
 /**
@@ -62,25 +36,6 @@ export function tabsInView(
   }
   const others = tabs.filter((tab) => tab.id !== view.tab.id);
   return [...others.slice(0, index), view.tab, ...others.slice(index)];
-}
-
-/**
- * Where the held tab stands over this window's strip, read off the strip as laid
- * out, and told to main, which lands it there.
- */
-export function measureCarryIndex(
-  view: TabCarryView,
-  tabs: readonly { id: TabId }[],
-) {
-  if (view.kind !== "incoming") {
-    return;
-  }
-  const store = getDefaultStore();
-  const index = stripIndexAt(view.clientX - view.pointInTab, tabs, view.tab.id);
-  if (store.get(tabCarryIndexAtom) !== index) {
-    store.set(tabCarryIndexAtom, index);
-    void rpcClient.window.placeTabCarry.call({ index });
-  }
 }
 
 /**

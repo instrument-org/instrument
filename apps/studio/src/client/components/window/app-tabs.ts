@@ -57,11 +57,6 @@ export function isSiteGroup(group: string | undefined): boolean {
   return group?.startsWith(SITE_PREFIX) ?? false;
 }
 
-/** Whether an address is a site opened at the window's own level. */
-export function isSiteHref(href: string): boolean {
-  return matchScreen(href).kind === "site";
-}
-
 /**
  * The pages of sites whose tabs were closed, by their group, kept for this
  * launch so a tab reopened with Shift+Cmd+T gets its page back at the
@@ -69,11 +64,16 @@ export function isSiteHref(href: string): boolean {
  */
 export const putAwaySitesAtom = atom<Record<string, WindowTab[]>>({});
 
+/** Whether an address is a site opened at the window's own level. */
+function isSiteHref(href: string): boolean {
+  return matchScreen(href).kind === "site";
+}
+
 /**
  * Whether a closed tab is a site with no page left to give it, as one closed before
  * this launch or in another renderer is.
  */
-export function isGoneSite(
+function isGoneSite(
   { pathname }: { pathname: string },
   putAway: Record<string, WindowTab[]>,
 ) {

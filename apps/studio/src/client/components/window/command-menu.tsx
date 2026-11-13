@@ -29,7 +29,6 @@ import {
 } from "@/client/components/ui/dialog";
 import { Spinner } from "@/client/components/ui/spinner";
 import { AppIcon } from "@/client/components/window/app-icon";
-import { PLACES } from "@/client/components/window/app-rail";
 import { useAppsBySlug } from "@/client/components/window/apps-by-slug";
 import { chatListOptions } from "@/client/components/window/chat-list-query";
 import { ChatMarkDot } from "@/client/components/window/chat-mark";
@@ -150,6 +149,14 @@ const LISTED_COMMANDS = new Set([
   "settings",
   "shortcuts",
 ]);
+
+/** The places, in the order Go to lists them. */
+const PLACES: { id: AppPlace; label: string }[] = [
+  { id: "chat", label: "Chat" },
+  { id: "files", label: "Files" },
+  { id: "browser", label: "Browser" },
+  { id: "apps", label: "Apps" },
+];
 
 /** Each place's chord, which its Go to row shows. */
 const PLACE_CHORDS = {

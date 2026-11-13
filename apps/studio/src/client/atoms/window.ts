@@ -65,15 +65,6 @@ export function composeKeyOf(entry: ComposeEntry): string {
   return entry.kind === "draft" ? draftGroupOf(entry.draftId) : entry.chatId;
 }
 
-/** The chats up in a window of their own over the row, not put down to a bar. */
-export function chatsOutOf(entries: ComposeEntry[]): Set<string> {
-  return new Set(
-    entries.flatMap((entry) =>
-      entry.kind === "chat" && entry.placement !== "bar" ? [entry.chatId] : [],
-    ),
-  );
-}
-
 /**
  * The windows floating over the row, the way a mail client keeps several
  * compose windows along its foot, oldest first: the newest stands at the
@@ -245,24 +236,6 @@ export function newTabHrefOf(group: string | undefined): string {
 
 /** The route a chat's screen is at, followed by the chat's id. */
 export const CHATS_HREF = "/chats";
-
-export const SIDEBAR_WIDTH_MIN = 320;
-/** The inbox's widest: a list to pick a chat from, never a page of its own, so the room past this goes to the chat beside it. */
-export const SIDEBAR_WIDTH_MAX = 440;
-
-const storedInboxWidthAtom = keptAtom<number>(
-  "view",
-  "inbox-width.v1",
-  SIDEBAR_WIDTH_MIN,
-);
-
-/** The inbox column's width in CSS px, dragged by its right edge, and read within its widest whatever was stored. */
-export const inboxWidthAtom = atom(
-  (get) => Math.min(get(storedInboxWidthAtom), SIDEBAR_WIDTH_MAX),
-  (_get, set, width: number) => {
-    set(storedInboxWidthAtom, width);
-  },
-);
 
 /**
  * The layout last chosen anywhere: what a folder with no layout of its own

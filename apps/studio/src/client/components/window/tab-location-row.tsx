@@ -92,6 +92,8 @@ export function TabLocationRow({
   canGoForward,
   className,
   fieldEnd,
+  fieldHint,
+  fieldTakesCaret,
   fillsTab = false,
   hasField = true,
   leading,
@@ -109,6 +111,10 @@ export function TabLocationRow({
   className?: string;
   /** What the page says about itself inside the field, at its end, ahead of the app that opens it: its zoom while not 100%. */
   fieldEnd?: ReactNode;
+  /** What an empty field shows until it has the caret: the keys that put it there. */
+  fieldHint?: ReactNode;
+  /** Whether an empty field takes the caret as it arrives (see `Omnibar`). */
+  fieldTakesCaret?: boolean;
   /** Whether the row is over a screen that has the whole tab, where Quick Look's view of a file would be smaller than the one already up. */
   fillsTab?: boolean;
   /** Whether the row has the field that says where you are; a tab whose own page takes addresses has only the arrows and reload. */
@@ -208,6 +214,10 @@ export function TabLocationRow({
           }}
         >
           <Omnibar
+            {...(fieldHint === undefined ? {} : { hint: fieldHint })}
+            {...(fieldTakesCaret === undefined
+              ? {}
+              : { takesCaret: fieldTakesCaret })}
             initial={locationText(location)}
             key={locationText(location)}
             {...(liveAddress ? { liveAddress } : {})}

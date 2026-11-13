@@ -435,17 +435,13 @@ function AppTabView({
 }
 
 /**
- * The caret into the tab up's address field, with what is in it selected: a
- * new tab's own, in its body, or else the one in the address row.
+ * The caret into the address field of the tab up, or of the chat while it
+ * fills its group, with what is in it selected.
  */
 function focusField() {
-  const field =
-    document.querySelector<HTMLInputElement>(
-      "[data-app-tab-active] [data-new-tab-field] input",
-    ) ??
-    document.querySelector<HTMLInputElement>(
-      "[data-app-tab-active] [data-tab-location] input",
-    );
+  const field = document.querySelector<HTMLInputElement>(
+    "[data-app-tab-active] [data-tab-location] input",
+  );
   field?.focus();
   field?.select();
 }

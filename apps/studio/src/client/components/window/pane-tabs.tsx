@@ -8,6 +8,7 @@ import { dropdownMenuComponents } from "@/client/components/ui/menu-components";
 import { useTargetsAgentActivity } from "@/client/hooks/use-target-agent-activity";
 import { getGuest } from "@/client/lib/browser-pool";
 import { browserTargetOf } from "@instrument-org/workspace/client";
+import { PlusIcon } from "@phosphor-icons/react/Plus";
 import { type ReactNode, useContext, useState } from "react";
 
 import { tabTooltip } from "./app-tab-strip";
@@ -37,12 +38,12 @@ export function stripKeyOf(tab: WindowTab): string {
 }
 
 /**
- * A chat's tabs, across the head of the pane beside it, the one place they
- * show: what its agent browses and the person opened, oldest at the left,
- * narrowing to icons when there are many and scrolling sideways past that.
- * They are the window's own strip, so they open, close, reorder and answer the keyboard as
- * the window's tabs do. The × at the row's far end puts the whole pane away and
- * keeps the tabs.
+ * A tab group's tabs, on the group's top line, drawn the way a browser draws
+ * its tab strip (`group-strip`): what its agent browses and the person
+ * opened, oldest at the left, narrowing to icons when there are many. They
+ * are the window's own strip, so they open, close, reorder and answer the
+ * keyboard as the window's tabs do. The new tab control follows them, named
+ * while there are none, and the row keeps what it is given at its right end.
  */
 export function PaneTabs({
   carriedKey,
@@ -90,7 +91,7 @@ export function PaneTabs({
   onTabDragStart?: (key: string, event: PointerEvent, moved: number) => void;
   tabs: WindowTab[];
   taskTitles: Presentation["taskTitles"];
-  /** What the row keeps at its right end: the chat's button while its column is closed. */
+  /** What the row keeps at its right end: the chat's tab, unless its column is open. */
   trailing?: ReactNode;
 }) {
   const appsBySlug = useAppsBySlug();
@@ -167,7 +168,7 @@ export function PaneTabs({
 
   return (
     <div
-      className="flex h-10 shrink-0 items-center pr-2 [-webkit-app-region:drag] [&_[role=tab]]:[-webkit-app-region:no-drag] [&_button]:[-webkit-app-region:no-drag]"
+      className="group-strip flex h-10 shrink-0 items-center pr-2.5 [-webkit-app-region:drag] [&_[role=tab]]:[-webkit-app-region:no-drag] [&_button]:[-webkit-app-region:no-drag]"
       data-group-tabs=""
       {...(isIncoming ? { "data-incoming": "" } : {})}
     >
@@ -175,11 +176,17 @@ export function PaneTabs({
       <TabStrip
         carriedKey={carriedKey}
         heldAt={heldAt}
-        // The pane's own card is the ground a tab up stands on. The first tab
-        // starts at the location row's 6px inset, over its back button.
-        className="min-w-0 flex-1 pr-0 pl-1.5 [--tab-selected:var(--card)]"
+        // The first tab starts clear of the strip's edge by the curve at its
+        // foot.
+        className="min-w-0 flex-1 pr-0 pl-2.5"
         label="What this chat has open"
-        newControl={<NewTabButton onClick={onNew} title="New tab" />}
+        newControl={
+          tabs.length === 0 ? (
+            <NewTabLabeled onClick={onNew} />
+          ) : (
+            <NewTabButton onClick={onNew} title="New tab" />
+          )
+        }
         onClose={(key) => {
           const tab = tabOf(key);
           if (tab) {
@@ -222,6 +229,24 @@ export function PaneTabs({
         )}
       </TabMenuAtPoint>
     </div>
+  );
+}
+
+/**
+ * The new tab control while the group has no tabs: the plus with its name,
+ * so a bar with only the chat's tab on it still reads as a tab bar. It folds
+ * to the plus once a tab is open.
+ */
+function NewTabLabeled({ onClick }: { onClick: () => void }) {
+  return (
+    <button
+      className="flex h-8 shrink-0 cursor-default items-center gap-1.5 rounded-xl pr-3 pl-2 text-sm font-medium text-foreground/55 hover:bg-foreground/8 hover:text-foreground dark:text-foreground/65"
+      onClick={onClick}
+      type="button"
+    >
+      <PlusIcon className="size-4" />
+      New tab
+    </button>
   );
 }
 

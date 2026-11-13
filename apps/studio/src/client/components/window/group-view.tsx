@@ -4,26 +4,40 @@ import {
   chatShareAtom,
   sidebarOpenAtom,
 } from "@/client/atoms/tab-groups";
+import { TaskBackgroundProcesses } from "@/client/components/task/task-background-processes";
 import { CaptionRoom } from "@/client/components/window-controls";
-import { WorkingDots } from "@/client/components/transcript/task-card";
 import { useIsActiveTab, useTabId } from "@/client/hooks/use-active-tab";
+import { formatAcceleratorText } from "@/client/lib/format-accelerator";
 import { cn } from "@/client/lib/utils";
+import { rpcClient } from "@/client/rpc/client";
+import { folderHref } from "@/shared/computer-href";
 import { draftGroupOf } from "@/shared/drafts";
+import { WINDOW_SHORTCUTS } from "@/shared/window-shortcuts";
 import { type ChatId } from "@instrument-org/workspace/client";
-import { ChatCircleIcon } from "@phosphor-icons/react/ChatCircle";
+import { ArrowClockwiseIcon } from "@phosphor-icons/react/ArrowClockwise";
 import { useQuery } from "@tanstack/react-query";
 import { useAtomValue } from "jotai";
-import { type ReactNode, useEffect, useLayoutEffect, useState } from "react";
+import { noop } from "radashi";
+import {
+  type ComponentProps,
+  type ReactNode,
+  useEffect,
+  useLayoutEffect,
+  useState,
+} from "react";
 
+import { BookmarksBar, useHasBookmarksBar } from "./bookmarks-bar";
 import { type PageChromeSlots } from "./browser-tabs";
-import { ChatHeader } from "./chat-header";
+import { ChatMenuItems, ProjectMenuItems } from "./chat-header";
 import { chatListOptions } from "./chat-list-query";
-import { chatAsSent, draftTitle } from "./chats";
+import { type Chat, chatAsSent, draftTitle } from "./chats";
 import { ChatScreen } from "./chat-screen";
+import { ChatTab } from "./chat-tab";
 import { useWindow } from "./context";
+import { DeleteChatDialog } from "./delete-chat-dialog";
 import { GroupItem } from "./group-item";
 import { SidebarToggleRoom } from "./inbox-toggle";
-import { NewChatView } from "./new-chat-view";
+import { NewChatView, useNewChatProject } from "./new-chat-view";
 import { PaneTabs } from "./pane-tabs";
 import { RightPane } from "./right-pane";
 import { useShell } from "./shell-context";
@@ -38,16 +52,20 @@ import {
   incomingGroupTab,
   useGroupTabCarry,
 } from "./tab-drag";
+import { TabLocationRow, TabRowControl } from "./tab-location-row";
 import { useTabSurface } from "./tab-surface";
+import { useChatRename } from "./use-chat-rename";
+import { useTitleArrival } from "./use-title-arrival";
 import { useWindowTabs } from "./window-tabs";
 
 /**
- * One tab group, as the window's tab shows it. The tab bar is always the
- * window's top line, with the chat's tab fixed at its right end. A group
- * with no tabs is its chat, filling the work area under the bar. Once a tab
- * is open the chat moves to a column on the right, its head sharing the top
- * line with the tabs, and the chat's tab opens and closes that column; the
- * toolbar and what the tab up shows take the rest. Closing the last tab
+ * One tab group, as the window's tab shows it: a chat site open in a
+ * browser. The tab bar is always the window's top line, with the chat's tab
+ * at its right end. A group with no tabs is its chat, under a toolbar and
+ * the bookmarks as a page has them, the chat's tab the one up. Once a tab
+ * is open the chat moves to a column on the right, its tab spanning the
+ * column's top, and a press on the chat's tab opens and closes that column;
+ * the toolbar and what the tab up shows take the rest. Closing the last tab
  * brings the chat back to the middle.
  */
 export function GroupView({
@@ -105,6 +123,7 @@ export function GroupView({
       : chatRecord;
   const isWorking = chatRecord?.working === true;
   const chatClosed = group === undefined || closedByGroup[group] === true;
+  const hasBookmarksBar = useHasBookmarksBar(false);
 
   // A chat's group with tabs but none up brings up its first. Only a group
   // this window lists: a draft's group handed to its chat is not.
@@ -143,22 +162,49 @@ export function GroupView({
   const leave = () => {
     groups.close(group, open);
   };
-  // The chat's tab, where the tab bar ends, with the room for the caption
-  // buttons off the Mac after it.
-  const chatTab = (
-    <>
-      <ChatTab
-        isWorking={isWorking}
-        onPress={() => {
-          if (!isChatFirst) {
-            groups.setChatOpen(group, chatClosed);
-          }
+  /** A page in a tab of this group, which moves the chat into its column. */
+  const openPage = (url: string) => {
+    appWindow.browser?.open(url, { group });
+  };
+  // The chat's tab: at the tab bar's end, or spanning the column's top
+  // while the column is open. A press opens and closes the column once the
+  // group has tabs.
+  const chatTabOf = ({ spans }: { spans: boolean }) => {
+    const placement = {
+      className: spans ? undefined : "ml-3",
+      isWorking,
+      onPress: () => {
+        if (!isChatFirst) {
+          groups.setChatOpen(group, chatClosed);
+        }
+      },
+      spans,
+      state: isChatFirst || !chatClosed ? "shown" : "closed",
+    } as const;
+    if (chat === undefined) {
+      return <NewChatTab {...placement} tabId={tabId} />;
+    }
+    if (!headChat) {
+      return (
+        <ChatTab
+          {...placement}
+          title={sentWords === undefined ? "New chat" : draftTitle(sentWords)}
+        />
+      );
+    }
+    return (
+      <StartedChatTab
+        {...placement}
+        chat={headChat}
+        group={group}
+        onArchived={leave}
+        onDeleted={() => {
+          windowTabs.dropGroup(chat);
+          leave();
         }}
-        state={isChatFirst ? "selected" : chatClosed ? "closed" : "open"}
       />
-      <CaptionRoom />
-    </>
-  );
+    );
+  };
 
   /** The chat, or a new chat's composer for a group whose chat has not started. */
   const conversation =
@@ -166,63 +212,33 @@ export function GroupView({
       <NewChatView
         draftId={draft}
         ensureGroup={() => group}
+        isCentered={isChatFirst}
         isPaneShown
-        {...(isChatFirst
-          ? {
-              onAddress: (url: string) => {
-                appWindow.browser?.open(url, { group });
-              },
-            }
-          : {})}
+        {...(isChatFirst ? { onAddress: openPage } : {})}
         onOpenBeside={() => undefined}
         tabId={tabId}
         takesCaret={isChatFirst}
-        trailing={isChatFirst ? undefined : chatTab}
       />
     ) : (
-      <div className="flex h-full min-h-0 flex-col">
-        <div className="shrink-0 [-webkit-app-region:drag] [&_button]:[-webkit-app-region:no-drag] [&_input]:[-webkit-app-region:no-drag]">
-          <ChatHeader
-            chat={headChat}
-            className="h-10 pr-2"
-            fallbackTitle={
-              sentWords === undefined ? undefined : draftTitle(sentWords)
-            }
-            onArchived={leave}
-            onDeleted={() => {
-              windowTabs.dropGroup(chat);
-              leave();
-            }}
-            onNewProject={shell.onNewProject}
-            onSetProject={(next) => {
-              shell.setChatProject(chat, next);
-            }}
-            projects={shell.projects}
-            trailing={isChatFirst ? undefined : chatTab}
-          />
-        </div>
-        <div className="relative min-h-0 flex-1">
-          <div className="absolute inset-0">
-            <ChatScreen
-              chatId={chat}
-              isUp={isActive}
-              key={chat}
-              onGone={() => {
-                windowTabs.dropGroup(chat);
-                leave();
-              }}
-              sendContext={() =>
-                shell.sendContext({
-                  chatId: chat,
-                  isViewOpen: up !== undefined,
-                  taken: [],
-                })
-              }
-              sentPrompt={shell.sentWords.get(chat)}
-              takesCaret={isChatFirst}
-            />
-          </div>
-        </div>
+      <div className="absolute inset-0">
+        <ChatScreen
+          chatId={chat}
+          isUp={isActive}
+          key={chat}
+          onGone={() => {
+            windowTabs.dropGroup(chat);
+            leave();
+          }}
+          sendContext={() =>
+            shell.sendContext({
+              chatId: chat,
+              isViewOpen: up !== undefined,
+              taken: [],
+            })
+          }
+          sentPrompt={shell.sentWords.get(chat)}
+          takesCaret={isChatFirst}
+        />
       </div>
     );
 
@@ -257,12 +273,19 @@ export function GroupView({
       trailing={trailing}
     />
   );
+  // The tab bar's right end: the chat's tab, unless the column it spans is
+  // open, and the room for the caption buttons off the Mac after it.
+  const tabBarEnd = (
+    <>
+      {(isChatFirst || chatClosed) && chatTabOf({ spans: false })}
+      <CaptionRoom />
+    </>
+  );
 
-  // The tabs over the work, ending in the chat's tab while its column is
-  // closed; while it is open, the chat's tab ends the column's head.
+  // The tabs over the work, the toolbar and what the tab up shows.
   const work = (
     <div className="flex h-full min-h-0 flex-col">
-      {!isChatFirst && tabBar(chatClosed ? chatTab : null)}
+      {!isChatFirst && tabBar(tabBarEnd)}
       <div className="relative min-h-0 flex-1 [--guest-bottom-radius:0]">
         {up !== undefined && (
           <GroupItem
@@ -279,11 +302,51 @@ export function GroupView({
     </div>
   );
 
+  // Over the chat while it fills the group: the toolbar a page has, for a
+  // chat that has no history of its own, so its arrows and reload rest. Its
+  // field opens a page as a tab of this group, and shows ⌘L until it is
+  // pressed, since the caret starts in the composer.
+  const toolbar = (
+    <>
+      <TabLocationRow
+        canGoBack={false}
+        canGoForward={false}
+        {...(hasBookmarksBar ? { className: "border-b-0" } : {})}
+        fieldHint={<LocationKeys />}
+        fieldTakesCaret={false}
+        location={NEW_TAB_LOCATION}
+        onBack={noop}
+        onForward={noop}
+        onSite={openPage}
+        onVisit={(href) => {
+          windowTabs.openScreen(href, { group, select: true });
+        }}
+        reload={
+          <TabRowControl
+            chord="reloadPage"
+            disabled
+            icon={<ArrowClockwiseIcon className="size-4" />}
+            label="Reload"
+            onClick={noop}
+          />
+        }
+      />
+      {hasBookmarksBar && <BookmarksBar onOpen={openPage} />}
+    </>
+  );
+  // The column's top line while it is open: the chat's tab across it.
+  const columnHead = (
+    <div className="group-strip flex h-10 shrink-0 items-center px-2.5 [-webkit-app-region:drag] [&_button]:[-webkit-app-region:no-drag]">
+      {chatTabOf({ spans: true })}
+      <CaptionRoom />
+    </div>
+  );
+
   // The chat stays where it is in the tree as it moves between the middle
   // and the column, so its transcript and composer are never drawn afresh.
   return (
-    <div className="relative flex min-h-0 min-w-0 flex-1 flex-col">
-      {isChatFirst && tabBar(chatTab)}
+    <div className={GROUP_GROUNDS}>
+      {isChatFirst && tabBar(tabBarEnd)}
       <div className="relative flex min-h-0 min-w-0 flex-1">
         <RightPane
           conversation={work}
@@ -295,13 +358,16 @@ export function GroupView({
           paneKey={group}
           share={{ atom: chatShareAtom, initial: CHAT_DEFAULT_SHARE }}
         >
-          <div
-            className={cn(
-              "flex h-full min-h-0 w-full flex-col overflow-hidden bg-background",
-              !isChatFirst && "border-l border-border",
-            )}
-          >
-            {conversation}
+          <div className="flex h-full min-h-0 w-full flex-col overflow-hidden bg-background">
+            {isChatFirst ? toolbar : columnHead}
+            <div
+              className={cn(
+                "relative min-h-0 flex-1",
+                !isChatFirst && "border-l border-border",
+              )}
+            >
+              {conversation}
+            </div>
           </div>
         </RightPane>
       </div>
@@ -310,49 +376,133 @@ export function GroupView({
 }
 
 /**
- * The chat's tab, fixed at the tab bar's right end in every state: selected
- * while the chat fills the middle, and the switch for its column once a tab
- * is open. A little more forward than a tab, so the chat is always found in
- * the same corner. While the agent works, the bubble gives way to the
- * working dots.
+ * The group's grounds: the top line darker than the toolbar under it, as a
+ * browser's tab strip is (`group-strip`).
  */
-function ChatTab({
-  isWorking,
-  onPress,
-  state,
-}: {
-  isWorking: boolean;
-  onPress: () => void;
-  state: "closed" | "open" | "selected";
-}) {
+const GROUP_GROUNDS =
+  "relative flex min-h-0 min-w-0 flex-1 flex-col [--group-strip:color-mix(in_oklab,var(--gray-200)_70%,var(--background))] dark:[--group-strip:color-mix(in_oklab,black_16%,var(--background))]";
+
+/** Where the toolbar over a chat stands: nowhere yet, as a new tab is. */
+const NEW_TAB_LOCATION = { kind: "newTab" } as const;
+
+/** The chord that puts the caret in the address field, at the end of the empty field. */
+function LocationKeys() {
   return (
-    <button
-      aria-label="Chat"
-      aria-pressed={state !== "closed"}
-      className={cn(
-        "ml-2 flex h-8 shrink-0 cursor-default items-center gap-1.5 rounded-xl px-2.5 text-sm font-medium text-foreground",
-        state === "selected"
-          ? "bg-card shadow-xs-soft"
-          : state === "open"
-            ? "bg-foreground/8 hover:bg-foreground/10"
-            : "bg-card shadow-xs ring-1 ring-border hover:bg-foreground/[0.03]",
-      )}
-      data-chat-tab=""
-      onClick={onPress}
-      // A press here selects nothing, so it leaves the keyboard where it was.
-      onMouseDown={(event) => {
-        event.preventDefault();
-      }}
-      type="button"
-    >
-      <span className="grid size-4 place-items-center text-brand-600 dark:text-brand-400">
-        {isWorking ? (
-          <WorkingDots />
-        ) : (
-          <ChatCircleIcon className="size-4" weight="fill" />
+    <span className="pointer-events-none absolute top-1/2 right-2.5 inline-flex h-4.5 -translate-y-1/2 items-center rounded-[4px] bg-foreground/[0.04] px-1 font-sans text-[11px] font-medium text-muted-foreground/70 ring-1 ring-foreground/[0.06]">
+      {formatAcceleratorText(WINDOW_SHORTCUTS.search.accelerator)}
+    </span>
+  );
+}
+
+/** Where the chat's tab stands and what a press on it does, as `GroupView` places it. */
+type ChatTabPlacement = Pick<
+  ComponentProps<typeof ChatTab>,
+  "className" | "isWorking" | "onPress" | "spans" | "state"
+>;
+
+/**
+ * The chat's tab for a chat that has started: its title, its menu, its
+ * rename, and the commands it left running.
+ */
+function StartedChatTab({
+  chat,
+  group,
+  onArchived,
+  onDeleted,
+  ...placement
+}: ChatTabPlacement & {
+  chat: Chat;
+  group: string;
+  onArchived: () => void;
+  onDeleted: () => void;
+}) {
+  const shell = useShell();
+  const windowTabs = useWindowTabs();
+  const [isDeleting, setDeleting] = useState(false);
+  const rename = useChatRename(chat);
+  const titleArrival = useTitleArrival(chat);
+  const folderWithFiles = useChatFolderWithFiles(chat.id);
+  return (
+    <>
+      <DeleteChatDialog
+        chat={chat}
+        onDeleted={onDeleted}
+        onOpenChange={setDeleting}
+        open={isDeleting}
+      />
+      <ChatTab
+        {...placement}
+        badge={<TaskBackgroundProcesses chatId={chat.id} />}
+        menu={(components, { startRename }) => (
+          <ChatMenuItems
+            chat={chat}
+            components={components}
+            // The chat's own folder while it has files, as a tab of the
+            // group, brought up where one already shows it.
+            {...(folderWithFiles === null
+              ? {}
+              : {
+                  onShowFolder: () => {
+                    windowTabs.openOrFocusScreen(folderHref(folderWithFiles), {
+                      group,
+                      select: true,
+                    });
+                  },
+                })}
+            onArchived={onArchived}
+            onDelete={() => {
+              setDeleting(true);
+            }}
+            onRename={startRename}
+            projectMenu={{
+              onNew: shell.onNewProject,
+              // Picking the project it is under takes it off.
+              onPick: (id) => {
+                shell.setChatProject(chat.id, chat.project === id ? null : id);
+              },
+              projects: shell.projects,
+            }}
+          />
         )}
-      </span>
-      Chat
-    </button>
+        rename={rename}
+        title={chat.title}
+        titleArrival={titleArrival}
+      />
+    </>
+  );
+}
+
+/**
+ * The chat's own folder while it has files in it beside its `CHAT.md`, and
+ * null otherwise: in a chat that has only talked, and in a workspace whose
+ * chats keep no folder of their own.
+ */
+function useChatFolderWithFiles(chat: ChatId): null | string {
+  const { data } = useQuery(
+    rpcClient.workspace.chats.live.folderWithFiles.experimental_liveOptions({
+      input: { id: chat },
+    }),
+  );
+  return data ?? null;
+}
+
+/** The chat's tab for a group whose chat has not started, whose menu files it under a project. */
+function NewChatTab({
+  tabId,
+  ...placement
+}: ChatTabPlacement & { tabId: string }) {
+  const project = useNewChatProject(tabId);
+  return (
+    <ChatTab
+      {...placement}
+      menu={(components) => (
+        <ProjectMenuItems
+          chosen={project.projectId}
+          components={components}
+          projectMenu={project}
+        />
+      )}
+      title="New chat"
+    />
   );
 }

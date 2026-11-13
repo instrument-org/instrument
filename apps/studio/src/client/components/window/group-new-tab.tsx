@@ -1,6 +1,4 @@
-import { AnimatedOutlineBrandIconGlyph } from "@/client/components/brand-icon";
 import { draftsAtom } from "@/client/drafts/store";
-import { useIsActiveTab } from "@/client/hooks/use-active-tab";
 import { projectFolderPath } from "@/client/lib/show-in-files";
 import { storageLocationQueryOptions } from "@/client/lib/output-folder";
 import { rpcClient } from "@/client/rpc/client";
@@ -8,27 +6,21 @@ import { folderHref } from "@/shared/computer-href";
 import { draftOfGroup } from "@/shared/drafts";
 import { NO_SIDEBAR_CHANGES, pinnedPlaces } from "@/shared/sidebar-places";
 import { folderNameFromPath } from "@instrument-org/shared";
-import { MagnifyingGlassIcon } from "@phosphor-icons/react/MagnifyingGlass";
 import { useQuery } from "@tanstack/react-query";
 import { useAtomValue } from "jotai";
-import { type ReactNode, useEffect, useRef } from "react";
+import { type ReactNode } from "react";
 
 import { chatListOptions } from "./chat-list-query";
-import { useWindow } from "./context";
 import { FolderMark } from "./folder-mark";
-import { Omnibar } from "./omnibar";
 import { ProjectMark } from "./project-mark";
 import { useShell } from "./shell-context";
 import { chatOfGroup } from "./window-href";
 import { useWindowTabs } from "./window-tabs";
 
 /**
- * A new tab in a group, the way a browser's is: the Instrument mark over the
- * address field, which has the caret, finishes addresses and searches the
- * web, and under it the Files sidebar's places in a light row, each turning
- * the tab into Files there. A pale glint crosses the field as the tab
- * arrives. The top of the tab is left clear for the toolbar and bookmarks
- * over it, and ⌘L puts the caret in this field (`focusField`).
+ * What a new tab in a group shows under its toolbar and bookmarks: the
+ * places the Files sidebar keeps, as the Finder's sidebar lists them, each
+ * turning the tab into Files there. The address field is the toolbar's.
  */
 export function GroupNewTab({
   group,
@@ -38,84 +30,93 @@ export function GroupNewTab({
   tabId: string;
 }) {
   const windowTabs = useWindowTabs();
-  const { browser } = useWindow();
-  const isActive = useIsActiveTab();
-  const fieldRef = useRef<HTMLDivElement>(null);
-  const places = useFilesPlaces(group);
-
-  // The caret in the field whenever the tab comes up, wherever the keyboard
-  // was: a new tab is asked for to type an address.
-  useEffect(() => {
-    if (isActive) {
-      fieldRef.current?.querySelector("input")?.focus();
-    }
-  }, [isActive]);
-
+  const { project, places } = useFilesPlaces(group);
   const openFolder = (path: string) => {
     windowTabs.visitHref(tabId, folderHref(path));
   };
-
   return (
     <div className="h-full overflow-y-auto bg-background px-8">
-      <div className="mx-auto flex w-full max-w-160 flex-col items-center pt-[max(18vh,--spacing(16))] pb-16">
-        <AnimatedOutlineBrandIconGlyph className="size-14 text-brown-500/34 dark:text-brown-900/60" />
-        <div
-          className="relative mt-8 flex h-12 w-full items-center gap-3 rounded-2xl bg-card px-4 text-sm shadow-sm-soft ring-1 ring-border"
-          data-new-tab-field=""
-          ref={fieldRef}
-        >
-          <MagnifyingGlassIcon className="size-4 shrink-0 text-muted-foreground" />
-          <Omnibar
-            location={{ kind: "newTab" }}
-            onSite={(url) => {
-              const tab = windowTabs.allTabs.find(
-                (entry) => entry.id === tabId,
-              );
-              browser?.open(url, {
-                group,
-                ...(tab ? { replacing: tab } : {}),
-              });
-            }}
-            onVisit={(href) => {
-              windowTabs.visitHref(tabId, href);
-            }}
-          />
-          <span
-            aria-hidden
-            className="pointer-events-none absolute -inset-0.5 field-glint rounded-[18px]"
-          />
-        </div>
-        {places.length > 0 && (
-          <div className="mt-5 flex flex-wrap justify-center gap-1">
-            {places.map((place) => (
-              <button
-                className="flex h-7 items-center gap-1.5 rounded-lg px-2 text-[13px] text-muted-foreground hover:bg-foreground/6 hover:text-foreground"
-                key={place.path}
-                onClick={() => {
-                  openFolder(place.path);
-                }}
-                title={place.path}
-                type="button"
-              >
-                {place.icon}
-                {place.name}
-              </button>
-            ))}
-          </div>
+      <nav
+        aria-label="Places"
+        className="mx-auto flex w-full max-w-64 flex-col gap-4 pt-[max(14vh,--spacing(12))] pb-12 text-[13px]"
+      >
+        {project && (
+          <PlaceSection label="Project">
+            <PlaceRow onOpen={openFolder} place={project} />
+          </PlaceSection>
         )}
-      </div>
+        {places.length > 0 && (
+          <PlaceSection label="Places">
+            {places.map((place) => (
+              <PlaceRow key={place.path} onOpen={openFolder} place={place} />
+            ))}
+          </PlaceSection>
+        )}
+      </nav>
     </div>
   );
 }
 
+/** A heading the Finder's sidebar would give a run of places, small and dim, over them. */
+function PlaceSection({
+  children,
+  label,
+}: {
+  children: ReactNode;
+  label: string;
+}) {
+  return (
+    <section>
+      <h2 className="px-2 pb-1 text-[11px] font-semibold text-muted-foreground/70">
+        {label}
+      </h2>
+      <ul className="flex flex-col gap-px">{children}</ul>
+    </section>
+  );
+}
+
+interface Place {
+  icon: ReactNode;
+  name: string;
+  path: string;
+}
+
+/** A place as a row of the Finder's sidebar: its mark and its name. */
+function PlaceRow({
+  onOpen,
+  place,
+}: {
+  onOpen: (path: string) => void;
+  place: Place;
+}) {
+  return (
+    <li>
+      <button
+        className="flex h-7 w-full cursor-default items-center gap-2 rounded-md px-2 text-left text-foreground/85 hover:bg-foreground/6 hover:text-foreground"
+        onClick={() => {
+          onOpen(place.path);
+        }}
+        title={place.path}
+        type="button"
+      >
+        <span className="flex size-4 shrink-0 items-center justify-center">
+          {place.icon}
+        </span>
+        <span className="min-w-0 truncate">{place.name}</span>
+      </button>
+    </li>
+  );
+}
+
 /**
- * The places the Files sidebar keeps, in its order, with the group's
- * project folder first when it is filed under one: the workspace, then
- * Pinned as the person left it. Recents and the disks stay in Files.
+ * The places the Files sidebar keeps, in its order: the workspace, then
+ * Pinned as the person left it, and apart from them the group's project
+ * folder when it is filed under one. Recents and the disks stay in Files.
  */
-function useFilesPlaces(
-  group: string,
-): { icon: ReactNode; name: string; path: string }[] {
+function useFilesPlaces(group: string): {
+  places: Place[];
+  project: Place | undefined;
+} {
   const shell = useShell();
   const drafts = useAtomValue(draftsAtom);
   const location = useQuery(storageLocationQueryOptions()).data;
@@ -143,22 +144,21 @@ function useFilesPlaces(
     preferences.data?.sidebarPlaces ?? NO_SIDEBAR_CHANGES,
     (path) => ({ name: folderNameFromPath(path), path }),
   );
-  return [
-    ...(project && location
-      ? [
-          {
-            icon: <ProjectMark project={project} size="sm" />,
-            name: project.name,
-            path: projectFolderPath(location.rootDir, project.name),
-          },
-        ]
-      : []),
-    ...[...(instrumentPlace ? [instrumentPlace] : []), ...pinned].map(
+  return {
+    places: [...(instrumentPlace ? [instrumentPlace] : []), ...pinned].map(
       (place) => ({
-        icon: <FolderMark path={place.path} />,
+        icon: <FolderMark path={place.path} size="large" />,
         name: place.name,
         path: place.path,
       }),
     ),
-  ];
+    project:
+      project && location
+        ? {
+            icon: <ProjectMark project={project} size="sm" />,
+            name: project.name,
+            path: projectFolderPath(location.rootDir, project.name),
+          }
+        : undefined,
+  };
 }

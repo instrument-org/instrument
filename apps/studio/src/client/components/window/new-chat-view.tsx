@@ -1,4 +1,5 @@
 import { draftSnapshotsAtom } from "@/client/atoms/prompt-value";
+import { AnimatedOutlineBrandIconGlyph } from "@/client/components/brand-icon";
 import {
   APPS_HREF,
   BROWSER_HREF,
@@ -26,13 +27,10 @@ import {
   pickNewChatProjectAtom,
 } from "@/client/drafts/new-chat-box";
 import { cancelWords } from "@/client/drafts/settle-words";
-import {
-  createDraftAtom,
-  draftsAtom,
-  updateDraftAtom,
-} from "@/client/drafts/store";
+import { draftsAtom, updateDraftAtom } from "@/client/drafts/store";
 import { type Draft, draftGroupOf } from "@/shared/drafts";
-import { osConventions } from "@/client/lib/utils";
+import { cn, osConventions } from "@/client/lib/utils";
+import { APP_NAME } from "@instrument-org/shared";
 import { useRouter } from "@tanstack/react-router";
 import { useAtomValue, useSetAtom, useStore } from "jotai";
 import {
@@ -42,15 +40,12 @@ import {
   useLayoutEffect,
   useRef,
 } from "react";
-import { ulid } from "ulid";
 
 import { AskPills } from "./ask-pills";
-import { PopOutButton } from "./chat-header";
 import { type Project } from "./chats";
 import { projectColor } from "./project-colors";
 import { ProjectMark } from "./project-mark";
 import { projectTint } from "./project-tint";
-import { ProjectSlot } from "./compose-window";
 import { useComposerAddress } from "./composer-address";
 import { ContextChips } from "./context-chip";
 import { type BandTarget, openInBand } from "./draft-band";
@@ -65,14 +60,14 @@ import { newChatHref } from "./window-href";
 import { useWindowTabs } from "./window-tabs";
 
 /**
- * A new chat, written in the Chat screen beside the chat list: the room a
- * chat would have, with the chat's own composer at its foot and nothing made
- * until something is written in it. The draft its first words make is named
- * in the tab's address, so a draft expanded from its window, or opened from
- * Drafts, comes up here, and the pages and folders opened beside it stand in
- * the chat's side panel as the chat's would. Its head is a chat's head: the
- * project it will be filed under after its name, the pop-out under a hand,
- * and at its right whatever the screen adds.
+ * A new chat, written in its tab group: the room a chat would have, with the
+ * chat's own composer and nothing made until something is written in it.
+ * Filling the group, it opens as a new chat did in 1.0: the composer at the
+ * middle, under the Instrument mark and a line, a pale glint crossing it as
+ * it arrives. In the column beside the group's tabs, the composer is at the
+ * foot. The draft its first words make is named in the tab's address, so a
+ * draft opened from History comes up here. What it carries besides its words
+ * follows the group's tab up. Its title and menu are the chat's tab's.
  *
  * Its draft is its tab group's, kept however empty it gets while the group
  * is open; closing the group throws away one that holds nothing.
@@ -80,17 +75,19 @@ import { useWindowTabs } from "./window-tabs";
 export function NewChatView({
   draftId,
   ensureGroup,
+  isCentered,
   isPaneShown,
   onAddress,
   onOpenBeside,
   tabId,
   takesCaret,
-  trailing,
 }: {
   /** The draft the tab's address names, if it names one. */
   draftId: string | undefined;
   /** The group the new chat's tabs are kept under, making its draft first when it has none. */
   ensureGroup: () => string;
+  /** Whether it fills its group, with the composer at the middle rather than at the foot. */
+  isCentered: boolean;
   /** Whether the side panel shows the draft's tab up, where its tabs stand as a strip rather than as chips. */
   isPaneShown: boolean;
   /** Opens a page an address or a search typed into the composer names; given, the composer offers them. */
@@ -100,8 +97,6 @@ export function NewChatView({
   tabId: string;
   /** Whether its composer takes the caret: while nothing beside it has a field of its own. */
   takesCaret: boolean;
-  /** What sits at the head's right: the pane button. */
-  trailing?: ReactNode;
 }) {
   const shell = useShell();
   const router = useRouter();
@@ -112,11 +107,9 @@ export function NewChatView({
   const boxes = useAtomValue(newChatBoxesAtom);
   const bindBox = useSetAtom(bindNewChatBoxAtom);
   const makeDraft = useSetAtom(makeNewChatDraftAtom);
-  const pickProject = useSetAtom(pickNewChatProjectAtom);
   const updateDraft = useSetAtom(updateDraftAtom);
   const snapshots = useAtomValue(draftSnapshotsAtom);
   const setSnapshots = useSetAtom(draftSnapshotsAtom);
-  const createDraft = useSetAtom(createDraftAtom);
   const inputRef = useRef<PromptInputRef>(null);
   const draft = draftInNewChatBox(drafts, boxes, tabId);
   const boundId = boxes[tabId]?.draftId ?? null;
@@ -194,16 +187,14 @@ export function NewChatView({
   }, [boundId, draftId, router, store, tabId]);
 
   const group = draft ? draftGroupOf(draft.id) : undefined;
-  const tabs =
-    group === undefined
-      ? []
-      : windowTabs.allTabs.filter((tab) => tab.group === group);
   const up = isPaneShown ? windowTabs.selectedTabIn(group) : undefined;
   // What the side panel shows: the attached file or folder there has its
   // chip raised, and a second press puts the panel away.
   const shownPath = up ? includedItemsOf(up, null, [])?.[0]?.path : undefined;
+  // What the draft carries is the tab up, as a chat's next message does,
+  // and nothing for a new tab.
   const chips = useNewChatChips(draft, {
-    band: tabs.filter((tab) => !isHomeTab(tab)),
+    band: up && !isHomeTab(up) ? [up] : [],
     onSelect: (id) => {
       if (group === undefined) {
         return;
@@ -232,10 +223,8 @@ export function NewChatView({
   });
   useFolderItems({ draft, input: inputRef, staging });
 
-  const projects = shell.projects;
-  const liveProjects = projects.filter((entry) => !entry.retired);
   const projectId = draft?.projectId ?? boxes[tabId]?.projectId;
-  const project = projects.find((entry) => entry.id === projectId);
+  const project = shell.projects.find((entry) => entry.id === projectId);
   // Beside the list standing in the project it is filed under, the new chat
   // is that project's room, and says so.
   const listProjects = useAtomValue(chatFiltersAtom).projects;
@@ -279,79 +268,26 @@ export function NewChatView({
 
   return (
     <FileDropRegion className="flex h-full min-h-0 flex-col">
-      {/* The head shares the window's top line with the group's tabs, so
-          the room between its controls drags the window. */}
-      <div className="group/head flex h-10 w-full min-w-0 shrink-0 items-center gap-x-2 bg-background pr-2 pl-3 [-webkit-app-region:drag] [&_button]:[-webkit-app-region:no-drag] [&_input]:[-webkit-app-region:no-drag]">
-        <div className="flex h-8 min-w-0 flex-1 items-center gap-x-1">
-          <h2 className="min-w-0 truncate text-sm font-medium">New chat</h2>
-          <ProjectSlot
-            onClear={() => {
-              if (draft) {
-                updateDraft({
-                  id: draft.id,
-                  update: (current) => {
-                    const { projectId: _dropped, ...rest } = current;
-                    return { ...rest, projectSource: "chosen" };
-                  },
-                });
-              } else {
-                pickProject({ projectId: undefined, tabId });
-              }
-            }}
-            onNew={(name) => {
-              shell.onNewDraftProject(draft?.id ?? makeDraft({ tabId }), name);
-            }}
-            onPick={(picked) => {
-              if (draft) {
-                updateDraft({
-                  id: draft.id,
-                  update: (current) => ({
-                    ...current,
-                    projectId: picked.id,
-                    projectSource: "chosen",
-                  }),
-                });
-              } else {
-                pickProject({ projectId: picked.id, tabId });
-              }
-            }}
-            project={project}
-            projects={liveProjects}
-            suggested={draft?.projectSource === "suggested"}
-          />
-          <PopOutButton
-            isOut={false}
-            onToggle={() => {
-              if (draft) {
-                shell.popOutDraft(draft.id);
-                return;
-              }
-              // A new chat with nothing in it yet pops out as a draft of
-              // its own, made outside this screen's box, which would throw
-              // an empty draft away.
-              const now = Date.now();
-              const picked = boxes[tabId]?.projectId;
-              const id = ulid();
-              createDraft({
-                createdAt: now,
-                id,
-                ...(picked === undefined
-                  ? {}
-                  : { projectId: picked, projectSource: "chosen" }),
-                updatedAt: now,
-                words: "",
-              });
-              shell.popOutDraft(id);
-            }}
-          />
-        </div>
-        <div className="flex h-8 shrink-0 items-center gap-x-1">{trailing}</div>
-      </div>
-      <div className="grid min-h-0 flex-1 place-items-center overflow-hidden px-6">
-        {roomOf && <ProjectRoom key={roomOf.id} project={roomOf} />}
+      {/* Over the composer: filling the group, the mark and its line, with
+          the composer at the middle; in the column, the room over a
+          composer at the foot. */}
+      <div
+        className={cn(
+          "flex min-h-0 flex-1 flex-col items-center overflow-hidden px-6",
+          isCentered ? "justify-end pb-12" : "justify-center",
+        )}
+      >
+        {roomOf ? (
+          <ProjectRoom key={roomOf.id} project={roomOf} />
+        ) : (
+          isCentered && <NewChatIntro />
+        )}
       </div>
       <div
-        className="relative isolate mx-auto w-full max-w-3xl shrink-0 px-3 pb-3"
+        className={cn(
+          "relative isolate mx-auto w-full shrink-0 px-3",
+          isCentered ? "max-w-2xl" : "max-w-3xl pb-3",
+        )}
         {...(onAddress ? address.boxProps : {})}
       >
         {onAddress && address.rows}
@@ -394,14 +330,82 @@ export function NewChatView({
             // its place from its first frame.
             shell.startChat(id, send);
           }}
-          placeholder="What do you need?"
+          placeholder={`Talk to ${APP_NAME}`}
           places={places}
           ref={inputRef}
         />
+        {/* Drawn again for each new chat that fills its group, so the glint
+            crosses the composer as the chat arrives. */}
+        {isCentered && (
+          <span
+            aria-hidden
+            className="pointer-events-none absolute -top-0.5 right-2.5 -bottom-0.5 left-2.5 z-10 field-glint rounded-[20px]"
+            key={draftId ?? tabId}
+          />
+        )}
       </div>
+      {/* As much room under the composer as over it, so it stands at the
+          middle. */}
+      <div className={cn("min-h-0", isCentered ? "flex-1" : "hidden")} />
       {draft && <ProjectSuggestion draft={draft} />}
     </FileDropRegion>
   );
+}
+
+/** The Instrument mark over a line, as a new chat in 1.0 opened under them. */
+function NewChatIntro() {
+  return (
+    <div className="flex flex-col items-center gap-y-5">
+      <AnimatedOutlineBrandIconGlyph className="size-18 text-brown-300/34 dark:text-brown-900/34" />
+      <h1 className="font-serif text-2xl leading-none font-normal tracking-[-0.03em] whitespace-nowrap text-foreground @xl/app-content:text-3xl @3xl/app-content:text-4xl">
+        How can I help?
+      </h1>
+    </div>
+  );
+}
+
+/**
+ * The project a new chat is filed under, and filing it under another or
+ * none, for the chat's tab's menu: kept with its draft, or with its
+ * composer until the first words make one.
+ */
+export function useNewChatProject(tabId: string) {
+  const shell = useShell();
+  const drafts = useAtomValue(draftsAtom);
+  const boxes = useAtomValue(newChatBoxesAtom);
+  const makeDraft = useSetAtom(makeNewChatDraftAtom);
+  const pickProject = useSetAtom(pickNewChatProjectAtom);
+  const updateDraft = useSetAtom(updateDraftAtom);
+  const draft = draftInNewChatBox(drafts, boxes, tabId);
+  const projectId = draft?.projectId ?? boxes[tabId]?.projectId;
+  /** Files the new chat under a project, or under none with `undefined`. */
+  const pick = (picked: string | undefined) => {
+    if (!draft) {
+      pickProject({ projectId: picked, tabId });
+      return;
+    }
+    updateDraft({
+      id: draft.id,
+      update: (current) => {
+        if (picked !== undefined) {
+          return { ...current, projectId: picked, projectSource: "chosen" };
+        }
+        const { projectId: _dropped, ...rest } = current;
+        return { ...rest, projectSource: "chosen" };
+      },
+    });
+  };
+  return {
+    onNew: (name?: string) => {
+      shell.onNewDraftProject(draft?.id ?? makeDraft({ tabId }), name ?? "");
+    },
+    /** Picking the project it is under takes it off; any other files it there. */
+    onPick: (id: string) => {
+      pick(projectId === id ? undefined : id);
+    },
+    projectId,
+    projects: shell.projects,
+  };
 }
 
 /** The project a new chat beside its list opens in: its mark, its name, and where the chat goes. */

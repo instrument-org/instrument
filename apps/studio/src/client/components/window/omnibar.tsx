@@ -171,13 +171,17 @@ export interface OmniRow {
  * with a second field drawn on it.
  */
 export function Omnibar({
+  hint,
   initial = "",
   liveAddress,
   location,
   onSite,
   onVisit,
   resting,
+  takesCaret = true,
 }: {
+  /** What the field shows at its end while it is empty and has no caret: the keys that put the caret in it. */
+  hint?: ReactNode;
   /** What the field says when it is edited: the place, ready to be typed over. */
   initial?: string;
   /**
@@ -197,6 +201,8 @@ export function Omnibar({
    * Absent on a new tab, which has nowhere to show and takes the caret at once.
    */
   resting?: ReactNode;
+  /** Whether an empty field takes the caret as it arrives; false where something beside it has the caret first. */
+  takesCaret?: boolean;
 }) {
   const mode = omnibarModeOf(location);
   const { openPage } = useWindow();
@@ -225,6 +231,7 @@ export function Omnibar({
   const takeFocus = useEffectEvent(() => {
     const held = document.activeElement;
     if (
+      takesCaret &&
       resting === undefined &&
       !(
         isTypingTarget(held) &&
@@ -537,6 +544,7 @@ export function Omnibar({
         type="text"
         value={shown}
       />
+      {hint !== undefined && query === "" && !isFocused && hint}
       {isListShown && (rows.length > 0 || empty || notice) ? (
         // A press on a row must not take the caret first: the box would blur,
         // the list would go, and the click would land on nothing.

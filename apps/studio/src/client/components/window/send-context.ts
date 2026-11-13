@@ -364,12 +364,16 @@ export function contextReaders({
       tabs: [...describeTabs(own), ...named],
     };
   };
-  /** The items a draft carries now; see draftContextItems. */
+  /**
+   * The items a draft carries now (see draftContextItems): its group's tab
+   * up, as its composer shows it, and none for a new tab.
+   */
   const draftItems = (draft: Draft) => {
     const group = draftGroupOf(draft.id);
+    const up = windowTabs.selectedTabIn(group);
     return draftContextItems({
       allTabs: windowTabs.allTabs,
-      band: windowTabs.allTabs.filter((tab) => tab.group === group),
+      band: up && !isHomeTab(up) ? [up] : [],
       draft,
       finderOf,
       group,

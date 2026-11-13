@@ -388,7 +388,7 @@ describe("draftContext", () => {
     await expect(draftContext(DRAFT.id)).resolves.toBeUndefined();
   });
 
-  it("sends the band's page and the draft's tabs as the chat starts", async () => {
+  it("attaches only the tab up as the chat starts, and lists the draft's other tabs", async () => {
     const band: WindowTab = {
       group: GROUP,
       id: "band",
@@ -416,11 +416,6 @@ describe("draftContext", () => {
             "kind": "page",
             "title": "Hotels",
             "url": "https://hotels.example/",
-          },
-          {
-            "kind": "screen",
-            "title": "Chat",
-            "url": "/chats/2026-10-01-lisbon",
           },
         ],
         "page": {

@@ -2,19 +2,14 @@ import { ToolbarTooltip } from "@/client/components/toolbar-tooltip";
 import { Button } from "@/client/components/ui/button";
 import {
   DropdownMenu,
-  DropdownMenuCheckboxItem,
   DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuSeparator,
-  DropdownMenuSub,
-  DropdownMenuSubContent,
-  DropdownMenuSubTrigger,
   DropdownMenuTrigger,
 } from "@/client/components/ui/dropdown-menu";
 import { MenuScrollArea } from "@/client/components/ui/menu-scroll-area";
 import { toolbarClassName } from "@/client/components/ui/toggle";
 import { cn } from "@/client/lib/utils";
 import { rpcClient } from "@/client/rpc/client";
+import { FolderSimpleIcon } from "@phosphor-icons/react/FolderSimple";
 import { PencilSimpleIcon } from "@phosphor-icons/react/PencilSimple";
 import { PictureInPictureIcon } from "@phosphor-icons/react/PictureInPicture";
 import { PlusIcon } from "@phosphor-icons/react/Plus";
@@ -25,7 +20,10 @@ import { useMutation } from "@tanstack/react-query";
 import { type ComponentProps, type ReactNode, useRef, useState } from "react";
 
 import { TaskBackgroundProcesses } from "../task/task-background-processes";
-import { dropdownMenuComponents } from "@/client/components/ui/menu-components";
+import {
+  dropdownMenuComponents,
+  type MenuComponents,
+} from "@/client/components/ui/menu-components";
 import { ChatCopyMenu } from "./chat-copy-menu";
 import { chatMenuGroups, useChatActions } from "./chat-actions";
 import { ProjectPill } from "./chat-row";
@@ -145,7 +143,7 @@ export function ChatHeader({
  * small window, shown under a hand over the head; lit, and always there,
  * while it is out, when pressing it brings the conversation back.
  */
-export function PopOutButton({
+function PopOutButton({
   isOut,
   onToggle,
 }: {
@@ -287,11 +285,8 @@ function ChatHeading({
 }
 
 /**
- * The chat's own menu, opened from the caret after its title: while the chat works, Stop,
- * which ends its turn and every task's; then the inbox row's menu in the
- * same groups and order (see `chatMenuGroups`), with renaming it, which
- * opens the title's field, among the ways to organize it, and deleting it at
- * the foot. Its project is the pill beside the title.
+ * The chat's own menu, opened from the caret after its title (see
+ * `ChatMenuItems`).
  */
 function ChatMenu({
   chat,
@@ -307,27 +302,10 @@ function ChatMenu({
   onDelete: () => void;
   rename: ChatRename;
   /** The projects to file the chat under, as a submenu, when the head that owns the menu files it. */
-  projectMenu?: {
-    onNew: (name?: string) => void;
-    onPick: (id: string) => void;
-    projects: Project[];
-  };
+  projectMenu?: ChatProjectMenu;
   /** What opens it: the caret after the chat's title. */
   trigger: ReactNode;
 }) {
-  const groups = chatMenuGroups(useChatActions(chat));
-  const live = projectMenu?.projects.filter((entry) => !entry.retired) ?? [];
-  const stop = useMutation(rpcClient.workspace.session.stop.mutationOptions());
-  const item = (action: RowAction) => (
-    <DropdownMenuItem
-      key={action.id}
-      onSelect={action.run}
-      variant={action.developerMode ? "developer" : "default"}
-    >
-      {action.icon}
-      {action.label}
-    </DropdownMenuItem>
-  );
   // The menu hands focus back to its trigger as it closes, which would land
   // after the field took it and blur the rename shut.
   const renaming = useRef(false);
@@ -344,94 +322,185 @@ function ChatMenu({
           }
         }}
       >
-        {chat.status === "working" && (
-          <>
-            <DropdownMenuItem
-              onSelect={() => {
-                stop.mutate({ id: chat.id });
-              }}
-            >
-              <StopIcon className="size-3.5" />
-              Stop
-            </DropdownMenuItem>
-            <DropdownMenuSeparator />
-          </>
-        )}
-        {groups.marks.map(item)}
-        <DropdownMenuSeparator />
-        <DropdownMenuItem
-          onSelect={() => {
+        <ChatMenuItems
+          chat={chat}
+          components={dropdownMenuComponents}
+          onArchived={onArchived}
+          onDelete={onDelete}
+          onRename={() => {
             renaming.current = true;
             rename.start();
           }}
-        >
-          <PencilSimpleIcon className="size-3.5" />
-          Rename
-        </DropdownMenuItem>
-        {projectMenu && (
-          <DropdownMenuSub>
-            <DropdownMenuSubTrigger>
-              <CardsThreeIcon className="size-3.5" />
-              Project
-            </DropdownMenuSubTrigger>
-            <DropdownMenuSubContent className="flex w-56 flex-col p-0">
-              {live.length > 0 && (
-                <MenuScrollArea className="max-h-80">
-                  {live.map((entry) => (
-                    <DropdownMenuCheckboxItem
-                      checked={chat.project === entry.id}
-                      key={entry.id}
-                      onSelect={() => {
-                        projectMenu.onPick(entry.id);
-                      }}
-                    >
-                      <ProjectMark project={entry} />
-                      <span className="truncate">{entry.name}</span>
-                    </DropdownMenuCheckboxItem>
-                  ))}
-                </MenuScrollArea>
-              )}
-              <div
-                className={cn(
-                  "shrink-0 p-1",
-                  live.length > 0 && "border-t border-border",
-                )}
-              >
-                <DropdownMenuItem
-                  onSelect={() => {
-                    projectMenu.onNew();
-                  }}
-                >
-                  <PlusIcon className="size-3.5" />
-                  New project…
-                </DropdownMenuItem>
-              </div>
-            </DropdownMenuSubContent>
-          </DropdownMenuSub>
-        )}
-        <DropdownMenuSeparator />
-        {groups.files.map(item)}
-        <ChatCopyMenu chat={chat} menu={dropdownMenuComponents} />
-        <DropdownMenuSeparator />
-        {groups.feedback.map(item)}
-        <DropdownMenuSeparator />
-        {groups.put.map((action) =>
-          action.id === "archive"
-            ? item({
-                ...action,
-                run: () => {
-                  action.run();
-                  onArchived?.();
-                },
-              })
-            : item(action),
-        )}
-        <DropdownMenuSeparator />
-        <DropdownMenuItem onSelect={onDelete} variant="destructive">
-          <TrashIcon className="size-3.5" />
-          Delete chat…
-        </DropdownMenuItem>
+          projectMenu={projectMenu}
+        />
       </DropdownMenuContent>
     </DropdownMenu>
+  );
+}
+
+/** The projects a chat's menu files it under. */
+export interface ChatProjectMenu {
+  onNew: (name?: string) => void;
+  onPick: (id: string) => void;
+  projects: Project[];
+}
+
+/**
+ * A chat's own menu, in a dropdown or under a right-click alike: while the
+ * chat works, Stop, which ends its turn and every task's; the chat's own
+ * folder where the menu opens it; then the inbox
+ * row's menu in the same groups and order (see `chatMenuGroups`), with
+ * renaming it among the ways to organize it, and deleting it at the foot.
+ */
+export function ChatMenuItems({
+  chat,
+  components: menu,
+  onArchived,
+  onDelete,
+  onRename,
+  onShowFolder,
+  projectMenu,
+}: {
+  chat: Chat;
+  components: MenuComponents;
+  /** After the chat is archived from this menu, for a place that should go with it. */
+  onArchived?: (() => void) | undefined;
+  onDelete: () => void;
+  onRename: () => void;
+  /** Opens the chat's own folder beside it, where the menu offers that: while the folder has files. */
+  onShowFolder?: (() => void) | undefined;
+  /** The projects to file the chat under, as a submenu, where the menu files it. */
+  projectMenu?: ChatProjectMenu | undefined;
+}) {
+  const groups = chatMenuGroups(useChatActions(chat));
+  const stop = useMutation(rpcClient.workspace.session.stop.mutationOptions());
+  const item = (action: RowAction) => (
+    <menu.Item
+      key={action.id}
+      onSelect={action.run}
+      variant={action.developerMode ? "developer" : "default"}
+    >
+      {action.icon}
+      {action.label}
+    </menu.Item>
+  );
+  return (
+    <>
+      {chat.status === "working" && (
+        <>
+          <menu.Item
+            onSelect={() => {
+              stop.mutate({ id: chat.id });
+            }}
+          >
+            <StopIcon className="size-3.5" />
+            Stop
+          </menu.Item>
+          <menu.Separator />
+        </>
+      )}
+      {onShowFolder && (
+        <>
+          <menu.Item onSelect={onShowFolder}>
+            <FolderSimpleIcon className="size-3.5" />
+            Show Chat Folder
+          </menu.Item>
+          <menu.Separator />
+        </>
+      )}
+      {groups.marks.map(item)}
+      <menu.Separator />
+      <menu.Item onSelect={onRename}>
+        <PencilSimpleIcon className="size-3.5" />
+        Rename
+      </menu.Item>
+      {projectMenu && (
+        <ProjectMenuItems
+          chosen={chat.project}
+          components={menu}
+          projectMenu={projectMenu}
+        />
+      )}
+      <menu.Separator />
+      {groups.files.map(item)}
+      <ChatCopyMenu chat={chat} menu={menu} />
+      <menu.Separator />
+      {groups.feedback.map(item)}
+      <menu.Separator />
+      {groups.put.map((action) =>
+        action.id === "archive"
+          ? item({
+              ...action,
+              run: () => {
+                action.run();
+                onArchived?.();
+              },
+            })
+          : item(action),
+      )}
+      <menu.Separator />
+      <menu.Item onSelect={onDelete} variant="destructive">
+        <TrashIcon className="size-3.5" />
+        Delete chat…
+      </menu.Item>
+    </>
+  );
+}
+
+/**
+ * Project, as a submenu of a chat's menu: the projects to file it under,
+ * the one it is under ticked, and New project….
+ */
+export function ProjectMenuItems({
+  chosen,
+  components: menu,
+  projectMenu,
+}: {
+  /** The project it is filed under, by its id. */
+  chosen: string | undefined;
+  components: MenuComponents;
+  projectMenu: ChatProjectMenu;
+}) {
+  const live = projectMenu.projects.filter((entry) => !entry.retired);
+  return (
+    <menu.Sub>
+      <menu.SubTrigger>
+        <CardsThreeIcon className="size-3.5" />
+        Project
+      </menu.SubTrigger>
+      <menu.SubContent className="flex w-56 flex-col p-0">
+        {live.length > 0 && (
+          <MenuScrollArea className="max-h-80">
+            {live.map((entry) => (
+              <menu.CheckboxItem
+                checked={chosen === entry.id}
+                key={entry.id}
+                onSelect={() => {
+                  projectMenu.onPick(entry.id);
+                }}
+              >
+                <ProjectMark project={entry} />
+                <span className="truncate">{entry.name}</span>
+              </menu.CheckboxItem>
+            ))}
+          </MenuScrollArea>
+        )}
+        <div
+          className={cn(
+            "shrink-0 p-1",
+            live.length > 0 && "border-t border-border",
+          )}
+        >
+          <menu.Item
+            onSelect={() => {
+              projectMenu.onNew();
+            }}
+          >
+            <PlusIcon className="size-3.5" />
+            New project…
+          </menu.Item>
+        </div>
+      </menu.SubContent>
+    </menu.Sub>
   );
 }

@@ -3,6 +3,7 @@ import { getGuest, onPageThumb } from "@/client/lib/browser-pool";
 import { registerHistorySurface } from "@/client/lib/history-surfaces";
 import { hostPathOfFileUrl } from "@/client/lib/file-url";
 import { useGroupTabRouter } from "@/client/lib/group-tab-router-registry";
+import { useIsActiveTab } from "@/client/hooks/use-active-tab";
 import { browserTargetOf } from "@instrument-org/workspace/client";
 import { ArrowClockwiseIcon } from "@phosphor-icons/react/ArrowClockwise";
 import { RouterProvider } from "@tanstack/react-router";
@@ -152,6 +153,16 @@ export function GroupItem({
 
   // The router of a screen that is up; read before the early returns, as a hook.
   const router = useGroupTabRouter(up.id);
+  // A new tab is asked for to type an address, so its field takes the caret
+  // whenever the tab comes up, wherever the keyboard was.
+  const isActive = useIsActiveTab();
+  useEffect(() => {
+    if (isNewTab && isShown && isActive) {
+      anchorRef.current
+        ?.querySelector<HTMLInputElement>("[data-tab-location] input")
+        ?.focus();
+    }
+  }, [isActive, isNewTab, isShown, up.id]);
 
   /** Where the page on a file up here stands now: the page tab's own, or the one a file's viewer draws. */
   const liveAddressOf = (path: string) =>
@@ -238,10 +249,8 @@ export function GroupItem({
       </Bare>
     );
   }
-  // The new tab every group opens on, and keeps when nothing else is open:
-  // the web's start, whose page takes its place. Its own page takes
-  // addresses, so its toolbar is the arrows and a reload with no page to
-  // reload, over the bookmarks.
+  // A new tab, as a browser's: the toolbar's address field, with a reload
+  // for no page yet, over the bookmarks, and the places to open in Files.
   if (isNewTab) {
     return (
       <Bare
@@ -252,10 +261,13 @@ export function GroupItem({
               canGoBack={canGoBack}
               canGoForward={canGoForward}
               className="border-b-0"
-              hasField={false}
               location={screenLocation(up.href, { appsBySlug, taskTitles })}
               onBack={goBack}
               onForward={goForward}
+              onSite={openHere}
+              onVisit={(href) => {
+                windowTabs.visitHref(up.id, href);
+              }}
               reload={
                 <TabRowControl
                   chord="reloadPage"

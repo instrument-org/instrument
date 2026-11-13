@@ -51,6 +51,7 @@ import { keptInOtherWindows } from "@/client/lib/kept-state";
 import { resolveComputerFileBase } from "@/client/lib/computer-file-url";
 import { ICON_CONTEXT_VALUE } from "@/client/lib/icon-context";
 import {
+  focusChatComposer,
   focusScreenHome,
   installKeyboardHome,
 } from "@/client/lib/keyboard-home";
@@ -1138,15 +1139,13 @@ function WindowShell({
     }
   }, [pickNewChatProject, standingProject, store]);
   /**
-   * The tab up to one of the rail's places, from the rail, its chords, or the
-   * command menu. Chat asked for is the inbox asked for too, even where the
-   * row is narrow enough that it stepped aside. Peeked out already, the list
-   * stays where it is drawn rather than sliding in again under it. The
-   * place the tab is already in takes it back to its root (the inbox, the
-   * home folder, the browser's start, the apps), except that a chat
-   * with its inbox put away gets the inbox back first and stays open. A
-   * place asked for in a tab of its own waits behind, the way a bookmark
-   * middle-clicked in a browser does.
+   * The tab up to one of the places, from their chords, the command menu or
+   * a place's mark in the address row. Chat is the chat of the tab group up:
+   * its column opens when it was put away, and its composer takes the
+   * keyboard. The place the tab is already in takes it back to its root (the
+   * home folder, the browser's start, the apps). A place asked for in a tab
+   * of its own waits behind, the way a bookmark middle-clicked in a browser
+   * does.
    */
   const choosePlace = (
     next: AppPlace,
@@ -1156,18 +1155,16 @@ function WindowShell({
       appTabs.goToPlace(next, { newWindow });
       return;
     }
-    const bringsInboxBack =
-      next === "chat" && chatUp !== undefined && !isInboxOpen;
     if (next === "chat") {
-      if (inboxPeek.isOpen) {
-        setInboxLandsAtOnce(true);
+      const group = groups.groupUp();
+      if (group !== undefined) {
+        groups.setChatOpen(group, true);
+        focusChatComposer();
       }
-      setInboxOpen(true);
+      return;
     }
     if (next === place && !newTab) {
-      if (!bringsInboxBack) {
-        appTabs.goToPlace(next, { root: true });
-      }
+      appTabs.goToPlace(next, { root: true });
       return;
     }
     appTabs.goToPlace(next, { behind: newTab, newTab });

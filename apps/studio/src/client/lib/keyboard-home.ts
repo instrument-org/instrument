@@ -225,6 +225,44 @@ export function focusOnceLayersClose({
 }
 
 /**
+ * Puts the keyboard in the composer of the chat on show, once the menu or
+ * dialog it was asked from has gone and the composer is drawn. The chat's
+ * column comes after the work beside it, so its composer is the last one
+ * drawn; one in a column put away is passed over.
+ */
+export function focusChatComposer() {
+  const composer = () =>
+    [
+      ...document.querySelectorAll<HTMLElement>(
+        `${ACTIVE_TAB} [data-slot="composer-frame"] [contenteditable="true"]`,
+      ),
+    ]
+      .filter(
+        (each) =>
+          each.closest('[aria-hidden="true"]') === null && isShown(each),
+      )
+      .at(-1);
+  focusOnceLayersClose({
+    focus: () => {
+      let frames = 0;
+      const attempt = () => {
+        const target = composer();
+        if (target) {
+          target.focus({ preventScroll: true });
+          return;
+        }
+        frames += 1;
+        if (frames < HOME_WAIT_FRAMES) {
+          requestAnimationFrame(attempt);
+        }
+      };
+      attempt();
+    },
+    holds: () => composer()?.contains(document.activeElement) === true,
+  });
+}
+
+/**
  * A list the person is walking with the arrows, which keeps the keyboard
  * while each thing it opens comes up: a composer mounting with the chat
  * stays put. Let go by the next press of the pointer anywhere, or by the

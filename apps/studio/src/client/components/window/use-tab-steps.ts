@@ -88,10 +88,12 @@ export function useTabSteps(
 
 /**
  * Back and forward for the window's tab up, which its arrows and chords
- * walk: a site's page first and then the tab's history before the site, the
- * way a browser's back leaves a site at its start; anything else, the tab's
- * own router, after the history of a page its file screen draws beside the
- * tree. Read under the tab up's router.
+ * walk wherever the keyboard is: in a tab group, the group's tab up alone,
+ * so a step never moves to another tab or group; for a site, its page first
+ * and then the tab's history before the site, the way a browser's back
+ * leaves a site at its start; anything else, the tab's own router, after the
+ * history of a page its file screen draws beside the tree. Read under the
+ * tab up's router.
  */
 export function useWindowSteps(): TabSteps {
   const router = useRouter();
@@ -111,17 +113,19 @@ export function useWindowSteps(): TabSteps {
   const group = groupOfHref(href);
   const site = isSiteGroup(group) ? group : undefined;
   const page = useTabSteps(
-    site === undefined ? undefined : selectedTabIn(site),
-    {
-      outer: {
-        back: () => {
-          router.history.back();
+    group === undefined ? undefined : selectedTabIn(group),
+    site === undefined
+      ? {}
+      : {
+          outer: {
+            back: () => {
+              router.history.back();
+            },
+            canGoBack: routerCanGoBack,
+          },
         },
-        canGoBack: routerCanGoBack,
-      },
-    },
   );
-  if (site !== undefined) {
+  if (group !== undefined) {
     return page;
   }
   const stack: StepStack = {

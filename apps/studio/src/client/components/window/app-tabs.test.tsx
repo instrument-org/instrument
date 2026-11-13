@@ -202,15 +202,40 @@ describe("a window's tabs", () => {
   });
 });
 
+describe("navigate", () => {
+  it.each([
+    [`/chats/${CHAT}`, "replace"],
+    ["/chats?draft=01K0000000000000000000000A", "replace"],
+    ["/debug/errors", "push"],
+  ])("goes to %s by %s", (href, by) => {
+    const push = vi.fn();
+    const replace = vi.fn();
+    // Only the history a step moves: the tab up has no route mounted here.
+    setTabRouter(HOME, {
+      history: { location: { href: `/chats/${OTHER}` }, push, replace },
+    } as unknown as TabRouter);
+    const { result } = window(`/chats/${OTHER}`);
+
+    act(() => {
+      result.current.navigate(href);
+    });
+
+    // A tab group's address stands in place of the one before it, so the
+    // window's tab keeps no trail of groups to step back through.
+    expect(by === "replace" ? replace : push).toHaveBeenCalledWith(href);
+    expect(by === "replace" ? push : replace).not.toHaveBeenCalled();
+  });
+});
+
 describe("stepChat", () => {
   it.each([
     ["another tab in this window", "here"],
     ["a tab in another window", "elsewhere"],
-  ])("walks the tab up to the next chat when %s has it", (_, where) => {
-    const push = vi.fn();
-    // Only the history a step walks: the tab up has no route mounted here.
+  ])("moves the tab up to the next chat when %s has it", (_, where) => {
+    const replace = vi.fn();
+    // Only the history a step moves: the tab up has no route mounted here.
     const router = {
-      history: { location: { href: `/chats/${OTHER}` }, push },
+      history: { location: { href: `/chats/${OTHER}` }, replace },
     } as unknown as TabRouter;
     setTabRouter(UP, router);
     if (where === "elsewhere") {
@@ -230,7 +255,8 @@ describe("stepChat", () => {
       result.current.stepChat([OTHER, CHAT], OTHER, 1);
     });
 
-    expect(push).toHaveBeenCalledWith(`/chats/${CHAT}`);
+    // In its place, so the group left behind is no step back.
+    expect(replace).toHaveBeenCalledWith(`/chats/${CHAT}`);
     expect(store.get(appTabsAtom).selectedId).toBe(UP);
     expect(store.get(appTabsAtom).tabs).toHaveLength(2);
     expect(showInOtherWindow).not.toHaveBeenCalled();

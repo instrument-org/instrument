@@ -313,7 +313,13 @@ export function useAppTabs() {
       }),
     );
   };
-  /** The tab up goes to an address, one step on in its history; a link address opens where it lives instead. */
+  /**
+   * The tab up goes to an address, one step on in its history; a link
+   * address opens where it lives instead. A tab group's address takes the
+   * place of where the tab stands rather than adding a step: the window's
+   * one tab only says which group is up, and back and forward walk that
+   * group's tab up, so the window's tab keeps no trail of groups.
+   */
   const navigate = (to: string, { replace = false } = {}) => {
     const href = openLinkAddress(to);
     if (href === undefined) {
@@ -326,7 +332,7 @@ export function useAppTabs() {
     if (activeRouter.history.location.href === href) {
       return;
     }
-    if (replace) {
+    if (replace || isChatHref(href) || isSiteHref(href)) {
       activeRouter.history.replace(href);
     } else {
       activeRouter.history.push(href);

@@ -716,7 +716,11 @@ describe("a tab group's tab", () => {
 
     expect(end).toEqual({ kind: "losesTab" });
     expect(state.sent).toEqual([
-      { key: "a", landing: { kind: "new" }, to: "spare" },
+      {
+        key: "a",
+        landing: { isWindowOfItsOwn: true, kind: "new" },
+        to: "spare",
+      },
     ]);
     expect(tabsOf("spare")).toBeUndefined();
     expect(adoptSpareWindow).toHaveBeenCalledWith(state.spare);

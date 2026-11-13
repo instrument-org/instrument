@@ -505,8 +505,9 @@ function drawnShowingGroupTab(window: BrowserWindow, key: string) {
 
 /**
  * Hands a tab group's tab to a spare window as a group of its own, once its page
- * is up to take it: one a drag had to open is still loading. False when it
- * never came up.
+ * is up to take it: one a drag had to open is still loading. Its page makes a
+ * group of its own as it comes up, so the tab waits for that group, which
+ * gives way to the tab's. False when it never came up.
  */
 async function sendGroupTabOnceUp(
   spare: SpareWindow,
@@ -518,6 +519,24 @@ async function sendGroupTabOnceUp(
     await new Promise((resolve) => {
       setTimeout(resolve, FOLLOW_MS);
     });
+  }
+  if (!spare.window.isDestroyed()) {
+    // Timed rather than drawn: a spare out of sight draws no frames.
+    await spare.window.webContents
+      .executeJavaScript(
+        `new Promise((resolve) => {
+          const until = Date.now() + ${BRINGS_UP_LIMIT_MS};
+          const check = () => {
+            if (document.querySelector("[data-group-row]") !== null || Date.now() > until) {
+              resolve(true);
+            } else {
+              setTimeout(check, ${FOLLOW_MS});
+            }
+          };
+          check();
+        })`,
+      )
+      .catch(() => undefined);
   }
   return sendGroupTabToWindow(spare.window, key, landing);
 }
@@ -1043,7 +1062,10 @@ async function standAlone(
   // A tab group's tab is a group of its own there, which the spare makes.
   if (
     ending.isGroupTab &&
-    !(await sendGroupTabOnceUp(spare, moving.tab.id, { kind: "new" }))
+    !(await sendGroupTabOnceUp(spare, moving.tab.id, {
+      isWindowOfItsOwn: true,
+      kind: "new",
+    }))
   ) {
     picture?.close();
     stopCarrySpare(spare);

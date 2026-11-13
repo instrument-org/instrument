@@ -110,12 +110,16 @@ export type TabMoveDestination = z.output<typeof TabMoveDestinationSchema>;
 /**
  * Where a tab group's tab let go over a window lands there: among the tabs of
  * the group it shows, at a place (the end when none is named); in a group its
- * sidebar lists; or in a new group of its own.
+ * sidebar lists; or in a new group of its own, which a window come up for the
+ * tab (`isWindowOfItsOwn`) lists alone.
  */
 export const GroupTabLandingSchema = z.discriminatedUnion("kind", [
   z.object({ index: z.number().optional(), kind: z.literal("tabs") }),
   z.object({ group: z.string(), kind: z.literal("group") }),
-  z.object({ kind: z.literal("new") }),
+  z.object({
+    isWindowOfItsOwn: z.boolean().optional(),
+    kind: z.literal("new"),
+  }),
 ]);
 export type GroupTabLanding = z.output<typeof GroupTabLandingSchema>;
 

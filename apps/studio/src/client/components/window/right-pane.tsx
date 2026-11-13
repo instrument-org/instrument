@@ -140,21 +140,20 @@ export function RightPane({
 
   // The share measured against the row again whenever either changes: the
   // window resized, the zoom changed, or the handle was moved. Between those,
-  // a window being resized keeps the conversation at the width it had and
-  // hands the difference to the pane, so only one side moves under the
-  // pointer; once the pane is at its floor, the conversation gives way.
+  // the pane keeps the width it had and the conversation takes the
+  // difference, so a pane kept narrow stays narrow as the window or the
+  // sidebar beside it changes; once the conversation is at its floor, the
+  // pane gives way.
   useEffect(() => {
     const row = rowRef.current;
     if (!row) {
       return;
     }
-    let keptConversation: number | undefined;
+    let keptPane: number | undefined;
     const widthFor = (width: number) => {
-      if (keptConversation === undefined) {
-        keptConversation = width - widthOfShare(currentShare(), width);
-      }
+      keptPane ??= widthOfShare(currentShare(), width);
       return Math.min(
-        Math.max(width - keptConversation, PANE_WIDTH_MIN),
+        Math.max(keptPane, PANE_WIDTH_MIN),
         widthOfShare(1, width),
       );
     };

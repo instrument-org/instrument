@@ -22,6 +22,7 @@ import { createWorkspaceActor } from "./create-workspace-actor";
 import { startDeviceStatus } from "./device-status";
 import { chooseLaunchDeviceId, describeLaunchDevice } from "./launch-device-id";
 import { quitsWithLastWindow } from "./quit";
+import { adoptFinderViewOnce } from "./finder-view";
 import { startRun } from "./workspace-run";
 
 let starting: Promise<void> | undefined;
@@ -46,6 +47,7 @@ export function startWorkspace(): Promise<void> {
     // Before any window that shows the app, whose preload reads them as it
     // loads.
     await timeBootStep("serveBookmarks", () => openBookmarks(deviceId));
+    await timeBootStep("adoptFinderView", adoptFinderViewOnce);
     timeBootStepSync("openDrafts", openDrafts);
     // Their session is in the workspace's machine folder, and a window's
     // extension buttons ask for them as soon as a tab's row is drawn.

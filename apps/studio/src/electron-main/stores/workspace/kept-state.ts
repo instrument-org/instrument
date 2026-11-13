@@ -364,6 +364,14 @@ export function getKeptState(file: KeptFile, key: string): unknown {
   return getStore().get(file, key);
 }
 
+/**
+ * Sets one kept value from the main process, for a window that has not loaded
+ * yet: one already open does not hear of it.
+ */
+export function setKeptState(file: KeptFile, key: string, value: unknown) {
+  getStore().set(file, key, value);
+}
+
 const KeptTabGroupSchema = z.object({
   tabs: z.array(z.object({ id: z.string() })),
 });

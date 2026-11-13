@@ -24,6 +24,9 @@ interface PublisherEvents {
   "browser.certificate-exceptions-changed": null;
   // A tab's page asked for a username and password, or stopped waiting for one.
   "browser.sign-ins-changed": null;
+  // A tab's page started or stopped using the microphone or camera, was
+  // refused them, or left for another page.
+  "browser.capture-changed": null;
   // The browser's extensions changed: one was added or removed.
   "browser.extensions-changed": null;
   // The Chrome Web Store's install button was pressed: the window asks

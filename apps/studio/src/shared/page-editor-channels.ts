@@ -48,3 +48,12 @@ export type PageRemoteMessage =
   | { key: "ArrowLeft" | "ArrowRight"; type: "key" }
   | { by: -1 | 1; type: "scroll" }
   | { type: "close-layer" };
+
+/**
+ * What a page is capturing, from the guest's preload to main: `"audio"`,
+ * `"video"`, both joined by a comma, or `""` once it has let go of both.
+ */
+export const PAGE_CAPTURE_CHANNEL = "page-capture";
+
+/** From main to the guest's preload: end every track the page is capturing. */
+export const PAGE_CAPTURE_STOP_CHANNEL = "page-capture:stop";

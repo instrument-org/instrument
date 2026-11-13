@@ -347,8 +347,10 @@ const config: Configuration = {
       NSDocumentsFolderUsageDescription: `${APP_NAME} reads and writes files in your Documents when you ask it to work there, and when your ${APP_NAME} folder is there.`,
       NSDownloadsFolderUsageDescription: `${APP_NAME} reads and writes files in your Downloads when you ask it to work there.`,
       NSLocalNetworkUsageDescription: `${APP_NAME} uses your local network to connect to tools needed for your tasks.`,
-      // Asked the first time someone presses the mic to dictate.
-      NSMicrophoneUsageDescription: `${APP_NAME} listens when you press the mic, and turns what you say into text.`,
+      // Asked the first time someone presses the mic to dictate, or a page in the browser asks for it.
+      NSMicrophoneUsageDescription: `${APP_NAME} listens when you press the mic to dictate, and when a page you open asks for it, like a video call.`,
+      // Asked the first time a page in the browser asks for the camera.
+      NSCameraUsageDescription: `${APP_NAME} uses your camera when a page you open asks for it, like a video call.`,
       NSNetworkVolumesUsageDescription: `${APP_NAME} reads and writes files on a network drive when you ask it to work there.`,
       NSRemovableVolumesUsageDescription: `${APP_NAME} reads and writes files on a removable drive when you ask it to work there.`,
     },

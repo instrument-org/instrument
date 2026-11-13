@@ -82,6 +82,7 @@ import { getHistoryStore } from "./history-store";
 import { noteFrameSession } from "./keyboard-without-focus";
 import { mayPageNavigateTo } from "./local-file-policy";
 import { log } from "./log";
+import { isCapturing } from "./page-capture";
 import { createPutAwaySound } from "./put-away-sound";
 import { stopScreencast } from "./screencast";
 import {
@@ -270,7 +271,10 @@ function createBrowserViewManager(): BrowserViewManager {
     },
     isAudible: (targetId) =>
       liveGuestOf(targetId)?.isCurrentlyAudible() ?? false,
-    isPutAway: (targetId) => entries.get(targetId)?.putAway ?? false,
+    // A page in a call plays its call, which closing would hang up.
+    isPutAway: (targetId) =>
+      (entries.get(targetId)?.putAway ?? false) &&
+      !isCapturing(liveGuestOf(targetId)),
     warn: (line) => {
       log.warn(line);
     },
@@ -1192,7 +1196,9 @@ function createBrowserViewManager(): BrowserViewManager {
           (guest !== null &&
             guest !== undefined &&
             !guest.isDestroyed() &&
-            (guest.isCurrentlyAudible() || guest.isDevToolsOpened())))
+            (guest.isCurrentlyAudible() ||
+              guest.isDevToolsOpened() ||
+              isCapturing(guest))))
       );
     },
     getTargetUrl: (targetId) => {

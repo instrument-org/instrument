@@ -117,3 +117,25 @@ export function targetIdFromPartition(
   const result = BrowserTargetIdSchema.safeParse(raw);
   return result.success ? result.data : null;
 }
+
+/** The microphone and the camera, as a page asks for them. */
+export interface CaptureDevices {
+  audio: boolean;
+  video: boolean;
+}
+
+/**
+ * Where a tab's page stands with the microphone and camera: what it is
+ * using now, what it asked for and was refused for want of a click of the
+ * person's, and which one macOS refused the app.
+ */
+export interface GuestCapture {
+  /** The page's host, as the popover names it. */
+  site: string;
+  /** Asked for and refused because no person had just clicked in the tab. */
+  refused: CaptureDevices | null;
+  /** Turned off for the app in the system's privacy settings. */
+  system: "camera" | "microphone" | null;
+  targetId: BrowserTargetId;
+  using: CaptureDevices;
+}

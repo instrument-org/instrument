@@ -1,4 +1,6 @@
 import {
+  PAGE_CAPTURE_CHANNEL,
+  PAGE_CAPTURE_STOP_CHANNEL,
   PAGE_EDITOR_BOOT_CHANNEL,
   PAGE_EDGE_CHANNEL,
   PAGE_EDITOR_CHANNEL,
@@ -21,7 +23,7 @@ import { type PageEditorGuestMessage } from "@/shared/page-editor-messages";
  * changes the page's DOM, and the page's scripts cannot see it, call it, or
  * reach the channel it talks to the window on.
  */
-import { ipcRenderer, webFrame } from "electron";
+import { contextBridge, ipcRenderer, webFrame } from "electron";
 
 import { type PageEditorBoot, type PageEditorBridge } from "./bridge";
 import { installObserver } from "./editor/observer";
@@ -363,6 +365,117 @@ function swallow(event: MouseEvent) {
   }
 }
 
+/** The DOM events between the page's world and this one: what the page captures, and the window's Stop. */
+const CAPTURE_EVENT = "instrument-page-capture";
+const CAPTURE_STOP_EVENT = "instrument-page-capture-stop";
+
+/**
+ * Tells main what the page is capturing, which no Electron event says: the
+ * page's `getUserMedia` and its tracks' `stop` and `clone` are wrapped in the
+ * page's own world before its first script, and each change goes out as a
+ * DOM event this world hears, with only a string on it (an object would not
+ * cross between the worlds). Main's Stop comes back the same way, and ends
+ * every track as though its device went away.
+ */
+function reportCapture() {
+  if (!/^https?:$/.test(location.protocol)) {
+    return;
+  }
+  document.addEventListener(CAPTURE_EVENT, (event) => {
+    if (event instanceof CustomEvent && typeof event.detail === "string") {
+      ipcRenderer.send(PAGE_CAPTURE_CHANNEL, event.detail);
+    }
+  });
+  ipcRenderer.on(PAGE_CAPTURE_STOP_CHANNEL, () => {
+    document.dispatchEvent(new Event(CAPTURE_STOP_EVENT));
+  });
+  try {
+    contextBridge.executeInMainWorld({
+      args: [CAPTURE_EVENT, CAPTURE_STOP_EVENT],
+      func: watchCaptureInPage,
+    });
+  } catch {
+    // A page with no main world to run in has no tracks to watch either.
+  }
+}
+
+/** Runs in the page's world, so everything it uses is its own. */
+function watchCaptureInPage(eventName: string, stopName: string) {
+  const devices = navigator.mediaDevices as MediaDevices | undefined;
+  if (!devices || typeof devices.getUserMedia !== "function") {
+    return;
+  }
+  const live = new Set<MediaStreamTrack>();
+  let told = "";
+  const tell = () => {
+    let audio = false;
+    let video = false;
+    for (const track of live) {
+      if (track.readyState !== "live") {
+        live.delete(track);
+      } else if (track.kind === "audio") {
+        audio = true;
+      } else {
+        video = true;
+      }
+    }
+    const kinds = [audio && "audio", video && "video"]
+      .filter(Boolean)
+      .join(",");
+    if (kinds !== told) {
+      told = kinds;
+      document.dispatchEvent(new CustomEvent(eventName, { detail: kinds }));
+    }
+  };
+  const watch = (track: MediaStreamTrack) => {
+    live.add(track);
+    track.addEventListener("ended", tell);
+  };
+  const getUserMedia = devices.getUserMedia.bind(devices);
+  devices.getUserMedia = async (constraints) => {
+    const stream = await getUserMedia(constraints);
+    stream.getTracks().forEach(watch);
+    tell();
+    return stream;
+  };
+  const trackProto = MediaStreamTrack.prototype;
+  // oxlint-disable-next-line typescript/unbound-method -- kept to call on each track with `.call`, past the wrapper
+  const stop = trackProto.stop;
+  trackProto.stop = function (this: MediaStreamTrack) {
+    stop.call(this);
+    if (live.delete(this)) {
+      tell();
+    }
+  };
+  // oxlint-disable-next-line typescript/unbound-method -- kept to call on each track with `.call`, past the wrapper
+  const cloneTrack = trackProto.clone;
+  trackProto.clone = function (this: MediaStreamTrack) {
+    const copy = cloneTrack.call(this);
+    if (live.has(this)) {
+      watch(copy);
+    }
+    return copy;
+  };
+  // oxlint-disable-next-line typescript/unbound-method -- kept to call on each stream with `.call`, past the wrapper
+  const cloneStream = MediaStream.prototype.clone;
+  MediaStream.prototype.clone = function (this: MediaStream) {
+    const copy = cloneStream.call(this);
+    if (this.getTracks().some((track) => live.has(track))) {
+      copy.getTracks().forEach(watch);
+    }
+    return copy;
+  };
+  document.addEventListener(stopName, () => {
+    for (const track of live) {
+      stop.call(track);
+      track.dispatchEvent(new Event("ended"));
+    }
+    live.clear();
+    tell();
+  });
+}
+
 handThumbsToWindow();
 handKeysToWindow();
+reportCapture();
 boot();

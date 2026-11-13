@@ -19,6 +19,11 @@ import {
   guestSignIns,
 } from "@/electron-main/browser-view/manager";
 import {
+  allowCapture,
+  listCaptures,
+  stopCapture,
+} from "@/electron-main/browser-view/page-capture";
+import {
   savePageAs,
   sharePage,
 } from "@/electron-main/browser-view/page-actions";
@@ -123,6 +128,14 @@ const events = {
 };
 
 const live = {
+  // What each tab's page is using of the microphone and camera, or was
+  // refused, sent again whenever that changes.
+  captures: base.handler(async function* ({ signal }) {
+    yield* liveRead({
+      changes: [publisher.subscribe("browser.capture-changed", { signal })],
+      read: listCaptures,
+    });
+  }),
   // The sites with a certificate a person trusted anyway this run.
   certificateExceptions: base.handler(async function* ({ signal }) {
     yield* liveRead({
@@ -361,6 +374,26 @@ const answerSignIn = base
   });
 
 /**
+ * Stop on a page using the microphone or camera: its tracks end, and it
+ * needs a fresh click to have them again.
+ */
+const stopPageCapture = base
+  .input(z.object({ targetId: BrowserTargetIdSchema }))
+  .handler(({ input }) => {
+    stopCapture(input.targetId);
+  });
+
+/**
+ * Allow on a page that asked for the microphone or camera with no click to
+ * go on: its site may have them in that tab, and the page loads again.
+ */
+const allowPageCapture = base
+  .input(z.object({ targetId: BrowserTargetIdSchema }))
+  .handler(({ input }) => {
+    allowCapture(input.targetId);
+  });
+
+/**
  * "Continue" on a page refused for its certificate: trusts that certificate
  * for its site until the app quits and loads the page again.
  */
@@ -427,8 +460,10 @@ function duckDuckGoRegion(locale: string) {
 }
 
 export const browser = {
+  allowPageCapture,
   answerSignIn,
   continueDespiteCertificate,
+  stopPageCapture,
   downloads,
   events,
   lastLoad,

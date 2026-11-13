@@ -3,11 +3,27 @@ import { describe, expect, it, vi } from "vitest";
 vi.mock("@/client/rpc/client", () => ({ rpcClient: {} }));
 
 import {
+  isWorthKeeping,
   listedReplacing,
   listedWith,
   listedWithout,
   namedWith,
 } from "./tab-groups";
+
+describe("a group whose chat has not started, closed", () => {
+  const draft = { createdAt: 0, id: "d", updatedAt: 0, words: "" };
+
+  it.each([
+    ["is kept with words", { ...draft, words: "Plan the trip" }, []],
+    ["is kept with tabs or a name", draft, ["draft:d"]],
+    ["goes with nothing in it", draft, []],
+    ["goes when only another group is kept", draft, ["draft:e"]],
+  ])("%s", (label, entry, kept) => {
+    expect(isWorthKeeping(entry, new Set(kept))).toBe(
+      label.startsWith("is kept"),
+    );
+  });
+});
 
 describe("a tab group's name", () => {
   const NAMES = { "draft:a": "Wireframes" };

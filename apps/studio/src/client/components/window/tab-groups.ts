@@ -23,9 +23,9 @@ import { keptTabGroupsOf, TAB_GROUPS_KEY } from "@/shared/kept-state";
 import { type SidebarPlace } from "@/shared/tabs";
 import { type ChatId } from "@instrument-org/workspace/client";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { useAtomValue, useSetAtom, useStore } from "jotai";
+import { atom, useAtomValue, useSetAtom, useStore } from "jotai";
 import { useEffect, useEffectEvent, useRef } from "react";
-import { ulid } from "ulid";
+import { decodeTime, ulid } from "ulid";
 
 import {
   appTabsAtom,
@@ -44,6 +44,7 @@ import {
 import { chatListOptions, paintChatRow } from "./chat-list-query";
 import { type Chat, draftTitle } from "./chats";
 import { isGroupScreenHref } from "./group-screen";
+import { isHomeTab } from "./tab-model";
 import { chatHref, matchScreen, newChatHref } from "./window-href";
 import { useWindowTabs, windowTabsAtom } from "./window-tabs";
 
@@ -176,12 +177,75 @@ export function lastActiveAt(entry: TabGroup): number {
     : entry.draft.updatedAt;
 }
 
-/** A new chat's draft that is worth coming back to: not a reply in a chat's box, not on its way, and holding words or files. */
-function isKeptDraft(draft: Draft): boolean {
+/**
+ * The groups whose chat has not started that are worth keeping whatever
+ * their draft holds: one with a tab open in it, a new tab aside, and one the
+ * person named. Main writes a draft only once it has words or files, so a
+ * relaunch brings these back with no draft (`restoreKeptDraftGroups`).
+ */
+export const keptDraftGroupsAtom = atom((get) => {
+  const kept = new Set(Object.keys(get(groupNamesAtom)));
+  for (const tab of get(windowTabsAtom).tabs) {
+    const { group } = tab;
+    if (group !== undefined && draftOfGroup(group) !== undefined) {
+      if (!isHomeTab(tab)) {
+        kept.add(group);
+      }
+    }
+  }
+  return kept;
+});
+
+/**
+ * Whether a draft's group is worth coming back to: it holds words or files,
+ * or it is one of `kept` (`keptDraftGroupsAtom`).
+ */
+export function isWorthKeeping(
+  draft: Draft,
+  kept: ReadonlySet<string>,
+): boolean {
+  return holdsSomething(draft) || kept.has(draftGroupOf(draft.id));
+}
+
+/**
+ * Makes again, empty, the drafts of the groups worth keeping that have none:
+ * groups of tabs or with a name, whose draft main never wrote, as a relaunch
+ * leaves them. Each takes the time its id was made at, so History orders it
+ * where it was. Before the window draws, so the row and the composer find
+ * the draft the window's address names.
+ */
+export function restoreKeptDraftGroups(store: ReturnType<typeof useStore>) {
+  const drafts = new Set(store.get(draftsAtom).map((draft) => draft.id));
+  for (const group of store.get(keptDraftGroupsAtom)) {
+    const id = draftOfGroup(group);
+    if (id === undefined || drafts.has(id)) {
+      continue;
+    }
+    const at = madeAt(id);
+    store.set(createDraftAtom, {
+      createdAt: at,
+      id,
+      updatedAt: at,
+      words: "",
+    });
+  }
+}
+
+/** When a draft was made, by the time in its id, or now for an id that keeps none. */
+function madeAt(id: string): number {
+  try {
+    return decodeTime(id);
+  } catch {
+    return Date.now();
+  }
+}
+
+/** A new chat's draft that is worth coming back to: not a reply in a chat's box, not on its way, and worth keeping (`isWorthKeeping`). */
+function isKeptDraft(draft: Draft, kept: ReadonlySet<string>): boolean {
   return (
     draft.chatId === undefined &&
     draft.sendingTo === undefined &&
-    holdsSomething(draft)
+    isWorthKeeping(draft, kept)
   );
 }
 
@@ -202,13 +266,16 @@ export function useOpenGroups(): {
   const chats = useQuery(chatListOptions()).data ?? [];
   const drafts = useAtomValue(draftsAtom);
   const names = useAtomValue(groupNamesAtom);
+  const kept = useAtomValue(keptDraftGroupsAtom);
   const listed = useAtomValue(windowTabGroupsAtom) ?? [];
   const elsewhereGroups = new Set(useTabGroupsElsewhere());
   const byId = new Map<string, Chat>(chats.map((chat) => [chat.id, chat]));
   const isListed = new Set(listed);
   const unlisted = [
     ...chats.map(chatGroup),
-    ...drafts.filter(isKeptDraft).map((draft) => draftGroup(draft, names)),
+    ...drafts
+      .filter((draft) => isKeptDraft(draft, kept))
+      .map((draft) => draftGroup(draft, names)),
   ].filter((entry) => !isListed.has(entry.group));
   const newestFirst = (list: TabGroup[]) =>
     list.toSorted((a, b) => lastActiveAt(b) - lastActiveAt(a));
@@ -393,13 +460,15 @@ export function useTabGroupActions() {
         staying: staying.flatMap((entry) => linesOf(draft, entry)),
       }),
     };
-    // A draft the tab leaves with nothing is thrown away, as an emptied one is.
+    // A draft the tab leaves with nothing is thrown away, as an emptied one
+    // is, unless the person named its group.
     const hasTabs = staying.length > 0;
-    if (isLeftEmpty(left, { hasTabs }) && tab.group !== undefined) {
+    const isNamed =
+      tab.group !== undefined && tab.group in store.get(groupNamesAtom);
+    if (isLeftEmpty(left, { hasTabs }) && !isNamed && tab.group !== undefined) {
       const { group: emptied } = tab;
       setListed((list) => listedWithout(list, emptied));
       windowTabs.dropGroup(emptied);
-      forgetName(emptied);
       void removeDraft(draft.id);
       return;
     }
@@ -473,21 +542,23 @@ export function useTabGroupActions() {
   /**
    * Closes a group to History: it leaves this window's list with its tabs
    * kept for when it is opened again and nothing about it changed, a chat's
-   * and a draft's with words or files alike, whose file and folder stay in
-   * Drafts. A draft with nothing in it has nothing to come back to, so it
-   * goes. The window moves on to the next group when it was showing this one.
+   * and a draft's worth keeping alike (`isWorthKeeping`): one with words or
+   * files, whose file and folder stay in Drafts, tabs, or a name. A draft
+   * with none of that has nothing to come back to, so it goes. The window
+   * moves on to the next group when it was showing this one.
    */
   const close = (group: string, list: readonly TabGroup[]) => {
     unlist(group);
     moveOff(group, list);
   };
 
-  /** A group off this window's list as `close` takes it, a draft with nothing in it thrown away. */
+  /** A group off this window's list as `close` takes it, a draft with nothing worth keeping thrown away. */
   const unlist = (group: string) => {
     setListed((listed) => listedWithout(listed, group));
     const draftId = draftOfGroup(group);
     const draft = store.get(draftsAtom).find((entry) => entry.id === draftId);
-    if (draftId !== undefined && !(draft && holdsSomething(draft))) {
+    const kept = store.get(keptDraftGroupsAtom);
+    if (draftId !== undefined && !(draft && isWorthKeeping(draft, kept))) {
       windowTabs.dropGroup(group);
       forgetName(group);
       void removeDraft(draftId);

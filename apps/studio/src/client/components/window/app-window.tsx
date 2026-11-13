@@ -151,6 +151,9 @@ import { useGroupTabLanding, useGroupTabMoves } from "./tab-drag";
 import {
   groupAlong,
   groupHref,
+  isWorthKeeping,
+  keptDraftGroupsAtom,
+  restoreKeptDraftGroups,
   startTabGroupsFromZero,
   type TabGroup,
   useOpenGroups,
@@ -272,10 +275,12 @@ function SetupWindow() {
 
 function WorkspaceWindow() {
   // Before the tabs are read, so a window that has kept no tab groups opens
-  // on none of what an earlier build left in them.
+  // on none of what an earlier build left in them, and one whose groups of
+  // tabs a relaunch left without drafts finds them again.
   const store = useStore();
   useState(() => {
     startTabGroupsFromZero(store);
+    restoreKeptDraftGroups(store);
   });
   const model = useAtomValue(appTabsAtom);
   const routers = useTabRouters(model.tabs);
@@ -671,10 +676,12 @@ function WindowShell({
       ...keptInOtherWindows(COMPOSE_KEY).flatMap(floatingDraftIdsOf),
     ]);
     // A reply waiting in a chat's box is kept by the chat, not by a window
-    // of its own, so nothing here takes one away.
+    // of its own, so nothing here takes one away, and a tab group of tabs or
+    // with a name is kept by the group.
+    const kept = store.get(keptDraftGroupsAtom);
     const isKept = (draft: Draft) =>
       draft.chatId !== undefined ||
-      holdsSomething(draft) ||
+      isWorthKeeping(draft, kept) ||
       floating.has(draft.id);
     // A draft's folder goes with it, and what was pasted into it. Once a launch,
     // since a window opening later finds another's new chat box as empty as these.

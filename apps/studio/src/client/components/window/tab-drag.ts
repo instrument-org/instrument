@@ -12,7 +12,7 @@ import {
   wholeGroupKey,
 } from "@/shared/tabs";
 import { browserTargetOf } from "@instrument-org/workspace/client";
-import { atom, getDefaultStore, useAtomValue, useStore } from "jotai";
+import { atom, useAtomValue, useStore } from "jotai";
 import {
   type PointerEvent as ReactPointerEvent,
   useLayoutEffect,
@@ -29,12 +29,12 @@ import {
 } from "./tab-carry-view";
 import {
   type DropCarry,
-  filledRoomAtom,
-  heldOverSidebarAtom,
+  fillRoom,
   LIST_GAP_PX,
   liftedRowAtom,
   roomSnapsAtom,
   ROW_GAP_PX,
+  showDrop,
   type SidebarDrop,
   sidebarDropAt,
   sidebarDropAtom,
@@ -68,50 +68,6 @@ export const groupTabLandingAtom = atom<GroupTabLanding | undefined>(undefined);
 function contains(element: Element, x: number, y: number) {
   const { bottom, left, right, top } = element.getBoundingClientRect();
   return x >= left && x < right && y >= top && y < bottom;
-}
-
-/**
- * Shows where a drag over this window's sidebar lands, or that it lands
- * nowhere there, the room sliding to it, and what is held over the sidebar,
- * which it draws at the pointer as a row.
- */
-function showDrop(
-  drop: SidebarDrop | undefined,
-  held?: { clientX: number; clientY: number; key: string },
-) {
-  const store = getDefaultStore();
-  if (JSON.stringify(store.get(sidebarDropAtom)) !== JSON.stringify(drop)) {
-    store.set(roomSnapsAtom, false);
-    store.set(sidebarDropAtom, drop);
-  }
-  if (JSON.stringify(store.get(heldOverSidebarAtom)) !== JSON.stringify(held)) {
-    store.set(heldOverSidebarAtom, held);
-  }
-}
-
-/** How long a group that filled a room goes on not arriving. */
-const FILLED_MS = 500;
-
-/**
- * Shuts the sidebar's room at once, for what was let go in it, which
- * stands where the room was: a lifted row back in the list, or a group new
- * to it, which takes its place without arriving.
- */
-function fillRoom(group: string | undefined) {
-  const store = getDefaultStore();
-  store.set(roomSnapsAtom, true);
-  store.set(sidebarDropAtom, undefined);
-  store.set(heldOverSidebarAtom, undefined);
-  store.set(liftedRowAtom, undefined);
-  if (group === undefined) {
-    return;
-  }
-  store.set(filledRoomAtom, group);
-  setTimeout(() => {
-    if (store.get(filledRoomAtom) === group) {
-      store.set(filledRoomAtom, undefined);
-    }
-  }, FILLED_MS);
 }
 
 /** A whole group as another window would take it: under its own key, with the page of every tab it has. */
@@ -214,10 +170,10 @@ function holdsOnly(
  * pulled off its row, its strip closes up and a picture of the window goes
  * with the pointer, let go in the open it is a group of its own in a window of
  * its own, and held over another window it lands where that window says. A
- * window's only tab moves its window. Over this window's sidebar it goes as a
- * row at the pointer in place of the picture, and moves into the group under
- * it, or into a new group at the top over New or the list's empty space, and
- * the window follows it there.
+ * window's only tab moves its window. Over this window's sidebar main's
+ * picture goes, and the tab moves into the group of the row under it, which
+ * lights, or into a new group in the room the list opens for it, where it
+ * stands as that group's row, and the window follows it there.
  */
 export function useGroupTabCarry({
   group,
@@ -267,8 +223,8 @@ export function useGroupTabCarry({
         const row = document.querySelector(GROUP_TABS)?.getBoundingClientRect();
         return { bottom: row?.bottom ?? 0, top: row?.top ?? 0 };
       },
-      // Anywhere over the sidebar the tab stays in this window, drawn there
-      // as a row; where it lands there, if anywhere, the list shows.
+      // Anywhere over the sidebar the tab stays in this window, and the list
+      // shows where it lands there, or a row at the pointer where nowhere.
       isOverOwnTarget: (event, key) => {
         const { clientX, clientY } = event;
         const { drop, isOver } = sidebarDropAt(clientX, clientY, {
@@ -291,9 +247,9 @@ export function useGroupTabCarry({
         }
         // The window follows the tab, which stays the one up, as a browser's
         // tab dragged into another window does.
-        if (drop.kind === "new") {
-          groups.make({ moving: id });
-        } else if (drop.kind === "into") {
+        if (drop.kind === "between") {
+          fillRoom(groups.make({ moving: id, place: drop.place }));
+        } else {
           groups.moveTab(id, drop.group);
           groups.show(drop.group);
         }
@@ -349,7 +305,9 @@ function landingAt(
   if (drop?.kind === "into") {
     return { drop, landing: { group: drop.group, kind: "group" } };
   }
-  return drop?.kind === "new" ? { drop, landing: { kind: "new" } } : undefined;
+  return drop?.kind === "between"
+    ? { drop, landing: { at: drop.place, kind: "new" } }
+    : undefined;
 }
 
 function isSameLanding(
@@ -363,10 +321,9 @@ function isSameLanding(
  * Follows what main says of a tab held over this window, and tells it where a
  * group's tab, or a whole group, held here lands: among the tabs of the group
  * up, by where the pointer is along its strip, which draws it there; in a
- * group of the sidebar, whose row takes its selected tone, or as a group of
- * its own at the top, over New or the list's empty space; or, for a whole
- * group, between two rows, where the list opens a room. Wherever it lands in
- * the sidebar, the sidebar draws it at the pointer as a row. Measured from
+ * group of the sidebar, whose row lights; or in a room the list opens
+ * between two rows, a tab as a group of its own, standing there as its row,
+ * and a whole group as it is, drawn at the pointer as its row. Measured from
  * the window as drawn, so the tab comes to rest where the pointer is once it
  * has joined the strip.
  */
@@ -488,12 +445,18 @@ export function useGroupTabMoves() {
       // A window come up for the tab, on a new tab of its own making, which
       // may not be up yet in a window out of sight.
       const own = isOwnWindow ? groupUp : undefined;
+      // Where in the sidebar a group of its own lands, which it fills.
+      const at = landing.kind === "new" ? landing.at : undefined;
       if (
         landing.kind === "new" &&
         from !== undefined &&
         isWholeGroup(state, tab)
       ) {
         // Its group comes along whole, and the window it leaves lets go of it.
+        if (at) {
+          groups.place(from, at);
+          fillRoom(from);
+        }
         groups.showHere(from);
         if (isOwnWindow) {
           listAlone(from);
@@ -510,7 +473,13 @@ export function useGroupTabMoves() {
         }
         listAlone(own);
       } else if (landing.kind === "new" || groupUp === undefined) {
-        const made = groups.make({ moving: tab.id });
+        const made = groups.make({
+          moving: tab.id,
+          ...(at ? { place: at } : {}),
+        });
+        if (at) {
+          fillRoom(made);
+        }
         if (isOwnWindow) {
           listAlone(made);
         }

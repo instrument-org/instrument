@@ -7,15 +7,16 @@ import {
 } from "@/client/lib/self-file-drag";
 import { rpcClient } from "@/client/rpc/client";
 import { fileHref, folderHref } from "@/shared/computer-href";
+import { type SidebarPlace } from "@/shared/tabs";
 import { atom, getDefaultStore, type PrimitiveAtom, useStore } from "jotai";
 import { useEffect, useRef } from "react";
 
 import { stripKeyOf } from "./pane-tabs";
 import {
-  heldOverSidebarAtom,
+  fillRoom,
+  showDrop,
   type SidebarDrop,
   sidebarDropAt,
-  sidebarDropAtom,
 } from "./sidebar-drop";
 import { stripIndexAt } from "./tab-carry-view";
 import { useTabGroupActions } from "./tab-groups";
@@ -40,15 +41,16 @@ function droppedFileHref({ hostPath, isFolder }: DroppedFile) {
 
 /**
  * Where files let go over the window land, as a tab let go at the same spot
- * does: in the group of a sidebar row; as a group of their own over New or
- * the list's empty space; among the tabs of the group up, at a place along
- * its strip; or in place of the new tab up.
+ * does: in the group of a sidebar row; as a group of their own in a room the
+ * sidebar's list opens, at its place, or at the top when none is named;
+ * among the tabs of the group up, at a place along its strip; or in place
+ * of the new tab up.
  */
 export type FileLanding =
   | { group: string; index: number; kind: "tabs" }
   | { group: string; kind: "into" }
   | { group: string; kind: "newTab"; tab: string }
-  | { kind: "new" };
+  | { kind: "new"; place?: SidebarPlace };
 
 /**
  * Files held over the strip or a new tab of the group up: where they land,
@@ -188,8 +190,12 @@ function landingAt(
       sidebar: drop,
     };
   }
-  if (drop?.kind === "new") {
-    return { isOverSidebar: true, landing: { kind: "new" }, sidebar: drop };
+  if (drop?.kind === "between") {
+    return {
+      isOverSidebar: true,
+      landing: { kind: "new", place: drop.place },
+      sidebar: drop,
+    };
   }
   return { ...nothing, isOverSidebar: isOver };
 }
@@ -226,12 +232,11 @@ export function filesOfDrop(transfer: DataTransfer): DroppedFile[] {
 /**
  * Files and folders dragged over the window, from its own Files or from
  * anywhere else, land where a tab dragged there does (`FileLanding`), and
- * look the part on the way: over the sidebar the row they would join takes
- * its selected tone, or New or the empty list lights, and the first of them
- * goes at the pointer as a row (`heldOverSidebarAtom`); over the strip of
- * the group up their tabs stand among its tabs, the first at the pointer,
- * the rest making room (`heldFilesAtom`); over a new tab up, that tab shows
- * the first of them. A drag carries only its count until it is let go, so
+ * look the part on the way: over the sidebar the row they would join
+ * lights, or the list opens a room where they stand as the row they would
+ * make (`heldOverSidebarAtom`); over the strip of the group up their tabs
+ * stand among its tabs, the first at the pointer, the rest making room
+ * (`heldFilesAtom`); over a new tab up, that tab shows the first of them. A drag carries only its count until it is let go, so
  * main reads what it carries off the system's drag (`files.dragged`), and
  * until it answers nothing is drawn but where it lands.
  *
@@ -286,8 +291,7 @@ export function useFileDrops(
       }
       isShowing = true;
       showIn(heldFilesAtom, held);
-      showIn(sidebarDropAtom, at.sidebar);
-      showIn(heldOverSidebarAtom, overSidebar);
+      showDrop(at.sidebar, overSidebar);
     };
 
     const end = () => {
@@ -422,7 +426,8 @@ export function useFileDrops(
 /**
  * What files let go where they land do there, one tab each, the first up:
  * they join a group behind what the window shows; make a group of their own
- * at the top of the list, which the window comes up on; stand among the tabs
+ * in the room the list opened for them, or at its top, which the window
+ * comes up on; stand among the tabs
  * of the group up where they were let go, under the ids their tabs were
  * drawn under while held; or turn the new tab up into the first of them,
  * the rest right after it.
@@ -466,11 +471,15 @@ export function useLandFiles() {
         return;
       }
       case "new": {
-        groups.make({
+        const made = groups.make({
           fill: (group) => {
             openIn(group);
           },
+          ...(landing.place ? { place: landing.place } : {}),
         });
+        if (landing.place) {
+          fillRoom(made);
+        }
         return;
       }
       case "newTab": {

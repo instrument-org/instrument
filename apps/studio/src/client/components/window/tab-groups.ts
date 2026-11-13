@@ -604,8 +604,9 @@ export function useTabGroupActions() {
 
   /**
    * A new group at the top of the list, under New, or at a place in it,
-   * its chat alone unless something is to open in it, filed under a project
-   * when one is named.
+   * pinned there when the place is among the pinned rows, its chat alone
+   * unless something is to open in it, filed under a project when one is
+   * named.
    */
   const make = ({
     fill,
@@ -641,6 +642,10 @@ export function useTabGroupActions() {
     const group = draftGroupOf(id);
     if (isShownHere) {
       setListed((list) => listedWith(list, group, place));
+    }
+    if (place?.pinned === true) {
+      // A draft's group, pinned by a pin of its own (`pin`).
+      setPins((pins) => pinnedWith(pins, group, true));
     }
     if (fill) {
       fill(group);

@@ -38,32 +38,99 @@ afterEach(() => {
   document.body.innerHTML = "";
 });
 
+/** A tab's room in front of an item, which starts at that item's top. */
+const room = (
+  before: string,
+  top: number,
+  place: { after?: string; before?: string; pinned?: boolean },
+) => ({
+  before,
+  gap: 54,
+  kind: "between",
+  place: { pinned: false, ...place },
+  top,
+});
+
 describe("a tab over the sidebar", () => {
   it.each([
-    ["a pinned row", 20, { group: "chat-a", kind: "into" }],
-    ["a row", 130, { group: "draft:b", kind: "into" }],
+    ["a pinned row's middle", 20, { group: "chat-a", kind: "into" }],
     [
-      "the space between two rows, past halfway",
-      160,
-      { group: "draft:c", kind: "into" },
+      "a pinned row's top edge",
+      2,
+      room("row:chat-a", 0, { before: "chat-a", pinned: true }),
     ],
     [
-      "the space between two rows, before halfway",
-      159.5,
+      "a pinned row's bottom edge",
+      48,
+      room(":divider", 54, { after: "chat-a", pinned: true }),
+    ],
+    ["a row's middle", 130, { group: "draft:b", kind: "into" }],
+    [
+      "a row, short of its bottom edge",
+      150,
       { group: "draft:b", kind: "into" },
     ],
-    ["New", 80, { kind: "new", over: "new" }],
-    ["the empty list under the rows", 400, { kind: "new", over: "empty" }],
+    [
+      "the line between two rows",
+      160,
+      room("row:draft:c", 161, { after: "draft:b", before: "draft:c" }),
+    ],
+    [
+      "a row's bottom edge",
+      152,
+      room("row:draft:c", 161, { after: "draft:b", before: "draft:c" }),
+    ],
+    [
+      "the next row's top edge",
+      167,
+      room("row:draft:c", 161, { after: "draft:b", before: "draft:c" }),
+    ],
+    [
+      "the first row's top edge",
+      108,
+      room("row:draft:b", 107, { before: "draft:b" }),
+    ],
+    ["New", 80, room("row:draft:b", 107, { before: "draft:b" })],
+    [
+      "the last row's bottom edge",
+      210,
+      room(":history", 215, { after: "draft:c" }),
+    ],
+    [
+      "the empty list under the rows",
+      400,
+      room(":history", 215, { after: "draft:c" }),
+    ],
     ["the divider", 60, undefined],
     ["History", 230, undefined],
   ])("over %s lands %j", (_, y, drop) => {
     expect(sidebarDropAt(...at(y), TAB)).toEqual({ drop, isOver: true });
   });
 
-  it("lands nowhere over its own group's row", () => {
-    expect(
-      sidebarDropAt(...at(130), { carries: "tab", from: "draft:b" }),
-    ).toEqual({ drop: undefined, isOver: true });
+  it("opens a room at the end, past the last item, in a list without History", () => {
+    document.querySelector("[data-drop-item=':history']")?.remove();
+    expect(sidebarDropAt(...at(400), TAB)).toEqual({
+      drop: {
+        before: undefined,
+        gap: 54,
+        kind: "between",
+        place: { after: "draft:c", pinned: false },
+        top: 215,
+      },
+      isOver: true,
+    });
+  });
+
+  it("lands nowhere over its own group's row, but beside it in a room", () => {
+    const own: DropCarry = { carries: "tab", from: "draft:b" };
+    expect(sidebarDropAt(...at(130), own)).toEqual({
+      drop: undefined,
+      isOver: true,
+    });
+    expect(sidebarDropAt(...at(160), own)).toEqual({
+      drop: room("row:draft:c", 161, { after: "draft:b", before: "draft:c" }),
+      isOver: true,
+    });
   });
 
   it("lands nowhere under History when the list has no space to spare", () => {
@@ -102,6 +169,7 @@ describe("a whole group over the sidebar", () => {
         gap: 54,
         kind: "between",
         place: { before: "chat-a", pinned: true },
+        top: 0,
       },
     ],
     [
@@ -112,6 +180,7 @@ describe("a whole group over the sidebar", () => {
         gap: 54,
         kind: "between",
         place: { after: "chat-a", pinned: true },
+        top: 54,
       },
     ],
     [
@@ -122,6 +191,7 @@ describe("a whole group over the sidebar", () => {
         gap: 54,
         kind: "between",
         place: { before: "draft:b", pinned: false },
+        top: 107,
       },
     ],
     [
@@ -132,6 +202,7 @@ describe("a whole group over the sidebar", () => {
         gap: 54,
         kind: "between",
         place: { after: "draft:b", before: "draft:c", pinned: false },
+        top: 161,
       },
     ],
     [
@@ -142,6 +213,7 @@ describe("a whole group over the sidebar", () => {
         gap: 54,
         kind: "between",
         place: { after: "draft:c", pinned: false },
+        top: 215,
       },
     ],
   ])("%s lands in the room nearest", (_, y, drop) => {
@@ -161,6 +233,7 @@ describe("a whole group over the sidebar", () => {
         gap: 54,
         kind: "between",
         place: { after: "draft:b", pinned: false },
+        top: 215,
       },
       isOver: true,
     });

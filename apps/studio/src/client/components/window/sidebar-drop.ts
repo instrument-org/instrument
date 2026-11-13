@@ -84,9 +84,7 @@ export type DropCarry =
       from: string | undefined;
     }
   | {
-      /** Whether it can be pinned: a chat's group, never a draft's. */
-      canPin: boolean;
-      /** A whole group lands between rows. */
+      /** A whole group lands between rows, among the pinned ones or the rest. */
       carries: "group";
       /** The room it takes. */
       gap: number;
@@ -181,25 +179,26 @@ export function sidebarDropAt(
   }
 
   const slots: Slot[] = [];
-  if (carry.canPin) {
-    pinned.forEach((each, index) => {
-      slots.push({
-        before: keyOf(each),
-        place: {
-          ...(index > 0 ? { after: groupOf(pinned[index - 1] ?? each) } : {}),
-          before: groupOf(each),
-          pinned: true,
-        },
-        y: top(each),
-      });
-    });
-    const last = pinned.at(-1);
+  pinned.forEach((each, index) => {
     slots.push({
-      before: keyOf(divider ?? newRow),
-      place: { ...(last ? { after: groupOf(last) } : {}), pinned: true },
-      y: last ? bottom(last) : top(newRow),
+      before: keyOf(each),
+      place: {
+        ...(index > 0 ? { after: groupOf(pinned[index - 1] ?? each) } : {}),
+        before: groupOf(each),
+        pinned: true,
+      },
+      y: top(each),
     });
-  }
+  });
+  const lastPinned = pinned.at(-1);
+  slots.push({
+    before: keyOf(divider ?? newRow),
+    place: {
+      ...(lastPinned ? { after: groupOf(lastPinned) } : {}),
+      pinned: true,
+    },
+    y: lastPinned ? bottom(lastPinned) : top(newRow),
+  });
   rest.forEach((each, index) => {
     slots.push({
       before: keyOf(each),

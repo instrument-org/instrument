@@ -1,7 +1,9 @@
 import { NEW_TAB_HREF, type WindowTab } from "@/client/atoms/window";
 import {
   chatClosedByGroupAtom,
+  forgetGroupAtom,
   groupNamesAtom,
+  groupPinsAtom,
 } from "@/client/atoms/tab-groups";
 import {
   createDraftAtom,
@@ -22,7 +24,11 @@ import {
 import { keptTabGroupsOf, TAB_GROUPS_KEY } from "@/shared/kept-state";
 import { type SidebarPlace } from "@/shared/tabs";
 import { type ChatId } from "@instrument-org/workspace/client";
-import { useQuery, useQueryClient } from "@tanstack/react-query";
+import {
+  type QueryClient,
+  useQuery,
+  useQueryClient,
+} from "@tanstack/react-query";
 import { atom, useAtomValue, useSetAtom, useStore } from "jotai";
 import { useEffect, useEffectEvent, useRef } from "react";
 import { decodeTime, ulid } from "ulid";
@@ -52,7 +58,8 @@ import { useWindowTabs, windowTabsAtom } from "./window-tabs";
  * One tab group as the sidebar lists it: a chat with its tabs, or a draft
  * whose chat has not started yet, with the tabs gathered beside it. A group
  * the person named (`groupNamesAtom`) has the name as its title, and keeps
- * it as `name`.
+ * it as `name`. A draft's group is `pinned` by its own pin (`groupPinsAtom`),
+ * a chat's by the chat's star (`isPinnedGroup`).
  */
 export type TabGroup =
   | { chat: Chat; group: ChatId; kind: "chat"; name?: string; title: string }
@@ -61,6 +68,7 @@ export type TabGroup =
       group: string;
       kind: "draft";
       name?: string;
+      pinned: boolean;
       title: string;
     };
 
@@ -149,7 +157,11 @@ function useTabGroupsElsewhere(): readonly string[] | undefined {
 }
 
 /** A group whose chat has not started, as the sidebar lists it: by the name the person gave it, else by its words. */
-function draftGroup(draft: Draft, names: Record<string, string>): TabGroup {
+function draftGroup(
+  draft: Draft,
+  names: Record<string, string>,
+  pins: Record<string, true>,
+): TabGroup {
   const group = draftGroupOf(draft.id);
   const name = names[group];
   return {
@@ -157,8 +169,14 @@ function draftGroup(draft: Draft, names: Record<string, string>): TabGroup {
     group,
     kind: "draft",
     ...(name === undefined ? {} : { name }),
+    pinned: group in pins,
     title: name ?? draftWordsTitle(draft),
   };
+}
+
+/** Whether a group is pinned above the line: a chat's by its star, a draft's by its own pin. */
+export function isPinnedGroup(entry: TabGroup): boolean {
+  return entry.kind === "chat" ? entry.chat.starred : entry.pinned;
 }
 
 /** What a group whose chat has not started is called by its words alone: "New chat" until it has some. */
@@ -180,14 +198,16 @@ export function lastActiveAt(entry: TabGroup): number {
 /**
  * The groups whose chat has not started that are worth keeping whatever
  * their draft holds: one with a tab open in it, a new tab aside, and one the
- * person named. Main writes a draft only once it has words or files, so a
- * relaunch brings these back with no draft (`restoreKeptDraftGroups`).
+ * person named or pinned. Main writes a draft only once it has words or
+ * files, so a relaunch brings these back with no draft
+ * (`restoreKeptDraftGroups`).
  */
 export const keptDraftGroupsAtom = atom((get) => {
   const kept = new Set(
-    Object.keys(get(groupNamesAtom)).filter(
-      (group) => draftOfGroup(group) !== undefined,
-    ),
+    [
+      ...Object.keys(get(groupNamesAtom)),
+      ...Object.keys(get(groupPinsAtom)),
+    ].filter((group) => draftOfGroup(group) !== undefined),
   );
   for (const tab of get(windowTabsAtom).tabs) {
     const { group } = tab;
@@ -277,6 +297,7 @@ export function useOpenGroups(): {
   const chats = useQuery(chatListOptions()).data ?? [];
   const drafts = useAtomValue(draftsAtom);
   const names = useAtomValue(groupNamesAtom);
+  const pins = useAtomValue(groupPinsAtom);
   const kept = useAtomValue(keptDraftGroupsAtom);
   const listed = useAtomValue(windowTabGroupsAtom) ?? [];
   const elsewhereGroups = new Set(useTabGroupsElsewhere());
@@ -286,7 +307,7 @@ export function useOpenGroups(): {
     ...chats.map((chat) => chatGroup(chat, names)),
     ...drafts
       .filter((draft) => isKeptDraft(draft, kept))
-      .map((draft) => draftGroup(draft, names)),
+      .map((draft) => draftGroup(draft, names, pins)),
   ].filter((entry) => !isListed.has(entry.group));
   const newestFirst = (list: TabGroup[]) =>
     list.toSorted((a, b) => lastActiveAt(b) - lastActiveAt(a));
@@ -304,7 +325,7 @@ export function useOpenGroups(): {
         return chat ? [chatGroup(chat, names)] : [];
       }
       const draft = drafts.find((entry) => entry.id === draftId);
-      return draft ? [draftGroup(draft, names)] : [];
+      return draft ? [draftGroup(draft, names, pins)] : [];
     }),
   };
 }
@@ -319,11 +340,9 @@ export function groupAlong(
   from: string | undefined,
   direction: -1 | 1,
 ): string | undefined {
-  const isPinned = (entry: TabGroup) =>
-    entry.kind === "chat" && entry.chat.starred;
   const listed = [
-    ...open.filter((entry) => isPinned(entry)),
-    ...open.filter((entry) => !isPinned(entry)),
+    ...open.filter((entry) => isPinnedGroup(entry)),
+    ...open.filter((entry) => !isPinnedGroup(entry)),
   ];
   const at = listed.findIndex((entry) => entry.group === from);
   if (at === -1) {
@@ -366,6 +385,42 @@ export function nameCarried(
   return name === undefined ? names : namedWith(names, to, name);
 }
 
+/** The pins with `group` pinned, or with its pin taken off. */
+export function pinnedWith(
+  pins: Record<string, true>,
+  group: string,
+  pinned: boolean,
+): Record<string, true> {
+  if (pinned) {
+    return group in pins ? pins : { ...pins, [group]: true };
+  }
+  if (!(group in pins)) {
+    return pins;
+  }
+  const { [group]: _unpinned, ...rest } = pins;
+  return rest;
+}
+
+/**
+ * Stars a chat or takes its star back, painted on the chat's row at once,
+ * so the row lands where it was put before the answer comes back.
+ */
+export function starChat(
+  queryClient: QueryClient,
+  id: ChatId,
+  starred: boolean,
+) {
+  const painting = paintChatRow(queryClient, id, { starred });
+  rpcClient.workspace.chats.star.call({ id, starred }).then(
+    (landed) => {
+      painting.landed(landed);
+    },
+    () => {
+      painting.failed();
+    },
+  );
+}
+
 /** The address a group stands on in the window's one app tab. */
 export function groupHref(group: string): string {
   const draft = draftOfGroup(group);
@@ -385,7 +440,8 @@ export function useTabGroupActions() {
   const removeDraft = useSetAtom(removeDraftAtom);
   const updateDraft = useSetAtom(updateDraftAtom);
   const setChatClosed = useSetAtom(chatClosedByGroupAtom);
-  const setNames = useSetAtom(groupNamesAtom);
+  const forgetGroup = useSetAtom(forgetGroupAtom);
+  const setPins = useSetAtom(groupPinsAtom);
   const queryClient = useQueryClient();
   /** A chat as the chat list has it now. */
   const byId = (group: string) =>
@@ -486,11 +542,17 @@ export function useTabGroupActions() {
       }),
     };
     // A draft the tab leaves with nothing is thrown away, as an emptied one
-    // is, unless the person named its group.
+    // is, unless the person named or pinned its group.
     const hasTabs = staying.length > 0;
-    const isNamed =
-      tab.group !== undefined && tab.group in store.get(groupNamesAtom);
-    if (isLeftEmpty(left, { hasTabs }) && !isNamed && tab.group !== undefined) {
+    const isMarked =
+      tab.group !== undefined &&
+      (tab.group in store.get(groupNamesAtom) ||
+        tab.group in store.get(groupPinsAtom));
+    if (
+      isLeftEmpty(left, { hasTabs }) &&
+      !isMarked &&
+      tab.group !== undefined
+    ) {
       const { group: emptied } = tab;
       setListed((list) => listedWithout(list, emptied));
       windowTabs.dropGroup(emptied);
@@ -585,14 +647,9 @@ export function useTabGroupActions() {
     const kept = store.get(keptDraftGroupsAtom);
     if (draftId !== undefined && !(draft && isWorthKeeping(draft, kept))) {
       windowTabs.dropGroup(group);
-      forgetName(group);
+      forgetGroup(group);
       void removeDraft(draftId);
     }
-  };
-
-  /** The name of a group thrown away, which nothing shows again. */
-  const forgetName = (group: string) => {
-    setNames((names) => namedWith(names, group, ""));
   };
 
   /**
@@ -623,26 +680,25 @@ export function useTabGroupActions() {
   };
 
   /**
-   * A group to a place in this window's list, pinned there or unpinned when
-   * the place says and it is a chat's: pinning is the chat's star. The star
-   * is painted on the chat's row at once, so the row lands where it was let go.
+   * Pins a group above the line, or takes it back down: a chat's by its
+   * star (`starChat`), a draft's by a pin of its own (`groupPinsAtom`),
+   * which the chat's star takes over from when the chat starts.
    */
-  const place = (group: string, at: SidebarPlace) => {
+  const pin = (group: string, pinned: boolean) => {
+    if (draftOfGroup(group) !== undefined) {
+      setPins((pins) => pinnedWith(pins, group, pinned));
+      return;
+    }
     const chat = byId(group);
-    if (chat && at.pinned !== undefined && chat.starred !== at.pinned) {
-      const painting = paintChatRow(queryClient, chat.id, {
-        starred: at.pinned,
-      });
-      rpcClient.workspace.chats.star
-        .call({ id: chat.id, starred: at.pinned })
-        .then(
-          (landed) => {
-            painting.landed(landed);
-          },
-          () => {
-            painting.failed();
-          },
-        );
+    if (chat && chat.starred !== pinned) {
+      starChat(queryClient, chat.id, pinned);
+    }
+  };
+
+  /** A group to a place in this window's list, pinned there or unpinned when the place says (`pin`). */
+  const place = (group: string, at: SidebarPlace) => {
+    if (at.pinned !== undefined) {
+      pin(group, at.pinned);
     }
     setListed((list) => listedWith(list, group, at));
   };
@@ -709,6 +765,7 @@ export function useTabGroupActions() {
     moveTab,
     moveToNewWindow,
     newTab,
+    pin,
     place,
     restore,
     setChatOpen,

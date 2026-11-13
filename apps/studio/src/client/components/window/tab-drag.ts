@@ -316,7 +316,6 @@ function landingAt(
   const whole = groupOfWholeKey(held.id);
   if (whole !== undefined) {
     const { drop } = sidebarDropAt(clientX, clientY, {
-      canPin: draftOfGroup(whole) === undefined,
       carries: "group",
       gap: ROW_GAP_PX,
     });
@@ -744,13 +743,11 @@ export function useGroupRowDrag() {
       return;
     }
     const bounds = event.currentTarget.getBoundingClientRect();
-    const entry = open.find((each) => each.group === group);
     // The room it opens is the row's own place in the list, which shuts as it lifts.
     const item =
       event.currentTarget.closest<HTMLElement>("[data-drop-item]") ?? undefined;
     const press: RowPress = {
       carry: {
-        canPin: entry?.kind === "chat",
         carries: "group",
         gap: item ? item.offsetHeight + LIST_GAP_PX : ROW_GAP_PX,
       },

@@ -30,6 +30,31 @@ export const groupNamesAtom = keptAtom<Record<string, string>>(
   {},
 );
 
+/**
+ * The groups whose chat has not started that the person pinned, by group. A
+ * chat's group is pinned by the chat's star, which takes over from the pin
+ * when the chat starts.
+ */
+export const groupPinsAtom = keptAtom<Record<string, true>>(
+  "view",
+  "tab-groups-pinned.v1",
+  {},
+);
+
+/** A group thrown away, its name and pin with it, which nothing shows again. */
+export const forgetGroupAtom = atom(null, (get, set, group: string) => {
+  const names = get(groupNamesAtom);
+  if (group in names) {
+    const { [group]: _name, ...rest } = names;
+    set(groupNamesAtom, rest);
+  }
+  const pins = get(groupPinsAtom);
+  if (group in pins) {
+    const { [group]: _pin, ...rest } = pins;
+    set(groupPinsAtom, rest);
+  }
+});
+
 /** What the sidebar's list shows in this window: the open groups, or History. */
 export const sidebarViewAtom = atom<"history" | "list">("list");
 

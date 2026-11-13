@@ -2,7 +2,11 @@ import {
   draftKeyString,
   draftSnapshotsAtom,
 } from "@/client/atoms/prompt-value";
-import { groupNamesAtom } from "@/client/atoms/tab-groups";
+import {
+  forgetGroupAtom,
+  groupNamesAtom,
+  groupPinsAtom,
+} from "@/client/atoms/tab-groups";
 import { cancelWords } from "@/client/drafts/settle-words";
 import {
   claimDraftAtom,
@@ -33,7 +37,7 @@ import { ulid } from "ulid";
 import { NO_FILTERS, type Project } from "./chats";
 import { type DraftSend } from "./compose-window";
 import { asksPart, stagedAsksAtom, useStagedAskActions } from "./staged-asks";
-import { nameCarried, namedWith } from "./tab-groups";
+import { nameCarried, namedWith, starChat } from "./tab-groups";
 import { type useCompose } from "./use-compose";
 import { isHomeTab } from "./tab-model";
 import { type useWindowTabs } from "./window-tabs";
@@ -121,6 +125,7 @@ export function useDrafts({
     () => new Map(),
   );
   const setGroupNames = useSetAtom(groupNamesAtom);
+  const forgetGroup = useSetAtom(forgetGroupAtom);
   const [startingIds, setStartingIds] = useState<ReadonlySet<string>>(
     () => new Set(),
   );
@@ -230,6 +235,7 @@ export function useDrafts({
     compose.remove(draftGroupOf(id));
     const removed = removeDraft(id);
     windowTabs.dropGroup(draftGroupOf(id));
+    forgetGroup(draftGroupOf(id));
     return removed;
   };
   /**
@@ -373,8 +379,13 @@ export function useDrafts({
       }
       // The group's name goes on with the group as it becomes the chat's,
       // and stays the draft's until the send lands. The chat's title is its
-      // own, named as any chat's is.
+      // own, named as any chat's is. A pinned group's chat is starred, which
+      // pins a chat's group.
       setGroupNames((names) => nameCarried(names, draftGroupOf(id), chatId));
+      const isPinned = draftGroupOf(id) in store.get(groupPinsAtom);
+      if (isPinned) {
+        starChat(queryClient, chatId, true);
+      }
       // The draft is claimed for its chat before anything is written to the
       // chat: from here it is the message on its way rather than a draft to
       // list or a reply in the chat, and its file names the chat, since the
@@ -437,6 +448,9 @@ export function useDrafts({
         setSentWords((current) => withoutKey(current, chatId));
         setSentProjects((current) => withoutKey(current, chatId));
         setGroupNames((names) => namedWith(names, chatId, ""));
+        if (isPinned) {
+          starChat(queryClient, chatId, false);
+        }
         toast.error("Couldn't start the chat", { cause: failed.error });
       }
       opened();
@@ -449,8 +463,8 @@ export function useDrafts({
       // with it. A launch that finds the folder still there finds that
       // message too, and takes the folder away then.
       draftSent(id);
-      // The name went on with the group to its chat (`nameCarried`).
-      setGroupNames((names) => namedWith(names, draftGroupOf(id), ""));
+      // The name and the pin went on with the group to its chat.
+      forgetGroup(draftGroupOf(id));
       removeAsks(marked.map((ask) => ask.id));
       setArrived({ chatId, draftId: id });
       if (!opensWhole) {

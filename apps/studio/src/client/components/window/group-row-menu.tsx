@@ -33,7 +33,7 @@ import { type TabGroup } from "./tab-groups";
 
 /** What a row's menu does, which the sidebar answers for every row. */
 export interface GroupRowMenuActions {
-  /** The chat's actions (`useChatActionsFor`), none for a group whose chat has not started. */
+  /** The chat's actions (`useChatActionsFor`); for a group whose chat has not started, its pin alone, as a chat's star. */
   actions: RowAction[];
   onClose: () => void;
   /**
@@ -52,7 +52,7 @@ export interface GroupRowMenuActions {
   projects: Project[];
 }
 
-/** A chat's star, which in the sidebar pins its row above the line. */
+/** A chat's star, which in the sidebar pins its row above the line, or a pin of a group whose chat has not started, offered as one. */
 function asPin(action: RowAction): RowAction {
   if (action.id === "star") {
     return {
@@ -76,9 +76,9 @@ function asPin(action: RowAction): RowAction {
  * has them: Open in New Window; marking the chat read or unread and pinning
  * it; naming the group and filing it under a project; copying its paths; and
  * closing the group, or the groups around it, as a tab's menu closes tabs. A
- * group whose chat has not started has a window of its own, its name, its
- * project and the closing. Not modal, as the chat row's is not, so the click
- * that puts it away lands on what it was meant for.
+ * group whose chat has not started has a window of its own, pinning, its
+ * name, its project and the closing. Not modal, as the chat row's is not, so
+ * the click that puts it away lands on what it was meant for.
  */
 export function GroupRowMenu({
   children,

@@ -9,6 +9,7 @@ import {
   listedWithout,
   nameCarried,
   namedWith,
+  pinnedWith,
 } from "./tab-groups";
 
 describe("a group whose chat has not started, closed", () => {
@@ -56,6 +57,29 @@ describe("a tab group's name", () => {
       "draft:a": "Wireframes",
     });
     expect(nameCarried(NAMES, "draft:b", "chat")).toBe(NAMES);
+  });
+});
+
+describe("a pin of a group whose chat has not started", () => {
+  const PINS = { "draft:a": true } as const;
+
+  it.each([
+    ["pins a group", {}, "draft:a", true, PINS],
+    ["takes a pin off", PINS, "draft:a", false, {}],
+    [
+      "leaves another group's pin",
+      PINS,
+      "draft:b",
+      true,
+      { ...PINS, "draft:b": true },
+    ],
+  ])("%s", (_, pins, group, pinned, expected) => {
+    expect(pinnedWith(pins, group, pinned)).toEqual(expected);
+  });
+
+  it("keeps the pins as they were when nothing changes", () => {
+    expect(pinnedWith(PINS, "draft:a", true)).toBe(PINS);
+    expect(pinnedWith(PINS, "draft:b", false)).toBe(PINS);
   });
 });
 

@@ -87,6 +87,7 @@ import { useProjectShift } from "./use-project-shift";
 import { useSetChatProject } from "./use-set-chat-project";
 import {
   draftWordsTitle,
+  isPinnedGroup,
   lastActiveAt,
   type TabGroup,
   windowTabGroupsAtom,
@@ -148,6 +149,7 @@ export function GroupSidebar({
   onNew,
   onNewProject,
   onNewProjectFor,
+  onPin,
   onRestore,
   onShow,
   open,
@@ -168,6 +170,8 @@ export function GroupSidebar({
   onNewProject: () => void;
   /** The new-project dialog for one group, which files it under the project it makes. */
   onNewProjectFor: (target: { chatId: ChatId } | { draftId: string }) => void;
+  /** Pins a group above the line, or takes it back down. */
+  onPin: (group: string, pinned: boolean) => void;
   onRestore: (group: string) => void;
   onShow: (group: string, options: { newWindow: boolean }) => void;
   open: TabGroup[];
@@ -197,12 +201,8 @@ export function GroupSidebar({
       ? entry.chat.project === project.id
       : entry.draft.projectId === project.id);
   const listed = open.filter(inProject);
-  const pinned = listed.filter(
-    (entry) => entry.kind === "chat" && entry.chat.starred,
-  );
-  const rest = listed.filter(
-    (entry) => !(entry.kind === "chat" && entry.chat.starred),
-  );
+  const pinned = listed.filter((entry) => isPinnedGroup(entry));
+  const rest = listed.filter((entry) => !isPinnedGroup(entry));
   const { allTabs } = useWindowTabs();
   const projectNames = new Map(projects.map((each) => [each.id, each.name]));
   /**
@@ -238,8 +238,6 @@ export function GroupSidebar({
   const roomSnaps = useAtomValue(roomSnapsAtom);
   const filled = useAtomValue(filledRoomAtom);
   const room = drop?.kind === "between" ? drop : undefined;
-  const isPinned = (entry: TabGroup) =>
-    entry.kind === "chat" && entry.chat.starred;
   // The rows the list shows, in its order, which a row's menu closes around.
   const shownRows = isSearching ? matching(open) : [...pinned, ...rest];
   const liftedEntry =
@@ -251,7 +249,7 @@ export function GroupSidebar({
     // Pinned rows stay open, as a browser's pinned tabs do.
     const closing = (around: TabGroup[]) => {
       const groups = around.flatMap((each) =>
-        isPinned(each) ? [] : [each.group],
+        isPinnedGroup(each) ? [] : [each.group],
       );
       return groups.length === 0
         ? undefined
@@ -261,7 +259,21 @@ export function GroupSidebar({
     };
     const at = shownRows.findIndex((each) => each.group === entry.group);
     return {
-      actions: entry.kind === "chat" ? actionsFor(entry.chat) : [],
+      // A group whose chat has not started pins by its own pin, which the
+      // menu offers as it offers a chat's star.
+      actions:
+        entry.kind === "chat"
+          ? actionsFor(entry.chat)
+          : [
+              {
+                icon: null,
+                id: entry.pinned ? "unstar" : "star",
+                label: entry.pinned ? "Unpin" : "Pin",
+                run: () => {
+                  onPin(entry.group, !entry.pinned);
+                },
+              },
+            ],
       onClose: () => {
         onClose(entry.group);
       },

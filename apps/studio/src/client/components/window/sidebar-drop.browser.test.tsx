@@ -91,16 +91,11 @@ describe("a tab over the sidebar", () => {
 });
 
 describe("a whole group over the sidebar", () => {
-  const group = (canPin: boolean): DropCarry => ({
-    canPin,
-    carries: "group",
-    gap: 54,
-  });
+  const GROUP: DropCarry = { carries: "group", gap: 54 };
 
   it.each([
     [
-      "a chat's, at the top, among the pinned rows",
-      true,
+      "at the top, among the pinned rows",
       0,
       {
         before: "row:chat-a",
@@ -110,8 +105,7 @@ describe("a whole group over the sidebar", () => {
       },
     ],
     [
-      "a chat's, under the pinned rows",
-      true,
+      "under the pinned rows",
       56,
       {
         before: ":divider",
@@ -121,9 +115,8 @@ describe("a whole group over the sidebar", () => {
       },
     ],
     [
-      "a draft's, at the top, under New",
-      false,
-      0,
+      "under New",
+      100,
       {
         before: "row:draft:b",
         gap: 54,
@@ -133,7 +126,6 @@ describe("a whole group over the sidebar", () => {
     ],
     [
       "between two rows",
-      false,
       165,
       {
         before: "row:draft:c",
@@ -144,7 +136,6 @@ describe("a whole group over the sidebar", () => {
     ],
     [
       "at the end, over the empty list",
-      false,
       400,
       {
         before: ":history",
@@ -153,8 +144,8 @@ describe("a whole group over the sidebar", () => {
         place: { after: "draft:c", pinned: false },
       },
     ],
-  ])("%s lands in the room nearest", (_, canPin, y, drop) => {
-    expect(sidebarDropAt(...at(y), group(canPin))).toEqual({
+  ])("%s lands in the room nearest", (_, y, drop) => {
+    expect(sidebarDropAt(...at(y), GROUP)).toEqual({
       drop,
       isOver: true,
     });
@@ -164,7 +155,7 @@ describe("a whole group over the sidebar", () => {
     document
       .querySelector("[data-drop-item='row:draft:c']")
       ?.toggleAttribute("data-lifted", true);
-    expect(sidebarDropAt(...at(400), group(false))).toEqual({
+    expect(sidebarDropAt(...at(400), GROUP)).toEqual({
       drop: {
         before: ":history",
         gap: 54,

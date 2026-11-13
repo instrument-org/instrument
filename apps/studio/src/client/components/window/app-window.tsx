@@ -676,8 +676,8 @@ function WindowShell({
       ...keptInOtherWindows(COMPOSE_KEY).flatMap(floatingDraftIdsOf),
     ]);
     // A reply waiting in a chat's box is kept by the chat, not by a window
-    // of its own, so nothing here takes one away, and a tab group of tabs or
-    // with a name is kept by the group.
+    // of its own, so nothing here takes one away, and a tab group of tabs, or
+    // one named or pinned, is kept by the group.
     const kept = store.get(keptDraftGroupsAtom);
     const isKept = (draft: Draft) =>
       draft.chatId !== undefined ||
@@ -1541,6 +1541,9 @@ function WindowShell({
                     setNewProject({});
                   }}
                   onNewProjectFor={setNewProject}
+                  onPin={(group, pinned) => {
+                    groups.pin(group, pinned);
+                  }}
                   onRestore={(group) => {
                     groups.restore(group);
                   }}

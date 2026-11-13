@@ -666,12 +666,12 @@ function MicLevel({ stream }: { stream: MediaStream | null }) {
       return;
     }
     const context = new AudioContext();
-    const analyser = context.createAnalyser();
-    context.createMediaStreamSource(stream).connect(analyser);
-    const samples = new Uint8Array(analyser.fftSize);
+    const analyzer = context.createAnalyser();
+    context.createMediaStreamSource(stream).connect(analyzer);
+    const samples = new Uint8Array(analyzer.fftSize);
     let frame = 0;
     const tick = () => {
-      analyser.getByteTimeDomainData(samples);
+      analyzer.getByteTimeDomainData(samples);
       let peak = 0;
       for (const sample of samples) {
         peak = Math.max(peak, Math.abs(sample - 128) / 128);

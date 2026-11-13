@@ -27,7 +27,8 @@ import { useWindowTabs } from "./window-tabs";
  * address field, which has the caret, finishes addresses and searches the
  * web, and under it the Files sidebar's places in a light row, each turning
  * the tab into Files there. A pale glint crosses the field as the tab
- * arrives. The top of the tab is left to the toolbar over it.
+ * arrives. The top of the tab is left clear for the toolbar and bookmarks
+ * over it, and ⌘L puts the caret in this field (`focusField`).
  */
 export function GroupNewTab({
   group,
@@ -56,10 +57,11 @@ export function GroupNewTab({
 
   return (
     <div className="h-full overflow-y-auto bg-background px-8">
-      <div className="mx-auto flex w-full max-w-160 flex-col items-center pt-[18vh] pb-16">
+      <div className="mx-auto flex w-full max-w-160 flex-col items-center pt-[max(18vh,--spacing(16))] pb-16">
         <AnimatedOutlineBrandIconGlyph className="size-14 text-brown-500/34 dark:text-brown-900/60" />
         <div
           className="relative mt-8 flex h-12 w-full items-center gap-3 rounded-2xl bg-card px-4 text-sm shadow-sm-soft ring-1 ring-border"
+          data-new-tab-field=""
           ref={fieldRef}
         >
           <MagnifyingGlassIcon className="size-4 shrink-0 text-muted-foreground" />

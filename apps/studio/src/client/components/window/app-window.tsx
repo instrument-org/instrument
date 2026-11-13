@@ -438,11 +438,18 @@ function AppTabView({
   );
 }
 
-/** The caret into the field of the tab up's address row, with what is in it selected. */
+/**
+ * The caret into the tab up's address field, with what is in it selected: a
+ * new tab's own, in its body, or else the one in the address row.
+ */
 function focusField() {
-  const field = document.querySelector<HTMLInputElement>(
-    "[data-app-tab-active] [data-tab-location] input",
-  );
+  const field =
+    document.querySelector<HTMLInputElement>(
+      "[data-app-tab-active] [data-new-tab-field] input",
+    ) ??
+    document.querySelector<HTMLInputElement>(
+      "[data-app-tab-active] [data-tab-location] input",
+    );
   field?.focus();
   field?.select();
 }

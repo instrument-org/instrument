@@ -88,7 +88,7 @@ export function CapturesGrid({
                   >
                     <img
                       alt=""
-                      className="size-full object-cover object-top"
+                      className="size-full object-contain"
                       draggable={false}
                       loading="lazy"
                       src={captureUrl(capture, { small: true })}

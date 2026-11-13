@@ -33,7 +33,7 @@ export interface CarryStrip {
    * Whether the pointer is over a place of the window's own that takes the tab
    * (another group in the sidebar): off its row, yet not leaving the window.
    */
-  isOverOwnTarget: (event: PointerEvent) => boolean;
+  isOverOwnTarget: (event: PointerEvent, key: string) => boolean;
   /** What the window does once main has said where the tab went, a tab let go over a place of its own included. */
   onEnd: (key: string, end: TabCarryEnd, event: PointerEvent) => void;
   /** What the strip's tabs (`[data-tab-key]`) and row (`[role=tablist]`) are found under. */
@@ -232,7 +232,7 @@ export function useTabCarry({
     // Over a place of the window's own that takes it, the tab is off its row
     // here, and nowhere else for main.
     const isOverOwnTarget =
-      !isOnlyTab && (other?.isOverOwnTarget(event) ?? false);
+      !isOnlyTab && (other?.isOverOwnTarget(event, key) ?? false);
     drag.isOffRow =
       isOnlyTab ||
       isOverOwnTarget ||

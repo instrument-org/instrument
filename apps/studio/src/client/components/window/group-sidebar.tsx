@@ -24,13 +24,13 @@ import { getInitials } from "@/client/lib/get-initials";
 import { showProjectInFiles } from "@/client/lib/show-in-files";
 import { cn, isMacOS } from "@/client/lib/utils";
 import { rpcClient } from "@/client/rpc/client";
+import { groupOfWholeKey } from "@/shared/tabs";
 import { WINDOW_SHORTCUTS } from "@/shared/window-shortcuts";
 import { CaretLeftIcon } from "@phosphor-icons/react/CaretLeft";
 import { CaretRightIcon } from "@phosphor-icons/react/CaretRight";
 import { ClockCounterClockwiseIcon } from "@phosphor-icons/react/ClockCounterClockwise";
 import { GearSixIcon } from "@phosphor-icons/react/GearSix";
 import { PlusIcon } from "@phosphor-icons/react/Plus";
-import { PushPinIcon } from "@phosphor-icons/react/PushPin";
 import { XIcon } from "@phosphor-icons/react/X";
 import { type ChatId } from "@instrument-org/workspace/client";
 import { useQuery } from "@tanstack/react-query";
@@ -46,6 +46,7 @@ import {
   type ReactNode,
   type Ref,
   useEffect,
+  useLayoutEffect,
   useRef,
   useState,
 } from "react";
@@ -68,11 +69,13 @@ import { ProjectsSection } from "./projects-section";
 import { RowActionBar } from "./row-action-bar";
 import { stopHere } from "./row-shell";
 import { pageTabTitle } from "./file-tabs";
-import { ScreenMark } from "./pane-tabs";
+import { ScreenMark, stripKeyOf } from "./pane-tabs";
 import { screenPresentation } from "./screen-presentation";
 import { SearchField } from "./search-field";
 import {
   filledRoomAtom,
+  heldOverSidebarAtom,
+  LIST_GAP_PX,
   liftedRowAtom,
   roomSnapsAtom,
   sidebarDropAtom,
@@ -128,6 +131,7 @@ export function sidebarBounds(width: number): RailBounds {
  * under its banner. A row dragged within the list lands where it is let
  * go, pinned above the line or unpinned below it, and one dragged out goes
  * to a window of its own or to another window's list (`useGroupRowDrag`).
+ * A tab held over it goes as a row at the pointer (`HeldPicture`).
  */
 export function GroupSidebar({
   chatTitles,
@@ -322,7 +326,6 @@ export function GroupSidebar({
       ...(room && roomAt !== -1 && items.indexOf(item) >= roomAt
         ? { shift: room.gap }
         : {}),
-      ...(room && room.before === item ? { room } : {}),
       snaps: roomSnaps,
     });
     const listItem = (entry: TabGroup, section: "pinned" | "rest") => (
@@ -379,6 +382,7 @@ export function GroupSidebar({
           )}
           <ListItem key=":new" {...place(":new")}>
             <NewRow
+              isDropTarget={drop?.kind === "new" && drop.over === "new"}
               onNew={() => {
                 onNew(project?.id);
               }}
@@ -396,15 +400,20 @@ export function GroupSidebar({
           )}
         </AnimatePresence>
         {room && room.before === undefined && (
-          <div className="relative shrink-0" style={{ height: room.gap }}>
-            <div
-              className="absolute inset-x-0"
-              style={{ top: (room.gap - LIST_GAP_PX) / 2 }}
-            >
-              <DropLine isPinning={room.isPinning} />
-            </div>
-          </div>
+          <div
+            className="shrink-0"
+            style={{ height: room.gap - LIST_GAP_PX }}
+          />
         )}
+        {/* The list's empty space under the rows, where a tab held over it
+            becomes a group of its own. */}
+        <div
+          className={cn(
+            "min-h-0 flex-1 rounded-lg",
+            drop?.kind === "new" && drop.over === "empty" && "bg-foreground/5",
+          )}
+          data-drop-empty=""
+        />
       </>
     );
   }
@@ -479,6 +488,10 @@ export function GroupSidebar({
         </div>
         <SidebarFoot chatId={chatOfGroup(groupUp)} />
       </div>
+      <HeldPicture
+        chatTitles={chatTitles}
+        entries={[...open, ...elsewhere, ...history]}
+      />
     </nav>
   );
 }
@@ -529,9 +542,9 @@ function useArrivals(listed: readonly string[]): ReadonlySet<string> {
  * One thing in the list: a row arriving opens its room as it slides into
  * it the way a chat arrives in the inbox, and one leaving closes its room as
  * it fades, out of reach meanwhile. While a drag over the list opens a room
- * in front of it, it and everything after it move aside, the line across
- * the room above it; a row lifted out of the list shuts its place. Marked for
- * where a drag lands (`sidebarDropAt`), which measures it as laid out.
+ * in front of it, it and everything after it move aside by the room's
+ * height; a row lifted out of the list shuts its place. Marked for where a
+ * drag lands (`sidebarDropAt`), which measures it as laid out.
  */
 function ListItem({
   children,
@@ -540,7 +553,6 @@ function ListItem({
   isInstant = false,
   isLifted = false,
   item,
-  room,
   section,
   shift = 0,
   snaps,
@@ -552,7 +564,6 @@ function ListItem({
   isInstant?: boolean;
   isLifted?: boolean;
   item: string;
-  room?: { isPinning: boolean };
   section?: "pinned" | "rest";
   shift?: number;
   /** The room moves at once rather than sliding. */
@@ -582,14 +593,6 @@ function ListItem({
       initial={isArriving ? { height: 0, overflow: "hidden" } : false}
       transition={isReduced || isInstant ? { duration: 0 } : ROW_MOTION}
     >
-      {room && (
-        <div
-          className="absolute inset-x-0"
-          style={{ top: (shift - LIST_GAP_PX) / 2 }}
-        >
-          <DropLine isPinning={room.isPinning} />
-        </div>
-      )}
       <div
         className={cn(
           !snaps &&
@@ -600,22 +603,6 @@ function ListItem({
         {children}
       </div>
     </motion.div>
-  );
-}
-
-/** The space between the list's items (`gap-0.5`). */
-const LIST_GAP_PX = 2;
-
-/** The line across a room a drag opened in the list, with a pin where landing there pins the group. */
-function DropLine({ isPinning }: { isPinning: boolean }) {
-  return (
-    <div
-      aria-hidden
-      className="pointer-events-none absolute inset-x-1 top-0 flex h-0 items-center gap-1 text-brand-500"
-    >
-      {isPinning && <PushPinIcon className="size-3.5 shrink-0" weight="fill" />}
-      <span className="h-0.5 flex-1 rounded-full bg-brand-500" />
-    </div>
   );
 }
 
@@ -634,10 +621,107 @@ function GroupList({ children }: { children: ReactNode }) {
   );
 }
 
-function NewRow({ onNew }: { onNew: () => void }) {
+/** How far under the pointer a tab held over the sidebar hangs. */
+const TAB_HANGS_PX = 10;
+
+/**
+ * What is held over the sidebar from a tab's strip, its own window's or
+ * another's, drawn at the pointer as a row: a tab as a one-line row of its
+ * mark and title, a whole group from another window as its row. It stands in
+ * for main's picture of the window, which shows only where letting go would
+ * make a window.
+ */
+function HeldPicture({
+  chatTitles,
+  entries,
+}: {
+  chatTitles: Map<ChatId, string>;
+  /** Every group this window can name, another window's included. */
+  entries: readonly TabGroup[];
+}) {
+  const held = useAtomValue(heldOverSidebarAtom);
+  const { allTabs } = useWindowTabs();
+  const appsBySlug = useAppsBySlug();
+  const ref = useRef<HTMLDivElement>(null);
+  const isWhole = held !== undefined && groupOfWholeKey(held.key) !== undefined;
+  // In the sidebar's own px, which the window's zoom scales: a group's row
+  // centered on the pointer, as a row lifted out of the list is held, and a
+  // tab hanging just under it, so the row or New it would land in shows.
+  useLayoutEffect(() => {
+    const element = ref.current;
+    const sidebar = element?.offsetParent;
+    if (!element || !held || !(sidebar instanceof HTMLElement)) {
+      return;
+    }
+    const bounds = sidebar.getBoundingClientRect();
+    const zoom =
+      sidebar.offsetHeight > 0 ? bounds.height / sidebar.offsetHeight : 1;
+    const at = (held.clientY - bounds.top) / zoom;
+    element.style.top = `${isWhole ? at - element.offsetHeight / 2 : at + TAB_HANGS_PX}px`;
+  });
+  if (!held) {
+    return null;
+  }
+  const whole = groupOfWholeKey(held.key);
+  const entry =
+    whole === undefined
+      ? undefined
+      : entries.find((each) => each.group === whole);
+  const tab =
+    whole === undefined
+      ? allTabs.find((each) => stripKeyOf(each) === held.key)
+      : undefined;
+  let shown: ReactNode = null;
+  if (entry) {
+    shown = (
+      <GroupRow chatTitles={chatTitles} entry={entry} isLifted isUp={false} />
+    );
+  } else if (tab) {
+    const title =
+      tab.kind === "page"
+        ? pageTabTitle(tab) || (tab.url ?? tab.openedUrl ?? "")
+        : screenPresentation(tab.href, { appsBySlug, chatTitles }).title;
+    shown = (
+      <div className="flex h-9 items-center gap-2.5 px-2.5">
+        <span className="grid size-4 shrink-0 place-items-center">
+          <TabMark appsBySlug={appsBySlug} chatTitles={chatTitles} tab={tab} />
+        </span>
+        <span className="min-w-0 flex-1 truncate text-[13px] font-medium text-foreground/85">
+          {title}
+        </span>
+      </div>
+    );
+  }
+  if (!shown) {
+    return null;
+  }
+  return (
+    <div
+      aria-hidden
+      className="pointer-events-none absolute inset-x-2 z-20 rotate-1 rounded-lg bg-card shadow-xl ring-1 ring-black/[0.06]"
+      data-held-picture=""
+      ref={ref}
+    >
+      {shown}
+    </div>
+  );
+}
+
+/** New, which also lights while a tab held over it would become a group of its own. */
+function NewRow({
+  isDropTarget,
+  onNew,
+}: {
+  isDropTarget: boolean;
+  onNew: () => void;
+}) {
   return (
     <button
-      className="flex h-9 w-full shrink-0 items-center gap-2.5 rounded-lg px-2.5 text-[13px] font-medium text-foreground/70 hover:bg-foreground/5 hover:text-foreground"
+      className={cn(
+        "flex h-9 w-full shrink-0 items-center gap-2.5 rounded-lg px-2.5 text-[13px] font-medium text-foreground/70 hover:bg-foreground/5 hover:text-foreground",
+        isDropTarget && "bg-foreground/5 text-foreground",
+      )}
+      data-drop-target={isDropTarget ? "" : undefined}
       onClick={onNew}
       type="button"
     >
@@ -752,9 +836,10 @@ function dayLabel(at: number): string {
  * on, the question it waits on, or its last reply), with the marks of the
  * group's tabs at the line's end. A group whose chat has not started has
  * only its tabs' marks there. While the pointer is on a row that closes, a
- * close X stands in the time's place, and a middle click closes it too. It
- * lights while a tab held over it would land in its group. A right click
- * raises its menu (`GroupRowMenu`), whose Rename turns the title into a field.
+ * close X stands in the time's place, and a middle click closes it too.
+ * While a tab held over it would land in its group, it takes the tone of the
+ * row up. A right click raises its menu (`GroupRowMenu`), whose Rename turns
+ * the title into a field.
  */
 export function GroupRow({
   chatTitles,
@@ -803,10 +888,9 @@ export function GroupRow({
     <div
       className={cn(
         "group/row flex shrink-0 items-center gap-2 rounded-lg px-2.5 py-1.5",
-        isUp
+        isUp || isDropInto
           ? "bg-card shadow-xs ring-1 ring-black/[0.04]"
           : "hover:bg-foreground/[0.04]",
-        isDropInto && "bg-brand-500/10 ring-2 ring-brand-500",
         onShow && "cursor-default",
         onPress && "select-none",
       )}

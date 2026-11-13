@@ -3,25 +3,40 @@ import { atom } from "jotai";
 
 /**
  * What letting go over the sidebar's list would do now, which the list
- * shows: a tab into the group of the row under it, which lights; or a room
- * opened between two rows, the rows past it moved aside and a line across
- * it, where a tab lands as a group of its own and a row lands as it is.
+ * shows: a tab into the group of the row under it, which takes the row's
+ * selected tone; a tab as a group of its own at the top of the list, over
+ * New or the empty list under the rows, which takes a plain highlight; or,
+ * for a whole group, a room opened between two rows, the rows past it moved
+ * aside, where the group lands as it is.
  */
 export type SidebarDrop =
   | { group: string; kind: "into" }
+  | {
+      kind: "new";
+      /** What lights for it: the New row or the empty list under the rows. */
+      over: "empty" | "new";
+    }
   | {
       /** The list's item the room opens in front of (`data-drop-item`); none at the list's end. */
       before: string | undefined;
       /** How tall the room is, in the list's px: the row that would land there. */
       gap: number;
-      /** Whether landing there pins a group that was not pinned. */
-      isPinning: boolean;
       kind: "between";
       place: SidebarPlace;
     };
 
 /** Where a drag over this window's sidebar would land, as last measured. */
 export const sidebarDropAtom = atom<SidebarDrop | undefined>(undefined);
+
+/**
+ * A tab or a whole group held over this window's sidebar, by the key it is
+ * carried under, and where the pointer is in the window's px: the sidebar
+ * draws it there as a row, since main's picture of a window shows only where
+ * letting go would make one.
+ */
+export const heldOverSidebarAtom = atom<
+  undefined | { clientX: number; clientY: number; key: string }
+>(undefined);
 
 /**
  * A row lifted out of the list by the pointer: its group, and where the
@@ -43,22 +58,31 @@ export const roomSnapsAtom = atom(false);
 /** The group that has just filled a room, which takes its place in the list without arriving. */
 export const filledRoomAtom = atom<string | undefined>(undefined);
 
-/** The room a group's row takes in the list: its height and the space under it. */
-export const ROW_GAP_PX = 54;
+/** The space between the list's items (`gap-0.5`). */
+export const LIST_GAP_PX = 2;
+
+/**
+ * The room a group's row takes in the list, its height and the space under
+ * it, for a row from another window, which this one has not laid out.
+ */
+export const ROW_GAP_PX = 52 + LIST_GAP_PX;
 
 /** What is carried over the list, which decides where it can land. */
-export interface DropCarry {
-  /** Whether it can be pinned: a chat's whole group, never a draft's or a tab. */
-  canPin: boolean;
-  /** A tab lands in a row's group or as a group of its own; a whole group only between rows. */
-  carries: "group" | "tab";
-  /** Its own group, which a tab does not land in and a pin does not count for. */
-  from: string | undefined;
-  /** The room it takes. */
-  gap: number;
-  /** Whether its group is pinned already. */
-  isPinned: boolean;
-}
+export type DropCarry =
+  | {
+      /** A tab lands in a row's group, or as a group of its own at the top. */
+      carries: "tab";
+      /** Its own group, which it does not land in. */
+      from: string | undefined;
+    }
+  | {
+      /** Whether it can be pinned: a chat's group, never a draft's. */
+      canPin: boolean;
+      /** A whole group lands between rows. */
+      carries: "group";
+      /** The room it takes. */
+      gap: number;
+    };
 
 function contains(element: Element, x: number, y: number) {
   const { bottom, left, right, top } = element.getBoundingClientRect();
@@ -75,19 +99,20 @@ function groupListAt(x: number, y: number): HTMLElement | undefined {
 
 interface Slot {
   before: string | undefined;
-  isPinned: boolean;
   place: SidebarPlace;
   y: number;
 }
 
 /**
- * Where something carried over the sidebar at a point lands: the room
- * between rows whose line is nearest, or for a tab over the middle half of
- * a row, that row's group. Measured from the list as laid out, so the rows
- * moved aside for a room do not move the room, and in the list's own px,
- * which the window's zoom scales. Over the sidebar but not its list (its
- * search, a project's banner), or over a list showing search or History,
- * it lands nowhere but is still over the sidebar.
+ * Where something carried over the sidebar at a point lands. A tab lands in
+ * the group of the row under it, rows meeting halfway across the space
+ * between them, or as a group of its own over New or the empty list under
+ * the rows. A whole group lands in the room between rows whose edge is
+ * nearest, among the pinned rows or the rest. Measured from the list as laid
+ * out, so the rows moved aside for a room do not move the room, and in the
+ * list's own px, which the window's zoom scales. Over the sidebar but not its
+ * list (its search, a project's banner), or over a list showing search or
+ * History, it lands nowhere but is still over the sidebar.
  */
 export function sidebarDropAt(
   x: number,
@@ -124,10 +149,10 @@ export function sidebarDropAt(
   }
 
   if (carry.carries === "tab") {
-    const under = [...pinned, ...rest].find((each) => {
-      const quarter = each.offsetHeight / 4;
-      return at >= top(each) + quarter && at < bottom(each) - quarter;
-    });
+    const half = LIST_GAP_PX / 2;
+    const isIn = (each: HTMLElement) =>
+      at >= top(each) - half && at < bottom(each) + half;
+    const under = [...pinned, ...rest].find(isIn);
     if (under) {
       const group = groupOf(under);
       return {
@@ -135,6 +160,16 @@ export function sidebarDropAt(
         isOver: true,
       };
     }
+    if (isIn(newRow)) {
+      return { drop: { kind: "new", over: "new" }, isOver: true };
+    }
+    const empty = list.querySelector<HTMLElement>("[data-drop-empty]");
+    const isOverEmpty =
+      empty !== null && empty.offsetHeight > 0 && at >= top(empty);
+    return {
+      drop: isOverEmpty ? { kind: "new", over: "empty" } : undefined,
+      isOver: true,
+    };
   }
 
   const slots: Slot[] = [];
@@ -142,7 +177,6 @@ export function sidebarDropAt(
     pinned.forEach((each, index) => {
       slots.push({
         before: keyOf(each),
-        isPinned: true,
         place: {
           ...(index > 0 ? { after: groupOf(pinned[index - 1] ?? each) } : {}),
           before: groupOf(each),
@@ -154,7 +188,6 @@ export function sidebarDropAt(
     const last = pinned.at(-1);
     slots.push({
       before: keyOf(divider ?? newRow),
-      isPinned: true,
       place: { ...(last ? { after: groupOf(last) } : {}), pinned: true },
       y: last ? bottom(last) : top(newRow),
     });
@@ -162,7 +195,6 @@ export function sidebarDropAt(
   rest.forEach((each, index) => {
     slots.push({
       before: keyOf(each),
-      isPinned: false,
       place: {
         ...(index > 0 ? { after: groupOf(rest[index - 1] ?? each) } : {}),
         before: groupOf(each),
@@ -174,7 +206,6 @@ export function sidebarDropAt(
   const last = rest.at(-1);
   slots.push({
     before: keyOf(history),
-    isPinned: false,
     place: { ...(last ? { after: groupOf(last) } : {}), pinned: false },
     y: last ? bottom(last) : bottom(newRow),
   });
@@ -186,7 +217,6 @@ export function sidebarDropAt(
     drop: {
       before: nearest.before,
       gap: carry.gap,
-      isPinning: nearest.isPinned && !carry.isPinned,
       kind: "between",
       place: nearest.place,
     },

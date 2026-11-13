@@ -13,7 +13,6 @@ import {
   wholeGroupKey,
 } from "@/shared/tabs";
 import { browserTargetOf } from "@instrument-org/workspace/client";
-import { useQueryClient } from "@tanstack/react-query";
 import { atom, getDefaultStore, useAtomValue, useStore } from "jotai";
 import {
   type PointerEvent as ReactPointerEvent,
@@ -21,7 +20,6 @@ import {
   useRef,
 } from "react";
 
-import { chatListOptions } from "./chat-list-query";
 import { settleTabMove } from "./move-tab";
 import { stripKeyOf } from "./pane-tabs";
 import {
@@ -33,6 +31,8 @@ import {
 import {
   type DropCarry,
   filledRoomAtom,
+  heldOverSidebarAtom,
+  LIST_GAP_PX,
   liftedRowAtom,
   roomSnapsAtom,
   ROW_GAP_PX,
@@ -71,12 +71,22 @@ function contains(element: Element, x: number, y: number) {
   return x >= left && x < right && y >= top && y < bottom;
 }
 
-/** Shows where a drag over this window's sidebar lands, or that it lands nowhere there, the room sliding to it. */
-function showDrop(drop: SidebarDrop | undefined) {
+/**
+ * Shows where a drag over this window's sidebar lands, or that it lands
+ * nowhere there, the room sliding to it, and what is held over the sidebar,
+ * which it draws at the pointer as a row.
+ */
+function showDrop(
+  drop: SidebarDrop | undefined,
+  held?: { clientX: number; clientY: number; key: string },
+) {
   const store = getDefaultStore();
   if (JSON.stringify(store.get(sidebarDropAtom)) !== JSON.stringify(drop)) {
     store.set(roomSnapsAtom, false);
     store.set(sidebarDropAtom, drop);
+  }
+  if (JSON.stringify(store.get(heldOverSidebarAtom)) !== JSON.stringify(held)) {
+    store.set(heldOverSidebarAtom, held);
   }
 }
 
@@ -92,6 +102,7 @@ function fillRoom(group: string | undefined) {
   const store = getDefaultStore();
   store.set(roomSnapsAtom, true);
   store.set(sidebarDropAtom, undefined);
+  store.set(heldOverSidebarAtom, undefined);
   store.set(liftedRowAtom, undefined);
   if (group === undefined) {
     return;
@@ -157,14 +168,15 @@ function isWholeGroup(state: WindowTabs, tab: WindowTab) {
 
 /**
  * Once main has said a tab went to another window, a group it took along
- * comes off this window's list.
+ * comes off this window's list. A window that closes for it goes on showing
+ * what it shows until it has gone.
  */
 function useLetGoOfWholeGroup() {
   const store = useStore();
   const groups = useTabGroupActions();
   const { open } = useOpenGroups();
   return (key: string, end: TabCarryEnd, from: string | undefined) => {
-    if (end.kind !== "losesTab" && end.kind !== "closes") {
+    if (end.kind !== "losesTab") {
       return;
     }
     const state = store.get(windowTabsAtom);
@@ -203,9 +215,10 @@ function holdsOnly(
  * pulled off its row, its strip closes up and a picture of the window goes
  * with the pointer, let go in the open it is a group of its own in a window of
  * its own, and held over another window it lands where that window says. A
- * window's only tab moves its window. Over this window's sidebar it moves
- * into the group under it, or into a new group over the list's empty space,
- * and the window follows it there.
+ * window's only tab moves its window. Over this window's sidebar it goes as a
+ * row at the pointer in place of the picture, and moves into the group under
+ * it, or into a new group at the top over New or the list's empty space, and
+ * the window follows it there.
  */
 export function useGroupTabCarry({
   group,
@@ -255,17 +268,15 @@ export function useGroupTabCarry({
         const row = document.querySelector(GROUP_TABS)?.getBoundingClientRect();
         return { bottom: row?.bottom ?? 0, top: row?.top ?? 0 };
       },
-      // Anywhere over the sidebar the tab stays in this window; where it
-      // lands there, if anywhere, the list shows.
-      isOverOwnTarget: (event) => {
-        const { drop, isOver } = sidebarDropAt(event.clientX, event.clientY, {
-          canPin: false,
+      // Anywhere over the sidebar the tab stays in this window, drawn there
+      // as a row; where it lands there, if anywhere, the list shows.
+      isOverOwnTarget: (event, key) => {
+        const { clientX, clientY } = event;
+        const { drop, isOver } = sidebarDropAt(clientX, clientY, {
           carries: "tab",
           from: group,
-          gap: ROW_GAP_PX,
-          isPinned: false,
         });
-        showDrop(drop);
+        showDrop(drop, isOver ? { clientX, clientY, key } : undefined);
         return isOver;
       },
       onEnd: (key, end) => {
@@ -281,9 +292,9 @@ export function useGroupTabCarry({
         }
         // The window follows the tab, which stays the one up, as a browser's
         // tab dragged into another window does.
-        if (drop.kind === "between") {
-          fillRoom(groups.make({ moving: id, place: drop.place }));
-        } else {
+        if (drop.kind === "new") {
+          groups.make({ moving: id });
+        } else if (drop.kind === "into") {
           groups.moveTab(id, drop.group);
           groups.show(drop.group);
         }
@@ -302,16 +313,13 @@ function landingAt(
   { clientX, clientY, pointInTab, tab: held }: IncomingTab,
   state: WindowTabs,
   groupUp: string | undefined,
-  isPinned: (group: string) => boolean,
 ): undefined | { drop?: SidebarDrop; landing: GroupTabLanding } {
   const whole = groupOfWholeKey(held.id);
   if (whole !== undefined) {
     const { drop } = sidebarDropAt(clientX, clientY, {
       canPin: draftOfGroup(whole) === undefined,
       carries: "group",
-      from: whole,
       gap: ROW_GAP_PX,
-      isPinned: isPinned(whole),
     });
     return drop?.kind === "between"
       ? { drop, landing: { at: drop.place, kind: "new" } }
@@ -337,22 +345,13 @@ function landingAt(
     };
   }
   const { drop } = sidebarDropAt(clientX, clientY, {
-    canPin: false,
     carries: "tab",
     from: moving.group,
-    gap: ROW_GAP_PX,
-    isPinned: false,
   });
-  if (!drop) {
-    return undefined;
+  if (drop?.kind === "into") {
+    return { drop, landing: { group: drop.group, kind: "group" } };
   }
-  return {
-    drop,
-    landing:
-      drop.kind === "between"
-        ? { at: drop.place, kind: "new" }
-        : { group: drop.group, kind: "group" },
-  };
+  return drop?.kind === "new" ? { drop, landing: { kind: "new" } } : undefined;
 }
 
 function isSameLanding(
@@ -366,31 +365,33 @@ function isSameLanding(
  * Follows what main says of a tab held over this window, and tells it where a
  * group's tab, or a whole group, held here lands: among the tabs of the group
  * up, by where the pointer is along its strip, which draws it there; in a
- * group of the sidebar, whose row lights; or between two rows for a group of
- * its own, where the list opens a room. Measured from the window as drawn,
- * so the tab comes to rest where the pointer is once it has joined the strip.
+ * group of the sidebar, whose row takes its selected tone, or as a group of
+ * its own at the top, over New or the list's empty space; or, for a whole
+ * group, between two rows, where the list opens a room. Wherever it lands in
+ * the sidebar, the sidebar draws it at the pointer as a row. Measured from
+ * the window as drawn, so the tab comes to rest where the pointer is once it
+ * has joined the strip.
  */
 export function useGroupTabLanding() {
   useTabCarryView();
   const store = useStore();
-  const queryClient = useQueryClient();
   const view = useAtomValue(tabCarryViewAtom);
   const landing = useAtomValue(groupTabLandingAtom);
   useLayoutEffect(() => {
-    const isPinned = (group: string) =>
-      queryClient
-        .getQueryData(chatListOptions().queryKey)
-        ?.some((chat) => chat.id === group && chat.starred) === true;
     const found =
       view.kind === "incoming"
         ? landingAt(
             view,
             store.get(windowTabsAtom),
             store.get(groupOnScreenAtom),
-            isPinned,
           )
         : undefined;
-    showDrop(found?.drop);
+    showDrop(
+      found?.drop,
+      found?.drop && view.kind === "incoming"
+        ? { clientX: view.clientX, clientY: view.clientY, key: view.tab.id }
+        : undefined,
+    );
     const next = found?.landing;
     if (isSameLanding(next, store.get(groupTabLandingAtom))) {
       return;
@@ -401,7 +402,7 @@ export function useGroupTabLanding() {
         .call({ landing: next ?? null })
         .catch(() => undefined);
     }
-  }, [landing, queryClient, store, view]);
+  }, [landing, store, view]);
 }
 
 /**
@@ -512,8 +513,6 @@ export function useGroupTabMoves() {
         for (const blank of blanks) {
           windowTabs.close(blank.id);
         }
-      } else if (landing.kind === "new" && landing.at) {
-        fillRoom(groups.make({ moving: tab.id, place: landing.at }));
       } else if (landing.kind === "new" || groupUp === undefined) {
         groups.make({ moving: tab.id });
       } else {
@@ -617,8 +616,10 @@ interface RowPress {
  * Pulled off the sidebar, main carries the whole group the way a group's tab
  * is carried (`useTabCarry`): a picture of the window goes with the pointer,
  * let go in the open the group is a window of its own, and held over another
- * window's sidebar it lands where that window opens a room. Back over the
- * sidebar it is a lifted row again, and Escape puts it back.
+ * window's sidebar it lands where that window opens a room. A window's only
+ * group is main's window with one tab: the window goes with the pointer, and
+ * closes once the group lands in another. Back over the sidebar it is a
+ * lifted row again, and Escape puts it back.
  */
 export function useGroupRowDrag() {
   const store = useStore();
@@ -642,7 +643,7 @@ export function useGroupRowDrag() {
   };
 
   const carry = useTabCarry({
-    isOnlyTab: false,
+    isOnlyTab: listed.length === 1,
     onCancel: () => {
       const press = carried.current;
       carried.current = undefined;
@@ -680,8 +681,11 @@ export function useGroupRowDrag() {
         if (group === undefined) {
           return;
         }
+        // A window that closes for it goes on showing what it shows until it has gone.
         if (end.kind === "losesTab" || end.kind === "closes") {
-          groups.letGo(group, open);
+          if (end.kind === "losesTab") {
+            groups.letGo(group, open);
+          }
           fillRoom(undefined);
           return;
         }
@@ -741,13 +745,14 @@ export function useGroupRowDrag() {
     }
     const bounds = event.currentTarget.getBoundingClientRect();
     const entry = open.find((each) => each.group === group);
+    // The room it opens is the row's own place in the list, which shuts as it lifts.
+    const item =
+      event.currentTarget.closest<HTMLElement>("[data-drop-item]") ?? undefined;
     const press: RowPress = {
       carry: {
         canPin: entry?.kind === "chat",
         carries: "group",
-        from: group,
-        gap: ROW_GAP_PX,
-        isPinned: entry?.kind === "chat" && entry.chat.starred,
+        gap: item ? item.offsetHeight + LIST_GAP_PX : ROW_GAP_PX,
       },
       grab: { x: event.clientX - bounds.left, y: event.clientY - bounds.top },
       group,

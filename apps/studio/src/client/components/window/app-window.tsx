@@ -9,7 +9,12 @@ import {
   newChatBoxesAtom,
   pickNewChatProjectAtom,
 } from "@/client/drafts/new-chat-box";
-import { type Draft, draftGroupOf, holdsSomething } from "@/shared/drafts";
+import {
+  type Draft,
+  draftGroupOf,
+  draftOfGroup,
+  holdsSomething,
+} from "@/shared/drafts";
 import {
   type AppPlace,
   chatFiltersAtom,
@@ -112,7 +117,8 @@ import { inPlace, NO_FILTERS } from "./chats";
 import { ComposeLayer } from "./compose-layer";
 import { useComputerVolumes } from "./computer-volumes";
 import { type WindowContextValue as Screens, WindowContext } from "./context";
-import { isPaneOpen, shownPaneTab } from "./draft-context";
+import { isPaneOpen } from "./draft-context";
+import { isHomeTab, selectedTabIn } from "./tab-model";
 import { useSignInLanding } from "./use-sign-in-landing";
 import { inboxLandsAtOnceAtom } from "./inbox-room";
 import { WindowLook } from "./look-panel";
@@ -477,7 +483,11 @@ function WindowShell({
     groups.close(group, groupList.open);
   };
   // The group a first Cmd+W on a group with no tabs left named, and when.
-  const closeHint = useRef<{ at: number; group: string }>(undefined);
+  const closeHint = useRef<{
+    at: number;
+    group: string;
+    toast: number | string;
+  }>(undefined);
   // The window shows one group at a time, in one tab: tabs restored from
   // the strip a build before this one kept fold into the one up.
   const [paneOpenByGroup, setPaneOpenByGroup] = useAtom(paneOpenByGroupAtom);
@@ -1084,33 +1094,41 @@ function WindowShell({
       back: () => {
         windowSteps.go("back");
       },
-      // The tab a chat's pane shows, wherever the keyboard is, and the
-      // window's own tab only once no pane tab is in view: one close a
-      // press, read from the tabs as they are at that moment.
+      // The tab up in the group on screen, wherever the keyboard is, and
+      // the group itself only once it has none left: one close a press,
+      // read from the tabs as they are at that moment. A group whose chat
+      // has not started puts a new tab back as its last closes, so that new
+      // tab alone counts as none.
       closeTab: () => {
-        const paneTab = shownPaneTab(
-          store.get(windowTabsAtom),
-          store.get(groupOnScreenAtom),
-          store.get(paneOpenByGroupAtom),
-        );
-        if (paneTab) {
-          requestClose(paneTab.id);
-          return;
-        }
         const group = store.get(groupOnScreenAtom);
         if (group === undefined) {
+          return;
+        }
+        const state = store.get(windowTabsAtom);
+        const up = selectedTabIn(state, group);
+        const isOnlyNewTab =
+          up !== undefined &&
+          draftOfGroup(group) !== undefined &&
+          isHomeTab(up) &&
+          state.tabs.filter((tab) => tab.group === group).length === 1;
+        if (up && !isOnlyNewTab) {
+          requestClose(up.id);
           return;
         }
         const hint = closeHint.current;
         if (hint?.group === group && Date.now() - hint.at < CLOSE_AGAIN_MS) {
           closeHint.current = undefined;
+          toast.dismiss(hint.toast);
           askToClose(group);
           return;
         }
-        closeHint.current = { at: Date.now(), group };
-        toast(
-          `Press ${formatAcceleratorText(WINDOW_SHORTCUTS.closeTab.accelerator)} again to close this tab group.`,
-        );
+        closeHint.current = {
+          at: Date.now(),
+          group,
+          toast: toast(
+            `Press ${formatAcceleratorText(WINDOW_SHORTCUTS.closeTab.accelerator)} again to close this tab group.`,
+          ),
+        };
       },
       forward: () => {
         windowSteps.go("forward");

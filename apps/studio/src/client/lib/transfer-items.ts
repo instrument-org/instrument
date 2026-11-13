@@ -55,3 +55,13 @@ export function splitTransferItems({
 
   return { files, folders, unresolvedFolders };
 }
+
+/**
+ * Whether `path` is a file macOS dropped from its screenshot or recording
+ * thumbnail: a copy in a temporary folder that only the app receiving the
+ * drop may read, which no folder grant opens and macOS deletes later. Such a
+ * file is kept by its bytes, read at the drop, rather than by its path.
+ */
+export function isMacosThumbnailDrop(path: string): boolean {
+  return /\/TemporaryItems\/NSIRD_[^/]+\/[^/]+$/.test(path);
+}

@@ -54,7 +54,10 @@ import { shouldAttachClipboardItem } from "@/client/lib/paste-clipboard";
 import { displayPath, folderLabel } from "@/client/lib/path-utils";
 import { SKILL_LIST_STALE_TIME_MS } from "@/client/lib/skill-query";
 import { captureException } from "@/client/lib/capture-exception";
-import { splitTransferItems } from "@/client/lib/transfer-items";
+import {
+  isMacosThumbnailDrop,
+  splitTransferItems,
+} from "@/client/lib/transfer-items";
 import { cn } from "@/client/lib/utils";
 import { rpcClient } from "@/client/rpc/client";
 import { type AIGatewayModelURI } from "@instrument-org/ai-gateway/client";
@@ -541,7 +544,8 @@ export const PromptInput = ({
       const shouldCreatePreview =
         file.size <= MAX_FILE_PREVIEW_SIZE && file.type.startsWith("image/");
       const filePath = window.api.getFilePath(file);
-      const shouldUsePath = filePath.trim().length > 0;
+      const shouldUsePath =
+        filePath.trim().length > 0 && !isMacosThumbnailDrop(filePath);
 
       if (shouldUsePath && !shouldCreatePreview) {
         setAttachedItems((prev) => [

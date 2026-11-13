@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { splitTransferItems } from "./transfer-items";
+import { isMacosThumbnailDrop, splitTransferItems } from "./transfer-items";
 
 function item({
   isDirectory = false,
@@ -62,5 +62,24 @@ describe("splitTransferItems", () => {
 
     expect(folders).toEqual([]);
     expect(unresolvedFolders).toBe(1);
+  });
+});
+
+describe("isMacosThumbnailDrop", () => {
+  it.each([
+    [
+      "/var/folders/ab/cd/T/TemporaryItems/NSIRD_screencaptureui_12Wc6X/Screenshot 2026-11-12 at 4.58.13\u202fPM.png",
+      true,
+    ],
+    [
+      "/var/folders/ab/cd/T/TemporaryItems/NSIRD_screencaptureui_Ab12/Screen Recording.mov",
+      true,
+    ],
+    ["/Users/mac-user/Desktop/Screenshot.png", false],
+    ["/var/folders/ab/cd/T/TemporaryItems/NSIRD_screencaptureui_12Wc6X", false],
+    ["/var/folders/ab/cd/T/Screenshot.png", false],
+    ["", false],
+  ])("%s → %s", (path, expected) => {
+    expect(isMacosThumbnailDrop(path)).toBe(expected);
   });
 });

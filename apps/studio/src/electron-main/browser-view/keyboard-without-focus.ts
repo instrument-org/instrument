@@ -6,6 +6,7 @@ import { CdpCommandTimeoutError } from "@instrument-org/workspace/electron";
 import type { BrowserEntry } from "./entry";
 
 import { log } from "./log";
+import { ARM_SOURCE, FOCUSED_FRAME_OWNER } from "./typing-page-scripts";
 
 // Agent typing that leaves the window's keyboard focus where it is.
 //
@@ -24,8 +25,11 @@ import { log } from "./log";
 // than to the window's focus. Anything none of these can carry falls back to
 // the caller's focus-taking path.
 
-/** The isolated world the check and its listeners run in, unseen by the page. */
-const TYPING_WORLD = 1078;
+/**
+ * The isolated world the check, its listeners and the caller's focus probe run
+ * in: the page's own scripts cannot see or redefine what runs there.
+ */
+export const TYPING_WORLD = 1078;
 // How many frames in processes of their own, one inside the next, focus is
 // followed through.
 const MAX_FRAME_DEPTH = 4;
@@ -151,73 +155,10 @@ export function lastKeyEvent(
   return typesCharacter ? "keypress" : "keydown";
 }
 
-/**
- * Runs in the guest's main frame, in the typing world: finds where typing goes
- * (through open shadow roots and same-origin frames) and, when it can be
- * carried there, starts listening on that document's window for what the
- * caller is about to send. Answers "frame" when focus is in a frame this world
- * cannot reach, which is one in a process of its own; "none" when text has no
- * field to go into; "armed" once listening.
- */
-const ARM_SOURCE = `(mode, last, grace, limit) => {
-  const TEXT_TYPES = ["", "email", "number", "password", "search", "tel", "text", "url"];
-  let doc = document;
-  let el = doc.activeElement;
-  for (;;) {
-    while (el && el.shadowRoot && el.shadowRoot.activeElement) el = el.shadowRoot.activeElement;
-    if (!el || (el.localName !== "iframe" && el.localName !== "frame")) break;
-    let inner = null;
-    try { inner = el.contentDocument; } catch {}
-    if (!inner) return "frame";
-    doc = inner;
-    el = inner.activeElement;
-  }
-  const field = !!el && (el.isContentEditable ||
-    ((el.localName === "textarea" || (el.localName === "input" && TEXT_TYPES.includes(el.type))) && !el.readOnly && !el.disabled));
-  if (mode === "text" && !field) return "none";
-  const win = doc.defaultView;
-  if (globalThis.__instrumentTyping) globalThis.__instrumentTyping.stop();
-  const types = mode === "text" ? ["beforeinput", "input"] : ["keydown", "keypress", "keyup"];
-  let seen = 0;
-  let settle;
-  let timer;
-  const handled = new Promise((resolve) => { settle = resolve; });
-  const finish = (how) => {
-    clearTimeout(timer);
-    // Answered after the task the event is in, so its default action has run.
-    setTimeout(() => settle(how), 0);
-  };
-  const on = (event) => {
-    if (!event.isTrusted) return;
-    seen += 1;
-    if (mode !== "key") return;
-    if (event.type === last) finish(event.type);
-    else if (event.type === "keydown" && last === "keypress") {
-      clearTimeout(timer);
-      timer = setTimeout(() => finish("keydown"), grace);
-    }
-  };
-  for (const type of types) win.addEventListener(type, on, true);
-  const stop = () => {
-    clearTimeout(timer);
-    for (const type of types) win.removeEventListener(type, on, true);
-    if (globalThis.__instrumentTyping === state) globalThis.__instrumentTyping = undefined;
-  };
-  const state = {
-    stop,
-    seen: () => { stop(); return seen; },
-    handled: () => {
-      timer = setTimeout(() => finish("timeout"), limit);
-      return handled.then((how) => { stop(); return how; });
-    },
-  };
-  globalThis.__instrumentTyping = state;
-  return "armed";
-}`;
-
 /** Why a command took the focus-taking path; logged with it. */
 export type FocusFreeMiss =
-  | "focus in a frame of its own"
+  | "focus in a cross-origin frame"
+  | "focus in a frame with no debugger session"
   | "no text field has focus"
   | "no key translation"
   | "page did not answer"
@@ -228,11 +169,11 @@ export type FrameRoute = { frameSession: string };
 
 /**
  * Sends one keyboard command to the guest without taking the window's focus.
- * Answers `true` once the page has it; the frame session to send it on when
- * focus is in a frame of its own process; or the reason it could not be
- * carried, in which case nothing was sent and the caller sends it the
- * focus-taking way. A commit that never answers throws, since it may have
- * landed.
+ * Answers `true` once the page has it, or once it was sent and the page did
+ * not say otherwise; the frame session to send it on when focus is in a frame
+ * of its own process; or the reason it could not be carried, in which case
+ * nothing landed and the caller sends it the focus-taking way. A commit that
+ * never answers throws, since it may have landed.
  */
 export async function typeWithoutFocus(
   entry: BrowserEntry,
@@ -265,7 +206,7 @@ async function insertText(
     return true;
   }
   const armed = await arm(wc, "text");
-  if (armed === "focus in a frame of its own") {
+  if (armed === "focus in a cross-origin frame") {
     return (await frameRoute(entry, wc, "text")) ?? armed;
   }
   if (armed !== true) {
@@ -281,13 +222,20 @@ async function insertText(
       ),
   );
   // The page fires beforeinput and input for a commit that reached its field,
-  // even one it then cancels; none means the text went nowhere.
+  // even one it then cancels; none means the text went nowhere. A page too busy
+  // to answer has had the commit, which has most likely landed, and sending it
+  // again would type it twice.
   const seen = await inTypingWorld(
     wc,
     "globalThis.__instrumentTyping?.seen() ?? 0",
   );
-  if (typeof seen !== "number" || seen === 0) {
+  if (seen === 0) {
     return "page fired no input event";
+  }
+  if (typeof seen !== "number") {
+    log.info(
+      `text sent without focus targetId=${entry.targetId}: the page did not say whether it fired an input event`,
+    );
   }
   tally(entry, "text");
   return true;
@@ -305,7 +253,7 @@ async function sendKey(
     return (await frameRoute(entry, wc, "keys")) ?? "no key translation";
   }
   const armed = await arm(wc, "key", lastKeyEvent(params));
-  if (armed === "focus in a frame of its own") {
+  if (armed === "focus in a cross-origin frame") {
     return (await frameRoute(entry, wc, "keys")) ?? armed;
   }
   if (armed !== true) {
@@ -344,7 +292,7 @@ async function arm(
     case "armed":
       return true;
     case "frame":
-      return "focus in a frame of its own";
+      return "focus in a cross-origin frame";
     case "none":
       return "no text field has focus";
     default:
@@ -353,32 +301,17 @@ async function arm(
 }
 
 /**
- * The page's main world, run through the debugger: the owner element of the
- * frame in a process of its own that focus is in, reached the way the arm
- * check walks, or null when focus is not in one.
- */
-const FOCUSED_FRAME_OWNER = `(() => {
-  let el = document.activeElement;
-  for (;;) {
-    while (el && el.shadowRoot && el.shadowRoot.activeElement) el = el.shadowRoot.activeElement;
-    if (!el || (el.localName !== "iframe" && el.localName !== "frame")) return null;
-    let inner = null;
-    try { inner = el.contentDocument; } catch {}
-    if (!inner) return el;
-    el = inner.activeElement;
-  }
-})()`;
-
-/**
  * The frame session to type on when focus is in a frame of its own process,
- * counted as typed; undefined when it is not, or the debugger has not attached
- * that frame, which happens only before the agent asks for the page's frames.
+ * counted as typed. Undefined when focus is in no cross-origin frame the page
+ * names. A cross-origin frame with no session of its own is either in the
+ * page's process (same site, another origin), where the debugger gives it no
+ * target, or one the debugger has not attached yet.
  */
 async function frameRoute(
   entry: BrowserEntry,
   wc: WebContents,
   kind: "keys" | "text",
-): Promise<FrameRoute | undefined> {
+): Promise<FocusFreeMiss | FrameRoute | undefined> {
   let frameSession: string | undefined;
   for (let depth = 0; depth < MAX_FRAME_DEPTH; depth++) {
     const frameId = await focusedFrameId(wc, frameSession);
@@ -387,7 +320,7 @@ async function frameRoute(
     }
     frameSession = entry.frameSessions.get(frameId);
     if (frameSession === undefined) {
-      return undefined;
+      return "focus in a frame with no debugger session";
     }
   }
   if (frameSession === undefined) {
@@ -426,9 +359,11 @@ async function focusedFrameId(
     }
     try {
       // Cast: as above.
-      const { node } = (await send("DOM.describeNode", {
-        objectId,
-      })) as Protocol.DOM.DescribeNodeResponse;
+      const { node } = (await withinTimeout(
+        send("DOM.describeNode", { objectId }),
+        PROBE_TIMEOUT_MS,
+        () => new Error("the page did not answer"),
+      )) as Protocol.DOM.DescribeNodeResponse;
       return node.frameId;
     } finally {
       send("Runtime.releaseObject", { objectId }).catch(() => undefined);

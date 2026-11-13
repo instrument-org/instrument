@@ -9,7 +9,8 @@ An agent's typing into a page that does not hold the window's focus goes to the 
 ## The signal
 
 - `typed without focus targetId=… text=N keys=M` in the main log, one line per tab once its typing has been quiet for three seconds: how much went the focus-free way.
-- `typing <method> takes focus targetId=…: <reason>`, one per command that fell back, with the reason: `focus in a frame of its own` (a frame the debugger never attached), `no text field has focus`, `no key translation` (a chord, IME, a key outside the US layout table), `page did not answer`, `page fired no input event`.
+- `typing <method> takes focus targetId=…: <reason>`, one per command that fell back, with the reason: `focus in a cross-origin frame` (the page did not say which), `focus in a frame with no debugger session` (same site and another origin, so in the page's process, or not attached yet), `no text field has focus`, `no key translation` (a chord with Control, Alt or Meta, IME, a key outside the US layout table), `page did not answer`, `page fired no input event`.
+- `text sent without focus targetId=…: the page did not say whether it fired an input event`: a commit taken to have landed without the check's answer. Read the page afterwards if it shows up.
 - `reclaimed keyboard focus` and `refused Input…` after a fallback say whether taking focus then worked.
 - A `render-process-gone` for a guest straight after a `typed without focus` line would mean `webContents.insertText` reached a page state the check missed; it crashes a renderer with nothing focused.
 
@@ -22,7 +23,8 @@ The main log of a build in daily use: `apps/studio/.logs/` in development, the r
 - Fallbacks are a small share of `typed without focus` and spread across reasons: keep it as it is.
 - `no key translation` dominates: read which keys, and add them to the translation or carry chords another way.
 - `page fired no input event` is common on one site: that site's editor takes text some other way, worth a probe of its own.
-- `focus in a frame of its own` shows up: agent-browser typed into a frame it had not attached, so the frame lookup needs another way in.
+- `focus in a frame with no debugger session` shows up: read which site. Same-site frames want a route of their own (they share the page's renderer, so `insertText` may reach them); a frame agent-browser had not attached means the lookup needs another way in.
+- `text sent without focus … did not say` shows up beside text typed twice or not at all: the busy-page guess is wrong, so wait longer for the check's answer.
 - Any guest crash after focus-free typing: find the page state and widen the check before anything else.
 
 ## Result

@@ -28,7 +28,7 @@ import {
 import { log } from "./log";
 import { withMacEditingCommands } from "./mac-editing-commands";
 import { withoutMacNativeKeyCode } from "./mac-native-key-code";
-import { typeWithoutFocus } from "./keyboard-without-focus";
+import { TYPING_WORLD, typeWithoutFocus } from "./keyboard-without-focus";
 import { handlePrintToPDF } from "./print-to-pdf";
 import { startScreencast, stopScreencast } from "./screencast";
 
@@ -985,7 +985,9 @@ const renderingSeenAt = new WeakMap<BrowserEntry, number>();
 // document rather than derived from our own bookkeeping: `webContents`
 // focus state is unreliable for `<webview>` guests, and a page-level `focus()`
 // call does not move focus across the process boundary, so only the guest can
-// answer this. Fails closed on every error path.
+// answer this. Asked in an isolated world, since a page that redefined
+// `document.hasFocus` would otherwise send keys meant for it to whatever holds
+// the window's focus. Fails closed on every error path.
 async function guestHoldsKeyboardFocus(entry: BrowserEntry): Promise<boolean> {
   const wc = entry.webContents;
   if (!wc || wc.isDestroyed()) {
@@ -994,7 +996,9 @@ async function guestHoldsKeyboardFocus(entry: BrowserEntry): Promise<boolean> {
   let timeout: ReturnType<typeof setTimeout> | undefined;
   try {
     const hasFocus: unknown = await Promise.race([
-      wc.executeJavaScript("document.hasFocus()"),
+      wc.executeJavaScriptInIsolatedWorld(TYPING_WORLD, [
+        { code: "document.hasFocus()" },
+      ]),
       new Promise<false>((resolve) => {
         timeout = setTimeout(() => {
           resolve(false);

@@ -42,6 +42,7 @@ export interface StripTab {
    * is the one thing a narrow tab still has room to say.
    */
   badge?: ReactNode;
+  /** What stands for it before its name; a tab with none shows its name alone, narrowed or not. */
   icon: ReactNode;
   /** Drawn first and held there: not dragged, not closed. */
   isFixed?: boolean;
@@ -962,25 +963,28 @@ function Tab({
     }
   };
 
+  const hasIcon = tab.icon !== null && tab.icon !== undefined;
   const contents = (
     <>
-      <span
-        className={cn(
-          "relative flex size-4 shrink-0 items-center justify-center",
-          tab.isWorking && tab.glintIcon && "brand-shiny-icon",
-        )}
-      >
-        {tab.icon}
-        {tab.isWorking && tab.glintIcon && (
-          <IconGlint>{tab.glintIcon}</IconGlint>
-        )}
-      </span>
+      {hasIcon && (
+        <span
+          className={cn(
+            "relative flex size-4 shrink-0 items-center justify-center",
+            tab.isWorking && tab.glintIcon && "brand-shiny-icon",
+          )}
+        >
+          {tab.icon}
+          {tab.isWorking && tab.glintIcon && (
+            <IconGlint>{tab.glintIcon}</IconGlint>
+          )}
+        </span>
+      )}
       <span
         className={cn(
           "min-w-0",
           // A name that does not fit fades out at its end, selected or not:
           // an ellipsis reads as a different name.
-          density === "full"
+          density === "full" || !hasIcon
             ? cn(
                 isFixed
                   ? "whitespace-nowrap"

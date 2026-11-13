@@ -18,6 +18,7 @@ import { useFileTabTitles } from "./file-tab-titles";
 import { screenPresentation, screenLocation } from "./screen-presentation";
 import { siteTabTitles } from "./site-tab-titles";
 import { tasksOfHref } from "./tab-location";
+import { isHomeTab } from "./tab-model";
 import { TabMenuAtPoint, TabMenuItems } from "./tab-menu-items";
 import { NewTabButton, type StripTab, TabStrip } from "./tab-strip";
 
@@ -122,22 +123,28 @@ export function PaneTabs({
     } else if (named.url !== undefined) {
       tooltip = tabTooltip("", named);
     }
+    let icon: ReactNode = null;
+    if (tab.kind === "page") {
+      icon = (
+        <PageFavicon
+          className="size-3.5"
+          favicon={tab.favicon}
+          hasTooltip={false}
+          url={tab.url ?? tab.openedUrl ?? ""}
+        />
+      );
+    } else if (!isHomeTab(tab)) {
+      // A new tab is its name alone.
+      icon = (
+        <ScreenMark
+          appsBySlug={appsBySlug}
+          chatTitles={chatTitles}
+          href={tab.href}
+        />
+      );
+    }
     return {
-      icon:
-        tab.kind === "page" ? (
-          <PageFavicon
-            className="size-3.5"
-            favicon={tab.favicon}
-            hasTooltip={false}
-            url={tab.url ?? tab.openedUrl ?? ""}
-          />
-        ) : (
-          <ScreenMark
-            appsBySlug={appsBySlug}
-            chatTitles={chatTitles}
-            href={tab.href}
-          />
-        ),
+      icon,
       isWorking: tab.kind === "page" && driven.has(browserTargetOf(tab.id)),
       key: named.key,
       title: short.get(named.key) ?? named.title,

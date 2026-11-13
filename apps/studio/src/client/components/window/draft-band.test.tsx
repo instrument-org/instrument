@@ -12,7 +12,11 @@ import { describe, expect, it, vi } from "vitest";
 
 import { siteGroupOf } from "./app-tabs";
 
-import { bandTabLines, draftContextItems } from "./context-items";
+import {
+  bandTabLines,
+  contextWithoutTab,
+  draftContextItems,
+} from "./context-items";
 import {
   contextFollowingBand,
   pagesForChat,
@@ -124,6 +128,62 @@ describe("a draft's file following its band", () => {
         [["t", [{ kind: "folder", path: "/Users/casey/Notes" }]]],
       ),
     ).toBeUndefined();
+  });
+});
+
+describe("a tab moving out of a draft's band to another group", () => {
+  const OTHER = { kind: "link" as const, url: "https://example.com/other" };
+  const leave = (
+    band: readonly WindowTab[],
+    leaving: WindowTab,
+    context: DraftContextItem[],
+  ) =>
+    contextWithoutTab(context, {
+      leaving: linesOf(leaving),
+      staying: band
+        .filter((tab) => tab.id !== leaving.id)
+        .flatMap((tab) => linesOf(tab)),
+    });
+
+  it("keeps the line a tab staying at the same address stands for", () => {
+    const band = [page("t", REPORT.url), page("u", REPORT.url)];
+    expect(leave(band, page("u", REPORT.url), [REPORT])).toEqual([REPORT]);
+  });
+
+  it("takes out only what the tab leaving alone stood for", () => {
+    const band = [page("t", REPORT.url), page("u", OTHER.url)];
+    expect(leave(band, page("u", OTHER.url), [REPORT, OTHER, PLAN])).toEqual([
+      REPORT,
+      PLAN,
+    ]);
+  });
+
+  it("leaves the other of two tabs at one address open, and opens nothing more at the send", () => {
+    const stays = page("t", REPORT.url);
+    const goes = page("u", REPORT.url);
+    let file: Draft = { ...DRAFT, context: [REPORT] };
+    const close = vi.fn();
+    const { rerender } = renderHook(
+      ({ band }: { band: WindowTab[] }) => {
+        useBandContext({
+          band,
+          close,
+          draft: file,
+          finderOf: () => null,
+          onChange: (update) => {
+            file = update(file);
+          },
+          open: vi.fn(),
+        });
+      },
+      { initialProps: { band: [stays, goes] } },
+    );
+    // The band and the file change in the one press that moves the tab.
+    file = { ...file, context: leave([stays, goes], goes, [REPORT]) };
+    rerender({ band: [stays] });
+    expect(close).not.toHaveBeenCalled();
+    expect(file.context).toEqual([REPORT]);
+    expect(pagesForChat(file, [stays])).toEqual([]);
   });
 });
 

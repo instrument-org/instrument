@@ -1,4 +1,4 @@
-import { NEW_TAB_HREF } from "@/client/atoms/window";
+import { NEW_TAB_HREF, type WindowTab } from "@/client/atoms/window";
 import { chatClosedByGroupAtom } from "@/client/atoms/tab-groups";
 import {
   createDraftAtom,
@@ -31,7 +31,12 @@ import {
   openInNewWindow,
   useAppTabs,
 } from "./app-tabs";
-import { bandTabLines, lineKeyOf } from "./context-items";
+import {
+  attachedPaths,
+  bandTabLines,
+  contextWithoutTab,
+  withContextLines,
+} from "./context-items";
 import { chatListOptions } from "./chat-list-query";
 import { type Chat, draftTitle } from "./chats";
 import { isGroupScreenHref } from "./group-screen";
@@ -284,29 +289,47 @@ export function useTabGroupActions() {
   /**
    * A tab into another group, up there. A draft's tabs are also lines of its
    * `context`, which open again as tabs wherever the draft is shown, so the
-   * lines the tab stands for leave the draft with it.
+   * lines the tab stands for go with it: out of the draft it leaves, apart
+   * from any a tab staying there stands for too, and into the draft it joins.
    */
   const moveTab = (id: string, group: string) => {
-    const tab = windowTabs.allTabs.find((entry) => entry.id === id);
-    const draft = store
-      .get(draftsAtom)
-      .find((entry) => entry.id === draftOfGroup(tab?.group));
+    // Read at the call, which may come in the same press that made the group.
+    const tabs = store.get(windowTabsAtom).tabs;
+    const drafts = store.get(draftsAtom);
+    const tab = tabs.find((entry) => entry.id === id);
+    const draftOf = (of: string | undefined) =>
+      drafts.find((entry) => entry.id === draftOfGroup(of));
     windowTabs.moveToGroup(id, group);
     windowTabs.select(id);
-    if (!tab || !draft) {
+    if (!tab || tab.group === group) {
       return;
     }
-    const gone = new Set(
-      bandTabLines(tab, { finderOf: () => null, held: [] }).map(lineKeyOf),
+    // As the draft's band reads its tabs (`useBandContext`).
+    const linesOf = (draft: Draft, of: WindowTab) =>
+      bandTabLines(of, { finderOf: () => null, held: attachedPaths(draft) });
+    const into = draftOf(group);
+    if (into) {
+      updateDraft({
+        id: into.id,
+        update: (current) => withContextLines(current, linesOf(current, tab)),
+      });
+    }
+    const draft = draftOf(tab.group);
+    if (!draft) {
+      return;
+    }
+    const staying = tabs.filter(
+      (entry) => entry.group === tab.group && entry.id !== id,
     );
     const left = {
       ...draft,
-      context: draft.context?.filter((line) => !gone.has(lineKeyOf(line))),
+      context: contextWithoutTab(draft.context, {
+        leaving: linesOf(draft, tab),
+        staying: staying.flatMap((entry) => linesOf(draft, entry)),
+      }),
     };
     // A draft the tab leaves with nothing is thrown away, as an emptied one is.
-    const hasTabs = windowTabs.allTabs.some(
-      (entry) => entry.group === tab.group && entry.id !== id,
-    );
+    const hasTabs = staying.length > 0;
     if (isLeftEmpty(left, { hasTabs }) && tab.group !== undefined) {
       const { group: emptied } = tab;
       setListed((list) => listedWithout(list, emptied));

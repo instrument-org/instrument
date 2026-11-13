@@ -17,6 +17,7 @@ import {
   closeTab,
   dropGroup,
   isBlankNewTab,
+  moveToGroup,
   navigateScreen,
   normalizeWindowTabs,
   openOrFocusScreen,
@@ -223,6 +224,26 @@ describe("closeTab", () => {
     expect(closeTab(state, "only", { homeId: "home" }).activeByGroup).toEqual(
       {},
     );
+  });
+});
+
+describe("moveToGroup", () => {
+  it.each([
+    ["the tab up hands its place to the one before it", "c", "c", "b"],
+    ["the first tab up hands it to the next", "a", "a", "b"],
+    ["a tab behind leaves the one up", "c", "b", "c"],
+  ])("%s", (_case, up, moving, left) => {
+    const moved = moveToGroup(selectTab(THREE, up), moving, OTHER);
+    expect(moved.activeByGroup[CHAT]).toBe(left);
+    expect(moved.tabs.find((tab) => tab.id === moving)?.group).toBe(OTHER);
+  });
+
+  it("forgets what a group had up once its last tab leaves", () => {
+    const state = selectTab(
+      windowOf([screenTab("only", "/apps", CHAT)]),
+      "only",
+    );
+    expect(moveToGroup(state, "only", OTHER).activeByGroup).toEqual({});
   });
 });
 

@@ -596,13 +596,35 @@ export function dropGroup(state: WindowTabs, group: string): WindowTabs {
   };
 }
 
-/** A tab into another group, standing there alone: a page drawn inside a tab becoming a site of the window's own. */
+/**
+ * A tab into another group: a page drawn inside a tab becoming a site of the
+ * window's own, or a tab dragged to another tab group. The group it leaves
+ * keeps nothing of it: when the tab was up there, the one before it comes up,
+ * or the first left, as when a tab closes.
+ */
 export function moveToGroup(
   state: WindowTabs,
   id: string,
   group: string,
 ): WindowTabs {
-  return mapTab(state, id, (tab) => ({ ...tab, group }));
+  const index = state.tabs.findIndex((tab) => tab.id === id);
+  const from = state.tabs[index]?.group;
+  const moved = mapTab(state, id, (tab) => ({ ...tab, group }));
+  if (
+    from === undefined ||
+    from === group ||
+    state.activeByGroup[from] !== id
+  ) {
+    return moved;
+  }
+  const next =
+    state.tabs.slice(0, index).findLast((tab) => tab.group === from) ??
+    state.tabs.slice(index + 1).find((tab) => tab.group === from);
+  const { [from]: _left, ...activeByGroup } = moved.activeByGroup;
+  return {
+    ...moved,
+    activeByGroup: next ? { ...activeByGroup, [from]: next.id } : activeByGroup,
+  };
 }
 
 /** A group's tabs in a new order, by their strip keys; nothing moves unless every one is named. */

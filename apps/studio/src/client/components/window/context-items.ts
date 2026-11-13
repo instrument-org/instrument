@@ -163,6 +163,29 @@ export function withContextLines(
 }
 
 /**
+ * A draft's `context` once a tab has left its band for another group: without
+ * the lines the tab stood for, apart from any a tab staying in the band stands
+ * for too. Two tabs at one address are one line, which stays while either is
+ * there, so the tab staying is not closed as a line taken out elsewhere.
+ */
+export function contextWithoutTab(
+  context: readonly DraftContextItem[] | undefined,
+  {
+    leaving,
+    staying,
+  }: {
+    /** What the tab leaving stands for. */
+    leaving: readonly DraftContextItem[];
+    /** What the tabs staying stand for. */
+    staying: readonly DraftContextItem[];
+  },
+): DraftContextItem[] | undefined {
+  const kept = new Set(staying.map(lineKeyOf));
+  const gone = new Set(leaving.map(lineKeyOf).filter((key) => !kept.has(key)));
+  return context?.filter((entry) => !gone.has(lineKeyOf(entry)));
+}
+
+/**
  * The lines of what the window has in view, as Ask puts them on the draft
  * it opens: what is selected in a folder, else the folder, a file, a page or
  * an app's front. None where the screen names nothing or is a chat's.

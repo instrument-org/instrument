@@ -135,7 +135,7 @@ A commit that makes a choice ends with decision trailers, so the reasoning outli
 
 ## Problem reports
 
-Feedback, crashes, hangs and errors people send from the app are problem reports, each with a fingerprint (`feedback:<id>`), read with the reports CLI in the `internal` reference (`agent-reference get internal`). A #customers card's "Open report" link names the report's id (`reports.tryinstrument.com/reports/<id>`), which `pnpm --filter @instrument/reports reports files <id>` reads there; `reports show <fingerprint>` lists the issue's reports, the commits made for it and its history.
+Feedback, crashes, hangs and errors people send from the app are problem reports, each with a fingerprint (`feedback:<id>`), read with the reports CLI in the `internal` reference (`agent-reference get internal`). A #customers card's text names the report's id, linked to its page (`reports.tryinstrument.com/reports/<id>`), which `pnpm --filter @instrument/reports reports files <id>` reads there; `reports show <fingerprint>` lists the issue's reports, the commits made for it and its history.
 
 A fix is tied to its report by the commit alone:
 

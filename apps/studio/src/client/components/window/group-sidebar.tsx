@@ -26,6 +26,7 @@ import { cn, isMacOS } from "@/client/lib/utils";
 import { rpcClient } from "@/client/rpc/client";
 import { WINDOW_SHORTCUTS } from "@/shared/window-shortcuts";
 import { CaretLeftIcon } from "@phosphor-icons/react/CaretLeft";
+import { CaretRightIcon } from "@phosphor-icons/react/CaretRight";
 import { ClockCounterClockwiseIcon } from "@phosphor-icons/react/ClockCounterClockwise";
 import { GearSixIcon } from "@phosphor-icons/react/GearSix";
 import { PlusIcon } from "@phosphor-icons/react/Plus";
@@ -92,9 +93,9 @@ export function sidebarBounds(width: number): RailBounds {
 /**
  * The sidebar of tab groups down the window's left: the window's own row at
  * its top (past the traffic lights, the bell; the update pill at its end),
- * the search with History beside it, the projects, the pinned groups over a
- * plain line, New, and the rest under it, newest first, and the account,
- * Settings and Help at its foot. Opening a project takes the list over,
+ * the search, the projects, the pinned groups over a plain line, New, the
+ * rest under it, newest first, and the way into History at the list's end,
+ * and the account, Settings and Help at its foot. Opening a project takes the list over,
  * under its banner.
  */
 export function GroupSidebar({
@@ -267,6 +268,13 @@ export function GroupSidebar({
           }}
         />
         {rest.map((entry) => row(entry))}
+        {!project && (
+          <HistoryRow
+            onOpen={() => {
+              setView("history");
+            }}
+          />
+        )}
       </>
     );
   }
@@ -319,24 +327,6 @@ export function GroupSidebar({
                   </span>
                 )}
               </div>
-              <ToolbarTooltip label="History">
-                <button
-                  aria-label="History"
-                  aria-pressed={view === "history"}
-                  className={cn(
-                    "grid size-9 shrink-0 place-items-center rounded-lg",
-                    view === "history"
-                      ? "bg-foreground/8 text-foreground"
-                      : "text-muted-foreground hover:bg-foreground/5 hover:text-foreground",
-                  )}
-                  onClick={() => {
-                    setView(view === "history" ? "list" : "history");
-                  }}
-                  type="button"
-                >
-                  <ClockCounterClockwiseIcon className="size-4.5" />
-                </button>
-              </ToolbarTooltip>
             </div>
           )}
           <GroupList>{body}</GroupList>
@@ -374,6 +364,24 @@ function NewRow({ onNew }: { onNew: () => void }) {
       <SoftKey>
         {formatAcceleratorText(WINDOW_SHORTCUTS.newChat.accelerator)}
       </SoftKey>
+    </button>
+  );
+}
+
+/**
+ * The way into History at the list's end, dimmed so it reads as past the
+ * groups rather than one of them, naming none of what is there.
+ */
+function HistoryRow({ onOpen }: { onOpen: () => void }) {
+  return (
+    <button
+      className="mt-1 flex h-8 w-full shrink-0 items-center gap-2.5 rounded-lg px-2.5 text-[13px] font-medium text-muted-foreground/70 hover:bg-foreground/5 hover:text-foreground"
+      onClick={onOpen}
+      type="button"
+    >
+      <ClockCounterClockwiseIcon className="size-4" />
+      <span className="flex-1 text-left">History</span>
+      <CaretRightIcon className="size-3.5" />
     </button>
   );
 }

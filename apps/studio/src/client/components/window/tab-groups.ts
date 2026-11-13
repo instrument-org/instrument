@@ -470,6 +470,7 @@ export function useTabGroupActions() {
     restore,
     setChatOpen,
     show,
+    showHere,
   };
 }
 

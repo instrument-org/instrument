@@ -118,11 +118,6 @@ body {
   [data-tab-held] body {
     pointer-events: none;
   }
-  /* A tab group's tab on the move: the sidebar still answers to the pointer,
-     which is where the tab can be let go. */
-  [data-group-tab-held] :is(webview, iframe) {
-    pointer-events: none;
-  }
 }
 
 /* =========================

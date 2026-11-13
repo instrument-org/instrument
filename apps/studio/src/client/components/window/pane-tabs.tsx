@@ -32,7 +32,7 @@ function hostOf(url: string): string {
 }
 
 /** A tab as the strip orders it. */
-function keyOf(tab: WindowTab): string {
+export function stripKeyOf(tab: WindowTab): string {
   return tab.stripKey ?? tab.id;
 }
 
@@ -45,9 +45,12 @@ function keyOf(tab: WindowTab): string {
  * keeps the tabs.
  */
 export function PaneTabs({
+  carriedKey,
   chatTitles,
   chosenId,
+  heldAt,
   isChatWorking,
+  isIncoming = false,
   lead,
   onClose,
   onDuplicate,
@@ -56,12 +59,19 @@ export function PaneTabs({
   onSelect,
   onTabDrag,
   onTabDragEnd,
+  onTabDragStart,
   tabs,
   taskTitles,
   trailing,
 }: {
+  /** A tab being carried off the row, by its strip key, which gives its place up to the tabs beside it. */
+  carriedKey?: string | undefined;
   chatTitles: Presentation["chatTitles"];
   chosenId: string | undefined;
+  /** A tab in the pointer's hand, by its strip key, drawn with its left edge at this point. */
+  heldAt?: { key: string; left: number } | undefined;
+  /** The tab in hand is another window's, held over this strip. */
+  isIncoming?: boolean;
   /** Whether the chat or any task of it is at work: a page's working mark drops the moment none is. */
   isChatWorking: boolean;
   /** What stands ahead of the tabs: room for the traffic lights while the sidebar is closed. */
@@ -71,12 +81,13 @@ export function PaneTabs({
   onDuplicate: (tab: WindowTab) => void;
   /** A new tab in the group. */
   onNew: () => void;
-  /** The chat's tabs in a new order, by their strip keys, oldest first. */
-  onReorder: (keys: string[]) => void;
+  /** The chat's tabs in a new order, by their strip keys, oldest first: none where the owner places a dragged tab itself. */
+  onReorder?: (keys: string[]) => void;
   onSelect: (id: string) => void;
-  /** Where a tab dragged out of the row is, by its id, for the sidebar to take it. */
-  onTabDrag?: (id: string, event: PointerEvent) => void;
-  onTabDragEnd?: (id: string, event: PointerEvent) => void;
+  /** A tab's drag, by its strip key, as `TabStrip` reports it. */
+  onTabDrag?: (key: string, event: PointerEvent) => void;
+  onTabDragEnd?: (key: string, event: PointerEvent) => void;
+  onTabDragStart?: (key: string, event: PointerEvent, moved: number) => void;
   tabs: WindowTab[];
   taskTitles: Presentation["taskTitles"];
   /** What the row keeps at its right end: the chat's button while its column is closed. */
@@ -94,10 +105,10 @@ export function PaneTabs({
     isChatWorking,
   );
   const [menu, setMenu] = useState<{ key: string; x: number; y: number }>();
-  const tabOf = (key: string) => tabs.find((tab) => keyOf(tab) === key);
+  const tabOf = (key: string) => tabs.find((tab) => stripKeyOf(tab) === key);
 
   const whole = tabs.map((tab) => {
-    const key = keyOf(tab);
+    const key = stripKeyOf(tab);
     if (tab.kind === "page") {
       const url = tab.url ?? tab.openedUrl;
       return { key, title: tab.title || hostOf(url ?? ""), url };
@@ -116,7 +127,7 @@ export function PaneTabs({
   // Pages of one site say only what tells them apart, as the window's do.
   const short = siteTabTitles(whole);
   const presented = tabs.map((tab, index): StripTab => {
-    const named = whole[index] ?? { key: keyOf(tab), title: "" };
+    const named = whole[index] ?? { key: stripKeyOf(tab), title: "" };
     let tooltip: StripTab["tooltip"];
     if (tab.kind !== "page") {
       tooltip = tabTooltip(tab.href, named);
@@ -155,9 +166,15 @@ export function PaneTabs({
   const menuTab = menu ? tabOf(menu.key) : undefined;
 
   return (
-    <div className="flex h-10 shrink-0 items-center pr-2 [-webkit-app-region:drag] [&_[role=tab]]:[-webkit-app-region:no-drag] [&_button]:[-webkit-app-region:no-drag]">
+    <div
+      className="flex h-10 shrink-0 items-center pr-2 [-webkit-app-region:drag] [&_[role=tab]]:[-webkit-app-region:no-drag] [&_button]:[-webkit-app-region:no-drag]"
+      data-group-tabs=""
+      {...(isIncoming ? { "data-incoming": "" } : {})}
+    >
       {lead}
       <TabStrip
+        carriedKey={carriedKey}
+        heldAt={heldAt}
         // The pane's own card is the ground a tab up stands on. The first tab
         // starts at the location row's 6px inset, over its back button.
         className="min-w-0 flex-1 pr-0 pl-1.5 [--tab-selected:var(--card)]"
@@ -173,27 +190,10 @@ export function PaneTabs({
           event.preventDefault();
           setMenu({ key, x: event.clientX, y: event.clientY });
         }}
-        onReorder={onReorder}
-        {...(onTabDrag
-          ? {
-              onTabDrag: (key: string, event: PointerEvent) => {
-                const tab = tabOf(key);
-                if (tab) {
-                  onTabDrag(tab.id, event);
-                }
-              },
-            }
-          : {})}
-        {...(onTabDragEnd
-          ? {
-              onTabDragEnd: (key: string, event: PointerEvent) => {
-                const tab = tabOf(key);
-                if (tab) {
-                  onTabDragEnd(tab.id, event);
-                }
-              },
-            }
-          : {})}
+        {...(onReorder ? { onReorder } : {})}
+        {...(onTabDrag ? { onTabDrag } : {})}
+        {...(onTabDragEnd ? { onTabDragEnd } : {})}
+        {...(onTabDragStart ? { onTabDragStart } : {})}
         onSelect={(key) => {
           const tab = tabOf(key);
           if (tab) {
@@ -201,7 +201,7 @@ export function PaneTabs({
           }
         }}
         overflow="squeeze"
-        selectedKey={chosen ? keyOf(chosen) : undefined}
+        selectedKey={chosen ? stripKeyOf(chosen) : undefined}
         tabs={presented}
       />
       {trailing}

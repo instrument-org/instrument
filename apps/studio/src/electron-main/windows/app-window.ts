@@ -34,7 +34,12 @@ import {
   WINDOW_KEPT_KEYS,
 } from "@/shared/kept-state";
 import { tabGroupOfAddress } from "@/shared/tab-identity";
-import { type Tab, type TabsModel, TabsModelSchema } from "@/shared/tabs";
+import {
+  type GroupTabLanding,
+  type Tab,
+  type TabsModel,
+  TabsModelSchema,
+} from "@/shared/tabs";
 import { homedir } from "node:os";
 import {
   getAppZoom,
@@ -847,6 +852,28 @@ export function sendTabToWindow(tab: Tab, id: string, index?: number) {
     tab,
     type: "receiveTab",
   });
+  return true;
+}
+
+/**
+ * Hands a tab group's tab, by its strip key, to a window, which takes it into
+ * one of its groups where it landed. Says whether it could: a page not
+ * listening yet could not take it. A spare window whose page is up takes it
+ * too, ahead of being a window of its own.
+ */
+export function sendGroupTabToWindow(
+  window: BrowserWindow,
+  key: string,
+  landing: GroupTabLanding,
+) {
+  if (window.isDestroyed()) {
+    return false;
+  }
+  const contentsId = window.webContents.id;
+  if (!listening.has(contentsId) && spareOf(contentsId)?.isUp !== true) {
+    return false;
+  }
+  commandWindow(window, { key, landing, type: "receiveGroupTab" });
   return true;
 }
 

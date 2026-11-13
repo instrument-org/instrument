@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { isOffRow, isOffWindow, recentPath } from "./tab-pull";
+import { isOffRow, recentPath } from "./tab-pull";
 
 const strip = { bottom: 40, top: 8 };
 const off = (
@@ -94,19 +94,5 @@ describe("a pointer's recent path", () => {
         { at: 100, x: 2, y: 2 },
       ).map(({ at }) => at),
     ).toEqual([50, 100]);
-  });
-});
-
-describe("whether a tab has left its window", () => {
-  const window = { height: 800, width: 1000 };
-  it.each([
-    ["inside", 500, 400, false],
-    ["just past the top", 500, -10, false],
-    ["well above", 500, -40, true],
-    ["below the foot", 500, 830, true],
-    ["past the left side", -20, 400, true],
-    ["past the right side", 1020, 400, true],
-  ])("%s", (_case, x, y, expected) => {
-    expect(isOffWindow({ x, y }, window)).toBe(expected);
   });
 });

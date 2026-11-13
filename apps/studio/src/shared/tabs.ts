@@ -88,6 +88,12 @@ export function neighborAt<T>(tabs: readonly T[], at: number): T | undefined {
 export const TabStandingSchema = z.object({
   /** Pages drawn inside the tab's screens, which are this window's and go nowhere, but can make it stay with the tab. */
   hostedPages: z.array(BrowserTargetIdSchema),
+  /**
+   * A tab of a tab group, named by its strip key (`tab.id`), whose record every
+   * window shares: the window it goes to takes it into one of its groups
+   * (`GroupTabLanding`) rather than its strip.
+   */
+  isGroupTab: z.boolean().optional(),
   neighborPages: z.array(BrowserTargetIdSchema),
   pages: z.array(BrowserTargetIdSchema),
   tab: TabSchema,
@@ -101,9 +107,23 @@ export const TabMoveDestinationSchema = z.discriminatedUnion("kind", [
 ]);
 export type TabMoveDestination = z.output<typeof TabMoveDestinationSchema>;
 
+/**
+ * Where a tab group's tab let go over a window lands there: among the tabs of
+ * the group it shows, at a place (the end when none is named); in a group its
+ * sidebar lists; or in a new group of its own.
+ */
+export const GroupTabLandingSchema = z.discriminatedUnion("kind", [
+  z.object({ index: z.number().optional(), kind: z.literal("tabs") }),
+  z.object({ group: z.string(), kind: z.literal("group") }),
+  z.object({ kind: z.literal("new") }),
+]);
+export type GroupTabLanding = z.output<typeof GroupTabLandingSchema>;
+
 /** A tab held over a window's strip, which stands among its tabs at the pointer until it is let go. */
 export interface IncomingTab {
   clientX: number;
+  /** How far down the window the pointer is, which a tab group's tab lands by. */
+  clientY: number;
   kind: "incoming";
   pointInTab: number;
   tab: { id: TabId; pathname: string };

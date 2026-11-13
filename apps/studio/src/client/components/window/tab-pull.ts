@@ -4,8 +4,6 @@ const PULL_PX = 10;
 const SWEEP_PX = 44;
 /** Past the window's side this far and the tab comes off. */
 const SIDE_PX = 16;
-/** Past the window's top or foot this far and a tab comes off the window. */
-const OFF_WINDOW_PX = 16;
 /** How much of its recent path says which way a pointer is heading. */
 const HEADING_MS = 90;
 /** How steep a path has to be to read as a pull rather than a sweep along the row. */
@@ -63,21 +61,4 @@ export function isOffRow({
   const across = Math.abs(point.x - first.x);
   const away = below > 0 ? point.y - first.y : first.y - point.y;
   return past >= PULL_PX && away > 0 && away >= across * PULL_SLOPE;
-}
-
-/**
- * Whether a tab being dragged is off its window altogether, by where the
- * pointer is in the window's own px: past a side as a tab leaves its row,
- * and past the top or the foot by as much.
- */
-export function isOffWindow(
-  point: { x: number; y: number },
-  window: { height: number; width: number },
-) {
-  return (
-    point.x < -SIDE_PX ||
-    point.x > window.width + SIDE_PX ||
-    point.y < -OFF_WINDOW_PX ||
-    point.y > window.height + OFF_WINDOW_PX
-  );
 }

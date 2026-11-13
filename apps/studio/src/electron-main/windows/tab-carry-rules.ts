@@ -1,3 +1,4 @@
+import { type GroupTabLanding } from "@/shared/tabs";
 import { clamp } from "radashi";
 import { z } from "zod";
 
@@ -23,6 +24,8 @@ export type CarryPhase<W> =
   | {
       /** Where the tab stands in the strip, as the window showing it says. */
       landsAt?: number;
+      /** Where a tab group's tab lands in the window, as that window says: none over anywhere that takes none. */
+      landsOn?: GroupTabLanding;
       kind: "docked";
       window: W;
     }
@@ -73,14 +76,16 @@ export function phaseAt<W>({
   from: W;
   point: Point;
   windows: readonly {
+    /** How tall its strip's band is, where it is not `bandHeight`. */
+    band?: number;
     bounds: Bounds;
     /** How far past its strip it still counts as over it. */
     reach?: number;
     window: W;
   }[];
 }): CarryPhase<W> {
-  for (const { bounds, reach, window } of windows) {
-    const place = placeOnWindow(bounds, point, bandHeight, reach);
+  for (const { band, bounds, reach, window } of windows) {
+    const place = placeOnWindow(bounds, point, band ?? bandHeight, reach);
     if (place === "band") {
       return window === from ? { kind: "row" } : { kind: "docked", window };
     }

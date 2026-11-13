@@ -28,7 +28,7 @@ import { runPictureChord } from "@/client/lib/picture-keys";
 import { isBackspaceBackPress } from "@/client/components/extend/file-system-keys";
 import { commandKeyHeld, currentOs, isLinux } from "@/client/lib/utils";
 import { rpcClient, type RPCOutput } from "@/client/rpc/client";
-import { type Tab } from "@/shared/tabs";
+import { type GroupTabLanding, type Tab } from "@/shared/tabs";
 import { safe } from "@orpc/client";
 import { getDefaultStore } from "jotai";
 import { useEffect, useRef } from "react";
@@ -104,6 +104,8 @@ export function useWindowCommands(
     moveTabToNewWindow: () => void;
     /** A tab another window handed over, up here at a point along the strip. */
     receiveTab: (tab: Tab, index?: number) => void;
+    /** A tab group's tab another window let go over this one, into a group here by where it landed. */
+    receiveGroupTab: (key: string, landing: GroupTabLanding) => void;
     reopenTab: () => void;
     /** The caret into the window's field, wherever it was. */
     search: () => void;
@@ -238,6 +240,8 @@ export function useWindowCommands(
               }
             } else if (command.type === "receiveTab") {
               latest.current.receiveTab(command.tab, command.index);
+            } else if (command.type === "receiveGroupTab") {
+              latest.current.receiveGroupTab(command.key, command.landing);
             } else if (command.type === "showTab") {
               // Said back either way: main brings this window forward only
               // on a yes, and the asking window opens it itself on a no.

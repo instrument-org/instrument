@@ -154,9 +154,10 @@ import { CloseGroupDialog } from "./close-group-dialog";
 import { GroupSidebar, sidebarBounds } from "./group-sidebar";
 import { SidebarToggleCorner } from "./inbox-toggle";
 import { isGroupScreenHref } from "./group-screen";
-import { useGroupTabDrag } from "./tab-drag";
+import { useGroupTabLanding, useGroupTabMoves } from "./tab-drag";
 import {
   groupAlong,
+  groupHref,
   startTabGroupsFromZero,
   type TabGroup,
   useOpenGroups,
@@ -487,7 +488,8 @@ function WindowShell({
 }) {
   const appTabs = useAppTabs();
   const groups = useTabGroupActions();
-  const groupTabDrag = useGroupTabDrag();
+  const groupTabMoves = useGroupTabMoves();
+  useGroupTabLanding();
   const groupList = useOpenGroups();
   const [isSidebarOpen, setSidebarOpen] = useAtom(sidebarOpenAtom);
   const sidebarWidth = useAtomValue(sidebarWidthAtom);
@@ -1316,9 +1318,10 @@ function WindowShell({
       moveTabToNewWindow: () => {
         const up = windowTabs.active;
         if (up) {
-          groupTabDrag.toNewWindow(up.id, { isAtPointer: false });
+          groupTabMoves.toNewWindow(up.id);
         }
       },
+      receiveGroupTab: groupTabMoves.receive,
       receiveTab,
       reopenTab,
       search: focusField,

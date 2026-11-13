@@ -355,7 +355,7 @@ export function GroupSidebar({
 /**
  * The list, with New after its last row, or held at the sidebar's foot over
  * a line once the list is long enough to scroll. A tab let go of over the
- * list's empty space becomes a group of its own (`useGroupTabDrag`).
+ * list's empty space becomes a group of its own (`useGroupTabCarry`).
  */
 function ScrollingList({
   body,
@@ -545,7 +545,7 @@ export function GroupRow({
         "data-drop-target:bg-brand-500/10 data-drop-target:ring-2 data-drop-target:ring-brand-500",
         onShow && "cursor-default",
       )}
-      {...(restore || isUp ? {} : { "data-group-row": entry.group })}
+      {...(restore ? {} : { "data-group-row": entry.group })}
       onClick={(event) => {
         if (!restore) {
           onShow?.(entry.group, { newWindow: event.shiftKey });

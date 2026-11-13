@@ -66,6 +66,7 @@ describe("what a strip draws of a held tab", () => {
   it("is the tab among its own while held over its strip", () => {
     const view: TabCarryView = {
       clientX: 0,
+      clientY: 0,
       kind: "incoming",
       pointInTab: 0,
       tab: asTab("held"),
@@ -78,6 +79,7 @@ describe("what a strip draws of a held tab", () => {
   it("does not draw it twice once it has really arrived", () => {
     const view: TabCarryView = {
       clientX: 0,
+      clientY: 0,
       kind: "incoming",
       pointInTab: 0,
       tab: asTab("held"),

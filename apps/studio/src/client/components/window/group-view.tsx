@@ -31,8 +31,13 @@ import { NewChatView } from "./new-chat-view";
 import { PaneTabs } from "./pane-tabs";
 import { RightPane } from "./right-pane";
 import { useShell } from "./shell-context";
+import { tabCarryViewAtom } from "./tab-carry-view";
 import { useTabGroupActions, useOpenGroups } from "./tab-groups";
-import { useGroupTabDrag } from "./tab-drag";
+import {
+  groupTabLandingAtom,
+  incomingGroupTab,
+  useGroupTabCarry,
+} from "./tab-drag";
 import { useTabSurface } from "./tab-surface";
 import { useWindowTabs } from "./window-tabs";
 
@@ -59,7 +64,6 @@ export function GroupView({
   const isSidebarOpen = useAtomValue(sidebarOpenAtom);
   const isActive = useIsActiveTab();
   const tabId = useTabId();
-  const drag = useGroupTabDrag();
 
   const group = chat ?? (draft === undefined ? undefined : draftGroupOf(draft));
   const tabs =
@@ -67,6 +71,18 @@ export function GroupView({
       ? []
       : windowTabs.allTabs.filter((tab) => tab.group === group);
   const up = windowTabs.selectedTabIn(group);
+  const carry = useGroupTabCarry({ group: group ?? "", tabs });
+  // Another window's tab held over the strip stands among its tabs at the pointer.
+  const incoming = incomingGroupTab(
+    useAtomValue(tabCarryViewAtom),
+    useAtomValue(groupTabLandingAtom),
+    windowTabs.allTabs,
+  );
+  const stripTabs = incoming
+    ? tabs
+        .filter((tab) => tab.id !== incoming.tab.id)
+        .toSpliced(incoming.index, 0, incoming.tab)
+    : tabs;
   const hasWork = up !== undefined && tabs.length > 0;
 
   const { data: chatRecord } = useQuery({
@@ -255,9 +271,12 @@ export function GroupView({
   const work = (
     <div className="flex h-full min-h-0 flex-col">
       <PaneTabs
+        carriedKey={carry.carriedKey}
         chatTitles={shell.chatTitles}
-        chosenId={up.id}
+        chosenId={incoming ? incoming.tab.id : up.id}
+        heldAt={incoming ? incoming.heldAt : carry.held}
         isChatWorking={isWorking}
+        isIncoming={incoming !== undefined}
         lead={isSidebarOpen ? null : <SidebarToggleRoom />}
         onClose={shell.requestClose}
         onDuplicate={(tab) => {
@@ -268,15 +287,13 @@ export function GroupView({
           }
         }}
         onNew={newTab}
-        onReorder={(keys) => {
-          windowTabs.reorder(keys, group);
-        }}
         onSelect={(id) => {
           windowTabs.select(id);
         }}
-        onTabDrag={drag.onTabDrag}
-        onTabDragEnd={drag.onTabDragEnd}
-        tabs={tabs}
+        onTabDrag={carry.onDrag}
+        onTabDragEnd={carry.onDragEnd}
+        onTabDragStart={carry.onDragStart}
+        tabs={stripTabs}
         taskTitles={shell.childTitles}
         trailing={
           <>

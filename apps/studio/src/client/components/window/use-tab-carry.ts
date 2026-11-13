@@ -1,8 +1,8 @@
 import { zoomAtom } from "@/client/atoms/zoom";
 import { afterNextPaint } from "@/client/lib/tab-view-state";
-import { rpcClient } from "@/client/rpc/client";
+import { rpcClient, type RPCOutput } from "@/client/rpc/client";
 import { TOOLBAR_HEIGHT } from "@/shared/constants";
-import { neighborAt, type TabId } from "@/shared/tabs";
+import { neighborAt, type TabId, type TabStanding } from "@/shared/tabs";
 import { useAtomValue } from "jotai";
 import { useLayoutEffect, useRef, useState } from "react";
 
@@ -12,6 +12,29 @@ import { isOffRow, type PointerSample, recentPath } from "./tab-pull";
 
 /** How long the row can go on moving after the pointer has stopped. */
 const ROW_MOVES_MS = 300;
+
+/**
+ * A strip of tabs other than the window's own whose tabs drag the same way: a
+ * tab group's, whose row stands somewhere in the window, and whose tabs go to
+ * another window as tabs of a group.
+ */
+export interface CarryStrip {
+  /** The band its row stands in, in the window's px: off it a tab leaves its row. */
+  band: () => { bottom: number; top: number };
+  /**
+   * Whether the pointer is over a place of the window's own that takes the tab
+   * (another group in the sidebar): off its row, yet not leaving the window.
+   */
+  isOverOwnTarget: (event: PointerEvent) => boolean;
+  /** What the window does once main has said where the tab went, a tab let go over a place of its own included. */
+  onEnd: (key: string, end: TabCarryEnd, event: PointerEvent) => void;
+  /** What the strip's tabs (`[data-tab-key]`) and row (`[role=tablist]`) are found under. */
+  root: string;
+  /** What handing a tab to another window would hand over, as it stands now. */
+  standing: (key: string) => TabStanding | undefined;
+}
+
+type TabCarryEnd = RPCOutput["window"]["endTabCarry"];
 
 /** One drag of a tab, from its first movement to its release. */
 interface TabDrag {
@@ -52,14 +75,18 @@ export function useTabCarry({
   onPlace,
   onSelect,
   order,
+  strip: other,
 }: {
   isOnlyTab: boolean;
   onCancel: (keys: string[]) => void;
   onPlace: (key: string, left: number) => void;
   onSelect: (key: string) => void;
   order: string[];
+  /** Where the strip is not the window's own. */
+  strip?: CarryStrip;
 }) {
   const zoom = useAtomValue(zoomAtom);
+  const root = other?.root ?? "[data-app-tab-strip]";
   const [carriedKey, setCarriedKey] = useState<string>();
   const [held, setHeld] = useState<{ key: string; left: number }>();
   const dragging = useRef<TabDrag>(undefined);
@@ -80,9 +107,7 @@ export function useTabCarry({
   };
 
   const onDragStart = (key: string, event: PointerEvent, moved = 0) => {
-    const pressed = document.querySelector(
-      `[data-app-tab-strip] [data-tab-key="${key}"]`,
-    );
+    const pressed = document.querySelector(`${root} [data-tab-key="${key}"]`);
     if (!pressed) {
       return;
     }
@@ -146,9 +171,9 @@ export function useTabCarry({
     dragging.current = drag;
     // The press selected the tab, which is what a tab's page has to show.
     void afterNextPaint().then(async () => {
-      const moving = tabStanding(key as TabId);
+      const moving = other ? other.standing(key) : tabStanding(key as TabId);
       const strip = document
-        .querySelector("[data-app-tab-strip] [role=tablist]")
+        .querySelector(`${root} [role=tablist]`)
         ?.getBoundingClientRect();
       if (dragging.current !== drag || drag.canceled || !moving || !strip) {
         return;
@@ -192,13 +217,18 @@ export function useTabCarry({
       x: event.clientX,
       y: event.clientY,
     });
+    // Over a place of the window's own that takes it, the tab is off its row
+    // here, and nowhere else for main.
+    const isOverOwnTarget =
+      !isOnlyTab && (other?.isOverOwnTarget(event) ?? false);
     drag.isOffRow =
       isOnlyTab ||
+      isOverOwnTarget ||
       isOffRow({
         path: drag.path,
-        // The whole bar, since main takes all of it for the strip: anywhere on
-        // it the tab is back in its row.
-        strip: { bottom: TOOLBAR_HEIGHT * zoom, top: 0 },
+        // The window's strip has the whole bar, since main takes all of it for
+        // the strip: anywhere on it the tab is back in its row.
+        strip: other?.band() ?? { bottom: TOOLBAR_HEIGHT * zoom, top: 0 },
         wasOff: drag.isOffRow,
         windowWidth: window.innerWidth,
       });
@@ -211,7 +241,7 @@ export function useTabCarry({
     }
     showWhereItIs(drag);
     void rpcClient.window.noteTabCarry.call({
-      isOffRow: drag.isOffRow,
+      isOffRow: drag.isOffRow && !isOverOwnTarget,
       x: event.screenX,
       y: event.screenY,
     });
@@ -250,6 +280,7 @@ export function useTabCarry({
           onSelect(key);
         }
         setCarriedKey(undefined);
+        other?.onEnd(key, end, event);
       })
       .catch(() => {
         showTabCarryView({ kind: "row" });

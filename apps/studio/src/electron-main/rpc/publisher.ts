@@ -1,7 +1,11 @@
 import { type AppUpdaterStatus } from "@/electron-main/lib/update-status";
 import { type AppWindowAsk } from "@/electron-main/windows/app-window-asks";
 import { type AppCommand } from "@/shared/app-command";
-import { type Tab, type TabCarryView } from "@/shared/tabs";
+import {
+  type GroupTabLanding,
+  type Tab,
+  type TabCarryView,
+} from "@/shared/tabs";
 import {
   type BrowserTargetId,
   type StoreId,
@@ -170,6 +174,8 @@ export type WindowCommand =
   | "moveTabToNewWindow"
   | AppWindowAsk
   | { index?: number; tab: Tab; type: "receiveTab" }
+  /** A tab group's tab another window let go here, by its strip key, into one of this window's groups. */
+  | { key: string; landing: GroupTabLanding; type: "receiveGroupTab" }
   /** Another window asked for what a tab here shows: bring it up and say so (`window.tabShown`). */
   | { href: string; requestId: string; type: "showTab" }
   | { index: number; type: "selectTab" };

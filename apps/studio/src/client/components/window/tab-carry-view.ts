@@ -1,5 +1,7 @@
+import { rpcClient } from "@/client/rpc/client";
 import { type TabCarryView, type TabId } from "@/shared/tabs";
 import { atom, getDefaultStore } from "jotai";
+import { useEffect } from "react";
 
 /**
  * What main has this window's strip show of a tab's drag. A tab held over the
@@ -17,6 +19,30 @@ export function showTabCarryView(view: TabCarryView) {
   if (view.kind !== "incoming") {
     store.set(tabCarryIndexAtom, undefined);
   }
+}
+
+async function followTabCarry(signal: AbortSignal) {
+  try {
+    const views = await rpcClient.window.events.tabCarry.call(undefined, {
+      signal,
+    });
+    for await (const view of views) {
+      showTabCarryView(view);
+    }
+  } catch {
+    // The window closing ends the stream.
+  }
+}
+
+/** Follows what main says the strip shows, for as long as the window is up. */
+export function useTabCarryView() {
+  useEffect(() => {
+    const controller = new AbortController();
+    void followTabCarry(controller.signal);
+    return () => {
+      controller.abort();
+    };
+  }, []);
 }
 
 /**
@@ -46,12 +72,12 @@ export function tabsInView(
  */
 export function stripIndexAt(
   clientX: number,
-  tabs: readonly { id: TabId }[],
-  except: TabId,
+  tabs: readonly { id: string }[],
+  except: string,
+  /** What the strip's row is found under: the window's strip unless named. */
+  root = "[data-app-tab-strip]",
 ) {
-  const list = document.querySelector<HTMLElement>(
-    "[data-app-tab-strip] [role=tablist]",
-  );
+  const list = document.querySelector<HTMLElement>(`${root} [role=tablist]`);
   if (!list) {
     return 0;
   }

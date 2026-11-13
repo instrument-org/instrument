@@ -82,3 +82,24 @@ Roughed in: the caption buttons go at the top right as today, and what sits ther
 - **The group's tabs are the side pane's tabs, moved to the center.** `PaneTabs` draws them over the work, `GroupItem` draws the tab up under its address row, which gains the sidebar toggle at its left. The chat column is `ChatHeader` and `ChatScreen`, sized by the pane share `RightPane` already keeps. The new tab is the `/new-tab` screen in a group (`isHomeTab`), drawn by `GroupItem` as the composer with Browse and Files.
 - **New state** is per device and lives in the `view` kept file: whether the sidebar is open, and which groups have their chat column closed. Which group a window shows is its app tab, in the `window` kept file. Nothing new is written to the workspace folder: a new group is a draft, as a new chat with a page beside it is today, and a closed group is an archived chat.
 - **Multi-window.** Every window lists every group, read from the chat list and the drafts. Choosing a group another window shows asks main to bring that window forward (`window.showInOtherWindow`) instead of opening it here too.
+
+### Where the prototype stands
+
+Every phase in the order of work is built. What is rough or missing:
+
+- **Tearing a tab out into its own window** is missing. The group's tabs are the side pane's tabs, which never could, and dragging between windows belonged to the app tab strip, which is gone. A row's menu opens the whole group in a new window.
+- **Reopen closed tab** is unverified for a group's tabs. The app tab strip's closed tabs menu went with the strip.
+- **Windows and Linux**: the caption buttons sit over the card's top right, and what is under them (the Chat button, the chat column's X) does not move left yet. Not run on either system.
+- **Activity** has no button, as the plan says. Its chord (Cmd+Y) opens History, and Activity stays in the command menu.
+- **The Apps dot** for an app signed out since Apps was last shown went with the rail.
+- **The menu** still calls Cmd+N "New Chat"; renaming it moves the menu, shortcut guide and their tests.
+- **A group whose chat has not started** is titled "New tab" until its composer has words, and its chat column starts closed; with only a new tab up it has no Chat button, since the new tab's composer starts the chat.
+- **Rows** follow the chat list's order, oldest first, with groups whose chat has not started after them, so a new group lands at the bottom and stays there once its chat starts.
+- **Search and History** are per window and not kept; restoring a group returns the sidebar to the list.
+
+Decisions the plan left open, taken from what the product does today:
+
+- The chat column's composer leaves the caret to the group's work while the group has tabs; a chat-only group's composer takes it.
+- Cmd+W's second press counts within three seconds.
+- A dragged tab stays the one up, and the window follows it to its group, as a browser's tab dragged to another window does. A group whose chat has not started and that a drag leaves empty is thrown away.
+- Shift-click on a row opens the group in a new window; shift-click on a link opens a new group, as the plan says.

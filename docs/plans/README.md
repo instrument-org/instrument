@@ -70,6 +70,7 @@ Each entry is the plan's title and the opening of its status.
 - [Skills from attached folders](skills-from-attached-folders.md): Proposed, not started (checked 2026-10-29: `getSkillSources` reads no attached folders).
 - [Structure after the chat rework](structure-after-the-chat-rework.md): In progress.
 - [Inference through the user's Claude and ChatGPT subscriptions](subscription-inference.md): ChatGPT direct route landed (`ca68bb66d`, `8b3b27b53`, first shipped in v2.0.0-beta.37).
+- [Tab groups prototype](tab-groups-prototype.md): open
 - [Testing the Instrument folder](testing-the-instrument-folder.md): Under way.
 - [Virtualize the transcript](transcript-virtualization.md): Proposed.
 - [Notices behind a bell in the window bar](window-notices.md): The bell is built (`NotificationsBell` in `WindowCorner`): problem reports (`4f94e0d72`), notices from the API (`1f62dc2af`), an update's result, a sandbox t...

@@ -78,3 +78,20 @@ export function pinnedPlaces<Place extends { path: string }>(
       .map((path) => placeOf(path)),
   ];
 }
+
+/**
+ * The sidebar made to show what the system's own file manager pins (`system`,
+ * in its order): each of those folders pinned, and each default it leaves out
+ * unpinned. What the person already pinned stays, so the change only adds to
+ * the sidebar's own choices.
+ */
+export function adoptSystemSidebar(
+  places: SidebarPlaces,
+  system: readonly string[],
+  defaults: readonly string[],
+): SidebarPlaces {
+  const adopted = system.reduce(pinPlace, places);
+  return defaults
+    .filter((path) => !system.includes(path) && !places.pinned.includes(path))
+    .reduce(unpinPlace, adopted);
+}

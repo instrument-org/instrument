@@ -52,6 +52,7 @@ export {
   type SignInEnd,
 } from "./lib/apps/connection";
 export { waitInChat } from "./lib/chat/asks";
+export { computerPlaces } from "./lib/chat/computer-places";
 export {
   type AppManifest,
   AppSlugSchema,

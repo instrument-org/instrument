@@ -438,6 +438,23 @@ export async function dataAccess(
 }
 
 /**
+ * The folders under Favorites in the Finder's sidebar, in its order, read by
+ * the helper without a permission. Nothing in a build without the helper.
+ */
+export async function finderFavorites(): Promise<string[] | undefined> {
+  const helper = macHelperBinPath();
+  if (helper === undefined) {
+    return undefined;
+  }
+  const { stdout } = await execFileAsync(helper, ["finder-favorites"], {
+    timeout: 10_000,
+  });
+  return z
+    .object({ folders: z.string().array() })
+    .parse(JSON.parse(stdout)).folders;
+}
+
+/**
  * What the Finder knows about a folder's entries beyond what `stat` says:
  * packages, hidden extensions, hidden entries and aliases. Nothing off macOS
  * or in a build without the module, which leaves the listing as `stat` has it.

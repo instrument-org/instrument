@@ -35,7 +35,10 @@ import { base } from "@/electron-main/rpc/base";
 import { publisher } from "@/electron-main/rpc/publisher";
 import { isOnlyAppWindow } from "@/electron-main/windows/app-window";
 import { getCallingWindow } from "@/electron-main/windows/calling-window";
-import { setTrafficLightForZoom } from "@/electron-main/windows/traffic-lights";
+import {
+  setTrafficLightForZoom,
+  setTrafficLightsShown,
+} from "@/electron-main/windows/traffic-lights";
 import { osConventionsFor } from "@/shared/os-conventions";
 import { THIRD_PARTY_LICENSES_DIR_NAME } from "@/shared/third-party-licenses";
 import { ExceptionEventSchema } from "@instrument-org/shared/exceptions";
@@ -488,6 +491,17 @@ const syncZoom = base
     setTrafficLightForZoom(getCallingWindow(context.webContentsId), input.zoom);
   });
 
+// The macOS traffic lights of the window that asked, shown while its sidebar
+// is out and hidden while it is put away.
+const showTrafficLights = base
+  .input(z.object({ isShown: z.boolean() }))
+  .handler(({ context, input }) => {
+    setTrafficLightsShown(
+      getCallingWindow(context.webContentsId),
+      input.isShown,
+    );
+  });
+
 // Custom title-bar window controls (Windows/Linux, and macOS when force-shown).
 // Each acts on the window that asked.
 const minimizeWindow = base.input(z.void()).handler(({ context }) => {
@@ -737,6 +751,7 @@ export const utils = {
   showContextMenu,
   showFileInFolder,
   showFolderPicker,
+  showTrafficLights,
   syncZoom,
   chatFolderPath,
   chatWorkFolderPath,

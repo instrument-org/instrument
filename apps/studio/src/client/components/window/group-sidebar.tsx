@@ -60,12 +60,7 @@ import { GroupRowMenu, type GroupRowMenuActions } from "./group-row-menu";
 import { HelpMenu } from "./help-menu";
 import { toggleLeft } from "./inbox-toggle";
 import { useAppsBySlug } from "./apps-by-slug";
-import {
-  activityLabel,
-  hasWords,
-  matchesSearch,
-  type Project,
-} from "./chats";
+import { activityLabel, hasWords, matchesSearch, type Project } from "./chats";
 import { Peek } from "./chat-row";
 import { NotificationsBell } from "./notifications-bell";
 import { ProjectBanner } from "./project-banner";
@@ -1193,7 +1188,7 @@ function SidebarTop() {
   return (
     <div
       className="flex h-10 shrink-0 items-center gap-1 pr-3 [-webkit-app-region:drag] [&_button]:[-webkit-app-region:no-drag]"
-      style={{ paddingLeft: `calc(${toggleLeft()} + 2rem)` }}
+      style={{ paddingLeft: `calc(${toggleLeft(true)} + 2rem)` }}
     >
       {!isMacOS() && <AppMenuButton />}
       <span className="flex-1" />

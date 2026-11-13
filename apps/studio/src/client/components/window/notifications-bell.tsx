@@ -8,7 +8,7 @@ import {
   PopoverContent,
   PopoverTrigger,
 } from "@/client/components/ui/popover";
-import { useAppTabs } from "@/client/components/window/app-tabs";
+import { useWindow } from "@/client/components/window/context";
 import { pendingProblemReport } from "@/client/lib/problem-reports";
 import { formatAbsoluteTime } from "@/client/lib/relative-time";
 import { toast } from "@/client/lib/toast";
@@ -45,7 +45,7 @@ export function NotificationsBell() {
   );
   const [open, setOpen] = useState(false);
   const markSeen = useMutation(rpcClient.notices.markSeen.mutationOptions());
-  const appTabs = useAppTabs();
+  const { openScreen } = useWindow();
   const openAction = (notice: BellNotice) => {
     // Acting on a notice from its toast has shown it, so the bell's dot for
     // it goes too.
@@ -62,7 +62,7 @@ export function NotificationsBell() {
     }
     if (notice.action && "href" in notice.action) {
       setOpen(false);
-      appTabs.open(notice.action.href);
+      openScreen(notice.action.href, { newTab: true });
       return;
     }
     void openNoticeLink(notice);

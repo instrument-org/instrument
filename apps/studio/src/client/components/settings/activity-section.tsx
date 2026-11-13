@@ -16,7 +16,7 @@ import {
   DialogTitle,
 } from "@/client/components/ui/dialog";
 import { Switch } from "@/client/components/ui/switch";
-import { useAppTabs } from "@/client/components/window/app-tabs";
+import { WindowContext } from "@/client/components/window/context";
 import { SCREEN_ROUTES } from "@/client/components/window/window-href";
 import { toast } from "@/client/lib/toast";
 import { rpcClient } from "@/client/rpc/client";
@@ -25,7 +25,7 @@ import { LockSimpleIcon } from "@phosphor-icons/react/LockSimple";
 import { PauseCircleIcon } from "@phosphor-icons/react/PauseCircle";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useSetAtom } from "jotai";
-import { type ReactNode, useId, useState } from "react";
+import { type ReactNode, useContext, useId, useState } from "react";
 
 /**
  * Settings › Activity: whether the app keeps a history of what the person
@@ -34,7 +34,7 @@ import { type ReactNode, useId, useState } from "react";
  */
 export function ActivitySection() {
   const queryClient = useQueryClient();
-  const appTabs = useAppTabs();
+  const appWindow = useContext(WindowContext);
   const closeSettings = useSetAtom(settingsModalAtom);
   const { data: preferences } = useQuery(
     rpcClient.preferences.live.get.experimental_liveOptions(),
@@ -128,7 +128,7 @@ export function ActivitySection() {
             <Button
               onClick={() => {
                 closeSettings(null);
-                appTabs.open(SCREEN_ROUTES.activity);
+                appWindow?.openScreen(SCREEN_ROUTES.activity, { newTab: true });
               }}
               size="sm"
               variant="outline"

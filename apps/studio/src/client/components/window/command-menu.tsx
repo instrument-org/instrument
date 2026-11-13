@@ -285,9 +285,9 @@ export function useCommandMenuRows({
       chord: WINDOW_SHORTCUTS.newChat.accelerator,
       icon: <NotePencilIcon />,
       id: "new-chat",
-      label: "New chat",
+      label: "New tab group",
       run: () => {
-        shell.newDraft();
+        shell.newGroup();
       },
     },
     // A new tab opening another from its own menu would only stand beside it.
@@ -299,7 +299,9 @@ export function useCommandMenuRows({
             icon: <PlusIcon />,
             id: "new-tab",
             label: "New tab",
-            run: shell.appTabs.openNewTab,
+            run: () => {
+              shell.newTab();
+            },
           },
         ]),
     {

@@ -5,7 +5,6 @@ import {
   BROWSER_HREF,
   chatGroupAtom,
   filesHrefAtom,
-  NEW_TAB_HREF,
   type WindowTab,
 } from "@/client/atoms/window";
 import { keptInOtherWindows } from "@/client/lib/kept-state";
@@ -21,7 +20,6 @@ import {
   reorderTabs,
   selectAdjacent,
   selectByIndex,
-  selectOrAddTab,
   selectTab,
   setTabPathname,
 } from "@/client/lib/tabs-model";
@@ -39,7 +37,6 @@ import { openLinkAddress } from "./open-link-address";
 import {
   chatHref,
   chatOfGroup,
-  chatOfHref,
   matchScreen,
   pathOf,
   SCREEN_ROUTES,
@@ -414,24 +411,6 @@ export function useAppTabs() {
     model,
     navigate,
     open,
-    /**
-     * Brings up the tab that has a chat, or a new one at it. Decided from the
-     * tabs as they stand at the call rather than as this render saw them, so a
-     * caller holding an older render cannot open a second.
-     */
-    openOrFocusChat: (chatId: ChatId) => {
-      setModel((current) =>
-        selectOrAddTab(current, {
-          id: freshTabId(),
-          matches: (tab) => chatOfHref(tab.pathname) === chatId,
-          pathname: chatHref(chatId),
-        }),
-      );
-    },
-    /** A new tab: the command menu, until something is picked there. */
-    openNewTab: () => {
-      open(NEW_TAB_HREF);
-    },
     // Whichever closed last, this window's tab or a whole window, the way a
     // browser's one chord brings back either.
     reopen: () => {

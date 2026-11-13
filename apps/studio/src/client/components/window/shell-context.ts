@@ -9,7 +9,6 @@ import { createContext, useContext } from "react";
 
 import { type AIGatewayModelURI } from "@instrument-org/ai-gateway/client";
 
-import { type useAppTabs } from "./app-tabs";
 import { type Project } from "./chats";
 import { type DraftSend } from "./compose-window";
 import { type ContextItem } from "./context-items";
@@ -21,7 +20,6 @@ import { type useCompose } from "./use-compose";
  * inside a tab.
  */
 export interface WindowShell {
-  appTabs: ReturnType<typeof useAppTabs>;
   /** The chat a draft just became, marked in the inbox as it arrives. */
   arrivedId: ChatId | undefined;
   chatTitles: Map<ChatId, string>;
@@ -36,8 +34,10 @@ export interface WindowShell {
   drafts: Draft[];
   /** Takes the tab up to one of the rail's places, as a press on the rail does. */
   goToPlace: (place: AppPlace) => void;
-  /** Opens a new draft, as the rail's New does. */
-  newDraft: () => void;
+  /** Makes a new tab group, as Cmd+N does. */
+  newGroup: () => void;
+  /** Opens a new tab in the tab group up, as Cmd+T does. */
+  newTab: () => void;
   /** A project asked for from a chat's head, with what was typed. */
   onNewProject: (name: string | undefined) => void;
   /** A project asked for from a draft's head, with what was typed: the project it makes files that draft. */

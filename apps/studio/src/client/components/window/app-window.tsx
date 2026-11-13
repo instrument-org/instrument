@@ -1,5 +1,8 @@
 import { OUTSIDE_FILES_MAX } from "@instrument-org/shared";
-import { showProjectInFiles } from "@/client/lib/show-in-files";
+import {
+  setFilesTabOpener,
+  showProjectInFiles,
+} from "@/client/lib/show-in-files";
 import {
   draftsAtom,
   removeDraftAtom,
@@ -792,16 +795,16 @@ function WindowShell({
   }, [pageHost, stage]);
 
   /**
-   * Takes a chat out of the corner: the window goes and the chat comes up in
-   * a tab of the window's own, the one that already has it or a new one, its
-   * pane opened when the window asked for something to be shown.
+   * Takes a chat out of the corner: the window goes and the chat's tab group
+   * comes up, here or in the window that has it open, its pane opened when
+   * the window asked for something to be shown.
    */
   const expandChat = (
     chatId: ChatId,
     { showsPane }: { showsPane: boolean },
   ) => {
     compose.remove(chatId);
-    appTabs.openOrFocusChat(chatId);
+    groups.show(chatId);
     if (showsPane) {
       setPaneOpen(chatId, true);
     }
@@ -826,6 +829,13 @@ function WindowShell({
       }
     },
     windowTabs,
+  });
+  // Show in Folder, from anywhere in the window, opens Files as a tab of the
+  // tab group up, read at the moment it is asked.
+  useLayoutEffect(() => {
+    setFilesTabOpener((href) => {
+      openScreen(href, { newTab: true });
+    });
   });
 
   const appsBySlug = useAppsBySlug();
@@ -1008,7 +1018,6 @@ function WindowShell({
     draftFromLink,
     draftWith,
     expandDraft,
-    newDraft,
     popOutDraft,
     sentProjects,
     sentWords,
@@ -1022,7 +1031,6 @@ function WindowShell({
     draftContext,
     isOpen: opened !== undefined,
     isChat,
-    isChatAlone: chatUp !== undefined && !isInboxOpen,
     // The draft's group becomes the chat's in its place in the list first,
     // so the chat is never a group this window does not have open.
     openChat: (chatId, fromDraft) => {
@@ -1165,9 +1173,9 @@ function WindowShell({
     appTabs.goToPlace(next, { behind: newTab, newTab });
   };
   // A file let go of where nothing else takes it opens the way one dropped
-  // on the Dock icon does.
+  // on the Dock icon does: as a tab group of its own.
   useWindowDropFallback(({ hostPath, isFolder }) => {
-    appTabs.open(isFolder ? folderHref(hostPath) : fileHref(hostPath));
+    groups.make({ href: isFolder ? folderHref(hostPath) : fileHref(hostPath) });
   });
   // Something from outside the app that a tab already shows comes up there
   // and lights that tab, since a switch alone, or no change at all when the
@@ -1405,7 +1413,6 @@ function WindowShell({
   }
 
   const shell: Shell = {
-    appTabs,
     arrivedId,
     childTitles,
     compose,
@@ -1428,8 +1435,11 @@ function WindowShell({
         !discardingIds.has(draft.id),
     ),
     goToPlace: choosePlace,
-    newDraft: () => {
-      newDraft();
+    newGroup: () => {
+      groups.make();
+    },
+    newTab: () => {
+      groups.newTab();
     },
     onNewDraftProject: (draftId, name) => {
       setNewProject({ draftId, ...(name ? { name } : {}) });

@@ -50,65 +50,8 @@ function window(pathname = "/chats") {
       tabs: [{ id: HOME, pathname }],
     });
   });
-  const tabsAt = (at: string) =>
-    store.get(appTabsAtom).tabs.filter((tab) => tab.pathname === at);
-  return { result, store, tabsAt };
+  return { result, store };
 }
-
-describe("openOrFocusChat", () => {
-  it("opens one tab for two calls from the same render", () => {
-    const { result, tabsAt } = window();
-    // What a window on its way out of the screen holds: the handlers of the
-    // render before the first call, which never saw the tab it opened.
-    const { openOrFocusChat } = result.current;
-
-    act(() => {
-      openOrFocusChat(CHAT);
-    });
-    act(() => {
-      openOrFocusChat(CHAT);
-    });
-
-    expect(tabsAt(`/chats/${CHAT}`)).toHaveLength(1);
-  });
-
-  it("opens one tab for two calls before a render", () => {
-    const { result, tabsAt } = window();
-
-    act(() => {
-      result.current.openOrFocusChat(CHAT);
-      result.current.openOrFocusChat(CHAT);
-    });
-
-    expect(tabsAt(`/chats/${CHAT}`)).toHaveLength(1);
-  });
-
-  it("brings up the tab that has the chat instead of opening another", () => {
-    const { result, store, tabsAt } = window(`/chats/${CHAT}`);
-    act(() => {
-      result.current.openOrFocusChat(OTHER);
-    });
-    expect(store.get(appTabsAtom).selectedId).not.toBe(HOME);
-
-    act(() => {
-      result.current.openOrFocusChat(CHAT);
-    });
-
-    expect(store.get(appTabsAtom).selectedId).toBe(HOME);
-    expect(tabsAt(`/chats/${CHAT}`)).toHaveLength(1);
-  });
-
-  it("opens a new tab with the chat up when none has it", () => {
-    const { result, store, tabsAt } = window();
-
-    act(() => {
-      result.current.openOrFocusChat(CHAT);
-    });
-
-    const [opened] = tabsAt(`/chats/${CHAT}`);
-    expect(store.get(appTabsAtom).selectedId).toBe(opened?.id);
-  });
-});
 
 const NOTES = "/Users/mac-user/notes.md";
 const DOCUMENTS = "/Users/mac-user/Documents";

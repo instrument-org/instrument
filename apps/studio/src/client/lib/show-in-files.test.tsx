@@ -1,12 +1,10 @@
 // A skill's address names it the way a task loads it, and what opens is the
 // folder the workspace has it in.
-import { appTabsAtom } from "@/client/components/window/app-tabs";
 import { folderHref } from "@/shared/computer-href";
 import { installWindowStubs } from "@/tests/window-stubs";
-import { getDefaultStore } from "jotai";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-import { showSkillFolder } from "./show-in-files";
+import { setFilesTabOpener, showSkillFolder } from "./show-in-files";
 
 const { list, toast } = vi.hoisted(() => ({
   list: vi.fn(),
@@ -32,12 +30,8 @@ const SKILLS = [
   },
 ];
 
-/** The addresses of the window's tabs. */
-function tabs() {
-  return getDefaultStore()
-    .get(appTabsAtom)
-    .tabs.map((tab) => tab.pathname);
-}
+/** The addresses the window was asked to open as tabs. */
+let opened: string[] = [];
 
 describe("showSkillFolder", () => {
   beforeEach(() => {
@@ -45,10 +39,9 @@ describe("showSkillFolder", () => {
     Object.assign(window.api, { windowType: "app" });
     list.mockReset().mockResolvedValue(SKILLS);
     toast.mockReset();
-    getDefaultStore().set(appTabsAtom, {
-      recentlyClosed: [],
-      selectedId: null,
-      tabs: [],
+    opened = [];
+    setFilesTabOpener((href) => {
+      opened.push(href);
     });
   });
 
@@ -65,12 +58,12 @@ describe("showSkillFolder", () => {
     ],
   ])("opens the folder of the skill named by %s", async (_case, name, path) => {
     await showSkillFolder(name);
-    expect(tabs()).toEqual([folderHref(path)]);
+    expect(opened).toEqual([folderHref(path)]);
   });
 
   it("says so when no skill has the name", async () => {
     await showSkillFolder("gone");
-    expect(tabs()).toEqual([]);
+    expect(opened).toEqual([]);
     expect(toast).toHaveBeenCalledWith(
       "No skill by that name is installed on this computer.",
     );

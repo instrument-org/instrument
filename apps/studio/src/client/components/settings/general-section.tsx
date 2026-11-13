@@ -41,7 +41,7 @@ import {
   TooltipContent,
   TooltipTrigger,
 } from "@/client/components/ui/tooltip";
-import { useAppTabs } from "@/client/components/window/app-tabs";
+import { WindowContext } from "@/client/components/window/context";
 import { ZoomStepper } from "@/client/components/zoom-controls";
 import { useDeveloperMode } from "@/client/hooks/use-developer-mode";
 import { feedbackReport } from "@/client/lib/problem-reports";
@@ -59,7 +59,7 @@ import { BellSimpleIcon } from "@phosphor-icons/react/BellSimple";
 import { DownloadSimpleIcon } from "@phosphor-icons/react/DownloadSimple";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { useAtomValue, useSetAtom } from "jotai";
-import { type ReactNode, useEffect, useState } from "react";
+import { type ReactNode, useContext, useEffect, useState } from "react";
 import { toast } from "@/client/lib/toast";
 
 export function SettingsSection({
@@ -130,11 +130,11 @@ function About() {
 
   const developerMode = useDeveloperMode();
 
-  const appTabs = useAppTabs();
+  const appWindow = useContext(WindowContext);
   const closeSettings = useSetAtom(settingsModalAtom);
 
   const handleOpenReleaseNotes = () => {
-    appTabs.open("/release-notes");
+    appWindow?.openScreen("/release-notes", { newTab: true });
     closeSettings(null);
   };
 

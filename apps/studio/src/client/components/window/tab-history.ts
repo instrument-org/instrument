@@ -1,5 +1,5 @@
 import {
-  newTabHrefOf,
+  NEW_TAB_HREF,
   type TabVisit,
   type WindowTab,
 } from "@/client/atoms/window";
@@ -30,7 +30,7 @@ export function stepTabVisit(
     direction === 1
       ? current.future
       : current.kind === "page" && !current.past?.length
-        ? [newTabVisit(current.group)]
+        ? [newTabVisit()]
         : current.past;
   const visit = from?.at(-1);
   if (!visit || !from) return undefined;
@@ -111,9 +111,9 @@ function leftBehind(
   };
 }
 
-function newTabVisit(group: string | undefined): TabVisit {
+function newTabVisit(): TabVisit {
   return {
-    href: newTabHrefOf(group),
+    href: NEW_TAB_HREF,
     id: StoreId.newTabId(),
     kind: "screen",
   };

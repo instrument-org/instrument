@@ -493,7 +493,7 @@ describe("openPage", () => {
       });
       expect(shape(opened)).toEqual(expected);
       expect(opened.tabs.at(-1)?.past).toEqual([
-        { href: BROWSER_HREF, id: "home", kind: "screen" },
+        { href: NEW_TAB_HREF, id: "home", kind: "screen" },
       ]);
     },
   );

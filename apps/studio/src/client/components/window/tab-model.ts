@@ -1,5 +1,6 @@
 import {
   type BrowserTab,
+  NEW_TAB_HREF,
   newTabHrefOf,
   type TabVisit,
   type WindowTab,
@@ -703,7 +704,7 @@ export function openPage(
     ...page,
     group,
     kind: "page",
-    past: [{ href: newTabHrefOf(group), id: homeId, kind: "screen" }],
+    past: [{ href: NEW_TAB_HREF, id: homeId, kind: "screen" }],
   };
   const added = { ...state, tabs: insertAfter(state.tabs, tab, after) };
   return select && group !== undefined ? pointAt(added, group, page.id) : added;

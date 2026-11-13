@@ -82,7 +82,7 @@ const CHORD_SYMBOLS: Record<WindowShortcutId, string> = {
   toggleInbox: "sidebar.left",
 };
 
-/** Sends a command to the window's renderer, which holds the tabs and the inbox: every chord's id is one. */
+/** Sends a command to the window's renderer, which holds the tabs and the tab groups: every chord's id is one. */
 const command = (name: WindowShortcutId) => (window: BrowserWindow) => {
   commandWindow(window, name);
 };
@@ -103,7 +103,7 @@ function chord(
 }
 
 const FILE_CHORDS: WindowChord[] = [
-  // Where mail keeps New Message: a draft of a new chat, at the corner.
+  // A new tab group, at the bottom of the sidebar's list.
   chord("newChat"),
   chord("commandMenu", (window) => {
     // As with the field below: a page guest holding the keyboard keeps the
@@ -123,7 +123,7 @@ const FILE_CHORDS: WindowChord[] = [
   chord("findInPage"),
   chord("findNext"),
   chord("findPrevious"),
-  // The inbox's search, which the window brings up and gives the keyboard;
+  // The sidebar's search, which the window brings up and gives the keyboard;
   // like the field above, taken back from a page guest first.
   chord("searchChats", (window) => {
     window.webContents.focus();
@@ -155,10 +155,7 @@ const TAB_CHORDS: WindowChord[] = [
   chord("reopenTab"),
 ];
 
-/**
- * The inbox column put away and brought back, on the usual sidebar chord:
- * the column is this window's sidebar.
- */
+/** The sidebar of tab groups put away and brought back, on the usual sidebar chord. */
 const VIEW_CHORDS: WindowChord[] = [
   chord("toggleInbox"),
   chord("editPage"),
@@ -177,16 +174,16 @@ const PLACE_CHORDS: WindowChord[] = [
 ];
 
 /**
- * Down and up the inbox from the chat on screen, in the order the list
- * shows, on the keys each system steps between conversations with
+ * Down and up the sidebar from the tab group on screen, in the order the
+ * list shows, on the keys each system steps between conversations with
  * (`window-shortcuts.ts`).
  */
 const CHAT_CHORDS: WindowChord[] = [chord("nextChat"), chord("previousChat")];
 
 /**
- * The chords the tab bar answers to, on whichever screen is up: next and
- * previous by Ctrl+Tab (and by this system's own second chord, below), a tab
- * by place with Cmd+1 through Cmd+8, and the last with Cmd+9, as browsers do.
+ * The chords a tab group's tabs answer to: next and previous by Ctrl+Tab
+ * (and by this system's own second chord, below), a tab by place with Cmd+1
+ * through Cmd+8, and the last with Cmd+9, as browsers do.
  * Those nine are hidden rows, left out of the menu as Chrome leaves them out
  * of its own, which a focused page guest still reaches.
  */
@@ -211,7 +208,7 @@ const TAB_SWITCH_CHORDS: WindowChord[] = [
  */
 const HISTORY_CHORDS: WindowChord[] = [chord("back"), chord("forward")];
 
-/** Everything the person did, as a browser's History menu shows all of it. */
+/** The tab groups closed to History, as a browser's History menu shows all of it. */
 const ACTIVITY_CHORDS: WindowChord[] = [chord("showActivity")];
 
 /**
@@ -300,18 +297,16 @@ export function bindAppWindowChords(webContents: WebContents) {
 
 /** What the menu does with the windows themselves, which the windows' own module answers. */
 export interface WindowMenuActions {
-  canMerge: boolean;
   canReopenClosed: boolean;
-  mergeAll: () => void;
   openNew: () => void;
-  /** A new window, with a new chat up in it. */
+  /** A new window, with a new tab group up in it. */
   openNewWithChat: () => void;
   reopenClosed: () => void;
 }
 
 /**
  * The app window's menu: the other windows' menu, but with the
- * chords a browser has, and the ones an inbox has.
+ * chords a browser has, and the ones the tab groups have.
  */
 export function createAppWindowMenu(
   windows: WindowMenuActions,
@@ -346,8 +341,9 @@ export function createAppWindowMenu(
     ],
   };
 
-  // Chrome's Tab menu: going between the window's tabs and taking one out of
-  // it. Opening, closing and reopening one are in File, where Chrome has them.
+  // Chrome's Tab menu: going between the tab group's tabs and taking one out
+  // into a window of its own. Opening, closing and reopening one are in File,
+  // where Chrome has them.
   const tabMenu: MenuItemConstructorOptions = {
     label: "Tab",
     submenu: [
@@ -392,8 +388,8 @@ export function createAppWindowMenu(
     ],
   };
 
-  // The other windows' View menu with the inbox's chord at its head, and the
-  // rail's places and the steps down and up the inbox under it, less
+  // The other windows' View menu with the sidebar's chord at its head, and the
+  // places and the steps down and up the sidebar's tab groups under it, less
   // its reload roles, which would reload the window and every page in it
   // (Reload Page above takes Cmd+R; the Developer menu reloads the app). Its
   // zoom chords go to the window, which decides whether they mean a page.
@@ -429,16 +425,8 @@ export function createAppWindowMenu(
     viewMenu,
     historyMenu,
     tabMenu,
-    ...createWindowMenu([
-      {
-        click: () => {
-          windows.mergeAll();
-        },
-        enabled: windows.canMerge,
-        label: "Merge All Windows",
-        ...menuSymbol("rectangle.stack"),
-      },
-    ]),
+    // Every window lists every tab group, so there is nothing to merge.
+    ...createWindowMenu(),
     createHelpMenu({
       reportProblem: () => {
         const window = BrowserWindow.getFocusedWindow();
@@ -472,8 +460,8 @@ function resolvedMenuShortcut({
 }
 
 /**
- * What a chord does with no window focused, as a browser's do: New Chat
- * opens a window with a new chat in it, New Tab a window, and Reopen Closed
+ * What a chord does with no window focused, as a browser's do: New Tab Group
+ * opens a window with a new tab group in it, New Tab a window, and Reopen Closed
  * Tab the window closed last. The rest do nothing then.
  */
 function noWindowAction(

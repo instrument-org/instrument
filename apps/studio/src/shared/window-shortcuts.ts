@@ -26,8 +26,8 @@ const placeChord = (digit: number) => ({
 });
 
 /**
- * Down and up the inbox: Option and Command with the arrow on a Mac, where
- * Option and an arrow alone moves the caret. Elsewhere Alt+Shift and the
+ * Down and up the sidebar's tab groups: Option and Command with the arrow on
+ * a Mac, where Option and an arrow alone moves the caret. Elsewhere Alt+Shift and the
  * arrow, which chat apps there step through unread conversations with: GNOME
  * takes Ctrl+Alt and an arrow to switch workspaces, and Alt and ↑ is the
  * parent folder in Files, as in File Explorer.
@@ -66,26 +66,29 @@ export const WINDOW_SHORTCUTS = {
   goToBrowser: { accelerator: placeChord(3), label: "Go to Browser" },
   goToChat: { accelerator: placeChord(1), label: "Go to Chat" },
   goToFiles: { accelerator: placeChord(2), label: "Go to Files" },
-  newChat: { accelerator: "CmdOrCtrl+N", label: "New Chat" },
+  newChat: { accelerator: "CmdOrCtrl+N", label: "New Tab Group" },
   newTab: { accelerator: "CmdOrCtrl+T", label: "New Tab" },
-  nextChat: { accelerator: chatChord("Down"), label: "Next Chat" },
+  nextChat: { accelerator: chatChord("Down"), label: "Next Tab Group" },
   nextTab: { accelerator: "Ctrl+Tab", label: "Show Next Tab" },
-  previousChat: { accelerator: chatChord("Up"), label: "Previous Chat" },
+  previousChat: { accelerator: chatChord("Up"), label: "Previous Tab Group" },
   previousTab: { accelerator: "Ctrl+Shift+Tab", label: "Show Previous Tab" },
   printPage: { accelerator: "CmdOrCtrl+P", label: "Print…" },
   reloadPage: { accelerator: "CmdOrCtrl+R", label: "Reload Page" },
   reopenTab: { accelerator: "Shift+CmdOrCtrl+T", label: "Reopen Closed Tab" },
   search: { accelerator: "CmdOrCtrl+L", label: "Search or Ask" },
-  // Find with Shift, as a code editor searches every file: the inbox's
-  // search, over every chat, where Find is the one chat on screen.
-  searchChats: { accelerator: "Shift+CmdOrCtrl+F", label: "Search Chats" },
+  // Find with Shift, as a code editor searches every file: the sidebar's
+  // search, over every tab group, where Find is the one chat on screen.
+  searchChats: {
+    accelerator: "Shift+CmdOrCtrl+F",
+    label: "Search Tab Groups",
+  },
   // Show All History's key: ⌘Y in Safari and Chrome on a Mac, and Ctrl+H in
   // browsers elsewhere.
   showActivity: {
     accelerator: { darwin: "CmdOrCtrl+Y", default: "Ctrl+H" },
-    label: "Show Activity",
+    label: "Show History",
   },
-  toggleInbox: { accelerator: "CmdOrCtrl+B", label: "Toggle Inbox" },
+  toggleInbox: { accelerator: "CmdOrCtrl+B", label: "Toggle Sidebar" },
 } as const satisfies Record<string, WindowShortcut>;
 
 export type WindowShortcutId = keyof typeof WINDOW_SHORTCUTS;
@@ -143,8 +146,8 @@ export const WINDOW_MENU_SHORTCUTS = {
   actualSize: { accelerator: "CmdOrCtrl+0", label: "Actual Size" },
   closeWindow: { accelerator: "Shift+CmdOrCtrl+W", label: "Close Window" },
   lastTab: { accelerator: "CmdOrCtrl+9", label: "Last Tab" },
-  // Cmd+N is a new chat, as it is a new message in mail, so a window takes
-  // Shift, as it does in a code editor and in Notion.
+  // Cmd+N is a new tab group, so a window takes Shift, as it does in a
+  // code editor and in Notion.
   newWindow: { accelerator: "Shift+CmdOrCtrl+N", label: "New Window" },
   // No chord on Windows, as Electron's quit role leaves it: Alt+F4 is how an
   // app closes there, and Ctrl+Q sits beside Ctrl+W and Tab.

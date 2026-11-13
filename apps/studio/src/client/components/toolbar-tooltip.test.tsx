@@ -17,7 +17,7 @@ describe("ToolbarTooltip", () => {
       </TooltipProvider>,
     );
 
-    expect(screen.getByRole("button", { name: "Toggle Inbox" })).toBeTruthy();
+    expect(screen.getByRole("button", { name: "Toggle Sidebar" })).toBeTruthy();
   });
 
   // The browser panel's "Open in external browser" has no chord, and before
@@ -52,6 +52,6 @@ describe("ToolbarTooltip", () => {
       </TooltipProvider>,
     );
 
-    expect(screen.getByRole("link", { name: "New Chat" })).toBeTruthy();
+    expect(screen.getByRole("link", { name: "New Tab Group" })).toBeTruthy();
   });
 });

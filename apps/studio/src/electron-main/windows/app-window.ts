@@ -722,11 +722,6 @@ export function reopenClosedAppWindow({ after }: { after?: number } = {}) {
   return true;
 }
 
-/** Whether there is more than one window to merge. */
-export function canMergeWindows() {
-  return getAppWindows().length > 1;
-}
-
 /**
  * Every other window's tabs, pages and floats into the one in front, and those
  * windows gone with nothing to come back to. Only one window can stay itself, so

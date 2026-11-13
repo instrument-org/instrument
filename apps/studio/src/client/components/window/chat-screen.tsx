@@ -51,6 +51,8 @@ interface ChatScreenProps {
   >;
   /** The words that open the chat, while the message they make is on its way. */
   sentPrompt?: string;
+  /** Whether the composer takes the caret as it opens; the work beside a chat's column takes it there. */
+  takesCaret?: boolean;
 }
 
 /**
@@ -110,6 +112,7 @@ function ChatScreenOfRecord({
   sendContext,
   sentPrompt,
   sessionId,
+  takesCaret,
 }: ChatScreenProps & { sessionId: StoreId.Session }) {
   const appWindow = useWindow();
   const info = useQuery(
@@ -257,6 +260,7 @@ function ChatScreenOfRecord({
                   selectedSessionId={sessionId}
                   sendContext={sendContext}
                   sentPrompt={sentPrompt}
+                  takesCaret={takesCaret}
                   chatId={chatId}
                 />
               </ChatSessionProvider>

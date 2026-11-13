@@ -21,7 +21,7 @@ import { useTaskFacts, useTaskMessages } from "./transcript-data";
 import { formatRoughSpan, useTicking } from "./time";
 
 /** The dots after a working task's step. */
-function WorkingDots() {
+export function WorkingDots() {
   return (
     <span aria-hidden className="flex shrink-0 items-center gap-0.5">
       {[0, 200, 400].map((delay) => (

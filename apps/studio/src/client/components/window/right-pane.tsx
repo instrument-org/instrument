@@ -49,6 +49,7 @@ export function RightPane({
   isOpen,
   onCollapse,
   paneKey,
+  share = { atom: paneShareAtom, initial: PANE_DEFAULT_SHARE },
 }: {
   children: ReactNode;
   conversation: ReactNode;
@@ -59,8 +60,10 @@ export function RightPane({
   onCollapse: () => void;
   /** Whose pane this is: a change of group arrives at its state rather than sliding to it. */
   paneKey: string;
+  /** Where the pane's share of the row is kept, and what a double-click on its edge sets it back to. */
+  share?: { atom: typeof paneShareAtom; initial: number };
 }) {
-  const [storedShare, setStoredShare] = useAtom(paneShareAtom);
+  const [storedShare, setStoredShare] = useAtom(share.atom);
   // Read so a zoom change re-runs the measure below, which a resize observer
   // cannot be relied on for.
   const zoom = useAtomValue(zoomAtom);
@@ -198,9 +201,9 @@ export function RightPane({
     paneWidth.set(width);
   };
   const commit = (width: number, row: HTMLDivElement) => {
-    const share = shareOfWidth(width, row.offsetWidth);
-    applyWidth(widthOfShare(share, row.offsetWidth));
-    setStoredShare(share);
+    const next = shareOfWidth(width, row.offsetWidth);
+    applyWidth(widthOfShare(next, row.offsetWidth));
+    setStoredShare(next);
   };
 
   return (
@@ -253,8 +256,8 @@ export function RightPane({
                 return;
               }
               stopAnimations();
-              setStoredShare(PANE_DEFAULT_SHARE);
-              const width = widthOfShare(PANE_DEFAULT_SHARE, row.offsetWidth);
+              setStoredShare(share.initial);
+              const width = widthOfShare(share.initial, row.offsetWidth);
               animationsRef.current = [
                 animate(reservedWidth, width, RAIL_SLIDE_TRANSITION),
                 animate(paneWidth, width, RAIL_SLIDE_TRANSITION),

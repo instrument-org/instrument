@@ -1,4 +1,5 @@
 import { cn } from "@/client/lib/utils";
+import { rpcClient } from "@/client/rpc/client";
 import { CaretDownIcon } from "@phosphor-icons/react/CaretDown";
 import { DotsThreeIcon } from "@phosphor-icons/react/DotsThree";
 import { PlusIcon } from "@phosphor-icons/react/Plus";
@@ -46,13 +47,6 @@ export function ProjectsSection({
   const isFolding = ordered.length > SHOWN_PROJECTS + 1;
   const shown = isFolding ? ordered.slice(0, SHOWN_PROJECTS) : ordered;
   const folded = isFolding ? ordered.slice(SHOWN_PROJECTS) : [];
-  const counts = new Map<string, number>();
-  for (const chat of chats) {
-    // Counted as the project's view lists them, which leaves out the ones put away.
-    if (chat.project !== undefined && !chat.archived) {
-      counts.set(chat.project, (counts.get(chat.project) ?? 0) + 1);
-    }
-  }
   const row = (project: Project) => (
     <ProjectContextMenu
       key={project.id}
@@ -79,11 +73,7 @@ export function ProjectsSection({
           </span>
           <span className="truncate">{project.name}</span>
         </button>
-        {/* The count gives way to the dots under the pointer. */}
         <span className="relative flex h-5 min-w-8 items-center justify-end pr-2.5">
-          <span className="text-xs text-(--project-tint-ink)/70 tabular-nums group-hover/project:invisible group-has-data-[state=open]/project:invisible">
-            {counts.get(project.id) ?? ""}
-          </span>
           <ProjectActionsButton
             className="absolute right-1.5 group-hover/project:opacity-100"
             onDetails={onDetails}
@@ -95,7 +85,19 @@ export function ProjectsSection({
   );
   return (
     <section aria-label="Projects" className="px-2 pt-1 pb-2">
-      <div className="flex h-8 items-center justify-between pr-0.5 pl-2">
+      <div
+        className="group/heading flex h-8 items-center justify-between pr-0.5 pl-2"
+        onContextMenu={(event) => {
+          event.preventDefault();
+          void rpcClient.utils.showContextMenu
+            .call({ items: [{ id: "new", label: "New Project…" }] })
+            .then((picked) => {
+              if (picked.id === "new") {
+                onNew();
+              }
+            });
+        }}
+      >
         <button
           aria-expanded={isOpen}
           className="flex h-6 items-center gap-1 rounded-md pr-1 text-xs font-medium text-muted-foreground hover:text-foreground"
@@ -115,7 +117,7 @@ export function ProjectsSection({
         </button>
         <button
           aria-label="New project"
-          className="grid size-6 place-items-center rounded-md text-muted-foreground hover:bg-foreground/5 hover:text-foreground"
+          className="grid size-6 place-items-center rounded-md text-muted-foreground opacity-0 group-hover/heading:opacity-100 hover:bg-foreground/5 hover:text-foreground focus-visible:opacity-100"
           onClick={onNew}
           title="New project"
           type="button"

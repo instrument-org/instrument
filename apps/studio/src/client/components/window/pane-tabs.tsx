@@ -4,21 +4,11 @@ import {
   FileSystemFolderGlyph,
   FileTypeIcon,
 } from "@/client/components/extend/file-system";
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-} from "@/client/components/ui/dropdown-menu";
 import { dropdownMenuComponents } from "@/client/components/ui/menu-components";
 import { useTargetsAgentActivity } from "@/client/hooks/use-target-agent-activity";
 import { getGuest } from "@/client/lib/browser-pool";
-import { osConventions } from "@/client/lib/utils";
 import { browserTargetOf } from "@instrument-org/workspace/client";
-import { DesktopIcon } from "@phosphor-icons/react/Desktop";
-import { GlobeIcon } from "@phosphor-icons/react/Globe";
-import { XIcon } from "@phosphor-icons/react/X";
-import { useContext, useRef, useState } from "react";
+import { type ReactNode, useContext, useState } from "react";
 
 import { tabTooltip } from "./app-tab-strip";
 import { useAppsBySlug } from "./apps-by-slug";
@@ -57,31 +47,39 @@ export function PaneTabs({
   chatTitles,
   chosenId,
   isChatWorking,
-  onAddComputer,
-  onAddWeb,
+  lead,
   onClose,
   onDuplicate,
-  onHide,
+  onNew,
   onReorder,
   onSelect,
+  onTabDrag,
+  onTabDragEnd,
   tabs,
   taskTitles,
+  trailing,
 }: {
   chatTitles: Presentation["chatTitles"];
   chosenId: string | undefined;
   /** Whether the chat or any task of it is at work: a page's working mark drops the moment none is. */
   isChatWorking: boolean;
-  onAddComputer: () => void;
-  onAddWeb: () => void;
+  /** What stands ahead of the tabs: room for the traffic lights while the sidebar is closed. */
+  lead?: ReactNode;
   onClose: (id: string) => void;
   /** A copy of the tab beside it in the pane: a page at its address, a screen at its own. */
   onDuplicate: (tab: WindowTab) => void;
-  onHide: () => void;
+  /** A new tab in the group. */
+  onNew: () => void;
   /** The chat's tabs in a new order, by their strip keys, oldest first. */
   onReorder: (keys: string[]) => void;
   onSelect: (id: string) => void;
+  /** Where a tab dragged out of the row is, by its id, for the sidebar to take it. */
+  onTabDrag?: (id: string, event: PointerEvent) => void;
+  onTabDragEnd?: (id: string, event: PointerEvent) => void;
   tabs: WindowTab[];
   taskTitles: Presentation["taskTitles"];
+  /** What the row keeps at its right end: the chat's button while its column is closed. */
+  trailing?: ReactNode;
 }) {
   const appsBySlug = useAppsBySlug();
   const volumes = useComputerVolumes();
@@ -94,7 +92,6 @@ export function PaneTabs({
     ),
     isChatWorking,
   );
-  const hasPicked = useRef(false);
   const [menu, setMenu] = useState<{ key: string; x: number; y: number }>();
   const tabOf = (key: string) => tabs.find((tab) => keyOf(tab) === key);
 
@@ -151,51 +148,14 @@ export function PaneTabs({
   const menuTab = menu ? tabOf(menu.key) : undefined;
 
   return (
-    <div className="flex shrink-0 items-center pr-2">
+    <div className="flex h-10 shrink-0 items-center pr-2 [-webkit-app-region:drag] [&_[role=tab]]:[-webkit-app-region:no-drag] [&_button]:[-webkit-app-region:no-drag]">
+      {lead}
       <TabStrip
         // The pane's own card is the ground a tab up stands on. The first tab
         // starts at the location row's 6px inset, over its back button.
         className="min-w-0 flex-1 pr-0 pl-1.5 [--tab-selected:var(--card)]"
         label="What this chat has open"
-        newControl={
-          <DropdownMenu>
-            <DropdownMenuTrigger asChild>
-              <NewTabButton aria-label="Open beside the chat" title="New" />
-            </DropdownMenuTrigger>
-            <DropdownMenuContent
-              align="start"
-              className="w-48"
-              // What was picked comes up, so the + has nothing to keep the
-              // focus for, and it would wear a focus ring after a pick made
-              // with the mouse.
-              onCloseAutoFocus={(event) => {
-                if (hasPicked.current) {
-                  hasPicked.current = false;
-                  event.preventDefault();
-                }
-              }}
-            >
-              <DropdownMenuItem
-                onSelect={() => {
-                  hasPicked.current = true;
-                  onAddWeb();
-                }}
-              >
-                <GlobeIcon className="size-3.5" />
-                Browser
-              </DropdownMenuItem>
-              <DropdownMenuItem
-                onSelect={() => {
-                  hasPicked.current = true;
-                  onAddComputer();
-                }}
-              >
-                <DesktopIcon className="size-3.5" />
-                {osConventions().computer}
-              </DropdownMenuItem>
-            </DropdownMenuContent>
-          </DropdownMenu>
-        }
+        newControl={<NewTabButton onClick={onNew} title="New tab" />}
         onClose={(key) => {
           const tab = tabOf(key);
           if (tab) {
@@ -207,6 +167,26 @@ export function PaneTabs({
           setMenu({ key, x: event.clientX, y: event.clientY });
         }}
         onReorder={onReorder}
+        {...(onTabDrag
+          ? {
+              onTabDrag: (key: string, event: PointerEvent) => {
+                const tab = tabOf(key);
+                if (tab) {
+                  onTabDrag(tab.id, event);
+                }
+              },
+            }
+          : {})}
+        {...(onTabDragEnd
+          ? {
+              onTabDragEnd: (key: string, event: PointerEvent) => {
+                const tab = tabOf(key);
+                if (tab) {
+                  onTabDragEnd(tab.id, event);
+                }
+              },
+            }
+          : {})}
         onSelect={(key) => {
           const tab = tabOf(key);
           if (tab) {
@@ -217,14 +197,7 @@ export function PaneTabs({
         selectedKey={chosen ? keyOf(chosen) : undefined}
         tabs={presented}
       />
-      <button
-        aria-label="Hide tabs"
-        className="grid size-7 shrink-0 place-items-center rounded-md text-muted-foreground hover:bg-accent hover:text-foreground"
-        onClick={onHide}
-        type="button"
-      >
-        <XIcon className="size-4" />
-      </button>
+      {trailing}
       <TabMenuAtPoint
         at={menu}
         onDismiss={() => {
@@ -346,7 +319,7 @@ function PaneTabMenu({
 }
 
 /** A screen's small mark: a file's type, a folder, or the screen's own icon. */
-function ScreenMark({
+export function ScreenMark({
   appsBySlug,
   chatTitles,
   href,

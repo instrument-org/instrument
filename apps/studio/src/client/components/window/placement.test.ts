@@ -39,10 +39,10 @@ const SITE: PlacementContext = {
 describe("where a page opens", () => {
   it.each<[string, OpenOptions, PlacementContext, unknown]>([
     [
-      "a tab of the window's own when asked, behind when asked",
+      "a tab in the group on screen when asked, behind when asked",
       { behind: true, newTab: true },
       inChat(OWN_PAGE),
-      { behind: true, kind: "window-tab" },
+      { activate: false, group: CHAT, kind: "group-behind", show: false },
     ],
     [
       "into another chat, waiting there",
@@ -97,11 +97,11 @@ describe("where a screen opens", () => {
   const FOLDER = "/files?path=&root=~";
   it.each<[string, string, OpenOptions, PlacementContext, unknown]>([
     [
-      "a tab of the window's own when asked",
+      "a tab in the group on screen when asked",
       FOLDER,
       { newTab: true },
       inChat(SCREEN),
-      { behind: false, kind: "window-tab" },
+      { group: CHAT, kind: "group-behind", select: true, show: false },
     ],
     [
       "an app in the window's tab, whatever is up",

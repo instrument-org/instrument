@@ -1,16 +1,16 @@
-import { inboxOpenAtom } from "@/client/atoms/window";
+import { sidebarOpenAtom } from "@/client/atoms/tab-groups";
 import { ToolbarTooltip } from "@/client/components/toolbar-tooltip";
 import { Button } from "@/client/components/ui/button";
 import { SidebarSimpleIcon } from "@phosphor-icons/react/SidebarSimple";
 import { useAtom } from "jotai";
 
 /**
- * The control ahead of a chat's title: puts the inbox column away so the chat
- * and its tabs have the window, and brings it back.
+ * The control at the toolbar's left, or ahead of a chat's title where a
+ * group has no tabs: puts the sidebar of tab groups away and brings it back.
  */
 export function InboxToggle() {
-  const [isOpen, setOpen] = useAtom(inboxOpenAtom);
-  const label = isOpen ? "Hide the inbox" : "Show the inbox";
+  const [isOpen, setOpen] = useAtom(sidebarOpenAtom);
+  const label = isOpen ? "Hide the sidebar" : "Show the sidebar";
   return (
     <ToolbarTooltip chord="toggleInbox" label={label}>
       <Button

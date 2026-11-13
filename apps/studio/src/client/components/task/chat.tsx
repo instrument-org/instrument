@@ -123,6 +123,7 @@ export function ChatConversation({
   selectedSessionId,
   sendContext,
   sentPrompt,
+  takesCaret = true,
   chatId,
 }: {
   /**
@@ -160,6 +161,8 @@ export function ChatConversation({
    * reads as empty on the way.
    */
   sentPrompt?: string;
+  /** Whether the composer takes the caret as it opens. */
+  takesCaret?: boolean;
   chatId: ChatId;
 }) {
   const appWindow = useContext(WindowContext);
@@ -567,7 +570,7 @@ export function ChatConversation({
   const promptInput = (
     <PromptInput
       attachmentsLead={asks?.pills}
-      autoFocus
+      autoFocus={takesCaret}
       // The box shares a column with the conversation, so it gives way to
       // it sooner than a box on a page of its own: a handful of lines, then
       // the words scroll.

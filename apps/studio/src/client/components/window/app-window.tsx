@@ -1,4 +1,3 @@
-import { useSteadyCallbacks } from "@/client/hooks/use-steady-callbacks";
 import { OUTSIDE_FILES_MAX } from "@instrument-org/shared";
 import { showProjectInFiles } from "@/client/lib/show-in-files";
 import {
@@ -16,15 +15,12 @@ import {
   chatFiltersAtom,
   chatGroupAtom,
   filesFolderAtom,
-  chatSearchAskedAtom,
   inboxOpenAtom,
   paneOpenByGroupAtom,
-  chatsOutOf,
 } from "@/client/atoms/window";
 import { settingsModalAtom } from "@/client/atoms/settings-modal";
 import { AppErrorFallback } from "@/client/components/app-error-fallback";
 import { FileOpenContext } from "@/client/components/file-open-context";
-import { NavControls } from "@/client/components/nav-controls";
 import { WithDeveloperStrip } from "@/client/components/developer-strip/developer-strip-slot";
 import { settingsTabOf } from "@/client/components/settings/settings-index";
 import { WindowZoomRoot } from "@/client/components/window/window-zoom-root";
@@ -47,7 +43,7 @@ import { useRefetchOnWindowSwitch } from "@/client/hooks/use-refetch-on-window-s
 import { useRefreshSkillsOnChange } from "@/client/hooks/use-refresh-skills-on-change";
 import { useRefreshProjectsOnChange } from "@/client/hooks/use-refresh-projects-on-change";
 import { useTabRouters } from "@/client/hooks/use-tab-routers";
-import { getGuest, pageHoldingKeyboard } from "@/client/lib/browser-pool";
+import { pageHoldingKeyboard } from "@/client/lib/browser-pool";
 import { keptInOtherWindows } from "@/client/lib/kept-state";
 import { resolveComputerFileBase } from "@/client/lib/computer-file-url";
 import { ICON_CONTEXT_VALUE } from "@/client/lib/icon-context";
@@ -66,10 +62,10 @@ import { captureComponentError } from "@/client/lib/capture-exception";
 import { cn } from "@/client/lib/utils";
 import { rpcClient } from "@/client/rpc/client";
 import { fileHref, folderHref } from "@/shared/computer-href";
-import { type Tab, type TabId } from "@/shared/tabs";
+import { type Tab } from "@/shared/tabs";
 
 import { useRestoredTabsWaiting } from "./use-restored-tabs-waiting";
-import { type ChatId, browserTargetOf } from "@instrument-org/workspace/client";
+import { type ChatId } from "@instrument-org/workspace/client";
 import { IconContext } from "@phosphor-icons/react/dist/lib/context";
 import {
   QueryClientProvider,
@@ -96,17 +92,12 @@ import {
 } from "react";
 import { createPortal } from "react-dom";
 
-import { AppRail } from "./app-rail";
-import { appsSeenAtAtom, appsSignedOutSince } from "./apps-rail-mark";
-import { AppTabStrip } from "./app-tab-strip";
 import {
   appTabsAtom,
   groupOfHref,
-  INBOX_HREF,
   isChatHref,
+  openInNewWindow,
   isSiteGroup,
-  newSiteGroup,
-  pageHrefOf,
   placeOfHref,
   putAwaySitesAtom,
   siteGroupsInOtherWindows,
@@ -117,14 +108,12 @@ import { COMPOSE_KEY } from "@/shared/kept-state";
 import { useAppsBySlug } from "./apps-by-slug";
 import { BrowserTabs, type BrowserTabsHandle } from "./browser-tabs";
 import { chatListOptions, chromeOfChats } from "./chat-list-query";
-import { ChatPane } from "./chat-pane";
-import { inPlace, NO_FILTERS, strongestMark } from "./chats";
+import { inPlace, NO_FILTERS } from "./chats";
 import { ComposeLayer } from "./compose-layer";
 import { useComputerVolumes } from "./computer-volumes";
 import { type WindowContextValue as Screens, WindowContext } from "./context";
 import { isPaneOpen, shownPaneTab } from "./draft-context";
 import { useSignInLanding } from "./use-sign-in-landing";
-import { InboxPeek } from "./inbox-peek";
 import { inboxLandsAtOnceAtom } from "./inbox-room";
 import { WindowLook } from "./look-panel";
 import { ProjectDialog } from "./project-dialog";
@@ -144,10 +133,20 @@ import { useWindowSteps } from "./use-tab-steps";
 import { useSetChatProject } from "./use-set-chat-project";
 import { backfillCandidates } from "./use-project-backfill";
 import { useWindowCommands } from "./use-window-commands";
-import { useShowActivity } from "./activity-button";
-import { WindowBar, WindowCorner } from "./window-bar";
 import { useWindowDropFallback } from "./use-window-drop-fallback";
 import { WindowFrame } from "./window-frame";
+import { CloseGroupDialog } from "./close-group-dialog";
+import { GroupSidebar } from "./group-sidebar";
+import { isGroupScreenHref } from "./group-screen";
+import {
+  groupHref,
+  type TabGroup,
+  useOpenGroups,
+  useTabGroupActions,
+} from "./tab-groups";
+import { sidebarOpenAtom, sidebarViewAtom } from "@/client/atoms/tab-groups";
+import { formatAcceleratorText } from "@/client/lib/format-accelerator";
+import { WINDOW_SHORTCUTS } from "@/shared/window-shortcuts";
 import {
   chatHref,
   chatOfGroup,
@@ -186,6 +185,9 @@ function floatingDraftIdsOf(kept: unknown): string[] {
       : [],
   );
 }
+
+/** How long after a first Cmd+W on a group with no tabs a second one closes the group. */
+const CLOSE_AGAIN_MS = 3000;
 
 /** The groups the window's places once kept their tabs under, which nothing shows now. */
 const RETIRED_GROUPS = [
@@ -457,7 +459,42 @@ function WindowShell({
   tabs: Tab[];
 }) {
   const appTabs = useAppTabs();
-  const showActivity = useShowActivity();
+  const groups = useTabGroupActions();
+  const groupList = useOpenGroups();
+  const [isSidebarOpen, setSidebarOpen] = useAtom(sidebarOpenAtom);
+  const setSidebarView = useSetAtom(sidebarViewAtom);
+  const searchRef = useRef<HTMLInputElement>(null);
+  const groupUp = useRouterState({
+    select: (routerState) => groupOfHref(routerState.location.href),
+  });
+  // A group asked to close while its agent works, waiting on the person's say.
+  const [closing, setClosing] = useState<TabGroup>();
+  /** Closes a group, asking first while its agent works. */
+  const askToClose = (group: string) => {
+    const entry = groupList.open.find((each) => each.group === group);
+    if (entry?.kind === "chat" && entry.chat.working) {
+      setClosing(entry);
+      return;
+    }
+    groups.close(group, groupList.open);
+  };
+  // The group a first Cmd+W on a group with no tabs left named, and when.
+  const closeHint = useRef<{ at: number; group: string }>(undefined);
+  // The window shows one group at a time, in one tab: tabs restored from
+  // the strip a build before this one kept fold into the one up.
+  const [paneOpenByGroup, setPaneOpenByGroup] = useAtom(paneOpenByGroupAtom);
+  const foldRestoredTabs = useEffectEvent(() => {
+    const { selectedId, tabs: restored } = appTabs.model;
+    if (selectedId && restored.length > 1) {
+      appTabs.closeOthers(selectedId);
+    }
+    // A group's tabs are always out, whatever an earlier build set.
+    setPaneOpenByGroup({});
+  });
+  // Once, as the window opens.
+  useEffect(() => {
+    foldRestoredTabs();
+  }, []);
   const waitingTabs = useRestoredTabsWaiting(tabs, appTabs.model.selectedId);
   useRefreshSkillsOnChange();
   useRefreshProjectsOnChange();
@@ -501,34 +538,7 @@ function WindowShell({
   const childTitles = useTaskTitles();
   // Undefined until the list has been read.
   const chatChrome = useChatChrome();
-  const { chatMarks, chatTitles } = chatChrome;
-  // Steady, so the strip is drawn again only when its tabs are.
-  const stripActions = useSteadyCallbacks({
-    onClose: (id: TabId) => {
-      appTabs.close(id);
-    },
-    onCloseOthers: (id: TabId) => {
-      appTabs.closeOthers(id);
-    },
-    onCloseToRight: (id: TabId) => {
-      appTabs.closeToRight(id);
-    },
-    onDuplicate: (id: TabId) => {
-      duplicateAppTab(id);
-    },
-    onNew: () => {
-      appTabs.openNewTab();
-    },
-    onReopenLast: () => {
-      appTabs.reopen();
-    },
-    onReorder: (ids: TabId[]) => {
-      appTabs.reorder(ids);
-    },
-    onSelect: (id: TabId) => {
-      appTabs.select(id);
-    },
-  });
+  const { chatTitles } = chatChrome;
   const [defaultModelURI, setDefaultModelURI, saveDefaultModelURI] =
     useDefaultModelURI();
   const drafts = useAtomValue(draftsAtom);
@@ -538,7 +548,6 @@ function WindowShell({
   const setFilesFolder = useSetAtom(filesFolderAtom);
   const [chatFilters, setChatFilters] = useAtom(chatFiltersAtom);
   const [isInboxOpen, setInboxOpen] = useAtom(inboxOpenAtom);
-  const setChatSearchAsked = useSetAtom(chatSearchAskedAtom);
   const pickNewChatProject = useSetAtom(pickNewChatProjectAtom);
   const setInboxLandsAtOnce = useSetAtom(inboxLandsAtOnceAtom);
   const sendContextRef = useRef<Shell["sendContext"]>(() =>
@@ -561,7 +570,6 @@ function WindowShell({
       observer.disconnect();
     };
   }, [rowElement]);
-  const [paneOpenByGroup, setPaneOpenByGroup] = useAtom(paneOpenByGroupAtom);
   const [browser, setBrowser] = useState<BrowserTabsHandle | null>(null);
   const windowTabs = useWindowTabs();
   // What the window's arrows and chords walk: the tab up's history, through
@@ -571,17 +579,6 @@ function WindowShell({
   useGroupTabRouters(windowTabs.allTabs, windowTabs.screenMoved);
   // And each follows a chat's folder moving to the chat's title.
   useFollowFolderMoves(opened !== undefined);
-
-  // Apps in the rail wears a dot for an app signed out since Apps was last
-  // shown; showing Apps is what counts as seeing it.
-  const appList = useQuery(rpcClient.apps.live.list.experimental_liveOptions());
-  const [appsSeenAt, setAppsSeenAt] = useAtom(appsSeenAtAtom);
-  useEffect(() => {
-    if (place === "apps") {
-      setAppsSeenAt(Date.now());
-    }
-  }, [place, setAppsSeenAt]);
-  const appsMark = appsSignedOutSince(appList.data?.apps ?? [], appsSeenAt);
 
   // The chat a tab last had open is where Chat in the rail takes a tab.
   useEffect(() => {
@@ -601,9 +598,6 @@ function WindowShell({
   }, [filesFolder, setFilesFolder]);
 
   const compose = useCompose(rowWidth);
-  // The chats floating on screen, which show where they stand themselves, so
-  // the rail's Chat dot leaves them out.
-  const floatingChats = chatsOutOf(compose.placed);
   // A draft is written over the screen, never on it, and a draft with no
   // words is not kept past its window, so one left over from a launch goes,
   // unless its window came back with it. A window whose draft is gone goes.
@@ -760,6 +754,9 @@ function WindowShell({
     browser,
     chatTitles,
     isOpen: opened !== undefined,
+    newGroup: (fill) => {
+      groups.make({ fill });
+    },
     paneOpenByGroup,
     revealPane,
     setPaneOpen,
@@ -842,15 +839,15 @@ function WindowShell({
 
   // What the tab in view says it shows: a chat's or a site's tab up while
   // its pane is open, or the screen the window's tab is at.
-  const groupUp = windowTabs.active;
+  const tabInView = windowTabs.active;
   const groupInView = windowTabs.groupOnScreen;
   const surfaceInView =
     groupInView === undefined
       ? surfaces[appTabs.model.selectedId ?? ""]
-      : groupUp?.kind === "screen" &&
+      : tabInView?.kind === "screen" &&
           (chatOfGroup(groupInView) === undefined ||
             isPaneOpen(groupInView, paneOpenByGroup))
-        ? surfaces[groupUp.id]
+        ? surfaces[tabInView.id]
         : undefined;
   const screenView = surfaceInView?.view ?? null;
   // The screen in front, for the action log once it settles.
@@ -1103,17 +1100,34 @@ function WindowShell({
         );
         if (paneTab) {
           requestClose(paneTab.id);
-        } else if (appTabs.model.selectedId) {
-          appTabs.close(appTabs.model.selectedId);
+          return;
         }
+        const group = store.get(groupOnScreenAtom);
+        if (group === undefined) {
+          return;
+        }
+        const hint = closeHint.current;
+        if (hint?.group === group && Date.now() - hint.at < CLOSE_AGAIN_MS) {
+          closeHint.current = undefined;
+          askToClose(group);
+          return;
+        }
+        closeHint.current = { at: Date.now(), group };
+        toast(
+          `Press ${formatAcceleratorText(WINDOW_SHORTCUTS.closeTab.accelerator)} again to close this tab group.`,
+        );
       },
       forward: () => {
         windowSteps.go("forward");
       },
       goToPlace: choosePlace,
-      newChat: newDraft,
+      newChat: () => {
+        groups.make();
+      },
       newChatFromLink: draftFromLink,
-      newTab: appTabs.openNewTab,
+      newTab: () => {
+        groups.newTab();
+      },
       // What arrives from outside the app comes up in the tab already showing
       // it, however far that tab has walked within it, and in a tab of its
       // own where none does. Main has already picked this window as the one
@@ -1168,15 +1182,19 @@ function WindowShell({
             "This version of Instrument doesn't know that kind of link, but a newer one might.",
         });
       },
+      // What arrives from outside the app is a tab group of its own at the
+      // bottom of the list; a chat is its own group already.
       openFile: (hostPath) => {
-        const href = fileHref(hostPath);
-        if (!showFromOutside(href)) {
-          appTabs.open(href);
-        }
+        groups.make({ href: fileHref(hostPath) });
       },
       openScreen: (href) => {
-        if (!showFromOutside(href)) {
-          openScreen(href, { newTab: true });
+        const chat = chatOfHref(href);
+        if (chat !== undefined) {
+          groups.show(chat);
+        } else if (isGroupScreenHref(href)) {
+          groups.make({ href });
+        } else {
+          openScreen(href);
         }
       },
       showTab: showFromOutside,
@@ -1189,25 +1207,22 @@ function WindowShell({
       reopenTab: appTabs.reopen,
       search: focusField,
       searchChats: () => {
-        // A chat's inbox comes back if it was put away; anywhere else the
-        // tab goes to the chats, as the rail takes it there.
-        if (isChat) {
-          setInboxOpen(true);
-        } else {
-          choosePlace("chat");
-        }
-        setChatSearchAsked(true);
+        setSidebarOpen(true);
+        setSidebarView("list");
+        requestAnimationFrame(() => {
+          searchRef.current?.focus();
+          searchRef.current?.select();
+        });
       },
+      // History, in the sidebar, on the chord Activity had.
       showActivity: () => {
-        showActivity();
+        setSidebarOpen(true);
+        setSidebarView((view) => (view === "history" ? "list" : "history"));
       },
       selectRelative: appTabs.selectRelative,
       selectTab: appTabs.selectIndex,
       toggleInbox: () => {
-        // The inbox is the chat's; elsewhere the chord has nothing to move.
-        if (isChat) {
-          setInboxOpen((isOpen) => !isOpen || chatUp === undefined);
-        }
+        setSidebarOpen((isOpen) => !isOpen);
       },
       selectChat: (direction) => {
         appTabs.stepChat(listedChats.current, chatUp, direction);
@@ -1243,43 +1258,6 @@ function WindowShell({
         openScreen,
       }
     : null;
-
-  // A site's tab and the page its group has up, which is what the strip's
-  // menu duplicates or reloads.
-  const pageOfAppTab = (id: TabId) => {
-    const href = tabs.find((tab) => tab.id === id)?.pathname;
-    const group = href === undefined ? undefined : groupOfHref(href);
-    if (group === undefined || !isSiteGroup(group)) {
-      return;
-    }
-    const up = windowTabs.selectedTabIn(group);
-    return up?.kind === "page" ? up : undefined;
-  };
-  /**
-   * A copy of a tab beside it: a screen at the same place with its history,
-   * and a site as a new page at the same address, since one page cannot be
-   * two tabs' at once.
-   */
-  const duplicateAppTab = (id: TabId) => {
-    const page = pageOfAppTab(id);
-    if (page === undefined) {
-      appTabs.duplicate(id);
-      return;
-    }
-    const group = newSiteGroup();
-    browser?.open(page.url, { group });
-    appTabs.duplicate(id, pageHrefOf(group));
-  };
-  /** A site's page reloaded in place, for the strip's Reload; undefined for a tab that is no site. */
-  const reloadablePageOf = (id: TabId) => {
-    const page = pageOfAppTab(id);
-    if (page === undefined) {
-      return;
-    }
-    return () => {
-      getGuest(browserTargetOf(page.id))?.reload();
-    };
-  };
 
   if (ensure.error) {
     return (
@@ -1365,23 +1343,7 @@ function WindowShell({
       >
         <PageOpenContext value={openPage}>
           <WindowFrame
-            bar={
-              <WindowBar
-                leading={<NavControls steps={windowSteps} />}
-                tabs={
-                  <AppTabStrip
-                    chatMarks={chatMarks}
-                    chatTitles={chatTitles}
-                    childTitles={childTitles}
-                    {...stripActions}
-                    onReload={reloadablePageOf}
-                    selectedId={appTabs.model.selectedId}
-                    tabs={tabs}
-                  />
-                }
-                trailing={<WindowCorner />}
-              />
-            }
+            hasBar={false}
             overlay={
               <ComposeLayer
                 browser={browser}
@@ -1413,21 +1375,38 @@ function WindowShell({
               />
             }
             rail={
-              <AppRail
-                appsMark={appsMark}
-                chatInView={chatUp}
-                chatMark={strongestMark(
-                  chatChrome.marks.flatMap(([id, mark]) =>
-                    floatingChats.has(id) ? [] : [mark],
-                  ),
-                )}
-                onChoose={choosePlace}
-                onHoverChat={inboxPeek.onRailHover}
-                onNew={() => {
-                  newDraft();
-                }}
-                place={place}
-              />
+              isSidebarOpen ? (
+                <GroupSidebar
+                  chatTitles={chatTitles}
+                  closed={groupList.closed}
+                  groupUp={groupUp}
+                  onClose={(group) => {
+                    askToClose(group);
+                  }}
+                  onNew={(projectId) => {
+                    groups.make(projectId === undefined ? {} : { projectId });
+                  }}
+                  onNewProject={() => {
+                    setNewProject({});
+                  }}
+                  onRestore={(group) => {
+                    const chat = chatOfGroup(group);
+                    if (chat) {
+                      groups.restore(chat);
+                    }
+                  }}
+                  onShow={(group, { newWindow }) => {
+                    if (newWindow) {
+                      openInNewWindow(groupHref(group));
+                    } else {
+                      groups.show(group);
+                    }
+                  }}
+                  open={groupList.open}
+                  projects={projects}
+                  searchRef={searchRef}
+                />
+              ) : undefined
             }
             rowRef={setRowElement}
           >
@@ -1445,62 +1424,6 @@ function WindowShell({
                   ) : null;
                 })}
               </div>
-              <InboxPeek
-                isOpen={inboxPeek.isOpen}
-                leavesAtOnce={inboxPeek.leavesAtOnce}
-                onPointerEnter={inboxPeek.onPointerEnter}
-                onPointerLeave={inboxPeek.onPointerLeave}
-                panelRef={inboxPeek.panelRef}
-              >
-                <ChatPane
-                  arrivedId={arrivedId}
-                  drafts={shell.drafts}
-                  // Only the chat in Chat is ever the open one here, and
-                  // archiving it puts it away, with the inbox back in its
-                  // column.
-                  onArchiveOpen={() => {
-                    inboxPeek.close();
-                    appTabs.navigate(INBOX_HREF);
-                    setInboxOpen(true);
-                  }}
-                  onDeleted={(id) => {
-                    windowTabs.dropGroup(id);
-                    if (id === chatUp) {
-                      inboxPeek.close();
-                      appTabs.navigate(INBOX_HREF, { replace: true });
-                      setInboxOpen(true);
-                    }
-                  }}
-                  onDeleteDraft={discardDraft}
-                  onOpenChat={(entry) => {
-                    inboxPeek.close();
-                    // Peeked out over another place, the chat pops out over
-                    // it, so the place stays where it was; in Chat, with the
-                    // inbox put away, it opens beside where the inbox was.
-                    if (isChat) {
-                      openScreen(chatHref(entry.id));
-                    } else {
-                      compose.float(entry.id);
-                    }
-                  }}
-                  onOpenDraft={(id) => {
-                    inboxPeek.close();
-                    showDraft(id);
-                  }}
-                  onPopOut={(entry) => {
-                    inboxPeek.close();
-                    compose.float(entry.id);
-                    // The chat up in Chat leaves it for its own window, with
-                    // the inbox back in its column.
-                    if (entry.id === chatUp && isChat) {
-                      appTabs.navigate(INBOX_HREF);
-                      setInboxOpen(true);
-                    }
-                  }}
-                  openChatId={chatUp}
-                  outIds={chatsOutOf(compose.entries)}
-                />
-              </InboxPeek>
               <CommandMenu
                 openPage={(url) => {
                   openPage(url, { newTab: true });
@@ -1572,6 +1495,21 @@ function WindowShell({
               taken={projects.flatMap((project) =>
                 project.emoji ? [project.emoji] : [],
               )}
+            />
+            <CloseGroupDialog
+              entry={closing}
+              onCancel={() => {
+                setClosing(undefined);
+              }}
+              onConfirm={(entry) => {
+                setClosing(undefined);
+                if (entry.kind === "chat") {
+                  void rpcClient.workspace.session.stop.call({
+                    id: entry.chat.id,
+                  });
+                }
+                groups.close(entry.group, groupList.open);
+              }}
             />
           </WindowFrame>
           {/* What a tab's Expand asks to see large, over the window. */}

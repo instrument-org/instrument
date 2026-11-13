@@ -60,6 +60,7 @@ export function useOpeners({
   browser,
   chatTitles,
   isOpen,
+  newGroup,
   paneOpenByGroup,
   revealPane,
   setPaneOpen,
@@ -72,6 +73,8 @@ export function useOpeners({
   chatTitles: Map<ChatId, string>;
   /** Whether what the window opens on is made; nothing is opened before it is. */
   isOpen: boolean;
+  /** Makes a new tab group at the bottom of the list, filled by what is given, and brings it up. */
+  newGroup: (fill: (group: string) => void) => void;
   /** Which chats' panes are open (`paneOpenByGroupAtom`). */
   paneOpenByGroup: Record<string, boolean>;
   /** Brings the pane up for the group on screen, for something opened into it. */
@@ -84,7 +87,7 @@ export function useOpeners({
   /** The window as an open is placed against, read at the ask. */
   const placing: PlacementContext = {
     groupOnScreen: windowTabs.groupOnScreen,
-    isChatOnScreen: chatOfGroup(windowTabs.groupOnScreen) !== undefined,
+    isChatOnScreen: windowTabs.groupOnScreen !== undefined,
     up: active && {
       isFresh: isFreshTab(active),
       kind: active.kind,
@@ -110,9 +113,10 @@ export function useOpeners({
    */
   const openPage = (url: string, options: OpenOptions = {}) => {
     if (options.newWindow) {
-      const group = newSiteGroup();
-      const id = browser?.openForAnotherWindow(url, group);
-      openInNewWindow(pageHrefOf(group));
+      let id: string | undefined;
+      newGroup((group) => {
+        id = browser?.open(url, { group });
+      });
       return id;
     }
     const placement = pagePlacementOf(options, placing);
@@ -222,10 +226,8 @@ export function useOpeners({
       // its history, and the chat comes up at the tab it last had up.
       if (options.newWindow) {
         openInNewWindow(chatHref(chat));
-      } else if (here && !newTab) {
-        appTabs.navigate(chatHref(chat));
       } else {
-        appTabs.go(chatHref(chat), { behind, newTab });
+        appTabs.navigate(chatHref(chat));
       }
       return;
     }
@@ -317,7 +319,9 @@ export function useOpeners({
       return;
     }
     if (options.newWindow) {
-      openInNewWindow(href);
+      newGroup((group) => {
+        windowTabs.openScreen(href, { group, select: true });
+      });
       return;
     }
     const placement = screenPlacementOf(href, options, placing);

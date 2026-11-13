@@ -11,12 +11,14 @@ import { ChromeInsetProvider } from "@/client/hooks/use-chrome-inset";
 import { TOOLBAR_HEIGHT } from "@/shared/constants";
 import { type ReactNode, type Ref } from "react";
 
-import { APP_RAIL_WIDTH } from "./app-rail";
+import { SIDEBAR_WIDTH } from "@/client/atoms/tab-groups";
+import { WindowControls } from "@/client/components/window-controls";
+import { cn, isMacOS } from "@/client/lib/utils";
 import { LinkSurface } from "./link-surface";
 
 // The toasts' corner, 12px in from the card's own: the rail on its left, and
 // the card's `mb-2` foot below it.
-const CARD_CORNER = { bottom: 8 + 12, left: APP_RAIL_WIDTH + 12 };
+const CARD_CORNER = { bottom: 8 + 12, left: SIDEBAR_WIDTH + 12 };
 // Just under the bell, at the bar's right end.
 const BELL_CORNER = { right: 8, top: TOOLBAR_HEIGHT + 4 };
 
@@ -27,12 +29,15 @@ const BELL_CORNER = { right: 8, top: TOOLBAR_HEIGHT + 4 };
 export function WindowFrame({
   bar,
   children,
+  hasBar = true,
   overlay,
   rail,
   rowRef,
 }: {
   bar?: ReactNode;
   children: ReactNode;
+  /** Whether the window keeps a row across its top; without one, the columns reach the top and drag the window there themselves. */
+  hasBar?: boolean;
   /** Laid over the whole window, for the draft windows that float over it. */
   overlay?: ReactNode;
   /** The rail down the window's left edge, outside the row the columns share. */
@@ -62,17 +67,18 @@ export function WindowFrame({
         packaged-app smoke test waits for this rather than a loading frame. */}
       <div
         className="relative flex h-full flex-col bg-ground"
-        data-testid={bar ? "app-page" : undefined}
+        data-testid={bar || !hasBar ? "app-page" : undefined}
         inert={isSetupUp}
       >
         {/* The bar is the window's own row and reserves the band the traffic
           lights are drawn in, so no column below has to leave a gap for them. */}
-        {bar ?? (
-          <div
-            className="shrink-0 [-webkit-app-region:drag]"
-            style={{ height: `${TOOLBAR_HEIGHT}px` }}
-          />
-        )}
+        {hasBar &&
+          (bar ?? (
+            <div
+              className="shrink-0 [-webkit-app-region:drag]"
+              style={{ height: `${TOOLBAR_HEIGHT}px` }}
+            />
+          ))}
         <div className="flex min-h-0 flex-1">
           {rail}
           {/* Measured on its own, past the rail, so a column sized against
@@ -82,7 +88,11 @@ export function WindowFrame({
             left at its right and foot. */}
           <div className="relative flex min-h-0 min-w-0 flex-1 flex-col">
             <div
-              className="relative mr-2 mb-2 flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden rounded-[18px] bg-background shadow-xs [--background:var(--pane)] [--guest-bottom-radius:18px]"
+              className={cn(
+                "relative mr-2 mb-2 flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden rounded-[18px] bg-background shadow-xs [--background:var(--pane)] [--guest-bottom-radius:18px]",
+                !hasBar && "mt-2",
+                !rail && !hasBar && "ml-2",
+              )}
               ref={rowRef}
             >
               <div className="flex min-h-0 min-w-0 flex-1">
@@ -92,6 +102,13 @@ export function WindowFrame({
             </div>
           </div>
         </div>
+        {/* Off the Mac the window draws its own caption buttons, at its top
+          right over the card's corner, where the system would. */}
+        {!hasBar && !isMacOS() && (
+          <div className="absolute top-0 right-0 z-30 flex h-10 items-center">
+            <WindowControls />
+          </div>
+        )}
         {/* Over the whole window, so a draft or a popped-out chat stands on
           the window's own foot and right edge rather than inside the card's
           margin, and a grown one is centered over the bar and the rail too. */}

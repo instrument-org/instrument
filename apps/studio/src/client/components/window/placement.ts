@@ -59,7 +59,14 @@ export function pagePlacementOf(
   { groupOnScreen, up }: PlacementContext,
 ): PagePlacement {
   if (newTab) {
-    return { behind, kind: "window-tab" };
+    return groupOnScreen === undefined
+      ? { behind, kind: "window-tab" }
+      : {
+          activate: !behind,
+          group: into ?? groupOnScreen,
+          kind: "group-behind",
+          show: false,
+        };
   }
   if (into !== undefined && into !== groupOnScreen) {
     return { activate, group: into, kind: "group-behind", show };
@@ -115,11 +122,18 @@ export function screenPlacementOf(
   }: OpenOptions,
   { groupOnScreen, isChatOnScreen, up }: PlacementContext,
 ): ScreenPlacement {
-  if (newTab) {
-    return { behind, kind: "window-tab" };
-  }
   if (matchScreen(href).kind === "app" || !isGroupScreenHref(href)) {
     return { kind: "window-navigate" };
+  }
+  if (newTab) {
+    return groupOnScreen === undefined
+      ? { behind, kind: "window-tab" }
+      : {
+          group: into ?? groupOnScreen,
+          kind: "group-behind",
+          select: !behind,
+          show: false,
+        };
   }
   if (into !== undefined && into !== groupOnScreen) {
     return {

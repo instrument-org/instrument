@@ -19,11 +19,9 @@ const row = () => {
       chatTitles={new Map()}
       chosenId="a"
       isChatWorking={false}
-      onAddComputer={() => {}}
-      onAddWeb={() => {}}
+      onNew={() => {}}
       onClose={onClose}
       onDuplicate={onDuplicate}
-      onHide={() => {}}
       onReorder={() => {}}
       onSelect={onSelect}
       tabs={[tab("a"), tab("b")]}
@@ -142,11 +140,9 @@ function panes(tabs: ReturnType<typeof tab>[]) {
       chatTitles={new Map()}
       chosenId="a"
       isChatWorking={false}
-      onAddComputer={() => {}}
-      onAddWeb={() => {}}
+      onNew={() => {}}
       onClose={() => {}}
       onDuplicate={() => {}}
-      onHide={() => {}}
       onReorder={() => {}}
       onSelect={() => {}}
       tabs={tabs}

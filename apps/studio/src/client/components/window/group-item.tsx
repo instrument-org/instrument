@@ -17,11 +17,9 @@ import {
 
 import { useAppsBySlug } from "./apps-by-slug";
 import { type PageChromeSlots } from "./browser-tabs";
-import { WebStart } from "./web-start";
 import { asksOwnPlace, useWindow, WindowContext } from "./context";
 import { useRowSlots } from "./row-slots";
 import { BrowserExtensionButtons } from "./browser-extension-buttons";
-import { BrowserStartControls } from "./browser-start-controls";
 import { PageAgentOverlay } from "./page-agent-overlay";
 import { PageAskButton } from "./file-ask-button";
 import { GroupTabContext } from "./group-tab";
@@ -31,6 +29,7 @@ import { screenLocation } from "./screen-presentation";
 import { type TabLocation, tasksOfHref } from "./tab-location";
 import { TabLocationRow } from "./tab-location-row";
 import { isHomeTab } from "./tab-model";
+import { NewTabComposer } from "./new-tab-composer";
 import { surfaceLocation, tabSurfaceAtom } from "./tab-surface";
 import { useTaskTitles } from "./task-titles";
 import { useTabSteps } from "./use-tab-steps";
@@ -52,6 +51,7 @@ export function GroupItem({
   isShown = true,
   onPageChrome,
   onPageHost,
+  rowLeading,
   up,
 }: {
   /** Where back goes from the start of the tab: the window's own tab history, for a site standing at the window's level. */
@@ -69,6 +69,8 @@ export function GroupItem({
   onPageChrome: (slots: PageChromeSlots | undefined) => void;
   /** The element the page is drawn into, while a page is up. */
   onPageHost: (element: HTMLDivElement | null) => void;
+  /** What the address row puts ahead of its arrows: the sidebar's toggle. */
+  rowLeading?: ReactNode;
   up: WindowTab;
 }) {
   const windowTabs = useWindowTabs();
@@ -183,6 +185,12 @@ export function GroupItem({
           }
         }}
         {...rowProps}
+        leading={
+          <>
+            {rowLeading}
+            {rowProps.leading}
+          </>
+        }
         trailing={
           <>
             {/* The extensions' buttons go before Ask, with the page's own
@@ -231,18 +239,12 @@ export function GroupItem({
   // The new tab a draft's group opens on, which a chat's group can be handed
   // with the draft's tabs: the web's start, whose page takes its place.
   if (isHomeTab(up)) {
-    const openFromStart = (url: string) => {
-      browser?.open(url, { group, replacing: up });
-    };
     return (
       <Bare
         anchorRef={anchorRef}
         head={row(screenLocation(up.href, { appsBySlug, taskTitles }))}
       >
-        <WindowContext value={{ ...appWindow, rowTail: slots.tail }}>
-          <BrowserStartControls onOpenPage={openFromStart} />
-        </WindowContext>
-        <WebStart onOpenPage={openFromStart} />
+        <NewTabComposer group={group} tabId={up.id} />
       </Bare>
     );
   }

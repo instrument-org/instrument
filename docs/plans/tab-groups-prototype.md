@@ -82,20 +82,25 @@ Roughed in: the caption buttons go at the top right as today, and what sits ther
 - **The group's tabs are the side pane's tabs, moved to the center.** `PaneTabs` draws them over the work, `GroupItem` draws the tab up under its address row, which gains the sidebar toggle at its left. The chat column is `ChatHeader` and `ChatScreen`, sized by the pane share `RightPane` already keeps. The new tab is the `/new-tab` screen in a group (`isHomeTab`), drawn by `GroupItem` as the composer with Browse and Files.
 - **New state** is per device and lives in the `view` kept file: whether the sidebar is open, and which groups have their chat column closed. Which group a window shows is its app tab, in the `window` kept file. Nothing new is written to the workspace folder: a new group is a draft, as a new chat with a page beside it is today, and a closed group is an archived chat.
 - **Multi-window.** Every window lists every group, read from the chat list and the drafts. Choosing a group another window shows asks main to bring that window forward (`window.showInOtherWindow`) instead of opening it here too.
+- **Tearing a tab out.** A group's tab let go past the window's edge (`isOffWindow` in `tab-pull.ts`) becomes a new group at the bottom of the list, and main opens a window at that group under the pointer (`group-tab-pull.ts`, placed by `boundsAtRelease`) and hands a page's guest to it. The window it left stays on its group. While the tab is off the window, a small picture of the window follows the pointer, as the old strip's torn-off tab had. Tab > Move Tab to New Window does the same for the tab up.
+- **Reopen closed tab.** Each window keeps its last 25 closed group tabs. Shift+Cmd+T brings back a window closed since, else the newest tab whose group is still open, at its place in the group, up.
+- **Caption buttons off the Mac.** While the window draws them, the frame sets `--caption-room`, and whichever row reaches the card's top right (the chat's head, or the tabs while the chat is collapsed) ends in a `CaptionRoom` spacer that wide.
 
 ### Where the prototype stands
 
 Every phase in the order of work is built. What is rough or missing:
 
-- **Tearing a tab out into its own window** is missing. The group's tabs are the side pane's tabs, which never could, and dragging between windows belonged to the app tab strip, which is gone. A row's menu opens the whole group in a new window.
-- **Reopen closed tab** is unverified for a group's tabs. The app tab strip's closed tabs menu went with the strip.
-- **Windows and Linux**: the caption buttons sit over the card's top right, and what is under them (the Chat button, the chat column's X) does not move left yet. Not run on either system.
+- **Tearing a tab out**: the picture that follows the pointer was never seen, since the dev instance it was checked in ran off screen. Letting go over another window opens a new window too, since that window's sidebar takes no drop from this one. Tearing out the only tab of a group whose chat has not started throws that group away, and the window it left opens a fresh new group.
+- **Reopen closed tab** works per window, the way a browser's does. A page comes back at its address in a fresh page, so its back and forward history is gone.
+- **Multi-window**: choosing a group another window shows asks main to bring that window forward, but the raise itself was never seen on screen.
+- **Windows and Linux**: the room for the caption buttons is a fixed 140px, checked only with the Mac's force-show toggle. Not run on either system.
 - **Activity** has no button, as the plan says. Its chord (Cmd+Y) opens History, and Activity stays in the command menu.
 - **The Apps dot** for an app signed out since Apps was last shown went with the rail.
-- **The menu** still calls Cmd+N "New Chat"; renaming it moves the menu, shortcut guide and their tests.
+- **The menu** names tab groups and the sidebar. The shortcut guide's Chats section still lists the old chat list's keys (Back to List, Next Chat in List), and the sidebar's search field is still labeled "Search chats" for screen readers.
 - **A group whose chat has not started** is titled "New tab" until its composer has words, and its chat column starts closed; with only a new tab up it has no Chat button, since the new tab's composer starts the chat.
 - **Rows** follow the chat list's order, oldest first, with groups whose chat has not started after them, so a new group lands at the bottom and stays there once its chat starts.
 - **Search and History** are per window and not kept; restoring a group returns the sidebar to the list.
+- **A file or link opened from outside** makes a new group every time, even when a group already shows that file.
 
 Decisions the plan left open, taken from what the product does today:
 

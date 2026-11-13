@@ -3,7 +3,6 @@ import {
   DropdownMenuItem,
   DropdownMenuLabel,
   DropdownMenuSeparator,
-  DropdownMenuShortcut,
   DropdownMenuSub,
   DropdownMenuSubContent,
   DropdownMenuSubTrigger,
@@ -11,8 +10,6 @@ import {
 import { useWindow } from "@/client/components/window/context";
 import { SCREEN_ROUTES } from "@/client/components/window/window-href";
 import { useRecentPages } from "@/client/hooks/use-browser-history";
-import { formatAcceleratorText } from "@/client/lib/format-accelerator";
-import { WINDOW_SHORTCUTS } from "@/shared/window-shortcuts";
 import { ClockCounterClockwiseIcon } from "@phosphor-icons/react/ClockCounterClockwise";
 
 import { shownAddress } from "./visited-page-rows";
@@ -79,9 +76,6 @@ function HistoryRows({ onOpen }: { onOpen: (url: string) => void }) {
         }}
       >
         Show full history
-        <DropdownMenuShortcut>
-          {formatAcceleratorText(WINDOW_SHORTCUTS.showActivity.accelerator)}
-        </DropdownMenuShortcut>
       </DropdownMenuItem>
     </>
   );

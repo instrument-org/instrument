@@ -408,7 +408,6 @@ export function useCommandMenuRows({
       },
     },
     {
-      chord: WINDOW_SHORTCUTS.showActivity.accelerator,
       icon: <ClockCounterClockwiseIcon />,
       id: "activity",
       label: "Activity",

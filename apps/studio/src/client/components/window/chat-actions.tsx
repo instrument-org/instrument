@@ -15,10 +15,12 @@ import {
   useQueryClient,
 } from "@tanstack/react-query";
 import { toast } from "@/client/lib/toast";
+import { getDefaultStore } from "jotai";
 
 import { type ChatRowPainting, paintChatRow } from "./chat-list-query";
 import { type Chat } from "./chats";
 import { type RowAction } from "./row-shell";
+import { windowTabGroupsAtom } from "./tab-groups";
 
 /** Which chat a call is about, as every chat mutation takes it. */
 interface ChatInput {
@@ -212,7 +214,19 @@ export function setArchived(
   call.then(
     (at) => {
       painting.landed(at);
-      toast(archived ? "Archived" : "Moved to Inbox", {
+      // A chat no window has open is in History, which is where to look
+      // for it; one a window has open is in that window's sidebar.
+      const isOpen = [
+        ...(getDefaultStore().get(windowTabGroupsAtom) ?? []),
+        ...(queryClient.getQueryData(
+          rpcClient.window.live.tabGroupsElsewhere.experimental_liveOptions()
+            .queryKey,
+        ) ?? []),
+      ].includes(input.id);
+      toast(archived ? "Archived" : "Unarchived", {
+        ...(archived || isOpen
+          ? {}
+          : { description: "You'll find it in History." }),
         action: {
           label: "Undo",
           onClick: () => {
@@ -224,9 +238,7 @@ export function setArchived(
     (error: unknown) => {
       painting.failed();
       toast.error(
-        archived
-          ? "Couldn't archive the chat"
-          : "Couldn't move the chat to the inbox",
+        archived ? "Couldn't archive the chat" : "Couldn't unarchive the chat",
         { cause: error },
       );
     },

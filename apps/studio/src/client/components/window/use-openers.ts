@@ -132,6 +132,9 @@ export function useOpeners({
         }
         return id;
       }
+      case "group-new-tab": {
+        return browser?.open(url, { behind: placement.behind, newTab: true });
+      }
       case "navigate-up": {
         revealPane();
         browser?.navigate(url);
@@ -312,6 +315,10 @@ export function useOpeners({
         if (show) {
           setPaneOpen(group, true);
         }
+        return;
+      }
+      case "group-new-tab": {
+        windowTabs.openBeside(href, { behind: placement.behind });
         return;
       }
       case "group-navigate": {

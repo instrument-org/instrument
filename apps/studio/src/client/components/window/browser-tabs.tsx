@@ -201,10 +201,14 @@ const READ_PAGE_WORDS = `(() => {
   };
 })()`;
 
-/** Where a page opens: in a tab's place, or in a named group. */
+/** Where a page opens: in a tab's place, in a named group, or beside the tab up. */
 interface OpenOptions {
+  /** With `newTab`, the page waits behind the tab up. */
+  behind?: boolean;
   /** The group the page belongs to; the group on screen when left out. */
   group?: string;
+  /** A tab of its own right after the one its group has up, as a link opened in a new tab lands. */
+  newTab?: boolean;
   replacing?: WindowTab;
   /** Brings the group on screen at the page, rather than leaving it behind: for what the user asked for by name. */
   show?: boolean;
@@ -214,7 +218,13 @@ interface OpenOptions {
 function openTab(
   change: ReturnType<typeof useWindowTabsChange>,
   url?: string,
-  { group: into, replacing, show = false }: OpenOptions = {},
+  {
+    behind = false,
+    group: into,
+    newTab = false,
+    replacing,
+    show = false,
+  }: OpenOptions = {},
 ) {
   const id = StoreId.newTabId();
   const page = {
@@ -225,16 +235,21 @@ function openTab(
   // In the group on screen, or the group asked for: a page opened while a
   // chat is up is the chat's, and one a chat asked for while another was
   // up is still that chat's, waiting behind. In a tab's place, the page is
-  // what that tab's group has up.
-  change((current, onScreen) =>
-    openPageIn(current, {
-      group: into ?? onScreen,
+  // what that tab's group has up. Asked for in a new tab, it lands right
+  // after the tab up, and waits behind it when asked to.
+  change((current, onScreen) => {
+    const group = into ?? onScreen;
+    return openPageIn(current, {
+      ...(newTab ? { after: selectedTabIn(current, group)?.id } : {}),
+      group,
       homeId: newScreenId(),
       page,
       ...(replacing ? { replacing } : {}),
-      select: show || into === undefined || into === onScreen,
-    }),
-  );
+      select: newTab
+        ? !behind
+        : show || into === undefined || into === onScreen,
+    });
+  });
   // Read now: by the time the guest is up, the window may have lost focus
   // to whatever the page opened.
   const audible = url !== undefined && document.hasFocus();

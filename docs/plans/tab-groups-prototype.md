@@ -110,3 +110,4 @@ Decisions the plan left open, taken from what the product does today:
 - Shift-click on a row moves the group to a new window; shift-click on a link opens a new group, as the plan says.
 - History is ordered by a chat's last message or reply, and a draft's last change.
 - A chat open in another window shows in search with no close in its menu, since closing it is that window's to do.
+- A tab asked for from inside a tab (a middle click, a Cmd-click, Open in New Tab, in Files or on a page of a group whose chat has not started) lands right after the tab up, and waits behind it when the gesture asks to, as a browser's link in a new tab does. A folder still opens in place.

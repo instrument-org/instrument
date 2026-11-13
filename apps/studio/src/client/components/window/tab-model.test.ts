@@ -9,6 +9,7 @@ import { ChatIdSchema, StoreId } from "@instrument-org/workspace/client";
 import { describe, expect, it } from "vitest";
 
 import {
+  addScreen,
   adoptGroup,
   closeTab,
   dropGroup,
@@ -467,6 +468,33 @@ describe("openPage", () => {
       ]);
     },
   );
+
+  it("lands right after the tab named", () => {
+    const opened = openPage(THREE, {
+      after: "a",
+      group: CHAT,
+      homeId: "home",
+      page: PAGE,
+      select: false,
+    });
+    expect(shape(opened)).toEqual({ [CHAT]: "*a p b c", [OTHER]: "*x" });
+  });
+});
+
+describe("addScreen", () => {
+  it.each([
+    ["at the group's end", undefined, "*a b c d"],
+    ["right after the tab named", "a", "*a d b c"],
+  ])("opens a screen %s", (_case, after, expected) => {
+    const opened = addScreen(THREE, {
+      after,
+      group: CHAT,
+      href: "/files",
+      id: "d",
+      select: false,
+    });
+    expect(shape(opened)[CHAT]).toBe(expected);
+  });
 });
 
 describe("a page announcing itself", () => {

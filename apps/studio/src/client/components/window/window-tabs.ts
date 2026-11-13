@@ -367,6 +367,37 @@ export function useWindowTabs() {
       }, undefined);
     },
     /**
+     * A screen of its own right after the tab the group on screen has up,
+     * as a link opened in a new tab lands: up at once, or waiting behind
+     * when asked.
+     */
+    openBeside: (
+      to: string,
+      { behind = false }: { behind?: boolean } = {},
+    ): string | undefined => {
+      const href = openLinkAddress(to);
+      if (href === undefined) {
+        return undefined;
+      }
+      return answer<string | undefined>((current, onScreen) => {
+        if (onScreen === undefined) {
+          return { state: current, value: undefined };
+        }
+        const id = newScreenId();
+        return {
+          state: addScreen(current, {
+            after: selectedTabIn(current, onScreen)?.id,
+            group: onScreen,
+            href,
+            id,
+            isOpened: true,
+            select: !behind,
+          }),
+          value: id,
+        };
+      }, undefined);
+    },
+    /**
      * A new page tab, in a tab's place or at the end of a group (the group
      * on screen, unless one is named); one opened beside the rest comes up
      * when its group is on screen or when asked.

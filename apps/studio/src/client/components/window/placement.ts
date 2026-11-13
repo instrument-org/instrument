@@ -29,6 +29,8 @@ export type PagePlacement =
   | { behind: boolean; kind: "window-tab" }
   /** Into a group not on screen, waiting there; brought on screen when shown. */
   | { activate: boolean; group: string; kind: "group-behind"; show: boolean }
+  /** A tab of its own right after the one up in the group on screen, waiting behind it when asked. */
+  | { behind: boolean; kind: "group-new-tab" }
   /** No group on screen: the window's tab up goes to the site, a step on, or in place of a screen handing its file over. */
   | { kind: "window-site"; replace: boolean }
   /** The page up in the group on screen goes to the address. */
@@ -39,8 +41,9 @@ export type PagePlacement =
   | { kind: "new-page"; replacesUp: boolean };
 
 /**
- * Where a page opens: a window tab of its own when asked; into a group
- * other than the one on screen, waiting there; as a site in the window's tab
+ * Where a page opens: asked for in a new tab, right after the tab up in
+ * the group on screen, or a window tab of its own with no group on screen;
+ * into a group other than the one on screen, waiting there; as a site in the window's tab
  * up when no group is on screen; otherwise in the group on screen, where the
  * page up goes there, or a tab of its own is opened (a website again however
  * many tabs are on it, a file's tab brought forward), or the new page takes
@@ -59,14 +62,12 @@ export function pagePlacementOf(
   { groupOnScreen, up }: PlacementContext,
 ): PagePlacement {
   if (newTab) {
-    return groupOnScreen === undefined
-      ? { behind, kind: "window-tab" }
-      : {
-          activate: !behind,
-          group: into ?? groupOnScreen,
-          kind: "group-behind",
-          show: false,
-        };
+    if (groupOnScreen === undefined) {
+      return { behind, kind: "window-tab" };
+    }
+    return into === undefined || into === groupOnScreen
+      ? { behind, kind: "group-new-tab" }
+      : { activate: !behind, group: into, kind: "group-behind", show: false };
   }
   if (into !== undefined && into !== groupOnScreen) {
     return { activate, group: into, kind: "group-behind", show };
@@ -94,6 +95,8 @@ export type ScreenPlacement =
   | { kind: "window-navigate" }
   /** Into a group not on screen, waiting there; brought on screen when shown. */
   | { group: string; kind: "group-behind"; select: boolean; show: boolean }
+  /** A tab of its own right after the one up in the group on screen, waiting behind it when asked. */
+  | { behind: boolean; kind: "group-new-tab" }
   /** A tab of the group on screen, opened beside none: it has nothing up to stand in place of. */
   | { kind: "group-open" }
   /** A tab of its own in the group on screen, or the one already at the address. */
@@ -103,9 +106,10 @@ export type ScreenPlacement =
 
 /**
  * Where a screen opens (a chat, a memory, a skill and a chat's tasks are
- * placed before this): a window tab of its own when asked; the window's tab
- * up for an app and for any screen no group's tab stands on (the release
- * notes); into a group other than the one on screen, waiting there;
+ * placed before this): the window's tab up for an app and for any screen no
+ * group's tab stands on (the release notes); asked for in a new tab, right
+ * after the tab up in the group on screen, or a window tab of its own with
+ * no group on screen; into a group other than the one on screen, waiting there;
  * the window's tab up outside a chat; otherwise in the chat on screen, where
  * the tab up goes there, or a tab of its own opens, or one opens with
  * nothing up.
@@ -126,14 +130,12 @@ export function screenPlacementOf(
     return { kind: "window-navigate" };
   }
   if (newTab) {
-    return groupOnScreen === undefined
-      ? { behind, kind: "window-tab" }
-      : {
-          group: into ?? groupOnScreen,
-          kind: "group-behind",
-          select: !behind,
-          show: false,
-        };
+    if (groupOnScreen === undefined) {
+      return { behind, kind: "window-tab" };
+    }
+    return into === undefined || into === groupOnScreen
+      ? { behind, kind: "group-new-tab" }
+      : { group: into, kind: "group-behind", select: !behind, show: false };
   }
   if (into !== undefined && into !== groupOnScreen) {
     return {

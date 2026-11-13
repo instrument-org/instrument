@@ -220,16 +220,22 @@ export function selectTab(state: WindowTabs, id: string): WindowTabs {
   return pointAt(state, tab.group, id);
 }
 
-/** A screen tab at an address, at the end of a group's tabs, and up in it when asked. */
+/**
+ * A screen tab at an address, at the end of a group's tabs or right after
+ * the tab named, and up in it when asked.
+ */
 export function addScreen(
   state: WindowTabs,
   {
+    after,
     group,
     href,
     id,
     isOpened = false,
     select,
   }: {
+    /** The tab it opens beside, as a link opened in a new tab lands beside the page it was in. */
+    after?: string;
     group: string;
     href: string;
     id: string;
@@ -238,8 +244,20 @@ export function addScreen(
   },
 ): WindowTabs {
   const tab: WindowTab = { group, href, id, isOpened, kind: "screen" };
-  const added = { ...state, tabs: [...state.tabs, tab] };
+  const added = { ...state, tabs: insertAfter(state.tabs, tab, after) };
   return select ? pointAt(added, group, id) : added;
+}
+
+/** The tabs with one more, right after the tab named, or at the end where none is. */
+function insertAfter(
+  tabs: WindowTab[],
+  tab: WindowTab,
+  after: string | undefined,
+): WindowTab[] {
+  const at = tabs.findIndex((entry) => entry.id === after);
+  return at === -1
+    ? [...tabs, tab]
+    : [...tabs.slice(0, at + 1), tab, ...tabs.slice(at + 1)];
 }
 
 /**
@@ -606,17 +624,21 @@ export function pageTakesOver(
  * A new page tab. In a tab's place, it takes that tab's place in the strip
  * and under its strip key, so the strip sees one tab changing rather than one
  * leaving and another arriving, and it is what that group has up. Otherwise
- * it joins the group at the end with a new tab behind it, up when asked.
+ * it joins the group at the end, or right after the tab named, with a new
+ * tab behind it, up when asked.
  */
 export function openPage(
   state: WindowTabs,
   {
+    after,
     group,
     homeId,
     page,
     replacing,
     select,
   }: {
+    /** The tab it opens beside rather than at the group's end. */
+    after?: string;
     group: string | undefined;
     /** The id of the new tab a page opened on its own has behind it. */
     homeId: string;
@@ -642,7 +664,7 @@ export function openPage(
     kind: "page",
     past: [{ href: newTabHrefOf(group), id: homeId, kind: "screen" }],
   };
-  const added = { ...state, tabs: [...state.tabs, tab] };
+  const added = { ...state, tabs: insertAfter(state.tabs, tab, after) };
   return select && group !== undefined ? pointAt(added, group, page.id) : added;
 }
 

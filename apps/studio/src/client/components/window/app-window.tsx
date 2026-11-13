@@ -142,7 +142,7 @@ import { useWindowCommands } from "./use-window-commands";
 import { useWindowDropFallback } from "./use-window-drop-fallback";
 import { WindowFrame } from "./window-frame";
 import { CloseGroupDialog } from "./close-group-dialog";
-import { GroupSidebar } from "./group-sidebar";
+import { GroupSidebar, sidebarBounds } from "./group-sidebar";
 import { isGroupScreenHref } from "./group-screen";
 import { useGroupTabDrag } from "./tab-drag";
 import {
@@ -154,7 +154,12 @@ import {
   useTabGroupUpkeep,
   windowTabGroupsAtom,
 } from "./tab-groups";
-import { sidebarOpenAtom, sidebarViewAtom } from "@/client/atoms/tab-groups";
+import {
+  sidebarOpenAtom,
+  sidebarViewAtom,
+  sidebarWidthAtom,
+} from "@/client/atoms/tab-groups";
+import { StudioSidebarRail } from "@/client/components/studio-sidebar-rail";
 import { formatAcceleratorText } from "@/client/lib/format-accelerator";
 import { WINDOW_SHORTCUTS } from "@/shared/window-shortcuts";
 import {
@@ -485,6 +490,7 @@ function WindowShell({
   const groupTabDrag = useGroupTabDrag();
   const groupList = useOpenGroups();
   const [isSidebarOpen, setSidebarOpen] = useAtom(sidebarOpenAtom);
+  const sidebarWidth = useAtomValue(sidebarWidthAtom);
   const setSidebarView = useSetAtom(sidebarViewAtom);
   const searchRef = useRef<HTMLInputElement>(null);
   const groupUp = useRouterState({
@@ -1503,7 +1509,18 @@ function WindowShell({
               />
             }
             rail={
-              isSidebarOpen ? (
+              <StudioSidebarRail
+                bounds={sidebarBounds(
+                  rowWidth + (isSidebarOpen ? sidebarWidth : 0),
+                )}
+                isOpen={isSidebarOpen}
+                label="Resize the sidebar"
+                onCollapse={() => {
+                  setSidebarOpen(false);
+                }}
+                panelClassName="border-r-0 bg-transparent"
+                widthAtom={sidebarWidthAtom}
+              >
                 <GroupSidebar
                   chatTitles={chatTitles}
                   elsewhere={groupList.elsewhere}
@@ -1532,8 +1549,9 @@ function WindowShell({
                   projects={projects}
                   searchRef={searchRef}
                 />
-              ) : undefined
+              </StudioSidebarRail>
             }
+            railWidth={isSidebarOpen ? sidebarWidth : 0}
             rowRef={setRowElement}
           >
             <ShellContext value={shell}>

@@ -106,6 +106,7 @@ Decisions the plan left open, taken from what the product does today:
 
 - The chat column's composer leaves the caret to the group's work while the group has tabs; a chat-only group's composer takes it.
 - Cmd+W's second press counts within three seconds.
+- The sidebar resizes as the inbox did: its right edge drags it between 320 and 440 px, leaving the group at least 560, a drag under 240 slides it shut, and the toggle slides it in and out. It starts at 320 and keeps the width it is dragged to.
 - A dragged tab stays the one up, and the window follows it to its group, as a browser's tab dragged to another window does. A group whose chat has not started and that a drag leaves empty is thrown away.
 - Shift-click on a row moves the group to a new window; shift-click on a link opens a new group, as the plan says.
 - History is ordered by a chat's last message or reply, and a draft's last change.

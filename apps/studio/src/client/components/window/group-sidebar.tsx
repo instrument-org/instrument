@@ -2,12 +2,14 @@ import { openProjectDetails } from "@/client/atoms/project-details-modal";
 import { openSettings } from "@/client/atoms/settings-modal";
 import {
   groupSearchAtom,
-  SIDEBAR_WIDTH,
+  SIDEBAR_WIDTH_MAX,
+  SIDEBAR_WIDTH_MIN,
   sidebarViewAtom,
 } from "@/client/atoms/tab-groups";
 import { type WindowTab } from "@/client/atoms/window";
 import { PageFavicon } from "@/client/components/favicon";
 import { NetworkStatusIndicator } from "@/client/components/network-status/network-status-pill";
+import { type RailBounds } from "@/client/components/studio-sidebar-rail";
 import { ToolbarTooltip } from "@/client/components/toolbar-tooltip";
 import {
   Avatar,
@@ -60,6 +62,29 @@ export function SoftKey({ children }: { children: ReactNode }) {
       {children}
     </span>
   );
+}
+
+/** Dragged narrower than this, the sidebar slides shut rather than stopping at its floor. */
+const SIDEBAR_COLLAPSE_THRESHOLD = 240;
+/** The least the group beside the sidebar keeps while the sidebar is dragged wider. */
+const GROUP_WIDTH_MIN = 560;
+
+/**
+ * How wide the sidebar may be in a window whose sidebar and group share
+ * `width`: the row less what the group keeps, within the sidebar's own floor
+ * and ceiling. It slides shut under its floor, since the toggle brings it
+ * back.
+ */
+export function sidebarBounds(width: number): RailBounds {
+  return {
+    collapse: SIDEBAR_COLLAPSE_THRESHOLD,
+    initial: SIDEBAR_WIDTH_MIN,
+    max: Math.min(
+      SIDEBAR_WIDTH_MAX,
+      Math.max(SIDEBAR_WIDTH_MIN, width - GROUP_WIDTH_MIN),
+    ),
+    min: SIDEBAR_WIDTH_MIN,
+  };
 }
 
 /**
@@ -161,7 +186,9 @@ export function GroupSidebar({
               Nothing matches that.
             </p>
           )}
-        {inOtherWindows.length > 0 && <SearchSection label="In Other Windows" />}
+        {inOtherWindows.length > 0 && (
+          <SearchSection label="In Other Windows" />
+        )}
         {inOtherWindows.map((entry) => row(entry, { isElsewhere: true }))}
         {fromHistory.length > 0 && <SearchSection label="From History" />}
         {fromHistory.map((entry) => row(entry, { restore: true }))}
@@ -229,11 +256,8 @@ export function GroupSidebar({
   return (
     <nav
       aria-label="Tab groups"
-      className="relative flex h-full shrink-0 flex-col"
-      style={{
-        width: SIDEBAR_WIDTH,
-        ...(project ? projectTint(projectColor(project)) : {}),
-      }}
+      className="relative flex h-full w-full flex-col"
+      style={project ? projectTint(projectColor(project)) : {}}
     >
       {project && (
         <div className="pointer-events-none absolute inset-x-0 top-0 h-80 bg-linear-to-b from-(--project-tint-surface)/70 to-transparent" />

@@ -11,7 +11,6 @@ import { ChromeInsetProvider } from "@/client/hooks/use-chrome-inset";
 import { TOOLBAR_HEIGHT } from "@/shared/constants";
 import { type ReactNode, type Ref } from "react";
 
-import { SIDEBAR_WIDTH } from "@/client/atoms/tab-groups";
 import {
   useDrawsWindowControls,
   WindowControls,
@@ -19,9 +18,9 @@ import {
 import { cn } from "@/client/lib/utils";
 import { LinkSurface } from "./link-surface";
 
-// The toasts' corner, 12px in from the card's own: the rail on its left, and
-// the card's `mb-2` foot below it.
-const CARD_CORNER = { bottom: 8 + 12, left: SIDEBAR_WIDTH + 12 };
+// The toasts' corner, 12px in from the card's own: past the rail and the
+// card's `ml-2` on its left, and the card's `mb-2` foot below it.
+const CARD_CORNER = { bottom: 8 + 12, left: 8 + 12 };
 // Just under the bell, at the bar's right end.
 const BELL_CORNER = { right: 8, top: TOOLBAR_HEIGHT + 4 };
 
@@ -35,6 +34,7 @@ export function WindowFrame({
   hasBar = true,
   overlay,
   rail,
+  railWidth = 0,
   rowRef,
 }: {
   bar?: ReactNode;
@@ -45,6 +45,8 @@ export function WindowFrame({
   overlay?: ReactNode;
   /** The rail down the window's left edge, outside the row the columns share. */
   rail?: ReactNode;
+  /** How wide the rail stands out, for the toasts' corner past it: 0 while it is put away. */
+  railWidth?: number;
   /** The row the columns share, for whoever sizes them against it. */
   rowRef?: Ref<HTMLDivElement>;
 }) {
@@ -58,6 +60,7 @@ export function WindowFrame({
   // Toasts are placed from the viewport's foot, which the developer band sits on.
   const toastCorner = {
     ...CARD_CORNER,
+    left: CARD_CORNER.left + railWidth,
     bottom: CARD_CORNER.bottom + (isStripShown ? DEVELOPER_STRIP_HEIGHT : 0),
   };
   return (
@@ -103,8 +106,8 @@ export function WindowFrame({
             <div
               className={cn(
                 "relative mr-2 mb-2 flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden rounded-[18px] bg-background shadow-xs [--background:var(--pane)] [--guest-bottom-radius:18px]",
-                !hasBar && "mt-2",
-                !rail && !hasBar && "ml-2",
+                // Clear of the rail too, which comes and goes beside it.
+                !hasBar && "mt-2 ml-2",
               )}
               ref={rowRef}
             >
@@ -138,7 +141,7 @@ export function WindowFrame({
               rail stays in reach: clear of the drafts and the floating chat,
               which dock at the bottom right. */}
             <Toaster
-              {...(rail
+              {...(railWidth > 0
                 ? { mobileOffset: toastCorner, offset: toastCorner }
                 : {})}
             />

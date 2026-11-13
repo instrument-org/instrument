@@ -24,11 +24,11 @@ Build the structure, and nothing that doesn't already exist in the product. The 
 
 - One chat per tab group. A group is a chat plus its tabs, so the chat's existing records are the group's records, and the tabs a chat already keeps (today's side pane tabs) are the group's tabs.
 - **Sidebar rows** are two lines, the inbox's two-line row: the title with the time of the chat's last message, then the chat's latest line (the step it is on, the question it waits on, or its last reply), with the tabs' favicons at the line's right end in under half its width. A group whose chat has not started shows its tabs' favicons alone. A new tab has no favicon there. No chat icon on rows. Unread groups have a bold title. Starred becomes pinned: pinned rows sit above a plain divider.
-- **New**: a "New" row with + at the bottom of the list, showing ⌘N. New groups are added at the bottom of the list. Once the list scrolls, "New" sticks to the bottom with a divider above it.
+- **New**: a "New" row with + at the top of the list, under the pinned rows and their divider, showing ⌘N. New groups land right under it, newest first, so the list grows away from it. The list scrolls whole, New with it.
 - **Projects** are listed at the top of the sidebar with no count. Opening one takes the sidebar over as today, with its banner, its groups and a back control, sliding in from the right and back out from the left, with the sidebar washed in the project's color. New project is a near-hidden + (or the right-click menu) on the Projects heading.
 - **The sidebar's top row**: the sidebar toggle right after the traffic lights on a Mac and first on Windows and Linux, the notifications bell at the row's right end. The toggle stays in that spot while the sidebar is closed. No Activity button.
 - **The sidebar's footer**: the account and Settings at the bottom left, with a Help menu (a ? button) that holds feedback, laid out for the sidebar's width rather than the old thin rail.
-- **Search** sits at the top of the list, showing ⇧⌘F. It shows this window's groups first, then the chats other windows have open, then History, each below a line. History sits beside search and lists every chat and kept draft that no window has open, most recent activity first, archived chats included; opening one is an explicit action and adds it at the bottom of the list.
+- **Search** sits at the top of the list, showing ⇧⌘F. It shows this window's groups first, then the chats other windows have open, then History, each below a line. History sits beside search and lists every chat and kept draft that no window has open, most recent activity first, archived chats included; opening one is an explicit action and adds it at the top of the list, under New.
 - Each window has its own tab groups, in its own order. A group is open in one window at a time: choosing one that another window has open, from History, search, a notification, Go to or a chat link, brings that window forward. A chat no window has open stays in History, its row showing when it is working or waiting.
 - On first launch, a window starts with one new tab group and no chats open. Every existing chat is in History, found from there or from search. Nothing on disk changes for this.
 
@@ -37,7 +37,7 @@ Build the structure, and nothing that doesn't already exist in the product. The 
 - **⌘N** makes a new tab group, **⌘T** a new tab in the open group. ⌘N is "New chat" today.
 - Every tab behavior and shortcut works as today's window tabs do: ⌘-click opens a link in a background tab in this group, middle-click and close, reopen closed tab, the tab menu, shrinking tabs, status marks, tooltips. Shift-click opens in a new tab group.
 - A page the agent opens itself is a tab in its group.
-- A file or link opened from outside the app opens as a new tab group at the bottom of the list.
+- A file or link opened from outside the app opens as a new tab group at the top of the list.
 - **Dragging tabs**: a tab dragged onto another group's row moves there; dragged into empty sidebar space it becomes its own group; tearing a tab out into its own window works as today.
 
 ## The new tab
@@ -105,7 +105,7 @@ Every phase in the order of work is built. What is rough or missing:
 - **Chat first** was checked in a dev instance held off screen. ⌘W and ⌘T are menu key equivalents, which input sent to such a window does not reach, so closing and opening tabs were checked by clicking. A group filed under a project, whose folder leads the new tab's places, was never opened.
 - **The composer's address rows** show for a line of four words or fewer and 80 letters or fewer, so the start of every new chat's message still goes to the search engine's suggestions as it is typed. A path typed there stays words for the chat.
 - **Ask on a selection** stays, and in a group whose chat has not started, its "Add to new chat" still moves the comments into a new draft, which is a new group.
-- **Rows** are in the window's own order: a new group, or one opened from History or search, lands at the bottom and stays there once its chat starts. A group whose chat has not started and whose draft has nothing is gone after a relaunch, since an empty draft is never written.
+- **Rows** are in the window's own order: a new group, or one opened from History or search, lands at the top, under New, and stays there once its chat starts. A group whose chat has not started and whose draft has nothing is gone after a relaunch, since an empty draft is never written.
 - **Search and History** are per window and not kept; opening a group from History returns the sidebar to the list. History has no Delete; a chat's own menu still has one, and the chat head's Archive still archives the chat and closes its group.
 - **A file or link opened from outside** makes a new group every time, even when a group already shows that file.
 

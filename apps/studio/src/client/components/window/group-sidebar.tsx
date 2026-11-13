@@ -33,7 +33,7 @@ import { XIcon } from "@phosphor-icons/react/X";
 import { type ChatId } from "@instrument-org/workspace/client";
 import { useQuery } from "@tanstack/react-query";
 import { useAtom } from "jotai";
-import { type ReactNode, type Ref, useEffect, useRef, useState } from "react";
+import { type ReactNode, type Ref, useRef, useState } from "react";
 
 import { HelpMenu } from "./help-menu";
 import { toggleLeft } from "./inbox-toggle";
@@ -93,8 +93,9 @@ export function sidebarBounds(width: number): RailBounds {
  * The sidebar of tab groups down the window's left: the window's own row at
  * its top (past the traffic lights, the bell; the update pill at its end),
  * the search with History beside it, the projects, the pinned groups over a
- * plain line, the rest, and New after them, and the account, Settings and
- * Help at its foot. Opening a project takes the list over, under its banner.
+ * plain line, New, and the rest under it, newest first, and the account,
+ * Settings and Help at its foot. Opening a project takes the list over,
+ * under its banner.
  */
 export function GroupSidebar({
   chatTitles,
@@ -257,15 +258,19 @@ export function GroupSidebar({
           />
         )}
         {pinned.map((entry) => row(entry))}
-        {pinned.length > 0 && rest.length > 0 && (
+        {pinned.length > 0 && (
           <div className="mx-2.5 my-1.5 h-px shrink-0 bg-border" />
         )}
+        <NewRow
+          onNew={() => {
+            onNew(project?.id);
+          }}
+        />
         {rest.map((entry) => row(entry))}
       </>
     );
   }
 
-  const showsNew = !isSearching && view === "list";
   return (
     // Its own stacking context, so the project's wash can sit under the rows.
     <nav
@@ -334,18 +339,7 @@ export function GroupSidebar({
               </ToolbarTooltip>
             </div>
           )}
-          <ScrollingList
-            body={body}
-            newRow={
-              showsNew ? (
-                <NewRow
-                  onNew={() => {
-                    onNew(project?.id);
-                  }}
-                />
-              ) : null
-            }
-          />
+          <GroupList>{body}</GroupList>
         </div>
         <SidebarFoot chatId={chatOfGroup(groupUp)} />
       </div>
@@ -354,54 +348,17 @@ export function GroupSidebar({
 }
 
 /**
- * The list, with New after its last row, or held at the sidebar's foot over
- * a line once the list is long enough to scroll. A tab let go of over the
+ * The list, which scrolls whole, New with it. A tab let go of over the
  * list's empty space becomes a group of its own (`useGroupTabCarry`).
  */
-function ScrollingList({
-  body,
-  newRow,
-}: {
-  body: ReactNode;
-  newRow: ReactNode;
-}) {
-  const listRef = useRef<HTMLDivElement>(null);
-  const [scrolls, setScrolls] = useState(false);
-  useEffect(() => {
-    const list = listRef.current;
-    if (!list) {
-      return;
-    }
-    const measure = () => {
-      setScrolls(list.scrollHeight > list.clientHeight + 1);
-    };
-    measure();
-    const observer = new ResizeObserver(measure);
-    observer.observe(list);
-    for (const child of list.children) {
-      observer.observe(child);
-    }
-    return () => {
-      observer.disconnect();
-    };
-  });
+function GroupList({ children }: { children: ReactNode }) {
   return (
-    <>
-      <div
-        className="mt-2 flex min-h-0 flex-1 flex-col gap-0.5 overflow-y-auto px-2 pb-2 data-drop-target:bg-brand-500/5"
-        data-group-list=""
-        ref={listRef}
-      >
-        {body}
-        {!scrolls && newRow}
-      </div>
-      {scrolls && newRow && (
-        <div className="shrink-0 px-2 pb-1">
-          <div className="mx-0.5 mb-1 h-px bg-border" />
-          {newRow}
-        </div>
-      )}
-    </>
+    <div
+      className="mt-2 flex min-h-0 flex-1 flex-col gap-0.5 overflow-y-auto px-2 pb-2 data-drop-target:bg-brand-500/5"
+      data-group-list=""
+    >
+      {children}
+    </div>
   );
 }
 

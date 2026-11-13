@@ -63,13 +63,34 @@ export const windowTabGroupsAtom = keptAtom<null | readonly string[]>(
   (value) => keptTabGroupsOf(value) ?? null,
 );
 
-/** A window's groups with one more at the bottom, unless it has it already. */
+/** Where a group goes in a window's list: just before one group, or else just after another. */
+export interface ListPlace {
+  after?: string;
+  before?: string;
+}
+
+/**
+ * A window's groups with one more: at the top, under New, unless it has it
+ * already, or at a place, where it moves to when it is listed already. A
+ * place names groups the list has, so it holds whatever else the list keeps
+ * that the sidebar does not show; one naming none it has is the top.
+ */
 export function listedWith(
   list: null | readonly string[],
   group: string,
+  place?: ListPlace,
 ): string[] {
   const listed = list ?? [];
-  return listed.includes(group) ? [...listed] : [...listed, group];
+  if (place === undefined) {
+    return listed.includes(group) ? [...listed] : [group, ...listed];
+  }
+  const rest = listed.filter((entry) => entry !== group);
+  const before = place.before === undefined ? -1 : rest.indexOf(place.before);
+  if (before !== -1) {
+    return rest.toSpliced(before, 0, group);
+  }
+  const after = place.after === undefined ? -1 : rest.indexOf(place.after);
+  return rest.toSpliced(after + 1, 0, group);
 }
 
 /** A window's groups without one. */
@@ -92,7 +113,7 @@ export function listedReplacing(
   }
   return listed.includes(from)
     ? listed.map((entry) => (entry === from ? to : entry))
-    : [...listed, to];
+    : [to, ...listed];
 }
 
 /**
@@ -252,7 +273,7 @@ export function useTabGroupActions() {
     store.set(windowTabGroupsAtom, update(store.get(windowTabGroupsAtom)));
   };
 
-  /** Brings a group up here, at the bottom of the list when it was not open here. */
+  /** Brings a group up here, at the top of the list when it was not open here. */
   const showHere = (group: string) => {
     setListed((list) => listedWith(list, group));
     appTabs.navigate(groupHref(group));
@@ -341,14 +362,16 @@ export function useTabGroupActions() {
   };
 
   /**
-   * A new group at the bottom of the list, its chat alone unless something
-   * is to open in it, filed under a project when one is named.
+   * A new group at the top of the list, under New, or at a place in it,
+   * its chat alone unless something is to open in it, filed under a project
+   * when one is named.
    */
   const make = ({
     fill,
     href,
     isShownHere = true,
     moving,
+    place,
     projectId,
   }: {
     /** Opens what the group starts with. */
@@ -359,6 +382,8 @@ export function useTabGroupActions() {
     isShownHere?: boolean;
     /** A tab to move into the new group in place of opening one. */
     moving?: string;
+    /** Where it goes in the list, when not at the top. */
+    place?: ListPlace;
     projectId?: string;
   } = {}) => {
     const now = Date.now();
@@ -374,7 +399,7 @@ export function useTabGroupActions() {
     });
     const group = draftGroupOf(id);
     if (isShownHere) {
-      setListed((list) => listedWith(list, group));
+      setListed((list) => listedWith(list, group, place));
     }
     if (fill) {
       fill(group);
@@ -448,7 +473,7 @@ export function useTabGroupActions() {
     }
   };
 
-  /** Opens a chat or a draft from History or the search, at the bottom of the list, or brings forward the window that has it open. */
+  /** Opens a chat or a draft from History or the search, at the top of the list, or brings forward the window that has it open. */
   const restore = (group: string) => {
     show(group);
   };
@@ -501,7 +526,7 @@ export function useTabGroupActions() {
 /**
  * Keeps what the window's one app tab stands on a tab group of this
  * window's list. A group the tab came to some other way than through the
- * list (a link to a chat, a step back) joins it at the bottom; one whose
+ * list (a link to a chat, a step back) joins it at the top; one whose
  * chat had not started and whose draft has gone (swept at launch) leaves it.
  * Everything else sits inside a group too: a screen or a page the app tab
  * came to on its own becomes a tab of the group last up, or of a new group,

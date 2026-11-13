@@ -38,6 +38,7 @@ The final paragraph, one `Key: value` per line. Never wrap a value onto a second
 | `Tested:`                             | Only a check beyond the unit suites: the running app, a real agent run, a test host. Never test counts.                                                                                                             |
 | `Review: <file> <letter>`             | A `docs/reviews/` finding this commit fixes, as `2026-10-21-last-day A`. The same commit sets that finding's `Status:` to fixed.                                                                                    |
 | `Report: <fingerprint>` | A problem report or feedback this commit fixes, as `feedback:hr7mi75dukkl`; `Report: <fingerprint> (partly)` for one it fixes in part, and `Related-report: <fingerprint>` for one it only touches. The reports worker reads it from `main` and resolves the report itself (`AGENTS.md`, Problem reports). |
+| `Slack: <link>` | The Slack thread this commit was made for, when a teammate asked in Slack rather than in a report: the link to the thread's first message, as `https://<workspace>.slack.com/archives/C0123ABCD/p1730000000123456`. No issue needed. The reports worker replies once in that thread when the commit reaches `main`; never post there yourself (`AGENTS.md`, Problem reports). |
 
 Every reason stands without the session. `Rejected: per-folder read-only setting | user dropped it` is chat history; `Rejected: per-folder read-only setting | the allowlist and task grants already limit writes` is a reason.
 

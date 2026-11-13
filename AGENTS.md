@@ -143,6 +143,7 @@ A fix is tied to its report by the commit alone:
 - Once the commit is on `main`, the reports worker ties it to the issue within seconds of the push (within ten minutes when GitHub's webhook delivery fails), resolves it, and tells its Slack card; when a published release contains it, the issue records the version, and only a report from that version or later reopens it. Nothing is resolved by hand for a fix.
 - What you learned that no commit records goes into the issue's history with `reports note <fingerprint> "<text>" --finding`: a cause, a report artifact that is not a bug, a complaint the fix leaves open. A commit that went out without its line is tied with `reports link <fingerprint> instrument <sha>`.
 - Writing back to the person who sent a report is done from the `internal` reference; its `AGENTS.md`, under Problem reports, says how.
+- A commit made for an ask in Slack (a teammate's thread, not a report) carries `Slack: <link to the thread's first message>` instead, and needs no issue: once it is on `main`, the reports worker replies once in that thread linking the commit. A commit can carry both kinds of line. Never post to the thread yourself, and never file a Slack ask as a report to get the reply.
 
 ## Repository knowledge base
 

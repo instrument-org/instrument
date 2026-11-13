@@ -9,7 +9,6 @@ import { useTargetsAgentActivity } from "@/client/hooks/use-target-agent-activit
 import { getGuest } from "@/client/lib/browser-pool";
 import { cn } from "@/client/lib/utils";
 import { browserTargetOf } from "@instrument-org/workspace/client";
-import { PlusIcon } from "@phosphor-icons/react/Plus";
 import { type ReactNode, useContext, useState } from "react";
 
 import { tabTooltip } from "./app-tab-strip";
@@ -43,8 +42,7 @@ export function stripKeyOf(tab: WindowTab): string {
  * browses and the person opened, oldest at the left, narrowing to icons when
  * there are many. They are the window's own strip, so they open, close,
  * reorder and answer the keyboard as the window's tabs do. The new tab
- * control follows them, named while there are none, and the row keeps what
- * it is given at its right end.
+ * control follows them, and the row keeps what it is given at its right end.
  */
 export function PaneTabs({
   carriedKey,
@@ -79,7 +77,7 @@ export function PaneTabs({
   isIncoming?: boolean;
   /** Whether the chat or any task of it is at work: a page's working mark drops the moment none is. */
   isChatWorking: boolean;
-  /** What stands ahead of the tabs: room for the traffic lights while the sidebar is closed. */
+  /** What stands ahead of the tabs: room for the traffic lights while the sidebar is closed, and the chat's tab while the chat is the whole group. */
   lead?: ReactNode;
   onClose: (id: string) => void;
   /** A copy of the tab beside it in the pane: a page at its address, a screen at its own. */
@@ -187,13 +185,7 @@ export function PaneTabs({
         // back button.
         className="min-w-0 flex-1 pr-0 pl-1.5"
         label="What this chat has open"
-        newControl={
-          tabs.length === 0 ? (
-            <NewTabLabeled onClick={onNew} />
-          ) : (
-            <NewTabButton onClick={onNew} title="New tab" />
-          )
-        }
+        newControl={<NewTabButton onClick={onNew} title="New tab" />}
         onClose={(key) => {
           const tab = tabOf(key);
           if (tab) {
@@ -236,24 +228,6 @@ export function PaneTabs({
         )}
       </TabMenuAtPoint>
     </div>
-  );
-}
-
-/**
- * The new tab control while the group has no tabs: the plus with its name,
- * so a bar with only the chat's tab on it still reads as a tab bar. It folds
- * to the plus once a tab is open.
- */
-function NewTabLabeled({ onClick }: { onClick: () => void }) {
-  return (
-    <button
-      className="flex h-8 shrink-0 cursor-default items-center gap-1.5 rounded-xl pr-3 pl-2 text-sm font-medium text-foreground/55 hover:bg-foreground/8 hover:text-foreground dark:text-foreground/65"
-      onClick={onClick}
-      type="button"
-    >
-      <PlusIcon className="size-4" />
-      New tab
-    </button>
   );
 }
 

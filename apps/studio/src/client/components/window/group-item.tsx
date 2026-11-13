@@ -1,4 +1,4 @@
-import { type WindowTab } from "@/client/atoms/window";
+import { filesHrefAtom, type WindowTab } from "@/client/atoms/window";
 import { getGuest, onPageThumb } from "@/client/lib/browser-pool";
 import { registerHistorySurface } from "@/client/lib/history-surfaces";
 import { hostPathOfFileUrl } from "@/client/lib/file-url";
@@ -105,6 +105,15 @@ export function GroupItem({
   const page = targetId ? getGuest(targetId) : null;
   const isNewTab = isHomeTab(up);
   const hasBookmarksBar = useHasBookmarksBar(isNewTab);
+  const filesHref = useAtomValue(filesHrefAtom);
+  /** Files, where it last stood: in place of a new tab, and in a tab of its own beside anything else. */
+  const openFiles = () => {
+    if (isNewTab) {
+      windowTabs.visitHref(up.id, filesHref);
+    } else {
+      windowTabs.openScreen(filesHref, { group, select: true });
+    }
+  };
   /** A site in this tab: the page's own next stop, or a page in place of the screen up. */
   const openHere = (url: string) => {
     if (up.kind === "page" && page) {
@@ -232,7 +241,9 @@ export function GroupItem({
                   },
               { isOverBar: hasBookmarksBar },
             )}
-            {hasBookmarksBar && <BookmarksBar onOpen={openHere} />}
+            {hasBookmarksBar && (
+              <BookmarksBar onFiles={openFiles} onOpen={openHere} />
+            )}
           </>
         }
       >
@@ -278,7 +289,7 @@ export function GroupItem({
                 />
               }
             />
-            <BookmarksBar onOpen={openHere} />
+            <BookmarksBar onFiles={openFiles} onOpen={openHere} />
           </>
         }
       >

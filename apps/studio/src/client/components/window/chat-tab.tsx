@@ -5,18 +5,12 @@ import {
   ContextMenuTrigger,
 } from "@/client/components/ui/context-menu";
 import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuTrigger,
-} from "@/client/components/ui/dropdown-menu";
-import {
   contextMenuComponents,
-  dropdownMenuComponents,
   type MenuComponents,
 } from "@/client/components/ui/menu-components";
 import { cn } from "@/client/lib/utils";
-import { CaretDownIcon } from "@phosphor-icons/react/CaretDown";
 import { ChatCircleIcon } from "@phosphor-icons/react/ChatCircle";
+import { XIcon } from "@phosphor-icons/react/X";
 import { type ReactNode, useRef } from "react";
 
 import { ChatTitleField } from "./chat-title";
@@ -24,47 +18,39 @@ import { type ChatRename } from "./use-chat-rename";
 import { type TitleArrival } from "./use-title-arrival";
 
 /**
- * The chat's tab, at the top right of its tab group in every state, named
- * for the chat: its title, or "New chat" until it starts, after the bubble,
- * which gives way to the working dots while the agent works. While the chat
- * is the whole group it is the tab up at the tab bar's end, joined to the
- * toolbar under it (`data-joined`, the `group-strip` utility); while the
- * chat has a card beside the work it is that card's head; while that card
- * is closed it is a plain button at the end of the work's tabs. Once the
- * group has tabs, a press on it opens and closes the chat's card. Its menu
- * is the chat's, on a right-click anywhere on it and on the caret at its end
- * while the chat is shown.
+ * The chat's tab, named for the chat: its title, or "New chat" until it
+ * starts, after the bubble, which gives way to the working dots while the
+ * agent works. While the chat is the whole group it is the one tab on the
+ * tab bar, lifted off it as the tab up is; while the chat has a card beside
+ * the work it is that card's head. The X at its end closes it, and a
+ * right-click anywhere on it opens the chat's menu.
  */
 export function ChatTab({
   badge,
   className,
   isWorking,
   menu,
-  onPress,
+  onClose,
   rename,
   stands,
   title,
   titleArrival,
 }: {
-  /** What stands before the caret: the commands the chat left running. */
+  /** What stands before the X: the commands the chat left running. */
   badge?: ReactNode;
   /** Where it stands on its row. */
   className?: string;
   isWorking: boolean;
-  /** The menu's rows, drawn with the parts of the menu they are in; none until there is a chat or a draft to act on. */
+  /** The menu's rows, drawn with the parts of the menu they are in; none until there is a chat to act on. */
   menu?: ChatTabMenu | undefined;
-  onPress: () => void;
+  onClose: () => void;
   /** Renaming the chat in the tab, for a chat that has started. */
   rename?: ChatRename | undefined;
-  /**
-   * Where it stands: the tab up while the chat is the whole group, the head
-   * of the chat's open card, or a button for the closed card.
-   */
-  stands: "button" | "head" | "up";
+  /** Where it stands: the tab up while the chat is the whole group, or the head of the chat's card. */
+  stands: "head" | "up";
   title: string;
   titleArrival?: TitleArrival | undefined;
 }) {
-  const isShown = stands !== "button";
   // A menu hands focus back to where it opened as it closes, which would
   // land after the rename field took it and blur the rename shut.
   const isStartingRename = useRef(false);
@@ -93,75 +79,57 @@ export function ChatTab({
   const tab = (
     <div
       className={cn(
-        "relative flex h-8 min-w-0 items-center rounded-xl text-sm font-medium [-webkit-app-region:no-drag]",
-        stands === "head" ? "flex-1" : "w-60 shrink",
-        isShown
-          ? "text-foreground"
-          : "text-foreground/65 hover:bg-foreground/8 hover:text-foreground",
-        stands === "head" && "hover:bg-foreground/5",
+        "relative flex h-8 min-w-0 items-center gap-2 rounded-xl pr-1.5 pl-2.5 text-sm font-medium text-foreground [-webkit-app-region:no-drag]",
+        stands === "head" ? "flex-1" : "w-60 shrink shadow-xs-soft",
         className,
       )}
       data-chat-tab=""
-      {...(stands === "up" ? { "data-joined": "" } : {})}
+      {...(stands === "up"
+        ? {
+            style: {
+              backgroundColor: "var(--tab-selected, var(--background))",
+            },
+          }
+        : {})}
     >
+      {glyph}
       {rename?.isEditing ? (
-        <div className="flex h-full min-w-0 flex-1 items-center gap-1.5 pr-1 pl-2.5">
-          {glyph}
-          <ChatTitleField
-            className="text-sm font-medium"
-            grow
-            rename={rename}
-            width={undefined}
-          />
-        </div>
+        <ChatTitleField
+          className="text-sm font-medium"
+          grow
+          rename={rename}
+          width={undefined}
+        />
       ) : (
-        <button
-          aria-label={title}
-          aria-pressed={isShown}
-          className="flex h-full min-w-0 flex-1 cursor-default items-center gap-2 pr-1 pl-2.5 text-left outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-inset"
-          onClick={onPress}
-          // A press here selects nothing, so it leaves the keyboard where it was.
+        <span
+          className="min-w-0 flex-1 cursor-default overflow-hidden tab-title-fade whitespace-nowrap"
+          // A press on the name selects nothing, so it leaves the keyboard where it was.
           onMouseDown={(event) => {
             event.preventDefault();
           }}
           title={title}
-          type="button"
         >
-          {glyph}
-          <span className="min-w-0 flex-1 overflow-hidden tab-title-fade whitespace-nowrap">
-            <span
-              className={titleArrival?.className}
-              onAnimationEnd={titleArrival?.onAnimationEnd}
-            >
-              {title}
-            </span>
+          <span
+            className={titleArrival?.className}
+            onAnimationEnd={titleArrival?.onAnimationEnd}
+          >
+            {title}
           </span>
-        </button>
+        </span>
       )}
       {badge}
-      {isShown && menu && !rename?.isEditing && (
-        <DropdownMenu modal={false}>
-          <DropdownMenuTrigger asChild>
-            <button
-              aria-label="Chat menu"
-              className="mr-1.5 grid size-5 shrink-0 cursor-default place-items-center rounded-md text-muted-foreground hover:bg-foreground/10 hover:text-foreground data-[state=open]:bg-foreground/10 data-[state=open]:text-foreground"
-              type="button"
-            >
-              <CaretDownIcon className="size-3" weight="bold" />
-            </button>
-          </DropdownMenuTrigger>
-          <DropdownMenuContent
-            align="end"
-            className="w-56"
-            onCloseAutoFocus={keepRenameFocus}
-          >
-            <MenuRows
-              actions={actions}
-              components={dropdownMenuComponents}
-              rows={menu}
-            />
-          </DropdownMenuContent>
-        </DropdownMenu>
+      {!rename?.isEditing && (
+        <button
+          aria-label={`Close ${title}`}
+          className="grid size-5 shrink-0 cursor-default place-items-center rounded-md text-muted-foreground hover:bg-foreground/10 hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none focus-visible:ring-inset"
+          onClick={onClose}
+          onMouseDown={(event) => {
+            event.preventDefault();
+          }}
+          type="button"
+        >
+          <XIcon className="size-3" />
+        </button>
       )}
     </div>
   );

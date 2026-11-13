@@ -1423,6 +1423,9 @@ function WindowShell({
         !startingIds.has(draft.id) &&
         !discardingIds.has(draft.id),
     ),
+    closeGroup: (group) => {
+      askToClose([group]);
+    },
     goToPlace: choosePlace,
     newGroup: () => {
       groups.make();

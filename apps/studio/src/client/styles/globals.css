@@ -2365,50 +2365,11 @@ a.cursor-pointer {
 }
 
 /* The tab bar over a chat that is its whole tab group, drawn the way a
- * browser draws its tab strip: a ground of its own (`--group-strip`), and
- * the chat's tab (`[data-joined]`) standing on the ground of what is under
- * it (`--tab-selected`), flat along its foot and running on into it, with
- * the strip's corners curving out on either side. It is 36px tall and sits
- * 2px low, so in a 40px row its foot meets the row's. */
+ * browser draws its tab strip: a ground of its own (`--group-strip`), with
+ * the chat's tab lifted off it on the ground of what is under it
+ * (`--tab-selected`). */
 @utility group-strip {
   --tab-selected: var(--background);
 
   background-color: var(--group-strip);
-
-  & [data-joined] {
-    height: 36px;
-    translate: 0 2px;
-    border-bottom-right-radius: 0;
-    border-bottom-left-radius: 0;
-    background-color: var(--tab-selected);
-    box-shadow: none;
-
-    &::before,
-    &::after {
-      content: "";
-      position: absolute;
-      bottom: 0;
-      width: 10px;
-      height: 10px;
-      pointer-events: none;
-    }
-
-    &::before {
-      right: 100%;
-      background: radial-gradient(
-        circle at 0 0,
-        transparent 9.5px,
-        var(--tab-selected) 10px
-      );
-    }
-
-    &::after {
-      left: 100%;
-      background: radial-gradient(
-        circle at 100% 0,
-        transparent 9.5px,
-        var(--tab-selected) 10px
-      );
-    }
-  }
 }

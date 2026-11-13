@@ -24,7 +24,6 @@ import {
   makeNewChatDraftAtom,
   newChatBoxesAtom,
   newChatWordsKey,
-  pickNewChatProjectAtom,
 } from "@/client/drafts/new-chat-box";
 import { cancelWords } from "@/client/drafts/settle-words";
 import { draftsAtom, updateDraftAtom } from "@/client/drafts/store";
@@ -362,50 +361,6 @@ function NewChatIntro() {
       </h1>
     </div>
   );
-}
-
-/**
- * The project a new chat is filed under, and filing it under another or
- * none, for the chat's tab's menu: kept with its draft, or with its
- * composer until the first words make one.
- */
-export function useNewChatProject(tabId: string) {
-  const shell = useShell();
-  const drafts = useAtomValue(draftsAtom);
-  const boxes = useAtomValue(newChatBoxesAtom);
-  const makeDraft = useSetAtom(makeNewChatDraftAtom);
-  const pickProject = useSetAtom(pickNewChatProjectAtom);
-  const updateDraft = useSetAtom(updateDraftAtom);
-  const draft = draftInNewChatBox(drafts, boxes, tabId);
-  const projectId = draft?.projectId ?? boxes[tabId]?.projectId;
-  /** Files the new chat under a project, or under none with `undefined`. */
-  const pick = (picked: string | undefined) => {
-    if (!draft) {
-      pickProject({ projectId: picked, tabId });
-      return;
-    }
-    updateDraft({
-      id: draft.id,
-      update: (current) => {
-        if (picked !== undefined) {
-          return { ...current, projectId: picked, projectSource: "chosen" };
-        }
-        const { projectId: _dropped, ...rest } = current;
-        return { ...rest, projectSource: "chosen" };
-      },
-    });
-  };
-  return {
-    onNew: (name?: string) => {
-      shell.onNewDraftProject(draft?.id ?? makeDraft({ tabId }), name ?? "");
-    },
-    /** Picking the project it is under takes it off; any other files it there. */
-    onPick: (id: string) => {
-      pick(projectId === id ? undefined : id);
-    },
-    projectId,
-    projects: shell.projects,
-  };
 }
 
 /** The project a new chat beside its list opens in: its mark, its name, and where the chat goes. */

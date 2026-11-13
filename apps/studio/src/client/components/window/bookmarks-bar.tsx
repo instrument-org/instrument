@@ -9,6 +9,7 @@ import {
 import { noteTypedPage } from "@/client/hooks/use-browser-history";
 import { cn } from "@/client/lib/utils";
 import { type Bookmark } from "@/shared/bookmarks";
+import { FileSystemFolderGlyph } from "@/client/components/extend/file-system";
 import { CaretDoubleRightIcon } from "@phosphor-icons/react/CaretDoubleRight";
 import { DotsThreeVerticalIcon } from "@phosphor-icons/react/DotsThreeVertical";
 import { useAtomValue } from "jotai";
@@ -29,12 +30,19 @@ export function useHasBookmarksBar(isNewTab: boolean): boolean {
 
 /**
  * The bookmarks in a row under a tab's toolbar, each its site's favicon and
- * a short name, the way a browser's bookmarks bar keeps them. Those past
- * the row's end are under a chevron at its right. A click opens one in this
- * tab (`onOpen`), a Cmd-click or a middle click in a tab of its own behind
- * this one, and a right click offers to rename it or remove it.
+ * a short name, the way a browser's bookmarks bar keeps them, after Files
+ * where the row is given it (`onFiles`). Those past the row's end are under
+ * a chevron at its right. A click opens one in this tab (`onOpen`), a
+ * Cmd-click or a middle click in a tab of its own behind this one, and a
+ * right click offers to rename it or remove it.
  */
-export function BookmarksBar({ onOpen }: { onOpen: (url: string) => void }) {
+export function BookmarksBar({
+  onFiles,
+  onOpen,
+}: {
+  onFiles?: () => void;
+  onOpen: (url: string) => void;
+}) {
   const bookmarks = useAtomValue(bookmarksAtom);
   const clicksFor = usePageClicks();
   const edits = useBookmarkEdits();
@@ -79,6 +87,19 @@ export function BookmarksBar({ onOpen }: { onOpen: (url: string) => void }) {
       className="flex h-8 shrink-0 items-center gap-1 border-b border-border bg-background px-1.5"
       role="toolbar"
     >
+      {onFiles && (
+        <>
+          <button
+            className="flex h-6 shrink-0 cursor-default items-center gap-1.5 rounded-md px-1.5 text-xs text-foreground/80 hover:bg-foreground/8 hover:text-foreground"
+            onClick={onFiles}
+            type="button"
+          >
+            <FileSystemFolderGlyph className="h-3 w-auto" />
+            Files
+          </button>
+          <span aria-hidden className="mx-1 h-4 w-px shrink-0 bg-border" />
+        </>
+      )}
       {bookmarks.length === 0 ? (
         <NoBookmarks />
       ) : (

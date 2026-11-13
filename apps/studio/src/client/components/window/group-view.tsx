@@ -4,6 +4,7 @@ import {
   chatShareAtom,
   sidebarOpenAtom,
 } from "@/client/atoms/tab-groups";
+import { filesHrefAtom } from "@/client/atoms/window";
 import { TaskBackgroundProcesses } from "@/client/components/task/task-background-processes";
 import { CaptionRoom } from "@/client/components/window-controls";
 import { useIsActiveTab, useTabId } from "@/client/hooks/use-active-tab";
@@ -25,9 +26,9 @@ import {
   useState,
 } from "react";
 
-import { BookmarksBar, useHasBookmarksBar } from "./bookmarks-bar";
+import { BookmarksBar } from "./bookmarks-bar";
 import { type PageChromeSlots } from "./browser-tabs";
-import { ChatMenuItems, ProjectMenuItems } from "./chat-header";
+import { ChatMenuItems } from "./chat-header";
 import { chatListOptions } from "./chat-list-query";
 import { type Chat, chatAsSent, draftTitle } from "./chats";
 import { ChatScreen } from "./chat-screen";
@@ -36,7 +37,7 @@ import { useWindow } from "./context";
 import { DeleteChatDialog } from "./delete-chat-dialog";
 import { GroupItem } from "./group-item";
 import { SidebarToggleRoom } from "./inbox-toggle";
-import { NewChatView, useNewChatProject } from "./new-chat-view";
+import { NewChatView } from "./new-chat-view";
 import { PaneTabs } from "./pane-tabs";
 import { useShell } from "./shell-context";
 import { SplitView } from "./split-view";
@@ -60,13 +61,13 @@ import { useWindowTabs } from "./window-tabs";
 /**
  * One tab group, as the window's tab shows it: a split of two cards, the
  * work and the chat. A group with no tabs is its chat alone, a chat site
- * open in a browser: a tab bar with the chat's tab at its right end, the tab
- * up, over a toolbar and the bookmarks as a page has them. Once a tab is
- * open the chat moves to a card of its own on the right, its tab the card's
- * head, and the work's card beside it has the tabs, the toolbar and what the
- * tab up shows. A press on the chat's tab closes its card, which leaves the
- * chat's tab at the end of the work's tabs, where a press opens it again.
- * Closing the last tab brings the chat back to the whole group.
+ * open in a browser: a tab bar with the chat's tab first, the tab up, over a
+ * toolbar and the bookmarks as a page has them. Once a tab is open the chat
+ * moves to a card of its own on the right, its tab the card's head, and the
+ * work's card beside it has the tabs, the toolbar and what the tab up shows.
+ * The X on the chat's tab closes its card, leaving the work the whole group
+ * until Go to Chat opens it again, and closes the group while the chat is
+ * all of it. Closing the last tab brings the chat back to the whole group.
  */
 export function GroupView({
   chat,
@@ -123,7 +124,7 @@ export function GroupView({
       : chatRecord;
   const isWorking = chatRecord?.working === true;
   const chatClosed = group === undefined || closedByGroup[group] === true;
-  const hasBookmarksBar = useHasBookmarksBar(false);
+  const filesHref = useAtomValue(filesHrefAtom);
 
   // A chat's group with tabs but none up brings up its first. Only a group
   // this window lists: a draft's group handed to its chat is not.
@@ -166,23 +167,28 @@ export function GroupView({
   const openPage = (url: string) => {
     appWindow.browser?.open(url, { group });
   };
-  // The chat's tab: the tab up at the tab bar's end while the chat is the
-  // whole group, its card's head while the card is open, and a button at the
-  // end of the work's tabs while it is closed. A press opens and closes the
-  // card once the group has tabs.
+  /** Files, where it last stood, as a tab of this group. */
+  const openFiles = () => {
+    windowTabs.openScreen(filesHref, { group, select: true });
+  };
+  // The chat's tab: the tab up, first on the tab bar, while the chat is the
+  // whole group, and its card's head while the card is open. Its X closes
+  // the card, or the group while the chat is all of it.
   const chatTabOf = (stands: ChatTabPlacement["stands"]) => {
     const placement = {
-      className: { button: "ml-1", head: undefined, up: "ml-3" }[stands],
+      className: { head: undefined, up: "ml-1.5" }[stands],
       isWorking,
-      onPress: () => {
-        if (!isChatFirst) {
-          groups.setChatOpen(group, chatClosed);
+      onClose: () => {
+        if (isChatFirst) {
+          shell.closeGroup(group);
+        } else {
+          groups.setChatOpen(group, false);
         }
       },
       stands,
     } as const;
     if (chat === undefined) {
-      return <NewChatTab {...placement} tabId={tabId} />;
+      return <ChatTab {...placement} title="New chat" />;
     }
     if (!headChat) {
       return (
@@ -244,9 +250,12 @@ export function GroupView({
 
   const tabBar = ({
     className,
+    first,
     trailing,
   }: {
     className: string;
+    /** What stands ahead of the tabs, after the room for the traffic lights. */
+    first?: ReactNode;
     trailing: ReactNode;
   }) => (
     <PaneTabs
@@ -257,7 +266,12 @@ export function GroupView({
       heldAt={incoming ? incoming.heldAt : carry.held}
       isChatWorking={isWorking}
       isIncoming={incoming !== undefined}
-      lead={isSidebarOpen ? null : <SidebarToggleRoom />}
+      lead={
+        <>
+          {isSidebarOpen ? null : <SidebarToggleRoom />}
+          {first}
+        </>
+      }
       onClose={shell.requestClose}
       onDuplicate={(tab) => {
         if (tab.kind === "page") {
@@ -283,8 +297,7 @@ export function GroupView({
 
   // The work's card: its tabs, the toolbar and what the tab up shows. While
   // the chat's card is closed, this card reaches the window's top right, so
-  // its tabs end in the chat's tab and the room for the caption buttons off
-  // the Mac.
+  // its tabs end in the room for the caption buttons off the Mac.
   const work = {
     body:
       up === undefined ? null : (
@@ -302,25 +315,21 @@ export function GroupView({
       ? null
       : tabBar({
           className: WORK_TABS,
-          trailing: chatClosed && (
-            <>
-              {chatTabOf("button")}
-              <CaptionRoom />
-            </>
-          ),
+          trailing: chatClosed && <CaptionRoom />,
         }),
   };
 
   // Over the chat while it is the whole group: the toolbar a page has, for a
   // chat that has no history of its own, so its arrows and reload rest. Its
   // field opens a page as a tab of this group, and shows ⌘L until it is
-  // pressed, since the caret starts in the composer.
+  // pressed, since the caret starts in the composer. The bookmarks under it
+  // lead with Files.
   const toolbar = (
     <>
       <TabLocationRow
         canGoBack={false}
         canGoForward={false}
-        {...(hasBookmarksBar ? { className: "border-b-0" } : {})}
+        className="border-b-0"
         fieldHint={<LocationKeys />}
         fieldTakesCaret={false}
         location={NEW_TAB_LOCATION}
@@ -340,23 +349,18 @@ export function GroupView({
           />
         }
       />
-      {hasBookmarksBar && <BookmarksBar onOpen={openPage} />}
+      <BookmarksBar onFiles={openFiles} onOpen={openPage} />
     </>
   );
   // The chat's card. As the whole group, its head is a browser's tab bar
-  // with the chat's tab up, joined to the toolbar under it; beside the work,
-  // its head is the chat's tab alone. Either way it reaches the window's top
-  // right.
+  // with the chat's tab up first on it; beside the work, its head is the
+  // chat's tab alone. Either way it reaches the window's top right.
   const chatHead = isChatFirst ? (
     <>
       {tabBar({
         className: CHAT_FIRST_TABS,
-        trailing: (
-          <>
-            {chatTabOf("up")}
-            <CaptionRoom />
-          </>
-        ),
+        first: chatTabOf("up"),
+        trailing: <CaptionRoom />,
       })}
       {toolbar}
     </>
@@ -401,7 +405,7 @@ const GROUP_GROUNDS =
 /** The work's tabs, on the card's own ground, the tab up lifted off it. */
 const WORK_TABS = "[--tab-selected:var(--card)]";
 
-/** The tab bar over a chat that is the whole group, its chat's tab joined to the toolbar. */
+/** The tab bar over a chat that is the whole group, its chat's tab lifted off it. */
 const CHAT_FIRST_TABS = "group-strip pr-2.5";
 
 /** Where the toolbar over a chat stands: nowhere yet, as a new tab is. */
@@ -419,7 +423,7 @@ function LocationKeys() {
 /** Where the chat's tab stands and what a press on it does, as `GroupView` places it. */
 type ChatTabPlacement = Pick<
   ComponentProps<typeof ChatTab>,
-  "className" | "isWorking" | "onPress" | "stands"
+  "className" | "isWorking" | "onClose" | "stands"
 >;
 
 /**
@@ -506,25 +510,4 @@ function useChatFolderWithFiles(chat: ChatId): null | string {
     }),
   );
   return data ?? null;
-}
-
-/** The chat's tab for a group whose chat has not started, whose menu files it under a project. */
-function NewChatTab({
-  tabId,
-  ...placement
-}: ChatTabPlacement & { tabId: string }) {
-  const project = useNewChatProject(tabId);
-  return (
-    <ChatTab
-      {...placement}
-      menu={(components) => (
-        <ProjectMenuItems
-          chosen={project.projectId}
-          components={components}
-          projectMenu={project}
-        />
-      )}
-      title="New chat"
-    />
-  );
 }

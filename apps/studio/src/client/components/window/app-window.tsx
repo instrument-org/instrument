@@ -139,6 +139,7 @@ import { CloseGroupDialog } from "./close-group-dialog";
 import { GroupSidebar } from "./group-sidebar";
 import { isGroupScreenHref } from "./group-screen";
 import {
+  groupAlong,
   groupHref,
   type TabGroup,
   useOpenGroups,
@@ -1063,9 +1064,6 @@ function WindowShell({
     }
     appTabs.goToPlace(next, { behind: newTab, newTab });
   };
-  // The inbox's rows as the tab up lists them, for stepping through them by
-  // chord.
-  const listedChats = useRef<ChatId[]>([]);
   // A file let go of where nothing else takes it opens the way one dropped
   // on the Dock icon does.
   useWindowDropFallback(({ hostPath, isFolder }) => {
@@ -1219,13 +1217,33 @@ function WindowShell({
         setSidebarOpen(true);
         setSidebarView((view) => (view === "history" ? "list" : "history"));
       },
-      selectRelative: appTabs.selectRelative,
-      selectTab: appTabs.selectIndex,
+      // The tab chords step the tabs of the group up, as a browser's step
+      // its strip, round from either end.
+      selectRelative: (direction) => {
+        const { active, tabs: groupTabs } = windowTabs;
+        const at = groupTabs.findIndex((tab) => tab.id === active?.id);
+        const next =
+          groupTabs[(at + direction + groupTabs.length) % groupTabs.length];
+        if (next) {
+          windowTabs.select(next.id);
+        }
+      },
+      // Cmd+1 to Cmd+8 by place, and Cmd+9 the last.
+      selectTab: (index) => {
+        const groupTabs = windowTabs.tabs;
+        const next = index === 9 ? groupTabs.at(-1) : groupTabs[index - 1];
+        if (next) {
+          windowTabs.select(next.id);
+        }
+      },
       toggleInbox: () => {
         setSidebarOpen((isOpen) => !isOpen);
       },
       selectChat: (direction) => {
-        appTabs.stepChat(listedChats.current, chatUp, direction);
+        const next = groupAlong(groupList.open, groupUp, direction);
+        if (next !== undefined) {
+          groups.show(next);
+        }
       },
     },
     { isReady: opened !== undefined },
@@ -1305,9 +1323,6 @@ function WindowShell({
     goToPlace: choosePlace,
     newDraft: () => {
       newDraft();
-    },
-    onListed: (listed) => {
-      listedChats.current = listed;
     },
     onNewDraftProject: (draftId, name) => {
       setNewProject({ draftId, ...(name ? { name } : {}) });

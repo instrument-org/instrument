@@ -89,6 +89,29 @@ export function useOpenGroups(): { closed: TabGroup[]; open: TabGroup[] } {
   };
 }
 
+/**
+ * The group a step down (1) or up (-1) the sidebar lands on from `from`, in
+ * the order the sidebar lists them, pinned ones first; from no group, the
+ * first or the last.
+ */
+export function groupAlong(
+  open: readonly TabGroup[],
+  from: string | undefined,
+  direction: -1 | 1,
+): string | undefined {
+  const isPinned = (entry: TabGroup) =>
+    entry.kind === "chat" && entry.chat.starred;
+  const listed = [
+    ...open.filter((entry) => isPinned(entry)),
+    ...open.filter((entry) => !isPinned(entry)),
+  ];
+  const at = listed.findIndex((entry) => entry.group === from);
+  if (at === -1) {
+    return (direction === 1 ? listed[0] : listed.at(-1))?.group;
+  }
+  return listed[at + direction]?.group;
+}
+
 /** The address a group stands on in the window's one app tab. */
 export function groupHref(group: string): string {
   const draft = draftOfGroup(group);

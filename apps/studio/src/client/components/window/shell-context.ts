@@ -38,8 +38,6 @@ export interface WindowShell {
   goToPlace: (place: AppPlace) => void;
   /** Opens a new draft, as the rail's New does. */
   newDraft: () => void;
-  /** The inbox's rows as it lists them, for stepping through them by chord. */
-  onListed: (listed: ChatId[]) => void;
   /** A project asked for from a chat's head, with what was typed. */
   onNewProject: (name: string | undefined) => void;
   /** A project asked for from a draft's head, with what was typed: the project it makes files that draft. */

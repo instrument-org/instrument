@@ -33,8 +33,14 @@ import { PlusIcon } from "@phosphor-icons/react/Plus";
 import { XIcon } from "@phosphor-icons/react/X";
 import { type ChatId } from "@instrument-org/workspace/client";
 import { useQuery } from "@tanstack/react-query";
-import { useAtom } from "jotai";
-import { type ReactNode, type Ref, useRef, useState } from "react";
+import { useAtom, useAtomValue } from "jotai";
+import {
+  AnimatePresence,
+  motion,
+  useIsPresent,
+  useReducedMotion,
+} from "motion/react";
+import { type ReactNode, type Ref, useEffect, useRef, useState } from "react";
 
 import { HelpMenu } from "./help-menu";
 import { toggleLeft } from "./inbox-toggle";
@@ -52,7 +58,11 @@ import { ScreenMark } from "./pane-tabs";
 import { screenPresentation } from "./screen-presentation";
 import { SearchField } from "./search-field";
 import { useProjectShift } from "./use-project-shift";
-import { lastActiveAt, type TabGroup } from "./tab-groups";
+import {
+  lastActiveAt,
+  type TabGroup,
+  windowTabGroupsAtom,
+} from "./tab-groups";
 import { isHomeTab } from "./tab-model";
 import { useNow } from "./use-now";
 import { chatOfGroup } from "./window-href";
@@ -162,6 +172,7 @@ export function GroupSidebar({
   const chats = open.flatMap((entry) =>
     entry.kind === "chat" ? [entry.chat] : [],
   );
+  const arriving = useArrivals(useAtomValue(windowTabGroupsAtom) ?? []);
 
   const row = (
     entry: TabGroup,
@@ -258,23 +269,45 @@ export function GroupSidebar({
             projects={projects}
           />
         )}
-        {pinned.map((entry) => row(entry))}
-        {pinned.length > 0 && (
-          <div className="mx-2.5 my-1.5 h-px shrink-0 bg-border" />
-        )}
-        <NewRow
-          onNew={() => {
-            onNew(project?.id);
-          }}
-        />
-        {rest.map((entry) => row(entry))}
-        {!project && (
-          <HistoryRow
-            onOpen={() => {
-              setView("history");
-            }}
-          />
-        )}
+        <AnimatePresence>
+          {pinned.map((entry) => (
+            <ListItem
+              isArriving={arriving.has(entry.group)}
+              key={`row:${entry.group}`}
+            >
+              {row(entry)}
+            </ListItem>
+          ))}
+          {pinned.length > 0 && (
+            <ListItem key=":divider">
+              <div className="mx-2.5 my-1.5 h-px bg-border" />
+            </ListItem>
+          )}
+          <ListItem key=":new">
+            <NewRow
+              onNew={() => {
+                onNew(project?.id);
+              }}
+            />
+          </ListItem>
+          {rest.map((entry) => (
+            <ListItem
+              isArriving={arriving.has(entry.group)}
+              key={`row:${entry.group}`}
+            >
+              {row(entry)}
+            </ListItem>
+          ))}
+          {!project && (
+            <ListItem key=":history">
+              <HistoryRow
+                onOpen={() => {
+                  setView("history");
+                }}
+              />
+            </ListItem>
+          )}
+        </AnimatePresence>
       </>
     );
   }
@@ -334,6 +367,74 @@ export function GroupSidebar({
         <SidebarFoot chatId={chatOfGroup(groupUp)} />
       </div>
     </nav>
+  );
+}
+
+/** How long a row takes to open its room in the list, or to close it. */
+const ROW_MOTION_MS = 200;
+const ROW_MOTION = {
+  duration: ROW_MOTION_MS / 1000,
+  ease: [0.2, 0.8, 0.2, 1],
+} as const;
+/** How long a row arriving wears the inbox's arrival (`chat-arrive`). */
+const ARRIVAL_MS = 320;
+
+/**
+ * The groups the window has taken on since the sidebar came up, for as long
+ * as their rows take to arrive: one made, opened from History or search, or
+ * dropped in. Read off the window's list rather than the rows, so groups
+ * whose chats are still loading as the window opens never count.
+ */
+function useArrivals(listed: readonly string[]): ReadonlySet<string> {
+  const [last, setLast] = useState(listed);
+  const [arriving, setArriving] = useState<ReadonlySet<string>>(new Set());
+  if (listed !== last) {
+    setLast(listed);
+    const fresh = listed.filter((group) => !last.includes(group));
+    if (fresh.length > 0) {
+      setArriving(new Set([...arriving, ...fresh]));
+    }
+  }
+  useEffect(() => {
+    if (arriving.size === 0) {
+      return;
+    }
+    const timer = setTimeout(() => {
+      setArriving(new Set());
+    }, ARRIVAL_MS);
+    return () => {
+      clearTimeout(timer);
+    };
+  }, [arriving]);
+  return arriving;
+}
+
+/**
+ * One thing in the list: a row arriving opens its room as it slides into
+ * it the way a chat arrives in the inbox, and one leaving closes its room as
+ * it fades, out of reach meanwhile.
+ */
+function ListItem({
+  children,
+  isArriving = false,
+}: {
+  children: ReactNode;
+  isArriving?: boolean;
+}) {
+  const isPresent = useIsPresent();
+  const isReduced = useReducedMotion() === true;
+  return (
+    <motion.div
+      animate={{ height: "auto", opacity: 1, transitionEnd: { overflow: "visible" } }}
+      className={cn("shrink-0", isArriving && "chat-arrive")}
+      data-leaving={isPresent ? undefined : ""}
+      exit={{ height: 0, opacity: 0, overflow: "hidden" }}
+      inert={!isPresent}
+      initial={isArriving ? { height: 0, overflow: "hidden" } : false}
+      transition={isReduced ? { duration: 0 } : ROW_MOTION}
+    >
+      {children}
+    </motion.div>
   );
 }
 

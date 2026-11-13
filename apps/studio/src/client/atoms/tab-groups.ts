@@ -10,7 +10,7 @@ export const sidebarOpenAtom = keptAtom<boolean>(
 
 /**
  * The groups whose chat column is closed by its X, by group. Every other
- * group's column is open, so a tab added to a group shows its chat beside it.
+ * group's column is open, a new group's included.
  */
 export const chatClosedByGroupAtom = keptAtom<Record<string, true>>(
   "view",

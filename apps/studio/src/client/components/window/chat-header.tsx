@@ -56,6 +56,7 @@ import { useTitleArrival } from "./use-title-arrival";
  */
 export function ChatHeader({
   chat,
+  className,
   fallbackTitle = "Chat",
   leading,
   onArchived,
@@ -67,6 +68,8 @@ export function ChatHeader({
   trailing,
 }: {
   chat: Chat | undefined;
+  /** Sets the head's height and inset where it shares a line with what is beside it. */
+  className?: string;
   /** The title while there is no chat yet: the words just sent, once there are any. */
   fallbackTitle?: string;
   /** What sits ahead of the title: the toggle that puts the inbox away. */
@@ -100,6 +103,7 @@ export function ChatHeader({
         className={cn(
           "group/head @container/head flex h-12 w-full min-w-0 shrink-0 items-center gap-x-2 bg-background pr-3",
           leading ? "pl-3" : "pl-4",
+          className,
         )}
       >
         <div className="flex h-8 min-w-0 flex-1 items-center gap-x-1">

@@ -22,6 +22,7 @@ import { useRowSlots } from "./row-slots";
 import { BrowserExtensionButtons } from "./browser-extension-buttons";
 import { PageAgentOverlay } from "./page-agent-overlay";
 import { PageAskButton } from "./file-ask-button";
+import { GroupNewTab } from "./group-new-tab";
 import { GroupTabContext } from "./group-tab";
 import { liveFileAddress, liveHostedFileAddress } from "./hosted-page";
 import { segmentsOf } from "./host-path";
@@ -29,7 +30,6 @@ import { screenLocation } from "./screen-presentation";
 import { type TabLocation, tasksOfHref } from "./tab-location";
 import { TabLocationRow } from "./tab-location-row";
 import { isHomeTab } from "./tab-model";
-import { NewTabComposer } from "./new-tab-composer";
 import { surfaceLocation, tabSurfaceAtom } from "./tab-surface";
 import { useTaskTitles } from "./task-titles";
 import { useTabSteps } from "./use-tab-steps";
@@ -228,15 +228,15 @@ export function GroupItem({
       </Bare>
     );
   }
-  // The new tab a draft's group opens on, which a chat's group can be handed
-  // with the draft's tabs: the web's start, whose page takes its place.
+  // The new tab every group opens on, and keeps when nothing else is open:
+  // the web's start, whose page takes its place.
   if (isHomeTab(up)) {
     return (
       <Bare
         anchorRef={anchorRef}
         head={row(screenLocation(up.href, { appsBySlug, taskTitles }))}
       >
-        <NewTabComposer group={group} tabId={up.id} />
+        <GroupNewTab group={group} tabId={up.id} />
       </Bare>
     );
   }

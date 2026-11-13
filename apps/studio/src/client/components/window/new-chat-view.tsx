@@ -84,9 +84,9 @@ export function NewChatView({
   draftId,
   ensureGroup,
   isPaneShown,
-  leading,
   onOpenBeside,
   tabId,
+  takesCaret,
   trailing,
 }: {
   /** The draft the tab's address names, if it names one. */
@@ -95,11 +95,11 @@ export function NewChatView({
   ensureGroup: () => string;
   /** Whether the side panel shows the draft's tab up, where its tabs stand as a strip rather than as chips. */
   isPaneShown: boolean;
-  /** What sits ahead of the title: the toggle that puts the inbox away. */
-  leading?: ReactNode;
   /** Brings the side panel up for something just opened into it. */
   onOpenBeside: (group: string) => void;
   tabId: string;
+  /** Whether its composer takes the caret: while nothing beside it has a field of its own. */
+  takesCaret: boolean;
   /** What sits at the head's right: the pane button. */
   trailing?: ReactNode;
 }) {
@@ -287,9 +287,10 @@ export function NewChatView({
 
   return (
     <FileDropRegion className="flex h-full min-h-0 flex-col">
-      <div className="group/head flex h-12 w-full min-w-0 shrink-0 items-center gap-x-2 bg-background pr-3 pl-3">
+      {/* The head shares the window's top line with the group's tabs, so
+          the room between its controls drags the window. */}
+      <div className="group/head flex h-10 w-full min-w-0 shrink-0 items-center gap-x-2 bg-background pr-2 pl-3 [-webkit-app-region:drag] [&_button]:[-webkit-app-region:no-drag] [&_input]:[-webkit-app-region:no-drag]">
         <div className="flex h-8 min-w-0 flex-1 items-center gap-x-1">
-          {leading}
           <h2 className="min-w-0 truncate text-sm font-medium">New chat</h2>
           <ProjectSlot
             onClear={() => {
@@ -362,7 +363,7 @@ export function NewChatView({
           attachmentsLead={
             draft ? <MarkedPills draftId={draft.id} /> : undefined
           }
-          autoFocus
+          autoFocus={takesCaret}
           draftKey={key}
           isLoading={false}
           keyboardHome

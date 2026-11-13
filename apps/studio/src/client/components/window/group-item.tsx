@@ -4,6 +4,7 @@ import { registerHistorySurface } from "@/client/lib/history-surfaces";
 import { hostPathOfFileUrl } from "@/client/lib/file-url";
 import { useGroupTabRouter } from "@/client/lib/group-tab-router-registry";
 import { browserTargetOf } from "@instrument-org/workspace/client";
+import { ArrowClockwiseIcon } from "@phosphor-icons/react/ArrowClockwise";
 import { RouterProvider } from "@tanstack/react-router";
 import { noop } from "radashi";
 import { useAtomValue } from "jotai";
@@ -27,7 +28,7 @@ import { liveFileAddress, liveHostedFileAddress } from "./hosted-page";
 import { segmentsOf } from "./host-path";
 import { screenLocation } from "./screen-presentation";
 import { type TabLocation, tasksOfHref } from "./tab-location";
-import { TabLocationRow } from "./tab-location-row";
+import { TabLocationRow, TabRowControl } from "./tab-location-row";
 import { isHomeTab } from "./tab-model";
 import { surfaceLocation, tabSurfaceAtom } from "./tab-surface";
 import { useTaskTitles } from "./task-titles";
@@ -100,6 +101,15 @@ export function GroupItem({
   const targetId = up.kind === "page" ? browserTargetOf(up.id) : undefined;
   const chatId = chatOfGroup(group);
   const page = targetId ? getGuest(targetId) : null;
+  const isNewTab = isHomeTab(up);
+  /** A site in this tab: the page's own next stop, or a page in place of the screen up. */
+  const openHere = (url: string) => {
+    if (up.kind === "page" && page) {
+      void page.load(url).catch(noop);
+    } else {
+      browser?.open(url, { group, replacing: up });
+    }
+  };
   // Back walks what is up (the page's own history, the screen's trail),
   // then what the tab showed before it, then, for a tab that is a site of
   // the window's own, where the window's tab was before the site. The row's
@@ -162,13 +172,7 @@ export function GroupItem({
           : {})}
         location={location}
         {...(before ? {} : { onBack: goBack, onForward: goForward })}
-        onSite={(url) => {
-          if (up.kind === "page" && page) {
-            void page.load(url).catch(noop);
-          } else {
-            browser?.open(url, { group, replacing: up });
-          }
-        }}
+        onSite={openHere}
         onVisit={(href) => {
           // A site at the window's level is the window tab's page, so the
           // window's tab goes to the screen the way the command menu sends
@@ -223,12 +227,32 @@ export function GroupItem({
     );
   }
   // The new tab every group opens on, and keeps when nothing else is open:
-  // the web's start, whose page takes its place.
-  if (isHomeTab(up)) {
+  // the web's start, whose page takes its place. Its own page takes
+  // addresses, so its toolbar is the arrows and a reload with no page to
+  // reload.
+  if (isNewTab) {
     return (
       <Bare
         anchorRef={anchorRef}
-        head={row(screenLocation(up.href, { appsBySlug, taskTitles }))}
+        head={
+          <TabLocationRow
+            canGoBack={canGoBack}
+            canGoForward={canGoForward}
+            hasField={false}
+            location={screenLocation(up.href, { appsBySlug, taskTitles })}
+            onBack={goBack}
+            onForward={goForward}
+            reload={
+              <TabRowControl
+                chord="reloadPage"
+                disabled
+                icon={<ArrowClockwiseIcon className="size-4" />}
+                label="Reload"
+                onClick={noop}
+              />
+            }
+          />
+        }
       >
         <GroupNewTab group={group} tabId={up.id} />
       </Bare>

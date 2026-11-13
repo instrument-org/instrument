@@ -90,8 +90,10 @@ import {
 export function TabLocationRow({
   canGoBack,
   canGoForward,
+  className,
   fieldEnd,
   fillsTab = false,
+  hasField = true,
   leading,
   liveAddress,
   location,
@@ -104,10 +106,13 @@ export function TabLocationRow({
 }: {
   canGoBack?: boolean;
   canGoForward?: boolean;
+  className?: string;
   /** What the page says about itself inside the field, at its end, ahead of the app that opens it: its zoom while not 100%. */
   fieldEnd?: ReactNode;
   /** Whether the row is over a screen that has the whole tab, where Quick Look's view of a file would be smaller than the one already up. */
   fillsTab?: boolean;
+  /** Whether the row has the field that says where you are; a tab whose own page takes addresses has only the arrows and reload. */
+  hasField?: boolean;
   /** What the page puts ahead of the row's own controls, at its far left: a toggle for a panel along the page's left edge. */
   leading?: ReactNode;
   /** The address of the page up as it stands, read when the field is pressed: a page's file, with wherever the page has gone in itself. */
@@ -130,7 +135,7 @@ export function TabLocationRow({
   // A file is drawn larger over the window; a page is already as large as
   // the tab, and a live site does not survive being lifted out of it.
   const lookTarget: LookTarget | undefined =
-    location.kind === "file" && !fillsTab
+    hasField && location.kind === "file" && !fillsTab
       ? {
           kind: "file",
           tab: { hostPath: location.path, name: location.name },
@@ -140,7 +145,10 @@ export function TabLocationRow({
     <div
       // A container, so what a screen or a page draws into the row can give
       // up its words for its mark when the row is narrow.
-      className="@container/tabrow flex h-11 shrink-0 items-center gap-1.5 border-b border-border bg-background px-1.5"
+      className={cn(
+        "@container/tabrow flex h-11 shrink-0 items-center gap-1.5 border-b border-border bg-background px-1.5",
+        className,
+      )}
       data-tab-location=""
     >
       {leading}
@@ -173,47 +181,51 @@ export function TabLocationRow({
         bar does. Its fill is a solid shade of the row's own ground, named as
         `--field-fill` so what covers the words at its end (the open-in
         button, as it grows) paints the same color. */}
-      <div
-        className={cn(
-          "group/field relative flex h-8 min-w-0 flex-1 cursor-text items-center gap-2 rounded-xl bg-(--field-fill) px-3 text-[13px] ring-1 ring-foreground/[0.06] [--field-fill:color-mix(in_oklab,var(--foreground)_4.5%,var(--background))] focus-within:ring-foreground/20 focus-within:[--field-fill:var(--card)]",
-          // The app's icon sits at the field's end, with room to breathe
-          // inside the curve.
-          openIn && "pr-2",
-        )}
-        onPointerDown={(event) => {
-          // Only a primary press edits: a right press on the place is its
-          // menu, and so is a Control press on a Mac.
-          if (
-            event.button !== 0 ||
-            (event.ctrlKey && isMacOS()) ||
-            (event.target instanceof Element &&
-              event.target.closest("button, [data-drags-out]"))
-          ) {
-            return;
-          }
-          const input = event.currentTarget.querySelector("input");
-          if (input && event.target !== input) {
-            event.preventDefault();
-            input.focus();
-          }
-        }}
-      >
-        <Omnibar
-          initial={locationText(location)}
-          key={locationText(location)}
-          {...(liveAddress ? { liveAddress } : {})}
-          location={location}
-          {...(onSite ? { onSite } : {})}
-          {...(onVisit ? { onVisit } : {})}
-          resting={
-            location.kind === "newTab" ? undefined : (
-              <Field location={location} />
-            )
-          }
-        />
-        {fieldEnd}
-        {openIn && <OpenInAppButton target={openIn} />}
-      </div>
+      {hasField ? (
+        <div
+          className={cn(
+            "group/field relative flex h-8 min-w-0 flex-1 cursor-text items-center gap-2 rounded-xl bg-(--field-fill) px-3 text-[13px] ring-1 ring-foreground/[0.06] [--field-fill:color-mix(in_oklab,var(--foreground)_4.5%,var(--background))] focus-within:ring-foreground/20 focus-within:[--field-fill:var(--card)]",
+            // The app's icon sits at the field's end, with room to breathe
+            // inside the curve.
+            openIn && "pr-2",
+          )}
+          onPointerDown={(event) => {
+            // Only a primary press edits: a right press on the place is its
+            // menu, and so is a Control press on a Mac.
+            if (
+              event.button !== 0 ||
+              (event.ctrlKey && isMacOS()) ||
+              (event.target instanceof Element &&
+                event.target.closest("button, [data-drags-out]"))
+            ) {
+              return;
+            }
+            const input = event.currentTarget.querySelector("input");
+            if (input && event.target !== input) {
+              event.preventDefault();
+              input.focus();
+            }
+          }}
+        >
+          <Omnibar
+            initial={locationText(location)}
+            key={locationText(location)}
+            {...(liveAddress ? { liveAddress } : {})}
+            location={location}
+            {...(onSite ? { onSite } : {})}
+            {...(onVisit ? { onVisit } : {})}
+            resting={
+              location.kind === "newTab" ? undefined : (
+                <Field location={location} />
+              )
+            }
+          />
+          {fieldEnd}
+          {openIn && <OpenInAppButton target={openIn} />}
+        </div>
+      ) : (
+        <div className="flex-1" />
+      )}
       {/* The file up at the size Quick Look gives it, over the window. Ahead
           of the file's own controls, so the × that closes it stays last. */}
       {lookTarget && (

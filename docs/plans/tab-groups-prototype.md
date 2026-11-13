@@ -21,7 +21,7 @@ Build the structure, and nothing that doesn't already exist in the product. The 
 ## Tab groups
 
 - One chat per tab group. A group is a chat plus its tabs, so the chat's existing records are the group's records, and the tabs a chat already keeps (today's side pane tabs) are the group's tabs.
-- **Sidebar rows** are two lines: the title, then the state in words (working, waiting) or the tabs' favicons. A chat-only group's second line says "Chat". No chat icon on rows. Unread groups have a bold title. Starred becomes pinned: pinned rows sit above a plain divider.
+- **Sidebar rows** are two lines, the inbox's two-line row: the title with the time of the chat's last message, then the chat's latest line (the step it is on, the question it waits on, or its last reply), with the tabs' favicons at the line's right end in under half its width. A group whose chat has not started shows its tabs' favicons alone. A new tab has no favicon there. No chat icon on rows. Unread groups have a bold title. Starred becomes pinned: pinned rows sit above a plain divider.
 - **New**: a "New" row with + at the bottom of the list, showing ⌘N. New groups are added at the bottom of the list. Once the list scrolls, "New" sticks to the bottom with a divider above it.
 - **Projects** are listed at the top of the sidebar with no count. Opening one takes the sidebar over as today, with its banner, its groups and a back control. New project is a near-hidden + (or the right-click menu) on the Projects heading.
 - **The sidebar's top row**: the notifications bell beside the traffic lights, the update pill at the right. No Activity button.

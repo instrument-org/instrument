@@ -9,7 +9,6 @@ import { type WindowTab } from "@/client/atoms/window";
 import { PageFavicon } from "@/client/components/favicon";
 import { NetworkStatusIndicator } from "@/client/components/network-status/network-status-pill";
 import { ToolbarTooltip } from "@/client/components/toolbar-tooltip";
-import { WorkingDots } from "@/client/components/transcript/task-card";
 import {
   Avatar,
   AvatarFallback,
@@ -18,6 +17,7 @@ import {
 import { UpdateStatusIndicator } from "@/client/components/update-status-indicator";
 import { useLiveUser } from "@/client/hooks/use-live-user";
 import { formatAcceleratorText } from "@/client/lib/format-accelerator";
+import { formatAbsoluteTime } from "@/client/lib/relative-time";
 import { getInitials } from "@/client/lib/get-initials";
 import { showProjectInFiles } from "@/client/lib/show-in-files";
 import { cn, isMacOS } from "@/client/lib/utils";
@@ -27,7 +27,6 @@ import { CaretLeftIcon } from "@phosphor-icons/react/CaretLeft";
 import { ClockCounterClockwiseIcon } from "@phosphor-icons/react/ClockCounterClockwise";
 import { GearSixIcon } from "@phosphor-icons/react/GearSix";
 import { PlusIcon } from "@phosphor-icons/react/Plus";
-import { QuestionIcon } from "@phosphor-icons/react/Question";
 import { type ChatId } from "@instrument-org/workspace/client";
 import { useQuery } from "@tanstack/react-query";
 import { useAtom } from "jotai";
@@ -35,7 +34,8 @@ import { type ReactNode, type Ref, useEffect, useRef, useState } from "react";
 
 import { HelpMenu } from "./help-menu";
 import { useAppsBySlug } from "./apps-by-slug";
-import { type Chat, hasWords, type Project } from "./chats";
+import { activityLabel, hasWords, type Project } from "./chats";
+import { Peek } from "./chat-row";
 import { NotificationsBell } from "./notifications-bell";
 import { ProjectBanner } from "./project-banner";
 import { projectColor } from "./project-colors";
@@ -46,6 +46,8 @@ import { ScreenMark } from "./pane-tabs";
 import { screenPresentation } from "./screen-presentation";
 import { SearchField } from "./search-field";
 import { lastActiveAt, type TabGroup } from "./tab-groups";
+import { isHomeTab } from "./tab-model";
+import { useNow } from "./use-now";
 import { chatOfGroup } from "./window-href";
 import { useWindowTabs } from "./window-tabs";
 
@@ -438,9 +440,12 @@ function dayLabel(at: number): string {
 }
 
 /**
- * One tab group as two lines: its title, bold while it holds something not
- * yet seen, then where it stands in words while its chat works or waits, or
- * else the marks of its tabs, or Chat for a group with only its chat.
+ * One tab group as two lines, the inbox's two-line row: its title, bold
+ * while it holds something not yet seen, with when the person last wrote in
+ * its chat at the line's end; then its chat's latest line (the step it is
+ * on, the question it waits on, or its last reply), with the marks of the
+ * group's tabs at the line's end. A group whose chat has not started has
+ * only its tabs' marks there.
  */
 export function GroupRow({
   chatTitles,
@@ -459,6 +464,7 @@ export function GroupRow({
 }) {
   const chat = entry.kind === "chat" ? entry.chat : undefined;
   const isUnread = chat?.unread === true;
+  const now = useNow();
   const { selectedTabIn } = useWindowTabs();
   const appsBySlug = useAppsBySlug();
   // A group whose chat has no words yet is named by the tab it has up.
@@ -504,17 +510,30 @@ export function GroupRow({
       role={restore ? undefined : "button"}
     >
       <div className="min-w-0 flex-1">
-        <div
-          className={cn(
-            "truncate text-[13px] leading-5",
-            isUnread
-              ? "font-semibold text-foreground"
-              : "font-medium text-foreground/85",
+        <div className="flex h-5 min-w-0 items-center gap-1.5">
+          <span
+            className={cn(
+              "min-w-0 flex-1 truncate text-[13px] leading-5",
+              isUnread
+                ? "font-semibold text-foreground"
+                : "font-medium text-foreground/85",
+            )}
+          >
+            {title}
+          </span>
+          {chat && (
+            <span
+              className={cn(
+                "shrink-0 text-right text-[11px] text-muted-foreground/70 tabular-nums",
+                isUnread && "font-semibold",
+              )}
+              title={formatAbsoluteTime(new Date(chat.lastUserMessageAt))}
+            >
+              {activityLabel(new Date(chat.lastUserMessageAt), now)}
+            </span>
           )}
-        >
-          {title}
         </div>
-        <div className="flex h-5 min-w-0 items-center text-[12px] leading-5">
+        <div className="flex h-5 min-w-0 items-center gap-2 text-[12px] leading-5">
           <SecondLine chatTitles={chatTitles} entry={entry} />
         </div>
       </div>
@@ -558,7 +577,12 @@ async function rowMenu(entry: TabGroup) {
   return picked.id;
 }
 
-/** The second line of a row: what its chat is doing, or what its tabs are. */
+/**
+ * The second line of a row: its chat's latest line, as the inbox's row says
+ * it, and the marks of its tabs, a new tab's aside, at the line's end and at
+ * most under half of it; a group whose chat has not started has the marks
+ * alone.
+ */
 function SecondLine({
   chatTitles,
   entry,
@@ -568,47 +592,39 @@ function SecondLine({
 }) {
   const { allTabs } = useWindowTabs();
   const appsBySlug = useAppsBySlug();
-  const chat: Chat | undefined = entry.kind === "chat" ? entry.chat : undefined;
-  if (chat?.status === "working") {
-    const step = chat.latest?.kind === "step" ? chat.latest.text : "Working";
-    return (
-      <span className="flex min-w-0 items-center gap-1.5 text-brand-600 dark:text-brand-400">
-        <WorkingDots />
-        <span className="truncate">{step}</span>
-      </span>
-    );
-  }
-  if (chat?.status === "waiting") {
-    return (
-      <span className="flex min-w-0 items-center gap-1.5 text-foreground/80">
-        <QuestionIcon className="size-3.5 shrink-0" />
-        <span className="truncate">
-          {chat.latest?.kind === "question"
-            ? chat.latest.text
-            : "Waiting for you"}
-        </span>
-      </span>
-    );
-  }
-  const tabs = allTabs.filter((tab) => tab.group === entry.group);
-  if (tabs.length === 0) {
-    return (
-      <span className="text-muted-foreground">
-        {entry.kind === "chat" ? "Chat" : "Nothing open yet"}
+  const tabs = allTabs.filter(
+    (tab) => tab.group === entry.group && !isHomeTab(tab),
+  );
+  const marks = tabs
+    .slice(0, 8)
+    .map((tab) => (
+      <TabMark
+        appsBySlug={appsBySlug}
+        chatTitles={chatTitles}
+        key={tab.id}
+        tab={tab}
+      />
+    ));
+  if (entry.kind === "draft") {
+    return tabs.length === 0 ? (
+      <span className="text-muted-foreground">Nothing open yet</span>
+    ) : (
+      <span className="flex min-w-0 items-center gap-1 overflow-hidden text-muted-foreground">
+        {marks}
       </span>
     );
   }
   return (
-    <span className="flex min-w-0 items-center gap-1 overflow-hidden text-muted-foreground">
-      {tabs.slice(0, 8).map((tab) => (
-        <TabMark
-          appsBySlug={appsBySlug}
-          chatTitles={chatTitles}
-          key={tab.id}
-          tab={tab}
-        />
-      ))}
-    </span>
+    <>
+      <span className="flex min-w-0 flex-1">
+        <Peek chat={entry.chat} />
+      </span>
+      {tabs.length > 0 && (
+        <span className="flex max-w-[45%] shrink-0 items-center justify-end gap-1 overflow-hidden text-muted-foreground">
+          {marks}
+        </span>
+      )}
+    </>
   );
 }
 

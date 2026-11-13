@@ -142,7 +142,7 @@ function draftGroup(draft: Draft): TabGroup {
     draft,
     group: draftGroupOf(draft.id),
     kind: "draft",
-    title: draft.words.trim() === "" ? "New tab" : draftTitle(draft.words),
+    title: draft.words.trim() === "" ? "New chat" : draftTitle(draft.words),
   };
 }
 

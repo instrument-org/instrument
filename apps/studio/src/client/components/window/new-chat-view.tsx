@@ -51,6 +51,7 @@ import { projectColor } from "./project-colors";
 import { ProjectMark } from "./project-mark";
 import { projectTint } from "./project-tint";
 import { ProjectSlot } from "./compose-window";
+import { useComposerAddress } from "./composer-address";
 import { ContextChips } from "./context-chip";
 import { type BandTarget, openInBand } from "./draft-band";
 import { includedItemsOf } from "./draft-context";
@@ -80,6 +81,7 @@ export function NewChatView({
   draftId,
   ensureGroup,
   isPaneShown,
+  onAddress,
   onOpenBeside,
   tabId,
   takesCaret,
@@ -91,6 +93,8 @@ export function NewChatView({
   ensureGroup: () => string;
   /** Whether the side panel shows the draft's tab up, where its tabs stand as a strip rather than as chips. */
   isPaneShown: boolean;
+  /** Opens a page an address or a search typed into the composer names; given, the composer offers them. */
+  onAddress?: (url: string) => void;
   /** Brings the side panel up for something just opened into it. */
   onOpenBeside: (group: string) => void;
   tabId: string;
@@ -219,7 +223,6 @@ export function NewChatView({
     selectedId: up?.id,
   });
 
-
   const staging = useDraftStaging({
     // A paste is on disk the moment it arrives, so it makes the draft.
     draftFor: (make) => draft?.id ?? (make ? makeDraft({ tabId }) : undefined),
@@ -264,6 +267,15 @@ export function NewChatView({
       openBeside(BROWSER_HREF);
     },
   };
+
+  const address = useComposerAddress({
+    onCleared: () => {
+      inputRef.current?.clear();
+    },
+    onOpen: (url) => {
+      onAddress?.(url);
+    },
+  });
 
   return (
     <FileDropRegion className="flex h-full min-h-0 flex-col">
@@ -338,7 +350,11 @@ export function NewChatView({
       <div className="grid min-h-0 flex-1 place-items-center overflow-hidden px-6">
         {roomOf && <ProjectRoom key={roomOf.id} project={roomOf} />}
       </div>
-      <div className="isolate mx-auto w-full max-w-3xl shrink-0 px-3 pb-3">
+      <div
+        className="relative isolate mx-auto w-full max-w-3xl shrink-0 px-3 pb-3"
+        {...(onAddress ? address.boxProps : {})}
+      >
+        {onAddress && address.rows}
         <PromptInput
           attachmentsLead={
             draft ? <MarkedPills draftId={draft.id} /> : undefined

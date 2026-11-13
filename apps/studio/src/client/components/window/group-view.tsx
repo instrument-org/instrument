@@ -167,6 +167,13 @@ export function GroupView({
         draftId={draft}
         ensureGroup={() => group}
         isPaneShown
+        {...(isChatFirst
+          ? {
+              onAddress: (url: string) => {
+                appWindow.browser?.open(url, { group });
+              },
+            }
+          : {})}
         onOpenBeside={() => undefined}
         tabId={tabId}
         takesCaret={isChatFirst}

@@ -132,7 +132,7 @@ const NOUNS: Record<Exclude<OmnibarMode, "files" | "web">, string> = {
   chats: "chats",
 };
 
-interface OmniRow {
+export interface OmniRow {
   /** Muted after the name: a page's address, what Enter does with the words. */
   detail?: string | undefined;
   /**
@@ -342,7 +342,7 @@ export function Omnibar({
     }
   };
 
-  const found = useRows({
+  const found = useOmnibarRows({
     canComplete,
     isEditing,
     location,
@@ -602,9 +602,10 @@ export function Omnibar({
 /**
  * The rows the words in the field stand for, in the terms of what the tab
  * holds, the first of them what Enter does, and the rest of a name or an
- * address the field writes in ahead of the caret.
+ * address the field writes in ahead of the caret. A new chat's composer asks
+ * for the web's, for an address or a search typed at its start.
  */
-function useRows({
+export function useOmnibarRows({
   canComplete,
   isEditing,
   location,

@@ -34,7 +34,7 @@ import { PaneTabs } from "./pane-tabs";
 import { RightPane } from "./right-pane";
 import { useShell } from "./shell-context";
 import { useTabGroupActions, useOpenGroups } from "./tab-groups";
-import { useTabDragToSidebar } from "./tab-drag";
+import { useGroupTabDrag } from "./tab-drag";
 import { useTabSurface } from "./tab-surface";
 import { useWindowTabs } from "./window-tabs";
 
@@ -62,7 +62,7 @@ export function GroupView({
   const isSidebarOpen = useAtomValue(sidebarOpenAtom);
   const isActive = useIsActiveTab();
   const tabId = useTabId();
-  const drag = useTabDragToSidebar();
+  const drag = useGroupTabDrag();
 
   const group = chat ?? (draft === undefined ? undefined : draftGroupOf(draft));
   const tabs =

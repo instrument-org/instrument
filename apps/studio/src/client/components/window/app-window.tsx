@@ -138,6 +138,7 @@ import { WindowFrame } from "./window-frame";
 import { CloseGroupDialog } from "./close-group-dialog";
 import { GroupSidebar } from "./group-sidebar";
 import { isGroupScreenHref } from "./group-screen";
+import { useGroupTabDrag } from "./tab-drag";
 import {
   groupAlong,
   groupHref,
@@ -163,12 +164,7 @@ import {
 } from "./window-tabs";
 import { flashStripTab } from "./tab-strip";
 import { useFollowFolderMoves } from "./follow-folder-moves";
-import {
-  forgetMovedAway,
-  hasMovedAway,
-  moveTabOut,
-  receiveTab,
-} from "./move-tab";
+import { forgetMovedAway, hasMovedAway, receiveTab } from "./move-tab";
 import { sitesLeaving, sitesNoLongerHere, sitesPutAway } from "./site-let-go";
 
 // Resolve the computer file channel once at boot so file URLs derive locally
@@ -461,6 +457,7 @@ function WindowShell({
 }) {
   const appTabs = useAppTabs();
   const groups = useTabGroupActions();
+  const groupTabDrag = useGroupTabDrag();
   const groupList = useOpenGroups();
   const [isSidebarOpen, setSidebarOpen] = useAtom(sidebarOpenAtom);
   const setSidebarView = useSetAtom(sidebarViewAtom);
@@ -1196,9 +1193,12 @@ function WindowShell({
         }
       },
       showTab: showFromOutside,
+      // The tab up in the group, to a group and a window of its own, as
+      // dragging it off the window does.
       moveTabToNewWindow: () => {
-        if (appTabs.model.selectedId) {
-          void moveTabOut(appTabs.model.selectedId, { kind: "new" });
+        const up = windowTabs.active;
+        if (up) {
+          groupTabDrag.toNewWindow(up.id, { isAtPointer: false });
         }
       },
       receiveTab,

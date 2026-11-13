@@ -288,7 +288,7 @@ export function GroupSidebar({
 /**
  * The list, with New after its last row, or held at the sidebar's foot over
  * a line once the list is long enough to scroll. A tab let go of over the
- * list's empty space becomes a group of its own (`useTabDragToSidebar`).
+ * list's empty space becomes a group of its own (`useGroupTabDrag`).
  */
 function ScrollingList({
   body,

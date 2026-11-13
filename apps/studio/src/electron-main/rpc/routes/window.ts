@@ -13,6 +13,10 @@ import {
   takePendingAppWindowAsks,
 } from "@/electron-main/windows/app-window";
 import {
+  endGroupTabPull as endPull,
+  noteGroupTabPull as notePull,
+} from "@/electron-main/windows/group-tab-pull";
+import {
   endTabCarry as endCarry,
   moveTabNow,
   noteTabCarry as noteCarry,
@@ -25,7 +29,10 @@ import {
   TabSchema,
   TabStandingSchema,
 } from "@/shared/tabs";
-import { liveRead } from "@instrument-org/workspace/electron";
+import {
+  BrowserTargetIdSchema,
+  liveRead,
+} from "@instrument-org/workspace/electron";
 import { Menu } from "electron";
 import { z } from "zod";
 
@@ -213,6 +220,30 @@ const showAppMenu = base.input(PointSchema).handler(({ context, input }) => {
   }
 });
 
+/** A group's tab dragged off its window, or back on it. */
+const noteGroupTabPull = base
+  .input(z.object({ isOff: z.boolean() }))
+  .handler(({ context, input }) => {
+    notePull(context.webContentsId, input.isOff);
+  });
+
+/** A group's tab let go: with `open`, off its window, which opens a window of its own there at these tabs. */
+const endGroupTabPull = base
+  .input(
+    z.object({
+      open: z
+        .object({
+          isAtPointer: z.boolean(),
+          pages: z.array(BrowserTargetIdSchema),
+          tabs: z.array(TabSchema),
+        })
+        .optional(),
+    }),
+  )
+  .handler(({ context, input }) => {
+    endPull(context.webContentsId, input.open);
+  });
+
 /** Lets the tab go, and says where it lands. */
 const endTabCarry = base
   .input(
@@ -225,11 +256,13 @@ const endTabCarry = base
 
 export const window = {
   canReopenClosed,
+  endGroupTabPull,
   endTabCarry,
   events,
   live: { others },
   mergeAll,
   moveTab,
+  noteGroupTabPull,
   noteTabCarry,
   placeTabCarry,
   openNew,

@@ -200,12 +200,15 @@ export function useTabGroupActions() {
   const make = ({
     fill,
     href = NEW_TAB_HREF,
+    isShownHere = true,
     moving,
     projectId,
   }: {
     /** Opens what the group starts with, in place of a new tab. */
     fill?: (group: string) => void;
     href?: string;
+    /** Whether this window comes up on it: not for one a window of its own is opening on. */
+    isShownHere?: boolean;
     /** A tab to move into the new group in place of opening one. */
     moving?: string;
     projectId?: string;
@@ -229,7 +232,9 @@ export function useTabGroupActions() {
     } else {
       moveTab(moving, group);
     }
-    appTabs.navigate(newChatHref(id));
+    if (isShownHere) {
+      appTabs.navigate(newChatHref(id));
+    }
     return group;
   };
 

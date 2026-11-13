@@ -152,7 +152,7 @@ let carry: Carry | null = null;
 let isReleasing = false;
 
 /** A Wayland client cannot place its own window, so nothing could follow the pointer. */
-function canPlaceWindows() {
+export function canPlaceWindows() {
   return (
     process.platform !== "linux" ||
     effectiveDisplayProtocol(

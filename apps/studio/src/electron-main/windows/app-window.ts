@@ -530,11 +530,14 @@ export function restoreAppWindows() {
 }
 
 /**
- * A window of its own, standing off the one in front: at these tabs, the
- * first up, or at the inbox with none.
+ * A window of its own, standing off the one in front unless given its place:
+ * at these tabs, the first up, or at the inbox with none.
  */
 export function openNewAppWindow(
   tabs: readonly Tab[] = [],
+  {
+    bounds = cascadedBounds(),
+  }: { bounds?: ReturnType<typeof cascadedBounds> } = {},
 ): BrowserWindow | null {
   if (isSetupUp()) {
     return null;
@@ -548,7 +551,7 @@ export function openNewAppWindow(
       tabs: [...tabs],
     });
   }
-  return createAppWindow(id, { bounds: cascadedBounds() });
+  return createAppWindow(id, { bounds });
 }
 
 function openSpareWindow(): SpareWindow {

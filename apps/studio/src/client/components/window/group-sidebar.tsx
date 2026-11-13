@@ -172,7 +172,7 @@ export function GroupSidebar({
   const chats = open.flatMap((entry) =>
     entry.kind === "chat" ? [entry.chat] : [],
   );
-  const arriving = useArrivals(useAtomValue(windowTabGroupsAtom) ?? []);
+  const arriving = useArrivals(useAtomValue(windowTabGroupsAtom) ?? NO_GROUPS);
 
   const row = (
     entry: TabGroup,
@@ -369,6 +369,9 @@ export function GroupSidebar({
     </nav>
   );
 }
+
+/** The list of a window that has none yet, one array for every render. */
+const NO_GROUPS: readonly string[] = [];
 
 /** How long a row takes to open its room in the list, or to close it. */
 const ROW_MOTION_MS = 200;

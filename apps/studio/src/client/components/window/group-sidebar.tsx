@@ -146,6 +146,7 @@ export function GroupSidebar({
   history,
   onClose,
   onCloseAll,
+  onDuplicate,
   onNew,
   onNewProject,
   onNewProjectFor,
@@ -166,6 +167,8 @@ export function GroupSidebar({
   onClose: (group: string) => void;
   /** Closes several groups at once, from the row whose menu asked (`keep`). */
   onCloseAll: (groups: string[], keep: string) => void;
+  /** A copy of a group just below it, up in the window. */
+  onDuplicate: (entry: TabGroup) => void;
   onNew: (projectId?: string) => void;
   onNewProject: () => void;
   /** The new-project dialog for one group, which files it under the project it makes. */
@@ -282,6 +285,9 @@ export function GroupSidebar({
       onCloseOthers: closing(
         shownRows.filter((each) => each.group !== entry.group),
       ),
+      onDuplicate: () => {
+        onDuplicate(entry);
+      },
       onNewProject: () => {
         onNewProjectFor(
           entry.kind === "chat"

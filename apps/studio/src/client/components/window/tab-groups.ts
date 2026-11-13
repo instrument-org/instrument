@@ -23,7 +23,7 @@ import {
 } from "@/shared/drafts";
 import { keptTabGroupsOf, TAB_GROUPS_KEY } from "@/shared/kept-state";
 import { type SidebarPlace } from "@/shared/tabs";
-import { type ChatId } from "@instrument-org/workspace/client";
+import { type ChatId, StoreId } from "@instrument-org/workspace/client";
 import {
   type QueryClient,
   useQuery,
@@ -50,7 +50,7 @@ import {
 import { chatListOptions, paintChatRow } from "./chat-list-query";
 import { type Chat, draftTitle } from "./chats";
 import { isGroupScreenHref } from "./group-screen";
-import { isHomeTab } from "./tab-model";
+import { isHomeTab, selectedTabIn, tabsIn } from "./tab-model";
 import { chatHref, matchScreen, newChatHref } from "./window-href";
 import { useWindowTabs, windowTabsAtom } from "./window-tabs";
 
@@ -421,6 +421,45 @@ export function starChat(
   );
 }
 
+/**
+ * A group's tabs as its copy starts with them, in their order and each
+ * under a new id (`newId`), in `group`: a page at the address it shows,
+ * with its title and icon until it loads, and a screen at its own address,
+ * so a new tab stays a new tab. Neither takes its history. `up` is the
+ * copy of the tab `up` names.
+ */
+export function copiedTabs(
+  tabs: readonly WindowTab[],
+  {
+    group,
+    newId,
+    now,
+    up,
+  }: { group: string; newId: () => string; now: number; up?: string },
+): { tabs: WindowTab[]; up: string | undefined } {
+  let upCopy: string | undefined;
+  const copies = tabs.map((tab): WindowTab => {
+    const id = newId();
+    if (tab.id === up) {
+      upCopy = id;
+    }
+    if (tab.kind === "screen") {
+      return { group, href: tab.href, id, kind: "screen" };
+    }
+    const address = tab.url ?? tab.openedUrl;
+    return {
+      ...(tab.favicon === undefined ? {} : { favicon: tab.favicon }),
+      group,
+      id,
+      kind: "page",
+      openedAt: now,
+      ...(address === undefined ? {} : { openedUrl: address, url: address }),
+      ...(tab.title === undefined ? {} : { title: tab.title }),
+    };
+  });
+  return { tabs: copies, up: upCopy };
+}
+
 /** The address a group stands on in the window's one app tab. */
 export function groupHref(group: string): string {
   const draft = draftOfGroup(group);
@@ -441,6 +480,7 @@ export function useTabGroupActions() {
   const updateDraft = useSetAtom(updateDraftAtom);
   const setChatClosed = useSetAtom(chatClosedByGroupAtom);
   const forgetGroup = useSetAtom(forgetGroupAtom);
+  const setNames = useSetAtom(groupNamesAtom);
   const setPins = useSetAtom(groupPinsAtom);
   const queryClient = useQueryClient();
   /** A chat as the chat list has it now. */
@@ -619,6 +659,41 @@ export function useTabGroupActions() {
     return group;
   };
 
+  /**
+   * A copy of a group just below it, up in this window: a new group whose
+   * chat has not started, with the group's tabs copied (`copiedTabs`) and
+   * the same one up, under the same project, and named and pinned as the
+   * group is. A chat's conversation stays with the chat.
+   */
+  const duplicate = (entry: TabGroup) => {
+    const tabs = store.get(windowTabsAtom);
+    const name = store.get(groupNamesAtom)[entry.group];
+    const projectId =
+      entry.kind === "chat" ? entry.chat.project : entry.draft.projectId;
+    const copy = make({
+      fill: (group) => {
+        const copied = copiedTabs(tabsIn(tabs, entry.group), {
+          group,
+          newId: () => StoreId.newTabId(),
+          now: Date.now(),
+          up: selectedTabIn(tabs, entry.group)?.id,
+        });
+        windowTabs.restoreGroup(group, copied.tabs);
+        if (copied.up !== undefined) {
+          windowTabs.select(copied.up);
+        }
+      },
+      place: { after: entry.group },
+      ...(projectId === undefined ? {} : { projectId }),
+    });
+    if (name !== undefined) {
+      setNames((names) => namedWith(names, copy, name));
+    }
+    if (isPinnedGroup(entry)) {
+      setPins((pins) => pinnedWith(pins, copy, true));
+    }
+  };
+
   /** The group to show once `group` is gone: the one after it in the list, else the one before, else a new one. */
   const neighborOf = (group: string, list: readonly TabGroup[]) => {
     const index = list.findIndex((entry) => entry.group === group);
@@ -757,6 +832,7 @@ export function useTabGroupActions() {
     becomeChat,
     close,
     closeAll,
+    duplicate,
     groupUp,
     hasTabs,
     letGo,

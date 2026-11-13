@@ -1534,6 +1534,9 @@ function WindowShell({
                   onCloseAll={(closed, keep) => {
                     askToClose(closed, keep);
                   }}
+                  onDuplicate={(entry) => {
+                    groups.duplicate(entry);
+                  }}
                   onNew={(projectId) => {
                     groups.make(projectId === undefined ? {} : { projectId });
                   }}

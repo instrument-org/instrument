@@ -2,7 +2,10 @@ import { describe, expect, it, vi } from "vitest";
 
 vi.mock("@/client/rpc/client", () => ({ rpcClient: {} }));
 
+import { type WindowTab } from "@/client/atoms/window";
+
 import {
+  copiedTabs,
   isWorthKeeping,
   listedReplacing,
   listedWith,
@@ -57,6 +60,87 @@ describe("a tab group's name", () => {
       "draft:a": "Wireframes",
     });
     expect(nameCarried(NAMES, "draft:b", "chat")).toBe(NAMES);
+  });
+});
+
+describe("a tab group's tabs, copied", () => {
+  const TABS: WindowTab[] = [
+    {
+      favicon: "data:icon",
+      future: [{ href: "/files", id: "f", kind: "screen" }],
+      group: "chat",
+      id: "p1",
+      isOpened: true,
+      kind: "page",
+      openedAt: 1,
+      openedUrl: "https://example.com",
+      past: [{ href: "/files", id: "f", kind: "screen" }],
+      title: "Example",
+      url: "https://example.com/later",
+    },
+    {
+      group: "chat",
+      id: "p2",
+      kind: "page",
+      openedAt: 1,
+      openedUrl: "https://a.test",
+    },
+    {
+      group: "chat",
+      history: { entries: ["/files", "/files?path=/x"], index: 1 },
+      href: "/files?path=/x",
+      id: "s1",
+      kind: "screen",
+    },
+    { group: "chat", href: "/new-tab", id: "s2", kind: "screen" },
+  ];
+
+  it("takes each tab at its address, with no history, in a new group", () => {
+    let next = 0;
+    expect(
+      copiedTabs(TABS, {
+        group: "draft:copy",
+        newId: () => `n${(next += 1)}`,
+        now: 5,
+        up: "s1",
+      }),
+    ).toMatchInlineSnapshot(`
+      {
+        "tabs": [
+          {
+            "favicon": "data:icon",
+            "group": "draft:copy",
+            "id": "n1",
+            "kind": "page",
+            "openedAt": 5,
+            "openedUrl": "https://example.com/later",
+            "title": "Example",
+            "url": "https://example.com/later",
+          },
+          {
+            "group": "draft:copy",
+            "id": "n2",
+            "kind": "page",
+            "openedAt": 5,
+            "openedUrl": "https://a.test",
+            "url": "https://a.test",
+          },
+          {
+            "group": "draft:copy",
+            "href": "/files?path=/x",
+            "id": "n3",
+            "kind": "screen",
+          },
+          {
+            "group": "draft:copy",
+            "href": "/new-tab",
+            "id": "n4",
+            "kind": "screen",
+          },
+        ],
+        "up": "n3",
+      }
+    `);
   });
 });
 

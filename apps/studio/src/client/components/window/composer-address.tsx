@@ -10,18 +10,18 @@ import {
 
 import { type OmniRow, useOmnibarRows } from "./omnibar";
 
-/** Past this many words, what is typed reads as a message, and nothing is offered or asked for. */
+/** Past this many words, what is typed reads as a message, and nothing is offered. */
 const WORDS_OFFERED = 4;
 const LETTERS_OFFERED = 80;
 
 /**
  * An address or a search typed at the start of a new chat, answered the way
- * the address field answers it: the rows above the composer, with the
- * engine's suggestions, while the words are a single short line. An address
- * opens on Enter; any other row opens when the arrows pick it or it is
- * pressed; and Enter on plain words sends them to the chat as ever. Words
- * past a few are a message, so nothing is offered for them and nothing is
- * asked of the engine.
+ * the address field answers it but from the computer alone: the rows above
+ * the composer, the site, the search and pages from bookmarks and history,
+ * while the words are a single short line. An address opens on Enter; any
+ * other row opens when the arrows pick it or it is pressed; and Enter on
+ * plain words sends them to the chat as ever. Words past a few are a message,
+ * so nothing is offered for them.
  *
  * The box is told through `boxProps`, laid on an element around the
  * composer: what is typed is read off the editor as it changes, and the keys
@@ -61,7 +61,10 @@ export function useComposerAddress({
     setTyped("");
     setPicked(undefined);
   };
+  // Words typed into a chat stay on the computer until they are sent, so
+  // nothing goes to the engine for suggestions.
   const found = useOmnibarRows({
+    asksEngine: false,
     canComplete: false,
     isEditing: isOffered,
     location: { kind: "newTab" },

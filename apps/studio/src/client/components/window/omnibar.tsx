@@ -603,9 +603,11 @@ export function Omnibar({
  * The rows the words in the field stand for, in the terms of what the tab
  * holds, the first of them what Enter does, and the rest of a name or an
  * address the field writes in ahead of the caret. A new chat's composer asks
- * for the web's, for an address or a search typed at its start.
+ * for the web's, for an address or a search typed at its start, without the
+ * engine's suggestions.
  */
 export function useOmnibarRows({
+  asksEngine = true,
   canComplete,
   isEditing,
   location,
@@ -613,6 +615,8 @@ export function useOmnibarRows({
   open,
   typed,
 }: {
+  /** Whether the words go to the search engine for its suggestions as they are typed. */
+  asksEngine?: boolean;
   canComplete: boolean;
   /** Whether the field is being typed in, the only time the rows are read. */
   isEditing: boolean;
@@ -664,7 +668,7 @@ export function useOmnibarRows({
     );
   // What the engine would finish the words as, asked once typing pauses
   // rather than on every letter, and never for a path or an address.
-  const wantsSuggestions = mode === "web" && isSearchWords(words);
+  const wantsSuggestions = asksEngine && mode === "web" && isSearchWords(words);
   const [asked, setAsked] = useState("");
   useEffect(() => {
     const timer = setTimeout(() => {

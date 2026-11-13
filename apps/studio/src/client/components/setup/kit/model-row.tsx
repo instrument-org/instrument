@@ -5,12 +5,13 @@ import { type ReactNode } from "react";
 /**
  * One model to pick, inside a `RadioGroup`: the radio, the maker's mark, the
  * model's name, a quieter line beside it (the model line behind one of
- * Instrument's), and Recommended on the one setup suggests. The whole row
- * picks it.
+ * Instrument's), Recommended on the one setup suggests, and Current on the
+ * one new chats use now. The whole row picks it.
  */
 export function ModelRow({
   icon,
   id,
+  isCurrent = false,
   isRecommended = false,
   isSelected,
   name,
@@ -20,6 +21,7 @@ export function ModelRow({
   icon: ReactNode;
   /** Unique in the page, for the label to point at its radio. */
   id: string;
+  isCurrent?: boolean;
   isRecommended?: boolean;
   isSelected: boolean;
   name: string;
@@ -45,6 +47,11 @@ export function ModelRow({
       <span className="flex min-w-0 flex-1 items-center gap-2 text-sm">
         <span className="truncate font-medium text-foreground">{name}</span>
         {sub && <span className="truncate text-gray-400">{sub}</span>}
+        {isCurrent && (
+          <span className="shrink-0 rounded-full bg-gray-100 px-2 py-0.5 text-xs font-semibold text-gray-600 dark:bg-white/10 dark:text-gray-200">
+            Current
+          </span>
+        )}
         {isRecommended && (
           <span className="shrink-0 rounded-full bg-brand-50 px-2 py-0.5 text-xs font-semibold text-brand-700 dark:bg-white/10 dark:text-gray-200">
             Recommended

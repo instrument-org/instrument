@@ -14,7 +14,7 @@ import { type AIGatewayModel } from "@instrument-org/ai-gateway/client";
 import { OUR_MODELS } from "@instrument-org/shared";
 import { MagnifyingGlassIcon } from "@phosphor-icons/react/MagnifyingGlass";
 import { useMutation, useQuery } from "@tanstack/react-query";
-import { useEffect, useRef, useState } from "react";
+import { type ReactNode, useEffect, useRef, useState } from "react";
 import { CONNECT_NAMES } from "@/client/lib/connect-copy";
 
 import { BrandTile } from "../kit/brand-tile";
@@ -60,6 +60,7 @@ export function ModelStep({ onBack, onContinue }: SetupStepProps) {
     <SetupPage
       footer={
         <SetupFooter
+          label={choice.doneLabel("Continue")}
           next={
             choice.isLoading
               ? "off"
@@ -132,23 +133,35 @@ export function useMainModelChoice(connection?: LastConnection) {
   // waits for them, and offers every connection's once it is slow.
   const isWaitingOnOwn = connection !== undefined && own.length === 0;
   const models = isWaitingOnOwn && isSlow ? choosable : own;
+  // The model new chats use now, when another connection serves it: it
+  // leads the list, picked, so leaving it takes a pick of its own.
+  const current = choosable.find(
+    (model) => model.uri === entry?.defaultURI && !models.includes(model),
+  );
   const recommended = recommendedModel(models, entry?.defaultURI);
   const [picked, setPicked] = useState<string | undefined>(undefined);
-  const chosen = picked ?? recommended?.uri;
+  const chosen = picked ?? current?.uri ?? recommended?.uri;
   const isShort = isShortList(models);
 
   const connections = connectionsOf(models);
   const [only] = connections;
-  const subtitle =
-    connections.length === 1 && only?.isOurs
+  const subtitle = current
+    ? `Pick another to switch. ${LATER}`
+    : connections.length === 1 && only?.isOurs
       ? `Your plan includes all of these. ${LATER}`
       : connections.length === 1 && only
         ? `${only.name} is connected${isShort ? "" : `, with ${String(models.length)} models ready`}. ${LATER}`
         : LATER;
+  const switchingTo =
+    current && chosen !== current.uri
+      ? models.find((candidate) => candidate.uri === chosen)
+      : undefined;
 
   /** Makes the one picked the default, then `onDone`. */
   const save = (onDone: () => void) => {
-    const model = models.find((candidate) => candidate.uri === chosen);
+    const model = [...(current ? [current] : []), ...models].find(
+      (candidate) => candidate.uri === chosen,
+    );
     if (!model) {
       // Nothing listed to pick from: moving on leaves the default as it is.
       onDone();
@@ -159,11 +172,17 @@ export function useMainModelChoice(connection?: LastConnection) {
 
   return {
     chosen,
+    current,
+    /** What the button that saves says: `label`, or the switch a pick away from the current model makes. */
+    doneLabel: (label: string) =>
+      switchingTo ? `Switch to ${switchingTo.name.trim()}` : label,
     isLoading: isLoading || (isWaitingOnOwn && !isSlow),
     isSaving: isPending,
     isShort,
     isSlow,
     models,
+    newFrom: only?.name,
+    newFromProvider: only?.provider,
     recommended,
     save,
     setPicked,
@@ -207,6 +226,7 @@ export function MainModelList({
         </p>
       ) : isShort ? (
         <div className="flex w-140 max-w-full flex-col rounded-2xl border bg-card p-2">
+          <CurrentModel choice={choice} />
           {shortList(models, recommended).map((model, index, shown) => (
             <div key={model.uri}>
               {/* A rule between rows, left blank beside the picked one,
@@ -228,6 +248,13 @@ export function MainModelList({
       ) : (
         <LongList
           count={models.length}
+          head={
+            choice.current && (
+              <div className="p-2 pb-0">
+                <CurrentModel choice={choice} />
+              </div>
+            )
+          }
           groups={(query) => longListGroups({ models, query, recommended })}
           rowProps={rowProps}
         />
@@ -236,14 +263,55 @@ export function MainModelList({
   );
 }
 
+/**
+ * The model new chats use now, when another connection serves it, labeled
+ * Current, over a rule and the name of the connection whose models follow.
+ */
+function CurrentModel({ choice }: { choice: MainModelChoice }) {
+  const { chosen, current, newFrom, newFromProvider } = choice;
+  if (!current) {
+    return null;
+  }
+  return (
+    <>
+      <ModelGroupLabel>Current model</ModelGroupLabel>
+      <ModelRow
+        icon={<ModelIcon model={current} />}
+        id={`setup-model-${current.uri}`}
+        isCurrent
+        isSelected={current.uri === chosen}
+        name={current.name.trim()}
+        sub={current.providerName.trim()}
+        value={current.uri}
+      />
+      <div className="mx-2 mt-2 h-px bg-border" />
+      <ModelGroupLabel>
+        <span className="flex items-center gap-2">
+          {newFromProvider && (
+            <AIProviderIcon
+              className="size-3.5"
+              colored
+              type={newFromProvider}
+            />
+          )}
+          New from {newFrom}
+        </span>
+      </ModelGroupLabel>
+    </>
+  );
+}
+
 /** Frame 28's box: search across the top, and the groups scrolling under it. */
 function LongList({
   count,
   groups,
+  head,
   rowProps,
 }: {
   count: number;
   groups: (query: string) => ReturnType<typeof longListGroups>;
+  /** What sits over the search: the current model, when there is one. */
+  head?: ReactNode;
   rowProps: (model: AIGatewayModel.Type) => Parameters<typeof ModelRow>[0];
 }) {
   const [query, setQuery] = useState("");
@@ -270,6 +338,7 @@ function LongList({
   const shown = groups(query);
   return (
     <div className="flex h-95 w-140 max-w-full flex-col overflow-hidden rounded-2xl border bg-card shadow-xs">
+      {head}
       <div className="border-b border-gray-100 p-2 dark:border-white/5">
         <InputGroup className="rounded-lg bg-black/5 bg-none shadow-none dark:bg-white/5">
           <InputGroupAddon>

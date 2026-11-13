@@ -745,6 +745,7 @@ function openInAppTargetOf(location: TabLocation): OpenInAppTarget | undefined {
             hostPath:
               location.hostPath ??
               expandHomePath(location.path, window.api.homeDir),
+            ...(location.selected ? { reveal: location.selected } : {}),
           }
         : undefined;
     }

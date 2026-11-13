@@ -12,8 +12,11 @@ import { TOOLBAR_HEIGHT } from "@/shared/constants";
 import { type ReactNode, type Ref } from "react";
 
 import { SIDEBAR_WIDTH } from "@/client/atoms/tab-groups";
-import { WindowControls } from "@/client/components/window-controls";
-import { cn, isMacOS } from "@/client/lib/utils";
+import {
+  useDrawsWindowControls,
+  WindowControls,
+} from "@/client/components/window-controls";
+import { cn } from "@/client/lib/utils";
 import { LinkSurface } from "./link-surface";
 
 // The toasts' corner, 12px in from the card's own: the rail on its left, and
@@ -50,6 +53,8 @@ export function WindowFrame({
   // waits rather than landing over setup.
   const isSetupUp = useIsSetupUp();
   const isStripShown = useDeveloperStripShown();
+  const drawsControls = useDrawsWindowControls();
+  const drawsCaptionButtons = !hasBar && drawsControls;
   // Toasts are placed from the viewport's foot, which the developer band sits on.
   const toastCorner = {
     ...CARD_CORNER,
@@ -65,8 +70,16 @@ export function WindowFrame({
         at, so a viewport height would apply that zoom a second time. */}
       {/* Marked once the window is up, which is when it has its bar: the
         packaged-app smoke test waits for this rather than a loading frame. */}
+      {/* What sits at the card's top right moves left of the caption
+        buttons by `--caption-room` (`CaptionRoom`): three 48px buttons from
+        the window's edge, less the card's 8px inset, and a little room. */}
       <div
-        className="relative flex h-full flex-col bg-ground"
+        className={cn(
+          "relative flex h-full flex-col bg-ground",
+          drawsCaptionButtons
+            ? "[--caption-room:140px]"
+            : "[--caption-room:0px]",
+        )}
         data-testid={bar || !hasBar ? "app-page" : undefined}
         inert={isSetupUp}
       >
@@ -104,7 +117,7 @@ export function WindowFrame({
         </div>
         {/* Off the Mac the window draws its own caption buttons, at its top
           right over the card's corner, where the system would. */}
-        {!hasBar && !isMacOS() && (
+        {drawsCaptionButtons && (
           <div className="absolute top-0 right-0 z-30 flex h-10 items-center">
             <WindowControls />
           </div>

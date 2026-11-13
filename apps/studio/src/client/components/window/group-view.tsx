@@ -6,6 +6,7 @@ import {
   sidebarOpenAtom,
 } from "@/client/atoms/tab-groups";
 import { ToolbarTooltip } from "@/client/components/toolbar-tooltip";
+import { CaptionRoom } from "@/client/components/window-controls";
 import { WorkingDots } from "@/client/components/transcript/task-card";
 import { draftsAtom } from "@/client/drafts/store";
 import { useIsActiveTab, useTabId } from "@/client/hooks/use-active-tab";
@@ -214,10 +215,19 @@ export function GroupView({
       </div>
     );
 
+  // Whichever row reaches the card's top right ends clear of the caption
+  // buttons off the Mac: the chat's head while it has the card or the
+  // column, else the tabs.
   if (!hasWork || group === undefined) {
     return (
       <div className="relative flex min-h-0 min-w-0 flex-1 flex-col">
-        {conversation(plus, isSidebarOpen ? undefined : <SidebarLead />)}
+        {conversation(
+          <>
+            {plus}
+            <CaptionRoom />
+          </>,
+          isSidebarOpen ? undefined : <SidebarLead />,
+        )}
       </div>
     );
   }
@@ -281,7 +291,12 @@ export function GroupView({
         onTabDragEnd={drag.onTabDragEnd}
         tabs={tabs}
         taskTitles={shell.childTitles}
-        trailing={chatButton}
+        trailing={
+          <>
+            {chatButton}
+            {!showsColumn && <CaptionRoom />}
+          </>
+        }
       />
       <div className="relative min-h-0 flex-1 [--guest-bottom-radius:0]">
         <GroupItem
@@ -310,7 +325,12 @@ export function GroupView({
         share={{ atom: chatShareAtom, initial: CHAT_DEFAULT_SHARE }}
       >
         <div className="flex h-full min-h-0 w-full flex-col overflow-hidden border-l border-border bg-background">
-          {conversation(closeColumn)}
+          {conversation(
+            <>
+              {closeColumn}
+              <CaptionRoom />
+            </>,
+          )}
         </div>
       </RightPane>
     </div>

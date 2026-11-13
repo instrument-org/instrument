@@ -571,7 +571,7 @@ function dayLabel(at: number): string {
  * on, the question it waits on, or its last reply), with the marks of the
  * group's tabs at the line's end. A group whose chat has not started has
  * only its tabs' marks there. While the pointer is on a row that closes, a
- * close X stands in the time's place.
+ * close X stands in the time's place, and a middle click closes it too.
  */
 export function GroupRow({
   chatTitles,
@@ -615,9 +615,23 @@ export function GroupRow({
         onShow && "cursor-default",
       )}
       {...(restore ? {} : { "data-group-row": entry.group })}
+      onAuxClick={(event) => {
+        // A middle click closes the group the way its X does, asking first
+        // while its agent works.
+        if (event.button === 1 && onClose && !restore) {
+          event.preventDefault();
+          onClose(entry.group);
+        }
+      }}
       onClick={(event) => {
         if (!restore) {
           onShow?.(entry.group, { newWindow: event.shiftKey });
+        }
+      }}
+      // A middle press would start the list's autoscroll.
+      onMouseDown={(event) => {
+        if (event.button === 1) {
+          event.preventDefault();
         }
       }}
       onContextMenu={(event) => {

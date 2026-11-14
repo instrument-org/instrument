@@ -160,6 +160,7 @@ describe("sendContext", () => {
       chatId: CHAT,
       finderOf: () => null,
       inView: site,
+      sent: [],
       taken: [],
     });
     const send = (items: ContextItem[]) =>

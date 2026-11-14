@@ -1,6 +1,13 @@
-import { type ChatId } from "@instrument-org/workspace/client";
+import { transcriptFeedOptions } from "@/client/components/transcript/use-transcript-feed";
+import {
+  type ChatId,
+  type SessionMessageDataPart,
+  type TranscriptFeed,
+} from "@instrument-org/workspace/client";
+import { useQuery } from "@tanstack/react-query";
 import { atom, useAtomValue, useSetAtom } from "jotai";
 
+import { chatListOptions } from "./chat-list-query";
 import {
   chatContextItems,
   chatSuggestionOf,
@@ -22,14 +29,32 @@ const takenForNextMessageAtom = atom<Record<string, readonly ContextItem[]>>(
 );
 
 /**
+ * What this window sent with each chat's messages, by the chat, so it is not
+ * offered again in the moment before the message is in the transcript.
+ */
+const sentFromHereAtom = atom<Record<string, readonly ContextItem[]>>({});
+
+const NOTHING_SENT: readonly SessionMessageDataPart.SentChip[] = [];
+
+/** The chips the messages of a transcript went with, as far as it is read. */
+function sentChipsOf(feed: TranscriptFeed): SessionMessageDataPart.SentChip[] {
+  return feed.messages.flatMap((message) =>
+    message.parts.flatMap((part) =>
+      part.type === "data-viewContext" ? (part.data.attached ?? []) : [],
+    ),
+  );
+}
+
+/**
  * What a chat's next message carries besides its words (see
  * chatContextItems), the chips it draws for them, and what is offered beside
  * them. The chat's own tab goes without a chip: it is on screen beside the
  * conversation, often the page the agent was just working in, so a chip
  * would only say again what is in view. What stands behind a chat popped out
- * over another screen is offered, never carried, until the person takes it;
- * what was taken goes with the next message only, and the row is empty again
- * once it has gone (`sent`).
+ * over another screen is offered, never carried, until the person takes it,
+ * and never once one of the chat's messages went with it; what was taken goes
+ * with the next message only, and the row is empty again once it has gone
+ * (`sent`).
  */
 export function useChatContext({
   chatId,
@@ -57,6 +82,20 @@ export function useChatContext({
   const takenByChat = useAtomValue(takenForNextMessageAtom);
   const setTakenByChat = useSetAtom(takenForNextMessageAtom);
   const taken = takenByChat[chatId] ?? NOTHING_TAKEN;
+  const sentFromHere = useAtomValue(sentFromHereAtom)[chatId] ?? NOTHING_TAKEN;
+  const setSentFromHere = useSetAtom(sentFromHereAtom);
+  const isOffering = isPoppedOut && !isViewOpen;
+  // The chat's own session, whose transcript the chat's view is reading too.
+  const { data: sessionId } = useQuery({
+    ...chatListOptions(),
+    select: (chats) => chats.find((chat) => chat.id === chatId)?.sessionId,
+  });
+  const { data: sent = NOTHING_SENT } = useQuery({
+    ...transcriptFeedOptions(
+      isOffering && sessionId ? { id: chatId, sessionId } : undefined,
+    ),
+    select: sentChipsOf,
+  });
   const setTaken = (
     update: (current: readonly ContextItem[]) => readonly ContextItem[],
   ) => {
@@ -77,13 +116,18 @@ export function useChatContext({
       setTaken((current) => current.filter((entry) => entry.key !== item.key));
     },
     sent: () => {
+      setSentFromHere((current) => ({
+        ...current,
+        [chatId]: [...(current[chatId] ?? NOTHING_TAKEN), ...taken],
+      }));
       setTaken(() => NOTHING_TAKEN);
     },
     suggestion: chatSuggestionOf({
       chatId,
       finderOf,
-      inView: isPoppedOut && !isViewOpen ? inView : undefined,
-      taken,
+      inView: isOffering ? inView : undefined,
+      sent,
+      taken: [...taken, ...sentFromHere],
     }),
     take: (item) => {
       setTaken((current) => [...current, item]);

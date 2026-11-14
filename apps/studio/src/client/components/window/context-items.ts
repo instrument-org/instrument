@@ -5,11 +5,16 @@ import {
 } from "@/shared/drafts";
 import { type WindowTab } from "@/client/atoms/window";
 import { instrumentLinkOf, instrumentUrlOf } from "@instrument-org/shared";
-import { type ChatId } from "@instrument-org/workspace/client";
+import {
+  type ChatId,
+  type SessionMessageDataPart,
+} from "@instrument-org/workspace/client";
 
 import { includedItemsOf, isIncludable } from "./draft-context";
 import { isFreshTab, isHomeTab } from "./tab-model";
 import { chatOfGroup, chatOfHref } from "./window-href";
+
+type SentChip = SessionMessageDataPart.SentChip;
 
 /** How the key of a chip naming a file or folder by its path starts. */
 const CHOSEN_KEY = "chosen:";
@@ -409,17 +414,20 @@ export function chatContextItems({
  * message as the chip it would be: what is selected in a folder, else the
  * folder, a file, a page or an app's front. Nothing where the screen names
  * nothing, where it is the chat itself or another chat, or where the message
- * already carries it.
+ * already carries it or one of the chat's messages went with it.
  */
 export function chatSuggestionOf({
   chatId,
   finderOf,
   inView,
+  sent,
   taken,
 }: {
   chatId: ChatId;
   finderOf: (id: string) => null | { folder: string; selected: ChosenItem[] };
   inView: undefined | WindowTab;
+  /** The chips the chat's messages went with. */
+  sent: readonly SentChip[];
   taken: readonly ContextItem[];
 }): ContextItem | undefined {
   if (!inView || inView.group === chatId) {
@@ -435,14 +443,23 @@ export function chatSuggestionOf({
     return undefined;
   }
   if (item.items === undefined) {
-    return taken.some(
-      (entry) => entry.kind === "tab" && sameTarget(entry.tab, item.tab),
-    )
-      ? undefined
-      : item;
+    const { tab } = item;
+    const isCarried =
+      taken.some(
+        (entry) => entry.kind === "tab" && sameTarget(entry.tab, tab),
+      ) ||
+      sent.some((chip) =>
+        tab.kind === "page"
+          ? chip.kind === "page" && chip.url === tab.url
+          : chip.kind === "screen" && chip.url === tab.href,
+      );
+    return isCarried ? undefined : item;
   }
   const held = new Set(
-    heldPaths([...taken]).map((entry) => withoutSlash(entry.path)),
+    [
+      ...heldPaths([...taken]),
+      ...sent.flatMap((chip) => (chip.kind === "paths" ? chip.items : [])),
+    ].map((entry) => withoutSlash(entry.path)),
   );
   return item.items.every((entry) => held.has(withoutSlash(entry.path)))
     ? undefined

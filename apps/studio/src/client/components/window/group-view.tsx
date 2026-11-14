@@ -10,11 +10,15 @@ import {
   focusOnceLayersClose,
   setHomeFocus,
 } from "@/client/lib/keyboard-home";
+import { SIDE_MOTION } from "@/client/lib/motion";
+import { afterNextPaint } from "@/client/lib/tab-view-state";
 import { cn } from "@/client/lib/utils";
 import { browserTargetOf } from "@instrument-org/workspace/client";
 import { useAtomValue } from "jotai";
+import { motion, useReducedMotion } from "motion/react";
 import {
   type CSSProperties,
+  type ReactNode,
   useEffect,
   useEffectEvent,
   useLayoutEffect,
@@ -35,6 +39,7 @@ import {
   useStripTarget,
 } from "./drag/use-group-drag";
 import { useShell } from "./shell-context";
+import { useSideMotion } from "./side-motion";
 import { windowTabGroupsAtom } from "./open-groups";
 import { useTabGroupActions } from "./tab-groups";
 import { useGroupTabMoves } from "./tab-drag";
@@ -184,6 +189,60 @@ function GroupSides({ group }: { group: string }) {
     (rowRef.current?.offsetWidth ?? rowWidth) - WINDOW_CARD_GAP;
   /** Where the gap between the sides is laid out, from the row's left. */
   const gutterAt = leftWidthAt(share, room);
+  const motionSides = useSideMotion(group, layout);
+  const isMoving =
+    motionSides.entering.size > 0 || motionSides.leaving.length > 0;
+  // The sides opening start to grow once they have been drawn at nothing: what a side shows takes a moment to put up, and a motion
+  // started before it was would be over by the first frame anyone sees.
+  const enteringNow =
+    motionSides.entering.size === 0 ? "" : String(motionSides.round);
+  const [started, setStarted] = useState({ for: "" });
+  useEffect(() => {
+    if (enteringNow === "") {
+      return;
+    }
+    let isGone = false;
+    void afterNextPaint().then(() => {
+      if (!isGone) {
+        setStarted({ for: enteringNow });
+      }
+    });
+    return () => {
+      isGone = true;
+    };
+  }, [enteringNow]);
+  const startedKeys = new Set(
+    started.for === enteringNow && enteringNow !== ""
+      ? [...motionSides.entering]
+      : [],
+  );
+  /** How much of the row a side at `at` takes of two. */
+  const growOf = (at: 0 | 1) => (at === 0 ? share : 1 - share);
+  /** A side's width in two, as it stands once the row settles. */
+  const widthAt = (at: 0 | 1) => {
+    const left = leftWidthAt(share, room);
+    return at === 0 ? left : room - left;
+  };
+  // The sides as drawn, in their places, with a side closing still in its
+  // place as it shrinks away.
+  const drawnSides: {
+    at: 0 | 1;
+    key: number;
+    leaving: boolean;
+    side?: GroupSide;
+  }[] = layout.sides.map((side, index) => ({
+    at: index === 1 ? 1 : 0,
+    key: motionSides.keys[index] ?? index,
+    leaving: false,
+    side,
+  }));
+  for (const gone of motionSides.leaving) {
+    drawnSides.splice(gone.at === 0 ? 0 : drawnSides.length, 0, {
+      at: gone.at,
+      key: gone.key,
+      leaving: true,
+    });
+  }
   const keepShare = (next: number) => {
     windowTabs.setGroupOwn(group, {
       share: next === SIDE_SHARE_DEFAULT ? undefined : next,
@@ -211,67 +270,205 @@ function GroupSides({ group }: { group: string }) {
         className="flex h-full"
         ref={rowRef}
         style={{
-          minWidth: isTwo
-            ? SIDE_WIDTH_MIN * 2 + WINDOW_CARD_GAP
-            : SIDE_WIDTH_MIN,
+          minWidth:
+            isTwo && !isMoving
+              ? SIDE_WIDTH_MIN * 2 + WINDOW_CARD_GAP
+              : SIDE_WIDTH_MIN,
         }}
       >
-        {layout.sides.map((side, index) => {
-          const at = index === 1 ? 1 : 0;
-          const grow = isTwo ? (at === 0 ? share : 1 - share) : 1;
-          return (
-            <SideCard
-              group={group}
-              hasKeyboard={layout.focused === at}
-              isFirst={at === 0}
-              isLast={index === layout.sides.length - 1}
-              key={at}
-              layout={layout}
-              side={side}
-              sideIndex={at}
-              style={{ flex: `${grow} 1 0px`, minWidth: SIDE_WIDTH_MIN }}
-            />
+        {drawnSides.map((each, index) => {
+          const width = widthAt(each.at);
+          const isMovingSide =
+            each.leaving || motionSides.entering.has(each.key);
+          const neighbor = drawnSides[index === 0 ? 1 : index - 1];
+          const isNeighborMoving =
+            neighbor !== undefined &&
+            (neighbor.leaving || motionSides.entering.has(neighbor.key));
+          // The gap between two sides goes with the one moving, so it opens
+          // and closes with it; otherwise it leads the later side.
+          let gap: "end" | "start" | undefined;
+          if (drawnSides.length > 1) {
+            if (isMovingSide) {
+              gap = index === 0 ? "end" : "start";
+            } else if (!isNeighborMoving && index > 0) {
+              gap = "start";
+            }
+          }
+          const isEntering = motionSides.entering.has(each.key);
+          const isStarted = startedKeys.has(each.key);
+          const isNeighborEntering =
+            neighbor !== undefined && motionSides.entering.has(neighbor.key);
+          const basis = gap === undefined ? "0px" : `${WINDOW_CARD_GAP}px`;
+          // Where its place is going. A side opening waits at nothing for its
+          // first frame (`startedKeys`), and the side beside it waits whole
+          // with it, so the two always fill the row between them.
+          let to: SidePlace;
+          if (each.leaving) {
+            to = { flexBasis: "0px", flexGrow: 0 };
+          } else if (isEntering) {
+            to = isStarted
+              ? { flexBasis: basis, flexGrow: growOf(each.at) }
+              : { flexBasis: "0px", flexGrow: 0 };
+          } else if (
+            isNeighborEntering &&
+            neighbor &&
+            !startedKeys.has(neighbor.key)
+          ) {
+            to = { flexBasis: basis, flexGrow: 1 };
+          } else {
+            to = { flexBasis: basis, flexGrow: isTwo ? growOf(each.at) : 1 };
+          }
+          const moving = (
+            <SideMotion
+              from={
+                isEntering
+                  ? { flexBasis: "0px", flexGrow: 0 }
+                  : each.leaving
+                    ? { flexBasis: basis, flexGrow: growOf(each.at) }
+                    : undefined
+              }
+              gap={gap}
+              glides={isMovingSide || isNeighborMoving}
+              isMoving={isMovingSide}
+              key={each.leaving ? `leaving:${each.key}` : `side:${each.key}`}
+              onEnd={() => {
+                if (isMovingSide && (!isEntering || isStarted)) {
+                  motionSides.settle(each.key);
+                }
+              }}
+              opensFrom={each.at === 0 ? "start" : "end"}
+              to={to}
+            >
+              {each.leaving || each.side === undefined ? (
+                <div
+                  className={cn("h-full shrink-0", WINDOW_CARD)}
+                  style={{ width }}
+                />
+              ) : (
+                <SideCard
+                  group={group}
+                  hasKeyboard={layout.focused === each.at}
+                  isFirst={each.at === 0}
+                  isLast={each.at === layout.sides.length - 1}
+                  layout={layout}
+                  place={`${group}:${each.at}:${isTwo ? growOf(each.at) : 1}`}
+                  side={each.side}
+                  sideIndex={each.at}
+                  style={
+                    motionSides.entering.has(each.key)
+                      ? { flexShrink: 0, width }
+                      : { flex: "1 1 0px" }
+                  }
+                />
+              )}
+            </SideMotion>
           );
+          return moving;
         })}
       </div>
-      {isTwo && (
-        // The gap between the cards is the gutter, standing over the row at
-        // the left side's edge.
-        <ResizeHandle
-          anchor={() => {
-            const row = rowRef.current;
-            return row ? row.getBoundingClientRect().left : undefined;
-          }}
-          className="top-0 bottom-0 left-(--gutter-at)"
-          getWidth={() => leftWidthAt(share, roomNow())}
-          grows="right"
-          label="Resize sides"
-          max={Math.max(room - SIDE_WIDTH_MIN, SIDE_WIDTH_MIN)}
-          min={SIDE_WIDTH_MIN}
-          onReset={() => {
-            setDragged(undefined);
-            keepShare(SIDE_SHARE_DEFAULT);
-          }}
-          onResize={(width) => {
-            draggedNow.current = shareAt(width, roomNow());
-            setDragged(draggedNow.current);
-          }}
-          onResizeEnd={() => {
-            if (draggedNow.current !== undefined) {
-              keepShare(draggedNow.current);
-            }
-            draggedNow.current = undefined;
-            setDragged(undefined);
-            document.documentElement.removeAttribute("data-tab-held");
-          }}
-          onResizeStart={() => {
-            // The pages under the pointer let it pass while the gutter moves.
-            document.documentElement.toggleAttribute("data-tab-held", true);
-          }}
-          value={gutterAt}
-        />
-      )}
+      {isTwo &&
+        !isMoving && (
+          // The gap between the cards is the gutter, standing over the row at
+          // the left side's edge.
+          <ResizeHandle
+            anchor={() => {
+              const row = rowRef.current;
+              return row ? row.getBoundingClientRect().left : undefined;
+            }}
+            className="top-0 bottom-0 left-(--gutter-at)"
+            getWidth={() => leftWidthAt(share, roomNow())}
+            grows="right"
+            label="Resize sides"
+            max={Math.max(room - SIDE_WIDTH_MIN, SIDE_WIDTH_MIN)}
+            min={SIDE_WIDTH_MIN}
+            onReset={() => {
+              setDragged(undefined);
+              keepShare(SIDE_SHARE_DEFAULT);
+            }}
+            onResize={(width) => {
+              draggedNow.current = shareAt(width, roomNow());
+              setDragged(draggedNow.current);
+            }}
+            onResizeEnd={() => {
+              if (draggedNow.current !== undefined) {
+                keepShare(draggedNow.current);
+              }
+              draggedNow.current = undefined;
+              setDragged(undefined);
+              document.documentElement.removeAttribute("data-tab-held");
+            }}
+            onResizeStart={() => {
+              // The pages under the pointer let it pass while the gutter moves.
+              document.documentElement.toggleAttribute("data-tab-held", true);
+            }}
+            value={gutterAt}
+          />
+        )}
     </div>
+  );
+}
+
+/** A side's place in the row: its share of the room, and the gap it carries. */
+// A type rather than an interface, which motion's targets need indexable.
+// oxlint-disable-next-line typescript/consistent-type-definitions
+type SidePlace = { flexBasis: string; flexGrow: number };
+
+/**
+ * A side's place in the row, which grows from nothing at its end of the row
+ * as the side opens and shrinks back as it closes, the side beside it
+ * giving room or taking it back on the same curve (`SIDE_MOTION`, `glides`),
+ * so the two fill the row between them every frame. While it moves its card
+ * stands at the width it settles at, cut to the place, so the side slides
+ * in whole rather than unfolding, and a page in it is cut there too
+ * (`data-guest-clip`). The gap beside it, when it has one, is part of it.
+ */
+function SideMotion({
+  children,
+  from,
+  gap,
+  glides,
+  isMoving,
+  onEnd,
+  opensFrom,
+  to,
+}: {
+  children: ReactNode;
+  /** Where its place starts, for a side opening or closing. */
+  from: SidePlace | undefined;
+  gap: "end" | "start" | undefined;
+  /** Whether a change of its place moves on the side's curve rather than at once, as a gutter dragged moves it. */
+  glides: boolean;
+  /** Whether this side is the one opening or closing. */
+  isMoving: boolean;
+  onEnd: () => void;
+  /** The end of the row the side opens from and closes into. */
+  opensFrom: "end" | "start";
+  to: SidePlace;
+}) {
+  const isReduced = useReducedMotion() === true;
+  return (
+    <motion.div
+      animate={to}
+      className={cn(
+        "flex h-full shrink",
+        isMoving && "overflow-hidden",
+        opensFrom === "start" && isMoving && "justify-end",
+      )}
+      {...(isMoving ? { "data-guest-clip": "" } : {})}
+      initial={from ?? false}
+      onAnimationComplete={onEnd}
+      style={{
+        minWidth:
+          isMoving || glides
+            ? 0
+            : SIDE_WIDTH_MIN + (gap === undefined ? 0 : WINDOW_CARD_GAP),
+      }}
+      transition={isReduced || !glides ? { duration: 0 } : SIDE_MOTION}
+    >
+      {gap === "start" && <div className="w-2 shrink-0" />}
+      {children}
+      {gap === "end" && <div className="w-2 shrink-0" />}
+    </motion.div>
   );
 }
 
@@ -287,6 +484,7 @@ function SideCard({
   isFirst,
   isLast,
   layout,
+  place,
   side,
   sideIndex,
   style,
@@ -296,6 +494,8 @@ function SideCard({
   isFirst: boolean;
   isLast: boolean;
   layout: GroupLayout;
+  /** Where the side stands, which changes as its page's host moves. */
+  place: string;
   side: GroupSide;
   sideIndex: 0 | 1;
   style: CSSProperties;
@@ -333,7 +533,7 @@ function SideCard({
           chrome: pageChrome ?? false,
           into: pageHost,
           isActive,
-          place: `${group}:${sideIndex}:${String(style.flex)}`,
+          place,
           tabId: up.id,
         }
       : undefined,
@@ -476,11 +676,7 @@ function SideCard({
 
   return (
     <div
-      className={cn(
-        "flex h-full min-h-0 min-w-0 flex-col",
-        WINDOW_CARD,
-        !isLast && "mr-2",
-      )}
+      className={cn("flex h-full min-h-0 min-w-0 flex-col", WINDOW_CARD)}
       data-group-side={sideIndex}
       {...(hasKeyboard ? { "data-keyboard": "" } : {})}
       ref={cardRef}

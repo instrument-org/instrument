@@ -150,7 +150,7 @@ describe("instrument", () => {
         memory    What you keep about the user for every chat.
         projects  The user's projects: list, create, rename, mark and delete them.
         task      Start, message, stop and read your tasks.
-        window    What is in front of the user: list, show, read and close the tabs in their tab group, or ask for one of theirs.
+        window    What the user sees: list, show, read and close the tabs in their tab group, or ask for one of theirs.
         x         Search posts on X through the user's Grok account.
 
       \`instrument <command> help\` prints one command's own usage.
@@ -217,7 +217,7 @@ describe("instrument", () => {
         app       Connect services and call their tools.
         memory    What you keep about the user for every chat.
         projects  The user's projects: list, create, rename, mark and delete them.
-        window    What is in front of the user: list, show, read and close the tabs in their tab group, or ask for one of theirs.
+        window    What the user sees: list, show, read and close the tabs in their tab group, or ask for one of theirs.
         x         Search posts on X through the user's Grok account.
 
       \`instrument <command> help\` prints one command's own usage.

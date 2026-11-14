@@ -65,6 +65,8 @@ let stopAnswering: () => void;
  */
 function answeringWindow() {
   const known = new Set<string>(["tab_known", pageTab]);
+  /** What each open made, which the right side then shows, as the window puts a page the chat shows beside it. */
+  const made: string[] = [];
   return publisher.subscribe("window.tab", (ask) => {
     asked.push({
       action: ask.action,
@@ -73,7 +75,7 @@ function answeringWindow() {
     const { action } = ask;
     const answer =
       action.kind === "open"
-        ? { tabId: `made-${asked.length}` }
+        ? { tabId: `made-${made.push(`made-${made.length + 1}`)}` }
         : action.kind === "list"
           ? {
               pages: [
@@ -105,10 +107,17 @@ function answeringWindow() {
                         {
                           address: "https://www.zendesk.com/pricing/",
                           id: pageTab,
-                          isUp: true,
+                          ...(made.length === 0 && { isUp: true }),
                           kind: "website" as const,
                           title: "Suite plans",
                         },
+                        ...made.map((id, index) => ({
+                          address: "https://example.com/",
+                          id,
+                          ...(index === made.length - 1 && { isUp: true }),
+                          kind: "website" as const,
+                          title: "Example",
+                        })),
                       ],
                     },
                   ],
@@ -192,7 +201,7 @@ describe("window show, for something new", () => {
 
     expect(result.exitCode).toBe(0);
     expect(result.stdout).toBe(
-      "Opened https://example.com/ in front (tab made-1)\nOpened https://example.org/ in front (tab made-2)\n",
+      "Opened https://example.com/ (tab made-1): showing on the right side, beside you.\nOpened https://example.org/ (tab made-2): showing on the right side, beside you.\n",
     );
     expect(asked.map(({ action }) => action)).toEqual([
       {
@@ -200,11 +209,13 @@ describe("window show, for something new", () => {
         show: true,
         target: { kind: "page", url: "https://example.com/" },
       },
+      { kind: "list" },
       {
         kind: "open",
         show: true,
         target: { kind: "page", url: "https://example.org/" },
       },
+      { kind: "list" },
     ]);
   });
 
@@ -214,7 +225,7 @@ describe("window show, for something new", () => {
     const result = await run({}, "show", "/Users/me/Instrument");
 
     expect(result.stdout).toBe(
-      "Opened /Users/me/Instrument/ in front (tab made-1)\n",
+      "Opened /Users/me/Instrument/ (tab made-1): showing on the right side, beside you.\n",
     );
     expect(asked[0]?.action).toEqual({
       kind: "open",
@@ -234,7 +245,7 @@ describe("window show, for something new", () => {
     expect(result.exitCode).toBe(1);
     expect(result.stderr).toContain('"/etc/hosts" does not exist');
     expect(result.stdout).toBe(
-      "Opened /Users/me/Instrument/report.md in front (tab made-1)\n",
+      "Opened /Users/me/Instrument/report.md (tab made-1): showing on the right side, beside you.\n",
     );
   });
 
@@ -249,7 +260,7 @@ describe("window show, for something new", () => {
     const result = await run({ timeoutMs: 20 }, "show", "https://example.com/");
 
     expect(result.exitCode).toBe(0);
-    expect(result.stdout).toBe("Opened https://example.com/ in front\n");
+    expect(result.stdout).toBe("Opened https://example.com/.\n");
   });
 });
 
@@ -303,11 +314,13 @@ describe("window close, show and read on a tab", () => {
     });
   });
 
-  it("brings a tab forward", async () => {
-    const result = await run({}, "show", "tab_known");
+  it("shows a tab and says where it is", async () => {
+    const result = await run({}, "show", pageTab);
 
-    expect(result.stdout).toBe("Tab tab_known is in front.\n");
-    expect(asked[0]?.action).toEqual({ kind: "show", tabId: "tab_known" });
+    expect(result.stdout.replaceAll(pageTab, "<page>")).toBe(
+      "Tab <page>: showing on the right side, beside you.\n",
+    );
+    expect(asked[0]?.action).toEqual({ kind: "show", tabId: pageTab });
   });
 
   it("prints the text of the page in a tab", async () => {
@@ -397,9 +410,10 @@ describe("window list", () => {
     expect(result.exitCode).toBe(0);
     expect(result.stdout.replaceAll(pageTab, "<page>")).toMatchInlineSnapshot(`
       "left:
-        tab_known  up      [chat] Prices (you)
+        tab_known  showing  [chat] Prices (you)
       right (keyboard):
-        <page>  up      Suite plans · https://www.zendesk.com/pricing/  task t1 is working in it
+        <page>  showing  Suite plans · https://www.zendesk.com/pricing/  task t1 is working in it
+      Showing: you on the left; zendesk.com/pricing on the right, beside you.
       "
     `);
   });
@@ -412,9 +426,10 @@ describe("window list", () => {
     expect(result.exitCode).toBe(0);
     expect(result.stdout.replaceAll(pageTab, "<page>")).toMatchInlineSnapshot(`
       "left:
-        tab_known  up      [chat] Prices (you)
+        tab_known  showing  [chat] Prices (you)
       right (keyboard):
-        <page>  up      Suite plans · https://www.zendesk.com/pricing/  you are working in it
+        <page>  showing  Suite plans · https://www.zendesk.com/pricing/  you are working in it
+      Showing: you on the left; zendesk.com/pricing on the right, beside you.
       "
     `);
   });

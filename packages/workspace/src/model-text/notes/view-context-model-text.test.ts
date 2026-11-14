@@ -45,7 +45,7 @@ describe("viewContextModelNote", () => {
     ).toMatchInlineSnapshot(`
       "
       <instrument-system-note>
-      When the user sent this, they wrote it in a new tab, which became this chat. Nothing in particular is in view.
+      When the user sent this, they wrote it in a new tab, which became this chat. Nothing else on screen went with the message.
       </instrument-system-note>
       <instrument-system-note>
       They chose to send these with the message: the file \`/Users/casey/Notes/plan.md\`; the folder \`/Volumes/Backup\`. "This", "these" and "it" refer to them first, then to what was on screen.
@@ -56,11 +56,11 @@ describe("viewContextModelNote", () => {
   it("says the conversation was all that was in view", () => {
     expect(viewContextModelNote({ screen: "conversation", tabs: [] }))
       .toMatchInlineSnapshot(`
-      "
-      <instrument-system-note>
-      When the user sent this, the window showed this conversation, with nothing else in view beside it.
-      </instrument-system-note>"
-    `);
+        "
+        <instrument-system-note>
+        When the user sent this, they were in this chat, and nothing else on screen went with the message.
+        </instrument-system-note>"
+      `);
   });
 
   it("names another chat the user had open, and nothing in it", () => {
@@ -95,9 +95,9 @@ describe("viewContextModelNote", () => {
     ).toMatchInlineSnapshot(`
       "
       <instrument-system-note>
-      When the user sent this, they wrote it in a new tab, which became this chat. Nothing in particular is in view.
+      When the user sent this, they wrote it in a new tab, which became this chat. Nothing else on screen went with the message.
       </instrument-system-note>
-      Tabs open in the window: "New tab" at /new-tab (tab screen-1); "Example" at https://example.com/ (tab tab_01M3AX9RF3C2E9RTATMB602W0B, task read-the-page is working in it)."
+      Tabs in their tab group: "New tab" at /new-tab (tab screen-1); "Example" at https://example.com/ (tab tab_01M3AX9RF3C2E9RTATMB602W0B, task read-the-page is working in it)."
     `);
   });
 

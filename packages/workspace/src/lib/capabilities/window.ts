@@ -5,7 +5,11 @@ import {
   type WindowTabAction,
   type WindowTabTarget,
 } from "../../schemas/window-tab";
-import { layoutTabName } from "../../model-text/notes/group-layout-model-text";
+import {
+  layoutTabName,
+  showingLine,
+  tabPlace,
+} from "../../model-text/notes/group-layout-model-text";
 import { parseBrowserTargetId } from "../../types";
 import { noteBrowserAgentActivity } from "../browser-agent-activity";
 import { recordAsk } from "../chat/asks";
@@ -25,7 +29,7 @@ const NAME = WINDOW_COMMAND.name;
 
 const NO_WINDOW = "the window did not answer, so no tab changed.";
 
-/** Changing what is in front of the person is the chat's. */
+/** Changing what the person sees is the chat's. */
 const CHATS = { roleRefusal: WINDOW_IS_THE_CHATS, roles: ["chat"] } as const;
 
 /** What one argument of a change came to: done, or why not. */
@@ -186,15 +190,15 @@ export const windowList = defineCapability({
     };
   },
   summary:
-    "A tab group's sides and tabs, one line each, by default the group the chat works in: the id every other subcommand and `agent-browser tab` take, which tab is up on each side and which side has the keyboard, what it shows, and which task is at work in it.",
+    "A tab group's sides and tabs, one line each, by default the group the chat works in: the id every other subcommand and `agent-browser tab` take, which tab each side shows and which are hidden behind it, which side has the keyboard, what each tab has open, and which task is at work in it; then what the user sees.",
   surfaces: {
     cli: { help: "", positional: ["group"], words: ["window", "list"] },
     script: { positional: ["group"] },
   },
   text: ({ layout, tasks }) => {
     const isTwo = layout.sides.length === 2;
-    return layout.sides
-      .flatMap(({ tabs }, side) => [
+    return [
+      ...layout.sides.flatMap(({ tabs }, side) => [
         ...(isTwo
           ? [
               `${side === 0 ? "left" : "right"}${layout.focused === side ? " (keyboard)" : ""}:`,
@@ -206,10 +210,11 @@ export const windowList = defineCapability({
             tab.kind === "website" && tab.title !== ""
               ? `${tab.title} · ${tab.address}`
               : layoutTabName(tab);
-          return `${isTwo ? "  " : ""}${tab.id}  ${tab.isUp ? "up    " : "behind"}  ${shows}${tab.isThisChat ? " (you)" : ""}${task ? (task.you ? "  you are working in it" : `  task ${task.id} is working in it`) : ""}`;
+          return `${isTwo ? "  " : ""}${tab.id}  ${tab.isUp ? "showing" : "hidden "}  ${shows}${tab.isThisChat ? " (you)" : ""}${task ? (task.you ? "  you are working in it" : `  task ${task.id} is working in it`) : ""}`;
         }),
-      ])
-      .join("\n");
+      ]),
+      showingLine(layout),
+    ].join("\n");
   },
 });
 
@@ -275,7 +280,7 @@ export const windowShow = defineCapability({
     return outcomes;
   },
   summary:
-    "Put each in front: a url, file or folder opens in a tab of its own beside you, printing the tab's id, which `agent-browser tab` takes; a tab's id brings it forward.",
+    "Show each to the user: a url, file or folder opens in a tab of its own, never in place of you, printing the tab's id, which `agent-browser tab` takes, and where it landed; a tab's id makes it the tab its side shows.",
   surfaces: {
     cli: {
       flagNames: { into: "in" },
@@ -295,7 +300,7 @@ async function showOne(arg: string, ctx: CapabilityContext): Promise<Outcome> {
     return error === undefined
       ? {
           failed: false,
-          said: `Tab ${arg} is in front.`,
+          said: `Tab ${arg}: ${(await placeOf(arg, ctx)) ?? "showing on its side"}.`,
           tab: arg,
           target: arg,
         }
@@ -313,12 +318,26 @@ async function showOne(arg: string, ctx: CapabilityContext): Promise<Outcome> {
   noteOpenedPage(tabId);
   // With no window to answer the page still counts as opened: it is the
   // tab's id that is missing, not the page.
+  const place =
+    tabId === undefined
+      ? undefined
+      : ((await placeOf(tabId, ctx)) ??
+        (answer?.behind
+          ? "hidden behind another tab, since the user is working on that side"
+          : undefined));
   return {
     failed: false,
-    said: `Opened ${describeTarget(target)} ${answer?.behind ? "behind" : "in front"}${tabId ? ` (tab ${tabId})` : ""}${answer?.behind ? ": the user is working on that side." : ""}`,
+    said: `Opened ${describeTarget(target)}${tabId ? ` (tab ${tabId})` : ""}${place ? `: ${place}` : ""}.`,
     ...(tabId ? { tab: tabId } : {}),
     target: arg,
   };
+}
+
+/** Where a tab stands in the chat's group now, read from the window (`tabPlace`); undefined when the window does not say. */
+async function placeOf(tabId: string, ctx: CapabilityContext) {
+  const answer = await ask({ kind: "list" }, ctx);
+  const layout = answer?.read?.layout;
+  return layout === undefined ? undefined : tabPlace(layout, tabId);
 }
 
 /** Shows something else in a tab the chat has, in its place. */
@@ -441,7 +460,7 @@ export const windowWait = defineCapability({
           : `no tab ${tab} in this chat. \`${NAME} list\` names its tabs.`,
       );
     }
-    // In front, so the page they are asked to use is the one they see.
+    // Showing, so the page they are asked to use is the one they see.
     await ask({ kind: "show", tabId: tab }, ctx);
     const askId = await recordAsk(
       { ...ctx.asker, reason: reason.trim(), title: title.trim() },

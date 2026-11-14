@@ -65,6 +65,7 @@ function windowOf(
     chatTitles: new Map([[CHAT, "Help desk prices"]]),
     windowTabs: {
       allTabs: tabs,
+      groupOnScreen: GROUP,
       layoutOf: (group) => groupLayoutOf(state, group),
     },
   };

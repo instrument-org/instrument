@@ -2,6 +2,7 @@ import {
   type ChangedTab,
   type LayoutChange,
   type LayoutSideName,
+  type LayoutSnapshot,
   type LayoutTab,
   type LayoutTabKind,
 } from "../../schemas/group-layout";
@@ -24,43 +25,123 @@ const SIDE_NAMES = ["left", "right"] as const;
 
 /**
  * The tab group the chat works in, as it stands now: each side's tabs in
- * order with the one in front marked, the side with the keyboard, and which
- * tab is this chat. Written only when it reads differently from the one
- * before, so each one is news.
+ * order with the one showing marked, the side with the keyboard, which tab
+ * is this chat, and a line saying what the user sees, side by side. Written
+ * only when it reads differently from the one before, so each one is news.
  */
 export function groupLayoutModelNote(
   data: SessionMessageDataPart.GroupLayoutDataPart,
 ) {
-  if (isChatAlone(data)) {
+  if (isChatAlone(data) && data.isShown !== false) {
     return systemNote`
       Your tab group is just you now.
     `;
   }
-  const isTwo = data.sides.length === 2;
-  const yours = data.sides.findIndex(({ tabs }) =>
-    tabs.some((tab) => tab.isThisChat),
-  );
-  const you = data.sides[yours]?.tabs.find((tab) => tab.isThisChat);
-  const where = [
-    ...(isTwo && yours !== -1 ? [SIDE_NAMES[yours]] : []),
-    ...(you ? [you.isUp ? "in front" : "behind"] : []),
-  ].join(", ");
-  const head = where === "" ? "Your group:" : `Your group (you: ${where}):`;
-  const lines = data.sides.map(({ tabs }, side) => {
-    const line = tabs.map(tabWords).join(" · ");
+  return systemNote`
+    Your tab group, ${layoutLines(data)}
+  `;
+}
+
+/**
+ * A group's sides, one line each: its shape and what the star means, the
+ * tabs of each side, and the line saying what is on screen (`showingLine`).
+ */
+function layoutLines(layout: LayoutSnapshot): string {
+  const isTwo = layout.sides.length === 2;
+  const head = isTwo
+    ? "two sides side by side (* = the tab each side shows; its other tabs are hidden behind it):"
+    : "one side (* = the tab it shows; the other tabs are hidden behind it):";
+  const sides = layout.sides.map(({ tabs }, side) => {
+    const line = tabs
+      .map(
+        (tab) =>
+          `${layoutTabName(tab)}${tab.isThisChat ? " (you)" : ""}${tab.isUp ? "*" : ""}`,
+      )
+      .join(" · ");
     return isTwo
-      ? `${`${SIDE_NAMES[side] ?? "left"}:`.padEnd(7)}${line}`
+      ? `${SIDE_NAMES[side] ?? "left"}${layout.focused === side ? " (keyboard)" : ""}: ${line}`
       : line;
   });
-  const legend = isTwo
-    ? `* in front · keyboard: ${SIDE_NAMES[data.focused] ?? "left"}`
-    : "* in front";
-  return systemNote`
-    ${head}
-    ${lines.join("\n")}
-    ${legend}
-    The tabs in front are most likely what the user is looking at.
-  `;
+  return [head, ...sides, showingLine(layout)].join("\n");
+}
+
+/**
+ * What the user sees of a group, in words that cannot be misread: each side's
+ * tab showing, where it stands against this chat, and whether this chat is
+ * hidden or the window shows another group.
+ */
+export function showingLine(layout: LayoutSnapshot): string {
+  const isTwo = layout.sides.length === 2;
+  const chatSide = layout.sides.findIndex(({ tabs }) =>
+    tabs.some((tab) => tab.isThisChat),
+  );
+  const isChatShown =
+    chatSide !== -1 &&
+    layout.sides[chatSide]?.tabs.some((tab) => tab.isThisChat && tab.isUp) ===
+      true;
+  const shown = layout.sides.map(({ tabs }, side) => {
+    const up = tabs.find((tab) => tab.isUp);
+    const where = isTwo ? ` on the ${SIDE_NAMES[side] ?? "left"}` : "";
+    if (up === undefined) {
+      return `nothing${where}`;
+    }
+    if (up.isThisChat) {
+      return isTwo ? `you${where}` : "only you";
+    }
+    const name = layoutTabName(up);
+    if (side === chatSide) {
+      return `${name}${where}, covering you`;
+    }
+    return isChatShown ? `${name}${where}, beside you` : `${name}${where}`;
+  });
+  if (layout.isShown === false) {
+    return `The window shows another tab group now, so none of this is on screen. This group shows: ${shown.join("; ")}.`;
+  }
+  const hidden =
+    chatSide !== -1 && !isChatShown
+      ? " The user cannot see this chat now."
+      : "";
+  return `Showing: ${shown.join("; ")}.${hidden}`;
+}
+
+/**
+ * Where one tab of a group stands, as a clause for a command's result:
+ * which side, whether it shows or is hidden behind another tab, and how it
+ * stands against this chat. Undefined for a tab the group does not have.
+ */
+export function tabPlace(
+  layout: LayoutSnapshot,
+  tabId: string,
+): string | undefined {
+  const side = layout.sides.findIndex(({ tabs }) =>
+    tabs.some((tab) => tab.id === tabId),
+  );
+  const tabs = layout.sides[side]?.tabs;
+  const tab = tabs?.find((each) => each.id === tabId);
+  if (tabs === undefined || tab === undefined) {
+    return;
+  }
+  const isTwo = layout.sides.length === 2;
+  const name = SIDE_NAMES[side] ?? "left";
+  const chatSide = layout.sides.findIndex((each) =>
+    each.tabs.some((other) => other.isThisChat),
+  );
+  const where = !isTwo
+    ? "in the group's one side"
+    : side === chatSide
+      ? `on your side, the ${name}`
+      : chatSide === -1
+        ? `on the ${name} side`
+        : `on the ${name} side, beside you`;
+  const up = tabs.find((each) => each.isUp);
+  const place = tab.isUp
+    ? side === chatSide
+      ? `showing ${where}, covering this chat, which is hidden until the user switches back to it`
+      : `showing ${where}`
+    : `hidden ${where}, behind ${up === undefined ? "another tab" : up.isThisChat ? "you" : layoutTabName(up)}${layout.focused === side && side !== chatSide ? ", since the user is working on that side" : ""}`;
+  return layout.isShown === false
+    ? `${place}; the window shows another tab group now, so it is not on screen`
+    : place;
 }
 
 /**
@@ -71,11 +152,6 @@ export function isChatAlone(data: SessionMessageDataPart.GroupLayoutDataPart) {
   return data.sides.every(({ tabs }) =>
     tabs.every((tab) => tab.isThisChat || tab.kind === "newChat"),
   );
-}
-
-/** A tab as the layout names it: by its kind where its address does not say, and `*` in front. */
-function tabWords(tab: LayoutTab): string {
-  return `${layoutTabName(tab)}${tab.isThisChat ? " (you)" : ""}${tab.isUp ? "*" : ""}`;
 }
 
 /** A tab as the agent reads it in a layout: its address, or its kind and title where the address does not say. */

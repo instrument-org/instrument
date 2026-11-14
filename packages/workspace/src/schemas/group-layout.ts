@@ -44,6 +44,8 @@ export const LayoutSnapshotSchema = z.object({
   focused: z.number().int().min(0).max(1),
   /** The group, by the id the `window` command takes. */
   group: z.object({ id: z.string() }),
+  /** False while the window shows another group, so none of this one is on screen. */
+  isShown: z.boolean().optional(),
   sides: z
     .array(z.object({ tabs: z.array(LayoutTabSchema) }))
     .min(1)

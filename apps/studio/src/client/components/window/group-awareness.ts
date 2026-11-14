@@ -20,7 +20,10 @@ import { type useWindowTabs } from "./window-tabs";
 export interface GroupAwarenessWindow {
   appsBySlug: AppsBySlug;
   chatTitles: Map<ChatId, string>;
-  windowTabs: Pick<ReturnType<typeof useWindowTabs>, "allTabs" | "layoutOf">;
+  windowTabs: Pick<
+    ReturnType<typeof useWindowTabs>,
+    "allTabs" | "groupOnScreen" | "layoutOf"
+  >;
 }
 
 /**
@@ -78,6 +81,7 @@ export function groupLayoutFor(
   return {
     focused: layout.focused,
     group: { id: group },
+    ...(window.windowTabs.groupOnScreen === group ? {} : { isShown: false }),
     sides: layout.sides.map((side) => ({
       tabs: side.tabs.map((tab) => ({
         ...describedTab(window, tab),

@@ -167,7 +167,7 @@ function screenNote(data: ViewContext, shellPath: ShellPath) {
     }
     case "conversation": {
       return systemNote`
-        When the user sent this, the window showed this conversation, with nothing else in view beside it.
+        When the user sent this, they were in this chat, and nothing else on screen went with the message.
       `;
     }
     case "chat": {
@@ -189,7 +189,7 @@ function screenNote(data: ViewContext, shellPath: ShellPath) {
     }
     case "home": {
       return systemNote`
-        When the user sent this, they wrote it in a new tab, which became this chat. Nothing in particular is in view.
+        When the user sent this, they wrote it in a new tab, which became this chat. Nothing else on screen went with the message.
       `;
     }
     case "skills": {
@@ -222,7 +222,7 @@ function tabsNote(data: ViewContext) {
     (data.tabs?.length ?? 0) > tabs.length
       ? `; and ${(data.tabs?.length ?? 0) - tabs.length} more`
       : "";
-  return `\nTabs open in the window: ${named}${more}.`;
+  return `\nTabs in their tab group: ${named}${more}.`;
 }
 
 function taskNote(data: ViewContext) {

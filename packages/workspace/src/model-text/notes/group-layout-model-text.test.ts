@@ -4,6 +4,7 @@ import { type LayoutTab } from "../../schemas/group-layout";
 import {
   groupLayoutModelNote,
   layoutChangesModelNote,
+  tabPlace,
 } from "./group-layout-model-text";
 
 const CHAT: LayoutTab = {
@@ -56,7 +57,7 @@ const SETTINGS: LayoutTab = {
 const GROUP = { id: "group_prices" };
 
 describe("groupLayoutModelNote", () => {
-  it("names each side's tabs, the one in front on each, the keyboard's side and this chat", () => {
+  it("names each side's tabs, the one each shows, the keyboard's side and this chat, and what shows beside it", () => {
     expect(
       groupLayoutModelNote({
         focused: 0,
@@ -69,16 +70,15 @@ describe("groupLayoutModelNote", () => {
     ).toMatchInlineSnapshot(`
       "
       <instrument-system-note>
-      Your group (you: left, in front):
-      left:  [chat] Renewal reminders (you)* · /Users/mac-user/Documents/notes.md
+      Your tab group, two sides side by side (* = the tab each side shows; its other tabs are hidden behind it):
+      left (keyboard): [chat] Renewal reminders (you)* · /Users/mac-user/Documents/notes.md
       right: zendesk.com/pricing* · g2.com/compare
-      * in front · keyboard: left
-      The tabs in front are most likely what the user is looking at.
+      Showing: you on the left; zendesk.com/pricing on the right, beside you.
       </instrument-system-note>"
     `);
   });
 
-  it("says this chat is behind, on the right, with the keyboard on the left", () => {
+  it("says this chat is hidden behind the page covering it", () => {
     expect(
       groupLayoutModelNote({
         focused: 0,
@@ -97,11 +97,10 @@ describe("groupLayoutModelNote", () => {
     ).toMatchInlineSnapshot(`
       "
       <instrument-system-note>
-      Your group (you: right, behind):
-      left:  [folder] /Users/mac-user/Downloads* · [app] Settings
+      Your tab group, two sides side by side (* = the tab each side shows; its other tabs are hidden behind it):
+      left (keyboard): [folder] /Users/mac-user/Downloads* · [app] Settings
       right: [chat] Help desk prices (you) · zendesk.com/pricing* · New Tab
-      * in front · keyboard: left
-      The tabs in front are most likely what the user is looking at.
+      Showing: [folder] /Users/mac-user/Downloads on the left; zendesk.com/pricing on the right, covering you. The user cannot see this chat now.
       </instrument-system-note>"
     `);
   });
@@ -116,10 +115,9 @@ describe("groupLayoutModelNote", () => {
     ).toMatchInlineSnapshot(`
       "
       <instrument-system-note>
-      Your group (you: in front):
+      Your tab group, one side (* = the tab it shows; the other tabs are hidden behind it):
       [chat] Help desk prices (you)* · [folder] /Users/mac-user/Downloads
-      * in front
-      The tabs in front are most likely what the user is looking at.
+      Showing: only you.
       </instrument-system-note>"
     `);
   });
@@ -145,10 +143,27 @@ describe("groupLayoutModelNote", () => {
     ).toMatchInlineSnapshot(`
       "
       <instrument-system-note>
-      Your group (you: in front):
+      Your tab group, one side (* = the tab it shows; the other tabs are hidden behind it):
       [chat] Help desk prices (you)* · google.com/search?q=help+desk+help+desk+help+desk+help+desk+help+desk+help+desk…
-      * in front
-      The tabs in front are most likely what the user is looking at.
+      Showing: only you.
+      </instrument-system-note>"
+    `);
+  });
+
+  it("says when the window shows another group", () => {
+    expect(
+      groupLayoutModelNote({
+        focused: 0,
+        group: GROUP,
+        isShown: false,
+        sides: [{ tabs: [CHAT] }],
+      }),
+    ).toMatchInlineSnapshot(`
+      "
+      <instrument-system-note>
+      Your tab group, one side (* = the tab it shows; the other tabs are hidden behind it):
+      [chat] Help desk prices (you)*
+      The window shows another tab group now, so none of this is on screen. This group shows: only you.
       </instrument-system-note>"
     `);
   });
@@ -164,6 +179,47 @@ describe("groupLayoutModelNote", () => {
       <instrument-system-note>
       Your tab group is just you now.
       </instrument-system-note>"
+    `);
+  });
+});
+
+describe("tabPlace", () => {
+  it("says the side, whether it shows, and how it stands against this chat", () => {
+    const PAGE: LayoutTab = { ...G2, id: "tab_new", isUp: true };
+    const HIDDEN = { ...PAGE, isUp: false };
+    const place = (layout: Omit<Parameters<typeof tabPlace>[0], "group">) =>
+      tabPlace({ group: GROUP, ...layout }, "tab_new");
+    expect({
+      beside: place({
+        focused: 0,
+        sides: [
+          { tabs: [CHAT] },
+          { tabs: [{ ...ZENDESK, isUp: false }, PAGE] },
+        ],
+      }),
+      covering: place({
+        focused: 1,
+        sides: [
+          { tabs: [ZENDESK] },
+          { tabs: [{ ...CHAT, isUp: false }, PAGE] },
+        ],
+      }),
+      hiddenWhereTheyWork: place({
+        focused: 1,
+        sides: [{ tabs: [CHAT] }, { tabs: [ZENDESK, HIDDEN] }],
+      }),
+      notOnScreen: place({
+        focused: 0,
+        isShown: false,
+        sides: [{ tabs: [CHAT] }, { tabs: [PAGE] }],
+      }),
+    }).toMatchInlineSnapshot(`
+      {
+        "beside": "showing on the right side, beside you",
+        "covering": "showing on your side, the right, covering this chat, which is hidden until the user switches back to it",
+        "hiddenWhereTheyWork": "hidden on the right side, beside you, behind zendesk.com/pricing, since the user is working on that side",
+        "notOnScreen": "showing on the right side, beside you; the window shows another tab group now, so it is not on screen",
+      }
     `);
   });
 });

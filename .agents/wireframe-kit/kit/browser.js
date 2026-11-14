@@ -18,18 +18,19 @@ const bookmarkArt = `<span class="relative mb-3 block h-16 w-24"><span class="ab
  * Browser with no page open: the location row (the omnibar, the extensions' pill and the
  * ⋮, browser-start-controls.tsx), then
  * Bookmarks (`bookmarks`: SITES keys, else its empty shelf) and Recent pages (`recent`:
- * SITES keys; [] hides the section) under their ruled labels. `omni` passes options to
- * the omnibar (focus, typed).
+ * SITES keys; [] hides the section) under their ruled labels. `shelf` is finished HTML
+ * standing in for what Bookmarks shows. `omni` passes options to the omnibar (focus, typed).
  */
-const browserHome = ({ recent = ["zendesk", "g2"], bookmarks = [], omni = {}, extensions = [] } = {}) => `
+const browserHome = ({ recent = ["zendesk", "g2"], bookmarks = [], shelf = "", omni = {}, extensions = [] } = {}) => `
   <div class="flex min-w-0 flex-1 flex-col">
     ${locRow({ browser: true }, { omni, extensions })}
     <div class="mx-auto flex w-full max-w-[944px] flex-col gap-4 px-0 pt-[86px]">
       <div class="flex items-center gap-3 text-[13px] text-muted-foreground">Bookmarks<span class="h-px flex-1 bg-border"></span></div>
       ${
-        bookmarks.length
+        shelf ||
+        (bookmarks.length
           ? `<div class="grid grid-cols-6 gap-3">${bookmarks.map((k) => `<div class="flex flex-col items-center gap-2 rounded-xl p-3 text-center text-[12px]"><span class="grid size-12 place-items-center rounded-xl bg-white shadow-sm ring-1 ring-black/5">${SITES[k].mark("size-6 text-[11px]")}</span><span class="w-full truncate">${SITES[k].title.split(" · ").pop()}</span></div>`).join("")}</div>`
-          : `<div class="flex flex-col items-center gap-1 rounded-2xl bg-foreground/[0.03] py-10 text-center">${bookmarkArt}<span class="text-sm font-medium">No bookmarks yet</span><span class="text-[13px] text-muted-foreground">Choose <span class="font-medium text-foreground/80">Add to bookmarks</span> from the ${kbd("⋮")} menu on a website to add bookmarks</span></div>`
+          : `<div class="flex flex-col items-center gap-1 rounded-2xl bg-foreground/[0.03] py-10 text-center">${bookmarkArt}<span class="text-sm font-medium">No bookmarks yet</span><span class="text-[13px] text-muted-foreground">Choose <span class="font-medium text-foreground/80">Add to bookmarks</span> from the ${kbd("⋮")} menu on a website to add bookmarks</span></div>`)
       }
       ${
         recent.length

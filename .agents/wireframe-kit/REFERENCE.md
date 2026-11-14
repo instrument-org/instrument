@@ -6,7 +6,7 @@ Every file in `kit/` and every function it defines, with what each draws and tak
 
 | File | Draws |
 | --- | --- |
-| `brands.js` | `BRAND_URI`: brand marks as data URIs (`openai`, `claude`, `anthropic`, `googlegemini`, `grok`, `gmail`, `notion`, `figma`, `instrumentglyph`, the Apps directory's `googledrive`, `slack`, `hubspot`, …) |
+| `brands.js` | `BRAND_URI`: brand marks as data URIs (`openai`, `claude`, `anthropic`, `googlegemini`, `grok`, `gmail`, `notion`, `figma`, `instrumentglyph`, the Apps directory's `googledrive`, `slack`, `hubspot`, the browsers `googlechrome`, `microsoftedge`, `brave`, `safari`, `safari`, …) |
 | `marks.js` | The small pieces: `brand`, `letterMark`, `fileMark`, `tabMark`, `tabTitle`, `planningDot`, `pulse`, `bars2`, `openIn`, `askButton`, `kbd`, `projectTint` |
 | `controls.js` | Buttons and form controls as `components/ui` draws them |
 | `scenario.js` | The shared, invented data: `SITES`, `FILES`, `ROWS`, `PROJECTS`, `FOLDER_ROWS`, `PAGES`, `APP_ROWS`, `RELEASES`, `PRICING_TITLE` and `pricing()` |
@@ -102,7 +102,7 @@ Measured 2026-11-07. The transcript keeps changing, so these pieces draw what a 
 | Function | Draws |
 | --- | --- |
 | `placeCard({ tab, body, loc, omni, extensions })` | A page filling the card under its location row |
-| `browserHome({ recent, bookmarks, omni, extensions })` | Browser with no page: the location row (omnibar, extensions, ⋮) over Bookmarks and Recent pages |
+| `browserHome({ recent, bookmarks, shelf, omni, extensions })` | Browser with no page: the location row (omnibar, extensions, ⋮) over Bookmarks and Recent pages; `shelf` stands in for what Bookmarks shows |
 | `pageMenu({ left, top, bookmarked, zoom })` | The page's ⋮ menu as built, with its Zoom stepper and Extensions |
 | `newTabPage({ greeting, recent })`, `cmdRow(icon, label, keys, { on, h })` | The New tab page: the command menu's list in place |
 | `appsPlace({ connected, yours })` | Apps with nothing open: Your apps as marks (`yours`, a lost sign-in's dot), the search, Popular as 72px cards with each service's mark |

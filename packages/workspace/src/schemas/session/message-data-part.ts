@@ -4,6 +4,7 @@ import { z } from "zod";
 import { ChatIdSchema } from "../chat-id";
 import { DeviceIdSchema } from "../device-id";
 import { EnvironmentChangeSchema } from "../environment";
+import { LayoutChangeSchema, LayoutSnapshotSchema } from "../group-layout";
 import {
   AbsolutePathSchema,
   InWorkspacePathSchema,
@@ -32,8 +33,10 @@ export namespace SessionMessageDataPart {
     "environmentChange",
     "fileChanges",
     "fromChat",
+    "groupLayout",
     "intent",
     "jobEvent",
+    "layoutChanges",
     "setupChanges",
     "setupNews",
     "signedIn",
@@ -103,8 +106,10 @@ export namespace SessionMessageDataPart {
     fileChanges: "unwritten",
     folderChanges: "diff",
     fromChat: "event",
+    groupLayout: "state",
     intent: "event",
     jobEvent: "event",
+    layoutChanges: "event",
     maxSteps: "event",
     memory: "diff",
     messageGap: "event",
@@ -1386,6 +1391,29 @@ export namespace SessionMessageDataPart {
   export type ViewContextDataPart = z.output<typeof ViewContextDataPartSchema>;
 
   /**
+   * The chat's tab group as the message was sent: its sides, their tabs in
+   * order with the one up on each, which side has the keyboard, and which
+   * tab is this chat. Stored whole on every message the window could read
+   * it for, and said only when it reads differently from the last one said.
+   */
+  export const GroupLayoutDataPartSchema = LayoutSnapshotSchema;
+
+  export type GroupLayoutDataPart = z.output<typeof GroupLayoutDataPartSchema>;
+
+  /**
+   * What changed in the chat's tab group since the chat's last message, by
+   * tab, as the window that sent both saw it. Written only when something
+   * changed.
+   */
+  export const LayoutChangesDataPartSchema = z.object({
+    changes: z.array(LayoutChangeSchema).min(1),
+  });
+
+  export type LayoutChangesDataPart = z.output<
+    typeof LayoutChangesDataPartSchema
+  >;
+
+  /**
    * The local calendar date a session moved onto, as `yyyy-MM-dd`, written to
    * the first user message sent on a later day than the one the session context
    * records. The session context is a startup snapshot and is never rewritten,
@@ -1704,8 +1732,10 @@ export namespace SessionMessageDataPart {
     [NameSchema.enum.environmentChange]: EnvironmentChangeDataPartSchema,
     [NameSchema.enum.fileChanges]: FileChangesDataPartSchema,
     [NameSchema.enum.fromChat]: FromChatDataPartSchema,
+    [NameSchema.enum.groupLayout]: GroupLayoutDataPartSchema,
     [NameSchema.enum.intent]: IntentDataPartSchema,
     [NameSchema.enum.jobEvent]: JobEventDataPartSchema,
+    [NameSchema.enum.layoutChanges]: LayoutChangesDataPartSchema,
     [NameSchema.enum.maxSteps]: MaxStepsDataPartSchema,
     [NameSchema.enum.memory]: MemoryDataPartSchema,
     [NameSchema.enum.messageGap]: MessageGapDataPartSchema,

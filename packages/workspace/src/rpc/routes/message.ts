@@ -44,6 +44,7 @@ import { computerName, thisDevice } from "../../lib/chat/asks";
 
 import { updateSessionTitle } from "../../lib/update-session-title";
 import { FileUpload } from "../../schemas/file-upload";
+import { LayoutSentSchema } from "../../schemas/group-layout";
 import { SessionMessage } from "../../schemas/session/message";
 import { SessionMessageDataPart } from "../../schemas/session/message-data-part";
 import { StoreId } from "../../schemas/store-id";
@@ -99,6 +100,8 @@ const create = base
        */
       fromDraft: z.string().optional(),
       id: ChatIdSchema,
+      /** The chat's tab group as the message was sent, and what changed in it since the chat's last message. */
+      layout: LayoutSentSchema.optional(),
       modelURI: AIGatewayModelURI.Schema,
       prompt: z.string(),
       sessionId: StoreId.SessionSchema.optional(),
@@ -118,6 +121,7 @@ const create = base
         folders,
         fromDraft,
         id,
+        layout,
         modelURI,
         prompt,
         sessionId,
@@ -180,6 +184,7 @@ const create = base
           files: sending.files,
           folders: sending.folders,
           ...(fromDraft ? { fromDraft } : {}),
+          ...(layout ? { layout } : {}),
           modelURI,
           prompt,
           sessionId: finalSessionId,

@@ -25,6 +25,19 @@ export { environmentChangeModelNote } from "./model-text/context/environment-mod
 export { describeMessageError } from "./lib/describe-message-error";
 export { PLAN_NOT_ELIGIBLE_CODES } from "./lib/plan-not-eligible-codes";
 export { formatBytes } from "./lib/format-bytes";
+export {
+  type LayoutElsewhere,
+  layoutChanges,
+  layoutChangesLine,
+} from "./lib/group-layout";
+export {
+  type ChangedTab,
+  type LayoutChange,
+  type LayoutSent,
+  type LayoutSnapshot,
+  type LayoutTab,
+  type LayoutTabKind,
+} from "./schemas/group-layout";
 export { getToolNameByType } from "./lib/get-tool-name-by-type";
 export * from "./lib/is-chat-id";
 export { isToolPart } from "./lib/is-tool-part";

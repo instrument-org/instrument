@@ -522,5 +522,71 @@
     "note": "as written on 2026-11-09",
     "reads": "data-actions",
     "type": "data-actions"
+  },
+  {
+    "data": {
+      "focused": 1,
+      "group": {
+        "id": "2026-11-13-prices-4f2a",
+        "title": "Help desk prices"
+      },
+      "sides": [
+        {
+          "tabs": [
+            {
+              "address": "https://www.zendesk.com/pricing",
+              "id": "tab_01K9M3V7Q2ZB8N4T6W0XRYHDCE",
+              "isUp": true,
+              "kind": "website",
+              "title": "Zendesk pricing"
+            }
+          ]
+        },
+        {
+          "tabs": [
+            {
+              "address": "instrument://chat/2026-11-13-prices-4f2a",
+              "id": "2026-11-13-prices-4f2a",
+              "isThisChat": true,
+              "isUp": true,
+              "kind": "chat",
+              "title": "Help desk prices"
+            }
+          ]
+        }
+      ]
+    },
+    "note": "as written on 2026-11-13",
+    "reads": "data-groupLayout",
+    "type": "data-groupLayout"
+  },
+  {
+    "data": {
+      "changes": [
+        {
+          "beside": true,
+          "change": "opened",
+          "side": "left",
+          "tab": {
+            "address": "https://www.zendesk.com/pricing",
+            "id": "tab_01K9M3V7Q2ZB8N4T6W0XRYHDCE",
+            "kind": "website",
+            "title": "Zendesk pricing"
+          }
+        },
+        {
+          "change": "closed",
+          "tab": {
+            "address": "/Users/mac-user/Downloads",
+            "id": "tab_01K9M3V7Q2ZB8N4T6W0XRYHDCF",
+            "kind": "folder",
+            "title": "Downloads"
+          }
+        }
+      ]
+    },
+    "note": "as written on 2026-11-13",
+    "reads": "data-layoutChanges",
+    "type": "data-layoutChanges"
   }
 ]

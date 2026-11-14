@@ -45,6 +45,7 @@ const CONVERSATION_PARTS = new Set<string>([
   "data-fileChanges",
   "data-folderChanges",
   "data-fromChat",
+  "data-layoutChanges",
   "data-maxSteps",
   "data-modelChange",
   "data-permissionAnswer",

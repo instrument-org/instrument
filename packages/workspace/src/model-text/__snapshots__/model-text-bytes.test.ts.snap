@@ -2564,6 +2564,23 @@ Compare the two.",
 ]
 `;
 
+exports[`the notes a stored data part renders > groupLayout 1`] = `
+[
+  [
+    "<user_message>",
+    "First",
+    "data-groupLayout",
+    "</user_message>",
+    "
+<instrument-system-note>
+Their tab group "Help desk prices" as they sent this: two sides, each its tabs in order, "up" marking the one showing there.
+Left: website "Zendesk pricing" at https://www.zendesk.com/pricing (tab_01M0000000000000000000000T, up)
+Right, with the keyboard: this chat (up)
+</instrument-system-note>",
+  ],
+]
+`;
+
 exports[`the notes a stored data part renders > intent 1`] = `
 [
   [
@@ -2588,6 +2605,21 @@ exports[`the notes a stored data part renders > jobEvent 1`] = `
 A command you started has ended in the background:
 - bg_1 (\`pnpm build\`) failed after 1 second. Read what it wrote with \`fg bg_1\`; all of it is in \`logs/bg_1.log\`.
 Nobody typed anything; this note is why you are awake. If the user was waiting on it, read its output and finish what they asked for. Otherwise tell them in a line what came of it.
+</instrument-system-note>",
+  ],
+]
+`;
+
+exports[`the notes a stored data part renders > layoutChanges 1`] = `
+[
+  [
+    "<user_message>",
+    "First",
+    "data-layoutChanges",
+    "</user_message>",
+    "
+<instrument-system-note>
+Changes to the tab group since their last message, theirs or yours: opened website "Zendesk pricing" (tab_01M0000000000000000000000T) on the left, beside this chat.
 </instrument-system-note>",
   ],
 ]

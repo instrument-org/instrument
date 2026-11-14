@@ -251,6 +251,12 @@ function messagePartToShorthand(part: SessionMessagePart.Type): string {
     case "data-unknown": {
       return `<data-unknown originalType="${part.data.originalType}" />`;
     }
+    case "data-groupLayout": {
+      return `<data-groupLayout sides="${part.data.sides.map((side) => side.tabs.map((tab) => (tab.isThisChat ? "@" : tab.id)).join(" ")).join(" | ")}" />`;
+    }
+    case "data-layoutChanges": {
+      return `<data-layoutChanges>${part.data.changes.map((one) => one.change).join(",")}</data-layoutChanges>`;
+    }
     case "data-viewContext": {
       return `<data-viewContext screen="${part.data.screen}"${part.data.folder ? ` folder="${part.data.folder.display}"` : ""}${part.data.page ? ` page="${part.data.page.url}"` : ""} />`;
     }

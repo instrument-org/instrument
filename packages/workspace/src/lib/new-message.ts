@@ -3,6 +3,7 @@ import { extractSkillMentions } from "@instrument-org/shared/skill-mention";
 import { err, ok, ResultAsync } from "neverthrow";
 
 import { type FileUpload } from "../schemas/file-upload";
+import { type LayoutSent } from "../schemas/group-layout";
 import { type MountedFolder } from "../schemas/mounted-folder";
 import { AbsolutePathSchema } from "../schemas/paths";
 import { type SessionMessage } from "../schemas/session/message";
@@ -45,6 +46,7 @@ export async function newMessage({
   folders,
   fromChat,
   fromDraft,
+  layout,
   modelURI,
   prompt,
   sessionId,
@@ -64,6 +66,8 @@ export async function newMessage({
   fromChat?: SessionMessageDataPart.FromChatDataPart;
   /** The draft this was sent from, by its id; see the message's metadata. */
   fromDraft?: string;
+  /** The chat's tab group as the message was sent, and what changed in it; see the group-layout parts. */
+  layout?: LayoutSent;
   modelURI: AIGatewayModelURI.Type;
   prompt: string;
   sessionId: StoreId.Session;
@@ -138,6 +142,31 @@ export async function newMessage({
       },
       type: "data-viewContext",
     });
+  }
+
+  if (layout) {
+    parts.push({
+      data: layout.layout,
+      metadata: {
+        createdAt,
+        id: StoreId.newPartId(),
+        messageId,
+        sessionId,
+      },
+      type: "data-groupLayout",
+    });
+    if (layout.changes.length > 0) {
+      parts.push({
+        data: { changes: layout.changes },
+        metadata: {
+          createdAt,
+          id: StoreId.newPartId(),
+          messageId,
+          sessionId,
+        },
+        type: "data-layoutChanges",
+      });
+    }
   }
 
   if (asks) {

@@ -504,17 +504,13 @@ function createBrowserViewManager(): BrowserViewManager {
     // Mouse thumb-button navigation + right-click menu so the user can drive it.
     attachGuestInteractions(guest, {
       mayOpen: mayOpenFromPage,
-      openInNewTab: (url: string) => {
-        publisher.publish("browser.open-in-new-tab", {
-          background: false,
-          targetId,
-          url,
-        });
+      bookmark: (url, title) => {
+        publisher.publish("browser.bookmark-link", { targetId, title, url });
       },
-      openInNewWindow: (url: string) => {
+      openIn: (url, place) => {
         publisher.publish("browser.open-in-new-tab", {
           background: false,
-          newWindow: true,
+          ...(place === "tab" ? {} : { into: place }),
           targetId,
           url,
         });

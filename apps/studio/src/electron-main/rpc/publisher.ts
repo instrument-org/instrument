@@ -57,11 +57,20 @@ interface PublisherEvents {
   // the one up when `background`.
   "browser.open-in-new-tab": {
     background: boolean;
-    /** In a window of the app's own rather than a tab: a Shift-click, or the menu's Open Link in New Window. */
+    /** A place the page's menu picked: the other side of the page's tab group, a new tab group, or a new window. */
+    into?: "group" | "split" | "window";
+    /** As the first tab of a new tab group: a Shift-click. */
     newWindow?: boolean;
     /** The id the tab opens under, for a popup an agent's page opened, which its result names. */
     tabId?: StoreId.Tab;
     targetId: BrowserTargetId;
+    url: string;
+  };
+  // A link a person kept from a page's menu (Bookmark Link), named by its
+  // text; the window keeps it and says so.
+  "browser.bookmark-link": {
+    targetId: BrowserTargetId;
+    title: string;
     url: string;
   };
   // Agent-driven browser input can move Chromium keyboard focus into a guest.

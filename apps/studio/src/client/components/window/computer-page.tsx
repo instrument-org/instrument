@@ -75,7 +75,12 @@ import {
 import { useRecentFiles } from "@/client/hooks/use-recent-files";
 import { useFileOpenTarget } from "@/client/hooks/use-file-open-target";
 import { useOpenFile } from "@/client/hooks/use-open-file";
-import { wantsNewWindow } from "@/client/hooks/use-open-target";
+import {
+  useBookmarkRow,
+  useWindowPlaces,
+  wantsNewWindow,
+} from "@/client/hooks/use-open-target";
+import { fileAddressOf } from "@/client/bookmarks/address";
 import {
   getComputerFileUrl,
   getComputerThumbnailUrl,
@@ -120,6 +125,9 @@ import {
   WINDOW_ID,
 } from "@instrument-org/workspace/client";
 import { AppWindowIcon } from "@phosphor-icons/react/AppWindow";
+import { SquareSplitHorizontalIcon } from "@phosphor-icons/react/SquareSplitHorizontal";
+import { StackIcon } from "@phosphor-icons/react/Stack";
+import { StarIcon } from "@phosphor-icons/react/Star";
 import { ClipboardIcon } from "@phosphor-icons/react/Clipboard";
 import { ClipboardTextIcon } from "@phosphor-icons/react/ClipboardText";
 import { ClockCounterClockwiseIcon } from "@phosphor-icons/react/ClockCounterClockwise";
@@ -393,6 +401,8 @@ export function ComputerPage({
   view: FileSystemView;
 }) {
   const { openScreen, rowLead, rowTail } = useWindow();
+  const placesOf = useWindowPlaces();
+  const bookmarkRow = useBookmarkRow();
   const isBesideOpen = beside !== undefined && !beside.isClosing;
   const [rowTools, setRowTools] = useState<HTMLElement | null>(null);
   const placesWidth = useAtomValue(finderPlacesWidthAtom);
@@ -2063,6 +2073,9 @@ export function ComputerPage({
             onOpenInNewWindow: () => {
               openInWindow(group);
             },
+            onAddToBookmarks: undefined,
+            onOpenInNewGroup: undefined,
+            onOpenInSplit: undefined,
             onQuickLook: undefined,
             onRename: undefined,
             opensOutside: undefined,
@@ -2129,7 +2142,37 @@ export function ComputerPage({
     });
     openInTabs(inTabs, { behind: false });
   };
+  // The places a row opens in that one thing can: across from this tab, a
+  // tab group of its own, and a bookmark.
+  const placesOfOne = (item: FileSystemItem | undefined) => {
+    const itemPath = hostPathOfItem(item);
+    if (!item || !itemPath) {
+      return {};
+    }
+    const isFolder = item.kind === "folder";
+    const opens = placesOf((options) => {
+      openScreen(
+        isFolder
+          ? folderHref(itemPath)
+          : fileHref(itemPath, {
+              tree: folderOnScreenPath ?? folderOf(itemPath),
+            }),
+        options,
+      );
+    });
+    const placed = (id: "openNewGroup" | "openSplit") =>
+      opens.find((open) => open.id === id)?.run;
+    return {
+      onAddToBookmarks: bookmarkRow(async () => ({
+        title: segmentsOf(itemPath).at(-1) ?? itemPath,
+        url: fileAddressOf(itemPath, { isFolder }),
+      })).run,
+      onOpenInNewGroup: placed("openNewGroup"),
+      onOpenInSplit: placed("openSplit"),
+    };
+  };
   const menuActionsForOne = (item: FileSystemItem | undefined) => ({
+    ...placesOfOne(item),
     opensOutside: ((): FolderMenuActions["opensOutside"] => {
       const tab = item?.kind === "file" ? fileTabOf(item) : undefined;
       if (!tab || !opensOutside(tab)) {
@@ -2907,6 +2950,8 @@ type FolderMenuActions = {
   onCopyPath: () => void;
   onCut: () => void;
   onDuplicate: () => void;
+  /** Keeps it as a bookmark; left out for several. */
+  onAddToBookmarks?: (() => void) | undefined;
   /** Left out where nothing shows a file's info, or the menu is on the folder's empty space. */
   onInfo: (() => void) | undefined;
   /** Left out where there is no folder to make one in. */
@@ -2917,6 +2962,10 @@ type FolderMenuActions = {
   onOpenInNewTab: () => void;
   /** What it is in a window of its own, several as tabs of one. */
   onOpenInNewWindow: () => void;
+  /** The first tab of a new tab group; left out for several. */
+  onOpenInNewGroup?: (() => void) | undefined;
+  /** On the other side of this tab's group, made where it has one side; left out for several. */
+  onOpenInSplit?: (() => void) | undefined;
   /** Left out where nothing shows a file over the page. */
   onQuickLook: (() => void) | undefined;
   /** Left out where there is no field to type a name in. */
@@ -3071,6 +3120,7 @@ function FolderMenuItems({
   kept,
   menuComponents,
   newFolderFirst = false,
+  onAddToBookmarks,
   onCopy,
   onCopyPath,
   onCut,
@@ -3078,8 +3128,10 @@ function FolderMenuItems({
   onInfo,
   onNewFolder,
   onOpen,
+  onOpenInNewGroup,
   onOpenInNewTab,
   onOpenInNewWindow,
+  onOpenInSplit,
   onQuickLook,
   onRename,
   onReveal,
@@ -3162,10 +3214,22 @@ function FolderMenuItems({
               {several ? null : <Shortcut>{keys.open}</Shortcut>}
             </Item>
           )}
+          {onOpenInSplit ? (
+            <Item onClick={onOpenInSplit}>
+              <SquareSplitHorizontalIcon className="size-4" />
+              <span>Open in Split</span>
+            </Item>
+          ) : null}
           <Item onClick={onOpenInNewTab}>
             <NewTabIcon className="size-4" />
             <span>{several ? "Open in New Tabs" : "Open in New Tab"}</span>
           </Item>
+          {onOpenInNewGroup ? (
+            <Item onClick={onOpenInNewGroup}>
+              <StackIcon className="size-4" />
+              <span>Open in New Tab Group</span>
+            </Item>
+          ) : null}
           <Item onClick={onOpenInNewWindow}>
             <AppWindowIcon className="size-4" />
             <span>Open in New Window</span>
@@ -3251,6 +3315,12 @@ function FolderMenuItems({
           {several ? null : (
             <>
               <Separator />
+              {onAddToBookmarks ? (
+                <Item onClick={onAddToBookmarks}>
+                  <StarIcon className="size-4" />
+                  <span>Add to Bookmarks</span>
+                </Item>
+              ) : null}
               <Item onClick={onCopyPath}>
                 <ClipboardTextIcon className="size-4" />
                 <span>Copy Path</span>

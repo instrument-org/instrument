@@ -12,17 +12,24 @@ import { saveAsFromPage } from "./downloads";
 import { isFileUrl, isHttpUrl, pageAddressOfLink } from "./window-open-policy";
 
 /**
- * Where a link in the guest can go besides the guest itself: a tab of the
+ * A place of the window's own a link opens in from the page's menu: a tab
+ * after the page's, the other side of the page's tab group, the first tab of
+ * a new tab group, or of a new window.
+ */
+export type GuestLinkPlace = "group" | "split" | "tab" | "window";
+
+/**
+ * Where a link in the guest can go besides the guest itself: a place of the
  * window's own, for a window that has tabs, and the checks a link must pass
  * to be followed from this page.
  */
 export interface GuestLinkPlaces {
+  /** Keeps the address as a bookmark, named by the link's text; absent where the window has none. */
+  bookmark?: (url: string, title: string) => void;
   /** Whether this page may send a tab to the address: see `mayPageNavigateTo`. */
   mayOpen: (url: string) => boolean;
-  /** Opens the address in a tab of the window's own; absent where the window has none. */
-  openInNewTab?: (url: string) => void;
-  /** Opens the address in a window of the app's own; absent where there are none. */
-  openInNewWindow?: (url: string) => void;
+  /** Opens the address in a place of the window's own; absent where the window has none. */
+  openIn?: (url: string, place: GuestLinkPlace) => void;
   /** Asks the window to step the tab the page is in, which runs into the page's own history first. */
   step: (direction: "back" | "forward") => void;
 }
@@ -83,21 +90,25 @@ function contextMenuTemplate(
         },
         label: "Open Link",
       });
-      const { openInNewTab, openInNewWindow } = places;
-      if (openInNewTab) {
-        items.push({
-          click: () => {
-            openInNewTab(url);
-          },
-          label: "Open Link in New Tab",
-        });
+      const { bookmark, openIn } = places;
+      if (openIn) {
+        items.push(
+          ...LINK_PLACES.map(
+            ({ label, place }): MenuItemConstructorOptions => ({
+              click: () => {
+                openIn(url, place);
+              },
+              label,
+            }),
+          ),
+        );
       }
-      if (openInNewWindow) {
+      if (bookmark) {
         items.push({
           click: () => {
-            openInNewWindow(url);
+            bookmark(url, params.linkText.trim());
           },
-          label: "Open Link in New Window",
+          label: "Bookmark Link",
         });
       }
     }
@@ -140,6 +151,15 @@ function contextMenuTemplate(
 
   return items;
 }
+
+// The places of the window's own a link opens in, in the order every menu
+// over a link lists them.
+const LINK_PLACES: { label: string; place: GuestLinkPlace }[] = [
+  { label: "Open Link in Split", place: "split" },
+  { label: "Open Link in New Tab", place: "tab" },
+  { label: "Open Link in New Tab Group", place: "group" },
+  { label: "Open Link in New Window", place: "window" },
+];
 
 // Whether the guest can show the address itself: the web, and a file a local
 // page links to, where the page may send a tab.
@@ -195,11 +215,11 @@ function mediaItems(
   }
   const noun = MEDIA_NOUNS[mediaType];
   const items: MenuItemConstructorOptions[] = [];
-  const { openInNewTab } = places;
-  if (openInNewTab && isOpenable(srcURL, places)) {
+  const { openIn } = places;
+  if (openIn && isOpenable(srcURL, places)) {
     items.push({
       click: () => {
-        openInNewTab(srcURL);
+        openIn(srcURL, "tab");
       },
       label: `Open ${noun} in New Tab`,
     });

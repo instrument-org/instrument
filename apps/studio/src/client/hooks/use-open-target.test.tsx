@@ -1,8 +1,22 @@
+import { bookmarksAtom } from "@/client/bookmarks/store";
+import { FileOpenContext } from "@/client/components/file-open-context";
+import { PageOpenContext } from "@/client/components/page-open-context";
+import {
+  type WindowContextValue,
+  WindowContext,
+} from "@/client/components/window/context";
+import { GroupTabContext } from "@/client/components/window/group-tab";
 import { ChatIdSchema } from "@instrument-org/workspace/client";
 import { renderHook, waitFor } from "@testing-library/react";
+import { createStore, Provider } from "jotai";
+import { type ReactNode } from "react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
-import { openClickGestures, useGesturesFor } from "./use-open-target";
+import {
+  openClickGestures,
+  showOpenMenu,
+  useGesturesFor,
+} from "./use-open-target";
 
 const hostPaths = vi.fn(
   ({ filePaths }: { filePaths: string[] }): Record<string, null | string> =>
@@ -16,8 +30,18 @@ const hostPaths = vi.fn(
     ),
 );
 
-const { toastError } = vi.hoisted(() => ({ toastError: vi.fn() }));
-vi.mock("@/client/lib/toast", () => ({ toast: { error: toastError } }));
+const { toastError, toastSaid } = vi.hoisted(() => ({
+  toastError: vi.fn(),
+  toastSaid: vi.fn(),
+}));
+vi.mock("@/client/lib/toast", () => ({
+  toast: Object.assign(toastSaid, { error: toastError }),
+}));
+const { showContextMenu } = vi.hoisted(() => ({
+  showContextMenu: vi.fn((_input: { items: unknown[] }) =>
+    Promise.resolve({ id: undefined }),
+  ),
+}));
 
 // Nothing here opens a link.
 vi.mock("@/client/hooks/use-open-external-link", () => ({
@@ -25,6 +49,7 @@ vi.mock("@/client/hooks/use-open-external-link", () => ({
 }));
 vi.mock("@/client/rpc/client", () => ({
   rpcClient: {
+    utils: { showContextMenu: { call: showContextMenu } },
     workspace: {
       chats: {
         files: {
@@ -42,7 +67,9 @@ const chatId = ChatIdSchema.parse("2026-10-19-copy-path");
 
 afterEach(() => {
   hostPaths.mockClear();
+  showContextMenu.mockClear();
   toastError.mockClear();
+  toastSaid.mockClear();
 });
 
 async function copied(
@@ -139,5 +166,147 @@ describe("a click on a link", () => {
     },
   ])("opens $name", ({ expected, keys }) => {
     expect(press(keys)).toEqual(expected);
+  });
+});
+
+describe("a link's menu in a window with tabs", () => {
+  const ask = vi.fn();
+  const openPage = vi.fn();
+  const openPath = vi.fn();
+  const openScreen = vi.fn();
+  const surfaceOpen = vi.fn();
+  const store = createStore();
+  const appWindow = {
+    ask,
+    browser: null,
+    chatId,
+    openPage,
+    openPath,
+    openScreen,
+  } satisfies WindowContextValue;
+  // A link drawn in a chat's tab: the window's, the tab's, and the chat's
+  // own places for a page and a file.
+  const wrapper = ({ children }: { children: ReactNode }) => (
+    <Provider store={store}>
+      <WindowContext value={appWindow}>
+        <GroupTabContext
+          value={{
+            close: vi.fn(),
+            id: "tab-left",
+            isShown: true,
+            showPage: vi.fn(),
+          }}
+        >
+          <PageOpenContext value={surfaceOpen}>
+            <FileOpenContext value={openPath}>{children}</FileOpenContext>
+          </PageOpenContext>
+        </GroupTabContext>
+      </WindowContext>
+    </Provider>
+  );
+  const menuOf = (target: Parameters<ReturnType<typeof useGesturesFor>>[0]) =>
+    renderHook(() => useGesturesFor(), { wrapper }).result.current(target);
+
+  afterEach(() => {
+    openPage.mockClear();
+    openPath.mockClear();
+    openScreen.mockClear();
+  });
+
+  it.each([
+    { kind: "page", url: "https://example.com/" },
+    { chatId, kind: "path", path: "/Users/sam/report.md" },
+    { href: "/history", kind: "screen" },
+  ] as const)("lists the places for a $kind in one order", (target) => {
+    expect(menuOf(target).destinations.map((row) => row.label)).toEqual([
+      "Open",
+      "Open in Split",
+      "Open in New Tab",
+      "Open in New Tab Group",
+      "Open in New Window",
+      "Add to Bookmarks",
+      target.kind === "path" ? "Copy Path" : "Copy Link",
+    ]);
+  });
+
+  it.each([
+    ["Open in Split", { from: "tab-left", into: "split" }],
+    ["Open in New Tab", { behind: true, newTab: true }],
+    ["Open in New Tab Group", { into: "group" }],
+    ["Open in New Window", { into: "window" }],
+  ])("opens a page from %s in the place it names", (label, options) => {
+    menuOf({ kind: "page", url: "https://example.com/" })
+      .destinations.find((row) => row.label === label)
+      ?.run();
+    expect(openPage).toHaveBeenCalledWith("https://example.com/", options);
+  });
+
+  it("opens with Shift and a click as the first tab of a new tab group", () => {
+    menuOf({ kind: "page", url: "https://example.com/" }).onClick({
+      altKey: false,
+      ctrlKey: false,
+      metaKey: false,
+      preventDefault: vi.fn(),
+      shiftKey: true,
+    } as unknown as React.MouseEvent);
+    expect(openPage).toHaveBeenCalledWith("https://example.com/", {
+      into: "group",
+    });
+  });
+
+  it("keeps a page, a built-in page and a file as bookmarks, once each", async () => {
+    const keep = (target: Parameters<typeof menuOf>[0]) =>
+      menuOf(target)
+        .destinations.find((row) => row.id === "bookmark")
+        ?.run();
+    keep({ kind: "page", url: "https://example.com/" });
+    keep({ href: "/history", kind: "screen" });
+    keep({ chatId, kind: "path", path: "workspace:/Notes/plan.md" });
+    keep({ kind: "page", url: "https://example.com" });
+    await waitFor(
+      () => {
+        expect(toastSaid).toHaveBeenCalledTimes(4);
+      },
+      { interval: 1 },
+    );
+    expect(
+      store.get(bookmarksAtom).map(({ title, url }) => ({ title, url })),
+    ).toEqual([
+      { title: "", url: "https://example.com/" },
+      { title: "History", url: "instrument://screen/history" },
+      {
+        title: "plan.md",
+        url: "instrument://file/Users/sam/Instrument/Notes/plan.md",
+      },
+    ]);
+    // The file's is said once its place on this computer is found.
+    expect(toastSaid.mock.calls.map(([said]) => said).toSorted()).toEqual([
+      "Added to Bookmarks",
+      "Added to Bookmarks",
+      "Added to Bookmarks",
+      "Already in Bookmarks",
+    ]);
+  });
+
+  it("sets keeping and copying apart from the places in the OS's menu", async () => {
+    await showOpenMenu(
+      menuOf({ kind: "page", url: "https://example.com/" }).destinations,
+    );
+    expect(
+      showContextMenu.mock.calls[0]?.[0].items.map((item) =>
+        typeof item === "object" && item !== null && "label" in item
+          ? item.label
+          : "---",
+      ),
+    ).toEqual([
+      "Open",
+      "Open in Split",
+      "Open in New Tab",
+      "Open in New Tab Group",
+      "Open in New Window",
+      "---",
+      "Add to Bookmarks",
+      "Copy Link",
+    ]);
   });
 });

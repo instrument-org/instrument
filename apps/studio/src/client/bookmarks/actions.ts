@@ -4,7 +4,8 @@ import {
   orderAfter,
   placeOf,
 } from "@/shared/bookmarks";
-import { useAtomValue, useSetAtom } from "jotai";
+import { toast } from "@/client/lib/toast";
+import { useAtomValue, useSetAtom, useStore } from "jotai";
 
 import { sameAddress } from "./address";
 import { applyBookmarkOpsAtom, bookmarksAtom } from "./store";
@@ -77,5 +78,32 @@ export function useBookmarkActions() {
         { id: bookmark.id, title: named, type: "rename" },
       ]);
     },
+  };
+}
+
+/**
+ * Keeping an address from a menu over a link or a file, for a surface that
+ * draws many: the bookmarks are read at the press rather than followed, so
+ * a change to them redraws none of the links. An address not kept yet goes
+ * last on the bookmarks bar, and one kept already stays where it is; the
+ * toast says which.
+ */
+export function useAddBookmark() {
+  const store = useStore();
+  return ({ title, url }: { title: string; url: string }) => {
+    const bookmarks = store.get(bookmarksAtom);
+    const kept = bookmarks.find((bookmark) => sameAddress(bookmark.url, url));
+    if (kept) {
+      toast("Already in Bookmarks", { description: kept.title || url });
+      return;
+    }
+    const bookmark: Bookmark = {
+      id: crypto.randomUUID(),
+      order: orderAfter(bookmarks),
+      title,
+      url,
+    };
+    void store.set(applyBookmarkOpsAtom, [{ bookmark, type: "add" }]);
+    toast("Added to Bookmarks", { description: title || url });
   };
 }

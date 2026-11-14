@@ -1,3 +1,4 @@
+import { useAddBookmark } from "@/client/bookmarks/actions";
 import { useSteadyCallbacks } from "@/client/hooks/use-steady-callbacks";
 import { takeKeyboardOnArrival } from "@/client/lib/browser-pool";
 import { rpcClient } from "@/client/rpc/client";
@@ -31,7 +32,7 @@ import {
 } from "./placement";
 import { visitInTab } from "./tab-history";
 import { taskHref, tasksOfHref } from "./tab-location";
-import { isFreshTab } from "./tab-model";
+import { isFreshTab, sideIndexOf } from "./tab-model";
 import {
   chatHref,
   chatOfGroup,
@@ -65,8 +66,15 @@ export function useOpeners({
   chatTitles: Map<ChatId, string>;
   /** Whether what the window opens on is made; nothing is opened before it is. */
   isOpen: boolean;
-  /** Makes a new tab group at the bottom of the list, filled by what is given, and brings it up. */
-  newGroup: (fill: (group: string) => void) => void;
+  /**
+   * Makes a new tab group at the top of the list, filled by what is given,
+   * and brings it up; or, not shown here, only makes it, for a window of its
+   * own to open on. Answers the group.
+   */
+  newGroup: (
+    fill: (group: string) => void,
+    options?: { isShownHere?: boolean },
+  ) => string;
   /** Brings up a chat's tab, wherever it is, or a group made for it. */
   showChat: (chat: ChatId) => void;
   /** Brings a tab group up, here or in the window that has it open, or moves it to a window of its own. */
@@ -99,6 +107,51 @@ export function useOpeners({
     }
     return windowTabs.chatPlace(chat) ?? { group: chat };
   };
+  /**
+   * Opens something in a place picked from a menu (`OpenOptions.into`):
+   * `put` opens it in a group, at a place there. In a split, that is the
+   * other side from the tab it was asked from, right after the tab up
+   * there, the side made where the group has one.
+   */
+  const openInto = (
+    {
+      from,
+      into,
+    }: Pick<OpenOptions, "from"> & { into: "group" | "split" | "window" },
+    put: (place: { after?: string; group: string; side?: 0 | 1 }) => void,
+  ) => {
+    if (into === "group") {
+      newGroup((group) => {
+        put({ group });
+      });
+      return;
+    }
+    if (into === "window") {
+      const group = newGroup(
+        (made) => {
+          put({ group: made });
+        },
+        { isShownHere: false },
+      );
+      showGroup(group, { newWindow: true });
+      return;
+    }
+    const tab = windowTabs.allTabs.find((each) => each.id === from) ?? active;
+    const group = tab?.group ?? windowTabs.groupOnScreen;
+    if (group === undefined) {
+      newGroup((made) => {
+        put({ group: made });
+      });
+      return;
+    }
+    const layout = windowTabs.layoutOf(group);
+    const here =
+      (tab === undefined ? undefined : sideIndexOf(layout, tab.id)) ??
+      layout.focused;
+    const there = here === 1 ? 0 : 1;
+    const up = layout.sides.length === 2 ? layout.sides[there]?.up : undefined;
+    put({ ...(up === undefined ? {} : { after: up }), group, side: there });
+  };
   /** Brings a group on screen for something shown into it from outside it. */
   const bringUp = (group: string) => {
     if (group !== windowTabs.groupOnScreen) {
@@ -113,6 +166,13 @@ export function useOpeners({
    * when it was shown, and behind otherwise.
    */
   const openPage = (url: string, asked: OpenOptions = {}) => {
+    if (asked.into) {
+      let id: string | undefined;
+      openInto({ ...asked, into: asked.into }, (picked) => {
+        id = browser?.open(url, { ...picked, show: true });
+      });
+      return id;
+    }
     if (asked.newWindow) {
       let id: string | undefined;
       newGroup((group) => {
@@ -221,7 +281,14 @@ export function useOpeners({
       : chatOfHref(href);
     if (chat) {
       // A chat is a tab: its tab comes up wherever it is, and a window of
-      // its own takes the group it is in.
+      // its own takes the group it is in. Asked for in a place of a menu's,
+      // it is a tab of its own there.
+      if (asked.into) {
+        openInto({ ...asked, into: asked.into }, (picked) => {
+          windowTabs.openScreen(chatHref(chat), { ...picked, select: true });
+        });
+        return;
+      }
       const place = windowTabs.chatPlace(chat);
       if (asked.newWindow && place) {
         showGroup(place.group, { newWindow: true });
@@ -272,6 +339,12 @@ export function useOpeners({
     // anything else gets the tab at that address, or a new one right after
     // the chat's.
     const tasks = tasksOfHref(href);
+    if (options.into && !tasks && isGroupScreenHref(href)) {
+      openInto({ ...options, into: options.into }, (picked) => {
+        windowTabs.openScreen(href, { ...picked, select: true });
+      });
+      return;
+    }
     const owner = tasks
       ? (tasks.chat ??
         chatOfGroup(asked.group) ??
@@ -607,18 +680,25 @@ export function useOpeners({
    */
   const openFromPage = ({
     background,
+    into,
     newWindow = false,
     tabId,
     targetId,
     url,
   }: {
     background: boolean;
+    into?: "group" | "split" | "window";
     newWindow?: boolean;
     tabId?: StoreId.Tab;
     targetId: string;
     url: string;
   }) => {
-    // A window of its own has the page on its own, whichever group's page
+    // A place the page's menu picked, the split across from the page's tab.
+    if (into) {
+      openPage(url, { from: targetId, into });
+      return;
+    }
+    // A group of its own has the page on its own, whichever group's page
     // asked for it.
     if (newWindow) {
       openPage(url, { newWindow });
@@ -636,9 +716,10 @@ export function useOpeners({
     }
   };
 
-  const openers = useRef({ actOnTab, openFromPage, openPage });
+  const addBookmark = useAddBookmark();
+  const openers = useRef({ actOnTab, addBookmark, openFromPage, openPage });
   useEffect(() => {
-    openers.current = { actOnTab, openFromPage, openPage };
+    openers.current = { actOnTab, addBookmark, openFromPage, openPage };
   });
   // A link in text being edited, opened from the window's native menu.
   useEffect(() => {
@@ -648,6 +729,21 @@ export function useOpeners({
         rpcClient.window.events.openMenuLink.call(undefined, { signal }),
       controller.signal,
       openMenuLink,
+    );
+    return () => {
+      controller.abort();
+    };
+  }, []);
+  // A link a person kept from a page's menu.
+  useEffect(() => {
+    const controller = new AbortController();
+    void eachSent(
+      (signal) =>
+        rpcClient.browser.events.bookmarkLink.call(undefined, { signal }),
+      controller.signal,
+      ({ title, url }) => {
+        openers.current.addBookmark({ title, url });
+      },
     );
     return () => {
       controller.abort();

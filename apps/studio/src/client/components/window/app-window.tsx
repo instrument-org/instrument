@@ -794,9 +794,7 @@ function WindowShell({
     browser,
     chatTitles,
     isOpen: opened !== undefined,
-    newGroup: (fill) => {
-      groups.make({ fill });
-    },
+    newGroup: (fill, options) => groups.make({ fill, ...options }),
     showChat: (chat) => {
       groups.showChat(chat);
     },
@@ -1156,8 +1154,7 @@ function WindowShell({
               .layoutOf(group)
               .sides.flatMap((side) => side.tabs)
               .find(
-                (each) =>
-                  chatOfTab(each) !== undefined || isNewChatTab(each),
+                (each) => chatOfTab(each) !== undefined || isNewChatTab(each),
               );
       if (tab) {
         windowTabs.select(tab.id);
@@ -1207,7 +1204,10 @@ function WindowShell({
         }
         const state = store.get(windowTabsAtom);
         const up = selectedTabIn(state, group);
-        if (up && state.tabs.some((tab) => tab.group === group && tab.id !== up.id)) {
+        if (
+          up &&
+          state.tabs.some((tab) => tab.group === group && tab.id !== up.id)
+        ) {
           requestClose(up.id);
           return;
         }

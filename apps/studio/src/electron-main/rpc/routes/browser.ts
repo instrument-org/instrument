@@ -74,6 +74,15 @@ const events = {
       }
     }
   }),
+  bookmarkLink: base.handler(async function* ({ context, signal }) {
+    for await (const event of publisher.subscribe("browser.bookmark-link", {
+      signal,
+    })) {
+      if (isForHost(context.webContentsId, event.targetId)) {
+        yield event;
+      }
+    }
+  }),
   openInNewTab: base.handler(async function* ({ context, signal }) {
     for await (const event of publisher.subscribe("browser.open-in-new-tab", {
       signal,

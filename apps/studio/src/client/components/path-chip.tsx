@@ -1,3 +1,4 @@
+import { fileAddressOf } from "@/client/bookmarks/address";
 import {
   FileSystemFolderGlyph,
   FileTypeIcon,
@@ -16,6 +17,8 @@ import {
   type OpenDestination,
   openClickGestures,
   showOpenMenu,
+  useBookmarkRow,
+  useWindowPlaces,
   wantsNewTab,
   wantsNewWindow,
 } from "@/client/hooks/use-open-target";
@@ -37,6 +40,7 @@ import { fileHref, folderHref } from "@/shared/computer-href";
 import { type ReactElement, type ReactNode, useContext } from "react";
 
 import { Tooltip, TooltipContent, TooltipTrigger } from "./ui/tooltip";
+import { segmentsOf } from "./window/host-path";
 
 /**
  * The icon a path written in someone's words is drawn with, read from its
@@ -93,6 +97,8 @@ function fileUrlOf(path: TypedPath) {
  */
 export function PathChip({ path }: { path: TypedPath }) {
   const appWindow = useContext(WindowContext);
+  const placesOf = useWindowPlaces();
+  const bookmarkRow = useBookmarkRow();
   const { isMissing, ref } = useFilePresence<HTMLSpanElement>(fileUrlOf(path));
   const icon = <PathIcon className={INLINE_CHIP_ICON_CLASS_NAME} path={path} />;
   const body = <PathChipBody icon={icon} text={shortPathLabel(path.shown)} />;
@@ -137,20 +143,19 @@ export function PathChip({ path }: { path: TypedPath }) {
         open();
       },
     },
-    {
-      id: "openNewTab",
-      label: "Open in New Tab",
-      run: () => {
-        open({ behind: true, newTab: true });
-      },
-    },
-    {
-      id: "openNewWindow",
-      label: "Open in New Window",
-      run: () => {
-        open({ newWindow: true });
-      },
-    },
+    ...placesOf(open),
+    bookmarkRow(async () => {
+      const located = await locateTypedPath(path);
+      if (located.kind === "failed" || located.kind === "missing") {
+        throw new Error(missedPathNotice(located));
+      }
+      return {
+        title: segmentsOf(located.path).at(-1) ?? located.path,
+        url: fileAddressOf(located.path, {
+          isFolder: located.kind === "folder",
+        }),
+      };
+    }),
     {
       id: "copy",
       label: "Copy Path",
@@ -176,7 +181,7 @@ export function PathChip({ path }: { path: TypedPath }) {
       className={cn(isMissing && "opacity-60")}
       onActivate={(event) => {
         if (wantsNewWindow(event)) {
-          open({ newWindow: true });
+          open({ into: "group" });
         } else if (wantsNewTab(event)) {
           open({ behind: true, newTab: true });
         } else {

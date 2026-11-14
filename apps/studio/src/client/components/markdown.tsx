@@ -6,7 +6,14 @@ import { FileOpenContext } from "@/client/components/file-open-context";
 import { useFileDrag } from "@/client/hooks/use-file-drag";
 import { useImageArrival } from "@/client/hooks/use-image-arrival";
 import { useTranscriptHostPaths } from "@/client/components/transcript/transcript-data";
-import { wantsNewTab, wantsNewWindow } from "@/client/hooks/use-open-target";
+import {
+  useBookmarkRow,
+  useWindowPlaces,
+  wantsNewTab,
+  wantsNewWindow,
+} from "@/client/hooks/use-open-target";
+import { fileAddressOf } from "@/client/bookmarks/address";
+import { PlaceItems } from "@/client/components/window/place-items";
 import { useShowChatFile } from "@/client/hooks/use-show-chat-file";
 import {
   APP_NAME_SLUG,
@@ -465,6 +472,8 @@ const ChatFileLink = ({
   const filePath = chatFilePathFromHref(href);
   const filename = filePath.split("/").at(-1) ?? filePath;
   const showChatFile = useShowChatFile();
+  const placesOf = useWindowPlaces();
+  const bookmarkRow = useBookmarkRow();
   // A window with tabs gives the file a tab of its own on a middle or
   // modified click, and offers one in the menu.
   const hasTabs = useContext(WindowContext) !== null;
@@ -491,7 +500,7 @@ const ChatFileLink = ({
         showChatFile(
           filePath,
           hasTabs && wantsNewWindow(event)
-            ? { newWindow: true }
+            ? { into: "group" }
             : { newTab: hasTabs && wantsNewTab(event) },
         );
       }}
@@ -545,20 +554,18 @@ const ChatFileLink = ({
             >
               Open
             </ContextMenuItem>
-            <ContextMenuItem
-              onSelect={() => {
-                showChatFile(filePath, { behind: true, newTab: true });
-              }}
-            >
-              Open in New Tab
-            </ContextMenuItem>
-            <ContextMenuItem
-              onSelect={() => {
-                showChatFile(filePath, { newWindow: true });
-              }}
-            >
-              Open in New Window
-            </ContextMenuItem>
+            <PlaceItems
+              components={contextMenuComponents}
+              destinations={[
+                ...placesOf((options) => {
+                  showChatFile(filePath, options);
+                }),
+                bookmarkRow(async () => ({
+                  title: filename,
+                  url: fileAddressOf(hostPath),
+                })),
+              ]}
+            />
             <ContextMenuSeparator />
           </>
         )}

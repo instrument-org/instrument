@@ -1,15 +1,19 @@
 import {
   type OpenDestination,
   showOpenMenu,
+  useBookmarkRow,
   useGesturesFor,
+  useWindowPlaces,
   wantsNewTab,
   wantsNewWindow,
 } from "@/client/hooks/use-open-target";
+import { fileAddressOf } from "@/client/bookmarks/address";
 import { fileHref, folderHref } from "@/shared/computer-href";
 import { type ReactNode, useContext } from "react";
 import { toast } from "@/client/lib/toast";
 
 import { type OpenOptions, WindowContext } from "./context";
+import { segmentsOf } from "./host-path";
 import { type LinkTarget, linkTargetOf } from "./link-address";
 import { setMenuLink } from "./menu-link";
 
@@ -44,6 +48,8 @@ export function LinkSurface({
   openFile?: (hostPath: string, options?: OpenOptions) => void;
 }) {
   const gesturesFor = useGesturesFor();
+  const placesOf = useWindowPlaces();
+  const bookmarkRow = useBookmarkRow();
   // Absent while the window is still coming up, where a link has nowhere in
   // the window to open and the page's own answer stands.
   const appWindow = useContext(WindowContext);
@@ -67,20 +73,17 @@ export function LinkSurface({
         showFile(hostPath);
       },
     },
-    {
-      id: "openNewTab",
-      label: "Open in New Tab",
-      run: () => {
-        showFile(hostPath, { behind: true, newTab: true });
-      },
-    },
-    {
-      id: "openNewWindow",
-      label: "Open in New Window",
-      run: () => {
-        showFile(hostPath, { newWindow: true });
-      },
-    },
+    ...placesOf((options) => {
+      showFile(hostPath, options);
+    }),
+    bookmarkRow(async () => {
+      const isFolder = hostPath.endsWith("/");
+      const path = isFolder ? hostPath.slice(0, -1) : hostPath;
+      return {
+        title: segmentsOf(path).at(-1) ?? path,
+        url: fileAddressOf(path, { isFolder }),
+      };
+    }),
     {
       id: "copy",
       label: "Copy Path",
@@ -103,7 +106,7 @@ export function LinkSurface({
         showFile(
           target.path,
           gesture === "newWindow"
-            ? { newWindow: true }
+            ? { into: "group" }
             : gesture === "newTab"
               ? { behind: true, newTab: true }
               : undefined,
@@ -124,7 +127,7 @@ export function LinkSurface({
       return;
     }
     (gesture === "newWindow"
-      ? (gestures.ownWindow ?? gestures.primary)
+      ? (gestures.ownGroup ?? gestures.primary)
       : gesture === "newTab"
         ? gestures.separate
         : gestures.primary

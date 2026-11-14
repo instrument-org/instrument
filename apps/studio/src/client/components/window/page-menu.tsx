@@ -1,4 +1,3 @@
-import { NewTabIcon } from "@/client/components/icons/new-tab-icon";
 import {
   ContextMenu,
   ContextMenuContent,
@@ -6,17 +5,19 @@ import {
   ContextMenuSeparator,
   ContextMenuTrigger,
 } from "@/client/components/ui/context-menu";
+import { contextMenuComponents } from "@/client/components/ui/menu-components";
 import {
   useGesturesFor,
   wantsNewTab,
   wantsNewWindow,
 } from "@/client/hooks/use-open-target";
-import { AppWindowIcon } from "@phosphor-icons/react/AppWindow";
 import { GlobeSimpleIcon } from "@phosphor-icons/react/GlobeSimple";
 import { LinkSimpleIcon } from "@phosphor-icons/react/LinkSimple";
 import { PencilSimpleIcon } from "@phosphor-icons/react/PencilSimple";
 import { XCircleIcon } from "@phosphor-icons/react/XCircle";
 import { type MouseEvent, type ReactElement, useRef } from "react";
+
+import { PlaceItems } from "./place-items";
 
 /** The middle button, which asks for a tab of its own. */
 const MIDDLE_BUTTON = 1;
@@ -34,8 +35,8 @@ export function usePageClicks() {
     const inNewTab = destinations.find(
       (destination) => destination.id === "openNewTab",
     );
-    const inNewWindow = destinations.find(
-      (destination) => destination.id === "openNewWindow",
+    const inNewGroup = destinations.find(
+      (destination) => destination.id === "openNewGroup",
     );
     return {
       onAuxClick: (event: MouseEvent) => {
@@ -46,8 +47,8 @@ export function usePageClicks() {
         inNewTab.run();
       },
       onClick: (event: MouseEvent) => {
-        if (inNewWindow && wantsNewWindow(event)) {
-          inNewWindow.run();
+        if (inNewGroup && wantsNewWindow(event)) {
+          inNewGroup.run();
           return;
         }
         if (inNewTab && wantsNewTab(event)) {
@@ -68,7 +69,8 @@ export function usePageClicks() {
 
 /**
  * The app's own menu over a page kept in a list (a bookmark, a page lately
- * seen): opening it here or in a tab of its own, its link, and what the list
+ * seen): opening it here or in a place of the window's own
+ * (`useWindowPlaces`), its link, and what the list
  * lets be done to its entry. Never the OS browser: the page's own row offers
  * that once it is open.
  */
@@ -92,11 +94,12 @@ export function PageContextMenu({
 }) {
   const gesturesFor = useGesturesFor();
   const { destinations } = gesturesFor({ kind: "page", url });
-  const inNewTab = destinations.find(
-    (destination) => destination.id === "openNewTab",
-  );
-  const inNewWindow = destinations.find(
-    (destination) => destination.id === "openNewWindow",
+  const places = destinations.filter(
+    (destination) =>
+      destination.id === "openSplit" ||
+      destination.id === "openNewTab" ||
+      destination.id === "openNewGroup" ||
+      destination.id === "openNewWindow",
   );
   const copy = destinations.find((destination) => destination.id === "copy");
   // A rename asked for is started as the menu closes: a field focused while
@@ -123,18 +126,7 @@ export function PageContextMenu({
           <GlobeSimpleIcon className="size-4" />
           <span>Open</span>
         </ContextMenuItem>
-        {inNewTab && (
-          <ContextMenuItem onClick={inNewTab.run}>
-            <NewTabIcon className="size-4" />
-            <span>Open in New Tab</span>
-          </ContextMenuItem>
-        )}
-        {inNewWindow && (
-          <ContextMenuItem onClick={inNewWindow.run}>
-            <AppWindowIcon className="size-4" />
-            <span>Open in New Window</span>
-          </ContextMenuItem>
-        )}
+        <PlaceItems components={contextMenuComponents} destinations={places} />
         <ContextMenuSeparator />
         {onRename && (
           <ContextMenuItem

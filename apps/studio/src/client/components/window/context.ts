@@ -14,6 +14,8 @@ export interface OpenOptions {
   activate?: boolean;
   /** With `newTab`, the tab waits behind the one up, as a browser's does for a middle click, a Cmd-click or Open in New Tab. */
   behind?: boolean;
+  /** The tab it was asked from, by its id, which `into: "split"` opens across from; the tab up with the keyboard where none is named. */
+  from?: string;
   group?: string;
   /**
    * In the tab up, whatever another tab shows: what the app opens on its
@@ -32,6 +34,14 @@ export interface OpenOptions {
    * as a site, whichever chat it was opened from.
    */
   newWindow?: boolean;
+  /**
+   * A place picked from a menu, over whatever else the open would do: the
+   * other side of the group it was asked from, up there and made where the
+   * group has one side (`split`, Open in Split); the first tab of a new tab
+   * group, up in the window (`group`, Open in New Tab Group); or the first
+   * tab of a new window (`window`, Open in New Window).
+   */
+  into?: "group" | "split" | "window";
   /** A tab of its own in the group, beside the one up rather than in its place: what a conversation or an agent opens. */
   ownTab?: boolean;
   /** Takes the place of the address the window's tab stands on rather than stepping on from it: a screen handing its file to the page. */
@@ -45,6 +55,12 @@ export interface OpenOptions {
  * was asked; nothing for an open the surface answers itself.
  */
 export function ownPlaceOf(options?: OpenOptions): OpenOptions | undefined {
+  if (options?.into) {
+    return {
+      into: options.into,
+      ...(options.from === undefined ? {} : { from: options.from }),
+    };
+  }
   if (options?.newWindow) {
     return { newWindow: true };
   }

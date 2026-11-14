@@ -1,5 +1,12 @@
 import { type WindowTab } from "@/client/atoms/window";
 import { addressOfTab } from "@/client/bookmarks/actions";
+import {
+  newChatBoxesAtom,
+  newChatWordsKey,
+} from "@/client/drafts/new-chat-box";
+import { flushWords } from "@/client/drafts/settle-words";
+import { draftsAtom } from "@/client/drafts/store";
+import { holdsSomething } from "@/shared/drafts";
 import { getGuest, onPageThumb } from "@/client/lib/browser-pool";
 import { registerHistorySurface } from "@/client/lib/history-surfaces";
 import { hostPathOfFileUrl } from "@/client/lib/file-url";
@@ -9,7 +16,7 @@ import { browserTargetOf } from "@instrument-org/workspace/client";
 import { ArrowClockwiseIcon } from "@phosphor-icons/react/ArrowClockwise";
 import { RouterProvider } from "@tanstack/react-router";
 import { noop } from "radashi";
-import { useAtomValue } from "jotai";
+import { useAtomValue, useStore } from "jotai";
 import {
   type ReactNode,
   type Ref,
@@ -35,6 +42,7 @@ import { type TabLocation, tasksOfHref } from "./tab-location";
 import { TabLocationRow, TabRowControl } from "./tab-location-row";
 import { surfaceLocation, tabSurfaceAtom } from "./tab-surface";
 import { useTaskTitles } from "./task-titles";
+import { draftOfTab } from "./tab-model";
 import { useTabSteps } from "./use-tab-steps";
 import { matchScreen } from "./window-href";
 import { useShell } from "./shell-context";
@@ -120,12 +128,28 @@ export function GroupItem({
   const isNewChat = screenKind === "inbox";
   const isChat = screenKind === "chat";
   const hasBookmarksBar = useHasBookmarksBar(isNewTab || isNewChat);
-  /** Files at a folder: in place of a new tab, and in a tab of its own beside anything else. */
+  const store = useStore();
+  /** Whether the new chat up here has nothing written in it, words still settling counted. */
+  const isUnwritten = () => {
+    flushWords(newChatWordsKey(up.id));
+    const written = [
+      store.get(newChatBoxesAtom)[up.id]?.draftId,
+      draftOfTab(up),
+    ];
+    return !store
+      .get(draftsAtom)
+      .some((draft) => written.includes(draft.id) && holdsSomething(draft));
+  };
+  /**
+   * Files at a folder: in place of a new tab, or of a new chat with nothing
+   * written in it, so back returns there; in a tab of its own after anything
+   * else.
+   */
   const openFiles = (href: string) => {
-    if (isNewTab) {
+    if (isNewTab || (isNewChat && isUnwritten())) {
       windowTabs.visitHref(up.id, href);
     } else {
-      windowTabs.openScreen(href, { group, select: true });
+      windowTabs.openScreen(href, { after: up.id, group, select: true });
     }
   };
   /**

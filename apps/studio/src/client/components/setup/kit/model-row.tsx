@@ -48,7 +48,7 @@ export function ModelRow({
         <span className="truncate font-medium text-foreground">{name}</span>
         {sub && <span className="truncate text-gray-400">{sub}</span>}
         {isCurrent && (
-          <span className="shrink-0 rounded-full bg-gray-100 px-2 py-0.5 text-xs font-semibold text-gray-600 dark:bg-white/10 dark:text-gray-200">
+          <span className="ml-auto shrink-0 rounded-full bg-black/5 px-2 py-0.5 text-xs font-semibold text-gray-600 dark:bg-white/10 dark:text-gray-200">
             Current
           </span>
         )}

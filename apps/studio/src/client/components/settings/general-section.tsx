@@ -89,6 +89,7 @@ export function SettingsSection({
 export function GeneralSection() {
   return (
     <div className="space-y-4">
+      <h3 className="text-base font-semibold">General</h3>
       <InterfaceAndTheme />
       <Notifications />
       <SettingsSection title="Dictation">

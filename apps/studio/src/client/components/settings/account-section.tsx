@@ -44,6 +44,7 @@ export function AccountSection() {
   const { isSignedIn } = useBillingStatus();
   return (
     <div className="space-y-4">
+      <h3 className="text-base font-semibold">Account</h3>
       <SettingsSection title="Account">
         <AccountInfo />
       </SettingsSection>

@@ -1022,6 +1022,14 @@ export function GroupRow({
 }
 
 /**
+ * A row's tab marks, one line of them: those that do not fit whole wrap
+ * below it, out of sight, so a busy group shows its first marks whole
+ * rather than one cut in half.
+ */
+const MARKS_CLASSNAME =
+  "flex h-3.5 flex-wrap items-center gap-x-1 overflow-hidden text-muted-foreground";
+
+/**
  * The second line of a row: the latest line of the chat it is named by, as
  * the inbox's row says it, and the marks of every tab, the left side first,
  * at the line's end and at most under half of it; a group with no chat has
@@ -1052,9 +1060,7 @@ function SecondLine({
     return tabs.length === 0 ? (
       <span className="text-muted-foreground">Nothing open yet</span>
     ) : (
-      <span className="flex min-w-0 items-center gap-1 overflow-hidden text-muted-foreground">
-        {marks}
-      </span>
+      <span className={cn(MARKS_CLASSNAME, "min-w-0")}>{marks}</span>
     );
   }
   return (
@@ -1063,7 +1069,9 @@ function SecondLine({
         <Peek chat={entry.chat} />
       </span>
       {tabs.length > 0 && (
-        <span className="flex max-w-[45%] shrink-0 items-center justify-end gap-1 overflow-hidden text-muted-foreground">
+        <span
+          className={cn(MARKS_CLASSNAME, "max-w-[45%] shrink-0 justify-end")}
+        >
           {marks}
         </span>
       )}

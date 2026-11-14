@@ -1,9 +1,9 @@
 /**
- * A side's narrowest, in layout px: room for a chat's composer and for the
- * toolbar's arrows, reload and an address worth reading. A group too narrow
- * for its sides at this scrolls sideways rather than squeezing either.
+ * A side's narrowest, in layout px: a chat's composer and the toolbar still
+ * fit, tightly. A group too narrow for its sides at this scrolls sideways
+ * rather than squeezing either.
  */
-export const SIDE_WIDTH_MIN = 440;
+export const SIDE_WIDTH_MIN = 240;
 
 /** How near the middle, in layout px, a dragged gutter settles on it. */
 const SIDE_SNAP_PX = 15;

@@ -152,7 +152,6 @@ import { backfillCandidates } from "./use-project-backfill";
 import { useWindowCommands } from "./use-window-commands";
 import { useWindowDropFallback } from "./use-window-drop-fallback";
 import { WindowFrame } from "./window-frame";
-import { CloseGroupDialog } from "./close-group-dialog";
 import { GroupSidebar, sidebarBounds } from "./group-sidebar";
 import { SidebarToggleCorner } from "./inbox-toggle";
 import { isGroupScreenHref } from "./group-screen";
@@ -167,8 +166,6 @@ import {
   useTabGroupActions,
   useTabGroupUpkeep,
   windowTabGroupsAtom,
-  type WorkingChat,
-  workingChatsIn,
 } from "./tab-groups";
 import {
   sidebarOpenAtom,
@@ -540,15 +537,10 @@ function WindowShell({
     select: (routerState) => routerState.location.href,
   });
   useTabGroupUpkeep(appTabHref, groupList.open);
-  // Groups asked to close while an agent among them works, waiting on the
-  // person's say: all of them, every chat at work in them, and the group a
-  // row's menu asked from, which the window moves to.
-  const [closing, setClosing] = useState<{
-    groups: readonly string[];
-    keep?: string;
-    working: WorkingChat[];
-  }>();
-  const closeNow = (closed: readonly string[], keep?: string) => {
+  // Closing a group leaves its chats working: a chat goes on with no tab,
+  // and History shows it at work. With `keep`, the group a row's menu asked
+  // from, which the window moves to.
+  const closeGroups = (closed: readonly string[], keep?: string) => {
     if (keep === undefined) {
       for (const group of closed) {
         groups.close(group, groupList.open);
@@ -556,22 +548,6 @@ function WindowShell({
     } else {
       groups.closeAll(closed, keep);
     }
-  };
-  /** Closes groups, asking once first while any chat in them works. */
-  const askToClose = (closed: readonly string[], keep?: string) => {
-    const working = workingChatsIn(closed, {
-      chats: queryClient.getQueryData(chatListOptions().queryKey) ?? [],
-      state: store.get(windowTabsAtom),
-    });
-    if (working.length > 0) {
-      setClosing({
-        groups: closed,
-        ...(keep === undefined ? {} : { keep }),
-        working,
-      });
-      return;
-    }
-    closeNow(closed, keep);
   };
   // The group a first Cmd+W on a group with no tabs left named, and when.
   const closeHint = useRef<{
@@ -906,7 +882,7 @@ function WindowShell({
         (each) => each.group !== tab.group || each.id === id,
       )
     ) {
-      askToClose([tab.group]);
+      closeGroups([tab.group]);
       return;
     }
     if (tab?.group !== undefined && closedAs && !isBlankNewTab(closedAs)) {
@@ -1270,7 +1246,7 @@ function WindowShell({
         if (hint?.group === group && Date.now() - hint.at < CLOSE_AGAIN_MS) {
           closeHint.current = undefined;
           toast.dismiss(hint.toast);
-          askToClose([group]);
+          closeGroups([group]);
           return;
         }
         closeHint.current = {
@@ -1519,7 +1495,7 @@ function WindowShell({
         !discardingIds.has(draft.id),
     ),
     closeGroup: (group) => {
-      askToClose([group]);
+      closeGroups([group]);
     },
     goToPlace: choosePlace,
     newGroup: () => {
@@ -1611,10 +1587,10 @@ function WindowShell({
                   chatTitles={chatTitles}
                   groupUp={groupUp}
                   onClose={(group) => {
-                    askToClose([group]);
+                    closeGroups([group]);
                   }}
                   onCloseAll={(closed, keep) => {
-                    askToClose(closed, keep);
+                    closeGroups(closed, keep);
                   }}
                   onDuplicate={(entry) => {
                     groups.duplicate(entry);
@@ -1736,23 +1712,6 @@ function WindowShell({
               taken={projects.flatMap((project) =>
                 project.emoji ? [project.emoji] : [],
               )}
-            />
-            <CloseGroupDialog
-              groupCount={closing?.groups.length ?? 0}
-              onCancel={() => {
-                setClosing(undefined);
-              }}
-              onConfirm={() => {
-                setClosing(undefined);
-                if (!closing) {
-                  return;
-                }
-                for (const { chat } of closing.working) {
-                  void rpcClient.workspace.session.stop.call({ id: chat.id });
-                }
-                closeNow(closing.groups, closing.keep);
-              }}
-              working={closing?.working}
             />
           </WindowFrame>
           {/* What a tab's Expand asks to see large, over the window. */}

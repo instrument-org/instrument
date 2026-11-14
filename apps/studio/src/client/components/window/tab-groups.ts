@@ -154,30 +154,6 @@ function useTabGroupsElsewhere():
   ).data;
 }
 
-/** A chat at work in a group, as closing the group asks about it. */
-export interface WorkingChat {
-  chat: Chat;
-  group: string;
-}
-
-/**
- * Every chat at work with a tab in one of `groups`, whichever of the
- * group's chats it is: the groups in the order given, each one's chats as
- * its row reads them (`chatsOfGroup`).
- */
-export function workingChatsIn(
-  groups: readonly string[],
-  { chats, state }: { chats: readonly Chat[]; state: WindowTabs },
-): WorkingChat[] {
-  const byId = new Map<string, Chat>(chats.map((chat) => [chat.id, chat]));
-  return groups.flatMap((group) =>
-    chatsOfGroup(state, group).flatMap((id) => {
-      const chat = byId.get(id);
-      return chat?.working === true ? [{ chat, group }] : [];
-    }),
-  );
-}
-
 /** Whether a group is pinned above the line, by its own pin. */
 export function isPinnedGroup(entry: TabGroup): boolean {
   return entry.pinned;

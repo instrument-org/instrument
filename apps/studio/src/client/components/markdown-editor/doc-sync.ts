@@ -263,6 +263,42 @@ const isDefinition = (type: string) =>
 const isEmptyParagraph = (n: PMNode) =>
   n.type.name === "paragraph" && n.content.size === 0;
 
+/**
+ * `node` without the list items that hold only an empty paragraph (Return at
+ * an item's end), which Milkdown would serialize as `- <br />`; a list left
+ * with no items goes too. Like an empty paragraph, such an item is written
+ * once something is typed in it.
+ */
+function withoutEmptyItems(node: PMNode): PMNode[] {
+  if (node.isText || node.isLeaf) {
+    return [node];
+  }
+  if (
+    node.type.name === "list_item" &&
+    node.childCount === 1 &&
+    node.firstChild &&
+    isEmptyParagraph(node.firstChild)
+  ) {
+    return [];
+  }
+  let changed = false;
+  const kids: PMNode[] = [];
+  for (const { node: child } of childrenOf(node)) {
+    const kept = withoutEmptyItems(child);
+    if (kept.length !== 1 || kept[0] !== child) {
+      changed = true;
+    }
+    kids.push(...kept);
+  }
+  if (!changed) {
+    return [node];
+  }
+  if (isList(node) && kids.length === 0) {
+    return [];
+  }
+  return [node.type.create(node.attrs, kids, node.marks)];
+}
+
 export interface DocSyncDeps {
   /** Milkdown's parser: Markdown to a document node. Throws on some input. */
   parse: (markdown: string) => PMNode;
@@ -863,9 +899,11 @@ export function createDocSync({ parse, serialize, view }: DocSyncDeps) {
 
   /** Disk bytes for every block the editor still has unchanged, serializer output for the rest. */
   function splicedBody(pmDoc: PMNode, d: DiskState): string {
-    // Empty paragraphs (Enter pressed twice) are not written; Milkdown would
-    // serialize each as a `<br />` paragraph nobody typed.
-    const E = contentNodes(pmDoc).filter((n) => !isEmptyParagraph(n));
+    // Empty paragraphs (Enter pressed twice) and empty list items are not
+    // written; Milkdown would serialize each as a `<br />` nobody typed.
+    const E = contentNodes(pmDoc)
+      .filter((n) => !isEmptyParagraph(n))
+      .flatMap(withoutEmptyItems);
     if (
       sameKeys(
         E,

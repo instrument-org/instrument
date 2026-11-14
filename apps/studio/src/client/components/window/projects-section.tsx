@@ -84,7 +84,7 @@ export function ProjectsSection({
     </ProjectContextMenu>
   );
   return (
-    <section aria-label="Projects" className="pt-1 pb-2">
+    <section aria-label="Projects" className="pb-1">
       <div
         className="group/heading flex h-8 items-center justify-between pr-1 pl-2.5"
         onContextMenu={(event) => {

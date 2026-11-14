@@ -534,7 +534,7 @@ function ListItem({
 function GroupList({ children }: { children: ReactNode }) {
   return (
     <div
-      className="relative mt-2 flex min-h-0 flex-1 flex-col gap-0.5 overflow-y-auto px-2 pb-2"
+      className="relative flex min-h-0 flex-1 flex-col gap-0.5 overflow-y-auto pb-2 pl-2"
       data-group-list=""
     >
       {children}
@@ -567,7 +567,7 @@ function StandingRow({
   return (
     <div
       aria-hidden
-      className="pointer-events-none absolute inset-x-2 z-10 rounded-lg bg-ground"
+      className="pointer-events-none absolute right-0 left-2 z-10 rounded-lg bg-ground"
       data-standing-row=""
       style={{ top }}
     >
@@ -854,7 +854,7 @@ function RowHalfPlace({
 function SidebarTop() {
   return (
     <div
-      className="flex h-10 shrink-0 items-center gap-1 pr-3 [-webkit-app-region:drag] [&_button]:[-webkit-app-region:no-drag]"
+      className="flex h-10 shrink-0 items-center gap-1 pr-1 [-webkit-app-region:drag] [&_button]:[-webkit-app-region:no-drag]"
       style={{ paddingLeft: `calc(${toggleLeft(true)} + 2rem)` }}
     >
       {!isMacOS() && <AppMenuButton />}
@@ -873,7 +873,7 @@ function SidebarTop() {
 function SidebarAlerts({ children }: { children: ReactNode }) {
   return (
     <div
-      className="flex shrink-0 flex-col gap-0.5 px-2 pb-1 empty:hidden"
+      className="flex shrink-0 flex-col gap-0.5 pb-1 pl-2 empty:hidden"
       data-sidebar-alerts=""
     >
       {children}
@@ -909,7 +909,7 @@ function SidebarFoot({ chatId }: { chatId: ChatId | undefined }) {
     rpcClient.workspaces.current.queryOptions(),
   );
   return (
-    <div className="flex h-12 shrink-0 items-center gap-1 border-t border-border/60 pr-3 pl-2">
+    <div className="flex h-11 shrink-0 items-center gap-1 border-t border-border/60 pr-1 pl-2">
       <ToolbarTooltip label={SCREENS.activity.title}>
         <button
           aria-label={SCREENS.activity.title}

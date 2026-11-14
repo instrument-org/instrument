@@ -186,7 +186,7 @@ export function StudioSidebarRail({
             const rect = containerRef.current?.getBoundingClientRect();
             return rect?.left;
           }}
-          className="right-0 translate-x-1/2"
+          className="right-0 translate-x-full"
           collapse={
             bounds.collapse === undefined
               ? undefined

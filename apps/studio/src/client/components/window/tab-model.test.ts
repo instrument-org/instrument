@@ -729,6 +729,20 @@ describe("a group's sides", () => {
     expect(sidesOf(split, CHAT)).toEqual(sides);
   });
 
+  it.each([false, true])(
+    "marks a tab moved from another group with that group, and keeps it within one (split %s)",
+    (split) => {
+      const moved = moveTabTo(THREE, { group: CHAT, id: "x", side: 0, split });
+      const tab = moved.tabs.find((each) => each.id === "x");
+      expect(tab?.movedFrom).not.toBeUndefined();
+      expect(tab?.movedFrom).not.toBe(CHAT);
+      const within = moveTabTo(moved, { group: CHAT, id: "x", side: 1 });
+      expect(within.tabs.find((each) => each.id === "x")?.movedFrom).toBe(
+        tab?.movedFrom,
+      );
+    },
+  );
+
   it("moves a tab within its side to a place", () => {
     const moved = moveTabTo(twoSides(), {
       group: GROUP,

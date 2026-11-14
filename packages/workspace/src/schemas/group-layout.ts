@@ -39,7 +39,7 @@ export type LayoutTab = z.output<typeof LayoutTabSchema>;
  * the keyboard, and which tab is the chat itself, the one the person last
  * sent it a message from.
  */
-const LayoutSnapshotSchema = z.object({
+export const LayoutSnapshotSchema = z.object({
   /** The side that has the keyboard, by its place in `sides`. */
   focused: z.number().int().min(0).max(1),
   /** The group, by the id the `window` command takes. */
@@ -130,26 +130,21 @@ export const LayoutChangeSchema = z.discriminatedUnion("change", [
 
 export type LayoutChange = z.output<typeof LayoutChangeSchema>;
 
-/**
- * Where the tabs outside a layout's group stood as it was read: by tab id,
- * the id of the group that had it. What tells a tab moved out to another
- * group from one closed, and one moved in from one opened.
- */
-const ElsewhereSchema = z.record(z.string(), z.string());
+/** By tab id, the id of a tab group. */
+const TabGroupsSchema = z.record(z.string(), z.string());
 
 /**
- * The tab group a chat works in as the window read it, and where every
- * other tab stood: what a message carries, and what the window hands the
- * workspace as it changes, for a wake to carry.
+ * The tab group a chat works in as the window read it, with the tabs that
+ * moved between it and another group: what a message carries, and what the
+ * window answers a wake. Only `layout` is written to the chat's log; the
+ * moves tell a tab moved in or out from one opened or closed.
  */
 export const LayoutReadSchema = z.object({
-  elsewhere: ElsewhereSchema,
   layout: LayoutSnapshotSchema,
+  /** The tabs now in the group that came from another, by the group each came from. */
+  movedIn: TabGroupsSchema,
+  /** The tabs now in another group that came from this one, by the group each is in. */
+  movedOut: TabGroupsSchema,
 });
 
 export type LayoutRead = z.output<typeof LayoutReadSchema>;
-
-/** A layout as the chat's log keeps it, with where the other tabs stood, which the next one's changes are read against. */
-export const KeptLayoutSchema = LayoutSnapshotSchema.extend({
-  elsewhere: ElsewhereSchema.optional(),
-});

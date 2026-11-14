@@ -1,9 +1,11 @@
 import { z } from "zod";
 
+import { LayoutSnapshotSchema } from "../../schemas/group-layout";
 import {
   type WindowTabAction,
   type WindowTabTarget,
 } from "../../schemas/window-tab";
+import { layoutTabName } from "../../model-text/notes/group-layout-model-text";
 import { parseBrowserTargetId } from "../../types";
 import { noteBrowserAgentActivity } from "../browser-agent-activity";
 import { recordAsk } from "../chat/asks";
@@ -149,20 +151,14 @@ export const windowList = defineCapability({
     }),
   }),
   name: "window.list",
-  output: z.array(
-    z.object({
-      id: z.string(),
-      /** Whether it is the tab the person sees while the chat is on screen. */
-      front: z.boolean(),
-      kind: z.enum(["page", "screen"]),
-      title: z.string().optional(),
-      url: z.string().optional(),
-      /** The task at work in it, by its handle, and whether that is the session asking. */
-      task: z
-        .object({ id: z.string(), title: z.string(), you: z.boolean() })
-        .optional(),
-    }),
-  ),
+  output: z.object({
+    layout: LayoutSnapshotSchema,
+    /** The task at work in a tab, by the tab's id, and whether that is the session asking. */
+    tasks: z.record(
+      z.string(),
+      z.object({ id: z.string(), title: z.string(), you: z.boolean() }),
+    ),
+  }),
   async run({ group }, ctx) {
     const answer = await ask(
       { kind: "list", ...(group === undefined ? {} : { group }) },
@@ -171,49 +167,50 @@ export const windowList = defineCapability({
     if (!answer) {
       throw new Error(NO_WINDOW);
     }
-    if (answer.error) {
-      throw new Error(answer.error);
+    if (answer.error || !answer.read) {
+      throw new Error(answer.error ?? NO_WINDOW);
     }
     const holders = await tabHolders(ctx.chatId);
-    return (answer.tabs ?? []).map((tab) => {
-      const holder = holders.get(tab.id);
-      return {
-        front: tab.front === true,
-        id: tab.id,
-        kind: tab.kind,
-        ...(tab.kind === "page" ? { title: tab.title, url: tab.url } : {}),
-        ...(holder
-          ? {
-              task: {
-                id: holder.id,
-                title: holder.title,
-                you: holder.session === ctx.sessionId,
-              },
-            }
-          : {}),
-      };
-    });
+    return {
+      layout: answer.read.layout,
+      tasks: Object.fromEntries(
+        [...holders].map(([tab, holder]) => [
+          tab,
+          {
+            id: holder.id,
+            title: holder.title,
+            you: holder.session === ctx.sessionId,
+          },
+        ]),
+      ),
+    };
   },
   summary:
-    "A tab group's tabs, one line each, by default the group the chat works in: the id every other subcommand and `agent-browser tab` take, whether it is in front, what it shows, and which task is at work in it.",
+    "A tab group's sides and tabs, one line each, by default the group the chat works in: the id every other subcommand and `agent-browser tab` take, which tab is up on each side and which side has the keyboard, what it shows, and which task is at work in it.",
   surfaces: {
     cli: { help: "", positional: ["group"], words: ["window", "list"] },
     script: { positional: ["group"] },
   },
-  text: (tabs) =>
-    tabs.length === 0
-      ? "That group has no tabs."
-      : tabs
-          .map((tab) => {
-            const shows =
-              tab.kind === "page"
-                ? tab.title
-                  ? `${tab.title} · ${tab.url ?? ""}`
-                  : (tab.url ?? "")
-                : "a screen of the app, not a page";
-            return `${tab.id}  ${tab.front ? "in front" : "behind  "}  ${shows}${tab.task ? (tab.task.you ? "  you are working in it" : `  task ${tab.task.id} is working in it`) : ""}`;
-          })
-          .join("\n"),
+  text: ({ layout, tasks }) => {
+    const isTwo = layout.sides.length === 2;
+    return layout.sides
+      .flatMap(({ tabs }, side) => [
+        ...(isTwo
+          ? [
+              `${side === 0 ? "left" : "right"}${layout.focused === side ? " (keyboard)" : ""}:`,
+            ]
+          : []),
+        ...tabs.map((tab) => {
+          const task = tasks[tab.id];
+          const shows =
+            tab.kind === "website" && tab.title !== ""
+              ? `${tab.title} · ${tab.address}`
+              : layoutTabName(tab);
+          return `${isTwo ? "  " : ""}${tab.id}  ${tab.isUp ? "up    " : "behind"}  ${shows}${tab.isThisChat ? " (you)" : ""}${task ? (task.you ? "  you are working in it" : `  task ${task.id} is working in it`) : ""}`;
+        }),
+      ])
+      .join("\n");
+  },
 });
 
 export const windowRead = defineCapability({
@@ -434,10 +431,12 @@ export const windowWait = defineCapability({
     if (!own) {
       throw new Error(NO_WINDOW);
     }
-    const page = own.tabs?.find((each) => each.id === tab);
-    if (page?.kind !== "page") {
+    const page = own.pages?.find((each) => each.id === tab);
+    if (!page) {
       throw new Error(
-        page
+        own.read?.layout.sides.some((side) =>
+          side.tabs.some((each) => each.id === tab),
+        )
           ? `tab ${tab} is not a page: wait is for a page the user has something to do in.`
           : `no tab ${tab} in this chat. \`${NAME} list\` names its tabs.`,
       );

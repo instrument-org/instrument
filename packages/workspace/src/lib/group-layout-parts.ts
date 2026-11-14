@@ -15,19 +15,6 @@ import { sessionRole } from "./chat/children";
 import { layoutChanges } from "./group-layout";
 import { getWorkspaceConfig } from "./workspace-config";
 
-/**
- * The latest layout each chat's window read, by chat, kept in memory: the
- * window hands one over as the group a chat works in changes, and with
- * every message it sends. A relaunch starts with none until the window
- * reads again.
- */
-const latestReads = new Map<ChatId, LayoutRead>();
-
-/** Keeps what the window read of the group a chat works in, the latest winning. */
-export function noteLayoutRead(chatId: ChatId, read: LayoutRead): void {
-  latestReads.set(chatId, read);
-}
-
 type Placed = Pick<
   SessionMessagePart.DataPart["metadata"],
   "createdAt" | "messageId" | "sessionId"
@@ -37,23 +24,22 @@ type Placed = Pick<
  * The layout parts a message on a chat's own session carries: the group it
  * works in, when it reads differently from the last layout the session's
  * log has, and what changed since that one. Nothing for a task's session,
- * for a chat the window has read nothing for, and for a first layout that
- * is the chat alone, which has nothing to say. Read from the chat's own
- * records, so earlier parts are never rewritten.
+ * for no read (no window answered), and for a first layout that is the chat
+ * alone, which has nothing to say. Read from the chat's own records, so
+ * earlier parts are never rewritten.
  */
 export async function layoutParts({
   chatId,
-  read = latestReads.get(chatId),
+  read,
   ...placed
 }: Placed & {
   chatId: ChatId;
-  /** What the window read; the latest it handed over when absent. */
-  read?: LayoutRead;
+  /** What the window read, at the send or when the wake asked. */
+  read: LayoutRead | undefined;
 }): Promise<SessionMessagePart.DataPart[]> {
   if (read === undefined || sessionRole(chatId, placed.sessionId) !== "chat") {
     return [];
   }
-  latestReads.set(chatId, read);
   const history = await ChatReads.history({
     chatId,
     sessionId: placed.sessionId,
@@ -72,12 +58,12 @@ export async function layoutParts({
     before === undefined
       ? []
       : layoutChanges(before, now, {
-          after: read.elsewhere,
-          ...(before.elsewhere ? { before: before.elsewhere } : {}),
+          movedIn: read.movedIn,
+          movedOut: read.movedOut,
         });
   return [
     {
-      data: { ...now, elsewhere: read.elsewhere },
+      data: now,
       metadata: metadata(),
       type: "data-groupLayout",
     },

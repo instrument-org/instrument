@@ -4,7 +4,7 @@ import { z } from "zod";
 import { ChatIdSchema } from "../chat-id";
 import { DeviceIdSchema } from "../device-id";
 import { EnvironmentChangeSchema } from "../environment";
-import { KeptLayoutSchema, LayoutChangeSchema } from "../group-layout";
+import { LayoutChangeSchema, LayoutSnapshotSchema } from "../group-layout";
 import {
   AbsolutePathSchema,
   InWorkspacePathSchema,
@@ -1397,7 +1397,7 @@ export namespace SessionMessageDataPart {
    * ahead of a person's message or with a wake, only when it reads
    * differently from the last one written (`layoutParts`).
    */
-  export const GroupLayoutDataPartSchema = KeptLayoutSchema;
+  export const GroupLayoutDataPartSchema = LayoutSnapshotSchema;
 
   export type GroupLayoutDataPart = z.output<typeof GroupLayoutDataPartSchema>;
 

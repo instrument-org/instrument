@@ -60,9 +60,8 @@ function answeringWindow() {
       publisher.publish("window.tabDone", {
         id: ask.id,
         requestId: ask.requestId,
-        tabs: [...live].map((id) => ({
+        pages: [...live].map((id) => ({
           id,
-          kind: "page" as const,
           title: "Example",
           url: "https://example.com/",
         })),

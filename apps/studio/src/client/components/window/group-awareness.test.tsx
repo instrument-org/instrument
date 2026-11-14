@@ -183,12 +183,18 @@ describe("groupLayoutFor", () => {
 });
 
 describe("layoutReadOf", () => {
-  it("reads the chat's group, and the group of every tab outside it", () => {
+  it("reads the chat's group, and only the tabs that moved between it and another", () => {
     const read = layoutReadOf(
-      windowOf([ZENDESK, { ...DOWNLOADS, group: OTHER }, CHAT_TAB]),
+      windowOf([
+        { ...ZENDESK, movedFrom: OTHER },
+        { ...DOWNLOADS, group: OTHER, movedFrom: GROUP },
+        { ...DOWNLOADS, group: OTHER, id: "tab_stays" },
+        CHAT_TAB,
+      ]),
       CHAT_TAB.id,
     );
-    expect(read?.elsewhere).toEqual({ tab_dl: OTHER });
+    expect(read?.movedIn).toEqual({ tab_zen: OTHER });
+    expect(read?.movedOut).toEqual({ tab_dl: OTHER });
     expect(read?.layout.sides[0]?.tabs.map((tab) => tab.id)).toEqual([
       "tab_zen",
       "tab_chat",

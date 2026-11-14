@@ -1,6 +1,7 @@
 import { z } from "zod";
 
 import { ChatIdSchema } from "./chat-id";
+import { LayoutReadSchema } from "./group-layout";
 
 /** What a tab is asked to show: a page by its address, or a file or folder of the user's by its path. */
 const WindowTabTargetSchema = z.discriminatedUnion("kind", [
@@ -46,10 +47,10 @@ const WindowTabActionSchema = z.discriminatedUnion("kind", [
    */
   z.object({ kind: z.literal("adopt"), tabId: z.string(), url: z.string() }),
   /**
-   * The tabs of a tab group, by its id: by default the group of the chat's
-   * tab the person last sent from. Asked at the moment a tab is named, so it
-   * is never a copy that could be out of date, and answered whether or not a
-   * page's guest is up.
+   * A tab group as the chat reads it, by its id: by default the group of the
+   * chat's tab the person last sent from. Asked at the moment a tab is named
+   * and as a wake starts a turn, so it is never a copy that could be out of
+   * date, and answered whether or not a page's guest is up.
    */
   z.object({ group: z.string().optional(), kind: z.literal("list") }),
 ]);
@@ -73,28 +74,11 @@ export const WindowTabAnswerSchema = z.object({
   error: z.string().optional(),
   requestId: z.string(),
   tabId: z.string().optional(),
-  /**
-   * A group's tabs, for a list: each by its id, with the address of a
-   * page's, and `front` on the one the person sees, the tab up with the
-   * keyboard while the group is on screen.
-   */
-  tabs: z
-    .array(
-      z.discriminatedUnion("kind", [
-        z.object({
-          front: z.boolean().optional(),
-          id: z.string(),
-          kind: z.literal("page"),
-          title: z.string(),
-          url: z.string(),
-        }),
-        z.object({
-          front: z.boolean().optional(),
-          id: z.string(),
-          kind: z.literal("screen"),
-        }),
-      ]),
-    )
+  /** For a list: the group as the chat reads it, the shape of its log's layout part. */
+  read: LayoutReadSchema.optional(),
+  /** For a list: the group's page tabs, each with the address its page shows. */
+  pages: z
+    .array(z.object({ id: z.string(), title: z.string(), url: z.string() }))
     .optional(),
   /** The page's text, for a read. */
   text: z.string().optional(),

@@ -152,6 +152,11 @@ interface TabHistory {
    * names no chat or draft: none for a page an agent made with no tab yet.
    */
   group?: string;
+  /**
+   * The group it last moved here from, which tells the chat whose group it
+   * joined, or left, that it moved rather than opened or closed.
+   */
+  movedFrom?: string;
   /** The chat whose agent opened it; absent for a tab the person opened. */
   openedBy?: ChatId;
   /**

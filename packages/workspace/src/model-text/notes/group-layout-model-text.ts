@@ -75,10 +75,11 @@ export function isChatAlone(data: SessionMessageDataPart.GroupLayoutDataPart) {
 
 /** A tab as the layout names it: by its kind where its address does not say, and `*` in front. */
 function tabWords(tab: LayoutTab): string {
-  return `${tabName(tab)}${tab.isThisChat ? " (you)" : ""}${tab.isUp ? "*" : ""}`;
+  return `${layoutTabName(tab)}${tab.isThisChat ? " (you)" : ""}${tab.isUp ? "*" : ""}`;
 }
 
-function tabName(tab: LayoutTab): string {
+/** A tab as the agent reads it in a layout: its address, or its kind and title where the address does not say. */
+export function layoutTabName(tab: LayoutTab): string {
   switch (tab.kind) {
     case "builtIn": {
       return `[app] ${tab.title}`;

@@ -150,7 +150,7 @@ export async function newMessage({
       chatId,
       createdAt,
       messageId,
-      ...(layout ? { read: layout } : {}),
+      read: layout,
       sessionId,
     })),
   );

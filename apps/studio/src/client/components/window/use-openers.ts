@@ -43,6 +43,8 @@ import {
   matchScreen,
 } from "./window-href";
 import { newScreenId, type useWindowTabs } from "./window-tabs";
+import { type AppsBySlug } from "./apps-by-slug";
+import { groupReadOf } from "./group-awareness";
 
 /**
  * What the conversation asks to open, as it asks: a page as a tab, a path
@@ -50,6 +52,7 @@ import { newScreenId, type useWindowTabs } from "./window-tabs";
  * of each ask, since they close over the tabs as they are then.
  */
 export function useOpeners({
+  appsBySlug,
   appTabs,
   browser,
   chatTitles,
@@ -59,6 +62,8 @@ export function useOpeners({
   showGroup,
   windowTabs,
 }: {
+  /** The apps by slug, which name an app's page in a group as a chat reads it. */
+  appsBySlug: AppsBySlug;
   /** The window's tabs: what is not a chat's opens by moving the tab up, or in a tab of its own. */
   appTabs: ReturnType<typeof useAppTabs>;
   /** The window's browser; null until it is mounted. */
@@ -653,26 +658,23 @@ export function useOpeners({
       if (group === undefined) {
         return { error: "name a tab group to list; this chat has no tab." };
       }
-      // In front is the tab up with the keyboard, while the group is on
-      // screen.
-      const front =
-        windowTabs.groupOnScreen === group
-          ? windowTabs.selectedTabIn(group)?.id
-          : undefined;
       return {
-        tabs: windowTabs.allTabs
-          .filter((entry) => entry.group === group && entry.id !== own?.id)
-          .map((entry) => ({
-            ...(entry.id === front && { front: true }),
-            ...(entry.kind === "page"
-              ? {
+        pages: windowTabs.allTabs.flatMap((entry) =>
+          entry.group === group && entry.kind === "page"
+            ? [
+                {
                   id: entry.id,
-                  kind: "page" as const,
                   title: entry.title ?? "",
                   url: entry.url ?? "about:blank",
-                }
-              : { id: entry.id, kind: "screen" as const }),
-          })),
+                },
+              ]
+            : [],
+        ),
+        read: groupReadOf(
+          { appsBySlug, chatTitles, windowTabs },
+          group,
+          own?.group === group ? own.id : undefined,
+        ),
       };
     }
     const tab = windowTabs.allTabs.find((entry) => entry.id === action.tabId);

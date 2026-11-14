@@ -75,12 +75,28 @@ export function createStandInWindow(chrome?: SharedChrome) {
     }
     if (action.kind === "list") {
       return {
-        tabs: [...tabs.values()].map((tab) => ({
-          ...(tab.id === front && { front: true }),
-          ...(tab.kind === "page"
-            ? { id: tab.id, kind: "page" as const, title: "", url: tab.at }
-            : { id: tab.id, kind: "screen" as const }),
-        })),
+        pages: [...tabs.values()].flatMap((tab) =>
+          tab.kind === "page" ? [{ id: tab.id, title: "", url: tab.at }] : [],
+        ),
+        read: {
+          layout: {
+            focused: 0,
+            group: { id: "group_stand_in" },
+            sides: [
+              {
+                tabs: [...tabs.values()].map((tab) => ({
+                  address: tab.kind === "page" ? tab.at : "instrument://screen",
+                  id: tab.id,
+                  ...(tab.id === front && { isUp: true }),
+                  kind: tab.kind === "page" ? ("website" as const) : ("builtIn" as const),
+                  title: "",
+                })),
+              },
+            ],
+          },
+          movedIn: {},
+          movedOut: {},
+        },
       };
     }
     const tab = tabs.get(action.tabId);
@@ -149,14 +165,13 @@ export function createStandInWindow(chrome?: SharedChrome) {
       await chrome.ensure(tabId, tabs.get(tabId)?.at);
     } else if (action.kind === "close" && tabId) {
       await chrome.remove(tabId);
-    } else if (action.kind === "list" && answer.tabs) {
+    } else if (action.kind === "list" && answer.pages) {
       const live = new Map(chrome.pages().map((page) => [page.id, page]));
       return {
-        tabs: answer.tabs.map((tab) => {
+        ...answer,
+        pages: answer.pages.map((tab) => {
           const page = live.get(tab.id);
-          return tab.kind === "page" && page
-            ? { ...tab, title: page.title, url: page.url }
-            : tab;
+          return page ? { ...tab, title: page.title, url: page.url } : tab;
         }),
       };
     }

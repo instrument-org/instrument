@@ -76,17 +76,46 @@ function answeringWindow() {
         ? { tabId: `made-${asked.length}` }
         : action.kind === "list"
           ? {
-              tabs: [...known].map((id) =>
-                id === pageTab
-                  ? {
-                      front: true,
-                      id,
-                      kind: "page" as const,
-                      title: "Suite plans",
-                      url: "https://www.zendesk.com/pricing/",
-                    }
-                  : { id, kind: "screen" as const },
-              ),
+              pages: [
+                {
+                  id: pageTab,
+                  title: "Suite plans",
+                  url: "https://www.zendesk.com/pricing/",
+                },
+              ],
+              read: {
+                layout: {
+                  focused: 1,
+                  group: { id: "group_a" },
+                  sides: [
+                    {
+                      tabs: [
+                        {
+                          address: "instrument://chat/this",
+                          id: "tab_known",
+                          isThisChat: true,
+                          isUp: true,
+                          kind: "chat" as const,
+                          title: "Prices",
+                        },
+                      ],
+                    },
+                    {
+                      tabs: [
+                        {
+                          address: "https://www.zendesk.com/pricing/",
+                          id: pageTab,
+                          isUp: true,
+                          kind: "website" as const,
+                          title: "Suite plans",
+                        },
+                      ],
+                    },
+                  ],
+                },
+                movedIn: {},
+                movedOut: {},
+              },
             }
           : known.has(action.tabId)
             ? {
@@ -367,8 +396,10 @@ describe("window list", () => {
 
     expect(result.exitCode).toBe(0);
     expect(result.stdout.replaceAll(pageTab, "<page>")).toMatchInlineSnapshot(`
-      "tab_known  behind    a screen of the app, not a page
-      <page>  in front  Suite plans · https://www.zendesk.com/pricing/  task t1 is working in it
+      "left:
+        tab_known  up      [chat] Prices (you)
+      right (keyboard):
+        <page>  up      Suite plans · https://www.zendesk.com/pricing/  task t1 is working in it
       "
     `);
   });
@@ -380,8 +411,10 @@ describe("window list", () => {
 
     expect(result.exitCode).toBe(0);
     expect(result.stdout.replaceAll(pageTab, "<page>")).toMatchInlineSnapshot(`
-      "tab_known  behind    a screen of the app, not a page
-      <page>  in front  Suite plans · https://www.zendesk.com/pricing/  you are working in it
+      "left:
+        tab_known  up      [chat] Prices (you)
+      right (keyboard):
+        <page>  up      Suite plans · https://www.zendesk.com/pricing/  you are working in it
       "
     `);
   });

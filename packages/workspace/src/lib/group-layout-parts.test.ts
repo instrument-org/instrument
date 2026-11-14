@@ -5,9 +5,10 @@ import { type LayoutRead, type LayoutTab } from "../schemas/group-layout";
 import { type SessionMessage } from "../schemas/session/message";
 import { StoreId } from "../schemas/store-id";
 import { createMockChatConfig } from "../test/helpers/mock-chat-config";
+import { ChatReads } from "./chat-reads";
 import { ChatWrites } from "./chat-writes";
 import { ensureChatSession } from "./create-session";
-import { layoutParts, noteLayoutRead } from "./group-layout-parts";
+import { layoutParts } from "./group-layout-parts";
 
 const CHAT: LayoutTab = {
   address: "instrument://chat/this",
@@ -25,9 +26,16 @@ const PAGE: LayoutTab = {
   title: "Example",
 };
 
-const read = (tabs: LayoutTab[], group = "group_a"): LayoutRead => ({
-  elsewhere: {},
+const read = (
+  tabs: LayoutTab[],
+  group = "group_a",
+  moves: Pick<LayoutRead, "movedIn" | "movedOut"> = {
+    movedIn: {},
+    movedOut: {},
+  },
+): LayoutRead => ({
   layout: { focused: 0, group: { id: group }, sides: [{ tabs }] },
+  ...moves,
 });
 
 async function setup(name = "layout-parts") {
@@ -41,7 +49,7 @@ async function setup(name = "layout-parts") {
       chatId,
       createdAt,
       messageId,
-      ...(given ? { read: given } : {}),
+      read: given,
       sessionId,
     });
     await ChatWrites.saveMessageWithParts(
@@ -62,22 +70,32 @@ async function setup(name = "layout-parts") {
         : part.type,
     );
   };
-  return { chatId, send };
+  return { chatId, send, sessionId };
 }
 
 describe("layoutParts", () => {
   it("says nothing of a chat alone, then the group once it has more, then only what changed", async () => {
-    const { chatId, send } = await setup();
+    const { send } = await setup();
     expect(await send(read([CHAT]))).toEqual([]);
     expect(await send(read([CHAT, PAGE]))).toEqual(["data-groupLayout"]);
     expect(await send(read([CHAT, PAGE]))).toEqual([]);
-    // A wake carries the latest the window handed over.
-    noteLayoutRead(chatId, read([CHAT]));
-    expect(await send()).toEqual(["data-groupLayout", ["closed by an agent"]]);
+    // A wake no window answered writes nothing.
+    expect(await send()).toEqual([]);
+    expect(
+      await send(read([CHAT], "group_a", { movedIn: {}, movedOut: { tab_page: "group_c" } })),
+    ).toEqual(["data-groupLayout", ["movedOut"]]);
     expect(await send(read([CHAT], "group_b"))).toEqual([
       "data-groupLayout",
       ["chatMoved"],
     ]);
+  });
+
+  it("keeps only the layout in the log, never where other tabs are", async () => {
+    const { chatId, send, sessionId } = await setup("layout-parts-kept");
+    await send(read([CHAT, PAGE], "group_a", { movedIn: { tab_page: "group_b" }, movedOut: { tab_x: "group_c" } }));
+    const history = await ChatReads.history({ chatId, sessionId });
+    const kept = history._unsafeUnwrap().flatMap((message) => message.parts).find((part) => part.type === "data-groupLayout");
+    expect(kept?.type === "data-groupLayout" && Object.keys(kept.data).toSorted()).toEqual(["focused", "group", "sides"]);
   });
 
   it("writes a layout only when what it says changed", async () => {

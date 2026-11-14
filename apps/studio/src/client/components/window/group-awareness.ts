@@ -24,9 +24,8 @@ export interface GroupAwarenessWindow {
 }
 
 /**
- * The group of a chat's tab as the chat reads it, with where every other tab
- * stands (`LayoutRead`): what a message sent from the tab carries, and what
- * the workspace keeps for a wake. None for a tab no group has.
+ * The group of a chat's tab as the chat reads it (`groupReadOf`): what a
+ * message sent from the tab carries. None for a tab no group has.
  */
 export function layoutReadOf(
   window: GroupAwarenessWindow,
@@ -35,16 +34,34 @@ export function layoutReadOf(
   const group = window.windowTabs.allTabs.find(
     (tab) => tab.id === chatTab,
   )?.group;
-  if (group === undefined) {
-    return undefined;
-  }
-  const elsewhere: Record<string, string> = {};
+  return group === undefined ? undefined : groupReadOf(window, group, chatTab);
+}
+
+/**
+ * A group as a chat reads it (`LayoutRead`), the chat's tab in it marked:
+ * its layout, and the tabs that moved between it and another group, each
+ * by the other group (`movedFrom`). What a message sent from the chat's tab
+ * carries, and what the window answers a wake and `window list`.
+ */
+export function groupReadOf(
+  window: GroupAwarenessWindow,
+  group: string,
+  chatTab: string | undefined,
+): LayoutRead {
+  const movedIn: Record<string, string> = {};
+  const movedOut: Record<string, string> = {};
   for (const tab of window.windowTabs.allTabs) {
-    if (tab.group !== undefined && tab.group !== group) {
-      elsewhere[tab.id] = tab.group;
+    if (tab.group === group && tab.movedFrom !== undefined) {
+      movedIn[tab.id] = tab.movedFrom;
+    } else if (tab.group !== undefined && tab.movedFrom === group) {
+      movedOut[tab.id] = tab.group;
     }
   }
-  return { elsewhere, layout: groupLayoutFor(window, group, chatTab) };
+  return {
+    layout: groupLayoutFor(window, group, chatTab),
+    movedIn,
+    movedOut,
+  };
 }
 
 /**
@@ -55,7 +72,7 @@ export function layoutReadOf(
 export function groupLayoutFor(
   window: GroupAwarenessWindow,
   group: string,
-  chatTab: string,
+  chatTab: string | undefined,
 ): LayoutSnapshot {
   const layout = window.windowTabs.layoutOf(group);
   return {

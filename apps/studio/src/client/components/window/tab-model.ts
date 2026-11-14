@@ -345,6 +345,7 @@ export function moveTabTo(
     return state;
   }
   const from = tab.group;
+  const moved = from !== undefined && from !== group ? { movedFrom: from } : {};
   // The side is read from the layout before the tab leaves it, so moving a
   // left side's last tab to the right makes one side, not two.
   const target = groupLayoutOf(state, group);
@@ -359,7 +360,7 @@ export function moveTabTo(
     const { side: _was, ...rest } = tab;
     let next: WindowTabs = {
       ...out,
-      tabs: spliceIn(others, { ...rest, group }, { side: 0 }),
+      tabs: spliceIn(others, { ...rest, ...moved, group }, { side: 0 }),
     };
     next = normalizeSides(next, group);
     if (from !== undefined && from !== group) {
@@ -379,6 +380,7 @@ export function moveTabTo(
   const { side: _was, ...rest } = tab;
   const placed: WindowTab = {
     ...rest,
+    ...moved,
     group,
     ...(kept === 1 ? { side: 1 as const } : {}),
   };

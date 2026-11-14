@@ -7,13 +7,13 @@ import {
 } from "../schemas/group-layout";
 
 /**
- * Where the tabs outside a group stood, read with each layout: by tab id, the
- * id of the group that had it. What tells a tab moved out to another group
+ * The tabs that moved between a group and another, read with the later
+ * layout, each by the id of the other group: what tells a tab moved out
  * from one closed, and one moved in from one opened.
  */
-export interface LayoutElsewhere {
-  after?: Readonly<Record<string, string>>;
-  before?: Readonly<Record<string, string>>;
+export interface LayoutMoves {
+  movedIn?: Readonly<Record<string, string>>;
+  movedOut?: Readonly<Record<string, string>>;
 }
 
 /** The chat's own tab, matched by being the chat rather than by id: a draft's tab and its chat's are one. */
@@ -36,7 +36,7 @@ interface Placed {
 export function layoutChanges(
   before: LayoutSnapshot,
   after: LayoutSnapshot,
-  elsewhere: LayoutElsewhere = {},
+  moves: LayoutMoves = {},
 ): LayoutChange[] {
   if (before.group.id !== after.group.id) {
     return [{ change: "chatMoved", from: before.group.id, to: after.group.id }];
@@ -53,7 +53,7 @@ export function layoutChanges(
     if (now.has(key)) {
       continue;
     }
-    const to = elsewhere.after?.[tab.id];
+    const to = moves.movedOut?.[tab.id];
     changes.push(
       to === undefined
         ? { ...byAgent(tab), change: "closed", tab: named(tab) }
@@ -66,7 +66,7 @@ export function layoutChanges(
     const old = was.get(key);
     const beside = isBeside(side) ? { beside: true } : {};
     if (old === undefined) {
-      const from = elsewhere.before?.[tab.id];
+      const from = moves.movedIn?.[tab.id];
       changes.push(
         from === undefined
           ? {

@@ -7,7 +7,7 @@ import {
 } from "../schemas/group-layout";
 import {
   changesByPerson,
-  type LayoutElsewhere,
+  type LayoutMoves,
   layoutChanges,
   layoutChangesLine,
 } from "./group-layout";
@@ -82,7 +82,7 @@ function brief(change: LayoutChange): string {
 }
 
 describe("layoutChanges", () => {
-  it.each<[string, string, string, string[], LayoutElsewhere?]>([
+  it.each<[string, string, string, string[], LayoutMoves?]>([
     ["nothing changed", "A* | @*", "A* | @*", []],
     ["only the tab up changed", "A* B | @*", "A B* | @*", []],
     ["a tab opened beside the chat", "@*", "A* | @*", ["opened A left beside"]],
@@ -148,21 +148,21 @@ describe("layoutChanges", () => {
       "A* B | @*",
       "A* | @*",
       ["moved out B to Launch post"],
-      { after: { B: "Launch post" } },
+      { movedOut: { B: "Launch post" } },
     ],
     [
       "a tab moved in from another group",
       "A* | @*",
       "A* B | @*",
       ["moved in B from Launch post to left beside"],
-      { before: { B: "Launch post" } },
+      { movedIn: { B: "Launch post" } },
     ],
     [
       "a tab that left a group and came back",
       "A* | @*",
       "A* | @*",
       [],
-      { after: { A: "Launch post" } },
+      { movedOut: { A: "Launch post" } },
     ],
     [
       "several at once",
@@ -175,9 +175,9 @@ describe("layoutChanges", () => {
         "opened N right",
       ],
     ],
-  ])("%s", (_case, before, after, expected, elsewhere) => {
+  ])("%s", (_case, before, after, expected, moves) => {
     expect(
-      layoutChanges(layout(before), layout(after), elsewhere).map(brief),
+      layoutChanges(layout(before), layout(after), moves).map(brief),
     ).toEqual(expected);
   });
 

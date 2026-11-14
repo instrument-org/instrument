@@ -31,9 +31,8 @@ vi.mock(import("./window-tab"), async (importOriginal) => ({
     if (action.kind === "list" && listed.ids) {
       return Promise.resolve({
         requestId: "list",
-        tabs: listed.ids.map((id) => ({
+        pages: listed.ids.map((id) => ({
           id,
-          kind: "page" as const,
           title: "",
           url: "https://example.com/",
         })),

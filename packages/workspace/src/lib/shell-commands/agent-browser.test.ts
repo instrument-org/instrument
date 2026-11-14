@@ -194,9 +194,8 @@ describe("createAgentBrowserCommand", () => {
         publisher.publish("window.tabDone", {
           id: ask.id,
           requestId: ask.requestId,
-          tabs: chatTabs.map((id) => ({
+          pages: chatTabs.map((id) => ({
             id,
-            kind: "page" as const,
             title: "",
             url: "https://example.com/",
           })),

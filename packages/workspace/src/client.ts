@@ -27,7 +27,7 @@ export { PLAN_NOT_ELIGIBLE_CODES } from "./lib/plan-not-eligible-codes";
 export { formatBytes } from "./lib/format-bytes";
 export {
   changesByPerson,
-  type LayoutElsewhere,
+  type LayoutMoves,
   layoutChanges,
   layoutChangesLine,
 } from "./lib/group-layout";

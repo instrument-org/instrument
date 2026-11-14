@@ -12,10 +12,9 @@ import { takePendingUse } from "./person-used-tabs";
 import { askWindow } from "./window-tab";
 
 /** A page tab of the chat's, as the window lists it. */
-export type ChatPageTab = Extract<
-  NonNullable<WindowTabAnswer["tabs"]>[number],
-  { kind: "page" }
-> & { targetId: BrowserTargetId };
+export type ChatPageTab = NonNullable<WindowTabAnswer["pages"]>[number] & {
+  targetId: BrowserTargetId;
+};
 
 /**
  * The chat's page tabs, as the window has them now, in the strip's order:
@@ -30,14 +29,12 @@ export async function chatPageTabs(
     askedBy: chatId,
     group: resolveChat(chatId),
   });
-  if (!answer?.tabs) {
+  if (!answer?.pages) {
     return undefined;
   }
-  return answer.tabs.flatMap((tab) => {
+  return answer.pages.flatMap((tab) => {
     const targetId = parseBrowserTargetId(tab.id);
-    return tab.kind === "page" && targetId !== null
-      ? [{ ...tab, targetId }]
-      : [];
+    return targetId === null ? [] : [{ ...tab, targetId }];
   });
 }
 

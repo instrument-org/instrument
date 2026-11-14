@@ -43,7 +43,6 @@ const GROUP = { id: "group_help" };
 const FOLLOW_UP = "What did I just open?";
 
 const FIRST: LayoutRead = {
-  elsewhere: {},
   layout: {
     focused: 1,
     group: GROUP,
@@ -52,10 +51,11 @@ const FIRST: LayoutRead = {
       { tabs: [CHAT] },
     ],
   },
+  movedIn: {},
+  movedOut: {},
 };
 
 const SECOND: LayoutRead = {
-  elsewhere: {},
   layout: {
     focused: 1,
     group: GROUP,
@@ -64,6 +64,8 @@ const SECOND: LayoutRead = {
       { tabs: [CHAT] },
     ],
   },
+  movedIn: {},
+  movedOut: {},
 };
 
 /** What the chat said before the follow-up, and after it. */

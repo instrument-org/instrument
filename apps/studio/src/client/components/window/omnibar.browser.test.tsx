@@ -241,7 +241,7 @@ describe("a field searching the app its chip names", () => {
       .toBeVisible();
   });
 
-  it("gives an address typed in to the general field", async () => {
+  it("searches for an address typed in, and opens one only once Backspace puts the chip away", async () => {
     await renderInBrowser(
       <Omnibar location={chat} resting={<span>Trip to Lisbon</span>} />,
     );
@@ -252,6 +252,15 @@ describe("a field searching the app its chip names", () => {
     }
     await userEvent.keyboard("https://example.org");
 
+    await expect.element(field).toHaveAttribute("placeholder", "Search chats");
+    await expect.element(page.getByText("Chat", { exact: true })).toBeVisible();
+    await expect
+      .element(page.getByRole("option", { selected: true }))
+      .toMatchTextContent("Search chats for “https://example.org”");
+
+    await userEvent.clear(field);
+    await userEvent.keyboard("{Backspace}");
+    await userEvent.keyboard("https://example.org");
     await expect
       .element(field)
       .toHaveAttribute("placeholder", "Search or enter address");

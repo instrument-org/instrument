@@ -136,14 +136,6 @@ const PROMPTS: Record<OmnibarMode, string> = {
   web: "Search or enter address",
 };
 
-/** Words that name an address or a path rather than something in an app: a scheme, or a path typed. */
-function isAddressLike(words: string) {
-  const trimmed = words.trim();
-  return (
-    /^[a-z][\w+.-]*:\/\//i.test(trimmed) || typedPathHere(trimmed) !== undefined
-  );
-}
-
 /**
  * A tab's address field, which reads what is typed in the terms of what the
  * tab holds (see `OmnibarMode`).
@@ -152,9 +144,11 @@ function isAddressLike(words: string) {
  * tab's chip names (`FieldScope`): the chip stays at the field's start as
  * the caret goes in, the way a browser's keyword does once Tab takes it,
  * and the box is empty, since the place has no address a person types.
- * Backspace in the empty box puts the chip away, and the field is the
- * general one: the web, the app's pages, chats and bookmarks. An address or
- * a path typed or pasted puts it away too.
+ * Whatever is typed or pasted there is words to search that app for, an
+ * address or a path included, so a link pasted in a chat's field searches
+ * the chats for it and opens nothing. Backspace in the empty box puts the
+ * chip away, and the field is the general one: the web, the app's pages,
+ * chats and bookmarks, where an address opens.
  *
  * The first row is always what Enter does with the words in the field, and it
  * is what the field says: an address a browser would open, a search, a path,
@@ -489,9 +483,6 @@ export function Omnibar({
         onChange={(event) => {
           const box = event.currentTarget;
           const { nativeEvent } = event;
-          if (scope !== undefined && isAddressLike(box.value)) {
-            setScope(undefined);
-          }
           send({
             canComplete:
               nativeEvent instanceof InputEvent &&

@@ -101,6 +101,7 @@ export const PAGE_START_LINES = {
   activity: "Everything you did",
   apps: "Your apps",
   browser: "Start page",
+  chats: "Every chat",
   extensions: "Your extensions",
   files: "Home",
   history: "Chats you closed",

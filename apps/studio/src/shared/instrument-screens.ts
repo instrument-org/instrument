@@ -27,6 +27,11 @@ export const SCREENS = {
     href: "/browser",
     title: "Browser",
   },
+  chats: {
+    detail: "Every chat there is, open or not, to search and open.",
+    href: "/history?show=chats",
+    title: "Chats",
+  },
   extensions: {
     detail:
       "The Chrome extensions in your browser, and adding more from the Chrome Web Store.",
@@ -110,8 +115,9 @@ export function screenOfHref(
   href: string,
 ): undefined | { name: ScreenName; part?: SettingsSection } {
   let pathname: string;
+  let search: URLSearchParams;
   try {
-    ({ pathname } = new URL(href, "http://tabs"));
+    ({ pathname, searchParams: search } = new URL(href, "http://tabs"));
   } catch {
     return undefined;
   }
@@ -132,6 +138,9 @@ export function screenOfHref(
   }
   if (second !== undefined) {
     return undefined;
+  }
+  if (first === "history" && search.get("show") === "chats") {
+    return { name: "chats" };
   }
   const name = Object.entries(SCREENS).find(
     ([, screen]) => "href" in screen && screen.href === `/${first}`,

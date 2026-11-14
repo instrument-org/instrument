@@ -15,6 +15,11 @@ describe("built-in pages", () => {
       "instrument://settings/providers",
     ],
     ["/history?q=roof", { name: "history" }, "instrument://screen/history"],
+    [
+      "/history?show=chats&q=roof",
+      { name: "chats" },
+      "instrument://screen/chats",
+    ],
     ["/memory", { name: "memory" }, "instrument://screen/memory"],
     ["/skills", { name: "skills" }, "instrument://screen/skills"],
     ["/activity", { name: "activity" }, "instrument://screen/activity"],
@@ -36,23 +41,24 @@ describe("built-in pages", () => {
 it("offers every built-in page by name, each part of Settings with it", () => {
   expect(builtInPages().map(({ address, title }) => `${title}: ${address}`))
     .toMatchInlineSnapshot(`
-    [
-      "Activity: instrument://screen/activity",
-      "Apps: instrument://screen/apps",
-      "Browser: instrument://screen/browser",
-      "Extensions: instrument://screen/extensions",
-      "Files: instrument://screen/files",
-      "History: instrument://screen/history",
-      "Memory: instrument://screen/memory",
-      "Release notes: instrument://screen/release-notes",
-      "Settings: instrument://settings/general",
-      "Settings › Account: instrument://settings/account",
-      "Settings › Providers: instrument://settings/providers",
-      "Settings › Permissions: instrument://settings/permissions",
-      "Settings › Storage: instrument://settings/storage",
-      "Settings › Activity: instrument://settings/activity",
-      "Keyboard shortcuts: instrument://screen/shortcuts",
-      "Skills: instrument://screen/skills",
-    ]
-  `);
+      [
+        "Activity: instrument://screen/activity",
+        "Apps: instrument://screen/apps",
+        "Browser: instrument://screen/browser",
+        "Chats: instrument://screen/chats",
+        "Extensions: instrument://screen/extensions",
+        "Files: instrument://screen/files",
+        "History: instrument://screen/history",
+        "Memory: instrument://screen/memory",
+        "Release notes: instrument://screen/release-notes",
+        "Settings: instrument://settings/general",
+        "Settings › Account: instrument://settings/account",
+        "Settings › Providers: instrument://settings/providers",
+        "Settings › Permissions: instrument://settings/permissions",
+        "Settings › Storage: instrument://settings/storage",
+        "Settings › Activity: instrument://settings/activity",
+        "Keyboard shortcuts: instrument://screen/shortcuts",
+        "Skills: instrument://screen/skills",
+      ]
+    `);
 });

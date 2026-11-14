@@ -85,6 +85,7 @@ Link one as `[Label](instrument://screen/<name>)`.
 - **Activity** (`activity`): What you did in Instrument, with the AI requests your chats made, to search and clear.
 - **Apps** (`apps`): The services Instrument can work in for you, and connecting one.
 - **Browser** (`browser`): A browser of your own, which tasks can work in beside you.
+- **Chats** (`chats`): Every chat there is, open or not, to search and open.
 - **Extensions** (`extensions`): The Chrome extensions in your browser, and adding more from the Chrome Web Store.
 - **Files** (`files`): The folders and files on this computer, starting at home.
 - **History** (`history`): Every chat and kept draft no window has open, newest first, to open again.

@@ -17,6 +17,7 @@ import { FolderSimpleIcon } from "@phosphor-icons/react/FolderSimple";
 import { GearSixIcon } from "@phosphor-icons/react/GearSix";
 import { GlobeIcon } from "@phosphor-icons/react/Globe";
 import { KeyboardIcon } from "@phosphor-icons/react/Keyboard";
+import { ListBulletsIcon } from "@phosphor-icons/react/ListBullets";
 import { NewspaperClippingIcon } from "@phosphor-icons/react/NewspaperClipping";
 import { PuzzlePieceIcon } from "@phosphor-icons/react/PuzzlePiece";
 import { PulseIcon } from "@phosphor-icons/react/Pulse";
@@ -45,6 +46,7 @@ type Glyph = ComponentType<{ className?: string }>;
 const SCREEN_MARKS: Record<ScreenName, Glyph> = {
   activity: PulseIcon,
   apps: ShapesIcon,
+  chats: ListBulletsIcon,
   browser: GlobeIcon,
   extensions: PuzzlePieceIcon,
   files: FolderSimpleIcon,

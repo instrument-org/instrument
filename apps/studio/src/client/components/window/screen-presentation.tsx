@@ -224,14 +224,13 @@ export function screenPresentation(
         title: "New Tab",
       };
     }
-    // The index of every chat, under the plain bubble the Chats list wears.
+    // History, or the index of every chat under a list mark of its own.
     case "history": {
-      return screen.chats
-        ? { icon: <ChatCircleIcon className="size-3.5" />, title: "Chats" }
-        : {
-            icon: <ScreenMark className="size-3.5" name="history" />,
-            title: SCREENS.history.title,
-          };
+      const name = screen.chats ? "chats" : "history";
+      return {
+        icon: <ScreenMark className="size-3.5" name={name} />,
+        title: SCREENS[name].title,
+      };
     }
     // A built-in page by its own name and mark; one Settings tab whichever
     // part it is at, which the address field says.

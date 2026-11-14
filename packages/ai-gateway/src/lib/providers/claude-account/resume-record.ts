@@ -271,11 +271,14 @@ const RECORD_LIFETIME_MS = 30 * 24 * 60 * 60 * 1000;
  * the transcript it names: a chat deleted in the app, a slot its chat's tools
  * or prompt moved on from, or one an earlier build named another way. A chat
  * left that long starts over from our own records of it, and its cache is
- * long gone either way. Returns how many records it removed.
+ * long gone either way. Leaves the records of the slots in `keep`, read
+ * afresh for each record, which are ones a step is starting on. Returns how
+ * many records it removed.
  */
 export async function sweepResumeRecords(
   configDir: string | undefined,
   now = Date.now(),
+  keep: ReadonlySet<string> = new Set(),
 ) {
   const folder = join(configRoot(configDir), "instrument-sessions");
   const names = await readdir(folder).catch(() => []);
@@ -286,7 +289,8 @@ export async function sweepResumeRecords(
     if (
       !name.endsWith(".json") ||
       written === undefined ||
-      now - written.mtimeMs < RECORD_LIFETIME_MS
+      now - written.mtimeMs < RECORD_LIFETIME_MS ||
+      [...keep].some((slot) => recordPath(configDir, slot) === path)
     ) {
       continue;
     }

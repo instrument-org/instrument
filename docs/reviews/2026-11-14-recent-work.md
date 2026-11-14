@@ -22,7 +22,7 @@ Important means a concrete correctness, security, privacy, or data-preservation 
 
 ### B. The monthly sweep can delete the transcript the first message after launch is resuming from
 
-- Status: open
+- Status: fixed
 - Severity: Important. The first Claude account message of a launch, in a chat left for a month, can fail or start without its conversation.
 - Where: [language-model.ts:190](/packages/ai-gateway/src/lib/providers/claude-account/language-model.ts#L190), [language-model.ts:89](/packages/ai-gateway/src/lib/providers/claude-account/language-model.ts#L89), [resume-record.ts:293](/packages/ai-gateway/src/lib/providers/claude-account/resume-record.ts#L293).
 - What: `sweepOnce(configDir)` is the first line of a step and starts `sweepResumeRecords` without waiting for it. The same step then reads its slot's record, checks the transcript and plans a resume. When that record is thirty or more days old, the sweep removes the record and its transcript while Claude Code is being started on it. The step's one read beats the sweep's `readdir`, `stat` and `readFile`, so the plan is made from a file that is gone by the time it is used. The slot being planned is exactly the one a sweep by age picks.
@@ -30,7 +30,7 @@ Important means a concrete correctness, security, privacy, or data-preservation 
 
 ### C. Whether a refused resume clears its record depends on Claude Code's wording
 
-- Status: open
+- Status: fixed
 - Severity: Important. `REVIEW.md` names this shape under Brittleness, and the cost when it breaks is a chat that fails on every request.
 - Where: [language-model.ts:621](/packages/ai-gateway/src/lib/providers/claude-account/language-model.ts#L621), [language-model.ts:396](/packages/ai-gateway/src/lib/providers/claude-account/language-model.ts#L396).
 - What: `RESUME_REFUSED = /No message found with message\.uuid/` is tested against `String(error)`, and only a match removes the record so the slot starts cold. The executable is the person's installed Claude Code, which this repo does not pin. A reworded message, or any other resume failure that a retry does not change (B's missing file among them), leaves the record in place; only a finished step moves it, so every later request for that chat plans the same resume and fails the same way until the month's sweep.

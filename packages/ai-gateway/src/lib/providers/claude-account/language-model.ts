@@ -75,19 +75,36 @@ async function settleTranscript(claudeSessionId: string) {
   await writer?.exited;
 }
 
-/** The config folders swept since this process started, each once. */
-const swept = new Set<string | undefined>();
+/**
+ * The sweep of each config folder, started once since this process did:
+ * while it runs, when it ends and the slots it leaves alone, and "ended"
+ * from then on.
+ */
+const sweeps = new Map<
+  string | undefined,
+  "ended" | { ended: Promise<void>; keep: Set<string> }
+>();
 
 /**
  * Sweeps the records in `configDir` left unused for a month, with their
- * transcripts, the first time a step runs on it.
+ * transcripts, the first time a step runs on it, and settles once that sweep
+ * has ended, so a step reads its records only after. The sweep leaves the
+ * records of `slots`, the ones the step reads, when it has not passed them.
  */
-function sweepOnce(configDir: string | undefined) {
-  if (swept.has(configDir)) {
+async function sweepOnce(configDir: string | undefined, slots: string[]) {
+  const running = sweeps.get(configDir);
+  if (running === "ended") {
     return;
   }
-  swept.add(configDir);
-  void sweepResumeRecords(configDir)
+  if (running !== undefined) {
+    for (const slot of slots) {
+      running.keep.add(slot);
+    }
+    await running.ended;
+    return;
+  }
+  const keep = new Set(slots);
+  const ended = sweepResumeRecords(configDir, Date.now(), keep)
     .then((removed) => {
       if (removed > 0) {
         console.info(
@@ -99,7 +116,12 @@ function sweepOnce(configDir: string | undefined) {
       console.warn(
         `[claude-account] could not sweep resume records: ${String(error)}`,
       );
+    })
+    .finally(() => {
+      sweeps.set(configDir, "ended");
     });
+  sweeps.set(configDir, { ended, keep });
+  await ended;
 }
 
 /**
@@ -187,7 +209,6 @@ function streamStep({
   options: LanguageModelV4CallOptions;
   providerConfigId: string;
 }) {
-  sweepOnce(configDir);
   const key = sessionKeyOf(options);
   const parentKey = parentKeyOf(options);
   const aside = isAside(options);
@@ -241,6 +262,16 @@ function streamStep({
 
       try {
         controller.enqueue({ type: "stream-start", warnings: [] });
+        // Before any record is read: the sweep removes a record left for a
+        // month, which is what a chat opened again after one resumes from.
+        await sweepOnce(
+          configDir,
+          [
+            persistent,
+            besideSlot,
+            parentKey === undefined ? undefined : `${parentKey}:${shapeHash}`,
+          ].filter((read) => read !== undefined),
+        );
         // A live process for this slot, or else the transcript its last one
         // left, resumed at its last finished step, or else for a branch's
         // first step, its parent's transcript forked where it branched off.
@@ -390,14 +421,21 @@ function streamStep({
         }
         controller.close();
       } catch (error) {
-        running?.close();
-        // Claude Code refusing the entry a resume starts from is not
-        // something a retry changes, so the slot starts cold next time.
-        if (
+        // A resumed process that failed by itself before any of a reply
+        // failed at the resume, whatever it said, which a retry does not
+        // change, so the slot starts cold next time. One the person stopped,
+        // or whose reader went away, was closed here; one that reached
+        // Claude's API, to be refused for its sign-in or its plan's usage,
+        // reported that as an assistant entry.
+        const resumeFailed =
           planned === "resume" &&
           persistent !== undefined &&
-          RESUME_REFUSED.test(String(error))
-        ) {
+          running !== undefined &&
+          !running.replied &&
+          !running.closed &&
+          options.abortSignal?.aborted !== true;
+        running?.close();
+        if (resumeFailed) {
           dropTranscript(
             configDir,
             await removeResumeRecord(configDir, persistent),
@@ -616,9 +654,6 @@ function closeOtherIdleSlots(key: string, keep: string | undefined) {
     }
   }
 }
-
-/** What Claude Code says when the entry a resume cuts back to is not there. */
-const RESUME_REFUSED = /No message found with message\.uuid/;
 
 const EFFORTS: EffortLevel[] = ["low", "medium", "high", "xhigh", "max"];
 

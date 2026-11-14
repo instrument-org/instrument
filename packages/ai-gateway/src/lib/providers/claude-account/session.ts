@@ -99,7 +99,14 @@ export class ClaudeCodeSession implements MessageSource {
    * again.
    */
   notesGiven = new Set<string>();
-  private closed = false;
+  /**
+   * Whether the process has reported anything of a reply in its current
+   * step: an assistant entry, one reporting a failure of Claude's API
+   * included, or a part of one as it streams.
+   */
+  replied = false;
+  /** Whether `close` ended this process, rather than it ending by itself. */
+  closed = false;
   /**
    * Whether Claude Code ends its turn once the tool calls it waits on are
    * answered, instead of asking the model about their results. Set while a
@@ -230,7 +237,20 @@ export class ClaudeCodeSession implements MessageSource {
       // there as one of its own.
       prompt: this.input as AsyncIterable<SDKUserMessage>,
     });
-    this.messages = this.query[Symbol.asyncIterator]();
+    const output = this.query[Symbol.asyncIterator]();
+    this.messages = {
+      next: async () => {
+        const next = await output.next();
+        if (
+          !next.done &&
+          (next.value.type === "assistant" ||
+            next.value.type === "stream_event")
+        ) {
+          this.replied = true;
+        }
+        return next;
+      },
+    };
     this.touch();
   }
 
@@ -275,6 +295,7 @@ export class ClaudeCodeSession implements MessageSource {
     this.contextWindow = undefined;
     this.forkPoint = undefined;
     this.leaf = undefined;
+    this.replied = false;
     this.seen = seen;
     this.touch();
   }

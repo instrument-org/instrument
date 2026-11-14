@@ -107,6 +107,36 @@ describe("resume records", () => {
     });
   });
 
+  it("leaves a month-old record whose slot a step is starting on", async () => {
+    const configDir = await mkdtemp(join(tmpdir(), "resume-record-"));
+    await withTranscript(configDir);
+    await writeResumeRecord(configDir, "ses_starting:shape", record);
+    await writeResumeRecord(configDir, "ses_other:shape", {
+      ...record,
+      claudeSessionId: "other",
+    });
+    const records = join(configDir, "instrument-sessions");
+    const then = Date.now() / 1000 - 31 * 24 * 60 * 60;
+    for (const name of await readdir(records)) {
+      await utimes(join(records, name), then, then);
+    }
+
+    expect(
+      await sweepResumeRecords(
+        configDir,
+        Date.now(),
+        new Set(["ses_starting:shape"]),
+      ),
+    ).toBe(1);
+    expect({
+      other: await readResumeRecord(configDir, "ses_other:shape", RESUME),
+      starting: await readResumeRecord(configDir, "ses_starting:shape", RESUME),
+    }).toEqual({
+      other: { missing: "no resume record" },
+      starting: { record },
+    });
+  });
+
   it("removes a transcript and the folder beside it", async () => {
     const configDir = await mkdtemp(join(tmpdir(), "resume-record-"));
     await withTranscript(configDir);

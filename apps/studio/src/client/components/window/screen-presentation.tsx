@@ -14,6 +14,7 @@ import {
 import { type ChatId, type StoreId } from "@instrument-org/workspace/client";
 import { AppWindowIcon } from "@phosphor-icons/react/AppWindow";
 import { ChatCircleIcon } from "@phosphor-icons/react/ChatCircle";
+import { NotePencilIcon } from "@phosphor-icons/react/NotePencil";
 import { CheckSquareIcon } from "@phosphor-icons/react/CheckSquare";
 import { CodeIcon } from "@phosphor-icons/react/Code";
 import { MagnifyingGlassIcon } from "@phosphor-icons/react/MagnifyingGlass";
@@ -191,10 +192,17 @@ export function screenPresentation(
     // The plain bubble the Chats list wears: one chat is one of those.
     case "chat":
     case "chatLink":
-    case "chatOfSession":
-    case "inbox": {
+    case "chatOfSession": {
       return {
         icon: <ChatCircleIcon className="size-3.5" />,
+        title: chatTitleOf(screen, chatTitles),
+      };
+    }
+    // A new tab is a chat about to start, marked as one being written, in
+    // its strip tab and its sidebar row alike.
+    case "inbox": {
+      return {
+        icon: <NotePencilIcon className="size-3.5" />,
         title: chatTitleOf(screen, chatTitles),
       };
     }

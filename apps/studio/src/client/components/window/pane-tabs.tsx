@@ -34,7 +34,7 @@ import { DeleteChatDialog } from "./delete-chat-dialog";
 import { useFileTabTitles } from "./file-tab-titles";
 import { screenPresentation, screenLocation } from "./screen-presentation";
 import { siteTabTitles } from "./site-tab-titles";
-import { chatOfTab, draftOfTab, isHomeTab } from "./tab-model";
+import { chatOfTab, draftOfTab } from "./tab-model";
 import { TabMenuAtPoint, TabMenuItems } from "./tab-menu-items";
 import { NewTabButton, type StripTab, TabStrip } from "./tab-strip";
 import { useBookmarkEdits } from "./web-start";
@@ -168,8 +168,7 @@ export function PaneTabs({
           url={tab.url ?? tab.openedUrl ?? ""}
         />
       );
-    } else if (!isHomeTab(tab)) {
-      // A new tab is its name alone.
+    } else {
       icon = (
         <ScreenMark
           appsBySlug={appsBySlug}

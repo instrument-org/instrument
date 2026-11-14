@@ -1,6 +1,7 @@
 import { RelativeTime } from "@/client/components/relative-time";
 import { type ChatId } from "@instrument-org/workspace/client";
 import { ChatCircleIcon } from "@phosphor-icons/react/ChatCircle";
+import { QuestionIcon } from "@phosphor-icons/react/Question";
 import { useId } from "react";
 
 import { lastActiveAt, useOpenGroups } from "./tab-groups";
@@ -11,7 +12,8 @@ const CLOSED_SHOWN = 5;
 /**
  * The chats closed lately, under a new tab's composer: History's chats,
  * which no window has a tab on, most recently active first, each its title
- * and when it was last active. Nothing while there are none.
+ * and when it was last active, or that it waits on the person. Nothing
+ * while there are none.
  */
 export function ClosedRecently({ onOpen }: { onOpen: (chat: ChatId) => void }) {
   const headingId = useId();
@@ -42,11 +44,18 @@ export function ClosedRecently({ onOpen }: { onOpen: (chat: ChatId) => void }) {
           <span className="min-w-0 truncate text-foreground/85">
             {entry.chat.title}
           </span>
-          <RelativeTime
-            className="shrink-0 text-muted-foreground"
-            date={new Date(lastActiveAt(entry))}
-            tooltip={false}
-          />
+          {entry.chat.status === "waiting" ? (
+            <span className="flex shrink-0 items-center gap-1 text-foreground/80">
+              <QuestionIcon className="size-3.5" weight="bold" />
+              Waiting on you
+            </span>
+          ) : (
+            <RelativeTime
+              className="shrink-0 text-muted-foreground"
+              date={new Date(lastActiveAt(entry))}
+              tooltip={false}
+            />
+          )}
         </button>
       ))}
     </section>

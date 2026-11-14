@@ -49,8 +49,19 @@ import {
   useTabGroupActions,
   windowTabGroupsAtom,
 } from "../tab-groups";
-import { groupLayoutOf, sideOf, tabsIn } from "../tab-model";
-import { newScreenId, useWindowTabs, windowTabsAtom } from "../window-tabs";
+import {
+  groupLayoutOf,
+  putUpBack,
+  sideOf,
+  tabsIn,
+  upTabsIn,
+} from "../tab-model";
+import {
+  newScreenId,
+  useWindowTabs,
+  useWindowTabsChange,
+  windowTabsAtom,
+} from "../window-tabs";
 import { droppedFileHref, filesOfDrop } from "./held-tabs";
 import { type Point } from "./landing";
 import {
@@ -442,6 +453,7 @@ function useRemoveBookmarkWithUndo() {
 function useCarrier() {
   const store = useStore();
   const windowTabs = useWindowTabs();
+  const changeTabs = useWindowTabsChange();
   const groups = useTabGroupActions();
   const { open } = useOpenGroups();
   const letGoOfWholeGroup = useLetGoOfWholeGroup();
@@ -468,6 +480,13 @@ function useCarrier() {
     let isEnded = false;
     let isNeighborUp = false;
     let wasOff = isOnlyTab;
+    // What a drag that lands nowhere puts back: the tab up on each side, and
+    // the side with the keyboard, as the press left them.
+    const upAtStart = upTabsIn(state, held.group);
+    const putBack = () => {
+      isNeighborUp = false;
+      changeTabs((current) => putUpBack(current, held.group, upAtStart));
+    };
     const showWhereItIs = (isOff: boolean) => {
       const isGone = isOff && collapses && !isEnded;
       if (isGone && !isNeighborUp) {
@@ -507,7 +526,7 @@ function useCarrier() {
     return {
       cancel: () => {
         isEnded = true;
-        showWhereItIs(false);
+        putBack();
         void starting
           .then((started) =>
             started
@@ -531,7 +550,7 @@ function useCarrier() {
         const started = await starting.catch(() => false);
         isEnded = true;
         if (!started) {
-          showWhereItIs(false);
+          putBack();
           return "stays";
         }
         const end = await rpcClient.window.endTabCarry
@@ -542,7 +561,7 @@ function useCarrier() {
           });
         settleTabMove(held.key, end);
         if (end.kind === "none") {
-          showWhereItIs(false);
+          putBack();
         }
         letGoOfWholeGroup(held.key, end, held.group);
         return end.kind === "none" ? "stays" : "gone";

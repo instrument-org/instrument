@@ -32,6 +32,7 @@ import {
   pageNavigated,
   pageTakesOver,
   patchPage,
+  putUpBack,
   raiseTab,
   reopenTab,
   reorderGroup,
@@ -44,6 +45,7 @@ import {
   titleAtNavigation,
   tabToScreen,
   visitScreen,
+  upTabsIn,
   type WindowTabs,
 } from "./tab-model";
 
@@ -843,6 +845,29 @@ describe("a group's sides", () => {
       "> a *b",
       "*c d",
     ]);
+  });
+
+  it("puts each side's tab up back, and the keyboard on its side, as a canceled drag does", () => {
+    const before = twoSides();
+    const up = upTabsIn(before, GROUP);
+    // The other side's tab up with the keyboard, then its neighbor.
+    const moved = selectTab(selectTab(before, "a"), "d");
+    expect(sidesOf(moved, GROUP)).toEqual(["*a b", "> c *d"]);
+    expect(sidesOf(putUpBack(moved, GROUP, up), GROUP)).toEqual([
+      "a *b",
+      "> *c d",
+    ]);
+  });
+
+  it("leaves a tab closed since closed, and changes nothing without the keyboard's tab", () => {
+    const up = upTabsIn(twoSides(), GROUP);
+    const besideGone = closeTab(selectTab(twoSides(), "d"), "b");
+    expect(sidesOf(putUpBack(besideGone, GROUP, up), GROUP)).toEqual([
+      "*a",
+      "> *c d",
+    ]);
+    const activeGone = closeTab(twoSides(), "c");
+    expect(putUpBack(activeGone, GROUP, up)).toBe(activeGone);
   });
 
   it("raises a tab on the side without the keyboard and leaves the keyboard where it is", () => {

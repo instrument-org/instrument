@@ -97,10 +97,7 @@ export function sideIndexOf(
  * The tab up on the other side from a tab, in a group of two sides: what a
  * chat's next message carries, beside it. None in a group of one side.
  */
-export function besideOf(
-  state: WindowTabs,
-  id: string,
-): undefined | WindowTab {
+export function besideOf(state: WindowTabs, id: string): undefined | WindowTab {
   const tab = state.tabs.find((entry) => entry.id === id);
   if (tab?.group === undefined) {
     return undefined;
@@ -176,7 +173,8 @@ function placeIn(
   { after, group, side = "same" }: Placing,
 ): { after: string | undefined; side: 0 | 1 } {
   const layout = groupLayoutOf(state, group);
-  const afterSide = after === undefined ? undefined : sideIndexOf(layout, after);
+  const afterSide =
+    after === undefined ? undefined : sideIndexOf(layout, after);
   const same = afterSide ?? layout.focused;
   const target =
     side === "same" ? same : side === "other" ? (same === 1 ? 0 : 1) : side;
@@ -766,6 +764,50 @@ export function selectTab(state: WindowTabs, id: string): WindowTabs {
         ...pointed,
         besideByGroup: { ...state.besideByGroup, [group]: leaving },
       };
+}
+
+/** The tabs a group has up: on the side with the keyboard, and on the other. */
+interface UpTabs {
+  active: string | undefined;
+  beside: string | undefined;
+}
+
+export function upTabsIn(state: WindowTabs, group: string): UpTabs {
+  return {
+    active: state.activeByGroup[group],
+    beside: state.besideByGroup?.[group],
+  };
+}
+
+/**
+ * A group's tabs up again as they were, the keyboard on the side it was on,
+ * for something taken back, such as a canceled drag. A tab closed since is
+ * left closed, and with the tab that had the keyboard gone nothing changes.
+ */
+export function putUpBack(
+  state: WindowTabs,
+  group: string,
+  { active, beside }: UpTabs,
+): WindowTabs {
+  const isIn = (id: string) =>
+    state.tabs.some((tab) => tab.id === id && tab.group === group);
+  const now = upTabsIn(state, group);
+  if (
+    active === undefined ||
+    !isIn(active) ||
+    (now.active === active && now.beside === beside)
+  ) {
+    return state;
+  }
+  const { [group]: _beside, ...otherBesides } = state.besideByGroup ?? {};
+  return {
+    ...state,
+    activeByGroup: { ...state.activeByGroup, [group]: active },
+    besideByGroup:
+      beside !== undefined && isIn(beside)
+        ? { ...otherBesides, [group]: beside }
+        : otherBesides,
+  };
 }
 
 /**

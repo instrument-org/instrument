@@ -48,6 +48,7 @@ import {
   useIsActiveTab,
 } from "@/client/hooks/use-active-tab";
 import { useGesturesFor } from "@/client/hooks/use-open-target";
+import { PAGE_FOLD_PX, useIsNarrower } from "@/client/hooks/use-is-narrower";
 import { displayLocale } from "@/client/lib/display-locale";
 import { type OpenTarget } from "@/client/lib/open-target";
 import { toast } from "@/client/lib/toast";
@@ -144,7 +145,8 @@ function isRemovable(entry: TimelineEntry) {
  * Activity: what the person did in the app and the AI requests its chats
  * made, newest first, a card per day and a line per thing, the way a
  * browser's history reads. A search and a filter narrow it; a row picked
- * shows its details in a card beside the list, so the list keeps its place.
+ * shows its details in a card beside the list, so the list keeps its place,
+ * or under the row when the page is too narrow for both, as beside a chat.
  *
  * Both logs stay on this computer: the person's in the workspace's machine
  * folder (`docs/architecture/action-log.md`), the requests in the
@@ -316,16 +318,44 @@ export function ActivityPage({
   );
 
   const empty = shown.length === 0 && !isLoading;
+  // Narrower than a page keeps things beside its list, as beside a chat, the
+  // details open under the row picked rather than beside the list.
+  const [frame, setFrame] = useState<HTMLDivElement | null>(null);
+  const isNarrow = useIsNarrower(frame, PAGE_FOLD_PX);
+  const details = picked ? (
+    <ActivityDetails
+      entry={picked}
+      key={picked.id}
+      onClose={() => {
+        pick(undefined);
+      }}
+      onRemove={
+        isRemovable(picked)
+          ? () => {
+              removeEntries([picked]);
+            }
+          : undefined
+      }
+    />
+  ) : null;
 
   return (
-    <div className="flex h-full min-h-0 flex-col bg-background">
+    <div
+      className="@container/activity flex h-full min-h-0 flex-col bg-background"
+      ref={setFrame}
+    >
       {/* One bar: the page's name, how to narrow it, and, at its end, where
         the history is kept and who reads it, which someone landing here
         from the window's corner should see before anything else. */}
-      <div className="flex shrink-0 flex-wrap items-center gap-x-3 gap-y-2 border-b border-border px-6 py-3">
+      <div className="flex shrink-0 flex-wrap items-center gap-x-3 gap-y-2 border-b border-border px-4 py-3 @min-[640px]/activity:px-6">
         <h1 className="mr-1 text-base font-semibold">Activity</h1>
         {checkedEntries.length > 0 ? (
-          <div className="flex h-9 min-w-0 flex-1 items-center gap-3 rounded-lg bg-foreground/6 px-3 text-sm">
+          <div
+            className={cn(
+              "flex h-9 min-w-0 flex-1 items-center gap-3 rounded-lg bg-foreground/6 px-3 text-sm",
+              UNDER_TITLE_WHEN_NARROW,
+            )}
+          >
             <span className="font-medium">
               {`${checkedEntries.length} selected`}
             </span>
@@ -351,8 +381,13 @@ export function ActivityPage({
             </Button>
           </div>
         ) : (
-          <div className="flex min-w-0 flex-wrap items-center gap-3">
-            <div className="flex w-64 shrink-0">
+          <div
+            className={cn(
+              "flex min-w-0 flex-wrap items-center gap-3",
+              UNDER_TITLE_WHEN_NARROW,
+            )}
+          >
+            <div className="flex w-64 max-w-full">
               <SearchField
                 onChange={(value) => {
                   onSearch({ item: undefined, q: value });
@@ -405,7 +440,7 @@ export function ActivityPage({
         />
       </div>
       {isKeeping ? null : (
-        <div className="mx-6 mt-4 flex shrink-0 items-center gap-3 rounded-xl bg-foreground/5 px-4 py-2.5 text-sm">
+        <div className="mx-4 mt-4 flex shrink-0 items-center gap-3 rounded-xl bg-foreground/5 px-4 py-2.5 text-sm @min-[640px]/activity:mx-6">
           <PauseCircleIcon className="size-4.5 shrink-0 text-foreground/70" />
           <span className="flex-1">
             {`${APP_NAME} isn't keeping a history right now.`}
@@ -434,6 +469,7 @@ export function ActivityPage({
         ) : (
           <ActivityList
             checked={checked}
+            detailsUnder={isNarrow ? details : null}
             hasMore={isLoading}
             // Days are named from when the page opened, as both logs are read.
             items={withDayHeads(shown, new Date(until), displayLocale)}
@@ -466,23 +502,8 @@ export function ActivityPage({
             picked={picked?.id ?? null}
           />
         )}
-        {picked ? (
-          <div className="flex w-106 shrink-0 py-4 pr-6">
-            <ActivityDetails
-              entry={picked}
-              key={picked.id}
-              onClose={() => {
-                pick(undefined);
-              }}
-              onRemove={
-                isRemovable(picked)
-                  ? () => {
-                      removeEntries([picked]);
-                    }
-                  : undefined
-              }
-            />
-          </div>
+        {details && !isNarrow ? (
+          <div className="flex w-106 shrink-0 py-4 pr-6">{details}</div>
         ) : null}
       </div>
       <ClearActivityDialog
@@ -493,6 +514,13 @@ export function ActivityPage({
     </div>
   );
 }
+
+/**
+ * Where the bar's search and filters, or what is selected, go on a page too
+ * narrow for one line: under the title and the page's ⋯, a line of their own.
+ */
+const UNDER_TITLE_WHEN_NARROW =
+  "@max-[640px]/activity:order-last @max-[640px]/activity:basis-full";
 
 /**
  * What the history is and who reads it, as a card above the first day:
@@ -572,6 +600,7 @@ function targetOf(entry: TimelineEntry): OpenTarget | undefined {
  */
 function ActivityList({
   checked,
+  detailsUnder,
   hasMore,
   items: listed,
   loadMore,
@@ -583,6 +612,8 @@ function ActivityList({
   picked,
 }: {
   checked: ReadonlySet<string>;
+  /** The picked row's details, drawn under it when there is no room beside the list. */
+  detailsUnder: React.ReactNode;
   hasMore: boolean;
   items: TimelineItem[];
   loadMore: () => void;
@@ -736,7 +767,7 @@ function ActivityList({
 
   return (
     <div
-      className="min-h-0 flex-1 overflow-y-auto px-6 outline-none"
+      className="min-h-0 flex-1 overflow-y-auto px-4 outline-none @min-[640px]/activity:px-6"
       onKeyDown={onKeyDown}
       ref={setScroller}
       tabIndex={0}
@@ -828,6 +859,11 @@ function ActivityList({
                   }}
                   title={text.title}
                 />
+                {picked === item.id && detailsUnder ? (
+                  <div className="flex max-h-112 flex-col px-1 pt-1 pb-2">
+                    {detailsUnder}
+                  </div>
+                ) : null}
               </div>
             </div>
           );
@@ -840,8 +876,7 @@ function ActivityList({
 /**
  * One thing on one line, the way a browser's history lists a page: a box
  * to pick it with, the time, its mark, what it names, what was done with
- * it, and its ⋮. A click shows its details beside the list and a double
- * click opens it.
+ * it, and its ⋮. A click shows its details and a double click opens it.
  */
 function ActivityRow({
   at,

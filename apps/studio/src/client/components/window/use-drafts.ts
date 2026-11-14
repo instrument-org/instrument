@@ -23,14 +23,14 @@ import {
   StoreId,
 } from "@instrument-org/workspace/client";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
-import { useAtom, useAtomValue, useSetAtom, useStore } from "jotai";
+import { useAtomValue, useSetAtom, useStore } from "jotai";
 import ms from "ms";
 import { useEffect, useState } from "react";
 import { finishBeforeLeaving } from "@/client/lib/before-leaving";
 import { toast } from "@/client/lib/toast";
 import { ulid } from "ulid";
 
-import { NO_FILTERS, type Project } from "./chats";
+import { type Project } from "./chats";
 import { type BrowserTabsHandle } from "./browser-tabs";
 import { pageToChat, pagesForChat } from "./draft-band";
 import { type DraftSend } from "./compose-window";
@@ -86,7 +86,7 @@ export function useDrafts({
   layoutOf?: (tabId: string) => LayoutRead | undefined;
   /** Puts the tab up on the Chat screen writing a draft, beside the chat list. */
   openDraftInChat: (id: string) => void;
-  /** Puts the tab up on the chat with its inbox out, wherever the window stood. */
+  /** Opens History, where a kept draft no tab writes is listed. */
   openDrafts: () => void;
   /** Puts the tab up on the Chat screen writing a new chat with nothing in it yet, filed under the project named. */
   openNewChat: (projectId: string | undefined) => void;
@@ -104,7 +104,7 @@ export function useDrafts({
   const releaseDraft = useSetAtom(releaseDraftAtom);
   const draftSent = useSetAtom(draftSentAtom);
   const setDraftSnapshots = useSetAtom(draftSnapshotsAtom);
-  const [chatFilters, setChatFilters] = useAtom(chatFiltersAtom);
+  const chatFilters = useAtomValue(chatFiltersAtom);
   const queryClient = useQueryClient();
   const stagedAsks = useAtomValue(stagedAsksAtom);
   const { remove: removeAsks, returnTo: returnAsks } = useStagedAskActions();
@@ -278,8 +278,8 @@ export function useDrafts({
     });
   };
   /**
-   * Closes a draft's window: one with anything in it is kept in Drafts the
-   * way mail keeps a draft, with a toast offering to go to Drafts, and
+   * Closes a draft's window: one with anything in it is kept, listed in
+   * History, with a toast offering to go there, and
    * one left empty (`isLeftEmpty`, the rule the Chat
    * screen's new chat keeps too) is thrown away, so a draft opened and
    * closed again leaves nothing behind. The words come from the window,
@@ -296,11 +296,10 @@ export function useDrafts({
       return;
     }
     compose.remove(draftGroupOf(id));
-    toast("Your draft is saved in Drafts", {
+    toast("Your draft is saved in History", {
       action: {
         label: "View",
         onClick: () => {
-          setChatFilters({ ...NO_FILTERS, place: "drafts" });
           openDrafts();
         },
       },

@@ -1,3 +1,4 @@
+import { atom } from "jotai";
 import { type WindowTab } from "@/client/atoms/window";
 import { type ChosenItem, type Draft, draftGroupOf } from "@/shared/drafts";
 
@@ -8,6 +9,13 @@ import {
   draftSuggestionOf,
 } from "./context-items";
 import { type BandTarget, useBandContext } from "./draft-band";
+
+/**
+ * The tab beside a new tab that the person left out of its first message,
+ * by the new tab's id: the id of the tab whose chip they took off. The page
+ * stays open; a different tab up there is a chip again.
+ */
+export const leftOutBesideAtom = atom<Record<string, string>>({});
 
 /**
  * A draft's chips (see `draftContextItems`) and what the window has in view
@@ -23,6 +31,7 @@ export function useDraftChips({
   closeTab,
   draft,
   finderOf,
+  group = draftGroupOf(draft.id),
   inView,
   onChange,
   open,
@@ -33,13 +42,14 @@ export function useDraftChips({
   closeTab: (id: string) => void;
   draft: Draft;
   finderOf: (id: string) => null | { folder: string; selected: ChosenItem[] };
+  /** The group the draft's tab is in; a floating draft's own key when it has none. */
+  group?: string;
   /** What the window has in view behind the draft, offered to it. */
   inView: undefined | WindowTab;
   onChange: (update: (draft: Draft) => Draft) => void;
   /** Opens a target in the draft's band, answering the tab's id. */
   open: (target: BandTarget) => string | undefined;
 }) {
-  const group = draftGroupOf(draft.id);
   useBandContext({ band, close: closeTab, draft, finderOf, onChange, open });
   const items = draftContextItems({ allTabs, band, draft, finderOf, group });
   const suggestion = draftSuggestionOf({

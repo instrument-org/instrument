@@ -52,6 +52,8 @@ export interface SendContextWindow {
   chatTitles: Map<ChatId, string>;
   /** The router's address, which is the screen's own. */
   href: string;
+  /** The tab beside each new tab its first message leaves out, by the new tab's id (`leftOutBesideAtom`). */
+  leftOutBeside?: Readonly<Record<string, string>>;
   /** The computer's volumes, which name a folder chip the way the Finder does. */
   volumes?: Volume[];
   /** What the screen that is up says it shows, or nothing while none has said. */
@@ -79,6 +81,7 @@ export function contextReaders({
   browser,
   chatTitles,
   href,
+  leftOutBeside = {},
   screenView,
   state,
   surfaces,
@@ -382,7 +385,12 @@ export function contextReaders({
     const tab = windowTabs.allTabs.find((each) =>
       tabId === undefined ? draftOfTab(each) === draft.id : each.id === tabId,
     );
-    const up = tab === undefined ? undefined : windowTabs.besideOf(tab.id);
+    const beside =
+      tab === undefined ? undefined : windowTabs.besideOf(tab.id);
+    const up =
+      tab !== undefined && beside?.id === leftOutBeside[tab.id]
+        ? undefined
+        : beside;
     return draftContextItems({
       allTabs: windowTabs.allTabs,
       band: up && !isHomeTab(up) ? [up] : [],

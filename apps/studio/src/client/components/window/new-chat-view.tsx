@@ -3,9 +3,9 @@ import { AnimatedOutlineBrandIconGlyph } from "@/client/components/brand-icon";
 import {
   APPS_HREF,
   BROWSER_HREF,
-  chatFiltersAtom,
   filesHrefAtom,
 } from "@/client/atoms/window";
+import { sidebarProjectAtom } from "@/client/atoms/tab-groups";
 import {
   itemsOf,
   useDraftStaging,
@@ -37,7 +37,7 @@ import { cn, osConventions } from "@/client/lib/utils";
 import { APP_NAME } from "@instrument-org/shared";
 import { type ChatId } from "@instrument-org/workspace/client";
 import { useRouter } from "@tanstack/react-router";
-import { useAtomValue, useSetAtom, useStore } from "jotai";
+import { useAtom, useAtomValue, useSetAtom, useStore } from "jotai";
 import {
   type ReactNode,
   useEffect,
@@ -59,7 +59,7 @@ import { isHomeTab } from "./tab-model";
 import { tabSurfaceAtom } from "./tab-surface";
 import { useShell } from "./shell-context";
 import { useComposerAsks } from "./staged-asks";
-import { useDraftChips } from "./use-draft-chips";
+import { leftOutBesideAtom, useDraftChips } from "./use-draft-chips";
 import { useDraftProjectSuggestion } from "./use-draft-project-suggestion";
 import { chatHref, newChatHref } from "./window-href";
 import { useWindowTabs } from "./window-tabs";
@@ -236,6 +236,7 @@ export function NewChatView({
         ? undefined
         : openInBand({ group, target, windowTabs }),
     selectedId: up?.id,
+    tabId,
   });
 
   const staging = useDraftStaging({
@@ -249,13 +250,11 @@ export function NewChatView({
 
   const projectId = draft?.projectId ?? boxes[tabId]?.projectId;
   const project = shell.projects.find((entry) => entry.id === projectId);
-  // Beside the list standing in the project it is filed under, the new chat
-  // is that project's room, and says so.
-  const listProjects = useAtomValue(chatFiltersAtom).projects;
+  // With the sidebar standing in the project it is filed under, the new
+  // chat is that project's room, and says so.
+  const sidebarProject = useAtomValue(sidebarProjectAtom);
   const roomOf =
-    project && listProjects.length === 1 && listProjects[0] === project.id
-      ? project
-      : undefined;
+    project && sidebarProject === project.id ? project : undefined;
 
   // The plus opens the web, the computer and Apps beside the new chat, in
   // the side panel, the way a chat's plus opens them beside the chat.
@@ -463,10 +462,13 @@ function useNewChatChips(
     onSelect,
     open,
     selectedId,
+    tabId,
   }: {
     band: WindowTab[];
     /** The group the new chat's tab is in. */
     group: string | undefined;
+    /** The new tab the chips are in. */
+    tabId: string;
     onSelect: (tabId: string) => void;
     open: (target: BandTarget) => string | undefined;
     selectedId: string | undefined;
@@ -475,14 +477,20 @@ function useNewChatChips(
   const windowTabs = useWindowTabs();
   const updateDraft = useSetAtom(updateDraftAtom);
   const surfaces = useAtomValue(tabSurfaceAtom);
+  // The page beside a new tab is the group's, so taking its chip off
+  // leaves it out of the message and leaves the page open, as a chat's
+  // composer does.
+  const [leftOut, setLeftOut] = useAtom(leftOutBesideAtom);
+  const shown = band.filter((tab) => leftOut[tabId] !== tab.id);
   const { items, leaveOut } = useDraftChips({
     allTabs: windowTabs.allTabs,
-    band,
+    band: shown,
     closeTab: (id) => {
-      windowTabs.close(id);
+      setLeftOut((current) => ({ ...current, [tabId]: id }));
     },
     draft: draft ?? NO_DRAFT,
     finderOf: (id) => surfaces[id]?.finder ?? null,
+    ...(group === undefined ? {} : { group }),
     inView: undefined,
     onChange: (update) => {
       if (draft) {

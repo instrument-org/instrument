@@ -141,6 +141,7 @@ import { useStagedAskActions } from "./staged-asks";
 import { tabSurfaceAtom } from "./tab-surface";
 import { useTaskTitles } from "./task-titles";
 import { useCompose } from "./use-compose";
+import { leftOutBesideAtom } from "./use-draft-chips";
 import { useDrafts } from "./use-drafts";
 import { useOpeners } from "./use-openers";
 import { CommandMenu } from "./command-menu";
@@ -1010,6 +1011,7 @@ function WindowShell({
       browser,
       chatTitles,
       href: hrefNow(),
+      leftOutBeside: store.get(leftOutBesideAtom),
       screenView,
       state: opened,
       surfaces,
@@ -1096,10 +1098,7 @@ function WindowShell({
       appTabs.navigate(newChatHref());
     },
     openDrafts: () => {
-      setInboxOpen(true);
-      if (place !== "chat") {
-        appTabs.goToPlace("chat");
-      }
+      openBuiltInPage(SCREENS.history.href);
     },
     saveDefaultModelURI,
     projects,

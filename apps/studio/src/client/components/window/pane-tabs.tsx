@@ -13,7 +13,10 @@ import { dropdownMenuComponents } from "@/client/components/ui/menu-components";
 import { useTargetsAgentActivity } from "@/client/hooks/use-target-agent-activity";
 import { getGuest } from "@/client/lib/browser-pool";
 import { cn } from "@/client/lib/utils";
-import { browserTargetOf } from "@instrument-org/workspace/client";
+import {
+  browserTargetOf,
+  parseBrowserTargetId,
+} from "@instrument-org/workspace/client";
 import { type ReactNode, useRef, useState } from "react";
 
 import { tabTooltip } from "./app-tab-strip";
@@ -108,9 +111,12 @@ export function PaneTabs({
     tabs.map((tab) => (tab.kind === "page" ? undefined : tab.href)),
   );
   const driven = useTargetsAgentActivity(
-    tabs.flatMap((tab) =>
-      tab.kind === "page" ? [browserTargetOf(tab.id)] : [],
-    ),
+    // A bookmark held over the strip stands in as a page with no browser
+    // view of its own, under an id that is no tab's.
+    tabs.flatMap((tab) => {
+      const target = tab.kind === "page" ? parseBrowserTargetId(tab.id) : null;
+      return target ? [target] : [];
+    }),
     isChatWorking,
   );
   const [menu, setMenu] = useState<{ key: string; x: number; y: number }>();
@@ -141,6 +147,7 @@ export function PaneTabs({
   });
   // Pages of one site say only what tells them apart, as the window's do.
   const short = siteTabTitles(whole);
+  const drivenIds: ReadonlySet<string> = driven;
   const presented = tabs.map((tab, index): StripTab => {
     const named = whole[index] ?? { key: stripKeyOf(tab), title: "" };
     let tooltip: StripTab["tooltip"];
@@ -184,7 +191,7 @@ export function PaneTabs({
           }
         : {}),
       icon,
-      isWorking: tab.kind === "page" && driven.has(browserTargetOf(tab.id)),
+      isWorking: tab.kind === "page" && drivenIds.has(tab.id),
       key: named.key,
       title: short.get(named.key) ?? named.title,
       ...(tooltip ? { tooltip } : {}),

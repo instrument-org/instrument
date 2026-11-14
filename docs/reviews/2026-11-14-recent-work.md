@@ -112,7 +112,7 @@ Important means a concrete correctness, security, privacy, or data-preservation 
 
 ### M. Stopping the first step after a resume leaves a full copy of the conversation that nothing removes
 
-- Status: open
+- Status: fixed
 - Severity: Important, narrowly. Conversation text outlives the chat, one copy per stop.
 - Where: [language-model.ts:365](/packages/ai-gateway/src/lib/providers/claude-account/language-model.ts#L365), [language-model.ts:301](/packages/ai-gateway/src/lib/providers/claude-account/language-model.ts#L301), [resume-record.ts:280](/packages/ai-gateway/src/lib/providers/claude-account/resume-record.ts#L280).
 - What: a resume or cold start begins a new Claude Code transcript at once, and the record is moved to it only after a finished step. Stop during that first step and the record still names the old transcript (or, after a cold start, nothing: the old record was removed first). The next request forks again, and the abandoned transcript has no record. The sweep walks records, so it never finds it, and deleting the chat does not either. `03b8ce326` notes the deleted-chat case under `Not-tested:`; this is the same gap reached by pressing Stop.

@@ -66,6 +66,14 @@ const latestSlots = new Map<string, string>();
 const writers = new Map<string, ClaudeCodeSession>();
 
 /**
+ * The processes that have finished a step, so the slot's record names the
+ * transcript each writes. Any other process writes a transcript no record
+ * names, which the next request never goes on from: it is removed once that
+ * process has exited.
+ */
+const recorded = new WeakSet<ClaudeCodeSession>();
+
+/**
  * Ends the process writing a transcript, if one still is, and settles once
  * it has exited, so the transcript holds all it will.
  */
@@ -400,6 +408,9 @@ function streamStep({
           session.transcript &&
           session.leaf !== undefined
         ) {
+          // Before the write, so a process that exits during it leaves the
+          // transcript the record may already name.
+          recorded.add(session);
           dropTranscript(
             configDir,
             await writeResumeRecord(configDir, persistent, {
@@ -487,6 +498,9 @@ function startOn(
       void created.exited.then(() => {
         if (writers.get(claudeSessionId) === created) {
           writers.delete(claudeSessionId);
+        }
+        if (!recorded.has(created)) {
+          dropTranscript(shape.configDir, claudeSessionId);
         }
       });
     }

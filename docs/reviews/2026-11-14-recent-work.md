@@ -96,10 +96,11 @@ Important means a concrete correctness, security, privacy, or data-preservation 
 
 ### K. Clearing AI usage on one computer leaves its rows in every other computer's index
 
-- Status: open
+- Status: declined
 - Severity: Important. Privacy across the person's own computers: cleared history stays listed, and readable by `instrument activity`, on the others.
 - Where: [store.ts:386](/packages/workspace/src/lib/activity/store.ts#L386), [store.ts:213](/packages/workspace/src/lib/activity/store.ts#L213).
 - What: `clearOwnActivity` rewrites or removes this device's month files and deletes `WHERE device = ?` from this computer's `workspace.db`. Another computer catches up on a shrunken file by reading it again from the start with `INSERT OR IGNORE`, and no longer lists a removed one; neither path deletes the rows it indexed earlier, so they stay until that index is rebuilt.
+- Declined because: the index is this computer's own and using one workspace from two computers is not something anyone does yet; the files, which are what travels, are cleared. Revisit when a second computer on one workspace is a supported way to work.
 - Note: when a file is shorter than what was read of it, or gone, delete that device's rows for that month before reading again.
 
 ### L. An unknown link's first 200 characters go into the log, and a too-long `new` link counts as unknown
@@ -152,9 +153,10 @@ Important means a concrete correctness, security, privacy, or data-preservation 
 
 ### S. Nit: Reopen Closed Tab pressed twice quickly brings back one tab
 
-- Status: open
+- Status: declined
 - Where: [app-tabs.ts:433](/apps/studio/src/client/components/window/app-tabs.ts#L433).
 - What: both presses read the same render's `model.recentlyClosed`, pick the same tab, and the second finds it already gone.
+- Declined because: it takes two presses inside one round trip to the main process, and nobody has hit it. Revisit if a report shows a tab that did not come back.
 
 ## Confirmed tradeoffs
 

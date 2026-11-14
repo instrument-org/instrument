@@ -17,6 +17,7 @@ import {
   upkeptList,
 } from "./tab-groups";
 import { groupLayoutOf, openInGroup, type WindowTabs } from "./tab-model";
+import { chatHref, newChatHref } from "./window-href";
 
 describe("a draft no chat has started, closed", () => {
   const draft = { createdAt: 0, id: "d", updatedAt: 0, words: "" };
@@ -141,6 +142,28 @@ describe("a tab group's tabs, copied", () => {
         "up": "n3",
       }
     `);
+  });
+});
+
+describe("a chat's tab group, copied", () => {
+  it("starts a new chat in place of a chat's tab and a draft's", () => {
+    const chat = ChatIdSchema.parse("2026-11-13-copied");
+    const copied = copiedTabs(
+      [
+        { group: chat, href: chatHref(chat), id: "c", kind: "screen" },
+        {
+          group: chat,
+          href: newChatHref("d1"),
+          id: "d",
+          kind: "screen",
+          side: 1,
+        },
+      ],
+      { group: "group:copy", newId: () => "n", now: 0 },
+    );
+    expect(
+      copied.tabs.map((tab) => (tab.kind === "screen" ? tab.href : tab.url)),
+    ).toEqual([newChatHref(), newChatHref()]);
   });
 });
 

@@ -442,8 +442,9 @@ export function pinnedFromStars(
  * A group's tabs as its copy starts with them, in their order and each
  * under a new id (`newId`), in `group`: a page at the address it shows,
  * with its title and icon until it loads, and a screen at its own address,
- * so a new tab stays a new tab. Neither takes its history. `up` is the
- * copy of the tab `up` names.
+ * so a new tab stays a new tab. A chat's tab, or a draft's, is a new chat
+ * with nothing in it, so a conversation is only ever in one group. None
+ * takes its history. `up` is the copy of the tab `up` names.
  */
 export function copiedTabs(
   tabs: readonly WindowTab[],
@@ -462,7 +463,8 @@ export function copiedTabs(
     }
     const side = tab.side === 1 ? { side: 1 as const } : {};
     if (tab.kind === "screen") {
-      return { group, href: tab.href, id, kind: "screen", ...side };
+      const href = isConversation(tab.href) ? newChatHref() : tab.href;
+      return { group, href, id, kind: "screen", ...side };
     }
     const address = tab.url ?? tab.openedUrl;
     return {
@@ -477,6 +479,17 @@ export function copiedTabs(
     };
   });
   return { tabs: copies, up: upCopy };
+}
+
+/** Whether an address is a chat's, or a new chat's with its draft. */
+function isConversation(href: string): boolean {
+  const { kind } = matchScreen(href);
+  return (
+    kind === "chat" ||
+    kind === "chatLink" ||
+    kind === "chatOfSession" ||
+    kind === "inbox"
+  );
 }
 
 /** A screen tab at an address, in a group: a chat's, or a new chat's. */
@@ -750,7 +763,8 @@ export function useTabGroupActions() {
   /**
    * A copy of a group just below it, up in this window: its tabs copied
    * (`copiedTabs`) on the same sides, the same one up, named and pinned as
-   * the group is. A chat's tab copied is another tab on the same chat.
+   * the group is. A chat's tab is copied as a new chat, so the chat stays
+   * in the group it was in.
    */
   const duplicate = (entry: TabGroup) => {
     const tabs = store.get(windowTabsAtom);

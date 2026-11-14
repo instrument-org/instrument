@@ -104,7 +104,7 @@ Important means a concrete correctness, security, privacy, or data-preservation 
 
 ### L. An unknown link's first 200 characters go into the log, and a too-long `new` link counts as unknown
 
-- Status: open
+- Status: fixed
 - Severity: Important. Privacy, low: the log's tail goes with a report.
 - Where: [outside-links.ts:287](/apps/studio/src/electron-main/lib/outside-links.ts#L287), [instrument-link.ts:182](/packages/shared/src/instrument-link.ts#L182), [instrument-link.ts:170](/packages/shared/src/instrument-link.ts#L170).
 - What: the docblock keeps a `new` link's words and a file's path out of the log and makes one exception, a link the app does not know. But the parser also answers "unknown" for a known kind in a refused shape: `instrument://new?text=` with more words than the cap, or a `files` link with a path component after the host. Those log about 180 characters of the person's prompt or a path. Report redaction of addresses covers `http(s)` only.

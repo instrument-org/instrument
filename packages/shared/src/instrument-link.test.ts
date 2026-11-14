@@ -6,6 +6,7 @@ import {
   filePathOfInstrumentLink,
   instrumentLinkOf,
   instrumentUrlOf,
+  isOutsideLinkHost,
   OUTSIDE_FILES_MAX,
   OUTSIDE_WORDS_MAX,
   outsideLinkOf,
@@ -387,6 +388,22 @@ describe("outsideLinkOf", () => {
       expect(outsideLinkOf(url)).toBeUndefined();
     });
   });
+});
+
+describe("isOutsideLinkHost", () => {
+  it.each(["chat", "settings", "file", "files", "new", "page"])(
+    "knows %s",
+    (host) => {
+      expect(isOutsideLinkHost(host)).toBe(true);
+    },
+  );
+
+  it.each(["", "whatever", "recipe", "new:80", "toString"])(
+    "does not know %o",
+    (host) => {
+      expect(isOutsideLinkHost(host)).toBe(false);
+    },
+  );
 });
 
 describe("chatIdNamedBy", () => {

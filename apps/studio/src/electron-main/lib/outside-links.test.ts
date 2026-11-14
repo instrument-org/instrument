@@ -790,6 +790,41 @@ describe("openOutsideLink", () => {
       ]);
     });
 
+    it("keeps the first characters of a link leading with a noun it does not know", async () => {
+      expect((await open("instrument://whatever/thing")).logged).toEqual([
+        "A link the app does not know asks the window to say so: instrument://whatever/thing",
+      ]);
+    });
+
+    // A noun the app knows in a shape it refuses still carries the person's
+    // words or a path, and so does a link with no noun.
+    it.each([
+      [
+        "a new link with too many words",
+        `instrument://new?text=${"private%20words%20".repeat(200)}`,
+        "A new link in a shape the app does not read asks the window to say so",
+      ],
+      [
+        "a files link with a path after its noun",
+        "instrument://files/Users/mac-user/Taxes?path=%2FUsers%2Fmac-user%2FTaxes%2F2025.pdf",
+        "A files link in a shape the app does not read asks the window to say so",
+      ],
+      [
+        "a new link with a port after its noun",
+        `instrument://new:80?text=${"private%20words%20".repeat(200)}`,
+        "A new:80 link in a shape the app does not read asks the window to say so",
+      ],
+      [
+        "a link with no noun and a path",
+        "instrument:///Users/mac-user/Taxes/2025.pdf",
+        "A bare link in a shape the app does not read asks the window to say so",
+      ],
+    ])("keeps nothing of %s but its noun", async (_, url, line) => {
+      const { asked, logged } = await open(url);
+      expect(asked).toEqual([[{ type: "linkNotOpened" }]]);
+      expect(logged).toEqual([line]);
+    });
+
     it("counts against the gate like any other link, and is let go silently when the gate says so", async () => {
       const gated: string[] = [];
       const { asked, logged } = await open("instrument://recipe/abc", {

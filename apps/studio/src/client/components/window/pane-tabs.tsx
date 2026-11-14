@@ -1,4 +1,9 @@
 import { type WindowTab } from "@/client/atoms/window";
+import {
+  addressOfTab,
+  useAddBookmark,
+  useBookmarkActions,
+} from "@/client/bookmarks/actions";
 import { PageFavicon } from "@/client/components/favicon";
 import {
   FileSystemFolderGlyph,
@@ -23,6 +28,7 @@ import { siteTabTitles } from "./site-tab-titles";
 import { chatOfTab, isHomeTab } from "./tab-model";
 import { TabMenuAtPoint, TabMenuItems } from "./tab-menu-items";
 import { NewTabButton, type StripTab, TabStrip } from "./tab-strip";
+import { useBookmarkEdits } from "./web-start";
 
 type Presentation = Parameters<typeof screenPresentation>[1];
 
@@ -268,6 +274,7 @@ export function PaneTabs({
             {...(split ? { split } : {})}
             tab={menuTab}
             tabs={tabs}
+            title={whole[tabs.indexOf(menuTab)]?.title ?? ""}
           />
         )}
       </TabMenuAtPoint>
@@ -323,6 +330,7 @@ function PaneTabMenu({
   split,
   tab,
   tabs,
+  title,
 }: {
   isChosen: boolean;
   onClose: (id: string) => void;
@@ -334,7 +342,15 @@ function PaneTabMenu({
   split?: SplitMenuActions;
   tab: WindowTab;
   tabs: WindowTab[];
+  /** What the tab is called, which a bookmark of it is named. */
+  title: string;
 }) {
+  const bookmarks = useBookmarkActions();
+  const addBookmark = useAddBookmark();
+  const bookmarkEdits = useBookmarkEdits();
+  const address = addressOfTab(tab);
+  const kept =
+    address === undefined ? undefined : bookmarks.bookmarkOf(address);
   const pageUrl = tab.kind === "page" ? (tab.url ?? tab.openedUrl) : undefined;
   const index = tabs.findIndex((each) => each.id === tab.id);
   const closing = (closed: readonly WindowTab[]) =>
@@ -353,6 +369,20 @@ function PaneTabMenu({
   const { onMoveToNewGroup, onMoveToNewWindow } = split ?? {};
   return (
     <TabMenuItems
+      bookmark={
+        address === undefined
+          ? undefined
+          : {
+              isKept: kept !== undefined,
+              onToggle: () => {
+                if (kept) {
+                  bookmarkEdits.remove(kept);
+                } else {
+                  addBookmark({ title, url: address });
+                }
+              },
+            }
+      }
       components={dropdownMenuComponents}
       isSelected={isChosen}
       onClose={() => {

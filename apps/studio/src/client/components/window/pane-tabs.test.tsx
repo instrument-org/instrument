@@ -78,6 +78,7 @@ describe("PaneTabs", () => {
     );
     expect(rows).toEqual([
       "Duplicate",
+      "Add to Bookmarks",
       "Close",
       "Close Other Tabs",
       "Close Tabs to the Left",

@@ -18,6 +18,7 @@ import { ChatCircleIcon } from "@phosphor-icons/react/ChatCircle";
 import { CopyIcon } from "@phosphor-icons/react/Copy";
 import { SquareSplitHorizontalIcon } from "@phosphor-icons/react/SquareSplitHorizontal";
 import { StackIcon } from "@phosphor-icons/react/Stack";
+import { StarIcon } from "@phosphor-icons/react/Star";
 import { XIcon } from "@phosphor-icons/react/X";
 import { XSquareIcon } from "@phosphor-icons/react/XSquare";
 import { type ReactNode } from "react";
@@ -96,13 +97,15 @@ function TabMenuContent({
  * the tab's place among the group's sides and the window's groups (moved to
  * the other side, or a copy opened there where nothing would be left to
  * move; a new chat there; the tab to a group or a window of its own), then
- * the tab copied or reloaded, then closing it or the tabs around it,
+ * the tab copied, kept as a bookmark or reloaded, then closing it or the
+ * tabs around it,
  * and last what only this tab has, such as a chat's own items, under a
  * divider. Drawn with whichever menu's parts it is raised in, since a
  * menu's items only work in their own menu. A row is left out where its
  * action is.
  */
 export function TabMenuItems({
+  bookmark,
   components: { Item, Separator, Shortcut },
   isSelected,
   onClose,
@@ -119,6 +122,8 @@ export function TabMenuItems({
   onReload,
   own,
 }: {
+  /** Keeping the tab's address as a bookmark, or no longer; none for a tab with no address to keep. */
+  bookmark?: { isKept: boolean; onToggle: () => void } | undefined;
   components: MenuComponents;
   /** The tab up on the side with the keyboard, whose chords the rows show. */
   isSelected: boolean;
@@ -139,6 +144,12 @@ export function TabMenuItems({
   /** What only this tab has, after the rest under a divider: a chat's own items. */
   own?: ReactNode;
 }) {
+  // One chord does whichever of the two the tab's menu offers.
+  const sideChord = isSelected ? (
+    <Shortcut>
+      {formatAcceleratorText(WINDOW_SHORTCUTS.moveTabToOtherSide.accelerator)}
+    </Shortcut>
+  ) : null;
   const placing =
     onMoveToOtherSide ??
     onOpenInSplit ??
@@ -151,11 +162,13 @@ export function TabMenuItems({
         <Item onClick={onMoveToOtherSide}>
           <ArrowsLeftRightIcon className="size-4" />
           <span>Move to Other Side</span>
+          {sideChord}
         </Item>
       ) : onOpenInSplit ? (
         <Item onClick={onOpenInSplit}>
           <SquareSplitHorizontalIcon className="size-4" />
           <span>Open in Split</span>
+          {sideChord}
         </Item>
       ) : null}
       {onNewChatInSplit && (
@@ -181,6 +194,17 @@ export function TabMenuItems({
         <NewTabIcon className="size-4" />
         <span>Duplicate</span>
       </Item>
+      {bookmark && (
+        <Item onClick={bookmark.onToggle}>
+          <StarIcon
+            className="size-4"
+            weight={bookmark.isKept ? "fill" : "regular"}
+          />
+          <span>
+            {bookmark.isKept ? "Remove from Bookmarks" : "Add to Bookmarks"}
+          </span>
+        </Item>
+      )}
       {onReload && (
         <Item onClick={onReload}>
           <ArrowClockwiseIcon className="size-4" />

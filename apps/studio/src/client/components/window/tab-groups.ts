@@ -169,7 +169,7 @@ export function isPinnedGroup(entry: TabGroup): boolean {
 }
 
 /** What a new chat is called by its words alone: "New Tab" until it has some. */
-export function draftWordsTitle(draft: Draft): string {
+function draftWordsTitle(draft: Draft): string {
   return draft.words.trim() === "" ? "New Tab" : draftTitle(draft.words);
 }
 

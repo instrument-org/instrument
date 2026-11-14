@@ -6,6 +6,7 @@ import {
   type TranscriptMessage,
   transcriptMessage,
   type TranscriptPart,
+  type WrittenOn,
 } from "./transcript-message";
 import { opensTurn } from "./turns-of";
 
@@ -40,6 +41,9 @@ export type TranscriptFeedEvent =
       upserted: TranscriptMessage[];
     };
 
+/** The computer each message the person sent was sent on, by message. */
+export type WrittenOnByMessage = ReadonlyMap<StoreId.Message, WrittenOn>;
+
 /** How many turns a reader is given at a time. */
 const TURNS_PER_PAGE = 20;
 
@@ -52,7 +56,12 @@ export function lastTurnsOf(
   {
     before,
     turns = TURNS_PER_PAGE,
-  }: { before?: StoreId.Message; turns?: number } = {},
+    writtenOn,
+  }: {
+    before?: StoreId.Message;
+    turns?: number;
+    writtenOn?: WrittenOnByMessage;
+  } = {},
 ): TranscriptFeed {
   const end =
     before === undefined
@@ -71,7 +80,7 @@ export function lastTurnsOf(
   return {
     hasOlder: start > 0,
     messages: messages.slice(start, upTo).flatMap((message) => {
-      const light = transcriptMessage(message);
+      const light = transcriptMessage(message, writtenOn?.get(message.id));
       return light ? [light] : [];
     }),
   };
@@ -86,8 +95,11 @@ export class TranscriptProjection {
   private readonly sent = new Map<StoreId.Message, TranscriptMessage>();
 
   /** The first thing a reader is sent. */
-  reset(messages: readonly SessionMessage.WithParts[]): TranscriptFeedEvent {
-    const feed = lastTurnsOf(messages);
+  reset(
+    messages: readonly SessionMessage.WithParts[],
+    writtenOn?: WrittenOnByMessage,
+  ): TranscriptFeedEvent {
+    const feed = lastTurnsOf(messages, { writtenOn });
     this.sent.clear();
     for (const message of feed.messages) {
       this.sent.set(message.id, message);
@@ -102,14 +114,16 @@ export class TranscriptProjection {
   update({
     changed,
     removed,
+    writtenOn,
   }: {
     changed: readonly SessionMessage.WithParts[];
     removed: readonly StoreId.Message[];
+    writtenOn?: WrittenOnByMessage;
   }): TranscriptFeedEvent | undefined {
     const patches: PartPatch[] = [];
     const upserted: TranscriptMessage[] = [];
     for (const message of changed) {
-      const next = transcriptMessage(message);
+      const next = transcriptMessage(message, writtenOn?.get(message.id));
       if (!next) {
         continue;
       }
@@ -142,7 +156,8 @@ function whatMoved(
   if (
     !previous ||
     previous.parts.length > next.parts.length ||
-    !isEqual(previous.metadata, next.metadata)
+    !isEqual(previous.metadata, next.metadata) ||
+    !isEqual(writtenOnOf(previous), writtenOnOf(next))
   ) {
     return "whole";
   }
@@ -176,6 +191,10 @@ function whatMoved(
     }
   }
   return patches;
+}
+
+function writtenOnOf(message: TranscriptMessage): WrittenOn | undefined {
+  return message.role === "user" ? message.writtenOn : undefined;
 }
 
 /**

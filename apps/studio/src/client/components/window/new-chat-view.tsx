@@ -427,7 +427,7 @@ function ProjectRoom({ project }: { project: Project }) {
         {project.name}
       </h3>
       <p className="mt-1 text-sm text-muted-foreground">
-        New chats here go into {project.name}.
+        New chats here go into this project.
       </p>
     </div>
   );

@@ -10,6 +10,23 @@ const TabHistorySchema = z.object({
 });
 export type TabHistory = z.output<typeof TabHistorySchema>;
 
+/**
+ * A history with every entry at the address `move` gives it, or the same
+ * history when no entry moved.
+ */
+export function movedTabHistory<T extends TabHistory | undefined>(
+  history: T,
+  move: (href: string) => string,
+): T {
+  if (history === undefined) {
+    return history;
+  }
+  const entries = history.entries.map(move);
+  return entries.every((entry, at) => entry === history.entries[at])
+    ? history
+    : { ...history, entries };
+}
+
 // A tab's stable identity. Distinct from `chatId`: a tab is a window into a
 // route (which may be a task, a project, the new-tab page, ...), so the brand
 // keeps the two from being passed interchangeably even though both are strings.

@@ -253,9 +253,12 @@ function samePaths(a: ProjectFolder[], b: ProjectFolder[]) {
 function ProjectFolders({
   folders,
   onChange,
+  onOpenFolder,
 }: {
   folders: ProjectFolder[];
   onChange: (folders: ProjectFolder[]) => void;
+  /** Opens a folder in Files, the dialog closing so the tab shows. */
+  onOpenFolder: (path: string) => void;
 }) {
   const remove = (folder: ProjectFolder) => {
     onChange(folders.filter((entry) => entry !== folder));
@@ -322,7 +325,7 @@ function ProjectFolders({
                   },
                 ]}
                 onOpen={() => {
-                  void showInFolder(folder.path, { kind: "folder" });
+                  onOpenFolder(folder.path);
                 }}
                 path={folder.path}
               />
@@ -665,6 +668,10 @@ function ProjectForm({
               onChange={(next) => {
                 edit({ folders: next });
               }}
+              onOpenFolder={(path) => {
+                onOpenChange(false);
+                void showInFolder(path, { kind: "folder" });
+              }}
             />
             {projectFolder !== undefined && (
               <ProjectOwnFolder
@@ -703,9 +710,9 @@ function ProjectForm({
                   : "Every chat in this project starts with these."}
               </p>
             </div>
-            <div className="relative min-h-0 flex-1 overflow-y-auto">
+            <div className="relative flex min-h-0 flex-1 flex-col overflow-y-auto">
               <MarkdownValueEditor
-                className="mx-auto max-w-2xl pt-6 pr-8 pb-24 pl-14"
+                className="mx-auto w-full max-w-2xl pt-6 pr-8 pb-24 pl-14"
                 label="Instructions"
                 onChange={(next) => {
                   edit({ instructions: next });
@@ -714,7 +721,8 @@ function ProjectForm({
                 value={instructions}
               />
               {(canDictate || isHolding) && (
-                <div className="pointer-events-none sticky bottom-3 flex items-center justify-end gap-2 px-4 [&>*]:pointer-events-auto">
+                // At the pane's foot while the instructions are short.
+                <div className="pointer-events-none sticky bottom-3 mt-auto flex items-center justify-end gap-2 px-4 [&>*]:pointer-events-auto">
                   <DictationReadout
                     className="max-w-md rounded-full bg-background/95 px-3 py-1 shadow-xs"
                     dictation={instructionsDictation}

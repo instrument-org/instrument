@@ -102,6 +102,49 @@ const describeSeparators = (messages: SessionMessage.WithParts[]) =>
   }));
 
 describe("chatSeparators", () => {
+  // A chat picked up on another computer, and brought back.
+  it("marks each move to another computer, and a move back", () => {
+    const studio = { device: "dev_STUDIO00", here: true, name: "Mac Studio" };
+    const air = { device: "dev_AIR00000", here: false, name: "MacBook Air" };
+    const on = (message: SessionMessage.WithParts, writtenOn: typeof air) =>
+      ({ ...message, writtenOn }) as unknown as SessionMessage.WithParts;
+    const messages = [
+      on(sent("2026-11-12T09:00:00"), studio),
+      reply("2026-11-12T09:00:05", glm),
+      on(sent("2026-11-12T09:10:00"), studio),
+      reply("2026-11-12T09:10:05", glm),
+      on(sent("2026-11-12T09:42:00"), air),
+      reply("2026-11-12T09:42:05", glm),
+      sent("2026-11-12T09:50:00"),
+      reply("2026-11-12T09:50:05", glm),
+      on(sent("2026-11-12T10:15:00"), studio),
+      reply("2026-11-12T10:15:05", glm),
+    ];
+    expect(
+      [...chatSeparators(messages)].map(([id, separator]) => ({
+        at: messages.findIndex((message) => message.id === id),
+        computer: separator.computer && {
+          back: separator.computer.back,
+          from: separator.computer.from.name,
+          to: separator.computer.to.name,
+        },
+        timed: separator.timed,
+      })),
+    ).toEqual([
+      { at: 0, computer: undefined, timed: true },
+      {
+        at: 4,
+        computer: { back: false, from: "Mac Studio", to: "MacBook Air" },
+        timed: true,
+      },
+      {
+        at: 8,
+        computer: { back: true, from: "MacBook Air", to: "Mac Studio" },
+        timed: true,
+      },
+    ]);
+  });
+
   it("names the model above the first message only, in a chat that stays on it", () => {
     expect(
       describeSeparators([

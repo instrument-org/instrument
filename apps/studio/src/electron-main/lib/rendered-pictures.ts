@@ -24,7 +24,7 @@ import {
   extensionOf,
   type RenderedKind,
   renderedKindOf,
-} from "./rendered-kinds";
+} from "@/shared/rendered-kinds";
 
 const log = createScopedLogger("RenderedPictures");
 

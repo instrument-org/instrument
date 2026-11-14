@@ -82,12 +82,12 @@ function log(
     id: session,
     chat,
     createdAt: "2026-10-01T00:00:00.000Z",
-    device: "dev_a",
+    device: "dev_AAAAAAAA",
     app,
     ...(parent === undefined ? {} : { parent }),
   };
   write(
-    `.instrument/chats/${chat}/${session}.dev_a.jsonl`,
+    `.instrument/chats/${chat}/${session}.dev_AAAAAAAA.jsonl`,
     `${JSON.stringify(header)}\n{"t":"message"}\n`,
   );
 }
@@ -159,7 +159,10 @@ describe("workspaceTestedBefore", () => {
   });
 
   it("skips a log it cannot read as a header", () => {
-    write(`.instrument/chats/chat_a/${SESSION}.dev_a.jsonl`, "not json\n");
+    write(
+      `.instrument/chats/chat_a/${SESSION}.dev_AAAAAAAA.jsonl`,
+      "not json\n",
+    );
     expect(testedBefore()).toBe(false);
   });
 });

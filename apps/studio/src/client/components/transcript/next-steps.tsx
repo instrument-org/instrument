@@ -47,6 +47,9 @@ function Rows({ isBoxEmpty, lines, onSend }: NextSteps) {
   // following the transcript. A reader who was at the end stays there, so
   // the rows never land under the fold; one who had scrolled away is left
   // where they are, with the rows growing below what they are reading.
+  // Rows that land inside the window are left alone: the room the scroller
+  // leaves under a message just sent counts toward the end, and taking the
+  // end there would collapse it and drop the message down the window.
   useLayoutEffect(() => {
     const rows = ref.current;
     const viewport = rows?.closest<HTMLElement>(
@@ -60,7 +63,11 @@ function Rows({ isBoxEmpty, lines, onSend }: NextSteps) {
       : 0;
     const below =
       viewport.scrollHeight - viewport.clientHeight - viewport.scrollTop;
-    if (below - rows.offsetHeight - gap <= 1) {
+    const underFold =
+      rows.getBoundingClientRect().bottom -
+        viewport.getBoundingClientRect().bottom >
+      1;
+    if (underFold && below - rows.offsetHeight - gap <= 1) {
       scrollToEnd();
     }
     // Once, as the rows arrive.

@@ -1,4 +1,5 @@
 import { type HandlerDetails } from "electron";
+import path from "node:path";
 import { describe, expect, it } from "vitest";
 
 import {
@@ -6,6 +7,7 @@ import {
   guestWindowOpenHandler,
   newTabOpenOf,
   newWindowOpenOf,
+  pageAddressOfLink,
   sameTabNavigationUrl,
 } from "./window-open-policy";
 
@@ -259,5 +261,59 @@ describe("agentPopupTabOf", () => {
     overrides: Partial<HandlerDetails>;
   }[])("reads $name", ({ expected, overrides }) => {
     expect(agentPopupTabOf(details(overrides))).toBe(expected);
+  });
+});
+
+describe("pageAddressOfLink", () => {
+  it.each([
+    {
+      expected: "file:///Users/mac-user/wireframes/a%20b.html",
+      url: "instrument://file/~/wireframes/a%20b.html",
+    },
+    {
+      expected: "file:///Users/mac-user/notes/a.md",
+      url: "instrument://file//Users/mac-user/notes/a.md",
+    },
+    {
+      expected: "file:///Users/mac-user/notes/a.md",
+      url: "instrument://file/Users/mac-user/notes/a.md",
+    },
+    {
+      expected: "file:///Users/mac-user/a.html",
+      url: "instrument://file/~/notes/../a.html",
+    },
+    { expected: "instrument://chat/abc", url: "instrument://chat/abc" },
+    { expected: "https://example.com/", url: "https://example.com/" },
+  ])("follows $url at $expected", ({ expected, url }) => {
+    expect(pageAddressOfLink(url, "/Users/mac-user", path.posix)).toBe(
+      expected,
+    );
+  });
+
+  it("reads a Windows path with its drive", () => {
+    expect(
+      pageAddressOfLink(
+        "instrument://file/~/Documents/a.html",
+        "C:\\Users\\windows-user",
+        path.win32,
+      ),
+    ).toBe("file:///C:/Users/windows-user/Documents/a.html");
+  });
+
+  it("opens an app link to a file in a tab, as the page's link to the file", () => {
+    const url = pageAddressOfLink(
+      "instrument://file/~/wireframes/a.html",
+      "/Users/mac-user",
+      path.posix,
+    );
+    expect(
+      newTabOpenOf(
+        details({ disposition: "background-tab", url }),
+        "file:///Users/mac-user/visual-answers/page.html",
+      ),
+    ).toEqual({
+      background: true,
+      url: "file:///Users/mac-user/wireframes/a.html",
+    });
   });
 });

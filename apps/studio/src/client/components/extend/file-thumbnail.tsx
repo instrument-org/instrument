@@ -218,7 +218,7 @@ export function FileThumbnail({
             loading="lazy"
             decoding="async"
             className={cx(
-              "absolute inset-0 block size-full object-cover transition-[opacity,filter] duration-[160ms] ease-[cubic-bezier(0.22,1,0.36,1)] motion-reduce:transition-none",
+              "absolute inset-0 block size-full object-contain transition-[opacity,filter] duration-[160ms] ease-[cubic-bezier(0.22,1,0.36,1)] motion-reduce:transition-none",
               showLoading ? "opacity-0 blur-sm" : "blur-0 opacity-100",
               instantPreviewImageUrl === previewImageUrl && "transition-none",
             )}

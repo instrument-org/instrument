@@ -28,6 +28,7 @@ import {
 import { log } from "./log";
 import { withMacEditingCommands } from "./mac-editing-commands";
 import { withoutMacNativeKeyCode } from "./mac-native-key-code";
+import { TYPING_WORLD, typeWithoutFocus } from "./keyboard-without-focus";
 import { handlePrintToPDF } from "./print-to-pdf";
 import { startScreencast, stopScreencast } from "./screencast";
 
@@ -390,27 +391,55 @@ async function forwardToDebugger({
     delivered = releaseWherePressed(entry, params, frameSession);
   }
 
+  // Whether the agent's pointer has already been shown this command.
+  let pointerShown = false;
+  // The session the command goes out on: a frame's own when typing is aimed
+  // at a field in a frame of its own process.
+  let session = frameSession;
+  // A frame in a process of its own is a widget of its own, and keyboard input
+  // on its session goes to it whether or not the window's focus is there, so
+  // only the page's own commands are checked.
   if (
     KEYBOARD_COMMANDS.has(method) &&
+    frameSession === undefined &&
     !(await guestHoldsKeyboardFocus(entry))
   ) {
-    // The agent's commands arrive as separate tool calls seconds apart, and
-    // host focus is handed back once a target goes quiet, so a guest the agent
-    // clicked will normally have lost focus again by the time the keystrokes
-    // for it arrive. Take focus back rather than refuse: the guest's own
-    // activeElement survives, so this lands the keys on whatever was clicked.
-    // Logged either way: together these say how often agent typing arrives at
-    // a guest that has already handed focus back, which is the normal case
-    // whenever Studio itself is the focused window.
-    if (await repairGuestKeyboardFocus(entry, requestGuestFocus)) {
-      log.info(`reclaimed keyboard focus for ${method} targetId=${targetId}`);
+    // Sent to the guest itself, typing leaves the window's focus where it is,
+    // so the person keeps typing where they were. What that cannot carry (a
+    // chord, IME, a field in a frame of its own) takes focus as below.
+    if (byAgent) {
+      await showAgentCommand(entry, method, delivered, frameSession);
+      pointerShown = true;
+    }
+    const typed =
+      method === "Input.imeSetComposition"
+        ? "no key translation"
+        : await typeWithoutFocus(entry, method, delivered);
+    if (typed === true) {
+      return {};
+    }
+    if (typeof typed === "object") {
+      session = typed.frameSession;
     } else {
-      log.warn(
-        `refused ${method} targetId=${targetId}: guest does not hold keyboard focus and could not reclaim it`,
-      );
-      throw new Error(
-        "Keyboard input was not delivered: this browser tab does not hold keyboard focus, so the keystrokes would go to the desktop app's own window instead of the page. Click the element you want to type into first (e.g. `agent-browser click @e5`), then send the keys again.",
-      );
+      log.info(`typing ${method} takes focus targetId=${targetId}: ${typed}`);
+      // The agent's commands arrive as separate tool calls seconds apart, and
+      // host focus is handed back once a target goes quiet, so a guest the agent
+      // clicked will normally have lost focus again by the time the keystrokes
+      // for it arrive. Take focus back rather than refuse: the guest's own
+      // activeElement survives, so this lands the keys on whatever was clicked.
+      // Logged either way: together these say how often agent typing arrives at
+      // a guest that has already handed focus back, which is the normal case
+      // whenever Studio itself is the focused window.
+      if (await repairGuestKeyboardFocus(entry, requestGuestFocus)) {
+        log.info(`reclaimed keyboard focus for ${method} targetId=${targetId}`);
+      } else {
+        log.warn(
+          `refused ${method} targetId=${targetId}: guest does not hold keyboard focus and could not reclaim it`,
+        );
+        throw new Error(
+          "Keyboard input was not delivered: this browser tab does not hold keyboard focus, so the keystrokes would go to the desktop app's own window instead of the page. Click the element you want to type into first (e.g. `agent-browser click @e5`), then send the keys again.",
+        );
+      }
     }
   }
 
@@ -448,7 +477,7 @@ async function forwardToDebugger({
     >(["Input.dispatchMouseEvent", "Input.synthesizeTapGesture"]);
     const timeoutMs = SLOW_COMMANDS.has(method) ? 20_000 : 5000;
     let timeout: ReturnType<typeof setTimeout> | undefined;
-    if (byAgent) {
+    if (byAgent && !pointerShown) {
       await showAgentCommand(entry, method, delivered, frameSession);
     }
     const sent = sendToDebugger(
@@ -458,7 +487,7 @@ async function forwardToDebugger({
         method,
         withoutMacNativeKeyCode(method, delivered),
       ),
-      frameSession,
+      session,
     );
     // oxlint-disable-next-line typescript/no-unsafe-assignment
     const result = await Promise.race([
@@ -956,7 +985,9 @@ const renderingSeenAt = new WeakMap<BrowserEntry, number>();
 // document rather than derived from our own bookkeeping: `webContents`
 // focus state is unreliable for `<webview>` guests, and a page-level `focus()`
 // call does not move focus across the process boundary, so only the guest can
-// answer this. Fails closed on every error path.
+// answer this. Asked in an isolated world, since a page that redefined
+// `document.hasFocus` would otherwise send keys meant for it to whatever holds
+// the window's focus. Fails closed on every error path.
 async function guestHoldsKeyboardFocus(entry: BrowserEntry): Promise<boolean> {
   const wc = entry.webContents;
   if (!wc || wc.isDestroyed()) {
@@ -965,7 +996,9 @@ async function guestHoldsKeyboardFocus(entry: BrowserEntry): Promise<boolean> {
   let timeout: ReturnType<typeof setTimeout> | undefined;
   try {
     const hasFocus: unknown = await Promise.race([
-      wc.executeJavaScript("document.hasFocus()"),
+      wc.executeJavaScriptInIsolatedWorld(TYPING_WORLD, [
+        { code: "document.hasFocus()" },
+      ]),
       new Promise<false>((resolve) => {
         timeout = setTimeout(() => {
           resolve(false);

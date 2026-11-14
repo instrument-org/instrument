@@ -2,8 +2,10 @@ import { draftOfGroup } from "@/shared/drafts";
 import {
   type BrowserTab,
   newTabHrefOf,
+  type TabVisit,
   type WindowTab,
 } from "@/client/atoms/window";
+import { movedTabHistory } from "@/shared/tabs";
 import { hostPathOfFileUrl } from "@/client/lib/file-url";
 import { StoreId } from "@instrument-org/workspace/client";
 
@@ -127,6 +129,47 @@ function tabIdsOfEarlierBuilds() {
     fresh.set(id, minted);
     return minted;
   };
+}
+
+/**
+ * Every screen tab's address, its history and the screens it went to and
+ * from at the address `move` gives each, the way a folder they stand in
+ * moving takes them: the same state when nothing moved.
+ */
+export function tabsAfterMove(
+  state: WindowTabs,
+  move: (href: string) => string,
+): WindowTabs {
+  const visitMoved = <T extends TabVisit>(visit: T): T => {
+    if (visit.kind !== "screen") {
+      return visit;
+    }
+    const href = move(visit.href);
+    const history = movedTabHistory(visit.history, move);
+    return href === visit.href && history === visit.history
+      ? visit
+      : { ...visit, href, ...(history === undefined ? {} : { history }) };
+  };
+  const visitsMoved = (visits: TabVisit[] | undefined) => {
+    const moved = visits?.map(visitMoved);
+    return moved?.every((visit, at) => visit === visits?.[at]) ? visits : moved;
+  };
+  let isMoved = false;
+  const tabs = state.tabs.map((tab) => {
+    const past = visitsMoved(tab.past);
+    const future = visitsMoved(tab.future);
+    const here = visitMoved(tab);
+    if (here === tab && past === tab.past && future === tab.future) {
+      return tab;
+    }
+    isMoved = true;
+    return {
+      ...here,
+      ...(past === undefined ? {} : { past }),
+      ...(future === undefined ? {} : { future }),
+    };
+  });
+  return isMoved ? { ...state, tabs } : state;
 }
 
 /** A group's tabs, in strip order. */

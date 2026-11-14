@@ -185,6 +185,57 @@ export const INSTRUMENT_GUIDE_EVALS = [
   }),
 
   defineEval({
+    // Worded about the other AI, so a model that reads it as a question
+    // about Claude searches Claude's export steps and hands the user a
+    // manual version of the import page the app already has.
+    assertions: [
+      readTheGuide,
+      linksTo("instrument://settings/memory-import"),
+      withoutATask,
+    ],
+    kind: "chat",
+    name: "instrument-guide-move-from-another-ai",
+    prompt:
+      "i would like to move all of my claude memory and some of my active chats from claude over here, so instrument can be my main agent. what steps should i take?",
+  }),
+
+  defineEval({
+    // The chat has no command that deletes a chat, so the answer is the
+    // app's own menu item, not something done to its folders.
+    assertions: [
+      readTheGuide,
+      {
+        check: ({ sessions }) => {
+          const text = "named Delete chat";
+          const reply = replyText(sessions);
+          return result(
+            reply.includes("Delete chat"),
+            text,
+            JSON.stringify(reply.slice(0, 600)),
+          );
+        },
+        text: "named Delete chat",
+      },
+      withoutATask,
+    ],
+    kind: "chat",
+    name: "instrument-guide-delete-a-chat",
+    prompt: "how do i get rid of an old chat for good, not just archive it?",
+  }),
+
+  defineEval({
+    // Extensions have a screen of their own that only the reference names.
+    assertions: [
+      readTheGuide,
+      linksTo("instrument://screen/extensions"),
+      withoutATask,
+    ],
+    kind: "chat",
+    name: "instrument-guide-browser-extensions",
+    prompt: "Can I use my 1Password in your browser so you can log into stuff?",
+  }),
+
+  defineEval({
     // The file has no screen in the app, so the guide is the only place
     // that tells the user where it is.
     assertions: [

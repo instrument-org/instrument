@@ -33,7 +33,8 @@ export const WORKSPACE_DATA_ENTRIES = {
   /**
    * One folder per device that has opened the workspace, named by its device
    * id: what only that device writes and every device reads, which
-   * computer it is (`device.json`, `records/device-file.ts`), its activity
+   * computer it is (`device.json`, `records/device-file.ts`), whether it
+   * can answer now (`status.json`, `records/device-status-file.ts`), its activity
    * log a file per month (`activity/<YYYY-MM>.jsonl`) and its file of each
    * synced store (`<domain>.jsonl`, `lib/synced-store/`), `bookmarks.jsonl`
    * among them.

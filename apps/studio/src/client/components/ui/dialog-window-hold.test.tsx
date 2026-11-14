@@ -42,6 +42,7 @@ function Commands({
       newChatFromLink: vi.fn(),
       notOpened: vi.fn(),
       pageNotOpened: vi.fn(),
+      linkNotOpened: vi.fn(),
       newTab,
       openFile: vi.fn(),
       openScreen: vi.fn(),

@@ -24,8 +24,8 @@ const rpc = vi.hoisted(() => ({
   sendFeedback: vi.fn<(input: { items: { id: string }[] }) => void>(),
 }));
 
-// A chat whose records are more than a report may carry, as the Windows test
-// PC's was.
+// A chat over the report's cap, as the Windows test PC's was, which the main
+// process trims to fit before the dialog sees it.
 const described = () => ({
   chat: {
     item: item("chat", "chat", MAX_REPORT_BYTES + 1),
@@ -168,18 +168,12 @@ describe("FeedbackDialogContent in a browser", () => {
     },
   );
 
-  it("sends without a chat too big to go, and says so", async () => {
+  it("lists the chat under its own name, whatever its size", async () => {
     const screen = await open();
+    await expect.element(screen.getByText("“A long chat”")).toBeVisible();
     await expect
-      .element(
-        screen.getByText(
-          "This chat is too big to send, so your feedback will go without it.",
-        ),
-      )
+      .element(screen.getByRole("button", { name: "View The chat" }))
       .toBeVisible();
-    await expect
-      .element(screen.getByRole("button", { name: "View “A long chat”" }))
-      .not.toBeInTheDocument();
     await expect
       .element(screen.getByRole("button", { name: "Send" }))
       .toBeEnabled();
@@ -194,6 +188,6 @@ describe("FeedbackDialogContent in a browser", () => {
     });
     expect(
       rpc.sendFeedback.mock.calls[0]?.[0].items.map((each) => each.id),
-    ).toEqual(["diagnostics"]);
+    ).toEqual(["chat", "diagnostics"]);
   });
 });

@@ -99,6 +99,28 @@ describe("a chat's folder following its title", () => {
     await live.return?.(undefined).catch(() => undefined);
   });
 
+  it("tells a window where the folder was and where it is", async () => {
+    const chatId = await ensureChat(StoreId.newSessionId(), "Draw a map");
+    const chatsDir = path.join(getWorkspaceConfig().rootDir, CHATS_FOLDER_NAME);
+    const controller = new AbortController();
+    const moves = await call(chats.events.folderMoved, undefined, {
+      context,
+      signal: controller.signal,
+    });
+
+    // Listening before the rename, as a window is.
+    const moved = moves.next();
+    await call(chats.rename, { id: chatId, title: "Old maps" }, { context });
+
+    expect((await moved).value).toEqual({
+      from: path.join(chatsDir, "Draw a map"),
+      id: chatId,
+      to: path.join(chatsDir, "Old maps"),
+    });
+    controller.abort();
+    await moves.return?.(undefined).catch(() => undefined);
+  });
+
   it("follows a name the user asked the model for", async () => {
     const chatId = await ensureChat(StoreId.newSessionId(), "Find a flight");
     vi.mocked(retitleChat).mockImplementation(async ({ id }) => {

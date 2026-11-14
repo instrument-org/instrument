@@ -13,10 +13,19 @@
  */
 export const ASK_FRESH_MS = 10 * 60 * 1000;
 
+/**
+ * How long a draft a phone asked this computer to send stays one it sends:
+ * longer than `ASK_FRESH_MS`, since the person picked this computer knowing
+ * it may be asleep, and a sleeping Mac takes it only in a short wake, which
+ * comes every quarter hour or so.
+ */
+export const SEND_FRESH_MS = 60 * 60 * 1000;
+
 /** Whether something asked at `at` (ms, or a Date) is still fresh at `now`. */
 export function isFreshAsk(
   at: Date | number,
   now: number = Date.now(),
+  freshFor: number = ASK_FRESH_MS,
 ): boolean {
-  return now - (typeof at === "number" ? at : at.getTime()) <= ASK_FRESH_MS;
+  return now - (typeof at === "number" ? at : at.getTime()) <= freshFor;
 }

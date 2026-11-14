@@ -24,6 +24,12 @@ export const SCREENS = {
     href: "/browser",
     title: "Browser",
   },
+  extensions: {
+    detail:
+      "The Chrome extensions in your browser, and adding more from the Chrome Web Store.",
+    href: "/extensions",
+    title: "Extensions",
+  },
   "release-notes": {
     detail: "What changed in each version.",
     href: "/release-notes",

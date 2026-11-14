@@ -21,6 +21,7 @@ import { agentStatus } from "./agent-status";
 import { chatBackgroundProcesses } from "./background-processes";
 import { chatFiles } from "./files";
 import {
+  chatFolderMoves,
   chatsOfFolders,
   liveChatFolders,
   liveChatFolderWithFiles,
@@ -111,6 +112,7 @@ const liveUsageSummary = base
 export const chatRoutes = {
   agentStatus,
   backgroundProcesses: chatBackgroundProcesses,
+  events: { folderMoved: chatFolderMoves },
   files: chatFiles,
   info,
   live: {

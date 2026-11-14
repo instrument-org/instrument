@@ -29,11 +29,20 @@ export type FrontMatterSplit =
       reason: "no-frontmatter" | "unterminated";
     };
 
-/** The opening fence; `----` is a horizontal rule. */
-const OPENING = /^\uFEFF?---[ \t]*\r?\n/;
+/**
+ * The opening fence's grammar, a byte-order mark allowed before it; `----`
+ * is a horizontal rule. A reader that takes a file's fences apart builds its
+ * pattern from this and `CLOSING_FENCE`, so the fences read the same everywhere.
+ */
+export const OPENING_FENCE = "\\uFEFF?---[ \\t]*\\r?\\n";
+
+/** A closing fence's grammar: `---` or `...`, trailing blanks allowed. */
+export const CLOSING_FENCE = "(?:---|\\.\\.\\.)[ \\t]*";
+
+const OPENING = new RegExp(`^${OPENING_FENCE}`);
 
 /** A closing fence, as a whole line. */
-const CLOSING = /^(?:---|\.\.\.)[ \t]*\r?$\n?/gm;
+const CLOSING = new RegExp(`^${CLOSING_FENCE}\\r?$\\n?`, "gm");
 
 /** A file's text as its front matter and the body after it. */
 export function splitFrontMatter(text: string): FrontMatterSplit {

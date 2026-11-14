@@ -38,12 +38,12 @@ Prereleases are published immediately for the same reason read the other way: be
 
 The notes travel in the tag. `tag-release.ts --notes <file>` makes them the annotated tag's message, written with the `release-notes` skill before tagging: a one-line summary, then bullets grouped by product area, each led by one short sentence. The publish job reads that message back and uses it twice:
 
-- **Slack** gets the summary line and the lead sentence of the first two bullets in each section, with a link to the release. [`release-summary.ts`](../../apps/studio/scripts/release-summary.ts) does the cutting, deterministically and with no model, which is why the leads have to stand on their own.
+- **Slack** gets a card with the version and the summary line, and a thread reply with the full notes, the change counts and a link to the release. A stable release's card is tagged "Notes in draft" with a button to review the draft, and the thread asks someone to publish it. When the release is published or unpublished, whoever does it, [`release-card.yml`](../../.github/workflows/release-card.yml) redraws the card to match, using the channel and `ts` the publish job kept as its `slack-card` artifact. [`release-summary.ts`](../../apps/studio/scripts/release-summary.ts) builds both, deterministically and with no model.
 - **The release body** is the notes followed by the compare links, and is what the app shows as the changelog.
 
 The job re-fetches the tag before reading it, because `actions/checkout` rewrites a pushed annotated tag as a lightweight one and the message would read as empty.
 
-A tag cut without notes still ships. Slack then gets the range's commits grouped by scope with the plumbing scopes (`dx`, `docs`, `lint` and the like) dropped, and the body is the commit list, with a `Skills` section when the registry pointer moved.
+A tag cut without notes still ships. The card says so, and its Slack thread lists the range's commits grouped by scope with the plumbing scopes (`dx`, `docs`, `lint` and the like) dropped, and the body is the commit list, with a `Skills` section when the registry pointer moved.
 
 The range starts at the last published release, so a tag whose build failed folds into the next one. Its notes have to as well: the next tag's notes cover everything since the last release anyone could install.
 

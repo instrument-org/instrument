@@ -21,7 +21,11 @@ import http from "node:http";
 import os from "node:os";
 import path from "node:path";
 
-import { AGENT_MESSAGE_LANGUAGE, CHATS_FOLDER_NAME } from "../../src/constants";
+import {
+  AGENT_FILES_LANGUAGE,
+  AGENT_MESSAGE_LANGUAGE,
+  CHATS_FOLDER_NAME,
+} from "../../src/constants";
 import {
   chatOutputFolder,
   outputFolderPath,
@@ -1590,6 +1594,78 @@ const wroteNoFile: Assertion = {
   text: "wrote no file for a question that asked for none",
 };
 
+/** Ten reading recommendations, the way a screenshot of a post lists them. */
+const READING_LIST = [
+  ["The Design of Everyday Things", "Don Norman"],
+  ["The Essence of Software", "Daniel Jackson"],
+  ["Designing with the Mind in Mind", "Jeff Johnson"],
+  ["About Face", "Alan Cooper"],
+  ["Don't Make Me Think", "Steve Krug"],
+  ["As We May Think", "Vannevar Bush"],
+  [
+    "Direct Manipulation: A Step Beyond Programming Languages",
+    "Ben Shneiderman",
+  ],
+  ["Magic Ink", "Bret Victor"],
+  ["Inventing on Principle", "Bret Victor"],
+  ["Ten Usability Heuristics for User Interface Design", "Jakob Nielsen"],
+] as const;
+
+const READING_LIST_FILE = () =>
+  path.join(HOME, "Documents", "Saved posts", "design reading list.txt");
+
+function seedReadingList() {
+  const file = READING_LIST_FILE();
+  fs.rmSync(path.dirname(file), { force: true, recursive: true });
+  fs.mkdirSync(path.dirname(file), { recursive: true });
+  fs.writeFileSync(
+    file,
+    `copied from a thread, "what to read before designing software":\n\n${READING_LIST.map(([title, author], index) => `${index + 1}. ${title} (${author})`).join("\n")}\n`,
+  );
+}
+
+const listedTheReadingInReply: Assertion = {
+  check: ({ sessions }) => {
+    const text = "listed the reading with links in the reply itself";
+    const reply = said(sessions)
+      .map((one) => one.text)
+      .join("\n");
+    const named = READING_LIST.filter(([title]) =>
+      reply.toLowerCase().includes(title.toLowerCase().slice(0, 20)),
+    ).length;
+    const links = reply.match(/\]\(https?:\/\//g)?.length ?? 0;
+    return named >= READING_LIST.length - 1 && links >= READING_LIST.length - 2
+      ? pass(text, `${named} titles, ${links} links`)
+      : fail(
+          text,
+          `${named} titles, ${links} links; ${JSON.stringify(lastReply(sessions).slice(0, 300))}`,
+        );
+  },
+  text: "listed the reading with links in the reply itself",
+};
+
+const FILES_FENCE = new RegExp(
+  String.raw`^[ \t]*\x60{3,}[ \t]*${AGENT_FILES_LANGUAGE}[ \t]*$([\s\S]*?)^[ \t]*\x60{3,}[ \t]*$`,
+  "gm",
+);
+
+/** Fails on a file the reply hands over that is not the one the user sent. */
+const handedOverNoFile: Assertion = {
+  check: ({ sessions }) => {
+    const text = "handed over no file for a list asked to see";
+    const sent = path.dirname(READING_LIST_FILE());
+    const made = said(sessions)
+      .flatMap((one) => [...one.text.matchAll(FILES_FENCE)])
+      .flatMap((match) => (match[1] ?? "").split("\n"))
+      .map((line) => line.trim())
+      .filter((line) => line && !path.resolve(line).startsWith(sent));
+    return made.length === 0
+      ? pass(text, "no file of its own handed over")
+      : fail(text, made.join(", "));
+  },
+  text: "handed over no file for a list asked to see",
+};
+
 /** The sign-up page this run serves, once `setup` has started it. */
 let signupAddress = "";
 
@@ -2873,6 +2949,15 @@ const SCENARIOS: Scenario[] = [
     sent: [path.join(HOME, "Documents", "Invoices")],
     setup: seedInvoices,
     slug: "file-qa",
+  },
+  {
+    // A table asked to see, which the reply shows rather than a file.
+    assertions: [listedTheReadingInReply, handedOverNoFile],
+    prompt:
+      "I found this list in a thread. Can you list these out for me with the correct links? Some are books, some might be articles or talks. Then recreate it as a table so I can click through, with a note on what each one is and why it's on the list.",
+    sent: [READING_LIST_FILE()],
+    setup: seedReadingList,
+    slug: "list-inline",
   },
   {
     // worker-data-workbook, asked of the chat.

@@ -61,6 +61,10 @@
         }
       }
     },
+    "ardia": {
+      "source": "github:ardia-browser/ardia",
+      "description": "Ardia: an open-source Mac browser on real Chromium with an Arc-style sidebar. Shows how a browser product handles importing from other browsers (bookmarks, history, sessions, cookies), profiles, a bookmarks bar, and macOS permission prompts."
+    },
     "document-viewers": {
       "description": "The document viewers apps/studio embeds, one package per format. They publish under the @extend-ai npm scope from repositories in the extend-hq GitHub org, so neither name leads to the other.",
       "references": {

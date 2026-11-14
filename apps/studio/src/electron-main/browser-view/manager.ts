@@ -79,8 +79,11 @@ import {
   type TabRecorder,
 } from "./history-recorder";
 import { getHistoryStore } from "./history-store";
+import { noteFrameSession } from "./keyboard-without-focus";
 import { mayPageNavigateTo } from "./local-file-policy";
 import { log } from "./log";
+import { isCapturing } from "./page-capture";
+import { createPutAwaySound } from "./put-away-sound";
 import { stopScreencast } from "./screencast";
 import {
   agentPopupTabOf,
@@ -88,6 +91,7 @@ import {
   isFileUrl,
   newTabOpenOf,
   newWindowOpenOf,
+  pageAddressOfLink,
   sameTabNavigationUrl,
 } from "./window-open-policy";
 
@@ -174,6 +178,12 @@ export interface BrowserViewManager {
   // Record whether a slot in the window shows a guest or the pool parks it,
   // as the renderer pool reports each change.
   setGuestShown: (targetId: BrowserTargetId, shown: boolean) => void;
+  // Which of one window's pages it holds only as a step of a tab's history;
+  // one of them making sound is closed (`put-away-sound.ts`).
+  setGuestsPutAway: (
+    webContentsId: number,
+    targetIds: readonly BrowserTargetId[],
+  ) => void;
   // Trust the certificate a tab's page was last refused, when it was for
   // `url`'s site, and load `url` again under it: "Continue" on the page that
   // says the connection isn't private. False when there is none to trust.
@@ -246,6 +256,29 @@ function createBrowserViewManager(): BrowserViewManager {
     }
     return [...liveHosts].find((host) => host.id === id) ?? null;
   };
+  const liveGuestOf = (targetId: BrowserTargetId) => {
+    const guest = entries.get(targetId)?.webContents;
+    return guest && !guest.isDestroyed() ? guest : null;
+  };
+  const closeIfPlaying = createPutAwaySound({
+    close: (targetId) => {
+      void browser.closeTarget(targetId);
+    },
+    describe: (targetId) =>
+      URL.parse(liveGuestOf(targetId)?.getURL() ?? "")?.host || "no site",
+    info: (line) => {
+      log.info(line);
+    },
+    isAudible: (targetId) =>
+      liveGuestOf(targetId)?.isCurrentlyAudible() ?? false,
+    // A page in a call plays its call, which closing would hang up.
+    isPutAway: (targetId) =>
+      (entries.get(targetId)?.putAway ?? false) &&
+      !isCapturing(liveGuestOf(targetId)),
+    warn: (line) => {
+      log.warn(line);
+    },
+  });
   // Bounces focus stolen by agent CDP activity back to the host renderer.
   const focusGuard = createFocusGuard({ restoreHostFocus });
 
@@ -304,6 +337,7 @@ function createBrowserViewManager(): BrowserViewManager {
     }
     const { targetId } = entry;
     wc.debugger.attach("1.3");
+    entry.frameSessions.clear();
     // Pairs with the guest session's product-branded client hints: the headers
     // and navigator.userAgentData have to name the same browser, and this is
     // the only side that needs the debugger.
@@ -319,6 +353,7 @@ function createBrowserViewManager(): BrowserViewManager {
           return;
         }
         const frameSession = sessionId || undefined;
+        noteFrameSession(current, method, params);
         if (method === "Page.downloadWillBegin" && frameSession === undefined) {
           captureDownloadWillBeginGuid(current, params);
         }
@@ -386,7 +421,10 @@ function createBrowserViewManager(): BrowserViewManager {
     // guestWindowOpenHandler), so the opener/postMessage channel that
     // "Continue with Google" and similar flows complete through stays intact
     // instead of hanging.
-    guest.setWindowOpenHandler((details) => {
+    guest.setWindowOpenHandler((asked) => {
+      // A link to a file in the app's own scheme opens as the page's link to
+      // that file would, rather than going to the system.
+      const details = { ...asked, url: pageAddressOfLink(asked.url) };
       const response: WindowOpenHandlerResponse = focusGuard.isGuarded(targetId)
         ? { action: "deny" }
         : guestWindowOpenHandler(details);
@@ -491,6 +529,11 @@ function createBrowserViewManager(): BrowserViewManager {
     });
 
     const history = recordHistory(entry, guest);
+    guest.on("audio-state-changed", (event) => {
+      if (event.audible) {
+        closeIfPlaying(targetId);
+      }
+    });
     guest.on("did-start-navigation", (details) => {
       if (details.isMainFrame && !details.isSameDocument) {
         lastLoads.delete(entry);
@@ -1153,7 +1196,9 @@ function createBrowserViewManager(): BrowserViewManager {
           (guest !== null &&
             guest !== undefined &&
             !guest.isDestroyed() &&
-            (guest.isCurrentlyAudible() || guest.isDevToolsOpened())))
+            (guest.isCurrentlyAudible() ||
+              guest.isDevToolsOpened() ||
+              isCapturing(guest))))
       );
     },
     getTargetUrl: (targetId) => {
@@ -1336,6 +1381,15 @@ function createBrowserViewManager(): BrowserViewManager {
         // Another window showing this tab says so only while this one shows it.
         if (changed) {
           notifyEntriesChanged();
+        }
+      }
+    },
+    setGuestsPutAway: (webContentsId, targetIds) => {
+      const putAway = new Set(targetIds);
+      for (const entry of entries.values()) {
+        if (hostIdOf(entry) === webContentsId) {
+          entry.putAway = putAway.has(entry.targetId);
+          closeIfPlaying(entry.targetId);
         }
       }
     },

@@ -67,6 +67,11 @@ describe("parseMessage", () => {
     expect(parseMessage("---\nto: [Ana, Bo]\n---\nHi").to).toBe("Ana, Bo");
   });
 
+  it("reads front matter under a byte-order mark and closed with dots", () => {
+    const message = parseMessage("﻿---\nto: Ana\n...\nHi");
+    expect([message.to, message.body]).toEqual(["Ana", "Hi"]);
+  });
+
   it("reads front matter YAML cannot parse line by line", () => {
     expect(
       parseMessage("---\nmessage: email\nsubject: Re: the: plan\n---\nHi")

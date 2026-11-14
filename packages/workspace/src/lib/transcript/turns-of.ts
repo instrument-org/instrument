@@ -136,11 +136,6 @@ export interface Turn {
   id: StoreId.Message;
   /** Taken over from the chat a task forked from, ahead of the task's own work. */
   inherited: boolean;
-  /**
-   * What woke the agent, for a turn a wake opens whose news draws no row of
-   * its own: the line that says why the work goes on.
-   */
-  wokenBy?: WokenBy;
   live?: TurnLive;
   opener?: TurnOpener;
   phase: "done" | "interrupted" | "working";
@@ -259,6 +254,75 @@ export function isTurnFolded(turn: Turn, now: number): boolean {
     turn.summary !== undefined ||
     (turn.endedAt !== undefined && now - turn.endedAt.getTime() >= FOLD_WAIT_MS)
   );
+}
+
+/** What stands under the last turn of a reply: its footer's messages and its card. */
+export interface ReplyEnd {
+  /** Every reply the turns from the message to here gave. */
+  replies: Turn["replies"];
+  /** The card asking how it went, from whichever of those turns has one. */
+  ratingCard?: RatingCardPart;
+  /** The reply ends in words, so it has a footer. */
+  hasFooter: boolean;
+}
+
+const replyEndCache = new WeakMap<Turn, { chain: Turn[]; end: ReplyEnd }>();
+
+/**
+ * The replies a session's turns make. A turn a wake opens carries on the turn
+ * before it, so the turns from one message to the next read as one reply: one
+ * footer and one card, under the last of them once it has stopped working.
+ * `ends` is keyed by that last turn, and a turn absent from it draws neither;
+ * `carriedOn` names each turn that continues the one above it. An end keeps
+ * its object while its turns do, so the turn it ends redraws only when one of
+ * them moves.
+ */
+export function repliesOf(turns: readonly Turn[]): {
+  carriedOn: Set<StoreId.Message>;
+  ends: Map<StoreId.Message, ReplyEnd>;
+} {
+  const ends = new Map<StoreId.Message, ReplyEnd>();
+  const carriedOn = new Set<StoreId.Message>();
+  let chain: Turn[] = [];
+  turns.forEach((turn, index) => {
+    chain.push(turn);
+    const next = turns[index + 1];
+    if (next && !next.opener && next.inherited === turn.inherited) {
+      carriedOn.add(next.id);
+      return;
+    }
+    if (turn.phase !== "working") {
+      ends.set(turn.id, replyEndOf(chain));
+    }
+    chain = [];
+  });
+  return { carriedOn, ends };
+}
+
+function replyEndOf(chain: Turn[]): ReplyEnd {
+  const last = chain.at(-1);
+  if (!last) {
+    return { hasFooter: false, replies: [] };
+  }
+  const kept = replyEndCache.get(last);
+  if (
+    kept &&
+    kept.chain.length === chain.length &&
+    kept.chain.every((turn, at) => turn === chain[at])
+  ) {
+    return kept.end;
+  }
+  const replies = chain.flatMap((turn) => turn.replies);
+  const ratingCard = chain.find((turn) => turn.ratingCard)?.ratingCard;
+  const end: ReplyEnd = {
+    hasFooter:
+      replies.length > 0 &&
+      last.rows.findLast((row) => row.kind !== "note")?.kind === "text",
+    ...(ratingCard && { ratingCard }),
+    replies,
+  };
+  replyEndCache.set(last, { chain, end });
+  return end;
 }
 
 /**
@@ -380,44 +444,6 @@ function joinedMidTurn(message: TranscriptMessage): boolean {
   );
 }
 
-/** What a wake that opens a turn says happened. */
-type WokenBy =
-  | { kind: "signed-in" }
-  | {
-      count: number;
-      kind: "task-checked-on" | "task-failed" | "task-finished";
-    };
-
-/**
- * What woke the agent at the head of a turn a wake opens, when no note row
- * says so already: a task's news reaches the person as the reply, and a sign-in
- * finishing as the work it unblocked.
- */
-function wokenByOf(message: TranscriptMessage): WokenBy | undefined {
-  for (const part of message.parts) {
-    if (
-      part.type === "data-taskEvent" &&
-      part.data.events.length > 0 &&
-      !drawsNote(part)
-    ) {
-      const { events } = part.data;
-      const kind = events.some((event) => event.status === "error")
-        ? "task-failed"
-        : events.every((event) => event.status === "overdue")
-          ? "task-checked-on"
-          : "task-finished";
-      return { count: events.length, kind };
-    }
-    if (
-      part.type === "data-appEvent" &&
-      part.data.events.some(({ event }) => event === "connected")
-    ) {
-      return { kind: "signed-in" };
-    }
-  }
-  return undefined;
-}
-
 interface BuildOptions {
   cutAcross: boolean;
   /** A message the person typed comes after this turn. */
@@ -434,7 +460,6 @@ function buildTurn(
 ): Turn {
   const { cutAcross, isLive, sessionId } = options;
   const opener = opensTurn(first) ? openerOf(first) : undefined;
-  const wokenBy = opener ? undefined : wokenByOf(first);
   const body = opener ? slice.slice(1) : slice;
   const rows = rowsOf(body, options);
   const replies = body.filter(
@@ -488,7 +513,6 @@ function buildTurn(
     sites: unique(activities.flatMap((row) => row.sites)),
     sources,
     startedAt,
-    ...(wokenBy && { wokenBy }),
     ...(summary !== undefined && { summary }),
     workedMs: workedMs(rows, startedAt),
   };

@@ -1,8 +1,14 @@
+import { filePathOfInstrumentLink } from "@instrument-org/shared";
 import {
   type BrowserWindowConstructorOptions,
   type HandlerDetails,
   type WindowOpenHandlerResponse,
 } from "electron";
+import os from "node:os";
+import path from "node:path";
+import { pathToFileURL } from "node:url";
+
+import { fromHome } from "@/electron-main/lib/link-home";
 
 // window.open shape policy for the browser guests. Sign-in popups ("Continue
 // with Google" and friends) call window.open(url, name, "width=...,height=...")
@@ -48,6 +54,33 @@ export function agentPopupTabOf(details: HandlerDetails): null | string {
 
 export function isFileUrl(value: string): boolean {
   return value.startsWith("file:");
+}
+
+/**
+ * The address a page's link is followed at in the browser: a link to a file
+ * in the app's own scheme (`instrument://file/~/notes/a.html`) as the
+ * `file://` address of the file it names, so a tab-open, a Shift-click and
+ * the context menu treat it as the page's link to that file. Any other
+ * address, and a path that is not absolute once `~` is read as home, as it
+ * is.
+ */
+export function pageAddressOfLink(
+  url: string,
+  home = os.homedir(),
+  hostPaths: path.PlatformPath = path,
+): string {
+  const linkPath = filePathOfInstrumentLink(url);
+  if (linkPath === undefined) {
+    return url;
+  }
+  const spelled = fromHome(linkPath, home, hostPaths);
+  // The leading slash the link form puts in front of a drive letter.
+  const hostPath = /^\/[A-Z]:\//i.test(spelled) ? spelled.slice(1) : spelled;
+  return hostPaths.isAbsolute(hostPath)
+    ? pathToFileURL(hostPaths.resolve(hostPath), {
+        windows: hostPaths.sep === "\\",
+      }).href
+    : url;
 }
 
 // The one protocol test for anything the guest may be sent to by a link: an

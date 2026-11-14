@@ -361,8 +361,23 @@ type RecordsThere =
    */
   | { kind: "restating"; restating: string[] };
 
-/** The records a session row restates, which a conversion writes from it. */
-const RESTATED = new Set(["rollover", "session", "set", "sites", "stop"]);
+/**
+ * Which records a session row restates, so a conversion writes them again
+ * from it, and which hold what only the file holds. Every kind answers, so
+ * a new one is placed here before the converter can read a file holding it.
+ */
+const RESTATES = {
+  answer: false,
+  ask: false,
+  message: false,
+  part: false,
+  retract: false,
+  rollover: true,
+  session: true,
+  set: true,
+  sites: true,
+  stop: true,
+} satisfies Record<LogRecord["t"] | SettingRecord["t"], boolean>;
 
 /**
  * Which device wrote a record does not say whether the records hold the
@@ -421,7 +436,7 @@ async function restatesOnly(
   return (
     read !== undefined &&
     read.skipped === 0 &&
-    read.records.every(({ record }) => RESTATED.has(record.t))
+    read.records.every(({ record }) => RESTATES[record.t])
   );
 }
 

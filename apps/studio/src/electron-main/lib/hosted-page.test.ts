@@ -51,6 +51,18 @@ describe("fetchHostedPage", () => {
     });
   });
 
+  it("asks under the page's link token where the link names one", async () => {
+    const { asked, fetch } = host({
+      [hostedPageUrl("weekly", "abcdefghijklmnop")]: page,
+    });
+    expect(
+      await fetchHostedPage("weekly", { fetch, token: "abcdefghijklmnop" }),
+    ).toHaveProperty("body");
+    expect(asked[0]?.url).toBe(
+      "https://weekly.instrument.page/abcdefghijklmnop/",
+    );
+  });
+
   it("follows a redirect that stays on the host", async () => {
     const { asked, fetch } = host({
       [hostedPageUrl("weekly")]: () =>

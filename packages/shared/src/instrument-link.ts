@@ -102,8 +102,11 @@ export type OutsideLink =
   /** The paths to open, in the order written, and how many past the cap were left. */
   | { kind: "files"; notOpened: number; paths: string[] }
   | { kind: "new"; project?: string; words: string }
-  /** A hosted page by its id, the label of its `<id>.instrument.page` host. */
-  | { id: string; kind: "page" };
+  /**
+   * A hosted page by its id, the label of its `<id>.instrument.page` host,
+   * and the link token that leads its path, where the page has one.
+   */
+  | { id: string; kind: "page"; token?: string };
 
 /** The longest words a `new` link may bring; a longer one opens nothing. */
 export const OUTSIDE_WORDS_MAX = 2000;
@@ -122,6 +125,9 @@ const WEB_ADDRESS = /^https?:/i;
  */
 const PAGE_ID = /^(?!-)[a-z0-9-]{1,63}(?<!-)$/;
 
+/** A hosted page's link token: sixteen lowercase base32 characters. */
+const LINK_TOKEN = /^[a-z2-7]{16}$/;
+
 /**
  * Characters that change nothing a person sees but reach the model: zero
  * width spaces and joiners other than the emoji joiner, the marks that turn
@@ -135,8 +141,9 @@ const UNSEEN =
  * Reads a link handed to the app from outside: a browser, another app, a
  * note. Everything a noun names is a screen, `file` a path, `files` several
  * (`instrument://files?path=<path>&path=<path>`, which Instrument's website
- * writes), `page` a hosted page by its id (`instrument://page/<id>`, which
- * the website writes for a page's Open in Instrument), and `new` the one
+ * writes), `page` a hosted page by its id and link token
+ * (`instrument://page/<id>/<token>`, which the website writes for a page's
+ * Open in Instrument), and `new` the one
  * verb, `instrument://new?text=<words>&project=<id>`, a new chat's draft
  * that is never sent for the person.
  */
@@ -184,25 +191,31 @@ export function outsideLinkOf(url: string): OutsideLink | undefined {
 }
 
 /**
- * The hosted page a `page` link names: its id as the one path segment, with
- * no query and no fragment, since the link says which page and nothing
- * about it. An id that is not a label of a host is no page.
+ * The hosted page a `page` link names: its id as the first path segment, and
+ * its link token as the second where the page has one (a page published
+ * before link tokens has none), with no query and no fragment, since the link
+ * says which page and nothing about it. An id that is not a label of a host,
+ * or a second segment that is not a token, is no page.
  */
 function pageOf(
   parsed: URL,
 ): Extract<OutsideLink, { kind: "page" }> | undefined {
   const segments = parsed.pathname.split("/").filter(Boolean);
   const id = segments[0];
+  const token = segments[1];
   if (
-    segments.length !== 1 ||
+    segments.length > 2 ||
     id === undefined ||
     !PAGE_ID.test(id) ||
+    (token !== undefined && !LINK_TOKEN.test(token)) ||
     parsed.search !== "" ||
     parsed.hash !== ""
   ) {
     return undefined;
   }
-  return { id, kind: "page" };
+  return token === undefined
+    ? { id, kind: "page" }
+    : { id, kind: "page", token };
 }
 
 /**

@@ -14,8 +14,8 @@ The harness is the agents' own tool. Nobody runs evals by hand, so it serves wha
 ```bash
 pnpm eval models [pattern]                        # what the providers can run today
 pnpm eval list                                    # committed cases
-pnpm eval run [pattern] --model cf:<id>           # run them
-pnpm eval run --yes --prompt "..." --model cf:<id> # one ad-hoc case
+pnpm eval run [pattern] --model <model> --paid     # run them
+pnpm eval run --yes --prompt "..." --model <model> --paid # one ad-hoc case
 pnpm eval report <workspace-dir>                  # re-report a past run, at no cost
 ```
 
@@ -37,9 +37,9 @@ A computer with room off its boot disk names a folder there as `INSTRUMENT_EVAL_
 
 So the choice is yours to make per question, and yours to report: **say which models you ran and why you picked them**, in the same breath as the result. A result that does not name its models is not a result anyone can weigh.
 
-**Workers AI is where to start.** It runs without `--paid` and every other provider is metered, so a run that spends belongs to a question that specifically needs a model only another provider has. A metered model is refused without `--paid`, because the cost of a suite is one case times one model list and lands long after the command that started it. `zai-org/glm-5.3-flash` is the model this project is usually tested against, named in the error a bare `run` produces; it is a hint rather than a default, and nothing runs it unless someone passes it.
+**Claude Haiku 5.5 on the Claude account is the model to test on.** It is the lowest intelligence level the product supports, and the model named in the error a bare `run` produces (`HOUSE_FLOOR` in `evals/harness.ts`); it is a hint rather than a default, and nothing runs it unless someone passes it. A case that hinges on the agent's own judgment gets `--repeat 3` or more, since the spread between runs of one model outweighs most differences between models. It is metered, and a metered model is refused without `--paid`, because the cost of a suite is one case times one model list and lands long after the command that started it. Workers AI (`cf:<id>`) runs without `--paid`, but every model on it leaves finished work in the chat's folder rather than the person's, so a run on one says nothing about where work goes.
 
-**A Claude model runs through the Claude account, never through OpenRouter.** Point `APP_CLAUDE_CODE_PATH` at a signed-in Claude Code and name the model on that provider: `APP_CLAUDE_CODE_PATH=$HOME/.local/bin/claude pnpm eval run <cases> --model 'anthropic/claude-sonnet-5.5?provider=claude-account&providerConfigId=claude-account' --paid`. That runs on the signed-in plan, through the same harness the app uses. Without the variable there is no `claude-account` config, and the run stops with `Provider config for claude-account not found`. Claude Code keeps what each run did outside the eval home: transcripts in a folder under `~/.claude/projects/` named for the eval home, and resume records in `~/.claude/instrument-sessions/`. The run deletes both once its report is written (`evals/lib/claude-account-leftovers.ts`); a run killed before then leaves them.
+**A Claude model runs through the Claude account, never through OpenRouter.** Point `APP_CLAUDE_CODE_PATH` at a signed-in Claude Code and name the model on that provider: `APP_CLAUDE_CODE_PATH=$HOME/.local/bin/claude pnpm eval run <cases> --model 'anthropic/claude-haiku-5.5?provider=claude-account&providerConfigId=claude-account' --paid`. That runs on the signed-in plan, through the same harness the app uses. Without the variable there is no `claude-account` config, and the run stops with `Provider config for claude-account not found`. Claude Code keeps what each run did outside the eval home: transcripts in a folder under `~/.claude/projects/` named for the eval home, and resume records in `~/.claude/instrument-sessions/`. The run deletes both once its report is written (`evals/lib/claude-account-leftovers.ts`); a run killed before then leaves them.
 
 The harness prints what each model resolved to and records it as `resolvedModelId` in the run's `eval-case.json`, which matters for a `--paid` run against an OpenRouter `~author/<name>-latest` alias, since "latest" is not a build anyone can identify a month later.
 

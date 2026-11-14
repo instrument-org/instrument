@@ -248,6 +248,18 @@ describe("outsideLinkOf", () => {
       });
     });
 
+    it("reads a page's link token after its id", () => {
+      expect(
+        outsideLinkOf(
+          "instrument://page/weekly-plan-g6hgcknla553/abcdefghijklmnop",
+        ),
+      ).toEqual({
+        id: "weekly-plan-g6hgcknla553",
+        kind: "page",
+        token: "abcdefghijklmnop",
+      });
+    });
+
     it("reads the noun in any case", () => {
       expect(outsideLinkOf("instrument://PAGE/weekly-plan")).toEqual({
         id: "weekly-plan",
@@ -267,6 +279,13 @@ describe("outsideLinkOf", () => {
       ["a percent sign", "instrument://page/a%25b"],
       ["sixty-four characters", `instrument://page/${"a".repeat(64)}`],
       ["a segment under the id", "instrument://page/weekly/index.html"],
+      ["a token too short", "instrument://page/weekly/abcdefghijklmno"],
+      ["a token outside base32", "instrument://page/weekly/abcdefghijklmn01"],
+      ["a capital in the token", "instrument://page/weekly/Abcdefghijklmnop"],
+      [
+        "a segment under the token",
+        "instrument://page/weekly/abcdefghijklmnop/index.html",
+      ],
       ["a query", "instrument://page/weekly?x=1"],
       ["a fragment", "instrument://page/weekly#top"],
       ["a web address", "https://weekly.instrument.page/"],

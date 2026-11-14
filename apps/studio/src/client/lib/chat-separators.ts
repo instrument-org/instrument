@@ -3,6 +3,7 @@ import {
   type SessionMessageDataPart,
   type StoreId,
   type TranscriptMessage,
+  type WrittenOn,
 } from "@instrument-org/workspace/client";
 import { format } from "date-fns/format";
 import { isSameDay } from "date-fns/isSameDay";
@@ -26,6 +27,12 @@ export interface ChatSeparator {
   at: Date;
   /** The switch of model the message was sent with, as its turn recorded it. */
   change?: { from: ModelSide; to: ModelSide };
+  /**
+   * The move to another computer the message was sent with: the computer
+   * the message before it was sent on, this one's, and whether the chat
+   * was on this one before.
+   */
+  computer?: { back: boolean; from: WrittenOn; to: WrittenOn };
   /**
    * Whether the line shows the day and time: above the chat's first message
    * and after a gap, but not on a switch of model within the hour, where the
@@ -53,7 +60,8 @@ export interface ModelSide {
  * {@link SEPARATOR_GAP_MS} or more after the one before it, or on a later day,
  * with the time alone. One above every message its turn recorded a switch of
  * model on (`data-modelChange`), naming both models, with the time only when it
- * also follows a gap.
+ * also follows a gap. One, with the time, above every message sent on another
+ * computer than the message before it, as the chat's records say.
  *
  * A switch is placed by the record its turn wrote, never inferred from which
  * model the replies around a message asked: those are read in landing order,
@@ -75,6 +83,10 @@ export function chatSeparators(
     | { replies: SessionMessage.Assistant[]; userId: StoreId.Message };
   const runs: NonNullable<typeof run>[] = [];
   let previous: SessionMessage.WithParts | TranscriptMessage | undefined;
+  // The computer the last message sent was sent on, as far as is known, and
+  // whether the chat was ever on this one.
+  let lastOn: WrittenOn | undefined;
+  let wasHere = false;
 
   for (const message of messages) {
     if (message.role === "assistant") {
@@ -88,6 +100,15 @@ export function chatSeparators(
       );
       const gap =
         previous !== undefined && isGap(previous.metadata.createdAt, at);
+      const on = "writtenOn" in message ? message.writtenOn : undefined;
+      const computer =
+        on && lastOn && on.device !== lastOn.device
+          ? { back: on.here && wasHere, from: lastOn, to: on }
+          : undefined;
+      if (on) {
+        lastOn = on;
+        wasHere ||= on.here;
+      }
 
       if (isFirst || change) {
         run = { replies: [], userId: message.id };
@@ -98,10 +119,15 @@ export function chatSeparators(
             from: { recorded: change.data.from },
             to: { recorded: change.data.to },
           },
-          timed: isFirst || gap,
+          ...(computer && { computer }),
+          timed: isFirst || gap || computer !== undefined,
         });
-      } else if (gap) {
-        separators.set(message.id, { at, timed: true });
+      } else if (gap || computer) {
+        separators.set(message.id, {
+          at,
+          ...(computer && { computer }),
+          timed: true,
+        });
       }
     }
     if (message.role !== "session-context") {

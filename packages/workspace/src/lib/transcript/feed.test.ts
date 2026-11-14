@@ -119,6 +119,40 @@ describe("TranscriptProjection", () => {
     ).toBeUndefined();
   });
 
+  // A message its records had not named a computer for goes out again whole
+  // once they do.
+  it("says which computer a message was sent on, and sends a new one whole", () => {
+    const question = typed("Hi");
+    const reply = stored("assistant", (id) => [
+      text(id, "Hello", StoreId.newPartId(), "done"),
+    ]);
+    const projection = new TranscriptProjection();
+    const reset = projection.reset([question, reply]);
+    expect(
+      reset.kind === "reset" &&
+        reset.messages.map((one) =>
+          one.role === "user" ? one.writtenOn : undefined,
+        ),
+    ).toEqual([undefined, undefined]);
+
+    const air = { device: "dev_AIR00000", here: false, name: "MacBook Air" };
+    const event = projection.update({
+      changed: [question, reply],
+      removed: [],
+      writtenOn: new Map([
+        [question.id, air],
+        [reply.id, air],
+      ]),
+    });
+    expect(
+      event?.kind === "change" &&
+        event.upserted.map((one) => ({
+          role: one.role,
+          writtenOn: one.role === "user" ? one.writtenOn : undefined,
+        })),
+    ).toEqual([{ role: "user", writtenOn: air }]);
+  });
+
   it("patches a call's part without touching its step, which shares its id", () => {
     const messageId = StoreId.newMessageId();
     const partId = StoreId.newPartId();

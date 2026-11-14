@@ -11,10 +11,11 @@ import {
   StoreId,
 } from "@instrument-org/workspace/electron";
 import { noop } from "radashi";
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { afterEach, describe, expect, it, type Mock, vi } from "vitest";
 
 import { MAIN_OVERRIDES, sendCommand } from "./dispatch-command";
 import { type BrowserEntry, createEntry } from "./entry";
+import { noteFrameSession } from "./keyboard-without-focus";
 import {
   clearGuestSurface,
   getDesiredGuestSurfaces,
@@ -34,7 +35,8 @@ interface FakeDebugger {
 interface FakeWebContents {
   capturePage?: ReturnType<typeof vi.fn>;
   debugger: FakeDebugger;
-  executeJavaScript: ReturnType<typeof vi.fn>;
+  executeJavaScript: Mock<(code: string) => Promise<unknown>>;
+  executeJavaScriptInIsolatedWorld: ReturnType<typeof vi.fn>;
   hostWebContents?: {
     capturePage: ReturnType<typeof vi.fn>;
     isDestroyed: () => boolean;
@@ -79,10 +81,21 @@ function makeEntry({
           isAttached: () => attached,
           sendCommand: wcSendCommand,
         },
-        executeJavaScript: vi.fn().mockImplementation((code: string) => {
+        executeJavaScript: vi.fn((code: string) => {
           const answer = isRenderingProbe(code) ? rendering : hasFocus;
           return answer instanceof Promise ? answer : Promise.resolve(answer);
         }),
+        // Both worlds read one document, so the focus probe in the isolated
+        // one answers as the page's own does, whatever a test makes that
+        // answer. Nothing else there (the agent's pointer) answers.
+        executeJavaScriptInIsolatedWorld: vi
+          .fn()
+          .mockImplementation(
+            (_world: number, [{ code }]: [{ code: string }]) =>
+              code === "document.hasFocus()"
+                ? wc!.executeJavaScript(code)
+                : Promise.resolve(undefined),
+          ),
         hostWebContents: hostCapturePage && {
           capturePage: hostCapturePage,
           isDestroyed: () => false,
@@ -1126,6 +1139,292 @@ describe("sendCommand", () => {
 
       expect(wcSendCommand).not.toHaveBeenCalled();
     });
+  });
+});
+
+// Typing sent to the guest itself, so the window's focus stays where the
+// person left it; anything that cannot go that way takes focus as before.
+describe("typing without focus", () => {
+  // A guest that does not hold the window's focus, whose page answers the
+  // typing world's check with `armed` (or what `where` says), reports `seen`
+  // input events for a commit, and the key's last event once it is handled.
+  function makeUnfocusedEntry({
+    seen = 2,
+    where = "armed",
+  }: { seen?: number | Promise<unknown>; where?: string } = {}) {
+    let focused = false;
+    const requestGuestFocus = vi.fn().mockImplementation(() => {
+      focused = true;
+    });
+    const wcSendCommand = vi.fn().mockResolvedValue({});
+    const entry = makeEntry({ sendCommand: wcSendCommand });
+    const insertText = vi.fn().mockResolvedValue(undefined);
+    const sendInputEvent = vi.fn();
+    Object.assign(entry.webContents!, {
+      executeJavaScript: vi
+        .fn()
+        .mockImplementation((code: string) =>
+          Promise.resolve(isRenderingProbe(code) ? true : focused),
+        ),
+      executeJavaScriptInIsolatedWorld: vi
+        .fn()
+        .mockImplementation((_world: number, [{ code }]: [{ code: string }]) =>
+          code === "document.hasFocus()"
+            ? Promise.resolve(focused)
+            : code.includes(".seen()")
+              ? seen instanceof Promise
+                ? seen
+                : Promise.resolve(seen)
+              : Promise.resolve(
+                  code.includes(".handled()") ? "keypress" : where,
+                ),
+        ),
+      insertText,
+      sendInputEvent,
+    });
+    return {
+      entries: new Map([[TARGET_ID, entry]]),
+      insertText,
+      requestGuestFocus,
+      sendInputEvent,
+      wcSendCommand,
+    };
+  }
+
+  it("commits text through the guest without asking for focus", async () => {
+    const { entries, insertText, requestGuestFocus, wcSendCommand } =
+      makeUnfocusedEntry();
+
+    await expect(
+      dispatch({
+        entries,
+        method: "Input.insertText",
+        params: { text: "First.\n\nSecond." },
+        requestGuestFocus,
+      }),
+    ).resolves.toEqual({});
+
+    expect(insertText).toHaveBeenCalledWith("First.\n\nSecond.");
+    expect(requestGuestFocus).not.toHaveBeenCalled();
+    expect(wcSendCommand).not.toHaveBeenCalled();
+  });
+
+  it("hands a key to the guest's own widget without asking for focus", async () => {
+    const { entries, requestGuestFocus, sendInputEvent, wcSendCommand } =
+      makeUnfocusedEntry();
+
+    await dispatch({
+      entries,
+      method: "Input.dispatchKeyEvent",
+      params: { code: "Enter", key: "Enter", text: "\r", type: "keyDown" },
+      requestGuestFocus,
+    });
+
+    expect(sendInputEvent.mock.calls).toEqual([
+      [{ keyCode: "Enter", modifiers: [], type: "keyDown" }],
+      [{ keyCode: "\r", modifiers: [], type: "char" }],
+    ]);
+    expect(requestGuestFocus).not.toHaveBeenCalled();
+    expect(wcSendCommand).not.toHaveBeenCalled();
+  });
+
+  it.each<[string, { seen?: number; where?: string }, string, object]>([
+    [
+      "a cross-origin frame the page does not name",
+      { where: "frame" },
+      "Input.insertText",
+      { text: "hello" },
+    ],
+    [
+      "text with no field to go into",
+      { where: "none" },
+      "Input.insertText",
+      { text: "hello" },
+    ],
+    [
+      "a commit the page fired no input event for",
+      { seen: 0 },
+      "Input.insertText",
+      { text: "hello" },
+    ],
+    [
+      "a Control chord",
+      {},
+      "Input.dispatchKeyEvent",
+      { code: "KeyA", key: "a", modifiers: 2, type: "keyDown" },
+    ],
+    [
+      "IME composition",
+      {},
+      "Input.imeSetComposition",
+      { selectionEnd: 1, selectionStart: 1, text: "あ" },
+    ],
+  ])("takes focus for %s", async (_, page, method, params) => {
+    const {
+      entries,
+      insertText,
+      requestGuestFocus,
+      sendInputEvent,
+      wcSendCommand,
+    } = makeUnfocusedEntry(page);
+
+    await dispatch({ entries, method, params, requestGuestFocus });
+
+    expect(requestGuestFocus).toHaveBeenCalledWith(TARGET_ID);
+    expect(wcSendCommand).toHaveBeenCalledWith(
+      method,
+      expect.objectContaining(params),
+    );
+    expect(sendInputEvent).not.toHaveBeenCalled();
+    expect(insertText).toHaveBeenCalledTimes(page.seen === 0 ? 1 : 0);
+  });
+
+  it("sends text once when the page does not say whether it fired an input event", async () => {
+    const { entries, insertText, requestGuestFocus, wcSendCommand } =
+      makeUnfocusedEntry({ seen: Promise.reject(new Error("page busy")) });
+    vi.spyOn(log, "info").mockImplementation(noop);
+
+    await expect(
+      dispatch({
+        entries,
+        method: "Input.insertText",
+        params: { text: "hello" },
+        requestGuestFocus,
+      }),
+    ).resolves.toEqual({});
+
+    expect(insertText).toHaveBeenCalledOnce();
+    expect(requestGuestFocus).not.toHaveBeenCalled();
+    expect(wcSendCommand).not.toHaveBeenCalled();
+  });
+
+  it("asks the isolated world whether the guest holds focus, past a page that claims it", async () => {
+    const { entries, insertText, requestGuestFocus, wcSendCommand } =
+      makeUnfocusedEntry();
+    const wc = entries.get(TARGET_ID)!.webContents as unknown as {
+      executeJavaScript: ReturnType<typeof vi.fn>;
+    };
+    // The page's own world, where a script redefined document.hasFocus.
+    wc.executeJavaScript.mockResolvedValue(true);
+
+    await dispatch({
+      entries,
+      method: "Input.insertText",
+      params: { text: "hello" },
+      requestGuestFocus,
+    });
+
+    expect(insertText).toHaveBeenCalledWith("hello");
+    expect(wcSendCommand).not.toHaveBeenCalled();
+    expect(requestGuestFocus).not.toHaveBeenCalled();
+  });
+
+  it("takes focus for a cross-origin frame with no session of its own, saying so", async () => {
+    const { entries, requestGuestFocus, wcSendCommand } = makeUnfocusedEntry({
+      where: "frame",
+    });
+    const info = vi.spyOn(log, "info").mockImplementation(noop);
+    // Same site, another origin: in the page's process, so no target.
+    wcSendCommand.mockImplementation((method: string) =>
+      Promise.resolve(
+        method === "Runtime.evaluate"
+          ? { result: { objectId: "owner" } }
+          : method === "DOM.describeNode"
+            ? { node: { frameId: "FRAME-9" } }
+            : {},
+      ),
+    );
+
+    await dispatch({
+      entries,
+      method: "Input.insertText",
+      params: { text: "hello" },
+      requestGuestFocus,
+    });
+
+    expect(requestGuestFocus).toHaveBeenCalledWith(TARGET_ID);
+    expect(info).toHaveBeenCalledWith(
+      expect.stringMatching(
+        /takes focus .*focus in a frame with no debugger session$/,
+      ),
+    );
+  });
+
+  it("types into a field in a frame of its own on that frame's session", async () => {
+    const { entries, requestGuestFocus, wcSendCommand } = makeUnfocusedEntry({
+      where: "frame",
+    });
+    entries.get(TARGET_ID)!.frameSessions.set("FRAME-1", "frame-session-1");
+    // The page's focus is on the frame's owner; inside the frame, on a field.
+    wcSendCommand.mockImplementation(
+      (method: string, _params: unknown, session?: string) =>
+        Promise.resolve(
+          method === "Runtime.evaluate"
+            ? { result: session ? { subtype: "null" } : { objectId: "owner" } }
+            : method === "DOM.describeNode"
+              ? { node: { frameId: "FRAME-1" } }
+              : {},
+        ),
+    );
+
+    await dispatch({
+      entries,
+      method: "Input.insertText",
+      params: { text: "4242 4242 4242 4242" },
+      requestGuestFocus,
+    });
+
+    expect(wcSendCommand).toHaveBeenCalledWith(
+      "Input.insertText",
+      { text: "4242 4242 4242 4242" },
+      "frame-session-1",
+    );
+    expect(requestGuestFocus).not.toHaveBeenCalled();
+  });
+
+  it("keeps the session of each frame the debugger attaches in a process of its own", () => {
+    const entry = makeEntry();
+    const attached = (sessionId: string, targetId: string, type: string) =>
+      noteFrameSession(entry, "Target.attachedToTarget", {
+        sessionId,
+        targetInfo: { targetId, type },
+      });
+
+    attached("frame-session-1", "FRAME-1", "iframe");
+    attached("worker-session", "WORKER-1", "worker");
+    attached("frame-session-2", "FRAME-2", "iframe");
+    noteFrameSession(entry, "Target.detachedFromTarget", {
+      sessionId: "frame-session-1",
+    });
+
+    expect([...entry.frameSessions]).toEqual([["FRAME-2", "frame-session-2"]]);
+  });
+
+  it("sends a frame's keys on its own session, with no focus check", async () => {
+    const { entries, requestGuestFocus, wcSendCommand } = makeUnfocusedEntry();
+    const wc = entries.get(TARGET_ID)!.webContents as unknown as {
+      executeJavaScriptInIsolatedWorld: ReturnType<typeof vi.fn>;
+    };
+
+    await dispatch({
+      entries,
+      frameSession: "frame-session-1",
+      method: "Input.insertText",
+      params: { text: "4242" },
+      requestGuestFocus,
+    });
+
+    expect(wcSendCommand).toHaveBeenCalledWith(
+      "Input.insertText",
+      { text: "4242" },
+      "frame-session-1",
+    );
+    expect(requestGuestFocus).not.toHaveBeenCalled();
+    expect(
+      wc.executeJavaScriptInIsolatedWorld.mock.calls.some(([, scripts]) =>
+        JSON.stringify(scripts).includes("hasFocus"),
+      ),
+    ).toBe(false);
   });
 });
 

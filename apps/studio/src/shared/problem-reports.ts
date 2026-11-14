@@ -133,10 +133,14 @@ export const FEEDBACK_ACTIONS_MS = 30 * 60_000;
 export const FEEDBACK_TOO_LARGE =
   "This chat is too big to send with your feedback.";
 
-/** The chat a feedback report is about: the outline of its records, and its title in quotes. */
+/** What a chat cut to fit a report left out: whole task logs, and records in all. */
+export type ChatTrim = { droppedLogs: number; droppedRecords: number };
+
+/** The chat a feedback report is about: the outline of its records, its title in quotes, and what fitting it left out. */
 export type ChatFeedbackDescription = {
   item: FeedbackItem;
   title: string;
+  trimmed?: ChatTrim;
 };
 
 /** What a feedback report can carry, for the dialog to offer. */

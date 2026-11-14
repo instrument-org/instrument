@@ -117,3 +117,39 @@ export function targetIdFromPartition(
   const result = BrowserTargetIdSchema.safeParse(raw);
   return result.success ? result.data : null;
 }
+
+/** The microphone and the camera, as a page asks for them. */
+export interface CaptureDevices {
+  audio: boolean;
+  video: boolean;
+}
+
+/** What a person told the browser about one device on one site: always, never, or ask each time. */
+export type SiteCaptureSetting = "allow" | "ask" | "block";
+
+/**
+ * Where a tab's page stands with the microphone and camera: what it is
+ * using now, the ask waiting on the person, what it was refused and why, and
+ * what its site was told.
+ */
+export interface GuestCapture {
+  /** What the page asked for that waits on the person's answer. */
+  ask: CaptureDevices | null;
+  /** Refused because the site was told never. */
+  blocked: CaptureDevices | null;
+  /** The device the person picked for the site, by name. */
+  devices: { audio?: string | undefined; video?: string | undefined };
+  /** The page's origin, which its settings are kept by. */
+  origin: string;
+  /** Its tracks are on but sending silence and a black picture. */
+  paused: boolean;
+  /** Asked for and refused because no person had just clicked in the tab. */
+  refused: CaptureDevices | null;
+  settings: { audio: SiteCaptureSetting; video: SiteCaptureSetting };
+  /** The page's host, as the popover names it. */
+  site: string;
+  /** Turned off for the app in the system's privacy settings. */
+  system: "camera" | "microphone" | null;
+  targetId: BrowserTargetId;
+  using: CaptureDevices;
+}

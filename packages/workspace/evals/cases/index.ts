@@ -18,6 +18,7 @@ import { BACKGROUND_PROCESS_EVALS } from "./background-processes";
 import { PROCESS_CONTROL_EVALS } from "./process-control";
 import { BROWSER_DATA_EVALS } from "./browser-data";
 import { BROWSER_SELECTION_EVALS } from "./browser-selection";
+import { BROWSER_TYPING_EVALS } from "./browser-typing";
 import { CHAT_HISTORY_EVALS } from "./chat-history";
 import { CHATS_ORGANIZE_EVALS } from "./chats-organize";
 import { PROJECTS_LIFECYCLE_EVALS } from "./projects-lifecycle";
@@ -50,6 +51,7 @@ import { SANDBOXED_PYTHON_EVALS } from "./sandboxed-python";
 import { SCENARIO_EVALS } from "./scenarios";
 import { SKILLS_IN_PLACE_EVALS } from "./skills-in-place";
 import { TEXT_TOOLS_EVALS } from "./text-tools";
+import { THINKING_OUT_LOUD_EVALS } from "./thinking-out-loud";
 import { TIME_ZONE_EVALS } from "./time-zone";
 import { SOURCE_LINKS_EVALS } from "./source-links";
 import { TASK_APP_SETUP_EVALS } from "./task-app-setup";
@@ -91,6 +93,7 @@ export const EVALS = [
   ...PROCESS_CONTROL_EVALS,
   ...BROWSER_DATA_EVALS,
   ...BROWSER_SELECTION_EVALS,
+  ...BROWSER_TYPING_EVALS,
   ...CHAT_HISTORY_EVALS,
   ...CHATS_ORGANIZE_EVALS,
   ...PROJECTS_RESTYLE_EVALS,
@@ -126,6 +129,7 @@ export const EVALS = [
   ...SCENARIO_EVALS,
   ...SKILLS_IN_PLACE_EVALS,
   ...TEXT_TOOLS_EVALS,
+  ...THINKING_OUT_LOUD_EVALS,
   ...TIME_ZONE_EVALS,
   ...SOURCE_LINKS_EVALS,
   ...TASK_APP_SETUP_EVALS,

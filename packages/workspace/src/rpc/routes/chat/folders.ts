@@ -74,6 +74,25 @@ export const liveChatOwnFolder = base
   });
 
 /**
+ * Each move of a chat's own folder to its title, from where it was to where
+ * it is, for every chat: what a window's tabs standing in the folder follow.
+ */
+export const chatFolderMoves = base
+  .output(
+    eventIterator(
+      z.object({ from: z.string(), id: ChatIdSchema, to: z.string() }),
+    ),
+  )
+  .handler(async function* ({ signal }) {
+    for await (const { from, id, to } of publisher.subscribe(
+      "chat.folderMoved",
+      { signal },
+    )) {
+      yield { from, id, to };
+    }
+  });
+
+/**
  * The chat's own folder while it has files in it beside its `CHAT.md`, null
  * otherwise (`chatFolderWithFiles`): what the chat's head offers to open.
  * Read again when the chat writes a message (a turn saving a file, a person

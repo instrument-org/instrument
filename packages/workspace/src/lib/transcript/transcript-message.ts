@@ -97,9 +97,26 @@ export type TranscriptPart =
   | SessionMessagePart.ToolPart
   | StepPart;
 
+/**
+ * The computer a message was sent on, as its records say: its name, and
+ * whether it is this one.
+ */
+export interface WrittenOn {
+  device: string;
+  here: boolean;
+  name: string;
+}
+
 export type TranscriptMessage =
   | (SessionMessage.Assistant & { parts: TranscriptPart[] })
-  | (SessionMessage.User & { parts: TranscriptPart[] });
+  | (SessionMessage.User & {
+      parts: TranscriptPart[];
+      /**
+       * Where the person sent it, once its records are read: a chat picked up
+       * on another computer draws a line where it moved (`chatSeparators`).
+       */
+      writtenOn?: WrittenOn;
+    });
 
 /** Parts that are no row of their own, yet shape what the transcript draws. */
 const READ_THOUGH_HIDDEN = new Set<SessionMessagePart.DataPart["type"]>([
@@ -121,10 +138,11 @@ const RESULTS_SHOWN = 8;
 
 /**
  * A stored message as the transcript draws it, or nothing for one it does not
- * draw.
+ * draw. `writtenOn` says which computer the person sent a message on.
  */
 export function transcriptMessage(
   message: SessionMessage.WithParts,
+  writtenOn?: WrittenOn,
 ): TranscriptMessage | undefined {
   if (message.role !== "assistant" && message.role !== "user") {
     return undefined;
@@ -132,7 +150,9 @@ export function transcriptMessage(
   const parts = message.parts.flatMap((part) =>
     transcriptParts(part, message.parts),
   );
-  return { ...message, parts };
+  return message.role === "user" && writtenOn !== undefined
+    ? { ...message, parts, writtenOn }
+    : { ...message, parts };
 }
 
 /** A thought's words: a provider that keeps them to itself leaves a marker. */

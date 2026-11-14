@@ -33,7 +33,7 @@ Judgment a feature needs comes from the model the chat runs on: a side call like
 
 ## Evals
 
-`pnpm eval` runs the real agent loop against real models (`evals/`, cases in `evals/cases/`). `--model` is required, start on Workers AI, and name the models you ran. The `workspace-evals` skill has the rest; the `validate-changes` skill says whether an eval is the right check at all.
+`pnpm eval` runs the real agent loop against real models (`evals/`, cases in `evals/cases/`). `--model` is required, test on Claude Haiku 5.5 through the Claude account, and name the models you ran. The `workspace-evals` skill has the rest; the `validate-changes` skill says whether an eval is the right check at all.
 
 A commit that adds, drops, or reverses a rule for how an agent behaves (its prompt in `src/model-text/system-prompt.ts`, or text a command prints for the model to act on) names the eval case covering that rule in a `Tested:` trailer, with the models it ran on, and adds a case under `evals/cases/` when none covers it. Rewording that keeps the rule is exempt, and so is a change no run could tell apart; say which in the commit. A rule tuned to one transcript and reversed for the next is how prompt churn happens, and a case pinning the behavior is what shows the next reversal what it would undo. Prefer a command refusal to a prompt rule wherever a command can enforce it: refusals hold where prose drifts.
 

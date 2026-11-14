@@ -135,6 +135,7 @@ describe("a folder's names a whole path reaches", () => {
         ],
         kind: "listing",
         path: folder,
+        total: 1,
         truncated: false,
       });
     }

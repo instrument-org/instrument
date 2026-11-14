@@ -6,7 +6,6 @@
  * One process per run because a run's fixtures and output live in its home
  * and workspace folder, which a process shares across everything it runs.
  *
- *   node --import tsx evals/handoff-matrix.ts run --model glm --repeat 3
  *   node --import tsx evals/handoff-matrix.ts run --model plan-luna --model or-haiku55 --cases guide,email --out <dir>
  *   node --import tsx evals/handoff-matrix.ts summarize <dir>
  *   node --import tsx evals/handoff-matrix.ts rescore <dir>
@@ -19,9 +18,9 @@
  * folder.
  *
  * Models are limited to the ChatGPT plan (`plan-luna`, `plan-sol`),
- * Workers AI (`glm`, or `cf:<id>`), and the metered models cleared for spend
+ * Workers AI (`cf:<id>`), and the metered models cleared for spend
  * through OpenRouter: `or-luna` (`openai/gpt-5.6-luna`), `or-luna6`
- * (`openai/gpt-6-luna`), `or-glm` (`z-ai/glm-5.3-flash`) and `or-haiku55`
+ * (`openai/gpt-6-luna`) and `or-haiku55`
  * (`anthropic/claude-haiku-5.5`); anything else metered is refused. Every metered provider key is blanked in the child's
  * environment, so nothing a run does can fall back to one, except the
  * OpenRouter key on an `or-*` run, where `evals/lib/pin-openrouter-model.ts`
@@ -122,7 +121,6 @@ const PLAN = "providerConfigId=chatgpt-plan";
  * on one is pinned to that model alone.
  */
 const OPENROUTER_MODELS: Record<string, string> = {
-  "or-glm": "z-ai/glm-5.3-flash",
   "or-haiku55": "anthropic/claude-haiku-5.5",
   "or-luna": "openai/gpt-5.6-luna",
   "or-luna6": "openai/gpt-6-luna",
@@ -140,7 +138,6 @@ function pinnedOpenRouterModel(uri?: string): string | undefined {
 }
 
 const MODEL_ALIASES: Record<string, string> = {
-  glm: `zai-org/glm-5.3-flash?provider=openai-compatible&${WORKERS_AI}`,
   ...Object.fromEntries(
     Object.entries(OPENROUTER_MODELS).map(([alias, model]) => [
       alias,
@@ -1033,7 +1030,7 @@ if (subcommand === "summarize" && target) {
   await openRouterUsage();
 } else {
   process.stderr.write(
-    "Usage: handoff-matrix.ts run --model <glm|plan-luna|plan-sol|or-luna|or-luna6|or-glm|or-haiku55|cf:id> [--model ...] [--repeat n] [--concurrency n] [--max-run-tokens n] [--cases guide,email] [--out dir]\n       handoff-matrix.ts summarize <dir>\n       handoff-matrix.ts rescore <dir>\n       handoff-matrix.ts plan-usage\n       handoff-matrix.ts openrouter-usage\n",
+    "Usage: handoff-matrix.ts run --model <plan-luna|plan-sol|or-luna|or-luna6|or-haiku55|cf:id> [--model ...] [--repeat n] [--concurrency n] [--max-run-tokens n] [--cases guide,email] [--out dir]\n       handoff-matrix.ts summarize <dir>\n       handoff-matrix.ts rescore <dir>\n       handoff-matrix.ts plan-usage\n       handoff-matrix.ts openrouter-usage\n",
   );
   process.exit(1);
 }

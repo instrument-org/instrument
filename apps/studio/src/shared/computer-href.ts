@@ -41,3 +41,48 @@ export function folderHref(
 ) {
   return `/files${defaultStringifySearch({ path, root: hostPath, select })}`;
 }
+
+/** The query keys of a Files address that name a folder or a file by its path. */
+const FILES_ADDRESS_PATHS = new Set(["file", "root", "tree"]);
+
+/**
+ * A Files address (`/files?root=<path>`) with the folder or file each of its
+ * paths names put where `where` says that path is now; any other address,
+ * and an address naming nothing `where` moves, as it was.
+ */
+export function movedFilesAddress(
+  address: string,
+  where: (hostPath: string) => string,
+): string {
+  if (!address.startsWith("/files?")) {
+    return address;
+  }
+  const at = address.indexOf("?");
+  const query = address
+    .slice(at + 1)
+    .split("&")
+    .map((pair) => {
+      const equals = pair.indexOf("=");
+      const key = pair.slice(0, equals);
+      if (equals === -1 || !FILES_ADDRESS_PATHS.has(key)) {
+        return pair;
+      }
+      // Written by `fileHref` with each space as `%20`, or by the router
+      // (`folderHref`) as a form is, each space a `+`; written back the way
+      // it was found.
+      const value = pair.slice(equals + 1);
+      let hostPath: string;
+      try {
+        hostPath = decodeURIComponent(value.replaceAll("+", " "));
+      } catch {
+        return pair;
+      }
+      const moved = where(hostPath);
+      if (moved === hostPath) {
+        return pair;
+      }
+      const encoded = encodeURIComponent(moved);
+      return `${key}=${value.includes("+") ? encoded.replaceAll("%20", "+") : encoded}`;
+    });
+  return `${address.slice(0, at)}?${query.join("&")}`;
+}

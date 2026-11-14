@@ -1,4 +1,8 @@
 import {
+  PAGE_CAPTURE_CHANNEL,
+  PAGE_CAPTURE_DEVICES_CHANNEL,
+  PAGE_CAPTURE_PAUSE_CHANNEL,
+  PAGE_CAPTURE_STOP_CHANNEL,
   PAGE_EDITOR_BOOT_CHANNEL,
   PAGE_EDGE_CHANNEL,
   PAGE_EDITOR_CHANNEL,
@@ -21,7 +25,7 @@ import { type PageEditorGuestMessage } from "@/shared/page-editor-messages";
  * changes the page's DOM, and the page's scripts cannot see it, call it, or
  * reach the channel it talks to the window on.
  */
-import { ipcRenderer, webFrame } from "electron";
+import { contextBridge, ipcRenderer, webFrame } from "electron";
 
 import { type PageEditorBoot, type PageEditorBridge } from "./bridge";
 import { installObserver } from "./editor/observer";
@@ -363,6 +367,206 @@ function swallow(event: MouseEvent) {
   }
 }
 
+/** The DOM events between the page's world and this one: what the page captures, and the window's Stop, Pause and picked devices. */
+const CAPTURE_EVENTS = {
+  devices: "instrument-page-capture-devices",
+  pause: "instrument-page-capture-pause",
+  report: "instrument-page-capture",
+  stop: "instrument-page-capture-stop",
+};
+
+/**
+ * Tells main what the page is capturing, which no Electron event says: the
+ * page's `getUserMedia` and its tracks' `stop` and `clone` are wrapped in the
+ * page's own world before its first script, and each change goes out as a
+ * DOM event this world hears, with only a string on it (an object would not
+ * cross between the worlds). Main's Stop comes back the same way, and ends
+ * every track as though its device went away; so do Pause, which turns the
+ * tracks off without ending them, and the devices the person picked for the
+ * site, which replace a default device the page did not choose itself.
+ */
+function reportCapture() {
+  if (!/^https?:$/.test(location.protocol)) {
+    return;
+  }
+  document.addEventListener(CAPTURE_EVENTS.report, (event) => {
+    if (event instanceof CustomEvent && typeof event.detail === "string") {
+      ipcRenderer.send(PAGE_CAPTURE_CHANNEL, event.detail);
+    }
+  });
+  const toPage = (name: string, detail = "") => {
+    document.dispatchEvent(new CustomEvent(name, { detail }));
+  };
+  ipcRenderer.on(PAGE_CAPTURE_STOP_CHANNEL, () => {
+    toPage(CAPTURE_EVENTS.stop);
+  });
+  ipcRenderer.on(PAGE_CAPTURE_PAUSE_CHANNEL, (_event, paused: unknown) => {
+    toPage(CAPTURE_EVENTS.pause, paused === true ? "1" : "");
+  });
+  ipcRenderer.on(PAGE_CAPTURE_DEVICES_CHANNEL, (_event, devices: unknown) => {
+    if (typeof devices === "string") {
+      toPage(CAPTURE_EVENTS.devices, devices);
+    }
+  });
+  try {
+    contextBridge.executeInMainWorld({
+      args: [CAPTURE_EVENTS],
+      func: watchCaptureInPage,
+    });
+  } catch {
+    // A page with no main world to run in has no tracks to watch either.
+  }
+}
+
+/** Runs in the page's world, so everything it uses is its own. */
+function watchCaptureInPage(names: {
+  devices: string;
+  pause: string;
+  report: string;
+  stop: string;
+}) {
+  const devices = navigator.mediaDevices as MediaDevices | undefined;
+  if (!devices || typeof devices.getUserMedia !== "function") {
+    return;
+  }
+  const live = new Set<MediaStreamTrack>();
+  let told = "";
+  const tell = () => {
+    let audio = false;
+    let video = false;
+    for (const track of live) {
+      if (track.readyState !== "live") {
+        live.delete(track);
+      } else if (track.kind === "audio") {
+        audio = true;
+      } else {
+        video = true;
+      }
+    }
+    const kinds = [audio && "audio", video && "video"]
+      .filter(Boolean)
+      .join(",");
+    if (kinds !== told) {
+      told = kinds;
+      document.dispatchEvent(new CustomEvent(names.report, { detail: kinds }));
+    }
+  };
+  let paused = false;
+  /** The devices picked for the site, by name, as main last said. */
+  let picked: { audio?: string; video?: string } = {};
+  const watch = (track: MediaStreamTrack) => {
+    live.add(track);
+    track.addEventListener("ended", tell);
+    if (paused) {
+      track.enabled = false;
+    }
+  };
+  const getUserMedia = devices.getUserMedia.bind(devices);
+  const enumerate = devices.enumerateDevices.bind(devices);
+  /**
+   * Swaps a track the page left to the default device for the one picked
+   * for the site, in place in the stream it was handed, so the page's first
+   * picture and sound come from the device the person chose.
+   */
+  const swapToPicked = async (
+    stream: MediaStream,
+    constraints: MediaStreamConstraints | undefined,
+  ) => {
+    for (const kind of ["audio", "video"] as const) {
+      const asked = constraints?.[kind];
+      const name = picked[kind];
+      const track = stream.getTracks().find((each) => each.kind === kind);
+      if (
+        !asked ||
+        !name ||
+        !track ||
+        track.label === name ||
+        (typeof asked === "object" && asked.deviceId !== undefined)
+      ) {
+        continue;
+      }
+      const device = (await enumerate()).find(
+        (each) => each.kind === `${kind}input` && each.label === name,
+      );
+      if (!device) {
+        continue;
+      }
+      const swap = await getUserMedia({
+        [kind]: {
+          ...(typeof asked === "object" ? asked : {}),
+          deviceId: { exact: device.deviceId },
+        },
+      }).catch(() => null);
+      const fresh = swap?.getTracks()[0];
+      if (!fresh) {
+        continue;
+      }
+      stream.removeTrack(track);
+      stop.call(track);
+      live.delete(track);
+      stream.addTrack(fresh);
+    }
+  };
+  devices.getUserMedia = async (constraints) => {
+    const stream = await getUserMedia(constraints);
+    await swapToPicked(stream, constraints).catch(() => undefined);
+    stream.getTracks().forEach(watch);
+    tell();
+    return stream;
+  };
+  const trackProto = MediaStreamTrack.prototype;
+  // oxlint-disable-next-line typescript/unbound-method -- kept to call on each track with `.call`, past the wrapper
+  const stop = trackProto.stop;
+  trackProto.stop = function (this: MediaStreamTrack) {
+    stop.call(this);
+    if (live.delete(this)) {
+      tell();
+    }
+  };
+  // oxlint-disable-next-line typescript/unbound-method -- kept to call on each track with `.call`, past the wrapper
+  const cloneTrack = trackProto.clone;
+  trackProto.clone = function (this: MediaStreamTrack) {
+    const copy = cloneTrack.call(this);
+    if (live.has(this)) {
+      watch(copy);
+    }
+    return copy;
+  };
+  // oxlint-disable-next-line typescript/unbound-method -- kept to call on each stream with `.call`, past the wrapper
+  const cloneStream = MediaStream.prototype.clone;
+  MediaStream.prototype.clone = function (this: MediaStream) {
+    const copy = cloneStream.call(this);
+    if (this.getTracks().some((track) => live.has(track))) {
+      copy.getTracks().forEach(watch);
+    }
+    return copy;
+  };
+  document.addEventListener(names.devices, (event) => {
+    if (event instanceof CustomEvent && typeof event.detail === "string") {
+      try {
+        picked = JSON.parse(event.detail) as typeof picked;
+      } catch {
+        picked = {};
+      }
+    }
+  });
+  document.addEventListener(names.pause, (event) => {
+    paused = event instanceof CustomEvent && event.detail === "1";
+    for (const track of live) {
+      track.enabled = !paused;
+    }
+  });
+  document.addEventListener(names.stop, () => {
+    for (const track of live) {
+      stop.call(track);
+      track.dispatchEvent(new Event("ended"));
+    }
+    live.clear();
+    tell();
+  });
+}
+
 handThumbsToWindow();
 handKeysToWindow();
+reportCapture();
 boot();

@@ -8,6 +8,7 @@ import { describe, expect, it } from "vitest";
 import {
   EMPTY_GUEST_MEMO,
   type GuestMemo,
+  putAwayGuests,
   reconcileGuests,
 } from "./reconcile-guests";
 
@@ -75,5 +76,27 @@ describe("reconcileGuests", () => {
         (result) => result.close.length,
       ),
     ).toEqual([1, 0, 0, 0, 1]);
+  });
+});
+
+describe("putAwayGuests", () => {
+  it("names the attached guests held only as a step of a tab's history", () => {
+    expect(
+      putAwayGuests({
+        attached: new Set([windowGuest(open), windowGuest(visited)]),
+        heldIds: new Set([open, visited, closed]),
+        upIds: new Set([open]),
+      }),
+    ).toEqual([windowGuest(visited)]);
+  });
+
+  it("leaves out a page a tab shows and a guest no tab holds", () => {
+    expect(
+      putAwayGuests({
+        attached: new Set([windowGuest(open), windowGuest(closed)]),
+        heldIds: new Set([open]),
+        upIds: new Set([open]),
+      }),
+    ).toEqual([]);
   });
 });

@@ -19,6 +19,16 @@ import {
   guestSignIns,
 } from "@/electron-main/browser-view/manager";
 import {
+  allowCapture,
+  answerAsk,
+  listCaptures,
+  pauseCapture,
+  reloadCapturePage,
+  setSiteCapture,
+  stopCapture,
+  systemRefusal,
+} from "@/electron-main/browser-view/page-capture";
+import {
   savePageAs,
   sharePage,
 } from "@/electron-main/browser-view/page-actions";
@@ -123,6 +133,14 @@ const events = {
 };
 
 const live = {
+  // What each tab's page is using of the microphone and camera, or was
+  // refused, sent again whenever that changes.
+  captures: base.handler(async function* ({ signal }) {
+    yield* liveRead({
+      changes: [publisher.subscribe("browser.capture-changed", { signal })],
+      read: listCaptures,
+    });
+  }),
   // The sites with a certificate a person trusted anyway this run.
   certificateExceptions: base.handler(async function* ({ signal }) {
     yield* liveRead({
@@ -188,6 +206,18 @@ const syncGuestShown = base
     if (isForHost(context.webContentsId, input.targetId)) {
       getBrowserViewManager().setGuestShown(input.targetId, input.shown);
     }
+  });
+
+// The window's pages it holds only as a step of a tab's history, back or
+// forward from what the tab shows, reported whole on each change. Main closes
+// one of them that makes sound.
+const syncGuestsPutAway = base
+  .input(z.object({ targetIds: z.array(BrowserTargetIdSchema) }))
+  .handler(({ context, input }) => {
+    getBrowserViewManager().setGuestsPutAway(
+      context.webContentsId,
+      input.targetIds,
+    );
   });
 
 const syncHostFocus = base.handler(() => {
@@ -349,6 +379,86 @@ const answerSignIn = base
   });
 
 /**
+ * Stop on a page using the microphone or camera: its tracks end, and it
+ * needs a fresh click to have them again.
+ */
+const stopPageCapture = base
+  .input(z.object({ targetId: BrowserTargetIdSchema }))
+  .handler(({ input }) => {
+    stopCapture(input.targetId);
+  });
+
+/** Pause or Resume on a page in a call: its tracks stay, sending silence and a black picture while paused. */
+const pausePageCapture = base
+  .input(z.object({ paused: z.boolean(), targetId: BrowserTargetIdSchema }))
+  .handler(({ input }) => {
+    pauseCapture(input.targetId, input.paused);
+  });
+
+/**
+ * The person's answer to a page's ask for the microphone or camera, with the
+ * devices they picked in it by name.
+ */
+const answerPageCapture = base
+  .input(
+    z.object({
+      answer: z.enum(["always", "dismiss", "never", "once"]),
+      devices: z.object({
+        audio: z.string().optional(),
+        video: z.string().optional(),
+      }),
+      targetId: BrowserTargetIdSchema,
+    }),
+  )
+  .handler(({ input }) => {
+    answerAsk(input.targetId, input);
+  });
+
+/** What the page's site gets of one device from now on, set from its mark. */
+const setPageCaptureSetting = base
+  .input(
+    z.object({
+      setting: z.enum(["allow", "ask", "block"]),
+      targetId: BrowserTargetIdSchema,
+      type: z.enum(["audio", "video"]),
+    }),
+  )
+  .handler(({ input }) => {
+    setSiteCapture(input.targetId, input.type, input.setting);
+  });
+
+/**
+ * Asks the system for what the ask's preview is about to show, the way a
+ * page's grant does: the device it refused the app, or null.
+ */
+const askSystemForCapture = base
+  .input(z.object({ audio: z.boolean(), video: z.boolean() }))
+  .output(z.enum(["camera", "microphone"]).nullable())
+  .handler(({ input }) =>
+    systemRefusal([
+      ...(input.audio ? (["audio"] as const) : []),
+      ...(input.video ? (["video"] as const) : []),
+    ]),
+  );
+
+/** Reload on a page refused by its site's settings, after the person changed them. */
+const reloadPageForCapture = base
+  .input(z.object({ targetId: BrowserTargetIdSchema }))
+  .handler(({ input }) => {
+    reloadCapturePage(input.targetId);
+  });
+
+/**
+ * Allow on a page that asked for the microphone or camera with no click to
+ * go on: its site may have them in that tab, and the page loads again.
+ */
+const allowPageCapture = base
+  .input(z.object({ targetId: BrowserTargetIdSchema }))
+  .handler(({ input }) => {
+    allowCapture(input.targetId);
+  });
+
+/**
  * "Continue" on a page refused for its certificate: trusts that certificate
  * for its site until the app quits and loads the page again.
  */
@@ -415,8 +525,15 @@ function duckDuckGoRegion(locale: string) {
 }
 
 export const browser = {
+  allowPageCapture,
+  answerPageCapture,
   answerSignIn,
+  askSystemForCapture,
   continueDespiteCertificate,
+  pausePageCapture,
+  reloadPageForCapture,
+  setPageCaptureSetting,
+  stopPageCapture,
   downloads,
   events,
   lastLoad,
@@ -427,6 +544,7 @@ export const browser = {
   setEmulatedDevice,
   syncFocus,
   syncGuestShown,
+  syncGuestsPutAway,
   syncGuestSurface,
   syncHostFocus,
   syncRasterBudget,

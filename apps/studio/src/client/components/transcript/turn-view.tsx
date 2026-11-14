@@ -1,10 +1,12 @@
 import { type ChatSeparator } from "@/client/lib/chat-separators";
 import { type InstructionsChange } from "@/client/lib/instructions-changes";
+import { cn } from "@/client/lib/utils";
 import { workedLine } from "@/client/lib/worked-line";
 import {
   type ChatId,
   FOLD_WAIT_MS,
   isTurnFolded,
+  type ReplyEnd,
   workCardOf,
   type SessionMessagePart,
   type StepPart,
@@ -20,8 +22,6 @@ import {
   memo,
   type ReactNode,
   use,
-  useLayoutEffect,
-  useRef,
   useState,
 } from "react";
 
@@ -65,7 +65,7 @@ import { useTranscriptCommands } from "./transcript-data";
 import { TranscriptActionsContext } from "./transcript-actions";
 import { TaskCardRow } from "./task-card";
 import { formatClock, usePassed, useTicking } from "./time";
-import { WakeLine } from "./wake-line";
+import { useWorkingFloor } from "./use-working-floor";
 
 /** How long the agent may sit between things before the transcript says it is thinking. */
 const THINKING_AFTER_MS = 1000;
@@ -106,21 +106,27 @@ function FoldingRow({ children, id }: { children: ReactNode; id: string }) {
  * token landing in the last reply redraws only the last turn.
  */
 export const TurnView = memo(function TurnView({
+  carriesOn,
   chatId,
   changes,
   hasCard,
   isLast,
+  replyEnd,
   separator,
   sessionId,
   turn,
   waitsForStep,
 }: {
+  /** It continues the turn above it as one reply, so it sits as close as that turn's rows. */
+  carriesOn: boolean;
   chatId: ChatId;
   /** What its message brought to the agent's project and workspace instructions. */
   changes: readonly InstructionsChange[] | undefined;
   /** Its card is the one up in the transcript (`workCardTurnOf`). */
   hasCard: boolean;
   isLast: boolean;
+  /** Its footer and card, when it is the last turn of its reply (`repliesOf`). */
+  replyEnd: ReplyEnd | undefined;
   separator: ChatSeparator | undefined;
   sessionId: StoreId.Session;
   turn: Turn;
@@ -143,15 +149,18 @@ export const TurnView = memo(function TurnView({
         </MessageScrollerItem>
       )}
       <MessageScrollerItem
-        className="group/assistant-turn flex flex-col gap-2"
+        className={cn(
+          "group/assistant-turn flex flex-col gap-2",
+          carriesOn && "-mt-4",
+        )}
         ref={floorRef}
         {...(turn.opener ? {} : { messageId: turn.id })}
       >
-        {turn.wokenBy && <WakeLine woken={turn.wokenBy} />}
         <TurnBody
           chatId={chatId}
           hasCard={hasCard}
           isLast={isLast}
+          replyEnd={replyEnd}
           sessionId={sessionId}
           turn={turn}
           waitsForStep={waitsForStep}
@@ -160,52 +169,6 @@ export const TurnView = memo(function TurnView({
     </>
   );
 });
-
-/**
- * Keeps a working turn from getting shorter. The card goes the moment the agent
- * says something, and the working line's second row with it, and the next
- * activity puts them back a moment later: holding the turn at the tallest it
- * has been leaves their room in place, so the end of the transcript does not
- * rise and fall at every narrated step. Once the turn stops working the room
- * it held closes on the fold's curve.
- *
- * The floor is set on the element as it is measured, before the frame paints,
- * so a turn never draws a frame shorter than it was. It reads layout pixels
- * (`offsetHeight`), which the window's zoom leaves alone.
- */
-function useWorkingFloor(isWorking: boolean) {
-  const ref = useRef<HTMLDivElement>(null);
-  const isReduced = useReducedMotion();
-  useLayoutEffect(() => {
-    const element = ref.current;
-    if (!element) {
-      return;
-    }
-    if (!isWorking) {
-      if (element.style.minHeight) {
-        element.style.transition = isReduced
-          ? ""
-          : `min-height ${(FOLD_TRANSITION.duration * 1000).toString()}ms cubic-bezier(${FOLD_TRANSITION.ease.join(", ")})`;
-        // To a length rather than unset, since a transition has no way to `auto`.
-        element.style.minHeight = "0px";
-      }
-      return;
-    }
-    element.style.transition = "";
-    let tallest = 0;
-    const observer = new ResizeObserver(() => {
-      if (element.offsetHeight > tallest) {
-        tallest = element.offsetHeight;
-        element.style.minHeight = `${tallest.toString()}px`;
-      }
-    });
-    observer.observe(element);
-    return () => {
-      observer.disconnect();
-    };
-  }, [isWorking, isReduced]);
-  return ref;
-}
 
 function OpenerView({
   chatId,
@@ -288,6 +251,7 @@ function TurnBody({
   chatId,
   hasCard,
   isLast,
+  replyEnd,
   sessionId,
   turn,
   waitsForStep,
@@ -295,6 +259,7 @@ function TurnBody({
   chatId: ChatId;
   hasCard: boolean;
   isLast: boolean;
+  replyEnd: ReplyEnd | undefined;
   sessionId: StoreId.Session;
   turn: Turn;
   waitsForStep: boolean;
@@ -305,7 +270,7 @@ function TurnBody({
   const releaseAutoScroll = useReleaseAutoScroll();
   const { onBranch } = use(TranscriptActionsContext);
   // A branch carries the conversation through the reply's last message.
-  const branchesAt = turn.inherited ? undefined : turn.replies.at(-1)?.id;
+  const branchesAt = turn.inherited ? undefined : replyEnd?.replies.at(-1)?.id;
   const card = isFolded || !hasCard ? undefined : workCardOf(turn);
   const cardOpens = useCardOpens(card !== undefined);
   // The card sits under the work it shows, whose working line it goes with,
@@ -366,8 +331,6 @@ function TurnBody({
     }
     return out;
   });
-  const hasReply =
-    turn.rows.findLast((row) => row.kind !== "note")?.kind === "text";
   return (
     <>
       <AnimatePresence custom={isFolded} initial={false}>
@@ -391,10 +354,10 @@ function TurnBody({
       {turn.phase !== "working" && (
         <CommandCards sessionId={sessionId} turn={turn} />
       )}
-      {turn.phase !== "working" && hasReply && turn.replies.length > 0 && (
+      {replyEnd?.hasFooter && (
         <ReplyFoot
           isLast={isLast}
-          messages={turn.replies}
+          messages={replyEnd.replies}
           onBranch={
             onBranch && branchesAt !== undefined
               ? () => onBranch(branchesAt)
@@ -402,7 +365,9 @@ function TurnBody({
           }
         />
       )}
-      {turn.ratingCard && <RatingCard chatId={chatId} part={turn.ratingCard} />}
+      {replyEnd?.ratingCard && (
+        <RatingCard chatId={chatId} part={replyEnd.ratingCard} />
+      )}
       {turn.branchedFrom && <BranchedFromLine part={turn.branchedFrom} />}
     </>
   );

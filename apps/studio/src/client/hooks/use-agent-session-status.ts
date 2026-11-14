@@ -20,9 +20,17 @@ export function useAgentSessionStatus({
 
   // The activity lists only sessions whose agent is alive, its tasks' included.
   const isChatAlive = sessionActors.length > 0;
+  const isChatRunning = sessionActors.some((actor) =>
+    isSessionRunning(actor.tags),
+  );
 
   if (!sessionId || sessionId === skipToken) {
-    return { isAgentAlive: false, isAgentRunning: false, isChatAlive };
+    return {
+      isAgentAlive: false,
+      isAgentRunning: false,
+      isChatAlive,
+      isChatRunning,
+    };
   }
 
   const tags = getSessionTags({ sessionActors, sessionId });
@@ -31,6 +39,7 @@ export function useAgentSessionStatus({
     isAgentAlive: isSessionAlive(tags),
     isAgentRunning: isSessionRunning(tags),
     isChatAlive,
+    isChatRunning,
   };
 }
 

@@ -1,5 +1,4 @@
 import { ScreenLink } from "@/client/components/skill-link";
-import { AppIcon } from "@/client/components/window/app-icon";
 import { memoryHref, skillHref } from "@/client/components/window/tab-location";
 import { SKILL_LIST_STALE_TIME_MS } from "@/client/lib/skill-query";
 import { rpcClient } from "@/client/rpc/client";
@@ -11,7 +10,6 @@ import {
 import { skillMentionLabel } from "@instrument-org/shared/skill-mention";
 import { CubeIcon } from "@phosphor-icons/react/Cube";
 import { FingerprintIcon } from "@phosphor-icons/react/Fingerprint";
-import { ShapesIcon } from "@phosphor-icons/react/Shapes";
 import { useQuery } from "@tanstack/react-query";
 import { type ReactNode, useState } from "react";
 
@@ -204,83 +202,6 @@ export function SkillChangesCard({
                 </ScreenLink>
               ) : (
                 label
-              )
-            }
-            quiet={gone}
-          />
-        );
-      })}
-    </ChangeCard>
-  );
-}
-
-/** What an app still needs before it works, in a few words, by its status; nothing for one that works. */
-const NEEDS = new Map([
-  ["needs-approval", "Needs your approval"],
-  ["needs-key", "Needs a key"],
-  ["needs-sign-in", "Needs you to sign in"],
-]);
-
-/**
- * The apps a turn set up, changed or removed, a row per app with its icon
- * and what it still needs, since a new one usually waits on a sign-in.
- * There is no Undo: removing an app drops its connection too.
- */
-export function AppChangesCard({
-  changes,
-}: {
-  changes: readonly SetupChange[];
-}) {
-  const { data } = useQuery(
-    rpcClient.apps.live.list.experimental_liveOptions(),
-  );
-  const { hidden, onShowMore, shown } = useShown(changes);
-  return (
-    <ChangeCard
-      heading={setupChangesHeading("app", changes)}
-      hidden={hidden}
-      icon={ShapesIcon}
-      onShowMore={onShowMore}
-      slot="app-changes"
-    >
-      {shown.map((change) => {
-        // The row names the app's folder; its page is at the id its file gives.
-        const app = data?.apps.find((each) => each.name === change.name);
-        const gone = change.change === "removed";
-        const needs = app && !gone ? NEEDS.get(app.status) : undefined;
-        return (
-          <ChangeRow
-            key={change.name}
-            lead={
-              app ? (
-                <AppIcon
-                  icon={app.icon}
-                  name={app.name}
-                  site={app.site}
-                  size="sm"
-                />
-              ) : (
-                <RowGlyph icon={ShapesIcon} />
-              )
-            }
-            lines={[
-              {
-                key: "done",
-                words: [setupChangeWord("app", change.change), needs]
-                  .filter(Boolean)
-                  .join(" · "),
-              },
-            ]}
-            name={
-              app && !gone ? (
-                <ScreenLink
-                  className={NAME_LINK_CLASS_NAME}
-                  href={`/apps/${app.slug}`}
-                >
-                  {change.name}
-                </ScreenLink>
-              ) : (
-                change.name
               )
             }
             quiet={gone}

@@ -45,6 +45,7 @@ const AskSchema = z.discriminatedUnion("type", [
     type: z.literal("pageNotOpened"),
     why: z.enum(["noAnswer", "notKept"]),
   }),
+  z.object({ type: z.literal("linkNotOpened") }),
   z.object({
     project: z.string().optional(),
     type: z.literal("newChat"),

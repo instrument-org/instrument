@@ -5,6 +5,7 @@ import {
   type ChatId,
   type StoreId,
   type TranscriptMessage,
+  repliesOf,
   type Turn,
   workCardTurnOf,
   turnsOf,
@@ -94,6 +95,7 @@ export function Transcript({
   const own = turns.filter((turn) => !turn.inherited);
   const last = turns.at(-1);
   const cardTurn = workCardTurnOf(turns);
+  const replies = repliesOf(turns);
   const pausedAtMaxSteps =
     !isRunning && last?.replies.at(-1)?.metadata.finishReason === "max-steps";
   const drawTurn = (turn: Turn) => (
@@ -103,6 +105,8 @@ export function Transcript({
       hasCard={turn.id === cardTurn}
       isLast={turn === last}
       key={turn.id}
+      carriesOn={replies.carriedOn.has(turn.id)}
+      replyEnd={replies.ends.get(turn.id)}
       separator={turn.opener && separators.get(turn.opener.message.id)}
       sessionId={sessionId}
       turn={turn}

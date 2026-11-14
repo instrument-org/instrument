@@ -94,6 +94,8 @@ export function useWindowCommands(
     notOpened: (count: number) => void;
     /** A hosted page a link from outside named that could not be opened: said, by its host. */
     pageNotOpened: (host: string, why: "noAnswer" | "notKept") => void;
+    /** A link from outside that is not one this build knows: said, in fixed words. */
+    linkNotOpened: () => void;
     /** A file handed to the app from outside it: a double click, Open With, or a launch naming it. */
     openFile: (hostPath: string) => void;
     /** A screen by its route, from outside the app, so in no tab yet. */
@@ -496,9 +498,10 @@ function openOrCloseCommandMenu() {
   }
 }
 
-/** Puts up what something outside the window asked for: a file, a screen by its route, a missing file, files left unopened or a page not opened said, a new chat's words, or a new chat. */
+/** Puts up what something outside the window asked for: a file, a screen by its route, a missing file, files left unopened, a page or a link not opened said, a new chat's words, or a new chat. */
 function answer(
   handlers: {
+    linkNotOpened: () => void;
     missingFile: (name: string, folder?: string) => void;
     notOpened: (count: number) => void;
     pageNotOpened: (host: string, why: "noAnswer" | "notKept") => void;
@@ -520,6 +523,10 @@ function answer(
     }
     case "pageNotOpened": {
       handlers.pageNotOpened(ask.host, ask.why);
+      break;
+    }
+    case "linkNotOpened": {
+      handlers.linkNotOpened();
       break;
     }
     case "newChat": {

@@ -6,30 +6,27 @@
 // mark in the same color) so they sit beside the built-ins as one family.
 // Markup is the inside of a <symbol viewBox="0 0 16 16">.
 
+import {
+  type FileType,
+  MEDIA_EXTENSIONS,
+  TRIED_MEDIA_EXTENSIONS,
+} from "@/client/lib/get-file-type";
+
 const PAGE = `<path fill="currentColor" d="M8 1v3a3 3 0 0 0 3 3h3v5.5a2.5 2.5 0 0 1-2.5 2.5h-7A2.5 2.5 0 0 1 2 12.5v-9A2.5 2.5 0 0 1 4.5 1z" opacity=".4"/><path fill="currentColor" d="M9.5 1a.5.5 0 0 1 .354.146l4 4A.5.5 0 0 1 14 5.5V6h-3a2 2 0 0 1-2-2V1z"/>`;
+
+/** The extensions the player is given for one kind of media, so the glyph and the player agree. */
+function played(type: FileType): string[] {
+  return Object.entries({ ...MEDIA_EXTENSIONS, ...TRIED_MEDIA_EXTENSIONS })
+    .filter(([, each]) => each === type)
+    .map(([extension]) => extension)
+    .sort();
+}
 
 export const FILE_TYPE_GLYPHS = {
   audio: {
     // Built-in palette: indigo.
     colors: ["#693acf", "#9d6afb"],
-    extensions: [
-      "aac",
-      "aif",
-      "aifc",
-      "aiff",
-      "caf",
-      "flac",
-      "m4a",
-      "mid",
-      "midi",
-      "mp3",
-      "oga",
-      "ogg",
-      "opus",
-      "wav",
-      "weba",
-      "wma",
-    ],
+    extensions: played("audio"),
     markup: `${PAGE}<path fill="currentColor" d="M8.25 12.5V8.1a.5.5 0 0 1 .68-.47l2.5.94a.5.5 0 0 1 .32.47v.9a.5.5 0 0 1-.68.47l-1.82-.68v2.77z"/><circle cx="7.5" cy="12.25" r="1.75" fill="currentColor"/>`,
   },
   binary: {
@@ -231,23 +228,7 @@ export const FILE_TYPE_GLYPHS = {
   video: {
     // Built-in palette: purple.
     colors: ["#a631be", "#d568ea"],
-    extensions: [
-      "3g2",
-      "3gp",
-      "avi",
-      "flv",
-      "m2ts",
-      "m4v",
-      "mkv",
-      "mov",
-      "mp4",
-      "mpeg",
-      "mpg",
-      "ogv",
-      "qt",
-      "webm",
-      "wmv",
-    ],
+    extensions: played("video"),
     markup: `${PAGE}<path fill="currentColor" d="M6 8.38v3.74a.5.5 0 0 0 .76.43l3.1-1.87a.5.5 0 0 0 0-.86l-3.1-1.87A.5.5 0 0 0 6 8.38"/>`,
   },
 } satisfies Record<

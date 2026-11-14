@@ -33,6 +33,7 @@ export {
   searchAppCatalogByMeaning,
 } from "./lib/apps/catalog";
 export { type AppEvent, appChanged } from "./lib/apps/changed";
+export { parseRecordFileName } from "./lib/records/file-names";
 export { accountSignedIn } from "./lib/chat/sign-in-wake";
 export { isDrivenByWorkingAgent } from "./lib/chat/driven-tabs";
 export { isPageWork } from "./logic/server/routes/cdp-task-bridge";
@@ -51,6 +52,7 @@ export {
   type SignInEnd,
 } from "./lib/apps/connection";
 export { waitInChat } from "./lib/chat/asks";
+export { computerPlaces } from "./lib/chat/computer-places";
 export {
   type AppManifest,
   AppSlugSchema,
@@ -178,6 +180,14 @@ export {
   newDeviceId,
 } from "./lib/records/device-id";
 export { readComputerName, writeDeviceFile } from "./lib/records/device-file";
+export {
+  DEVICE_STATUS_HEARTBEAT_MS,
+  type DeviceStatus,
+  isSameDeviceStatus,
+  readDarkWake,
+  writeDeviceStatusFile,
+  writeDeviceStatusFileSync,
+} from "./lib/records/device-status-file";
 export { readMachineId } from "./lib/records/machine-id";
 export {
   startRecordArrivals,

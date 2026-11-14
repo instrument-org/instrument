@@ -27,11 +27,16 @@ import {
 } from "./icloud-drive";
 
 /**
- * How many entries one listing carries. A folder past this shows the first in
- * the order the browser shows them, so what is missing is the end of the list
- * rather than a scattering through it.
+ * How many entries one listing carries. A folder past this keeps the ones
+ * modified last (`newestOf`). The listing runs in the main process
+ * and an open folder lists again every few seconds, so this bounds how long
+ * each pass holds the event loop: about 30 ms at 10,000 entries, 400 ms at
+ * 50,000.
  */
-const MAX_ENTRIES = 2000;
+const MAX_ENTRIES = 10_000;
+
+/** How many entries a folder past the cap stats at once while it finds its newest. */
+const STAT_BATCH = 1000;
 
 const ComputerEntrySchema = z.object({
   createdAt: z.number().optional(),
@@ -106,6 +111,9 @@ const ComputerListingSchema = z.object({
   kind: z.literal("listing"),
   /** The host path listed, `~` expanded. */
   path: z.string(),
+  /** How many entries the folder has, `entries` past the cap or not. */
+  total: z.number(),
+  /** That the folder is past the cap, and `entries` its newest. */
   truncated: z.boolean(),
 });
 export type ComputerListing = z.output<typeof ComputerListingSchema>;
@@ -209,9 +217,11 @@ export function accessIn(
 export async function listComputerFolder({
   path: input,
   chatId,
+  maxEntries = MAX_ENTRIES,
 }: {
   path: string;
   chatId: ChatId;
+  maxEntries?: number;
 }): Promise<ComputerFolder> {
   const asked = await resolveICloudPath(expandHomePath(input), exists);
   const hostPath = await resolveThroughAliases(
@@ -256,28 +266,19 @@ export async function listComputerFolder({
       ...(refusedBy === undefined ? {} : { refusedBy }),
     };
   }
-  const truncated = dirents.length > MAX_ENTRIES;
-
-  // Ordered before the cut so the cut is the one the browser would make. A
-  // link to a folder reads as a file here and as a folder once followed, which
-  // is why the described entries are ordered again below.
-  dirents.sort((a, b) =>
-    compareEntries(
-      { kind: a.isDirectory() ? "folder" : "file", name: a.name },
-      { kind: b.isDirectory() ? "folder" : "file", name: b.name },
-    ),
-  );
+  const truncated = dirents.length > maxEntries;
+  const kept = truncated
+    ? await newestOf(hostPath, dirents, maxEntries)
+    : dirents;
   const entries = await Promise.all(
-    dirents
-      .slice(0, MAX_ENTRIES)
-      .map((entry) =>
-        describeEntry(
-          hostPath,
-          entry.name,
-          hiddenNames.has(entry.name),
-          finder.get(entry.name.normalize("NFC")),
-        ),
+    kept.map((entry) =>
+      describeEntry(
+        hostPath,
+        entry.name,
+        hiddenNames.has(entry.name),
+        finder.get(entry.name.normalize("NFC")),
       ),
+    ),
   );
   const appFolders =
     process.platform === "darwin" && hostPath === iCloudDrivePath()
@@ -303,8 +304,42 @@ export async function listComputerFolder({
     entries: entries.filter((_entry, index) => !refused[index]),
     kind: "listing",
     path: hostPath,
+    total: dirents.length,
     truncated,
   };
+}
+
+/**
+ * The `count` entries of a folder modified last. A folder past the cap keeps
+ * its newest whatever order the browser shows, since what a person looks for
+ * in a folder that large (screenshots, downloads) is what came in lately, and
+ * one rule keeps every reader of the folder agreeing on what is in it. Read
+ * a batch at a time, so a large folder does not settle tens of thousands of
+ * reads on the main process in one turn of the event loop.
+ */
+async function newestOf(
+  folder: string,
+  dirents: readonly Dirent[],
+  count: number,
+): Promise<Dirent[]> {
+  const modifiedAt: number[] = [];
+  for (let at = 0; at < dirents.length; at += STAT_BATCH) {
+    modifiedAt.push(
+      ...(await Promise.all(
+        dirents.slice(at, at + STAT_BATCH).map((entry) =>
+          fs.lstat(path.join(folder, entry.name)).then(
+            (stats) => stats.mtimeMs,
+            () => 0,
+          ),
+        ),
+      )),
+    );
+  }
+  return dirents
+    .map((entry, index) => ({ entry, modifiedAt: modifiedAt[index] ?? 0 }))
+    .toSorted((a, b) => b.modifiedAt - a.modifiedAt)
+    .slice(0, count)
+    .map(({ entry }) => entry);
 }
 
 /**

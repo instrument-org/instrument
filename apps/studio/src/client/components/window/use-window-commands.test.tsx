@@ -48,6 +48,7 @@ const handlers = {
   newChatFromLink: vi.fn(),
   notOpened: vi.fn(),
   pageNotOpened: vi.fn(),
+  linkNotOpened: vi.fn(),
   newTab: vi.fn(),
   openFile: vi.fn(),
   openScreen: vi.fn(),
@@ -136,6 +137,18 @@ describe("useWindowCommands", () => {
       },
       { interval: 1 },
     );
+  });
+
+  it("says a link is not one it knows, with nothing of the link", async () => {
+    renderWithDefaultStore(<Window />);
+    stream.push({ type: "linkNotOpened" });
+    await vi.waitFor(
+      () => {
+        expect(handlers.linkNotOpened).toHaveBeenCalledTimes(1);
+      },
+      { interval: 1 },
+    );
+    expect(handlers.linkNotOpened).toHaveBeenCalledWith();
   });
 
   it("says how many files a link named past the most it opens", async () => {

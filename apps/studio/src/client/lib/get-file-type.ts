@@ -1,4 +1,7 @@
-import { CODE_EXTENSION_MIME_TYPES } from "@instrument-org/shared";
+import {
+  CODE_EXTENSION_MIME_TYPES,
+  MARKDOWN_EXTENSIONS,
+} from "@instrument-org/shared";
 
 import { isTextMimeType } from "./is-text-mime-type";
 
@@ -401,7 +404,7 @@ export const MEDIA_EXTENSIONS: Record<string, FileType> = {
  * have played. Kept out of `MEDIA_EXTENSIONS`, so the system's Open With
  * offers Instrument only for what it reliably plays.
  */
-const TRIED_MEDIA_EXTENSIONS: Record<string, FileType> = {
+export const TRIED_MEDIA_EXTENSIONS: Record<string, FileType> = {
   "3g2": "video",
   "3gp": "video",
   aif: "audio",
@@ -419,6 +422,7 @@ const TRIED_MEDIA_EXTENSIONS: Record<string, FileType> = {
   mpeg: "video",
   mpg: "video",
   mts: "video",
+  qt: "video",
   weba: "audio",
   wma: "audio",
   wmv: "video",
@@ -605,10 +609,10 @@ function isMarkdown({
   filename: string;
   mimeType?: string;
 }): boolean {
-  const lowerFilename = filename.toLowerCase();
+  const extension = filename.toLowerCase().split(".").at(-1) ?? "";
   return (
     mimeType === "text/markdown" ||
-    /\.(?:md|markdown|mdown|mkd|mdx)$/i.test(lowerFilename)
+    (filename.includes(".") && MARKDOWN_EXTENSIONS.includes(extension))
   );
 }
 

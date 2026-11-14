@@ -80,6 +80,7 @@ import module from "node:module";
 import { serveDrafts } from "./drafts/serve-drafts";
 import { serveKeptState } from "./stores/workspace/kept-state";
 import { serveSetupState } from "./lib/serve-setup-state";
+import { adoptSystemSidebarOnce } from "./lib/system-sidebar";
 import { serveBookmarks } from "./bookmarks/serve-bookmarks";
 import { serveRendererExceptions } from "./lib/renderer-exceptions";
 import { serveWindowActions } from "./lib/actions";
@@ -476,6 +477,10 @@ async function bootstrapPrimaryInstance() {
   // reporting, which is the only point at which the answer is worth writing
   // down, and it is written for a support conversation rather than for the app.
   void logGpuStatus(app);
+
+  // The first launch on a computer gives the Files sidebar the pins the
+  // system's own file manager shows.
+  void adoptSystemSidebarOnce();
 
   void startAuthCallbackServer();
 

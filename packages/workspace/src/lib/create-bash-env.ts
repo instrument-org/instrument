@@ -804,7 +804,7 @@ export function createBashDescription() {
 
     Any other program on the computer's PATH runs too, held to the same rules as the specialized commands below; \`which <name>\` says whether one is there.
 
-    IMPORTANT: Specialized commands below (e.g. ${FFMPEG_COMMAND.name}, ${FFPROBE_COMMAND.name}) are invoked by bare name only -- never by an absolute path. These binaries are also on PATH inside ${NODE_COMMAND.name} and ${PYTHON_COMMAND.name} scripts, so a script may shell out to \`${FFMPEG_COMMAND.name}\`/\`${FFPROBE_COMMAND.name}\` directly.
+    Specialized commands below (e.g. ${FFMPEG_COMMAND.name}, ${FFPROBE_COMMAND.name}) are the app's own builds, run by bare name; a copy installed elsewhere on the computer runs by its path. These binaries are also on PATH inside ${NODE_COMMAND.name} and ${PYTHON_COMMAND.name} scripts, so a script may shell out to \`${FFMPEG_COMMAND.name}\`/\`${FFPROBE_COMMAND.name}\` directly.
 
     Specialized commands:
     ${specializedCommands}

@@ -133,6 +133,18 @@ Load the `instrument-commit-message` skill before writing any commit message, an
 
 A commit that makes a choice ends with decision trailers, so the reasoning outlives the session that held it: `Rejected: <alternative> | <reason>`, `Commits-to: <contract later code must keep>`, `Not-tested: <what was not checked>`, `Related: <sha>`, `Follow-up: docs/follow-ups/<file>.md` on a commit that installs logging or another signal to look at later, and `Tested:` only for checks beyond the unit suites. Each line must make sense to a reader who never saw the session; leave one out rather than pad it. A commit that makes no choice carries none. Vocabulary and examples: `instrument-commit-message` skill. A brief for a subagent that commits points at that skill rather than listing trailers or pasting example ones, which the subagent reads as required.
 
+## Problem reports
+
+Feedback, crashes, hangs and errors people send from the app are problem reports, each with a fingerprint (`feedback:<id>`), read with the reports CLI in the `internal` reference (`agent-reference get internal`). A #customers card's text names the report's id, linked to its page (`reports.tryinstrument.com/reports/<id>`), which `pnpm --filter @instrument/reports reports files <id>` reads there; `reports show <fingerprint>` lists the issue's reports, the commits made for it and its history.
+
+A fix is tied to its report by the commit alone:
+
+- The commit carries `Report: <fingerprint>`, one line per report it fixes; `Report: <fingerprint> (partly)` when it leaves part of the report open, and `Related-report: <fingerprint>` for a change that fixes nothing. A squash-merged pull request carries the lines in its description, which becomes the commit's message.
+- Once the commit is on `main`, the reports worker ties it to the issue within seconds of the push (within ten minutes when GitHub's webhook delivery fails), resolves it, and tells its Slack card; when a published release contains it, the issue records the version, and only a report from that version or later reopens it. Nothing is resolved by hand for a fix.
+- What you learned that no commit records goes into the issue's history with `reports note <fingerprint> "<text>" --finding`: a cause, a report artifact that is not a bug, a complaint the fix leaves open. A commit that went out without its line is tied with `reports link <fingerprint> instrument <sha>`.
+- Writing back to the person who sent a report is done from the `internal` reference; its `AGENTS.md`, under Problem reports, says how.
+- A commit made for an ask in Slack (a teammate's thread, not a report) carries `Slack: <link to the thread's first message>` instead, and needs no issue: once it is on `main`, the reports worker replies once in that thread linking the commit. A commit can carry both kinds of line. Never post to the thread yourself, and never file a Slack ask as a report to get the reply.
+
 ## Repository knowledge base
 
 Durable, versioned docs are the system of record; prefer them over chat/history. Keep them evergreen and safe to share: leave out secrets and anything tied to one machine, person, or moment.

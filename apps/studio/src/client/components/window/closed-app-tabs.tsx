@@ -1,6 +1,10 @@
 import { freshTabId } from "@/client/lib/tab-actions";
 import { reopenClosed } from "@/client/lib/tabs-model";
-import { type ChatId, type StoreId } from "@instrument-org/workspace/client";
+import {
+  browserTargetOf,
+  type ChatId,
+  type StoreId,
+} from "@instrument-org/workspace/client";
 import { ChatCircleIcon } from "@phosphor-icons/react/ChatCircle";
 import { useAtom, useAtomValue } from "jotai";
 import { type ReactNode } from "react";
@@ -16,6 +20,7 @@ import {
 } from "./app-tabs";
 import { useAppsBySlug } from "./apps-by-slug";
 import { TabIcon } from "./browser-tabs";
+import { CaptureTabIcon, usePageCaptures } from "./page-capture-mark";
 import { useComputerVolumes } from "./computer-volumes";
 import { useFileTabTitles } from "./file-tab-titles";
 import { pageTabTitle } from "./file-tabs";
@@ -48,6 +53,9 @@ export function useAppTabPresentation({
   // and is what its entry in the closed list is named by.
   const putAway = useAtomValue(putAwaySitesAtom);
   const volumes = useComputerVolumes();
+  const captures = usePageCaptures().filter(
+    ({ using }) => using.audio || using.video,
+  );
   const { recentlyClosed, tabs } = useAtomValue(appTabsAtom);
   const fileTitles = useFileTabTitles(
     [...tabs, ...recentlyClosed].map((tab) => tab.pathname),
@@ -60,8 +68,20 @@ export function useAppTabPresentation({
       const up =
         own.find((tab) => tab.id === activeByGroup[group ?? ""]) ?? own[0];
       if (up?.kind === "page") {
+        // A page of the tab's using the microphone or camera, up or not,
+        // marks the tab, so the one in a call is the one to look for.
+        const capture = captures.find(({ targetId }) =>
+          own.some(
+            (tab) =>
+              tab.kind === "page" && targetId === browserTargetOf(tab.id),
+          ),
+        );
         return {
-          icon: <TabIcon favicon={up.favicon} url={up.url} />,
+          icon: capture ? (
+            <CaptureTabIcon paused={capture.paused} using={capture.using} />
+          ) : (
+            <TabIcon favicon={up.favicon} url={up.url} />
+          ),
           title: up.title || pageTabTitle(up) || "Page",
           url: up.url,
         };

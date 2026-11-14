@@ -62,6 +62,7 @@ import {
   readsLiveRegionsFirst,
   savedScreenshotPath,
 } from "./agent-browser-follow-up";
+import { typedTextRuns } from "./agent-browser-typed-text";
 import { cappedWaitResult, capWait, uncappedWait } from "./agent-browser-wait";
 import {
   jsonWithTabIds,
@@ -1015,6 +1016,10 @@ export function createAgentBrowserCommand({
             () => undefined,
           )
         : undefined;
+    // Typed text with line breaks inside it, which goes in as one insertion
+    // rather than with an Enter press per line.
+    const typedRuns =
+      isInfoOnly || browserFreeRead ? undefined : typedTextRuns(resolvedArgs);
     let result: Awaited<ReturnType<typeof runAgentBrowser>>;
     // When the command began, which the follow-up reads the page's messages
     // from.
@@ -1024,12 +1029,29 @@ export function createAgentBrowserCommand({
     const startedAt = performance.now();
     let elapsedMs: number;
     try {
-      result = await runAgentBrowser({
-        ...spawnOptions,
-        args: commandArgs,
-        cancelSignal: ctx.signal,
-        input: subprocessStdin(ctx.stdin),
-      });
+      if (typedRuns === undefined) {
+        result = await runAgentBrowser({
+          ...spawnOptions,
+          args: commandArgs,
+          cancelSignal: ctx.signal,
+          input: subprocessStdin(ctx.stdin),
+        });
+      } else {
+        // Each in turn, stopping at the first that fails, whose output is
+        // the command's; otherwise the last one's is.
+        result = { exitCode: 0, stderr: "", stdout: "" };
+        for (const run of typedRuns) {
+          result = await runAgentBrowser({
+            ...spawnOptions,
+            args: [...connectionArgs, ...run],
+            cancelSignal: ctx.signal,
+            input: undefined,
+          });
+          if (result.exitCode !== 0) {
+            break;
+          }
+        }
+      }
       elapsedMs = performance.now() - startedAt;
     } finally {
       if (drivesChatTabs) {

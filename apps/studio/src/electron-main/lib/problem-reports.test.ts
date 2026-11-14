@@ -3,6 +3,8 @@ import os from "node:os";
 import path from "node:path";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
+type WorkspaceElectron = typeof import("@instrument-org/workspace/electron");
+
 import {
   buildExceptionEvent,
   type ExceptionEvent,
@@ -34,16 +36,21 @@ vi.mock("./exception-store", () => ({
   listExceptionEvents: () => stored.events,
 }));
 
-vi.mock("@instrument-org/workspace/electron", () => ({
-  chatDir: () => {
-    throw new Error("No chat in these tests");
-  },
-  chatIds: () => [],
-  chatSessions: () => Promise.resolve([]),
-  chatStartedWithApp: () => Promise.resolve(undefined),
-  listMemories: () => Promise.resolve([]),
-  memoryDir: () => "/no-memory",
-}));
+vi.mock(
+  "@instrument-org/workspace/electron",
+  async (importOriginal: () => Promise<WorkspaceElectron>) => ({
+    // The record file parser is pure, and what the feedback picks turns on it.
+    parseRecordFileName: (await importOriginal()).parseRecordFileName,
+    chatDir: () => {
+      throw new Error("No chat in these tests");
+    },
+    chatIds: () => [],
+    chatSessions: () => Promise.resolve([]),
+    chatStartedWithApp: () => Promise.resolve(undefined),
+    listMemories: () => Promise.resolve([]),
+    memoryDir: () => "/no-memory",
+  }),
+);
 
 // `now` is who is known without asking, `later` who asking adds.
 vi.mock("@/electron-main/lib/apps", () => ({ getAppsDir: () => undefined }));
@@ -392,20 +399,20 @@ describe("feedback", () => {
     const chat = reports.chatFeedback({
       files: [
         file(
-          "state.mac1.json",
+          "state.dev_AAAAAAAA.json",
           JSON.stringify({
             closedTabs: [
               { title: "Inbox (3)", url: "https://mail.google.com/mail/u/0" },
             ],
           }),
         ),
-        file(`${TASK}.mac1.jsonl`, `${step}\n`),
-        file(`${OWN}.mac1.jsonl`),
-        file(`${OWN}.win1.jsonl`),
-        file("settings.mac1.jsonl"),
+        file(`${TASK}.dev_AAAAAAAA.jsonl`, `${step}\n`),
+        file(`${OWN}.dev_AAAAAAAA.jsonl`),
+        file(`${OWN}.dev_BBBBBBBB.jsonl`),
+        file("settings.dev_AAAAAAAA.jsonl"),
         file("handoff-notes.md"),
         // A sync engine's copy, and what is not a record, stay home.
-        file(`${OWN}.mac1 2.jsonl`),
+        file(`${OWN}.dev_AAAAAAAA 2.jsonl`),
         file("CHAT.md"),
         file("chat.db"),
       ],
@@ -419,10 +426,10 @@ describe("feedback", () => {
     expect(chat?.item.files.map((each) => `${each.label ?? ""}: ${each.path}`))
       .toMatchInlineSnapshot(`
       [
-        "“Help desk pricing”: chat/ses_01JB2W0000000000000000000A.mac1.jsonl",
-        "“Help desk pricing”: chat/ses_01JB2W0000000000000000000A.win1.jsonl",
-        "Task: Competitor pricing pages: chat/ses_01JB2W0000000000000000000B.mac1.jsonl",
-        "Chat settings: chat/settings.mac1.jsonl",
+        "“Help desk pricing”: chat/ses_01JB2W0000000000000000000A.dev_AAAAAAAA.jsonl",
+        "“Help desk pricing”: chat/ses_01JB2W0000000000000000000A.dev_BBBBBBBB.jsonl",
+        "Task: Competitor pricing pages: chat/ses_01JB2W0000000000000000000B.dev_AAAAAAAA.jsonl",
+        "Chat settings: chat/settings.dev_AAAAAAAA.jsonl",
       ]
     `);
     // What the task read, the pages a device's tabs had open and the notes a
@@ -440,6 +447,75 @@ describe("feedback", () => {
         0,
       ),
     );
+  });
+
+  it("keeps a long chat's header and newest records, cutting its tasks first", () => {
+    const log = (session: string, count: number) =>
+      [
+        JSON.stringify({ session, t: "header" }),
+        ...Array.from({ length: count }, (_, seq) =>
+          JSON.stringify({ seq, t: "note", text: "x".repeat(100) }),
+        ),
+      ].join("\n") + "\n";
+    const offer = (maxBytes: number) =>
+      reports.chatFeedback({
+        files: [
+          file(`${OWN}.dev_AAAAAAAA.jsonl`, log(OWN, 40)),
+          file(`${TASK}.dev_AAAAAAAA.jsonl`, log(TASK, 40)),
+        ],
+        maxBytes,
+        sessions: [
+          { id: OWN, title: "Help desk pricing" },
+          { id: TASK, parentId: OWN, title: "Competitor pricing pages" },
+        ],
+      });
+    // Half the whole chat: more than the task alone gives back.
+    const maxBytes = Math.floor((offer(Infinity)?.item.bytes ?? 0) / 2);
+    const chat = offer(maxBytes);
+    const kept = chat?.item.files.map((each) =>
+      each.content
+        .split("\n")
+        .filter(Boolean)
+        .map((line) => {
+          const record = JSON.parse(line) as { seq?: number; t: string };
+          return record.seq ?? record.t;
+        }),
+    );
+
+    expect(chat?.item.bytes).toBeLessThanOrEqual(maxBytes);
+    // The task keeps only its header; the chat's own keeps its newest.
+    expect(kept?.[1]).toEqual(["header"]);
+    expect(kept?.[0]?.[0]).toBe("header");
+    expect(kept?.[0]?.at(-1)).toBe(39);
+    expect(kept?.[0]?.length).toBeLessThan(41);
+    expect(chat?.trimmed).toEqual({
+      droppedLogs: 0,
+      droppedRecords: 40 + 41 - (kept?.[0]?.length ?? 0),
+    });
+    expect(offer(Infinity)?.trimmed).toBeUndefined();
+  });
+
+  it("leaves out the oldest tasks' logs when a chat has more than a report may carry", () => {
+    const tasks = ["B", "C", "D"].map(
+      (letter) => `ses_01JB2W000000000000000000${letter}${letter}`,
+    );
+    const chat = reports.chatFeedback({
+      files: [OWN, ...tasks].map((session) =>
+        file(`${session}.dev_AAAAAAAA.jsonl`),
+      ),
+      maxFiles: 2,
+      sessions: [
+        { id: OWN, title: "Help desk pricing" },
+        // Listed newest first, which the cut does not go by.
+        ...tasks.toReversed().map((id) => ({ id, parentId: OWN, title: id })),
+      ],
+    });
+
+    expect(chat?.item.files.map((each) => each.label)).toEqual([
+      "“Help desk pricing”",
+      `Task: ${tasks[2]}`,
+    ]);
+    expect(chat?.trimmed).toEqual({ droppedLogs: 2, droppedRecords: 2 });
   });
 
   const item = (
@@ -476,13 +552,15 @@ describe("feedback", () => {
 
   it("sends the items' files and events, with no details", () => {
     const sent = input([
-      item("chat", [{ content: "{}\n", path: `chat/${OWN}.mac1.jsonl` }]),
+      item("chat", [
+        { content: "{}\n", path: `chat/${OWN}.dev_AAAAAAAA.jsonl` },
+      ]),
       item("errors", [], [crashEvent()]),
     ]);
 
     expect(sent).toMatchObject({
       automatic: false,
-      files: [{ path: `chat/${OWN}.mac1.jsonl` }],
+      files: [{ path: `chat/${OWN}.dev_AAAAAAAA.jsonl` }],
       kind: "feedback",
     });
     expect(sent.events).toHaveLength(1);
@@ -497,7 +575,7 @@ describe("feedback", () => {
     );
     const chat = "y".repeat(800_000);
     const sent = input([
-      item("chat", [{ content: chat, path: `chat/${OWN}.mac1.jsonl` }]),
+      item("chat", [{ content: chat, path: `chat/${OWN}.dev_AAAAAAAA.jsonl` }]),
       item("errors", [], [crashEvent()]),
       item("log", [{ content: log, path: reports.FEEDBACK_LOG_PATH }]),
     ]);

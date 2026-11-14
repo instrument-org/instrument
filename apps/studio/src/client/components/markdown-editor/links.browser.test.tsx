@@ -48,9 +48,13 @@ const CASES = [
   ],
 ] as const;
 
-it.each(CASES)(
+it.each([
+  ...CASES.map(([href, target]) => [href, target, false] as const),
+  // A web page leaves the file where it is, in a tab of its own beside it.
+  ["https://example.com/", { kind: "page", url: "https://example.com/" }, true],
+] as const)(
   "clicking %s in the link tooltip opens what it names in the app",
-  async (href, target) => {
+  async (href, target, newTab) => {
     const onOpenLink = vi.fn();
     const view = await openMarkdownEditor(`See [the plan](${href}) here.\n`, {
       onOpenLink,
@@ -70,7 +74,7 @@ it.each(CASES)(
     await userEvent.click(address);
 
     expect(click.prevented).toBe(true);
-    expect(onOpenLink).toHaveBeenCalledExactlyOnceWith(target, false);
+    expect(onOpenLink).toHaveBeenCalledExactlyOnceWith(target, newTab);
   },
 );
 

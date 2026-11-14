@@ -19,6 +19,7 @@ Each entry is the finding's title and the opening of its own `Status:` line.
 - [A file the user asks for gets copied somewhere writable](a-fetched-file-gets-copied-somewhere-writable.md): fixed in 0c256870d, measured below;
 - [A part the store took is not a record yet](a-part-the-store-took-is-not-a-record-yet.md): closed 2026-10-15.
 - [A reply that arrives twice](a-reply-that-arrives-twice.md): fixed in f35744340, checked 2026-10-02.
+- [A sleeping Mac answers in dark wakes, late and with no promise](a-sleeping-mac-answers-in-dark-wakes.md): working as the platform designs it, researched and observed 2026-11-12.
 - [A stalled disk parks whatever reads it, the app and a test run alike](a-stalled-disk-parks-the-whole-test-run.md): the app path is bounded;
 - [A task cannot look at what it drew](a-task-cannot-look-at-what-it-drew.md): harness gap fixed in 95af4cfc3 (`hasNoWindow`;
 - [A thumbnail request nobody wants is still drawn](a-thumbnail-request-nobody-wants-is-still-drawn.md): contained, checked 2026-10-27.
@@ -26,6 +27,7 @@ Each entry is the finding's title and the opening of its own `Status:` line.
 - [Agent-browser's network-idle wait reports success when it times out](agent-browser-network-idle-reports-done-on-timeout.md): worked around in the wrapper (`agent-browser-wait.ts`), which gives an uncapped `wait --load networkidle` a five-second timeout and says so when the network...
 - [Orphaned agent-browser daemons](agent-browser-orphaned-daemons.md): partly fixed.
 - [Agent-browser snapshot refs die on the daemon idle timeout](agent-browser-ref-map-idle-ttl.md): fixed in 20647086c by raising the daemon idle timeout to five minutes;
+- [Agent-browser's `type` presses Enter for every line break](agent-browser-type-presses-enter-for-line-breaks.md): worked around in the wrapper (`agent-browser-typed-text.ts`), which types text with a line break inside it as one insertion;
 - [Agent clicks land where the element was, not where it is](agent-clicks-land-where-the-element-was.md): understood and worked around in the gateway (`apps/studio/src/electron-main/browser-view/dispatch-command.ts`);
 - [The agent's filesystem work stalls the window, and not by blocking it](agent-filesystem-work-stalls-the-window.md): contained: every agent shell runs in a worker thread since 57faeef2c (`packages/workspace/src/lib/bash-worker/`), which takes this stall off main;
 - [Agent prompt surface: what we measured, and what is still open](agent-prompt-surface-review.md): open items, measured once.
@@ -40,7 +42,7 @@ Each entry is the finding's title and the opening of its own `Status:` line.
 - [In-app browser: the guest's rasterized surface is capped at 1.3x the viewport](browser-guest-raster-cap.md): open — mechanism traced to Blink source, bound confirmed on macOS, Linux and Windows.
 - [The browser guest stacks under the renderer's own layers](browser-guest-stacks-under-the-renderer.md): verified on macOS.
 - [A page the user asked to see does not appear, because driving the browser never opens the pane](browsing-never-opens-the-pane.md): resolved in the 1.x window, likely moot in 2.0.
-- [CDP keyboard input goes to the focused widget, not the target you sent it on](cdp-keyboard-input-follows-window-focus.md): mitigated: keyboard commands reclaim guest focus before dispatching, refusing only when the guest never takes it back (19f9dd72e);
+- [CDP keyboard input goes to the focused widget, not the target you sent it on](cdp-keyboard-input-follows-window-focus.md): fixed for typing: text and keys go to the guest itself, or to a cross-origin frame on its own session, without taking the window's focus (`keyboard-without-f...
 - [Every tool-output budget counts characters, and moving them to tokens buys less than it looks like](character-budgets-are-a-token-proxy.md): open question, nothing planned.
 - [A chat's pane tabs drift from the window's tabs](chat-pane-tabs-drift-from-window-tabs.md): resolved in 6271b8163 and e77442cdb, checked 2026-11-07: the pane draws the window's strip in its squeezing mode.
 - [A ChatGPT account cannot generate images, so a plan-only user has no image tool](chatgpt-account-cannot-generate-images.md): known, by design upstream.

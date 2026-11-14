@@ -18,6 +18,12 @@ import { mayEnterFullScreen } from "./full-screen-policy";
 import { attachGuestInteractions } from "./guest-interactions";
 import { guests } from "./guest-registry";
 import { log } from "./log";
+import {
+  grantedTo,
+  handleMediaRequest,
+  listenForPageCapture,
+  originOf,
+} from "./page-capture";
 import { refusePasskeys } from "./passkey-policy";
 import {
   confineLocalPagesToTheirFolder,
@@ -108,9 +114,26 @@ export function configureGuestSession(profileDir: string): Session {
   // (`full-screen-exit.ts`). A page no slot is showing is still taken back
   // out (`leaveFullScreen` in `browser-pool.ts`). A link to another app (`slack://`) goes to that app
   // when a person just used the tab and says yes, or said its site always
-  // may.
+  // may. The microphone and camera are decided in `page-capture.ts`: a site
+  // told always or never, an ask at the omnibar's mark after a person's
+  // click in the tab, and refused otherwise.
   guestSession.setPermissionRequestHandler(
     (wc, permission, callback, details) => {
+      if (permission === "media") {
+        handleMediaRequest(
+          wc,
+          {
+            ...("mediaTypes" in details && details.mediaTypes
+              ? { mediaTypes: details.mediaTypes }
+              : {}),
+            ...("securityOrigin" in details && details.securityOrigin
+              ? { securityOrigin: details.securityOrigin }
+              : {}),
+          },
+          callback,
+        );
+        return;
+      }
       if (permission === "fullscreen") {
         const record = guests.get(wc.id);
         const host = wc.hostWebContents;
@@ -147,8 +170,14 @@ export function configureGuestSession(profileDir: string): Session {
       );
     },
   );
+  // A page granted the microphone or camera in a tab sees them as granted
+  // there (device names included) until the tab leaves for another origin.
   guestSession.setPermissionCheckHandler(
-    (_wc, permission) => permission === "clipboard-sanitized-write",
+    (wc, permission, requestingOrigin) =>
+      permission === "clipboard-sanitized-write" ||
+      (permission === "media" &&
+        !!wc &&
+        grantedTo(wc, originOf(requestingOrigin))),
   );
   // Normalize the guest's User-Agent to the shape an ordinary Chromium-derived
   // browser ships (and matching client hints) so third-party services treat it
@@ -160,6 +189,7 @@ export function configureGuestSession(profileDir: string): Session {
   refusePasskeys(guestSession, cspResponse);
   routeGuestDownloads(guestSession, guests);
   enableBrowserExtensions(guestSession, extensionsDirOf(profileDir));
+  listenForPageCapture();
   return guestSession;
 }
 

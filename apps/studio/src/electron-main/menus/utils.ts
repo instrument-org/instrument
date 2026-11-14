@@ -6,7 +6,7 @@ import { TOOLBAR_HEIGHT } from "@/shared/constants";
 import { SHORTCUT_GUIDE } from "@/shared/shortcut-guide";
 import { resolveAccelerator } from "@/shared/shortcuts";
 import { WINDOW_MENU_SHORTCUTS } from "@/shared/window-shortcuts";
-import { APP_URL, SUPPORT_URL } from "@instrument-org/shared";
+import { SUPPORT_URL } from "@instrument-org/shared";
 import { commandWindow } from "@/electron-main/windows/window-command";
 import {
   app,
@@ -257,8 +257,8 @@ export function createEditMenu(): MenuItemConstructorOptions {
 /**
  * `shortcutGuide` opens the keyboard shortcut guide and `reportProblem` the
  * report dialog, which only the app window draws once setup is done; a
- * window without them leaves the guide out and sends feedback to the
- * website's support page.
+ * window without them leaves both out, and Support is its way to reach us.
+ * The order matches the app rail's Help menu.
  */
 export function createHelpMenu({
   reportProblem,
@@ -271,8 +271,25 @@ export function createHelpMenu({
     label: "Help",
     role: "help" as const,
     submenu: [
+      ...(reportProblem
+        ? ([
+            {
+              click: reportProblem,
+              label: "Send Feedback…",
+              ...menuSymbol("exclamationmark.bubble"),
+            },
+          ] satisfies MenuItemConstructorOptions[])
+        : []),
+      {
+        click: () => {
+          void openExternal(SUPPORT_URL);
+        },
+        label: "Support",
+        ...menuSymbol("questionmark.circle"),
+      },
       ...(shortcutGuide
         ? ([
+            { type: "separator" },
             // No accelerator: the guide's `?` is the renderer's to answer,
             // since a bare key has to yield to whatever is being typed into.
             {
@@ -280,32 +297,8 @@ export function createHelpMenu({
               label: SHORTCUT_GUIDE.label,
               ...menuSymbol("keyboard"),
             },
-            { type: "separator" },
           ] satisfies MenuItemConstructorOptions[])
         : []),
-      {
-        click: () => {
-          void openExternal(APP_URL);
-        },
-        label: "Learn More",
-        ...menuSymbol("questionmark.circle"),
-      },
-      // The app window answers feedback itself, with the log and versions
-      // the person can read before sending; a window without the dialog
-      // sends people to the website's support page.
-      reportProblem
-        ? {
-            click: reportProblem,
-            label: "Send Feedback…",
-            ...menuSymbol("exclamationmark.bubble"),
-          }
-        : {
-            click: () => {
-              void openExternal(SUPPORT_URL);
-            },
-            label: "Send Feedback",
-            ...menuSymbol("exclamationmark.bubble"),
-          },
     ],
   };
 }

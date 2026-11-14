@@ -20,6 +20,11 @@ export type AppWindowAsk =
    * the host did not hand it over, or no copy could be kept in Downloads.
    */
   | { host: string; type: "pageNotOpened"; why: "noAnswer" | "notKept" }
+  /**
+   * A link from outside that is not one the app knows, said in fixed words:
+   * it carries nothing of the link, whose text goes only to the log.
+   */
+  | { type: "linkNotOpened" }
   | { project?: string; type: "newChat"; words: string }
   /** New Chat pressed with no window open, for the window it opens. */
   | { type: "openNewChat" };
@@ -40,6 +45,7 @@ export function tabHrefOfAsk(ask: AppWindowAsk): string | undefined {
     case "openScreen": {
       return ask.href;
     }
+    case "linkNotOpened":
     case "newChat":
     case "notOpened":
     case "openNewChat":

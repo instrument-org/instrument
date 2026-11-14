@@ -9,8 +9,9 @@ import { markFromInternet } from "./download-mark";
 import { logger } from "./electron-logger";
 
 /**
- * A page hosted at `https://<id>.instrument.page/`, which a `page` link from
- * outside names by its id: fetched from that host and no other, kept as a
+ * A page hosted at `https://<id>.instrument.page/<token>/`, which a `page`
+ * link from outside names by its id and link token (a page published before
+ * link tokens is at the host's root): fetched from that host and no other, kept as a
  * copy in the person's Downloads folder, marked as a browser marks what it
  * saves, and opened from there. The copy is safe to open straight from a
  * link because a page in Downloads reaches only itself
@@ -34,9 +35,9 @@ const DEVICE_NAMES = /^(?:con|prn|aux|nul|com\d|lpt\d)$/i;
 
 const log = logger.scope("outside-link");
 
-/** The one address a hosted page has. */
-export function hostedPageUrl(id: string): string {
-  return `https://${id}.${PAGES_DOMAIN}/`;
+/** The one address a hosted page has: its host, then its link token. */
+export function hostedPageUrl(id: string, token?: string): string {
+  return `https://${id}.${PAGES_DOMAIN}/${token === undefined ? "" : `${token}/`}`;
 }
 
 /**
@@ -49,11 +50,16 @@ export async function fetchHostedPage(
   {
     fetch = globalThis.fetch,
     timeoutMs = TIMEOUT_MS,
-  }: { fetch?: typeof globalThis.fetch; timeoutMs?: number } = {},
+    token,
+  }: {
+    fetch?: typeof globalThis.fetch;
+    timeoutMs?: number;
+    token?: string;
+  } = {},
 ): Promise<{ body: Uint8Array } | { failed: string }> {
   const origin = new URL(hostedPageUrl(id)).origin;
   const signal = AbortSignal.timeout(timeoutMs);
-  let at = hostedPageUrl(id);
+  let at = hostedPageUrl(id, token);
   try {
     let response: Response;
     for (let hop = 0; ; hop++) {

@@ -200,6 +200,30 @@ describe("LoadSkill", () => {
     `);
   });
 
+  it("lists and loads no skill meant for agents outside the app, bundled or in another agent's folder", async () => {
+    await createSkill({ name: "existing-skill" });
+    await createSkill({ name: "open-in-instrument" });
+    const vendorSkillDir = path.join(
+      tmpDir,
+      "home",
+      ".claude",
+      "skills",
+      "open-in-instrument",
+    );
+    await fs.mkdir(vendorSkillDir, { recursive: true });
+    await fs.writeFile(
+      path.join(vendorSkillDir, "SKILL.md"),
+      `---\nname: open-in-instrument\ndescription: "Theirs"\n---\n\nVendor instructions.`,
+    );
+
+    for (const name of ["open-in-instrument", "claude:open-in-instrument"]) {
+      expect(await load(name)).toMatchObject({
+        available: [{ name: "instrument:existing-skill" }],
+        state: "not-found",
+      });
+    }
+  });
+
   it("reads a shipped skill whole, read-only, where the app prepared it, copying nothing into the work folder", async () => {
     await createSkill({
       extraFiles: { "scripts/run.ts": "console.log('hello')" },

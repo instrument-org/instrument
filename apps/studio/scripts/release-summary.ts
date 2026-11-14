@@ -1,55 +1,33 @@
 /**
  * The #releases post for an Instrument release, made without a model: a card
- * with the release notes the tag carries, cut down to their summary line and
- * the first sentence of the first bullets in each section, or, for a tag cut
- * without notes, its commits grouped by scope with the plumbing left out; then
- * one thread reply with the whole notes or every commit.
+ * that says the release is out with the notes' summary line, then one thread
+ * reply with the whole notes or, for a tag cut without notes, every commit
+ * grouped by scope. A stable release's card carries a tag saying whether its
+ * GitHub release is still a draft, and a button to review the draft until it
+ * is published; the thread reply opens by asking `--mention` to publish it.
  *
- *   node release-summary.ts post --tag <tag> --release-url <url> --notes <file> --commits <file> [--skills-commits <file>] [--mention <mrkdwn>]
+ *   node release-summary.ts post --tag <tag> --release-url <url> --notes <file> --commits <file> [--skills-commits <file>] [--mention <mrkdwn>] [--save <file>]
  *   node release-summary.ts preview ...   (same flags; prints the JSON it would post)
+ *   node release-summary.ts update --card <file> --published true|false [--release-url <url>]
  *
  * `--notes` holds the tag's message (empty for a tag cut without notes);
  * `--commits` and `--skills-commits` hold `git log --pretty="%h %s"` output.
- * A stable tag's card asks `--mention` to publish the draft release. With
- * SLACK_BOT_TOKEN and SLACK_RELEASE_CHANNEL set, posts the card and its thread
- * reply as the bot; otherwise, or when the bot cannot post, the card alone
- * goes to SLACK_RELEASE_WEBHOOK_URL. Dependency-free so a release job can run
- * it with Node alone. The internal repository's scripts/release-summary.ts
- * grew from this file and posts its deploys in the same shape.
+ * Posts the card and its thread reply as the bot, with SLACK_BOT_TOKEN and
+ * SLACK_RELEASE_CHANNEL, and `--save` writes the card's channel, the card's
+ * and the thread reply's `ts`, and the release to a file. `update` reads that
+ * file and rebuilds the card and the thread reply for the GitHub release's
+ * state, which `release-card.yml` runs
+ * whenever the release is published or unpublished. Dependency-free so a
+ * release job can run it with Node alone. The internal repository's
+ * scripts/release-summary.ts grew from this file.
  */
-import { readFileSync } from "node:fs";
+import { readFileSync, writeFileSync } from "node:fs";
 import { pathToFileURL } from "node:url";
 
-/** Bullets shown per section before the rest collapse into a count. */
-const BULLETS_PER_SECTION = 2;
-/** Scope groups shown before the rest collapse into a count. */
-const GROUPS_SHOWN = 5;
 /** Commits past which a release without notes is called out as big. */
 const BIG_RELEASE = 15;
 /** Commits listed in the thread reply before the rest point at the release. */
 const COMMITS_IN_THREAD = 60;
-const CARD_COLOR = "#14B8A6";
-const BULLET_MAX_LENGTH = 90;
-
-/** Scopes whose commits never change what a user sees. */
-const PLUMBING_SCOPES = new Set([
-  "ci",
-  "cspell",
-  "dependencies",
-  "deps",
-  "docs",
-  "dx",
-  "eslint-config",
-  "evals",
-  "knip",
-  "lint",
-  "pnpm",
-  "registry",
-  "release",
-  "skills",
-  "spelling",
-  "studio-drive",
-]);
 
 const AREA_NAMES: Record<string, string> = {
   "agent-browser": "Browser",
@@ -97,67 +75,6 @@ export function parseNotes(notes: string): {
   return { sections, summary: summaryLines.join(" ") };
 }
 
-/** Slack mrkdwn for release notes, or undefined when there are none. */
-export function summarizeNotes(notes: string): string | undefined {
-  const { sections, summary } = parseNotes(notes);
-  if (!summary && sections.length === 0) {
-    return undefined;
-  }
-  const lines = summary ? [mrkdwn(summary)] : [];
-  for (const { bullets, title } of sections) {
-    if (bullets.length === 0) {
-      continue;
-    }
-    const shown = bullets
-      .slice(0, BULLETS_PER_SECTION)
-      .map((bullet) => mrkdwn(shorten(firstSentence(bullet))));
-    const rest = bullets.length - shown.length;
-    lines.push(
-      `*${mrkdwn(title)}*: ${shown.join("; ")}${rest > 0 ? ` _(+${rest} more)_` : ""}`,
-    );
-  }
-  return lines.join("\n");
-}
-
-/**
- * Slack mrkdwn for a release cut without notes: user-facing commits grouped by
- * their scope prefix, largest group first, each with its first subjects.
- */
-export function summarizeCommits(commits: string, skillsCommits = ""): string {
-  const groups = new Map<string, string[]>();
-  const add = (area: string, subject: string) => {
-    groups.set(area, [...(groups.get(area) ?? []), subject]);
-  };
-  for (const { scopes, subject } of parseCommits(commits)) {
-    const shown = scopes.filter((scope) => !PLUMBING_SCOPES.has(scope));
-    const scope = shown[0];
-    if (scope) {
-      add(AREA_NAMES[scope] ?? scope, subject);
-    }
-  }
-  for (const { scopes, subject } of parseCommits(skillsCommits)) {
-    if (!scopes.some((scope) => PLUMBING_SCOPES.has(scope))) {
-      add("Skills", subject);
-    }
-  }
-  if (groups.size === 0) {
-    return "_No user-facing changes in this release._";
-  }
-  const sorted = [...groups].sort((a, b) => b[1].length - a[1].length);
-  const lines = sorted.slice(0, GROUPS_SHOWN).map(
-    ([area, subjects]) =>
-      `*${mrkdwn(area)}* (${subjects.length}): ${subjects
-        .slice(0, BULLETS_PER_SECTION)
-        .map((subject) => mrkdwn(shorten(subject)))
-        .join("; ")}`,
-  );
-  const rest = sorted.length - GROUPS_SHOWN;
-  if (rest > 0) {
-    lines.push(`_+${rest} more ${rest === 1 ? "area" : "areas"}_`);
-  }
-  return lines.join("\n");
-}
-
 /** `%h %s` lines as their scopes and subject; a line with no scope has none. */
 function parseCommits(log: string) {
   return log
@@ -176,19 +93,6 @@ function parseCommits(log: string) {
     });
 }
 
-/** A bullet's lead, which the notes keep short for exactly this. */
-function firstSentence(text: string) {
-  return (/^(.+?)[.!?](?:\s|$)/.exec(text)?.[1] ?? text).trim();
-}
-
-function shorten(text: string) {
-  if (text.length <= BULLET_MAX_LENGTH) {
-    return text;
-  }
-  const cut = text.slice(0, BULLET_MAX_LENGTH);
-  return `${cut.slice(0, cut.lastIndexOf(" ")).replace(/[,;:]$/, "")}…`;
-}
-
 /** Markdown to Slack mrkdwn: escaped `&<>`, `**bold**`, and `[text](url)`. */
 export function mrkdwn(text: string) {
   return text
@@ -199,82 +103,184 @@ export function mrkdwn(text: string) {
     .replace(/\[([^\]]+)\]\(([^)\s]+)\)/g, "<$2|$1>");
 }
 
+type RichElement =
+  | { style?: { bold: true }; text: string; type: "text" }
+  | { color: string; text: string; type: "tag" }
+  | { text: string; type: "link"; url: string };
+
+/**
+ * Markdown to rich text elements: `**bold**` and `[text](url)`, the rest as
+ * written. Rich text shows its text as it is, so nothing is escaped.
+ */
+export function richInline(text: string): RichElement[] {
+  const elements: RichElement[] = [];
+  const pattern = /\*\*(.+?)\*\*|\[([^\]]+)\]\(([^)\s]+)\)/g;
+  let at = 0;
+  for (const match of text.matchAll(pattern)) {
+    if (match.index > at) {
+      elements.push({ text: text.slice(at, match.index), type: "text" });
+    }
+    if (match[1] !== undefined) {
+      elements.push({ style: { bold: true }, text: match[1], type: "text" });
+    } else if (match[2] !== undefined && match[3] !== undefined) {
+      elements.push({ text: match[2], type: "link", url: match[3] });
+    }
+    at = match.index + match[0].length;
+  }
+  if (at < text.length) {
+    elements.push({ text: text.slice(at), type: "text" });
+  }
+  return elements;
+}
+
+const richText = (elements: RichElement[]) => ({
+  elements: [{ elements, type: "rich_text_section" }],
+  type: "rich_text",
+});
+
 type Release = {
   commits: string;
   mention: string;
   notes: string;
+  /** Whether the GitHub release is published; a stable one starts as a draft. */
+  published?: boolean;
   releaseUrl: string;
   skillsCommits: string;
   tag: string;
 };
 
+/** The tag as a person says it: `v2.1.0` is 2.1.0, `v2.0.0-beta.139` is 2.0.0 beta 139. */
+function versionName(tag: string) {
+  const match = /^v?(\d+\.\d+\.\d+)-(alpha|beta)\.(\d+)$/.exec(tag);
+  return match ? match.slice(1).join(" ") : tag.replace(/^v(?=\d)/, "");
+}
+
+/** The card's line under its headline: the notes' summary, or what stands in for it. */
+function lead(release: Release, commits: number) {
+  const { sections, summary } = parseNotes(release.notes);
+  if (summary) {
+    return richInline(summary);
+  }
+  const titles = sections
+    .filter(({ bullets }) => bullets.length > 0)
+    .map(({ title }) => title);
+  if (titles.length > 0) {
+    return [
+      {
+        text: `The notes in the thread cover ${listed(titles)}.`,
+        type: "text" as const,
+      },
+    ];
+  }
+  const text =
+    commits === 0
+      ? "This release has no notes and no changes to the app."
+      : commits > BIG_RELEASE
+        ? `${commits} changes went out without release notes. They are listed in the thread.`
+        : `This release has no notes. Its ${plural(commits, "change")} ${commits === 1 ? "is" : "are"} listed in the thread.`;
+  return [{ text, type: "text" as const }];
+}
+
 /** The card and its thread reply, as Slack `chat.postMessage` bodies minus the channel. */
 export function buildPost(release: Release) {
-  const channel = release.tag.includes("-alpha")
-    ? "alpha"
-    : release.tag.includes("-beta")
-      ? "beta"
-      : undefined;
+  const prerelease = /-(alpha|beta)/.test(release.tag);
+  const draft = !prerelease && !release.published;
   const commits = parseCommits(release.commits).length;
-  const skills = parseCommits(release.skillsCommits).length;
-  const notes = summarizeNotes(release.notes);
-  const headline = `:desktop_computer: *Instrument ${channel ? `${channel} ` : ""}${mrkdwn(release.tag)} is out*`;
-  const counts = [
-    commits > 0 && plural(commits, "change"),
-    skills > 0 && plural(skills, "skill change"),
-  ].filter(Boolean);
-  const context = [
-    ...counts,
-    `<${release.releaseUrl}|${channel ? "Release notes" : "Draft release"}>`,
-  ].join(" · ");
-  const section = (text: string) => ({
-    text: { text, type: "mrkdwn" },
-    type: "section",
-  });
+  const headline = `Instrument ${versionName(release.tag)} is out`;
   const blocks = [
-    section(headline),
-    ...(!notes && commits > BIG_RELEASE
+    richText([
+      { style: { bold: true }, text: headline, type: "text" },
+      ...(prerelease
+        ? []
+        : [
+            { text: "  ", type: "text" as const },
+            draft
+              ? {
+                  color: "yellow",
+                  text: "Notes in draft",
+                  type: "tag" as const,
+                }
+              : { color: "green", text: "Published", type: "tag" as const },
+          ]),
+    ]),
+    richText(lead(release, commits)),
+    ...(draft
       ? [
-          section(
-            `:warning: *Big release:* ${commits} changes went out without release notes.`,
-          ),
+          {
+            elements: [
+              {
+                action_id: "review_draft",
+                style: "primary",
+                text: { text: "Review the draft", type: "plain_text" },
+                type: "button",
+                url: release.releaseUrl,
+              },
+            ],
+            type: "actions",
+          },
         ]
       : []),
-    section(notes ?? summarizeCommits(release.commits, release.skillsCommits)),
-    { elements: [{ text: context, type: "mrkdwn" }], type: "context" },
   ];
-  // A mention inside an attachment notifies no one, so the stable release's
-  // nudge sits above the card.
   const card = {
-    ...(channel
-      ? {}
-      : {
-          blocks: [
-            section(
-              `${release.mention}: review and publish the draft GitHub release notes for this version.`,
-            ),
-          ],
-        }),
-    attachments: [{ blocks, color: CARD_COLOR }],
-    text: `Instrument ${channel ? `${channel} ` : ""}${release.tag} is out`,
+    blocks,
+    text: draft ? `${headline}, and its notes are a draft` : headline,
     unfurl_links: false,
     unfurl_media: false,
   };
-  return { card, thread: threadText(release) };
+  return { card, thread: threadText(release, { commits, draft }) };
 }
 
-/** The whole notes when the tag has them, otherwise every commit by scope. */
-function threadText(release: Release) {
-  const { sections, summary } = parseNotes(release.notes);
-  if (summary || sections.length > 0) {
-    const sectionsText = sections
-      .filter(({ bullets }) => bullets.length > 0)
-      .map(
-        ({ bullets, title }) =>
-          `*${mrkdwn(title)}*\n${bullets.map((bullet) => `• ${mrkdwn(bullet)}`).join("\n")}`,
-      );
-    return sectionsText.length > 0 ? sectionsText.join("\n\n") : undefined;
+/**
+ * The thread reply: for a draft, the ask to publish it; then the whole notes
+ * when the tag has them, otherwise every commit by scope; then the counts and
+ * the release's address.
+ */
+function threadText(
+  release: Release,
+  { commits, draft }: { commits: number; draft: boolean },
+) {
+  const body = notesText(release) ?? commitsText(release);
+  if (!body) {
+    return undefined;
   }
+  const ask = draft
+    ? `${release.mention} the notes for ${versionName(release.tag)} are a draft on GitHub. Read them over and publish them when they look right.\n\n`
+    : "";
+  const skills = parseCommits(release.skillsCommits).length;
+  const counts = [
+    commits > 0 && plural(commits, "change"),
+    skills > 0 && plural(skills, "skill change"),
+    `<${tagUrl(release)}|Release on GitHub>`,
+  ].filter(Boolean);
+  return `${ask}${body}\n\n_${counts.join(" · ")}_`;
+}
+
+/**
+ * The release's page by its tag. A draft's own address is an `untagged-`
+ * editing URL that stops working once someone publishes it, and the tag's
+ * page is the one that lasts.
+ */
+function tagUrl({ releaseUrl, tag }: Release) {
+  return releaseUrl.replace(
+    /\/releases\/tag\/[^/]+$/,
+    `/releases/tag/${encodeURIComponent(tag)}`,
+  );
+}
+
+/** The notes' sections in full, or undefined when the tag has no notes. */
+function notesText({ notes }: Release) {
+  const { sections } = parseNotes(notes);
+  const sectionsText = sections
+    .filter(({ bullets }) => bullets.length > 0)
+    .map(
+      ({ bullets, title }) =>
+        `*${mrkdwn(title)}*\n${bullets.map((bullet) => `• ${mrkdwn(bullet)}`).join("\n")}`,
+    );
+  return sectionsText.length > 0 ? sectionsText.join("\n\n") : undefined;
+}
+
+/** Every commit by scope, largest first, with the skills last. */
+function commitsText(release: Release) {
   const groups = new Map<string, string[]>();
   for (const { scopes, subject } of parseCommits(release.commits)) {
     const scope = scopes[0] ?? "";
@@ -305,69 +311,93 @@ function threadText(release: Release) {
   const total = sorted.reduce((sum, [, subjects]) => sum + subjects.length, 0);
   if (total > COMMITS_IN_THREAD) {
     lines.push(
-      `_${total - COMMITS_IN_THREAD} more in <${release.releaseUrl}|the release>._`,
+      `_${total - COMMITS_IN_THREAD} more in <${tagUrl(release)}|the release>._`,
     );
   }
   return lines.length > 0 ? lines.join("\n") : undefined;
 }
 
 /**
- * Posts the card, then its thread reply when a bot token can make one. A card
- * the bot cannot post, such as when it is not in the channel, goes through the
- * webhook instead.
+ * Where a posted card and its thread reply are, and the release they were
+ * built from, for `update`. Cards posted before `threadTs` was kept have none,
+ * and their thread reply stays as it is.
  */
+type PostedCard = {
+  channel: string;
+  release: Release;
+  threadTs?: string;
+  ts: string;
+};
+
+/** Posts the card as the bot, then its thread reply, and returns where the card is. */
 export async function post(
   release: Release,
   env: Record<string, string | undefined>,
-) {
+): Promise<PostedCard> {
   const { card, thread } = buildPost(release);
   const token = env.SLACK_BOT_TOKEN;
   const channel = env.SLACK_RELEASE_CHANNEL;
-  const webhook = env.SLACK_RELEASE_WEBHOOK_URL;
-  if (token && channel) {
-    let posted: Awaited<ReturnType<typeof slackApi>> | undefined;
-    try {
-      posted = await slackApi(token, { ...card, channel });
-    } catch (error) {
-      if (!webhook) {
-        throw error;
-      }
-      console.warn(
-        `::warning::Posting as the bot failed, using the webhook: ${String(error)}`,
-      );
-    }
-    if (posted) {
-      if (thread) {
-        await slackApi(token, {
-          channel,
-          text: thread,
-          thread_ts: posted.ts,
-          unfurl_links: false,
-          unfurl_media: false,
-        });
-      }
-      return;
-    }
+  if (!token || !channel) {
+    throw new Error("Set SLACK_BOT_TOKEN and SLACK_RELEASE_CHANNEL");
   }
-  if (!webhook) {
-    throw new Error(
-      "Set SLACK_BOT_TOKEN and SLACK_RELEASE_CHANNEL, or SLACK_RELEASE_WEBHOOK_URL",
-    );
-  }
-  const response = await fetch(webhook, {
-    body: JSON.stringify(card),
-    headers: { "Content-Type": "application/json" },
-    method: "POST",
+  const posted = await slackApi(token, "chat.postMessage", {
+    ...card,
+    channel,
   });
-  if (!response.ok) {
-    throw new Error(
-      `Slack webhook answered ${response.status}: ${await response.text()}`,
-    );
+  if (!posted.ts) {
+    throw new Error("chat.postMessage answered without a ts");
   }
+  const reply = thread
+    ? await slackApi(token, "chat.postMessage", {
+        channel,
+        text: thread,
+        thread_ts: posted.ts,
+        unfurl_links: false,
+        unfurl_media: false,
+      })
+    : undefined;
+  return {
+    channel: posted.channel ?? channel,
+    release,
+    threadTs: reply?.ts,
+    ts: posted.ts,
+  };
 }
 
-async function slackApi(token: string, body: Record<string, unknown>) {
-  const response = await fetch("https://slack.com/api/chat.postMessage", {
+/**
+ * The `chat.update` bodies that redraw a posted card and its thread reply for
+ * the release's state, so publishing the notes also drops the reply's ask to
+ * publish them.
+ */
+export function updateBodies(
+  posted: PostedCard,
+  { published, releaseUrl }: { published: boolean; releaseUrl?: string },
+) {
+  const release = {
+    ...posted.release,
+    published,
+    releaseUrl: releaseUrl || posted.release.releaseUrl,
+  };
+  const { card, thread } = buildPost(release);
+  return [
+    {
+      blocks: card.blocks,
+      channel: posted.channel,
+      text: card.text,
+      ts: posted.ts,
+    },
+    ...(posted.threadTs && thread
+      ? [{ channel: posted.channel, text: thread, ts: posted.threadTs }]
+      : []),
+  ];
+}
+
+async function slackApi(
+  token: string,
+  method: "chat.postMessage" | "chat.update",
+  body: Record<string, unknown>,
+) {
+  const response = await fetch(`https://slack.com/api/${method}`, {
     body: JSON.stringify(body),
     headers: {
       Authorization: `Bearer ${token}`,
@@ -377,14 +407,22 @@ async function slackApi(token: string, body: Record<string, unknown>) {
   });
   // Slack's Web API answers with this shape for every method.
   const result = (await response.json()) as {
+    channel?: string;
     error?: string;
     ok: boolean;
     ts?: string;
   };
   if (!result.ok) {
-    throw new Error(`chat.postMessage failed: ${result.error ?? "unknown"}`);
+    throw new Error(`${method} failed: ${result.error ?? "unknown"}`);
   }
   return result;
+}
+
+/** `a`, `a and b`, `a, b, and c`. */
+function listed(items: string[]) {
+  return items.length < 3
+    ? items.join(" and ")
+    : `${items.slice(0, -1).join(", ")}, and ${items.slice(-1).join("")}`;
 }
 
 function plural(count: number, noun: string) {
@@ -408,23 +446,43 @@ if (
 ) {
   const args = process.argv.slice(2);
   const command = args[0];
-  if (command !== "post" && command !== "preview") {
+  if (command === "update") {
+    const env: Record<string, string | undefined> = process.env;
+    const token = env.SLACK_BOT_TOKEN;
+    if (!token) {
+      throw new Error("Set SLACK_BOT_TOKEN");
+    }
+    // The file `post --save` wrote, so this shape.
+    const posted = JSON.parse(readArg(args, "--card")) as PostedCard;
+    const bodies = updateBodies(posted, {
+      published: readFlag(args, "--published") === "true",
+      releaseUrl: readFlag(args, "--release-url"),
+    });
+    for (const body of bodies) {
+      await slackApi(token, "chat.update", body);
+    }
+  } else if (command === "post" || command === "preview") {
+    const release = {
+      commits: readArg(args, "--commits"),
+      mention: readFlag(args, "--mention") || "<!channel>",
+      notes: readArg(args, "--notes"),
+      releaseUrl: readFlag(args, "--release-url"),
+      skillsCommits: readArg(args, "--skills-commits"),
+      tag: readFlag(args, "--tag"),
+    };
+    if (command === "preview") {
+      console.log(JSON.stringify(buildPost(release), null, 2));
+    } else {
+      const posted = await post(release, process.env);
+      const save = readFlag(args, "--save");
+      if (save) {
+        writeFileSync(save, JSON.stringify(posted));
+      }
+    }
+  } else {
     console.error(
-      "usage: release-summary.ts post|preview --tag <tag> --release-url <url> --notes <file> --commits <file> [--skills-commits <file>] [--mention <mrkdwn>]",
+      "usage: release-summary.ts post|preview --tag <tag> --release-url <url> --notes <file> --commits <file> [--skills-commits <file>] [--mention <mrkdwn>] [--save <file>]\n       release-summary.ts update --card <file> --published true|false [--release-url <url>]",
     );
     process.exit(1);
-  }
-  const release = {
-    commits: readArg(args, "--commits"),
-    mention: readFlag(args, "--mention") || "<!channel>",
-    notes: readArg(args, "--notes"),
-    releaseUrl: readFlag(args, "--release-url"),
-    skillsCommits: readArg(args, "--skills-commits"),
-    tag: readFlag(args, "--tag"),
-  };
-  if (command === "preview") {
-    console.log(JSON.stringify(buildPost(release), null, 2));
-  } else {
-    await post(release, process.env);
   }
 }

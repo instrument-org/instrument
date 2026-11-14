@@ -2,9 +2,12 @@
 // what they hold, and edited a line at a time so every line nobody changed
 // keeps its bytes.
 
+import { CLOSING_FENCE, OPENING_FENCE } from "@instrument-org/shared";
+
 /** Front matter by its parts: the opening fence, what it holds, and the closing fence. */
-const FENCES =
-  /^(---[ \t]*\r?\n)([\s\S]*?)(\r?\n(?:---|\.\.\.)[ \t]*(?:\r?\n)?)$/;
+const FENCES = new RegExp(
+  `^(${OPENING_FENCE})([\\s\\S]*?)(\\r?\\n${CLOSING_FENCE}(?:\\r?\\n)?)$`,
+);
 
 /**
  * Sets one top-level `key: value` in front matter, rewriting only its line

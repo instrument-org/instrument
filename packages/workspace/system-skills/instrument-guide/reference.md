@@ -85,8 +85,21 @@ Link one as `[Label](instrument://screen/<name>)`.
 - **Activity** (`activity`): What you did in Instrument, with the AI requests your chats made, to search and clear.
 - **Apps** (`apps`): The services Instrument can work in for you, and connecting one.
 - **Browser** (`browser`): A browser of your own, which tasks can work in beside you.
+- **Extensions** (`extensions`): The Chrome extensions in your browser, and adding more from the Chrome Web Store.
 - **Release notes** (`release-notes`): What changed in each version.
 - **Keyboard shortcuts** (`shortcuts`): Every keyboard shortcut, by section.
+
+## Menu bar
+
+On a Mac these are the menu bar's menus, the first named for Instrument; on Windows and Linux the same menus open from the Menu button in the window's bar, with Settings and Quit at the end of File and updates and About at the end of Help.
+
+- **Instrument**: Check for Updates…, Settings…
+- **File**: New Chat, Command Menu, Search or Ask, Find, Find Next, Find Previous, Search Chats, Print…, Info, New Window, New Tab, Close Tab, Reopen Closed Tab, Reopen Closed Window, Close Window
+- **View**: Toggle Inbox, Edit Page, Reload Page, Go to Chat, Go to Files, Go to Browser, Go to Apps, Next Chat, Previous Chat, Actual Size, Zoom In, Zoom Out
+- **History**: Back, Forward, Show Activity, Clear Browsing Data…
+- **Tab**: Show Next Tab, Show Previous Tab, Move Tab to New Window
+- **Window**: Merge All Windows
+- **Help**: Send Feedback…, Support, Keyboard Shortcuts
 
 ## Keyboard shortcuts
 

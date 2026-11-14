@@ -1,3 +1,4 @@
+import { MARKDOWN_EXTENSIONS as MARKDOWN } from "@instrument-org/shared";
 import { getComputerThumbnailUrl } from "@/client/lib/computer-file-url";
 import { cn } from "@/client/lib/utils";
 import {
@@ -42,7 +43,7 @@ import { type TranscriptSurface, TranscriptSurfaceContext } from "./surface";
 import { useDrivenPage, useTranscriptHostPaths } from "./transcript-data";
 
 /** The files whose words a card shows as they read rather than as typed. */
-const MARKDOWN_EXTENSIONS = new Set(["markdown", "md", "mdx"]);
+const MARKDOWN_EXTENSIONS = new Set(MARKDOWN);
 
 const MARKS: Record<WorkCardKind, ReactNode> = {
   files: <FileTextIcon className="size-3.5" />,
@@ -164,7 +165,7 @@ const VIEWS: {
     </div>
   ),
   "files/none": () => null,
-  "files/picture": (face) => <FilePicture picture={face.picture} />,
+  "files/picture": (face) => <PictureRow newest={face.picture} strip={[]} />,
   "files/words": (face) => (
     <TypedWords isWriting={false} path={face.path} words={face.words} />
   ),
@@ -172,7 +173,9 @@ const VIEWS: {
     <TypedWords isWriting path={face.path} words={face.words} />
   ),
   "generated/generating": () => <Waiting>Generating the image</Waiting>,
-  "generated/picture": (face) => <FilePicture picture={face.picture} />,
+  "generated/picture": (face) => (
+    <PictureRow newest={face.picture} strip={[]} />
+  ),
   "images/opening": () => <Waiting>Opening the image</Waiting>,
   "images/pictures": (face) => (
     <PictureRow newest={face.newest} strip={face.strip} />
@@ -433,10 +436,10 @@ function PictureRow({
  * one that failed.
  */
 function FilePicture({
-  className = "size-full object-cover object-top",
+  className,
   picture: { place, version },
 }: {
-  className?: string;
+  className: string;
   picture: WorkCardPicture;
 }) {
   const { resolvedTheme } = useTheme();

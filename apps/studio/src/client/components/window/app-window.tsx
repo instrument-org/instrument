@@ -161,6 +161,8 @@ import {
   useWindowTabs,
   windowTabsAtom,
 } from "./window-tabs";
+import { flashStripTab } from "./tab-strip";
+import { useFollowFolderMoves } from "./follow-folder-moves";
 import {
   forgetMovedAway,
   hasMovedAway,
@@ -567,6 +569,8 @@ function WindowShell({
   const windowSteps = useWindowSteps();
   // Every screen a group's tab stands on is walked by a router of its own.
   useGroupTabRouters(windowTabs.allTabs, windowTabs.screenMoved);
+  // And each follows a chat's folder moving to the chat's title.
+  useFollowFolderMoves(opened !== undefined);
 
   // Apps in the rail wears a dot for an app signed out since Apps was last
   // shown; showing Apps is what counts as seeing it.
@@ -807,6 +811,9 @@ function WindowShell({
       onSuccess: () => void projectsQuery.refetch(),
     }),
   );
+  const checkForUpdates = useMutation(
+    rpcClient.preferences.checkForUpdates.mutationOptions(),
+  );
   const setChatProject = useSetChatProject();
   // The new-project dialog, asked for from a chat's head or a draft's, with
   // what was typed in the picker: the project it makes files that chat or
@@ -903,6 +910,7 @@ function WindowShell({
     draftContext,
     isOpen: opened !== undefined,
     isChat,
+    isChatAlone: chatUp !== undefined && !isInboxOpen,
     openChat: (chatId) => {
       appTabs.navigate(chatHref(chatId));
     },
@@ -1066,6 +1074,19 @@ function WindowShell({
   useWindowDropFallback(({ hostPath, isFolder }) => {
     appTabs.open(isFolder ? folderHref(hostPath) : fileHref(hostPath));
   });
+  // Something from outside the app that a tab already shows comes up there
+  // and lights that tab, since a switch alone, or no change at all when the
+  // tab was already up, is easy to miss.
+  const showFromOutside = (href: string): boolean => {
+    if (!appTabs.selectShowing(href)) {
+      return false;
+    }
+    const shown = store.get(appTabsAtom).selectedId;
+    if (shown) {
+      flashStripTab(shown);
+    }
+    return true;
+  };
   useWindowCommands(
     {
       back: () => {
@@ -1106,7 +1127,7 @@ function WindowShell({
         );
         if (folder !== undefined) {
           const href = folderHref(folder);
-          if (!appTabs.selectShowing(href)) {
+          if (!showFromOutside(href)) {
             openScreen(href, { newTab: true });
           }
         }
@@ -1133,18 +1154,32 @@ function WindowShell({
           });
         }
       },
+      // Fixed words: the link's own are in no toast, since a site can send
+      // one with no click at all.
+      linkNotOpened: () => {
+        toast("Couldn't open that link", {
+          action: {
+            label: "Check for updates",
+            onClick: () => {
+              checkForUpdates.mutate();
+            },
+          },
+          description:
+            "This version of Instrument doesn't know that kind of link, but a newer one might.",
+        });
+      },
       openFile: (hostPath) => {
         const href = fileHref(hostPath);
-        if (!appTabs.selectShowing(href)) {
+        if (!showFromOutside(href)) {
           appTabs.open(href);
         }
       },
       openScreen: (href) => {
-        if (!appTabs.selectShowing(href)) {
+        if (!showFromOutside(href)) {
           openScreen(href, { newTab: true });
         }
       },
-      showTab: appTabs.selectShowing,
+      showTab: showFromOutside,
       moveTabToNewWindow: () => {
         if (appTabs.model.selectedId) {
           void moveTabOut(appTabs.model.selectedId, { kind: "new" });

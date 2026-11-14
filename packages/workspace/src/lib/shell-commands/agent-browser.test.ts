@@ -936,6 +936,43 @@ describe("agent-browser routing", () => {
     );
   });
 
+  it("types text with line breaks as one insertion, each run on the session", async () => {
+    await answerAgentBrowser({ exitCode: 0, stderr: "", stdout: "✓ Done\n" });
+
+    const result = await command.execute(
+      ["type", "@e5", "First.\n\nSecond.\n"],
+      commandCtx,
+    );
+
+    const runs = (await agentBrowserRuns()).map((run) =>
+      run.args.slice(run.args.indexOf(sessionId) + 1),
+    );
+    expect(runs).toStrictEqual([
+      ["focus", "@e5"],
+      ["keyboard", "inserttext", "First.\n\nSecond."],
+      ["press", "Enter"],
+    ]);
+    expect(result).toStrictEqual({
+      exitCode: 0,
+      stderr: "",
+      stdout: "✓ Done\n",
+    });
+  });
+
+  it("stops typing at the first run that fails", async () => {
+    await answerAgentBrowser((given) =>
+      given.includes("focus")
+        ? { exitCode: 1, stderr: "✗ Element not found\n", stdout: "" }
+        : { exitCode: 0, stderr: "", stdout: "✓ Done\n" },
+    );
+
+    const result = await command.execute(["type", "@e9", "a\nb"], commandCtx);
+
+    expect(await agentBrowserRuns()).toHaveLength(1);
+    expect(result.exitCode).toBe(1);
+    expect(result.stderr).toBe("✗ Element not found\n");
+  });
+
   it("passes upload files to the browser absolute", async () => {
     const { args } = await spawnedWith([
       "upload",

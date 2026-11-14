@@ -105,6 +105,7 @@ import { useWorkspaceFolder } from "@/client/lib/output-folder";
 import { rpcClient, type RPCOutput } from "@/client/rpc/client";
 import { COMPUTER_ROOT, fileHref, folderHref } from "@/shared/computer-href";
 import { keptInPlaceReason } from "@/shared/instrument-folders";
+import { RENDERED_EXTENSIONS } from "@/shared/rendered-kinds";
 import {
   NO_SIDEBAR_CHANGES,
   pinnedPlaces,
@@ -2613,6 +2614,19 @@ export function ComputerPage({
                         ? (menuItem?.path ?? null)
                         : null
                   }
+                  {...(currentListing?.truncated
+                    ? {
+                        partialFolder: {
+                          action: {
+                            label: `Open in ${osConventions().fileManager}`,
+                            onPress: () => {
+                              handOff.mutate({ filepath: currentListing.path });
+                            },
+                          },
+                          total: currentListing.total,
+                        },
+                      }
+                    : {})}
                   // Every row here is a thing on this computer, and drags out of
                   // the window as one: to the desktop, a Finder window, another
                   // app. What lands there is the OS's copy; nothing here moves.
@@ -4421,72 +4435,30 @@ const TEXT_EXTENSIONS = new Set([
  * come back as a blank page, which says less than the file's own type icon.
  */
 const THUMBNAIL_EXTENSIONS = new Set([
+  ...RENDERED_EXTENSIONS,
   "ai",
   "bmp",
-  "c",
-  "cc",
-  "cpp",
-  "cs",
-  "css",
-  "csv",
   "docx",
   "gif",
-  "go",
-  "h",
   "heic",
   "heif",
-  "hpp",
-  "htm",
-  "html",
-  "ini",
-  "java",
   "jpeg",
   "jpg",
-  "js",
-  "json",
-  "jsonl",
-  "jsx",
   "key",
-  "kt",
-  "log",
-  "lua",
   "m4v",
-  "markdown",
-  "md",
-  "mdx",
-  "mjs",
   "mov",
   "mp4",
-  "ndjson",
   "numbers",
   "pages",
   "pdf",
-  "php",
   "png",
   "pptx",
   "psd",
-  "py",
-  "rb",
-  "rs",
   "rtf",
-  "scss",
-  "sh",
-  "sql",
-  "svg",
-  "swift",
   "tif",
   "tiff",
-  "toml",
-  "ts",
-  "tsv",
-  "tsx",
-  "txt",
   "webp",
   "xlsx",
-  "xml",
-  "yaml",
-  "yml",
-  "zsh",
 ]);
 
 /** The tab a file opens in: the file by where it is on the computer. */

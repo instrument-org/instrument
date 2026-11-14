@@ -14,6 +14,9 @@
 // `.wasm`, whose highlighter reads the text disassembly rather than the binary
 // a task actually stores.
 //
+/** The extensions a Markdown file goes by, without the dot, wherever one is told from other text. */
+export const MARKDOWN_EXTENSIONS = ["md", "markdown", "mdown", "mkd", "mdx"];
+
 export const CODE_EXTENSION_MIME_TYPES: Record<string, string> = {
   abap: "text/plain",
   ada: "text/plain",
@@ -82,9 +85,12 @@ export const CODE_EXTENSION_MIME_TYPES: Record<string, string> = {
   lua: "text/plain",
   m: "text/plain",
   makefile: "text/plain",
+  markdown: "text/markdown",
   md: "text/markdown",
+  mdown: "text/markdown",
   mdx: "text/plain",
   mjs: "text/javascript",
+  mkd: "text/markdown",
   ml: "text/plain",
   mts: "text/typescript",
   ndjson: "text/plain",

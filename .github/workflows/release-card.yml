@@ -1,0 +1,61 @@
+name: Release card
+
+# Redraws a release's Slack card and its thread reply to match the release on
+# GitHub: "Published", with no ask to publish in the thread, once someone
+# publishes the draft notes, and "Notes in draft" again if they unpublish it. Publishing with a workflow's GITHUB_TOKEN triggers no workflow,
+# so after an automated publish, run this by hand with the tag to resync.
+
+on:
+  release:
+    types: [published, unpublished]
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: Release tag, such as v2.1.0
+        required: true
+
+permissions:
+  actions: read
+  contents: read
+
+concurrency:
+  group: release-card-${{ github.event.release.tag_name || inputs.tag }}
+
+jobs:
+  update:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          sparse-checkout: apps/studio/scripts/release-summary.ts
+          sparse-checkout-cone-mode: false
+
+      # Runs apps/studio/scripts/release-summary.ts, which needs Node's own
+      # TypeScript support and nothing installed.
+      - uses: actions/setup-node@53b83947a5a98c8d113130e565377fae1a50d02f # v6.3.0
+        with:
+          node-version: "24"
+
+      # The release run for the tag kept the card's channel and `ts` as its
+      # slack-card artifact. Releases posted before that artifact existed
+      # have none, and their card stays as it is.
+      - name: Update the Slack card and its thread reply
+        env:
+          GH_TOKEN: ${{ github.token }}
+          SLACK_BOT_TOKEN: ${{ secrets.SLACK_BOT_TOKEN }}
+          TAG: ${{ github.event.release.tag_name || inputs.tag }}
+        run: |
+          for run in $(gh run list --repo "$GITHUB_REPOSITORY" --workflow release.yml --branch "$TAG" --json databaseId -q '.[].databaseId'); do
+            if gh run download "$run" --repo "$GITHUB_REPOSITORY" -n slack-card -D card 2>/dev/null; then
+              break
+            fi
+          done
+          if [ ! -f card/slack-card.json ]; then
+            echo "No Slack card was kept for $TAG."
+            exit 0
+          fi
+          state=$(gh release view "$TAG" --repo "$GITHUB_REPOSITORY" --json isDraft,url)
+          node apps/studio/scripts/release-summary.ts update \
+            --card card/slack-card.json \
+            --published "$(jq -r '(.isDraft | not)' <<<"$state")" \
+            --release-url "$(jq -r .url <<<"$state")"

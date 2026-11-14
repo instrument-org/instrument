@@ -391,10 +391,7 @@ function AppMark({ app, onOpen }: { app: App; onOpen: () => void }) {
       >
         <span className="relative">
           <AppIcon
-            className={cn(
-              "transition-shadow group-hover:shadow-md",
-              waiting && "opacity-60",
-            )}
+            className={cn(waiting && "opacity-60")}
             name={app.name}
             icon={app.icon}
             site={app.site}
@@ -638,9 +635,9 @@ function Tile({
         onContextMenu={target === undefined ? undefined : onContextMenu}
         type="button"
       >
-        {/* No plate of its own: the tile is the box it sits in. */}
+        {/* No inset: the mark fills its box, and the tile is its surface. */}
         <AppIcon
-          className="size-9 rounded-lg bg-transparent p-0 shadow-none ring-0"
+          className="size-9 rounded-lg p-0"
           icon={icon}
           name={name}
           site={site}

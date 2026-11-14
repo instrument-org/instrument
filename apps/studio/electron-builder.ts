@@ -8,7 +8,10 @@ import {
   APP_PROTOCOL,
   APP_UPDATER_CACHE_DIR_NAME,
   COMPANY_NAME,
+  MAC_BRIDGE_FILES,
+  PACKAGED_RESOURCES,
   SUPPORT_EMAIL,
+  WINDOWS_PUBLISHER_NAMES,
 } from "@instrument-org/shared";
 import dotenv from "dotenv";
 import {
@@ -163,19 +166,19 @@ const config: Configuration = {
     {
       filter: ["**/*"],
       from: "../../registry/skills",
-      to: "registry/skills",
+      to: `${PACKAGED_RESOURCES.registry}/skills`,
     },
     {
       filter: ["**/*"],
       from: "../../packages/workspace/system-skills",
-      to: "system-skills",
+      to: PACKAGED_RESOURCES.systemSkills,
     },
     // The directory's icons; the manifest beside them is for the refresh
     // script and stays behind.
     {
       filter: ["*.png", "*.svg"],
       from: "../../packages/workspace/directory-icons",
-      to: "directory-icons",
+      to: PACKAGED_RESOURCES.directoryIcons,
     },
   ],
   files: [
@@ -307,17 +310,17 @@ const config: Configuration = {
     // loads, built by `pnpm build:mac-helper` before packaging.
     extraResources: [
       {
-        from: "native/mac-helper/.build/bridge/instrument-mac",
-        to: "bin/instrument-mac",
+        from: `native/mac-helper/.build/bridge/${MAC_BRIDGE_FILES.helper}`,
+        to: `${PACKAGED_RESOURCES.bin}/${MAC_BRIDGE_FILES.helper}`,
       },
       {
-        from: "native/mac-helper/.build/bridge/instrument-mac.node",
-        to: "bin/instrument-mac.node",
+        from: `native/mac-helper/.build/bridge/${MAC_BRIDGE_FILES.module}`,
+        to: `${PACKAGED_RESOURCES.bin}/${MAC_BRIDGE_FILES.module}`,
       },
       // The Seatbelt launcher native commands start through.
       {
-        from: "native/mac-helper/.build/bridge/instrument-seatbelt",
-        to: "bin/instrument-seatbelt",
+        from: `native/mac-helper/.build/bridge/${MAC_BRIDGE_FILES.seatbelt}`,
+        to: `${PACKAGED_RESOURCES.bin}/${MAC_BRIDGE_FILES.seatbelt}`,
       },
     ],
     extendInfo: {
@@ -344,8 +347,10 @@ const config: Configuration = {
       NSDocumentsFolderUsageDescription: `${APP_NAME} reads and writes files in your Documents when you ask it to work there, and when your ${APP_NAME} folder is there.`,
       NSDownloadsFolderUsageDescription: `${APP_NAME} reads and writes files in your Downloads when you ask it to work there.`,
       NSLocalNetworkUsageDescription: `${APP_NAME} uses your local network to connect to tools needed for your tasks.`,
-      // Asked the first time someone presses the mic to dictate.
-      NSMicrophoneUsageDescription: `${APP_NAME} listens when you press the mic, and turns what you say into text.`,
+      // Asked the first time someone presses the mic to dictate, or a page in the browser asks for it.
+      NSMicrophoneUsageDescription: `${APP_NAME} listens when you press the mic to dictate, and when a page you open asks for it, like a video call.`,
+      // Asked the first time a page in the browser asks for the camera.
+      NSCameraUsageDescription: `${APP_NAME} uses your camera when a page you open asks for it, like a video call.`,
       NSNetworkVolumesUsageDescription: `${APP_NAME} reads and writes files on a network drive when you ask it to work there.`,
       NSRemovableVolumesUsageDescription: `${APP_NAME} reads and writes files on a removable drive when you ask it to work there.`,
     },
@@ -399,17 +404,11 @@ const config: Configuration = {
   win: {
     icon: `${iconDir}icon.ico`,
     signtoolOptions: {
-      // Both casings the certificate subject has been issued under, and both of
-      // the company's next name, Old Habit Software, LLC. An update is rejected
-      // unless the installed build's list contains the incoming installer's CN
-      // verbatim, and the comparison is case sensitive, so a name has to ship
-      // here before any certificate carries it.
-      publisherName: [
-        "Finalpoint, LLC",
-        "FINALPOINT, LLC",
-        "Old Habit Software, LLC",
-        "OLD HABIT SOFTWARE, LLC",
-      ],
+      // The one list the installed build checks a downloaded Setup against:
+      // an update is rejected unless it contains the incoming installer's CN
+      // verbatim, case included, so a name ships there before any
+      // certificate carries it.
+      publisherName: WINDOWS_PUBLISHER_NAMES,
       // A preview built without the signing key goes unsigned rather than
       // failing; a release always signs.
       sign:

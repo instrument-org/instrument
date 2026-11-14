@@ -99,6 +99,8 @@ export interface BrowserEntry {
   eventListeners: Set<
     (method: string, params: unknown, frameSession?: string) => void
   >;
+  /** The session the guest's debugger attached each frame in a process of its own under, by the frame's id. */
+  frameSessions: Map<string, string>;
   // Monotonic per-entry id, bumped on every createEntry. The renderer pool keys
   // its `<webview>` by targetId, which is stable across a destroy+recreate of
   // the same tab; the generation lets the pool notice that recreate
@@ -135,6 +137,11 @@ export interface BrowserEntry {
   // GUIDs of the agent's downloads not yet reported finished, whose finish
   // only `downloads.ts` reports (`holdsDownloadEvent`).
   agentDownloads: Set<string>;
+  // Whether the window holds this page only as a step of a tab's history,
+  // back or forward from what the tab shows, as its renderer last reported
+  // (`syncGuestsPutAway`). Such a page is closed once it makes sound
+  // (`put-away-sound.ts`).
+  putAway: boolean;
   screencastInterval: null | ReturnType<typeof setInterval>;
   screencastSessionId: number;
   // Whether a slot in the window shows this guest rather than parking it, as
@@ -189,6 +196,7 @@ export function createEntry({
     disposers: new Set(),
     downloadsRunning: 0,
     eventListeners: new Set(),
+    frameSessions: new Map(),
     generation: ++generationCounter,
     hostId,
     hasAgentInput: false,
@@ -198,6 +206,7 @@ export function createEntry({
     pendingDownloadGuids: new Map(),
     agentDownloads: new Set(),
     phase: "pending",
+    putAway: false,
     restoreHistory,
     src,
     screencastInterval: null,

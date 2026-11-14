@@ -81,6 +81,8 @@ export type TabLocation =
       path: string;
       /** How many are picked in it, when that is several and they stand in for a file open beside it: the place is then them. A path of "" is the recents, which are in no one folder. */
       picked?: number;
+      /** The one item selected in the folder, by host path, which the system's file manager shows selected when the folder is handed to it. */
+      selected?: string;
     }
   | { kind: "newTab" }
   | { kind: "page"; url: string }

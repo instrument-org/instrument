@@ -1,3 +1,4 @@
+import { MAC_BRIDGE_FILES, PACKAGED_RESOURCES } from "@instrument-org/shared";
 import {
   type FinderEntry,
   FinderEntrySchema,
@@ -38,12 +39,14 @@ const BUILD_DIR = path.resolve(
 );
 
 /** A file of the bridge: in the app's resources when packaged, from the build in a checkout. */
-function bridgeFile(name: string): string | undefined {
+function bridgeFile(
+  name: (typeof MAC_BRIDGE_FILES)[keyof typeof MAC_BRIDGE_FILES],
+): string | undefined {
   if (process.platform !== "darwin") {
     return undefined;
   }
   const file = app.isPackaged
-    ? path.join(process.resourcesPath, "bin", name)
+    ? path.join(process.resourcesPath, PACKAGED_RESOURCES.bin, name)
     : path.join(BUILD_DIR, name);
   return existsSync(file) ? file : undefined;
 }
@@ -57,7 +60,7 @@ export function macHelperBinPath(): string | undefined {
   if (Number.parseInt(os.release(), 10) < 23) {
     return undefined;
   }
-  return bridgeFile("instrument-mac");
+  return bridgeFile(MAC_BRIDGE_FILES.helper);
 }
 
 /**
@@ -74,7 +77,7 @@ export function macAppsServerPath(): string {
  * (`native/mac-helper/seatbelt`), when this build carries it.
  */
 export function seatbeltHelperPath(): string | undefined {
-  return bridgeFile("instrument-seatbelt");
+  return bridgeFile(MAC_BRIDGE_FILES.seatbelt);
 }
 
 interface MacModule {
@@ -273,7 +276,7 @@ export async function trashItem(
 
 function loadModule(): MacModule | null {
   if (macModule === undefined) {
-    const file = bridgeFile("instrument-mac.node");
+    const file = bridgeFile(MAC_BRIDGE_FILES.module);
     // `as`: a native module's exports are untyped; the shape is FUNCTIONS in
     // addon.m, and every answer is parsed below before it is trusted.
     macModule = file
@@ -432,6 +435,23 @@ export async function dataAccess(
     { timeout: 5 * 60_000 },
   );
   return DataAccessSchema.parse(JSON.parse(stdout));
+}
+
+/**
+ * The folders under Favorites in the Finder's sidebar, in its order, read by
+ * the helper without a permission. Nothing in a build without the helper.
+ */
+export async function finderFavorites(): Promise<string[] | undefined> {
+  const helper = macHelperBinPath();
+  if (helper === undefined) {
+    return undefined;
+  }
+  const { stdout } = await execFileAsync(helper, ["finder-favorites"], {
+    timeout: 10_000,
+  });
+  return z
+    .object({ folders: z.string().array() })
+    .parse(JSON.parse(stdout)).folders;
 }
 
 /**

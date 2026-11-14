@@ -251,7 +251,7 @@ function RouteComponent() {
         </section>
 
         <section className="flex flex-col gap-6">
-          <SectionTitle>On a plate of its own</SectionTitle>
+          <SectionTitle>At the larger sizes</SectionTitle>
           <Surface
             label="Connect card in the transcript (md)"
             source="message-part/tool-connect-app.tsx"
@@ -298,7 +298,7 @@ function RouteComponent() {
             ))}
           </Surface>
           <Surface
-            label="Catalog tile, plate turned off"
+            label="Catalog tile, mark filling its box"
             source="window/apps-home.tsx"
           >
             {chosen.map((app) => (
@@ -306,10 +306,7 @@ function RouteComponent() {
                 className="flex h-18 w-64 items-center gap-3 rounded-2xl bg-card px-5 shadow-xs"
                 key={app.slug}
               >
-                <AppIcon
-                  {...app}
-                  className="size-9 rounded-lg bg-transparent p-0 shadow-none ring-0"
-                />
+                <AppIcon {...app} className="size-9 rounded-lg p-0" />
                 <span className="truncate text-[15px] leading-snug font-medium">
                   {app.name}
                 </span>
@@ -349,7 +346,7 @@ function RouteComponent() {
                       {ground.label}
                     </th>
                   ))}
-                  <th className="px-3 py-2 font-medium">Plates</th>
+                  <th className="px-3 py-2 font-medium">Larger sizes</th>
                 </tr>
               </thead>
               <tbody>

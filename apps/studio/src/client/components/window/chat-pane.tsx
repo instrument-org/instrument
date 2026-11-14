@@ -114,15 +114,45 @@ export function ChatPane({
   const projectNames = new Map(
     projects.map((project) => [project.id, project.name]),
   );
-  const matched = chats.filter((chat) =>
-    matchesFilters(chat, filters, projectNames),
+  const viewKey = JSON.stringify({ ...filters, search: "" });
+  // A chat the Unread view listed stays in it once read, opening it above
+  // all, until the view changes: a row leaving under the pointer reads as
+  // the chat going missing.
+  const [listedUnread, setListedUnread] = useState<{
+    ids: ReadonlySet<string>;
+    view: string;
+  }>();
+  const isUnreadView = filters.tags.includes("unread");
+  const keptUnread =
+    isUnreadView && listedUnread?.view === viewKey ? listedUnread.ids : NO_IDS;
+  const withoutUnread = {
+    ...filters,
+    tags: filters.tags.filter((tag) => tag !== "unread"),
+  };
+  const matched = chats.filter(
+    (chat) =>
+      matchesFilters(chat, filters, projectNames) ||
+      (keptUnread.has(chat.id) &&
+        matchesFilters(chat, withoutUnread, projectNames)),
   );
+  if (!isUnreadView) {
+    if (listedUnread !== undefined) {
+      setListedUnread(undefined);
+    }
+  } else if (
+    listedUnread?.view !== viewKey ||
+    matched.some((chat) => !keptUnread.has(chat.id))
+  ) {
+    setListedUnread({
+      ids: new Set([...keptUnread, ...matched.map((chat) => chat.id)]),
+      view: viewKey,
+    });
+  }
   const outside = outsideFilters(chats, filters, projectNames);
   // The matches outside the filter, once asked for, are shown under the
   // list's own for as long as the same view is searched; the view itself
   // stays where it is. Kept by the view they were asked for in, so another
   // view or a cleared search folds them away.
-  const viewKey = JSON.stringify({ ...filters, search: "" });
   const [widenedIn, setWidenedIn] = useState<string>();
   const isSearching = filters.search.trim() !== "";
   const isNarrowed = isSearching || filters.tags.length > 0;
@@ -383,6 +413,8 @@ export function ChatPane({
     </div>
   );
 }
+
+const NO_IDS: ReadonlySet<string> = new Set();
 
 /** What the list says when it has nothing to show, by where the column stands. */
 function emptyLineFor(

@@ -1,5 +1,6 @@
 import { outsideLinkOf, PAGES_DOMAIN } from "@instrument-org/shared";
 import fs from "node:fs/promises";
+import os from "node:os";
 import path from "node:path";
 
 import { folderHref } from "@/shared/computer-href";
@@ -9,6 +10,7 @@ import { hostPathOfUrlPath } from "./computer-files";
 import { isFromInternet } from "./download-mark";
 import { logger } from "./electron-logger";
 import { fetchHostedPage, keepHostedPage } from "./hosted-page";
+import { fromHome } from "./link-home";
 import { isRefusedFile } from "./refused-files";
 
 /**
@@ -28,6 +30,9 @@ const PER_MINUTE = 10;
 
 /** How many asks may wait for the window before another link is let go. */
 const WAITING_MAX = 10;
+
+/** The most of a link the app does not know that the log keeps. */
+const LOGGED_MAX = 200;
 
 /**
  * A page runs, and one opened in the app's browser reads its folder and
@@ -65,6 +70,8 @@ export function createLinkGate({
  */
 type PathChecks = {
   fetchPage?: typeof fetchHostedPage;
+  /** The person's home folder, which `~` at the start of a path means. */
+  home?: string;
   hostPaths?: path.PlatformPath;
   isDownloaded?: (hostPath: string) => Promise<boolean>;
   isRefused?: (hostPath: string) => Promise<boolean>;
@@ -73,10 +80,12 @@ type PathChecks = {
 };
 
 /**
- * What a link asks of the window, in order: nothing for a link that names
- * nothing. A link to several files asks for each just as a link to one does,
- * once each however many ways it is written, and then says how many it left
- * past the cap.
+ * What a link asks of the window, in order. A link that is not one the app
+ * knows (a noun it has no screen for, a shape a noun refuses, or not the
+ * app's scheme at all) asks the window to say so, in fixed words that carry
+ * nothing of the link, since a newer build may read it. A link to several
+ * files asks for each just as a link to one does, once each however many
+ * ways it is written, and then says how many it left past the cap.
  */
 export async function asksOfOutsideLink(
   url: string,
@@ -85,7 +94,7 @@ export async function asksOfOutsideLink(
   const link = outsideLinkOf(url);
   switch (link?.kind) {
     case undefined: {
-      return [];
+      return [{ type: "linkNotOpened" }];
     }
     case "screen": {
       return [{ href: link.href, type: "openScreen" }];
@@ -120,7 +129,7 @@ export async function asksOfOutsideLink(
       return all;
     }
     case "page": {
-      return [await askOfPage(link.id, checks)];
+      return [await askOfPage(link, checks)];
     }
   }
 }
@@ -132,11 +141,11 @@ export async function asksOfOutsideLink(
  * folder takes no file, the window saying so and opening nothing.
  */
 async function askOfPage(
-  id: string,
+  { id, token }: { id: string; token?: string },
   { fetchPage = fetchHostedPage, keepPage = keepHostedPage }: PathChecks,
 ): Promise<AppWindowAsk> {
   const host = `${id}.${PAGES_DOMAIN}`;
-  const fetched = await fetchPage(id);
+  const fetched = await fetchPage(id, token === undefined ? {} : { token });
   if ("failed" in fetched) {
     logger.scope("outside-link").info(`${host} ${fetched.failed}`);
     return { host, type: "pageNotOpened", why: "noAnswer" };
@@ -154,18 +163,24 @@ async function askOfPage(
 /**
  * What a path from a link asks of the window, or nothing for a path that is
  * not plainly one on this computer (a step up, a network share, a relative
- * one) or a place the app refuses to show.
+ * one) or a place the app refuses to show. A path starting at `~` is read
+ * from the person's home folder first, so every check judges the path it
+ * leads to.
  */
 async function askOfPath(
   linkPath: string,
   {
+    home = os.homedir(),
     hostPaths = path,
     isDownloaded = isFromInternet,
     isRefused = isRefusedFile,
     placeOf = placeOnDisk,
   }: PathChecks,
 ): Promise<AppWindowAsk | undefined> {
-  const hostPath = hostPathOfUrlPath(linkPath, hostPaths);
+  const hostPath = hostPathOfUrlPath(
+    fromHome(linkPath, home, hostPaths),
+    hostPaths,
+  );
   if (
     hostPath === undefined ||
     // On Windows a path from a link names its drive: one starting at a
@@ -228,7 +243,9 @@ const processGate = createLinkGate();
  * for in one call, so the window comes forward once. A link counts once
  * against the gate, however many paths it carries. Every link says in the
  * log what came of it, by its noun alone, since a `new` link's words and a
- * file's path are the person's.
+ * file's path are the person's. A link the app does not know is the one
+ * exception: the log keeps its first `LOGGED_MAX` characters, which is the
+ * only place its text goes, since the window says nothing of it.
  */
 export async function openOutsideLink(
   url: string,
@@ -261,13 +278,19 @@ export async function openOutsideLink(
   const asked = await asksOfOutsideLink(url, checks);
   if (asked.length === 0) {
     log(
-      `A ${noun} link opens nothing: it names nothing here, or a path that is not plainly this computer's or that the app refuses`,
+      `A ${noun} link opens nothing: it names a path that is not plainly this computer's or that the app refuses`,
     );
     return;
   }
-  log(
-    `A ${noun} link asks the window to ${asked.map((each) => each.type).join(", ")}`,
-  );
+  if (asked.some((each) => each.type === "linkNotOpened")) {
+    log(
+      `A link the app does not know asks the window to say so: ${url.slice(0, LOGGED_MAX)}`,
+    );
+  } else {
+    log(
+      `A ${noun} link asks the window to ${asked.map((each) => each.type).join(", ")}`,
+    );
+  }
   ask(asked);
 }
 

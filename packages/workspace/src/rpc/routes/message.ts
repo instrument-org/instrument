@@ -22,11 +22,15 @@ import {
   findInTranscript,
   type TurnMatches,
 } from "../../lib/transcript/find-in-transcript";
-import { transcriptMessage } from "../../lib/transcript/transcript-message";
+import {
+  transcriptMessage,
+  type WrittenOn,
+} from "../../lib/transcript/transcript-message";
 import {
   lastTurnsOf,
   type TranscriptFeed,
   type TranscriptFeedEvent,
+  type WrittenOnByMessage,
   TranscriptProjection,
 } from "../../lib/transcript/feed";
 import {
@@ -36,13 +40,14 @@ import {
 import { newMessage } from "../../lib/new-message";
 import { attendChatArrivals } from "../../lib/records/take-arrivals";
 import { setChatProject } from "../../lib/chat/chats";
+import { computerName, thisDevice } from "../../lib/chat/asks";
 
 import { updateSessionTitle } from "../../lib/update-session-title";
 import { FileUpload } from "../../schemas/file-upload";
 import { SessionMessage } from "../../schemas/session/message";
 import { SessionMessageDataPart } from "../../schemas/session/message-data-part";
 import { StoreId } from "../../schemas/store-id";
-import { ChatIdSchema } from "../../schemas/chat-id";
+import { type ChatId, ChatIdSchema } from "../../schemas/chat-id";
 import { base, toORPCError } from "../base";
 
 /** How often a session's notes are worked out again while it moves. */
@@ -259,6 +264,39 @@ const create = base
   );
 
 /**
+ * The computer each message the person sent among `messages` was sent on, as
+ * the chat's records say, for the line where a chat moved computers. None
+ * when the writers cannot be read, since the line only adds to the chat.
+ */
+async function writtenOnFor(
+  chatId: ChatId,
+  messages: readonly SessionMessage.WithParts[],
+): Promise<WrittenOnByMessage> {
+  const found = new Map<StoreId.Message, WrittenOn>();
+  // A streaming reply's changes hold no message the person sent.
+  if (!messages.some((message) => message.role === "user")) {
+    return found;
+  }
+  const writers = await ChatReads.writers({ chatId });
+  if (writers.isErr()) {
+    return found;
+  }
+  const here = thisDevice();
+  for (const message of messages) {
+    const device =
+      message.role === "user" ? writers.value.get(message.id) : undefined;
+    if (device !== undefined) {
+      found.set(message.id, {
+        device,
+        here: device === here,
+        name: await computerName(device),
+      });
+    }
+  }
+  return found;
+}
+
+/**
  * What the transcript draws of a session (`transcript/feed.ts`), as it changes:
  * the end of the session, then only what moved. A reader that scrolls up asks
  * `older` for the turns before.
@@ -287,7 +325,10 @@ const liveFeed = base
       if (initial.isErr()) {
         throw toORPCError(initial.error, errors);
       }
-      yield projection.reset(initial.value);
+      yield projection.reset(
+        initial.value,
+        await writtenOnFor(input.id, initial.value),
+      );
 
       for await (const batch of batches) {
         const changed = await read(batch.updated);
@@ -298,7 +339,10 @@ const liveFeed = base
           if (reload.isErr()) {
             throw toORPCError(reload.error, errors);
           }
-          yield projection.reset(reload.value);
+          yield projection.reset(
+            reload.value,
+            await writtenOnFor(input.id, reload.value),
+          );
           continue;
         }
         const messages = changed.value;
@@ -309,6 +353,7 @@ const liveFeed = base
             ...batch.removed,
             ...[...batch.updated].filter((id) => !found.has(id)),
           ],
+          writtenOn: await writtenOnFor(input.id, messages),
         });
         if (event) {
           yield event;
@@ -338,7 +383,10 @@ const older = base
     if (messages.isErr()) {
       throw toORPCError(messages.error, errors);
     }
-    return lastTurnsOf(messages.value, input);
+    return lastTurnsOf(messages.value, {
+      ...input,
+      writtenOn: await writtenOnFor(input.id, messages.value),
+    });
   });
 
 /**

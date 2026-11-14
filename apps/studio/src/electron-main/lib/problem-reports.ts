@@ -9,6 +9,7 @@ import { getProblemsStore } from "@/electron-main/stores/machine/problems";
 import { getAppsDir } from "@/electron-main/lib/apps";
 import {
   type ChatFeedbackDescription,
+  type ChatTrim,
   FEEDBACK_ACTIONS_MS,
   FEEDBACK_TOO_LARGE,
   type FeedbackDescription,
@@ -43,6 +44,7 @@ import {
   listApps,
   listMemories,
   memoryDir,
+  parseRecordFileName,
   readActions,
 } from "@instrument-org/workspace/electron";
 import { outlineSessionLog } from "@instrument-org/workspace/report-outline";
@@ -505,11 +507,19 @@ export const FEEDBACK_ACTIONS_PATH = "diagnostics/actions.jsonl";
  */
 const FEEDBACK_ACTIONS_BYTES = 256 * 1024;
 
-/** A session's log, `<session>.<device>.jsonl` and its later generations. */
-const SESSION_LOG = /^(ses_[0-9A-Za-z]+)\..+\.jsonl$/;
+/**
+ * The most a chat may add to a feedback report: the report's cap, less what
+ * the person did in the app, which is never cut, and room for the note, the
+ * title and the diagnostics' own details.
+ */
+const FEEDBACK_CHAT_BYTES =
+  MAX_REPORT_BYTES - FEEDBACK_ACTIONS_BYTES - 64 * 1024;
 
-/** The chat's own files the outline sends beside its logs: each device's settings and marks. */
-const CHAT_SETTINGS = /^(?:settings|marks)\..+\.jsonl$/;
+/**
+ * The most files a chat may add to a feedback report, leaving room for the
+ * write-up, what the person did, the diagnostics and the captures.
+ */
+const FEEDBACK_CHAT_FILES = MAX_REPORT_FILES - 8;
 
 /** A name that can stand in a report's path, which a sync engine's copy (`… 2.jsonl`) cannot. */
 const PLAIN_NAME = /^[A-Za-z0-9._-]+$/;
@@ -523,19 +533,26 @@ type ChatFile = { content: string; name: string };
  * again from the report. A device's state, the notes a handoff leaves,
  * blobs, attachments and the work folder never go: the state names the pages
  * its tabs had open, and the notes are the agent's summary of what it read.
+ * A chat over `maxBytes` or `maxFiles` keeps its newest records
+ * (`trimmedToFit`).
  */
 export function chatFeedback({
   files,
+  maxBytes = FEEDBACK_CHAT_BYTES,
+  maxFiles = FEEDBACK_CHAT_FILES,
   sessions,
 }: {
   files: readonly ChatFile[];
+  maxBytes?: number;
+  maxFiles?: number;
   sessions: readonly { id: string; parentId?: string; title: string }[];
 }): ChatFeedbackDescription | undefined {
   const plain = files.filter((file) => PLAIN_NAME.test(file.name));
   const logs = new Map<string, ChatFile[]>();
   for (const file of plain) {
-    const session = SESSION_LOG.exec(file.name)?.[1];
-    if (session) {
+    const record = parseRecordFileName(file.name);
+    if (record?.kind === "log") {
+      const session = record.session;
       logs.set(session, [...(logs.get(session) ?? []), file]);
     }
   }
@@ -548,8 +565,15 @@ export function chatFeedback({
       .map((id) => ({ id, parentId: id, title: id })),
   ];
   const outline: FeedbackFile[] = [];
+  const taskLogs: { index: number; session: string }[] = [];
+  const ownLogs: number[] = [];
   for (const session of ordered) {
     for (const file of logs.get(session.id) ?? []) {
+      if (session.parentId) {
+        taskLogs.push({ index: outline.length, session: session.id });
+      } else {
+        ownLogs.push(outline.length);
+      }
       outline.push({
         content: outlineSessionLog(file.content).content,
         label: session.parentId
@@ -562,7 +586,9 @@ export function chatFeedback({
   if (outline.length === 0) {
     return undefined;
   }
-  for (const file of plain.filter((each) => CHAT_SETTINGS.test(each.name))) {
+  for (const file of plain.filter(
+    (each) => parseRecordFileName(each.name)?.kind === "settings",
+  )) {
     outline.push({
       content: file.content,
       label: "Chat settings",
@@ -570,14 +596,90 @@ export function chatFeedback({
     });
   }
   const own = ordered.find((session) => !session.parentId);
+  const fit = trimmedToFit({
+    files: outline,
+    maxBytes,
+    maxFiles,
+    ownLogs,
+    // Session ids sort by when the session started, so the oldest tasks go first.
+    taskLogs: taskLogs
+      .toSorted((a, b) => a.session.localeCompare(b.session))
+      .map((taskLog) => taskLog.index),
+  });
   return {
     item: feedbackItem({
-      files: outline,
+      files: fit.files,
       id: "chat",
       kind: "chat",
       label: "This chat",
     }),
     title: own ? `“${own.title}”` : "This chat",
+    ...(fit.trimmed && { trimmed: fit.trimmed }),
+  };
+}
+
+/**
+ * A chat's files cut to fit a report. Over `maxFiles`, whole task logs go,
+ * oldest first. Over `maxBytes`, the oldest records go from the tasks' logs,
+ * then the chat's own, each log keeping its first line, the session's
+ * header, so every file is still whole records and the folder still lays
+ * out as a shorter chat. `trimmed` counts what went, for the diagnostics.
+ */
+function trimmedToFit({
+  files,
+  maxBytes,
+  maxFiles,
+  ownLogs,
+  taskLogs,
+}: {
+  files: readonly FeedbackFile[];
+  maxBytes: number;
+  maxFiles: number;
+  ownLogs: readonly number[];
+  /** Oldest first. */
+  taskLogs: readonly number[];
+}): { files: FeedbackFile[]; trimmed?: ChatTrim } {
+  const records = (content: string) =>
+    content.split("\n").filter(Boolean).length;
+  const droppedLogs = new Set(
+    taskLogs.slice(0, Math.max(0, files.length - maxFiles)),
+  );
+  let droppedRecords = 0;
+  const kept = files.map((file, index) => {
+    if (droppedLogs.has(index)) {
+      droppedRecords += records(file.content);
+      return undefined;
+    }
+    return file;
+  });
+  let over =
+    itemBytes({ files: kept.filter((file) => file !== undefined) }) - maxBytes;
+  for (const index of [...taskLogs, ...ownLogs]) {
+    const file = kept[index];
+    if (over <= 0) {
+      break;
+    }
+    if (!file) {
+      continue;
+    }
+    // A line's share of the body is its own JSON escaping.
+    const lines = file.content.split(/(?<=\n)/);
+    let drop = 1;
+    while (drop < lines.length && over > 0) {
+      over -= jsonBytes(lines[drop]) - 2;
+      drop += 1;
+    }
+    droppedRecords += drop - 1;
+    kept[index] = {
+      ...file,
+      content: [lines[0] ?? "", ...lines.slice(drop)].join(""),
+    };
+  }
+  return {
+    files: kept.filter((file) => file !== undefined),
+    ...(droppedRecords > 0 && {
+      trimmed: { droppedLogs: droppedLogs.size, droppedRecords },
+    }),
   };
 }
 
@@ -625,7 +727,11 @@ export async function describeFeedback(
     actions: actionsFeedback(await recentActions(), redactor),
     chat: chat?.chat,
     diagnostics: diagnosticsItem(
-      chatId && { id: chatId, startedWith: chat?.startedWith },
+      chatId && {
+        id: chatId,
+        startedWith: chat?.startedWith,
+        trimmed: chat?.chat?.trimmed,
+      },
       redactor,
     ),
   };
@@ -797,8 +903,7 @@ async function describeChatFeedback(chatId: ChatId, redactor: ReportRedactor) {
     entries
       .filter(
         (entry) =>
-          entry.isFile() &&
-          (SESSION_LOG.test(entry.name) || CHAT_SETTINGS.test(entry.name)),
+          entry.isFile() && parseRecordFileName(entry.name) !== undefined,
       )
       .map(async (entry) => {
         const content = await fs.promises.readFile(
@@ -823,13 +928,24 @@ async function describeChatFeedback(chatId: ChatId, redactor: ReportRedactor) {
  * redacted as the chat is.
  */
 function diagnosticsItem(
-  chat: undefined | { id: ChatId; startedWith: string | undefined },
+  chat:
+    | undefined
+    | {
+        id: ChatId;
+        startedWith: string | undefined;
+        trimmed: ChatTrim | undefined;
+      },
   redactor: ReportRedactor,
 ): FeedbackItem {
   const about = {
     app: { version: app.getVersion(), packaged: app.isPackaged },
     ...(chat && {
-      chat: { id: chat.id, startedWith: chat.startedWith ?? null },
+      chat: {
+        id: chat.id,
+        startedWith: chat.startedWith ?? null,
+        // A chat cut to fit the report, so whoever reads it knows it is partial.
+        ...(chat.trimmed && { trimmed: chat.trimmed }),
+      },
     }),
     locale: app.getLocale(),
     os: {

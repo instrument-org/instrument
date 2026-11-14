@@ -1,9 +1,13 @@
 import { ToolbarTooltip } from "@/client/components/toolbar-tooltip";
 import { Button } from "@/client/components/ui/button";
 import { cn } from "@/client/lib/utils";
-import { BrowsersIcon } from "@phosphor-icons/react/Browsers";
+import { SidebarSimpleIcon } from "@phosphor-icons/react/SidebarSimple";
 
-/** Shows or hides the pane beside a chat, and with it the chat's tabs. */
+/**
+ * Shows or hides the pane beside a chat, and with it the chat's tabs. Its mark
+ * is the inbox toggle's mirrored, so the two buttons at either end of the
+ * chat's head read as a pair that each open a side.
+ */
 export function PaneToggle({
   isOpen,
   onToggle,
@@ -25,7 +29,7 @@ export function PaneToggle({
         size="icon"
         variant="ghost-toolbar"
       >
-        <BrowsersIcon className="size-4" />
+        <SidebarSimpleIcon className="size-4" mirrored />
       </Button>
     </ToolbarTooltip>
   );

@@ -886,26 +886,16 @@ export function navigateScreen(
 }
 
 /**
- * A tab goes to a screen: a screen tab walks there, and a page becomes the
- * screen, as a tab of its own (`newId`) with the page a step back. A chat's
- * tab stays on the chat, and the screen opens right after it, up.
+ * A tab goes to a screen: a screen tab walks there, a chat's included, and a
+ * page becomes the screen, as a tab of its own (`newId`) with the page a
+ * step back. What a chat's own contents open goes beside it instead
+ * (`besidePlacementOf`), never through here.
  */
 export function tabToScreen(
   state: WindowTabs,
   { href, id, newId }: { href: string; id: string; newId: string },
 ): WindowTabs {
   const tab = state.tabs.find((entry) => entry.id === id);
-  if (tab?.kind === "screen" && isChatTab(tab) && tab.group !== undefined) {
-    return sameHref(tab.href, href)
-      ? state
-      : addScreen(state, {
-          after: id,
-          group: tab.group,
-          href,
-          id: newId,
-          select: true,
-        });
-  }
   return tab?.kind === "page"
     ? replaceTab(
         state,
@@ -1120,8 +1110,7 @@ export function pageTakesOver(
  * A new page tab. In a tab's place, it takes that tab's place in the strip
  * and under its strip key, so the strip sees one tab changing rather than one
  * leaving and another arriving, and it is what that group has up; back from
- * it returns to that tab. A chat's tab is never taken: the page opens right
- * after it, up. Otherwise it joins the group at the end, or right after the
+ * it returns to that tab, a chat's included. Otherwise it joins the group at the end, or right after the
  * tab named, up when asked, with nothing behind it, as a browser's tab
  * opened from a link starts.
  */
@@ -1144,25 +1133,17 @@ export function openPage(
     side?: Placing["side"];
   },
 ): WindowTabs {
-  if (replacing && isChatTab(replacing) && replacing.group !== undefined) {
-    return openInGroup(
-      state,
-      { ...page, group: replacing.group, kind: "page" },
-      { after: replacing.id, group: replacing.group, select: true },
-    );
-  }
   if (replacing) {
     const tab = visitInTab(replacing, { ...page, kind: "page" });
-    const index = state.tabs.findIndex((entry) => entry.id === replacing.id);
-    const tabs =
-      index === -1
-        ? [...state.tabs, tab]
-        : state.tabs.map((entry, at) => (at === index ? tab : entry));
+    // In its place, up where it was up on either side.
+    const replaced = state.tabs.some((entry) => entry.id === replacing.id)
+      ? replaceTab(state, replacing.id, tab)
+      : { ...state, tabs: [...state.tabs, tab] };
     // Up in its group, with the keyboard on its side, which is where the
     // tab it replaced was asked to go somewhere.
     return replacing.group === undefined
-      ? { ...state, tabs }
-      : selectTab({ ...state, tabs }, page.id);
+      ? replaced
+      : selectTab(replaced, page.id);
   }
   const tab: WindowTab = { ...page, group, kind: "page" };
   if (group === undefined) {

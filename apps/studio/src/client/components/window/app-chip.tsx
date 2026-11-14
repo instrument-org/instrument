@@ -88,7 +88,7 @@ export function appIndexHref(app: BuiltInApp): string | undefined {
 /** What a built-in app is called on its chip. */
 export function appName(app: BuiltInApp): string {
   if (app === "chat") {
-    return "Chat";
+    return "Chats";
   }
   if (app === "files") {
     return "Files";
@@ -131,8 +131,9 @@ export function AppMark({
 
 /**
  * The chip at the start of the address field that says which of the app's
- * own apps the tab is in: its mark and its name, on a card of its own. A
- * press on it goes to the app where it has a place to go to. With
+ * own apps the tab is in: its mark and its name, on a card of its own; Chats
+ * wears the bubbles of many chats, the page it goes to. A press on it goes
+ * to the app where it has a place to go to. With
  * `nameFolds`, a narrow field (`@container/field`) shows the mark alone, so
  * the name after the chip keeps the room.
  */
@@ -147,7 +148,11 @@ export function AppChip({
 }) {
   const face = (
     <>
-      <AppMark app={app} />
+      {app === "chat" ? (
+        <ChatsCircleIcon className="size-3.5 shrink-0 text-foreground/70" />
+      ) : (
+        <AppMark app={app} />
+      )}
       <span className={cn(nameFolds && "@max-[18rem]/field:sr-only")}>
         {appName(app)}
       </span>

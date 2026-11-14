@@ -674,15 +674,6 @@ export function useTabGroupActions() {
     make({ href: newChatHref(draft), ...options });
   };
 
-  /** Opens a chat or a draft from History or a search as a group of its own. */
-  const restore = (entry: HistoryEntry) => {
-    if (entry.kind === "chat") {
-      openChat(entry.chat.id);
-    } else {
-      openDraft(entry.draft.id);
-    }
-  };
-
   /**
    * A new chat in a group, up at once with the keyboard: right after the
    * tab up on the side with the keyboard. In a new group when none is up.
@@ -720,7 +711,6 @@ export function useTabGroupActions() {
     openDraft,
     pin,
     place,
-    restore,
     revealChat,
     show,
     showHere,

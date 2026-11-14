@@ -1,5 +1,6 @@
 import { cn } from "@/client/lib/utils";
 import { useQuery } from "@tanstack/react-query";
+import { useRouter } from "@tanstack/react-router";
 import { type ReactNode } from "react";
 
 import { chatListOptions } from "./chat-list-query";
@@ -13,19 +14,19 @@ import {
   historyTitleOf,
   lastActiveAt,
   useOpenGroups,
-  useTabGroupActions,
 } from "./tab-groups";
+import { chatHref, newChatHref } from "./window-href";
 
 /**
  * History as a page: every chat and kept draft no window has open, most
  * recently active first, under the day each last had something happen, as
- * the sidebar listed them. A click on one, or its Open, opens it as a tab
- * group of its own at the top of the sidebar, and the window moves to it;
- * this tab stays where it was. The words in the field narrow it.
+ * the sidebar listed them. A click on one, or its Open, opens it in this
+ * tab, as a link would, and back returns here. The words in the field
+ * narrow it.
  *
  * Showing chats alone, it is the index of every chat, open in a window or
- * not, most recently active first: a click on one opens it as History does,
- * whatever tabs it has already. Its field is the one the chord for searching
+ * not, most recently active first: a click on one opens it here as History
+ * does, whatever tabs it has already. Its field is the one the chord for searching
  * chats puts the caret in (`data-chats-search`).
  */
 export function HistoryPage({
@@ -49,7 +50,7 @@ export function HistoryPage({
           .toSorted((a, b) => lastActiveAt(b) - lastActiveAt(a))
       : closed;
   const shell = useShell();
-  const groups = useTabGroupActions();
+  const router = useRouter();
   const projectNames = new Map(
     shell.projects.map((each) => [each.id, each.name]),
   );
@@ -68,7 +69,11 @@ export function HistoryPage({
   const projectName =
     project === undefined ? undefined : projectNames.get(project);
   const open = (entry: HistoryEntry) => {
-    groups.restore(entry);
+    router.history.push(
+      entry.kind === "chat"
+        ? chatHref(entry.chat.id)
+        : newChatHref(entry.draft.id),
+    );
   };
   return (
     // The page is worked from its content, which the keys scroll.

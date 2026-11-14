@@ -799,7 +799,7 @@ describe("a group's sides", () => {
 describe("a chat's tab sent somewhere else", () => {
   const PAGE = { id: "p", openedAt: 0, url: "https://lighthouse.test/" };
 
-  it("keeps the chat, and a page opens right after it, up", () => {
+  it("takes the page in its place, the chat a step back", () => {
     const state = twoSides();
     const opened = openPage(state, {
       group: GROUP,
@@ -807,8 +807,8 @@ describe("a chat's tab sent somewhere else", () => {
       replacing: state.tabs[2],
       select: false,
     });
-    expect(sidesOf(opened, GROUP)).toEqual(["a *b", "> c *p d"]);
-    expect(opened.tabs.find((tab) => tab.id === "p")?.past).toBeUndefined();
+    expect(sidesOf(opened, GROUP)).toEqual(["a *b", "> *p d"]);
+    expect(opened.tabs[2]?.past?.map((visit) => visit.id)).toEqual(["c"]);
   });
 
   it.each([
@@ -822,16 +822,15 @@ describe("a chat's tab sent somewhere else", () => {
       (state: WindowTabs) =>
         navigateScreen(state, { group: GROUP, href: "/history", id: "h" }),
     ],
-  ])(
-    "keeps the chat, and a screen %s opens right after it, up",
-    (_case, send) => {
-      const opened = send(twoSides());
-      expect(sidesOf(opened, GROUP)).toEqual(["a *b", "> c *h d"]);
-      expect(opened.tabs.find((tab) => tab.id === "c")).toEqual(
-        twoSides().tabs[2],
-      );
-    },
-  );
+  ])("walks to a screen %s, the chat a step back", (_case, send) => {
+    const opened = send(twoSides());
+    expect(sidesOf(opened, GROUP)).toEqual(["a *b", "> *c d"]);
+    expect(opened.tabs[2]).toMatchObject({
+      history: { entries: [`/chats/${ROOFER}`, "/history"], index: 1 },
+      href: "/history",
+      id: "c",
+    });
+  });
 
   it("stays as it is, sent to its own chat", () => {
     const state = twoSides();

@@ -30,7 +30,6 @@ import {
   everyTabId,
   focusSide,
   type GroupOwn,
-  isChatTab,
   markOpenedBy,
   markPrompted,
   moveTabTo,
@@ -289,13 +288,12 @@ export function useWindowTabs() {
 
   /**
    * Sends a tab to a screen, a step on in its history: a screen tab's router
-   * walks, and the tab follows it as it lands; a page becomes the screen. A
-   * chat's tab stays on the chat, and the screen opens right after it.
+   * walks, and the tab follows it as it lands, a chat's included; a page
+   * becomes the screen.
    */
   const visitHref = (id: string, href: string) => {
     const router = getGroupTabRouter(id);
-    const tab = state.tabs.find((entry) => entry.id === id);
-    if (!router || (tab !== undefined && isChatTab(tab))) {
+    if (!router) {
       apply((current) =>
         tabToScreen(current, { href, id, newId: newScreenId() }),
       );

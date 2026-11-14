@@ -222,13 +222,13 @@ describe("a field searching the app its chip names", () => {
     await expect
       .element(page.getByText("Trip to Lisbon"))
       .not.toBeInTheDocument();
-    await expect.element(page.getByText("Chat")).toBeVisible();
+    await expect.element(page.getByText("Chats")).toBeVisible();
 
     await userEvent.keyboard("{Backspace}");
     await expect
       .element(field)
       .toHaveAttribute("placeholder", "Search or enter address");
-    await expect.element(page.getByText("Chat")).not.toBeInTheDocument();
+    await expect.element(page.getByText("Chats")).not.toBeInTheDocument();
   });
 
   it("offers the app's own entries for the words typed, best first, then its search", async () => {
@@ -267,7 +267,7 @@ describe("a field searching the app its chip names", () => {
     await userEvent.keyboard("https://example.org");
 
     await expect.element(field).toHaveAttribute("placeholder", "Search chats");
-    await expect.element(page.getByText("Chat", { exact: true })).toBeVisible();
+    await expect.element(page.getByText("Chats", { exact: true })).toBeVisible();
     await expect
       .element(page.getByRole("option", { selected: true }))
       .toMatchTextContent("Search chats for “https://example.org”");

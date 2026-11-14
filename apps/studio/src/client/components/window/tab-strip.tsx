@@ -851,7 +851,7 @@ function Tab({
           ? "w-8 max-w-8 min-w-0 shrink-0"
           : "w-40 max-w-40 min-w-0 shrink-0"
         : cn(
-            "max-w-60 flex-1",
+            "max-w-fit flex-1",
             { compact: "min-w-15", full: "min-w-20", icon: "min-w-8" }[density],
           ),
     density === "full" ? "gap-2 px-2.5" : "justify-center px-1",
@@ -954,7 +954,7 @@ function Tab({
               ? cn(
                   isFixed
                     ? "whitespace-nowrap"
-                    : "flex-1 overflow-hidden tab-title-fade whitespace-nowrap",
+                    : "flex-1 overflow-hidden pr-8 tab-title-fade whitespace-nowrap",
                 )
               : "sr-only",
             tab.isWorking && "brand-shiny-text",
@@ -1112,7 +1112,8 @@ function offsetToStandAt(element: HTMLElement, left: number) {
     scroller && list.contains(scroller) ? scroller.scrollLeft : 0;
   const standsAt =
     listLeft + (element.offsetLeft - list.offsetLeft - scrolled) * zoom;
-  const farthest = listLeft + width - element.offsetWidth * zoom;
+  // Its drawn width, which a tab sized to its name has in fractions of a px.
+  const farthest = listLeft + width - element.getBoundingClientRect().width;
   return (clamp(left, listLeft, farthest) - standsAt) / zoom;
 }
 

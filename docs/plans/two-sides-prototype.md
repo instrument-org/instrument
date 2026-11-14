@@ -10,7 +10,7 @@ Page contents can stay rough. What has to be right is the layout engine, draggin
 
 - A window lists its **tab groups** down the sidebar, in its own order, as the earlier build does.
 - A group has **one or two sides**. A side is an ordered list of tabs with one tab up. One side of the group has the keyboard.
-- **Every tab is a page with an address**: a website, a folder or a file in Files, a chat, a new chat (the zero state), or a built-in page (Settings, Memory, Skills, History, Activity, Apps). A chat is an ordinary tab: a group holds any number of chats, on either side, in any order, and nothing is pinned anywhere.
+- **Every tab is a page with an address**: a website, a folder or a file in Files, a chat, a new tab (the zero state), or a built-in page (Settings, Memory, Skills, History, Activity, Apps). A chat is an ordinary tab: a group holds any number of chats, on either side, in any order, and nothing is pinned anywhere.
 - Only two sides, ever. A third thing joins a side's tabs.
 - **A side never shrinks to nothing.** The gutter between the sides resizes them and stops at each side's minimum width. Closing a side's last tab leaves the other side as the whole group.
 - **Below the minimum width** the group's sides need, the group scrolls sideways instead of squeezing them.
@@ -21,13 +21,13 @@ Page contents can stay rough. What has to be right is the layout engine, draggin
 
 - A click opens in place, where Back returns, or as a new tab right after the tab it came from, in the same side. Nothing opens in the other side unless the person asks for it: Open in Split, Open Link in Split, Move to Other Side, or a drag. Nothing ever hops to the other side by itself, and no card moves when something opens.
 - A link in a chat opens as a browser opens a link to a new tab: right after the chat's tab, in its side, up. ⌘-click leaves it behind. A page the chat's agent opens itself goes right after the chat's tab too, behind it, so the chat stays in view and the tab shows the working mark. It stays after the turn ends, until someone closes it. A blank page the agent starts in or asks for gets its tab only once it goes somewhere, so no blank tab shows in the strip. A tab the person opened stays theirs: the agent goes to another page in it only when asked to and given its id, and every other page it opens gets a tab of its own.
-- **+ and ⌘T** always open a new chat (the zero state) as a new tab after the tab up, in the side with the keyboard.
+- **+ and ⌘T** always open a new tab (the zero state) after the tab up, in the side with the keyboard.
 - **⌘N** always makes a new group: one side, one new chat, at the top of the list under New.
-- **Every tab's menu can open a chat beside it** (New Chat in Split), so a group of only websites is one click from the AI.
+- **Every tab's menu can open a chat beside it** (New Tab in Split), so a group of only websites is one click from the AI.
 
-## The new chat, which is the new tab
+## The new tab, which is a new chat
 
-A new tab is the chat zero state inside a browser's chrome: the toolbar with the address field reading as Chat (its app chip), the bookmarks bar with Files first, and today's new-chat composer at the middle under them. Typing an address in the field and pressing Enter goes there in this tab, and Back comes back to the new chat. Sending a message makes this tab the chat, in place. Each new chat is its own draft; one that is never typed in leaves nothing behind.
+A new tab is the chat zero state inside a browser's chrome: the toolbar with an empty address field, the bookmarks bar with Files first, and today's new-chat composer at the middle under them. Its tab, its row in the sidebar and the tab menu's New Tab in Split all call it New Tab. Typing an address in the field and pressing Enter goes there in this tab, and Back comes back to the new tab. Sending a message makes this tab the chat, in place. A file let go on the page opens in this tab, as a browser's new tab does, except over the composer, which attaches it to the first message; once something is written, the tab takes files as a chat's does. Each new tab is its own draft; one that is never typed in leaves nothing behind.
 
 ## A side's chrome
 
@@ -54,7 +54,7 @@ Settings, Memory, Skills, History, Activity and Apps are tabs with addresses, op
 
 For now every split is made and managed from right-click menus, the same items wherever they apply:
 
-- **A tab**: Open in Split (a copy on the other side) or Move to Other Side, New Chat in Split, Move to New Tab Group, Move to New Window, Duplicate, Bookmark, Close, Close Other Tabs, Close Tabs to the Left, Close Tabs to the Right. A chat's tab then has the chat's own items, each acting on that chat: its marks, Rename, Project, Copy (the chat folder's path, the work folder's path, for an agent), Send feedback, Archive and Delete. A new chat's tab with words in it has Project, which files its draft.
+- **A tab**: Open in Split (a copy on the other side) or Move to Other Side, New Tab in Split, Move to New Tab Group, Move to New Window, Duplicate, Bookmark, Close, Close Other Tabs, Close Tabs to the Left, Close Tabs to the Right. A chat's tab then has the chat's own items, each acting on that chat: its marks, Rename, Project, Copy (the chat folder's path, the work folder's path, for an agent), Send feedback, Archive and Delete. A new chat's tab with words in it has Project, which files its draft.
 - **A link** (in a page, in a chat, in a file shown in a tab): Open Link in Split, Open Link in New Tab, Open Link in New Tab Group, Open Link in New Window, Bookmark Link, Copy Link. A page's menu, and a file's, start with Open Link, which opens the link in place; a chat's has no plain Open, since a click there opens the link in a new tab beside the chat. A file or folder in Files, or a file chip in a chat, keeps a file's words (Open in Split, Add to Bookmarks).
 - **A sidebar row**: Open in New Window, Duplicate, Rename, Pin, the Close items. Each acts on the group as a whole, whatever its tabs show; what acts on one chat is in that chat's tab menu.
 - **A bookmark**: Open, Open in Split, Open in New Tab, Open in New Tab Group, Open in New Window, Rename, Delete.
@@ -120,7 +120,7 @@ Paths are under `apps/studio/src/client/components/window/` unless named.
 - **Closing.** A side's last tab closing leaves the other side as the group, the x on a one-sided group's last tab closes the group, and ⌘W there asks for a second press. Closing the window's last group makes a new one.
 - **The composer's chip** is the tab up on the other side (`besideOf` into `chatContextItems`, `context-items.ts`): a page, a file or an app as before, and another chat as that chat, by its title. A message's list of its group's tabs (`send-context.ts`) leaves out chat and new chat tabs.
 - **Sidebar rows** (`group-sidebar.tsx`, `tab-groups.ts`): a row's title is its typed name, else its first chat's title, the left side first, else the title of the tab up on the keyboard's side; its second line is that chat's latest line, and its marks are every tab's. Starring a chat does not pin its group.
-- **The tab menu** (`PaneTabMenu`, `pane-tabs.tsx`): Open in Split, Move to Other Side, New Chat in Split, Move to New Tab Group, Move to New Window, Duplicate, Close, Close Other Tabs, Close Tabs to the Left and to the Right.
+- **The tab menu** (`PaneTabMenu`, `pane-tabs.tsx`): Open in Split, Move to Other Side, New Tab in Split, Move to New Tab Group, Move to New Window, Duplicate, Close, Close Other Tabs, Close Tabs to the Left and to the Right.
 
 ### Where Core stands
 

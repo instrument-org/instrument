@@ -179,7 +179,11 @@ export {
   type DeviceId,
   newDeviceId,
 } from "./lib/records/device-id";
-export { readComputerName, writeDeviceFile } from "./lib/records/device-file";
+export {
+  readComputerName,
+  whenWorkspaceHasPhone,
+  writeDeviceFile,
+} from "./lib/records/device-file";
 export {
   DEVICE_STATUS_HEARTBEAT_MS,
   type DeviceStatus,

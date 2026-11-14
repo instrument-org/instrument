@@ -5,6 +5,7 @@ import { isEqual } from "radashi";
 import { DEVICE_ID_PATTERN, type DeviceId } from "../records/device-id";
 import { RecordWriter } from "../records/record-writer";
 import { readBytes } from "../workspace-files";
+import { watchDevices } from "./watch-devices";
 import { SyncedFold } from "./synced-fold";
 import {
   checkDomain,
@@ -195,7 +196,13 @@ export async function openSyncedStore({
       clearTimeout(settleTimer);
       settleTimer = setTimeout(() => void look(), settleMs);
     };
-    stopWatch = watchDevices(devicesDir, platform, domain, settle, onError);
+    stopWatch = watchDevices({
+      devicesDir,
+      isOurs: (name) => isSyncedFileName(name, domain),
+      onChange: settle,
+      onError,
+      platform,
+    });
   }
 
   await look();
@@ -241,109 +248,6 @@ export async function openSyncedStore({
         listeners.delete(listener);
       };
     },
-  };
-}
-
-/**
- * Watches the devices folder for a device's file of the domain changing:
- * the folder as one tree where the system watches a tree with one handle
- * (macOS, Windows), and elsewhere the folder and each device's folder in it,
- * picking up a device's folder as it appears.
- */
-function watchDevices(
-  devicesDir: string,
-  platform: NodeJS.Platform,
-  domain: string,
-  onChange: () => void,
-  onError: (error: unknown) => void,
-): () => void {
-  try {
-    fs.mkdirSync(devicesDir, { recursive: true });
-  } catch (error) {
-    onError(error);
-    return () => undefined;
-  }
-  const isOurs = (name: string) => isSyncedFileName(name, domain);
-  if (platform === "darwin" || platform === "win32") {
-    return watchFolder(
-      devicesDir,
-      true,
-      (filename) => {
-        const [folder, name, ...deeper] = (filename ?? "").split(/[\\/]/);
-        if (
-          filename === null ||
-          (folder !== undefined &&
-            DEVICE_FOLDER.test(folder) &&
-            name !== undefined &&
-            deeper.length === 0 &&
-            isOurs(name))
-        ) {
-          onChange();
-        }
-      },
-      onError,
-    );
-  }
-  const folders = new Map<string, () => void>();
-  const attend = () => {
-    for (const folder of namesIn(devicesDir)) {
-      if (DEVICE_FOLDER.test(folder) && !folders.has(folder)) {
-        folders.set(
-          folder,
-          watchFolder(
-            path.join(devicesDir, folder),
-            false,
-            (name) => {
-              if (name === null || isOurs(name)) {
-                onChange();
-              }
-            },
-            onError,
-          ),
-        );
-      }
-    }
-  };
-  attend();
-  const stopTop = watchFolder(
-    devicesDir,
-    false,
-    () => {
-      attend();
-      onChange();
-    },
-    onError,
-  );
-  return () => {
-    stopTop();
-    for (const stop of folders.values()) {
-      stop();
-    }
-  };
-}
-
-/** Watches a folder, answering how to stop. A watch that fails is said and closed. */
-function watchFolder(
-  dir: string,
-  recursive: boolean,
-  onEvent: (filename: null | string) => void,
-  onError: (error: unknown) => void,
-): () => void {
-  let watcher: fs.FSWatcher;
-  try {
-    watcher = fs.watch(dir, { recursive }, (_event, filename) => {
-      onEvent(filename);
-    });
-  } catch (error) {
-    onError(error);
-    return () => undefined;
-  }
-  watcher.on("error", (error) => {
-    onError(error);
-    watcher.close();
-  });
-  return () => {
-    watcher.close();
   };
 }
 

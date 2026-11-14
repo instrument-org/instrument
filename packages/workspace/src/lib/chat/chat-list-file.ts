@@ -3,6 +3,7 @@ import { isEqual, pick } from "radashi";
 
 import { publisher } from "../../rpc/publisher";
 import { updateJsonRecord } from "../json-record-file";
+import { whenWorkspaceHasPhone } from "../records/device-file";
 import { type DeviceId } from "../records/device-id";
 import { getWorkspaceConfig } from "../workspace-config";
 import { workspaceLayout } from "../workspace-layout";
@@ -17,6 +18,9 @@ import { liveChatList } from "./live-chat-list";
  * lists each chat by listing its folder, which waits on the sync engine
  * folder by folder: minutes for a thousand chats, where this one file takes
  * seconds.
+ *
+ * Written only once a phone has used the workspace (`whenWorkspaceHasPhone`),
+ * and at once when one first does, so its first list comes from the file.
  *
  * Derived, like `workspace.db`, and never the truth: a reader takes the
  * newest of the devices' files by `writtenAt` to show a list at once, and
@@ -91,8 +95,9 @@ function chatListFile(
 }
 
 /**
- * Writes the file from the live chat list for as long as the process runs:
- * once the list is first read, then at most every `WRITE_AFTER_MS` while it
+ * Writes the file from the live chat list for as long as the process runs,
+ * once a phone has used the workspace: once the list is first read or the
+ * phone first seen, whichever is later, then at most every `WRITE_AFTER_MS` while it
  * moves and a moment after any turn ends, and not at all for a move that
  * leaves every row the file carries as it was (a step a running turn is on,
  * say). Stops with `signal`.
@@ -107,11 +112,9 @@ export function startChatListFile({
   writeAfterMs?: number;
 } = {}): void {
   const config = getWorkspaceConfig();
-  const file = path.join(
-    workspaceLayout(config.rootDir).devicesDir,
-    config.deviceId,
-    CHAT_LIST_FILE_NAME,
-  );
+  const devicesDir = workspaceLayout(config.rootDir).devicesDir;
+  const file = path.join(devicesDir, config.deviceId, CHAT_LIST_FILE_NAME);
+  let hasPhone = false;
   // Unread until the live list first answers, when a turn's end has nothing
   // to write yet: an empty list would show a phone no chats.
   let latest: readonly Chat[] | undefined;
@@ -129,7 +132,7 @@ export function startChatListFile({
 
   const write = async () => {
     timer = undefined;
-    if (latest === undefined) {
+    if (!hasPhone || latest === undefined) {
       return;
     }
     const contents = chatListFile(latest, {
@@ -146,6 +149,13 @@ export function startChatListFile({
       config.captureException(error);
     }
   };
+
+  void whenWorkspaceHasPhone({ devicesDir, signal }).then((found) => {
+    if (found) {
+      hasPhone = true;
+      void write();
+    }
+  });
 
   void (async () => {
     try {

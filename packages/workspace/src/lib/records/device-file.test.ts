@@ -1,9 +1,14 @@
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
-import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-import { DEVICE_FILE_NAME, writeDeviceFile } from "./device-file";
+import {
+  DEVICE_FILE_NAME,
+  whenWorkspaceHasPhone,
+  workspaceHasPhone,
+  writeDeviceFile,
+} from "./device-file";
 import { DeviceIdSchema } from "./device-id";
 
 const device = DeviceIdSchema.parse("dev_7Q2M4K9X");
@@ -73,5 +78,85 @@ describe("writeDeviceFile", () => {
       person: { id: "u1", issuer: "example.com", name: "Sam" },
       platform: "darwin",
     });
+  });
+});
+
+const phone = DeviceIdSchema.parse("dev_P40NE111");
+
+/** Writes a device's `device.json` as its own app would. */
+function says(id: string, platform: string) {
+  fs.mkdirSync(path.join(devicesDir, id), { recursive: true });
+  fs.writeFileSync(
+    path.join(devicesDir, id, DEVICE_FILE_NAME),
+    JSON.stringify({ name: "Somebody's device", platform }),
+  );
+}
+
+describe("workspaceHasPhone", () => {
+  it.each([
+    { has: false, wrote: [] },
+    { has: false, wrote: [[device, "darwin"]] },
+    {
+      has: true,
+      wrote: [
+        [device, "darwin"],
+        [phone, "ios"],
+      ],
+    },
+    // A folder that is not a device's is not read.
+    { has: false, wrote: [["not-a-device", "ios"]] },
+  ] satisfies { has: boolean; wrote: [string, string][] }[])(
+    "answers $has for $wrote",
+    async ({ has, wrote }) => {
+      for (const [id, platform] of wrote) {
+        says(id, platform);
+      }
+      expect(await workspaceHasPhone(devicesDir)).toBe(has);
+    },
+  );
+
+  it("answers false for a devices folder that is not there", async () => {
+    expect(await workspaceHasPhone(path.join(devicesDir, "missing"))).toBe(
+      false,
+    );
+  });
+
+  it("reads past a device file it cannot parse", async () => {
+    fs.mkdirSync(path.join(devicesDir, device), { recursive: true });
+    fs.writeFileSync(file(), "{");
+    says(phone, "ios");
+    expect(await workspaceHasPhone(devicesDir)).toBe(true);
+  });
+});
+
+describe("whenWorkspaceHasPhone", () => {
+  it("answers at once when a phone has already used the workspace", async () => {
+    says(phone, "ios");
+    expect(await whenWorkspaceHasPhone({ devicesDir })).toBe(true);
+  });
+
+  it("answers once a phone's device file arrives", async () => {
+    says(device, "darwin");
+    let found: boolean | undefined;
+    void whenWorkspaceHasPhone({ devicesDir, settleMs: 10 }).then((answer) => {
+      found = answer;
+    });
+    await new Promise((resolve) => setTimeout(resolve, 100));
+    expect(found).toBeUndefined();
+
+    says(phone, "ios");
+    await vi.waitFor(() => {
+      expect(found).toBe(true);
+    });
+  });
+
+  it("answers false when stopped before a phone arrives", async () => {
+    const controller = new AbortController();
+    const answer = whenWorkspaceHasPhone({
+      devicesDir,
+      signal: controller.signal,
+    });
+    controller.abort();
+    expect(await answer).toBe(false);
   });
 });

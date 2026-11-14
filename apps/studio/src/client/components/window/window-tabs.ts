@@ -125,7 +125,9 @@ function splitTabGroups(state: WindowTabs) {
     });
   }
   const groups = new Set([
-    ...state.tabs.flatMap((tab) => (tab.group === undefined ? [] : [tab.group])),
+    ...state.tabs.flatMap((tab) =>
+      tab.group === undefined ? [] : [tab.group],
+    ),
     ...Object.keys(state.groups ?? {}),
   ]);
   for (const group of groups) {

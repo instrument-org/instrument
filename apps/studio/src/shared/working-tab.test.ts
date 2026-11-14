@@ -38,6 +38,8 @@ describe("workingTabOf", () => {
 
   it("is nothing for a chat whose tabs are all in groups no open window lists", () => {
     expect(workingTabOf(TABS, CHAT, () => false)).toBeUndefined();
-    expect(workingTabOf([{ id: "loose", href: `/chats/${CHAT}` }], CHAT, () => true)).toBeUndefined();
+    expect(
+      workingTabOf([{ id: "loose", href: `/chats/${CHAT}` }], CHAT, () => true),
+    ).toBeUndefined();
   });
 });

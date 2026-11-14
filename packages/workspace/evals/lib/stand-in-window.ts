@@ -88,7 +88,10 @@ export function createStandInWindow(chrome?: SharedChrome) {
                   address: tab.kind === "page" ? tab.at : "instrument://screen",
                   id: tab.id,
                   ...(tab.id === front && { isUp: true }),
-                  kind: tab.kind === "page" ? ("website" as const) : ("builtIn" as const),
+                  kind:
+                    tab.kind === "page"
+                      ? ("website" as const)
+                      : ("builtIn" as const),
                   title: "",
                 })),
               },

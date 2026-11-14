@@ -147,9 +147,7 @@ it("writes nothing over a corrupt file it could not set aside", () => {
   store.flush();
   renamed.mockRestore();
 
-  expect(fs.readFileSync(path.join(dir, "layout.json"), "utf8")).toBe(
-    "{ tabs",
-  );
+  expect(fs.readFileSync(path.join(dir, "layout.json"), "utf8")).toBe("{ tabs");
 });
 
 it("leaves no temporary file behind", () => {

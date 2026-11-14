@@ -162,7 +162,13 @@ describe("the tab groups kept on this computer", () => {
       tabs: [
         { group: "group_a", id: "tab_1", kind: "page", openedAt: 1 },
         { group: "group_a", id: "tab_2", kind: "page", openedAt: 2 },
-        { group: "group_a", href: "/chats", id: "tab_3", kind: "screen", side: 1 },
+        {
+          group: "group_a",
+          href: "/chats",
+          id: "tab_3",
+          kind: "screen",
+          side: 1,
+        },
       ],
     });
 

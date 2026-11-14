@@ -159,7 +159,9 @@ export function rewriteFolderAddresses(
     // A workspace no window of this build has opened has none.
   }
   return [
-    ...SHARED_KEPT_FILES.map((file) => path.join(windowDir, keptFileName(file))),
+    ...SHARED_KEPT_FILES.map((file) =>
+      path.join(windowDir, keptFileName(file)),
+    ),
     ...windowFiles,
   ].flatMap((file) => rewriteAddressesIn(file, where));
 }
@@ -250,7 +252,9 @@ function setAside(file: string): boolean {
     logger.warn(`Could not set aside kept state in ${file}`, error);
     return false;
   }
-  logger.warn(`Set aside kept state in ${file}, not a JSON object, as ${aside}`);
+  logger.warn(
+    `Set aside kept state in ${file}, not a JSON object, as ${aside}`,
+  );
   return true;
 }
 
@@ -368,7 +372,9 @@ function sweepTabGroups() {
     }
   }
   if (gone.length > 0) {
-    logger.info(`Removed ${gone.length.toString()} tab group(s) no window lists`);
+    logger.info(
+      `Removed ${gone.length.toString()} tab group(s) no window lists`,
+    );
     publisher.publish("window.tab-groups-changed", null);
   }
 }

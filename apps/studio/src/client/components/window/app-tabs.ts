@@ -79,7 +79,9 @@ export function openInNewWindow(...hrefs: string[]): Promise<boolean> {
 
 /** The address of the tab that shows a site's group. */
 export function pageHrefOf(group: string): string {
-  return pathOf(SCREEN_ROUTES.site, { id: group.slice(SITE_GROUP_PREFIX.length) });
+  return pathOf(SCREEN_ROUTES.site, {
+    id: group.slice(SITE_GROUP_PREFIX.length),
+  });
 }
 
 /** The group key a site opened at the window's own level is kept under, one per site opened. */

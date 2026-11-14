@@ -17,11 +17,7 @@ import { stripKeyOf } from "./pane-tabs";
 import { fillRoom } from "./sidebar-drop";
 import { showTabCarryView, tabCarryViewAtom } from "./tab-carry-view";
 import { tabsIn, type WindowTabs } from "./tab-model";
-import {
-  type TabGroup,
-  useOpenGroups,
-  useTabGroupActions,
-} from "./tab-groups";
+import { type TabGroup, useOpenGroups, useTabGroupActions } from "./tab-groups";
 import { windowTabGroupsAtom } from "./open-groups";
 import { groupHref } from "./window-href";
 import {

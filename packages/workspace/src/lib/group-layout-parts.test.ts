@@ -82,7 +82,12 @@ describe("layoutParts", () => {
     // A wake no window answered writes nothing.
     expect(await send()).toEqual([]);
     expect(
-      await send(read([CHAT], "group_a", { movedIn: {}, movedOut: { tab_page: "group_c" } })),
+      await send(
+        read([CHAT], "group_a", {
+          movedIn: {},
+          movedOut: { tab_page: "group_c" },
+        }),
+      ),
     ).toEqual(["data-groupLayout", ["movedOut"]]);
     expect(await send(read([CHAT], "group_b"))).toEqual([
       "data-groupLayout",
@@ -92,10 +97,20 @@ describe("layoutParts", () => {
 
   it("keeps only the layout in the log, never where other tabs are", async () => {
     const { chatId, send, sessionId } = await setup("layout-parts-kept");
-    await send(read([CHAT, PAGE], "group_a", { movedIn: { tab_page: "group_b" }, movedOut: { tab_x: "group_c" } }));
+    await send(
+      read([CHAT, PAGE], "group_a", {
+        movedIn: { tab_page: "group_b" },
+        movedOut: { tab_x: "group_c" },
+      }),
+    );
     const history = await ChatReads.history({ chatId, sessionId });
-    const kept = history._unsafeUnwrap().flatMap((message) => message.parts).find((part) => part.type === "data-groupLayout");
-    expect(kept?.type === "data-groupLayout" && Object.keys(kept.data).toSorted()).toEqual(["focused", "group", "sides"]);
+    const kept = history
+      ._unsafeUnwrap()
+      .flatMap((message) => message.parts)
+      .find((part) => part.type === "data-groupLayout");
+    expect(
+      kept?.type === "data-groupLayout" && Object.keys(kept.data).toSorted(),
+    ).toEqual(["focused", "group", "sides"]);
   });
 
   it("writes a layout only when what it says changed", async () => {

@@ -46,7 +46,12 @@ export function HistoryPage({
     groups.restore(entry);
   };
   return (
-    <main className="@container/history h-full min-h-0 overflow-y-auto bg-background">
+    // The page is worked from its content, which the keys scroll.
+    <main
+      className="@container/history h-full min-h-0 overflow-y-auto bg-background outline-none"
+      data-keyboard-home
+      tabIndex={-1}
+    >
       <div className="mx-auto flex max-w-2xl flex-col gap-3 p-4 @min-[640px]/history:p-6">
         <div className="flex flex-wrap items-center gap-x-3 gap-y-2">
           <h1 className="mr-1 text-base font-semibold">History</h1>

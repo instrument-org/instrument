@@ -768,6 +768,7 @@ function ActivityList({
   return (
     <div
       className="min-h-0 flex-1 overflow-y-auto px-4 outline-none @min-[640px]/activity:px-6"
+      data-keyboard-home
       onKeyDown={onKeyDown}
       ref={setScroller}
       tabIndex={0}

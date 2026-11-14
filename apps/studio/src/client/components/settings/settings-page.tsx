@@ -318,10 +318,13 @@ export function SettingsPage({
           </div>
         </>
       )}
+      {/* The page is worked from its content, which the keys scroll. */}
       <main
-        className="min-w-0 flex-1 overflow-y-auto scroll-fade-y"
+        className="min-w-0 flex-1 overflow-y-auto scroll-fade-y outline-none"
+        data-keyboard-home
         key={section}
         ref={contentRef}
+        tabIndex={-1}
       >
         <div
           className={cn(

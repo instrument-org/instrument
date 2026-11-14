@@ -765,6 +765,9 @@ export function FilesScreen({
 
   if (isBesideLayout) {
     const fileOffset = isFolderShown ? besideWidth : 0;
+    // Shown while the folder is beside the file, to put the file away from
+    // it. With the folder put away the file is the tab's page, and the tab's
+    // own close is the one close it wears.
     const closeButton = (
       <ToolbarTooltip label="Close the file">
         <Button
@@ -980,7 +983,7 @@ export function FilesScreen({
                                         className="flex items-center gap-0.5"
                                         ref={setPickedSlot}
                                       />
-                                      {closeButton}
+                                      {isFolderShown ? closeButton : null}
                                     </>,
                                     rowTail,
                                   )}
@@ -993,7 +996,9 @@ export function FilesScreen({
                                     // folder's own to come back.
                                     actionsInto={isPresent ? rowTail : null}
                                     actionsLead={actionsLead}
-                                    actionsTrail={closeButton}
+                                    actionsTrail={
+                                      isFolderShown ? closeButton : null
+                                    }
                                     // A tab opened behind waits to be looked at.
                                     autoPlay={isActiveTab}
                                     className={FULL_BLEED}

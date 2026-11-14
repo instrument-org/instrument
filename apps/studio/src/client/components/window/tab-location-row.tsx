@@ -203,7 +203,7 @@ export function TabLocationRow({
       {hasField ? (
         <div
           className={cn(
-            "group/field relative flex h-8 min-w-0 flex-1 cursor-text items-center gap-2 rounded-xl bg-(--field-fill) px-3 text-[13px] ring-1 ring-foreground/[0.06] [--field-fill:color-mix(in_oklab,var(--foreground)_4.5%,var(--background))] focus-within:ring-foreground/20 focus-within:[--field-fill:var(--card)]",
+            "group/field @container/field relative flex h-8 min-w-0 flex-1 cursor-text items-center gap-2 rounded-xl bg-(--field-fill) px-3 text-[13px] ring-1 ring-foreground/[0.06] [--field-fill:color-mix(in_oklab,var(--foreground)_4.5%,var(--background))] focus-within:ring-foreground/20 focus-within:[--field-fill:var(--card)]",
             // The app's icon and the star sit at the field's end, with room
             // to breathe inside the curve.
             (openIn || address) && "pr-2",
@@ -465,7 +465,11 @@ function Field({ location }: { location: TabLocation }) {
   };
   return (
     <>
-      {chip ? <FieldChip app={chip} /> : <LocationMark location={location} />}
+      {chip ? (
+        <FieldChip app={chip} nameFolds />
+      ) : (
+        <LocationMark location={location} />
+      )}
       {/* The parts pulled out to the box's own edge, so the place reads from
           where it read before there was anything to press. */}
       <FoldingTrail
@@ -608,12 +612,20 @@ function LocationMark({ location }: { location: TabLocation }) {
  * The chip at the field's start. Files' and Apps' do what the rail's own
  * entry does: the place, at its root when the window is already in it.
  */
-function FieldChip({ app }: { app: BuiltInApp }) {
+function FieldChip({
+  app,
+  nameFolds = false,
+}: {
+  app: BuiltInApp;
+  /** A name follows the chip, which keeps the room in a narrow field. */
+  nameFolds?: boolean;
+}) {
   const shell = useContext(ShellContext);
   const place = app === "apps" ? "apps" : app === "files" ? "files" : undefined;
   return (
     <AppChip
       app={app}
+      nameFolds={nameFolds}
       {...(shell && place
         ? {
             onPress: () => {

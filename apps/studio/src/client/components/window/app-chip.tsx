@@ -115,23 +115,31 @@ export function AppMark({
 /**
  * The chip at the start of the address field that says which of the app's
  * own apps the tab is in: its mark and its name, on a card of its own. A
- * press on it goes to the app where it has a place to go to.
+ * press on it goes to the app where it has a place to go to. With
+ * `nameFolds`, a narrow field (`@container/field`) shows the mark alone, so
+ * the name after the chip keeps the room.
  */
 export function AppChip({
   app,
+  nameFolds = false,
   onPress,
 }: {
   app: BuiltInApp;
+  nameFolds?: boolean;
   onPress?: () => void;
 }) {
   const face = (
     <>
       <AppMark app={app} />
-      {appName(app)}
+      <span className={cn(nameFolds && "@max-[18rem]/field:sr-only")}>
+        {appName(app)}
+      </span>
     </>
   );
-  const className =
-    "-ml-1.5 flex h-6 shrink-0 cursor-default items-center gap-1.5 rounded-lg bg-card pr-2 pl-1.5 text-[13px] font-medium text-foreground shadow-xs ring-1 ring-foreground/8";
+  const className = cn(
+    "-ml-1.5 flex h-6 shrink-0 cursor-default items-center gap-1.5 rounded-lg bg-card pr-2 pl-1.5 text-[13px] font-medium text-foreground shadow-xs ring-1 ring-foreground/8",
+    nameFolds && "@max-[18rem]/field:pr-1.5",
+  );
   if (!onPress) {
     return (
       <span className={className} data-app-chip={app}>

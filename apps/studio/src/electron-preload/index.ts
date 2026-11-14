@@ -145,6 +145,22 @@ function loadDrafts(): DraftsSnapshot {
   return { acks: {}, drafts: [] };
 }
 
+/** The drafts as the preload first read them. */
+const initialDrafts = loadDrafts();
+
+/**
+ * The drafts as main last sent them, heard from the moment the preload runs:
+ * a snapshot main sends before the page's own code listens, such as the one
+ * after its first read of the folder, waits here for it.
+ */
+let latestDrafts = initialDrafts;
+ipcRenderer.on(
+  DRAFTS_CHANNEL.changed,
+  (_event: unknown, snapshot: DraftsSnapshot) => {
+    latestDrafts = snapshot;
+  },
+);
+
 /**
  * The bookmarks as main has them, read synchronously so the browser's
  * starting view draws them in its first render. A failed read starts with
@@ -203,12 +219,16 @@ const api: Window["api"] = {
     apply: async (batch: DraftOpBatch) => {
       await ipcRenderer.invoke(DRAFTS_CHANNEL.apply, batch);
     },
-    initial: loadDrafts(),
+    initial: initialDrafts,
     onChange: (listener) => {
       const forward = (_event: unknown, snapshot: DraftsSnapshot) => {
         listener(snapshot);
       };
       ipcRenderer.on(DRAFTS_CHANNEL.changed, forward);
+      // What main sent before anything here listened.
+      if (latestDrafts !== initialDrafts) {
+        listener(latestDrafts);
+      }
       return () => {
         ipcRenderer.off(DRAFTS_CHANNEL.changed, forward);
       };

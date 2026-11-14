@@ -77,6 +77,14 @@ export function shownDrafts(sync: Sync): Draft[] {
 export const draftsAtom = mirror.shownAtom;
 
 /**
+ * Whether main has read the drafts folder, so `draftsAtom` says what is
+ * there: a draft missing from it before then may only be unread.
+ */
+export const draftsLoadedAtom = atom(
+  (get) => get(mirror.confirmedAtom).loading !== true,
+);
+
+/**
  * Sends ops to main and shows them at once. Answers once main has applied
  * them and written them through; a batch main refused is taken back off, so
  * the window shows what main has.

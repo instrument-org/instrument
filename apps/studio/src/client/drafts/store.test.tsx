@@ -1,7 +1,11 @@
 import { type ChatId } from "@instrument-org/workspace/client";
-import { type Draft, type DraftOpBatch } from "@/shared/drafts";
+import {
+  type Draft,
+  type DraftOpBatch,
+  type DraftsSnapshot,
+} from "@/shared/drafts";
 import { createStore } from "jotai";
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, onTestFinished, vi } from "vitest";
 
 import {
   applyDraftOpsAtom,
@@ -102,5 +106,44 @@ describe("a window's drafts", () => {
     expect(store.get(draftsAtom).map((entry) => entry.words)).toEqual([
       "Plan the trip",
     ]);
+  });
+});
+
+describe("whether main has read the drafts", () => {
+  it("is not until main sends a snapshot of the folder read", async () => {
+    let send: ((snapshot: DraftsSnapshot) => void) | undefined;
+    const initial: DraftsSnapshot = { acks: {}, drafts: [], loading: true };
+    const api = window.api;
+    Object.defineProperty(window, "api", {
+      configurable: true,
+      value: {
+        ...api,
+        drafts: {
+          apply: () => Promise.resolve(),
+          initial,
+          onChange: (listener: (snapshot: DraftsSnapshot) => void) => {
+            send = listener;
+            return () => undefined;
+          },
+        },
+      },
+    });
+    onTestFinished(() => {
+      Object.defineProperty(window, "api", { configurable: true, value: api });
+      vi.resetModules();
+    });
+    vi.resetModules();
+    const { draftsAtom: drafts, draftsLoadedAtom } = await import("./store");
+    const jotai = createStore();
+    const stop = jotai.sub(draftsLoadedAtom, () => undefined);
+
+    expect(jotai.get(draftsLoadedAtom)).toBe(false);
+    send?.({ ...initial, drafts: [draft("a", { words: "Plan" })] });
+    expect(jotai.get(draftsLoadedAtom)).toBe(false);
+    send?.({ acks: {}, drafts: [draft("a", { words: "Plan" })] });
+    expect(jotai.get(draftsLoadedAtom)).toBe(true);
+    expect(jotai.get(drafts).map((entry) => entry.id)).toEqual(["a"]);
+
+    stop();
   });
 });

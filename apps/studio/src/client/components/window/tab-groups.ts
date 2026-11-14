@@ -6,7 +6,7 @@ import {
   starPinsCarriedAtom,
 } from "@/client/atoms/tab-groups";
 import { pickNewChatProjectAtom } from "@/client/drafts/new-chat-box";
-import { draftsAtom } from "@/client/drafts/store";
+import { draftsAtom, draftsLoadedAtom } from "@/client/drafts/store";
 import { keptAtom, keptInOtherWindows } from "@/client/lib/kept-state";
 import { freshTabId } from "@/client/lib/tab-actions";
 import { rpcClient } from "@/client/rpc/client";
@@ -906,7 +906,9 @@ export function useTabGroupActions() {
  * new group, and the inbox shows the group last up, or the first, or a new
  * one. Groups another window has open too leave this one's list once, as
  * it opens, unless this window is showing them: a window closed with them
- * and brought back since they were opened elsewhere.
+ * and brought back since they were opened elsewhere. None of this happens
+ * until main has read the drafts, since a draft missing before then may
+ * only be unread.
  */
 export function useTabGroupUpkeep(href: string, open: readonly TabGroup[]) {
   const store = useStore();
@@ -914,11 +916,15 @@ export function useTabGroupUpkeep(href: string, open: readonly TabGroup[]) {
   const windowTabs = useWindowTabs();
   const groups = useTabGroupActions();
   const drafts = useAtomValue(draftsAtom);
+  const draftsLoaded = useAtomValue(draftsLoadedAtom);
   const elsewhere = useTabGroupsElsewhere();
   const lastUp = useRef<string>(undefined);
   const asked = useRef<string>(undefined);
 
   const keep = useEffectEvent(() => {
+    if (!draftsLoaded) {
+      return;
+    }
     const listed = store.get(windowTabGroupsAtom) ?? [];
     const state = store.get(windowTabsAtom);
     const { kept, opening } = upkeptList(listed, state, {
@@ -1001,7 +1007,7 @@ export function useTabGroupUpkeep(href: string, open: readonly TabGroup[]) {
   });
   useEffect(() => {
     keep();
-  }, [href, drafts]);
+  }, [href, drafts, draftsLoaded]);
 
   const isDeduped = useRef(false);
   useEffect(() => {

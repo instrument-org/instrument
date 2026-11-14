@@ -5,6 +5,7 @@ import {
 } from "@/client/lib/show-in-files";
 import {
   draftsAtom,
+  draftsLoadedAtom,
   removeDraftAtom,
   updateDraftAtom,
 } from "@/client/drafts/store";
@@ -603,6 +604,7 @@ function WindowShell({
   const [defaultModelURI, setDefaultModelURI, saveDefaultModelURI] =
     useDefaultModelURI();
   const drafts = useAtomValue(draftsAtom);
+  const draftsLoaded = useAtomValue(draftsLoadedAtom);
   const updateDraft = useSetAtom(updateDraftAtom);
   const removeDraft = useSetAtom(removeDraftAtom);
   const setChatGroup = useSetAtom(chatGroupAtom);
@@ -662,7 +664,9 @@ function WindowShell({
   // A draft is written over the screen, never on it, and a draft with no
   // words is not kept past its window, so one left over from a launch goes,
   // unless its window came back with it. A window whose draft is gone goes.
-  // Once, over what was restored.
+  // Once, over what was restored, once main has read the drafts: before
+  // then every draft looks gone.
+  const isSwept = useRef(false);
   const sweepRestored = useEffectEvent(() => {
     // Another window's are as much its own as this one's are this one's.
     const floating = new Set([
@@ -701,8 +705,11 @@ function WindowShell({
     }
   });
   useEffect(() => {
-    sweepRestored();
-  }, []);
+    if (draftsLoaded && !isSwept.current) {
+      isSwept.current = true;
+      sweepRestored();
+    }
+  }, [draftsLoaded]);
 
   // A site opened at the window's level lives for as long as an open tab
   // can come back to it, by its history as its router holds it now. Past

@@ -136,6 +136,8 @@ export function createOpMirror<S extends AckedSnapshot, Op, T>({
         throw error;
       }
     }),
+    /** What main last said, as it said it. */
+    confirmedAtom: atom((get) => get(syncAtom).confirmed),
     /** What the window shows: main's, with its own batches still on their way applied over it. */
     shownAtom: atom((get) => shownOf(get(syncAtom), show)),
   };

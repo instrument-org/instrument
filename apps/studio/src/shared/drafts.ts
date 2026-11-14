@@ -155,6 +155,12 @@ export interface DraftsSnapshot {
   acks: Record<string, number>;
   /** Every draft, oldest first. */
   drafts: Draft[];
+  /**
+   * Set while main has not yet read the drafts folder, when `drafts` says
+   * nothing of what is there: before the workspace opens, and while its
+   * first read is under way.
+   */
+  loading?: true;
 }
 
 /** A batch of ops from one window, numbered so main can say which it has applied. */

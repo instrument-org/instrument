@@ -26,7 +26,11 @@ import {
   newChatWordsKey,
 } from "@/client/drafts/new-chat-box";
 import { cancelWords } from "@/client/drafts/settle-words";
-import { draftsAtom, updateDraftAtom } from "@/client/drafts/store";
+import {
+  draftsAtom,
+  draftsLoadedAtom,
+  updateDraftAtom,
+} from "@/client/drafts/store";
 import { type Draft, draftGroupOf } from "@/shared/drafts";
 import { cn, osConventions } from "@/client/lib/utils";
 import { APP_NAME } from "@instrument-org/shared";
@@ -102,6 +106,7 @@ export function NewChatView({
   const windowTabs = useWindowTabs();
   const filesHref = useAtomValue(filesHrefAtom);
   const drafts = useAtomValue(draftsAtom);
+  const draftsLoaded = useAtomValue(draftsLoadedAtom);
   const store = useStore();
   const boxes = useAtomValue(newChatBoxesAtom);
   const bindBox = useSetAtom(bindNewChatBoxAtom);
@@ -122,6 +127,9 @@ export function NewChatView({
   // whatever was typed since. The box is read as it stands now rather than
   // as this render saw it, since these effects change it.
   const followAddress = useEffectEvent(() => {
+    if (!draftsLoaded) {
+      return;
+    }
     const named = drafts.find(
       (entry) => entry.id === draftId && entry.sendingTo === undefined,
     );
@@ -136,10 +144,11 @@ export function NewChatView({
       prompt: named?.words ?? "",
     });
   });
-  // Only as the address changes; see above.
+  // Only as the address changes, and once main has read the drafts, before
+  // which the draft the address names may only be unread.
   useLayoutEffect(() => {
     followAddress();
-  }, [draftId, tabId]);
+  }, [draftId, draftsLoaded, tabId]);
   // What the box held besides its words (a picture's own preview among it)
   // is kept with the draft as the box lets go of it, popped out or left, so
   // its window or this screen shows it again as it was.

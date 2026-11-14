@@ -108,17 +108,47 @@ it("removes a key set to undefined", () => {
 it.each([
   ["not JSON", "{ tabs"],
   ["JSON that is not an object", "[1, 2]"],
-])("reads a file that is %s as empty", (_, contents) => {
+])("sets aside a file that is %s before writing a new one", (_, contents) => {
+  vi.useFakeTimers({ now: 1000 });
   fs.writeFileSync(path.join(dir, "layout.json"), contents);
   fs.writeFileSync(
     path.join(dir, "view.json"),
     JSON.stringify({ "zoom.v1": 1.5 }),
   );
+  const store = createKeptStateStore(() => dir);
 
-  expect(createKeptStateStore(() => dir).snapshot()).toMatchObject({
+  expect(store.snapshot()).toMatchObject({
     layout: {},
     view: { "zoom.v1": 1.5 },
   });
+  store.set("layout", "sidebar.v1", 240);
+  store.flush();
+  vi.useRealTimers();
+
+  expect(fs.readdirSync(dir).toSorted()).toEqual([
+    "layout.json",
+    "layout.json.corrupt-1000",
+    "view.json",
+  ]);
+  expect(
+    fs.readFileSync(path.join(dir, "layout.json.corrupt-1000"), "utf8"),
+  ).toBe(contents);
+  expect(read("layout.json")).toEqual({ "sidebar.v1": 240 });
+});
+
+it("writes nothing over a corrupt file it could not set aside", () => {
+  fs.writeFileSync(path.join(dir, "layout.json"), "{ tabs");
+  const renamed = vi.spyOn(fs, "renameSync").mockImplementationOnce(() => {
+    throw Object.assign(new Error("not permitted"), { code: "EPERM" });
+  });
+  const store = createKeptStateStore(() => dir);
+  store.set("layout", "sidebar.v1", 240);
+  store.flush();
+  renamed.mockRestore();
+
+  expect(fs.readFileSync(path.join(dir, "layout.json"), "utf8")).toBe(
+    "{ tabs",
+  );
 });
 
 it("leaves no temporary file behind", () => {

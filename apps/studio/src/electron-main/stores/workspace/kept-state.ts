@@ -210,10 +210,12 @@ function rewriteAddressesIn(
 }
 
 /**
- * A file's object, or an empty one for a file that is missing or not an
- * object of JSON; undefined for one that is there and could not be read
- * (another program holding it, a refused folder), which is no reason to
- * write over it.
+ * A file's object, or an empty one for a file that is missing; undefined for
+ * one that is there and could not be read (another program holding it, a
+ * refused folder), which is no reason to write over it. A file that is not
+ * an object of JSON is set aside under another name first (`setAside`), so
+ * the next write starts a new one and the old stays for a person to look at;
+ * one that cannot be set aside is not read at all.
  */
 function readObject(file: string): Record<string, unknown> | undefined {
   let raw: string;
@@ -232,10 +234,22 @@ function readObject(file: string): Record<string, unknown> | undefined {
       return Object.fromEntries(Object.entries(value));
     }
   } catch {
-    // Reported below with the case of JSON that is not an object.
+    // Set aside below with the case of JSON that is not an object.
   }
-  logger.warn(`Ignoring kept state in ${file}: not a JSON object`);
-  return {};
+  return setAside(file) ? {} : undefined;
+}
+
+/** A kept file that is not an object of JSON, renamed beside itself; false when it could not be. */
+function setAside(file: string): boolean {
+  const aside = `${file}.corrupt-${Date.now().toString()}`;
+  try {
+    fs.renameSync(file, aside);
+  } catch (error) {
+    logger.warn(`Could not set aside kept state in ${file}`, error);
+    return false;
+  }
+  logger.warn(`Set aside kept state in ${file}, not a JSON object, as ${aside}`);
+  return true;
 }
 
 let STORE: null | ReturnType<typeof createKeptStateStore> = null;

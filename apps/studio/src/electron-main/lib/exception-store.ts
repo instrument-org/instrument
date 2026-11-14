@@ -125,17 +125,35 @@ export function storeExceptionEvent(
   publisher.publish("exceptions.updated", null);
 }
 
+/**
+ * Each event from the last clear, with whatever was seen since counted in:
+ * an event seen again adds to its cleared count. Pure, for the store and its
+ * test.
+ */
+export function restoreCleared(
+  cleared: readonly ExceptionEvent[],
+  current: readonly ExceptionEvent[],
+): ExceptionEvent[] {
+  return current.reduce<ExceptionEvent[]>(
+    (events, event) => collapseEvent(events, event),
+    [...cleared],
+  );
+}
+
+/** What the last clear took, for an undo, until the next clear. */
+let CLEARED: readonly ExceptionEvent[] = [];
+
 export function clearExceptionEvents() {
+  CLEARED = listExceptionEvents();
   EVENTS = [];
   scheduleWrite();
   publisher.publish("exceptions.updated", null);
 }
 
-/** Clears one problem, by the fingerprint its count is kept under. */
-export function clearExceptionEvent(fingerprint: string) {
-  EVENTS = listExceptionEvents().filter(
-    (event) => event.fingerprint !== fingerprint,
-  );
+/** Puts back what the last clear took. */
+export function restoreClearedExceptionEvents() {
+  EVENTS = restoreCleared(CLEARED, listExceptionEvents());
+  CLEARED = [];
   scheduleWrite();
   publisher.publish("exceptions.updated", null);
 }

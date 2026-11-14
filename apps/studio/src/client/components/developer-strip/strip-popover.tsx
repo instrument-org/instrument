@@ -36,13 +36,20 @@ export function StripPopover({
 
 export function StripHeading({
   children,
+  className,
   end,
 }: {
   children: ReactNode;
+  className?: string;
   end?: ReactNode;
 }) {
   return (
-    <div className="flex h-9 shrink-0 items-center justify-between gap-3 border-b px-3 text-muted-foreground select-none">
+    <div
+      className={cn(
+        "flex h-9 shrink-0 items-center justify-between gap-3 border-b px-3 text-muted-foreground select-none",
+        className,
+      )}
+    >
       <span className="min-w-0 truncate">{children}</span>
       {end && <span className="flex shrink-0 items-center gap-3">{end}</span>}
     </div>

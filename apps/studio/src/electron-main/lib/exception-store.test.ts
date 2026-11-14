@@ -12,7 +12,7 @@ vi.mock("@/electron-main/lib/electron-logger", () => ({
   logger: { error: vi.fn() },
 }));
 
-const { collapseEvent } = await import("./exception-store");
+const { collapseEvent, restoreCleared } = await import("./exception-store");
 
 const CONTEXTS = {
   app: {
@@ -81,6 +81,27 @@ describe("collapseEvent", () => {
     expect(events.map((stored) => stored.exceptions[0]?.value)).toEqual([
       "f2",
       "f3",
+    ]);
+  });
+});
+
+describe("restoreCleared", () => {
+  it("puts cleared problems back, counting in what was seen since", () => {
+    const a = event("a", 1_000, "readChat");
+    const b = event("b", 2_000, "writeChat");
+    const cleared = collapseEvent(collapseEvent([], a), b);
+    const sinceA = event("a since", 3_000, "readChat");
+    const fresh = event("c", 4_000, "listChats");
+
+    expect(
+      restoreCleared(cleared, [sinceA, fresh]).map((stored) => [
+        stored.exceptions[0]?.value,
+        stored.count,
+      ]),
+    ).toEqual([
+      ["b", 1],
+      ["a since", 2],
+      ["c", 1],
     ]);
   });
 });

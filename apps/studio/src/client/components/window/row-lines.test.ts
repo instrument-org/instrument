@@ -126,9 +126,8 @@ describe("activeChats", () => {
         title: "Research",
       }),
     ];
-    expect(
-      activeChats(chats).map(({ chat, word }) => `${chat.title}: ${word}`),
-    ).toMatchInlineSnapshot(`
+    expect(activeChats(chats).map(({ chat, word }) => `${chat.title}: ${word}`))
+      .toMatchInlineSnapshot(`
       [
         "Renewals: Asks",
         "Headlines: Replied",

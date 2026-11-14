@@ -2,7 +2,10 @@ import { NEW_TAB_HREF } from "@/client/atoms/window";
 import { GroupRow } from "@/client/components/window/group-sidebar";
 import { type PageLoad } from "@/client/components/window/row-lines";
 import { type TabGroup } from "@/client/components/window/tab-groups";
-import { chatOfTab, type WindowTabs } from "@/client/components/window/tab-model";
+import {
+  chatOfTab,
+  type WindowTabs,
+} from "@/client/components/window/tab-model";
 import { newChatHref } from "@/client/components/window/window-href";
 import { fileHref, folderHref } from "@/shared/computer-href";
 import { type Draft } from "@/shared/drafts";
@@ -499,36 +502,36 @@ export function RowFrames() {
         </CastSources>
       </div>
       <div className="flex flex-wrap items-start gap-6">
-      <KindsSheet
-        caption="Chats and web pages"
-        height={640}
-        note="A chat's mark is always the bubble. Its state is in its words: green while it works, its title bold while it asks or has a reply, red when it stops."
-        sheet={CHAT_SHEET}
-        width={320}
-      />
-      <KindsSheet
-        caption="Chats and web pages"
-        height={640}
-        note="A chat's mark is always the bubble. Its state is in its words: green while it works, its title bold while it asks or has a reply, red when it stops."
-        sheet={CHAT_SHEET}
-        width={200}
-      />
+        <KindsSheet
+          caption="Chats and web pages"
+          height={640}
+          note="A chat's mark is always the bubble. Its state is in its words: green while it works, its title bold while it asks or has a reply, red when it stops."
+          sheet={CHAT_SHEET}
+          width={320}
+        />
+        <KindsSheet
+          caption="Chats and web pages"
+          height={640}
+          note="A chat's mark is always the bubble. Its state is in its words: green while it works, its title bold while it asks or has a reply, red when it stops."
+          sheet={CHAT_SHEET}
+          width={200}
+        />
       </div>
       <div className="flex flex-wrap items-start gap-6">
-      <KindsSheet
-        caption="Files, folders and Instrument's pages"
-        height={860}
-        note="Every page keeps the mark its tab wears, and the second line says where it is or which part is open."
-        sheet={PLACE_SHEET}
-        width={320}
-      />
-      <KindsSheet
-        caption="Files, folders and Instrument's pages"
-        height={860}
-        note="Every page keeps the mark its tab wears, and the second line says where it is or which part is open."
-        sheet={PLACE_SHEET}
-        width={200}
-      />
+        <KindsSheet
+          caption="Files, folders and Instrument's pages"
+          height={860}
+          note="Every page keeps the mark its tab wears, and the second line says where it is or which part is open."
+          sheet={PLACE_SHEET}
+          width={320}
+        />
+        <KindsSheet
+          caption="Files, folders and Instrument's pages"
+          height={860}
+          note="Every page keeps the mark its tab wears, and the second line says where it is or which part is open."
+          sheet={PLACE_SHEET}
+          width={200}
+        />
       </div>
       <CloseSheet />
     </>

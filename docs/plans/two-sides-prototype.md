@@ -80,6 +80,14 @@ One drag system carries everything that can be held, and every place that takes 
 - Each message also carries what changed since the chat's last message: tabs opened, closed, moved within or between sides or groups, and navigated, and this chat's own moves.
 - In the transcript it shows minimally. How to show it stays open.
 
+### How it's built
+
+- **Two parts on the user's message.** `data-groupLayout` is a state part (`LayoutSnapshot`, `schemas/group-layout.ts`): stored on every message, said to the model only when its text differs from the last one said, and not at all while the group is the chat alone and nothing else was ever said. `data-layoutChanges` is an event part, said once, present only when something changed. Both sit after the view context in the notes' order. The view context is left as it was; a change list inside it would make every change re-say the whole screen. No system prompt line: the notes say what they are.
+- **The diff is pure.** `layoutChanges(before, after, elsewhere?)` in `lib/group-layout.ts` names closed and moved-out tabs first, then each tab of the new layout in order: opened or moved in, moved between sides, moved within its side (tabs outside the longest run that kept its order), navigated. A different group id is the chat moving groups, said alone. When one side becomes two, the side sharing more tabs goes on, the left on a tie; when two become one, the side that gave more tabs. `layoutChangesLine` is the person's line ("Opened Zendesk pricing beside this chat").
+- **The window reads and keeps it.** Only the window knows which other group a tab went to, so the diff runs in the renderer. `group-awareness.ts` is the one place that reads today's model (`todaysGroupLayout`: the work's tabs as one side and the chat as the other, the chat alone as one side, the chat after the tabs while its card is closed; new tabs left out) and Core's `groupLayoutOf(state, group)` takes its place. What each group was last sent is kept in memory per window, so a relaunch sends the layout with no changes; a draft's record carries over to the chat its first message starts. The press reads it in `task/chat.tsx` and `use-drafts.ts` and sends it as `layout` on `message.create`.
+- **The transcript** draws `data-layoutChanges` as one dim line over the person's message; the layout itself is a developer's note.
+- **Checked by** `group-layout.test.ts` (the diff, `it.each` over a line notation), `group-layout-model-text.test.ts` (the notes), `group-awareness.test.tsx` (today's reading), the model-text byte snapshots, and the eval `group-layout-beside` (`layout` on a case or follow-up sends the parts with no window behind them).
+
 ## Left open
 
 Not built: projects beyond today's behavior, sidebar row rules beyond the basics, tasks as tabs, other AIs' sign-in doubling as model access, release notes and pages with actions, and the writing-tool idea.

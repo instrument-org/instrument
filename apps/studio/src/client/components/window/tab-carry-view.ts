@@ -92,10 +92,16 @@ export function stripIndexAt(
   const { left: listLeft, width: listWidth } = list.getBoundingClientRect();
   // On screen px from layout px, which differ by the window's zoom.
   const zoom = listWidth / list.offsetWidth;
+  // A tab in a row that scrolls stands where the scroll has moved it, which
+  // its offset leaves out.
+  const scrolledBy = (element: HTMLElement) => {
+    const scroller = element.closest<HTMLElement>("[data-strip-scroller]");
+    return scroller && list.contains(scroller) ? scroller.scrollLeft : 0;
+  };
   const drawn = [...list.querySelectorAll<HTMLElement>("[data-tab-key]")].map(
     (element) => ({
       key: element.dataset.tabKey,
-      left: element.offsetLeft - list.offsetLeft,
+      left: element.offsetLeft - list.offsetLeft - scrolledBy(element),
       width: element.offsetWidth,
     }),
   );

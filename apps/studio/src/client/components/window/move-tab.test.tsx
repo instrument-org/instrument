@@ -137,6 +137,31 @@ describe("where a held tab stands along a strip", () => {
     expect(stripIndexAt(110, store.get(appTabsAtom).tabs, asId("a"))).toBe(0);
     expect(stripIndexAt(120, store.get(appTabsAtom).tabs, asId("a"))).toBe(1);
   });
+
+  it("takes the tabs where a row that scrolls has moved them", () => {
+    document.body.innerHTML = `<div data-app-tab-strip><div role="tablist"><div data-strip-scroller>${[
+      "a",
+      "b",
+      "c",
+    ]
+      .map((id) => `<div data-tab-key="${id}"></div>`)
+      .join("")}</div></div></div>`;
+    const list = document.querySelector("[role=tablist]") as HTMLElement;
+    Object.defineProperty(list, "offsetWidth", { value: 150 });
+    list.getBoundingClientRect = () => ({ left: 0, width: 150 }) as DOMRect;
+    const scroller = document.querySelector(
+      "[data-strip-scroller]",
+    ) as HTMLElement;
+    Object.defineProperty(scroller, "scrollLeft", { value: 100 });
+    document.querySelectorAll("[data-tab-key]").forEach((element, index) => {
+      Object.defineProperty(element, "offsetLeft", { value: index * 100 });
+      Object.defineProperty(element, "offsetWidth", { value: 100 });
+    });
+    // Scrolled a tab along, "b" and "c" stand at -100 and 0 without "a",
+    // so a left edge at 40 is past "b"'s middle and one at 60 past "c"'s.
+    expect(stripIndexAt(40, store.get(appTabsAtom).tabs, asId("a"))).toBe(1);
+    expect(stripIndexAt(60, store.get(appTabsAtom).tabs, asId("a"))).toBe(2);
+  });
 });
 
 describe("a window as a tab is let go", () => {

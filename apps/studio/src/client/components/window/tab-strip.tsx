@@ -1105,7 +1105,13 @@ function offsetToStandAt(element: HTMLElement, left: number) {
   const { left: listLeft, width } = list.getBoundingClientRect();
   // On screen px from layout px, which differ by the window's zoom.
   const zoom = width / list.offsetWidth;
-  const standsAt = listLeft + (element.offsetLeft - list.offsetLeft) * zoom;
+  // In a row that scrolls, where the scroll has moved it, which its offset
+  // leaves out.
+  const scroller = element.closest<HTMLElement>("[data-strip-scroller]");
+  const scrolled =
+    scroller && list.contains(scroller) ? scroller.scrollLeft : 0;
+  const standsAt =
+    listLeft + (element.offsetLeft - list.offsetLeft - scrolled) * zoom;
   const farthest = listLeft + width - element.offsetWidth * zoom;
   return (clamp(left, listLeft, farthest) - standsAt) / zoom;
 }

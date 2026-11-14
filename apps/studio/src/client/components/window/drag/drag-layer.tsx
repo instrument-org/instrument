@@ -37,12 +37,11 @@ function covers(outer: Rect, inner: Rect) {
  * could land before the pointer reaches them, faint from its start (a lone
  * side's ends), each giving way to the half it makes once the pointer is
  * there; the half or the side a side's page would take, lit, sliding from
- * one to the next; and, where what is held lands nowhere in this window, a
- * chip at the pointer saying what it is, or a whole group's row. Nothing
- * goes with the pointer where a strip stands the tab among its tabs, a row
- * lights or a room opens in the sidebar, or the bookmarks make room, and
- * nothing at all while the system's drag shows its own picture or main
- * shows the window's.
+ * one to the next; and at the pointer, the whole drag, a chip saying what
+ * is held, or a whole group's row. Only a strip, which stands the tab at the
+ * pointer among its tabs, goes without the chip, and nothing goes with the
+ * pointer while the system's drag shows its own picture or main shows the
+ * window's.
  */
 export function DragLayer({
   chatTitles,
@@ -118,7 +117,7 @@ export function DragLayer({
   );
 }
 
-/** What goes with the pointer, where what is held lands nowhere in this window: faded for a bookmark, which letting go there removes. */
+/** What goes with the pointer: faded for a bookmark where it lands nowhere, since letting go there removes it. */
 function AtPointer({
   chatTitles,
   drag,
@@ -132,10 +131,15 @@ function AtPointer({
   const ref = useRef<HTMLDivElement>(null);
   const { held, landing } = drag;
   const isGroup = held.kind === "group";
+  // What is held stays at the pointer the whole drag, whatever it is over,
+  // so it is never lost: everywhere but a strip, which stands a tab among
+  // its tabs at the pointer itself, and a group's row held there, which
+  // stands in the strip's place. Off the window main shows its picture, and
+  // the system's drag shows its own.
   const isShown =
     !drag.isOff &&
     drag.input !== "native" &&
-    (landing === undefined || (isGroup && landing.kind === "sidebar"));
+    (landing?.kind !== "strip" || isGroup);
   // Stood again every frame from the pointer, never by drawing again: a
   // group's row by where it was pressed, over the list in line with it.
   const stand = () => {
@@ -178,7 +182,7 @@ function AtPointer({
       className={cn(
         "absolute flex h-8 max-w-64 items-center gap-2 rounded-lg bg-card pr-3 pl-2.5 text-[13px] font-medium text-foreground/85 shadow-lg ring-1 ring-black/[0.06]",
         // Let go here, a bookmark is removed.
-        held.kind === "bookmark" && "opacity-50",
+        held.kind === "bookmark" && landing === undefined && "opacity-50",
       )}
       data-held-chip=""
       ref={ref}

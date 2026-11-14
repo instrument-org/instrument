@@ -301,19 +301,17 @@ describe("which pages open beside them", () => {
     ["a website", page("a"), "website"],
     [
       "a file shown as a page",
-      { group: G, id: "f", kind: "page", openedAt: 0, url: "file:///Users/mac-user/notes.pdf" },
+      {
+        group: G,
+        id: "f",
+        kind: "page",
+        openedAt: 0,
+        url: "file:///Users/mac-user/notes.pdf",
+      },
       "file",
     ],
-    [
-      "a file",
-      screenAt(fileHref("/Users/mac-user/notes.md")),
-      "file",
-    ],
-    [
-      "a folder",
-      screenAt(folderHref("/Users/mac-user/Downloads")),
-      "folder",
-    ],
+    ["a file", screenAt(fileHref("/Users/mac-user/notes.md")), "file"],
+    ["a folder", screenAt(folderHref("/Users/mac-user/Downloads")), "folder"],
     ["a new tab", newTab("n"), "newTab"],
     ["a built-in page", screenAt("/settings"), "builtIn"],
   ])("reads %s", (_label, tab, type) => {

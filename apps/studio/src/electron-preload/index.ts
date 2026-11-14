@@ -14,7 +14,6 @@ import {
 import {
   isKeptFile,
   KEPT_STATE_CHANNEL,
-  type KeptFile,
   type KeptSnapshot,
 } from "@/shared/kept-state";
 import {
@@ -30,6 +29,8 @@ import { electronAPI } from "@electron-toolkit/preload";
 import { contextBridge, ipcRenderer, webUtils } from "electron";
 import { injectBrowserAction } from "electron-chrome-extensions/browser-action";
 import os from "node:os";
+
+import { keptChangeFeed } from "./kept-changes";
 
 /**
  * Put the theme class on <html> before the document is parsed.
@@ -187,6 +188,9 @@ function loadBookmarks(): BookmarksSnapshot {
   return { acks: {}, bookmarks: [] };
 }
 
+const keptInitial = loadKeptState();
+const keptChanges = keptChangeFeed(ipcRenderer);
+
 const api: Window["api"] = {
   bookmarks: {
     apply: async (batch: BookmarkOpBatch) => {
@@ -256,21 +260,8 @@ const api: Window["api"] = {
       );
       return Array.isArray(values) ? (values as unknown[]) : [];
     },
-    initial: loadKeptState(),
-    onChange: (listener) => {
-      const forward = (
-        _event: unknown,
-        file: KeptFile,
-        key: string,
-        value: unknown,
-      ) => {
-        listener(file, key, value);
-      };
-      ipcRenderer.on(KEPT_STATE_CHANNEL.changed, forward);
-      return () => {
-        ipcRenderer.off(KEPT_STATE_CHANNEL.changed, forward);
-      };
-    },
+    initial: keptInitial,
+    onChange: keptChanges,
     set: (file, key, value) => {
       ipcRenderer.send(KEPT_STATE_CHANNEL.set, file, key, value);
     },

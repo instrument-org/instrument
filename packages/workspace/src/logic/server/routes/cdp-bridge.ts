@@ -476,6 +476,9 @@ export function openTargetSession({
   // Set once the session has ended, after which a layout read still in
   // flight must not hand the main process folders nobody is connected for.
   let ended = false;
+  // Set once the page has gone: its tab closed, or another window took it,
+  // where nothing this connection set up comes along.
+  let pageGone = false;
   const leftOnPage: LeftOnPage = {
     bindings: new Set(),
     changed: new Set(),
@@ -720,7 +723,10 @@ export function openTargetSession({
 
   unsubscribe = workspaceConfig.browser.subscribeEvents(
     targetId,
-    onDetach,
+    () => {
+      pageGone = true;
+      onDetach();
+    },
     onEvent,
   );
 
@@ -875,26 +881,32 @@ export function openTargetSession({
     // What this connection set up must not outlive it on the page or on any
     // frame it drove: an interception or a debugger holding them, blocked
     // addresses, disabled scripts, a throttled CPU or network, anything it
-    // left to run on every later load, or a check it switched off.
-    for (const [method, params] of [
-      ...RELEASED_ON_LEAVING,
-      ...TEARDOWN_RESETS,
-      ...undoLeftOnPage(leftOnPage),
-    ]) {
-      void workspaceConfig.browser
-        .sendCommand(targetId, method, params)
-        .catch(noop);
-    }
-    for (const [frameSession, frame] of frames) {
-      if (!frame.used) {
-        continue;
-      }
+    // left to run on every later load, or a check it switched off. A page
+    // that has gone, or is going, keeps none of it, and a command sent to it
+    // would only wake a guest on its way out.
+    const isGone =
+      pageGone || workspaceConfig.browser.getTargetMeta(targetId) === null;
+    if (!isGone) {
       for (const [method, params] of [
         ...RELEASED_ON_LEAVING,
         ...TEARDOWN_RESETS,
-        ...undoLeftOnPage(frame.left),
+        ...undoLeftOnPage(leftOnPage),
       ]) {
-        void toGuest(method, params, frameSession).catch(noop);
+        void workspaceConfig.browser
+          .sendCommand(targetId, method, params)
+          .catch(noop);
+      }
+      for (const [frameSession, frame] of frames) {
+        if (!frame.used) {
+          continue;
+        }
+        for (const [method, params] of [
+          ...RELEASED_ON_LEAVING,
+          ...TEARDOWN_RESETS,
+          ...undoLeftOnPage(frame.left),
+        ]) {
+          void toGuest(method, params, frameSession).catch(noop);
+        }
       }
     }
     for (const frameSession of frames.keys()) {
@@ -909,9 +921,11 @@ export function openTargetSession({
       connectionsByTarget.delete(targetId);
       workspaceConfig.browser.setAgentFileRoots(targetId, null);
       // With no agent left, nothing is watching the page's frames.
-      void workspaceConfig.browser
-        .sendCommand(targetId, "Target.setAutoAttach", frameAutoAttach(false))
-        .catch(noop);
+      if (!isGone) {
+        void workspaceConfig.browser
+          .sendCommand(targetId, "Target.setAutoAttach", frameAutoAttach(false))
+          .catch(noop);
+      }
     }
   };
 

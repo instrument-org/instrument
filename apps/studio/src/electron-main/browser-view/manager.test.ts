@@ -368,6 +368,25 @@ describe("getBrowserViewManager", () => {
       expect(gone).toHaveBeenCalledTimes(1);
     });
 
+    it("sends nothing to a page as it closes, so what its watchers send as they hear it go wakes nothing", async () => {
+      const host = hostWith(621);
+      const manager = getBrowserViewManager();
+      const targetId = browserTargetOf(StoreId.newTabId());
+      void manager.browser
+        .createTarget(targetId, partition, { webContentsId: 621 })
+        .catch(() => undefined);
+      attachGuest(host, targetId, 6201);
+      const sent: Promise<unknown>[] = [];
+      manager.browser.onTargetDestroyed(targetId, () => {
+        sent.push(manager.browser.sendCommand(targetId, "Fetch.disable", {}));
+      });
+
+      await manager.browser.closeTarget(targetId);
+
+      expect(sent).toHaveLength(1);
+      await expect(sent[0]).rejects.toThrow("Browser target closing");
+    });
+
     it("tells an agent watching a page that it closed when it is handed to another window, so it attaches to the new one", async () => {
       hostWith(611);
       hostWith(612);

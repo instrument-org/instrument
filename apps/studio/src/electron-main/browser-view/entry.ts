@@ -82,6 +82,9 @@ export interface BrowserEntry {
   asleep: boolean;
   // Resolves when the guest attaches, rejects if the entry is removed first.
   attach: AttachSignal;
+  // Whether the entry is being taken down: set before anything watching it
+  // hears it go, so nothing they send in answer wakes or reaches the guest.
+  closing: boolean;
   authorizedDownloadPath: null | string;
   // Listeners notified once when the entry is removed from the manager (for
   // any reason: explicit close, detach, renderer crash). Drained as part of
@@ -190,6 +193,7 @@ export function createEntry({
     agentFileRoots: null,
     asleep: false,
     attach: createAttachSignal(),
+    closing: false,
     authorizedDownloadPath: null,
     destructionListeners: new Set(),
     detachListeners: new Set(),
@@ -225,6 +229,7 @@ export function destroyEntry(
   if (!entry) {
     return;
   }
+  entry.closing = true;
   drainDisposers(entry);
   fireDestruction(entry);
   entries.delete(targetId);
@@ -254,6 +259,7 @@ export function handleDetach(
     return;
   }
 
+  entry.closing = true;
   tellDetached(entry);
   drainDisposers(entry);
   fireDestruction(entry);

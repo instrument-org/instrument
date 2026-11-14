@@ -244,10 +244,11 @@ describe("openTargetSession on a local page", () => {
   );
 
   function connect(target = targetId) {
-    const guest = { url: own as string | undefined };
+    const guest = { isGone: false, url: own as string | undefined };
     const sent: unknown[] = [];
     let scripts = 0;
     const events: {
+      detach?: () => void;
       emit?: (method: string, params: unknown, frameSession?: string) => void;
     } = {};
     const sendCommand = vi.fn(
@@ -275,11 +276,14 @@ describe("openTargetSession on a local page", () => {
     const setAgentFileRoots = vi.fn();
     const config = {
       browser: {
-        getTargetMeta: () => ({
-          id: ChatIdSchema.parse("t1"),
-          partitionDir: "/tmp/profile",
-          sessionId: "ses_00000000018888888888888888",
-        }),
+        getTargetMeta: () =>
+          guest.isGone
+            ? null
+            : {
+                id: ChatIdSchema.parse("t1"),
+                partitionDir: "/tmp/profile",
+                sessionId: "ses_00000000018888888888888888",
+              },
         getTargetUrl: () => guest.url,
         listTargets: () => Promise.resolve([]),
         sendCommand,
@@ -287,13 +291,14 @@ describe("openTargetSession on a local page", () => {
         stopScreencast: vi.fn(),
         subscribeEvents: (
           _target: unknown,
-          _onDetach: unknown,
+          onDetach: () => void,
           onEvent: (
             method: string,
             params: unknown,
             frameSession?: string,
           ) => void,
         ) => {
+          events.detach = onDetach;
           events.emit = onEvent;
           return vi.fn();
         },
@@ -328,6 +333,9 @@ describe("openTargetSession on a local page", () => {
     return {
       close: session.end,
       command,
+      detach: () => {
+        events.detach?.();
+      },
       emit: (m: string, p: unknown, frameSession?: string) => {
         events.emit?.(m, p, frameSession);
       },
@@ -691,6 +699,34 @@ describe("openTargetSession on a local page", () => {
     expect(
       sendCommand.mock.calls.some(([, method]) => method === "Tracing.end"),
     ).toBe(false);
+  });
+
+  // A page gone keeps nothing the agent set up, and a command sent to it
+  // would only wake a guest on its way out.
+  it.each([
+    [
+      "went away",
+      (page: ReturnType<typeof connect>) => {
+        page.detach();
+      },
+    ],
+    [
+      "is gone",
+      (page: ReturnType<typeof connect>) => {
+        page.guest.isGone = true;
+      },
+    ],
+  ])("sends nothing to a page that %s as its agent leaves", async (_, go) => {
+    const target = BrowserTargetIdSchema.parse(
+      "tab_00000000018888888888888887",
+    );
+    const page = connect(target);
+    await page.command("Page.enable");
+    page.sendCommand.mockClear();
+    go(page);
+    page.close();
+    expect(page.sendCommand).not.toHaveBeenCalled();
+    expect(page.setAgentFileRoots).toHaveBeenCalledWith(target, null);
   });
 
   it("releases interception and forgets the agent's folders when its last connection closes", async () => {

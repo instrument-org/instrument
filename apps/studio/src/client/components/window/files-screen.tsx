@@ -999,6 +999,7 @@ export function FilesScreen({
                                     className={FULL_BLEED}
                                     editable
                                     file={viewerFile}
+                                    keyboardHome
                                     key={activeFile.hostPath}
                                     onInfo={fileInfo.openOnFile}
                                     {...pageInSlot(isFolderShown)}
@@ -1040,6 +1041,7 @@ export function FilesScreen({
                 className={FULL_BLEED}
                 editable
                 file={viewerFile}
+                keyboardHome
                 key={activeFile.hostPath}
                 onInfo={fileInfo.openOnFile}
                 {...pageInSlot(false)}

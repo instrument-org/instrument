@@ -184,6 +184,7 @@ import { pictureHoldingKeyboard } from "@/client/lib/picture-keys";
 import { openInNewWindow } from "./app-tabs";
 import { useWindow } from "./context";
 import { arrivalView } from "./files-step";
+import { useGroupTab } from "./group-tab";
 import { maySpring, springTimer } from "./spring-loading";
 import { type GoFiles } from "./use-files-step";
 import { PlaceMenu } from "./place-menu";
@@ -1577,15 +1578,21 @@ export function ComputerPage({
   // the user is typing somewhere.
   const hasRows = items.length > 0;
   // Only the Finder in the window's tab that is up: every tab stays mounted,
-  // and one behind another is not where the keyboard is.
+  // and one behind another is not where the keyboard is. In a tab group, only
+  // on the side with the keyboard.
   const isActiveTab = useIsActiveTab();
+  const hasKeyboard = useGroupTab()?.hasKeyboard ?? true;
   // Beside a file, the file has the keyboard: the folder takes it only for an
   // address opened in it, never as the tab comes up or the file opens.
   // An opening is the address moving on its own, or a new root.
   const opening = `${root}#${arrivals}`;
   const focusedOpening = useRef(isBesideOpen ? opening : null);
   useEffect(() => {
-    if (!isActiveTab || isTypingTarget(document.activeElement)) {
+    if (
+      !isActiveTab ||
+      !hasKeyboard ||
+      isTypingTarget(document.activeElement)
+    ) {
       return;
     }
     if (isBesideOpen && focusedOpening.current === opening) {
@@ -1601,9 +1608,9 @@ export function ComputerPage({
       '[role="option"][tabindex="0"]',
     );
     row?.focus({ preventScroll: true });
-    // Once per opening, when its rows are first there, or when its tab comes
-    // up.
-  }, [opening, hasRows, isActiveTab, isBesideOpen]);
+    // Once per opening, when its rows are first there, or when its tab or
+    // its side comes up.
+  }, [opening, hasRows, isActiveTab, hasKeyboard, isBesideOpen]);
 
   // A folder the system refused has no listing to say where it is, so where
   // it is comes from the root and the prefix instead: the tab row and the

@@ -245,15 +245,16 @@ export function GroupItem({
   }, [isReloaded]);
 
   // A new tab is asked for to type an address, so its field takes the caret
-  // whenever the tab comes up, wherever the keyboard was.
+  // whenever the tab comes up on the side with the keyboard, wherever the
+  // keyboard was.
   const isActive = useIsActiveTab();
   useEffect(() => {
-    if (isNewTab && isShown && isActive) {
+    if (isNewTab && isShown && isActive && hasKeyboard) {
       anchorRef.current
         ?.querySelector<HTMLInputElement>("[data-tab-location] input")
         ?.focus();
     }
-  }, [isActive, isNewTab, isShown, up.id]);
+  }, [hasKeyboard, isActive, isNewTab, isShown, up.id]);
 
   /** Where the page on a file up here stands now: the page tab's own, or the one a file's viewer draws. */
   const liveAddressOf = (path: string) =>
@@ -534,8 +535,7 @@ function Bare({
   head?: ReactNode;
 }) {
   return (
-    <div className="flex h-full flex-col bg-background" ref={anchorRef}
-    >
+    <div className="flex h-full flex-col bg-background" ref={anchorRef}>
       {head}
       <div className="min-h-0 flex-1">{children}</div>
     </div>

@@ -543,6 +543,9 @@ async function release(current: Session, event: PointerEvent) {
   carry?.cancel();
   lander?.(drag.held, drag.landing);
   end(current);
+  // What landed may have moved the keyboard to another side or group, and
+  // the press left the caret where it was, or on nothing.
+  focusScreenHome({ leaving: false });
 }
 
 /**

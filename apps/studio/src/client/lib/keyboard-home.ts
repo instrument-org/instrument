@@ -8,7 +8,8 @@
  *   goes ahead of the chat list beside it, and the file list ahead of the
  *   page beside it. A part the window cannot focus itself (a page, drawn by
  *   a guest of its own) says how with `setHomeFocus`. In a tab group only
- *   the side with the keyboard (`data-keyboard`) counts.
+ *   the side with the keyboard (`data-keyboard`) counts, and the caret on
+ *   the other side counts as on nothing.
  * - A press of the pointer on a button leaves the keyboard where it was, as
  *   a Mac's buttons do: the rail, a toolbar's toggle, a tab. Tab still
  *   reaches every one.
@@ -60,20 +61,14 @@ export function focusScreenHome({ leaving }: { leaving: boolean }) {
       fromNothing &&
       now instanceof HTMLElement &&
       now !== document.body &&
-      isShown(now)
+      isShown(now) &&
+      !isOnSideWithoutKeyboard(now)
     ) {
       return;
     }
-    const home = isOldScreen ? null : homeOnShow();
-    const focus = home && homeFocus.get(home);
-    if (focus) {
-      focus();
-      return;
-    }
     // A home whose rows are still on their way is waited for too.
-    const target = home && targetIn(home);
-    if (target) {
-      focusQuietly(target);
+    const home = isOldScreen ? null : homeOnShow();
+    if (home && putKeyboardIn(home)) {
       return;
     }
     frames += 1;
@@ -95,20 +90,14 @@ export function focusHomeIn(part: HTMLElement) {
   if (from instanceof HTMLElement && !part.contains(from)) {
     from.blur();
   }
+  dropCaretOutside(part);
   let frames = 0;
   const attempt = () => {
     if (!part.isConnected || part.contains(document.activeElement)) {
       return;
     }
     const home = homeIn(part);
-    const focus = home && homeFocus.get(home);
-    if (focus) {
-      focus();
-      return;
-    }
-    const target = home && targetIn(home);
-    if (target) {
-      focusQuietly(target);
+    if (home && putKeyboardIn(home)) {
       return;
     }
     frames += 1;
@@ -117,6 +106,82 @@ export function focusHomeIn(part: HTMLElement) {
     }
   };
   attempt();
+}
+
+/**
+ * Puts the keyboard in a home, by its own way or at its target, and takes
+ * any caret left elsewhere away. Whether the home had anything to take it.
+ */
+function putKeyboardIn(home: HTMLElement): boolean {
+  const focus = homeFocus.get(home);
+  const target = focus ? null : targetIn(home);
+  if (!focus && !target) {
+    return false;
+  }
+  dropCaretOutside(home);
+  if (focus) {
+    focus();
+  } else if (target) {
+    focusQuietly(target);
+    if (target === home) {
+      passIntoWordsOnArrival(home);
+    }
+  }
+  return true;
+}
+
+/** How long a home that took the keyboard itself waits for its words to be drawn, in ms. */
+const WORDS_WAIT_MS = 5000;
+
+/**
+ * A home that took the keyboard itself before its words were drawn (a file
+ * whose editor is still loading) hands the keyboard to them as they come,
+ * unless it has gone somewhere else by then.
+ */
+function passIntoWordsOnArrival(home: HTMLElement) {
+  const observer = new MutationObserver(() => {
+    if (document.activeElement !== home) {
+      stop();
+      return;
+    }
+    const words = first(home, '[contenteditable="true"]');
+    if (words) {
+      stop();
+      words.focus({ preventScroll: true });
+    }
+  });
+  const timer = setTimeout(() => {
+    stop();
+  }, WORDS_WAIT_MS);
+  const stop = () => {
+    observer.disconnect();
+    clearTimeout(timer);
+    home.removeEventListener("blur", stop);
+  };
+  observer.observe(home, {
+    attributeFilter: ["contenteditable"],
+    childList: true,
+    subtree: true,
+  });
+  home.addEventListener("blur", stop);
+}
+
+/**
+ * Takes away a caret left in editable words outside `part`. An editor let
+ * go of by a blur, or by the keyboard going into something that types
+ * nothing (a page's scroller), keeps its selection, and Chromium puts words
+ * the system's text input sends (dictation, an input method) at the
+ * selection wherever the keyboard is, so they would land in that editor.
+ * An editor puts its caret back where it was as it takes the keyboard again.
+ */
+export function dropCaretOutside(part: Element) {
+  const selection = document.getSelection();
+  const anchor = selection?.anchorNode;
+  const holder = anchor instanceof Element ? anchor : anchor?.parentElement;
+  const editor = holder?.closest('[contenteditable="true"]');
+  if (selection && editor && !part.contains(editor)) {
+    selection.removeAllRanges();
+  }
 }
 
 /**
@@ -200,8 +265,15 @@ function isInScreen(element: Element | null): element is HTMLElement {
     element instanceof HTMLElement &&
     element !== document.body &&
     (element.closest(ACTIVE_TAB) !== null || element.tagName === "WEBVIEW") &&
-    isShown(element)
+    isShown(element) &&
+    !isOnSideWithoutKeyboard(element)
   );
+}
+
+/** Whether an element is on the side of a tab group that does not have the keyboard. */
+function isOnSideWithoutKeyboard(element: Element) {
+  const side = element.closest("[data-group-side]");
+  return side !== null && !side.hasAttribute("data-keyboard");
 }
 
 function first(root: HTMLElement, selector: string) {
@@ -348,10 +420,11 @@ export function mayTakeKeyboard() {
 export function installKeyboardHome() {
   const controller = new AbortController();
   const { signal } = controller;
-  // Whether the press now ending was on a button, which leaves the keyboard
-  // where it was; a page beside the screen loses it all the same, since its
-  // guest gives the keyboard up to any press in the window.
+  // Whether the press now ending was on a button or a tab, which leaves the
+  // keyboard where it was; a page beside the screen loses it all the same,
+  // since its guest gives the keyboard up to any press in the window.
   let pressedButton = false;
+  let pressedTab = false;
   window.addEventListener("pointerdown", letGoOfList, {
     capture: true,
     signal,
@@ -373,6 +446,14 @@ export function installKeyboardHome() {
         event.preventDefault();
         pressedButton = true;
       }
+      // A tab brought up by a press keeps the keyboard where it was too,
+      // unless that is nothing or the other side of a tab group: a press
+      // there lets go of it, and a page gives it up to any press in the
+      // window. Then it goes home.
+      pressedTab =
+        event.button === 0 &&
+        event.target instanceof Element &&
+        event.target.closest('[role="tab"]') !== null;
     },
     { capture: true, signal },
   );
@@ -387,12 +468,16 @@ export function installKeyboardHome() {
     "click",
     () => {
       const wasButton = pressedButton;
+      const wasTab = pressedTab;
       pressedButton = false;
+      pressedTab = false;
       requestAnimationFrame(() => {
         const focused = document.activeElement;
+        const isOnNothing = focused === null || focused === document.body;
         if (
           isGone(focused) ||
-          (wasButton && (focused === null || focused === document.body))
+          (wasButton && isOnNothing) ||
+          (wasTab && (isOnNothing || isOnSideWithoutKeyboard(focused)))
         ) {
           focusScreenHome({ leaving: false });
         }

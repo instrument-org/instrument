@@ -8,6 +8,7 @@ import { CaptionRoom } from "@/client/components/window-controls";
 import { useIsActiveTab } from "@/client/hooks/use-active-tab";
 import { giveKeyboardTo, pageHoldingKeyboard } from "@/client/lib/browser-pool";
 import {
+  dropCaretOutside,
   focusHomeIn,
   focusOnceLayersClose,
   setHomeFocus,
@@ -351,8 +352,12 @@ function SideCard({
   // The caret goes with the keyboard. A press on this side lets go of the
   // caret the other side has, for the press to place. A side taking the
   // keyboard otherwise (a tab moved, opened or brought up here) takes that
-  // caret into its home: its page, or a chat's composer. With a menu up, that
-  // waits for the caret the menu hands back as it goes.
+  // caret, or a caret on nothing, into its home: its page, a chat's
+  // composer, or a file. With a menu up, that waits for the caret the menu
+  // hands back as it goes.
+  const isPressed = useRef(false);
+  const isCaretOnNothing = () =>
+    document.activeElement === null || document.activeElement === document.body;
   const isCaretOnOtherSide = () => {
     const card = cardRef.current;
     const now = document.activeElement;
@@ -384,9 +389,12 @@ function SideCard({
         focus: () => {
           focusHomeIn(card);
         },
-        holds: () => !isCaretOnOtherSide(),
+        holds: () => !isCaretOnOtherSide() && !isCaretOnNothing(),
       });
-    } else if (isCaretOnOtherSide()) {
+    } else if (
+      isCaretOnOtherSide() ||
+      (isCaretOnNothing() && !isPressed.current)
+    ) {
       focusHomeIn(card);
     }
   });
@@ -472,12 +480,24 @@ function SideCard({
       {...(hasKeyboard ? { "data-keyboard": "" } : {})}
       ref={cardRef}
       onPointerDownCapture={() => {
+        isPressed.current = true;
+        window.addEventListener(
+          "pointerup",
+          () => {
+            isPressed.current = false;
+          },
+          { capture: true, once: true },
+        );
         if (!hasKeyboard) {
           if (
             isCaretOnOtherSide() &&
             document.activeElement instanceof HTMLElement
           ) {
             document.activeElement.blur();
+          }
+          const card = cardRef.current;
+          if (card) {
+            dropCaretOutside(card);
           }
           windowTabs.focusSide(group, sideIndex);
         }

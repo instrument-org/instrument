@@ -933,6 +933,7 @@ export function FileViewer({
   className,
   editable = false,
   file,
+  keyboardHome = false,
   onClose,
   onExpand,
   onInfo,
@@ -969,6 +970,12 @@ export function FileViewer({
    */
   editable?: boolean;
   file: ViewerFile;
+  /**
+   * Whether the screen showing the file is worked from it, so the keyboard
+   * lands in it as the screen comes up (`keyboard-home.ts`): in a live
+   * editor's words, or the file's view, after a file list beside it.
+   */
+  keyboardHome?: boolean;
   onClose?: () => void;
   onExpand?: () => void;
   /** The file's info card, where the screen holding the viewer has one. */
@@ -1286,6 +1293,10 @@ export function FileViewer({
     </>
   );
 
+  // After a picture's own home, which takes its keys.
+  const homeProps = keyboardHome
+    ? { "data-keyboard-home": "3", tabIndex: -1 }
+    : {};
   return (
     <div
       className={cn(fileViewerClassName, className)}
@@ -1328,7 +1339,10 @@ export function FileViewer({
         // Viewers that scroll internally own the whole content area, so they
         // are not nested inside the shared scroll container. The content is
         // the file, so it is text; a viewer's own toolbar and rail say not.
-        <div className="relative flex min-h-0 flex-1 flex-col select-text">
+        <div
+          className="relative flex min-h-0 flex-1 flex-col outline-none select-text"
+          {...homeProps}
+        >
           <UpdatedNoteContext value={markUpdated}>
             {viewer.render(viewerContext)}
           </UpdatedNoteContext>
@@ -1339,8 +1353,9 @@ export function FileViewer({
         // at the top of the view however far down the file is read.
         <div className="relative flex min-h-0 flex-1 flex-col">
           <div
-            className="relative min-h-0 flex-1 overflow-auto select-text"
+            className="relative min-h-0 flex-1 overflow-auto outline-none select-text"
             ref={contentRef}
+            {...homeProps}
           >
             <UpdatedNoteContext value={markUpdated}>
               {viewer.render(viewerContext)}

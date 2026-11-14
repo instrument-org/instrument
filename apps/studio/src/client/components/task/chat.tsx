@@ -502,14 +502,15 @@ export function ChatConversation({
   });
   // A chat coming on screen is a place to reply from, so the caret lands
   // in the field as it opens, unless it opened as the person walked the
-  // chat list with the arrows (`mayTakeKeyboard`).
+  // chat list with the arrows (`mayTakeKeyboard`), or on the side of a tab
+  // group without the keyboard (`takesCaret`).
   useLayoutEffect(() => {
-    if (!isActiveTab || !mayTakeKeyboard()) {
+    if (!takesCaret || !isActiveTab || !mayTakeKeyboard()) {
       return;
     }
     promptEditor?.focus();
     promptEditor?.moveCaretToEnd();
-  }, [isActiveTab, selectedSessionId, promptEditor]);
+  }, [isActiveTab, selectedSessionId, promptEditor, takesCaret]);
 
   // A chat's plus opens things beside the chat: the web's starting view and
   // the computer each as a tab of their own, and Apps where one is connected.

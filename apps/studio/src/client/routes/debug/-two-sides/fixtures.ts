@@ -108,7 +108,69 @@ export const CAST = {
     status: "failed",
     title: "Podcast show notes",
   },
+  // The pricing week the sidebar rows' wireframe draws.
+  pricing: {
+    asked: "Line up Zendesk's plans against ours.",
+    id: chatId("pricing"),
+    latest: "Zendesk's Suite Team is $55 an agent, so we're $16 under it.",
+    title: "Help desk pricing",
+  },
+  research: {
+    asked: "Find out what every help desk charges a seat.",
+    id: chatId("research"),
+    latest: "Intercom's cheapest seat is $39.",
+    status: "working",
+    step: "Reading plans on freshworks.com",
+    title: "Competitor research",
+  },
+  renewals: {
+    asked: "Draft a renewal reminder for every account due in October.",
+    id: chatId("renewals"),
+    latest: "Send the 14 drafts now?",
+    status: "waiting",
+    title: "Renewal reminders",
+  },
+  soc: {
+    asked: "Which auditor quoted the least for SOC 2?",
+    id: chatId("soc"),
+    latest: "Ridgeline came in lowest at $18,400.",
+    title: "SOC 2 audit quotes",
+    unread: true,
+  },
+  faq: {
+    asked: "Rewrite the pricing FAQ for the new plans.",
+    id: chatId("faq"),
+    latest: "Stopped on an error",
+    status: "failed",
+    title: "Rewrite the pricing FAQ",
+  },
+  headlines: {
+    asked: "Write five headlines for the pricing page that lead with the $39 plan.",
+    id: chatId("headlines"),
+    latest: "Here are five headlines that lead with the $39 plan.",
+    title: "Pricing page headlines",
+    unread: true,
+  },
+  churn: {
+    asked: "Write up this week's churn.",
+    id: chatId("churn"),
+    latest: "Churn was 2.1% last week.",
+    status: "working",
+    step: "Reading October cancellations",
+    title: "Weekly churn report",
+  },
 } satisfies Record<string, CastChat>;
+
+/** The pricing week's chats, in the order the Active list would see them. */
+export const PRICING_CHATS = [
+  "pricing",
+  "renewals",
+  "soc",
+  "headlines",
+  "research",
+  "churn",
+  "faq",
+] as const satisfies readonly CastKey[];
 
 export type CastKey = keyof typeof CAST;
 
@@ -175,6 +237,45 @@ export const SITES = {
 } satisfies Record<string, { title: string; url: string }>;
 
 export type SiteKey = keyof typeof SITES;
+
+/** The pricing week's sites, apart from `SITES`, which other frames cycle through. */
+export const PRICING_SITES = {
+  freshdesk: {
+    title: "Plans",
+    url: "https://www.freshworks.com/freshdesk/pricing/",
+  },
+  g2: {
+    title: "Help desk software",
+    url: "https://www.g2.com/categories/help-desk",
+  },
+  gmail: {
+    title: "Drafts (14)",
+    url: "https://mail.google.com/mail/u/0/#drafts",
+  },
+  hubspot: {
+    title: "Renewals pipeline",
+    url: "https://app.hubspot.com/contacts/deals/renewals",
+  },
+  intercom: { title: "Pricing", url: "https://www.intercom.com/pricing" },
+  sheets: {
+    title: "October renewals",
+    url: "https://docs.google.com/spreadsheets/d/1Rk4",
+  },
+  slack: { title: "#support", url: "https://app.slack.com/client/T02/support" },
+  tickets: {
+    title: "Unsolved tickets",
+    url: "https://acme.zendesk.com/agent/filters/unsolved",
+  },
+  zendesk: { title: "Suite plans", url: "https://www.zendesk.com/pricing/" },
+} satisfies Record<string, { title: string; url: string }>;
+
+export function pricingSite(
+  id: string,
+  key: keyof typeof PRICING_SITES,
+): Loose {
+  const { title, url } = PRICING_SITES[key];
+  return { id, kind: "page", openedAt: 0, openedUrl: url, title, url };
+}
 
 /** A tab before it is placed in a group. */
 type Loose = WindowTab;

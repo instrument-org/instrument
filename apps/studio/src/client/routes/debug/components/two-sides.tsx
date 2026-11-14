@@ -49,6 +49,7 @@ import {
   useRows,
   WindowPicture,
 } from "../-two-sides/picture";
+import { RowFrames } from "../-two-sides/rows";
 
 export const Route = createFileRoute("/debug/components/two-sides")({
   component: RouteComponent,
@@ -135,6 +136,7 @@ function RouteComponent() {
           <Layouts />
           <Amounts />
           <Sidebars />
+          <Rows />
           <DragStates />
         </CastProvider>
       </div>
@@ -147,6 +149,7 @@ const SECTIONS = [
   { id: "layouts", title: "Layouts" },
   { id: "amounts", title: "Amounts of content" },
   { id: "sidebar", title: "Sidebar" },
+  { id: "rows", title: "Sidebar rows" },
   { id: "drags", title: "Drags" },
 ] as const;
 
@@ -538,6 +541,17 @@ function WorkingStrips() {
 
 // Sidebar -------------------------------------------------------------------
 
+function Rows() {
+  return (
+    <Section
+      description="Each row draws the tabs that are up: one side across the row, two in equal halves with a hairline between. A tab's mark leads its title, and its second line says where it is, or for a chat, what it's doing. The Active list sits above the pinned groups while any chat waits on you, has a reply you haven't read, or is working."
+      id="rows"
+    >
+      <RowFrames />
+    </Section>
+  );
+}
+
 /** Groups with more and more tabs, for how many marks a row shows. */
 const MARKS = windowOf(
   group("k-1", [[chat("k1-chat", "garden")]]),
@@ -633,7 +647,7 @@ function SidebarShot({
 function Sidebars() {
   return (
     <Section
-      description="The sidebar's rows: a group's name or its first chat's title, the chat's latest line, and every tab's mark. Pinned groups stand above the line."
+      description="The sidebar with the cast's groups. Pinned groups stand above the line, and the Active list above them names the cast's chats that are active."
       id="sidebar"
     >
       <div className="flex flex-wrap gap-6">

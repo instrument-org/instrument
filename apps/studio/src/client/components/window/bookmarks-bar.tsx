@@ -23,7 +23,15 @@ import { useLayoutEffect, useRef, useState } from "react";
 
 import { AddressMark } from "./app-chip";
 import { BookmarkContextMenu, bookmarkClicks } from "./bookmark-menu";
+import { DROP_TONE } from "./drag/tone";
+import {
+  pressBookmark,
+  useBookmarksTarget,
+  useShownBookmarks,
+} from "./drag/use-bookmarks-drag";
 import { type Place, useFilesPlaces } from "./group-new-tab";
+import { useShell } from "./shell-context";
+import { useTabTitle } from "./tab-title";
 import { BookmarkNameField, bookmarkName, useBookmarkEdits } from "./web-start";
 
 /**
@@ -44,6 +52,8 @@ export function useHasBookmarksBar(isNewTab: boolean): boolean {
  * tab (a site by `onOpen`, a place of the app's own by `onVisit`), a
  * Cmd-click or a middle click in a new tab behind this one, a Shift-click as
  * a new tab group, and a right click offers the rest (`BookmarkContextMenu`).
+ * A bookmark dragged along the bar moves there, a tab dragged onto it is
+ * kept there, and either stands where it would be while it is held.
  */
 export function BookmarksBar({
   files,
@@ -56,10 +66,16 @@ export function BookmarksBar({
   /** A place of the app's own in this tab, where a tab can stand at it; the window opens it otherwise. */
   onVisit?: (href: string) => void;
 }) {
-  const bookmarks = useAtomValue(bookmarksAtom).filter(
-    (bookmark) => placeOf(bookmark) === "bar",
+  const { chatTitles } = useShell();
+  const bookmarks = useShownBookmarks(
+    useAtomValue(bookmarksAtom).filter(
+      (bookmark) => placeOf(bookmark) === "bar",
+    ),
+    "bar",
+    useTabTitle(chatTitles),
   );
   const edits = useBookmarkEdits();
+  const bar = useRef<HTMLDivElement>(null);
   // The bookmark whose name is being typed over, by id.
   const [renamingId, setRenamingId] = useState<string>();
   const row = useRef<HTMLDivElement>(null);
@@ -99,12 +115,21 @@ export function BookmarksBar({
     }
     openAddress(address, how);
   };
-  const overflow = bookmarks.slice(fitting);
+  const overflow = bookmarks
+    .slice(fitting)
+    .filter((bookmark) => bookmark.isStanding !== true);
+  useBookmarksTarget({
+    area: () => bar.current,
+    axis: "x",
+    row: () => row.current,
+    where: "bar",
+  });
 
   return (
     <div
       aria-label="Bookmarks"
       className="flex h-8 shrink-0 items-center gap-1 border-b border-border bg-background px-1.5"
+      ref={bar}
       role="toolbar"
     >
       {files && (
@@ -125,10 +150,26 @@ export function BookmarksBar({
           {bookmarks.map((bookmark, index) => {
             const name = bookmarkName(bookmark);
             const isOver = index >= fitting;
+            if (bookmark.isStanding) {
+              return (
+                <div
+                  className={cn(
+                    "flex h-6 max-w-40 shrink-0 items-center gap-1.5 rounded-md px-1.5 text-xs text-foreground/85",
+                    DROP_TONE,
+                  )}
+                  data-bookmark-id={bookmark.id}
+                  key={bookmark.id}
+                >
+                  <AddressMark address={bookmark.url} />
+                  <span className="min-w-0 truncate">{name}</span>
+                </div>
+              );
+            }
             if (bookmark.id === renamingId) {
               return (
                 <div
                   className="flex h-6 w-40 shrink-0 items-center gap-1.5 px-1.5"
+                  data-bookmark-id={bookmark.id}
                   key={bookmark.id}
                 >
                   <AddressMark address={bookmark.url} />
@@ -161,6 +202,10 @@ export function BookmarksBar({
                     isOver && "invisible",
                   )}
                   {...bookmarkClicks(bookmark, open)}
+                  data-bookmark-id={bookmark.id}
+                  onPointerDown={(event) => {
+                    pressBookmark(event, bookmark, "bar");
+                  }}
                   title={`${name}\n${bookmark.url}`}
                   type="button"
                 >

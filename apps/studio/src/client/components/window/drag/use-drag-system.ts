@@ -29,9 +29,9 @@ import { useEffect, useLayoutEffect, useRef } from "react";
 import { toast } from "sonner";
 
 import { type BrowserTabsHandle } from "../browser-tabs";
-import { useTabTitle } from "../group-sidebar";
 import { settleTabMove } from "../move-tab";
 import { stripKeyOf } from "../pane-tabs";
+import { useTabTitle } from "../tab-title";
 import { fillRoom, ROW_GAP_PX } from "../sidebar-drop";
 import {
   showTabCarryView,
@@ -137,7 +137,8 @@ export function useDragSystem({
  * its own), into a sidebar row's group or a group of its own in a room
  * between rows, or onto the bookmarks, where it is kept; files and a
  * bookmark open as tabs at the same places; a whole group takes its place
- * in the list.
+ * in the list. A bookmark let go where nothing takes it is removed, with
+ * Undo.
  */
 function useLander(
   browser: BrowserTabsHandle | null,
@@ -146,6 +147,8 @@ function useLander(
   const windowTabs = useWindowTabs();
   const groups = useTabGroupActions();
   const keep = useKeepBookmark();
+  const store = useStore();
+  const removeWithUndo = useRemoveBookmarkWithUndo();
 
   /** Opens tabs, by what they show, where something held landed; the first up. */
   const openAt = (
@@ -246,7 +249,17 @@ function useLander(
     return [];
   };
 
-  return (held: Held, landing: Landing) => {
+  return (held: Held, landing: Landing | undefined) => {
+    if (!landing) {
+      const dragged =
+        held.kind === "bookmark"
+          ? store.get(bookmarksAtom).find((bookmark) => bookmark.id === held.id)
+          : undefined;
+      if (dragged) {
+        removeWithUndo(dragged);
+      }
+      return;
+    }
     switch (held.kind) {
       case "tab": {
         switch (landing.kind) {
@@ -401,14 +414,19 @@ export function useRemoveBookmarkWithUndo() {
   const apply = useSetAtom(applyBookmarkOpsAtom);
   return (bookmark: Bookmark) => {
     void apply([{ id: bookmark.id, type: "remove" }]);
-    toast(`Removed ${bookmark.title || "the bookmark"}.`, {
-      action: {
-        label: "Undo",
-        onClick: () => {
-          void apply([{ bookmark, type: "add" }]);
+    toast(
+      bookmark.title
+        ? `${bookmark.title} was deleted from your bookmarks.`
+        : "The bookmark was deleted.",
+      {
+        action: {
+          label: "Undo",
+          onClick: () => {
+            void apply([{ bookmark, type: "add" }]);
+          },
         },
       },
-    });
+    );
   };
 }
 

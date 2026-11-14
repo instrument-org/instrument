@@ -6,16 +6,14 @@ import { useAtomValue } from "jotai";
 import { useLayoutEffect, useRef, useState } from "react";
 
 import { useAppsBySlug } from "../apps-by-slug";
-import { GroupRow, TabMark, useTabTitle } from "../group-sidebar";
+import { GroupRow, TabMark } from "../group-sidebar";
+import { useTabTitle } from "../tab-title";
 import { type TabGroup } from "../tab-groups";
 import { useWindowTabs } from "../window-tabs";
 import { heldTabsOf } from "./held-tabs";
 import { type Rect } from "./landing";
 import { type Drag, dragAtom, dragPoint, useDragFrame } from "./session";
-
-/** The tone of a place that takes what is held: a side's page, a row it joins, the row it would make. */
-export const DROP_TONE =
-  "bg-foreground/[0.06] ring-1 ring-foreground/15 ring-inset";
+import { DROP_TONE } from "./tone";
 
 /** How far left of the pointer a chip's mark stands, and above it the chip's top, at most. */
 const CHIP_GRAB_PX = { x: 22, y: 16 };
@@ -84,7 +82,7 @@ export function DragLayer({
   );
 }
 
-/** What goes with the pointer, where what is held lands nowhere in this window. */
+/** What goes with the pointer, where what is held lands nowhere in this window: faded for a bookmark, which letting go there removes. */
 function AtPointer({
   chatTitles,
   drag,
@@ -141,7 +139,11 @@ function AtPointer({
   }
   return (
     <div
-      className="absolute flex h-8 max-w-64 items-center gap-2 rounded-lg bg-card pr-3 pl-2.5 text-[13px] font-medium text-foreground/85 shadow-lg ring-1 ring-black/[0.06]"
+      className={cn(
+        "absolute flex h-8 max-w-64 items-center gap-2 rounded-lg bg-card pr-3 pl-2.5 text-[13px] font-medium text-foreground/85 shadow-lg ring-1 ring-black/[0.06]",
+        // Let go here, a bookmark is removed.
+        held.kind === "bookmark" && "opacity-50",
+      )}
       data-held-chip=""
       ref={ref}
     >

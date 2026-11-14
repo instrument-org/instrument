@@ -145,8 +145,8 @@ export function useDragFrame(listener: () => void) {
   }, []);
 }
 
-/** What the window's own moves do with something let go where it lands (`useDragSystem`). */
-type Lander = (held: Held, landing: Landing) => void;
+/** What the window's own moves do with something let go where it lands, or where nothing takes it (`useDragSystem`). */
+type Lander = (held: Held, landing: Landing | undefined) => void;
 let lander: Lander | undefined;
 export function setLander(next: Lander | undefined) {
   lander = next;
@@ -538,12 +538,10 @@ async function release(current: Session, event: PointerEvent) {
   }
   carry?.cancel();
   const { held, landing } = drag;
-  if (landing) {
-    if (target?.drop) {
-      target.drop(held, landing, { altKey: event.altKey });
-    } else {
-      lander?.(held, landing);
-    }
+  if (landing && target?.drop) {
+    target.drop(held, landing, { altKey: event.altKey });
+  } else {
+    lander?.(held, landing);
   }
   end(current);
 }

@@ -71,12 +71,14 @@ import { stopHere } from "./row-shell";
 import { pageTabTitle } from "./file-tabs";
 import { ScreenMark } from "./pane-tabs";
 import { screenPresentation } from "./screen-presentation";
+import { useTabTitle } from "./tab-title";
 import { SearchField } from "./search-field";
 import {
   pressGroupRow,
   useSidebarDrag,
   useSidebarTarget,
 } from "./drag/use-sidebar-drag";
+import { DROP_TONE } from "./drag/tone";
 import {
   filledRoomAtom,
   LIST_GAP_PX,
@@ -135,7 +137,7 @@ export function sidebarBounds(width: number): RailBounds {
  * and the account, Settings and Help at its foot. Opening a project takes the list over,
  * under its banner. A row dragged within the list lands where it is let
  * go, pinned above the line or unpinned below it, and one dragged out goes
- * to a window of its own or to another window's list (`useGroupRowDrag`).
+ * to a window of its own or to another window's list (`pressGroupRow`).
  * A tab or files held over it light the row they would join, or stand as
  * the row they would make in a room between rows (`StandingRow`).
  */
@@ -480,7 +482,7 @@ export function GroupSidebar({
             projects={projects}
           />
         )}
-        {!project && <BookmarksSection />}
+        {!project && <BookmarksSection chatTitles={chatTitles} />}
         <AnimatePresence>
           {pinned.map((entry) => listItem(entry, "pinned"))}
           {pinned.length > 0 && (
@@ -715,18 +717,6 @@ function GroupList({ children }: { children: ReactNode }) {
       {children}
     </div>
   );
-}
-
-/** The tone of a row a tab held over the sidebar joins, and of the row it would make. */
-const DROP_TONE = "bg-foreground/[0.06] ring-1 ring-foreground/15 ring-inset";
-
-/** A tab's title as its group's row would show it. */
-export function useTabTitle(chatTitles: Map<ChatId, string>) {
-  const appsBySlug = useAppsBySlug();
-  return (tab: WindowTab) =>
-    tab.kind === "page"
-      ? pageTabTitle(tab) || (tab.url ?? tab.openedUrl ?? "")
-      : screenPresentation(tab.href, { appsBySlug, chatTitles }).title;
 }
 
 /**

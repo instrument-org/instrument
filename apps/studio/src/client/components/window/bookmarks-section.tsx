@@ -2,12 +2,20 @@ import { useOpenAddress } from "@/client/bookmarks/open-address";
 import { bookmarksAtom } from "@/client/bookmarks/store";
 import { cn } from "@/client/lib/utils";
 import { placeOf } from "@/shared/bookmarks";
+import { type ChatId } from "@instrument-org/workspace/client";
 import { CaretDownIcon } from "@phosphor-icons/react/CaretDown";
 import { useAtomValue } from "jotai";
-import { useState } from "react";
+import { useRef, useState } from "react";
 
 import { AddressMark } from "./app-chip";
 import { BookmarkContextMenu, bookmarkClicks } from "./bookmark-menu";
+import { DROP_TONE } from "./drag/tone";
+import {
+  pressBookmark,
+  useBookmarksTarget,
+  useShownBookmarks,
+} from "./drag/use-bookmarks-drag";
+import { useTabTitle } from "./tab-title";
 import { bookmarkName, useBookmarkEdits } from "./web-start";
 import { useWindowTabs } from "./window-tabs";
 
@@ -16,12 +24,19 @@ import { useWindowTabs } from "./window-tabs";
  * way a Finder window's favorites are: the mark its tab wears and its name.
  * A click opens one in the tab up, a Cmd-click in a new tab behind it, a
  * Shift-click as a new tab group, and a right click offers the rest. The
- * heading's caret folds them; with none kept here there is no section.
+ * heading's caret folds them; with none kept here there is no section. A
+ * bookmark dragged along them moves there, a tab dragged onto them is kept
+ * there, and either stands where it would be while it is held.
  */
-export function BookmarksSection() {
-  const bookmarks = useAtomValue(bookmarksAtom).filter(
+export function BookmarksSection({
+  chatTitles,
+}: {
+  chatTitles: Map<ChatId, string>;
+}) {
+  const kept = useAtomValue(bookmarksAtom).filter(
     (bookmark) => placeOf(bookmark) === "sidebar",
   );
+  const bookmarks = useShownBookmarks(kept, "sidebar", useTabTitle(chatTitles));
   const { active, visitHref } = useWindowTabs();
   const open = useOpenAddress(
     active
@@ -35,11 +50,19 @@ export function BookmarksSection() {
   const edits = useBookmarkEdits();
   const [isOpen, setOpen] = useState(true);
   const [renamingId, setRenamingId] = useState<string>();
-  if (bookmarks.length === 0) {
+  const section = useRef<HTMLElement>(null);
+  const list = useRef<HTMLUListElement>(null);
+  useBookmarksTarget({
+    area: () => section.current,
+    axis: "y",
+    row: () => list.current,
+    where: "sidebar",
+  });
+  if (kept.length === 0) {
     return null;
   }
   return (
-    <section aria-label="Bookmarks" className="pb-2">
+    <section aria-label="Bookmarks" className="pb-2" ref={section}>
       <div className="flex h-8 items-center pr-1 pl-2.5">
         <button
           aria-expanded={isOpen}
@@ -60,7 +83,7 @@ export function BookmarksSection() {
         </button>
       </div>
       {isOpen && (
-        <ul className="flex flex-col">
+        <ul className="relative flex flex-col" ref={list}>
           {bookmarks.map((bookmark) => {
             const name = bookmarkName(bookmark);
             const mark = (
@@ -68,10 +91,26 @@ export function BookmarksSection() {
                 <AddressMark address={bookmark.url} />
               </span>
             );
+            if (bookmark.isStanding) {
+              return (
+                <li
+                  className={cn(
+                    "flex h-7 items-center gap-2 rounded-lg px-2.5 text-sm text-foreground/85",
+                    DROP_TONE,
+                  )}
+                  data-bookmark-id={bookmark.id}
+                  key={bookmark.id}
+                >
+                  {mark}
+                  <span className="min-w-0 truncate">{name}</span>
+                </li>
+              );
+            }
             if (bookmark.id === renamingId) {
               return (
                 <li
                   className="flex h-7 items-center gap-2 px-2.5"
+                  data-bookmark-id={bookmark.id}
                   key={bookmark.id}
                 >
                   {mark}
@@ -101,7 +140,7 @@ export function BookmarksSection() {
               );
             }
             return (
-              <li key={bookmark.id}>
+              <li data-bookmark-id={bookmark.id} key={bookmark.id}>
                 <BookmarkContextMenu
                   bookmark={bookmark}
                   onRename={() => {
@@ -112,6 +151,9 @@ export function BookmarksSection() {
                   <button
                     className="flex h-7 w-full cursor-default items-center gap-2 rounded-lg px-2.5 text-left text-sm text-foreground/85 hover:bg-foreground/5 hover:text-foreground data-[state=open]:bg-foreground/5"
                     {...bookmarkClicks(bookmark, open)}
+                    onPointerDown={(event) => {
+                      pressBookmark(event, bookmark, "sidebar");
+                    }}
                     title={`${name}\n${bookmark.url}`}
                     type="button"
                   >

@@ -51,7 +51,7 @@ export function HistoryPage({
   const shell = useShell();
   const groups = useTabGroupActions();
   const projectNames = new Map(
-    shell.projects.map((project) => [project.id, project.name]),
+    shell.projects.map((each) => [each.id, each.name]),
   );
   const filed = history.filter(
     (entry) =>

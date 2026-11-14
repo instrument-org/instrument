@@ -952,13 +952,13 @@ function WindowShell({
           return;
         }
         // A tab alone stands on the one side its new group has.
-        const tabs =
+        const reopened =
           closedTabGroupOf(entry) ?? (tab ? [{ ...tab, side: undefined }] : []);
         groups.make({
           fill: (group) => {
             windowTabs.restoreGroup(
               group,
-              tabs.map((each) => ({ ...each, group, id: newScreenId() })),
+              reopened.map((each) => ({ ...each, group, id: newScreenId() })),
             );
           },
         });

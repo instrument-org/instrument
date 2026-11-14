@@ -264,3 +264,75 @@ it("writes nothing it was told to drop, for a file about to be removed", () => {
   vi.useRealTimers();
   expect(fs.existsSync(path.join(dir, "layout.json"))).toBe(false);
 });
+
+describe("a tab group's lifetime", () => {
+  const member = (tabs: string[]) => ({
+    focused: 0,
+    sides: [{ tabs: tabs.map((id) => ({ id, kind: "page" })) }],
+  });
+
+  /** A launch of this build, on the folder under test. */
+  async function launch() {
+    vi.resetModules();
+    vi.doMock("@/electron-main/lib/get-workspace-folder", () => ({
+      workspaceWindowDir: () => dir,
+    }));
+    vi.doMock("electron", () => ({
+      BrowserWindow: { getAllWindows: () => [] },
+      ipcMain: { on: () => undefined },
+    }));
+    return import("./kept-state");
+  }
+
+  afterEach(() => {
+    vi.doUnmock("@/electron-main/lib/get-workspace-folder");
+    vi.doUnmock("electron");
+  });
+
+  beforeEach(() => {
+    fs.mkdirSync(path.join(dir, "windows"));
+    fs.writeFileSync(
+      path.join(dir, "windows/open.json"),
+      JSON.stringify({ "tab-group-list.v2": ["group:a", "group:empty"] }),
+    );
+    fs.writeFileSync(
+      path.join(dir, "windows/closed.json"),
+      JSON.stringify({ "tab-group-list.v2": ["group:b"] }),
+    );
+    fs.writeFileSync(
+      path.join(dir, "groups.json"),
+      JSON.stringify({
+        "tab-groups.v3/-": member(["t0"]),
+        "tab-groups.v3/group:a": member(["t1"]),
+        "tab-groups.v3/group:b": member(["t2"]),
+        "tab-groups.v3/group:empty": { ...member([]), pinned: true },
+        "tab-groups.v3/group:gone": member(["t3"]),
+        "tab-groups.v3/site:s": member(["t4"]),
+      }),
+    );
+  });
+
+  it("starts a launch with only the groups some window lists, and that have tabs", async () => {
+    const { getKeptState } = await launch();
+    expect(getKeptState("groups", "tab-groups.v3/group:gone")).toBeUndefined();
+    expect(getKeptState("groups", "tab-groups.v3/group:empty")).toBeUndefined();
+    for (const kept of ["-", "group:a", "group:b", "site:s"]) {
+      expect(getKeptState("groups", `tab-groups.v3/${kept}`)).toBeDefined();
+    }
+  });
+
+  it("ends with the window that last listed it, once that window is forgotten", async () => {
+    const { forgetWindowKeptState, getKeptState } = await launch();
+    forgetWindowKeptState("closed");
+    expect(getKeptState("groups", "tab-groups.v3/group:b")).toBeUndefined();
+    expect(getKeptState("groups", "tab-groups.v3/group:a")).toBeDefined();
+  });
+
+  it("stays while a window just opened on it lists it, before it loads", async () => {
+    const { forgetWindowKeptState, getKeptState, setWindowKeptState } =
+      await launch();
+    setWindowKeptState("new", "tab-group-list.v2", ["group:b"]);
+    forgetWindowKeptState("closed");
+    expect(getKeptState("groups", "tab-groups.v3/group:b")).toBeDefined();
+  });
+});

@@ -22,7 +22,7 @@ import {
   selectTab,
   setTabPathname,
 } from "@/client/lib/tabs-model";
-import { APP_TABS_KEY } from "@/shared/kept-state";
+import { APP_TABS_KEY, SITE_GROUP_PREFIX } from "@/shared/kept-state";
 import { asksMoreThan } from "@/shared/tab-identity";
 import { type Tab, type TabsModel, TabsModelSchema } from "@/shared/tabs";
 import { rpcClient } from "@/client/rpc/client";
@@ -36,12 +36,9 @@ import { matchScreen, pathOf, SCREEN_ROUTES, showsSame } from "./window-href";
 /** The chat with no chat open: the inbox, and where a tab opens when the last one closes. */
 export const INBOX_HREF = "/chats";
 
-/** What a site's group key starts with, before the id its route carries. */
-const SITE_PREFIX = "site:";
-
 /** Whether a group is a site opened at the window's own level, whose back past its page is the window tab's. */
 export function isSiteGroup(group: string | undefined): boolean {
-  return group?.startsWith(SITE_PREFIX) ?? false;
+  return group?.startsWith(SITE_GROUP_PREFIX) ?? false;
 }
 
 /**
@@ -74,20 +71,20 @@ export function newSiteGroup(): string {
 }
 
 /** Addresses in a window of their own beside this one, each a tab, the first up. */
-export function openInNewWindow(...hrefs: string[]) {
-  void rpcClient.window.openNew.call({
+export function openInNewWindow(...hrefs: string[]): Promise<boolean> {
+  return rpcClient.window.openNew.call({
     tabs: hrefs.map((pathname) => ({ id: freshTabId(), pathname })),
   });
 }
 
 /** The address of the tab that shows a site's group. */
 export function pageHrefOf(group: string): string {
-  return pathOf(SCREEN_ROUTES.site, { id: group.slice(SITE_PREFIX.length) });
+  return pathOf(SCREEN_ROUTES.site, { id: group.slice(SITE_GROUP_PREFIX.length) });
 }
 
 /** The group key a site opened at the window's own level is kept under, one per site opened. */
 export function siteGroupOf(id: string): string {
-  return `${SITE_PREFIX}${id}`;
+  return `${SITE_GROUP_PREFIX}${id}`;
 }
 
 /**
@@ -383,7 +380,7 @@ export function useAppTabs() {
         lastFolder: root ? folderHref("~") : lastFolder,
       });
       if (newWindow) {
-        openInNewWindow(href);
+        void openInNewWindow(href);
         return;
       }
       // A place is where the tab up goes, whatever another tab shows there.

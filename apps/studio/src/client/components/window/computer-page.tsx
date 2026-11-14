@@ -2148,7 +2148,7 @@ export function ComputerPage({
       ];
     });
     if (hrefs.length > 0) {
-      openInNewWindow(...hrefs);
+      void openInNewWindow(...hrefs);
     }
   };
   // Opening several, as a double-click or ⌘O on a selection does: each file

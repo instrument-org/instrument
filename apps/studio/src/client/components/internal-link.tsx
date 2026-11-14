@@ -79,7 +79,7 @@ export function InternalLink(
   const handleClick = (e: MouseEvent<HTMLAnchorElement>) => {
     if (e.button === 0 && wantsNewWindow(e) && allowOpenNewTab) {
       e.preventDefault();
-      openInNewWindow(hrefOfLink());
+      void openInNewWindow(hrefOfLink());
     } else if (e.button === 0 && commandKeyHeld(e) && allowOpenNewTab) {
       e.preventDefault();
       openInNewTab(true);

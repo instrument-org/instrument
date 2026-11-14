@@ -127,12 +127,10 @@ const tabGroupsElsewhere = base.handler(async function* ({ context, signal }) {
   });
 });
 
-/** A window of its own, opening on the inbox, or on a tab given it. */
+/** A window of its own, opening on the inbox, or on a tab given it. Answers whether one opened. */
 const openNew = base
   .input(z.object({ tabs: z.array(TabSchema).optional() }).optional())
-  .handler(({ input }) => {
-    openNewAppWindow(input?.tabs);
-  });
+  .handler(({ input }) => openNewAppWindow(input?.tabs) !== null);
 
 /** Whether a window closed lately can come back. */
 const canReopenClosed = base.handler(() => canReopenClosedAppWindow());

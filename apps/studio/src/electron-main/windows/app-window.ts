@@ -21,6 +21,7 @@ import {
   FIRST_APP_WINDOW_ID,
   forgetWindowKeptState,
   getWindowKeptState,
+  keptLoneGroupOfTab,
   KeptTabGroupSchema,
   keptWorkingGroupOfChat,
   setWindowKeptState,
@@ -36,6 +37,7 @@ import {
 } from "@/shared/kept-state";
 import { chatOfAddress, tabGroupOfAddress } from "@/shared/tab-identity";
 import {
+  groupOfWholeKey,
   type GroupTabLanding,
   type Tab,
   type TabsModel,
@@ -882,6 +884,19 @@ export function sendGroupTabToWindow(
   const contentsId = window.webContents.id;
   if (!listening.has(contentsId) && spareOf(contentsId)?.isUp !== true) {
     return false;
+  }
+  // A group going whole is listed here before the window it leaves lets
+  // go of it, so no moment has it listed nowhere.
+  const whole = groupOfWholeKey(key) ?? keptLoneGroupOfTab(key);
+  const id = appWindowIdOfWindow(window) ?? spareOf(contentsId)?.id;
+  if (landing.kind === "new" && whole !== undefined && id !== undefined) {
+    const listed = keptTabGroupsOfWindow(id);
+    if (!listed.includes(whole)) {
+      tellWindowKeptState(id, window.webContents, TAB_GROUPS_KEY, [
+        whole,
+        ...listed,
+      ]);
+    }
   }
   commandWindow(window, { key, landing, type: "receiveGroupTab" });
   return true;

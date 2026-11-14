@@ -7,9 +7,11 @@ import {
   isKeptFile,
   KEPT_STATE_CHANNEL,
   type KeptFile,
+  keptTabGroupsOf,
   type KeptSnapshot,
   SHARED_KEPT_FILES,
   TAB_GROUPS_KEY,
+  unlistedTabGroups,
   WINDOW_KEPT_FILE,
   WINDOW_TABS_KEY,
 } from "@/shared/kept-state";
@@ -260,7 +262,11 @@ let STORE: null | ReturnType<typeof createKeptStateStore> = null;
  * computer's, whose screens and paths they are measured against.
  */
 function getStore() {
-  STORE ??= createKeptStateStore(() => workspaceWindowDir());
+  if (!STORE) {
+    STORE = createKeptStateStore(() => workspaceWindowDir());
+    // A launch starts with only the groups some window lists.
+    sweepTabGroups();
+  }
   return STORE;
 }
 
@@ -320,8 +326,8 @@ export function tellWindowKeptState(
   }
 }
 
-/** Every other window's kept value of a key, for windows on disk and in memory alike. */
-function otherWindowsValues(key: string, exceptId: string | undefined) {
+/** Every window that keeps something, open or closed to come back, on disk and in memory alike. */
+function everyWindowId() {
   const windowsDir = path.join(workspaceWindowDir(), WINDOWS_FOLDER);
   const onDisk = fs.existsSync(windowsDir)
     ? fs
@@ -329,7 +335,12 @@ function otherWindowsValues(key: string, exceptId: string | undefined) {
         .filter((name) => name.endsWith(".json"))
         .map((name) => name.slice(0, -".json".length))
     : [];
-  return [...new Set([...onDisk, ...windowStores.keys()])].flatMap((id) => {
+  return [...new Set([...onDisk, ...windowStores.keys()])];
+}
+
+/** Every other window's kept value of a key, for windows on disk and in memory alike. */
+function otherWindowsValues(key: string, exceptId: string | undefined) {
+  return everyWindowId().flatMap((id) => {
     if (id === exceptId) {
       return [];
     }
@@ -338,7 +349,35 @@ function otherWindowsValues(key: string, exceptId: string | undefined) {
   });
 }
 
-/** Forgets what a window kept, once it can no longer come back. */
+/**
+ * Removes the tab groups no window lists any more, or with no tabs
+ * (`unlistedTabGroups`), and tells the open windows they went.
+ */
+function sweepTabGroups() {
+  const listed = new Set(
+    everyWindowId().flatMap(
+      (id) => keptTabGroupsOf(getWindowKeptState(id, TAB_GROUPS_KEY)) ?? [],
+    ),
+  );
+  const gone = unlistedTabGroups(getStore().snapshot().groups ?? {}, listed);
+  for (const key of gone) {
+    getStore().set("groups", key, undefined);
+    for (const window of BrowserWindow.getAllWindows()) {
+      if (!window.isDestroyed()) {
+        window.webContents.send(KEPT_STATE_CHANNEL.changed, "groups", key);
+      }
+    }
+  }
+  if (gone.length > 0) {
+    logger.info(`Removed ${gone.length.toString()} tab group(s) no window lists`);
+    publisher.publish("window.tab-groups-changed", null);
+  }
+}
+
+/**
+ * Forgets what a window kept, once it can no longer come back, and the tab
+ * groups only it listed.
+ */
 export function forgetWindowKeptState(windowId: string) {
   windowStores.get(windowId)?.discard();
   windowStores.delete(windowId);
@@ -353,6 +392,7 @@ export function forgetWindowKeptState(windowId: string) {
     // Another program holding it, and this runs as a window closes.
     logger.warn(`Could not remove kept state in ${file}`, error);
   }
+  sweepTabGroups();
 }
 
 /** One kept value, for the main process's own use of what a window keeps. */
@@ -397,6 +437,15 @@ function keptGroupedTabs() {
       side.tabs.map((tab) => ({ ...tab, group })),
     );
   });
+}
+
+/** The tab group a tab is the only tab of, by the tab's id; undefined for a tab with others beside it. */
+export function keptLoneGroupOfTab(tabId: string): string | undefined {
+  const tabs = keptGroupedTabs();
+  const group = tabs.find((tab) => tab.id === tabId)?.group;
+  return tabs.filter((tab) => tab.group === group).length === 1
+    ? group
+    : undefined;
 }
 
 /** The chat whose agent opened a tab, by the tab's id; undefined for one the person opened. */

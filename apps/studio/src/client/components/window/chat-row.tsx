@@ -399,7 +399,7 @@ export function ChatRow({
         </ContextMenuItem>
         <ContextMenuItem
           onSelect={() => {
-            openInNewWindow(chatHref(chat.id));
+            void openInNewWindow(chatHref(chat.id));
           }}
         >
           <AppWindowIcon className="size-4" />

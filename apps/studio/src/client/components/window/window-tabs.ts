@@ -7,6 +7,7 @@ import { keptMembersAtom } from "@/client/lib/kept-state";
 import {
   fileOfTabGroup,
   HOSTED_PAGE_GROUP_PREFIX,
+  NO_GROUP_MEMBER,
   WINDOW_TABS_KEY,
 } from "@/shared/kept-state";
 import { type ChatId, StoreId } from "@instrument-org/workspace/client";
@@ -61,9 +62,6 @@ import {
 import { openLinkAddress } from "./open-link-address";
 import { standInTabsAtom } from "./stand-in-tabs";
 import { sameHref } from "./window-href";
-
-/** The member a tab with no group is kept under. */
-const NO_GROUP = "-";
 
 /** A kept group's shape; its tabs' own fields are this module's to write and read. */
 const TabGroupMemberSchema = z.object({
@@ -120,7 +118,7 @@ function splitTabGroups(state: WindowTabs) {
   const members = new Map<string, TabGroupMember>();
   const ungrouped = state.tabs.filter((tab) => tab.group === undefined);
   if (ungrouped.length > 0) {
-    members.set(NO_GROUP, {
+    members.set(NO_GROUP_MEMBER, {
       focused: 0,
       sides: [{ tabs: ungrouped.map(keptTab) }],
     });
@@ -153,7 +151,7 @@ function joinTabGroups(members: Map<string, unknown>): WindowTabs {
     if (member === undefined) {
       continue;
     }
-    const group = key === NO_GROUP ? undefined : key;
+    const group = key === NO_GROUP_MEMBER ? undefined : key;
     member.sides.forEach((side, at) => {
       for (const tab of side.tabs) {
         // Written by this module alone.
@@ -246,7 +244,7 @@ export function useWindowTabsChange() {
 }
 
 /** No group's own record, one object for every render. */
-const NO_GROUP_OWN: Record<string, GroupOwn> = {};
+const NO_GROUP_MEMBER_OWN: Record<string, GroupOwn> = {};
 
 /** A fresh id for a screen tab. */
 export function newScreenId() {
@@ -332,7 +330,7 @@ export function useWindowTabs() {
       apply((current) => withGroupOwn(current, group, change));
     },
     /** What each group keeps of its own, by its id. */
-    groupOwn: state.groups ?? NO_GROUP_OWN,
+    groupOwn: state.groups ?? NO_GROUP_MEMBER_OWN,
     /** A tab marked as opened by a chat's agent (`markOpenedBy`). */
     markOpenedBy: (id: string, chat: ChatId) => {
       apply((current) => markOpenedBy(current, id, chat));

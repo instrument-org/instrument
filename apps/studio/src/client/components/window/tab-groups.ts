@@ -616,10 +616,17 @@ export function useTabGroupActions() {
     moveOff(group, list);
   };
 
-  /** A group off this window's list and into a window of its own, which has it open from then on. */
+  /**
+   * A group into a window of its own, which has it open from then on: off
+   * this window's list once the new one lists it, so it is never listed
+   * nowhere.
+   */
   const moveToNewWindow = (group: string, list: readonly TabGroup[]) => {
-    letGo(group, list);
-    openInNewWindow(groupHref(group));
+    void openInNewWindow(groupHref(group)).then((opened) => {
+      if (opened) {
+        letGo(group, list);
+      }
+    });
   };
 
   /** Pins a group above the line, or takes it back down, by its own pin. */

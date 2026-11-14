@@ -69,6 +69,40 @@ export const KEPT_STATE_CHANNEL = {
 /** The tab groups, kept a group at a time under this key and the group's id. */
 export const WINDOW_TABS_KEY = "tab-groups.v3";
 
+/** The member the tabs with no group are kept under. */
+export const NO_GROUP_MEMBER = "-";
+
+/** What a site's group key starts with: a site opened at the window's own level, which lives as long as a window tab's history can come back to it. */
+export const SITE_GROUP_PREFIX = "site:";
+
+/**
+ * The tab group members no window file lists, or with no tabs left, which go
+ * (`TAB_GROUPS_KEY`): a group exists only while some window, open or closed
+ * to come back, lists it. The tabs with no group and a site's group have
+ * lifetimes of their own, and stay.
+ */
+export function unlistedTabGroups(
+  members: Record<string, unknown>,
+  listed: ReadonlySet<string>,
+): string[] {
+  const prefix = `${WINDOW_TABS_KEY}/`;
+  return Object.entries(members).flatMap(([key, member]) => {
+    const group = key.slice(prefix.length);
+    if (
+      !key.startsWith(prefix) ||
+      group === NO_GROUP_MEMBER ||
+      group.startsWith(SITE_GROUP_PREFIX)
+    ) {
+      return [];
+    }
+    const sides = z
+      .object({ sides: z.array(z.object({ tabs: z.array(z.unknown()) })) })
+      .safeParse(member).data?.sides;
+    const hasTabs = sides?.some((side) => side.tabs.length > 0) === true;
+    return listed.has(group) && hasTabs ? [] : [key];
+  });
+}
+
 /** The group of a page drawn inside a surface of one window, such as a file's page in its viewer. */
 export const HOSTED_PAGE_GROUP_PREFIX = "page:";
 

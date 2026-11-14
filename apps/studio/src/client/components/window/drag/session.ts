@@ -1,3 +1,4 @@
+import { focusScreenHome } from "@/client/lib/keyboard-home";
 import { atom, getDefaultStore } from "jotai";
 import { useEffect, useLayoutEffect, useRef } from "react";
 
@@ -324,7 +325,7 @@ function end(current: Session) {
 }
 
 /** Keeps the click a drag's release makes from choosing what is under it. */
-export function swallowNextClick() {
+function swallowNextClick() {
   const swallow = (click: MouseEvent) => {
     click.stopPropagation();
     click.preventDefault();
@@ -385,6 +386,14 @@ export function pressToDrag(
   return true;
 }
 
+/** The element a page is drawn in by a frame of its own: a guest's `<webview>`, or an iframe. */
+function isPageFrame(element: Element | null): element is HTMLElement {
+  return (
+    element instanceof HTMLElement &&
+    (element.tagName === "WEBVIEW" || element.tagName === "IFRAME")
+  );
+}
+
 /** A drag the pointer holds, from its first movement past the start. */
 function startPointerDrag(held: Held, grab: Point, event: PointerEvent) {
   if (session) {
@@ -422,10 +431,27 @@ function startPointerDrag(held: Held, grab: Point, event: PointerEvent) {
     key.stopPropagation();
     cancel(current);
   };
+  // A page in the window that takes the keyboard, as one does when its tab
+  // comes up at the press, hears keys and the window's loss of focus in a
+  // process of its own. The drag takes the keyboard back for as long as it
+  // lasts, so Escape and losing the window still reach it here, and puts it
+  // home once it is over.
+  let tookKeyboard = false;
+  const takeKeyboard = () => {
+    const page = document.activeElement;
+    if (session === current && document.hasFocus() && isPageFrame(page)) {
+      tookKeyboard = true;
+      page.blur();
+    }
+  };
   // Losing the window to another app takes the pointer with it; main's own
-  // pictures off the window take nothing.
+  // pictures off the window take nothing. A page in the window taking the
+  // keyboard blurs the window too, but the document keeps the focus.
   const onBlur = () => {
-    if (!current.drag.isOff) {
+    if (document.hasFocus()) {
+      // Once the page has the keyboard, not while it is moving there.
+      window.setTimeout(takeKeyboard, 0);
+    } else if (!current.drag.isOff) {
       cancel(current);
     }
   };
@@ -456,6 +482,10 @@ function startPointerDrag(held: Held, grab: Point, event: PointerEvent) {
       window.removeEventListener("blur", onBlur);
       document.removeEventListener("visibilitychange", onHidden);
       document.documentElement.removeAttribute("data-tab-held");
+      if (tookKeyboard) {
+        tookKeyboard = false;
+        focusScreenHome({ leaving: false });
+      }
     },
   };
   session = current;
@@ -468,6 +498,8 @@ function startPointerDrag(held: Held, grab: Point, event: PointerEvent) {
   window.addEventListener("keydown", onKey, { capture: true });
   window.addEventListener("blur", onBlur);
   document.addEventListener("visibilitychange", onHidden);
+  // A page brought up by the press may have taken the keyboard already.
+  takeKeyboard();
   current.carry = carrier?.(held, event, grab);
   evaluate(current);
   frame = requestAnimationFrame(tick);

@@ -308,25 +308,29 @@ export function GroupSidebar({
       onNewWindow: () => {
         onShow(entry.group, { newWindow: true });
       },
-      onSetProject: (filed) => {
-        if (entry.kind === "tabs") {
-          return;
-        }
-        if (entry.kind === "chat") {
-          setChatProject(entry.chat.id, filed);
-          return;
-        }
-        updateDraft({
-          id: entry.draft.id,
-          update: (draft) => {
-            if (filed !== null) {
-              return { ...draft, projectId: filed, projectSource: "chosen" };
-            }
-            const { projectId: _dropped, ...unfiled } = draft;
-            return { ...unfiled, projectSource: "chosen" };
-          },
-        });
-      },
+      onSetProject:
+        entry.kind === "tabs"
+          ? undefined
+          : (filed) => {
+              if (entry.kind === "chat") {
+                setChatProject(entry.chat.id, filed);
+                return;
+              }
+              updateDraft({
+                id: entry.draft.id,
+                update: (draft) => {
+                  if (filed !== null) {
+                    return {
+                      ...draft,
+                      projectId: filed,
+                      projectSource: "chosen",
+                    };
+                  }
+                  const { projectId: _dropped, ...unfiled } = draft;
+                  return { ...unfiled, projectSource: "chosen" };
+                },
+              });
+            },
       projects,
     };
   };

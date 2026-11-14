@@ -75,14 +75,14 @@ function asPin(action: RowAction): RowAction {
 }
 
 /**
- * A tab group row's menu, with the chat row's items as the chat list's menu
- * has them: Open in New Window and Duplicate Tab Group; marking the chat
- * read or unread and pinning it; naming the group and filing it under a
- * project; copying its paths; and closing the group, or the groups around
- * it, as a tab's menu closes tabs. A group whose chat has not started has a
- * window of its own, its copy, pinning, its name, its project and the
- * closing. Not modal, as the chat row's is not, so
- * the click that puts it away lands on what it was meant for.
+ * A tab group row's menu: Open in New Window and Duplicate Tab Group;
+ * naming the group and pinning it; for a chat's group, marking the chat
+ * read or unread, filing it under a project and copying its paths; and
+ * closing the group, or the groups around it, as a tab's menu closes tabs.
+ * A group whose chat has not started has a window of its own, its copy,
+ * its name, pinning, its project and the closing. Not modal, as the chat
+ * row's is not, so the click that puts it away lands on what it was meant
+ * for.
  */
 export function GroupRowMenu({
   children,
@@ -109,6 +109,10 @@ export function GroupRowMenu({
   const { onNewProject, onSetProject } = menu;
   const live = menu.projects.filter((project) => !project.retired);
   const marks = chatMenuGroups(menu.actions).marks.map(asPin);
+  const isPin = (action: RowAction) =>
+    action.id === "star" || action.id === "unstar";
+  const pin = marks.filter(isPin);
+  const readMarks = marks.filter((action) => !isPin(action));
   const item = (action: RowAction) => (
     <ContextMenuItem key={action.id} onSelect={action.run}>
       {action.icon}
@@ -134,12 +138,6 @@ export function GroupRowMenu({
           <CopyIcon className="size-4" />
           Duplicate Tab Group
         </ContextMenuItem>
-        {marks.length > 0 && (
-          <>
-            <ContextMenuSeparator />
-            {marks.map(item)}
-          </>
-        )}
         <ContextMenuSeparator />
         <ContextMenuItem
           onSelect={() => {
@@ -150,45 +148,48 @@ export function GroupRowMenu({
           <PencilSimpleIcon className="size-4" />
           Rename
         </ContextMenuItem>
+        {pin.map(item)}
+        {(readMarks.length > 0 || onSetProject) && <ContextMenuSeparator />}
+        {readMarks.map(item)}
         {onSetProject && (
-        <ContextMenuSub>
-          <ContextMenuSubTrigger>
-            <CardsThreeIcon className="size-4" />
-            Project
-          </ContextMenuSubTrigger>
-          <ContextMenuSubContent className="flex w-56 flex-col p-0">
-            {live.length > 0 && (
-              <MenuScrollArea className="max-h-80">
-                {live.map((project) => (
-                  <ContextMenuCheckboxItem
-                    checked={filedUnder === project.id}
-                    key={project.id}
-                    onSelect={() => {
-                      // Picking the project it is under takes it off.
-                      onSetProject(
-                        filedUnder === project.id ? null : project.id,
-                      );
-                    }}
-                  >
-                    <ProjectMark project={project} />
-                    <span className="truncate">{project.name}</span>
-                  </ContextMenuCheckboxItem>
-                ))}
-              </MenuScrollArea>
-            )}
-            <div
-              className={cn(
-                "shrink-0 p-1",
-                live.length > 0 && "border-t border-border",
+          <ContextMenuSub>
+            <ContextMenuSubTrigger>
+              <CardsThreeIcon className="size-4" />
+              Project
+            </ContextMenuSubTrigger>
+            <ContextMenuSubContent className="flex w-56 flex-col p-0">
+              {live.length > 0 && (
+                <MenuScrollArea className="max-h-80">
+                  {live.map((project) => (
+                    <ContextMenuCheckboxItem
+                      checked={filedUnder === project.id}
+                      key={project.id}
+                      onSelect={() => {
+                        // Picking the project it is under takes it off.
+                        onSetProject(
+                          filedUnder === project.id ? null : project.id,
+                        );
+                      }}
+                    >
+                      <ProjectMark project={project} />
+                      <span className="truncate">{project.name}</span>
+                    </ContextMenuCheckboxItem>
+                  ))}
+                </MenuScrollArea>
               )}
-            >
-              <ContextMenuItem onSelect={onNewProject}>
-                <PlusIcon className="size-4" />
-                New project…
-              </ContextMenuItem>
-            </div>
-          </ContextMenuSubContent>
-        </ContextMenuSub>
+              <div
+                className={cn(
+                  "shrink-0 p-1",
+                  live.length > 0 && "border-t border-border",
+                )}
+              >
+                <ContextMenuItem onSelect={onNewProject}>
+                  <PlusIcon className="size-4" />
+                  New project…
+                </ContextMenuItem>
+              </div>
+            </ContextMenuSubContent>
+          </ContextMenuSub>
         )}
         {chat && (
           <>

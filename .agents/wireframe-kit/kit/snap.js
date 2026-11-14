@@ -1,8 +1,8 @@
 // Snapshots: frames drawn from Studio as it runs, not redrawn. snap/capture.mjs keeps
 // the app's own page in each state a round may start from, and snap() draws a frame
 // from one through the wireframe skill's snapshot frames ("Frames from a snapshot" in
-// its SKILL.md and patterns.md): the snapshot in an iframe at true size, edited by name,
-// every edit marked NEW unless it says { quiet: true }. build.mjs puts the library
+// its SKILL.md and patterns.md): the snapshot in an iframe at true size, edited by name.
+// Edits mark nothing; .note() and .fresh() mark what to look at. build.mjs puts the library
 // states a part names, and the skill's frames script, into the page. SNAPSHOTS.md is
 // how to use it; snap/library.mjs writes the library's INDEX.md.
 

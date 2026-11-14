@@ -951,11 +951,11 @@ function WindowShell({
     rpcClient.preferences.checkForUpdates.mutationOptions(),
   );
   const setChatProject = useSetChatProject();
-  // The new-project dialog, asked for from a chat's head or a draft's, with
+  // The new-project dialog, asked for from a chat's menu or a draft's, with
   // what was typed in the picker: the project it makes files that chat or
   // that draft.
   const [newProject, setNewProject] = useState<{
-    /** The chat it files, when that is not the one the tab up has open: a popped-out chat's. */
+    /** The chat it files; without one, the chat the window's tab has open. */
     chatId?: ChatId;
     draftId?: string;
     name?: string;
@@ -1503,8 +1503,8 @@ function WindowShell({
     onNewDraftProject: (draftId, name) => {
       setNewProject({ draftId, ...(name ? { name } : {}) });
     },
-    onNewProject: (name) => {
-      setNewProject(name ? { name } : {});
+    onNewProject: (chatId, name) => {
+      setNewProject({ chatId, ...(name ? { name } : {}) });
     },
     leaveProject,
     openProject: enterProject,
@@ -1599,7 +1599,6 @@ function WindowShell({
                   onNewProject={() => {
                     setNewProject({});
                   }}
-                  onNewProjectFor={setNewProject}
                   onPin={(group, pinned) => {
                     groups.pin(group, pinned);
                   }}

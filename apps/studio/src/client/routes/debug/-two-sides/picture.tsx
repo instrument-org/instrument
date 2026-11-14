@@ -426,7 +426,6 @@ export function SidebarPicture({
       onDuplicate={noop}
       onNew={noop}
       onNewProject={noop}
-      onNewProjectFor={noop}
       onPin={noop}
       onRestore={noop}
       onShow={noop}

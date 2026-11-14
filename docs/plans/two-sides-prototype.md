@@ -54,9 +54,9 @@ Settings, Memory, Skills, History, Activity and Apps are tabs with addresses, op
 
 For now every split is made and managed from right-click menus, the same items wherever they apply:
 
-- **A tab**: Open in Split (a copy on the other side) or Move to Other Side, New Chat in Split, Move to New Tab Group, Move to New Window, Duplicate, Bookmark, Close, Close Other Tabs, Close Tabs to the Left, Close Tabs to the Right.
+- **A tab**: Open in Split (a copy on the other side) or Move to Other Side, New Chat in Split, Move to New Tab Group, Move to New Window, Duplicate, Bookmark, Close, Close Other Tabs, Close Tabs to the Left, Close Tabs to the Right. A chat's tab then has the chat's own items, each acting on that chat: its marks, Rename, Project, Copy (the chat folder's path, the work folder's path, for an agent), Send feedback, Archive and Delete. A new chat's tab with words in it has Project, which files its draft.
 - **A link** (in a page, in a chat, in a file shown in a tab): Open Link in Split, Open Link in New Tab, Open Link in New Tab Group, Open Link in New Window, Bookmark Link, Copy Link. A page's menu, and a file's, start with Open Link, which opens the link in place; a chat's has no plain Open, since a click there opens the link in a new tab beside the chat. A file or folder in Files, or a file chip in a chat, keeps a file's words (Open in Split, Add to Bookmarks).
-- **A sidebar row**: Open in New Window, Duplicate, Rename, Pin, the Close items.
+- **A sidebar row**: Open in New Window, Duplicate, Rename, Pin, the Close items. Each acts on the group as a whole, whatever its tabs show; what acts on one chat is in that chat's tab menu.
 - **A bookmark**: Open, Open in Split, Open in New Tab, Open in New Tab Group, Open in New Window, Rename, Delete.
 
 ⌘\ moves the tab up to the other side (Open in Split for a side's only tab). On-screen controls for splitting come later.
@@ -164,16 +164,16 @@ Paths are under `apps/studio/src/client/` unless named.
 - **Opening into a place.** `OpenOptions` (`components/window/context.ts`) takes `into` (`split`, `group`, `window`) and `from`, the tab that asked, which surfaces pass on through `ownPlaceOf`. `openInto` in `components/window/use-openers.ts` places it: a split is the other side of the asking tab's group, right after the tab up there, made when the group has one side; a new tab group is `newGroup`; a new window is a group made without showing it here, then moved to a window of its own. Shift-click on a link or a file is Open in New Tab Group, and a chat opened into a place is a tab of its own there.
 - **A web page's menu** is built in main (`LINK_PLACES` in `electron-main/browser-view/guest-interactions.ts`): Open Link in Split, Open Link in New Tab, Open Link in New Tab Group, Open Link in New Window, then Bookmark Link. A place goes to the window as `browser.open-in-new-tab` with its `into`, and Bookmark Link as `browser.bookmark-link`, which `use-openers.ts` keeps with `useAddBookmark` (`bookmarks/actions.ts`), named by the link's text.
 - **Files** (`components/window/computer-page.tsx`): the list, columns and icons views share one row menu. `placesOfOne` gives a single selected item Open in Split, Open in New Tab Group and Add to Bookmarks; with several selected the menu keeps Open in New Tabs and Open in New Window.
-- **A tab's menu** (`components/window/tab-menu-items.tsx`) is Core's, with Add to Bookmarks or Remove from Bookmarks after Duplicate for a tab with an address (`pane-tabs.tsx`), and ⌘\ shown on the tab up's first row.
+- **A tab's menu** (`components/window/tab-menu-items.tsx`) is Core's, with Add to Bookmarks or Remove from Bookmarks after Duplicate for a tab with an address (`pane-tabs.tsx`), and ⌘\ shown on the tab up's first row. After a divider, a chat's tab has `ChatTabItems` and a new chat's tab with a draft has `DraftTabItems` (`components/window/chat-tab-menu.tsx`), each given its own chat or draft, so New project… files that one and not the chat the window has up.
 - **A bookmark's menu** (`components/window/bookmark-menu.tsx`): Open, then `BOOKMARK_PLACES` through `useOpenAddress` (`OpenHow` has `split` and `newWindow`), then Rename, Copy Address and Delete.
-- **A sidebar row's menu** (`components/window/group-row-menu.tsx`): Open in New Window and Duplicate Tab Group; Rename and Pin or Unpin; a chat's read marks, Project (left out for a group with no chat) and Copy; then the Close items.
+- **A sidebar row's menu** (`components/window/group-row-menu.tsx`): Open in New Window and Duplicate Tab Group; Rename and Pin or Unpin; then the Close items. It is given no chat, so the same items stand on every row.
 - **The side chord**, ⌘\, is `moveTabToOtherSide` (`shared/window-shortcuts.ts`), in the Tab menu and the shortcut guide. It does what the tab menu's first row offers: Move to Other Side, or Open in Split for a side's only tab in a group of one side (`moveTabToOtherSide` in `components/window/app-window.tsx`).
 
 ### Where Menus stands
 
 - Checked in a dev instance on the documents fixture, held off screen: each menu's rows and order, and what Open in Split, Open in New Tab Group, Open in New Window and Add to Bookmarks do from a Files row, a bookmark on the bar, a tab and the sidebar rows of a two-sided chat group, a group with no chat and a two-sided new chat.
 - Input over CDP reaches neither a native menu nor a menu key equivalent. A web page's link menu was checked by patching `Menu.buildFromTemplate` in main to pick a row, and ⌘\ by sending the key from main with `webContents.sendInputEvent`. The native menus over a chat's links, file cards and path chips were never opened in the app; `hooks/use-open-target.test.tsx` checks their rows and what each opens.
-- A tab's bookmark row toggles, while a link's only adds. The rows drawn by the app wear `size-4` icons beside Core's `size-3.5` ones in some menus, and the sidebar row's Mark as unread is in sentence case.
+- A tab's bookmark row toggles, while a link's only adds. The rows drawn by the app wear `size-4` icons beside Core's `size-3.5` ones in some menus, and a chat tab's own items (Mark as unread, Send feedback…, Delete chat…) are in sentence case.
 
 ### Drag
 

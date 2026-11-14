@@ -41,10 +41,10 @@ export interface WindowShell {
   newGroup: () => void;
   /** Opens a new tab in the tab group up, as Cmd+T does. */
   newTab: () => void;
-  /** A project asked for from a chat's head, with what was typed. */
-  onNewProject: (name: string | undefined) => void;
-  /** A project asked for from a draft's head, with what was typed: the project it makes files that draft. */
-  onNewDraftProject: (draftId: string, name: string) => void;
+  /** A project asked for from a chat's menu, with what was typed: the project it makes files that chat. */
+  onNewProject: (chatId: ChatId, name?: string) => void;
+  /** A project asked for from a draft's menu, with what was typed: the project it makes files that draft. */
+  onNewDraftProject: (draftId: string, name?: string) => void;
   /** Sends the draft the Chat screen is writing to a window along the foot. */
   popOutDraft: (id: string) => void;
   setDefaultModelURI: (modelURI: AIGatewayModelURI.Type) => void;

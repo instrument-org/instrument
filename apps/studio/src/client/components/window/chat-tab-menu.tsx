@@ -1,11 +1,14 @@
 import { type MenuComponents } from "@/client/components/ui/menu-components";
+import { updateDraftAtom } from "@/client/drafts/store";
 import { rpcClient } from "@/client/rpc/client";
 import { folderHref } from "@/shared/computer-href";
+import { type Draft } from "@/shared/drafts";
 import { type ChatId } from "@instrument-org/workspace/client";
 import { useQuery } from "@tanstack/react-query";
+import { useSetAtom } from "jotai";
 import { useEffect, useRef } from "react";
 
-import { ChatMenuItems } from "./chat-header";
+import { ChatMenuItems, ProjectMenuItems } from "./chat-header";
 import { chatListOptions } from "./chat-list-query";
 import { ChatTitleField } from "./chat-title";
 import { type Chat } from "./chats";
@@ -77,10 +80,52 @@ export function ChatTabItems({
             },
           })}
       projectMenu={{
-        onNew: shell.onNewProject,
+        onNew: (name) => {
+          shell.onNewProject(chat.id, name);
+        },
         // Picking the project it is under takes it off.
         onPick: (id) => {
           shell.setChatProject(chat.id, chat.project === id ? null : id);
+        },
+        projects: shell.projects,
+      }}
+    />
+  );
+}
+
+/**
+ * A new chat tab's own items, after the tab's in its menu, once it has a
+ * draft: Project, which files the draft, and so the chat it starts.
+ */
+export function DraftTabItems({
+  components,
+  draft,
+}: {
+  components: MenuComponents;
+  draft: Draft;
+}) {
+  const shell = useShell();
+  const updateDraft = useSetAtom(updateDraftAtom);
+  return (
+    <ProjectMenuItems
+      chosen={draft.projectId}
+      components={components}
+      projectMenu={{
+        onNew: (name) => {
+          shell.onNewDraftProject(draft.id, name);
+        },
+        // Picking the project it is under takes it off.
+        onPick: (id) => {
+          updateDraft({
+            id: draft.id,
+            update: (current) => {
+              if (current.projectId !== id) {
+                return { ...current, projectId: id, projectSource: "chosen" };
+              }
+              const { projectId: _dropped, ...unfiled } = current;
+              return { ...unfiled, projectSource: "chosen" };
+            },
+          });
         },
         projects: shell.projects,
       }}

@@ -448,10 +448,10 @@ export function ChatMenuItems({
 }
 
 /**
- * Project, as a submenu of a chat's menu: the projects to file it under,
- * the one it is under ticked, and New project….
+ * Project, as a submenu of a chat's menu or a new chat's: the projects to
+ * file it under, the one it is under ticked, and New project….
  */
-function ProjectMenuItems({
+export function ProjectMenuItems({
   chosen,
   components: menu,
   projectMenu,

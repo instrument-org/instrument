@@ -1,41 +1,25 @@
 import {
   ContextMenu,
-  ContextMenuCheckboxItem,
   ContextMenuContent,
   ContextMenuItem,
   ContextMenuSeparator,
-  ContextMenuSub,
-  ContextMenuSubContent,
-  ContextMenuSubTrigger,
   ContextMenuTrigger,
 } from "@/client/components/ui/context-menu";
-import { contextMenuComponents } from "@/client/components/ui/menu-components";
-import { MenuScrollArea } from "@/client/components/ui/menu-scroll-area";
-import { cn } from "@/client/lib/utils";
 import { AppWindowIcon } from "@phosphor-icons/react/AppWindow";
 import { ArrowLineDownIcon } from "@phosphor-icons/react/ArrowLineDown";
 import { ArrowLineUpIcon } from "@phosphor-icons/react/ArrowLineUp";
-import { CardsThreeIcon } from "@phosphor-icons/react/CardsThree";
 import { CopyIcon } from "@phosphor-icons/react/Copy";
 import { PencilSimpleIcon } from "@phosphor-icons/react/PencilSimple";
-import { PlusIcon } from "@phosphor-icons/react/Plus";
 import { PushPinIcon } from "@phosphor-icons/react/PushPin";
 import { PushPinSlashIcon } from "@phosphor-icons/react/PushPinSlash";
 import { XIcon } from "@phosphor-icons/react/X";
 import { XSquareIcon } from "@phosphor-icons/react/XSquare";
 import { type ReactNode, useRef } from "react";
 
-import { chatMenuGroups } from "./chat-actions";
-import { ChatCopyMenu } from "./chat-copy-menu";
-import { type Project } from "./chats";
-import { ProjectMark } from "./project-mark";
-import { type RowAction } from "./row-shell";
-import { type TabGroup } from "./tab-groups";
-
 /** What a row's menu does, which the sidebar answers for every row. */
 export interface GroupRowMenuActions {
-  /** The chat's actions (`useChatActionsFor`); for a group whose chat has not started, its pin alone, as a chat's star. */
-  actions: RowAction[];
+  /** Whether the group is pinned above the line, by its own pin. */
+  isPinned: boolean;
   onClose: () => void;
   /**
    * Closes the groups listed above this one, below it, or every other, as a
@@ -47,51 +31,25 @@ export interface GroupRowMenuActions {
   onCloseOthers: (() => void) | undefined;
   /** A copy of the group just below it, with its tabs, up in the window. */
   onDuplicate: () => void;
-  /** The new-project dialog, which files this group's chat or draft under the project it makes; none for a group of tabs alone. */
-  onNewProject: (() => void) | undefined;
   onNewWindow: () => void;
-  /** Files the group's chat or draft under a project, or under none with `null`; none for a group of tabs alone. */
-  onSetProject: ((project: null | string) => void) | undefined;
-  projects: Project[];
-}
-
-/** A group's pin, offered by the ids a chat's star has, as the row's menu lists its marks. */
-function asPin(action: RowAction): RowAction {
-  if (action.id === "star") {
-    return {
-      ...action,
-      icon: <PushPinIcon className="size-3.5" />,
-      label: "Pin",
-    };
-  }
-  if (action.id === "unstar") {
-    return {
-      ...action,
-      icon: <PushPinSlashIcon className="size-3.5" />,
-      label: "Unpin",
-    };
-  }
-  return action;
+  /** Pins the group, or takes its pin off. */
+  onTogglePin: () => void;
 }
 
 /**
- * A tab group row's menu: Open in New Window and Duplicate Tab Group;
- * naming the group and pinning it; for a chat's group, marking the chat
- * read or unread, filing it under a project and copying its paths; and
- * closing the group, or the groups around it, as a tab's menu closes tabs.
- * A group whose chat has not started has a window of its own, its copy,
- * its name, pinning, its project and the closing. Not modal, as the chat
- * row's is not, so the click that puts it away lands on what it was meant
- * for.
+ * A tab group row's menu, which acts on the group as a whole whatever its
+ * tabs show: Open in New Window and Duplicate Tab Group; naming the group
+ * and pinning it; and closing the group, or the groups around it, as a
+ * tab's menu closes tabs. What acts on one chat in the group is in that
+ * chat's tab menu. Not modal, as the chat row's is not, so the click that
+ * puts it away lands on what it was meant for.
  */
 export function GroupRowMenu({
   children,
-  entry,
   menu,
   onRename,
 }: {
   children: ReactNode;
-  entry: TabGroup;
   menu: GroupRowMenuActions;
   /** Starts naming the group in its row (`useGroupRename`). */
   onRename: () => void;
@@ -99,26 +57,6 @@ export function GroupRowMenu({
   // The menu hands focus back to the row as it closes, which would land
   // after the field took it and blur the rename shut.
   const isStartingRename = useRef(false);
-  const chat = entry.kind === "chat" ? entry.chat : undefined;
-  const filedUnder =
-    entry.kind === "chat"
-      ? entry.chat.project
-      : entry.kind === "draft"
-        ? entry.draft.projectId
-        : undefined;
-  const { onNewProject, onSetProject } = menu;
-  const live = menu.projects.filter((project) => !project.retired);
-  const marks = chatMenuGroups(menu.actions).marks.map(asPin);
-  const isPin = (action: RowAction) =>
-    action.id === "star" || action.id === "unstar";
-  const pin = marks.filter(isPin);
-  const readMarks = marks.filter((action) => !isPin(action));
-  const item = (action: RowAction) => (
-    <ContextMenuItem key={action.id} onSelect={action.run}>
-      {action.icon}
-      {action.label}
-    </ContextMenuItem>
-  );
   return (
     <ContextMenu modal={false}>
       <ContextMenuTrigger asChild>{children}</ContextMenuTrigger>
@@ -148,55 +86,14 @@ export function GroupRowMenu({
           <PencilSimpleIcon className="size-4" />
           Rename
         </ContextMenuItem>
-        {pin.map(item)}
-        {(readMarks.length > 0 || onSetProject) && <ContextMenuSeparator />}
-        {readMarks.map(item)}
-        {onSetProject && (
-          <ContextMenuSub>
-            <ContextMenuSubTrigger>
-              <CardsThreeIcon className="size-4" />
-              Project
-            </ContextMenuSubTrigger>
-            <ContextMenuSubContent className="flex w-56 flex-col p-0">
-              {live.length > 0 && (
-                <MenuScrollArea className="max-h-80">
-                  {live.map((project) => (
-                    <ContextMenuCheckboxItem
-                      checked={filedUnder === project.id}
-                      key={project.id}
-                      onSelect={() => {
-                        // Picking the project it is under takes it off.
-                        onSetProject(
-                          filedUnder === project.id ? null : project.id,
-                        );
-                      }}
-                    >
-                      <ProjectMark project={project} />
-                      <span className="truncate">{project.name}</span>
-                    </ContextMenuCheckboxItem>
-                  ))}
-                </MenuScrollArea>
-              )}
-              <div
-                className={cn(
-                  "shrink-0 p-1",
-                  live.length > 0 && "border-t border-border",
-                )}
-              >
-                <ContextMenuItem onSelect={onNewProject}>
-                  <PlusIcon className="size-4" />
-                  New project…
-                </ContextMenuItem>
-              </div>
-            </ContextMenuSubContent>
-          </ContextMenuSub>
-        )}
-        {chat && (
-          <>
-            <ContextMenuSeparator />
-            <ChatCopyMenu chat={chat} menu={contextMenuComponents} />
-          </>
-        )}
+        <ContextMenuItem onSelect={menu.onTogglePin}>
+          {menu.isPinned ? (
+            <PushPinSlashIcon className="size-3.5" />
+          ) : (
+            <PushPinIcon className="size-3.5" />
+          )}
+          {menu.isPinned ? "Unpin" : "Pin"}
+        </ContextMenuItem>
         <ContextMenuSeparator />
         <ContextMenuItem onSelect={menu.onClose}>
           <XIcon className="size-4" />

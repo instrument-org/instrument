@@ -10,6 +10,7 @@ import {
   FileTypeIcon,
 } from "@/client/components/extend/file-system";
 import { dropdownMenuComponents } from "@/client/components/ui/menu-components";
+import { draftsAtom } from "@/client/drafts/store";
 import { useTargetsAgentActivity } from "@/client/hooks/use-target-agent-activity";
 import { getGuest } from "@/client/lib/browser-pool";
 import { cn } from "@/client/lib/utils";
@@ -17,18 +18,23 @@ import {
   browserTargetOf,
   parseBrowserTargetId,
 } from "@instrument-org/workspace/client";
+import { useAtomValue } from "jotai";
 import { type ReactNode, useRef, useState } from "react";
 
 import { tabTooltip } from "./app-tab-strip";
 import { useAppsBySlug } from "./apps-by-slug";
-import { ChatTabItems, ChatTabRenameField } from "./chat-tab-menu";
+import {
+  ChatTabItems,
+  ChatTabRenameField,
+  DraftTabItems,
+} from "./chat-tab-menu";
 import { type Chat } from "./chats";
 import { useComputerVolumes } from "./computer-volumes";
 import { DeleteChatDialog } from "./delete-chat-dialog";
 import { useFileTabTitles } from "./file-tab-titles";
 import { screenPresentation, screenLocation } from "./screen-presentation";
 import { siteTabTitles } from "./site-tab-titles";
-import { chatOfTab, isHomeTab } from "./tab-model";
+import { chatOfTab, draftOfTab, isHomeTab } from "./tab-model";
 import { TabMenuAtPoint, TabMenuItems } from "./tab-menu-items";
 import { NewTabButton, type StripTab, TabStrip } from "./tab-strip";
 import { useBookmarkEdits } from "./web-start";
@@ -323,7 +329,7 @@ export interface SplitMenuActions {
  * copy of it opened there when it is the group's only tab and moving it
  * would leave nothing behind; then the rest of what places it, copies it
  * and closes it or the tabs around it. A chat's tab has the chat's own
- * items after those.
+ * items after those, and a new chat's tab with a draft has the draft's.
  */
 function PaneTabMenu({
   isChosen,
@@ -370,6 +376,8 @@ function PaneTabMenu({
   const canMove =
     split !== undefined && (split.hasOtherSide || tabs.length > 1);
   const chat = chatOfTab(tab);
+  const draftId = draftOfTab(tab);
+  const draft = useAtomValue(draftsAtom).find((each) => each.id === draftId);
   const { onMoveToNewGroup, onMoveToNewWindow } = split ?? {};
   return (
     <TabMenuItems
@@ -445,7 +453,7 @@ function PaneTabMenu({
             }
       }
       own={
-        chat === undefined ? undefined : (
+        chat !== undefined ? (
           <ChatTabItems
             chatId={chat}
             components={dropdownMenuComponents}
@@ -457,7 +465,9 @@ function PaneTabMenu({
             onRename={onRename}
             tabId={tab.id}
           />
-        )
+        ) : draft !== undefined ? (
+          <DraftTabItems components={dropdownMenuComponents} draft={draft} />
+        ) : undefined
       }
     />
   );

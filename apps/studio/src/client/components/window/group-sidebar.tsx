@@ -35,7 +35,7 @@ import { PlusIcon } from "@phosphor-icons/react/Plus";
 import { XIcon } from "@phosphor-icons/react/X";
 import { type ChatId } from "@instrument-org/workspace/client";
 import { useQuery } from "@tanstack/react-query";
-import { useAtom, useAtomValue, useSetAtom } from "jotai";
+import { useAtom, useAtomValue } from "jotai";
 import {
   AnimatePresence,
   motion,
@@ -51,9 +51,6 @@ import {
   useState,
 } from "react";
 
-import { updateDraftAtom } from "@/client/drafts/store";
-
-import { useChatActionsFor } from "./chat-actions";
 import { ChatTitleField } from "./chat-title";
 import { GroupRowMenu, type GroupRowMenuActions } from "./group-row-menu";
 import { HelpMenu } from "./help-menu";
@@ -88,7 +85,6 @@ import {
 import { useChatSearchFallback } from "./use-chat-search-fallback";
 import { useGroupRename } from "./use-group-rename";
 import { useProjectShift } from "./use-project-shift";
-import { useSetChatProject } from "./use-set-chat-project";
 import {
   draftWordsTitle,
   isPinnedGroup,
@@ -151,7 +147,6 @@ export function GroupSidebar({
   onDuplicate,
   onNew,
   onNewProject,
-  onNewProjectFor,
   onPin,
   onRestore,
   onShow,
@@ -173,8 +168,6 @@ export function GroupSidebar({
   onDuplicate: (entry: TabGroup) => void;
   onNew: (projectId?: string) => void;
   onNewProject: () => void;
-  /** The new-project dialog for one group, which files it under the project it makes. */
-  onNewProjectFor: (target: { chatId: ChatId } | { draftId: string }) => void;
   /** Pins a group above the line, or takes it back down. */
   onPin: (group: string, pinned: boolean) => void;
   /** Brings back a chat or a draft from History, or brings up the window with a chat another one has open. */
@@ -250,9 +243,6 @@ export function GroupSidebar({
   const room = drop?.kind === "between" ? drop : undefined;
   // The rows the list shows, in its order, which a row's menu closes around.
   const shownRows = isSearching ? matching(open) : [...pinned, ...rest];
-  const actionsFor = useChatActionsFor();
-  const setChatProject = useSetChatProject();
-  const updateDraft = useSetAtom(updateDraftAtom);
   const menuOf = (entry: TabGroup): GroupRowMenuActions => {
     // Pinned rows stay open, as a browser's pinned tabs do.
     const closing = (around: TabGroup[]) => {
@@ -267,23 +257,7 @@ export function GroupSidebar({
     };
     const at = shownRows.findIndex((each) => each.group === entry.group);
     return {
-      // A group pins by its own pin, which the menu offers where a chat's
-      // star would be; its chat's star stays the chat's.
-      actions: [
-        {
-          icon: null,
-          id: entry.pinned ? "unstar" : "star",
-          label: entry.pinned ? "Unpin" : "Pin",
-          run: () => {
-            onPin(entry.group, !entry.pinned);
-          },
-        },
-        ...(entry.kind === "chat"
-          ? actionsFor(entry.chat).filter(
-              (action) => action.id !== "star" && action.id !== "unstar",
-            )
-          : []),
-      ],
+      isPinned: entry.pinned,
       onClose: () => {
         onClose(entry.group);
       },
@@ -295,43 +269,12 @@ export function GroupSidebar({
       onDuplicate: () => {
         onDuplicate(entry);
       },
-      onNewProject:
-        entry.kind === "tabs"
-          ? undefined
-          : () => {
-              onNewProjectFor(
-                entry.kind === "chat"
-                  ? { chatId: entry.chat.id }
-                  : { draftId: entry.draft.id },
-              );
-            },
       onNewWindow: () => {
         onShow(entry.group, { newWindow: true });
       },
-      onSetProject:
-        entry.kind === "tabs"
-          ? undefined
-          : (filed) => {
-              if (entry.kind === "chat") {
-                setChatProject(entry.chat.id, filed);
-                return;
-              }
-              updateDraft({
-                id: entry.draft.id,
-                update: (draft) => {
-                  if (filed !== null) {
-                    return {
-                      ...draft,
-                      projectId: filed,
-                      projectSource: "chosen",
-                    };
-                  }
-                  const { projectId: _dropped, ...unfiled } = draft;
-                  return { ...unfiled, projectSource: "chosen" };
-                },
-              });
-            },
-      projects,
+      onTogglePin: () => {
+        onPin(entry.group, !entry.pinned);
+      },
     };
   };
 
@@ -1012,7 +955,7 @@ export function GroupRow({
     </div>
   );
   return menu ? (
-    <GroupRowMenu entry={entry} menu={menu} onRename={rename.start}>
+    <GroupRowMenu menu={menu} onRename={rename.start}>
       {shown}
     </GroupRowMenu>
   ) : (

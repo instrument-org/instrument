@@ -65,6 +65,13 @@ export const SETTINGS_INDEX = [
     title: "Notify when tasks finish",
   },
   {
+    detail:
+      "Chats keep working after you quit, behind an icon in the menu bar or system tray.",
+    id: "keep-running",
+    tab: "General",
+    title: "Keep running in the menu bar",
+  },
+  {
     detail: "Pick the microphone you dictate into.",
     id: "dictation-microphone",
     tab: "General",

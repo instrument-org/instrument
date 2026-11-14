@@ -1,5 +1,6 @@
 import { type Actor, createActor, waitFor } from "xstate";
 
+import { keepsRunningInMenuBar } from "./keep-running";
 import { quitMachine } from "./quit-machine";
 
 let quit: Actor<typeof quitMachine> | null = null;
@@ -16,10 +17,14 @@ export type RunningWork = {
 /**
  * Whether closing the last window quits the app. On macOS the app stays in
  * the Dock, its agents and their jobs keep working, and the Dock icon brings
- * a window back; Cmd+Q is the quit. Elsewhere a process with no window has
- * nothing to come back from, so the last close is the quit.
+ * a window back; Cmd+Q is the quit. Elsewhere it stays only while it keeps
+ * running in the tray, whose icon brings a window back; without it a process
+ * with no window has nothing to come back from, so the last close is the
+ * quit.
  */
-export const quitsWithLastWindow = process.platform !== "darwin";
+export function quitsWithLastWindow() {
+  return process.platform !== "darwin" && !keepsRunningInMenuBar();
+}
 
 /**
  * True once this quit is approved; no further prompt is needed. Before boot

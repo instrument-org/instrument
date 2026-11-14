@@ -13,6 +13,7 @@ How Instrument looks, notifications, dictation, suggested messages, updates, and
 - **Theme** (`theme`): Choose your preferred color scheme.
 - **Zoom** (`zoom`): Make everything in the app larger or smaller.
 - **Notify when tasks finish** (`notifications`): Show a desktop notification when a task finishes. On it: Send a test notification (`test-notification`).
+- **Keep running in the menu bar** (`keep-running`): Chats keep working after you quit, behind an icon in the menu bar or system tray.
 - **Dictation microphone** (`dictation-microphone`): Pick the microphone you dictate into.
 - **Dictation language** (`dictation-language`): Pick the language you speak, or let dictation detect it.
 - **Dictation sounds** (`dictation-sounds`): A sound when dictation starts and stops.
@@ -93,7 +94,7 @@ Link one as `[Label](instrument://screen/<name>)`.
 
 On a Mac these are the menu bar's menus, the first named for Instrument; on Windows and Linux the same menus open from the Menu button in the window's bar, with Settings and Quit at the end of File and updates and About at the end of Help.
 
-- **Instrument**: Check for Updates…, Settings…
+- **Instrument**: Check for Updates…, Settings…, Quit Instrument
 - **File**: New Chat, Command Menu, Search or Ask, Find, Find Next, Find Previous, Search Chats, Print…, Info, New Window, New Tab, Close Tab, Reopen Closed Tab, Reopen Closed Window, Close Window
 - **View**: Toggle Inbox, Edit Page, Reload Page, Go to Chat, Go to Files, Go to Browser, Go to Apps, Next Chat, Previous Chat, Actual Size, Zoom In, Zoom Out
 - **History**: Back, Forward, Show Activity, Clear Browsing Data…

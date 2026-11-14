@@ -23,7 +23,6 @@ import {
   useDraftStaging,
   useFolderItems,
 } from "@/client/components/draft-staging";
-import { mayTakeKeyboard } from "@/client/lib/keyboard-home";
 import { reachModel } from "@/client/lib/model-status";
 import { createMessageOptions } from "@/client/lib/message-sends";
 import { cn, osConventions } from "@/client/lib/utils";
@@ -501,11 +500,10 @@ export function ChatConversation({
     // Every render until the box is there to draw into, and once per chat.
   });
   // A chat coming on screen is a place to reply from, so the caret lands
-  // in the field as it opens, unless it opened as the person walked the
-  // chat list with the arrows (`mayTakeKeyboard`), or on the side of a tab
-  // group without the keyboard (`takesCaret`).
+  // in the field as it opens, unless it opened on the side of a tab group
+  // without the keyboard (`takesCaret`).
   useLayoutEffect(() => {
-    if (!takesCaret || !isActiveTab || !mayTakeKeyboard()) {
+    if (!takesCaret || !isActiveTab) {
       return;
     }
     promptEditor?.focus();

@@ -42,7 +42,6 @@ import {
   type ComposerCommand,
   FEEDBACK_COMMAND_ALIASES,
 } from "@/client/lib/app-commands";
-import { mayTakeKeyboard } from "@/client/lib/keyboard-home";
 import { feedbackReport } from "@/client/lib/problem-reports";
 import {
   type ModelAction,
@@ -527,9 +526,7 @@ export const PromptInput = ({
   }, [transientDraftId]);
 
   useLayoutEffect(() => {
-    // Not while the person walks a list with the arrows: each chat they pass
-    // opens with its composer, and the keyboard stays in the list.
-    if (!autoFocus || !isActiveTab || !mayTakeKeyboard()) {
+    if (!autoFocus || !isActiveTab) {
       return;
     }
     promptEditorRef.current?.focus();

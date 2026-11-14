@@ -416,7 +416,7 @@ export function SentChips({ chips }: { chips: SentChip[] }) {
 }
 
 /** One thing a group holds, as its mark: a page's icon, or a screen's. */
-export function HeldMark({
+function HeldMark({
   appsBySlug,
   tab,
 }: {

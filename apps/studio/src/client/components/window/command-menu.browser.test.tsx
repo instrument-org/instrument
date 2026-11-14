@@ -71,7 +71,7 @@ describe("the row Return runs after a paste", () => {
   ])("in %s is the first", async (_where, render) => {
     await render();
     const field = page.getByRole("combobox");
-    await expect.element(page.getByText("Go to")).toBeVisible();
+    await expect.element(page.getByText("Commands")).toBeVisible();
 
     await userEvent.fill(field, "/Users/sam/Documents");
     await expect
@@ -80,11 +80,11 @@ describe("the row Return runs after a paste", () => {
 
     // A row picked by a key stays picked while the words stay.
     await userEvent.fill(field, "");
-    await expect.element(page.getByText("Go to")).toBeVisible();
+    await expect.element(page.getByText("Commands")).toBeVisible();
     await userEvent.keyboard("{ArrowDown}");
     await expect
-      .element(page.getByRole("option", { selected: true }))
-      .toMatchTextContent("Files");
+      .element(page.getByRole("option").nth(1))
+      .toHaveAttribute("aria-selected", "true");
 
     await userEvent.fill(field, "example.org");
     await expect
@@ -117,7 +117,7 @@ describe("the row Return runs while typing", () => {
   ])("in %s is for every letter typed", async (_where, render) => {
     await render();
     const field = page.getByRole("combobox");
-    await expect.element(page.getByText("Go to")).toBeVisible();
+    await expect.element(page.getByText("Commands")).toBeVisible();
 
     // Return straight after the last letter, before the rows can follow.
     await userEvent.type(field, "example.com{Enter}");
@@ -126,7 +126,7 @@ describe("the row Return runs while typing", () => {
 
   it("stays on the first row when the rows change under a resting pointer", async () => {
     await renderInBrowser(<NewTabPage />);
-    await expect.element(page.getByText("Go to")).toBeVisible();
+    await expect.element(page.getByText("Commands")).toBeVisible();
     const first = page.getByRole("option").first();
     const last = page.getByRole("option").last();
     await expect.element(first).toHaveAttribute("aria-selected", "true");

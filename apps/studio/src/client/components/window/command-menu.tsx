@@ -5,7 +5,7 @@ import { openSettings } from "@/client/atoms/settings-modal";
 import { SCREENS } from "@/shared/instrument-screens";
 import { openClearBrowsingData } from "@/client/atoms/clear-browsing-data-modal";
 import { openShortcutGuide } from "@/client/atoms/shortcut-guide-modal";
-import { type AppPlace, APPS_HREF, CHATS_HREF } from "@/client/atoms/window";
+import { APPS_HREF, CHATS_HREF } from "@/client/atoms/window";
 import { bookmarksAtom } from "@/client/bookmarks/store";
 import { PageFavicon } from "@/client/components/favicon";
 import { useRecentPages } from "@/client/hooks/use-browser-history";
@@ -43,7 +43,6 @@ import {
   projectSearch,
 } from "@/client/components/window/chats";
 import { FolderMark } from "@/client/components/window/folder-mark";
-import { PlaceIcon } from "@/client/components/window/place-icons";
 import { useShell } from "@/client/components/window/shell-context";
 import { ProjectMark } from "@/client/components/window/project-mark";
 import { useChatSearchFallback } from "@/client/components/window/use-chat-search-fallback";
@@ -85,7 +84,6 @@ import { SHORTCUTS, type ShortcutAccelerator } from "@/shared/shortcuts";
 import {
   WINDOW_MENU_SHORTCUTS,
   WINDOW_SHORTCUTS,
-  type WindowShortcutId,
 } from "@/shared/window-shortcuts";
 import { boundedFuzzy } from "@/client/lib/bounded-fuzzy";
 import { AppWindowIcon } from "@phosphor-icons/react/AppWindow";
@@ -155,22 +153,6 @@ const LISTED_COMMANDS = new Set([
   "shortcuts",
 ]);
 
-/** The places, in the order Go to lists them. */
-const PLACES: { id: AppPlace; label: string }[] = [
-  { id: "chat", label: "Chat" },
-  { id: "files", label: "Files" },
-  { id: "browser", label: "Browser" },
-  { id: "apps", label: "Apps" },
-];
-
-/** Each place's chord, which its Go to row shows. */
-const PLACE_CHORDS = {
-  apps: "goToApps",
-  browser: "goToBrowser",
-  chat: "goToChat",
-  files: "goToFiles",
-} as const satisfies Record<AppPlace, WindowShortcutId>;
-
 export const COMMAND_MENU_PLACEHOLDER = "Search or type an address";
 
 type Item = {
@@ -205,12 +187,12 @@ export type CommandMenuSurface = "dialog" | "page";
 
 /**
  * The menu's rows for the words typed, the same wherever it is drawn: what
- * the words name (an address to open, the places, commands, chats, the apps
- * set up here, pages, files), then a web search for words that are a search, then, when
+ * the words name (an address to open, commands, chats, the apps set up
+ * here, pages, files), then a web search for words that are a search, then, when
  * nothing matched by name and the words are no address, the chats the
  * decision model says they mean, below the search so Return never changes
- * under the caret. Before anything is typed, the places, the commands worth
- * reaching often, and the newest chats. Words
+ * under the caret. Before anything is typed, the commands worth reaching
+ * often, and the newest chats. Words
  * starting `!` reach the switches kept out of sight: `!dev` and `!beta`.
  *
  * The rows follow the words a beat behind while typing, so the field keeps
@@ -714,26 +696,8 @@ export function useCommandMenuRows({
       ? liveProjects.map((item) => ({ item, ranges: null }))
       : fuzzyMatch(liveProjects, (project) => [project.name], projectAsk.name);
 
-  const goTo: Item[] = PLACES.map(({ id, label }) => ({
-    chord: WINDOW_SHORTCUTS[PLACE_CHORDS[id]].accelerator,
-    icon: <PlaceIcon place={id} />,
-    id: `goto:${id}`,
-    label,
-    ranges: null,
-    run: () => {
-      shell.goToPlace(id);
-    },
-    type: "item",
-  }));
-
   const named: { items: Item[]; label: string }[] = isSearch
     ? [
-        {
-          items: fuzzyMatch(goTo, (item) => [item.label], words).map(
-            ({ item, ranges }) => ({ ...item, ranges }),
-          ),
-          label: "Go to",
-        },
         {
           items: fuzzyMatch(
             [...commands, ...settingsRows],
@@ -746,7 +710,7 @@ export function useCommandMenuRows({
         // projects, and the chats are the one list here with no end, so under
         // them a project would be out of sight exactly when its name is in
         // many titles. Asked for by the word, they lead outright, since no
-        // place or command answers to it.
+        // command answers to it.
         {
           items: projectMatches.map(({ item, ranges }) =>
             projectItem(item, ranges),
@@ -848,7 +812,6 @@ export function useCommandMenuRows({
     ? [{ items: bangRows, label: "Switches" }]
     : words === ""
       ? [
-          { items: goTo, label: "Go to" },
           {
             items: commands
               .filter((command) => LISTED_COMMANDS.has(command.id))

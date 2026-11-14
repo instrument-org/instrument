@@ -18,7 +18,7 @@ import { getFileType } from "@/client/lib/get-file-type";
 import { isTypingTarget } from "@/client/lib/is-typing-target";
 import { dialogMaxSize } from "@/client/hooks/use-app-zoom";
 import { cn } from "@/client/lib/utils";
-import { rpcClient } from "@/client/rpc/client";
+import { computerFolderOptions } from "@/client/lib/live-computer-folder";
 import { HOSTED_PAGE_GROUP_PREFIX } from "@/shared/kept-state";
 import { WINDOW_ID } from "@instrument-org/workspace/client";
 import { XIcon } from "@phosphor-icons/react/X";
@@ -274,10 +274,7 @@ function FolderCard({
   const showHidden = useAtomValue(computerHiddenFilesAtom);
   // The listing the folder opens with, so looking first makes opening it quicker.
   const listing = useQuery(
-    rpcClient.workspace.computer.list.queryOptions({
-      input: { id: WINDOW_ID, path: folder.hostPath },
-      retry: false,
-    }),
+    computerFolderOptions({ id: WINDOW_ID, path: folder.hostPath }),
   );
   const data = listing.data;
   const count =

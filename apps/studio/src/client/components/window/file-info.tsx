@@ -19,6 +19,7 @@ import { getComputerThumbnailUrl } from "@/client/lib/computer-file-url";
 import { getFileType } from "@/client/lib/get-file-type";
 import { isTypingTarget } from "@/client/lib/is-typing-target";
 import { cn, currentOs } from "@/client/lib/utils";
+import { computerFolderOptions } from "@/client/lib/live-computer-folder";
 import { rpcClient } from "@/client/rpc/client";
 import { macosAsksBeforeReading } from "@/shared/macos-guarded-folders";
 import { folderNameFromPath } from "@instrument-org/shared";
@@ -231,10 +232,9 @@ function bareItem(hostPath: string): FileInfoItem {
 /** The open file, read from the listing of the folder it is in. */
 function useFileItem(hostPath: string | undefined) {
   const listing = useQuery(
-    rpcClient.workspace.computer.list.queryOptions({
-      input: hostPath ? { id: WINDOW_ID, path: whereIs(hostPath) } : skipToken,
-      retry: false,
-    }),
+    computerFolderOptions(
+      hostPath ? { id: WINDOW_ID, path: whereIs(hostPath) } : skipToken,
+    ),
   );
   const entry =
     listing.data?.kind === "listing"
@@ -275,10 +275,7 @@ export function PathInfo({
   kind: "file" | "folder";
 }) {
   const listing = useQuery(
-    rpcClient.workspace.computer.list.queryOptions({
-      input: { id: WINDOW_ID, path: whereIs(hostPath) },
-      retry: false,
-    }),
+    computerFolderOptions({ id: WINDOW_ID, path: whereIs(hostPath) }),
   );
   const item = useFileItem(hostPath);
   const name = folderNameFromPath(hostPath);
@@ -567,10 +564,9 @@ function FolderInfo({
       os: currentOs(),
     });
   const listing = useQuery(
-    rpcClient.workspace.computer.list.queryOptions({
-      input: mayRead ? { id: WINDOW_ID, path: item.hostPath } : skipToken,
-      retry: false,
-    }),
+    computerFolderOptions(
+      mayRead ? { id: WINDOW_ID, path: item.hostPath } : skipToken,
+    ),
   );
   // Walks the folder for as long as the card is on it: moving on or closing
   // the card ends the query, and with it the walk.

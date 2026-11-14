@@ -23,10 +23,23 @@ vi.mock("@/client/rpc/client", () => {
       ? Promise.resolve(listings.get(folder))
       : pending();
   };
+  // A folder's live listing answers with the folder whole, then nothing more.
+  const follow = (input: unknown) =>
+    answer(["workspace", "computer", "list"], input).then((folder) =>
+      (async function* () {
+        yield { folder, kind: "snapshot" };
+      })(),
+    );
   const procedure = (path: string[]): unknown =>
     new Proxy(() => undefined, {
-      apply: pending,
+      apply: (_target, _this, args: unknown[]) =>
+        path.join(".") === "workspace.computer.live.list.call"
+          ? follow(args[0])
+          : pending(),
       get(_target, key) {
+        if (key === "queryKey") {
+          return (options?: { input?: unknown }) => [...path, options?.input];
+        }
         if (key === "queryOptions" || key === "experimental_liveOptions") {
           return (options?: { input?: unknown }) => ({
             queryFn: () => answer(path, options?.input),

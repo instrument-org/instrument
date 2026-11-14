@@ -1,6 +1,6 @@
 # Plan: file references resolve at click, and the folder watcher goes
 
-Status: done. Landed. All five steps are in. What remains of the idea is the two rules below, which the surfaces built after this are expected to keep.
+Status: done. Landed. All five steps are in. What remains of the idea is the two rules below, which the surfaces built after this are expected to keep. The case for polling a browsing surface ("Watch the pane; poll the popover") no longer holds for Files, which watches each folder on screen alone instead: what this plan turned down was a recursive watch over a tree, whose cost grows with the tree, while one folder's watch costs what is on screen, as a poll does, and a poll of a large folder resent all of it every few seconds ([system-overview.md](../architecture/system-overview.md), "How the UI learns of changes").
 
 Three mechanisms currently infer, from disk, what the user should see and how fresh it is: a recursive watcher over the task directory, a per-turn diff of that watcher into a change card, and a per-reference existence query at render. All three exist because the app had to guess what a turn produced. It no longer has to guess: a ` ```files ` fence says what the reply hands over ([presentation-syntax.md](presentation-syntax.md)) and `show` says what goes on screen ([pane-tabs-and-the-show-command.md](pane-tabs-and-the-show-command.md)). This deletes the guessing.
 

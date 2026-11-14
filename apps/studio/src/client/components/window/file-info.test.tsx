@@ -26,6 +26,13 @@ vi.mock("@/client/components/open-target-icon", () => ({
 vi.mock("@/client/components/folder-trail", () => ({
   FolderTrail: ({ path }: { path: string }) => <span>{path}</span>,
 }));
+vi.mock("@/client/lib/live-computer-folder", () => ({
+  computerFolderOptions: (input: unknown) => ({
+    enabled: false,
+    queryFn: () => null,
+    queryKey: ["stub", input],
+  }),
+}));
 vi.mock("@/client/rpc/client", () => {
   const procedure = {
     queryOptions: ({ input }: { input: unknown }) => ({

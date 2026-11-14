@@ -43,9 +43,11 @@ export {
 export { normalizeChatFilePath } from "./lib/normalize-chat-file-path";
 export type {
   ComputerFolder,
+  ComputerFolderEvent,
   ComputerListing,
   ComputerRefusal,
 } from "./lib/chat/computer";
+export { applyFolderPatch } from "./lib/chat/computer-folder-patch";
 export type { ChatStatus } from "./lib/chat/chat-status";
 export {
   type ChatListEvent,

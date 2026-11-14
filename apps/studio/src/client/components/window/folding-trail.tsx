@@ -52,13 +52,15 @@ export function FoldingTrail({
   const box = useRef<HTMLSpanElement>(null);
   const natural = useRef<HTMLSpanElement>(null);
   const trail = labels.join("/");
+  const [folded, setFolded] = useState(0);
   useEffect(() => {
     const element = box.current;
     if (!element) {
       return;
     }
     const showLast = () => {
-      const last = element.lastElementChild;
+      // The last part, the one before the measuring copy.
+      const last = element.lastElementChild?.previousElementSibling;
       if (last instanceof HTMLElement) {
         element.scrollLeft = Math.min(
           last.offsetLeft,
@@ -74,8 +76,7 @@ export function FoldingTrail({
     return () => {
       observer.disconnect();
     };
-  }, [trail]);
-  const [folded, setFolded] = useState(0);
+  }, [folded, trail]);
   useLayoutEffect(() => {
     const element = box.current;
     const copy = natural.current;
@@ -131,23 +132,25 @@ export function FoldingTrail({
       ) : null}
       {labels.slice(1 + folded).map((_, index) => part(index + 1 + folded))}
       {/* The whole trail at its natural width, out of sight, for the parts
-          that fold to be measured against. */}
+          that fold to be measured against. Its box has no size, so the
+          trail scrolls no further than its parts. */}
       <span
         aria-hidden
-        className="pointer-events-none invisible absolute top-0 left-0 flex w-max items-center"
-        ref={natural}
+        className="pointer-events-none invisible absolute top-0 left-0 size-0 overflow-hidden"
       >
-        {labels.map((label, index) => (
-          <span
-            className={labelClassName}
-            data-crumb=""
-            key={`${String(index)}:${label}`}
-          >
-            {label}
-          </span>
-        ))}
-        <span data-separator="">{separator}</span>
-        <span data-more="">{foldMark}</span>
+        <span className="flex w-max items-center" ref={natural}>
+          {labels.map((label, index) => (
+            <span
+              className={labelClassName}
+              data-crumb=""
+              key={`${String(index)}:${label}`}
+            >
+              {label}
+            </span>
+          ))}
+          <span data-separator="">{separator}</span>
+          <span data-more="">{foldMark}</span>
+        </span>
       </span>
     </span>
   );

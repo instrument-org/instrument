@@ -17,7 +17,7 @@ import { useChatRename } from "./use-chat-rename";
 import { useWindowTabs } from "./window-tabs";
 
 /** A chat from the window's list, by its id, while the list has it. */
-function useListedChat(id: ChatId): Chat | undefined {
+export function useListedChat(id: ChatId): Chat | undefined {
   const { data } = useQuery({
     ...chatListOptions(),
     select: (list) => list.find((chat) => chat.id === id),

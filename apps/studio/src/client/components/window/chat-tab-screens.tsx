@@ -3,7 +3,13 @@ import { type ChatId } from "@instrument-org/workspace/client";
 import { useAtomValue } from "jotai";
 import { useState } from "react";
 
+import { folderHref } from "@/shared/computer-href";
+
 import { useAppsBySlug } from "./apps-by-slug";
+import { ChatFolderButton, useChatFolderWithFiles } from "./chat-folder-button";
+import { ChatHeader } from "./chat-header";
+import { useListedChat } from "./chat-tab-menu";
+import { useWindow } from "./context";
 import { ChatScreen } from "./chat-screen";
 import { chatContextItems } from "./context-items";
 import { ContextChips } from "./context-chip";
@@ -47,7 +53,9 @@ export function GroupChatScreen({ chatId }: { chatId: ChatId }) {
   const aware =
     tabId === undefined ? undefined : <AwarenessLine chatTab={tabId} />;
   return (
-    <div className="absolute inset-0">
+    <div className="absolute inset-0 flex flex-col">
+      <ChatTabHead chatId={chatId} />
+      <div className="relative min-h-0 flex-1">
       <ChatScreen
         chatId={chatId}
         composerLead={
@@ -89,7 +97,66 @@ export function GroupChatScreen({ chatId }: { chatId: ChatId }) {
         sentPrompt={shell.sentWords.get(chatId)}
         takesCaret={isActive && hasKeyboard}
       />
+      </div>
     </div>
+  );
+}
+
+/**
+ * The head over a chat in its tab: its title, which renames it, and the
+ * caret that opens its menu at the left; at the right, the chat's folder
+ * while it has files, opened beside the chat as a click in the chat opens
+ * a folder.
+ */
+function ChatTabHead({ chatId }: { chatId: ChatId }) {
+  const groupTab = useGroupTab();
+  const shell = useShell();
+  const appWindow = useWindow();
+  const windowTabs = useWindowTabs();
+  const chat = useListedChat(chatId);
+  const folder = useChatFolderWithFiles(chatId);
+  const tabId = groupTab?.id;
+  const beside = tabId === undefined ? undefined : windowTabs.besideOf(tabId);
+  const folderAt = folder === null ? undefined : folderHref(folder);
+  const isFolderShown =
+    folderAt !== undefined &&
+    beside?.kind === "screen" &&
+    beside.href === folderAt;
+  return (
+    <ChatHeader
+      chat={chat}
+      onArchived={() => {
+        groupTab?.close();
+      }}
+      onDeleted={() => {
+        groupTab?.close();
+      }}
+      onNewProject={(name) => {
+        shell.onNewProject(chatId, name);
+      }}
+      onSetProject={(next) => {
+        shell.setChatProject(chatId, next);
+      }}
+      projects={shell.projects}
+      trailing={
+        folderAt !== undefined && (
+          <ChatFolderButton
+            isOpen={isFolderShown}
+            onToggle={() => {
+              if (isFolderShown && beside) {
+                windowTabs.select(beside.id);
+                return;
+              }
+              appWindow.openScreen(folderAt, {
+                chat: chatId,
+                ...(tabId === undefined ? {} : { from: tabId }),
+                show: true,
+              });
+            }}
+          />
+        )
+      }
+    />
   );
 }
 

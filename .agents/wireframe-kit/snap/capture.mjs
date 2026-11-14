@@ -135,7 +135,9 @@ const STATES = {
     themes: ["light", "dark"],
     run: async (h) => {
       await h.go(`/chats/${h.chats.pricing}`, 1200);
-      await h.app.click({ text: "Feedback", selector: 'nav[aria-label="Places"] button' });
+      await h.app.click({ selector: 'nav[aria-label="Places"] button', text: "Help" });
+      await wait(300);
+      await h.app.click({ text: "Send feedback…" });
       await wait(500);
     },
   },

@@ -5,14 +5,11 @@ import {
   type ClosedTab,
   type OpenedTab,
 } from "../../schemas/chat-state";
-import { type StoreId } from "../../schemas/store-id";
 import { getChatState, updateChatState } from "../chat-record";
 import { chatDir, resolveChat, sessionOfChat } from "../record-folders";
-import { actsIn, forgetTab, lastActOf } from "../tab-activity";
+import { actsIn, forgetTab } from "../tab-activity";
 import { getWorkspaceConfig } from "../workspace-config";
-import { type ChatPageTab, chatPageTabs, workingIn } from "./chat-tabs";
-import { type ChatTask, listChildTasks } from "./children";
-import { openAsks } from "./open-asks";
+import { type ChatPageTab, chatPageTabs } from "./chat-tabs";
 import { askWindow } from "./window-tab";
 
 /**
@@ -45,71 +42,6 @@ export async function closeTabsOverCap(chatId: ChatId): Promise<void> {
       .slice(0, Math.max(0, hidden.length - CHAT_HIDDEN_TAB_CAP))
       .map(({ tab }) => tab);
     await closeOpened(chatId, over, listed, "tabCap");
-  });
-}
-
-/**
- * Closes the tabs the chat's agents opened that nobody can still be working
- * in and the person never used, as the chat's own turn ends, so the pane is
- * back to the person's own. A tab they used (`usedByPerson`), one on
- * screen now, one the chat waits on them in, one a task with a turn running has
- * driven, and one a task opened or worked in that can still be sent on
- * (`task send`) stay; a task's tabs close when it is stopped
- * (`closeTaskTabs`). The next browser note of the session that worked in
- * each closed tab names it and where it was, and the agent opens the
- * address again if the work still needs it.
- */
-export async function closeTurnTabs(chatId: ChatId): Promise<void> {
-  await inTurn(chatId, async () => {
-    const { openedTabs } = await getChatState(chatDir(chatId));
-    if (openedTabs.length === 0) {
-      return;
-    }
-    const waitedOn = new Set(
-      (await openAsks(chatId)).flatMap((ask) =>
-        ask.kind === "page" ? [ask.target] : [],
-      ),
-    );
-    const tasks = await listChildTasks(chatId);
-    const listed = await chatPageTabs(chatId);
-    // The turn ending is the chat's own, however its session reads this moment.
-    const own = sessionOfChat(chatId);
-    const unused = openedTabs.filter(
-      (tab) =>
-        !waitedOn.has(tab.id) &&
-        isUnused(tab) &&
-        !workingIn(tab.id).some((act) => act.sessionId !== own) &&
-        !tasks.some((task) => !task.stoppedBy && isTasks(tab, task)),
-    );
-    await closeOpened(chatId, unused, listed, "turnEnd");
-  });
-}
-
-/**
- * Closes the tabs a task opened or worked in as the task is stopped, which
- * nothing sends on: those the person never used, that are not on screen,
- * and that no other task that can still be sent on holds.
- */
-export async function closeTaskTabs(
-  chatId: ChatId,
-  sessionId: StoreId.Session,
-): Promise<void> {
-  await inTurn(chatId, async () => {
-    const { openedTabs } = await getChatState(chatDir(chatId));
-    const tasks = (await listChildTasks(chatId)).filter(
-      (task) => task.id !== sessionId && !task.stoppedBy,
-    );
-    const theirs = openedTabs.filter(
-      (tab) =>
-        (tab.openedIn === sessionId ||
-          lastActOf(tab.id, sessionId) !== undefined) &&
-        isUnused(tab) &&
-        !tasks.some((task) => isTasks(tab, task)),
-    );
-    if (theirs.length === 0) {
-      return;
-    }
-    await closeOpened(chatId, theirs, await chatPageTabs(chatId), "turnEnd");
   });
 }
 
@@ -148,11 +80,6 @@ export async function closeChatTabs(
 /** Whether a tab is one the person never used, and not on screen. */
 function isUnused(tab: OpenedTab): boolean {
   return tab.usedByPerson !== true && tabLifetime(tab.id)?.drawn !== true;
-}
-
-/** Whether a task opened a tab or worked in it. */
-function isTasks(tab: OpenedTab, task: ChatTask): boolean {
-  return tab.openedIn === task.id || lastActOf(tab.id, task.id) !== undefined;
 }
 
 /** Each chat's closing in progress, so two never close or note one tab twice. */

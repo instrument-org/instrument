@@ -20,7 +20,7 @@ Page contents can stay rough. What has to be right is the layout engine, draggin
 ## Opening things, with no magic placement
 
 - A click opens in place, where Back returns, or as a new tab right after the tab it came from, in the same side. Nothing opens in the other side unless the person asks for it: Open in Split, Open Link in Split, Move to Other Side, or a drag. Nothing ever hops to the other side by itself, and no card moves when something opens.
-- A link in a chat opens as a browser opens a link to a new tab: right after the chat's tab, in its side, up. ⌘-click leaves it behind. A page the chat's agent opens itself goes right after the chat's tab too, behind it, so the chat stays in view and the tab shows the working mark.
+- A link in a chat opens as a browser opens a link to a new tab: right after the chat's tab, in its side, up. ⌘-click leaves it behind. A page the chat's agent opens itself goes right after the chat's tab too, behind it, so the chat stays in view and the tab shows the working mark. It stays after the turn ends, until someone closes it.
 - **+ and ⌘T** always open a new chat (the zero state) as a new tab after the tab up, in the side with the keyboard.
 - **⌘N** always makes a new group: one side, one new chat, at the top of the list under New.
 - **Every tab's menu can open a chat beside it** (New Chat in Split), so a group of only websites is one click from the AI.

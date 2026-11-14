@@ -3,9 +3,11 @@ import { type ChatId } from "@instrument-org/workspace/client";
 import { useAtomValue } from "jotai";
 import { useState } from "react";
 
+import { useAppsBySlug } from "./apps-by-slug";
 import { ChatScreen } from "./chat-screen";
 import { chatContextItems } from "./context-items";
 import { ContextChips } from "./context-chip";
+import { layoutReadOf } from "./group-awareness";
 import { useGroupTab } from "./group-tab";
 import { NewChatView } from "./new-chat-view";
 import { useShell } from "./shell-context";
@@ -42,23 +44,30 @@ export function GroupChatScreen({ chatId }: { chatId: ChatId }) {
         })
       : []
   ).filter((item) => item.key !== leftOut);
+  const aware =
+    tabId === undefined ? undefined : <AwarenessLine chatTab={tabId} />;
   return (
     <div className="absolute inset-0">
       <ChatScreen
         chatId={chatId}
         composerLead={
-          chips.length > 0 ? (
-            <ContextChips
-              items={chips}
-              onLeaveOut={(item) => {
-                setLeftOut(item.key);
-              }}
-              onShow={() => {
-                if (beside) {
-                  windowTabs.select(beside.id);
-                }
-              }}
-            />
+          aware || chips.length > 0 ? (
+            <>
+              {aware}
+              {chips.length > 0 && (
+                <ContextChips
+                  items={chips}
+                  onLeaveOut={(item) => {
+                    setLeftOut(item.key);
+                  }}
+                  onShow={() => {
+                    if (beside) {
+                      windowTabs.select(beside.id);
+                    }
+                  }}
+                />
+              )}
+            </>
           ) : undefined
         }
         isUp={isActive && hasKeyboard}
@@ -82,6 +91,36 @@ export function GroupChatScreen({ chatId }: { chatId: ChatId }) {
       />
     </div>
   );
+}
+
+/**
+ * What the chat's agent sees of the group this tab is in, once a message
+ * goes from here: how many other tabs it has, and how many of them are
+ * files, as a quiet line at the head of the composer. Nothing while the
+ * chat is alone in its group.
+ */
+function AwarenessLine({ chatTab }: { chatTab: string }) {
+  const windowTabs = useWindowTabs();
+  const appsBySlug = useAppsBySlug();
+  const { chatTitles } = useShell();
+  const tabs =
+    layoutReadOf({ appsBySlug, chatTitles, windowTabs }, chatTab)
+      ?.layout.sides.flatMap((side) => side.tabs)
+      .filter((tab) => tab.isThisChat !== true) ?? [];
+  if (tabs.length === 0) {
+    return null;
+  }
+  const files = tabs.filter((tab) => tab.kind === "file").length;
+  return (
+    <span className="flex h-7 shrink-0 items-center px-1 text-xs text-muted-foreground">
+      {countOf(tabs.length, "tab")}
+      {files > 0 && `, ${countOf(files, "file")}`}
+    </span>
+  );
+}
+
+function countOf(count: number, noun: string): string {
+  return `${count.toString()} ${noun}${count === 1 ? "" : "s"}`;
 }
 
 /**

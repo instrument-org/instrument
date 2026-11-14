@@ -397,7 +397,7 @@ describe("draftContext", () => {
     await expect(draftContext(DRAFT, undefined)).resolves.toBeUndefined();
   });
 
-  it("attaches only the tab up as the chat starts, and lists the draft's other tabs", async () => {
+  it("shows the tab up as the chat starts and lists the draft's other tabs, attaching none of them", async () => {
     const band: WindowTab = {
       group: GROUP,
       id: "band",
@@ -420,13 +420,6 @@ describe("draftContext", () => {
     await expect(draftContext(DRAFT, undefined)).resolves
       .toMatchInlineSnapshot(`
       {
-        "attached": [
-          {
-            "kind": "page",
-            "title": "Hotels",
-            "url": "https://hotels.example/",
-          },
-        ],
         "page": {
           "selection": "Words on the page",
           "tab": "band",
@@ -460,7 +453,7 @@ describe("draftContext", () => {
 
   // A new chat's draft is made in the press that sends it, before its tab's
   // address names the draft, so the tab is the one the sender names.
-  it("attaches what is beside the tab the draft is sent from, before the tab's address names it", async () => {
+  it("attaches nothing beside the tab the draft is sent from, which only shows it", async () => {
     const group = "group:1";
     const band: WindowTab = {
       group,
@@ -480,9 +473,9 @@ describe("draftContext", () => {
     const { draftContext } = contextReaders(
       windowOf({ windowTabs: tabsOf([band, newChat]) }),
     );
-    await expect(draftContext(DRAFT, "new")).resolves.toMatchObject({
-      attached: [{ kind: "page", url: "https://hotels.example/" }],
-    });
+    const sent = await draftContext(DRAFT, "new");
+    expect(sent?.attached).toBeUndefined();
+    expect(sent?.tabs).toMatchObject([{ id: "band" }]);
   });
 
   const APP = "/apps/notion";

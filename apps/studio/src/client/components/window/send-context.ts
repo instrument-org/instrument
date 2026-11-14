@@ -344,12 +344,13 @@ export function contextReaders({
     if (!shown && !chat && chosen.length === 0 && own.length === 0) {
       return;
     }
-    // The chips the composer drew, which are what the person put on the
-    // message and what the chat is granted: a chat's own tab goes without one.
+    // The chips the person put on the message, which are what the chat is
+    // granted. A tab of the sending group's own goes without one: being in
+    // the group tells the agent of it, and grants nothing.
     const attached = items
       .filter(
         (item) =>
-          !(isReply && item.kind === "tab" && item.owned) &&
+          !(item.kind === "tab" && item.owned) &&
           !(
             item.kind === "chat" &&
             chatTitles.size > 0 &&

@@ -7,7 +7,8 @@
  *   lower value wins where more than one is on show, so a chat's composer
  *   goes ahead of the chat list beside it, and the file list ahead of the
  *   page beside it. A part the window cannot focus itself (a page, drawn by
- *   a guest of its own) says how with `setHomeFocus`.
+ *   a guest of its own) says how with `setHomeFocus`. In a tab group only
+ *   the side with the keyboard (`data-keyboard`) counts.
  * - A press of the pointer on a button leaves the keyboard where it was, as
  *   a Mac's buttons do: the rail, a toolbar's toggle, a tab. Tab still
  *   reaches every one.
@@ -84,6 +85,41 @@ export function focusScreenHome({ leaving }: { leaving: boolean }) {
 }
 
 /**
+ * Puts the keyboard in the home of one part of the screen on show, such as
+ * a side of a tab group, once it has drawn, unless it went into the part
+ * first. It leaves where it was at once, so keys meanwhile, or in a part
+ * with no home, go nowhere.
+ */
+export function focusHomeIn(part: HTMLElement) {
+  const from = document.activeElement;
+  if (from instanceof HTMLElement && !part.contains(from)) {
+    from.blur();
+  }
+  let frames = 0;
+  const attempt = () => {
+    if (!part.isConnected || part.contains(document.activeElement)) {
+      return;
+    }
+    const home = homeIn(part);
+    const focus = home && homeFocus.get(home);
+    if (focus) {
+      focus();
+      return;
+    }
+    const target = home && targetIn(home);
+    if (target) {
+      focusQuietly(target);
+      return;
+    }
+    frames += 1;
+    if (frames < HOME_WAIT_FRAMES) {
+      requestAnimationFrame(attempt);
+    }
+  };
+  attempt();
+}
+
+/**
  * Focuses a home with no ring until the next key press: nobody moved the
  * keyboard there, so the ring would mark a place the person is not looking
  * at. `data-quiet-focus` hides it (`globals.css`), since Chromium draws the
@@ -110,13 +146,32 @@ function focusQuietly(target: HTMLElement) {
   target.addEventListener("blur", unmark, { signal: controller.signal });
 }
 
-/** The part of the screen on show it is worked from, or null while it has none drawn. */
+/**
+ * The part of the screen on show it is worked from, or null while it has
+ * none drawn: in a tab group, the part of the side with the keyboard.
+ */
 function homeOnShow(): HTMLElement | null {
-  const homes = [
-    ...document.querySelectorAll<HTMLElement>(
+  const side = document.querySelector<HTMLElement>(
+    `${ACTIVE_TAB} [data-group-side][data-keyboard]`,
+  );
+  if (side) {
+    return homeIn(side);
+  }
+  return firstHome(
+    document.querySelectorAll<HTMLElement>(
       `${ACTIVE_TAB} [data-keyboard-home]`,
     ),
-  ].filter(isShown);
+  );
+}
+
+/** The part of `root` it is worked from, or null while it has none drawn. */
+function homeIn(root: HTMLElement): HTMLElement | null {
+  return firstHome(root.querySelectorAll<HTMLElement>("[data-keyboard-home]"));
+}
+
+/** The home that goes first of those drawn. */
+function firstHome(found: Iterable<HTMLElement>): HTMLElement | null {
+  const homes = [...found].filter(isShown);
   homes.sort(
     (a, b) =>
       Number(a.dataset.keyboardHome || 1) - Number(b.dataset.keyboardHome || 1),

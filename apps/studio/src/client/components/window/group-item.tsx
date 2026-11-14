@@ -113,8 +113,10 @@ export function GroupItem({
   const chatId = windowTabs.chatsIn(group)[0];
   const page = targetId ? getGuest(targetId) : null;
   // An earlier build's new tab page; a new tab now is a new chat.
-  const isNewTab = up.kind === "screen" && matchScreen(up.href).kind === "newTab";
-  const screenKind = up.kind === "screen" ? matchScreen(up.href).kind : undefined;
+  const isNewTab =
+    up.kind === "screen" && matchScreen(up.href).kind === "newTab";
+  const screenKind =
+    up.kind === "screen" ? matchScreen(up.href).kind : undefined;
   const isNewChat = screenKind === "inbox";
   const isChat = screenKind === "chat";
   const hasBookmarksBar = useHasBookmarksBar(isNewTab || isNewChat);
@@ -269,7 +271,7 @@ export function GroupItem({
         }
       >
         <div className="relative h-full">
-          <div className="h-full" ref={onPageHost} />
+          <div className="h-full" data-keyboard-home ref={onPageHost} />
           {chatId !== undefined && isChatWorking !== undefined && (
             <PageAgentOverlay
               chatId={chatId}

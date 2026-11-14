@@ -6,12 +6,23 @@ import {
 import { ResizeHandle } from "@/client/components/resize-handle";
 import { CaptionRoom } from "@/client/components/window-controls";
 import { useIsActiveTab } from "@/client/hooks/use-active-tab";
-import { pageHoldingKeyboard } from "@/client/lib/browser-pool";
+import { giveKeyboardTo, pageHoldingKeyboard } from "@/client/lib/browser-pool";
+import {
+  focusHomeIn,
+  focusOnceLayersClose,
+  setHomeFocus,
+} from "@/client/lib/keyboard-home";
 import { cn } from "@/client/lib/utils";
 import { browserTargetOf } from "@instrument-org/workspace/client";
 import { useQuery } from "@tanstack/react-query";
 import { useAtom, useAtomValue } from "jotai";
-import { type CSSProperties, useEffect, useRef, useState } from "react";
+import {
+  type CSSProperties,
+  useEffect,
+  useEffectEvent,
+  useRef,
+  useState,
+} from "react";
 
 import { type PageChromeSlots } from "./browser-tabs";
 import { chatListOptions } from "./chat-list-query";
@@ -333,6 +344,69 @@ function SideCard({
   );
 
   const otherSide: 0 | 1 = sideIndex === 0 ? 1 : 0;
+
+  // A page's side is worked from the page, which the window hands the
+  // keyboard to by handing it to the page (`keyboard-home.ts`).
+  const pageUp = up?.kind === "page" ? up.id : undefined;
+  useEffect(() => {
+    if (!pageHost || pageUp === undefined) {
+      return;
+    }
+    const target = browserTargetOf(pageUp);
+    return setHomeFocus(pageHost, () => {
+      giveKeyboardTo(target);
+    });
+  }, [pageHost, pageUp]);
+
+  // The caret goes with the keyboard. A press on this side lets go of the
+  // caret the other side has, for the press to place. A side taking the
+  // keyboard otherwise (a tab moved, opened or brought up here) takes that
+  // caret into its home: its page, or a chat's composer. With a menu up, that
+  // waits for the caret the menu hands back as it goes.
+  const cardRef = useRef<HTMLDivElement>(null);
+  const isCaretOnOtherSide = () => {
+    const card = cardRef.current;
+    const now = document.activeElement;
+    if (!card || !(now instanceof HTMLElement)) {
+      return false;
+    }
+    if (now.tagName === "WEBVIEW") {
+      const target = pageHoldingKeyboard();
+      return (
+        layout.sides[otherSide]?.tabs.some(
+          (tab) => tab.kind === "page" && browserTargetOf(tab.id) === target,
+        ) === true
+      );
+    }
+    const holder = now.closest("[data-group-side]");
+    return (
+      holder !== null &&
+      holder !== card &&
+      holder.parentElement === card.parentElement
+    );
+  };
+  const takeCaret = useEffectEvent(() => {
+    const card = cardRef.current;
+    if (!card || !isActive) {
+      return;
+    }
+    if (document.querySelector("[data-radix-focus-guard]") !== null) {
+      focusOnceLayersClose({
+        focus: () => {
+          focusHomeIn(card);
+        },
+        holds: () => !isCaretOnOtherSide(),
+      });
+    } else if (isCaretOnOtherSide()) {
+      focusHomeIn(card);
+    }
+  });
+  useEffect(() => {
+    if (hasKeyboard) {
+      takeCaret();
+    }
+  }, [hasKeyboard]);
+
   /** A copy of a tab, a page at its address or a screen at its own, placed in the group. */
   const copyOf = (
     tab: WindowTab,
@@ -400,8 +474,15 @@ function SideCard({
       )}
       data-group-side={sideIndex}
       {...(hasKeyboard ? { "data-keyboard": "" } : {})}
+      ref={cardRef}
       onPointerDownCapture={() => {
         if (!hasKeyboard) {
+          if (
+            isCaretOnOtherSide() &&
+            document.activeElement instanceof HTMLElement
+          ) {
+            document.activeElement.blur();
+          }
           windowTabs.focusSide(group, sideIndex);
         }
       }}

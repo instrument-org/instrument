@@ -353,22 +353,25 @@ export function focusOnceLayersClose({
 
 /**
  * Puts the keyboard in the composer of the chat on show, once the menu or
- * dialog it was asked from has gone and the composer is drawn. The chat's
- * column comes after the work beside it, so its composer is the last one
- * drawn; one in a column put away is passed over.
+ * dialog it was asked from has gone and the composer is drawn: the one on
+ * the side of the group with the keyboard, when that side shows a chat, and
+ * otherwise the last one drawn. One in a column put away is passed over.
  */
 export function focusChatComposer() {
-  const composer = () =>
-    [
+  const composer = () => {
+    const shown = [
       ...document.querySelectorAll<HTMLElement>(
         `${ACTIVE_TAB} [data-slot="composer-frame"] [contenteditable="true"]`,
       ),
-    ]
-      .filter(
-        (each) =>
-          each.closest('[aria-hidden="true"]') === null && isShown(each),
-      )
-      .at(-1);
+    ].filter(
+      (each) => each.closest('[aria-hidden="true"]') === null && isShown(each),
+    );
+    return (
+      shown.find(
+        (each) => each.closest("[data-group-side][data-keyboard]") !== null,
+      ) ?? shown.at(-1)
+    );
+  };
   focusOnceLayersClose({
     focus: () => {
       let frames = 0;

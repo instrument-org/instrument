@@ -67,6 +67,7 @@ import {
   setTabPathname,
 } from "@/client/lib/tabs-model";
 import { freshTabId } from "@/client/lib/tab-actions";
+import { type TabId } from "@/shared/tabs";
 import { spokenMessage, toast } from "@/client/lib/toast";
 import { captureComponentError } from "@/client/lib/capture-exception";
 import { cn } from "@/client/lib/utils";
@@ -889,10 +890,48 @@ function WindowShell({
     windowTabs.close(id);
   };
   /**
+   * One entry of the window's closed list back, by its id: a whole tab group
+   * as a group again, its tabs on their sides; a tab into its group, up
+   * there, or as a group of its own when its group has closed.
+   */
+  const reopenClosed = (id: TabId) => {
+    const entry = store
+      .get(appTabsAtom)
+      .recentlyClosed.find((each) => each.id === id);
+    if (!entry) {
+      return;
+    }
+    store.set(appTabsAtom, (current) => forgetClosed(current, { id }));
+    // A tab id is never opened twice. A page's guest went with it, and
+    // comes back when the page shows, at the address it had, the way a
+    // launch brings a tab's page back.
+    const tab = closedGroupTabOf(entry);
+    const isOpen =
+      tab !== undefined &&
+      groupList.open.some((each) => each.group === tab.group);
+    if (tab && isOpen) {
+      windowTabs.reopen(
+        { ...tab, id: newScreenId() },
+        entry.index ?? Number.POSITIVE_INFINITY,
+      );
+      groups.show(tab.group);
+      return;
+    }
+    // A tab alone stands on the one side its new group has.
+    const reopened =
+      closedTabGroupOf(entry) ?? (tab ? [{ ...tab, side: undefined }] : []);
+    groups.make({
+      fill: (group) => {
+        windowTabs.restoreGroup(
+          group,
+          reopened.map((each) => ({ ...each, group, id: newScreenId() })),
+        );
+      },
+    });
+  };
+  /**
    * What this window closed last back, unless a window closed since, which
-   * comes back instead, the way a browser's one chord brings back either: a
-   * whole tab group as a group again, its tabs on their sides; a tab into
-   * its group, up there, or as a group of its own when its group has closed.
+   * comes back instead, the way a browser's one chord brings back either.
    */
   const reopenTab = () => {
     const [entry] = store
@@ -906,38 +945,9 @@ function WindowShell({
       .call(entry && { after: entry.closedAt ?? 0 })
       .catch(() => false)
       .then((windowCameBack) => {
-        if (!entry || windowCameBack) {
-          return;
+        if (entry && !windowCameBack) {
+          reopenClosed(entry.id);
         }
-        store.set(appTabsAtom, (current) =>
-          forgetClosed(current, { id: entry.id }),
-        );
-        // A tab id is never opened twice. A page's guest went with it, and
-        // comes back when the page shows, at the address it had, the way a
-        // launch brings a tab's page back.
-        const tab = closedGroupTabOf(entry);
-        const isOpen =
-          tab !== undefined &&
-          groupList.open.some((each) => each.group === tab.group);
-        if (tab && isOpen) {
-          windowTabs.reopen(
-            { ...tab, id: newScreenId() },
-            entry.index ?? Number.POSITIVE_INFINITY,
-          );
-          groups.show(tab.group);
-          return;
-        }
-        // A tab alone stands on the one side its new group has.
-        const reopened =
-          closedTabGroupOf(entry) ?? (tab ? [{ ...tab, side: undefined }] : []);
-        groups.make({
-          fill: (group) => {
-            windowTabs.restoreGroup(
-              group,
-              reopened.map((each) => ({ ...each, group, id: newScreenId() })),
-            );
-          },
-        });
       });
   };
 
@@ -1513,6 +1523,7 @@ function WindowShell({
       void showProjectInFiles(project);
     },
     popOutDraft,
+    reopenClosed,
     requestClose,
     rowWidth,
     layoutContext: (tabId) => layoutContextRef.current(tabId),

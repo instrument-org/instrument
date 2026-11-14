@@ -28,7 +28,6 @@ import { SCREENS } from "@/shared/instrument-screens";
 import { WINDOW_SHORTCUTS } from "@/shared/window-shortcuts";
 import { CaretLeftIcon } from "@phosphor-icons/react/CaretLeft";
 import { CaretRightIcon } from "@phosphor-icons/react/CaretRight";
-import { ClockCounterClockwiseIcon } from "@phosphor-icons/react/ClockCounterClockwise";
 import { GearSixIcon } from "@phosphor-icons/react/GearSix";
 import { ChatsCircleIcon } from "@phosphor-icons/react/ChatsCircle";
 import { PlusIcon } from "@phosphor-icons/react/Plus";
@@ -49,6 +48,7 @@ import {
   useState,
 } from "react";
 
+import { ScreenMark } from "./app-chip";
 import { GroupRowMenu, type GroupRowMenuActions } from "./group-row-menu";
 import { HelpMenu } from "./help-menu";
 import { toggleLeft } from "./inbox-toggle";
@@ -119,8 +119,8 @@ export function sidebarBounds(width: number): RailBounds {
  * The sidebar of tab groups down the window's left: the window's own row at
  * its top (past the traffic lights, the bell; the update pill at its end),
  * the projects, the pinned groups over a plain line, New, the
- * rest under it, newest first, and the way into History at the list's end,
- * and the account, Settings and Help at its foot. Opening a project takes the list over,
+ * rest under it, newest first, and, in a project, the way into its chats at
+ * the list's end; at its foot, Activity, the account, Settings and Help. Opening a project takes the list over,
  * under its banner. A row dragged within the list lands where it is let
  * go, pinned above the line or unpinned below it, and one dragged out goes
  * to a window of its own or to another window's list (`pressGroupRow`).
@@ -269,7 +269,7 @@ export function GroupSidebar({
     ...(pinned.length > 0 ? [":divider"] : []),
     ":new",
     ...rest.map((entry) => `row:${entry.group}`),
-    ":history",
+    ...(project ? [":history"] : []),
   ];
   const roomAt = room?.before === undefined ? -1 : items.indexOf(room.before);
   const place = (item: string) => ({
@@ -339,8 +339,8 @@ export function GroupSidebar({
           />
         </ListItem>
         {rest.map((entry) => listItem(entry, "rest"))}
-        <ListItem key=":history" {...place(":history")}>
-          {project ? (
+        {project && (
+          <ListItem key=":history" {...place(":history")}>
             <HistoryRow
               icon={<ChatsCircleIcon className="size-4" />}
               label="All chats"
@@ -350,16 +350,8 @@ export function GroupSidebar({
                 );
               }}
             />
-          ) : (
-            <HistoryRow
-              icon={<ClockCounterClockwiseIcon className="size-4" />}
-              label="History"
-              onOpen={() => {
-                openBuiltInPage(SCREENS.history.href);
-              }}
-            />
-          )}
-        </ListItem>
+          </ListItem>
+        )}
       </AnimatePresence>
       {/* A room at the list's end takes up space for a whole group;
           what a tab stands as there draws over the list's empty space,
@@ -622,10 +614,9 @@ function NewRow({ onNew }: { onNew: () => void }) {
 }
 
 /**
- * The way into History at the list's end, dimmed so it reads as past the
- * groups rather than one of them, naming none of what is there.
+ * The row under a project's groups that opens the page of its chats, dimmed
+ * so it reads as past the groups rather than one of them.
  */
-/** The row under the groups that opens a page of chats with no tab: History, or a project's chats. */
 function HistoryRow({
   icon,
   label,
@@ -890,7 +881,10 @@ function AppMenuButton() {
   );
 }
 
-/** The sidebar's foot: the account, which opens Settings, Settings itself, and Help. */
+/**
+ * The sidebar's foot: Activity at its corner, where what was closed is found
+ * again; the account, which opens Settings; Settings itself; and Help.
+ */
 function SidebarFoot({ chatId }: { chatId: ChatId | undefined }) {
   const { data: user } = useLiveUser();
   const { data: workspace } = useQuery(
@@ -898,6 +892,18 @@ function SidebarFoot({ chatId }: { chatId: ChatId | undefined }) {
   );
   return (
     <div className="flex h-12 shrink-0 items-center gap-1 border-t border-border/60 pr-3 pl-2">
+      <ToolbarTooltip label={SCREENS.activity.title}>
+        <button
+          aria-label={SCREENS.activity.title}
+          className="grid size-7 shrink-0 place-items-center rounded-lg text-muted-foreground hover:bg-foreground/5 hover:text-foreground"
+          onClick={() => {
+            openBuiltInPage(SCREENS.activity.href);
+          }}
+          type="button"
+        >
+          <ScreenMark className="size-4" name="activity" />
+        </button>
+      </ToolbarTooltip>
       <button
         className="flex h-9 min-w-0 flex-1 items-center gap-1.5 rounded-lg px-1.5 text-left hover:bg-foreground/5"
         onClick={() => {

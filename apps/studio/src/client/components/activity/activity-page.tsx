@@ -26,6 +26,7 @@ import {
   withDayHeads,
 } from "@/client/components/activity/activity-timeline";
 import { ClearActivityDialog } from "@/client/components/activity/clear-activity-dialog";
+import { RecentlyClosed } from "@/client/components/activity/recently-closed";
 import { Button } from "@/client/components/ui/button";
 import { Checkbox } from "@/client/components/ui/checkbox";
 import {
@@ -533,9 +534,14 @@ export function ActivityPage({
             // within `LIVE_MS` of the clock while the tab is up.
             items={withDayHeads(shown, new Date(today), displayLocale)}
             notice={
-              <AboutCard
-                canChatsRead={preferences.data?.shareActionsWithChats !== false}
-              />
+              <>
+                {show === undefined && !q && <RecentlyClosed />}
+                <AboutCard
+                  canChatsRead={
+                    preferences.data?.shareActionsWithChats !== false
+                  }
+                />
+              </>
             }
             loadMore={loadMore}
             onCheck={(entry, on) => {

@@ -4,8 +4,8 @@ import { z } from "zod";
 
 /**
  * History: every chat and kept draft no window has open, newest first, as
- * the sidebar's History row and ⌘Y open it; with `show=chats`, every chat
- * there is, the index Chat's chip goes to; with `project`, only what is
+ * ⌘Y opens it; with `show=chats`, every chat
+ * there is, the index the Chats chip goes to; with `project`, only what is
  * filed under that project, as its sidebar's All chats opens it. The words
  * it is narrowed to are in its address, replaced as they are typed.
  */

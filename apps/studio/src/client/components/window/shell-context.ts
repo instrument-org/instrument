@@ -1,4 +1,5 @@
 import { type Draft } from "@/shared/drafts";
+import { type TabId } from "@/shared/tabs";
 import { type AppPlace } from "@/client/atoms/window";
 import {
   type ChatId,
@@ -60,6 +61,8 @@ export interface WindowShell {
   sentProjects: ReadonlyMap<ChatId, string>;
   /** What each chat being started from a draft sent, by the chat, shown until its transcript has it. */
   sentWords: ReadonlyMap<ChatId, string>;
+  /** Brings back one entry of the window's closed list, by its id, as Shift+Cmd+T brings back the last. */
+  reopenClosed: (id: TabId) => void;
   /** Closes one of a chat's tabs, asking first while a task is working in it. */
   requestClose: (id: string) => void;
   /** The width of the card the tabs are drawn in, in layout px. */

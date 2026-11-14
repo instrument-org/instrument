@@ -79,7 +79,7 @@ Important means a concrete correctness, security, privacy, or data-preservation 
 
 ### I. A dot in a file or folder name sends the rest of the name with feedback
 
-- Status: open
+- Status: fixed
 - Severity: Important. Privacy: part of a name reaches a report through a function whose contract is that no name does.
 - Where: [problem-reports.ts:769](/apps/studio/src/electron-main/lib/problem-reports.ts#L769).
 - What: `pathKind` answers `a .<everything after the last dot> file`. A folder named `Dr. Patel records` goes into a report's actions as `a . patel records file`, and `Offer letter.Jane Doe` as `a .jane doe file`. The redactor removes only values it knows (people, the home folder, the login, chat ids, memories). The person can leave the actions out and the dialog shows them, which bounds it.

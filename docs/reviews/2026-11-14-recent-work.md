@@ -38,7 +38,7 @@ Important means a concrete correctness, security, privacy, or data-preservation 
 
 ### D. A page of older turns can be loaded and drawn twice
 
-- Status: open
+- Status: fixed
 - Severity: Important. The transcript shows a stretch of the conversation twice, with duplicate row keys, until the chat is reopened.
 - Where: [use-transcript-feed.ts:95](/apps/studio/src/client/components/transcript/use-transcript-feed.ts#L95), [use-transcript-feed.ts:75](/apps/studio/src/client/components/transcript/use-transcript-feed.ts#L75), [feed.ts:261](/packages/workspace/src/lib/transcript/feed.ts#L261).
 - What: `loadOlder` refuses to start while `isLoadingOlder` is set; `loadOlderThrough`, which find in chat uses to reach a turn that is not loaded, sets the flag and never reads it. Both ask for the page before the first message they hold, and `applyOlder` prepends whatever comes back (`[...older.messages, ...current.messages]`) with no check that it is already there. Scroll near the top so the sentinel starts a load, then step find to an older match before it lands: both requests carry the same `before` and the page goes in twice. The window is wider than one request, since `loadOlder`'s own `finally` clears the flag while `loadOlderThrough` is still looping, which lets the sentinel start another.

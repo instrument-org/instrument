@@ -7,6 +7,8 @@ import {
   type TranscriptFeed,
 } from "@instrument-org/workspace/client";
 import {
+  hashKey,
+  type QueryClient,
   queryOptions,
   skipToken,
   useQuery,
@@ -62,6 +64,40 @@ export function transcriptFeedOptions(input: FeedInput | undefined) {
   });
 }
 
+/** The request out for the page above what each feed holds, by its query's key. */
+const olderPages = new WeakMap<QueryClient, Map<string, Promise<void>>>();
+
+/**
+ * Puts the page before what the query holds above it. A feed has one such
+ * request out at a time, and everyone asking while it is out waits on it, so
+ * no page is asked for twice. Nothing is asked when no turns are above.
+ */
+function olderPage(client: QueryClient, input: FeedInput): Promise<void> {
+  const { queryKey } = transcriptFeedOptions(input);
+  const key = hashKey(queryKey);
+  const pages = olderPages.get(client) ?? new Map<string, Promise<void>>();
+  olderPages.set(client, pages);
+  const out = pages.get(key);
+  if (out) {
+    return out;
+  }
+  const held = client.getQueryData(queryKey);
+  const before = held?.messages[0]?.id;
+  if (!held?.hasOlder || before === undefined) {
+    return Promise.resolve();
+  }
+  const page = rpcClient.workspace.message.older
+    .call({ ...input, before })
+    .then((older) => {
+      client.setQueryData(queryKey, (current) => applyOlder(current, older));
+    })
+    .finally(() => {
+      pages.delete(key);
+    });
+  pages.set(key, page);
+  return page;
+}
+
 /** A session's transcript, and asking for the turns above what it holds. */
 export function useTranscriptFeed(
   input: FeedInput,
@@ -70,52 +106,41 @@ export function useTranscriptFeed(
   const options = transcriptFeedOptions(input);
   const query = useQuery({ ...options, enabled });
   const client = useQueryClient();
-  const [isLoadingOlder, setIsLoadingOlder] = useState(false);
+  // How many of this hook's loads are waiting on a page, so the flag stays up
+  // until the last of them ends.
+  const [olderLoads, setOlderLoads] = useState(0);
+  const isLoadingOlder = olderLoads > 0;
+  const whileLoadingOlder = <T>(load: Promise<T>): Promise<T> => {
+    setOlderLoads((count) => count + 1);
+    // A promise's `finally` rather than a `try` one, which the React
+    // Compiler does not lower yet.
+    return load.finally(() => {
+      setOlderLoads((count) => count - 1);
+    });
+  };
   const first = query.data?.messages[0]?.id;
   const loadOlder = () => {
     if (isLoadingOlder || first === undefined || !query.data?.hasOlder) {
       return;
     }
-    setIsLoadingOlder(true);
-    void rpcClient.workspace.message.older
-      .call({ ...input, before: first })
-      .then((older) => {
-        client.setQueryData(options.queryKey, (current) =>
-          applyOlder(current, older),
-        );
-      })
-      .finally(() => {
-        setIsLoadingOlder(false);
-      });
+    void whileLoadingOlder(olderPage(client, input));
   };
   /**
    * Asks for pages before what the query holds until it holds `id`, or there
    * are none left; says whether it holds it then.
    */
   const loadOlderThrough = (id: StoreId.Message): Promise<boolean> => {
-    setIsLoadingOlder(true);
-    // A promise's `finally` rather than a `try` one, which the React
-    // Compiler does not lower yet.
     const held = () => client.getQueryData<TranscriptFeed>(options.queryKey);
     const loadThrough = async (): Promise<boolean> => {
       while (!held()?.messages.some((message) => message.id === id)) {
-        const before = held()?.messages[0]?.id;
-        if (!held()?.hasOlder || before === undefined) {
+        if (!held()?.hasOlder || held()?.messages[0] === undefined) {
           return false;
         }
-        const older = await rpcClient.workspace.message.older.call({
-          ...input,
-          before,
-        });
-        client.setQueryData(options.queryKey, (current) =>
-          applyOlder(current, older),
-        );
+        await olderPage(client, input);
       }
       return true;
     };
-    return loadThrough().finally(() => {
-      setIsLoadingOlder(false);
-    });
+    return whileLoadingOlder(loadThrough());
   };
   return { ...query, isLoadingOlder, loadOlder, loadOlderThrough };
 }

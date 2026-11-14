@@ -306,6 +306,27 @@ describe("paging", () => {
     expect(both.hasOlder).toBe(true);
   });
 
+  it("adds nothing twice when a page arrives a second time", () => {
+    const held = lastTurnsOf(session, { turns: 2 });
+    const older = lastTurnsOf(session, {
+      before: held.messages[0]?.id,
+      turns: 2,
+    });
+    const once = applyOlder(held, older);
+    const twice = applyOlder(once, older);
+    expect(twice.messages.map((message) => message.id)).toEqual(
+      once.messages.map((message) => message.id),
+    );
+    // A page reaching past what is held adds only its part above it.
+    const overlapping = applyOlder(
+      held,
+      lastTurnsOf(session, { before: held.messages[2]?.id, turns: 2 }),
+    );
+    expect(overlapping.messages.map((message) => message.id)).toEqual(
+      session.slice(4).map((message) => message.id),
+    );
+  });
+
   it("gives the whole of a short session and says nothing is above it", () => {
     const feed = lastTurnsOf(session);
     expect(feed.hasOlder).toBe(false);

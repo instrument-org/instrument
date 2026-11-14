@@ -73,6 +73,7 @@ Each entry is the plan's title and the opening of its status.
 - [Tab groups prototype](tab-groups-prototype.md): open
 - [Testing the Instrument folder](testing-the-instrument-folder.md): Under way.
 - [Virtualize the transcript](transcript-virtualization.md): Proposed.
+- [Two sides prototype](two-sides-prototype.md): open
 - [Notices behind a bell in the window bar](window-notices.md): The bell is built (`NotificationsBell` in `WindowCorner`): problem reports (`4f94e0d72`), notices from the API (`1f62dc2af`), an update's result, a sandbox t...
 - [Windows sandbox: MXC behind `wrapNativeCommand`](windows-sandbox-mxc.md): Active.
 - [The workspace as a host every client attaches to](workspace-host-and-protocol.md): Proposed, nothing built (checked 2026-10-29: no host process, no protocol router, no command line).

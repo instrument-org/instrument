@@ -467,7 +467,7 @@ describe("instrumentAgent", () => {
 
   it("keeps the rules the chat and the worker each had", () => {
     for (const kept of [
-      "One line, then act, in the same reply",
+      "then do it in the same reply: a reply with no tool call ends your turn",
       "instrument memory save <name> <<'EOF'",
       "the save and the start go in one command, the save first",
       "name scratch files and folders after the job",

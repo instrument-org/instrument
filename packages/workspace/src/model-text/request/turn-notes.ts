@@ -2,13 +2,13 @@ import { systemNote } from "../notes/system-note";
 
 /**
  * What the first step of a chat's turn is sent with when the user typed the
- * message it answers: a line to them before any work, and then quiet until
- * the outcome. A note rather than a prompt rule, since it is read where the
- * turn starts, and placed after the cache breakpoints for that one request,
- * never stored. A task gets none: nobody reads its lines as they come.
+ * message it answers: a sentence to them before any work. A note rather than
+ * a prompt rule, since it is read where the turn starts, and placed after the
+ * cache breakpoints for that one request, never stored. A task gets none:
+ * nobody reads its lines as they come.
  */
 export const TURN_NOTE = systemNote`
-  Before using any tool, tell the user in a few words what you are doing ("Reading the lease."), the work rather than their request said back, then nothing more until the outcome. If no tool is needed, just answer.
+  Before using any tool, tell the user in a sentence what you are doing. If no tool is needed, just answer.
 `;
 
 /**

@@ -51,6 +51,7 @@ import { SANDBOXED_PYTHON_EVALS } from "./sandboxed-python";
 import { SCENARIO_EVALS } from "./scenarios";
 import { SKILLS_IN_PLACE_EVALS } from "./skills-in-place";
 import { TEXT_TOOLS_EVALS } from "./text-tools";
+import { THINKING_OUT_LOUD_EVALS } from "./thinking-out-loud";
 import { TIME_ZONE_EVALS } from "./time-zone";
 import { SOURCE_LINKS_EVALS } from "./source-links";
 import { TASK_APP_SETUP_EVALS } from "./task-app-setup";
@@ -128,6 +129,7 @@ export const EVALS = [
   ...SCENARIO_EVALS,
   ...SKILLS_IN_PLACE_EVALS,
   ...TEXT_TOOLS_EVALS,
+  ...THINKING_OUT_LOUD_EVALS,
   ...TIME_ZONE_EVALS,
   ...SOURCE_LINKS_EVALS,
   ...TASK_APP_SETUP_EVALS,

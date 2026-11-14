@@ -19,7 +19,7 @@ import {
   rawPage,
   template,
 } from "./kit.mjs";
-import { classTokens, loadShared, pruneSheet } from "./snap/lib.mjs";
+import { loadState } from "./snap/lib.mjs";
 
 const [partPath, outPath] = process.argv.slice(2);
 if (!partPath || !outPath)
@@ -63,9 +63,7 @@ const COLOR_CLASS =
   /^-?(?:text|bg|border(?:-[trblxyse])?|ring(?:-offset)?|inset-ring|fill|stroke|outline|from|via|to|shadow|inset-shadow|accent|divide|placeholder|caret|decoration)-([a-z0-9-]+?)(?:\/[\w.[\]]+)?!?$/;
 for (const [i, s] of states.entries()) {
   const missing = new Set();
-  // Inside a snapshot the app's own sheet draws its colors, so only the rest is checked.
-  const own = s.body.replace(/<!--snap:start-->[\s\S]*?<!--snap:end-->/g, "");
-  for (const [, classes] of own.matchAll(/class="([^"]*)"/g)) {
+  for (const [, classes] of s.body.matchAll(/class="([^"]*)"/g)) {
     for (const token of classes.split(/\s+/)) {
       const name = token.replace(/^.*:/, "").replace(/^!/, "");
       const color = COLOR_CLASS.exec(name)?.[1];
@@ -129,38 +127,26 @@ for (const [, src] of html.matchAll(
     );
   }
 }
-// Snapshot frames: the app's sheet scoped to them and pruned to what this page uses, and
-// each frame as the build drew it, its pictures kept once in an asset list.
+// Snapshot frames: the library states the part's snap() calls named, put into the page
+// with the wireframe skill's add-snapshot.mjs, which stores each stylesheet once and adds
+// the skill's frames script, snapshot-frames.js, that draws them.
 let snapNote = "";
 if (snaps.length > 0) {
-  const shared = loadShared();
-  const assets = [];
-  /** @type {Map<string, number>} */
-  const assetIndex = new Map();
-  const tokenize = (/** @type {string} */ h) =>
-    h.replace(/data:[^"')\s]{1000,}/g, (uri) => {
-      if (!assetIndex.has(uri)) {
-        assetIndex.set(uri, assets.length);
-        assets.push(uri);
-      }
-      return `snap-asset:${assetIndex.get(uri)}`;
-    });
-  const classes = new Set();
-  for (const s of snaps) for (const c of classTokens(s.html + s.base)) classes.add(c);
-  const sheet = pruneSheet(shared.sheet, classes);
-  const base = Object.fromEntries(snaps.map((s) => [s.state, tokenize(s.base)]));
-  const data = JSON.stringify({
-    assets,
-    base,
-    built: snaps.map((s) => tokenize(s.html)),
-    sprites: shared.sprites,
-  }).replace(/</g, "\\u003c");
-  const frameCss =
-    ".snap{text-align:initial}.snap .snap-html,.snap .snap-body{width:100%;height:100%;position:relative}.snap *,.snap *::before,.snap *::after{transition:none!important}body[data-snap-before] .marks{display:none}";
-  html = html
-    .replace("</head>", () => `<style id="snap-sheet">\n${shared.fonts}\n${sheet}\n${frameCss}\n</style>\n</head>`)
-    .replace("</body>", () => `<script type="application/json" id="snap-data">${data}</script>\n</body>`);
-  snapNote = `; ${snaps.length} from snapshots (sheet ${Math.round(sheet.length / 1024)} KB, pictures ${Math.round(assets.join("").length / 1024)} KB)`;
+  const { addSnapshots, readSnapshot, writeInto } = await import(
+    pathToFileURL(path.join(SKILL, "add-snapshot.mjs")).href
+  );
+  const store = addSnapshots(
+    { sheets: {}, pages: {} },
+    Object.fromEntries(
+      snaps.map((name) => [name, readSnapshot(JSON.stringify(loadState(name)))]),
+    ),
+  );
+  html = writeInto(
+    html,
+    store,
+    fs.readFileSync(path.join(SKILL, "snapshot-frames.js"), "utf8"),
+  );
+  snapNote = `; ${snaps.length} snapshots, ${Object.keys(store.sheets).length} shared stylesheets`;
 }
 fs.writeFileSync(outPath, html);
 // RAW=<n> also writes frame n alone at true size, for a kit check, and RAW=all every

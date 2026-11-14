@@ -1,17 +1,109 @@
 // A studio-drive sequence (`studio-drive.mjs run`) that puts a booted Studio into each
-// state a wireframe may start from and keeps it as a snapshot: the page's own DOM and
-// styles (the walkthrough skill's still), its picture, and its outline, the names
-// `studio-drive snapshot` prints. library.mjs turns those into the library snap() reads.
-// Taken at 1280x800 and 1x, in presentation mode, with the developer strip hidden, in
-// each theme a state asks for.
+// state a wireframe may start from and keeps it as a snapshot: the page whole, as the
+// wireframe skill's snapshot.js keeps any page, with the app's full stylesheets so a
+// part can write new markup in the app's own classes, and with its picture and its
+// outline, the names `studio-drive snapshot` prints. library.mjs turns those into the
+// library snap() reads. Taken at 1280x800 and 1x, in presentation mode, with the
+// developer strip left out, in each theme a state asks for.
 //
 // args: { out, folder, chats: { pricing, soc2, board, renewal }, only?: string[] }
 import fs from "node:fs";
 import path from "node:path";
 
+import { SKILL } from "../kit.mjs";
+
 const here = path.dirname(new URL(import.meta.url).pathname);
 const IN_PAGE = fs.readFileSync(path.join(here, "../../skills/studio-walkthrough/scripts/in-page.js"), "utf8");
+const SNAPSHOT = fs.readFileSync(path.join(SKILL, "snapshot.js"), "utf8");
 const wait = (/** @type {number} */ ms) => new Promise((r) => setTimeout(r, ms));
+
+/**
+ * The skill's snapshot of the page, then what Studio needs of it: what capture marked
+ * unseen left out (the icon sprites kept, since every icon draws from them), each page
+ * of the in-app browser, which runs outside this DOM, drawn as the picture taken of its
+ * box, test ids renamed (content blockers hide anything whose `data-testid` starts with
+ * "app", which is Studio's whole page), and the stylesheets the snapshot cut to what
+ * this page uses swapped for the app's whole sheets, each kept as its own block so the
+ * states share them. A part writes new markup in the app's classes, which a cut sheet
+ * would not draw.
+ */
+const studioSnapshot = (/** @type {Record<string, string>} */ pictures) => `(async () => {
+  const s = await (0, eval)(${JSON.stringify(SNAPSHOT)});
+  const pictures = ${JSON.stringify(pictures)};
+  const d = new DOMParser().parseFromString(s.html, "text/html");
+  [...d.querySelectorAll("[data-snapshot-embed]")].forEach((box, i) => {
+    const picture = pictures[i];
+    if (!picture) return box.remove();
+    const img = d.createElement("img");
+    img.src = picture;
+    img.alt = "The page in the in-app browser, as it looked";
+    img.className = box.className;
+    img.setAttribute("style", box.getAttribute("style") + ";display:block;width:100%;height:100%;object-fit:cover;object-position:top left");
+    box.replaceWith(img);
+  });
+  // The icon sprites sit in hidden wrappers, so they come out of them first, still unshown.
+  for (const svg of d.querySelectorAll("svg[data-icon-sprite]")) {
+    svg.style.display = "none";
+    d.body.append(svg);
+  }
+  for (const el of d.querySelectorAll("[data-snap-drop], [data-walkthrough-hidden], [data-measure-hidden], [aria-hidden='true'].invisible.absolute"))
+    if (!el.matches("svg[data-icon-sprite]")) el.remove();
+  for (const el of d.querySelectorAll("[data-snap-drop]")) el.removeAttribute("data-snap-drop");
+  for (const el of d.querySelectorAll("[data-testid]")) {
+    el.setAttribute("data-tid", el.getAttribute("data-testid"));
+    el.removeAttribute("data-testid");
+  }
+  const cache = new Map();
+  const data = (url) => {
+    if (!cache.has(url))
+      cache.set(url, fetch(url).then((r) => r.blob()).then((b) => new Promise((done) => { const f = new FileReader(); f.onload = () => done(f.result); f.readAsDataURL(b); })));
+    return cache.get(url);
+  };
+  const inline = async (css, base) => {
+    let out = "", last = 0;
+    for (const m of css.matchAll(/url\\(\\s*(['"]?)([^'")]+)\\1\\s*\\)/g)) {
+      out += css.slice(last, m.index);
+      last = m.index + m[0].length;
+      if (m[2].startsWith("data:") || m[2].startsWith("#")) { out += m[0]; continue; }
+      try { out += 'url("' + (await data(new URL(m[2], base).href)) + '")'; } catch { out += m[0]; }
+    }
+    return out + css.slice(last);
+  };
+  // A family's faces stay when the page drew with that family, in the subsets that hold
+  // Latin text, so every state carries the same fonts.
+  const drawn = new Set([...document.fonts].filter((f) => f.status === "loaded").map((f) => f.family.replace(/["']/g, "")));
+  const latin = (range) => !range || /U\\+0{0,4}(?:0|20)-/i.test(range) || /U\\+0{0,4}41\\b/i.test(range);
+  // The app's Chromium writes color-mix() in its default space with the space left out,
+  // which a browser from before that spelling drops, and with it every /opacity color.
+  const spelled = (css) => css.replace(/color-mix\\((?!\\s*in\\s)/g, "color-mix(in oklab, ");
+  let fonts = "";
+  const blocks = [];
+  for (const sheet of document.styleSheets) {
+    let rules;
+    try { rules = sheet.cssRules; } catch { continue; }
+    let text = "";
+    for (const rule of rules) {
+      if (rule instanceof CSSFontFaceRule) {
+        const family = rule.style.getPropertyValue("font-family").replace(/["']/g, "").trim();
+        if (drawn.has(family) && latin(rule.style.getPropertyValue("unicode-range"))) fonts += (await inline(rule.cssText, sheet.href ?? location.href)) + "\\n";
+      } else text += rule.cssText + "\\n";
+    }
+    if (text.trim()) blocks.push(await inline(spelled(text), sheet.href ?? location.href));
+  }
+  const styles = [...d.head.querySelectorAll("style")];
+  const freeze = styles.pop();
+  for (const el of styles) el.remove();
+  for (const el of d.head.querySelectorAll("link[rel~=stylesheet]")) el.remove();
+  for (const css of [fonts, ...blocks]) {
+    const el = d.createElement("style");
+    el.textContent = css;
+    d.head.insertBefore(el, freeze);
+  }
+  s.notes = s.notes.filter((n) => !n.startsWith("kept ")).concat(["the app's whole stylesheets in " + blocks.length + " blocks, " + Math.round(blocks.join("").length / 1024) + " KB, fonts " + Math.round(fonts.length / 1024) + " KB"]);
+  s.html = "<!doctype html>\\n" + d.documentElement.outerHTML;
+  s.kb = Math.round(s.html.length / 1024);
+  return s;
+})()`;
 
 /** Notices for the bell, as the main process would hand them over: an update and one from the feed. */
 const NOTICES = (/** @type {number} */ now) => [
@@ -317,22 +409,22 @@ export default async (app, args) => {
         fs.writeFileSync(path.join(out, "raw", `${key}.outline.txt`), typeof outline === "string" ? outline : JSON.stringify(outline, null, 1));
         await markDrop();
         // A page in the in-app browser runs in a process of its own, outside this DOM, so
-        // each one is kept as a picture of the box it fills, and library.mjs draws that
-        // picture where the page was.
+        // each one is kept as a picture of the box it fills, drawn where the page was.
         const guests = await app.eval(`[...document.querySelectorAll('webview, iframe')].map((el, i) => {
-          el.setAttribute('data-snap-guest', String(i));
           const r = el.getBoundingClientRect();
           return { i, x: r.x, y: r.y, width: r.width, height: r.height, shown: getComputedStyle(el).visibility !== 'hidden' };
-        }).filter((g) => g.shown && g.width > 4 && g.height > 4)`);
+        })`);
+        /** @type {Record<string, string>} */
         const pictures = {};
         for (const g of guests) {
+          if (!g.shown || g.width <= 4 || g.height <= 4) continue;
           const { data } = await app.cdp.send("Page.captureScreenshot", { format: "jpeg", quality: 82, clip: { x: g.x, y: g.y, width: g.width, height: g.height, scale: 1 } });
           pictures[g.i] = `data:image/jpeg;base64,${data}`;
         }
-        if (guests.length) fs.writeFileSync(path.join(out, "raw", `${key}.guests.json`), JSON.stringify(pictures));
-        const html = await app.eval("window.__walkthroughPage.still()");
-        fs.writeFileSync(path.join(out, "raw", `${key}.html`), html);
-        await app.eval(`document.querySelectorAll('[data-snap-drop],[data-snap-guest]').forEach((e) => { e.removeAttribute('data-snap-drop'); e.removeAttribute('data-snap-guest'); })`);
+        const snapshot = await app.eval(studioSnapshot(pictures));
+        fs.writeFileSync(path.join(out, "raw", `${key}.json`), JSON.stringify(snapshot));
+        await app.eval(`document.querySelectorAll('[data-snap-drop]').forEach((e) => e.removeAttribute('data-snap-drop'))`);
+        const html = snapshot.html;
         done.push(`${key} ${Math.round(html.length / 1024)} KB`);
       } catch (error) {
         done.push(`${key} FAILED: ${String(error instanceof Error ? error.message : error).slice(0, 240)}`);

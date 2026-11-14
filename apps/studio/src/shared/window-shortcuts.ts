@@ -48,6 +48,8 @@ const historyChord = (bracket: "[" | "]", arrow: "Left" | "Right") => ({
 
 export const WINDOW_SHORTCUTS = {
   back: { accelerator: historyChord("[", "Left"), label: "Back" },
+  // A browser's own key for the star at the end of its address field.
+  bookmarkTab: { accelerator: "CmdOrCtrl+D", label: "Bookmark This Tab…" },
   closeTab: { accelerator: "CmdOrCtrl+W", label: "Close Tab" },
   // The system's file manager's own key: Get Info's on a Mac, and Properties'
   // in File Explorer, GNOME's Files and Dolphin.
@@ -97,14 +99,16 @@ export type WindowShortcutId = keyof typeof WINDOW_SHORTCUTS;
  * The window's chords that are a code editor's own keys too, on every
  * system: Back and Forward are its indent and outdent on a Mac and its step
  * over a syntax node elsewhere, and Next and Previous Chat add a cursor above
- * or below on a Mac and copy the line elsewhere, and Find Next and Previous
- * step its own search. While a code editor holds
+ * or below on a Mac and copy the line elsewhere, Find Next and Previous
+ * step its own search, and Bookmark This Tab selects the next match. While a
+ * code editor holds
  * the keyboard these reach it first, and the menu answers only a press it
  * leaves alone. Find is its too, and the window already hands that to the
  * editor's own search.
  */
 export const CODE_EDITOR_SHORTCUTS: ReadonlySet<WindowShortcutId> = new Set([
   "back",
+  "bookmarkTab",
   "findNext",
   "findPrevious",
   "forward",

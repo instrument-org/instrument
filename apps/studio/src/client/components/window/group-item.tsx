@@ -1,4 +1,5 @@
 import { type WindowTab } from "@/client/atoms/window";
+import { instrumentAddressOf } from "@/client/bookmarks/actions";
 import { getGuest, onPageThumb } from "@/client/lib/browser-pool";
 import { registerHistorySurface } from "@/client/lib/history-surfaces";
 import { hostPathOfFileUrl } from "@/client/lib/file-url";
@@ -114,6 +115,19 @@ export function GroupItem({
       windowTabs.openScreen(href, { group, select: true });
     }
   };
+  /**
+   * A screen in this tab. A site at the window's level is the window tab's
+   * page, so the window's tab goes to the screen the way the command menu
+   * sends it, and back returns to the page; in a chat's or a draft's group
+   * the tab up becomes the screen in its place.
+   */
+  const visitHere = (href: string) => {
+    if (before) {
+      appWindow.openScreen(href);
+    } else {
+      windowTabs.visitHref(up.id, href);
+    }
+  };
   /** A site in this tab: the page's own next stop, or a page in place of the screen up. */
   const openHere = (url: string) => {
     if (up.kind === "page" && page) {
@@ -190,6 +204,7 @@ export function GroupItem({
   ) => {
     return (
       <TabLocationRow
+        address={instrumentAddressOf(up)}
         canGoBack={canGoBack}
         canGoForward={canGoForward}
         {...(location.kind === "file"
@@ -199,17 +214,8 @@ export function GroupItem({
         location={location}
         {...(before ? {} : { onBack: goBack, onForward: goForward })}
         onSite={openHere}
-        onVisit={(href) => {
-          // A site at the window's level is the window tab's page, so the
-          // window's tab goes to the screen the way the command menu sends
-          // it, and back returns to the page; in a chat's or a draft's
-          // group the tab up becomes the screen in its place.
-          if (before) {
-            appWindow.openScreen(href);
-          } else {
-            windowTabs.visitHref(up.id, href);
-          }
-        }}
+        onVisit={visitHere}
+        {...(up.kind === "page" ? { title: up.title } : {})}
         {...rowProps}
         leading={rowProps.leading}
         trailing={

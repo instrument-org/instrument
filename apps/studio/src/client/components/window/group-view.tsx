@@ -12,6 +12,7 @@ import { rpcClient } from "@/client/rpc/client";
 import { folderHref } from "@/shared/computer-href";
 import { draftGroupOf } from "@/shared/drafts";
 import { WINDOW_SHORTCUTS } from "@/shared/window-shortcuts";
+import { chatAddressOf } from "@instrument-org/shared";
 import { type ChatId } from "@instrument-org/workspace/client";
 import { ArrowClockwiseIcon } from "@phosphor-icons/react/ArrowClockwise";
 import { useQuery } from "@tanstack/react-query";
@@ -343,18 +344,30 @@ export function GroupView({
 
   // Over the chat while it is the whole group: the toolbar a page has, for a
   // chat that has no history of its own, so its arrows and reload rest. Its
-  // field opens a page as a tab of this group, and shows ⌘L until it is
-  // pressed, since the caret starts in the composer. The bookmarks under it
-  // lead with Files.
+  // field says the chat under Chat's chip, opens a page as a tab of this
+  // group, and shows ⌘L until it is pressed, since the caret starts in the
+  // composer. The bookmarks under it lead with Files.
   const toolbar = (
     <>
       <TabLocationRow
+        {...(chat === undefined
+          ? { location: { kind: "newChat" } }
+          : {
+              address: chatAddressOf(chat),
+              location: {
+                kind: "chat",
+                title:
+                  headChat?.title ??
+                  (sentWords === undefined
+                    ? "New chat"
+                    : draftTitle(sentWords)),
+              },
+            })}
         canGoBack={false}
         canGoForward={false}
         className="border-b-0"
         fieldHint={<LocationKeys />}
         fieldTakesCaret={false}
-        location={NEW_TAB_LOCATION}
         onBack={noop}
         onForward={noop}
         onSite={openPage}
@@ -429,9 +442,6 @@ const WORK_TABS = "[--tab-selected:var(--card)]";
 
 /** The tab bar over a chat that is the whole group, its chat's tab lifted off it. */
 const CHAT_FIRST_TABS = "group-strip pr-2.5";
-
-/** Where the toolbar over a chat stands: nowhere yet, as a new tab is. */
-const NEW_TAB_LOCATION = { kind: "newTab" } as const;
 
 /** The chord that puts the caret in the address field, at the end of the empty field. */
 function LocationKeys() {

@@ -55,6 +55,7 @@ interface WindowChord {
  */
 const CHORD_SYMBOLS: Record<WindowShortcutId, string> = {
   back: "chevron.backward",
+  bookmarkTab: "star",
   closeTab: "xmark.square",
   commandMenu: "command",
   editPage: "pencil",
@@ -211,6 +212,9 @@ const HISTORY_CHORDS: WindowChord[] = [chord("back"), chord("forward")];
 /** The tab groups closed to History, as a browser's History menu shows all of it. */
 const ACTIVITY_CHORDS: WindowChord[] = [chord("showActivity")];
 
+/** The star at the end of the address field of the tab the keyboard is in. */
+const BOOKMARK_CHORDS: WindowChord[] = [chord("bookmarkTab")];
+
 /**
  * This system's second chords for a command (`WINDOW_SHORTCUT_ALIASES`),
  * answered like the rest and drawn in the menu only as hidden rows, which a
@@ -243,6 +247,7 @@ const WINDOW_CHORDS = [
   ...TAB_SWITCH_ALIAS_CHORDS,
   ...HISTORY_CHORDS,
   ...ACTIVITY_CHORDS,
+  ...BOOKMARK_CHORDS,
 ];
 
 /**
@@ -390,6 +395,12 @@ export function createAppWindowMenu(
     ],
   };
 
+  // Chrome's Bookmarks menu, after History where Chrome has it.
+  const bookmarksMenu: MenuItemConstructorOptions = {
+    label: "Bookmarks",
+    submenu: menuItems(BOOKMARK_CHORDS, windows),
+  };
+
   // The other windows' View menu with the sidebar's chord at its head, and the
   // places and the steps down and up the sidebar's tab groups under it, less
   // its reload roles, which would reload the window and every page in it
@@ -426,6 +437,7 @@ export function createAppWindowMenu(
     createEditMenu(),
     viewMenu,
     historyMenu,
+    bookmarksMenu,
     tabMenu,
     ...createWindowMenu([
       {

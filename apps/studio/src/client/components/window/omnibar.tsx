@@ -4,6 +4,12 @@ import {
   noteTypedPage,
   useCompletionPages,
 } from "@/client/hooks/use-browser-history";
+import {
+  fileAddressOf,
+  screenAddressOf,
+  targetOfAddress,
+} from "@/client/bookmarks/address";
+import { hrefOfTarget } from "@/client/bookmarks/open-address";
 import { bookmarksAtom } from "@/client/bookmarks/store";
 import {
   FileSystemFolderGlyph,
@@ -30,8 +36,9 @@ import {
   relativeHostPath,
   segmentsOf,
 } from "@/client/components/window/host-path";
+import { isGroupScreenHref } from "@/client/components/window/group-screen";
 import { ShellContext } from "@/client/components/window/shell-context";
-import { chatHref, matchScreen } from "@/client/components/window/window-href";
+import { matchScreen } from "@/client/components/window/window-href";
 import { type TabLocation } from "@/client/components/window/tab-location";
 import { iconHostOf } from "@/client/lib/favicon-url";
 import { hostPathOfFileUrl } from "@/client/lib/file-url";
@@ -57,10 +64,15 @@ import { siteFromWords } from "@/client/lib/site-from-words";
 import { cn } from "@/client/lib/utils";
 import { rpcClient } from "@/client/rpc/client";
 import { COMPUTER_ROOT, fileHref } from "@/shared/computer-href";
-import { displayHostPath, expandHomePath } from "@instrument-org/shared";
+import { isScreenName, SCREENS } from "@/shared/instrument-screens";
+import {
+  chatAddressOf,
+  displayHostPath,
+  expandHomePath,
+  isInstrumentAddress,
+} from "@instrument-org/shared";
 import { WINDOW_ID } from "@instrument-org/workspace/client";
 import { GlobeIcon } from "@phosphor-icons/react/Globe";
-import { ChatCircleIcon } from "@phosphor-icons/react/ChatCircle";
 import { MagnifyingGlassIcon } from "@phosphor-icons/react/MagnifyingGlass";
 import { keepPreviousData, skipToken, useQuery } from "@tanstack/react-query";
 import { useRouter, useRouterState } from "@tanstack/react-router";
@@ -79,27 +91,27 @@ import {
   useState,
 } from "react";
 
+import { AddressMark, AppMark } from "./app-chip";
+
 /** Rows past the one Enter takes: enough to choose from, few enough to read at a glance. */
 const PAGES_SHOWN = 4;
 const SUGGESTIONS_SHOWN = 5;
 const ENTRIES_SHOWN = 8;
 const MATCHES_SHOWN = 8;
+const APP_ROWS_SHOWN = 4;
 
 /**
- * What a tab's field reaches, decided by what the tab holds: the web from a
- * page or a new tab, the computer from a folder or a file, and from any other
- * screen the list that screen is one of, so an app's page finds apps.
+ * What a tab's field reaches, decided by what the tab holds: the computer
+ * from a folder or a file, apps from an app's page, and the web, with the
+ * app's own pages and chats, from anything else.
  */
-export type OmnibarMode = "apps" | "chats" | "files" | "web";
+export type OmnibarMode = "apps" | "files" | "web";
 
 function omnibarModeOf(location: TabLocation): OmnibarMode {
   switch (location.kind) {
     case "app":
     case "apps": {
       return "apps";
-    }
-    case "chat": {
-      return "chats";
     }
     // A file shown as a page is a page: its field takes an address the way a
     // browser's does, and a path still opens the file's own view.
@@ -109,6 +121,9 @@ function omnibarModeOf(location: TabLocation): OmnibarMode {
     case "folder": {
       return "files";
     }
+    case "builtin":
+    case "chat":
+    case "newChat":
     case "newTab":
     case "page":
     case "screen":
@@ -121,7 +136,6 @@ function omnibarModeOf(location: TabLocation): OmnibarMode {
 /** What the field says it is for, empty and to a screen reader. */
 const PROMPTS: Record<OmnibarMode, string> = {
   apps: "Find an app",
-  chats: "Find a chat",
   files: "Go to a folder or file",
   web: "Search or enter address",
 };
@@ -129,7 +143,6 @@ const PROMPTS: Record<OmnibarMode, string> = {
 /** What a list with nothing matching is a list of. */
 const NOUNS: Record<Exclude<OmnibarMode, "files" | "web">, string> = {
   apps: "apps",
-  chats: "chats",
 };
 
 export interface OmniRow {
@@ -205,7 +218,7 @@ export function Omnibar({
   takesCaret?: boolean;
 }) {
   const mode = omnibarModeOf(location);
-  const { openPage } = useWindow();
+  const { openPage, openScreen } = useWindow();
   const router = useRouter();
   const routerLocation = useRouterState({
     select: (routerState) => routerState.location,
@@ -258,6 +271,35 @@ export function Omnibar({
   const openSite = (url: string) => {
     noteTypedPage(url);
     (onSite ?? openPage)(url);
+  };
+  /**
+   * Opens any address the field takes, the app's own `instrument://` ones
+   * too: in this tab where a tab can stand at it, a path looked for first
+   * as a typed one is, and anything else where the app keeps it (a chat is
+   * a tab group of its own).
+   */
+  const openAddress = (address: string) => {
+    const target = targetOfAddress(address);
+    if (!target) {
+      return;
+    }
+    if (target.kind === "page") {
+      openSite(target.url);
+      return;
+    }
+    const typedPath =
+      target.kind === "path" ? typedPathHere(target.path) : undefined;
+    if (typedPath) {
+      void openPath(typedPath);
+      return;
+    }
+    const href = hrefOfTarget(target);
+    if (isGroupScreenHref(href)) {
+      visit(href);
+    } else {
+      openScreen(href);
+    }
+    leave();
   };
   // Done with: the field goes back to showing the place, or to empty on a
   // new tab, which has no place to show.
@@ -354,7 +396,7 @@ export function Omnibar({
     isEditing,
     location,
     mode,
-    open: { openFolder, openPath, openSite, visit },
+    open: { openAddress, openFolder, openPath, openSite, visit },
     typed,
   });
   // Steady, as the rows a missed path offers are built while rendering and
@@ -502,8 +544,11 @@ export function Omnibar({
               // stands, goes there again the way a browser's address does: a
               // path is opened afresh, and anything else hands the field
               // back to the place.
+              const here = query.trim();
               const again = typedPathHere(query);
-              if (again) {
+              if (isInstrumentAddress(here) && targetOfAddress(here)) {
+                openAddress(here);
+              } else if (again) {
                 void openPath(again);
               } else if (resting !== undefined) {
                 event.currentTarget.blur();
@@ -631,6 +676,8 @@ export function useOmnibarRows({
   location: TabLocation;
   mode: OmnibarMode;
   open: {
+    /** Opens any address, the app's own included; absent where the field takes only the web's (a new chat's composer). */
+    openAddress?: (address: string) => void;
     openFolder: (host: string) => void;
     openPath: (path: TypedPath) => Promise<void>;
     openSite: (url: string) => void;
@@ -649,13 +696,17 @@ export function useOmnibarRows({
     enabled: isEditing && mode === "web",
   });
   const bookmarks = useAtomValue(bookmarksAtom);
+  // The app's own addresses kept as bookmarks are the app's places, which
+  // the rows below offer by name; the pages are the web's.
   const pages = unique(
     [
-      ...bookmarks.map((bookmark) => ({
-        favicon: undefined,
-        title: bookmark.title,
-        url: bookmark.url,
-      })),
+      ...bookmarks
+        .filter((bookmark) => !isInstrumentAddress(bookmark.url))
+        .map((bookmark) => ({
+          favicon: undefined,
+          title: bookmark.title,
+          url: bookmark.url,
+        })),
       ...visited.map((page) => ({
         favicon: page.favicon,
         title: page.title,
@@ -716,6 +767,25 @@ export function useOmnibarRows({
 
   // The lists the other screens are one of.
   const appsBySlug = useAppsBySlug();
+
+  // An address of the app's own, typed or pasted, is one place.
+  const { openAddress } = open;
+  if (openAddress && isInstrumentAddress(words) && targetOfAddress(words)) {
+    return {
+      completion: "",
+      rows: [
+        {
+          icon: <AddressMark address={words} className="size-4" />,
+          id: "address",
+          leavesItself: true,
+          name: words,
+          run: () => {
+            openAddress(words);
+          },
+        },
+      ],
+    };
+  }
 
   if (mode === "web") {
     const completion =
@@ -797,14 +867,30 @@ export function useOmnibarRows({
             };
           })
       : [];
+    // The app's own places the words name: Enter's when they name one
+    // whole, and under it otherwise.
+    const appRows = openAddress
+      ? appPlaceRows(words, {
+          bookmarks,
+          chatTitles: shell?.chatTitles,
+          home,
+          openAddress,
+        })
+      : [];
+    const isNamed =
+      appRows[0] !== undefined &&
+      appRows[0].name.toLowerCase() === words.toLowerCase();
     return {
-      completion,
-      rows: [
-        first,
-        ...(typedPath?.alsoSearch ? [searchRow] : []),
-        ...pageRows,
-        ...suggestionRows,
-      ],
+      completion: isNamed ? "" : completion,
+      rows: isNamed
+        ? [...appRows, first, ...pageRows, ...suggestionRows]
+        : [
+            first,
+            ...(typedPath?.alsoSearch ? [searchRow] : []),
+            ...appRows,
+            ...pageRows,
+            ...suggestionRows,
+          ],
     };
   }
 
@@ -958,20 +1044,6 @@ export function useOmnibarRows({
           }),
         );
       }
-      case "chats": {
-        return matchNames(
-          words,
-          [...(shell?.chatTitles ?? [])],
-          ([, title]) => title,
-        ).map(([id, title]) => ({
-          icon: <ChatCircleIcon className="size-4" />,
-          id: `chat:${id}`,
-          name: title,
-          run: () => {
-            open.visit(chatHref(id));
-          },
-        }));
-      }
     }
   })().slice(0, MATCHES_SHOWN);
   return {
@@ -979,6 +1051,108 @@ export function useOmnibarRows({
     empty: `No ${NOUNS[mode]} match “${words}”`,
     rows: [...matches],
   };
+}
+
+/**
+ * The app's own places whose names start with the words, or a word of them
+ * does: an app address kept as a bookmark, a built-in page, Files, and a
+ * chat by its title. Two letters at least, so a single letter typed on the
+ * way to a site's address offers none.
+ */
+function appPlaceRows(
+  words: string,
+  {
+    bookmarks,
+    chatTitles,
+    home,
+    openAddress,
+  }: {
+    bookmarks: { title: string; url: string }[];
+    chatTitles: ReadonlyMap<string, string> | undefined;
+    home: string;
+    openAddress: (address: string) => void;
+  },
+): OmniRow[] {
+  const lower = words.toLowerCase();
+  if (lower.length < 2) {
+    return [];
+  }
+  const named = (name: string) => {
+    const lowered = name.toLowerCase();
+    return (
+      lowered.startsWith(lower) ||
+      lowered.split(/[\s\-_./]+/).some((word) => word.startsWith(lower))
+    );
+  };
+  const place = (
+    id: string,
+    name: string,
+    address: string,
+    icon: ReactNode,
+    detail?: string,
+  ): OmniRow => ({
+    detail,
+    icon,
+    id: `place:${id}`,
+    name,
+    run: () => {
+      openAddress(address);
+    },
+  });
+  const pages = Object.entries(SCREENS).flatMap(([name, screen]) =>
+    isScreenName(name) ? [{ name, title: screen.title }] : [],
+  );
+  const rows = [
+    ...bookmarks
+      .filter(
+        (bookmark) =>
+          isInstrumentAddress(bookmark.url) &&
+          targetOfAddress(bookmark.url) !== undefined &&
+          named(bookmark.title),
+      )
+      .map((bookmark) =>
+        place(
+          bookmark.url,
+          bookmark.title,
+          bookmark.url,
+          <AddressMark address={bookmark.url} className="size-4" />,
+          "Bookmark",
+        ),
+      ),
+    ...pages
+      .filter((page) => named(page.title))
+      .map((page) =>
+        place(
+          page.name,
+          page.title,
+          screenAddressOf(page.name),
+          <AppMark app={page.name} className="size-4" />,
+        ),
+      ),
+    // Files is a built-in page of its own once `SCREENS` lists it.
+    ...(isScreenName("files") || !named("Files")
+      ? []
+      : [
+          place(
+            "files",
+            "Files",
+            fileAddressOf(home, { isFolder: true }),
+            <AppMark app="files" className="size-4" />,
+          ),
+        ]),
+    ...[...(chatTitles ?? [])]
+      .filter(([, title]) => named(title))
+      .map(([id, title]) =>
+        place(
+          id,
+          title,
+          chatAddressOf(id),
+          <AppMark app="chat" className="size-4" />,
+          "Chat",
+        ),
+      ),
+  ];
+  return unique(rows, (row) => row.id).slice(0, APP_ROWS_SHOWN);
 }
 
 /** The row that opens a path on the computer, which says it before looking. */

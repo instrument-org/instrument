@@ -97,6 +97,7 @@ On a Mac these are the menu bar's menus, the first named for Instrument; on Wind
 - **File**: New Tab Group, Command Menu, Open Location…, Find, Find Next, Find Previous, Search Tab Groups, Print…, Info, New Window, New Tab, Close Tab, Reopen Closed Tab, Reopen Closed Window, Close Window
 - **View**: Toggle Sidebar, Edit Page, Reload Page, Go to Chat, Go to Files, Go to Browser, Go to Apps, Next Tab Group, Previous Tab Group, Actual Size, Zoom In, Zoom Out
 - **History**: Back, Forward, Show History, Clear Browsing Data…
+- **Bookmarks**: Bookmark This Tab…
 - **Tab**: Show Next Tab, Show Previous Tab, Move Tab to New Window
 - **Window**: Merge All Windows
 - **Help**: Send Feedback…, Support, Keyboard Shortcuts
@@ -157,6 +158,7 @@ Each is written as on a Mac, then as on Windows and Linux.
 ### Pages
 
 - Back: ⌘[ / Alt+←
+- Bookmark This Tab…: ⌘D / Ctrl+D
 - Edit Page: ⌘E / Ctrl+E
 - Forward: ⌘] / Alt+→
 - Print…: ⌘P / Ctrl+P

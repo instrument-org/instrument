@@ -15,6 +15,7 @@ import {
 } from "@/client/atoms/tab-navigation-block";
 import { type AppPlace } from "@/client/atoms/window";
 import { appZoomAfter, zoomAtom } from "@/client/atoms/zoom";
+import { requestBookmarkTab } from "@/client/components/window/bookmark-star";
 import { requestFileInfo } from "@/client/components/window/file-info";
 import { requestPageEditToggle } from "@/client/components/window/page-edit-state";
 import {
@@ -300,6 +301,12 @@ export function useWindowCommands(
               if (!runPageChord("back") && !stepForKeyboard("back")) {
                 latest.current.back();
               }
+              break;
+            }
+            case "bookmarkTab": {
+              // The star of the tab the keyboard is in; nothing where no
+              // address is shown.
+              requestBookmarkTab();
               break;
             }
             case "closeTab": {

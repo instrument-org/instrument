@@ -109,6 +109,7 @@ describe("formatAcceleratorFor", () => {
         "pictureFit: ⌘ 0  /  Ctrl 0  /  Ctrl 0",
         "picturePan: ↑↓←→  /  ↑↓←→  /  ↑↓←→",
         "back: ⌘ [  /  Alt ←  /  Alt ←",
+        "bookmarkTab: ⌘ D  /  Ctrl D  /  Ctrl D",
         "closeTab: ⌘ W  /  Ctrl W  /  Ctrl W",
         "fileInfo: ⌘ I  /  Alt Enter  /  Alt Enter",
         "commandMenu: ⌘ K  /  Ctrl K  /  Ctrl K",

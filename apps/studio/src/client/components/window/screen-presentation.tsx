@@ -1,4 +1,6 @@
 import { PlaceIcon } from "@/client/components/window/place-icons";
+import { screenNameOfHref } from "@/client/bookmarks/address";
+import { SCREENS, type ScreenName } from "@/shared/instrument-screens";
 import { debugPageTitle } from "@/client/routes/debug/-debug-routes";
 import { type ChatId, type StoreId } from "@instrument-org/workspace/client";
 import { AppWindowIcon } from "@phosphor-icons/react/AppWindow";
@@ -66,8 +68,7 @@ export function screenLocation(
     }
     case "chat":
     case "chatLink":
-    case "chatOfSession":
-    case "inbox": {
+    case "chatOfSession": {
       return { kind: "chat", title: chatTitleOf(screen, chatTitles) };
     }
     case "computer": {
@@ -89,6 +90,10 @@ export function screenLocation(
     case "extensions": {
       return { kind: "screen", screen: "extensions" };
     }
+    // The chat with no chat open is a new chat, written into its draft.
+    case "inbox": {
+      return { kind: "newChat" };
+    }
     case "activity":
     case "browser":
     case "debug":
@@ -101,11 +106,39 @@ export function screenLocation(
     case "site":
     case "skill":
     case "unknown": {
-      // A screen the window has no words for reads as the new tab: the
+      // A built-in page of the table, by its own href or a part under it;
+      // a screen the window has no words for reads as the new tab: the
       // place with nothing in particular in it.
-      return { kind: "newTab" };
+      const builtin = screenNameOfHref(href);
+      return builtin === undefined
+        ? { kind: "newTab" }
+        : { kind: "builtin", ...builtinPart(href, builtin), screen: builtin };
     }
   }
+}
+
+/**
+ * The part of a built-in page an address stands at, read off what follows
+ * the page's own href (`/settings/models` is Models), where it has parts.
+ */
+function builtinPart(href: string, name: ScreenName): { part?: string } {
+  const own = SCREENS[name];
+  if (!("href" in own)) {
+    return {};
+  }
+  const pathname = new URL(href, "http://tabs").pathname;
+  const below = pathname.slice(own.href.length).split("/").find(Boolean);
+  if (below === undefined) {
+    return {};
+  }
+  let words = below;
+  try {
+    words = decodeURIComponent(below);
+  } catch {
+    // Taken as written.
+  }
+  words = words.replaceAll(/[-_]+/g, " ");
+  return { part: words.charAt(0).toUpperCase() + words.slice(1) };
 }
 
 /** What a screen tab is called and drawn with, read off its address. */

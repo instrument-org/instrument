@@ -8,6 +8,7 @@ import {
   type StoreId,
 } from "@instrument-org/workspace/client";
 
+import type { BuiltInApp } from "./app-chip";
 import { isInside, segmentsOf, separatorOf } from "./host-path";
 import {
   LINK_ADDRESSES,
@@ -73,7 +74,11 @@ export type TabLocation =
     }
   | { icon?: string; kind: "app"; name: string; site?: string }
   | { kind: "apps" }
+  /** A built-in page of the app, by its name in `SCREENS`, and the part of it shown where it has parts. */
+  | { kind: "builtin"; part?: string; screen: string }
   | { kind: "chat"; title: string }
+  /** A chat not started yet: its new chat, which is a new tab's page. */
+  | { kind: "newChat" }
   | {
       /** Where the folder really is, when that is not where it was walked to: an iCloud Drive app folder. */
       hostPath?: string;
@@ -101,14 +106,16 @@ export function locationCrumbs(
   { home, volumes = [] }: { home: string; volumes?: Volume[] },
 ): LocationCrumb[] {
   switch (location.kind) {
+    // An app's page is under Apps, which the field's chip says, and Apps
+    // itself is the chip alone.
     case "app": {
-      return [
-        { label: "Apps", to: { href: "/apps", kind: "screen" } },
-        { label: location.name },
-      ];
+      return [{ label: location.name }];
     }
     case "apps": {
-      return [{ label: "Apps" }];
+      return [];
+    }
+    case "builtin": {
+      return location.part === undefined ? [] : [{ label: location.part }];
     }
     // A chat hangs from the chat beside the tabs rather than from a screen
     // under one, so there is nothing above it the field could go to.
@@ -141,6 +148,7 @@ export function locationCrumbs(
     case "screen": {
       return [{ label: "Extensions" }];
     }
+    case "newChat":
     case "newTab":
     case "page": {
       return [];
@@ -152,33 +160,32 @@ export function locationCrumbs(
 }
 
 /**
- * The place a location belongs to whose rail mark leads the field, ahead of
- * its parts. Only where there are parts to lead, so the location's own mark
- * sits beside its name with words between the two marks, and at the top of
- * the computer, which has no mark of its own to keep. A location with one
- * part keeps its own mark in front.
+ * Which of the app's own apps a location is in, whose chip leads the field:
+ * Chat for a chat, a task and a new chat, Files for a file or a folder, Apps
+ * for an app's page, and each built-in page its own. A website and a new
+ * tab have none.
  */
-export function locationSection(
-  location: TabLocation,
-  crumbs: LocationCrumb[],
-): "apps" | "files" | undefined {
+export function locationChip(location: TabLocation): BuiltInApp | undefined {
   switch (location.kind) {
-    case "app": {
+    case "app":
+    case "apps": {
       return "apps";
+    }
+    case "builtin": {
+      return location.screen;
+    }
+    case "chat":
+    case "newChat":
+    case "task": {
+      return "chat";
     }
     case "file":
     case "folder": {
-      return crumbs.length > 1 ||
-        (location.kind === "folder" && location.path === COMPUTER_ROOT)
-        ? "files"
-        : undefined;
+      return "files";
     }
-    case "apps":
-    case "chat":
     case "newTab":
     case "page":
-    case "screen":
-    case "task": {
+    case "screen": {
       return undefined;
     }
   }

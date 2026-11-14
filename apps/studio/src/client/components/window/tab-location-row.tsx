@@ -54,7 +54,6 @@ import { ArrowsOutSimpleIcon } from "@phosphor-icons/react/ArrowsOutSimple";
 import { CaretRightIcon } from "@phosphor-icons/react/CaretRight";
 import { DotsThreeIcon } from "@phosphor-icons/react/DotsThree";
 import { FilesIcon } from "@phosphor-icons/react/Files";
-import { ChatCircleIcon } from "@phosphor-icons/react/ChatCircle";
 import { CheckSquareIcon } from "@phosphor-icons/react/CheckSquare";
 import { InfoIcon } from "@phosphor-icons/react/Info";
 import { MagnifyingGlassIcon } from "@phosphor-icons/react/MagnifyingGlass";
@@ -64,11 +63,13 @@ import { useQuery } from "@tanstack/react-query";
 import { useSetAtom } from "jotai";
 import { Fragment, type ReactNode, useContext, useState } from "react";
 
+import { AppChip, AppMark, appName, type BuiltInApp } from "./app-chip";
+import { BookmarkStar } from "./bookmark-star";
 import { ShellContext } from "./shell-context";
 import {
   type LocationCrumb,
+  locationChip,
   locationCrumbs,
-  locationSection,
   type TabLocation,
 } from "./tab-location";
 
@@ -85,9 +86,13 @@ import {
  * The field says where you are in whatever terms the page has, and says it in
  * parts: the place itself last, and every place it sits under before it, each
  * of those a way there. So a file reaches its folder, an app page reaches Apps,
- * and a task reaches the work, without the row pretending to be a URL bar.
+ * and a task reaches the work, without the row pretending to be a URL bar. A
+ * chip ahead of the parts names which of the app's own apps the tab is in;
+ * the tab's address itself shows only while the field has the caret, and the
+ * star at the field's end keeps it as a bookmark.
  */
 export function TabLocationRow({
+  address,
   canGoBack,
   canGoForward,
   className,
@@ -104,8 +109,14 @@ export function TabLocationRow({
   onSite,
   onVisit,
   reload,
+  title,
   trailing,
 }: {
+  /**
+   * The tab's address (`instrumentAddressOf`): what the field says while it
+   * has the caret, and what the star keeps. A tab with none has no star.
+   */
+  address?: string | undefined;
   canGoBack?: boolean;
   canGoForward?: boolean;
   className?: string;
@@ -133,11 +144,14 @@ export function TabLocationRow({
   onVisit?: (href: string) => void;
   /** A page's reload, beside the arrows where a browser keeps it. */
   reload?: ReactNode;
+  /** What a bookmark of the tab is called until renamed; the place's own name unless given (a page's title). */
+  title?: string | undefined;
   /** What this page can do with itself, held at the row's right edge. */
   trailing?: ReactNode;
 }) {
   const openIn = openInAppTargetOf(location);
   const setLookAt = useSetAtom(lookAtAtom);
+  const place = address ?? locationText(location);
   // A file is drawn larger over the window; a page is already as large as
   // the tab, and a live site does not survive being lifted out of it.
   const lookTarget: LookTarget | undefined =
@@ -191,9 +205,9 @@ export function TabLocationRow({
         <div
           className={cn(
             "group/field relative flex h-8 min-w-0 flex-1 cursor-text items-center gap-2 rounded-xl bg-(--field-fill) px-3 text-[13px] ring-1 ring-foreground/[0.06] [--field-fill:color-mix(in_oklab,var(--foreground)_4.5%,var(--background))] focus-within:ring-foreground/20 focus-within:[--field-fill:var(--card)]",
-            // The app's icon sits at the field's end, with room to breathe
-            // inside the curve.
-            openIn && "pr-2",
+            // The app's icon and the star sit at the field's end, with room
+            // to breathe inside the curve.
+            (openIn || address) && "pr-2",
           )}
           onPointerDown={(event) => {
             // Only a primary press edits: a right press on the place is its
@@ -218,8 +232,8 @@ export function TabLocationRow({
             {...(fieldTakesCaret === undefined
               ? {}
               : { takesCaret: fieldTakesCaret })}
-            initial={locationText(location)}
-            key={locationText(location)}
+            initial={place}
+            key={place}
             {...(liveAddress ? { liveAddress } : {})}
             location={location}
             {...(onSite ? { onSite } : {})}
@@ -232,6 +246,12 @@ export function TabLocationRow({
           />
           {fieldEnd}
           {openIn && <OpenInAppButton target={openIn} />}
+          {address && (
+            <BookmarkStar
+              address={address}
+              title={title || bookmarkTitleOf(location)}
+            />
+          )}
         </div>
       ) : (
         <div className="flex-1" />
@@ -317,6 +337,16 @@ function Field({ location }: { location: TabLocation }) {
       </>
     );
   }
+  const chip = locationChip(location);
+  // A built-in page at its start, and a new chat, are the chip alone.
+  if (chip && crumbs.length === 0) {
+    return (
+      <>
+        <FieldChip app={chip} />
+        <span className="flex-1" />
+      </>
+    );
+  }
   if (location.kind === "page") {
     // An address is one thing you type rather than a trail you walk, so it is
     // said whole: the host quiet, the part of it you are reading loud. An
@@ -339,10 +369,9 @@ function Field({ location }: { location: TabLocation }) {
       </>
     );
   }
-  const section = locationSection(location, crumbs);
-  // Where the place's rail mark leads, the location's own mark moves beside
-  // its name, so two marks never sit side by side.
-  const itemMark = section ? locationItemMark(location) : null;
+  // Where the chip leads, the location's own mark moves beside its name, so
+  // two marks never sit side by side.
+  const itemMark = chip ? locationItemMark(location) : null;
   const separator = (
     <CaretRightIcon className="size-3 shrink-0 text-muted-foreground/50" />
   );
@@ -437,11 +466,7 @@ function Field({ location }: { location: TabLocation }) {
   };
   return (
     <>
-      {section ? (
-        <SectionMark place={section} />
-      ) : (
-        <LocationMark location={location} />
-      )}
+      {chip ? <FieldChip app={chip} /> : <LocationMark location={location} />}
       {/* The parts pulled out to the box's own edge, so the place reads from
           where it read before there was anything to press. */}
       <FoldingTrail
@@ -580,43 +605,42 @@ function LocationMark({ location }: { location: TabLocation }) {
   );
 }
 
-const SECTION_NAMES = { apps: "Apps", files: "Files" } as const;
-
 /**
- * The rail's mark for the place a location belongs to, at the field's start.
- * A press does what the rail's own entry does: the place, at its root when
- * the window is already in it.
+ * The chip at the field's start. Files' and Apps' do what the rail's own
+ * entry does: the place, at its root when the window is already in it.
  */
-function SectionMark({ place }: { place: keyof typeof SECTION_NAMES }) {
+function FieldChip({ app }: { app: BuiltInApp }) {
   const shell = useContext(ShellContext);
-  const mark = <PlaceIcon className="size-3.5 shrink-0" place={place} />;
-  if (!shell) {
-    return (
-      <span className="flex shrink-0 items-center text-muted-foreground">
-        {mark}
-      </span>
-    );
-  }
+  const place = app === "apps" ? "apps" : app === "files" ? "files" : undefined;
   return (
-    <button
-      aria-label={SECTION_NAMES[place]}
-      className="-mx-1 grid size-5.5 shrink-0 cursor-default place-items-center rounded text-muted-foreground group-hover/field:text-foreground/70 hover:bg-foreground/8 hover:text-foreground"
-      onClick={() => {
-        shell.goToPlace(place);
-      }}
-      type="button"
-    >
-      {mark}
-    </button>
+    <AppChip
+      app={app}
+      {...(shell && place
+        ? {
+            onPress: () => {
+              shell.goToPlace(place);
+            },
+          }
+        : {})}
+    />
   );
 }
 
 /**
  * The location's own mark where it sits beside its name: the app's icon, the
- * file's or folder's mark, still dragged out from there, and a stack for
- * several picked. The top of the computer has none.
+ * file's or folder's mark, still dragged out from there, a task's box, and a
+ * stack for several picked. The top of the computer has none, and nor does a
+ * place the chip already marks (a chat, a built-in page).
  */
 function locationItemMark(location: TabLocation): ReactNode {
+  if (
+    location.kind === "chat" ||
+    location.kind === "builtin" ||
+    location.kind === "apps" ||
+    location.kind === "newChat"
+  ) {
+    return null;
+  }
   if (location.kind === "folder") {
     if (location.path === COMPUTER_ROOT) {
       return null;
@@ -669,10 +693,12 @@ function locationMark(location: TabLocation): ReactNode {
         />
       );
     }
-    case "chat": {
-      return (
-        <ChatCircleIcon className="size-3.5 shrink-0 text-muted-foreground" />
-      );
+    case "builtin": {
+      return <AppMark app={location.screen} />;
+    }
+    case "chat":
+    case "newChat": {
+      return <AppMark app="chat" />;
     }
     case "file": {
       // A file wears its own type's mark, the way a site wears a favicon: it
@@ -738,6 +764,8 @@ function locationText(location: TabLocation) {
         ? ""
         : expandHomePath(location.path, window.api.homeDir);
     }
+    case "builtin":
+    case "newChat":
     case "newTab":
     case "screen": {
       return "";
@@ -747,6 +775,31 @@ function locationText(location: TabLocation) {
     }
     case "task": {
       return location.title;
+    }
+  }
+}
+
+/** What a bookmark of the place is called until it is renamed: the name the field shows it by. */
+function bookmarkTitleOf(location: TabLocation): string {
+  switch (location.kind) {
+    case "builtin": {
+      return location.part ?? appName(location.screen);
+    }
+    case "file":
+    case "folder": {
+      return (
+        locationCrumbs(location, { home: window.api.homeDir }).at(-1)?.label ??
+        location.path
+      );
+    }
+    case "page": {
+      return splitUrl(location.url).host;
+    }
+    default: {
+      return (
+        locationCrumbs(location, { home: window.api.homeDir }).at(-1)?.label ??
+        appName(locationChip(location) ?? "")
+      );
     }
   }
 }

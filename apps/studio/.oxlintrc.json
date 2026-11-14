@@ -75,6 +75,7 @@
         "src/electron-main/lib/app-session.ts",
         "src/electron-main/lib/diagnostic-log.ts",
         "src/electron-main/lib/launch-overrides.ts",
+        "src/electron-main/lib/main-thread-freezes.ts",
         "src/electron-main/lib/problem-reports.ts",
         "src/electron-main/lib/register-crash-diagnostics.ts",
         "src/electron-main/lib/setup-dbus-env.ts",

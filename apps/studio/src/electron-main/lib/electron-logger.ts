@@ -16,6 +16,7 @@ import {
 import { guardLogger } from "./log-guards";
 import { redactLogger } from "./log-redaction";
 import { createLogVolumeMeter } from "./log-volume";
+import { type FreezeLogFile } from "./main-thread-freezes";
 import { createRotatingLogWriter } from "./rotating-log-writer";
 
 const IS_DEV = process.env.NODE_ENV === "development";
@@ -63,6 +64,19 @@ const MAX_LOG_FILE_BYTES = 8 * 1024 * 1024;
  */
 export function getMainLogFilePath() {
   return path.join(app.getPath("userData"), "logs", "main.log");
+}
+
+/**
+ * The file this process logs to and its line format, for a worker thread
+ * that appends a line of its own when the main thread cannot: the dev log in
+ * development, `main.log` otherwise. None while the dev log is not open.
+ */
+export function getLogFileForWorkers(): FreezeLogFile | undefined {
+  if (!IS_DEV) {
+    return { format: "text", path: getMainLogFilePath() };
+  }
+  const devLog = getDevLogFilePath();
+  return devLog ? { format: "json", path: devLog } : undefined;
 }
 
 log.transports.file.resolvePathFn = getMainLogFilePath;

@@ -69,6 +69,7 @@ const eventFor = (error: unknown, context?: CaptureContext): ExceptionEvent =>
 let crashDir = "";
 const crashRecordPath = () => path.join(crashDir, "last-crash.json");
 const sessionMarkerPath = () => path.join(crashDir, "app.lock");
+const freezeMarkerPath = () => path.join(crashDir, "main-freeze.json");
 const crashDumpsDir = () => path.join(crashDir, "Crashpad");
 
 // Test double for the two `Electron.App` events this module subscribes to and
@@ -672,6 +673,73 @@ describe("registerCrashDiagnostics", () => {
     vi.clearAllMocks();
     registerCrashDiagnostics(createFakeApp().app);
     expect(log.error).not.toHaveBeenCalled();
+  });
+
+  describe("a session that ended frozen", () => {
+    const FREEZE = {
+      cpu: { system: 1, user: 99 },
+      frozenMs: 42_000,
+      startedAt: Date.parse("2026-11-14T12:00:00.000Z"),
+    };
+    const writeMarkers = (freezePid: number) => {
+      fs.writeFileSync(
+        sessionMarkerPath(),
+        JSON.stringify({
+          pid: 999_999_999,
+          startedAt: "2026-11-14T11:00:00.000Z",
+          version: "2.0.4",
+        }),
+      );
+      fs.writeFileSync(
+        freezeMarkerPath(),
+        JSON.stringify({ ...FREEZE, pid: freezePid, version: "2.0.4" }),
+      );
+    };
+    const expectEndedWith = async (ready: () => void, freeze: unknown) => {
+      ready();
+      await vi.waitFor(
+        () => {
+          expect(recordEndedSession).toHaveBeenCalledWith(
+            expect.objectContaining({ freeze }),
+          );
+        },
+        { interval: 1 },
+      );
+    };
+
+    it("hands the last session's freeze to the problem reports and clears its marker", async () => {
+      writeMarkers(999_999_999);
+
+      const { app, ready } = createFakeApp();
+      registerCrashDiagnostics(app);
+
+      expect(log.warn).toHaveBeenCalledWith(
+        "A session (2.0.4) ended with its main thread frozen for 42 s, CPU 99% user and 1% system.",
+      );
+      expect(fs.existsSync(freezeMarkerPath())).toBe(false);
+      await expectEndedWith(ready, FREEZE);
+    });
+
+    it("logs the freeze of a process the session marker does not name, and reports none", async () => {
+      writeMarkers(999_999_998);
+
+      const { app, ready } = createFakeApp();
+      registerCrashDiagnostics(app);
+
+      expect(log.warn).toHaveBeenCalledWith(
+        expect.stringContaining("ended with its main thread frozen"),
+      );
+      expect(fs.existsSync(freezeMarkerPath())).toBe(false);
+      await expectEndedWith(ready, undefined);
+    });
+
+    it("leaves the marker of another instance frozen now alone", () => {
+      writeMarkers(process.ppid);
+
+      registerCrashDiagnostics(createFakeApp().app);
+
+      expect(fs.existsSync(freezeMarkerPath())).toBe(true);
+    });
   });
 
   it("hands how the last session ended to the problem reports once the app is ready", async () => {

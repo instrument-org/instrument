@@ -132,6 +132,7 @@ const ended = (overrides: Partial<EndedSession>) =>
     crashRecord: undefined,
     dumps: 0,
     endedAt: 1_000,
+    freeze: undefined,
     previousVersion: "2.0.4",
     unclean: true,
     ...overrides,
@@ -189,6 +190,40 @@ describe("problem reports", () => {
       kind: "hang",
       title: "Instrument didn't close properly",
     });
+  });
+
+  it("calls a session that never exited while frozen one that stopped responding, apart from other hangs", () => {
+    const freeze = {
+      cpu: { system: 1, user: 99 },
+      frozenMs: 42_000,
+      startedAt: Date.parse("2026-11-14T12:00:00.000Z"),
+    };
+    ended({ crashRecord: crashEvent(), dumps: 1, freeze });
+    ended({});
+
+    const [frozen, hang] = reports.listPendingProblems();
+    expect(frozen).toMatchObject({
+      fingerprint: reports.fingerprintOf("main-thread-freeze", "hang"),
+      kind: "hang",
+      title: "Instrument stopped responding",
+    });
+    expect(hang?.fingerprint).not.toBe(frozen?.fingerprint);
+    expect(frozen?.details).toContain(
+      "ended: stopped responding, its main thread frozen for 42 s, CPU 99% user and 1% system\nfrozenSince: 2026-11-14T12:00:00.000Z",
+    );
+    // The throw it survived before freezing is not what the report is about.
+    expect(frozen?.details).not.toContain("The error:");
+  });
+
+  it("records a freeze in development too, where its marker says the session really froze", () => {
+    electronApp.isPackaged = false;
+    ended({
+      freeze: { cpu: { system: 0, user: 0 }, frozenMs: 12_000, startedAt: 0 },
+    });
+
+    expect(reports.listPendingProblems()).toMatchObject([
+      { title: "Instrument stopped responding" },
+    ]);
   });
 
   it("leaves a hang out of the bell in development, where stopping the dev server ends every session", () => {

@@ -16,6 +16,12 @@ import {
 } from "./capture-server-exception";
 import { createScopedLogger, stopConsoleLogging } from "./electron-logger";
 import { storeExceptionEvent } from "./exception-store";
+import {
+  describeFreeze,
+  type Freeze,
+  FREEZE_MARKER_FILE,
+  readFreezeMarker,
+} from "./main-thread-freezes";
 import { recordEndedSession } from "./problem-reports";
 import { createRepeatLimiter } from "./repeat-limiter";
 
@@ -63,7 +69,9 @@ let isWritingCrashRecord = false;
  * uploaded; the next start logs each one it has not reported yet. A session
  * marker, written at start and removed on the way out, says the last session
  * ended some other way than exiting: a force-quit after a freeze, a native
- * crash in main, a power loss.
+ * crash in main, a power loss. A freeze marker beside it, which the freeze
+ * watchdog keeps only while the main thread is stuck, says which: the session
+ * stopped responding and was ended that way.
  *
  * Reporting an error must never cause the next one. Logging it can fail (a
  * full disk, a closed terminal), and that failure arrives later as an error
@@ -83,6 +91,7 @@ export function registerCrashDiagnostics(app: Electron.App) {
 
   const crashRecord = reportPreviousCrash(app);
   const exit = reportUncleanExit(app);
+  const freeze = reportPreviousFreeze(app, exit.previousPid);
   const dumps = reportNewCrashDumps(app);
   const endedAt = Date.now();
   // Once ready, because the report is redacted with the accounts signed in,
@@ -94,6 +103,7 @@ export function registerCrashDiagnostics(app: Electron.App) {
         crashRecord,
         dumps,
         endedAt,
+        freeze,
         previousVersion: exit.previousVersion,
         unclean: exit.unclean,
       });
@@ -374,19 +384,26 @@ function isOtherLiveProcess(pid: unknown): boolean {
  * readable details is one an older build wrote, and it still means the same.
  */
 function reportUncleanExit(app: Electron.App): {
+  previousPid: number | undefined;
   previousVersion: string | undefined;
   unclean: boolean;
 } {
   const markerPath = getSessionMarkerPath(app);
+  let previousPid: number | undefined;
   let previousVersion: string | undefined;
   let unclean = false;
   try {
     if (fs.existsSync(markerPath)) {
       const previous = readSessionMarker(markerPath);
       if (isOtherLiveProcess(previous?.pid)) {
-        return { previousVersion: undefined, unclean: false };
+        return {
+          previousPid: undefined,
+          previousVersion: undefined,
+          unclean: false,
+        };
       }
       if (previous?.pid !== process.pid) {
+        previousPid = previous?.pid;
         previousVersion = previous?.version;
         const details = previous
           ? ` (${previous.version}, started ${previous.startedAt})`
@@ -415,7 +432,7 @@ function reportUncleanExit(app: Electron.App): {
         cause: error,
       }),
     );
-    return { previousVersion, unclean };
+    return { previousPid, previousVersion, unclean };
   }
   const removeMarker = () => {
     try {
@@ -433,7 +450,50 @@ function reportUncleanExit(app: Electron.App): {
   app.on("browser-window-created", (_event, window) => {
     window.once("session-end", removeMarker);
   });
-  return { previousVersion, unclean };
+  return { previousPid, previousVersion, unclean };
+}
+
+/**
+ * Say so when a session ended while its main thread was frozen, and hand the
+ * freeze on when that session is the one the session marker found.
+ *
+ * The freeze watchdog takes its marker away when main comes back, so one
+ * still here belongs to a process that ended frozen, unless that process is
+ * still running: another instance sharing this data folder, frozen now, which
+ * keeps it. A freeze of a process other than the last session's (a second
+ * instance, which keeps no session marker) is logged and goes no further.
+ */
+function reportPreviousFreeze(
+  app: Electron.App,
+  previousPid: number | undefined,
+): Freeze | undefined {
+  const markerPath = path.join(app.getPath("userData"), FREEZE_MARKER_FILE);
+  try {
+    if (!fs.existsSync(markerPath)) {
+      return undefined;
+    }
+    const marker = readFreezeMarker(markerPath);
+    if (isOtherLiveProcess(marker?.pid)) {
+      return undefined;
+    }
+    fs.rmSync(markerPath, { force: true });
+    if (!marker) {
+      return undefined;
+    }
+    log.warn(
+      `A session (${marker.version}) ended with its main thread frozen for ${describeFreeze(marker)}.`,
+    );
+    return marker.pid === previousPid
+      ? {
+          cpu: marker.cpu,
+          frozenMs: marker.frozenMs,
+          startedAt: marker.startedAt,
+        }
+      : undefined;
+  } catch (error) {
+    log.warn(new Error("Could not read the previous freeze", { cause: error }));
+    return undefined;
+  }
 }
 
 /** Whether the computer has started since `startedAt`, which ends every app. */

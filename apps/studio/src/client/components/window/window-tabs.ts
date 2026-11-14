@@ -569,7 +569,6 @@ export function useWindowTabs() {
           ...(after === undefined ? {} : { after }),
           ...(side === undefined ? {} : { side }),
           group: key,
-          homeId: newScreenId(),
           page,
           ...(replacing ? { replacing } : {}),
           select: select || group === undefined || key === onScreen,

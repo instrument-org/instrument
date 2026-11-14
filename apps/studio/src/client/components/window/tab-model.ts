@@ -1,6 +1,5 @@
 import {
   type BrowserTab,
-  NEW_TAB_HREF,
   newTabHrefOf,
   type TabVisit,
   type WindowTab,
@@ -1196,16 +1195,16 @@ export function pageTakesOver(
 /**
  * A new page tab. In a tab's place, it takes that tab's place in the strip
  * and under its strip key, so the strip sees one tab changing rather than one
- * leaving and another arriving, and it is what that group has up. Otherwise
- * it joins the group at the end, or right after the tab named, with a new
- * tab behind it, up when asked.
+ * leaving and another arriving, and it is what that group has up; back from
+ * it returns to that tab. Otherwise it joins the group at the end, or right
+ * after the tab named, up when asked, with nothing behind it, as a browser's
+ * tab opened from a link starts.
  */
 export function openPage(
   state: WindowTabs,
   {
     after,
     group,
-    homeId,
     page,
     replacing,
     select,
@@ -1214,8 +1213,6 @@ export function openPage(
     /** The tab it opens beside rather than at the group's end. */
     after?: string;
     group: string | undefined;
-    /** The id of the new tab a page opened on its own has behind it. */
-    homeId: string;
     page: BrowserTab;
     replacing?: WindowTab;
     select: boolean;
@@ -1235,12 +1232,7 @@ export function openPage(
       ? { ...state, tabs }
       : selectTab({ ...state, tabs }, page.id);
   }
-  const tab: WindowTab = {
-    ...page,
-    group,
-    kind: "page",
-    past: [{ href: NEW_TAB_HREF, id: homeId, kind: "screen" }],
-  };
+  const tab: WindowTab = { ...page, group, kind: "page" };
   if (group === undefined) {
     return { ...state, tabs: insertAfter(state.tabs, tab, after) };
   }

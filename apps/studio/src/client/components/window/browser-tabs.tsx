@@ -58,7 +58,6 @@ import {
 } from "./tab-model";
 import {
   everyTabIdAtom,
-  newScreenId,
   useWindowTabs,
   useWindowTabsChange,
 } from "./window-tabs";
@@ -256,7 +255,6 @@ function openTab(
     return openPageIn(current, {
       ...(beside === undefined ? {} : { after: beside }),
       group,
-      homeId: newScreenId(),
       page,
       ...(replacing ? { replacing } : {}),
       select:

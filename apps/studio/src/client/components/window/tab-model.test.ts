@@ -48,6 +48,7 @@ import {
   upTabsIn,
   type WindowTabs,
 } from "./tab-model";
+import { stepOf, stepStackOf } from "./tab-steps";
 
 const CHAT = StoreId.SessionSchema.parse("ses_01JAAAAAAAAAAAAAAAAAAAAAAA");
 const OTHER = StoreId.SessionSchema.parse("ses_01JBBBBBBBBBBBBBBBBBBBBBBB");
@@ -484,31 +485,27 @@ describe("openPage", () => {
   it("takes a tab's place, under its strip key, as what its group has up", () => {
     const opened = openPage(THREE, {
       group: undefined,
-      homeId: "home",
       page: PAGE,
       replacing: THREE.tabs[1],
       select: false,
     });
     expect(shape(opened)).toEqual({ [CHAT]: "a *p c", [OTHER]: "*x" });
     expect(opened.tabs[1]).toMatchObject({ kind: "page", stripKey: "b" });
+    expect(opened.tabs[1]?.past?.map((visit) => visit.id)).toEqual(["b"]);
   });
 
   it.each([
     ["up when asked", true, { [CHAT]: "*a b c", [OTHER]: "x *p" }],
     ["behind otherwise", false, { [CHAT]: "*a b c", [OTHER]: "*x p" }],
   ])(
-    "joins a group with a new tab behind it, %s",
+    "joins a group with nothing behind it, %s",
     (_case, select, expected) => {
-      const opened = openPage(THREE, {
-        group: OTHER,
-        homeId: "home",
-        page: PAGE,
-        select,
-      });
+      const opened = openPage(THREE, { group: OTHER, page: PAGE, select });
       expect(shape(opened)).toEqual(expected);
-      expect(opened.tabs.at(-1)?.past).toEqual([
-        { href: NEW_TAB_HREF, id: "home", kind: "screen" },
-      ]);
+      const stack = stepStackOf(opened.tabs.at(-1), {
+        guest: { canGoBack: false, canGoForward: false },
+      });
+      expect(stepOf(stack, "back")).toBeUndefined();
     },
   );
 
@@ -516,7 +513,6 @@ describe("openPage", () => {
     const opened = openPage(THREE, {
       after: "a",
       group: CHAT,
-      homeId: "home",
       page: PAGE,
       select: false,
     });

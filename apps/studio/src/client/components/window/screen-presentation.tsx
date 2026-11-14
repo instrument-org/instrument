@@ -233,7 +233,7 @@ export function screenPresentation(
         title: debugPageTitle(screen.pathname),
       };
     }
-    // History, or the index of every chat under a list mark of its own.
+    // History, or the index of every chat under the bubbles of many chats.
     case "history": {
       const name = screen.chats ? "chats" : "history";
       return {

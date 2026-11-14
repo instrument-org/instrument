@@ -30,7 +30,7 @@ import { CaretLeftIcon } from "@phosphor-icons/react/CaretLeft";
 import { CaretRightIcon } from "@phosphor-icons/react/CaretRight";
 import { ClockCounterClockwiseIcon } from "@phosphor-icons/react/ClockCounterClockwise";
 import { GearSixIcon } from "@phosphor-icons/react/GearSix";
-import { ListBulletsIcon } from "@phosphor-icons/react/ListBullets";
+import { ChatsCircleIcon } from "@phosphor-icons/react/ChatsCircle";
 import { PlusIcon } from "@phosphor-icons/react/Plus";
 import { type ChatId } from "@instrument-org/workspace/client";
 import { useQuery } from "@tanstack/react-query";
@@ -342,7 +342,7 @@ export function GroupSidebar({
         <ListItem key=":history" {...place(":history")}>
           {project ? (
             <HistoryRow
-              icon={<ListBulletsIcon className="size-4" />}
+              icon={<ChatsCircleIcon className="size-4" />}
               label="All chats"
               onOpen={() => {
                 openBuiltInPage(

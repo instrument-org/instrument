@@ -219,6 +219,31 @@ function endStream(hash: string) {
   streams.delete(hash);
 }
 
+/**
+ * When a folder listing in the cache says `hostPath` was last written, for a
+ * viewer whose own watch has not answered yet: the same `mtimeMs` the watch
+ * answers with, so a URL built from it is the one the watch then confirms.
+ */
+export function listedModifiedAt(
+  client: QueryClient,
+  hostPath: string,
+): number | undefined {
+  for (const [, folder] of client.getQueriesData<ComputerFolder>({
+    queryKey: rpcClient.workspace.computer.list.key(),
+  })) {
+    if (folder?.kind !== "listing") {
+      continue;
+    }
+    const entry = folder.entries.find(
+      (candidate) => candidate.kind === "file" && candidate.path === hostPath,
+    );
+    if (entry?.modifiedAt !== undefined) {
+      return entry.modifiedAt;
+    }
+  }
+  return undefined;
+}
+
 /** A query key's hash as the cache keys its entry. */
 function hashOf(client: QueryClient, queryKey: QueryKey) {
   return (

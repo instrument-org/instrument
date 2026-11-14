@@ -40,6 +40,8 @@ import {
   DropdownMenuTrigger,
 } from "@/client/components/ui/dropdown-menu";
 import { LOADER_DELAY_MS } from "@/client/components/ui/delayed";
+import { getFileType } from "@/client/lib/get-file-type";
+import { preloadPicture } from "@/client/lib/picture-preload";
 import {
   Popover,
   PopoverAnchor,
@@ -2912,6 +2914,30 @@ export function FileSystem({
   // The keys, read once for every view (`listingCommandOf`) and answered by
   // the view on screen, which says how its rows are walked.
   const listingNavRef = React.useRef<ListingNav | null>(null);
+  // A picture picked loads the pictures beside it in the order the keys walk,
+  // so an arrow to either one shows it without a wait. After the picked
+  // file's own load has started, which comes first.
+  React.useEffect(() => {
+    if (selectedEntry?.kind !== "file") return;
+    const timeout = window.setTimeout(() => {
+      const rows = listingNavRef.current?.rows ?? [];
+      const at = rows.findIndex((row) => row.path === selectedEntry.path);
+      if (at === -1) return;
+      for (const beside of [rows[at + 1], rows[at - 1]]) {
+        if (
+          beside?.kind === "file" &&
+          beside.url &&
+          getFileType({
+            filename: beside.name,
+            ...(beside.contentType ? { mimeType: beside.contentType } : {}),
+          }) === "image"
+        ) {
+          preloadPicture(beside.url);
+        }
+      }
+    }, PRELOAD_AFTER_MS);
+    return () => window.clearTimeout(timeout);
+  }, [selectedEntry]);
   const typeAheadRef = React.useRef(NO_TYPE_AHEAD);
   const runListingCommandRef = React.useRef<
     (command: ListingCommand) => boolean
@@ -7509,6 +7535,10 @@ const GALLERY_STAGE_POOL_SIZE = 4;
 // they return — their page canvases remount on the way back, so returning
 // to a detached stage briefly rebuilds the page content.
 const GALLERY_STAGE_ATTACHED_COUNT = 3;
+// How long after a picture is picked the pictures beside it start loading:
+// long enough for the picked one's own load to go first, and short of the
+// next press of a repeating arrow.
+const PRELOAD_AFTER_MS = 50;
 type InlineRegistryIconProps = Omit<
   React.ComponentProps<"svg">,
   "children" | "strokeWidth"

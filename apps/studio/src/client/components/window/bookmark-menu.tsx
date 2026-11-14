@@ -1,6 +1,5 @@
 import { useBookmarkActions } from "@/client/bookmarks/actions";
 import { type OpenHow, openHowOf } from "@/client/bookmarks/open-address";
-import { NewTabIcon } from "@/client/components/icons/new-tab-icon";
 import {
   ContextMenu,
   ContextMenuContent,
@@ -8,16 +7,18 @@ import {
   ContextMenuSeparator,
   ContextMenuTrigger,
 } from "@/client/components/ui/context-menu";
+import { contextMenuComponents } from "@/client/components/ui/menu-components";
+import { type OpenDestination } from "@/client/hooks/use-open-target";
 import { type Bookmark, placeOf } from "@/shared/bookmarks";
 import { ArrowSquareInIcon } from "@phosphor-icons/react/ArrowSquareIn";
 import { CopyIcon } from "@phosphor-icons/react/Copy";
 import { PencilSimpleIcon } from "@phosphor-icons/react/PencilSimple";
 import { SidebarSimpleIcon } from "@phosphor-icons/react/SidebarSimple";
-import { SquaresFourIcon } from "@phosphor-icons/react/SquaresFour";
 import { StarIcon } from "@phosphor-icons/react/Star";
 import { XCircleIcon } from "@phosphor-icons/react/XCircle";
 import { type MouseEvent, type ReactElement, useRef } from "react";
 
+import { PlaceItems } from "./place-items";
 import { useBookmarkEdits } from "./web-start";
 
 /** The middle button, which asks for a tab of its own. */
@@ -51,10 +52,22 @@ export function bookmarkClicks(
   };
 }
 
+/** The places a bookmark opens in from its menu, after its own Open, in the order a link's menu has them. */
+const BOOKMARK_PLACES: {
+  how: Exclude<OpenHow, "here">;
+  id: OpenDestination["id"];
+  label: string;
+}[] = [
+  { how: "split", id: "openSplit", label: "Open in Split" },
+  { how: "newTab", id: "openNewTab", label: "Open in New Tab" },
+  { how: "newGroup", id: "openNewGroup", label: "Open in New Tab Group" },
+  { how: "newWindow", id: "openNewWindow", label: "Open in New Window" },
+];
+
 /**
  * The menu over a bookmark, on the bar and in the sidebar alike: opening it
- * the three ways a press can, renaming it, moving it to the other place
- * bookmarks show, copying its address, and removing it.
+ * here or in a place of the window's own, renaming it, moving it to the
+ * other place bookmarks show, copying its address, and deleting it.
  */
 export function BookmarkContextMenu({
   bookmark,
@@ -96,22 +109,16 @@ export function BookmarkContextMenu({
           <ArrowSquareInIcon className="size-4" />
           <span>Open</span>
         </ContextMenuItem>
-        <ContextMenuItem
-          onClick={() => {
-            open(bookmark.url, "newTab");
-          }}
-        >
-          <NewTabIcon className="size-4" />
-          <span>Open in New Tab</span>
-        </ContextMenuItem>
-        <ContextMenuItem
-          onClick={() => {
-            open(bookmark.url, "newGroup");
-          }}
-        >
-          <SquaresFourIcon className="size-4" />
-          <span>Open in New Tab Group</span>
-        </ContextMenuItem>
+        <PlaceItems
+          components={contextMenuComponents}
+          destinations={BOOKMARK_PLACES.map(({ how, id, label }) => ({
+            id,
+            label,
+            run: () => {
+              open(bookmark.url, how);
+            },
+          }))}
+        />
         <ContextMenuSeparator />
         <ContextMenuItem
           onClick={() => {
@@ -148,7 +155,7 @@ export function BookmarkContextMenu({
           }}
         >
           <XCircleIcon className="size-4" />
-          <span>Remove from Bookmarks</span>
+          <span>Delete</span>
         </ContextMenuItem>
       </ContextMenuContent>
     </ContextMenu>

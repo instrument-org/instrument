@@ -1,4 +1,7 @@
-import { useWindow } from "@/client/components/window/context";
+import {
+  type OpenOptions,
+  useWindow,
+} from "@/client/components/window/context";
 import { isGroupScreenHref } from "@/client/components/window/group-screen";
 import { matchScreen } from "@/client/components/window/window-href";
 import { wantsNewTab, wantsNewWindow } from "@/client/hooks/use-open-target";
@@ -8,9 +11,18 @@ import { type AddressTarget, hrefOfPath, targetOfAddress } from "./address";
 
 /**
  * Where an address opens: in the tab it was chosen from, in a new tab
- * waiting behind that one, or as the first tab of a new tab group.
+ * waiting behind that one, on the other side of the group on screen, or as
+ * the first tab of a new tab group or a new window.
  */
-export type OpenHow = "here" | "newGroup" | "newTab";
+export type OpenHow = "here" | "newGroup" | "newTab" | "newWindow" | "split";
+
+/** The open each place but `here` asks of the window. */
+const OPEN_OPTIONS = {
+  newGroup: { into: "group" },
+  newTab: { behind: true, newTab: true },
+  newWindow: { into: "window" },
+  split: { into: "split" },
+} satisfies Record<Exclude<OpenHow, "here">, OpenOptions>;
 
 /**
  * The screen href an address of the app's own opens at: a file's or a
@@ -69,10 +81,7 @@ export function useOpenAddress(
         }
         return;
       }
-      appWindow.openPage(
-        target.url,
-        how === "newTab" ? { behind: true, newTab: true } : { newWindow: true },
-      );
+      appWindow.openPage(target.url, OPEN_OPTIONS[how]);
       return;
     }
     const href = hrefOfTarget(target);
@@ -84,9 +93,6 @@ export function useOpenAddress(
       }
       return;
     }
-    appWindow.openScreen(
-      href,
-      how === "newTab" ? { behind: true, newTab: true } : { newWindow: true },
-    );
+    appWindow.openScreen(href, OPEN_OPTIONS[how]);
   };
 }

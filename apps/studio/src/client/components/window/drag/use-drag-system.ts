@@ -56,6 +56,7 @@ import {
 import {
   groupLayoutOf,
   putUpBack,
+  sideIndexOf,
   sideOf,
   tabsIn,
   upTabsIn,
@@ -201,6 +202,13 @@ function useLander(
         return;
       }
       case "side": {
+        // An opener puts the tab up beside the tab up on the side with the
+        // keyboard, wherever it then moves to, so each other side's tab up
+        // is put back as it was.
+        const upBefore = groupLayoutOf(
+          store.get(windowTabsAtom),
+          landing.group,
+        ).sides.map((side) => side.up);
         const id = first({ group: landing.group });
         if (id === undefined) {
           return;
@@ -213,6 +221,14 @@ function useLander(
           split: landing.split,
         });
         openRest(landing.group, id, 1);
+        const layout = groupLayoutOf(store.get(windowTabsAtom), landing.group);
+        const landedOn = sideIndexOf(layout, id);
+        for (const up of upBefore) {
+          const side = up === undefined ? undefined : sideIndexOf(layout, up);
+          if (up !== undefined && side !== undefined && side !== landedOn) {
+            windowTabs.raise(up);
+          }
+        }
         return;
       }
       case "sidebar": {

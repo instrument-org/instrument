@@ -243,7 +243,7 @@ function evaluate(current: Session, now = performance.now()) {
       }));
   const found = isOff ? {} : measure(dragPoint, drag);
   const restKey = restKeyOf(found.landing);
-  current.dwell = restAt(current.dwell, restKey, now);
+  current.dwell = restAt(current.dwell, restKey, dragPoint, now);
   const isResting = restKey !== undefined && !hasRested(current.dwell, now);
   // Until the pointer has rested at a page's end, the end is what the rest
   // of the page is, so nothing there goes on to what the page shows.

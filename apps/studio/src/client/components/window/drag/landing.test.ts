@@ -135,19 +135,32 @@ describe("the band at a lone side's end", () => {
 });
 
 describe("a rest over a place", () => {
+  const at = { x: 900, y: 300 };
   it("starts when the place changes and holds while it stays", () => {
-    const first = restAt(undefined, "split 1", 100);
-    const still = restAt(first, "split 1", 300);
-    const moved = restAt(still, "split 0", 350);
-    expect([first, still === first, moved, restAt(moved, undefined, 400)])
-      .toMatchInlineSnapshot(`
+    const first = restAt(undefined, "split 1", at, 100);
+    const still = restAt(first, "split 1", at, 300);
+    const moved = restAt(still, "split 0", at, 350);
+    expect([
+      first,
+      still === first,
+      moved,
+      restAt(moved, undefined, at, 400),
+    ]).toMatchInlineSnapshot(`
       [
         {
+          "at": {
+            "x": 900,
+            "y": 300,
+          },
           "key": "split 1",
           "since": 100,
         },
         true,
         {
+          "at": {
+            "x": 900,
+            "y": 300,
+          },
           "key": "split 0",
           "since": 350,
         },
@@ -156,12 +169,32 @@ describe("a rest over a place", () => {
     `);
   });
 
+  it("holds while the pointer wanders a little, and starts over once it moves on", () => {
+    const first = restAt(undefined, "split 1", at, 100);
+    const wandered = restAt(first, "split 1", { x: 904, y: 303 }, 200);
+    const moved = restAt(wandered, "split 1", { x: 907, y: 300 }, 300);
+    expect([wandered === first, moved?.since]).toEqual([true, 300]);
+  });
+
+  it("never rests on a slow pass through a place", () => {
+    // 60 px a second, a frame at a time, for a second.
+    let dwell = restAt(undefined, "split 1", at, 0);
+    let rested = false;
+    for (let now = 16; now <= 1000; now += 16) {
+      dwell = restAt(dwell, "split 1", { x: at.x + now * 0.06, y: at.y }, now);
+      rested ||= hasRested(dwell, now);
+    }
+    expect(rested).toBe(false);
+  });
+
   it.each([
     [0, false],
     [399, false],
     [400, true],
   ])("after %ims has rested: %s", (ms, rested) => {
-    expect(hasRested({ key: "join 0", since: 1000 }, 1000 + ms)).toBe(rested);
+    expect(hasRested({ at, key: "join 0", since: 1000 }, 1000 + ms)).toBe(
+      rested,
+    );
   });
 });
 

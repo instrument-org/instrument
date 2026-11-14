@@ -17,6 +17,13 @@ export const START_PX = 8;
  */
 export const DWELL_MS = 400;
 
+/**
+ * How far the pointer may drift and still be resting: a hand held still on
+ * a trackpad wanders a pixel or two, and a slow pass moves on past this
+ * well inside `DWELL_MS`.
+ */
+const REST_PX = 6;
+
 /** Where along the tab files would open as the pointer holds it: its mark under the pointer. */
 export const FILE_GRAB_PX = 18;
 
@@ -126,22 +133,32 @@ export function sideZoneAt({
     : undefined;
 }
 
-/** A place something held has rested since a moment, by a key saying which place. */
+/** A place something held has rested since a moment, by a key saying which place, and where the pointer stood as the rest began. */
 export interface Dwell {
+  at: Point;
   key: string;
   since: number;
 }
 
-/** The rest at a place, started over when the place changes, and gone off every place. */
+/**
+ * The rest at a place, started over when the place changes or the pointer
+ * moves more than `REST_PX` from where the rest began, and gone off every
+ * place: a rest is the pointer staying put, not the time it spends in one
+ * place.
+ */
 export function restAt(
   previous: Dwell | undefined,
   key: string | undefined,
+  point: Point,
   now: number,
 ): Dwell | undefined {
   if (key === undefined) {
     return undefined;
   }
-  return previous?.key === key ? previous : { key, since: now };
+  return previous?.key === key &&
+    Math.hypot(point.x - previous.at.x, point.y - previous.at.y) <= REST_PX
+    ? previous
+    : { at: { ...point }, key, since: now };
 }
 
 /** Whether a rest has gone on long enough for the place to take what is held. */

@@ -385,8 +385,7 @@ export function contextReaders({
     const tab = windowTabs.allTabs.find((each) =>
       tabId === undefined ? draftOfTab(each) === draft.id : each.id === tabId,
     );
-    const beside =
-      tab === undefined ? undefined : windowTabs.besideOf(tab.id);
+    const beside = tab === undefined ? undefined : windowTabs.besideOf(tab.id);
     const up =
       tab !== undefined && beside?.id === leftOutBeside[tab.id]
         ? undefined

@@ -306,10 +306,7 @@ function KindsSheet({
       note={note}
       width={LABEL_WIDTH + 96 + width * 2}
     >
-      <CastSources
-        drafts={DRAFTS}
-        pageLoads={sheet.loads}
-      >
+      <CastSources drafts={DRAFTS} pageLoads={sheet.loads}>
         <Picture tabs={sheet.tabs}>
           <Sheet
             heads={["Alone", "Half of a split"]}

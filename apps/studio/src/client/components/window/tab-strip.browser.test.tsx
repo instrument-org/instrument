@@ -210,16 +210,18 @@ describe("a tab held over a strip from elsewhere", () => {
     const WIDE = { width: "800px" };
     const Row = ({ carried, left }: { carried?: string; left?: number }) => {
       return (
-      <div style={WIDE}>
-        <TabStrip
-          carriedKey={carried}
-          heldAt={left === undefined ? undefined : { grabX: -left, key: "held" }}
-          onClose={() => undefined}
-          onSelect={() => undefined}
-          selectedKey="held"
-          tabs={orderedTabs(["a", "b", "c", "d", "held"])}
-        />
-      </div>
+        <div style={WIDE}>
+          <TabStrip
+            carriedKey={carried}
+            heldAt={
+              left === undefined ? undefined : { grabX: -left, key: "held" }
+            }
+            onClose={() => undefined}
+            onSelect={() => undefined}
+            selectedKey="held"
+            tabs={orderedTabs(["a", "b", "c", "d", "held"])}
+          />
+        </div>
       );
     };
     const screen = await renderInBrowser(<Row left={300} />);

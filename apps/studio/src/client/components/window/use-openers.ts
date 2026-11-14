@@ -407,8 +407,7 @@ export function useOpeners({
         return;
       }
       const isShowing =
-        into.group === windowTabs.groupOnScreen &&
-        windowTabs.selectShowing(at);
+        into.group === windowTabs.groupOnScreen && windowTabs.selectShowing(at);
       if (!isShowing && into.isBeside) {
         windowTabs.openScreenBeside(at, {
           behind: options.behind === true,

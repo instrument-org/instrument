@@ -193,7 +193,10 @@ export function locationCrumbs(
           : [
               {
                 label: location.chat.title,
-                to: { href: chatHref(location.chat.id), kind: "screen" as const },
+                to: {
+                  href: chatHref(location.chat.id),
+                  kind: "screen" as const,
+                },
               },
             ]),
         { label: location.title },

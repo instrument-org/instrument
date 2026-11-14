@@ -146,7 +146,6 @@ export const CAST = {
   },
 } satisfies Record<string, CastChat>;
 
-
 export type CastKey = keyof typeof CAST;
 
 /** The cast chat at an id, if the id is one of the cast's. */

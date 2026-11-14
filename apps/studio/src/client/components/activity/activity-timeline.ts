@@ -331,7 +331,10 @@ export const SHOW_LABELS: Record<Show, { label: string; title: string }> = {
 /** What a row says, whichever log it is from. */
 export function entryText(
   entry: TimelineEntry,
-  { modelName, words }: { modelName: (id: null | string) => string; words: Words },
+  {
+    modelName,
+    words,
+  }: { modelName: (id: null | string) => string; words: Words },
 ): RowText {
   return entry.kind === "turn"
     ? turnText(entry.turn, modelName)

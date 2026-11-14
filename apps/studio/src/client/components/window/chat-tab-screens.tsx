@@ -56,47 +56,47 @@ export function GroupChatScreen({ chatId }: { chatId: ChatId }) {
     <div className="absolute inset-0 flex flex-col">
       <ChatTabHead chatId={chatId} />
       <div className="relative min-h-0 flex-1">
-      <ChatScreen
-        chatId={chatId}
-        composerLead={
-          aware || chips.length > 0 ? (
-            <>
-              {aware}
-              {chips.length > 0 && (
-                <ContextChips
-                  items={chips}
-                  onLeaveOut={(item) => {
-                    setLeftOut(item.key);
-                  }}
-                  onShow={() => {
-                    if (beside) {
-                      windowTabs.select(beside.id);
-                    }
-                  }}
-                />
-              )}
-            </>
-          ) : undefined
-        }
-        isUp={isActive && hasKeyboard}
-        key={chatId}
-        {...(tabId === undefined
-          ? {}
-          : { layoutContext: () => shell.layoutContext(tabId) })}
-        onGone={() => {
-          groupTab?.close();
-        }}
-        sendContext={() =>
-          shell.sendContext({
-            chatId,
-            isViewOpen: chips.length > 0,
-            ...(tabId === undefined ? {} : { tabId }),
-            taken: [],
-          })
-        }
-        sentPrompt={shell.sentWords.get(chatId)}
-        takesCaret={isActive && hasKeyboard}
-      />
+        <ChatScreen
+          chatId={chatId}
+          composerLead={
+            aware || chips.length > 0 ? (
+              <>
+                {aware}
+                {chips.length > 0 && (
+                  <ContextChips
+                    items={chips}
+                    onLeaveOut={(item) => {
+                      setLeftOut(item.key);
+                    }}
+                    onShow={() => {
+                      if (beside) {
+                        windowTabs.select(beside.id);
+                      }
+                    }}
+                  />
+                )}
+              </>
+            ) : undefined
+          }
+          isUp={isActive && hasKeyboard}
+          key={chatId}
+          {...(tabId === undefined
+            ? {}
+            : { layoutContext: () => shell.layoutContext(tabId) })}
+          onGone={() => {
+            groupTab?.close();
+          }}
+          sendContext={() =>
+            shell.sendContext({
+              chatId,
+              isViewOpen: chips.length > 0,
+              ...(tabId === undefined ? {} : { tabId }),
+              taken: [],
+            })
+          }
+          sentPrompt={shell.sentWords.get(chatId)}
+          takesCaret={isActive && hasKeyboard}
+        />
       </div>
     </div>
   );
@@ -173,8 +173,7 @@ function AwarenessLine({ chatTab }: { chatTab: string }) {
   const tabs =
     layoutReadOf({ appsBySlug, chatTitles, windowTabs }, chatTab)
       ?.layout.sides.flatMap((side) => side.tabs)
-      .filter((tab) => tab.isThisChat !== true && tab.kind !== "newChat") ??
-    [];
+      .filter((tab) => tab.isThisChat !== true && tab.kind !== "newChat") ?? [];
   if (tabs.length === 0) {
     return null;
   }

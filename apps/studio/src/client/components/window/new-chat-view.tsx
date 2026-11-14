@@ -1,10 +1,6 @@
 import { draftSnapshotsAtom } from "@/client/atoms/prompt-value";
 import { AnimatedOutlineBrandIconGlyph } from "@/client/components/brand-icon";
-import {
-  APPS_HREF,
-  BROWSER_HREF,
-  filesHrefAtom,
-} from "@/client/atoms/window";
+import { APPS_HREF, BROWSER_HREF, filesHrefAtom } from "@/client/atoms/window";
 import { sidebarProjectAtom } from "@/client/atoms/tab-groups";
 import {
   itemsOf,
@@ -253,8 +249,7 @@ export function NewChatView({
   // With the sidebar standing in the project it is filed under, the new
   // chat is that project's room, and says so.
   const sidebarProject = useAtomValue(sidebarProjectAtom);
-  const roomOf =
-    project && sidebarProject === project.id ? project : undefined;
+  const roomOf = project && sidebarProject === project.id ? project : undefined;
 
   // The plus opens the web, the computer and Apps beside the new chat, in
   // the side panel, the way a chat's plus opens them beside the chat.

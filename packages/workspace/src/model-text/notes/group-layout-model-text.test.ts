@@ -85,7 +85,13 @@ describe("groupLayoutModelNote", () => {
         group: GROUP,
         sides: [
           { tabs: [{ ...DOWNLOADS, isUp: true }, SETTINGS] },
-          { tabs: [{ ...CHAT, isUp: false }, { ...ZENDESK, isUp: true }, NEW_CHAT] },
+          {
+            tabs: [
+              { ...CHAT, isUp: false },
+              { ...ZENDESK, isUp: true },
+              NEW_CHAT,
+            ],
+          },
         ],
       }),
     ).toMatchInlineSnapshot(`

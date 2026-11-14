@@ -1,12 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import { type Chat } from "./chats";
-import {
-  chatLines,
-  newTabLines,
-  pageLines,
-  type RowLines,
-} from "./row-lines";
+import { chatLines, newTabLines, pageLines, type RowLines } from "./row-lines";
 
 /** The fields a row reads off a chat, as the chat list's tests stand in for one. */
 function chatWith(fields: Partial<Chat> & Pick<Chat, "title">): Chat {

@@ -83,11 +83,14 @@ describe("layoutParts", () => {
   it("writes a layout only when what it says changed", async () => {
     const { send } = await setup("layout-parts-said");
     expect(await send(read([CHAT, PAGE]))).toEqual(["data-groupLayout"]);
-    expect(await send(read([CHAT, { ...PAGE, title: "Renamed" }]))).toEqual(
-      [],
-    );
+    expect(await send(read([CHAT, { ...PAGE, title: "Renamed" }]))).toEqual([]);
     expect(
-      await send(read([{ ...CHAT, isUp: false }, { ...PAGE, isUp: true }])),
+      await send(
+        read([
+          { ...CHAT, isUp: false },
+          { ...PAGE, isUp: true },
+        ]),
+      ),
     ).toEqual(["data-groupLayout"]);
   });
 });

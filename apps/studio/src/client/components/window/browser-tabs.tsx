@@ -605,11 +605,11 @@ export function BrowserTabs({
         });
         return id;
       },
-      openBeside: (
-        url,
-        { id: given, isLoaded = false, openedBy, ...ask },
-      ) => {
-        if (given !== undefined && latest.current.allTabs.some((tab) => tab.id === given)) {
+      openBeside: (url, { id: given, isLoaded = false, openedBy, ...ask }) => {
+        if (
+          given !== undefined &&
+          latest.current.allTabs.some((tab) => tab.id === given)
+        ) {
           return undefined;
         }
         const id = given ?? StoreId.newTabId();
@@ -643,7 +643,8 @@ export function BrowserTabs({
         // A page already loaded is opened with no address, so it stays as
         // it is; the window browser keeps its lifetime from here.
         if (opened !== undefined) {
-          const audible = ask.isShown && url !== undefined && document.hasFocus();
+          const audible =
+            ask.isShown && url !== undefined && document.hasFocus();
           void rpcClient.workspace.browser.open
             .call({
               targetId: browserTargetOf(id),

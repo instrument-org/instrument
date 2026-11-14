@@ -33,7 +33,10 @@ import {
 type TabCarryEnd = RPCOutput["window"]["endTabCarry"];
 
 /** A whole group as another window would take it: under its own key, with the page of every tab it has. */
-export function wholeGroupStanding(state: WindowTabs, group: string): TabStanding {
+export function wholeGroupStanding(
+  state: WindowTabs,
+  group: string,
+): TabStanding {
   return {
     hostedPages: [],
     isGroupTab: true,
@@ -231,7 +234,9 @@ export function useGroupTabMoves() {
             ? { side: landing.side, split: landing.split }
             : {
                 side: landing.side ?? 0,
-                ...(landing.index === undefined ? {} : { index: landing.index }),
+                ...(landing.index === undefined
+                  ? {}
+                  : { index: landing.index }),
               }),
         });
       }

@@ -305,7 +305,6 @@ describe("matchesAccelerator", () => {
       }),
     ).toBe(false);
   });
-
 });
 
 describe("the shortcut table", () => {

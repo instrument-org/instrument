@@ -30,6 +30,7 @@ import { DEVELOPER_TOOLS_EVALS } from "./developer-tools";
 import { DOCUMENT_DESIGN_EVALS } from "./document-design";
 import { FEEDBACK_OFFER_EVALS } from "./feedback-offers";
 import { FILES_FENCE_EVALS } from "./files-fence";
+import { GROUP_LAYOUT_EVALS } from "./group-layout";
 import { HANDOFF_EVALS } from "./handoff";
 import { IMAGE_BUDGET_EVALS } from "./image-budget";
 import { IMAGE_OPTIONS_EVALS } from "./image-options";
@@ -106,6 +107,7 @@ export const EVALS = [
   ...FEEDBACK_OFFER_EVALS,
   ...FILES_FENCE_EVALS,
   ...WHITEBOARD_EVALS,
+  ...GROUP_LAYOUT_EVALS,
   ...HANDOFF_EVALS,
   ...IMAGE_BUDGET_EVALS,
   ...IMAGE_OPTIONS_EVALS,

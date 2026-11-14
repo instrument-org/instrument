@@ -10,6 +10,7 @@ import { ChatReads } from "../../src/lib/chat-reads";
 import { ChatWrites } from "../../src/lib/chat-writes";
 import { setChatModel } from "../../src/lib/chat-settings";
 import { type FileUpload } from "../../src/schemas/file-upload";
+import { type LayoutSent } from "../../src/schemas/group-layout";
 import { type SessionMessageDataPart } from "../../src/schemas/session/message-data-part";
 import { StoreId } from "../../src/schemas/store-id";
 import { type ChatId } from "../../src/schemas/chat-id";
@@ -37,6 +38,7 @@ export async function startRun(
     files,
     folders,
     kind,
+    layout,
     modelURI,
     name,
     prompt,
@@ -51,6 +53,8 @@ export async function startRun(
     files?: FileUpload.Type[];
     folders?: { path: string }[];
     kind: "chat" | "task";
+    /** The chat's tab group as the first message was sent. */
+    layout?: LayoutSent;
     modelURI: string;
     name: string;
     prompt: string;
@@ -102,6 +106,7 @@ export async function startRun(
     prompt,
     sessionId,
     chatId,
+    ...(layout ? { layout } : {}),
     ...(viewing ? { viewing } : {}),
   });
   if (sent.isErr()) {

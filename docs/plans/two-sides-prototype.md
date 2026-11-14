@@ -34,6 +34,10 @@ Page contents can stay rough. What has to be right is the layout engine, draggin
 - An agent's page stays after the turn ends, until someone closes it. A chat with no tab, as one still at work after its group closed, gets a new group in the list with a tab on the chat, which the window does not move to. A blank page the agent starts in or asks for gets its tab only once it goes somewhere, so no blank tab shows in the strip. A tab the person opened stays theirs: the agent goes to another page in it only when asked to and given its id, and every other page it opens gets a tab of its own.
 - **+ and ⌘T** always open a new tab (the zero state) after the tab up, in the side with the keyboard.
 - **⌘N** always makes a new group: one side, one new chat, at the top of the list under New.
+- **⇧⌘T** reopens what was closed last: a group closed whole comes back as that group, and a tab comes back where it was.
+- **⌥⌘← and ⌥⌘→** (Alt+Shift with the arrows off the Mac) move the keyboard to the left or right side, as code editors move between splits.
+- **⌘K** is the launcher: a screen or a site picked there opens in the tab up on the side with the keyboard, where Back returns; a chat opens as a group of its own.
+- **A chat asked for from outside** (a notification, the bell, an `instrument://chat` link from another app) comes up at its tab the person last sent from, wherever it is open; a chat with no tab opens as a group of its own. Clicks inside the app always open a new group.
 - **Every tab's menu can open a chat beside it** (New Tab in Split), so a group of only websites is one click from the AI.
 
 ## The new tab, which is a new chat
@@ -49,7 +53,11 @@ Each side is a card of the window's, with its own head:
 3. the bookmarks bar, Files first, with the chevron beside Files that the earlier build added;
 4. what the tab up shows.
 
-A chat tab has the same chrome as any tab. Its address field reads as the Chat chip and its title; Back from a chat's first visit does nothing, and a page opened in place from a chat goes back to it.
+A chat tab has the same chrome as any tab. Its address field reads as the Chat chip and its title; Back from a chat's first visit does nothing, and a page opened in place from a chat goes back to it. Under the bookmarks bar the chat's title leads its page, where its menu and Rename are, with the chat folder's button at the right, which opens the folder beside the chat. A task's tab has the same chrome, its address field reading as the chat's title, which goes back to the chat, then the task's.
+
+Files keeps the same row as every tab, and its own controls (the sidebar, the view, the sort, search) sit in a second row under the bookmarks bar.
+
+With two sides, the tabs of the side without the keyboard fade a little, and its half of the group's sidebar row is the narrower one.
 
 **The address field** leads with an app chip for every built-in page and for a chat (Chat, Files, Settings, Memory, Skills, History, Activity, Apps), then where the tab is, in parts, the way a file's path reads: a chat's title, a part of Settings, what Activity shows and the row open in it. The chip goes to the app's index: Chat to every chat, Files to the home folder, and each built-in page to its start. Every part before the last is a place to step back out to, as a file's folders are. Both go in place, except from a chat's tab, where they open as a new tab right after it. A website shows its URL as today. Clicked, the field holds a website's URL or a file's or a folder's path to edit; the app's own places have no address a person types, so their field opens empty and searches the app the chip names, the way a browser's address bar searches a site once its keyword is in: Search chats, Search settings, Search activity, Search history, Search memories, Search skills, Search apps. Choosing a chat brings up its tab where it is open; otherwise it opens as History opens it, or as a new tab right after the chat from a chat's field. Choosing an entry of a built-in page goes there in place. The chip stays while the caret is in the field, and everything typed or pasted there searches its app, an address or a path included, so a link pasted in a chat's field searches the chats for it and opens nothing. Backspace in the empty field puts the chip away for the whole field, where an address opens, and Escape puts the place back. Only a click, ⌘L or a letter typed opens the field for typing: a caret the keyboard brings there leaves the place on show. Addresses for bookmarks and links use the link forms the app already opens (`instrument://chat/<id>`, `instrument://file/<path>`, `instrument://screen/<name>`), extended for the built-in pages, and the field never shows one to edit.
 
@@ -65,7 +73,7 @@ Settings, Memory, Skills, History, Activity and Apps are tabs with addresses, op
 
 For now every split is made and managed from right-click menus, the same items wherever they apply:
 
-- **A tab**: Open in Split (a copy on the other side) or Move to Other Side, New Tab in Split, Move to New Tab Group, Move to New Window, Duplicate, Bookmark, Close, Close Other Tabs, Close Tabs to the Left, Close Tabs to the Right. A chat's tab then has the chat's own items, each acting on that chat: its marks, Rename, Project, Copy (the chat folder's path, the work folder's path, for an agent), Send feedback, Archive and Delete. A new chat's tab with words in it has Project, which files its draft.
+- **A tab**: Open in Split (a copy on the other side) or Move to Other Side, New Tab in Split, Move to New Tab Group, Move to New Window, Duplicate, Bookmark, Close, Close Other Tabs, Close Tabs to the Left, Close Tabs to the Right. A chat's tab then has the chat's own items, each acting on that chat: its marks, Rename, Project, Copy (the chat folder's path, the work folder's path, for an agent), Send Feedback, Archive and Delete. A new chat's tab with words in it has Project, which files its draft.
 - **A link** (in a page, in a chat, in a file shown in a tab): Open Link in Split, Open Link in New Tab, Open Link in New Tab Group, Open Link in New Window, Bookmark Link, Copy Link. A page's menu, and a file's, start with Open Link, which opens the link in place; a chat's has no plain Open, since a click there opens the link in a new tab beside the chat. A file or folder in Files, or a file chip in a chat, keeps a file's words (Open in Split, Add to Bookmarks).
 - **A sidebar row**: Open in New Window, Duplicate, Pin, the Close items. Each acts on the group as a whole, whatever its tabs show; what acts on one chat is in that chat's tab menu.
 - **A bookmark**: Open, Open in Split, Open in New Tab, Open in New Tab Group, Open in New Window, Rename, Delete.
@@ -101,6 +109,10 @@ One drag system carries everything that can be held, and every place that takes 
 - **The window reads it.** `layoutReadOf` (`group-awareness.ts`) reads the group of a chat's tab through Core's `groupLayoutOf`: the tab is this chat, the keyboard is the side that has it, and every tab is named, a new chat as New Tab. A send carries it as `layout` on `message.create`, read by the sending tab (`shell.layoutContext(tabId)`), which also marks that tab as the one sent from (`promptedAt`). As the tabs settle, the window hands the workspace the read for every chat with a tab (`chats.layoutRead`), kept in memory, latest winning, for a wake.
 - **The transcript** draws `data-layoutChanges` as one dim line over the person's message; the layout itself is a developer's note.
 - **Checked by** `group-layout.test.ts` (the diff, `it.each` over a line notation), `group-layout-parts.test.ts` (when parts are written), `group-layout-model-text.test.ts` (the notes), `group-awareness.test.tsx` (the reading), the model-text byte snapshots, and the eval `group-layout-beside` (`layout` on a case or follow-up sends the read with no window behind it).
+
+## Before merge
+
+- **Archive goes in favor of closing.** A chat with no tab is in History, so closing its tabs puts it away the way Archive did. Archive stays in the chat's menus on this branch and comes out before the branch merges.
 
 ## Left open
 
@@ -186,7 +198,7 @@ Paths are under `apps/studio/src/client/` unless named.
 
 - Checked in a dev instance on the documents fixture, held off screen: each menu's rows and order, and what Open in Split, Open in New Tab Group, Open in New Window and Add to Bookmarks do from a Files row, a bookmark on the bar, a tab and the sidebar rows of a two-sided chat group, a group with no chat and a two-sided new chat.
 - Input over CDP reaches neither a native menu nor a menu key equivalent. A web page's link menu was checked by patching `Menu.buildFromTemplate` in main to pick a row, and ⌘\ by sending the key from main with `webContents.sendInputEvent`. The native menus over a chat's links, file cards and path chips were never opened in the app; `hooks/use-open-target.test.tsx` checks their rows and what each opens.
-- A tab's bookmark row toggles, while a link's only adds. The rows drawn by the app wear `size-4` icons beside Core's `size-3.5` ones in some menus, and a chat tab's own items (Mark as unread, Send feedback…, Delete chat…) are in sentence case.
+- A tab's bookmark row toggles, while a link's only adds.
 
 ### Drag
 

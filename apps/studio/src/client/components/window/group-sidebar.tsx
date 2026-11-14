@@ -500,11 +500,7 @@ function ListItem({
         opacity: 1,
         transitionEnd: { overflow: "visible" },
       }}
-      className={cn(
-        "relative shrink-0",
-        isArriving && "chat-arrive",
-        isLifted && "hidden",
-      )}
+      className={cn("relative shrink-0", isLifted && "hidden")}
       data-drop-group={group}
       data-drop-item={item}
       data-drop-section={section}
@@ -512,11 +508,17 @@ function ListItem({
       data-lifted={isLifted ? "" : undefined}
       exit={{ height: 0, opacity: 0, overflow: "hidden" }}
       inert={!isPresent}
-      initial={isArriving ? { height: 0, overflow: "hidden" } : false}
+      // The room opens here, and the row fades in on its own inner box
+      // (`chat-arrive`): the two on one box would fight over its opacity,
+      // and the row would dip back as the room finished opening.
+      initial={
+        isArriving ? { height: 0, opacity: 1, overflow: "hidden" } : false
+      }
       transition={isReduced || isInstant ? { duration: 0 } : ROW_MOTION}
     >
       <div
         className={cn(
+          isArriving && "chat-arrive",
           !snaps &&
             "transition-[translate] duration-200 ease-[cubic-bezier(0.2,0.8,0.2,1)] motion-reduce:transition-none",
         )}

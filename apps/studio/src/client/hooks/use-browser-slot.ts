@@ -43,8 +43,8 @@ export function useBrowserSlot({
   layer?: number;
   // Something that changes whenever the host moves without resizing (a
   // floating window taking a neighbor's place along a row): a move changes
-  // nothing the resize observer or the settle check below can see, so the
-  // slot is measured again whenever this does.
+  // nothing the resize observer can see, so the slot is measured again
+  // whenever this does.
   relayoutKey?: string;
   targetId: BrowserTargetId;
 }) {
@@ -158,13 +158,35 @@ export function useBrowserSlot({
     // holds for whichever host the slot is in by then. The slot's own
     // resizes are watched here: the follower watching them for a slot
     // standing in as the floating element too would observe it afresh
-    // every frame.
-    const observer = new ResizeObserver(measure);
-    observer.observe(slot);
-    const stopFollowing = autoUpdate(slot, slot, measure, {
-      ancestorScroll: false,
-      elementResize: false,
+    // every frame. The follower takes the slot's rect as it starts and
+    // watches nothing while the slot has no size (a slot first measured in
+    // a hidden holder, or taken off the page for a moment), so it starts
+    // again whenever the slot comes back with a size.
+    let stopFollowing = () => {};
+    let hasSize = false;
+    const follow = () => {
+      stopFollowing();
+      stopFollowing = autoUpdate(slot, slot, measure, {
+        ancestorScroll: false,
+        elementResize: false,
+      });
+    };
+    const sizeOf = () => {
+      const { height, width } = slot.getBoundingClientRect();
+      return width > 0 && height > 0;
+    };
+    const observer = new ResizeObserver(() => {
+      const wasSized = hasSize;
+      hasSize = sizeOf();
+      if (hasSize && !wasSized) {
+        follow();
+      } else {
+        measure();
+      }
     });
+    observer.observe(slot);
+    hasSize = sizeOf();
+    follow();
     const onScroll = (event: Event) => {
       if (event.target instanceof Node && event.target.contains(slot)) {
         measure();

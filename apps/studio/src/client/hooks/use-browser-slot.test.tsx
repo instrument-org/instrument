@@ -33,8 +33,12 @@ const lastShownX = () => vi.mocked(showOverSlot).mock.lastCall?.[1].x;
 // What the slot's position observer sees, sent to the one watching now: it
 // is made again each time the slot moves.
 let seeMove: () => void = () => undefined;
+// A change of the slot's size, as its resize observer reports it.
+let seeResize: () => void = () => undefined;
 
 beforeEach(() => {
+  seeMove = () => undefined;
+  seeResize = () => undefined;
   vi.stubGlobal(
     "IntersectionObserver",
     class {
@@ -52,6 +56,9 @@ beforeEach(() => {
   vi.stubGlobal(
     "ResizeObserver",
     class {
+      constructor(callback: () => void) {
+        seeResize = callback;
+      }
       disconnect() {}
       observe() {}
     },
@@ -76,6 +83,24 @@ it("follows the slot when it moves without resizing", () => {
   x = 328;
   seeMove();
   expect(lastShownX()).toBe(328);
+});
+
+it("follows a slot first measured with no size once it has one", () => {
+  // A page brought up while the window's page waits in its hidden holder:
+  // the slot has no size until the page is drawn in a side.
+  let rect = new DOMRect(0, 0, 0, 0);
+  vi.spyOn(HTMLElement.prototype, "getBoundingClientRect").mockImplementation(
+    () => rect,
+  );
+  render(<Slot />);
+  rect = new DOMRect(328, 0, 628, 752);
+  seeResize();
+  expect(lastShownX()).toBe(328);
+
+  // Moved to the other side of its group, at the same size.
+  rect = new DOMRect(964, 0, 628, 752);
+  seeMove();
+  expect(lastShownX()).toBe(964);
 });
 
 it("follows a scroll of a box around the slot", () => {

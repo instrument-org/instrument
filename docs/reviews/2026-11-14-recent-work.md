@@ -140,7 +140,7 @@ Important means a concrete correctness, security, privacy, or data-preservation 
 
 ### Q. Nit: find in chat counts text that is not shown
 
-- Status: open
+- Status: fixed
 - Where: [use-find-highlights.ts:262](/apps/studio/src/client/components/document-viewers/use-find-highlights.ts#L262).
 - What: `checkVisibility()` with no options passes `opacity: 0` and `visibility: hidden`, so each earlier reply's hover-only footer (model, duration, time) is counted and stepped to. `checkVisibility({ opacityProperty: true, visibilityProperty: true })` leaves them out.
 

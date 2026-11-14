@@ -254,12 +254,18 @@ export function findRanges(container: HTMLElement, query: string): Range[] {
     // the readout above the number of highlights actually painted and send
     // "next match" to nothing. The gutter is exactly that case: it is hidden
     // below a narrow container, and its `In [n]:` would answer a search for
-    // "in". One forced style flush per search is the price, which the
-    // per-frame coalescing above keeps to one per frame at worst.
+    // "in". Text laid out but not shown (`opacity: 0`, `visibility: hidden`)
+    // is left out the same way: a row that shows only on hover would be
+    // counted and stepped to with nothing to see. One forced style flush per
+    // search is the price, which the per-frame coalescing above keeps to one
+    // per frame at worst.
     if (
       node instanceof Text &&
       node.data !== "" &&
-      node.parentElement?.checkVisibility() === true
+      node.parentElement?.checkVisibility({
+        opacityProperty: true,
+        visibilityProperty: true,
+      }) === true
     ) {
       // Concatenating without a separator is what lets a match span the
       // several elements syntax highlighting splits one line into. Across a

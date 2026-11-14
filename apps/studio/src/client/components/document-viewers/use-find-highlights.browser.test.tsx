@@ -171,4 +171,19 @@ describe("useFindHighlights", () => {
     await getByTestId("widen").click();
     await expect.poll(readout).toBe("0/2");
   });
+
+  it("leaves out text that is laid out but not shown", async () => {
+    const { readout } = await renderFind({
+      children: (
+        <>
+          <p>ready</p>
+          <p style={{ opacity: 0 }}>ready on hover</p>
+          <p style={{ visibility: "hidden" }}>ready and held back</p>
+        </>
+      ),
+      query: "ready",
+    });
+
+    await expect.poll(readout).toBe("0/1");
+  });
 });

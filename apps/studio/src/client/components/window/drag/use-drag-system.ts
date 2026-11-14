@@ -410,7 +410,7 @@ function orderAt(
  * Removes a bookmark dragged off where it is kept, with Undo in a toast
  * that puts it back as it was.
  */
-export function useRemoveBookmarkWithUndo() {
+function useRemoveBookmarkWithUndo() {
   const apply = useSetAtom(applyBookmarkOpsAtom);
   return (bookmark: Bookmark) => {
     void apply([{ id: bookmark.id, type: "remove" }]);

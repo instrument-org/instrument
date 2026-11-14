@@ -50,7 +50,7 @@ import { newScreenId, useWindowTabs } from "./window-tabs";
  * toolbar's arrows, reload and an address worth reading. A group too narrow
  * for its sides at this scrolls sideways rather than squeezing either.
  */
-export const SIDE_WIDTH_MIN = 440;
+const SIDE_WIDTH_MIN = 440;
 
 /** How near the middle, in layout px, a dragged gutter settles on it. */
 const SIDE_SNAP_PX = 15;

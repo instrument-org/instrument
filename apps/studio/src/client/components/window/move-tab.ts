@@ -37,7 +37,7 @@ function sitesItCanGoTo(tab: Tab) {
 }
 
 /** What handing a tab to another window would hand over, as it stands now. */
-export function tabStanding(id: TabId): TabStanding | undefined {
+function tabStanding(id: TabId): TabStanding | undefined {
   const store = getDefaultStore();
   const { tabs } = store.get(appTabsAtom);
   const allTabs = store.get(windowTabsAtom).tabs;

@@ -16,7 +16,7 @@ import { isFileUrl, isHttpUrl, pageAddressOfLink } from "./window-open-policy";
  * after the page's, the other side of the page's tab group, the first tab of
  * a new tab group, or of a new window.
  */
-export type GuestLinkPlace = "group" | "split" | "tab" | "window";
+type GuestLinkPlace = "group" | "split" | "tab" | "window";
 
 /**
  * Where a link in the guest can go besides the guest itself: a place of the

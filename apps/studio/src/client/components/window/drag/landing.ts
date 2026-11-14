@@ -21,7 +21,7 @@ export const DWELL_MS = 400;
 export const FILE_GRAB_PX = 18;
 
 /** How far past the window's edge the pointer goes before it has left the window. */
-export const OFF_WINDOW_PX = 16;
+const OFF_WINDOW_PX = 16;
 
 export interface Point {
   x: number;

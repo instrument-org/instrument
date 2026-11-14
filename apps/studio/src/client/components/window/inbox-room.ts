@@ -5,7 +5,7 @@ import { useEffect, useEffectEvent } from "react";
 /** Whether the inbox was put away for a row too narrow for it, rather than by hand. */
 const inboxSteppedAsideAtom = atom(false);
 /** Whether the inbox next shown comes at once, pinned from a peek already drawn where it stands. */
-export const inboxLandsAtOnceAtom = atom(false);
+const inboxLandsAtOnceAtom = atom(false);
 /** Whether the row was too narrow for the inbox when the tab up last answered to it, so a crossing is told from a row that stayed put. */
 const inboxAnsweredCrowdedAtom = atom(false);
 

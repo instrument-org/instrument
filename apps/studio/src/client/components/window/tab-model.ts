@@ -118,7 +118,7 @@ export function besideOf(
  * A group's sides kept as `groupLayoutOf` reads them: a right side with no
  * left becomes the left, and a group of one side keeps no other side's up.
  */
-export function normalizeSides(state: WindowTabs, group: string): WindowTabs {
+function normalizeSides(state: WindowTabs, group: string): WindowTabs {
   const own = tabsIn(state, group);
   const hasLeft = own.some((tab) => sideOf(tab) === 0);
   const hasRight = own.some((tab) => sideOf(tab) === 1);
@@ -666,7 +666,7 @@ export function chatUpIn(state: WindowTabs, group: string): ChatId | undefined {
 }
 
 /** A chat's tab, the first one: in the groups named, in their order, or in any group. */
-export function chatTabOf(
+function chatTabOf(
   state: WindowTabs,
   chat: ChatId,
   among?: readonly string[],

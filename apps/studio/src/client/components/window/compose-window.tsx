@@ -730,7 +730,7 @@ export function WindowButton({
  * to take it off, or a dashed slot that opens the same picker when none is
  * picked yet. A project Instrument filed on its own explains itself on hover.
  */
-export function ProjectSlot({
+function ProjectSlot({
   onClear,
   onNew,
   onPick,

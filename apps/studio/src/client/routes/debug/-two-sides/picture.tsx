@@ -20,6 +20,8 @@ import {
 } from "@/client/components/window/inbox-toggle";
 import { PaneTabs } from "@/client/components/window/pane-tabs";
 import { useRowSlots } from "@/client/components/window/row-slots";
+import { RowSourcesContext } from "@/client/components/window/row-half";
+import { type PageLoad } from "@/client/components/window/row-lines";
 import { screenLocation } from "@/client/components/window/screen-presentation";
 import {
   ShellContext,
@@ -53,6 +55,7 @@ import { chatHref, matchScreen } from "@/client/components/window/window-href";
 import { useWindowTabs } from "@/client/components/window/window-tabs";
 import { cn, isMacOS } from "@/client/lib/utils";
 import { hostPathOfFileUrl } from "@/client/lib/file-url";
+import { type Draft } from "@/shared/drafts";
 import { type ChatId } from "@instrument-org/workspace/client";
 import { ArrowClockwiseIcon } from "@phosphor-icons/react/ArrowClockwise";
 import { SidebarSimpleIcon } from "@phosphor-icons/react/SidebarSimple";
@@ -196,9 +199,48 @@ export function CastProvider({
   return (
     <CastContext value={cast}>
       <ShellContext value={{ ...shell, chatTitles: titles }}>
-        {children}
+        <RowSourcesContext
+          value={{
+            chats: Object.keys(CAST)
+              .filter(isCastKey)
+              .map((key) => cast.chatOf(key)),
+            drafts: [],
+          }}
+        >
+          {children}
+        </RowSourcesContext>
       </ShellContext>
     </CastContext>
+  );
+}
+
+/**
+ * What the rows under it read in place of the cast's: only the chats named
+ * (the Active list lists those of them that are active), the drafts given,
+ * and the pages' loads by their tabs.
+ */
+export function CastSources({
+  chats,
+  children,
+  drafts = [],
+  pageLoads,
+}: {
+  chats: readonly CastKey[];
+  children: ReactNode;
+  drafts?: readonly Draft[];
+  pageLoads?: ReadonlyMap<string, PageLoad>;
+}) {
+  const { chatOf } = useCast();
+  return (
+    <RowSourcesContext
+      value={{
+        chats: chats.map(chatOf),
+        drafts,
+        ...(pageLoads ? { pageLoads } : {}),
+      }}
+    >
+      {children}
+    </RowSourcesContext>
   );
 }
 
@@ -421,9 +463,11 @@ export function SidebarPicture({
       groupUp={groupUp}
       onClose={noop}
       onCloseAll={noop}
+      onCloseTab={noop}
       onDuplicate={noop}
       onNew={noop}
       onNewProject={noop}
+      onOpenChat={noop}
       onPin={noop}
       onShow={noop}
       open={[...rows]}

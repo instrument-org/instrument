@@ -1613,6 +1613,7 @@ function WindowShell({
                   onCloseAll={(closed, keep) => {
                     closeGroups(closed, keep);
                   }}
+                  onCloseTab={requestClose}
                   onDuplicate={(entry) => {
                     groups.duplicate(entry);
                   }}
@@ -1621,6 +1622,22 @@ function WindowShell({
                   }}
                   onNewProject={() => {
                     setNewProject({});
+                  }}
+                  onOpenChat={(chat) => {
+                    // The chat's tab here comes up with its group; a chat
+                    // with no tab here opens as a group of its own.
+                    const tab = windowTabs.chatTab(chat);
+                    const group = tab?.group;
+                    if (
+                      tab &&
+                      group !== undefined &&
+                      groupList.open.some((entry) => entry.group === group)
+                    ) {
+                      windowTabs.select(tab.id);
+                      groups.show(group);
+                    } else {
+                      groups.openChat(chat);
+                    }
                   }}
                   onPin={(group, pinned) => {
                     groups.pin(group, pinned);

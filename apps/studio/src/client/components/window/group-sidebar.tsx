@@ -8,7 +8,6 @@ import {
   sidebarProjectAtom,
 } from "@/client/atoms/tab-groups";
 import { type WindowTab } from "@/client/atoms/window";
-import { PageFavicon } from "@/client/components/favicon";
 import { NetworkStatusIndicator } from "@/client/components/network-status/network-status-pill";
 import { type RailBounds } from "@/client/components/studio-sidebar-rail";
 import { ToolbarTooltip } from "@/client/components/toolbar-tooltip";
@@ -31,7 +30,6 @@ import { CaretRightIcon } from "@phosphor-icons/react/CaretRight";
 import { ClockCounterClockwiseIcon } from "@phosphor-icons/react/ClockCounterClockwise";
 import { GearSixIcon } from "@phosphor-icons/react/GearSix";
 import { PlusIcon } from "@phosphor-icons/react/Plus";
-import { XIcon } from "@phosphor-icons/react/X";
 import { type ChatId } from "@instrument-org/workspace/client";
 import { useQuery } from "@tanstack/react-query";
 import { useAtom, useAtomValue } from "jotai";
@@ -54,16 +52,14 @@ import { HelpMenu } from "./help-menu";
 import { toggleLeft } from "./inbox-toggle";
 import { useAppsBySlug } from "./apps-by-slug";
 import { type Project } from "./chats";
-import { Peek } from "./chat-row";
 import { NotificationsBell } from "./notifications-bell";
 import { ProjectBanner } from "./project-banner";
 import { projectColor } from "./project-colors";
 import { projectTint } from "./project-tint";
 import { ProjectsSection } from "./projects-section";
-import { RowActionBar } from "./row-action-bar";
-import { pageTabTitle } from "./file-tabs";
-import { ScreenMark } from "./pane-tabs";
-import { screenPresentation } from "./screen-presentation";
+import { ActiveList } from "./active-list";
+import { RowHalf, RowLinesView, TabMark, useRowSources } from "./row-half";
+import { quiet } from "./row-lines";
 import { useTabTitle } from "./tab-title";
 import {
   pressGroupRow,
@@ -79,7 +75,6 @@ import {
 } from "./sidebar-drop";
 import { useProjectShift } from "./use-project-shift";
 import {
-  draftWordsTitle,
   isPinnedGroup,
   type TabGroup,
   windowTabGroupsAtom,
@@ -135,9 +130,11 @@ export function GroupSidebar({
   groupUp,
   onClose,
   onCloseAll,
+  onCloseTab,
   onDuplicate,
   onNew,
   onNewProject,
+  onOpenChat,
   onPin,
   onShow,
   open,
@@ -149,10 +146,14 @@ export function GroupSidebar({
   onClose: (group: string) => void;
   /** Closes several groups at once, from the row whose menu asked (`keep`). */
   onCloseAll: (groups: string[], keep: string) => void;
+  /** Closes one tab, from a half of a row of two sides. */
+  onCloseTab: (tab: string) => void;
   /** A copy of a group just below it, up in the window. */
   onDuplicate: (entry: TabGroup) => void;
   onNew: (projectId?: string) => void;
   onNewProject: () => void;
+  /** Brings up a chat from the Active list: its tab where it has one, else a group of its own. */
+  onOpenChat: (chat: ChatId) => void;
   /** Pins a group above the line, or takes it back down. */
   onPin: (group: string, pinned: boolean) => void;
   onShow: (group: string, options: { newWindow: boolean }) => void;
@@ -182,6 +183,7 @@ export function GroupSidebar({
   const pinned = listed.filter((entry) => isPinnedGroup(entry));
   const rest = listed.filter((entry) => !isPinnedGroup(entry));
   const { chatUpIn } = useWindowTabs();
+  const sources = useRowSources();
   const chats = open.flatMap((entry) =>
     entry.kind === "chat" ? [entry.chat] : [],
   );
@@ -239,6 +241,7 @@ export function GroupSidebar({
       key={entry.group}
       menu={menuOf(entry)}
       onClose={onClose}
+      onCloseTab={onCloseTab}
       onPress={pressGroupRow}
       onShow={onShow}
     />
@@ -306,6 +309,7 @@ export function GroupSidebar({
           projects={projects}
         />
       )}
+      {!project && <ActiveList chats={sources.chats} onOpen={onOpenChat} />}
       <AnimatePresence>
         {pinned.map((entry) => listItem(entry, "pinned"))}
         {pinned.length > 0 && (
@@ -623,29 +627,34 @@ function BackRow({ label, onBack }: { label: string; onBack: () => void }) {
 }
 
 /**
- * One tab group as two lines: its title, bold while it holds something not
- * yet seen; then its chat's latest line (the step it is on, the question it
- * waits on, or its last reply), with the marks of the group's tabs at the
- * line's end. A group whose chat has not started has only its tabs' marks
- * there. While the pointer is on a row that closes, a close X stands at the
- * title line's end, and a middle click closes it too. While a tab held over
+ * One tab group as two lines, drawing each tab up: a group of one side its
+ * tab across the row, a group of two each side's tab in a half of its own,
+ * the halves always equal and a hairline between them (`RowHalf`). A tab's
+ * mark leads its title, and what it says goes under them, its state among
+ * it: a chat's is its own, so a chat in two groups says the same in both.
+ * The whole row is one press. While the pointer is on it, an X stands at
+ * each half's title end, which closes that half's tab, or the group for a
+ * row of one side; a middle click closes the group. While a tab held over
  * it would land in its group, it takes a quiet fill in place of any other
- * tone. A right click raises its menu (`GroupRowMenu`). The title is the
- * tab up on the side with the keyboard's.
+ * tone. A right click raises its menu (`GroupRowMenu`).
  */
 export function GroupRow({
   chatTitles,
   entry,
+  isCloseShown = false,
   isDropInto = false,
   isLifted = false,
   isUp,
   menu,
   onClose,
+  onCloseTab,
   onPress,
   onShow,
 }: {
   chatTitles: Map<ChatId, string>;
   entry: TabGroup;
+  /** Its X kept up whatever the pointer does, for a picture of the row under it. */
+  isCloseShown?: boolean;
   isDropInto?: boolean;
   /** The copy of a row lifted out of the list, which stands for it under the pointer. */
   isLifted?: boolean;
@@ -653,34 +662,86 @@ export function GroupRow({
   /** What its menu does, for a row of this window's own groups. */
   menu?: GroupRowMenuActions;
   onClose?: (group: string) => void;
+  /** Closes one tab, the one up on a half of a row of two sides. */
+  onCloseTab?: (tab: string) => void;
   /** A press that may become a drag of the row. */
   onPress?: (group: string, event: ReactPointerEvent<HTMLElement>) => void;
   onShow?: (group: string, options: { newWindow: boolean }) => void;
 }) {
-  const chat = entry.kind === "chat" ? entry.chat : undefined;
-  const isUnread = chat?.unread === true;
-  const { selectedTabIn } = useWindowTabs();
-  const appsBySlug = useAppsBySlug();
-  // A row is titled by the tab up on its side with the keyboard: a chat's
-  // tab by the chat, a new chat with words by them, a page by its own.
-  const up = selectedTabIn(entry.group);
-  let ownTitle =
-    entry.kind === "draft" ? draftWordsTitle(entry.draft) : entry.title;
-  if (up?.kind === "page") {
-    ownTitle = pageTabTitle(up) || ownTitle;
-  } else if (up !== undefined && entry.kind !== "draft") {
-    ownTitle = screenPresentation(up.href, { appsBySlug, chatTitles }).title;
+  const { layoutOf } = useWindowTabs();
+  const ups = layoutOf(entry.group).sides.flatMap((side) => {
+    const up = side.tabs.find((tab) => tab.id === side.up) ?? side.tabs[0];
+    return up ? [up] : [];
+  });
+  const closeOf = (tab: WindowTab) => {
+    if (ups.length > 1) {
+      return onCloseTab
+        ? {
+            label: "Close Tab",
+            run: () => {
+              onCloseTab(tab.id);
+            },
+          }
+        : undefined;
+    }
+    return onClose
+      ? {
+          label: "Close Tab Group",
+          run: () => {
+            onClose(entry.group);
+          },
+        }
+      : undefined;
+  };
+  const half = (tab: WindowTab) => (
+    <RowHalf
+      chatTitles={chatTitles}
+      close={closeOf(tab)}
+      isCloseShown={isCloseShown}
+      key={tab.id}
+      tab={tab}
+    />
+  );
+  const [first, second] = ups;
+  let inner: ReactNode;
+  if (first && second) {
+    inner = (
+      <div className="flex min-w-0 items-stretch">
+        {half(first)}
+        <span className="mx-2 my-0.5 w-px shrink-0 self-stretch bg-foreground/12" />
+        {half(second)}
+      </div>
+    );
+  } else if (first) {
+    inner = half(first);
+  } else {
+    // A group whose tabs are not in yet goes by its own title.
+    inner = (
+      <RowLinesView
+        close={
+          onClose && {
+            label: "Close Tab Group",
+            run: () => {
+              onClose(entry.group);
+            },
+          }
+        }
+        isCloseShown={isCloseShown}
+        lines={quiet(entry.title, "Nothing open yet")}
+      />
+    );
   }
-  const title = ownTitle;
   const shown = (
     <div
       className={cn(
-        "group/row flex shrink-0 items-center gap-2 rounded-lg px-2.5 py-1.5",
+        "group/row flex shrink-0 flex-col rounded-lg px-2.5 py-1.5",
         isDropInto
           ? DROP_TONE
           : isUp
             ? "bg-card shadow-xs ring-1 ring-black/[0.04]"
-            : "hover:bg-foreground/[0.04]",
+            : isCloseShown
+              ? "bg-foreground/[0.04]"
+              : "hover:bg-foreground/[0.04]",
         onShow && "cursor-default",
         onPress && "select-none",
       )}
@@ -712,130 +773,10 @@ export function GroupRow({
       }
       role={isLifted ? undefined : "button"}
     >
-      <div className="min-w-0 flex-1">
-        <div className="flex h-5 min-w-0 items-center gap-1.5">
-          <span
-            className={cn(
-              "min-w-0 flex-1 truncate text-[13px] leading-5",
-              isUnread
-                ? "font-semibold text-foreground"
-                : "font-medium text-foreground/85",
-            )}
-          >
-            {title}
-          </span>
-          <RowActionBar
-            actions={
-              onClose
-                ? [
-                    {
-                      icon: <XIcon />,
-                      id: "close",
-                      label: "Close Tab Group",
-                      run: () => {
-                        onClose(entry.group);
-                      },
-                    },
-                  ]
-                : []
-            }
-          />
-        </div>
-        <div className="flex h-5 min-w-0 items-center gap-2 text-[12px] leading-5">
-          <SecondLine chatTitles={chatTitles} entry={entry} />
-        </div>
-      </div>
+      {inner}
     </div>
   );
   return menu ? <GroupRowMenu menu={menu}>{shown}</GroupRowMenu> : shown;
-}
-
-/**
- * A row's tab marks, one line of them: those that do not fit whole wrap
- * below it, out of sight, so a busy group shows its first marks whole
- * rather than one cut in half.
- */
-const MARKS_CLASSNAME =
-  "flex h-3.5 flex-wrap items-center gap-x-1 overflow-hidden text-muted-foreground";
-
-/**
- * The second line of a row: the latest line of the chat it is named by, as
- * the inbox's row says it, and the marks of every tab, the left side first,
- * at the line's end and at most under half of it; a group with no chat has
- * the marks alone.
- */
-function SecondLine({
-  chatTitles,
-  entry,
-}: {
-  chatTitles: Map<ChatId, string>;
-  entry: TabGroup;
-}) {
-  const { layoutOf } = useWindowTabs();
-  const appsBySlug = useAppsBySlug();
-  // Every tab's mark, the left side first, in strip order.
-  const tabs = layoutOf(entry.group).sides.flatMap((side) => side.tabs);
-  const marks = tabs
-    .slice(0, 8)
-    .map((tab) => (
-      <TabMark
-        appsBySlug={appsBySlug}
-        chatTitles={chatTitles}
-        key={tab.id}
-        tab={tab}
-      />
-    ));
-  if (entry.kind !== "chat") {
-    return tabs.length === 0 ? (
-      <span className="text-muted-foreground">Nothing open yet</span>
-    ) : (
-      <span className={cn(MARKS_CLASSNAME, "min-w-0")}>{marks}</span>
-    );
-  }
-  return (
-    <>
-      <span className="flex min-w-0 flex-1">
-        <Peek chat={entry.chat} />
-      </span>
-      {tabs.length > 0 && (
-        <span
-          className={cn(MARKS_CLASSNAME, "max-w-[45%] shrink-0 justify-end")}
-        >
-          {marks}
-        </span>
-      )}
-    </>
-  );
-}
-
-export function TabMark({
-  appsBySlug,
-  chatTitles,
-  tab,
-}: {
-  appsBySlug: ReturnType<typeof useAppsBySlug>;
-  chatTitles: Map<ChatId, string>;
-  tab: WindowTab;
-}) {
-  if (tab.kind === "page") {
-    return (
-      <PageFavicon
-        className="size-3.5 shrink-0"
-        favicon={tab.favicon}
-        hasTooltip={false}
-        url={tab.url ?? tab.openedUrl ?? ""}
-      />
-    );
-  }
-  return (
-    <span className="grid size-3.5 shrink-0 place-items-center [&_svg]:size-3.5">
-      <ScreenMark
-        appsBySlug={appsBySlug}
-        chatTitles={chatTitles}
-        href={tab.href}
-      />
-    </span>
-  );
 }
 
 /**

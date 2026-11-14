@@ -6,7 +6,8 @@ import { useAtomValue } from "jotai";
 import { useLayoutEffect, useRef, useState } from "react";
 
 import { useAppsBySlug } from "../apps-by-slug";
-import { GroupRow, TabMark } from "../group-sidebar";
+import { GroupRow } from "../group-sidebar";
+import { TabMark } from "../row-half";
 import { useTabTitle } from "../tab-title";
 import { type TabGroup } from "../tab-groups";
 import { useWindowTabs } from "../window-tabs";

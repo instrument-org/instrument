@@ -23,6 +23,7 @@ import { holdSendsUntilOpened } from "@/client/lib/message-sends";
 import { rpcClient } from "@/client/rpc/client";
 import {
   type ChatId,
+  type LayoutSent,
   type SessionMessageDataPart,
   StoreId,
 } from "@instrument-org/workspace/client";
@@ -62,6 +63,7 @@ export function useDrafts({
   draftContext,
   isChat,
   isOpen,
+  layout,
   openChat,
   openDraftInChat,
   openDrafts,
@@ -84,6 +86,14 @@ export function useDrafts({
   isChat: boolean;
   /** Whether what the window opens on is made; no chat starts before it is. */
   isOpen: boolean;
+  /**
+   * A group's layout as a message goes from it, and what it was last told
+   * carried from a draft's group to its chat's; see `group-awareness.ts`.
+   */
+  layout?: {
+    carry: (from: string, to: string) => void;
+    read: (group: string) => LayoutSent | undefined;
+  };
   /** Puts the tab up on a chat, whole, for a draft sent from the chat: the draft `fromDraft` that started it. */
   openChat: (chatId: ChatId, fromDraft: string) => void;
   /** Puts the tab up on the Chat screen writing a draft, beside the chat list. */
@@ -336,6 +346,7 @@ export function useDrafts({
     // are still there to read; the window changes under it at once.
     // With the chips it showed, for the transcript to draw.
     const viewing = draftContext(id).catch(() => undefined);
+    const layoutSent = layout?.read(draftGroupOf(id));
     // Chosen here rather than by the workspace, so the window can be the
     // chat's before the chat exists.
     const sessionId = StoreId.newSessionId();
@@ -382,6 +393,7 @@ export function useDrafts({
       // own, named as any chat's is. A pinned group's chat is starred, which
       // pins a chat's group.
       setGroupNames((names) => nameCarried(names, draftGroupOf(id), chatId));
+      layout?.carry(draftGroupOf(id), chatId);
       const isPinned = draftGroupOf(id) in store.get(groupPinsAtom);
       if (isPinned) {
         starChat(queryClient, chatId, true);
@@ -422,6 +434,7 @@ export function useDrafts({
         folders: send.folders,
         fromDraft: id,
         id: chatId,
+        ...(layoutSent ? { layout: layoutSent } : {}),
         modelURI: send.modelURI,
         prompt: send.prompt,
         ...(draft.projectId ? { project: draft.projectId } : {}),

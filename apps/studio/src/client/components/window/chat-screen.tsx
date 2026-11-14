@@ -11,6 +11,7 @@ import { createMessageOptions } from "@/client/lib/message-sends";
 import { rpcClient } from "@/client/rpc/client";
 import {
   type ChatId,
+  type LayoutSent,
   type SessionMessageDataPart,
   type StoreId,
 } from "@instrument-org/workspace/client";
@@ -44,6 +45,8 @@ interface ChatScreenProps {
   composerOffer?: ReactNode;
   /** Whether this is the chat on screen: only that one marks itself read or takes the caret. */
   isUp: boolean;
+  /** The chat's tab group as a message goes, and what changed in it; see `ChatConversation`. */
+  layoutContext?: () => LayoutSent | undefined;
   /** Puts away a chat no record holds any more, the way deleting one does. */
   onGone: () => void;
   sendContext: () => Promise<
@@ -109,6 +112,7 @@ function ChatScreenOfRecord({
   composerLead,
   composerOffer,
   isUp,
+  layoutContext,
   sendContext,
   sentPrompt,
   sessionId,
@@ -258,6 +262,7 @@ function ChatScreenOfRecord({
                   draftKey={{ chatId, scope: "chat" }}
                   selectedModelURI={modelURI}
                   selectedSessionId={sessionId}
+                  {...(layoutContext ? { layoutContext } : {})}
                   sendContext={sendContext}
                   sentPrompt={sentPrompt}
                   takesCaret={takesCaret}

@@ -126,6 +126,7 @@ import { useSignInLanding } from "./use-sign-in-landing";
 import { WindowLook } from "./look-panel";
 import { ProjectDialog } from "./project-dialog";
 import { screenActionOf, useRecordScreen } from "./screen-action";
+import { carryLayoutSent, layoutReader } from "./group-awareness";
 import { contextReaders } from "./send-context";
 import { type WindowShell as Shell, ShellContext } from "./shell-context";
 import { useStagedAskActions } from "./staged-asks";
@@ -162,6 +163,7 @@ import {
   windowTabGroupsAtom,
 } from "./tab-groups";
 import {
+  chatClosedByGroupAtom,
   groupSearchAtom,
   sidebarOpenAtom,
   sidebarProjectAtom,
@@ -618,6 +620,7 @@ function WindowShell({
   const sendContextRef = useRef<Shell["sendContext"]>(() =>
     Promise.resolve(undefined),
   );
+  const layoutContextRef = useRef<Shell["layoutContext"]>(() => undefined);
   // The card the tabs are drawn in, measured in layout px, which the inbox
   // and the floating windows size themselves against.
   const [rowElement, setRowElement] = useState<HTMLDivElement | null>(null);
@@ -1008,8 +1011,19 @@ function WindowShell({
       windowTabs,
     });
   const draftContext = (draftId: string) => readersNow().draftContext(draftId);
+  // A chat's tab group as a message goes from it, read at the press.
+  const chatClosedByGroup = useAtomValue(chatClosedByGroupAtom);
+  const layoutNow = (group: string) =>
+    layoutReader({
+      appsBySlug,
+      chatClosedByGroup,
+      chatTitles,
+      groups: groupList.open,
+      windowTabs,
+    })(group);
   useLayoutEffect(() => {
     sendContextRef.current = (options) => readersNow().sendContext(options);
+    layoutContextRef.current = layoutNow;
   });
   const {
     arrivedId,
@@ -1031,6 +1045,10 @@ function WindowShell({
     compose,
     draftContext,
     isOpen: opened !== undefined,
+    layout: {
+      carry: carryLayoutSent,
+      read: (group) => layoutContextRef.current(group),
+    },
     isChat,
     // The draft's group becomes the chat's in its place in the list first,
     // so the chat is never a group this window does not have open.
@@ -1458,6 +1476,7 @@ function WindowShell({
     popOutDraft,
     requestClose,
     rowWidth,
+    layoutContext: (group) => layoutContextRef.current(group),
     sendContext: (options) => sendContextRef.current(options),
     sentProjects,
     sentWords,

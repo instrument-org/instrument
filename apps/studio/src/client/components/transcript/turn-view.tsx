@@ -178,8 +178,15 @@ function OpenerView({
   opener: TurnOpener;
 }) {
   const { chips, files, folders, fromChat, notes, text } = opener;
+  // What changed in the tab group since the last message stands over the
+  // message, as what it was said after.
+  const before = notes.filter((part) => part.type === "data-layoutChanges");
+  const after = notes.filter((part) => part.type !== "data-layoutChanges");
   return (
     <div className="flex flex-col gap-1">
+      {before.map((part) => (
+        <NoteRow chatId={chatId} key={part.metadata.id} part={part} />
+      ))}
       {/* What went with the message, one row of the composer's own chips:
           what was on screen, then the folders and files attached. */}
       {chips.length + folders.length + files.length > 0 && (
@@ -194,7 +201,7 @@ function OpenerView({
       )}
       {fromChat && <AssignmentBubble fromChat={fromChat} />}
       {text && <UserMessage part={text} />}
-      {notes.map((part) => (
+      {after.map((part) => (
         <NoteRow chatId={chatId} key={part.metadata.id} part={part} />
       ))}
     </div>

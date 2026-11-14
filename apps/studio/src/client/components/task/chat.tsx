@@ -34,6 +34,7 @@ import { type AIGatewayModelURI } from "@instrument-org/ai-gateway/client";
 import { APP_NAME } from "@instrument-org/shared";
 import {
   modelChangeSincePreviousTurn,
+  type LayoutSent,
   type SessionMessageDataPart,
   type SessionMessagePart,
   StoreId,
@@ -119,6 +120,7 @@ export function ChatConversation({
   composerLead,
   composerOffer,
   draftKey,
+  layoutContext,
   selectedModelURI: initialSelectedModelURI,
   selectedSessionId,
   sendContext,
@@ -144,6 +146,11 @@ export function ChatConversation({
   composerOffer?: ReactNode;
   /** Which draft the composer edits, and the one "Add to chat" in the transcript writes to. */
   draftKey: PromptDraftKey;
+  /**
+   * The chat's tab group as a message goes, and what changed in it since the
+   * chat's last message; read at the press, beside `sendContext`.
+   */
+  layoutContext?: () => LayoutSent | undefined;
   selectedModelURI?: AIGatewayModelURI.Type;
   selectedSessionId: StoreId.Session;
   /**
@@ -547,11 +554,13 @@ export function ChatConversation({
     setIsFollowingSubmit(true);
     slideToSentRef.current();
     const dropPending = showPending(prompt);
+    const layout = layoutContext?.();
     void sendContext().then(
       (viewing) => {
         createMessage.mutate(
           {
             id,
+            ...(layout ? { layout } : {}),
             modelURI: selectedModelURI,
             prompt,
             sessionId: selectedSessionId,
@@ -631,6 +640,7 @@ export function ChatConversation({
         // Drawn before what goes with it is read: reading a page can take a
         // moment, and the send is only stored once that is in.
         const dropPending = showPending(prompt);
+        const layout = layoutContext?.();
         // The message names the draft it came from, so the draft names the
         // chat on disk before the message is written: a launch after a crash
         // finds the message by the chat its draft names.
@@ -643,6 +653,7 @@ export function ChatConversation({
                 folders,
                 ...(outgoing ? { fromDraft: outgoing.draftId } : {}),
                 id,
+                ...(layout ? { layout } : {}),
                 modelURI,
                 prompt,
                 sessionId: selectedSessionId,

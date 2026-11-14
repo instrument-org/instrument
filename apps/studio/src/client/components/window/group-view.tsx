@@ -237,6 +237,7 @@ export function GroupView({
           chatId={chat}
           isUp={isActive}
           key={chat}
+          layoutContext={() => shell.layoutContext(chat)}
           onGone={() => {
             windowTabs.dropGroup(chat);
             leave();

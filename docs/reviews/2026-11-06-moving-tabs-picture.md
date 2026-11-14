@@ -57,7 +57,7 @@ Asked for once the drag felt right: whether it is safe to merge, above all in th
 ### I. The window left behind brought up the wrong tab
 
 - Status: fixed
-- Where: `dressSpare` in [tab-carry.ts](/apps/studio/src/electron-main/windows/tab-carry.ts), `showWhereItIs` in [use-tab-carry.ts](/apps/studio/src/client/components/window/use-tab-carry.ts)
+- Where: `dressSpare` in [tab-carry.ts](/apps/studio/src/electron-main/windows/tab-carry.ts), `showWhereItIs` in `apps/studio/src/client/components/window/use-tab-carry.ts`
 - What: it took the neighbor of the tab that went whether or not that tab was up, and the renderer named a neighbor from the order at the press.
 
 ### J. In another window's strip a tab was placed by the pointer
@@ -79,7 +79,7 @@ Asked for once the drag felt right: whether it is safe to merge, above all in th
 ### M. The last movement of a release placed the tab among the tabs from its press
 
 - Status: fixed
-- Where: `onDragStart` in [use-tab-carry.ts](/apps/studio/src/client/components/window/use-tab-carry.ts)
+- Where: `onDragStart` in `apps/studio/src/client/components/window/use-tab-carry.ts`
 
 ### N. Taking a maximized window's place left the window not maximized
 

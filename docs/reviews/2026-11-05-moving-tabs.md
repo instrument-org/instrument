@@ -85,7 +85,7 @@ Asked for ahead of merging the multiple windows work: the difficult bugs, and th
 ### M. A fast release before Motion's first frame leaves the carry running
 
 - Status: fixed `89f4e88b4`
-- Where: [use-tab-carry.ts:115](/apps/studio/src/client/components/window/use-tab-carry.ts#L115)
+- Where: `apps/studio/src/client/components/window/use-tab-carry.ts:115`
 - What: Motion reports a drag's start on its next frame even when the release has already happened, so a press, a small move and a release during a busy moment left the release listener added too late. The spare came up, the next click was swallowed, and a window's only tab followed the pointer with no button down until that click.
 - Verification: on the macOS VM, a tab flicked while its renderer was held busy stayed held after the release on the build before the fix, and not on the build after it. A window's only tab did not reproduce on either.
 - Note: found in the change that moved the release to the pointer's own event. The last movement before a release was lost the same way, and a second finger lifting ended the drag.

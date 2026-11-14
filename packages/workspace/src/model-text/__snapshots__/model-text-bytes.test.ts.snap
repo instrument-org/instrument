@@ -2573,10 +2573,11 @@ exports[`the notes a stored data part renders > groupLayout 1`] = `
     "</user_message>",
     "
 <instrument-system-note>
-The tab group you work in, group_1, now: two sides, each its tabs in order, "up" marking the one showing there.
-Left: website "Zendesk pricing" at https://www.zendesk.com/pricing (tab_01M0000000000000000000000T, up)
-Right, with the keyboard: this chat (up)
-Tab ids are for commands; in replies, name a tab by its title.
+Your group (you: right, in front):
+left:  zendesk.com/pricing*
+right: [chat] Help desk prices (you)*
+* in front · keyboard: right
+The tabs in front are most likely what the user is looking at.
 </instrument-system-note>",
   ],
 ]

@@ -13,7 +13,6 @@ import { type AppsBySlug } from "./apps-by-slug";
 import { computerTabOf } from "./file-tabs";
 import { joinHostPath, segmentsOf } from "./host-path";
 import { screenPresentation } from "./screen-presentation";
-import { isFreshTab, isHomeTab, isNewChatTab } from "./tab-model";
 import { matchScreen } from "./window-href";
 import { type useWindowTabs } from "./window-tabs";
 
@@ -51,10 +50,7 @@ export function layoutReadOf(
 /**
  * A group's layout as the chat in `chatTab` reads it (`groupLayoutOf`): its
  * sides in order, each tab named and the one up marked, the chat's own tab
- * marked as this chat, and the chat's side as the one with the keyboard,
- * since the send comes from its composer. A new chat shows nothing to name,
- * so the group's other new chats are left out, and a side left with no tabs
- * goes with them.
+ * marked as this chat, and the side with the keyboard.
  */
 export function groupLayoutFor(
   window: GroupAwarenessWindow,
@@ -62,32 +58,17 @@ export function groupLayoutFor(
   chatTab: string,
 ): LayoutSnapshot {
   const layout = window.windowTabs.layoutOf(group);
-  const sides = layout.sides
-    .map((side, index) => ({
-      index,
-      tabs: side.tabs
-        .filter(
-          (tab) =>
-            tab.id === chatTab ||
-            !(isFreshTab(tab) || isHomeTab(tab) || isNewChatTab(tab)),
-        )
-        .map((tab) => ({
-          ...describedTab(window, tab),
-          ...(tab.openedBy === undefined ? {} : { byAgent: true }),
-          ...(tab.id === chatTab ? { isThisChat: true } : {}),
-          ...(tab.id === side.up ? { isUp: true } : {}),
-        })),
-    }))
-    .filter((side) => side.tabs.length > 0);
-  const chatSide = sides.findIndex((side) =>
-    side.tabs.some((tab) => tab.isThisChat === true),
-  );
-  const focusedSide = sides.findIndex((side) => side.index === layout.focused);
-  const focused = chatSide === -1 ? Math.max(focusedSide, 0) : chatSide;
   return {
-    focused,
+    focused: layout.focused,
     group: { id: group },
-    sides: sides.map(({ tabs }) => ({ tabs })),
+    sides: layout.sides.map((side) => ({
+      tabs: side.tabs.map((tab) => ({
+        ...describedTab(window, tab),
+        ...(tab.openedBy === undefined ? {} : { byAgent: true }),
+        ...(tab.id === chatTab ? { isThisChat: true } : {}),
+        ...(tab.id === side.up ? { isUp: true } : {}),
+      })),
+    })),
   };
 }
 

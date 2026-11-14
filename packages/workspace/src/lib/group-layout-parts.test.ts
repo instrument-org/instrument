@@ -30,8 +30,8 @@ const read = (tabs: LayoutTab[], group = "group_a"): LayoutRead => ({
   layout: { focused: 0, group: { id: group }, sides: [{ tabs }] },
 });
 
-async function setup() {
-  const chatId = createMockChatConfig(ChatIdSchema.parse("layout-parts"));
+async function setup(name = "layout-parts") {
+  const chatId = createMockChatConfig(ChatIdSchema.parse(name));
   const sessionId = (await ensureChatSession(chatId))._unsafeUnwrap().id;
   /** Asks for the parts of a message and writes it, as a send or a wake does. */
   const send = async (given?: LayoutRead) => {
@@ -78,5 +78,16 @@ describe("layoutParts", () => {
       "data-groupLayout",
       ["chatMoved"],
     ]);
+  });
+
+  it("writes a layout only when what it says changed", async () => {
+    const { send } = await setup("layout-parts-said");
+    expect(await send(read([CHAT, PAGE]))).toEqual(["data-groupLayout"]);
+    expect(await send(read([CHAT, { ...PAGE, title: "Renamed" }]))).toEqual(
+      [],
+    );
+    expect(
+      await send(read([{ ...CHAT, isUp: false }, { ...PAGE, isUp: true }])),
+    ).toEqual(["data-groupLayout"]);
   });
 });

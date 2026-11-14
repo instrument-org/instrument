@@ -18,60 +18,97 @@ const KIND_WORDS: Record<LayoutTabKind, string> = {
   website: "website",
 };
 
-/** Ids are what the `window` command takes; a reply names a tab as the user sees it. */
-const BY_TITLE =
-  "Tab ids are for commands; in replies, name a tab by its title.";
+const SIDE_NAMES = ["left", "right"] as const;
 
 /**
- * The tab group the chat works in, as it stands now: its sides left to
- * right, each one's tabs in order with the one showing there marked, the
- * side with the keyboard, and this chat among them. Written only when it
- * reads differently from the one before, so each one is news.
+ * The tab group the chat works in, as it stands now: each side's tabs in
+ * order with the one in front marked, the side with the keyboard, and which
+ * tab is this chat. Written only when it reads differently from the one
+ * before, so each one is news.
  */
 export function groupLayoutModelNote(
   data: SessionMessageDataPart.GroupLayoutDataPart,
 ) {
-  const group = `The tab group you work in, ${data.group.id},`;
   if (isChatAlone(data)) {
     return systemNote`
-      ${group} is just this chat now.
+      Your tab group is just you now.
     `;
   }
-  if (data.sides.length === 1) {
-    return systemNote`
-      ${group} now: one side, its tabs in order, "up" marking the one showing: ${tabsLine(data.sides[0]?.tabs ?? [])}.
-      ${BY_TITLE}
-    `;
-  }
-  const sides = data.sides
-    .map(
-      ({ tabs }, side) =>
-        `${side === 0 ? "Left" : "Right"}${side === data.focused ? ", with the keyboard" : ""}: ${tabsLine(tabs)}`,
-    )
-    .join("\n");
+  const isTwo = data.sides.length === 2;
+  const yours = data.sides.findIndex(({ tabs }) =>
+    tabs.some((tab) => tab.isThisChat),
+  );
+  const you = data.sides[yours]?.tabs.find((tab) => tab.isThisChat);
+  const where = [
+    ...(isTwo && yours !== -1 ? [SIDE_NAMES[yours]] : []),
+    ...(you ? [you.isUp ? "in front" : "behind"] : []),
+  ].join(", ");
+  const head = where === "" ? "Your group:" : `Your group (you: ${where}):`;
+  const lines = data.sides.map(({ tabs }, side) => {
+    const line = tabs.map(tabWords).join(" · ");
+    return isTwo ? `${`${SIDE_NAMES[side] ?? "left"}:`.padEnd(7)}${line}` : line;
+  });
+  const legend = isTwo
+    ? `* in front · keyboard: ${SIDE_NAMES[data.focused] ?? "left"}`
+    : "* in front";
   return systemNote`
-    ${group} now: two sides, each its tabs in order, "up" marking the one showing there.
-    ${sides}
-    ${BY_TITLE}
+    ${head}
+    ${lines.join("\n")}
+    ${legend}
+    The tabs in front are most likely what the user is looking at.
   `;
 }
 
-/** A group that is this chat and nothing else: nothing to say until it had something. */
+/**
+ * A group that is this chat and nothing else but unwritten new chats:
+ * nothing to say until it had something.
+ */
 export function isChatAlone(data: SessionMessageDataPart.GroupLayoutDataPart) {
-  return data.sides.every(({ tabs }) => tabs.every((tab) => tab.isThisChat));
+  return data.sides.every(({ tabs }) =>
+    tabs.every((tab) => tab.isThisChat || tab.kind === "newChat"),
+  );
 }
 
-function tabsLine(tabs: readonly LayoutTab[]): string {
-  return tabs.map(tabWords).join("; ");
-}
-
+/** A tab as the layout names it: by its kind where its address does not say, and `*` in front. */
 function tabWords(tab: LayoutTab): string {
-  const marks = [
-    ...(tab.isThisChat ? [] : [tab.id]),
-    ...(tab.isUp ? ["up"] : []),
-  ];
-  const tail = marks.length > 0 ? ` (${marks.join(", ")})` : "";
-  return `${named(tab)}${tab.isThisChat || tab.kind === "newChat" ? "" : ` at ${tab.address}`}${tail}`;
+  return `${tabName(tab)}${tab.isThisChat ? " (you)" : ""}${tab.isUp ? "*" : ""}`;
+}
+
+function tabName(tab: LayoutTab): string {
+  switch (tab.kind) {
+    case "builtIn": {
+      return `[app] ${tab.title}`;
+    }
+    case "chat": {
+      return `[chat] ${tab.title}`;
+    }
+    case "file": {
+      return tab.address;
+    }
+    case "folder": {
+      return `[folder] ${tab.address}`;
+    }
+    case "newChat": {
+      return "New Tab";
+    }
+    case "website": {
+      return shortAddress(tab.address);
+    }
+  }
+}
+
+/** The longest a website's address runs before it is cut. */
+const ADDRESS_LIMIT = 80;
+
+/** A website's address without its scheme, `www.` and a bare trailing slash, cut when long. */
+function shortAddress(address: string): string {
+  const short = address
+    .replace(/^https?:\/\//, "")
+    .replace(/^www\./, "")
+    .replace(/\/$/, "");
+  return short.length > ADDRESS_LIMIT
+    ? `${short.slice(0, ADDRESS_LIMIT - 1)}…`
+    : short;
 }
 
 /** A tab by its kind and title, or as this chat. */

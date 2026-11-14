@@ -1,6 +1,9 @@
 import { isEqual } from "radashi";
 
-import { isChatAlone } from "../model-text/notes/group-layout-model-text";
+import {
+  groupLayoutModelNote,
+  isChatAlone,
+} from "../model-text/notes/group-layout-model-text";
 import { type ChatId } from "../schemas/chat-id";
 import { type LayoutRead, type LayoutSnapshot } from "../schemas/group-layout";
 import { type SessionMessage } from "../schemas/session/message";
@@ -105,11 +108,14 @@ function lastLayout(
   return undefined;
 }
 
-/** Whether two layouts read the same, where the other tabs stood aside. */
+/**
+ * Whether two layouts read the same to the agent: the same group, and the
+ * same structure as its note states it, so a page's title changing alone
+ * writes nothing.
+ */
 function sameLayout(one: LayoutSnapshot, other: LayoutSnapshot): boolean {
   return (
     isEqual(one.group, other.group) &&
-    one.focused === other.focused &&
-    isEqual(one.sides, other.sides)
+    groupLayoutModelNote(one) === groupLayoutModelNote(other)
   );
 }

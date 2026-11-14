@@ -106,7 +106,8 @@ function AwarenessLine({ chatTab }: { chatTab: string }) {
   const tabs =
     layoutReadOf({ appsBySlug, chatTitles, windowTabs }, chatTab)
       ?.layout.sides.flatMap((side) => side.tabs)
-      .filter((tab) => tab.isThisChat !== true) ?? [];
+      .filter((tab) => tab.isThisChat !== true && tab.kind !== "newChat") ??
+    [];
   if (tabs.length === 0) {
     return null;
   }

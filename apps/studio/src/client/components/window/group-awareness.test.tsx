@@ -101,13 +101,13 @@ describe("groupLayoutFor", () => {
       windowOf([ZENDESK, right(CHAT_TAB)], {
         activeByGroup: { [GROUP]: ZENDESK.id },
       }),
-      ["tab_zen*", ">@*"],
+      [">tab_zen*", "@*"],
     ],
-    ["a new chat left out", windowOf([CHAT_TAB, NEW_CHAT]), [">@*"]],
+    ["a new chat kept", windowOf([CHAT_TAB, NEW_CHAT]), [">@* tab_new"]],
     [
-      "a side of new chats alone left out",
+      "a side of a new chat alone kept",
       windowOf([CHAT_TAB, right(NEW_CHAT)]),
-      [">@*"],
+      [">@*", "tab_new*"],
     ],
   ])("%s", (_case, window, sides) => {
     expect(sidesOf(window)).toEqual(sides);

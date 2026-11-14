@@ -34,23 +34,68 @@ const NEW_CHAT: LayoutTab = {
   title: "New chat",
 };
 
+const NOTES: LayoutTab = {
+  address: "/Users/mac-user/Documents/notes.md",
+  id: "tab_01NOTES",
+  kind: "file",
+  title: "notes.md",
+};
+const G2: LayoutTab = {
+  address: "https://www.g2.com/compare",
+  id: "tab_01G2",
+  kind: "website",
+  title: "Compare help desks",
+};
+const SETTINGS: LayoutTab = {
+  address: "instrument://screen/settings",
+  id: "tab_01SET",
+  kind: "builtIn",
+  title: "Settings",
+};
+
 const GROUP = { id: "group_prices" };
 
 describe("groupLayoutModelNote", () => {
-  it("names two sides, the keyboard's, and the tab up on each", () => {
+  it("names each side's tabs, the one in front on each, the keyboard's side and this chat", () => {
     expect(
       groupLayoutModelNote({
-        focused: 1,
+        focused: 0,
         group: GROUP,
-        sides: [{ tabs: [ZENDESK, DOWNLOADS] }, { tabs: [CHAT, NEW_CHAT] }],
+        sides: [
+          { tabs: [{ ...CHAT, title: "Renewal reminders" }, NOTES] },
+          { tabs: [ZENDESK, G2] },
+        ],
       }),
     ).toMatchInlineSnapshot(`
       "
       <instrument-system-note>
-      The tab group you work in, group_prices, now: two sides, each its tabs in order, "up" marking the one showing there.
-      Left: website "Zendesk pricing" at https://www.zendesk.com/pricing (tab_01ZEN, up); folder "Downloads" at /Users/mac-user/Downloads (tab_01DL)
-      Right, with the keyboard: this chat (up); new chat (tab_01NEW)
-      Tab ids are for commands; in replies, name a tab by its title.
+      Your group (you: left, in front):
+      left:  [chat] Renewal reminders (you)* · /Users/mac-user/Documents/notes.md
+      right: zendesk.com/pricing* · g2.com/compare
+      * in front · keyboard: left
+      The tabs in front are most likely what the user is looking at.
+      </instrument-system-note>"
+    `);
+  });
+
+  it("says this chat is behind, on the right, with the keyboard on the left", () => {
+    expect(
+      groupLayoutModelNote({
+        focused: 0,
+        group: GROUP,
+        sides: [
+          { tabs: [{ ...DOWNLOADS, isUp: true }, SETTINGS] },
+          { tabs: [{ ...CHAT, isUp: false }, { ...ZENDESK, isUp: true }, NEW_CHAT] },
+        ],
+      }),
+    ).toMatchInlineSnapshot(`
+      "
+      <instrument-system-note>
+      Your group (you: right, behind):
+      left:  [folder] /Users/mac-user/Downloads* · [app] Settings
+      right: [chat] Help desk prices (you) · zendesk.com/pricing* · New Tab
+      * in front · keyboard: left
+      The tabs in front are most likely what the user is looking at.
       </instrument-system-note>"
     `);
   });
@@ -65,23 +110,53 @@ describe("groupLayoutModelNote", () => {
     ).toMatchInlineSnapshot(`
       "
       <instrument-system-note>
-      The tab group you work in, group_prices, now: one side, its tabs in order, "up" marking the one showing: this chat (up); folder "Downloads" at /Users/mac-user/Downloads (tab_01DL).
-      Tab ids are for commands; in replies, name a tab by its title.
+      Your group (you: in front):
+      [chat] Help desk prices (you)* · [folder] /Users/mac-user/Downloads
+      * in front
+      The tabs in front are most likely what the user is looking at.
       </instrument-system-note>"
     `);
   });
 
-  it("says a group that is the chat alone in a line", () => {
+  it("cuts a long address", () => {
     expect(
       groupLayoutModelNote({
         focused: 0,
         group: GROUP,
-        sides: [{ tabs: [CHAT] }],
+        sides: [
+          {
+            tabs: [
+              CHAT,
+              {
+                ...ZENDESK,
+                address: `https://www.google.com/search?q=${"help+desk+".repeat(12)}`,
+                isUp: false,
+              },
+            ],
+          },
+        ],
       }),
     ).toMatchInlineSnapshot(`
       "
       <instrument-system-note>
-      The tab group you work in, group_prices, is just this chat now.
+      Your group (you: in front):
+      [chat] Help desk prices (you)* · google.com/search?q=help+desk+help+desk+help+desk+help+desk+help+desk+help+desk…
+      * in front
+      The tabs in front are most likely what the user is looking at.
+      </instrument-system-note>"
+    `);
+  });
+
+  it.each([
+    ["the chat alone", [CHAT]],
+    ["the chat beside unwritten new chats", [CHAT, NEW_CHAT]],
+  ])("says %s in a line", (_label, tabs) => {
+    expect(
+      groupLayoutModelNote({ focused: 0, group: GROUP, sides: [{ tabs }] }),
+    ).toMatchInlineSnapshot(`
+      "
+      <instrument-system-note>
+      Your tab group is just you now.
       </instrument-system-note>"
     `);
   });

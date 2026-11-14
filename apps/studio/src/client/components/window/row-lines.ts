@@ -138,7 +138,7 @@ export type ActiveWord = "Asks" | "Replied" | "Working";
  * yet read, then at work. A chat doing none of these, a stopped one among
  * them, is not active.
  */
-export function activeWordOf(
+function activeWordOf(
   chat: Pick<Chat, "status" | "unread">,
 ): ActiveWord | undefined {
   if (chat.status === "waiting") {

@@ -9,7 +9,10 @@ import { rpcClient } from "@/client/rpc/client";
 import { type Draft } from "@/shared/drafts";
 import { safe } from "@orpc/client";
 import { XIcon } from "@phosphor-icons/react/X";
-import { type ChatId, parseBrowserTargetId } from "@instrument-org/workspace/client";
+import {
+  type ChatId,
+  parseBrowserTargetId,
+} from "@instrument-org/workspace/client";
 import { useQuery } from "@tanstack/react-query";
 import { useAtomValue } from "jotai";
 import { createContext, type ReactNode, use, useEffect, useState } from "react";
@@ -159,7 +162,7 @@ export function RowLinesView({
  * a file its folder, a built-in page the part open, a new tab the words
  * typed in it (`row-lines.ts`).
  */
-export function useRowLines(
+function useRowLines(
   tab: WindowTab,
   chatTitles: Map<ChatId, string>,
 ): RowLines {

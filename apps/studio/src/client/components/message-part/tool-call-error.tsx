@@ -30,7 +30,7 @@ export function ToolCallError({ part }: { part: ErrorPart }) {
   const cutOff = isCutOff(part);
 
   return (
-    <div className="group/card mt-2 overflow-hidden rounded-2xl border border-border bg-card">
+    <div className="group/card my-2 overflow-hidden rounded-2xl border border-border bg-card">
       <div className="border-b border-border bg-muted px-4 py-3">
         <p className="text-xs font-medium text-muted-foreground">
           {cutOff

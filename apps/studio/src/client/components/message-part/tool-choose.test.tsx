@@ -136,7 +136,7 @@ describe("ToolChoose", () => {
     });
     expect(screen.queryAllByRole("radio")).toHaveLength(0);
     expect(container.querySelectorAll("input")).toHaveLength(0);
-    expect(container.textContent).toContain("Which one?");
+    expect(container.textContent).toContain("Framework");
   });
 
   // A question that carries its card waits by the composer, so the call
@@ -358,6 +358,34 @@ describe("QuestionCard once answered", () => {
 
     fireEvent.click(screen.getByRole("button", { expanded: false }));
     expect(container.textContent).toContain("React");
+  });
+
+  it("opens onto the whole question with every choice", () => {
+    const { container } = renderWithProviders(
+      <QuestionCard
+        onAnswer={vi.fn()}
+        output={{ replies: [{ picked: ["Vue"] }] }}
+        questions={ONE}
+        status="closed"
+      />,
+    );
+    expect(container.textContent).toBe("FrameworkVue");
+
+    fireEvent.click(screen.getByRole("button", { expanded: false }));
+    expect(container.textContent).toBe("FrameworkVueWhich one?ReactVue");
+  });
+
+  // Records an earlier build wrote in the one-question shape carry no header.
+  it("leads with the question when it has no header", () => {
+    const { container } = renderWithProviders(
+      <QuestionCard
+        onAnswer={vi.fn()}
+        output={{ replies: [{ picked: ["Vue"] }] }}
+        questions={[{ ...ONE[0]!, header: "" }]}
+        status="closed"
+      />,
+    );
+    expect(container.textContent).toBe("Which one?Vue");
   });
 
   it("draws an answer on its way as given, with nothing left to click", () => {

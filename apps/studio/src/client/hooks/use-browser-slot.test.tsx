@@ -28,25 +28,27 @@ function Slot() {
   return <div data-testid="slot" ref={ref} />;
 }
 
-let frames: FrameRequestCallback[] = [];
-const runFrames = (count: number) => {
-  for (let frame = 0; frame < count; frame += 1) {
-    const running = frames;
-    frames = [];
-    for (const callback of running) {
-      callback(0);
-    }
-  }
-};
 const lastShownX = () => vi.mocked(showOverSlot).mock.lastCall?.[1].x;
 
+// What the slot's position observer sees, sent to the one watching now: it
+// is made again each time the slot moves.
+let seeMove: () => void = () => undefined;
+
 beforeEach(() => {
-  frames = [];
-  vi.stubGlobal("requestAnimationFrame", (callback: FrameRequestCallback) => {
-    frames.push(callback);
-    return frames.length;
-  });
-  vi.stubGlobal("cancelAnimationFrame", vi.fn());
+  vi.stubGlobal(
+    "IntersectionObserver",
+    class {
+      constructor(
+        callback: (entries: { intersectionRatio: number }[]) => void,
+      ) {
+        seeMove = () => {
+          callback([{ intersectionRatio: 1 }]);
+        };
+      }
+      disconnect() {}
+      observe() {}
+    },
+  );
   vi.stubGlobal(
     "ResizeObserver",
     class {
@@ -61,30 +63,39 @@ afterEach(() => {
   vi.clearAllMocks();
 });
 
-it("follows a slide that begins a few frames after the guest is shown", () => {
-  let x = 1233;
+it("follows the slot when it moves without resizing", () => {
+  let x = 1064;
   vi.spyOn(HTMLElement.prototype, "getBoundingClientRect").mockImplementation(
-    () => new DOMRect(x, 0, 855, 752),
+    () => new DOMRect(x, 0, 728, 752),
   );
   render(<Slot />);
-  expect(lastShownX()).toBe(1233);
+  expect(lastShownX()).toBe(1064);
 
-  // The transition has been set off, and has not started moving yet.
-  runFrames(4);
-  x = 900;
-  runFrames(1);
-  expect(lastShownX()).toBe(900);
-  x = 377;
-  runFrames(1);
-  expect(lastShownX()).toBe(377);
+  // A tab moved to the other side of its group: the slot moves, and its
+  // size stays as it was.
+  x = 328;
+  seeMove();
+  expect(lastShownX()).toBe(328);
 });
 
-it("stops looking once the slot has settled, telling the pool only of moves", () => {
+it("follows a scroll of a box around the slot", () => {
+  let x = 776;
+  vi.spyOn(HTMLElement.prototype, "getBoundingClientRect").mockImplementation(
+    () => new DOMRect(x, 0, 440, 752),
+  );
+  const { container } = render(<Slot />);
+
+  x = 626;
+  container.dispatchEvent(new Event("scroll"));
+  expect(lastShownX()).toBe(626);
+});
+
+it("tells the pool only of moves", () => {
   vi.spyOn(HTMLElement.prototype, "getBoundingClientRect").mockImplementation(
     () => new DOMRect(377, 0, 855, 752),
   );
   render(<Slot />);
-  runFrames(100);
-  expect(frames).toHaveLength(0);
+  seeMove();
+  document.dispatchEvent(new Event("scroll"));
   expect(showOverSlot).toHaveBeenCalledTimes(1);
 });

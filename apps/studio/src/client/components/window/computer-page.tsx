@@ -1352,12 +1352,22 @@ export function ComputerPage({
       event.preventDefault();
       event.stopPropagation();
       const prefix = dropHandlers.current.dropIntoOf(event.target);
-      event.dataTransfer.dropEffect = dropEffectOf({
-        altKey: event.altKey,
-        carried: ownFileDragInAir(),
-        into: dropHostPathRef.current(prefix),
-      });
-      setDropInto(prefix);
+      const into = dropHostPathRef.current(prefix);
+      const carried = ownFileDragInAir();
+      // Files this app is dragging, over the folder they are in already or
+      // inside themselves, go nowhere there (the drop below keeps none of
+      // them), so the folder offers nothing, unless Option asks for copies.
+      const goesNowhere =
+        !event.altKey &&
+        carried.length > 0 &&
+        movableInto(
+          carried.map((hostPath) => ({ hostPath })),
+          into,
+        ).length === 0;
+      event.dataTransfer.dropEffect = goesNowhere
+        ? "none"
+        : dropEffectOf({ altKey: event.altKey, carried, into });
+      setDropInto(goesNowhere ? null : prefix);
       sawOwnFileDrag();
       const resting = dropHandlers.current.springFolderOf(event.target);
       if (resting !== null && event.type === "dragenter") {

@@ -170,7 +170,9 @@ export type TurnsCache = Map<
   StoreId.Message,
   {
     cutAcross: boolean;
-    /** It holds the session's last message, which its error row's actions read. */
+    /** Its last message is the session's last, which its errors' rows read. */
+    endsSession: boolean;
+    /** No message the person typed comes after it, which its open questions read. */
     holdsLast: boolean;
     isLive: boolean;
     slice: TranscriptMessage[];
@@ -214,17 +216,18 @@ export function turnsOf(
           !cutAcross &&
           slice.some(isStillGoing)));
     const holdsLast = index >= lastTyped;
+    const endsSession = slice.at(-1) === lastMessage;
     const kept = cache?.get(first.id);
     if (
       kept &&
       kept.isLive === isLive &&
       kept.cutAcross === cutAcross &&
-      // Being followed tells an error it is not the last message and closes
-      // a question written past.
+      // Any message after it, a wake's included, tells an error it is not the
+      // last message.
+      (kept.endsSession === endsSession || !slice.some(hasError)) &&
+      // A message the person typed after it closes a question written past.
       (kept.holdsLast === holdsLast ||
-        !kept.turn.rows.some(
-          (row) => row.kind === "error" || (row.kind === "ask" && row.isOpen),
-        )) &&
+        !kept.turn.rows.some((row) => row.kind === "ask" && row.isOpen)) &&
       kept.slice.length === slice.length &&
       kept.slice.every((message, at) => message === slice[at])
     ) {
@@ -237,7 +240,14 @@ export function turnsOf(
       sessionId,
       writtenPast: !holdsLast,
     });
-    cache?.set(first.id, { cutAcross, holdsLast, isLive, slice, turn });
+    cache?.set(first.id, {
+      cutAcross,
+      endsSession,
+      holdsLast,
+      isLive,
+      slice,
+      turn,
+    });
     return [turn];
   });
 }
@@ -426,6 +436,11 @@ function endedInWords(slice: readonly TranscriptMessage[]): boolean {
     (part) => part.type === "text" || isStepPart(part),
   );
   return said?.type === "text" && !saysNothing(said.text);
+}
+
+/** Whether a reply failed, which is when its rows read the session's last message. */
+function hasError(message: TranscriptMessage): boolean {
+  return message.role === "assistant" && message.metadata.error !== undefined;
 }
 
 /** Whether a message has a step or words the agent is still on. */

@@ -969,6 +969,35 @@ describe("the work card", () => {
     ).toBe(false);
   });
 
+  it("tells an error a wake carried the chat past what a fold with no cache does", () => {
+    const cache: TurnsCache = new Map();
+    const failed = [
+      typed("Do the thing"),
+      message("assistant", (id) => [said(id, "I've started on it.")], {
+        error: { kind: "provider" },
+      }),
+    ];
+    const lastness = (turn: Turn | undefined) =>
+      turn?.rows.find((row) => row.kind === "error")?.isLastMessage;
+    expect(lastness(turnsOf(failed, { isRunning: false }, cache)[0])).toBe(
+      true,
+    );
+    const woken = [
+      ...failed,
+      message("user", (id) => [
+        {
+          data: { events: [] },
+          metadata: meta(id),
+          type: "data-taskEvent",
+        } as SessionMessagePart.Type,
+      ]),
+    ];
+    const kept = turnsOf(woken, { isRunning: true }, cache);
+    expect(kept).toHaveLength(2);
+    expect(lastness(kept[0])).toBe(false);
+    expect(kept).toEqual(turnsOf(woken, { isRunning: true }));
+  });
+
   it.each([
     [
       "a question not answered",

@@ -46,7 +46,7 @@ Important means a concrete correctness, security, privacy, or data-preservation 
 
 ### E. A failed reply keeps its Try again after a wake carries the chat on
 
-- Status: open
+- Status: fixed
 - Severity: Important. The cached fold and a fresh fold of the same records disagree, so what is on screen changes when the chat is reopened.
 - Where: [turns-of.ts:218](/packages/workspace/src/lib/transcript/turns-of.ts#L218), [turns-of.ts:226](/packages/workspace/src/lib/transcript/turns-of.ts#L226), [turns-of.ts:598](/packages/workspace/src/lib/transcript/turns-of.ts#L598).
 - What: a cached turn is rebuilt when being followed changes it, which the cache reads from `holdsLast`. The range changed that from "no turn follows" to `index >= lastTyped`, so a wake's own turn (which `turnSlices` now opens when the turn above ended in words) does not count as following. A reply that streamed some words and then failed has an error row built with `isLastMessage: true`. When a task finishes or a permission is answered, the wake opens a slice below it; the errored turn's slice, `isLive`, `cutAcross` and `holdsLast` are all unchanged, so the kept turn is returned with the error still marked last, while `buildTurn` run fresh computes `message.id === lastMessage?.id` as false. The error card keeps its actions under a reply that has moved on, and a capacity error's card, drawn only while last, stays up until the chat is reopened.

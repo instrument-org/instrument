@@ -72,7 +72,7 @@ One drag system carries everything that can be held, and every place that takes 
   - a web page, for files only: the page gets the files as if dropped from the Finder;
   - another window, and the open desktop (a new window).
 - **Moves**: tabs within a side, between sides, between groups and between windows; rows within the list and between windows; bookmarks along the bar, off it (removed, with Undo in a toast) and back on; files onto tabs, rows, sides and web pages.
-- **What shows on the way says what letting go does**: tab-shaped over a tab row, with the others making room; nothing at the pointer over a row it joins, the row lit; a row standing in a room; the half or side it would take lit; a bookmark standing on the bar; the window's picture only off every window. The earlier build's rules for rows, rooms and files stand, and the rest are made to match them.
+- **What shows on the way says what letting go does**: tab-shaped over a tab row, with the others making room; nothing at the pointer over a row it joins, the row lit; a row standing in a room; the half or side it would take lit; a bookmark standing on the bar; off every window only, a picture of the tab's page, as the tab alone in a window of its own (a whole group's, of its window). The earlier build's rules for rows, rooms and files stand, and the rest are made to match them.
 
 ## A chat knows the tabs around it
 

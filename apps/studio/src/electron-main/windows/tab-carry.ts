@@ -305,7 +305,11 @@ function beginCarry({
  * behind it, which it can where there is something to go with the pointer.
  */
 export function startTabCarry(
-  start: Parameters<typeof beginCarry>[0] & { pointInTab: number },
+  start: Parameters<typeof beginCarry>[0] & {
+    /** The tab's page in its window, in CSS px, which its picture shows; the whole window when none. */
+    page?: Bounds | undefined;
+    pointInTab: number;
+  },
 ): { collapsesOffRow: boolean } {
   const started = beginCarry(start);
   if (!started) {
@@ -314,7 +318,7 @@ export function startTabCarry(
   if (started.followsCursor) {
     started.poll = setInterval(followCursor, FOLLOW_MS);
     if (started.spare) {
-      started.picture = openTabPicture(started.from);
+      started.picture = openTabPicture(started.from, start.page);
     }
   }
   return { collapsesOffRow: canPlaceWindows() && started.spare !== null };
@@ -1007,10 +1011,11 @@ async function placeWhenDrawn(
     isMaximized: false,
   },
 ) {
+  // The picture grows from the release while the window draws what it holds.
+  const growing = place ? picture?.growTo(place) : undefined;
   await drawnHolding(from, holding);
-  if (place) {
-    await picture?.growTo(place, from);
-  }
+  picture?.wearBarOf(from);
+  await growing;
   if (spare) {
     setOpacity(spare.window, 1);
   }
@@ -1072,6 +1077,8 @@ async function standAlone(
     return { kind: "keepsTab" };
   }
   const { spare } = ending;
+  // The picture grows from the release while the spare makes the window.
+  const growing = place ? picture?.growTo(place) : undefined;
   dressSpare(ending);
   if (place) {
     placeSpare(spare.window, place);
@@ -1096,9 +1103,8 @@ async function standAlone(
       : drawnHolding(spare.window, [moving.tab]));
   }
   adoptSpare(spare, moving.pages);
-  if (place) {
-    await picture?.growTo(place, spare.window);
-  }
+  picture?.wearBarOf(spare.window);
+  await growing;
   if (!keepsOffScreen()) {
     setOpacity(spare.window, 1);
     spare.window.show();

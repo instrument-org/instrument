@@ -194,6 +194,10 @@ const startTabCarry = base
       isOffRow: z.boolean(),
       isOnlyTab: z.boolean(),
       moving: TabStandingSchema,
+      page: PointSchema.extend({
+        height: z.number(),
+        width: z.number(),
+      }).optional(),
       pointInTab: z.number(),
     }),
   )

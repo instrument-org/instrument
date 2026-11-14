@@ -94,6 +94,7 @@ const picture = vi.hoisted(() => ({
   hide: vi.fn(),
   moveTo: vi.fn(),
   show: vi.fn(),
+  wearBarOf: vi.fn(),
 }));
 const openTabPicture = vi.hoisted(() => vi.fn(() => picture));
 const handOffGuest = vi.hoisted(() => vi.fn());
@@ -360,6 +361,7 @@ beforeEach(() => {
     picture.hide,
     picture.moveTo,
     picture.show,
+    picture.wearBarOf,
   ]) {
     mock.mockClear();
   }
@@ -963,19 +965,53 @@ describe("the picture", () => {
     moveTo(IN_THE_OPEN);
     await letGo();
 
-    expect(picture.growTo).toHaveBeenCalledWith(
-      spareWindow.bounds,
-      spareWindow,
-    );
+    expect(picture.growTo).toHaveBeenCalledWith(spareWindow.bounds);
+    expect(picture.wearBarOf).toHaveBeenCalledWith(spareWindow);
     expect(upWhenGrown).toBe(false);
     expect(spareWindow.opacity).toBe(1);
+  });
+
+  it("starts growing at the release, while the window it grows into draws", async () => {
+    press();
+    moveTo(IN_THE_OPEN);
+    let draw = () => undefined as void;
+    spareWindow.webContents.executeJavaScript = () =>
+      new Promise((resolve) => {
+        draw = () => {
+          resolve(true);
+        };
+      });
+    const released = letGo();
+    await vi.advanceTimersByTimeAsync(0);
+    expect(picture.growTo).toHaveBeenCalledTimes(1);
+    expect(picture.wearBarOf).not.toHaveBeenCalled();
+
+    draw();
+    await vi.runAllTimersAsync();
+    await released;
+    expect(picture.wearBarOf).toHaveBeenCalledWith(spareWindow);
+  });
+
+  it("pictures the tab's page when the window says where it is", () => {
+    const pageArea = { height: 600, width: 500, x: 300, y: 80 };
+    startTabCarry({
+      grab: { x: 100, y: 20 },
+      isOffRow: false,
+      isOnlyTab: false,
+      moving: moving(),
+      page: pageArea,
+      pointInTab: 30,
+      webContentsId: 1,
+    });
+    expect(openTabPicture).toHaveBeenCalledWith(from, pageArea);
   });
 
   it("grows into the pressed window when that is what leaves, and has nothing to do for a strip", async () => {
     press(withUsedPage());
     moveTo(IN_THE_OPEN);
     await letGo();
-    expect(picture.growTo).toHaveBeenCalledWith(from.bounds, from);
+    expect(picture.growTo).toHaveBeenCalledWith(from.bounds);
+    expect(picture.wearBarOf).toHaveBeenCalledWith(from);
   });
 });
 

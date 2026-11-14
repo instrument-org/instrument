@@ -529,6 +529,13 @@ function useCarrier() {
       if (isEnded || !moving || !strip) {
         return false;
       }
+      // Its picture is its page, as the tab alone in a window of its own;
+      // a window's only tab is pictured as the window it takes along.
+      const page = isOnlyTab
+        ? undefined
+        : document
+            .querySelector(`[data-group-side="${held.side}"] [data-side-page]`)
+            ?.getBoundingClientRect();
       const started = await rpcClient.window.startTabCarry.call({
         // In a window of its own the tab stands first in the strip, so the
         // pointer holds it there at the same point of the tab it pressed.
@@ -536,6 +543,16 @@ function useCarrier() {
         isOffRow: isOnlyTab,
         isOnlyTab,
         moving,
+        ...(page
+          ? {
+              page: {
+                height: page.height,
+                width: page.width,
+                x: page.left,
+                y: page.top,
+              },
+            }
+          : {}),
         pointInTab: grab.x,
       });
       collapses = started.collapsesOffRow;

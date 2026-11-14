@@ -48,8 +48,8 @@ export interface WindowShell {
   /** Sends the draft the Chat screen is writing to a window along the foot. */
   popOutDraft: (id: string) => void;
   setDefaultModelURI: (modelURI: AIGatewayModelURI.Type) => void;
-  /** Starts the chat a draft is for, from what its composer sends. */
-  startChat: (id: string, send: DraftSend) => void;
+  /** Starts the chat a draft is for, from what its composer sends, in the tab it was written in. */
+  startChat: (id: string, send: DraftSend, tabId: string) => void;
   /** Takes the tab up to Chat with the inbox standing in a project, by its id, putting away the chat or draft up beside it for a new chat filed under the project. */
   openProject: (projectId: string) => void;
   /** Takes the inbox back out of its project, to the chat or draft up before it while the project's new chat is still unwritten. */

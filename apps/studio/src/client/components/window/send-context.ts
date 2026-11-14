@@ -39,8 +39,8 @@ const PAGE_READ_MS = ms("5 seconds");
 
 /**
  * The window as the readers see it: its tabs, the screen that is up and what
- * it says it shows, the drafts and what their windows have up, the names an
- * address alone cannot say, and the folders the window reaches, without which
+ * it says it shows, what each tab's screen has up, the names an address
+ * alone cannot say, and the folders the window reaches, without which
  * nothing is described.
  */
 export interface SendContextWindow {
@@ -50,7 +50,6 @@ export interface SendContextWindow {
   /** The window's browser, for a page's words; null until it is mounted. */
   browser: null | Pick<BrowserTabsHandle, "readPage">;
   chatTitles: Map<ChatId, string>;
-  drafts: Draft[];
   /** The router's address, which is the screen's own. */
   href: string;
   /** The computer's volumes, which name a folder chip the way the Finder does. */
@@ -79,7 +78,6 @@ export function contextReaders({
   appTabId,
   browser,
   chatTitles,
-  drafts,
   href,
   screenView,
   state,
@@ -374,11 +372,15 @@ export function contextReaders({
   };
   /**
    * The items a draft carries now (see draftContextItems): its group's tab
-   * up, as its composer shows it, and none for a new tab.
+   * up, as its composer shows it, and none for a new tab. `tabId` is the tab
+   * the draft is written in, where the caller knows it: a draft made a
+   * moment ago is not in its tab's address yet.
    */
-  const draftItems = (draft: Draft) => {
-    const group = draftGroupOfTab(draft.id);
-    const tab = windowTabs.allTabs.find((each) => draftOfTab(each) === draft.id);
+  const draftItems = (draft: Draft, tabId?: string) => {
+    const group = draftGroupOfTab(draft.id, tabId);
+    const tab = windowTabs.allTabs.find((each) =>
+      tabId === undefined ? draftOfTab(each) === draft.id : each.id === tabId,
+    );
     const up = tab === undefined ? undefined : windowTabs.besideOf(tab.id);
     return draftContextItems({
       allTabs: windowTabs.allTabs,
@@ -388,17 +390,14 @@ export function contextReaders({
       group,
     });
   };
-  /** What a draft carries as its chat starts. */
+  /** What a draft carries as its chat starts, from the tab it was written in when it was. */
   const draftContext = async (
-    draftId: string,
-  ): Promise<SessionMessageDataPart.ViewContextDataPart | undefined> => {
-    const draft = drafts.find((entry) => entry.id === draftId);
-    return draft
-      ? contextOf(draftGroupOfTab(draftId), draftItems(draft), {
-          isReply: false,
-        })
-      : undefined;
-  };
+    draft: Draft,
+    tabId: string | undefined,
+  ): Promise<SessionMessageDataPart.ViewContextDataPart | undefined> =>
+    contextOf(draftGroupOfTab(draft.id, tabId), draftItems(draft, tabId), {
+      isReply: false,
+    });
   /**
    * What goes with a message in a chat: the tab up on the other side of the
    * chat's tab, while its chip is there, and what the person took for the
@@ -437,8 +436,9 @@ export function contextReaders({
     );
   };
   /** The group a draft's new chat tab is in, or the key an earlier build kept the draft's tabs under. */
-  const draftGroupOfTab = (draftId: string) =>
-    windowTabs.allTabs.find((each) => draftOfTab(each) === draftId)?.group ??
-    draftGroupOf(draftId);
+  const draftGroupOfTab = (draftId: string, tabId?: string) =>
+    windowTabs.allTabs.find((each) =>
+      tabId === undefined ? draftOfTab(each) === draftId : each.id === tabId,
+    )?.group ?? draftGroupOf(draftId);
   return { draftContext, draftItems, sendContext };
 }

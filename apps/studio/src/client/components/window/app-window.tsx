@@ -990,7 +990,6 @@ function WindowShell({
       appTabId: appTabs.model.selectedId,
       browser,
       chatTitles,
-      drafts,
       href: hrefNow(),
       screenView,
       state: opened,
@@ -998,7 +997,8 @@ function WindowShell({
       ...(volumes ? { volumes } : {}),
       windowTabs,
     });
-  const draftContext = (draftId: string) => readersNow().draftContext(draftId);
+  const draftContext = (draft: Draft, tabId: string | undefined) =>
+    readersNow().draftContext(draft, tabId);
   // A chat's tab group as a message goes from it, read at the press.
   const layoutNow = (tabId: string, told: string) =>
     layoutReader({

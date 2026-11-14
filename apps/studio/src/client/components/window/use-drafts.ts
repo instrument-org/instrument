@@ -39,7 +39,6 @@ import { type useCompose } from "./use-compose";
 import { isHomeTab } from "./tab-model";
 import { type useWindowTabs } from "./window-tabs";
 import { getGroupTabRouter } from "@/client/lib/group-tab-router-registry";
-import { draftOfTab } from "./tab-model";
 import { chatHref, newChatHref } from "./window-href";
 
 /** How long a chat just started from a draft is marked as arriving in the inbox; the row's own motion is shorter. */
@@ -74,9 +73,10 @@ export function useDrafts({
   folders: Record<string, { path: string }>;
   /** The windows along the row's foot, which a draft is written in. */
   compose: ReturnType<typeof useCompose>;
-  /** What a draft's window has up, read as its chat starts. */
+  /** What a draft has up beside it, read as its chat starts, with the tab it was written in. */
   draftContext: (
-    draftId: string,
+    draft: Draft,
+    tabId: string | undefined,
   ) => Promise<SessionMessageDataPart.ViewContextDataPart | undefined>;
   /** Whether the tab up is the chat, whose inbox's project a new draft is filed under, and where a draft sent from there opens. */
   isChat: boolean;
@@ -101,7 +101,7 @@ export function useDrafts({
   saveDefaultModelURI: ReturnType<typeof useDefaultModelURI>[2];
   /** The projects, for the one the inbox stands in. */
   projects: Project[];
-  windowTabs: ReturnType<typeof useWindowTabs>;
+  windowTabs: Pick<ReturnType<typeof useWindowTabs>, "allTabs" | "replace">;
 }) {
   const store = useStore();
   const drafts = useAtomValue(draftsAtom);
@@ -323,9 +323,12 @@ export function useDrafts({
    * the place under it is left as it is. Either way the words sent stand
    * in its transcript from the press, and the chat's row arrives in the
    * inbox marked. A send that fails brings the draft back up with what it
-   * held.
+   * held. `sentFrom` is the tab the draft was written in, which becomes its
+   * chat, named by the screen sending it since a draft made in the same
+   * press is not in the tab's address yet; none for a draft sent from a
+   * window along the foot.
    */
-  const startChat = (id: string, send: DraftSend) => {
+  const startChat = (id: string, send: DraftSend, sentFrom?: string) => {
     // Read from the store rather than this render: a new chat's draft can be
     // made in the same press that sends it.
     const draft = store.get(draftsAtom).find((entry) => entry.id === id);
@@ -335,10 +338,7 @@ export function useDrafts({
     // Read at the press, while the draft's window and what its band has up
     // are still there to read; the window changes under it at once.
     // With the chips it showed, for the transcript to draw.
-    const viewing = draftContext(id).catch(() => undefined);
-    // Read at the press too: the tab the draft was written in, which
-    // becomes its chat, or none for a draft sent from a window of its own.
-    const sentFrom = windowTabs.allTabs.find((tab) => draftOfTab(tab) === id)?.id;
+    const viewing = draftContext(draft, sentFrom).catch(() => undefined);
     const layoutSent =
       sentFrom === undefined
         ? undefined

@@ -334,7 +334,7 @@ export function NewChatView({
             // The screen stays as it was sent, the words and the project
             // with it, until the tab moves to the chat, which has them in
             // its place from its first frame.
-            shell.startChat(id, send);
+            shell.startChat(id, send, tabId);
           }}
           placeholder={`Talk to ${APP_NAME}`}
           places={places}

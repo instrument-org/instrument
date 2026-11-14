@@ -40,7 +40,7 @@ export function GroupNewTab({
         aria-label="Places"
         // As wide as its longest row, centered as a block, its rows' names
         // aligned down its left.
-        className="mx-auto flex w-fit max-w-64 min-w-44 flex-col gap-4 pt-[max(14vh,--spacing(12))] pb-12 text-[13px]"
+        className="mx-auto flex w-fit max-w-64 min-w-44 flex-col gap-4 pt-[max(calc(14vh/var(--app-zoom)),--spacing(12))] pb-12 text-[13px]"
       >
         {project && (
           <PlaceSection label="Project">

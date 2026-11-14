@@ -62,7 +62,7 @@ Important means a concrete correctness, security, privacy, or data-preservation 
 
 ### G. Linux with no GTK bookmarks file unpins every default folder, once and for good
 
-- Status: open
+- Status: fixed
 - Severity: Important. A missing file is read as "the system pins nothing" and the result is written and never retried, on upgrade as well as first launch.
 - Where: [system-sidebar.ts:32](/apps/studio/src/electron-main/lib/system-sidebar.ts#L32), [system-sidebar.ts:99](/apps/studio/src/electron-main/lib/system-sidebar.ts#L99), [sidebar-places.ts:109](/apps/studio/src/shared/sidebar-places.ts#L109).
 - What: `systemSidebarFolders` returns `undefined` for "could not read", which `adoptSystemSidebarOnce` leaves for the next launch. On Linux a failed read of `~/.config/gtk-3.0/bookmarks` returns `[]` instead. `adoptSystemSidebar` then unpins each default the system list leaves out, which is all of them, and `systemSidebarAdopted` is set. A KDE desktop, or any account that never added a bookmark in a GTK file manager, opens Files with only the output folder pinned. Nothing is lost and the defaults can be pinned again by hand.

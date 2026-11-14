@@ -1,6 +1,35 @@
-import { describe, expect, it } from "vitest";
+import fs from "node:fs/promises";
+import os from "node:os";
+import path from "node:path";
+import { pathToFileURL } from "node:url";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-import { gtkBookmarkFolders, quickAccessFolders } from "./system-sidebar";
+import { NO_SIDEBAR_CHANGES, pinnedPlaces } from "@/shared/sidebar-places";
+
+import {
+  adoptSystemSidebarOnce,
+  gtkBookmarkFolders,
+  quickAccessFolders,
+} from "./system-sidebar";
+
+const { computer, stored } = vi.hoisted(() => ({
+  /** The places the computer pins by default. */
+  computer: { pinned: [] as { kind: string; name: string; path: string }[] },
+  /** The machine preferences, in memory. */
+  stored: new Map<string, unknown>(),
+}));
+vi.mock("@instrument-org/workspace/electron", () => ({
+  computerPlaces: () => Promise.resolve(computer),
+}));
+vi.mock("../stores/machine/preferences", () => ({
+  getMachinePreferences: () => ({
+    get: (key: string) => stored.get(key),
+    set: (key: string, value: unknown) => stored.set(key, value),
+  }),
+}));
+vi.mock("@/electron-main/lib/electron-logger", () => ({
+  logger: { warn: vi.fn() },
+}));
 
 describe("quickAccessFolders", () => {
   it.each([
@@ -31,5 +60,83 @@ describe("gtkBookmarkFolders", () => {
         ].join("\n"),
       ),
     ).toEqual(["/home/casey/code", "/home/casey/My Notes"]);
+  });
+});
+
+describe("adoptSystemSidebarOnce on Linux", () => {
+  const platform = process.platform;
+  let home: string;
+  /** The Pinned section's rows, by name. */
+  const rows = () =>
+    pinnedPlaces(
+      computer.pinned.filter((place) => place.kind !== "output"),
+      stored.get("sidebarPlaces") as typeof NO_SIDEBAR_CHANGES,
+      (folder) => ({
+        kind: "folder",
+        name: path.basename(folder),
+        path: folder,
+      }),
+    ).map((place) => place.name);
+
+  beforeEach(async () => {
+    home = await fs.mkdtemp(path.join(os.tmpdir(), "linux-user-"));
+    const folders = ["Desktop", "Documents", "Downloads"];
+    await Promise.all(
+      [...folders, "code", "Notes"].map((name) =>
+        fs.mkdir(path.join(home, name)),
+      ),
+    );
+    computer.pinned = [
+      {
+        kind: "output",
+        name: "Instrument",
+        path: path.join(home, "Instrument"),
+      },
+      { kind: "home", name: "Home", path: home },
+      ...folders.map((name) => ({
+        kind: "folder",
+        name,
+        path: path.join(home, name),
+      })),
+    ];
+    stored.clear();
+    stored.set("sidebarPlaces", NO_SIDEBAR_CHANGES);
+    vi.spyOn(os, "homedir").mockReturnValue(home);
+    Object.defineProperty(process, "platform", { value: "linux" });
+  });
+
+  afterEach(async () => {
+    Object.defineProperty(process, "platform", { value: platform });
+    vi.restoreAllMocks();
+    await fs.rm(home, { force: true, recursive: true });
+  });
+
+  it("leaves the defaults pinned, and the system's pins to read at the next launch, with no bookmarks file", async () => {
+    await adoptSystemSidebarOnce();
+
+    expect(rows()).toEqual(["Home", "Desktop", "Documents", "Downloads"]);
+    expect(stored.get("systemSidebarAdopted")).toBeUndefined();
+  });
+
+  it("pins the bookmarked folders and keeps every default", async () => {
+    await fs.mkdir(path.join(home, ".config", "gtk-3.0"), { recursive: true });
+    await fs.writeFile(
+      path.join(home, ".config", "gtk-3.0", "bookmarks"),
+      ["code", "Notes"]
+        .map((name) => `${pathToFileURL(path.join(home, name)).href}\n`)
+        .join(""),
+    );
+
+    await adoptSystemSidebarOnce();
+
+    expect(rows()).toEqual([
+      "code",
+      "Notes",
+      "Home",
+      "Desktop",
+      "Documents",
+      "Downloads",
+    ]);
+    expect(stored.get("systemSidebarAdopted")).toBe(true);
   });
 });

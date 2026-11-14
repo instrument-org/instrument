@@ -29,7 +29,7 @@ async function systemSidebarFolders(): Promise<string[] | undefined> {
         "utf8",
       )
       .catch(() => undefined);
-    return bookmarks === undefined ? [] : gtkBookmarkFolders(bookmarks);
+    return bookmarks === undefined ? undefined : gtkBookmarkFolders(bookmarks);
   }
   if (process.platform === "win32") {
     const stdout = await runHelper({
@@ -100,9 +100,14 @@ export async function adoptSystemSidebarOnce(): Promise<void> {
       return;
     }
     const { pinned } = await computerPlaces();
-    const defaults = pinned
-      .filter((place) => place.kind !== "output")
-      .map((place) => place.path);
+    // A GTK bookmarks file lists only the folders the person added, so a
+    // default it leaves out was not removed there, and none is unpinned.
+    const defaults =
+      process.platform === "linux"
+        ? []
+        : pinned
+            .filter((place) => place.kind !== "output")
+            .map((place) => place.path);
     const existing = await Promise.all(
       system.map(async (folder) =>
         (await fs.stat(folder).catch(() => undefined))?.isDirectory()

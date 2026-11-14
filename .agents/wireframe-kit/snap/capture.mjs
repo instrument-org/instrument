@@ -6,7 +6,16 @@
 // library snap() reads. Taken at 1280x800 and 1x, in presentation mode, with the
 // developer strip left out, in each theme a state asks for.
 //
-// args: { out, folder, chats: { pricing, soc2, board, renewal }, only?: string[] }
+// Run directly, it does the whole round for the states it names, or for every state
+// when it names none, and leaves the library's other states as they are:
+//
+//   node .agents/wireframe-kit/snap/capture.mjs <state>...
+//
+// That puts the wf-pricing walkthrough seed back in its clean room, boots it off screen,
+// runs this file in it through studio-drive, has library.mjs fold the new snapshots into
+// the library, and stops the room. A new state is one entry in STATES below.
+//
+// As a sequence, args: { out, folder, chats: { pricing, soc2, board, renewal }, only?: string[] }
 import fs from "node:fs";
 import path from "node:path";
 
@@ -155,10 +164,21 @@ const injectNotices = (/** @type {any} */ notices) => `(() => {
   return hits.length + ' queries';
 })()`;
 
-/** Each state, by name: how to get there from a window with one tab and nothing open. */
-const STATES = {
-  chat: { themes: ["light", "dark"], run: async (h) => h.go(`/chats/${h.chats.pricing}`, 1400) },
+/**
+ * Each state, by name: what it shows (INDEX.md's line for it), the themes it is taken in,
+ * and how to get there from a window with one tab and nothing open. `h` is the run's
+ * helpers: `h.app` the studio-drive handle (`click`, `press`, `type`, `eval`, `goto`),
+ * `h.go(href)`, `h.files(view, select)`, `h.chats` the seed's chats by role, `h.folder`
+ * the Instrument folder, and `h.after(fn)` to undo what the state left open.
+ */
+export const STATES = {
+  chat: {
+    about: "The pricing chat open: rail, the chat list (Search, View options, Inbox / Drafts / Archived, a Projects section, rows with project names), the chat's head, an answer with a table, the reply box.",
+    themes: ["light", "dark"],
+    run: async (h) => h.go(`/chats/${h.chats.pricing}`, 1400),
+  },
   "chat-plus-menu": {
+    about: "The chat with the reply box's + menu open (Browser, This Mac, Attach files, Add a folder, Apps, Skills).",
     themes: ["light"],
     run: async (h) => {
       await h.go(`/chats/${h.chats.pricing}`, 1200);
@@ -166,6 +186,7 @@ const STATES = {
     },
   },
   "chat-view-options": {
+    about: "The chat list's View options open: Three lines, Two lines, One line, and Group by day.",
     themes: ["light"],
     run: async (h) => {
       await h.go(`/chats/${h.chats.pricing}`, 1200);
@@ -174,6 +195,7 @@ const STATES = {
     },
   },
   "chat-search": {
+    about: "The chat list filtered by \"pricing\" typed into Search.",
     themes: ["light"],
     run: async (h) => {
       await h.go(`/chats/${h.chats.pricing}`, 1200);
@@ -187,6 +209,7 @@ const STATES = {
     },
   },
   "chat-drafts": {
+    about: "The chat list on its Drafts tab, empty.",
     themes: ["light"],
     run: async (h) => {
       await h.go(`/chats/${h.chats.pricing}`, 1200);
@@ -195,8 +218,22 @@ const STATES = {
       h.after(() => h.app.click({ selector: '[role=tablist][aria-label="Places"] [role=tab]', text: "Inbox" }));
     },
   },
-  apps: { themes: ["light"], run: async (h) => h.go("/apps", 1400) },
+  "chat-row-menu": {
+    about: "The chat list with a chat's context menu open, right-clicked on the SOC 2 chat: Open, Open in New Tab, Open in New Window, Pop Out, Mark as read, Star, Rename, Project, Open in Files, Copy, Send feedback, Archive, Delete chat.",
+    themes: ["light", "dark"],
+    run: async (h) => {
+      await h.go(`/chats/${h.chats.pricing}`, 1200);
+      await h.app.click({ text: "SOC 2 audit quotes from four firms" }, "chat row", { button: "right" });
+      await wait(400);
+    },
+  },
+  apps: {
+    about: "Apps open from the rail.",
+    themes: ["light"],
+    run: async (h) => h.go("/apps", 1400),
+  },
   draft: {
+    about: "New pressed in Chat: a new chat fills the chat pane (New chat, + Project, No model chosen).",
     themes: ["light"],
     run: async (h) => {
       await h.go(`/chats/${h.chats.pricing}`, 1200);
@@ -205,6 +242,7 @@ const STATES = {
     },
   },
   "draft-over-files": {
+    about: "New pressed in Files: the draft docked over the Instrument folder.",
     themes: ["light"],
     run: async (h) => {
       await h.files("Table view");
@@ -213,6 +251,7 @@ const STATES = {
     },
   },
   "bell-update": {
+    about: "The bell open on two notices: an update (What's new, Dismiss) and a What's new from the feed.",
     themes: ["light", "dark"],
     run: async (h) => {
       await h.go(`/chats/${h.chats.pricing}`, 1200);
@@ -224,6 +263,7 @@ const STATES = {
     },
   },
   feedback: {
+    about: "Send feedback open over the chat: topic chips, the note, Add images, what's sent with it.",
     themes: ["light", "dark"],
     run: async (h) => {
       await h.go(`/chats/${h.chats.pricing}`, 1200);
@@ -233,10 +273,23 @@ const STATES = {
       await wait(500);
     },
   },
-  "files-table": { themes: ["light", "dark"], run: async (h) => h.files("Table view", "pricing-comparison.html") },
-  "files-list": { themes: ["light"], run: async (h) => h.files("List view", "pricing-comparison.html") },
-  "files-grid": { themes: ["light", "dark"], run: async (h) => h.files("Grid view", "pricing-comparison.html") },
+  "files-table": {
+    about: "Files on the Instrument folder in Table view, pricing-comparison.html selected.",
+    themes: ["light", "dark"],
+    run: async (h) => h.files("Table view", "pricing-comparison.html"),
+  },
+  "files-list": {
+    about: "Files in List view, the same selection.",
+    themes: ["light"],
+    run: async (h) => h.files("List view", "pricing-comparison.html"),
+  },
+  "files-grid": {
+    about: "Files in Grid view, the same selection.",
+    themes: ["light", "dark"],
+    run: async (h) => h.files("Grid view", "pricing-comparison.html"),
+  },
   "files-context-menu": {
+    about: "Files in Table view with a file's context menu open.",
     themes: ["light"],
     run: async (h) => {
       await h.files("Table view", "pricing-comparison.html");
@@ -245,6 +298,7 @@ const STATES = {
     },
   },
   "files-info": {
+    about: "Files with the Info card open on pricing-comparison.html (from the context menu's Info ⌘I).",
     themes: ["light", "dark"],
     run: async (h) => {
       await h.files("Table view", "pricing-comparison.html");
@@ -255,14 +309,17 @@ const STATES = {
     },
   },
   "files-beside": {
+    about: "pricing-comparison.html open beside its folder.",
     themes: ["light"],
     run: async (h) => h.go(`/files?file=${encodeURIComponent(`${h.folder}/pricing-comparison.html`)}&path=&root=${encodeURIComponent(h.folder)}`, 1800),
   },
   "image-fit": {
+    about: "An image (harbor-desk-pricing.png) open in Files at Fit, its toolbar above.",
     themes: ["light", "dark"],
     run: async (h) => h.go(`/files?file=${encodeURIComponent(`${h.folder}/Screenshots/harbor-desk-pricing.png`)}&path=Screenshots&root=${encodeURIComponent(h.folder)}`, 1800),
   },
   "image-zoom-menu": {
+    about: "The image open with the Zoom menu down.",
     themes: ["light", "dark"],
     run: async (h) => {
       await h.go(`/files?file=${encodeURIComponent(`${h.folder}/Screenshots/harbor-desk-pricing.png`)}&path=Screenshots&root=${encodeURIComponent(h.folder)}`, 1800);
@@ -271,6 +328,7 @@ const STATES = {
     },
   },
   "quick-look": {
+    about: "Quick Look over Files on an image, Space pressed.",
     themes: ["light", "dark"],
     run: async (h) => {
       await h.app.goto(`/files?path=Screenshots&root=${encodeURIComponent(h.folder)}&select=${encodeURIComponent("harbor-desk-pricing.png")}`);
@@ -283,6 +341,7 @@ const STATES = {
     },
   },
   "browser-page": {
+    about: "The in-app browser on example.com. The page itself is a picture: it runs outside the app's DOM.",
     themes: ["light"],
     run: async (h) => {
       await h.go("/browser");
@@ -293,6 +352,7 @@ const STATES = {
     },
   },
   "browser-find": {
+    about: "The browser with Find in page open on \"domain\", 1 of 2. The page is a picture.",
     themes: ["light", "dark"],
     run: async (h) => {
       await h.go("/browser");
@@ -309,8 +369,13 @@ const STATES = {
       await wait(800);
     },
   },
-  "new-tab": { themes: ["light"], run: async (h) => h.go("/new-tab") },
+  "new-tab": {
+    about: "The New tab page.",
+    themes: ["light"],
+    run: async (h) => h.go("/new-tab"),
+  },
   settings: {
+    about: "Settings open on General.",
     themes: ["light"],
     run: async (h) => {
       await h.go(`/chats/${h.chats.pricing}`, 900);
@@ -436,3 +501,97 @@ export default async (app, args) => {
   await app.cdp.send("Emulation.clearDeviceMetricsOverride");
   return done;
 };
+
+/** The capture round as one command; see the top of this file. */
+async function captureStates(/** @type {string[]} */ names) {
+  const { execFileSync } = await import("node:child_process");
+  const os = await import("node:os");
+  const { CHECKOUT_KEY, REPO_ROOT } = await import("../../skills/studio-chrome-devtools/scripts/studio-app.mjs");
+  const { LIBRARY } = await import("./lib.mjs");
+  const unknown = names.filter((n) => !(n in STATES));
+  if (unknown.length)
+    throw new Error(`no state ${unknown.join(", ")} in capture.mjs: add an entry to STATES for it. It has ${Object.keys(STATES).join(", ")}`);
+  const DRIVE = path.join(REPO_ROOT, ".agents/skills/studio-chrome-devtools/scripts/studio-drive.mjs");
+  const WALK = path.join(REPO_ROOT, ".agents/skills/studio-walkthrough/scripts/walkthrough.mjs");
+  const SEED = "wf-pricing";
+  const ROOM = "Instrument";
+  const node = (/** @type {string[]} */ argv) =>
+    execFileSync("node", argv, { cwd: REPO_ROOT, encoding: "utf8", maxBuffer: 256 * 1024 * 1024, stdio: ["ignore", "pipe", "pipe"] });
+
+  // A seed lives in studio-drive's cache for one checkout, so a checkout without one
+  // takes the newest copy another checkout on this machine made.
+  const cache = path.join(
+    process.env.LOCALAPPDATA ??
+      (process.platform === "darwin" ? path.join(os.homedir(), "Library", "Caches") : (process.env.XDG_CACHE_HOME ?? path.join(os.homedir(), ".cache"))),
+    "instrument-studio-drive",
+  );
+  const mine = path.join(cache, CHECKOUT_KEY, "walkthrough-seeds", SEED);
+  if (!fs.existsSync(path.join(mine, "seed.json"))) {
+    const theirs = (fs.existsSync(cache) ? fs.readdirSync(cache) : [])
+      .map((key) => path.join(cache, key, "walkthrough-seeds", SEED))
+      .filter((dir) => fs.existsSync(path.join(dir, "seed.json")))
+      .sort((a, b) => fs.statSync(path.join(b, "seed.json")).mtimeMs - fs.statSync(path.join(a, "seed.json")).mtimeMs)[0];
+    if (!theirs)
+      throw new Error(`no ${SEED} walkthrough seed on this machine: make one with walkthrough.mjs seed, four chats about help desk pricing, a SOC 2 audit, a Q3 board update and an October renewal, in a room named ${ROOM}`);
+    fs.cpSync(theirs, mine, { recursive: true });
+  }
+
+  /** Stops the room and waits for its port to come free, so a boot straight after finds it free. */
+  const stop = async () => {
+    const port = Number(node([DRIVE, "port", "--clean-room", ROOM]).trim());
+    node([DRIVE, "stop", "--clean-room", ROOM]);
+    const { connect } = await import("node:net");
+    const listening = () =>
+      new Promise((done) => {
+        const socket = connect({ host: "127.0.0.1", port });
+        socket.once("connect", () => (socket.destroy(), done(true)));
+        socket.once("error", () => done(false));
+      });
+    for (let tries = 0; tries < 100 && (await listening()); tries++) await wait(200);
+  };
+  const started = Date.now();
+  // Signed in, so a chat's reply box shows its model rather than a sign-in warning.
+  /** @returns {{ cleanRoom: string }} */
+  const boot = () => JSON.parse(node([DRIVE, "boot", "--purpose", "snapshot capture", "--clean-room", ROOM, "--with-sign-ins"]));
+  try {
+    node([WALK, "open", SEED]);
+  } catch (error) {
+    // The seed's machine folder goes where the app keeps the room's, which it has only
+    // after the room's first boot from this checkout.
+    if (!String(/** @type {any} */ (error).stderr ?? error).includes("has not registered")) throw error;
+    boot();
+    node([WALK, "open", SEED]);
+  }
+  await stop();
+  const room = boot();
+  try {
+    const ids = fs.readdirSync(path.join(room.cleanRoom, ".instrument", "chats"));
+    const chat = (/** @type {string} */ slug) => ids.find((id) => id.includes(slug));
+    const args = {
+      out: LIBRARY,
+      folder: room.cleanRoom,
+      chats: { pricing: chat("help-desk"), soc2: chat("four-firms"), board: chat("q3-board"), renewal: chat("two-sentence") },
+      ...(names.length ? { only: names } : {}),
+    };
+    const argsFile = path.join(os.tmpdir(), `snap-capture-${process.pid}.json`);
+    fs.writeFileSync(argsFile, JSON.stringify(args));
+    const result = JSON.parse(node([DRIVE, "run", new URL(import.meta.url).pathname, "--quiet", "--clean-room", ROOM, "--args", `@${argsFile}`]));
+    fs.rmSync(argsFile, { force: true });
+    if (result.ok === false) throw new Error(`capture stopped at ${result.stoppedAt}: ${result.error}`);
+    /** @type {string[]} */
+    const done = result.value ?? result.result ?? result;
+    for (const line of done) console.log(line);
+    const taken = [...new Set(done.filter((l) => !l.includes("FAILED")).map((l) => l.split(" ")[0].replace(/\.dark$/, "")))];
+    if (taken.length) process.stdout.write(node([path.join(here, "library.mjs"), "--only", taken.join(",")]));
+    console.log(`${Math.round((Date.now() - started) / 1000)} s`);
+    if (done.some((l) => l.includes("FAILED"))) process.exitCode = 1;
+  } finally {
+    await stop();
+  }
+}
+
+if (process.argv[1] && path.resolve(process.argv[1]) === new URL(import.meta.url).pathname)
+  await captureStates(process.argv.slice(2)).catch((error) => {
+    console.error(`capture: ${error instanceof Error ? error.message : error}`);
+    process.exit(1);
+  });

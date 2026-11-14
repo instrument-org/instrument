@@ -450,16 +450,22 @@ export function useTabGroupActions() {
 
   /**
    * A tab into another group, up there with the keyboard, at the end of the
-   * side with it. A group the tab leaves with nothing closes.
+   * side with it, or of the side `placing` names, made there when it
+   * `split`s. A group the tab leaves with nothing closes.
    */
-  const moveTab = (id: string, group: string) => {
+  const moveTab = (
+    id: string,
+    group: string,
+    placing?: { side: 0 | 1; split: boolean },
+  ) => {
     const state = store.get(windowTabsAtom);
     const tab = state.tabs.find((entry) => entry.id === id);
     windowTabs.moveTo({
       group,
       id,
       select: true,
-      side: groupLayoutOf(state, group).focused,
+      side: placing?.side ?? groupLayoutOf(state, group).focused,
+      ...(placing?.split === true ? { split: true } : {}),
     });
     const from = tab?.group;
     if (from !== undefined && from !== group) {

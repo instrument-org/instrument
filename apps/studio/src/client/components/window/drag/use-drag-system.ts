@@ -51,6 +51,7 @@ import {
   sideOf,
   tabsIn,
   upTabsIn,
+  type WindowTabs,
 } from "../tab-model";
 import {
   newScreenId,
@@ -334,6 +335,18 @@ function useLander(
         if (landing.kind === "sidebar" && landing.drop.kind === "between") {
           groups.place(held.group, landing.drop.place);
           fillRoom(held.group);
+          return;
+        }
+        // On a side's page a row gives up its tab there, the rest staying in
+        // their group, which closes once it has none.
+        if (landing.kind === "side") {
+          const id = tabOfHeldGroup(held, store.get(windowTabsAtom));
+          if (id !== undefined) {
+            groups.moveTab(id, landing.group, {
+              side: landing.side,
+              split: landing.split,
+            });
+          }
         }
         return;
       }
@@ -366,6 +379,19 @@ function useLander(
       }
     }
   };
+}
+
+/**
+ * The tab a group's row gives up where a side's page takes it: the tab up on
+ * the half the row was pressed by, else the tab up on the side with the
+ * keyboard, the one the group shows in front.
+ */
+function tabOfHeldGroup(
+  held: Extract<Held, { kind: "group" }>,
+  state: WindowTabs,
+): string | undefined {
+  const layout = groupLayoutOf(state, held.group);
+  return layout.sides[held.half ?? layout.focused]?.up;
 }
 
 /**

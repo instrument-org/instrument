@@ -119,10 +119,19 @@ export function pressGroupRow(
     const bounds = element.getBoundingClientRect();
     // The room it opens is the row's own place in the list, which shuts as it lifts.
     const item = element.closest<HTMLElement>("[data-drop-item]");
+    const halves = [...element.querySelectorAll("[data-row-half]")];
+    const half =
+      halves.length === 2
+        ? halves.findIndex((each) => {
+            const { left, right } = each.getBoundingClientRect();
+            return pressedAt.x >= left && pressedAt.x < right;
+          })
+        : -1;
     return {
       grab: { x: pressedAt.x - bounds.left, y: pressedAt.y - bounds.top },
       held: {
         group,
+        ...(half === 0 || half === 1 ? { half } : {}),
         height: item ? item.offsetHeight + LIST_GAP_PX : ROW_GAP_PX,
         kind: "group",
       },

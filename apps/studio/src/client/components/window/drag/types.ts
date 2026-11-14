@@ -24,6 +24,8 @@ export type Held =
     }
   | {
       group: string;
+      /** The half of a row of two sides it was pressed by, whose tab up is the one a side's page takes. */
+      half?: 0 | 1;
       /** The room its row takes in a list, its height and the space under it. */
       height: number;
       kind: "group";

@@ -202,7 +202,8 @@ function attachesToNewTab(page: Element | null | undefined, point: Point) {
  * composer or a folder in Files (`takesFilesItself`); a new tab up nobody
  * has written in turns into them, except over its composer, which attaches
  * them (`attachesToNewTab`). A lone side's ends show faintly from the start
- * of a drag that could make one a side (`splitBands`).
+ * of a drag that could make one a side (`splitBands`). Another group's row
+ * lands as the tab it gives up would (`tabOfHeldGroup`).
  */
 export function useSidePagesTarget({
   group,
@@ -241,9 +242,10 @@ export function useSidePagesTarget({
   useDropTarget(
     isOn
       ? {
-          hints: ({ held }) => {
+          hints: ({ held, input }) => {
             if (
-              held.kind === "group" ||
+              (held.kind === "group" &&
+                (held.group === group || input === "remote")) ||
               (held.kind === "files" && takesFilesWhole(0))
             ) {
               return [];
@@ -253,12 +255,18 @@ export function useSidePagesTarget({
               sides: pages(),
             });
           },
-          landingAt: (reached, { held }) => {
+          landingAt: (reached, { held, input }) => {
             const sides = pages();
             const point = onPages(reached, sides);
             const at = sides.findIndex((rect) => holds(rect, point));
             const up = upOf(at);
-            if (held.kind === "group") {
+            // Another group's row lands as its tab would (`tabOfHeldGroup`);
+            // the group up has nowhere here to go, and another window's
+            // group lands only in this window's list.
+            if (
+              held.kind === "group" &&
+              (held.group === group || input === "remote")
+            ) {
               return undefined;
             }
             if (held.kind === "files") {

@@ -1,6 +1,6 @@
 # Drawing from snapshots
 
-A frame can start from Studio as it runs instead of from the kit's redrawing of it. `snap/capture.mjs` keeps the app's own page in each state a round may start from, and `snap(state, edit)` draws a frame from one through the wireframe skill's snapshot frames: the page in an iframe at true size, edited by name, every edit marked NEW unless it says `{ quiet: true }`. Whatever the edit leaves alone is the app itself, in its real layout, type and theme, so it cannot be out of date or invented.
+A frame can start from Studio as it runs instead of from the kit's redrawing of it. `snap/capture.mjs` keeps the app's own page in each state a round may start from, and `snap(state, edit)` draws a frame from one through the wireframe skill's snapshot frames: the page in an iframe at true size, edited by name. Edits mark nothing: `.note("words")` adds a callout and `.fresh()` NEW, only where the reader should look. Whatever the edit leaves alone is the app itself, in its real layout, type and theme, so it cannot be out of date or invented.
 
 How snapshot frames work, every target and every edit is the skill's: read "Frames from a snapshot" in its `SKILL.md` and in its `patterns.md` (the installed skill, `~/.claude/skills/wireframe`) before a round. This file is only what Studio adds: the library, and how `snap()` differs in a kit part.
 
@@ -20,6 +20,18 @@ node .agents/wireframe-kit/snap/peek.mjs files-table '{"role":"row","nth":3}' --
 ```
 
 Peek before you clone or restyle something, so you know its classes and what is inside it.
+
+### A state the library lacks, or one gone stale
+
+When the state a frame needs is missing, or its row in `INDEX.md` says it was captured more than a week ago, capture it rather than editing a neighbor your way there:
+
+```bash
+node .agents/wireframe-kit/snap/capture.mjs chat-row-menu    # one state, light and dark if it asks for both
+```
+
+It boots the pricing scenario's clean room off screen, signed in, puts the state's snapshot, picture and outline in the library, adds its row to `INDEX.md`, leaves every other state as it was, and stops the room; a state takes about a minute. A state that isn't there yet is one entry in `STATES` in `snap/capture.mjs`: its name, a line on what it shows, its themes, and how to reach it from a window with one tab open (open a chat, click a control by its name, right-click a row). Look at its `.png` before you draw from it. With no name, the command captures every state.
+
+The room starts from `snap/seed/wf-pricing.seed.json`: the files its folder holds (in `snap/seed/files/`) and the chats it runs through the model. A machine that has never made the seed makes it on the first capture, which takes a few minutes longer. When a wireframe needs the app to hold something the seed lacks, such as a kind of chat, a file type or a project, add it to the recipe, delete the cached seed (`~/Library/Caches/instrument-studio-drive/*/walkthrough-seeds/wf-pricing` on a Mac) and capture again, so the library keeps up with the product.
 
 ## snap(state, edit) in a part
 
@@ -46,7 +58,7 @@ const states = [
 
 ## Rules
 
-- List the states first. Before drawing, write down every state the proposal passes through (empty, loading, an error, many items, dark, the moment after each action) and give each its own frame, editing a snapshot your way to any state the library lacks. A page that shows only the happy path is one a reader can't decide from.
-- Start from the state nearest the proposal and change only what the proposal is about. If the change needs a state the library lacks, take the nearest one and edit your way there (open a menu by adding its markup, cloned from a menu that is in another state), and say so in the source line.
+- List the states first. Before drawing, write down every state the proposal passes through (empty, loading, an error, many items, dark, the moment after each action) and give each its own frame. Capture any the app can reach that the library lacks; edit a snapshot your way to the rest. A page that shows only the happy path is one a reader can't decide from.
+- Start from the state nearest the proposal and change only what the proposal is about. If the change needs a state the app can reach, capture it; one it can't reach on demand (a failure, a slow load, a screen not built yet) you edit your way to from the nearest state (open a menu by adding its markup, cloned from a menu that is in another state), and say so in the source line.
 - The in-app browser's page is a picture of the page, not its DOM: draw over it, don't edit into it. Native macOS menus and dialogs are not in any snapshot; draw them with the kit's `mac.js`.
 - The page's `source` line says the frames are snapshots of Studio, the date the library was captured (`INDEX.md`), and what you drew yourself.

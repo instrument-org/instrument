@@ -1,45 +1,24 @@
-// node .agents/wireframe-kit/snap/library.mjs [<capture dir>]
+// node .agents/wireframe-kit/snap/library.mjs [<capture dir>] [--only <state>,...]
 // Turns capture.mjs's raw snapshots (`<dir>/raw/`, the library itself by default) into
 // the library snap() draws from: each state's snapshot with this machine scrubbed out of
 // it (`states/<name>.json`, in the wireframe skill's snapshot format), its picture and
-// outline beside it. Writes INDEX.md, the list an agent reads first.
+// outline beside it. `--only` takes just those states (light and dark) and leaves the
+// rest of the library as it is. Writes library.json, when and at which commit each state
+// was captured, and INDEX.md, the list an agent reads first.
 import { execFileSync } from "node:child_process";
 import fs from "node:fs";
 import path from "node:path";
 
+import { STATES } from "./capture.mjs";
 import { LIBRARY } from "./lib.mjs";
 
-const dir = path.resolve(process.argv[2] ?? LIBRARY);
+const argv = process.argv.slice(2);
+const onlyAt = argv.indexOf("--only");
+const only = onlyAt === -1 ? null : new Set(argv[onlyAt + 1].split(","));
+const dir = path.resolve(argv.find((a, i) => onlyAt === -1 || (i !== onlyAt && i !== onlyAt + 1)) ?? LIBRARY);
 const raw = path.join(dir, "raw");
 const outStates = path.join(LIBRARY, "states");
 fs.mkdirSync(outStates, { recursive: true });
-
-/** What each state shows, for INDEX.md. */
-const ABOUT = {
-  chat: "The pricing chat open: rail, the chat list (Search, View options, Inbox / Drafts / Archived, a Projects section, rows with project names), the chat's head, an answer with a table, the reply box.",
-  "chat-view-options": "The chat list's View options open: Three lines, Two lines, One line, and Group by day.",
-  "chat-search": "The chat list filtered by \"pricing\" typed into Search.",
-  "chat-drafts": "The chat list on its Drafts tab, empty.",
-  apps: "Apps open from the rail.",
-  "chat-plus-menu": "The chat with the reply box's + menu open (Browser, This Mac, Attach files, Add a folder, Apps, Skills).",
-  draft: "New pressed in Chat: a new chat fills the chat pane (New chat, + Project, No model chosen).",
-  "draft-over-files": "New pressed in Files: the draft docked over the Instrument folder.",
-  "bell-update": "The bell open on two notices: an update (What's new, Dismiss) and a What's new from the feed.",
-  feedback: "Send feedback open over the chat: topic chips, the note, Add images, what's sent with it.",
-  "files-table": "Files on the Instrument folder in Table view, pricing-comparison.html selected.",
-  "files-list": "Files in List view, the same selection.",
-  "files-grid": "Files in Grid view, the same selection.",
-  "files-context-menu": "Files in Table view with a file's context menu open.",
-  "files-info": "Files with the Info card open on pricing-comparison.html (from the context menu's Info ⌘I).",
-  "files-beside": "pricing-comparison.html open beside its folder.",
-  "image-fit": "An image (harbor-desk-pricing.png) open in Files at Fit, its toolbar above.",
-  "image-zoom-menu": "The image open with the Zoom menu down.",
-  "quick-look": "Quick Look over Files on an image, Space pressed.",
-  "browser-page": "The in-app browser on example.com. The page itself is a picture: it runs outside the app's DOM.",
-  "browser-find": "The browser with Find in page open on \"domain\", 1 of 2. The page is a picture.",
-  "new-tab": "The New tab page.",
-  settings: "Settings open on General.",
-};
 
 /**
  * This machine out of every file: the clean room's folder reads as the scenario's
@@ -93,6 +72,7 @@ const scrub = (/** @type {string} */ text) =>
 const done = [];
 for (const file of fs.readdirSync(raw).filter((f) => f.endsWith(".json")).sort()) {
   const key = file.slice(0, -5);
+  if (only && !only.has(key.replace(/\.dark$/, ""))) continue;
   const snapshot = JSON.parse(fs.readFileSync(path.join(raw, file), "utf8"));
   for (const field of ["html", "url", "title"]) snapshot[field] = scrub(snapshot[field] ?? "");
   const json = JSON.stringify(snapshot);
@@ -114,17 +94,36 @@ let commit = "";
 try {
   commit = execFileSync("git", ["rev-parse", "--short", "HEAD"], { cwd: path.dirname(new URL(import.meta.url).pathname), encoding: "utf8" }).trim();
 } catch {}
-fs.writeFileSync(path.join(LIBRARY, "library.json"), JSON.stringify({ capturedAt: new Date().toISOString(), commit, states: done.map((d) => d.key) }, null, 2));
+const now = new Date().toISOString();
+const listFile = path.join(LIBRARY, "library.json");
+const previous = fs.existsSync(listFile) ? JSON.parse(fs.readFileSync(listFile, "utf8")) : {};
+// A list of names, with one capturedAt for them all, dates every state by that capture.
+/** @type {Record<string, { capturedAt: string, commit: string }>} */
+const captured = Array.isArray(previous.states)
+  ? Object.fromEntries(previous.states.map((/** @type {string} */ k) => [k, { capturedAt: previous.capturedAt, commit: previous.commit }]))
+  : (previous.states ?? {});
+for (const d of done) captured[d.key] = { capturedAt: now, commit };
+const keys = fs
+  .readdirSync(outStates)
+  .filter((f) => f.endsWith(".json"))
+  .map((f) => f.slice(0, -5))
+  .sort();
+const states = Object.fromEntries(keys.map((k) => [k, captured[k] ?? { capturedAt: "", commit: "" }]));
+fs.writeFileSync(listFile, JSON.stringify({ states }, null, 2));
 
-const names = [...new Set(done.map((d) => d.key.replace(/\.dark$/, "")))];
+const names = [...new Set(keys.map((k) => k.replace(/\.dark$/, "")))];
+const when = (/** @type {string} */ n) => {
+  const c = states[n] ?? states[`${n}.dark`];
+  return c.capturedAt ? `${c.capturedAt.slice(0, 10)}${c.commit ? ` at ${c.commit}` : ""}` : "";
+};
 const index = [
   "# Snapshot library",
   "",
-  `Studio as captured ${new Date().toISOString().slice(0, 10)}${commit ? ` at ${commit}` : ""}, at 1280x800 in presentation mode, from a clean room seeded with the pricing scenario (four real chats, the Instrument folder, Screenshots). Each state is \`states/<name>.json\` (the snapshot), \`.png\` (look at it first) and \`.outline.txt\` (every control by the name snap() finds it by). A dark capture is \`<name>.dark\`.`,
+  "Studio at 1280x800 in presentation mode, from a clean room seeded with the pricing scenario (four real chats, the Instrument folder, Screenshots). Each state is `states/<name>.json` (the snapshot), `.png` (look at it first) and `.outline.txt` (every control by the name snap() finds it by). A dark capture is `<name>.dark`. A state missing here, or captured more than a week ago, is one `snap/capture.mjs <name>` away.",
   "",
-  "| State | Dark too | What it shows |",
-  "|---|---|---|",
-  ...names.map((n) => `| \`${n}\` | ${done.some((d) => d.key === `${n}.dark`) ? "yes" : ""} | ${ABOUT[n] ?? ""} |`),
+  "| State | Dark too | Captured | What it shows |",
+  "|---|---|---|---|",
+  ...names.map((n) => `| \`${n}\` | ${keys.includes(`${n}.dark`) ? "yes" : ""} | ${when(n)} | ${STATES[n]?.about ?? ""} |`),
   "",
 ];
 fs.writeFileSync(path.join(LIBRARY, "INDEX.md"), index.join("\n"));

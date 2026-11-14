@@ -34,11 +34,11 @@ function inWindow(
   const context = {
     ask: vi.fn(),
     browser: {
-      adopt: vi.fn(),
       navigate: vi.fn(),
       navigateTab: vi.fn(),
       open: browserOpen,
       openBehind: vi.fn(),
+      openBeside: vi.fn(),
       openForAnotherWindow: vi.fn(),
       openOrFocus: vi.fn(),
       pageInPlaceOf: vi.fn(),

@@ -35,6 +35,11 @@ import { createPortal } from "react-dom";
 import { z } from "zod";
 
 import { AskTray } from "./ask-tray";
+import {
+  type BesideAsk,
+  openBesideChat,
+  previousOpenedIn,
+} from "./beside-chat";
 import { PageEditSession, PageEditToggle } from "./page-edit";
 import { pageHostsAtom, type PageHost } from "./page-hosts";
 import { pageEditTabsAtom, usePageEditToggleOnScreen } from "./page-edit-state";
@@ -54,6 +59,7 @@ import {
   patchPage,
   titleAtNavigation,
   replaceTab,
+  raiseTab,
   selectTab,
   selectedTabIn,
 } from "./tab-model";
@@ -70,6 +76,16 @@ interface BehindPlace {
   id?: StoreId.Tab;
   openedBy?: ChatId;
 }
+
+/** A page opened beside a chat's tab (`openBesideChat`). */
+type BesidePage = Omit<BesideAsk, "previous"> & {
+  /** The page's own id, for a page an agent made with no tab. */
+  id?: StoreId.Tab;
+  /** The guest is already at the address, so nothing loads again. */
+  isLoaded?: boolean;
+  /** The chat whose agent opened it, whose last page it goes right after. */
+  openedBy?: ChatId;
+};
 
 export interface BrowserTabsHandle {
   /** Sends the guest on screen to an address, in the tab it is in. */
@@ -96,11 +112,15 @@ export interface BrowserTabsHandle {
    */
   openBehind: (url: string | undefined, place: BehindPlace) => StoreId.Tab;
   /**
-   * Gives a page an agent made with no tab a tab in a group, under the
-   * page's own id, right after `after` and behind, as the page goes
-   * somewhere. The guest is already at `url`, so nothing loads again.
+   * Opens a page beside a chat's tab, as a click inside the chat
+   * (`besidePlacementOf`). Shown, an address already open in the group
+   * comes up instead. Answers the tab, and whether it is up on its side;
+   * nothing for a chat's tab no group has.
    */
-  adopt: (id: StoreId.Tab, url: string, place: BehindPlace) => void;
+  openBeside: (
+    url: string | undefined,
+    page: BesidePage,
+  ) => undefined | { front: boolean; id: StoreId.Tab };
   /**
    * Adds a page tab to a group with no guest: the window that shows the
    * group opens the page there, at its address. For a page opened into
@@ -586,31 +606,71 @@ export function BrowserTabs({
         });
         return id;
       },
-      adopt: (id, url, { after, group, openedBy }) => {
-        if (latest.current.allTabs.some((tab) => tab.id === id)) {
-          return;
+      openBeside: (
+        url,
+        { id: given, isLoaded = false, openedBy, ...ask },
+      ) => {
+        if (given !== undefined && latest.current.allTabs.some((tab) => tab.id === given)) {
+          return undefined;
         }
-        change((current) =>
-          addPages(
+        const id = given ?? StoreId.newTabId();
+        let opened: undefined | { front: boolean; id: StoreId.Tab };
+        change((current) => {
+          const group = current.tabs.find(
+            (tab) => tab.id === ask.chatTab,
+          )?.group;
+          if (group === undefined) {
+            return current;
+          }
+          const atAddress =
+            ask.isShown && url !== undefined
+              ? current.tabs.find(
+                  (tab): tab is PageTab =>
+                    tab.group === group &&
+                    tab.kind === "page" &&
+                    sameAddress(tab.url, url),
+                )
+              : undefined;
+          const known = StoreId.TabSchema.safeParse(atAddress?.id);
+          if (atAddress && known.success) {
+            opened = { front: !ask.behind, id: known.data };
+            return ask.behind ? current : raiseTab(current, atAddress.id);
+          }
+          const previous =
+            openedBy === undefined
+              ? undefined
+              : previousOpenedIn(current, group, openedBy);
+          const placed = openBesideChat(
             current,
-            [
-              {
-                group,
-                id,
-                openedAt: Date.now(),
-                ...(openedBy === undefined ? {} : { openedBy }),
-                openedUrl: url,
-                url,
-              },
-            ],
-            after === undefined ? {} : { after },
-          ),
-        );
-        // Opened with no address, so the page stays as it is; the window
-        // browser starts keeping its lifetime from here.
-        void rpcClient.workspace.browser.open.call({
-          targetId: browserTargetOf(id),
+            {
+              group,
+              id,
+              kind: "page",
+              openedAt: Date.now(),
+              ...(openedBy === undefined ? {} : { openedBy }),
+              ...(url ? { openedUrl: url, url } : {}),
+            },
+            { ...ask, ...(previous === undefined ? {} : { previous }) },
+          );
+          opened = { front: placed.front, id };
+          return placed.state;
         });
+        // A page already loaded is opened with no address, so it stays as
+        // it is; the window browser keeps its lifetime from here.
+        if (opened?.id === id) {
+          const audible = ask.isShown && url !== undefined && document.hasFocus();
+          void rpcClient.workspace.browser.open
+            .call({
+              targetId: browserTargetOf(id),
+              ...(url && !isLoaded ? { url } : {}),
+            })
+            .then(() => {
+              if (audible) {
+                getGuest(browserTargetOf(id))?.allowSound();
+              }
+            });
+        }
+        return opened;
       },
       openForAnotherWindow: (url, into) => {
         const id = StoreId.newTabId();

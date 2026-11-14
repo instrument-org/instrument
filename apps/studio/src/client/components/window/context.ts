@@ -12,11 +12,11 @@ import { type BrowserTabsHandle } from "./browser-tabs";
 export interface OpenOptions {
   /** Puts the thing in front of its group without bringing the group on screen: for a group drawn by a window of its own. */
   activate?: boolean;
-  /** With `newTab`, the tab waits behind the one up, as a browser's does for a middle click, a Cmd-click or Open in New Tab. */
+  /** With `newTab` or `chat`, the tab waits behind, as a browser's does for a middle click, a Cmd-click or Open in New Tab. */
   behind?: boolean;
   /**
-   * The chat it was asked from, whose tab it opens right after: the tab
-   * `from` names, else the chat's tab the person last sent from.
+   * The chat it was asked from, whose tab it opens beside: the tab `from`
+   * names, else the chat's tab the person last sent from.
    */
   chat?: ChatId;
   /** The tab it was asked from, by its id, which `into: "split"` opens across from; the tab up with the keyboard where none is named. */

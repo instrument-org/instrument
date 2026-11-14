@@ -12,6 +12,11 @@ import { type ChatId, StoreId } from "@instrument-org/workspace/client";
 
 import { appTabsAtom, groupOfHref } from "./app-tabs";
 import {
+  type BesideAsk,
+  openBesideChat,
+  previousOpenedIn,
+} from "./beside-chat";
+import {
   addPages,
   addScreen,
   besideOf,
@@ -456,6 +461,62 @@ export function useWindowTabs() {
           }),
           value: id,
         };
+      }, undefined);
+    },
+    /**
+     * A screen opened beside a chat's tab, as a click inside the chat
+     * (`besidePlacementOf`). Shown, a tab of the group already showing the
+     * address comes up instead. Answers the tab, and whether it is up on its
+     * side; nothing for a chat's tab no group has.
+     */
+    openScreenBeside: (
+      to: string,
+      {
+        openedBy,
+        ...ask
+      }: Omit<BesideAsk, "previous"> & {
+        /** The chat whose agent opened it, whose last page it goes right after. */
+        openedBy?: ChatId;
+      },
+    ): undefined | { front: boolean; id: string } => {
+      const href = openLinkAddress(to);
+      if (href === undefined) {
+        return undefined;
+      }
+      return answer<undefined | { front: boolean; id: string }>((current) => {
+        const group = current.tabs.find(
+          (tab) => tab.id === ask.chatTab,
+        )?.group;
+        if (group === undefined) {
+          return { state: current, value: undefined };
+        }
+        const showing = ask.isShown
+          ? tabShowingIn(current, group, href)
+          : undefined;
+        if (showing) {
+          return {
+            state: ask.behind ? current : raiseTab(current, showing.id),
+            value: { front: !ask.behind, id: showing.id },
+          };
+        }
+        const id = newScreenId();
+        const previous =
+          openedBy === undefined
+            ? undefined
+            : previousOpenedIn(current, group, openedBy);
+        const placed = openBesideChat(
+          current,
+          {
+            group,
+            href,
+            id,
+            isOpened: true,
+            kind: "screen",
+            ...(openedBy === undefined ? {} : { openedBy }),
+          },
+          { ...ask, ...(previous === undefined ? {} : { previous }) },
+        );
+        return { state: placed.state, value: { front: placed.front, id } };
       }, undefined);
     },
     /**

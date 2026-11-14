@@ -187,18 +187,22 @@ function ChatScreenOfRecord({
   }
   const modelURI = info.data?.modelURI ?? defaultModelURI;
   const reach = folders.data;
-  // Right after this copy of the chat, shown: an open from a chat's
-  // transcript is the chat's whatever the window has up at that moment, and
-  // never a silent nothing because the group on screen was another's.
-  // A new-tab or new-window gesture over any of it asks for a place of the
-  // window's own.
+  // Beside this copy of the chat, shown: an open from a chat's transcript
+  // is the chat's whatever the window has up at that moment, and never a
+  // silent nothing because the group on screen was another's. A new-tab
+  // gesture (a Cmd-click, a middle click, Open in New Tab) goes to the same
+  // place and stays behind; a new-window or split gesture asks for a place
+  // of the window's own.
   const into = {
     chat: chatId,
     ...(groupTab ? { from: groupTab.id } : {}),
     ownTab: true,
     show: true,
   };
-  const intoOr = (options?: OpenOptions) => ownPlaceOf(options) ?? into;
+  const intoOr = (options?: OpenOptions): OpenOptions =>
+    options?.newTab && !options.into && !options.newWindow
+      ? { ...into, behind: true, show: false }
+      : (ownPlaceOf(options) ?? into);
   return (
     // The chat is the drop region, so a file let go anywhere over it lands
     // in the reply, and the pane beside it stays outside.

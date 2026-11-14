@@ -68,6 +68,8 @@ export type WindowTabRequest = z.output<typeof WindowTabRequestSchema>;
 
 /** The window's answer: the tab acted on or made, or why nothing was done. */
 export const WindowTabAnswerSchema = z.object({
+  /** For an open: the tab waits behind what is up on its side, since the user is working there. */
+  behind: z.boolean().optional(),
   error: z.string().optional(),
   requestId: z.string(),
   tabId: z.string().optional(),

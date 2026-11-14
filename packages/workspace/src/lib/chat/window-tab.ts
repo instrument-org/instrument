@@ -68,9 +68,9 @@ export async function askWindow({
 
 /**
  * Asks the window for a page tab and returns its id, or undefined when no
- * window answered. `show` puts the tab on screen; without it the tab joins
- * the chat's list behind whatever is up, which is how every tab an agent
- * opens for its own work arrives.
+ * window answered. The tab lands beside the chat as a click in it would;
+ * without `show`, as every tab an agent opens for its own work arrives, it
+ * stays behind on the chat's own side.
  */
 export async function requestWindowTab({
   askedBy,

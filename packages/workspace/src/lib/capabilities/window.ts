@@ -278,7 +278,7 @@ export const windowShow = defineCapability({
     return outcomes;
   },
   summary:
-    "Put each in front: a url, file or folder opens in a tab of its own, printing the tab's id, which `agent-browser tab` takes; a tab's id brings it forward.",
+    "Put each in front: a url, file or folder opens in a tab of its own beside you, printing the tab's id, which `agent-browser tab` takes; a tab's id brings it forward.",
   surfaces: {
     cli: {
       flagNames: { into: "in" },
@@ -318,7 +318,7 @@ async function showOne(arg: string, ctx: CapabilityContext): Promise<Outcome> {
   // tab's id that is missing, not the page.
   return {
     failed: false,
-    said: `Opened ${describeTarget(target)} in front${tabId ? ` (tab ${tabId})` : ""}`,
+    said: `Opened ${describeTarget(target)} ${answer?.behind ? "behind" : "in front"}${tabId ? ` (tab ${tabId})` : ""}${answer?.behind ? ": the user is working on that side." : ""}`,
     ...(tabId ? { tab: tabId } : {}),
     target: arg,
   };

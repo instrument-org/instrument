@@ -123,6 +123,7 @@ function omnibarModeOf(location: TabLocation): OmnibarMode {
     }
     case "builtin":
     case "chat":
+    case "chats":
     case "newChat":
     case "newTab":
     case "page":

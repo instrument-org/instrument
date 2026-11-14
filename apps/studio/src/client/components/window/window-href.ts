@@ -31,8 +31,11 @@ export type Screen =
   | { kind: "extensions" }
   /** A tab group, by its key: the window's tab showing it. */
   | { group: string; kind: "group" }
-  /** Every chat and kept draft no window has open. */
-  | { kind: "history" }
+  /**
+   * Every chat and kept draft no window has open; or, with `chats`, every
+   * chat there is, open or not: the index Chat's chip goes to.
+   */
+  | { chats?: true; kind: "history" }
   /** The chat with no chat open: a new chat beside the inbox, written into the draft named when there is one. */
   | { draft?: string; kind: "inbox" }
   /** What Instrument remembers, as a page of its own. */
@@ -245,7 +248,9 @@ export function matchScreen(href: string): Screen {
     return { kind: "debug", pathname };
   }
   if (at(SCREEN_ROUTES.history)) {
-    return { kind: "history" };
+    return search.get("show") === "chats"
+      ? { chats: true, kind: "history" }
+      : { kind: "history" };
   }
   if (at(SCREEN_ROUTES.memories)) {
     return { kind: "memories" };
@@ -274,6 +279,9 @@ export function matchScreen(href: string): Screen {
   }
   return { kind: "unknown" };
 }
+
+/** The index of every chat, open or not: History showing chats alone. */
+export const CHATS_INDEX_HREF = `${SCREEN_ROUTES.history}?show=chats`;
 
 /**
  * The address of a chat's screen, or of a chat named by its session, which

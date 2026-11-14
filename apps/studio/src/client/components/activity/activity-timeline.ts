@@ -320,6 +320,24 @@ export const SHOWS = [
   "ai",
 ] as const satisfies Show[];
 
+/** The filters over the list, with what each one shows: its name on the page and in the address field, and its tooltip. */
+export const SHOW_LABELS: Record<Show, { label: string; title: string }> = {
+  ai: { label: "AI requests", title: "What your chats asked AI models" },
+  chats: { label: "Chats", title: "Chats you opened" },
+  files: { label: "Files", title: "Files and folders you opened or changed" },
+  pages: { label: "Pages", title: "Pages you visited in the browser" },
+};
+
+/** What a row says, whichever log it is from. */
+export function entryText(
+  entry: TimelineEntry,
+  { modelName, words }: { modelName: (id: null | string) => string; words: Words },
+): RowText {
+  return entry.kind === "turn"
+    ? turnText(entry.turn, modelName)
+    : actionText(entry.action, words);
+}
+
 /** The filter an entry shows under, besides All. */
 function showOf(entry: TimelineEntry): Show | undefined {
   if (entry.kind === "turn") {

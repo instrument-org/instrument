@@ -62,7 +62,13 @@ import { useQuery } from "@tanstack/react-query";
 import { useSetAtom } from "jotai";
 import { Fragment, type ReactNode, useContext, useState } from "react";
 
-import { AppChip, AppMark, appName, type BuiltInApp } from "./app-chip";
+import {
+  AppChip,
+  AppMark,
+  appIndexHref,
+  appName,
+  type BuiltInApp,
+} from "./app-chip";
 import { BookmarkStar } from "./bookmark-star";
 import { ShellContext } from "./shell-context";
 import {
@@ -86,10 +92,10 @@ import {
  * parts: the place itself last, and every place it sits under before it, each
  * of those a way there. So a file reaches its folder, an app page reaches Apps,
  * and a task reaches the work, without the row pretending to be a URL bar. A
- * chip ahead of the parts names which of the app's own apps the tab is in.
- * With the caret the field holds a page's or a file's real address to edit,
- * and opens empty in the app's own places; the star at the field's end keeps
- * the tab's address as a bookmark.
+ * chip ahead of the parts names which of the app's own apps the tab is in and
+ * goes to its index. With the caret the field holds a page's or a file's real
+ * address to edit, and opens empty in the app's own places; the star at the
+ * field's end keeps the tab's address as a bookmark.
  */
 export function TabLocationRow({
   address,
@@ -241,10 +247,9 @@ export function TabLocationRow({
             {...(onSite ? { onSite } : {})}
             {...(onVisit ? { onVisit } : {})}
             resting={
-              location.kind === "newTab" || location.kind === "newChat" ? (
-                undefined
-              ) : (
-                <Field location={location} />
+              location.kind === "newTab" ||
+              location.kind === "newChat" ? undefined : (
+                <Field location={location} {...(onVisit ? { onVisit } : {})} />
               )
             }
           />
@@ -316,7 +321,13 @@ export function TabRowControl({
 }
 
 /** The mark and the words, which is all that changes between page types. */
-function Field({ location }: { location: TabLocation }) {
+function Field({
+  location,
+  onVisit,
+}: {
+  location: TabLocation;
+  onVisit?: (href: string) => void;
+}) {
   // The disks the sidebar lists, which name where a path outside the home
   // folder starts. Asked for only where a path is on screen, and answered
   // from the same cache the folder browser reads.
@@ -346,7 +357,7 @@ function Field({ location }: { location: TabLocation }) {
   if (chip && crumbs.length === 0) {
     return (
       <>
-        <FieldChip app={chip} />
+        <FieldChip app={chip} {...(onVisit ? { onVisit } : {})} />
         <span className="flex-1" />
       </>
     );
@@ -425,7 +436,18 @@ function Field({ location }: { location: TabLocation }) {
         )}
         onAuxClick={gestures?.onAuxClick}
         onClick={() => {
-          open.run();
+          // A part of one of the app's own pages is a step back out on this
+          // tab, the way a folder above a file is: the window would only
+          // bring up the page's tab as it is, the one tab it keeps for it.
+          if (
+            onVisit &&
+            crumb.to?.kind === "screen" &&
+            crumb.path === undefined
+          ) {
+            onVisit(crumb.to.href);
+          } else {
+            open.run();
+          }
         }}
         {...(menu ? {} : { onContextMenu: gestures?.onContextMenu })}
         type="button"
@@ -471,7 +493,7 @@ function Field({ location }: { location: TabLocation }) {
   return (
     <>
       {chip ? (
-        <FieldChip app={chip} nameFolds />
+        <FieldChip app={chip} nameFolds {...(onVisit ? { onVisit } : {})} />
       ) : (
         <LocationMark location={location} />
       )}
@@ -614,30 +636,40 @@ function LocationMark({ location }: { location: TabLocation }) {
 }
 
 /**
- * The chip at the field's start. Files' and Apps' do what the rail's own
- * entry does: the place, at its root when the window is already in it.
+ * The chip at the field's start, which goes to the app's index
+ * (`appIndexHref`) the way a file's folders go to each folder: on this tab,
+ * through `onVisit`, which puts what a chat's tab goes to in a tab after it.
+ * A row with no `onVisit` has Files' and Apps' do what the rail's own entry
+ * does: the place, at its root when the window is already in it.
  */
 function FieldChip({
   app,
   nameFolds = false,
+  onVisit,
 }: {
   app: BuiltInApp;
   /** A name follows the chip, which keeps the room in a narrow field. */
   nameFolds?: boolean;
+  onVisit?: (href: string) => void;
 }) {
   const shell = useContext(ShellContext);
+  const index = appIndexHref(app);
   const place = app === "apps" ? "apps" : app === "files" ? "files" : undefined;
+  const onPress =
+    onVisit && index !== undefined
+      ? () => {
+          onVisit(index);
+        }
+      : shell && place
+        ? () => {
+            shell.goToPlace(place);
+          }
+        : undefined;
   return (
     <AppChip
       app={app}
       nameFolds={nameFolds}
-      {...(shell && place
-        ? {
-            onPress: () => {
-              shell.goToPlace(place);
-            },
-          }
-        : {})}
+      {...(onPress ? { onPress } : {})}
     />
   );
 }
@@ -651,6 +683,7 @@ function FieldChip({
 function locationItemMark(location: TabLocation): ReactNode {
   if (
     location.kind === "chat" ||
+    location.kind === "chats" ||
     location.kind === "builtin" ||
     location.kind === "apps" ||
     location.kind === "newChat"
@@ -713,6 +746,7 @@ function locationMark(location: TabLocation): ReactNode {
       return <AppMark app={location.screen} />;
     }
     case "chat":
+    case "chats":
     case "newChat": {
       return <AppMark app="chat" />;
     }
@@ -763,6 +797,7 @@ function locationText(location: TabLocation) {
     case "apps":
     case "builtin":
     case "chat":
+    case "chats":
     case "newChat":
     case "newTab":
     case "task": {

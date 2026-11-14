@@ -26,7 +26,7 @@ import { type ComponentType, type ReactNode } from "react";
 import { FileMark } from "./file-mark";
 import { FolderMark } from "./folder-mark";
 import { segmentsOf } from "./host-path";
-import { matchScreen } from "./window-href";
+import { CHATS_INDEX_HREF, matchScreen } from "./window-href";
 
 /**
  * The app's own built-in apps, as the address field's chip names them: Chat,
@@ -66,6 +66,21 @@ export function ScreenMark({
 }) {
   const Mark = SCREEN_MARKS[name];
   return <Mark className={className} />;
+}
+
+/**
+ * Where a built-in app's chip goes: the app's index, which every place in it
+ * is under. Chat's is every chat; Files' is the folder browser at its start.
+ */
+export function appIndexHref(app: BuiltInApp): string | undefined {
+  if (app === "chat") {
+    return CHATS_INDEX_HREF;
+  }
+  if (!isScreenName(app)) {
+    return undefined;
+  }
+  const screen = SCREENS[app];
+  return "href" in screen ? screen.href : undefined;
 }
 
 /** What a built-in app is called on its chip. */

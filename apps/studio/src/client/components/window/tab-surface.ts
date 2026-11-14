@@ -33,6 +33,11 @@ export interface TabSurface {
    */
   finder?: FinderShown;
   /**
+   * The one thing open inside a built-in page, by the name the field reads
+   * last, after the page's chip: an Activity row whose details are open.
+   */
+  item?: string;
+  /**
    * Several picked in the folder beside a file, which the row names in the
    * file's place: how many, and the folder on screen they were picked in,
    * none for the recents, which are from all over.
@@ -59,13 +64,16 @@ export interface TabSurface {
 
 /**
  * Where a tab's row says it stands, given what its address says and what its
- * screen says about itself: the folder as it was walked to, and several
- * picked beside a file in the file's place.
+ * screen says about itself: the folder as it was walked to, several picked
+ * beside a file in the file's place, and what a built-in page has open.
  */
 export function surfaceLocation(
   fromHref: TabLocation,
-  { picked, view, walked }: TabSurface = {},
+  { item, picked, view, walked }: TabSurface = {},
 ): TabLocation {
+  if (fromHref.kind === "builtin" && item !== undefined) {
+    return { ...fromHref, item };
+  }
   if (fromHref.kind === "file" && picked !== undefined) {
     return picked.folder
       ? {
@@ -141,6 +149,7 @@ type SameFact = {
 };
 const sameFact: SameFact = {
   finder: sameData,
+  item: (a, b) => a === b,
   picked: sameData,
   slot: (a, b) =>
     a !== null &&

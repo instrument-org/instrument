@@ -128,6 +128,7 @@ it("reads every kind of address", () => {
     "/debug",
     "/debug/components/colors",
     "/history",
+    "/history?show=chats&q=trip",
     "/memory",
     "/memory/trip-notes",
     "/memory/a/b",
@@ -206,6 +207,10 @@ it("reads every kind of address", () => {
           "root": "~",
         },
         "/history": {
+          "kind": "history",
+        },
+        "/history?show=chats&q=trip": {
+          "chats": true,
           "kind": "history",
         },
         "/memory": {

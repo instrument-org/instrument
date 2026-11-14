@@ -1,5 +1,7 @@
+import { useQuery } from "@tanstack/react-query";
 import { type ReactNode } from "react";
 
+import { chatListOptions } from "./chat-list-query";
 import { hasWords, matchesSearch } from "./chats";
 import { GroupRow } from "./group-sidebar";
 import { SearchField } from "./search-field";
@@ -18,15 +20,36 @@ import {
  * group of its own at the top of the sidebar, and the window moves to it;
  * this tab stays where it was. The words in the field narrow it, as the
  * sidebar's search does.
+ *
+ * Showing chats alone, it is the index of every chat, open in a window or
+ * not, most recently active first: a click on one brings up its tab, or
+ * opens it as History does.
  */
 export function HistoryPage({
   onSearch,
   q,
+  show,
 }: {
   onSearch: (q: string) => void;
   q: string;
+  show?: "chats" | undefined;
 }) {
-  const { history } = useOpenGroups();
+  const closed = useOpenGroups().history;
+  const chats = useQuery(chatListOptions()).data;
+  const history =
+    show === "chats"
+      ? (chats ?? [])
+          .map(
+            (chat): TabGroup => ({
+              chat,
+              group: chat.id,
+              kind: "chat",
+              pinned: false,
+              title: chat.title,
+            }),
+          )
+          .toSorted((a, b) => lastActiveAt(b) - lastActiveAt(a))
+      : closed;
   const shell = useShell();
   const groups = useTabGroupActions();
   const projectNames = new Map(
@@ -54,23 +77,29 @@ export function HistoryPage({
     >
       <div className="mx-auto flex max-w-2xl flex-col gap-3 p-4 @min-[640px]/history:p-6">
         <div className="flex flex-wrap items-center gap-x-3 gap-y-2">
-          <h1 className="mr-1 text-base font-semibold">History</h1>
+          <h1 className="mr-1 text-base font-semibold">
+            {show === "chats" ? "Chats" : "History"}
+          </h1>
           <div className="flex min-w-48 flex-1">
             <SearchField
-              label="Search history"
+              label={show === "chats" ? "Search chats" : "Search history"}
               onChange={onSearch}
-              placeholder="Search history"
+              placeholder={show === "chats" ? "Search chats" : "Search history"}
               value={q}
             />
           </div>
         </div>
         {history.length === 0 ? (
           <p className="py-2 text-[13px] text-muted-foreground">
-            Tab groups you close show up here.
+            {show === "chats"
+              ? "Your chats show up here."
+              : "Tab groups you close show up here."}
           </p>
         ) : shown.length === 0 ? (
           <p className="py-2 text-[13px] text-muted-foreground">
-            {`Nothing in History matches “${q}”.`}
+            {show === "chats"
+              ? `No chats match “${q}”.`
+              : `Nothing in History matches “${q}”.`}
           </p>
         ) : (
           <HistoryList

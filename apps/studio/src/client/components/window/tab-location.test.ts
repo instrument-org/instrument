@@ -259,6 +259,50 @@ describe("locationCrumbs", () => {
     `);
   });
 
+  it("makes what Activity shows a place to step back out to while one of its rows is open", () => {
+    expect(
+      readable({
+        item: "Read report.pdf",
+        kind: "builtin",
+        part: "Files",
+        partHref: "/activity?show=files",
+        screen: "activity",
+      }),
+    ).toMatchInlineSnapshot(`
+      [
+        "Files -> /activity?show=files",
+        "Read report.pdf",
+      ]
+    `);
+    expect(
+      readable({
+        item: "Read report.pdf",
+        kind: "builtin",
+        screen: "activity",
+      }),
+    ).toMatchInlineSnapshot(`
+      [
+        "Read report.pdf",
+      ]
+    `);
+    expect(
+      readable({
+        kind: "builtin",
+        part: "Files",
+        partHref: "/activity?show=files",
+        screen: "activity",
+      }),
+    ).toMatchInlineSnapshot(`
+      [
+        "Files",
+      ]
+    `);
+  });
+
+  it("gives every chat none past the chip", () => {
+    expect(readable({ kind: "chats" })).toMatchInlineSnapshot(`[]`);
+  });
+
   it("says an address whole, and a new tab not at all", () => {
     expect(
       readable({ kind: "page", url: "https://example.com/a/b" }),
@@ -293,6 +337,7 @@ describe("locationChip", () => {
       "files",
     ],
     ["a chat", { kind: "chat", title: "Caffeine mixes" }, "chat"],
+    ["every chat", { kind: "chats" }, "chat"],
     ["a new chat, which is a new tab", { kind: "newChat" }, undefined],
     ["a task", { kind: "task", title: "Book the hotel" }, "chat"],
     ["Activity", { kind: "builtin", screen: "activity" }, "activity"],

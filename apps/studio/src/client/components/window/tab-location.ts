@@ -77,11 +77,22 @@ export type TabLocation =
   | { kind: "apps" }
   /**
    * A built-in page of the app, by its name in `SCREENS` (Settings,
-   * Memory, Skills, History, Activity, the browser's extensions), and the
-   * title of the part of it shown where it has parts (a part of Settings).
+   * Memory, Skills, History, Activity, the browser's extensions): the part
+   * of it shown where it has parts (a part of Settings, what Activity is
+   * showing), and the one thing open inside it (an Activity row's
+   * details), each by the name the field reads it by. A part with something
+   * open inside it is somewhere to step back out to, at `partHref`.
    */
-  | { kind: "builtin"; part?: string; screen: ScreenName }
+  | {
+      item?: string;
+      kind: "builtin";
+      part?: string;
+      partHref?: string;
+      screen: ScreenName;
+    }
   | { kind: "chat"; title: string }
+  /** Every chat, open or not: the index Chat's chip goes to. */
+  | { kind: "chats" }
   /**
    * A chat not started yet: a new tab, which is nowhere yet. It becomes the
    * chat once something is sent from it, or the page or file put in it.
@@ -120,8 +131,23 @@ export function locationCrumbs(
     case "apps": {
       return [];
     }
+    // A part is a place to step back out to while something inside it is
+    // open, the way a folder is above its file.
     case "builtin": {
-      return location.part === undefined ? [] : [{ label: location.part }];
+      const { item, part, partHref } = location;
+      return [
+        ...(part === undefined
+          ? []
+          : [
+              {
+                label: part,
+                ...(item !== undefined && partHref !== undefined
+                  ? { to: { href: partHref, kind: "screen" as const } }
+                  : {}),
+              },
+            ]),
+        ...(item === undefined ? [] : [{ label: item }]),
+      ];
     }
     // A chat hangs from the chat beside the tabs rather than from a screen
     // under one, so there is nothing above it the field could go to.
@@ -150,6 +176,7 @@ export function locationCrumbs(
             count,
           ];
     }
+    case "chats":
     case "newChat":
     case "newTab":
     case "page": {
@@ -163,7 +190,7 @@ export function locationCrumbs(
 
 /**
  * Which of the app's own apps a location is in, whose chip leads the field:
- * Chat for a chat and a task, Files for a file or a folder, Apps for an
+ * Chat for a chat, a task and the index of chats, Files for a file or a folder, Apps for an
  * app's page, and each built-in page its own. A website and a new tab, a
  * new chat among them, have none.
  */
@@ -177,6 +204,7 @@ export function locationChip(location: TabLocation): BuiltInApp | undefined {
       return location.screen;
     }
     case "chat":
+    case "chats":
     case "task": {
       return "chat";
     }

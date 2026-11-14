@@ -1,3 +1,8 @@
+import {
+  type Show,
+  SHOW_LABELS,
+  SHOWS,
+} from "@/client/components/activity/activity-timeline";
 import { PlaceIcon } from "@/client/components/window/place-icons";
 import { debugPageTitle } from "@/client/routes/debug/-debug-routes";
 import {
@@ -93,12 +98,31 @@ export function screenLocation(
     case "inbox": {
       return { kind: "newChat" };
     }
+    // Every chat, which is Chat's own index.
+    case "history": {
+      return screen.chats
+        ? { kind: "chats" }
+        : { kind: "builtin", screen: "history" };
+    }
+    // What Activity shows, when it is one kind of row, is the part it is at,
+    // and the row open inside it says itself (`TabSurface.item`).
+    case "activity": {
+      const show = activityShowOf(href);
+      return {
+        kind: "builtin",
+        ...(show
+          ? {
+              part: SHOW_LABELS[show].label,
+              partHref: `${SCREENS.activity.href}?show=${show}`,
+            }
+          : {}),
+        screen: "activity",
+      };
+    }
     // A built-in page, by its name in `SCREENS`, and the part of Settings
     // shown by its title.
-    case "activity":
     case "browser":
     case "extensions":
-    case "history":
     case "memories":
     case "releaseNotes":
     case "settings":
@@ -200,11 +224,19 @@ export function screenPresentation(
         title: "New Tab",
       };
     }
+    // The index of every chat, under the plain bubble the Chats list wears.
+    case "history": {
+      return screen.chats
+        ? { icon: <ChatCircleIcon className="size-3.5" />, title: "Chats" }
+        : {
+            icon: <ScreenMark className="size-3.5" name="history" />,
+            title: SCREENS.history.title,
+          };
+    }
     // A built-in page by its own name and mark; one Settings tab whichever
     // part it is at, which the address field says.
     case "activity":
     case "extensions":
-    case "history":
     case "memories":
     case "releaseNotes":
     case "settings":
@@ -235,6 +267,17 @@ export function screenPresentation(
       };
     }
   }
+}
+
+/** The one kind of row Activity's address shows, if it names one. */
+function activityShowOf(href: string): Show | undefined {
+  let show: null | string;
+  try {
+    show = new URL(href, "http://tabs").searchParams.get("show");
+  } catch {
+    return undefined;
+  }
+  return SHOWS.find((each) => each === show);
 }
 
 /** The built-in page each of the window's own screen kinds is, by its name in `SCREENS`. */

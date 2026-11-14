@@ -145,6 +145,30 @@ describe("screenLocation", () => {
     expect(screenLocation(href, CONTEXT)).toEqual({ kind: "folder", path });
   });
 
+  it.each([
+    ["History", "/history?q=trip", { kind: "builtin", screen: "history" }],
+    ["every chat", "/history?q=trip&show=chats", { kind: "chats" }],
+    ["Activity", "/activity", { kind: "builtin", screen: "activity" }],
+    [
+      "what Activity shows",
+      "/activity?show=files",
+      {
+        kind: "builtin",
+        part: "Files",
+        partHref: "/activity?show=files",
+        screen: "activity",
+      },
+    ],
+  ])("places a tab at %s", (_, href, location) => {
+    expect(screenLocation(href, CONTEXT)).toEqual(location);
+  });
+
+  it("names the chats' index Chats", () => {
+    expect(screenPresentation("/history?show=chats", CONTEXT).title).toBe(
+      "Chats",
+    );
+  });
+
   it("places a chat tab on its chat", () => {
     const chatTitles = new Map([[CHAT_ID, "Caffeine mixes"]]);
     expect(screenLocation(INBOX_HREF, { ...CONTEXT, chatTitles })).toEqual({

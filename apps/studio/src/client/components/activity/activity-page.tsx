@@ -8,11 +8,12 @@ import { useModelName } from "@/client/components/activity/activity-requests";
 import {
   type ActivityRequest,
   type ActivityView,
-  actionText,
   entriesShown,
+  entryText,
   moreFromOf,
   placeOf,
   type Show,
+  SHOW_LABELS,
   SHOWS,
   timelineOf,
   type TimelineEntry,
@@ -20,7 +21,6 @@ import {
   turnPlaceOf,
   pathOfAction,
   turnParts,
-  turnText,
   withDayHeads,
 } from "@/client/components/activity/activity-timeline";
 import { ClearActivityDialog } from "@/client/components/activity/clear-activity-dialog";
@@ -43,6 +43,7 @@ import {
   type MenuComponents,
 } from "@/client/components/ui/menu-components";
 import { SearchField } from "@/client/components/window/search-field";
+import { useTabSurface } from "@/client/components/window/tab-surface";
 import {
   refreshWhileShown,
   useIsActiveTab,
@@ -86,14 +87,6 @@ const LIVE_LIMIT = 200;
 /** The query keys of the person's actions and the AI requests, which a removal or a Clear starts over. */
 export const ACTIONS_KEY = ["actions", "list"];
 export const REQUESTS_KEY = ["activity", "timeline"];
-
-/** The filters over the list, in the order they sit, with what each one shows. */
-const SHOW_LABELS: Record<Show, { label: string; title: string }> = {
-  ai: { label: "AI requests", title: "What your chats asked AI models" },
-  chats: { label: "Chats", title: "Chats you opened" },
-  files: { label: "Files", title: "Files and folders you opened or changed" },
-  pages: { label: "Pages", title: "Pages you visited in the browser" },
-};
 
 const EMPTY: Record<Show, string> = {
   ai: "No AI requests yet.",
@@ -270,6 +263,9 @@ export function ActivityPage({
   };
 
   const picked = shown.find((entry) => entry.id === item);
+  // The row open, which the address field names after Activity's chip.
+  const pickedText = picked ? entryText(picked, { modelName, words }) : null;
+  useTabSurface("item", pickedText && (pickedText.title || pickedText.context));
   const pick = (id: string | undefined) => {
     onSearch({ item: id });
   };
@@ -815,10 +811,7 @@ function ActivityList({
               </div>
             );
           }
-          const text =
-            item.kind === "turn"
-              ? turnText(item.turn, modelName)
-              : actionText(item.action, words);
+          const text = entryText(item, { modelName, words });
           const context =
             item.kind === "turn" ? (
               <TurnContext parts={turnParts(item.turn, modelName)} />

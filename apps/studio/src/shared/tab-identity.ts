@@ -45,9 +45,15 @@ export function tabIdentityOf(
       const draft = search.get("draft");
       return draft ? `draft:${draft}` : undefined;
     }
+    // The index of every chat is History showing chats alone, a page of its own.
+    case "history": {
+      if (second !== undefined) {
+        return undefined;
+      }
+      return search.get("show") === "chats" ? "history:chats" : first;
+    }
     case "activity":
     case "extensions":
-    case "history":
     case "memory":
     case "release-notes":
     case "skills": {

@@ -37,6 +37,12 @@ describe("isSameTabIdentity", () => {
     ["an app", "/apps/github", "/apps/github/"],
     ["the release notes", "/release-notes", "/release-notes"],
     ["the extensions", "/extensions", "/extensions"],
+    ["History, whatever it searches", "/history", "/history?q=trip"],
+    [
+      "every chat, whatever it searches",
+      "/history?show=chats",
+      "/history?q=trip&show=chats",
+    ],
   ])("%s", (_, a, b) => {
     expect(isSameTabIdentity(a, b, HOME)).toBe(true);
   });
@@ -49,6 +55,7 @@ describe("isSameTabIdentity", () => {
     ["a chat and a draft", "/chats/a", "/chats?draft=a"],
     ["two apps", "/apps/github", "/apps/linear"],
     ["the apps and an app", "/apps", "/apps/github"],
+    ["History and every chat", "/history", "/history?show=chats"],
   ])("tells apart %s", (_, a, b) => {
     expect(isSameTabIdentity(a, b, HOME)).toBe(false);
   });

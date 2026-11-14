@@ -21,7 +21,10 @@ import {
 } from "./window-tabs";
 
 const CHAT = ChatIdSchema.parse("2026-10-01-roofer");
-const OTHER = ChatIdSchema.parse("2026-10-02-trip");
+const GROUP = "group:1";
+const OTHER = "group:2";
+/** The window's tab standing on a group, as `groupHref` addresses it. */
+const ON_GROUP = `/chats?group=${encodeURIComponent(GROUP)}`;
 
 const TAB = TabIdSchema.parse("tab");
 
@@ -46,7 +49,8 @@ function at(pathname: string) {
 
 describe("the group on screen", () => {
   it.each([
-    ["a chat", `/chats/${CHAT}`, CHAT],
+    ["a group", ON_GROUP, GROUP],
+    ["a chat asked for by its address", `/chats/${CHAT}`, undefined],
     ["the inbox alone", "/chats", undefined],
     ["a site of the window's own", "/sites/abc", "site:abc"],
     ["a screen that is its own route", "/files", undefined],
@@ -58,20 +62,20 @@ describe("the group on screen", () => {
 });
 
 describe("opening into a group", () => {
-  it("brings a screen up in the group on screen, and leaves one opened into a chat behind waiting with nothing up", () => {
-    const { result, store } = at(`/chats/${CHAT}`);
+  it("brings a screen up in the group on screen, and leaves one opened into another group waiting there", () => {
+    const { result, store } = at(ON_GROUP);
     let here: string | undefined;
     act(() => {
       here = result.current.openScreen(BROWSER_HREF);
       result.current.openScreen(BROWSER_HREF, { group: OTHER });
     });
     expect(result.current.active?.id).toBe(here);
-    expect(store.get(windowTabsAtom).activeByGroup).toEqual({ [CHAT]: here });
-    expect(result.current.selectedTabIn(OTHER)).toBeUndefined();
+    expect(store.get(windowTabsAtom).activeByGroup).toEqual({ [GROUP]: here });
+    expect(store.get(windowTabsAtom).activeByGroup).not.toHaveProperty(OTHER);
   });
 
   it("sees, within one tick, what the change before it did", () => {
-    const { result } = at(`/chats/${CHAT}`);
+    const { result } = at(ON_GROUP);
     let first: string | undefined;
     let second: string | undefined;
     act(() => {
@@ -83,7 +87,7 @@ describe("opening into a group", () => {
   });
 
   it("walks a screen tab up to another screen by its own router, keeping it", () => {
-    const { result } = at(`/chats/${CHAT}`);
+    const { result } = at(ON_GROUP);
     let id: string | undefined;
     act(() => {
       id = result.current.openScreen(BROWSER_HREF);
@@ -125,6 +129,7 @@ describe("the tabs a build with one window kept", () => {
 
     expect(createStore().get(migrated)).toEqual({
       activeByGroup: { chat_a: "tab_1" },
+      besideByGroup: {},
       tabs: [
         { group: "chat_a", id: "tab_1", kind: "page", openedAt: 1 },
         { id: "tab_2", kind: "page", openedAt: 2 },

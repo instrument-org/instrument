@@ -1,9 +1,6 @@
-import { type ChatId } from "@instrument-org/workspace/client";
-
 import { type OpenOptions } from "./context";
 import { isGroupScreenHref } from "./group-screen";
-import { tasksOfHref } from "./tab-location";
-import { chatOfGroup, matchScreen } from "./window-href";
+import { matchScreen } from "./window-href";
 
 /**
  * Where an open lands, decided from the ask and the window as it stands,
@@ -154,56 +151,4 @@ export function screenPlacementOf(
   return ownTab && !up.isFresh
     ? { kind: "group-own-tab" }
     : { kind: "group-navigate" };
-}
-
-export type TasksPlacement =
-  /** The chat's tab up already shows tasks, and walks there in place. */
-  | { kind: "in-place" }
-  /** The chat's tab at the address, or a new one, up in the chat, which comes on screen first when it is not. */
-  | { kind: "in-chat"; navigatesWindow: boolean };
-
-/**
- * Where a chat's tasks, or one task, open: a tasks tab already up in the
- * chat on screen walks there in place; anything else gets the chat's tab at
- * that address or a new one, with the chat brought on screen in the
- * window's tab up (or a tab of its own when asked) when it is not there.
- */
-export function tasksPlacementOf(
-  owner: ChatId,
-  { newTab = false, ownTab = false }: OpenOptions,
-  {
-    groupOnScreen,
-    upInOwner,
-  }: {
-    groupOnScreen: string | undefined;
-    /** The address of the screen the owning chat has up, when it has a screen up. */
-    upInOwner: string | undefined;
-  },
-): TasksPlacement {
-  const walksInPlace =
-    !newTab &&
-    !ownTab &&
-    owner === groupOnScreen &&
-    upInOwner !== undefined &&
-    tasksOfHref(upInOwner) !== undefined;
-  if (walksInPlace) {
-    return { kind: "in-place" };
-  }
-  return {
-    kind: "in-chat",
-    navigatesWindow: newTab || owner !== groupOnScreen,
-  };
-}
-
-/**
- * The chat a page that asked for a tab of its own is in (a `target=_blank`
- * link, a sign-in button, a middle- or Cmd-click), named by the browser
- * target it asked from, so the tab opens beside it in that chat. Undefined
- * for a page of the window's own, whose tab opens across the window's bar.
- */
-export function chatOfAskingPage(
-  targetId: string,
-  tabs: readonly { group?: string; id: string }[],
-): ChatId | undefined {
-  return chatOfGroup(tabs.find((tab) => tab.id === targetId)?.group);
 }

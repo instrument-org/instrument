@@ -1,17 +1,11 @@
-import {
-  ChatIdSchema,
-  browserTargetOf,
-  StoreId,
-} from "@instrument-org/workspace/client";
+import { ChatIdSchema } from "@instrument-org/workspace/client";
 import { describe, expect, it } from "vitest";
 
 import { type OpenOptions } from "./context";
 import {
-  chatOfAskingPage,
   pagePlacementOf,
   type PlacementContext,
   screenPlacementOf,
-  tasksPlacementOf,
 } from "./placement";
 
 const CHAT = ChatIdSchema.parse("2026-10-01-roofer");
@@ -174,65 +168,5 @@ describe("where a screen opens", () => {
     ],
   ])("opens %s", (_case, href, options, context, expected) => {
     expect(screenPlacementOf(href, options, context)).toEqual(expected);
-  });
-});
-
-describe("where a chat's tasks open", () => {
-  it.each<
-    [string, OpenOptions, string | undefined, string | undefined, unknown]
-  >([
-    [
-      "in place, over the task the chat on screen has up",
-      {},
-      CHAT,
-      `/tasks/ses_01ARZ3NDEKTSV4RRFFQ69G5FAV?chat=${CHAT}`,
-      { kind: "in-place" },
-    ],
-    [
-      "in the chat beside a screen that is not a task",
-      {},
-      CHAT,
-      "/files",
-      { kind: "in-chat", navigatesWindow: false },
-    ],
-    [
-      "with the chat brought on screen when another is up",
-      {},
-      OTHER,
-      `/tasks/ses_01ARZ3NDEKTSV4RRFFQ69G5FAV?chat=${CHAT}`,
-      { kind: "in-chat", navigatesWindow: true },
-    ],
-    [
-      "in a window tab of the chat's own when asked",
-      { newTab: true },
-      CHAT,
-      `/tasks/ses_01ARZ3NDEKTSV4RRFFQ69G5FAV?chat=${CHAT}`,
-      { kind: "in-chat", navigatesWindow: true },
-    ],
-  ])("opens %s", (_case, options, groupOnScreen, upInOwner, expected) => {
-    expect(
-      tasksPlacementOf(CHAT, options, { groupOnScreen, upInOwner }),
-    ).toEqual(expected);
-  });
-});
-
-describe("chatOfAskingPage", () => {
-  const chatPage = StoreId.newTabId();
-  const taskPage = StoreId.newTabId();
-  const sitePage = StoreId.newTabId();
-  const tabs = [
-    { group: CHAT, id: chatPage },
-    { group: CHAT, id: taskPage },
-    { group: "site:abc", id: sitePage },
-  ];
-
-  it.each([
-    ["a chat's own page", browserTargetOf(chatPage), CHAT],
-    ["a task's page in a chat", browserTargetOf(taskPage), CHAT],
-    ["a page of the window's own", browserTargetOf(sitePage), undefined],
-    ["a page no tab holds", browserTargetOf(StoreId.newTabId()), undefined],
-    ["an unreadable target", "nonsense", undefined],
-  ])("names the chat for %s", (_case, targetId, expected) => {
-    expect(chatOfAskingPage(targetId, tabs)).toBe(expected);
   });
 });

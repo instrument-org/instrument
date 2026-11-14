@@ -76,7 +76,7 @@ export const KEPT_STATE_CHANNEL = {
 } as const;
 
 /** The window tabs, kept a group at a time under this key. */
-export const WINDOW_TABS_KEY = "window-tabs.v10";
+export const WINDOW_TABS_KEY = "window-tabs.v11";
 
 /** The group of a page drawn inside a surface of one window, such as a file's page in its viewer. */
 export const HOSTED_PAGE_GROUP_PREFIX = "page:";

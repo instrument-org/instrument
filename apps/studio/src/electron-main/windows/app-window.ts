@@ -21,6 +21,8 @@ import {
   FIRST_APP_WINDOW_ID,
   forgetWindowKeptState,
   getWindowKeptState,
+  keptChatsOfGroups,
+  keptGroupsHoldingChat,
   setWindowKeptState,
   tellWindowKeptState,
   windowKeptKeys,
@@ -33,7 +35,7 @@ import {
   TAB_GROUPS_KEY,
   WINDOW_KEPT_KEYS,
 } from "@/shared/kept-state";
-import { tabGroupOfAddress } from "@/shared/tab-identity";
+import { chatOfAddress, tabGroupOfAddress } from "@/shared/tab-identity";
 import {
   type GroupTabLanding,
   type Tab,
@@ -239,26 +241,43 @@ function windowListingGroupOf(
   href: string,
   among: readonly BrowserWindow[],
 ): BrowserWindow | null {
-  const group = tabGroupOfAddress(href);
-  if (group === undefined) {
+  const named = tabGroupOfAddress(href);
+  const chat = chatOfAddress(href);
+  const groups =
+    named === undefined
+      ? chat === undefined
+        ? []
+        : keptGroupsHoldingChat(chat)
+      : [named];
+  if (groups.length === 0) {
     return null;
   }
   return (
     among.find((window) => {
       const id = appWindowIdOfWindow(window);
-      return id !== undefined && keptTabGroupsOfWindow(id).includes(group);
+      return (
+        id !== undefined &&
+        keptTabGroupsOfWindow(id).some((group) => groups.includes(group))
+      );
     }) ?? null
   );
 }
 
-/** The tab groups the open windows other than this one have open. */
-export function tabGroupsInOtherWindows(webContentsId: number): string[] {
-  return getAppWindows()
+/**
+ * The tab groups the open windows other than this one have open, and the
+ * chats with a tab in them.
+ */
+export function tabGroupsInOtherWindows(webContentsId: number): {
+  chats: string[];
+  groups: string[];
+} {
+  const groups = getAppWindows()
     .filter((window) => window.webContents.id !== webContentsId)
     .flatMap((window) => {
       const id = appWindowIdOfWindow(window);
       return id === undefined ? [] : keptTabGroupsOfWindow(id);
     });
+  return { chats: keptChatsOfGroups(groups), groups };
 }
 
 /** A window's tabs, as it keeps them. */

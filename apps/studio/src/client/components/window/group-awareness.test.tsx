@@ -1,4 +1,4 @@
-import { NEW_TAB_HREF, type WindowTab } from "@/client/atoms/window";
+import { type WindowTab } from "@/client/atoms/window";
 import { fileHref, folderHref } from "@/shared/computer-href";
 import { draftGroupOf } from "@/shared/drafts";
 import { ChatIdSchema } from "@instrument-org/workspace/client";
@@ -7,15 +7,24 @@ import { describe, expect, it } from "vitest";
 import {
   carryLayoutSent,
   type GroupAwarenessWindow,
+  groupLayoutFor,
   layoutReader,
-  todaysGroupLayout,
 } from "./group-awareness";
+import { groupLayoutOf, type WindowTabs } from "./tab-model";
+import { chatHref, newChatHref } from "./window-href";
 
 const CHAT = ChatIdSchema.parse("2026-11-13-prices");
-const OTHER = ChatIdSchema.parse("2026-11-13-launch");
+const GROUP = "group:prices";
+const OTHER = "group:launch";
 
+const CHAT_TAB: WindowTab = {
+  group: GROUP,
+  href: chatHref(CHAT),
+  id: "tab_chat",
+  kind: "screen",
+};
 const ZENDESK: WindowTab = {
-  group: CHAT,
+  group: GROUP,
   id: "tab_zen",
   kind: "page",
   openedAt: 1,
@@ -23,129 +32,178 @@ const ZENDESK: WindowTab = {
   url: "https://www.zendesk.com/pricing",
 };
 const DOWNLOADS: WindowTab = {
-  group: CHAT,
+  group: GROUP,
   href: folderHref("/Users/mac-user/Downloads"),
   id: "tab_dl",
   kind: "screen",
 };
 const QUOTE: WindowTab = {
-  group: CHAT,
+  group: GROUP,
   href: fileHref("/Users/mac-user/Downloads/quote.pdf"),
   id: "tab_quote",
   kind: "screen",
 };
-const NEW_TAB: WindowTab = {
-  group: CHAT,
-  href: NEW_TAB_HREF,
+const NEW_CHAT: WindowTab = {
+  group: GROUP,
+  href: newChatHref(),
   id: "tab_new",
   kind: "screen",
 };
 
+/** The right side's tabs, as a group of two sides keeps them. */
+const right = (tab: WindowTab): WindowTab => ({ ...tab, side: 1 });
+
 function windowOf(
-  allTabs: WindowTab[],
-  over: Partial<GroupAwarenessWindow> = {},
+  tabs: WindowTab[],
+  over: Partial<WindowTabs> = {},
 ): GroupAwarenessWindow {
+  const state: WindowTabs = {
+    activeByGroup: { [GROUP]: CHAT_TAB.id },
+    tabs,
+    ...over,
+  };
   return {
     appsBySlug: new Map(),
-    chatClosedByGroup: {},
     chatTitles: new Map([[CHAT, "Help desk prices"]]),
     groups: [
-      { group: CHAT, title: "Help desk prices" },
+      { group: GROUP, title: "Help desk prices" },
       { group: OTHER, title: "Launch post" },
     ],
     windowTabs: {
-      allTabs,
-      selectedTabIn: (group) =>
-        allTabs.find((tab) => tab.group === group && tab.id !== "tab_new"),
+      allTabs: tabs,
+      layoutOf: (group) => groupLayoutOf(state, group),
     },
-    ...over,
   };
 }
 
-/** A layout's sides as the tabs' ids, the chat as `@`, the one up starred. */
-function sidesOf(window: GroupAwarenessWindow, group: string = CHAT) {
-  return todaysGroupLayout(window, group).sides.map(({ tabs }) =>
-    tabs
-      .map((tab) => `${tab.isThisChat ? "@" : tab.id}${tab.isUp ? "*" : ""}`)
-      .join(" "),
+/** A layout's sides as the tabs' ids, the chat as `@`, the one up starred, the keyboard's side marked `>`. */
+function sidesOf(window: GroupAwarenessWindow) {
+  const layout = groupLayoutFor(window, GROUP, CHAT_TAB.id);
+  return layout.sides.map(
+    ({ tabs }, index) =>
+      `${index === layout.focused ? ">" : ""}${tabs
+        .map((tab) => `${tab.isThisChat ? "@" : tab.id}${tab.isUp ? "*" : ""}`)
+        .join(" ")}`,
   );
 }
 
-describe("todaysGroupLayout", () => {
+describe("groupLayoutFor", () => {
   it.each<[string, GroupAwarenessWindow, string[]]>([
-    ["a chat alone", windowOf([]), ["@*"]],
+    ["a chat alone", windowOf([CHAT_TAB]), [">@*"]],
     [
-      "the work beside the chat",
-      windowOf([ZENDESK, DOWNLOADS]),
-      ["tab_zen* tab_dl", "@*"],
+      "pages beside the chat",
+      windowOf([ZENDESK, DOWNLOADS, right(CHAT_TAB)], {
+        besideByGroup: { [GROUP]: ZENDESK.id },
+      }),
+      ["tab_zen* tab_dl", ">@*"],
     ],
     [
-      "the chat's card closed",
-      windowOf([ZENDESK], { chatClosedByGroup: { [CHAT]: true } }),
-      ["tab_zen* @"],
+      "the chat among pages on one side",
+      windowOf([ZENDESK, CHAT_TAB]),
+      [">tab_zen @*"],
     ],
-    ["a new tab left out", windowOf([NEW_TAB]), ["@*"]],
+    [
+      "the keyboard on the pages' side",
+      windowOf([ZENDESK, right(CHAT_TAB)], {
+        activeByGroup: { [GROUP]: ZENDESK.id },
+      }),
+      ["tab_zen*", ">@*"],
+    ],
+    ["a new chat left out", windowOf([CHAT_TAB, NEW_CHAT]), [">@*"]],
+    [
+      "a side of new chats alone left out",
+      windowOf([CHAT_TAB, right(NEW_CHAT)]),
+      [">@*"],
+    ],
   ])("%s", (_case, window, sides) => {
     expect(sidesOf(window)).toEqual(sides);
   });
 
   it("names each tab by kind, title and address", () => {
-    expect(todaysGroupLayout(windowOf([ZENDESK, DOWNLOADS, QUOTE]), CHAT))
-      .toMatchInlineSnapshot(`
-        {
-          "focused": 1,
-          "group": {
-            "id": "2026-11-13-prices",
-            "title": "Help desk prices",
+    expect(
+      groupLayoutFor(
+        windowOf([ZENDESK, DOWNLOADS, QUOTE, right(CHAT_TAB)], {
+          besideByGroup: { [GROUP]: ZENDESK.id },
+        }),
+        GROUP,
+        CHAT_TAB.id,
+      ),
+    ).toMatchInlineSnapshot(`
+      {
+        "focused": 1,
+        "group": {
+          "id": "group:prices",
+          "title": "Help desk prices",
+        },
+        "sides": [
+          {
+            "tabs": [
+              {
+                "address": "https://www.zendesk.com/pricing",
+                "id": "tab_zen",
+                "isUp": true,
+                "kind": "website",
+                "title": "Zendesk pricing",
+              },
+              {
+                "address": "/Users/mac-user/Downloads",
+                "id": "tab_dl",
+                "kind": "folder",
+                "title": "Downloads",
+              },
+              {
+                "address": "/Users/mac-user/Downloads/quote.pdf",
+                "id": "tab_quote",
+                "kind": "file",
+                "title": "quote.pdf",
+              },
+            ],
           },
-          "sides": [
-            {
-              "tabs": [
-                {
-                  "address": "https://www.zendesk.com/pricing",
-                  "id": "tab_zen",
-                  "isUp": true,
-                  "kind": "website",
-                  "title": "Zendesk pricing",
-                },
-                {
-                  "address": "/Users/mac-user/Downloads",
-                  "id": "tab_dl",
-                  "kind": "folder",
-                  "title": "Downloads",
-                },
-                {
-                  "address": "/Users/mac-user/Downloads/quote.pdf",
-                  "id": "tab_quote",
-                  "kind": "file",
-                  "title": "quote.pdf",
-                },
-              ],
-            },
-            {
-              "tabs": [
-                {
-                  "address": "instrument://chat/2026-11-13-prices",
-                  "id": "2026-11-13-prices",
-                  "isThisChat": true,
-                  "isUp": true,
-                  "kind": "chat",
-                  "title": "Help desk prices",
-                },
-              ],
-            },
-          ],
-        }
-      `);
+          {
+            "tabs": [
+              {
+                "address": "instrument://chat/2026-11-13-prices",
+                "id": "tab_chat",
+                "isThisChat": true,
+                "isUp": true,
+                "kind": "chat",
+                "title": "Help desk prices",
+              },
+            ],
+          },
+        ],
+      }
+    `);
+  });
+
+  it("names the new chat a draft is sent from", () => {
+    expect(
+      groupLayoutFor(windowOf([NEW_CHAT]), GROUP, NEW_CHAT.id).sides,
+    ).toMatchObject([
+      {
+        tabs: [
+          { id: "tab_new", isThisChat: true, isUp: true, kind: "newChat" },
+        ],
+      },
+    ]);
   });
 });
 
 describe("layoutReader", () => {
   it("sends no changes first, then what changed since", () => {
-    const first = layoutReader(windowOf([]))(CHAT);
-    const second = layoutReader(windowOf([ZENDESK]))(CHAT);
-    const third = layoutReader(windowOf([ZENDESK]))(CHAT);
-    expect([first.changes, second.changes, third.changes]).toEqual([
+    const told = ChatIdSchema.parse("2026-11-13-first");
+    const first = layoutReader(windowOf([CHAT_TAB]))(CHAT_TAB.id, told);
+    const second = layoutReader(
+      windowOf([ZENDESK, right(CHAT_TAB)], {
+        besideByGroup: { [GROUP]: ZENDESK.id },
+      }),
+    )(CHAT_TAB.id, told);
+    const third = layoutReader(
+      windowOf([ZENDESK, right(CHAT_TAB)], {
+        besideByGroup: { [GROUP]: ZENDESK.id },
+      }),
+    )(CHAT_TAB.id, told);
+    expect([first?.changes, second?.changes, third?.changes]).toEqual([
       [],
       [
         {
@@ -165,34 +223,30 @@ describe("layoutReader", () => {
   });
 
   it("says a tab went to another group of the window", () => {
-    const group = ChatIdSchema.parse("2026-11-13-moves");
-    const window = (tabs: WindowTab[]) =>
-      windowOf(tabs, {
-        groups: [
-          { group, title: "Moves" },
-          { group: OTHER, title: "Launch post" },
-        ],
-      });
-    const tab = { ...ZENDESK, group };
-    layoutReader(window([tab]))(group);
+    const told = ChatIdSchema.parse("2026-11-13-moves");
+    layoutReader(windowOf([ZENDESK, CHAT_TAB]))(CHAT_TAB.id, told);
     expect(
-      layoutReader(window([{ ...tab, group: OTHER }]))(group).changes,
+      layoutReader(windowOf([{ ...ZENDESK, group: OTHER }, CHAT_TAB]))(
+        CHAT_TAB.id,
+        told,
+      )?.changes,
     ).toMatchObject([{ change: "movedOut", to: "Launch post" }]);
   });
 
   it("goes on from a draft's first message to its chat's next", () => {
     const draft = draftGroupOf("drf_1");
     const chat = ChatIdSchema.parse("2026-11-13-started");
-    const tab = { ...ZENDESK, group: draft };
-    layoutReader(windowOf([tab]))(draft);
+    const sending = { ...NEW_CHAT, href: newChatHref("drf_1") };
+    layoutReader(windowOf([ZENDESK, sending]))(sending.id, draft);
     carryLayoutSent(draft, chat);
     expect(
       layoutReader(
-        windowOf([
-          { ...tab, group: chat },
-          { ...DOWNLOADS, group: chat },
-        ]),
-      )(chat).changes,
+        windowOf([ZENDESK, { ...sending, href: chatHref(chat) }, DOWNLOADS]),
+      )(sending.id, chat)?.changes,
     ).toMatchObject([{ change: "opened", tab: { id: "tab_dl" } }]);
+  });
+
+  it("reads nothing for a tab no group has", () => {
+    expect(layoutReader(windowOf([]))("tab_gone", CHAT)).toBeUndefined();
   });
 });

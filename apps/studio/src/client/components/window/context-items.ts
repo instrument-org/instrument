@@ -8,8 +8,8 @@ import { instrumentLinkOf, instrumentUrlOf } from "@instrument-org/shared";
 import { type ChatId } from "@instrument-org/workspace/client";
 
 import { includedItemsOf, isIncludable } from "./draft-context";
-import { isFreshTab, isHomeTab } from "./tab-model";
-import { chatOfGroup, chatOfHref } from "./window-href";
+import { chatOfTab, isFreshTab, isHomeTab, isNewChatTab } from "./tab-model";
+import { chatOfHref } from "./window-href";
 
 /** How the key of a chip naming a file or folder by its path starts. */
 const CHOSEN_KEY = "chosen:";
@@ -25,8 +25,9 @@ const CHOSEN_KEY = "chosen:";
  *   `items` is what it points at on this computer, when that is something.
  *   A page or an app a draft names by its address is a tab too: the
  *   window's own showing it, or one standing for it.
- * - `chat`: another chat a draft names in its `context`, by its id alone:
- *   what is in it is that chat's. Nothing on screen becomes one.
+ * - `chat`: another chat, by its id alone: what is in it is that chat's. A
+ *   draft names one in its `context`, and a chat's tab up beside the
+ *   sending one's in its group is one.
  */
 export type ContextItem =
   | { item: ChosenItem; key: string; kind: "chosen" }
@@ -59,11 +60,19 @@ function itemOfTab(
   },
 ): ContextItem | undefined {
   const otherChat =
-    tab.group === group
+    tab.group === group || tab.kind !== "screen"
       ? undefined
-      : (chatOfGroup(tab.group) ??
-        (tab.kind === "screen" ? chatOfHref(tab.href) : undefined));
+      : chatOfHref(tab.href);
   if (otherChat !== undefined) {
+    return;
+  }
+  // A chat beside the sender in its group goes as that chat; a new chat
+  // there has nothing to name yet.
+  const besideChat = tab.group === group ? chatOfTab(tab) : undefined;
+  if (besideChat !== undefined) {
+    return { chat: besideChat, key, kind: "chat" };
+  }
+  if (tab.group === group && isNewChatTab(tab)) {
     return;
   }
   // The sending group's own screens (a chat's tasks, say) say what they
@@ -409,19 +418,24 @@ function contextItemOf(
 export function chatContextItems({
   chatId,
   finderOf,
+  group = chatId,
   taken,
   up,
 }: {
   chatId: ChatId;
   finderOf: (id: string) => null | { folder: string; selected: ChosenItem[] };
+  /** The group the chat's tab is in, whose tabs are its own. */
+  group?: string;
   /** What the person took for the next message. */
   taken: readonly ContextItem[];
-  /** The chat's tab up, while the chat's view of it is open. */
+  /** The tab up beside the chat's, while it goes with the message. */
   up: undefined | WindowTab;
 }): ContextItem[] {
-  const own = up
-    ? itemOfTab(up, { finderOf, group: chatId, held: [], key: keyOfTab(up) })
+  const beside = up
+    ? itemOfTab(up, { finderOf, group, held: [], key: keyOfTab(up) })
     : undefined;
+  const own =
+    beside?.kind === "chat" && beside.chat === chatId ? undefined : beside;
   return own
     ? [own, ...taken.filter((item) => item.key !== own.key)]
     : [...taken];

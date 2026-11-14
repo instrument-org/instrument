@@ -48,6 +48,7 @@ import {
   isHomeTab,
   openPage as openPageIn,
   type PageTab,
+  type Placing,
   pageNavigated,
   patchPage,
   titleAtNavigation,
@@ -89,6 +90,8 @@ export interface BrowserTabsHandle {
     url: string | undefined,
     group: string,
     id?: StoreId.Tab,
+    /** The tab it opens right after, on that tab's side: the chat's whose agent opened it. */
+    after?: string,
   ) => StoreId.Tab;
   /**
    * Adds a page tab to a group with no guest: the window that shows the
@@ -200,6 +203,8 @@ const READ_PAGE_WORDS = `(() => {
 
 /** Where a page opens: in a tab's place, in a named group, or beside the tab up. */
 interface OpenOptions {
+  /** The tab it opens right after, on that tab's side: a link opened from it in a new tab. */
+  after?: string;
   /** With `newTab`, the page waits behind the tab up. */
   behind?: boolean;
   /** The group the page belongs to; the group on screen when left out. */
@@ -209,6 +214,8 @@ interface OpenOptions {
   replacing?: WindowTab;
   /** Brings the group on screen at the page, rather than leaving it behind: for what the user asked for by name. */
   show?: boolean;
+  /** The side of the group it opens on (`Placing`). */
+  side?: Placing["side"];
 }
 
 /** Opens a page tab and its guest, returning the tab's id. */
@@ -216,11 +223,13 @@ function openTab(
   change: ReturnType<typeof useWindowTabsChange>,
   url?: string,
   {
+    after,
     behind = false,
     group: into,
     newTab = false,
     replacing,
     show = false,
+    side,
   }: OpenOptions = {},
 ) {
   const id = StoreId.newTabId();
@@ -236,15 +245,19 @@ function openTab(
   // after the tab up, and waits behind it when asked to.
   change((current, onScreen) => {
     const group = into ?? onScreen;
+    const beside =
+      after ?? (newTab ? selectedTabIn(current, group)?.id : undefined);
     return openPageIn(current, {
-      ...(newTab ? { after: selectedTabIn(current, group)?.id } : {}),
+      ...(beside === undefined ? {} : { after: beside }),
       group,
       homeId: newScreenId(),
       page,
       ...(replacing ? { replacing } : {}),
-      select: newTab
-        ? !behind
-        : show || into === undefined || into === onScreen,
+      select:
+        newTab || after !== undefined
+          ? !behind
+          : show || into === undefined || into === onScreen,
+      ...(side === undefined ? {} : { side }),
     });
   });
   // Read now: by the time the guest is up, the window may have lost focus
@@ -543,17 +556,21 @@ export function BrowserTabs({
         });
       },
       open: (url, options) => openTab(change, url, options),
-      openBehind: (url, into, given) => {
+      openBehind: (url, into, given, after) => {
         const id = given ?? StoreId.newTabId();
         change((current) =>
-          addPages(current, [
-            {
-              group: into,
-              id,
-              openedAt: Date.now(),
-              ...(url ? { openedUrl: url, url } : {}),
-            },
-          ]),
+          addPages(
+            current,
+            [
+              {
+                group: into,
+                id,
+                openedAt: Date.now(),
+                ...(url ? { openedUrl: url, url } : {}),
+              },
+            ],
+            after === undefined ? {} : { after },
+          ),
         );
         void rpcClient.workspace.browser.open.call({
           targetId: browserTargetOf(id),

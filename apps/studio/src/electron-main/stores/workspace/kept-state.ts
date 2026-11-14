@@ -2,6 +2,7 @@ import { workspaceWindowDir } from "@/electron-main/lib/get-workspace-folder";
 import { publisher } from "@/electron-main/rpc/publisher";
 import { appWindowIdOf } from "@/electron-main/windows/app-window-ids";
 import { movedFilesAddress } from "@/shared/computer-href";
+import { chatOfAddress } from "@/shared/tab-identity";
 import {
   isKeptFile,
   KEPT_STATE_CHANNEL,
@@ -367,28 +368,70 @@ export function getKeptState(file: KeptFile, key: string): unknown {
 }
 
 const KeptTabGroupSchema = z.object({
-  tabs: z.array(z.object({ id: z.string() })),
+  tabs: z.array(
+    z.object({
+      href: z.string().optional(),
+      id: z.string(),
+      side: z.literal(1).optional(),
+    }),
+  ),
 });
 
-/**
- * The window group a tab is kept in, by the tab's id: a chat's id for a
- * chat's tab, a site's or draft's otherwise. Undefined for a tab no window
- * has kept yet. A page drawn inside one window's surface is in no group here.
- */
-export function keptTabGroupOf(tabId: string): string | undefined {
+/** Every tab group kept, by its key, with its tabs. */
+function keptTabGroups(): [string, z.output<typeof KeptTabGroupSchema>][] {
   const prefix = `${WINDOW_TABS_KEY}/`;
   const layout = getStore().snapshot().layout ?? {};
-  for (const [key, value] of Object.entries(layout)) {
-    if (
-      key.startsWith(prefix) &&
-      KeptTabGroupSchema.safeParse(value).data?.tabs.some(
-        (tab) => tab.id === tabId,
-      )
-    ) {
-      return key.slice(prefix.length);
+  return Object.entries(layout).flatMap(([key, value]) => {
+    const group = key.startsWith(prefix)
+      ? KeptTabGroupSchema.safeParse(value).data
+      : undefined;
+    return group ? [[key.slice(prefix.length), group]] : [];
+  });
+}
+
+/** The chat a tab's address stands on, for a chat's tab (`/chats/<id>`). */
+function chatOfTabHref(href: string | undefined): string | undefined {
+  return href === undefined ? undefined : chatOfAddress(href);
+}
+
+/**
+ * The chat a tab works for, by the tab's id: the first chat with a tab in
+ * the tab's group, the left side first, as the group's row reads them.
+ * Undefined for a tab no window has kept yet, and for one in a group with
+ * no chat. A page drawn inside one window's surface is in no group here.
+ */
+export function keptChatOfTab(tabId: string): string | undefined {
+  for (const [, group] of keptTabGroups()) {
+    if (!group.tabs.some((tab) => tab.id === tabId)) {
+      continue;
     }
+    const ordered = [
+      ...group.tabs.filter((tab) => tab.side !== 1),
+      ...group.tabs.filter((tab) => tab.side === 1),
+    ];
+    return ordered.map((tab) => chatOfTabHref(tab.href)).find(Boolean);
   }
   return undefined;
+}
+
+/** The chats with a tab in some tab groups, by the groups' keys. */
+export function keptChatsOfGroups(groups: readonly string[]): string[] {
+  const among = new Set(groups);
+  return keptTabGroups().flatMap(([key, group]) =>
+    among.has(key)
+      ? group.tabs.flatMap((tab) => {
+          const chat = chatOfTabHref(tab.href);
+          return chat === undefined ? [] : [chat];
+        })
+      : [],
+  );
+}
+
+/** The tab groups with a tab on a chat, by their keys. */
+export function keptGroupsHoldingChat(chat: string): string[] {
+  return keptTabGroups().flatMap(([key, group]) =>
+    group.tabs.some((tab) => chatOfTabHref(tab.href) === chat) ? [key] : [],
+  );
 }
 
 /** Writes what is still waiting, at once. The quit calls it on its way out. */
@@ -438,6 +481,10 @@ export function serveKeptState() {
         return;
       }
       getStore().set(file, key, value);
+      // A chat's tab opened, closed or moved changes what each window has open.
+      if (key.startsWith(`${WINDOW_TABS_KEY}/`)) {
+        publisher.publish("window.tab-groups-changed", null);
+      }
       for (const window of BrowserWindow.getAllWindows()) {
         if (!window.isDestroyed() && window.webContents !== event.sender) {
           window.webContents.send(KEPT_STATE_CHANNEL.changed, file, key, value);

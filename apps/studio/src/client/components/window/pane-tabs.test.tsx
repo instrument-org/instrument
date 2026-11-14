@@ -76,7 +76,12 @@ describe("PaneTabs", () => {
     const rows = (await screen.findAllByRole("menuitem")).map(
       (item) => item.textContent,
     );
-    expect(rows).toEqual(["Duplicate Tab", "Close Tab", "Close Other Tabs"]);
+    expect(rows).toEqual([
+      "Duplicate",
+      "Close",
+      "Close Other Tabs",
+      "Close Tabs to the Left",
+    ]);
   });
 
   it("closes the tabs other than the one its menu is for", async () => {

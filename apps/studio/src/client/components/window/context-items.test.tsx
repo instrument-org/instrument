@@ -49,6 +49,21 @@ describe("a chat's next message", () => {
     ]);
   });
 
+  it.each([
+    ["another chat beside it goes as that chat", `/chats/${OTHER}`, "chat"],
+    ["a new chat beside it names nothing", "/chats?draft=d1", undefined],
+    ["the same chat beside it names nothing", `/chats/${CHAT}`, undefined],
+  ])("%s", (_, href, kind) => {
+    const items = chatContextItems({
+      chatId: CHAT,
+      finderOf: () => null,
+      group: "group:1",
+      taken: [],
+      up: { group: "group:1", href, id: "beside", kind: "screen" },
+    });
+    expect(items[0]?.kind).toBe(kind);
+  });
+
   it("is offered what is behind the chat, until it is taken", () => {
     const site = offered(page("site", "site:1"));
     expect(site).toMatchObject({ key: "tab:site", kind: "tab" });
@@ -57,7 +72,15 @@ describe("a chat's next message", () => {
 
   it.each([
     ["the chat's own tab", page("own", CHAT)],
-    ["another chat's tab", page("theirs", OTHER)],
+    [
+      "another chat's tab",
+      {
+        group: "group:2",
+        href: `/chats/${OTHER}`,
+        id: "theirs",
+        kind: "screen" as const,
+      },
+    ],
     [
       "another chat's screen",
       { href: `/chats/${OTHER}`, id: "chat", kind: "screen" as const },
@@ -181,7 +204,17 @@ describe("a draft's chips", () => {
       ],
       draft,
     ],
-    ["it is another chat's", page("theirs", OTHER), [], draft],
+    [
+      "it is another chat's",
+      {
+        group: "group:2",
+        href: `/chats/${OTHER}`,
+        id: "theirs",
+        kind: "screen" as const,
+      },
+      [],
+      draft,
+    ],
   ])("are offered nothing when %s", (_name, inView, band, withDraft) => {
     expect(
       suggested({ band, draft: withDraft, finderOf, inView }),

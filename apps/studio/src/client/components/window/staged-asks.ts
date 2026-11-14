@@ -9,12 +9,12 @@ import {
 import { atom, useAtomValue, useSetAtom, useStore } from "jotai";
 import { useContext, useEffect, useRef } from "react";
 
-import { groupOnScreenAtom } from "./window-tabs";
+import { groupOnScreenAtom, windowTabsAtom } from "./window-tabs";
 
 import { WindowContext } from "./context";
 import { reachablePath } from "./file-tabs";
 import { segmentsOf } from "./host-path";
-import { chatOfGroup } from "./window-href";
+import { chatUpIn } from "./tab-model";
 
 /** The composer a staged ask was moved into: a chat's, or a draft's. */
 export type AskDestination =
@@ -255,9 +255,11 @@ export function useMoveAsks() {
 }
 
 /**
- * The chat up beside what is on screen, whose composer takes what a file's
+ * The chat up in the group on screen, whose composer takes what a file's
  * Ask moves; with none, a new draft takes it.
  */
 function useChatBeside(): ChatId | undefined {
-  return chatOfGroup(useAtomValue(groupOnScreenAtom));
+  const group = useAtomValue(groupOnScreenAtom);
+  const state = useAtomValue(windowTabsAtom);
+  return group === undefined ? undefined : chatUpIn(state, group);
 }

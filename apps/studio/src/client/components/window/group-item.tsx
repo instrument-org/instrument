@@ -33,11 +33,13 @@ import { segmentsOf } from "./host-path";
 import { screenLocation } from "./screen-presentation";
 import { type TabLocation, tasksOfHref } from "./tab-location";
 import { TabLocationRow, TabRowControl } from "./tab-location-row";
-import { isHomeTab } from "./tab-model";
 import { surfaceLocation, tabSurfaceAtom } from "./tab-surface";
 import { useTaskTitles } from "./task-titles";
 import { useTabSteps } from "./use-tab-steps";
-import { chatOfGroup } from "./window-href";
+import { matchScreen } from "./window-href";
+import { useShell } from "./shell-context";
+import { formatAcceleratorText } from "@/client/lib/format-accelerator";
+import { WINDOW_SHORTCUTS } from "@/shared/window-shortcuts";
 import { useWindowTabs } from "./window-tabs";
 
 /**
@@ -51,6 +53,7 @@ export function GroupItem({
   before,
   closeTab,
   group,
+  hasKeyboard = true,
   isChatWorking,
   isShown = true,
   onPageChrome,
@@ -61,6 +64,8 @@ export function GroupItem({
   before?: { back: () => void; canGoBack: boolean };
   closeTab: (id: string) => void;
   group: string;
+  /** Whether its side of the group has the keyboard: a chat or a new chat on the other side leaves the caret alone. */
+  hasKeyboard?: boolean;
   /**
    * Whether the chat whose pane this is, or any task of it, is at work, which
    * a page uses to say the agent is using it; absent outside a chat's pane.
@@ -82,6 +87,7 @@ export function GroupItem({
   // and controls, a file screen its folder toggle and actions.
   const { rowProps, slots } = useRowSlots();
   const taskTitles = useTaskTitles();
+  const { chatTitles } = useShell();
   // What the screen up says it shows, which the row reads a folder's place off.
   const surface = useAtomValue(tabSurfaceAtom)[up.id];
 
@@ -103,10 +109,15 @@ export function GroupItem({
     [],
   );
   const targetId = up.kind === "page" ? browserTargetOf(up.id) : undefined;
-  const chatId = chatOfGroup(group);
+  // The chat the group works for, which an agent's page says is using it.
+  const chatId = windowTabs.chatsIn(group)[0];
   const page = targetId ? getGuest(targetId) : null;
-  const isNewTab = isHomeTab(up);
-  const hasBookmarksBar = useHasBookmarksBar(isNewTab);
+  // An earlier build's new tab page; a new tab now is a new chat.
+  const isNewTab = up.kind === "screen" && matchScreen(up.href).kind === "newTab";
+  const screenKind = up.kind === "screen" ? matchScreen(up.href).kind : undefined;
+  const isNewChat = screenKind === "inbox";
+  const isChat = screenKind === "chat";
+  const hasBookmarksBar = useHasBookmarksBar(isNewTab || isNewChat);
   /** Files at a folder: in place of a new tab, and in a tab of its own beside anything else. */
   const openFiles = (href: string) => {
     if (isNewTab) {
@@ -315,15 +326,60 @@ export function GroupItem({
   }
   // Every other screen is a route of the window's own tree, under a router
   // of the tab's own; the folder says where it stands as its Finder reads it.
+  // A new chat's field is Chat's chip alone, with the chord that takes the
+  // caret there, since the caret starts in the composer.
   const location = surfaceLocation(
-    screenLocation(up.href, { appsBySlug, taskTitles }),
+    screenLocation(up.href, { appsBySlug, chatTitles, taskTitles }),
     surface,
   );
+  const head = isNewChat ? (
+    <TabLocationRow
+      canGoBack={canGoBack}
+      canGoForward={canGoForward}
+      className="border-b-0"
+      fieldHint={<LocationKeys />}
+      fieldTakesCaret={false}
+      location={location}
+      onBack={goBack}
+      onForward={goForward}
+      onSite={openHere}
+      onVisit={(href) => {
+        windowTabs.visitHref(up.id, href);
+      }}
+      reload={
+        <TabRowControl
+          chord="reloadPage"
+          disabled
+          icon={<ArrowClockwiseIcon className="size-4" />}
+          label="Reload"
+          onClick={noop}
+        />
+      }
+    />
+  ) : (
+    row(location, { isOverBar: isChat && hasBookmarksBar })
+  );
+  const content = router ? <RouterProvider router={router} /> : null;
   return (
     <Bare
       anchorRef={anchorRef}
       // A task's page heads itself with its title and Stop.
-      {...(location.kind === "task" ? {} : { head: row(location) })}
+      {...(location.kind === "task"
+        ? {}
+        : {
+            head: (
+              <>
+                {head}
+                {(isNewChat || (isChat && hasBookmarksBar)) && (
+                  <BookmarksBar
+                    files={{ group, onOpen: openFiles }}
+                    onOpen={openHere}
+                    onVisit={visitHere}
+                  />
+                )}
+              </>
+            ),
+          })}
     >
       <GroupTabContext
         key={up.id}
@@ -331,6 +387,8 @@ export function GroupItem({
           close: () => {
             closeTab(up.id);
           },
+          group,
+          hasKeyboard,
           id: up.id,
           isShown,
           showPage: (url) => {
@@ -355,12 +413,27 @@ export function GroupItem({
             rowTail: slots.tail,
           }}
         >
-          <KeptScrolls href={up.href} tabId={up.id}>
-            {router ? <RouterProvider router={router} /> : null}
-          </KeptScrolls>
+          {/* A chat opens at its end, as it always does, rather than where
+              it was left. */}
+          {isChat || isNewChat ? (
+            <div className="relative h-full">{content}</div>
+          ) : (
+            <KeptScrolls href={up.href} tabId={up.id}>
+              {content}
+            </KeptScrolls>
+          )}
         </WindowContext>
       </GroupTabContext>
     </Bare>
+  );
+}
+
+/** The chord that puts the caret in the address field, at the end of the empty field. */
+function LocationKeys() {
+  return (
+    <span className="pointer-events-none absolute top-1/2 right-2.5 inline-flex h-4.5 -translate-y-1/2 items-center rounded-[4px] bg-foreground/[0.04] px-1 font-sans text-[11px] font-medium text-muted-foreground/70 ring-1 ring-foreground/[0.06]">
+      {formatAcceleratorText(WINDOW_SHORTCUTS.search.accelerator)}
+    </span>
   );
 }
 

@@ -47,15 +47,15 @@ export interface GroupRowMenuActions {
   onCloseOthers: (() => void) | undefined;
   /** A copy of the group just below it, with its tabs, up in the window. */
   onDuplicate: () => void;
-  /** The new-project dialog, which files this group under the project it makes. */
-  onNewProject: () => void;
+  /** The new-project dialog, which files this group's chat or draft under the project it makes; none for a group of tabs alone. */
+  onNewProject: (() => void) | undefined;
   onNewWindow: () => void;
-  /** Files the group under a project, or under none with `null`. */
-  onSetProject: (project: null | string) => void;
+  /** Files the group's chat or draft under a project, or under none with `null`; none for a group of tabs alone. */
+  onSetProject: ((project: null | string) => void) | undefined;
   projects: Project[];
 }
 
-/** A chat's star, which in the sidebar pins its row above the line, or a pin of a group whose chat has not started, offered as one. */
+/** A group's pin, offered by the ids a chat's star has, as the row's menu lists its marks. */
 function asPin(action: RowAction): RowAction {
   if (action.id === "star") {
     return {
@@ -101,7 +101,12 @@ export function GroupRowMenu({
   const isStartingRename = useRef(false);
   const chat = entry.kind === "chat" ? entry.chat : undefined;
   const filedUnder =
-    entry.kind === "chat" ? entry.chat.project : entry.draft.projectId;
+    entry.kind === "chat"
+      ? entry.chat.project
+      : entry.kind === "draft"
+        ? entry.draft.projectId
+        : undefined;
+  const { onNewProject, onSetProject } = menu;
   const live = menu.projects.filter((project) => !project.retired);
   const marks = chatMenuGroups(menu.actions).marks.map(asPin);
   const item = (action: RowAction) => (
@@ -145,6 +150,7 @@ export function GroupRowMenu({
           <PencilSimpleIcon className="size-4" />
           Rename
         </ContextMenuItem>
+        {onSetProject && (
         <ContextMenuSub>
           <ContextMenuSubTrigger>
             <CardsThreeIcon className="size-4" />
@@ -159,7 +165,7 @@ export function GroupRowMenu({
                     key={project.id}
                     onSelect={() => {
                       // Picking the project it is under takes it off.
-                      menu.onSetProject(
+                      onSetProject(
                         filedUnder === project.id ? null : project.id,
                       );
                     }}
@@ -176,13 +182,14 @@ export function GroupRowMenu({
                 live.length > 0 && "border-t border-border",
               )}
             >
-              <ContextMenuItem onSelect={menu.onNewProject}>
+              <ContextMenuItem onSelect={onNewProject}>
                 <PlusIcon className="size-4" />
                 New project…
               </ContextMenuItem>
             </div>
           </ContextMenuSubContent>
         </ContextMenuSub>
+        )}
         {chat && (
           <>
             <ContextMenuSeparator />

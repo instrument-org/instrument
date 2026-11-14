@@ -6,7 +6,6 @@ import {
 } from "@/shared/drafts";
 import { fileHref, folderHref } from "@/shared/computer-href";
 import { instrumentLinkOf } from "@instrument-org/shared";
-import { type ChatId } from "@instrument-org/workspace/client";
 import { useEffect, useEffectEvent, useRef } from "react";
 
 import { type BrowserTabsHandle } from "./browser-tabs";
@@ -69,29 +68,22 @@ export function pagesForChat(
 
 /**
  * How a page a draft names reaches its chat at the send: by its address, as
- * a new tab of the chat's own, the one up in its pane when `isUp` (nothing
- * else of the draft's went to the chat). The person's own tab showing it
- * stays where it is. Sign-ins come along, since every tab shares one browser
- * session; what was typed into the person's page and where it was scrolled
- * to do not.
+ * a new tab right after the chat's own, waiting there behind it. The
+ * person's own tab showing it stays where it is. Sign-ins come along, since
+ * every tab shares one browser session; what was typed into the person's
+ * page and where it was scrolled to do not.
  */
 export function pageToChat({
   browser,
-  chatId,
-  isUp,
+  chatTab,
   url,
-  windowTabs,
 }: {
   browser: Pick<BrowserTabsHandle, "openBehind"> | null;
-  chatId: ChatId;
-  isUp: boolean;
+  /** The chat's tab, which the page opens right after. */
+  chatTab: { group: string; id: string };
   url: string;
-  windowTabs: Pick<ReturnType<typeof useWindowTabs>, "select">;
 }): void {
-  const id = browser?.openBehind(url, chatId);
-  if (id !== undefined && isUp) {
-    windowTabs.select(id);
-  }
+  browser?.openBehind(url, chatTab.group, undefined, chatTab.id);
 }
 
 /** The tab a line of `context` opens as in a draft's band: none for another chat, or for a web page, which its chat opens at the send. */

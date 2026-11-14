@@ -12,14 +12,19 @@ import { describe, expect, it } from "vitest";
 
 import {
   addScreen,
-  adoptGroup,
+  besideOf,
+  chatPlaceOf,
   closedGroupTabOf,
   closeTab,
   dropGroup,
+  focusSide,
+  groupLayoutOf,
   isBlankNewTab,
+  moveTabTo,
   moveToGroup,
   navigateScreen,
   normalizeWindowTabs,
+  openInGroup,
   openOrFocusScreen,
   openPage,
   type PageTab,
@@ -27,6 +32,7 @@ import {
   pageNavigated,
   pageTakesOver,
   patchPage,
+  raiseTab,
   reopenTab,
   reorderGroup,
   replaceTab,
@@ -94,6 +100,7 @@ describe("normalizeWindowTabs", () => {
     });
     expect(read).toEqual({
       activeByGroup: { [CHAT]: "b", [OTHER]: "x" },
+      besideByGroup: {},
       tabs: THREE.tabs,
     });
   });
@@ -146,6 +153,7 @@ describe("normalizeWindowTabs", () => {
         [CHAT]: "tab_01M4RWA7GR6BXSMR9XJM4MRCJ9",
         [OTHER]: screenId,
       },
+      besideByGroup: {},
       tabs: [
         {
           group: CHAT,
@@ -160,7 +168,11 @@ describe("normalizeWindowTabs", () => {
   });
 
   it("reads nothing kept as no tabs", () => {
-    expect(normalizeWindowTabs({})).toEqual({ activeByGroup: {}, tabs: [] });
+    expect(normalizeWindowTabs({})).toEqual({
+      activeByGroup: {},
+      besideByGroup: {},
+      tabs: [],
+    });
   });
 });
 
@@ -168,9 +180,9 @@ describe("selectedTabIn", () => {
   const ROOFER = ChatIdSchema.parse("2026-10-01-roofer");
 
   it.each([
-    ["a chat with none chosen has nothing up", ROOFER, {}, undefined],
-    ["a chat has the tab chosen in it up", ROOFER, { [ROOFER]: "b" }, "b"],
-    ["a draft with none chosen has its first up", DRAFT, {}, "a"],
+    ["a group with none chosen has its first up", ROOFER, {}, "a"],
+    ["a group has the tab chosen in it up", ROOFER, { [ROOFER]: "b" }, "b"],
+    ["a draft's with none chosen has its first up", DRAFT, {}, "a"],
   ])("%s", (_case, group, activeByGroup, expected) => {
     const state = windowOf(
       [
@@ -577,21 +589,7 @@ describe("a page announcing itself", () => {
   });
 });
 
-describe("groups handed over and dropped", () => {
-  it("hands a draft's tabs to a chat, the one up still up, beside what the chat already had", () => {
-    const state = selectTab(
-      windowOf([
-        screenTab("early", "/release-notes", OTHER),
-        screenTab("d-apps", "/apps", DRAFT),
-        screenTab("d-files", "/files", DRAFT),
-      ]),
-      "d-files",
-    );
-    const adopted = adoptGroup(state, DRAFT, OTHER);
-    expect(shape(adopted)).toEqual({ [OTHER]: "early d-apps *d-files" });
-    expect(adopted.activeByGroup).not.toHaveProperty(DRAFT);
-  });
-
+describe("dropGroup", () => {
   it("drops a group and what it had up, and changes nothing for a group it never had", () => {
     const state = selectTab(THREE, "x");
     expect(shape(dropGroup(state, OTHER))).toEqual({ [CHAT]: "*a b c" });
@@ -603,7 +601,8 @@ describe("groups handed over and dropped", () => {
 describe("reorderGroup", () => {
   it.each([
     ["every tab named", ["c", "a", "b"], "c a b"],
-    ["a tab left out", ["c", "a"], "a b c"],
+    ["some tabs named, as one side's strip names them", ["c", "a"], "c b a"],
+    ["a tab the group lacks named", ["c", "z"], "a b c"],
   ])("with %s", (_case, keys, expected) => {
     const order = reorderGroup(THREE, CHAT, keys)
       .tabs.filter((tab) => tab.group === CHAT)
@@ -726,5 +725,140 @@ describe("pageTakesOver", () => {
       history: { entries: [folderScreen, fileScreen], index: 1 },
       href: fileScreen,
     });
+  });
+});
+
+/**
+ * A group's sides as they read: each side's tabs by id with its up one
+ * starred, the side with the keyboard led by `>`.
+ */
+function sidesOf(state: WindowTabs, group: string) {
+  const layout = groupLayoutOf(state, group);
+  return layout.sides.map(
+    (side, index) =>
+      (index === layout.focused ? "> " : "") +
+      side.tabs
+        .map((tab) => (tab.id === side.up ? `*${tab.id}` : tab.id))
+        .join(" "),
+  );
+}
+
+const GROUP = "group:1";
+const ROOFER = ChatIdSchema.parse("2026-10-01-roofer");
+
+/** One group of two sides: a and b on the left, the chat c and d on the right, the keyboard there on c. */
+function twoSides(): WindowTabs {
+  return {
+    activeByGroup: { [GROUP]: "c" },
+    besideByGroup: { [GROUP]: "b" },
+    tabs: [
+      screenTab("a", "/apps", GROUP),
+      screenTab("b", "/files", GROUP),
+      { ...screenTab("c", `/chats/${ROOFER}`, GROUP), side: 1 },
+      { ...screenTab("d", BROWSER_HREF, GROUP), side: 1 },
+    ],
+  };
+}
+
+describe("a group's sides", () => {
+  it("reads one side with its first tab up, and two with an up each", () => {
+    expect(sidesOf(windowOf(THREE.tabs), CHAT)).toEqual(["> *a b c"]);
+    expect(sidesOf(twoSides(), GROUP)).toEqual(["a *b", "> *c d"]);
+  });
+
+  it("names the tab up across from a tab, and none in a group of one side", () => {
+    expect(besideOf(twoSides(), "d")?.id).toBe("b");
+    expect(besideOf(twoSides(), "a")?.id).toBe("c");
+    expect(besideOf(windowOf(THREE.tabs), "a")).toBeUndefined();
+  });
+
+  it("opens a tab right after the one named, on its side", () => {
+    const opened = openInGroup(twoSides(), screenTab("n", "/apps", GROUP), {
+      after: "a",
+      group: GROUP,
+      select: true,
+    });
+    expect(sidesOf(opened, GROUP)).toEqual(["> a *n b", "*c d"]);
+  });
+
+  it("opens on the side with the keyboard when no tab is named, behind unless chosen", () => {
+    const opened = openInGroup(twoSides(), screenTab("n", "/apps", GROUP), {
+      group: GROUP,
+    });
+    expect(sidesOf(opened, GROUP)).toEqual(["a *b", "> *c d n"]);
+  });
+
+  it("makes the second side for a tab opened on the other side of a group of one", () => {
+    const opened = openInGroup(
+      windowOf(THREE.tabs),
+      screenTab("n", "/apps", CHAT),
+      { after: "a", group: CHAT, select: true, side: "other" },
+    );
+    expect(sidesOf(opened, CHAT)).toEqual(["*a b c", "> *n"]);
+  });
+
+  it("moves a tab to the other side and back, a side it empties closing", () => {
+    const moved = moveTabTo(windowOf(THREE.tabs), {
+      group: CHAT,
+      id: "c",
+      select: true,
+      side: 1,
+    });
+    expect(sidesOf(moved, CHAT)).toEqual(["*a b", "> *c"]);
+    const back = moveTabTo(moved, { group: CHAT, id: "c", side: 0 });
+    expect(sidesOf(back, CHAT)).toEqual(["> *a b c"]);
+  });
+
+  it("moves a tab within its side to a place", () => {
+    const moved = moveTabTo(twoSides(), {
+      group: GROUP,
+      id: "d",
+      index: 0,
+      side: 1,
+    });
+    expect(sidesOf(moved, GROUP)).toEqual(["a *b", "> d *c"]);
+  });
+
+  it("leaves the other side whole when a side's last tab closes", () => {
+    const closed = closeTab(closeTab(twoSides(), "a"), "b");
+    expect(sidesOf(closed, GROUP)).toEqual(["> *c d"]);
+  });
+
+  it("moves the keyboard to the other side, its tab up with it", () => {
+    expect(sidesOf(focusSide(twoSides(), GROUP, 0), GROUP)).toEqual([
+      "> a *b",
+      "*c d",
+    ]);
+  });
+
+  it("raises a tab on the side without the keyboard and leaves the keyboard where it is", () => {
+    expect(sidesOf(raiseTab(twoSides(), "a"), GROUP)).toEqual([
+      "*a b",
+      "> *c d",
+    ]);
+  });
+});
+
+describe("chatPlaceOf", () => {
+  it("finds the chat's tab, the group named first", () => {
+    const state: WindowTabs = {
+      activeByGroup: {},
+      tabs: [
+        screenTab("elsewhere", `/chats/${ROOFER}`, "group:0"),
+        ...twoSides().tabs,
+      ],
+    };
+    expect(chatPlaceOf(state, ROOFER, GROUP)).toEqual({
+      after: "c",
+      group: GROUP,
+    });
+    expect(chatPlaceOf(state, ROOFER)).toEqual({
+      after: "elsewhere",
+      group: "group:0",
+    });
+  });
+
+  it("finds nothing while no group has a tab on the chat", () => {
+    expect(chatPlaceOf(windowOf(THREE.tabs), ROOFER)).toBeUndefined();
   });
 });

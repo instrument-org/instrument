@@ -29,6 +29,8 @@ export type Screen =
   | (ComputerTab & { kind: "computer" })
   | { kind: "debug"; pathname: string }
   | { kind: "extensions" }
+  /** A tab group, by its key: the window's tab showing it. */
+  | { group: string; kind: "group" }
   /** Every chat and kept draft no window has open. */
   | { kind: "history" }
   /** The chat with no chat open: a new chat beside the inbox, written into the draft named when there is one. */
@@ -199,6 +201,10 @@ export function matchScreen(href: string): Screen {
     return { kind: "app", slug: app.slug };
   }
   if (at(SCREEN_ROUTES.inbox)) {
+    const group = search.get("group");
+    if (group) {
+      return { group, kind: "group" };
+    }
     const draft = search.get("draft");
     return draft ? { draft, kind: "inbox" } : { kind: "inbox" };
   }
@@ -286,6 +292,16 @@ export function newChatHref(draftId?: string): string {
   return draftId === undefined
     ? inbox
     : `${inbox}?${new URLSearchParams({ draft: draftId }).toString()}`;
+}
+
+/** The address of the window's tab showing a tab group, by the group's key. */
+export function groupHref(group: string): string {
+  return `${pathOf(SCREEN_ROUTES.inbox, {})}?${new URLSearchParams({ group }).toString()}`;
+}
+
+/** A fresh tab group's key. */
+export function newGroupKey(): string {
+  return `group:${crypto.randomUUID()}`;
 }
 
 /**

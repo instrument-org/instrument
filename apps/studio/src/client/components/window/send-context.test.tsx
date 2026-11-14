@@ -14,6 +14,8 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { chatSuggestionOf, type ContextItem } from "./context-items";
 import { contextReaders, type SendContextWindow } from "./send-context";
+import { besideOf } from "./tab-model";
+import { newChatHref } from "./window-href";
 
 const CHAT = ChatIdSchema.parse("2026-10-01-lisbon");
 const HOME = MountedFolder.Schema.parse({
@@ -39,6 +41,15 @@ const SITE: WindowTab = {
   url: "https://example.com/",
 };
 
+/** The chat's own tab, on the right side of its group: what the window carries is the tab up across from it. */
+const CHAT_TAB: WindowTab = {
+  group: CHAT,
+  href: `${CHATS_HREF}/${CHAT}`,
+  id: "chat",
+  kind: "screen",
+  side: 1,
+};
+
 /** The window's tabs, with the group named on screen and its first tab up. */
 function tabsOf(
   allTabs: WindowTab[],
@@ -49,6 +60,7 @@ function tabsOf(
   return {
     active: tabs[0],
     allTabs,
+    besideOf: (id) => besideOf({ activeByGroup: {}, tabs: allTabs }, id),
     groupOnScreen: group,
     selectedTabIn: (key) => allTabs.find((tab) => tab.group === key),
   };
@@ -76,7 +88,6 @@ function windowOf(over: Partial<SendContextWindow> = {}): SendContextWindow {
     chatTitles: new Map([[CHAT, "Lisbon"]]),
     drafts: [],
     href: "/browser",
-    paneOpenByGroup: {},
     screenView: null,
     state: { folders: { home: HOME } },
     surfaces: {},
@@ -92,12 +103,13 @@ afterEach(() => {
 describe("sendContext", () => {
   it("describes the chat's page though no screen has said what it shows", async () => {
     const { sendContext } = contextReaders(
-      windowOf({ windowTabs: tabsOf([SITE], CHAT) }),
+      windowOf({ windowTabs: tabsOf([SITE, CHAT_TAB], CHAT) }),
     );
     await expect(
       sendContext({
         chatId: CHAT,
         isViewOpen: true,
+        tabId: "chat",
         taken: [],
       }),
     ).resolves.toMatchObject({
@@ -135,7 +147,6 @@ describe("sendContext", () => {
     const other = ChatIdSchema.parse("2026-10-02-other");
     const { sendContext } = contextReaders(
       windowOf({
-        paneOpenByGroup: { [CHAT]: true },
         windowTabs: tabsOf([SITE], CHAT),
       }),
     );
@@ -152,7 +163,6 @@ describe("sendContext", () => {
     const site: WindowTab = { ...SITE, group: "site:1", id: "site" };
     const { sendContext } = contextReaders(
       windowOf({
-        paneOpenByGroup: { "site:1": true },
         windowTabs: tabsOf([site], "site:1"),
       }),
     );
@@ -182,28 +192,25 @@ describe("sendContext", () => {
       sendContext({
         chatId: CHAT,
         isViewOpen: true,
+        tabId: "chat",
         taken: [],
       }),
     ).resolves.toBeUndefined();
   });
 
   it("sends the page's words with the tabs the conversation can name", async () => {
-    const chat: WindowTab = {
-      group: CHAT,
-      href: `${CHATS_HREF}/${CHAT}`,
-      id: "chat",
-      kind: "screen",
-    };
+    const other: WindowTab = { ...SITE, id: "other", title: "Other" };
     const { sendContext } = contextReaders(
       windowOf({
         screenView: { screen: "browser" },
-        windowTabs: tabsOf([SITE, chat], CHAT),
+        windowTabs: tabsOf([SITE, other, CHAT_TAB], CHAT),
       }),
     );
     await expect(
       sendContext({
         chatId: CHAT,
         isViewOpen: true,
+        tabId: "chat",
         taken: [],
       }),
     ).resolves.toMatchInlineSnapshot(`
@@ -213,9 +220,9 @@ describe("sendContext", () => {
           "tab": "guest",
           "tabs": [
             {
-              "id": "chat",
-              "title": "Lisbon",
-              "url": "/chats/2026-10-01-lisbon",
+              "id": "other",
+              "title": "Other",
+              "url": "https://example.com/",
             },
           ],
           "title": "Example",
@@ -229,9 +236,9 @@ describe("sendContext", () => {
             "title": "Example",
           },
           {
-            "at": "/chats/2026-10-01-lisbon",
-            "id": "chat",
-            "title": "Lisbon",
+            "at": "https://example.com/",
+            "id": "other",
+            "title": "Other",
           },
         ],
         "url": "https://example.com/",
@@ -252,13 +259,14 @@ describe("sendContext", () => {
       windowOf({
         browser: { readPage },
         screenView: { screen: "browser" },
-        windowTabs: tabsOf([file], CHAT),
+        windowTabs: tabsOf([file, CHAT_TAB], CHAT),
       }),
     );
     await expect(
       sendContext({
         chatId: CHAT,
         isViewOpen: true,
+        tabId: "chat",
         taken: [],
       }),
     ).resolves.toMatchInlineSnapshot(`
@@ -288,12 +296,13 @@ describe("sendContext", () => {
       windowOf({
         browser: { readPage: () => NEVER_ANSWERS },
         screenView: { screen: "browser" },
-        windowTabs: tabsOf([SITE], CHAT),
+        windowTabs: tabsOf([SITE, CHAT_TAB], CHAT),
       }),
     );
     const sent = sendContext({
       chatId: CHAT,
       isViewOpen: true,
+      tabId: "chat",
       taken: [],
     });
     await vi.advanceTimersByTimeAsync(5000);
@@ -331,13 +340,14 @@ describe("sendContext", () => {
             title: "Scan the receipts",
           },
         },
-        windowTabs: tabsOf([taskTab, SITE], CHAT),
+        windowTabs: tabsOf([taskTab, SITE, CHAT_TAB], CHAT),
       }),
     );
     await expect(
       sendContext({
         chatId: CHAT,
         isViewOpen: true,
+        tabId: "chat",
         taken: [],
       }),
     ).resolves.toMatchInlineSnapshot(`
@@ -397,16 +407,18 @@ describe("draftContext", () => {
       title: "Hotels",
       url: "https://hotels.example/",
     };
-    const chat: WindowTab = {
+    const maps: WindowTab = { ...band, id: "maps", title: "Maps" };
+    const newChat: WindowTab = {
       group: GROUP,
-      href: `${CHATS_HREF}/${CHAT}`,
-      id: "chat",
+      href: newChatHref(DRAFT.id),
+      id: "draft",
       kind: "screen",
+      side: 1,
     };
     const { draftContext } = contextReaders(
       windowOf({
         drafts: [DRAFT],
-        windowTabs: tabsOf([band, chat]),
+        windowTabs: tabsOf([band, maps, newChat]),
       }),
     );
     await expect(draftContext(DRAFT.id)).resolves.toMatchInlineSnapshot(`
@@ -423,9 +435,9 @@ describe("draftContext", () => {
           "tab": "band",
           "tabs": [
             {
-              "id": "chat",
-              "title": "Lisbon",
-              "url": "/chats/2026-10-01-lisbon",
+              "id": "maps",
+              "title": "Maps",
+              "url": "https://hotels.example/",
             },
           ],
           "title": "Example",
@@ -439,9 +451,9 @@ describe("draftContext", () => {
             "title": "Hotels",
           },
           {
-            "at": "/chats/2026-10-01-lisbon",
-            "id": "chat",
-            "title": "Lisbon",
+            "at": "https://hotels.example/",
+            "id": "maps",
+            "title": "Maps",
           },
         ],
         "url": "https://hotels.example/",
@@ -629,7 +641,6 @@ describe("draftContext", () => {
     const { draftContext } = contextReaders(
       windowOf({
         drafts: [DRAFT],
-        paneOpenByGroup: { [CHAT]: true },
         windowTabs: tabsOf([page], CHAT),
       }),
     );

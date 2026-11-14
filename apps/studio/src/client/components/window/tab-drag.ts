@@ -1,6 +1,5 @@
 import { type WindowTab } from "@/client/atoms/window";
 import { rpcClient, type RPCOutput } from "@/client/rpc/client";
-import { draftOfGroup } from "@/shared/drafts";
 import {
   type GroupTabLanding,
   groupOfWholeKey,
@@ -40,8 +39,8 @@ import {
   sidebarDropAtom,
 } from "./sidebar-drop";
 import { tabsIn, type WindowTabs } from "./tab-model";
+import { groupHref } from "./window-href";
 import {
-  groupHref,
   type TabGroup,
   useOpenGroups,
   useTabGroupActions,
@@ -109,14 +108,12 @@ function groupTabStanding(
 }
 
 /**
- * Whether a tab is all its group has, in a group whose chat has not started:
- * such a tab takes its group along to a window of its own, its draft's words
- * included.
+ * Whether a tab is all its group has: such a tab takes its group along to a
+ * window of its own, its name and pin included.
  */
 function isWholeGroup(state: WindowTabs, tab: WindowTab) {
   return (
     tab.group !== undefined &&
-    draftOfGroup(tab.group) !== undefined &&
     tabsIn(state, tab.group).every((each) => each.id === tab.id)
   );
 }
@@ -149,20 +146,15 @@ function useLetGoOfWholeGroup() {
 
 /**
  * Whether a group's tab is all its window holds, which main reads as a
- * window's only tab: the window's one group is a chat not started yet, and
- * this is its one tab. Such a window goes with the tab, and closes once the
- * tab lands in another.
+ * window's only tab: the window's one group has this one tab. Such a window
+ * goes with the tab, and closes once the tab lands in another.
  */
 function holdsOnly(
   group: string,
   tabs: readonly WindowTab[],
   open: readonly TabGroup[],
 ) {
-  return (
-    draftOfGroup(group) !== undefined &&
-    tabs.length === 1 &&
-    open.every((entry) => entry.group === group)
-  );
+  return tabs.length === 1 && open.every((entry) => entry.group === group);
 }
 
 /**
@@ -177,11 +169,15 @@ function holdsOnly(
  */
 export function useGroupTabCarry({
   group,
+  side = 0,
   tabs,
 }: {
   group: string;
+  /** The side whose strip the tabs are, which a drag along reorders alone. */
+  side?: 0 | 1;
   tabs: readonly WindowTab[];
 }) {
+  const strip = `[data-group-tabs="${side}"]`;
   const store = useStore();
   const windowTabs = useWindowTabs();
   const groups = useTabGroupActions();
@@ -194,7 +190,11 @@ export function useGroupTabCarry({
   const idOf = (key: string) =>
     store.get(windowTabsAtom).tabs.find((each) => stripKeyOf(each) === key)?.id;
   return useTabCarry({
-    isOnlyTab: holdsOnly(group, tabs, open),
+    isOnlyTab: holdsOnly(
+      group,
+      windowTabs.allTabs.filter((tab) => tab.group === group),
+      open,
+    ),
     onCancel: (keys) => {
       showDrop(undefined);
       reorder(keys);
@@ -205,7 +205,7 @@ export function useGroupTabCarry({
         left,
         others.map((id) => ({ id })),
         key,
-        GROUP_TABS,
+        strip,
       );
       if (order[at] !== key) {
         reorder(others.toSpliced(at, 0, key));
@@ -220,7 +220,7 @@ export function useGroupTabCarry({
     order,
     strip: {
       band: () => {
-        const row = document.querySelector(GROUP_TABS)?.getBoundingClientRect();
+        const row = document.querySelector(strip)?.getBoundingClientRect();
         return { bottom: row?.bottom ?? 0, top: row?.top ?? 0 };
       },
       // Anywhere over the sidebar the tab stays in this window, and the list
@@ -254,7 +254,7 @@ export function useGroupTabCarry({
           groups.show(drop.group);
         }
       },
-      root: GROUP_TABS,
+      root: strip,
       standing: (key) => groupTabStanding(store.get(windowTabsAtom), key),
     },
   });

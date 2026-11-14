@@ -2,11 +2,6 @@ import {
   draftKeyString,
   draftSnapshotsAtom,
 } from "@/client/atoms/prompt-value";
-import {
-  forgetGroupAtom,
-  groupNamesAtom,
-  groupPinsAtom,
-} from "@/client/atoms/tab-groups";
 import { cancelWords } from "@/client/drafts/settle-words";
 import {
   claimDraftAtom,
@@ -36,14 +31,16 @@ import { toast } from "@/client/lib/toast";
 import { ulid } from "ulid";
 
 import { NO_FILTERS, type Project } from "./chats";
+import { type BrowserTabsHandle } from "./browser-tabs";
+import { pageToChat, pagesForChat } from "./draft-band";
 import { type DraftSend } from "./compose-window";
 import { asksPart, stagedAsksAtom, useStagedAskActions } from "./staged-asks";
-import { nameCarried, namedWith, starChat } from "./tab-groups";
 import { type useCompose } from "./use-compose";
 import { isHomeTab } from "./tab-model";
 import { type useWindowTabs } from "./window-tabs";
-import { type BrowserTabsHandle } from "./browser-tabs";
-import { pageToChat, pagesForChat } from "./draft-band";
+import { getGroupTabRouter } from "@/client/lib/group-tab-router-registry";
+import { draftOfTab } from "./tab-model";
+import { chatHref, newChatHref } from "./window-href";
 
 /** How long a chat just started from a draft is marked as arriving in the inbox; the row's own motion is shorter. */
 const CHAT_ARRIVAL_MS = ms("3 seconds");
@@ -64,7 +61,6 @@ export function useDrafts({
   isChat,
   isOpen,
   layout,
-  openChat,
   openDraftInChat,
   openDrafts,
   openNewChat,
@@ -72,7 +68,7 @@ export function useDrafts({
   projects,
   windowTabs,
 }: {
-  /** The window's browser, which opens the pages a draft names as its chat's tabs at the send. */
+  /** The window's browser, which opens the pages a draft names right after its chat's tab at the send. */
   browser: BrowserTabsHandle | null;
   /** The folders the window reaches, for how the agent reaches a file an ask is on. */
   folders: Record<string, { path: string }>;
@@ -87,15 +83,14 @@ export function useDrafts({
   /** Whether what the window opens on is made; no chat starts before it is. */
   isOpen: boolean;
   /**
-   * A group's layout as a message goes from it, and what it was last told
-   * carried from a draft's group to its chat's; see `group-awareness.ts`.
+   * The layout of a group as a message goes from one of its tabs, and what
+   * the one told was last told carried from a draft to its chat; see
+   * `group-awareness.ts`.
    */
   layout?: {
     carry: (from: string, to: string) => void;
-    read: (group: string) => LayoutSent | undefined;
+    read: (tabId: string, told: string) => LayoutSent | undefined;
   };
-  /** Puts the tab up on a chat, whole, for a draft sent from the chat: the draft `fromDraft` that started it. */
-  openChat: (chatId: ChatId, fromDraft: string) => void;
   /** Puts the tab up on the Chat screen writing a draft, beside the chat list. */
   openDraftInChat: (id: string) => void;
   /** Puts the tab up on the chat with its inbox out, wherever the window stood. */
@@ -134,8 +129,6 @@ export function useDrafts({
   const [sentProjects, setSentProjects] = useState<ReadonlyMap<ChatId, string>>(
     () => new Map(),
   );
-  const setGroupNames = useSetAtom(groupNamesAtom);
-  const forgetGroup = useSetAtom(forgetGroupAtom);
   const [startingIds, setStartingIds] = useState<ReadonlySet<string>>(
     () => new Set(),
   );
@@ -243,10 +236,7 @@ export function useDrafts({
     // What was marked for it goes back to its file's Ask, to be sent another way.
     returnAsks({ draftId: id, kind: "draft" });
     compose.remove(draftGroupOf(id));
-    const removed = removeDraft(id);
-    windowTabs.dropGroup(draftGroupOf(id));
-    forgetGroup(draftGroupOf(id));
-    return removed;
+    return removeDraft(id);
   };
   /**
    * Throws a draft away on the person's say, from its window or from Drafts,
@@ -346,13 +336,16 @@ export function useDrafts({
     // are still there to read; the window changes under it at once.
     // With the chips it showed, for the transcript to draw.
     const viewing = draftContext(id).catch(() => undefined);
-    const layoutSent = layout?.read(draftGroupOf(id));
+    // Read at the press too: the tab the draft was written in, which
+    // becomes its chat, or none for a draft sent from a window of its own.
+    const sentFrom = windowTabs.allTabs.find((tab) => draftOfTab(tab) === id)?.id;
+    const layoutSent =
+      sentFrom === undefined
+        ? undefined
+        : layout?.read(sentFrom, draftGroupOf(id));
     // Chosen here rather than by the workspace, so the window can be the
     // chat's before the chat exists.
     const sessionId = StoreId.newSessionId();
-    // Read at the press too: where the draft was sent from is where its
-    // chat opens.
-    const opensWhole = isChat;
     // The window becomes the chat before this message has left, so anything
     // sent from it waits for this one to land first.
     const opened = holdSendsUntilOpened(sessionId);
@@ -388,16 +381,7 @@ export function useDrafts({
         toast.error("Couldn't start the chat", { cause: error });
         return;
       }
-      // The group's name goes on with the group as it becomes the chat's,
-      // and stays the draft's until the send lands. The chat's title is its
-      // own, named as any chat's is. A pinned group's chat is starred, which
-      // pins a chat's group.
-      setGroupNames((names) => nameCarried(names, draftGroupOf(id), chatId));
       layout?.carry(draftGroupOf(id), chatId);
-      const isPinned = draftGroupOf(id) in store.get(groupPinsAtom);
-      if (isPinned) {
-        starChat(queryClient, chatId, true);
-      }
       // The draft is claimed for its chat before anything is written to the
       // chat: from here it is the message on its way rather than a draft to
       // list or a reply in the chat, and its file names the chat, since the
@@ -415,13 +399,21 @@ export function useDrafts({
       if (projectId !== undefined) {
         setSentProjects((current) => new Map(current).set(chatId, projectId));
       }
-      if (opensWhole) {
+      if (sentFrom) {
         compose.remove(draftGroupOf(id));
-        // Written in the Chat screen, the draft's pages stand in the side
-        // panel, so they become the chat's as the tab moves to it: the panel
-        // stays put rather than closing and opening again.
-        handOverTabs(draft, chatId);
-        openChat(chatId, id);
+        // The tab the draft was written in is the chat from here, in place,
+        // where back does not go to the draft it was. Each web page the
+        // draft names by its address, and no tab of its group shows, opens
+        // right after it (`pageToChat`).
+        turnTab(sentFrom, chatHref(chatId));
+        const chatTab = windowTabs.allTabs.find((tab) => tab.id === sentFrom);
+        if (chatTab?.group !== undefined) {
+          const { group } = chatTab;
+          const own = windowTabs.allTabs.filter((tab) => tab.group === group);
+          for (const url of pagesForChat(draft, own).toReversed()) {
+            pageToChat({ browser, chatTab: { group, id: sentFrom }, url });
+          }
+        }
       } else {
         compose.becomeChat(id, chatId);
       }
@@ -452,18 +444,13 @@ export function useDrafts({
       }
       if (failed) {
         releaseDraft(id);
-        if (opensWhole) {
-          windowTabs.adoptGroup(chatId, draftGroupOf(id));
-          showDraft(id);
+        if (sentFrom) {
+          turnTab(sentFrom, newChatHref(id));
         } else {
           compose.becomeDraft(chatId, id);
         }
         setSentWords((current) => withoutKey(current, chatId));
         setSentProjects((current) => withoutKey(current, chatId));
-        setGroupNames((names) => namedWith(names, chatId, ""));
-        if (isPinned) {
-          starChat(queryClient, chatId, false);
-        }
         toast.error("Couldn't start the chat", { cause: failed.error });
       }
       opened();
@@ -476,43 +463,21 @@ export function useDrafts({
       // with it. A launch that finds the folder still there finds that
       // message too, and takes the folder away then.
       draftSent(id);
-      // The name and the pin went on with the group to its chat.
-      forgetGroup(draftGroupOf(id));
       removeAsks(marked.map((ask) => ask.id));
       setArrived({ chatId, draftId: id });
-      if (!opensWhole) {
-        handOverTabs(draft, chatId);
-      }
     })();
   };
-  /**
-   * What a draft gathered becomes its chat's tabs, the pages and folders of
-   * its band as they stand, and each web page it names by its address opens
-   * as a tab of the chat's (`pageToChat`). A new tab is not carried over,
-   * and a draft that gathered nothing hands over nothing, so the chat starts
-   * with its group's middle to itself.
-   */
-  const handOverTabs = (draft: Draft, chatId: ChatId) => {
-    const group = draftGroupOf(draft.id);
-    const own = windowTabs.allTabs.filter((tab) => tab.group === group);
-    const homes = own.filter((tab) => isHomeTab(tab));
-    for (const home of homes) {
-      windowTabs.close(home.id);
+  /** A tab sent to another address in place, its history's step replaced rather than added to. */
+  const turnTab = (tabId: string, href: string) => {
+    const router = getGroupTabRouter(tabId);
+    if (router) {
+      router.history.replace(href);
+      return;
     }
-    if (homes.length === own.length) {
-      windowTabs.dropGroup(group);
-    } else {
-      windowTabs.adoptGroup(group, chatId);
+    const tab = windowTabs.allTabs.find((entry) => entry.id === tabId);
+    if (tab?.kind === "screen") {
+      windowTabs.replace(tabId, { ...tab, history: undefined, href });
     }
-    pagesForChat(draft, own).forEach((url, index) => {
-      pageToChat({
-        browser,
-        chatId,
-        isUp: index === 0 && homes.length === own.length,
-        url,
-        windowTabs,
-      });
-    });
   };
   return {
     arrivedId: arrived?.chatId,

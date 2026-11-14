@@ -1,6 +1,6 @@
 import { historyToRestore } from "@/electron-main/browser-view/guest-history";
 import { publisher } from "@/electron-main/rpc/publisher";
-import { keptTabGroupOf } from "@/electron-main/stores/workspace/kept-state";
+import { keptChatOfTab } from "@/electron-main/stores/workspace/kept-state";
 import { keepsHistory } from "@/electron-main/stores/workspace/preferences";
 import {
   type BrowserGuestTarget,
@@ -617,7 +617,7 @@ function createBrowserViewManager(): BrowserViewManager {
         );
       }
       if (isPersonUse(input.type, focusGuard.isGuarded(targetId))) {
-        notePersonUsedTab(targetId, () => keptTabGroupOf(targetId));
+        notePersonUsedTab(targetId, () => keptChatOfTab(targetId));
       }
       if (
         record &&

@@ -9,20 +9,10 @@ export const sidebarOpenAtom = keptAtom<boolean>(
 );
 
 /**
- * The groups whose chat column is closed by its X, by group. Every other
- * group's column is open, a new group's included.
- */
-export const chatClosedByGroupAtom = keptAtom<Record<string, true>>(
-  "view",
-  "tab-groups-chat-closed.v2",
-  {},
-);
-
-/**
- * The names the person gave tab groups, by group, a chat's or not. A row
- * shows its group's name over its own title (its chat's title, or what a
- * group whose chat has not started is called). Only the person names a
- * group: the name and the chat's title never set each other.
+ * The names the person gave tab groups, by group. A row shows its group's
+ * name over its own title (its first chat's title, or its tab up's). Only
+ * the person names a group: the name and a chat's title never set each
+ * other.
  */
 export const groupNamesAtom = keptAtom<Record<string, string>>(
   "view",
@@ -30,11 +20,7 @@ export const groupNamesAtom = keptAtom<Record<string, string>>(
   {},
 );
 
-/**
- * The groups whose chat has not started that the person pinned, by group. A
- * chat's group is pinned by the chat's star, which takes over from the pin
- * when the chat starts.
- */
+/** The groups the person pinned above the line, by group. A chat's star is the chat's own, and pins nothing. */
 export const groupPinsAtom = keptAtom<Record<string, true>>(
   "view",
   "tab-groups-pinned.v1",
@@ -84,14 +70,12 @@ export const sidebarWidthAtom = atom(
 );
 
 /**
- * The chat column's share of the row beside a group's work until a drag
- * sets one: none, which the column's floor (`PANE_WIDTH_MIN`) holds at its
- * narrowest.
+ * The left side's share of each group of two sides, by group: its share of
+ * the row past the gutter, kept as a share so it holds as the window or the
+ * sidebar changes width. A group with none splits in half.
  */
-export const CHAT_DEFAULT_SHARE = 0;
-
-export const chatShareAtom = keptAtom<number>(
+export const sideShareByGroupAtom = keptAtom<Record<string, number>>(
   "view",
-  "tab-groups-chat-share.v2",
-  CHAT_DEFAULT_SHARE,
+  "tab-groups-side-share.v1",
+  {},
 );

@@ -58,7 +58,7 @@ export function ComposeLayer({
   /** A draft thrown away from its window's head. */
   onDiscardDraft: (id: string) => void;
   /** A popped-out chat expanded: the window goes and the chat comes up in a tab of the window's own, its pane open when asked. */
-  onExpandChat: (chatId: ChatId, options: { showsPane: boolean }) => void;
+  onExpandChat: (chatId: ChatId) => void;
   /** A draft's window expanded: the window goes and the draft comes up in the Chat screen, written there in full. */
   onExpandDraft: (id: string) => void;
   onModelChange: (modelURI: AIGatewayModelURI.Type) => void;
@@ -140,8 +140,8 @@ export function ComposeLayer({
                 onClose={() => {
                   onCloseChat(chatId);
                 }}
-                onExpand={(options) => {
-                  onExpandChat(chatId, options);
+                onExpand={() => {
+                  onExpandChat(chatId);
                 }}
                 onMinimize={() => {
                   compose.setPlacement(chatId, "bar");

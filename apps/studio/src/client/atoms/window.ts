@@ -1,6 +1,5 @@
-import { type ChosenItem, draftGroupOf, draftOfGroup } from "@/shared/drafts";
+import { type ChosenItem, draftGroupOf } from "@/shared/drafts";
 import { COMPOSE_KEY } from "@/shared/kept-state";
-import { PANE_DEFAULT_SHARE } from "@/client/atoms/right-pane";
 import {
   type FileSystemListColumn,
   type FileSystemGroupKey,
@@ -116,25 +115,6 @@ export const inboxOpenAtom = keptAtom<boolean>("window", "inbox-open.v1", true);
  */
 export const chatSearchAskedAtom = atom(false);
 
-/**
- * Whether each group's pane is open, by the chat's id or the draft's
- * key: the tabs beside the conversation, put away and brought back
- * by the toggle over it. A group not named here has its pane open, so a
- * chat whose agent opened something shows it on arrival.
- */
-export const paneOpenByGroupAtom = keptAtom<Record<string, boolean>>(
-  "layout",
-  "pane-open.v2",
-  {},
-);
-
-/** The pane's share of the row beside the conversation, dragged at its edge; one share for every chat. */
-export const paneShareAtom = keptAtom<number>(
-  "view",
-  "pane-share.v1",
-  PANE_DEFAULT_SHARE,
-);
-
 /** A tab of the window's browser: a browser session of the window's own, under `WINDOW_ID`. */
 export interface BrowserTab {
   /** The page's icon, as the page last announced it. */
@@ -190,6 +170,12 @@ interface TabHistory {
    */
   group?: string;
   /**
+   * The side of its group the tab stands on: absent for the first, the left,
+   * and 1 for the second, the right, which a group has only while some tab
+   * stands there (`groupLayoutOf`).
+   */
+  side?: 1;
+  /**
    * True when this tab was opened from another one rather than by the user
    * asking for a tab. Back from the start of such a tab closes it, which is
    * what a tab opened to show one thing should do when you are done with it.
@@ -216,8 +202,11 @@ export function originOf(url: string | undefined): string | undefined {
   }
 }
 
-/** The address a new tab opens at: the page with the box that reaches everything. */
-export const NEW_TAB_HREF = "/new-tab";
+/**
+ * The address a new tab opens at: a new chat, which is the new tab, its
+ * draft named in the address once it has words (`newChatHref`).
+ */
+export const NEW_TAB_HREF = "/chats";
 
 /** The web's starting view beside a chat: an address field over the sites kept and lately seen. */
 export const BROWSER_HREF = "/browser";
@@ -225,13 +214,9 @@ export const BROWSER_HREF = "/browser";
 /** The address of the apps: the tab the Apps place opens on. */
 export const APPS_HREF = "/apps";
 
-/**
- * The address a group's new tab opens at: the page that reaches everything
- * for a draft, and the web's starting view for a chat, whose tabs are its
- * browsers.
- */
-export function newTabHrefOf(group: string | undefined): string {
-  return draftOfGroup(group) === undefined ? BROWSER_HREF : NEW_TAB_HREF;
+/** The address a group's new tab opens at: a new chat, in every group. */
+export function newTabHrefOf(_group?: string): string {
+  return NEW_TAB_HREF;
 }
 
 /** The route a chat's screen is at, followed by the chat's id. */

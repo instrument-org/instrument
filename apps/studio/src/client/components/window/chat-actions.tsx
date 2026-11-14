@@ -21,6 +21,8 @@ import { type ChatRowPainting, paintChatRow } from "./chat-list-query";
 import { type Chat } from "./chats";
 import { type RowAction } from "./row-shell";
 import { windowTabGroupsAtom } from "./tab-groups";
+import { chatOfTab } from "./tab-model";
+import { windowTabsAtom } from "./window-tabs";
 
 /** Which chat a call is about, as every chat mutation takes it. */
 interface ChatInput {
@@ -216,13 +218,23 @@ export function setArchived(
       painting.landed(at);
       // A chat no window has open is in History, which is where to look
       // for it; one a window has open is in that window's sidebar.
-      const isOpen = [
-        ...(getDefaultStore().get(windowTabGroupsAtom) ?? []),
-        ...(queryClient.getQueryData(
-          rpcClient.window.live.tabGroupsElsewhere.experimental_liveOptions()
-            .queryKey,
-        ) ?? []),
-      ].includes(input.id);
+      const listed = getDefaultStore().get(windowTabGroupsAtom) ?? [];
+      const isOpen =
+        getDefaultStore()
+          .get(windowTabsAtom)
+          .tabs.some(
+            (tab) =>
+              tab.group !== undefined &&
+              listed.includes(tab.group) &&
+              chatOfTab(tab) === input.id,
+          ) ||
+        (queryClient
+          .getQueryData(
+            rpcClient.window.live.tabGroupsElsewhere.experimental_liveOptions()
+              .queryKey,
+          )
+          ?.chats.includes(input.id) ??
+          false);
       toast(archived ? "Archived" : "Unarchived", {
         ...(archived || isOpen
           ? {}

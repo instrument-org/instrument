@@ -10,6 +10,10 @@ import { createContext, useContext } from "react";
 export interface GroupTab {
   /** Closes the tab, for a screen with nowhere left to go. */
   close: () => void;
+  /** The group the tab is in, for one of the window's groups. */
+  group?: string;
+  /** Whether the tab's side has the keyboard: the side a chat in it marks read from and takes the caret on. */
+  hasKeyboard?: boolean;
   id: string;
   /** Whether the group's tab is on screen: false while the pane it is drawn in is put away, mounted but hidden. */
   isShown: boolean;

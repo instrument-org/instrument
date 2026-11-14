@@ -136,6 +136,24 @@ export function clearKeptState() {
   values = new Map();
 }
 
+/** A value as kept, left where it is: for what an earlier build kept, read without taking it from a build still reading it. */
+export function readKept(file: KeptFile, key: string): unknown {
+  return kept().get(slotOf(file, key));
+}
+
+/** Every member kept under a key of a file, by member, left where they are (`readKept`). */
+export function readKeptMembers(
+  file: KeptFile,
+  key: string,
+): Map<string, unknown> {
+  const prefix = slotOf(file, `${key}/`);
+  return new Map(
+    [...kept()].flatMap(([slot, value]) =>
+      slot.startsWith(prefix) ? [[slot.slice(prefix.length), value]] : [],
+    ),
+  );
+}
+
 /** A value kept and taken back out, for what an earlier build kept under another key. */
 export function takeKept(file: KeptFile, key: string): unknown {
   const value = kept().get(slotOf(file, key));

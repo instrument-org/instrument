@@ -89,8 +89,14 @@ export function useBrowserSlot({
       return;
     }
 
+    // A slot inside a scroller that moves it sideways is seen only through
+    // the scroller (`data-guest-clip`), so the guest is cut to that and
+    // placed again as the scroller scrolls, which moves the slot without
+    // resizing it.
+    const scroller = slot.closest<HTMLElement>("[data-guest-clip]");
     const measure = () => {
       const rect = slot.getBoundingClientRect();
+      const seen = scroller?.getBoundingClientRect();
       if (rect.width > 0 && rect.height > 0) {
         const device =
           emulatedDeviceWidth && emulatedDeviceHeight
@@ -125,6 +131,9 @@ export function useBrowserSlot({
           getComputedStyle(slot)
             .getPropertyValue("--guest-bottom-radius")
             .trim() || undefined,
+          seen
+            ? { height: seen.height, width: seen.width, x: seen.x, y: seen.y }
+            : undefined,
         );
         syncEmulation(device);
       } else {
@@ -159,10 +168,12 @@ export function useBrowserSlot({
     const observer = new ResizeObserver(measure);
     observer.observe(slot);
     window.addEventListener("resize", measure);
+    scroller?.addEventListener("scroll", measure, { passive: true });
     return () => {
       cancelAnimationFrame(raf);
       observer.disconnect();
       window.removeEventListener("resize", measure);
+      scroller?.removeEventListener("scroll", measure);
       setPaintHost(targetId, slotOwner);
       syncEmulation(null);
     };

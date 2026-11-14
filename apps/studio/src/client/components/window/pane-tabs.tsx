@@ -9,18 +9,30 @@ import { useTargetsAgentActivity } from "@/client/hooks/use-target-agent-activit
 import { getGuest } from "@/client/lib/browser-pool";
 import { cn } from "@/client/lib/utils";
 import { browserTargetOf } from "@instrument-org/workspace/client";
-import { type ReactNode, useContext, useState } from "react";
+import { NewTabIcon } from "@/client/components/icons/new-tab-icon";
+import { formatAcceleratorText } from "@/client/lib/format-accelerator";
+import { WINDOW_SHORTCUTS } from "@/shared/window-shortcuts";
+import { AppWindowIcon } from "@phosphor-icons/react/AppWindow";
+import { ArrowClockwiseIcon } from "@phosphor-icons/react/ArrowClockwise";
+import { ArrowLineLeftIcon } from "@phosphor-icons/react/ArrowLineLeft";
+import { ArrowLineRightIcon } from "@phosphor-icons/react/ArrowLineRight";
+import { ArrowsLeftRightIcon } from "@phosphor-icons/react/ArrowsLeftRight";
+import { ChatCircleIcon } from "@phosphor-icons/react/ChatCircle";
+import { CopyIcon } from "@phosphor-icons/react/Copy";
+import { SquareSplitHorizontalIcon } from "@phosphor-icons/react/SquareSplitHorizontal";
+import { StackIcon } from "@phosphor-icons/react/Stack";
+import { XIcon } from "@phosphor-icons/react/X";
+import { XSquareIcon } from "@phosphor-icons/react/XSquare";
+import { type ReactNode, useState } from "react";
 
 import { tabTooltip } from "./app-tab-strip";
 import { useAppsBySlug } from "./apps-by-slug";
 import { useComputerVolumes } from "./computer-volumes";
-import { WindowContext } from "./context";
 import { useFileTabTitles } from "./file-tab-titles";
 import { screenPresentation, screenLocation } from "./screen-presentation";
 import { siteTabTitles } from "./site-tab-titles";
-import { tasksOfHref } from "./tab-location";
 import { isHomeTab } from "./tab-model";
-import { TabMenuAtPoint, TabMenuItems } from "./tab-menu-items";
+import { TabMenuAtPoint } from "./tab-menu-items";
 import { NewTabButton, type StripTab, TabStrip } from "./tab-strip";
 
 type Presentation = Parameters<typeof screenPresentation>[1];
@@ -46,6 +58,8 @@ export function stripKeyOf(tab: WindowTab): string {
  */
 export function PaneTabs({
   carriedKey,
+  side = 0,
+  split,
   chatTitles,
   className,
   chosenId,
@@ -91,9 +105,13 @@ export function PaneTabs({
   onTabDrag?: (key: string, event: PointerEvent) => void;
   onTabDragEnd?: (key: string, event: PointerEvent) => void;
   onTabDragStart?: (key: string, event: PointerEvent, moved: number) => void;
+  /** Which side of its group the strip heads, which a drag along it reads it by (`data-group-tabs`). */
+  side?: 0 | 1;
+  /** What a tab's menu does with the group's sides; none for a strip of no group's. */
+  split?: SplitMenuActions;
   tabs: WindowTab[];
   taskTitles: Presentation["taskTitles"];
-  /** What the row keeps at its right end: the chat's tab, while it is not a card of its own. */
+  /** What the row keeps at its right end: the room for the caption buttons off the Mac. */
   trailing?: ReactNode;
 }) {
   const appsBySlug = useAppsBySlug();
@@ -174,7 +192,7 @@ export function PaneTabs({
         "flex h-10 shrink-0 items-center pr-1.5 [-webkit-app-region:drag] [&_[role=tab]]:[-webkit-app-region:no-drag] [&_button]:[-webkit-app-region:no-drag]",
         className,
       )}
-      data-group-tabs=""
+      data-group-tabs={side}
       {...(isIncoming ? { "data-incoming": "" } : {})}
     >
       {lead}
@@ -222,6 +240,7 @@ export function PaneTabs({
             isChosen={menuTab.id === chosenId}
             onClose={onClose}
             onDuplicate={onDuplicate}
+            {...(split ? { split } : {})}
             tab={menuTab}
             tabs={tabs}
           />
@@ -231,103 +250,181 @@ export function PaneTabs({
   );
 }
 
+/** What a tab's menu does with the sides of its group, each for the tab it was raised on. */
+export interface SplitMenuActions {
+  /** Whether the group has a second side. */
+  hasOtherSide: boolean;
+  /** The tab to a new tab group of its own, up in the window. */
+  onMoveToNewGroup: (tab: WindowTab) => void;
+  /** The tab to a window of its own. */
+  onMoveToNewWindow: (tab: WindowTab) => void;
+  /** The tab to the other side, made where the group has one side. */
+  onMoveToOtherSide: (tab: WindowTab) => void;
+  /** A new chat on the other side, made where the group has one side. */
+  onNewChatInSplit: (tab: WindowTab) => void;
+  /** A copy of the tab on the other side, made where the group has one side. */
+  onOpenInSplit: (tab: WindowTab) => void;
+}
+
 /**
- * A pane tab's menu: the window's rows, with a copy of the tab opened
- * elsewhere in place of moving it, since the tab is its chat's.
+ * A group tab's menu: the group's sides first (a copy on the other side,
+ * the tab moved there, a new chat there, the tab to a group or a window of
+ * its own), then the tab copied, and closing it or the tabs around it.
+ * A page also reloads and copies its address.
  */
 function PaneTabMenu({
   isChosen,
   onClose,
   onDuplicate,
+  split,
   tab,
   tabs,
 }: {
   isChosen: boolean;
   onClose: (id: string) => void;
   onDuplicate: (tab: WindowTab) => void;
+  split?: SplitMenuActions;
   tab: WindowTab;
   tabs: WindowTab[];
 }) {
-  const windowContext = useContext(WindowContext);
+  const { Item, Separator, Shortcut } = dropdownMenuComponents;
   const pageUrl = tab.kind === "page" ? (tab.url ?? tab.openedUrl) : undefined;
-  // Elsewhere, a copy: a page at its address, a screen at its own. A task
-  // stands only in its chat, so it has no tab of the window's own.
-  const openElsewhere = (where: "tab" | "window") => {
-    if (!windowContext) {
-      return;
-    }
-    const options = where === "tab" ? { newTab: true } : { newWindow: true };
-    if (tab.kind === "page") {
-      if (pageUrl !== undefined) {
-        windowContext.openPage(pageUrl, options);
-      }
-    } else {
-      windowContext.openScreen(tab.href, options);
+  const index = tabs.findIndex((each) => each.id === tab.id);
+  const closeAll = (closing: readonly WindowTab[]) => {
+    for (const each of closing) {
+      onClose(each.id);
     }
   };
-  const canGoElsewhere =
-    windowContext !== null && (tab.kind !== "page" || pageUrl !== undefined);
-  const index = tabs.findIndex((each) => each.id === tab.id);
+  // A side's only tab moved over would leave the side it was on empty and
+  // the group one side again, standing where it was.
+  const canMove = split !== undefined && (split.hasOtherSide || tabs.length > 1);
   return (
-    <TabMenuItems
-      components={dropdownMenuComponents}
-      isSelected={isChosen}
-      onClose={() => {
-        onClose(tab.id);
-      }}
-      onCloseOthers={
-        tabs.length > 1
-          ? () => {
-              for (const other of tabs) {
-                if (other.id !== tab.id) {
-                  onClose(other.id);
-                }
-              }
-            }
-          : undefined
-      }
-      onCloseToRight={
-        index === tabs.length - 1
-          ? undefined
-          : () => {
-              for (const later of tabs.slice(index + 1)) {
-                onClose(later.id);
-              }
-            }
-      }
-      onCopyUrl={
-        pageUrl === undefined
-          ? undefined
-          : () => {
-              void navigator.clipboard.writeText(pageUrl);
-            }
-      }
-      onDuplicate={() => {
-        onDuplicate(tab);
-      }}
-      onOpenInNewWindow={
-        canGoElsewhere
-          ? () => {
-              openElsewhere("window");
-            }
-          : undefined
-      }
-      onOpenInTabBar={
-        canGoElsewhere &&
-        (tab.kind === "page" || tasksOfHref(tab.href) === undefined)
-          ? () => {
-              openElsewhere("tab");
-            }
-          : undefined
-      }
-      onReload={
-        tab.kind === "page"
-          ? () => {
+    <>
+      {split && (
+        <>
+          <Item
+            onClick={() => {
+              split.onOpenInSplit(tab);
+            }}
+          >
+            <SquareSplitHorizontalIcon className="size-4" />
+            <span>Open in Split</span>
+          </Item>
+          {canMove && (
+            <Item
+              onClick={() => {
+                split.onMoveToOtherSide(tab);
+              }}
+            >
+              <ArrowsLeftRightIcon className="size-4" />
+              <span>Move to Other Side</span>
+            </Item>
+          )}
+          <Item
+            onClick={() => {
+              split.onNewChatInSplit(tab);
+            }}
+          >
+            <ChatCircleIcon className="size-4" />
+            <span>New Chat in Split</span>
+          </Item>
+          <Item
+            onClick={() => {
+              split.onMoveToNewGroup(tab);
+            }}
+          >
+            <StackIcon className="size-4" />
+            <span>Move to New Tab Group</span>
+          </Item>
+          <Item
+            onClick={() => {
+              split.onMoveToNewWindow(tab);
+            }}
+          >
+            <AppWindowIcon className="size-4" />
+            <span>Move to New Window</span>
+          </Item>
+          <Separator />
+        </>
+      )}
+      {pageUrl !== undefined && (
+        <>
+          <Item
+            onClick={() => {
               getGuest(browserTargetOf(tab.id))?.reload();
-            }
-          : undefined
-      }
-    />
+            }}
+          >
+            <ArrowClockwiseIcon className="size-4" />
+            <span>Reload</span>
+            {isChosen ? (
+              <Shortcut>
+                {formatAcceleratorText(WINDOW_SHORTCUTS.reloadPage.accelerator)}
+              </Shortcut>
+            ) : null}
+          </Item>
+          <Item
+            onClick={() => {
+              void navigator.clipboard.writeText(pageUrl);
+            }}
+          >
+            <CopyIcon className="size-4" />
+            <span>Copy URL</span>
+          </Item>
+        </>
+      )}
+      <Item
+        onClick={() => {
+          onDuplicate(tab);
+        }}
+      >
+        <NewTabIcon className="size-4" />
+        <span>Duplicate</span>
+      </Item>
+      <Separator />
+      <Item
+        onClick={() => {
+          onClose(tab.id);
+        }}
+      >
+        <XIcon className="size-4" />
+        <span>Close</span>
+        {isChosen ? (
+          <Shortcut>
+            {formatAcceleratorText(WINDOW_SHORTCUTS.closeTab.accelerator)}
+          </Shortcut>
+        ) : null}
+      </Item>
+      {tabs.length > 1 && (
+        <Item
+          onClick={() => {
+            closeAll(tabs.filter((each) => each.id !== tab.id));
+          }}
+        >
+          <XSquareIcon className="size-4" />
+          <span>Close Other Tabs</span>
+        </Item>
+      )}
+      {index > 0 && (
+        <Item
+          onClick={() => {
+            closeAll(tabs.slice(0, index));
+          }}
+        >
+          <ArrowLineLeftIcon className="size-4" />
+          <span>Close Tabs to the Left</span>
+        </Item>
+      )}
+      {index < tabs.length - 1 && (
+        <Item
+          onClick={() => {
+            closeAll(tabs.slice(index + 1));
+          }}
+        >
+          <ArrowLineRightIcon className="size-4" />
+          <span>Close Tabs to the Right</span>
+        </Item>
+      )}
+    </>
   );
 }
 

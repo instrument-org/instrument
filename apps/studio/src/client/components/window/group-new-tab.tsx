@@ -15,7 +15,6 @@ import { chatListOptions } from "./chat-list-query";
 import { FolderMark } from "./folder-mark";
 import { ProjectMark } from "./project-mark";
 import { useShell } from "./shell-context";
-import { chatOfGroup } from "./window-href";
 import { useWindowTabs } from "./window-tabs";
 
 /**
@@ -128,7 +127,7 @@ export function useFilesPlaces(group: string): {
   const preferences = useQuery(
     rpcClient.preferences.live.get.experimental_liveOptions(),
   );
-  const chatId = chatOfGroup(group);
+  const chatId = useWindowTabs().chatsIn(group)[0];
   const { data: chatProject } = useQuery({
     ...chatListOptions(),
     select: (chats) => chats.find((entry) => entry.id === chatId)?.project,

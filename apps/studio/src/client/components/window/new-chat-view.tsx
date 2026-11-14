@@ -185,22 +185,21 @@ export function NewChatView({
     }
   }, [boundId, draftId, router, store, tabId]);
 
-  const group = draft ? draftGroupOf(draft.id) : undefined;
-  const up = isPaneShown ? windowTabs.selectedTabIn(group) : undefined;
-  // What the side panel shows: the attached file or folder there has its
-  // chip raised, and a second press puts the panel away.
+  // The group this tab is in, and the tab up on its other side, which the
+  // draft carries as a chat's next message does; nothing for a new tab, or
+  // with one side.
+  const group =
+    windowTabs.allTabs.find((tab) => tab.id === tabId)?.group ??
+    (draft ? draftGroupOf(draft.id) : undefined);
+  const up = isPaneShown ? undefined : windowTabs.besideOf(tabId);
+  // What the other side shows: the attached file or folder there has its
+  // chip raised.
   const shownPath = up ? includedItemsOf(up, null, [])?.[0]?.path : undefined;
-  // What the draft carries is the tab up, as a chat's next message does,
-  // and nothing for a new tab.
   const chips = useNewChatChips(draft, {
     band: up && !isHomeTab(up) ? [up] : [],
+    group,
     onSelect: (id) => {
       if (group === undefined) {
-        return;
-      }
-      // A second press of the chip the side panel shows puts the panel away.
-      if (id === up?.id) {
-        shell.setPaneOpen(group, false);
         return;
       }
       windowTabs.select(id);
@@ -236,7 +235,8 @@ export function NewChatView({
   // the side panel, the way a chat's plus opens them beside the chat.
   const openBeside = (href: string) => {
     const opened = ensureGroup();
-    windowTabs.openOrFocusScreen(href, {
+    windowTabs.openScreen(href, {
+      after: tabId,
       group: opened,
       isOpened: true,
       select: true,
@@ -308,9 +308,7 @@ export function NewChatView({
           onItemRemoved={staging.removeItem}
           onItemsChange={staging.keepItems}
           onShowItem={(item) => {
-            if (item.path === shownPath && group !== undefined) {
-              shell.setPaneOpen(group, false);
-            } else {
+            if (item.path !== shownPath) {
               openBeside(
                 item.kind === "folder"
                   ? folderHref(item.path)
@@ -409,11 +407,14 @@ function useNewChatChips(
   draft: Draft | undefined,
   {
     band,
+    group,
     onSelect,
     open,
     selectedId,
   }: {
     band: WindowTab[];
+    /** The group the new chat's tab is in. */
+    group: string | undefined;
     onSelect: (tabId: string) => void;
     open: (target: BandTarget) => string | undefined;
     selectedId: string | undefined;
@@ -440,7 +441,7 @@ function useNewChatChips(
   });
   return draft && items.length > 0 ? (
     <ContextChips
-      band={{ group: draftGroupOf(draft.id), onSelect, selectedId }}
+      band={{ group: group ?? draftGroupOf(draft.id), onSelect, selectedId }}
       items={items}
       onLeaveOut={leaveOut}
     />

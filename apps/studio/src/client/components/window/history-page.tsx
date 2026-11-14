@@ -36,10 +36,14 @@ export function HistoryPage({
     entry.kind === "chat"
       ? matchesSearch(entry.chat, q, projectNames) ||
         (entry.name !== undefined && hasWords(q, [entry.name]))
-      : hasWords(q, [entry.title, entry.draft.words, entry.name ?? ""]),
+      : hasWords(q, [
+          entry.title,
+          entry.kind === "draft" ? entry.draft.words : "",
+          entry.name ?? "",
+        ]),
   );
   const open = (entry: TabGroup) => {
-    groups.restore(entry.group);
+    groups.restore(entry);
   };
   return (
     <main className="@container/history h-full min-h-0 overflow-y-auto bg-background">

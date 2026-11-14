@@ -243,22 +243,18 @@ describe("a page the draft names, at the send", () => {
     expect(pagesForChat(asked, [page("t", theirs.url ?? "")])).toEqual([]);
   });
 
-  it("opens as a tab of the chat's own, leaving the person's tab where it is", () => {
-    const id = StoreId.newTabId();
-    const openBehind = vi.fn(() => id);
-    const select = vi.fn();
+  it("opens right after the chat's tab, behind it, leaving the person's tab where it is", () => {
+    const openBehind = vi.fn(() => StoreId.newTabId());
     for (const url of pagesForChat(asked, [])) {
       pageToChat({
         browser: { openBehind },
-        chatId: CHAT,
-        isUp: true,
+        chatTab: { group: "group:1", id: "chat" },
         url,
-        windowTabs: { select },
       });
     }
-    expect(openBehind.mock.calls).toEqual([[theirs.url, CHAT]]);
-    // Up in the chat's pane, which only ever selects the chat's own tab.
-    expect(select.mock.calls).toEqual([[id]]);
+    expect(openBehind.mock.calls).toEqual([
+      [theirs.url, "group:1", undefined, "chat"],
+    ]);
   });
 
   it("never opens in the draft's band while it is a draft", () => {

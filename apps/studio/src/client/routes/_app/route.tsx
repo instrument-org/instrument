@@ -180,11 +180,11 @@ function SiteView({ group }: { group: string }) {
 }
 
 /**
- * One of the window's tabs, as its address has it: the chat, a site opened
- * at the window's level, or a screen that is its own route under the row
- * that says where it stands. The window around the tabs is drawn once, by
- * the window, whatever tab is up. A tab of a chat's or a draft's group is
- * the screen alone, under the row its group's view draws.
+ * One of the window's tabs, as its address has it: a tab group, a site
+ * opened at the window's level, or a screen that is its own route under the
+ * row that says where it stands. The window around the tabs is drawn once,
+ * by the window, whatever tab is up. A tab of a group is the screen alone,
+ * under the row its group's view draws.
  */
 function TabContent() {
   const href = useRouterState({
@@ -196,14 +196,15 @@ function TabContent() {
   }
   const screen = matchScreen(href);
   switch (screen.kind) {
-    case "chat": {
-      return <GroupView chat={screen.chat} />;
+    case "group": {
+      return <GroupView group={screen.group} />;
     }
-    case "chatLink": {
-      return <GroupView chat={undefined} />;
-    }
+    // A chat or a draft asked for by its address: the window moves to the
+    // group with its tab (`useTabGroupUpkeep`).
+    case "chat":
+    case "chatLink":
     case "inbox": {
-      return <GroupView chat={undefined} draft={screen.draft} />;
+      return <GroupView group={undefined} />;
     }
     case "chatOfSession": {
       return <ChatOfSession sessionId={screen.session} />;
@@ -237,7 +238,7 @@ function ChatOfSession({ sessionId }: { sessionId: StoreId.Session }) {
       router.history.replace(answer.id ? chatHref(answer.id) : INBOX_HREF);
     }
   }, [answer, router]);
-  return <GroupView chat={undefined} />;
+  return <GroupView group={undefined} />;
 }
 
 /**

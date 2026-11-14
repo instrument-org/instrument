@@ -10,11 +10,9 @@ import {
   type SessionMessageDataPart,
 } from "@instrument-org/workspace/client";
 import { useMutation, useQuery } from "@tanstack/react-query";
-import { useSetAtom } from "jotai";
 import { useEffect, useEffectEvent, useState } from "react";
 
 import { openSettings } from "@/client/atoms/settings-modal";
-import { paneOpenByGroupAtom } from "@/client/atoms/window";
 import { useWindowTabs } from "@/client/components/window/window-tabs";
 import { ArrowRightIcon } from "@phosphor-icons/react/ArrowRight";
 import { privacyPaneForApp } from "@/client/lib/privacy-pane";
@@ -177,7 +175,6 @@ function PermissionAskCard({
     return (
       <PageWaitCard
         ask={ask}
-        chatId={chatId}
         done={choice("allowed")}
         elsewhere={elsewhere}
         skip={choice("declined")}
@@ -309,23 +306,20 @@ function PermissionAskCard({
  * A page of the chat's the agent handed the person (`instrument window
  * wait`): the page's mark in a tile, what the agent asks them to do and why,
  * then Done and Skip. Pressing the mark or the words brings that tab up in
- * the pane, opening the pane when it is put away.
+ * its group.
  */
 function PageWaitCard({
   ask,
-  chatId,
   done,
   elsewhere,
   skip,
 }: {
   ask: Ask;
-  chatId: ChatId;
   done: Omit<Parameters<typeof AnswerButton>[0], "children">;
   elsewhere: string | undefined;
   skip: Omit<Parameters<typeof AnswerButton>[0], "children">;
 }) {
   const windowTabs = useWindowTabs();
-  const setPaneOpenByGroup = useSetAtom(paneOpenByGroupAtom);
   const asker = ask.askers[0];
   const title =
     asker?.title ||
@@ -339,7 +333,6 @@ function PageWaitCard({
         data-page-wait={ask.target}
         onClick={() => {
           windowTabs.select(ask.target);
-          setPaneOpenByGroup((current) => ({ ...current, [chatId]: true }));
         }}
         type="button"
       >

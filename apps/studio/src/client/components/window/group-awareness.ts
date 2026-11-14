@@ -4,7 +4,6 @@ import { SCREENS } from "@/shared/instrument-screens";
 import { chatAddressOf, instrumentUrlOf } from "@instrument-org/shared";
 import {
   type ChatId,
-  isChatId,
   type LayoutElsewhere,
   type LayoutSent,
   type LayoutSnapshot,
@@ -16,89 +15,85 @@ import { type AppsBySlug } from "./apps-by-slug";
 import { computerTabOf } from "./file-tabs";
 import { joinHostPath, segmentsOf } from "./host-path";
 import { screenPresentation } from "./screen-presentation";
-import { isFreshTab, isHomeTab } from "./tab-model";
+import { isFreshTab, isHomeTab, isNewChatTab } from "./tab-model";
 import { matchScreen } from "./window-href";
 import { type useWindowTabs } from "./window-tabs";
 
 /**
- * What a chat's tab group is read from, as today's window holds it: the
- * window's tabs, each group's title as the sidebar lists it, and which
- * groups have their chat's card closed.
+ * What a chat's tab group is read from: the window's tabs and how each group
+ * lays them out, and each group's title as the sidebar lists it.
  */
 export interface GroupAwarenessWindow {
   appsBySlug: AppsBySlug;
-  chatClosedByGroup: Readonly<Record<string, true>>;
   chatTitles: Map<ChatId, string>;
   /** The window's tab groups as its sidebar lists them. */
   groups: readonly { group: string; title: string }[];
-  windowTabs: Pick<
-    ReturnType<typeof useWindowTabs>,
-    "allTabs" | "selectedTabIn"
-  >;
+  windowTabs: Pick<ReturnType<typeof useWindowTabs>, "allTabs" | "layoutOf">;
 }
 
 /**
- * The layout that goes with a message sent in a group, and what changed in
- * it since this window last sent from there. Read at the press, and kept as
- * what the chat was last told.
+ * The layout that goes with a message sent from a tab, the chat's or the
+ * new chat's whose draft is sending, and what changed in its group since
+ * this window last told `told` (a chat's id, or a draft's group key until
+ * its chat starts). Read at the press, and kept as what `told` was last
+ * told. None for a tab no group has.
  */
 export function layoutReader(window: GroupAwarenessWindow) {
-  return (group: string): LayoutSent =>
-    layoutSent(
-      group,
-      todaysGroupLayout(window, group),
-      elsewhereOf(window, group),
-    );
+  return (tabId: string, told: string): LayoutSent | undefined => {
+    const group = window.windowTabs.allTabs.find(
+      (tab) => tab.id === tabId,
+    )?.group;
+    return group === undefined
+      ? undefined
+      : layoutSent(
+          told,
+          groupLayoutFor(window, group, tabId),
+          elsewhereOf(window, group),
+        );
+  };
 }
 
 /**
- * A group as today's window lays it out: the work's tabs as one side and the
- * chat as the other, or one side while the chat is alone, and the chat after
- * the tabs while its card is closed. The send comes from the chat's
- * composer, so the chat's side has the keyboard. Core's `groupLayoutOf`
- * takes this one's place.
+ * A group's layout as the chat in `chatTab` reads it (`groupLayoutOf`): its
+ * sides in order, each tab named and the one up marked, the chat's own tab
+ * marked as this chat, and the chat's side as the one with the keyboard,
+ * since the send comes from its composer. A new chat shows nothing to name,
+ * so the group's other new chats are left out, and a side left with no tabs
+ * goes with them.
  */
-export function todaysGroupLayout(
+export function groupLayoutFor(
   window: GroupAwarenessWindow,
   group: string,
+  chatTab: string,
 ): LayoutSnapshot {
-  const up = window.windowTabs.selectedTabIn(group);
-  // A new tab shows nothing to name, and a chat's first message closes it.
-  const tabs = window.windowTabs.allTabs
-    .filter((tab) => tab.group === group && !isFreshTab(tab) && !isHomeTab(tab))
-    .map((tab) => ({
-      ...describedTab(window, tab),
-      ...(tab.id === up?.id ? { isUp: true } : {}),
-    }));
-  const chatTitle =
-    (isChatId(group) ? window.chatTitles.get(group) : undefined) ?? "New chat";
-  const chat = (isUp: boolean): LayoutTab => ({
-    address: isChatId(group) ? chatAddressOf(group) : "instrument://new-chat",
-    id: group,
-    isThisChat: true,
-    ...(isUp ? { isUp: true } : {}),
-    kind: "chat",
-    title: chatTitle,
-  });
-  const titled = {
-    id: group,
-    title:
-      window.groups.find((entry) => entry.group === group)?.title ?? chatTitle,
-  };
-  if (tabs.length === 0) {
-    return { focused: 0, group: titled, sides: [{ tabs: [chat(true)] }] };
-  }
-  if (window.chatClosedByGroup[group] === true) {
-    return {
-      focused: 0,
-      group: titled,
-      sides: [{ tabs: [...tabs, chat(false)] }],
-    };
-  }
+  const layout = window.windowTabs.layoutOf(group);
+  const sides = layout.sides
+    .map((side, index) => ({
+      index,
+      tabs: side.tabs
+        .filter(
+          (tab) =>
+            tab.id === chatTab ||
+            !(isFreshTab(tab) || isHomeTab(tab) || isNewChatTab(tab)),
+        )
+        .map((tab) => ({
+          ...describedTab(window, tab),
+          ...(tab.id === chatTab ? { isThisChat: true } : {}),
+          ...(tab.id === side.up ? { isUp: true } : {}),
+        })),
+    }))
+    .filter((side) => side.tabs.length > 0);
+  const chatSide = sides.findIndex((side) =>
+    side.tabs.some((tab) => tab.isThisChat === true),
+  );
+  const focusedSide = sides.findIndex((side) => side.index === layout.focused);
+  const focused = chatSide === -1 ? Math.max(focusedSide, 0) : chatSide;
+  const title =
+    window.groups.find((entry) => entry.group === group)?.title ?? "New chat";
   return {
-    focused: 1,
-    group: titled,
-    sides: [{ tabs }, { tabs: [chat(true)] }],
+    focused,
+    group: { id: group, title },
+    sides: sides.map(({ tabs }) => ({ tabs })),
   };
 }
 
@@ -140,6 +135,14 @@ function describedTab(
     };
   }
   const screen = matchScreen(tab.href);
+  if (screen.kind === "inbox" || screen.kind === "newTab") {
+    return {
+      address: "instrument://new-chat",
+      id: tab.id,
+      kind: "newChat",
+      title: "New chat",
+    };
+  }
   if (screen.kind === "chat") {
     return {
       address: chatAddressOf(screen.chat),
@@ -184,9 +187,9 @@ function elsewhereOf(
 }
 
 /**
- * What each group was last told, by its key, in this window, kept in memory:
- * a relaunch or another window starts over, sending the layout with no
- * changes.
+ * What each chat was last told, by its id (a draft's group key until its
+ * chat starts), in this window, kept in memory: a relaunch or another window
+ * starts over, sending the layout with no changes.
  */
 const lastSent = new Map<
   string,
@@ -194,17 +197,17 @@ const lastSent = new Map<
 >();
 
 /**
- * The layout with what changed since the group was last sent from, which is
+ * The layout with what changed since `told` was last sent to, which is
  * nothing for its first message; and the layout kept as the next one's
  * starting point.
  */
 function layoutSent(
-  group: string,
+  told: string,
   layout: LayoutSnapshot,
   elsewhere: Record<string, string>,
 ): LayoutSent {
-  const before = lastSent.get(group);
-  lastSent.set(group, { elsewhere, layout });
+  const before = lastSent.get(told);
+  lastSent.set(told, { elsewhere, layout });
   if (!before) {
     return { changes: [], layout };
   }
@@ -213,9 +216,9 @@ function layoutSent(
 }
 
 /**
- * A draft's group became its chat's: what the draft was last told goes on
- * as the chat's, so the chat's next message says what changed since its
- * first.
+ * A draft's chat started: what the draft was last told goes on as the
+ * chat's, so the chat's next message says what changed since its first.
+ * The tab it was sent from becomes the chat's in place, in the same group.
  */
 export function carryLayoutSent(from: string, to: string) {
   const kept = lastSent.get(from);
@@ -223,8 +226,5 @@ export function carryLayoutSent(from: string, to: string) {
     return;
   }
   lastSent.delete(from);
-  lastSent.set(to, {
-    ...kept,
-    layout: { ...kept.layout, group: { ...kept.layout.group, id: to } },
-  });
+  lastSent.set(to, kept);
 }

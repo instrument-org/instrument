@@ -94,8 +94,6 @@ import {
   type TabGroup,
   windowTabGroupsAtom,
 } from "./tab-groups";
-import { isHomeTab } from "./tab-model";
-import { chatOfGroup } from "./window-href";
 import { useWindowTabs } from "./window-tabs";
 
 /** A key printed beside the control it works, in a light keycap. */
@@ -178,7 +176,8 @@ export function GroupSidebar({
   onNewProjectFor: (target: { chatId: ChatId } | { draftId: string }) => void;
   /** Pins a group above the line, or takes it back down. */
   onPin: (group: string, pinned: boolean) => void;
-  onRestore: (group: string) => void;
+  /** Brings back a chat or a draft from History, or brings up the window with a chat another one has open. */
+  onRestore: (entry: TabGroup) => void;
   onShow: (group: string, options: { newWindow: boolean }) => void;
   open: TabGroup[];
   projects: Project[];
@@ -205,11 +204,11 @@ export function GroupSidebar({
     project === undefined ||
     (entry.kind === "chat"
       ? entry.chat.project === project.id
-      : entry.draft.projectId === project.id);
+      : entry.kind === "draft" && entry.draft.projectId === project.id);
   const listed = open.filter(inProject);
   const pinned = listed.filter((entry) => isPinnedGroup(entry));
   const rest = listed.filter((entry) => !isPinnedGroup(entry));
-  const { allTabs } = useWindowTabs();
+  const { allTabs, chatUpIn } = useWindowTabs();
   const projectNames = new Map(projects.map((each) => [each.id, each.name]));
   /**
    * Whether a group turns up for the search: by the name the person gave it,
@@ -223,10 +222,14 @@ export function GroupSidebar({
         (entry.name !== undefined && hasWords(search, [entry.name]))
       : hasWords(search, [
           entry.title,
-          entry.draft.words,
-          entry.draft.projectId === undefined
-            ? ""
-            : (projectNames.get(entry.draft.projectId) ?? ""),
+          ...(entry.kind === "draft"
+            ? [
+                entry.draft.words,
+                entry.draft.projectId === undefined
+                  ? ""
+                  : (projectNames.get(entry.draft.projectId) ?? ""),
+              ]
+            : []),
           ...allTabs.flatMap((tab) =>
             tab.group === entry.group && tab.kind === "page"
               ? [pageTabTitle(tab) || (tab.url ?? "")]
@@ -266,21 +269,23 @@ export function GroupSidebar({
     };
     const at = shownRows.findIndex((each) => each.group === entry.group);
     return {
-      // A group whose chat has not started pins by its own pin, which the
-      // menu offers as it offers a chat's star.
-      actions:
-        entry.kind === "chat"
-          ? actionsFor(entry.chat)
-          : [
-              {
-                icon: null,
-                id: entry.pinned ? "unstar" : "star",
-                label: entry.pinned ? "Unpin" : "Pin",
-                run: () => {
-                  onPin(entry.group, !entry.pinned);
-                },
-              },
-            ],
+      // A group pins by its own pin, which the menu offers where a chat's
+      // star would be; its chat's star stays the chat's.
+      actions: [
+        {
+          icon: null,
+          id: entry.pinned ? "unstar" : "star",
+          label: entry.pinned ? "Unpin" : "Pin",
+          run: () => {
+            onPin(entry.group, !entry.pinned);
+          },
+        },
+        ...(entry.kind === "chat"
+          ? actionsFor(entry.chat).filter(
+              (action) => action.id !== "star" && action.id !== "unstar",
+            )
+          : []),
+      ],
       onClose: () => {
         onClose(entry.group);
       },
@@ -292,17 +297,23 @@ export function GroupSidebar({
       onDuplicate: () => {
         onDuplicate(entry);
       },
-      onNewProject: () => {
-        onNewProjectFor(
-          entry.kind === "chat"
-            ? { chatId: entry.chat.id }
-            : { draftId: entry.draft.id },
-        );
-      },
+      onNewProject:
+        entry.kind === "tabs"
+          ? undefined
+          : () => {
+              onNewProjectFor(
+                entry.kind === "chat"
+                  ? { chatId: entry.chat.id }
+                  : { draftId: entry.draft.id },
+              );
+            },
       onNewWindow: () => {
         onShow(entry.group, { newWindow: true });
       },
       onSetProject: (filed) => {
+        if (entry.kind === "tabs") {
+          return;
+        }
         if (entry.kind === "chat") {
           setChatProject(entry.chat.id, filed);
           return;
@@ -335,11 +346,17 @@ export function GroupSidebar({
       {...(extra?.isElsewhere ? {} : { onClose })}
       {...(extra?.isListed ? { onPress: pressRow } : {})}
       {...(extra?.isElsewhere || extra?.restore ? {} : { menu: menuOf(entry) })}
-      onShow={onShow}
+      onShow={
+        extra?.isElsewhere || extra?.restore
+          ? () => {
+              onRestore(entry);
+            }
+          : onShow
+      }
       {...(extra?.restore
         ? {
             restore: () => {
-              onRestore(entry.group);
+              onRestore(entry);
               setView("list");
               setSearch("");
             },
@@ -581,7 +598,9 @@ export function GroupSidebar({
             )}
           </GroupList>
         </div>
-        <SidebarFoot chatId={chatOfGroup(groupUp)} />
+        <SidebarFoot
+          chatId={groupUp === undefined ? undefined : chatUpIn(groupUp)}
+        />
       </div>
       <HeldPicture
         chatTitles={chatTitles}
@@ -987,14 +1006,19 @@ export function GroupRow({
   const isUnread = chat?.unread === true;
   const { selectedTabIn } = useWindowTabs();
   const appsBySlug = useAppsBySlug();
-  // A group whose chat has no words yet is named by the tab it has up,
-  // until the person names it.
+  // A group with no chat and no words is named by the tab it has up on the
+  // side with the keyboard, until the person names it.
   const up =
-    entry.kind === "draft" && entry.draft.words.trim() === ""
+    entry.kind === "tabs" ||
+    (entry.kind === "draft" && entry.draft.words.trim() === "")
       ? selectedTabIn(entry.group)
       : undefined;
   let ownTitle =
-    entry.kind === "draft" ? draftWordsTitle(entry.draft) : entry.chat.title;
+    entry.kind === "chat"
+      ? entry.chat.title
+      : entry.kind === "draft"
+        ? draftWordsTitle(entry.draft)
+        : entry.title;
   if (up?.kind === "page") {
     ownTitle = pageTabTitle(up) || ownTitle;
   } else if (up !== undefined) {
@@ -1125,10 +1149,10 @@ export function GroupRow({
 }
 
 /**
- * The second line of a row: its chat's latest line, as the inbox's row says
- * it, and the marks of its tabs, a new tab's aside, at the line's end and at
- * most under half of it; a group whose chat has not started has the marks
- * alone.
+ * The second line of a row: the latest line of the chat it is named by, as
+ * the inbox's row says it, and the marks of every tab, the left side first,
+ * at the line's end and at most under half of it; a group with no chat has
+ * the marks alone.
  */
 function SecondLine({
   chatTitles,
@@ -1137,11 +1161,10 @@ function SecondLine({
   chatTitles: Map<ChatId, string>;
   entry: TabGroup;
 }) {
-  const { allTabs } = useWindowTabs();
+  const { layoutOf } = useWindowTabs();
   const appsBySlug = useAppsBySlug();
-  const tabs = allTabs.filter(
-    (tab) => tab.group === entry.group && !isHomeTab(tab),
-  );
+  // Every tab's mark, the left side first, in strip order.
+  const tabs = layoutOf(entry.group).sides.flatMap((side) => side.tabs);
   const marks = tabs
     .slice(0, 8)
     .map((tab) => (
@@ -1152,7 +1175,7 @@ function SecondLine({
         tab={tab}
       />
     ));
-  if (entry.kind === "draft") {
+  if (entry.kind !== "chat") {
     return tabs.length === 0 ? (
       <span className="text-muted-foreground">Nothing open yet</span>
     ) : (
@@ -1245,7 +1268,7 @@ function AppMenuButton() {
 }
 
 /** The sidebar's foot: the account, which opens Settings, Settings itself, and Help. */
-function SidebarFoot({ chatId }: { chatId: ReturnType<typeof chatOfGroup> }) {
+function SidebarFoot({ chatId }: { chatId: ChatId | undefined }) {
   const { data: user } = useLiveUser();
   const { data: workspace } = useQuery(
     rpcClient.workspaces.current.queryOptions(),

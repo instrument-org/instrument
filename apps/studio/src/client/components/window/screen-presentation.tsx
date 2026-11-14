@@ -111,6 +111,7 @@ export function screenLocation(
       };
     }
     case "debug":
+    case "group":
     case "memory":
     case "namedScreen":
     case "newTab":
@@ -179,6 +180,12 @@ export function screenPresentation(
       return {
         icon: <FolderMark path={folderPathOf(screen)} />,
         title: folderTitle(screen, { volumes }),
+      };
+    }
+    case "group": {
+      return {
+        icon: <ChatCircleIcon className="size-3.5" />,
+        title: "Tab group",
       };
     }
     case "debug": {

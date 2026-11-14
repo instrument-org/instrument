@@ -4,6 +4,7 @@ import { describe, expect, it } from "vitest";
 import {
   asksMoreThan,
   isSameTabIdentity,
+  chatOfAddress,
   tabGroupOfAddress,
   tabIdentityOf,
 } from "./tab-identity";
@@ -99,11 +100,23 @@ describe("asksMoreThan", () => {
   });
 });
 
-describe("tabGroupOfAddress", () => {
+describe("chatOfAddress", () => {
   it.each([
     ["/chats/2026-10-01-roofer", "2026-10-01-roofer"],
     ["/chats/2026-10-01-roofer?x=1", "2026-10-01-roofer"],
-    ["/chats?draft=d1", "draft:d1"],
+    ["/chats?group=group%3A1", undefined],
+    ["/chats?draft=d1", undefined],
+  ])("%s asks for %s", (href, chat) => {
+    expect(chatOfAddress(href)).toBe(chat);
+  });
+});
+
+describe("tabGroupOfAddress", () => {
+  it.each([
+    ["/chats?group=group%3A1", "group:1"],
+    ["/chats?group=2026-10-01-roofer", "2026-10-01-roofer"],
+    ["/chats/2026-10-01-roofer", undefined],
+    ["/chats?draft=d1", undefined],
     ["/chats", undefined],
     ["/apps", undefined],
     ["/tasks/s1?chat=c1", undefined],

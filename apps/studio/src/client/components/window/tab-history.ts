@@ -40,9 +40,10 @@ export function stepTabVisit(
       direction === 1
         ? from.slice(0, -1)
         : [...(current.future ?? []), visitOf(current)],
-    // The tab stays the chat's whatever it steps to.
+    // The tab stays in its group and on its side whatever it steps to.
     group: current.group,
     isOpened: current.isOpened,
+    ...(current.side === undefined ? {} : { side: current.side }),
     past:
       direction === -1
         ? from.slice(0, -1)
@@ -57,9 +58,10 @@ export function visitInTab(current: WindowTab, visit: TabVisit): WindowTab {
   return {
     ...visit,
     future: [],
-    // The tab stays the chat's whatever it visits.
+    // The tab stays in its group and on its side whatever it visits.
     group: current.group,
     isOpened: current.isOpened,
+    ...(current.side === undefined ? {} : { side: current.side }),
     past: [...(current.past ?? []), ...(previous ? [visitOf(previous)] : [])],
     stripKey: current.stripKey ?? current.id,
   };
@@ -124,6 +126,7 @@ function visitOf(tab: WindowTab): TabVisit {
     future: _future,
     isOpened: _opened,
     past: _past,
+    side: _side,
     stripKey: _key,
     ...visit
   } = tab;

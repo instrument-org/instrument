@@ -148,8 +148,8 @@ export function ChatWindow({
   chat: Chat | undefined;
   onClose: () => void;
   onMinimize: () => void;
-  /** Takes the chat into a tab of the window's own, its pane open when the window asked for something to be shown. */
-  onExpand: (options: { showsPane: boolean }) => void;
+  /** Takes the chat into its tab in the window. */
+  onExpand: () => void;
   /** Makes a project, named for what was typed in the picker when anything was, and files the chat under it. */
   onNewProject: (name?: string) => void;
   onSetProject: (project: null | string) => void;
@@ -211,10 +211,12 @@ export function ChatWindow({
     }
   };
 
-  /** Takes the chat into a tab with what is up in it shown in its pane. */
+  /** Takes the chat into its tab, with what it opened beside it. */
   const showUp = () => {
-    onExpand({ showsPane: true });
+    onExpand();
   };
+  /** Where what the chat opens goes: right after its tab, in the group with it (`chatPlace`). */
+  const place = () => windowTabs.chatPlace(chatId) ?? { group: chatId };
   const select = (id: string) => {
     windowTabs.select(id);
     showUp();
@@ -223,23 +225,23 @@ export function ChatWindow({
   // closes on back from its start.
   const openHere = (href: string, { isOpened }: { isOpened: boolean }) => {
     windowTabs.openOrFocusScreen(href, {
-      group: chatId,
+      ...place(),
       isOpened,
       select: true,
     });
     showUp();
   };
-  /** The chat's tasks or one of them, up in the chat's pane in a tab: the tab already at that address, or a new one. */
+  /** The chat's tasks or one of them, up beside the chat in a tab: the tab already at that address, or a new one. */
   const openTasksHere = (href: string) => {
     windowTabs.openOrFocusScreen(href, {
-      group: chatId,
+      ...place(),
       isOpened: true,
       select: true,
     });
     showUp();
   };
   const openPage = (url: string) => {
-    const id = appWindow.browser?.openOrFocus(url, { group: chatId });
+    const id = appWindow.browser?.openOrFocus(url, place());
     if (id !== undefined) {
       select(id);
     }
@@ -293,7 +295,7 @@ export function ChatWindow({
             <WindowButton
               label="Expand"
               onClick={() => {
-                onExpand({ showsPane: false });
+                onExpand();
               }}
             >
               <ArrowsOutSimpleIcon className="size-4" />

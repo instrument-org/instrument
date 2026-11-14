@@ -64,16 +64,17 @@ export interface WindowShell {
   requestClose: (id: string) => void;
   /** The width of the card the tabs are drawn in, in layout px. */
   rowWidth: number;
-  /** A chat's tab group as a message goes from it, and what changed there; see `layoutReader`. */
-  layoutContext: (group: string) => LayoutSent | undefined;
+  /** The tab group of the tab a message goes from, as `told` reads it, and what changed there; see `layoutReader`. */
+  layoutContext: (tabId: string, told: string) => LayoutSent | undefined;
   /** What goes with a message in a chat; see `contextReaders`. */
   sendContext: (options: {
     chatId: ChatId;
     isViewOpen: boolean;
+    /** The chat's tab the message is written in, whose other side's tab up goes with it. */
+    tabId?: string;
     taken: readonly ContextItem[];
   }) => Promise<SessionMessageDataPart.ViewContextDataPart | undefined>;
   setChatProject: (id: ChatId, project: null | string) => void;
-  setPaneOpen: (group: string, isOpen: boolean) => void;
   showDraft: (id: string) => void;
   projects: Project[];
 }

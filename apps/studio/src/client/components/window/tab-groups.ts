@@ -1,37 +1,21 @@
 import { NEW_TAB_HREF, type WindowTab } from "@/client/atoms/window";
 import {
-  chatClosedByGroupAtom,
   forgetGroupAtom,
   groupNamesAtom,
   groupPinsAtom,
 } from "@/client/atoms/tab-groups";
-import {
-  createDraftAtom,
-  draftsAtom,
-  removeDraftAtom,
-  updateDraftAtom,
-} from "@/client/drafts/store";
+import { pickNewChatProjectAtom } from "@/client/drafts/new-chat-box";
+import { draftsAtom } from "@/client/drafts/store";
 import { keptAtom, keptInOtherWindows } from "@/client/lib/kept-state";
 import { freshTabId } from "@/client/lib/tab-actions";
 import { rpcClient } from "@/client/rpc/client";
-import {
-  type Draft,
-  draftGroupOf,
-  draftOfGroup,
-  holdsSomething,
-  isLeftEmpty,
-} from "@/shared/drafts";
+import { type Draft, holdsSomething } from "@/shared/drafts";
 import { keptTabGroupsOf, TAB_GROUPS_KEY } from "@/shared/kept-state";
 import { type SidebarPlace } from "@/shared/tabs";
 import { type ChatId, StoreId } from "@instrument-org/workspace/client";
-import {
-  type QueryClient,
-  useQuery,
-  useQueryClient,
-} from "@tanstack/react-query";
-import { atom, useAtomValue, useSetAtom, useStore } from "jotai";
+import { useQuery } from "@tanstack/react-query";
+import { useAtomValue, useSetAtom, useStore } from "jotai";
 import { useEffect, useEffectEvent, useRef } from "react";
-import { decodeTime, ulid } from "ulid";
 
 import {
   appTabsAtom,
@@ -41,28 +25,48 @@ import {
   openInNewWindow,
   useAppTabs,
 } from "./app-tabs";
-import {
-  attachedPaths,
-  bandTabLines,
-  contextWithoutTab,
-  withContextLines,
-} from "./context-items";
-import { chatListOptions, paintChatRow } from "./chat-list-query";
+import { chatListOptions } from "./chat-list-query";
 import { type Chat, draftTitle } from "./chats";
 import { isGroupScreenHref } from "./group-screen";
-import { isHomeTab, selectedTabIn, tabsIn } from "./tab-model";
-import { chatHref, matchScreen, newChatHref } from "./window-href";
-import { useWindowTabs, windowTabsAtom } from "./window-tabs";
+import {
+  chatOfTab,
+  chatsOfGroup,
+  draftOfTab,
+  groupLayoutOf,
+  isHomeTab,
+  selectedTabIn,
+  tabsIn,
+  type WindowTabs,
+} from "./tab-model";
+import {
+  chatHref,
+  chatOfGroup,
+  groupHref,
+  matchScreen,
+  newChatHref,
+  newGroupKey,
+} from "./window-href";
+import { newScreenId, useWindowTabs, windowTabsAtom } from "./window-tabs";
 
 /**
- * One tab group as the sidebar lists it: a chat with its tabs, or a draft
- * whose chat has not started yet, with the tabs gathered beside it. A group
- * the person named (`groupNamesAtom`) has the name as its title, and keeps
- * it as `name`. A draft's group is `pinned` by its own pin (`groupPinsAtom`),
- * a chat's by the chat's star (`isPinnedGroup`).
+ * One tab group as the sidebar lists it. An open group is named by the name
+ * the person gave it (`groupNamesAtom`), else by its first chat (the left
+ * side first, then strip order), else by the tab up on the side with the
+ * keyboard, which its row reads; `kind` says which of those it has: a chat,
+ * a new chat's draft with words in it, or tabs alone. History lists a chat
+ * no window has a tab on, or a draft no tab is writing, by the key a group
+ * made for it opens under. A group is `pinned` by its own pin
+ * (`groupPinsAtom`).
  */
 export type TabGroup =
-  | { chat: Chat; group: ChatId; kind: "chat"; name?: string; title: string }
+  | {
+      chat: Chat;
+      group: string;
+      kind: "chat";
+      name?: string;
+      pinned: boolean;
+      title: string;
+    }
   | {
       draft: Draft;
       group: string;
@@ -70,12 +74,19 @@ export type TabGroup =
       name?: string;
       pinned: boolean;
       title: string;
+    }
+  | {
+      group: string;
+      kind: "tabs";
+      name?: string;
+      pinned: boolean;
+      title: string;
     };
 
 /**
- * The tab groups this window has open, in its own order: a chat's id, or a
- * draft's group for a chat not started yet. Null for a window that has kept
- * none yet, which opens none of the chats there are (`startTabGroupsFromZero`).
+ * The tab groups this window has open, in its own order, by their keys. Null
+ * for a window that has kept none yet, which opens none of the chats there
+ * are (`startTabGroupsFromZero`).
  */
 export const windowTabGroupsAtom = keptAtom<null | readonly string[]>(
   "window",
@@ -116,21 +127,6 @@ export function listedWithout(
   return (list ?? []).filter((entry) => entry !== group);
 }
 
-/** A window's groups with `to` in `from`'s place, or `from` gone where `to` is listed already. */
-export function listedReplacing(
-  list: null | readonly string[],
-  from: string,
-  to: string,
-): string[] {
-  const listed = list ?? [];
-  if (listed.includes(to)) {
-    return listedWithout(listed, from);
-  }
-  return listed.includes(from)
-    ? listed.map((entry) => (entry === from ? to : entry))
-    : [to, ...listed];
-}
-
 /**
  * A window that has kept no tab groups yet starts from none: no chat open,
  * and the one tab it has at the inbox, where a new group opens for it. What
@@ -149,37 +145,24 @@ export function startTabGroupsFromZero(store: ReturnType<typeof useStore>) {
   });
 }
 
-/** The tab groups the other open windows have open; undefined until main first answers. */
-function useTabGroupsElsewhere(): readonly string[] | undefined {
+/**
+ * The tab groups the other open windows have open, and the chats with a tab
+ * in them; undefined until main first answers.
+ */
+function useTabGroupsElsewhere():
+  | undefined
+  | { chats: readonly string[]; groups: readonly string[] } {
   return useQuery(
     rpcClient.window.live.tabGroupsElsewhere.experimental_liveOptions(),
   ).data;
 }
 
-/** A group whose chat has not started, as the sidebar lists it: by the name the person gave it, else by its words. */
-function draftGroup(
-  draft: Draft,
-  names: Record<string, string>,
-  pins: Record<string, true>,
-): TabGroup {
-  const group = draftGroupOf(draft.id);
-  const name = names[group];
-  return {
-    draft,
-    group,
-    kind: "draft",
-    ...(name === undefined ? {} : { name }),
-    pinned: group in pins,
-    title: name ?? draftWordsTitle(draft),
-  };
-}
-
-/** Whether a group is pinned above the line: a chat's by its star, a draft's by its own pin. */
+/** Whether a group is pinned above the line, by its own pin. */
 export function isPinnedGroup(entry: TabGroup): boolean {
-  return entry.kind === "chat" ? entry.chat.starred : entry.pinned;
+  return entry.pinned;
 }
 
-/** What a group whose chat has not started is called by its words alone: "New chat" until it has some. */
+/** What a new chat is called by its words alone: "New chat" until it has some. */
 export function draftWordsTitle(draft: Draft): string {
   return draft.words.trim() === "" ? "New chat" : draftTitle(draft.words);
 }
@@ -187,107 +170,79 @@ export function draftWordsTitle(draft: Draft): string {
 /**
  * When something last happened in a group: in a chat, as its row tells, the
  * person's last message or the latest step, question or reply after it; in
- * a draft, its last change.
+ * a draft, its last change; in a group of tabs alone, never.
  */
 export function lastActiveAt(entry: TabGroup): number {
-  return entry.kind === "chat"
-    ? Math.max(entry.chat.lastUserMessageAt, entry.chat.latest?.at ?? 0)
-    : entry.draft.updatedAt;
-}
-
-/**
- * The groups whose chat has not started that are worth keeping whatever
- * their draft holds: one with a tab open in it, a new tab aside, and one the
- * person named or pinned. Main writes a draft only once it has words or
- * files, so a relaunch brings these back with no draft
- * (`restoreKeptDraftGroups`).
- */
-export const keptDraftGroupsAtom = atom((get) => {
-  const kept = new Set(
-    [
-      ...Object.keys(get(groupNamesAtom)),
-      ...Object.keys(get(groupPinsAtom)),
-    ].filter((group) => draftOfGroup(group) !== undefined),
-  );
-  for (const tab of get(windowTabsAtom).tabs) {
-    const { group } = tab;
-    if (group !== undefined && draftOfGroup(group) !== undefined) {
-      if (!isHomeTab(tab)) {
-        kept.add(group);
-      }
+  switch (entry.kind) {
+    case "chat": {
+      return Math.max(entry.chat.lastUserMessageAt, entry.chat.latest?.at ?? 0);
+    }
+    case "draft": {
+      return entry.draft.updatedAt;
+    }
+    case "tabs": {
+      return 0;
     }
   }
-  return kept;
-});
-
-/**
- * Whether a draft's group is worth coming back to: it holds words or files,
- * or it is one of `kept` (`keptDraftGroupsAtom`).
- */
-export function isWorthKeeping(
-  draft: Draft,
-  kept: ReadonlySet<string>,
-): boolean {
-  return holdsSomething(draft) || kept.has(draftGroupOf(draft.id));
 }
 
 /**
- * Makes again, empty, the drafts of the groups worth keeping that have none:
- * groups of tabs or with a name, whose draft main never wrote, as a relaunch
- * leaves them. Each takes the time its id was made at, so History orders it
- * where it was. Before the window draws, so the row and the composer find
- * the draft the window's address names.
+ * Whether a draft is worth coming back to from History: a new chat's, not
+ * on its way, with words or files in it.
  */
-export function restoreKeptDraftGroups(store: ReturnType<typeof useStore>) {
-  const drafts = new Set(store.get(draftsAtom).map((draft) => draft.id));
-  for (const group of store.get(keptDraftGroupsAtom)) {
-    const id = draftOfGroup(group);
-    if (id === undefined || drafts.has(id)) {
-      continue;
-    }
-    const at = madeAt(id);
-    store.set(createDraftAtom, {
-      createdAt: at,
-      id,
-      updatedAt: at,
-      words: "",
-    });
-  }
-}
-
-/** When a draft was made, by the time in its id, or now for an id that keeps none. */
-function madeAt(id: string): number {
-  try {
-    return decodeTime(id);
-  } catch {
-    return Date.now();
-  }
-}
-
-/** A new chat's draft that is worth coming back to: not a reply in a chat's box, not on its way, and worth keeping (`isWorthKeeping`). */
-function isKeptDraft(draft: Draft, kept: ReadonlySet<string>): boolean {
+export function isWorthKeeping(draft: Draft): boolean {
   return (
     draft.chatId === undefined &&
     draft.sendingTo === undefined &&
-    isWorthKeeping(draft, kept)
+    holdsSomething(draft)
   );
 }
 
-function chatGroup(chat: Chat, names: Record<string, string>): TabGroup {
-  const name = names[chat.id];
-  return {
-    chat,
-    group: chat.id,
-    kind: "chat",
+/** One open group, as its row lists it (see `TabGroup`). */
+function openEntry(
+  group: string,
+  {
+    byId,
+    drafts,
+    names,
+    pins,
+    state,
+  }: {
+    byId: ReadonlyMap<string, Chat>;
+    drafts: readonly Draft[];
+    names: Record<string, string>;
+    pins: Record<string, true>;
+    state: WindowTabs;
+  },
+): TabGroup {
+  const name = names[group];
+  const own = {
+    group,
     ...(name === undefined ? {} : { name }),
-    title: name ?? chat.title,
+    pinned: group in pins,
   };
+  const chat = chatsOfGroup(state, group)
+    .map((id) => byId.get(id))
+    .find((entry) => entry !== undefined);
+  if (chat) {
+    return { ...own, chat, kind: "chat", title: name ?? chat.title };
+  }
+  // A new chat with words in it, the left side first, as chats are read.
+  const draft = groupLayoutOf(state, group)
+    .sides.flatMap((side) => side.tabs)
+    .map((tab) => drafts.find((entry) => entry.id === draftOfTab(tab)))
+    .find((entry) => entry !== undefined && entry.words.trim() !== "");
+  if (draft) {
+    return { ...own, draft, kind: "draft", title: name ?? draftWordsTitle(draft) };
+  }
+  return { ...own, kind: "tabs", title: name ?? "New chat" };
 }
 
 /**
- * The tab groups as this window lists them: its own open ones in its order,
- * the ones other open windows have open, and History, every other chat and
- * every other draft with words or files in it, most recently active first.
+ * The tab groups as this window lists them: its own open ones in its order;
+ * the chats another open window has a tab on; and History, every other
+ * chat, and every draft worth keeping (`isWorthKeeping`) no tab is writing,
+ * most recently active first.
  */
 export function useOpenGroups(): {
   elsewhere: TabGroup[];
@@ -298,36 +253,54 @@ export function useOpenGroups(): {
   const drafts = useAtomValue(draftsAtom);
   const names = useAtomValue(groupNamesAtom);
   const pins = useAtomValue(groupPinsAtom);
-  const kept = useAtomValue(keptDraftGroupsAtom);
+  const state = useAtomValue(windowTabsAtom);
   const listed = useAtomValue(windowTabGroupsAtom) ?? [];
-  const elsewhereGroups = new Set(useTabGroupsElsewhere());
+  const elsewhere = useTabGroupsElsewhere();
+  const elsewhereChats = new Set(elsewhere?.chats);
   const byId = new Map<string, Chat>(chats.map((chat) => [chat.id, chat]));
   const isListed = new Set(listed);
-  const unlisted = [
-    ...chats.map((chat) => chatGroup(chat, names)),
-    ...drafts
-      .filter((draft) => isKeptDraft(draft, kept))
-      .map((draft) => draftGroup(draft, names, pins)),
-  ].filter((entry) => !isListed.has(entry.group));
+  const listedTabs = state.tabs.filter(
+    (tab) => tab.group !== undefined && isListed.has(tab.group),
+  );
+  const chatsHere = new Set(listedTabs.map((tab) => chatOfTab(tab)));
+  const draftsHere = new Set(listedTabs.map((tab) => draftOfTab(tab)));
   const newestFirst = (list: TabGroup[]) =>
     list.toSorted((a, b) => lastActiveAt(b) - lastActiveAt(a));
+  const closed = (entry: Chat): TabGroup => ({
+    chat: entry,
+    group: entry.id,
+    kind: "chat",
+    pinned: false,
+    title: entry.title,
+  });
+  const unlisted = chats.filter((chat) => !chatsHere.has(chat.id));
   return {
     elsewhere: newestFirst(
-      unlisted.filter((entry) => elsewhereGroups.has(entry.group)),
+      unlisted.filter((chat) => elsewhereChats.has(chat.id)).map(closed),
     ),
-    history: newestFirst(
-      unlisted.filter((entry) => !elsewhereGroups.has(entry.group)),
+    history: newestFirst([
+      ...unlisted.filter((chat) => !elsewhereChats.has(chat.id)).map(closed),
+      ...drafts
+        .filter((draft) => isWorthKeeping(draft) && !draftsHere.has(draft.id))
+        .map(
+          (draft): TabGroup => ({
+            draft,
+            group: draftGroupKeyOf(draft.id),
+            kind: "draft",
+            pinned: false,
+            title: draftWordsTitle(draft),
+          }),
+        ),
+    ]),
+    open: listed.map((group) =>
+      openEntry(group, { byId, drafts, names, pins, state }),
     ),
-    open: listed.flatMap((group): TabGroup[] => {
-      const draftId = draftOfGroup(group);
-      if (draftId === undefined) {
-        const chat = byId.get(group);
-        return chat ? [chatGroup(chat, names)] : [];
-      }
-      const draft = drafts.find((entry) => entry.id === draftId);
-      return draft ? [draftGroup(draft, names, pins)] : [];
-    }),
   };
+}
+
+/** The key a group made for a draft opened from History is kept under. */
+function draftGroupKeyOf(draft: string): string {
+  return `draft:${draft}`;
 }
 
 /**
@@ -371,20 +344,6 @@ export function namedWith(
   return rest;
 }
 
-/**
- * The names with `to` named as `from` is, for a group that goes on under
- * another key: a draft's group as it becomes its chat's. `from` keeps its
- * name, for a send that fails to come back to.
- */
-export function nameCarried(
-  names: Record<string, string>,
-  from: string,
-  to: string,
-): Record<string, string> {
-  const name = names[from];
-  return name === undefined ? names : namedWith(names, to, name);
-}
-
 /** The pins with `group` pinned, or with its pin taken off. */
 export function pinnedWith(
   pins: Record<string, true>,
@@ -399,26 +358,6 @@ export function pinnedWith(
   }
   const { [group]: _unpinned, ...rest } = pins;
   return rest;
-}
-
-/**
- * Stars a chat or takes its star back, painted on the chat's row at once,
- * so the row lands where it was put before the answer comes back.
- */
-export function starChat(
-  queryClient: QueryClient,
-  id: ChatId,
-  starred: boolean,
-) {
-  const painting = paintChatRow(queryClient, id, { starred });
-  rpcClient.workspace.chats.star.call({ id, starred }).then(
-    (landed) => {
-      painting.landed(landed);
-    },
-    () => {
-      painting.failed();
-    },
-  );
 }
 
 /**
@@ -443,8 +382,9 @@ export function copiedTabs(
     if (tab.id === up) {
       upCopy = id;
     }
+    const side = tab.side === 1 ? { side: 1 as const } : {};
     if (tab.kind === "screen") {
-      return { group, href: tab.href, id, kind: "screen" };
+      return { group, href: tab.href, id, kind: "screen", ...side };
     }
     const address = tab.url ?? tab.openedUrl;
     return {
@@ -454,42 +394,38 @@ export function copiedTabs(
       kind: "page",
       openedAt: now,
       ...(address === undefined ? {} : { openedUrl: address, url: address }),
+      ...side,
       ...(tab.title === undefined ? {} : { title: tab.title }),
     };
   });
   return { tabs: copies, up: upCopy };
 }
 
-/** The address a group stands on in the window's one app tab. */
-export function groupHref(group: string): string {
-  const draft = draftOfGroup(group);
-  return draft === undefined ? chatHref(group as ChatId) : newChatHref(draft);
+
+/** A screen tab at an address, in a group: a chat's, or a new chat's. */
+function screenTab(group: string, href: string, side?: 1): WindowTab {
+  return {
+    group,
+    href,
+    id: newScreenId(),
+    kind: "screen",
+    ...(side === undefined ? {} : { side }),
+  };
 }
 
 /**
  * What the window does with its tab groups: make one, bring one up (in the
- * window that has it open, when another does), close one to History and
- * bring one back, and move one to a window of its own.
+ * window that has it open, when another does), close one and bring back a
+ * chat or a draft from History, and move one to a window of its own.
  */
 export function useTabGroupActions() {
   const store = useStore();
   const appTabs = useAppTabs();
   const windowTabs = useWindowTabs();
-  const createDraft = useSetAtom(createDraftAtom);
-  const removeDraft = useSetAtom(removeDraftAtom);
-  const updateDraft = useSetAtom(updateDraftAtom);
-  const setChatClosed = useSetAtom(chatClosedByGroupAtom);
   const forgetGroup = useSetAtom(forgetGroupAtom);
+  const pickProject = useSetAtom(pickNewChatProjectAtom);
   const setNames = useSetAtom(groupNamesAtom);
   const setPins = useSetAtom(groupPinsAtom);
-  const queryClient = useQueryClient();
-  /** A chat as the chat list has it now. */
-  const byId = (group: string) =>
-    draftOfGroup(group) === undefined
-      ? queryClient
-          .getQueryData(chatListOptions().queryKey)
-          ?.find((chat) => chat.id === group)
-      : undefined;
 
   /** The group the window shows now, read at the call. */
   const groupUp = () => {
@@ -505,10 +441,19 @@ export function useTabGroupActions() {
     store.set(windowTabGroupsAtom, update(store.get(windowTabGroupsAtom)));
   };
 
+  const isListedHere = (group: string) =>
+    store.get(windowTabGroupsAtom)?.includes(group) === true;
+
+  /** Whether another window, open or closed to come back, lists a group. */
+  const isListedElsewhere = (group: string) =>
+    keptInOtherWindows(TAB_GROUPS_KEY).some((kept) =>
+      keptTabGroupsOf(kept)?.includes(group),
+    );
+
   /** Brings a group up here, at the top of the list when it was not open here. */
-  const showHere = (group: string) => {
+  const showHere = (group: string, { replace = false } = {}) => {
     setListed((list) => listedWith(list, group));
-    appTabs.navigate(groupHref(group));
+    appTabs.navigate(groupHref(group), { replace });
   };
 
   /**
@@ -517,16 +462,13 @@ export function useTabGroupActions() {
    * group is open in one window at a time.
    */
   const show = (group: string) => {
-    if (store.get(windowTabGroupsAtom)?.includes(group)) {
+    if (isListedHere(group)) {
       appTabs.navigate(groupHref(group));
       return;
     }
     // Closed windows that can come back are among these; main looks only
     // at the open ones, and says no for the rest.
-    const isElsewhere = keptInOtherWindows(TAB_GROUPS_KEY).some((kept) =>
-      keptTabGroupsOf(kept)?.includes(group),
-    );
-    if (!isElsewhere) {
+    if (!isListedElsewhere(group)) {
       showHere(group);
       return;
     }
@@ -540,73 +482,118 @@ export function useTabGroupActions() {
   };
 
   /**
-   * A tab into another group, up there. A draft's tabs are also lines of its
-   * `context`, which open again as tabs wherever the draft is shown, so the
-   * lines the tab stands for go with it: out of the draft it leaves, apart
-   * from any a tab staying there stands for too, and into the draft it joins.
+   * A tab's group shown here with the tab up in it, the keyboard with it:
+   * where a chat or a draft asked for by its address is found.
+   */
+  const showTab = (tab: WindowTab, options: { replace?: boolean } = {}) => {
+    if (tab.group === undefined) {
+      return;
+    }
+    showHere(tab.group, options);
+    windowTabs.select(tab.id);
+  };
+
+  /**
+   * Brings up a tab on a chat or a draft, asked for by its address (a link,
+   * a row of History): the first tab on it in a group this window lists;
+   * else, once no other window has one, the group it was last in, closed
+   * since; else a group made for it, under its own key where that is free.
+   */
+  const showWhereTab = (
+    shows: (tab: WindowTab) => boolean,
+    {
+      href,
+      key,
+      replace = false,
+    }: { href: string; key: string; replace?: boolean },
+  ) => {
+    const state = store.get(windowTabsAtom);
+    const listed = store.get(windowTabGroupsAtom) ?? [];
+    const here = listed
+      .flatMap((group) => tabsIn(state, group))
+      .find((tab) => shows(tab));
+    if (here) {
+      showTab(here, { replace });
+      return;
+    }
+    const open = () => {
+      const latest = store.get(windowTabsAtom);
+      const kept = latest.tabs.find(
+        (tab) =>
+          tab.group !== undefined &&
+          shows(tab) &&
+          !isListedElsewhere(tab.group) &&
+          !(store.get(windowTabGroupsAtom) ?? []).includes(tab.group),
+      );
+      if (kept) {
+        showTab(kept, { replace });
+        return;
+      }
+      // Under its own key while no window lists that group: what a chat's
+      // agent opened while no group had a tab on the chat waits there, and
+      // comes up with it.
+      const group =
+        !isListedElsewhere(key) &&
+        !(store.get(windowTabGroupsAtom) ?? []).includes(key)
+          ? key
+          : newGroupKey();
+      const tab = screenTab(group, href);
+      windowTabs.openIn(tab, { group, select: true });
+      showHere(group, { replace });
+    };
+    void rpcClient.window.showInOtherWindow.call({ href }).then((shown) => {
+      if (!shown) {
+        open();
+      }
+    }, open);
+  };
+
+  /** Brings up a chat's tab, wherever it is (`showWhereTab`). */
+  const showChat = (chat: ChatId, options: { replace?: boolean } = {}) => {
+    showWhereTab((tab) => chatOfTab(tab) === chat, {
+      href: chatHref(chat),
+      key: chat,
+      ...options,
+    });
+  };
+
+  /** Brings up the new chat writing a draft, wherever it is (`showWhereTab`). */
+  const showDraft = (draft: string, options: { replace?: boolean } = {}) => {
+    showWhereTab((tab) => draftOfTab(tab) === draft, {
+      href: newChatHref(draft),
+      key: draftGroupKeyOf(draft),
+      ...options,
+    });
+  };
+
+  /**
+   * A tab into another group, up there with the keyboard, at the end of the
+   * side with it. A group the tab leaves with nothing closes.
    */
   const moveTab = (id: string, group: string) => {
-    // Read at the call, which may come in the same press that made the group.
-    const tabs = store.get(windowTabsAtom).tabs;
-    const drafts = store.get(draftsAtom);
-    const tab = tabs.find((entry) => entry.id === id);
-    const draftOf = (of: string | undefined) =>
-      drafts.find((entry) => entry.id === draftOfGroup(of));
-    windowTabs.moveToGroup(id, group);
-    windowTabs.select(id);
-    if (!tab || tab.group === group) {
-      return;
+    const state = store.get(windowTabsAtom);
+    const tab = state.tabs.find((entry) => entry.id === id);
+    windowTabs.moveTo({
+      group,
+      id,
+      select: true,
+      side: groupLayoutOf(state, group).focused,
+    });
+    const from = tab?.group;
+    if (from !== undefined && from !== group) {
+      const left = tabsIn(state, from).filter((entry) => entry.id !== id);
+      if (left.length === 0) {
+        setListed((list) => listedWithout(list, from));
+        forgetGroup(from);
+      }
     }
-    // As the draft's band reads its tabs (`useBandContext`).
-    const linesOf = (draft: Draft, of: WindowTab) =>
-      bandTabLines(of, { finderOf: () => null, held: attachedPaths(draft) });
-    const into = draftOf(group);
-    if (into) {
-      updateDraft({
-        id: into.id,
-        update: (current) => withContextLines(current, linesOf(current, tab)),
-      });
-    }
-    const draft = draftOf(tab.group);
-    if (!draft) {
-      return;
-    }
-    const staying = tabs.filter(
-      (entry) => entry.group === tab.group && entry.id !== id,
-    );
-    const left = {
-      ...draft,
-      context: contextWithoutTab(draft.context, {
-        leaving: linesOf(draft, tab),
-        staying: staying.flatMap((entry) => linesOf(draft, entry)),
-      }),
-    };
-    // A draft the tab leaves with nothing is thrown away, as an emptied one
-    // is, unless the person named or pinned its group.
-    const hasTabs = staying.length > 0;
-    const isMarked =
-      tab.group !== undefined &&
-      (tab.group in store.get(groupNamesAtom) ||
-        tab.group in store.get(groupPinsAtom));
-    if (
-      isLeftEmpty(left, { hasTabs }) &&
-      !isMarked &&
-      tab.group !== undefined
-    ) {
-      const { group: emptied } = tab;
-      setListed((list) => listedWithout(list, emptied));
-      windowTabs.dropGroup(emptied);
-      void removeDraft(draft.id);
-      return;
-    }
-    updateDraft({ id: draft.id, update: () => left });
   };
 
   /**
    * A new group at the top of the list, under New, or at a place in it,
-   * pinned there when the place is among the pinned rows, its chat alone
-   * unless something is to open in it, filed under a project when one is
-   * named.
+   * pinned there when the place is among the pinned rows: one side with a
+   * new chat in it, filed under a project when one is named, unless
+   * something else is to open in it.
    */
   const make = ({
     fill,
@@ -628,36 +615,28 @@ export function useTabGroupActions() {
     place?: SidebarPlace;
     projectId?: string;
   } = {}) => {
-    const now = Date.now();
-    const id = ulid();
-    createDraft({
-      createdAt: now,
-      id,
-      ...(projectId === undefined
-        ? {}
-        : { projectId, projectSource: "chosen" as const }),
-      updatedAt: now,
-      words: "",
-    });
-    const group = draftGroupOf(id);
+    const group = newGroupKey();
     if (isShownHere) {
       setListed((list) => listedWith(list, group, place));
     }
     if (place?.pinned === true) {
-      // A draft's group, pinned by a pin of its own (`pin`).
       setPins((pins) => pinnedWith(pins, group, true));
     }
     if (fill) {
       fill(group);
     } else if (moving !== undefined) {
       moveTab(moving, group);
-    } else if (href !== undefined) {
-      windowTabs.openScreen(href, { group, select: true });
+    } else {
+      const tab = screenTab(group, href ?? NEW_TAB_HREF);
+      windowTabs.openIn(tab, { group, select: true });
+      if (href === undefined && projectId !== undefined) {
+        pickProject({ projectId, tabId: tab.id });
+      }
     }
     if (isShownHere) {
       // From a screen or page that is no tab group's, the new group takes its place.
       const up = groupUp();
-      appTabs.navigate(newChatHref(id), {
+      appTabs.navigate(groupHref(group), {
         replace: up === undefined || isSiteGroup(up),
       });
     }
@@ -665,16 +644,13 @@ export function useTabGroupActions() {
   };
 
   /**
-   * A copy of a group just below it, up in this window: a new group whose
-   * chat has not started, with the group's tabs copied (`copiedTabs`) and
-   * the same one up, under the same project, and named and pinned as the
-   * group is. A chat's conversation stays with the chat.
+   * A copy of a group just below it, up in this window: its tabs copied
+   * (`copiedTabs`) on the same sides, the same one up, named and pinned as
+   * the group is. A chat's tab copied is another tab on the same chat.
    */
   const duplicate = (entry: TabGroup) => {
     const tabs = store.get(windowTabsAtom);
     const name = store.get(groupNamesAtom)[entry.group];
-    const projectId =
-      entry.kind === "chat" ? entry.chat.project : entry.draft.projectId;
     const copy = make({
       fill: (group) => {
         const copied = copiedTabs(tabsIn(tabs, entry.group), {
@@ -689,7 +665,6 @@ export function useTabGroupActions() {
         }
       },
       place: { after: entry.group },
-      ...(projectId === undefined ? {} : { projectId }),
     });
     if (name !== undefined) {
       setNames((names) => namedWith(names, copy, name));
@@ -707,35 +682,31 @@ export function useTabGroupActions() {
   };
 
   /**
-   * Closes a group to History: it leaves this window's list with its tabs
-   * kept for when it is opened again and nothing about it changed, a chat's
-   * and a draft's worth keeping alike (`isWorthKeeping`): one with words or
-   * files, whose file and folder stay in Drafts, tabs, or a name. A draft
-   * with none of that has nothing to come back to, so it goes. The window
-   * moves on to the next group when it was showing this one.
+   * Closes a group: it leaves this window's list, and its chats and drafts
+   * go to History. Its tabs are kept for a chat of it opened again from
+   * there, which brings the group back as it was, unless it has nothing to
+   * come back to: only new chats nobody has written in. The window moves on
+   * to the next group when it was showing this one.
    */
   const close = (group: string, list: readonly TabGroup[]) => {
     unlist(group);
     moveOff(group, list);
   };
 
-  /** A group off this window's list as `close` takes it, a draft with nothing worth keeping thrown away. */
+  /** A group off this window's list as `close` takes it. */
   const unlist = (group: string) => {
     setListed((listed) => listedWithout(listed, group));
-    const draftId = draftOfGroup(group);
-    const draft = store.get(draftsAtom).find((entry) => entry.id === draftId);
-    const kept = store.get(keptDraftGroupsAtom);
-    if (draftId !== undefined && !(draft && isWorthKeeping(draft, kept))) {
+    const tabs = tabsIn(store.get(windowTabsAtom), group);
+    if (tabs.every((tab) => isHomeTab(tab))) {
       windowTabs.dropGroup(group);
       forgetGroup(group);
-      void removeDraft(draftId);
     }
   };
 
   /**
-   * Closes several groups to History at once, each as `close` does, the way
-   * a tab's menu closes the tabs around it: when the window was showing one
-   * of them, it moves to `keep`, the group whose menu asked.
+   * Closes several groups at once, each as `close` does, the way a row's
+   * menu closes the rows around it: when the window was showing one of
+   * them, it moves to `keep`, the group whose menu asked.
    */
   const closeAll = (groups: readonly string[], keep: string) => {
     const up = groupUp();
@@ -759,20 +730,9 @@ export function useTabGroupActions() {
     openInNewWindow(groupHref(group));
   };
 
-  /**
-   * Pins a group above the line, or takes it back down: a chat's by its
-   * star (`starChat`), a draft's by a pin of its own (`groupPinsAtom`),
-   * which the chat's star takes over from when the chat starts.
-   */
+  /** Pins a group above the line, or takes it back down, by its own pin. */
   const pin = (group: string, pinned: boolean) => {
-    if (draftOfGroup(group) !== undefined) {
-      setPins((pins) => pinnedWith(pins, group, pinned));
-      return;
-    }
-    const chat = byId(group);
-    if (chat && chat.starred !== pinned) {
-      starChat(queryClient, chat.id, pinned);
-    }
+    setPins((pins) => pinnedWith(pins, group, pinned));
   };
 
   /** A group to a place in this window's list, pinned there or unpinned when the place says (`pin`). */
@@ -781,11 +741,6 @@ export function useTabGroupActions() {
       pin(group, at.pinned);
     }
     setListed((list) => listedWith(list, group, at));
-  };
-
-  /** A draft's group becomes its chat's, in the same place in the list. */
-  const becomeChat = (draftId: string, chat: ChatId) => {
-    setListed((list) => listedReplacing(list, draftGroupOf(draftId), chat));
   };
 
   /** The window off a group that is going, to the next in the list, when it was showing it. */
@@ -801,31 +756,38 @@ export function useTabGroupActions() {
     }
   };
 
-  /** Opens a chat or a draft from History or the search, at the top of the list, or brings forward the window that has it open. */
-  const restore = (group: string) => {
-    show(group);
+  /** Opens a chat or a draft from History or the search, or brings up the group it is in. */
+  const restore = (entry: TabGroup) => {
+    switch (entry.kind) {
+      case "chat": {
+        showChat(entry.chat.id);
+        return;
+      }
+      case "draft": {
+        showDraft(entry.draft.id);
+        return;
+      }
+      case "tabs": {
+        show(entry.group);
+      }
+    }
   };
 
-  /** A new tab in a group, up at once: the group up, or a new group when none is. */
+  /**
+   * A new chat in a group, up at once with the keyboard: right after the
+   * tab up on the side with the keyboard. In a new group when none is up.
+   */
   const newTab = (group = groupUp()) => {
     if (group === undefined) {
       make();
       return;
     }
-    windowTabs.openScreen(NEW_TAB_HREF, { group, select: true });
-  };
-
-  /** Opens or closes a group's chat column. */
-  const setChatOpen = (group: string, isOpen: boolean) => {
-    setChatClosed((current) => {
-      if (!isOpen) {
-        return { ...current, [group]: true };
-      }
-      if (!(group in current)) {
-        return current;
-      }
-      const { [group]: _opened, ...rest } = current;
-      return rest;
+    windowTabs.openScreen(NEW_TAB_HREF, {
+      ...(selectedTabIn(store.get(windowTabsAtom), group)?.id === undefined
+        ? {}
+        : { after: selectedTabIn(store.get(windowTabsAtom), group)?.id }),
+      group,
+      select: true,
     });
   };
 
@@ -834,7 +796,6 @@ export function useTabGroupActions() {
     store.get(windowTabsAtom).tabs.some((tab) => tab.group === group);
 
   return {
-    becomeChat,
     close,
     closeAll,
     duplicate,
@@ -849,8 +810,9 @@ export function useTabGroupActions() {
     pin,
     place,
     restore,
-    setChatOpen,
     show,
+    showChat,
+    showDraft,
     showHere,
   };
 }
@@ -858,14 +820,16 @@ export function useTabGroupActions() {
 /**
  * Keeps what the window's one app tab stands on a tab group of this
  * window's list. A group the tab came to some other way than through the
- * list (a link to a chat, a step back) joins it at the top; one whose
- * chat had not started and whose draft has gone (swept at launch) leaves it.
- * Everything else sits inside a group too: a screen or a page the app tab
- * came to on its own becomes a tab of the group last up, or of a new group,
- * and the inbox shows the group last up, or the first, or a new one. Groups
- * another window has open too leave this one's list once, as it opens,
- * unless this window is showing them: a window closed with them and brought
- * back since they were opened elsewhere.
+ * list (a step back) joins it at the top. A chat's or a draft's address
+ * asks for the group with its tab, which the tab moves to (`showChat`). A
+ * listed group with no tabs, as an earlier build kept a group that was its
+ * chat alone, gets its chat's tab, or its draft's; one with neither leaves
+ * the list. Everything else sits inside a group too: a screen or a page the
+ * app tab came to on its own becomes a tab of the group last up, or of a
+ * new group, and the inbox shows the group last up, or the first, or a new
+ * one. Groups another window has open too leave this one's list once, as
+ * it opens, unless this window is showing them: a window closed with them
+ * and brought back since they were opened elsewhere.
  */
 export function useTabGroupUpkeep(href: string, open: readonly TabGroup[]) {
   const store = useStore();
@@ -875,28 +839,57 @@ export function useTabGroupUpkeep(href: string, open: readonly TabGroup[]) {
   const drafts = useAtomValue(draftsAtom);
   const elsewhere = useTabGroupsElsewhere();
   const lastUp = useRef<string>(undefined);
+  const asked = useRef<string>(undefined);
 
   const keep = useEffectEvent(() => {
-    const isGone = (group: string) => {
-      const draft = draftOfGroup(group);
-      return (
-        draft !== undefined &&
-        !store.get(draftsAtom).some((entry) => entry.id === draft) &&
-        !groups.hasTabs(group)
-      );
-    };
     const listed = store.get(windowTabGroupsAtom) ?? [];
-    const kept = listed.filter((group) => !isGone(group));
+    const state = store.get(windowTabsAtom);
+    const kept = listed.filter((group) => {
+      if (tabsIn(state, group).length > 0) {
+        return true;
+      }
+      const chat = chatOfGroup(group);
+      const draft = group.startsWith("draft:")
+        ? group.slice("draft:".length)
+        : undefined;
+      const tabHref =
+        chat === undefined
+          ? draft !== undefined &&
+            store.get(draftsAtom).some((entry) => entry.id === draft)
+            ? newChatHref(draft)
+            : undefined
+          : chatHref(chat);
+      if (tabHref === undefined) {
+        return false;
+      }
+      windowTabs.openIn(screenTab(group, tabHref), { group, select: true });
+      return true;
+    });
     if (kept.length !== listed.length) {
       store.set(windowTabGroupsAtom, kept);
     }
-    const group = groupOfHref(href);
-    if (group !== undefined && !isSiteGroup(group)) {
-      if (isGone(group)) {
-        groups.moveOff(group, open);
+    const screen = matchScreen(href);
+    // A chat or a draft asked for by its address, once per ask.
+    if (screen.kind === "chat" || (screen.kind === "inbox" && screen.draft)) {
+      if (asked.current === href) {
         return;
       }
+      asked.current = href;
+      if (screen.kind === "chat") {
+        groups.showChat(screen.chat, { replace: true });
+      } else if (screen.draft !== undefined) {
+        groups.showDraft(screen.draft, { replace: true });
+      }
+      return;
+    }
+    asked.current = undefined;
+    const group = groupOfHref(href);
+    if (group !== undefined && !isSiteGroup(group)) {
       if (!kept.includes(group)) {
+        if (tabsIn(state, group).length === 0) {
+          groups.moveOff(group, open);
+          return;
+        }
         store.set(windowTabGroupsAtom, listedWith(kept, group));
       }
       lastUp.current = group;
@@ -907,7 +900,6 @@ export function useTabGroupUpkeep(href: string, open: readonly TabGroup[]) {
       open.some((entry) => entry.group === lastUp.current)
         ? lastUp.current
         : undefined;
-    const screen = matchScreen(href);
     if (screen.kind === "inbox") {
       const next = into ?? open[0]?.group;
       if (next === undefined) {
@@ -922,11 +914,7 @@ export function useTabGroupUpkeep(href: string, open: readonly TabGroup[]) {
       const pages = windowTabs.allTabs.filter((tab) => tab.group === group);
       const fill = (target: string) => {
         for (const tab of pages) {
-          windowTabs.moveToGroup(tab.id, target);
-        }
-        const [first] = pages;
-        if (first) {
-          windowTabs.select(first.id);
+          groups.moveTab(tab.id, target);
         }
       };
       if (into === undefined) {
@@ -960,7 +948,7 @@ export function useTabGroupUpkeep(href: string, open: readonly TabGroup[]) {
     const listed = store.get(windowTabGroupsAtom);
     const up = groupOfHref(href);
     const kept = listed?.filter(
-      (group) => group === up || !elsewhere.includes(group),
+      (group) => group === up || !elsewhere.groups.includes(group),
     );
     if (listed && kept && kept.length !== listed.length) {
       store.set(windowTabGroupsAtom, kept);

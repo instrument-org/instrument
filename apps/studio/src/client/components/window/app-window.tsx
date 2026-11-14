@@ -19,7 +19,6 @@ import {
   chatGroupAtom,
   filesFolderAtom,
   inboxOpenAtom,
-  paneOpenByGroupAtom,
 } from "@/client/atoms/window";
 import { openBuiltInPage } from "@/client/atoms/page-requests";
 import { AppErrorFallback } from "@/client/components/app-error-fallback";
@@ -120,8 +119,13 @@ import { inPlace } from "./chats";
 import { ComposeLayer } from "./compose-layer";
 import { useComputerVolumes } from "./computer-volumes";
 import { type WindowContextValue as Screens, WindowContext } from "./context";
-import { isPaneOpen } from "./draft-context";
-import { closedGroupTabOf, isBlankNewTab, selectedTabIn } from "./tab-model";
+import {
+  chatOfTab,
+  closedGroupTabOf,
+  isBlankNewTab,
+  isNewChatTab,
+  selectedTabIn,
+} from "./tab-model";
 import { useSignInLanding } from "./use-sign-in-landing";
 import { WindowLook } from "./look-panel";
 import { ProjectDialog } from "./project-dialog";
@@ -151,10 +155,7 @@ import { isGroupScreenHref } from "./group-screen";
 import { useGroupTabLanding, useGroupTabMoves } from "./tab-drag";
 import {
   groupAlong,
-  groupHref,
   isWorthKeeping,
-  keptDraftGroupsAtom,
-  restoreKeptDraftGroups,
   startTabGroupsFromZero,
   type TabGroup,
   useOpenGroups,
@@ -163,7 +164,6 @@ import {
   windowTabGroupsAtom,
 } from "./tab-groups";
 import {
-  chatClosedByGroupAtom,
   groupSearchAtom,
   sidebarOpenAtom,
   sidebarProjectAtom,
@@ -174,8 +174,7 @@ import { StudioSidebarRail } from "@/client/components/studio-sidebar-rail";
 import { formatAcceleratorText } from "@/client/lib/format-accelerator";
 import { WINDOW_SHORTCUTS } from "@/shared/window-shortcuts";
 import {
-  chatHref,
-  chatOfGroup,
+  groupHref,
   chatOfHref,
   matchScreen,
   newChatHref,
@@ -277,12 +276,10 @@ function SetupWindow() {
 
 function WorkspaceWindow() {
   // Before the tabs are read, so a window that has kept no tab groups opens
-  // on none of what an earlier build left in them, and one whose groups of
-  // tabs a relaunch left without drafts finds them again.
+  // on none of what an earlier build left in them.
   const store = useStore();
   useState(() => {
     startTabGroupsFromZero(store);
-    restoreKeptDraftGroups(store);
   });
   const model = useAtomValue(appTabsAtom);
   const routers = useTabRouters(model.tabs);
@@ -550,14 +547,11 @@ function WindowShell({
   }>(undefined);
   // The window shows one group at a time, in one tab: tabs restored from
   // the strip a build before this one kept fold into the one up.
-  const [paneOpenByGroup, setPaneOpenByGroup] = useAtom(paneOpenByGroupAtom);
   const foldRestoredTabs = useEffectEvent(() => {
     const { selectedId, tabs: restored } = appTabs.model;
     if (selectedId && restored.length > 1) {
       appTabs.closeOthers(selectedId);
     }
-    // A group's tabs are always out, whatever an earlier build set.
-    setPaneOpenByGroup({});
   });
   // Once, as the window opens.
   useEffect(() => {
@@ -679,12 +673,10 @@ function WindowShell({
       ...keptInOtherWindows(COMPOSE_KEY).flatMap(floatingDraftIdsOf),
     ]);
     // A reply waiting in a chat's box is kept by the chat, not by a window
-    // of its own, so nothing here takes one away, and a tab group of tabs, or
-    // one named or pinned, is kept by the group.
-    const kept = store.get(keptDraftGroupsAtom);
+    // of its own, so nothing here takes one away.
     const isKept = (draft: Draft) =>
       draft.chatId !== undefined ||
-      isWorthKeeping(draft, kept) ||
+      isWorthKeeping(draft) ||
       floating.has(draft.id);
     // A draft's folder goes with it, and what was pasted into it. Once a launch,
     // since a window opening later finds another's new chat box as empty as these.
@@ -692,7 +684,6 @@ function WindowShell({
       if (isFirstUp) {
         for (const draft of drafts) {
           if (!isKept(draft)) {
-            windowTabs.dropGroup(draftGroupOf(draft.id));
             void removeDraft(draft.id);
           }
         }
@@ -775,15 +766,6 @@ function WindowShell({
     settleSites();
   }, [siteGroups, appTabs.model]);
 
-  const setPaneOpen = (group: string, isOpen: boolean) => {
-    setPaneOpenByGroup((current) => ({ ...current, [group]: isOpen }));
-  };
-  /** Brings the pane up for the group on screen, for something opened into it. */
-  const revealPane = () => {
-    if (windowTabs.groupOnScreen !== undefined) {
-      setPaneOpen(windowTabs.groupOnScreen, true);
-    }
-  };
   // Where the tab up wants the window's page drawn. The browser's own face
   // lives in one element for the window's whole life, handed from tab to tab,
   // so a page and its edit session never remount as tabs are switched.
@@ -803,20 +785,10 @@ function WindowShell({
     }
   }, [pageHost, stage]);
 
-  /**
-   * Takes a chat out of the corner: the window goes and the chat's tab group
-   * comes up, here or in the window that has it open, its pane opened when
-   * the window asked for something to be shown.
-   */
-  const expandChat = (
-    chatId: ChatId,
-    { showsPane }: { showsPane: boolean },
-  ) => {
+  /** Takes a chat out of the corner: the window goes and the chat's tab comes up. */
+  const expandChat = (chatId: ChatId) => {
     compose.remove(chatId);
-    groups.show(chatId);
-    if (showsPane) {
-      setPaneOpen(chatId, true);
-    }
+    groups.showChat(chatId);
   };
 
   const { openNamedPath, openPage, openScreen } = useOpeners({
@@ -827,9 +799,9 @@ function WindowShell({
     newGroup: (fill) => {
       groups.make({ fill });
     },
-    paneOpenByGroup,
-    revealPane,
-    setPaneOpen,
+    showChat: (chat) => {
+      groups.showChat(chat);
+    },
     showGroup: (group, { newWindow = false } = {}) => {
       if (newWindow) {
         groups.moveToNewWindow(group, groupList.open);
@@ -872,6 +844,17 @@ function WindowShell({
   // own tabs, so Shift+Cmd+T brings it back.
   const requestClose = (id: string) => {
     const tab = windowTabs.allTabs.find((each) => each.id === id);
+    // A group's last tab closes the group, asking first while its agent works.
+    if (
+      tab?.group !== undefined &&
+      groupList.open.some((entry) => entry.group === tab.group) &&
+      windowTabs.allTabs.every(
+        (each) => each.group !== tab.group || each.id === id,
+      )
+    ) {
+      askToClose([tab.group]);
+      return;
+    }
     if (tab?.group !== undefined && !isBlankNewTab(tab)) {
       const { group } = tab;
       const index = windowTabs.allTabs
@@ -973,9 +956,7 @@ function WindowShell({
   const surfaceInView =
     groupInView === undefined
       ? surfaces[appTabs.model.selectedId ?? ""]
-      : tabInView?.kind === "screen" &&
-          (chatOfGroup(groupInView) === undefined ||
-            isPaneOpen(groupInView, paneOpenByGroup))
+      : tabInView?.kind === "screen"
         ? surfaces[tabInView.id]
         : undefined;
   const screenView = surfaceInView?.view ?? null;
@@ -1007,7 +988,6 @@ function WindowShell({
       chatTitles,
       drafts,
       href: hrefNow(),
-      paneOpenByGroup,
       screenView,
       state: opened,
       surfaces,
@@ -1016,15 +996,13 @@ function WindowShell({
     });
   const draftContext = (draftId: string) => readersNow().draftContext(draftId);
   // A chat's tab group as a message goes from it, read at the press.
-  const chatClosedByGroup = useAtomValue(chatClosedByGroupAtom);
-  const layoutNow = (group: string) =>
+  const layoutNow = (tabId: string, told: string) =>
     layoutReader({
       appsBySlug,
-      chatClosedByGroup,
       chatTitles,
       groups: groupList.open,
       windowTabs,
-    })(group);
+    })(tabId, told);
   useLayoutEffect(() => {
     sendContextRef.current = (options) => readersNow().sendContext(options);
     layoutContextRef.current = layoutNow;
@@ -1051,15 +1029,9 @@ function WindowShell({
     isOpen: opened !== undefined,
     layout: {
       carry: carryLayoutSent,
-      read: (group) => layoutContextRef.current(group),
+      read: (tabId, told) => layoutContextRef.current(tabId, told),
     },
     isChat,
-    // The draft's group becomes the chat's in its place in the list first,
-    // so the chat is never a group this window does not have open.
-    openChat: (chatId, fromDraft) => {
-      groups.becomeChat(fromDraft, chatId);
-      appTabs.navigate(chatHref(chatId));
-    },
     openDraftInChat: (id) => {
       setInboxOpen(true);
       appTabs.navigate(newChatHref(id));
@@ -1177,10 +1149,21 @@ function WindowShell({
       appTabs.goToPlace(next, { newWindow });
       return;
     }
+    // The chat is the group's first chat's tab, or its first new chat's.
     if (next === "chat") {
       const group = groups.groupUp();
-      if (group !== undefined) {
-        groups.setChatOpen(group, true);
+      const tab =
+        group === undefined
+          ? undefined
+          : windowTabs
+              .layoutOf(group)
+              .sides.flatMap((side) => side.tabs)
+              .find(
+                (each) =>
+                  chatOfTab(each) !== undefined || isNewChatTab(each),
+              );
+      if (tab) {
+        windowTabs.select(tab.id);
         focusChatComposer();
       }
       return;
@@ -1217,16 +1200,17 @@ function WindowShell({
       back: () => {
         windowSteps.go("back");
       },
-      // The tab up in the group on screen, wherever the keyboard is, and
-      // the group itself only once it has none left, its chat alone: one
+      // The tab up on the side with the keyboard in the group on screen,
+      // and the group itself at its last tab only on a second press: one
       // close a press, read from the tabs as they are at that moment.
       closeTab: () => {
         const group = store.get(groupOnScreenAtom);
         if (group === undefined) {
           return;
         }
-        const up = selectedTabIn(store.get(windowTabsAtom), group);
-        if (up) {
+        const state = store.get(windowTabsAtom);
+        const up = selectedTabIn(state, group);
+        if (up && state.tabs.some((tab) => tab.group === group && tab.id !== up.id)) {
           requestClose(up.id);
           return;
         }
@@ -1311,14 +1295,14 @@ function WindowShell({
         });
       },
       // What arrives from outside the app is a tab group of its own at the
-      // bottom of the list; a chat is its own group already.
+      // bottom of the list; a chat comes up at its tab, wherever it is.
       openFile: (hostPath) => {
         groups.make({ href: fileHref(hostPath) });
       },
       openScreen: (href) => {
         const chat = chatOfHref(href);
         if (chat !== undefined) {
-          groups.show(chat);
+          groups.showChat(chat);
         } else if (isGroupScreenHref(href)) {
           groups.make({ href });
         } else {
@@ -1479,13 +1463,12 @@ function WindowShell({
     popOutDraft,
     requestClose,
     rowWidth,
-    layoutContext: (group) => layoutContextRef.current(group),
+    layoutContext: (tabId, told) => layoutContextRef.current(tabId, told),
     sendContext: (options) => sendContextRef.current(options),
     sentProjects,
     sentWords,
     setChatProject,
     setDefaultModelURI,
-    setPaneOpen,
     showDraft,
     startChat,
     projects,
@@ -1569,8 +1552,8 @@ function WindowShell({
                   onPin={(group, pinned) => {
                     groups.pin(group, pinned);
                   }}
-                  onRestore={(group) => {
-                    groups.restore(group);
+                  onRestore={(entry) => {
+                    groups.restore(entry);
                   }}
                   onShow={(group, { newWindow }) => {
                     if (newWindow) {

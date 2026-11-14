@@ -18,12 +18,18 @@ import {
   type ContextItem,
   draftContextItems,
 } from "./context-items";
-import { isGroupShown, tabInView } from "./draft-context";
+import { tabInView } from "./draft-context";
 import { computerTabOf, reachablePath } from "./file-tabs";
 import { joinHostPath, segmentsOf } from "./host-path";
 import { screenLocation, screenPresentation } from "./screen-presentation";
 import { type Volume } from "./tab-location";
-import { isFreshTab, isHomeTab } from "./tab-model";
+import {
+  chatOfTab,
+  draftOfTab,
+  isFreshTab,
+  isHomeTab,
+  isNewChatTab,
+} from "./tab-model";
 import { type TabSurface } from "./tab-surface";
 import { matchScreen } from "./window-href";
 import { type useWindowTabs } from "./window-tabs";
@@ -49,8 +55,6 @@ export interface SendContextWindow {
   href: string;
   /** The computer's volumes, which name a folder chip the way the Finder does. */
   volumes?: Volume[];
-  /** Which chats have their pane open, which is whether the tab up in one is in view. */
-  paneOpenByGroup: Record<string, boolean>;
   /** What the screen that is up says it shows, or nothing while none has said. */
   screenView: null | ScreenView;
   /** The folders the window reaches, which say how the conversation reaches a file; undefined until the window is open. */
@@ -59,7 +63,7 @@ export interface SendContextWindow {
   surfaces: Readonly<Record<string, TabSurface>>;
   windowTabs: Pick<
     ReturnType<typeof useWindowTabs>,
-    "active" | "allTabs" | "groupOnScreen" | "selectedTabIn"
+    "active" | "allTabs" | "besideOf" | "groupOnScreen" | "selectedTabIn"
   >;
 }
 
@@ -77,7 +81,6 @@ export function contextReaders({
   chatTitles,
   drafts,
   href,
-  paneOpenByGroup,
   screenView,
   state,
   surfaces,
@@ -85,7 +88,7 @@ export function contextReaders({
   windowTabs,
 }: SendContextWindow) {
   const { active } = windowTabs;
-  const isActiveShown = isGroupShown(active?.group, paneOpenByGroup);
+  const isActiveShown = active?.group !== undefined;
   /** What the window has in view: see tabInView. */
   const inView =
     appTabId === null
@@ -269,15 +272,20 @@ export function contextReaders({
   const contextOf = async (
     group: string,
     items: ContextItem[],
+    { isReply }: { isReply: boolean },
   ): Promise<SessionMessageDataPart.ViewContextDataPart | undefined> => {
     if (!state) {
       return;
     }
-    // A new tab's face has nothing on it to name or hand over.
+    // A new tab's face has nothing on it to name or hand over, and a chat's
+    // tab is a conversation rather than a thing in the group to work in.
     const own = windowTabs.allTabs.filter(
-      (tab) => tab.group === group && !isFreshTab(tab) && !isHomeTab(tab),
+      (tab) =>
+        tab.group === group &&
+        !isFreshTab(tab) &&
+        !isNewChatTab(tab) &&
+        chatOfTab(tab) === undefined,
     );
-    const isReply = !group.startsWith("draft:");
     let shown: SessionMessageDataPart.ViewContextDataPart | undefined;
     let chat: SessionMessageDataPart.ViewContextDataPart["chat"];
     const chosen: NonNullable<
@@ -369,8 +377,9 @@ export function contextReaders({
    * up, as its composer shows it, and none for a new tab.
    */
   const draftItems = (draft: Draft) => {
-    const group = draftGroupOf(draft.id);
-    const up = windowTabs.selectedTabIn(group);
+    const group = draftGroupOfTab(draft.id);
+    const tab = windowTabs.allTabs.find((each) => draftOfTab(each) === draft.id);
+    const up = tab === undefined ? undefined : windowTabs.besideOf(tab.id);
     return draftContextItems({
       allTabs: windowTabs.allTabs,
       band: up && !isHomeTab(up) ? [up] : [],
@@ -385,33 +394,51 @@ export function contextReaders({
   ): Promise<SessionMessageDataPart.ViewContextDataPart | undefined> => {
     const draft = drafts.find((entry) => entry.id === draftId);
     return draft
-      ? contextOf(draftGroupOf(draftId), draftItems(draft))
+      ? contextOf(draftGroupOfTab(draftId), draftItems(draft), {
+          isReply: false,
+        })
       : undefined;
   };
   /**
-   * What goes with a message in a chat: the chat's tab up while its view of
-   * it is open, and what the person took for the message from what was
-   * offered; and the chat's own tabs, by the ids a task can be handed.
+   * What goes with a message in a chat: the tab up on the other side of the
+   * chat's tab, while its chip is there, and what the person took for the
+   * message from what was offered; and the tabs of the chat's group, by the
+   * ids a task can be handed.
    */
   const sendContext = async ({
     chatId,
     isViewOpen,
+    tabId,
     taken,
   }: {
     chatId: ChatId;
-    /** Whether the chat's view of its tab up is open where the message is written. */
+    /** Whether what stands beside the chat's tab goes with the message. */
     isViewOpen: boolean;
+    /** The chat's tab the message is written in. */
+    tabId?: string;
     /** What the person took for the message. */
     taken: readonly ContextItem[];
-  }): Promise<SessionMessageDataPart.ViewContextDataPart | undefined> =>
-    contextOf(
-      chatId,
+  }): Promise<SessionMessageDataPart.ViewContextDataPart | undefined> => {
+    const group =
+      windowTabs.allTabs.find((tab) => tab.id === tabId)?.group ?? chatId;
+    return contextOf(
+      group,
       chatContextItems({
         chatId,
         finderOf,
+        group,
         taken,
-        up: isViewOpen ? windowTabs.selectedTabIn(chatId) : undefined,
+        up:
+          isViewOpen && tabId !== undefined
+            ? windowTabs.besideOf(tabId)
+            : undefined,
       }),
+      { isReply: true },
     );
+  };
+  /** The group a draft's new chat tab is in, or the key an earlier build kept the draft's tabs under. */
+  const draftGroupOfTab = (draftId: string) =>
+    windowTabs.allTabs.find((each) => draftOfTab(each) === draftId)?.group ??
+    draftGroupOf(draftId);
   return { draftContext, draftItems, sendContext };
 }

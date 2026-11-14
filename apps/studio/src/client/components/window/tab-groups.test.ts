@@ -3,30 +3,30 @@ import { describe, expect, it, vi } from "vitest";
 vi.mock("@/client/rpc/client", () => ({ rpcClient: {} }));
 
 import { type WindowTab } from "@/client/atoms/window";
+import { ChatIdSchema } from "@instrument-org/workspace/client";
 
 import {
   copiedTabs,
   isWorthKeeping,
-  listedReplacing,
   listedWith,
   listedWithout,
-  nameCarried,
   namedWith,
   pinnedWith,
 } from "./tab-groups";
 
-describe("a group whose chat has not started, closed", () => {
+describe("a draft no chat has started, closed", () => {
   const draft = { createdAt: 0, id: "d", updatedAt: 0, words: "" };
 
   it.each([
-    ["is kept with words", { ...draft, words: "Plan the trip" }, []],
-    ["is kept with tabs or a name", draft, ["draft:d"]],
-    ["goes with nothing in it", draft, []],
-    ["goes when only another group is kept", draft, ["draft:e"]],
-  ])("%s", (label, entry, kept) => {
-    expect(isWorthKeeping(entry, new Set(kept))).toBe(
-      label.startsWith("is kept"),
-    );
+    ["is kept with words", { ...draft, words: "Plan the trip" }, true],
+    ["goes with nothing in it", draft, false],
+    [
+      "goes once its chat started",
+      { ...draft, chatId: ChatIdSchema.parse("2026-10-01-roofer"), words: "Hi" },
+      false,
+    ],
+  ])("%s", (_label, entry, expected) => {
+    expect(isWorthKeeping(entry)).toBe(expected);
   });
 });
 
@@ -52,14 +52,6 @@ describe("a tab group's name", () => {
   it("keeps the names as they were when nothing changes", () => {
     expect(namedWith(NAMES, "draft:a", "Wireframes")).toBe(NAMES);
     expect(namedWith(NAMES, "draft:b", "")).toBe(NAMES);
-  });
-
-  it("goes on with a group whose chat starts, and stays the draft's", () => {
-    expect(nameCarried(NAMES, "draft:a", "chat")).toEqual({
-      chat: "Wireframes",
-      "draft:a": "Wireframes",
-    });
-    expect(nameCarried(NAMES, "draft:b", "chat")).toBe(NAMES);
   });
 });
 
@@ -144,7 +136,7 @@ describe("a tab group's tabs, copied", () => {
   });
 });
 
-describe("a pin of a group whose chat has not started", () => {
+describe("a tab group's pin", () => {
   const PINS = { "draft:a": true } as const;
 
   it.each([
@@ -195,21 +187,5 @@ describe("a window's list of tab groups", () => {
 
   it("lets a group go and keeps the rest in order", () => {
     expect(listedWithout(["a", "b", "c"], "b")).toEqual(["a", "c"]);
-  });
-
-  it.each([
-    [
-      "in the draft's place",
-      ["a", "draft:d", "b"],
-      ["a", "chat", "b"],
-    ],
-    ["at the top when the draft was not listed", ["a"], ["chat", "a"]],
-    [
-      "once when the chat was listed already",
-      ["chat", "draft:d"],
-      ["chat"],
-    ],
-  ])("has a started chat %s", (_, list, expected) => {
-    expect(listedReplacing(list, "draft:d", "chat")).toEqual(expected);
   });
 });

@@ -394,6 +394,8 @@ const paintOwners = new Map<BrowserTargetId, symbol>();
 interface SlotClaim {
   bottomRadius: string;
   bounds: Bounds;
+  /** The part of the window the slot is seen through, which the guest is cut to. */
+  clip?: Bounds;
   layer: number;
   renderedSize: null | undefined | { height: number; width: number };
   // Order the slot first asked in, which breaks a tie between two slots on one
@@ -782,6 +784,10 @@ export function showOverSlot(
   // it does not stand square past a rounder frame or round inside a square one:
   // one length for both, or two, the bottom left's and then the bottom right's.
   bottomRadius = VISIBLE_BOTTOM_RADIUS,
+  // The part of the window the slot can be seen through, for a slot inside a
+  // scroller: the guest is cut to it, since a guest on the body is no child
+  // of the scroller to be clipped by it.
+  clip?: Bounds,
 ) {
   if (!pool.has(targetId)) {
     return;
@@ -791,6 +797,7 @@ export function showOverSlot(
   claims.set(owner, {
     bottomRadius,
     bounds,
+    ...(clip === undefined ? {} : { clip }),
     layer,
     renderedSize,
     since: claims.get(owner)?.since ?? nextClaimOrder++,
@@ -1195,6 +1202,17 @@ function onFullScreenChange() {
   }
 }
 
+/** A `clip-path` cutting a guest at `bounds` to the part of it inside `clip`. */
+function clipInset(bounds: Bounds, clip: Bounds): string {
+  const top = Math.max(0, clip.y - bounds.y);
+  const left = Math.max(0, clip.x - bounds.x);
+  const bottom = Math.max(0, bounds.y + bounds.height - (clip.y + clip.height));
+  const right = Math.max(0, bounds.x + bounds.width - (clip.x + clip.width));
+  return top + left + bottom + right === 0
+    ? ""
+    : `inset(${top}px ${right}px ${bottom}px ${left}px)`;
+}
+
 /** Puts the guest in the frontmost slot asking for it, or parks it when none is. */
 function placeGuest(targetId: BrowserTargetId) {
   const pooled = pool.get(targetId);
@@ -1220,7 +1238,7 @@ function placeGuest(targetId: BrowserTargetId) {
     leaveFullScreen(pooled);
     return;
   }
-  const [owner, { bottomRadius, bounds, layer, renderedSize }] = winner;
+  const [owner, { bottomRadius, bounds, clip, layer, renderedSize }] = winner;
   const [bottomLeft = bottomRadius, bottomRight = bottomLeft] = bottomRadius
     .trim()
     .split(/\s+/);
@@ -1239,6 +1257,7 @@ function placeGuest(targetId: BrowserTargetId) {
 
   Object.assign(container.style, {
     borderRadius: corners,
+    clipPath: clip === undefined ? "" : clipInset(bounds, clip),
     contain: "layout paint size style",
     height: `${bounds.height}px`,
     left: `${bounds.x}px`,

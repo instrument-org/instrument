@@ -28,7 +28,7 @@ vi.mock("./tab-location-row", () => ({
 }));
 
 vi.mock("./window-tabs", () => ({
-  useWindowTabs: () => ({ visitHref: calls.visitHref }),
+  useWindowTabs: () => ({ chatsIn: () => [], visitHref: calls.visitHref }),
 }));
 
 vi.mock("./use-tab-steps", () => ({
@@ -40,6 +40,7 @@ vi.mock("./use-tab-steps", () => ({
 }));
 
 vi.mock("./apps-by-slug", () => ({ useAppsBySlug: () => new Map() }));
+vi.mock("./shell-context", () => ({ useShell: () => ({ chatTitles: new Map() }) }));
 vi.mock("./task-titles", () => ({ useTaskTitles: () => new Map() }));
 
 const appWindow: WindowContextValue = {

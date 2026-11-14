@@ -38,6 +38,10 @@ export function tabIdentityOf(
       if (second !== undefined) {
         return `chat:${second}`;
       }
+      const group = search.get("group");
+      if (group) {
+        return `group:${group}`;
+      }
       const draft = search.get("draft");
       return draft ? `draft:${draft}` : undefined;
     }
@@ -75,15 +79,23 @@ export function tabIdentityOf(
 }
 
 /**
- * The tab group an address stands on: a chat's id, or a draft's group
- * (`draft:<id>`) for a chat not started yet. Undefined for any other screen.
+ * The tab group a window's tab stands on, by the key its address names
+ * (`/chats?group=<key>`). Undefined for any other screen: a chat's address
+ * asks for the group holding the chat's tab (`keptGroupsHoldingChat`).
  */
 export function tabGroupOfAddress(href: string): string | undefined {
   const identity = tabIdentityOf(href);
-  if (identity?.startsWith("chat:")) {
-    return identity.slice("chat:".length);
-  }
-  return identity?.startsWith("draft:") ? identity : undefined;
+  return identity?.startsWith("group:")
+    ? identity.slice("group:".length)
+    : undefined;
+}
+
+/** The chat a window's tab asks for by its address (`/chats/<id>`), if it does. */
+export function chatOfAddress(href: string): string | undefined {
+  const identity = tabIdentityOf(href);
+  return identity?.startsWith("chat:")
+    ? identity.slice("chat:".length)
+    : undefined;
 }
 
 /** Whether two addresses show the same one-of-a-kind thing. */
@@ -94,7 +106,7 @@ export function isSameTabIdentity(a: string, b: string, homeDir?: string) {
 
 /** What an address's search says about which thing it is, rather than how it is shown. */
 const IDENTIFYING_SEARCH: Record<string, readonly string[]> = {
-  chats: ["draft"],
+  chats: ["draft", "group"],
   files: ["file", "path", "root"],
   tasks: ["chat"],
 };

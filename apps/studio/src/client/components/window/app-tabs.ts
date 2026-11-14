@@ -28,7 +28,6 @@ import { asksMoreThan } from "@/shared/tab-identity";
 import { type Tab, type TabsModel, TabsModelSchema } from "@/shared/tabs";
 import { rpcClient } from "@/client/rpc/client";
 import { folderHref } from "@/shared/computer-href";
-import { draftGroupOf } from "@/shared/drafts";
 import { type TabId } from "@/shared/tabs";
 import { type ChatId } from "@instrument-org/workspace/client";
 import { atom, getDefaultStore, useAtom, useAtomValue, useStore } from "jotai";
@@ -108,21 +107,16 @@ export function siteGroupOf(id: string): string {
 export const appTabsAtom = tabsAtomOf(APP_TABS_KEY, INBOX_HREF);
 
 /**
- * The group of a chat's tabs or a site's page an app tab's address stands
- * on: the chat's id for a chat, the draft's group for a new chat being
- * written in the Chat screen, the site's group for a site, and none for
- * everything else, whose screen is the route itself.
+ * The tab group an app tab's address stands on: the group it names, or a
+ * site's for a site opened at the window's own level, and none for
+ * everything else. A chat's or a draft's address names no group: it asks
+ * for the group with that chat or draft in it (`useTabGroupUpkeep`).
  */
 export function groupOfHref(href: string): string | undefined {
   const screen = matchScreen(href);
   switch (screen.kind) {
-    case "chat": {
-      return screen.chat;
-    }
-    case "inbox": {
-      return screen.draft === undefined
-        ? undefined
-        : draftGroupOf(screen.draft);
+    case "group": {
+      return screen.group;
     }
     case "site": {
       return siteGroupOf(screen.id);
@@ -139,6 +133,7 @@ export function isChatHref(href: string): boolean {
     case "chat":
     case "chatLink":
     case "chatOfSession":
+    case "group":
     case "inbox": {
       return true;
     }

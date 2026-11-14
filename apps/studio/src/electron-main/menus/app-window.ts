@@ -63,11 +63,9 @@ const CHORD_SYMBOLS: Record<WindowShortcutId, string> = {
   findInPage: "doc.text.magnifyingglass",
   findNext: "chevron.down",
   findPrevious: "chevron.up",
+  focusLeftSide: "rectangle.lefthalf.filled",
+  focusRightSide: "rectangle.righthalf.filled",
   forward: "chevron.forward",
-  goToApps: "square.grid.2x2",
-  goToBrowser: "globe",
-  goToChat: "bubble.left.and.bubble.right",
-  goToFiles: "folder",
   moveTabToOtherSide: "rectangle.split.2x1",
   newChat: "square.and.pencil",
   newTab: "plus.square.on.square",
@@ -81,7 +79,7 @@ const CHORD_SYMBOLS: Record<WindowShortcutId, string> = {
   search: "magnifyingglass",
   searchChats: "text.magnifyingglass",
   showActivity: "clock.arrow.circlepath",
-  toggleInbox: "sidebar.left",
+  toggleSidebar: "sidebar.left",
 };
 
 /** Sends a command to the window's renderer, which holds the tabs and the tab groups: every chord's id is one. */
@@ -159,20 +157,12 @@ const TAB_CHORDS: WindowChord[] = [
 
 /** The sidebar of tab groups put away and brought back, on the usual sidebar chord. */
 const VIEW_CHORDS: WindowChord[] = [
-  chord("toggleInbox"),
+  chord("toggleSidebar"),
   chord("editPage"),
   // The page in front of the user, never the window: reloading the window
   // takes every browser guest down with its document. The window decides
   // which page that is (page-chords.ts).
   chord("reloadPage"),
-];
-
-/** The rail's places, the tab up going to one the way a press on the rail takes it. */
-const PLACE_CHORDS: WindowChord[] = [
-  chord("goToChat"),
-  chord("goToFiles"),
-  chord("goToBrowser"),
-  chord("goToApps"),
 ];
 
 /**
@@ -217,7 +207,11 @@ const ACTIVITY_CHORDS: WindowChord[] = [chord("showActivity")];
 const BOOKMARK_CHORDS: WindowChord[] = [chord("bookmarkTab")];
 
 /** The tab up across to the other side of its group, made where it has one side. */
-const SIDE_CHORDS: WindowChord[] = [chord("moveTabToOtherSide")];
+const SIDE_CHORDS: WindowChord[] = [
+  chord("moveTabToOtherSide"),
+  chord("focusLeftSide"),
+  chord("focusRightSide"),
+];
 
 /**
  * This system's second chords for a command (`WINDOW_SHORTCUT_ALIASES`),
@@ -243,7 +237,6 @@ const WINDOW_CHORDS = [
   ...FILE_ALIAS_CHORDS,
   ...VIEW_CHORDS,
   ...VIEW_ALIAS_CHORDS,
-  ...PLACE_CHORDS,
   ...TAB_CHORDS,
   ...TAB_ALIAS_CHORDS,
   ...CHAT_CHORDS,
@@ -425,8 +418,6 @@ export function createAppWindowMenu(
     submenu: [
       ...menuItems(VIEW_CHORDS, windows),
       ...menuItems(VIEW_ALIAS_CHORDS, windows),
-      { type: "separator" },
-      ...menuItems(PLACE_CHORDS, windows),
       { type: "separator" },
       ...menuItems(CHAT_CHORDS, windows),
       { type: "separator" },

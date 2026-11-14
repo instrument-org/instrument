@@ -42,7 +42,7 @@ const handlers = {
   back: vi.fn(),
   closeTab: vi.fn(),
   forward: vi.fn(),
-  goToPlace: vi.fn(),
+  focusSide: vi.fn(),
   missingFile: vi.fn(),
   newChat: vi.fn(),
   newChatFromLink: vi.fn(),
@@ -64,7 +64,7 @@ const handlers = {
   receiveGroupTab: vi.fn(),
   receiveTab: vi.fn(),
   showActivity: vi.fn(),
-  toggleInbox: vi.fn(),
+  toggleSidebar: vi.fn(),
 };
 
 function Window() {

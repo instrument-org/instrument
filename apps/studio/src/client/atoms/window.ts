@@ -93,13 +93,6 @@ export const filesHrefAtom = atom(
 );
 
 /**
- * Whether the inbox column is shown. Put away, a chat and its tabs have
- * the window to themselves; it comes back on its own when nothing is left
- * on screen without it.
- */
-export const inboxOpenAtom = keptAtom<boolean>("window", "inbox-open.v1", true);
-
-/**
  * Search Chats was asked for and the inbox's search has not taken the
  * keyboard yet: the inbox of the tab up takes it once it is drawn.
  */

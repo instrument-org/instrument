@@ -91,10 +91,10 @@ On a Mac these are the menu bar's menus, the first named for Instrument; on Wind
 
 - **Instrument**: Check for Updates…, Settings…
 - **File**: New Tab Group, Command Menu, Open Location…, Find, Find Next, Find Previous, Search Chats, Print…, Info, New Window, New Tab, Close Tab, Reopen Closed Tab, Reopen Closed Window, Close Window
-- **View**: Toggle Sidebar, Edit Page, Reload Page, Go to Chat, Go to Files, Go to Browser, Go to Apps, Next Tab Group, Previous Tab Group, Actual Size, Zoom In, Zoom Out
+- **View**: Toggle Sidebar, Edit Page, Reload Page, Next Tab Group, Previous Tab Group, Actual Size, Zoom In, Zoom Out
 - **History**: Back, Forward, Show History, Clear Browsing Data…
 - **Bookmarks**: Bookmark This Tab…
-- **Tab**: Show Next Tab, Show Previous Tab, Move Tab to Other Side, Move Tab to New Window
+- **Tab**: Show Next Tab, Show Previous Tab, Move Tab to Other Side, Focus Left Side, Focus Right Side, Move Tab to New Window
 - **Window**: Merge All Windows
 - **Help**: Send Feedback…, Support, Keyboard Shortcuts
 
@@ -109,10 +109,6 @@ Each is written as on a Mac, then as on Windows and Linux.
 - Find: ⌘F / Ctrl+F
 - Find Next: ⌘G / Ctrl+G
 - Find Previous: ⇧⌘G / Ctrl+Shift+G
-- Go to Apps: ⌃⌘4 / Alt+4
-- Go to Browser: ⌃⌘3 / Alt+3
-- Go to Chat: ⌃⌘1 / Alt+1
-- Go to Files: ⌃⌘2 / Alt+2
 - Keyboard Shortcuts: ? / ?
 - New Tab Group: ⌘N / Ctrl+N
 - New Window: ⇧⌘N / Ctrl+Shift+N
@@ -144,6 +140,8 @@ Each is written as on a Mac, then as on Windows and Linux.
 ### Tabs
 
 - Close Tab: ⌘W / Ctrl+W
+- Focus Left Side: ⌥⌘← / Alt+Shift+←
+- Focus Right Side: ⌥⌘→ / Alt+Shift+→
 - Last Tab: ⌘9 / Ctrl+9
 - Move Tab to Other Side: ⌘\ / Ctrl+\
 - New Tab: ⌘T / Ctrl+T

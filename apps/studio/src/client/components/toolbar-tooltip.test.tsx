@@ -9,7 +9,7 @@ describe("ToolbarTooltip", () => {
   it("names a plain icon button from the shortcut table", () => {
     renderWithProviders(
       <TooltipProvider>
-        <ToolbarTooltip chord="toggleInbox">
+        <ToolbarTooltip chord="toggleSidebar">
           <Button size="icon" variant="ghost-toolbar">
             <svg />
           </Button>

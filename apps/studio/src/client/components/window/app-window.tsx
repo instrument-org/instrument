@@ -19,7 +19,6 @@ import {
   type AppPlace,
   chatFiltersAtom,
   filesFolderAtom,
-  inboxOpenAtom,
   type WindowTab,
 } from "@/client/atoms/window";
 import { openBuiltInPage } from "@/client/atoms/page-requests";
@@ -622,7 +621,6 @@ function WindowShell({
   const removeDraft = useSetAtom(removeDraftAtom);
   const setFilesFolder = useSetAtom(filesFolderAtom);
   const [chatFilters, setChatFilters] = useAtom(chatFiltersAtom);
-  const setInboxOpen = useSetAtom(inboxOpenAtom);
   const pickNewChatProject = useSetAtom(pickNewChatProjectAtom);
   const sendContextRef = useRef<Shell["sendContext"]>(() =>
     Promise.resolve(undefined),
@@ -1086,7 +1084,6 @@ function WindowShell({
     layoutOf: (tabId) => layoutContextRef.current(tabId),
     isChat,
     openDraftInChat: (id) => {
-      setInboxOpen(true);
       appTabs.navigate(newChatHref(id));
     },
     openNewChat: (projectId) => {
@@ -1094,7 +1091,6 @@ function WindowShell({
       if (tabId) {
         pickNewChatProject({ projectId, tabId });
       }
-      setInboxOpen(true);
       appTabs.navigate(newChatHref());
     },
     openDrafts: () => {
@@ -1280,7 +1276,15 @@ function WindowShell({
       forward: () => {
         windowSteps.go("forward");
       },
-      goToPlace: choosePlace,
+      focusSide: (side) => {
+        const group = windowTabs.groupOnScreen;
+        if (
+          group !== undefined &&
+          windowTabs.layoutOf(group).sides[side] !== undefined
+        ) {
+          windowTabs.focusSide(group, side);
+        }
+      },
       newChat: () => {
         groups.make();
       },
@@ -1439,7 +1443,7 @@ function WindowShell({
           windowTabs.select(next.id);
         }
       },
-      toggleInbox: () => {
+      toggleSidebar: () => {
         setSidebarOpen((isOpen) => !isOpen);
       },
       selectChat: (direction) => {

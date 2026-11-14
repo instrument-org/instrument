@@ -13,7 +13,6 @@ import {
   modalBackStackAtom,
   windowHoldsAtom,
 } from "@/client/atoms/tab-navigation-block";
-import { type AppPlace } from "@/client/atoms/window";
 import { appZoomAfter, zoomAtom } from "@/client/atoms/zoom";
 import { requestBookmarkTab } from "@/client/components/window/bookmark-star";
 import { requestFileInfo } from "@/client/components/window/file-info";
@@ -23,7 +22,6 @@ import {
   openFindForKeyboard,
 } from "@/client/lib/find-targets";
 import { stepForKeyboard, stepSurfaceAt } from "@/client/lib/history-surfaces";
-import { focusScreenHome } from "@/client/lib/keyboard-home";
 import { pageHoldingKeyboard } from "@/client/lib/browser-pool";
 import { runPageChord } from "@/client/lib/page-chords";
 import { reloadScreenWithKeyboard } from "@/client/lib/screen-reloads";
@@ -54,7 +52,7 @@ const MODAL_SAFE_COMMANDS = new Set([
   "reloadPage",
   "takeCapture",
   "toggleDeveloperStrip",
-  "toggleInbox",
+  "toggleSidebar",
   "zoomIn",
   "zoomOut",
   "zoomReset",
@@ -84,8 +82,8 @@ export function useWindowCommands(
     back: () => void;
     closeTab: () => void;
     forward: () => void;
-    /** The tab up to one of the rail's places, as a press on the rail takes it. */
-    goToPlace: (place: AppPlace) => void;
+    /** The keyboard to one side of the tab group on screen, where it has that side. */
+    focusSide: (side: 0 | 1) => void;
     /** A draft of a new chat, at the corner. */
     newChat: () => void;
     /** A draft of a new chat with the words a link from outside brought, under the project it named. */
@@ -125,7 +123,7 @@ export function useWindowCommands(
     selectRelative: (direction: -1 | 1) => void;
     selectTab: (index: number) => void;
     /** The inbox column put away or brought back. */
-    toggleInbox: () => void;
+    toggleSidebar: () => void;
   },
   {
     isReady,
@@ -349,24 +347,9 @@ export function useWindowCommands(
               }
               break;
             }
-            case "goToApps": {
-              latest.current.goToPlace("apps");
-              focusScreenHome({ leaving: true });
-              break;
-            }
-            case "goToBrowser": {
-              latest.current.goToPlace("browser");
-              focusScreenHome({ leaving: true });
-              break;
-            }
-            case "goToChat": {
-              latest.current.goToPlace("chat");
-              focusScreenHome({ leaving: true });
-              break;
-            }
-            case "goToFiles": {
-              latest.current.goToPlace("files");
-              focusScreenHome({ leaving: true });
+            case "focusLeftSide":
+            case "focusRightSide": {
+              latest.current.focusSide(command === "focusLeftSide" ? 0 : 1);
               break;
             }
             case "newChat": {
@@ -453,8 +436,8 @@ export function useWindowCommands(
               latest.current.showActivity();
               break;
             }
-            case "toggleInbox": {
-              latest.current.toggleInbox();
+            case "toggleSidebar": {
+              latest.current.toggleSidebar();
               break;
             }
             case "zoomIn":

@@ -14,18 +14,6 @@ export interface WindowShortcut {
 }
 
 /**
- * The rail's places, one chord each in the rail's order: Control and Command
- * with the digit on a Mac, as Safari puts its sidebar's sections, where
- * Option and a digit types a character; Alt and the digit elsewhere, where
- * Control and Alt together is AltGr on many layouts and types one too. One
- * modifier away from the tabs' Cmd or Ctrl and a digit.
- */
-const placeChord = (digit: number) => ({
-  darwin: `Control+Command+${digit}`,
-  default: `Alt+${digit}`,
-});
-
-/**
  * Down and up the sidebar's tab groups: Option and Command with the arrow on
  * a Mac, where Option and an arrow alone moves the caret. Elsewhere Alt+Shift and the
  * arrow, which chat apps there step through unread conversations with: GNOME
@@ -33,6 +21,17 @@ const placeChord = (digit: number) => ({
  * parent folder in Files, as in File Explorer.
  */
 const chatChord = (arrow: "Down" | "Up") => ({
+  darwin: `Alt+CmdOrCtrl+${arrow}`,
+  default: `Alt+Shift+${arrow}`,
+});
+
+/**
+ * The keyboard to the left or right side of a tab group: Option and Command
+ * with the arrow on a Mac, as a terminal steps between its split panes, the
+ * group chords' arrows turned sideways; Alt+Shift and the arrow elsewhere,
+ * beside them.
+ */
+const sideChord = (arrow: "Left" | "Right") => ({
   darwin: `Alt+CmdOrCtrl+${arrow}`,
   default: `Alt+Shift+${arrow}`,
 });
@@ -63,11 +62,14 @@ export const WINDOW_SHORTCUTS = {
   findInPage: { accelerator: "CmdOrCtrl+F", label: "Find" },
   findNext: { accelerator: "CmdOrCtrl+G", label: "Find Next" },
   findPrevious: { accelerator: "Shift+CmdOrCtrl+G", label: "Find Previous" },
+  // The keyboard to a side of the tab group on screen, which a press on it
+  // gives too.
+  focusLeftSide: { accelerator: sideChord("Left"), label: "Focus Left Side" },
+  focusRightSide: {
+    accelerator: sideChord("Right"),
+    label: "Focus Right Side",
+  },
   forward: { accelerator: historyChord("]", "Right"), label: "Forward" },
-  goToApps: { accelerator: placeChord(4), label: "Go to Apps" },
-  goToBrowser: { accelerator: placeChord(3), label: "Go to Browser" },
-  goToChat: { accelerator: placeChord(1), label: "Go to Chat" },
-  goToFiles: { accelerator: placeChord(2), label: "Go to Files" },
   // The tab up to the other side of its group, as a code editor splits on
   // the same chord; the group's only tab opens a copy there instead.
   moveTabToOtherSide: {
@@ -96,7 +98,7 @@ export const WINDOW_SHORTCUTS = {
     accelerator: { darwin: "CmdOrCtrl+Y", default: "Ctrl+H" },
     label: "Show History",
   },
-  toggleInbox: { accelerator: "CmdOrCtrl+B", label: "Toggle Sidebar" },
+  toggleSidebar: { accelerator: "CmdOrCtrl+B", label: "Toggle Sidebar" },
 } as const satisfies Record<string, WindowShortcut>;
 
 export type WindowShortcutId = keyof typeof WINDOW_SHORTCUTS;
@@ -105,7 +107,8 @@ export type WindowShortcutId = keyof typeof WINDOW_SHORTCUTS;
  * The window's chords that are a code editor's own keys too, on every
  * system: Back and Forward are its indent and outdent on a Mac and its step
  * over a syntax node elsewhere, and Next and Previous Chat add a cursor above
- * or below on a Mac and copy the line elsewhere, Find Next and Previous
+ * or below on a Mac and copy the line elsewhere, Focus Left and Right Side
+ * select over a syntax node off the Mac, Find Next and Previous
  * step its own search, and Bookmark This Tab selects the next match. While a
  * code editor holds
  * the keyboard these reach it first, and the menu answers only a press it
@@ -117,6 +120,8 @@ export const CODE_EDITOR_SHORTCUTS: ReadonlySet<WindowShortcutId> = new Set([
   "bookmarkTab",
   "findNext",
   "findPrevious",
+  "focusLeftSide",
+  "focusRightSide",
   "forward",
   "nextChat",
   "previousChat",

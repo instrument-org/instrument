@@ -15,7 +15,7 @@ function InboxToggle() {
   const [isOpen, setOpen] = useAtom(sidebarOpenAtom);
   const label = isOpen ? "Hide the sidebar" : "Show the sidebar";
   return (
-    <ToolbarTooltip chord="toggleInbox" label={label}>
+    <ToolbarTooltip chord="toggleSidebar" label={label}>
       <Button
         aria-label={label}
         className="size-7 shrink-0 text-muted-foreground/70"

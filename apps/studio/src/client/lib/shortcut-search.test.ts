@@ -44,10 +44,6 @@ describe("SHORTCUT_GUIDE_ENTRIES", () => {
         "General: Find  ⌘F",
         "General: Find Next  ⌘G",
         "General: Find Previous  ⇧⌘G",
-        "General: Go to Apps  ⌃⌘4",
-        "General: Go to Browser  ⌃⌘3",
-        "General: Go to Chat  ⌃⌘1",
-        "General: Go to Files  ⌃⌘2",
         "General: Keyboard Shortcuts  ?",
         "General: New Tab Group  ⌘N",
         "General: New Window  ⇧⌘N",
@@ -70,6 +66,8 @@ describe("SHORTCUT_GUIDE_ENTRIES", () => {
         "Files: Zoom In on Picture  ⌘+",
         "Files: Zoom Out of Picture  ⌘-",
         "Tabs: Close Tab  ⌘W",
+        "Tabs: Focus Left Side  ⌥⌘←",
+        "Tabs: Focus Right Side  ⌥⌘→",
         "Tabs: Last Tab  ⌘9",
         "Tabs: Move Tab to Other Side  ⌘\\",
         "Tabs: New Tab  ⌘T",
@@ -125,6 +123,8 @@ describe("matchShortcuts", () => {
         "Reopen Closed [Tab]",
         "Show Previous [Tab]",
         "Toggle Sidebar",
+        "Focus Left Side",
+        "Focus Right Side",
       ]
     `);
   });

@@ -465,9 +465,9 @@ export function useWindowTabs() {
     },
     /**
      * A screen opened beside a chat's tab, as a click inside the chat
-     * (`besidePlacementOf`). Shown, a tab of the group already showing the
-     * address comes up instead. Answers the tab, and whether it is up on its
-     * side; nothing for a chat's tab no group has.
+     * (`besidePlacementOf`), as a tab of its own every time. Answers the
+     * tab, and whether it is up on its side; nothing for a chat's tab no
+     * group has.
      */
     openScreenBeside: (
       to: string,
@@ -489,15 +489,6 @@ export function useWindowTabs() {
         )?.group;
         if (group === undefined) {
           return { state: current, value: undefined };
-        }
-        const showing = ask.isShown
-          ? tabShowingIn(current, group, href)
-          : undefined;
-        if (showing) {
-          return {
-            state: ask.behind ? current : raiseTab(current, showing.id),
-            value: { front: !ask.behind, id: showing.id },
-          };
         }
         const id = newScreenId();
         const previous =

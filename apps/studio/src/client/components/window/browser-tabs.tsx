@@ -59,7 +59,6 @@ import {
   patchPage,
   titleAtNavigation,
   replaceTab,
-  raiseTab,
   selectTab,
   selectedTabIn,
 } from "./tab-model";
@@ -113,9 +112,9 @@ export interface BrowserTabsHandle {
   openBehind: (url: string | undefined, place: BehindPlace) => StoreId.Tab;
   /**
    * Opens a page beside a chat's tab, as a click inside the chat
-   * (`besidePlacementOf`). Shown, an address already open in the group
-   * comes up instead. Answers the tab, and whether it is up on its side;
-   * nothing for a chat's tab no group has.
+   * (`besidePlacementOf`), as a tab of its own every time. Answers the
+   * tab, and whether it is up on its side; nothing for a chat's tab no
+   * group has.
    */
   openBeside: (
     url: string | undefined,
@@ -622,20 +621,6 @@ export function BrowserTabs({
           if (group === undefined) {
             return current;
           }
-          const atAddress =
-            ask.isShown && url !== undefined
-              ? current.tabs.find(
-                  (tab): tab is PageTab =>
-                    tab.group === group &&
-                    tab.kind === "page" &&
-                    sameAddress(tab.url, url),
-                )
-              : undefined;
-          const known = StoreId.TabSchema.safeParse(atAddress?.id);
-          if (atAddress && known.success) {
-            opened = { front: !ask.behind, id: known.data };
-            return ask.behind ? current : raiseTab(current, atAddress.id);
-          }
           const previous =
             openedBy === undefined
               ? undefined
@@ -657,7 +642,7 @@ export function BrowserTabs({
         });
         // A page already loaded is opened with no address, so it stays as
         // it is; the window browser keeps its lifetime from here.
-        if (opened?.id === id) {
+        if (opened !== undefined) {
           const audible = ask.isShown && url !== undefined && document.hasFocus();
           void rpcClient.workspace.browser.open
             .call({

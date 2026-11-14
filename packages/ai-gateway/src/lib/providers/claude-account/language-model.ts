@@ -29,6 +29,7 @@ import {
   readResumeRecord,
   removeResumeRecord,
   removeTranscript,
+  sweepResumeRecords,
   writeResumeRecord,
 } from "./resume-record";
 import {
@@ -72,6 +73,33 @@ async function settleTranscript(claudeSessionId: string) {
   const writer = writers.get(claudeSessionId);
   writer?.close();
   await writer?.exited;
+}
+
+/** The config folders swept since this process started, each once. */
+const swept = new Set<string | undefined>();
+
+/**
+ * Sweeps the records in `configDir` left unused for a month, with their
+ * transcripts, the first time a step runs on it.
+ */
+function sweepOnce(configDir: string | undefined) {
+  if (swept.has(configDir)) {
+    return;
+  }
+  swept.add(configDir);
+  void sweepResumeRecords(configDir)
+    .then((removed) => {
+      if (removed > 0) {
+        console.info(
+          `[claude-account] removed ${removed} resume records no step had written for a month, with their transcripts`,
+        );
+      }
+    })
+    .catch((error: unknown) => {
+      console.warn(
+        `[claude-account] could not sweep resume records: ${String(error)}`,
+      );
+    });
 }
 
 /**
@@ -159,6 +187,7 @@ function streamStep({
   options: LanguageModelV4CallOptions;
   providerConfigId: string;
 }) {
+  sweepOnce(configDir);
   const key = sessionKeyOf(options);
   const parentKey = parentKeyOf(options);
   const aside = isAside(options);

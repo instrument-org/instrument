@@ -1,4 +1,4 @@
-import { mkdir, mkdtemp, readdir, writeFile } from "node:fs/promises";
+import { mkdir, mkdtemp, readdir, utimes, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
@@ -8,6 +8,7 @@ import {
   removeResumeRecord,
   removeTranscript,
   SESSION_CWD,
+  sweepResumeRecords,
   writeResumeRecord,
 } from "./resume-record";
 
@@ -72,6 +73,37 @@ describe("resume records", () => {
       resumed: record.claudeSessionId,
       removed: "resumed",
       gone: undefined,
+    });
+  });
+
+  it("sweeps a record no step wrote for a month, with its transcript", async () => {
+    const configDir = await mkdtemp(join(tmpdir(), "resume-record-"));
+    await withTranscript(configDir);
+    await writeResumeRecord(configDir, "ses_old:shape", record);
+    // Written a month and a day ago.
+    const records = join(configDir, "instrument-sessions");
+    const then = Date.now() / 1000 - 31 * 24 * 60 * 60;
+    for (const name of await readdir(records)) {
+      await utimes(join(records, name), then, then);
+    }
+    const kept = { ...record, claudeSessionId: "kept" };
+    await writeResumeRecord(configDir, "ses_new:shape", kept);
+
+    expect(await sweepResumeRecords(configDir)).toBe(1);
+    expect({
+      new: await readResumeRecord(configDir, "ses_new:shape", RESUME),
+      old: await readResumeRecord(configDir, "ses_old:shape", RESUME),
+      project: await readdir(
+        join(
+          configDir,
+          "projects",
+          SESSION_CWD.replaceAll(/[^a-zA-Z0-9]/g, "-"),
+        ),
+      ),
+    }).toEqual({
+      new: { missing: "no transcript kept" },
+      old: { missing: "no resume record" },
+      project: [],
     });
   });
 

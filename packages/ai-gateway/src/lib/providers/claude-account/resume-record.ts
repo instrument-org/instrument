@@ -1,5 +1,12 @@
 import { createHash } from "node:crypto";
-import { mkdir, readFile, rm, writeFile } from "node:fs/promises";
+import {
+  mkdir,
+  readdir,
+  readFile,
+  rm,
+  stat,
+  writeFile,
+} from "node:fs/promises";
 import { realpathSync } from "node:fs";
 import { homedir, userInfo } from "node:os";
 import { join } from "node:path";
@@ -254,6 +261,43 @@ export async function removeTranscript(
   }
   await rm(file, { force: true });
   await rm(file.slice(0, -".jsonl".length), { force: true, recursive: true });
+}
+
+/** How long a record lasts with no step written to it. */
+const RECORD_LIFETIME_MS = 30 * 24 * 60 * 60 * 1000;
+
+/**
+ * Removes every record no step has written for `RECORD_LIFETIME_MS`, with
+ * the transcript it names: a chat deleted in the app, a slot its chat's tools
+ * or prompt moved on from, or one an earlier build named another way. A chat
+ * left that long starts over from our own records of it, and its cache is
+ * long gone either way. Returns how many records it removed.
+ */
+export async function sweepResumeRecords(
+  configDir: string | undefined,
+  now = Date.now(),
+) {
+  const folder = join(configRoot(configDir), "instrument-sessions");
+  const names = await readdir(folder).catch(() => []);
+  let removed = 0;
+  for (const name of names) {
+    const path = join(folder, name);
+    const written = await stat(path).catch(() => undefined);
+    if (
+      !name.endsWith(".json") ||
+      written === undefined ||
+      now - written.mtimeMs < RECORD_LIFETIME_MS
+    ) {
+      continue;
+    }
+    const transcript = await recordedTranscript(path);
+    await rm(path, { force: true });
+    if (transcript !== undefined) {
+      await removeTranscript(configDir, transcript);
+    }
+    removed += 1;
+  }
+  return removed;
 }
 
 /** The transcript the record at `path` names, if it is one this build reads. */

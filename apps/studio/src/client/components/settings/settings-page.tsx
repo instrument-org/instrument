@@ -297,9 +297,10 @@ export function SettingsPage({
       )}
       {isNarrow && isSearchOpen && (
         <>
+          {/* Everything beside the panel, so none of it lies under the panel. */}
           <button
             aria-label="Close search"
-            className="absolute inset-0 z-20 cursor-default"
+            className="absolute inset-y-0 right-0 left-64 z-20 cursor-default"
             onClick={() => {
               setSearchOpen(false);
             }}

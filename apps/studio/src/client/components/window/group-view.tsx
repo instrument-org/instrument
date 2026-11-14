@@ -12,7 +12,6 @@ import {
 } from "@/client/lib/keyboard-home";
 import { cn } from "@/client/lib/utils";
 import { browserTargetOf } from "@instrument-org/workspace/client";
-import { useQuery } from "@tanstack/react-query";
 import { useAtomValue } from "jotai";
 import {
   type CSSProperties,
@@ -24,7 +23,6 @@ import {
 } from "react";
 
 import { type PageChromeSlots } from "./browser-tabs";
-import { chatListOptions } from "./chat-list-query";
 import { useWindow } from "./context";
 import { GroupItem } from "./group-item";
 import { SidebarToggleRoom } from "./inbox-toggle";
@@ -39,7 +37,7 @@ import {
 import { useShell } from "./shell-context";
 import { useTabGroupActions, windowTabGroupsAtom } from "./tab-groups";
 import { useGroupTabMoves } from "./tab-drag";
-import { chatOfTab, type GroupLayout, type GroupSide } from "./tab-model";
+import { type GroupLayout, type GroupSide } from "./tab-model";
 import {
   leftWidthAt,
   scrollToShow,
@@ -318,19 +316,6 @@ function SideCard({
   // What is held over the strip stands among its tabs where it would land.
   const drawn = useSideStrip({ group, side: sideIndex, tabs });
 
-  // Whether the chat any of the group's tabs is on, or a task of it, works.
-  const chats = layout.sides.flatMap((each) =>
-    each.tabs.flatMap((tab) => {
-      const chat = chatOfTab(tab);
-      return chat === undefined ? [] : [chat];
-    }),
-  );
-  const { data: isChatWorking = false } = useQuery({
-    ...chatListOptions(),
-    select: (list) =>
-      list.some((chat) => chats.includes(chat.id) && chat.working),
-  });
-
   const [pageHost, setPageHost] = useState<HTMLDivElement | null>(null);
   const [pageChrome, setPageChrome] = useState<PageChromeSlots>();
   const isPage = up?.kind === "page" && pageHost !== null;
@@ -529,7 +514,6 @@ function SideCard({
         chosenId={drawn.chosenId ?? up?.id}
         className={SIDE_TABS}
         heldAt={drawn.heldAt}
-        isChatWorking={isChatWorking}
         isIncoming={drawn.isIncoming}
         lead={isFirst && !isSidebarOpen ? <SidebarToggleRoom /> : undefined}
         onClose={shell.requestClose}
@@ -565,7 +549,6 @@ function SideCard({
             closeTab={shell.requestClose}
             group={group}
             hasKeyboard={hasKeyboard}
-            isChatWorking={isChatWorking}
             isShown
             key={up.id}
             onPageChrome={setPageChrome}

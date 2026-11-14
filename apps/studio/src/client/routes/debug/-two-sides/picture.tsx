@@ -581,7 +581,6 @@ function Side({
         chosenId={drawn.chosenId ?? up?.id}
         className={SIDE_TABS}
         heldAt={drawn.heldAt}
-        isChatWorking={false}
         isIncoming={drawn.isIncoming}
         lead={isFirst && isSidebarClosed ? <SidebarToggleRoom /> : undefined}
         onClose={noop}

@@ -17,20 +17,34 @@ import { useMutation, useQuery } from "@tanstack/react-query";
  * which stops the chat and hands the page to the person. Nothing otherwise.
  */
 export function PageAgentOverlay({
-  chatId,
-  isChatWorking,
+  askingChat,
   tabId,
 }: {
-  chatId: ChatId;
-  /** Whether the chat or any task of it is at work. */
-  isChatWorking: boolean;
+  /** The chat that may be waiting on the person in the page: the one that opened it, else the chat up in its group. */
+  askingChat: ChatId | undefined;
   tabId: string;
 }) {
   const target = browserTargetOf(tabId);
-  const isUsing = useTargetsAgentActivity([target], isChatWorking).has(target);
+  // The chat whose running turn used the page, which Take over stops.
+  const usingChat = useTargetsAgentActivity([target]).get(target);
+  const asker = askingChat ?? usingChat;
+  return asker === undefined ? null : (
+    <Overlay asker={asker} tabId={tabId} usingChat={usingChat} />
+  );
+}
+
+function Overlay({
+  asker,
+  tabId,
+  usingChat,
+}: {
+  asker: ChatId;
+  tabId: string;
+  usingChat: ChatId | undefined;
+}) {
   const { data: asks } = useQuery(
     rpcClient.workspace.chats.live.asks.experimental_liveOptions({
-      input: { id: chatId },
+      input: { id: asker },
     }),
   );
   const waiting = asks?.find(
@@ -65,7 +79,7 @@ export function PageAgentOverlay({
       </div>
     );
   }
-  if (!isUsing) {
+  if (usingChat === undefined) {
     return null;
   }
   return (
@@ -86,7 +100,7 @@ export function PageAgentOverlay({
             className="h-6 gap-1 rounded-full px-2 text-[12.5px]"
             disabled={takeOver.isPending}
             onClick={() => {
-              takeOver.mutate({ id: chatId, tab: tabId });
+              takeOver.mutate({ id: usingChat, tab: tabId });
             }}
             size="sm"
             variant="ghost"

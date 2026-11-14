@@ -18,7 +18,6 @@ const row = () => {
     <PaneTabs
       chatTitles={new Map()}
       chosenId="a"
-      isChatWorking={false}
       onNew={() => {}}
       onClose={onClose}
       onDuplicate={onDuplicate}
@@ -144,7 +143,6 @@ function panes(tabs: ReturnType<typeof tab>[]) {
     <PaneTabs
       chatTitles={new Map()}
       chosenId="a"
-      isChatWorking={false}
       onNew={() => {}}
       onClose={() => {}}
       onDuplicate={() => {}}

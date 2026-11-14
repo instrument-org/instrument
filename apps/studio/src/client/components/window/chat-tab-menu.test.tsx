@@ -125,7 +125,6 @@ function strip() {
         ])
       }
       chosenId="a"
-      isChatWorking={false}
       onClose={() => {}}
       onDuplicate={() => {}}
       onNew={() => {}}

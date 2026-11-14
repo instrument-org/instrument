@@ -66,7 +66,6 @@ export function GroupItem({
   closeTab,
   group,
   hasKeyboard = true,
-  isChatWorking,
   isShown = true,
   onPageChrome,
   onPageHost,
@@ -78,11 +77,6 @@ export function GroupItem({
   group: string;
   /** Whether its side of the group has the keyboard: a chat or a new chat on the other side leaves the caret alone. */
   hasKeyboard?: boolean;
-  /**
-   * Whether the chat whose pane this is, or any task of it, is at work, which
-   * a page uses to say the agent is using it; absent outside a chat's pane.
-   */
-  isChatWorking?: boolean;
   /** Whether it is on screen; false while the pane it stands in is put away, which keeps it mounted. */
   isShown?: boolean;
   /** Where the address row takes the page's reload and controls while a page is up; nothing otherwise. */
@@ -121,7 +115,8 @@ export function GroupItem({
     [],
   );
   const targetId = up.kind === "page" ? browserTargetOf(up.id) : undefined;
-  // The chat whose agent opened the page, which the page says is using it.
+  // The chat that may wait on the person in the page: the one whose agent
+  // opened it, else the chat up in its group.
   const chatId = up.openedBy ?? windowTabs.chatUpIn(group);
   const page = targetId ? getGuest(targetId) : null;
   // An earlier build's new tab page; a new tab now is a new chat.
@@ -350,13 +345,7 @@ export function GroupItem({
       >
         <div className="relative h-full">
           <div className="h-full" data-keyboard-home ref={onPageHost} />
-          {chatId !== undefined && isChatWorking !== undefined && (
-            <PageAgentOverlay
-              chatId={chatId}
-              isChatWorking={isChatWorking}
-              tabId={up.id}
-            />
-          )}
+          {!before && <PageAgentOverlay askingChat={chatId} tabId={up.id} />}
         </div>
       </Bare>
     );

@@ -1,3 +1,4 @@
+import { publisher } from "../rpc/publisher";
 import { type ChatId } from "../schemas/chat-id";
 import { type StoreId } from "../schemas/store-id";
 import { type BrowserTargetId } from "../types";
@@ -31,6 +32,16 @@ const KEPT = 256;
 
 /** Every session's last command in each tab, since launch. */
 const actsByTab = new Map<BrowserTargetId, Map<StoreId.Session, TabAct>>();
+
+/**
+ * The tabs each session sent commands in its turn running now: every page
+ * that turn used, since it may go back to any of them. Emptied as the turn
+ * ends (`session.done`).
+ */
+const turnTabs = new Map<StoreId.Session, Set<BrowserTargetId>>();
+
+/** Whether `turnTabs` hears turns end yet; it starts with the first command. */
+let hearingTurnEnds = false;
 
 /** Per session, the news it has not been told yet, by tab. */
 const owed = new Map<StoreId.Session, Map<BrowserTargetId, TabNews>>();
@@ -70,6 +81,7 @@ export function noteTabCommand(
       ? input
       : undefined;
   acts.set(sessionId, { at: now, chatId, sessionId });
+  noteTurnTab(targetId, sessionId);
   if (agents.length === 0 && personAt === undefined) {
     return;
   }
@@ -88,6 +100,28 @@ export function noteTabCommand(
     ...(latestPerson > 0 ? { personAt: latestPerson } : {}),
     targetId,
   });
+}
+
+/** Keeps a tab among those the session's running turn used. */
+function noteTurnTab(targetId: BrowserTargetId, sessionId: StoreId.Session) {
+  const tabs = turnTabs.get(sessionId) ?? new Set<BrowserTargetId>();
+  tabs.add(targetId);
+  turnTabs.set(sessionId, tabs);
+  if (hearingTurnEnds) {
+    return;
+  }
+  hearingTurnEnds = true;
+  publisher.subscribe("session.done", ({ sessionId: ended }) => {
+    turnTabs.delete(ended);
+  });
+}
+
+/** Whether the session sent the tab a command in the turn it is running now. */
+export function usedThisTurn(
+  targetId: BrowserTargetId,
+  sessionId: StoreId.Session,
+): boolean {
+  return turnTabs.get(sessionId)?.has(targetId) === true;
 }
 
 /** What the session has not been told of the tabs it drove, taken: each piece is told once. */
@@ -207,6 +241,9 @@ export function takePopups(sessionId: StoreId.Session): PageOpenedTab[] {
 /** Forgets everything kept of a tab, as it closes. */
 export function forgetTab(targetId: BrowserTargetId): void {
   actsByTab.delete(targetId);
+  for (const tabs of turnTabs.values()) {
+    tabs.delete(targetId);
+  }
   for (const [sessionId, news] of owed) {
     news.delete(targetId);
     if (news.size === 0) {

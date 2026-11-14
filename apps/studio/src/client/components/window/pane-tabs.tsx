@@ -68,7 +68,6 @@ export function PaneTabs({
   className,
   chosenId,
   heldAt,
-  isChatWorking,
   isIncoming = false,
   lead,
   onClose,
@@ -90,8 +89,6 @@ export function PaneTabs({
   heldAt?: { grabX: number; key: string } | undefined;
   /** The tab in hand is another window's, held over this strip. */
   isIncoming?: boolean;
-  /** Whether the chat or any task of it is at work: a page's working mark drops the moment none is. */
-  isChatWorking: boolean;
   /** What stands ahead of the tabs: room for the traffic lights while the sidebar is closed, and the chat's tab while the chat is the whole group. */
   lead?: ReactNode;
   onClose: (id: string) => void;
@@ -123,7 +120,6 @@ export function PaneTabs({
       const target = tab.kind === "page" ? parseBrowserTargetId(tab.id) : null;
       return target ? [target] : [];
     }),
-    isChatWorking,
   );
   const [menu, setMenu] = useState<{ key: string; x: number; y: number }>();
   // What a row of the menu does once the menu has let go of the keyboard,
@@ -153,7 +149,7 @@ export function PaneTabs({
   });
   // Pages of one site say only what tells them apart, as the window's do.
   const short = siteTabTitles(whole);
-  const drivenIds: ReadonlySet<string> = driven;
+  const drivenIds: ReadonlySet<string> = new Set(driven.keys());
   const presented = tabs.map((tab, index): StripTab => {
     const named = whole[index] ?? { key: stripKeyOf(tab), title: "" };
     let tooltip: StripTab["tooltip"];

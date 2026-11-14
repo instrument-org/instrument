@@ -1,5 +1,6 @@
 import { type BrowserTargetId } from "../../types";
-import { tabsActedInBy } from "../tab-activity";
+import { type ChatId } from "../../schemas/chat-id";
+import { usedThisTurn } from "../tab-activity";
 import { workingIn } from "./chat-tabs";
 
 /**
@@ -15,12 +16,13 @@ export function isDrivenByWorkingAgent(
 }
 
 /**
- * Whether an agent with a turn running is at work in the tab now: of the
- * tabs that session sent commands, the one it sent its latest. A tab its
- * sessions have all moved on from, or whose sessions have stopped, is not.
+ * The chat whose agent is at work with the tab: a session with a turn
+ * running that sent the tab a command in that turn, the latest first. Every
+ * page a turn used keeps it until the turn ends, since the agent may go
+ * back to any of them; a page used only in an earlier turn has none.
  */
-export function isWorkedInNow(targetId: BrowserTargetId): boolean {
-  return workingIn(targetId).some(
-    ({ sessionId }) => tabsActedInBy(sessionId)[0] === targetId,
-  );
+export function chatWorkingIn(targetId: BrowserTargetId): ChatId | undefined {
+  return workingIn(targetId).find(({ sessionId }) =>
+    usedThisTurn(targetId, sessionId),
+  )?.chatId;
 }

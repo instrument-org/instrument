@@ -8,6 +8,7 @@ import { type WorkspaceActorRef } from "../../machines/workspace";
 import { ChatIdSchema } from "../../schemas/chat-id";
 import { StoreId } from "../../schemas/store-id";
 import { browserTargetOf } from "../../types";
+import { publisher } from "../publisher";
 import { browser } from "./browser";
 
 const CHAT = ChatIdSchema.parse("2026-11-08-shop");
@@ -66,40 +67,40 @@ describe("browser.events.agentActivity", () => {
     expect(seen).toEqual([1000, 3000]);
   });
 
-  it("says a tab is in use only while a working session's latest command went to it", async () => {
+  it("marks every tab a running turn used, with its chat, until the turn ends", async () => {
     const first = browserTargetOf(StoreId.newTabId());
     const second = browserTargetOf(StoreId.newTabId());
     const finished = StoreId.newSessionId();
     const task = StoreId.newSessionId();
+    const other = ChatIdSchema.parse("2026-11-08-other");
+    // A turn that has ended used the second tab; a running task used the
+    // first, then moves on to the second.
+    noteTabCommand(second, { chatId: other, sessionId: finished }, 500);
+    publisher.publish("session.done", { id: other, sessionId: finished });
     working.add(task);
-    // A task that has finished worked in the first tab, and the running one
-    // is at work in it now.
-    noteTabCommand(first, { chatId: CHAT, sessionId: finished }, 1000);
-    noteTabCommand(first, { chatId: CHAT, sessionId: task }, 2000);
-    const controller = new AbortController();
-    const events = await call(
-      browser.events.agentActivity,
-      { targetId: first },
-      { context, signal: controller.signal },
-    );
-    const seen: (boolean | undefined)[] = [];
-    const reading = (async () => {
+    noteTabCommand(first, { chatId: CHAT, sessionId: task }, 1000);
+    const read = async (targetId: typeof first) => {
+      const controller = new AbortController();
+      const events = await call(
+        browser.events.agentActivity,
+        { targetId },
+        { context, signal: controller.signal },
+      );
       for await (const event of events) {
-        seen.push(event.inUse);
-        if (seen.length === 2) {
-          controller.abort();
-        }
+        controller.abort();
+        return { chat: event.chat, inUse: event.inUse };
       }
-    })().catch(() => undefined);
-    await new Promise((resolve) => setTimeout(resolve, 0));
+      return undefined;
+    };
 
-    // The running task moves on to the second tab: the first is left with
-    // only the finished task's work, which keeps no mark.
-    noteTabCommand(second, { chatId: CHAT, sessionId: task }, 3000);
-    noteBrowserAgentActivity(second);
-    await reading;
+    expect(await read(second)).toEqual({ chat: undefined, inUse: false });
+    noteTabCommand(second, { chatId: CHAT, sessionId: task }, 2000);
+    // Moving on keeps the first: the turn may go back to it.
+    expect(await read(first)).toEqual({ chat: CHAT, inUse: true });
+    expect(await read(second)).toEqual({ chat: CHAT, inUse: true });
+
+    publisher.publish("session.done", { id: CHAT, sessionId: task });
     working.delete(task);
-
-    expect(seen).toEqual([true, false]);
+    expect(await read(first)).toEqual({ chat: undefined, inUse: false });
   });
 });

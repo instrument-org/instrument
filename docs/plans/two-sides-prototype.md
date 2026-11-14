@@ -57,7 +57,7 @@ For now every split is made and managed from right-click menus, the same items w
 - **A sidebar row**: Open in New Window, Duplicate, Rename, Pin, the Close items.
 - **A bookmark**: Open, Open in Split, Open in New Tab, Open in New Tab Group, Open in New Window, Rename, Move to the Bar or the Sidebar, Delete.
 
-A shortcut and on-screen controls for splitting come later.
+⌘\ moves the tab up to the other side (Open in Split for a side's only tab). On-screen controls for splitting come later.
 
 ## Dragging and dropping, through one system
 
@@ -130,7 +130,7 @@ Paths are under `apps/studio/src/client/components/window/` unless named.
 Paths are under `apps/studio/src/`.
 
 - **Addresses**: `addressOfTab(tab)` (`client/bookmarks/address.ts`) gives any tab's address: a site's URL, a file or folder as `instrument://file/<path>`, and anything else the app shows as `instrumentAddressOf(href)` in `shared/instrument-screens.ts` names it (a chat as `instrument://chat/<id>`, a built-in page as `instrument://screen/<name>`, a part of Settings as `instrument://settings/<part>`). `targetOfAddress` reads one back, and `sameAddress` compares two, so a trailing slash or an escaped character finds the same bookmark.
-- **Opening**: `useOpenAddress()` (`client/bookmarks/open-address.ts`) opens any address here, in a new tab behind, or as a new tab group, and `openHowOf` reads which from a click (⌘ a new tab, ⇧ a new tab group). A chat comes up where its tab is, or as a tab group of its own when no group has one, and a screen a group's tab cannot stand at opens where the app keeps it.
+- **Opening**: `useOpenAddress()` (`client/bookmarks/open-address.ts`) opens any address here, in a new tab behind, on the other side of the group on screen, or as the first tab of a new tab group or a new window, and `openHowOf` reads which from a click (⌘ a new tab, ⇧ a new tab group). A screen a group's tab cannot stand at opens where the app keeps it.
 - **The field**: `TabLocationRow` takes the tab's `address` and `title`. The chip is `AppChip` (`client/components/window/app-chip.tsx`), picked by the location's kind in `tab-location.ts`: `builtin` for a built-in page, `chat`, and `newChat`. The omnibar shows the address while it has the caret, opens a typed `instrument://` address on Enter, and offers built-in pages (`builtInPages()` in `shared/instrument-screens.ts`, each part of Settings among them), chats and the app's own bookmarks as rows from two letters of a name, first when the name is typed whole. A chat's field runs in web mode; the field has no Chats mode.
 - **The star**: `BookmarkStar` (`bookmark-star.tsx`) and its card. ⌘D is the window command `bookmarkTab`, in the Bookmarks menu, and `requestBookmarkTab()` presses the visible star with the most ancestors in common with the focused element, so each side's row answers for its own side. A code editor keeps ⌘D.
 - **Bookmarks**: each has a place, `bar` or `sidebar` (`placeOf` and the `place` op in `shared/bookmarks.ts`); one with no `where` is on the bar. The bar (`bookmarks-bar.tsx`) shows the bar's, and `BookmarksSection` (`bookmarks-section.tsx`, one line in `group-sidebar.tsx`) the sidebar's under Projects. Both open through `bookmarkClicks` and share `BookmarkContextMenu` (`bookmark-menu.tsx`), and each wears its tab's mark (`AddressMark`).
@@ -153,3 +153,22 @@ Paths are under `apps/studio/src/`.
 - The agent has no tool that changes a setting, so the live case was checked by changing one through the preferences route while Settings stood beside the chat. The fixture workspace has no memories, so the Memory page was seen only empty.
 - Files folds at 576px where every other page folds at 640, and to a panel over the folder where Settings folds to a rail.
 - Activity's rows and details show a built-in page with the generic screen mark, not the page's own.
+
+### Menus
+
+Paths are under `apps/studio/src/client/` unless named.
+
+- **One list of places.** `useWindowPlaces()` (`hooks/use-open-target.tsx`) gives the rows every link and file menu has after its own Open: Open in Split, Open in New Tab, Open in New Tab Group, Open in New Window. `useBookmarkRow()` adds Add to Bookmarks for an address, which only adds: a second time it says the address is already in Bookmarks. The OS's menu shows the list through `showOpenMenu`, and a menu the app draws (a file link in a chat, a Files row, a bookmark) shows the same rows with `PlaceItems` (`components/window/place-items.tsx`), which gives each its icon.
+- **Opening into a place.** `OpenOptions` (`components/window/context.ts`) takes `into` (`split`, `group`, `window`) and `from`, the tab that asked, which surfaces pass on through `ownPlaceOf`. `openInto` in `components/window/use-openers.ts` places it: a split is the other side of the asking tab's group, right after the tab up there, made when the group has one side; a new tab group is `newGroup`; a new window is a group made without showing it here, then moved to a window of its own. Shift-click on a link or a file is Open in New Tab Group, and a chat opened into a place is a tab of its own there.
+- **A web page's menu** is built in main (`LINK_PLACES` in `electron-main/browser-view/guest-interactions.ts`): Open Link in Split, Open Link in New Tab, Open Link in New Tab Group, Open Link in New Window, then Bookmark Link. A place goes to the window as `browser.open-in-new-tab` with its `into`, and Bookmark Link as `browser.bookmark-link`, which `use-openers.ts` keeps with `useAddBookmark` (`bookmarks/actions.ts`), named by the link's text.
+- **Files** (`components/window/computer-page.tsx`): the list, columns and icons views share one row menu. `placesOfOne` gives a single selected item Open in Split, Open in New Tab Group and Add to Bookmarks; with several selected the menu keeps Open in New Tabs and Open in New Window.
+- **A tab's menu** (`components/window/tab-menu-items.tsx`) is Core's, with Add to Bookmarks or Remove from Bookmarks after Duplicate for a tab with an address (`pane-tabs.tsx`), and ⌘\ shown on the tab up's first row.
+- **A bookmark's menu** (`components/window/bookmark-menu.tsx`): Open, then `BOOKMARK_PLACES` through `useOpenAddress` (`OpenHow` has `split` and `newWindow`), then Rename, Move to Sidebar or Move to Bookmarks Bar, Copy Address and Delete.
+- **A sidebar row's menu** (`components/window/group-row-menu.tsx`): Open in New Window and Duplicate Tab Group; Rename and Pin or Unpin; a chat's read marks, Project (left out for a group with no chat) and Copy; then the Close items.
+- **The side chord**, ⌘\, is `moveTabToOtherSide` (`shared/window-shortcuts.ts`), in the Tab menu and the shortcut guide. It does what the tab menu's first row offers: Move to Other Side, or Open in Split for a side's only tab in a group of one side (`moveTabToOtherSide` in `components/window/app-window.tsx`).
+
+### Where Menus stands
+
+- Checked in a dev instance on the documents fixture, held off screen: each menu's rows and order, and what Open in Split, Open in New Tab Group, Open in New Window and Add to Bookmarks do from a Files row, a bookmark on the bar, a tab and the sidebar rows of a two-sided chat group, a group with no chat and a two-sided new chat.
+- Input over CDP reaches neither a native menu nor a menu key equivalent. A web page's link menu was checked by patching `Menu.buildFromTemplate` in main to pick a row, and ⌘\ by sending the key from main with `webContents.sendInputEvent`. The native menus over a chat's links, file cards and path chips were never opened in the app; `hooks/use-open-target.test.tsx` checks their rows and what each opens.
+- A tab's bookmark row toggles, while a link's only adds. The rows drawn by the app wear `size-4` icons beside Core's `size-3.5` ones in some menus, and the sidebar row's Mark as unread is in sentence case.

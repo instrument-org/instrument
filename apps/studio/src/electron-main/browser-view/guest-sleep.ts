@@ -16,6 +16,9 @@ import { log } from "./log";
 /** How long a woken guest is given to render a frame before the command that woke it goes on anyway. */
 const WAKE_FRAME_TIMEOUT_MS = 2000;
 
+/** How long the wake waits between frame probes. */
+const PROBE_GAP_MS = 16;
+
 const FRAME_PROBE_SCRIPT =
   "new Promise((resolve) => { requestAnimationFrame(() => resolve(true)); setTimeout(() => resolve(false), 250); })";
 
@@ -106,6 +109,10 @@ async function firstFrame(guest: WebContents): Promise<boolean> {
       if (drew === true) {
         return true;
       }
+      // A probe that fails at once, as on a guest on its way out, settles in
+      // a microtask, so without a task between probes the loop would hold the
+      // main thread and the deadline's timer could never run.
+      await new Promise((resolve) => setTimeout(resolve, PROBE_GAP_MS));
     }
     return false;
   })();

@@ -157,9 +157,10 @@ export function rewriteFolderAddresses(
   } catch {
     // A workspace no window of this build has opened has none.
   }
-  return [path.join(windowDir, keptFileName("layout")), ...windowFiles].flatMap(
-    (file) => rewriteAddressesIn(file, where),
-  );
+  return [
+    ...SHARED_KEPT_FILES.map((file) => path.join(windowDir, keptFileName(file))),
+    ...windowFiles,
+  ].flatMap((file) => rewriteAddressesIn(file, where));
 }
 
 function rewriteAddressesIn(
@@ -381,8 +382,8 @@ const KeptTabGroupSchema = z.object({
 /** Every tab kept in a tab group, with its group's key. */
 function keptGroupedTabs() {
   const prefix = `${WINDOW_TABS_KEY}/`;
-  const layout = getStore().snapshot().layout ?? {};
-  return Object.entries(layout).flatMap(([key, value]) => {
+  const groups = getStore().snapshot().groups ?? {};
+  return Object.entries(groups).flatMap(([key, value]) => {
     const tabs = key.startsWith(prefix)
       ? KeptTabGroupSchema.safeParse(value).data?.tabs
       : undefined;

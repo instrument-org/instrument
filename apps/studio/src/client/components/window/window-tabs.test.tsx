@@ -121,7 +121,7 @@ describe("the tab groups kept on this computer", () => {
       activeByGroup: { chat_a: "tab_9" },
       tabs: [{ group: "chat_a", id: "tab_9", kind: "page", openedAt: 1 }],
     });
-    kept.writeKept("layout", "tab-groups.v2/group_a", {
+    kept.writeKept("groups", "tab-groups.v2/group_a", {
       active: "tab_1",
       pinned: true,
       share: 0.4,

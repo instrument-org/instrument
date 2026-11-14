@@ -36,6 +36,7 @@ it("writes each key to its file on flush, and reads them back in a new store", (
   `);
   expect(read("view.json")).toEqual({ "zoom.v1": 1.25 });
   expect(createKeptStateStore(() => dir).snapshot()).toEqual({
+    groups: {},
     layout: { "app-tabs.v2": { tabs: [] } },
     view: { "zoom.v1": 1.25 },
   });

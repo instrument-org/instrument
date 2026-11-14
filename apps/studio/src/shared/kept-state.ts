@@ -5,18 +5,19 @@ import { z } from "zod";
  * process owns them; a window reads them all once as it loads and writes a
  * key back as it changes.
  *
- * They split by what losing one costs: `layout` is where the person left off,
- * and `view` is how they like things laid out. Both stay on this computer, in
- * the workspace's machine folder. Drafts are not kept here: main owns them
+ * They split by what losing one costs: `groups` is the tab groups and their
+ * tabs, `layout` the rest of where the person left off, and `view` how they
+ * like things laid out. All stay on this computer, in the workspace's
+ * machine folder. Drafts are not kept here: main owns them
  * as a folder each in the workspace's `Drafts/` (`shared/drafts.ts`). Nor are
  * bookmarks: they are a synced store every device writes its own file of
  * (`shared/bookmarks.ts`).
  */
-export const SHARED_KEPT_FILES = ["layout", "view"] as const;
+export const SHARED_KEPT_FILES = ["groups", "layout", "view"] as const;
 
 /**
  * What one window keeps for itself, where the others keep their own: its
- * strip of tabs and what it had up. A key of `layout` and `view` is the same
+ * strip of tabs and what it had up. A key of a shared file is the same
  * for every window, and each window's write reaches the others; a key of
  * `window` goes with the window it was written in.
  */
@@ -78,7 +79,7 @@ export const HOSTED_PAGE_GROUP_PREFIX = "page:";
  * the same tab draws a page of its own and is not left blank by this one's going.
  */
 export function fileOfTabGroup(group: string): KeptFile {
-  return group.startsWith(HOSTED_PAGE_GROUP_PREFIX) ? "window" : "layout";
+  return group.startsWith(HOSTED_PAGE_GROUP_PREFIX) ? "window" : "groups";
 }
 
 /** Whether a key a window keeps is the tab of a page drawn inside its surfaces, which goes with no other window. */

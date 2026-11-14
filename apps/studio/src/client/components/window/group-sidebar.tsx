@@ -19,6 +19,7 @@ import {
 import { UpdateStatusIndicator } from "@/client/components/update-status-indicator";
 import { useLiveUser } from "@/client/hooks/use-live-user";
 import { formatAcceleratorText } from "@/client/lib/format-accelerator";
+import { SIDE_MOTION } from "@/client/lib/motion";
 import { getInitials } from "@/client/lib/get-initials";
 import { showProjectInFiles } from "@/client/lib/show-in-files";
 import { cn, isMacOS } from "@/client/lib/utils";
@@ -74,6 +75,7 @@ import {
   sidebarDropAtom,
 } from "./sidebar-drop";
 import { useProjectShift } from "./use-project-shift";
+import { useSideMotion } from "./side-motion";
 import { windowTabGroupsAtom } from "./open-groups";
 import { isPinnedGroup, type TabGroup } from "./tab-groups";
 import { chatListOptions } from "./chat-list-query";
@@ -740,18 +742,22 @@ export function GroupRow({
       tab={tab}
     />
   );
-  const [first, second] = ups;
+  // Each half under its side's key (`useSideMotion`), so a half opens and
+  // closes with its side in the group and never for a tab brought up.
+  const { keys } = useSideMotion(entry.group, layout);
   let inner: ReactNode;
-  if (first && second) {
+  if (ups.length > 0) {
     inner = (
       <div className="flex min-w-0 items-stretch">
-        {half(first, layout.focused === 0)}
-        <span className="mx-2 my-0.5 w-px shrink-0 self-stretch bg-foreground/12" />
-        {half(second, layout.focused === 1)}
+        <AnimatePresence initial={false}>
+          {ups.map((tab, index) => (
+            <RowHalfPlace isLater={index > 0} key={keys[index] ?? index}>
+              {half(tab)}
+            </RowHalfPlace>
+          ))}
+        </AnimatePresence>
       </div>
     );
-  } else if (first) {
-    inner = half(first);
   } else {
     // A group whose tabs are not in yet goes by its own title.
     inner = (
@@ -815,6 +821,35 @@ export function GroupRow({
     </div>
   );
   return menu ? <GroupRowMenu menu={menu}>{shown}</GroupRowMenu> : shown;
+}
+
+/**
+ * A half's place in a row, which opens and closes on the curve its side
+ * opens and closes on in the group (`SIDE_MOTION`), the half beside it
+ * narrowing or widening with it. A later half leads with the hairline.
+ */
+function RowHalfPlace({
+  children,
+  isLater,
+}: {
+  children: ReactNode;
+  isLater: boolean;
+}) {
+  const isReduced = useReducedMotion() === true;
+  return (
+    <motion.div
+      animate={{ flexGrow: 1, opacity: 1 }}
+      className="flex min-w-0 basis-0 overflow-hidden"
+      exit={{ flexGrow: 0, opacity: 0 }}
+      initial={{ flexGrow: 0, opacity: 0 }}
+      transition={isReduced ? { duration: 0 } : SIDE_MOTION}
+    >
+      {isLater && (
+        <span className="mx-2 my-0.5 w-px shrink-0 self-stretch bg-foreground/12" />
+      )}
+      {children}
+    </motion.div>
+  );
 }
 
 /**

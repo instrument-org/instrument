@@ -58,7 +58,13 @@ import {
   ZoomMode,
   ZoomPluginPackage,
 } from "@embedpdf/plugin-zoom/react";
-import { useEffect, useState } from "react";
+import {
+  type RefObject,
+  useEffect,
+  useLayoutEffect,
+  useRef,
+  useState,
+} from "react";
 
 import { FileLoading } from "../file-loading";
 import { FILE_SCROLLER_ATTRIBUTE } from "../window/scroll-open-file";
@@ -142,7 +148,131 @@ const PLUGINS = [
   }),
 ];
 
+/**
+ * The views PDF viewers left as they went, for the next viewer in the same
+ * place to keep on screen until its own first page is drawn: a step from one
+ * PDF to the next mounts the next viewer in the commit that takes the last
+ * one down, which otherwise shows an empty pane and then white pages before
+ * the next document is there. A view's page bitmaps are loaded images, which
+ * keep their pixels taken out of the page and put back. Matched to the next
+ * viewer by where it was on screen, since a step can also replace a small
+ * preview of the same file elsewhere, and gone once the task that left it is
+ * over without a viewer taking it.
+ */
+const leftViews = new Set<{
+  /** Where its viewer was on screen. */
+  place: DOMRect;
+  root: HTMLElement;
+  /** Where each of its scrollers was, which a node taken out of the page forgets. */
+  scrolls: number[];
+}>();
+
+/** How long a viewer keeps the last one's view if its own first page never draws. */
+const HOLD_LIMIT_MS = 1000;
+
+function scrollersIn(root: HTMLElement) {
+  return [
+    ...root.querySelectorAll<HTMLElement>(`[${FILE_SCROLLER_ATTRIBUTE}]`),
+  ];
+}
+
+function isSamePlace(a: DOMRect, b: DOMRect) {
+  return (
+    Math.abs(a.x - b.x) <= 1 &&
+    Math.abs(a.y - b.y) <= 1 &&
+    Math.abs(a.width - b.width) <= 1 &&
+    Math.abs(a.height - b.height) <= 1
+  );
+}
+
+/**
+ * Keeps the view the last PDF viewer in this place left over this one's until
+ * this one has a page to show, and leaves this one's (or the one it is still
+ * keeping) for the next. `rootRef` is this viewer's own box, `holdRef` a layer
+ * over it.
+ */
+function useHeldView(
+  rootRef: RefObject<HTMLDivElement | null>,
+  holdRef: RefObject<HTMLDivElement | null>,
+) {
+  useLayoutEffect(() => {
+    const root = rootRef.current;
+    const hold = holdRef.current;
+    if (!root || !hold) {
+      return;
+    }
+    const place = root.getBoundingClientRect();
+    const taken = [...leftViews].find((left) => isSamePlace(left.place, place));
+    if (taken) {
+      leftViews.delete(taken);
+    }
+    let holding = false;
+    let limit: ReturnType<typeof setTimeout> | undefined;
+    const release = () => {
+      holding = false;
+      clearTimeout(limit);
+      hold.replaceChildren();
+      root.removeEventListener("load", onLoad, true);
+    };
+    // A page of this viewer's own, not one of the kept view's finishing.
+    const onLoad = (event: Event) => {
+      if (
+        event.target instanceof HTMLImageElement &&
+        !hold.contains(event.target)
+      ) {
+        event.target.decode().then(release, release);
+      }
+    };
+    if (taken) {
+      holding = true;
+      hold.append(taken.root);
+      scrollersIn(taken.root).forEach((scroller, index) => {
+        scroller.scrollTop = taken.scrolls[index] ?? 0;
+      });
+      root.addEventListener("load", onLoad, true);
+      limit = setTimeout(release, HOLD_LIMIT_MS);
+    }
+    return () => {
+      // What is on screen goes on to the next viewer: the view still kept,
+      // when this one never drew its own.
+      const shown = holding ? taken?.root : root;
+      root.removeEventListener("load", onLoad, true);
+      clearTimeout(limit);
+      if (!shown) {
+        return;
+      }
+      const left = {
+        place: root.getBoundingClientRect(),
+        root: shown,
+        scrolls: scrollersIn(shown).map((scroller) => scroller.scrollTop),
+      };
+      leftViews.add(left);
+      setTimeout(() => {
+        leftViews.delete(left);
+      });
+    };
+  }, [holdRef, rootRef]);
+}
+
 export function PdfViewer({ url }: { filename: string; url: string }) {
+  const rootRef = useRef<HTMLDivElement>(null);
+  const holdRef = useRef<HTMLDivElement>(null);
+  useHeldView(rootRef, holdRef);
+  return (
+    // The same box as the viewer's own content area, so a view left here
+    // lays out the same in the next viewer's layer.
+    <div className="relative flex min-h-0 flex-1 flex-col" ref={rootRef}>
+      <PdfEngineView url={url} />
+      <div
+        aria-hidden
+        className="pointer-events-none absolute inset-0 z-10 flex flex-col empty:hidden"
+        ref={holdRef}
+      />
+    </div>
+  );
+}
+
+function PdfEngineView({ url }: { url: string }) {
   const [engine, setEngine] = useState<null | PdfEngine>(null);
   const [engineError, setEngineError] = useState<Error | null>(null);
 

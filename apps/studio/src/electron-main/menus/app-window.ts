@@ -103,7 +103,7 @@ function chord(
 }
 
 const FILE_CHORDS: WindowChord[] = [
-  // A new tab group, at the bottom of the sidebar's list.
+  // A new tab group, at the top of the sidebar's list.
   chord("newChat"),
   chord("commandMenu", (window) => {
     // As with the field below: a page guest holding the keyboard keeps the

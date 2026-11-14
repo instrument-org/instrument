@@ -62,7 +62,7 @@ function RouteScreen({ href }: { href: string }) {
     }),
     surface,
   );
-  // The apps' catalog is a place you arrive at from the rail, with nothing
+  // The apps' catalog is a place you arrive at from a link, with nothing
   // above it to walk back up to and nothing to type an address for: a row
   // there would only offer to leave for the web. A new tab's own menu takes
   // addresses, so a row over it would be a second field. The release notes

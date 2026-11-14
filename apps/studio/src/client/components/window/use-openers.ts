@@ -370,8 +370,8 @@ export function useOpeners({
     const options = place ? { ...asked, group: place.group } : asked;
     // A task is a tab beside the chat it was filed from, in the group with
     // the chat's tab. A task's tab already up there walks there in place;
-    // anything else gets the tab at that address, or a new one right after
-    // the chat's.
+    // anything else brings up the tab at that address, or opens one beside
+    // the chat as a click in the chat does (`besidePlacementOf`).
     const tasks = tasksOfHref(href);
     if (options.into && !tasks && isGroupScreenHref(href)) {
       openInto({ ...options, into: options.into }, (picked) => {
@@ -406,12 +406,23 @@ export function useOpeners({
         }
         return;
       }
-      windowTabs.openOrFocusScreen(at, {
-        after: into.after,
-        group: into.group,
-        isOpened: true,
-        select: true,
-      });
+      const isShowing =
+        into.group === windowTabs.groupOnScreen &&
+        windowTabs.selectShowing(at);
+      if (!isShowing && into.isBeside) {
+        windowTabs.openScreenBeside(at, {
+          behind: options.behind === true,
+          chatTab: into.after,
+          isShown: true,
+        });
+      } else if (!isShowing) {
+        windowTabs.openOrFocusScreen(at, {
+          after: into.after,
+          group: into.group,
+          isOpened: true,
+          select: true,
+        });
+      }
       showGroup(into.group, { newWindow: options.newWindow === true });
       return;
     }

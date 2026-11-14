@@ -1,6 +1,6 @@
 # Drawing from snapshots
 
-A frame can start from Studio as it runs instead of from the kit's redrawing of it. `snap/capture.mjs` keeps the app's own page in each state a round may start from, and `snap(state, edit)` draws a frame from one through the wireframe skill's snapshot frames: the page in an iframe at true size, edited by name, every edit marked NEW unless it says `{ quiet: true }`. Whatever the edit leaves alone is the app itself, in its real layout, type and theme, so it cannot be out of date or invented.
+A frame can start from Studio as it runs instead of from the kit's redrawing of it. `snap/capture.mjs` keeps the app's own page in each state a round may start from, and `snap(state, edit)` draws a frame from one through the wireframe skill's snapshot frames: the page in an iframe at true size, edited by name. Edits mark nothing: `.note("words")` adds a callout and `.fresh()` NEW, only where the reader should look. Whatever the edit leaves alone is the app itself, in its real layout, type and theme, so it cannot be out of date or invented.
 
 How snapshot frames work, every target and every edit is the skill's: read "Frames from a snapshot" in its `SKILL.md` and in its `patterns.md` (the installed skill, `~/.claude/skills/wireframe`) before a round. This file is only what Studio adds: the library, and how `snap()` differs in a kit part.
 

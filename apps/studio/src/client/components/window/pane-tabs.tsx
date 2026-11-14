@@ -216,6 +216,7 @@ export function PaneTabs({
         // The first tab starts at the location row's 6px inset, over its
         // back button.
         className="min-w-0 flex-1 pr-0 pl-1.5"
+        {...(split ? { groupKey: split.group } : {})}
         label={
           split?.hasOtherSide
             ? side === 0

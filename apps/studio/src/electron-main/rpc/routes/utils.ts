@@ -521,7 +521,7 @@ const approveWindowClose = base
   .input(z.void())
   .handler(async ({ context }) => ({
     approved:
-      quitsWithLastWindow && isOnlyAppWindow(context.webContentsId)
+      quitsWithLastWindow() && isOnlyAppWindow(context.webContentsId)
         ? await requestQuitApproval()
         : true,
   }));

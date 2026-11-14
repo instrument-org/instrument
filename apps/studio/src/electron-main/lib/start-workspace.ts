@@ -23,6 +23,7 @@ import { startDeviceStatus } from "./device-status";
 import { chooseLaunchDeviceId, describeLaunchDevice } from "./launch-device-id";
 import { quitsWithLastWindow } from "./quit";
 import { adoptFinderViewOnce } from "./finder-view";
+import { startMenuBar } from "./menu-bar";
 import { startRun } from "./workspace-run";
 
 let starting: Promise<void> | undefined;
@@ -106,12 +107,13 @@ export function startWorkspace(): Promise<void> {
       startAgentCompletionNotifications({
         // With no window, a notification's click opens one where the app stays
         // running; elsewhere no window means the app is quitting.
-        canRevealChat: () => !quitsWithLastWindow || getAppWindow() !== null,
+        canRevealChat: () => !quitsWithLastWindow() || getAppWindow() !== null,
         revealChat,
         workspaceConfig,
         workspaceRef,
       }),
     );
+    timeBootStepSync("startMenuBar", () => startMenuBar({ revealChat }));
     timeBootStepSync("startRun", () =>
       startRun({ workspaceConfig, workspaceRef }),
     );

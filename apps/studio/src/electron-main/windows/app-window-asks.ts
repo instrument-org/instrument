@@ -27,7 +27,9 @@ export type AppWindowAsk =
   | { type: "linkNotOpened" }
   | { project?: string; type: "newChat"; words: string }
   /** New Chat pressed with no window open, for the window it opens. */
-  | { type: "openNewChat" };
+  | { type: "openNewChat" }
+  /** Settings picked from the menu bar icon, which may have opened the window. */
+  | { type: "openSettings" };
 
 /**
  * The address of the tab that shows what an ask puts up, for finding the
@@ -49,6 +51,7 @@ export function tabHrefOfAsk(ask: AppWindowAsk): string | undefined {
     case "newChat":
     case "notOpened":
     case "openNewChat":
+    case "openSettings":
     case "pageNotOpened": {
       return undefined;
     }

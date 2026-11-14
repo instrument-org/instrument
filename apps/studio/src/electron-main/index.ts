@@ -559,11 +559,13 @@ function linkInArgv(argv: readonly string[]) {
   return argv.find((arg) => arg.startsWith(`${APP_PROTOCOL}://`));
 }
 
-// Closing the last window quits outside macOS, where the window's own close
-// handler has already asked about running work. On macOS the app stays in the
-// Dock with its work going, and Cmd+Q asks.
+// Closing the last window quits outside macOS unless the app keeps running in
+// the tray, and the window's own close handler has already asked about
+// running work. On macOS the app stays running with its work going, in the
+// Dock or behind its menu bar icon, and a quit (the icon's Quit, or Cmd+Q
+// with the icon off) asks.
 app.on("window-all-closed", () => {
-  if (quitsWithLastWindow) {
+  if (quitsWithLastWindow()) {
     app.quit();
   }
 });

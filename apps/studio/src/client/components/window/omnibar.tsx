@@ -144,7 +144,7 @@ const NOUNS: Record<Exclude<OmnibarMode, "files" | "web">, string> = {
   apps: "apps",
 };
 
-export interface OmniRow {
+interface OmniRow {
   /** Muted after the name: a page's address, what Enter does with the words. */
   detail?: string | undefined;
   /**
@@ -654,12 +654,9 @@ export function Omnibar({
 /**
  * The rows the words in the field stand for, in the terms of what the tab
  * holds, the first of them what Enter does, and the rest of a name or an
- * address the field writes in ahead of the caret. A new chat's composer asks
- * for the web's, for an address or a search typed at its start, without the
- * engine's suggestions.
+ * address the field writes in ahead of the caret.
  */
-export function useOmnibarRows({
-  asksEngine = true,
+function useOmnibarRows({
   canComplete,
   isEditing,
   location,
@@ -667,16 +664,14 @@ export function useOmnibarRows({
   open,
   typed,
 }: {
-  /** Whether the words go to the search engine for its suggestions as they are typed. */
-  asksEngine?: boolean;
   canComplete: boolean;
   /** Whether the field is being typed in, the only time the rows are read. */
   isEditing: boolean;
   location: TabLocation;
   mode: OmnibarMode;
   open: {
-    /** Opens any address, the app's own included; absent where the field takes only the web's (a new chat's composer). */
-    openAddress?: (address: string) => void;
+    /** Opens any address, the app's own included. */
+    openAddress: (address: string) => void;
     openFolder: (host: string) => void;
     openPath: (path: TypedPath) => Promise<void>;
     openSite: (url: string) => void;
@@ -726,7 +721,7 @@ export function useOmnibarRows({
     );
   // What the engine would finish the words as, asked once typing pauses
   // rather than on every letter, and never for a path or an address.
-  const wantsSuggestions = asksEngine && mode === "web" && isSearchWords(words);
+  const wantsSuggestions = mode === "web" && isSearchWords(words);
   const [asked, setAsked] = useState("");
   useEffect(() => {
     const timer = setTimeout(() => {
@@ -769,7 +764,7 @@ export function useOmnibarRows({
 
   // An address of the app's own, typed or pasted, is one place.
   const { openAddress } = open;
-  if (openAddress && isInstrumentAddress(words) && targetOfAddress(words)) {
+  if (isInstrumentAddress(words) && targetOfAddress(words)) {
     return {
       completion: "",
       rows: [
@@ -868,13 +863,11 @@ export function useOmnibarRows({
       : [];
     // The app's own places the words name: Enter's when they name one
     // whole, and under it otherwise.
-    const appRows = openAddress
-      ? appPlaceRows(words, {
-          bookmarks,
-          chatTitles: shell?.chatTitles,
-          openAddress,
-        })
-      : [];
+    const appRows = appPlaceRows(words, {
+      bookmarks,
+      chatTitles: shell?.chatTitles,
+      openAddress,
+    });
     const isNamed =
       appRows[0] !== undefined &&
       appRows[0].name.toLowerCase() === words.toLowerCase();

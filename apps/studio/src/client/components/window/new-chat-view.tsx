@@ -50,7 +50,6 @@ import { type Project } from "./chats";
 import { projectColor } from "./project-colors";
 import { ProjectMark } from "./project-mark";
 import { projectTint } from "./project-tint";
-import { useComposerAddress } from "./composer-address";
 import { ContextChips } from "./context-chip";
 import { type BandTarget, openInBand } from "./draft-band";
 import { includedItemsOf } from "./draft-context";
@@ -81,7 +80,6 @@ export function NewChatView({
   ensureGroup,
   isCentered,
   isPaneShown,
-  onAddress,
   onOpenBeside,
   tabId,
   takesCaret,
@@ -94,8 +92,6 @@ export function NewChatView({
   isCentered: boolean;
   /** Whether the side panel shows the draft's tab up, where its tabs stand as a strip rather than as chips. */
   isPaneShown: boolean;
-  /** Opens a page an address or a search typed into the composer names; given, the composer offers them. */
-  onAddress?: (url: string) => void;
   /** Brings the side panel up for something just opened into it. */
   onOpenBeside: (group: string) => void;
   tabId: string;
@@ -284,15 +280,6 @@ export function NewChatView({
     },
   };
 
-  const address = useComposerAddress({
-    onCleared: () => {
-      inputRef.current?.clear();
-    },
-    onOpen: (url) => {
-      onAddress?.(url);
-    },
-  });
-
   return (
     <FileDropRegion className="flex h-full min-h-0 flex-col">
       {/* Over the composer: filling the group, the mark and its line, with
@@ -319,9 +306,7 @@ export function NewChatView({
           isCentered ? "max-w-2xl" : "max-w-3xl pb-3",
         )}
         data-attaches-files=""
-        {...(onAddress ? address.boxProps : {})}
       >
-        {onAddress && address.rows}
         <PromptInput
           attachmentsLead={
             draft ? <MarkedPills draftId={draft.id} /> : undefined

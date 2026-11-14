@@ -6,7 +6,6 @@ import { useState } from "react";
 import { ChatScreen } from "./chat-screen";
 import { chatContextItems } from "./context-items";
 import { ContextChips } from "./context-chip";
-import { useWindow } from "./context";
 import { useGroupTab } from "./group-tab";
 import { NewChatView } from "./new-chat-view";
 import { useShell } from "./shell-context";
@@ -87,32 +86,20 @@ export function GroupChatScreen({ chatId }: { chatId: ChatId }) {
 
 /**
  * A new chat in a tab of a group, as its route draws it: the zero state,
- * writing into the draft its address names once it has words. An address
- * typed into its composer goes there in this tab, so back comes here again.
+ * writing into the draft its address names once it has words.
  */
 export function GroupNewChatScreen({ draftId }: { draftId?: string }) {
   const groupTab = useGroupTab();
-  const appWindow = useWindow();
-  const windowTabs = useWindowTabs();
   const isActive = useIsActiveTab();
   const tabId = groupTab?.id ?? "";
   const group = groupTab?.group;
   const hasKeyboard = groupTab?.hasKeyboard ?? true;
-  const tab = windowTabs.allTabs.find((entry) => entry.id === tabId);
   return (
     <NewChatView
       draftId={draftId}
       ensureGroup={() => group ?? ""}
       isCentered
       isPaneShown={false}
-      onAddress={(url) => {
-        if (group !== undefined) {
-          appWindow.browser?.open(url, {
-            group,
-            ...(tab ? { replacing: tab } : {}),
-          });
-        }
-      }}
       onOpenBeside={() => undefined}
       tabId={tabId}
       takesCaret={isActive && hasKeyboard}

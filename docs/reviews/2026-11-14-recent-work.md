@@ -14,7 +14,7 @@ Important means a concrete correctness, security, privacy, or data-preservation 
 
 ### A. A call in an embedded frame uses the mic or camera with no mark on the tab and no Stop
 
-- Status: fixed
+- Status: fixed `16b10802f`
 - Severity: Important. The in-use mark and Stop are how a person knows a page is listening; for a frame they are absent, and the app's own guards act as though the tab were idle.
 - Where: [preload.ts:411](/apps/studio/src/page-editor-guest/preload.ts#L411), [page-capture.ts:211](/apps/studio/src/electron-main/browser-view/page-capture.ts#L211), [page-capture.ts:361](/apps/studio/src/electron-main/browser-view/page-capture.ts#L361), [extension-open-tabs.ts:216](/apps/studio/src/electron-main/browser-view/extension-open-tabs.ts#L216).
 - What: what a page is capturing is known only from a wrapper around `getUserMedia` that the guest preload installs in the top frame's world (`contextBridge.executeInMainWorld`), and a preload runs in the main frame alone (`nodeIntegrationInSubFrames` is off, and a test pins that). The permission side takes no account of the frame: `handleMediaRequest` reads `details.securityOrigin` and `mediaTypes` only, so a request from an iframe is asked and granted like any other. A page that embeds a meeting widget, or calls `getUserMedia` through a same-origin frame's `contentWindow`, is granted the mic and never reports using it. The tab shows no mark and offers no Stop or Pause, `anyPageCapturing` is false so an idle restart can end the call, and Stop on a page that did report reaches only the tracks the top frame's wrapper knows.
@@ -22,7 +22,7 @@ Important means a concrete correctness, security, privacy, or data-preservation 
 
 ### B. The monthly sweep can delete the transcript the first message after launch is resuming from
 
-- Status: fixed
+- Status: fixed `15547baa6`
 - Severity: Important. The first Claude account message of a launch, in a chat left for a month, can fail or start without its conversation.
 - Where: [language-model.ts:190](/packages/ai-gateway/src/lib/providers/claude-account/language-model.ts#L190), [language-model.ts:89](/packages/ai-gateway/src/lib/providers/claude-account/language-model.ts#L89), [resume-record.ts:293](/packages/ai-gateway/src/lib/providers/claude-account/resume-record.ts#L293).
 - What: `sweepOnce(configDir)` is the first line of a step and starts `sweepResumeRecords` without waiting for it. The same step then reads its slot's record, checks the transcript and plans a resume. When that record is thirty or more days old, the sweep removes the record and its transcript while Claude Code is being started on it. The step's one read beats the sweep's `readdir`, `stat` and `readFile`, so the plan is made from a file that is gone by the time it is used. The slot being planned is exactly the one a sweep by age picks.
@@ -30,7 +30,7 @@ Important means a concrete correctness, security, privacy, or data-preservation 
 
 ### C. Whether a refused resume clears its record depends on Claude Code's wording
 
-- Status: fixed
+- Status: fixed `15547baa6`
 - Severity: Important. `REVIEW.md` names this shape under Brittleness, and the cost when it breaks is a chat that fails on every request.
 - Where: [language-model.ts:621](/packages/ai-gateway/src/lib/providers/claude-account/language-model.ts#L621), [language-model.ts:396](/packages/ai-gateway/src/lib/providers/claude-account/language-model.ts#L396).
 - What: `RESUME_REFUSED = /No message found with message\.uuid/` is tested against `String(error)`, and only a match removes the record so the slot starts cold. The executable is the person's installed Claude Code, which this repo does not pin. A reworded message, or any other resume failure that a retry does not change (B's missing file among them), leaves the record in place; only a finished step moves it, so every later request for that chat plans the same resume and fails the same way until the month's sweep.
@@ -38,7 +38,7 @@ Important means a concrete correctness, security, privacy, or data-preservation 
 
 ### D. A page of older turns can be loaded and drawn twice
 
-- Status: fixed
+- Status: fixed `e9768e32e`
 - Severity: Important. The transcript shows a stretch of the conversation twice, with duplicate row keys, until the chat is reopened.
 - Where: [use-transcript-feed.ts:95](/apps/studio/src/client/components/transcript/use-transcript-feed.ts#L95), [use-transcript-feed.ts:75](/apps/studio/src/client/components/transcript/use-transcript-feed.ts#L75), [feed.ts:261](/packages/workspace/src/lib/transcript/feed.ts#L261).
 - What: `loadOlder` refuses to start while `isLoadingOlder` is set; `loadOlderThrough`, which find in chat uses to reach a turn that is not loaded, sets the flag and never reads it. Both ask for the page before the first message they hold, and `applyOlder` prepends whatever comes back (`[...older.messages, ...current.messages]`) with no check that it is already there. Scroll near the top so the sentinel starts a load, then step find to an older match before it lands: both requests carry the same `before` and the page goes in twice. The window is wider than one request, since `loadOlder`'s own `finally` clears the flag while `loadOlderThrough` is still looping, which lets the sentinel start another.
@@ -46,7 +46,7 @@ Important means a concrete correctness, security, privacy, or data-preservation 
 
 ### E. A failed reply keeps its Try again after a wake carries the chat on
 
-- Status: fixed
+- Status: fixed `e75b14a31`
 - Severity: Important. The cached fold and a fresh fold of the same records disagree, so what is on screen changes when the chat is reopened.
 - Where: [turns-of.ts:218](/packages/workspace/src/lib/transcript/turns-of.ts#L218), [turns-of.ts:226](/packages/workspace/src/lib/transcript/turns-of.ts#L226), [turns-of.ts:598](/packages/workspace/src/lib/transcript/turns-of.ts#L598).
 - What: a cached turn is rebuilt when being followed changes it, which the cache reads from `holdsLast`. The range changed that from "no turn follows" to `index >= lastTyped`, so a wake's own turn (which `turnSlices` now opens when the turn above ended in words) does not count as following. A reply that streamed some words and then failed has an error row built with `isLastMessage: true`. When a task finishes or a permission is answered, the wake opens a slice below it; the errored turn's slice, `isLive`, `cutAcross` and `holdsLast` are all unchanged, so the kept turn is returned with the error still marked last, while `buildTurn` run fresh computes `message.id === lastMessage?.id` as false. The error card keeps its actions under a reply that has moved on, and a capacity error's card, drawn only while last, stays up until the chat is reopened.
@@ -54,7 +54,7 @@ Important means a concrete correctness, security, privacy, or data-preservation 
 
 ### F. Activity leaves out everything past the newest 200 rows since the page opened
 
-- Status: fixed
+- Status: fixed `f1cac2a0b`
 - Severity: Important. Rows are missing from the middle of the list with nothing to say so.
 - Where: [activity-page.tsx:82](/apps/studio/src/client/components/activity/activity-page.tsx#L82), [activity-page.tsx:217](/apps/studio/src/client/components/activity/activity-page.tsx#L217), [activity-page.tsx:282](/apps/studio/src/client/components/activity/activity-page.tsx#L282), [activity-page.tsx:439](/apps/studio/src/client/components/activity/activity-page.tsx#L439).
 - What: the page reads history up to `until`, the moment it opened, and polls what came after with `limit: LIVE_LIMIT` (200), newest first. The constant's comment says that past the limit "the page is read again from now", but `setUntil` is called in one place, `startOver`, which only a removal or Clear reaches. With the tab left open through a long task (more than 200 model requests) or more than 200 actions, the list shows the newest 200 and then jumps to rows from before the tab opened. The same fixed `until` names the days (`withDayHeads(shown, new Date(until), …)`), so a tab open across midnight heads two days "Today".

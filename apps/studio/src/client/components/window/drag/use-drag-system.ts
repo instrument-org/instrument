@@ -1,6 +1,10 @@
 import { type WindowTab } from "@/client/atoms/window";
 import { type ChatId } from "@instrument-org/workspace/client";
-import { addressOfTab, targetOfAddress } from "@/client/bookmarks/address";
+import {
+  addressOfTab,
+  sameAddress,
+  targetOfAddress,
+} from "@/client/bookmarks/address";
 import { hrefOfTarget } from "@/client/bookmarks/open-address";
 import { bookmarksAtom, applyBookmarkOpsAtom } from "@/client/bookmarks/store";
 import {
@@ -359,8 +363,8 @@ function useLander(
 
 /**
  * Keeps an address on the bar or in the sidebar's Bookmarks at a place
- * among the bookmarks there: a bookmark already kept moves there, wherever
- * it was.
+ * among the bookmarks there: a bookmark already kept, the one held or the
+ * one kept for the address, moves there, wherever it was.
  */
 function useKeepBookmark() {
   const store = useStore();
@@ -372,7 +376,7 @@ function useKeepBookmark() {
     const all = store.get(bookmarksAtom);
     const kept =
       what.id === undefined
-        ? undefined
+        ? all.find((bookmark) => sameAddress(bookmark.url, what.url))
         : all.find((bookmark) => bookmark.id === what.id);
     const there = inOrder(all).filter(
       (bookmark) =>

@@ -1173,6 +1173,7 @@ export async function runEvals(
         };
 
         standInWindow.seed(evalCase.viewing);
+        standInWindow.lay(evalCase.layout);
         const created = creating.then(async () => {
           if (evalCase.kind === "chat") {
             ensureWorkspaceFolder();

@@ -718,6 +718,24 @@ describe("feedback", () => {
     ).toMatchObject(kept);
   });
 
+  it.each([
+    ["/Users/mac-user/Taxes/report.pdf", "a .pdf file"],
+    ["/Users/mac-user/Backups/archive.tar.gz", "a .gz file"],
+    ["/Users/mac-user/Dr. Patel records", "a folder"],
+    ["/Users/mac-user/Offer letter.Jane Doe", "a folder"],
+    ["/Users/mac-user/Dr. Patel records/", "a folder"],
+    ["C:\\Users\\windows-user\\Dr. Patel records\\notes", "a folder"],
+    ["C:\\Users\\windows-user\\Dr. Patel records\\report.pdf", "a .pdf file"],
+  ])("names %s as %s, with none of its name", (filePath, kind) => {
+    expect(
+      reports.redactedAction({
+        at: "2026-11-05T22:18:00.000Z",
+        kind: "file",
+        path: filePath,
+      }),
+    ).toMatchObject({ path: kind });
+  });
+
   it("keeps the newest of what the person did when there is a lot of it", () => {
     const actions = Array.from({ length: 2000 }, (_, index) => ({
       at: new Date(index * 1000).toISOString(),

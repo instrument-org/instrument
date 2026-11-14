@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import {
+  adoptSystemSidebar,
   moveSidebarPlaces,
   NO_SIDEBAR_CHANGES,
   pinnedPlaces,
@@ -65,5 +66,26 @@ describe("sidebar places", () => {
       "/Users/casey/Jobs/Taxes",
       "/Users/casey/Workshop",
     ]);
+  });
+
+  it("adopts the file manager's pins in its order, hiding the defaults it leaves out", () => {
+    const places = adoptSystemSidebar(
+      NO_SIDEBAR_CHANGES,
+      ["/Users/casey/code", "/Users/casey/Desktop", "/Applications"],
+      defaults.map((place) => place.path),
+    );
+    expect(rows(places)).toEqual(["code", "Desktop", "Applications"]);
+  });
+
+  it("keeps what the person pinned when adopting the file manager's pins", () => {
+    let places = pinPlace(NO_SIDEBAR_CHANGES, "/Users/casey/Work");
+    places = pinPlace(places, "/Users/casey");
+    places = adoptSystemSidebar(
+      places,
+      ["/Users/casey/code"],
+      defaults.map((place) => place.path),
+    );
+    expect(rows(places)).toEqual(["code", "casey", "Work"]);
+    expect(rows(pinPlace(places, "/Volumes/Archive")).at(-1)).toBe("Archive");
   });
 });

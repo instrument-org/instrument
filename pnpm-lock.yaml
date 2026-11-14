@@ -78,7 +78,7 @@ patchedDependencies:
   '@milkdown/plugin-block@7.22.3': b9318632951eb16125b92ecbd278cb0ec78cb55b6d3470261e4d68edb9b61a4c
   '@shadcn/react@0.2.11': da1bf28bb1f6016f67560c8850b6dc0c60acb8e50ff0e178e97cac6f1e1ebaff
   conf@14.0.0: 56254a98f20461a96d6b30db95d31a459ca15443a73844e166da79dcb6392d02
-  electron-chrome-extensions@4.10.0: 8a5791fc3069fd871f8b288ca0100d2edfd4acc832895a939534ca5041db26ab
+  electron-chrome-extensions@4.10.0: ca5514468d22cb421d72c6e278199aa85f637045532d9d9366ff68b379d1b130
   just-bash@3.6.0: f0787821917675ca1a7027d15aee8d5e93548d77cfdfe71a04c16bdc02ab7e6c
   sonner@2.0.7: 818c476ad2cc99c02030f98fa6a5bfe80737406b81613aeb90e545efb7e4ecdf
 
@@ -88,7 +88,7 @@ importers:
     devDependencies:
       '@instrument-org/agent-hooks':
         specifier: github:instrument-org/agent-hooks
-        version: https://codeload.github.com/instrument-org/agent-hooks/tar.gz/f1c21302af9ed821dcfacf35fb652c87bdcad4db
+        version: https://codeload.github.com/instrument-org/agent-hooks/tar.gz/6da2409ace12fb60add0edce914c6c09dc8cef34
       '@instrument-org/typescript-config':
         specifier: workspace:*
         version: link:packages/typescript-config
@@ -190,7 +190,7 @@ importers:
         version: 3.3.2
       electron-chrome-extensions:
         specifier: 4.10.0
-        version: 4.10.0(patch_hash=8a5791fc3069fd871f8b288ca0100d2edfd4acc832895a939534ca5041db26ab)(supports-color@10.1.0)
+        version: 4.10.0(patch_hash=ca5514468d22cb421d72c6e278199aa85f637045532d9d9366ff68b379d1b130)(supports-color@10.1.0)
       electron-chrome-web-store:
         specifier: 0.13.0
         version: 0.13.0(supports-color@10.1.0)
@@ -2070,9 +2070,9 @@ packages:
       '@types/node':
         optional: true
 
-  '@instrument-org/agent-hooks@https://codeload.github.com/instrument-org/agent-hooks/tar.gz/f1c21302af9ed821dcfacf35fb652c87bdcad4db':
-    resolution: {gitHosted: true, integrity: sha512-F2KAZOtN8EoKnasvnLudCJQ/g60ma+IImpAFy5pWVeCPo9RioFX7SrWtsL34Ih7i/0TzMUvFT0bsY2T8wb2u2A==, tarball: https://codeload.github.com/instrument-org/agent-hooks/tar.gz/f1c21302af9ed821dcfacf35fb652c87bdcad4db}
-    version: 1.6.0
+  '@instrument-org/agent-hooks@https://codeload.github.com/instrument-org/agent-hooks/tar.gz/6da2409ace12fb60add0edce914c6c09dc8cef34':
+    resolution: {gitHosted: true, integrity: sha512-MoyU1gQpwYAKVjVg7qHYi4VEH6O6jJnNvmLx1aOEjoyWMAga7VEt0nN69w0arbWdXd+15zWUIhHDbZnhHFA6Zw==, tarball: https://codeload.github.com/instrument-org/agent-hooks/tar.gz/6da2409ace12fb60add0edce914c6c09dc8cef34}
+    version: 1.7.0
     engines: {node: '>=22'}
 
   '@ioredis/commands@1.10.0':
@@ -11119,7 +11119,7 @@ snapshots:
       '@types/node': 24.13.1
     optional: true
 
-  '@instrument-org/agent-hooks@https://codeload.github.com/instrument-org/agent-hooks/tar.gz/f1c21302af9ed821dcfacf35fb652c87bdcad4db': {}
+  '@instrument-org/agent-hooks@https://codeload.github.com/instrument-org/agent-hooks/tar.gz/6da2409ace12fb60add0edce914c6c09dc8cef34': {}
 
   '@ioredis/commands@1.10.0':
     optional: true
@@ -15276,7 +15276,7 @@ snapshots:
       - electron-builder-squirrel-windows
       - supports-color
 
-  electron-chrome-extensions@4.10.0(patch_hash=8a5791fc3069fd871f8b288ca0100d2edfd4acc832895a939534ca5041db26ab)(supports-color@10.1.0):
+  electron-chrome-extensions@4.10.0(patch_hash=ca5514468d22cb421d72c6e278199aa85f637045532d9d9366ff68b379d1b130)(supports-color@10.1.0):
     dependencies:
       debug: 4.4.3(supports-color@10.1.0)
     transitivePeerDependencies:

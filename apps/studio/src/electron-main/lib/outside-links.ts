@@ -1,4 +1,8 @@
-import { outsideLinkOf, PAGES_DOMAIN } from "@instrument-org/shared";
+import {
+  isOutsideLinkHost,
+  outsideLinkOf,
+  PAGES_DOMAIN,
+} from "@instrument-org/shared";
 import fs from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
@@ -243,9 +247,12 @@ const processGate = createLinkGate();
  * for in one call, so the window comes forward once. A link counts once
  * against the gate, however many paths it carries. Every link says in the
  * log what came of it, by its noun alone, since a `new` link's words and a
- * file's path are the person's. A link the app does not know is the one
- * exception: the log keeps its first `LOGGED_MAX` characters, which is the
- * only place its text goes, since the window says nothing of it.
+ * file's path are the person's. A link leading with a noun the app does not
+ * know (`leadsWithUnknownNoun`) is the one exception: the log keeps its
+ * first `LOGGED_MAX` characters, which is the only place its text goes,
+ * since the window says nothing of it. A noun the app knows in a shape it
+ * refuses (a `new` link with too many words, a path where none belongs) and
+ * a link with no noun at all are logged by the noun alone, like the rest.
  */
 export async function openOutsideLink(
   url: string,
@@ -284,7 +291,9 @@ export async function openOutsideLink(
   }
   if (asked.some((each) => each.type === "linkNotOpened")) {
     log(
-      `A link the app does not know asks the window to say so: ${url.slice(0, LOGGED_MAX)}`,
+      leadsWithUnknownNoun(url)
+        ? `A link the app does not know asks the window to say so: ${url.slice(0, LOGGED_MAX)}`
+        : `A ${noun} link in a shape the app does not read asks the window to say so`,
     );
   } else {
     log(
@@ -292,6 +301,16 @@ export async function openOutsideLink(
     );
   }
   ask(asked);
+}
+
+/**
+ * Whether a link leads with a noun no reading of links here takes, which is
+ * when the log keeps its text. The noun is read without a port or a login,
+ * so neither makes a noun the app knows look like another.
+ */
+function leadsWithUnknownNoun(url: string) {
+  const host = URL.canParse(url) ? new URL(url).hostname.toLowerCase() : "";
+  return host !== "" && !isOutsideLinkHost(host);
 }
 
 /** The noun a link leads with, which is all of it the log keeps. */

@@ -9,10 +9,10 @@ import { describe, expect, it, vi } from "vitest";
 
 import { MainModelList, useMainModelChoice } from "./model";
 
-function model(canonicalId: string, name: string) {
+function model(canonicalId: string, name: string, configId = "openrouter") {
   const params = {
     provider: "openrouter" as const,
-    providerConfigId: AIProviderConfigIdSchema.parse("openrouter"),
+    providerConfigId: AIProviderConfigIdSchema.parse(configId),
   };
   return AIGatewayModel.Schema.parse({
     author: "openai",
@@ -21,7 +21,7 @@ function model(canonicalId: string, name: string) {
     name,
     params,
     providerId: `openai/${canonicalId}`,
-    providerName: "OpenRouter",
+    providerName: configId === "openrouter" ? "OpenRouter" : "Other key",
     tags: [],
     uri: AIGatewayModelURI.fromModel({
       author: "openai",
@@ -32,6 +32,8 @@ function model(canonicalId: string, name: string) {
 }
 
 const models = [model("first", "First"), model("second", "Second")];
+/** A model another key serves, outside the connection the choice is for. */
+const elsewhere = model("elsewhere", "Elsewhere", "other");
 
 const state = vi.hoisted(() => ({
   defaultURI: undefined as string | undefined,
@@ -47,7 +49,7 @@ vi.mock("@/client/rpc/client", () => ({
         live: {
           list: {
             experimental_liveOptions: () => ({
-              queryFn: () => ({ models }),
+              queryFn: () => ({ models: [...models, elsewhere] }),
               queryKey: ["models"],
             }),
           },
@@ -76,8 +78,13 @@ vi.mock("@/client/rpc/client", () => ({
   },
 }));
 
+const openRouter = {
+  kind: "key" as const,
+  providerConfigId: AIProviderConfigIdSchema.parse("openrouter"),
+};
+
 function Choice() {
-  const choice = useMainModelChoice();
+  const choice = useMainModelChoice(openRouter);
   return (
     <>
       <MainModelList choice={choice} />
@@ -87,7 +94,7 @@ function Choice() {
         }}
         type="button"
       >
-        Continue
+        {choice.doneLabel("Continue")}
       </button>
     </>
   );
@@ -130,6 +137,35 @@ describe("useMainModelChoice", () => {
     expect(rows()).toEqual(["FirstRecommended", "Second"]);
     expect(screen.getByRole("radio", { checked: true }).id).toBe(
       `setup-model-${String(models[1]?.uri)}`,
+    );
+  });
+
+  it("keeps the model another connection serves on top, picked, until another is picked", async () => {
+    state.defaultURI = elsewhere.uri;
+    state.saved = [];
+    renderWithProviders(<Choice />);
+    await waitFor(
+      () => {
+        expect(rows()).toEqual([
+          "ElsewhereOther keyCurrent",
+          "FirstRecommended",
+          "Second",
+        ]);
+      },
+      { interval: 1 },
+    );
+    expect(screen.getByRole("radio", { checked: true }).id).toBe(
+      `setup-model-${elsewhere.uri}`,
+    );
+    expect(screen.getByText("New from OpenRouter")).toBeTruthy();
+
+    fireEvent.click(screen.getByText("Second"));
+    fireEvent.click(screen.getByRole("button", { name: "Switch to Second" }));
+    await waitFor(
+      () => {
+        expect(state.saved).toEqual([models[1]?.uri]);
+      },
+      { interval: 1 },
     );
   });
 });

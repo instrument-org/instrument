@@ -97,7 +97,7 @@ function ModelStep({
             choice.save(onDone);
           }}
         >
-          Done
+          {choice.doneLabel("Done")}
         </Button>
       </div>
     </div>

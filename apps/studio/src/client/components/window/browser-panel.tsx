@@ -137,6 +137,7 @@ import {
   useRef,
   useState,
 } from "react";
+import { PageCaptureMark } from "@/client/components/window/page-capture-mark";
 import { createPortal } from "react-dom";
 import { toast } from "@/client/lib/toast";
 import { tabCarryViewAtom } from "@/client/components/window/tab-carry-view";
@@ -1095,11 +1096,10 @@ export function BrowserPanel({
                   value={draftUrl}
                 />
                 <LoadProgress isLoading={nav.isLoading} />
-                {fieldShield && (
-                  <InputGroupAddon align="inline-end">
-                    {fieldShield}
-                  </InputGroupAddon>
-                )}
+                <InputGroupAddon align="inline-end" className="empty:hidden">
+                  <PageCaptureMark targetId={targetId} />
+                  {fieldShield}
+                </InputGroupAddon>
                 <InputGroupAddon
                   align="inline-end"
                   className="hidden group-focus-within/input-group:flex group-hover/input-group:flex"
@@ -1136,6 +1136,7 @@ export function BrowserPanel({
               {chrome.fieldInto &&
                 createPortal(
                   <>
+                    <PageCaptureMark targetId={targetId} />
                     {fieldShield}
                     {fieldZoom}
                     <LoadProgress isLoading={nav.isLoading} />

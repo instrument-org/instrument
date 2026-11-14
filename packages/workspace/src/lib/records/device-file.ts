@@ -1,11 +1,13 @@
 import { execFile } from "node:child_process";
+import fs from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import { promisify } from "node:util";
 import { z } from "zod";
 
 import { readJsonRecord, updateJsonRecord } from "../json-record-file";
-import { type DeviceId } from "./device-id";
+import { watchDevices } from "../synced-store/watch-devices";
+import { DEVICE_ID_PATTERN, type DeviceId } from "./device-id";
 
 /**
  * What a device says about itself to every other reader of the workspace,
@@ -76,6 +78,111 @@ export async function readDeviceName({
   }
   const file = DeviceFileSchema.safeParse(read.record);
   return file.success ? file.data.name : undefined;
+}
+
+/** The platform the iPhone app writes into its `device.json`. */
+const PHONE_PLATFORM = "ios";
+
+const DEVICE_FOLDER = new RegExp(`^${DEVICE_ID_PATTERN}$`);
+
+/**
+ * Whether a phone has used the workspace: some device's `device.json` names
+ * the platform the iPhone app writes. A computer writes `chat-list.json` and
+ * `status.json` only for a phone to read, each sent whole to the sync engine
+ * again on every write, so it writes neither while no phone has used the
+ * workspace; nothing on a computer reads them.
+ */
+export async function workspaceHasPhone(devicesDir: string): Promise<boolean> {
+  let folders: string[];
+  try {
+    folders = await fs.readdir(devicesDir);
+  } catch {
+    return false;
+  }
+  const platforms = await Promise.all(
+    folders
+      .filter((folder) => DEVICE_FOLDER.test(folder))
+      .map(async (folder) => {
+        const read = await readJsonRecord(
+          path.join(devicesDir, folder, DEVICE_FILE_NAME),
+        );
+        return read.kind === "read" ? read.record.platform : undefined;
+      }),
+  );
+  return platforms.includes(PHONE_PLATFORM);
+}
+
+/** How long a burst of watch events is gathered before a look. */
+const PHONE_SETTLE_MS = 250;
+
+/**
+ * How often the devices folder is looked at again while no phone has used
+ * the workspace, for a phone's `device.json` the watch did not hear of, as
+ * when the watch could not start.
+ */
+const PHONE_LOOK_EVERY_MS = 5 * 60 * 1000;
+
+/**
+ * Answers true once a phone has used the workspace (`workspaceHasPhone`):
+ * at once when one already has, and otherwise a moment after a phone's
+ * `device.json` arrives, heard through a watch on the devices folder. Answers
+ * false when `signal` aborts first. The watch and the look behind it end as
+ * it answers, and never keep the process alive.
+ */
+export function whenWorkspaceHasPhone({
+  devicesDir,
+  platform = process.platform,
+  settleMs = PHONE_SETTLE_MS,
+  signal,
+}: {
+  devicesDir: string;
+  platform?: NodeJS.Platform;
+  settleMs?: number;
+  signal?: AbortSignal;
+}): Promise<boolean> {
+  return new Promise((resolve) => {
+    if (signal?.aborted) {
+      resolve(false);
+      return;
+    }
+    let answered = false;
+    let settleTimer: NodeJS.Timeout | undefined;
+    const answer = (found: boolean) => {
+      if (answered) {
+        return;
+      }
+      answered = true;
+      clearTimeout(settleTimer);
+      clearInterval(lookTimer);
+      stopWatch();
+      signal?.removeEventListener("abort", onAbort);
+      resolve(found);
+    };
+    const look = async () => {
+      if (!answered && (await workspaceHasPhone(devicesDir))) {
+        answer(true);
+      }
+    };
+    const onAbort = () => {
+      answer(false);
+    };
+    const stopWatch = watchDevices({
+      devicesDir,
+      isOurs: (name) => name === DEVICE_FILE_NAME,
+      onChange: () => {
+        clearTimeout(settleTimer);
+        settleTimer = setTimeout(() => void look(), settleMs);
+      },
+      // A watch that fails leaves the look below to find the phone.
+      onError: () => undefined,
+      persistent: false,
+      platform,
+    });
+    const lookTimer = setInterval(() => void look(), PHONE_LOOK_EVERY_MS);
+    lookTimer.unref();
+    signal?.addEventListener("abort", onAbort);
+    void look();
+  });
 }
 
 const run = promisify(execFile);

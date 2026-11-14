@@ -1,6 +1,6 @@
 import { toast } from "@/client/lib/toast";
 import { renderWithProviders } from "@/tests/render";
-import { act, fireEvent, screen } from "@testing-library/react";
+import { act, fireEvent, screen, waitFor } from "@testing-library/react";
 import { Toaster } from "sonner";
 import { beforeEach, expect, it, vi } from "vitest";
 
@@ -63,4 +63,10 @@ it("lets the offer go when the toast's Undo is pressed", async () => {
   // Put back later, once whatever refused it is cleared.
   withdrawUndoOffer("refused");
   expect(dismiss).not.toHaveBeenCalled();
+
+  // Sonner unmounts a pressed toast on a timer; one still pending when the
+  // file's environment is torn down throws for want of a window.
+  await waitFor(() => {
+    expect(screen.queryByText("Moved 2 items to the Trash")).toBeNull();
+  });
 });

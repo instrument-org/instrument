@@ -65,18 +65,20 @@ function PageShot({
         <PageFavicon favicon={tab.favicon} url={page ?? ""} />
       </div>
       {url && (
-        <img
-          alt=""
-          className={cn(
-            "absolute inset-0 size-full object-cover object-top transition-opacity duration-200",
-            !hasDrawn && "opacity-0",
-          )}
-          draggable={false}
-          onLoad={() => {
-            setHasDrawn(true);
-          }}
-          src={url}
-        />
+        <div className="absolute inset-0 flex items-center justify-center p-2.5">
+          <img
+            alt=""
+            className={cn(
+              "max-h-full max-w-full rounded-md shadow-xs ring-1 ring-foreground/10 transition-opacity duration-200",
+              !hasDrawn && "opacity-0",
+            )}
+            draggable={false}
+            onLoad={() => {
+              setHasDrawn(true);
+            }}
+            src={url}
+          />
+        </div>
       )}
     </>
   );

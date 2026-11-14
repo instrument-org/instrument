@@ -1,4 +1,5 @@
 import Contacts
+import CoreServices
 import EventKit
 import Foundation
 
@@ -15,6 +16,7 @@ import Foundation
 //   instrument-mac add-event --title <t> --start <date> [--end <date>] [--calendar <name>] [--location <l>] [--notes <n>]
 //   instrument-mac add-reminder --title <t> [--list <name>] [--due <date>] [--notes <n>]
 //   instrument-mac icloud-folders
+//   instrument-mac finder-favorites
 //
 // A date is today, tomorrow, yesterday, 2026-10-06, or 2026-10-06T14:30
 // (local time), with an optional Z or offset. A calendar or list is named
@@ -433,8 +435,34 @@ case "icloud-folders":
     emit(["access": "refused", "folders": [] as [Any]])
   }
 
+// The folders under Favorites in the Finder's sidebar, in its order. The
+// shared file list hands them over without a permission, where the file it
+// keeps them in is guarded. Rows that are not a folder on disk (AirDrop,
+// Recents, a server) are left out.
+case "finder-favorites":
+  guard
+    let list = LSSharedFileListCreate(
+      nil, kLSSharedFileListFavoriteItems.takeUnretainedValue(), nil)?
+      .takeRetainedValue(),
+    let items = LSSharedFileListCopySnapshot(list, nil)?.takeRetainedValue()
+      as? [LSSharedFileListItem]
+  else { fail("the Finder's favorites could not be read") }
+  emit([
+    "folders": items.compactMap { item -> String? in
+      guard
+        let url = LSSharedFileListItemCopyResolvedURL(
+          item, UInt32(kLSSharedFileListNoUserInteraction | kLSSharedFileListDoNotMountVolumes),
+          nil)?.takeRetainedValue() as URL?,
+        url.isFileURL
+      else { return nil }
+      var isFolder: ObjCBool = false
+      return FileManager.default.fileExists(atPath: url.path, isDirectory: &isFolder)
+        && isFolder.boolValue ? url.path : nil
+    }
+  ])
+
 default:
   fail(
-    "\(command) is not a command: calendars, lists, events, reminders, add-event, add-reminder, contacts, icloud-folders, or access."
+    "\(command) is not a command: calendars, lists, events, reminders, add-event, add-reminder, contacts, icloud-folders, finder-favorites, or access."
   )
 }

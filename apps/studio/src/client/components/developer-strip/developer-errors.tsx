@@ -1,18 +1,32 @@
 import { openSettings } from "@/client/atoms/settings-modal";
-import { CopyButton } from "@/client/components/copy-button";
 import { useIsSetupUp } from "@/client/components/setup/use-setup-state";
+import { Button } from "@/client/components/ui/button";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/client/components/ui/dropdown-menu";
 import { Popover, PopoverTrigger } from "@/client/components/ui/popover";
 import { useNow } from "@/client/components/window/use-now";
+import { useTimedFlag } from "@/client/hooks/use-timed-flag";
 import {
   formatAbsoluteTime,
   formatRelativeTime,
 } from "@/client/lib/relative-time";
+import { toast } from "@/client/lib/toast";
 import { cn } from "@/client/lib/utils";
 import { rpcClient } from "@/client/rpc/client";
 import {
   type ExceptionEvent,
   formatExceptionEvent,
 } from "@instrument-org/shared/exceptions";
+import { CheckIcon } from "@phosphor-icons/react/Check";
+import { CopyIcon } from "@phosphor-icons/react/Copy";
+import { DotsThreeIcon } from "@phosphor-icons/react/DotsThree";
+import { FileTextIcon } from "@phosphor-icons/react/FileText";
+import { TrashIcon } from "@phosphor-icons/react/Trash";
 import { WarningCircleIcon } from "@phosphor-icons/react/WarningCircle";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { type ReactNode, useState } from "react";
@@ -26,8 +40,6 @@ import {
   whereOf,
 } from "./developer-errors-model";
 import { StripHeading, StripPopover } from "./strip-popover";
-
-const LINK_CLASS = "text-muted-foreground hover:text-foreground";
 
 /**
  * What the app has captured since it started or was last cleared, from any
@@ -65,7 +77,7 @@ export function DeveloperErrors() {
       </PopoverTrigger>
       <StripPopover
         align="end"
-        className="flex h-105 w-190"
+        className="flex h-105 w-190 font-sans"
         style={{ maxWidth: "calc(90vw / var(--content-zoom))" }}
       >
         <ErrorsPanel
@@ -100,56 +112,83 @@ function ErrorsPanel({
   const { mutate: clearAll } = useMutation(
     rpcClient.utils.clearExceptions.mutationOptions({}),
   );
+  const { mutate: restoreCleared } = useMutation(
+    rpcClient.utils.restoreClearedExceptions.mutationOptions({}),
+  );
   const selected =
     events.find((event) => event.fingerprint === picked) ?? events[0];
 
   return (
     <>
-      <div className="flex w-75 shrink-0 flex-col border-r">
+      <div className="flex w-80 shrink-0 flex-col border-r">
         <StripHeading
+          className="h-11"
           end={
-            <>
-              {onViewLog && (
-                <button
-                  className={LINK_CLASS}
-                  onClick={onViewLog}
-                  type="button"
-                >
-                  View log
-                </button>
-              )}
-              <button
-                className={LINK_CLASS}
-                onClick={() => {
-                  void navigator.clipboard.writeText(
-                    events
-                      .map((event) => formatExceptionEvent(event))
-                      .join("\n\n"),
-                  );
-                }}
-                type="button"
-              >
-                Copy all
-              </button>
-              <button
-                className={LINK_CLASS}
-                onClick={() => {
-                  clearAll();
-                }}
-                type="button"
-              >
-                Clear all
-              </button>
-            </>
+            <CopyLabelButton
+              label="Copy all"
+              onCopy={() =>
+                navigator.clipboard.writeText(
+                  events
+                    .map((event) => formatExceptionEvent(event))
+                    .join("\n\n"),
+                )
+              }
+              variant="default"
+            />
           }
         >
-          {label}
+          <span className="flex items-center gap-1.5">
+            <span className="text-sm font-medium text-foreground">{label}</span>
+            {/* Across the head from Copy all, so a reach for one never lands on the other. */}
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <button
+                  aria-label="More"
+                  className="grid size-6 place-items-center rounded-lg text-muted-foreground hover:bg-foreground/8 hover:text-foreground aria-expanded:bg-foreground/8"
+                  type="button"
+                >
+                  <DotsThreeIcon className="size-4" />
+                </button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="start" className="w-56">
+                <DropdownMenuItem
+                  onSelect={() => {
+                    clearAll(undefined, {
+                      onSuccess: () => {
+                        toast(`Cleared ${label}`, {
+                          action: {
+                            label: "Undo",
+                            onClick: () => {
+                              restoreCleared();
+                            },
+                          },
+                        });
+                      },
+                    });
+                  }}
+                  variant="destructive"
+                >
+                  <TrashIcon />
+                  Clear all errors
+                </DropdownMenuItem>
+                {onViewLog && (
+                  <>
+                    <DropdownMenuSeparator />
+                    <DropdownMenuItem onSelect={onViewLog}>
+                      <FileTextIcon />
+                      Open diagnostic log
+                    </DropdownMenuItem>
+                  </>
+                )}
+              </DropdownMenuContent>
+            </DropdownMenu>
+          </span>
         </StripHeading>
         <div className="min-h-0 flex-1 overflow-y-auto">
           {events.map((event) => (
             <button
               className={cn(
-                "flex w-full items-start gap-3 px-3 py-2 text-left hover:bg-foreground/5",
+                "flex w-full items-start gap-3 px-3 py-2.5 text-left hover:bg-foreground/5",
                 event === selected && "bg-foreground/8 hover:bg-foreground/8",
               )}
               key={event.fingerprint}
@@ -159,19 +198,19 @@ function ErrorsPanel({
               type="button"
             >
               <span className="min-w-0 flex-1">
-                <span className="block truncate text-foreground">
+                <span className="block truncate text-[13px] text-foreground">
                   {capturedOf(event)?.value}
                 </span>
-                <span className="mt-1 block truncate text-muted-foreground">
+                <span className="mt-1 block truncate font-mono text-[11px] text-muted-foreground">
                   {event.process} · {whereOf(event)}
                 </span>
               </span>
-              <span className="shrink-0 text-right text-muted-foreground">
-                <span
-                  className={cn("block", event.count > 1 && "text-destructive")}
-                >
-                  {timesLabel(event.count)}
-                </span>
+              <span className="shrink-0 text-right text-xs text-muted-foreground">
+                {event.count > 1 && (
+                  <span className="block font-medium text-foreground">
+                    ×{event.count}
+                  </span>
+                )}
                 <span
                   className="mt-1 block"
                   title={formatAbsoluteTime(new Date(event.lastAt))}
@@ -190,11 +229,33 @@ function ErrorsPanel({
   );
 }
 
+/** A labeled copy that says Copied for a moment once it has. */
+function CopyLabelButton({
+  label,
+  onCopy,
+  variant,
+}: {
+  label: string;
+  onCopy: () => Promise<void>;
+  variant: "default" | "outline";
+}) {
+  const { active: copied, trigger } = useTimedFlag();
+  return (
+    <Button
+      onClick={() => {
+        void onCopy().then(trigger);
+      }}
+      size="xs"
+      variant={variant}
+    >
+      {copied ? <CheckIcon /> : <CopyIcon />}
+      {copied ? "Copied" : label}
+    </Button>
+  );
+}
+
 function ErrorDetail({ event, now }: { event: ExceptionEvent; now: number }) {
   const [showLibrary, setShowLibrary] = useState(false);
-  const { mutate: clearOne } = useMutation(
-    rpcClient.utils.clearException.mutationOptions({}),
-  );
   const captured = capturedOf(event);
   const frames = captured && splitFrames(captured);
   const causes = event.exceptions.slice(0, -1).toReversed();
@@ -205,35 +266,27 @@ function ErrorDetail({ event, now }: { event: ExceptionEvent; now: number }) {
   return (
     <div className="flex min-h-0 min-w-0 flex-1 flex-col">
       <StripHeading
+        className="h-11"
         end={
-          <>
-            <CopyButton
-              className="size-5 rounded-sm p-0.5 text-muted-foreground hover:bg-foreground/8 hover:text-foreground"
-              iconSize={12}
-              onCopy={() =>
-                navigator.clipboard.writeText(formatExceptionEvent(event))
-              }
-            />
-            <button
-              className={LINK_CLASS}
-              onClick={() => {
-                clearOne({ fingerprint: event.fingerprint });
-              }}
-              type="button"
-            >
-              Clear
-            </button>
-          </>
+          <CopyLabelButton
+            label="Copy"
+            onCopy={() =>
+              navigator.clipboard.writeText(formatExceptionEvent(event))
+            }
+            variant="outline"
+          />
         }
       >
-        {captured?.type}
+        <span className="font-mono text-[11px]">
+          {captured?.type} · {event.process}
+        </span>
       </StripHeading>
       <div className="min-h-0 flex-1 space-y-4 overflow-y-auto p-3">
         <div>
-          <div className="text-[13px] leading-5 wrap-break-word text-foreground">
+          <div className="text-[15px] leading-6 font-medium wrap-break-word text-foreground">
             {captured?.value}
           </div>
-          <div className="mt-1 text-muted-foreground">
+          <div className="mt-1 text-xs text-muted-foreground">
             {event.handled ? "Caught" : "Uncaught"} in {event.process},{" "}
             {timesLabel(event.count)}, last{" "}
             {formatRelativeTime(new Date(event.lastAt), now)}.
@@ -314,7 +367,7 @@ function ErrorDetail({ event, now }: { event: ExceptionEvent; now: number }) {
 
 function Section({ children, label }: { children: ReactNode; label: string }) {
   return (
-    <div>
+    <div className="font-mono text-[11px]">
       <div className="mb-1.5 text-muted-foreground">{label}</div>
       {children}
     </div>

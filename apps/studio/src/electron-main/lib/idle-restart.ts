@@ -1,5 +1,6 @@
 import { app, BrowserWindow, powerMonitor } from "electron";
 
+import { anyPageCapturing } from "../browser-view/page-capture";
 import {
   readAutomaticRestart,
   recordAutomaticInstall,
@@ -95,7 +96,9 @@ export function startIdleRestart({
       return "unknown";
     }
     const [work, capture] = answer;
-    if (work === "busy" || capture === "busy") {
+    // A page in the app's own browser using either is a call a restart
+    // would cut off, which the system's answer does not cover on macOS.
+    if (work === "busy" || capture === "busy" || anyPageCapturing()) {
       return "busy";
     }
     return work;

@@ -20,9 +20,10 @@ const setEnabled = base
 /**
  * A pane of Privacy & Security, where what the Mac refused this app is
  * allowed after the fact: Files and Folders for a protected folder, the
- * app's own pane for Calendars, Reminders or Contacts, and Automation for an
- * app the app controls. The system asks once and never again, so the pane's
- * row is the only way back once the ask was declined.
+ * app's own pane for Calendars, Reminders, Contacts, or the Camera and
+ * Microphone a page in the browser asked for, and Automation for an app the
+ * app controls. The system asks once and never again, so the pane's row is
+ * the only way back once the ask was declined.
  */
 const openPrivacySettings = base
   .input(
@@ -30,8 +31,10 @@ const openPrivacySettings = base
       pane: z.enum([
         "Automation",
         "Calendars",
+        "Camera",
         "Contacts",
         "FilesAndFolders",
+        "Microphone",
         "Reminders",
       ]),
     }),

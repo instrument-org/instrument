@@ -52,6 +52,7 @@ export {
   type SignInEnd,
 } from "./lib/apps/connection";
 export { waitInChat } from "./lib/chat/asks";
+export { computerPlaces } from "./lib/chat/computer-places";
 export {
   type AppManifest,
   AppSlugSchema,
@@ -178,7 +179,11 @@ export {
   type DeviceId,
   newDeviceId,
 } from "./lib/records/device-id";
-export { readComputerName, writeDeviceFile } from "./lib/records/device-file";
+export {
+  readComputerName,
+  whenWorkspaceHasPhone,
+  writeDeviceFile,
+} from "./lib/records/device-file";
 export {
   DEVICE_STATUS_HEARTBEAT_MS,
   type DeviceStatus,

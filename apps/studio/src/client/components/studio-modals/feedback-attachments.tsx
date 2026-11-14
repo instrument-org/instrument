@@ -134,7 +134,7 @@ export function NoteWithAttachments({
                 <div className="relative" key={image.id}>
                   <img
                     alt={image.name}
-                    className="block h-16 w-24 rounded-md border border-border bg-muted object-cover object-top"
+                    className="block h-16 w-24 rounded-md border border-border bg-muted object-contain"
                     src={image.src}
                   />
                   {build && meta && (

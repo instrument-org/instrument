@@ -4,6 +4,7 @@ import {
   type DeviceStatus,
   isSameDeviceStatus,
   readDarkWake,
+  whenWorkspaceHasPhone,
   writeDeviceStatusFile,
   writeDeviceStatusFileSync,
 } from "@instrument-org/workspace/electron";
@@ -29,6 +30,10 @@ let closeStatus: (() => void) | undefined;
  * The turn count and whether this is a dark wake are read again on the
  * heartbeat, at a wake, and with every write that is not going to sleep; a
  * turn starting or ending writes nothing of its own.
+ *
+ * Only a phone reads the file, so nothing is written, the quit's write
+ * included, until a phone has used the workspace (`whenWorkspaceHasPhone`),
+ * and the file is written at once when one first does.
  */
 export function startDeviceStatus({
   countBusy,
@@ -52,6 +57,8 @@ export function startDeviceStatus({
   let writtenFile: Awaited<ReturnType<typeof writeDeviceStatusFile>> = {};
   // One write at a time, so a slow read for one cannot land after the next.
   let queue = Promise.resolve();
+  let hasPhone = false;
+  const stopLookingForPhone = new AbortController();
 
   const update = (
     reason: string,
@@ -66,6 +73,10 @@ export function startDeviceStatus({
       };
       if (change.state !== undefined && change.state !== status.state) {
         next.since = new Date();
+      }
+      if (!hasPhone) {
+        status = next;
+        return;
       }
       if (reread) {
         const [busy, darkWake] = await Promise.all([
@@ -92,7 +103,15 @@ export function startDeviceStatus({
     });
   };
 
-  update("launch", {}, { always: true });
+  void whenWorkspaceHasPhone({
+    devicesDir,
+    signal: stopLookingForPhone.signal,
+  }).then((found) => {
+    if (found) {
+      hasPhone = true;
+      update("phone", {}, { always: true });
+    }
+  });
 
   const heartbeat = setInterval(() => {
     update(
@@ -129,6 +148,10 @@ export function startDeviceStatus({
 
   closeStatus = () => {
     clearInterval(heartbeat);
+    stopLookingForPhone.abort();
+    if (!hasPhone) {
+      return;
+    }
     const closed: DeviceStatus = {
       ...status,
       busy: 0,

@@ -1,6 +1,11 @@
 import { describe, expect, it } from "vitest";
 
-import { dropSurface, putSurface, sameSurface } from "./tab-surface";
+import {
+  dropSurface,
+  putSurface,
+  sameSurface,
+  surfaceLocation,
+} from "./tab-surface";
 
 // Stand-ins for the elements a slot names: only their identity is read.
 const hostA = {} as HTMLElement;
@@ -72,5 +77,38 @@ describe("sameSurface", () => {
     const slot = { chrome: undefined, host: hostA, isShown: true };
     expect(sameSurface("slot", null, slot)).toBe(false);
     expect(sameSurface("slot", null, null)).toBe(true);
+  });
+});
+
+describe("surfaceLocation", () => {
+  const folderView = {
+    folder: { display: "~/Documents", selected: [] },
+    screen: "computer" as const,
+  };
+  const finder = (...paths: string[]) => ({
+    folder: "/Users/casey/Documents",
+    selected: paths.map((path) => ({ kind: "file" as const, path })),
+  });
+
+  it.each([
+    [
+      "one item",
+      ["/Users/casey/Documents/a.pdf"],
+      "/Users/casey/Documents/a.pdf",
+    ],
+    ["nothing", [], undefined],
+    [
+      "several",
+      ["/Users/casey/Documents/a.pdf", "/Users/casey/Documents/b.pdf"],
+      undefined,
+    ],
+  ])("names the selection when it is %s", (_name, paths, selected) => {
+    const location = surfaceLocation(
+      { kind: "folder", path: "~/Documents" },
+      { finder: finder(...paths), view: folderView },
+    );
+    expect(location.kind === "folder" ? location.selected : null).toBe(
+      selected,
+    );
   });
 });

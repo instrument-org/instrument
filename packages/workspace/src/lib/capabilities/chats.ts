@@ -98,12 +98,13 @@ const ids = z
   .min(1, `which chats? ${NAME} list names them.`);
 
 /**
- * Runs one change over each chat named, in order: a chat that is not there
- * fails its own line and the rest go on.
+ * Runs one change over each chat named, in order: a chat that is not there,
+ * or whose change answers that it could not be made, fails its own line and
+ * the rest go on.
  */
 async function eachChat(
   named: readonly string[],
-  change: (chat: Chat) => Promise<string>,
+  change: (chat: Chat) => Promise<string | { couldNot: string }>,
 ): Promise<Outcome[]> {
   const outcomes: Outcome[] = [];
   for (const id of new Set(named)) {
@@ -111,14 +112,13 @@ async function eachChat(
     // chat's is a slip to say, never a shape to refuse.
     const chatId = resolveChat(id as ChatId);
     const chat = chatId && (await chatById(chatId));
+    const came = chat
+      ? await change(chat)
+      : { couldNot: `no chat with the id ${id}. ${NAME} list names them.` };
     outcomes.push(
-      chat
-        ? { failed: false, id, said: await change(chat) }
-        : {
-            failed: true,
-            id,
-            said: `no chat with the id ${id}. ${NAME} list names them.`,
-          },
+      typeof came === "string"
+        ? { failed: false, id, said: came }
+        : { failed: true, id, said: came.couldNot },
     );
   }
   return outcomes;
@@ -275,7 +275,7 @@ function markCapability({
           return `${chat.id} was ${already}: ${chat.title}`;
         }
         if (!(await mark(chat.id))) {
-          throw new Error(`${word}: ${chat.id} could not be changed.`);
+          return { couldNot: `${word}: ${chat.id} could not be changed.` };
         }
         recordChatChange({ after: to, before: !to, chat: chat.id, field });
         return `${did} ${chat.id}: ${chat.title}`;
@@ -356,7 +356,7 @@ export const chatsProject = defineCapability({
         return `${chat.id} was already ${where}: ${chat.title}`;
       }
       if (!(await setChatProject(chat.id, after))) {
-        throw new Error(`project: ${chat.id} could not be filed.`);
+        return { couldNot: `project: ${chat.id} could not be filed.` };
       }
       recordChatChange({ after, before, chat: chat.id, field: "project" });
       return `Filed ${chat.id} ${where}: ${chat.title}`;

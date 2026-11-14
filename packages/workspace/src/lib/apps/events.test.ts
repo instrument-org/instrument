@@ -391,13 +391,15 @@ describe("a card asking for several apps", () => {
     await waitInChat("docs", chatId);
     await answerRow("docs", "connected");
 
-    expect(wakes()).toEqual([
-      {
-        chatId,
-        events: ["docs connected as you@example.com"],
-        signIns: undefined,
-      },
-    ]);
+    await vi.waitFor(() =>
+      expect(wakes()).toEqual([
+        {
+          chatId,
+          events: ["docs connected as you@example.com"],
+          signIns: undefined,
+        },
+      ]),
+    );
     expect(await openAsks(chatId)).toEqual([]);
   });
 

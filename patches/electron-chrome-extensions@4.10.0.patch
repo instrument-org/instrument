@@ -17,3 +17,77 @@ index 67d3be4b5026069ec4ae73c1fc6e661f8a19098e..93941b329cc2bbedb671d533d97fc479
      }
      if (!process.contextIsolated) {
        console.warn(`injectExtensionAPIs: context isolation disabled in ${location.href}`);
+diff --git a/dist/cjs/index.js b/dist/cjs/index.js
+index a91ca8fd07194abb081e9bb35fad0060fefddf91..99b25ee61964bf759440caf3cfbef81aab23c112 100644
+--- a/dist/cjs/index.js
++++ b/dist/cjs/index.js
+@@ -1850,13 +1850,25 @@ var NativeMessagingHost = class {
+       this.send(message);
+     };
+     this.receive = (data) => {
+-      const length = data.readUInt32LE(0);
+-      const message = JSON.parse(data.subarray(4, 4 + length).toString());
+-      d7("receive: %s", message);
+-      if (this.keepAlive && this.sender) {
+-        this.sender.send(`crx-native-msg-${this.connectionId}`, message);
+-      } else {
+-        this.resolveResponse?.(message);
++      this.received = this.received ? Buffer.concat([this.received, data]) : data;
++      while (this.received.length >= 4) {
++        const length = this.received.readUInt32LE(0);
++        if (this.received.length < 4 + length) break;
++        const body = this.received.subarray(4, 4 + length);
++        this.received = this.received.subarray(4 + length);
++        let message;
++        try {
++          message = JSON.parse(body.toString());
++        } catch (error) {
++          d7("receive: unparsable message", error);
++          continue;
++        }
++        d7("receive: %s", message);
++        if (this.keepAlive && this.sender) {
++          this.sender.send(`crx-native-msg-${this.connectionId}`, message);
++        } else {
++          this.resolveResponse?.(message);
++        }
+       }
+     };
+     this.keepAlive = keepAlive;
+diff --git a/dist/esm/index.mjs b/dist/esm/index.mjs
+index 43929222572e4d6875cc192aca0750da79d8ff14..6203dce0c3c85f9294da9e13498e512d685e3034 100644
+--- a/dist/esm/index.mjs
++++ b/dist/esm/index.mjs
+@@ -1813,13 +1813,25 @@ var NativeMessagingHost = class {
+       this.send(message);
+     };
+     this.receive = (data) => {
+-      const length = data.readUInt32LE(0);
+-      const message = JSON.parse(data.subarray(4, 4 + length).toString());
+-      d7("receive: %s", message);
+-      if (this.keepAlive && this.sender) {
+-        this.sender.send(`crx-native-msg-${this.connectionId}`, message);
+-      } else {
+-        this.resolveResponse?.(message);
++      this.received = this.received ? Buffer.concat([this.received, data]) : data;
++      while (this.received.length >= 4) {
++        const length = this.received.readUInt32LE(0);
++        if (this.received.length < 4 + length) break;
++        const body = this.received.subarray(4, 4 + length);
++        this.received = this.received.subarray(4 + length);
++        let message;
++        try {
++          message = JSON.parse(body.toString());
++        } catch (error) {
++          d7("receive: unparsable message", error);
++          continue;
++        }
++        d7("receive: %s", message);
++        if (this.keepAlive && this.sender) {
++          this.sender.send(`crx-native-msg-${this.connectionId}`, message);
++        } else {
++          this.resolveResponse?.(message);
++        }
+       }
+     };
+     this.keepAlive = keepAlive;

@@ -27,9 +27,9 @@ import {
   requestQuitApproval,
 } from "@/electron-main/lib/quit";
 import {
-  clearExceptionEvent,
   clearExceptionEvents,
   listSessionExceptionEvents,
+  restoreClearedExceptionEvents,
 } from "@/electron-main/lib/exception-store";
 import { base } from "@/electron-main/rpc/base";
 import { publisher } from "@/electron-main/rpc/publisher";
@@ -475,11 +475,9 @@ const clearExceptions = base.input(z.void()).handler(() => {
   clearExceptionEvents();
 });
 
-const clearException = base
-  .input(z.object({ fingerprint: z.string() }))
-  .handler(({ input }) => {
-    clearExceptionEvent(input.fingerprint);
-  });
+const restoreClearedExceptions = base.input(z.void()).handler(() => {
+  restoreClearedExceptionEvents();
+});
 
 // The renderer owns the app zoom (CSS `zoom`); it reports the current level so
 // the main process can keep the macOS traffic lights centered in the band of
@@ -728,8 +726,8 @@ const showFolderPicker = base
 export const utils = {
   approveWindowClose,
   browserOpenTarget,
-  clearException,
   clearExceptions,
+  restoreClearedExceptions,
   closeWindow,
   computerFileBase,
   copyFileToClipboard,

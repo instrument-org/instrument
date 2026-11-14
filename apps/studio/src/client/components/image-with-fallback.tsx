@@ -11,6 +11,7 @@ export function ImageWithFallback({
   alt,
   arrival: arrivalKind = "surface",
   className,
+  enters = true,
   fallback,
   fallbackClassName,
   filename,
@@ -27,6 +28,11 @@ export function ImageWithFallback({
   /** How the image enters once it loads; see {@link useImageArrival}. */
   arrival?: ImageArrival;
   className?: string;
+  /**
+   * Whether the image fades in as it loads. Off for one taking the place of
+   * a picture already on screen, whose host shows it whole once it is ready.
+   */
+  enters?: boolean;
   fallback?: React.ReactNode;
   fallbackClassName?: string;
   filename: string;
@@ -67,7 +73,7 @@ export function ImageWithFallback({
       className={cn(
         className,
         showCheckerboard && "checkerboard",
-        arrival.className,
+        enters && arrival.className,
       )}
       onError={handleError}
       onLoad={(event) => {

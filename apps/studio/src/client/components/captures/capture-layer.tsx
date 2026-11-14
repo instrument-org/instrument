@@ -303,7 +303,7 @@ export function CaptureLayer() {
         >
           <img
             alt="The newest capture"
-            className="block w-full object-cover object-left-top"
+            className="block w-full object-contain"
             draggable={false}
             src={captureUrl(thumbnail, { small: true })}
             style={{

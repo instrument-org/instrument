@@ -40,7 +40,7 @@ export function AttachedFilePreview({
         isImage && url ? (
           <ImageWithFallback
             alt={filename}
-            className="size-4 object-cover"
+            className="size-4 object-contain"
             fallbackClassName="size-4"
             filename={filename}
             src={url}

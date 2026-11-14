@@ -359,14 +359,16 @@ export function railMarkOf(
   return inbox.some((chat) => chat.unread) ? "unread" : undefined;
 }
 
-/** The dot the rail wears for chats by the marks each wears alone: what `railMarkOf` says of them all together. */
+/**
+ * The dot the rail's Chat wears for the marks its chats wear alone: a chat
+ * waiting on the user, or else one working. An unread chat wears its dot on
+ * its own tab but never badges the rail.
+ */
 export function strongestMark(
   marks: Iterable<RailChatMark>,
 ): RailChatMark | undefined {
   const worn = new Set(marks);
-  return (["waiting", "working", "unread"] as const).find((mark) =>
-    worn.has(mark),
-  );
+  return (["waiting", "working"] as const).find((mark) => worn.has(mark));
 }
 
 /**

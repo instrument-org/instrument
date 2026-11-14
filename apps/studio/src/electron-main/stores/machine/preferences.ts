@@ -45,6 +45,9 @@ export const MachinePreferencesSchema = z.object({
   // workspace.
   runProgramsWithoutSandbox: z.boolean().catch(false),
   sidebarPlaces: SidebarPlacesSchema.catch(NO_SIDEBAR_CHANGES),
+  // Set once the Files sidebar has taken the pins the system's own file
+  // manager shows (`adoptSystemSidebarOnce`), so it happens one time only.
+  systemSidebarAdopted: z.boolean().catch(false),
   // Set in Settings in developer mode: the platform API server this computer
   // talks to. Unset is the build's own. Read once at startup
   // (`settlePlatformApiServer`), so a change takes a restart.

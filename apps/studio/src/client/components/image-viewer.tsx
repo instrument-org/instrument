@@ -12,7 +12,7 @@ import { CaretDownIcon } from "@phosphor-icons/react/CaretDown";
 import { MagnifyingGlassIcon } from "@phosphor-icons/react/MagnifyingGlass";
 import { MagnifyingGlassMinusIcon } from "@phosphor-icons/react/MagnifyingGlassMinus";
 import { MagnifyingGlassPlusIcon } from "@phosphor-icons/react/MagnifyingGlassPlus";
-import { type RefObject, useRef, useState } from "react";
+import { type RefObject, useLayoutEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 
 import { ImageWithFallback } from "./image-with-fallback";
@@ -26,6 +26,52 @@ import {
   DropdownMenuShortcut,
   DropdownMenuTrigger,
 } from "./ui/dropdown-menu";
+
+const PICTURE_CLASS =
+  "size-auto max-h-full max-w-full object-contain shadow-sm ring-1 ring-foreground/10 select-none";
+
+/**
+ * The picture the last viewer to show one drew, while it may still be on
+ * screen. A step from one file to the next mounts the next viewer in the
+ * commit that takes the last one down, so once that task is over without a
+ * viewer taking its place, the picture is gone and nothing holds it.
+ */
+class DrawnPicture {
+  /** Whether the viewer that drew it is still up. */
+  isMounted = true;
+  private letGo: ReturnType<typeof setTimeout> | undefined;
+
+  constructor(readonly src: string) {}
+
+  /** A viewer took its place and keeps it on screen until its own is ready. */
+  keep() {
+    clearTimeout(this.letGo);
+    this.letGo = undefined;
+  }
+
+  /** A viewer showing `src`, or holding this picture, went. */
+  release(src: string) {
+    if (src === this.src) {
+      this.isMounted = false;
+    }
+    if (!this.isMounted && this.letGo === undefined) {
+      this.letGo = setTimeout(() => {
+        if (drawnPicture === this) {
+          drawnPicture = null;
+        }
+      });
+    }
+  }
+}
+
+let drawnPicture: DrawnPicture | null = null;
+
+/** The picture a viewer mounting for `src` keeps on screen until its own is decoded. */
+function heldPictureFor(src: string): null | string {
+  return drawnPicture !== null && drawnPicture.src !== src
+    ? drawnPicture.src
+    : null;
+}
 
 /**
  * A single image, fitted to the space it is given on a ground of its own, with
@@ -57,9 +103,30 @@ export function ImageViewer({
   previewUrl?: string;
 }) {
   const { filename, hostPath, url } = file;
+  const src = previewUrl ?? url;
   const viewportRef = useRef<HTMLDivElement>(null);
   const contentRef = useRef<HTMLDivElement>(null);
   const [isLoaded, setIsLoaded] = useState(false);
+  // Stepping from one picture to the next mounts a new viewer, and the
+  // picture it took the place of stays drawn until this one's is decoded,
+  // so the step is one frame from picture to picture with no ground between.
+  const [held, setHeld] = useState(() => heldPictureFor(src));
+  const [handoff] = useState(() => drawnPicture);
+  useLayoutEffect(() => {
+    // Gone before this commit, or its viewer still up after it: not a step
+    // but a viewer opened elsewhere (Quick Look over the folder's).
+    if (handoff !== drawnPicture || handoff?.isMounted) {
+      // oxlint-disable-next-line react/set-state-in-effect -- whether the last viewer went in this commit is known only once it is committed, and before the frame is painted
+      setHeld(null);
+      return;
+    }
+    handoff?.keep();
+  }, [handoff]);
+  useLayoutEffect(() => () => drawnPicture?.release(src), [src]);
+  const showPicture = () => {
+    setHeld(null);
+    drawnPicture = new DrawnPicture(src);
+  };
   const zoom = useImagePanzoom({ contentRef, viewportRef });
   // Always on: which of the two gestures a press means is settled by the
   // panzoom hook, which leaves the press alone once the image has nowhere to
@@ -96,27 +163,51 @@ export function ImageViewer({
           <ImageWithFallback
             alt={filename}
             className={cn(
-              "size-auto max-h-full max-w-full object-contain shadow-sm ring-1 ring-foreground/10 select-none",
+              PICTURE_CLASS,
               zoom.clickZoomsIn && "cursor-zoom-in",
+              held !== null && "invisible",
             )}
+            // Taking a picture's place it is shown once decoded, so the frame
+            // it appears in draws it whole.
+            {...(held === null ? {} : { decoding: "sync" as const })}
+            enters={held === null}
             filename={filename}
             onError={onError}
-            onLoad={() => {
+            onLoad={(event) => {
               setIsLoaded(true);
+              if (held === null) {
+                showPicture();
+                return;
+              }
+              event.currentTarget.decode().then(showPicture, showPicture);
             }}
             showCheckerboard
-            src={previewUrl ?? url}
+            src={src}
             {...dragProps}
           />
         </div>
       </div>
-      {/* Held back until there is an image to zoom. A file the app cannot
-          preview only reports that once its load has actually failed, which
-          takes a round trip to the main process, and a control in the row in
-          the meantime would appear and then vanish as the preview-unavailable
-          card replaces the viewer. Remounted per file by the host's `key`, so
+      {held !== null && (
+        <div
+          aria-hidden
+          className="pointer-events-none absolute inset-0 flex items-center justify-center p-6"
+        >
+          <img
+            alt=""
+            className={cn(PICTURE_CLASS, "checkerboard")}
+            decoding="sync"
+            src={held}
+          />
+        </div>
+      )}
+      {/* Held back until there is an image to zoom, or one is on its way in
+          place of the picture before it. A file the app cannot preview only
+          reports that once its load has actually failed, which takes a round
+          trip to the main process, and a control in the row in the meantime
+          would appear and then vanish as the preview-unavailable card
+          replaces the viewer. Remounted per file by the host's `key`, so
           this starts false again for the next one. */}
-      {isLoaded &&
+      {(isLoaded || held !== null) &&
         controlsInto &&
         createPortal(
           <ImageZoomMenu {...zoom} viewportRef={viewportRef} />,

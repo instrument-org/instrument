@@ -64,12 +64,13 @@ export interface TabSurface {
 
 /**
  * Where a tab's row says it stands, given what its address says and what its
- * screen says about itself: the folder as it was walked to, several picked
- * beside a file in the file's place, and what a built-in page has open.
+ * screen says about itself: the folder as it was walked to, the one item
+ * selected in it, several picked beside a file in the file's place, and
+ * what a built-in page has open.
  */
 export function surfaceLocation(
   fromHref: TabLocation,
-  { item, picked, view, walked }: TabSurface = {},
+  { finder, item, picked, view, walked }: TabSurface = {},
 ): TabLocation {
   if (fromHref.kind === "builtin" && item !== undefined) {
     return { ...fromHref, item };
@@ -85,11 +86,13 @@ export function surfaceLocation(
       : { kind: "folder", path: "", picked: picked.count };
   }
   if (fromHref.kind === "folder" && view?.folder) {
+    const [only, ...more] = finder?.selected ?? [];
     return {
       ...fromHref,
       ...(walked
         ? { hostPath: walked.hostPath, path: walked.walked }
         : { path: view.folder.display }),
+      ...(only && more.length === 0 ? { selected: only.path } : {}),
     };
   }
   return fromHref;

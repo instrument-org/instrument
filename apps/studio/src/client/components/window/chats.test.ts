@@ -580,9 +580,10 @@ describe("the rail's Chat dot", () => {
     ],
   ])("%s: %j", (_label, chats, mark) => {
     expect(railMarkOf(chats)).toBe(mark);
+    // The rail's Chat never wears the unread dot.
     expect(
       strongestMark(chats.flatMap((each) => railMarkOf([each]) ?? [])),
-    ).toBe(mark);
+    ).toBe(mark === "unread" ? undefined : mark);
   });
 });
 

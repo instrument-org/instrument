@@ -10,8 +10,8 @@ import { WorkCardView } from "./work-card";
 import { TranscriptRecordsContext } from "./transcript-data";
 
 // A file's picture comes over the app protocol, which only the main process
-// answers, so here it is a picture naming the file, and one that fails to
-// load for a file under `/broken/`.
+// answers, so here it is a picture naming the file, one that fails to load for
+// a file under `/broken/`, and a portrait larger than the card for `TALL`.
 vi.mock("@/client/lib/computer-file-url", async (importOriginal) => ({
   ...(await importOriginal<typeof ComputerFileUrl>()),
   getComputerThumbnailUrl: ({
@@ -24,9 +24,14 @@ vi.mock("@/client/lib/computer-file-url", async (importOriginal) => ({
     hostPath.startsWith("/broken/")
       ? `data:image/png;base64,AAAA#${hostPath}`
       : `data:image/svg+xml,${encodeURIComponent(
-          "<svg xmlns='http://www.w3.org/2000/svg' width='4' height='4'/>",
+          hostPath === TALL
+            ? "<svg xmlns='http://www.w3.org/2000/svg' width='400' height='1000'/>"
+            : "<svg xmlns='http://www.w3.org/2000/svg' width='4' height='4'/>",
         )}#${hostPath}${version === undefined ? "" : `@${version.toString()}`}`,
 }));
+
+/** A picture taller than the card, whose shape is 0.4 wide to 1 tall. */
+const TALL = "/work/tall.png";
 
 /** The file a picture on the card is of, from its address. */
 const pictured = (picture: Element) =>
@@ -67,7 +72,7 @@ async function renderStep(shown: TurnStep) {
 
 const SESSION = StoreId.newSessionId();
 
-function cardOf(kind: "files" | "images", steps: TurnStep[]) {
+function cardOf(kind: "files" | "generated" | "images", steps: TurnStep[]) {
   return (
     <ThemeProvider>
       <TranscriptRecordsContext value={RECORDS}>
@@ -83,7 +88,10 @@ function cardOf(kind: "files" | "images", steps: TurnStep[]) {
   );
 }
 
-async function renderSteps(kind: "files" | "images", steps: TurnStep[]) {
+async function renderSteps(
+  kind: "files" | "generated" | "images",
+  steps: TurnStep[],
+) {
   return renderInBrowser(cardOf(kind, steps));
 }
 
@@ -237,4 +245,26 @@ describe("a live card's pictures", () => {
     );
     expect(pictures.at(-1)?.className).toContain("ring-brand-500");
   });
+
+  it.each([
+    ["generated", step({ kind: "generated", path: TALL }, "done")],
+    ["images", read(TALL)],
+  ] as const)(
+    "shows a %s picture whole, in its own shape",
+    async (kind, shown) => {
+      const screen = await renderSteps(kind, [shown]);
+      const picture = () =>
+        screen.container.querySelector<HTMLImageElement>(
+          "[data-work-card] img",
+        );
+      await expect.poll(() => picture()?.complete).toBe(true);
+      const drawn = picture()?.getBoundingClientRect();
+      const face = screen.container
+        .querySelector("[data-work-card] > div")
+        ?.getBoundingClientRect();
+      expect(drawn && drawn.width / drawn.height).toBeCloseTo(0.4, 2);
+      expect(drawn && face && drawn.top >= face.top).toBe(true);
+      expect(drawn && face && drawn.bottom <= face.bottom).toBe(true);
+    },
+  );
 });

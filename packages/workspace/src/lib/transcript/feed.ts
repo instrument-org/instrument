@@ -257,14 +257,21 @@ export function applyFeedEvent(
   return { hasOlder: current?.hasOlder ?? false, messages };
 }
 
-/** Earlier turns, put above what the reader holds. */
+/**
+ * Earlier turns, put above what the reader holds. A message the reader holds
+ * already stays where it is, so a page that arrives twice adds nothing.
+ */
 export function applyOlder(
   current: TranscriptFeed | undefined,
   older: TranscriptFeed,
 ): TranscriptFeed {
+  const held = new Set(current?.messages.map((message) => message.id));
   return {
     hasOlder: older.hasOlder,
-    messages: [...older.messages, ...(current?.messages ?? [])],
+    messages: [
+      ...older.messages.filter((message) => !held.has(message.id)),
+      ...(current?.messages ?? []),
+    ],
   };
 }
 

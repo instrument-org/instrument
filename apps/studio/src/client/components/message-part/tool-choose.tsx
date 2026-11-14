@@ -12,6 +12,7 @@ import { ArrowUpIcon } from "@phosphor-icons/react/ArrowUp";
 import { CaretDownIcon } from "@phosphor-icons/react/CaretDown";
 import { CheckIcon } from "@phosphor-icons/react/Check";
 import { MinusIcon } from "@phosphor-icons/react/Minus";
+import { QuestionIcon } from "@phosphor-icons/react/Question";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { type ReactNode, useEffect, useEffectEvent, useState } from "react";
 import { toast } from "@/client/lib/toast";
@@ -545,12 +546,13 @@ function SendButton({
 }
 
 /**
- * A card that is no longer open: a line per question with its answer in
- * full, and the note under them. A card whose questions all went unanswered
- * the same way, skipped or never answered, says so once over the questions.
- * The card opens to show every choice the agent offered, the picked ones
- * marked, so what else there was stays findable without the card looking
- * answerable.
+ * A question that is no longer open, drawn as a finished step: the question
+ * mark on the step's tile, then a line per question with its header and its
+ * answer in full, and the note under them. A card whose questions all went
+ * unanswered the same way, skipped or never answered, says so once. It opens
+ * to show each question whole with every choice the agent offered, the
+ * picked ones checked, so what else there was stays findable without the
+ * line looking answerable.
  */
 function AnsweredCard({
   answer,
@@ -569,128 +571,115 @@ function AnsweredCard({
     : ended && replies.every((reply) => reply === undefined)
       ? "No answer"
       : undefined;
-  const caret = (
-    <CaretDownIcon
-      className={cn(
-        "ml-auto size-3 shrink-0 self-center text-muted-foreground transition-transform",
-        isExpanded && "rotate-180",
-      )}
-    />
-  );
+  const labelOf = (question: ChooseQuestion) =>
+    question.header || question.question;
+  const rows = unanswered
+    ? [{ label: questions.map(labelOf).join(", "), said: unanswered }]
+    : questions.map((question, index) => {
+        const reply = replies[index];
+        const picked = reply && "picked" in reply ? reply.picked : undefined;
+        const labels = question.choices.map((choice) => choice.label);
+        return {
+          label: labelOf(question),
+          picked,
+          said:
+            picked
+              ?.map((each) => (labels.includes(each) ? each : `“${each}”`))
+              .join(", ") ?? (reply ? "Skipped" : ended ? "No answer" : ""),
+        };
+      });
   return (
-    <ToolCard className="rounded-[20px]">
+    <div className="flex max-w-xl min-w-0 flex-col gap-1.5 text-[13px]/5">
       <button
         aria-expanded={isExpanded}
-        className="flex w-full flex-col gap-1 p-3.5 text-left text-[13px] outline-none focus-visible:bg-foreground/5"
+        className="flex flex-col gap-1 self-start rounded-md text-left outline-none focus-visible:ring-2 focus-visible:ring-ring"
         onClick={() => {
           setIsExpanded((open) => !open);
         }}
         type="button"
       >
-        {unanswered ? (
-          <span className="flex w-full items-start gap-2">
-            <MinusIcon className="mt-0.5 size-3.5 shrink-0 text-muted-foreground" />
-            <span className="flex min-w-0 flex-col">
-              <span className="font-medium">{unanswered}</span>
-              <span className="text-muted-foreground">
-                {isSeveral
-                  ? questions
-                      .map((question) => question.header || question.question)
-                      .join(", ")
-                  : questions[0]?.question}
+        {rows.map((row, index) => (
+          <span className="flex items-start gap-1.5" key={index}>
+            {index === 0 ? (
+              <span className="flex size-5 shrink-0 items-center justify-center rounded-lg bg-black/5 dark:bg-white/5">
+                <QuestionIcon className="size-3 text-foreground/70" />
               </span>
+            ) : (
+              <span className="w-5 shrink-0" />
+            )}
+            <span
+              className={cn(
+                "text-muted-foreground",
+                isSeveral && !unanswered
+                  ? "w-21 shrink-0 truncate"
+                  : "min-w-0 text-pretty",
+              )}
+            >
+              {row.label}
             </span>
-            {caret}
-          </span>
-        ) : (
-          questions.map((question, index) => {
-            const reply = replies[index];
-            const picked =
-              reply && "picked" in reply ? reply.picked : undefined;
-            const labels = question.choices.map((choice) => choice.label);
-            const said = picked
-              ?.map((each) => (labels.includes(each) ? each : `“${each}”`))
-              .join(", ");
-            const answerLine = (
-              <span
+            <span
+              className={cn(
+                "min-w-0 text-pretty",
+                "picked" in row && row.picked
+                  ? "font-medium"
+                  : "text-muted-foreground",
+              )}
+            >
+              {row.said}
+            </span>
+            {index === 0 ? (
+              <CaretDownIcon
                 className={cn(
-                  "min-w-0 flex-1 text-pretty",
-                  picked ? "font-medium" : "text-muted-foreground",
+                  "mt-1 size-3 shrink-0 text-muted-foreground transition-transform",
+                  isExpanded && "rotate-180",
                 )}
-              >
-                {said ?? (reply ? "Skipped" : ended ? "No answer" : "")}
-              </span>
-            );
-            return (
-              <span className="flex w-full items-start gap-2" key={index}>
-                {picked ? (
-                  <CheckIcon
-                    className="mt-0.5 size-3.5 shrink-0 text-brand-600 dark:text-brand-400"
-                    weight="bold"
-                  />
-                ) : (
-                  <MinusIcon className="mt-0.5 size-3.5 shrink-0 text-muted-foreground" />
-                )}
-                {isSeveral ? (
-                  <>
-                    <span className="w-28 shrink-0 truncate text-muted-foreground">
-                      {question.header || question.question}
-                    </span>
-                    {answerLine}
-                  </>
-                ) : (
-                  <span className="flex min-w-0 flex-1 flex-col">
-                    <span className="text-muted-foreground">
-                      {question.question}
-                    </span>
-                    {answerLine}
-                  </span>
-                )}
-                {index === 0 ? caret : null}
-              </span>
-            );
-          })
-        )}
+              />
+            ) : null}
+          </span>
+        ))}
       </button>
+      {answer?.note ? (
+        <p className="ml-6.5 border-l-2 pl-2.5 text-xs whitespace-pre-wrap text-muted-foreground">
+          {answer.note}
+        </p>
+      ) : null}
       {isExpanded ? (
-        <div className="-mt-1.5 flex flex-col gap-3 px-3.5 pb-3.5 pl-9 text-[13px]">
+        <div className="mt-1 ml-2.5 flex flex-col gap-3 border-l border-border pl-4">
           {questions.map((question, index) => {
             const reply = replies[index];
             const picked = reply && "picked" in reply ? reply.picked : [];
             const labels = question.choices.map((choice) => choice.label);
             const own = picked.filter((each) => !labels.includes(each));
             return (
-              <div key={index}>
-                {isSeveral ? (
-                  <p className="mb-0.5 text-muted-foreground">
-                    {question.question}
-                  </p>
-                ) : null}
+              <div className="flex flex-col gap-1" key={index}>
+                <p className="text-pretty text-muted-foreground">
+                  {question.question}
+                </p>
                 <ul className="flex flex-col gap-0.5">
-                  {[...labels, ...own].map((label) => (
-                    <li
-                      className={
-                        picked.includes(label)
-                          ? "text-foreground"
-                          : "text-muted-foreground"
-                      }
-                      key={label}
-                    >
-                      {labels.includes(label) ? label : `“${label}”`}
-                    </li>
-                  ))}
+                  {[...labels, ...own].map((label) =>
+                    picked.includes(label) ? (
+                      <li className="flex items-start gap-1.5" key={label}>
+                        <CheckIcon
+                          className="mt-1 size-3 shrink-0 text-brand-600 dark:text-brand-400"
+                          weight="bold"
+                        />
+                        <span className="text-pretty">
+                          {labels.includes(label) ? label : `“${label}”`}
+                        </span>
+                      </li>
+                    ) : (
+                      <li className="pl-4.5 text-muted-foreground" key={label}>
+                        {label}
+                      </li>
+                    ),
+                  )}
                 </ul>
               </div>
             );
           })}
         </div>
       ) : null}
-      {answer?.note ? (
-        <p className="mx-3.5 -mt-1.5 mb-3.5 border-l-2 pl-2.5 text-xs whitespace-pre-wrap text-muted-foreground">
-          {answer.note}
-        </p>
-      ) : null}
-    </ToolCard>
+    </div>
   );
 }
 

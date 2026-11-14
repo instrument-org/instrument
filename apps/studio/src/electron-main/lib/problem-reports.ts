@@ -765,13 +765,19 @@ async function recentActions(): Promise<Action[]> {
   }
 }
 
-/** A file or folder as feedback names it: what kind of file, never its name or where it is. */
+/** What follows a name's last dot when it is an extension, lowercased: a few letters and digits, which a part of the name after a dot rarely is. */
+const EXTENSION = /^[a-z0-9]{1,8}$/;
+
+/**
+ * A file or folder as feedback names it: what kind of file, never its name
+ * or where it is. A name whose last dot is followed by anything but an
+ * extension (`Dr. Patel records`) is named as a folder is.
+ */
 function pathKind(filePath: string): string {
   const name = path.basename(filePath.replace(/[\\/]+$/, ""));
   const dot = name.lastIndexOf(".");
-  return dot > 0 && dot < name.length - 1
-    ? `a .${name.slice(dot + 1).toLowerCase()} file`
-    : "a folder";
+  const extension = dot > 0 ? name.slice(dot + 1).toLowerCase() : "";
+  return EXTENSION.test(extension) ? `a .${extension} file` : "a folder";
 }
 
 /** A page's address as feedback names it: its site alone. */

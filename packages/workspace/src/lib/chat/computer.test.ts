@@ -88,28 +88,52 @@ describe("listComputerFolder", () => {
     }
   });
 
-  it("cuts a folder past the cap at the end of the order it is shown in", async () => {
+  it("keeps the newest entries of a folder past the cap, and counts them all", async () => {
     folder = await fs.mkdtemp(path.join(os.tmpdir(), "computer-listing-"));
-    // One past the cap, named so the filesystem's own order is no help: a
-    // folder that sorts to the front by kind and to the back by name, and files
-    // whose numeric order is not their character order.
-    await fs.mkdir(path.join(folder, "zzz"));
+    // Named so neither name order nor the filesystem's own order is the
+    // newest: "file 1" is the oldest and sorts first, "zzz" the newest folder.
     await Promise.all(
-      Array.from({ length: 2000 }, (_, index) =>
+      Array.from({ length: 30 }, (_, index) =>
         fs.writeFile(path.join(folder ?? "", `file ${index + 1}`), ""),
       ),
     );
+    await fs.mkdir(path.join(folder, "zzz"));
+    const names = [
+      ...Array.from({ length: 30 }, (_, index) => `file ${index + 1}`),
+      "zzz",
+    ];
+    await Promise.all(
+      names.map((name, index) => {
+        const at = new Date(Date.UTC(2026, 0, 1) + index * 60_000);
+        return fs.utimes(path.join(folder ?? "", name), at, at);
+      }),
+    );
 
-    const listing = await listComputerFolder({ path: folder, chatId });
+    const listing = await listComputerFolder({
+      path: folder,
+      chatId,
+      maxEntries: 10,
+    });
     if (listing.kind !== "listing") {
       throw new Error(`refused: ${listing.reason}`);
     }
 
     expect(listing.truncated).toBe(true);
-    expect(listing.entries).toHaveLength(2000);
-    expect(listing.entries[0]).toMatchObject({ kind: "folder", name: "zzz" });
-    expect(listing.entries[1]?.name).toBe("file 1");
-    expect(listing.entries.at(-1)?.name).toBe("file 1999");
+    expect(listing.total).toBe(31);
+    expect(listing.entries.map((entry) => entry.name)).toMatchInlineSnapshot(`
+      [
+        "zzz",
+        "file 22",
+        "file 23",
+        "file 24",
+        "file 25",
+        "file 26",
+        "file 27",
+        "file 28",
+        "file 29",
+        "file 30",
+      ]
+    `);
   });
 
   // Windows ignores a folder's POSIX mode bits, so 0o000 shuts nothing there.

@@ -108,6 +108,24 @@ export type OutsideLink =
    */
   | { id: string; kind: "page"; token?: string };
 
+/**
+ * What a link from outside may lead with besides a noun: a file's path,
+ * several, a hosted page, and the one verb.
+ */
+const OUTSIDE_HOSTS = ["file", "files", "new", "page"] as const;
+
+const isOutsideHost = (host: string): host is (typeof OUTSIDE_HOSTS)[number] =>
+  OUTSIDE_HOSTS.some((each) => each === host);
+
+/**
+ * Whether a host, in lowercase, is one `outsideLinkOf` reads: a noun or one
+ * of `OUTSIDE_HOSTS`. A link leading with one that still reads as nothing is
+ * a kind the app knows in a shape it refuses.
+ */
+export function isOutsideLinkHost(host: string): boolean {
+  return isHost(host) || isOutsideHost(host);
+}
+
 /** The longest words a `new` link may bring; a longer one opens nothing. */
 export const OUTSIDE_WORDS_MAX = 2000;
 
@@ -161,7 +179,7 @@ export function outsideLinkOf(url: string): OutsideLink | undefined {
   }
   const parsed = new URL(url);
   const host = parsed.host.toLowerCase();
-  if (!SCHEMES.has(parsed.protocol)) {
+  if (!SCHEMES.has(parsed.protocol) || !isOutsideHost(host)) {
     return undefined;
   }
   if (host === "page") {

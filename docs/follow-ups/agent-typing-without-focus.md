@@ -6,7 +6,7 @@
 
 An agent's typing into a page that does not hold the window's focus goes to the page itself, or to a cross-origin frame on its own debugger session, and leaves the person's caret where it was (`keyboard-without-focus.ts`). What those routes cannot carry still takes focus first. We want to know how often that happens in real use, for which reasons, and whether a reason worth a route of its own stands out. The commit that adds it is `studio: type into in-app pages without taking the window's focus`.
 
-It has run only on macOS. Owed on Windows and Linux, in the first build that carries it: an agent fills a form and sends it with `press Tab` and `press Enter` while the person types in the message box, and every value and key arrives in the page while the person's text and caret stay whole. Keys are the route to watch there: a key the page never reports handling counts as delivered after a second, logged only at debug level (`did not report handling it`), so a key that never arrives fails quietly rather than taking focus.
+It has run on macOS and on Windows (2.0.7, the x64 build on a Windows ARM machine). Owed on Linux, in the first build that carries it: an agent fills a form and sends it with `press Tab` and `press Enter` while the person types in the message box, and every value and key arrives in the page while the person's text and caret stay whole. Keys are the route to watch there: a key the page never reports handling counts as delivered after a second, logged only at debug level (`did not report handling it`), so a key that never arrives fails quietly rather than taking focus.
 
 ## The signal
 
@@ -32,4 +32,4 @@ The main log of a build in daily use: `apps/studio/.logs/` in development, the r
 
 ## Result
 
-Not checked yet.
+Windows, 2.0.7 installed: agent-browser filled the booking form's seven fields, the cross-site card frame's two included, and sent it with `press Tab` and `press Enter` while the person typed 665 characters into the message box. Every value arrived and the form was submitted, the person's text came through whole with the caret still in the box, and the log read `typed without focus … text=57 keys=4` with no command taking focus, the same as on macOS. Daily-use counts are not checked yet.

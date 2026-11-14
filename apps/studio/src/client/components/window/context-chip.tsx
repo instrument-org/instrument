@@ -130,7 +130,10 @@ export function ContextSuggestion({
             <HeldMark appsBySlug={appsBySlug} tab={item.tab} />
           )}
         </span>
-        <span className="min-w-0 truncate">{name}</span>
+        {/* One line cut short like `truncate`, but free to break anywhere,
+            so the name adds a letter rather than its whole length to the
+            least the composer's row can squeeze the offer to. */}
+        <span className="line-clamp-1 min-w-0 break-all">{name}</span>
         <PlusIcon className="size-3 shrink-0" />
       </button>
     </ToolbarTooltip>

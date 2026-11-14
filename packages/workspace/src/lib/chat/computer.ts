@@ -9,6 +9,7 @@ import { type ChatId } from "../../schemas/chat-id";
 import { getMimeType } from "../get-mime-type";
 import { pathIsWithin } from "../path-is-within";
 import { type ReadRefusal, readRefusalOf } from "../read-refusal";
+import { compareEntries } from "./computer-entry-order";
 import { getWorkspaceConfig } from "../workspace-config";
 import { effectiveFolderAccess, shellPath } from "../workspace-fs-layout";
 import {
@@ -27,11 +28,16 @@ import {
 } from "./icloud-drive";
 
 /**
- * How many entries one listing carries. A folder past this shows the first in
- * the order the browser shows them, so what is missing is the end of the list
- * rather than a scattering through it.
+ * How many entries one listing carries. A folder past this keeps the ones
+ * modified last (`newestOf`). The listing runs in the main process, when a
+ * folder opens and again when something is added to it or taken out of it
+ * (`liveComputerFolder`), so this bounds how long each of those reads holds
+ * the event loop: about 30 ms at 10,000 entries, 400 ms at 50,000.
  */
-const MAX_ENTRIES = 2000;
+const MAX_ENTRIES = 10_000;
+
+/** How many entries a folder past the cap stats at once while it finds its newest. */
+const STAT_BATCH = 1000;
 
 const ComputerEntrySchema = z.object({
   createdAt: z.number().optional(),
@@ -66,7 +72,7 @@ const ComputerEntrySchema = z.object({
   /** What the system calls this kind of item, where the name cannot say: "Application". */
   typeName: z.string().optional(),
 });
-type ComputerEntry = z.output<typeof ComputerEntrySchema>;
+export type ComputerEntry = z.output<typeof ComputerEntrySchema>;
 
 /**
  * How the chat reaches a folder of the computer, when one of the
@@ -106,6 +112,9 @@ const ComputerListingSchema = z.object({
   kind: z.literal("listing"),
   /** The host path listed, `~` expanded. */
   path: z.string(),
+  /** How many entries the folder has, `entries` past the cap or not. */
+  total: z.number(),
+  /** That the folder is past the cap, and `entries` its newest. */
   truncated: z.boolean(),
 });
 export type ComputerListing = z.output<typeof ComputerListingSchema>;
@@ -150,6 +159,25 @@ export const ComputerFolderSchema = z.discriminatedUnion("kind", [
   ComputerRefusalSchema,
 ]);
 export type ComputerFolder = z.output<typeof ComputerFolderSchema>;
+
+/**
+ * One step of a folder's live listing (`liveComputerFolder`): the whole
+ * folder, then what changed in it. A patch names entries by path, so it lands
+ * right on any listing of the folder (`applyFolderPatch`).
+ */
+export const ComputerFolderEventSchema = z.discriminatedUnion("kind", [
+  z.object({ folder: ComputerFolderSchema, kind: z.literal("snapshot") }),
+  z.object({
+    /** The listing's own fields as they now stand. */
+    head: ComputerListingSchema.omit({ entries: true }),
+    kind: z.literal("patch"),
+    /** The paths of the entries gone. */
+    removed: z.string().array(),
+    /** The entries new to the listing, or changed, whole. */
+    upserts: ComputerEntrySchema.array(),
+  }),
+]);
+export type ComputerFolderEvent = z.output<typeof ComputerFolderEventSchema>;
 
 /** A folder the chat reaches as a host root, with how the agent reaches what is under it. */
 export interface FolderRoot {
@@ -206,13 +234,36 @@ export function accessIn(
  * a round trip per flip, and a folder whose children are already in hand would
  * come back half-loaded under the new answer.
  */
-export async function listComputerFolder({
+export async function listComputerFolder(options: {
+  path: string;
+  chatId: ChatId;
+  maxEntries?: number;
+}): Promise<ComputerFolder> {
+  return (await readComputerFolder(options)).folder;
+}
+
+/**
+ * What the system says of a folder's entries beside their stats, kept from a
+ * read of the folder so one entry can be described again on its own
+ * (`describeNamedEntries`) without asking the Finder about every other.
+ */
+export interface FolderNotes {
+  finder: ReadonlyMap<string, FinderEntry>;
+  hiddenNames: ReadonlySet<string>;
+}
+
+const NO_NOTES: FolderNotes = { finder: new Map(), hiddenNames: new Set() };
+
+/** A folder as `listComputerFolder` answers it, with the notes its read took. */
+export async function readComputerFolder({
   path: input,
   chatId,
+  maxEntries = MAX_ENTRIES,
 }: {
   path: string;
   chatId: ChatId;
-}): Promise<ComputerFolder> {
+  maxEntries?: number;
+}): Promise<{ folder: ComputerFolder; notes: FolderNotes }> {
   const asked = await resolveICloudPath(expandHomePath(input), exists);
   const hostPath = await resolveThroughAliases(
     asked,
@@ -220,10 +271,13 @@ export async function listComputerFolder({
   );
   if ((await isAppData(asked)) || (await isAppData(hostPath))) {
     return {
-      display: displayHostPath(hostPath),
-      kind: "refused",
-      path: hostPath,
-      reason: "app",
+      folder: {
+        display: displayHostPath(hostPath),
+        kind: "refused",
+        path: hostPath,
+        reason: "app",
+      },
+      notes: NO_NOTES,
     };
   }
   let dirents: Dirent[];
@@ -248,36 +302,30 @@ export async function listComputerFolder({
         ? await shutFolderAbove(hostPath)
         : await guardedFolderAbove(hostPath);
     return {
-      display: displayHostPath(hostPath),
-      kind: "refused",
-      ...(isPackage ? { package: true } : {}),
-      path: hostPath,
-      reason,
-      ...(refusedBy === undefined ? {} : { refusedBy }),
+      folder: {
+        display: displayHostPath(hostPath),
+        kind: "refused",
+        ...(isPackage ? { package: true } : {}),
+        path: hostPath,
+        reason,
+        ...(refusedBy === undefined ? {} : { refusedBy }),
+      },
+      notes: NO_NOTES,
     };
   }
-  const truncated = dirents.length > MAX_ENTRIES;
-
-  // Ordered before the cut so the cut is the one the browser would make. A
-  // link to a folder reads as a file here and as a folder once followed, which
-  // is why the described entries are ordered again below.
-  dirents.sort((a, b) =>
-    compareEntries(
-      { kind: a.isDirectory() ? "folder" : "file", name: a.name },
-      { kind: b.isDirectory() ? "folder" : "file", name: b.name },
-    ),
-  );
+  const truncated = dirents.length > maxEntries;
+  const kept = truncated
+    ? await newestOf(hostPath, dirents, maxEntries)
+    : dirents;
   const entries = await Promise.all(
-    dirents
-      .slice(0, MAX_ENTRIES)
-      .map((entry) =>
-        describeEntry(
-          hostPath,
-          entry.name,
-          hiddenNames.has(entry.name),
-          finder.get(entry.name.normalize("NFC")),
-        ),
+    kept.map((entry) =>
+      describeEntry(
+        hostPath,
+        entry.name,
+        hiddenNames.has(entry.name),
+        finder.get(entry.name.normalize("NFC")),
       ),
+    ),
   );
   const appFolders =
     process.platform === "darwin" && hostPath === iCloudDrivePath()
@@ -297,14 +345,79 @@ export async function listComputerFolder({
   );
 
   return {
-    access: await computerAccess(chatId, hostPath),
-    ...(appFolders?.access === "refused" ? { appFoldersLocked: true } : {}),
-    display: displayHostPath(hostPath),
-    entries: entries.filter((_entry, index) => !refused[index]),
-    kind: "listing",
-    path: hostPath,
-    truncated,
+    folder: {
+      access: await computerAccess(chatId, hostPath),
+      ...(appFolders?.access === "refused" ? { appFoldersLocked: true } : {}),
+      display: displayHostPath(hostPath),
+      entries: entries.filter((_entry, index) => !refused[index]),
+      kind: "listing",
+      path: hostPath,
+      total: dirents.length,
+      truncated,
+    },
+    notes: { finder, hiddenNames },
   };
+}
+
+/**
+ * Entries of a folder already read, described again by name with the notes
+ * of that read, so a file written to or touched costs a stat rather than a
+ * read of its whole folder. Nothing for a name no longer there. A name new
+ * to the folder has no notes yet and is read with its folder instead.
+ */
+export async function describeNamedEntries(
+  hostPath: string,
+  names: readonly string[],
+  { finder, hiddenNames }: FolderNotes,
+): Promise<(ComputerEntry | undefined)[]> {
+  return Promise.all(
+    names.map(async (name) => {
+      try {
+        await fs.lstat(path.join(hostPath, name));
+      } catch {
+        return undefined;
+      }
+      return describeEntry(
+        hostPath,
+        name,
+        hiddenNames.has(name),
+        finder.get(name.normalize("NFC")),
+      );
+    }),
+  );
+}
+
+/**
+ * The `count` entries of a folder modified last. A folder past the cap keeps
+ * its newest whatever order the browser shows, since what a person looks for
+ * in a folder that large (screenshots, downloads) is what came in lately, and
+ * one rule keeps every reader of the folder agreeing on what is in it. Read
+ * a batch at a time, so a large folder does not settle tens of thousands of
+ * reads on the main process in one turn of the event loop.
+ */
+async function newestOf(
+  folder: string,
+  dirents: readonly Dirent[],
+  count: number,
+): Promise<Dirent[]> {
+  const modifiedAt: number[] = [];
+  for (let at = 0; at < dirents.length; at += STAT_BATCH) {
+    modifiedAt.push(
+      ...(await Promise.all(
+        dirents.slice(at, at + STAT_BATCH).map((entry) =>
+          fs.lstat(path.join(folder, entry.name)).then(
+            (stats) => stats.mtimeMs,
+            () => 0,
+          ),
+        ),
+      )),
+    );
+  }
+  return dirents
+    .map((entry, index) => ({ entry, modifiedAt: modifiedAt[index] ?? 0 }))
+    .toSorted((a, b) => b.modifiedAt - a.modifiedAt)
+    .slice(0, count)
+    .map(({ entry }) => entry);
 }
 
 /**
@@ -357,17 +470,6 @@ export async function describeComputerFiles({
     }),
   );
   return described.filter((entry) => entry !== undefined);
-}
-
-/** Folders first, then by name as a person reads one: `file 2` before `file 10`. */
-function compareEntries(
-  a: Pick<ComputerEntry, "kind" | "name">,
-  b: Pick<ComputerEntry, "kind" | "name">,
-): number {
-  if (a.kind !== b.kind) {
-    return a.kind === "folder" ? -1 : 1;
-  }
-  return a.name.localeCompare(b.name, undefined, { numeric: true });
 }
 
 /**

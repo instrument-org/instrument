@@ -65,7 +65,7 @@ export function RatingCard({
   return (
     <ToolCard
       className={cn(
-        "relative mt-0 max-w-130 p-3.5",
+        "relative my-0 max-w-130 p-3.5",
         sent ? "border-transparent bg-foreground/4" : "shadow-xs",
       )}
     >

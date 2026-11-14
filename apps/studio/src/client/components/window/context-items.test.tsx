@@ -1,7 +1,10 @@
 import { fileHref } from "@/shared/computer-href";
 import { type Draft } from "@/shared/drafts";
 import { type WindowTab } from "@/client/atoms/window";
-import { ChatIdSchema } from "@instrument-org/workspace/client";
+import {
+  ChatIdSchema,
+  type SessionMessageDataPart,
+} from "@instrument-org/workspace/client";
 import { describe, expect, it } from "vitest";
 
 import {
@@ -28,8 +31,18 @@ const page = (
   url,
 });
 
-const offered = (inView: WindowTab, taken: ContextItem[] = []) =>
-  chatSuggestionOf({ chatId: CHAT, finderOf: () => null, inView, taken });
+const offered = (
+  inView: WindowTab,
+  taken: ContextItem[] = [],
+  sent: SessionMessageDataPart.SentChip[] = [],
+) =>
+  chatSuggestionOf({
+    chatId: CHAT,
+    finderOf: () => null,
+    inView,
+    sent,
+    taken,
+  });
 
 describe("a chat's next message", () => {
   it("carries the chat's own tab up in its view, then what was taken", () => {
@@ -69,6 +82,37 @@ describe("a chat's next message", () => {
     expect(site).toMatchObject({ key: "tab:site", kind: "tab" });
     expect(offered(page("site", "site:1"), site ? [site] : [])).toBeUndefined();
   });
+
+  it.each([
+    [
+      "a page",
+      page("site", "site:1"),
+      { kind: "page", title: "Example", url: "https://example.com/" },
+    ],
+    [
+      "an app's front",
+      { href: "/apps/slack", id: "app", kind: "screen" as const },
+      { kind: "screen", title: "Slack", url: "/apps/slack" },
+    ],
+    [
+      "a file",
+      {
+        href: fileHref("/Users/casey/plan.md"),
+        id: "file",
+        kind: "screen" as const,
+      },
+      {
+        items: [{ kind: "file", path: "/Users/casey/plan.md" }],
+        kind: "paths",
+      },
+    ],
+  ] satisfies [string, WindowTab, SessionMessageDataPart.SentChip][])(
+    "is not offered %s one of the chat's messages went with",
+    (_name, tab, chip) => {
+      expect(offered(tab)).toBeDefined();
+      expect(offered(tab, [], [chip])).toBeUndefined();
+    },
+  );
 
   it.each([
     ["the chat's own tab", page("own", CHAT)],

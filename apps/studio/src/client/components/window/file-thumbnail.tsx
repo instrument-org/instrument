@@ -52,7 +52,7 @@ export function FileThumbnail({
         {src ? (
           <img
             alt=""
-            className="size-full object-cover object-top"
+            className="size-full object-contain"
             draggable={false}
             onError={() => {
               setFailed(picture);

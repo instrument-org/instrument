@@ -333,7 +333,7 @@ function ModelView({
             }}
             variant="brand"
           >
-            Done
+            {choice.doneLabel("Done")}
           </Button>
         </>
       }

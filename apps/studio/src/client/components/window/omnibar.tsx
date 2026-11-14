@@ -59,6 +59,7 @@ import {
 } from "@/client/lib/resolve-url-or-search";
 import { siteFromWords } from "@/client/lib/site-from-words";
 import { cn } from "@/client/lib/utils";
+import { computerFolderOptions } from "@/client/lib/live-computer-folder";
 import { rpcClient } from "@/client/rpc/client";
 import { COMPUTER_ROOT, fileHref } from "@/shared/computer-href";
 import {
@@ -738,14 +739,12 @@ function useOmnibarRows({
     home,
   });
   const listing = useQuery(
-    rpcClient.workspace.computer.list.queryOptions({
-      input:
-        mode === "files" && words !== ""
-          ? { id: WINDOW_ID, path: path.folder }
-          : skipToken,
-      retry: false,
-      staleTime: ms("10 seconds"),
-    }),
+    computerFolderOptions(
+      mode === "files" && words !== ""
+        ? { id: WINDOW_ID, path: path.folder }
+        : skipToken,
+      { staleMs: ms("10 seconds") },
+    ),
   );
 
   // An address of the app's own, typed or pasted, is one place.

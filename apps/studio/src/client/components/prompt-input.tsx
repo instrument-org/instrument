@@ -53,7 +53,10 @@ import { shouldAttachClipboardItem } from "@/client/lib/paste-clipboard";
 import { displayPath, folderLabel } from "@/client/lib/path-utils";
 import { SKILL_LIST_STALE_TIME_MS } from "@/client/lib/skill-query";
 import { captureException } from "@/client/lib/capture-exception";
-import { splitTransferItems } from "@/client/lib/transfer-items";
+import {
+  isMacosThumbnailDrop,
+  splitTransferItems,
+} from "@/client/lib/transfer-items";
 import { cn } from "@/client/lib/utils";
 import { rpcClient } from "@/client/rpc/client";
 import { type AIGatewayModelURI } from "@instrument-org/ai-gateway/client";
@@ -538,7 +541,8 @@ export const PromptInput = ({
       const shouldCreatePreview =
         file.size <= MAX_FILE_PREVIEW_SIZE && file.type.startsWith("image/");
       const filePath = window.api.getFilePath(file);
-      const shouldUsePath = filePath.trim().length > 0;
+      const shouldUsePath =
+        filePath.trim().length > 0 && !isMacosThumbnailDrop(filePath);
 
       if (shouldUsePath && !shouldCreatePreview) {
         setAttachedItems((prev) => [
@@ -1032,7 +1036,13 @@ export const PromptInput = ({
       <ComposerFrame
         actions={
           <>
-            <div className="flex min-w-0 items-center gap-1.5">
+            {/* Gives way first, down to the plus and the least of what is
+                beside it, so the model and Send keep their room; only then
+                does the model's name truncate. Flex shares the squeeze in
+                proportion, so the factor is large enough that the model's
+                share rounds to nothing: a sliver of a pixel would cut even
+                "Auto" short. */}
+            <div className="flex shrink-1000000 items-center gap-1.5">
               {addMenu && (
                 <ComposerAddMenu
                   actions={actions}
@@ -1055,7 +1065,7 @@ export const PromptInput = ({
               {besidePlus}
             </div>
 
-            <div className="flex min-w-0 flex-1 items-center justify-end gap-4">
+            <div className="flex min-w-0 flex-auto items-center justify-end gap-4">
               {!dictating &&
                 features.context_ring &&
                 id &&
@@ -1070,7 +1080,7 @@ export const PromptInput = ({
               {!dictating && (
                 <ModelPicker
                   align="end"
-                  className="min-w-0"
+                  className="min-w-0 shrink"
                   disabled={isLoading}
                   errors={modelsErrors}
                   isError={modelsIsError}

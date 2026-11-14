@@ -17,6 +17,7 @@ import { ChatTeardropTextIcon } from "@phosphor-icons/react/ChatTeardropText";
 import { KeyboardIcon } from "@phosphor-icons/react/Keyboard";
 import { LifebuoyIcon } from "@phosphor-icons/react/Lifebuoy";
 import { QuestionIcon } from "@phosphor-icons/react/Question";
+import { useRef } from "react";
 
 /**
  * Help at the sidebar's foot: a menu in the native Help menu's order. Send
@@ -26,6 +27,9 @@ import { QuestionIcon } from "@phosphor-icons/react/Question";
  */
 export function HelpMenu({ chatId }: { chatId?: ChatId }) {
   const openExternalLink = useOpenExternalLink();
+  // The dialog opens once the menu has closed, so the menu handing focus
+  // back to its button doesn't take it from the note.
+  const opensFeedback = useRef(false);
   return (
     <DropdownMenu>
       <ToolbarTooltip label="Help">
@@ -39,10 +43,21 @@ export function HelpMenu({ chatId }: { chatId?: ChatId }) {
           </button>
         </DropdownMenuTrigger>
       </ToolbarTooltip>
-      <DropdownMenuContent align="end" className="min-w-52" side="top">
+      <DropdownMenuContent
+        align="end"
+        className="min-w-52"
+        onCloseAutoFocus={(event) => {
+          if (opensFeedback.current) {
+            opensFeedback.current = false;
+            event.preventDefault();
+            openReportDialog(feedbackReport({ chatId, surface: "rail" }));
+          }
+        }}
+        side="top"
+      >
         <DropdownMenuItem
           onSelect={() => {
-            openReportDialog(feedbackReport({ chatId, surface: "rail" }));
+            opensFeedback.current = true;
           }}
         >
           <ChatTeardropTextIcon className="size-4" />

@@ -10,6 +10,7 @@ import { type Draft } from "@/shared/drafts";
 import { safe } from "@orpc/client";
 import { XIcon } from "@phosphor-icons/react/X";
 import {
+  browserTargetOf,
   type ChatId,
   parseBrowserTargetId,
 } from "@instrument-org/workspace/client";
@@ -21,6 +22,7 @@ import { useAppsBySlug } from "./apps-by-slug";
 import { chatListOptions } from "./chat-list-query";
 import { type Chat } from "./chats";
 import { pageTabTitle } from "./file-tabs";
+import { CaptureTabIcon, usePageCaptures } from "./page-capture-mark";
 import { ScreenMark } from "./pane-tabs";
 import { RowActionBar } from "./row-action-bar";
 import {
@@ -327,6 +329,19 @@ export function TabMark({
   chatTitles: Map<ChatId, string>;
   tab: WindowTab;
 }) {
+  const capture = usePageCaptures().find(
+    ({ targetId, using }) =>
+      (using.audio || using.video) &&
+      tab.kind === "page" &&
+      targetId === browserTargetOf(tab.id),
+  );
+  if (capture) {
+    return (
+      <span className="grid size-3.5 shrink-0 place-items-center">
+        <CaptureTabIcon paused={capture.paused} using={capture.using} />
+      </span>
+    );
+  }
   if (tab.kind === "page") {
     return (
       <PageFavicon

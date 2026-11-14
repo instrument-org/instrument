@@ -32,6 +32,7 @@ import { type Chat } from "./chats";
 import { useComputerVolumes } from "./computer-volumes";
 import { DeleteChatDialog } from "./delete-chat-dialog";
 import { useFileTabTitles } from "./file-tab-titles";
+import { CaptureTabIcon, usePageCaptures } from "./page-capture-mark";
 import { screenPresentation, screenLocation } from "./screen-presentation";
 import { siteTabTitles } from "./site-tab-titles";
 import { chatOfTab, draftOfTab } from "./tab-model";
@@ -113,6 +114,7 @@ export function PaneTabs({
   const fileTitles = useFileTabTitles(
     tabs.map((tab) => (tab.kind === "page" ? undefined : tab.href)),
   );
+  const captures = usePageCaptures();
   const driven = useTargetsAgentActivity(
     // A bookmark held over the strip stands in as a page with no browser
     // view of its own, under an id that is no tab's.
@@ -159,7 +161,19 @@ export function PaneTabs({
       tooltip = tabTooltip("", named);
     }
     let icon: ReactNode = null;
-    if (tab.kind === "page") {
+    // A page using the microphone or camera wears that in place of its
+    // favicon, so the tab in a call is the one to look for.
+    const capture =
+      tab.kind === "page"
+        ? captures.find(
+            ({ targetId, using }) =>
+              (using.audio || using.video) &&
+              targetId === browserTargetOf(tab.id),
+          )
+        : undefined;
+    if (capture) {
+      icon = <CaptureTabIcon paused={capture.paused} using={capture.using} />;
+    } else if (tab.kind === "page") {
       icon = (
         <PageFavicon
           className="size-3.5"

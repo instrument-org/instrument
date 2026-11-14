@@ -170,7 +170,9 @@ export type TurnsCache = Map<
   StoreId.Message,
   {
     cutAcross: boolean;
-    /** It holds the session's last message, which its error row's actions read. */
+    /** Its last message is the session's last, which its errors' rows read. */
+    endsSession: boolean;
+    /** No message the person typed comes after it, which its open questions read. */
     holdsLast: boolean;
     isLive: boolean;
     slice: TranscriptMessage[];
@@ -214,17 +216,18 @@ export function turnsOf(
           !cutAcross &&
           slice.some(isStillGoing)));
     const holdsLast = index >= lastTyped;
+    const endsSession = slice.at(-1) === lastMessage;
     const kept = cache?.get(first.id);
     if (
       kept &&
       kept.isLive === isLive &&
       kept.cutAcross === cutAcross &&
-      // Being followed tells an error it is not the last message and closes
-      // a question written past.
+      // Any message after it, a wake's included, tells an error it is not the
+      // last message.
+      (kept.endsSession === endsSession || !slice.some(hasError)) &&
+      // A message the person typed after it closes a question written past.
       (kept.holdsLast === holdsLast ||
-        !kept.turn.rows.some(
-          (row) => row.kind === "error" || (row.kind === "ask" && row.isOpen),
-        )) &&
+        !kept.turn.rows.some((row) => row.kind === "ask" && row.isOpen)) &&
       kept.slice.length === slice.length &&
       kept.slice.every((message, at) => message === slice[at])
     ) {
@@ -237,7 +240,14 @@ export function turnsOf(
       sessionId,
       writtenPast: !holdsLast,
     });
-    cache?.set(first.id, { cutAcross, holdsLast, isLive, slice, turn });
+    cache?.set(first.id, {
+      cutAcross,
+      endsSession,
+      holdsLast,
+      isLive,
+      slice,
+      turn,
+    });
     return [turn];
   });
 }
@@ -426,6 +436,11 @@ function endedInWords(slice: readonly TranscriptMessage[]): boolean {
     (part) => part.type === "text" || isStepPart(part),
   );
   return said?.type === "text" && !saysNothing(said.text);
+}
+
+/** Whether a reply failed, which is when its rows read the session's last message. */
+function hasError(message: TranscriptMessage): boolean {
+  return message.role === "assistant" && message.metadata.error !== undefined;
 }
 
 /** Whether a message has a step or words the agent is still on. */
@@ -944,12 +959,13 @@ function isRunningRow(row: ActivityRow): boolean {
  * It folds only when nothing in it is left to read, so the reply after it is
  * the whole of what the person needs: the turn finished on its own with
  * words, no message cut across it, and every row between the first piece of
- * work and the reply is a finished step, a card already answered, or words
- * said along the way. A note, an error, a task, a step still running or a
- * card still waiting keeps the whole turn open. What the agent said before
- * it did anything answers the message at once, so it stays above the fold.
- * Notes under the reply (what the turn did to the person's setup or chats)
- * are outside the work and stay in view, so they keep nothing open.
+ * work and the reply is a finished step, a card already answered, the
+ * person's own answer to the work, words said along the way, or a row that
+ * draws nothing. A note, an error, a task, a step still running or a card
+ * still waiting keeps the whole turn open. What the agent said before it did
+ * anything answers the message at once, so it stays above the fold. Notes
+ * under the reply (what the turn did to the person's setup or chats) are
+ * outside the work and stay in view, so they keep nothing open.
  */
 function foldedRows(
   all: readonly TurnRow[],
@@ -964,7 +980,7 @@ function foldedRows(
     ? all.slice(0, reply + 1)
     : all;
   const isWork = (row: TurnRow) =>
-    row.kind === "activity" || row.kind === "ask";
+    row.kind === "activity" || row.kind === "ask" || isAnswerNote(row);
   const firstWork = rows.findIndex(isWork);
   const lastWork = rows.findLastIndex(isWork);
   if (
@@ -976,19 +992,39 @@ function foldedRows(
     return none;
   }
   const work = rows.slice(firstWork, lastWork + 1);
+  // A capacity wait the turn went past keeps its row for the turn's shape,
+  // and says nothing wherever it is.
+  const drawsNothing = (row: TurnRow) =>
+    row.kind === "error" && row.draws === "nothing";
+  const readsAsWords = (row: TurnRow) =>
+    row.kind === "text" || drawsNothing(row);
   const isSettled = (row: TurnRow) =>
-    row.kind === "text" ||
+    readsAsWords(row) ||
+    isAnswerNote(row) ||
     (row.kind === "ask" && !row.isOpen) ||
     (row.kind === "activity" && !isRunningRow(row));
-  const isWords = (row: TurnRow) => row.kind === "text";
   if (
-    !rows.slice(0, firstWork).every(isWords) ||
+    !rows.slice(0, firstWork).every(readsAsWords) ||
     !work.every(isSettled) ||
-    !rows.slice(lastWork + 1).every(isWords)
+    !rows.slice(lastWork + 1).every(readsAsWords)
   ) {
     return none;
   }
   return { ids: new Set(work.map((row) => row.id)), lineAt: work[0]?.id };
+}
+
+/**
+ * The person's own answer to the work: a permission they gave or refused, or
+ * a page they took over and gave back. Settings keeps the permission and the
+ * reply says what came of it, so it is part of the work rather than something
+ * left to read.
+ */
+function isAnswerNote(row: TurnRow): boolean {
+  return (
+    row.kind === "note" &&
+    (row.part.type === "data-permissionAnswer" ||
+      row.part.type === "data-pageTakeover")
+  );
 }
 
 function liveOf(

@@ -24,7 +24,7 @@ export function ToolCard({
   return (
     <div
       className={cn(
-        "group/card mt-2 overflow-hidden rounded-2xl border border-border bg-card",
+        "group/card my-2 overflow-hidden rounded-2xl border border-border bg-card",
         className,
       )}
     >

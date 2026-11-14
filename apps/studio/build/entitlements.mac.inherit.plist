@@ -31,5 +31,11 @@
          profile grants. -->
     <key>com.apple.security.device.audio-input</key>
     <true/>
+    <!-- Lets a page in the in-app browser use the camera, as a video call
+         does. Under the hardened runtime the camera is refused without it;
+         with it, macOS asks the user once. A hardened-runtime key, not one
+         a profile grants. -->
+    <key>com.apple.security.device.camera</key>
+    <true/>
   </dict>
 </plist>

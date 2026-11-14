@@ -1,6 +1,7 @@
 // Opening a file or a web page in the app outside Instrument that it belongs
 // to, and naming that app.
 import { hostPathOfFileUrl } from "@/client/lib/file-url";
+import { revealInFileManager } from "@/client/lib/show-in-files";
 import { rpcClient } from "@/client/rpc/client";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { toast } from "@/client/lib/toast";
@@ -8,8 +9,14 @@ import { toast } from "@/client/lib/toast";
 import { useFileOpenTarget } from "./use-file-open-target";
 import { useOpenFile } from "./use-open-file";
 
-/** What leaves Instrument for another app: a file on the computer, or a web address. */
-export type OpenInAppTarget = { hostPath: string } | { url: string };
+/**
+ * What leaves Instrument for another app: a file on the computer, or a web
+ * address. `reveal` is an item inside a folder `hostPath`, which the system's
+ * file manager opens the folder with selected.
+ */
+export type OpenInAppTarget =
+  | { hostPath: string; reveal?: string }
+  | { url: string };
 
 /** A page's address as something another app can open: a file for a local page, the address itself for a site, nothing for anything else. */
 export function openInAppTargetOfUrl(
@@ -62,7 +69,11 @@ export function useOpenInApp(target: OpenInAppTarget | undefined) {
         ? `Open in ${fileTarget.appName}`
         : "Open in default app",
       open: () => {
-        openFile(file);
+        if (file.reveal === undefined) {
+          openFile(file);
+        } else {
+          void revealInFileManager(file.reveal);
+        }
       },
     };
   }

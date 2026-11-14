@@ -84,6 +84,7 @@ export class ClaudeCodeSession implements MessageSource {
    * only the result ending a turn reports.
    */
   contextWindow: number | undefined;
+  effort: EffortLevel | undefined;
   modelId: string;
   /** The plan's usage as the CLI last reported it, which it does not repeat every turn. */
   rateLimit: SDKRateLimitInfo | undefined;
@@ -98,7 +99,14 @@ export class ClaudeCodeSession implements MessageSource {
    * again.
    */
   notesGiven = new Set<string>();
-  private closed = false;
+  /**
+   * Whether the process has reported anything of a reply in its current
+   * step: an assistant entry, one reporting a failure of Claude's API
+   * included, or a part of one as it streams.
+   */
+  replied = false;
+  /** Whether `close` ended this process, rather than it ending by itself. */
+  closed = false;
   /**
    * Whether Claude Code ends its turn once the tool calls it waits on are
    * answered, instead of asking the model about their results. Set while a
@@ -129,8 +137,9 @@ export class ClaudeCodeSession implements MessageSource {
    * @param transcript The Claude Code session this process writes, under
    * its own id, and how it begins: new, or forked from a transcript at one
    * of its entries (its own slot's last finished step, or the step a branch
-   * left its parent at). None for a one-off, which nothing continues
-   * and so keeps no transcript.
+   * left its parent at). An aside reads its session's transcript and
+   * writes none. None for any other one-off, which nothing continues and so
+   * keeps no transcript.
    */
   constructor(
     readonly key: string,
@@ -142,6 +151,7 @@ export class ClaudeCodeSession implements MessageSource {
     },
   ) {
     this.builtInTools = new Set(shape.builtInTools);
+    this.effort = shape.effort;
     this.modelId = shape.modelId;
     const env = claudeCodeEnvironment(shape.configDir);
     this.query = query({
@@ -227,7 +237,20 @@ export class ClaudeCodeSession implements MessageSource {
       // there as one of its own.
       prompt: this.input as AsyncIterable<SDKUserMessage>,
     });
-    this.messages = this.query[Symbol.asyncIterator]();
+    const output = this.query[Symbol.asyncIterator]();
+    this.messages = {
+      next: async () => {
+        const next = await output.next();
+        if (
+          !next.done &&
+          (next.value.type === "assistant" ||
+            next.value.type === "stream_event")
+        ) {
+          this.replied = true;
+        }
+        return next;
+      },
+    };
     this.touch();
   }
 
@@ -272,6 +295,7 @@ export class ClaudeCodeSession implements MessageSource {
     this.contextWindow = undefined;
     this.forkPoint = undefined;
     this.leaf = undefined;
+    this.replied = false;
     this.seen = seen;
     this.touch();
   }
@@ -286,6 +310,17 @@ export class ClaudeCodeSession implements MessageSource {
     if (this.modelId !== modelId) {
       await this.query.setModel(modelId);
       this.modelId = modelId;
+    }
+  }
+
+  /**
+   * Switches the process to `effort`, before a step that asks for it: none
+   * is the model's own default, as a process started without one runs at.
+   */
+  async useEffort(effort: EffortLevel | undefined) {
+    if (this.effort !== effort) {
+      await this.query.applyFlagSettings({ effortLevel: effort ?? null });
+      this.effort = effort;
     }
   }
 
@@ -472,7 +507,9 @@ export class ClaudeCodeSession implements MessageSource {
 
 export type TranscriptStart =
   | { kind: "fork"; at: string; from: string }
-  | { kind: "new" };
+  | { kind: "new" }
+  /** Reads a transcript up to one of its entries, and writes none. */
+  | { kind: "read"; at: string; from: string };
 
 function transcriptOptions(transcript: ClaudeCodeSession["transcript"]) {
   if (transcript === undefined) {
@@ -489,19 +526,25 @@ function transcriptOptions(transcript: ClaudeCodeSession["transcript"]) {
         resumeSessionAt: start.at,
         sessionId: claudeSessionId,
       };
+    case "read":
+      return {
+        forkSession: true,
+        persistSession: false,
+        resume: start.from,
+        resumeSessionAt: start.at,
+      };
   }
 }
 
 /**
- * What has to match for a running process to answer a request. The model is
- * left out: a process switches models in place.
+ * What has to match for a running process to answer a request. The model and
+ * effort are left out: a process switches both in place.
  */
 export function sessionShapeKey(shape: SessionShape) {
   return JSON.stringify([
     shape.builtInTools,
     shape.configDir,
     shape.executablePath,
-    shape.effort,
     shape.systemPrompt,
     shape.tools.map((tool) => [tool.name, tool.description, tool.inputSchema]),
   ]);

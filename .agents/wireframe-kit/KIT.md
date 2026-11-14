@@ -50,6 +50,10 @@ node .agents/wireframe-kit/check.mjs ~/wireframes/YYYY-MM-DD-<surface>-<variant>
 
 [`check.mjs`](check.mjs) opens a built page once in a downloaded headless Chromium (Playwright's or Puppeteer's, never the Chrome in Applications), turns the marks on, and writes one picture of the whole grid with every frame as large as one image allows, then prints what that picture is too small to settle: script errors and failed loads, a frame that drew blank, content reaching past a frame's edge or past its own box, and every mark with the element it rings and where, or that it ringed nothing because its wrapper has no size. Read the lines first and the picture for the rest: every frame drawn and the one its caption names, the window and its panels where they belong, nothing cut off at a frame's edge, each ring on the element the frame is about. That one picture and the report stand in for the skill's browser-tool check and for any loop of single-frame screenshots; reach for `--frame` only when a line needs a closer look.
 
+## Starting from the running app
+
+A frame can be a snapshot of Studio as it runs, edited by name, instead of a redrawing: `snap(state, edit)`. Read [`SNAPSHOTS.md`](SNAPSHOTS.md) before a round, and reach for a snapshot whenever the frame is about a screen the app already has; the kit below draws what no snapshot holds.
+
 ## The kit
 
 The kit is `kit/`, one file per surface, pasted in the order `KIT_FILES` in [`kit.mjs`](kit.mjs) gives. Every function is a global that returns HTML, and every one takes finished HTML wherever a proposal needs to put its own thing in (`tabs`, `rows`, `over`, `body`, `head`, `foot`, `lead`, `right`), so a part passes its own pieces in rather than patching the kit's output with `.replace()`.

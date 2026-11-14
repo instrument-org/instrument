@@ -34,6 +34,7 @@ import {
 
 import { useSyntaxHighlighting } from "../../hooks/use-syntax-highlighting";
 import { Favicon, PageFavicon } from "../favicon";
+import { ImageWaitBloom } from "../message-part/image-wait-bloom";
 import { Markdown } from "../markdown";
 import { Prose } from "../prose";
 import { BorderSweep } from "../shimmer-sweep";
@@ -165,15 +166,19 @@ const VIEWS: {
     </div>
   ),
   "files/none": () => null,
-  "files/picture": (face) => <FilePicture picture={face.picture} />,
+  "files/picture": (face) => <PictureRow newest={face.picture} strip={[]} />,
   "files/words": (face) => (
     <TypedWords isWriting={false} path={face.path} words={face.words} />
   ),
   "files/writing": (face) => (
     <TypedWords isWriting path={face.path} words={face.words} />
   ),
-  "generated/generating": () => <Waiting>Generating the image</Waiting>,
-  "generated/picture": (face) => <FilePicture picture={face.picture} />,
+  "generated/generating": () => (
+    <ImageWaitBloom fallback={<Waiting>Generating the image</Waiting>} />
+  ),
+  "generated/picture": (face) => (
+    <PictureRow newest={face.picture} strip={[]} />
+  ),
   "images/opening": () => <Waiting>Opening the image</Waiting>,
   "images/pictures": (face) => (
     <PictureRow newest={face.newest} strip={face.strip} />
@@ -434,10 +439,10 @@ function PictureRow({
  * one that failed.
  */
 function FilePicture({
-  className = "size-full object-cover object-top",
+  className,
   picture: { place, version },
 }: {
-  className?: string;
+  className: string;
   picture: WorkCardPicture;
 }) {
   const { resolvedTheme } = useTheme();

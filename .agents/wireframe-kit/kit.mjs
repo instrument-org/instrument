@@ -5,6 +5,8 @@ import os from "node:os";
 import path from "node:path";
 import vm from "node:vm";
 
+import { domWindow, loadState } from "./snap/lib.mjs";
+
 export const here = path.dirname(new URL(import.meta.url).pathname);
 
 export const SKILL =
@@ -35,6 +37,7 @@ export const KIT_FILES = [
   "settings.js",
   "setup.js",
   "mac.js",
+  "snap.js",
 ];
 
 export const kitSource = () =>
@@ -76,12 +79,20 @@ const PAGE_GLOBALS = [
   "btoa",
   "console",
 ];
+/** @type {ReturnType<typeof domWindow> | undefined} */
+let snapWindow;
+// snap() reads its library and edits in a DOM only here, in Node; the page gets the result.
+const snapHost = {
+  doc: () => (snapWindow ??= domWindow()).document,
+  load: loadState,
+};
 const pageContext = () =>
-  vm.createContext(
-    Object.fromEntries(
+  vm.createContext({
+    ...Object.fromEntries(
       PAGE_GLOBALS.map((name) => [name, Reflect.get(globalThis, name)]),
     ),
-  );
+    __snapHost: snapHost,
+  });
 
 /** A declaration at the start of a line: `const x`, `let x`, `var x`, `function x`, `class x`. */
 const DECLARATION =
@@ -232,7 +243,8 @@ export function evaluatePart(/** @type {string} */ part, name = "part.js") {
       ["note", s.note],
       ["body", s.body],
     ]) {
-      const hit = leak.exec(text);
+      // A snapshot's pictures are base64, where "NaN" can stand between a + and a /.
+      const hit = leak.exec(text.replace(/data:[^"')\s]+/g, ""));
       if (hit)
         throw new Error(
           `${frame} renders the text "${hit[0]}" in its ${field}: …${text
@@ -253,7 +265,11 @@ export function evaluatePart(/** @type {string} */ part, name = "part.js") {
         );
     }
   }
-  return ctx.__out;
+  return Object.assign(ctx.__out, {
+    snaps: /** @type {{ state: string, html: string, base: string }[]} */ (
+      Reflect.get(ctx, "__snapBuilt") ?? []
+    ),
+  });
 }
 
 /** A value the kit defines (`kitValue("FOLDER_ROWS")`), run in Node and handed back as JSON. */

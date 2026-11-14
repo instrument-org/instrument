@@ -68,7 +68,7 @@ export function FilePreviewListItem({
           >
             <ImageWithFallback
               alt={filename}
-              className="size-12 object-cover"
+              className="max-h-full max-w-full"
               fallbackClassName="size-12 rounded-lg"
               filename={filename}
               onError={() => {

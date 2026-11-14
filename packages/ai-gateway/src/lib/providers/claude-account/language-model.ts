@@ -28,6 +28,8 @@ import {
 import {
   readResumeRecord,
   removeResumeRecord,
+  removeTranscript,
+  sweepResumeRecords,
   writeResumeRecord,
 } from "./resume-record";
 import {
@@ -52,10 +54,24 @@ import {
 const sessions = new Map<string, ClaudeCodeSession>();
 
 /**
+ * The slot each session's last finished step ran in, by our session id, so
+ * an aside reads that step's transcript whatever shape it asks in.
+ */
+const latestSlots = new Map<string, string>();
+
+/**
  * The process writing each Claude Code transcript, by its session id, until
  * it has exited: closed ones stay here while they write their last entries.
  */
 const writers = new Map<string, ClaudeCodeSession>();
+
+/**
+ * The processes that have finished a step, so the slot's record names the
+ * transcript each writes. Any other process writes a transcript no record
+ * names, which the next request never goes on from: it is removed once that
+ * process has exited.
+ */
+const recorded = new WeakSet<ClaudeCodeSession>();
 
 /**
  * Ends the process writing a transcript, if one still is, and settles once
@@ -65,6 +81,77 @@ async function settleTranscript(claudeSessionId: string) {
   const writer = writers.get(claudeSessionId);
   writer?.close();
   await writer?.exited;
+}
+
+/**
+ * The sweep of each config folder, started once since this process did:
+ * while it runs, when it ends and the slots it leaves alone, and "ended"
+ * from then on.
+ */
+const sweeps = new Map<
+  string | undefined,
+  "ended" | { ended: Promise<void>; keep: Set<string> }
+>();
+
+/**
+ * Sweeps the records in `configDir` left unused for a month, with their
+ * transcripts, the first time a step runs on it, and settles once that sweep
+ * has ended, so a step reads its records only after. The sweep leaves the
+ * records of `slots`, the ones the step reads, when it has not passed them.
+ */
+async function sweepOnce(configDir: string | undefined, slots: string[]) {
+  const running = sweeps.get(configDir);
+  if (running === "ended") {
+    return;
+  }
+  if (running !== undefined) {
+    for (const slot of slots) {
+      running.keep.add(slot);
+    }
+    await running.ended;
+    return;
+  }
+  const keep = new Set(slots);
+  const ended = sweepResumeRecords(configDir, Date.now(), keep)
+    .then((removed) => {
+      if (removed > 0) {
+        console.info(
+          `[claude-account] removed ${removed} resume records no step had written for a month, with their transcripts`,
+        );
+      }
+    })
+    .catch((error: unknown) => {
+      console.warn(
+        `[claude-account] could not sweep resume records: ${String(error)}`,
+      );
+    })
+    .finally(() => {
+      sweeps.set(configDir, "ended");
+    });
+  sweeps.set(configDir, { ended, keep });
+  await ended;
+}
+
+/**
+ * Removes a transcript no record names any more, once the process writing it
+ * has exited, so a session keeps one Claude Code transcript rather than one
+ * per resume or cold start.
+ */
+function dropTranscript(
+  configDir: string | undefined,
+  claudeSessionId: string | undefined,
+) {
+  if (claudeSessionId === undefined) {
+    return;
+  }
+  void (async () => {
+    await writers.get(claudeSessionId)?.exited;
+    await removeTranscript(configDir, claudeSessionId);
+  })().catch((error: unknown) => {
+    console.warn(
+      `[claude-account] could not remove transcript ${claudeSessionId}: ${String(error)}`,
+    );
+  });
 }
 
 /**
@@ -132,6 +219,7 @@ function streamStep({
 }) {
   const key = sessionKeyOf(options);
   const parentKey = parentKeyOf(options);
+  const aside = isAside(options);
   const { rest, systemPrompt } = splitSystemPrompt(options.prompt);
   const shape: SessionShape = {
     builtInTools: builtInToolsOf(options),
@@ -158,11 +246,19 @@ function streamStep({
         .digest("hex");
       // A request with no tools is a one-off (a title, a summary), and so is
       // one that arrives while its session's process is mid-step. Each gets
-      // a process of its own that ends with it, and keeps no transcript.
+      // a process of its own that ends with it, and keeps no transcript. An
+      // aside is a one-off too, on its session's transcript as its last
+      // finished step left it.
       const slot =
-        key === undefined || shape.tools.length === 0
+        aside || key === undefined || shape.tools.length === 0
           ? undefined
           : `${key}:${shapeHash}`;
+      // Before this process has run a step for the session, the slot the
+      // aside's own shape names, whose record a step before a launch left.
+      const besideSlot =
+        aside && key !== undefined
+          ? (latestSlots.get(key) ?? `${key}:${shapeHash}`)
+          : undefined;
       const existing = slot === undefined ? undefined : sessions.get(slot);
       const persistent = existing?.busy === true ? undefined : slot;
       const prompt = splitPrompt(options.prompt);
@@ -174,6 +270,16 @@ function streamStep({
 
       try {
         controller.enqueue({ type: "stream-start", warnings: [] });
+        // Before any record is read: the sweep removes a record left for a
+        // month, which is what a chat opened again after one resumes from.
+        await sweepOnce(
+          configDir,
+          [
+            persistent,
+            besideSlot,
+            parentKey === undefined ? undefined : `${parentKey}:${shapeHash}`,
+          ].filter((read) => read !== undefined),
+        );
         // A live process for this slot, or else the transcript its last one
         // left, resumed at its last finished step, or else for a branch's
         // first step, its parent's transcript forked where it branched off.
@@ -188,19 +294,40 @@ function streamStep({
                       readFor: "fork",
                     }),
               record: () =>
-                persistent === undefined
-                  ? Promise.resolve({ missing: "no process of its own" })
-                  : readResumeRecord(configDir, persistent, {
+                besideSlot !== undefined
+                  ? readResumeRecord(configDir, besideSlot, {
                       readFor: "resume",
-                      // The slot's own process, when it is the one that
-                      // cannot continue, goes either way: a resume carries
-                      // its transcript on, and a cold start leaves it.
-                      settled: settleTranscript,
-                    }),
+                      // The session's own process stays up: an aside reads
+                      // only the steps its transcript already holds.
+                      settled: () => Promise.resolve(),
+                    })
+                  : persistent === undefined
+                    ? Promise.resolve({ missing: "no process of its own" })
+                    : readResumeRecord(configDir, persistent, {
+                        readFor: "resume",
+                        // The slot's own process, when it is the one that
+                        // cannot continue, goes either way: a resume carries
+                        // its transcript on, and a cold start leaves it.
+                        settled: settleTranscript,
+                      }),
             },
             prompt,
           ),
         );
+        if (aside && plan.kind !== "resume") {
+          // Asked again from nothing, an aside would cost what the whole
+          // conversation does, for an answer its caller can go without.
+          console.info(
+            `[claude-account] session ${key ?? "(none)"} answered an aside with nothing: ${plan.kind === "cold" ? plan.why.detail : `a ${plan.kind} plan`}`,
+          );
+          controller.enqueue({
+            finishReason: { raw: "aside", unified: "other" },
+            type: "finish",
+            usage: emptyUsage(),
+          });
+          controller.close();
+          return;
+        }
         const changedShape =
           key === undefined || persistent === undefined
             ? undefined
@@ -210,7 +337,10 @@ function streamStep({
           // and the slot goes on in a new transcript, which its record does
           // not name.
           existing?.close();
-          await removeResumeRecord(configDir, persistent);
+          dropTranscript(
+            configDir,
+            await removeResumeRecord(configDir, persistent),
+          );
           if (key !== undefined) {
             closeOtherIdleSlots(key, persistent);
           }
@@ -225,8 +355,10 @@ function streamStep({
         running = session;
         session.beginStep(prompt.keptPrints);
         try {
-          // Before the step starts, so it runs on the model now asked for.
+          // Before the step starts, so it runs on the model and effort now
+          // asked for.
           await session.useModel(modelId);
+          await session.useEffort(shape.effort);
           if (plan.kind === "cold") {
             session.noteGiven(rest, { newTurn: true });
             const how = await coldStart(session, rest);
@@ -276,13 +408,22 @@ function streamStep({
           session.transcript &&
           session.leaf !== undefined
         ) {
-          await writeResumeRecord(configDir, persistent, {
-            awaitingToolCallIds: session.awaitingToolCallIds,
-            claudeSessionId: session.transcript.claudeSessionId,
-            forkPoint: session.forkPoint,
-            leaf: session.leaf,
-            seen: session.seen,
-          });
+          // Before the write, so a process that exits during it leaves the
+          // transcript the record may already name.
+          recorded.add(session);
+          dropTranscript(
+            configDir,
+            await writeResumeRecord(configDir, persistent, {
+              awaitingToolCallIds: session.awaitingToolCallIds,
+              claudeSessionId: session.transcript.claudeSessionId,
+              forkPoint: session.forkPoint,
+              leaf: session.leaf,
+              seen: session.seen,
+            }),
+          );
+          if (key !== undefined) {
+            latestSlots.set(key, persistent);
+          }
         }
         if (persistent === undefined) {
           // Nothing continues a one-off, so a tool call it ended on would
@@ -291,15 +432,25 @@ function streamStep({
         }
         controller.close();
       } catch (error) {
-        running?.close();
-        // Claude Code refusing the entry a resume starts from is not
-        // something a retry changes, so the slot starts cold next time.
-        if (
+        // A resumed process that failed by itself before any of a reply
+        // failed at the resume, whatever it said, which a retry does not
+        // change, so the slot starts cold next time. One the person stopped,
+        // or whose reader went away, was closed here; one that reached
+        // Claude's API, to be refused for its sign-in or its plan's usage,
+        // reported that as an assistant entry.
+        const resumeFailed =
           planned === "resume" &&
           persistent !== undefined &&
-          RESUME_REFUSED.test(String(error))
-        ) {
-          await removeResumeRecord(configDir, persistent);
+          running !== undefined &&
+          !running.replied &&
+          !running.closed &&
+          options.abortSignal?.aborted !== true;
+        running?.close();
+        if (resumeFailed) {
+          dropTranscript(
+            configDir,
+            await removeResumeRecord(configDir, persistent),
+          );
         }
         controller.enqueue({ error, type: "error" });
         controller.close();
@@ -333,7 +484,13 @@ function startOn(
           sessions.delete(created.key);
         }
       },
-      persistent === undefined ? undefined : { claudeSessionId, start },
+      persistent !== undefined
+        ? { claudeSessionId, start }
+        : // An aside's process reads the transcript it starts on and
+          // leaves it as it was.
+          start.kind === "fork"
+          ? { claudeSessionId, start: { ...start, kind: "read" } }
+          : undefined,
     );
     if (persistent !== undefined) {
       sessions.set(created.key, created);
@@ -341,6 +498,9 @@ function startOn(
       void created.exited.then(() => {
         if (writers.get(claudeSessionId) === created) {
           writers.delete(claudeSessionId);
+        }
+        if (!recorded.has(created)) {
+          dropTranscript(shape.configDir, claudeSessionId);
         }
       });
     }
@@ -364,7 +524,9 @@ function startOn(
         kind: "fork",
       });
       console.info(
-        `[claude-account] session ${session.key} resumed its Claude Code transcript at its last finished step, replaying ${plan.messages.length} messages after it${plan.restart === undefined ? "" : ` (its live process could not continue: ${plan.restart})`}`,
+        persistent === undefined
+          ? `[claude-account] an aside read its session's Claude Code transcript at its last finished step, asking ${plan.messages.length} messages after it`
+          : `[claude-account] session ${session.key} resumed its Claude Code transcript at its last finished step, replaying ${plan.messages.length} messages after it${plan.restart === undefined ? "" : ` (its live process could not continue: ${plan.restart})`}`,
       );
       return session;
     }
@@ -473,7 +635,6 @@ function shapeChangeOf(key: string, shape: SessionShape) {
     Object.entries({
       "Claude Code": [shape.executablePath, shape.configDir],
       "built-in tools": shape.builtInTools,
-      effort: shape.effort ?? null,
       "system prompt": shape.systemPrompt,
       tools: shape.tools.map((tool) => [
         tool.name,
@@ -508,9 +669,6 @@ function closeOtherIdleSlots(key: string, keep: string | undefined) {
   }
 }
 
-/** What Claude Code says when the entry a resume cuts back to is not there. */
-const RESUME_REFUSED = /No message found with message\.uuid/;
-
 const EFFORTS: EffortLevel[] = ["low", "medium", "high", "xhigh", "max"];
 
 /**
@@ -523,6 +681,16 @@ function builtInToolsOf(options: LanguageModelV4CallOptions) {
   return Array.isArray(asked)
     ? asked.filter((tool): tool is string => typeof tool === "string")
     : [];
+}
+
+/**
+ * Whether a request asks something beside its session, `{ "claude-account":
+ * { aside: true } }`, as a suggested next message does: the session's
+ * messages and one question, answered from what its transcript holds and
+ * never added to it.
+ */
+function isAside(options: LanguageModelV4CallOptions) {
+  return options.providerOptions?.[CLAUDE_ACCOUNT_PROVIDER_ID]?.aside === true;
 }
 
 /**

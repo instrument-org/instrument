@@ -1,5 +1,12 @@
 import { createHash } from "node:crypto";
-import { mkdir, readFile, rm, writeFile } from "node:fs/promises";
+import {
+  mkdir,
+  readdir,
+  readFile,
+  rm,
+  stat,
+  writeFile,
+} from "node:fs/promises";
 import { realpathSync } from "node:fs";
 import { homedir, userInfo } from "node:os";
 import { join } from "node:path";
@@ -207,23 +214,106 @@ export async function readResumeRecord(
   }
 }
 
+/**
+ * Writes the slot's record. Returns the transcript the record it replaces
+ * named, when that is another one, which nothing goes on from any more.
+ */
 export async function writeResumeRecord(
   configDir: string | undefined,
   slot: string,
   record: ResumeRecord,
 ) {
   const path = recordPath(configDir, slot);
+  const before = await recordedTranscript(path);
   await mkdir(join(path, ".."), { recursive: true });
   await writeFile(path, JSON.stringify(record));
+  return before === record.claudeSessionId ? undefined : before;
 }
 
 /**
  * Forgets the slot's record. Done as a cold start begins, since the slot goes
  * on in a new transcript and the one the record names no longer matches it.
+ * Returns that transcript, which nothing goes on from any more.
  */
 export async function removeResumeRecord(
   configDir: string | undefined,
   slot: string,
 ) {
-  await rm(recordPath(configDir, slot), { force: true });
+  const path = recordPath(configDir, slot);
+  const before = await recordedTranscript(path);
+  await rm(path, { force: true });
+  return before;
+}
+
+/**
+ * Removes a transcript of ours and the folder Claude Code keeps beside it.
+ * A record names a transcript no other record does, since a resume, a branch
+ * and a cold start each go on in one of their own, so once its record names
+ * another or is gone, nothing reads it again.
+ */
+export async function removeTranscript(
+  configDir: string | undefined,
+  claudeSessionId: string,
+) {
+  const file = transcriptPath(configDir, claudeSessionId);
+  if (file === undefined) {
+    return;
+  }
+  await rm(file, { force: true });
+  await rm(file.slice(0, -".jsonl".length), { force: true, recursive: true });
+}
+
+/** How long a record lasts with no step written to it. */
+const RECORD_LIFETIME_MS = 30 * 24 * 60 * 60 * 1000;
+
+/**
+ * Removes every record no step has written for `RECORD_LIFETIME_MS`, with
+ * the transcript it names: a chat deleted in the app, a slot its chat's tools
+ * or prompt moved on from, or one an earlier build named another way. A chat
+ * left that long starts over from our own records of it, and its cache is
+ * long gone either way. Leaves the records of the slots in `keep`, read
+ * afresh for each record, which are ones a step is starting on. Returns how
+ * many records it removed.
+ */
+export async function sweepResumeRecords(
+  configDir: string | undefined,
+  now = Date.now(),
+  keep: ReadonlySet<string> = new Set(),
+) {
+  const folder = join(configRoot(configDir), "instrument-sessions");
+  const names = await readdir(folder).catch(() => []);
+  let removed = 0;
+  for (const name of names) {
+    const path = join(folder, name);
+    const written = await stat(path).catch(() => undefined);
+    if (
+      !name.endsWith(".json") ||
+      written === undefined ||
+      now - written.mtimeMs < RECORD_LIFETIME_MS ||
+      [...keep].some((slot) => recordPath(configDir, slot) === path)
+    ) {
+      continue;
+    }
+    const transcript = await recordedTranscript(path);
+    await rm(path, { force: true });
+    if (transcript !== undefined) {
+      await removeTranscript(configDir, transcript);
+    }
+    removed += 1;
+  }
+  return removed;
+}
+
+/** The transcript the record at `path` names, if it is one this build reads. */
+async function recordedTranscript(path: string) {
+  const text = await readFile(path, "utf8").catch(() => undefined);
+  if (text === undefined) {
+    return undefined;
+  }
+  try {
+    const parsed = ResumeRecordSchema.safeParse(JSON.parse(text));
+    return parsed.success ? parsed.data.claudeSessionId : undefined;
+  } catch {
+    return undefined;
+  }
 }

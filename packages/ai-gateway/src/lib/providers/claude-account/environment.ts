@@ -23,10 +23,30 @@ const SCRUBBED = [
 const OVERRIDES = ["CLAUDE_CODE_EFFORT_LEVEL", "MCP_TOOL_TIMEOUT"];
 
 /**
+ * Environment a running Claude Code gives the programs it starts, there when
+ * Instrument itself was started from one (a developer's terminal, an agent
+ * booting the app): kept, it would start every process here as a nested
+ * session of that one, reporting to its messaging socket under its session
+ * id, at its effort, as its entrypoint rather than the Agent SDK's.
+ */
+const INHERITED = [
+  "CLAUDECODE",
+  "CLAUDE_CODE_CHILD_SESSION",
+  "CLAUDE_CODE_ENTRYPOINT",
+  "CLAUDE_CODE_EXECPATH",
+  "CLAUDE_CODE_MESSAGING_SOCKET",
+  "CLAUDE_CODE_MESSAGING_TOKEN",
+  "CLAUDE_CODE_SESSION_ATTENDED",
+  "CLAUDE_CODE_SESSION_ID",
+  "CLAUDE_EFFORT",
+  "CLAUDE_PID",
+];
+
+/**
  * The environment Instrument runs Claude Code in, for every request and every
- * status check alike: this process's own, less anything in `SCRUBBED` or
- * `OVERRIDES`, with the config folder holding the account's sign-in when
- * there is one.
+ * status check alike: this process's own, less anything in `SCRUBBED`,
+ * `OVERRIDES` or `INHERITED`, with the config folder holding the account's
+ * sign-in when there is one.
  */
 export function claudeCodeEnvironment(
   configDir: string | undefined,
@@ -36,7 +56,8 @@ export function claudeCodeEnvironment(
     if (
       value !== undefined &&
       !SCRUBBED.includes(name) &&
-      !OVERRIDES.includes(name)
+      !OVERRIDES.includes(name) &&
+      !INHERITED.includes(name)
     ) {
       env[name] = value;
     }
@@ -54,6 +75,11 @@ export function claudeCodeEnvironment(
   // history on its own nor tell the model a token budget of its own.
   env.DISABLE_AUTO_COMPACT = "1";
   env.CLAUDE_CODE_TOTAL_TOKENS_REMINDER = "off";
+  // Our loop answers a failed step: Claude Code must neither ask a model the
+  // person did not pick when one declines, nor send a stream that broke off
+  // again whole, unstreamed, after part of it already reached us.
+  env.CLAUDE_CODE_DISABLE_REFUSAL_FALLBACK = "1";
+  env.CLAUDE_CODE_DISABLE_NONSTREAMING_FALLBACK = "1";
   // Features of Claude Code's own that Instrument has its own version of, or
   // that would act on the account where the person cannot see it: notes it
   // keeps between sessions, recaps of an idle session, asking a stronger

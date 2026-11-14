@@ -69,9 +69,10 @@ import {
 } from "@/client/components/ui/menu-components";
 import { Spinner } from "@/client/components/ui/spinner";
 import {
+  refreshWhileShown,
   useIsActiveTab,
-  useRefreshWhileShown,
 } from "@/client/hooks/use-active-tab";
+import { computerFolderOptions } from "@/client/lib/live-computer-folder";
 import { useRecentFiles } from "@/client/hooks/use-recent-files";
 import { useFileOpenTarget } from "@/client/hooks/use-file-open-target";
 import { useOpenFile } from "@/client/hooks/use-open-file";
@@ -242,7 +243,7 @@ export const BESIDE_MOTION_CLASSNAME =
 /** A page's width over its height, the shape a document's picture is drawn in. */
 const PAGE_ASPECT = 0.78;
 
-/** How often every folder on screen is re-read, so files a task writes appear. */
+/** How often the recent files and the disks are read again, and how long a listing read ahead stays fresh. */
 const REFRESH_MS = ms("4 seconds");
 
 export { RECENTS_ROOT };
@@ -317,8 +318,9 @@ const EDGE_DIVIDER_CLASSNAME =
  * its own under the columns: the same path twice is one of them wrong.
  *
  * The file browser holds a flat manifest and asks for a folder's children the
- * first time it is opened. Every folder it has asked for is re-read on a
- * clock, so what a task writes shows up without a refresh.
+ * first time it is opened. Every folder on screen follows its changes
+ * (`computerFolderOptions`), so what a task writes shows up as it is
+ * written.
  *
  * A tab of its own is where this belongs, and a box on a page is where it also
  * fits: the page that puts it in a box holds the folder it is looking at
@@ -391,7 +393,10 @@ export function ComputerPage({
   query?: string;
   /** Whether Quick Look is up: the arrows then move the selection under it. */
   quickLookOpen?: boolean;
-  /** How often every folder on screen is re-read; false to read each once. */
+  /**
+   * How often the recent files and the disks are read again; false to read
+   * them once. The folders on screen follow their changes instead.
+   */
   refreshInterval?: false | number;
   root: string;
   /** What is selected in this step, as a path under the root: a file shown in its folder, the file open beside it. */
@@ -529,20 +534,21 @@ export function ComputerPage({
   // The browser itself, asked to type over a name where it sits.
   const fileSystemRef = useRef<FileSystemHandle>(null);
 
-  // Tabs behind the one up stay mounted, so the clock stops in them and
-  // coming back up re-reads at once.
-  const refresh = useRefreshWhileShown(refreshInterval);
+  // Each folder on screen stays current while its tab is up. Tabs behind the
+  // one up stay mounted, so their listings stop following the folder there,
+  // and coming back up reads them again at once.
+  const { enabled: whileShown } = refreshWhileShown(useIsActiveTab(), false);
   const listings = useQueries({
     combine: combineListings,
     queries: isFolderless
       ? []
-      : prefixes.map((prefix) =>
-          rpcClient.workspace.computer.list.queryOptions({
-            input: { id: WINDOW_ID, path: hostPathOf(prefix) },
-            ...refresh,
-            retry: false,
-          }),
-        ),
+      : prefixes.map((prefix) => ({
+          ...computerFolderOptions(
+            { id: WINDOW_ID, path: hostPathOf(prefix) },
+            { follow: true },
+          ),
+          enabled: whileShown,
+        })),
   });
   // The folders not yet read the first time, which the browser shows as
   // loading rather than as empty: a slow disk is not an empty one.
@@ -555,12 +561,11 @@ export function ComputerPage({
           (_prefix, index) => listings[index]?.isPending === true,
         ),
   );
-  // A folder that has gone (thrown away here, moved in the Finder) is asked
-  // for on the clock until it is let go of, which is a failing read every few
-  // seconds for as long as the screen is up. Opening it again brings it back.
-  // A folder the system refused is an answer rather than a failure, and is
-  // kept: it is on the same clock, and the clock is what fills the folder the
-  // moment the refusal is undone.
+  // A folder that has gone (thrown away here, moved in the Finder) ends its
+  // listing with a failed read, and is let go of. Opening it again brings it
+  // back. A folder the system refused is an answer rather than a failure, and
+  // is kept: the main process reads a refused folder again every few seconds,
+  // which is what fills it the moment the refusal is undone.
   const goneFolder = prefixes.find(
     (prefix, index) => prefix !== "" && listings[index]?.isError === true,
   );
@@ -637,8 +642,8 @@ export function ComputerPage({
       ? recentEntries[recentKeys.indexOf(selectedPath)]
       : undefined;
 
-  // The listings are on a clock, but a folder the user just changed should
-  // not wait for it.
+  // The listings follow their folders, but a folder the user just changed
+  // should not wait for its change to be heard.
   const reread = () => {
     void queryClient.invalidateQueries({
       queryKey: rpcClient.workspace.computer.list.key(),
@@ -1247,12 +1252,12 @@ export function ComputerPage({
     if (isRecents || macosAsksFirst(hostPathOf(prefix))) {
       return;
     }
-    void queryClient.prefetchQuery({
-      ...rpcClient.workspace.computer.list.queryOptions({
-        input: { id: WINDOW_ID, path: hostPathOf(prefix) },
-      }),
-      staleTime: REFRESH_MS,
-    });
+    void queryClient.prefetchQuery(
+      computerFolderOptions(
+        { id: WINDOW_ID, path: hostPathOf(prefix) },
+        { staleMs: REFRESH_MS },
+      ),
+    );
   };
   // The folder whose own row or tile a drag is over, if it opens under a
   // drag that rests there (`maySpring`). macOS asks about a guarded folder
@@ -2624,6 +2629,19 @@ export function ComputerPage({
                         ? (menuItem?.path ?? null)
                         : null
                   }
+                  {...(currentListing?.truncated
+                    ? {
+                        partialFolder: {
+                          action: {
+                            label: `Open in ${osConventions().fileManager}`,
+                            onPress: () => {
+                              handOff.mutate({ filepath: currentListing.path });
+                            },
+                          },
+                          total: currentListing.total,
+                        },
+                      }
+                    : {})}
                   // Every row here is a thing on this computer, and drags out of
                   // the window as one: to the desktop, a Finder window, another
                   // app. What lands there is the OS's copy; nothing here moves.
@@ -2660,16 +2678,16 @@ export function ComputerPage({
                             root,
                           },
                     );
-                    // A listing read ahead on hover, and still fresh, is the
-                    // answer as it stands rather than a second read.
-                    await queryClient.fetchQuery({
-                      ...rpcClient.workspace.computer.list.queryOptions({
-                        input: { id: WINDOW_ID, path: hostPathOf(prefix) },
-                      }),
-                      staleTime: REFRESH_MS,
-                    });
-                    // The entries arrive through `items`, re-read on the clock
-                    // above, so the browser is handed none of its own to hold.
+                    // A listing read ahead on hover, and still fresh, shows
+                    // at once; the folder's own reader then follows it.
+                    await queryClient.fetchQuery(
+                      computerFolderOptions(
+                        { id: WINDOW_ID, path: hostPathOf(prefix) },
+                        { staleMs: REFRESH_MS },
+                      ),
+                    );
+                    // The entries arrive through `items`, kept current above,
+                    // so the browser is handed none of its own to hold.
                     return { items: [] };
                   }}
                   // The selection walks the folder under Quick Look, which holds

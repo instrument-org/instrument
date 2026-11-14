@@ -2212,8 +2212,55 @@ describe("liveChatRows", () => {
 });
 
 describe("startChatListFile", () => {
+  /** Writes a phone's `device.json`, as the iPhone app does on first use. */
+  const phoneArrives = () => {
+    const phoneDir = path.join(
+      workspaceLayout(getWorkspaceConfig().rootDir).devicesDir,
+      "dev_P40NE111",
+    );
+    fs.mkdirSync(phoneDir, { recursive: true });
+    fs.writeFileSync(
+      path.join(phoneDir, "device.json"),
+      JSON.stringify({ name: "iPhone", platform: "ios" }),
+    );
+  };
+
+  it("writes nothing until a phone has used the workspace, then writes at once", async () => {
+    const chatId = await freshChat();
+    const groceries = await session(chatId, "Groceries", 1);
+    await userSays(chatId, groceries, "make me a grocery list", 1);
+    const config = getWorkspaceConfig();
+    const file = path.join(
+      workspaceLayout(config.rootDir).devicesDir,
+      config.deviceId,
+      CHAT_LIST_FILE_NAME,
+    );
+    const controller = new AbortController();
+    startChatListFile({
+      signal: controller.signal,
+      turnEndWriteMs: 10,
+      writeAfterMs: 10,
+    });
+    try {
+      await listChats();
+      await new Promise((resolve) => setTimeout(resolve, 200));
+      expect(fs.existsSync(file)).toBe(false);
+
+      phoneArrives();
+      await vi.waitFor(
+        () => {
+          expect(fs.existsSync(file)).toBe(true);
+        },
+        { timeout: 5000 },
+      );
+    } finally {
+      controller.abort();
+    }
+  });
+
   it("writes this device's chat list once it is read, and again once a row changes", async () => {
     const chatId = await freshChat();
+    phoneArrives();
     const groceries = await session(chatId, "Groceries", 1);
     await userSays(chatId, groceries, "make me a grocery list", 1);
     const config = getWorkspaceConfig();
@@ -2257,6 +2304,7 @@ describe("startChatListFile", () => {
 
   it("writes a moment after a turn ends, without waiting out the wait between writes", async () => {
     const chatId = await freshChat();
+    phoneArrives();
     const groceries = await session(chatId, "Groceries", 1);
     await userSays(chatId, groceries, "make me a grocery list", 1);
     const config = getWorkspaceConfig();

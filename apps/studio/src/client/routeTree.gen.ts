@@ -48,6 +48,7 @@ import { Route as DebugComponentsQuestionRouteImport } from './routes/debug/comp
 import { Route as DebugComponentsSpinnerRouteImport } from './routes/debug/components/spinner'
 import { Route as DebugComponentsToastsRouteImport } from './routes/debug/components/toasts'
 import { Route as DebugComponentsTranscriptRouteImport } from './routes/debug/components/transcript'
+import { Route as DebugComponentsTwoSidesRouteImport } from './routes/debug/components/two-sides'
 import { Route as DebugComponentsTypographyRouteImport } from './routes/debug/components/typography'
 
 const IndexRoute = IndexRouteImport.update({
@@ -251,6 +252,11 @@ const DebugComponentsTranscriptRoute =
     path: '/transcript',
     getParentRoute: () => DebugComponentsRoute,
   } as any)
+const DebugComponentsTwoSidesRoute = DebugComponentsTwoSidesRouteImport.update({
+  id: '/two-sides',
+  path: '/two-sides',
+  getParentRoute: () => DebugComponentsRoute,
+} as any)
 const DebugComponentsTypographyRoute =
   DebugComponentsTypographyRouteImport.update({
     id: '/typography',
@@ -293,6 +299,7 @@ export interface FileRoutesByFullPath {
   '/debug/components/spinner': typeof DebugComponentsSpinnerRoute
   '/debug/components/toasts': typeof DebugComponentsToastsRoute
   '/debug/components/transcript': typeof DebugComponentsTranscriptRoute
+  '/debug/components/two-sides': typeof DebugComponentsTwoSidesRoute
   '/debug/components/typography': typeof DebugComponentsTypographyRoute
   '/apps/': typeof AppAppsIndexRoute
   '/chats/': typeof AppChatsIndexRoute
@@ -332,6 +339,7 @@ export interface FileRoutesByTo {
   '/debug/components/spinner': typeof DebugComponentsSpinnerRoute
   '/debug/components/toasts': typeof DebugComponentsToastsRoute
   '/debug/components/transcript': typeof DebugComponentsTranscriptRoute
+  '/debug/components/two-sides': typeof DebugComponentsTwoSidesRoute
   '/debug/components/typography': typeof DebugComponentsTypographyRoute
   '/apps': typeof AppAppsIndexRoute
   '/chats': typeof AppChatsIndexRoute
@@ -375,6 +383,7 @@ export interface FileRoutesById {
   '/debug/components/spinner': typeof DebugComponentsSpinnerRoute
   '/debug/components/toasts': typeof DebugComponentsToastsRoute
   '/debug/components/transcript': typeof DebugComponentsTranscriptRoute
+  '/debug/components/two-sides': typeof DebugComponentsTwoSidesRoute
   '/debug/components/typography': typeof DebugComponentsTypographyRoute
   '/_app/apps/': typeof AppAppsIndexRoute
   '/_app/chats/': typeof AppChatsIndexRoute
@@ -418,6 +427,7 @@ export interface FileRouteTypes {
     | '/debug/components/spinner'
     | '/debug/components/toasts'
     | '/debug/components/transcript'
+    | '/debug/components/two-sides'
     | '/debug/components/typography'
     | '/apps/'
     | '/chats/'
@@ -457,6 +467,7 @@ export interface FileRouteTypes {
     | '/debug/components/spinner'
     | '/debug/components/toasts'
     | '/debug/components/transcript'
+    | '/debug/components/two-sides'
     | '/debug/components/typography'
     | '/apps'
     | '/chats'
@@ -499,6 +510,7 @@ export interface FileRouteTypes {
     | '/debug/components/spinner'
     | '/debug/components/toasts'
     | '/debug/components/transcript'
+    | '/debug/components/two-sides'
     | '/debug/components/typography'
     | '/_app/apps/'
     | '/_app/chats/'
@@ -787,6 +799,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof DebugComponentsTranscriptRouteImport
       parentRoute: typeof DebugComponentsRoute
     }
+    '/debug/components/two-sides': {
+      id: '/debug/components/two-sides'
+      path: '/two-sides'
+      fullPath: '/debug/components/two-sides'
+      preLoaderRoute: typeof DebugComponentsTwoSidesRouteImport
+      parentRoute: typeof DebugComponentsRoute
+    }
     '/debug/components/typography': {
       id: '/debug/components/typography'
       path: '/typography'
@@ -855,6 +874,7 @@ interface DebugComponentsRouteChildren {
   DebugComponentsSpinnerRoute: typeof DebugComponentsSpinnerRoute
   DebugComponentsToastsRoute: typeof DebugComponentsToastsRoute
   DebugComponentsTranscriptRoute: typeof DebugComponentsTranscriptRoute
+  DebugComponentsTwoSidesRoute: typeof DebugComponentsTwoSidesRoute
   DebugComponentsTypographyRoute: typeof DebugComponentsTypographyRoute
   DebugComponentsIndexRoute: typeof DebugComponentsIndexRoute
 }
@@ -873,6 +893,7 @@ const DebugComponentsRouteChildren: DebugComponentsRouteChildren = {
   DebugComponentsSpinnerRoute: DebugComponentsSpinnerRoute,
   DebugComponentsToastsRoute: DebugComponentsToastsRoute,
   DebugComponentsTranscriptRoute: DebugComponentsTranscriptRoute,
+  DebugComponentsTwoSidesRoute: DebugComponentsTwoSidesRoute,
   DebugComponentsTypographyRoute: DebugComponentsTypographyRoute,
   DebugComponentsIndexRoute: DebugComponentsIndexRoute,
 }

@@ -590,8 +590,8 @@ function SideCard({
  * The group's grounds: a strip darker than the toolbar under it, as a
  * browser's tab strip is (`group-strip`).
  */
-const GROUP_GROUNDS =
+export const GROUP_GROUNDS =
   "relative flex min-h-0 min-w-0 flex-1 [--group-strip:color-mix(in_oklab,var(--gray-200)_70%,var(--background))] dark:[--group-strip:color-mix(in_oklab,black_16%,var(--background))]";
 
 /** A side's tabs, on the card's own ground, the tab up lifted off it. */
-const SIDE_TABS = "[--tab-selected:var(--card)]";
+export const SIDE_TABS = "[--tab-selected:var(--card)]";

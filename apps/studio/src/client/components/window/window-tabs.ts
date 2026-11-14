@@ -60,6 +60,7 @@ import {
   withoutChatsBehind,
 } from "./tab-model";
 import { openLinkAddress } from "./open-link-address";
+import { standInTabsAtom } from "./stand-in-tabs";
 import { chatHref, chatOfGroup, newChatHref, sameHref } from "./window-href";
 
 /** The member a tab with no group is kept under. */
@@ -232,7 +233,9 @@ export function hostGroupOf(tabId: string) {
 }
 
 /** The window's tabs, to read; every change goes through `useWindowTabs`. */
-export const windowTabsAtom = atom((get) => get(storedTabsAtom));
+export const windowTabsAtom = atom(
+  (get) => get(standInTabsAtom) ?? get(storedTabsAtom),
+);
 
 /**
  * The group on screen: the chat's id or the site's group the window's
@@ -259,6 +262,10 @@ const applyAtom = atom(
       groupOnScreen: string | undefined,
     ) => WindowTabs,
   ) => {
+    // A picture of a window changes nothing.
+    if (get(standInTabsAtom) !== undefined) {
+      return;
+    }
     const current = get(storedTabsAtom);
     const next = update(current, get(groupOnScreenAtom));
     if (next !== current) {

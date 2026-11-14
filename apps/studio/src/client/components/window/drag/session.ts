@@ -1,9 +1,10 @@
 import { holdKeyboardFromPages } from "@/client/lib/browser-pool";
 import { focusScreenHome } from "@/client/lib/keyboard-home";
-import { atom, getDefaultStore } from "jotai";
+import { atom, getDefaultStore, useAtomValue } from "jotai";
 import { useEffect, useLayoutEffect, useRef } from "react";
 
 import { showDrop } from "../sidebar-drop";
+import { standInTabsAtom } from "../stand-in-tabs";
 import {
   hasRested,
   holds,
@@ -73,14 +74,16 @@ const targets = new Set<DropTarget>();
 
 /**
  * Registers a place that takes drops for as long as it is mounted, read as
- * it is at each measure. None while `target` is.
+ * it is at each measure. None while `target` is, and none in a picture of
+ * a window (`standInTabsAtom`).
  */
 export function useDropTarget(target: DropTarget | undefined) {
   const latest = useRef(target);
   useLayoutEffect(() => {
     latest.current = target;
   });
-  const isOn = target !== undefined;
+  const isPicture = useAtomValue(standInTabsAtom) !== undefined;
+  const isOn = target !== undefined && !isPicture;
   const scrolls = target?.scrolls !== undefined;
   useEffect(() => {
     if (!isOn) {

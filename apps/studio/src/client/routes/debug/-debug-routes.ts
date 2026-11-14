@@ -37,6 +37,11 @@ export const componentPages = [
     to: "/debug/components/transcript",
   },
   {
+    id: "two-sides",
+    label: "Two sides",
+    to: "/debug/components/two-sides",
+  },
+  {
     id: "question",
     label: "Question card",
     to: "/debug/components/question",

@@ -1384,14 +1384,15 @@ function WindowShell({
         });
       },
       // What arrives from outside the app is a tab group of its own at the
-      // top of the list, a chat's included.
+      // top of the list, except a chat already open in a tab, which comes
+      // forward there.
       openFile: (hostPath) => {
         groups.make({ href: fileHref(hostPath) });
       },
       openScreen: (href) => {
         const chat = chatOfHref(href);
         if (chat !== undefined) {
-          groups.openChat(chat);
+          groups.revealChat(chat);
         } else if (isGroupScreenHref(href)) {
           groups.make({ href });
         } else {

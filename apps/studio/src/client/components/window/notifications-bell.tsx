@@ -10,6 +10,7 @@ import {
 } from "@/client/components/ui/popover";
 import { useWindow } from "@/client/components/window/context";
 import { type Chat } from "@/client/components/window/chats";
+import { chatOfHref } from "@/client/components/window/window-href";
 import {
   useOpenGroups,
   useTabGroupActions,
@@ -74,7 +75,13 @@ export function NotificationsBell() {
     }
     if (notice.action && "href" in notice.action) {
       setOpen(false);
-      openScreen(notice.action.href, { newTab: true });
+      // A chat's notice comes forward at the chat's tab, where it has one.
+      const chat = chatOfHref(notice.action.href);
+      if (chat === undefined) {
+        openScreen(notice.action.href, { newTab: true });
+      } else {
+        groups.revealChat(chat);
+      }
       return;
     }
     void openNoticeLink(notice);
@@ -140,7 +147,7 @@ export function NotificationsBell() {
                 key={entry.chat.id}
                 onOpen={() => {
                   setOpen(false);
-                  groups.restore(entry);
+                  groups.revealChat(entry.chat.id);
                 }}
               />
             ))}

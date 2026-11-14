@@ -658,6 +658,22 @@ export function useTabGroupActions() {
     make({ href: chatHref(chat), ...options });
   };
 
+  /**
+   * Brings forward a chat asked for from outside the window's own clicks (a
+   * notification, the bell, a link from another app): the tab on it the
+   * person last sent from comes up in its group, here or in the window that
+   * has it, and a chat with no tab opens as a group of its own (`openChat`).
+   */
+  const revealChat = (chat: ChatId) => {
+    const tab = windowTabs.chatTab(chat);
+    if (tab?.group === undefined) {
+      openChat(chat);
+      return;
+    }
+    windowTabs.select(tab.id);
+    show(tab.group);
+  };
+
   /** Opens a kept draft's new chat as a new tab group of its own (`openChat`). */
   const openDraft = (draft: string, options: { replace?: boolean } = {}) => {
     make({ href: newChatHref(draft), ...options });
@@ -710,6 +726,7 @@ export function useTabGroupActions() {
     pin,
     place,
     restore,
+    revealChat,
     show,
     showHere,
   };

@@ -17,7 +17,8 @@
 //     "end": "release",            // or "escape", or "hold" to leave the button down
 //     "after": "dropped",          // a shot once the release has settled
 //     "out": "/abs/dir",           // where shots go
-//     "prefix": "strip"            // each shot's file name starts with this
+//     "prefix": "strip",           // each shot's file name starts with this
+//     "watch": ["window:1"]        // other windows shot beside each shot
 //   }
 //
 // A point is { x, y } in the window's px, or an element by { selector, nth }
@@ -33,10 +34,17 @@
 // place of `from` does: { "files": ["/abs/a.txt"], "path": [...] }. On a Mac
 // the paths also go on the system's drag pasteboard, as a Finder drag puts
 // them, which the app reads to name the files while they are held.
+//
+// A drag carried to another window shows there, so `watch` names other app
+// windows (`window:<n>`, as `--page` does) that every shot also takes, as
+// `<shot>-<window>`, with what each one's drag said. The drag itself runs in
+// the window `--page` picks.
 
 import { execFileSync } from "node:child_process";
 import { mkdirSync } from "node:fs";
 import path from "node:path";
+
+import { connect } from "./studio-app.mjs";
 
 const WRITE_DRAG_PASTEBOARD = `function run(paths) {
   ObjC.import("AppKit");
@@ -92,6 +100,32 @@ export default async (app, args) => {
   const stops = [];
   const mouse = (type, { x, y }, extra = {}) =>
     app.cdp.send("Input.dispatchMouseEvent", { type, x, y, ...extra });
+  const watched = [];
+  for (const page of args.watch ?? []) {
+    watched.push({
+      page,
+      window: await connect({ page, port: app.port, workspace: app.workspace }),
+    });
+  }
+  // A window's only tab carried into another window takes its window away
+  // with it, and a page gone that way never answers; what it would have said
+  // is left out.
+  const unlessGone = (promise) =>
+    Promise.race([
+      promise.catch(() => undefined),
+      sleep(5000).then(() => undefined),
+    ]);
+  /** Shoots the driven window and every watched one, and says what each one's drag was. */
+  const shoot = async (name) => {
+    await unlessGone(app.shot(fileOf(name)));
+    const others = {};
+    for (const { page, window } of watched) {
+      const file = fileOf(`${name}-${page.replace(":", "-")}`);
+      await unlessGone(window.shot(file));
+      others[page] = await unlessGone(window.eval(DRAG_STATE));
+    }
+    return watched.length > 0 ? others : undefined;
+  };
 
   let at;
   const isFiles = Array.isArray(args.files);
@@ -173,10 +207,8 @@ export default async (app, args) => {
     // Two frames for what the stop draws.
     await sleep(40);
     const drag = await app.eval(DRAG_STATE);
-    if (leg.shot) {
-      await app.shot(fileOf(leg.shot));
-    }
-    stops.push({ at, drag, leg: leg.name ?? index });
+    const others = leg.shot ? await shoot(leg.shot) : undefined;
+    stops.push({ at, drag, leg: leg.name ?? index, others });
   }
 
   const end = args.end ?? "release";
@@ -195,12 +227,14 @@ export default async (app, args) => {
     }
   }
   await sleep(args.settle ?? 500);
-  if (args.after) {
-    await app.shot(fileOf(args.after));
-  }
-  return {
-    afterDrag: await app.eval(DRAG_STATE),
-    state: await app.eval(`window.__studioDrive.state()`),
+  const result = {
+    afterDrag: await unlessGone(app.eval(DRAG_STATE)),
+    after: args.after ? await shoot(args.after) : undefined,
+    state: await unlessGone(app.eval(`window.__studioDrive.state()`)),
     stops,
   };
+  for (const { window } of watched) {
+    window.close();
+  }
+  return result;
 };

@@ -7,7 +7,15 @@ import { type GroupLayout, sideIndexOf } from "../tab-model";
 import { matchScreen } from "../window-href";
 import { useWindowTabs } from "../window-tabs";
 import { heldKeysOf, heldTabsOf } from "./held-tabs";
-import { holds, type Point, type Rect, sideZoneAt } from "./landing";
+import {
+  holds,
+  onPages,
+  pagesReach,
+  type Point,
+  type Rect,
+  sideZoneAt,
+  splitBands,
+} from "./landing";
 import { dragAtom, pressToDrag, useDropTarget } from "./session";
 import { type Held } from "./types";
 
@@ -175,12 +183,14 @@ function takesFilesItself(page: Element | null | undefined, point: Point) {
 
 /**
  * A group's sides' pages as a place to land: with one side, its left or
- * right end makes that half a side of its own once what is held has rested
- * there a moment, and its middle joins the side; with two, the side under
- * the pointer takes it as its last tab. Files open as tabs the same way,
- * except where the page takes them itself: a site, and away from a lone
- * side's ends, a chat's composer or a folder in Files (`takesFilesItself`);
- * a new tab up turns into them.
+ * right end makes that half a side of its own, and its middle joins the
+ * side; with two, the side under the pointer takes it as its last tab. The
+ * margin between an outer page and the window's edge counts as that page's
+ * end (`pagesReach`). Files open as tabs the same way, except where the page
+ * takes them itself: a site, and away from a lone side's ends, a chat's
+ * composer or a folder in Files (`takesFilesItself`); a new tab up turns
+ * into them. A lone side's ends show faintly from the start of a drag that
+ * could make one a side (`splitBands`).
  */
 export function useSidePagesTarget({
   group,
@@ -206,25 +216,41 @@ export function useSidePagesTarget({
       return cut ? [cut] : [];
     });
   };
+  const upOf = (side: number) =>
+    layout.sides[side]?.tabs.find((tab) => tab.id === layout.sides[side]?.up);
+  const isNewTab = (tab: WindowTab | undefined) =>
+    tab?.kind === "screen" && matchScreen(tab.href).kind === "newTab";
+  /** Whether files over a side's page go to the whole of it, a new tab turning into them or a site taking them, so neither end splits. */
+  const takesFilesWhole = (side: number) => {
+    const up = upOf(side);
+    return up?.kind === "page" || isNewTab(up);
+  };
   useDropTarget(
     isOn
       ? {
-          landingAt: (point, { held }, { splits }) => {
+          hints: ({ held }) => {
+            if (
+              held.kind === "group" ||
+              (held.kind === "files" && takesFilesWhole(0))
+            ) {
+              return [];
+            }
+            return splitBands({
+              held: heldInGroup(held, group, layout),
+              sides: pages(),
+            });
+          },
+          landingAt: (reached, { held }) => {
             const sides = pages();
+            const point = onPages(reached, sides);
             const at = sides.findIndex((rect) => holds(rect, point));
-            const up = layout.sides[at]?.tabs.find(
-              (tab) => tab.id === layout.sides[at]?.up,
-            );
+            const up = upOf(at);
             if (held.kind === "group") {
               return undefined;
             }
             if (held.kind === "files") {
               const page = sides[at];
-              if (
-                page &&
-                up?.kind === "screen" &&
-                matchScreen(up.href).kind === "newTab"
-              ) {
+              if (page && up && isNewTab(up)) {
                 return { group, kind: "newTab", lit: page, tab: up.id };
               }
               // A site takes files the way it takes them from the Finder,
@@ -237,7 +263,6 @@ export function useSidePagesTarget({
               held: heldInGroup(held, group, layout),
               point,
               sides,
-              splits,
             });
             if (
               held.kind === "files" &&
@@ -256,22 +281,7 @@ export function useSidePagesTarget({
                 }
               : undefined;
           },
-          rect: () => {
-            const sides = pages();
-            const [first] = sides;
-            const last = sides.at(-1);
-            if (!first || !last) {
-              return undefined;
-            }
-            return {
-              height:
-                Math.max(...sides.map((rect) => rect.top + rect.height)) -
-                first.top,
-              left: first.left,
-              top: Math.min(...sides.map((rect) => rect.top)),
-              width: last.left + last.width - first.left,
-            };
-          },
+          rect: () => pagesReach(pages(), window.innerWidth),
           scrolls: { axis: "x", element: scroller },
         }
       : undefined,

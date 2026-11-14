@@ -25,9 +25,8 @@
 // (the nth visible match, 0 first) at a fraction of its box (`at`, the
 // middle when left out), moved by { dx, dy } when given. `steps` is how many
 // moves the way there takes, `ms` how long between them (16), `rest` how
-// long the pointer then stays still (which a side's page waits out before
-// it takes what is held), `shot` a screenshot taken there, and `burst` a
-// run of screenshots taken while the pointer moves there.
+// long the pointer then stays still, `shot` a screenshot taken there, and
+// `burst` a run of screenshots taken while the pointer moves there.
 //
 // Native drags (files from the Finder) cannot be made with mouse input; a
 // file drop is `Input.dispatchDragEvent` with the paths, which `files` in
@@ -88,8 +87,8 @@ async function pointOf(app, point) {
 const DRAG_STATE = `(() => {
   const drag = window.__studioDrive?.drag?.();
   if (!drag) return null;
-  const { held, input, isOff, landing } = drag;
-  return { held, input, isOff, landing };
+  const { held, hints, input, isOff, landing } = drag;
+  return { held, hints, input, isOff, landing };
 })()`;
 
 export default async (app, args) => {

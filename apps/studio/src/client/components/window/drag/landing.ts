@@ -2,27 +2,12 @@ import { clamp } from "radashi";
 
 /**
  * The pure measures every drag in the window shares: when a press becomes a
- * drag, where a side's page takes what is held, how long a page waits before
- * it does, how fast a list scrolls under a pointer near its edge, and when
- * the pointer has left the window.
+ * drag, where a side's page takes what is held, how fast a list scrolls
+ * under a pointer near its edge, and when the pointer has left the window.
  */
 
 /** How far a press moves before it is a drag, for everything that can be held. */
 export const START_PX = 8;
-
-/**
- * How long what is held rests at a page's end before that half becomes a
- * side of its own, so a tab passing over a page on its way to the sidebar or
- * another window does not split the group by accident.
- */
-export const DWELL_MS = 400;
-
-/**
- * How far the pointer may drift and still be resting: a hand held still on
- * a trackpad wanders a pixel or two, and a slow pass moves on past this
- * well inside `DWELL_MS`.
- */
-const REST_PX = 6;
 
 /** Where along the tab files would open as the pointer holds it: its mark under the pointer. */
 export const FILE_GRAB_PX = 18;
@@ -67,6 +52,50 @@ export function holds(rect: Rect, { x, y }: Point) {
 }
 
 /**
+ * How near the window's edge a group's outer page may stand for its end to
+ * reach on to that edge: the margin around the window's cards, which is no
+ * place of its own.
+ */
+const EDGE_GAP_PX = 24;
+
+/**
+ * Where a group's pages, left first, take what is held: the pages, and past
+ * an outer page's end standing near the window's edge, on to that edge and
+ * past it as far as the pointer is still in the window, so the margin there
+ * is part of the page's end rather than a gap where nothing lands.
+ */
+export function pagesReach(
+  pages: readonly Rect[],
+  windowWidth: number,
+): Rect | undefined {
+  const [first] = pages;
+  const last = pages.at(-1);
+  if (!first || !last) {
+    return undefined;
+  }
+  const top = Math.min(...pages.map((rect) => rect.top));
+  const bottom = Math.max(...pages.map((rect) => rect.top + rect.height));
+  const end = last.left + last.width;
+  const left = first.left <= EDGE_GAP_PX ? -OFF_WINDOW_PX : first.left;
+  const right =
+    windowWidth - end <= EDGE_GAP_PX ? windowWidth + OFF_WINDOW_PX : end;
+  return { height: bottom - top, left, top, width: right - left };
+}
+
+/** A point in a group's reach (`pagesReach`) as the point on its pages it stands for: one past an outer end, at that end. */
+export function onPages(point: Point, pages: readonly Rect[]): Point {
+  const [first] = pages;
+  const last = pages.at(-1);
+  if (!first || !last) {
+    return point;
+  }
+  return {
+    x: clamp(point.x, first.left, last.left + last.width - 1),
+    y: point.y,
+  };
+}
+
+/**
  * How wide the band at each end of a lone side's page is, where something
  * held makes that end a side of its own: a fifth of the page, never under
  * 120 or over 360, and never more than a third of a narrow page.
@@ -75,13 +104,50 @@ export function splitBandWidth(width: number) {
   return Math.min(clamp(width * 0.2, 120, 360), width / 3);
 }
 
+/** What is held, in terms of the group the sides are: the side it stands on there, if any, and whether it is that side's only tab. */
+export interface HeldInGroup {
+  /** The side of this group it stands on now. */
+  side?: 0 | 1;
+  /** Whether it is the only tab of the side it stands on. */
+  isAlone?: boolean;
+}
+
+/** Whether what is held may make a lone side's end a side of its own: anything but that side's only tab. */
+function maySplit(held: HeldInGroup) {
+  return !(held.side === 0 && held.isAlone === true);
+}
+
+/**
+ * The bands at a lone side's ends where what is held would make a side of
+ * its own, left first: none over two sides, or for a side's only tab. What
+ * a drag shows faintly from its start, so the ends are found before the
+ * pointer reaches them.
+ */
+export function splitBands({
+  held,
+  sides,
+}: {
+  held: HeldInGroup;
+  sides: readonly Rect[];
+}): Rect[] {
+  const [page] = sides;
+  if (!page || sides.length !== 1 || !maySplit(held)) {
+    return [];
+  }
+  const band = splitBandWidth(page.width);
+  return [
+    { ...page, width: band },
+    { ...page, left: page.left + page.width - band, width: band },
+  ];
+}
+
 /**
  * What a side's page does with something held over it at a point: it joins
  * a side as its last tab, the side lit whole; or it makes a side of its own
- * of one end of a group of one side, that half lit. None where it would
- * change nothing, as a tab over its own side's page, or where a side may not
- * be made, as from a side's only tab. Until the pointer has rested at an
- * end (`splits` false), the end is what the rest of the page is.
+ * of one end of a group of one side, that half lit, as soon as the pointer
+ * is in the end's band. None where it would change nothing, as a tab over
+ * its own side's page, or where a side may not be made, as from a side's
+ * only tab.
  */
 export type SideZone =
   | { kind: "join"; lit: Rect; side: 0 | 1 }
@@ -91,20 +157,11 @@ export function sideZoneAt({
   held,
   point,
   sides,
-  splits = true,
 }: {
-  /** What is held, in terms of the group the sides are: the side it stands on there, if any, and whether it is that side's only tab. */
-  held: {
-    /** The side of this group it stands on now. */
-    side?: 0 | 1;
-    /** Whether it is the only tab of the side it stands on. */
-    isAlone?: boolean;
-  };
+  held: HeldInGroup;
   point: Point;
   /** Each side's page, left first, in the window's px. */
   sides: readonly Rect[];
-  /** Whether a lone side's ends make a side, which they do once the pointer has rested there. */
-  splits?: boolean;
 }): SideZone | undefined {
   const at = sides.findIndex((rect) => holds(rect, point));
   const rect = sides[at];
@@ -115,13 +172,12 @@ export function sideZoneAt({
   if (sides.length === 2) {
     return held.side !== side ? { kind: "join", lit: rect, side } : undefined;
   }
-  const band = splitBandWidth(rect.width);
+  const [start, end] = splitBands({ held, sides });
   const half = rect.width / 2;
-  const canSplit = splits && !(held.side === 0 && held.isAlone === true);
-  if (canSplit && point.x < rect.left + band) {
+  if (start && holds(start, point)) {
     return { kind: "split", lit: { ...rect, width: half }, side: 0 };
   }
-  if (canSplit && point.x >= rect.left + rect.width - band) {
+  if (end && holds(end, point)) {
     return {
       kind: "split",
       lit: { ...rect, left: rect.left + half, width: half },
@@ -131,43 +187,6 @@ export function sideZoneAt({
   return held.side === undefined
     ? { kind: "join", lit: rect, side: 0 }
     : undefined;
-}
-
-/** A place something held has rested since a moment, by a key saying which place, and where the pointer stood as the rest began. */
-export interface Dwell {
-  at: Point;
-  key: string;
-  since: number;
-}
-
-/**
- * The rest at a place, started over when the place changes or the pointer
- * moves more than `REST_PX` from where the rest began, and gone off every
- * place: a rest is the pointer staying put, not the time it spends in one
- * place.
- */
-export function restAt(
-  previous: Dwell | undefined,
-  key: string | undefined,
-  point: Point,
-  now: number,
-): Dwell | undefined {
-  if (key === undefined) {
-    return undefined;
-  }
-  return previous?.key === key &&
-    Math.hypot(point.x - previous.at.x, point.y - previous.at.y) <= REST_PX
-    ? previous
-    : { at: { ...point }, key, since: now };
-}
-
-/** Whether a rest has gone on long enough for the place to take what is held. */
-export function hasRested(
-  dwell: Dwell | undefined,
-  now: number,
-  ms = DWELL_MS,
-) {
-  return dwell !== undefined && now - dwell.since >= ms;
 }
 
 /** How far into a list from its edge the pointer starts it scrolling: a quarter of it, at most this. */

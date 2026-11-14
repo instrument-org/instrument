@@ -1,11 +1,12 @@
 import { describe, expect, it } from "vitest";
 
 import {
-  hasRested,
   isOffWindow,
-  restAt,
+  onPages,
+  pagesReach,
   scrollSpeed,
   sideZoneAt,
+  splitBands,
   splitBandWidth,
 } from "./landing";
 
@@ -79,23 +80,19 @@ describe("a side's page under something held", () => {
     ).toBeUndefined();
   });
 
-  it("is the page's middle at its ends until the pointer has rested there", () => {
-    expect(
-      [110, 990].map((x) => {
-        const zone = sideZoneAt({
-          held: {},
-          point: { x, y: 300 },
-          sides: [page],
-          splits: false,
-        });
-        return zone && `${zone.kind} ${zone.lit.width}`;
-      }),
-    ).toMatchInlineSnapshot(`
-      [
-        "join 900",
-        "join 900",
-      ]
-    `);
+  it("splits as soon as a pointer moving across the page reaches its end", () => {
+    // 600 px a second, a frame at a time, never stopping.
+    const zones = [];
+    for (let x = 500; x < 1000; x += 10) {
+      const zone = sideZoneAt({
+        held: { isAlone: false, side: 0 },
+        point: { x, y: 300 },
+        sides: [page],
+      });
+      zones.push(zone ? `${zone.kind} ${zone.side}` : "none");
+    }
+    expect(zones.indexOf("split 1")).toBe(zones.indexOf("none") + 32);
+    expect(new Set(zones)).toEqual(new Set(["none", "split 1"]));
   });
 
   it.each([
@@ -134,67 +131,62 @@ describe("the band at a lone side's end", () => {
   });
 });
 
-describe("a rest over a place", () => {
-  const at = { x: 900, y: 300 };
-  it("starts when the place changes and holds while it stays", () => {
-    const first = restAt(undefined, "split 1", at, 100);
-    const still = restAt(first, "split 1", at, 300);
-    const moved = restAt(still, "split 0", at, 350);
-    expect([
-      first,
-      still === first,
-      moved,
-      restAt(moved, undefined, at, 400),
-    ]).toMatchInlineSnapshot(`
+describe("a lone side's ends shown from a drag's start", () => {
+  it("are the bands that split, left first", () => {
+    expect(splitBands({ held: { isAlone: false, side: 0 }, sides: [page] }))
+      .toMatchInlineSnapshot(`
       [
         {
-          "at": {
-            "x": 900,
-            "y": 300,
-          },
-          "key": "split 1",
-          "since": 100,
+          "height": 600,
+          "left": 100,
+          "top": 80,
+          "width": 180,
         },
-        true,
         {
-          "at": {
-            "x": 900,
-            "y": 300,
-          },
-          "key": "split 0",
-          "since": 350,
+          "height": 600,
+          "left": 820,
+          "top": 80,
+          "width": 180,
         },
-        undefined,
       ]
     `);
   });
 
-  it("holds while the pointer wanders a little, and starts over once it moves on", () => {
-    const first = restAt(undefined, "split 1", at, 100);
-    const wandered = restAt(first, "split 1", { x: 904, y: 303 }, 200);
-    const moved = restAt(wandered, "split 1", { x: 907, y: 300 }, 300);
-    expect([wandered === first, moved?.since]).toEqual([true, 300]);
-  });
-
-  it("never rests on a slow pass through a place", () => {
-    // 60 px a second, a frame at a time, for a second.
-    let dwell = restAt(undefined, "split 1", at, 0);
-    let rested = false;
-    for (let now = 16; now <= 1000; now += 16) {
-      dwell = restAt(dwell, "split 1", { x: at.x + now * 0.06, y: at.y }, now);
-      rested ||= hasRested(dwell, now);
-    }
-    expect(rested).toBe(false);
-  });
-
   it.each([
-    [0, false],
-    [399, false],
-    [400, true],
-  ])("after %ims has rested: %s", (ms, rested) => {
-    expect(hasRested({ at, key: "join 0", since: 1000 }, 1000 + ms)).toBe(
-      rested,
-    );
+    ["a side's only tab", { isAlone: true, side: 0 as const }, [page]],
+    ["two sides", {}, [left, right]],
+  ])("are none for %s", (_, held, sides) => {
+    expect(splitBands({ held, sides })).toEqual([]);
+  });
+});
+
+describe("the margin past a group's outer page", () => {
+  const window = 1240;
+  const near = { height: 760, left: 328, top: 48, width: 904 };
+  it("reaches on past the window's edge from a page near it", () => {
+    expect(pagesReach([near], window)).toEqual({
+      height: 760,
+      left: 328,
+      top: 48,
+      width: 1256 - 328,
+    });
+  });
+
+  it("reaches both edges with the sidebar closed, and neither from a page set in", () => {
+    const whole = { ...near, left: 8, width: 1224 };
+    const setIn = { ...near, width: 800 };
+    expect([
+      pagesReach([whole], window)?.left,
+      pagesReach([setIn], window),
+    ]).toEqual([-16, setIn]);
+  });
+
+  it("is the page's end, which splits", () => {
+    const point = onPages({ x: 1250, y: 300 }, [near]);
+    expect([
+      point,
+      sideZoneAt({ held: {}, point, sides: [near] })?.kind,
+    ]).toEqual([{ x: 1231, y: 300 }, "split"]);
   });
 });
 

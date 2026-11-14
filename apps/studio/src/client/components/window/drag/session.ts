@@ -6,17 +6,13 @@ import { useEffect, useLayoutEffect, useRef } from "react";
 import { showDrop } from "../sidebar-drop";
 import { standInTabsAtom } from "../stand-in-tabs";
 import {
-  hasRested,
+  FILE_GRAB_PX,
   holds,
   isOffWindow,
   type Point,
   type Rect,
-  restAt,
   scrollSpeed,
   START_PX,
-  type Dwell,
-  DWELL_MS,
-  FILE_GRAB_PX,
 } from "./landing";
 import { type Held, type Landing } from "./types";
 
@@ -26,9 +22,9 @@ import { type Held, type Landing } from "./types";
  * that takes a drop answers through the targets it registers
  * (`useDropTarget`). A drag the pointer holds starts at one distance
  * (`START_PX`), is measured once a frame, scrolls the list under it near the
- * list's ends, waits a moment at a page's end before it splits the page
- * (`DWELL_MS`), and ends in one place for Escape, the window losing focus,
- * and the system taking the pointer away.
+ * list's ends, and ends in one place for Escape, the window losing focus,
+ * and the system taking the pointer away. What letting go would do shows as
+ * soon as the pointer is there, with no wait.
  */
 
 /** A drag as the window draws it: what is held, how, where it would land, and where in it the pointer holds it. */
@@ -38,6 +34,12 @@ export interface Drag {
   held: Held;
   /** The pointer here, the system's drag (files from elsewhere), or main, for another window's tab held over this one. */
   input: "native" | "pointer" | "remote";
+  /**
+   * Places the drag could land that show faintly from its start, before the
+   * pointer reaches them: a lone side's ends, which make a side of their own.
+   * None past the window's edges.
+   */
+  hints?: readonly Rect[];
   /** Past every edge of this window, where main has what is held. */
   isOff: boolean;
   landing: Landing | undefined;
@@ -53,16 +55,15 @@ export const dragPoint: Point = { x: 0, y: 0 };
 
 /** A place in the window that takes something held, which the window's own moves land (`setLander`). */
 export interface DropTarget {
+  /** Where in it what is held could land that shows faintly from the drag's start (`Drag.hints`). */
+  hints?: (drag: Pick<Drag, "grab" | "held" | "input">) => readonly Rect[];
   /**
    * What letting go at a point would do, or nothing, or "native" where only
    * the system's drag can hand the files over (a web page, a composer).
-   * `splits` is whether a page's end may make a side of its own, which it
-   * may once the pointer has rested there.
    */
   landingAt: (
     point: Point,
     drag: Pick<Drag, "grab" | "held" | "input">,
-    how: { splits: boolean },
   ) => Landing | "native" | undefined;
   /** Where it takes drops, in the window's px, as laid out now. */
   rect: () => Rect | undefined;
@@ -90,8 +91,8 @@ export function useDropTarget(target: DropTarget | undefined) {
       return;
     }
     const registered: DropTarget = {
-      landingAt: (point, drag, how) =>
-        latest.current?.landingAt(point, drag, how),
+      hints: (drag) => latest.current?.hints?.(drag) ?? [],
+      landingAt: (point, drag) => latest.current?.landingAt(point, drag),
       rect: () => latest.current?.rect(),
       ...(scrolls
         ? {
@@ -162,10 +163,7 @@ interface Session {
   carry: Carry | undefined;
   /** Told each time the landing changes, for a drag whose landing goes back to main. */
   onLanding?: (landing: Landing | undefined) => void;
-  /** Measures again once a rest begun with the pointer still has gone on long enough. */
-  restTimer?: number;
   drag: Drag;
-  dwell: Dwell | undefined;
   /** Each list scrolling under the pointer, since when the pointer has been at its end, and when it last scrolled. */
   scrolling: Map<HTMLElement, { last: number; since: number }>;
   stop: () => void;
@@ -189,7 +187,8 @@ function publish(drag: Drag | undefined) {
       was.input === drag.input &&
       was.isOff === drag.isOff &&
       was.grab === drag.grab &&
-      JSON.stringify(was.landing) === JSON.stringify(drag.landing))
+      JSON.stringify(was.landing) === JSON.stringify(drag.landing) &&
+      JSON.stringify(was.hints) === JSON.stringify(drag.hints))
   ) {
     return;
   }
@@ -213,10 +212,9 @@ function targetsAt(point: Point) {
 function measure(
   point: Point,
   drag: Pick<Drag, "grab" | "held" | "input">,
-  how = { splits: true },
 ): { landing?: Landing; native?: true } {
   for (const target of targetsAt(point)) {
-    const found = target.landingAt(point, drag, how);
+    const found = target.landingAt(point, drag);
     if (found === "native") {
       return { native: true };
     }
@@ -227,15 +225,13 @@ function measure(
   return {};
 }
 
-/** A landing that splits a page waits for the pointer to rest there; this names which one it rests on. */
-function restKeyOf(landing: Landing | undefined) {
-  return landing?.kind === "side" && landing.split
-    ? `${landing.group}:${landing.side}`
-    : undefined;
+/** Every place the window's targets show faintly for what is held. */
+function hintsOf(drag: Pick<Drag, "grab" | "held" | "input">) {
+  return [...targets].flatMap((target) => target.hints?.(drag) ?? []);
 }
 
 /** Measures the session where the pointer is now, and shows what it found. */
-function evaluate(current: Session, now = performance.now()) {
+function evaluate(current: Session) {
   const { drag } = current;
   const isOff =
     current.carry?.followsPointer === true ||
@@ -244,28 +240,10 @@ function evaluate(current: Session, now = performance.now()) {
         height: window.innerHeight,
         width: window.innerWidth,
       }));
-  const found = isOff ? {} : measure(dragPoint, drag);
-  const restKey = restKeyOf(found.landing);
-  current.dwell = restAt(current.dwell, restKey, dragPoint, now);
-  const isResting = restKey !== undefined && !hasRested(current.dwell, now);
-  // Until the pointer has rested at a page's end, the end is what the rest
-  // of the page is, so nothing there goes on to what the page shows.
-  const landing = isResting
-    ? measure(dragPoint, drag, { splits: false }).landing
-    : found.landing;
-  window.clearTimeout(current.restTimer);
-  if (isResting && current.dwell) {
-    current.restTimer = window.setTimeout(
-      () => {
-        if (session === current) {
-          evaluate(current);
-        }
-      },
-      current.dwell.since + DWELL_MS - now,
-    );
-  }
+  const { landing } = isOff ? {} : measure(dragPoint, drag);
+  const hints = isOff ? [] : hintsOf(drag);
   const changed = JSON.stringify(drag.landing) !== JSON.stringify(landing);
-  current.drag = { ...drag, isOff, landing };
+  current.drag = { ...drag, hints, isOff, landing };
   if (changed) {
     current.onLanding?.(landing);
   }
@@ -328,7 +306,6 @@ function end(current: Session) {
     return;
   }
   session = undefined;
-  window.clearTimeout(current.restTimer);
   current.stop();
   showDrop(undefined);
   publish(undefined);
@@ -499,13 +476,12 @@ function startPointerDrag(held: Held, grab: Point, event: PointerEvent) {
       return;
     }
     scrollLists(current, now);
-    evaluate(current, now);
+    evaluate(current);
     frame = requestAnimationFrame(tick);
   };
   const current: Session = {
     carry: undefined,
     drag: { grab, held, input: "pointer", isOff: false, landing: undefined },
-    dwell: undefined,
     scrolling: new Map(),
     stop: () => {
       cancelAnimationFrame(frame);
@@ -644,7 +620,6 @@ function startSession(held: Held, grab: Point, input: "native" | "remote") {
   const current: Session = {
     carry: undefined,
     drag: { grab, held, input, isOff: false, landing: undefined },
-    dwell: undefined,
     scrolling: new Map(),
     stop: () => undefined,
   };

@@ -13,7 +13,7 @@ import { useWindowTabs } from "../window-tabs";
 import { heldTabsOf } from "./held-tabs";
 import { type Rect } from "./landing";
 import { type Drag, dragAtom, dragPoint, useDragFrame } from "./session";
-import { DROP_TONE } from "./tone";
+import { DROP_HINT_TONE, DROP_TONE } from "./tone";
 
 /** How far left of the pointer a chip's mark stands, and above it the chip's top, at most. */
 const CHIP_GRAB_PX = { x: 22, y: 16 };
@@ -21,14 +21,27 @@ const CHIP_GRAB_PX = { x: 22, y: 16 };
 /** How wide a whole group's row is held, where no list says. */
 const ROW_WIDTH_PX = 240;
 
+/** Whether one rect has another inside it. */
+function covers(outer: Rect, inner: Rect) {
+  return (
+    outer.left <= inner.left &&
+    outer.top <= inner.top &&
+    outer.left + outer.width >= inner.left + inner.width &&
+    outer.top + outer.height >= inner.top + inner.height
+  );
+}
+
 /**
- * What a drag draws over the window that nothing else draws: the half or
- * the side a side's page would take, lit, sliding from one to the next; and,
- * where what is held lands nowhere in this window, a chip at the pointer
- * saying what it is, or a whole group's row. Nothing goes with the pointer
- * where a strip stands the tab among its tabs, a row lights or a room opens
- * in the sidebar, or the bookmarks make room, and nothing at all while the
- * system's drag shows its own picture or main shows the window's.
+ * What a drag draws over the window that nothing else draws: the places it
+ * could land before the pointer reaches them, faint from its start (a lone
+ * side's ends), each giving way to the half it makes once the pointer is
+ * there; the half or the side a side's page would take, lit, sliding from
+ * one to the next; and, where what is held lands nowhere in this window, a
+ * chip at the pointer saying what it is, or a whole group's row. Nothing
+ * goes with the pointer where a strip stands the tab among its tabs, a row
+ * lights or a room opens in the sidebar, or the bookmarks make room, and
+ * nothing at all while the system's drag shows its own picture or main
+ * shows the window's.
  */
 export function DragLayer({
   chatTitles,
@@ -55,12 +68,34 @@ export function DragLayer({
   if (!drag) {
     return null;
   }
+  const split =
+    drag.landing?.kind === "side" && drag.landing.split
+      ? drag.landing.lit
+      : undefined;
   return (
     <div
       aria-hidden
       className="pointer-events-none fixed inset-0 z-[60] overflow-hidden"
       data-drag-layer=""
     >
+      {drag.hints?.map((hint, index) => (
+        <div
+          className={cn(
+            "absolute animate-in rounded-lg transition-opacity duration-150 ease-out fade-in-0 motion-reduce:animate-none motion-reduce:transition-none",
+            DROP_HINT_TONE,
+            split && covers(split, hint) && "opacity-0",
+          )}
+          data-drop-hint=""
+          // oxlint-disable-next-line react/no-array-index-key -- a lone side's two ends, left first, the same for the whole drag
+          key={index}
+          style={{
+            height: hint.height / zoom,
+            left: hint.left / zoom,
+            top: hint.top / zoom,
+            width: hint.width / zoom,
+          }}
+        />
+      ))}
       {shown && (
         <div
           className={cn(

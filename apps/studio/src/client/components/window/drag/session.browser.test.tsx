@@ -1,7 +1,14 @@
+import { renderInBrowser } from "@/tests/render-browser";
 import { afterEach, beforeEach, expect, it, vi } from "vitest";
 import { userEvent } from "vitest/browser";
 
-import { currentDrag, pressToDrag } from "./session";
+import {
+  currentDrag,
+  type DropTarget,
+  pressToDrag,
+  setLander,
+  useDropTarget,
+} from "./session";
 
 // How many holds keep pages off the keyboard (`holdKeyboardFromPages`).
 const keyboard = vi.hoisted(() => ({ holds: 0 }));
@@ -35,14 +42,19 @@ const pointer = (
     }),
   );
 
+const HELD = {
+  group: "group",
+  id: "tab",
+  key: "tab",
+  kind: "tab",
+  side: 0,
+} as const;
+
 /** Presses a tab and moves the pointer past the start, which makes the press a drag. */
 const pressTab = () =>
   pressToDrag(
     { button: 0, clientX: AT.x, clientY: AT.y, isPrimary: true },
-    () => ({
-      grab: { x: 0, y: 0 },
-      held: { group: "group", id: "tab", key: "tab", kind: "tab", side: 0 },
-    }),
+    () => ({ grab: { x: 0, y: 0 }, held: HELD }),
   );
 const drag = () => {
   pointer("pointermove", AT.x + 40);
@@ -183,4 +195,44 @@ it("lets pages take the keyboard once a press ends as a click", () => {
   pointer("pointerup", AT.x);
 
   expect(keyboard.holds).toBe(0);
+});
+
+function Target({ target }: { target: DropTarget }) {
+  useDropTarget(target);
+  return null;
+}
+
+it("shows a page's end from the drag's start, lights it the moment the pointer reaches it, and lets go into it", async () => {
+  const landed = vi.fn();
+  setLander(landed);
+  const band = { height: 400, left: 300, top: 0, width: 100 };
+  const split = {
+    group: "group",
+    kind: "side",
+    lit: { height: 400, left: 200, top: 0, width: 200 },
+    side: 1,
+    split: true,
+  } as const;
+  await renderInBrowser(
+    <Target
+      target={{
+        hints: () => [band],
+        landingAt: (point) => (point.x >= band.left ? split : undefined),
+        rect: () => ({ height: 400, left: 0, top: 0, width: 400 }),
+      }}
+    />,
+  );
+  pressTab();
+  drag();
+  expect([currentDrag()?.hints, currentDrag()?.landing]).toEqual([
+    [band],
+    undefined,
+  ]);
+
+  pointer("pointermove", 320);
+  expect(currentDrag()?.landing).toEqual(split);
+  pointer("pointerup", 324);
+
+  expect(landed).toHaveBeenCalledWith(HELD, split);
+  setLander(undefined);
 });

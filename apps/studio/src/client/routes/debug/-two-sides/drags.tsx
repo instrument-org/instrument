@@ -3,6 +3,7 @@ import {
   type Point,
   type Rect,
   sideZoneAt,
+  splitBands,
 } from "@/client/components/window/drag/landing";
 import { type Drag, dragAtom } from "@/client/components/window/drag/session";
 import { type Held } from "@/client/components/window/drag/types";
@@ -217,7 +218,9 @@ export function inStrip({
 
 /**
  * What is held over a side's page, at a share of its width: the half a
- * lone side's end would make a side lit, or the side it would join.
+ * lone side's end would make a side lit, or the side it would join, or
+ * nothing, as over its own side's middle; and a lone side's ends shown
+ * faintly, as from the drag's start, the end lit giving way to its half.
  */
 export function overSide({
   across,
@@ -251,8 +254,10 @@ export function overSide({
     };
     const zone = sideZoneAt({ held: heldIn, point, sides });
     await stage.show({
-      grab: { x: 0, y: 0 },
+      // Where nothing on the page takes it, what is held goes with the pointer.
+      grab: stage.grabAt(point),
       held,
+      hints: splitBands({ held: heldIn, sides }).map(stage.rel),
       input,
       isOff: false,
       landing: zone

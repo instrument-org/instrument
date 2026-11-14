@@ -722,9 +722,21 @@ const DRAGS: {
     }),
   },
   {
+    caption: "A tab held over its own lone side, both ends shown",
+    main: ONE_SIDE,
+    note: "From the drag's start, so the ends are found before the pointer reaches them.",
+    scene: overSide({
+      across: 0.5,
+      group: MAIN,
+      held: HELD,
+      heldIn: { isAlone: false, side: 0 },
+      side: 0,
+    }),
+  },
+  {
     caption: "A lone side's right half lit for a split",
     main: ONE_SIDE,
-    note: "Once the pointer has rested at the page's end.",
+    note: "As soon as the pointer is in the page's end, with no wait.",
     scene: overSide({
       across: 0.94,
       group: MAIN,
@@ -777,8 +789,8 @@ const DRAGS: {
     }),
   },
   {
-    caption: "Files over a lone side's end",
-    main: ONE_SIDE,
+    caption: "Files over a lone chat's end",
+    main: ONE_SIDE_AT_CHAT,
     scene: overSide({
       across: 0.94,
       group: MAIN,
@@ -842,7 +854,7 @@ const DRAGS: {
 function DragStates() {
   return (
     <Section
-      description="Drags held still: what each place that takes a drop shows as something held is over it, in the lit places' one tone."
+      description="Drags held still: what each place that takes a drop shows as something held is over it, in the lit places' one tone, and a lone side's ends shown faintly from a drag's start."
       id="drags"
     >
       {DRAGS.map((drag) => (

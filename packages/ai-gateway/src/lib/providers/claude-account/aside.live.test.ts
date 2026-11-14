@@ -201,7 +201,11 @@ it.skipIf(!live)(
       const third = said(
         "What code word did I ask you to remember? Word only.",
       );
-      const three = await ask([...history, third], { sessionId: chatKey });
+      // At another effort, which the chat's process takes in place.
+      const three = await ask([...history, third], {
+        effort: "low",
+        sessionId: chatKey,
+      });
       // After a launch, with no process yet: the record the last step left.
       await providers.closeClaudeAccountSessions();
       vi.resetModules();
@@ -234,6 +238,7 @@ it.skipIf(!live)(
       // The chat's own process answered its next turn where it was.
       expect(three.text).toContain(CODE_WORD);
       expect(three.path.join("\n")).not.toMatch(/resumed|cold start/);
+      expect(three.cacheRead).toBeGreaterThan(0);
       expect(afterLaunch.text).toContain(CODE_WORD);
       expect(afterLaunch.cacheRead).toBeGreaterThan(0);
       expect(nothing).toMatchObject({ finish: "other", text: "" });

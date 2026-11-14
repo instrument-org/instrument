@@ -84,6 +84,7 @@ export class ClaudeCodeSession implements MessageSource {
    * only the result ending a turn reports.
    */
   contextWindow: number | undefined;
+  effort: EffortLevel | undefined;
   modelId: string;
   /** The plan's usage as the CLI last reported it, which it does not repeat every turn. */
   rateLimit: SDKRateLimitInfo | undefined;
@@ -143,6 +144,7 @@ export class ClaudeCodeSession implements MessageSource {
     },
   ) {
     this.builtInTools = new Set(shape.builtInTools);
+    this.effort = shape.effort;
     this.modelId = shape.modelId;
     const env = claudeCodeEnvironment(shape.configDir);
     this.query = query({
@@ -287,6 +289,17 @@ export class ClaudeCodeSession implements MessageSource {
     if (this.modelId !== modelId) {
       await this.query.setModel(modelId);
       this.modelId = modelId;
+    }
+  }
+
+  /**
+   * Switches the process to `effort`, before a step that asks for it: none
+   * is the model's own default, as a process started without one runs at.
+   */
+  async useEffort(effort: EffortLevel | undefined) {
+    if (this.effort !== effort) {
+      await this.query.applyFlagSettings({ effortLevel: effort ?? null });
+      this.effort = effort;
     }
   }
 
@@ -503,15 +516,14 @@ function transcriptOptions(transcript: ClaudeCodeSession["transcript"]) {
 }
 
 /**
- * What has to match for a running process to answer a request. The model is
- * left out: a process switches models in place.
+ * What has to match for a running process to answer a request. The model and
+ * effort are left out: a process switches both in place.
  */
 export function sessionShapeKey(shape: SessionShape) {
   return JSON.stringify([
     shape.builtInTools,
     shape.configDir,
     shape.executablePath,
-    shape.effort,
     shape.systemPrompt,
     shape.tools.map((tool) => [tool.name, tool.description, tool.inputSchema]),
   ]);

@@ -313,7 +313,7 @@ export type StepStart<Live> =
  * - `fork`: a branch with nothing of its own, whose parent's transcript it
  *   could not fork.
  * - `no-record`: nothing to carry on: no live process and no usable record.
- * - `shape`: the session's system prompt, tools, effort or built-in tools
+ * - `shape`: the session's system prompt, tools or built-in tools
  *   changed, and a step of another shape needs a process of its own.
  * - `busy`: the session's process is mid-step, so this one gets a process of
  *   its own that keeps nothing.

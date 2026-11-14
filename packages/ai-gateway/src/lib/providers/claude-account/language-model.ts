@@ -261,8 +261,10 @@ function streamStep({
         running = session;
         session.beginStep(prompt.keptPrints);
         try {
-          // Before the step starts, so it runs on the model now asked for.
+          // Before the step starts, so it runs on the model and effort now
+          // asked for.
           await session.useModel(modelId);
+          await session.useEffort(shape.effort);
           if (plan.kind === "cold") {
             session.noteGiven(rest, { newTurn: true });
             const how = await coldStart(session, rest);
@@ -520,7 +522,6 @@ function shapeChangeOf(key: string, shape: SessionShape) {
     Object.entries({
       "Claude Code": [shape.executablePath, shape.configDir],
       "built-in tools": shape.builtInTools,
-      effort: shape.effort ?? null,
       "system prompt": shape.systemPrompt,
       tools: shape.tools.map((tool) => [
         tool.name,

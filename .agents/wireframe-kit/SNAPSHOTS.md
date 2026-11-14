@@ -37,7 +37,7 @@ const states = [
 ];
 ```
 
-`$(target)` finds exactly one element, and fails the build, naming the frame and the close matches, when it finds none or several. A target is the element's words (`"Send"`), or `{ text, contains, label, role, selector, nth, within }` alone or together. Words find the innermost element holding them (the `<span>` inside a button); add `role` (`button`, `link`, `textbox`, `heading`, `listitem`, `row`, `menuitem`, `tab`, `dialog`, …) to get the element itself, or `.up("button")` to climb. `$.root` is the frame, for something positioned over everything (`$.root.append(...)` with `absolute` and a `left`/`top`).
+`$(target)` finds exactly one element, and fails the build, naming the frame and the close matches, when it finds none or several. A target is the element's words (`"Send"`), or `{ text, contains, label, role, selector, nth, within }` alone or together. Words find the innermost element holding them (the `<span>` inside a button); add `role` (`button`, `link`, `textbox`, `heading`, `listitem`, `row`, `menuitem`, `tab`, `dialog`, …) to get the element itself, or `.up("button")` to climb. `$.root` is the snapshot's whole page, for something positioned over everything (`$.root.append(...)` with `absolute` and a `left`/`top`); it draws in the app's colors, which nothing outside it can.
 
 | Edit | Does |
 |---|---|

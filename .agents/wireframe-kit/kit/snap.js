@@ -253,7 +253,10 @@ function __snapBuild(/** @type {string} */ state, /** @type {any} */ edit) {
     };
     return w;
   };
-  const $ = /** @type {SnapQuery} */ (Object.assign((/** @type {SnapTarget} */ t) => wrap(__snapFind(root, t, state)), { root: wrap(root) }));
+  // $.root is the snapshot's own <html>, where the app's colors and fonts are defined, so
+  // something placed over everything is drawn in them.
+  const page = root.querySelector(".snap-html") ?? root;
+  const $ = /** @type {SnapQuery} */ (Object.assign((/** @type {SnapTarget} */ t) => wrap(__snapFind(root, t, state)), { root: wrap(page) }));
   if (edit) edit($);
   const html = `<!--snap:start-->${root.outerHTML}<!--snap:end-->`;
   (globalThis.__snapBuilt ??= []).push({ state, html, base: baseHtml });

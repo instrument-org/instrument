@@ -50,8 +50,11 @@ export function GroupChatScreen({ chatId }: { chatId: ChatId }) {
         })
       : []
   ).filter((item) => item.key !== leftOut);
+  const awareTabs = useAwareTabs(tabId);
+  // Only a line with something to say goes in, so the composer keeps no
+  // empty row for it.
   const aware =
-    tabId === undefined ? undefined : <AwarenessLine chatTab={tabId} />;
+    awareTabs.length > 0 ? <AwarenessLine tabs={awareTabs} /> : undefined;
   return (
     <div className="absolute inset-0 flex flex-col">
       <ChatTabHead chatId={chatId} />
@@ -166,23 +169,28 @@ function ChatTabHead({ chatId }: { chatId: ChatId }) {
  * files, as a quiet line at the head of the composer. Nothing while the
  * chat is alone in its group.
  */
-function AwarenessLine({ chatTab }: { chatTab: string }) {
-  const windowTabs = useWindowTabs();
-  const appsBySlug = useAppsBySlug();
-  const { chatTitles } = useShell();
-  const tabs =
-    layoutReadOf({ appsBySlug, chatTitles, windowTabs }, chatTab)
-      ?.layout.sides.flatMap((side) => side.tabs)
-      .filter((tab) => tab.isThisChat !== true && tab.kind !== "newChat") ?? [];
-  if (tabs.length === 0) {
-    return null;
-  }
+function AwarenessLine({ tabs }: { tabs: readonly { kind: string }[] }) {
   const files = tabs.filter((tab) => tab.kind === "file").length;
   return (
     <span className="flex h-7 shrink-0 items-center px-1 text-xs text-muted-foreground">
       {countOf(tabs.length, "tab")}
       {files > 0 && `, ${countOf(files, "file")}`}
     </span>
+  );
+}
+
+/** The other tabs of the group a chat's tab is in, as its agent reads them. */
+function useAwareTabs(chatTab: string | undefined) {
+  const windowTabs = useWindowTabs();
+  const appsBySlug = useAppsBySlug();
+  const { chatTitles } = useShell();
+  if (chatTab === undefined) {
+    return [];
+  }
+  return (
+    layoutReadOf({ appsBySlug, chatTitles, windowTabs }, chatTab)
+      ?.layout.sides.flatMap((side) => side.tabs)
+      .filter((tab) => tab.isThisChat !== true && tab.kind !== "newChat") ?? []
   );
 }
 

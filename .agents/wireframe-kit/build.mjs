@@ -19,7 +19,7 @@ import {
   rawPage,
   template,
 } from "./kit.mjs";
-import { loadState } from "./snap/lib.mjs";
+import { loadState, pageClasses, trimState } from "./snap/lib.mjs";
 
 const [partPath, outPath] = process.argv.slice(2);
 if (!partPath || !outPath)
@@ -135,10 +135,21 @@ if (snaps.length > 0) {
   const { addSnapshots, readSnapshot, writeInto } = await import(
     pathToFileURL(path.join(SKILL, "add-snapshot.mjs")).href
   );
+  // The library keeps the app's whole stylesheets, so a part can write markup in any of
+  // its classes; the page keeps only the rules its states and its own source can use,
+  // cut the same way for every state so they still share one copy.
+  const loaded = snaps.map((name) => [name, loadState(name)]);
+  const classes = pageClasses(
+    loaded.map(([, s]) => s.html),
+    [part, kit],
+  );
   const store = addSnapshots(
     { sheets: {}, pages: {} },
     Object.fromEntries(
-      snaps.map((name) => [name, readSnapshot(JSON.stringify(loadState(name)))]),
+      loaded.map(([name, s]) => [
+        name,
+        readSnapshot(JSON.stringify({ ...s, html: trimState(s.html, classes) })),
+      ]),
     ),
   );
   html = writeInto(

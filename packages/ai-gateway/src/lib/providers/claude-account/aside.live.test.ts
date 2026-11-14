@@ -78,7 +78,7 @@ function transcriptsOf(marker: string) {
 }
 
 it.skipIf(!live)(
-  "an aside reads its chat's transcript and leaves the chat's process",
+  "an aside reads its chat's transcript, and the chat keeps one process and one transcript",
   { timeout: 600_000 },
   async () => {
     const chatKey = `aside-${randomUUID()}`;
@@ -217,6 +217,20 @@ it.skipIf(!live)(
         [...history, third, three.assistant, QUESTION],
         { aside: true, sessionId: chatKey },
       );
+      // With no process after the launch, the next turn resumes the
+      // transcript in a new one, and the one it resumed from is removed.
+      const fourth = said("Reply with the word GREEN and nothing else.");
+      const four = await ask([...history, third, three.assistant, fourth], {
+        effort: "low",
+        sessionId: chatKey,
+      });
+      await vi.waitFor(
+        () => {
+          expect(transcriptsOf(chatKey)).toHaveLength(1);
+        },
+        { timeout: 10_000 },
+      );
+      const afterResume = transcriptsOf(chatKey);
       const nothing = await ask([system, QUESTION], {
         aside: true,
         sessionId: `aside-none-${randomUUID()}`,
@@ -224,7 +238,7 @@ it.skipIf(!live)(
 
       console.log(
         JSON.stringify(
-          { afterLaunch, aside, asideLow, nothing, one, three, two },
+          { afterLaunch, aside, asideLow, four, nothing, one, three, two },
           (key, value: unknown) => (key === "assistant" ? undefined : value),
           2,
         ),
@@ -241,6 +255,9 @@ it.skipIf(!live)(
       expect(three.cacheRead).toBeGreaterThan(0);
       expect(afterLaunch.text).toContain(CODE_WORD);
       expect(afterLaunch.cacheRead).toBeGreaterThan(0);
+      expect(four.text).toContain("GREEN");
+      expect(four.path.join("\n")).toMatch(/resumed/);
+      expect(afterResume).not.toEqual(transcripts);
       expect(nothing).toMatchObject({ finish: "other", text: "" });
     } finally {
       await providers.closeClaudeAccountSessions();

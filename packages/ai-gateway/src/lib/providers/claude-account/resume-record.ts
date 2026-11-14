@@ -207,23 +207,65 @@ export async function readResumeRecord(
   }
 }
 
+/**
+ * Writes the slot's record. Returns the transcript the record it replaces
+ * named, when that is another one, which nothing goes on from any more.
+ */
 export async function writeResumeRecord(
   configDir: string | undefined,
   slot: string,
   record: ResumeRecord,
 ) {
   const path = recordPath(configDir, slot);
+  const before = await recordedTranscript(path);
   await mkdir(join(path, ".."), { recursive: true });
   await writeFile(path, JSON.stringify(record));
+  return before === record.claudeSessionId ? undefined : before;
 }
 
 /**
  * Forgets the slot's record. Done as a cold start begins, since the slot goes
  * on in a new transcript and the one the record names no longer matches it.
+ * Returns that transcript, which nothing goes on from any more.
  */
 export async function removeResumeRecord(
   configDir: string | undefined,
   slot: string,
 ) {
-  await rm(recordPath(configDir, slot), { force: true });
+  const path = recordPath(configDir, slot);
+  const before = await recordedTranscript(path);
+  await rm(path, { force: true });
+  return before;
+}
+
+/**
+ * Removes a transcript of ours and the folder Claude Code keeps beside it.
+ * A record names a transcript no other record does, since a resume, a branch
+ * and a cold start each go on in one of their own, so once its record names
+ * another or is gone, nothing reads it again.
+ */
+export async function removeTranscript(
+  configDir: string | undefined,
+  claudeSessionId: string,
+) {
+  const file = transcriptPath(configDir, claudeSessionId);
+  if (file === undefined) {
+    return;
+  }
+  await rm(file, { force: true });
+  await rm(file.slice(0, -".jsonl".length), { force: true, recursive: true });
+}
+
+/** The transcript the record at `path` names, if it is one this build reads. */
+async function recordedTranscript(path: string) {
+  const text = await readFile(path, "utf8").catch(() => undefined);
+  if (text === undefined) {
+    return undefined;
+  }
+  try {
+    const parsed = ResumeRecordSchema.safeParse(JSON.parse(text));
+    return parsed.success ? parsed.data.claudeSessionId : undefined;
+  } catch {
+    return undefined;
+  }
 }

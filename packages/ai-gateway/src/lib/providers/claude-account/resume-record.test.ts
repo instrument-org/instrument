@@ -1,4 +1,4 @@
-import { mkdir, mkdtemp, writeFile } from "node:fs/promises";
+import { mkdir, mkdtemp, readdir, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
@@ -6,6 +6,7 @@ import { describe, expect, it } from "vitest";
 import {
   readResumeRecord,
   removeResumeRecord,
+  removeTranscript,
   SESSION_CWD,
   writeResumeRecord,
 } from "./resume-record";
@@ -55,6 +56,43 @@ async function withTranscript(
 }
 
 describe("resume records", () => {
+  it("names the transcript a record stops naming", async () => {
+    const configDir = await mkdtemp(join(tmpdir(), "resume-record-"));
+    const resumed = { ...record, claudeSessionId: "resumed" };
+
+    expect({
+      first: await writeResumeRecord(configDir, "ses_1:shape", record),
+      same: await writeResumeRecord(configDir, "ses_1:shape", record),
+      resumed: await writeResumeRecord(configDir, "ses_1:shape", resumed),
+      removed: await removeResumeRecord(configDir, "ses_1:shape"),
+      gone: await removeResumeRecord(configDir, "ses_1:shape"),
+    }).toEqual({
+      first: undefined,
+      same: undefined,
+      resumed: record.claudeSessionId,
+      removed: "resumed",
+      gone: undefined,
+    });
+  });
+
+  it("removes a transcript and the folder beside it", async () => {
+    const configDir = await mkdtemp(join(tmpdir(), "resume-record-"));
+    await withTranscript(configDir);
+    const project = join(
+      configDir,
+      "projects",
+      SESSION_CWD.replaceAll(/[^a-zA-Z0-9]/g, "-"),
+    );
+    await mkdir(join(project, record.claudeSessionId, "tool-results"), {
+      recursive: true,
+    });
+    await writeFile(join(project, "kept.jsonl"), "");
+
+    await removeTranscript(configDir, record.claudeSessionId);
+
+    expect(await readdir(project)).toEqual(["kept.jsonl"]);
+  });
+
   it("reads back what was written while the transcript is there", async () => {
     const configDir = await mkdtemp(join(tmpdir(), "resume-record-"));
     await withTranscript(configDir);

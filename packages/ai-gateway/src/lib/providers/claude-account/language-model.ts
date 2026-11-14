@@ -28,6 +28,7 @@ import {
 import {
   readResumeRecord,
   removeResumeRecord,
+  removeTranscript,
   writeResumeRecord,
 } from "./resume-record";
 import {
@@ -71,6 +72,28 @@ async function settleTranscript(claudeSessionId: string) {
   const writer = writers.get(claudeSessionId);
   writer?.close();
   await writer?.exited;
+}
+
+/**
+ * Removes a transcript no record names any more, once the process writing it
+ * has exited, so a session keeps one Claude Code transcript rather than one
+ * per resume or cold start.
+ */
+function dropTranscript(
+  configDir: string | undefined,
+  claudeSessionId: string | undefined,
+) {
+  if (claudeSessionId === undefined) {
+    return;
+  }
+  void (async () => {
+    await writers.get(claudeSessionId)?.exited;
+    await removeTranscript(configDir, claudeSessionId);
+  })().catch((error: unknown) => {
+    console.warn(
+      `[claude-account] could not remove transcript ${claudeSessionId}: ${String(error)}`,
+    );
+  });
 }
 
 /**
@@ -246,7 +269,10 @@ function streamStep({
           // and the slot goes on in a new transcript, which its record does
           // not name.
           existing?.close();
-          await removeResumeRecord(configDir, persistent);
+          dropTranscript(
+            configDir,
+            await removeResumeRecord(configDir, persistent),
+          );
           if (key !== undefined) {
             closeOtherIdleSlots(key, persistent);
           }
@@ -314,13 +340,16 @@ function streamStep({
           session.transcript &&
           session.leaf !== undefined
         ) {
-          await writeResumeRecord(configDir, persistent, {
-            awaitingToolCallIds: session.awaitingToolCallIds,
-            claudeSessionId: session.transcript.claudeSessionId,
-            forkPoint: session.forkPoint,
-            leaf: session.leaf,
-            seen: session.seen,
-          });
+          dropTranscript(
+            configDir,
+            await writeResumeRecord(configDir, persistent, {
+              awaitingToolCallIds: session.awaitingToolCallIds,
+              claudeSessionId: session.transcript.claudeSessionId,
+              forkPoint: session.forkPoint,
+              leaf: session.leaf,
+              seen: session.seen,
+            }),
+          );
           if (key !== undefined) {
             latestSlots.set(key, persistent);
           }
@@ -340,7 +369,10 @@ function streamStep({
           persistent !== undefined &&
           RESUME_REFUSED.test(String(error))
         ) {
-          await removeResumeRecord(configDir, persistent);
+          dropTranscript(
+            configDir,
+            await removeResumeRecord(configDir, persistent),
+          );
         }
         controller.enqueue({ error, type: "error" });
         controller.close();

@@ -70,10 +70,11 @@ Important means a concrete correctness, security, privacy, or data-preservation 
 
 ### H. A draft with only chips, a chosen project or tabs is announced as saved, not listed, and removed at the next launch
 
-- Status: open
+- Status: declined
 - Severity: Important. The toast promises something the next launch deletes, and what goes is what the person gathered for a message.
 - Where: [use-drafts.ts:323](/apps/studio/src/client/components/window/use-drafts.ts#L323), [drafts.ts:328](/apps/studio/src/shared/drafts.ts#L328), [drafts.ts:343](/apps/studio/src/shared/drafts.ts#L343), [app-window.tsx:621](/apps/studio/src/client/components/window/app-window.tsx#L621).
 - What: closing a draft keeps it unless `isLeftEmpty`, which counts `context`, a chosen project and tabs in its group as content, and then toasts "Your draft is saved in Drafts". The Drafts list and the launch sweep both use `holdsSomething`, which counts only words, attachments and files in the folder. Ask about a file from Files, which the range made write a `context` line, then close the draft window without typing: the toast's View opens a list without it, and the first window of the next launch drops its tab group and removes it.
+- Declined because: the drafts feature is about to change shape, and the rule for an empty draft will be settled there; revisit if this toast and sweep survive that change.
 - Note: both rules predate the range; the range edited `closeDraft` and made context-only drafts an everyday thing. One predicate for all three places ends it, whichever way the product wants it.
 
 ### I. A dot in a file or folder name sends the rest of the name with feedback
@@ -86,10 +87,11 @@ Important means a concrete correctness, security, privacy, or data-preservation 
 
 ### J. Tab asks and their answers written by 2.0.0 no longer read
 
-- Status: open
+- Status: declined
 - Severity: Important by the rule that a changed stored shape still reads what the previous release wrote; the cost is small.
 - Where: [message-data-part.ts:1051](/packages/workspace/src/schemas/session/message-data-part.ts#L1051), [message-data-part.ts:1064](/packages/workspace/src/schemas/session/message-data-part.ts#L1064).
 - What: `edc672378` changed `PermissionOnSchema` from `["app", "folder", "tab"]` to `["app", "folder", "page"]` and dropped `gone` from the answer. The range's base is in the `v2.0.0` tag, so released builds wrote `ask` records with `on: "tab"` and `data-permissionAnswer` parts with `kind: "tab"`. An `ask` line that fails to parse is skipped, so one open at the upgrade disappears with no close and no wake; an answer part reads as `data-unknown`, which the model no longer sees and the transcript shows only in developer mode. The lines on disk are untouched.
+- Declined because: the builds that wrote tab asks went to a handful of testers, and a chat with one still open at an upgrade is unlikely enough not to carry a read path for; the lines stay on disk as written. Revisit if a report shows a chat that lost a card this way.
 - Note: keep `tab` and `gone` readable (a read-only union member is enough) and close a `tab` ask found open.
 
 ### K. Clearing AI usage on one computer leaves its rows in every other computer's index

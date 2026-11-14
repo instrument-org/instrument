@@ -113,29 +113,72 @@ describe("opening into a group", () => {
 });
 
 describe("the tab groups kept on this computer", () => {
-  it("are read group by group with each one's own pin and share, and nothing an earlier build kept", async () => {
+  /** A group of two sides as `tab-groups.v3` keeps it, the keyboard on the right. */
+  const MEMBER = {
+    focused: 1,
+    pinned: true,
+    share: 0.4,
+    sides: [
+      {
+        tabs: [
+          { id: "tab_1", kind: "page", openedAt: 1 },
+          { id: "tab_2", kind: "page", openedAt: 2 },
+        ],
+        up: "tab_2",
+      },
+      { tabs: [{ href: "/chats", id: "tab_3", kind: "screen" }], up: "tab_3" },
+    ],
+  };
+
+  it("are read and written back in the v3 shape, and nothing an earlier key kept is read", async () => {
     vi.resetModules();
-    const kept = await import("@/client/lib/kept-state");
-    kept.clearKeptState();
-    kept.writeKept("layout", "window-tabs.v9", {
-      activeByGroup: { chat_a: "tab_9" },
-      tabs: [{ group: "chat_a", id: "tab_9", kind: "page", openedAt: 1 }],
+    const set = vi.fn();
+    Object.defineProperty(window, "api", {
+      configurable: true,
+      value: {
+        keptState: {
+          initial: {
+            groups: {
+              "tab-groups.v2/group_b": {
+                active: "tab_9",
+                tabs: [{ group: "group_b", id: "tab_9", kind: "page" }],
+              },
+              "tab-groups.v3/group_a": MEMBER,
+            },
+          },
+          onChange: () => () => {},
+          set,
+        },
+      },
     });
-    kept.writeKept("groups", "tab-groups.v2/group_a", {
-      active: "tab_1",
-      pinned: true,
-      share: 0.4,
-      tabs: [{ group: "group_a", id: "tab_1", kind: "page", openedAt: 1 }],
-    });
+    const { useWindowTabs: use, windowTabsAtom: read } =
+      await import("./window-tabs");
+    const store = createStore();
 
-    const { windowTabsAtom: read } = await import("./window-tabs");
-
-    expect(createStore().get(read)).toEqual({
-      activeByGroup: { group_a: "tab_1" },
-      besideByGroup: {},
+    expect(store.get(read)).toEqual({
+      activeByGroup: { group_a: "tab_3" },
+      besideByGroup: { group_a: "tab_2" },
       groups: { group_a: { pinned: true, share: 0.4 } },
-      tabs: [{ group: "group_a", id: "tab_1", kind: "page", openedAt: 1 }],
+      tabs: [
+        { group: "group_a", id: "tab_1", kind: "page", openedAt: 1 },
+        { group: "group_a", id: "tab_2", kind: "page", openedAt: 2 },
+        { group: "group_a", href: "/chats", id: "tab_3", kind: "screen", side: 1 },
+      ],
     });
+
+    const { result } = renderHook(() => use(), {
+      wrapper: ({ children }: { children: ReactNode }) => (
+        <Provider store={store}>{children}</Provider>
+      ),
+    });
+    act(() => {
+      result.current.setGroupOwn("group_a", { share: 0.5 });
+    });
+
+    expect(set.mock.calls).toEqual([
+      ["groups", "tab-groups.v3/group_a", { ...MEMBER, share: 0.5 }],
+    ]);
+    Reflect.deleteProperty(window, "api");
     vi.resetModules();
   });
 });

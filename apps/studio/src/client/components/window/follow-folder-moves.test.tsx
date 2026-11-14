@@ -78,24 +78,23 @@ describe("a chat's folder moving to its title", () => {
     // from the folder, as `instrument window show` leaves it.
     const paneTab = StoreId.newTabId();
     writeKept(fileOfTabGroup(CHAT), `${WINDOW_TABS_KEY}/${CHAT}`, {
-      active: paneTab,
-      tabs: [
+      focused: 0,
+      sides: [
         {
-          group: CHAT,
-          history: {
-            entries: [folderHref(FIRST), fileHref(`${FIRST}/${PAGE}`)],
-            index: 1,
-          },
-          href: fileHref(`${FIRST}/${PAGE}`),
-          id: paneTab,
-          isOpened: true,
-          kind: "screen",
-        },
-        {
-          group: CHAT,
-          href: fileHref(SIBLING),
-          id: StoreId.newTabId(),
-          kind: "screen",
+          tabs: [
+            {
+              history: {
+                entries: [folderHref(FIRST), fileHref(`${FIRST}/${PAGE}`)],
+                index: 1,
+              },
+              href: fileHref(`${FIRST}/${PAGE}`),
+              id: paneTab,
+              isOpened: true,
+              kind: "screen",
+            },
+            { href: fileHref(SIBLING), id: StoreId.newTabId(), kind: "screen" },
+          ],
+          up: paneTab,
         },
       ],
     });

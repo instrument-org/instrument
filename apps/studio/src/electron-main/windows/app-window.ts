@@ -21,6 +21,7 @@ import {
   FIRST_APP_WINDOW_ID,
   forgetWindowKeptState,
   getWindowKeptState,
+  KeptTabGroupSchema,
   keptWorkingGroupOfChat,
   setWindowKeptState,
   tellWindowKeptState,
@@ -97,7 +98,6 @@ import {
 import { app, BrowserWindow, powerMonitor } from "electron";
 import { statSync } from "node:fs";
 import path from "node:path";
-import { z } from "zod";
 
 import { mergeFloats } from "./tab-carry-rules";
 
@@ -275,19 +275,17 @@ export function keptTabsOf(id: string): TabsModel {
     : { recentlyClosed: [], selectedId: null, tabs: [] };
 }
 
-const HostedPageGroupSchema = z.object({
-  tabs: z.array(z.object({ id: z.string() })),
-});
-
 /** The pages drawn inside a window's surfaces, which no other window's tabs name and which go when it does. */
 export function hostedPagesOf(id: string): BrowserTargetId[] {
   return windowKeptKeys(id)
     .filter(isHostedPageKey)
     .flatMap(
       (key) =>
-        HostedPageGroupSchema.safeParse(
+        KeptTabGroupSchema.safeParse(
           getWindowKeptState(id, key),
-        ).data?.tabs.map((tab) => browserTargetOf(tab.id)) ?? [],
+        ).data?.sides.flatMap((side) =>
+          side.tabs.map((tab) => browserTargetOf(tab.id)),
+        ) ?? [],
     );
 }
 

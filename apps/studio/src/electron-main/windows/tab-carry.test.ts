@@ -1077,7 +1077,7 @@ describe("the window left behind", () => {
 });
 
 describe("a page drawn inside a screen of the tab", () => {
-  const HOSTED = "tab-groups.v2/page:b";
+  const HOSTED = "tab-groups.v3/page:b";
 
   it("keeps the window with the tab, once someone has used it", async () => {
     state.usedPages = new Set(["hosted"]);
@@ -1089,14 +1089,14 @@ describe("a page drawn inside a screen of the tab", () => {
 
   it("is its window's alone, so a window taking over its tabs draws its own", async () => {
     state.kept.get("from")?.set(HOSTED, { tabs: [] });
-    state.kept.get("other")?.set("tab-groups.v2/page:x", { tabs: [] });
+    state.kept.get("other")?.set("tab-groups.v3/page:x", { tabs: [] });
     press(withUsedPage());
     moveTo(OVER_STRIP);
     await letGo();
 
     expect(state.kept.get("spare")?.has(HOSTED)).toBe(false);
     expect(state.kept.get("from")?.get(HOSTED)).toEqual({ tabs: [] });
-    expect(state.kept.get("from")?.has("tab-groups.v2/page:x")).toBe(false);
+    expect(state.kept.get("from")?.has("tab-groups.v3/page:x")).toBe(false);
   });
 });
 

@@ -1,9 +1,6 @@
-import {
-  type BrowserTab,
-  NEW_TAB_HREF,
-  type WindowTab,
-} from "@/client/atoms/window";
+import { type BrowserTab, type WindowTab } from "@/client/atoms/window";
 import { atom, useAtomValue, useSetAtom } from "jotai";
+import { z } from "zod";
 
 import { getGroupTabRouter } from "@/client/lib/group-tab-router-registry";
 import { keptMembersAtom } from "@/client/lib/kept-state";
@@ -68,12 +65,29 @@ import { sameHref } from "./window-href";
 /** The member a tab with no group is kept under. */
 const NO_GROUP = "-";
 
+/** A kept group's shape; its tabs' own fields are this module's to write and read. */
+const TabGroupMemberSchema = z.object({
+  focused: z.union([z.literal(0), z.literal(1)]),
+  pinned: z.boolean().optional(),
+  share: z.number().optional(),
+  sides: z
+    .array(
+      z.object({
+        tabs: z.array(z.looseObject({ id: z.string(), kind: z.string() })),
+        up: z.string().optional(),
+      }),
+    )
+    .min(1)
+    .max(2),
+});
+
 /**
  * Every group's tabs on this computer, one list across them, kept across
- * launches. Each group is one member of the kept file, under its own id,
- * holding its tabs, which is up on each side, and its own pin and share:
- * a record a later build could sync as a synced store's member. Written only
- * here, through the functions of `tab-model.ts`.
+ * launches. Each group is one member of the kept file, under its own id, in
+ * the shape the agent reads a group in: its sides, each its tabs in strip
+ * order and the one up, which side has the keyboard, and its own pin and
+ * share. A tab keeps neither its group nor its side, which the member says.
+ * Written only here, through the functions of `tab-model.ts`.
  */
 const storedTabsAtom = keptMembersAtom<WindowTabs>(
   fileOfTabGroup,
@@ -84,55 +98,49 @@ const storedTabsAtom = keptMembersAtom<WindowTabs>(
   },
 );
 
+/** A tab as a member keeps it, without its group or side. */
+type KeptTab = Omit<WindowTab, "group" | "side">;
+
+/** A group as it is kept (`WINDOW_TABS_KEY`). */
 interface TabGroupMember extends GroupOwn {
-  active?: string;
-  /** The tab up on the side without the keyboard, in a group of two sides. */
-  beside?: string;
-  tabs: WindowTab[];
+  focused: 0 | 1;
+  sides: { tabs: KeptTab[]; up?: string }[];
+}
+
+function keptTab({ group: _group, side: _side, ...tab }: WindowTab): KeptTab {
+  return tab;
 }
 
 /**
- * The tabs by group, each kept by itself: a group's tabs, which is up on
- * each side, belong to it whichever window shows it (`fileOfTabGroup`).
+ * The tabs by group, each kept by itself as its layout reads
+ * (`groupLayoutOf`): a group's tabs belong to it whichever window shows it
+ * (`fileOfTabGroup`).
  */
-function splitTabGroups({
-  activeByGroup,
-  besideByGroup = {},
-  groups = {},
-  tabs,
-}: WindowTabs) {
+function splitTabGroups(state: WindowTabs) {
   const members = new Map<string, TabGroupMember>();
-  const memberOf = (key: string) => {
-    let member = members.get(key);
-    if (!member) {
-      member = { tabs: [] };
-      members.set(key, member);
-    }
-    return member;
-  };
-  for (const tab of tabs) {
-    memberOf(tab.group ?? NO_GROUP).tabs.push(tab);
+  const ungrouped = state.tabs.filter((tab) => tab.group === undefined);
+  if (ungrouped.length > 0) {
+    members.set(NO_GROUP, {
+      focused: 0,
+      sides: [{ tabs: ungrouped.map(keptTab) }],
+    });
   }
-  for (const [group, active] of Object.entries(activeByGroup)) {
-    memberOf(group).active = active;
-  }
-  for (const [group, beside] of Object.entries(besideByGroup)) {
-    memberOf(group).beside = beside;
-  }
-  for (const [group, own] of Object.entries(groups)) {
-    Object.assign(memberOf(group), own);
+  const groups = new Set([
+    ...state.tabs.flatMap((tab) => (tab.group === undefined ? [] : [tab.group])),
+    ...Object.keys(state.groups ?? {}),
+  ]);
+  for (const group of groups) {
+    const { focused, sides } = groupLayoutOf(state, group);
+    members.set(group, {
+      ...state.groups?.[group],
+      focused,
+      sides: sides.map(({ tabs, up }) => ({
+        tabs: tabs.map(keptTab),
+        ...(up === undefined ? {} : { up }),
+      })),
+    });
   }
   return members;
-}
-
-/**
- * A kept tab as this build reads it: one at the new-tab page an earlier
- * build wrote is a new chat.
- */
-function carriedTab(tab: WindowTab): WindowTab {
-  return tab.kind === "screen" && tab.href === "/new-tab"
-    ? { ...tab, href: NEW_TAB_HREF }
-    : tab;
 }
 
 function joinTabGroups(members: Map<string, unknown>): WindowTabs {
@@ -140,28 +148,39 @@ function joinTabGroups(members: Map<string, unknown>): WindowTabs {
   const besideByGroup: Record<string, string> = {};
   const groups: Record<string, GroupOwn> = {};
   const tabs: WindowTab[] = [];
-  for (const [group, member] of members) {
-    if (member === null || typeof member !== "object") {
+  for (const [key, value] of members) {
+    const member = TabGroupMemberSchema.safeParse(value).data;
+    if (member === undefined) {
       continue;
     }
-    if ("active" in member && typeof member.active === "string") {
-      activeByGroup[group] = member.active;
+    const group = key === NO_GROUP ? undefined : key;
+    member.sides.forEach((side, at) => {
+      for (const tab of side.tabs) {
+        // Written by this module alone.
+        tabs.push({
+          ...(tab as KeptTab),
+          ...(group === undefined ? {} : { group }),
+          ...(at === 1 ? { side: 1 } : {}),
+        } as WindowTab);
+      }
+    });
+    if (group === undefined) {
+      continue;
     }
-    if ("beside" in member && typeof member.beside === "string") {
-      besideByGroup[group] = member.beside;
+    const focused = member.sides[member.focused] ?? member.sides[0];
+    const other = member.sides.find((side) => side !== focused);
+    if (focused?.up !== undefined) {
+      activeByGroup[group] = focused.up;
+    }
+    if (other?.up !== undefined) {
+      besideByGroup[group] = other.up;
     }
     const own: GroupOwn = {
-      ...("pinned" in member && member.pinned === true ? { pinned: true } : {}),
-      ...("share" in member && typeof member.share === "number"
-        ? { share: member.share }
-        : {}),
+      ...(member.pinned === true ? { pinned: true } : {}),
+      ...(member.share === undefined ? {} : { share: member.share }),
     };
     if (Object.keys(own).length > 0) {
       groups[group] = own;
-    }
-    if ("tabs" in member && Array.isArray(member.tabs)) {
-      // Written by this module alone.
-      tabs.push(...(member.tabs as WindowTab[]).map(carriedTab));
     }
   }
   return { activeByGroup, besideByGroup, groups, tabs };

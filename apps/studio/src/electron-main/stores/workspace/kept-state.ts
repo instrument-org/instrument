@@ -368,13 +368,18 @@ export function setKeptState(file: KeptFile, key: string, value: unknown) {
   getStore().set(file, key, value);
 }
 
-const KeptTabGroupSchema = z.object({
-  tabs: z.array(
+/** A kept tab group's tabs, as much of them as main reads (`WINDOW_TABS_KEY`). */
+export const KeptTabGroupSchema = z.object({
+  sides: z.array(
     z.object({
-      href: z.string().optional(),
-      id: z.string(),
-      openedBy: z.string().optional(),
-      promptedAt: z.number().optional(),
+      tabs: z.array(
+        z.object({
+          href: z.string().optional(),
+          id: z.string(),
+          openedBy: z.string().optional(),
+          promptedAt: z.number().optional(),
+        }),
+      ),
     }),
   ),
 });
@@ -384,11 +389,13 @@ function keptGroupedTabs() {
   const prefix = `${WINDOW_TABS_KEY}/`;
   const groups = getStore().snapshot().groups ?? {};
   return Object.entries(groups).flatMap(([key, value]) => {
-    const tabs = key.startsWith(prefix)
-      ? KeptTabGroupSchema.safeParse(value).data?.tabs
+    const sides = key.startsWith(prefix)
+      ? KeptTabGroupSchema.safeParse(value).data?.sides
       : undefined;
     const group = key.slice(prefix.length);
-    return (tabs ?? []).map((tab) => ({ ...tab, group }));
+    return (sides ?? []).flatMap((side) =>
+      side.tabs.map((tab) => ({ ...tab, group })),
+    );
   });
 }
 

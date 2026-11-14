@@ -1,7 +1,7 @@
 import type { Chat } from "@instrument-org/workspace/electron";
 
 /** How many chats each part of the menu lists before it says how many more. */
-export const MAX_ROWS = 8;
+const MAX_ROWS = 8;
 
 /** Which icon the menu bar shows: a chat needs the person, one is at work, or neither. */
 export type MenuBarIcon = "ask" | "idle" | "working";

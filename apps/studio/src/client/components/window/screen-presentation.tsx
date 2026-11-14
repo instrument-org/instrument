@@ -1,27 +1,20 @@
 import { PlaceIcon } from "@/client/components/window/place-icons";
-import { screenNameOfHref } from "@/client/bookmarks/address";
-import { SCREENS, type ScreenName } from "@/shared/instrument-screens";
 import { debugPageTitle } from "@/client/routes/debug/-debug-routes";
-import { type ScreenName, SCREENS } from "@/shared/instrument-screens";
+import {
+  type ScreenName,
+  SCREENS,
+  SETTINGS_SECTIONS,
+  screenOfHref,
+} from "@/shared/instrument-screens";
 import { type ChatId, type StoreId } from "@instrument-org/workspace/client";
 import { AppWindowIcon } from "@phosphor-icons/react/AppWindow";
 import { ChatCircleIcon } from "@phosphor-icons/react/ChatCircle";
 import { CheckSquareIcon } from "@phosphor-icons/react/CheckSquare";
-import { ClockCounterClockwiseIcon } from "@phosphor-icons/react/ClockCounterClockwise";
 import { CodeIcon } from "@phosphor-icons/react/Code";
-import { CubeIcon } from "@phosphor-icons/react/Cube";
-import { FileTextIcon } from "@phosphor-icons/react/FileText";
-import { FingerprintIcon } from "@phosphor-icons/react/Fingerprint";
-import { FolderSimpleIcon } from "@phosphor-icons/react/FolderSimple";
-import { GlobeIcon } from "@phosphor-icons/react/Globe";
-import { GearSixIcon } from "@phosphor-icons/react/GearSix";
-import { KeyboardIcon } from "@phosphor-icons/react/Keyboard";
 import { MagnifyingGlassIcon } from "@phosphor-icons/react/MagnifyingGlass";
-import { PulseIcon } from "@phosphor-icons/react/Pulse";
-import { PuzzlePieceIcon } from "@phosphor-icons/react/PuzzlePiece";
-import { ShapesIcon } from "@phosphor-icons/react/Shapes";
-import { type ElementType, type ReactNode } from "react";
+import { type ReactNode } from "react";
 
+import { ScreenMark } from "./app-chip";
 import { AppIcon } from "./app-icon";
 import { osConventions } from "@/client/lib/utils";
 import { COMPUTER_ROOT } from "@/shared/computer-href";
@@ -31,39 +24,6 @@ import { RECENTS_ROOT } from "./computer-page";
 import { joinHostPath, segmentsOf } from "./host-path";
 import { locationCrumbs, type TabLocation, type Volume } from "./tab-location";
 import { type ComputerTab, matchScreen, type Screen } from "./window-href";
-
-/**
- * The mark of each built-in page, by its name in `SCREENS`: what its tab,
- * its address field and a chip for it are drawn with, the places' own
- * (`PLACE_ICONS`) for Apps, the browser and Files. History keeps the
- * clock a browser's history wears, so Activity, the other record of the
- * past, wears the pulse Settings gives it.
- */
-const SCREEN_ICONS: Record<ScreenName, ElementType> = {
-  activity: PulseIcon,
-  apps: ShapesIcon,
-  browser: GlobeIcon,
-  extensions: PuzzlePieceIcon,
-  files: FolderSimpleIcon,
-  history: ClockCounterClockwiseIcon,
-  memory: FingerprintIcon,
-  "release-notes": FileTextIcon,
-  settings: GearSixIcon,
-  shortcuts: KeyboardIcon,
-  skills: CubeIcon,
-};
-
-/** A built-in page's mark, at the size a tab's is. */
-export function ScreenIcon({
-  className = "size-3.5",
-  name,
-}: {
-  className?: string;
-  name: ScreenName;
-}) {
-  const Icon = SCREEN_ICONS[name];
-  return <Icon className={className} />;
-}
 
 /**
  * What an address alone cannot say about a screen: the names of the things
@@ -129,70 +89,41 @@ export function screenLocation(
         title: taskTitles?.get(screen.task) ?? "Task",
       };
     }
-    case "extensions": {
-      return { kind: "screen", screen: "extensions" };
-    }
     // The chat with no chat open is a new chat, written into its draft.
     case "inbox": {
       return { kind: "newChat" };
     }
+    // A built-in page, by its name in `SCREENS`, and the part of Settings
+    // shown by its title.
     case "activity":
+    case "browser":
+    case "extensions":
     case "history":
     case "memories":
+    case "releaseNotes":
+    case "settings":
     case "skills": {
-      return { kind: "screen", screen: SCREEN_OF_KIND[screen.kind] };
-    }
-    case "settings": {
+      const part = screenOfHref(href)?.part;
       return {
-        kind: "screen",
-        ...(screen.section ? { part: screen.section } : {}),
-        screen: "settings",
+        kind: "builtin",
+        ...(part ? { part: SETTINGS_SECTIONS[part] } : {}),
+        screen: SCREEN_OF_KIND[screen.kind],
       };
     }
-    case "browser":
     case "debug":
     case "memory":
     case "namedScreen":
     case "newTab":
     case "project":
-    case "releaseNotes":
     case "setting":
     case "site":
     case "skill":
     case "unknown": {
-      // A built-in page of the table, by its own href or a part under it;
-      // a screen the window has no words for reads as the new tab: the
+      // A screen the window has no words for reads as the new tab: the
       // place with nothing in particular in it.
-      const builtin = screenNameOfHref(href);
-      return builtin === undefined
-        ? { kind: "newTab" }
-        : { kind: "builtin", ...builtinPart(href, builtin), screen: builtin };
+      return { kind: "newTab" };
     }
   }
-}
-
-/**
- * The part of a built-in page an address stands at, read off what follows
- * the page's own href (`/settings/models` is Models), where it has parts.
- */
-function builtinPart(href: string, name: ScreenName): { part?: string } {
-  const own = SCREENS[name];
-  if (!("href" in own)) {
-    return {};
-  }
-  const pathname = new URL(href, "http://tabs").pathname;
-  const below = pathname.slice(own.href.length).split("/").find(Boolean);
-  if (below === undefined) {
-    return {};
-  }
-  let words = below;
-  try {
-    words = decodeURIComponent(below);
-  } catch {
-    // Taken as written.
-  }
-  words = words.replaceAll(/[-_]+/g, " ");
-  return { part: words.charAt(0).toUpperCase() + words.slice(1) };
 }
 
 /** What a screen tab is called and drawn with, read off its address. */
@@ -262,33 +193,19 @@ export function screenPresentation(
         title: "New tab",
       };
     }
-    case "releaseNotes": {
-      return {
-        icon: <FileTextIcon className="size-3.5" />,
-        title: "Release notes",
-      };
-    }
+    // A built-in page by its own name and mark; one Settings tab whichever
+    // part it is at, which the address field says.
     case "activity":
+    case "extensions":
     case "history":
     case "memories":
+    case "releaseNotes":
+    case "settings":
     case "skills": {
       const name = SCREEN_OF_KIND[screen.kind];
       return {
-        icon: <ScreenIcon name={name} />,
+        icon: <ScreenMark className="size-3.5" name={name} />,
         title: SCREENS[name].title,
-      };
-    }
-    // One Settings tab, whichever part it is at; the address field says the part.
-    case "settings": {
-      return {
-        icon: <ScreenIcon name="settings" />,
-        title: SCREENS.settings.title,
-      };
-    }
-    case "extensions": {
-      return {
-        icon: <PuzzlePieceIcon className="size-3.5" />,
-        title: "Extensions",
       };
     }
     // One task, a single box of the mark the chat's menu opens the list with.
@@ -316,8 +233,12 @@ export function screenPresentation(
 /** The built-in page each of the window's own screen kinds is, by its name in `SCREENS`. */
 const SCREEN_OF_KIND = {
   activity: "activity",
+  browser: "browser",
+  extensions: "extensions",
   history: "history",
   memories: "memory",
+  releaseNotes: "release-notes",
+  settings: "settings",
   skills: "skills",
 } as const satisfies Partial<Record<Screen["kind"], ScreenName>>;
 

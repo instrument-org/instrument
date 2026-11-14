@@ -2,17 +2,15 @@ import { fileHref, folderHref } from "@/shared/computer-href";
 import { describe, expect, it } from "vitest";
 
 import {
-  addressOfHref,
+  addressOfTab,
   fileAddressOf,
-  instrumentAddressOf,
   sameAddress,
-  screenNameOfHref,
   targetOfAddress,
 } from "./address";
 
 const HOME = "/Users/mac-user";
 
-describe("addressOfHref", () => {
+describe("addressOfTab", () => {
   it.each([
     [
       "/chats/01JZ8Q0V3W6Y8A2B4C6D8E0F2G",
@@ -31,29 +29,24 @@ describe("addressOfHref", () => {
       "instrument://file/Users/mac-user/Notes/plan %232.md",
     ],
     ["/activity", "instrument://screen/activity"],
+    ["/history?q=roof", "instrument://screen/history"],
+    ["/settings/providers", "instrument://settings/providers"],
+    ["/settings", "instrument://settings/general"],
     ["/apps/", "instrument://screen/apps"],
     ["/apps/slack", "instrument://app/slack"],
     ["/new-tab", undefined],
     ["/chats/?draft=d1", undefined],
     ["/files?path=&root=recents%3A", undefined],
   ])("%s is %s", (href, address) => {
-    expect(addressOfHref(href, HOME)).toBe(address);
+    expect(addressOfTab({ href, kind: "screen" }, HOME)).toBe(address);
   });
 });
 
 it("reads a page's address off its tab, and none for a blank one", () => {
-  expect(
-    instrumentAddressOf({ kind: "page", url: "https://example.com/a" }),
-  ).toBe("https://example.com/a");
-  expect(
-    instrumentAddressOf({ kind: "page", url: "about:blank" }),
-  ).toBeUndefined();
-});
-
-it("finds a built-in page by its href or a part under it", () => {
-  expect(screenNameOfHref("/activity")).toBe("activity");
-  expect(screenNameOfHref("/activity/requests")).toBe("activity");
-  expect(screenNameOfHref("/nowhere")).toBeUndefined();
+  expect(addressOfTab({ kind: "page", url: "https://example.com/a" })).toBe(
+    "https://example.com/a",
+  );
+  expect(addressOfTab({ kind: "page", url: "about:blank" })).toBeUndefined();
 });
 
 describe("targetOfAddress", () => {

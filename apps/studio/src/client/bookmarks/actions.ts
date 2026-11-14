@@ -9,7 +9,7 @@ import { useAtomValue, useSetAtom } from "jotai";
 import { sameAddress } from "./address";
 import { applyBookmarkOpsAtom, bookmarksAtom } from "./store";
 
-export { instrumentAddressOf } from "./address";
+export { addressOfTab } from "./address";
 
 /**
  * Keeping any address as a bookmark, for whatever offers to: the star at

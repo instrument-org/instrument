@@ -1,15 +1,22 @@
-import { screenNameOfHref, targetOfAddress } from "@/client/bookmarks/address";
+import { targetOfAddress } from "@/client/bookmarks/address";
 import { PageFavicon } from "@/client/components/favicon";
 import { FileSystemFolderGlyph } from "@/client/components/extend/file-system";
 import { InstrumentGlyph } from "@/client/components/wordmark";
 import { cn } from "@/client/lib/utils";
-import { isScreenName, SCREENS } from "@/shared/instrument-screens";
+import {
+  isScreenName,
+  type ScreenName,
+  SCREENS,
+  screenOfHref,
+} from "@/shared/instrument-screens";
 import { AppWindowIcon } from "@phosphor-icons/react/AppWindow";
 import { ClockCounterClockwiseIcon } from "@phosphor-icons/react/ClockCounterClockwise";
 import { CubeIcon } from "@phosphor-icons/react/Cube";
 import { FingerprintIcon } from "@phosphor-icons/react/Fingerprint";
+import { FolderSimpleIcon } from "@phosphor-icons/react/FolderSimple";
 import { GearSixIcon } from "@phosphor-icons/react/GearSix";
 import { GlobeIcon } from "@phosphor-icons/react/Globe";
+import { KeyboardIcon } from "@phosphor-icons/react/Keyboard";
 import { NewspaperClippingIcon } from "@phosphor-icons/react/NewspaperClipping";
 import { PuzzlePieceIcon } from "@phosphor-icons/react/PuzzlePiece";
 import { PulseIcon } from "@phosphor-icons/react/Pulse";
@@ -30,21 +37,36 @@ export type BuiltInApp = "chat" | "files" | (string & {});
 type Glyph = ComponentType<{ className?: string }>;
 
 /**
- * Each built-in page's mark, by its name in `SCREENS`, drawn in the ink of
- * the words beside it. A page named there that this has no mark for wears a
- * window.
+ * Each built-in page's mark, by its name in `SCREENS`: what its tab, its
+ * chip and a row or bookmark of it wear. History keeps the clock a
+ * browser's history wears, so Activity, the other record of the past, wears
+ * a pulse.
  */
-const SCREEN_MARKS: Record<string, Glyph> = {
+const SCREEN_MARKS: Record<ScreenName, Glyph> = {
   activity: PulseIcon,
   apps: ShapesIcon,
   browser: GlobeIcon,
   extensions: PuzzlePieceIcon,
+  files: FolderSimpleIcon,
   history: ClockCounterClockwiseIcon,
   memory: FingerprintIcon,
   "release-notes": NewspaperClippingIcon,
   settings: GearSixIcon,
+  shortcuts: KeyboardIcon,
   skills: CubeIcon,
 };
+
+/** A built-in page's mark alone, in the ink of whatever it stands in. */
+export function ScreenMark({
+  className,
+  name,
+}: {
+  className?: string;
+  name: ScreenName;
+}) {
+  const Mark = SCREEN_MARKS[name];
+  return <Mark className={className} />;
+}
 
 /** What a built-in app is called on its chip. */
 export function appName(app: BuiltInApp): string {
@@ -84,7 +106,7 @@ export function AppMark({
       </span>
     );
   }
-  const Icon = SCREEN_MARKS[app] ?? AppWindowIcon;
+  const Icon = isScreenName(app) ? SCREEN_MARKS[app] : AppWindowIcon;
   return (
     <Icon className={cn("size-3.5 shrink-0 text-foreground/70", className)} />
   );
@@ -199,7 +221,7 @@ function appOfHref(href: string): BuiltInApp {
       return screen.name;
     }
     default: {
-      return screenNameOfHref(href) ?? "";
+      return screenOfHref(href)?.name ?? "";
     }
   }
 }

@@ -1,5 +1,5 @@
 import { type WindowTab } from "@/client/atoms/window";
-import { instrumentAddressOf } from "@/client/bookmarks/actions";
+import { addressOfTab } from "@/client/bookmarks/actions";
 import { getGuest, onPageThumb } from "@/client/lib/browser-pool";
 import { registerHistorySurface } from "@/client/lib/history-surfaces";
 import { hostPathOfFileUrl } from "@/client/lib/file-url";
@@ -204,7 +204,7 @@ export function GroupItem({
   ) => {
     return (
       <TabLocationRow
-        address={instrumentAddressOf(up)}
+        address={addressOfTab(up)}
         canGoBack={canGoBack}
         canGoForward={canGoForward}
         {...(location.kind === "file"

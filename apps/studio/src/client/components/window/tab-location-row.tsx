@@ -64,7 +64,6 @@ import { Fragment, type ReactNode, useContext, useState } from "react";
 
 import { AppChip, AppMark, appName, type BuiltInApp } from "./app-chip";
 import { BookmarkStar } from "./bookmark-star";
-import { ScreenIcon } from "./screen-presentation";
 import { ShellContext } from "./shell-context";
 import {
   type LocationCrumb,
@@ -113,7 +112,7 @@ export function TabLocationRow({
   trailing,
 }: {
   /**
-   * The tab's address (`instrumentAddressOf`): what the field says while it
+   * The tab's address (`addressOfTab`): what the field says while it
    * has the caret, and what the star keeps. A tab with none has no star.
    */
   address?: string | undefined;
@@ -719,14 +718,6 @@ function locationMark(location: TabLocation): ReactNode {
         <MagnifyingGlassIcon className="size-3.5 shrink-0 text-muted-foreground" />
       );
     }
-    case "screen": {
-      return (
-        <ScreenIcon
-          className="size-3.5 shrink-0 text-muted-foreground"
-          name={location.screen}
-        />
-      );
-    }
     // A page says nothing about its connection unless it is bad news; see
     // ConnectionBadge.
     case "page": {
@@ -769,8 +760,7 @@ function locationText(location: TabLocation) {
     }
     case "builtin":
     case "newChat":
-    case "newTab":
-    case "screen": {
+    case "newTab": {
       return "";
     }
     case "page": {
@@ -786,7 +776,9 @@ function locationText(location: TabLocation) {
 function bookmarkTitleOf(location: TabLocation): string {
   switch (location.kind) {
     case "builtin": {
-      return location.part ?? appName(location.screen);
+      return location.part === undefined
+        ? appName(location.screen)
+        : `${appName(location.screen)} › ${location.part}`;
     }
     case "file":
     case "folder": {

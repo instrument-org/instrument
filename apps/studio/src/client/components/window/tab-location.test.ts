@@ -298,7 +298,12 @@ describe("locationChip", () => {
     ["Activity", { kind: "builtin", screen: "activity" }, "activity"],
     ["a page", { kind: "page", url: "https://example.com/" }, undefined],
     ["a new tab", { kind: "newTab" }, undefined],
-    ["Extensions", { kind: "screen", screen: "extensions" }, undefined],
+    ["Extensions", { kind: "builtin", screen: "extensions" }, "extensions"],
+    [
+      "a part of Settings",
+      { kind: "builtin", part: "Providers", screen: "settings" },
+      "settings",
+    ],
   ])("%s", (_, location, chip) => {
     expect(locationChip(location)).toBe(chip);
   });

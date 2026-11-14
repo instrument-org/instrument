@@ -7,43 +7,34 @@ import {
   folderHref,
   RECENTS_ROOT,
 } from "@/shared/computer-href";
-import {
-  isScreenName,
-  SCREENS,
-  type ScreenName,
-} from "@/shared/instrument-screens";
+import { instrumentAddressOf } from "@/shared/instrument-screens";
 import {
   APP_NAME_SLUG,
   expandHomePath,
   filePathOfInstrumentLink,
   instrumentLinkOf,
-  instrumentUrlOf,
   isInstrumentAddress,
 } from "@instrument-org/shared";
 
 /**
  * A tab's address, the one thing the field shows while it has the caret, a
- * bookmark keeps and a link names: a page's own, and the app's own
- * `instrument://` address for anything else it shows, in the link forms
- * the app already opens (`instrument://chat/<id>`, `instrument://file/<path>`,
- * `instrument://screen/<name>`). Nothing for a tab with nothing to keep: a
- * new tab, a new chat, the recents.
+ * bookmark keeps and a link names: a page's own, a file's or a folder's
+ * path (`instrument://file/<path>`), and for anything else the app shows the
+ * address `instrumentAddressOf` gives it (`instrument://chat/<id>`,
+ * `instrument://screen/<name>`, `instrument://settings/<part>`). Nothing for
+ * a tab with nothing to keep: a new tab, a new chat, the recents.
  */
-export function instrumentAddressOf(
+export function addressOfTab(
   tab: Pick<WindowTab, "kind"> & { href?: string; url?: string | undefined },
+  home: string | undefined = homeDir(),
 ): string | undefined {
   if (tab.kind === "page") {
     return tab.url && tab.url !== "about:blank" ? tab.url : undefined;
   }
-  return tab.href === undefined ? undefined : addressOfHref(tab.href);
-}
-
-/** The `instrument://` address of what a screen's href shows, as `instrumentAddressOf` says it. */
-export function addressOfHref(
-  href: string,
-  home: string | undefined = homeDir(),
-): string | undefined {
-  const screen = matchScreen(href);
+  if (tab.href === undefined) {
+    return undefined;
+  }
+  const screen = matchScreen(tab.href);
   switch (screen.kind) {
     case "computer": {
       if (screen.file !== undefined) {
@@ -62,45 +53,12 @@ export function addressOfHref(
     case "newTab":
     case "site":
     case "unknown": {
-      // A built-in page this build's routes do not name yet may still be a
-      // screen of the table.
-      const name = screenNameOfHref(href);
-      return name === undefined ? undefined : screenAddressOf(name);
+      return undefined;
     }
     default: {
-      const linked = instrumentUrlOf(href);
-      if (linked !== undefined) {
-        return linked;
-      }
-      const name = screenNameOfHref(href);
-      return name === undefined ? undefined : screenAddressOf(name);
+      return instrumentAddressOf(tab.href);
     }
   }
-}
-
-/** The address of a built-in page by its name in `SCREENS`. */
-export function screenAddressOf(name: string): string {
-  return `${APP_NAME_SLUG}://screen/${name}`;
-}
-
-/**
- * The built-in page a screen's href is at, by its name in `SCREENS`: the
- * page's own href, or a part of it under that href (`/settings/models`).
- */
-export function screenNameOfHref(href: string): ScreenName | undefined {
-  const pathname = withoutTrailingSlash(new URL(href, "http://tabs").pathname);
-  let best: { length: number; name: ScreenName } | undefined;
-  for (const [name, screen] of Object.entries(SCREENS)) {
-    if (!isScreenName(name) || !("href" in screen)) {
-      continue;
-    }
-    const own = withoutTrailingSlash(screen.href);
-    const isAt = pathname === own || pathname.startsWith(`${own}/`);
-    if (isAt && own.length > (best?.length ?? -1)) {
-      best = { length: own.length, name };
-    }
-  }
-  return best?.name;
 }
 
 /**

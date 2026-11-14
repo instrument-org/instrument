@@ -159,6 +159,55 @@ export function instrumentAddressOf(href: string): string | undefined {
   return instrumentUrlOf(href);
 }
 
+/** A built-in page the address field offers by name, and the address it opens. */
+export interface BuiltInPage {
+  address: string;
+  name: ScreenName;
+  /** The part of Settings it is, for a part's own row. */
+  part?: SettingsSection;
+  /** What its row says: the page's title, or `Settings › <part>`. */
+  title: string;
+}
+
+/**
+ * Every built-in page by name, with a row of its own for each part of
+ * Settings but General, which is Settings' own, and Developer, which only
+ * developer mode lists: each opens at the address
+ * its tab stands at (`instrumentAddressOf`), and a dialog with no address of
+ * its own (`shortcuts`) at its screen's.
+ */
+export function builtInPages(): BuiltInPage[] {
+  return Object.entries(SCREENS).flatMap(([name, screen]): BuiltInPage[] => {
+    if (!isScreenName(name)) {
+      return [];
+    }
+    const own = {
+      address:
+        ("href" in screen ? instrumentAddressOf(screen.href) : undefined) ??
+        `${APP_NAME_SLUG}://screen/${name}`,
+      name,
+      title: screen.title,
+    };
+    if (name !== "settings") {
+      return [own];
+    }
+    const parts = Object.entries(SETTINGS_SECTIONS).flatMap(
+      ([part, title]): BuiltInPage[] =>
+        isSettingsSection(part) && part !== "general" && part !== "developer"
+          ? [
+              {
+                address: `${APP_NAME_SLUG}://settings/${part}`,
+                name,
+                part,
+                title: `${screen.title} › ${title}`,
+              },
+            ]
+          : [],
+    );
+    return [own, ...parts];
+  });
+}
+
 /** Whether an address carries nothing past its path. */
 function isBare(href: string) {
   try {

@@ -4,11 +4,7 @@ import {
   noteTypedPage,
   useCompletionPages,
 } from "@/client/hooks/use-browser-history";
-import {
-  fileAddressOf,
-  screenAddressOf,
-  targetOfAddress,
-} from "@/client/bookmarks/address";
+import { targetOfAddress } from "@/client/bookmarks/address";
 import { hrefOfTarget } from "@/client/bookmarks/open-address";
 import { bookmarksAtom } from "@/client/bookmarks/store";
 import {
@@ -64,7 +60,11 @@ import { siteFromWords } from "@/client/lib/site-from-words";
 import { cn } from "@/client/lib/utils";
 import { rpcClient } from "@/client/rpc/client";
 import { COMPUTER_ROOT, fileHref } from "@/shared/computer-href";
-import { isScreenName, SCREENS } from "@/shared/instrument-screens";
+import {
+  type BuiltInPage,
+  builtInPages,
+  SETTINGS_SECTIONS,
+} from "@/shared/instrument-screens";
 import {
   chatAddressOf,
   displayHostPath,
@@ -126,7 +126,6 @@ function omnibarModeOf(location: TabLocation): OmnibarMode {
     case "newChat":
     case "newTab":
     case "page":
-    case "screen":
     case "task": {
       return "web";
     }
@@ -873,7 +872,6 @@ export function useOmnibarRows({
       ? appPlaceRows(words, {
           bookmarks,
           chatTitles: shell?.chatTitles,
-          home,
           openAddress,
         })
       : [];
@@ -1055,8 +1053,8 @@ export function useOmnibarRows({
 
 /**
  * The app's own places whose names start with the words, or a word of them
- * does: an app address kept as a bookmark, a built-in page, Files, and a
- * chat by its title. Two letters at least, so a single letter typed on the
+ * does: an app address kept as a bookmark, a built-in page (Files and each
+ * part of Settings among them), and a chat by its title. Two letters at least, so a single letter typed on the
  * way to a site's address offers none.
  */
 function appPlaceRows(
@@ -1064,12 +1062,10 @@ function appPlaceRows(
   {
     bookmarks,
     chatTitles,
-    home,
     openAddress,
   }: {
     bookmarks: { title: string; url: string }[];
     chatTitles: ReadonlyMap<string, string> | undefined;
-    home: string;
     openAddress: (address: string) => void;
   },
 ): OmniRow[] {
@@ -1099,9 +1095,18 @@ function appPlaceRows(
       openAddress(address);
     },
   });
-  const pages = Object.entries(SCREENS).flatMap(([name, screen]) =>
-    isScreenName(name) ? [{ name, title: screen.title }] : [],
-  );
+  // A part of Settings by its own name, or by Settings' and then its own.
+  const pageNamed = (page: BuiltInPage) => {
+    if (page.part === undefined) {
+      return named(page.title);
+    }
+    const part = SETTINGS_SECTIONS[page.part];
+    return (
+      named(part) ||
+      (lower.startsWith("settings ") &&
+        `settings ${part.toLowerCase()}`.startsWith(lower))
+    );
+  };
   const rows = [
     ...bookmarks
       .filter(
@@ -1119,27 +1124,16 @@ function appPlaceRows(
           "Bookmark",
         ),
       ),
-    ...pages
-      .filter((page) => named(page.title))
+    ...builtInPages()
+      .filter(pageNamed)
       .map((page) =>
         place(
-          page.name,
+          page.part === undefined ? page.name : `${page.name}/${page.part}`,
           page.title,
-          screenAddressOf(page.name),
+          page.address,
           <AppMark app={page.name} className="size-4" />,
         ),
       ),
-    // Files is a built-in page of its own once `SCREENS` lists it.
-    ...(isScreenName("files") || !named("Files")
-      ? []
-      : [
-          place(
-            "files",
-            "Files",
-            fileAddressOf(home, { isFolder: true }),
-            <AppMark app="files" className="size-4" />,
-          ),
-        ]),
     ...[...(chatTitles ?? [])]
       .filter(([, title]) => named(title))
       .map(([id, title]) =>

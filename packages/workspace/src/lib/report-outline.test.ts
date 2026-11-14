@@ -147,6 +147,10 @@ const PLANTED = [
       ],
     },
   }),
+  part({
+    type: "data-requestNote",
+    data: { kind: "turn", text: SECRET },
+  }),
   part({ type: "data-something-new", data: { anything: SECRET } }),
   part({ type: "source-url", title: SECRET, url: `https://c.com/${SECRET}` }),
   part({ type: "text", text: "hello", providerMetadata: { x: SECRET } }),
@@ -166,6 +170,22 @@ describe("outlineSessionLog", () => {
     ]);
     expect([...sources.apps]).toEqual(["gmail"]);
     expect(sources.files).toBe(3);
+  });
+
+  it("keeps what kind of note a request went out with, and its words as their length", () => {
+    expect(
+      outlineRecord(
+        part({
+          type: "data-requestNote",
+          data: { kind: "budget", status: "exhausted", text: SECRET },
+        }),
+        emptySources(),
+      ),
+    ).toMatchObject({
+      part: {
+        data: { kind: "budget", status: "exhausted", text: "<11 chars>" },
+      },
+    });
   });
 
   it("keeps what was said and how each step went", () => {

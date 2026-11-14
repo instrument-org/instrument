@@ -753,6 +753,9 @@ function notePart(part: Obj, sources: OutlineSources): Obj {
         },
       };
     }
+    case "data-requestNote": {
+      return { ...part, data: pick(data, ["kind", "status"]) };
+    }
     default: {
       return { ...part, data: size(data) };
     }

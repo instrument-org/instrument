@@ -512,7 +512,14 @@ function SideCard({
         carriedKey={drawn.carriedKey}
         chatTitles={shell.chatTitles}
         chosenId={drawn.chosenId ?? up?.id}
-        className={SIDE_TABS}
+        className={cn(
+          SIDE_TABS,
+          // With two sides, the tabs of the one without the keyboard fade a
+          // little, so typing has a visible home.
+          layout.sides.length === 2 &&
+            !hasKeyboard &&
+            "[&_[role=tab]]:opacity-60",
+        )}
         heldAt={drawn.heldAt}
         isIncoming={drawn.isIncoming}
         lead={isFirst && !isSidebarOpen ? <SidebarToggleRoom /> : undefined}

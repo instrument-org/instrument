@@ -38,6 +38,7 @@ Page contents can stay rough. What has to be right is the layout engine, draggin
 - **⌥⌘← and ⌥⌘→** (Alt+Shift with the arrows off the Mac) move the keyboard to the left or right side, as code editors move between splits.
 - **⌘K** is the launcher: a screen or a site picked there opens in the tab up on the side with the keyboard, where Back returns; a chat opens as a group of its own.
 - **A chat asked for from outside** (a notification, the bell, an `instrument://chat` link from another app) comes up at its tab the person last sent from, wherever it is open; a chat with no tab opens as a group of its own. Clicks inside the app always open a new group.
+- **Files, folders and pages from outside** (an `instrument://file` or `files` link, the website's `/open` hand-off, the Finder, the Dock, a launch's arguments) open as one new tab group in the window in front, a tab each in the order given on one side, the first up (`outsideOpensOf`); a link never places tabs on the other side.
 - **Every tab's menu can open a chat beside it** (New Tab in Split), so a group of only websites is one click from the AI.
 
 ## The new tab, which is a new chat

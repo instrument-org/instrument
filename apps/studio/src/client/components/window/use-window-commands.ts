@@ -89,7 +89,7 @@ export function useWindowCommands(
     /** A draft of a new chat with the words a link from outside brought, under the project it named. */
     newChatFromLink: (words: string, projectId?: string) => void;
     newTab: () => void;
-    /** A file a link from outside named that is not there: said, over the folder it was in when that is there. */
+    /** A file a link from outside named that is not there: said, by its name, and whether the folder it was in is gone too. */
     missingFile: (name: string, folder?: string) => void;
     /** How many files a link from outside named past the most one link opens: said. */
     notOpened: (count: number) => void;
@@ -101,6 +101,8 @@ export function useWindowCommands(
     openFile: (hostPath: string) => void;
     /** A screen by its route, from outside the app, so in no tab yet. */
     openScreen: (href: string) => void;
+    /** Files, folders and pages from outside the app, as one new tab group of a tab each, the first up. */
+    openGroup: (hrefs: readonly string[]) => void;
     /** The tab up to a window of its own. */
     moveTabToNewWindow: () => void;
     /** The tab up across to the other side of its group, or a copy of it there for a side's only tab. */
@@ -507,7 +509,7 @@ function openOrCloseCommandMenu() {
   }
 }
 
-/** Puts up what something outside the window asked for: a file, a screen by its route, a missing file, files left unopened, a page or a link not opened said, a new chat's words, or a new chat. */
+/** Puts up what something outside the window asked for: a file, a screen by its route, a new tab group of files, a missing file, files left unopened, a page or a link not opened said, a new chat's words, or a new chat. */
 function answer(
   handlers: {
     linkNotOpened: () => void;
@@ -517,6 +519,7 @@ function answer(
     newChat: () => void;
     newChatFromLink: (words: string, projectId?: string) => void;
     openFile: (hostPath: string) => void;
+    openGroup: (hrefs: readonly string[]) => void;
     openScreen: (href: string) => void;
   },
   ask: RPCOutput["window"]["takePending"][number],
@@ -552,6 +555,10 @@ function answer(
     }
     case "openScreen": {
       handlers.openScreen(ask.href);
+      break;
+    }
+    case "openGroup": {
+      handlers.openGroup(ask.hrefs);
       break;
     }
   }

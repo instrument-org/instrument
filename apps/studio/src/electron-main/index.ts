@@ -40,7 +40,7 @@ import {
 } from "@/electron-main/stores/machine/state";
 import { getDefaultModelURI } from "@/electron-main/stores/workspace/preferences";
 import {
-  openAppFile,
+  asksOfAppFiles,
   openAppWindow,
   openNewAppWindow,
   restoreAppWindows,
@@ -48,6 +48,7 @@ import {
   updateAppWindowBackgroundColor,
   waitingAppWindowAsks,
 } from "@/electron-main/windows/app-window";
+import { type AppWindowAsk } from "@/electron-main/windows/app-window-asks";
 import { ensureForegroundWindowVisible } from "@/electron-main/windows/ensure-foreground-visible";
 import { getForegroundWindow } from "@/electron-main/windows/foreground";
 import {
@@ -124,6 +125,14 @@ import { startFreezeWatchdog } from "./lib/freeze-watchdog";
 import { watchMainThreadStalls } from "./lib/main-thread-stalls";
 import { watchProcessCpu } from "./lib/process-cpu";
 
+/**
+ * How long after one file the system hands over the next still joins it.
+ * The Finder hands over a selection opened or dropped together one file at a
+ * time, all at once.
+ */
+const FILES_TOGETHER_MS = 100;
+let filesArriving: string[] = [];
+
 // Dev skips the single-instance lock so multiple worktrees can boot side by
 // side. Packaged builds keep it so second launches (deep links) forward to
 // the running instance.
@@ -186,20 +195,22 @@ if (gotTheLock) {
     if (url) {
       handleDeepLink(url);
     }
-    for (const filePath of filesInArgv(commandLine, {
-      defaultApp: process.defaultApp,
-    })) {
-      openAppFile(filePath);
-    }
+    openFromOutside(
+      asksOfAppFiles(
+        filesInArgv(commandLine, { defaultApp: process.defaultApp }),
+      ),
+    );
   });
 
   // A file handed over from the Finder: a double click where Instrument is
-  // the default, or Open With. Listened for before ready, because a file that
-  // launches the app arrives before it is; the screen waits for the window.
+  // the default, Open With, or a drop on the Dock icon. Listened for before
+  // ready, because a file that launches the app arrives before it is; the
+  // screen waits for the window. The system hands several files over one
+  // event each, so those arriving together open together.
   app.on("open-file", (event, filePath) => {
     event.preventDefault();
     if (!getWorkspaceRefusal()) {
-      openAppFile(filePath);
+      openAppFileSoon(filePath);
     }
   });
 
@@ -214,11 +225,11 @@ if (gotTheLock) {
 
   // The same hand-overs on Windows and Linux, for a launch that starts the app.
   if (!getWorkspaceRefusal()) {
-    for (const filePath of filesInArgv(process.argv, {
-      defaultApp: process.defaultApp,
-    })) {
-      openAppFile(filePath);
-    }
+    openFromOutside(
+      asksOfAppFiles(
+        filesInArgv(process.argv, { defaultApp: process.defaultApp }),
+      ),
+    );
     const url = linkInArgv(process.argv);
     if (url) {
       handleDeepLink(url);
@@ -543,9 +554,7 @@ function focusForegroundWindow() {
  */
 function handleDeepLink(url: string) {
   void openOutsideLink(url, {
-    ask: (asks) => {
-      showFromOutside(asks, focusForegroundWindow);
-    },
+    ask: openFromOutside,
     log: (line) => {
       // Scoped here, not at the top: a launch's own link comes through
       // before the module has finished evaluating.
@@ -553,6 +562,29 @@ function handleDeepLink(url: string) {
     },
     waiting: () => waitingAppWindowAsks().length,
   });
+}
+
+/**
+ * Puts up what one hand-over from outside the app asks for, the road every
+ * one takes: a link, files from the Finder or the Dock, and a launch's
+ * arguments. Its files, folders and pages open as one new tab group, and a
+ * chat comes up where it is open (`showFromOutside`).
+ */
+function openFromOutside(asks: readonly AppWindowAsk[]) {
+  showFromOutside(asks, focusForegroundWindow);
+}
+
+/** A file from the Finder or the Dock, opened with the others arriving with it. */
+function openAppFileSoon(hostPath: string) {
+  filesArriving.push(hostPath);
+  if (filesArriving.length > 1) {
+    return;
+  }
+  setTimeout(() => {
+    const paths = filesArriving;
+    filesArriving = [];
+    openFromOutside(asksOfAppFiles(paths));
+  }, FILES_TOGETHER_MS);
 }
 
 /** The link a launch was handed, by the scheme this build answers to. */

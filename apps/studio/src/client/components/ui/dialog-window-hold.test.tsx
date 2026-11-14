@@ -45,6 +45,7 @@ function Commands({
       linkNotOpened: vi.fn(),
       newTab,
       openFile: vi.fn(),
+      openGroup: vi.fn(),
       openScreen: vi.fn(),
       reopenTab: vi.fn(),
       search: vi.fn(),

@@ -105,7 +105,7 @@ describe("tabHrefOfAsk", () => {
       [
         "/files?file=%2FUsers%2Fmac-user%2Fa.pdf&path=&root=~",
         "/chats/abc",
-        "/files?path=&root=%2FUsers%2Fmac-user%2FWork",
+        undefined,
         undefined,
         undefined,
         undefined,

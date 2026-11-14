@@ -9,6 +9,12 @@ export type AppWindowAsk =
   | { hostPath: string; type: "openFile" }
   | { href: string; type: "openScreen" }
   /**
+   * A new tab group with a tab at each address, in the order given, all on
+   * one side with the first up: what files, folders and pages handed over
+   * together from outside open as (`outsideOpensOf`).
+   */
+  | { hrefs: string[]; type: "openGroup" }
+  /**
    * A file a link named that is not there, said by its name, with the folder
    * it was in opened when that folder is there.
    */
@@ -32,13 +38,10 @@ export type AppWindowAsk =
 /**
  * The address of the tab that shows what an ask puts up, for finding the
  * window with a tab already showing it; undefined for an ask that makes
- * something new.
+ * something new or only says something.
  */
 export function tabHrefOfAsk(ask: AppWindowAsk): string | undefined {
   switch (ask.type) {
-    case "missingFile": {
-      return ask.folder === undefined ? undefined : folderHref(ask.folder);
-    }
     case "openFile": {
       return fileHref(ask.hostPath);
     }
@@ -46,13 +49,58 @@ export function tabHrefOfAsk(ask: AppWindowAsk): string | undefined {
       return ask.href;
     }
     case "linkNotOpened":
+    case "missingFile":
     case "newChat":
     case "notOpened":
+    case "openGroup":
     case "openNewChat":
     case "pageNotOpened": {
       return undefined;
     }
   }
+}
+
+/** Whether an address is one of Files: a folder, or a file in its folder. */
+const isFilesHref = (href: string) => /^\/files(?:[?#]|$)/.test(href);
+
+/**
+ * What one hand-over from outside (a link, files from the Finder or a launch)
+ * asks of the window: every file, folder and page in it as one new tab group,
+ * a tab each in the order given, standing where the first of them stood among
+ * the asks, and everything else as it was. A missing file's folder is a tab
+ * of the group too, and its ask stays to say the file is gone. A chat is
+ * never in the group: it comes forward where it is open.
+ */
+export function outsideOpensOf(asked: readonly AppWindowAsk[]): AppWindowAsk[] {
+  const hrefs: string[] = [];
+  const group: AppWindowAsk = { hrefs, type: "openGroup" };
+  const opens: AppWindowAsk[] = [];
+  const intoGroup = (href: string) => {
+    if (hrefs.length === 0) {
+      opens.push(group);
+    }
+    // A missing file's folder may be named in the same hand-over too.
+    if (!hrefs.includes(href)) {
+      hrefs.push(href);
+    }
+  };
+  for (const ask of asked) {
+    if (ask.type === "openFile") {
+      intoGroup(fileHref(ask.hostPath));
+    } else if (ask.type === "openScreen" && isFilesHref(ask.href)) {
+      intoGroup(ask.href);
+    } else if (ask.type === "openGroup") {
+      for (const href of ask.hrefs) {
+        intoGroup(href);
+      }
+    } else {
+      if (ask.type === "missingFile" && ask.folder !== undefined) {
+        intoGroup(folderHref(ask.folder));
+      }
+      opens.push(ask);
+    }
+  }
+  return opens;
 }
 
 /**

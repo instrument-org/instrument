@@ -66,6 +66,7 @@ import {
 import {
   type AppWindowAsk,
   createAppWindowAsks,
+  outsideOpensOf,
   tabHrefOfAsk,
 } from "@/electron-main/windows/app-window-asks";
 import {
@@ -350,20 +351,17 @@ export function appWindowForChat(chatId: string | undefined) {
 }
 
 /**
- * Opens a file handed to the app from outside it, a double click, Open With,
- * or a drop on the Dock icon: in the window with a tab already showing it,
- * else in the window in front or the one this opens. A folder opens in the
- * folder view, standing in it.
+ * What files handed to the app from outside it ask for (a double click, Open
+ * With, a drop on the Dock icon, a launch naming them), in the order given:
+ * a folder in the folder view, standing in it, and a file in its viewer. Put
+ * up through `showFromOutside`, as one tab group.
  */
-export function openAppFile(hostPath: string) {
-  if (isFolder(hostPath)) {
-    openAppScreen(folderHref(hostPath));
-    return;
-  }
-  const ask = { hostPath, type: "openFile" } satisfies AppWindowAsk;
-  if (!showInWindowHolding(ask)) {
-    askAppWindow(ask);
-  }
+export function asksOfAppFiles(hostPaths: readonly string[]): AppWindowAsk[] {
+  return hostPaths.map((hostPath) =>
+    isFolder(hostPath)
+      ? { href: folderHref(hostPath), type: "openScreen" }
+      : { hostPath, type: "openFile" },
+  );
 }
 
 function isFolder(hostPath: string) {
@@ -402,17 +400,19 @@ function showInWindowHolding(ask: AppWindowAsk) {
 }
 
 /**
- * Puts up everything one link from outside asks for, in the order given:
- * each in the window with a tab already showing it, and the rest in the
- * window the first went to, which is the one with its tab, else the one in
- * front or the one this opens. That window alone comes forward, once, by
- * `comeForward` where no window has the first's tab.
+ * Puts up everything one hand-over from outside asks for (a link, files from
+ * the Finder or the Dock, a launch's arguments), the one road every one of
+ * them takes. Its files, folders and pages open as one new tab group in the
+ * window in front (`outsideOpensOf`), and a chat comes up in the window with
+ * a tab on it. Everything after the first goes where the first went, unless
+ * it is a chat open in another window. That window alone comes forward,
+ * once, by `comeForward` where no window has the first's tab.
  */
 export function showFromOutside(
   asked: readonly AppWindowAsk[],
   comeForward: () => void,
 ) {
-  const [first, ...rest] = asked;
+  const [first, ...rest] = outsideOpensOf(asked);
   if (first === undefined) {
     return;
   }

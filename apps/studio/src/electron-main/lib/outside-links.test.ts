@@ -3,7 +3,7 @@ import os from "node:os";
 import path from "node:path";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
-import { tabHrefOfAsk } from "../windows/app-window-asks";
+import { outsideOpensOf, tabHrefOfAsk } from "../windows/app-window-asks";
 import {
   asksOfOutsideLink,
   createLinkGate,
@@ -873,5 +873,128 @@ describe("createLinkGate", () => {
     expect(through.filter(Boolean)).toHaveLength(10);
     now = 60_000;
     expect(gate("instrument://chat/later")).toBe(true);
+  });
+});
+
+// What a link from outside opens: its files, folders and pages as one new
+// tab group, a tab each in the order written, the first up; a chat where it
+// is open, never in a group.
+describe("what a link opens", () => {
+  const opens = async (url: string) =>
+    outsideOpensOf(
+      await asksOfOutsideLink(url, {
+        home: "/Users/mac-user",
+        hostPaths: path.posix,
+        isDownloaded: allowed,
+        isRefused: allowed,
+        placeOf: (hostPath) =>
+          Promise.resolve(
+            hostPath.endsWith("/gone.md")
+              ? "missing"
+              : /\/(?:Work|Notes)$/.test(hostPath)
+                ? "folder"
+                : "other",
+          ),
+      }),
+    );
+
+  it("opens one file as a group of one tab", async () => {
+    expect(await opens("instrument://file/Users/mac-user/Work/plan.md"))
+      .toMatchInlineSnapshot(`
+        [
+          {
+            "hrefs": [
+              "/files?file=%2FUsers%2Fmac-user%2FWork%2Fplan.md&path=&root=~",
+            ],
+            "type": "openGroup",
+          },
+        ]
+      `);
+  });
+
+  it("opens several files as one group, in the order written", async () => {
+    expect(
+      await opens(
+        "instrument://files?path=%2FUsers%2Fmac-user%2Fb.pdf&path=~%2Fa.md&path=%2FUsers%2Fmac-user%2Fc.png",
+      ),
+    ).toMatchInlineSnapshot(`
+      [
+        {
+          "hrefs": [
+            "/files?file=%2FUsers%2Fmac-user%2Fb.pdf&path=&root=~",
+            "/files?file=%2FUsers%2Fmac-user%2Fa.md&path=&root=~",
+            "/files?file=%2FUsers%2Fmac-user%2Fc.png&path=&root=~",
+          ],
+          "type": "openGroup",
+        },
+      ]
+    `);
+  });
+
+  it("opens a folder as a group of one tab, in Files", async () => {
+    expect(await opens("instrument://file/Users/mac-user/Work"))
+      .toMatchInlineSnapshot(`
+      [
+        {
+          "hrefs": [
+            "/files?path=&root=%2FUsers%2Fmac-user%2FWork",
+          ],
+          "type": "openGroup",
+        },
+      ]
+    `);
+  });
+
+  it("opens files and folders together in one group", async () => {
+    expect(
+      await opens(
+        "instrument://files?path=~%2FWork&path=~%2FWork%2Fplan.md&path=~%2FNotes",
+      ),
+    ).toMatchInlineSnapshot(`
+      [
+        {
+          "hrefs": [
+            "/files?path=&root=%2FUsers%2Fmac-user%2FWork",
+            "/files?file=%2FUsers%2Fmac-user%2FWork%2Fplan.md&path=&root=~",
+            "/files?path=&root=%2FUsers%2Fmac-user%2FNotes",
+          ],
+          "type": "openGroup",
+        },
+      ]
+    `);
+  });
+
+  it("opens a missing file's folder in the group and says it is gone", async () => {
+    expect(
+      await opens(
+        "instrument://files?path=~%2Fa.md&path=~%2FWork%2Fgone.md&path=~%2FWork",
+      ),
+    ).toMatchInlineSnapshot(`
+      [
+        {
+          "hrefs": [
+            "/files?file=%2FUsers%2Fmac-user%2Fa.md&path=&root=~",
+            "/files?path=&root=%2FUsers%2Fmac-user%2FWork",
+          ],
+          "type": "openGroup",
+        },
+        {
+          "folder": "/Users/mac-user/Work",
+          "name": "gone.md",
+          "type": "missingFile",
+        },
+      ]
+    `);
+  });
+
+  it("brings a chat forward, in no group", async () => {
+    expect(await opens("instrument://chat/ses_01J9")).toMatchInlineSnapshot(`
+      [
+        {
+          "href": "/chats/ses_01J9",
+          "type": "openScreen",
+        },
+      ]
+    `);
   });
 });

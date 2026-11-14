@@ -1333,6 +1333,7 @@ function WindowShell({
       // it, however far that tab has walked within it, and in a tab of its
       // own where none does. Main has already picked this window as the one
       // showing it, or the one in front where none does.
+      // Said alone: the folder it was in opens in the hand-over's tab group.
       missingFile: (name, folder) => {
         toast(
           `${name} is no longer there`,
@@ -1340,12 +1341,6 @@ function WindowShell({
             ? { description: "The folder it was in is gone too." }
             : undefined,
         );
-        if (folder !== undefined) {
-          const href = folderHref(folder);
-          if (!showFromOutside(href)) {
-            openScreen(href, { newTab: true });
-          }
-        }
       },
       notOpened: (count) => {
         toast(
@@ -1388,6 +1383,20 @@ function WindowShell({
       // forward there.
       openFile: (hostPath) => {
         groups.make({ href: fileHref(hostPath) });
+      },
+      // Several at once are one group, a tab each in the order handed over,
+      // on one side, with the first up.
+      openGroup: (hrefs) => {
+        groups.make({
+          fill: (group) => {
+            const [first] = hrefs.map((href) =>
+              windowTabs.openScreen(href, { group }),
+            );
+            if (first !== undefined) {
+              windowTabs.select(first);
+            }
+          },
+        });
       },
       openScreen: (href) => {
         const chat = chatOfHref(href);

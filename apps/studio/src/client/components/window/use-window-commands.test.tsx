@@ -51,6 +51,7 @@ const handlers = {
   linkNotOpened: vi.fn(),
   newTab: vi.fn(),
   openFile: vi.fn(),
+  openGroup: vi.fn(),
   openScreen: vi.fn(),
   reopenTab: vi.fn(),
   search: vi.fn(),
@@ -93,6 +94,22 @@ describe("useWindowCommands", () => {
       { interval: 1 },
     );
     expect(handlers.openFile).toHaveBeenCalledWith("/Users/mac-user/a.pdf");
+  });
+
+  it("opens files handed over together as one group, while held", async () => {
+    getDefaultStore().set(windowHoldsAtom, [{}]);
+    renderWithDefaultStore(<Window />);
+    const hrefs = [
+      "/files?file=%2FUsers%2Fmac-user%2Fa.md&path=&root=~",
+      "/files?path=&root=%2FUsers%2Fmac-user%2FWork",
+    ];
+    stream.push({ hrefs, type: "openGroup" });
+    await vi.waitFor(
+      () => {
+        expect(handlers.openGroup).toHaveBeenCalledWith(hrefs);
+      },
+      { interval: 1 },
+    );
   });
 
   it("says a file a link named is not there, with the folder it was in", async () => {

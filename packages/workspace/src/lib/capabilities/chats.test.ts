@@ -1,3 +1,4 @@
+import { errAsync } from "neverthrow";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
@@ -16,6 +17,7 @@ import { chatById, chatRecordTitle } from "../chat/chats";
 import { undoChatChanges } from "../chat/organize";
 import { createProject } from "../chat/projects";
 import { createLocalBashEnv } from "../create-bash-env";
+import { TypedError } from "../errors";
 import { sessionOfChat } from "../record-folders";
 import {
   beginSetupChangeTracking,
@@ -323,6 +325,42 @@ describe("instrument chats archive and unarchive", () => {
       false,
     );
     expect(back.changes).toHaveLength(1);
+  });
+
+  it("fails the line of a chat that could not be changed and goes on to the rest", async () => {
+    const saveSession = ChatWrites.saveSession.bind(ChatWrites);
+    const spy = vi
+      .spyOn(ChatWrites, "saveSession")
+      .mockImplementation((session, chatId, startedAs) =>
+        chatId === "porto"
+          ? errAsync(new TypedError.Storage("The disk is full"))
+          : saveSession(session, chatId, startedAs),
+      );
+    const archived = await one(
+      "instrument chats archive lisbon porto groceries",
+    );
+    spy.mockRestore();
+
+    expect(archived.exitCode).toBe(1);
+    expect(archived.stdout).toMatchInlineSnapshot(`
+      "Archived lisbon: Trip to Lisbon
+      Archived groceries: Groceries for the week
+      "
+    `);
+    expect(archived.stderr).toMatchInlineSnapshot(`
+      "instrument chats: archive: porto could not be changed.
+      "
+    `);
+    const marks = await Promise.all(
+      ["lisbon", "porto", "groceries"].map(
+        async (id) => (await chatById(ChatIdSchema.parse(id)))?.archived,
+      ),
+    );
+    expect(marks).toEqual([true, false, true]);
+    expect(archived.changes.map((change) => change.chat)).toEqual([
+      "lisbon",
+      "groceries",
+    ]);
   });
 
   it("records nothing for a mark set and taken back in one turn", async () => {

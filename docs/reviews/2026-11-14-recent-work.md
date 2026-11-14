@@ -129,7 +129,7 @@ Important means a concrete correctness, security, privacy, or data-preservation 
 
 ### O. Nit: one failed change in `chats archive|star|project` discards the lines for chats already changed
 
-- Status: open
+- Status: fixed
 - Where: [chats.ts:277](/packages/workspace/src/lib/capabilities/chats.ts#L277), [chats.ts:104](/packages/workspace/src/lib/capabilities/chats.ts#L104).
 - What: `eachChat` promises that a chat that fails "fails its own line and the rest go on", but a write that returns false throws inside it. With `chats archive a b c` and `b` failing, `a` is archived, `c` is never tried, and the agent reads one line about `b`.
 

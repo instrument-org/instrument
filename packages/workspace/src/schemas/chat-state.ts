@@ -13,17 +13,13 @@ function tabIdOfEarlierBuilds(id: string) {
 }
 
 /**
- * A tab one of the chat's agents opened for its own work. Every session of
- * the chat sees and drives every tab of the chat; this only says which tabs
- * close on their own once nobody is working in them and the person never
- * used them (`closeTurnTabs`), and which count toward `CHAT_HIDDEN_TAB_CAP`.
+ * A tab one of the chat's agents opened for its own work. It stays until
+ * someone closes it; this says which tabs count toward
+ * `CHAT_HIDDEN_TAB_CAP` and close with the chat's archiving.
  */
 const OpenedTabSchema = z.object({
   id: BrowserTargetIdSchema,
-  /**
-   * The session that opened it: a task's keeps it open while that task can
-   * still be sent on, and is told when it closes.
-   */
+  /** The session that opened it, told when the app closes it. */
   openedIn: StoreId.SessionSchema.optional(),
   /**
    * The person has used it: clicked, tapped, typed or scrolled in its page
@@ -53,8 +49,9 @@ const ClosedTabSchema = z.object({
   session: StoreId.SessionSchema.optional(),
   /**
    * Why: the chat had more tabs it opened itself out of sight than it may
-   * keep (`tabCap`), or the chat's turn ended with nobody working in the tab
-   * and the person never having used it (`turnEnd`).
+   * keep (`tabCap`), or, from builds that closed such tabs as a turn ended,
+   * the chat's turn ended with nobody working in the tab and the person
+   * never having used it (`turnEnd`).
    */
   reason: z.enum(["tabCap", "turnEnd"]),
   title: z.string().optional(),

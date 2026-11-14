@@ -46,7 +46,6 @@ import {
   touchTask,
 } from "./children";
 import { stepInFlight } from "./in-flight";
-import { closeTaskTabs, closeTurnTabs } from "./tab-cap";
 import { cutForNote, lastAssistantText } from "./latest-session";
 import { appClosedLine, endedWithoutWords } from "./task-status";
 import { trajectorySince } from "./steps";
@@ -473,17 +472,6 @@ async function onSessionDone(
   const chatId = resolveChat(id);
   // Taken whether or not a note follows, so none carries into another turn's.
   const refused = takeRoleRefusals(sessionId);
-  // The chat's own turn, ended on its own rather than stopped and not
-  // started again: the tabs its agents opened that nobody is working in and
-  // the person never used go with it.
-  if (
-    chatId &&
-    stop === undefined &&
-    sessionId === sessionOfChat(chatId) &&
-    !isWorkingAgain(chatId, sessionId)
-  ) {
-    await closeTurnTabs(chatId).catch(getWorkspaceConfig().captureException);
-  }
   const task = chatId ? await childTask(chatId, sessionId) : undefined;
   if (!chatId || !task) {
     return;
@@ -511,13 +499,7 @@ async function onSessionDone(
     ...(stop ? [] : (await openAsksOf(chatId, sessionId)).map(cardNeed)),
   ];
   await touchTask(chatId, sessionId, stop ? { stoppedBy: stop.by } : {});
-  // The pages it leaves open, which the chat may show the user. A stopped
-  // task is sent on no more, so the tabs it opened or worked in go with it.
-  if (stop) {
-    await closeTaskTabs(chatId, sessionId).catch(
-      getWorkspaceConfig().captureException,
-    );
-  }
+  // The pages it leaves open, which the chat may show the user.
   const tabs = await openTabsOf(ref);
   // Its agent-browser daemons, which would otherwise idle out on their own
   // clock; a later `instrument task send` starts them again.
@@ -788,13 +770,4 @@ async function stillWorkingEvent({
     title,
     tokens: usage.inputTokens + usage.outputTokens,
   };
-}
-
-/** Whether a session that just ended has a turn running again, or false where no workspace is running to ask. */
-function isWorkingAgain(chatId: ChatId, sessionId: StoreId.Session): boolean {
-  try {
-    return isWorking(chatId, sessionId);
-  } catch {
-    return false;
-  }
 }

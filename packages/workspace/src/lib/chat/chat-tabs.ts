@@ -41,7 +41,7 @@ export async function chatPageTabs(
   });
 }
 
-/** Keeps a tab a session of the chat opened, which closes once nobody can still be working in it (`closeTurnTabs`). */
+/** Keeps a tab a session of the chat opened, which counts toward `CHAT_HIDDEN_TAB_CAP` and closes with the chat's archiving (`tab-cap.ts`). */
 export async function noteOpenedTab(
   chatId: ChatId,
   id: BrowserTargetId,

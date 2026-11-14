@@ -14,7 +14,7 @@ Important means a concrete correctness, security, privacy, or data-preservation 
 
 ### A. A call in an embedded frame uses the mic or camera with no mark on the tab and no Stop
 
-- Status: open
+- Status: fixed
 - Severity: Important. The in-use mark and Stop are how a person knows a page is listening; for a frame they are absent, and the app's own guards act as though the tab were idle.
 - Where: [preload.ts:411](/apps/studio/src/page-editor-guest/preload.ts#L411), [page-capture.ts:211](/apps/studio/src/electron-main/browser-view/page-capture.ts#L211), [page-capture.ts:361](/apps/studio/src/electron-main/browser-view/page-capture.ts#L361), [extension-open-tabs.ts:216](/apps/studio/src/electron-main/browser-view/extension-open-tabs.ts#L216).
 - What: what a page is capturing is known only from a wrapper around `getUserMedia` that the guest preload installs in the top frame's world (`contextBridge.executeInMainWorld`), and a preload runs in the main frame alone (`nodeIntegrationInSubFrames` is off, and a test pins that). The permission side takes no account of the frame: `handleMediaRequest` reads `details.securityOrigin` and `mediaTypes` only, so a request from an iframe is asked and granted like any other. A page that embeds a meeting widget, or calls `getUserMedia` through a same-origin frame's `contentWindow`, is granted the mic and never reports using it. The tab shows no mark and offers no Stop or Pause, `anyPageCapturing` is false so an idle restart can end the call, and Stop on a page that did report reaches only the tracks the top frame's wrapper knows.

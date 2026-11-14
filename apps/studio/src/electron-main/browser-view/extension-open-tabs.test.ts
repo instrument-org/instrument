@@ -9,6 +9,10 @@ vi.mock("@instrument-org/workspace/electron", () => ({
     Promise.resolve(driven.has(targetId)),
 }));
 vi.mock("./log", () => ({ log: { error: vi.fn(), info: vi.fn() } }));
+vi.mock("./page-capture", () => ({
+  isCapturing: (contents: { capturing?: boolean }) =>
+    contents.capturing === true,
+}));
 vi.mock("./guest-registry", () => {
   const records: unknown[] = [];
   return {
@@ -36,12 +40,19 @@ function tab(
   {
     agentCommandAt = 0,
     audible = false,
+    capturing = false,
     unsaved = false,
-  }: { agentCommandAt?: number; audible?: boolean; unsaved?: boolean } = {},
+  }: {
+    agentCommandAt?: number;
+    audible?: boolean;
+    capturing?: boolean;
+    unsaved?: boolean;
+  } = {},
 ) {
   const reload = vi.fn();
   const record = {
     contents: {
+      capturing,
       getURL: () => url,
       isCurrentlyAudible: () => audible,
       isDestroyed: () => false,
@@ -86,12 +97,23 @@ describe("reloadOpenTabsFor", () => {
       audible: true,
     });
     const blank = tab("tab_blank", "about:blank");
-    setTabs([plain, typedIn, agentNow, drivenTab, playing, blank]);
+    const silentCall = tab("tab_call", "https://meet.example.com/room", {
+      capturing: true,
+    });
+    setTabs([plain, typedIn, agentNow, drivenTab, playing, blank, silentCall]);
 
     await reloadOpenTabsFor({ id: "ext", manifest: MANIFEST, name: "1P" });
 
     expect(
-      Object.entries({ agentNow, blank, drivenTab, plain, playing, typedIn })
+      Object.entries({
+        agentNow,
+        blank,
+        drivenTab,
+        plain,
+        playing,
+        silentCall,
+        typedIn,
+      })
         .filter(([, each]) => each.reload.mock.calls.length > 0)
         .map(([name]) => name),
     ).toEqual(["plain"]);

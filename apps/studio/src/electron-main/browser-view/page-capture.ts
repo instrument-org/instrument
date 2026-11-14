@@ -34,17 +34,24 @@ type MediaType = "audio" | "video";
  * Where each tab's page stands with the microphone and camera, by its guest:
  * the origin let have them in that guest, the ask waiting on the person, what
  * the page is using now (as its preload reports from the page's own tracks)
- * and whether that is paused, and what it was refused and why. Main reads it
- * to keep a page in a call from sleeping, closing or restarting under the
- * person, and the window draws it at the omnibar's end and on the tab.
+ * and whether that is paused, and what it was refused and why. A frame below
+ * the main one has no preload to report its tracks, so what such a frame was
+ * let have (`frames`) counts as in use until the tab loads another document
+ * or the person stops it. Main reads it to keep a page in a call from
+ * sleeping, closing or restarting under the person, and the window draws it
+ * at the omnibar's end and on the tab.
  */
 interface PageCapture {
   ask: null | {
     answers: ((allowed: boolean) => void)[];
+    /** What a frame below the main one asked for. */
+    frameTypes: Set<MediaType>;
     origin: string;
     types: Set<MediaType>;
   };
   blocked: CaptureDevices | null;
+  /** What a frame below the main one was let have, which it may be using. */
+  frames: CaptureDevices;
   granted: string;
   paused: boolean;
   refused: (CaptureDevices & { origin: string }) | null;
@@ -65,6 +72,15 @@ const devicesOf = (types: Iterable<MediaType>): CaptureDevices => {
   return { audio: all.includes("audio"), video: all.includes("video") };
 };
 
+/**
+ * What a page is using or may be: what its preload reports of the main
+ * frame's tracks, and what a frame below it was let have.
+ */
+const usingOf = (state: PageCapture): CaptureDevices => ({
+  audio: state.using.audio || state.frames.audio,
+  video: state.using.video || state.frames.video,
+});
+
 /** Answers a waiting ask's requests, and lets it go. */
 function settleAsk(state: PageCapture, allowed: boolean) {
   const ask = state.ask;
@@ -81,6 +97,7 @@ function stateOf(contents: WebContents): PageCapture {
     state = {
       ask: null,
       blocked: null,
+      frames: NONE,
       granted: "",
       paused: false,
       refused: null,
@@ -106,6 +123,7 @@ function stateOf(contents: WebContents): PageCapture {
       }
       settleAsk(page, false);
       page.using = NONE;
+      page.frames = NONE;
       page.paused = false;
       page.refused = null;
       page.blocked = null;
@@ -165,11 +183,16 @@ function sendDevices(contents: WebContents, origin: string) {
   );
 }
 
-/** Lets the page have what it asked for once the system lets the app, and answers. */
+/**
+ * Lets the page have what it asked for once the system lets the app, and
+ * answers. What a frame below the main one asked for (`frameTypes`) is kept
+ * as what the page may be using.
+ */
 function grant(
   contents: WebContents,
   origin: string,
   types: readonly MediaType[],
+  frameTypes: readonly MediaType[],
   answer: (allowed: boolean) => void,
 ) {
   systemRefusal(types).then(
@@ -187,6 +210,10 @@ function grant(
         state.refused = null;
         state.blocked = null;
         state.system = null;
+        state.frames = {
+          audio: state.frames.audio || frameTypes.includes("audio"),
+          video: state.frames.video || frameTypes.includes("video"),
+        };
         sendDevices(contents, origin);
       }
       changed();
@@ -205,14 +232,21 @@ function grant(
  * when they just clicked in the tab (the window draws the ask at the
  * omnibar's mark), and otherwise refused with a mark the person can allow
  * from. A second request while the ask is up joins it, so it is asked once.
+ * A request not known to come from the main frame is a frame's, whose tracks
+ * nothing reports, so what it is let have is kept as in use.
  */
 export function handleMediaRequest(
   contents: WebContents,
-  details: { mediaTypes?: MediaType[]; securityOrigin?: string },
+  details: {
+    isMainFrame?: boolean;
+    mediaTypes?: MediaType[];
+    securityOrigin?: string;
+  },
   answer: (allowed: boolean) => void,
 ) {
   const origin = originOf(details.securityOrigin);
   const types = details.mediaTypes ?? [];
+  const frameTypes = details.isMainFrame === true ? [] : types;
   const record = guests.get(contents.id);
   const host = contents.hostWebContents;
   const site = siteOf(origin);
@@ -232,7 +266,7 @@ export function handleMediaRequest(
     `media ${decision} guest=${contents.id} types=${types.join("+") || "none"} origin=${origin || "none"} grantedBefore=${String(asked.grantedBefore)} settings=${asked.settings.join("+")} shown=${String(asked.shown)} windowFocused=${String(asked.windowFocused)} inputAgoMs=${record?.userInputAt ? Date.now() - record.userInputAt : "never"}`,
   );
   if (decision === "allow") {
-    grant(contents, origin, types, answer);
+    grant(contents, origin, types, frameTypes, answer);
     return;
   }
   if (decision === "ask") {
@@ -241,10 +275,18 @@ export function handleMediaRequest(
       for (const type of types) {
         state.ask.types.add(type);
       }
+      for (const type of frameTypes) {
+        state.ask.frameTypes.add(type);
+      }
       state.ask.answers.push(answer);
     } else {
       settleAsk(state, false);
-      state.ask = { answers: [answer], origin, types: new Set(types) };
+      state.ask = {
+        answers: [answer],
+        frameTypes: new Set(frameTypes),
+        origin,
+        types: new Set(types),
+      };
     }
     changed();
     return;
@@ -315,7 +357,7 @@ export function answerAsk(
   const answers = ask.answers;
   state.ask = null;
   changed();
-  grant(contents, ask.origin, types, (allowed) => {
+  grant(contents, ask.origin, types, [...ask.frameTypes], (allowed) => {
     for (const each of answers) {
       each(allowed);
     }
@@ -357,25 +399,30 @@ export function forgetSiteCapture() {
   changed();
 }
 
-/** Whether a page is using the microphone or camera right now. */
+/** Whether a page is using the microphone or camera right now, or a frame of it may be. */
 export function isCapturing(contents: WebContents | null | undefined) {
-  const using = contents ? pages.get(contents.id)?.using : undefined;
+  const state = contents ? pages.get(contents.id) : undefined;
+  const using = state ? usingOf(state) : undefined;
   return !!using && (using.audio || using.video);
 }
 
-/** Whether any page is using the microphone or camera, which a restart would cut off. */
+/** Whether any page is using the microphone or camera, or a frame of it may be, which a restart would cut off. */
 export function anyPageCapturing() {
-  return [...pages.values()].some(({ using }) => using.audio || using.video);
+  return [...pages.values()].some((state) => {
+    const using = usingOf(state);
+    return using.audio || using.video;
+  });
 }
 
 /** Every tab's page with something to show about the microphone or camera. */
 export function listCaptures(): GuestCapture[] {
   return [...pages].flatMap(([id, state]) => {
     const targetId = guests.get(id)?.entry?.targetId;
+    const using = usingOf(state);
     if (
       !targetId ||
-      (!state.using.audio &&
-        !state.using.video &&
+      (!using.audio &&
+        !using.video &&
         !state.ask &&
         !state.refused &&
         !state.blocked &&
@@ -393,6 +440,7 @@ export function listCaptures(): GuestCapture[] {
         blocked: state.blocked,
         devices: { audio: site.audioDevice, video: site.videoDevice },
         origin,
+        pausable: !state.frames.audio && !state.frames.video,
         paused: state.paused,
         refused: state.refused
           ? { audio: state.refused.audio, video: state.refused.video }
@@ -404,7 +452,7 @@ export function listCaptures(): GuestCapture[] {
         site: URL.parse(url)?.host ?? "",
         system: state.system,
         targetId,
-        using: state.using,
+        using,
       },
     ];
   });
@@ -423,7 +471,9 @@ function contentsOf(targetId: BrowserTargetId): WebContents | null {
 /**
  * Ends what the page is capturing, the way the person's Stop asks: the
  * tracks end as though the device went away, and the page needs a fresh
- * click to have them again unless its site was told always.
+ * click to have them again unless its site was told always. Nothing reaches
+ * the tracks of a frame below the main one, so a page with a frame let have
+ * a device loads again, which ends every track in it.
  */
 export function stopCapture(targetId: BrowserTargetId) {
   const contents = contentsOf(targetId);
@@ -433,14 +483,29 @@ export function stopCapture(targetId: BrowserTargetId) {
   const state = stateOf(contents);
   state.granted = "";
   state.paused = false;
+  if (state.frames.audio || state.frames.video) {
+    state.frames = NONE;
+    changed();
+    contents.reload();
+    log.info(`media stopped by reload guest=${contents.id}`);
+    return;
+  }
   contents.send(PAGE_CAPTURE_STOP_CHANNEL);
   log.info(`media stopped guest=${contents.id}`);
 }
 
-/** Pause sends silence and a black picture on the page's tracks without ending them; resume turns them back on. */
+/**
+ * Pause sends silence and a black picture on the page's tracks without ending
+ * them; resume turns them back on. A page with a frame let have a device is
+ * left as it is, since the frame's tracks would stay on.
+ */
 export function pauseCapture(targetId: BrowserTargetId, paused: boolean) {
   const contents = contentsOf(targetId);
   if (!contents) {
+    return;
+  }
+  const { frames } = stateOf(contents);
+  if (paused && (frames.audio || frames.video)) {
     return;
   }
   stateOf(contents).paused = paused;

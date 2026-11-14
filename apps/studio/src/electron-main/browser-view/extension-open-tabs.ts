@@ -4,6 +4,7 @@ import { z } from "zod";
 
 import { guests } from "./guest-registry";
 import { log } from "./log";
+import { isCapturing } from "./page-capture";
 
 /** How recent an agent's command keeps its tab as it is, as another window's take does. */
 const AGENT_RECENT_MS = 30_000;
@@ -91,6 +92,8 @@ function globMatches(value: string, glob: string): boolean {
 interface OpenTabState {
   /** When an agent last sent it a command, in ms, or 0. */
   agentCommandAt: number;
+  /** Whether its page is using the microphone or camera, or a frame of it may be. */
+  capturing: boolean;
   /** Whether an agent with a turn running drives it. */
   driven: boolean;
   /** Whether a page edit is open in it. */
@@ -107,7 +110,7 @@ interface OpenTabState {
  * Why a reload would take something from an open tab an extension's content
  * scripts would run in, or null when the tab can reload for it: the page is
  * one the extension reaches, no agent is at work in it, it is not playing,
- * in full screen or being edited. Unsaved input in its fields is checked in
+ * using the microphone or camera, in full screen or being edited. Unsaved input in its fields is checked in
  * the page itself (`hasUnsavedInput`), and a page that asks before it is left
  * (`beforeunload`) keeps itself, since nothing here answers its ask.
  */
@@ -124,6 +127,9 @@ function keepsOpenTab(
   }
   if (tab.playing) {
     return "it is playing";
+  }
+  if (tab.capturing) {
+    return "it is using the microphone or camera";
   }
   if (tab.fullScreen) {
     return "it is in full screen";
@@ -209,6 +215,7 @@ export async function reloadOpenTabsFor(extension: {
       keepsOpenTab(
         {
           agentCommandAt: entry.lastAgentCommandAt,
+          capturing: isCapturing(contents),
           driven: await isDrivenByWorkingAgent(entry.targetId).catch(
             () => true,
           ),

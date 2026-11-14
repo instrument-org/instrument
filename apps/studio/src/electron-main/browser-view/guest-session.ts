@@ -123,6 +123,7 @@ export function configureGuestSession(profileDir: string): Session {
         handleMediaRequest(
           wc,
           {
+            isMainFrame: details.isMainFrame,
             ...("mediaTypes" in details && details.mediaTypes
               ? { mediaTypes: details.mediaTypes }
               : {}),

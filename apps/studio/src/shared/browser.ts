@@ -141,6 +141,8 @@ export interface GuestCapture {
   devices: { audio?: string | undefined; video?: string | undefined };
   /** The page's origin, which its settings are kept by. */
   origin: string;
+  /** Whether Pause reaches every track: not when a frame below the main one may be using a device. */
+  pausable: boolean;
   /** Its tracks are on but sending silence and a black picture. */
   paused: boolean;
   /** Asked for and refused because no person had just clicked in the tab. */

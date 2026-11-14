@@ -223,15 +223,17 @@ function CaptureState({
         </p>
         <SiteSettings capture={capture} targetId={targetId} />
         <div className="mt-3 flex justify-end gap-2">
-          <Button
-            onClick={() => {
-              pause.mutate({ paused: true, targetId });
-              onDone();
-            }}
-            size="sm"
-          >
-            Pause
-          </Button>
+          {capture.pausable && (
+            <Button
+              onClick={() => {
+                pause.mutate({ paused: true, targetId });
+                onDone();
+              }}
+              size="sm"
+            >
+              Pause
+            </Button>
+          )}
           <Button
             disabled={stop.isPending}
             onClick={() => {

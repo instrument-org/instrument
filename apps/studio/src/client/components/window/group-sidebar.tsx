@@ -404,6 +404,9 @@ export function GroupSidebar({
             )}
           </GroupList>
         </div>
+        <SidebarAlerts>
+          <NetworkStatusIndicator isRow />
+        </SidebarAlerts>
         <SidebarFoot
           chatId={groupUp === undefined ? undefined : chatUpIn(groupUp)}
         />
@@ -845,8 +848,8 @@ function RowHalfPlace({
 /**
  * The sidebar's top row, which drags the window: room for the traffic lights
  * on a Mac and for the sidebar's toggle, which stands over the row's start
- * (`SidebarToggleCorner`), then the app's menu off the Mac; the network and
- * update pills, and the bell at its end.
+ * (`SidebarToggleCorner`), then the app's menu off the Mac; the update pill,
+ * and the bell at its end.
  */
 function SidebarTop() {
   return (
@@ -856,9 +859,24 @@ function SidebarTop() {
     >
       {!isMacOS() && <AppMenuButton />}
       <span className="flex-1" />
-      <NetworkStatusIndicator />
       <UpdateStatusIndicator />
       <NotificationsBell />
+    </div>
+  );
+}
+
+/**
+ * What the sidebar has to say about the app itself, a plain row each, over
+ * its foot: Instrument out of reach, today. Takes no room while every row in
+ * it is absent.
+ */
+function SidebarAlerts({ children }: { children: ReactNode }) {
+  return (
+    <div
+      className="flex shrink-0 flex-col gap-0.5 px-2 pb-1 empty:hidden"
+      data-sidebar-alerts=""
+    >
+      {children}
     </div>
   );
 }

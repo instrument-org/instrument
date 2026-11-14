@@ -19,6 +19,9 @@ const START_COMMAND = "pnpm --filter @instrument/api dev";
 const PILL_CLASS =
   "h-6 cursor-default gap-1.5 border-transparent bg-warning-500/10 px-2.5 text-xs text-warning-700 ring-1 ring-warning-500/25 ring-inset dark:text-warning-300 [&>svg]:size-3.5";
 
+const ROW_CLASS =
+  "flex h-8 w-full min-w-0 cursor-default items-center gap-2.5 rounded-lg px-2.5 text-left text-[13px] text-muted-foreground hover:bg-foreground/5 hover:text-foreground [&>svg]:size-4 [&>svg]:shrink-0";
+
 type Shown = Exclude<NetworkStatus, "online">;
 
 function StatusIcon({ status }: { status: Shown }) {
@@ -46,17 +49,21 @@ export function SetupNetworkStatusPill() {
 }
 
 /**
- * The app's pill beside the bell when the computer is offline or Instrument's
- * servers don't answer, opening a card that says what stops working. Goes
- * away by itself. In developer mode the unreachable card also names the API
- * server it expected, and in a development build the command that starts it.
+ * The app's word when the computer is offline or Instrument's servers don't
+ * answer, opening a card that says what stops working: a pill, or a plain
+ * row of the sidebar's alerts (`isRow`). Goes away by itself. In developer
+ * mode the unreachable card also names the API server it expected, and in a
+ * development build the command that starts it.
  */
 export function NetworkStatusIndicator({
+  isRow = false,
   labels = {
     "instrument-unreachable": "Can't reach Instrument",
     offline: "Offline",
   },
 }: {
+  /** A plain full-width row, its card opening above it. */
+  isRow?: boolean;
   /** What the pill says for each status. */
   labels?: Record<Shown, string>;
 }) {
@@ -77,16 +84,27 @@ export function NetworkStatusIndicator({
       openDelay={150}
     >
       <HoverCardTrigger asChild>
-        <Badge asChild className={PILL_CLASS}>
-          {/* A button rather than a span: the bar is a drag region, and only
-            buttons are carved out of it to take the pointer. */}
-          <button onClick={() => setOpen(true)} type="button">
+        {isRow ? (
+          <button className={ROW_CLASS} onClick={() => setOpen(true)} type="button">
             <StatusIcon status={status} />
-            {labels[status]}
+            <span className="min-w-0 truncate">{labels[status]}</span>
           </button>
-        </Badge>
+        ) : (
+          <Badge asChild className={PILL_CLASS}>
+            {/* A button rather than a span: the bar is a drag region, and only
+              buttons are carved out of it to take the pointer. */}
+            <button onClick={() => setOpen(true)} type="button">
+              <StatusIcon status={status} />
+              {labels[status]}
+            </button>
+          </Badge>
+        )}
       </HoverCardTrigger>
-      <HoverCardContent align="end" className="w-80 p-4 select-text">
+      <HoverCardContent
+        align={isRow ? "start" : "end"}
+        className="w-80 p-4 select-text"
+        side={isRow ? "top" : "bottom"}
+      >
         {status === "offline" ? (
           <>
             <p className="text-sm font-semibold text-foreground">

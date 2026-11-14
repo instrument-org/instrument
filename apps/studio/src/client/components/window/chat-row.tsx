@@ -472,7 +472,7 @@ export function ChatRow({
         <ContextMenuSeparator />
         <ContextMenuItem onSelect={onDelete} variant="destructive">
           <TrashIcon className="size-4" />
-          Delete chat…
+          Delete Chat…
         </ContextMenuItem>
       </ContextMenuContent>
     </ContextMenu>

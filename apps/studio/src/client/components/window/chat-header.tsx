@@ -376,6 +376,9 @@ export function ChatMenuItems({
   const stop = useMutation(rpcClient.workspace.session.stop.mutationOptions());
   const item = (action: RowAction) => (
     <menu.Item
+      // A row's action wears its icon small; a menu's rows wear theirs at
+      // the size every menu item does.
+      className="[&_svg]:size-4"
       key={action.id}
       onSelect={action.run}
       variant={action.developerMode ? "developer" : "default"}
@@ -393,7 +396,7 @@ export function ChatMenuItems({
               stop.mutate({ id: chat.id });
             }}
           >
-            <StopIcon className="size-3.5" />
+            <StopIcon className="size-4" />
             Stop
           </menu.Item>
           <menu.Separator />
@@ -402,7 +405,7 @@ export function ChatMenuItems({
       {onShowFolder && (
         <>
           <menu.Item onSelect={onShowFolder}>
-            <FolderSimpleIcon className="size-3.5" />
+            <FolderSimpleIcon className="size-4" />
             Show Chat Folder
           </menu.Item>
           <menu.Separator />
@@ -411,7 +414,7 @@ export function ChatMenuItems({
       {groups.marks.map(item)}
       <menu.Separator />
       <menu.Item onSelect={onRename}>
-        <PencilSimpleIcon className="size-3.5" />
+        <PencilSimpleIcon className="size-4" />
         Rename
       </menu.Item>
       {projectMenu && (
@@ -440,8 +443,8 @@ export function ChatMenuItems({
       )}
       <menu.Separator />
       <menu.Item onSelect={onDelete} variant="destructive">
-        <TrashIcon className="size-3.5" />
-        Delete chat…
+        <TrashIcon className="size-4" />
+        Delete Chat…
       </menu.Item>
     </>
   );
@@ -465,7 +468,7 @@ export function ProjectMenuItems({
   return (
     <menu.Sub>
       <menu.SubTrigger>
-        <CardsThreeIcon className="size-3.5" />
+        <CardsThreeIcon className="size-4" />
         Project
       </menu.SubTrigger>
       <menu.SubContent className="flex w-56 flex-col p-0">
@@ -496,7 +499,7 @@ export function ProjectMenuItems({
               projectMenu.onNew();
             }}
           >
-            <PlusIcon className="size-3.5" />
+            <PlusIcon className="size-4" />
             New project…
           </menu.Item>
         </div>

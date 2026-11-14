@@ -1089,7 +1089,7 @@ describe("the row's actions", () => {
   it("end the title's line while the pointer is on it, out of the flow at rest", async () => {
     const { row } = await renderRow(chat());
     const { bar, labels } = barOf(row);
-    expect(labels).toEqual(["Archive", "Mark as unread", "Star"]);
+    expect(labels).toEqual(["Archive", "Mark as Unread", "Star"]);
     // The pointer is wherever the last test left it, which may be here.
     await userEvent.unhover(row);
     expect(bar.getClientRects().length).toBe(0);
@@ -1124,7 +1124,7 @@ describe("the row's actions", () => {
 
   it("offers a chat put away the way back", async () => {
     const { row } = await renderRow(chat({ archived: true }));
-    expect(barOf(row).labels).toEqual(["Unarchive", "Mark as unread", "Star"]);
+    expect(barOf(row).labels).toEqual(["Unarchive", "Mark as Unread", "Star"]);
     await userEvent.hover(titleOf(row));
     await userEvent.click(actionOf(row, "Unarchive"));
     expect(calls.unarchive).toHaveBeenCalledWith(INPUT);
@@ -1133,8 +1133,8 @@ describe("the row's actions", () => {
   });
 
   it.each<[string, Partial<Chat>, Mock]>([
-    ["Mark as read", { unread: true }, calls.read],
-    ["Mark as unread", { unread: false }, calls.unread],
+    ["Mark as Read", { unread: true }, calls.read],
+    ["Mark as Unread", { unread: false }, calls.unread],
   ])(
     "offers %s, which asks the route and says nothing",
     async (label, overrides, call) => {
@@ -1149,9 +1149,9 @@ describe("the row's actions", () => {
     },
   );
 
-  it("offers Mark as unread on a chat with nothing said in it yet", async () => {
+  it("offers Mark as Unread on a chat with nothing said in it yet", async () => {
     const { row } = await renderRow(chat({ latest: undefined, unread: false }));
-    expect(barOf(row).labels).toEqual(["Archive", "Mark as unread", "Star"]);
+    expect(barOf(row).labels).toEqual(["Archive", "Mark as Unread", "Star"]);
   });
 
   it("raises the row's menu on a right click: the way in, the actions, and the projects", async () => {
@@ -1169,15 +1169,15 @@ describe("the row's actions", () => {
       "Open",
       "Open in New Tab",
       "Open in New Window",
-      "Mark as read",
+      "Mark as Read",
       "Star",
       "Rename",
       "Project",
       osConventions().showInFileManager,
       "Copy",
-      "Send feedback…",
+      "Send Feedback…",
       "Archive",
-      "Delete chat…",
+      "Delete Chat…",
     ]);
     expect(onOpen).not.toHaveBeenCalled();
 

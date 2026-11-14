@@ -45,7 +45,7 @@ export function ChatCopyMenu({
   return (
     <Sub>
       <SubTrigger>
-        <ClipboardTextIcon className="size-3.5" />
+        <ClipboardTextIcon className="size-4" />
         Copy
       </SubTrigger>
       <SubContent>

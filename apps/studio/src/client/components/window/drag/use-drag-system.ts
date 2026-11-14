@@ -42,11 +42,8 @@ import {
   useLetGoOfWholeGroup,
   wholeGroupStanding,
 } from "../tab-drag";
-import {
-  useOpenGroups,
-  useTabGroupActions,
-  windowTabGroupsAtom,
-} from "../tab-groups";
+import { windowTabGroupsAtom } from "../open-groups";
+import { useOpenGroups, useTabGroupActions } from "../tab-groups";
 import {
   groupLayoutOf,
   putUpBack,

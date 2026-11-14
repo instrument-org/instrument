@@ -571,31 +571,6 @@ export function chatUpIn(state: WindowTabs, group: string): ChatId | undefined {
 }
 
 /**
- * The tab a chat's agent works from: of the tabs in a group pointing at the
- * chat, the one the person last sent it a message from, else the first. Its
- * agent's pages open right after it, and its group is the one the agent sees
- * by default. Undefined while no group has a tab on the chat.
- */
-export function chatTabOf(
-  state: WindowTabs,
-  chat: ChatId,
-): (WindowTab & { group: string }) | undefined {
-  let found: (WindowTab & { group: string }) | undefined;
-  for (const tab of state.tabs) {
-    if (tab.group === undefined || chatOfTab(tab) !== chat) {
-      continue;
-    }
-    if (
-      found === undefined ||
-      (tab.promptedAt ?? 0) > (found.promptedAt ?? 0)
-    ) {
-      found = { ...tab, group: tab.group };
-    }
-  }
-  return found;
-}
-
-/**
  * A new tab that never went anywhere, which a reopen would give back as a new
  * one would: not worth keeping on the closed list.
  */
@@ -1046,7 +1021,7 @@ export function markOpenedBy(
     : state;
 }
 
-/** A tab marked as the one its chat was last sent a message from (`chatTabOf`). */
+/** A tab marked as the one its chat was last sent a message from (`workingTabOf`). */
 export function markPrompted(
   state: WindowTabs,
   id: string,

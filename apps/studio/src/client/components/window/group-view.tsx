@@ -35,7 +35,8 @@ import {
   useStripTarget,
 } from "./drag/use-group-drag";
 import { useShell } from "./shell-context";
-import { useTabGroupActions, windowTabGroupsAtom } from "./tab-groups";
+import { windowTabGroupsAtom } from "./open-groups";
+import { useTabGroupActions } from "./tab-groups";
 import { useGroupTabMoves } from "./tab-drag";
 import { type GroupLayout, type GroupSide } from "./tab-model";
 import {

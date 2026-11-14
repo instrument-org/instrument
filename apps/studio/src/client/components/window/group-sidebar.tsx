@@ -74,11 +74,8 @@ import {
   sidebarDropAtom,
 } from "./sidebar-drop";
 import { useProjectShift } from "./use-project-shift";
-import {
-  isPinnedGroup,
-  type TabGroup,
-  windowTabGroupsAtom,
-} from "./tab-groups";
+import { windowTabGroupsAtom } from "./open-groups";
+import { isPinnedGroup, type TabGroup } from "./tab-groups";
 import { chatListOptions } from "./chat-list-query";
 import { chatOfTab } from "./tab-model";
 import { CHATS_INDEX_HREF } from "./window-href";

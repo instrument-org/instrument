@@ -1,7 +1,7 @@
 import { NEW_TAB_HREF, type WindowTab } from "@/client/atoms/window";
 import { pickNewChatProjectAtom } from "@/client/drafts/new-chat-box";
 import { draftsAtom, draftsLoadedAtom } from "@/client/drafts/store";
-import { keptAtom, keptInOtherWindows } from "@/client/lib/kept-state";
+import { keptInOtherWindows } from "@/client/lib/kept-state";
 import { freshTabId } from "@/client/lib/tab-actions";
 import { rpcClient } from "@/client/rpc/client";
 import { type Draft, holdsSomething } from "@/shared/drafts";
@@ -23,6 +23,7 @@ import {
 import { chatListOptions } from "./chat-list-query";
 import { type Chat, draftTitle } from "./chats";
 import { isGroupScreenHref } from "./group-screen";
+import { useTabGroupsElsewhere, windowTabGroupsAtom } from "./open-groups";
 import {
   besideOf,
   chatOfTab,
@@ -95,18 +96,6 @@ export function historyTitleOf(entry: HistoryEntry): string {
 }
 
 /**
- * The tab groups this window has open, in its own order, by their keys. Null
- * for a window that has kept none yet, which opens none of the chats there
- * are (`startTabGroupsFromZero`).
- */
-export const windowTabGroupsAtom = keptAtom<null | readonly string[]>(
-  "window",
-  TAB_GROUPS_KEY,
-  null,
-  (value) => keptTabGroupsOf(value) ?? null,
-);
-
-/**
  * A window's groups with one more: at the top, under New, unless it has it
  * already, or at a place, where it moves to when it is listed already. A
  * place names groups the list has, so it holds whatever else the list keeps
@@ -154,13 +143,6 @@ export function startTabGroupsFromZero(store: ReturnType<typeof useStore>) {
     selectedId: id,
     tabs: [{ id, pathname: INBOX_HREF }],
   });
-}
-
-/** The tab groups the other open windows have open; undefined until main first answers. */
-function useTabGroupsElsewhere(): readonly string[] | undefined {
-  return useQuery(
-    rpcClient.window.live.tabGroupsElsewhere.experimental_liveOptions(),
-  ).data;
 }
 
 /** Whether a group is pinned above the line, by its own pin. */

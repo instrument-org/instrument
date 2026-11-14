@@ -166,8 +166,8 @@ import {
   useOpenGroups,
   useTabGroupActions,
   useTabGroupUpkeep,
-  windowTabGroupsAtom,
 } from "./tab-groups";
+import { windowTabGroupsAtom } from "./open-groups";
 import {
   sidebarOpenAtom,
   sidebarProjectAtom,

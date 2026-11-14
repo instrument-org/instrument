@@ -13,14 +13,12 @@ import { describe, expect, it } from "vitest";
 import {
   addScreen,
   besideOf,
-  chatTabOf,
   closedGroupTabOf,
   closeTab,
   dropGroup,
   focusSide,
   groupLayoutOf,
   isBlankNewTab,
-  markPrompted,
   moveTabTo,
   moveToGroup,
   navigateScreen,
@@ -781,32 +779,6 @@ describe("a group's sides", () => {
       "*a b",
       "> *c d",
     ]);
-  });
-});
-
-describe("chatTabOf", () => {
-  const state: WindowTabs = {
-    activeByGroup: {},
-    tabs: [
-      screenTab("elsewhere", `/chats/${ROOFER}`, "group:0"),
-      ...twoSides().tabs,
-    ],
-  };
-
-  it("finds the chat's first tab while none has been sent from", () => {
-    expect(chatTabOf(state, ROOFER)?.id).toBe("elsewhere");
-  });
-
-  it("finds the chat's tab the person last sent from", () => {
-    const sent = markPrompted(markPrompted(state, "elsewhere", 1), "c", 2);
-    expect(chatTabOf(sent, ROOFER)).toMatchObject({ group: GROUP, id: "c" });
-    expect(chatTabOf(markPrompted(sent, "elsewhere", 3), ROOFER)?.id).toBe(
-      "elsewhere",
-    );
-  });
-
-  it("finds nothing while no group has a tab on the chat", () => {
-    expect(chatTabOf(windowOf(THREE.tabs), ROOFER)).toBeUndefined();
   });
 });
 

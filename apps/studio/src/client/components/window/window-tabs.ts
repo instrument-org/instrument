@@ -10,6 +10,7 @@ import {
   NO_GROUP_MEMBER,
   WINDOW_TABS_KEY,
 } from "@/shared/kept-state";
+import { workingTabOf } from "@/shared/working-tab";
 import { type ChatId, StoreId } from "@instrument-org/workspace/client";
 
 import { appTabsAtom, groupOfHref } from "./app-tabs";
@@ -22,7 +23,6 @@ import {
   addPages,
   addScreen,
   besideOf,
-  chatTabOf,
   chatUpIn,
   groupLayoutOf,
   closeTab,
@@ -59,6 +59,7 @@ import {
   type WindowTabs,
   withGroupOwn,
 } from "./tab-model";
+import { useIsGroupOpen } from "./open-groups";
 import { openLinkAddress } from "./open-link-address";
 import { standInTabsAtom } from "./stand-in-tabs";
 import { sameHref } from "./window-href";
@@ -265,6 +266,7 @@ export function useWindowTabs() {
   const state = useAtomValue(windowTabsAtom);
   const groupOnScreen = useAtomValue(groupOnScreenAtom);
   const apply = useSetAtom(applyAtom);
+  const isOpen = useIsGroupOpen();
 
   /** Applies a change that also answers something, and hands the answer back. */
   const answer = <T>(
@@ -307,8 +309,8 @@ export function useWindowTabs() {
     allTabs: state.tabs,
     /** The tab up on the other side from a tab, in a group of two sides (`besideOf`). */
     besideOf: (id: string) => besideOf(state, id),
-    /** The tab a chat's agent works from, where what it opens goes (`chatTabOf`). */
-    chatTab: (chat: ChatId) => chatTabOf(state, chat),
+    /** The tab a chat's agent works from, where what it opens goes (`workingTabOf`). */
+    chatTab: (chat: ChatId) => workingTabOf(state.tabs, chat, isOpen),
     /** The chat a group has up, the side with the keyboard first (`chatUpIn`). */
     chatUpIn: (group: string) => chatUpIn(state, group),
     activeByGroup: state.activeByGroup,

@@ -2,7 +2,6 @@ import { workspaceWindowDir } from "@/electron-main/lib/get-workspace-folder";
 import { publisher } from "@/electron-main/rpc/publisher";
 import { appWindowIdOf } from "@/electron-main/windows/app-window-ids";
 import { movedFilesAddress } from "@/shared/computer-href";
-import { chatOfAddress } from "@/shared/tab-identity";
 import {
   isKeptFile,
   KEPT_STATE_CHANNEL,
@@ -425,7 +424,7 @@ export const KeptTabGroupSchema = z.object({
 });
 
 /** Every tab kept in a tab group, with its group's key. */
-function keptGroupedTabs() {
+export function keptGroupedTabs() {
   const prefix = `${WINDOW_TABS_KEY}/`;
   const groups = getStore().snapshot().groups ?? {};
   return Object.entries(groups).flatMap(([key, value]) => {
@@ -451,24 +450,6 @@ export function keptLoneGroupOfTab(tabId: string): string | undefined {
 /** The chat whose agent opened a tab, by the tab's id; undefined for one the person opened. */
 export function keptOpenerOfTab(tabId: string): string | undefined {
   return keptGroupedTabs().find((tab) => tab.id === tabId)?.openedBy;
-}
-
-/**
- * The tab group a chat's agent works in: the group of the chat's tab the
- * person last sent it a message from, else of its first tab. Undefined for a
- * chat with no tab.
- */
-export function keptWorkingGroupOfChat(chat: string): string | undefined {
-  const tabs = keptGroupedTabs().filter(
-    (tab) => tab.href !== undefined && chatOfAddress(tab.href) === chat,
-  );
-  return tabs.reduce<(typeof tabs)[number] | undefined>(
-    (found, tab) =>
-      found === undefined || (tab.promptedAt ?? 0) > (found.promptedAt ?? 0)
-        ? tab
-        : found,
-    undefined,
-  )?.group;
 }
 
 /** Writes what is still waiting, at once. The quit calls it on its way out. */

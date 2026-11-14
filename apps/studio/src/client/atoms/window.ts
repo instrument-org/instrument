@@ -157,7 +157,7 @@ interface TabHistory {
   /**
    * On a chat's tab, when the person last sent the chat a message from it.
    * Of a chat's tabs, the one sent from last is where its agent works
-   * (`chatTabOf`).
+   * (`workingTabOf`).
    */
   promptedAt?: number;
   /**

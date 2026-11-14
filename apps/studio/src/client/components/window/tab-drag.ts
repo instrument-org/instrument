@@ -21,8 +21,8 @@ import {
   type TabGroup,
   useOpenGroups,
   useTabGroupActions,
-  windowTabGroupsAtom,
 } from "./tab-groups";
+import { windowTabGroupsAtom } from "./open-groups";
 import { groupHref } from "./window-href";
 import {
   groupOnScreenAtom,

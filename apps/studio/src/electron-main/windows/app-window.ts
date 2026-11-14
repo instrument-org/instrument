@@ -21,9 +21,9 @@ import {
   FIRST_APP_WINDOW_ID,
   forgetWindowKeptState,
   getWindowKeptState,
+  keptGroupedTabs,
   keptLoneGroupOfTab,
   KeptTabGroupSchema,
-  keptWorkingGroupOfChat,
   setWindowKeptState,
   tellWindowKeptState,
   windowKeptKeys,
@@ -36,6 +36,7 @@ import {
   TAB_GROUPS_KEY,
 } from "@/shared/kept-state";
 import { chatOfAddress, tabGroupOfAddress } from "@/shared/tab-identity";
+import { workingTabOf } from "@/shared/working-tab";
 import {
   groupOfWholeKey,
   type GroupTabLanding,
@@ -234,6 +235,17 @@ function keptTabGroupsOfWindow(id: string): string[] {
   return keptTabGroupsOf(getWindowKeptState(id, TAB_GROUPS_KEY)) ?? [];
 }
 
+/** Whether a window lists a tab group, up or not. */
+function listsGroup(window: BrowserWindow, group: string) {
+  const id = appWindowIdOfWindow(window);
+  return id !== undefined && keptTabGroupsOfWindow(id).includes(group);
+}
+
+/** Whether an open window lists a tab group. */
+function isListedOpen(group: string) {
+  return getAppWindows().some((window) => listsGroup(window, group));
+}
+
 /**
  * The first of some windows with the tab group an address stands on open
  * (`TAB_GROUPS_KEY`), up or not.
@@ -245,16 +257,13 @@ function windowListingGroupOf(
   const chat = chatOfAddress(href);
   const group =
     tabGroupOfAddress(href) ??
-    (chat === undefined ? undefined : keptWorkingGroupOfChat(chat));
+    (chat === undefined
+      ? undefined
+      : workingTabOf(keptGroupedTabs(), chat, isListedOpen)?.group);
   if (group === undefined) {
     return null;
   }
-  return (
-    among.find((window) => {
-      const id = appWindowIdOfWindow(window);
-      return id !== undefined && keptTabGroupsOfWindow(id).includes(group);
-    }) ?? null
-  );
+  return among.find((window) => listsGroup(window, group)) ?? null;
 }
 
 /** The tab groups the open windows other than this one have open. */

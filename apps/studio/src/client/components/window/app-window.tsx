@@ -148,13 +148,14 @@ import { useSetChatProject } from "./use-set-chat-project";
 import { backfillCandidates } from "./use-project-backfill";
 import { useWindowCommands } from "./use-window-commands";
 import { useWindowDropFallback } from "./use-window-drop-fallback";
-import { useFileDrops, useLandFiles } from "./file-drops";
 import { WindowFrame } from "./window-frame";
 import { CloseGroupDialog } from "./close-group-dialog";
 import { GroupSidebar, sidebarBounds } from "./group-sidebar";
 import { SidebarToggleCorner } from "./inbox-toggle";
 import { isGroupScreenHref } from "./group-screen";
-import { useGroupTabLanding, useGroupTabMoves } from "./tab-drag";
+import { DragLayer } from "./drag/drag-layer";
+import { useDragSystem } from "./drag/use-drag-system";
+import { useGroupTabMoves } from "./tab-drag";
 import {
   groupAlong,
   isWorthKeeping,
@@ -492,7 +493,6 @@ function WindowShell({
   const appTabs = useAppTabs();
   const groups = useTabGroupActions();
   const groupTabMoves = useGroupTabMoves();
-  useGroupTabLanding();
   const groupList = useOpenGroups();
   const [isSidebarOpen, setSidebarOpen] = useAtom(sidebarOpenAtom);
   const sidebarWidth = useAtomValue(sidebarWidthAtom);
@@ -1176,13 +1176,12 @@ function WindowShell({
     }
     appTabs.goToPlace(next, { behind: newTab, newTab });
   };
-  // Files let go over the sidebar, the tab strip or a new tab land there as
-  // a tab let go there does, and anywhere nothing else takes them they open
-  // the way files dropped on the Dock icon do: as a tab group of their own.
-  const landFiles = useLandFiles();
-  useFileDrops(landFiles);
+  // Everything held lands through the window's one drag (`useDragSystem`):
+  // files let go where it takes none and nothing else does open the way
+  // files dropped on the Dock icon do, as a tab group of their own.
+  const drags = useDragSystem({ browser, chatTitles });
   useWindowDropFallback((files) => {
-    landFiles(files, { kind: "new" });
+    drags.openFilesAsGroup(files);
   });
   // Something from outside the app that a tab already shows comes up there
   // and lights that tab, since a switch alone, or no change at all when the
@@ -1626,6 +1625,14 @@ function WindowShell({
                 openScreen={openScreen}
               />
             </ShellContext>
+            <DragLayer
+              chatTitles={chatTitles}
+              entries={[
+                ...groupList.open,
+                ...groupList.elsewhere,
+                ...groupList.history,
+              ]}
+            />
             {/* Where the window's page waits while the tab up has none to
               show; hidden, so a guest left over it is parked. */}
             <div hidden ref={holderRef} />

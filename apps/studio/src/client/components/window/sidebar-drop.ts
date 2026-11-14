@@ -1,4 +1,3 @@
-import { type WindowTab } from "@/client/atoms/window";
 import { type SidebarPlace } from "@/shared/tabs";
 import { atom, getDefaultStore } from "jotai";
 
@@ -26,32 +25,6 @@ export type SidebarDrop =
 export const sidebarDropAtom = atom<SidebarDrop | undefined>(undefined);
 
 /**
- * A tab or a whole group held over this window's sidebar, by the key it is
- * carried under, and where the pointer is in the window's px: the sidebar
- * draws it there as a row, since main's picture of a window shows only where
- * letting go would make one. Files dragged in come as the tabs they would
- * be, the first under the key.
- */
-export const heldOverSidebarAtom = atom<HeldOverSidebar | undefined>(undefined);
-
-interface HeldOverSidebar {
-  clientX: number;
-  clientY: number;
-  files?: readonly WindowTab[];
-  key: string;
-}
-
-/**
- * A row lifted out of the list by the pointer: its group, and where the
- * lifted copy stands, from the list's top in its own px. Its place in the
- * list is shut meanwhile, and the copy is gone while the row is off the
- * sidebar, where main's picture of the window stands in for it.
- */
-export const liftedRowAtom = atom<
-  undefined | { group: string; isOff: boolean; top: number }
->(undefined);
-
-/**
  * Whether the room opens, moves and shuts at once rather than sliding: as a
  * row lifts out of the place the room takes, and as what was let go fills
  * the room.
@@ -63,19 +36,13 @@ export const filledRoomAtom = atom<string | undefined>(undefined);
 
 /**
  * Shows where a drag over this window's sidebar lands, or that it lands
- * nowhere there, the room sliding to it, and what is held over the sidebar.
+ * nowhere there, the room sliding to it.
  */
-export function showDrop(
-  drop: SidebarDrop | undefined,
-  held?: HeldOverSidebar,
-) {
+export function showDrop(drop: SidebarDrop | undefined) {
   const store = getDefaultStore();
   if (JSON.stringify(store.get(sidebarDropAtom)) !== JSON.stringify(drop)) {
     store.set(roomSnapsAtom, false);
     store.set(sidebarDropAtom, drop);
-  }
-  if (JSON.stringify(store.get(heldOverSidebarAtom)) !== JSON.stringify(held)) {
-    store.set(heldOverSidebarAtom, held);
   }
 }
 
@@ -91,8 +58,6 @@ export function fillRoom(group: string | undefined) {
   const store = getDefaultStore();
   store.set(roomSnapsAtom, true);
   store.set(sidebarDropAtom, undefined);
-  store.set(heldOverSidebarAtom, undefined);
-  store.set(liftedRowAtom, undefined);
   if (group === undefined) {
     return;
   }
@@ -159,8 +124,8 @@ interface Slot {
  * the group of the row under it, rows meeting halfway across the space
  * between them, or as a group of its own in a room: near the line between
  * two rows, or at the first or last row's outer edge, among the pinned rows,
- * pinned, or the rest; over New, at the top of the rest; and over the empty
- * list under the rows, at their end. A whole group lands in the room between
+ * pinned, or the rest; over New, at the top of the rest; and over History
+ * or the empty list under the rows, at their end. A whole group lands in the room between
  * rows whose edge is nearest, among the pinned rows or the rest. Measured from the list as laid
  * out, so the rows moved aside for a room do not move the room, and in the
  * list's own px, which the window's zoom scales. Over the sidebar but not its
@@ -257,6 +222,9 @@ export function sidebarDropAt(
     }
     if (isIn(newRow)) {
       return roomAt(rest, 0);
+    }
+    if (history && isIn(history)) {
+      return roomAt(rest, rest.length);
     }
     const empty = list.querySelector<HTMLElement>("[data-drop-empty]");
     const isOverEmpty =

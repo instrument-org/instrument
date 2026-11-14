@@ -101,8 +101,8 @@ describe("a tab over the sidebar", () => {
       400,
       room(":history", 215, { after: "draft:c" }),
     ],
+    ["History", 230, room(":history", 215, { after: "draft:c" })],
     ["the divider", 60, undefined],
-    ["History", 230, undefined],
   ])("over %s lands %j", (_, y, drop) => {
     expect(sidebarDropAt(...at(y), TAB)).toEqual({ drop, isOver: true });
   });

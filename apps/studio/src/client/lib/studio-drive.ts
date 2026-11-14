@@ -2,6 +2,7 @@ import { openLogin } from "@/client/atoms/login-modal";
 import { openSettings } from "@/client/atoms/settings-modal";
 import { resetStudioModals } from "@/client/atoms/studio-modal";
 import { appTabsAtom } from "@/client/components/window/app-tabs";
+import { currentDrag } from "@/client/components/window/drag/session";
 import { freshTabId, openTab } from "@/client/lib/tab-actions";
 import { getTabRouter } from "@/client/lib/tab-router-registry";
 import { reopenClosed } from "@/client/lib/tabs-model";
@@ -30,6 +31,8 @@ const MODAL_OPENERS = {
  */
 interface StudioDrive {
   closeModal: () => void;
+  /** The drag the window has going, if any: what is held, how, and where letting go would land it. */
+  drag: () => ReturnType<typeof currentDrag>;
   goto: (href: string, options?: { newTab?: boolean }) => void;
   load: () => StudioDriveLoad;
   modals: () => StudioModalName[];
@@ -81,6 +84,7 @@ export function initStudioDrive() {
 
   window.__studioDrive = {
     closeModal: resetStudioModals,
+    drag: currentDrag,
     goto: (href, options) => {
       if (options?.newTab) {
         store.set(appTabsAtom, (model) =>

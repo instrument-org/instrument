@@ -24,7 +24,6 @@ import { getInitials } from "@/client/lib/get-initials";
 import { showProjectInFiles } from "@/client/lib/show-in-files";
 import { cn, isMacOS } from "@/client/lib/utils";
 import { rpcClient } from "@/client/rpc/client";
-import { groupOfWholeKey } from "@/shared/tabs";
 import { SCREENS } from "@/shared/instrument-screens";
 import { WINDOW_SHORTCUTS } from "@/shared/window-shortcuts";
 import { CaretLeftIcon } from "@phosphor-icons/react/CaretLeft";
@@ -47,7 +46,6 @@ import {
   type ReactNode,
   type Ref,
   useEffect,
-  useLayoutEffect,
   useRef,
   useState,
 } from "react";
@@ -71,18 +69,20 @@ import { BookmarksSection } from "./bookmarks-section";
 import { RowActionBar } from "./row-action-bar";
 import { stopHere } from "./row-shell";
 import { pageTabTitle } from "./file-tabs";
-import { ScreenMark, stripKeyOf } from "./pane-tabs";
+import { ScreenMark } from "./pane-tabs";
 import { screenPresentation } from "./screen-presentation";
 import { SearchField } from "./search-field";
 import {
+  pressGroupRow,
+  useSidebarDrag,
+  useSidebarTarget,
+} from "./drag/use-sidebar-drag";
+import {
   filledRoomAtom,
-  heldOverSidebarAtom,
   LIST_GAP_PX,
-  liftedRowAtom,
   roomSnapsAtom,
   sidebarDropAtom,
 } from "./sidebar-drop";
-import { useGroupRowDrag } from "./tab-drag";
 import { useChatSearchFallback } from "./use-chat-search-fallback";
 import { useGroupRename } from "./use-group-rename";
 import { useProjectShift } from "./use-project-shift";
@@ -239,17 +239,15 @@ export function GroupSidebar({
     entry.kind === "chat" ? [entry.chat] : [],
   );
   const arriving = useArrivals(useAtomValue(windowTabGroupsAtom) ?? NO_GROUPS);
-  const pressRow = useGroupRowDrag();
   const drop = useAtomValue(sidebarDropAtom);
-  const lifted = useAtomValue(liftedRowAtom);
+  const navRef = useRef<HTMLElement>(null);
+  useSidebarTarget(() => navRef.current);
+  const { lifted, standing: heldTabs } = useSidebarDrag();
   const roomSnaps = useAtomValue(roomSnapsAtom);
   const filled = useAtomValue(filledRoomAtom);
   const room = drop?.kind === "between" ? drop : undefined;
-  const heldTabs = useHeldTabs();
   // The rows the list shows, in its order, which a row's menu closes around.
   const shownRows = isSearching ? matching(open) : [...pinned, ...rest];
-  const liftedEntry =
-    lifted && open.find((entry) => entry.group === lifted.group);
   const actionsFor = useChatActionsFor();
   const setChatProject = useSetChatProject();
   const updateDraft = useSetAtom(updateDraftAtom);
@@ -346,7 +344,7 @@ export function GroupSidebar({
       isUp={entry.group === groupUp}
       key={entry.group}
       {...(extra?.isElsewhere ? {} : { onClose })}
-      {...(extra?.isListed ? { onPress: pressRow } : {})}
+      {...(extra?.isListed ? { onPress: pressGroupRow } : {})}
       {...(extra?.isElsewhere || extra?.restore ? {} : { menu: menuOf(entry) })}
       onShow={
         extra?.isElsewhere || extra?.restore
@@ -441,7 +439,7 @@ export function GroupSidebar({
       <ListItem
         group={entry.group}
         isArriving={arriving.has(entry.group) && entry.group !== filled}
-        isLifted={lifted?.group === entry.group}
+        isLifted={lifted === entry.group}
         key={`row:${entry.group}`}
         section={section}
         {...place(`row:${entry.group}`)}
@@ -528,6 +526,7 @@ export function GroupSidebar({
     // Its own stacking context, so the project's wash can sit under the rows.
     <nav
       aria-label="Tab groups"
+      ref={navRef}
       className={cn(
         "relative isolate flex h-full w-full flex-col",
         project && "project-tint",
@@ -583,30 +582,12 @@ export function GroupSidebar({
                 top={room.top}
               />
             )}
-            {liftedEntry && !lifted?.isOff && (
-              <div
-                className="pointer-events-none absolute inset-x-2 z-10 rotate-1 rounded-lg bg-card shadow-xl ring-1 ring-black/[0.06]"
-                data-lifted-copy=""
-                style={{ top: lifted?.top }}
-              >
-                <GroupRow
-                  chatTitles={chatTitles}
-                  entry={liftedEntry}
-                  isLifted
-                  isUp={liftedEntry.group === groupUp}
-                />
-              </div>
-            )}
           </GroupList>
         </div>
         <SidebarFoot
           chatId={groupUp === undefined ? undefined : chatUpIn(groupUp)}
         />
       </div>
-      <HeldPicture
-        chatTitles={chatTitles}
-        entries={[...open, ...elsewhere, ...history]}
-      />
     </nav>
   );
 }
@@ -736,115 +717,16 @@ function GroupList({ children }: { children: ReactNode }) {
   );
 }
 
-/** How far under the pointer a tab held over the sidebar hangs. */
-const TAB_HANGS_PX = 10;
-
 /** The tone of a row a tab held over the sidebar joins, and of the row it would make. */
 const DROP_TONE = "bg-foreground/[0.06] ring-1 ring-foreground/15 ring-inset";
 
-/** The tabs held over the sidebar, a group's or files' as the tabs they would be, and none for a whole group. */
-function useHeldTabs(): readonly WindowTab[] {
-  const held = useAtomValue(heldOverSidebarAtom);
-  const { allTabs } = useWindowTabs();
-  if (!held || groupOfWholeKey(held.key) !== undefined) {
-    return [];
-  }
-  if (held.files) {
-    return held.files;
-  }
-  const tab = allTabs.find((each) => stripKeyOf(each) === held.key);
-  return tab ? [tab] : [];
-}
-
 /** A tab's title as its group's row would show it. */
-function useTabTitle(chatTitles: Map<ChatId, string>) {
+export function useTabTitle(chatTitles: Map<ChatId, string>) {
   const appsBySlug = useAppsBySlug();
   return (tab: WindowTab) =>
     tab.kind === "page"
       ? pageTabTitle(tab) || (tab.url ?? tab.openedUrl ?? "")
       : screenPresentation(tab.href, { appsBySlug, chatTitles }).title;
-}
-
-/**
- * What is held over the sidebar, drawn at the pointer as a row: a whole
- * group from another window as its row wherever it is, and a tab as a
- * one-line row of its mark and title only where it lands nowhere, since
- * where it lands the list shows it. It stands in for main's picture of the
- * window, which shows only where letting go would make one. Files dragged in
- * are drawn as the tab the first would be.
- */
-function HeldPicture({
-  chatTitles,
-  entries,
-}: {
-  chatTitles: Map<ChatId, string>;
-  /** Every group this window can name, another window's included. */
-  entries: readonly TabGroup[];
-}) {
-  const held = useAtomValue(heldOverSidebarAtom);
-  const drop = useAtomValue(sidebarDropAtom);
-  const tabs = useHeldTabs();
-  const titleOf = useTabTitle(chatTitles);
-  const appsBySlug = useAppsBySlug();
-  const ref = useRef<HTMLDivElement>(null);
-  const isWhole = held !== undefined && groupOfWholeKey(held.key) !== undefined;
-  // In the sidebar's own px, which the window's zoom scales: a group's row
-  // centered on the pointer, as a row lifted out of the list is held, and a
-  // tab hanging just under it.
-  useLayoutEffect(() => {
-    const element = ref.current;
-    const sidebar = element?.offsetParent;
-    if (!element || !held || !(sidebar instanceof HTMLElement)) {
-      return;
-    }
-    const bounds = sidebar.getBoundingClientRect();
-    const zoom =
-      sidebar.offsetHeight > 0 ? bounds.height / sidebar.offsetHeight : 1;
-    const at = (held.clientY - bounds.top) / zoom;
-    element.style.top = `${isWhole ? at - element.offsetHeight / 2 : at + TAB_HANGS_PX}px`;
-  });
-  if (!held) {
-    return null;
-  }
-  const whole = groupOfWholeKey(held.key);
-  const entry =
-    whole === undefined
-      ? undefined
-      : entries.find((each) => each.group === whole);
-  const [tab] = drop ? [] : tabs;
-  // Files dragged in go as the first of them, saying how many more there are.
-  const more = tabs.length - 1;
-  let shown: ReactNode = null;
-  if (entry) {
-    shown = (
-      <GroupRow chatTitles={chatTitles} entry={entry} isLifted isUp={false} />
-    );
-  } else if (tab) {
-    shown = (
-      <div className="flex h-9 items-center gap-2.5 px-2.5">
-        <span className="grid size-4 shrink-0 place-items-center">
-          <TabMark appsBySlug={appsBySlug} chatTitles={chatTitles} tab={tab} />
-        </span>
-        <span className="min-w-0 flex-1 truncate text-[13px] font-medium text-foreground/85">
-          {titleOf(tab)}
-          {more > 0 ? ` and ${more} more` : ""}
-        </span>
-      </div>
-    );
-  }
-  if (!shown) {
-    return null;
-  }
-  return (
-    <div
-      aria-hidden
-      className="pointer-events-none absolute inset-x-2 z-20 rotate-1 rounded-lg bg-card shadow-xl ring-1 ring-black/[0.06]"
-      data-held-picture=""
-      ref={ref}
-    >
-      {shown}
-    </div>
-  );
 }
 
 /**
@@ -1199,7 +1081,7 @@ function SecondLine({
   );
 }
 
-function TabMark({
+export function TabMark({
   appsBySlug,
   chatTitles,
   tab,

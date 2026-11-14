@@ -809,6 +809,20 @@ describe("a group's sides", () => {
     expect(sidesOf(back, CHAT)).toEqual(["> *a b c"]);
   });
 
+  it.each([
+    ["its own group's tab", "c", ["> *c", "*a b"]],
+    ["another group's tab", "x", ["> *x", "*a b c"]],
+  ])("makes a left side of %s, the others moving right", (_, id, sides) => {
+    const split = moveTabTo(THREE, {
+      group: CHAT,
+      id,
+      select: true,
+      side: 0,
+      split: true,
+    });
+    expect(sidesOf(split, CHAT)).toEqual(sides);
+  });
+
   it("moves a tab within its side to a place", () => {
     const moved = moveTabTo(twoSides(), {
       group: GROUP,

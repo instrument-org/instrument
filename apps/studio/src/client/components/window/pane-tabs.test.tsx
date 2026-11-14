@@ -22,7 +22,6 @@ const row = () => {
       onNew={() => {}}
       onClose={onClose}
       onDuplicate={onDuplicate}
-      onReorder={() => {}}
       onSelect={onSelect}
       tabs={[tab("a"), tab("b")]}
       taskTitles={new Map()}
@@ -149,7 +148,6 @@ function panes(tabs: ReturnType<typeof tab>[]) {
       onNew={() => {}}
       onClose={() => {}}
       onDuplicate={() => {}}
-      onReorder={() => {}}
       onSelect={() => {}}
       tabs={tabs}
       taskTitles={new Map()}

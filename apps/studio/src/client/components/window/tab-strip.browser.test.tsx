@@ -2,9 +2,10 @@ import { renderInBrowser } from "@/tests/render-browser";
 import { MotionGlobalConfig } from "motion/react";
 import { useState } from "react";
 import { flushSync } from "react-dom";
-import { describe, expect, it, onTestFinished } from "vitest";
+import { beforeEach, describe, expect, it, onTestFinished } from "vitest";
 import { userEvent } from "vitest/browser";
 
+import { dragPoint } from "./drag/session";
 import { TabStrip } from "./tab-strip";
 
 const tabs = ["a", "b", "c"].map((key) => ({
@@ -18,7 +19,6 @@ function Strip({ carriedKey }: { carriedKey?: string }) {
     <TabStrip
       carriedKey={carriedKey}
       onClose={() => undefined}
-      onReorder={() => undefined}
       onSelect={() => undefined}
       selectedKey="b"
       tabs={tabs}
@@ -52,58 +52,33 @@ describe("a tab carried off its strip", () => {
   });
 });
 
-describe("a tab dragged in its own strip", () => {
-  const nextFrame = () =>
-    new Promise((resolve) => requestAnimationFrame(() => setTimeout(resolve)));
-
-  it("goes on being dragged in the hand, and stands where the hand says", async () => {
-    const moves: number[] = [];
-    let ended = 0;
-    function Dragged() {
-      const [left, setLeft] = useState<number>();
-      return (
-        <TabStrip
-          heldAt={left === undefined ? undefined : { key: "b", left }}
-          onClose={() => undefined}
-          onSelect={() => undefined}
-          onTabDrag={(_key, event) => {
-            moves.push(event.clientX);
-            setLeft(event.clientX - 10);
-          }}
-          onTabDragEnd={() => {
-            ended += 1;
-          }}
-          selectedKey="b"
-          tabs={tabs}
-        />
-      );
-    }
-    await renderInBrowser(<Dragged />);
-    const { left, top } = tab("b").getBoundingClientRect();
-    const at = (clientX: number) => ({
-      bubbles: true,
-      button: 0,
-      buttons: 1,
-      clientX,
-      clientY: top + 4,
-      isPrimary: true,
-      pointerId: 1,
-    });
-    tab("b").dispatchEvent(new PointerEvent("pointerdown", at(left + 10)));
-    for (const x of [left + 30, left + 60, left + 90]) {
-      window.dispatchEvent(new PointerEvent("pointermove", at(x)));
-      await nextFrame();
-      await nextFrame();
-    }
-
-    expect(ended).toBe(0);
-    expect(moves.at(-1)).toBe(left + 90);
-    await expect
-      .poll(() => tab("b").getBoundingClientRect().left)
-      .toBeCloseTo(left + 80, 0);
-
-    window.dispatchEvent(new PointerEvent("pointerup", at(left + 90)));
-    await expect.poll(() => ended).toBe(1);
+describe("a press on a tab", () => {
+  it("is the owner's to make a drag of, the tab chosen first", async () => {
+    const calls: string[] = [];
+    await renderInBrowser(
+      <TabStrip
+        onClose={() => undefined}
+        onSelect={(key) => {
+          calls.push(`select ${key}`);
+        }}
+        onTabPress={(key) => {
+          calls.push(`press ${key}`);
+        }}
+        selectedKey="b"
+        tabs={tabs}
+      />,
+    );
+    const { left, top } = tab("c").getBoundingClientRect();
+    tab("c").dispatchEvent(
+      new PointerEvent("pointerdown", {
+        bubbles: true,
+        button: 0,
+        clientX: left + 10,
+        clientY: top + 4,
+        isPrimary: true,
+      }),
+    );
+    expect(calls).toEqual(["select c", "press c"]);
   });
 });
 
@@ -141,62 +116,27 @@ describe("a tab's long name", () => {
   });
 });
 
-describe("a drag's start", () => {
-  it("says how far the pointer had come from the press by then", async () => {
-    const started: number[] = [];
-    await renderInBrowser(
-      <TabStrip
-        onClose={() => undefined}
-        onSelect={() => undefined}
-        onTabDragStart={(_key, _event, moved) => {
-          started.push(moved);
-        }}
-        selectedKey="b"
-        tabs={tabs}
-      />,
-    );
-    const { left, top } = tab("b").getBoundingClientRect();
-    const at = (clientX: number) => ({
-      bubbles: true,
-      button: 0,
-      buttons: 1,
-      clientX,
-      clientY: top + 4,
-      isPrimary: true,
-      pointerId: 1,
-    });
-    tab("b").dispatchEvent(new PointerEvent("pointerdown", at(left + 10)));
-    window.dispatchEvent(new PointerEvent("pointermove", at(left + 40)));
-    await expect.poll(() => started.length).toBe(1);
-    expect(started[0]).toBe(30);
-    window.dispatchEvent(new PointerEvent("pointerup", at(left + 40)));
-  });
-});
-
-describe("a tab taken out of the hand with the button still down", () => {
-  it("settles from where it stood, having passed other tabs", async () => {
+describe("a tab let go after passing other tabs", () => {
+  it("settles from where it stood", async () => {
     let takeBack = () => undefined as void;
     let pass = (_left: number) => undefined as void;
-    let isGoing = false;
     function Passed() {
-      const [left, setLeft] = useState<number>();
+      const [isHeld, setHeld] = useState(false);
       const [order, setOrder] = useState(tabs);
       takeBack = () => {
         setOrder(tabs);
-        setLeft(undefined);
+        setHeld(false);
       };
       pass = (at) => {
+        dragPoint.x = at;
         setOrder([tabs[0], tabs[2], tabs[1]].flatMap((each) => each ?? []));
-        setLeft(at);
+        setHeld(true);
       };
       return (
         <TabStrip
-          heldAt={left === undefined ? undefined : { key: "b", left }}
+          heldAt={isHeld ? { grabX: 0, key: "b" } : undefined}
           onClose={() => undefined}
           onSelect={() => undefined}
-          onTabDragStart={() => {
-            isGoing = true;
-          }}
           selectedKey="b"
           tabs={order}
         />
@@ -204,23 +144,10 @@ describe("a tab taken out of the hand with the button still down", () => {
     }
     await renderInBrowser(<Passed />);
     const box = () => tab("b").getBoundingClientRect();
-    const { left: home, top, width } = box();
-    const at = (clientX: number) => ({
-      bubbles: true,
-      button: 0,
-      buttons: 1,
-      clientX,
-      clientY: top + 4,
-      isPrimary: true,
-      pointerId: 1,
-    });
+    const { left: home, width } = box();
     onTestFinished(() => {
       MotionGlobalConfig.useManualTiming = false;
-      window.dispatchEvent(new PointerEvent("pointerup", at(home + 50)));
     });
-    tab("b").dispatchEvent(new PointerEvent("pointerdown", at(home + 10)));
-    window.dispatchEvent(new PointerEvent("pointermove", at(home + 50)));
-    await expect.poll(() => isGoing).toBe(true);
 
     const stood = home + width + 20;
     pass(stood);
@@ -240,81 +167,22 @@ describe("a tab taken out of the hand with the button still down", () => {
     MotionGlobalConfig.useManualTiming = false;
     await expect.poll(() => box().left).toBeCloseTo(home, 0);
   });
-
-  it("goes home and stays there, through more movement and the release", async () => {
-    let takeBack = () => undefined as void;
-    function Canceled() {
-      const [left, setLeft] = useState<number>();
-      const [isCanceled, setIsCanceled] = useState(false);
-      takeBack = () => {
-        setIsCanceled(true);
-        setLeft(undefined);
-      };
-      return (
-        <TabStrip
-          heldAt={left === undefined ? undefined : { key: "b", left }}
-          onClose={() => undefined}
-          onSelect={() => undefined}
-          onTabDrag={(_key, event) => {
-            if (!isCanceled) {
-              setLeft(event.clientX - 10);
-            }
-          }}
-          selectedKey="b"
-          tabs={tabs}
-        />
-      );
-    }
-    await renderInBrowser(<Canceled />);
-    const leftOf = () => tab("b").getBoundingClientRect().left;
-    const home = leftOf();
-    const { top } = tab("b").getBoundingClientRect();
-    const at = (clientX: number) => ({
-      bubbles: true,
-      button: 0,
-      buttons: 1,
-      clientX,
-      clientY: top + 4,
-      isPrimary: true,
-      pointerId: 1,
-    });
-    const nextFrame = () =>
-      new Promise((resolve) =>
-        requestAnimationFrame(() => setTimeout(resolve)),
-      );
-    tab("b").dispatchEvent(new PointerEvent("pointerdown", at(home + 10)));
-    window.dispatchEvent(new PointerEvent("pointermove", at(home + 90)));
-    await expect.poll(leftOf).toBeCloseTo(home + 80, 0);
-
-    takeBack();
-    await expect.poll(leftOf).toBeCloseTo(home, 0);
-
-    window.dispatchEvent(new PointerEvent("pointermove", at(home + 200)));
-    const seen: number[] = [];
-    for (let frames = 0; frames < 6; frames += 1) {
-      await nextFrame();
-      seen.push(leftOf());
-    }
-    window.dispatchEvent(new PointerEvent("pointerup", at(home + 200)));
-    for (let frames = 0; frames < 12; frames += 1) {
-      await nextFrame();
-      seen.push(leftOf());
-    }
-
-    expect(Math.max(...seen.map((left) => Math.abs(left - home)))).toBeLessThan(
-      1,
-    );
-  });
 });
 
 describe("a tab held over a strip from elsewhere", () => {
   const orderedTabs = (keys: string[]) =>
     keys.map((key) => ({ icon: <span />, key, title: key }));
 
+  // The pointer stands at the window's left edge, and the tab's left edge
+  // at `left` from it.
+  beforeEach(() => {
+    dragPoint.x = 0;
+  });
+
   function Held({ left, order }: { left: number; order: string[] }) {
     return (
       <TabStrip
-        heldAt={{ key: "held", left }}
+        heldAt={{ grabX: -left, key: "held" }}
         onClose={() => undefined}
         onSelect={() => undefined}
         selectedKey="held"
@@ -340,18 +208,20 @@ describe("a tab held over a strip from elsewhere", () => {
 
   it("stays at the pointer while the row moves it with a transition, and has nothing left to give back", async () => {
     const WIDE = { width: "800px" };
-    const Row = ({ carried, left }: { carried?: string; left?: number }) => (
+    const Row = ({ carried, left }: { carried?: string; left?: number }) => {
+      return (
       <div style={WIDE}>
         <TabStrip
           carriedKey={carried}
-          heldAt={left === undefined ? undefined : { key: "held", left }}
+          heldAt={left === undefined ? undefined : { grabX: -left, key: "held" }}
           onClose={() => undefined}
           onSelect={() => undefined}
           selectedKey="held"
           tabs={orderedTabs(["a", "b", "c", "d", "held"])}
         />
       </div>
-    );
+      );
+    };
     const screen = await renderInBrowser(<Row left={300} />);
     const leftOf = () => tab("held").getBoundingClientRect().left;
     await expect.poll(leftOf).toBeCloseTo(300, 0);
@@ -411,7 +281,6 @@ describe("a strip that scrolls", () => {
       <div style={{ width: 400 }}>
         <TabStrip
           onClose={() => undefined}
-          onReorder={() => undefined}
           onSelect={() => undefined}
           overflow="scroll"
           selectedKey={selectedKey}
@@ -479,7 +348,6 @@ describe("a strip that squeezes", () => {
       <div style={{ width }}>
         <TabStrip
           onClose={() => undefined}
-          onReorder={() => undefined}
           onSelect={() => undefined}
           overflow="squeeze"
           selectedKey="t0"

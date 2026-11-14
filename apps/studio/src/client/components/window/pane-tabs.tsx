@@ -65,11 +65,8 @@ export function PaneTabs({
   onClose,
   onDuplicate,
   onNew,
-  onReorder,
   onSelect,
-  onTabDrag,
-  onTabDragEnd,
-  onTabDragStart,
+  onTabPress,
   tabs,
   taskTitles,
   trailing,
@@ -80,8 +77,8 @@ export function PaneTabs({
   chosenId: string | undefined;
   /** The row's ground and the room at its ends, as the card it heads draws them. */
   className?: string;
-  /** A tab in the pointer's hand, by its strip key, drawn with its left edge at this point. */
-  heldAt?: { key: string; left: number } | undefined;
+  /** A tab in the pointer's hand, by its strip key, drawn with its left edge `grabX` left of the pointer. */
+  heldAt?: { grabX: number; key: string } | undefined;
   /** The tab in hand is another window's, held over this strip. */
   isIncoming?: boolean;
   /** Whether the chat or any task of it is at work: a page's working mark drops the moment none is. */
@@ -93,13 +90,9 @@ export function PaneTabs({
   onDuplicate: (tab: WindowTab) => void;
   /** A new tab in the group. */
   onNew: () => void;
-  /** The chat's tabs in a new order, by their strip keys, oldest first: none where the owner places a dragged tab itself. */
-  onReorder?: (keys: string[]) => void;
   onSelect: (id: string) => void;
-  /** A tab's drag, by its strip key, as `TabStrip` reports it. */
-  onTabDrag?: (key: string, event: PointerEvent) => void;
-  onTabDragEnd?: (key: string, event: PointerEvent) => void;
-  onTabDragStart?: (key: string, event: PointerEvent, moved: number) => void;
+  /** A press on a tab, by its strip key, which may become a drag. */
+  onTabPress?: (key: string, event: React.PointerEvent<HTMLElement>) => void;
   /** Which side of its group the strip heads, which a drag along it reads it by (`data-group-tabs`). */
   side?: 0 | 1;
   /** What a tab's menu does with the group's sides; none for a strip of no group's. */
@@ -228,10 +221,7 @@ export function PaneTabs({
           event.preventDefault();
           setMenu({ key, x: event.clientX, y: event.clientY });
         }}
-        {...(onReorder ? { onReorder } : {})}
-        {...(onTabDrag ? { onTabDrag } : {})}
-        {...(onTabDragEnd ? { onTabDragEnd } : {})}
-        {...(onTabDragStart ? { onTabDragStart } : {})}
+        {...(onTabPress ? { onTabPress } : {})}
         onSelect={(key) => {
           const tab = tabOf(key);
           if (tab) {

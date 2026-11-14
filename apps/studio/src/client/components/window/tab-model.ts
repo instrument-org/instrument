@@ -302,8 +302,10 @@ function takeOut(state: WindowTabs, id: string): WindowTabs {
  * A tab moved to a group and a side, at a place among that side's tabs (its
  * end when past them or left out): within its strip, to the other side, or
  * to another group. The side it leaves gives way as on a close, and the side
- * 1 of a group of one side is a second side made for it. Up and with the
- * keyboard when asked.
+ * 1 of a group of one side is a second side made for it. With `split`, side
+ * 0 of a group of one side is a second side made for it too, on the left,
+ * the group's other tabs moving to the right. Up and with the keyboard when
+ * asked.
  */
 export function moveTabTo(
   state: WindowTabs,
@@ -313,7 +315,15 @@ export function moveTabTo(
     index,
     select = false,
     side,
-  }: { group: string; id: string; index?: number; select?: boolean; side: 0 | 1 },
+    split = false,
+  }: {
+    group: string;
+    id: string;
+    index?: number;
+    select?: boolean;
+    side: 0 | 1;
+    split?: boolean;
+  },
 ): WindowTabs {
   const tab = state.tabs.find((entry) => entry.id === id);
   if (!tab) {
@@ -323,6 +333,25 @@ export function moveTabTo(
   // The side is read from the layout before the tab leaves it, so moving a
   // left side's last tab to the right makes one side, not two.
   const target = groupLayoutOf(state, group);
+  if (split && side === 0 && target.sides.length === 1) {
+    const out = takeOut(state, id);
+    const others = out.tabs.map((entry) =>
+      entry.group === group ? { ...entry, side: 1 as const } : entry,
+    );
+    if (!others.some((entry) => entry.group === group)) {
+      return moveTabTo(state, { group, id, select, side: 0 });
+    }
+    const { side: _was, ...rest } = tab;
+    let next: WindowTabs = {
+      ...out,
+      tabs: spliceIn(others, { ...rest, group }, { side: 0 }),
+    };
+    next = normalizeSides(next, group);
+    if (from !== undefined && from !== group) {
+      next = normalizeSides(next, from);
+    }
+    return select ? selectTab(next, id) : next;
+  }
   const kept: 0 | 1 =
     target.sides.length === 1 && side === 0
       ? 0

@@ -679,18 +679,17 @@ describe("a tab group's tab", () => {
   });
   const OVER_PAGE = { x: 1600, y: 600 };
 
-  it("over another window is free until that window says where it lands", () => {
+  it("over another window shows no picture, wherever that window says it lands", () => {
     press(groupTab());
+    moveTo(IN_THE_OPEN);
+    expect(picture.show).toHaveBeenCalledTimes(1);
     moveTo(OVER_PAGE);
     expect(lastViewOf(3)?.kind).toBe("incoming");
-    expect(picture.show).toHaveBeenCalled();
-    expect(picture.hide).not.toHaveBeenCalled();
+    expect(picture.hide).toHaveBeenCalledTimes(1);
 
     placeGroupTabCarry(3, { group: "g", kind: "group" });
-    expect(picture.hide).toHaveBeenCalled();
-
     placeGroupTabCarry(3, undefined);
-    expect(picture.show).toHaveBeenCalledTimes(2);
+    expect(picture.show).toHaveBeenCalledTimes(1);
   });
 
   it("goes where that window said, with its page, used or not", async () => {
@@ -709,9 +708,20 @@ describe("a tab group's tab", () => {
     expect(from.bounds).toEqual(BOUNDS);
   });
 
-  it("let go where that window takes none, is a group of its own in the spare", async () => {
+  it("let go where that window takes none, goes back", async () => {
     press(groupTab());
     moveTo(OVER_PAGE);
+    const end = await letGo();
+
+    expect(end).toEqual({ kind: "none" });
+    expect(state.sent).toEqual([]);
+    expect(adoptSpareWindow).not.toHaveBeenCalled();
+    expect(lastViewOf(3)?.kind).toBe("row");
+  });
+
+  it("let go in the open, is a group of its own in the spare", async () => {
+    press(groupTab());
+    moveTo(IN_THE_OPEN);
     const end = await letGo();
 
     expect(end).toEqual({ kind: "losesTab" });
@@ -722,9 +732,7 @@ describe("a tab group's tab", () => {
         to: "spare",
       },
     ]);
-    expect(tabsOf("spare")).toBeUndefined();
     expect(adoptSpareWindow).toHaveBeenCalledWith(state.spare);
-    expect(lastViewOf(3)?.kind).toBe("row");
   });
 
   it("as its window's only tab, takes its window there, which closes once it lands", async () => {

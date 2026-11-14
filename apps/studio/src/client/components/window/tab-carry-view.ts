@@ -75,10 +75,13 @@ export function stripIndexAt(
   clientX: number,
   tabs: readonly { id: string }[],
   except: readonly string[] | string,
-  /** What the strip's row is found under: the window's strip unless named. */
-  root = "[data-app-tab-strip]",
+  /** What the strip's row is found under, a selector or the element: the window's strip unless named. */
+  root: Element | string = "[data-app-tab-strip]",
 ) {
-  const list = document.querySelector<HTMLElement>(`${root} [role=tablist]`);
+  const list =
+    typeof root === "string"
+      ? document.querySelector<HTMLElement>(`${root} [role=tablist]`)
+      : root.querySelector<HTMLElement>("[role=tablist]");
   if (!list) {
     return 0;
   }

@@ -676,11 +676,19 @@ function hitTest(current: Carry, point: Point): CarryPhase<BrowserWindow> {
 
 /**
  * The phase the drag shows: over another window that says a tab group's tab
- * lands nowhere there, it is free, though that window goes on being told where
- * the pointer is.
+ * lands nowhere there, a window going with the pointer is free, though that
+ * window goes on being told where the pointer is. A picture shows only off
+ * every window, so over one it stays hidden, wherever the tab would land.
  */
-function shownPhase({ isGroupTab, phase }: Carry): CarryPhase<BrowserWindow> {
-  return phase.kind === "docked" && isGroupTab && phase.landsOn === undefined
+function shownPhase({
+  isGroupTab,
+  phase,
+  spare,
+}: Carry): CarryPhase<BrowserWindow> {
+  return phase.kind === "docked" &&
+    isGroupTab &&
+    spare === null &&
+    phase.landsOn === undefined
     ? { kind: "free" }
     : phase;
 }
@@ -863,7 +871,14 @@ export async function endTabCarry({
   if (left.kind === "docked" && !(isStillOver && landsThere)) {
     tell(left.window, { kind: "row" });
   }
-  if (phase?.kind !== "free" && phase?.kind !== "docked") {
+  // Over a window that takes it nowhere, with no picture to say otherwise, a
+  // tab group's tab goes back; a window going with the pointer stays there.
+  const isNowhere =
+    phase?.kind === "docked" &&
+    ending.isGroupTab &&
+    !landsThere &&
+    ending.spare !== null;
+  if ((phase?.kind !== "free" && phase?.kind !== "docked") || isNowhere) {
     stopCarry();
     return NONE;
   }

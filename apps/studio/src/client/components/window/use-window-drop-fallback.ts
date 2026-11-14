@@ -5,7 +5,8 @@ import {
 } from "@/client/lib/self-file-drag";
 import { useEffect, useRef } from "react";
 
-import { type DroppedFile, filesOfDrop } from "./file-drops";
+import { filesOfDrop } from "./drag/held-tabs";
+import { type DroppedFile } from "./drag/types";
 
 /**
  * The window as the drop target of last resort: files let go of where

@@ -27,20 +27,19 @@ import {
 import { type PageChromeSlots } from "./browser-tabs";
 import { chatListOptions } from "./chat-list-query";
 import { useWindow } from "./context";
-import { heldFilesAtom, stripWithHeldFiles } from "./file-drops";
 import { GroupItem } from "./group-item";
 import { SidebarToggleRoom } from "./inbox-toggle";
 import { usePageHost } from "./page-hosts";
-import { PaneTabs, type SplitMenuActions } from "./pane-tabs";
-import { useShell } from "./shell-context";
-import { tabCarryViewAtom } from "./tab-carry-view";
-import { useTabGroupActions, windowTabGroupsAtom } from "./tab-groups";
+import { PaneTabs, type SplitMenuActions, stripKeyOf } from "./pane-tabs";
 import {
-  groupTabLandingAtom,
-  incomingGroupTab,
-  useGroupTabCarry,
-  useGroupTabMoves,
-} from "./tab-drag";
+  pressSideTab,
+  useSidePagesTarget,
+  useSideStrip,
+  useStripTarget,
+} from "./drag/use-group-drag";
+import { useShell } from "./shell-context";
+import { useTabGroupActions, windowTabGroupsAtom } from "./tab-groups";
+import { useGroupTabMoves } from "./tab-drag";
 import { chatOfTab, type GroupLayout, type GroupSide } from "./tab-model";
 import { useTabSurface } from "./tab-surface";
 import { WINDOW_CARD, WINDOW_CARD_GAP } from "./window-frame";
@@ -97,6 +96,12 @@ function GroupSides({ group }: { group: string }) {
   const scrollerRef = useRef<HTMLDivElement>(null);
   const isTwo = layout.sides.length === 2;
   const share = dragged ?? shares[group] ?? SIDE_SHARE_DEFAULT;
+  useSidePagesTarget({
+    group,
+    isOn: useIsActiveTab(),
+    layout,
+    scroller: () => scrollerRef.current,
+  });
 
   // A page pressed on the other side takes the keyboard there: the guest
   // stands over its side rather than in it, so the side hears no press.
@@ -286,27 +291,12 @@ function SideCard({
   const isActive = useIsActiveTab();
   const { tabs } = side;
   const up = tabs.find((tab) => tab.id === side.up);
-  const carry = useGroupTabCarry({ group, side: sideIndex, tabs });
-  // Another window's tab held over the strip stands among its tabs at the
-  // pointer, on the first side, which takes it.
-  const incoming = incomingGroupTab(
-    useAtomValue(tabCarryViewAtom),
-    useAtomValue(groupTabLandingAtom),
-    windowTabs.allTabs,
-  );
-  const landsHere = isFirst ? incoming : undefined;
-  // Files dragged in and held over the strip, or over a new tab, stand
-  // where they would land.
-  const withFiles = stripWithHeldFiles(
-    group,
-    tabs,
-    useAtomValue(heldFilesAtom),
-  );
-  const stripTabs = landsHere
-    ? tabs
-        .filter((tab) => tab.id !== landsHere.tab.id)
-        .toSpliced(landsHere.index, 0, landsHere.tab)
-    : (withFiles?.tabs ?? tabs);
+  const cardRef = useRef<HTMLDivElement>(null);
+  const strip = () =>
+    cardRef.current?.querySelector<HTMLElement>("[data-group-tabs]");
+  useStripTarget({ group, isOn: isActive, side: sideIndex, strip, tabs });
+  // What is held over the strip stands among its tabs where it would land.
+  const drawn = useSideStrip({ group, side: sideIndex, tabs });
 
   // Whether the chat any of the group's tabs is on, or a task of it, works.
   const chats = layout.sides.flatMap((each) =>
@@ -363,7 +353,6 @@ function SideCard({
   // keyboard otherwise (a tab moved, opened or brought up here) takes that
   // caret into its home: its page, or a chat's composer. With a menu up, that
   // waits for the caret the menu hands back as it goes.
-  const cardRef = useRef<HTMLDivElement>(null);
   const isCaretOnOtherSide = () => {
     const card = cardRef.current;
     const now = document.activeElement;
@@ -489,17 +478,13 @@ function SideCard({
       style={style}
     >
       <PaneTabs
-        carriedKey={carry.carriedKey}
+        carriedKey={drawn.carriedKey}
         chatTitles={shell.chatTitles}
-        chosenId={
-          landsHere ? landsHere.tab.id : (withFiles?.chosenId ?? up?.id)
-        }
+        chosenId={drawn.chosenId ?? up?.id}
         className={SIDE_TABS}
-        heldAt={
-          landsHere ? landsHere.heldAt : (withFiles?.heldAt ?? carry.held)
-        }
+        heldAt={drawn.heldAt}
         isChatWorking={isChatWorking}
-        isIncoming={landsHere !== undefined}
+        isIncoming={drawn.isIncoming}
         lead={isFirst && !isSidebarOpen ? <SidebarToggleRoom /> : undefined}
         onClose={shell.requestClose}
         onDuplicate={(tab) => {
@@ -516,16 +501,19 @@ function SideCard({
         onSelect={(id) => {
           windowTabs.select(id);
         }}
-        onTabDrag={carry.onDrag}
-        onTabDragEnd={carry.onDragEnd}
-        onTabDragStart={carry.onDragStart}
+        onTabPress={(key, event) => {
+          const tab = tabs.find((each) => stripKeyOf(each) === key);
+          if (tab) {
+            pressSideTab(event, { group, side: sideIndex, tab });
+          }
+        }}
         side={sideIndex}
         split={split}
-        tabs={stripTabs}
+        tabs={drawn.tabs}
         taskTitles={shell.childTitles}
         trailing={isLast ? <CaptionRoom /> : undefined}
       />
-      <div className="relative min-h-0 flex-1">
+      <div className="relative min-h-0 flex-1" data-side-page={sideIndex}>
         {up && (
           <GroupItem
             closeTab={shell.requestClose}

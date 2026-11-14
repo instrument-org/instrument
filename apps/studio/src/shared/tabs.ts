@@ -135,13 +135,23 @@ export type SidebarPlace = z.output<typeof SidebarPlaceSchema>;
 
 /**
  * Where a tab group's tab, or a whole group (`wholeGroupKey`), let go over a
- * window lands there: among the tabs of the group it shows, at a place (the
- * end when none is named); in a group its sidebar lists; or as a group of its
- * own, at a place in the sidebar (`at`, the top when none is named), which a
- * window come up for it (`isWindowOfItsOwn`) lists alone.
+ * window lands there: among the tabs of a side of the group it shows, at a
+ * place (the end when none is named); on a side's page, as that side's last
+ * tab or as a side of its own (`split`); in a group its sidebar lists; or as
+ * a group of its own, at a place in the sidebar (`at`, the top when none is
+ * named), which a window come up for it (`isWindowOfItsOwn`) lists alone.
  */
 export const GroupTabLandingSchema = z.discriminatedUnion("kind", [
-  z.object({ index: z.number().optional(), kind: z.literal("tabs") }),
+  z.object({
+    index: z.number().optional(),
+    kind: z.literal("tabs"),
+    side: z.union([z.literal(0), z.literal(1)]).optional(),
+  }),
+  z.object({
+    kind: z.literal("side"),
+    side: z.union([z.literal(0), z.literal(1)]),
+    split: z.boolean(),
+  }),
   z.object({ group: z.string(), kind: z.literal("group") }),
   z.object({
     at: SidebarPlaceSchema.optional(),

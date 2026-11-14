@@ -1,0 +1,285 @@
+import { type WindowTab } from "@/client/atoms/window";
+import { useAtomValue } from "jotai";
+
+import { stripKeyOf } from "../pane-tabs";
+import { stripIndexAt } from "../tab-carry-view";
+import { type GroupLayout, sideIndexOf } from "../tab-model";
+import { matchScreen } from "../window-href";
+import { useWindowTabs } from "../window-tabs";
+import { heldKeysOf, heldTabsOf } from "./held-tabs";
+import { holds, type Rect, sideZoneAt } from "./landing";
+import { dragAtom, pressToDrag, useDropTarget } from "./session";
+import { type Held } from "./types";
+
+/**
+ * How far past a strip's row, up and down, something held still stands
+ * among its tabs: a hand sweeping along the row drifts off it and means
+ * nothing by that.
+ */
+const STRIP_REACH_PX = 14;
+
+/** The part of a rect inside another, if any. */
+function clipped(rect: Rect, by: Rect): Rect | undefined {
+  const left = Math.max(rect.left, by.left);
+  const top = Math.max(rect.top, by.top);
+  const right = Math.min(rect.left + rect.width, by.left + by.width);
+  const bottom = Math.min(rect.top + rect.height, by.top + by.height);
+  return right > left && bottom > top
+    ? { height: bottom - top, left, top, width: right - left }
+    : undefined;
+}
+
+function rectOf(element: Element | null | undefined): Rect | undefined {
+  if (!element) {
+    return undefined;
+  }
+  const { height, left, top, width } = element.getBoundingClientRect();
+  return width > 0 && height > 0 ? { height, left, top, width } : undefined;
+}
+
+/**
+ * A side's strip as a drag draws it: what is held standing among its tabs
+ * where it would land, the first of it at the pointer and up, the rest
+ * making room; or a tab of its own held anywhere else given up, its
+ * neighbors closing over its place.
+ */
+export function useSideStrip({
+  group,
+  side,
+  tabs,
+}: {
+  group: string;
+  side: 0 | 1;
+  tabs: WindowTab[];
+}): {
+  carriedKey?: string;
+  chosenId?: string;
+  heldAt?: { grabX: number; key: string };
+  isIncoming: boolean;
+  tabs: WindowTab[];
+} {
+  const drag = useAtomValue(dragAtom);
+  const { allTabs } = useWindowTabs();
+  if (!drag) {
+    return { isIncoming: false, tabs };
+  }
+  const { held, landing } = drag;
+  const isFromHere =
+    held.kind === "tab" && held.group === group && held.side === side;
+  if (
+    landing?.kind !== "strip" ||
+    landing.group !== group ||
+    landing.side !== side
+  ) {
+    return isFromHere
+      ? { carriedKey: held.key, isIncoming: false, tabs }
+      : { isIncoming: false, tabs };
+  }
+  const heldTabs = heldTabsOf(held, allTabs);
+  const [first] = heldTabs;
+  if (!first) {
+    return { isIncoming: false, tabs };
+  }
+  const keys = heldKeysOf(held);
+  const others = tabs.filter((tab) => !keys.includes(stripKeyOf(tab)));
+  return {
+    chosenId: first.id,
+    heldAt: { grabX: drag.grab.x, key: stripKeyOf(first) },
+    isIncoming: drag.input === "remote",
+    tabs: others.toSpliced(landing.index, 0, ...heldTabs),
+  };
+}
+
+/**
+ * A side's strip as a place to land: a tab, files or a bookmark held over
+ * it, or just above or below it, stands among its tabs where its left edge
+ * is (`stripIndexAt`), its neighbors making room.
+ */
+export function useStripTarget({
+  group,
+  isOn,
+  side,
+  strip,
+  tabs,
+}: {
+  group: string;
+  /** Whether the strip is up, in the window's tab up. */
+  isOn: boolean;
+  side: 0 | 1;
+  /** The strip's element (`data-group-tabs`). */
+  strip: () => HTMLElement | null | undefined;
+  tabs: readonly WindowTab[];
+}) {
+  useDropTarget(
+    isOn
+      ? {
+          landingAt: (point, { grab, held }) => {
+            const root = strip();
+            if (held.kind === "group" || !root) {
+              return undefined;
+            }
+            const index = stripIndexAt(
+              point.x - grab.x,
+              tabs.map((tab) => ({ id: stripKeyOf(tab) })),
+              heldKeysOf(held),
+              root,
+            );
+            return { group, index, kind: "strip", side };
+          },
+          rect: () => {
+            const rect = rectOf(strip());
+            return rect
+              ? {
+                  ...rect,
+                  height: rect.height + STRIP_REACH_PX * 2,
+                  top: rect.top - STRIP_REACH_PX,
+                }
+              : undefined;
+          },
+          scrolls: {
+            axis: "x",
+            element: () =>
+              strip()?.querySelector<HTMLElement>("[data-strip-scroller]"),
+          },
+        }
+      : undefined,
+  );
+}
+
+/** What the held thing is to a group's sides: where it stands among them, if it is a tab of the group. */
+function heldInGroup(held: Held, group: string, layout: GroupLayout) {
+  if (held.kind !== "tab" || held.group !== group) {
+    return { joins: held.kind !== "files" };
+  }
+  const side = sideIndexOf(layout, held.id);
+  const alone =
+    side !== undefined && (layout.sides[side]?.tabs.length ?? 0) <= 1;
+  return {
+    joins: true,
+    ...(side === undefined ? {} : { isAlone: alone, side }),
+  };
+}
+
+/**
+ * A group's sides' pages as a place to land, once what is held has rested
+ * there a moment: with one side, its left or right end makes that half a
+ * side of its own, and its middle joins the side; with two, the side under
+ * the pointer takes it as its last tab. Files go to the page a side shows
+ * (a site, a chat's composer) and make a side only at a lone side's ends; a
+ * new tab up turns into them.
+ */
+export function useSidePagesTarget({
+  group,
+  isOn,
+  layout,
+  scroller,
+}: {
+  group: string;
+  /** Whether the group is up, in the window's tab up. */
+  isOn: boolean;
+  layout: GroupLayout;
+  /** The row the sides stand in, scrolling sideways (`data-side-page` under it). */
+  scroller: () => HTMLElement | null;
+}) {
+  const pageOf = (side: number) =>
+    scroller()?.querySelector(`[data-side-page="${side}"]`);
+  // Each side's page as much of it as the row shows, scrolled sideways.
+  const pages = () => {
+    const shown = rectOf(scroller());
+    return layout.sides.flatMap((_, side) => {
+      const rect = rectOf(pageOf(side));
+      const cut = rect && shown ? clipped(rect, shown) : undefined;
+      return cut ? [cut] : [];
+    });
+  };
+  useDropTarget(
+    isOn
+      ? {
+          landingAt: (point, { held }) => {
+            const sides = pages();
+            const at = sides.findIndex((rect) => holds(rect, point));
+            const up = layout.sides[at]?.tabs.find(
+              (tab) => tab.id === layout.sides[at]?.up,
+            );
+            if (held.kind === "group") {
+              return undefined;
+            }
+            if (held.kind === "files") {
+              const page = sides[at];
+              if (
+                page &&
+                up?.kind === "screen" &&
+                matchScreen(up.href).kind === "newTab"
+              ) {
+                return { group, kind: "newTab", lit: page, tab: up.id };
+              }
+              // A site takes files the way it takes them from the Finder, and a
+              // chat's composer attaches them: both only by the system's drag.
+              if (
+                up?.kind === "page" ||
+                [
+                  ...(pageOf(at)?.querySelectorAll("[data-file-drop-region]") ??
+                    []),
+                ].some((region) => {
+                  const rect = rectOf(region);
+                  return rect !== undefined && holds(rect, point);
+                })
+              ) {
+                return "native";
+              }
+            }
+            const zone = sideZoneAt({
+              held: heldInGroup(held, group, layout),
+              point,
+              sides,
+            });
+            return zone
+              ? {
+                  group,
+                  kind: "side",
+                  lit: zone.lit,
+                  side: zone.side,
+                  split: zone.kind === "split",
+                }
+              : undefined;
+          },
+          rect: () => {
+            const sides = pages();
+            const [first] = sides;
+            const last = sides.at(-1);
+            if (!first || !last) {
+              return undefined;
+            }
+            return {
+              height:
+                Math.max(...sides.map((rect) => rect.top + rect.height)) -
+                first.top,
+              left: first.left,
+              top: Math.min(...sides.map((rect) => rect.top)),
+              width: last.left + last.width - first.left,
+            };
+          },
+          scrolls: { axis: "x", element: scroller },
+        }
+      : undefined,
+  );
+}
+
+/**
+ * A press on a side's tab, which past the start becomes the tab held, by
+ * where in the tab the press was.
+ */
+export function pressSideTab(
+  event: React.PointerEvent<HTMLElement>,
+  { group, side, tab }: { group: string; side: 0 | 1; tab: WindowTab },
+) {
+  const element = event.currentTarget;
+  const pressedAt = { x: event.clientX, y: event.clientY };
+  pressToDrag(event, () => {
+    const bounds = element.getBoundingClientRect();
+    return {
+      grab: { x: pressedAt.x - bounds.left, y: pressedAt.y - bounds.top },
+      held: { group, id: tab.id, key: stripKeyOf(tab), kind: "tab", side },
+    };
+  });
+}

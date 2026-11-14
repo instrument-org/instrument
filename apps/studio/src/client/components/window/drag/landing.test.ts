@@ -18,7 +18,7 @@ describe("a side's page under something held", () => {
     expect(
       [120, 550, 980].map((x) =>
         sideZoneAt({
-          held: { joins: true },
+          held: {},
           point: { x, y: 300 },
           sides: [page],
         }),
@@ -62,7 +62,7 @@ describe("a side's page under something held", () => {
   it("takes nothing in a lone side's middle from a tab already there", () => {
     expect(
       sideZoneAt({
-        held: { joins: true, side: 0 },
+        held: { side: 0 },
         point: { x: 550, y: 300 },
         sides: [page],
       }),
@@ -72,29 +72,28 @@ describe("a side's page under something held", () => {
   it("makes no side of a side's only tab", () => {
     expect(
       sideZoneAt({
-        held: { isAlone: true, joins: true, side: 0 },
+        held: { isAlone: true, side: 0 },
         point: { x: 980, y: 300 },
         sides: [page],
       }),
     ).toBeUndefined();
   });
 
-  it("splits for files only at the ends, leaving the middle to what the page shows", () => {
-    expect([
-      sideZoneAt({
-        held: { joins: false },
-        point: { x: 550, y: 300 },
-        sides: [page],
+  it("is the page's middle at its ends until the pointer has rested there", () => {
+    expect(
+      [110, 990].map((x) => {
+        const zone = sideZoneAt({
+          held: {},
+          point: { x, y: 300 },
+          sides: [page],
+          splits: false,
+        });
+        return zone && `${zone.kind} ${zone.lit.width}`;
       }),
-      sideZoneAt({
-        held: { joins: false },
-        point: { x: 110, y: 300 },
-        sides: [page],
-      })?.kind,
-    ]).toMatchInlineSnapshot(`
+    ).toMatchInlineSnapshot(`
       [
-        undefined,
-        "split",
+        "join 900",
+        "join 900",
       ]
     `);
   });
@@ -106,7 +105,7 @@ describe("a side's page under something held", () => {
     ["the gutter", 0, 544, "none"],
   ] as const)("of two sides, over %s", (_, side, x, expected) => {
     const zone = sideZoneAt({
-      held: { joins: true, side },
+      held: { side },
       point: { x, y: 300 },
       sides: [left, right],
     });
@@ -116,7 +115,7 @@ describe("a side's page under something held", () => {
   it("is nowhere off the pages", () => {
     expect(
       sideZoneAt({
-        held: { joins: true },
+        held: {},
         point: { x: 550, y: 40 },
         sides: [page],
       }),

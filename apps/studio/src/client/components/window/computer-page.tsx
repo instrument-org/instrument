@@ -2560,6 +2560,9 @@ export function ComputerPage({
             <ContextMenuTrigger asChild>
               <div
                 className="relative min-h-0 flex-1"
+                // Files let go here go into the folder, not into tabs
+                // (`useSidePagesTarget`).
+                {...(isDropOpen ? { "data-file-drop-region": "" } : {})}
                 // A middle click on a row opens it in a tab of its own, waiting
                 // behind, the way Open in New Tab does: a double-click is what
                 // opens one here, since a single click selects.

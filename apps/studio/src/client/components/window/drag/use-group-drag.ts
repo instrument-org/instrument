@@ -7,7 +7,7 @@ import { type GroupLayout, sideIndexOf } from "../tab-model";
 import { matchScreen } from "../window-href";
 import { useWindowTabs } from "../window-tabs";
 import { heldKeysOf, heldTabsOf } from "./held-tabs";
-import { holds, type Rect, sideZoneAt } from "./landing";
+import { holds, type Point, type Rect, sideZoneAt } from "./landing";
 import { dragAtom, pressToDrag, useDropTarget } from "./session";
 import { type Held } from "./types";
 
@@ -149,24 +149,38 @@ export function useStripTarget({
 /** What the held thing is to a group's sides: where it stands among them, if it is a tab of the group. */
 function heldInGroup(held: Held, group: string, layout: GroupLayout) {
   if (held.kind !== "tab" || held.group !== group) {
-    return { joins: held.kind !== "files" };
+    return {};
   }
   const side = sideIndexOf(layout, held.id);
   const alone =
     side !== undefined && (layout.sides[side]?.tabs.length ?? 0) <= 1;
-  return {
-    joins: true,
-    ...(side === undefined ? {} : { isAlone: alone, side }),
-  };
+  return side === undefined ? {} : { isAlone: alone, side };
+}
+
+/**
+ * Whether what a side's page shows takes files at a point itself: a chat's
+ * composer and a folder in Files do (`data-file-drop-region`), and so does
+ * anything standing over the page there, as a dialog does. Nothing else in a
+ * page does, an open file's editor included, so files let go there open
+ * beside it as tabs instead of going into it.
+ */
+function takesFilesItself(page: Element | null | undefined, point: Point) {
+  const under = document.elementFromPoint(point.x, point.y);
+  if (!page || !under || !page.contains(under)) {
+    return true;
+  }
+  const region = under.closest("[data-file-drop-region]");
+  return region !== null && page.contains(region);
 }
 
 /**
  * A group's sides' pages as a place to land: with one side, its left or
  * right end makes that half a side of its own once what is held has rested
  * there a moment, and its middle joins the side; with two, the side under
- * the pointer takes it as its last tab. Files go to the page a side shows
- * (a site, a chat's composer) and make a side only at a lone side's ends; a
- * new tab up turns into them.
+ * the pointer takes it as its last tab. Files open as tabs the same way,
+ * except where the page takes them itself: a site, and away from a lone
+ * side's ends, a chat's composer or a folder in Files (`takesFilesItself`);
+ * a new tab up turns into them.
  */
 export function useSidePagesTarget({
   group,
@@ -195,7 +209,7 @@ export function useSidePagesTarget({
   useDropTarget(
     isOn
       ? {
-          landingAt: (point, { held }) => {
+          landingAt: (point, { held }, { splits }) => {
             const sides = pages();
             const at = sides.findIndex((rect) => holds(rect, point));
             const up = layout.sides[at]?.tabs.find(
@@ -213,18 +227,9 @@ export function useSidePagesTarget({
               ) {
                 return { group, kind: "newTab", lit: page, tab: up.id };
               }
-              // A site takes files the way it takes them from the Finder, and a
-              // chat's composer attaches them: both only by the system's drag.
-              if (
-                up?.kind === "page" ||
-                [
-                  ...(pageOf(at)?.querySelectorAll("[data-file-drop-region]") ??
-                    []),
-                ].some((region) => {
-                  const rect = rectOf(region);
-                  return rect !== undefined && holds(rect, point);
-                })
-              ) {
+              // A site takes files the way it takes them from the Finder,
+              // only by the system's drag.
+              if (up?.kind === "page") {
                 return "native";
               }
             }
@@ -232,7 +237,15 @@ export function useSidePagesTarget({
               held: heldInGroup(held, group, layout),
               point,
               sides,
+              splits,
             });
+            if (
+              held.kind === "files" &&
+              zone?.kind !== "split" &&
+              takesFilesItself(pageOf(at), point)
+            ) {
+              return "native";
+            }
             return zone
               ? {
                   group,

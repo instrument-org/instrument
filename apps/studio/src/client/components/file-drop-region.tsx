@@ -201,7 +201,13 @@ export function FileDropRegion({
   return (
     // `isolate` so the overlay stacks against this region's own contents and
     // nothing else; see docs/findings/leaking-z-index-stacks.md.
-    <div className={cn("relative isolate", className)} ref={regionRef}>
+    <div
+      className={cn("relative isolate", className)}
+      // Where a side's page leaves files to this region rather than opening
+      // them as tabs (`useSidePagesTarget`).
+      {...(enabled && handlers ? { "data-file-drop-region": "" } : {})}
+      ref={regionRef}
+    >
       <DropRegisterContext value={setRegistered}>
         {children}
       </DropRegisterContext>

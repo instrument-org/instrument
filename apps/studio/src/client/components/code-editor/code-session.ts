@@ -490,6 +490,14 @@ export function createCodeSession(options: CodeSessionOptions) {
     text.replaceAll(/\r\n?|\n/g, disk.form.lineBreak),
   );
 
+  // Files let go over the editor never go into the file: on a side's page
+  // they open beside it as tabs (`useSidePagesTarget`), and anywhere else
+  // nothing takes them, where the editor's own drop would read them in as
+  // text and save it.
+  const refuseFiles = EditorView.domEventHandlers({
+    drop: (event) => event.dataTransfer?.types.includes("Files") ?? false,
+  });
+
   // The main process hears when the editor takes and gives up the keyboard,
   // so the window's chords that are also this editor's keys reach it first
   // (`CODE_EDITOR_SHORTCUTS`). An editor torn down while it has the keyboard
@@ -531,6 +539,7 @@ export function createCodeSession(options: CodeSessionOptions) {
         search({ createPanel: () => ({ dom: options.findHost, top: true }) }),
         keymap.of(CODE_EDITOR_KEYS),
         reportFocus,
+        refuseFiles,
         codeHighlighting,
         language.of([]),
         wrap.of(options.wrapLines ? EditorView.lineWrapping : []),

@@ -73,7 +73,8 @@ export function splitBandWidth(width: number) {
  * a side as its last tab, the side lit whole; or it makes a side of its own
  * of one end of a group of one side, that half lit. None where it would
  * change nothing, as a tab over its own side's page, or where a side may not
- * be made, as from a side's only tab.
+ * be made, as from a side's only tab. Until the pointer has rested at an
+ * end (`splits` false), the end is what the rest of the page is.
  */
 export type SideZone =
   | { kind: "join"; lit: Rect; side: 0 | 1 }
@@ -83,11 +84,10 @@ export function sideZoneAt({
   held,
   point,
   sides,
+  splits = true,
 }: {
   /** What is held, in terms of the group the sides are: the side it stands on there, if any, and whether it is that side's only tab. */
   held: {
-    /** Whether it can join a side's tabs where it is let go over the page (a tab can; files go to what the page shows). */
-    joins: boolean;
     /** The side of this group it stands on now. */
     side?: 0 | 1;
     /** Whether it is the only tab of the side it stands on. */
@@ -96,6 +96,8 @@ export function sideZoneAt({
   point: Point;
   /** Each side's page, left first, in the window's px. */
   sides: readonly Rect[];
+  /** Whether a lone side's ends make a side, which they do once the pointer has rested there. */
+  splits?: boolean;
 }): SideZone | undefined {
   const at = sides.findIndex((rect) => holds(rect, point));
   const rect = sides[at];
@@ -104,13 +106,11 @@ export function sideZoneAt({
   }
   const side: 0 | 1 = at === 1 ? 1 : 0;
   if (sides.length === 2) {
-    return held.joins && held.side !== side
-      ? { kind: "join", lit: rect, side }
-      : undefined;
+    return held.side !== side ? { kind: "join", lit: rect, side } : undefined;
   }
   const band = splitBandWidth(rect.width);
   const half = rect.width / 2;
-  const canSplit = !(held.side === 0 && held.isAlone === true);
+  const canSplit = splits && !(held.side === 0 && held.isAlone === true);
   if (canSplit && point.x < rect.left + band) {
     return { kind: "split", lit: { ...rect, width: half }, side: 0 };
   }
@@ -121,7 +121,7 @@ export function sideZoneAt({
       side: 1,
     };
   }
-  return held.joins && held.side === undefined
+  return held.side === undefined
     ? { kind: "join", lit: rect, side: 0 }
     : undefined;
 }

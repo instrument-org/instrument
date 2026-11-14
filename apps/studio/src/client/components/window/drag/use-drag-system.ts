@@ -843,7 +843,10 @@ function useSystemFileDrags(
       window.clearTimeout(goneTimer);
       goneTimer = window.setTimeout(end, GONE_AFTER_MS);
       if (followNative(held, point)) {
+        // Where it lands, nothing under it hears of it, so an editor there
+        // draws no caret of its own.
         event.preventDefault();
+        event.stopPropagation();
         if (event.dataTransfer) {
           event.dataTransfer.dropEffect = "copy";
         }

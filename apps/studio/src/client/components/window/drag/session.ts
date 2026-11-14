@@ -55,10 +55,13 @@ export interface DropTarget {
   /**
    * What letting go at a point would do, or nothing, or "native" where only
    * the system's drag can hand the files over (a web page, a composer).
+   * `splits` is whether a page's end may make a side of its own, which it
+   * may once the pointer has rested there.
    */
   landingAt: (
     point: Point,
     drag: Pick<Drag, "grab" | "held" | "input">,
+    how: { splits: boolean },
   ) => Landing | "native" | undefined;
   /** Where it takes drops, in the window's px, as laid out now. */
   rect: () => Rect | undefined;
@@ -84,7 +87,8 @@ export function useDropTarget(target: DropTarget | undefined) {
       return;
     }
     const registered: DropTarget = {
-      landingAt: (point, drag) => latest.current?.landingAt(point, drag),
+      landingAt: (point, drag, how) =>
+        latest.current?.landingAt(point, drag, how),
       rect: () => latest.current?.rect(),
       ...(scrolls
         ? {
@@ -206,9 +210,10 @@ function targetsAt(point: Point) {
 function measure(
   point: Point,
   drag: Pick<Drag, "grab" | "held" | "input">,
+  how = { splits: true },
 ): { landing?: Landing; native?: true } {
   for (const target of targetsAt(point)) {
-    const found = target.landingAt(point, drag);
+    const found = target.landingAt(point, drag, how);
     if (found === "native") {
       return { native: true };
     }
@@ -240,7 +245,11 @@ function evaluate(current: Session, now = performance.now()) {
   const restKey = restKeyOf(found.landing);
   current.dwell = restAt(current.dwell, restKey, now);
   const isResting = restKey !== undefined && !hasRested(current.dwell, now);
-  const landing = isResting ? undefined : found.landing;
+  // Until the pointer has rested at a page's end, the end is what the rest
+  // of the page is, so nothing there goes on to what the page shows.
+  const landing = isResting
+    ? measure(dragPoint, drag, { splits: false }).landing
+    : found.landing;
   window.clearTimeout(current.restTimer);
   if (isResting && current.dwell) {
     current.restTimer = window.setTimeout(

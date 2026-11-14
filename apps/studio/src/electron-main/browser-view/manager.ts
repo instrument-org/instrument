@@ -1173,6 +1173,11 @@ function createBrowserViewManager(): BrowserViewManager {
         // part of the disposer chain). If the entry is already gone,
         // onTargetDestroyed fires the listener synchronously.
         onTargetDestroyed(targetId, resolve);
+        // Beside the sleep and wake lines, so a tab unloaded while hidden
+        // (`window-browser.ts`) is told apart in the log from one asleep.
+        log.info(
+          `guest closed targetId=${targetId} asleep=${String(entries.get(targetId)?.asleep ?? false)}`,
+        );
         destroyEntry(entries, targetId);
         notifyEntriesChanged();
       }),

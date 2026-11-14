@@ -7,3 +7,18 @@ import { getMachinePreferences } from "@/electron-main/stores/machine/preference
 export function keepsRunningInMenuBar(): boolean {
   return getMachinePreferences().get("keepRunningInMenuBar");
 }
+
+let menuBarShown = false;
+
+/** Records whether the menu bar or tray icon is up, which `startMenuBar` puts up once a workspace has started. */
+export function setMenuBarShown(shown: boolean) {
+  menuBarShown = shown;
+}
+
+/**
+ * Whether the menu bar or tray icon is up to bring a window back. Off before
+ * a workspace has started, as during setup, and while the setting is off.
+ */
+export function isMenuBarShown(): boolean {
+  return menuBarShown;
+}

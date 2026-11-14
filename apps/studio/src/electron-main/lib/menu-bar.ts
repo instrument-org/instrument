@@ -46,7 +46,7 @@ import {
   type MenuBarSection,
   menuBarView,
 } from "./menu-bar-rows";
-import { keepsRunningInMenuBar } from "./keep-running";
+import { keepsRunningInMenuBar, setMenuBarShown } from "./keep-running";
 
 const log = logger.scope("menu-bar");
 const IS_MAC = process.platform === "darwin";
@@ -224,6 +224,7 @@ function showTray() {
     return;
   }
   tray = new Tray(iconFor("idle"));
+  setMenuBarShown(true);
   tray.setToolTip(APP_NAME);
   shownIcon = "idle";
   shownKey = "";
@@ -248,6 +249,7 @@ function hideTray() {
   following = null;
   tray?.destroy();
   tray = null;
+  setMenuBarShown(false);
 }
 
 /** Whether a window of the app's is up for the person: shown or in the Dock minimized. */
@@ -304,10 +306,11 @@ function openInstrument() {
   if (hidden.length === 0) {
     ensureForegroundWindowVisible();
   } else {
-    for (const window of hidden.toReversed()) {
+    // Back to front, as Quit put them away, so the one in front comes last.
+    for (const window of hidden) {
       window.show();
     }
-    hidden[0]?.focus();
+    hidden.at(-1)?.focus();
   }
   app.focus({ steal: true });
 }

@@ -1,6 +1,6 @@
 import { type Actor, createActor, waitFor } from "xstate";
 
-import { keepsRunningInMenuBar } from "./keep-running";
+import { isMenuBarShown } from "./keep-running";
 import { quitMachine } from "./quit-machine";
 
 let quit: Actor<typeof quitMachine> | null = null;
@@ -17,13 +17,13 @@ export type RunningWork = {
 /**
  * Whether closing the last window quits the app. On macOS the app stays in
  * the Dock, its agents and their jobs keep working, and the Dock icon brings
- * a window back; Cmd+Q is the quit. Elsewhere it stays only while it keeps
- * running in the tray, whose icon brings a window back; without it a process
- * with no window has nothing to come back from, so the last close is the
- * quit.
+ * a window back; Cmd+Q is the quit. Elsewhere it stays only while its tray
+ * icon is up to bring a window back (the setting on and a workspace started);
+ * without it a process with no window has nothing to come back from, so the
+ * last close is the quit.
  */
 export function quitsWithLastWindow() {
-  return process.platform !== "darwin" && !keepsRunningInMenuBar();
+  return process.platform !== "darwin" && !isMenuBarShown();
 }
 
 /**

@@ -13,13 +13,16 @@ export type MenuBarSection = {
   more: number;
 };
 
-/** The line under a chat's title: what it asks while it waits, the step it is on while it works. */
+/**
+ * The line under a chat's title: what it asks while it waits, even with a
+ * task still at work, and the step it is on while it works.
+ */
 function lineOf(chat: Chat): string | undefined {
-  return (
-    chat.ownStep ??
-    chat.runningTasks[0]?.step ??
-    chat.latest?.text
-  )?.split("\n")[0];
+  const line =
+    chat.status === "waiting"
+      ? (chat.latest?.text ?? chat.ownStep ?? chat.runningTasks[0]?.step)
+      : (chat.ownStep ?? chat.runningTasks[0]?.step ?? chat.latest?.text);
+  return line?.split("\n")[0];
 }
 
 function count(n: number, one: string, many: string) {

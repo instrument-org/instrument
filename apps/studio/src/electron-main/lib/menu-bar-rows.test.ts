@@ -49,6 +49,9 @@ describe("menuBarView", () => {
           kind: "question",
           text: "Can Instrument use Downloads?\nMore",
         },
+        runningTasks: [
+          { id: "ses_waiting_task", step: "Reading invoices", title: "Invoices" },
+        ],
         status: "waiting",
         title: "Renewal reminders",
       }),

@@ -144,6 +144,47 @@ export function timelineOf({
 }
 
 /**
+ * Where the paged history ends, given the live reads of what came after
+ * `until`: `until` itself while each read has fewer rows than `limit`. A
+ * read with `limit` rows may have left older ones out, so the history ends
+ * at the time the newest read was made and takes them.
+ */
+export function untilAfterLive({
+  limit,
+  reads,
+  until,
+}: {
+  limit: number;
+  /** How many rows each live read has, and when it was read. */
+  reads: readonly { count: number; readAt: number }[];
+  until: number;
+}): number {
+  return reads.every((read) => read.count < limit)
+    ? until
+    : Math.max(until + 1, ...reads.map((read) => read.readAt));
+}
+
+/**
+ * One log's rows where its live read meets its history, newest first: the
+ * live rows after `historyUntil`, the time the history shown was read up to,
+ * then the history's. A live read that starts earlier than that has rows the
+ * history has too, and each shows once, as the history's.
+ */
+export function acrossSeam<T>({
+  history,
+  historyUntil,
+  live,
+  timeOf,
+}: {
+  history: readonly T[];
+  historyUntil: number;
+  live: readonly T[];
+  timeOf: (item: T) => number;
+}): T[] {
+  return [...live.filter((item) => timeOf(item) > historyUntil), ...history];
+}
+
+/**
  * A day's head as the list writes it: its weekday and date, with the year
  * only when it is not this one, after Today or Yesterday for those two.
  */

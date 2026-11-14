@@ -54,7 +54,7 @@ Important means a concrete correctness, security, privacy, or data-preservation 
 
 ### F. Activity leaves out everything past the newest 200 rows since the page opened
 
-- Status: open
+- Status: fixed
 - Severity: Important. Rows are missing from the middle of the list with nothing to say so.
 - Where: [activity-page.tsx:82](/apps/studio/src/client/components/activity/activity-page.tsx#L82), [activity-page.tsx:217](/apps/studio/src/client/components/activity/activity-page.tsx#L217), [activity-page.tsx:282](/apps/studio/src/client/components/activity/activity-page.tsx#L282), [activity-page.tsx:439](/apps/studio/src/client/components/activity/activity-page.tsx#L439).
 - What: the page reads history up to `until`, the moment it opened, and polls what came after with `limit: LIVE_LIMIT` (200), newest first. The constant's comment says that past the limit "the page is read again from now", but `setUntil` is called in one place, `startOver`, which only a removal or Clear reaches. With the tab left open through a long task (more than 200 model requests) or more than 200 actions, the list shows the newest 200 and then jumps to rows from before the tab opened. The same fixed `until` names the days (`withDayHeads(shown, new Date(until), …)`), so a tab open across midnight heads two days "Today".

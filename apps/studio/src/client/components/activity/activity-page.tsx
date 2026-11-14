@@ -6,6 +6,7 @@ import {
 } from "@/client/components/activity/activity-icons";
 import { useModelName } from "@/client/components/activity/activity-requests";
 import {
+  acrossSeam,
   type ActivityRequest,
   type ActivityView,
   actionText,
@@ -21,6 +22,7 @@ import {
   pathOfAction,
   turnParts,
   turnText,
+  untilAfterLive,
   withDayHeads,
 } from "@/client/components/activity/activity-timeline";
 import { ClearActivityDialog } from "@/client/components/activity/clear-activity-dialog";
@@ -79,7 +81,11 @@ const PAGE_SIZE = 200;
 /** How often what happened since the page opened is read while its tab is up. */
 const LIVE_MS = 5000;
 
-/** The most of each log the live read takes, past which the page is read again from now. */
+/**
+ * The most of each log the live read takes. A read that comes back with this
+ * many moves the end of the paged history up to when it was read, so the
+ * history takes those rows and the live read starts after them.
+ */
 const LIVE_LIMIT = 200;
 
 /** The query keys of the person's actions and the AI requests, which a removal or a Clear starts over. */
@@ -117,6 +123,11 @@ function viewOf(show: Show | undefined): ActivityView {
 /** Whether an infinite query has read all there is, or will read no more. */
 function isComplete<T>(query: UseInfiniteQueryResult<InfiniteData<T>>) {
   return query.isError || (query.isSuccess && !query.hasNextPage);
+}
+
+/** Whether an infinite query has its own read in, where the rows kept from the read before it are not. */
+function isIn<T>(query: UseInfiniteQueryResult<InfiniteData<T>>) {
+  return !query.isPending && !query.isPlaceholderData;
 }
 
 /** What a removal takes: the person's own rows, and the AI requests of the turns picked. */
@@ -167,10 +178,15 @@ export function ActivityPage({
   q: string;
   show: Show | undefined;
 }) {
-  // Both logs are paged up to when the page opened, so what is recorded
-  // while it is open never shifts a page; what comes after is read on its
-  // own every few seconds while the tab is up, and goes on top.
+  // Both logs are paged up to `until`, when the page opened or a live read
+  // last came back full, so what is recorded while it is open never shifts
+  // a page; what comes after is read on its own every few seconds while the
+  // tab is up, and goes on top.
   const [until, setUntil] = useState(() => Date.now());
+  // What the live reads start after: `until`, once the history up to it is
+  // in. While a later `until` loads, they stay after the one before it, so
+  // the rows the history is about to take stay listed.
+  const [liveSince, setLiveSince] = useState(until);
   const isShown = useIsActiveTab();
   const view = viewOf(show);
   const queryClient = useQueryClient();
@@ -214,7 +230,7 @@ export function ActivityPage({
 
   const newerActions = useQuery({
     ...rpcClient.actions.list.queryOptions({
-      input: { limit: LIVE_LIMIT, since: until + 1 },
+      input: { limit: LIVE_LIMIT, since: liveSince + 1 },
     }),
     ...refreshWhileShown(isShown && view !== "ai", LIVE_MS),
     placeholderData: keepPreviousData,
@@ -222,7 +238,7 @@ export function ActivityPage({
   const newerRequests = useQuery({
     ...rpcClient.workspace.activity.list.queryOptions({
       input: {
-        filter: { since: until + 1 },
+        filter: { since: liveSince + 1 },
         limit: LIVE_LIMIT,
         offset: 0,
         sort: { column: "startedAt", direction: "desc" },
@@ -232,20 +248,59 @@ export function ActivityPage({
     placeholderData: keepPreviousData,
   });
 
+  // The live reads' rows, counted only once they are of what came after
+  // `until`: not while a later `until` loads, and not the rows kept from the
+  // read before.
+  const nextUntil = untilAfterLive({
+    limit: LIVE_LIMIT,
+    reads: [
+      {
+        count:
+          liveSince === until && !newerActions.isPlaceholderData
+            ? (newerActions.data?.actions.length ?? 0)
+            : 0,
+        readAt: newerActions.dataUpdatedAt,
+      },
+      {
+        count:
+          liveSince === until && !newerRequests.isPlaceholderData
+            ? (newerRequests.data?.length ?? 0)
+            : 0,
+        readAt: newerRequests.dataUpdatedAt,
+      },
+    ],
+    until,
+  });
+  if (nextUntil !== until) {
+    setUntil(nextUntil);
+  }
+  if (
+    liveSince !== until &&
+    (view === "ai" || isIn(actions)) &&
+    (view === "yours" || isIn(requests))
+  ) {
+    setLiveSince(until);
+  }
+
   const { entries, waitingOn } = timelineOf({
     actions: {
       complete: isComplete(actions),
-      items: [
-        ...(newerActions.data?.actions ?? []),
-        ...(actions.data?.pages.flatMap((page) => page.actions) ?? []),
-      ],
+      items: acrossSeam({
+        history: actions.data?.pages.flatMap((page) => page.actions) ?? [],
+        // Rows kept from the read before were read up to the `until` before.
+        historyUntil: actions.isPlaceholderData ? liveSince : until,
+        live: newerActions.data?.actions ?? [],
+        timeOf: (action) => Date.parse(action.at),
+      }),
     },
     requests: {
       complete: isComplete(requests),
-      items: [
-        ...(newerRequests.data ?? []),
-        ...(requests.data?.pages.flat() ?? []),
-      ],
+      items: acrossSeam({
+        history: requests.data?.pages.flat() ?? [],
+        historyUntil: requests.isPlaceholderData ? liveSince : until,
+        live: newerRequests.data ?? [],
+        timeOf: (request) => request.startedAt,
+      }),
     },
     view,
   });
@@ -279,7 +334,9 @@ export function ActivityPage({
   const startOver = () => {
     void queryClient.resetQueries({ queryKey: ACTIONS_KEY });
     void queryClient.resetQueries({ queryKey: REQUESTS_KEY });
-    setUntil(Date.now());
+    const now = Date.now();
+    setUntil(now);
+    setLiveSince(now);
   };
 
   const remove = useMutation(
@@ -316,6 +373,11 @@ export function ActivityPage({
   );
 
   const empty = shown.length === 0 && !isLoading;
+  // The start of the day of the latest read, so the days are worked out
+  // again only when the day changes.
+  const today = new Date(
+    Math.max(until, newerActions.dataUpdatedAt, newerRequests.dataUpdatedAt),
+  ).setHours(0, 0, 0, 0);
 
   return (
     <div className="flex h-full min-h-0 flex-col bg-background">
@@ -435,8 +497,9 @@ export function ActivityPage({
           <ActivityList
             checked={checked}
             hasMore={isLoading}
-            // Days are named from when the page opened, as both logs are read.
-            items={withDayHeads(shown, new Date(until), displayLocale)}
+            // Days are named from the latest read, which the live reads keep
+            // within `LIVE_MS` of the clock while the tab is up.
+            items={withDayHeads(shown, new Date(today), displayLocale)}
             notice={
               <AboutCard
                 canChatsRead={preferences.data?.shareActionsWithChats !== false}

@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import {
+  acrossSeam,
   type ActivityRequest,
   actionText,
   type ActivityView,
@@ -13,6 +14,7 @@ import {
   timelineOf,
   type TimelineEntry,
   turnText,
+  untilAfterLive,
   withDayHeads,
 } from "./activity-timeline";
 
@@ -235,6 +237,103 @@ describe("withDayHeads", () => {
       "Yesterday · Wednesday, November 4",
       "turn",
     ]);
+  });
+
+  it("heads one day Today when the list runs past midnight, read by the day it is", () => {
+    const { entries } = timelineOf({
+      actions: done([
+        action(new Date(2026, 10, 6, 0, 10).getTime()),
+        action(at(23, 50)),
+      ]),
+      requests: done([]),
+      view: "all",
+    });
+    expect(
+      withDayHeads(entries, new Date(2026, 10, 6, 0, 11), "en-US").map(
+        (item) => (item.kind === "day" ? item.label : item.kind),
+      ),
+    ).toEqual([
+      "Today · Friday, November 6",
+      "action",
+      "Yesterday · Thursday, November 5",
+      "action",
+    ]);
+  });
+});
+
+describe("untilAfterLive", () => {
+  it.each([
+    { counts: [0, 0], expected: 1000, name: "stays with nothing new" },
+    { counts: [199, 12], expected: 1000, name: "stays under the limit" },
+    { counts: [200, 12], expected: 6000, name: "moves when the first is full" },
+    { counts: [3, 200], expected: 6000, name: "moves when the second is full" },
+  ])("$name", ({ counts, expected }) => {
+    expect(
+      untilAfterLive({
+        limit: 200,
+        reads: [
+          { count: counts[0] ?? 0, readAt: 6000 },
+          { count: counts[1] ?? 0, readAt: 5990 },
+        ],
+        until: 1000,
+      }),
+    ).toBe(expected);
+  });
+
+  it("moves past `until` even when the full read was made in the same millisecond", () => {
+    expect(
+      untilAfterLive({
+        limit: 2,
+        reads: [{ count: 2, readAt: 1000 }],
+        until: 1000,
+      }),
+    ).toBe(1001);
+  });
+});
+
+describe("acrossSeam", () => {
+  // A log of rows by their times, read the way the page reads it.
+  const LIMIT = 5;
+  const liveRead = (log: number[], since: number) =>
+    log
+      .filter((time) => time > since)
+      .toSorted((a, b) => b - a)
+      .slice(0, LIMIT);
+  const historyRead = (log: number[], until: number) =>
+    log.filter((time) => time <= until).toSorted((a, b) => b - a);
+  const seam = (history: number[], historyUntil: number, live: number[]) =>
+    acrossSeam({ history, historyUntil, live, timeOf: (time) => time });
+
+  it("lists every row once at each step of moving `until`, the rows a full live read left out too", () => {
+    const opened = 100;
+    // Two rows from before the page opened, eight while it was open, the
+    // last of them in the moment between the live read and the move.
+    const log = [90, 95, 101, 102, 103, 104, 105, 106, 107, 108];
+    const full = liveRead(log, opened);
+    expect(full).toHaveLength(LIMIT);
+    // Where the list stands when the read comes back full: 101 to 103 are
+    // missing from the middle.
+    expect(seam(historyRead(log, opened), opened, full)).toEqual([
+      108, 107, 106, 105, 104, 95, 90,
+    ]);
+
+    const moved = untilAfterLive({
+      limit: LIMIT,
+      reads: [{ count: full.length, readAt: 109 }],
+      until: opened,
+    });
+    expect(moved).toBe(109);
+    log.push(109, 110);
+    const everything = log.toSorted((a, b) => b - a);
+    const upTo = (time: number) => everything.filter((each) => each <= time);
+
+    // The history up to the move is in, beside the live rows from before
+    // it, which the list shows until the read after the move is in.
+    expect(seam(historyRead(log, moved), moved, full)).toEqual(upTo(109));
+    // Both reads are of the move.
+    expect(seam(historyRead(log, moved), moved, liveRead(log, moved))).toEqual(
+      everything,
+    );
   });
 });
 

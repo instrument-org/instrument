@@ -1,19 +1,21 @@
 import { renderWithProviders } from "@/tests/render";
 import { fireEvent, screen, waitFor } from "@testing-library/react";
 import { useState } from "react";
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { z } from "zod";
 
 import { ActivityPage } from "./activity-page";
 
-const { calls, data } = vi.hoisted(() => ({
+const { calls, data, reads } = vi.hoisted(() => ({
   calls: new Map<string, (input: unknown) => unknown>(),
   data: new Map<string, unknown>(),
+  reads: new Map<string, (input: unknown) => unknown>(),
 }));
 
 /**
- * Every route as a query whose data is `data`'s entry for it, and as a call
- * or a mutation answered by `calls`' entry, so the section reads and asks
- * what each test sets.
+ * Every route as a query whose data is what `reads`' entry for it answers
+ * its input with, or `data`'s entry, and as a call or a mutation answered by
+ * `calls`' entry, so the section reads and asks what each test sets.
  */
 vi.mock("@/client/components/theme-provider", () => ({
   useTheme: () => ({ resolvedTheme: "light" }),
@@ -39,7 +41,7 @@ vi.mock("@/client/rpc/client", () => {
           case "experimental_liveOptions":
           case "queryOptions":
             return ({ input }: { input?: unknown } = {}) => ({
-              queryFn: () => data.get(key) ?? null,
+              queryFn: () => reads.get(key)?.(input) ?? data.get(key) ?? null,
               queryKey: [key, input],
             });
           default:
@@ -66,6 +68,7 @@ for (const side of ["offsetHeight", "offsetWidth"] as const) {
 beforeEach(() => {
   calls.clear();
   data.clear();
+  reads.clear();
   data.set("preferences.live.get", { keepHistory: true });
   data.set("gateway.models.live.list", { models: [] });
   calls.set("actions.list", () => ({
@@ -105,9 +108,58 @@ function page(props: Partial<Parameters<typeof ActivityPage>[0]> = {}) {
       />
     );
   }
-  renderWithProviders(<Routed />);
-  return { onSearch };
+  const { queryClient } = renderWithProviders(<Routed />);
+  return { onSearch, queryClient };
 }
+
+const ReadInput = z.object({
+  cursor: z.number().optional(),
+  limit: z.number(),
+  since: z.number().optional(),
+  until: z.number().optional(),
+});
+
+/**
+ * The action log as `log`, a setting changed at each of its times, read the
+ * way the route reads it: the history up to `until`, and the live read's
+ * newest `limit` after `since`. Returns each history read's `until`.
+ */
+function serveActions(log: { n: number; time: number }[]) {
+  const untils: number[] = [];
+  const read = (input: unknown) => {
+    const {
+      cursor = 0,
+      limit,
+      since = 0,
+      until = Date.now(),
+    } = ReadInput.parse(input);
+    const found = log
+      .filter(({ time }) => time >= since && time <= until)
+      .toSorted((a, b) => b.time - a.time);
+    return {
+      actions: found.slice(cursor, cursor + limit).map(({ n, time }) => ({
+        at: new Date(time).toISOString(),
+        kind: "setting",
+        name: `Setting ${n}`,
+        value: "On",
+      })),
+      next: found.length > cursor + limit ? cursor + limit : null,
+      until,
+    };
+  };
+  calls.set("actions.list", (input) => {
+    const listed = read(input);
+    if (!untils.includes(listed.until)) {
+      untils.push(listed.until);
+    }
+    return listed;
+  });
+  reads.set("actions.list", read);
+  return untils;
+}
+
+const settingsListed = () =>
+  screen.getAllByText(/^Setting \d+$/).map((row) => row.textContent);
 
 describe("ActivityPage", () => {
   it("lists each thing on one line under its day, and narrows to the filter in the address", async () => {
@@ -191,5 +243,62 @@ describe("ActivityPage", () => {
     expect(
       await screen.findByText("Instrument isn't keeping a history right now."),
     ).toBeTruthy();
+  });
+});
+
+describe("ActivityPage left open", () => {
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
+  it("reads the history again up to a live read that came back full, each row listed once", async () => {
+    vi.useFakeTimers({ toFake: ["Date"] });
+    const opened = new Date(2026, 10, 5, 12, 0).getTime();
+    vi.setSystemTime(opened);
+    const log = [{ n: 1050, time: opened - 60_000 }];
+    const untils = serveActions(log);
+    // The search leaves four of the rows, so each is drawn: the newest, two
+    // more made since the page opened (150 among the newest 200 of those, 50
+    // past them), and the one from before.
+    const { queryClient } = page({ q: "Setting 50" });
+    await screen.findByText("Setting 1050");
+    expect(untils).toEqual([opened]);
+
+    for (let n = 1; n <= 250; n += 1) {
+      log.push({ n, time: opened + n });
+    }
+    vi.setSystemTime(opened + 1000);
+    await queryClient.refetchQueries({ queryKey: ["actions.list"] });
+
+    await waitFor(() => {
+      expect(settingsListed()).toEqual([
+        "Setting 250",
+        "Setting 150",
+        "Setting 50",
+        "Setting 1050",
+      ]);
+    });
+    expect(untils).toEqual([opened, opened + 1000]);
+  });
+
+  it("names the days by the day it is after midnight", async () => {
+    vi.useFakeTimers({ toFake: ["Date"] });
+    const opened = new Date(2026, 10, 5, 23, 59).getTime();
+    vi.setSystemTime(opened);
+    const log = [{ n: 1, time: opened - 60_000 }];
+    serveActions(log);
+    const { queryClient } = page();
+    await screen.findByText("Setting 1");
+    expect(screen.getAllByText(/^Today · /)).toHaveLength(1);
+
+    log.push({ n: 2, time: opened + 90_000 });
+    vi.setSystemTime(opened + 120_000);
+    await queryClient.refetchQueries({ queryKey: ["actions.list"] });
+
+    await screen.findByText("Setting 2");
+    await waitFor(() => {
+      expect(screen.getAllByText(/^Today · /)).toHaveLength(1);
+    });
+    expect(screen.getAllByText(/^Yesterday · /)).toHaveLength(1);
   });
 });

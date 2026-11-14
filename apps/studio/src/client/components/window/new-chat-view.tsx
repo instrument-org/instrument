@@ -24,6 +24,7 @@ import {
   makeNewChatDraftAtom,
   newChatBoxesAtom,
   newChatWordsKey,
+  settleMadeDraft,
 } from "@/client/drafts/new-chat-box";
 import { cancelWords } from "@/client/drafts/settle-words";
 import {
@@ -193,6 +194,24 @@ export function NewChatView({
       router.history.replace(newChatHref(box.draftId));
     }
   }, [boundId, draftId, router, store, tabId]);
+  // As the screen goes (its group switched away from, its tab closed), words
+  // typed a moment before are written now, ahead of the composer's own
+  // write as it goes, which is too late for the effect above: a draft they
+  // make is named in the address here, so the screen comes back with them.
+  // The router has stopped following its address by now, so it is told.
+  const nameAsItGoes = useEffectEvent(() => {
+    const made = settleMadeDraft(store, tabId);
+    if (made !== undefined && made !== draftId) {
+      router.history.replace(newChatHref(made));
+      void router.load();
+    }
+  });
+  useEffect(
+    () => () => {
+      nameAsItGoes();
+    },
+    [],
+  );
 
   // The group this tab is in, and the tab up on its other side, which the
   // draft carries as a chat's next message does; nothing for a new tab, or

@@ -8,6 +8,7 @@ import {
   isNewChatEmptied,
   newChatBoxesAtom,
   pickNewChatProjectAtom,
+  settleMadeDraft,
 } from "./new-chat-box";
 import { WORDS_SETTLE_MS } from "./settle-words";
 import { draftsAtom, resetDrafts } from "./store";
@@ -93,6 +94,23 @@ describe("a new chat in the Chat screen", () => {
       expect(drafts.map((draft) => draft.id)).toEqual([left?.id]);
     },
   );
+
+  it("writes words typed a moment before the screen goes, and names the draft they made", () => {
+    const { inBox, store, type } = window();
+    expect(settleMadeDraft(store, TAB)).toBeUndefined();
+
+    type("Before the switch");
+    const made = settleMadeDraft(store, TAB);
+
+    expect(made).toBe(inBox()?.id);
+    expect(inBox()?.words).toBe("Before the switch");
+  });
+
+  it("names no draft the box took up from the address", () => {
+    const { store } = window();
+    store.set(bindNewChatBoxAtom, { draftId: "from-the-address", tabId: TAB });
+    expect(settleMadeDraft(store, TAB)).toBeUndefined();
+  });
 
   it("files the draft under the project picked before there was one", () => {
     const { inBox, settle, store, type } = window();

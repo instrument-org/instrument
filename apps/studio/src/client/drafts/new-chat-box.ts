@@ -36,6 +36,25 @@ export function newChatWordsKey(tabId: string): string {
   return `new-chat:${tabId}`;
 }
 
+/**
+ * Writes the words still settling in a tab's new chat, and answers the draft
+ * the box made for what was written, which the tab's address may not name
+ * yet: a screen going away, or its tab closing, has it named there, so the
+ * tab comes back with the words.
+ */
+export function settleMadeDraft(
+  store: {
+    get: (atom: typeof newChatBoxesAtom) => Partial<Record<string, NewChatBox>>;
+  },
+  tabId: string,
+): string | undefined {
+  flushWords(newChatWordsKey(tabId));
+  const box = store.get(newChatBoxesAtom)[tabId];
+  return box?.isMadeHere === true && box.draftId !== null
+    ? box.draftId
+    : undefined;
+}
+
 /** The draft a tab's new chat writes into, while it is there. */
 export function draftInNewChatBox(
   drafts: Draft[],

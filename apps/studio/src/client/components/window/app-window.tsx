@@ -12,6 +12,7 @@ import {
 import {
   newChatBoxesAtom,
   pickNewChatProjectAtom,
+  settleMadeDraft,
 } from "@/client/drafts/new-chat-box";
 import { type Draft, draftGroupOf, holdsSomething } from "@/shared/drafts";
 import {
@@ -20,6 +21,7 @@ import {
   chatGroupAtom,
   filesFolderAtom,
   inboxOpenAtom,
+  type WindowTab,
 } from "@/client/atoms/window";
 import { openBuiltInPage } from "@/client/atoms/page-requests";
 import { AppErrorFallback } from "@/client/components/app-error-fallback";
@@ -844,10 +846,26 @@ function WindowShell({
     void activeRouter?.loadRouteChunk(activeRouter.routesById["/_app/new-tab"]);
   }, [activeRouter, opened, queryClient]);
 
+  /**
+   * A new chat's tab as it closes, at the address of the draft words typed
+   * a moment before make, so it can be reopened with them as one closed a
+   * moment later can.
+   */
+  const closingAsWritten = (tab: undefined | WindowTab) => {
+    const made = tab && settleMadeDraft(store, tab.id);
+    if (tab?.kind !== "screen" || made === undefined) {
+      return tab;
+    }
+    const screen = matchScreen(tab.href);
+    return screen.kind === "inbox" && screen.draft === made
+      ? tab
+      : { ...tab, href: newChatHref(made) };
+  };
   // A group's tab closed goes on the window's closed list, with the window's
   // own tabs, so Shift+Cmd+T brings it back.
   const requestClose = (id: string) => {
     const tab = windowTabs.allTabs.find((each) => each.id === id);
+    const closedAs = closingAsWritten(tab);
     // A group's last tab closes the group, asking first while its agent works.
     if (
       tab?.group !== undefined &&
@@ -859,7 +877,7 @@ function WindowShell({
       askToClose([tab.group]);
       return;
     }
-    if (tab?.group !== undefined && !isBlankNewTab(tab)) {
+    if (tab?.group !== undefined && closedAs && !isBlankNewTab(closedAs)) {
       const { group } = tab;
       const index = windowTabs.allTabs
         .filter((each) => each.group === group)
@@ -869,7 +887,7 @@ function WindowShell({
           id: freshTabId(),
           index,
           pathname: groupHref(group),
-          tab,
+          tab: closedAs,
         }),
       );
     }

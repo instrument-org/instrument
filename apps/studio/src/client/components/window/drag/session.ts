@@ -48,13 +48,8 @@ export const dragAtom = atom<Drag | undefined>(undefined);
  */
 export const dragPoint: Point = { x: 0, y: 0 };
 
-/** A place in the window that takes something held. */
+/** A place in the window that takes something held, which the window's own moves land (`setLander`). */
 export interface DropTarget {
-  /**
-   * Lands what it takes itself, where the window's own moves do not: Files
-   * moving files into a folder, the bookmarks bar moving a bookmark.
-   */
-  drop?: (held: Held, landing: Landing, modifiers: { altKey: boolean }) => void;
   /**
    * What letting go at a point would do, or nothing, or "native" where only
    * the system's drag can hand the files over (a web page, a composer).
@@ -67,8 +62,6 @@ export interface DropTarget {
   rect: () => Rect | undefined;
   /** A list in it that scrolls while something held nears its ends. */
   scrolls?: { axis: "x" | "y"; element: () => HTMLElement | null | undefined };
-  /** Shows a landing of its own, which it draws itself, or none. */
-  show?: (landing: Landing | undefined) => void;
 }
 
 const targets = new Set<DropTarget>();
@@ -84,8 +77,6 @@ export function useDropTarget(target: DropTarget | undefined) {
   });
   const isOn = target !== undefined;
   const scrolls = target?.scrolls !== undefined;
-  const shows = target?.show !== undefined;
-  const drops = target?.drop !== undefined;
   useEffect(() => {
     if (!isOn) {
       return;
@@ -93,13 +84,6 @@ export function useDropTarget(target: DropTarget | undefined) {
     const registered: DropTarget = {
       landingAt: (point, drag) => latest.current?.landingAt(point, drag),
       rect: () => latest.current?.rect(),
-      ...(drops
-        ? {
-            drop: (held, landing, modifiers) => {
-              latest.current?.drop?.(held, landing, modifiers);
-            },
-          }
-        : {}),
       ...(scrolls
         ? {
             scrolls: {
@@ -108,22 +92,12 @@ export function useDropTarget(target: DropTarget | undefined) {
             },
           }
         : {}),
-      ...(shows
-        ? {
-            show: (landing) => {
-              latest.current?.show?.(landing);
-            },
-          }
-        : {}),
     };
     targets.add(registered);
     return () => {
       targets.delete(registered);
-      if (session?.shownBy === registered) {
-        session.shownBy = undefined;
-      }
     };
-  }, [drops, isOn, scrolls, shows]);
+  }, [isOn, scrolls]);
 }
 
 const frameListeners = new Set<() => void>();
@@ -185,11 +159,7 @@ interface Session {
   dwell: Dwell | undefined;
   /** Each list scrolling under the pointer, since when the pointer has been at its end, and when it last scrolled. */
   scrolling: Map<HTMLElement, { last: number; since: number }>;
-  /** The target that showed the landing, which is told when it no longer does. */
-  shownBy: DropTarget | undefined;
   stop: () => void;
-  /** The target of the landing, which may land it itself. */
-  target: DropTarget | undefined;
 }
 
 let session: Session | undefined;
@@ -230,18 +200,18 @@ function targetsAt(point: Point) {
     .map(({ target }) => target);
 }
 
-/** Where what is held lands at a point, and which target says so; "native" where only the system's drag reaches. */
+/** Where what is held lands at a point; "native" where only the system's drag reaches. */
 function measure(
   point: Point,
   drag: Pick<Drag, "grab" | "held" | "input">,
-): { landing?: Landing; native?: true; target?: DropTarget } {
+): { landing?: Landing; native?: true } {
   for (const target of targetsAt(point)) {
     const found = target.landingAt(point, drag);
     if (found === "native") {
       return { native: true };
     }
     if (found) {
-      return { landing: found, target };
+      return { landing: found };
     }
   }
   return {};
@@ -269,7 +239,6 @@ function evaluate(current: Session, now = performance.now()) {
   current.dwell = restAt(current.dwell, restKey, now);
   const isResting = restKey !== undefined && !hasRested(current.dwell, now);
   const landing = isResting ? undefined : found.landing;
-  const target = landing ? found.target : undefined;
   window.clearTimeout(current.restTimer);
   if (isResting && current.dwell) {
     current.restTimer = window.setTimeout(
@@ -281,12 +250,6 @@ function evaluate(current: Session, now = performance.now()) {
       current.dwell.since + DWELL_MS - now,
     );
   }
-  if (current.shownBy !== target) {
-    current.shownBy?.show?.(undefined);
-    current.shownBy = target?.show ? target : undefined;
-  }
-  target?.show?.(landing);
-  current.target = target;
   const changed = JSON.stringify(drag.landing) !== JSON.stringify(landing);
   current.drag = { ...drag, isOff, landing };
   if (changed) {
@@ -353,7 +316,6 @@ function end(current: Session) {
   session = undefined;
   window.clearTimeout(current.restTimer);
   current.stop();
-  current.shownBy?.show?.(undefined);
   showDrop(undefined);
   publish(undefined);
   for (const listener of frameListeners) {
@@ -485,7 +447,6 @@ function startPointerDrag(held: Held, grab: Point, event: PointerEvent) {
     drag: { grab, held, input: "pointer", isOff: false, landing: undefined },
     dwell: undefined,
     scrolling: new Map(),
-    shownBy: undefined,
     stop: () => {
       cancelAnimationFrame(frame);
       window.removeEventListener("pointermove", onMove, { capture: true });
@@ -496,7 +457,6 @@ function startPointerDrag(held: Held, grab: Point, event: PointerEvent) {
       document.removeEventListener("visibilitychange", onHidden);
       document.documentElement.removeAttribute("data-tab-held");
     },
-    target: undefined,
   };
   session = current;
   // A page runs in a process of its own, which would take the pointer and
@@ -528,7 +488,7 @@ async function release(current: Session, event: PointerEvent) {
   if (session !== current) {
     return;
   }
-  const { carry, drag, target } = current;
+  const { carry, drag } = current;
   current.stop();
   if (carry && (drag.isOff || carry.followsPointer)) {
     // What the window drew for the drag stays until main has said.
@@ -537,12 +497,7 @@ async function release(current: Session, event: PointerEvent) {
     return;
   }
   carry?.cancel();
-  const { held, landing } = drag;
-  if (landing && target?.drop) {
-    target.drop(held, landing, { altKey: event.altKey });
-  } else {
-    lander?.(held, landing);
-  }
+  lander?.(drag.held, drag.landing);
   end(current);
 }
 
@@ -621,9 +576,7 @@ function startSession(held: Held, grab: Point, input: "native" | "remote") {
     drag: { grab, held, input, isOff: false, landing: undefined },
     dwell: undefined,
     scrolling: new Map(),
-    shownBy: undefined,
     stop: () => undefined,
-    target: undefined,
   };
   session = current;
   return current;

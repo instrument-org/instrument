@@ -45,19 +45,18 @@ export type Held =
       url: string;
       /** Where it is kept: on the bar or in the sidebar's Bookmarks. */
       where: "bar" | "sidebar";
-    }
+    };
 
 /**
  * What letting go would do: stand among a side's tabs at a place; join a
  * side as its last tab, or make one end of a lone side a side of its own; go
  * into a sidebar row's group, or be a group of its own in a room between
- * rows; turn a new tab into it; go into a folder Files shows; or stand among
- * the bookmarks of the bar or the sidebar.
+ * rows; turn a new tab into it; or stand among the bookmarks of the bar or
+ * the sidebar.
  */
 export type Landing =
   | { group: string; index: number; kind: "strip"; side: 0 | 1 }
   | { group: string; kind: "side"; lit: Rect; side: 0 | 1; split: boolean }
   | { drop: SidebarDrop; kind: "sidebar" }
   | { group: string; kind: "newTab"; lit: Rect; tab: string }
-  | { kind: "folder"; prefix: string }
   | { index: number; kind: "bookmarks"; where: "bar" | "sidebar" };

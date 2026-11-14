@@ -29,7 +29,6 @@ export function ImageWaitBloom({ fallback }: { fallback: React.ReactNode }) {
       return;
     }
 
-    gl.useProgram(program);
     gl.bindBuffer(gl.ARRAY_BUFFER, gl.createBuffer());
     // One triangle that covers the whole viewport.
     gl.bufferData(
@@ -182,6 +181,7 @@ void main() {
   gl_FragColor = vec4(INK * a, a);
 }`;
 
+/** The shaders compiled, linked and put in use; nothing when the GPU refuses them. */
 function compile(gl: WebGLRenderingContext) {
   const program = gl.createProgram();
   for (const [type, source] of [
@@ -200,5 +200,11 @@ function compile(gl: WebGLRenderingContext) {
     gl.attachShader(program, shader);
   }
   gl.linkProgram(program);
-  return gl.getProgramParameter(program, gl.LINK_STATUS) ? program : null;
+  if (!gl.getProgramParameter(program, gl.LINK_STATUS)) {
+    return null;
+  }
+  // Out here, since the React Compiler takes any `use` call in a component
+  // for a hook and leaves the component uncompiled.
+  gl.useProgram(program);
+  return program;
 }

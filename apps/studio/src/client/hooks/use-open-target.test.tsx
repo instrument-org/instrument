@@ -204,13 +204,14 @@ describe("a link's menu in a window with tabs", () => {
       </WindowContext>
     </Provider>
   );
-  const menuOf = (target: Parameters<ReturnType<typeof useGesturesFor>>[0]) =>
-    renderHook(() => useGesturesFor(), { wrapper }).result.current(target);
+  const menuOf = (...asked: Parameters<ReturnType<typeof useGesturesFor>>) =>
+    renderHook(() => useGesturesFor(), { wrapper }).result.current(...asked);
 
   afterEach(() => {
     openPage.mockClear();
     openPath.mockClear();
     openScreen.mockClear();
+    surfaceOpen.mockClear();
   });
 
   it.each([
@@ -228,6 +229,49 @@ describe("a link's menu in a window with tabs", () => {
       target.kind === "path" ? "Copy Path" : "Copy Link",
     ]);
   });
+
+  it.each([
+    { kind: "page", url: "https://example.com/" },
+    { href: "/history", kind: "screen" },
+  ] as const)(
+    "words a link's menu as a browser does, without the Open its click does, for a $kind",
+    async (target) => {
+      const link = menuOf(target, { isLink: true });
+      link.onContextMenu({
+        preventDefault: vi.fn(),
+      } as unknown as React.MouseEvent);
+      await waitFor(() => {
+        expect(showContextMenu).toHaveBeenCalled();
+      });
+      expect(
+        showContextMenu.mock.calls
+          .at(-1)?.[0]
+          .items.map((item) =>
+            typeof item === "object" && item !== null && "label" in item
+              ? item.label
+              : "---",
+          ),
+      ).toEqual([
+        "Open Link in Split",
+        "Open Link in New Tab",
+        "Open Link in New Tab Group",
+        "Open Link in New Window",
+        "---",
+        "Bookmark Link",
+        "Copy Link",
+      ]);
+      link.onClick({
+        altKey: false,
+        ctrlKey: false,
+        metaKey: false,
+        preventDefault: vi.fn(),
+        shiftKey: false,
+      } as unknown as React.MouseEvent);
+      expect(
+        target.kind === "page" ? surfaceOpen : openScreen,
+      ).toHaveBeenCalledTimes(1);
+    },
+  );
 
   it.each([
     ["Open in Split", { from: "tab-left", into: "split" }],

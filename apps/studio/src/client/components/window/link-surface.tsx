@@ -118,9 +118,11 @@ export function LinkSurface({
       target.kind === "page"
         ? { kind: "page", url: target.url }
         : { href: target.href, kind: "screen" },
-      { addReferral: false },
+      { addReferral: false, isLink: true },
     );
     if (gesture === "menu") {
+      // With Open Link first, as a page's own menu has it: a click here
+      // opens in place.
       if (gestures.destinations.length > 0) {
         void showOpenMenu(gestures.destinations);
       }

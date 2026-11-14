@@ -111,14 +111,27 @@ export async function showOpenMenu(destinations: OpenDestination[]) {
   destinations.find((destination) => destination.id === picked.id)?.run();
 }
 
+/** How a surface asks for a target's gestures. */
+interface OpenAsked {
+  addReferral?: boolean;
+  /**
+   * A link in text: its menu reads as a browser's does over a link (Open
+   * Link in New Tab, Bookmark Link), and leaves out the plain Open a click
+   * does, which opens beside rather than in place of what the link is in.
+   */
+  isLink?: boolean;
+  title?: string;
+}
+
 /** The same gestures, for a list whose rows each name a different target. */
 export function useGesturesFor() {
   const destinationsFor = useDestinationsFor();
-  return (
-    target: OpenTarget,
-    options?: { addReferral?: boolean; title?: string },
-  ) => {
+  return (target: OpenTarget, options?: OpenAsked) => {
     const destinations = destinationsFor(target, options);
+    const menu =
+      options?.isLink === true
+        ? destinations.filter((destination) => destination.id !== "open")
+        : destinations;
     // The first place on the list, which is the surface's own wherever it
     // has one: the OS browser is first only where the surface has none.
     const primary = destinations.find(
@@ -145,11 +158,11 @@ export function useGesturesFor() {
         clicks.onClick(event);
       },
       onContextMenu: (event: React.MouseEvent) => {
-        if (destinations.length === 0) {
+        if (menu.length === 0) {
           return;
         }
         event.preventDefault();
-        void showOpenMenu(destinations);
+        void showOpenMenu(menu);
       },
       /** The rows, for a surface that draws its own menu rather than the OS's. */
       destinations,
@@ -181,10 +194,7 @@ export function useGesturesFor() {
  * generic menu -- "Save Image As" over an icon, and nothing at all over a
  * button -- from answering in its place.
  */
-export function useOpenGestures(
-  target: OpenTarget,
-  options?: { addReferral?: boolean; title?: string },
-) {
+export function useOpenGestures(target: OpenTarget, options?: OpenAsked) {
   return useGesturesFor()(target, options);
 }
 
@@ -266,54 +276,61 @@ export function wantsNewWindow(event: {
  * after its own Open, in this order wherever one is offered: Open in Split,
  * on the other side from the tab the menu was raised in, made where the
  * group has one side; Open in New Tab, waiting behind the tab up; Open in New
- * Tab Group; and Open in New Window. `open` opens the target with the options
- * the row picked.
+ * Tab Group; and Open in New Window. A link's rows say Open Link, as a
+ * browser's do. `open` opens the target with the options the row picked.
  */
 export function useWindowPlaces() {
   const from = useContext(GroupTabContext)?.id;
-  return (open: (options: OpenOptions) => void): OpenDestination[] => [
-    {
-      id: "openSplit",
-      label: "Open in Split",
-      run: () => {
-        open({ into: "split", ...(from === undefined ? {} : { from }) });
+  return (
+    open: (options: OpenOptions) => void,
+    { isLink = false }: { isLink?: boolean } = {},
+  ): OpenDestination[] => {
+    const opens = isLink ? "Open Link" : "Open";
+    return [
+      {
+        id: "openSplit",
+        label: `${opens} in Split`,
+        run: () => {
+          open({ into: "split", ...(from === undefined ? {} : { from }) });
+        },
       },
-    },
-    {
-      id: "openNewTab",
-      label: "Open in New Tab",
-      run: () => {
-        open({ behind: true, newTab: true });
+      {
+        id: "openNewTab",
+        label: `${opens} in New Tab`,
+        run: () => {
+          open({ behind: true, newTab: true });
+        },
       },
-    },
-    {
-      id: "openNewGroup",
-      label: "Open in New Tab Group",
-      run: () => {
-        open({ into: "group" });
+      {
+        id: "openNewGroup",
+        label: `${opens} in New Tab Group`,
+        run: () => {
+          open({ into: "group" });
+        },
       },
-    },
-    {
-      id: "openNewWindow",
-      label: "Open in New Window",
-      run: () => {
-        open({ into: "window" });
+      {
+        id: "openNewWindow",
+        label: `${opens} in New Window`,
+        run: () => {
+          open({ into: "window" });
+        },
       },
-    },
-  ];
+    ];
+  };
 }
 
 /**
- * The Add to Bookmarks row of a menu over a link or a file, keeping the
- * address and title `keep` works out when it is picked.
+ * The Add to Bookmarks row of a menu over a file, or Bookmark Link over a
+ * link, keeping the address and title `keep` works out when it is picked.
  */
 export function useBookmarkRow() {
   const addBookmark = useAddBookmark();
   return (
     keep: () => Promise<{ title: string; url: string }>,
+    { isLink = false }: { isLink?: boolean } = {},
   ): OpenDestination => ({
     id: "bookmark",
-    label: "Add to Bookmarks",
+    label: isLink ? "Bookmark Link" : "Add to Bookmarks",
     run: () => {
       void keep()
         .then(addBookmark)
@@ -332,11 +349,14 @@ export function useBookmarkRow() {
  * address names.
  */
 function useTargetBookmarkRow() {
-  const row = useBookmarkRow();
+  const bookmarkRow = useBookmarkRow();
   return (
     target: OpenTarget,
     title: string | undefined,
+    isLink: boolean,
   ): OpenDestination | undefined => {
+    const row = (keep: () => Promise<{ title: string; url: string }>) =>
+      bookmarkRow(keep, { isLink });
     if (target.kind === "page") {
       return row(async () => ({ title: title ?? "", url: target.url }));
     }
@@ -399,7 +419,7 @@ function useTargetBookmarkRow() {
  */
 function useDestinationsFor(): (
   target: OpenTarget,
-  options?: { addReferral?: boolean; title?: string },
+  options?: OpenAsked,
 ) => OpenDestination[] {
   const appWindow = useContext(WindowContext);
   const openPageOnSurface = useContext(PageOpenContext);
@@ -408,7 +428,8 @@ function useDestinationsFor(): (
   const placesOf = useWindowPlaces();
   const bookmarkRowOf = useTargetBookmarkRow();
 
-  return (target, { addReferral = true, title } = {}) => {
+  return (target, { addReferral = true, isLink = false, title } = {}) => {
+    const opens = isLink ? "Open Link" : "Open";
     const copyable = copyableOf(target);
     const copy: OpenDestination[] = copyable
       ? [
@@ -440,6 +461,7 @@ function useDestinationsFor(): (
               }
             : target,
           title,
+          isLink,
         )
       : undefined;
     const keeping = [...(bookmarkRow ? [bookmarkRow] : []), ...copy];
@@ -453,7 +475,7 @@ function useDestinationsFor(): (
         return [
           {
             id: "openBrowser",
-            label: "Open",
+            label: opens,
             run: () => {
               openExternalLink(url, { addReferral });
             },
@@ -468,22 +490,25 @@ function useDestinationsFor(): (
         openPageOnSurface
           ? {
               id: "open" as const,
-              label: "Open",
+              label: opens,
               run: () => {
                 openPageOnSurface(url);
               },
             }
           : {
               id: "openBrowser" as const,
-              label: "Open in Default Browser",
+              label: `${opens} in Default Browser`,
               run: () => {
                 openExternalLink(url, { addReferral });
               },
             },
         ...(appWindow
-          ? placesOf((options) => {
-              appWindow.openPage(url, options);
-            })
+          ? placesOf(
+              (options) => {
+                appWindow.openPage(url, options);
+              },
+              { isLink },
+            )
           : []),
         ...keeping,
       ];
@@ -518,14 +543,17 @@ function useDestinationsFor(): (
     return [
       {
         id: "open",
-        label: "Open",
+        label: opens,
         run: () => {
           appWindow.openScreen(href);
         },
       },
-      ...placesOf((options) => {
-        appWindow.openScreen(href, options);
-      }),
+      ...placesOf(
+        (options) => {
+          appWindow.openScreen(href, options);
+        },
+        { isLink },
+      ),
       ...keeping,
     ];
   };

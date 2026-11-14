@@ -283,7 +283,10 @@ function AppLink({
   className?: string;
   link: InstrumentLink;
 }) {
-  const gestures = useOpenGestures({ href: link.href, kind: "screen" });
+  const gestures = useOpenGestures(
+    { href: link.href, kind: "screen" },
+    { isLink: true },
+  );
   const open = gestures.destinations.find((entry) => entry.id === "open");
   const body = (
     <ChipBody icon={<AppLinkIcon link={link} />}>{children}</ChipBody>

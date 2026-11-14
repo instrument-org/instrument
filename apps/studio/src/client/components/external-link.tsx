@@ -19,7 +19,7 @@ export function ExternalLink(
   const { addReferral = true, className, href, onClick, ...rest } = props;
   const gestures = useOpenGestures(
     { kind: "page", url: href ?? "" },
-    { addReferral },
+    { addReferral, isLink: true },
   );
 
   return (

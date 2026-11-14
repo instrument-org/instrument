@@ -44,17 +44,44 @@ const ABOUT = {
 
 /**
  * This machine out of every file: the clean room's folder reads as the scenario's
- * Instrument folder in a generic home, and the home folder, the drives and the signed-in
- * person's name read as the kit's. A shared page holds every word its DOM had.
+ * Instrument folder in a generic home, the home folder as the kit's, every drive mounted
+ * beside the startup disk as "Backup", and the person's name as "Sam". A shared page holds
+ * every word its DOM had, and the app greets the signed-in person by name.
  */
 const home = process.env.HOME ?? "";
 const user = path.basename(home);
+const literal = (/** @type {string} */ s) => s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+const run = (/** @type {string} */ cmd, /** @type {string[]} */ args) => {
+  try {
+    return execFileSync(cmd, args, { encoding: "utf8", stdio: ["ignore", "pipe", "ignore"] }).trim();
+  } catch {
+    return "";
+  }
+};
+/**
+ * The person's name, word by word: the account's full name (`id -F` on macOS), git's
+ * user.name, and any names in `SNAP_SCRUB_NAMES` (comma-separated), the one to set when the
+ * app is signed in as someone this machine doesn't name.
+ */
+const personNames = [
+  ...new Set(
+    [run("id", ["-F"]), run("git", ["config", "user.name"]), ...(process.env.SNAP_SCRUB_NAMES ?? "").split(",")]
+      .flatMap((n) => n.split(/\s+/))
+      .filter((w) => /^\p{L}{3,}$/u.test(w) && w !== user),
+  ),
+];
+/** External drives under /Volumes, which Files lists by name; disk images are left alone. */
+const drives = (fs.existsSync("/Volumes") ? fs.readdirSync("/Volumes") : []).filter((name) => {
+  if (name.startsWith(".")) return false;
+  const info = run("diskutil", ["info", path.join("/Volumes", name)]);
+  return /Device Location:\s*External/.test(info) && !/Protocol:\s*Disk Image/.test(info);
+});
 const SCRUB = [
   [/\/Users\/[^/"<\s]+\/Library\/Caches\/instrument-studio-drive\/[^/"<\s]+\/clean-rooms\/Instrument/g, "/Users/mac-user/Instrument"],
-  [new RegExp(home.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"), "g"), "/Users/mac-user"],
-  [new RegExp(`\\b${user}\\b`, "g"), "mac-user"],
-  [/T7 2TB BLK/g, "Backup"],
-  [/\bJeremy\b/g, "Sam"],
+  [new RegExp(literal(home), "g"), "/Users/mac-user"],
+  [new RegExp(`\\b${literal(user)}\\b`, "g"), "mac-user"],
+  ...drives.map((d) => [new RegExp(literal(d), "g"), "Backup"]),
+  ...personNames.map((n) => [new RegExp(`(?<![\\p{L}\\p{N}])${literal(n)}(?![\\p{L}\\p{N}])`, "gu"), "Sam"]),
 ];
 const scrub = (/** @type {string} */ text) => SCRUB.reduce((t, [re, to]) => t.replace(/** @type {RegExp} */ (re), /** @type {string} */ (to)), text);
 

@@ -41,8 +41,6 @@ export const forgetGroupAtom = atom(null, (get, set, group: string) => {
   }
 });
 
-/** What the sidebar's list shows in this window: the open groups, or History. */
-export const sidebarViewAtom = atom<"history" | "list">("list");
 
 /** The project the sidebar's list stands in, in this window: none for every open group. */
 export const sidebarProjectAtom = atom<string | undefined>(undefined);

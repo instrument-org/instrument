@@ -167,7 +167,6 @@ import {
   groupSearchAtom,
   sidebarOpenAtom,
   sidebarProjectAtom,
-  sidebarViewAtom,
   sidebarWidthAtom,
 } from "@/client/atoms/tab-groups";
 import { StudioSidebarRail } from "@/client/components/studio-sidebar-rail";
@@ -495,7 +494,6 @@ function WindowShell({
   const groupList = useOpenGroups();
   const [isSidebarOpen, setSidebarOpen] = useAtom(sidebarOpenAtom);
   const sidebarWidth = useAtomValue(sidebarWidthAtom);
-  const setSidebarView = useSetAtom(sidebarViewAtom);
   const searchRef = useRef<HTMLInputElement>(null);
   const groupUp = useRouterState({
     select: (routerState) => groupOfHref(routerState.location.href),
@@ -1070,7 +1068,6 @@ function WindowShell({
    */
   const enterProject = (projectId: string) => {
     setSidebarOpen(true);
-    setSidebarView("list");
     store.set(groupSearchAtom, "");
     store.set(sidebarProjectAtom, projectId);
   };
@@ -1335,7 +1332,6 @@ function WindowShell({
       search: focusField,
       searchChats: () => {
         setSidebarOpen(true);
-        setSidebarView("list");
         requestAnimationFrame(() => {
           searchRef.current?.focus();
           searchRef.current?.select();

@@ -6,7 +6,6 @@ import {
   SIDEBAR_WIDTH_MAX,
   SIDEBAR_WIDTH_MIN,
   sidebarProjectAtom,
-  sidebarViewAtom,
 } from "@/client/atoms/tab-groups";
 import { type WindowTab } from "@/client/atoms/window";
 import { PageFavicon } from "@/client/components/favicon";
@@ -183,7 +182,6 @@ export function GroupSidebar({
   projects: Project[];
   searchRef?: Ref<HTMLInputElement>;
 }) {
-  const setView = useSetAtom(sidebarViewAtom);
   const [search, setSearch] = useAtom(groupSearchAtom);
   const [projectId, setProjectId] = useAtom(sidebarProjectAtom);
   const project = projects.find((entry) => entry.id === projectId);
@@ -357,7 +355,6 @@ export function GroupSidebar({
         ? {
             restore: () => {
               onRestore(entry);
-              setView("list");
               setSearch("");
             },
           }

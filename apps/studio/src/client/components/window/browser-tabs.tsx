@@ -94,6 +94,12 @@ export interface BrowserTabsHandle {
     after?: string,
   ) => StoreId.Tab;
   /**
+   * Gives a page an agent made with no tab a tab in a chat's group, under
+   * the page's own id, right after `after` and behind, as the page goes
+   * somewhere. The guest is already at `url`, so nothing loads again.
+   */
+  adopt: (id: StoreId.Tab, url: string, group: string, after?: string) => void;
+  /**
    * Adds a page tab to a group with no guest: the window that shows the
    * group opens the page there, at its address. For a page opened into
    * another window, whose guest made here would hold it here. Returns the tab.
@@ -577,6 +583,23 @@ export function BrowserTabs({
           ...(url ? { url } : {}),
         });
         return id;
+      },
+      adopt: (id, url, into, after) => {
+        if (latest.current.allTabs.some((tab) => tab.id === id)) {
+          return;
+        }
+        change((current) =>
+          addPages(
+            current,
+            [{ group: into, id, openedAt: Date.now(), openedUrl: url, url }],
+            after === undefined ? {} : { after },
+          ),
+        );
+        // Opened with no address, so the page stays as it is; the window
+        // browser starts keeping its lifetime from here.
+        void rpcClient.workspace.browser.open.call({
+          targetId: browserTargetOf(id),
+        });
       },
       openForAnotherWindow: (url, into) => {
         const id = StoreId.newTabId();

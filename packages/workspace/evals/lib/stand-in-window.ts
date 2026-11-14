@@ -65,6 +65,14 @@ export function createStandInWindow(chrome?: SharedChrome) {
       }
       return { tabId: tab.id };
     }
+    if (action.kind === "adopt") {
+      tabs.set(action.tabId, {
+        at: action.url,
+        id: action.tabId,
+        kind: "page",
+      });
+      return { tabId: action.tabId };
+    }
     if (action.kind === "list") {
       return {
         tabs: [...tabs.values()].map((tab) => ({

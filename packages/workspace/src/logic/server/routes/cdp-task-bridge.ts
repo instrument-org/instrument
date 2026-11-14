@@ -22,7 +22,7 @@ import {
   registerTabAnnouncer,
   takenOverFrom,
 } from "../../../lib/tab-activity";
-import { type StoreId } from "../../../schemas/store-id";
+import { StoreId } from "../../../schemas/store-id";
 import { type ChatId } from "../../../schemas/chat-id";
 import {
   type BrowserTargetId,
@@ -80,10 +80,14 @@ interface Attached {
  * agent by the window's id for it, the one the conversation's note uses. The
  * tabs the session worked in and nobody used since come first, the latest
  * first, so a daemon that reconnects starts where it left off; a session
- * with no such tab gets a blank tab of its own to start in, so its first
- * `open` never takes a page someone else is on. Opening a tab asks the window for one in the
- * chat, behind whatever the user has up. Closing one an agent opened closes
- * it; closing any other only lets go of it, since that tab is the user's.
+ * with no such tab gets a blank page of its own to start in, so its first
+ * `open` never takes a page someone else is on. Opening a tab at an address
+ * asks the window for one in the chat, behind whatever the user has up. A
+ * blank page, the start page or one asked for with no address, has no tab
+ * until it goes somewhere (`adopt`), so the strip never shows a blank tab;
+ * one that never does is closed with the connection. Closing one an agent
+ * opened closes it; closing any other only lets go of it, since that tab is
+ * the user's.
  * Nothing here ever selects a tab in the window: switching tabs is the
  * agent's business alone.
  *
@@ -113,9 +117,13 @@ export function handleTaskCdpClient(
   let closed = false;
   /** Whether this connection has looked for a tab for the session to start in. */
   let started = false;
-  /** The blank tab the session was given to start in, until it goes or closes. */
+  /** The blank page the session was given to start in, until it gets a tab or closes. */
   let startTab: Tab | undefined;
-  const key = `${chatId}/${sessionId}`;
+  /**
+   * The pages this connection made that have no tab in the window yet, each
+   * with the watch that gives it one as it goes somewhere.
+   */
+  const pending = new Map<string, { stop: () => void; tab: Tab }>();
   // Browser-level commands and events run in arrival order; a page's own
   // commands run in their session's order, beside the others.
   let queue = Promise.resolve();
@@ -150,19 +158,24 @@ export function handleTaskCdpClient(
 
   /**
    * The chat's page tabs, the ones the session worked in and nobody used
-   * since first, the latest first, then the rest in the strip's order. With
-   * no window to ask, the tabs the agent was told of whose pages are still
-   * up.
+   * since first, the latest first, then this connection's pages with no tab
+   * yet, then the rest in the strip's order. With no window to ask, the tabs
+   * the agent was told of whose pages are still up.
    */
   const tabs = async (): Promise<Tab[]> => {
     const listed = await chatPageTabs(chatId);
     const found: Tab[] = listed
-      ? listed.map((tab) => ({
-          tabId: tab.id,
-          targetId: tab.targetId,
-          title: tab.title,
-          url: browser.getTargetUrl(tab.targetId) ?? tab.url,
-        }))
+      ? [
+          ...[...pending.values()]
+            .map(({ tab }) => tab)
+            .filter((tab) => !listed.some((entry) => entry.id === tab.tabId)),
+          ...listed.map((tab) => ({
+            tabId: tab.id,
+            targetId: tab.targetId,
+            title: tab.title,
+            url: browser.getTargetUrl(tab.targetId) ?? tab.url,
+          })),
+        ]
       : [...announced.values()].filter(
           (tab) => browser.getTargetMeta(tab.targetId) !== null,
         );
@@ -245,15 +258,15 @@ export function handleTaskCdpClient(
   };
 
   /**
-   * Opens a tab in the chat, behind whatever the user has up, at `address`
-   * or blank, and keeps it as one an agent opened.
+   * Opens a tab in the chat, behind whatever the user has up, at `address`,
+   * and keeps it as one an agent opened.
    */
-  const openTab = async (address?: string): Promise<string | Tab> => {
+  const openTab = async (address: string): Promise<string | Tab> => {
     const tabId = await requestWindowTab({
       askedBy: chatId,
       group: resolveChat(chatId),
       show: false,
-      ...(address === undefined ? {} : { url: address }),
+      url: address,
     });
     if (!tabId) {
       return "The window did not open a tab. Try again.";
@@ -268,82 +281,148 @@ export function handleTaskCdpClient(
     if (!made) {
       return "The window did not open a tab. Try again.";
     }
-    if (address !== undefined) {
-      // Whichever of the two asks made the guest, it is sent to the page
-      // here, and the answer waits for the page's load, the way a
-      // navigation's does on any tab: `tab new <url>` then reads the page it
-      // asked for.
-      const refused = await loadInNewTab(browser, targetId, address);
-      if (refused !== undefined) {
-        // A tab left blank would answer every later command, a screenshot
-        // included, with an empty page the agent takes for the one it asked
-        // for.
-        forgetTab(targetId);
-        await askWindow({
-          action: { kind: "close", tabId },
-          askedBy: chatId,
-          group: resolveChat(chatId),
-        });
-        return `${address} did not open: ${refused}`;
-      }
-      // Sending it to a page is this session's work in it; a blank one is
-      // no work yet.
-      noteTabCommand(targetId, actor);
-      noteBrowserAgentActivity(targetId);
+    // Whichever of the two asks made the guest, it is sent to the page here,
+    // and the answer waits for the page's load, the way a navigation's does
+    // on any tab: `tab new <url>` then reads the page it asked for.
+    const refused = await loadInNewTab(browser, targetId, address);
+    if (refused !== undefined) {
+      // A tab left blank would answer every later command, a screenshot
+      // included, with an empty page the agent takes for the one it asked
+      // for.
+      forgetTab(targetId);
+      await askWindow({
+        action: { kind: "close", tabId },
+        askedBy: chatId,
+        group: resolveChat(chatId),
+      });
+      return `${address} did not open: ${refused}`;
     }
+    // Sending it to a page is this session's work in it.
+    noteTabCommand(targetId, actor);
+    noteBrowserAgentActivity(targetId);
     await noteOpenedTab(chatId, targetId, sessionId);
     // One more tab out of sight may put the chat past what it may keep.
     void closeTabsOverCap(chatId).catch(workspaceConfig.captureException);
-    return { tabId, targetId, title: "", url: address ?? "about:blank" };
+    return { tabId, targetId, title: "", url: address };
   };
 
-  /** Whether a tab's page is still the blank one it was made with. */
-  const isBlank = (tab: Tab) =>
-    (browser.getTargetUrl(tab.targetId) ?? "about:blank") === "about:blank";
+  /**
+   * Makes a blank page with no tab in the window, which gets its tab the
+   * first time its main frame goes somewhere (`adopt`).
+   */
+  const openPage = async (): Promise<string | Tab> => {
+    const tabId = StoreId.newTabId();
+    const targetId = browserTargetOf(tabId);
+    const made = await browser
+      .createTarget(targetId, getBrowserSessionDir())
+      .then(() => true)
+      .catch(() => false);
+    if (!made) {
+      return "The browser did not open a page. Try again.";
+    }
+    const tab: Tab = { tabId, targetId, title: "", url: "about:blank" };
+    const stop = browser.subscribeEvents(
+      targetId,
+      () => {
+        pending.get(tabId)?.stop();
+        pending.delete(tabId);
+      },
+      (method, params, frame) => {
+        if (
+          frame === undefined &&
+          method === "Page.frameNavigated" &&
+          isMainFrame(params) &&
+          frameUrl(params) !== "about:blank"
+        ) {
+          queue = queue
+            .then(() => adopt(tab))
+            .catch(workspaceConfig.captureException);
+        }
+      },
+    );
+    pending.set(tabId, { stop, tab });
+    // Its navigations are what give it a tab, whether or not the agent
+    // switches the Page domain on.
+    await browser.sendCommand(targetId, "Page.enable", {}).catch(noop);
+    return tab;
+  };
 
   /**
-   * Closes the session's start tab once it has served its purpose: the
+   * Gives a page of this connection's that went somewhere its tab in the
+   * chat, right after the chat's tab and behind, under the page's own id so
+   * nothing loads again, and keeps it as one an agent opened. A window that
+   * does not answer leaves it waiting for its next navigation.
+   */
+  const adopt = async (tab: Tab) => {
+    const waiting = pending.get(tab.tabId);
+    if (!waiting || closed) {
+      return;
+    }
+    const given = await askWindow({
+      action: {
+        kind: "adopt",
+        tabId: tab.tabId,
+        url: browser.getTargetUrl(tab.targetId) ?? tab.url,
+      },
+      askedBy: chatId,
+      group: resolveChat(chatId),
+    });
+    if (given?.tabId === undefined || pending.get(tab.tabId) !== waiting) {
+      return;
+    }
+    waiting.stop();
+    pending.delete(tab.tabId);
+    if (startTab?.tabId === tab.tabId) {
+      startTab = undefined;
+    }
+    await noteOpenedTab(chatId, tab.targetId, sessionId);
+    // One more tab out of sight may put the chat past what it may keep.
+    void closeTabsOverCap(chatId).catch(workspaceConfig.captureException);
+  };
+
+  /** Closes a page of this connection's that never got a tab: it has only its guest. */
+  const closePage = async (tabId: string) => {
+    const waiting = pending.get(tabId);
+    if (!waiting) {
+      return;
+    }
+    waiting.stop();
+    pending.delete(tabId);
+    forgetTab(waiting.tab.targetId);
+    await browser.closeTarget(waiting.tab.targetId).catch(noop);
+  };
+
+  /**
+   * Closes the session's start page once it has served its purpose: the
    * session opened a tab of its own or went to work in another one, and the
-   * start tab never went anywhere, so nothing of it is left in the strip.
+   * start page never went anywhere, so it never had a tab.
    */
   const closeStartTab = async () => {
     const tab = startTab;
     startTab = undefined;
-    if (!tab || !isBlank(tab)) {
+    if (!tab || !pending.has(tab.tabId)) {
       return;
     }
-    startTabs.delete(key);
     forget(tab.tabId);
-    forgetTab(tab.targetId);
-    await askWindow({
-      action: { kind: "close", tabId: tab.tabId },
-      askedBy: chatId,
-      group: resolveChat(chatId),
-    });
-    await forgetOpenedTabs(chatId, new Set([tab.targetId]));
+    await closePage(tab.tabId);
   };
 
   /**
    * Brings what the agent knows up to the window: tabs closed since are
    * forgotten, and the chat's tabs announced. A session that has worked in
    * none of them, or only in ones someone else has used since, first gets a
-   * blank tab of its own, listed first, which
-   * agent-browser starts in: the one an earlier connection of the session's
-   * made, while it is still open and blank, or a new one. It closes once the
-   * session opens a tab or goes to work in another (`closeStartTab`).
+   * blank page of its own, listed first, which agent-browser starts in. It
+   * gets a tab once it goes somewhere, and closes once the session opens a
+   * tab or goes to work in another first (`closeStartTab`).
    */
   const reconcile = async () => {
     let now = await tabs();
     if (!started && !now.some((tab) => ownLast(tab) !== undefined)) {
       started = true;
-      const kept = now.find(
-        (tab) => tab.targetId === startTabs.get(key) && isBlank(tab),
-      );
-      const own = kept ?? (await openTab());
+      const own = await openPage();
       if (typeof own !== "string") {
         startTab = own;
-        startTabs.set(key, own.targetId);
-        now = [own, ...now.filter((tab) => tab !== own)];
+        now = [own, ...now];
       }
     }
     started = true;
@@ -472,7 +551,8 @@ export function handleTaskCdpClient(
         return;
       }
     }
-    const tab = await openTab(address);
+    const tab =
+      address === undefined ? await openPage() : await openTab(address);
     if (typeof tab === "string") {
       refuse(id, tab);
       return;
@@ -492,6 +572,13 @@ export function handleTaskCdpClient(
       return;
     }
     forget(tab.tabId);
+    if (pending.has(tab.tabId)) {
+      await closePage(tab.tabId);
+      answer(id, {
+        success: true,
+      } satisfies Protocol.Target.CloseTargetResponse);
+      return;
+    }
     // A tab an agent opened is an agent's to close; any other is the
     // user's, and closing it only lets go of it.
     const { openedTabs } = await getChatState(chatDir(chatId));
@@ -715,13 +802,15 @@ export function handleTaskCdpClient(
       entry.session?.end();
     }
     attached.clear();
+    // A page that never went anywhere never had a tab, and nothing else
+    // would close it.
+    for (const tabId of pending.keys()) {
+      void closePage(tabId);
+    }
   };
   clientWs.on("close", end);
   clientWs.on("error", end);
 }
-
-/** Each session's start tab, by chat and session, for its next connection to start in again. */
-const startTabs = new Map<string, BrowserTargetId>();
 
 /** Domains whose every command acts on or reads the page, their switches aside. */
 const PAGE_DOMAINS = ["Accessibility.", "DOM.", "DOMSnapshot.", "Input."];
@@ -756,6 +845,12 @@ export function isPageWork(method: string, params: unknown): boolean {
     PAGE_COMMANDS.has(method) ||
     PAGE_DOMAINS.some((domain) => method.startsWith(domain))
   );
+}
+
+/** The address a `Page.frameNavigated` names. */
+function frameUrl(params: unknown): string | undefined {
+  const url = (params as undefined | { frame?: { url?: unknown } })?.frame?.url;
+  return typeof url === "string" ? url : undefined;
 }
 
 function isMainFrame(params: unknown): boolean {

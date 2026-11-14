@@ -40,6 +40,12 @@ const WindowTabActionSchema = z.discriminatedUnion("kind", [
    */
   z.object({ kind: z.literal("restore"), tabId: z.string() }),
   /**
+   * Gives a page an agent made with no tab its tab in the chat, right after
+   * the chat's tab and behind, as the page goes somewhere: the guest is
+   * already there, so the tab takes its id and nothing loads again.
+   */
+  z.object({ kind: z.literal("adopt"), tabId: z.string(), url: z.string() }),
+  /**
    * The chat's tabs, which are the only tabs it may name, hand to a task, or
    * have an agent drive. Asked at the moment a tab is named, so it is never
    * a copy that could be out of date, and answered whether or not a page's

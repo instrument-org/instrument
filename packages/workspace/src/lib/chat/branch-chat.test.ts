@@ -1,9 +1,11 @@
+import { errAsync } from "neverthrow";
 import fs from "node:fs/promises";
 import path from "node:path";
 import { describe, expect, it, vi } from "vitest";
 
 import { AIGatewayModelURI } from "@instrument-org/ai-gateway/schemas";
 
+import { CHATS_FOLDER_NAME } from "../../constants";
 import { type ChatId } from "../../schemas/chat-id";
 import { AbsolutePathSchema, RelativePathSchema } from "../../schemas/paths";
 import { type SessionMessage } from "../../schemas/session/message";
@@ -14,14 +16,16 @@ import { chatAttachmentsDir } from "../chat-dir-utils";
 import { ChatReads } from "../chat-reads";
 import { chatModelURI, setChatModel } from "../chat-settings";
 import { ChatWrites } from "../chat-writes";
+import { TypedError } from "../errors";
 import {
   readChatPermissions,
   updateChatPermissions,
 } from "../permissions/rules";
 import { chatDir, sessionOfChat } from "../record-folders";
+import { getWorkspaceConfig } from "../workspace-config";
 import { branchChat, branchTitle } from "./branch-chat";
 import { ensureChat } from "./chat-records";
-import { chatById, renameChat, setChatProject } from "./chats";
+import { chatById, listChats, renameChat, setChatProject } from "./chats";
 import { createProject } from "./projects";
 
 // Nothing runs in a test, which the chat list asks the machine about.
@@ -192,6 +196,36 @@ describe("branchChat", () => {
         "utf8",
       ),
     ).resolves.toBe("tier,price\n");
+  });
+
+  it("leaves no chat and no folder behind when a message cannot be written", async () => {
+    const { chatId, reply } = await pricingChat("Vendor shortlist");
+    const before = await conversationOf(chatId);
+    const { chatsDir, rootDir } = getWorkspaceConfig();
+    const onDisk = async () => ({
+      folders: await fs.readdir(path.join(rootDir, CHATS_FOLDER_NAME)),
+      listed: (await listChats()).map((chat) => chat.id),
+      records: await fs.readdir(chatsDir),
+    });
+    const held = await onDisk();
+    const save = ChatWrites.saveMessageWithParts.bind(ChatWrites);
+    let writes = 0;
+    const spy = vi
+      .spyOn(ChatWrites, "saveMessageWithParts")
+      .mockImplementation((message, to) =>
+        (writes += 1) === 2
+          ? errAsync(new TypedError.Storage("The disk is full"))
+          : save(message, to),
+      );
+
+    await expect(branchChat({ chatId, upTo: reply.id })).rejects.toThrow(
+      "The disk is full",
+    );
+    spy.mockRestore();
+
+    expect(writes).toBe(2);
+    expect(await onDisk()).toEqual(held);
+    expect(await conversationOf(chatId)).toBe(before);
   });
 
   it("refuses a message the chat doesn't have", async () => {

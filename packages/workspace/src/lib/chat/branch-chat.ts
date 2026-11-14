@@ -6,17 +6,22 @@ import { type ChatId } from "../../schemas/chat-id";
 import { type SessionMessage } from "../../schemas/session/message";
 import { StoreId } from "../../schemas/store-id";
 import { chatAttachmentsDir, handoffNotesPath } from "../chat-dir-utils";
+import { recordChatFolderName } from "../chat-folders/own-folder";
 import { rewriteChatFolder } from "../chat-folders/write-chat-folder";
+import { chatGone } from "../chat-gone";
 import { ChatReads } from "../chat-reads";
 import { chatModelURI, setChatModel } from "../chat-settings";
 import { ChatWrites } from "../chat-writes";
 import { TypedError } from "../errors";
 import {
+  forgetChatPermissions,
   readChatPermissions,
   updateChatPermissions,
 } from "../permissions/rules";
-import { chatDir, sessionOfChat } from "../record-folders";
+import { chatDir, chatOwnFolder, sessionOfChat } from "../record-folders";
 import { BLOBS_FOLDER_NAME, blobPath, isBlobName } from "../records/blobs";
+import { writingChatRecords } from "../records/chat-records";
+import { getWorkspaceConfig } from "../workspace-config";
 import { chatPlaces } from "./chat-for-agent";
 import { ensureChat } from "./chat-records";
 import { listChats, renameChat, setChatProject } from "./chats";
@@ -76,80 +81,120 @@ export async function branchChat({
   const branchSession = StoreId.newSessionId();
   const branch = await ensureChat(branchSession, title);
 
-  for (const message of copied) {
-    const written = await ChatWrites.saveMessageWithParts(
-      inSession(message, branchSession),
+  try {
+    for (const message of copied) {
+      const written = await ChatWrites.saveMessageWithParts(
+        inSession(message, branchSession),
+        branch,
+      );
+      if (written.isErr()) {
+        throw written.error;
+      }
+    }
+    await copyFilesNamed(copied, chatId, branch);
+
+    const rolledOver = session.value.rolledOverAfterMessageId;
+    if (
+      rolledOver !== undefined &&
+      copied.some((message) => message.id === rolledOver)
+    ) {
+      await carryRollover(branch, branchSession, session.value);
+      // What the agent wrote down for after a reset is what it reads in place
+      // of the messages before it.
+      await copyIfThere(
+        handoffNotesPath(chatDir(chatId)),
+        handoffNotesPath(chatDir(branch)),
+      );
+    }
+
+    await renameChat(branch, title);
+    if (session.value.project !== undefined) {
+      await setChatProject(branch, session.value.project);
+    }
+    if (model !== undefined) {
+      const set = await setChatModel(branch, model);
+      if (set.isErr()) {
+        throw set.error;
+      }
+    }
+    await updateChatPermissions(branch, () => permissions);
+
+    const createdAt = new Date();
+    const noteId = StoreId.newMessageId();
+    const note = await ChatWrites.saveMessageWithParts(
+      {
+        id: noteId,
+        metadata: { createdAt, sessionId: branchSession },
+        parts: [
+          {
+            data: {
+              chat: chatId,
+              ...(places.chatFolder !== undefined && {
+                folder: places.chatFolder,
+              }),
+              records: places.recordsFolder,
+              title: places.title,
+              work: places.workFolder,
+            },
+            metadata: {
+              createdAt,
+              id: StoreId.newPartId(),
+              messageId: noteId,
+              sessionId: branchSession,
+            },
+            type: "data-branchedFrom",
+          },
+        ],
+        role: "user",
+      },
       branch,
     );
-    if (written.isErr()) {
-      throw written.error;
+    if (note.isErr()) {
+      throw note.error;
     }
+    // The folder has its `CHAT.md` now rather than at the branch's first
+    // turn, and what the person sent moves into it.
+    await rewriteChatFolder(branch);
+  } catch (error) {
+    // A branch that stopped partway is a chat the person never saw whole,
+    // so none of it stays, and what stopped it is what the caller hears
+    // whether or not the removal went through.
+    await removeBranch(branch).catch((unremoved: unknown) => {
+      getWorkspaceConfig().captureException(unremoved);
+    });
+    throw error;
   }
-  await copyFilesNamed(copied, chatId, branch);
-
-  const rolledOver = session.value.rolledOverAfterMessageId;
-  if (
-    rolledOver !== undefined &&
-    copied.some((message) => message.id === rolledOver)
-  ) {
-    await carryRollover(branch, branchSession, session.value);
-    // What the agent wrote down for after a reset is what it reads in place
-    // of the messages before it.
-    await copyIfThere(
-      handoffNotesPath(chatDir(chatId)),
-      handoffNotesPath(chatDir(branch)),
-    );
-  }
-
-  await renameChat(branch, title);
-  if (session.value.project !== undefined) {
-    await setChatProject(branch, session.value.project);
-  }
-  if (model !== undefined) {
-    const set = await setChatModel(branch, model);
-    if (set.isErr()) {
-      throw set.error;
-    }
-  }
-  await updateChatPermissions(branch, () => permissions);
-
-  const createdAt = new Date();
-  const noteId = StoreId.newMessageId();
-  const note = await ChatWrites.saveMessageWithParts(
-    {
-      id: noteId,
-      metadata: { createdAt, sessionId: branchSession },
-      parts: [
-        {
-          data: {
-            chat: chatId,
-            ...(places.chatFolder !== undefined && {
-              folder: places.chatFolder,
-            }),
-            records: places.recordsFolder,
-            title: places.title,
-            work: places.workFolder,
-          },
-          metadata: {
-            createdAt,
-            id: StoreId.newPartId(),
-            messageId: noteId,
-            sessionId: branchSession,
-          },
-          type: "data-branchedFrom",
-        },
-      ],
-      role: "user",
-    },
-    branch,
-  );
-  if (note.isErr()) {
-    throw note.error;
-  }
-  // The folder has its `CHAT.md` now rather than at the branch's first
-  // turn, and what the person sent moves into it.
-  await rewriteChatFolder(branch);
   return branch;
+}
+
+/**
+ * Removes a branch that was never finished: its records and the folder
+ * claimed for it under `Chats/` are deleted outright rather than put in the
+ * trash, where the person would find part of a conversation, and this
+ * computer forgets the folder's name and what the branch was allowed. It has
+ * no work folder yet, since no command has run in it.
+ */
+async function removeBranch(branch: ChatId): Promise<void> {
+  const records = chatDir(branch);
+  const folder = chatOwnFolder(records);
+  // Nothing more is written to it until the index has forgotten it: an
+  // append landing after its folder went would make the folder again.
+  const release = await writingChatRecords()?.refuse(branch);
+  try {
+    await fs.rm(records, { force: true, recursive: true });
+    if (folder !== undefined) {
+      await fs.rm(folder, { force: true, recursive: true });
+    }
+    await recordChatFolderName(
+      getWorkspaceConfig().workspaceMachineDir,
+      branch,
+      undefined,
+    );
+    await forgetChatPermissions(branch);
+    await chatGone(branch);
+  } finally {
+    release?.();
+  }
 }
 
 /**

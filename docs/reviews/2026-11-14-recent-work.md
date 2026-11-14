@@ -135,7 +135,7 @@ Important means a concrete correctness, security, privacy, or data-preservation 
 
 ### P. Nit: a branch that fails partway leaves a listed chat with part of the conversation
 
-- Status: open
+- Status: fixed
 - Where: [branch-chat.ts:77](/packages/workspace/src/lib/chat/branch-chat.ts#L77).
 - What: `ensureChat` registers the branch before its messages are appended one at a time, and a throw after that (a storage error, a `copyFile` code other than `ENOENT` or `EEXIST`, `setChatModel`) surfaces as an error with nothing removed. The source chat is untouched. Plus 2 similar in the same file: a branch is written from the parsed messages, so a part this build reads as `data-unknown` is copied as that and its original line is not; and a blob not yet on this computer is skipped silently.
 

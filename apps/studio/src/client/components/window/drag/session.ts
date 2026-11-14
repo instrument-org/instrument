@@ -23,7 +23,7 @@ import { type Held, type Landing } from "./types";
  * that takes a drop answers through the targets it registers
  * (`useDropTarget`). A drag the pointer holds starts at one distance
  * (`START_PX`), is measured once a frame, scrolls the list under it near the
- * list's ends, waits a moment over a side's page before the page takes it
+ * list's ends, waits a moment at a page's end before it splits the page
  * (`DWELL_MS`), and ends in one place for Escape, the window losing focus,
  * and the system taking the pointer away.
  */
@@ -247,10 +247,10 @@ function measure(
   return {};
 }
 
-/** A landing on a side's page waits for the pointer to rest there; this names which one it rests on. */
+/** A landing that splits a page waits for the pointer to rest there; this names which one it rests on. */
 function restKeyOf(landing: Landing | undefined) {
-  return landing?.kind === "side"
-    ? `${landing.group}:${landing.side}:${String(landing.split)}`
+  return landing?.kind === "side" && landing.split
+    ? `${landing.group}:${landing.side}`
     : undefined;
 }
 
@@ -265,9 +265,9 @@ function evaluate(current: Session, now = performance.now()) {
         width: window.innerWidth,
       }));
   const found = isOff ? {} : measure(dragPoint, drag);
-  current.dwell = restAt(current.dwell, restKeyOf(found.landing), now);
-  const isResting =
-    found.landing?.kind === "side" && !hasRested(current.dwell, now);
+  const restKey = restKeyOf(found.landing);
+  current.dwell = restAt(current.dwell, restKey, now);
+  const isResting = restKey !== undefined && !hasRested(current.dwell, now);
   const landing = isResting ? undefined : found.landing;
   const target = landing ? found.target : undefined;
   window.clearTimeout(current.restTimer);

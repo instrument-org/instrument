@@ -161,9 +161,9 @@ function heldInGroup(held: Held, group: string, layout: GroupLayout) {
 }
 
 /**
- * A group's sides' pages as a place to land, once what is held has rested
- * there a moment: with one side, its left or right end makes that half a
- * side of its own, and its middle joins the side; with two, the side under
+ * A group's sides' pages as a place to land: with one side, its left or
+ * right end makes that half a side of its own once what is held has rested
+ * there a moment, and its middle joins the side; with two, the side under
  * the pointer takes it as its last tab. Files go to the page a side shows
  * (a site, a chat's composer) and make a side only at a lone side's ends; a
  * new tab up turns into them.

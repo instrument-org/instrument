@@ -11,9 +11,9 @@ import { clamp } from "radashi";
 export const START_PX = 8;
 
 /**
- * How long what is held rests over a side's page before the page takes it,
- * so a tab passing over a page on its way to the sidebar or another window
- * does not split the group by accident.
+ * How long what is held rests at a page's end before that half becomes a
+ * side of its own, so a tab passing over a page on its way to the sidebar or
+ * another window does not split the group by accident.
  */
 export const DWELL_MS = 400;
 

@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { leftWidthAt, shareAt } from "./side-widths";
+import { leftWidthAt, scrollToShow, shareAt } from "./side-widths";
 
 describe("leftWidthAt", () => {
   it.each([
@@ -29,4 +29,43 @@ describe("shareAt", () => {
       expect(shareAt(width, room)).toBeCloseTo(share);
     },
   );
+});
+
+describe("scrollToShow", () => {
+  it.each([
+    {
+      name: "a side in view stays",
+      start: 0,
+      end: 440,
+      scroll: 0,
+      view: 600,
+      to: 0,
+    },
+    {
+      name: "a side past the right edge comes in",
+      start: 448,
+      end: 888,
+      scroll: 0,
+      view: 600,
+      to: 288,
+    },
+    {
+      name: "a side past the left edge comes in",
+      start: 0,
+      end: 440,
+      scroll: 288,
+      view: 600,
+      to: 0,
+    },
+    {
+      name: "a side wider than the view shows its start",
+      start: 448,
+      end: 888,
+      scroll: 0,
+      view: 300,
+      to: 448,
+    },
+  ])("$name", ({ end, scroll, start, to, view }) => {
+    expect(scrollToShow({ end, scroll, start, view })).toBe(to);
+  });
 });

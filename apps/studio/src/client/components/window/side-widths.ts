@@ -39,3 +39,25 @@ export function shareAt(width: number, room: number) {
     ? SIDE_SHARE_DEFAULT
     : clamped / room;
 }
+
+/**
+ * Where a row scrolled sideways to `scroll`, showing `view` of it, scrolls to
+ * show a side standing from `start` to `end`: the least move that shows it
+ * whole, or its start when it is wider than the view.
+ */
+export function scrollToShow({
+  end,
+  scroll,
+  start,
+  view,
+}: {
+  end: number;
+  scroll: number;
+  start: number;
+  view: number;
+}) {
+  if (end - start > view || start < scroll) {
+    return start;
+  }
+  return end > scroll + view ? end - view : scroll;
+}

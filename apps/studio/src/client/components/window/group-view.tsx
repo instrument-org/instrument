@@ -21,6 +21,7 @@ import {
   type CSSProperties,
   useEffect,
   useEffectEvent,
+  useLayoutEffect,
   useRef,
   useState,
 } from "react";
@@ -44,6 +45,7 @@ import { useGroupTabMoves } from "./tab-drag";
 import { chatOfTab, type GroupLayout, type GroupSide } from "./tab-model";
 import {
   leftWidthAt,
+  scrollToShow,
   shareAt,
   SIDE_SHARE_DEFAULT,
   SIDE_WIDTH_MIN,
@@ -75,6 +77,22 @@ export function GroupView({ group }: { group: string | undefined }) {
       <GroupSides group={group} />
     </div>
   );
+}
+
+/** Scrolls a group's row the least that shows the side with the keyboard. */
+function showSideWithKeyboard(scroller: HTMLElement) {
+  const side = scroller.querySelector<HTMLElement>(
+    "[data-group-side][data-keyboard]",
+  );
+  if (!side) {
+    return;
+  }
+  scroller.scrollLeft = scrollToShow({
+    end: side.offsetLeft + side.offsetWidth,
+    scroll: scroller.scrollLeft,
+    start: side.offsetLeft,
+    view: scroller.clientWidth,
+  });
 }
 
 /** The sides of a group in their row, the gutter between, scrolling sideways below their narrowest. */
@@ -141,6 +159,28 @@ function GroupSides({ group }: { group: string }) {
       observer.disconnect();
     };
   }, []);
+  // The side with the keyboard is in view when a group comes up in the row
+  // and as the row's view changes width (a zoom, the window, the sidebar), as
+  // a page keeps what has the keyboard in view.
+  useLayoutEffect(() => {
+    const scroller = scrollerRef.current;
+    if (scroller) {
+      showSideWithKeyboard(scroller);
+    }
+  }, [group]);
+  useEffect(() => {
+    const scroller = scrollerRef.current;
+    if (!scroller) {
+      return;
+    }
+    const observer = new ResizeObserver(() => {
+      showSideWithKeyboard(scroller);
+    });
+    observer.observe(scroller);
+    return () => {
+      observer.disconnect();
+    };
+  }, []);
   /** The room the two sides share past the gutter, in layout px, as last measured. */
   const room = Math.max(rowWidth - WINDOW_CARD_GAP, 0);
   /** The same room measured now, for a drag. */
@@ -169,6 +209,11 @@ function GroupSides({ group }: { group: string }) {
       }
       // A page in a side is cut to what the row shows of it (`useBrowserSlot`).
       data-guest-clip=""
+      // The groups take turns in this one scroller. The router's scroll
+      // restoration finds a scroller by this id and writes the offset it read
+      // on one page to it on the next, so naming the group keeps one group's
+      // offset off another's row.
+      data-scroll-restoration-id={`group-sides-${group}`}
       ref={scrollerRef}
     >
       <div

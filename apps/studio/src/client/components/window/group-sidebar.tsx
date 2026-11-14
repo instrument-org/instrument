@@ -732,12 +732,11 @@ export function GroupRow({
         }
       : undefined;
   };
-  const half = (tab: WindowTab, isWide = false) => (
+  const half = (tab: WindowTab) => (
     <RowHalf
       chatTitles={chatTitles}
       close={closeOf(tab)}
       isCloseShown={isCloseShown}
-      isWide={isWide}
       key={tab.id}
       tab={tab}
     />

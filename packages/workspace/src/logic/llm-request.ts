@@ -9,17 +9,12 @@ import type { ActorRef, AnyMachineSnapshot } from "xstate";
 
 import {
   type AIGatewayModel,
-  catalogEffort,
   CLAUDE_WEB_SEARCH_TOOL_NAME,
   ClaudeWebSearchResultSchema,
-  CLIENT_SESSION_ID_HEADER,
   fetchAISDKModel,
   findCachedModelByProviderId,
   namesSameModel,
-  nativeSearchTools,
-  providerOptionsForModel,
 } from "@instrument-org/ai-gateway";
-import { CLAUDE_ACCOUNT_PROVIDER_CONFIG } from "@instrument-org/shared";
 import {
   APICallError,
   InvalidToolInputError,
@@ -28,7 +23,6 @@ import {
   parsePartialJson,
   streamText,
 } from "ai";
-import { omit } from "radashi";
 import { fromPromise } from "xstate";
 
 import { type AnyAgent } from "../agents/types";
@@ -48,10 +42,10 @@ import {
 import { refusalCandidates, suspectsRefusedMedia } from "../lib/refused-media";
 import { summarizeBeforePriceStep } from "../lib/price-step-summary";
 import { shellCommandFromToolName } from "../lib/repair-shell-command-tool-call";
-import { cacheSessionFor } from "../lib/fork-cache-session";
 import { ChatReads } from "../lib/chat-reads";
 import { ChatWrites } from "../lib/chat-writes";
 import { turnNoteFor } from "../lib/turn-note";
+import { turnRequest } from "../lib/turn-request";
 import { getWorkspaceConfig } from "../lib/workspace-config";
 import { getWorkspaceServerURL } from "../logic/server/url";
 import { SessionMessage } from "../schemas/session/message";
@@ -274,19 +268,19 @@ export const llmRequestLogic = fromPromise<
       if (!fetched.ok) {
         return undefined;
       }
+      const request = await turnRequest({
+        aiSDKModel: fetched.value,
+        aside: true,
+        chatId: input.chatId,
+        model: input.model,
+        sessionId: input.sessionId,
+        tools,
+      });
       return summarizeBeforePriceStep({
-        headers: {
-          [CLIENT_SESSION_ID_HEADER]: cacheSessionFor({
-            sessionId: input.sessionId,
-            chatId: input.chatId,
-          }),
-        },
+        headers: request.headers,
         messages,
         model: fetched.value,
-        providerOptions: providerOptionsForModel(fetched.value, {
-          effort: workspaceConfig.reasoningEffort ?? catalogEffort(input.model),
-          reasoning: input.model.reasoning,
-        }),
+        providerOptions: request.providerOptions,
         signal,
         activity: activityTelemetry({
           connection: connectionFor(
@@ -297,7 +291,7 @@ export const llmRequestLogic = fromPromise<
           purpose: turnPurpose(input.chatId, input.sessionId),
           sessionId: input.sessionId,
         }),
-        tools,
+        tools: request.tools,
       });
     },
   });
@@ -453,41 +447,14 @@ export const llmRequestLogic = fromPromise<
 
     const aiSDKModel = aiSDKModelResult.value;
 
-    // A Claude account searches with Claude Code's own WebSearch, inside the
-    // agent's step, rather than through our web_search tool, whose search on
-    // this account is a separate Claude Code process with a model of its own
-    // in front of the same WebSearch. What it finds arrives as sources.
-    // A Grok account does the same with xAI's hosted web and X search, which
-    // run on xAI's side within the response; their calls are xAI's to run
-    // and replay drops them, so only the sources they cite are kept.
-    const nativeTools = await nativeSearchTools(input.model.params.provider);
-    const ownToolNames =
-      nativeTools && new Set(Object.keys(omit(tools, [TOOL_NAMES.webSearch])));
-    const nativeCallIds = new Set<string>();
-    const searchesNatively =
-      aiSDKModel.provider === CLAUDE_ACCOUNT_PROVIDER_CONFIG.type ||
-      nativeTools !== undefined;
-    const cacheSession = cacheSessionFor({
-      sessionId: input.sessionId,
+    const request = await turnRequest({
+      aiSDKModel,
       chatId: input.chatId,
+      model: input.model,
+      sessionId: input.sessionId,
+      tools,
     });
-    const providerOptions = providerOptionsForModel(aiSDKModel, {
-      effort: workspaceConfig.reasoningEffort ?? catalogEffort(input.model),
-      reasoning: input.model.reasoning,
-    });
-    if (searchesNatively) {
-      providerOptions[CLAUDE_ACCOUNT_PROVIDER_CONFIG.type] = {
-        ...providerOptions[CLAUDE_ACCOUNT_PROVIDER_CONFIG.type],
-        builtInTools: ["WebSearch"],
-        // Its own session even for a task, so a task and its chat each keep
-        // a Claude Code session of their own, a task's forked from its
-        // chat's where it branched off.
-        sessionId: input.sessionId,
-        ...(cacheSession !== input.sessionId && {
-          parentSessionId: cacheSession,
-        }),
-      };
-    }
+    const nativeCallIds = new Set<string>();
 
     requestStartedAtMs = getCurrentDate().getTime();
     const result = streamText({
@@ -512,13 +479,7 @@ export const llmRequestLogic = fromPromise<
               },
         );
       },
-      // Groups this session's generations into one trace in the analytics our
-      // gateway reports, and routes the request to the provider cache the
-      // session's earlier requests warmed. A task names its chat's session,
-      // whose cache holds the conversation it carries on from.
-      headers: {
-        [CLIENT_SESSION_ID_HEADER]: cacheSession,
-      },
+      headers: request.headers,
       maxOutputTokens: DEFAULT_MAX_OUTPUT_TOKENS,
       maxRetries: 0, // Handled outside this function
       messages: messagesResult.value,
@@ -527,7 +488,7 @@ export const llmRequestLogic = fromPromise<
         // These are thrown and handled by the catch block
         // no-op to avoid excessive logging
       },
-      providerOptions,
+      providerOptions: request.providerOptions,
       telemetry: activityTelemetry({
         connection: connectionFor(
           workspaceConfig.getAIProviderConfigs(),
@@ -537,9 +498,7 @@ export const llmRequestLogic = fromPromise<
         purpose: turnPurpose(input.chatId, input.sessionId),
         sessionId: input.sessionId,
       }),
-      tools: searchesNatively
-        ? { ...omit(tools, [TOOL_NAMES.webSearch]), ...nativeTools }
-        : tools,
+      tools: request.tools,
     });
 
     for await (const part of result.stream) {
@@ -551,7 +510,7 @@ export const llmRequestLogic = fromPromise<
         throw storageFullError;
       }
       input.self.send({ type: "llmRequest.chunkReceived" });
-      if (isNativeSearchPart(part, ownToolNames, nativeCallIds)) {
+      if (isNativeSearchPart(part, request.ownToolNames, nativeCallIds)) {
         continue;
       }
       // A search Claude Code ran itself is recorded as one of ours, so it

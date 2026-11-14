@@ -129,8 +129,9 @@ export class ClaudeCodeSession implements MessageSource {
    * @param transcript The Claude Code session this process writes, under
    * its own id, and how it begins: new, or forked from a transcript at one
    * of its entries (its own slot's last finished step, or the step a branch
-   * left its parent at). None for a one-off, which nothing continues
-   * and so keeps no transcript.
+   * left its parent at). An aside reads its session's transcript and
+   * writes none. None for any other one-off, which nothing continues and so
+   * keeps no transcript.
    */
   constructor(
     readonly key: string,
@@ -472,7 +473,9 @@ export class ClaudeCodeSession implements MessageSource {
 
 export type TranscriptStart =
   | { kind: "fork"; at: string; from: string }
-  | { kind: "new" };
+  | { kind: "new" }
+  /** Reads a transcript up to one of its entries, and writes none. */
+  | { kind: "read"; at: string; from: string };
 
 function transcriptOptions(transcript: ClaudeCodeSession["transcript"]) {
   if (transcript === undefined) {
@@ -488,6 +491,13 @@ function transcriptOptions(transcript: ClaudeCodeSession["transcript"]) {
         resume: start.from,
         resumeSessionAt: start.at,
         sessionId: claudeSessionId,
+      };
+    case "read":
+      return {
+        forkSession: true,
+        persistSession: false,
+        resume: start.from,
+        resumeSessionAt: start.at,
       };
   }
 }

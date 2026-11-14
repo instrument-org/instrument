@@ -52,6 +52,12 @@ import {
 const sessions = new Map<string, ClaudeCodeSession>();
 
 /**
+ * The slot each session's last finished step ran in, by our session id, so
+ * an aside reads that step's transcript whatever shape it asks in.
+ */
+const latestSlots = new Map<string, string>();
+
+/**
  * The process writing each Claude Code transcript, by its session id, until
  * it has exited: closed ones stay here while they write their last entries.
  */
@@ -132,6 +138,7 @@ function streamStep({
 }) {
   const key = sessionKeyOf(options);
   const parentKey = parentKeyOf(options);
+  const aside = isAside(options);
   const { rest, systemPrompt } = splitSystemPrompt(options.prompt);
   const shape: SessionShape = {
     builtInTools: builtInToolsOf(options),
@@ -158,11 +165,19 @@ function streamStep({
         .digest("hex");
       // A request with no tools is a one-off (a title, a summary), and so is
       // one that arrives while its session's process is mid-step. Each gets
-      // a process of its own that ends with it, and keeps no transcript.
+      // a process of its own that ends with it, and keeps no transcript. An
+      // aside is a one-off too, on its session's transcript as its last
+      // finished step left it.
       const slot =
-        key === undefined || shape.tools.length === 0
+        aside || key === undefined || shape.tools.length === 0
           ? undefined
           : `${key}:${shapeHash}`;
+      // Before this process has run a step for the session, the slot the
+      // aside's own shape names, whose record a step before a launch left.
+      const besideSlot =
+        aside && key !== undefined
+          ? (latestSlots.get(key) ?? `${key}:${shapeHash}`)
+          : undefined;
       const existing = slot === undefined ? undefined : sessions.get(slot);
       const persistent = existing?.busy === true ? undefined : slot;
       const prompt = splitPrompt(options.prompt);
@@ -188,19 +203,40 @@ function streamStep({
                       readFor: "fork",
                     }),
               record: () =>
-                persistent === undefined
-                  ? Promise.resolve({ missing: "no process of its own" })
-                  : readResumeRecord(configDir, persistent, {
+                besideSlot !== undefined
+                  ? readResumeRecord(configDir, besideSlot, {
                       readFor: "resume",
-                      // The slot's own process, when it is the one that
-                      // cannot continue, goes either way: a resume carries
-                      // its transcript on, and a cold start leaves it.
-                      settled: settleTranscript,
-                    }),
+                      // The session's own process stays up: an aside reads
+                      // only the steps its transcript already holds.
+                      settled: () => Promise.resolve(),
+                    })
+                  : persistent === undefined
+                    ? Promise.resolve({ missing: "no process of its own" })
+                    : readResumeRecord(configDir, persistent, {
+                        readFor: "resume",
+                        // The slot's own process, when it is the one that
+                        // cannot continue, goes either way: a resume carries
+                        // its transcript on, and a cold start leaves it.
+                        settled: settleTranscript,
+                      }),
             },
             prompt,
           ),
         );
+        if (aside && plan.kind !== "resume") {
+          // Asked again from nothing, an aside would cost what the whole
+          // conversation does, for an answer its caller can go without.
+          console.info(
+            `[claude-account] session ${key ?? "(none)"} answered an aside with nothing: ${plan.kind === "cold" ? plan.why.detail : `a ${plan.kind} plan`}`,
+          );
+          controller.enqueue({
+            finishReason: { raw: "aside", unified: "other" },
+            type: "finish",
+            usage: emptyUsage(),
+          });
+          controller.close();
+          return;
+        }
         const changedShape =
           key === undefined || persistent === undefined
             ? undefined
@@ -283,6 +319,9 @@ function streamStep({
             leaf: session.leaf,
             seen: session.seen,
           });
+          if (key !== undefined) {
+            latestSlots.set(key, persistent);
+          }
         }
         if (persistent === undefined) {
           // Nothing continues a one-off, so a tool call it ended on would
@@ -333,7 +372,13 @@ function startOn(
           sessions.delete(created.key);
         }
       },
-      persistent === undefined ? undefined : { claudeSessionId, start },
+      persistent !== undefined
+        ? { claudeSessionId, start }
+        : // An aside's process reads the transcript it starts on and
+          // leaves it as it was.
+          start.kind === "fork"
+          ? { claudeSessionId, start: { ...start, kind: "read" } }
+          : undefined,
     );
     if (persistent !== undefined) {
       sessions.set(created.key, created);
@@ -364,7 +409,9 @@ function startOn(
         kind: "fork",
       });
       console.info(
-        `[claude-account] session ${session.key} resumed its Claude Code transcript at its last finished step, replaying ${plan.messages.length} messages after it${plan.restart === undefined ? "" : ` (its live process could not continue: ${plan.restart})`}`,
+        persistent === undefined
+          ? `[claude-account] an aside read its session's Claude Code transcript at its last finished step, asking ${plan.messages.length} messages after it`
+          : `[claude-account] session ${session.key} resumed its Claude Code transcript at its last finished step, replaying ${plan.messages.length} messages after it${plan.restart === undefined ? "" : ` (its live process could not continue: ${plan.restart})`}`,
       );
       return session;
     }
@@ -523,6 +570,16 @@ function builtInToolsOf(options: LanguageModelV4CallOptions) {
   return Array.isArray(asked)
     ? asked.filter((tool): tool is string => typeof tool === "string")
     : [];
+}
+
+/**
+ * Whether a request asks something beside its session, `{ "claude-account":
+ * { aside: true } }`, as a suggested next message does: the session's
+ * messages and one question, answered from what its transcript holds and
+ * never added to it.
+ */
+function isAside(options: LanguageModelV4CallOptions) {
+  return options.providerOptions?.[CLAUDE_ACCOUNT_PROVIDER_ID]?.aside === true;
 }
 
 /**

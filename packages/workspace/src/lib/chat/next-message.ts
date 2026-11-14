@@ -1,8 +1,4 @@
-import {
-  CLIENT_SESSION_ID_HEADER,
-  fetchAISDKModel,
-  providerOptionsForModel,
-} from "@instrument-org/ai-gateway";
+import { fetchAISDKModel } from "@instrument-org/ai-gateway";
 import { APP_NAME } from "@instrument-org/shared";
 import {
   generateText,
@@ -20,8 +16,8 @@ import { type SessionMessage } from "../../schemas/session/message";
 import { type StoreId } from "../../schemas/store-id";
 import { activityTelemetry, connectionFor } from "../activity/record";
 import { ChatReads } from "../chat-reads";
-import { cacheSessionFor } from "../fork-cache-session";
 import { prepareModelMessages, TRANSIENT } from "../prepare-model-messages";
+import { turnRequest } from "../turn-request";
 import { getWorkspaceConfig } from "../workspace-config";
 import { chatIsWorking } from "./chats";
 import { withoutInlineThinking } from "../without-inline-thinking";
@@ -223,12 +219,21 @@ async function suggestOnSettle(
   for (const tool of await instrumentAgent.getTools()) {
     tools[tool.name as string] = await tool.aiSDKTool({ chatId, model });
   }
+  // The turn's own request, so its cache serves all but the instruction,
+  // asked beside the chat so the answer is never part of it.
+  const request = await turnRequest({
+    aiSDKModel: aiSDKModel.value,
+    aside: true,
+    chatId,
+    effort: "low",
+    model,
+    sessionId,
+    tools,
+  });
   const result = await generateText({
     abortSignal: signal,
     allowSystemInMessages: true,
-    headers: {
-      [CLIENT_SESSION_ID_HEADER]: cacheSessionFor({ chatId, sessionId }),
-    },
+    headers: request.headers,
     maxOutputTokens: SUGGESTION_MAX_OUTPUT_TOKENS,
     messages: [
       ...messages.value,
@@ -239,10 +244,7 @@ async function suggestOnSettle(
       } satisfies ModelMessage,
     ],
     model: aiSDKModel.value,
-    providerOptions: providerOptionsForModel(aiSDKModel.value, {
-      effort: "low",
-      reasoning: model.reasoning,
-    }),
+    providerOptions: request.providerOptions,
     telemetry: activityTelemetry({
       chatId,
       connection: connectionFor(
@@ -253,7 +255,7 @@ async function suggestOnSettle(
       sessionId,
     }),
     tools: mapValues(
-      tools,
+      request.tools,
       ({ execute: _execute, ...definition }) => definition,
     ),
   });

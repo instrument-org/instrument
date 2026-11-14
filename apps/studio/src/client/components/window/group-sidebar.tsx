@@ -3,6 +3,7 @@ import { openBuiltInPage } from "@/client/atoms/page-requests";
 import { openSettings } from "@/client/atoms/settings-modal";
 import {
   groupSearchAtom,
+  SIDEBAR_WIDTH_DEFAULT,
   SIDEBAR_WIDTH_MAX,
   SIDEBAR_WIDTH_MIN,
   sidebarProjectAtom,
@@ -106,7 +107,7 @@ function SoftKey({ children }: { children: ReactNode }) {
 }
 
 /** Dragged narrower than this, the sidebar slides shut rather than stopping at its floor. */
-const SIDEBAR_COLLAPSE_THRESHOLD = 240;
+const SIDEBAR_COLLAPSE_THRESHOLD = 140;
 /** The least the group beside the sidebar keeps while the sidebar is dragged wider. */
 const GROUP_WIDTH_MIN = 560;
 
@@ -119,7 +120,7 @@ const GROUP_WIDTH_MIN = 560;
 export function sidebarBounds(width: number): RailBounds {
   return {
     collapse: SIDEBAR_COLLAPSE_THRESHOLD,
-    initial: SIDEBAR_WIDTH_MIN,
+    initial: SIDEBAR_WIDTH_DEFAULT,
     max: Math.min(
       SIDEBAR_WIDTH_MAX,
       Math.max(SIDEBAR_WIDTH_MIN, width - GROUP_WIDTH_MIN),

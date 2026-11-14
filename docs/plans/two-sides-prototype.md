@@ -15,7 +15,7 @@ Page contents can stay rough. What has to be right is the layout engine, draggin
 - **A side never shrinks to nothing.** The gutter between the sides resizes them and stops at each side's minimum width. Closing a side's last tab leaves the other side as the whole group.
 - **Below the minimum width** the group's sides need, the group scrolls sideways instead of squeezing them.
 - A group's sidebar row: the typed name, else the title of its first chat (the left side first, then in tab order), else the title of the tab up on the side with the keyboard. Its second line is that chat's latest line, as today. Its marks are every tab's, in order. Pins and names are the group's own.
-- **The sidebar** is tab groups and projects, with no search of its own. Chats are found from the Chats page, which ⇧⌘F opens with the caret in its search, and from a chat's address field.
+- **The sidebar** is tab groups and projects, with no search of its own. Chats are found from the Chats page, which ⇧⌘F opens with the caret in its search, from a chat's address field, and from a new tab's Closed recently list.
 - **History** is every chat no window has a tab on, and every kept draft. Opening one from History opens a new group with that one tab, as today.
 
 ## Opening things, with no magic placement
@@ -28,7 +28,7 @@ Page contents can stay rough. What has to be right is the layout engine, draggin
 
 ## The new tab, which is a new chat
 
-A new tab is the chat zero state inside a browser's chrome: the toolbar with an empty address field, the bookmarks bar with Files first, and today's new-chat composer at the middle under them. Its tab, its row in the sidebar and the tab menu's New Tab in Split all call it New Tab. Typing an address in the field and pressing Enter goes there in this tab, and Back comes back to the new tab. Sending a message makes this tab the chat, in place. A file let go on the page opens in this tab, as a browser's new tab does, except over the composer, which attaches it to the first message; once something is written, the tab takes files as a chat's does. Each new tab is its own draft; one that is never typed in leaves nothing behind.
+A new tab is the chat zero state inside a browser's chrome: the toolbar with an empty address field, the bookmarks bar with Files first, and today's new-chat composer at the middle under them. Its tab, its row in the sidebar and the tab menu's New Tab in Split all call it New Tab. Typing an address in the field and pressing Enter goes there in this tab, and Back comes back to the new tab. Sending a message makes this tab the chat, in place. A file let go on the page opens in this tab, as a browser's new tab does, except over the composer, which attaches it to the first message; once something is written, the tab takes files as a chat's does. Each new tab is its own draft; one that is never typed in leaves nothing behind. Under the composer, Closed recently lists the five chats no window has a tab on that were active last, History's chats, each with its title and when it was last active (`closed-recently.tsx`). Choosing one opens it in this tab while nothing is written here, so Back comes back to the new tab, and as a tab right after it once something is.
 
 ## A side's chrome
 

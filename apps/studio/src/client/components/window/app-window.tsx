@@ -162,11 +162,12 @@ import {
   groupAlong,
   isWorthKeeping,
   startTabGroupsFromZero,
-  type TabGroup,
   useOpenGroups,
   useTabGroupActions,
   useTabGroupUpkeep,
   windowTabGroupsAtom,
+  type WorkingChat,
+  workingChatsIn,
 } from "./tab-groups";
 import {
   groupSearchAtom,
@@ -507,12 +508,12 @@ function WindowShell({
   });
   useTabGroupUpkeep(appTabHref, groupList.open);
   // Groups asked to close while an agent among them works, waiting on the
-  // person's say: all of them, those working, and the group a row's menu
-  // asked from, which the window moves to.
+  // person's say: all of them, every chat at work in them, and the group a
+  // row's menu asked from, which the window moves to.
   const [closing, setClosing] = useState<{
     groups: readonly string[];
     keep?: string;
-    working: TabGroup[];
+    working: WorkingChat[];
   }>();
   const closeNow = (closed: readonly string[], keep?: string) => {
     if (keep === undefined) {
@@ -523,14 +524,12 @@ function WindowShell({
       groups.closeAll(closed, keep);
     }
   };
-  /** Closes groups, asking once first while any of their agents works. */
+  /** Closes groups, asking once first while any chat in them works. */
   const askToClose = (closed: readonly string[], keep?: string) => {
-    const working = groupList.open.filter(
-      (entry) =>
-        closed.includes(entry.group) &&
-        entry.kind === "chat" &&
-        entry.chat.working,
-    );
+    const working = workingChatsIn(closed, {
+      chats: queryClient.getQueryData(chatListOptions().queryKey) ?? [],
+      state: store.get(windowTabsAtom),
+    });
     if (working.length > 0) {
       setClosing({
         groups: closed,
@@ -1716,7 +1715,7 @@ function WindowShell({
               )}
             />
             <CloseGroupDialog
-              entries={closing?.working}
+              groupCount={closing?.groups.length ?? 0}
               onCancel={() => {
                 setClosing(undefined);
               }}
@@ -1725,15 +1724,12 @@ function WindowShell({
                 if (!closing) {
                   return;
                 }
-                for (const entry of closing.working) {
-                  if (entry.kind === "chat") {
-                    void rpcClient.workspace.session.stop.call({
-                      id: entry.chat.id,
-                    });
-                  }
+                for (const { chat } of closing.working) {
+                  void rpcClient.workspace.session.stop.call({ id: chat.id });
                 }
                 closeNow(closing.groups, closing.keep);
               }}
+              working={closing?.working}
             />
           </WindowFrame>
           {/* What a tab's Expand asks to see large, over the window. */}

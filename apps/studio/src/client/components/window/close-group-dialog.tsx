@@ -10,7 +10,7 @@ import { type ChatId } from "@instrument-org/workspace/client";
 import { useRef } from "react";
 
 import { GroupRow } from "./group-sidebar";
-import { type TabGroup } from "./tab-groups";
+import { type WorkingChat } from "./tab-groups";
 
 const NO_TITLES = new Map<ChatId, string>();
 
@@ -36,18 +36,24 @@ function KeyCap({
 }
 
 /**
- * Asked before groups whose agents are working close, once for all of them:
- * each group's row as the sidebar draws it, then Stop and close under Return
- * and Keep open under Escape, which closes none of what was asked.
+ * Asked before groups close while chats in them are working, once for all
+ * of them: a row for each chat at work, whichever of its group's chats it
+ * is, named by the chat and drawn as the sidebar draws a chat's group, then
+ * Stop and close under Return and Keep open under Escape, which closes none
+ * of what was asked.
  */
 export function CloseGroupDialog({
-  entries,
+  groupCount,
   onCancel,
   onConfirm,
+  working,
 }: {
-  entries: readonly TabGroup[] | undefined;
+  /** How many groups are closing, working or not. */
+  groupCount: number;
   onCancel: () => void;
   onConfirm: () => void;
+  /** The chats at work in them; the dialog is up while there are any. */
+  working: readonly WorkingChat[] | undefined;
 }) {
   const stopRef = useRef<HTMLButtonElement>(null);
   return (
@@ -57,7 +63,7 @@ export function CloseGroupDialog({
           onCancel();
         }
       }}
-      open={entries !== undefined}
+      open={working !== undefined}
     >
       <AlertDialogContent
         className="max-w-100"
@@ -67,18 +73,24 @@ export function CloseGroupDialog({
         }}
       >
         <AlertDialogTitle className="sr-only">
-          {entries && entries.length > 1
+          {groupCount > 1
             ? "Stop and close these tab groups?"
             : "Stop and close this tab group?"}
         </AlertDialogTitle>
-        {entries && (
+        {working && (
           <div className="pointer-events-none flex max-h-80 flex-col gap-0.5 overflow-hidden rounded-xl bg-foreground/[0.03] p-1">
-            {entries.map((entry) => (
+            {working.map(({ chat, group }) => (
               <GroupRow
                 chatTitles={NO_TITLES}
-                entry={entry}
+                entry={{
+                  chat,
+                  group,
+                  kind: "chat",
+                  pinned: false,
+                  title: chat.title,
+                }}
                 isUp
-                key={entry.group}
+                key={chat.id}
               />
             ))}
           </div>

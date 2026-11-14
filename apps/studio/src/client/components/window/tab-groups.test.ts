@@ -17,6 +17,7 @@ import {
   pinnedFromStars,
   pinnedWith,
   upkeptList,
+  workingChatsIn,
 } from "./tab-groups";
 import {
   groupLayoutOf,
@@ -84,7 +85,9 @@ describe("the tab groups another window has open", () => {
   // a new chat with nothing in it yet.
   const lists = groupLists({
     chats: [chat(LISBON, "Trip to Lisbon")],
-    drafts: [{ createdAt: 1, id: "plan", updatedAt: 2, words: "Plan the week" }],
+    drafts: [
+      { createdAt: 1, id: "plan", updatedAt: 2, words: "Plan the week" },
+    ],
     elsewhere: {
       chats: [LISBON],
       groups: [LISBON, "draft:plan", "group:pages", "draft:empty"],
@@ -284,7 +287,10 @@ describe("a two-sided tab group, copied", () => {
     );
     const ups = (group: string) => {
       const layout = groupLayoutOf(shown, group);
-      return { focused: layout.focused, ups: layout.sides.map((side) => side.up) };
+      return {
+        focused: layout.focused,
+        ups: layout.sides.map((side) => side.up),
+      };
     };
     expect(ups("copy")).toEqual({ focused: 0, ups: ["n2", "n4"] });
     expect(ups("g")).toEqual({ focused: 0, ups: ["b", "y"] });
@@ -614,5 +620,74 @@ describe("the groups an earlier build kept, on this build's first launch", () =>
 
   it("leaves the pins as they were when no listed chat is starred", () => {
     expect(pinnedFromStars(PINS, [BUDGET], CHATS)).toBe(PINS);
+  });
+});
+
+describe("the chats at work in tab groups closing", () => {
+  const FIRST = ChatIdSchema.parse("2026-11-14-first");
+  const SECOND = ChatIdSchema.parse("2026-11-14-second");
+  const ELSEWHERE = ChatIdSchema.parse("2026-11-14-elsewhere");
+  const chat = (id: Chat["id"], working: boolean): Chat => ({
+    archived: false,
+    firstAsk: "",
+    holds: { apps: [], files: [], sites: [] },
+    id,
+    lastUserMessageAt: 1,
+    sessionId: StoreId.newSessionId(),
+    starred: false,
+    status: working ? "working" : "idle",
+    title: id,
+    titleByApp: true,
+    unread: false,
+    unreadByUser: false,
+    working,
+  });
+  // A group with a chat on each side and a page between, and another group
+  // with a chat of its own.
+  const state: WindowTabs = {
+    activeByGroup: {},
+    tabs: [
+      { group: "group:trip", href: chatHref(FIRST), id: "a", kind: "screen" },
+      {
+        group: "group:trip",
+        id: "p",
+        kind: "page",
+        openedAt: 1,
+        url: "https://maps.test/",
+      },
+      {
+        group: "group:trip",
+        href: chatHref(SECOND),
+        id: "b",
+        kind: "screen",
+        side: 1,
+      },
+      {
+        group: "group:other",
+        href: chatHref(ELSEWHERE),
+        id: "c",
+        kind: "screen",
+      },
+    ],
+  };
+  const working = (chats: Chat[]) =>
+    workingChatsIn(["group:trip"], { chats, state }).map(
+      ({ chat: { id }, group }) => `${group} ${id}`,
+    );
+
+  it("finds a group's second chat at work while its first is not", () => {
+    expect(
+      working([chat(FIRST, false), chat(SECOND, true), chat(ELSEWHERE, true)]),
+    ).toEqual([`group:trip ${SECOND}`]);
+  });
+
+  it("finds every chat at work in a group, in the order its row reads them", () => {
+    expect(
+      working([chat(SECOND, true), chat(FIRST, true), chat(ELSEWHERE, false)]),
+    ).toEqual([`group:trip ${FIRST}`, `group:trip ${SECOND}`]);
+  });
+
+  it("finds none in a group whose chats are idle", () => {
+    expect(working([chat(FIRST, false), chat(SECOND, false)])).toEqual([]);
   });
 });

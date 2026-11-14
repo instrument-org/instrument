@@ -147,3 +147,39 @@ describe("splicedBody", () => {
     expect(save(disk, edited)).toBe(expected);
   });
 });
+
+describe("an empty list item", () => {
+  /** `markdown` parsed, with an empty item added at the end of its first list, as Return at an item's end leaves it. */
+  function withEmptyItem(markdown: string) {
+    const doc = parse(markdown);
+    let at = -1;
+    doc.descendants((node, pos) => {
+      if (at === -1 && node.type.name === "bullet_list") {
+        at = pos + node.nodeSize - 1;
+      }
+      return at === -1;
+    });
+    const { list_item: item, paragraph } = doc.type.schema.nodes;
+    if (!item || !paragraph) {
+      throw new Error("no list item in the schema");
+    }
+    return view.state
+      .apply(view.state.tr.replaceWith(0, view.state.doc.content.size, doc))
+      .tr.insert(at, item.create(null, paragraph.create())).doc;
+  }
+
+  it("is not written", () => {
+    const disk = "* one\n* two\n";
+    const sync = createDocSync({ parse, serialize, view: () => view });
+    const text = sync.splicedBody(
+      withEmptyItem(disk),
+      sync.loadDisk(disk, "1"),
+    );
+    expect(text).not.toContain("<br");
+    expect(text).toMatchInlineSnapshot(`
+      "* one
+      * two
+      "
+    `);
+  });
+});

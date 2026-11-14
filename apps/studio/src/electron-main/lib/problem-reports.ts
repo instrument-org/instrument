@@ -56,6 +56,7 @@ import { z } from "zod";
 
 import { createScopedLogger, getMainLogFilePath } from "./electron-logger";
 import { listExceptionEvents } from "./exception-store";
+import { describeFreeze, type Freeze } from "./main-thread-freezes";
 import {
   createReportRedactor,
   type ReportKnownValues,
@@ -135,13 +136,15 @@ function addPendingProblem(problem: Omit<PendingProblem, "count" | "firstAt">) {
 
 /**
  * How the last session ended, as the crash diagnostics found it at this
- * start: whether it never exited, the uncaught throw it wrote down, and the
- * native crash dumps written since.
+ * start: whether it never exited, the uncaught throw it wrote down, the
+ * native crash dumps written since, and the freeze its main thread was in
+ * when it ended.
  */
 export type EndedSession = {
   crashRecord: ExceptionEvent | undefined;
   dumps: number;
   endedAt: number;
+  freeze: Freeze | undefined;
   previousVersion: string | undefined;
   unclean: boolean;
 };
@@ -152,42 +155,58 @@ export type EndedSession = {
  * Only a session that never exited counts. A throw or a crash dump from a
  * session that went on to quit normally was survived, and the person saw
  * whatever came of it then, so it stays in the log alone. A session that
- * never exited with a throw or a dump on record crashed; with neither, it
- * most likely stopped responding and was force-quit, which is a hang. In
- * development, stopping the dev server or reloading main ends every session
- * that way, so a hang is only recorded for a packaged build.
+ * never exited while its main thread was frozen stopped responding, and is
+ * its own problem whatever else it left: the freeze is what ended it. Past
+ * that, a session that never exited with a throw or a dump on record
+ * crashed; with neither, it most likely stopped responding and was
+ * force-quit, which is a hang. In development, stopping the dev server or
+ * reloading main ends every session that way, so a hang with no freeze on
+ * record is only recorded for a packaged build.
  */
 export function recordEndedSession(session: EndedSession) {
   if (!session.unclean) {
     return;
   }
+  const { freeze } = session;
   const crashed = session.crashRecord !== undefined || session.dumps > 0;
-  if (!crashed && !app.isPackaged) {
+  if (!freeze && !crashed && !app.isPackaged) {
     return;
   }
   const thrown = session.crashRecord?.exceptions.at(-1);
-  const problem = crashed
+  const problem = freeze
     ? {
-        fingerprint: session.crashRecord
-          ? `crash:${session.crashRecord.fingerprint}`
-          : fingerprintOf("native", "crash"),
-        kind: "crash" as const,
-        title: thrown
-          ? `${thrown.type}: ${thrown.value}`.slice(0, 300)
-          : "Instrument quit unexpectedly",
-      }
-    : {
-        fingerprint: fingerprintOf("unclean-exit", "hang"),
+        fingerprint: fingerprintOf("main-thread-freeze", "hang"),
         kind: "hang" as const,
-        title: "Instrument didn't close properly",
-      };
+        title: "Instrument stopped responding",
+      }
+    : crashed
+      ? {
+          fingerprint: session.crashRecord
+            ? `crash:${session.crashRecord.fingerprint}`
+            : fingerprintOf("native", "crash"),
+          kind: "crash" as const,
+          title: thrown
+            ? `${thrown.type}: ${thrown.value}`.slice(0, 300)
+            : "Instrument quit unexpectedly",
+        }
+      : {
+          fingerprint: fingerprintOf("unclean-exit", "hang"),
+          kind: "hang" as const,
+          title: "Instrument didn't close properly",
+        };
   const { details, events } = describeProblem({
-    ended: crashed
-      ? session.crashRecord
-        ? "crashed after an uncaught error"
-        : `crashed (${session.dumps} crash dump${session.dumps === 1 ? "" : "s"} kept on ${osConventionsFor(process.platform).thisComputer})`
-      : "ended without closing, with no crash on record",
-    lead: session.crashRecord,
+    ended: freeze
+      ? `stopped responding, its main thread frozen for ${describeFreeze(freeze)}`
+      : crashed
+        ? session.crashRecord
+          ? "crashed after an uncaught error"
+          : `crashed (${session.dumps} crash dump${session.dumps === 1 ? "" : "s"} kept on ${osConventionsFor(process.platform).thisComputer})`
+        : "ended without closing, with no crash on record",
+    found: freeze
+      ? [`frozenSince: ${new Date(freeze.startedAt).toISOString()}`]
+      : [],
+    // A throw the session survived before it froze did not end it.
+    lead: freeze ? undefined : session.crashRecord,
     surface: problem.kind,
     version: session.previousVersion,
   });

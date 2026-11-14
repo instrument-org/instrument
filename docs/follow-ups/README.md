@@ -39,6 +39,7 @@ Each entry is the follow-up's title and the opening of its own `Status:` line.
 - [Why Claude account sessions cold-start, counted over real use](claude-account-cold-starts.md): open · Check after: a week of real chats on a Claude account · Last checked: 2026-11-08 (no Claude account requests in the inspected activity)
 - [Why reply streams drop partway](dropped-reply-streams.md): open · Check after: 2026-11-22, or when production exception reports are accessible · Last checked: 2026-11-08
 - [Which parts of the app write their log too fast](log-volume.md): open · Check after: 2026-11-29, after a week or more on a beta that carries the log volume warnings · Last checked: never
+- [How often the main thread freezes in real use, and whether the watchdog tells the truth](main-thread-freezes.md): open · Check after: 2026-12-05 · Last checked: never
 - [How often and how long the main thread stalls in real use](main-thread-stalls.md): open · Check after: 2026-11-22, with OS wake periods separated from foreground stalls · Last checked: 2026-11-08
 - [What a second computer shows of a chat whose task waits on a card](multi-computer-sync-audit.md): open (cards resolved, see Result) · Check after: when using one workspace from more than one computer is taken on · Last checked: 2026-10-30
 - [Whether page links without a link token can stop opening](page-links-without-a-token.md): open · Check after: 2026-12-13, 30 days after the pages worker began giving every new page a link token, plus a day for its bucket's lifecycle rule · Last ch...

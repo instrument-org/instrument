@@ -38,7 +38,8 @@ it("names a call that ran during a stall, and one only waiting across it apart",
   vi.useFakeTimers();
   let lag = 0;
   vi.spyOn(performance, "now").mockImplementation(() => Date.now() + lag);
-  watchMainThreadStalls();
+  const onTick = vi.fn();
+  watchMainThreadStalls({ onTick });
 
   // A request waiting on the network for the whole stretch.
   void trackRPCForStalls({
@@ -59,6 +60,8 @@ it("names a call that ran during a stall, and one only waiting across it apart",
   lag = 1200;
   vi.advanceTimersByTime(100);
 
+  // Every tick beats for the freeze watchdog, the late ones too.
+  expect(onTick).toHaveBeenCalledTimes(4);
   expect(warn.mock.calls).toMatchInlineSnapshot(`
     [
       [

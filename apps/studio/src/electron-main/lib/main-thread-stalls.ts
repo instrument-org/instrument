@@ -46,9 +46,10 @@ export async function trackRPCForStalls<T>(options: {
  * The main thread is also the one that hands every click and key to the
  * windows, so a stall here is a window that does not answer, even when the
  * renderer is free. Measured as the lateness of a repeating timer, which costs
- * nothing between stalls; a sleeping computer is not a stall.
+ * nothing between stalls; a sleeping computer is not a stall. `onTick` runs on
+ * every tick, late or not, as the freeze watchdog's heartbeat.
  */
-export function watchMainThreadStalls() {
+export function watchMainThreadStalls({ onTick }: { onTick: () => void }) {
   let last = performance.now();
   let isSuspended = false;
   powerMonitor.on("suspend", () => {
@@ -59,6 +60,7 @@ export function watchMainThreadStalls() {
     last = performance.now();
   });
   const timer = setInterval(() => {
+    onTick();
     const now = performance.now();
     const late = now - last - TICK_MS;
     last = now;

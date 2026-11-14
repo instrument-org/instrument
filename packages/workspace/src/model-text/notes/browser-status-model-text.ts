@@ -14,6 +14,9 @@ export function browserStatusModelNote(data: Status) {
   }
 
   const tabs = data.tabs.map(tabLine).join("; ");
+  const theirs = data.tabs.some((tab) => tab.openedBy !== "task")
+    ? " A tab no agent opened is the user's: navigate it only when they ask, and open pages of your own with `agent-browser tab new <url>`."
+    : "";
   const asleep = data.tabs.some((tab) => tab.asleep)
     ? " A tab asleep draws nothing and runs its timers slowly until a command reaches it, which wakes it with its page as it was."
     : "";
@@ -21,7 +24,7 @@ export function browserStatusModelNote(data: Status) {
     ? " A page unloaded out of sight comes back from its address the next time the tab is used, without what was typed or scrolled in it."
     : "";
   return systemNote`
-    This chat's tabs, which the chat and each of its tasks all see and drive: ${tabs}. \`agent-browser tab <id>\` switches to one.${asleep}${unloads}${closed}
+    This chat's tabs, which the chat and each of its tasks all see: ${tabs}. \`agent-browser tab <id>\` switches to one.${theirs}${asleep}${unloads}${closed}
   `;
 }
 

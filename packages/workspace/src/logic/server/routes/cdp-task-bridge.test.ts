@@ -346,24 +346,41 @@ beforeEach(() => {
 });
 
 describe("a session's browser", () => {
-  it("is every page tab the window groups in the chat, a tab moved in with a draft included, by the window's ids", async () => {
+  it("is the tabs the chat's agents opened and the session worked in, by the window's ids, and a tab of the user's once its agent names it", async () => {
     // A tab the window put in the chat with nothing written about it: a
     // draft's page as it becomes the chat.
     const sent = tab({ worked: false });
     const own = tab();
+    const another = tab({ opened: true, worked: false });
     const { command, events } = connect();
 
     await command("Target.setDiscoverTargets", { discover: true });
     const targets = await command("Target.getTargets");
 
     // The tab the session worked in first, then the rest.
-    expect(
-      (targets.result?.targetInfos as { targetId: string }[]).map(
-        (info) => info.targetId,
-      ),
-    ).toEqual([own.tabId, sent.tabId]);
-    expect(created(events)).toEqual([own.tabId, sent.tabId]);
+    const ids = (infos: unknown) =>
+      (infos as { targetId: string }[]).map((info) => info.targetId);
+    expect(ids(targets.result?.targetInfos)).toEqual([
+      own.tabId,
+      another.tabId,
+    ]);
+    expect(created(events)).toEqual([own.tabId, another.tabId]);
     expect(asked).toEqual([]);
+
+    expect(
+      await announceChatTab(
+        { chatId: TASK_ID, sessionId: SESSION_ID },
+        sent.tabId,
+      ),
+    ).toBe(true);
+    const again = await command("Target.getTargets");
+
+    expect(created(events)).toEqual([own.tabId, another.tabId, sent.tabId]);
+    expect(ids(again.result?.targetInfos)).toEqual([
+      own.tabId,
+      sent.tabId,
+      another.tabId,
+    ]);
   });
 
   it("gives a session that has worked in none of the chat's tabs a blank page of its own with no tab, listed first", async () => {
@@ -376,8 +393,8 @@ describe("a session's browser", () => {
       (info) => info.targetId,
     );
     expect(asked).toEqual([]);
-    expect(ids).toHaveLength(2);
-    expect(ids[1]).toBe(theirs.tabId);
+    expect(ids).toHaveLength(1);
+    expect(ids).not.toContain(theirs.tabId);
     expect(record.openedTabs).toEqual([]);
   });
 

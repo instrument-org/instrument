@@ -70,14 +70,18 @@ interface Attached {
 }
 
 /**
- * The browser a session of a chat sees: every page tab of its chat, for the
- * chat's own conversation and each of its tasks alike.
+ * The browser a session of a chat sees: the page tabs of its chat that its
+ * agents opened, for the chat's own conversation and each of its tasks
+ * alike, and a tab of the user's once the agent names it.
  *
  * agent-browser speaks to a whole browser (it discovers pages, attaches to
  * each on a flat session, opens and closes tabs), so this answers the
  * `Target.*` domain truthfully over the chat's tabs as the window lists them
  * rather than pinning the connection to one page. Each tab is known to the
- * agent by the window's id for it, the one the conversation's note uses. The
+ * agent by the window's id for it, the one the conversation's note uses. A
+ * tab no agent opened and the session never worked in is the user's, and is
+ * listed only once the agent names it (`announceOne`), so a command that
+ * names no tab never lands in it. The
  * tabs the session worked in and nobody used since come first, the latest
  * first, so a daemon that reconnects starts where it left off; a session
  * with no such tab gets a blank page of its own to start in, so its first
@@ -94,7 +98,8 @@ interface Attached {
  * A tab another session or the person opens after the agent connected is
  * not announced on its own, since agent-browser makes a tab it discovers its
  * active one: the wrapper announces it when the agent names it
- * (`announceChatTab` in `tab-activity.ts`), and the next connection lists it.
+ * (`announceChatTab` in `tab-activity.ts`), and the next connection lists
+ * it when an agent opened it.
  *
  * Each attached tab is a `TargetSession` (`cdp-bridge.ts`), so the
  * local-file gate, the held navigate, and the teardown hold per tab.
@@ -409,14 +414,26 @@ export function handleTaskCdpClient(
 
   /**
    * Brings what the agent knows up to the window: tabs closed since are
-   * forgotten, and the chat's tabs announced. A session that has worked in
-   * none of them, or only in ones someone else has used since, first gets a
-   * blank page of its own, listed first, which agent-browser starts in. It
-   * gets a tab once it goes somewhere, and closes once the session opens a
-   * tab or goes to work in another first (`closeStartTab`).
+   * forgotten, and the chat's tabs the agent may work in unnamed announced:
+   * this connection's pages with no tab yet, the tabs the chat's agents
+   * opened, the ones the session worked in and nobody used since, and those
+   * it was already told of. A session that has worked in none of them, or
+   * only in ones someone else has used since, first gets a blank page of its
+   * own, listed first, which agent-browser starts in. It gets a tab once it
+   * goes somewhere, and closes once the session opens a tab or goes to work
+   * in another first (`closeStartTab`).
    */
   const reconcile = async () => {
-    let now = await tabs();
+    const all = await tabs();
+    const { openedTabs } = await getChatState(chatDir(chatId));
+    const opened = new Set<string>(openedTabs.map((tab) => tab.id));
+    let now = all.filter(
+      (tab) =>
+        pending.has(tab.tabId) ||
+        announced.has(tab.tabId) ||
+        opened.has(tab.targetId) ||
+        ownLast(tab) !== undefined,
+    );
     if (!started && !now.some((tab) => ownLast(tab) !== undefined)) {
       started = true;
       const own = await openPage();
@@ -426,7 +443,7 @@ export function handleTaskCdpClient(
       }
     }
     started = true;
-    const ids = new Set(now.map((tab) => tab.tabId));
+    const ids = new Set([...all, ...now].map((tab) => tab.tabId));
     for (const tabId of announced.keys()) {
       if (!ids.has(tabId)) {
         forget(tabId);

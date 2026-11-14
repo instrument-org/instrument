@@ -470,7 +470,7 @@ describe("SessionMessage.toModelMessages", () => {
             {
               "text": "
       <instrument-system-note>
-      This chat's tabs, which the chat and each of its tasks all see and drive: t1 at https://example.com ("Example"), opened by an agent. \`agent-browser tab <id>\` switches to one.
+      This chat's tabs, which the chat and each of its tasks all see: t1 at https://example.com ("Example"), opened by an agent. \`agent-browser tab <id>\` switches to one.
       </instrument-system-note>",
               "type": "text",
             },

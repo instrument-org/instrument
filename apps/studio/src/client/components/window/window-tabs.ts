@@ -2,14 +2,7 @@ import { type BrowserTab, type WindowTab } from "@/client/atoms/window";
 import { atom, useAtomValue, useSetAtom } from "jotai";
 
 import { getGroupTabRouter } from "@/client/lib/group-tab-router-registry";
-import {
-  keptMembersAtom,
-  readKept,
-  readKeptMembers,
-  takeKept,
-  writeKept,
-} from "@/client/lib/kept-state";
-import { draftOfGroup } from "@/shared/drafts";
+import { keptMembersAtom } from "@/client/lib/kept-state";
 import {
   fileOfTabGroup,
   HOSTED_PAGE_GROUP_PREFIX,
@@ -22,19 +15,19 @@ import {
   addPages,
   addScreen,
   besideOf,
-  chatPlaceOf,
-  chatsOfGroup,
+  chatTabOf,
   chatUpIn,
   groupLayoutOf,
   closeTab,
   dropGroup,
   everyTabId,
   focusSide,
+  type GroupOwn,
   isChatTab,
+  markPrompted,
   moveTabTo,
   moveToGroup,
   navigateScreen,
-  normalizeWindowTabs,
   openInGroup,
   openOrFocusScreen,
   openPage,
@@ -49,7 +42,6 @@ import {
   restoreGroup,
   screenMoved,
   selectTab,
-  type StoredWindowTabs,
   stepTrail,
   stepVisit,
   tabsIn,
@@ -57,91 +49,21 @@ import {
   tabShowingIn,
   tabToScreen,
   type WindowTabs,
-  withoutChatsBehind,
+  withGroupOwn,
 } from "./tab-model";
 import { openLinkAddress } from "./open-link-address";
 import { standInTabsAtom } from "./stand-in-tabs";
-import { chatHref, chatOfGroup, newChatHref, sameHref } from "./window-href";
+import { sameHref } from "./window-href";
 
 /** The member a tab with no group is kept under. */
 const NO_GROUP = "-";
 
-// What a build with one window kept whole, once, as every window keeps it now: ahead of
-// the atom below, which reads what is kept as it is made.
-const earlierTabs = takeKept("layout", "window-tabs.v9");
-if (isStoredWindowTabs(earlierTabs)) {
-  for (const [member, group] of splitTabGroups(
-    normalizeWindowTabs(earlierTabs),
-  )) {
-    writeKept(fileOfTabGroup(member), `${WINDOW_TABS_KEY}/${member}`, group);
-  }
-}
-carryEarlierGroups();
-
 /**
- * The groups a build that drew a group's chat beside its tabs kept, as
- * groups whose chat is a tab like any other: once, ahead of the atom below,
- * and leaving what that build kept for it to read. A group with its chat's
- * card open gets the chat's tab on a side of its own, the right, with the
- * keyboard; one whose card was closed gets it last on its one side. A
- * draft's group gets the draft's new chat the same way.
- */
-function carryEarlierGroups() {
-  if (readKeptMembers("layout", WINDOW_TABS_KEY).size > 0) {
-    return;
-  }
-  const closed = readKept("view", "tab-groups-chat-closed.v2");
-  const isClosed = (group: string) =>
-    closed !== null &&
-    typeof closed === "object" &&
-    group in closed &&
-    (closed as Record<string, unknown>)[group] === true; // Checked a key at a time.
-  for (const [group, member] of readKeptMembers("layout", "window-tabs.v10")) {
-    if (!isTabGroupMember(member)) {
-      continue;
-    }
-    const carried = carriedMember(group, member, isClosed(group));
-    writeKept("layout", `${WINDOW_TABS_KEY}/${group}`, carried);
-  }
-}
-
-/** One group as `carryEarlierGroups` keeps it again. */
-function carriedMember(
-  group: string,
-  member: TabGroupMember,
-  isClosed: boolean,
-): TabGroupMember {
-  const chat = chatOfGroup(group);
-  const draft = draftOfGroup(group);
-  const href =
-    chat === undefined
-      ? draft === undefined
-        ? undefined
-        : newChatHref(draft)
-      : chatHref(chat);
-  if (href === undefined || member.tabs.length === 0) {
-    return member;
-  }
-  const chatTab: WindowTab = {
-    group,
-    href,
-    id: newScreenId(),
-    kind: "screen",
-    ...(isClosed ? {} : { side: 1 }),
-  };
-  if (isClosed) {
-    return { ...member, tabs: [...member.tabs, chatTab] };
-  }
-  return {
-    active: chatTab.id,
-    ...(member.active === undefined ? {} : { beside: member.active }),
-    tabs: [...member.tabs, chatTab],
-  };
-}
-
-/**
- * The window's tabs, one list across every group, kept across launches on
- * this computer. Written only here, through the functions of `tab-model.ts`.
+ * Every group's tabs on this computer, one list across them, kept across
+ * launches. Each group is one member of the kept file, under its own id,
+ * holding its tabs, which is up on each side, and its own pin and share:
+ * a record a later build could sync as a synced store's member. Written only
+ * here, through the functions of `tab-model.ts`.
  */
 const storedTabsAtom = keptMembersAtom<WindowTabs>(
   fileOfTabGroup,
@@ -152,27 +74,23 @@ const storedTabsAtom = keptMembersAtom<WindowTabs>(
   },
 );
 
-interface TabGroupMember {
+interface TabGroupMember extends GroupOwn {
   active?: string;
   /** The tab up on the side without the keyboard, in a group of two sides. */
   beside?: string;
   tabs: WindowTab[];
 }
 
-function isTabGroupMember(value: unknown): value is TabGroupMember {
-  return (
-    value !== null &&
-    typeof value === "object" &&
-    "tabs" in value &&
-    Array.isArray(value.tabs)
-  );
-}
-
 /**
  * The tabs by group, each kept by itself: a group's tabs, which is up on
  * each side, belong to it whichever window shows it (`fileOfTabGroup`).
  */
-function splitTabGroups({ activeByGroup, besideByGroup = {}, tabs }: WindowTabs) {
+function splitTabGroups({
+  activeByGroup,
+  besideByGroup = {},
+  groups = {},
+  tabs,
+}: WindowTabs) {
   const members = new Map<string, TabGroupMember>();
   const memberOf = (key: string) => {
     let member = members.get(key);
@@ -191,12 +109,16 @@ function splitTabGroups({ activeByGroup, besideByGroup = {}, tabs }: WindowTabs)
   for (const [group, beside] of Object.entries(besideByGroup)) {
     memberOf(group).beside = beside;
   }
+  for (const [group, own] of Object.entries(groups)) {
+    Object.assign(memberOf(group), own);
+  }
   return members;
 }
 
 function joinTabGroups(members: Map<string, unknown>): WindowTabs {
   const activeByGroup: Record<string, string> = {};
   const besideByGroup: Record<string, string> = {};
+  const groups: Record<string, GroupOwn> = {};
   const tabs: WindowTab[] = [];
   for (const [group, member] of members) {
     if (member === null || typeof member !== "object") {
@@ -208,20 +130,20 @@ function joinTabGroups(members: Map<string, unknown>): WindowTabs {
     if ("beside" in member && typeof member.beside === "string") {
       besideByGroup[group] = member.beside;
     }
+    const own: GroupOwn = {
+      ...("pinned" in member && member.pinned === true ? { pinned: true } : {}),
+      ...("share" in member && typeof member.share === "number"
+        ? { share: member.share }
+        : {}),
+    };
+    if (Object.keys(own).length > 0) {
+      groups[group] = own;
+    }
     if ("tabs" in member && Array.isArray(member.tabs)) {
       tabs.push(...(member.tabs as WindowTab[])); // Written by this module alone.
     }
   }
-  return { activeByGroup, besideByGroup, tabs: withoutChatsBehind(tabs) };
-}
-
-/** Whether a kept value is the tabs at all: an object whose tabs, if any, are a list. */
-function isStoredWindowTabs(value: unknown): value is StoredWindowTabs {
-  return (
-    value !== null &&
-    typeof value === "object" &&
-    (!("tabs" in value) || Array.isArray(value.tabs))
-  );
+  return { activeByGroup, besideByGroup, groups, tabs };
 }
 
 /**
@@ -238,9 +160,9 @@ export const windowTabsAtom = atom(
 );
 
 /**
- * The group on screen: the chat's id or the site's group the window's
- * tab up stands on, or none for a screen that is its own route. Derived from
- * where that tab is, never kept beside it.
+ * The group on screen: the group the window's tab up stands on, or none for
+ * a screen that is its own route. Derived from where that tab is, never kept
+ * beside it.
  */
 export const groupOnScreenAtom = atom((get) => {
   const model = get(appTabsAtom);
@@ -283,19 +205,19 @@ export function useWindowTabsChange() {
   return useSetAtom(applyAtom);
 }
 
+/** No group's own record, one object for every render. */
+const NO_GROUP_OWN: Record<string, GroupOwn> = {};
+
 /** A fresh id for a screen tab. */
 export function newScreenId() {
   return StoreId.newTabId();
 }
 
 /**
- * The window's tabs, in groups: every chat has a group of its own, keyed by
- * its session, every draft one under its key, and every site of the window's
- * own one under its. The group on screen is the window's tab up's; the
- * others keep what they have for when they come back, and a host drawing a
- * group somewhere else (a draft's band, a popped-out chat) draws the tab
- * that group has up. A group may hold no tabs at all: the chat or the draft
- * stands over the tabs rather than among them.
+ * The window's tabs, in groups (`WindowTabs`). The group on screen is the
+ * window's tab up's; the others keep what they have for when they come back,
+ * and a host drawing a group somewhere else (a draft's band) draws the tab
+ * that group has up.
  *
  * Every change is applied to the tabs as they are at that moment, with the
  * group on screen read then too, so two changes in one tick each see the
@@ -347,10 +269,8 @@ export function useWindowTabs() {
     allTabs: state.tabs,
     /** The tab up on the other side from a tab, in a group of two sides (`besideOf`). */
     besideOf: (id: string) => besideOf(state, id),
-    /** Where something opened for a chat goes, the group on screen first (`chatPlaceOf`). */
-    chatPlace: (chat: ChatId) => chatPlaceOf(state, chat, groupOnScreen),
-    /** The chats a group has a tab on, its left side first (`chatsOfGroup`). */
-    chatsIn: (group: string) => chatsOfGroup(state, group),
+    /** The tab a chat's agent works from, where what it opens goes (`chatTabOf`). */
+    chatTab: (chat: ChatId) => chatTabOf(state, chat),
     /** The chat a group has up, the side with the keyboard first (`chatUpIn`). */
     chatUpIn: (group: string) => chatUpIn(state, group),
     activeByGroup: state.activeByGroup,
@@ -366,6 +286,16 @@ export function useWindowTabs() {
     },
     dropGroup: (group: string) => {
       apply((current) => dropGroup(current, group));
+    },
+    /** A group's pin, or the left side's share of two, set (`withGroupOwn`). */
+    setGroupOwn: (group: string, change: GroupOwn) => {
+      apply((current) => withGroupOwn(current, group, change));
+    },
+    /** What each group keeps of its own, by its id. */
+    groupOwn: state.groups ?? NO_GROUP_OWN,
+    /** A tab marked as the one its chat was last sent a message from. */
+    markPrompted: (id: string) => {
+      apply((current) => markPrompted(current, id, Date.now()));
     },
     /** The side with the keyboard, in a group of two sides, moved to the other. */
     focusSide: (group: string, side: 0 | 1) => {

@@ -1,14 +1,17 @@
+import { cn } from "@/client/lib/utils";
 import { useQuery } from "@tanstack/react-query";
 import { type ReactNode } from "react";
 
 import { chatListOptions } from "./chat-list-query";
+import { Peek } from "./chat-row";
 import { hasWords, matchesSearch } from "./chats";
-import { GroupRow } from "./group-sidebar";
 import { SearchField } from "./search-field";
 import { useShell } from "./shell-context";
 import {
+  type HistoryEntry,
+  historyKeyOf,
+  historyTitleOf,
   lastActiveAt,
-  type TabGroup,
   useOpenGroups,
   useTabGroupActions,
 } from "./tab-groups";
@@ -21,8 +24,8 @@ import {
  * this tab stays where it was. The words in the field narrow it.
  *
  * Showing chats alone, it is the index of every chat, open in a window or
- * not, most recently active first: a click on one brings up its tab, or
- * opens it as History does. Its field is the one the chord for searching
+ * not, most recently active first: a click on one opens it as History does,
+ * whatever tabs it has already. Its field is the one the chord for searching
  * chats puts the caret in (`data-chats-search`).
  */
 export function HistoryPage({
@@ -39,15 +42,7 @@ export function HistoryPage({
   const history =
     show === "chats"
       ? (chats ?? [])
-          .map(
-            (chat): TabGroup => ({
-              chat,
-              group: chat.id,
-              kind: "chat",
-              pinned: false,
-              title: chat.title,
-            }),
-          )
+          .map((chat): HistoryEntry => ({ chat, kind: "chat" }))
           .toSorted((a, b) => lastActiveAt(b) - lastActiveAt(a))
       : closed;
   const shell = useShell();
@@ -58,12 +53,9 @@ export function HistoryPage({
   const shown = history.filter((entry) =>
     entry.kind === "chat"
       ? matchesSearch(entry.chat, q, projectNames)
-      : hasWords(q, [
-          entry.title,
-          entry.kind === "draft" ? entry.draft.words : "",
-        ]),
+      : hasWords(q, [entry.draft.words]),
   );
-  const open = (entry: TabGroup) => {
+  const open = (entry: HistoryEntry) => {
     groups.restore(entry);
   };
   return (
@@ -94,7 +86,7 @@ export function HistoryPage({
           <p className="py-2 text-[13px] text-muted-foreground">
             {show === "chats"
               ? "Your chats show up here."
-              : "Tab groups you close show up here."}
+              : "Chats you close show up here."}
           </p>
         ) : shown.length === 0 ? (
           <p className="py-2 text-[13px] text-muted-foreground">
@@ -106,30 +98,13 @@ export function HistoryPage({
           <HistoryList
             history={shown}
             row={(entry) => (
-              // The row opens on a click anywhere on it; its Open button
-              // says so on hover.
-              <div
-                className="rounded-lg"
-                key={entry.group}
-                onClick={() => {
+              <HistoryRow
+                entry={entry}
+                key={historyKeyOf(entry)}
+                onOpen={() => {
                   open(entry);
                 }}
-                onKeyDown={(event) => {
-                  if (event.key === "Enter") {
-                    open(entry);
-                  }
-                }}
-                role="presentation"
-              >
-                <GroupRow
-                  chatTitles={shell.chatTitles}
-                  entry={entry}
-                  isUp={false}
-                  restore={() => {
-                    open(entry);
-                  }}
-                />
-              </div>
+              />
             )}
           />
         )}
@@ -143,10 +118,10 @@ function HistoryList({
   history,
   row,
 }: {
-  history: TabGroup[];
-  row: (entry: TabGroup) => ReactNode;
+  history: HistoryEntry[];
+  row: (entry: HistoryEntry) => ReactNode;
 }) {
-  const days = new Map<string, TabGroup[]>();
+  const days = new Map<string, HistoryEntry[]>();
   for (const entry of history) {
     const day = dayLabel(lastActiveAt(entry));
     days.set(day, [...(days.get(day) ?? []), entry]);
@@ -162,6 +137,65 @@ function HistoryList({
         </div>
       ))}
     </>
+  );
+}
+
+/**
+ * One chat or draft in History as two lines: its title, bold while the chat
+ * has something not yet seen; then the chat's latest line, or "Draft". It
+ * opens on a click anywhere on it, and its Open button says so on hover.
+ */
+function HistoryRow({
+  entry,
+  onOpen,
+}: {
+  entry: HistoryEntry;
+  onOpen: () => void;
+}) {
+  const isUnread = entry.kind === "chat" && entry.chat.unread;
+  return (
+    <div
+      className="group/row flex shrink-0 items-center gap-2 rounded-lg px-2.5 py-1.5 hover:bg-foreground/[0.04]"
+      onClick={onOpen}
+      onKeyDown={(event) => {
+        if (event.key === "Enter") {
+          onOpen();
+        }
+      }}
+      role="presentation"
+    >
+      <div className="min-w-0 flex-1">
+        <p
+          className={cn(
+            "h-5 truncate text-[13px] leading-5",
+            isUnread
+              ? "font-semibold text-foreground"
+              : "font-medium text-foreground/85",
+          )}
+        >
+          {historyTitleOf(entry)}
+        </p>
+        <div className="flex h-5 min-w-0 items-center">
+          {entry.kind === "chat" ? (
+            <Peek chat={entry.chat} />
+          ) : (
+            <span className="text-[12px] leading-5 text-muted-foreground">
+              Draft
+            </span>
+          )}
+        </div>
+      </div>
+      <button
+        className="ml-auto flex h-6 shrink-0 items-center rounded-md bg-background px-2 text-xs font-medium opacity-0 shadow-xs ring-1 ring-border group-hover/row:opacity-100 focus-visible:opacity-100"
+        onClick={(event) => {
+          event.stopPropagation();
+          onOpen();
+        }}
+        type="button"
+      >
+        Open
+      </button>
+    </div>
   );
 }
 

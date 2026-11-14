@@ -83,7 +83,7 @@ export function pageToChat({
   chatTab: { group: string; id: string };
   url: string;
 }): void {
-  browser?.openBehind(url, chatTab.group, undefined, chatTab.id);
+  browser?.openBehind(url, { after: chatTab.id, group: chatTab.group });
 }
 
 /** The tab a line of `context` opens as in a draft's band: none for another chat, or for a web page, which its chat opens at the send. */

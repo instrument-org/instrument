@@ -87,7 +87,7 @@ export function tabIdentityOf(
 /**
  * The tab group a window's tab stands on, by the key its address names
  * (`/chats?group=<key>`). Undefined for any other screen: a chat's address
- * asks for the group holding the chat's tab (`keptGroupsHoldingChat`).
+ * asks for the group its agent works in (`keptWorkingGroupOfChat`).
  */
 export function tabGroupOfAddress(href: string): string | undefined {
   const identity = tabIdentityOf(href);

@@ -1,5 +1,3 @@
-import { type WindowTab } from "@/client/atoms/window";
-
 import { matchScreen } from "./window-href";
 
 /**
@@ -32,19 +30,4 @@ export function isGroupScreenHref(href: string): boolean {
       return false;
     }
   }
-}
-
-/**
- * The tabs without any screen tab no group may hold, for tabs kept from a
- * build that let one in. A screen tab's history goes with it: a step back
- * onto such a screen would be one again.
- */
-export function groupScreenTabsOnly(tabs: WindowTab[]): WindowTab[] {
-  return tabs.filter(
-    (tab) =>
-      tab.kind !== "screen" ||
-      (tab.history?.entries ?? [tab.href]).every((href) =>
-        isGroupScreenHref(href),
-      ),
-  );
 }

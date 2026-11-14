@@ -601,7 +601,7 @@ function HoldsInChat({
   children: ReactNode;
 }) {
   const appWindow = useWindow();
-  const inChat = { group: chatId, ownTab: true, show: true };
+  const inChat = { chat: chatId, ownTab: true, show: true };
   // A new-tab or new-window gesture asks for a place of the window's own instead.
   const options = (asked?: OpenOptions) => ownPlaceOf(asked) ?? inChat;
   return (

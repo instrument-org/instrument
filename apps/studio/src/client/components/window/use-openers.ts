@@ -36,7 +36,6 @@ import { taskHref, tasksOfHref } from "./tab-location";
 import { isChatTab, isFreshTab, sideIndexOf } from "./tab-model";
 import {
   chatHref,
-  chatOfGroup,
   chatOfHref,
   chatOfHrefPrefix,
   chatOfSessionPrefix,
@@ -56,7 +55,7 @@ export function useOpeners({
   chatTitles,
   isOpen,
   newGroup,
-  showChat,
+  openChat,
   showGroup,
   windowTabs,
 }: {
@@ -74,10 +73,10 @@ export function useOpeners({
    */
   newGroup: (
     fill: (group: string) => void,
-    options?: { isShownHere?: boolean },
+    options?: { isListedBehind?: boolean; isShownHere?: boolean },
   ) => string;
-  /** Brings up a chat's tab, wherever it is, or a group made for it. */
-  showChat: (chat: ChatId) => void;
+  /** Opens a chat as a new tab group of its own (`useTabGroupActions().openChat`). */
+  openChat: (chat: ChatId) => void;
   /** Brings a tab group up, here or in the window that has it open, or moves it to a window of its own. */
   showGroup: (group: string, options?: { newWindow?: boolean }) => void;
   windowTabs: ReturnType<typeof useWindowTabs>;
@@ -94,19 +93,50 @@ export function useOpeners({
     },
   };
   /**
-   * Where an open a chat asked for goes, the chat named as its group: the
-   * group with the chat's tab, right after that tab (`chatPlace`). A chat
-   * no group has a tab on keeps its own key, so what it opened comes along
-   * when it is next shown.
+   * Where an open a chat asked for goes (`OpenOptions.chat`): right after
+   * the chat's tab it was asked from (`from`), else after the chat's tab the
+   * person last sent from (`chatTab`), in that tab's group. Undefined for a
+   * chat with no tab, which opens where anything else would.
    */
   const placeOf = (
     options: OpenOptions,
-  ): undefined | { after?: string; group: string } => {
-    const chat = chatOfGroup(options.group);
-    if (chat === undefined) {
+  ): undefined | { after: string; group: string } => {
+    if (options.chat === undefined) {
       return undefined;
     }
-    return windowTabs.chatPlace(chat) ?? { group: chat };
+    const asking = windowTabs.allTabs.find((tab) => tab.id === options.from);
+    const tab =
+      asking?.group === undefined ? windowTabs.chatTab(options.chat) : asking;
+    return tab?.group === undefined
+      ? undefined
+      : { after: tab.id, group: tab.group };
+  };
+  /**
+   * Where what a chat's agent opens goes: right after the chat's tab the
+   * person last sent from (`chatTab`). A chat with no tab, as one still at
+   * work after its group closed, gets a new group at the top of the list
+   * with a tab on the chat, which the window does not move to.
+   */
+  const agentPlaceOf = (chat: ChatId): { after: string; group: string } => {
+    const tab = windowTabs.chatTab(chat);
+    if (tab !== undefined) {
+      return { after: tab.id, group: tab.group };
+    }
+    let place: { after: string; group: string } | undefined;
+    newGroup(
+      (group) => {
+        const after = windowTabs.openScreen(chatHref(chat), {
+          group,
+          select: true,
+        });
+        place = after === undefined ? undefined : { after, group };
+      },
+      { isListedBehind: true },
+    );
+    if (place === undefined) {
+      throw new Error("a new group always opens the chat's tab.");
+    }
+    return place;
   };
   /**
    * Opens something in a place picked from a menu (`OpenOptions.into`):
@@ -281,21 +311,16 @@ export function useOpeners({
         chatOfSessionPrefix(href, chats))
       : chatOfHref(href);
     if (chat) {
-      // A chat is a tab: its tab comes up wherever it is, and a window of
-      // its own takes the group it is in. Asked for in a place of a menu's,
-      // it is a tab of its own there.
-      if (asked.into) {
-        openInto({ ...asked, into: asked.into }, (picked) => {
+      // A chat opens as a group of its own, however many tabs it has
+      // elsewhere. Asked for in a place of a menu's, it is a tab of its own
+      // there.
+      if (asked.into || asked.newWindow) {
+        openInto({ ...asked, into: asked.into ?? "window" }, (picked) => {
           windowTabs.openScreen(chatHref(chat), { ...picked, select: true });
         });
         return;
       }
-      const place = windowTabs.chatPlace(chat);
-      if (asked.newWindow && place) {
-        showGroup(place.group, { newWindow: true });
-      } else {
-        showChat(chat);
-      }
+      openChat(chat);
       return;
     }
     const screen = matchScreen(href);
@@ -348,16 +373,16 @@ export function useOpeners({
     }
     const owner = tasks
       ? (tasks.chat ??
-        chatOfGroup(asked.group) ??
+        asked.chat ??
         (windowTabs.groupOnScreen === undefined
           ? undefined
-          : windowTabs.chatsIn(windowTabs.groupOnScreen)[0]))
+          : windowTabs.chatUpIn(windowTabs.groupOnScreen)))
       : undefined;
     if (tasks && owner) {
       const at = taskHref(tasks.task, owner);
-      const into = windowTabs.chatPlace(owner);
+      const into = placeOf({ ...asked, chat: owner });
       if (into === undefined) {
-        showChat(owner);
+        openChat(owner);
         return;
       }
       const up = windowTabs.selectedTabIn(into.group);
@@ -469,10 +494,6 @@ export function useOpeners({
       }
     }
   };
-  /** The chat a group stands for: the chat named as one, or its first chat's tab. */
-  const chatOfPlace = (group: string | undefined) =>
-    chatOfGroup(group) ??
-    (group === undefined ? undefined : windowTabs.chatsIn(group)[0]);
   /**
    * Where a path a reply or the conversation named is on the computer, as the
    * address of the tab that shows it, or undefined, said to the user, when it
@@ -484,7 +505,7 @@ export function useOpeners({
    */
   const hrefOfNamedPath = async (
     path: string,
-    group: string | undefined,
+    chat: ChatId | undefined,
   ): Promise<string | undefined> => {
     if (!isOpen) {
       return;
@@ -494,7 +515,12 @@ export function useOpeners({
     const [error, hostPaths] = await safe(
       rpcClient.workspace.chats.files.hostPaths.call({
         filePaths: [filePath],
-        chatId: chatOfPlace(group ?? windowTabs.groupOnScreen) ?? WINDOW_ID,
+        chatId:
+          chat ??
+          (windowTabs.groupOnScreen === undefined
+            ? undefined
+            : windowTabs.chatUpIn(windowTabs.groupOnScreen)) ??
+          WINDOW_ID,
       }),
     );
     const hostPath = hostPaths?.[filePath];
@@ -519,7 +545,7 @@ export function useOpeners({
    * beats a tab rooted nowhere.
    */
   const openNamedPath = (path: string, options?: OpenOptions) => {
-    void hrefOfNamedPath(path, options?.group).then((href) => {
+    void hrefOfNamedPath(path, options?.chat).then((href) => {
       if (href !== undefined) {
         openScreen(href, options);
       }
@@ -527,41 +553,34 @@ export function useOpeners({
   };
   /**
    * Does what an agent asked of the tabs, and says what came of it: the tab
-   * it made or acted on, or why it did nothing. An id is looked up among the
-   * tabs of the chat that asked, since those are the tabs its note named.
+   * it made or acted on, or why it did nothing. A tab is any tab of the
+   * window's, by its id. What it opens goes behind, right after the chat's
+   * tab the person last sent from (`agentPlaceOf`), and a list is of that
+   * tab's group unless another is named.
    */
   const actOnTab = async ({
     action,
     chatId: chat,
   }: WindowTabRequest): Promise<Omit<WindowTabAnswer, "requestId">> => {
-    // The chat's tabs are the group with its tab; a chat no group has a tab
-    // on keeps its own key, so what it opens comes along when it is shown.
-    const place: undefined | { after?: string; group: string } =
-      chat === undefined
-        ? undefined
-        : (windowTabs.chatPlace(chat) ?? { group: chat });
-    const group = place?.group;
     if (action.kind === "open") {
       const { target } = action;
       if (target.kind === "page") {
-        // A page opened for an agent's own work waits right after its
-        // chat's tab, behind; only one the conversation is showing the user
-        // comes up.
-        if (!action.show && place) {
+        // A page opened for an agent's own work waits behind; only one the
+        // conversation is showing the user comes up.
+        if (!action.show && chat !== undefined) {
+          const place = agentPlaceOf(chat);
           return {
-            tabId: browser?.openBehind(
-              target.url,
-              place.group,
-              undefined,
-              place.after,
-            ),
+            tabId: browser?.openBehind(target.url, {
+              ...place,
+              openedBy: chat,
+            }),
           };
         }
         return target.url === undefined
           ? { error: "a tab on screen needs an address." }
           : {
               tabId: openPage(target.url, {
-                ...(chat ? { group: chat } : {}),
+                ...(chat ? { chat } : {}),
                 ownTab: true,
               }),
             };
@@ -570,9 +589,10 @@ export function useOpeners({
       if (href === undefined) {
         return { error: `nothing this window can show is at ${target.path}.` };
       }
-      const into = group ?? windowTabs.groupOnScreen;
+      const place = chat === undefined ? undefined : agentPlaceOf(chat);
+      const into = place?.group ?? windowTabs.groupOnScreen;
       const tabId = windowTabs.openOrFocusScreen(href, {
-        ...(place?.after === undefined ? {} : { after: place.after }),
+        ...(place === undefined ? {} : { after: place.after }),
         ...(into ? { group: into } : {}),
         isOpened: true,
         select: true,
@@ -581,15 +601,20 @@ export function useOpeners({
     }
     if (action.kind === "adopt") {
       const id = StoreId.TabSchema.safeParse(action.tabId);
-      if (place === undefined || !id.success) {
+      if (chat === undefined || !id.success) {
         return { error: "only a chat's page can be given a tab." };
       }
-      browser?.adopt(id.data, action.url, place.group, place.after);
+      browser?.adopt(id.data, action.url, {
+        ...agentPlaceOf(chat),
+        openedBy: chat,
+      });
       return { tabId: id.data };
     }
     if (action.kind === "list") {
+      const own = chat === undefined ? undefined : windowTabs.chatTab(chat);
+      const group = action.group ?? own?.group;
       if (group === undefined) {
-        return { error: "only a chat has tabs to list." };
+        return { error: "name a tab group to list; this chat has no tab." };
       }
       // In front is the tab up with the keyboard, while the group is on
       // screen.
@@ -599,7 +624,7 @@ export function useOpeners({
           : undefined;
       return {
         tabs: windowTabs.allTabs
-          .filter((entry) => entry.group === group && entry.id !== place?.after)
+          .filter((entry) => entry.group === group && entry.id !== own?.id)
           .map((entry) => ({
             ...(entry.id === front && { front: true }),
             ...(entry.kind === "page"
@@ -613,13 +638,9 @@ export function useOpeners({
           })),
       };
     }
-    const tab = windowTabs.allTabs.find(
-      (entry) =>
-        entry.id === action.tabId &&
-        (group === undefined || entry.group === group),
-    );
+    const tab = windowTabs.allTabs.find((entry) => entry.id === action.tabId);
     if (!tab) {
-      return { error: `no tab ${action.tabId} is open in this chat.` };
+      return { error: `no tab ${action.tabId} is open.` };
     }
     switch (action.kind) {
       case "close": {
@@ -724,7 +745,12 @@ export function useOpeners({
     } else if (background) {
       // The workspace names a popup's tab to the session that worked in the
       // page, so the tab opens under that id.
-      browser?.openBehind(url, asking.group, tabId, asking.id);
+      browser?.openBehind(url, {
+        after: asking.id,
+        group: asking.group,
+        ...(tabId === undefined ? {} : { id: tabId }),
+        ...(asking.openedBy === undefined ? {} : { openedBy: asking.openedBy }),
+      });
     } else {
       browser?.open(url, { after: asking.id, group: asking.group });
     }

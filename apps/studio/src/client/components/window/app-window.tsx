@@ -18,7 +18,6 @@ import { type Draft, draftGroupOf, holdsSomething } from "@/shared/drafts";
 import {
   type AppPlace,
   chatFiltersAtom,
-  chatGroupAtom,
   filesFolderAtom,
   inboxOpenAtom,
   type WindowTab,
@@ -617,7 +616,6 @@ function WindowShell({
   const draftsLoaded = useAtomValue(draftsLoadedAtom);
   const updateDraft = useSetAtom(updateDraftAtom);
   const removeDraft = useSetAtom(removeDraftAtom);
-  const setChatGroup = useSetAtom(chatGroupAtom);
   const setFilesFolder = useSetAtom(filesFolderAtom);
   const [chatFilters, setChatFilters] = useAtom(chatFiltersAtom);
   const setInboxOpen = useSetAtom(inboxOpenAtom);
@@ -652,14 +650,6 @@ function WindowShell({
   useGroupTabRouters(windowTabs.allTabs, windowTabs.screenMoved);
   // And each follows a chat's folder moving to the chat's title.
   useFollowFolderMoves(opened !== undefined);
-
-  // The chat a tab last had open is where Chat in the rail takes a tab.
-  useEffect(() => {
-    if (!isChat) {
-      return;
-    }
-    setChatGroup(chatUp ?? null);
-  }, [chatUp, isChat, setChatGroup]);
 
   // The folder a tab last stood in is where Files in the rail takes a tab.
   // A file's address names where it was opened from rather than the folder
@@ -801,10 +791,10 @@ function WindowShell({
     }
   }, [pageHost, stage]);
 
-  /** Takes a chat out of the corner: the window goes and the chat's tab comes up. */
+  /** Takes a chat out of the corner: the window goes and the chat opens as a group. */
   const expandChat = (chatId: ChatId) => {
     compose.remove(chatId);
-    groups.showChat(chatId);
+    groups.openChat(chatId);
   };
 
   const { openNamedPath, openPage, openScreen } = useOpeners({
@@ -813,8 +803,8 @@ function WindowShell({
     chatTitles,
     isOpen: opened !== undefined,
     newGroup: (fill, options) => groups.make({ fill, ...options }),
-    showChat: (chat) => {
-      groups.showChat(chat);
+    openChat: (chat) => {
+      groups.openChat(chat);
     },
     showGroup: (group, { newWindow = false } = {}) => {
       if (newWindow) {
@@ -1025,14 +1015,17 @@ function WindowShell({
     });
   const draftContext = (draft: Draft, tabId: string | undefined) =>
     readersNow().draftContext(draft, tabId);
-  // A chat's tab group as a message goes from it, read at the press.
-  const layoutNow = (tabId: string, told: string) =>
-    layoutReader({
+  // A chat's tab group as a message goes from it, read at the press. The
+  // tab sent from is where the chat's agent works from then on (`chatTab`).
+  const layoutNow = (tabId: string, told: string) => {
+    windowTabs.markPrompted(tabId);
+    return layoutReader({
       appsBySlug,
       chatTitles,
       groups: groupList.open,
       windowTabs,
     })(tabId, told);
+  };
   useLayoutEffect(() => {
     sendContextRef.current = (options) => readersNow().sendContext(options);
     layoutContextRef.current = layoutNow;
@@ -1323,22 +1316,22 @@ function WindowShell({
         });
       },
       // What arrives from outside the app is a tab group of its own at the
-      // bottom of the list; a chat comes up at its tab, wherever it is.
+      // top of the list, a chat's included.
       openFile: (hostPath) => {
         groups.make({ href: fileHref(hostPath) });
       },
       openScreen: (href) => {
         const chat = chatOfHref(href);
         if (chat !== undefined) {
-          groups.showChat(chat);
+          groups.openChat(chat);
         } else if (isGroupScreenHref(href)) {
           groups.make({ href });
         } else {
           openScreen(href);
         }
       },
-      // A group this window has open comes up, and so does a chat or a
-      // draft with a tab in one, as a tab here showing it does.
+      // A group this window has open comes up, and so does a tab here
+      // showing what the address shows.
       showTab: (href) => {
         const group = groupOfHref(href);
         if (
@@ -1348,7 +1341,7 @@ function WindowShell({
           groups.show(group);
           return true;
         }
-        return groups.showListed(href) || showFromOutside(href);
+        return showFromOutside(href);
       },
       // The tab up in the group, to a group and a window of its own, as
       // dragging it off the window does.
@@ -1642,11 +1635,7 @@ function WindowShell({
             </ShellContext>
             <DragLayer
               chatTitles={chatTitles}
-              entries={[
-                ...groupList.open,
-                ...groupList.elsewhere,
-                ...groupList.history,
-              ]}
+              entries={[...groupList.open, ...groupList.elsewhere]}
             />
             {/* Where the window's page waits while the tab up has none to
               show; hidden, so a guest left over it is parked. */}

@@ -30,11 +30,10 @@ export type KeptFile = (typeof KEPT_FILES)[number];
 export const APP_TABS_KEY = "app-tabs.v2";
 
 /**
- * The key a window keeps its open tab groups under, in its own order: a
- * chat's id, or a draft's group for a chat not started yet. A window with
- * nothing under it has opened none.
+ * The key a window keeps its open tab groups under, by their ids, in its own
+ * order. A window with nothing under it has opened none.
  */
-export const TAB_GROUPS_KEY = "tab-groups.v1";
+export const TAB_GROUPS_KEY = "tab-group-list.v2";
 
 /** The tab groups a window kept, or undefined for a value that is not a list of them. */
 export function keptTabGroupsOf(value: unknown): string[] | undefined {
@@ -47,7 +46,6 @@ export const COMPOSE_KEY = "compose.v2";
 /** The keys an earlier build kept for its one window in `layout`, which the first window takes as its own. */
 export const WINDOW_KEPT_KEYS = [
   APP_TABS_KEY,
-  "chat-group.v2",
   COMPOSE_KEY,
   "files-folder.v1",
   "inbox-open.v1",
@@ -75,15 +73,15 @@ export const KEPT_STATE_CHANNEL = {
   set: "kept-state:set",
 } as const;
 
-/** The window tabs, kept a group at a time under this key. */
-export const WINDOW_TABS_KEY = "window-tabs.v11";
+/** The tab groups, kept a group at a time under this key and the group's id. */
+export const WINDOW_TABS_KEY = "tab-groups.v2";
 
 /** The group of a page drawn inside a surface of one window, such as a file's page in its viewer. */
 export const HOSTED_PAGE_GROUP_PREFIX = "page:";
 
 /**
- * Which file a group of window tabs is kept in. A chat's or a site's belong to it
- * whichever window shows it. A page drawn inside a surface is that window's alone,
+ * Which file a group of window tabs is kept in. A tab group belongs to this
+ * computer whichever window shows it. A page drawn inside a surface is that window's alone,
  * made when the surface comes and closed when it goes, so another window showing
  * the same tab draws a page of its own and is not left blank by this one's going.
  */

@@ -20,7 +20,6 @@ import { getDefaultStore } from "jotai";
 import { type ChatRowPainting, paintChatRow } from "./chat-list-query";
 import { type Chat } from "./chats";
 import { type RowAction } from "./row-shell";
-import { windowTabGroupsAtom } from "./tab-groups";
 import { chatOfTab } from "./tab-model";
 import { windowTabsAtom } from "./window-tabs";
 
@@ -216,25 +215,13 @@ export function setArchived(
   call.then(
     (at) => {
       painting.landed(at);
-      // A chat no window has open is in History, which is where to look
-      // for it; one a window has open is in that window's sidebar.
-      const listed = getDefaultStore().get(windowTabGroupsAtom) ?? [];
-      const isOpen =
-        getDefaultStore()
-          .get(windowTabsAtom)
-          .tabs.some(
-            (tab) =>
-              tab.group !== undefined &&
-              listed.includes(tab.group) &&
-              chatOfTab(tab) === input.id,
-          ) ||
-        (queryClient
-          .getQueryData(
-            rpcClient.window.live.tabGroupsElsewhere.experimental_liveOptions()
-              .queryKey,
-          )
-          ?.chats.includes(input.id) ??
-          false);
+      // A chat with no tab on this computer is in History, which is where
+      // to look for it; one with a tab is in that tab's group.
+      const isOpen = getDefaultStore()
+        .get(windowTabsAtom)
+        .tabs.some(
+          (tab) => tab.group !== undefined && chatOfTab(tab) === input.id,
+        );
       toast(archived ? "Archived" : "Unarchived", {
         ...(archived || isOpen
           ? {}

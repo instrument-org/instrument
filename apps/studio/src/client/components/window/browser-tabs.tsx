@@ -23,6 +23,7 @@ import { isPageEditAddress } from "@instrument-org/shared";
 import { pageTextOf, READ_PAGE_TEXT } from "@instrument-org/shared/page-text";
 import {
   type BrowserTargetId,
+  type ChatId,
   browserTargetOf,
   StoreId,
 } from "@instrument-org/workspace/client";
@@ -62,6 +63,14 @@ import {
   useWindowTabsChange,
 } from "./window-tabs";
 
+/** Where a page opened behind goes: a group, right after `after` on its side, under `id` when given, marked as the page of the chat whose agent opened it. */
+interface BehindPlace {
+  after?: string;
+  group: string;
+  id?: StoreId.Tab;
+  openedBy?: ChatId;
+}
+
 export interface BrowserTabsHandle {
   /** Sends the guest on screen to an address, in the tab it is in. */
   navigate: (url: string) => void;
@@ -80,24 +89,18 @@ export interface BrowserTabsHandle {
    */
   open: (url?: string, options?: OpenOptions) => StoreId.Tab;
   /**
-   * Opens a page tab in a chat's group without showing it: the tab joins the
+   * Opens a page tab in a group without showing it: the tab joins the
    * group's list and nothing on screen changes, the pane included. What an
    * agent's own work opens, which the user finds in the list when they want
    * to watch. Opens it under `id` when given. Returns the tab.
    */
-  openBehind: (
-    url: string | undefined,
-    group: string,
-    id?: StoreId.Tab,
-    /** The tab it opens right after, on that tab's side: the chat's whose agent opened it. */
-    after?: string,
-  ) => StoreId.Tab;
+  openBehind: (url: string | undefined, place: BehindPlace) => StoreId.Tab;
   /**
-   * Gives a page an agent made with no tab a tab in a chat's group, under
-   * the page's own id, right after `after` and behind, as the page goes
+   * Gives a page an agent made with no tab a tab in a group, under the
+   * page's own id, right after `after` and behind, as the page goes
    * somewhere. The guest is already at `url`, so nothing loads again.
    */
-  adopt: (id: StoreId.Tab, url: string, group: string, after?: string) => void;
+  adopt: (id: StoreId.Tab, url: string, place: BehindPlace) => void;
   /**
    * Adds a page tab to a group with no guest: the window that shows the
    * group opens the page there, at its address. For a page opened into
@@ -560,16 +563,17 @@ export function BrowserTabs({
         });
       },
       open: (url, options) => openTab(change, url, options),
-      openBehind: (url, into, given, after) => {
+      openBehind: (url, { after, group, id: given, openedBy }) => {
         const id = given ?? StoreId.newTabId();
         change((current) =>
           addPages(
             current,
             [
               {
-                group: into,
+                group,
                 id,
                 openedAt: Date.now(),
+                ...(openedBy === undefined ? {} : { openedBy }),
                 ...(url ? { openedUrl: url, url } : {}),
               },
             ],
@@ -582,14 +586,23 @@ export function BrowserTabs({
         });
         return id;
       },
-      adopt: (id, url, into, after) => {
+      adopt: (id, url, { after, group, openedBy }) => {
         if (latest.current.allTabs.some((tab) => tab.id === id)) {
           return;
         }
         change((current) =>
           addPages(
             current,
-            [{ group: into, id, openedAt: Date.now(), openedUrl: url, url }],
+            [
+              {
+                group,
+                id,
+                openedAt: Date.now(),
+                ...(openedBy === undefined ? {} : { openedBy }),
+                openedUrl: url,
+                url,
+              },
+            ],
             after === undefined ? {} : { after },
           ),
         );

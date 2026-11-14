@@ -6,19 +6,20 @@ import {
 } from "@/client/atoms/window";
 import { movedTabHistory } from "@/shared/tabs";
 import { hostPathOfFileUrl } from "@/client/lib/file-url";
-import { type ChatId, StoreId } from "@instrument-org/workspace/client";
+import { type ChatId } from "@instrument-org/workspace/client";
 
 import { computerTabOf } from "./file-tabs";
-import { groupScreenTabsOnly } from "./group-screen";
 import { historyOf, stepTabVisit, visitInTab } from "./tab-history";
 import { matchScreen, sameHref, showsSame } from "./window-href";
 
 /**
- * What the window has open: every group's tabs in strip order, each on one
- * of its group's one or two sides, and the tab up on each side. A group is
- * keyed by an id of its own, opaque here: a new group's, or a chat's id or a
- * draft's key an earlier build kept its tabs under. Which group is on screen
- * is not kept here, since it is whatever the window's tab up stands on.
+ * What this computer has open: every group's tabs in strip order, each on
+ * one of its group's one or two sides, and the tab up on each side. A group
+ * is a record of its own, keyed by an id minted once (`newGroupKey`) and
+ * never read for anything: no group is a chat's or a draft's. A chat is
+ * only what a tab's address points at, and any number of tabs may point at
+ * one. Which group a window has on screen is not kept here, since it is
+ * whatever the window's tab up stands on.
  *
  * Every change to it is one of the functions below, each pure.
  */
@@ -31,7 +32,35 @@ export interface WindowTabs {
   activeByGroup: Record<string, string>;
   /** The tab up on the other side, in each group of two sides. */
   besideByGroup?: Record<string, string>;
+  /** What a group keeps of its own beside its tabs, by its id. */
+  groups?: Record<string, GroupOwn>;
   tabs: WindowTab[];
+}
+
+/** What a group keeps of its own: its pin, and the left side's share of two. */
+export interface GroupOwn {
+  pinned?: true;
+  /** The left side's share of the row past the gutter; half where absent. */
+  share?: number;
+}
+
+/** A group's own record with one field changed, a field left empty taken off. */
+export function withGroupOwn(
+  state: WindowTabs,
+  group: string,
+  change: GroupOwn,
+): WindowTabs {
+  const merged: GroupOwn = { ...state.groups?.[group], ...change };
+  const own: GroupOwn = {
+    ...(merged.pinned ? { pinned: true } : {}),
+    ...(merged.share === undefined ? {} : { share: merged.share }),
+  };
+  const { [group]: _was, ...others } = state.groups ?? {};
+  return {
+    ...state,
+    groups:
+      Object.keys(own).length === 0 ? others : { ...others, [group]: own },
+  };
 }
 
 /** One side of a group: its tabs in strip order, and the one up. */
@@ -134,18 +163,6 @@ function normalizeSides(state: WindowTabs, group: string): WindowTabs {
   if ((!hasLeft || !hasRight) && next.besideByGroup?.[group] !== undefined) {
     const { [group]: _gone, ...besideByGroup } = next.besideByGroup;
     next = { ...next, besideByGroup };
-  }
-  return next;
-}
-
-/** Every group's sides normalized, for tabs as kept. */
-function normalizeAllSides(state: WindowTabs): WindowTabs {
-  const groups = new Set(
-    state.tabs.flatMap((tab) => (tab.group === undefined ? [] : [tab.group])),
-  );
-  let next = state;
-  for (const group of groups) {
-    next = normalizeSides(next, group);
   }
   return next;
 }
@@ -274,6 +291,7 @@ function takeOut(state: WindowTabs, id: string): WindowTabs {
   if (at === layout.focused) {
     const active = next?.id ?? other;
     return {
+      ...state,
       activeByGroup:
         active === undefined
           ? activeByGroup
@@ -286,7 +304,7 @@ function takeOut(state: WindowTabs, id: string): WindowTabs {
     };
   }
   return {
-    activeByGroup: state.activeByGroup,
+    ...state,
     besideByGroup:
       next === undefined
         ? besideByGroup
@@ -410,19 +428,6 @@ export function raiseTab(state: WindowTabs, id: string): WindowTabs {
       };
 }
 
-/**
- * What an earlier build kept: the group on screen and the tab it had up
- * beside the rest, and a screen's steps as a trail with a mark on it.
- * Beta-only: every field here past `WindowTabs` is a 2.0 beta's, and goes
- * with the matching branches of `normalizeWindowTabs` once betas are gone.
- */
-export type StoredWindowTabs = Partial<Omit<WindowTabs, "tabs">> & {
-  activeId?: null | string;
-  group?: string;
-  previousGroup?: string;
-  tabs?: (WindowTab & { at?: number; trail?: string[] })[];
-};
-
 /** A page tab of the window: a browser session of its own, in a group. */
 export type PageTab = Extract<WindowTab, { kind: "page" }>;
 
@@ -431,97 +436,6 @@ export type ScreenTab = Extract<WindowTab, { kind: "screen" }>;
 
 /** Where a screen tab's router has been, and where along it the tab stands. */
 type ScreenHistory = NonNullable<ScreenTab["history"]>;
-
-/**
- * The tabs as kept, read as this build keeps them: the tab the group on
- * screen had up becomes that group's, a screen's trail becomes its history,
- * and a screen no group's tab may stand on is dropped with its history.
- */
-export function normalizeWindowTabs(stored: StoredWindowTabs): WindowTabs {
-  const idOf = tabIdsOfEarlierBuilds();
-  const activeByGroup = Object.fromEntries(
-    Object.entries(stored.activeByGroup ?? {}).map(([group, id]) => [
-      group,
-      idOf(id),
-    ]),
-  );
-  if (stored.group !== undefined && stored.activeId) {
-    activeByGroup[stored.group] = idOf(stored.activeId);
-  }
-  const tabs = (stored.tabs ?? []).map((kept): WindowTab => {
-    const tab = {
-      ...kept,
-      id: idOf(kept.id),
-      ...(kept.stripKey === undefined ? {} : { stripKey: idOf(kept.stripKey) }),
-      ...(kept.past === undefined
-        ? {}
-        : {
-            past: kept.past.map((visit) => ({ ...visit, id: idOf(visit.id) })),
-          }),
-      ...(kept.future === undefined
-        ? {}
-        : {
-            future: kept.future.map((visit) => ({
-              ...visit,
-              id: idOf(visit.id),
-            })),
-          }),
-    };
-    if (
-      tab.kind !== "screen" ||
-      (tab.trail === undefined && tab.at === undefined)
-    ) {
-      return tab;
-    }
-    const { at, trail, ...rest } = tab;
-    const entries = trail ?? [tab.href];
-    return {
-      ...rest,
-      history: {
-        entries,
-        index: Math.min(
-          Math.max(at ?? entries.length - 1, 0),
-          entries.length - 1,
-        ),
-      },
-    };
-  });
-  const besideByGroup = Object.fromEntries(
-    Object.entries(stored.besideByGroup ?? {}).map(([group, id]) => [
-      group,
-      idOf(id),
-    ]),
-  );
-  return normalizeAllSides({
-    activeByGroup,
-    besideByGroup,
-    tabs: groupScreenTabsOnly(tabs),
-  });
-}
-
-/**
- * A tab's id as this build mints them, from one an earlier build kept: a
- * page's `ses_` id keeps its ULID under `tab_`, and a screen's `screen-` id
- * gets a fresh one, the same for every place the kept tabs name it.
- */
-function tabIdsOfEarlierBuilds() {
-  const fresh = new Map<string, string>();
-  return (id: string): string => {
-    if (StoreId.SessionSchema.safeParse(id).success) {
-      return `tab_${id.slice("ses_".length)}`;
-    }
-    if (!id.startsWith("screen-")) {
-      return id;
-    }
-    const known = fresh.get(id);
-    if (known !== undefined) {
-      return known;
-    }
-    const minted = StoreId.newTabId();
-    fresh.set(id, minted);
-    return minted;
-  };
-}
 
 /**
  * Every screen tab's address, its history and the screens it went to and
@@ -637,74 +551,11 @@ export function chatOfTab(tab: WindowTab): ChatId | undefined {
 }
 
 /**
- * Whether a tab is a chat's. A chat is in one place, its own tab, which is
- * never sent anywhere else: what would go there opens right after it.
+ * Whether a tab is a chat's. A chat's tab stays on its chat: what would go
+ * there opens right after it.
  */
 export function isChatTab(tab: WindowTab): boolean {
   return chatOfTab(tab) !== undefined;
-}
-
-/**
- * The tabs with no chat behind or ahead of them: in no tab's Back or
- * Forward visits, nor along a screen's own history but where it stands.
- * A chat is in its own tab alone, and a build that sent a chat's tab
- * elsewhere left the chat there, where a step back would show it twice.
- */
-export function withoutChatsBehind(tabs: WindowTab[]): WindowTab[] {
-  const isChat = (href: string) => matchScreen(href).kind === "chat";
-  const trailOf = <T extends TabVisit>(visit: T): T => {
-    if (visit.kind !== "screen" || visit.history === undefined) {
-      return visit;
-    }
-    const { entries, index } = visit.history;
-    const kept = entries.flatMap((href, at) =>
-      at === index || !isChat(href) ? [{ at, href }] : [],
-    );
-    return kept.length === entries.length
-      ? visit
-      : {
-          ...visit,
-          history: {
-            entries: kept.map((entry) => entry.href),
-            index: Math.max(
-              kept.findIndex((entry) => entry.at === index),
-              0,
-            ),
-          },
-        };
-  };
-  const visitsOf = (visits: TabVisit[] | undefined) => {
-    const kept = visits
-      ?.filter((visit) => visit.kind !== "screen" || !isChat(visit.href))
-      .map(trailOf);
-    return kept?.length === visits?.length &&
-      kept?.every((visit, at) => visit === visits?.[at])
-      ? visits
-      : kept;
-  };
-  return tabs.map((tab) => {
-    const past = visitsOf(tab.past);
-    const future = visitsOf(tab.future);
-    const here = trailOf(tab);
-    return here === tab && past === tab.past && future === tab.future
-      ? tab
-      : {
-          ...here,
-          ...(past === undefined ? {} : { past }),
-          ...(future === undefined ? {} : { future }),
-        };
-  });
-}
-
-/** The chats a group has a tab on, in the order its row reads them: the left side first, then strip order. */
-export function chatsOfGroup(state: WindowTabs, group: string): ChatId[] {
-  const layout = groupLayoutOf(state, group);
-  return layout.sides.flatMap((side) =>
-    side.tabs.flatMap((tab) => {
-      const chat = chatOfTab(tab);
-      return chat === undefined ? [] : [chat];
-    }),
-  );
 }
 
 /** The chat a group has up: on the side with the keyboard, else on the other. */
@@ -722,41 +573,29 @@ export function chatUpIn(state: WindowTabs, group: string): ChatId | undefined {
   return undefined;
 }
 
-/** A chat's tab, the first one: in the groups named, in their order, or in any group. */
-function chatTabOf(
+/**
+ * The tab a chat's agent works from: of the tabs in a group pointing at the
+ * chat, the one the person last sent it a message from, else the first. Its
+ * agent's pages open right after it, and its group is the one the agent sees
+ * by default. Undefined while no group has a tab on the chat.
+ */
+export function chatTabOf(
   state: WindowTabs,
   chat: ChatId,
-  among?: readonly string[],
-): undefined | WindowTab {
-  const shows = (tab: WindowTab) => chatOfTab(tab) === chat;
-  if (among === undefined) {
-    return state.tabs.find((tab) => tab.group !== undefined && shows(tab));
-  }
-  for (const group of among) {
-    const found = state.tabs.find((tab) => tab.group === group && shows(tab));
-    if (found) {
-      return found;
+): (WindowTab & { group: string }) | undefined {
+  let found: (WindowTab & { group: string }) | undefined;
+  for (const tab of state.tabs) {
+    if (tab.group === undefined || chatOfTab(tab) !== chat) {
+      continue;
+    }
+    if (
+      found === undefined ||
+      (tab.promptedAt ?? 0) > (found.promptedAt ?? 0)
+    ) {
+      found = { ...tab, group: tab.group };
     }
   }
-  return undefined;
-}
-
-/**
- * Where something opened for a chat goes: the group with the chat's tab
- * (the group named first, when it has one) and right after that tab.
- * Undefined while no group has a tab on the chat.
- */
-export function chatPlaceOf(
-  state: WindowTabs,
-  chat: ChatId,
-  first?: string,
-): undefined | { after: string; group: string } {
-  const tab =
-    (first === undefined ? undefined : chatTabOf(state, chat, [first])) ??
-    chatTabOf(state, chat);
-  return tab?.group === undefined
-    ? undefined
-    : { after: tab.id, group: tab.group };
+  return found;
 }
 
 /**
@@ -1106,6 +945,7 @@ export function replaceTab(
   };
   const group = tab.group;
   return {
+    ...state,
     activeByGroup:
       group !== undefined && state.activeByGroup[group] === id
         ? { ...state.activeByGroup, [group]: tab.id }
@@ -1165,21 +1005,35 @@ export function closeTab(state: WindowTabs, id: string): WindowTabs {
   return group === undefined ? out : normalizeSides(out, group);
 }
 
-/** A group gone with everything in it: a draft thrown away, a chat deleted, a site closed. */
+/** A group gone with everything in it, its pin and share with it. */
 export function dropGroup(state: WindowTabs, group: string): WindowTabs {
   if (
     !(group in state.activeByGroup) &&
+    !(group in (state.groups ?? {})) &&
     !state.tabs.some((tab) => tab.group === group)
   ) {
     return state;
   }
   const { [group]: _dropped, ...activeByGroup } = state.activeByGroup;
   const { [group]: _beside, ...besideByGroup } = state.besideByGroup ?? {};
+  const { [group]: _own, ...groups } = state.groups ?? {};
   return {
     activeByGroup,
     besideByGroup,
+    groups,
     tabs: state.tabs.filter((tab) => tab.group !== group),
   };
+}
+
+/** A tab marked as the one its chat was last sent a message from (`chatTabOf`). */
+export function markPrompted(
+  state: WindowTabs,
+  id: string,
+  at: number,
+): WindowTabs {
+  return state.tabs.some((tab) => tab.id === id)
+    ? mapTab(state, id, (tab) => ({ ...tab, promptedAt: at }))
+    : state;
 }
 
 /**
@@ -1332,7 +1186,8 @@ export function openPage(
  */
 export function addPages(
   state: WindowTabs,
-  pages: (BrowserTab & { group: string | undefined })[],
+  pages: (BrowserTab &
+    Pick<WindowTab, "openedBy"> & { group: string | undefined })[],
   { after }: { after?: string } = {},
 ): WindowTabs {
   let next = state;

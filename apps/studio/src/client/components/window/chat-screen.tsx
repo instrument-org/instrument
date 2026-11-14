@@ -19,6 +19,7 @@ import { useMutation, useQuery } from "@tanstack/react-query";
 import { type ReactNode, useContext, useEffect, useState } from "react";
 
 import { AskPills } from "./ask-pills";
+import { useGroupTab } from "./group-tab";
 import { chatListOptions } from "./chat-list-query";
 import {
   type OpenOptions,
@@ -119,6 +120,7 @@ function ChatScreenOfRecord({
   takesCaret,
 }: ChatScreenProps & { sessionId: StoreId.Session }) {
   const appWindow = useWindow();
+  const groupTab = useGroupTab();
   const info = useQuery(
     rpcClient.workspace.chats.live.info.experimental_liveOptions({
       input: { id: chatId },
@@ -185,12 +187,17 @@ function ChatScreenOfRecord({
   }
   const modelURI = info.data?.modelURI ?? defaultModelURI;
   const reach = folders.data;
-  // Into this chat's own group, shown: an open from a chat's transcript is the
-  // chat's whatever the window has up at that moment, and never a silent
-  // nothing because the group on screen was another's.
+  // Right after this copy of the chat, shown: an open from a chat's
+  // transcript is the chat's whatever the window has up at that moment, and
+  // never a silent nothing because the group on screen was another's.
   // A new-tab or new-window gesture over any of it asks for a place of the
   // window's own.
-  const into = { group: chatId, ownTab: true, show: true };
+  const into = {
+    chat: chatId,
+    ...(groupTab ? { from: groupTab.id } : {}),
+    ownTab: true,
+    show: true,
+  };
   const intoOr = (options?: OpenOptions) => ownPlaceOf(options) ?? into;
   return (
     // The chat is the drop region, so a file let go anywhere over it lands

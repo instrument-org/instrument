@@ -112,30 +112,30 @@ describe("opening into a group", () => {
   });
 });
 
-describe("the tabs a build with one window kept", () => {
-  it("are read as every window keeps them, group by group, tabs with no group among them", async () => {
+describe("the tab groups kept on this computer", () => {
+  it("are read group by group with each one's own pin and share, and nothing an earlier build kept", async () => {
     vi.resetModules();
     const kept = await import("@/client/lib/kept-state");
     kept.clearKeptState();
     kept.writeKept("layout", "window-tabs.v9", {
-      activeByGroup: { chat_a: "tab_1" },
-      tabs: [
-        { group: "chat_a", id: "tab_1", kind: "page", openedAt: 1 },
-        { id: "tab_2", kind: "page", openedAt: 2 },
-      ],
+      activeByGroup: { chat_a: "tab_9" },
+      tabs: [{ group: "chat_a", id: "tab_9", kind: "page", openedAt: 1 }],
+    });
+    kept.writeKept("layout", "tab-groups.v2/group_a", {
+      active: "tab_1",
+      pinned: true,
+      share: 0.4,
+      tabs: [{ group: "group_a", id: "tab_1", kind: "page", openedAt: 1 }],
     });
 
-    const { windowTabsAtom: migrated } = await import("./window-tabs");
+    const { windowTabsAtom: read } = await import("./window-tabs");
 
-    expect(createStore().get(migrated)).toEqual({
-      activeByGroup: { chat_a: "tab_1" },
+    expect(createStore().get(read)).toEqual({
+      activeByGroup: { group_a: "tab_1" },
       besideByGroup: {},
-      tabs: [
-        { group: "chat_a", id: "tab_1", kind: "page", openedAt: 1 },
-        { id: "tab_2", kind: "page", openedAt: 2 },
-      ],
+      groups: { group_a: { pinned: true, share: 0.4 } },
+      tabs: [{ group: "group_a", id: "tab_1", kind: "page", openedAt: 1 }],
     });
-    expect(kept.takeKept("layout", "window-tabs.v9")).toBeUndefined();
     vi.resetModules();
   });
 });

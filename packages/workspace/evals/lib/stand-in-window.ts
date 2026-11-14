@@ -85,7 +85,7 @@ export function createStandInWindow(chrome?: SharedChrome) {
     }
     const tab = tabs.get(action.tabId);
     if (!tab) {
-      return { error: `no tab ${action.tabId} is open in this chat.` };
+      return { error: `no tab ${action.tabId} is open.` };
     }
     switch (action.kind) {
       case "close": {
@@ -128,7 +128,7 @@ export function createStandInWindow(chrome?: SharedChrome) {
     if (action.kind === "read") {
       const tab = tabs.get(action.tabId);
       if (!tab || tab.kind !== "page") {
-        return { error: `no tab ${action.tabId} is open in this chat.` };
+        return { error: `no tab ${action.tabId} is open.` };
       }
       await chrome.ensure(tab.id, tab.at);
       const text = pageTextOf(await chrome.evaluate(tab.id, READ_PAGE_TEXT));

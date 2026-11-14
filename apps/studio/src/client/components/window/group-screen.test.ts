@@ -1,7 +1,6 @@
-import { type WindowTab } from "@/client/atoms/window";
 import { describe, expect, it } from "vitest";
 
-import { groupScreenTabsOnly, isGroupScreenHref } from "./group-screen";
+import { isGroupScreenHref } from "./group-screen";
 
 describe("isGroupScreenHref", () => {
   it.each([
@@ -25,32 +24,5 @@ describe("isGroupScreenHref", () => {
     "/apps/linear/settings",
   ])("keeps a group's tab from %s", (href) => {
     expect(isGroupScreenHref(href)).toBe(false);
-  });
-});
-
-describe("groupScreenTabsOnly", () => {
-  it("drops screen tabs at, or with a step back onto, a screen no group draws", () => {
-    const tabs: WindowTab[] = [
-      { group: "g", href: "/browser", id: "kept", kind: "screen" },
-      {
-        group: "g",
-        id: "page",
-        kind: "page",
-        openedAt: 0,
-        url: "https://example.com",
-      },
-      { group: "g", href: "/debug/errors", id: "debug", kind: "screen" },
-      {
-        group: "g",
-        href: "/apps",
-        id: "walked",
-        kind: "screen",
-        history: { entries: ["/skills/create-page", "/apps"], index: 1 },
-      },
-    ];
-    expect(groupScreenTabsOnly(tabs).map((tab) => tab.id)).toEqual([
-      "kept",
-      "page",
-    ]);
   });
 });

@@ -8,32 +8,6 @@ export const sidebarOpenAtom = keptAtom<boolean>(
   true,
 );
 
-/** The groups the person pinned above the line, by group. A chat's star is the chat's own, and pins nothing. */
-export const groupPinsAtom = keptAtom<Record<string, true>>(
-  "view",
-  "tab-groups-pinned.v1",
-  {},
-);
-
-/**
- * Whether the groups an earlier build pinned by their chat's star have a pin
- * of their own: given once, so a group unpinned since stays unpinned.
- */
-export const starPinsCarriedAtom = keptAtom<boolean>(
-  "view",
-  "tab-groups-star-pins-carried.v1",
-  false,
-);
-
-/** A group thrown away, its pin with it, which nothing shows again. */
-export const forgetGroupAtom = atom(null, (get, set, group: string) => {
-  const pins = get(groupPinsAtom);
-  if (group in pins) {
-    const { [group]: _pin, ...rest } = pins;
-    set(groupPinsAtom, rest);
-  }
-});
-
 /** The project the sidebar's list stands in, in this window: none for every open group. */
 export const sidebarProjectAtom = atom<string | undefined>(undefined);
 
@@ -56,15 +30,4 @@ export const sidebarWidthAtom = atom(
   (_get, set, width: number) => {
     set(storedSidebarWidthAtom, width);
   },
-);
-
-/**
- * The left side's share of each group of two sides, by group: its share of
- * the row past the gutter, kept as a share so it holds as the window or the
- * sidebar changes width. A group with none splits in half.
- */
-export const sideShareByGroupAtom = keptAtom<Record<string, number>>(
-  "view",
-  "tab-groups-side-share.v1",
-  {},
 );

@@ -3,7 +3,6 @@ import { projectFolderPath } from "@/client/lib/show-in-files";
 import { storageLocationQueryOptions } from "@/client/lib/output-folder";
 import { rpcClient } from "@/client/rpc/client";
 import { folderHref } from "@/shared/computer-href";
-import { draftOfGroup } from "@/shared/drafts";
 import { NO_SIDEBAR_CHANGES, pinnedPlaces } from "@/shared/sidebar-places";
 import { folderNameFromPath } from "@instrument-org/shared";
 import { useQuery } from "@tanstack/react-query";
@@ -15,6 +14,7 @@ import { chatListOptions } from "./chat-list-query";
 import { FolderMark } from "./folder-mark";
 import { ProjectMark } from "./project-mark";
 import { useShell } from "./shell-context";
+import { draftOfTab } from "./tab-model";
 import { useWindowTabs } from "./window-tabs";
 
 /**
@@ -127,14 +127,15 @@ export function useFilesPlaces(group: string): {
   const preferences = useQuery(
     rpcClient.preferences.live.get.experimental_liveOptions(),
   );
-  const chatId = useWindowTabs().chatsIn(group)[0];
+  const windowTabs = useWindowTabs();
+  const chatId = windowTabs.chatUpIn(group);
+  const up = windowTabs.selectedTabIn(group);
+  const draftUp = up === undefined ? undefined : draftOfTab(up);
   const { data: chatProject } = useQuery({
     ...chatListOptions(),
     select: (chats) => chats.find((entry) => entry.id === chatId)?.project,
   });
-  const draftProject = drafts.find(
-    (entry) => entry.id === draftOfGroup(group),
-  )?.projectId;
+  const draftProject = drafts.find((entry) => entry.id === draftUp)?.projectId;
   const project = shell.projects.find(
     (entry) => entry.id === (draftProject ?? chatProject),
   );

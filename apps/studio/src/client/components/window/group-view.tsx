@@ -1,8 +1,5 @@
 import { NEW_TAB_HREF, type WindowTab } from "@/client/atoms/window";
-import {
-  sideShareByGroupAtom,
-  sidebarOpenAtom,
-} from "@/client/atoms/tab-groups";
+import { sidebarOpenAtom } from "@/client/atoms/tab-groups";
 import { ResizeHandle } from "@/client/components/resize-handle";
 import { CaptionRoom } from "@/client/components/window-controls";
 import { useIsActiveTab } from "@/client/hooks/use-active-tab";
@@ -16,7 +13,7 @@ import {
 import { cn } from "@/client/lib/utils";
 import { browserTargetOf } from "@instrument-org/workspace/client";
 import { useQuery } from "@tanstack/react-query";
-import { useAtom, useAtomValue } from "jotai";
+import { useAtomValue } from "jotai";
 import {
   type CSSProperties,
   useEffect,
@@ -99,7 +96,6 @@ function showSideWithKeyboard(scroller: HTMLElement) {
 function GroupSides({ group }: { group: string }) {
   const windowTabs = useWindowTabs();
   const layout = windowTabs.layoutOf(group);
-  const [shares, setShares] = useAtom(sideShareByGroupAtom);
   const [dragged, setDragged] = useState<number>();
   // The share a drag last reached, read as it ends: the handle keeps the
   // callbacks of the render the press began in, so `dragged` there is stale.
@@ -107,7 +103,8 @@ function GroupSides({ group }: { group: string }) {
   const rowRef = useRef<HTMLDivElement>(null);
   const scrollerRef = useRef<HTMLDivElement>(null);
   const isTwo = layout.sides.length === 2;
-  const share = dragged ?? shares[group] ?? SIDE_SHARE_DEFAULT;
+  const share =
+    dragged ?? windowTabs.groupOwn[group]?.share ?? SIDE_SHARE_DEFAULT;
   useSidePagesTarget({
     group,
     isOn: useIsActiveTab(),
@@ -189,13 +186,8 @@ function GroupSides({ group }: { group: string }) {
   /** Where the gap between the sides is laid out, from the row's left. */
   const gutterAt = leftWidthAt(share, room);
   const keepShare = (next: number) => {
-    setShares((current) => {
-      if (next === SIDE_SHARE_DEFAULT) {
-        return Object.fromEntries(
-          Object.entries(current).filter(([key]) => key !== group),
-        );
-      }
-      return { ...current, [group]: next };
+    windowTabs.setGroupOwn(group, {
+      share: next === SIDE_SHARE_DEFAULT ? undefined : next,
     });
   };
 

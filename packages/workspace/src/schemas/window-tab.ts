@@ -46,12 +46,12 @@ const WindowTabActionSchema = z.discriminatedUnion("kind", [
    */
   z.object({ kind: z.literal("adopt"), tabId: z.string(), url: z.string() }),
   /**
-   * The chat's tabs, which are the only tabs it may name, hand to a task, or
-   * have an agent drive. Asked at the moment a tab is named, so it is never
-   * a copy that could be out of date, and answered whether or not a page's
-   * guest is up: a tab whose page was discarded is still the chat's.
+   * The tabs of a tab group, by its id: by default the group of the chat's
+   * tab the person last sent from. Asked at the moment a tab is named, so it
+   * is never a copy that could be out of date, and answered whether or not a
+   * page's guest is up.
    */
-  z.object({ kind: z.literal("list") }),
+  z.object({ group: z.string().optional(), kind: z.literal("list") }),
 ]);
 
 export type WindowTabAction = z.output<typeof WindowTabActionSchema>;
@@ -72,9 +72,9 @@ export const WindowTabAnswerSchema = z.object({
   requestId: z.string(),
   tabId: z.string().optional(),
   /**
-   * The chat's tabs, for a list: each by its id, with the address of a
-   * page's, and `front` on the one the person sees, the tab the chat has up
-   * while the chat is on screen.
+   * A group's tabs, for a list: each by its id, with the address of a
+   * page's, and `front` on the one the person sees, the tab up with the
+   * keyboard while the group is on screen.
    */
   tabs: z
     .array(

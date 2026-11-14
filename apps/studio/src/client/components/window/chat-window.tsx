@@ -215,8 +215,11 @@ export function ChatWindow({
   const showUp = () => {
     onExpand();
   };
-  /** Where what the chat opens goes: right after its tab, in the group with it (`chatPlace`). */
-  const place = () => windowTabs.chatPlace(chatId) ?? { group: chatId };
+  /** Where what the chat opens goes: right after its tab the person last sent from (`chatTab`), else the group on screen. */
+  const place = () => {
+    const tab = windowTabs.chatTab(chatId);
+    return tab === undefined ? {} : { after: tab.id, group: tab.group };
+  };
   const select = (id: string) => {
     windowTabs.select(id);
     showUp();
@@ -331,7 +334,7 @@ export function ChatWindow({
                 if (options?.show && !asksOwnPlace(options)) {
                   appWindow.openPath(path, {
                     activate: true,
-                    group: chatId,
+                    chat: chatId,
                     ownTab: true,
                   });
                   showUp();
@@ -367,7 +370,7 @@ export function ChatWindow({
                 }
                 appWindow.openPath(path, {
                   activate: true,
-                  group: chatId,
+                  chat: chatId,
                   ownTab: true,
                 });
                 showUp();

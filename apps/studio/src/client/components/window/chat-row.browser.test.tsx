@@ -1011,7 +1011,7 @@ describe("ChatRow", () => {
     expect(window.openPath).toHaveBeenCalledWith(
       "/Users/sam/chat/out/report.md",
       {
-        group: CHAT_ID,
+        chat: CHAT_ID,
         ownTab: true,
         show: true,
       },

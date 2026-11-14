@@ -3,7 +3,6 @@ import {
   type AppPlace,
   APPS_HREF,
   BROWSER_HREF,
-  chatGroupAtom,
   filesHrefAtom,
   type WindowTab,
 } from "@/client/atoms/window";
@@ -29,18 +28,10 @@ import { type Tab, type TabsModel, TabsModelSchema } from "@/shared/tabs";
 import { rpcClient } from "@/client/rpc/client";
 import { folderHref } from "@/shared/computer-href";
 import { type TabId } from "@/shared/tabs";
-import { type ChatId } from "@instrument-org/workspace/client";
 import { atom, getDefaultStore, useAtom, useAtomValue, useStore } from "jotai";
 
 import { openLinkAddress } from "./open-link-address";
-import {
-  chatHref,
-  chatOfGroup,
-  matchScreen,
-  pathOf,
-  SCREEN_ROUTES,
-  showsSame,
-} from "./window-href";
+import { matchScreen, pathOf, SCREEN_ROUTES, showsSame } from "./window-href";
 
 /** The chat with no chat open: the inbox, and where a tab opens when the last one closes. */
 export const INBOX_HREF = "/chats";
@@ -267,7 +258,6 @@ export function useAppTabs() {
   const store = useStore();
   const [model, setModel] = useAtom(appTabsAtom);
   const putAwaySites = useAtomValue(putAwaySitesAtom);
-  const lastChat = useAtomValue(chatGroupAtom);
   const lastFolder = useAtomValue(filesHrefAtom);
   const activeRouter = getTabRouter(model.selectedId);
 
@@ -390,7 +380,6 @@ export function useAppTabs() {
       { behind = false, newTab = false, newWindow = false, root = false } = {},
     ) => {
       const href = placeHrefOf(place, {
-        lastChat: root ? null : lastChat,
         lastFolder: root ? folderHref("~") : lastFolder,
       });
       if (newWindow) {
@@ -429,27 +418,6 @@ export function useAppTabs() {
           }
         });
     },
-    /**
-     * The next or previous row of the inbox from the chat up, or from no
-     * chat the list's first or last, in the tab up: the chord steps in
-     * place, whatever another tab or window has the chat.
-     */
-    stepChat: (
-      listed: readonly ChatId[],
-      from: ChatId | undefined,
-      direction: -1 | 1,
-    ) => {
-      const at = from === undefined ? -1 : listed.indexOf(from);
-      const next =
-        at === -1
-          ? direction === 1
-            ? listed[0]
-            : listed.at(-1)
-          : listed[at + direction];
-      if (next !== undefined) {
-        navigate(chatHref(next));
-      }
-    },
     /** This window's tab already showing what an address shows, up and walked there (`showTabHere`); false where none does. */
     selectShowing: (href: string): boolean => showTabHere(href, { store }),
     reorder: (ids: TabId[]) => {
@@ -473,13 +441,12 @@ export function useAppTabs() {
 }
 
 /**
- * Where the rail takes a tab for a place: the chat at the one it last had
- * open, Files at the folder it last stood in, the browser's start, and the
- * apps. With no chat named, the chat is the inbox.
+ * Where the rail takes a tab for a place: the inbox, Files at the folder it
+ * last stood in, the browser's start, and the apps.
  */
 function placeHrefOf(
   place: AppPlace,
-  { lastChat, lastFolder }: { lastChat: null | string; lastFolder: string },
+  { lastFolder }: { lastFolder: string },
 ): string {
   switch (place) {
     case "apps": {
@@ -489,8 +456,7 @@ function placeHrefOf(
       return BROWSER_HREF;
     }
     case "chat": {
-      const chat = chatOfGroup(lastChat ?? undefined);
-      return chat ? chatHref(chat) : INBOX_HREF;
+      return INBOX_HREF;
     }
     case "files": {
       return lastFolder;

@@ -372,66 +372,46 @@ const KeptTabGroupSchema = z.object({
     z.object({
       href: z.string().optional(),
       id: z.string(),
-      side: z.literal(1).optional(),
+      openedBy: z.string().optional(),
+      promptedAt: z.number().optional(),
     }),
   ),
 });
 
-/** Every tab group kept, by its key, with its tabs. */
-function keptTabGroups(): [string, z.output<typeof KeptTabGroupSchema>][] {
+/** Every tab kept in a tab group, with its group's key. */
+function keptGroupedTabs() {
   const prefix = `${WINDOW_TABS_KEY}/`;
   const layout = getStore().snapshot().layout ?? {};
   return Object.entries(layout).flatMap(([key, value]) => {
-    const group = key.startsWith(prefix)
-      ? KeptTabGroupSchema.safeParse(value).data
+    const tabs = key.startsWith(prefix)
+      ? KeptTabGroupSchema.safeParse(value).data?.tabs
       : undefined;
-    return group ? [[key.slice(prefix.length), group]] : [];
+    const group = key.slice(prefix.length);
+    return (tabs ?? []).map((tab) => ({ ...tab, group }));
   });
 }
 
-/** The chat a tab's address stands on, for a chat's tab (`/chats/<id>`). */
-function chatOfTabHref(href: string | undefined): string | undefined {
-  return href === undefined ? undefined : chatOfAddress(href);
+/** The chat whose agent opened a tab, by the tab's id; undefined for one the person opened. */
+export function keptOpenerOfTab(tabId: string): string | undefined {
+  return keptGroupedTabs().find((tab) => tab.id === tabId)?.openedBy;
 }
 
 /**
- * The chat a tab works for, by the tab's id: the first chat with a tab in
- * the tab's group, the left side first, as the group's row reads them.
- * Undefined for a tab no window has kept yet, and for one in a group with
- * no chat. A page drawn inside one window's surface is in no group here.
+ * The tab group a chat's agent works in: the group of the chat's tab the
+ * person last sent it a message from, else of its first tab. Undefined for a
+ * chat with no tab.
  */
-export function keptChatOfTab(tabId: string): string | undefined {
-  for (const [, group] of keptTabGroups()) {
-    if (!group.tabs.some((tab) => tab.id === tabId)) {
-      continue;
-    }
-    const ordered = [
-      ...group.tabs.filter((tab) => tab.side !== 1),
-      ...group.tabs.filter((tab) => tab.side === 1),
-    ];
-    return ordered.map((tab) => chatOfTabHref(tab.href)).find(Boolean);
-  }
-  return undefined;
-}
-
-/** The chats with a tab in some tab groups, by the groups' keys. */
-export function keptChatsOfGroups(groups: readonly string[]): string[] {
-  const among = new Set(groups);
-  return keptTabGroups().flatMap(([key, group]) =>
-    among.has(key)
-      ? group.tabs.flatMap((tab) => {
-          const chat = chatOfTabHref(tab.href);
-          return chat === undefined ? [] : [chat];
-        })
-      : [],
+export function keptWorkingGroupOfChat(chat: string): string | undefined {
+  const tabs = keptGroupedTabs().filter(
+    (tab) => tab.href !== undefined && chatOfAddress(tab.href) === chat,
   );
-}
-
-/** The tab groups with a tab on a chat, by their keys. */
-export function keptGroupsHoldingChat(chat: string): string[] {
-  return keptTabGroups().flatMap(([key, group]) =>
-    group.tabs.some((tab) => chatOfTabHref(tab.href) === chat) ? [key] : [],
-  );
+  return tabs.reduce<(typeof tabs)[number] | undefined>(
+    (found, tab) =>
+      found === undefined || (tab.promptedAt ?? 0) > (found.promptedAt ?? 0)
+        ? tab
+        : found,
+    undefined,
+  )?.group;
 }
 
 /** Writes what is still waiting, at once. The quit calls it on its way out. */

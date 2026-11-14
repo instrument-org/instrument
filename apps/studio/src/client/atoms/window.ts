@@ -78,16 +78,6 @@ export const composeAtom = keptAtom<ComposeEntry[]>("window", COMPOSE_KEY, []);
 export type AppPlace = "apps" | "browser" | "chat" | "files";
 
 /**
- * The chat a tab last had open, so Chat in the rail takes a tab back to it.
- * Null for the inbox alone.
- */
-export const chatGroupAtom = keptAtom<null | string>(
-  "window",
-  "chat-group.v2",
-  null,
-);
-
-/**
  * The folder a tab last stood in on Files, by its address, so Files in the
  * rail takes a tab back to it. Null until a tab has been there.
  */
@@ -165,10 +155,18 @@ export type WindowTab = TabHistory & TabVisit;
 interface TabHistory {
   future?: TabVisit[];
   /**
-   * The chat this tab belongs to, by its id, or the draft's key:
-   * what was opened while the chat was on screen stays with the chat.
+   * The tab group it is in, by the group's own id (`newGroupKey`), which
+   * names no chat or draft: none for a page an agent made with no tab yet.
    */
   group?: string;
+  /** The chat whose agent opened it; absent for a tab the person opened. */
+  openedBy?: ChatId;
+  /**
+   * On a chat's tab, when the person last sent the chat a message from it.
+   * Of a chat's tabs, the one sent from last is where its agent works
+   * (`chatTabOf`).
+   */
+  promptedAt?: number;
   /**
    * The side of its group the tab stands on: absent for the first, the left,
    * and 1 for the second, the right, which a group has only while some tab

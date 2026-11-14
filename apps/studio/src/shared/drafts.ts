@@ -370,8 +370,3 @@ export function repliesOf(drafts: Draft[], chatId: ChatId): Draft[] {
 export function draftGroupOf(draftId: string): string {
   return `draft:${draftId}`;
 }
-
-/** The draft a group key names, if it names one. */
-export function draftOfGroup(group: string | undefined): string | undefined {
-  return group?.startsWith("draft:") ? group.slice("draft:".length) : undefined;
-}

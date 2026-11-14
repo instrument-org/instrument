@@ -21,8 +21,7 @@ import {
   FIRST_APP_WINDOW_ID,
   forgetWindowKeptState,
   getWindowKeptState,
-  keptChatsOfGroups,
-  keptGroupsHoldingChat,
+  keptWorkingGroupOfChat,
   setWindowKeptState,
   tellWindowKeptState,
   windowKeptKeys,
@@ -241,43 +240,29 @@ function windowListingGroupOf(
   href: string,
   among: readonly BrowserWindow[],
 ): BrowserWindow | null {
-  const named = tabGroupOfAddress(href);
   const chat = chatOfAddress(href);
-  const groups =
-    named === undefined
-      ? chat === undefined
-        ? []
-        : keptGroupsHoldingChat(chat)
-      : [named];
-  if (groups.length === 0) {
+  const group =
+    tabGroupOfAddress(href) ??
+    (chat === undefined ? undefined : keptWorkingGroupOfChat(chat));
+  if (group === undefined) {
     return null;
   }
   return (
     among.find((window) => {
       const id = appWindowIdOfWindow(window);
-      return (
-        id !== undefined &&
-        keptTabGroupsOfWindow(id).some((group) => groups.includes(group))
-      );
+      return id !== undefined && keptTabGroupsOfWindow(id).includes(group);
     }) ?? null
   );
 }
 
-/**
- * The tab groups the open windows other than this one have open, and the
- * chats with a tab in them.
- */
-export function tabGroupsInOtherWindows(webContentsId: number): {
-  chats: string[];
-  groups: string[];
-} {
-  const groups = getAppWindows()
+/** The tab groups the open windows other than this one have open. */
+export function tabGroupsInOtherWindows(webContentsId: number): string[] {
+  return getAppWindows()
     .filter((window) => window.webContents.id !== webContentsId)
     .flatMap((window) => {
       const id = appWindowIdOfWindow(window);
       return id === undefined ? [] : keptTabGroupsOfWindow(id);
     });
-  return { chats: keptChatsOfGroups(groups), groups };
 }
 
 /** A window's tabs, as it keeps them. */

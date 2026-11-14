@@ -32,7 +32,7 @@ export function ClosedRecently({ onOpen }: { onOpen: (chat: ChatId) => void }) {
       {closed.map((entry) => (
         <button
           className="flex h-9 w-full items-center gap-2.5 rounded-lg px-3 text-left text-[13px] hover:bg-foreground/5"
-          key={entry.group}
+          key={entry.chat.id}
           onClick={() => {
             onOpen(entry.chat.id);
           }}
@@ -40,7 +40,7 @@ export function ClosedRecently({ onOpen }: { onOpen: (chat: ChatId) => void }) {
         >
           <ChatCircleIcon className="size-4 shrink-0 text-muted-foreground" />
           <span className="min-w-0 truncate text-foreground/85">
-            {entry.title}
+            {entry.chat.title}
           </span>
           <RelativeTime
             className="shrink-0 text-muted-foreground"

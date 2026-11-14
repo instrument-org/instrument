@@ -307,19 +307,12 @@ export function groupHref(group: string): string {
   return `${pathOf(SCREEN_ROUTES.inbox, {})}?${new URLSearchParams({ group }).toString()}`;
 }
 
-/** A fresh tab group's key. */
+/**
+ * A fresh tab group's id, minted once for the group's life and read for
+ * nothing: no group's id names a chat or a draft.
+ */
 export function newGroupKey(): string {
   return `group:${crypto.randomUUID()}`;
-}
-
-/**
- * The chat a group of tabs is, by its key: a chat's group is keyed by its
- * id, and every other group's key (a draft's, a site's, a hosted page's)
- * has a colon in it, which no chat id does.
- */
-export function chatOfGroup(group: string | undefined): ChatId | undefined {
-  const id = ChatIdSchema.safeParse(group);
-  return id.success ? id.data : undefined;
 }
 
 /** The chat whose screen an address is, if it is one. */

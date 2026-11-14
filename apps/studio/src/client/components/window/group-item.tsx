@@ -121,8 +121,8 @@ export function GroupItem({
     [],
   );
   const targetId = up.kind === "page" ? browserTargetOf(up.id) : undefined;
-  // The chat the group works for, which an agent's page says is using it.
-  const chatId = windowTabs.chatsIn(group)[0];
+  // The chat whose agent opened the page, which the page says is using it.
+  const chatId = up.openedBy ?? windowTabs.chatUpIn(group);
   const page = targetId ? getGuest(targetId) : null;
   // An earlier build's new tab page; a new tab now is a new chat.
   const isNewTab =

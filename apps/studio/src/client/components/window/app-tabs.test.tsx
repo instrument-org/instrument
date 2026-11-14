@@ -170,42 +170,6 @@ describe("navigate", () => {
   });
 });
 
-describe("stepChat", () => {
-  it.each([
-    ["another tab in this window", "here"],
-    ["a tab in another window", "elsewhere"],
-  ])("moves the tab up to the next chat when %s has it", (_, where) => {
-    const replace = vi.fn();
-    // Only the history a step moves: the tab up has no route mounted here.
-    const router = {
-      history: { location: { href: `/chats/${OTHER}` }, replace },
-    } as unknown as TabRouter;
-    setTabRouter(UP, router);
-    if (where === "elsewhere") {
-      otherWindows.models = [
-        {
-          recentlyClosed: [],
-          selectedId: "theirs",
-          tabs: [{ id: "theirs", pathname: `/chats/${CHAT}` }],
-        },
-      ];
-    }
-    const { result, store } = windowShowing(
-      where === "here" ? `/chats/${CHAT}` : "/apps",
-    );
-
-    act(() => {
-      result.current.stepChat([OTHER, CHAT], OTHER, 1);
-    });
-
-    // In its place, so the group left behind is no step back.
-    expect(replace).toHaveBeenCalledWith(`/chats/${CHAT}`);
-    expect(store.get(appTabsAtom).selectedId).toBe(UP);
-    expect(store.get(appTabsAtom).tabs).toHaveLength(2);
-    expect(showInOtherWindow).not.toHaveBeenCalled();
-  });
-});
-
 describe("a tab another window asks for, by an address that asks more of it", () => {
   const SINCE = "/release-notes?since=2.0.0";
 

@@ -142,7 +142,12 @@ const TabField = (verb: string, form: string) =>
   z.string({ error: `${verb} takes one tab id: ${NAME} ${verb} ${form}.` });
 
 export const windowList = defineCapability({
-  input: z.object({}),
+  input: z.object({
+    group: z.string().optional().meta({
+      description:
+        "A tab group's id; by default the group of the chat's tab the person last sent from.",
+    }),
+  }),
   name: "window.list",
   output: z.array(
     z.object({
@@ -158,8 +163,11 @@ export const windowList = defineCapability({
         .optional(),
     }),
   ),
-  async run(_, ctx) {
-    const answer = await ask({ kind: "list" }, ctx);
+  async run({ group }, ctx) {
+    const answer = await ask(
+      { kind: "list", ...(group === undefined ? {} : { group }) },
+      ctx,
+    );
     if (!answer) {
       throw new Error(NO_WINDOW);
     }
@@ -187,14 +195,14 @@ export const windowList = defineCapability({
     });
   },
   summary:
-    "The chat's tabs, one line each, as what is in the window: the id every other subcommand and `agent-browser tab` take, whether it is in front, what it shows, and which task is at work in it.",
+    "A tab group's tabs, one line each, by default the group the chat works in: the id every other subcommand and `agent-browser tab` take, whether it is in front, what it shows, and which task is at work in it.",
   surfaces: {
-    cli: { help: "", words: ["window", "list"] },
-    script: {},
+    cli: { help: "", positional: ["group"], words: ["window", "list"] },
+    script: { positional: ["group"] },
   },
   text: (tabs) =>
     tabs.length === 0
-      ? "This chat has no tabs in the window."
+      ? "That group has no tabs."
       : tabs
           .map((tab) => {
             const shows =

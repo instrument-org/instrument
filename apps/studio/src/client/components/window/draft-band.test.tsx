@@ -253,7 +253,7 @@ describe("a page the draft names, at the send", () => {
       });
     }
     expect(openBehind.mock.calls).toEqual([
-      [theirs.url, "group:1", undefined, "chat"],
+      [theirs.url, { after: "chat", group: "group:1" }],
     ]);
   });
 

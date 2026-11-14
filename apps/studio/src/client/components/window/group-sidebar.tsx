@@ -630,8 +630,8 @@ function BackRow({ label, onBack }: { label: string; onBack: () => void }) {
  * there. While the pointer is on a row that closes, a close X stands at the
  * title line's end, and a middle click closes it too. While a tab held over
  * it would land in its group, it takes a quiet fill in place of any other
- * tone. A right click raises its menu (`GroupRowMenu`). The title is its
- * chat's title, or what a group whose chat has not started is called.
+ * tone. A right click raises its menu (`GroupRowMenu`). The title is the
+ * tab up on the side with the keyboard's.
  */
 export function GroupRow({
   chatTitles,
@@ -643,7 +643,6 @@ export function GroupRow({
   onClose,
   onPress,
   onShow,
-  restore,
 }: {
   chatTitles: Map<ChatId, string>;
   entry: TabGroup;
@@ -657,28 +656,19 @@ export function GroupRow({
   /** A press that may become a drag of the row. */
   onPress?: (group: string, event: ReactPointerEvent<HTMLElement>) => void;
   onShow?: (group: string, options: { newWindow: boolean }) => void;
-  restore?: () => void;
 }) {
   const chat = entry.kind === "chat" ? entry.chat : undefined;
   const isUnread = chat?.unread === true;
   const { selectedTabIn } = useWindowTabs();
   const appsBySlug = useAppsBySlug();
-  // A group with no chat and no words is named by the tab it has up on the
-  // side with the keyboard, until the person names it.
-  const up =
-    entry.kind === "tabs" ||
-    (entry.kind === "draft" && entry.draft.words.trim() === "")
-      ? selectedTabIn(entry.group)
-      : undefined;
+  // A row is titled by the tab up on its side with the keyboard: a chat's
+  // tab by the chat, a new chat with words by them, a page by its own.
+  const up = selectedTabIn(entry.group);
   let ownTitle =
-    entry.kind === "chat"
-      ? entry.chat.title
-      : entry.kind === "draft"
-        ? draftWordsTitle(entry.draft)
-        : entry.title;
+    entry.kind === "draft" ? draftWordsTitle(entry.draft) : entry.title;
   if (up?.kind === "page") {
     ownTitle = pageTabTitle(up) || ownTitle;
-  } else if (up !== undefined) {
+  } else if (up !== undefined && entry.kind !== "draft") {
     ownTitle = screenPresentation(up.href, { appsBySlug, chatTitles }).title;
   }
   const title = ownTitle;
@@ -694,21 +684,18 @@ export function GroupRow({
         onShow && "cursor-default",
         onPress && "select-none",
       )}
-      {...(restore || isLifted ? {} : { "data-group-row": entry.group })}
+      {...(isLifted ? {} : { "data-group-row": entry.group })}
       data-drop-into={isDropInto ? "" : undefined}
       data-up={isUp && !isLifted ? "" : undefined}
       onAuxClick={(event) => {
-        // A middle click closes the group the way its X does, asking first
-        // while its agent works.
-        if (event.button === 1 && onClose && !restore) {
+        // A middle click closes the group the way its X does.
+        if (event.button === 1 && onClose) {
           event.preventDefault();
           onClose(entry.group);
         }
       }}
       onClick={(event) => {
-        if (!restore) {
-          onShow?.(entry.group, { newWindow: event.shiftKey });
-        }
+        onShow?.(entry.group, { newWindow: event.shiftKey });
       }}
       // A middle press would start the list's autoscroll.
       onMouseDown={(event) => {
@@ -723,7 +710,7 @@ export function GroupRow({
             }
           : undefined
       }
-      role={restore || isLifted ? undefined : "button"}
+      role={isLifted ? undefined : "button"}
     >
       <div className="min-w-0 flex-1">
         <div className="flex h-5 min-w-0 items-center gap-1.5">
@@ -739,7 +726,7 @@ export function GroupRow({
           </span>
           <RowActionBar
             actions={
-              onClose && !restore
+              onClose
                 ? [
                     {
                       icon: <XIcon />,
@@ -758,27 +745,9 @@ export function GroupRow({
           <SecondLine chatTitles={chatTitles} entry={entry} />
         </div>
       </div>
-      {restore && (
-        <button
-          className="ml-auto flex h-6 shrink-0 items-center rounded-md bg-background px-2 text-xs font-medium opacity-0 shadow-xs ring-1 ring-border group-hover/row:opacity-100 focus-visible:opacity-100"
-          onClick={(event) => {
-            event.stopPropagation();
-            restore();
-          }}
-          type="button"
-        >
-          Open
-        </button>
-      )}
     </div>
   );
-  return menu ? (
-    <GroupRowMenu menu={menu}>
-      {shown}
-    </GroupRowMenu>
-  ) : (
-    shown
-  );
+  return menu ? <GroupRowMenu menu={menu}>{shown}</GroupRowMenu> : shown;
 }
 
 /**

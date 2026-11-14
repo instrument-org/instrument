@@ -32,7 +32,7 @@ import { hasWords, matchesSearch } from "./chats";
 import { matchNames } from "./omnibar-match";
 import { ShellContext } from "./shell-context";
 import { type FieldScope, type TabLocation } from "./tab-location";
-import { useOpenGroups } from "./tab-groups";
+import { historyKeyOf, historyTitleOf, useOpenGroups } from "./tab-groups";
 import { CHATS_INDEX_HREF, chatHref } from "./window-href";
 
 /** One row under the address field: what the words in it could mean. */
@@ -241,10 +241,7 @@ function useScopeRows({
         .filter((entry) =>
           entry.kind === "chat"
             ? matchesSearch(entry.chat, typed, projectNames)
-            : hasWords(typed, [
-                entry.title,
-                entry.kind === "draft" ? entry.draft.words : "",
-              ]),
+            : hasWords(typed, [entry.draft.words]),
         )
         .slice(0, SCOPE_ROWS_SHOWN);
       return {
@@ -253,8 +250,8 @@ function useScopeRows({
             (entry): OmniRow => ({
               detail: entry.kind === "draft" ? "Draft" : undefined,
               icon: <AppMark app="chat" className="size-4" />,
-              id: `history:${entry.group}`,
-              name: entry.title,
+              id: `history:${historyKeyOf(entry)}`,
+              name: historyTitleOf(entry),
               run: () => {
                 if (entry.kind === "chat") {
                   open.openScreen(chatHref(entry.chat.id));

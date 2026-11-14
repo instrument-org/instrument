@@ -23,16 +23,15 @@ const watched = new Set<BrowserTargetId>();
  * Marks a tab an agent opened as used by the person, on its chat's
  * `openedTabs`, so no automatic close takes it, across a relaunch and its
  * page being unloaded: they clicked, tapped, typed or scrolled in its page.
- * `groupOf` reads the window group the tab is kept in, a chat's id for a
- * chat's tab, or undefined for a tab not kept yet; it is read only when the
- * tab's use is not on record. A tab in a group that is no chat's is the
- * person's own and left alone. One whose entry is not written yet (a popup
- * the person reached first) is marked when `noteOpenedTab` writes it.
+ * `openerOf` reads the chat whose agent opened the tab, as the tab is kept,
+ * or undefined for a tab not kept yet or the person's own; it is read only
+ * when the tab's use is not on record. One whose entry is not written yet (a
+ * popup the person reached first) is marked when `noteOpenedTab` writes it.
  * Cheap to call on every input event.
  */
 export function notePersonUsedTab(
   id: BrowserTargetId,
-  groupOf: () => string | undefined,
+  openerOf: () => string | undefined,
 ): void {
   if (
     noted.has(id) ||
@@ -45,9 +44,9 @@ export function notePersonUsedTab(
   if (!watch(id)) {
     return;
   }
-  const group = groupOf();
-  const chatId = group === undefined ? undefined : resolveChat(group);
-  if (group !== undefined && chatId === undefined) {
+  const opener = openerOf();
+  const chatId = opener === undefined ? undefined : resolveChat(opener);
+  if (opener !== undefined && chatId === undefined) {
     noted.add(id);
     return;
   }

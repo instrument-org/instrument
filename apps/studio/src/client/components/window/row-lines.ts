@@ -2,7 +2,7 @@ import { stripMarkdown } from "@instrument-org/shared/strip-markdown";
 
 import { type ScreenName } from "@/shared/instrument-screens";
 
-import { type Chat, limitedText } from "./chats";
+import { type Chat } from "./chats";
 
 /**
  * The ink of a row's second line: `quiet` for where a tab is, `work` for a
@@ -41,14 +41,14 @@ export function chatLines(
   const latest = chat?.latest?.text ?? "";
   switch (chat?.status) {
     case "failed": {
-      return quiet(named, "Stopped before it finished", "fail");
+      return quiet(named, "Stopped", "fail");
     }
     case "limited": {
-      return quiet(named, limitedText(chat));
+      return quiet(named, LIMITED_LINES[chat.stoppedFor ?? "usage"]);
     }
     case "waiting": {
       return {
-        line: latest || "Waiting on you",
+        line: latest || "Needs you",
         strong: true,
         title: named,
         tone: "ask",
@@ -56,7 +56,7 @@ export function chatLines(
     }
     case "working": {
       const step = chat.latest?.kind === "step" ? chat.latest.text : undefined;
-      return quiet(named, step ?? "Instrument is working", "work");
+      return quiet(named, step ?? "Working", "work");
     }
     default: {
       return chat?.unread === true
@@ -67,8 +67,8 @@ export function chatLines(
 }
 
 /**
- * A web page's two lines: its title over its site, while it loads "Loading"
- * and the site, and when it could not be reached, that.
+ * A web page's two lines: its title over its site, or "Can't connect" when
+ * it could not be reached. A load is too brief to name.
  */
 export function pageLines(
   title: string,
@@ -76,41 +76,45 @@ export function pageLines(
   load: PageLoad | undefined,
 ): RowLines {
   const site = siteOf(url);
-  if (load === "failed") {
-    return quiet(title, "Can't reach this page", "fail");
-  }
-  if (load === "loading") {
-    return quiet(title, site === "" ? "Loading" : `Loading ${site}`);
-  }
-  return quiet(title, site);
+  return load === "failed"
+    ? quiet(title, "Can't connect", "fail")
+    : quiet(title, site);
 }
 
 /** A new tab's two lines: New Tab, over the words typed in it so far. */
 export function newTabLines(words: string | undefined): RowLines {
   const typed = words?.trim() ?? "";
   return typed === ""
-    ? quiet("New Tab", "Nothing open yet")
+    ? quiet("New Tab", "")
     : { line: typed, strong: false, title: "New Tab", tone: "draft" };
 }
 
 /**
- * What a built-in page's second line says with no part of it open: where
- * the page starts.
+ * What a built-in page's second line says with no part of it open: the
+ * place it starts at where that is a real place, and nothing where it would
+ * only restate the page's name.
  */
 export const PAGE_START_LINES = {
-  activity: "Everything you did",
-  apps: "Your apps",
-  browser: "Start page",
-  chats: "Every chat",
-  extensions: "Your extensions",
+  activity: "",
+  apps: "",
+  browser: "",
+  chats: "",
+  extensions: "",
   files: "Home",
-  history: "Chats you closed",
-  memory: "All memories",
-  "release-notes": "What's new",
+  history: "",
+  memory: "",
+  "release-notes": "",
   settings: "General",
-  shortcuts: "Every shortcut",
-  skills: "All skills",
+  shortcuts: "",
+  skills: "",
 } as const satisfies Record<ScreenName, string>;
+
+/** A chat stopped short of usage, by why: a label, with the details on the chat itself. */
+const LIMITED_LINES = {
+  payment: "Payment failed",
+  plan: "Needs a plan",
+  usage: "Out of usage",
+} as const;
 
 /** Two quiet lines, or in the tone given. */
 export function quiet(

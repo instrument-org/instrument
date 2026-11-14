@@ -766,7 +766,7 @@ export function GroupRow({
           }
         }
         isCloseShown={isCloseShown}
-        lines={quiet(entry.title, "Nothing open yet")}
+        lines={quiet(entry.title, "")}
       />
     );
   }

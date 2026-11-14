@@ -38,7 +38,7 @@ describe("chatLines", () => {
     [
       "a chat at work with no step yet",
       { status: "working" },
-      { line: "Instrument is working", strong: false, tone: "work" },
+      { line: "Working", strong: false, tone: "work" },
     ],
     [
       "a chat asking",
@@ -53,7 +53,7 @@ describe("chatLines", () => {
     [
       "a chat that failed",
       { latest: line("Here's the FAQ"), status: "failed" },
-      { line: "Stopped before it finished", strong: false, tone: "fail" },
+      { line: "Stopped", strong: false, tone: "fail" },
     ],
   ])("says %s", (_kind, fields, expected) => {
     expect(
@@ -78,12 +78,12 @@ describe("pageLines", () => {
     [
       "it is loading",
       ["Plans", "https://freshworks.com/freshdesk/pricing", "loading"],
-      { line: "Loading freshworks.com", tone: "quiet" },
+      { line: "freshworks.com", tone: "quiet" },
     ],
     [
       "it can't be reached",
       ["Pricing", "https://intercom.com/pricing", "failed"],
-      { line: "Can't reach this page", tone: "fail" },
+      { line: "Can't connect", tone: "fail" },
     ],
   ])("says %s", (_kind, args, expected) => {
     expect(pageLines(...args)).toMatchObject(expected);
@@ -92,8 +92,8 @@ describe("pageLines", () => {
 
 describe("newTabLines", () => {
   it.each([
-    [undefined, "Nothing open yet", "quiet"],
-    ["  ", "Nothing open yet", "quiet"],
+    [undefined, "", "quiet"],
+    ["  ", "", "quiet"],
     ["Line up Intercom's seats", "Line up Intercom's seats", "draft"],
   ])("says what is typed in %j", (words, expectedLine, tone) => {
     expect(newTabLines(words)).toMatchObject({

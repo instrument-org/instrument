@@ -137,7 +137,8 @@ export function RowLinesView({
       )}
       data-row-half=""
     >
-      <div className="flex min-w-0 flex-1 flex-col">
+      {/* A blank second line leaves the title centered in the same height. */}
+      <div className="flex h-10 min-w-0 flex-1 flex-col justify-center">
         <div className="flex h-5 min-w-0 items-center gap-1.5">
           {mark && (
             <span className="flex shrink-0 text-foreground/65">{mark}</span>
@@ -153,11 +154,13 @@ export function RowLinesView({
             {lines.title}
           </span>
         </div>
-        <div className="flex h-5 min-w-0 items-center text-[12px] leading-5">
-          <span className={cn("min-w-0 truncate", TONE_INK[lines.tone])}>
-            {lines.line}
-          </span>
-        </div>
+        {lines.line !== "" && (
+          <div className="flex h-5 min-w-0 items-center text-[12px] leading-5">
+            <span className={cn("min-w-0 truncate", TONE_INK[lines.tone])}>
+              {lines.line}
+            </span>
+          </div>
+        )}
       </div>
       {close && (
         <RowActionBar
@@ -225,7 +228,7 @@ function useRowLines(
         : quiet(title, open);
     }
     case "chats": {
-      return quiet(title, "Every chat");
+      return quiet(title, "");
     }
     case "app": {
       return quiet(title, siteOf(location.site) || "App");
@@ -243,14 +246,14 @@ function useRowLines(
   }
 }
 
-/** Where a file or folder is, as "In" its folder, or the computer for one at the top. */
+/** Where a file or folder is: its folder's name, or the computer for one at the top. */
 function folderLine(path: string): string {
   const crumbs = locationCrumbs(
     { kind: "folder", path },
     { home: window.api.homeDir },
   );
   const folder = crumbs.at(-2)?.label;
-  return folder === undefined ? osConventions().computer : `In ${folder}`;
+  return folder ?? osConventions().computer;
 }
 
 /**

@@ -30,10 +30,13 @@ import {
  */
 export function HistoryPage({
   onSearch,
+  project,
   q,
   show,
 }: {
   onSearch: (q: string) => void;
+  /** Only what is filed under this project, by its id. */
+  project?: string;
   q: string;
   show?: "chats" | undefined;
 }) {
@@ -50,11 +53,20 @@ export function HistoryPage({
   const projectNames = new Map(
     shell.projects.map((project) => [project.id, project.name]),
   );
-  const shown = history.filter((entry) =>
+  const filed = history.filter(
+    (entry) =>
+      project === undefined ||
+      (entry.kind === "chat"
+        ? entry.chat.project === project
+        : entry.draft.projectId === project),
+  );
+  const shown = filed.filter((entry) =>
     entry.kind === "chat"
       ? matchesSearch(entry.chat, q, projectNames)
       : hasWords(q, [entry.draft.words]),
   );
+  const projectName =
+    project === undefined ? undefined : projectNames.get(project);
   const open = (entry: HistoryEntry) => {
     groups.restore(entry);
   };
@@ -68,7 +80,7 @@ export function HistoryPage({
       <div className="mx-auto flex max-w-2xl flex-col gap-3 p-4 @min-[640px]/history:p-6">
         <div className="flex flex-wrap items-center gap-x-3 gap-y-2">
           <h1 className="mr-1 text-base font-semibold">
-            {show === "chats" ? "Chats" : "History"}
+            {projectName ?? (show === "chats" ? "Chats" : "History")}
           </h1>
           <div
             className="flex min-w-48 flex-1"
@@ -82,11 +94,13 @@ export function HistoryPage({
             />
           </div>
         </div>
-        {history.length === 0 ? (
+        {filed.length === 0 ? (
           <p className="py-2 text-[13px] text-muted-foreground">
-            {show === "chats"
-              ? "Your chats show up here."
-              : "Chats you close show up here."}
+            {projectName !== undefined
+              ? "Chats filed under this project show up here."
+              : show === "chats"
+                ? "Your chats show up here."
+                : "Chats you close show up here."}
           </p>
         ) : shown.length === 0 ? (
           <p className="py-2 text-[13px] text-muted-foreground">

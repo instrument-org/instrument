@@ -29,6 +29,7 @@ import { CaretLeftIcon } from "@phosphor-icons/react/CaretLeft";
 import { CaretRightIcon } from "@phosphor-icons/react/CaretRight";
 import { ClockCounterClockwiseIcon } from "@phosphor-icons/react/ClockCounterClockwise";
 import { GearSixIcon } from "@phosphor-icons/react/GearSix";
+import { ListBulletsIcon } from "@phosphor-icons/react/ListBullets";
 import { PlusIcon } from "@phosphor-icons/react/Plus";
 import { type ChatId } from "@instrument-org/workspace/client";
 import { useQuery } from "@tanstack/react-query";
@@ -78,6 +79,9 @@ import {
   type TabGroup,
   windowTabGroupsAtom,
 } from "./tab-groups";
+import { chatListOptions } from "./chat-list-query";
+import { chatOfTab } from "./tab-model";
+import { CHATS_INDEX_HREF } from "./window-href";
 import { useWindowTabs } from "./window-tabs";
 
 /** A key printed beside the control it works, in a light keycap. */
@@ -170,15 +174,32 @@ export function GroupSidebar({
   }
   const washProject = project ?? lastProject;
 
-  const inProject = (entry: TabGroup) =>
-    project === undefined ||
-    (entry.kind === "chat"
-      ? entry.chat.project === project.id
-      : entry.kind === "draft" && entry.draft.projectId === project.id);
+  const { chatUpIn, layoutOf } = useWindowTabs();
+  const { data: chatList } = useQuery(chatListOptions());
+  // A group is the project's while any chat it has a tab on is filed
+  // there, whatever is up in it, or the draft up in it is.
+  const inProject = (entry: TabGroup) => {
+    if (project === undefined) {
+      return true;
+    }
+    if (entry.kind === "draft" && entry.draft.projectId === project.id) {
+      return true;
+    }
+    const filed = new Set(
+      (chatList ?? []).flatMap((chat) =>
+        chat.project === project.id ? [chat.id] : [],
+      ),
+    );
+    return layoutOf(entry.group).sides.some((side) =>
+      side.tabs.some((tab) => {
+        const chat = chatOfTab(tab);
+        return chat !== undefined && filed.has(chat);
+      }),
+    );
+  };
   const listed = open.filter(inProject);
   const pinned = listed.filter((entry) => isPinnedGroup(entry));
   const rest = listed.filter((entry) => !isPinnedGroup(entry));
-  const { chatUpIn } = useWindowTabs();
   const chats = open.flatMap((entry) =>
     entry.kind === "chat" ? [entry.chat] : [],
   );
@@ -249,7 +270,7 @@ export function GroupSidebar({
     ...(pinned.length > 0 ? [":divider"] : []),
     ":new",
     ...rest.map((entry) => `row:${entry.group}`),
-    ...(project ? [] : [":history"]),
+    ":history",
   ];
   const roomAt = room?.before === undefined ? -1 : items.indexOf(room.before);
   const place = (item: string) => ({
@@ -319,15 +340,27 @@ export function GroupSidebar({
           />
         </ListItem>
         {rest.map((entry) => listItem(entry, "rest"))}
-        {!project && (
-          <ListItem key=":history" {...place(":history")}>
+        <ListItem key=":history" {...place(":history")}>
+          {project ? (
             <HistoryRow
+              icon={<ListBulletsIcon className="size-4" />}
+              label="All chats"
+              onOpen={() => {
+                openBuiltInPage(
+                  `${CHATS_INDEX_HREF}&${new URLSearchParams({ project: project.id }).toString()}`,
+                );
+              }}
+            />
+          ) : (
+            <HistoryRow
+              icon={<ClockCounterClockwiseIcon className="size-4" />}
+              label="History"
               onOpen={() => {
                 openBuiltInPage(SCREENS.history.href);
               }}
             />
-          </ListItem>
-        )}
+          )}
+        </ListItem>
       </AnimatePresence>
       {/* A room at the list's end takes up space for a whole group;
           what a tab stands as there draws over the list's empty space,
@@ -591,15 +624,24 @@ function NewRow({ onNew }: { onNew: () => void }) {
  * The way into History at the list's end, dimmed so it reads as past the
  * groups rather than one of them, naming none of what is there.
  */
-function HistoryRow({ onOpen }: { onOpen: () => void }) {
+/** The row under the groups that opens a page of chats with no tab: History, or a project's chats. */
+function HistoryRow({
+  icon,
+  label,
+  onOpen,
+}: {
+  icon: ReactNode;
+  label: string;
+  onOpen: () => void;
+}) {
   return (
     <button
       className="mt-1 flex h-8 w-full shrink-0 items-center gap-2.5 rounded-lg px-2.5 text-[13px] font-medium text-muted-foreground/70 hover:bg-foreground/5 hover:text-foreground"
       onClick={onOpen}
       type="button"
     >
-      <ClockCounterClockwiseIcon className="size-4" />
-      <span className="flex-1 text-left">History</span>
+      {icon}
+      <span className="flex-1 text-left">{label}</span>
       <CaretRightIcon className="size-3.5" />
     </button>
   );

@@ -55,6 +55,7 @@ Each edit takes a last `{ quiet: true }` for a change that isn't the proposal, s
 
 ## Rules
 
+- List the states first. Before drawing, write down every state the proposal passes through (empty, loading, an error, many items, dark, the moment after each action) and give each its own frame, editing a snapshot your way to any state the library lacks. A page that shows only the happy path is one a reader can't decide from.
 - Start from the state nearest the proposal and change only what the proposal is about. If the change needs a state the library lacks, take the nearest one and edit your way there (open a menu by adding its markup, cloned from a menu that is in another state), and say so in the source line.
 - One `.click()` per frame, on the thing clicked to get to the next frame.
 - The window's lights are drawn on every snapshot frame. The in-app browser's page is a picture of the page, not its DOM: draw over it, don't edit into it. Native macOS menus and dialogs are not in any snapshot; draw them with the kit's `mac.js`.

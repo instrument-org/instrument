@@ -1,5 +1,5 @@
 import { draftSnapshotsAtom } from "@/client/atoms/prompt-value";
-import { AnimatedOutlineBrandIconGlyph } from "@/client/components/brand-icon";
+import { ChatCircleIcon } from "@phosphor-icons/react/ChatCircle";
 import { APPS_HREF, BROWSER_HREF, filesHrefAtom } from "@/client/atoms/window";
 import { sidebarProjectAtom } from "@/client/atoms/tab-groups";
 import {
@@ -395,11 +395,14 @@ export function NewChatView({
   );
 }
 
-/** The Instrument mark over a line, as a new chat in 1.0 opened under them. */
+/** The chat bubble over a line, as a new chat in 1.0 opened under them. */
 function NewChatIntro() {
   return (
     <div className="flex flex-col items-center gap-y-5">
-      <AnimatedOutlineBrandIconGlyph className="size-18 text-brown-300/34 dark:text-brown-900/34" />
+      <ChatCircleIcon
+        className="size-18 text-brown-300/34 dark:text-brown-900/34"
+        weight="fill"
+      />
       <h1 className="font-serif text-2xl leading-none font-normal tracking-[-0.03em] whitespace-nowrap text-foreground @xl/app-content:text-3xl @3xl/app-content:text-4xl">
         How can I help?
       </h1>

@@ -1,7 +1,7 @@
 import { targetOfAddress } from "@/client/bookmarks/address";
 import { PageFavicon } from "@/client/components/favicon";
 import { FileSystemFolderGlyph } from "@/client/components/extend/file-system";
-import { InstrumentGlyph } from "@/client/components/wordmark";
+import { ChatCircleIcon } from "@phosphor-icons/react/ChatCircle";
 import { cn } from "@/client/lib/utils";
 import {
   isScreenName,
@@ -96,7 +96,7 @@ export function appName(app: BuiltInApp): string {
   return isScreenName(app) ? SCREENS[app].title : titleOf(app);
 }
 
-/** A built-in app's mark: the Instrument mark for Chat, Files' folder, and each page's own. */
+/** A built-in app's mark: the chat bubble for Chat, Files' folder, and each page's own. */
 export function AppMark({
   app,
   className,
@@ -106,8 +106,8 @@ export function AppMark({
 }) {
   if (app === "chat") {
     return (
-      <InstrumentGlyph
-        className={cn("size-3.5 shrink-0 text-brand-600", className)}
+      <ChatCircleIcon
+        className={cn("size-3.5 shrink-0 text-foreground/70", className)}
       />
     );
   }
@@ -178,7 +178,7 @@ export function AppChip({
 
 /**
  * The mark an address wears wherever it is kept, the mark its tab wears: a
- * site's icon, a folder's or a file's mark, the Instrument mark for a chat,
+ * site's icon, a folder's or a file's mark, the chat bubble for a chat,
  * and a built-in page's own; a place inside an app wears the app's mark.
  */
 export function AddressMark({

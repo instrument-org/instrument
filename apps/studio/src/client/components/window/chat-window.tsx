@@ -8,7 +8,7 @@ import {
 import { fileHref, folderHref } from "@/shared/computer-href";
 import { ChipPresence } from "@/client/components/attached-item-preview";
 import { ArrowsOutSimpleIcon } from "@phosphor-icons/react/ArrowsOutSimple";
-import { ChatsCircleIcon } from "@phosphor-icons/react/ChatsCircle";
+import { ChatCircleIcon } from "@phosphor-icons/react/ChatCircle";
 import { MinusIcon } from "@phosphor-icons/react/Minus";
 import { XIcon } from "@phosphor-icons/react/X";
 import { AnimatePresence, motion, useIsPresent } from "motion/react";
@@ -86,7 +86,7 @@ export function ChatBar({
       >
         <ChatMarkIcon
           dot={dot}
-          icon={<ChatsCircleIcon className="size-3.5 shrink-0" />}
+          icon={<ChatCircleIcon className="size-3.5 shrink-0" />}
           // The bar's own ground, dark in either theme.
           ring="ring-gray-900 dark:ring-gray-800"
         />

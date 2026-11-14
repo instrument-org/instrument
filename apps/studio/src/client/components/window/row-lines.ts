@@ -1,3 +1,5 @@
+import { stripMarkdown } from "@instrument-org/shared/strip-markdown";
+
 import { type ScreenName } from "@/shared/instrument-screens";
 
 import { type Chat, limitedText } from "./chats";
@@ -35,7 +37,7 @@ export function chatLines(
   title: string,
   plain: (text: string) => string = (text) => text,
 ): RowLines {
-  const named = chat?.title ?? title;
+  const named = stripMarkdown(chat?.title ?? title);
   const latest = chat?.latest?.text ?? "";
   switch (chat?.status) {
     case "failed": {

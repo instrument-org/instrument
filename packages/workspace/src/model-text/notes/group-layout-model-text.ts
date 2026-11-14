@@ -6,6 +6,8 @@ import {
   type LayoutTabKind,
 } from "../../schemas/group-layout";
 import { type SessionMessageDataPart } from "../../schemas/session/message-data-part";
+import { stripMarkdown } from "@instrument-org/shared/strip-markdown";
+
 import { systemNote } from "./system-note";
 
 /** How the note names a tab's kind ahead of its title. */
@@ -46,7 +48,9 @@ export function groupLayoutModelNote(
   const head = where === "" ? "Your group:" : `Your group (you: ${where}):`;
   const lines = data.sides.map(({ tabs }, side) => {
     const line = tabs.map(tabWords).join(" · ");
-    return isTwo ? `${`${SIDE_NAMES[side] ?? "left"}:`.padEnd(7)}${line}` : line;
+    return isTwo
+      ? `${`${SIDE_NAMES[side] ?? "left"}:`.padEnd(7)}${line}`
+      : line;
   });
   const legend = isTwo
     ? `* in front · keyboard: ${SIDE_NAMES[data.focused] ?? "left"}`
@@ -80,7 +84,7 @@ function tabName(tab: LayoutTab): string {
       return `[app] ${tab.title}`;
     }
     case "chat": {
-      return `[chat] ${tab.title}`;
+      return `[chat] ${stripMarkdown(tab.title)}`;
     }
     case "file": {
       return tab.address;

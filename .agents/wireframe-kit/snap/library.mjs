@@ -1,14 +1,13 @@
 // node .agents/wireframe-kit/snap/library.mjs [<capture dir>]
-// Turns capture.mjs's raw stills (`<dir>/raw/`, the library itself by default) into the
-// library snap() draws from: each state's DOM cleaned for a page (`states/<name>.html`),
-// its picture and outline beside it, and once for all of them the app's stylesheet
-// scoped to `.snap` (`sheet.css`), its fonts (`fonts.css`) and its icon sprites
-// (`sprites.html`). Writes INDEX.md, the list an agent reads first.
+// Turns capture.mjs's raw snapshots (`<dir>/raw/`, the library itself by default) into
+// the library snap() draws from: each state's snapshot with this machine scrubbed out of
+// it (`states/<name>.json`, in the wireframe skill's snapshot format), its picture and
+// outline beside it. Writes INDEX.md, the list an agent reads first.
 import { execFileSync } from "node:child_process";
 import fs from "node:fs";
 import path from "node:path";
 
-import { LIBRARY, domWindow, frameUnits, scopeSheet } from "./lib.mjs";
+import { LIBRARY } from "./lib.mjs";
 
 const dir = path.resolve(process.argv[2] ?? LIBRARY);
 const raw = path.join(dir, "raw");
@@ -83,67 +82,21 @@ const SCRUB = [
   ...drives.map((d) => [new RegExp(literal(d), "g"), "Backup"]),
   ...personNames.map((n) => [new RegExp(`(?<![\\p{L}\\p{N}])${literal(n)}(?![\\p{L}\\p{N}])`, "gu"), "Sam"]),
 ];
-const scrub = (/** @type {string} */ text) => SCRUB.reduce((t, [re, to]) => t.replace(/** @type {RegExp} */ (re), /** @type {string} */ (to)), text);
+const scrubText = (/** @type {string} */ text) => SCRUB.reduce((t, [re, to]) => t.replace(/** @type {RegExp} */ (re), /** @type {string} */ (to)), text);
+/** Scrubbed everywhere but inside pictures and fonts kept as data, where a name's letters can stand by chance. */
+const scrub = (/** @type {string} */ text) =>
+  text
+    .split(/(data:[\w/+.-]+;base64,[A-Za-z0-9+/=]+)/)
+    .map((part, i) => (i % 2 ? part : scrubText(part)))
+    .join("");
 
-const win = domWindow();
-const doc = win.document;
-const sheets = new Map();
-const sprites = new Map();
-const fonts = new Set();
 const done = [];
-for (const file of fs.readdirSync(raw).filter((f) => f.endsWith(".html")).sort()) {
+for (const file of fs.readdirSync(raw).filter((f) => f.endsWith(".json")).sort()) {
   const key = file.slice(0, -5);
-  const text = scrub(fs.readFileSync(path.join(raw, file), "utf8"));
-  const parsed = new win.DOMParser().parseFromString(text, "text/html");
-  const [w, h] = (/content="(\d+)x(\d+)@/.exec(text) ?? [0, "1280", "800"]).slice(1).map(Number);
-  for (const style of parsed.querySelectorAll("head style")) {
-    const css = style.textContent ?? "";
-    if (css.includes("data-walkthrough-hidden") && css.length < 600) continue; // the still's own freeze
-    for (const m of css.matchAll(/@font-face\s*\{[^}]*\}/g)) fonts.add(m[0]);
-    const rest = css.replace(/@font-face\s*\{[^}]*\}/g, "");
-    if (rest.trim()) sheets.set(rest, true);
-  }
-  const body = parsed.body;
-  // Sprites first: drawn nowhere themselves, they read as not shown, and every <use> needs them.
-  for (const svg of body.querySelectorAll("svg[data-icon-sprite]")) {
-    const id = svg.querySelector("symbol")?.id ?? String(sprites.size);
-    if (!sprites.has(id)) sprites.set(id, svg.outerHTML.replace(/ data-snap-drop=""/g, ""));
-    svg.remove();
-  }
-  for (const el of body.querySelectorAll("script, noscript, style, [data-snap-drop], [data-walkthrough-hidden], [data-measure-hidden]")) el.remove();
-  // A copy laid out out of sight to measure the real one (the address bar's whole path,
-  // say) takes no room and draws nothing, but its words would reach a page's text.
-  for (const el of body.querySelectorAll('[aria-hidden="true"].invisible.absolute')) el.remove();
-  const guestPictures = fs.existsSync(path.join(raw, `${key}.guests.json`)) ? JSON.parse(fs.readFileSync(path.join(raw, `${key}.guests.json`), "utf8")) : {};
-  for (const el of body.querySelectorAll("[data-snap-guest]")) {
-    const picture = guestPictures[el.getAttribute("data-snap-guest") ?? ""];
-    if (!picture) {
-      el.remove();
-      continue;
-    }
-    const img = parsed.createElement("img");
-    img.setAttribute("src", picture);
-    img.setAttribute("alt", `The page at ${el.getAttribute("data-still-guest") ?? "this address"}, as it looked`);
-    img.setAttribute("data-snap-picture", "");
-    img.setAttribute("class", el.getAttribute("class") ?? "");
-    img.setAttribute("style", `${el.getAttribute("style") ?? ""};display:block;width:100%;height:100%;object-fit:cover;object-position:top left`);
-    el.replaceWith(img);
-  }
-  for (const el of body.querySelectorAll("[data-testid]")) {
-    el.setAttribute("data-tid", el.getAttribute("data-testid") ?? "");
-    el.removeAttribute("data-testid");
-  }
-  for (const el of body.querySelectorAll("[style]")) {
-    const style = el.getAttribute("style") ?? "";
-    if (/v[hw]\b/.test(style)) el.setAttribute("style", frameUnits(style));
-  }
-  const cls = parsed.documentElement.getAttribute("class") ?? "";
-  const htmlStyle = parsed.documentElement.getAttribute("style") ?? "";
-  const meta = { w, h, theme: key.endsWith(".dark") ? "dark" : "light", cls };
-  const html =
-    `<!--snap ${JSON.stringify(meta)}-->\n` +
-    `<div class="snap-html ${cls}"${htmlStyle ? ` style="${htmlStyle.replace(/"/g, "&quot;")}"` : ""}><div class="snap-body ${body.getAttribute("class") ?? ""}">${body.innerHTML}</div></div>\n`;
-  fs.writeFileSync(path.join(outStates, `${key}.html`), html);
+  const snapshot = JSON.parse(fs.readFileSync(path.join(raw, file), "utf8"));
+  for (const field of ["html", "url", "title"]) snapshot[field] = scrub(snapshot[field] ?? "");
+  const json = JSON.stringify(snapshot);
+  fs.writeFileSync(path.join(outStates, `${key}.json`), json);
   if (fs.existsSync(path.join(raw, `${key}.png`))) fs.copyFileSync(path.join(raw, `${key}.png`), path.join(outStates, `${key}.png`));
   const outline = path.join(raw, `${key}.outline.txt`);
   if (fs.existsSync(outline)) {
@@ -152,15 +105,11 @@ for (const file of fs.readdirSync(raw).filter((f) => f.endsWith(".html")).sort()
     try {
       tree = JSON.parse(tree).tree ?? tree;
     } catch {}
-    fs.writeFileSync(path.join(outStates, `${key}.outline.txt`), scrub(tree));
+    fs.writeFileSync(path.join(outStates, `${key}.outline.txt`), scrubText(tree));
   }
-  done.push({ key, kb: Math.round(html.length / 1024) });
+  done.push({ key, kb: Math.round(json.length / 1024) });
 }
 
-const sheet = scopeSheet([...sheets.keys()].join("\n"));
-fs.writeFileSync(path.join(LIBRARY, "sheet.css"), sheet);
-fs.writeFileSync(path.join(LIBRARY, "fonts.css"), [...fonts].join("\n"));
-fs.writeFileSync(path.join(LIBRARY, "sprites.html"), [...sprites.values()].join("\n"));
 let commit = "";
 try {
   commit = execFileSync("git", ["rev-parse", "--short", "HEAD"], { cwd: path.dirname(new URL(import.meta.url).pathname), encoding: "utf8" }).trim();
@@ -171,7 +120,7 @@ const names = [...new Set(done.map((d) => d.key.replace(/\.dark$/, "")))];
 const index = [
   "# Snapshot library",
   "",
-  `Studio as captured ${new Date().toISOString().slice(0, 10)}${commit ? ` at ${commit}` : ""}, at 1280x800 in presentation mode, from a clean room seeded with the pricing scenario (four real chats, the Instrument folder, Screenshots). Each state is \`states/<name>.html\` (the snapshot), \`.png\` (look at it first) and \`.outline.txt\` (every control by the name snap() finds it by). A dark capture is \`<name>.dark\`.`,
+  `Studio as captured ${new Date().toISOString().slice(0, 10)}${commit ? ` at ${commit}` : ""}, at 1280x800 in presentation mode, from a clean room seeded with the pricing scenario (four real chats, the Instrument folder, Screenshots). Each state is \`states/<name>.json\` (the snapshot), \`.png\` (look at it first) and \`.outline.txt\` (every control by the name snap() finds it by). A dark capture is \`<name>.dark\`.`,
   "",
   "| State | Dark too | What it shows |",
   "|---|---|---|",
@@ -179,4 +128,4 @@ const index = [
   "",
 ];
 fs.writeFileSync(path.join(LIBRARY, "INDEX.md"), index.join("\n"));
-console.log(`${LIBRARY}: ${done.length} snapshots (${done.map((d) => `${d.key} ${d.kb} KB`).join(", ")}); sheet ${Math.round(sheet.length / 1024)} KB, fonts ${Math.round([...fonts].join("").length / 1024)} KB, ${sprites.size} sprites`);
+console.log(`${LIBRARY}: ${done.length} snapshots (${done.map((d) => `${d.key} ${d.kb} KB`).join(", ")})`);

@@ -5,7 +5,7 @@ import os from "node:os";
 import path from "node:path";
 import vm from "node:vm";
 
-import { domWindow, loadState } from "./snap/lib.mjs";
+import { loadState } from "./snap/lib.mjs";
 
 export const here = path.dirname(new URL(import.meta.url).pathname);
 
@@ -79,12 +79,15 @@ const PAGE_GLOBALS = [
   "btoa",
   "console",
 ];
-/** @type {ReturnType<typeof domWindow> | undefined} */
-let snapWindow;
-// snap() reads its library and edits in a DOM only here, in Node; the page gets the result.
+/** The states a part's snap() calls named, for build.mjs to put into the page. */
+const snapsUsed = new Set();
+// In Node snap() only checks the state is in the library and names it; the page draws it.
 const snapHost = {
-  doc: () => (snapWindow ??= domWindow()).document,
-  load: loadState,
+  use: (/** @type {string} */ name) => {
+    const s = loadState(name);
+    snapsUsed.add(name);
+    return { w: s.w, h: s.h };
+  },
 };
 const pageContext = () =>
   vm.createContext({
@@ -154,6 +157,7 @@ const templateDeclarations = (
  */
 export function evaluatePart(/** @type {string} */ part, name = "part.js") {
   const prototype = isPrototype(part);
+  snapsUsed.clear();
   const main = template(prototype);
   const templateFile = path.join(SKILL, prototype ? "prototype.html" : "main.html");
   const marksAt = main.indexOf("// ---- annotations");
@@ -243,8 +247,7 @@ export function evaluatePart(/** @type {string} */ part, name = "part.js") {
       ["note", s.note],
       ["body", s.body],
     ]) {
-      // A snapshot's pictures are base64, where "NaN" can stand between a + and a /.
-      const hit = leak.exec(text.replace(/data:[^"')\s]+/g, ""));
+      const hit = leak.exec(text);
       if (hit)
         throw new Error(
           `${frame} renders the text "${hit[0]}" in its ${field}: …${text
@@ -265,11 +268,7 @@ export function evaluatePart(/** @type {string} */ part, name = "part.js") {
         );
     }
   }
-  return Object.assign(ctx.__out, {
-    snaps: /** @type {{ state: string, html: string, base: string }[]} */ (
-      Reflect.get(ctx, "__snapBuilt") ?? []
-    ),
-  });
+  return Object.assign(ctx.__out, { snaps: [...snapsUsed] });
 }
 
 /** A value the kit defines (`kitValue("FOLDER_ROWS")`), run in Node and handed back as JSON. */

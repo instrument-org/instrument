@@ -150,6 +150,17 @@ const REPORT = `(() => {
 })()`;
 
 const sleep = (/** @type {number} */ ms) => new Promise((r) => setTimeout(r, ms));
+// Snapshot frames draw their iframes as they come near the screen; printing draws them
+// all, so ask for that and wait until each one's document has loaded and set its marks.
+const FRAMES_DRAWN = `(async () => {
+  dispatchEvent(new Event("beforeprint"));
+  for (const end = Date.now() + 8000; Date.now() < end; ) {
+    const boxes = [...document.querySelectorAll(".snap[data-snap-frame]")];
+    if (boxes.every((b) => b.querySelector(":scope > iframe")?.contentDocument?.readyState === "complete")) break;
+    await new Promise((r) => setTimeout(r, 100));
+  }
+  await new Promise((r) => setTimeout(r, 400));
+})()`;
 /** @type {string[]} */
 const errors = [];
 /** @type {string[]} */
@@ -201,6 +212,7 @@ try {
   const height = await page.evaluate(`document.documentElement.scrollHeight`);
   await page.viewport(Math.max(layout.width, 1024), Math.min(Math.ceil(height) + 16, 16000));
   await page.evaluate(`new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r)))`);
+  await page.evaluate(FRAMES_DRAWN, 12000);
 
   /** @type {ReturnType<typeof JSON.parse>[]} */
   const frames = await page.evaluate(REPORT);

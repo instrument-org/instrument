@@ -11,7 +11,7 @@ import { createMessageOptions } from "@/client/lib/message-sends";
 import { rpcClient } from "@/client/rpc/client";
 import {
   type ChatId,
-  type LayoutSent,
+  type LayoutRead,
   type SessionMessageDataPart,
   type StoreId,
 } from "@instrument-org/workspace/client";
@@ -47,7 +47,7 @@ interface ChatScreenProps {
   /** Whether this is the chat on screen: only that one marks itself read or takes the caret. */
   isUp: boolean;
   /** The chat's tab group as a message goes, and what changed in it; see `ChatConversation`. */
-  layoutContext?: () => LayoutSent | undefined;
+  layoutContext?: () => LayoutRead | undefined;
   /** Puts away a chat no record holds any more, the way deleting one does. */
   onGone: () => void;
   sendContext: () => Promise<

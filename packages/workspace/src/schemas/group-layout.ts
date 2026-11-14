@@ -19,6 +19,8 @@ export type LayoutTabKind = z.output<typeof LayoutTabKindSchema>;
 const LayoutTabSchema = z.object({
   /** Where it is: a website's URL, a file's or a folder's path, or an `instrument://` address. */
   address: z.string(),
+  /** Opened by an agent, this chat's or another's, rather than the person. */
+  byAgent: z.boolean().optional(),
   /** The tab's id, which stays with it as it moves and navigates. */
   id: z.string(),
   /** The chat the layout was read for. */
@@ -32,14 +34,16 @@ const LayoutTabSchema = z.object({
 export type LayoutTab = z.output<typeof LayoutTabSchema>;
 
 /**
- * A chat's tab group as it stood when a message was sent: one side or two,
+ * The tab group a chat works in, as it stood when read: one side or two,
  * left first, each its tabs in order with the one up marked, which side has
- * the keyboard, and which tab is the chat itself.
+ * the keyboard, and which tab is the chat itself, the one the person last
+ * sent it a message from.
  */
-export const LayoutSnapshotSchema = z.object({
+const LayoutSnapshotSchema = z.object({
   /** The side that has the keyboard, by its place in `sides`. */
   focused: z.number().int().min(0).max(1),
-  group: z.object({ id: z.string(), title: z.string() }),
+  /** The group, by the id the `window` command takes. */
+  group: z.object({ id: z.string() }),
   sides: z
     .array(z.object({ tabs: z.array(LayoutTabSchema) }))
     .min(1)
@@ -89,7 +93,7 @@ export const LayoutChangeSchema = z.discriminatedUnion("change", [
   z.object({
     beside: z.boolean().optional(),
     change: z.literal("movedIn"),
-    /** The title of the window's other tab group it came from. */
+    /** The id of the tab group it came from. */
     from: z.string(),
     side: SideSchema,
     tab: ChangedTabSchema,
@@ -97,7 +101,7 @@ export const LayoutChangeSchema = z.discriminatedUnion("change", [
   z.object({
     change: z.literal("movedOut"),
     tab: ChangedTabSchema,
-    /** The title of the window's other tab group it went to. */
+    /** The id of the tab group it went to. */
     to: z.string(),
   }),
   z.object({
@@ -117,9 +121,9 @@ export const LayoutChangeSchema = z.discriminatedUnion("change", [
   }),
   z.object({
     change: z.literal("chatMoved"),
-    /** The title of the tab group the chat was in. */
+    /** The id of the tab group the chat worked in. */
     from: z.string(),
-    /** The title of the tab group it is in now. */
+    /** The id of the tab group it works in now. */
     to: z.string(),
   }),
 ]);
@@ -127,14 +131,25 @@ export const LayoutChangeSchema = z.discriminatedUnion("change", [
 export type LayoutChange = z.output<typeof LayoutChangeSchema>;
 
 /**
- * What a message carries about its chat's tab group: the layout as the
- * message was sent, and what changed in it since the chat's last message,
- * which a chat's first message and a window that has not sent in the chat
- * yet have none of.
+ * Where the tabs outside a layout's group stood as it was read: by tab id,
+ * the id of the group that had it. What tells a tab moved out to another
+ * group from one closed, and one moved in from one opened.
  */
-export const LayoutSentSchema = z.object({
-  changes: z.array(LayoutChangeSchema),
+const ElsewhereSchema = z.record(z.string(), z.string());
+
+/**
+ * The tab group a chat works in as the window read it, and where every
+ * other tab stood: what a message carries, and what the window hands the
+ * workspace as it changes, for a wake to carry.
+ */
+export const LayoutReadSchema = z.object({
+  elsewhere: ElsewhereSchema,
   layout: LayoutSnapshotSchema,
 });
 
-export type LayoutSent = z.output<typeof LayoutSentSchema>;
+export type LayoutRead = z.output<typeof LayoutReadSchema>;
+
+/** A layout as the chat's log keeps it, with where the other tabs stood, which the next one's changes are read against. */
+export const KeptLayoutSchema = LayoutSnapshotSchema.extend({
+  elsewhere: ElsewhereSchema.optional(),
+});

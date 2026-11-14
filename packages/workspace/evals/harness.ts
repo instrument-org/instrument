@@ -58,7 +58,7 @@ import { session as sessionRoute } from "../src/rpc/routes/session";
 import { chats as chatsRoute } from "../src/rpc/routes/chats";
 import { permissions as permissionsRoute } from "../src/rpc/routes/permissions";
 import { type FileUpload } from "../src/schemas/file-upload";
-import { type LayoutSent } from "../src/schemas/group-layout";
+import { type LayoutRead } from "../src/schemas/group-layout";
 import { type SessionMessageDataPart } from "../src/schemas/session/message-data-part";
 import { type ChooseQuestion, chooseQuestions } from "../src/lib/choose-call";
 import { type SessionMessagePart } from "../src/schemas/session/message-part";
@@ -744,11 +744,11 @@ export interface EvalCase {
    */
   viewing?: SessionMessageDataPart.ViewContextDataPart;
   /**
-   * The chat's tab group as the case's message was sent, and what changed
-   * in it, as the window sends them: the notes on the message, and nothing
-   * more, since no window stands behind the tabs it names.
+   * The tab group the chat works in as the case's message was sent, as the
+   * window reads it: the notes on the message say it and what changed since,
+   * and nothing more, since no window stands behind the tabs it names.
    */
-  layout?: LayoutSent;
+  layout?: LayoutRead;
   /**
    * One real headless Chrome behind the window's tabs for the run
    * (`lib/shared-chrome.ts`), so the chat and its tasks reach the same pages
@@ -815,7 +815,7 @@ type FollowUp = FollowUpTiming &
          */
         actions?: CaseActions;
         /** The chat's tab group as this message was sent; see `EvalCase.layout`. */
-        layout?: LayoutSent;
+        layout?: LayoutRead;
         prompt: string;
       }
     | {

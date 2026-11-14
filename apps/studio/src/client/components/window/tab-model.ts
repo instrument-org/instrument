@@ -1025,6 +1025,17 @@ export function dropGroup(state: WindowTabs, group: string): WindowTabs {
   };
 }
 
+/** A tab marked as opened by a chat's agent, unless one is marked already. */
+export function markOpenedBy(
+  state: WindowTabs,
+  id: string,
+  chat: ChatId,
+): WindowTabs {
+  return state.tabs.some((tab) => tab.id === id && tab.openedBy === undefined)
+    ? mapTab(state, id, (tab) => ({ ...tab, openedBy: chat }))
+    : state;
+}
+
 /** A tab marked as the one its chat was last sent a message from (`chatTabOf`). */
 export function markPrompted(
   state: WindowTabs,

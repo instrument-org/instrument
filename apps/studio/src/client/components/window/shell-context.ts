@@ -2,7 +2,7 @@ import { type Draft } from "@/shared/drafts";
 import { type AppPlace } from "@/client/atoms/window";
 import {
   type ChatId,
-  type LayoutSent,
+  type LayoutRead,
   type SessionMessageDataPart,
   type StoreId,
 } from "@instrument-org/workspace/client";
@@ -64,8 +64,11 @@ export interface WindowShell {
   requestClose: (id: string) => void;
   /** The width of the card the tabs are drawn in, in layout px. */
   rowWidth: number;
-  /** The tab group of the tab a message goes from, as `told` reads it, and what changed there; see `layoutReader`. */
-  layoutContext: (tabId: string, told: string) => LayoutSent | undefined;
+  /**
+   * The group of the tab a message goes from, as the chat reads it (`layoutReadOf`),
+   * marking the tab as the one the chat was last sent from.
+   */
+  layoutContext: (tabId: string) => LayoutRead | undefined;
   /** What goes with a message in a chat; see `contextReaders`. */
   sendContext: (options: {
     chatId: ChatId;

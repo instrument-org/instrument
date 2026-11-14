@@ -22,7 +22,6 @@ import { type BrowserTabsHandle } from "./browser-tabs";
 import { chatListOptions } from "./chat-list-query";
 import { type OpenOptions } from "./context";
 import { bringForwardShowing } from "./built-in-pages";
-import { noteAgentChange } from "./group-awareness";
 import { isGroupScreenHref } from "./group-screen";
 import { openMenuLink } from "./menu-link";
 import { openLinkAddress } from "./open-link-address";
@@ -558,7 +557,7 @@ export function useOpeners({
    * tab the person last sent from (`agentPlaceOf`), and a list is of that
    * tab's group unless another is named.
    */
-  const actOnTab = async ({
+  const act = async ({
     action,
     chatId: chat,
   }: WindowTabRequest): Promise<Omit<WindowTabAnswer, "requestId">> => {
@@ -708,6 +707,25 @@ export function useOpeners({
   };
 
   /**
+   * Does what an agent asked (`act`), marking a tab it made as its chat's:
+   * one it opened or adopted, and one that took another's place.
+   */
+  const actOnTab = async (
+    request: WindowTabRequest,
+  ): Promise<Omit<WindowTabAnswer, "requestId">> => {
+    const answer = await act(request);
+    const { action, chatId: chat } = request;
+    const made =
+      action.kind === "open" ||
+      action.kind === "adopt" ||
+      (action.kind === "replace" && answer.tabId !== action.tabId);
+    if (made && chat !== undefined && answer.tabId !== undefined) {
+      windowTabs.markOpenedBy(answer.tabId, chat);
+    }
+    return answer;
+  };
+
+  /**
    * A tab a page asked for (a `target=_blank` link, a sign-in button, a
    * middle- or Cmd-click, the page's menu) opens right after the page that
    * asked, on its side of its group, so a sign-in started there stays
@@ -815,7 +833,6 @@ export function useOpeners({
       controller.signal,
       async (request) => {
         const answer = await openers.current.actOnTab(request);
-        noteAgentAsk(request.action, answer.tabId);
         // The answer goes back to the command that asked, so the
         // conversation can hand a tab to a task, or say what went wrong,
         // without waiting for the next message's note.
@@ -838,51 +855,6 @@ export function useOpeners({
       openScreen(href, options);
     },
   });
-}
-
-/**
- * What an agent's ask did to the tabs, kept so the line over the person's
- * next message leaves it out (`noteAgentChange`): the tab it opened or
- * closed, and the page it sent a tab to. A tab replaced by a tab of another
- * kind is one closed and one opened.
- */
-function noteAgentAsk(
-  action: WindowTabRequest["action"],
-  tabId: string | undefined,
-) {
-  if (tabId === undefined) {
-    return;
-  }
-  switch (action.kind) {
-    case "adopt":
-    case "open": {
-      noteAgentChange({ change: "opened", tabId });
-      return;
-    }
-    case "close": {
-      noteAgentChange({ change: "closed", tabId });
-      return;
-    }
-    case "replace": {
-      if (tabId !== action.tabId) {
-        noteAgentChange({ change: "closed", tabId: action.tabId });
-        noteAgentChange({ change: "opened", tabId });
-      } else if (action.target.kind === "page" && action.target.url) {
-        noteAgentChange({
-          address: action.target.url,
-          change: "navigated",
-          tabId,
-        });
-      }
-      return;
-    }
-    case "list":
-    case "read":
-    case "restore":
-    case "show": {
-      return;
-    }
-  }
 }
 
 /** Says a chat's address named none of the chats here. */

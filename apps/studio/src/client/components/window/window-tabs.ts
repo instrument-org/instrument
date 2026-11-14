@@ -24,6 +24,7 @@ import {
   focusSide,
   type GroupOwn,
   isChatTab,
+  markOpenedBy,
   markPrompted,
   moveTabTo,
   moveToGroup,
@@ -293,6 +294,10 @@ export function useWindowTabs() {
     },
     /** What each group keeps of its own, by its id. */
     groupOwn: state.groups ?? NO_GROUP_OWN,
+    /** A tab marked as opened by a chat's agent (`markOpenedBy`). */
+    markOpenedBy: (id: string, chat: ChatId) => {
+      apply((current) => markOpenedBy(current, id, chat));
+    },
     /** A tab marked as the one its chat was last sent a message from. */
     markPrompted: (id: string) => {
       apply((current) => markPrompted(current, id, Date.now()));

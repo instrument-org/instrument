@@ -3,7 +3,7 @@ import { extractSkillMentions } from "@instrument-org/shared/skill-mention";
 import { err, ok, ResultAsync } from "neverthrow";
 
 import { type FileUpload } from "../schemas/file-upload";
-import { type LayoutSent } from "../schemas/group-layout";
+import { type LayoutRead } from "../schemas/group-layout";
 import { type MountedFolder } from "../schemas/mounted-folder";
 import { AbsolutePathSchema } from "../schemas/paths";
 import { type SessionMessage } from "../schemas/session/message";
@@ -17,6 +17,7 @@ import { createBackgroundProcessesPart } from "./create-background-processes-par
 import { createBrowserStatusPart } from "./create-browser-status-part";
 import { createMemoryPart } from "./create-memory-part";
 import { createSetupNewsPart } from "./setup-news";
+import { layoutParts } from "./group-layout-parts";
 import { goesUnsaid } from "./state-notes";
 import { readWorkspaceInstructions } from "./workspace-instructions";
 import { detectDateChange } from "./date-change";
@@ -66,8 +67,8 @@ export async function newMessage({
   fromChat?: SessionMessageDataPart.FromChatDataPart;
   /** The draft this was sent from, by its id; see the message's metadata. */
   fromDraft?: string;
-  /** The chat's tab group as the message was sent, and what changed in it; see the group-layout parts. */
-  layout?: LayoutSent;
+  /** The tab group the chat works in, as the window read it at the send; see `layoutParts`. */
+  layout?: LayoutRead;
   modelURI: AIGatewayModelURI.Type;
   prompt: string;
   sessionId: StoreId.Session;
@@ -144,30 +145,15 @@ export async function newMessage({
     });
   }
 
-  if (layout) {
-    parts.push({
-      data: layout.layout,
-      metadata: {
-        createdAt,
-        id: StoreId.newPartId(),
-        messageId,
-        sessionId,
-      },
-      type: "data-groupLayout",
-    });
-    if (layout.changes.length > 0) {
-      parts.push({
-        data: { changes: layout.changes },
-        metadata: {
-          createdAt,
-          id: StoreId.newPartId(),
-          messageId,
-          sessionId,
-        },
-        type: "data-layoutChanges",
-      });
-    }
-  }
+  parts.push(
+    ...(await layoutParts({
+      chatId,
+      createdAt,
+      messageId,
+      ...(layout ? { read: layout } : {}),
+      sessionId,
+    })),
+  );
 
   if (asks) {
     parts.push({

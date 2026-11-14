@@ -124,7 +124,7 @@ export const DATA_PART_SAMPLES = {
   viewContext: { screen: "conversation" },
   groupLayout: {
     focused: 1,
-    group: { id: "chat-1", title: "Help desk prices" },
+    group: { id: "group_1" },
     sides: [
       {
         tabs: [

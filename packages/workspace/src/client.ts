@@ -34,7 +34,7 @@ export {
 export {
   type ChangedTab,
   type LayoutChange,
-  type LayoutSent,
+  type LayoutRead,
   type LayoutSnapshot,
   type LayoutTab,
   type LayoutTabKind,

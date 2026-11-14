@@ -42,6 +42,8 @@ import {
 import { trashChat } from "../../lib/trash-chat";
 import { StoreId } from "../../schemas/store-id";
 import { ChatIdSchema, type ChatId } from "../../schemas/chat-id";
+import { LayoutReadSchema } from "../../schemas/group-layout";
+import { noteLayoutRead } from "../../lib/group-layout-parts";
 import { type ListedAt } from "../../lib/chat/chat-list-events";
 import { chatRoutes } from "./chat";
 import { stop } from "./session";
@@ -669,6 +671,17 @@ const settleRatingCardRoute = base
     }
   });
 
+/**
+ * What the window read of the tab group a chat works in, as it changes: the
+ * latest is what a wake carries when the group changed since the chat's log
+ * last had it (`layoutParts`).
+ */
+const layoutReadRoute = base
+  .input(z.object({ id: ChatIdSchema, read: LayoutReadSchema }))
+  .handler(({ input }) => {
+    noteLayoutRead(input.id, input.read);
+  });
+
 export const chats = {
   ...chatRoutes,
   answerQuestion: answerQuestionRoute,
@@ -679,6 +692,7 @@ export const chats = {
   branch: branchChatRoute,
   byId: chatByIdRoute,
   ensure: ensureChatRoute,
+  layoutRead: layoutReadRoute,
   live: {
     ...chatRoutes.live,
     asks: liveAsksRoute,

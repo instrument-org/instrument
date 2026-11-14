@@ -13,6 +13,7 @@ import { chatModelURI } from "../chat-settings";
 import { recordChanged } from "../record-changes";
 import { resolveChat, sessionOfChat } from "../record-folders";
 import { getWorkspaceConfig } from "../workspace-config";
+import { layoutParts } from "../group-layout-parts";
 import { isWorking } from "./activity";
 
 /** What a wake carries: the part that starts the session's turn. */
@@ -333,7 +334,9 @@ async function deliver(wake: Wake, part: WakePart | undefined): Promise<void> {
       return;
     }
     await wake.beforeNote?.(part);
-    const message = await saveNote(chatId, sessionId, part);
+    const message = await saveNote(chatId, sessionId, part, {
+      withLayout: true,
+    });
     // Looked up after the note is written, so a model the chat cannot resolve
     // yet still leaves the news in the conversation, where the user's next
     // message carries it to the agent.
@@ -350,12 +353,15 @@ async function deliver(wake: Wake, part: WakePart | undefined): Promise<void> {
 /**
  * Writes a wake's part as a text-less user message in a session, which shows
  * in the conversation at once and reaches the agent with the session's next
- * turn, whatever starts it.
+ * turn, whatever starts it. `withLayout` adds the tab group the chat works in
+ * when it changed since the log last had it (`layoutParts`), for a wake that
+ * starts a turn.
  */
 export async function saveNote(
   chatId: ChatId,
   sessionId: StoreId.Session,
   part: WakePart,
+  { withLayout = false }: { withLayout?: boolean } = {},
 ): Promise<SessionMessage.UserWithParts> {
   const createdAt = new Date();
   const messageId = StoreId.newMessageId();
@@ -363,6 +369,9 @@ export async function saveNote(
     id: messageId,
     metadata: { createdAt, sessionId },
     parts: [
+      ...(withLayout
+        ? await layoutParts({ chatId, createdAt, messageId, sessionId })
+        : []),
       {
         ...part,
         metadata: {

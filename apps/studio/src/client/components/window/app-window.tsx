@@ -134,7 +134,7 @@ import { useSignInLanding } from "./use-sign-in-landing";
 import { WindowLook } from "./look-panel";
 import { ProjectDialog } from "./project-dialog";
 import { screenActionOf, useRecordScreen } from "./screen-action";
-import { carryLayoutSent, layoutReader } from "./group-awareness";
+import { layoutReadOf } from "./group-awareness";
 import { contextReaders } from "./send-context";
 import { type WindowShell as Shell, ShellContext } from "./shell-context";
 import { useStagedAskActions } from "./staged-asks";
@@ -211,6 +211,9 @@ function floatingDraftIdsOf(kept: unknown): string[] {
 
 /** How long after a first Cmd+W on a group with no tabs a second one closes the group. */
 const CLOSE_AGAIN_MS = 3000;
+
+/** How long the tabs stay as they are before the groups the chats work in go to the workspace. */
+const LAYOUT_PUSH_DELAY_MS = 500;
 
 /** The groups the window's places once kept their tabs under, which nothing shows now. */
 const RETIRED_GROUPS = [
@@ -1017,19 +1020,47 @@ function WindowShell({
     readersNow().draftContext(draft, tabId);
   // A chat's tab group as a message goes from it, read at the press. The
   // tab sent from is where the chat's agent works from then on (`chatTab`).
-  const layoutNow = (tabId: string, told: string) => {
+  const layoutNow = (tabId: string) => {
     windowTabs.markPrompted(tabId);
-    return layoutReader({
-      appsBySlug,
-      chatTitles,
-      groups: groupList.open,
-      windowTabs,
-    })(tabId, told);
+    return layoutReadOf({ appsBySlug, chatTitles, windowTabs }, tabId);
   };
   useLayoutEffect(() => {
     sendContextRef.current = (options) => readersNow().sendContext(options);
     layoutContextRef.current = layoutNow;
   });
+  // The group each chat with a tab works in, handed to the workspace as it
+  // changes, a beat after the tabs settle: what a wake carries when the
+  // group changed since the chat's log last had it.
+  const pushedReads = useRef(new Map<ChatId, string>());
+  const pushLayoutReads = useEffectEvent(() => {
+    const chats = new Set(
+      windowTabs.allTabs.flatMap((tab) => {
+        const chat = tab.group === undefined ? undefined : chatOfTab(tab);
+        return chat === undefined ? [] : [chat];
+      }),
+    );
+    for (const chat of chats) {
+      const tab = windowTabs.chatTab(chat);
+      const read =
+        tab && layoutReadOf({ appsBySlug, chatTitles, windowTabs }, tab.id);
+      const json = read && JSON.stringify(read);
+      if (!read || pushedReads.current.get(chat) === json) {
+        continue;
+      }
+      pushedReads.current.set(chat, json ?? "");
+      rpcClient.workspace.chats.layoutRead
+        .call({ id: chat, read })
+        .catch(() => {
+          pushedReads.current.delete(chat);
+        });
+    }
+  });
+  useEffect(() => {
+    const timer = setTimeout(pushLayoutReads, LAYOUT_PUSH_DELAY_MS);
+    return () => {
+      clearTimeout(timer);
+    };
+  }, [windowTabs.allTabs, chatTitles]);
   const {
     arrivedId,
     closeDraft,
@@ -1050,10 +1081,7 @@ function WindowShell({
     compose,
     draftContext,
     isOpen: opened !== undefined,
-    layout: {
-      carry: carryLayoutSent,
-      read: (tabId, told) => layoutContextRef.current(tabId, told),
-    },
+    layoutOf: (tabId) => layoutContextRef.current(tabId),
     isChat,
     openDraftInChat: (id) => {
       setInboxOpen(true);
@@ -1511,7 +1539,7 @@ function WindowShell({
     popOutDraft,
     requestClose,
     rowWidth,
-    layoutContext: (tabId, told) => layoutContextRef.current(tabId, told),
+    layoutContext: (tabId) => layoutContextRef.current(tabId),
     sendContext: (options) => sendContextRef.current(options),
     sentProjects,
     sentWords,

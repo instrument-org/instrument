@@ -19,18 +19,19 @@ const KIND_WORDS: Record<LayoutTabKind, string> = {
 };
 
 /** Ids are what the `window` command takes; a reply names a tab as the user sees it. */
-const BY_TITLE = "Tab ids are for commands; in replies, name a tab by its title.";
+const BY_TITLE =
+  "Tab ids are for commands; in replies, name a tab by its title.";
 
 /**
- * The chat's tab group as the user sent the message: its sides left to
+ * The tab group the chat works in, as it stands now: its sides left to
  * right, each one's tabs in order with the one showing there marked, the
- * side with the keyboard, and this chat among them. Said again only when it
- * reads differently, so it costs nothing while the group stays as it was.
+ * side with the keyboard, and this chat among them. Written only when it
+ * reads differently from the one before, so each one is news.
  */
 export function groupLayoutModelNote(
   data: SessionMessageDataPart.GroupLayoutDataPart,
 ) {
-  const group = `Their tab group "${data.group.title}"`;
+  const group = `The tab group you work in, ${data.group.id},`;
   if (isChatAlone(data)) {
     return systemNote`
       ${group} is just this chat now.
@@ -38,7 +39,7 @@ export function groupLayoutModelNote(
   }
   if (data.sides.length === 1) {
     return systemNote`
-      ${group} as they sent this: one side, its tabs in order, "up" marking the one showing: ${tabsLine(data.sides[0]?.tabs ?? [])}.
+      ${group} now: one side, its tabs in order, "up" marking the one showing: ${tabsLine(data.sides[0]?.tabs ?? [])}.
       ${BY_TITLE}
     `;
   }
@@ -49,7 +50,7 @@ export function groupLayoutModelNote(
     )
     .join("\n");
   return systemNote`
-    ${group} as they sent this: two sides, each its tabs in order, "up" marking the one showing there.
+    ${group} now: two sides, each its tabs in order, "up" marking the one showing there.
     ${sides}
     ${BY_TITLE}
   `;
@@ -84,22 +85,22 @@ function named(tab: Pick<ChangedTab, "isThisChat" | "kind" | "title">) {
 }
 
 /**
- * What changed in the group since the user's last message in this chat,
- * whoever changed it: tabs opened, closed, moved and navigated, the chat's
- * own moves, and tabs moved to or from the window's other groups.
+ * What changed in the group since the layout before, whoever changed it:
+ * tabs opened, closed, moved and navigated, the chat's own moves, and tabs
+ * moved to or from other groups.
  */
 export function layoutChangesModelNote(
   data: SessionMessageDataPart.LayoutChangesDataPart,
 ) {
   return systemNote`
-    Changes to the tab group since their last message, theirs or yours: ${data.changes.map(changeWords).join("; ")}.
+    Changes to the tab group since you were last told, theirs or yours: ${data.changes.map(changeWords).join("; ")}.
   `;
 }
 
 function changeWords(change: LayoutChange): string {
   switch (change.change) {
     case "chatMoved": {
-      return `this chat moved from the tab group "${change.from}" to "${change.to}"`;
+      return `this chat moved from the tab group ${change.from} to ${change.to}`;
     }
     case "closed": {
       return `closed ${withId(change.tab)}`;
@@ -116,10 +117,10 @@ function changeWords(change: LayoutChange): string {
       return `moved ${withId(change.tab)} ${where}${change.beside && change.from !== change.to ? ", beside this chat" : ""}`;
     }
     case "movedIn": {
-      return `moved ${withId(change.tab)} in from the tab group "${change.from}"${placed(change.side, change.beside)}`;
+      return `moved ${withId(change.tab)} in from the tab group ${change.from}${placed(change.side, change.beside)}`;
     }
     case "movedOut": {
-      return `moved ${withId(change.tab)} out to the tab group "${change.to}"`;
+      return `moved ${withId(change.tab)} out to the tab group ${change.to}`;
     }
     case "navigated": {
       return `${change.tab.id} went from ${change.from.address} to ${named(change.tab)} at ${change.tab.address}`;

@@ -65,7 +65,7 @@ export function GroupChatScreen({ chatId }: { chatId: ChatId }) {
         key={chatId}
         {...(tabId === undefined
           ? {}
-          : { layoutContext: () => shell.layoutContext(tabId, chatId) })}
+          : { layoutContext: () => shell.layoutContext(tabId) })}
         onGone={() => {
           groupTab?.close();
         }}

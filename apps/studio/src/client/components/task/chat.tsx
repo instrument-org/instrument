@@ -33,7 +33,7 @@ import { type AIGatewayModelURI } from "@instrument-org/ai-gateway/client";
 import { APP_NAME } from "@instrument-org/shared";
 import {
   modelChangeSincePreviousTurn,
-  type LayoutSent,
+  type LayoutRead,
   type SessionMessageDataPart,
   type SessionMessagePart,
   StoreId,
@@ -149,7 +149,7 @@ export function ChatConversation({
    * The chat's tab group as a message goes, and what changed in it since the
    * chat's last message; read at the press, beside `sendContext`.
    */
-  layoutContext?: () => LayoutSent | undefined;
+  layoutContext?: () => LayoutRead | undefined;
   selectedModelURI?: AIGatewayModelURI.Type;
   selectedSessionId: StoreId.Session;
   /**

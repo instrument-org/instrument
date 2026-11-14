@@ -301,7 +301,7 @@ function labelOfPart(part: SessionMessagePart.DataPart): string {
     case "data-groupLayout": {
       return named(
         "Tab group",
-        `${part.data.group.title}, ${part.data.sides.map((side) => side.tabs.length.toString()).join(" | ")} tabs`,
+        `${part.data.group.id}, ${part.data.sides.map((side) => side.tabs.length.toString()).join(" | ")} tabs`,
       );
     }
     case "data-layoutChanges": {

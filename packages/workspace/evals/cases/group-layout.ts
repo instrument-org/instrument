@@ -6,7 +6,7 @@
  * says. No window stands behind the tabs, so the notes are all it has.
  */
 import {
-  type LayoutSent,
+  type LayoutRead,
   type LayoutTab,
 } from "../../src/schemas/group-layout";
 import { type EvalCase } from "../harness";
@@ -39,11 +39,11 @@ const INTERCOM: LayoutTab = {
   title: "Intercom pricing",
 };
 
-const GROUP = { id: CHAT.id, title: CHAT.title };
+const GROUP = { id: "group_help" };
 const FOLLOW_UP = "What did I just open?";
 
-const FIRST: LayoutSent = {
-  changes: [],
+const FIRST: LayoutRead = {
+  elsewhere: {},
   layout: {
     focused: 1,
     group: GROUP,
@@ -54,8 +54,8 @@ const FIRST: LayoutSent = {
   },
 };
 
-const SECOND: LayoutSent = {
-  changes: [{ beside: true, change: "opened", side: "left", tab: INTERCOM }],
+const SECOND: LayoutRead = {
+  elsewhere: {},
   layout: {
     focused: 1,
     group: GROUP,

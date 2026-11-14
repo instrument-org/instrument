@@ -1,15 +1,12 @@
 import { type WindowTab } from "@/client/atoms/window";
 import { fileHref, folderHref } from "@/shared/computer-href";
-import { draftGroupOf } from "@/shared/drafts";
 import { ChatIdSchema } from "@instrument-org/workspace/client";
 import { describe, expect, it } from "vitest";
 
 import {
-  carryLayoutSent,
   type GroupAwarenessWindow,
   groupLayoutFor,
-  layoutReader,
-  noteAgentChange,
+  layoutReadOf,
 } from "./group-awareness";
 import { groupLayoutOf, type WindowTabs } from "./tab-model";
 import { chatHref, newChatHref } from "./window-href";
@@ -66,10 +63,6 @@ function windowOf(
   return {
     appsBySlug: new Map(),
     chatTitles: new Map([[CHAT, "Help desk prices"]]),
-    groups: [
-      { group: GROUP, title: "Help desk prices" },
-      { group: OTHER, title: "Launch post" },
-    ],
     windowTabs: {
       allTabs: tabs,
       layoutOf: (group) => groupLayoutOf(state, group),
@@ -134,7 +127,6 @@ describe("groupLayoutFor", () => {
         "focused": 1,
         "group": {
           "id": "group:prices",
-          "title": "Help desk prices",
         },
         "sides": [
           {
@@ -190,102 +182,31 @@ describe("groupLayoutFor", () => {
   });
 });
 
-describe("layoutReader", () => {
-  it("sends no changes first, then what changed since", () => {
-    const told = ChatIdSchema.parse("2026-11-13-first");
-    const first = layoutReader(windowOf([CHAT_TAB]))(CHAT_TAB.id, told);
-    const second = layoutReader(
-      windowOf([ZENDESK, right(CHAT_TAB)], {
-        besideByGroup: { [GROUP]: ZENDESK.id },
-      }),
-    )(CHAT_TAB.id, told);
-    const third = layoutReader(
-      windowOf([ZENDESK, right(CHAT_TAB)], {
-        besideByGroup: { [GROUP]: ZENDESK.id },
-      }),
-    )(CHAT_TAB.id, told);
-    expect([first?.changes, second?.changes, third?.changes]).toEqual([
-      [],
-      [
-        {
-          beside: true,
-          change: "opened",
-          side: "left",
-          tab: {
-            address: "https://www.zendesk.com/pricing",
-            id: "tab_zen",
-            kind: "website",
-            title: "Zendesk pricing",
-          },
-        },
-      ],
-      [],
+describe("layoutReadOf", () => {
+  it("reads the chat's group, and the group of every tab outside it", () => {
+    const read = layoutReadOf(
+      windowOf([ZENDESK, { ...DOWNLOADS, group: OTHER }, CHAT_TAB]),
+      CHAT_TAB.id,
+    );
+    expect(read?.elsewhere).toEqual({ tab_dl: OTHER });
+    expect(read?.layout.sides[0]?.tabs.map((tab) => tab.id)).toEqual([
+      "tab_zen",
+      "tab_chat",
     ]);
   });
 
-  it("says a tab went to another group of the window", () => {
-    const told = ChatIdSchema.parse("2026-11-13-moves");
-    layoutReader(windowOf([ZENDESK, CHAT_TAB]))(CHAT_TAB.id, told);
-    expect(
-      layoutReader(windowOf([{ ...ZENDESK, group: OTHER }, CHAT_TAB]))(
-        CHAT_TAB.id,
-        told,
-      )?.changes,
-    ).toMatchObject([{ change: "movedOut", to: "Launch post" }]);
-  });
-
-  it("goes on from a draft's first message to its chat's next", () => {
-    const draft = draftGroupOf("drf_1");
-    const chat = ChatIdSchema.parse("2026-11-13-started");
-    const sending = { ...NEW_CHAT, href: newChatHref("drf_1") };
-    layoutReader(windowOf([ZENDESK, sending]))(sending.id, draft);
-    carryLayoutSent(draft, chat);
-    expect(
-      layoutReader(
-        windowOf([ZENDESK, { ...sending, href: chatHref(chat) }, DOWNLOADS]),
-      )(sending.id, chat)?.changes,
-    ).toMatchObject([{ change: "opened", tab: { id: "tab_dl" } }]);
-  });
-
-  it("marks what an agent did to the tabs as its own", () => {
-    const told = ChatIdSchema.parse("2026-11-13-agent");
-    const asked = { ...ZENDESK, id: "tab_asked" };
-    const sent: WindowTab = {
-      ...ZENDESK,
-      id: "tab_sent",
-      title: "Example",
-      url: "https://example.com/a",
-    };
-    layoutReader(windowOf([CHAT_TAB, ZENDESK, sent]))(CHAT_TAB.id, told);
-    noteAgentChange({ change: "opened", tabId: asked.id });
-    noteAgentChange({
-      address: "example.com/b",
-      change: "navigated",
-      tabId: sent.id,
+  it("marks a tab a chat's agent opened", () => {
+    const read = layoutReadOf(
+      windowOf([CHAT_TAB, { ...ZENDESK, openedBy: CHAT }]),
+      CHAT_TAB.id,
+    );
+    expect(read?.layout.sides[0]?.tabs[1]).toMatchObject({
+      byAgent: true,
+      id: "tab_zen",
     });
-    const after = layoutReader(
-      windowOf([
-        CHAT_TAB,
-        asked,
-        { ...sent, url: "https://www.example.com/b/" },
-        DOWNLOADS,
-      ]),
-    )(CHAT_TAB.id, told);
-    expect(
-      after?.changes.map((one) => [
-        one.change,
-        "tab" in one ? one.tab.id : "",
-        "byAgent" in one ? one.byAgent : undefined,
-      ]),
-    ).toEqual([
-      ["closed", "tab_zen", undefined],
-      ["opened", "tab_asked", true],
-      ["navigated", "tab_sent", true],
-      ["opened", "tab_dl", undefined],
-    ]);
   });
 
   it("reads nothing for a tab no group has", () => {
-    expect(layoutReader(windowOf([]))("tab_gone", CHAT)).toBeUndefined();
+    expect(layoutReadOf(windowOf([]), "tab_gone")).toBeUndefined();
   });
 });

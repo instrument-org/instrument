@@ -48,7 +48,7 @@ function layout(line: string, group = "g1"): LayoutSnapshot {
   }));
   return {
     focused: 0,
-    group: { id: group, title: group === "g1" ? "Prices" : "Other" },
+    group: { id: group },
     sides,
   };
 }
@@ -184,14 +184,14 @@ describe("layoutChanges", () => {
   it("says only that the chat moved when it is in another group", () => {
     expect(layoutChanges(layout("A* | @*"), layout("B* @", "g2")))
       .toMatchInlineSnapshot(`
-      [
-        {
-          "change": "chatMoved",
-          "from": "Prices",
-          "to": "Other",
-        },
-      ]
-    `);
+        [
+          {
+            "change": "chatMoved",
+            "from": "g1",
+            "to": "g2",
+          },
+        ]
+      `);
   });
 
   it("takes a draft's tab and its chat's as the same tab", () => {

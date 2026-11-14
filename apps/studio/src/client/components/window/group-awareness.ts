@@ -4,12 +4,9 @@ import { SCREENS } from "@/shared/instrument-screens";
 import { chatAddressOf, instrumentUrlOf } from "@instrument-org/shared";
 import {
   type ChatId,
-  type LayoutChange,
-  type LayoutElsewhere,
-  type LayoutSent,
+  type LayoutRead,
   type LayoutSnapshot,
   type LayoutTab,
-  layoutChanges,
 } from "@instrument-org/workspace/client";
 
 import { type AppsBySlug } from "./apps-by-slug";
@@ -20,38 +17,35 @@ import { isFreshTab, isHomeTab, isNewChatTab } from "./tab-model";
 import { matchScreen } from "./window-href";
 import { type useWindowTabs } from "./window-tabs";
 
-/**
- * What a chat's tab group is read from: the window's tabs and how each group
- * lays them out, and each group's title as the sidebar lists it.
- */
+/** What a chat's tab group is read from: the window's tabs and how each group lays them out. */
 export interface GroupAwarenessWindow {
   appsBySlug: AppsBySlug;
   chatTitles: Map<ChatId, string>;
-  /** The window's tab groups as its sidebar lists them. */
-  groups: readonly { group: string; title: string }[];
   windowTabs: Pick<ReturnType<typeof useWindowTabs>, "allTabs" | "layoutOf">;
 }
 
 /**
- * The layout that goes with a message sent from a tab, the chat's or the
- * new chat's whose draft is sending, and what changed in its group since
- * this window last told `told` (a chat's id, or a draft's group key until
- * its chat starts). Read at the press, and kept as what `told` was last
- * told. None for a tab no group has.
+ * The group of a chat's tab as the chat reads it, with where every other tab
+ * stands (`LayoutRead`): what a message sent from the tab carries, and what
+ * the workspace keeps for a wake. None for a tab no group has.
  */
-export function layoutReader(window: GroupAwarenessWindow) {
-  return (tabId: string, told: string): LayoutSent | undefined => {
-    const group = window.windowTabs.allTabs.find(
-      (tab) => tab.id === tabId,
-    )?.group;
-    return group === undefined
-      ? undefined
-      : layoutSent(
-          told,
-          groupLayoutFor(window, group, tabId),
-          elsewhereOf(window, group),
-        );
-  };
+export function layoutReadOf(
+  window: GroupAwarenessWindow,
+  chatTab: string,
+): LayoutRead | undefined {
+  const group = window.windowTabs.allTabs.find(
+    (tab) => tab.id === chatTab,
+  )?.group;
+  if (group === undefined) {
+    return undefined;
+  }
+  const elsewhere: Record<string, string> = {};
+  for (const tab of window.windowTabs.allTabs) {
+    if (tab.group !== undefined && tab.group !== group) {
+      elsewhere[tab.id] = tab.group;
+    }
+  }
+  return { elsewhere, layout: groupLayoutFor(window, group, chatTab) };
 }
 
 /**
@@ -79,6 +73,7 @@ export function groupLayoutFor(
         )
         .map((tab) => ({
           ...describedTab(window, tab),
+          ...(tab.openedBy === undefined ? {} : { byAgent: true }),
           ...(tab.id === chatTab ? { isThisChat: true } : {}),
           ...(tab.id === side.up ? { isUp: true } : {}),
         })),
@@ -89,11 +84,9 @@ export function groupLayoutFor(
   );
   const focusedSide = sides.findIndex((side) => side.index === layout.focused);
   const focused = chatSide === -1 ? Math.max(focusedSide, 0) : chatSide;
-  const title =
-    window.groups.find((entry) => entry.group === group)?.title ?? "New Tab";
   return {
     focused,
-    group: { id: group, title },
+    group: { id: group },
     sides: sides.map(({ tabs }) => ({ tabs })),
   };
 }
@@ -169,131 +162,4 @@ function builtInAddress(href: string): string {
     instrumentUrlOf(href) ??
     (named === undefined ? href : `instrument://screen/${named}`)
   );
-}
-
-/** The window's other groups' tabs, by id, each with its group's title. */
-function elsewhereOf(
-  { groups, windowTabs }: GroupAwarenessWindow,
-  group: string,
-): Record<string, string> {
-  const titles = new Map(groups.map((entry) => [entry.group, entry.title]));
-  const found: Record<string, string> = {};
-  for (const tab of windowTabs.allTabs) {
-    const title = tab.group === undefined ? undefined : titles.get(tab.group);
-    if (tab.group !== group && title !== undefined) {
-      found[tab.id] = title;
-    }
-  }
-  return found;
-}
-
-/**
- * What each chat was last told, by its id (a draft's group key until its
- * chat starts), in this window, kept in memory: a relaunch or another window
- * starts over, sending the layout with no changes.
- */
-const lastSent = new Map<
-  string,
-  { elsewhere: Record<string, string>; layout: LayoutSnapshot }
->();
-
-/**
- * What agents did to the window's tabs, kept in memory by tab id: the tabs
- * one opened or closed, and the address one sent a tab to. A change to such
- * a tab is marked as an agent's (`byAgent`), so the line over the person's
- * next message says only what they did.
- */
-const byAgents = {
-  closed: new Set<string>(),
-  navigated: new Map<string, string>(),
-  opened: new Set<string>(),
-};
-
-/** An agent opened a tab, closed one, or sent one to an address. */
-export function noteAgentChange(
-  change:
-    | { address: string; change: "navigated"; tabId: string }
-    | { change: "closed" | "opened"; tabId: string },
-) {
-  if (change.change === "navigated") {
-    byAgents.navigated.set(change.tabId, change.address);
-  } else {
-    byAgents[change.change].add(change.tabId);
-  }
-}
-
-/** A change marked as an agent's when an agent made it (`noteAgentChange`). */
-function markedByAgent(change: LayoutChange): LayoutChange {
-  switch (change.change) {
-    case "closed":
-    case "opened": {
-      return byAgents[change.change].has(change.tab.id)
-        ? { ...change, byAgent: true }
-        : change;
-    }
-    case "navigated": {
-      const asked = byAgents.navigated.get(change.tab.id);
-      return asked !== undefined &&
-        sameAddress(asked, change.tab.address)
-        ? { ...change, byAgent: true }
-        : change;
-    }
-    default: {
-      return change;
-    }
-  }
-}
-
-/**
- * Two page addresses are one page whatever their scheme, `www.`, trailing
- * slash or fragment, so a page an agent asked for is still its page once
- * loaded.
- */
-function sameAddress(one: string, other: string) {
-  return addressKey(one) === addressKey(other);
-}
-
-function addressKey(address: string) {
-  const parsed = URL.parse(address.includes("://") ? address : `https://${address}`);
-  if (parsed === null) {
-    return address;
-  }
-  const host = parsed.host.replace(/^www\./, "");
-  return `${host}${parsed.pathname.replace(/\/$/, "")}${parsed.search}`;
-}
-
-/**
- * The layout with what changed since `told` was last sent to, which is
- * nothing for its first message; and the layout kept as the next one's
- * starting point.
- */
-function layoutSent(
-  told: string,
-  layout: LayoutSnapshot,
-  elsewhere: Record<string, string>,
-): LayoutSent {
-  const before = lastSent.get(told);
-  lastSent.set(told, { elsewhere, layout });
-  if (!before) {
-    return { changes: [], layout };
-  }
-  const where: LayoutElsewhere = { after: elsewhere, before: before.elsewhere };
-  return {
-    changes: layoutChanges(before.layout, layout, where).map(markedByAgent),
-    layout,
-  };
-}
-
-/**
- * A draft's chat started: what the draft was last told goes on as the
- * chat's, so the chat's next message says what changed since its first.
- * The tab it was sent from becomes the chat's in place, in the same group.
- */
-export function carryLayoutSent(from: string, to: string) {
-  const kept = lastSent.get(from);
-  if (!kept) {
-    return;
-  }
-  lastSent.delete(from);
-  lastSent.set(to, kept);
 }

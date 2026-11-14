@@ -18,7 +18,7 @@ import { holdSendsUntilOpened } from "@/client/lib/message-sends";
 import { rpcClient } from "@/client/rpc/client";
 import {
   type ChatId,
-  type LayoutSent,
+  type LayoutRead,
   type SessionMessageDataPart,
   StoreId,
 } from "@instrument-org/workspace/client";
@@ -59,7 +59,7 @@ export function useDrafts({
   draftContext,
   isChat,
   isOpen,
-  layout,
+  layoutOf,
   openDraftInChat,
   openDrafts,
   openNewChat,
@@ -82,15 +82,8 @@ export function useDrafts({
   isChat: boolean;
   /** Whether what the window opens on is made; no chat starts before it is. */
   isOpen: boolean;
-  /**
-   * The layout of a group as a message goes from one of its tabs, and what
-   * the one told was last told carried from a draft to its chat; see
-   * `group-awareness.ts`.
-   */
-  layout?: {
-    carry: (from: string, to: string) => void;
-    read: (tabId: string, told: string) => LayoutSent | undefined;
-  };
+  /** The group of the tab a message goes from, as the chat reads it; see `layoutReadOf`. */
+  layoutOf?: (tabId: string) => LayoutRead | undefined;
   /** Puts the tab up on the Chat screen writing a draft, beside the chat list. */
   openDraftInChat: (id: string) => void;
   /** Puts the tab up on the chat with its inbox out, wherever the window stood. */
@@ -340,9 +333,7 @@ export function useDrafts({
     // With the chips it showed, for the transcript to draw.
     const viewing = draftContext(draft, sentFrom).catch(() => undefined);
     const layoutSent =
-      sentFrom === undefined
-        ? undefined
-        : layout?.read(sentFrom, draftGroupOf(id));
+      sentFrom === undefined ? undefined : layoutOf?.(sentFrom);
     // Chosen here rather than by the workspace, so the window can be the
     // chat's before the chat exists.
     const sessionId = StoreId.newSessionId();
@@ -381,7 +372,6 @@ export function useDrafts({
         toast.error("Couldn't start the chat", { cause: error });
         return;
       }
-      layout?.carry(draftGroupOf(id), chatId);
       // The draft is claimed for its chat before anything is written to the
       // chat: from here it is the message on its way rather than a draft to
       // list or a reply in the chat, and its file names the chat, since the

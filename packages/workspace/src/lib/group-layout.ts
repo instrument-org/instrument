@@ -8,8 +8,8 @@ import {
 
 /**
  * Where the tabs outside a group stood, read with each layout: by tab id, the
- * title of the window's other tab group that had it. What tells a tab moved
- * out to another group from one closed, and one moved in from one opened.
+ * id of the group that had it. What tells a tab moved out to another group
+ * from one closed, and one moved in from one opened.
  */
 export interface LayoutElsewhere {
   after?: Readonly<Record<string, string>>;
@@ -39,13 +39,7 @@ export function layoutChanges(
   elsewhere: LayoutElsewhere = {},
 ): LayoutChange[] {
   if (before.group.id !== after.group.id) {
-    return [
-      {
-        change: "chatMoved",
-        from: before.group.title,
-        to: after.group.title,
-      },
-    ];
+    return [{ change: "chatMoved", from: before.group.id, to: after.group.id }];
   }
   const was = placesOf(before);
   const now = placesOf(after);
@@ -62,7 +56,7 @@ export function layoutChanges(
     const to = elsewhere.after?.[tab.id];
     changes.push(
       to === undefined
-        ? { change: "closed", tab: named(tab) }
+        ? { ...byAgent(tab), change: "closed", tab: named(tab) }
         : { change: "movedOut", tab: named(tab), to },
     );
   }
@@ -77,6 +71,7 @@ export function layoutChanges(
         from === undefined
           ? {
               ...beside,
+              ...byAgent(tab),
               change: "opened",
               side: sideName(after, side),
               tab: named(tab),
@@ -247,6 +242,11 @@ function named({
     : { address, id, kind, title };
 }
 
+/** An agent's change, for a tab an agent opened. */
+function byAgent(tab: LayoutTab): { byAgent?: true } {
+  return tab.byAgent === true ? { byAgent: true } : {};
+}
+
 function titleOf(tab: LayoutTab): string {
   return tab.isThisChat ? "this chat" : tab.title;
 }
@@ -278,7 +278,7 @@ export function layoutChangesLine(changes: readonly LayoutChange[]): string {
     ...changes.flatMap((one): string[] => {
       switch (one.change) {
         case "chatMoved": {
-          return [`moved this chat to ${one.to}`];
+          return ["moved this chat to another tab group"];
         }
         case "closed":
         case "opened": {
@@ -297,10 +297,10 @@ export function layoutChangesLine(changes: readonly LayoutChange[]): string {
           ];
         }
         case "movedIn": {
-          return [`moved ${one.tab.title} here from ${one.from}`];
+          return [`moved ${one.tab.title} here from another tab group`];
         }
         case "movedOut": {
-          return [`moved ${one.tab.title} to ${one.to}`];
+          return [`moved ${one.tab.title} to another tab group`];
         }
         case "navigated": {
           return [`went to ${one.tab.title}`];

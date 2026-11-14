@@ -4,7 +4,7 @@ import { z } from "zod";
 import { ChatIdSchema } from "../chat-id";
 import { DeviceIdSchema } from "../device-id";
 import { EnvironmentChangeSchema } from "../environment";
-import { LayoutChangeSchema, LayoutSnapshotSchema } from "../group-layout";
+import { KeptLayoutSchema, LayoutChangeSchema } from "../group-layout";
 import {
   AbsolutePathSchema,
   InWorkspacePathSchema,
@@ -106,7 +106,7 @@ export namespace SessionMessageDataPart {
     fileChanges: "unwritten",
     folderChanges: "diff",
     fromChat: "event",
-    groupLayout: "state",
+    groupLayout: "diff",
     intent: "event",
     jobEvent: "event",
     layoutChanges: "event",
@@ -1391,18 +1391,19 @@ export namespace SessionMessageDataPart {
   export type ViewContextDataPart = z.output<typeof ViewContextDataPartSchema>;
 
   /**
-   * The chat's tab group as the message was sent: its sides, their tabs in
-   * order with the one up on each, which side has the keyboard, and which
-   * tab is this chat. Stored whole on every message the window could read
-   * it for, and said only when it reads differently from the last one said.
+   * The tab group the chat works in: its sides, their tabs in order with the
+   * one up on each, which side has the keyboard, and which tab is this chat,
+   * with where every other tab stood. Written on the chat's own session,
+   * ahead of a person's message or with a wake, only when it reads
+   * differently from the last one written (`layoutParts`).
    */
-  export const GroupLayoutDataPartSchema = LayoutSnapshotSchema;
+  export const GroupLayoutDataPartSchema = KeptLayoutSchema;
 
   export type GroupLayoutDataPart = z.output<typeof GroupLayoutDataPartSchema>;
 
   /**
-   * What changed in the chat's tab group since the chat's last message, by
-   * tab, as the window that sent both saw it. Written only when something
+   * What changed in the tab group the chat works in since the layout before,
+   * by tab. Written beside a layout that has one before it, when something
    * changed.
    */
   export const LayoutChangesDataPartSchema = z.object({

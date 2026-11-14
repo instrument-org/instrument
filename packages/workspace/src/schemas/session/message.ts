@@ -19,7 +19,10 @@ import { z } from "zod";
 
 import { CHAT_FOLDER_NAMES } from "../../constants";
 import { appEventModelNote } from "../../model-text/notes/app-event-model-text";
-import { layoutChangesModelNote } from "../../model-text/notes/group-layout-model-text";
+import {
+  groupLayoutModelNote,
+  layoutChangesModelNote,
+} from "../../model-text/notes/group-layout-model-text";
 import { permissionAnswerModelNote } from "../../model-text/notes/permission-answer-model-text";
 import { questionAnswerModelNote } from "../../model-text/notes/question-answer-model-text";
 import { pageTakeoverModelNote } from "../../model-text/notes/page-takeover-model-text";
@@ -808,7 +811,7 @@ const USER_TURN_NOTES = [
   noted("questionAnswer", ({ data }) => questionAnswerModelNote(data)),
   noted("signedIn", ({ data }) => signedInModelNote(data)),
   noted("viewContext", stated),
-  noted("groupLayout", stated),
+  noted("groupLayout", ({ data }) => groupLayoutModelNote(data)),
   noted("layoutChanges", ({ data }) => layoutChangesModelNote(data)),
   noted("actions", ({ data }) => actionsModelNote(data)),
   noted("asks", ({ data }) => asksModelNote(data)),

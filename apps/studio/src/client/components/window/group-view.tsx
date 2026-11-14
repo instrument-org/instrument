@@ -42,22 +42,15 @@ import { useShell } from "./shell-context";
 import { useTabGroupActions, windowTabGroupsAtom } from "./tab-groups";
 import { useGroupTabMoves } from "./tab-drag";
 import { chatOfTab, type GroupLayout, type GroupSide } from "./tab-model";
+import {
+  leftWidthAt,
+  shareAt,
+  SIDE_SHARE_DEFAULT,
+  SIDE_WIDTH_MIN,
+} from "./side-widths";
 import { useTabSurface } from "./tab-surface";
 import { WINDOW_CARD, WINDOW_CARD_GAP } from "./window-frame";
 import { newScreenId, useWindowTabs } from "./window-tabs";
-
-/**
- * A side's narrowest, in layout px: room for a chat's composer and for the
- * toolbar's arrows, reload and an address worth reading. A group too narrow
- * for its sides at this scrolls sideways rather than squeezing either.
- */
-const SIDE_WIDTH_MIN = 440;
-
-/** How near the middle, in layout px, a dragged gutter settles on it. */
-const SIDE_SNAP_PX = 15;
-
-/** The left side's share of a group of two sides that has none kept. */
-const SIDE_SHARE_DEFAULT = 0.5;
 
 /**
  * One tab group, as the window's tab shows it: one side or two, each a card
@@ -153,19 +146,8 @@ function GroupSides({ group }: { group: string }) {
   /** The same room measured now, for a drag. */
   const roomNow = () =>
     (rowRef.current?.offsetWidth ?? rowWidth) - WINDOW_CARD_GAP;
-  const shareOf = (width: number) => {
-    const total = roomNow();
-    if (total <= 0) {
-      return SIDE_SHARE_DEFAULT;
-    }
-    const clamped = Math.min(
-      Math.max(width, SIDE_WIDTH_MIN),
-      Math.max(total - SIDE_WIDTH_MIN, SIDE_WIDTH_MIN),
-    );
-    return Math.abs(clamped - total / 2) <= SIDE_SNAP_PX
-      ? SIDE_SHARE_DEFAULT
-      : clamped / total;
-  };
+  /** Where the gap between the sides is laid out, from the row's left. */
+  const gutterAt = leftWidthAt(share, room);
   const keepShare = (next: number) => {
     setShares((current) => {
       if (next === SIDE_SHARE_DEFAULT) {
@@ -182,7 +164,7 @@ function GroupSides({ group }: { group: string }) {
       className="relative min-h-0 min-w-0 flex-1 overflow-x-auto overflow-y-hidden"
       style={
         {
-          "--gutter-at": `${share * room}px`,
+          "--gutter-at": `${gutterAt}px`,
         } as CSSProperties // A custom property, which CSSProperties does not name.
       }
       // A page in a side is cut to what the row shows of it (`useBrowserSlot`).
@@ -225,7 +207,7 @@ function GroupSides({ group }: { group: string }) {
             return row ? row.getBoundingClientRect().left : undefined;
           }}
           className="top-0 bottom-0 left-(--gutter-at)"
-          getWidth={() => share * roomNow()}
+          getWidth={() => leftWidthAt(share, roomNow())}
           grows="right"
           label="Resize sides"
           max={Math.max(room - SIDE_WIDTH_MIN, SIDE_WIDTH_MIN)}
@@ -235,7 +217,7 @@ function GroupSides({ group }: { group: string }) {
             keepShare(SIDE_SHARE_DEFAULT);
           }}
           onResize={(width) => {
-            draggedNow.current = shareOf(width);
+            draggedNow.current = shareAt(width, roomNow());
             setDragged(draggedNow.current);
           }}
           onResizeEnd={() => {
@@ -250,7 +232,7 @@ function GroupSides({ group }: { group: string }) {
             // The pages under the pointer let it pass while the gutter moves.
             document.documentElement.toggleAttribute("data-tab-held", true);
           }}
-          value={share * room}
+          value={gutterAt}
         />
       )}
     </div>

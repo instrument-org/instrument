@@ -9,7 +9,7 @@ export function browserStatusModelNote(data: Status) {
   const closed = closedNote(data.closed ?? []);
   if (data.tabs.length === 0) {
     return systemNote`
-      This chat has no tabs open now.${closed}
+      The user's tab group has no pages open now.${closed}
     `;
   }
 
@@ -24,7 +24,7 @@ export function browserStatusModelNote(data: Status) {
     ? " A page unloaded out of sight comes back from its address the next time the tab is used, without what was typed or scrolled in it."
     : "";
   return systemNote`
-    This chat's tabs, which the chat and each of its tasks all see: ${tabs}. \`agent-browser tab <id>\` switches to one.${theirs}${asleep}${unloads}${closed}
+    The pages in the user's tab group, which the chat and each of its tasks all see: ${tabs}. \`agent-browser tab <id>\` switches to one.${theirs}${asleep}${unloads}${closed}
   `;
 }
 

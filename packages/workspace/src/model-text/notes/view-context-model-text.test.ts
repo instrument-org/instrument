@@ -45,7 +45,7 @@ describe("viewContextModelNote", () => {
     ).toMatchInlineSnapshot(`
       "
       <instrument-system-note>
-      When the user sent this, the window showed a new tab: the box that opens any screen or asks you. Nothing in particular is in view.
+      When the user sent this, they wrote it in a new tab, which became this chat. Nothing in particular is in view.
       </instrument-system-note>
       <instrument-system-note>
       They chose to send these with the message: the file \`/Users/casey/Notes/plan.md\`; the folder \`/Volumes/Backup\`. "This", "these" and "it" refer to them first, then to what was on screen.
@@ -95,7 +95,7 @@ describe("viewContextModelNote", () => {
     ).toMatchInlineSnapshot(`
       "
       <instrument-system-note>
-      When the user sent this, the window showed a new tab: the box that opens any screen or asks you. Nothing in particular is in view.
+      When the user sent this, they wrote it in a new tab, which became this chat. Nothing in particular is in view.
       </instrument-system-note>
       Tabs open in the window: "New tab" at /new-tab (tab screen-1); "Example" at https://example.com/ (tab tab_01M3AX9RF3C2E9RTATMB602W0B, task read-the-page is working in it)."
     `);
@@ -116,8 +116,8 @@ describe("viewContextModelNote", () => {
     ).toMatchInlineSnapshot(`
       "
       <instrument-system-note>
-      When the user sent this, the browser showed "Amazon.com. Spend less. Smile more." at https://www.amazon.com/?ref_=nav_signin, in their own tab tab_01M5Q1ZK8AAAAAAAAAAAAAAAAA, outside this chat. "This page", "this site", "this" and "here" refer to it. To work in it, open its address in a tab of your own, which has their sign-ins but not what they typed or scrolled to. To act in this very tab as it stands, say so in your reply and ask them to add it to their next message.
-      This chat has no tabs.
+      When the user sent this, the browser showed "Amazon.com. Spend less. Smile more." at https://www.amazon.com/?ref_=nav_signin, in their own tab tab_01M5Q1ZK8AAAAAAAAAAAAAAAAA, outside their tab group. "This page", "this site", "this" and "here" refer to it. To work in it, open its address in a tab of your own, which has their sign-ins but not what they typed or scrolled to. To act in this very tab as it stands, say so in your reply and ask them to add it to their next message.
+      Their tab group has no pages.
       </instrument-system-note>"
     `);
   });
@@ -149,8 +149,8 @@ describe("viewContextModelNote", () => {
     ).toMatchInlineSnapshot(`
       "
       <instrument-system-note>
-      When the user sent this, the browser showed "Example" at https://example.com/ (this chat's tab tab_01M3AX9RF3C2E9RTATMB602W0B, task read-the-page is working in it). "This page", "this site", "this" and "here" refer to it.
-      This chat's other tabs, not on screen: "Shop" at https://shop.example/ (tab tab_01M3AX9RF3C2E9RTATMB602W0C, task compare-prices is working in it).
+      When the user sent this, the browser showed "Example" at https://example.com/ (tab tab_01M3AX9RF3C2E9RTATMB602W0B in their tab group, task read-the-page is working in it). "This page", "this site", "this" and "here" refer to it.
+      Other pages in their tab group, not on screen: "Shop" at https://shop.example/ (tab tab_01M3AX9RF3C2E9RTATMB602W0C, task compare-prices is working in it).
       </instrument-system-note>"
     `);
   });

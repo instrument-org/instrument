@@ -1,6 +1,5 @@
 import { type SessionMessageDataPart } from "../../schemas/session/message-data-part";
 import { APP_COMMAND } from "../commands/app-command";
-import { WINDOW_COMMAND } from "../commands/window-command";
 import { systemNote } from "./system-note";
 
 type ViewContext = SessionMessageDataPart.ViewContextDataPart;
@@ -122,7 +121,7 @@ function pageNote(data: ViewContext) {
   const { page } = data;
   if (!page) {
     return systemNote`
-      When the user sent this, the window showed the Browser with no tab open. "This page" refers to nothing yet, and there is no tab to work in until one is opened: \`${WINDOW_COMMAND.name} show <url>\` opens one.
+      When the user sent this, the window showed ${data.url ? `the page at ${data.url}` : "a page"}, which could not be read. "This page" and "this" refer to it.
     `;
   }
   const title = page.title ? ` "${page.title}"` : "";
@@ -134,8 +133,8 @@ function pageNote(data: ViewContext) {
     page.tab === undefined
       ? ""
       : theirs
-        ? `, in their own tab ${page.tab}, outside this chat`
-        : ` (this chat's tab ${page.tab}${heldClause(shown?.heldBy)})`;
+        ? `, in their own tab ${page.tab}, outside their tab group`
+        : ` (tab ${page.tab} in their tab group${heldClause(shown?.heldBy)})`;
   const ways =
     theirs && page.tab !== undefined
       ? " To work in it, open its address in a tab of your own, which has their sign-ins but not what they typed or scrolled to. To act in this very tab as it stands, say so in your reply and ask them to add it to their next message."
@@ -143,8 +142,8 @@ function pageNote(data: ViewContext) {
   const others = (page.tabs ?? []).filter((other) => other.id !== page.tab);
   const tabs =
     others.length > 0
-      ? `This chat's ${theirs ? "" : "other "}tabs, not on screen: ${others.map((other) => `"${other.title || other.url}" at ${other.url} (tab ${other.id}${heldClause(other.heldBy)})`).join("; ")}.`
-      : `This chat has no ${theirs ? "" : "other "}tabs.`;
+      ? `${theirs ? "Pages" : "Other pages"} in their tab group, not on screen: ${others.map((other) => `"${other.title || other.url}" at ${other.url} (tab ${other.id}${heldClause(other.heldBy)})`).join("; ")}.`
+      : `Their tab group has no ${theirs ? "" : "other "}pages.`;
   return systemNote`
     When the user sent this, the browser showed${title} at ${page.url}${tab}. "This page", "this site", "this" and "here" refer to it.${words}${focus}${ways}
     ${tabs}
@@ -190,7 +189,7 @@ function screenNote(data: ViewContext, shellPath: ShellPath) {
     }
     case "home": {
       return systemNote`
-        When the user sent this, the window showed a new tab: the box that opens any screen or asks you. Nothing in particular is in view.
+        When the user sent this, they wrote it in a new tab, which became this chat. Nothing in particular is in view.
       `;
     }
     case "skills": {
@@ -240,7 +239,7 @@ function taskNote(data: ViewContext) {
         : "which is working now"
       : "which has finished";
   return systemNote`
-    When the user sent this, the Tasks screen showed your task "${task.title}" (id ${task.id}), ${standing}. "This task", "this", "it" and "the task" refer to it: steer it with \`instrument task send ${task.id}\`, stop it with \`instrument task stop ${task.id}\`, read it with \`instrument task log ${task.id}\`.
+    When the user sent this, the window showed your task "${task.title}" (id ${task.id}), ${standing}. "This task", "this", "it" and "the task" refer to it: steer it with \`instrument task send ${task.id}\`, stop it with \`instrument task stop ${task.id}\`, read it with \`instrument task log ${task.id}\`.
   `;
 }
 
@@ -248,7 +247,7 @@ function tasksNote(data: ViewContext) {
   const tasks = data.tasks ?? [];
   if (tasks.length === 0) {
     return systemNote`
-      When the user sent this, the window showed the Tasks screen, with no tasks yet. "These" refers to nothing yet.
+      When the user sent this, the window showed your tasks, with none yet. "These" refers to nothing yet.
     `;
   }
   const rows = tasks
@@ -258,6 +257,6 @@ function tasksNote(data: ViewContext) {
     )
     .join("; ");
   return systemNote`
-    When the user sent this, the window showed the Tasks screen: your tasks, listed as ${rows}. "These", "them" and "the tasks" refer to that list; "the first one" and the like count down it.
+    When the user sent this, the window showed your tasks, listed as ${rows}. "These", "them" and "the tasks" refer to that list; "the first one" and the like count down it.
   `;
 }

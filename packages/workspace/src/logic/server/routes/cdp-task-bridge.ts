@@ -438,19 +438,33 @@ export function handleTaskCdpClient(
     return entry.sessionId;
   };
 
-  /** An attached tab's session, its page brought back first when it was let go; undefined once it cannot be. */
+  /**
+   * An attached tab's session, its page brought back first when it was let
+   * go; undefined when it could not be. Commands that arrive while the page
+   * is coming back share one ask of the window, and a page that did not come
+   * back is asked for again by the next command.
+   */
   const sessionOf = (entry: Attached): Promise<TargetSession | undefined> => {
     if (entry.session) {
       return Promise.resolve(entry.session);
     }
-    entry.opening ??= bringBack(entry.tab)
+    if (entry.opening) {
+      return entry.opening;
+    }
+    const opening: Promise<TargetSession | undefined> = bringBack(entry.tab)
       .catch(() => false)
-      .then((back) =>
-        back && !closed && attached.get(entry.tab.tabId) === entry
-          ? open(entry)
-          : undefined,
-      );
-    return entry.opening;
+      .then((back) => {
+        const session =
+          back && !closed && attached.get(entry.tab.tabId) === entry
+            ? open(entry)
+            : undefined;
+        if (!session && entry.opening === opening) {
+          delete entry.opening;
+        }
+        return session;
+      });
+    entry.opening = opening;
+    return opening;
   };
 
   const createTarget = async (id: number, params: unknown) => {

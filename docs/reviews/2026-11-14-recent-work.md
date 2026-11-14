@@ -120,7 +120,7 @@ Important means a concrete correctness, security, privacy, or data-preservation 
 
 ### N. A tab restore that times out once is remembered as failed for the rest of the agent's connection
 
-- Status: open
+- Status: fixed
 - Severity: Important, with the trigger unproven. A timeout stands in for an event and its result is cached.
 - Where: [cdp-task-bridge.ts:446](/packages/workspace/src/logic/server/routes/cdp-task-bridge.ts#L446), [cdp-task-bridge.ts:184](/packages/workspace/src/logic/server/routes/cdp-task-bridge.ts#L184).
 - What: `sessionOf` sets `entry.opening ??=` to the promise of bringing the tab's page back, which resolves `undefined` when the window does not answer the restore ask in two seconds. Nothing clears `opening`, and `attach` returns the existing entry, so every later command on that tab is refused as closed after the window has in fact restored it.

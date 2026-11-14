@@ -83,9 +83,14 @@ vi.mock("../../../lib/session-layout", async () => {
 });
 // The window: what the session asked of it, a new tab joining the chat's.
 const asked: WindowTabAction[] = [];
+/** Whether the window leaves a restore ask unanswered, as it does past the ask's timeout. */
+let restoreUnanswered = false;
 vi.mock("../../../lib/chat/window-tab", () => ({
   askWindow: ({ action }: { action: WindowTabAction }) => {
     asked.push(action);
+    if (action.kind === "restore" && restoreUnanswered) {
+      return Promise.resolve(undefined);
+    }
     if (action.kind === "close") {
       windowList = windowList.filter((entry) => entry.id !== action.tabId);
     }
@@ -322,6 +327,7 @@ beforeEach(() => {
   record.openedTabs = [];
   windowList = [];
   asked.length = 0;
+  restoreUnanswered = false;
 });
 
 describe("a session's browser", () => {
@@ -575,6 +581,44 @@ describe("a session's browser", () => {
       resting.targetId,
       "Runtime.evaluate",
       { expression: "1" },
+    );
+  });
+
+  it("asks the window again for a discarded page it did not bring back, once for commands that arrive together", async () => {
+    const resting = tab();
+    const { command, discards, sendCommand } = connect();
+    discards(resting.targetId);
+    const attached = await command("Target.attachToTarget", {
+      flatten: true,
+      targetId: resting.tabId,
+    });
+    const session = attached.result?.sessionId as string;
+    const restores = () =>
+      asked.filter((action) => action.kind === "restore").length;
+
+    restoreUnanswered = true;
+    const refused = await Promise.all([
+      command("Runtime.evaluate", { expression: "1" }, session),
+      command("Runtime.evaluate", { expression: "2" }, session),
+    ]);
+    expect(refused.map((frame) => frame.error?.message)).toEqual([
+      `Tab ${resting.tabId} is closed; there is no page to act on.`,
+      `Tab ${resting.tabId} is closed; there is no page to act on.`,
+    ]);
+    expect(restores()).toBe(1);
+
+    restoreUnanswered = false;
+    const driven = await command(
+      "Runtime.evaluate",
+      { expression: "3" },
+      session,
+    );
+    expect(driven.error).toBeUndefined();
+    expect(restores()).toBe(2);
+    expect(sendCommand).toHaveBeenCalledWith(
+      resting.targetId,
+      "Runtime.evaluate",
+      { expression: "3" },
     );
   });
 

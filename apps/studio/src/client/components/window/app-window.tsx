@@ -1314,7 +1314,8 @@ function WindowShell({
           openScreen(href);
         }
       },
-      // A group this window has open comes up, as a tab here showing it does.
+      // A group this window has open comes up, and so does a chat or a
+      // draft with a tab in one, as a tab here showing it does.
       showTab: (href) => {
         const group = groupOfHref(href);
         if (
@@ -1324,7 +1325,7 @@ function WindowShell({
           groups.show(group);
           return true;
         }
-        return showFromOutside(href);
+        return groups.showListed(href) || showFromOutside(href);
       },
       // The tab up in the group, to a group and a window of its own, as
       // dragging it off the window does.

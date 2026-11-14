@@ -570,6 +570,37 @@ export function useTabGroupActions() {
     windowTabs.select(tab.id);
   };
 
+  /** The first tab in a group this window lists that `shows` is true of. */
+  const listedTabWhere = (shows: (tab: WindowTab) => boolean) => {
+    const state = store.get(windowTabsAtom);
+    return (store.get(windowTabGroupsAtom) ?? [])
+      .flatMap((group) => tabsIn(state, group))
+      .find((tab) => shows(tab));
+  };
+
+  /**
+   * Brings up a tab on the chat or the draft an address names, in a group
+   * this window lists, as another window asks of it; whether it had one.
+   */
+  const showListed = (href: string): boolean => {
+    const screen = matchScreen(href);
+    const chat = screen.kind === "chat" ? screen.chat : undefined;
+    const draft = screen.kind === "inbox" ? screen.draft : undefined;
+    const tab =
+      chat === undefined && draft === undefined
+        ? undefined
+        : listedTabWhere(
+            (each) =>
+              (chat !== undefined && chatOfTab(each) === chat) ||
+              (draft !== undefined && draftOfTab(each) === draft),
+          );
+    if (tab === undefined) {
+      return false;
+    }
+    showTab(tab);
+    return true;
+  };
+
   /**
    * Brings up a tab on a chat or a draft, asked for by its address (a link,
    * a row of History): the first tab on it in a group this window lists;
@@ -584,11 +615,7 @@ export function useTabGroupActions() {
       replace = false,
     }: { href: string; key: string; replace?: boolean },
   ) => {
-    const state = store.get(windowTabsAtom);
-    const listed = store.get(windowTabGroupsAtom) ?? [];
-    const here = listed
-      .flatMap((group) => tabsIn(state, group))
-      .find((tab) => shows(tab));
+    const here = listedTabWhere(shows);
     if (here) {
       showTab(here, { replace });
       return;
@@ -891,6 +918,7 @@ export function useTabGroupActions() {
     showChat,
     showDraft,
     showHere,
+    showListed,
   };
 }
 

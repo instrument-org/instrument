@@ -23,10 +23,30 @@ const SCRUBBED = [
 const OVERRIDES = ["CLAUDE_CODE_EFFORT_LEVEL", "MCP_TOOL_TIMEOUT"];
 
 /**
+ * Environment a running Claude Code gives the programs it starts, there when
+ * Instrument itself was started from one (a developer's terminal, an agent
+ * booting the app): kept, it would start every process here as a nested
+ * session of that one, reporting to its messaging socket under its session
+ * id, at its effort, as its entrypoint rather than the Agent SDK's.
+ */
+const INHERITED = [
+  "CLAUDECODE",
+  "CLAUDE_CODE_CHILD_SESSION",
+  "CLAUDE_CODE_ENTRYPOINT",
+  "CLAUDE_CODE_EXECPATH",
+  "CLAUDE_CODE_MESSAGING_SOCKET",
+  "CLAUDE_CODE_MESSAGING_TOKEN",
+  "CLAUDE_CODE_SESSION_ATTENDED",
+  "CLAUDE_CODE_SESSION_ID",
+  "CLAUDE_EFFORT",
+  "CLAUDE_PID",
+];
+
+/**
  * The environment Instrument runs Claude Code in, for every request and every
- * status check alike: this process's own, less anything in `SCRUBBED` or
- * `OVERRIDES`, with the config folder holding the account's sign-in when
- * there is one.
+ * status check alike: this process's own, less anything in `SCRUBBED`,
+ * `OVERRIDES` or `INHERITED`, with the config folder holding the account's
+ * sign-in when there is one.
  */
 export function claudeCodeEnvironment(
   configDir: string | undefined,
@@ -36,7 +56,8 @@ export function claudeCodeEnvironment(
     if (
       value !== undefined &&
       !SCRUBBED.includes(name) &&
-      !OVERRIDES.includes(name)
+      !OVERRIDES.includes(name) &&
+      !INHERITED.includes(name)
     ) {
       env[name] = value;
     }

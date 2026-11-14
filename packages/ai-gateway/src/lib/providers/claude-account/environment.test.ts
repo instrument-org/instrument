@@ -8,7 +8,8 @@ afterEach(() => {
 
 describe("claudeCodeEnvironment", () => {
   // Each one, set in the person's shell, runs Claude Code on something other
-  // than the account Instrument signed in, or overrides what a request asks.
+  // than the account Instrument signed in, overrides what a request asks, or
+  // nests it in the Claude Code the app was started from.
   it.each([
     "ANTHROPIC_API_KEY",
     "ANTHROPIC_AUTH_TOKEN",
@@ -18,6 +19,11 @@ describe("claudeCodeEnvironment", () => {
     "CLAUDE_CODE_SIMPLE",
     "CLAUDE_CODE_EFFORT_LEVEL",
     "MCP_TOOL_TIMEOUT",
+    "CLAUDECODE",
+    "CLAUDE_CODE_ENTRYPOINT",
+    "CLAUDE_CODE_MESSAGING_SOCKET",
+    "CLAUDE_CODE_SESSION_ID",
+    "CLAUDE_EFFORT",
   ])("leaves out %s from the shell", (name) => {
     vi.stubEnv(name, "1");
     vi.stubEnv("INSTRUMENT_KEPT", "yes");

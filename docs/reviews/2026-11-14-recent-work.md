@@ -62,7 +62,7 @@ Important means a concrete correctness, security, privacy, or data-preservation 
 
 ### G. Linux with no GTK bookmarks file unpins every default folder, once and for good
 
-- Status: fixed
+- Status: fixed `c2d969a64`
 - Severity: Important. A missing file is read as "the system pins nothing" and the result is written and never retried, on upgrade as well as first launch.
 - Where: [system-sidebar.ts:32](/apps/studio/src/electron-main/lib/system-sidebar.ts#L32), [system-sidebar.ts:99](/apps/studio/src/electron-main/lib/system-sidebar.ts#L99), [sidebar-places.ts:109](/apps/studio/src/shared/sidebar-places.ts#L109).
 - What: `systemSidebarFolders` returns `undefined` for "could not read", which `adoptSystemSidebarOnce` leaves for the next launch. On Linux a failed read of `~/.config/gtk-3.0/bookmarks` returns `[]` instead. `adoptSystemSidebar` then unpins each default the system list leaves out, which is all of them, and `systemSidebarAdopted` is set. A KDE desktop, or any account that never added a bookmark in a GTK file manager, opens Files with only the output folder pinned. Nothing is lost and the defaults can be pinned again by hand.
@@ -79,7 +79,7 @@ Important means a concrete correctness, security, privacy, or data-preservation 
 
 ### I. A dot in a file or folder name sends the rest of the name with feedback
 
-- Status: fixed
+- Status: fixed `746d9b846`
 - Severity: Important. Privacy: part of a name reaches a report through a function whose contract is that no name does.
 - Where: [problem-reports.ts:769](/apps/studio/src/electron-main/lib/problem-reports.ts#L769).
 - What: `pathKind` answers `a .<everything after the last dot> file`. A folder named `Dr. Patel records` goes into a report's actions as `a . patel records file`, and `Offer letter.Jane Doe` as `a .jane doe file`. The redactor removes only values it knows (people, the home folder, the login, chat ids, memories). The person can leave the actions out and the dialog shows them, which bounds it.
@@ -104,7 +104,7 @@ Important means a concrete correctness, security, privacy, or data-preservation 
 
 ### L. An unknown link's first 200 characters go into the log, and a too-long `new` link counts as unknown
 
-- Status: fixed
+- Status: fixed `56287a6e3`
 - Severity: Important. Privacy, low: the log's tail goes with a report.
 - Where: [outside-links.ts:287](/apps/studio/src/electron-main/lib/outside-links.ts#L287), [instrument-link.ts:182](/packages/shared/src/instrument-link.ts#L182), [instrument-link.ts:170](/packages/shared/src/instrument-link.ts#L170).
 - What: the docblock keeps a `new` link's words and a file's path out of the log and makes one exception, a link the app does not know. But the parser also answers "unknown" for a known kind in a refused shape: `instrument://new?text=` with more words than the cap, or a `files` link with a path component after the host. Those log about 180 characters of the person's prompt or a path. Report redaction of addresses covers `http(s)` only.
@@ -112,7 +112,7 @@ Important means a concrete correctness, security, privacy, or data-preservation 
 
 ### M. Stopping the first step after a resume leaves a full copy of the conversation that nothing removes
 
-- Status: fixed
+- Status: fixed `e879e45fe`
 - Severity: Important, narrowly. Conversation text outlives the chat, one copy per stop.
 - Where: [language-model.ts:365](/packages/ai-gateway/src/lib/providers/claude-account/language-model.ts#L365), [language-model.ts:301](/packages/ai-gateway/src/lib/providers/claude-account/language-model.ts#L301), [resume-record.ts:280](/packages/ai-gateway/src/lib/providers/claude-account/resume-record.ts#L280).
 - What: a resume or cold start begins a new Claude Code transcript at once, and the record is moved to it only after a finished step. Stop during that first step and the record still names the old transcript (or, after a cold start, nothing: the old record was removed first). The next request forks again, and the abandoned transcript has no record. The sweep walks records, so it never finds it, and deleting the chat does not either. `03b8ce326` notes the deleted-chat case under `Not-tested:`; this is the same gap reached by pressing Stop.
@@ -120,7 +120,7 @@ Important means a concrete correctness, security, privacy, or data-preservation 
 
 ### N. A tab restore that times out once is remembered as failed for the rest of the agent's connection
 
-- Status: fixed
+- Status: fixed `ff6af498f`
 - Severity: Important, with the trigger unproven. A timeout stands in for an event and its result is cached.
 - Where: [cdp-task-bridge.ts:446](/packages/workspace/src/logic/server/routes/cdp-task-bridge.ts#L446), [cdp-task-bridge.ts:184](/packages/workspace/src/logic/server/routes/cdp-task-bridge.ts#L184).
 - What: `sessionOf` sets `entry.opening ??=` to the promise of bringing the tab's page back, which resolves `undefined` when the window does not answer the restore ask in two seconds. Nothing clears `opening`, and `attach` returns the existing entry, so every later command on that tab is refused as closed after the window has in fact restored it.

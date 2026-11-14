@@ -102,7 +102,7 @@ describe("the app menu and the Window menu", () => {
               "hideOthers",
               "unhide",
               "---",
-              "quit (CmdOrCtrl+Q)",
+              "Quit Instrument (CmdOrCtrl+Q)",
             ],
           },
           "window": [
@@ -176,6 +176,9 @@ describe("the app menu and the Window menu", () => {
       const { withAppMenu } = await menusOn(platform);
       each[platform] = leaves(withAppMenu(MENUS()))
         .filter((row) => !MAC_ONLY.includes(row))
+        // The Mac's Quit is a row of its own, which can leave the app
+        // running in the menu bar, and is still the Quit the others have.
+        .map((row) => (row === "Quit Instrument" ? "quit" : row))
         .toSorted();
     }
     expect(each.win32).toEqual(each.darwin);

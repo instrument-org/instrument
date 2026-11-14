@@ -209,7 +209,8 @@ export {
   appListChanges,
   chatSettles,
 } from "./lib/host-events";
-export { settleIsNews } from "./lib/chat/chats";
+export { type Chat, settleIsNews } from "./lib/chat/chats";
+export { liveChatList } from "./lib/chat/live-chat-list";
 export { FILES_FENCE } from "./lib/parse-files-block";
 export { MESSAGE_FENCE, parseMessage } from "./lib/parse-message";
 

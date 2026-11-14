@@ -1,3 +1,4 @@
+import { quitFromAppMenu } from "@/electron-main/lib/app-menu-quit";
 import { openExternal } from "@/electron-main/lib/open-external";
 import { publisher, type WindowCommand } from "@/electron-main/rpc/publisher";
 import { getWorkspacePreferences } from "@/electron-main/stores/workspace/preferences";
@@ -85,8 +86,12 @@ function appRows() {
           { isMac: IS_MAC },
         ),
       }),
-      // Electron names it Exit on Windows and Quit on Linux.
-      role: "quit" as const,
+      // On a Mac it leaves the app running in the menu bar while that is
+      // on (`quitFromAppMenu`). Electron names it Exit on Windows and Quit
+      // on Linux.
+      ...(IS_MAC
+        ? { click: quitFromAppMenu, label: `Quit ${app.getName()}` }
+        : { role: "quit" as const }),
     },
     settings: { ...shortcutMenuItem("settings"), ...menuSymbol("gear") },
     update: updateMenuItem(updateReady),

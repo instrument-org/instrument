@@ -336,6 +336,11 @@ export function openAppScreen(href: string) {
   }
 }
 
+/** Puts Settings up in the window in front, or in the one this opens. */
+export function openAppSettings() {
+  askAppWindow({ type: "openSettings" });
+}
+
 /**
  * Brings forward the window that already has a tab showing what an ask puts
  * up (`tabHrefOfAsk`), and hands it the ask, which brings that tab up. False
@@ -966,7 +971,7 @@ function createAppWindow(
   // quit with a running process the user can't get back to.
   window.on("close", (event) => {
     if (
-      !quitsWithLastWindow ||
+      !quitsWithLastWindow() ||
       isQuitApproved() ||
       hasVisibleWindowOtherThan(window)
     ) {
@@ -1037,7 +1042,7 @@ function createAppWindow(
       }
     }
     // The window is already out of the list by now, so nothing to exclude.
-    if (quitsWithLastWindow && !hasVisibleWindowOtherThan(null)) {
+    if (quitsWithLastWindow() && !hasVisibleWindowOtherThan(null)) {
       app.quit();
     }
   });

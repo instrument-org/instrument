@@ -465,9 +465,15 @@ export function GroupItem({
         <WindowContext
           value={{
             ...appWindow,
-            // A chat's tasks and each task's page walk this tab in place.
+            // A chat's tasks and each task's page walk this tab in place,
+            // unless it is the chat's own, which stays on the chat.
             openScreen: (href, options) => {
-              if (tasksOfHref(href) && !asksOwnPlace(options) && router) {
+              if (
+                tasksOfHref(href) &&
+                !asksOwnPlace(options) &&
+                router &&
+                !isChat
+              ) {
                 router.history.push(href);
                 return;
               }

@@ -32,7 +32,7 @@ import {
 } from "./placement";
 import { visitInTab } from "./tab-history";
 import { taskHref, tasksOfHref } from "./tab-location";
-import { isFreshTab, sideIndexOf } from "./tab-model";
+import { isChatTab, isFreshTab, sideIndexOf } from "./tab-model";
 import {
   chatHref,
   chatOfGroup,
@@ -626,6 +626,11 @@ export function useOpeners({
         return { tabId: tab.id };
       }
       case "replace": {
+        if (isChatTab(tab)) {
+          return {
+            error: `tab ${tab.id} is a chat, which stays as it is; open the page in a tab of its own.`,
+          };
+        }
         const { target } = action;
         if (target.kind === "page") {
           if (target.url === undefined) {

@@ -636,6 +636,66 @@ export function chatOfTab(tab: WindowTab): ChatId | undefined {
   return screen.kind === "chat" ? screen.chat : undefined;
 }
 
+/**
+ * Whether a tab is a chat's. A chat is in one place, its own tab, which is
+ * never sent anywhere else: what would go there opens right after it.
+ */
+export function isChatTab(tab: WindowTab): boolean {
+  return chatOfTab(tab) !== undefined;
+}
+
+/**
+ * The tabs with no chat behind or ahead of them: in no tab's Back or
+ * Forward visits, nor along a screen's own history but where it stands.
+ * A chat is in its own tab alone, and a build that sent a chat's tab
+ * elsewhere left the chat there, where a step back would show it twice.
+ */
+export function withoutChatsBehind(tabs: WindowTab[]): WindowTab[] {
+  const isChat = (href: string) => matchScreen(href).kind === "chat";
+  const trailOf = <T extends TabVisit>(visit: T): T => {
+    if (visit.kind !== "screen" || visit.history === undefined) {
+      return visit;
+    }
+    const { entries, index } = visit.history;
+    const kept = entries.flatMap((href, at) =>
+      at === index || !isChat(href) ? [{ at, href }] : [],
+    );
+    return kept.length === entries.length
+      ? visit
+      : {
+          ...visit,
+          history: {
+            entries: kept.map((entry) => entry.href),
+            index: Math.max(
+              kept.findIndex((entry) => entry.at === index),
+              0,
+            ),
+          },
+        };
+  };
+  const visitsOf = (visits: TabVisit[] | undefined) => {
+    const kept = visits
+      ?.filter((visit) => visit.kind !== "screen" || !isChat(visit.href))
+      .map(trailOf);
+    return kept?.length === visits?.length &&
+      kept?.every((visit, at) => visit === visits?.[at])
+      ? visits
+      : kept;
+  };
+  return tabs.map((tab) => {
+    const past = visitsOf(tab.past);
+    const future = visitsOf(tab.future);
+    const here = trailOf(tab);
+    return here === tab && past === tab.past && future === tab.future
+      ? tab
+      : {
+          ...here,
+          ...(past === undefined ? {} : { past }),
+          ...(future === undefined ? {} : { future }),
+        };
+  });
+}
+
 /** The chats a group has a tab on, in the order its row reads them: the left side first, then strip order. */
 export function chatsOfGroup(state: WindowTabs, group: string): ChatId[] {
   const layout = groupLayoutOf(state, group);
@@ -1001,13 +1061,25 @@ export function navigateScreen(
 
 /**
  * A tab goes to a screen: a screen tab walks there, and a page becomes the
- * screen, as a tab of its own (`newId`) with the page a step back.
+ * screen, as a tab of its own (`newId`) with the page a step back. A chat's
+ * tab stays on the chat, and the screen opens right after it, up.
  */
 export function tabToScreen(
   state: WindowTabs,
   { href, id, newId }: { href: string; id: string; newId: string },
 ): WindowTabs {
   const tab = state.tabs.find((entry) => entry.id === id);
+  if (tab?.kind === "screen" && isChatTab(tab) && tab.group !== undefined) {
+    return sameHref(tab.href, href)
+      ? state
+      : addScreen(state, {
+          after: id,
+          group: tab.group,
+          href,
+          id: newId,
+          select: true,
+        });
+  }
   return tab?.kind === "page"
     ? replaceTab(
         state,
@@ -1196,9 +1268,10 @@ export function pageTakesOver(
  * A new page tab. In a tab's place, it takes that tab's place in the strip
  * and under its strip key, so the strip sees one tab changing rather than one
  * leaving and another arriving, and it is what that group has up; back from
- * it returns to that tab. Otherwise it joins the group at the end, or right
- * after the tab named, up when asked, with nothing behind it, as a browser's
- * tab opened from a link starts.
+ * it returns to that tab. A chat's tab is never taken: the page opens right
+ * after it, up. Otherwise it joins the group at the end, or right after the
+ * tab named, up when asked, with nothing behind it, as a browser's tab
+ * opened from a link starts.
  */
 export function openPage(
   state: WindowTabs,
@@ -1219,6 +1292,13 @@ export function openPage(
     side?: Placing["side"];
   },
 ): WindowTabs {
+  if (replacing && isChatTab(replacing) && replacing.group !== undefined) {
+    return openInGroup(
+      state,
+      { ...page, group: replacing.group, kind: "page" },
+      { after: replacing.id, group: replacing.group, select: true },
+    );
+  }
   if (replacing) {
     const tab = visitInTab(replacing, { ...page, kind: "page" });
     const index = state.tabs.findIndex((entry) => entry.id === replacing.id);

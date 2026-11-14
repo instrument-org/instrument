@@ -47,6 +47,7 @@ import {
   visitScreen,
   upTabsIn,
   type WindowTabs,
+  withoutChatsBehind,
 } from "./tab-model";
 import { stepOf, stepStackOf } from "./tab-steps";
 
@@ -895,5 +896,72 @@ describe("chatPlaceOf", () => {
 
   it("finds nothing while no group has a tab on the chat", () => {
     expect(chatPlaceOf(windowOf(THREE.tabs), ROOFER)).toBeUndefined();
+  });
+});
+
+describe("a chat's tab sent somewhere else", () => {
+  const PAGE = { id: "p", openedAt: 0, url: "https://lighthouse.test/" };
+
+  it("keeps the chat, and a page opens right after it, up", () => {
+    const state = twoSides();
+    const opened = openPage(state, {
+      group: GROUP,
+      page: PAGE,
+      replacing: state.tabs[2],
+      select: false,
+    });
+    expect(sidesOf(opened, GROUP)).toEqual(["a *b", "> c *p d"]);
+    expect(opened.tabs.find((tab) => tab.id === "p")?.past).toBeUndefined();
+  });
+
+  it.each([
+    ["sent there", (state: WindowTabs) =>
+      tabToScreen(state, { href: "/history", id: "c", newId: "h" })],
+    ["up as a screen is opened in place", (state: WindowTabs) =>
+      navigateScreen(state, { group: GROUP, href: "/history", id: "h" })],
+  ])("keeps the chat, and a screen %s opens right after it, up", (_case, send) => {
+    const opened = send(twoSides());
+    expect(sidesOf(opened, GROUP)).toEqual(["a *b", "> c *h d"]);
+    expect(opened.tabs.find((tab) => tab.id === "c")).toEqual(
+      twoSides().tabs[2],
+    );
+  });
+
+  it("stays as it is, sent to its own chat", () => {
+    const state = twoSides();
+    expect(
+      tabToScreen(state, { href: `/chats/${ROOFER}`, id: "c", newId: "h" }),
+    ).toBe(state);
+  });
+});
+
+describe("withoutChatsBehind", () => {
+  const CHAT_HREF = `/chats/${ROOFER}`;
+
+  it("drops a chat from a tab's visits and from a screen's history", () => {
+    const page: WindowTab = {
+      ...pageTab("p", "https://lighthouse.test/", GROUP),
+      future: [{ href: "/files", id: "f", kind: "screen" }],
+      past: [
+        { href: "/apps", id: "s", kind: "screen" },
+        { href: CHAT_HREF, id: "c", kind: "screen" },
+      ],
+    };
+    const screen: WindowTab = {
+      ...screenTab("t", "/history", GROUP),
+      history: { entries: ["/apps", CHAT_HREF, "/history"], index: 2 },
+    };
+    const [pageAfter, screenAfter] = withoutChatsBehind([page, screen]);
+    expect(pageAfter?.past?.map((visit) => visit.id)).toEqual(["s"]);
+    expect(pageAfter?.future).toBe(page.future);
+    expect(screenAfter).toMatchObject({
+      history: { entries: ["/apps", "/history"], index: 1 },
+    });
+  });
+
+  it("keeps a chat's own tab, and every tab with no chat behind it, as it was", () => {
+    const tabs = twoSides().tabs;
+    const kept = withoutChatsBehind(tabs);
+    expect(kept.every((tab, at) => tab === tabs[at])).toBe(true);
   });
 });

@@ -30,6 +30,7 @@ import {
   dropGroup,
   everyTabId,
   focusSide,
+  isChatTab,
   moveTabTo,
   moveToGroup,
   navigateScreen,
@@ -56,6 +57,7 @@ import {
   tabShowingIn,
   tabToScreen,
   type WindowTabs,
+  withoutChatsBehind,
 } from "./tab-model";
 import { openLinkAddress } from "./open-link-address";
 import { chatHref, chatOfGroup, newChatHref, sameHref } from "./window-href";
@@ -209,7 +211,7 @@ function joinTabGroups(members: Map<string, unknown>): WindowTabs {
       tabs.push(...(member.tabs as WindowTab[])); // Written by this module alone.
     }
   }
-  return { activeByGroup, besideByGroup, tabs };
+  return { activeByGroup, besideByGroup, tabs: withoutChatsBehind(tabs) };
 }
 
 /** Whether a kept value is the tabs at all: an object whose tabs, if any, are a list. */
@@ -316,11 +318,13 @@ export function useWindowTabs() {
 
   /**
    * Sends a tab to a screen, a step on in its history: a screen tab's router
-   * walks, and the tab follows it as it lands; a page becomes the screen.
+   * walks, and the tab follows it as it lands; a page becomes the screen. A
+   * chat's tab stays on the chat, and the screen opens right after it.
    */
   const visitHref = (id: string, href: string) => {
     const router = getGroupTabRouter(id);
-    if (!router) {
+    const tab = state.tabs.find((entry) => entry.id === id);
+    if (!router || (tab !== undefined && isChatTab(tab))) {
       apply((current) =>
         tabToScreen(current, { href, id, newId: newScreenId() }),
       );

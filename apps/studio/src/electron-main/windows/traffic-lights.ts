@@ -28,16 +28,22 @@ export function setTrafficLightForZoom(
 /**
  * Shows or hides a window's macOS traffic lights: the window shows them only
  * beside its sidebar, so a window whose sidebar is put away has its top left
- * to itself.
+ * to itself. Shown again, the system puts them back at the frame's own
+ * place, so they are centered in the band again for the zoom given, level
+ * with the sidebar's toggle beside them.
  */
 export function setTrafficLightsShown(
   window: BrowserWindow | null,
   isShown: boolean,
+  zoom: number,
 ) {
   if (!window || window.isDestroyed() || process.platform !== "darwin") {
     return;
   }
   window.setWindowButtonVisibility(isShown);
+  if (isShown) {
+    window.setWindowButtonPosition(trafficLightPositionForZoom(zoom));
+  }
 }
 
 /** Where the cluster sits in a band drawn at `zoom`, apart from any window. */

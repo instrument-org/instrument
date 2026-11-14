@@ -34,6 +34,7 @@ import {
 import { base } from "@/electron-main/rpc/base";
 import { publisher } from "@/electron-main/rpc/publisher";
 import { isOnlyAppWindow } from "@/electron-main/windows/app-window";
+import { getAppZoom } from "@/electron-main/stores/workspace/window-state";
 import { getCallingWindow } from "@/electron-main/windows/calling-window";
 import {
   setTrafficLightForZoom,
@@ -499,6 +500,7 @@ const showTrafficLights = base
     setTrafficLightsShown(
       getCallingWindow(context.webContentsId),
       input.isShown,
+      getAppZoom(),
     );
   });
 

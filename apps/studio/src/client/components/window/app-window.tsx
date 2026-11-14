@@ -125,6 +125,7 @@ import {
   isBlankNewTab,
   isNewChatTab,
   selectedTabIn,
+  sideIndexOf,
 } from "./tab-model";
 import { useSignInLanding } from "./use-sign-in-landing";
 import { WindowLook } from "./look-panel";
@@ -1324,6 +1325,35 @@ function WindowShell({
         const up = windowTabs.active;
         if (up) {
           groupTabMoves.toNewWindow(up.id);
+        }
+      },
+      // The tab up across to the other side of its group, as its menu's
+      // Move to Other Side; a side's only tab in a group of one side has
+      // nothing to leave behind, so a copy opens there, as Open in Split.
+      moveTabToOtherSide: () => {
+        const up = windowTabs.active;
+        if (up?.group === undefined) {
+          return;
+        }
+        const layout = windowTabs.layoutOf(up.group);
+        const here = sideIndexOf(layout, up.id) ?? layout.focused;
+        if (
+          layout.sides.length === 2 ||
+          (layout.sides[here]?.tabs.length ?? 0) > 1
+        ) {
+          windowTabs.moveTo({
+            group: up.group,
+            id: up.id,
+            select: true,
+            side: here === 1 ? 0 : 1,
+          });
+        } else if (up.kind === "page") {
+          const url = up.url ?? up.openedUrl;
+          if (url !== undefined) {
+            openPage(url, { from: up.id, into: "split" });
+          }
+        } else {
+          openScreen(up.href, { from: up.id, into: "split" });
         }
       },
       receiveGroupTab: groupTabMoves.receive,

@@ -68,6 +68,7 @@ const CHORD_SYMBOLS: Record<WindowShortcutId, string> = {
   goToBrowser: "globe",
   goToChat: "bubble.left.and.bubble.right",
   goToFiles: "folder",
+  moveTabToOtherSide: "rectangle.split.2x1",
   newChat: "square.and.pencil",
   newTab: "plus.square.on.square",
   nextChat: "arrow.down",
@@ -215,6 +216,9 @@ const ACTIVITY_CHORDS: WindowChord[] = [chord("showActivity")];
 /** The star at the end of the address field of the tab the keyboard is in. */
 const BOOKMARK_CHORDS: WindowChord[] = [chord("bookmarkTab")];
 
+/** The tab up across to the other side of its group, made where it has one side. */
+const SIDE_CHORDS: WindowChord[] = [chord("moveTabToOtherSide")];
+
 /**
  * This system's second chords for a command (`WINDOW_SHORTCUT_ALIASES`),
  * answered like the rest and drawn in the menu only as hidden rows, which a
@@ -248,6 +252,7 @@ const WINDOW_CHORDS = [
   ...HISTORY_CHORDS,
   ...ACTIVITY_CHORDS,
   ...BOOKMARK_CHORDS,
+  ...SIDE_CHORDS,
 ];
 
 /**
@@ -357,6 +362,7 @@ export function createAppWindowMenu(
       ...menuItems(TAB_SWITCH_CHORDS, windows),
       ...menuItems(TAB_SWITCH_ALIAS_CHORDS, windows),
       { type: "separator" },
+      ...menuItems(SIDE_CHORDS, windows),
       {
         click: () => {
           const window = BrowserWindow.getFocusedWindow();

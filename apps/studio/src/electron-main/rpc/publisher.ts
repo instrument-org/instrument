@@ -182,6 +182,7 @@ export type WindowCommand =
   | "zoomOut"
   | "zoomReset"
   | "moveTabToNewWindow"
+  | "moveTabToOtherSide"
   | AppWindowAsk
   | { index?: number; tab: Tab; type: "receiveTab" }
   /** A tab group's tab another window let go here, by its strip key, into one of this window's groups. */

@@ -70,6 +70,7 @@ const WINDOW_GROUPS: Record<
   goToChat: "General",
   goToFiles: "General",
   lastTab: "Tabs",
+  moveTabToOtherSide: "Tabs",
   newChat: "General",
   newTab: "Tabs",
   newWindow: "General",

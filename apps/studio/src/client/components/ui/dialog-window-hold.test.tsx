@@ -54,6 +54,7 @@ function Commands({
       selectRelative: vi.fn(),
       selectTab: vi.fn(),
       moveTabToNewWindow: vi.fn(),
+      moveTabToOtherSide: vi.fn(),
       receiveGroupTab: vi.fn(),
       receiveTab: vi.fn(),
       showActivity: vi.fn(),

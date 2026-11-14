@@ -103,6 +103,8 @@ export function useWindowCommands(
     openScreen: (href: string) => void;
     /** The tab up to a window of its own. */
     moveTabToNewWindow: () => void;
+    /** The tab up across to the other side of its group, or a copy of it there for a side's only tab. */
+    moveTabToOtherSide: () => void;
     /** A tab another window handed over, up here at a point along the strip. */
     receiveTab: (tab: Tab, index?: number) => void;
     /** A tab group's tab another window let go over this one, into a group here by where it landed. */
@@ -307,6 +309,10 @@ export function useWindowCommands(
               // The star of the tab the keyboard is in; nothing where no
               // address is shown.
               requestBookmarkTab();
+              break;
+            }
+            case "moveTabToOtherSide": {
+              latest.current.moveTabToOtherSide();
               break;
             }
             case "closeTab": {

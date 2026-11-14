@@ -122,6 +122,7 @@ describe("formatAcceleratorFor", () => {
         "goToBrowser: ⌃ ⌘ 3  /  Alt 3  /  Alt 3",
         "goToChat: ⌃ ⌘ 1  /  Alt 1  /  Alt 1",
         "goToFiles: ⌃ ⌘ 2  /  Alt 2  /  Alt 2",
+        "moveTabToOtherSide: ⌘ \\  /  Ctrl \\  /  Ctrl \\",
         "newChat: ⌘ N  /  Ctrl N  /  Ctrl N",
         "newTab: ⌘ T  /  Ctrl T  /  Ctrl T",
         "nextChat: ⌥ ⌘ ↓  /  Alt Shift ↓  /  Alt Shift ↓",

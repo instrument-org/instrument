@@ -68,6 +68,12 @@ export const WINDOW_SHORTCUTS = {
   goToBrowser: { accelerator: placeChord(3), label: "Go to Browser" },
   goToChat: { accelerator: placeChord(1), label: "Go to Chat" },
   goToFiles: { accelerator: placeChord(2), label: "Go to Files" },
+  // The tab up to the other side of its group, as a code editor splits on
+  // the same chord; the group's only tab opens a copy there instead.
+  moveTabToOtherSide: {
+    accelerator: "CmdOrCtrl+\\",
+    label: "Move Tab to Other Side",
+  },
   newChat: { accelerator: "CmdOrCtrl+N", label: "New Tab Group" },
   newTab: { accelerator: "CmdOrCtrl+T", label: "New Tab" },
   nextChat: { accelerator: chatChord("Down"), label: "Next Tab Group" },

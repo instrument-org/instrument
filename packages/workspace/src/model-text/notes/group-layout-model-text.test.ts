@@ -54,6 +54,7 @@ describe("groupLayoutModelNote", () => {
       Their tab group "Help desk prices" as they sent this: two sides, each its tabs in order, "up" marking the one showing there.
       Left: website "Zendesk pricing" at https://www.zendesk.com/pricing (tab_01ZEN, up); folder "Downloads" at /Users/mac-user/Downloads (tab_01DL)
       Right, with the keyboard: this chat (up); new chat (tab_01NEW)
+      Tab ids are for commands; in replies, name a tab by its title.
       </instrument-system-note>"
     `);
   });
@@ -69,6 +70,7 @@ describe("groupLayoutModelNote", () => {
       "
       <instrument-system-note>
       Their tab group "Help desk prices" as they sent this: one side, its tabs in order, "up" marking the one showing: this chat (up); folder "Downloads" at /Users/mac-user/Downloads (tab_01DL).
+      Tab ids are for commands; in replies, name a tab by its title.
       </instrument-system-note>"
     `);
   });

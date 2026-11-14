@@ -2576,6 +2576,7 @@ exports[`the notes a stored data part renders > groupLayout 1`] = `
 Their tab group "Help desk prices" as they sent this: two sides, each its tabs in order, "up" marking the one showing there.
 Left: website "Zendesk pricing" at https://www.zendesk.com/pricing (tab_01M0000000000000000000000T, up)
 Right, with the keyboard: this chat (up)
+Tab ids are for commands; in replies, name a tab by its title.
 </instrument-system-note>",
   ],
 ]

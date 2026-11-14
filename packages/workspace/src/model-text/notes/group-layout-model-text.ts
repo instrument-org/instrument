@@ -18,6 +18,9 @@ const KIND_WORDS: Record<LayoutTabKind, string> = {
   website: "website",
 };
 
+/** Ids are what the `window` command takes; a reply names a tab as the user sees it. */
+const BY_TITLE = "Tab ids are for commands; in replies, name a tab by its title.";
+
 /**
  * The chat's tab group as the user sent the message: its sides left to
  * right, each one's tabs in order with the one showing there marked, the
@@ -36,6 +39,7 @@ export function groupLayoutModelNote(
   if (data.sides.length === 1) {
     return systemNote`
       ${group} as they sent this: one side, its tabs in order, "up" marking the one showing: ${tabsLine(data.sides[0]?.tabs ?? [])}.
+      ${BY_TITLE}
     `;
   }
   const sides = data.sides
@@ -47,6 +51,7 @@ export function groupLayoutModelNote(
   return systemNote`
     ${group} as they sent this: two sides, each its tabs in order, "up" marking the one showing there.
     ${sides}
+    ${BY_TITLE}
   `;
 }
 

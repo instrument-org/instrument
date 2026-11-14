@@ -958,6 +958,7 @@ function createBrowserViewManager(): BrowserViewManager {
     // The page goes on: what waits for it to go waits on, and its reload is no visit.
     const { destructionListeners } = existing;
     existing.destructionListeners = new Set();
+    existing.closing = true;
     tellDetached(existing);
     destroyEntry(entries, existing.targetId);
     if (restoreHistory) {
@@ -1106,7 +1107,9 @@ function createBrowserViewManager(): BrowserViewManager {
    * Every command reaches the page through here, so a sleeping guest is
    * woken, and has drawn a frame, before any of them is sent. Only an
    * agent's commands keep the page in its window (`isInUse`): the app's own
-   * load of a page opened or brought back is no one's work in it.
+   * load of a page opened or brought back is no one's work in it. A guest
+   * being taken down is neither woken nor sent anything: the commands that
+   * reach it then are what its watchers send as they hear it go.
    */
   async function sendToGuest(
     targetId: BrowserTargetId,
@@ -1116,6 +1119,9 @@ function createBrowserViewManager(): BrowserViewManager {
     { byAgent }: { byAgent: boolean },
   ) {
     const entry = entries.get(targetId);
+    if (entry?.closing) {
+      throw new Error(`Browser target closing: ${targetId}`);
+    }
     if (entry) {
       await wakeGuest(entry, notifyEntriesChanged);
     }

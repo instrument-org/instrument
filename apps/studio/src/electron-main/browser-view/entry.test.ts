@@ -60,6 +60,19 @@ describe("destroyEntry", () => {
     expect(entries.has(TARGET_ID)).toBe(false);
   });
 
+  it("marks the entry closing before its disposers and watchers run", () => {
+    const entries = new Map<BrowserTargetId, BrowserEntry>();
+    const entry = makeEntry();
+    const seen: boolean[] = [];
+    entry.disposers.add(() => seen.push(entry.closing));
+    entry.destructionListeners.add(() => seen.push(entry.closing));
+    entries.set(TARGET_ID, entry);
+
+    destroyEntry(entries, TARGET_ID);
+
+    expect(seen).toEqual([true, true]);
+  });
+
   it("does not re-run disposers if called twice", () => {
     const entries = new Map<BrowserTargetId, BrowserEntry>();
     const entry = makeEntry();
@@ -94,6 +107,19 @@ describe("handleDetach", () => {
     expect(entry.eventListeners.size).toBe(0);
     expect(entry.disposers.size).toBe(0);
     expect(entries.has(TARGET_ID)).toBe(false);
+  });
+
+  it("marks the entry closing before anyone hears it go", () => {
+    const entries = new Map<BrowserTargetId, BrowserEntry>();
+    const entry = makeEntry();
+    const seen: boolean[] = [];
+    entry.detachListeners.add(() => seen.push(entry.closing));
+    entry.destructionListeners.add(() => seen.push(entry.closing));
+    entries.set(TARGET_ID, entry);
+
+    handleDetach(entries, TARGET_ID);
+
+    expect(seen).toEqual([true, true]);
   });
 
   it("does not double-fire when called after destroyEntry", () => {

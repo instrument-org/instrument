@@ -43,14 +43,6 @@ export function keptTabGroupsOf(value: unknown): string[] | undefined {
 /** The key a window keeps its floating drafts and chats under. */
 export const COMPOSE_KEY = "compose.v2";
 
-/** The keys an earlier build kept for its one window in `layout`, which the first window takes as its own. */
-export const WINDOW_KEPT_KEYS = [
-  APP_TABS_KEY,
-  COMPOSE_KEY,
-  "files-folder.v1",
-  "inbox-open.v1",
-] as const;
-
 /** Every kept file's keys and values, as a window loads them. */
 export type KeptSnapshot = Partial<Record<KeptFile, Record<string, unknown>>>;
 

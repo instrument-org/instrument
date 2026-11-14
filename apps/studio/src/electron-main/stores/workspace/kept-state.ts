@@ -11,7 +11,6 @@ import {
   SHARED_KEPT_FILES,
   TAB_GROUPS_KEY,
   WINDOW_KEPT_FILE,
-  WINDOW_KEPT_KEYS,
   WINDOW_TABS_KEY,
 } from "@/shared/kept-state";
 import { BrowserWindow, ipcMain } from "electron";
@@ -252,14 +251,10 @@ function getStore() {
 
 const windowStores = new Map<string, ReturnType<typeof createKeptStateStore>>();
 
-/** The first window of a workspace, and the one every earlier build's state belongs to. */
+/** The first window of a workspace. */
 export const FIRST_APP_WINDOW_ID = "app";
 
-/**
- * What one window keeps for itself, in a file named for it. The window an
- * earlier build opened as the only one takes what that build kept in `layout`
- * the first time it is asked for.
- */
+/** What one window keeps for itself, in a file named for it. */
 function windowStoreOf(windowId: string) {
   const known = windowStores.get(windowId);
   if (known) {
@@ -273,23 +268,6 @@ function windowStoreOf(windowId: string) {
     },
   );
   windowStores.set(windowId, store);
-  if (windowId === FIRST_APP_WINDOW_ID) {
-    const earlier = WINDOW_KEPT_KEYS.filter(
-      (key) => getStore().get("layout", key) !== undefined,
-    );
-    for (const key of earlier) {
-      if (store.get(WINDOW_KEPT_FILE, key) === undefined) {
-        store.set(WINDOW_KEPT_FILE, key, getStore().get("layout", key));
-      }
-    }
-    // Out of `layout` only once they are on disk in the window's own file, or
-    // the next launch has them nowhere. Until then it takes them again.
-    if (store.flush()) {
-      for (const key of earlier) {
-        getStore().set("layout", key, undefined);
-      }
-    }
-  }
   return store;
 }
 

@@ -217,14 +217,6 @@ const CLOSE_AGAIN_MS = 3000;
 /** How long the tabs stay as they are before the groups the chats work in go to the workspace. */
 const LAYOUT_PUSH_DELAY_MS = 500;
 
-/** The groups the window's places once kept their tabs under, which nothing shows now. */
-const RETIRED_GROUPS = [
-  "place:apps",
-  "place:discover",
-  "place:files",
-  "place:home",
-];
-
 /**
  * The app window: its tabs across the bar, each a router of its own kept
  * mounted and live behind the one on screen, and around them what the window
@@ -723,9 +715,6 @@ function WindowShell({
       ) {
         compose.remove(draftGroupOf(entry.draftId));
       }
-    }
-    for (const group of RETIRED_GROUPS) {
-      windowTabs.dropGroup(group);
     }
   });
   useEffect(() => {

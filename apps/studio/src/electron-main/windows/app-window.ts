@@ -32,7 +32,6 @@ import {
   isHostedPageKey,
   keptTabGroupsOf,
   TAB_GROUPS_KEY,
-  WINDOW_KEPT_KEYS,
 } from "@/shared/kept-state";
 import { chatOfAddress, tabGroupOfAddress } from "@/shared/tab-identity";
 import {
@@ -1232,7 +1231,9 @@ export function takePendingAppWindowAsks(
     // What a drag told it while its page was starting, or took back, may have
     // gone unheard: it read its state as it loaded and listens only now.
     for (const key of new Set([
-      ...WINDOW_KEPT_KEYS,
+      APP_TABS_KEY,
+      COMPOSE_KEY,
+      TAB_GROUPS_KEY,
       ...windowKeptKeys(started.id),
     ])) {
       tellWindowKeptState(

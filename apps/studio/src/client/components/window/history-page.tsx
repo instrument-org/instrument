@@ -18,12 +18,12 @@ import {
  * recently active first, under the day each last had something happen, as
  * the sidebar listed them. A click on one, or its Open, opens it as a tab
  * group of its own at the top of the sidebar, and the window moves to it;
- * this tab stays where it was. The words in the field narrow it, as the
- * sidebar's search does.
+ * this tab stays where it was. The words in the field narrow it.
  *
  * Showing chats alone, it is the index of every chat, open in a window or
  * not, most recently active first: a click on one brings up its tab, or
- * opens it as History does.
+ * opens it as History does. Its field is the one the chord for searching
+ * chats puts the caret in (`data-chats-search`).
  */
 export function HistoryPage({
   onSearch,
@@ -80,7 +80,10 @@ export function HistoryPage({
           <h1 className="mr-1 text-base font-semibold">
             {show === "chats" ? "Chats" : "History"}
           </h1>
-          <div className="flex min-w-48 flex-1">
+          <div
+            className="flex min-w-48 flex-1"
+            data-chats-search={show === "chats" ? "" : undefined}
+          >
             <SearchField
               label={show === "chats" ? "Search chats" : "Search history"}
               onChange={onSearch}

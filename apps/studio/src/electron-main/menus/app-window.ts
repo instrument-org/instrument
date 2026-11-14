@@ -125,8 +125,8 @@ const FILE_CHORDS: WindowChord[] = [
   chord("findInPage"),
   chord("findNext"),
   chord("findPrevious"),
-  // The sidebar's search, which the window brings up and gives the keyboard;
-  // like the field above, taken back from a page guest first.
+  // The Chats page's search, which the window brings up and gives the
+  // keyboard; like the field above, taken back from a page guest first.
   chord("searchChats", (window) => {
     window.webContents.focus();
     commandWindow(window, "searchChats");

@@ -418,16 +418,13 @@ export function SidebarPicture({
   return (
     <GroupSidebar
       chatTitles={titles}
-      elsewhere={[]}
       groupUp={groupUp}
-      history={[]}
       onClose={noop}
       onCloseAll={noop}
       onDuplicate={noop}
       onNew={noop}
       onNewProject={noop}
       onPin={noop}
-      onRestore={noop}
       onShow={noop}
       open={[...rows]}
       projects={[]}

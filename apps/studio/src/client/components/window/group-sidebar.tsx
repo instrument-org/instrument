@@ -2,7 +2,6 @@ import { openProjectDetails } from "@/client/atoms/project-details-modal";
 import { openBuiltInPage } from "@/client/atoms/page-requests";
 import { openSettings } from "@/client/atoms/settings-modal";
 import {
-  groupSearchAtom,
   SIDEBAR_WIDTH_DEFAULT,
   SIDEBAR_WIDTH_MAX,
   SIDEBAR_WIDTH_MIN,
@@ -45,7 +44,6 @@ import {
 import {
   type PointerEvent as ReactPointerEvent,
   type ReactNode,
-  type Ref,
   useEffect,
   useRef,
   useState,
@@ -56,7 +54,7 @@ import { GroupRowMenu, type GroupRowMenuActions } from "./group-row-menu";
 import { HelpMenu } from "./help-menu";
 import { toggleLeft } from "./inbox-toggle";
 import { useAppsBySlug } from "./apps-by-slug";
-import { hasWords, matchesSearch, type Project } from "./chats";
+import { type Project } from "./chats";
 import { Peek } from "./chat-row";
 import { NotificationsBell } from "./notifications-bell";
 import { ProjectBanner } from "./project-banner";
@@ -69,7 +67,6 @@ import { pageTabTitle } from "./file-tabs";
 import { ScreenMark } from "./pane-tabs";
 import { screenPresentation } from "./screen-presentation";
 import { useTabTitle } from "./tab-title";
-import { SearchField } from "./search-field";
 import {
   pressGroupRow,
   useSidebarDrag,
@@ -82,7 +79,6 @@ import {
   roomSnapsAtom,
   sidebarDropAtom,
 } from "./sidebar-drop";
-import { useChatSearchFallback } from "./use-chat-search-fallback";
 import { useGroupRename } from "./use-group-rename";
 import { useProjectShift } from "./use-project-shift";
 import {
@@ -128,7 +124,7 @@ export function sidebarBounds(width: number): RailBounds {
 /**
  * The sidebar of tab groups down the window's left: the window's own row at
  * its top (past the traffic lights, the bell; the update pill at its end),
- * the search, the projects, the pinned groups over a plain line, New, the
+ * the projects, the pinned groups over a plain line, New, the
  * rest under it, newest first, and the way into History at the list's end,
  * and the account, Settings and Help at its foot. Opening a project takes the list over,
  * under its banner. A row dragged within the list lands where it is let
@@ -139,28 +135,20 @@ export function sidebarBounds(width: number): RailBounds {
  */
 export function GroupSidebar({
   chatTitles,
-  elsewhere,
   groupUp,
-  history,
   onClose,
   onCloseAll,
   onDuplicate,
   onNew,
   onNewProject,
   onPin,
-  onRestore,
   onShow,
   open,
   projects,
-  searchRef,
 }: {
   chatTitles: Map<ChatId, string>;
-  /** The chats other windows have open, which choosing brings forward there. */
-  elsewhere: TabGroup[];
   /** The group this window shows. */
   groupUp: string | undefined;
-  /** History: every chat and kept draft no window has open, most recently active first. */
-  history: TabGroup[];
   onClose: (group: string) => void;
   /** Closes several groups at once, from the row whose menu asked (`keep`). */
   onCloseAll: (groups: string[], keep: string) => void;
@@ -170,18 +158,14 @@ export function GroupSidebar({
   onNewProject: () => void;
   /** Pins a group above the line, or takes it back down. */
   onPin: (group: string, pinned: boolean) => void;
-  /** Brings back a chat or a draft from History, or brings up the window with a chat another one has open. */
-  onRestore: (entry: TabGroup) => void;
   onShow: (group: string, options: { newWindow: boolean }) => void;
   open: TabGroup[];
   projects: Project[];
-  searchRef?: Ref<HTMLInputElement>;
 }) {
-  const [search, setSearch] = useAtom(groupSearchAtom);
   const [projectId, setProjectId] = useAtom(sidebarProjectAtom);
   const project = projects.find((entry) => entry.id === projectId);
-  // The search and the list slide in together as the sidebar steps into a
-  // project or back out of one.
+  // The list slides in as the sidebar steps into a project or back out of
+  // one.
   const shiftRef = useRef<HTMLDivElement>(null);
   useProjectShift(shiftRef, project?.id);
   // The wash keeps the last project's color while it fades out, since the
@@ -191,7 +175,6 @@ export function GroupSidebar({
     setLastProject(project);
   }
   const washProject = project ?? lastProject;
-  const isSearching = search.trim() !== "";
 
   const inProject = (entry: TabGroup) =>
     project === undefined ||
@@ -201,35 +184,7 @@ export function GroupSidebar({
   const listed = open.filter(inProject);
   const pinned = listed.filter((entry) => isPinnedGroup(entry));
   const rest = listed.filter((entry) => !isPinnedGroup(entry));
-  const { allTabs, chatUpIn } = useWindowTabs();
-  const projectNames = new Map(projects.map((each) => [each.id, each.name]));
-  /**
-   * Whether a group turns up for the search: by the name the person gave it,
-   * a chat by what the chat list searches on its row, a draft by its words,
-   * its project, and the pages its tabs have open, one of which names its
-   * row while it has no words.
-   */
-  const matches = (entry: TabGroup) =>
-    entry.kind === "chat"
-      ? matchesSearch(entry.chat, search, projectNames) ||
-        (entry.name !== undefined && hasWords(search, [entry.name]))
-      : hasWords(search, [
-          entry.title,
-          ...(entry.kind === "draft"
-            ? [
-                entry.draft.words,
-                entry.draft.projectId === undefined
-                  ? ""
-                  : (projectNames.get(entry.draft.projectId) ?? ""),
-              ]
-            : []),
-          ...allTabs.flatMap((tab) =>
-            tab.group === entry.group && tab.kind === "page"
-              ? [pageTabTitle(tab) || (tab.url ?? "")]
-              : [],
-          ),
-        ]);
-  const matching = (entries: TabGroup[]) => entries.filter(matches);
+  const { chatUpIn } = useWindowTabs();
   const chats = open.flatMap((entry) =>
     entry.kind === "chat" ? [entry.chat] : [],
   );
@@ -242,7 +197,7 @@ export function GroupSidebar({
   const filled = useAtomValue(filledRoomAtom);
   const room = drop?.kind === "between" ? drop : undefined;
   // The rows the list shows, in its order, which a row's menu closes around.
-  const shownRows = isSearching ? matching(open) : [...pinned, ...rest];
+  const shownRows = [...pinned, ...rest];
   const menuOf = (entry: TabGroup): GroupRowMenuActions => {
     // Pinned rows stay open, as a browser's pinned tabs do.
     const closing = (around: TabGroup[]) => {
@@ -278,193 +233,118 @@ export function GroupSidebar({
     };
   };
 
-  const row = (
-    entry: TabGroup,
-    extra?: { isElsewhere?: boolean; isListed?: boolean; restore?: boolean },
-  ) => (
+  const row = (entry: TabGroup) => (
     <GroupRow
       chatTitles={chatTitles}
       entry={entry}
       isDropInto={drop?.kind === "into" && drop.group === entry.group}
       isUp={entry.group === groupUp}
       key={entry.group}
-      {...(extra?.isElsewhere ? {} : { onClose })}
-      {...(extra?.isListed ? { onPress: pressGroupRow } : {})}
-      {...(extra?.isElsewhere || extra?.restore ? {} : { menu: menuOf(entry) })}
-      onShow={
-        extra?.isElsewhere || extra?.restore
-          ? () => {
-              onRestore(entry);
-            }
-          : onShow
-      }
-      {...(extra?.restore
-        ? {
-            restore: () => {
-              onRestore(entry);
-              setSearch("");
-            },
-          }
-        : {})}
+      menu={menuOf(entry)}
+      onClose={onClose}
+      onPress={pressGroupRow}
+      onShow={onShow}
     />
   );
 
-  const found = isSearching ? matching(open) : [];
-  const inOtherWindows = isSearching ? matching(elsewhere) : [];
-  const fromHistory = isSearching ? matching(history) : [];
-  const isNothingFound =
-    found.length === 0 &&
-    inOtherWindows.length === 0 &&
-    fromHistory.length === 0;
-  // Words that turn up in no group anywhere go to the decision model, which
-  // reads the chats' titles for the ones the search means, as the chat list
-  // does.
-  const everyGroup = [...open, ...elsewhere, ...history];
-  const aiSearch = useChatSearchFallback({
-    active: isSearching && isNothingFound,
-    candidates: everyGroup.flatMap((entry) =>
-      entry.kind === "chat" ? [entry.chat] : [],
-    ),
-    search,
+  // What the list shows in order, for the room a drag opens in it: the
+  // items from the one it opens in front of on move aside.
+  const items = [
+    ...pinned.map((entry) => `row:${entry.group}`),
+    ...(pinned.length > 0 ? [":divider"] : []),
+    ":new",
+    ...rest.map((entry) => `row:${entry.group}`),
+    ...(project ? [] : [":history"]),
+  ];
+  const roomAt = room?.before === undefined ? -1 : items.indexOf(room.before);
+  const place = (item: string) => ({
+    item,
+    ...(room && roomAt !== -1 && items.indexOf(item) >= roomAt
+      ? { shift: room.gap }
+      : {}),
+    snaps: roomSnaps,
   });
-
-  let body: ReactNode;
-  if (isSearching) {
-    const aiFound = isNothingFound
-      ? aiSearch.chats.flatMap((chat) => {
-          const entry = everyGroup.find((each) => each.group === chat.id);
-          return entry ? [entry] : [];
-        })
-      : [];
-    body = (
-      <>
-        {found.map((entry) => row(entry))}
-        {isNothingFound && aiFound.length === 0 && (
-          <p className="px-2.5 py-2 text-[13px] text-muted-foreground">
-            {aiSearch.isLooking
-              ? "Looking through your chats…"
-              : "Nothing matches that."}
-          </p>
-        )}
-        {aiFound.length > 0 && <SearchSection label="AI Results" />}
-        {aiFound.map((entry) =>
-          open.includes(entry)
-            ? row(entry)
-            : elsewhere.includes(entry)
-              ? row(entry, { isElsewhere: true })
-              : row(entry, { restore: true }),
-        )}
-        {inOtherWindows.length > 0 && (
-          <SearchSection label="In Other Windows" />
-        )}
-        {inOtherWindows.map((entry) => row(entry, { isElsewhere: true }))}
-        {fromHistory.length > 0 && <SearchSection label="From History" />}
-        {fromHistory.map((entry) => row(entry, { restore: true }))}
-      </>
-    );
-  } else {
-    // What the list shows in order, for the room a drag opens in it: the
-    // items from the one it opens in front of on move aside.
-    const items = [
-      ...pinned.map((entry) => `row:${entry.group}`),
-      ...(pinned.length > 0 ? [":divider"] : []),
-      ":new",
-      ...rest.map((entry) => `row:${entry.group}`),
-      ...(project ? [] : [":history"]),
-    ];
-    const roomAt = room?.before === undefined ? -1 : items.indexOf(room.before);
-    const place = (item: string) => ({
-      item,
-      ...(room && roomAt !== -1 && items.indexOf(item) >= roomAt
-        ? { shift: room.gap }
-        : {}),
-      snaps: roomSnaps,
-    });
-    const listItem = (entry: TabGroup, section: "pinned" | "rest") => (
-      <ListItem
-        group={entry.group}
-        isArriving={arriving.has(entry.group) && entry.group !== filled}
-        isLifted={lifted === entry.group}
-        key={`row:${entry.group}`}
-        section={section}
-        {...place(`row:${entry.group}`)}
-      >
-        {row(entry, { isListed: true })}
-      </ListItem>
-    );
-    body = (
-      <>
-        {project ? (
-          <>
-            <BackRow
-              label="Back"
-              onBack={() => {
-                setProjectId(undefined);
-              }}
-            />
-            <ProjectBanner
-              onDetails={(shown) => {
-                openProjectDetails(shown.id);
-              }}
-              onOpenInFiles={(shown) => {
-                void showProjectInFiles(shown);
-              }}
-              project={project}
-            />
-          </>
-        ) : (
-          <ProjectsSection
-            chats={chats}
-            onChoose={(chosen) => {
-              setProjectId(chosen.id);
+  const listItem = (entry: TabGroup, section: "pinned" | "rest") => (
+    <ListItem
+      group={entry.group}
+      isArriving={arriving.has(entry.group) && entry.group !== filled}
+      isLifted={lifted === entry.group}
+      key={`row:${entry.group}`}
+      section={section}
+      {...place(`row:${entry.group}`)}
+    >
+      {row(entry)}
+    </ListItem>
+  );
+  const body = (
+    <>
+      {project ? (
+        <>
+          <BackRow
+            label="Back"
+            onBack={() => {
+              setProjectId(undefined);
             }}
-            onDetails={(chosen) => {
-              openProjectDetails(chosen.id);
-            }}
-            onNew={onNewProject}
-            projects={projects}
           />
+          <ProjectBanner
+            onDetails={(shown) => {
+              openProjectDetails(shown.id);
+            }}
+            onOpenInFiles={(shown) => {
+              void showProjectInFiles(shown);
+            }}
+            project={project}
+          />
+        </>
+      ) : (
+        <ProjectsSection
+          chats={chats}
+          onChoose={(chosen) => {
+            setProjectId(chosen.id);
+          }}
+          onDetails={(chosen) => {
+            openProjectDetails(chosen.id);
+          }}
+          onNew={onNewProject}
+          projects={projects}
+        />
+      )}
+      <AnimatePresence>
+        {pinned.map((entry) => listItem(entry, "pinned"))}
+        {pinned.length > 0 && (
+          <ListItem isInstant key=":divider" {...place(":divider")}>
+            <div className="mx-2.5 my-1.5 h-px bg-border" />
+          </ListItem>
         )}
-        <AnimatePresence>
-          {pinned.map((entry) => listItem(entry, "pinned"))}
-          {pinned.length > 0 && (
-            <ListItem isInstant key=":divider" {...place(":divider")}>
-              <div className="mx-2.5 my-1.5 h-px bg-border" />
-            </ListItem>
-          )}
-          <ListItem key=":new" {...place(":new")}>
-            <NewRow
-              onNew={() => {
-                onNew(project?.id);
+        <ListItem key=":new" {...place(":new")}>
+          <NewRow
+            onNew={() => {
+              onNew(project?.id);
+            }}
+          />
+        </ListItem>
+        {rest.map((entry) => listItem(entry, "rest"))}
+        {!project && (
+          <ListItem key=":history" {...place(":history")}>
+            <HistoryRow
+              onOpen={() => {
+                openBuiltInPage(SCREENS.history.href);
               }}
             />
           </ListItem>
-          {rest.map((entry) => listItem(entry, "rest"))}
-          {!project && (
-            <ListItem key=":history" {...place(":history")}>
-              <HistoryRow
-                onOpen={() => {
-                  openBuiltInPage(SCREENS.history.href);
-                }}
-              />
-            </ListItem>
-          )}
-        </AnimatePresence>
-        {/* A room at the list's end takes up space for a whole group;
-            what a tab stands as there draws over the list's empty space,
-            which then stays where it was measured. */}
-        {room && room.before === undefined && heldTabs.length === 0 && (
-          <div
-            className="shrink-0"
-            style={{ height: room.gap - LIST_GAP_PX }}
-          />
         )}
-        {/* The list's empty space under the rows, where a tab held over it
-            becomes a group of its own at the list's end. */}
-        <div className="min-h-0 flex-1" data-drop-empty="" />
-      </>
-    );
-  }
+      </AnimatePresence>
+      {/* A room at the list's end takes up space for a whole group;
+          what a tab stands as there draws over the list's empty space,
+          which then stays where it was measured. */}
+      {room && room.before === undefined && heldTabs.length === 0 && (
+        <div className="shrink-0" style={{ height: room.gap - LIST_GAP_PX }} />
+      )}
+      {/* The list's empty space under the rows, where a tab held over it
+          becomes a group of its own at the list's end. */}
+      <div className="min-h-0 flex-1" data-drop-empty="" />
+    </>
+  );
 
   return (
     // Its own stacking context, so the project's wash can sit under the rows.
@@ -494,29 +374,6 @@ export function GroupSidebar({
       <div className="relative flex min-h-0 flex-1 flex-col">
         <SidebarTop />
         <div className="flex min-h-0 flex-1 flex-col" ref={shiftRef}>
-          {!project && (
-            <div className="flex shrink-0 items-center gap-1 px-2">
-              <div className="relative flex min-w-0 flex-1">
-                <SearchField
-                  className="pl-8.75 [&>svg]:left-2.25 [&>svg]:size-4"
-                  inputRef={searchRef}
-                  label="Search Tab Groups"
-                  onChange={setSearch}
-                  placeholder="Search"
-                  value={search}
-                />
-                {!isSearching && (
-                  <span className="pointer-events-none absolute top-1/2 right-2.5 -translate-y-1/2">
-                    <SoftKey>
-                      {formatAcceleratorText(
-                        WINDOW_SHORTCUTS.searchChats.accelerator,
-                      )}
-                    </SoftKey>
-                  </span>
-                )}
-              </div>
-            </div>
-          )}
           <GroupList>
             {body}
             {room && heldTabs.length > 0 && (
@@ -765,16 +622,6 @@ function BackRow({ label, onBack }: { label: string; onBack: () => void }) {
       </span>
       {label}
     </button>
-  );
-}
-
-/** A line over a part of the search's results, naming where they are. */
-function SearchSection({ label }: { label: string }) {
-  return (
-    <div className="mx-1 mt-2 mb-1 flex items-center gap-2 px-1.5 text-xs font-medium text-muted-foreground">
-      <span>{label}</span>
-      <span className="h-px flex-1 bg-border" />
-    </div>
   );
 }
 

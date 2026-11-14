@@ -171,7 +171,6 @@ import {
   workingChatsIn,
 } from "./tab-groups";
 import {
-  groupSearchAtom,
   sidebarOpenAtom,
   sidebarProjectAtom,
   sidebarWidthAtom,
@@ -180,6 +179,7 @@ import { StudioSidebarRail } from "@/client/components/studio-sidebar-rail";
 import { formatAcceleratorText } from "@/client/lib/format-accelerator";
 import { WINDOW_SHORTCUTS } from "@/shared/window-shortcuts";
 import {
+  CHATS_INDEX_HREF,
   groupHref,
   chatOfHref,
   matchScreen,
@@ -463,6 +463,37 @@ function focusField() {
   }
 }
 
+/** How long the Chats page has to come up before its search takes the caret, in frames. */
+const CHATS_SEARCH_WAIT_FRAMES = 30;
+
+/**
+ * The caret into the Chats page's search once the page is up, with what is
+ * in it selected: the one on the side with the keyboard, where the page
+ * opens.
+ */
+function focusChatsSearch() {
+  let frames = 0;
+  const attempt = () => {
+    const shown = [
+      ...document.querySelectorAll<HTMLInputElement>(
+        "[data-app-tab-active] [data-chats-search] input",
+      ),
+    ].filter((box) => box.checkVisibility({ visibilityProperty: true }));
+    const box =
+      shown.find((each) => each.closest("[data-keyboard]")) ?? shown[0];
+    if (box) {
+      box.focus();
+      box.select();
+      return;
+    }
+    frames += 1;
+    if (frames < CHATS_SEARCH_WAIT_FRAMES) {
+      requestAnimationFrame(attempt);
+    }
+  };
+  requestAnimationFrame(attempt);
+}
+
 /**
  * The chats' titles and rail marks, read from the chat list. A hook of its
  * own so the maps stay the same while the list does, which every tab's title
@@ -502,7 +533,6 @@ function WindowShell({
   const groupList = useOpenGroups();
   const [isSidebarOpen, setSidebarOpen] = useAtom(sidebarOpenAtom);
   const sidebarWidth = useAtomValue(sidebarWidthAtom);
-  const searchRef = useRef<HTMLInputElement>(null);
   const groupUp = useRouterState({
     select: (routerState) => groupOfHref(routerState.location.href),
   });
@@ -1089,12 +1119,10 @@ function WindowShell({
   }
   /**
    * The sidebar standing in a project, from the command menu: out if it was
-   * put away, and on the open groups with no search left over, which would
-   * hide the groups asked for.
+   * put away.
    */
   const enterProject = (projectId: string) => {
     setSidebarOpen(true);
-    store.set(groupSearchAtom, "");
     store.set(sidebarProjectAtom, projectId);
   };
   /**
@@ -1387,12 +1415,10 @@ function WindowShell({
       receiveTab,
       reopenTab,
       search: focusField,
+      // The Chats page, every chat open or not, with the caret in its search.
       searchChats: () => {
-        setSidebarOpen(true);
-        requestAnimationFrame(() => {
-          searchRef.current?.focus();
-          searchRef.current?.select();
-        });
+        openBuiltInPage(CHATS_INDEX_HREF);
+        focusChatsSearch();
       },
       // The History page, on the chord Activity had.
       showActivity: () => {
@@ -1583,9 +1609,7 @@ function WindowShell({
               >
                 <GroupSidebar
                   chatTitles={chatTitles}
-                  elsewhere={groupList.elsewhere}
                   groupUp={groupUp}
-                  history={groupList.history}
                   onClose={(group) => {
                     askToClose([group]);
                   }}
@@ -1604,9 +1628,6 @@ function WindowShell({
                   onPin={(group, pinned) => {
                     groups.pin(group, pinned);
                   }}
-                  onRestore={(entry) => {
-                    groups.restore(entry);
-                  }}
                   onShow={(group, { newWindow }) => {
                     if (newWindow) {
                       groups.moveToNewWindow(group, groupList.open);
@@ -1616,7 +1637,6 @@ function WindowShell({
                   }}
                   open={groupList.open}
                   projects={projects}
-                  searchRef={searchRef}
                 />
               </StudioSidebarRail>
             }

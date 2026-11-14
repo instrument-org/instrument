@@ -54,9 +54,6 @@ export const forgetGroupAtom = atom(null, (get, set, group: string) => {
 /** The project the sidebar's list stands in, in this window: none for every open group. */
 export const sidebarProjectAtom = atom<string | undefined>(undefined);
 
-/** The sidebar's search, in this window. */
-export const groupSearchAtom = atom("");
-
 /** The sidebar's narrowest, in CSS px: narrow enough to give two sides the room on a laptop screen. */
 export const SIDEBAR_WIDTH_MIN = 200;
 /** The sidebar's width until a drag sets one, in CSS px. */

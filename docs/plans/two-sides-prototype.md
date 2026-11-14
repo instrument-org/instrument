@@ -15,6 +15,7 @@ Page contents can stay rough. What has to be right is the layout engine, draggin
 - **A side never shrinks to nothing.** The gutter between the sides resizes them and stops at each side's minimum width. Closing a side's last tab leaves the other side as the whole group.
 - **Below the minimum width** the group's sides need, the group scrolls sideways instead of squeezing them.
 - A group's sidebar row: the typed name, else the title of its first chat (the left side first, then in tab order), else the title of the tab up on the side with the keyboard. Its second line is that chat's latest line, as today. Its marks are every tab's, in order. Pins and names are the group's own.
+- **The sidebar** is tab groups and projects, with no search of its own. Chats are found from the Chats page, which ⇧⌘F opens with the caret in its search, and from a chat's address field.
 - **History** is every chat no window has a tab on, and every kept draft. Opening one from History opens a new group with that one tab, as today.
 
 ## Opening things, with no magic placement

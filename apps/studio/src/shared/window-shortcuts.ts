@@ -84,11 +84,11 @@ export const WINDOW_SHORTCUTS = {
   reloadPage: { accelerator: "CmdOrCtrl+R", label: "Reload Page" },
   reopenTab: { accelerator: "Shift+CmdOrCtrl+T", label: "Reopen Closed Tab" },
   search: { accelerator: "CmdOrCtrl+L", label: "Open Location…" },
-  // Find with Shift, as a code editor searches every file: the sidebar's
-  // search, over every tab group, where Find is the one chat on screen.
+  // Find with Shift, as a code editor searches every file: the Chats page's
+  // search, over every chat, where Find is the one chat on screen.
   searchChats: {
     accelerator: "Shift+CmdOrCtrl+F",
-    label: "Search Tab Groups",
+    label: "Search Chats",
   },
   // Show All History's key: ⌘Y in Safari and Chrome on a Mac, and Ctrl+H in
   // browsers elsewhere.

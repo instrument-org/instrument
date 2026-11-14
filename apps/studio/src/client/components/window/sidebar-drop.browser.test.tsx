@@ -2,7 +2,7 @@ import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
 import { type DropCarry, sidebarDropAt } from "./sidebar-drop";
 
-/** Where the list starts down the window: the sidebar's search stands above it. */
+/** Where the list starts down the window: the sidebar's top row stands above it. */
 const LIST_TOP = 40;
 
 /**

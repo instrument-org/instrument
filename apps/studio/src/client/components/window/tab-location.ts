@@ -1,6 +1,12 @@
 import { type OpenTarget } from "@/client/lib/open-target";
 import { osConventions } from "@/client/lib/utils";
 import { COMPUTER_ROOT, folderHref } from "@/shared/computer-href";
+import {
+  type ScreenName,
+  SCREENS,
+  SETTINGS_SECTIONS,
+  type SettingsSection,
+} from "@/shared/instrument-screens";
 import { expandHomePath, namesFromHome } from "@instrument-org/shared";
 import {
   type ChatId,
@@ -89,8 +95,11 @@ export type TabLocation =
     }
   | { kind: "newTab" }
   | { kind: "page"; url: string }
-  /** A screen of the browser's own that is no page: the extensions it runs. */
-  | { kind: "screen"; screen: "extensions" };
+  /**
+   * A built-in page, which is no page of the web: Settings at a part of it,
+   * Memory, Skills, History, Activity, the browser's extensions.
+   */
+  | { kind: "screen"; part?: SettingsSection; screen: ScreenName };
 
 /**
  * The place the field shows, as the parts a person reads it in.
@@ -144,9 +153,13 @@ export function locationCrumbs(
             count,
           ];
     }
-    // A screen of the browser's own is one place, with nothing above it.
+    // A built-in page is one place, with nothing above it; a part of
+    // Settings is under Settings.
     case "screen": {
-      return [{ label: "Extensions" }];
+      const title = SCREENS[location.screen].title;
+      return location.part === undefined
+        ? [{ label: title }]
+        : [{ label: title }, { label: SETTINGS_SECTIONS[location.part] }];
     }
     case "newChat":
     case "newTab":

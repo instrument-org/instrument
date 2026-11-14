@@ -46,6 +46,10 @@ describe("matchScreen against the route tree", () => {
     "/tasks/ses_01JAAAAAAAAAAAAAAAAAAAAAAA?chat=2026-10-02-trip",
     "/release-notes",
     "/extensions",
+    "/history",
+    "/memory",
+    "/skills",
+    "/settings/providers",
   ])("puts %s where the router does", (href) => {
     const route = ROUTE_OF_KIND[matchScreen(href).kind];
     expect(route?.replace(/\/$/, "")).toBe(routeOf(href)?.replace(/\/$/, ""));

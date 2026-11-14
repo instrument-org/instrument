@@ -1,4 +1,3 @@
-import { settingsModalAtom } from "@/client/atoms/settings-modal";
 import { settingAnchor } from "@/client/components/settings/settings-index";
 import { VendorMark } from "@/client/components/vendor-mark";
 import { ShowInFolderIcon } from "@/client/components/icons/reveal-in-folder";
@@ -50,7 +49,7 @@ import { FolderIcon } from "@phosphor-icons/react/Folder";
 import { PlusIcon } from "@phosphor-icons/react/Plus";
 import { MagnifyingGlassIcon } from "@phosphor-icons/react/MagnifyingGlass";
 import { useMutation, useQuery } from "@tanstack/react-query";
-import { useAtomValue, useSetAtom } from "jotai";
+import { useSettingsAsk } from "@/client/components/settings/settings-ask";
 import { type ReactNode, useContext, useEffect, useState } from "react";
 import { toast } from "@/client/lib/toast";
 
@@ -115,7 +114,7 @@ export function MemorySection() {
   const memories = data?.memories ?? [];
   // A link to a memory opens its file, so one arrives here by name only
   // when no file has it any more, which is said once the list is known.
-  const named = useAtomValue(settingsModalAtom)?.memory;
+  const named = useSettingsAsk()?.memory;
   // A link to a memory while the import page is up goes back to the list.
   const [isImporting, setIsImporting] = useState(false);
   const [seenNamed, setSeenNamed] = useState(named);
@@ -129,8 +128,8 @@ export function MemorySection() {
     named !== undefined &&
     data !== undefined &&
     !memories.some((memory) => memory.name === named);
-  // Back from the import page returns to the list rather than closing
-  // Settings, since the page sits inside it.
+  // Back from the import page returns to the list rather than leaving
+  // Memory, since the page sits inside it.
   useModalBack(() => {
     setIsImporting(false);
   }, isImporting);
@@ -519,7 +518,6 @@ function StepNumber({ n }: { n: number }) {
  * less than the room it takes.
  */
 function FromChat({ chatId, title }: { chatId: ChatId; title: string }) {
-  const closeSettings = useSetAtom(settingsModalAtom);
   const gestures = useOpenGestures({
     href: chatHref(chatId),
     kind: "screen",
@@ -535,7 +533,6 @@ function FromChat({ chatId, title }: { chatId: ChatId; title: string }) {
       onAuxClick={gestures.onAuxClick}
       onClick={() => {
         open.run();
-        closeSettings(null);
       }}
       onContextMenu={gestures.onContextMenu}
       type="button"
@@ -556,7 +553,6 @@ function FromChat({ chatId, title }: { chatId: ChatId; title: string }) {
  */
 function ImportPage() {
   const appWindow = useContext(WindowContext);
-  const closeSettings = useSetAtom(settingsModalAtom);
   const { data: sources } = useQuery(
     rpcClient.workspace.memory.sources.queryOptions(),
   );
@@ -566,7 +562,6 @@ function ImportPage() {
   }
   const start = (prompt: string) => {
     appWindow.ask(prompt);
-    closeSettings(null);
   };
 
   return (
@@ -906,8 +901,7 @@ function MemoryGroupList({
 
 /**
  * One memory, folded to two lines, and a link to the file it is: pressing it
- * opens the file in a tab of its own, where it reads in full and can be
- * changed, and Settings closes so the tab is in view.
+ * opens the file, where it reads in full and can be changed.
  */
 function MemoryRow({
   isPicked,
@@ -921,7 +915,6 @@ function MemoryRow({
   memory: Memory;
   onPick: () => void;
 }) {
-  const closeSettings = useSetAtom(settingsModalAtom);
   const gestures = useOpenGestures({
     href: fileHref(memory.path),
     kind: "screen",
@@ -933,11 +926,9 @@ function MemoryRow({
   const clicks = openClickGestures({
     open: () => {
       open?.run();
-      closeSettings(null);
     },
     openInNewTab: () => {
       separate?.run();
-      closeSettings(null);
     },
   });
 

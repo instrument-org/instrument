@@ -127,10 +127,16 @@ it("reads every kind of address", () => {
     "/extensions",
     "/debug",
     "/debug/components/colors",
+    "/history",
+    "/memory",
     "/memory/trip-notes",
     "/memory/a/b",
+    "/skills",
     "/skills/provider%3Aweb",
     "/projects/prj_01JDAILY",
+    "/settings",
+    "/settings/providers",
+    "/settings/General",
     "/settings/theme",
     "/screen/shortcuts",
     "/nowhere",
@@ -199,6 +205,12 @@ it("reads every kind of address", () => {
           "path": "",
           "root": "~",
         },
+        "/history": {
+          "kind": "history",
+        },
+        "/memory": {
+          "kind": "memories",
+        },
         "/memory/a/b": {
           "kind": "unknown",
         },
@@ -223,6 +235,17 @@ it("reads every kind of address", () => {
           "kind": "namedScreen",
           "name": "shortcuts",
         },
+        "/settings": {
+          "kind": "settings",
+        },
+        "/settings/General": {
+          "kind": "setting",
+          "name": "General",
+        },
+        "/settings/providers": {
+          "kind": "settings",
+          "section": "providers",
+        },
         "/settings/theme": {
           "kind": "setting",
           "name": "theme",
@@ -230,6 +253,9 @@ it("reads every kind of address", () => {
         "/sites/a%3Ab": {
           "id": "a:b",
           "kind": "site",
+        },
+        "/skills": {
+          "kind": "skills",
         },
         "/skills/provider%3Aweb": {
           "kind": "skill",

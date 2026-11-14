@@ -1,4 +1,3 @@
-import { settingsModalAtom } from "@/client/atoms/settings-modal";
 import {
   folderOf,
   joinHostPath,
@@ -13,7 +12,6 @@ import {
   PROJECTS_FOLDER_NAME,
 } from "@instrument-org/workspace/client";
 import { safe } from "@orpc/client";
-import { getDefaultStore } from "jotai";
 import { toast } from "@/client/lib/toast";
 
 /**
@@ -60,9 +58,6 @@ export async function showInFolder(
   { kind }: { kind: "file" | "folder" },
 ) {
   if (hasFilesView()) {
-    // Settings sits over the window as a dialog, and the tab would open
-    // behind it.
-    getDefaultStore().set(settingsModalAtom, null);
     openTabInWindow?.(
       kind === "folder"
         ? folderHref(hostPath)

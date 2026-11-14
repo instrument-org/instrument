@@ -1,7 +1,7 @@
 // A link address names something that lives outside the tabs, so however it
 // reaches them, no tab stands at it: a skill's address opens its folder in a
 // tab of its own, the way Files shows any folder.
-import { settingsModalAtom } from "@/client/atoms/settings-modal";
+import { pageRequestAtom } from "@/client/atoms/page-requests";
 import { shortcutGuideModalAtom } from "@/client/atoms/shortcut-guide-modal";
 import { TabIdSchema } from "@/shared/tabs";
 import { ChatIdSchema } from "@instrument-org/workspace/client";
@@ -29,7 +29,7 @@ const CHAT = ChatIdSchema.parse("2026-10-01-roofer");
 const TAB = TabIdSchema.parse("tab");
 
 afterEach(() => {
-  getDefaultStore().set(settingsModalAtom, null);
+  getDefaultStore().set(pageRequestAtom, null);
   getDefaultStore().set(shortcutGuideModalAtom, null);
   showSkillFolder.mockReset();
   showProject.mockReset();
@@ -40,10 +40,10 @@ describe("openLinkAddress", () => {
     ["a memory", "/memory/roofs", { memory: "roofs", tab: "Memory" }],
     ["a setting", "/settings/theme", { setting: "theme" }],
   ])(
-    "opens %s in Settings and leaves no address for a tab",
+    "asks for %s's page and leaves no address for a tab",
     (_case, href, settings) => {
       expect(openLinkAddress(href)).toBeUndefined();
-      expect(getDefaultStore().get(settingsModalAtom)).toEqual(settings);
+      expect(getDefaultStore().get(pageRequestAtom)).toEqual({ settings });
     },
   );
 
@@ -55,7 +55,7 @@ describe("openLinkAddress", () => {
       },
       { interval: 1 },
     );
-    expect(getDefaultStore().get(settingsModalAtom)).toBeNull();
+    expect(getDefaultStore().get(pageRequestAtom)).toBeNull();
   });
 
   it("opens a project's details and leaves no address for a tab", async () => {
@@ -66,7 +66,7 @@ describe("openLinkAddress", () => {
       },
       { interval: 1 },
     );
-    expect(getDefaultStore().get(settingsModalAtom)).toBeNull();
+    expect(getDefaultStore().get(pageRequestAtom)).toBeNull();
   });
 
   it("opens a named dialog over the window", () => {
@@ -80,7 +80,7 @@ describe("openLinkAddress", () => {
     ["a chat", `/chats/${CHAT}`, `/chats/${CHAT}`],
   ])("answers the address a tab stands at for %s", (_case, href, at) => {
     expect(openLinkAddress(href)).toBe(at);
-    expect(getDefaultStore().get(settingsModalAtom)).toBeNull();
+    expect(getDefaultStore().get(pageRequestAtom)).toBeNull();
   });
 });
 

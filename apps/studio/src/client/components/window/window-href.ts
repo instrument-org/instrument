@@ -1,3 +1,7 @@
+import {
+  isSettingsSection,
+  type SettingsSection,
+} from "@/shared/instrument-screens";
 import { isSameTabIdentity } from "@/shared/tab-identity";
 import { type RegisteredRouter } from "@tanstack/react-router";
 import {
@@ -25,8 +29,12 @@ export type Screen =
   | (ComputerTab & { kind: "computer" })
   | { kind: "debug"; pathname: string }
   | { kind: "extensions" }
+  /** Every chat and kept draft no window has open. */
+  | { kind: "history" }
   /** The chat with no chat open: a new chat beside the inbox, written into the draft named when there is one. */
   | { draft?: string; kind: "inbox" }
+  /** What Instrument remembers, as a page of its own. */
+  | { kind: "memories" }
   | { kind: "memory"; name: string }
   | { kind: "namedScreen"; name: string }
   | { kind: "newTab" }
@@ -34,9 +42,13 @@ export type Screen =
   | { kind: "project"; name: string }
   | { kind: "releaseNotes" }
   | { kind: "setting"; name: string }
+  /** Settings, at one of its parts; none named is Settings wherever it stands. */
+  | { kind: "settings"; section?: SettingsSection }
   /** A site opened at the window's own level, by the id its group is kept under. */
   | { id: string; kind: "site" }
   | { kind: "skill"; name: string }
+  /** The skills tasks can use, as a page of their own. */
+  | { kind: "skills" }
   | { chat?: ChatId; kind: "task"; task: StoreId.Session }
   | { kind: "unknown" };
 
@@ -65,17 +77,24 @@ export const SCREEN_ROUTES = {
   computer: "/files",
   debug: "/debug",
   extensions: "/extensions",
+  history: "/history",
   inbox: "/chats/",
+  memories: "/memory",
   newTab: "/new-tab",
   releaseNotes: "/release-notes",
+  settings: "/settings/$section",
+  settingsStart: "/settings/",
   site: "/sites/$id",
+  skills: "/skills",
   task: "/tasks/$sessionId",
 } as const satisfies Record<string, RoutePath>;
 
 /**
  * Addresses a link names that are no route of the window's: the window
- * opens each where that thing lives (Settings, a dialog, a skill's folder in
- * Files) rather than as a screen of its own.
+ * opens each where that thing lives (Settings at a row, a dialog, a skill's
+ * folder in Files) rather than as a screen of its own. A setting's address
+ * that names a part of Settings (`/settings/providers`) is that part's route
+ * instead (`SCREEN_ROUTES.settings`).
  */
 export const LINK_ADDRESSES = {
   memory: "/memory/$name",
@@ -218,6 +237,22 @@ export function matchScreen(href: string): Screen {
   }
   if (matchPath(SCREEN_ROUTES.debug, pathname, { under: true })) {
     return { kind: "debug", pathname };
+  }
+  if (at(SCREEN_ROUTES.history)) {
+    return { kind: "history" };
+  }
+  if (at(SCREEN_ROUTES.memories)) {
+    return { kind: "memories" };
+  }
+  if (at(SCREEN_ROUTES.skills)) {
+    return { kind: "skills" };
+  }
+  if (at(SCREEN_ROUTES.settingsStart)) {
+    return { kind: "settings" };
+  }
+  const settings = at(SCREEN_ROUTES.settings);
+  if (settings && isSettingsSection(settings.section)) {
+    return { kind: "settings", section: settings.section };
   }
   for (const kind of [
     "memory",

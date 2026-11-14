@@ -1,4 +1,3 @@
-import { settingsModalAtom } from "@/client/atoms/settings-modal";
 import {
   ACTIONS_KEY,
   REQUESTS_KEY,
@@ -24,7 +23,6 @@ import { APP_NAME } from "@instrument-org/shared";
 import { LockSimpleIcon } from "@phosphor-icons/react/LockSimple";
 import { PauseCircleIcon } from "@phosphor-icons/react/PauseCircle";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { useSetAtom } from "jotai";
 import { type ReactNode, useContext, useId, useState } from "react";
 
 /**
@@ -35,7 +33,6 @@ import { type ReactNode, useContext, useId, useState } from "react";
 export function ActivitySection() {
   const queryClient = useQueryClient();
   const appWindow = useContext(WindowContext);
-  const closeSettings = useSetAtom(settingsModalAtom);
   const { data: preferences } = useQuery(
     rpcClient.preferences.live.get.experimental_liveOptions(),
   );
@@ -127,7 +124,6 @@ export function ActivitySection() {
           end={
             <Button
               onClick={() => {
-                closeSettings(null);
                 appWindow?.openScreen(SCREEN_ROUTES.activity, { newTab: true });
               }}
               size="sm"

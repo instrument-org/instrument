@@ -94,10 +94,15 @@ describe("screenPresentation", () => {
   it.each([...routes].filter((path) => !NAMED_BY_THE_STRIP.has(path)))(
     "names every tab on %s",
     (path) => {
-      // A task's address names it by its session.
+      // A task's address names it by its session, and Settings' by one of
+      // its parts.
       const href = path.replaceAll(
         /\$\w+/g,
-        path.startsWith("/tasks/") ? StoreId.newSessionId() : "x",
+        path.startsWith("/tasks/")
+          ? StoreId.newSessionId()
+          : path.startsWith("/settings/")
+            ? "general"
+            : "x",
       );
       expect(screenPresentation(href, CONTEXT).title).not.toBe("Tab");
     },

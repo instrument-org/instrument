@@ -2,16 +2,25 @@ import { PlaceIcon } from "@/client/components/window/place-icons";
 import { screenNameOfHref } from "@/client/bookmarks/address";
 import { SCREENS, type ScreenName } from "@/shared/instrument-screens";
 import { debugPageTitle } from "@/client/routes/debug/-debug-routes";
+import { type ScreenName, SCREENS } from "@/shared/instrument-screens";
 import { type ChatId, type StoreId } from "@instrument-org/workspace/client";
 import { AppWindowIcon } from "@phosphor-icons/react/AppWindow";
 import { ChatCircleIcon } from "@phosphor-icons/react/ChatCircle";
 import { CheckSquareIcon } from "@phosphor-icons/react/CheckSquare";
-import { CodeIcon } from "@phosphor-icons/react/Code";
 import { ClockCounterClockwiseIcon } from "@phosphor-icons/react/ClockCounterClockwise";
+import { CodeIcon } from "@phosphor-icons/react/Code";
+import { CubeIcon } from "@phosphor-icons/react/Cube";
 import { FileTextIcon } from "@phosphor-icons/react/FileText";
+import { FingerprintIcon } from "@phosphor-icons/react/Fingerprint";
+import { FolderSimpleIcon } from "@phosphor-icons/react/FolderSimple";
+import { GlobeIcon } from "@phosphor-icons/react/Globe";
+import { GearSixIcon } from "@phosphor-icons/react/GearSix";
+import { KeyboardIcon } from "@phosphor-icons/react/Keyboard";
 import { MagnifyingGlassIcon } from "@phosphor-icons/react/MagnifyingGlass";
+import { PulseIcon } from "@phosphor-icons/react/Pulse";
 import { PuzzlePieceIcon } from "@phosphor-icons/react/PuzzlePiece";
-import { type ReactNode } from "react";
+import { ShapesIcon } from "@phosphor-icons/react/Shapes";
+import { type ElementType, type ReactNode } from "react";
 
 import { AppIcon } from "./app-icon";
 import { osConventions } from "@/client/lib/utils";
@@ -22,6 +31,39 @@ import { RECENTS_ROOT } from "./computer-page";
 import { joinHostPath, segmentsOf } from "./host-path";
 import { locationCrumbs, type TabLocation, type Volume } from "./tab-location";
 import { type ComputerTab, matchScreen, type Screen } from "./window-href";
+
+/**
+ * The mark of each built-in page, by its name in `SCREENS`: what its tab,
+ * its address field and a chip for it are drawn with, the places' own
+ * (`PLACE_ICONS`) for Apps, the browser and Files. History keeps the
+ * clock a browser's history wears, so Activity, the other record of the
+ * past, wears the pulse Settings gives it.
+ */
+const SCREEN_ICONS: Record<ScreenName, ElementType> = {
+  activity: PulseIcon,
+  apps: ShapesIcon,
+  browser: GlobeIcon,
+  extensions: PuzzlePieceIcon,
+  files: FolderSimpleIcon,
+  history: ClockCounterClockwiseIcon,
+  memory: FingerprintIcon,
+  "release-notes": FileTextIcon,
+  settings: GearSixIcon,
+  shortcuts: KeyboardIcon,
+  skills: CubeIcon,
+};
+
+/** A built-in page's mark, at the size a tab's is. */
+export function ScreenIcon({
+  className = "size-3.5",
+  name,
+}: {
+  className?: string;
+  name: ScreenName;
+}) {
+  const Icon = SCREEN_ICONS[name];
+  return <Icon className={className} />;
+}
 
 /**
  * What an address alone cannot say about a screen: the names of the things
@@ -95,6 +137,18 @@ export function screenLocation(
       return { kind: "newChat" };
     }
     case "activity":
+    case "history":
+    case "memories":
+    case "skills": {
+      return { kind: "screen", screen: SCREEN_OF_KIND[screen.kind] };
+    }
+    case "settings": {
+      return {
+        kind: "screen",
+        ...(screen.section ? { part: screen.section } : {}),
+        screen: "settings",
+      };
+    }
     case "browser":
     case "debug":
     case "memory":
@@ -214,10 +268,21 @@ export function screenPresentation(
         title: "Release notes",
       };
     }
-    case "activity": {
+    case "activity":
+    case "history":
+    case "memories":
+    case "skills": {
+      const name = SCREEN_OF_KIND[screen.kind];
       return {
-        icon: <ClockCounterClockwiseIcon className="size-3.5" />,
-        title: "Activity",
+        icon: <ScreenIcon name={name} />,
+        title: SCREENS[name].title,
+      };
+    }
+    // One Settings tab, whichever part it is at; the address field says the part.
+    case "settings": {
+      return {
+        icon: <ScreenIcon name="settings" />,
+        title: SCREENS.settings.title,
       };
     }
     case "extensions": {
@@ -247,6 +312,14 @@ export function screenPresentation(
     }
   }
 }
+
+/** The built-in page each of the window's own screen kinds is, by its name in `SCREENS`. */
+const SCREEN_OF_KIND = {
+  activity: "activity",
+  history: "history",
+  memories: "memory",
+  skills: "skills",
+} as const satisfies Partial<Record<Screen["kind"], ScreenName>>;
 
 /** The chat a screen address stands on, by the title the window has for it. */
 function chatTitleOf(

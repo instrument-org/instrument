@@ -21,11 +21,10 @@ import {
   inboxOpenAtom,
   paneOpenByGroupAtom,
 } from "@/client/atoms/window";
-import { settingsModalAtom } from "@/client/atoms/settings-modal";
+import { openBuiltInPage } from "@/client/atoms/page-requests";
 import { AppErrorFallback } from "@/client/components/app-error-fallback";
 import { FileOpenContext } from "@/client/components/file-open-context";
 import { WithDeveloperStrip } from "@/client/components/developer-strip/developer-strip-slot";
-import { settingsTabOf } from "@/client/components/settings/settings-index";
 import { WindowZoomRoot } from "@/client/components/window/window-zoom-root";
 import { PageOpenContext } from "@/client/components/page-open-context";
 import { ThemeProvider } from "@/client/components/theme-provider";
@@ -35,6 +34,7 @@ import { SetupHost } from "@/client/components/setup/setup-host";
 import { WindowBorder } from "@/client/components/window-border";
 import { ChromeInsetProvider } from "@/client/hooks/use-chrome-inset";
 import { TOOLBAR_HEIGHT } from "@/shared/constants";
+import { SCREENS, screenOfHref } from "@/shared/instrument-screens";
 import {
   ActiveTabProvider,
   TabIdProvider,
@@ -979,8 +979,13 @@ function WindowShell({
         ? surfaces[tabInView.id]
         : undefined;
   const screenView = surfaceInView?.view ?? null;
-  // The screen in front, for the action log once it settles.
-  const settings = useAtomValue(settingsModalAtom);
+  // The screen in front, for the action log once it settles: a built-in
+  // page up in the group by its own address, as Settings at its part.
+  const builtInInView =
+    tabInView?.kind === "screen" && screenOfHref(tabInView.href)
+      ? tabInView.href
+      : undefined;
+  const hrefInView = builtInInView ?? screenHref;
   useRecordScreen(
     screenActionOf({
       appName: (slug) => appsBySlug.get(slug)?.name,
@@ -988,8 +993,7 @@ function WindowShell({
       ...(surfaceInView?.walked
         ? { folderPath: surfaceInView.walked.hostPath }
         : {}),
-      ...(screenHref === undefined ? {} : { href: screenHref }),
-      ...(settings === null ? {} : { settingsTab: settingsTabOf(settings) }),
+      ...(hrefInView === undefined ? {} : { href: hrefInView }),
       view: screenView,
     }),
   );
@@ -1353,10 +1357,9 @@ function WindowShell({
           searchRef.current?.select();
         });
       },
-      // History, in the sidebar, on the chord Activity had.
+      // The History page, on the chord Activity had.
       showActivity: () => {
-        setSidebarOpen(true);
-        setSidebarView((view) => (view === "history" ? "list" : "history"));
+        openBuiltInPage(SCREENS.history.href);
       },
       // The tab chords step the tabs of the group up, as a browser's step
       // its strip, round from either end.

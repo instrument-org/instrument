@@ -1,6 +1,5 @@
 import { displayLocale } from "@/client/lib/display-locale";
 import { openReportDialog } from "@/client/atoms/report-dialog";
-import { settingsModalAtom } from "@/client/atoms/settings-modal";
 import { settingAnchor } from "@/client/components/settings/settings-index";
 import {
   BlockToolbarButton,
@@ -58,7 +57,7 @@ import { ArrowSquareOutIcon } from "@phosphor-icons/react/ArrowSquareOut";
 import { BellSimpleIcon } from "@phosphor-icons/react/BellSimple";
 import { DownloadSimpleIcon } from "@phosphor-icons/react/DownloadSimple";
 import { useMutation, useQuery } from "@tanstack/react-query";
-import { useAtomValue, useSetAtom } from "jotai";
+import { useSettingsAsk } from "@/client/components/settings/settings-ask";
 import { type ReactNode, useContext, useEffect, useState } from "react";
 import { toast } from "@/client/lib/toast";
 
@@ -131,11 +130,9 @@ function About() {
   const developerMode = useDeveloperMode();
 
   const appWindow = useContext(WindowContext);
-  const closeSettings = useSetAtom(settingsModalAtom);
 
   const handleOpenReleaseNotes = () => {
     appWindow?.openScreen("/release-notes", { newTab: true });
-    closeSettings(null);
   };
 
   const { data: appEnvironment } = useQuery({
@@ -517,12 +514,12 @@ function DiagnosticLog() {
   // Settings opened by a link to the log arrives with the viewer already up.
   // Compared by identity, so a second such link while Settings is open opens
   // the viewer again after it was closed.
-  const request = useAtomValue(settingsModalAtom);
-  const [viewerOpen, setViewerOpen] = useState(request?.diagnosticLog === true);
-  const [trackedRequest, setTrackedRequest] = useState(request);
-  if (request !== trackedRequest) {
-    setTrackedRequest(request);
-    if (request?.diagnosticLog === true) {
+  const ask = useSettingsAsk();
+  const [viewerOpen, setViewerOpen] = useState(ask?.log === true);
+  const [trackedAsk, setTrackedAsk] = useState(ask);
+  if (ask !== trackedAsk) {
+    setTrackedAsk(ask);
+    if (ask?.log === true) {
       setViewerOpen(true);
     }
   }

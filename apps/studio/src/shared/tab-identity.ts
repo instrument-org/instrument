@@ -3,7 +3,8 @@ import { expandHomePath } from "@instrument-org/shared";
 /**
  * What a tab's address shows, as one thing of which there is only one: a file
  * by its path, a folder in Files by its path, a chat, a draft, a task, the
- * apps, one app, the release notes, the extensions. Two addresses with the
+ * apps, one app, the release notes, the extensions, and each built-in page
+ * (Settings at any of its parts, Memory, Skills, History, Activity). Two addresses with the
  * same identity show the same thing however each tab has walked since (its
  * layout, its selection, the folder beside a file), so a tab at one is the
  * tab to bring forward for the other. Undefined for an address that is not
@@ -42,8 +43,15 @@ export function tabIdentityOf(
     }
     case "activity":
     case "extensions":
-    case "release-notes": {
+    case "history":
+    case "memory":
+    case "release-notes":
+    case "skills": {
       return second === undefined ? first : undefined;
+    }
+    // One Settings, whichever part of it a tab is at.
+    case "settings": {
+      return first;
     }
     case "files": {
       if (second !== undefined) {

@@ -378,7 +378,7 @@ export function useWindowCommands(
               break;
             }
             case "openSettings": {
-              openSettings({ tab: "General" });
+              openSettings();
               break;
             }
             case "clearBrowsingData": {

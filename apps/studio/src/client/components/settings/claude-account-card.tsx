@@ -1,5 +1,4 @@
-import { settingsModalAtom } from "@/client/atoms/settings-modal";
-import { useAtomValue } from "jotai";
+import { useSettingsAsk } from "@/client/components/settings/settings-ask";
 import { openLogin } from "@/client/atoms/login-modal";
 import { settingAnchor } from "@/client/components/settings/settings-index";
 import { AIProviderIcon } from "@/client/components/ai-provider-icon";
@@ -53,15 +52,13 @@ export function ClaudeAccountCard() {
     rpcClient.claudeAccount.signOut.mutationOptions(),
   );
   const providerSwitch = useProviderSwitch();
-  const settings = useAtomValue(settingsModalAtom);
-  const [showUsage, setShowUsage] = useState(
-    settings?.providerUsage === "claude-account",
-  );
+  const ask = useSettingsAsk();
+  const [showUsage, setShowUsage] = useState(ask?.usage === "claude-account");
   useEffect(() => {
-    if (settings?.providerUsage === "claude-account") {
+    if (ask?.usage === "claude-account") {
       setShowUsage(true);
     }
-  }, [settings]);
+  }, [ask]);
   if (!status) {
     return null;
   }

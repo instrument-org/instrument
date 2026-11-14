@@ -57,7 +57,6 @@ import { FilesIcon } from "@phosphor-icons/react/Files";
 import { CheckSquareIcon } from "@phosphor-icons/react/CheckSquare";
 import { InfoIcon } from "@phosphor-icons/react/Info";
 import { MagnifyingGlassIcon } from "@phosphor-icons/react/MagnifyingGlass";
-import { PuzzlePieceIcon } from "@phosphor-icons/react/PuzzlePiece";
 import { WarningIcon } from "@phosphor-icons/react/Warning";
 import { useQuery } from "@tanstack/react-query";
 import { useSetAtom } from "jotai";
@@ -65,6 +64,7 @@ import { Fragment, type ReactNode, useContext, useState } from "react";
 
 import { AppChip, AppMark, appName, type BuiltInApp } from "./app-chip";
 import { BookmarkStar } from "./bookmark-star";
+import { ScreenIcon } from "./screen-presentation";
 import { ShellContext } from "./shell-context";
 import {
   type LocationCrumb,
@@ -721,7 +721,10 @@ function locationMark(location: TabLocation): ReactNode {
     }
     case "screen": {
       return (
-        <PuzzlePieceIcon className="size-3.5 shrink-0 text-muted-foreground" />
+        <ScreenIcon
+          className="size-3.5 shrink-0 text-muted-foreground"
+          name={location.screen}
+        />
       );
     }
     // A page says nothing about its connection unless it is bad news; see

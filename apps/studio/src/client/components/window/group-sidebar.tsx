@@ -1,4 +1,5 @@
 import { openProjectDetails } from "@/client/atoms/project-details-modal";
+import { openBuiltInPage } from "@/client/atoms/page-requests";
 import { openSettings } from "@/client/atoms/settings-modal";
 import {
   groupSearchAtom,
@@ -25,6 +26,7 @@ import { showProjectInFiles } from "@/client/lib/show-in-files";
 import { cn, isMacOS } from "@/client/lib/utils";
 import { rpcClient } from "@/client/rpc/client";
 import { groupOfWholeKey } from "@/shared/tabs";
+import { SCREENS } from "@/shared/instrument-screens";
 import { WINDOW_SHORTCUTS } from "@/shared/window-shortcuts";
 import { CaretLeftIcon } from "@phosphor-icons/react/CaretLeft";
 import { CaretRightIcon } from "@phosphor-icons/react/CaretRight";
@@ -89,7 +91,6 @@ import { useSetChatProject } from "./use-set-chat-project";
 import {
   draftWordsTitle,
   isPinnedGroup,
-  lastActiveAt,
   type TabGroup,
   windowTabGroupsAtom,
 } from "./tab-groups";
@@ -183,7 +184,7 @@ export function GroupSidebar({
   projects: Project[];
   searchRef?: Ref<HTMLInputElement>;
 }) {
-  const [view, setView] = useAtom(sidebarViewAtom);
+  const setView = useSetAtom(sidebarViewAtom);
   const [search, setSearch] = useAtom(groupSearchAtom);
   const [projectId, setProjectId] = useAtom(sidebarProjectAtom);
   const project = projects.find((entry) => entry.id === projectId);
@@ -400,21 +401,6 @@ export function GroupSidebar({
         {fromHistory.map((entry) => row(entry, { restore: true }))}
       </>
     );
-  } else if (view === "history") {
-    body = (
-      <>
-        <BackRow
-          label="History"
-          onBack={() => {
-            setView("list");
-          }}
-        />
-        <HistoryList
-          history={history}
-          row={(entry) => row(entry, { restore: true })}
-        />
-      </>
-    );
   } else {
     // What the list shows in order, for the room a drag opens in it: the
     // items from the one it opens in front of on move aside.
@@ -498,7 +484,7 @@ export function GroupSidebar({
             <ListItem key=":history" {...place(":history")}>
               <HistoryRow
                 onOpen={() => {
-                  setView("history");
+                  openBuiltInPage(SCREENS.history.href);
                 }}
               />
             </ListItem>
@@ -958,58 +944,6 @@ function SearchSection({ label }: { label: string }) {
   );
 }
 
-/** The chats and drafts in History, most recently active first, under the day each last had something happen. */
-function HistoryList({
-  history,
-  row,
-}: {
-  history: TabGroup[];
-  row: (entry: TabGroup) => ReactNode;
-}) {
-  if (history.length === 0) {
-    return (
-      <p className="px-2.5 py-2 text-[13px] text-muted-foreground">
-        Tab groups you close show up here.
-      </p>
-    );
-  }
-  const days = new Map<string, TabGroup[]>();
-  for (const entry of history) {
-    const day = dayLabel(lastActiveAt(entry));
-    days.set(day, [...(days.get(day) ?? []), entry]);
-  }
-  return (
-    <>
-      {[...days].map(([day, entries]) => (
-        <div className="flex flex-col gap-0.5" key={day}>
-          <p className="px-2.5 pt-3 pb-1 text-xs font-medium text-muted-foreground">
-            {day}
-          </p>
-          {entries.map(row)}
-        </div>
-      ))}
-    </>
-  );
-}
-
-function dayLabel(at: number): string {
-  const day = new Date(at);
-  const today = new Date();
-  const yesterday = new Date();
-  yesterday.setDate(today.getDate() - 1);
-  if (day.toDateString() === today.toDateString()) {
-    return "Today";
-  }
-  if (day.toDateString() === yesterday.toDateString()) {
-    return "Yesterday";
-  }
-  return day.toLocaleDateString(undefined, {
-    day: "numeric",
-    month: "long",
-    ...(day.getFullYear() === today.getFullYear() ? {} : { year: "numeric" }),
-  });
-}
-
 /**
  * One tab group as two lines: its title, bold while it holds something not
  * yet seen; then its chat's latest line (the step it is on, the question it
@@ -1321,7 +1255,7 @@ function SidebarFoot({ chatId }: { chatId: ReturnType<typeof chatOfGroup> }) {
       <button
         className="flex h-9 min-w-0 flex-1 items-center gap-1.5 rounded-lg px-1.5 text-left hover:bg-foreground/5"
         onClick={() => {
-          openSettings({ tab: "General" });
+          openSettings();
         }}
         type="button"
       >
@@ -1340,7 +1274,7 @@ function SidebarFoot({ chatId }: { chatId: ReturnType<typeof chatOfGroup> }) {
           aria-label="Settings"
           className="grid size-7 shrink-0 place-items-center rounded-lg text-muted-foreground hover:bg-foreground/5 hover:text-foreground"
           onClick={() => {
-            openSettings({ tab: "General" });
+            openSettings();
           }}
           type="button"
         >

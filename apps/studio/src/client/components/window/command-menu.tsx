@@ -1,6 +1,8 @@
 import { chatNotesAtom } from "@/client/atoms/chat-notes";
 import { commandMenuOpenAtom } from "@/client/atoms/command-menu";
+import { openBuiltInPage } from "@/client/atoms/page-requests";
 import { openSettings } from "@/client/atoms/settings-modal";
+import { SCREENS } from "@/shared/instrument-screens";
 import { openClearBrowsingData } from "@/client/atoms/clear-browsing-data-modal";
 import { openShortcutGuide } from "@/client/atoms/shortcut-guide-modal";
 import { type AppPlace, APPS_HREF, CHATS_HREF } from "@/client/atoms/window";
@@ -101,6 +103,9 @@ import { NotePencilIcon } from "@phosphor-icons/react/NotePencil";
 import { NewspaperIcon } from "@phosphor-icons/react/Newspaper";
 import { ClockCounterClockwiseIcon } from "@phosphor-icons/react/ClockCounterClockwise";
 import { PuzzlePieceIcon } from "@phosphor-icons/react/PuzzlePiece";
+import { PulseIcon } from "@phosphor-icons/react/Pulse";
+import { FingerprintIcon } from "@phosphor-icons/react/Fingerprint";
+import { CubeIcon } from "@phosphor-icons/react/Cube";
 import { PlusIcon } from "@phosphor-icons/react/Plus";
 import { StackIcon } from "@phosphor-icons/react/Stack";
 import { StarIcon } from "@phosphor-icons/react/Star";
@@ -327,7 +332,7 @@ export function useCommandMenuRows({
       id: "settings",
       label: "Settings",
       run: () => {
-        openSettings({ tab: "General" });
+        openSettings();
       },
     },
     {
@@ -408,11 +413,36 @@ export function useCommandMenuRows({
       },
     },
     {
-      icon: <ClockCounterClockwiseIcon />,
+      icon: <PulseIcon />,
       id: "activity",
       label: "Activity",
       run: () => {
         openScreen(SCREEN_ROUTES.activity);
+      },
+    },
+    {
+      chord: WINDOW_SHORTCUTS.showActivity.accelerator,
+      icon: <ClockCounterClockwiseIcon />,
+      id: "history",
+      label: "History",
+      run: () => {
+        openBuiltInPage(SCREENS.history.href);
+      },
+    },
+    {
+      icon: <FingerprintIcon />,
+      id: "memory",
+      label: "Memory",
+      run: () => {
+        openBuiltInPage(SCREENS.memory.href);
+      },
+    },
+    {
+      icon: <CubeIcon />,
+      id: "skills",
+      label: "Skills",
+      run: () => {
+        openBuiltInPage(SCREENS.skills.href);
       },
     },
     {

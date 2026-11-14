@@ -21,6 +21,7 @@ import { type BrowserTabsHandle } from "./browser-tabs";
 import { chatListOptions } from "./chat-list-query";
 import { type OpenOptions } from "./context";
 import { isGroupShown } from "./draft-context";
+import { bringForwardShowing } from "./built-in-pages";
 import { isGroupScreenHref } from "./group-screen";
 import { openMenuLink } from "./menu-link";
 import { openLinkAddress } from "./open-link-address";
@@ -324,9 +325,10 @@ export function useOpeners({
       case "group-navigate": {
         // A file opened from a Finder takes the Finder's place in its tab,
         // the way a folder does, and back returns to the folder, unless
-        // another of the chat's tabs already shows it.
+        // another of the chat's tabs already shows it. A built-in page
+        // already open comes forward at the part asked for.
         revealPane();
-        if (here || !windowTabs.selectShowing(href)) {
+        if (here || !bringForwardShowing(windowTabs, href)) {
           windowTabs.navigateScreen(href);
         }
         return;

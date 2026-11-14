@@ -1,4 +1,3 @@
-import { settingsModalAtom } from "@/client/atoms/settings-modal";
 import { FolderRow } from "@/client/components/folder-row";
 import { settingAnchor } from "@/client/components/settings/settings-index";
 import { SkillList } from "@/client/components/skills/skill-list";
@@ -28,7 +27,6 @@ import { skillMentionToken } from "@instrument-org/shared/skill-mention";
 import { DotsThreeIcon } from "@phosphor-icons/react/DotsThree";
 import { TrashIcon } from "@phosphor-icons/react/Trash";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { useSetAtom } from "jotai";
 import { useContext, useState } from "react";
 import { toast } from "@/client/lib/toast";
 
@@ -42,8 +40,7 @@ type Skill = RPCOutput["workspace"]["skill"]["list"][number];
  * doesn't ship opens that folder in Files, where it can be read, changed, or
  * handed to a chat.
  * Making a skill is an ask like any other: it opens a draft with the start
- * of the sentence in it and closes Settings, since the draft is written on
- * the window under it.
+ * of the sentence in it.
  */
 export function SkillsSection() {
   const ask = useAsk();
@@ -220,17 +217,15 @@ function SkillMenu({ skill }: { skill: Skill }) {
 }
 
 /**
- * Opens a draft with the words in it and closes Settings, or `undefined`
- * outside the app window, where there is no draft to open.
+ * Opens a draft with the words in it, or `undefined` outside the app window,
+ * where there is no draft to open.
  */
 function useAsk() {
   const appWindow = useContext(WindowContext);
-  const closeSettings = useSetAtom(settingsModalAtom);
   if (!appWindow) {
     return;
   }
   return (words: string) => {
-    closeSettings(null);
     appWindow.ask(words);
   };
 }

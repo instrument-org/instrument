@@ -122,13 +122,16 @@ export function trimSheet(/** @type {string} */ css, /** @type {Set<string>} */ 
 }
 
 /**
- * Every word a page might use as a class: the class attributes of the states it draws
- * and every class-shaped token in the part and the kit, since a part's edits run in the
- * page and may write markup in classes no captured state has.
+ * Every word a page might use as a class: the class attributes of the states it draws,
+ * read as the browser reads them (`[&amp;_svg]:size-4` is `[&_svg]:size-4`), and every
+ * class-shaped token in the part and the kit, since a part's edits run in the page and
+ * may write markup in classes no captured state has.
  */
 export function pageClasses(/** @type {string[]} */ htmls, /** @type {string[]} */ sources) {
   const out = new Set();
-  for (const html of htmls) for (const m of html.matchAll(/\bclass="([^"]*)"/g)) for (const t of m[1].split(/\s+/)) if (t) out.add(t);
+  const decode = (/** @type {string} */ s) =>
+    s.replace(/&(amp|quot|#39|lt|gt);/g, (_, e) => ({ amp: "&", quot: '"', "#39": "'", lt: "<", gt: ">" })[e]);
+  for (const html of htmls) for (const m of html.matchAll(/\bclass="([^"]*)"/g)) for (const t of decode(m[1]).split(/\s+/)) if (t) out.add(t);
   for (const src of sources) for (const m of src.matchAll(/[\w:/.[\]%!@&>*=()#,'-]+/g)) for (const t of m[0].split(/["'`]/)) if (t) out.add(t);
   return out;
 }

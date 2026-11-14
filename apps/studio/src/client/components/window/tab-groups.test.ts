@@ -18,7 +18,14 @@ import {
   pinnedWith,
   upkeptList,
 } from "./tab-groups";
-import { groupLayoutOf, openInGroup, type WindowTabs } from "./tab-model";
+import {
+  groupLayoutOf,
+  openInGroup,
+  raiseTab,
+  restoreGroup,
+  selectTab,
+  type WindowTabs,
+} from "./tab-model";
 import { chatHref, newChatHref } from "./window-href";
 
 describe("a draft no chat has started, closed", () => {
@@ -209,6 +216,7 @@ describe("a tab group's tabs, copied", () => {
       }),
     ).toMatchInlineSnapshot(`
       {
+        "beside": undefined,
         "tabs": [
           {
             "favicon": "data:icon",
@@ -244,6 +252,42 @@ describe("a tab group's tabs, copied", () => {
         "up": "n3",
       }
     `);
+  });
+});
+
+describe("a two-sided tab group, copied", () => {
+  it("comes up on the same tab on each side, the keyboard on the same side", () => {
+    const tab = (id: string, side?: 1): WindowTab => ({
+      group: "g",
+      href: `/files?path=/${id}`,
+      id,
+      kind: "screen",
+      ...(side === undefined ? {} : { side }),
+    });
+    const state: WindowTabs = {
+      activeByGroup: { g: "b" },
+      besideByGroup: { g: "y" },
+      tabs: [tab("a"), tab("b"), tab("x", 1), tab("y", 1), tab("z", 1)],
+    };
+    let next = 0;
+    const copied = copiedTabs(state.tabs, {
+      beside: "y",
+      group: "copy",
+      newId: () => `n${(next += 1)}`,
+      now: 0,
+      up: "b",
+    });
+    expect(copied).toMatchObject({ beside: "n4", up: "n2" });
+    const shown = raiseTab(
+      selectTab(restoreGroup(state, "copy", copied.tabs), "n2"),
+      "n4",
+    );
+    const ups = (group: string) => {
+      const layout = groupLayoutOf(shown, group);
+      return { focused: layout.focused, ups: layout.sides.map((side) => side.up) };
+    };
+    expect(ups("copy")).toEqual({ focused: 0, ups: ["n2", "n4"] });
+    expect(ups("g")).toEqual({ focused: 0, ups: ["b", "y"] });
   });
 });
 

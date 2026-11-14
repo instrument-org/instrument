@@ -30,6 +30,7 @@ import { chatListOptions } from "./chat-list-query";
 import { type Chat, draftTitle } from "./chats";
 import { isGroupScreenHref } from "./group-screen";
 import {
+  besideOf,
   chatOfTab,
   chatsOfGroup,
   draftOfTab,
@@ -503,22 +504,34 @@ export function pinnedFromStars(
  * with its title and icon until it loads, and a screen at its own address,
  * so a new tab stays a new tab. A chat's tab, or a draft's, is a new chat
  * with nothing in it, so a conversation is only ever in one group. None
- * takes its history. `up` is the copy of the tab `up` names.
+ * takes its history. `up` and `beside` are the copies of the tabs they
+ * name: the tab up on the side with the keyboard, and on the other side.
  */
 export function copiedTabs(
   tabs: readonly WindowTab[],
   {
+    beside,
     group,
     newId,
     now,
     up,
-  }: { group: string; newId: () => string; now: number; up?: string },
-): { tabs: WindowTab[]; up: string | undefined } {
+  }: {
+    beside?: string;
+    group: string;
+    newId: () => string;
+    now: number;
+    up?: string;
+  },
+): { beside: string | undefined; tabs: WindowTab[]; up: string | undefined } {
   let upCopy: string | undefined;
+  let besideCopy: string | undefined;
   const copies = tabs.map((tab): WindowTab => {
     const id = newId();
     if (tab.id === up) {
       upCopy = id;
+    }
+    if (tab.id === beside) {
+      besideCopy = id;
     }
     const side = tab.side === 1 ? { side: 1 as const } : {};
     if (tab.kind === "screen") {
@@ -537,7 +550,7 @@ export function copiedTabs(
       ...(tab.title === undefined ? {} : { title: tab.title }),
     };
   });
-  return { tabs: copies, up: upCopy };
+  return { beside: besideCopy, tabs: copies, up: upCopy };
 }
 
 /** Whether an address is a chat's, or a new chat's with its draft. */
@@ -821,24 +834,29 @@ export function useTabGroupActions() {
 
   /**
    * A copy of a group just below it, up in this window: its tabs copied
-   * (`copiedTabs`) on the same sides, the same one up, named and pinned as
-   * the group is. A chat's tab is copied as a new chat, so the chat stays
-   * in the group it was in.
+   * (`copiedTabs`) on the same sides, the same one up on each and the
+   * keyboard on the same side, named and pinned as the group is. A chat's
+   * tab is copied as a new chat, so the chat stays in the group it was in.
    */
   const duplicate = (entry: TabGroup) => {
     const tabs = store.get(windowTabsAtom);
     const name = store.get(groupNamesAtom)[entry.group];
+    const up = selectedTabIn(tabs, entry.group)?.id;
     const copy = make({
       fill: (group) => {
         const copied = copiedTabs(tabsIn(tabs, entry.group), {
+          beside: up === undefined ? undefined : besideOf(tabs, up)?.id,
           group,
           newId: () => StoreId.newTabId(),
           now: Date.now(),
-          up: selectedTabIn(tabs, entry.group)?.id,
+          up,
         });
         windowTabs.restoreGroup(group, copied.tabs);
         if (copied.up !== undefined) {
           windowTabs.select(copied.up);
+        }
+        if (copied.beside !== undefined) {
+          windowTabs.raise(copied.beside);
         }
       },
       place: { after: entry.group },

@@ -12,6 +12,8 @@ import {
 import {
   getAttachedTargetsSnapshot,
   getGuest,
+  giveKeyboardTo,
+  holdKeyboardFromPages,
   initBrowserPool,
   setPaintHost,
   showOverSlot,
@@ -296,4 +298,34 @@ it("hides a parked page while main has it asleep, and shows it in a slot at once
     },
     { interval: 1 },
   );
+});
+
+it("holds a page off the keyboard until let go, then hands it over, however long the hold", async () => {
+  const webview = element();
+  if (!webview) {
+    throw new Error("no guest mounted");
+  }
+  const slot = Symbol("slot");
+  showOverSlot(target, inlineBounds, slot);
+  await Promise.resolve();
+  // jsdom's element is a plain one, so the pool's focus is HTMLElement's.
+  const focus = vi.spyOn(HTMLElement.prototype, "focus");
+  vi.useFakeTimers({ toFake: ["Date"] });
+  try {
+    const letGoOfPress = holdKeyboardFromPages();
+    giveKeyboardTo(target);
+    const letGoOfDrag = holdKeyboardFromPages();
+    letGoOfPress();
+    vi.setSystemTime(Date.now() + 60_000);
+    expect(focus.mock.contexts).toEqual([]);
+
+    letGoOfDrag();
+    expect(focus.mock.contexts).toEqual([webview]);
+    letGoOfDrag();
+    expect(focus.mock.contexts).toEqual([webview]);
+  } finally {
+    vi.useRealTimers();
+    focus.mockRestore();
+    setPaintHost(target, slot);
+  }
 });

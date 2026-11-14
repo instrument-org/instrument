@@ -3,6 +3,21 @@ import { userEvent } from "vitest/browser";
 
 import { currentDrag, pressToDrag } from "./session";
 
+// How many holds keep pages off the keyboard (`holdKeyboardFromPages`).
+const keyboard = vi.hoisted(() => ({ holds: 0 }));
+vi.mock("@/client/lib/browser-pool", () => ({
+  holdKeyboardFromPages: () => {
+    keyboard.holds += 1;
+    let isHeld = true;
+    return () => {
+      if (isHeld) {
+        isHeld = false;
+        keyboard.holds -= 1;
+      }
+    };
+  },
+}));
+
 const AT = { x: 100, y: 100 };
 
 const pointer = (type: string, x: number) =>
@@ -69,31 +84,51 @@ afterEach(() => {
   vi.restoreAllMocks();
 });
 
-it("keeps a drag when a page in the window takes the keyboard, and takes it back for the drag", async () => {
-  pressTab();
-  drag();
-  expect(currentDrag()?.held.kind).toBe("tab");
+/**
+ * As a Mac has it, the window's document reads as unfocused while a page in
+ * it has the keyboard; elsewhere it reads as focused.
+ */
+const readFocusAs = (system: "mac" | "other") => {
+  if (system === "mac") {
+    vi.spyOn(document, "hasFocus").mockImplementation(
+      () => document.activeElement !== page,
+    );
+  }
+};
 
-  page.focus();
-  expect([document.activeElement, document.hasFocus()]).toEqual([page, true]);
-  await afterTasks();
+it.each(["mac", "other"] as const)(
+  "keeps a drag when a page in the window takes the keyboard, and takes it back for the drag (%s)",
+  async (system) => {
+    readFocusAs(system);
+    pressTab();
+    drag();
+    expect(currentDrag()?.held.kind).toBe("tab");
 
-  expect(currentDrag()?.held.kind).toBe("tab");
-  expect(document.activeElement).toBe(document.body);
-  await userEvent.keyboard("{Escape}");
-  expect(currentDrag()).toBeUndefined();
-  await frames(2);
-  expect(document.activeElement).toBe(home);
-});
+    page.focus();
+    expect(document.activeElement).toBe(page);
+    await afterTasks();
 
-it("takes the keyboard back from a page that took it during the press", () => {
-  pressTab();
-  page.focus();
-  drag();
+    expect(currentDrag()?.held.kind).toBe("tab");
+    expect(document.activeElement).toBe(document.body);
+    await userEvent.keyboard("{Escape}");
+    expect(currentDrag()).toBeUndefined();
+    await frames(2);
+    expect(document.activeElement).toBe(home);
+  },
+);
 
-  expect(currentDrag()?.held.kind).toBe("tab");
-  expect(document.activeElement).toBe(document.body);
-});
+it.each(["mac", "other"] as const)(
+  "takes the keyboard back from a page that took it during the press (%s)",
+  (system) => {
+    readFocusAs(system);
+    pressTab();
+    page.focus();
+    drag();
+
+    expect(currentDrag()?.held.kind).toBe("tab");
+    expect(document.activeElement).toBe(document.body);
+  },
+);
 
 it("ends a drag when the window loses the system's focus", () => {
   pressTab();
@@ -102,4 +137,22 @@ it("ends a drag when the window loses the system's focus", () => {
   window.dispatchEvent(new Event("blur"));
 
   expect(currentDrag()).toBeUndefined();
+});
+
+it("holds pages off the keyboard from the press until the drag ends", () => {
+  pressTab();
+  expect(keyboard.holds).toBe(1);
+  drag();
+  expect(keyboard.holds).toBe(1);
+  pointer("pointerup", AT.x + 40);
+
+  expect(currentDrag()).toBeUndefined();
+  expect(keyboard.holds).toBe(0);
+});
+
+it("lets pages take the keyboard once a press ends as a click", () => {
+  pressTab();
+  pointer("pointerup", AT.x);
+
+  expect(keyboard.holds).toBe(0);
 });

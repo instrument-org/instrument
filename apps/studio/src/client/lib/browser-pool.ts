@@ -297,9 +297,61 @@ export function giveKeyboardTo(targetId: BrowserTargetId) {
   passKeyboardTo(targetId);
 }
 
+/**
+ * Holds keeping every page from taking the keyboard, and the pages that
+ * would have taken it meanwhile. A page with the keyboard hears the window's
+ * keys, and the window's loss of focus, in a process of its own, so a press
+ * that may become a drag, and the drag, hold pages off: Escape and another
+ * app taking the window still reach the drag.
+ */
+let keyboardHolds = 0;
+const heldBack = new Set<BrowserTargetId>();
+
+/**
+ * Keeps pages from taking the keyboard until the returned function is
+ * called, which hands it to a page that would have taken it meanwhile, its
+ * claim as fresh as when it was made.
+ */
+export function holdKeyboardFromPages(): () => void {
+  keyboardHolds += 1;
+  let isHeld = true;
+  return () => {
+    if (!isHeld) {
+      return;
+    }
+    isHeld = false;
+    keyboardHolds -= 1;
+    if (keyboardHolds > 0) {
+      return;
+    }
+    const waiting = [...heldBack];
+    heldBack.clear();
+    const lapses = Date.now() + HEIR_WAIT_MS;
+    for (const targetId of waiting) {
+      for (const claims of [keyboardSends, keyboardHeirs]) {
+        if (claims.has(targetId)) {
+          claims.set(targetId, lapses);
+        }
+      }
+      passKeyboardTo(targetId);
+    }
+  };
+}
+
 function passKeyboardTo(targetId: BrowserTargetId) {
   const pooled = pool.get(targetId);
   if (!pooled?.handle || !paintOwners.has(targetId)) {
+    return;
+  }
+  if (keyboardHolds > 0) {
+    const now = Date.now();
+    if (
+      [keyboardSends, keyboardHeirs].some(
+        (claims) => (claims.get(targetId) ?? 0) >= now,
+      )
+    ) {
+      heldBack.add(targetId);
+    }
     return;
   }
   const sent = keyboardSends.get(targetId);

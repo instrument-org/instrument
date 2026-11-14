@@ -1,3 +1,4 @@
+import { holdKeyboardFromPages } from "@/client/lib/browser-pool";
 import { focusScreenHome } from "@/client/lib/keyboard-home";
 import { atom, getDefaultStore } from "jotai";
 import { useEffect, useLayoutEffect, useRef } from "react";
@@ -362,10 +363,17 @@ export function pressToDrag(
     return false;
   }
   const from = { x: press.clientX, y: press.clientY };
+  // A page the press brings up takes the keyboard once the press is over,
+  // as a click or as the drag it becomes, which holds pages off for itself.
+  const letGoOfKeyboard = holdKeyboardFromPages();
   const stop = () => {
     window.removeEventListener("pointermove", onMove, { capture: true });
-    window.removeEventListener("pointerup", stop, { capture: true });
-    window.removeEventListener("pointercancel", stop, { capture: true });
+    window.removeEventListener("pointerup", onEnd, { capture: true });
+    window.removeEventListener("pointercancel", onEnd, { capture: true });
+  };
+  const onEnd = () => {
+    stop();
+    letGoOfKeyboard();
   };
   const onMove = (move: PointerEvent) => {
     if (!move.isPrimary) {
@@ -379,10 +387,11 @@ export function pressToDrag(
     if (started) {
       startPointerDrag(started.held, started.grab, move);
     }
+    letGoOfKeyboard();
   };
   window.addEventListener("pointermove", onMove, { capture: true });
-  window.addEventListener("pointerup", stop, { capture: true });
-  window.addEventListener("pointercancel", stop, { capture: true });
+  window.addEventListener("pointerup", onEnd, { capture: true });
+  window.addEventListener("pointercancel", onEnd, { capture: true });
   return true;
 }
 
@@ -431,24 +440,26 @@ function startPointerDrag(held: Held, grab: Point, event: PointerEvent) {
     key.stopPropagation();
     cancel(current);
   };
-  // A page in the window that takes the keyboard, as one does when its tab
-  // comes up at the press, hears keys and the window's loss of focus in a
-  // process of its own. The drag takes the keyboard back for as long as it
-  // lasts, so Escape and losing the window still reach it here, and puts it
-  // home once it is over.
+  // A page with the keyboard hears keys, and the window's loss of focus, in
+  // a process of its own; on a Mac the window's document then reads as
+  // unfocused too. Pages are held off the keyboard for the drag
+  // (`holdKeyboardFromPages`), and one that takes it anyway (an agent typing
+  // into it) gives it back, so Escape and losing the window still reach the
+  // drag here. The keyboard goes home once the drag is over.
+  const letGoOfKeyboard = holdKeyboardFromPages();
   let tookKeyboard = false;
   const takeKeyboard = () => {
     const page = document.activeElement;
-    if (session === current && document.hasFocus() && isPageFrame(page)) {
+    if (session === current && isPageFrame(page)) {
       tookKeyboard = true;
       page.blur();
     }
   };
   // Losing the window to another app takes the pointer with it; main's own
-  // pictures off the window take nothing. A page in the window taking the
-  // keyboard blurs the window too, but the document keeps the focus.
+  // pictures off the window take nothing, and neither does the keyboard
+  // going into a page in the window, which blurs the window too.
   const onBlur = () => {
-    if (document.hasFocus()) {
+    if (isPageFrame(document.activeElement)) {
       // Once the page has the keyboard, not while it is moving there.
       window.setTimeout(takeKeyboard, 0);
     } else if (!current.drag.isOff) {
@@ -482,6 +493,7 @@ function startPointerDrag(held: Held, grab: Point, event: PointerEvent) {
       window.removeEventListener("blur", onBlur);
       document.removeEventListener("visibilitychange", onHidden);
       document.documentElement.removeAttribute("data-tab-held");
+      letGoOfKeyboard();
       if (tookKeyboard) {
         tookKeyboard = false;
         focusScreenHome({ leaving: false });
@@ -498,7 +510,7 @@ function startPointerDrag(held: Held, grab: Point, event: PointerEvent) {
   window.addEventListener("keydown", onKey, { capture: true });
   window.addEventListener("blur", onBlur);
   document.addEventListener("visibilitychange", onHidden);
-  // A page brought up by the press may have taken the keyboard already.
+  // A page may have taken the keyboard during the press all the same.
   takeKeyboard();
   current.carry = carrier?.(held, event, grab);
   evaluate(current);

@@ -216,7 +216,13 @@ export function PaneTabs({
         // The first tab starts at the location row's 6px inset, over its
         // back button.
         className="min-w-0 flex-1 pr-0 pl-1.5"
-        label="What this chat has open"
+        label={
+          split?.hasOtherSide
+            ? side === 0
+              ? "Left side tabs"
+              : "Right side tabs"
+            : "Tabs"
+        }
         newControl={<NewTabButton onClick={onNew} title="New tab" />}
         onClose={(key) => {
           const tab = tabOf(key);

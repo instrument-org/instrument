@@ -165,7 +165,7 @@ export function RowLinesView({
 
 /**
  * What a tab says on its row's two lines: a chat its state, a page its site,
- * a file its folder, a built-in page the part open, a new tab the words
+ * a file its folder, a built-in page the part open over the page's name, a new tab the words
  * typed in it (`row-lines.ts`).
  */
 function useRowLines(
@@ -205,10 +205,10 @@ function useRowLines(
       return quiet(title, folderLine(location.path));
     }
     case "builtin": {
-      return quiet(
-        title,
-        location.item ?? location.part ?? PAGE_START_LINES[location.screen],
-      );
+      const open = location.item ?? location.part;
+      return open === undefined
+        ? quiet(title, PAGE_START_LINES[location.screen])
+        : quiet(open, title);
     }
     case "chats": {
       return quiet(title, "Every chat");

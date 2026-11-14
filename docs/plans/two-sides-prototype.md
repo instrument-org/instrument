@@ -102,3 +102,17 @@ The build is split into tracks that land on the prototype branch one at a time:
 4. **Awareness**: the layout and its changes in each message, read by the agent, shown minimally.
 5. **Drag**: one drag system for everything above.
 6. **Menus**: the menus above everywhere they apply.
+
+## How it's built
+
+### Address
+
+Paths are under `apps/studio/src/`.
+
+- **Addresses**: `instrumentAddressOf(tab)` (`client/bookmarks/address.ts`) gives any tab's address: a site's URL, a file or folder as `instrument://file/<path>`, a chat as `instrument://chat/<id>`, a built-in page as `instrument://screen/<name>`, its names read from `shared/instrument-screens.ts`. `targetOfAddress` reads one back, and `sameAddress` compares two, so a trailing slash or an escaped character finds the same bookmark.
+- **Opening**: `useOpenAddress()` (`client/bookmarks/open-address.ts`) opens any address here, in a new tab behind, or as a new tab group, and `openHowOf` reads which from a click (⌘ a new tab, ⇧ a new tab group). A chat is its own tab group, so ⇧ opens it in its own window, and a screen a group's tab cannot stand at opens where the app keeps it.
+- **The field**: `TabLocationRow` takes the tab's `address` and `title`. The chip is `AppChip` (`client/components/window/app-chip.tsx`), picked by the location's kind in `tab-location.ts`: `builtin` for a built-in page, `chat`, and `newChat`. The omnibar shows the address while it has the caret, opens a typed `instrument://` address on Enter, and offers built-in pages, chats and the app's own bookmarks as rows from two letters of a name, first when the name is typed whole. A chat's field runs in web mode; the field has no Chats mode.
+- **The star**: `BookmarkStar` (`bookmark-star.tsx`) and its card. ⌘D is the window command `bookmarkTab`, in the Bookmarks menu, and `requestBookmarkTab()` presses the visible star with the most ancestors in common with the focused element, so each side's row answers for its own side. A code editor keeps ⌘D.
+- **Bookmarks**: each has a place, `bar` or `sidebar` (`placeOf` and the `place` op in `shared/bookmarks.ts`); one with no `where` is on the bar. The bar (`bookmarks-bar.tsx`) shows the bar's, and `BookmarksSection` (`bookmarks-section.tsx`, one line in `group-sidebar.tsx`) the sidebar's under Projects. Both open through `bookmarkClicks` and share `BookmarkContextMenu` (`bookmark-menu.tsx`), and each wears its tab's mark (`AddressMark`).
+- **For other tracks**: `useBookmarkActions()` (`client/bookmarks/actions.ts`) gives `bookmark({ title, url, where })`, `isBookmarked(url)`, `bookmarkOf(url)`, `place`, `rename` and `remove`, and re-exports `instrumentAddressOf`. A tab's or a link's Bookmark item is `bookmark({ title, url: instrumentAddressOf(tab) })`.
+- **One mapping**: the href-to-address mapping belongs in `shared/instrument-screens.ts`. `addressOfHref` and `screenNameOfHref` in `address.ts` stand in for it until it is there, and `address.ts` keeps only the tab-level layer over it: sites, files and folders.

@@ -223,7 +223,9 @@ export const STATES = {
     themes: ["light", "dark"],
     run: async (h) => {
       await h.go(`/chats/${h.chats.pricing}`, 1200);
-      await h.app.click({ text: "SOC 2 audit quotes from four firms" }, "chat row", { button: "right" });
+      // The model titles the seed's chats when the seed is made, so the row is found by the chat's own title.
+      const { title } = await h.app.rpc("workspace.chats.byId", { id: h.chats.soc2 });
+      await h.app.click({ text: title }, "chat row", { button: "right" });
       await wait(400);
     },
   },
@@ -519,7 +521,8 @@ async function captureStates(/** @type {string[]} */ names) {
     execFileSync("node", argv, { cwd: REPO_ROOT, encoding: "utf8", maxBuffer: 256 * 1024 * 1024, stdio: ["ignore", "pipe", "pipe"] });
 
   // A seed lives in studio-drive's cache for one checkout, so a checkout without one
-  // takes the newest copy another checkout on this machine made.
+  // takes the newest copy another checkout on this machine made, and a machine without
+  // any makes it from seed/wf-pricing.seed.json, which runs its chats through the model.
   const cache = path.join(
     process.env.LOCALAPPDATA ??
       (process.platform === "darwin" ? path.join(os.homedir(), "Library", "Caches") : (process.env.XDG_CACHE_HOME ?? path.join(os.homedir(), ".cache"))),
@@ -531,9 +534,8 @@ async function captureStates(/** @type {string[]} */ names) {
       .map((key) => path.join(cache, key, "walkthrough-seeds", SEED))
       .filter((dir) => fs.existsSync(path.join(dir, "seed.json")))
       .sort((a, b) => fs.statSync(path.join(b, "seed.json")).mtimeMs - fs.statSync(path.join(a, "seed.json")).mtimeMs)[0];
-    if (!theirs)
-      throw new Error(`no ${SEED} walkthrough seed on this machine: make one with walkthrough.mjs seed, four chats about help desk pricing, a SOC 2 audit, a Q3 board update and an October renewal, in a room named ${ROOM}`);
-    fs.cpSync(theirs, mine, { recursive: true });
+    if (theirs) fs.cpSync(theirs, mine, { recursive: true });
+    else node([WALK, "seed", path.join(path.dirname(new URL(import.meta.url).pathname), "seed", `${SEED}.seed.json`)]);
   }
 
   /** Stops the room and waits for its port to come free, so a boot straight after finds it free. */

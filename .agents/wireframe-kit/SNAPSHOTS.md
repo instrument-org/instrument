@@ -31,6 +31,8 @@ node .agents/wireframe-kit/snap/capture.mjs chat-row-menu    # one state, light 
 
 It boots the pricing scenario's clean room off screen, signed in, puts the state's snapshot, picture and outline in the library, adds its row to `INDEX.md`, leaves every other state as it was, and stops the room; a state takes about a minute. A state that isn't there yet is one entry in `STATES` in `snap/capture.mjs`: its name, a line on what it shows, its themes, and how to reach it from a window with one tab open (open a chat, click a control by its name, right-click a row). Look at its `.png` before you draw from it. With no name, the command captures every state.
 
+The room starts from `snap/seed/wf-pricing.seed.json`: the files its folder holds (in `snap/seed/files/`) and the chats it runs through the model. A machine that has never made the seed makes it on the first capture, which takes a few minutes longer. When a wireframe needs the app to hold something the seed lacks, such as a kind of chat, a file type or a project, add it to the recipe, delete the cached seed (`~/Library/Caches/instrument-studio-drive/*/walkthrough-seeds/wf-pricing` on a Mac) and capture again, so the library keeps up with the product.
+
 ## snap(state, edit) in a part
 
 ```js

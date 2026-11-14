@@ -24,7 +24,9 @@ import {
 } from "@/client/lib/find-targets";
 import { stepForKeyboard, stepSurfaceAt } from "@/client/lib/history-surfaces";
 import { focusScreenHome } from "@/client/lib/keyboard-home";
+import { pageHoldingKeyboard } from "@/client/lib/browser-pool";
 import { runPageChord } from "@/client/lib/page-chords";
+import { reloadScreenWithKeyboard } from "@/client/lib/screen-reloads";
 import { runPictureChord } from "@/client/lib/picture-keys";
 import { isBackspaceBackPress } from "@/client/components/extend/file-system-keys";
 import { commandKeyHeld, currentOs, isLinux } from "@/client/lib/utils";
@@ -412,8 +414,15 @@ export function useWindowCommands(
               break;
             }
             case "reloadPage": {
-              // The page on screen, when there is one; nothing otherwise.
-              runPageChord("reloadPage");
+              // The page holding the keyboard; else a chat or a built-in
+              // page on the side with it; else the page on screen, when
+              // there is one.
+              if (
+                pageHoldingKeyboard() !== null ||
+                !reloadScreenWithKeyboard()
+              ) {
+                runPageChord("reloadPage");
+              }
               break;
             }
             case "reopenTab": {

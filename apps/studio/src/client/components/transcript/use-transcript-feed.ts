@@ -7,6 +7,7 @@ import {
   type TranscriptFeed,
 } from "@instrument-org/workspace/client";
 import {
+  type QueryClient,
   queryOptions,
   skipToken,
   useQuery,
@@ -59,6 +60,14 @@ export function transcriptFeedOptions(input: FeedInput | undefined) {
           },
     queryKey,
     retry: 1,
+  });
+}
+
+/** Reads a chat's transcripts anew, each of its sessions' that is on screen. */
+export function refetchTranscripts(client: QueryClient, chat: ChatId) {
+  return client.refetchQueries({
+    queryKey: ["transcript-feed", chat],
+    type: "active",
   });
 }
 

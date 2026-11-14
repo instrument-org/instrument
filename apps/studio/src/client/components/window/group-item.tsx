@@ -11,9 +11,12 @@ import { getGuest, onPageThumb } from "@/client/lib/browser-pool";
 import { registerHistorySurface } from "@/client/lib/history-surfaces";
 import { hostPathOfFileUrl } from "@/client/lib/file-url";
 import { useGroupTabRouter } from "@/client/lib/group-tab-router-registry";
+import { offerScreenReload } from "@/client/lib/screen-reloads";
+import { refetchTranscripts } from "@/client/components/transcript/use-transcript-feed";
 import { useIsActiveTab } from "@/client/hooks/use-active-tab";
 import { browserTargetOf } from "@instrument-org/workspace/client";
 import { ArrowClockwiseIcon } from "@phosphor-icons/react/ArrowClockwise";
+import { useQueryClient } from "@tanstack/react-query";
 import { RouterProvider } from "@tanstack/react-router";
 import { noop } from "radashi";
 import { useAtomValue, useStore } from "jotai";
@@ -23,6 +26,7 @@ import {
   useEffect,
   useEffectEvent,
   useRef,
+  useState,
 } from "react";
 
 import { useAppsBySlug } from "./apps-by-slug";
@@ -42,9 +46,9 @@ import { type TabLocation, tasksOfHref } from "./tab-location";
 import { TabLocationRow, TabRowControl } from "./tab-location-row";
 import { surfaceLocation, tabSurfaceAtom } from "./tab-surface";
 import { useTaskTitles } from "./task-titles";
-import { draftOfTab } from "./tab-model";
+import { chatOfTab, draftOfTab } from "./tab-model";
 import { useTabSteps } from "./use-tab-steps";
-import { matchScreen } from "./window-href";
+import { matchScreen, type Screen } from "./window-href";
 import { useShell } from "./shell-context";
 import { formatAcceleratorText } from "@/client/lib/format-accelerator";
 import { WINDOW_SHORTCUTS } from "@/shared/window-shortcuts";
@@ -212,6 +216,34 @@ export function GroupItem({
 
   // The router of a screen that is up; read before the early returns, as a hook.
   const router = useGroupTabRouter(up.id);
+
+  // Reload draws a chat or a built-in page again from the start, a chat's
+  // transcript read anew, as a browser's does a page; the window's Reload
+  // reaches it on the side with the keyboard.
+  const isReloaded =
+    screenKind !== undefined && RELOADED_SCREENS.has(screenKind);
+  const queryClient = useQueryClient();
+  const [reloads, setReloads] = useState(0);
+  const reloadScreen = () => {
+    const chat = chatOfTab(up);
+    if (chat !== undefined) {
+      void refetchTranscripts(queryClient, chat);
+    }
+    setReloads((count) => count + 1);
+  };
+  const reloadFromWindow = useEffectEvent(reloadScreen);
+  useEffect(() => {
+    if (!isReloaded) {
+      return;
+    }
+    return offerScreenReload({
+      element: () => anchorRef.current,
+      reload: () => {
+        reloadFromWindow();
+      },
+    });
+  }, [isReloaded]);
+
   // A new tab is asked for to type an address, so its field takes the caret
   // whenever the tab comes up, wherever the keyboard was.
   const isActive = useIsActiveTab();
@@ -251,6 +283,22 @@ export function GroupItem({
         onVisit={visitHere}
         {...(up.kind === "page" ? { title: up.title } : {})}
         {...rowProps}
+        {...(isReloaded
+          ? {
+              reload: (
+                <>
+                  {rowProps.reload}
+                  <TabRowControl
+                    chord="reloadPage"
+                    disabled={false}
+                    icon={<ArrowClockwiseIcon className="size-4" />}
+                    label="Reload"
+                    onClick={reloadScreen}
+                  />
+                </>
+              ),
+            }
+          : {})}
         leading={rowProps.leading}
         trailing={
           <>
@@ -377,7 +425,9 @@ export function GroupItem({
   ) : (
     row(location)
   );
-  const content = router ? <RouterProvider router={router} /> : null;
+  const content = router ? (
+    <RouterProvider key={reloads} router={router} />
+  ) : null;
   return (
     <Bare
       anchorRef={anchorRef}
@@ -443,6 +493,20 @@ export function GroupItem({
     </Bare>
   );
 }
+
+/** The screens Reload draws again: a chat and the built-in pages. */
+const RELOADED_SCREENS = new Set<Screen["kind"]>([
+  "activity",
+  "apps",
+  "browser",
+  "chat",
+  "extensions",
+  "history",
+  "memories",
+  "releaseNotes",
+  "settings",
+  "skills",
+]);
 
 /** The chord that puts the caret in the address field, at the end of the empty field. */
 function LocationKeys() {

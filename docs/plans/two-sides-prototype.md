@@ -98,7 +98,7 @@ One drag system carries everything that can be held, and every place that takes 
 
 ## A chat knows the tabs around it
 
-- The chat's agent works in the group of the chat's tab the person last sent a message from. It is told that group's layout as a terse block: each side's tabs in order, which is in front on each, which side has the keyboard, and which tab is this chat, with a line saying the tabs in front are most likely what the person is looking at.
+- The chat's agent works in the group of the chat's tab the person last sent a message from. It is told that group's layout as a terse block: each side's tabs in order, which each side shows, which side has the keyboard, and which tab is this chat, ending with what shows (`showingLine`): the page beside the chat, a page covering it on its own side, and that none of it is on screen while the window shows another group (`isShown`). `window show` and `window list` say a tab's place in the same words (`tabPlace`), never "in front".
 - With it comes what changed since the layout it was told before: tabs opened, closed, moved within or between sides or groups, and navigated, and this chat's own moves.
 - Reach is generous: the agent acts on any tab by its id, and lists any group by its id, by default the group it works in.
 - Awareness is not a grant. A tab in the group opens nothing to the chat; only what the person attaches does. At the head of a chat's composer a quiet line says what its agent sees of the group, as "4 tabs, 3 files".

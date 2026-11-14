@@ -6,6 +6,7 @@ import {
   type LayoutTab,
 } from "../schemas/group-layout";
 import {
+  changesByPerson,
   type LayoutElsewhere,
   layoutChanges,
   layoutChangesLine,
@@ -259,5 +260,26 @@ describe("layoutChangesLine", () => {
     expect(
       layoutChangesLine(layoutChanges(layout(before), layout(after))),
     ).toBe(line);
+  });
+});
+
+describe("changesByPerson", () => {
+  it("leaves out what an agent opened, closed or went to", () => {
+    const changes = layoutChanges(layout("A* B | @*"), layout("A:c C* | @*"));
+    const agents = changes.map((one): LayoutChange => {
+      switch (one.change) {
+        case "navigated":
+        case "opened": {
+          return { ...one, byAgent: true };
+        }
+        default: {
+          return one;
+        }
+      }
+    });
+    expect(layoutChangesLine(changes)).toBe(
+      "Opened C beside this chat, closed B, went to C",
+    );
+    expect(layoutChangesLine(changesByPerson(agents))).toBe("Closed B");
   });
 });

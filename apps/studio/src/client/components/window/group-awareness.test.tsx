@@ -9,6 +9,7 @@ import {
   type GroupAwarenessWindow,
   groupLayoutFor,
   layoutReader,
+  noteAgentChange,
 } from "./group-awareness";
 import { groupLayoutOf, type WindowTabs } from "./tab-model";
 import { chatHref, newChatHref } from "./window-href";
@@ -244,6 +245,44 @@ describe("layoutReader", () => {
         windowOf([ZENDESK, { ...sending, href: chatHref(chat) }, DOWNLOADS]),
       )(sending.id, chat)?.changes,
     ).toMatchObject([{ change: "opened", tab: { id: "tab_dl" } }]);
+  });
+
+  it("marks what an agent did to the tabs as its own", () => {
+    const told = ChatIdSchema.parse("2026-11-13-agent");
+    const asked = { ...ZENDESK, id: "tab_asked" };
+    const sent: WindowTab = {
+      ...ZENDESK,
+      id: "tab_sent",
+      title: "Example",
+      url: "https://example.com/a",
+    };
+    layoutReader(windowOf([CHAT_TAB, ZENDESK, sent]))(CHAT_TAB.id, told);
+    noteAgentChange({ change: "opened", tabId: asked.id });
+    noteAgentChange({
+      address: "example.com/b",
+      change: "navigated",
+      tabId: sent.id,
+    });
+    const after = layoutReader(
+      windowOf([
+        CHAT_TAB,
+        asked,
+        { ...sent, url: "https://www.example.com/b/" },
+        DOWNLOADS,
+      ]),
+    )(CHAT_TAB.id, told);
+    expect(
+      after?.changes.map((one) => [
+        one.change,
+        "tab" in one ? one.tab.id : "",
+        "byAgent" in one ? one.byAgent : undefined,
+      ]),
+    ).toEqual([
+      ["closed", "tab_zen", undefined],
+      ["opened", "tab_asked", true],
+      ["navigated", "tab_sent", true],
+      ["opened", "tab_dl", undefined],
+    ]);
   });
 
   it("reads nothing for a tab no group has", () => {

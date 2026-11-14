@@ -26,6 +26,7 @@ export { describeMessageError } from "./lib/describe-message-error";
 export { PLAN_NOT_ELIGIBLE_CODES } from "./lib/plan-not-eligible-codes";
 export { formatBytes } from "./lib/format-bytes";
 export {
+  changesByPerson,
   type LayoutElsewhere,
   layoutChanges,
   layoutChangesLine,

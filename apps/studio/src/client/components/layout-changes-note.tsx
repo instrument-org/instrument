@@ -1,20 +1,22 @@
 import {
+  changesByPerson,
   layoutChangesLine,
   type SessionMessageDataPart,
 } from "@instrument-org/workspace/client";
 import { BrowsersIcon } from "@phosphor-icons/react/Browsers";
 
 /**
- * What changed in the chat's tab group since its last message, as one dim
- * line on the message it went with: "Opened Zendesk pricing beside this
- * chat". The whole of what the agent was told is a developer's note.
+ * What the person changed in the chat's tab group since its last message,
+ * as one dim line on the message it went with: "Opened Zendesk pricing
+ * beside this chat". What an agent did is left out. The whole of what the
+ * agent was told is a developer's note.
  */
 export function LayoutChangesNote({
   data,
 }: {
   data: SessionMessageDataPart.LayoutChangesDataPart;
 }) {
-  const line = layoutChangesLine(data.changes);
+  const line = layoutChangesLine(changesByPerson(data.changes));
   if (line === "") {
     return null;
   }

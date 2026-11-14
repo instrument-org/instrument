@@ -4,6 +4,7 @@ import { SCREENS } from "@/shared/instrument-screens";
 import { chatAddressOf, instrumentUrlOf } from "@instrument-org/shared";
 import {
   type ChatId,
+  type LayoutChange,
   type LayoutElsewhere,
   type LayoutSent,
   type LayoutSnapshot,
@@ -197,6 +198,71 @@ const lastSent = new Map<
 >();
 
 /**
+ * What agents did to the window's tabs, kept in memory by tab id: the tabs
+ * one opened or closed, and the address one sent a tab to. A change to such
+ * a tab is marked as an agent's (`byAgent`), so the line over the person's
+ * next message says only what they did.
+ */
+const byAgents = {
+  closed: new Set<string>(),
+  navigated: new Map<string, string>(),
+  opened: new Set<string>(),
+};
+
+/** An agent opened a tab, closed one, or sent one to an address. */
+export function noteAgentChange(
+  change:
+    | { address: string; change: "navigated"; tabId: string }
+    | { change: "closed" | "opened"; tabId: string },
+) {
+  if (change.change === "navigated") {
+    byAgents.navigated.set(change.tabId, change.address);
+  } else {
+    byAgents[change.change].add(change.tabId);
+  }
+}
+
+/** A change marked as an agent's when an agent made it (`noteAgentChange`). */
+function markedByAgent(change: LayoutChange): LayoutChange {
+  switch (change.change) {
+    case "closed":
+    case "opened": {
+      return byAgents[change.change].has(change.tab.id)
+        ? { ...change, byAgent: true }
+        : change;
+    }
+    case "navigated": {
+      const asked = byAgents.navigated.get(change.tab.id);
+      return asked !== undefined &&
+        sameAddress(asked, change.tab.address)
+        ? { ...change, byAgent: true }
+        : change;
+    }
+    default: {
+      return change;
+    }
+  }
+}
+
+/**
+ * Two page addresses are one page whatever their scheme, `www.`, trailing
+ * slash or fragment, so a page an agent asked for is still its page once
+ * loaded.
+ */
+function sameAddress(one: string, other: string) {
+  return addressKey(one) === addressKey(other);
+}
+
+function addressKey(address: string) {
+  const parsed = URL.parse(address.includes("://") ? address : `https://${address}`);
+  if (parsed === null) {
+    return address;
+  }
+  const host = parsed.host.replace(/^www\./, "");
+  return `${host}${parsed.pathname.replace(/\/$/, "")}${parsed.search}`;
+}
+
+/**
  * The layout with what changed since `told` was last sent to, which is
  * nothing for its first message; and the layout kept as the next one's
  * starting point.
@@ -212,7 +278,10 @@ function layoutSent(
     return { changes: [], layout };
   }
   const where: LayoutElsewhere = { after: elsewhere, before: before.elsewhere };
-  return { changes: layoutChanges(before.layout, layout, where), layout };
+  return {
+    changes: layoutChanges(before.layout, layout, where).map(markedByAgent),
+    layout,
+  };
 }
 
 /**

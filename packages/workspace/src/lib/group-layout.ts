@@ -251,6 +251,13 @@ function titleOf(tab: LayoutTab): string {
   return tab.isThisChat ? "this chat" : tab.title;
 }
 
+/** The changes the person made: every one but those an agent made. */
+export function changesByPerson(
+  changes: readonly LayoutChange[],
+): LayoutChange[] {
+  return changes.filter((one) => !("byAgent" in one && one.byAgent === true));
+}
+
 /**
  * The changes in one short line for the person, on the message they went
  * with: "Opened Zendesk pricing beside this chat, closed Intercom". Empty

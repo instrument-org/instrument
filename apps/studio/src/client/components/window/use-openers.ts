@@ -22,6 +22,7 @@ import { type BrowserTabsHandle } from "./browser-tabs";
 import { chatListOptions } from "./chat-list-query";
 import { type OpenOptions } from "./context";
 import { bringForwardShowing } from "./built-in-pages";
+import { noteAgentChange } from "./group-awareness";
 import { isGroupScreenHref } from "./group-screen";
 import { openMenuLink } from "./menu-link";
 import { openLinkAddress } from "./open-link-address";
@@ -788,6 +789,7 @@ export function useOpeners({
       controller.signal,
       async (request) => {
         const answer = await openers.current.actOnTab(request);
+        noteAgentAsk(request.action, answer.tabId);
         // The answer goes back to the command that asked, so the
         // conversation can hand a tab to a task, or say what went wrong,
         // without waiting for the next message's note.
@@ -810,6 +812,51 @@ export function useOpeners({
       openScreen(href, options);
     },
   });
+}
+
+/**
+ * What an agent's ask did to the tabs, kept so the line over the person's
+ * next message leaves it out (`noteAgentChange`): the tab it opened or
+ * closed, and the page it sent a tab to. A tab replaced by a tab of another
+ * kind is one closed and one opened.
+ */
+function noteAgentAsk(
+  action: WindowTabRequest["action"],
+  tabId: string | undefined,
+) {
+  if (tabId === undefined) {
+    return;
+  }
+  switch (action.kind) {
+    case "adopt":
+    case "open": {
+      noteAgentChange({ change: "opened", tabId });
+      return;
+    }
+    case "close": {
+      noteAgentChange({ change: "closed", tabId });
+      return;
+    }
+    case "replace": {
+      if (tabId !== action.tabId) {
+        noteAgentChange({ change: "closed", tabId: action.tabId });
+        noteAgentChange({ change: "opened", tabId });
+      } else if (action.target.kind === "page" && action.target.url) {
+        noteAgentChange({
+          address: action.target.url,
+          change: "navigated",
+          tabId,
+        });
+      }
+      return;
+    }
+    case "list":
+    case "read":
+    case "restore":
+    case "show": {
+      return;
+    }
+  }
 }
 
 /** Says a chat's address named none of the chats here. */

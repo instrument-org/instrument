@@ -64,6 +64,9 @@ const ChangedTabSchema = LayoutTabSchema.pick({
 
 export type ChangedTab = z.output<typeof ChangedTabSchema>;
 
+/** Marks a change an agent made, this chat's or another's, rather than the person. */
+const ByAgentSchema = z.boolean().optional();
+
 /**
  * One change to a chat's tab group between two of its messages, by tab. A
  * side is named as the layout it belongs to has it: where a tab stands now
@@ -73,11 +76,16 @@ export type ChangedTab = z.output<typeof ChangedTabSchema>;
 export const LayoutChangeSchema = z.discriminatedUnion("change", [
   z.object({
     beside: z.boolean().optional(),
+    byAgent: ByAgentSchema,
     change: z.literal("opened"),
     side: SideSchema,
     tab: ChangedTabSchema,
   }),
-  z.object({ change: z.literal("closed"), tab: ChangedTabSchema }),
+  z.object({
+    byAgent: ByAgentSchema,
+    change: z.literal("closed"),
+    tab: ChangedTabSchema,
+  }),
   z.object({
     beside: z.boolean().optional(),
     change: z.literal("movedIn"),
@@ -102,6 +110,7 @@ export const LayoutChangeSchema = z.discriminatedUnion("change", [
     to: SideSchema,
   }),
   z.object({
+    byAgent: ByAgentSchema,
     change: z.literal("navigated"),
     from: ChangedTabSchema.pick({ address: true, kind: true, title: true }),
     tab: ChangedTabSchema,

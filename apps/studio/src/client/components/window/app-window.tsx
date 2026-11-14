@@ -174,8 +174,6 @@ import {
   sidebarWidthAtom,
 } from "@/client/atoms/tab-groups";
 import { StudioSidebarRail } from "@/client/components/studio-sidebar-rail";
-import { formatAcceleratorText } from "@/client/lib/format-accelerator";
-import { WINDOW_SHORTCUTS } from "@/shared/window-shortcuts";
 import {
   CHATS_INDEX_HREF,
   groupHref,
@@ -210,9 +208,6 @@ function floatingDraftIdsOf(kept: unknown): string[] {
       : [],
   );
 }
-
-/** How long after a first Cmd+W on a group with no tabs a second one closes the group. */
-const CLOSE_AGAIN_MS = 3000;
 
 /**
  * The app window: its tabs across the bar, each a router of its own kept
@@ -562,12 +557,6 @@ function WindowShell({
       groups.closeAll(closed, keep);
     }
   };
-  // The group a first Cmd+W on a group with no tabs left named, and when.
-  const closeHint = useRef<{
-    at: number;
-    group: string;
-    toast: number | string;
-  }>(undefined);
   // The window shows one group at a time, in one tab: tabs restored from
   // the strip a build before this one kept fold into the one up.
   const foldRestoredTabs = useEffectEvent(() => {
@@ -871,7 +860,7 @@ function WindowShell({
   const requestClose = (id: string) => {
     const tab = windowTabs.allTabs.find((each) => each.id === id);
     const closedAs = closingAsWritten(tab);
-    // A group's last tab closes the group, asking first while its agent works.
+    // A group's last tab closes the group.
     if (
       tab?.group !== undefined &&
       groupList.open.some((entry) => entry.group === tab.group) &&
@@ -1232,37 +1221,20 @@ function WindowShell({
       back: () => {
         windowSteps.go("back");
       },
-      // The tab up on the side with the keyboard in the group on screen,
-      // and the group itself at its last tab only on a second press: one
-      // close a press, read from the tabs as they are at that moment.
+      // The tab up on the side with the keyboard in the group on screen; the
+      // group's last tab closes the group with it, which Shift+Cmd+T and
+      // History bring back.
       closeTab: () => {
         const group = store.get(groupOnScreenAtom);
         if (group === undefined) {
           return;
         }
-        const state = store.get(windowTabsAtom);
-        const up = selectedTabIn(state, group);
-        if (
-          up &&
-          state.tabs.some((tab) => tab.group === group && tab.id !== up.id)
-        ) {
+        const up = selectedTabIn(store.get(windowTabsAtom), group);
+        if (up) {
           requestClose(up.id);
-          return;
-        }
-        const hint = closeHint.current;
-        if (hint?.group === group && Date.now() - hint.at < CLOSE_AGAIN_MS) {
-          closeHint.current = undefined;
-          toast.dismiss(hint.toast);
+        } else {
           closeGroups([group]);
-          return;
         }
-        closeHint.current = {
-          at: Date.now(),
-          group,
-          toast: toast(
-            `Press ${formatAcceleratorText(WINDOW_SHORTCUTS.closeTab.accelerator)} again to close this tab group.`,
-          ),
-        };
       },
       forward: () => {
         windowSteps.go("forward");

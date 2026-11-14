@@ -18,7 +18,6 @@ import { Route as AppExtensionsRouteImport } from './routes/_app/extensions'
 import { Route as AppFilesRouteImport } from './routes/_app/files'
 import { Route as AppHistoryRouteImport } from './routes/_app/history'
 import { Route as AppMemoryRouteImport } from './routes/_app/memory'
-import { Route as AppNewTabRouteImport } from './routes/_app/new-tab'
 import { Route as AppReleaseNotesRouteImport } from './routes/_app/release-notes'
 import { Route as AppSkillsRouteImport } from './routes/_app/skills'
 import { Route as DebugIndexRouteImport } from './routes/debug/index'
@@ -93,11 +92,6 @@ const AppHistoryRoute = AppHistoryRouteImport.update({
 const AppMemoryRoute = AppMemoryRouteImport.update({
   id: '/memory',
   path: '/memory',
-  getParentRoute: () => AppRouteRoute,
-} as any)
-const AppNewTabRoute = AppNewTabRouteImport.update({
-  id: '/new-tab',
-  path: '/new-tab',
   getParentRoute: () => AppRouteRoute,
 } as any)
 const AppReleaseNotesRoute = AppReleaseNotesRouteImport.update({
@@ -273,7 +267,6 @@ export interface FileRoutesByFullPath {
   '/files': typeof AppFilesRoute
   '/history': typeof AppHistoryRoute
   '/memory': typeof AppMemoryRoute
-  '/new-tab': typeof AppNewTabRoute
   '/release-notes': typeof AppReleaseNotesRoute
   '/skills': typeof AppSkillsRoute
   '/debug/app-states': typeof DebugAppStatesRoute
@@ -314,7 +307,6 @@ export interface FileRoutesByTo {
   '/files': typeof AppFilesRoute
   '/history': typeof AppHistoryRoute
   '/memory': typeof AppMemoryRoute
-  '/new-tab': typeof AppNewTabRoute
   '/release-notes': typeof AppReleaseNotesRoute
   '/skills': typeof AppSkillsRoute
   '/debug/app-states': typeof DebugAppStatesRoute
@@ -357,7 +349,6 @@ export interface FileRoutesById {
   '/_app/files': typeof AppFilesRoute
   '/_app/history': typeof AppHistoryRoute
   '/_app/memory': typeof AppMemoryRoute
-  '/_app/new-tab': typeof AppNewTabRoute
   '/_app/release-notes': typeof AppReleaseNotesRoute
   '/_app/skills': typeof AppSkillsRoute
   '/debug/app-states': typeof DebugAppStatesRoute
@@ -401,7 +392,6 @@ export interface FileRouteTypes {
     | '/files'
     | '/history'
     | '/memory'
-    | '/new-tab'
     | '/release-notes'
     | '/skills'
     | '/debug/app-states'
@@ -442,7 +432,6 @@ export interface FileRouteTypes {
     | '/files'
     | '/history'
     | '/memory'
-    | '/new-tab'
     | '/release-notes'
     | '/skills'
     | '/debug/app-states'
@@ -484,7 +473,6 @@ export interface FileRouteTypes {
     | '/_app/files'
     | '/_app/history'
     | '/_app/memory'
-    | '/_app/new-tab'
     | '/_app/release-notes'
     | '/_app/skills'
     | '/debug/app-states'
@@ -587,13 +575,6 @@ declare module '@tanstack/react-router' {
       path: '/memory'
       fullPath: '/memory'
       preLoaderRoute: typeof AppMemoryRouteImport
-      parentRoute: typeof AppRouteRoute
-    }
-    '/_app/new-tab': {
-      id: '/_app/new-tab'
-      path: '/new-tab'
-      fullPath: '/new-tab'
-      preLoaderRoute: typeof AppNewTabRouteImport
       parentRoute: typeof AppRouteRoute
     }
     '/_app/release-notes': {
@@ -823,7 +804,6 @@ interface AppRouteRouteChildren {
   AppFilesRoute: typeof AppFilesRoute
   AppHistoryRoute: typeof AppHistoryRoute
   AppMemoryRoute: typeof AppMemoryRoute
-  AppNewTabRoute: typeof AppNewTabRoute
   AppReleaseNotesRoute: typeof AppReleaseNotesRoute
   AppSkillsRoute: typeof AppSkillsRoute
   AppAppsSlugRoute: typeof AppAppsSlugRoute
@@ -843,7 +823,6 @@ const AppRouteRouteChildren: AppRouteRouteChildren = {
   AppFilesRoute: AppFilesRoute,
   AppHistoryRoute: AppHistoryRoute,
   AppMemoryRoute: AppMemoryRoute,
-  AppNewTabRoute: AppNewTabRoute,
   AppReleaseNotesRoute: AppReleaseNotesRoute,
   AppSkillsRoute: AppSkillsRoute,
   AppAppsSlugRoute: AppAppsSlugRoute,

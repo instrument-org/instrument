@@ -110,7 +110,7 @@ function describedTab(
     };
   }
   const screen = matchScreen(tab.href);
-  if (screen.kind === "inbox" || screen.kind === "newTab") {
+  if (screen.kind === "inbox") {
     return {
       address: "instrument://new-chat",
       id: tab.id,

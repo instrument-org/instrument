@@ -13,7 +13,6 @@ import { hostPathOfFileUrl } from "@/client/lib/file-url";
 import { useGroupTabRouter } from "@/client/lib/group-tab-router-registry";
 import { offerScreenReload } from "@/client/lib/screen-reloads";
 import { refetchTranscripts } from "@/client/components/transcript/use-transcript-feed";
-import { useIsActiveTab } from "@/client/hooks/use-active-tab";
 import { browserTargetOf } from "@instrument-org/workspace/client";
 import { ArrowClockwiseIcon } from "@phosphor-icons/react/ArrowClockwise";
 import { useQueryClient } from "@tanstack/react-query";
@@ -36,7 +35,6 @@ import { asksOwnPlace, useWindow, WindowContext } from "./context";
 import { useRowSlots } from "./row-slots";
 import { BrowserExtensionButtons } from "./browser-extension-buttons";
 import { PageAgentOverlay } from "./page-agent-overlay";
-import { GroupNewTab } from "./group-new-tab";
 import { GroupTabContext } from "./group-tab";
 import { liveFileAddress, liveHostedFileAddress } from "./hosted-page";
 import { KeptScrolls } from "./kept-scrolls";
@@ -119,9 +117,6 @@ export function GroupItem({
   // opened it, else the chat up in its group.
   const chatId = up.openedBy ?? windowTabs.chatUpIn(group);
   const page = targetId ? getGuest(targetId) : null;
-  // An earlier build's new tab page; a new tab now is a new chat.
-  const isNewTab =
-    up.kind === "screen" && matchScreen(up.href).kind === "newTab";
   const screenKind =
     up.kind === "screen" ? matchScreen(up.href).kind : undefined;
   const isNewChat = screenKind === "inbox";
@@ -139,12 +134,11 @@ export function GroupItem({
       .some((draft) => written.includes(draft.id) && holdsSomething(draft));
   };
   /**
-   * Files at a folder: in place of a new tab, or of a new chat with nothing
-   * written in it, so back returns there; in a tab of its own after anything
-   * else.
+   * Files at a folder: in place of a new chat with nothing written in it, so
+   * back returns there; in a tab of its own after anything else.
    */
   const openFiles = (href: string) => {
-    if (isNewTab || (isNewChat && isUnwritten())) {
+    if (isNewChat && isUnwritten()) {
       windowTabs.visitHref(up.id, href);
     } else {
       windowTabs.openScreen(href, { after: up.id, group, select: true });
@@ -161,9 +155,7 @@ export function GroupItem({
     // group where it has one, rather than a second tab on the chat.
     const visited = matchScreen(href);
     const chatTab =
-      visited.kind === "chat"
-        ? windowTabs.chatTab(visited.chat)
-        : undefined;
+      visited.kind === "chat" ? windowTabs.chatTab(visited.chat) : undefined;
     if (chatTab?.group === group && chatTab.id !== up.id) {
       windowTabs.select(chatTab.id);
       return;
@@ -250,18 +242,6 @@ export function GroupItem({
     });
   }, [isReloaded]);
 
-  // A new tab is asked for to type an address, so its field takes the caret
-  // whenever the tab comes up on the side with the keyboard, wherever the
-  // keyboard was.
-  const isActive = useIsActiveTab();
-  useEffect(() => {
-    if (isNewTab && isShown && isActive && hasKeyboard) {
-      anchorRef.current
-        ?.querySelector<HTMLInputElement>("[data-tab-location] input")
-        ?.focus();
-    }
-  }, [hasKeyboard, isActive, isNewTab, isShown, up.id]);
-
   /** Where the page on a file up here stands now: the page tab's own, or the one a file's viewer draws. */
   const liveAddressOf = (path: string) =>
     targetId === undefined
@@ -347,47 +327,6 @@ export function GroupItem({
           <div className="h-full" data-keyboard-home ref={onPageHost} />
           {!before && <PageAgentOverlay askingChat={chatId} tabId={up.id} />}
         </div>
-      </Bare>
-    );
-  }
-  // A new tab, as a browser's: the toolbar's address field, with a reload
-  // for no page yet, over the bookmarks, and the places to open in Files.
-  if (isNewTab) {
-    return (
-      <Bare
-        anchorRef={anchorRef}
-        head={
-          <>
-            <TabLocationRow
-              canGoBack={canGoBack}
-              canGoForward={canGoForward}
-              className="border-b-0"
-              location={screenLocation(up.href, { appsBySlug, taskTitles })}
-              onBack={goBack}
-              onForward={goForward}
-              onSite={openHere}
-              onVisit={(href) => {
-                windowTabs.visitHref(up.id, href);
-              }}
-              reload={
-                <TabRowControl
-                  chord="reloadPage"
-                  disabled
-                  icon={<ArrowClockwiseIcon className="size-4" />}
-                  label="Reload"
-                  onClick={noop}
-                />
-              }
-            />
-            <BookmarksBar
-              files={{ group, onOpen: openFiles }}
-              onOpen={openHere}
-              onVisit={visitHere}
-            />
-          </>
-        }
-      >
-        <GroupNewTab group={group} tabId={up.id} />
       </Bare>
     );
   }

@@ -81,7 +81,6 @@ function SettingsTabRows() {
     done: (run) => run,
     openPage: () => undefined,
     openScreen: () => undefined,
-    surface: "dialog",
     words: "settings",
   });
   return (
@@ -133,7 +132,6 @@ function MenuRows({ words }: { words: string }) {
     done: (run) => run,
     openPage: () => undefined,
     openScreen: () => undefined,
-    surface: "dialog",
     words,
   });
   return (

@@ -103,7 +103,6 @@ describe("sameHref", () => {
 
 it("reads every kind of address", () => {
   const hrefs = [
-    "/new-tab",
     "/browser",
     "/files?path=&root=~",
     "/files?file=%2FUsers%2Fme%2Fa.md&path=&root=~&tree=%2FUsers%2Fme",
@@ -222,9 +221,6 @@ it("reads every kind of address", () => {
         "/memory/trip-notes": {
           "kind": "memory",
           "name": "trip-notes",
-        },
-        "/new-tab": {
-          "kind": "newTab",
         },
         "/nowhere": {
           "kind": "unknown",

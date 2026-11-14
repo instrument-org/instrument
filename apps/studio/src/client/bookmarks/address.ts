@@ -50,7 +50,6 @@ export function addressOfTab(
     }
     case "debug":
     case "inbox":
-    case "newTab":
     case "site":
     case "unknown": {
       return undefined;

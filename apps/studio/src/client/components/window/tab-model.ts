@@ -513,18 +513,15 @@ export function isFreshTab(tab: WindowTab): boolean {
 
 /**
  * Whether a tab is a new tab nobody has written in: a new chat with no
- * draft yet, or an earlier build's new-tab page. Such a tab is told where to
- * go rather than kept beside what was asked for.
+ * draft yet. Such a tab is told where to go rather than kept beside what was
+ * asked for.
  */
 export function isHomeTab(tab: WindowTab): boolean {
   if (tab.kind !== "screen") {
     return false;
   }
   const screen = matchScreen(tab.href);
-  return (
-    screen.kind === "newTab" ||
-    (screen.kind === "inbox" && screen.draft === undefined)
-  );
+  return screen.kind === "inbox" && screen.draft === undefined;
 }
 
 /** Whether a tab is a new chat, written in or not: the zero state, at `/chats`. */

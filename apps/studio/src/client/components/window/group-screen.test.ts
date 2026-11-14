@@ -5,7 +5,6 @@ import { isGroupScreenHref } from "./group-screen";
 describe("isGroupScreenHref", () => {
   it.each([
     "/browser",
-    "/new-tab",
     "/apps",
     "/apps/linear",
     "/tasks/ses_01ARZ3NDEKTSV4RRFFQ69G5FAV?chat=2026-10-01-roofer",

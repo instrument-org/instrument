@@ -19,7 +19,6 @@ export function isGroupScreenHref(href: string): boolean {
     case "extensions":
     case "history":
     case "memories":
-    case "newTab":
     case "releaseNotes":
     case "settings":
     case "skills":

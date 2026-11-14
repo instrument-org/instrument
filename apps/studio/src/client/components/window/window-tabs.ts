@@ -1,4 +1,8 @@
-import { type BrowserTab, type WindowTab } from "@/client/atoms/window";
+import {
+  type BrowserTab,
+  NEW_TAB_HREF,
+  type WindowTab,
+} from "@/client/atoms/window";
 import { atom, useAtomValue, useSetAtom } from "jotai";
 
 import { getGroupTabRouter } from "@/client/lib/group-tab-router-registry";
@@ -121,6 +125,16 @@ function splitTabGroups({
   return members;
 }
 
+/**
+ * A kept tab as this build reads it: one at the new-tab page an earlier
+ * build wrote is a new chat.
+ */
+function carriedTab(tab: WindowTab): WindowTab {
+  return tab.kind === "screen" && tab.href === "/new-tab"
+    ? { ...tab, href: NEW_TAB_HREF }
+    : tab;
+}
+
 function joinTabGroups(members: Map<string, unknown>): WindowTabs {
   const activeByGroup: Record<string, string> = {};
   const besideByGroup: Record<string, string> = {};
@@ -146,7 +160,8 @@ function joinTabGroups(members: Map<string, unknown>): WindowTabs {
       groups[group] = own;
     }
     if ("tabs" in member && Array.isArray(member.tabs)) {
-      tabs.push(...(member.tabs as WindowTab[])); // Written by this module alone.
+      // Written by this module alone.
+      tabs.push(...(member.tabs as WindowTab[]).map(carriedTab));
     }
   }
   return { activeByGroup, besideByGroup, groups, tabs };
@@ -484,9 +499,7 @@ export function useWindowTabs() {
         return undefined;
       }
       return answer<undefined | { front: boolean; id: string }>((current) => {
-        const group = current.tabs.find(
-          (tab) => tab.id === ask.chatTab,
-        )?.group;
+        const group = current.tabs.find((tab) => tab.id === ask.chatTab)?.group;
         if (group === undefined) {
           return { state: current, value: undefined };
         }

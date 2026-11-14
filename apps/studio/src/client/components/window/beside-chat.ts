@@ -51,9 +51,7 @@ export function pageTypeOf(tab: WindowTab): PageType {
     return computer.file === undefined ? "folder" : "file";
   }
   const screen = matchScreen(tab.href);
-  return screen.kind === "newTab" || screen.kind === "inbox"
-    ? "newTab"
-    : "builtIn";
+  return screen.kind === "inbox" ? "newTab" : "builtIn";
 }
 
 /** Whether what is clicked in a tab opens beside it (`OPENS_BESIDE`). */

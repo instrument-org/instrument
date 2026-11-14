@@ -850,12 +850,9 @@ function WindowShell({
   const appsBySlug = useAppsBySlug();
   // What a new tab shows, asked for as the window comes up rather than as the
   // tab mounts, so the page lays out from the cache instead of growing a
-  // section at a time as each answer lands. The new tab's own code is split
-  // from the window's, so it is fetched now too, or the first Cmd+T waits on
-  // it. The free trial's offer is the Add a provider sheet's one remote
+  // section at a time as each answer lands. The free trial's offer is the Add a provider sheet's one remote
   // answer, so it is in the cache before the sheet opens.
   const queryClient = useQueryClient();
-  const { activeRouter } = appTabs;
   useEffect(() => {
     if (!opened) {
       return;
@@ -865,8 +862,7 @@ function WindowShell({
     );
     void queryClient.prefetchQuery(storageLocationQueryOptions());
     void queryClient.prefetchQuery(rpcClient.billing.offer.queryOptions());
-    void activeRouter?.loadRouteChunk(activeRouter.routesById["/_app/new-tab"]);
-  }, [activeRouter, opened, queryClient]);
+  }, [opened, queryClient]);
 
   /**
    * A new chat's tab as it closes, at the address of the draft words typed
@@ -923,11 +919,13 @@ function WindowShell({
    * its group, up there, or as a group of its own when its group has closed.
    */
   const reopenTab = () => {
-    const [entry] = store.get(appTabsAtom).recentlyClosed.filter(
-      (each) =>
-        closedGroupTabOf(each) !== undefined ||
-        closedTabGroupOf(each) !== undefined,
-    );
+    const [entry] = store
+      .get(appTabsAtom)
+      .recentlyClosed.filter(
+        (each) =>
+          closedGroupTabOf(each) !== undefined ||
+          closedTabGroupOf(each) !== undefined,
+      );
     void rpcClient.window.reopenClosed
       .call(entry && { after: entry.closedAt ?? 0 })
       .catch(() => false)
@@ -955,8 +953,7 @@ function WindowShell({
         }
         // A tab alone stands on the one side its new group has.
         const tabs =
-          closedTabGroupOf(entry) ??
-          (tab ? [{ ...tab, side: undefined }] : []);
+          closedTabGroupOf(entry) ?? (tab ? [{ ...tab, side: undefined }] : []);
         groups.make({
           fill: (group) => {
             windowTabs.restoreGroup(
@@ -1700,7 +1697,7 @@ function WindowShell({
               </div>
               <CommandMenu
                 openPage={(url) => {
-                  openPage(url, { newTab: true });
+                  openPage(url);
                 }}
                 openScreen={openScreen}
               />

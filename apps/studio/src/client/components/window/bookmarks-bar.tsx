@@ -28,7 +28,7 @@ import {
   useBookmarksTarget,
   useShownBookmarks,
 } from "./drag/use-bookmarks-drag";
-import { type Place, useFilesPlaces } from "./group-new-tab";
+import { type Place, useFilesPlaces } from "./files-places";
 import { useShell } from "./shell-context";
 import { useTabTitle } from "./tab-title";
 import { BookmarkNameField, bookmarkName, useBookmarkEdits } from "./web-start";

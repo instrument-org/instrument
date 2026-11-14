@@ -352,12 +352,7 @@ export function ComposeWindow({
   // by mentioning it.
   const openScreen = (href: string) => {
     const { kind } = matchScreen(href);
-    if (
-      kind === "computer" ||
-      kind === "apps" ||
-      kind === "app" ||
-      kind === "newTab"
-    ) {
+    if (kind === "computer" || kind === "apps" || kind === "app") {
       openScreenIn(href);
       return;
     }

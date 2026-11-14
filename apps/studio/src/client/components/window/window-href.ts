@@ -42,7 +42,6 @@ export type Screen =
   | { kind: "memories" }
   | { kind: "memory"; name: string }
   | { kind: "namedScreen"; name: string }
-  | { kind: "newTab" }
   /** A project, by its id or its name: its details open over the window. */
   | { kind: "project"; name: string }
   | { kind: "releaseNotes" }
@@ -85,7 +84,6 @@ export const SCREEN_ROUTES = {
   history: "/history",
   inbox: "/chats/",
   memories: "/memory",
-  newTab: "/new-tab",
   releaseNotes: "/release-notes",
   settings: "/settings/$section",
   settingsStart: "/settings/",
@@ -179,9 +177,6 @@ function decoded(segment: string) {
 export function matchScreen(href: string): Screen {
   const { pathname, search } = parseHref(href);
   const at = <T extends string>(template: T) => matchPath(template, pathname);
-  if (at(SCREEN_ROUTES.newTab)) {
-    return { kind: "newTab" };
-  }
   if (at(SCREEN_ROUTES.browser)) {
     return { kind: "browser" };
   }

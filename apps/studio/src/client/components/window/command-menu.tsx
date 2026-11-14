@@ -153,7 +153,7 @@ const LISTED_COMMANDS = new Set([
   "shortcuts",
 ]);
 
-export const COMMAND_MENU_PLACEHOLDER = "Search or type an address";
+const COMMAND_MENU_PLACEHOLDER = "Search or type an address";
 
 type Item = {
   chord?: ShortcutAccelerator;
@@ -182,11 +182,8 @@ type Row =
   | { type: "looking" }
   | Item;
 
-/** Where the menu is drawn: over the window by Cmd+K, or as a new tab's page. */
-export type CommandMenuSurface = "dialog" | "page";
-
 /**
- * The menu's rows for the words typed, the same wherever it is drawn: what
+ * The menu's rows for the words typed: what
  * the words name (an address to open, commands, chats, the apps set up
  * here, pages, files), then a web search for words that are a search, then, when
  * nothing matched by name and the words are no address, the chats the
@@ -205,7 +202,6 @@ export function useCommandMenuRows({
   done,
   openPage,
   openScreen,
-  surface,
   words: typed,
 }: {
   /** Whether the menu is on screen, for what it reads off the disk or asks the model. */
@@ -214,7 +210,6 @@ export function useCommandMenuRows({
   done: (run: () => void) => () => void;
   openPage: (url: string) => void;
   openScreen: (href: string) => void;
-  surface: CommandMenuSurface;
   words: string;
 }): {
   isBang: boolean;
@@ -265,8 +260,6 @@ export function useCommandMenuRows({
     ...chatListOptions(),
     subscribed: active,
   });
-  const isPage = surface === "page";
-
   const commands: Omit<Item, "ranges" | "type">[] = [
     {
       chord: WINDOW_SHORTCUTS.newChat.accelerator,
@@ -277,20 +270,15 @@ export function useCommandMenuRows({
         shell.newGroup();
       },
     },
-    // A new tab opening another from its own menu would only stand beside it.
-    ...(isPage
-      ? []
-      : [
-          {
-            chord: WINDOW_SHORTCUTS.newTab.accelerator,
-            icon: <PlusIcon />,
-            id: "new-tab",
-            label: "New tab",
-            run: () => {
-              shell.newTab();
-            },
-          },
-        ]),
+    {
+      chord: WINDOW_SHORTCUTS.newTab.accelerator,
+      icon: <PlusIcon />,
+      id: "new-tab",
+      label: "New tab",
+      run: () => {
+        shell.newTab();
+      },
+    },
     {
       chord: WINDOW_MENU_SHORTCUTS.newWindow.accelerator,
       icon: <AppWindowIcon />,
@@ -832,7 +820,7 @@ export function useCommandMenuRows({
                 {
                   items: [
                     {
-                      detail: isPage ? "Open in this tab" : "Open in a new tab",
+                      detail: "Open in this tab",
                       // An address being typed is no site anyone has been to
                       // yet, and asking for its icon would send every host
                       // the letters spell out along the way.
@@ -966,7 +954,6 @@ export function useCommandMenuRows({
   );
 
   const selection = useSelection({
-    loop: isPage,
     rows,
     typed,
     words,
@@ -998,13 +985,10 @@ interface Selection {
  * a row for what was typed rather than for the letters before it.
  */
 function useSelection({
-  loop,
   rows,
   typed,
   words,
 }: {
-  /** Whether the arrows go round from one end to the other. */
-  loop: boolean;
   rows: Row[];
   /** The words in the field, which `words` follows a beat behind. */
   typed: string;
@@ -1076,9 +1060,7 @@ function useSelection({
         ? by > 0
           ? ids.length - 1
           : 0
-        : loop
-          ? (at + by + ids.length) % ids.length
-          : Math.max(0, Math.min(ids.length - 1, at + by));
+        : Math.max(0, Math.min(ids.length - 1, at + by));
       const nextId = ids[next];
       if (nextId !== undefined) {
         setPicked({ id: nextId, isKeyed: true, words });
@@ -1102,7 +1084,7 @@ function useSelection({
  * The menu's field, which keeps the caret while the list under it answers
  * the keys: the arrows move the row picked and Return runs it.
  */
-export function CommandMenuField({
+function CommandMenuField({
   className,
   containerClassName,
   listId,
@@ -1161,7 +1143,7 @@ export function CommandMenuField({
  * The menu's list, one height whatever the search finds, so it does not
  * grow and shrink under the caret as results come and go.
  */
-export function CommandMenuList({
+function CommandMenuList({
   className,
   isBang,
   itemClassName,
@@ -1239,7 +1221,6 @@ export function CommandMenu({
     },
     openPage,
     openScreen,
-    surface: "dialog",
     words: search.trim(),
   });
 

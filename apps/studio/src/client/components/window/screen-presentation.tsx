@@ -146,7 +146,6 @@ export function screenLocation(
     case "group":
     case "memory":
     case "namedScreen":
-    case "newTab":
     case "project":
     case "setting":
     case "site":
@@ -224,12 +223,6 @@ export function screenPresentation(
       return {
         icon: <CodeIcon className="size-3.5" />,
         title: debugPageTitle(screen.pathname),
-      };
-    }
-    case "newTab": {
-      return {
-        icon: <MagnifyingGlassIcon className="size-3.5" />,
-        title: "New Tab",
       };
     }
     // History, or the index of every chat under a list mark of its own.

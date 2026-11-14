@@ -1041,8 +1041,11 @@ export const PromptInput = ({
           <>
             {/* Gives way first, down to the plus and the least of what is
                 beside it, so the model and Send keep their room; only then
-                does the model's name truncate. */}
-            <div className="flex shrink-1000 items-center gap-1.5">
+                does the model's name truncate. Flex shares the squeeze in
+                proportion, so the factor is large enough that the model's
+                share rounds to nothing: a sliver of a pixel would cut even
+                "Auto" short. */}
+            <div className="flex shrink-1000000 items-center gap-1.5">
               {addMenu && (
                 <ComposerAddMenu
                   actions={actions}

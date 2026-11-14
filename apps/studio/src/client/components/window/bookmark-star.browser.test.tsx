@@ -6,7 +6,7 @@ import { page, userEvent } from "vitest/browser";
 import { BookmarkStar, requestBookmarkTab } from "./bookmark-star";
 
 describe("the star at the end of the address", () => {
-  it("keeps the address on the bar, then in the sidebar, under the name typed", async () => {
+  it("keeps the address on the bar under the name typed", async () => {
     const { store } = await renderInBrowser(
       <BookmarkStar address="instrument://chat/one" title="Trip plans" />,
     );
@@ -20,10 +20,7 @@ describe("the star at the end of the address", () => {
     );
     await expect.element(page.getByText("Bookmark added")).toBeVisible();
     expect(kept()).toMatchObject({ title: "Trip plans" });
-    expect(kept()?.where).toBeUndefined();
 
-    await userEvent.click(page.getByRole("radio", { name: "Sidebar" }));
-    await expect.poll(() => kept()?.where).toBe("sidebar");
     await userEvent.fill(page.getByLabelText("Name"), "Trip");
     await userEvent.click(page.getByRole("button", { name: "Done" }));
     await expect

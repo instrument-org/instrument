@@ -7,10 +7,8 @@ import {
   PopoverAnchor,
   PopoverContent,
 } from "@/client/components/ui/popover";
-import { RadioGroup, RadioGroupItem } from "@/client/components/ui/radio-group";
 import { useCloseOnWindowBlur } from "@/client/hooks/use-close-on-window-blur";
 import { cn } from "@/client/lib/utils";
-import { type BookmarkPlace, placeOf } from "@/shared/bookmarks";
 import { StarIcon } from "@phosphor-icons/react/Star";
 import { useEffect, useEffectEvent, useId, useRef, useState } from "react";
 
@@ -54,9 +52,8 @@ export function requestBookmarkTab() {
 /**
  * The star at the end of the address field: hollow until the address is
  * kept, filled once it is. A press keeps it on the bookmarks bar and opens
- * its card, where it can be renamed, shown in the sidebar instead, or
- * removed; pressed again, the card opens on the bookmark kept. ⌘D does the
- * same.
+ * its card, where it can be renamed or removed; pressed again, the card
+ * opens on the bookmark kept. ⌘D does the same.
  */
 export function BookmarkStar({
   address,
@@ -143,9 +140,6 @@ export function BookmarkStar({
           onClose={() => {
             setCard(undefined);
           }}
-          onPlace={(where) => {
-            actions.place(kept, where);
-          }}
           onRemove={() => {
             actions.remove(kept);
             setCard(undefined);
@@ -154,7 +148,6 @@ export function BookmarkStar({
             actions.rename(kept, name);
           }}
           title={card === "added" ? "Bookmark added" : "Edit bookmark"}
-          where={placeOf(kept)}
         />
       )}
     </Popover>
@@ -162,29 +155,24 @@ export function BookmarkStar({
 }
 
 /**
- * The star's card, the way a browser's is: the name, where the bookmark
- * shows, and Remove or Done. The name typed is kept as the card goes away,
+ * The star's card, the way a browser's is: the name, and Remove or Done. The name typed is kept as the card goes away,
  * by Done or a press elsewhere; Esc leaves the name as it was.
  */
 function BookmarkCard({
   name,
   onAnchor,
   onClose,
-  onPlace,
   onRemove,
   onRename,
   title,
-  where,
 }: {
   name: string;
   /** Whether a press is on the star, which puts the card away itself rather than as a press elsewhere. */
   onAnchor: (target: EventTarget | null) => boolean;
   onClose: () => void;
-  onPlace: (where: BookmarkPlace) => void;
   onRemove: () => void;
   onRename: (name: string) => void;
   title: string;
-  where: BookmarkPlace;
 }) {
   const [typed, setTyped] = useState(name);
   const ids = useId();
@@ -232,7 +220,7 @@ function BookmarkCard({
         }}
       >
         <p className="text-sm font-semibold">{title}</p>
-        <div className="grid grid-cols-[auto_1fr] items-center gap-x-3 gap-y-3 text-[13px]">
+        <div className="grid grid-cols-[auto_1fr] items-center gap-x-3 text-[13px]">
           <label className="text-muted-foreground" htmlFor={`${ids}-name`}>
             Name
           </label>
@@ -244,31 +232,6 @@ function BookmarkCard({
             }}
             value={typed}
           />
-          <span
-            className="self-start pt-0.5 text-muted-foreground"
-            id={`${ids}-where`}
-          >
-            Show in
-          </span>
-          <RadioGroup
-            aria-labelledby={`${ids}-where`}
-            className="gap-2"
-            onValueChange={(value) => {
-              if (value === "bar" || value === "sidebar") {
-                onPlace(value);
-              }
-            }}
-            value={where}
-          >
-            <label className="flex items-center gap-2">
-              <RadioGroupItem value="bar" />
-              Bookmarks bar
-            </label>
-            <label className="flex items-center gap-2">
-              <RadioGroupItem value="sidebar" />
-              Sidebar
-            </label>
-          </RadioGroup>
         </div>
         <div className="flex justify-end gap-2">
           <Button

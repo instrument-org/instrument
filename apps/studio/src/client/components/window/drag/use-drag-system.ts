@@ -15,13 +15,7 @@ import {
 } from "@/client/lib/self-file-drag";
 import { afterNextPaint } from "@/client/lib/tab-view-state";
 import { rpcClient } from "@/client/rpc/client";
-import {
-  type Bookmark,
-  type BookmarkPlace,
-  inOrder,
-  orderAfter,
-  placeOf,
-} from "@/shared/bookmarks";
+import { type Bookmark, inOrder, orderAfter } from "@/shared/bookmarks";
 import {
   type GroupTabLanding,
   groupOfWholeKey,
@@ -378,9 +372,9 @@ function useLander(
 }
 
 /**
- * Keeps an address on the bar or in the sidebar's Bookmarks at a place
- * among the bookmarks there: a bookmark already kept, the one held or the
- * one kept for the address, moves there, wherever it was.
+ * Keeps an address on the bar at a place among the bookmarks there: a
+ * bookmark already kept, the one held or the one kept for the address,
+ * moves there.
  */
 function useKeepBookmark() {
   const store = useStore();
@@ -394,17 +388,10 @@ function useKeepBookmark() {
       what.id === undefined
         ? all.find((bookmark) => sameAddress(bookmark.url, what.url))
         : all.find((bookmark) => bookmark.id === what.id);
-    const there = inOrder(all).filter(
-      (bookmark) =>
-        placeOf(bookmark) === landing.where && bookmark.id !== kept?.id,
-    );
+    const there = inOrder(all).filter((bookmark) => bookmark.id !== kept?.id);
     const order = orderAt(there, landing.index, all);
     if (kept) {
-      void apply([
-        placeOf(kept) === landing.where
-          ? { id: kept.id, order, type: "move" }
-          : { id: kept.id, order, type: "place", where: landing.where },
-      ]);
+      void apply([{ id: kept.id, order, type: "move" }]);
       return;
     }
     const bookmark: Bookmark = {
@@ -412,9 +399,6 @@ function useKeepBookmark() {
       order,
       title: what.title || what.url,
       url: what.url,
-      ...(landing.where === "sidebar"
-        ? { where: "sidebar" as BookmarkPlace }
-        : {}),
     };
     void apply([{ bookmark, type: "add" }]);
   };

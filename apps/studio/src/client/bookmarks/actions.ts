@@ -1,9 +1,4 @@
-import {
-  type Bookmark,
-  type BookmarkPlace,
-  orderAfter,
-  placeOf,
-} from "@/shared/bookmarks";
+import { type Bookmark, orderAfter } from "@/shared/bookmarks";
 import { toast } from "@/client/lib/toast";
 import { useAtomValue, useSetAtom, useStore } from "jotai";
 
@@ -13,39 +8,21 @@ import { applyBookmarkOpsAtom, bookmarksAtom } from "./store";
 export { addressOfTab } from "./address";
 
 /**
- * Keeping any address as a bookmark, for whatever offers to: the star at
- * the end of the address field, ⌘D, a row's menu. An address is kept once,
- * however it is spelled (`sameAddress`), so keeping it again moves it to the
- * place asked for and returns the one already kept.
+ * Keeping any address as a bookmark on the bookmarks bar, for whatever
+ * offers to: the star at the end of the address field, ⌘D, a row's menu. An
+ * address is kept once, however it is spelled (`sameAddress`), so keeping it
+ * again returns the one already kept.
  */
 export function useBookmarkActions() {
   const bookmarks = useAtomValue(bookmarksAtom);
   const applyBookmarkOps = useSetAtom(applyBookmarkOpsAtom);
   const bookmarkOf = (url: string) =>
     bookmarks.find((bookmark) => sameAddress(bookmark.url, url));
-  const place = (bookmark: Bookmark, where: BookmarkPlace) => {
-    if (placeOf(bookmark) === where) {
-      return;
-    }
-    // At the end of the place it goes to.
-    void applyBookmarkOps([
-      { id: bookmark.id, order: orderAfter(bookmarks), type: "place", where },
-    ]);
-  };
   return {
-    /** Keeps `url` under `title` in `where` (the bar unless told), and returns the bookmark. */
-    bookmark: ({
-      title,
-      url,
-      where = "bar",
-    }: {
-      title: string;
-      url: string;
-      where?: BookmarkPlace;
-    }): Bookmark => {
+    /** Keeps `url` under `title` last on the bar, and returns the bookmark. */
+    bookmark: ({ title, url }: { title: string; url: string }): Bookmark => {
       const kept = bookmarkOf(url);
       if (kept) {
-        place(kept, where);
         return kept;
       }
       const bookmark: Bookmark = {
@@ -53,7 +30,6 @@ export function useBookmarkActions() {
         order: orderAfter(bookmarks),
         title,
         url,
-        ...(where === "sidebar" ? { where } : {}),
       };
       void applyBookmarkOps([{ bookmark, type: "add" }]);
       return bookmark;
@@ -63,8 +39,6 @@ export function useBookmarkActions() {
     /** Every bookmark, in order. */
     bookmarks,
     isBookmarked: (url: string) => bookmarkOf(url) !== undefined,
-    /** Shows a bookmark on the bar or in the sidebar, last there. */
-    place,
     remove: (bookmark: Bookmark) => {
       void applyBookmarkOps([{ id: bookmark.id, type: "remove" }]);
     },

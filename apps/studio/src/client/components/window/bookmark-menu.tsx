@@ -1,4 +1,3 @@
-import { useBookmarkActions } from "@/client/bookmarks/actions";
 import { type OpenHow, openHowOf } from "@/client/bookmarks/open-address";
 import {
   ContextMenu,
@@ -9,12 +8,10 @@ import {
 } from "@/client/components/ui/context-menu";
 import { contextMenuComponents } from "@/client/components/ui/menu-components";
 import { type OpenDestination } from "@/client/hooks/use-open-target";
-import { type Bookmark, placeOf } from "@/shared/bookmarks";
+import { type Bookmark } from "@/shared/bookmarks";
 import { ArrowSquareInIcon } from "@phosphor-icons/react/ArrowSquareIn";
 import { CopyIcon } from "@phosphor-icons/react/Copy";
 import { PencilSimpleIcon } from "@phosphor-icons/react/PencilSimple";
-import { SidebarSimpleIcon } from "@phosphor-icons/react/SidebarSimple";
-import { StarIcon } from "@phosphor-icons/react/Star";
 import { XCircleIcon } from "@phosphor-icons/react/XCircle";
 import { type MouseEvent, type ReactElement, useRef } from "react";
 
@@ -25,9 +22,9 @@ import { useBookmarkEdits } from "./web-start";
 const MIDDLE_BUTTON = 1;
 
 /**
- * What a press on a bookmark does, on the bar and in the sidebar alike: a
- * click opens it in this tab, a Cmd-click or a middle click in a new tab
- * behind this one, and a Shift-click as the first tab of a new tab group.
+ * What a press on a bookmark does: a click opens it in this tab, a
+ * Cmd-click or a middle click in a new tab behind this one, and a
+ * Shift-click as the first tab of a new tab group.
  */
 export function bookmarkClicks(
   bookmark: Bookmark,
@@ -65,9 +62,8 @@ const BOOKMARK_PLACES: {
 ];
 
 /**
- * The menu over a bookmark, on the bar and in the sidebar alike: opening it
- * here or in a place of the window's own, renaming it, moving it to the
- * other place bookmarks show, copying its address, and deleting it.
+ * The menu over a bookmark: opening it here or in a place of the window's
+ * own, renaming it, copying its address, and deleting it.
  */
 export function BookmarkContextMenu({
   bookmark,
@@ -82,9 +78,7 @@ export function BookmarkContextMenu({
   onRename: () => void;
   open: (address: string, how: OpenHow) => void;
 }) {
-  const actions = useBookmarkActions();
   const edits = useBookmarkEdits();
-  const isOnBar = placeOf(bookmark) === "bar";
   // A rename asked for is started as the menu closes: a field focused while
   // the menu still holds the keyboard loses it at once.
   const renaming = useRef(false);
@@ -127,18 +121,6 @@ export function BookmarkContextMenu({
         >
           <PencilSimpleIcon className="size-4" />
           <span>Rename</span>
-        </ContextMenuItem>
-        <ContextMenuItem
-          onClick={() => {
-            actions.place(bookmark, isOnBar ? "sidebar" : "bar");
-          }}
-        >
-          {isOnBar ? (
-            <SidebarSimpleIcon className="size-4" />
-          ) : (
-            <StarIcon className="size-4" />
-          )}
-          <span>{isOnBar ? "Move to Sidebar" : "Move to Bookmarks Bar"}</span>
         </ContextMenuItem>
         <ContextMenuItem
           onClick={() => {

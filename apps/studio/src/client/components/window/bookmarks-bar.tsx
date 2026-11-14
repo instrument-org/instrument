@@ -11,7 +11,6 @@ import {
 import { noteTypedPage } from "@/client/hooks/use-browser-history";
 import { filesHrefAtom } from "@/client/atoms/window";
 import { cn } from "@/client/lib/utils";
-import { placeOf } from "@/shared/bookmarks";
 import { folderHref } from "@/shared/computer-href";
 import { FileSystemFolderGlyph } from "@/client/components/extend/file-system";
 import { isInstrumentAddress } from "@instrument-org/shared";
@@ -58,10 +57,7 @@ export function BookmarksBar({
 }) {
   const { chatTitles } = useShell();
   const bookmarks = useShownBookmarks(
-    useAtomValue(bookmarksAtom).filter(
-      (bookmark) => placeOf(bookmark) === "bar",
-    ),
-    "bar",
+    useAtomValue(bookmarksAtom),
     useTabTitle(chatTitles),
   );
   const edits = useBookmarkEdits();
@@ -110,9 +106,7 @@ export function BookmarksBar({
     .filter((bookmark) => bookmark.isStanding !== true);
   useBookmarksTarget({
     area: () => bar.current,
-    axis: "x",
     row: () => row.current,
-    where: "bar",
   });
 
   return (
@@ -194,7 +188,7 @@ export function BookmarksBar({
                   {...bookmarkClicks(bookmark, open)}
                   data-bookmark-id={bookmark.id}
                   onPointerDown={(event) => {
-                    pressBookmark(event, bookmark, "bar");
+                    pressBookmark(event, bookmark);
                   }}
                   title={`${name}\n${bookmark.url}`}
                   type="button"

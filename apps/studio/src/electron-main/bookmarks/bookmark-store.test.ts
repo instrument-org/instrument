@@ -136,15 +136,12 @@ describe("createBookmarkStore", () => {
     expect(there.heard.at(-1)?.bookmarks).toEqual([]);
   });
 
-  it("keeps an app address in the sidebar, and reads one with no place as the bar", async () => {
+  it("keeps an app address, and reads a value naming a place as one on the bar", async () => {
     const { bookmarks, store } = await bookmarksOf(HERE);
-    const chat = { ...page("c", 0), url: "instrument://chat/abc" };
+    const chat = { ...page("c", 3), url: "instrument://chat/abc" };
     await bookmarks.apply({
       client: "w1",
-      ops: [
-        { bookmark: chat, type: "add" },
-        { id: "c", order: 3, type: "place", where: "sidebar" },
-      ],
+      ops: [{ bookmark: chat, type: "add" }],
       seq: 1,
     });
     await store.apply([
@@ -154,32 +151,25 @@ describe("createBookmarkStore", () => {
         value: { order: 1, title: "Old", url: "https://old.example/" },
       },
       {
-        key: "bookmark/odd",
+        key: "bookmark/side",
         t: "set",
         value: {
           order: 2,
-          title: "Odd",
-          url: "https://odd.example/",
-          where: "shelf",
+          title: "Side",
+          url: "https://side.example/",
+          where: "sidebar",
         },
       },
     ]);
-    expect(
-      bookmarks
-        .snapshot()
-        .bookmarks.map(({ id, url, where }) => `${id} ${url} ${where ?? "-"}`),
-    ).toMatchInlineSnapshot(`
-      [
-        "old https://old.example/ -",
-        "odd https://odd.example/ -",
-        "c instrument://chat/abc sidebar",
-      ]
-    `);
+    expect(bookmarks.snapshot().bookmarks).toEqual([
+      { id: "old", order: 1, title: "Old", url: "https://old.example/" },
+      { id: "side", order: 2, title: "Side", url: "https://side.example/" },
+      { id: "c", order: 3, title: "Page c", url: "instrument://chat/abc" },
+    ]);
     expect(store.entries().get("bookmark/c")).toEqual({
       order: 3,
       title: "Page c",
       url: "instrument://chat/abc",
-      where: "sidebar",
     });
   });
 

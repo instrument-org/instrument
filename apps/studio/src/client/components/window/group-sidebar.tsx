@@ -65,7 +65,6 @@ import { ProjectBanner } from "./project-banner";
 import { projectColor } from "./project-colors";
 import { projectTint } from "./project-tint";
 import { ProjectsSection } from "./projects-section";
-import { BookmarksSection } from "./bookmarks-section";
 import { RowActionBar } from "./row-action-bar";
 import { stopHere } from "./row-shell";
 import { pageTabTitle } from "./file-tabs";
@@ -482,7 +481,6 @@ export function GroupSidebar({
             projects={projects}
           />
         )}
-        {!project && <BookmarksSection chatTitles={chatTitles} />}
         <AnimatePresence>
           {pinned.map((entry) => listItem(entry, "pinned"))}
           {pinned.length > 0 && (

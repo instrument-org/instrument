@@ -380,7 +380,7 @@ export function onBar({ held, index }: { held: Held; index: number }): Scene {
       ...AT_REST,
       grab: { x: 0, y: 0 },
       held,
-      landing: { index, kind: "bookmarks", where: "bar" },
+      landing: { index, kind: "bookmarks" },
     });
   };
 }
@@ -393,14 +393,12 @@ function barBookmark(store: Store): Held {
         kind: "bookmark",
         title: kept.title,
         url: kept.url,
-        where: "bar",
       }
     : {
         id: "held-bookmark",
         kind: "bookmark",
         title: "Zendesk pricing",
         url: "https://www.zendesk.com/pricing/",
-        where: "bar",
       };
 }
 

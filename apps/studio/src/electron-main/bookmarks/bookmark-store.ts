@@ -24,15 +24,14 @@ import { z } from "zod";
 const PREFIX = "bookmark/";
 
 /**
- * A bookmark's value. `url` is any address, the app's own included, and
- * `where` is absent for one on the bar, as every bookmark written before
- * there was a choice is; a place this build does not know reads as the bar.
+ * A bookmark's value. `url` is any address, the app's own included. A key
+ * this build does not read is passed over, so a value naming a place for
+ * the bookmark (`where`) reads as one on the bar, where every bookmark is.
  */
 const ValueSchema = z.object({
   order: z.number(),
   title: z.string(),
   url: z.string().min(1),
-  where: z.enum(["bar", "sidebar"]).optional().catch(undefined),
 });
 
 export function createBookmarkStore({
@@ -117,9 +116,8 @@ function valueOf({
   order,
   title,
   url,
-  where,
 }: Bookmark): z.output<typeof ValueSchema> {
-  return { order, title, url, ...(where === "sidebar" ? { where } : {}) };
+  return { order, title, url };
 }
 
 /**

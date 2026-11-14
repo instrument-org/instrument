@@ -11,12 +11,6 @@
  */
 
 /**
- * Where a bookmark is shown: on the bookmarks bar under a tab's toolbar, or
- * in the Bookmarks section of the sidebar.
- */
-export type BookmarkPlace = "bar" | "sidebar";
-
-/**
  * An address the person kept: a website's, or the app's own
  * (`instrument://chat/<id>`, `instrument://file/<path>`,
  * `instrument://screen/<name>`), for a chat, a folder, a file or a built-in
@@ -28,13 +22,6 @@ export interface Bookmark {
   order: number;
   title: string;
   url: string;
-  /** Where it is shown; absent is the bar, where every bookmark kept before there was a choice is. */
-  where?: BookmarkPlace;
-}
-
-/** Where a bookmark is shown, a bookmark that names no place being on the bar. */
-export function placeOf(bookmark: Bookmark): BookmarkPlace {
-  return bookmark.where ?? "bar";
 }
 
 /** One change to the bookmarks, carrying everything it needs so main and every window apply it alike. */
@@ -43,8 +30,6 @@ export type BookmarkOp =
   | { bookmark: Bookmark; type: "add" }
   /** Moved to sort at `order`. */
   | { id: string; order: number; type: "move" }
-  /** Shown somewhere else, sorting at `order` there. */
-  | { id: string; order: number; type: "place"; where: BookmarkPlace }
   /** No longer kept. */
   | { id: string; type: "remove" }
   | { id: string; title: string; type: "rename" };
@@ -104,12 +89,6 @@ function applyBookmarkOp(bookmarks: Bookmark[], op: BookmarkOp): Bookmark[] {
     case "move":
       return bookmarks.map((bookmark) =>
         bookmark.id === op.id ? { ...bookmark, order: op.order } : bookmark,
-      );
-    case "place":
-      return bookmarks.map((bookmark) =>
-        bookmark.id === op.id
-          ? { ...bookmark, order: op.order, where: op.where }
-          : bookmark,
       );
     case "remove":
       return bookmarks.filter((bookmark) => bookmark.id !== op.id);

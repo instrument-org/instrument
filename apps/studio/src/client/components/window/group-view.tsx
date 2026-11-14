@@ -79,6 +79,9 @@ function GroupSides({ group }: { group: string }) {
   const layout = windowTabs.layoutOf(group);
   const [shares, setShares] = useAtom(sideShareByGroupAtom);
   const [dragged, setDragged] = useState<number>();
+  // The share a drag last reached, read as it ends: the handle keeps the
+  // callbacks of the render the press began in, so `dragged` there is stale.
+  const draggedNow = useRef<number>(undefined);
   const rowRef = useRef<HTMLDivElement>(null);
   const scrollerRef = useRef<HTMLDivElement>(null);
   const isTwo = layout.sides.length === 2;
@@ -215,12 +218,14 @@ function GroupSides({ group }: { group: string }) {
             keepShare(SIDE_SHARE_DEFAULT);
           }}
           onResize={(width) => {
-            setDragged(shareOf(width));
+            draggedNow.current = shareOf(width);
+            setDragged(draggedNow.current);
           }}
           onResizeEnd={() => {
-            if (dragged !== undefined) {
-              keepShare(dragged);
+            if (draggedNow.current !== undefined) {
+              keepShare(draggedNow.current);
             }
+            draggedNow.current = undefined;
             setDragged(undefined);
             document.documentElement.removeAttribute("data-tab-held");
           }}

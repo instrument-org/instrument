@@ -48,8 +48,8 @@ export function openHowOf(event: {
  * Opens any address, a site's or the app's own, the way a bookmark opens.
  * `here` is the tab it was chosen from, when it is chosen from one: a page
  * goes there, and so does a screen a tab of a group can stand at. Anything
- * else opens where the app keeps it (a chat is its own tab group, Settings
- * its own window).
+ * else opens where the app keeps it: a chat where its tab is, or as a tab
+ * group of its own.
  */
 export function useOpenAddress(
   here: { page?: (url: string) => void; screen?: (href: string) => void } = {},

@@ -251,6 +251,7 @@ export function GroupItem({
               <BookmarksBar
                 files={{ group, onOpen: openFiles }}
                 onOpen={openHere}
+                onVisit={visitHere}
               />
             )}
           </>
@@ -303,6 +304,7 @@ export function GroupItem({
             <BookmarksBar
               files={{ group, onOpen: openFiles }}
               onOpen={openHere}
+              onVisit={visitHere}
             />
           </>
         }

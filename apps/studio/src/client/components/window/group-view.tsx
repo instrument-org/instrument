@@ -384,7 +384,13 @@ export function GroupView({
           />
         }
       />
-      <BookmarksBar files={{ group, onOpen: openFiles }} onOpen={openPage} />
+      <BookmarksBar
+        files={{ group, onOpen: openFiles }}
+        onOpen={openPage}
+        onVisit={(href) => {
+          windowTabs.openScreen(href, { group, select: true });
+        }}
+      />
     </>
   );
   // The chat's card. As the whole group, its head is a browser's tab bar

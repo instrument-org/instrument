@@ -1,5 +1,5 @@
+import { useOpenAddress } from "@/client/bookmarks/open-address";
 import { bookmarksAtom } from "@/client/bookmarks/store";
-import { PageFavicon } from "@/client/components/favicon";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -11,47 +11,54 @@ import {
 import { noteTypedPage } from "@/client/hooks/use-browser-history";
 import { filesHrefAtom } from "@/client/atoms/window";
 import { cn } from "@/client/lib/utils";
-import { type Bookmark } from "@/shared/bookmarks";
+import { placeOf } from "@/shared/bookmarks";
 import { folderHref } from "@/shared/computer-href";
 import { FileSystemFolderGlyph } from "@/client/components/extend/file-system";
+import { isInstrumentAddress } from "@instrument-org/shared";
 import { CaretDoubleRightIcon } from "@phosphor-icons/react/CaretDoubleRight";
 import { CaretDownIcon } from "@phosphor-icons/react/CaretDown";
-import { DotsThreeVerticalIcon } from "@phosphor-icons/react/DotsThreeVertical";
+import { StarIcon } from "@phosphor-icons/react/Star";
 import { useAtomValue } from "jotai";
 import { useLayoutEffect, useRef, useState } from "react";
 
+import { AddressMark } from "./app-chip";
+import { BookmarkContextMenu, bookmarkClicks } from "./bookmark-menu";
 import { type Place, useFilesPlaces } from "./group-new-tab";
-import { PageContextMenu, usePageClicks } from "./page-menu";
 import { BookmarkNameField, bookmarkName, useBookmarkEdits } from "./web-start";
 
 /**
  * Whether a tab shows the bookmarks bar: the new tab always, where it says
- * how a bookmark gets there while there are none, and a page while there
- * are some.
+ * how a bookmark gets there while there are none, and a page while the bar
+ * has some.
  */
 export function useHasBookmarksBar(isNewTab: boolean): boolean {
   const bookmarks = useAtomValue(bookmarksAtom);
-  return isNewTab || bookmarks.length > 0;
+  return isNewTab || bookmarks.some((bookmark) => placeOf(bookmark) === "bar");
 }
 
 /**
- * The bookmarks in a row under a tab's toolbar, each its site's favicon and
- * a short name, the way a browser's bookmarks bar keeps them, after Files
- * where the row is given it (`files`). Those past the row's end are under
- * a chevron at its right. A click opens one in this tab (`onOpen`), a
- * Cmd-click or a middle click in a tab of its own behind this one, and a
- * right click offers to rename it or remove it.
+ * The bookmarks kept on the bar, in a row under a tab's toolbar, each the
+ * mark its tab wears and a short name, the way a browser's bookmarks bar
+ * keeps them, after Files where the row is given it (`files`). Those past
+ * the row's end are under a chevron at its right. A click opens one in this
+ * tab (a site by `onOpen`, a place of the app's own by `onVisit`), a
+ * Cmd-click or a middle click in a new tab behind this one, a Shift-click as
+ * a new tab group, and a right click offers the rest (`BookmarkContextMenu`).
  */
 export function BookmarksBar({
   files,
   onOpen,
+  onVisit,
 }: {
   /** Files for a group, opening a folder (`onOpen`) as that group's bar does. */
   files?: { group: string; onOpen: (href: string) => void };
   onOpen: (url: string) => void;
+  /** A place of the app's own in this tab, where a tab can stand at it; the window opens it otherwise. */
+  onVisit?: (href: string) => void;
 }) {
-  const bookmarks = useAtomValue(bookmarksAtom);
-  const clicksFor = usePageClicks();
+  const bookmarks = useAtomValue(bookmarksAtom).filter(
+    (bookmark) => placeOf(bookmark) === "bar",
+  );
   const edits = useBookmarkEdits();
   // The bookmark whose name is being typed over, by id.
   const [renamingId, setRenamingId] = useState<string>();
@@ -80,11 +87,17 @@ export function BookmarksBar({
       observer.disconnect();
     };
   }, [bookmarks, renamingId]);
-  // A bookmark is an address the person chose, so opening one counts the
-  // way typing it would.
-  const open = (url: string) => {
-    noteTypedPage(url);
-    onOpen(url);
+  // A bookmark is an address the person chose, so opening a site's counts
+  // the way typing it would.
+  const openAddress = useOpenAddress({
+    page: onOpen,
+    ...(onVisit ? { screen: onVisit } : {}),
+  });
+  const open: typeof openAddress = (address, how) => {
+    if (!isInstrumentAddress(address)) {
+      noteTypedPage(address);
+    }
+    openAddress(address, how);
   };
   const overflow = bookmarks.slice(fitting);
 
@@ -118,7 +131,7 @@ export function BookmarksBar({
                   className="flex h-6 w-40 shrink-0 items-center gap-1.5 px-1.5"
                   key={bookmark.id}
                 >
-                  <BookmarkFavicon bookmark={bookmark} />
+                  <AddressMark address={bookmark.url} />
                   <BookmarkNameField
                     name={name}
                     onCancel={() => {
@@ -133,17 +146,13 @@ export function BookmarksBar({
               );
             }
             return (
-              <PageContextMenu
+              <BookmarkContextMenu
+                bookmark={bookmark}
                 key={bookmark.id}
-                onOpen={open}
-                onRemove={() => {
-                  edits.remove(bookmark);
-                }}
                 onRename={() => {
                   setRenamingId(bookmark.id);
                 }}
-                removeLabel="Remove from Bookmarks"
-                url={bookmark.url}
+                open={open}
               >
                 <button
                   {...(isOver ? { "aria-hidden": true, tabIndex: -1 } : {})}
@@ -151,14 +160,14 @@ export function BookmarksBar({
                     "flex h-6 max-w-40 shrink-0 cursor-default items-center gap-1.5 rounded-md px-1.5 text-xs text-foreground/80 hover:bg-foreground/8 hover:text-foreground data-[state=open]:bg-foreground/8",
                     isOver && "invisible",
                   )}
-                  {...clicksFor(bookmark.url, open)}
+                  {...bookmarkClicks(bookmark, open)}
                   title={`${name}\n${bookmark.url}`}
                   type="button"
                 >
-                  <BookmarkFavicon bookmark={bookmark} />
+                  <AddressMark address={bookmark.url} />
                   <span className="min-w-0 truncate">{name}</span>
                 </button>
-              </PageContextMenu>
+              </BookmarkContextMenu>
             );
           })}
         </div>
@@ -175,10 +184,10 @@ export function BookmarksBar({
             {overflow.map((bookmark) => (
               <DropdownMenuItem
                 key={bookmark.id}
-                {...clicksFor(bookmark.url, open)}
+                {...bookmarkClicks(bookmark, open)}
                 title={bookmark.url}
               >
-                <BookmarkFavicon bookmark={bookmark} />
+                <AddressMark address={bookmark.url} />
                 <span className="min-w-0 truncate">
                   {bookmarkName(bookmark)}
                 </span>
@@ -258,25 +267,16 @@ function FilesMark({
   );
 }
 
-function BookmarkFavicon({ bookmark }: { bookmark: Bookmark }) {
-  return (
-    <PageFavicon className="size-3.5" hasTooltip={false} url={bookmark.url} />
-  );
-}
-
-/** The bar before there are bookmarks: where they come from, in the words of the page menu that adds them. */
+/** The bar before it has bookmarks: where they come from, with the star that keeps one. */
 function NoBookmarks() {
   return (
     <p className="flex min-w-0 items-center gap-1 truncate px-1.5 text-xs text-muted-foreground">
-      Choose
-      <span className="font-medium text-foreground/70">Add to bookmarks</span>
-      from the
-      <DotsThreeVerticalIcon
-        aria-label="page"
+      Press
+      <StarIcon
+        aria-label="the star"
         className="size-3.5 shrink-0 text-foreground/70"
-        weight="bold"
       />
-      menu on a website to add bookmarks
+      at the end of an address to bookmark it
     </p>
   );
 }

@@ -341,6 +341,11 @@ export function openAppSettings() {
   askAppWindow({ type: "openSettings" });
 }
 
+/** Opens a new chat in the window in front, or in the one this opens. */
+export function openAppNewChat() {
+  askAppWindow({ type: "openNewChat" });
+}
+
 /**
  * Brings forward the window that already has a tab showing what an ask puts
  * up (`tabHrefOfAsk`), and hands it the ask, which brings that tab up. False

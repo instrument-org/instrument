@@ -23,12 +23,9 @@ import idleBlack from "../../../resources/menu-bar/idleTemplate.png?asset";
 import idleBlack2x from "../../../resources/menu-bar/idleTemplate@2x.png?asset";
 import idleWhite from "../../../resources/menu-bar/idle-white.png?asset";
 import idleWhite2x from "../../../resources/menu-bar/idle-white@2x.png?asset";
-import workingBlack from "../../../resources/menu-bar/workingTemplate.png?asset";
-import workingBlack2x from "../../../resources/menu-bar/workingTemplate@2x.png?asset";
-import workingWhite from "../../../resources/menu-bar/working-white.png?asset";
-import workingWhite2x from "../../../resources/menu-bar/working-white@2x.png?asset";
 import {
   getAppWindows,
+  openAppNewChat,
   openAppSettings,
 } from "@/electron-main/windows/app-window";
 import { ensureForegroundWindowVisible } from "@/electron-main/windows/ensure-foreground-visible";
@@ -61,12 +58,10 @@ const ICONS = {
   black: {
     ask: [askBlack, askBlack2x],
     idle: [idleBlack, idleBlack2x],
-    working: [workingBlack, workingBlack2x],
   },
   white: {
     ask: [askWhite, askWhite2x],
     idle: [idleWhite, idleWhite2x],
-    working: [workingWhite, workingWhite2x],
   },
 } as const;
 
@@ -134,10 +129,20 @@ function sectionRows(section: MenuBarSection): MenuItemConstructorOptions[] {
   ];
 }
 
-function buildMenu(sections: MenuBarSection[]): Menu {
+function buildMenu(summary: string, sections: MenuBarSection[]): Menu {
   const template: MenuItemConstructorOptions[] = [
-    ...sections.flatMap(sectionRows),
-    ...(sections.length > 0 ? [{ type: "separator" } as const] : []),
+    { enabled: false, label: summary },
+    ...(sections.length > 0
+      ? [{ type: "separator" } as const, ...sections.flatMap(sectionRows)]
+      : []),
+    { type: "separator" },
+    {
+      click: () => {
+        openInstrument();
+        openAppNewChat();
+      },
+      label: "New Chat",
+    },
     { click: openInstrument, label: `Open ${APP_NAME}` },
     {
       click: () => {
@@ -172,26 +177,27 @@ function refresh() {
   if (!tray || tray.isDestroyed()) {
     return;
   }
-  const { icon, sections } = menuBarView(chats);
+  const { icon, sections, summary } = menuBarView(chats);
   if (icon !== shownIcon) {
     shownIcon = icon;
     tray.setImage(iconFor(icon));
   }
   // Rebuilt only when a row would change, not for every step a turn takes
   // off the Mac, where rows show no step.
-  const key = JSON.stringify(
+  const key = JSON.stringify([
+    summary,
     IS_MAC
       ? sections
       : sections.map((each) => ({
           ...each,
           chats: each.chats.map(({ id, title }) => ({ id, title })),
         })),
-  );
+  ]);
   if (menuOpen || key === shownKey) {
     return;
   }
   shownKey = key;
-  tray.setContextMenu(buildMenu(sections));
+  tray.setContextMenu(buildMenu(summary, sections));
 }
 
 /** Follows the chat list for the icon and the menu, until `signal` stops it. */
@@ -321,7 +327,7 @@ function quitOrKeepRunning() {
 
 /**
  * Starts the menu bar (tray) icon, which lists the chats that need the person
- * and those at work, and keeps the Dock icon only while a window is up. Follows
+ * and those at work and starts a new chat, and keeps the Dock icon only while a window is up. Follows
  * the setting, so turning it off takes the icon away and puts the Dock icon
  * back. Called once the workspace has started, since the menu reads its chats.
  */

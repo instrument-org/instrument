@@ -3,9 +3,8 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 
-// The menu bar and tray icon: the app's glyph in one color, plain, with a
-// small dot while a chat works, and with a larger dot cut out of its corner
-// while a chat needs the person. Black for macOS, where the files are
+// The menu bar and tray icon: the app's glyph in one color, plain, or with a
+// dot cut out of its corner while a chat needs the person. Black for macOS, where the files are
 // template images the system tints, and for light Windows taskbars; white for
 // dark taskbars and Linux top bars. Each at 16px and 32px (@2x).
 //
@@ -29,7 +28,6 @@ if (!glyphPath) {
 const DOTS = {
   ask: { cx: 26, cy: 6, gap: 2, r: 4.5 },
   idle: undefined,
-  working: { cx: 27, cy: 27, gap: 1.5, r: 3.5 },
 } as const;
 
 const temporary = fs.mkdtempSync(path.join(os.tmpdir(), "menu-bar-icon-"));

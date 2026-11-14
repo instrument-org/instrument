@@ -32,7 +32,11 @@ describe("menuBarView", () => {
   it("shows nothing but the idle icon while no chat waits or works", () => {
     expect(
       menuBarView([chat({ status: "idle", title: "Q3 board update" })]),
-    ).toEqual({ icon: "idle", sections: [] });
+    ).toEqual({
+      icon: "idle",
+      sections: [],
+      summary: "Chats that are working or need you show here.",
+    });
   });
 
   it("lists what needs you before what is working, newest first, archived left out", () => {
@@ -65,6 +69,7 @@ describe("menuBarView", () => {
       chat({ archived: true, status: "working", title: "Put away" }),
     ]);
     expect(view.icon).toBe("ask");
+    expect(view.summary).toBe("2 chats working, 1 chat needs you");
     expect(
       view.sections.map(({ chats, label, more }) => ({
         label,
@@ -92,13 +97,14 @@ describe("menuBarView", () => {
     `);
   });
 
-  it("caps a section at eight chats and counts the rest", () => {
+  it("caps a section at eight chats, with the icon plain while chats only work or are unread", () => {
     const view = menuBarView(
       Array.from({ length: 11 }, (_, i) =>
-        chat({ status: "working", title: `Chat ${i}` }),
+        chat({ status: "working", title: `Chat ${i}`, unread: true }),
       ),
     );
-    expect(view.icon).toBe("working");
+    expect(view.icon).toBe("idle");
+    expect(view.summary).toBe("11 chats working");
     expect(view.sections[0]?.chats).toHaveLength(8);
     expect(view.sections[0]?.more).toBe(3);
   });

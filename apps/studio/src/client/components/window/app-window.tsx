@@ -116,6 +116,7 @@ import {
 } from "./app-tabs";
 import { COMPOSE_KEY } from "@/shared/kept-state";
 import { useAppsBySlug } from "./apps-by-slug";
+import { editField } from "./omnibar-field";
 import { BrowserTabs, type BrowserTabsHandle } from "./browser-tabs";
 import { chatListOptions, chromeOfChats } from "./chat-list-query";
 import { inPlace } from "./chats";
@@ -456,8 +457,10 @@ function focusField() {
   const field = document.querySelector<HTMLInputElement>(
     "[data-app-tab-active] [data-tab-location] input",
   );
-  field?.focus();
-  field?.select();
+  if (field) {
+    editField(field);
+    field.select();
+  }
 }
 
 /**

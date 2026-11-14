@@ -221,6 +221,51 @@ export function locationChip(location: TabLocation): BuiltInApp | undefined {
 }
 
 /**
+ * The built-in app the field searches in while it has the caret, named as
+ * its chip names it: the app the tab is in, as a browser's address bar
+ * searches a site once its keyword is typed. Files is left out, since a
+ * file's and a folder's field keeps their real path.
+ */
+export type FieldScope =
+  | "activity"
+  | "apps"
+  | "chat"
+  | "history"
+  | "memory"
+  | "settings"
+  | "skills";
+
+/** The built-in pages whose field searches in them. */
+const PAGE_SCOPES: Partial<Record<ScreenName, FieldScope>> = {
+  activity: "activity",
+  history: "history",
+  memory: "memory",
+  settings: "settings",
+  skills: "skills",
+};
+
+/** The app a tab's field searches in, from where the tab is; none for a page, a file or a new tab. */
+export function fieldScopeOf(location: TabLocation): FieldScope | undefined {
+  switch (location.kind) {
+    case "app":
+    case "apps": {
+      return "apps";
+    }
+    case "builtin": {
+      return PAGE_SCOPES[location.screen];
+    }
+    case "chat":
+    case "chats":
+    case "task": {
+      return "chat";
+    }
+    default: {
+      return undefined;
+    }
+  }
+}
+
+/**
  * The task an address names, by its session, and the chat it is in when the
  * address carries one. Nothing for any other address, and nothing for an id
  * that is not one.

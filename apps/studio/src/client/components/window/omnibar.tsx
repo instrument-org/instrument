@@ -11,8 +11,6 @@ import {
   FileSystemFolderGlyph,
   FileTypeIcon,
 } from "@/client/components/extend/file-system";
-import { AppIcon } from "@/client/components/window/app-icon";
-import { useAppsBySlug } from "@/client/components/window/apps-by-slug";
 import { RECENTS_ROOT } from "@/client/components/window/computer-page";
 import { useWindow } from "@/client/components/window/context";
 import {
@@ -20,13 +18,13 @@ import {
   bareAddress,
   isSearchWords,
   matchEntries,
-  matchNames,
   matchPages,
   pathQuery,
 } from "@/client/components/window/omnibar-match";
 import {
   initialOmnibarField,
   omnibarField,
+  registerFieldEditor,
 } from "@/client/components/window/omnibar-field";
 import {
   relativeHostPath,
@@ -35,7 +33,10 @@ import {
 import { isGroupScreenHref } from "@/client/components/window/group-screen";
 import { ShellContext } from "@/client/components/window/shell-context";
 import { matchScreen } from "@/client/components/window/window-href";
-import { type TabLocation } from "@/client/components/window/tab-location";
+import {
+  fieldScopeOf,
+  type TabLocation,
+} from "@/client/components/window/tab-location";
 import { iconHostOf } from "@/client/lib/favicon-url";
 import { hostPathOfFileUrl } from "@/client/lib/file-url";
 import { isTypingTarget } from "@/client/lib/is-typing-target";
@@ -91,28 +92,30 @@ import {
   useState,
 } from "react";
 
-import { AddressMark, AppMark } from "./app-chip";
+import { AddressMark, AppChip, AppMark } from "./app-chip";
+import {
+  OmniList,
+  type OmniRow,
+  SCOPE_PROMPTS,
+  ScopeList,
+  type ScopeListHandle,
+} from "./omnibar-scope";
 
 /** Rows past the one Enter takes: enough to choose from, few enough to read at a glance. */
 const PAGES_SHOWN = 4;
 const SUGGESTIONS_SHOWN = 5;
 const ENTRIES_SHOWN = 8;
-const MATCHES_SHOWN = 8;
 const APP_ROWS_SHOWN = 4;
 
 /**
- * What a tab's field reaches, decided by what the tab holds: the computer
- * from a folder or a file, apps from an app's page, and the web, with the
- * app's own pages and chats, from anything else.
+ * What a tab's field reaches once it searches no one app (`FieldScope`):
+ * the computer from a folder or a file, and the web, with the app's own
+ * pages and chats, from anything else.
  */
-export type OmnibarMode = "apps" | "files" | "web";
+type OmnibarMode = "files" | "web";
 
 function omnibarModeOf(location: TabLocation): OmnibarMode {
   switch (location.kind) {
-    case "app":
-    case "apps": {
-      return "apps";
-    }
     // A file shown as a page is a page: its field takes an address the way a
     // browser's does, and a path still opens the file's own view.
     case "file": {
@@ -121,13 +124,7 @@ function omnibarModeOf(location: TabLocation): OmnibarMode {
     case "folder": {
       return "files";
     }
-    case "builtin":
-    case "chat":
-    case "chats":
-    case "newChat":
-    case "newTab":
-    case "page":
-    case "task": {
+    default: {
       return "web";
     }
   }
@@ -135,41 +132,29 @@ function omnibarModeOf(location: TabLocation): OmnibarMode {
 
 /** What the field says it is for, empty and to a screen reader. */
 const PROMPTS: Record<OmnibarMode, string> = {
-  apps: "Find an app",
   files: "Go to a folder or file",
   web: "Search or enter address",
 };
 
-/** What a list with nothing matching is a list of. */
-const NOUNS: Record<Exclude<OmnibarMode, "files" | "web">, string> = {
-  apps: "apps",
-};
-
-interface OmniRow {
-  /** Muted after the name: a page's address, what Enter does with the words. */
-  detail?: string | undefined;
-  /**
-   * What the field says while the row is picked with the arrows, and what Tab
-   * writes into it to go on typing from there: a page's address, a folder's
-   * path ending in a separator.
-   */
-  fill?: string;
-  icon: ReactNode;
-  /** What the row stands for, unique across the list: the key React keeps its element by. */
-  id: string;
-  /**
-   * Whether the row puts the field away itself, once it knows it has gone
-   * somewhere: a path is looked for first, and the words stay when nothing is
-   * there.
-   */
-  leavesItself?: boolean;
-  name: string;
-  run: () => void;
+/** Words that name an address or a path rather than something in an app: a scheme, or a path typed. */
+function isAddressLike(words: string) {
+  const trimmed = words.trim();
+  return (
+    /^[a-z][\w+.-]*:\/\//i.test(trimmed) || typedPathHere(trimmed) !== undefined
+  );
 }
 
 /**
  * A tab's address field, which reads what is typed in the terms of what the
  * tab holds (see `OmnibarMode`).
+ *
+ * In the app's own pages and in a chat, the field searches the app the
+ * tab's chip names (`FieldScope`): the chip stays at the field's start as
+ * the caret goes in, the way a browser's keyword does once Tab takes it,
+ * and the box is empty, since the place has no address a person types.
+ * Backspace in the empty box puts the chip away, and the field is the
+ * general one: the web, the app's pages, chats and bookmarks. An address or
+ * a path typed or pasted puts it away too.
  *
  * The first row is always what Enter does with the words in the field, and it
  * is what the field says: an address a browser would open, a search, a path,
@@ -218,6 +203,10 @@ export function Omnibar({
   takesCaret?: boolean;
 }) {
   const mode = omnibarModeOf(location);
+  // The app the field searches while the caret is in it, from where the tab
+  // is whenever the caret goes in, until Backspace puts it away.
+  const [scope, setScope] = useState(() => fieldScopeOf(location));
+  const scopeList = useRef<ScopeListHandle>(null);
   const { openPage, openScreen } = useWindow();
   const router = useRouter();
   const routerLocation = useRouterState({
@@ -257,6 +246,16 @@ export function Omnibar({
   // Once, as the field arrives.
   useEffect(() => {
     takeFocus();
+  }, []);
+  // What a press on the field and the chord for it open for typing
+  // (`editField`).
+  useEffect(() => {
+    const box = input.current;
+    return box
+      ? registerFieldEditor(box, () => {
+          send({ type: "edit" });
+        })
+      : undefined;
   }, []);
 
   /** Takes the tab this field is over to a screen: its own when it keeps one, the router's otherwise. */
@@ -393,11 +392,12 @@ export function Omnibar({
 
   const found = useOmnibarRows({
     canComplete,
-    isEditing,
+    // A field searching one app reads none of the general rows.
+    isEditing: isEditing && scope === undefined,
     location,
     mode,
     open: { openAddress, openFolder, openPath, openSite, visit },
-    typed,
+    typed: scope === undefined ? typed : "",
   });
   // Steady, as the rows a missed path offers are built while rendering and
   // these reach the field itself.
@@ -414,12 +414,16 @@ export function Omnibar({
           row.id === "path" ? { ...row, detail: "Looking…" } : row,
         )
       : shownRows.rows;
+  /** The rows the keys go by: a scoped list's as it stands, or the general ones. */
+  const rowsNow = () =>
+    scope === undefined ? rows : (scopeList.current?.rows() ?? []);
   const current = Math.min(highlight, Math.max(0, rows.length - 1));
   const isListShown = isEditing && typed.trim() !== "";
-  const picked = current > 0 ? rows[current] : undefined;
+  const picked = scope === undefined && current > 0 ? rows[current] : undefined;
   // The field says what Enter will do: the words with the rest of an address
   // written in ahead of the caret, or the row the arrows are on.
   const shown = picked?.fill ?? `${query}${completion}`;
+  const prompt = scope === undefined ? PROMPTS[mode] : SCOPE_PROMPTS[scope];
 
   // The part the field wrote in is selected, so the next letter typed
   // replaces it and Backspace takes it away, the way a browser's does.
@@ -447,14 +451,19 @@ export function Omnibar({
   return (
     <>
       {!isEditing && resting !== undefined && resting}
+      {/* The app searched, where the place's chip was, while the caret is
+          in the box. */}
+      {isEditing && scope !== undefined && <AppChip app={scope} nameFolds />}
       <input
         aria-activedescendant={
-          isListShown && rows.length > 0 ? `${listId}-${current}` : undefined
+          isListShown && (scope !== undefined || rows.length > 0)
+            ? `${listId}-${scope === undefined ? current : highlight}`
+            : undefined
         }
         aria-autocomplete="both"
         aria-controls={isListShown ? listId : undefined}
         aria-expanded={isListShown}
-        aria-label={PROMPTS[mode]}
+        aria-label={prompt}
         className={cn(
           "h-full min-w-0 flex-1 bg-transparent outline-none placeholder:text-muted-foreground",
           // A new tab's empty box rests with its placeholder centered, the
@@ -471,6 +480,7 @@ export function Omnibar({
             "pointer-events-none absolute inset-0 opacity-0",
         )}
         onBlur={() => {
+          setScope(fieldScopeOf(location));
           send({
             place: resting === undefined ? undefined : initial,
             type: "blur",
@@ -479,6 +489,9 @@ export function Omnibar({
         onChange={(event) => {
           const box = event.currentTarget;
           const { nativeEvent } = event;
+          if (scope !== undefined && isAddressLike(box.value)) {
+            setScope(undefined);
+          }
           send({
             canComplete:
               nativeEvent instanceof InputEvent &&
@@ -489,23 +502,27 @@ export function Omnibar({
           });
         }}
         onFocus={(event) => {
+          setScope(fieldScopeOf(location));
           const live = resting === undefined ? undefined : liveAddress?.();
           // In the box before the selection below, which a render would
           // otherwise move to the end when it wrote the address in.
           if (live !== undefined) {
             event.currentTarget.value = live;
           }
-          send({ place: live, type: "focus" });
+          // A new tab's box is open for typing whatever brought the caret.
+          send({ edits: resting === undefined, place: live, type: "focus" });
           // The place, selected whole, so typing replaces it the way it does
           // in a browser's address bar.
           event.currentTarget.select();
         }}
         onKeyDown={(event) => {
+          const now = rowsNow();
+          const at = Math.min(highlight, Math.max(0, now.length - 1));
           switch (event.key) {
             case "ArrowDown": {
               event.preventDefault();
               send({
-                index: Math.max(0, Math.min(rows.length - 1, current + 1)),
+                index: Math.max(0, Math.min(now.length - 1, at + 1)),
                 type: "highlight",
               });
               break;
@@ -520,7 +537,22 @@ export function Omnibar({
             }
             case "ArrowUp": {
               event.preventDefault();
-              send({ index: Math.max(0, current - 1), type: "highlight" });
+              send({ index: Math.max(0, at - 1), type: "highlight" });
+              break;
+            }
+            case "Backspace": {
+              // In the empty box, the chip goes, and the field is the general
+              // one, as a browser's keyword goes.
+              const box = event.currentTarget;
+              if (
+                isEditing &&
+                scope !== undefined &&
+                box.value === "" &&
+                box.selectionStart === 0
+              ) {
+                event.preventDefault();
+                setScope(undefined);
+              }
               break;
             }
             case "Enter": {
@@ -529,13 +561,14 @@ export function Omnibar({
                 // A path with no row for it (a hidden name, a folder past the
                 // listing's cut or refused to it, a listing still on its way)
                 // is still opened as typed.
-                const typedPath = rows[current]
-                  ? undefined
-                  : typedPathHere(typed);
+                const typedPath =
+                  scope !== undefined || now[at]
+                    ? undefined
+                    : typedPathHere(typed);
                 if (typedPath) {
                   void openPath(typedPath);
                 } else {
-                  run(rows[current]);
+                  run(now[at]);
                 }
                 break;
               }
@@ -572,7 +605,7 @@ export function Omnibar({
             case "Tab": {
               // Takes what the field shows, to go on typing from it: a
               // folder's path, ready for a name in it.
-              const fill = rows[current]?.fill;
+              const fill = now[at]?.fill;
               if (isListShown && !event.shiftKey && fill && fill !== query) {
                 event.preventDefault();
                 takeShown(fill);
@@ -582,7 +615,7 @@ export function Omnibar({
             // No default
           }
         }}
-        placeholder={PROMPTS[mode]}
+        placeholder={prompt}
         ref={input}
         role="combobox"
         spellCheck={false}
@@ -590,63 +623,27 @@ export function Omnibar({
         value={shown}
       />
       {hint !== undefined && query === "" && !isFocused && hint}
-      {isListShown && (rows.length > 0 || empty || notice) ? (
-        // A press on a row must not take the caret first: the box would blur,
-        // the list would go, and the click would land on nothing.
-        <div
-          className="absolute inset-x-0 top-full z-20 mt-1.5 max-h-[calc(60vh/var(--app-zoom))] overflow-y-auto rounded-xl border border-border bg-popover py-1 shadow-float-lg"
+      {isListShown && scope !== undefined ? (
+        <ScopeList
+          current={highlight}
           id={listId}
-          onMouseDown={(event) => {
-            event.preventDefault();
-          }}
-          role="listbox"
-        >
-          {notice ? (
-            <p className="px-3 py-2 text-sm text-muted-foreground">
-              {missedPathNotice(notice.outcome)}
-            </p>
-          ) : null}
-          {rows.length === 0 ? (
-            <p className="px-3 py-2 text-sm text-muted-foreground">{empty}</p>
-          ) : (
-            rows.map((row, index) => (
-              <button
-                aria-selected={index === current}
-                className={cn(
-                  "flex h-8 w-full items-center gap-2.5 px-3 text-left text-sm",
-                  index === current ? "bg-accent" : "hover:bg-accent/50",
-                )}
-                id={`${listId}-${index}`}
-                key={row.id}
-                onClick={() => {
-                  run(row);
-                }}
-                // The arrows move the highlight past the list's fold; the
-                // list follows, so the row picked is the row seen.
-                ref={(element) => {
-                  if (index === current) {
-                    element?.scrollIntoView({ block: "nearest" });
-                  }
-                }}
-                role="option"
-                tabIndex={-1}
-                type="button"
-              >
-                <span className="flex size-4 shrink-0 items-center justify-center text-muted-foreground">
-                  {row.icon}
-                </span>
-                <span className="min-w-0 flex-1 truncate">
-                  {row.name}
-                  {row.detail ? (
-                    <span className="ml-2 text-xs text-muted-foreground">
-                      {row.detail}
-                    </span>
-                  ) : null}
-                </span>
-              </button>
-            ))
-          )}
-        </div>
+          location={location}
+          onRun={run}
+          open={{ openScreen, visit }}
+          ref={scopeList}
+          scope={scope}
+          words={typed}
+        />
+      ) : null}
+      {isListShown && scope === undefined ? (
+        <OmniList
+          current={current}
+          empty={empty}
+          id={listId}
+          notice={notice ? missedPathNotice(notice.outcome) : undefined}
+          onRun={run}
+          rows={rows}
+        />
       ) : null}
     </>
   );
@@ -759,9 +756,6 @@ function useOmnibarRows({
       staleTime: ms("10 seconds"),
     }),
   );
-
-  // The lists the other screens are one of.
-  const appsBySlug = useAppsBySlug();
 
   // An address of the app's own, typed or pasted, is one place.
   const { openAddress } = open;
@@ -886,162 +880,115 @@ function useOmnibarRows({
     };
   }
 
-  if (mode === "files") {
-    // A `file://` address to a place in a page (`?frame=2`) opens the page
-    // there, the way a browser opens it; any other names a path, which opens
-    // the file's own view like the path typed.
-    const filePage =
-      typedPathHere(words) === undefined ? siteFromWords(words) : undefined;
-    const filePagePath = hostPathOfFileUrl(filePage?.url);
-    if (filePage && filePagePath !== undefined) {
-      return {
-        completion: "",
-        rows: [
-          {
-            fill: words,
-            icon: (
-              <FileTypeIcon
-                className="size-4"
-                fileName={segmentsOf(filePagePath).at(-1) ?? filePagePath}
-              />
-            ),
-            id: "site",
-            name: words,
-            run: () => {
-              open.openSite(filePage.url);
-            },
-          },
-        ],
-      };
-    }
-    // Only what is there: the folder's own entries, and the folder itself
-    // once the words end in it. Nothing is offered at a path with nothing at
-    // it, and words that are not a path find names in the folder on screen.
-    const isWhole = typedPathHere(words) !== undefined;
-    // A folder the system refused is still a folder, and opens to say so; it
-    // just has no names in it to offer.
-    const listed = listing.data;
-    const entries = matchEntries(
-      path.prefix,
-      listed?.kind === "listing" ? listed.entries : [],
-    );
-    // The name the field finishes a whole path as: the first the start typed
-    // begins, letter for letter, so what it writes in is a real name's rest.
-    // Bare words are a search of the folder on screen, and are left as typed.
-    const finished =
-      canComplete && isWhole && path.prefix !== ""
-        ? entries.find((entry) => entry.name.startsWith(path.prefix))
-        : undefined;
-    const completion = finished ? finished.name.slice(path.prefix.length) : "";
-    const whole = `${typed}${completion}`;
-    // A whole path's names are in a folder other than the one on screen,
-    // which each row says, or a name the folder on screen has too (its
-    // Documents) reads as that one.
-    const elsewhere =
-      isWhole &&
-      withoutTrailingSeparators(path.folder) !==
-        withoutTrailingSeparators(here);
-    const entryRow = (entry: (typeof entries)[number]): OmniRow => ({
-      ...(elsewhere ? { detail: displayHostPath(path.folder, home) } : {}),
-      fill:
-        entry === finished
-          ? `${whole}${entry.kind === "folder" ? "/" : ""}`
-          : `${path.lead}${entry.name}${entry.kind === "folder" ? "/" : ""}`,
-      icon:
-        entry.kind === "folder" ? (
-          <FileSystemFolderGlyph className="h-3 w-auto" />
-        ) : (
-          <FileTypeIcon className="size-4" fileName={entry.name} />
-        ),
-      id: `entry:${entry.path}`,
-      name: entry.name,
-      run: () => {
-        if (entry.kind === "folder") {
-          open.openFolder(entry.path);
-        } else {
-          open.visit(fileHref(entry.path));
-        }
-      },
-      ...(entry.kind === "folder" ? { leavesItself: true } : {}),
-    });
-    const folderRows: OmniRow[] =
-      listed && path.prefix === ""
-        ? [
-            pathRow(displayHostPath(path.folder, home), () => {
-              open.openFolder(path.folder);
-            }),
-          ]
-        : [];
-    const rows = [
-      ...folderRows,
-      ...(finished ? [entryRow(finished)] : []),
-      ...entries
-        .filter((entry) => entry !== finished)
-        .slice(0, ENTRIES_SHOWN)
-        .map(entryRow),
-    ];
-    const folderName = displayHostPath(path.folder, home);
-    return {
-      completion,
-      ...(listing.isError
-        ? { empty: `There’s nothing at “${folderName}”.` }
-        : listed?.kind === "refused"
-          ? {
-              empty:
-                listed.reason === "app"
-                  ? `“${folderName}” has Instrument’s own files, so it stays closed.`
-                  : `Instrument can’t read “${displayHostPath(listed.refusedBy ?? path.folder, home)}”`,
-            }
-          : listed
-            ? { empty: `Nothing in “${folderName}” matches “${path.prefix}”.` }
-            : {}),
-      rows,
-    };
-  }
-
-  // Anywhere else, a path pasted in is still a path, and opens on Enter.
-  const typedPath = typedPathHere(words);
-  if (typedPath) {
+  // On the computer.
+  // A `file://` address to a place in a page (`?frame=2`) opens the page
+  // there, the way a browser opens it; any other names a path, which opens
+  // the file's own view like the path typed.
+  const filePage =
+    typedPathHere(words) === undefined ? siteFromWords(words) : undefined;
+  const filePagePath = hostPathOfFileUrl(filePage?.url);
+  if (filePage && filePagePath !== undefined) {
     return {
       completion: "",
       rows: [
-        pathRow(
-          shownTypedPath(typedPath),
-          () => {
-            void open.openPath(typedPath);
+        {
+          fill: words,
+          icon: (
+            <FileTypeIcon
+              className="size-4"
+              fileName={segmentsOf(filePagePath).at(-1) ?? filePagePath}
+            />
+          ),
+          id: "site",
+          name: words,
+          run: () => {
+            open.openSite(filePage.url);
           },
-          typedFileName(typedPath),
-        ),
+        },
       ],
     };
   }
-  const matches = ((): OmniRow[] => {
-    switch (mode) {
-      case "apps": {
-        return matchNames(words, [...appsBySlug], ([, app]) => app.name).map(
-          ([slug, app]) => ({
-            icon: (
-              <AppIcon
-                name={app.name}
-                icon={app.icon}
-                site={app.site}
-                size="sm"
-              />
-            ),
-            id: `app:${slug}`,
-            name: app.name,
-            run: () => {
-              open.visit(`/apps/${slug}`);
-            },
-          }),
-        );
+  // Only what is there: the folder's own entries, and the folder itself
+  // once the words end in it. Nothing is offered at a path with nothing at
+  // it, and words that are not a path find names in the folder on screen.
+  const isWhole = typedPathHere(words) !== undefined;
+  // A folder the system refused is still a folder, and opens to say so; it
+  // just has no names in it to offer.
+  const listed = listing.data;
+  const entries = matchEntries(
+    path.prefix,
+    listed?.kind === "listing" ? listed.entries : [],
+  );
+  // The name the field finishes a whole path as: the first the start typed
+  // begins, letter for letter, so what it writes in is a real name's rest.
+  // Bare words are a search of the folder on screen, and are left as typed.
+  const finished =
+    canComplete && isWhole && path.prefix !== ""
+      ? entries.find((entry) => entry.name.startsWith(path.prefix))
+      : undefined;
+  const completion = finished ? finished.name.slice(path.prefix.length) : "";
+  const whole = `${typed}${completion}`;
+  // A whole path's names are in a folder other than the one on screen,
+  // which each row says, or a name the folder on screen has too (its
+  // Documents) reads as that one.
+  const elsewhere =
+    isWhole &&
+    withoutTrailingSeparators(path.folder) !== withoutTrailingSeparators(here);
+  const entryRow = (entry: (typeof entries)[number]): OmniRow => ({
+    ...(elsewhere ? { detail: displayHostPath(path.folder, home) } : {}),
+    fill:
+      entry === finished
+        ? `${whole}${entry.kind === "folder" ? "/" : ""}`
+        : `${path.lead}${entry.name}${entry.kind === "folder" ? "/" : ""}`,
+    icon:
+      entry.kind === "folder" ? (
+        <FileSystemFolderGlyph className="h-3 w-auto" />
+      ) : (
+        <FileTypeIcon className="size-4" fileName={entry.name} />
+      ),
+    id: `entry:${entry.path}`,
+    name: entry.name,
+    run: () => {
+      if (entry.kind === "folder") {
+        open.openFolder(entry.path);
+      } else {
+        open.visit(fileHref(entry.path));
       }
-    }
-  })().slice(0, MATCHES_SHOWN);
+    },
+    ...(entry.kind === "folder" ? { leavesItself: true } : {}),
+  });
+  const folderRows: OmniRow[] =
+    listed && path.prefix === ""
+      ? [
+          pathRow(displayHostPath(path.folder, home), () => {
+            open.openFolder(path.folder);
+          }),
+        ]
+      : [];
+  const rows = [
+    ...folderRows,
+    ...(finished ? [entryRow(finished)] : []),
+    ...entries
+      .filter((entry) => entry !== finished)
+      .slice(0, ENTRIES_SHOWN)
+      .map(entryRow),
+  ];
+  const folderName = displayHostPath(path.folder, home);
   return {
-    completion: "",
-    empty: `No ${NOUNS[mode]} match “${words}”`,
-    rows: [...matches],
+    completion,
+    ...(listing.isError
+      ? { empty: `There’s nothing at “${folderName}”.` }
+      : listed?.kind === "refused"
+        ? {
+            empty:
+              listed.reason === "app"
+                ? `“${folderName}” has Instrument’s own files, so it stays closed.`
+                : `Instrument can’t read “${displayHostPath(listed.refusedBy ?? path.folder, home)}”`,
+          }
+        : listed
+          ? { empty: `Nothing in “${folderName}” matches “${path.prefix}”.` }
+          : {}),
+    rows,
   };
 }
 

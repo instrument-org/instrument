@@ -34,6 +34,7 @@ import {
   isExtensionPageUrl,
 } from "@/client/components/window/browser-extensions";
 import { Omnibar } from "@/client/components/window/omnibar";
+import { editField } from "@/client/components/window/omnibar-field";
 import {
   type OpenInAppTarget,
   openInAppTargetOfUrl,
@@ -94,8 +95,8 @@ import {
  * and a task reaches the work, without the row pretending to be a URL bar. A
  * chip ahead of the parts names which of the app's own apps the tab is in and
  * goes to its index. With the caret the field holds a page's or a file's real
- * address to edit, and opens empty in the app's own places; the star at the
- * field's end keeps the tab's address as a bookmark.
+ * address to edit, or opens empty to search the app the chip names; the star
+ * at the field's end keeps the tab's address as a bookmark.
  */
 export function TabLocationRow({
   address,
@@ -229,7 +230,7 @@ export function TabLocationRow({
             const input = event.currentTarget.querySelector("input");
             if (input && event.target !== input) {
               event.preventDefault();
-              input.focus();
+              editField(input);
             }
           }}
         >
@@ -789,7 +790,8 @@ function locationMark(location: TabLocation): ReactNode {
  * What the field holds when it is edited: an address a person can type and
  * read, the place's own. A file's and a folder's path and a page's URL are
  * that; the app's own places have none (their `instrument://` addresses are
- * for bookmarks and links), so their field opens empty.
+ * for bookmarks and links), so their field opens empty, searching the app
+ * the chip names (`FieldScope`).
  */
 function locationText(location: TabLocation) {
   switch (location.kind) {

@@ -4,6 +4,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import { page, userEvent } from "vitest/browser";
 
 import { Omnibar } from "./omnibar";
+import { editField } from "./omnibar-field";
 
 /** What each folder's listing answers, by its path; every other query stays pending. */
 const listings = vi.hoisted(() => new Map<string, unknown>());
@@ -173,13 +174,104 @@ describe("a page's file pressed into", () => {
     const field = page.getByRole("combobox");
     // Out of the pointer's way while the place rests over it; the row hands
     // it the caret on a press, as here.
-    field.element().focus();
+    const box = field.element();
+    if (box instanceof HTMLInputElement) {
+      editField(box);
+    }
 
     await expect.element(field).toHaveValue(live);
-    const box = field.element();
     expect(
       box instanceof HTMLInputElement && [box.selectionStart, box.selectionEnd],
     ).toEqual([0, live.length]);
     await expect.element(field).toHaveAttribute("aria-expanded", "false");
+  });
+});
+
+// In a chat and in the app's own pages, the field searches the app its chip
+// names, the way a browser's address bar searches a site once its keyword
+// is in; the place has no address to edit.
+describe("a field searching the app its chip names", () => {
+  const chat = { kind: "chat", title: "Trip to Lisbon" } as const;
+
+  it("opens empty with the chip still there, and Backspace puts the chip away", async () => {
+    await renderInBrowser(
+      <Omnibar location={chat} resting={<span>Trip to Lisbon</span>} />,
+    );
+    const field = page.getByRole("combobox");
+    const box = field.element();
+    if (box instanceof HTMLInputElement) {
+      editField(box);
+    }
+
+    await expect.element(field).toHaveValue("");
+    await expect.element(field).toHaveAttribute("placeholder", "Search chats");
+    await expect
+      .element(page.getByText("Trip to Lisbon"))
+      .not.toBeInTheDocument();
+    await expect.element(page.getByText("Chat")).toBeVisible();
+
+    await userEvent.keyboard("{Backspace}");
+    await expect
+      .element(field)
+      .toHaveAttribute("placeholder", "Search or enter address");
+    await expect.element(page.getByText("Chat")).not.toBeInTheDocument();
+  });
+
+  it("offers the app's own entries for the words typed, best first, then its search", async () => {
+    await renderInBrowser(
+      <Omnibar
+        location={{ kind: "builtin", part: "Providers", screen: "settings" }}
+        resting={<span>Providers</span>}
+      />,
+    );
+    const field = page.getByRole("combobox");
+    const box = field.element();
+    if (box instanceof HTMLInputElement) {
+      editField(box);
+    }
+    await userEvent.keyboard("theme");
+
+    await expect
+      .element(page.getByRole("option", { selected: true }))
+      .toMatchTextContent(/^Theme/);
+    await expect
+      .element(
+        page.getByRole("option", { name: "Search settings for “theme”" }),
+      )
+      .toBeVisible();
+  });
+
+  it("gives an address typed in to the general field", async () => {
+    await renderInBrowser(
+      <Omnibar location={chat} resting={<span>Trip to Lisbon</span>} />,
+    );
+    const field = page.getByRole("combobox");
+    const box = field.element();
+    if (box instanceof HTMLInputElement) {
+      editField(box);
+    }
+    await userEvent.keyboard("https://example.org");
+
+    await expect
+      .element(field)
+      .toHaveAttribute("placeholder", "Search or enter address");
+    await expect
+      .element(page.getByRole("option", { selected: true }))
+      .toMatchTextContent(/example\.org/);
+  });
+
+  it("keeps the place on show for a caret the keyboard brought, until a letter is typed", async () => {
+    await renderInBrowser(
+      <Omnibar location={chat} resting={<span>Trip to Lisbon</span>} />,
+    );
+    const field = page.getByRole("combobox");
+    field.element().focus();
+
+    await expect.element(page.getByText("Trip to Lisbon")).toBeVisible();
+    await userEvent.keyboard("l");
+    await expect
+      .element(page.getByText("Trip to Lisbon"))
+      .not.toBeInTheDocument();
+    await expect.element(field).toHaveValue("l");
   });
 });

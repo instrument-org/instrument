@@ -24,10 +24,25 @@ describe("omnibarField", () => {
   it("writes only what each event names", () => {
     const cases = {
       clear: [editing, { type: "clear" }],
-      focus: [initialOmnibarField("~/code", false), { type: "focus" }],
+      edit: [
+        { ...initialOmnibarField("~/code", false), isFocused: true },
+        { type: "edit" },
+      ],
+      focus: [
+        initialOmnibarField("~/code", false),
+        { edits: true, type: "focus" },
+      ],
       "focus, on a page gone on in itself": [
         initialOmnibarField("file:///Users/casey/w.html", false),
-        { place: "file:///Users/casey/w.html?frame=2", type: "focus" },
+        {
+          edits: true,
+          place: "file:///Users/casey/w.html?frame=2",
+          type: "focus",
+        },
+      ],
+      "focus, from the keyboard": [
+        initialOmnibarField("~/code", false),
+        { edits: false, type: "focus" },
       ],
       highlight: [editing, { index: 3, type: "highlight" }],
       "input, a letter at the end": [
@@ -58,10 +73,26 @@ describe("omnibarField", () => {
           "place": "",
           "query": "",
         },
+        "edit": {
+          "canComplete": false,
+          "highlight": 0,
+          "isEditing": true,
+          "isFocused": true,
+          "place": "~/code",
+          "query": "~/code",
+        },
         "focus": {
           "canComplete": false,
           "highlight": 0,
           "isEditing": true,
+          "isFocused": true,
+          "place": "~/code",
+          "query": "~/code",
+        },
+        "focus, from the keyboard": {
+          "canComplete": false,
+          "highlight": 0,
+          "isEditing": false,
           "isFocused": true,
           "place": "~/code",
           "query": "~/code",
@@ -147,6 +178,18 @@ describe("omnibarField", () => {
 
   it("leaves a new tab empty new tab empty after it is put away", () => {
     expect(run(editing, { type: "clear" }, { type: "blur" }).query).toBe("");
+  });
+
+  it("keeps the place on show for a caret the keyboard brought, until a letter is typed", () => {
+    const tabbedTo = run(initialOmnibarField("", false), {
+      edits: false,
+      type: "focus",
+    });
+    expect(tabbedTo.isEditing).toBe(false);
+    expect(
+      omnibarField(tabbedTo, { canComplete: true, query: "t", type: "input" })
+        .isEditing,
+    ).toBe(true);
   });
 
   it("opens a new tab for typing before it has focus", () => {

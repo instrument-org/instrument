@@ -249,7 +249,10 @@ const SCREEN_OF_KIND = {
   skills: "skills",
 } as const satisfies Partial<Record<Screen["kind"], ScreenName>>;
 
-/** The chat a screen address stands on, by the title the window has for it. */
+/**
+ * The chat a screen address stands on, by the title the window has for it,
+ * and a new chat as one.
+ */
 function chatTitleOf(
   screen: Extract<
     Screen,
@@ -257,6 +260,9 @@ function chatTitleOf(
   >,
   chatTitles: ScreenNames["chatTitles"],
 ) {
+  if (screen.kind === "inbox") {
+    return "New chat";
+  }
   return (
     (screen.kind === "chat" ? chatTitles?.get(screen.chat) : undefined) ??
     "Chat"

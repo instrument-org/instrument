@@ -4,6 +4,7 @@ import { describe, expect, it } from "vitest";
 
 import routeTreeSource from "../../routeTree.gen.ts?raw";
 import { screenLocation, screenPresentation } from "./screen-presentation";
+import { newChatHref } from "./window-href";
 
 const CONTEXT = { appsBySlug: new Map() };
 
@@ -17,6 +18,13 @@ describe("screenPresentation", () => {
       screenPresentation(INBOX_HREF, { ...CONTEXT, chatTitles }).title,
     ).toBe("Caffeine mixes, plus Zevia");
     expect(screenPresentation(INBOX_HREF, CONTEXT).title).toBe("Chat");
+  });
+
+  it.each([
+    ["with no draft yet", newChatHref()],
+    ["on its draft", newChatHref("01M7BVSPAMVP4SR3P07E7PFGCQ")],
+  ])("names a new chat's tab New chat, %s", (_case, href) => {
+    expect(screenPresentation(href, CONTEXT).title).toBe("New chat");
   });
 
   it("names a task's tab by its title once known", () => {

@@ -5,6 +5,7 @@ import {
   type Bookmark,
   inOrder,
   orderAfter,
+  placeOf,
 } from "./bookmarks";
 
 const page = (id: string, order: number): Bookmark => ({
@@ -34,6 +35,16 @@ describe("applyBookmarkOps", () => {
         [{ bookmark: { ...page("a", 5), title: "Other" }, type: "add" }],
       ),
     ).toEqual([page("a", 0)]);
+  });
+
+  it("moves a bookmark between the bar and the sidebar", () => {
+    const placed = applyBookmarkOps(
+      [page("a", 0), page("b", 1)],
+      [{ id: "a", order: 4, type: "place", where: "sidebar" }],
+    );
+    expect(
+      placed.map((bookmark) => `${bookmark.id} ${placeOf(bookmark)}`),
+    ).toEqual(["b bar", "a sidebar"]);
   });
 
   it("leaves the rest alone for an op naming a bookmark that is gone", () => {

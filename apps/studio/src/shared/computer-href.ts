@@ -21,6 +21,13 @@ export function fileHref(
 export const COMPUTER_ROOT = "computer:";
 
 /**
+ * The place that is not a folder: the files the person opened, wherever they
+ * live. Stands where a root folder stands, so the browser opens on it the way
+ * it opens on Home.
+ */
+export const RECENTS_ROOT = "recents:";
+
+/**
  * The address of a folder's tab: the folder view standing in it.
  *
  * Rooted there rather than opened under the home folder, so the columns start

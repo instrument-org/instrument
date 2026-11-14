@@ -136,6 +136,53 @@ describe("createBookmarkStore", () => {
     expect(there.heard.at(-1)?.bookmarks).toEqual([]);
   });
 
+  it("keeps an app address in the sidebar, and reads one with no place as the bar", async () => {
+    const { bookmarks, store } = await bookmarksOf(HERE);
+    const chat = { ...page("c", 0), url: "instrument://chat/abc" };
+    await bookmarks.apply({
+      client: "w1",
+      ops: [
+        { bookmark: chat, type: "add" },
+        { id: "c", order: 3, type: "place", where: "sidebar" },
+      ],
+      seq: 1,
+    });
+    await store.apply([
+      {
+        key: "bookmark/old",
+        t: "set",
+        value: { order: 1, title: "Old", url: "https://old.example/" },
+      },
+      {
+        key: "bookmark/odd",
+        t: "set",
+        value: {
+          order: 2,
+          title: "Odd",
+          url: "https://odd.example/",
+          where: "shelf",
+        },
+      },
+    ]);
+    expect(
+      bookmarks
+        .snapshot()
+        .bookmarks.map(({ id, url, where }) => `${id} ${url} ${where ?? "-"}`),
+    ).toMatchInlineSnapshot(`
+      [
+        "old https://old.example/ -",
+        "odd https://odd.example/ -",
+        "c instrument://chat/abc sidebar",
+      ]
+    `);
+    expect(store.entries().get("bookmark/c")).toEqual({
+      order: 3,
+      title: "Page c",
+      url: "instrument://chat/abc",
+      where: "sidebar",
+    });
+  });
+
   it("passes over a value it cannot read as a bookmark", async () => {
     const store = await synced(HERE);
     await store.apply([

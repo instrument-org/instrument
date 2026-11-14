@@ -99,7 +99,12 @@ import {
 } from "@/client/lib/utils";
 import { useWorkspaceFolder } from "@/client/lib/output-folder";
 import { rpcClient, type RPCOutput } from "@/client/rpc/client";
-import { COMPUTER_ROOT, fileHref, folderHref } from "@/shared/computer-href";
+import {
+  COMPUTER_ROOT,
+  fileHref,
+  folderHref,
+  RECENTS_ROOT,
+} from "@/shared/computer-href";
 import { keptInPlaceReason } from "@/shared/instrument-folders";
 import { RENDERED_EXTENSIONS } from "@/shared/rendered-kinds";
 import {
@@ -231,12 +236,7 @@ const PAGE_ASPECT = 0.78;
 /** How often every folder on screen is re-read, so files a task writes appear. */
 const REFRESH_MS = ms("4 seconds");
 
-/**
- * The place that is not a folder: the files the person opened, wherever they
- * live. Stands where a root folder stands, so the browser opens on it the way
- * it opens on Home.
- */
-export const RECENTS_ROOT = "recents:";
+export { RECENTS_ROOT };
 
 /** The order a folder never sorted by hand opens in. */
 const NAME_SORT: FileSystemSortState = { direction: "asc", key: "name" };

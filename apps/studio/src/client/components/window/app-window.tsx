@@ -62,6 +62,7 @@ import { getTabRouter } from "@/client/lib/tab-router-registry";
 import { restoreTabView } from "@/client/lib/tab-view-state";
 import {
   closeGroupTab,
+  closeTabGroup,
   forgetClosed,
   setTabPathname,
 } from "@/client/lib/tabs-model";
@@ -124,6 +125,7 @@ import { type WindowContextValue as Screens, WindowContext } from "./context";
 import {
   chatOfTab,
   closedGroupTabOf,
+  closedTabGroupOf,
   isBlankNewTab,
   isNewChatTab,
   selectedTabIn,
@@ -543,6 +545,26 @@ function WindowShell({
   // and History shows it at work. With `keep`, the group a row's menu asked
   // from, which the window moves to.
   const closeGroups = (closed: readonly string[], keep?: string) => {
+    // Each group goes on the window's closed list whole, so Shift+Cmd+T
+    // brings it back as it was; a group of only blank new tabs leaves
+    // nothing to bring back.
+    for (const group of closed) {
+      const kept = windowTabs.allTabs.flatMap((tab) => {
+        const closedAs = closingAsWritten(tab);
+        return tab.group === group && closedAs && !isBlankNewTab(closedAs)
+          ? [closedAs]
+          : [];
+      });
+      if (kept.length > 0) {
+        store.set(appTabsAtom, (current) =>
+          closeTabGroup(current, {
+            id: freshTabId(),
+            pathname: groupHref(group),
+            tabs: kept,
+          }),
+        );
+      }
+    }
     if (keep === undefined) {
       for (const group of closed) {
         groups.close(group, groupList.open);
@@ -895,23 +917,22 @@ function WindowShell({
     windowTabs.close(id);
   };
   /**
-   * The tab this window closed last back in its group, up there, unless a
-   * window closed since, which comes back instead, the way a browser's one
-   * chord brings back either. A tab whose group has closed too is passed over.
+   * What this window closed last back, unless a window closed since, which
+   * comes back instead, the way a browser's one chord brings back either: a
+   * whole tab group as a group again, its tabs on their sides; a tab into
+   * its group, up there, or as a group of its own when its group has closed.
    */
   const reopenTab = () => {
-    const isOpen = (group: string) =>
-      groupList.open.some((entry) => entry.group === group);
-    const entry = store.get(appTabsAtom).recentlyClosed.find((each) => {
-      const group = closedGroupTabOf(each)?.group;
-      return group !== undefined && isOpen(group);
-    });
+    const [entry] = store.get(appTabsAtom).recentlyClosed.filter(
+      (each) =>
+        closedGroupTabOf(each) !== undefined ||
+        closedTabGroupOf(each) !== undefined,
+    );
     void rpcClient.window.reopenClosed
       .call(entry && { after: entry.closedAt ?? 0 })
       .catch(() => false)
       .then((windowCameBack) => {
-        const tab = entry && closedGroupTabOf(entry);
-        if (!entry || !tab || windowCameBack) {
+        if (!entry || windowCameBack) {
           return;
         }
         store.set(appTabsAtom, (current) =>
@@ -920,11 +941,30 @@ function WindowShell({
         // A tab id is never opened twice. A page's guest went with it, and
         // comes back when the page shows, at the address it had, the way a
         // launch brings a tab's page back.
-        windowTabs.reopen(
-          { ...tab, id: newScreenId() },
-          entry.index ?? Number.POSITIVE_INFINITY,
-        );
-        groups.show(tab.group);
+        const tab = closedGroupTabOf(entry);
+        const isOpen =
+          tab !== undefined &&
+          groupList.open.some((each) => each.group === tab.group);
+        if (tab && isOpen) {
+          windowTabs.reopen(
+            { ...tab, id: newScreenId() },
+            entry.index ?? Number.POSITIVE_INFINITY,
+          );
+          groups.show(tab.group);
+          return;
+        }
+        // A tab alone stands on the one side its new group has.
+        const tabs =
+          closedTabGroupOf(entry) ??
+          (tab ? [{ ...tab, side: undefined }] : []);
+        groups.make({
+          fill: (group) => {
+            windowTabs.restoreGroup(
+              group,
+              tabs.map((each) => ({ ...each, group, id: newScreenId() })),
+            );
+          },
+        });
       });
   };
 

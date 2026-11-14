@@ -127,6 +127,24 @@ export function closeGroupTab(
   };
 }
 
+/**
+ * A whole tab group closed, on the window's closed list beside its own
+ * tabs: at the group's address, holding every tab it had, so a reopen
+ * brings the group back as it was.
+ */
+export function closeTabGroup(
+  model: TabsModel,
+  { id, pathname, tabs }: { id: TabId; pathname: string; tabs: WindowTab[] },
+): TabsModel {
+  return {
+    ...model,
+    recentlyClosed: [
+      { closedAt: Date.now(), groupTabs: tabs, id, pathname },
+      ...model.recentlyClosed,
+    ].slice(0, MAX_RECENTLY_CLOSED),
+  };
+}
+
 /** The closed list without one entry, by its id: one reopened. */
 export function forgetClosed(model: TabsModel, { id }: { id: TabId }) {
   return {

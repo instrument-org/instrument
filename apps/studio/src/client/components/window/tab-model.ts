@@ -622,6 +622,19 @@ export function closedGroupTabOf({
   return isGroupTabRecord(groupTab) ? groupTab : undefined;
 }
 
+/** The tabs of a whole group a closed entry holds (`closeTabGroup`); none for any other entry. */
+export function closedTabGroupOf({
+  groupTabs,
+}: {
+  groupTabs?: unknown;
+}): (WindowTab & { group: string })[] | undefined {
+  return Array.isArray(groupTabs) &&
+    groupTabs.length > 0 &&
+    groupTabs.every(isGroupTabRecord)
+    ? groupTabs
+    : undefined;
+}
+
 /** Whether a kept value is a tab of a group, as `closeGroupTab` alone writes one. */
 function isGroupTabRecord(
   value: unknown,

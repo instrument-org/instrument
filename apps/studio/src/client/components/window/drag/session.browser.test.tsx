@@ -20,9 +20,19 @@ vi.mock("@/client/lib/browser-pool", () => ({
 
 const AT = { x: 100, y: 100 };
 
-const pointer = (type: string, x: number) =>
+/** A pointer event at a point along the row, the button down while it moves unless `buttons` says. */
+const pointer = (
+  type: string,
+  x: number,
+  buttons = type === "pointermove" ? 1 : 0,
+) =>
   window.dispatchEvent(
-    new PointerEvent(type, { clientX: x, clientY: AT.y, isPrimary: true }),
+    new PointerEvent(type, {
+      buttons,
+      clientX: x,
+      clientY: AT.y,
+      isPrimary: true,
+    }),
   );
 
 /** Presses a tab and moves the pointer past the start, which makes the press a drag. */
@@ -145,6 +155,24 @@ it("holds pages off the keyboard from the press until the drag ends", () => {
   drag();
   expect(keyboard.holds).toBe(1);
   pointer("pointerup", AT.x + 40);
+
+  expect(currentDrag()).toBeUndefined();
+  expect(keyboard.holds).toBe(0);
+});
+
+it("lets pages pass the pointer from the press, so a move over one still reaches the press", () => {
+  const passes = () => getComputedStyle(page).pointerEvents === "none";
+  expect(passes()).toBe(false);
+  pressTab();
+  expect(passes()).toBe(true);
+  pointer("pointerup", AT.x);
+
+  expect(passes()).toBe(false);
+});
+
+it("drops a press whose button came up where the window never heard it", () => {
+  pressTab();
+  pointer("pointermove", AT.x + 40, 0);
 
   expect(currentDrag()).toBeUndefined();
   expect(keyboard.holds).toBe(0);

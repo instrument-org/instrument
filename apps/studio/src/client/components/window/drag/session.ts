@@ -378,7 +378,13 @@ export function pressToDrag(
   // A page the press brings up takes the keyboard once the press is over,
   // as a click or as the drag it becomes, which holds pages off for itself.
   const letGoOfKeyboard = holdKeyboardFromPages();
+  // A page runs in a process of its own, which takes every move over it,
+  // and the release, from a press in the window: a bookmark pulled down
+  // onto the page under the bar would never move far enough here to be a
+  // drag. Pages let the pointer pass from the press, as the drag has them.
+  document.documentElement.toggleAttribute("data-pressing", true);
   const stop = () => {
+    document.documentElement.removeAttribute("data-pressing");
     window.removeEventListener("pointermove", onMove, { capture: true });
     window.removeEventListener("pointerup", onEnd, { capture: true });
     window.removeEventListener("pointercancel", onEnd, { capture: true });
@@ -389,6 +395,11 @@ export function pressToDrag(
   };
   const onMove = (move: PointerEvent) => {
     if (!move.isPrimary) {
+      return;
+    }
+    // The button came up where the window never heard it: the press is over.
+    if ((move.buttons & 1) === 0) {
+      onEnd();
       return;
     }
     if (Math.hypot(move.clientX - from.x, move.clientY - from.y) < START_PX) {

@@ -1033,9 +1033,13 @@ describe("the work card", () => {
                 },
               )
             : ({
-                data: { answer: "allowed", kind: "app", target: "notion" },
+                data: {
+                  changes: [
+                    { change: "added", kind: "memory", name: "no-stevia" },
+                  ],
+                },
                 metadata: meta(id),
-                type: "data-permissionAnswer",
+                type: "data-setupChanges",
               } as SessionMessagePart.Type),
           call(id, "bash", { activity: "Looking" }, { exitCode: 0 }),
           said(id, "Done."),
@@ -1076,6 +1080,81 @@ describe("the work card", () => {
       expect(turn?.foldedRowIds.size).toBe(folded);
     },
   );
+
+  it.each([
+    ["a permission given between two steps", ["Looking", "allowed", "Writing"]],
+    ["a permission given just before the reply", ["Looking", "allowed"]],
+    [
+      "a page taken over and given back",
+      ["Looking", "taken", "returned", "Writing"],
+    ],
+    ["a capacity wait the turn went past", ["Looking", "waited", "Writing"]],
+  ] as const)("folds all of its work around %s", (_name, work) => {
+    const wake = (part: Record<string, unknown>) =>
+      message("user", (id) => [
+        { ...part, metadata: meta(id) } as SessionMessagePart.Type,
+      ]);
+    const [turn] = turnsOf(
+      [
+        typed("Do the thing"),
+        ...work.map((item) => {
+          switch (item) {
+            case "allowed": {
+              return wake({
+                data: { answer: "allowed", kind: "app", target: "notion" },
+                type: "data-permissionAnswer",
+              });
+            }
+            case "returned":
+            case "taken": {
+              return wake({
+                data: {
+                  page: { title: "Shop", url: "https://shop.example" },
+                  stage: item,
+                  tab: "tab-1",
+                },
+                type: "data-pageTakeover",
+              });
+            }
+            case "waited": {
+              return message("assistant", () => [], {
+                error: {
+                  kind: "api-call",
+                  message: "No",
+                  name: "x",
+                  responseBody: JSON.stringify({
+                    error: { code: "concurrency-limit" },
+                  }),
+                  url: "u",
+                },
+              });
+            }
+            default: {
+              return message("assistant", (id) => [
+                call(id, "bash", { activity: item }, { exitCode: 0 }),
+              ]);
+            }
+          }
+        }),
+        message("assistant", (id) => [said(id, "Done.")]),
+      ],
+      { isRunning: false },
+    );
+    const kinds = turn?.rows.map((row) => row.kind);
+    expect(kinds).toEqual([
+      ...work.map((item) =>
+        item === "waited"
+          ? "error"
+          : item === "allowed" || item === "taken" || item === "returned"
+            ? "note"
+            : "activity",
+      ),
+      "text",
+    ]);
+    expect(turn?.foldedRowIds).toEqual(
+      new Set(turn?.rows.slice(0, -1).map((row) => row.id)),
+    );
+  });
 
   it("folds a turn whose question the person wrote past without answering", () => {
     const cache: TurnsCache = new Map();

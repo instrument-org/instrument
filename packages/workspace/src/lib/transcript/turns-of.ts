@@ -944,12 +944,13 @@ function isRunningRow(row: ActivityRow): boolean {
  * It folds only when nothing in it is left to read, so the reply after it is
  * the whole of what the person needs: the turn finished on its own with
  * words, no message cut across it, and every row between the first piece of
- * work and the reply is a finished step, a card already answered, or words
- * said along the way. A note, an error, a task, a step still running or a
- * card still waiting keeps the whole turn open. What the agent said before
- * it did anything answers the message at once, so it stays above the fold.
- * Notes under the reply (what the turn did to the person's setup or chats)
- * are outside the work and stay in view, so they keep nothing open.
+ * work and the reply is a finished step, a card already answered, the
+ * person's own answer to the work, words said along the way, or a row that
+ * draws nothing. A note, an error, a task, a step still running or a card
+ * still waiting keeps the whole turn open. What the agent said before it did
+ * anything answers the message at once, so it stays above the fold. Notes
+ * under the reply (what the turn did to the person's setup or chats) are
+ * outside the work and stay in view, so they keep nothing open.
  */
 function foldedRows(
   all: readonly TurnRow[],
@@ -964,7 +965,7 @@ function foldedRows(
     ? all.slice(0, reply + 1)
     : all;
   const isWork = (row: TurnRow) =>
-    row.kind === "activity" || row.kind === "ask";
+    row.kind === "activity" || row.kind === "ask" || isAnswerNote(row);
   const firstWork = rows.findIndex(isWork);
   const lastWork = rows.findLastIndex(isWork);
   if (
@@ -976,19 +977,39 @@ function foldedRows(
     return none;
   }
   const work = rows.slice(firstWork, lastWork + 1);
+  // A capacity wait the turn went past keeps its row for the turn's shape,
+  // and says nothing wherever it is.
+  const drawsNothing = (row: TurnRow) =>
+    row.kind === "error" && row.draws === "nothing";
+  const readsAsWords = (row: TurnRow) =>
+    row.kind === "text" || drawsNothing(row);
   const isSettled = (row: TurnRow) =>
-    row.kind === "text" ||
+    readsAsWords(row) ||
+    isAnswerNote(row) ||
     (row.kind === "ask" && !row.isOpen) ||
     (row.kind === "activity" && !isRunningRow(row));
-  const isWords = (row: TurnRow) => row.kind === "text";
   if (
-    !rows.slice(0, firstWork).every(isWords) ||
+    !rows.slice(0, firstWork).every(readsAsWords) ||
     !work.every(isSettled) ||
-    !rows.slice(lastWork + 1).every(isWords)
+    !rows.slice(lastWork + 1).every(readsAsWords)
   ) {
     return none;
   }
   return { ids: new Set(work.map((row) => row.id)), lineAt: work[0]?.id };
+}
+
+/**
+ * The person's own answer to the work: a permission they gave or refused, or
+ * a page they took over and gave back. Settings keeps the permission and the
+ * reply says what came of it, so it is part of the work rather than something
+ * left to read.
+ */
+function isAnswerNote(row: TurnRow): boolean {
+  return (
+    row.kind === "note" &&
+    (row.part.type === "data-permissionAnswer" ||
+      row.part.type === "data-pageTakeover")
+  );
 }
 
 function liveOf(

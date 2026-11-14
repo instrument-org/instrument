@@ -120,6 +120,9 @@ export function GroupItem({
   const screenKind =
     up.kind === "screen" ? matchScreen(up.href).kind : undefined;
   const isNewChat = screenKind === "inbox";
+  // Files keeps the row every tab shares, with its own controls (the
+  // sidebar, the view, the sort, search) in a row of their own under it.
+  const isFiles = screenKind === "computer";
   const isChat = screenKind === "chat";
   const store = useStore();
   /** Whether the new chat up here has nothing written in it, words still settling counted. */
@@ -286,7 +289,7 @@ export function GroupItem({
               ),
             }
           : {})}
-        leading={rowProps.leading}
+        {...(isFiles ? {} : { leading: rowProps.leading })}
         trailing={
           <>
             {/* The extensions' buttons go before the page's own controls. */}
@@ -379,6 +382,11 @@ export function GroupItem({
             onOpen={openHere}
             onVisit={visitHere}
           />
+          {isFiles && (
+            <div className="flex h-11 shrink-0 items-center gap-1.5 border-b border-border bg-background px-1.5">
+              {rowProps.leading}
+            </div>
+          )}
         </>
       }
     >

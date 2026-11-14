@@ -3,13 +3,14 @@ import {
   forgetGroupAtom,
   groupNamesAtom,
   groupPinsAtom,
+  starPinsCarriedAtom,
 } from "@/client/atoms/tab-groups";
 import { pickNewChatProjectAtom } from "@/client/drafts/new-chat-box";
 import { draftsAtom } from "@/client/drafts/store";
 import { keptAtom, keptInOtherWindows } from "@/client/lib/kept-state";
 import { freshTabId } from "@/client/lib/tab-actions";
 import { rpcClient } from "@/client/rpc/client";
-import { type Draft, holdsSomething } from "@/shared/drafts";
+import { type Draft, draftOfGroup, holdsSomething } from "@/shared/drafts";
 import { keptTabGroupsOf, TAB_GROUPS_KEY } from "@/shared/kept-state";
 import { type SidebarPlace } from "@/shared/tabs";
 import { type ChatId, StoreId } from "@instrument-org/workspace/client";
@@ -233,7 +234,12 @@ function openEntry(
     .map((tab) => drafts.find((entry) => entry.id === draftOfTab(tab)))
     .find((entry) => entry !== undefined && entry.words.trim() !== "");
   if (draft) {
-    return { ...own, draft, kind: "draft", title: name ?? draftWordsTitle(draft) };
+    return {
+      ...own,
+      draft,
+      kind: "draft",
+      title: name ?? draftWordsTitle(draft),
+    };
   }
   return { ...own, kind: "tabs", title: name ?? "New chat" };
 }
@@ -361,6 +367,78 @@ export function pinnedWith(
 }
 
 /**
+ * A window's list as upkeep keeps it: every listed group with tabs, and each
+ * with none that is given a tab here, at the address `opening` names. A
+ * chat's group gets its chat's tab, as an earlier build kept a group that
+ * was its chat alone. A draft's group gets its new chat while the draft is
+ * there, or while the group is named or pinned, as that build kept one whose
+ * chat had not started with nothing in it but its name or pin; the new chat
+ * stands at the draft's address, which the window's tab may still ask for.
+ * Any other group named or pinned gets a new chat. The rest leave the list,
+ * so a group with a name or a pin never does.
+ */
+export function upkeptList(
+  listed: readonly string[],
+  state: WindowTabs,
+  {
+    drafts,
+    names,
+    pins,
+  }: {
+    drafts: readonly Draft[];
+    names: Record<string, string>;
+    pins: Record<string, true>;
+  },
+): { kept: string[]; opening: { group: string; href: string }[] } {
+  const hrefFor = (group: string) => {
+    const chat = chatOfGroup(group);
+    if (chat !== undefined) {
+      return chatHref(chat);
+    }
+    const isOwn = group in names || group in pins;
+    const draft = draftOfGroup(group);
+    if (draft !== undefined) {
+      return isOwn || drafts.some((entry) => entry.id === draft)
+        ? newChatHref(draft)
+        : undefined;
+    }
+    return isOwn ? NEW_TAB_HREF : undefined;
+  };
+  const opening: { group: string; href: string }[] = [];
+  const kept = listed.filter((group) => {
+    if (tabsIn(state, group).length > 0) {
+      return true;
+    }
+    const href = hrefFor(group);
+    if (href !== undefined) {
+      opening.push({ group, href });
+    }
+    return href !== undefined;
+  });
+  return { kept, opening };
+}
+
+/**
+ * The pins with every listed group keyed by a starred chat's id pinned: an
+ * earlier build keyed a chat's group by the chat and pinned it by the chat's
+ * star, which pins nothing now.
+ */
+export function pinnedFromStars(
+  pins: Record<string, true>,
+  listed: readonly string[],
+  chats: readonly Pick<Chat, "id" | "starred">[],
+): Record<string, true> {
+  const starred = new Set<string>(
+    chats.flatMap((chat) => (chat.starred ? [chat.id] : [])),
+  );
+  return listed.reduce(
+    (next, group) =>
+      starred.has(group) ? pinnedWith(next, group, true) : next,
+    pins,
+  );
+}
+
+/**
  * A group's tabs as its copy starts with them, in their order and each
  * under a new id (`newId`), in `group`: a page at the address it shows,
  * with its title and icon until it loads, and a screen at its own address,
@@ -400,7 +478,6 @@ export function copiedTabs(
   });
   return { tabs: copies, up: upCopy };
 }
-
 
 /** A screen tab at an address, in a group: a chat's, or a new chat's. */
 function screenTab(group: string, href: string, side?: 1): WindowTab {
@@ -844,27 +921,14 @@ export function useTabGroupUpkeep(href: string, open: readonly TabGroup[]) {
   const keep = useEffectEvent(() => {
     const listed = store.get(windowTabGroupsAtom) ?? [];
     const state = store.get(windowTabsAtom);
-    const kept = listed.filter((group) => {
-      if (tabsIn(state, group).length > 0) {
-        return true;
-      }
-      const chat = chatOfGroup(group);
-      const draft = group.startsWith("draft:")
-        ? group.slice("draft:".length)
-        : undefined;
-      const tabHref =
-        chat === undefined
-          ? draft !== undefined &&
-            store.get(draftsAtom).some((entry) => entry.id === draft)
-            ? newChatHref(draft)
-            : undefined
-          : chatHref(chat);
-      if (tabHref === undefined) {
-        return false;
-      }
-      windowTabs.openIn(screenTab(group, tabHref), { group, select: true });
-      return true;
+    const { kept, opening } = upkeptList(listed, state, {
+      drafts: store.get(draftsAtom),
+      names: store.get(groupNamesAtom),
+      pins: store.get(groupPinsAtom),
     });
+    for (const { group, href: tabHref } of opening) {
+      windowTabs.openIn(screenTab(group, tabHref), { group, select: true });
+    }
     if (kept.length !== listed.length) {
       store.set(windowTabGroupsAtom, kept);
     }
@@ -954,4 +1018,26 @@ export function useTabGroupUpkeep(href: string, open: readonly TabGroup[]) {
       store.set(windowTabGroupsAtom, kept);
     }
   }, [elsewhere, href, store]);
+
+  // Once, as the chats first come in: every window's listed groups an
+  // earlier build pinned by their chat's star get a pin of their own.
+  const chats = useQuery(chatListOptions()).data;
+  const carryStarPins = useEffectEvent((list: readonly Chat[]) => {
+    if (store.get(starPinsCarriedAtom)) {
+      return;
+    }
+    store.set(starPinsCarriedAtom, true);
+    const listed = [
+      ...(store.get(windowTabGroupsAtom) ?? []),
+      ...keptInOtherWindows(TAB_GROUPS_KEY).flatMap(
+        (kept) => keptTabGroupsOf(kept) ?? [],
+      ),
+    ];
+    store.set(groupPinsAtom, (pins) => pinnedFromStars(pins, listed, list));
+  });
+  useEffect(() => {
+    if (chats !== undefined) {
+      carryStarPins(chats);
+    }
+  }, [chats]);
 }

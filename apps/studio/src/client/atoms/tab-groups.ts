@@ -27,6 +27,16 @@ export const groupPinsAtom = keptAtom<Record<string, true>>(
   {},
 );
 
+/**
+ * Whether the groups an earlier build pinned by their chat's star have a pin
+ * of their own: given once, so a group unpinned since stays unpinned.
+ */
+export const starPinsCarriedAtom = keptAtom<boolean>(
+  "view",
+  "tab-groups-star-pins-carried.v1",
+  false,
+);
+
 /** A group thrown away, its name and pin with it, which nothing shows again. */
 export const forgetGroupAtom = atom(null, (get, set, group: string) => {
   const names = get(groupNamesAtom);
@@ -40,7 +50,6 @@ export const forgetGroupAtom = atom(null, (get, set, group: string) => {
     set(groupPinsAtom, rest);
   }
 });
-
 
 /** The project the sidebar's list stands in, in this window: none for every open group. */
 export const sidebarProjectAtom = atom<string | undefined>(undefined);

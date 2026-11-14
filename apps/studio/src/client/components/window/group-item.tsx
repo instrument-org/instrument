@@ -26,7 +26,7 @@ import {
 } from "react";
 
 import { useAppsBySlug } from "./apps-by-slug";
-import { BookmarksBar, useHasBookmarksBar } from "./bookmarks-bar";
+import { BookmarksBar } from "./bookmarks-bar";
 import { type PageChromeSlots } from "./browser-tabs";
 import { asksOwnPlace, useWindow, WindowContext } from "./context";
 import { useRowSlots } from "./row-slots";
@@ -127,7 +127,6 @@ export function GroupItem({
     up.kind === "screen" ? matchScreen(up.href).kind : undefined;
   const isNewChat = screenKind === "inbox";
   const isChat = screenKind === "chat";
-  const hasBookmarksBar = useHasBookmarksBar(isNewTab || isNewChat);
   const store = useStore();
   /** Whether the new chat up here has nothing written in it, words still settling counted. */
   const isUnwritten = () => {
@@ -231,14 +230,12 @@ export function GroupItem({
       : liveFileAddress(targetId, path);
 
   /**
-   * The row over what is up, the one the pane beside a chat draws: its
-   * arrows walk the page's own history or the screen's trail, and its field
-   * sends a page somewhere else, or takes a screen's tab to a site.
+   * The row over what is up, and over the bookmarks bar, the one the pane
+   * beside a chat draws: its arrows walk the page's own history or the
+   * screen's trail, and its field sends a page somewhere else, or takes a
+   * screen's tab to a site.
    */
-  const row = (
-    location: TabLocation,
-    { isOverBar = false }: { isOverBar?: boolean } = {},
-  ) => {
+  const row = (location: TabLocation) => {
     return (
       <TabLocationRow
         address={addressOfTab(up)}
@@ -247,7 +244,7 @@ export function GroupItem({
         {...(location.kind === "file"
           ? { liveAddress: () => liveAddressOf(location.path) }
           : {})}
-        {...(isOverBar ? { className: "border-b-0" } : {})}
+        className="border-b-0"
         location={location}
         {...(before ? {} : { onBack: goBack, onForward: goForward })}
         onSite={openHere}
@@ -282,15 +279,12 @@ export function GroupItem({
                     name: segmentsOf(filePath).at(-1) ?? filePath,
                     path: filePath,
                   },
-              { isOverBar: hasBookmarksBar },
             )}
-            {hasBookmarksBar && (
-              <BookmarksBar
-                files={{ group, onOpen: openFiles }}
-                onOpen={openHere}
-                onVisit={visitHere}
-              />
-            )}
+            <BookmarksBar
+              files={{ group, onOpen: openFiles }}
+              onOpen={openHere}
+              onVisit={visitHere}
+            />
           </>
         }
       >
@@ -381,7 +375,7 @@ export function GroupItem({
       }
     />
   ) : (
-    row(location, { isOverBar: isChat && hasBookmarksBar })
+    row(location)
   );
   const content = router ? <RouterProvider router={router} /> : null;
   return (
@@ -394,13 +388,11 @@ export function GroupItem({
             head: (
               <>
                 {head}
-                {(isNewChat || (isChat && hasBookmarksBar)) && (
-                  <BookmarksBar
-                    files={{ group, onOpen: openFiles }}
-                    onOpen={openHere}
-                    onVisit={visitHere}
-                  />
-                )}
+                <BookmarksBar
+                  files={{ group, onOpen: openFiles }}
+                  onOpen={openHere}
+                  onVisit={visitHere}
+                />
               </>
             ),
           })}

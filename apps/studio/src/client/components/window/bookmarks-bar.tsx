@@ -35,16 +35,6 @@ import { useTabTitle } from "./tab-title";
 import { BookmarkNameField, bookmarkName, useBookmarkEdits } from "./web-start";
 
 /**
- * Whether a tab shows the bookmarks bar: the new tab always, where it says
- * how a bookmark gets there while there are none, and a page while the bar
- * has some.
- */
-export function useHasBookmarksBar(isNewTab: boolean): boolean {
-  const bookmarks = useAtomValue(bookmarksAtom);
-  return isNewTab || bookmarks.some((bookmark) => placeOf(bookmark) === "bar");
-}
-
-/**
  * The bookmarks kept on the bar, in a row under a tab's toolbar, each the
  * mark its tab wears and a short name, the way a browser's bookmarks bar
  * keeps them, after Files where the row is given it (`files`). Those past

@@ -39,8 +39,13 @@ vi.mock("./use-tab-steps", () => ({
   }),
 }));
 
+// The bar under the row, which these cases press nothing on.
+vi.mock("./bookmarks-bar", () => ({ BookmarksBar: () => null }));
+
 vi.mock("./apps-by-slug", () => ({ useAppsBySlug: () => new Map() }));
-vi.mock("./shell-context", () => ({ useShell: () => ({ chatTitles: new Map() }) }));
+vi.mock("./shell-context", () => ({
+  useShell: () => ({ chatTitles: new Map() }),
+}));
 vi.mock("./task-titles", () => ({ useTaskTitles: () => new Map() }));
 
 const appWindow: WindowContextValue = {

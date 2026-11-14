@@ -3,11 +3,13 @@ import { beforeAll, describe, expect, it, vi } from "vitest";
 vi.mock("@/client/rpc/client", () => ({ rpcClient: {} }));
 
 import { type WindowTab } from "@/client/atoms/window";
-import { ChatIdSchema } from "@instrument-org/workspace/client";
+import { ChatIdSchema, StoreId } from "@instrument-org/workspace/client";
 import { createStore } from "jotai";
 
+import { type Chat } from "./chats";
 import {
   copiedTabs,
+  groupLists,
   isWorthKeeping,
   listedWith,
   listedWithout,
@@ -36,6 +38,106 @@ describe("a draft no chat has started, closed", () => {
     ],
   ])("%s", (_label, entry, expected) => {
     expect(isWorthKeeping(entry)).toBe(expected);
+  });
+});
+
+describe("the tab groups another window has open", () => {
+  const LISBON = ChatIdSchema.parse("2026-11-10-lisbon");
+  const chat = (id: Chat["id"], title: string): Chat => ({
+    archived: false,
+    firstAsk: "",
+    holds: { apps: [], files: [], sites: [] },
+    id,
+    lastUserMessageAt: 1,
+    sessionId: StoreId.newSessionId(),
+    starred: false,
+    status: "idle",
+    title,
+    titleByApp: true,
+    unread: false,
+    unreadByUser: false,
+    working: false,
+  });
+  const screen = (group: string, id: string, href: string): WindowTab => ({
+    group,
+    href,
+    id,
+    kind: "screen",
+  });
+  const page = (group: string, id: string, title: string): WindowTab => ({
+    group,
+    id,
+    kind: "page",
+    openedAt: 1,
+    title,
+    url: `https://${id}.test/`,
+  });
+  // This window has a new chat; the other has a chat its person named, a
+  // new chat with words and a page beside it, a group of pages alone, and
+  // a new chat with nothing in it yet.
+  const lists = groupLists({
+    chats: [chat(LISBON, "Trip to Lisbon")],
+    drafts: [{ createdAt: 1, id: "plan", updatedAt: 2, words: "Plan the week" }],
+    elsewhere: {
+      chats: [LISBON],
+      groups: [LISBON, "draft:plan", "group:pages", "draft:empty"],
+    },
+    listed: ["draft:here"],
+    names: { [LISBON]: "Lisbon named", "group:pages": "Reading" },
+    pins: {},
+    state: {
+      activeByGroup: {},
+      tabs: [
+        screen("draft:here", "h1", newChatHref("here")),
+        screen(LISBON, "l1", chatHref(LISBON)),
+        screen("draft:plan", "p1", newChatHref("plan")),
+        page("draft:plan", "p2", "Calendar"),
+        page("group:pages", "g1", "Docs"),
+        screen("draft:empty", "e1", newChatHref("empty")),
+      ],
+    },
+  });
+
+  it("lists each one, a chatless one by what names its row", () => {
+    expect(
+      lists.elsewhere.map(({ group, kind, name, title }) => ({
+        group,
+        kind,
+        name,
+        title,
+      })),
+    ).toMatchInlineSnapshot(`
+      [
+        {
+          "group": "draft:plan",
+          "kind": "draft",
+          "name": undefined,
+          "title": "Plan the week",
+        },
+        {
+          "group": "2026-11-10-lisbon",
+          "kind": "chat",
+          "name": "Lisbon named",
+          "title": "Lisbon named",
+        },
+        {
+          "group": "group:pages",
+          "kind": "tabs",
+          "name": "Reading",
+          "title": "Reading",
+        },
+        {
+          "group": "draft:empty",
+          "kind": "tabs",
+          "name": undefined,
+          "title": "New chat",
+        },
+      ]
+    `);
+  });
+
+  it("leaves a draft another window is writing out of History", () => {
+    expect(lists.history).toEqual([]);
   });
 });
 

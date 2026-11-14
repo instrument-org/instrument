@@ -244,59 +244,118 @@ function openEntry(
   return { ...own, kind: "tabs", title: name ?? "New chat" };
 }
 
-/**
- * The tab groups as this window lists them: its own open ones in its order;
- * the chats another open window has a tab on; and History, every other
- * chat, and every draft worth keeping (`isWorthKeeping`) no tab is writing,
- * most recently active first.
- */
-export function useOpenGroups(): {
+/** The tab groups as this window lists them (`groupLists`). */
+export function useOpenGroups(): GroupLists {
+  return groupLists({
+    chats: useQuery(chatListOptions()).data ?? [],
+    drafts: useAtomValue(draftsAtom),
+    elsewhere: useTabGroupsElsewhere(),
+    listed: useAtomValue(windowTabGroupsAtom) ?? [],
+    names: useAtomValue(groupNamesAtom),
+    pins: useAtomValue(groupPinsAtom),
+    state: useAtomValue(windowTabsAtom),
+  });
+}
+
+interface GroupLists {
   elsewhere: TabGroup[];
   history: TabGroup[];
   open: TabGroup[];
-} {
-  const chats = useQuery(chatListOptions()).data ?? [];
-  const drafts = useAtomValue(draftsAtom);
-  const names = useAtomValue(groupNamesAtom);
-  const pins = useAtomValue(groupPinsAtom);
-  const state = useAtomValue(windowTabsAtom);
-  const listed = useAtomValue(windowTabGroupsAtom) ?? [];
-  const elsewhere = useTabGroupsElsewhere();
+}
+
+/**
+ * The tab groups as a window lists them: its own open ones in its order;
+ * the groups another open window has open, each chat with a tab there and
+ * each group with no chat (a new chat's, or pages alone); and History, every
+ * other chat, and every draft worth keeping (`isWorthKeeping`) no tab is
+ * writing, most recently active first. A group keeps the name the person
+ * gave it wherever it is listed.
+ */
+export function groupLists({
+  chats,
+  drafts,
+  elsewhere,
+  listed,
+  names,
+  pins,
+  state,
+}: {
+  chats: readonly Chat[];
+  drafts: readonly Draft[];
+  /** What main says the other open windows have open; undefined until it answers. */
+  elsewhere:
+    | undefined
+    | { chats: readonly string[]; groups: readonly string[] };
+  listed: readonly string[];
+  names: Record<string, string>;
+  pins: Record<string, true>;
+  state: WindowTabs;
+}): GroupLists {
   const elsewhereChats = new Set(elsewhere?.chats);
   const byId = new Map<string, Chat>(chats.map((chat) => [chat.id, chat]));
   const isListed = new Set(listed);
-  const listedTabs = state.tabs.filter(
-    (tab) => tab.group !== undefined && isListed.has(tab.group),
-  );
+  const tabsOf = (groups: ReadonlySet<string>) =>
+    state.tabs.filter(
+      (tab) => tab.group !== undefined && groups.has(tab.group),
+    );
+  const listedTabs = tabsOf(isListed);
   const chatsHere = new Set(listedTabs.map((tab) => chatOfTab(tab)));
   const draftsHere = new Set(listedTabs.map((tab) => draftOfTab(tab)));
+  // Another window's groups with no chat on them, named as that window's
+  // sidebar names them; a group with a chat comes in by its chat.
+  const chatlessElsewhere = new Set(
+    (elsewhere?.groups ?? []).filter(
+      (group) =>
+        !isListed.has(group) &&
+        state.tabs.some((tab) => tab.group === group) &&
+        chatsOfGroup(state, group).length === 0,
+    ),
+  );
+  const draftsElsewhere = new Set(
+    tabsOf(chatlessElsewhere).map((tab) => draftOfTab(tab)),
+  );
   const newestFirst = (list: TabGroup[]) =>
     list.toSorted((a, b) => lastActiveAt(b) - lastActiveAt(a));
+  const named = (group: string) => {
+    const name = names[group];
+    return name === undefined ? {} : { name };
+  };
   const closed = (entry: Chat): TabGroup => ({
     chat: entry,
     group: entry.id,
     kind: "chat",
+    ...named(entry.id),
     pinned: false,
-    title: entry.title,
+    title: names[entry.id] ?? entry.title,
   });
   const unlisted = chats.filter((chat) => !chatsHere.has(chat.id));
   return {
-    elsewhere: newestFirst(
-      unlisted.filter((chat) => elsewhereChats.has(chat.id)).map(closed),
-    ),
+    elsewhere: newestFirst([
+      ...unlisted.filter((chat) => elsewhereChats.has(chat.id)).map(closed),
+      ...[...chatlessElsewhere].map((group) =>
+        openEntry(group, { byId, drafts, names, pins, state }),
+      ),
+    ]),
     history: newestFirst([
       ...unlisted.filter((chat) => !elsewhereChats.has(chat.id)).map(closed),
       ...drafts
-        .filter((draft) => isWorthKeeping(draft) && !draftsHere.has(draft.id))
-        .map(
-          (draft): TabGroup => ({
+        .filter(
+          (draft) =>
+            isWorthKeeping(draft) &&
+            !draftsHere.has(draft.id) &&
+            !draftsElsewhere.has(draft.id),
+        )
+        .map((draft): TabGroup => {
+          const group = draftGroupKeyOf(draft.id);
+          return {
             draft,
-            group: draftGroupKeyOf(draft.id),
+            group,
             kind: "draft",
+            ...named(group),
             pinned: false,
-            title: draftWordsTitle(draft),
-          }),
-        ),
+            title: names[group] ?? draftWordsTitle(draft),
+          };
+        }),
     ]),
     open: listed.map((group) =>
       openEntry(group, { byId, drafts, names, pins, state }),

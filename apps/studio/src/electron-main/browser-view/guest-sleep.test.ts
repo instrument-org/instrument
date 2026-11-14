@@ -120,4 +120,18 @@ describe("wakeGuest", () => {
     await expect(woken).resolves.toBeUndefined();
     expect(entry.asleep).toBe(false);
   });
+
+  it("gives up on a guest whose probes fail at once, by its deadline", async () => {
+    vi.useFakeTimers();
+    const { guest, probes } = makeGuest();
+    probes.mockImplementation(() => Promise.reject(new Error("going away")));
+    const entry = makeEntry(guest);
+    sleepGuest(entry, guest);
+
+    const woken = wakeGuest(entry, () => {});
+    await vi.advanceTimersByTimeAsync(2000);
+
+    await expect(woken).resolves.toBeUndefined();
+    expect(probes.mock.calls.length).toBeLessThan(200);
+  });
 });

@@ -23,7 +23,7 @@ export const SCREENS = {
     title: "Apps",
   },
   browser: {
-    detail: "A browser of your own, which tasks can work in beside you.",
+    detail: "The web's start page, with the sites you kept and lately saw.",
     href: "/browser",
     title: "Browser",
   },

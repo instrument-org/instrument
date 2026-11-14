@@ -71,7 +71,7 @@ Link one as `[Label](instrument://screen/<name>)`. A row listed under one is lin
 
 - **Activity** (`activity`): What you did in Instrument, with the AI requests your chats made, to search and clear.
 - **Apps** (`apps`): The services Instrument can work in for you, and connecting one.
-- **Browser** (`browser`): A browser of your own, which tasks can work in beside you.
+- **Browser** (`browser`): The web's start page, with the sites you kept and lately saw.
 - **Chats** (`chats`): Every chat there is, open or not, to search and open.
 - **Extensions** (`extensions`): The Chrome extensions in your browser, and adding more from the Chrome Web Store.
 - **Files** (`files`): The folders and files on this computer, starting at home.

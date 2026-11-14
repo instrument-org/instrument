@@ -90,6 +90,14 @@ export function screenLocation(
     }
     case "task": {
       return {
+        ...(screen.chat === undefined
+          ? {}
+          : {
+              chat: {
+                id: screen.chat,
+                title: chatTitles?.get(screen.chat) ?? "Chat",
+              },
+            }),
         kind: "task",
         title: taskTitles?.get(screen.task) ?? "Task",
       };

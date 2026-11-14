@@ -12,6 +12,7 @@ import {
 import type { BuiltInApp } from "./app-chip";
 import { isInside, segmentsOf, separatorOf } from "./host-path";
 import {
+  chatHref,
   LINK_ADDRESSES,
   matchScreen,
   pathOf,
@@ -69,7 +70,8 @@ export type TabLocation =
       path: string;
     }
   | {
-      /** The chat whose list the task was opened from, which is where its crumb goes back to. */
+      /** The chat the task was started in, which its crumb goes back to. */
+      chat?: { id: ChatId; title: string };
       kind: "task";
       title: string;
     }
@@ -182,8 +184,20 @@ export function locationCrumbs(
     case "page": {
       return [];
     }
+    // A task is under the chat it was started in, which the crumb goes
+    // back to.
     case "task": {
-      return [{ label: location.title }];
+      return [
+        ...(location.chat === undefined
+          ? []
+          : [
+              {
+                label: location.chat.title,
+                to: { href: chatHref(location.chat.id), kind: "screen" as const },
+              },
+            ]),
+        { label: location.title },
+      ];
     }
   }
 }

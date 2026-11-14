@@ -46,6 +46,7 @@ import {
 import { pageTabTitle } from "./file-tabs";
 import { segmentsOf } from "./host-path";
 import { screenPresentation, type ScreenNames } from "./screen-presentation";
+import { useTaskTitles } from "./task-titles";
 import { chatHref } from "./window-href";
 
 type SentChip = SessionMessageDataPart.SentChip;
@@ -64,7 +65,7 @@ const SENT_WITH_THIS_MESSAGE = "Sent with this message";
  */
 export function heldChipOf(
   { items, tab }: { items: ChosenItem[] | undefined; tab: WindowTab },
-  names: Pick<ScreenNames, "appsBySlug" | "volumes">,
+  names: Pick<ScreenNames, "appsBySlug" | "taskTitles" | "volumes">,
 ): SentChip {
   if (items !== undefined && items.length > 0) {
     return {
@@ -103,12 +104,13 @@ export function ContextSuggestion({
 }) {
   const appsBySlug = useAppsBySlug();
   const volumes = useComputerVolumes();
+  const taskTitles = useTaskTitles();
   if (item.kind !== "tab") {
     return null;
   }
   const chip = heldChipOf(
     { items: item.items, tab: item.tab },
-    { appsBySlug, ...(volumes ? { volumes } : {}) },
+    { appsBySlug, taskTitles, ...(volumes ? { volumes } : {}) },
   );
   const [one] = item.items ?? [];
   const name = nameOfChip(chip);
@@ -160,9 +162,10 @@ function IncludedChip({
   tab: WindowTab;
 }) {
   const volumes = useComputerVolumes();
+  const taskTitles = useTaskTitles();
   const chip = heldChipOf(
     { items, tab },
-    { appsBySlug, ...(volumes ? { volumes } : {}) },
+    { appsBySlug, taskTitles, ...(volumes ? { volumes } : {}) },
   );
   const [one] = items ?? [];
   return (

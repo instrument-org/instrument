@@ -36,6 +36,7 @@ describe("screenPresentation", () => {
     );
     expect(screenPresentation(href, CONTEXT).title).toBe("Task");
     expect(screenLocation(href, { ...CONTEXT, taskTitles })).toEqual({
+      chat: { id: CHAT_ID, title: "Chat" },
       kind: "task",
       title: "Book the hotel",
     });

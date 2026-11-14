@@ -162,6 +162,17 @@ export function GroupItem({
    * the tab up becomes the screen in its place.
    */
   const visitHere = (href: string) => {
+    // A task's crumb back to its chat brings up the chat's tab in this
+    // group where it has one, rather than a second tab on the chat.
+    const visited = matchScreen(href);
+    const chatTab =
+      visited.kind === "chat"
+        ? windowTabs.chatTab(visited.chat)
+        : undefined;
+    if (chatTab?.group === group && chatTab.id !== up.id) {
+      windowTabs.select(chatTab.id);
+      return;
+    }
     if (before) {
       appWindow.openScreen(href);
     } else {
@@ -432,21 +443,16 @@ export function GroupItem({
   return (
     <Bare
       anchorRef={anchorRef}
-      // A task's page heads itself with its title and Stop.
-      {...(location.kind === "task"
-        ? {}
-        : {
-            head: (
-              <>
-                {head}
-                <BookmarksBar
-                  files={{ group, onOpen: openFiles }}
-                  onOpen={openHere}
-                  onVisit={visitHere}
-                />
-              </>
-            ),
-          })}
+      head={
+        <>
+          {head}
+          <BookmarksBar
+            files={{ group, onOpen: openFiles }}
+            onOpen={openHere}
+            onVisit={visitHere}
+          />
+        </>
+      }
     >
       <GroupTabContext
         key={up.id}

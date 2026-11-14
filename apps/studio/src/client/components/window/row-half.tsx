@@ -36,6 +36,7 @@ import {
 } from "./row-lines";
 import { screenLocation, screenPresentation } from "./screen-presentation";
 import { chatOfTab, draftOfTab } from "./tab-model";
+import { useTaskTitles } from "./task-titles";
 import { locationCrumbs } from "./tab-location";
 
 /**
@@ -174,6 +175,7 @@ function useRowLines(
 ): RowLines {
   const { chats, drafts } = useRowSources();
   const appsBySlug = useAppsBySlug();
+  const taskTitles = useTaskTitles();
   const load = usePageLoad(tab);
   if (tab.kind === "page") {
     const title = pageTabTitle(tab) ?? "";
@@ -182,7 +184,7 @@ function useRowLines(
       ? pageLines(title, tab.url, load)
       : quiet(title, folderLine(path));
   }
-  const names = { appsBySlug, chatTitles };
+  const names = { appsBySlug, chatTitles, taskTitles };
   const location = screenLocation(tab.href, names);
   const { title } = screenPresentation(tab.href, names);
   switch (location.kind) {
@@ -220,7 +222,7 @@ function useRowLines(
       return quiet(title, PAGE_START_LINES.apps);
     }
     case "task": {
-      return quiet(title, "Task");
+      return quiet(location.title, location.chat?.title ?? "Task");
     }
     case "newTab":
     case "page": {

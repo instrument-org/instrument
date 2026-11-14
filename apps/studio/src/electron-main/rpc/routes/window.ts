@@ -190,7 +190,6 @@ const mergeAll = base.input(z.void()).handler(() => {
 const startTabCarry = base
   .input(
     z.object({
-      at: PointSchema,
       grab: PointSchema,
       isOffRow: z.boolean(),
       isOnlyTab: z.boolean(),

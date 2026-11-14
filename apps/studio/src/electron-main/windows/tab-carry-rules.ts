@@ -60,6 +60,15 @@ export function placeOnWindow(
   return point.y - bounds.y < bandHeight + reach ? "band" : "body";
 }
 
+/** Where two rectangles overlap, or null where they do not. */
+export function overlapOf(a: Bounds, b: Bounds): Bounds | null {
+  const x = Math.max(a.x, b.x);
+  const y = Math.max(a.y, b.y);
+  const width = Math.min(a.x + a.width, b.x + b.width) - x;
+  const height = Math.min(a.y + a.height, b.y + b.height) - y;
+  return width > 0 && height > 0 ? { height, width, x, y } : null;
+}
+
 /**
  * Where a tab off its row stands at a point, from the windows front to back: the
  * first one under the point has it. Over another window's strip it is docked

@@ -299,7 +299,6 @@ function press(
 ) {
   state.cursor = at;
   return startTabCarry({
-    at,
     grab: { x: 100, y: 20 },
     isOffRow: isOnlyTab,
     isOnlyTab,
@@ -1088,14 +1087,43 @@ describe("a window's only tab", () => {
     expect(from.bounds).toEqual({ ...BOUNDS, x: 1410, y: 1590 });
   });
 
-  it("does not dock a window onto the strip its press was already over", () => {
-    press(moving(), true, OVER_STRIP);
-    moveTo({ x: 1610, y: 122 });
-    expect(lastViewOf(3)).toBeUndefined();
+  describe("in front of another window", () => {
+    // Over the top of the other window's strip.
+    const inFront = (y = 110) => {
+      from.bounds = { height: 400, width: 600, x: 1500, y };
+    };
 
-    moveTo({ x: 1610, y: 500 });
-    moveTo(OVER_STRIP);
-    expect(lastViewOf(3)?.kind).toBe("incoming");
+    it("goes on moving its window over the strip it kept out of sight", () => {
+      inFront();
+      press(moving(), true, OVER_STRIP);
+      moveTo({ x: 1610, y: 122 });
+
+      expect(lastViewOf(3)).toBeUndefined();
+      expect(from.bounds).toMatchObject({ x: 1510, y: 102 });
+    });
+
+    it("lands on that strip once its window has moved off it", () => {
+      inFront();
+      press(moving(), true, OVER_STRIP);
+      moveTo({ x: 1610, y: 500 });
+      moveTo(OVER_STRIP);
+
+      expect(lastViewOf(3)?.kind).toBe("incoming");
+    });
+
+    it("as a tab group's tab, goes on moving its window over the page it kept out of sight, and lands past it", () => {
+      inFront(130);
+      const groupTab = { ...moving(), isGroupTab: true };
+      press(groupTab, true, { x: 1610, y: 150 });
+      moveTo({ x: 1620, y: 170 });
+
+      expect(lastViewOf(3)).toBeUndefined();
+      expect(from.opacity).toBe(1);
+      expect(from.bounds).toMatchObject({ x: 1520, y: 150 });
+
+      moveTo({ x: 2300, y: 600 });
+      expect(lastViewOf(3)?.kind).toBe("incoming");
+    });
   });
 
   it("clears out of the way of a strip it is over, and comes back off it", () => {

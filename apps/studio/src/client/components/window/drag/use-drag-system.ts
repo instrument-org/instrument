@@ -510,7 +510,6 @@ function useCarrier() {
         return false;
       }
       const started = await rpcClient.window.startTabCarry.call({
-        at: { x: event.screenX, y: event.screenY },
         // In a window of its own the tab stands first in the strip, so the
         // pointer holds it there at the same point of the tab it pressed.
         grab: { x: strip.left + grab.x, y: event.clientY },
@@ -643,7 +642,6 @@ function useCarrier() {
         .querySelector("[data-group-list]")
         ?.getBoundingClientRect();
       await rpcClient.window.startTabCarry.call({
-        at: { x: move.screenX, y: move.screenY },
         grab: { x: (list?.left ?? 0) + grab.x, y: move.clientY },
         isOffRow: true,
         isOnlyTab: isOnly,

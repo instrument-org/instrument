@@ -54,8 +54,8 @@ import {
   isSamePhase,
   landsBy,
   mergeFloats,
+  overlapOf,
   phaseAt,
-  placeOnWindow,
   type Point,
   whatGoes,
 } from "./tab-carry-rules";
@@ -137,11 +137,12 @@ type Carry = Carrying & {
   /** Where the window was. */
   readonly origin: Bounds;
   /**
-   * The window whose strip an only tab's window was already over, which the tab
-   * has not been carried to: it takes the tab only once the pointer has left that
-   * strip.
+   * What of the screen an only tab's window has covered all through the drag:
+   * where it stood as the drag began, less whatever it has since uncovered by
+   * going with the pointer. The person has not seen another window there, so
+   * no window takes the tab there.
    */
-  overAtStart: BrowserWindow | null;
+  hidden: Bounds | null;
   phase: CarryPhase<BrowserWindow>;
   /** What goes with the pointer, off the row. An only tab has its window instead, and a move from a menu no pointer. */
   picture: null | TabPicture;
@@ -212,7 +213,6 @@ function incomingView(
 
 /** The drag's first state, the spare window ready, or none where there can be no drag. */
 function beginCarry({
-  at,
   grab,
   isOffRow,
   isOnlyTab,
@@ -220,8 +220,6 @@ function beginCarry({
   pointInTab = 0,
   webContentsId,
 }: {
-  /** Where on the screen a press starts it. A move from a menu has no such place. */
-  at?: Point;
   grab: Point;
   isOffRow: boolean;
   isOnlyTab: boolean;
@@ -275,20 +273,13 @@ function beginCarry({
     from,
     fromId,
     grab,
+    hidden: isOnlyTab ? origin : null,
     isOffRow,
     isGroupTab: moving.isGroupTab === true,
     isSpareDressed: false,
     isWindowMaximized: isMaximized,
     moving,
     origin,
-    overAtStart:
-      at && canPlace && isOnlyTab
-        ? (windowsToLandOn(from, spare).find(
-            (window) =>
-              placeOnWindow(window.getBounds(), at, stripBandHeight()) ===
-              "band",
-          ) ?? null)
-        : null,
     phase: { kind: "row" },
     picture: null,
     point: null,
@@ -314,7 +305,7 @@ function beginCarry({
  * behind it, which it can where there is something to go with the pointer.
  */
 export function startTabCarry(
-  start: Parameters<typeof beginCarry>[0] & { at: Point; pointInTab: number },
+  start: Parameters<typeof beginCarry>[0] & { pointInTab: number },
 ): { collapsesOffRow: boolean } {
   const started = beginCarry(start);
   if (!started) {
@@ -647,30 +638,34 @@ function windowsToLandOn(from: BrowserWindow, spare: null | SpareWindow) {
 
 /** Where the tab stands at a point, off its row. */
 function hitTest(current: Carry, point: Point): CarryPhase<BrowserWindow> {
-  const { from, origin, overAtStart, phase, spare } = current;
+  const { from, hidden, origin, phase, spare } = current;
   // Without a real place for each window, as on Wayland, no other strip can be told apart.
   const others = canPlaceWindows()
-    ? windowsToLandOn(from, spare)
-        .filter((window) => window !== overAtStart)
-        .map((window) => ({
-          // Anywhere over another window, where a tab group's tab lands is that window's to say.
-          ...(current.isGroupTab ? { band: Number.POSITIVE_INFINITY } : {}),
-          bounds: window.getBounds(),
-          reach:
-            phase.kind === "docked" && phase.window === window
-              ? DOCKED_REACH_PX
-              : 0,
-          window,
-        }))
+    ? windowsToLandOn(from, spare).map((window) => ({
+        // Anywhere over another window, where a tab group's tab lands is that window's to say.
+        ...(current.isGroupTab ? { band: Number.POSITIVE_INFINITY } : {}),
+        bounds: window.getBounds(),
+        reach:
+          phase.kind === "docked" && phase.window === window
+            ? DOCKED_REACH_PX
+            : 0,
+        window,
+      }))
     : [];
+  // The pressed window comes first, hiding what is behind it. Where it stays,
+  // its strip is the tab's own row. An only tab's window goes with the
+  // pointer and is no place to land, so it counts only where it has stood
+  // all along, with no band.
+  const pressed = spare
+    ? [{ bounds: origin, window: from }]
+    : hidden
+      ? [{ band: 0, bounds: hidden, window: from }]
+      : [];
   return phaseAt({
     bandHeight: stripBandHeight(),
     from,
     point,
-    windows: spare
-      ? [{ bounds: origin, window: from }, ...others]
-      : // An only tab's window is always under the pointer, and is no place to land.
-        others,
+    windows: [...pressed, ...others],
   });
 }
 
@@ -701,16 +696,7 @@ function updateCarry() {
     stopCarry();
     return;
   }
-  const { from, followsCursor, overAtStart, phase, picture, point, spare } =
-    carry;
-  if (
-    overAtStart &&
-    (overAtStart.isDestroyed() ||
-      placeOnWindow(overAtStart.getBounds(), point, stripBandHeight()) !==
-        "band")
-  ) {
-    carry.overAtStart = null;
-  }
+  const { followsCursor, phase, picture, point, spare } = carry;
   const next = carry.isOffRow
     ? hitTest(carry, point)
     : ({ kind: "row" } as const);
@@ -726,11 +712,21 @@ function updateCarry() {
     if (spare) {
       picture?.moveTo(point);
     } else if (followsCursor) {
-      // Its size named on every step: at a fractional scale on Windows, a move that
-      // names only where grows the window by a pixel each time.
-      from.setBounds(windowBoundsAt(carry, point));
+      placeUnderPointer(carry, point);
     }
   }
+}
+
+/**
+ * Puts an only tab's window under the pointer, which uncovers whatever it no
+ * longer stands over.
+ */
+function placeUnderPointer(current: Carry, point: Point) {
+  const bounds = windowBoundsAt(current, point);
+  // Its size named on every step: at a fractional scale on Windows, a move that
+  // names only where grows the window by a pixel each time.
+  current.from.setBounds(bounds);
+  current.hidden = current.hidden && overlapOf(current.hidden, bounds);
 }
 
 /**
@@ -810,7 +806,7 @@ function enterPhase(
   } else if (followsCursor) {
     setOpacity(from, 1);
     leaveMaximized(from);
-    from.setBounds(windowBoundsAt(current, point));
+    placeUnderPointer(current, point);
   }
 }
 

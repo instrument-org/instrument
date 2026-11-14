@@ -443,10 +443,17 @@ function SideCard({
     onMoveToOtherSide: (tab) => {
       windowTabs.moveTo({ group, id: tab.id, select: true, side: otherSide });
     },
+    // Right after the other side's tab up, where + and ⌘T put one there.
     onNewChatInSplit: () => {
+      const upThere = layout.sides[otherSide]?.up;
       windowTabs.openIn(
         { group, href: NEW_TAB_HREF, id: newScreenId(), kind: "screen" },
-        { group, select: true, side: "other", ...(up ? { after: up.id } : {}) },
+        {
+          group,
+          select: true,
+          side: otherSide,
+          ...(upThere === undefined ? {} : { after: upThere }),
+        },
       );
     },
     onOpenInSplit: (tab) => {

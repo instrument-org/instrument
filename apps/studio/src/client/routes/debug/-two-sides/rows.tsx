@@ -16,7 +16,6 @@ import {
   CAST,
   chat,
   group,
-  PRICING_CHATS,
   pricingSite,
   type RowSpec,
   screen,
@@ -33,7 +32,7 @@ import {
 /**
  * The sidebar's rows as the rows wireframe draws them, from its pricing
  * week: every kind of tab alone and as half of a split at 320 and 200,
- * closing half a split, and the sidebar with its Active list.
+ * closing half a split, and the sidebar.
  */
 
 type Loose = ReturnType<typeof screen>;
@@ -308,7 +307,6 @@ function KindsSheet({
       width={LABEL_WIDTH + 96 + width * 2}
     >
       <CastSources
-        chats={PRICING_CHATS}
         drafts={DRAFTS}
         pageLoads={sheet.loads}
       >
@@ -375,7 +373,7 @@ function CloseSheet() {
       note="Under the pointer, each half of a split has its own X, which closes that half's tab, and the other half takes the whole row. A row of one side has one X, which closes the group."
       width={860}
     >
-      <CastSources chats={PRICING_CHATS}>
+      <CastSources>
         <Picture tabs={CLOSE_TABS}>
           <Sheet
             heads={["320 wide", "200 wide"]}
@@ -395,7 +393,7 @@ function CloseSheet() {
               {
                 cells: both("cl-whole", { isCloseShown: true }),
                 label: "A whole row under the pointer",
-                note: "one X, at the end of its title",
+                note: "one X, centered at its end",
               },
             ]}
             widths={[320, 200]}
@@ -479,7 +477,7 @@ function PricingSidebar({ width }: { width: number }) {
     <Frame
       caption={`Sidebar at ${String(width)}`}
       height={800}
-      note="The pricing week the rows wireframe draws. The Active list names Pricing page headlines and Weekly churn report, which have no tab, and leaves out Rewrite the pricing FAQ, which stopped."
+      note="The pricing week the rows wireframe draws, with Help desk pricing up."
       width={width}
     >
       <Picture tabs={PRICING_TABS}>
@@ -496,7 +494,7 @@ export function RowFrames() {
   return (
     <>
       <div className="flex flex-wrap items-start gap-6">
-        <CastSources chats={PRICING_CHATS} pageLoads={PRICING_LOADS}>
+        <CastSources pageLoads={PRICING_LOADS}>
           <PricingSidebar width={320} />
           <PricingSidebar width={200} />
         </CastSources>

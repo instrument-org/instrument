@@ -78,7 +78,7 @@ const TONE_INK: Record<LineTone, string> = {
 /**
  * One tab as a sidebar row draws it, a whole row or half of one: its mark
  * and its title, then what it says under them (`useRowLines`). Under the
- * pointer, its close X stands at the title's end.
+ * pointer, its close X stands at its end, centered on both lines.
  */
 export function RowHalf({
   chatTitles,
@@ -118,41 +118,47 @@ export function RowLinesView({
   lines: RowLines;
   mark?: ReactNode;
 }) {
+  // The X stands at the half's end, centered on both lines.
   return (
-    <div className="flex min-w-0 flex-1 basis-0 flex-col" data-row-half="">
-      <div className="flex h-5 min-w-0 items-center gap-1.5">
-        {mark && (
-          <span className="flex shrink-0 text-foreground/65">{mark}</span>
-        )}
-        <span
-          className={cn(
-            "min-w-0 flex-1 truncate text-[13px] leading-5",
-            lines.strong
-              ? "font-semibold text-foreground"
-              : "font-medium text-foreground/85",
+    <div
+      className="flex min-w-0 flex-1 basis-0 items-center gap-1"
+      data-row-half=""
+    >
+      <div className="flex min-w-0 flex-1 flex-col">
+        <div className="flex h-5 min-w-0 items-center gap-1.5">
+          {mark && (
+            <span className="flex shrink-0 text-foreground/65">{mark}</span>
           )}
-        >
-          {lines.title}
-        </span>
-        {close && (
-          <RowActionBar
-            actions={[
-              {
-                icon: <XIcon />,
-                id: "close",
-                label: close.label,
-                run: close.run,
-              },
-            ]}
-            isHeld={isCloseShown}
-          />
-        )}
+          <span
+            className={cn(
+              "min-w-0 flex-1 truncate text-[13px] leading-5",
+              lines.strong
+                ? "font-semibold text-foreground"
+                : "font-medium text-foreground/85",
+            )}
+          >
+            {lines.title}
+          </span>
+        </div>
+        <div className="flex h-5 min-w-0 items-center text-[12px] leading-5">
+          <span className={cn("min-w-0 truncate", TONE_INK[lines.tone])}>
+            {lines.line}
+          </span>
+        </div>
       </div>
-      <div className="flex h-5 min-w-0 items-center text-[12px] leading-5">
-        <span className={cn("min-w-0 truncate", TONE_INK[lines.tone])}>
-          {lines.line}
-        </span>
-      </div>
+      {close && (
+        <RowActionBar
+          actions={[
+            {
+              icon: <XIcon />,
+              id: "close",
+              label: close.label,
+              run: close.run,
+            },
+          ]}
+          isHeld={isCloseShown}
+        />
+      )}
     </div>
   );
 }

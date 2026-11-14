@@ -215,17 +215,14 @@ export function CastProvider({
 }
 
 /**
- * What the rows under it read in place of the cast's: only the chats named
- * (the Active list lists those of them that are active), the drafts given,
+ * What the rows under it read beside the cast's chats: the drafts given,
  * and the pages' loads by their tabs.
  */
 export function CastSources({
-  chats,
   children,
   drafts = [],
   pageLoads,
 }: {
-  chats: readonly CastKey[];
   children: ReactNode;
   drafts?: readonly Draft[];
   pageLoads?: ReadonlyMap<string, PageLoad>;
@@ -234,7 +231,7 @@ export function CastSources({
   return (
     <RowSourcesContext
       value={{
-        chats: chats.map(chatOf),
+        chats: Object.keys(CAST).filter(isCastKey).map(chatOf),
         drafts,
         ...(pageLoads ? { pageLoads } : {}),
       }}
@@ -467,7 +464,6 @@ export function SidebarPicture({
       onDuplicate={noop}
       onNew={noop}
       onNewProject={noop}
-      onOpenChat={noop}
       onPin={noop}
       onShow={noop}
       open={[...rows]}

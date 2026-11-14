@@ -2,7 +2,6 @@ import { describe, expect, it } from "vitest";
 
 import { type Chat } from "./chats";
 import {
-  activeChats,
   chatLines,
   newTabLines,
   pageLines,
@@ -107,33 +106,5 @@ describe("newTabLines", () => {
       title: "New Tab",
       tone,
     });
-  });
-});
-
-describe("activeChats", () => {
-  it("lists asks, then replies, then work, and leaves the rest out", () => {
-    const chats = [
-      chatWith({ status: "working", title: "Churn report" }),
-      chatWith({ title: "Quiet" }),
-      chatWith({ status: "failed", title: "FAQ", unread: true }),
-      chatWith({ status: "stopped", title: "Stopped", unread: true }),
-      chatWith({ title: "Headlines", unread: true }),
-      chatWith({ status: "waiting", title: "Renewals" }),
-      chatWith({ archived: true, status: "waiting", title: "Archived" }),
-      chatWith({
-        lastUserMessageAt: 5,
-        status: "working",
-        title: "Research",
-      }),
-    ];
-    expect(activeChats(chats).map(({ chat, word }) => `${chat.title}: ${word}`))
-      .toMatchInlineSnapshot(`
-      [
-        "Renewals: Asks",
-        "Headlines: Replied",
-        "Research: Working",
-        "Churn report: Working",
-      ]
-    `);
   });
 });

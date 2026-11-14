@@ -57,8 +57,7 @@ import { ProjectBanner } from "./project-banner";
 import { projectColor } from "./project-colors";
 import { projectTint } from "./project-tint";
 import { ProjectsSection } from "./projects-section";
-import { ActiveList } from "./active-list";
-import { RowHalf, RowLinesView, TabMark, useRowSources } from "./row-half";
+import { RowHalf, RowLinesView, TabMark } from "./row-half";
 import { quiet } from "./row-lines";
 import { useTabTitle } from "./tab-title";
 import {
@@ -134,7 +133,6 @@ export function GroupSidebar({
   onDuplicate,
   onNew,
   onNewProject,
-  onOpenChat,
   onPin,
   onShow,
   open,
@@ -152,8 +150,6 @@ export function GroupSidebar({
   onDuplicate: (entry: TabGroup) => void;
   onNew: (projectId?: string) => void;
   onNewProject: () => void;
-  /** Brings up a chat from the Active list: its tab where it has one, else a group of its own. */
-  onOpenChat: (chat: ChatId) => void;
   /** Pins a group above the line, or takes it back down. */
   onPin: (group: string, pinned: boolean) => void;
   onShow: (group: string, options: { newWindow: boolean }) => void;
@@ -183,7 +179,6 @@ export function GroupSidebar({
   const pinned = listed.filter((entry) => isPinnedGroup(entry));
   const rest = listed.filter((entry) => !isPinnedGroup(entry));
   const { chatUpIn } = useWindowTabs();
-  const sources = useRowSources();
   const chats = open.flatMap((entry) =>
     entry.kind === "chat" ? [entry.chat] : [],
   );
@@ -309,7 +304,6 @@ export function GroupSidebar({
           projects={projects}
         />
       )}
-      {!project && <ActiveList chats={sources.chats} onOpen={onOpenChat} />}
       <AnimatePresence>
         {pinned.map((entry) => listItem(entry, "pinned"))}
         {pinned.length > 0 && (
@@ -633,7 +627,7 @@ function BackRow({ label, onBack }: { label: string; onBack: () => void }) {
  * mark leads its title, and what it says goes under them, its state among
  * it: a chat's is its own, so a chat in two groups says the same in both.
  * The whole row is one press. While the pointer is on it, an X stands at
- * each half's title end, which closes that half's tab, or the group for a
+ * each half's end, centered on its two lines, which closes that half's tab, or the group for a
  * row of one side; a middle click closes the group. While a tab held over
  * it would land in its group, it takes a quiet fill in place of any other
  * tone. A right click raises its menu (`GroupRowMenu`).

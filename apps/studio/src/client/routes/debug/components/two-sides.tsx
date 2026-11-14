@@ -544,7 +544,7 @@ function WorkingStrips() {
 function Rows() {
   return (
     <Section
-      description="Each row draws the tabs that are up: one side across the row, two in equal halves with a hairline between. A tab's mark leads its title, and its second line says where it is, or for a chat, what it's doing. The Active list sits above the pinned groups while any chat waits on you, has a reply you haven't read, or is working."
+      description="Each row draws the tabs that are up: one side across the row, two in equal halves with a hairline between. A tab's mark leads its title, and its second line says where it is, or for a chat, what it's doing."
       id="rows"
     >
       <RowFrames />
@@ -647,7 +647,7 @@ function SidebarShot({
 function Sidebars() {
   return (
     <Section
-      description="The sidebar with the cast's groups. Pinned groups stand above the line, and the Active list above them names the cast's chats that are active."
+      description="The sidebar with the cast's groups. Pinned groups stand above the line."
       id="sidebar"
     >
       <div className="flex flex-wrap gap-6">

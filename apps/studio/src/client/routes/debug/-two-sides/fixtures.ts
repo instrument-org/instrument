@@ -144,33 +144,8 @@ export const CAST = {
     status: "failed",
     title: "Rewrite the pricing FAQ",
   },
-  headlines: {
-    asked: "Write five headlines for the pricing page that lead with the $39 plan.",
-    id: chatId("headlines"),
-    latest: "Here are five headlines that lead with the $39 plan.",
-    title: "Pricing page headlines",
-    unread: true,
-  },
-  churn: {
-    asked: "Write up this week's churn.",
-    id: chatId("churn"),
-    latest: "Churn was 2.1% last week.",
-    status: "working",
-    step: "Reading October cancellations",
-    title: "Weekly churn report",
-  },
 } satisfies Record<string, CastChat>;
 
-/** The pricing week's chats, in the order the Active list would see them. */
-export const PRICING_CHATS = [
-  "pricing",
-  "renewals",
-  "soc",
-  "headlines",
-  "research",
-  "churn",
-  "faq",
-] as const satisfies readonly CastKey[];
 
 export type CastKey = keyof typeof CAST;
 

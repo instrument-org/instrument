@@ -3,17 +3,20 @@ import fs from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
+import { z } from "zod";
 
 import { adoptSystemSidebar } from "@/shared/sidebar-places";
 
 import { getMachinePreferences } from "../stores/machine/preferences";
 import { logger } from "@/electron-main/lib/electron-logger";
+import { powerShellArgs, runHelper } from "./file-open-target/helper-process";
 import { finderFavorites } from "./mac-native";
 
 /**
  * The folders the system's own file manager pins to its sidebar, in its
- * order: the Finder's Favorites on a Mac, the GTK bookmarks the Linux file
- * managers share. Nothing where the system has none to read.
+ * order: the Finder's Favorites on a Mac, Quick Access's pins on Windows, the
+ * GTK bookmarks the Linux file managers share. Nothing where the system has
+ * none to read.
  */
 async function systemSidebarFolders(): Promise<string[] | undefined> {
   if (process.platform === "darwin") {
@@ -21,11 +24,46 @@ async function systemSidebarFolders(): Promise<string[] | undefined> {
   }
   if (process.platform === "linux") {
     const bookmarks = await fs
-      .readFile(path.join(os.homedir(), ".config", "gtk-3.0", "bookmarks"), "utf8")
+      .readFile(
+        path.join(os.homedir(), ".config", "gtk-3.0", "bookmarks"),
+        "utf8",
+      )
       .catch(() => undefined);
     return bookmarks === undefined ? [] : gtkBookmarkFolders(bookmarks);
   }
+  if (process.platform === "win32") {
+    const stdout = await runHelper({
+      args: powerShellArgs(QUICK_ACCESS_SCRIPT),
+      file: "powershell",
+    });
+    return quickAccessFolders(stdout);
+  }
   return undefined;
+}
+
+/**
+ * File Explorer's Quick Access, in its order, as JSON: the folders pinned
+ * there, its defaults included. A folder there only because it is used often
+ * carries no pin and is left out, and so is anything not on a disk (a
+ * library, a phone).
+ */
+const QUICK_ACCESS_SCRIPT = String.raw`$quickAccess = (New-Object -ComObject Shell.Application).Namespace('shell:::{679f85cb-0220-4080-b29b-5540cc05aab6}')
+ConvertTo-Json -Compress @(foreach ($item in $quickAccess.Items()) {
+  if ($item.IsFolder -and $item.IsFileSystem -and $item.ExtendedProperty('System.Home.IsPinned') -eq $true) { $item.Path }
+})`;
+
+/** The folder paths the Quick Access script wrote. */
+export function quickAccessFolders(stdout: string): string[] {
+  const trimmed = stdout.trim();
+  if (!trimmed) {
+    return [];
+  }
+  const parsed: unknown = JSON.parse(trimmed);
+  // ConvertTo-Json writes a lone path as a string rather than a list of one.
+  return z
+    .string()
+    .array()
+    .parse(Array.isArray(parsed) ? parsed : [parsed]);
 }
 
 /**

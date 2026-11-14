@@ -665,7 +665,8 @@ function BackRow({ label, onBack }: { label: string; onBack: () => void }) {
 /**
  * One tab group as two lines, drawing each tab up: a group of one side its
  * tab across the row, a group of two each side's tab in a half of its own,
- * the halves always equal and a hairline between them (`RowHalf`). A tab's
+ * a hairline between them, the half of the side with the keyboard twice as
+ * wide as the other so its title reads (`RowHalf`). A tab's
  * mark leads its title, and what it says goes under them, its state among
  * it: a chat's is its own, so a chat in two groups says the same in both.
  * The whole row is one press. While the pointer is on it, an X stands at
@@ -705,7 +706,8 @@ export function GroupRow({
   onShow?: (group: string, options: { newWindow: boolean }) => void;
 }) {
   const { layoutOf } = useWindowTabs();
-  const ups = layoutOf(entry.group).sides.flatMap((side) => {
+  const layout = layoutOf(entry.group);
+  const ups = layout.sides.flatMap((side) => {
     const up = side.tabs.find((tab) => tab.id === side.up) ?? side.tabs[0];
     return up ? [up] : [];
   });
@@ -729,11 +731,12 @@ export function GroupRow({
         }
       : undefined;
   };
-  const half = (tab: WindowTab) => (
+  const half = (tab: WindowTab, isWide = false) => (
     <RowHalf
       chatTitles={chatTitles}
       close={closeOf(tab)}
       isCloseShown={isCloseShown}
+      isWide={isWide}
       key={tab.id}
       tab={tab}
     />
@@ -743,9 +746,9 @@ export function GroupRow({
   if (first && second) {
     inner = (
       <div className="flex min-w-0 items-stretch">
-        {half(first)}
+        {half(first, layout.focused === 0)}
         <span className="mx-2 my-0.5 w-px shrink-0 self-stretch bg-foreground/12" />
-        {half(second)}
+        {half(second, layout.focused === 1)}
       </div>
     );
   } else if (first) {

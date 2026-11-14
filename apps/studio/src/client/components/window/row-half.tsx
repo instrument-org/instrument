@@ -85,12 +85,15 @@ export function RowHalf({
   chatTitles,
   close,
   isCloseShown = false,
+  isWide = false,
   tab,
 }: {
   chatTitles: Map<ChatId, string>;
   close?: { label: string; run: () => void };
   /** The X kept up whatever the pointer does, for a picture of the row under it. */
   isCloseShown?: boolean;
+  /** Takes twice the room of the half beside it. */
+  isWide?: boolean;
   tab: WindowTab;
 }) {
   const appsBySlug = useAppsBySlug();
@@ -99,6 +102,7 @@ export function RowHalf({
     <RowLinesView
       close={close}
       isCloseShown={isCloseShown}
+      isWide={isWide}
       lines={lines}
       mark={
         <TabMark appsBySlug={appsBySlug} chatTitles={chatTitles} tab={tab} />
@@ -111,18 +115,24 @@ export function RowHalf({
 export function RowLinesView({
   close,
   isCloseShown = false,
+  isWide = false,
   lines,
   mark,
 }: {
   close?: { label: string; run: () => void } | undefined;
   isCloseShown?: boolean;
+  /** Takes twice the room of the half beside it. */
+  isWide?: boolean;
   lines: RowLines;
   mark?: ReactNode;
 }) {
   // The X stands at the half's end, centered on both lines.
   return (
     <div
-      className="flex min-w-0 flex-1 basis-0 items-center gap-1"
+      className={cn(
+        "flex min-w-0 basis-0 items-center gap-1",
+        isWide ? "flex-2" : "flex-1",
+      )}
       data-row-half=""
     >
       <div className="flex min-w-0 flex-1 flex-col">

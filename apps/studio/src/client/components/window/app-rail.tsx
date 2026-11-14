@@ -35,7 +35,7 @@ import { FadersHorizontalIcon } from "@phosphor-icons/react/FadersHorizontal";
 import { KeyboardIcon } from "@phosphor-icons/react/Keyboard";
 import { LifebuoyIcon } from "@phosphor-icons/react/Lifebuoy";
 import { NotePencilIcon } from "@phosphor-icons/react/NotePencil";
-import { type ReactNode } from "react";
+import { type ReactNode, useRef } from "react";
 
 /**
  * The places, in the order the rail draws them, each drawn filled while it
@@ -248,6 +248,9 @@ function RailEntry({
  */
 function RailHelp({ chatId }: { chatId?: ChatId }) {
   const openExternalLink = useOpenExternalLink();
+  // The dialog opens once the menu has closed, so the menu handing focus
+  // back to its button doesn't take it from the note.
+  const opensFeedback = useRef(false);
   return (
     <DropdownMenu>
       <ToolbarTooltip label="Help">
@@ -260,10 +263,21 @@ function RailHelp({ chatId }: { chatId?: ChatId }) {
           </button>
         </DropdownMenuTrigger>
       </ToolbarTooltip>
-      <DropdownMenuContent align="end" className="min-w-52" side="right">
+      <DropdownMenuContent
+        align="end"
+        className="min-w-52"
+        onCloseAutoFocus={(event) => {
+          if (opensFeedback.current) {
+            opensFeedback.current = false;
+            event.preventDefault();
+            openReportDialog(feedbackReport({ chatId, surface: "rail" }));
+          }
+        }}
+        side="right"
+      >
         <DropdownMenuItem
           onSelect={() => {
-            openReportDialog(feedbackReport({ chatId, surface: "rail" }));
+            opensFeedback.current = true;
           }}
         >
           <ChatTeardropTextIcon className="size-4" />

@@ -4,7 +4,7 @@ import { type ChatId } from "@instrument-org/workspace/client";
 // stood in in its well, and at the foot Help over the user, the way to
 // Settings.
 import { renderWithProviders } from "@/tests/render";
-import { fireEvent, screen, within } from "@testing-library/react";
+import { fireEvent, screen, waitFor, within } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 
 import { AppRail } from "./app-rail";
@@ -128,7 +128,7 @@ describe("AppRail", () => {
     });
   });
 
-  it("opens the feedback dialog about the chat on screen, when there is one", () => {
+  it("opens the feedback dialog about the chat on screen, when there is one", async () => {
     const onChoose = vi.fn();
     renderWithProviders(
       <AppRail
@@ -142,22 +142,27 @@ describe("AppRail", () => {
       screen.getByRole("button", { name: "Help" }),
       "Send feedback…",
     );
-    expect(openReportDialog).toHaveBeenLastCalledWith({
-      chatId: "cht_1",
-      kind: "feedback",
-      surface: "rail",
+    // It opens once the menu has closed, which Radix tells a tick later.
+    await waitFor(() => {
+      expect(openReportDialog).toHaveBeenLastCalledWith({
+        chatId: "cht_1",
+        kind: "feedback",
+        surface: "rail",
+      });
     });
   });
 
-  it("opens the feedback dialog, about no chat, from Help", () => {
+  it("opens the feedback dialog, about no chat, from Help", async () => {
     const { rail } = renderRail();
     chooseFromHelp(
       rail.getByRole("button", { name: "Help" }),
       "Send feedback…",
     );
-    expect(openReportDialog).toHaveBeenCalledWith({
-      kind: "feedback",
-      surface: "rail",
+    await waitFor(() => {
+      expect(openReportDialog).toHaveBeenCalledWith({
+        kind: "feedback",
+        surface: "rail",
+      });
     });
   });
 

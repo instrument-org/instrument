@@ -53,7 +53,7 @@ export interface RowSources {
 export const RowSourcesContext = createContext<null | RowSources>(null);
 
 /** The rows' sources: a picture's own, else the window's chats and drafts. */
-export function useRowSources(): RowSources {
+function useRowSources(): RowSources {
   const given = use(RowSourcesContext);
   const { data: chats = NO_CHATS } = useQuery({
     ...chatListOptions(),

@@ -129,19 +129,19 @@ Important means a concrete correctness, security, privacy, or data-preservation 
 
 ### O. Nit: one failed change in `chats archive|star|project` discards the lines for chats already changed
 
-- Status: fixed
+- Status: fixed `45b426126`
 - Where: [chats.ts:277](/packages/workspace/src/lib/capabilities/chats.ts#L277), [chats.ts:104](/packages/workspace/src/lib/capabilities/chats.ts#L104).
 - What: `eachChat` promises that a chat that fails "fails its own line and the rest go on", but a write that returns false throws inside it. With `chats archive a b c` and `b` failing, `a` is archived, `c` is never tried, and the agent reads one line about `b`.
 
 ### P. Nit: a branch that fails partway leaves a listed chat with part of the conversation
 
-- Status: fixed
+- Status: fixed `d2c70543f`
 - Where: [branch-chat.ts:77](/packages/workspace/src/lib/chat/branch-chat.ts#L77).
-- What: `ensureChat` registers the branch before its messages are appended one at a time, and a throw after that (a storage error, a `copyFile` code other than `ENOENT` or `EEXIST`, `setChatModel`) surfaces as an error with nothing removed. The source chat is untouched. Plus 2 similar in the same file: a branch is written from the parsed messages, so a part this build reads as `data-unknown` is copied as that and its original line is not; and a blob not yet on this computer is skipped silently.
+- What: `ensureChat` registers the branch before its messages are appended one at a time, and a throw after that (a storage error, a `copyFile` code other than `ENOENT` or `EEXIST`, `setChatModel`) surfaces as an error with nothing removed. The source chat is untouched. Plus 2 similar, still open in the same file: a branch is written from the parsed messages, so a part this build reads as `data-unknown` is copied as that and its original line is not; and a blob not yet on this computer is skipped silently.
 
 ### Q. Nit: find in chat counts text that is not shown
 
-- Status: fixed
+- Status: fixed `40fbd43a1`
 - Where: [use-find-highlights.ts:262](/apps/studio/src/client/components/document-viewers/use-find-highlights.ts#L262).
 - What: `checkVisibility()` with no options passes `opacity: 0` and `visibility: hidden`, so each earlier reply's hover-only footer (model, duration, time) is counted and stepped to. `checkVisibility({ opacityProperty: true, visibilityProperty: true })` leaves them out.
 

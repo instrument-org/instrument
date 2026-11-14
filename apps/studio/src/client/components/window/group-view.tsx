@@ -23,7 +23,7 @@ import { usePageHost } from "./page-hosts";
 import { PaneTabs, type SplitMenuActions } from "./pane-tabs";
 import { useShell } from "./shell-context";
 import { tabCarryViewAtom } from "./tab-carry-view";
-import { useTabGroupActions } from "./tab-groups";
+import { useTabGroupActions, windowTabGroupsAtom } from "./tab-groups";
 import {
   groupTabLandingAtom,
   incomingGroupTab,
@@ -271,6 +271,7 @@ function SideCard({
   const groups = useTabGroupActions();
   const moves = useGroupTabMoves();
   const isSidebarOpen = useAtomValue(sidebarOpenAtom);
+  const listedGroups = useAtomValue(windowTabGroupsAtom);
   const isActive = useIsActiveTab();
   const { tabs } = side;
   const up = tabs.find((tab) => tab.id === side.up);
@@ -354,14 +355,28 @@ function SideCard({
       side: placing.side,
     });
   };
+  const groupTabCount = layout.sides.reduce(
+    (count, each) => count + each.tabs.length,
+    0,
+  );
+  // The window's only tab is in a window of its own already.
+  const isWindowsOnlyTab =
+    groupTabCount === 1 &&
+    (listedGroups ?? []).every((listed) => listed === group);
   const split: SplitMenuActions = {
+    group,
     hasOtherSide: layout.sides.length === 2,
-    onMoveToNewGroup: (tab) => {
-      groups.make({ moving: tab.id });
-    },
-    onMoveToNewWindow: (tab) => {
-      moves.toNewWindow(tab.id);
-    },
+    onMoveToNewGroup:
+      groupTabCount > 1
+        ? (tab) => {
+            groups.make({ moving: tab.id });
+          }
+        : undefined,
+    onMoveToNewWindow: isWindowsOnlyTab
+      ? undefined
+      : (tab) => {
+          moves.toNewWindow(tab.id);
+        },
     onMoveToOtherSide: (tab) => {
       windowTabs.moveTo({ group, id: tab.id, select: true, side: otherSide });
     },

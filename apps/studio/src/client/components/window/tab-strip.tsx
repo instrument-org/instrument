@@ -37,6 +37,12 @@ import { EDGE_FADE, EDGE_FADE_WIDTH, useEdgeFade } from "./use-edge-fade";
 /** A tab on the strip: what it is called and what stands for it. */
 export interface StripTab {
   /**
+   * In place of its name while it is being renamed: a field, which keeps the
+   * keys and presses that would otherwise go to the tab, with no close
+   * beside it.
+   */
+  field?: ReactNode;
+  /**
    * Something the tab carries after its name: a count of what arrived in it
    * while the user was elsewhere. Kept when the row compresses, since a number
    * is the one thing a narrow tab still has room to say.
@@ -979,26 +985,43 @@ function Tab({
           )}
         </span>
       )}
-      <span
-        className={cn(
-          "min-w-0",
-          // A name that does not fit fades out at its end, selected or not:
-          // an ellipsis reads as a different name.
-          density === "full" || !hasIcon
-            ? cn(
-                isFixed
-                  ? "whitespace-nowrap"
-                  : "flex-1 overflow-hidden tab-title-fade whitespace-nowrap",
-              )
-            : "sr-only",
-          tab.isWorking && "brand-shiny-text",
-        )}
-      >
-        {tab.title}
-        {tab.isWorking && <ShimmerSweep text={tab.title} />}
-      </span>
+      {tab.field ? (
+        <span
+          className="flex min-w-0 flex-1"
+          onKeyDown={(event) => {
+            event.stopPropagation();
+          }}
+          onMouseDown={(event) => {
+            event.stopPropagation();
+          }}
+          onPointerDown={(event) => {
+            event.stopPropagation();
+          }}
+        >
+          {tab.field}
+        </span>
+      ) : (
+        <span
+          className={cn(
+            "min-w-0",
+            // A name that does not fit fades out at its end, selected or not:
+            // an ellipsis reads as a different name.
+            density === "full" || !hasIcon
+              ? cn(
+                  isFixed
+                    ? "whitespace-nowrap"
+                    : "flex-1 overflow-hidden tab-title-fade whitespace-nowrap",
+                )
+              : "sr-only",
+            tab.isWorking && "brand-shiny-text",
+          )}
+        >
+          {tab.title}
+          {tab.isWorking && <ShimmerSweep text={tab.title} />}
+        </span>
+      )}
       {tab.badge}
-      {isClosable && density !== "icon" && (
+      {isClosable && !tab.field && density !== "icon" && (
         <button
           aria-label={`Close ${tab.title}`}
           className={cn(

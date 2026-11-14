@@ -11,9 +11,13 @@ import { formatAcceleratorText } from "@/client/lib/format-accelerator";
 import { WINDOW_SHORTCUTS } from "@/shared/window-shortcuts";
 import { AppWindowIcon } from "@phosphor-icons/react/AppWindow";
 import { ArrowClockwiseIcon } from "@phosphor-icons/react/ArrowClockwise";
+import { ArrowLineLeftIcon } from "@phosphor-icons/react/ArrowLineLeft";
 import { ArrowLineRightIcon } from "@phosphor-icons/react/ArrowLineRight";
-import { BrowsersIcon } from "@phosphor-icons/react/Browsers";
+import { ArrowsLeftRightIcon } from "@phosphor-icons/react/ArrowsLeftRight";
+import { ChatCircleIcon } from "@phosphor-icons/react/ChatCircle";
 import { CopyIcon } from "@phosphor-icons/react/Copy";
+import { SquareSplitHorizontalIcon } from "@phosphor-icons/react/SquareSplitHorizontal";
+import { StackIcon } from "@phosphor-icons/react/Stack";
 import { XIcon } from "@phosphor-icons/react/X";
 import { XSquareIcon } from "@phosphor-icons/react/XSquare";
 import { type ReactNode } from "react";
@@ -28,11 +32,14 @@ import { type ReactNode } from "react";
 export function TabMenuAtPoint({
   at,
   children,
+  onCloseAutoFocus,
   onDismiss,
 }: {
   /** Where the right click was, on screen; nothing while the menu is down. */
   at: { x: number; y: number } | undefined;
   children: ReactNode;
+  /** The menu handing the keyboard back as it closes, which a row that puts it somewhere of its own (a rename's field) stops. */
+  onCloseAutoFocus?: (event: Event) => void;
   onDismiss: () => void;
 }) {
   const style = useWindowPointStyle(at ?? { x: 0, y: 0 });
@@ -53,18 +60,29 @@ export function TabMenuAtPoint({
           style={style}
         />
       </DropdownMenuTrigger>
-      {at && <TabMenuContent>{children}</TabMenuContent>}
+      {at && (
+        <TabMenuContent {...(onCloseAutoFocus ? { onCloseAutoFocus } : {})}>
+          {children}
+        </TabMenuContent>
+      )}
     </DropdownMenu>
   );
 }
 
 /** The menu's panel, mounted as it opens, which is when its guard starts. */
-function TabMenuContent({ children }: { children: ReactNode }) {
+function TabMenuContent({
+  children,
+  onCloseAutoFocus,
+}: {
+  children: ReactNode;
+  onCloseAutoFocus?: (event: Event) => void;
+}) {
   const releaseGuard = useOpeningReleaseGuard();
   return (
     <DropdownMenuContent
       align="start"
       className="min-w-52"
+      {...(onCloseAutoFocus ? { onCloseAutoFocus } : {})}
       sideOffset={0}
       {...releaseGuard}
     >
@@ -74,49 +92,95 @@ function TabMenuContent({ children }: { children: ReactNode }) {
 }
 
 /**
- * What a tab's menu offers, the same in the window's strip and a chat's
- * pane: reload a page, copy the tab, put it somewhere else, copy its
- * address, then close it or the tabs around it. Drawn with whichever menu's
- * parts it is raised in, since a menu's items only work in their own menu.
- * A row is left out where its action is.
+ * What a tab's menu offers, in every place a tab is drawn, in one order:
+ * the tab's place among the group's sides and the window's groups (moved to
+ * the other side, or a copy opened there where nothing would be left to
+ * move; a new chat there; the tab to a group or a window of its own), then
+ * the tab copied or reloaded, then closing it or the tabs around it,
+ * and last what only this tab has, such as a chat's own items, under a
+ * divider. Drawn with whichever menu's parts it is raised in, since a
+ * menu's items only work in their own menu. A row is left out where its
+ * action is.
  */
 export function TabMenuItems({
   components: { Item, Separator, Shortcut },
-  isClosedByChord,
   isSelected,
-  moving,
   onClose,
   onCloseOthers,
+  onCloseToLeft,
   onCloseToRight,
   onCopyUrl,
   onDuplicate,
-  onOpenInNewWindow,
-  onOpenInTabBar,
+  onMoveToNewGroup,
+  onMoveToNewWindow,
+  onMoveToOtherSide,
+  onNewChatInSplit,
+  onOpenInSplit,
   onReload,
   own,
 }: {
   components: MenuComponents;
-  /** Whether Close Tab's chord closes this tab, which Close Tab's row then shows; the tab up's, unless said. */
-  isClosedByChord?: boolean;
-  /** The tab up, whose chords the rows show. */
+  /** The tab up on the side with the keyboard, whose chords the rows show. */
   isSelected: boolean;
-  /** Where the tab itself can move to, which only the window's strip offers. */
-  moving?: ReactNode;
   onClose: () => void;
   onCloseOthers: (() => void) | undefined;
+  onCloseToLeft: (() => void) | undefined;
   onCloseToRight: (() => void) | undefined;
-  onCopyUrl?: (() => void) | undefined;
+  onCopyUrl: (() => void) | undefined;
   onDuplicate: () => void;
-  /** A copy in a window of its own. */
-  onOpenInNewWindow?: (() => void) | undefined;
-  /** A copy in the window's own strip, from a pane's. */
-  onOpenInTabBar?: (() => void) | undefined;
+  onMoveToNewGroup: (() => void) | undefined;
+  onMoveToNewWindow: (() => void) | undefined;
+  /** The tab across to the other side, made where the group has one side. */
+  onMoveToOtherSide: (() => void) | undefined;
+  onNewChatInSplit: (() => void) | undefined;
+  /** A copy of the tab on the other side, for a tab with nothing beside it to leave behind. */
+  onOpenInSplit: (() => void) | undefined;
   onReload: (() => void) | undefined;
-  /** What only this strip's tabs have, ahead of closing. */
+  /** What only this tab has, after the rest under a divider: a chat's own items. */
   own?: ReactNode;
 }) {
+  const placing =
+    onMoveToOtherSide ??
+    onOpenInSplit ??
+    onNewChatInSplit ??
+    onMoveToNewGroup ??
+    onMoveToNewWindow;
   return (
     <>
+      {onMoveToOtherSide ? (
+        <Item onClick={onMoveToOtherSide}>
+          <ArrowsLeftRightIcon className="size-4" />
+          <span>Move to Other Side</span>
+        </Item>
+      ) : onOpenInSplit ? (
+        <Item onClick={onOpenInSplit}>
+          <SquareSplitHorizontalIcon className="size-4" />
+          <span>Open in Split</span>
+        </Item>
+      ) : null}
+      {onNewChatInSplit && (
+        <Item onClick={onNewChatInSplit}>
+          <ChatCircleIcon className="size-4" />
+          <span>New Chat in Split</span>
+        </Item>
+      )}
+      {onMoveToNewGroup && (
+        <Item onClick={onMoveToNewGroup}>
+          <StackIcon className="size-4" />
+          <span>Move to New Tab Group</span>
+        </Item>
+      )}
+      {onMoveToNewWindow && (
+        <Item onClick={onMoveToNewWindow}>
+          <AppWindowIcon className="size-4" />
+          <span>Move to New Window</span>
+        </Item>
+      )}
+      {placing && <Separator />}
+      <Item onClick={onDuplicate}>
+        <NewTabIcon className="size-4" />
+        <span>Duplicate</span>
+      </Item>
       {onReload && (
         <Item onClick={onReload}>
           <ArrowClockwiseIcon className="size-4" />
@@ -128,35 +192,17 @@ export function TabMenuItems({
           ) : null}
         </Item>
       )}
-      <Item onClick={onDuplicate}>
-        <NewTabIcon className="size-4" />
-        <span>Duplicate Tab</span>
-      </Item>
-      {onOpenInTabBar && (
-        <Item onClick={onOpenInTabBar}>
-          <BrowsersIcon className="size-4" />
-          <span>Open in Window Tab Bar</span>
-        </Item>
-      )}
-      {onOpenInNewWindow && (
-        <Item onClick={onOpenInNewWindow}>
-          <AppWindowIcon className="size-4" />
-          <span>Open in New Window</span>
-        </Item>
-      )}
-      {moving}
       {onCopyUrl && (
         <Item onClick={onCopyUrl}>
           <CopyIcon className="size-4" />
           <span>Copy URL</span>
         </Item>
       )}
-      {own}
       <Separator />
       <Item onClick={onClose}>
         <XIcon className="size-4" />
-        <span>Close Tab</span>
-        {(isClosedByChord ?? isSelected) ? (
+        <span>Close</span>
+        {isSelected ? (
           <Shortcut>
             {formatAcceleratorText(WINDOW_SHORTCUTS.closeTab.accelerator)}
           </Shortcut>
@@ -168,11 +214,23 @@ export function TabMenuItems({
           <span>Close Other Tabs</span>
         </Item>
       )}
+      {onCloseToLeft && (
+        <Item onClick={onCloseToLeft}>
+          <ArrowLineLeftIcon className="size-4" />
+          <span>Close Tabs to the Left</span>
+        </Item>
+      )}
       {onCloseToRight && (
         <Item onClick={onCloseToRight}>
           <ArrowLineRightIcon className="size-4" />
           <span>Close Tabs to the Right</span>
         </Item>
+      )}
+      {own && (
+        <>
+          <Separator />
+          {own}
+        </>
       )}
     </>
   );

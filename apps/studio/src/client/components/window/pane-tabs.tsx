@@ -9,30 +9,19 @@ import { useTargetsAgentActivity } from "@/client/hooks/use-target-agent-activit
 import { getGuest } from "@/client/lib/browser-pool";
 import { cn } from "@/client/lib/utils";
 import { browserTargetOf } from "@instrument-org/workspace/client";
-import { NewTabIcon } from "@/client/components/icons/new-tab-icon";
-import { formatAcceleratorText } from "@/client/lib/format-accelerator";
-import { WINDOW_SHORTCUTS } from "@/shared/window-shortcuts";
-import { AppWindowIcon } from "@phosphor-icons/react/AppWindow";
-import { ArrowClockwiseIcon } from "@phosphor-icons/react/ArrowClockwise";
-import { ArrowLineLeftIcon } from "@phosphor-icons/react/ArrowLineLeft";
-import { ArrowLineRightIcon } from "@phosphor-icons/react/ArrowLineRight";
-import { ArrowsLeftRightIcon } from "@phosphor-icons/react/ArrowsLeftRight";
-import { ChatCircleIcon } from "@phosphor-icons/react/ChatCircle";
-import { CopyIcon } from "@phosphor-icons/react/Copy";
-import { SquareSplitHorizontalIcon } from "@phosphor-icons/react/SquareSplitHorizontal";
-import { StackIcon } from "@phosphor-icons/react/Stack";
-import { XIcon } from "@phosphor-icons/react/X";
-import { XSquareIcon } from "@phosphor-icons/react/XSquare";
-import { type ReactNode, useState } from "react";
+import { type ReactNode, useRef, useState } from "react";
 
 import { tabTooltip } from "./app-tab-strip";
 import { useAppsBySlug } from "./apps-by-slug";
+import { ChatTabItems, ChatTabRenameField } from "./chat-tab-menu";
+import { type Chat } from "./chats";
 import { useComputerVolumes } from "./computer-volumes";
+import { DeleteChatDialog } from "./delete-chat-dialog";
 import { useFileTabTitles } from "./file-tab-titles";
 import { screenPresentation, screenLocation } from "./screen-presentation";
 import { siteTabTitles } from "./site-tab-titles";
-import { isHomeTab } from "./tab-model";
-import { TabMenuAtPoint } from "./tab-menu-items";
+import { chatOfTab, isHomeTab } from "./tab-model";
+import { TabMenuAtPoint, TabMenuItems } from "./tab-menu-items";
 import { NewTabButton, type StripTab, TabStrip } from "./tab-strip";
 
 type Presentation = Parameters<typeof screenPresentation>[1];
@@ -126,6 +115,12 @@ export function PaneTabs({
     isChatWorking,
   );
   const [menu, setMenu] = useState<{ key: string; x: number; y: number }>();
+  // What a row of the menu does once the menu has let go of the keyboard,
+  // for a row that puts it somewhere of its own: a rename's field.
+  const afterMenu = useRef<(() => void) | null>(null);
+  // The chat tab being renamed in place, by its strip key.
+  const [renaming, setRenaming] = useState<string>();
+  const [deleting, setDeleting] = useState<{ chat: Chat; tabId: string }>();
   const tabOf = (key: string) => tabs.find((tab) => stripKeyOf(tab) === key);
 
   const whole = tabs.map((tab) => {
@@ -175,7 +170,20 @@ export function PaneTabs({
         />
       );
     }
+    const chat = chatOfTab(tab);
     return {
+      ...(chat !== undefined && renaming === named.key
+        ? {
+            field: (
+              <ChatTabRenameField
+                chatId={chat}
+                onDone={() => {
+                  setRenaming(undefined);
+                }}
+              />
+            ),
+          }
+        : {}),
       icon,
       isWorking: tab.kind === "page" && driven.has(browserTargetOf(tab.id)),
       key: named.key,
@@ -231,6 +239,14 @@ export function PaneTabs({
       {trailing}
       <TabMenuAtPoint
         at={menu}
+        onCloseAutoFocus={(event) => {
+          const next = afterMenu.current;
+          if (next) {
+            afterMenu.current = null;
+            event.preventDefault();
+            next();
+          }
+        }}
         onDismiss={() => {
           setMenu(undefined);
         }}
@@ -239,13 +255,36 @@ export function PaneTabs({
           <PaneTabMenu
             isChosen={menuTab.id === chosenId}
             onClose={onClose}
+            onDelete={(chat) => {
+              setDeleting({ chat, tabId: menuTab.id });
+            }}
             onDuplicate={onDuplicate}
+            onRename={() => {
+              const key = stripKeyOf(menuTab);
+              afterMenu.current = () => {
+                setRenaming(key);
+              };
+            }}
             {...(split ? { split } : {})}
             tab={menuTab}
             tabs={tabs}
           />
         )}
       </TabMenuAtPoint>
+      {deleting && (
+        <DeleteChatDialog
+          chat={deleting.chat}
+          onDeleted={() => {
+            onClose(deleting.tabId);
+          }}
+          onOpenChange={(open) => {
+            if (!open) {
+              setDeleting(undefined);
+            }
+          }}
+          open
+        />
+      )}
     </div>
   );
 }
@@ -254,10 +293,12 @@ export function PaneTabs({
 export interface SplitMenuActions {
   /** Whether the group has a second side. */
   hasOtherSide: boolean;
-  /** The tab to a new tab group of its own, up in the window. */
-  onMoveToNewGroup: (tab: WindowTab) => void;
-  /** The tab to a window of its own. */
-  onMoveToNewWindow: (tab: WindowTab) => void;
+  /** The group this strip is a side of. */
+  group: string;
+  /** The tab to a new tab group of its own, up in the window; none for a group's only tab, which would make the same group again. */
+  onMoveToNewGroup: ((tab: WindowTab) => void) | undefined;
+  /** The tab to a window of its own; none for the window's only tab. */
+  onMoveToNewWindow: ((tab: WindowTab) => void) | undefined;
   /** The tab to the other side, made where the group has one side. */
   onMoveToOtherSide: (tab: WindowTab) => void;
   /** A new chat on the other side, made where the group has one side. */
@@ -267,164 +308,124 @@ export interface SplitMenuActions {
 }
 
 /**
- * A group tab's menu: the group's sides first (a copy on the other side,
- * the tab moved there, a new chat there, the tab to a group or a window of
- * its own), then the tab copied, and closing it or the tabs around it.
- * A page also reloads and copies its address.
+ * A group tab's menu (`TabMenuItems`): the tab moved to the other side, or a
+ * copy of it opened there when it is the group's only tab and moving it
+ * would leave nothing behind; then the rest of what places it, copies it
+ * and closes it or the tabs around it. A chat's tab has the chat's own
+ * items after those.
  */
 function PaneTabMenu({
   isChosen,
   onClose,
+  onDelete,
   onDuplicate,
+  onRename,
   split,
   tab,
   tabs,
 }: {
   isChosen: boolean;
   onClose: (id: string) => void;
+  /** Asks before the chat a chat tab is on goes to the trash. */
+  onDelete: (chat: Chat) => void;
   onDuplicate: (tab: WindowTab) => void;
+  /** Renames the chat a chat tab is on, in the tab, once the menu is down. */
+  onRename: () => void;
   split?: SplitMenuActions;
   tab: WindowTab;
   tabs: WindowTab[];
 }) {
-  const { Item, Separator, Shortcut } = dropdownMenuComponents;
   const pageUrl = tab.kind === "page" ? (tab.url ?? tab.openedUrl) : undefined;
   const index = tabs.findIndex((each) => each.id === tab.id);
-  const closeAll = (closing: readonly WindowTab[]) => {
-    for (const each of closing) {
-      onClose(each.id);
-    }
-  };
+  const closing = (closed: readonly WindowTab[]) =>
+    closed.length === 0
+      ? undefined
+      : () => {
+          for (const each of closed) {
+            onClose(each.id);
+          }
+        };
   // A side's only tab moved over would leave the side it was on empty and
-  // the group one side again, standing where it was.
-  const canMove = split !== undefined && (split.hasOtherSide || tabs.length > 1);
+  // the group one side again, standing where it was: a copy goes instead.
+  const canMove =
+    split !== undefined && (split.hasOtherSide || tabs.length > 1);
+  const chat = chatOfTab(tab);
+  const { onMoveToNewGroup, onMoveToNewWindow } = split ?? {};
   return (
-    <>
-      {split && (
-        <>
-          <Item
-            onClick={() => {
-              split.onOpenInSplit(tab);
-            }}
-          >
-            <SquareSplitHorizontalIcon className="size-4" />
-            <span>Open in Split</span>
-          </Item>
-          {canMove && (
-            <Item
-              onClick={() => {
-                split.onMoveToOtherSide(tab);
-              }}
-            >
-              <ArrowsLeftRightIcon className="size-4" />
-              <span>Move to Other Side</span>
-            </Item>
-          )}
-          <Item
-            onClick={() => {
-              split.onNewChatInSplit(tab);
-            }}
-          >
-            <ChatCircleIcon className="size-4" />
-            <span>New Chat in Split</span>
-          </Item>
-          <Item
-            onClick={() => {
-              split.onMoveToNewGroup(tab);
-            }}
-          >
-            <StackIcon className="size-4" />
-            <span>Move to New Tab Group</span>
-          </Item>
-          <Item
-            onClick={() => {
-              split.onMoveToNewWindow(tab);
-            }}
-          >
-            <AppWindowIcon className="size-4" />
-            <span>Move to New Window</span>
-          </Item>
-          <Separator />
-        </>
-      )}
-      {pageUrl !== undefined && (
-        <>
-          <Item
-            onClick={() => {
-              getGuest(browserTargetOf(tab.id))?.reload();
-            }}
-          >
-            <ArrowClockwiseIcon className="size-4" />
-            <span>Reload</span>
-            {isChosen ? (
-              <Shortcut>
-                {formatAcceleratorText(WINDOW_SHORTCUTS.reloadPage.accelerator)}
-              </Shortcut>
-            ) : null}
-          </Item>
-          <Item
-            onClick={() => {
+    <TabMenuItems
+      components={dropdownMenuComponents}
+      isSelected={isChosen}
+      onClose={() => {
+        onClose(tab.id);
+      }}
+      onCloseOthers={closing(tabs.filter((each) => each.id !== tab.id))}
+      onCloseToLeft={closing(tabs.slice(0, Math.max(index, 0)))}
+      onCloseToRight={closing(index === -1 ? [] : tabs.slice(index + 1))}
+      onCopyUrl={
+        pageUrl === undefined
+          ? undefined
+          : () => {
               void navigator.clipboard.writeText(pageUrl);
+            }
+      }
+      onDuplicate={() => {
+        onDuplicate(tab);
+      }}
+      onMoveToNewGroup={
+        onMoveToNewGroup &&
+        (() => {
+          onMoveToNewGroup(tab);
+        })
+      }
+      onMoveToNewWindow={
+        onMoveToNewWindow &&
+        (() => {
+          onMoveToNewWindow(tab);
+        })
+      }
+      onMoveToOtherSide={
+        split && canMove
+          ? () => {
+              split.onMoveToOtherSide(tab);
+            }
+          : undefined
+      }
+      onNewChatInSplit={
+        split &&
+        (() => {
+          split.onNewChatInSplit(tab);
+        })
+      }
+      onOpenInSplit={
+        split && !canMove
+          ? () => {
+              split.onOpenInSplit(tab);
+            }
+          : undefined
+      }
+      onReload={
+        pageUrl === undefined
+          ? undefined
+          : () => {
+              getGuest(browserTargetOf(tab.id))?.reload();
+            }
+      }
+      own={
+        chat === undefined ? undefined : (
+          <ChatTabItems
+            chatId={chat}
+            components={dropdownMenuComponents}
+            group={split?.group}
+            onArchived={() => {
+              onClose(tab.id);
             }}
-          >
-            <CopyIcon className="size-4" />
-            <span>Copy URL</span>
-          </Item>
-        </>
-      )}
-      <Item
-        onClick={() => {
-          onDuplicate(tab);
-        }}
-      >
-        <NewTabIcon className="size-4" />
-        <span>Duplicate</span>
-      </Item>
-      <Separator />
-      <Item
-        onClick={() => {
-          onClose(tab.id);
-        }}
-      >
-        <XIcon className="size-4" />
-        <span>Close</span>
-        {isChosen ? (
-          <Shortcut>
-            {formatAcceleratorText(WINDOW_SHORTCUTS.closeTab.accelerator)}
-          </Shortcut>
-        ) : null}
-      </Item>
-      {tabs.length > 1 && (
-        <Item
-          onClick={() => {
-            closeAll(tabs.filter((each) => each.id !== tab.id));
-          }}
-        >
-          <XSquareIcon className="size-4" />
-          <span>Close Other Tabs</span>
-        </Item>
-      )}
-      {index > 0 && (
-        <Item
-          onClick={() => {
-            closeAll(tabs.slice(0, index));
-          }}
-        >
-          <ArrowLineLeftIcon className="size-4" />
-          <span>Close Tabs to the Left</span>
-        </Item>
-      )}
-      {index < tabs.length - 1 && (
-        <Item
-          onClick={() => {
-            closeAll(tabs.slice(index + 1));
-          }}
-        >
-          <ArrowLineRightIcon className="size-4" />
-          <span>Close Tabs to the Right</span>
-        </Item>
-      )}
-    </>
+            onDelete={onDelete}
+            onRename={onRename}
+            tabId={tab.id}
+          />
+        )
+      }
+    />
   );
 }
 

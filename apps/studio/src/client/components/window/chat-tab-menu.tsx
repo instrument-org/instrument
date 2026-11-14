@@ -1,0 +1,123 @@
+import { type MenuComponents } from "@/client/components/ui/menu-components";
+import { rpcClient } from "@/client/rpc/client";
+import { folderHref } from "@/shared/computer-href";
+import { type ChatId } from "@instrument-org/workspace/client";
+import { useQuery } from "@tanstack/react-query";
+import { useEffect, useRef } from "react";
+
+import { ChatMenuItems } from "./chat-header";
+import { chatListOptions } from "./chat-list-query";
+import { ChatTitleField } from "./chat-title";
+import { type Chat } from "./chats";
+import { useShell } from "./shell-context";
+import { useChatRename } from "./use-chat-rename";
+import { useWindowTabs } from "./window-tabs";
+
+/** A chat from the window's list, by its id, while the list has it. */
+function useListedChat(id: ChatId): Chat | undefined {
+  const { data } = useQuery({
+    ...chatListOptions(),
+    select: (list) => list.find((chat) => chat.id === id),
+  });
+  return data;
+}
+
+/**
+ * A chat tab's own items, after the tab's in its menu: the chat's menu as
+ * its head had it (`ChatMenuItems`), with Show Chat Folder opening the
+ * folder right after the tab, renaming in the tab, and archiving closing
+ * the tab.
+ */
+export function ChatTabItems({
+  chatId,
+  components,
+  group,
+  onArchived,
+  onDelete,
+  onRename,
+  tabId,
+}: {
+  chatId: ChatId;
+  components: MenuComponents;
+  group: string | undefined;
+  onArchived: () => void;
+  onDelete: (chat: Chat) => void;
+  onRename: () => void;
+  tabId: string;
+}) {
+  const shell = useShell();
+  const windowTabs = useWindowTabs();
+  const chat = useListedChat(chatId);
+  const { data: folder = null } = useQuery(
+    rpcClient.workspace.chats.live.folderWithFiles.experimental_liveOptions({
+      input: { id: chatId },
+    }),
+  );
+  if (!chat) {
+    return null;
+  }
+  return (
+    <ChatMenuItems
+      chat={chat}
+      components={components}
+      onArchived={onArchived}
+      onDelete={() => {
+        onDelete(chat);
+      }}
+      onRename={onRename}
+      {...(folder === null
+        ? {}
+        : {
+            onShowFolder: () => {
+              windowTabs.openOrFocusScreen(folderHref(folder), {
+                after: tabId,
+                ...(group === undefined ? {} : { group }),
+                select: true,
+              });
+            },
+          })}
+      projectMenu={{
+        onNew: shell.onNewProject,
+        // Picking the project it is under takes it off.
+        onPick: (id) => {
+          shell.setChatProject(chat.id, chat.project === id ? null : id);
+        },
+        projects: shell.projects,
+      }}
+    />
+  );
+}
+
+/**
+ * A chat's title as a field in its tab, open from the moment it is drawn
+ * until the name is saved or left, when `onDone` takes it away.
+ */
+export function ChatTabRenameField({
+  chatId,
+  onDone,
+}: {
+  chatId: ChatId;
+  onDone: () => void;
+}) {
+  const rename = useChatRename(useListedChat(chatId));
+  const hasStarted = useRef(false);
+  useEffect(() => {
+    if (!hasStarted.current) {
+      hasStarted.current = true;
+      rename.start();
+    } else if (!rename.isEditing) {
+      onDone();
+    }
+  });
+  if (!rename.isEditing) {
+    return null;
+  }
+  return (
+    <ChatTitleField
+      className="text-sm font-medium"
+      grow
+      rename={rename}
+      width={undefined}
+    />
+  );
+}

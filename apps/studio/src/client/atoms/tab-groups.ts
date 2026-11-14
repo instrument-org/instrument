@@ -8,18 +8,6 @@ export const sidebarOpenAtom = keptAtom<boolean>(
   true,
 );
 
-/**
- * The names the person gave tab groups, by group. A row shows its group's
- * name over its own title (its first chat's title, or its tab up's). Only
- * the person names a group: the name and a chat's title never set each
- * other.
- */
-export const groupNamesAtom = keptAtom<Record<string, string>>(
-  "view",
-  "tab-groups-names.v1",
-  {},
-);
-
 /** The groups the person pinned above the line, by group. A chat's star is the chat's own, and pins nothing. */
 export const groupPinsAtom = keptAtom<Record<string, true>>(
   "view",
@@ -37,13 +25,8 @@ export const starPinsCarriedAtom = keptAtom<boolean>(
   false,
 );
 
-/** A group thrown away, its name and pin with it, which nothing shows again. */
+/** A group thrown away, its pin with it, which nothing shows again. */
 export const forgetGroupAtom = atom(null, (get, set, group: string) => {
-  const names = get(groupNamesAtom);
-  if (group in names) {
-    const { [group]: _name, ...rest } = names;
-    set(groupNamesAtom, rest);
-  }
   const pins = get(groupPinsAtom);
   if (group in pins) {
     const { [group]: _pin, ...rest } = pins;

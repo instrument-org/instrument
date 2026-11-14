@@ -57,12 +57,10 @@ export function HistoryPage({
   );
   const shown = history.filter((entry) =>
     entry.kind === "chat"
-      ? matchesSearch(entry.chat, q, projectNames) ||
-        (entry.name !== undefined && hasWords(q, [entry.name]))
+      ? matchesSearch(entry.chat, q, projectNames)
       : hasWords(q, [
           entry.title,
           entry.kind === "draft" ? entry.draft.words : "",
-          entry.name ?? "",
         ]),
   );
   const open = (entry: TabGroup) => {

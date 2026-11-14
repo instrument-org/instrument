@@ -112,7 +112,6 @@ describe("a tab group row's menu", () => {
       expect(rows).toEqual([
         "Open in New Window",
         "Duplicate Tab Group",
-        "Rename",
         entry.pinned ? "Unpin" : "Pin",
         "Close Tab Group",
         "Close Other Tab Groups",

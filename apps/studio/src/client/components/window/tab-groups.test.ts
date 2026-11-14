@@ -13,7 +13,6 @@ import {
   isWorthKeeping,
   listedWith,
   listedWithout,
-  namedWith,
   pinnedFromStars,
   pinnedWith,
   upkeptList,
@@ -80,7 +79,7 @@ describe("the tab groups another window has open", () => {
     title,
     url: `https://${id}.test/`,
   });
-  // This window has a new chat; the other has a chat its person named, a
+  // This window has a new chat; the other has a chat, a
   // new chat with words and a page beside it, a group of pages alone, and
   // a new chat with nothing in it yet.
   const lists = groupLists({
@@ -93,7 +92,6 @@ describe("the tab groups another window has open", () => {
       groups: [LISBON, "draft:plan", "group:pages", "draft:empty"],
     },
     listed: ["draft:here"],
-    names: { [LISBON]: "Lisbon named", "group:pages": "Reading" },
     pins: {},
     state: {
       activeByGroup: {},
@@ -110,10 +108,9 @@ describe("the tab groups another window has open", () => {
 
   it("lists each one, a chatless one by what names its row", () => {
     expect(
-      lists.elsewhere.map(({ group, kind, name, title }) => ({
+      lists.elsewhere.map(({ group, kind, title }) => ({
         group,
         kind,
-        name,
         title,
       })),
     ).toMatchInlineSnapshot(`
@@ -121,25 +118,21 @@ describe("the tab groups another window has open", () => {
         {
           "group": "draft:plan",
           "kind": "draft",
-          "name": undefined,
           "title": "Plan the week",
         },
         {
           "group": "2026-11-10-lisbon",
           "kind": "chat",
-          "name": "Lisbon named",
-          "title": "Lisbon named",
+          "title": "Trip to Lisbon",
         },
         {
           "group": "group:pages",
           "kind": "tabs",
-          "name": "Reading",
-          "title": "Reading",
+          "title": "New Tab",
         },
         {
           "group": "draft:empty",
           "kind": "tabs",
-          "name": undefined,
           "title": "New Tab",
         },
       ]
@@ -148,31 +141,6 @@ describe("the tab groups another window has open", () => {
 
   it("leaves a draft another window is writing out of History", () => {
     expect(lists.history).toEqual([]);
-  });
-});
-
-describe("a tab group's name", () => {
-  const NAMES = { "draft:a": "Wireframes" };
-
-  it.each([
-    ["names a group", {}, "draft:a", "Wireframes", NAMES],
-    ["trims the name", {}, "draft:a", "  Wireframes ", NAMES],
-    [
-      "renames a named group",
-      NAMES,
-      "draft:a",
-      "Keepers",
-      { "draft:a": "Keepers" },
-    ],
-    ["takes the name off with a blank one", NAMES, "draft:a", "  ", {}],
-    ["leaves another group's name", NAMES, "draft:b", "", NAMES],
-  ])("%s", (_, names, group, name, expected) => {
-    expect(namedWith(names, group, name)).toEqual(expected);
-  });
-
-  it("keeps the names as they were when nothing changes", () => {
-    expect(namedWith(NAMES, "draft:a", "Wireframes")).toBe(NAMES);
-    expect(namedWith(NAMES, "draft:b", "")).toBe(NAMES);
   });
 });
 
@@ -395,7 +363,7 @@ describe("the groups an earlier build kept, on this build's first launch", () =>
   });
   // What that build kept: a group's tabs under `window-tabs.v10`, none for a
   // group that was its chat or its new chat alone; which chats' cards were
-  // closed; names and pins by group; and each chat's star, which pinned its
+  // closed; pins by group; and each chat's star, which pinned its
   // group. A chatless group's draft is on disk only once it has words.
   const V10: Record<string, { active?: string; tabs: WindowTab[] }> = {
     [BUDGET]: {
@@ -419,18 +387,12 @@ describe("the groups an earlier build kept, on this build's first launch", () =>
     "draft:empty",
     "draft:research",
     LISBON,
-    "draft:named",
     "draft:pinned",
     "draft:words",
     "draft:nothing",
     BUDGET,
     SQUARES,
   ];
-  const NAMES = {
-    [LISBON]: "Lisbon named",
-    "draft:empty": "Empty pinned",
-    "draft:named": "Named only",
-  };
   const PINS = {
     "draft:empty": true,
     "draft:pinned": true,
@@ -462,7 +424,6 @@ describe("the groups an earlier build kept, on this build's first launch", () =>
     const carried = createStore().get(windowTabsAtom);
     const upkept = upkeptList(LISTED, carried, {
       drafts: DRAFTS,
-      names: NAMES,
       pins: PINS,
     });
     state = upkept.opening.reduce(
@@ -485,7 +446,6 @@ describe("the groups an earlier build kept, on this build's first launch", () =>
     return {
       keyboard: layout.focused,
       listed: listed.includes(group),
-      name: NAMES[group as keyof typeof NAMES],
       pinned: group in pins,
       sides: layout.sides.map((side) =>
         side.tabs.map(
@@ -498,25 +458,13 @@ describe("the groups an earlier build kept, on this build's first launch", () =>
 
   it.each([
     [
-      "a chatless group named and pinned, with nothing else, as a new chat",
+      "a chatless group pinned, with nothing else, as a new chat",
       "draft:empty",
       {
         keyboard: 0,
         listed: true,
-        name: "Empty pinned",
         pinned: true,
         sides: [["/chats?draft=empty (up)"]],
-      },
-    ],
-    [
-      "a chatless group named alone, as a new chat",
-      "draft:named",
-      {
-        keyboard: 0,
-        listed: true,
-        name: "Named only",
-        pinned: false,
-        sides: [["/chats?draft=named (up)"]],
       },
     ],
     [
@@ -525,7 +473,6 @@ describe("the groups an earlier build kept, on this build's first launch", () =>
       {
         keyboard: 0,
         listed: true,
-        name: undefined,
         pinned: true,
         sides: [["/chats?draft=pinned (up)"]],
       },
@@ -536,7 +483,6 @@ describe("the groups an earlier build kept, on this build's first launch", () =>
       {
         keyboard: 0,
         listed: true,
-        name: undefined,
         pinned: false,
         sides: [["/chats?draft=words (up)"]],
       },
@@ -547,18 +493,16 @@ describe("the groups an earlier build kept, on this build's first launch", () =>
       {
         keyboard: 1,
         listed: true,
-        name: undefined,
         pinned: true,
         sides: [["https://example.com/ (up)"], ["/chats?draft=research (up)"]],
       },
     ],
     [
-      "a chat alone, named and pinned by its star",
+      "a chat alone, pinned by its star",
       LISBON,
       {
         keyboard: 0,
         listed: true,
-        name: "Lisbon named",
         pinned: true,
         sides: [[`/chats/${LISBON} (up)`]],
       },
@@ -569,7 +513,6 @@ describe("the groups an earlier build kept, on this build's first launch", () =>
       {
         keyboard: 1,
         listed: true,
-        name: undefined,
         pinned: false,
         sides: [
           ["https://example.com/ (up)", "/files"],
@@ -583,7 +526,6 @@ describe("the groups an earlier build kept, on this build's first launch", () =>
       {
         keyboard: 0,
         listed: true,
-        name: undefined,
         pinned: false,
         sides: [["https://sheets.test/ (up)", `/chats/${BUDGET}`]],
       },
@@ -594,7 +536,6 @@ describe("the groups an earlier build kept, on this build's first launch", () =>
       {
         keyboard: 1,
         listed: false,
-        name: undefined,
         pinned: false,
         sides: [["https://parked.test/ (up)"], [`/chats/${PARKED} (up)`]],
       },
@@ -605,7 +546,6 @@ describe("the groups an earlier build kept, on this build's first launch", () =>
       {
         keyboard: 0,
         listed: false,
-        name: undefined,
         pinned: false,
         sides: [[]],
       },

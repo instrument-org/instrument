@@ -1,7 +1,6 @@
 import { NEW_TAB_HREF, type WindowTab } from "@/client/atoms/window";
 import {
   forgetGroupAtom,
-  groupNamesAtom,
   groupPinsAtom,
   starPinsCarriedAtom,
 } from "@/client/atoms/tab-groups";
@@ -51,8 +50,7 @@ import {
 import { newScreenId, useWindowTabs, windowTabsAtom } from "./window-tabs";
 
 /**
- * One tab group as the sidebar lists it. An open group is named by the name
- * the person gave it (`groupNamesAtom`), else by its first chat (the left
+ * One tab group as the sidebar lists it. An open group is named by its first chat (the left
  * side first, then strip order), else by the tab up on the side with the
  * keyboard, which its row reads; `kind` says which of those it has: a chat,
  * a new chat's draft with words in it, or tabs alone. History lists a chat
@@ -65,7 +63,6 @@ export type TabGroup =
       chat: Chat;
       group: string;
       kind: "chat";
-      name?: string;
       pinned: boolean;
       title: string;
     }
@@ -73,14 +70,12 @@ export type TabGroup =
       draft: Draft;
       group: string;
       kind: "draft";
-      name?: string;
       pinned: boolean;
       title: string;
     }
   | {
       group: string;
       kind: "tabs";
-      name?: string;
       pinned: boolean;
       title: string;
     };
@@ -230,28 +225,21 @@ function openEntry(
   {
     byId,
     drafts,
-    names,
     pins,
     state,
   }: {
     byId: ReadonlyMap<string, Chat>;
     drafts: readonly Draft[];
-    names: Record<string, string>;
     pins: Record<string, true>;
     state: WindowTabs;
   },
 ): TabGroup {
-  const name = names[group];
-  const own = {
-    group,
-    ...(name === undefined ? {} : { name }),
-    pinned: group in pins,
-  };
+  const own = { group, pinned: group in pins };
   const chat = chatsOfGroup(state, group)
     .map((id) => byId.get(id))
     .find((entry) => entry !== undefined);
   if (chat) {
-    return { ...own, chat, kind: "chat", title: name ?? chat.title };
+    return { ...own, chat, kind: "chat", title: chat.title };
   }
   // A new chat with words in it, the left side first, as chats are read.
   const draft = groupLayoutOf(state, group)
@@ -263,10 +251,10 @@ function openEntry(
       ...own,
       draft,
       kind: "draft",
-      title: name ?? draftWordsTitle(draft),
+      title: draftWordsTitle(draft),
     };
   }
-  return { ...own, kind: "tabs", title: name ?? "New Tab" };
+  return { ...own, kind: "tabs", title: "New Tab" };
 }
 
 /** The tab groups as this window lists them (`groupLists`). */
@@ -276,7 +264,6 @@ export function useOpenGroups(): GroupLists {
     drafts: useAtomValue(draftsAtom),
     elsewhere: useTabGroupsElsewhere(),
     listed: useAtomValue(windowTabGroupsAtom) ?? [],
-    names: useAtomValue(groupNamesAtom),
     pins: useAtomValue(groupPinsAtom),
     state: useAtomValue(windowTabsAtom),
   });
@@ -293,15 +280,13 @@ interface GroupLists {
  * the groups another open window has open, each chat with a tab there and
  * each group with no chat (a new chat's, or pages alone); and History, every
  * other chat, and every draft worth keeping (`isWorthKeeping`) no tab is
- * writing, most recently active first. A group keeps the name the person
- * gave it wherever it is listed.
+ * writing, most recently active first.
  */
 export function groupLists({
   chats,
   drafts,
   elsewhere,
   listed,
-  names,
   pins,
   state,
 }: {
@@ -312,7 +297,6 @@ export function groupLists({
     | undefined
     | { chats: readonly string[]; groups: readonly string[] };
   listed: readonly string[];
-  names: Record<string, string>;
   pins: Record<string, true>;
   state: WindowTabs;
 }): GroupLists {
@@ -341,24 +325,19 @@ export function groupLists({
   );
   const newestFirst = (list: TabGroup[]) =>
     list.toSorted((a, b) => lastActiveAt(b) - lastActiveAt(a));
-  const named = (group: string) => {
-    const name = names[group];
-    return name === undefined ? {} : { name };
-  };
   const closed = (entry: Chat): TabGroup => ({
     chat: entry,
     group: entry.id,
     kind: "chat",
-    ...named(entry.id),
     pinned: false,
-    title: names[entry.id] ?? entry.title,
+    title: entry.title,
   });
   const unlisted = chats.filter((chat) => !chatsHere.has(chat.id));
   return {
     elsewhere: newestFirst([
       ...unlisted.filter((chat) => elsewhereChats.has(chat.id)).map(closed),
       ...[...chatlessElsewhere].map((group) =>
-        openEntry(group, { byId, drafts, names, pins, state }),
+        openEntry(group, { byId, drafts, pins, state }),
       ),
     ]),
     history: newestFirst([
@@ -376,14 +355,13 @@ export function groupLists({
             draft,
             group,
             kind: "draft",
-            ...named(group),
             pinned: false,
-            title: names[group] ?? draftWordsTitle(draft),
+            title: draftWordsTitle(draft),
           };
         }),
     ]),
     open: listed.map((group) =>
-      openEntry(group, { byId, drafts, names, pins, state }),
+      openEntry(group, { byId, drafts, pins, state }),
     ),
   };
 }
@@ -414,26 +392,6 @@ export function groupAlong(
   return listed[at + direction]?.group;
 }
 
-/**
- * The names with `group` named `name`, or with its name taken off where
- * `name` is blank, which gives the group its own title back.
- */
-export function namedWith(
-  names: Record<string, string>,
-  group: string,
-  name: string,
-): Record<string, string> {
-  const trimmed = name.trim();
-  if (trimmed !== "") {
-    return names[group] === trimmed ? names : { ...names, [group]: trimmed };
-  }
-  if (!(group in names)) {
-    return names;
-  }
-  const { [group]: _cleared, ...rest } = names;
-  return rest;
-}
-
 /** The pins with `group` pinned, or with its pin taken off. */
 export function pinnedWith(
   pins: Record<string, true>,
@@ -455,22 +413,20 @@ export function pinnedWith(
  * with none that is given a tab here, at the address `opening` names. A
  * chat's group gets its chat's tab, as an earlier build kept a group that
  * was its chat alone. A draft's group gets its new chat while the draft is
- * there, or while the group is named or pinned, as that build kept one whose
- * chat had not started with nothing in it but its name or pin; the new chat
- * stands at the draft's address, which the window's tab may still ask for.
- * Any other group named or pinned gets a new chat. The rest leave the list,
- * so a group with a name or a pin never does.
+ * there, or while the group is pinned, as that build kept one whose chat
+ * had not started with nothing in it but its pin; the new chat stands at the
+ * draft's address, which the window's tab may still ask for. Any other group
+ * pinned gets a new chat. The rest leave the list, so a pinned group never
+ * does.
  */
 export function upkeptList(
   listed: readonly string[],
   state: WindowTabs,
   {
     drafts,
-    names,
     pins,
   }: {
     drafts: readonly Draft[];
-    names: Record<string, string>;
     pins: Record<string, true>;
   },
 ): { kept: string[]; opening: { group: string; href: string }[] } {
@@ -479,7 +435,7 @@ export function upkeptList(
     if (chat !== undefined) {
       return chatHref(chat);
     }
-    const isOwn = group in names || group in pins;
+    const isOwn = group in pins;
     const draft = draftOfGroup(group);
     if (draft !== undefined) {
       return isOwn || drafts.some((entry) => entry.id === draft)
@@ -610,7 +566,6 @@ export function useTabGroupActions() {
   const windowTabs = useWindowTabs();
   const forgetGroup = useSetAtom(forgetGroupAtom);
   const pickProject = useSetAtom(pickNewChatProjectAtom);
-  const setNames = useSetAtom(groupNamesAtom);
   const setPins = useSetAtom(groupPinsAtom);
 
   /** The group the window shows now, read at the call. */
@@ -859,12 +814,11 @@ export function useTabGroupActions() {
   /**
    * A copy of a group just below it, up in this window: its tabs copied
    * (`copiedTabs`) on the same sides, the same one up on each and the
-   * keyboard on the same side, named and pinned as the group is. A chat's
+   * keyboard on the same side, pinned as the group is. A chat's
    * tab is copied as a new chat, so the chat stays in the group it was in.
    */
   const duplicate = (entry: TabGroup) => {
     const tabs = store.get(windowTabsAtom);
-    const name = store.get(groupNamesAtom)[entry.group];
     const up = selectedTabIn(tabs, entry.group)?.id;
     const copy = make({
       fill: (group) => {
@@ -885,9 +839,6 @@ export function useTabGroupActions() {
       },
       place: { after: entry.group },
     });
-    if (name !== undefined) {
-      setNames((names) => namedWith(names, copy, name));
-    }
     if (isPinnedGroup(entry)) {
       setPins((pins) => pinnedWith(pins, copy, true));
     }
@@ -1072,7 +1023,6 @@ export function useTabGroupUpkeep(href: string, open: readonly TabGroup[]) {
     const state = store.get(windowTabsAtom);
     const { kept, opening } = upkeptList(listed, state, {
       drafts: store.get(draftsAtom),
-      names: store.get(groupNamesAtom),
       pins: store.get(groupPinsAtom),
     });
     for (const { group, href: tabHref } of opening) {

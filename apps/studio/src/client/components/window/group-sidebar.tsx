@@ -49,7 +49,6 @@ import {
   useState,
 } from "react";
 
-import { ChatTitleField } from "./chat-title";
 import { GroupRowMenu, type GroupRowMenuActions } from "./group-row-menu";
 import { HelpMenu } from "./help-menu";
 import { toggleLeft } from "./inbox-toggle";
@@ -62,7 +61,6 @@ import { projectColor } from "./project-colors";
 import { projectTint } from "./project-tint";
 import { ProjectsSection } from "./projects-section";
 import { RowActionBar } from "./row-action-bar";
-import { stopHere } from "./row-shell";
 import { pageTabTitle } from "./file-tabs";
 import { ScreenMark } from "./pane-tabs";
 import { screenPresentation } from "./screen-presentation";
@@ -79,7 +77,6 @@ import {
   roomSnapsAtom,
   sidebarDropAtom,
 } from "./sidebar-drop";
-import { useGroupRename } from "./use-group-rename";
 import { useProjectShift } from "./use-project-shift";
 import {
   draftWordsTitle,
@@ -633,10 +630,8 @@ function BackRow({ label, onBack }: { label: string; onBack: () => void }) {
  * there. While the pointer is on a row that closes, a close X stands at the
  * title line's end, and a middle click closes it too. While a tab held over
  * it would land in its group, it takes a quiet fill in place of any other
- * tone. A right click raises its menu (`GroupRowMenu`), whose Rename turns
- * the title into a field, as a double click on the title does. The title is
- * the name the person gave the group, else its own: its chat's title, or
- * what a group whose chat has not started is called.
+ * tone. A right click raises its menu (`GroupRowMenu`). The title is its
+ * chat's title, or what a group whose chat has not started is called.
  */
 export function GroupRow({
   chatTitles,
@@ -686,8 +681,7 @@ export function GroupRow({
   } else if (up !== undefined) {
     ownTitle = screenPresentation(up.href, { appsBySlug, chatTitles }).title;
   }
-  const title = entry.name ?? ownTitle;
-  const rename = useGroupRename(entry, ownTitle);
+  const title = ownTitle;
   const shown = (
     <div
       className={cn(
@@ -733,39 +727,16 @@ export function GroupRow({
     >
       <div className="min-w-0 flex-1">
         <div className="flex h-5 min-w-0 items-center gap-1.5">
-          {rename.isEditing ? (
-            // Clicks, presses and keys in the field are the field's, not the row's.
-            <span
-              className="-my-1.5 flex min-w-0 flex-1"
-              onAuxClick={stopHere}
-              onClick={stopHere}
-              onKeyDown={stopHere}
-              onMouseDown={stopHere}
-              onPointerDown={stopHere}
-            >
-              <ChatTitleField
-                className="text-[13px] font-medium"
-                grow
-                placeholder={ownTitle}
-                rename={rename}
-                width={undefined}
-              />
-            </span>
-          ) : (
-            <span
-              className={cn(
-                "min-w-0 flex-1 truncate text-[13px] leading-5",
-                isUnread
-                  ? "font-semibold text-foreground"
-                  : "font-medium text-foreground/85",
-              )}
-              // A row with a menu renames from it, and from a double click
-              // on its title.
-              onDoubleClick={menu ? rename.start : undefined}
-            >
-              {title}
-            </span>
-          )}
+          <span
+            className={cn(
+              "min-w-0 flex-1 truncate text-[13px] leading-5",
+              isUnread
+                ? "font-semibold text-foreground"
+                : "font-medium text-foreground/85",
+            )}
+          >
+            {title}
+          </span>
           <RowActionBar
             actions={
               onClose && !restore
@@ -802,7 +773,7 @@ export function GroupRow({
     </div>
   );
   return menu ? (
-    <GroupRowMenu menu={menu} onRename={rename.start}>
+    <GroupRowMenu menu={menu}>
       {shown}
     </GroupRowMenu>
   ) : (

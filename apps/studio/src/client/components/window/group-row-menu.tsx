@@ -9,12 +9,11 @@ import { AppWindowIcon } from "@phosphor-icons/react/AppWindow";
 import { ArrowLineDownIcon } from "@phosphor-icons/react/ArrowLineDown";
 import { ArrowLineUpIcon } from "@phosphor-icons/react/ArrowLineUp";
 import { CopyIcon } from "@phosphor-icons/react/Copy";
-import { PencilSimpleIcon } from "@phosphor-icons/react/PencilSimple";
 import { PushPinIcon } from "@phosphor-icons/react/PushPin";
 import { PushPinSlashIcon } from "@phosphor-icons/react/PushPinSlash";
 import { XIcon } from "@phosphor-icons/react/X";
 import { XSquareIcon } from "@phosphor-icons/react/XSquare";
-import { type ReactNode, useRef } from "react";
+import { type ReactNode } from "react";
 
 /** What a row's menu does, which the sidebar answers for every row. */
 export interface GroupRowMenuActions {
@@ -38,8 +37,8 @@ export interface GroupRowMenuActions {
 
 /**
  * A tab group row's menu, which acts on the group as a whole whatever its
- * tabs show: Open in New Window and Duplicate Tab Group; naming the group
- * and pinning it; and closing the group, or the groups around it, as a
+ * tabs show: Open in New Window and Duplicate Tab Group; pinning it; and
+ * closing the group, or the groups around it, as a
  * tab's menu closes tabs. What acts on one chat in the group is in that
  * chat's tab menu. Not modal, as the chat row's is not, so the click that
  * puts it away lands on what it was meant for.
@@ -47,27 +46,14 @@ export interface GroupRowMenuActions {
 export function GroupRowMenu({
   children,
   menu,
-  onRename,
 }: {
   children: ReactNode;
   menu: GroupRowMenuActions;
-  /** Starts naming the group in its row (`useGroupRename`). */
-  onRename: () => void;
 }) {
-  // The menu hands focus back to the row as it closes, which would land
-  // after the field took it and blur the rename shut.
-  const isStartingRename = useRef(false);
   return (
     <ContextMenu modal={false}>
       <ContextMenuTrigger asChild>{children}</ContextMenuTrigger>
-      <ContextMenuContent
-        onCloseAutoFocus={(event) => {
-          if (isStartingRename.current) {
-            isStartingRename.current = false;
-            event.preventDefault();
-          }
-        }}
-      >
+      <ContextMenuContent>
         <ContextMenuItem onSelect={menu.onNewWindow}>
           <AppWindowIcon className="size-4" />
           Open in New Window
@@ -77,15 +63,6 @@ export function GroupRowMenu({
           Duplicate Tab Group
         </ContextMenuItem>
         <ContextMenuSeparator />
-        <ContextMenuItem
-          onSelect={() => {
-            isStartingRename.current = true;
-            onRename();
-          }}
-        >
-          <PencilSimpleIcon className="size-4" />
-          Rename
-        </ContextMenuItem>
         <ContextMenuItem onSelect={menu.onTogglePin}>
           {menu.isPinned ? (
             <PushPinSlashIcon className="size-3.5" />

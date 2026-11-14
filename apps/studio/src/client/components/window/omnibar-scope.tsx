@@ -240,12 +240,10 @@ function useScopeRows({
       const found = history
         .filter((entry) =>
           entry.kind === "chat"
-            ? matchesSearch(entry.chat, typed, projectNames) ||
-              (entry.name !== undefined && hasWords(typed, [entry.name]))
+            ? matchesSearch(entry.chat, typed, projectNames)
             : hasWords(typed, [
                 entry.title,
                 entry.kind === "draft" ? entry.draft.words : "",
-                entry.name ?? "",
               ]),
         )
         .slice(0, SCOPE_ROWS_SHOWN);
@@ -256,7 +254,7 @@ function useScopeRows({
               detail: entry.kind === "draft" ? "Draft" : undefined,
               icon: <AppMark app="chat" className="size-4" />,
               id: `history:${entry.group}`,
-              name: entry.name ?? entry.title,
+              name: entry.title,
               run: () => {
                 if (entry.kind === "chat") {
                   open.openScreen(chatHref(entry.chat.id));

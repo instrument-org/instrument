@@ -86,9 +86,10 @@ import {
  * parts: the place itself last, and every place it sits under before it, each
  * of those a way there. So a file reaches its folder, an app page reaches Apps,
  * and a task reaches the work, without the row pretending to be a URL bar. A
- * chip ahead of the parts names which of the app's own apps the tab is in;
- * the tab's address itself shows only while the field has the caret, and the
- * star at the field's end keeps it as a bookmark.
+ * chip ahead of the parts names which of the app's own apps the tab is in.
+ * With the caret the field holds a page's or a file's real address to edit,
+ * and opens empty in the app's own places; the star at the field's end keeps
+ * the tab's address as a bookmark.
  */
 export function TabLocationRow({
   address,
@@ -112,8 +113,8 @@ export function TabLocationRow({
   trailing,
 }: {
   /**
-   * The tab's address (`addressOfTab`): what the field says while it
-   * has the caret, and what the star keeps. A tab with none has no star.
+   * The tab's address (`addressOfTab`): what the star keeps. A tab with
+   * none has no star.
    */
   address?: string | undefined;
   canGoBack?: boolean;
@@ -150,7 +151,7 @@ export function TabLocationRow({
 }) {
   const openIn = openInAppTargetOf(location);
   const setLookAt = useSetAtom(lookAtAtom);
-  const place = address ?? locationText(location);
+  const place = locationText(location);
   // A file is drawn larger over the window; a page is already as large as
   // the tab, and a live site does not survive being lifted out of it.
   const lookTarget: LookTarget | undefined =
@@ -232,7 +233,9 @@ export function TabLocationRow({
               ? {}
               : { takesCaret: fieldTakesCaret })}
             initial={place}
-            key={place}
+            // The field starts over whenever the place changes, a new tab
+            // turning into a chat among them.
+            key={`${location.kind}:${place}`}
             {...(liveAddress ? { liveAddress } : {})}
             location={location}
             {...(onSite ? { onSite } : {})}
@@ -748,17 +751,22 @@ function locationMark(location: TabLocation): ReactNode {
   }
 }
 
-/** What the field holds when it is edited: the place, in words that can be typed over. */
+/**
+ * What the field holds when it is edited: an address a person can type and
+ * read, the place's own. A file's and a folder's path and a page's URL are
+ * that; the app's own places have none (their `instrument://` addresses are
+ * for bookmarks and links), so their field opens empty.
+ */
 function locationText(location: TabLocation) {
   switch (location.kind) {
-    case "app": {
-      return location.name;
-    }
-    case "apps": {
-      return "Apps";
-    }
-    case "chat": {
-      return location.title;
+    case "app":
+    case "apps":
+    case "builtin":
+    case "chat":
+    case "newChat":
+    case "newTab":
+    case "task": {
+      return "";
     }
     // A file is at its `file://` address, the one a browser opens it at, so
     // what is copied from the field carries over to one as it stands.
@@ -772,16 +780,8 @@ function locationText(location: TabLocation) {
         ? ""
         : expandHomePath(location.path, window.api.homeDir);
     }
-    case "builtin":
-    case "newChat":
-    case "newTab": {
-      return "";
-    }
     case "page": {
       return location.url;
-    }
-    case "task": {
-      return location.title;
     }
   }
 }

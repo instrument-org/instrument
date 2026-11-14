@@ -34,6 +34,7 @@ import {
 
 import { useSyntaxHighlighting } from "../../hooks/use-syntax-highlighting";
 import { Favicon, PageFavicon } from "../favicon";
+import { ImageWaitBloom } from "../message-part/image-wait-bloom";
 import { Markdown } from "../markdown";
 import { Prose } from "../prose";
 import { BorderSweep } from "../shimmer-sweep";
@@ -172,7 +173,9 @@ const VIEWS: {
   "files/writing": (face) => (
     <TypedWords isWriting path={face.path} words={face.words} />
   ),
-  "generated/generating": () => <Waiting>Generating the image</Waiting>,
+  "generated/generating": () => (
+    <ImageWaitBloom fallback={<Waiting>Generating the image</Waiting>} />
+  ),
   "generated/picture": (face) => (
     <PictureRow newest={face.picture} strip={[]} />
   ),

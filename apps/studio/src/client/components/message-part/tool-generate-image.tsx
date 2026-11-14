@@ -54,6 +54,10 @@ type GenerateImagePart = Extract<
   { type: "tool-generate_image" }
 >;
 
+/**
+ * An image call's card in its opened step. While the turn runs, the box under
+ * the step is the work card (`transcript/work-card.tsx`), not this.
+ */
 export function ToolGenerateImage({
   id,
   onRetry,

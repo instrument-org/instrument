@@ -174,7 +174,7 @@ export function TabMenuItems({
       {onNewChatInSplit && (
         <Item onClick={onNewChatInSplit}>
           <ChatCircleIcon className="size-4" />
-          <span>New Chat in Split</span>
+          <span>New Tab in Split</span>
         </Item>
       )}
       {onMoveToNewGroup && (

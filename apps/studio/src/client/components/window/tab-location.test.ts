@@ -293,7 +293,7 @@ describe("locationChip", () => {
       "files",
     ],
     ["a chat", { kind: "chat", title: "Caffeine mixes" }, "chat"],
-    ["a new chat", { kind: "newChat" }, "chat"],
+    ["a new chat, which is a new tab", { kind: "newChat" }, undefined],
     ["a task", { kind: "task", title: "Book the hotel" }, "chat"],
     ["Activity", { kind: "builtin", screen: "activity" }, "activity"],
     ["a page", { kind: "page", url: "https://example.com/" }, undefined],

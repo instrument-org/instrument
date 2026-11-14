@@ -90,7 +90,7 @@ export function groupLayoutFor(
   const focusedSide = sides.findIndex((side) => side.index === layout.focused);
   const focused = chatSide === -1 ? Math.max(focusedSide, 0) : chatSide;
   const title =
-    window.groups.find((entry) => entry.group === group)?.title ?? "New chat";
+    window.groups.find((entry) => entry.group === group)?.title ?? "New Tab";
   return {
     focused,
     group: { id: group, title },
@@ -141,7 +141,7 @@ function describedTab(
       address: "instrument://new-chat",
       id: tab.id,
       kind: "newChat",
-      title: "New chat",
+      title: "New Tab",
     };
   }
   if (screen.kind === "chat") {

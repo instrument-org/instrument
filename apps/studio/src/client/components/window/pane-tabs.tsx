@@ -230,7 +230,7 @@ export function PaneTabs({
               : "Right side tabs"
             : "Tabs"
         }
-        newControl={<NewTabButton onClick={onNew} title="New tab" />}
+        newControl={<NewTabButton onClick={onNew} title="New Tab" />}
         onClose={(key) => {
           const tab = tabOf(key);
           if (tab) {

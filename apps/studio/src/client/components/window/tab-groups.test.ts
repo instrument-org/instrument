@@ -140,7 +140,7 @@ describe("the tab groups another window has open", () => {
           "group": "draft:empty",
           "kind": "tabs",
           "name": undefined,
-          "title": "New chat",
+          "title": "New Tab",
         },
       ]
     `);

@@ -310,11 +310,15 @@ export function NewChatView({
           isCentered && <NewChatIntro />
         )}
       </div>
+      {/* The composer, where files let go on a new tab nobody has written
+          in attach to the first message; anywhere else on the tab they
+          open in it (`useSidePagesTarget`). */}
       <div
         className={cn(
           "relative isolate mx-auto w-full shrink-0 px-3",
           isCentered ? "max-w-2xl" : "max-w-3xl pb-3",
         )}
+        data-attaches-files=""
         {...(onAddress ? address.boxProps : {})}
       >
         {onAddress && address.rows}

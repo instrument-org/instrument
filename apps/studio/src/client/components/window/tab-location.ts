@@ -82,7 +82,10 @@ export type TabLocation =
    */
   | { kind: "builtin"; part?: string; screen: ScreenName }
   | { kind: "chat"; title: string }
-  /** A chat not started yet: its new chat, which is a new tab's page. */
+  /**
+   * A chat not started yet: a new tab, which is nowhere yet. It becomes the
+   * chat once something is sent from it, or the page or file put in it.
+   */
   | { kind: "newChat" }
   | {
       /** Where the folder really is, when that is not where it was walked to: an iCloud Drive app folder. */
@@ -160,9 +163,9 @@ export function locationCrumbs(
 
 /**
  * Which of the app's own apps a location is in, whose chip leads the field:
- * Chat for a chat, a task and a new chat, Files for a file or a folder, Apps
- * for an app's page, and each built-in page its own. A website and a new
- * tab have none.
+ * Chat for a chat and a task, Files for a file or a folder, Apps for an
+ * app's page, and each built-in page its own. A website and a new tab, a
+ * new chat among them, have none.
  */
 export function locationChip(location: TabLocation): BuiltInApp | undefined {
   switch (location.kind) {
@@ -174,7 +177,6 @@ export function locationChip(location: TabLocation): BuiltInApp | undefined {
       return location.screen;
     }
     case "chat":
-    case "newChat":
     case "task": {
       return "chat";
     }
@@ -182,6 +184,7 @@ export function locationChip(location: TabLocation): BuiltInApp | undefined {
     case "folder": {
       return "files";
     }
+    case "newChat":
     case "newTab":
     case "page": {
       return undefined;

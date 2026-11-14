@@ -3,8 +3,7 @@ import { useAtomValue } from "jotai";
 
 import { stripKeyOf } from "../pane-tabs";
 import { stripIndexAt } from "../tab-carry-view";
-import { type GroupLayout, sideIndexOf } from "../tab-model";
-import { matchScreen } from "../window-href";
+import { type GroupLayout, isHomeTab, sideIndexOf } from "../tab-model";
 import { useWindowTabs } from "../window-tabs";
 import { heldKeysOf, heldTabsOf } from "./held-tabs";
 import {
@@ -182,15 +181,28 @@ function takesFilesItself(page: Element | null | undefined, point: Point) {
 }
 
 /**
+ * Whether files let go at a point over a new tab nobody has written in go
+ * to its composer, as the first message's attachments: only over the
+ * composer itself (`data-attaches-files`). Anywhere else on the tab the
+ * tab turns into them, as a browser's new tab does.
+ */
+function attachesToNewTab(page: Element | null | undefined, point: Point) {
+  const under = document.elementFromPoint(point.x, point.y);
+  const box = under?.closest("[data-attaches-files]");
+  return box !== null && box !== undefined && page?.contains(box) === true;
+}
+
+/**
  * A group's sides' pages as a place to land: with one side, its left or
  * right end makes that half a side of its own, and its middle joins the
  * side; with two, the side under the pointer takes it as its last tab. The
  * margin between an outer page and the window's edge counts as that page's
  * end (`pagesReach`). Files open as tabs the same way, except where the page
  * takes them itself: a site, and away from a lone side's ends, a chat's
- * composer or a folder in Files (`takesFilesItself`); a new tab up turns
- * into them. A lone side's ends show faintly from the start of a drag that
- * could make one a side (`splitBands`).
+ * composer or a folder in Files (`takesFilesItself`); a new tab up nobody
+ * has written in turns into them, except over its composer, which attaches
+ * them (`attachesToNewTab`). A lone side's ends show faintly from the start
+ * of a drag that could make one a side (`splitBands`).
  */
 export function useSidePagesTarget({
   group,
@@ -218,8 +230,9 @@ export function useSidePagesTarget({
   };
   const upOf = (side: number) =>
     layout.sides[side]?.tabs.find((tab) => tab.id === layout.sides[side]?.up);
+  /** Whether a tab is a new tab nobody has written in, which turns into files let go over it. */
   const isNewTab = (tab: WindowTab | undefined) =>
-    tab?.kind === "screen" && matchScreen(tab.href).kind === "newTab";
+    tab !== undefined && isHomeTab(tab);
   /** Whether files over a side's page go to the whole of it, a new tab turning into them or a site taking them, so neither end splits. */
   const takesFilesWhole = (side: number) => {
     const up = upOf(side);
@@ -251,7 +264,9 @@ export function useSidePagesTarget({
             if (held.kind === "files") {
               const page = sides[at];
               if (page && up && isNewTab(up)) {
-                return { group, kind: "newTab", lit: page, tab: up.id };
+                return attachesToNewTab(pageOf(at), point)
+                  ? "native"
+                  : { group, kind: "newTab", lit: page, tab: up.id };
               }
               // A site takes files the way it takes them from the Finder,
               // only by the system's drag.

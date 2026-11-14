@@ -393,8 +393,8 @@ export function GroupItem({
   }
   // Every other screen is a route of the window's own tree, under a router
   // of the tab's own; the folder says where it stands as its Finder reads it.
-  // A new chat's field is Chat's chip alone, with the chord that takes the
-  // caret there, since the caret starts in the composer.
+  // A new chat is a new tab, nowhere yet: its field is empty, with the chord
+  // that takes the caret there, since the caret starts in the composer.
   const location = surfaceLocation(
     screenLocation(up.href, { appsBySlug, chatTitles, taskTitles }),
     surface,

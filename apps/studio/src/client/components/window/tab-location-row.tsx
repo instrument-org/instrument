@@ -238,7 +238,9 @@ export function TabLocationRow({
             {...(onSite ? { onSite } : {})}
             {...(onVisit ? { onVisit } : {})}
             resting={
-              location.kind === "newTab" ? undefined : (
+              location.kind === "newTab" || location.kind === "newChat" ? (
+                undefined
+              ) : (
                 <Field location={location} />
               )
             }
@@ -337,7 +339,7 @@ function Field({ location }: { location: TabLocation }) {
     );
   }
   const chip = locationChip(location);
-  // A built-in page at its start, and a new chat, are the chip alone.
+  // A built-in page at its start is the chip alone.
   if (chip && crumbs.length === 0) {
     return (
       <>

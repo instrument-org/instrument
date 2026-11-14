@@ -23,8 +23,8 @@ describe("screenPresentation", () => {
   it.each([
     ["with no draft yet", newChatHref()],
     ["on its draft", newChatHref("01M7BVSPAMVP4SR3P07E7PFGCQ")],
-  ])("names a new chat's tab New chat, %s", (_case, href) => {
-    expect(screenPresentation(href, CONTEXT).title).toBe("New chat");
+  ])("names a new chat's tab New Tab, %s", (_case, href) => {
+    expect(screenPresentation(href, CONTEXT).title).toBe("New Tab");
   });
 
   it("names a task's tab by its title once known", () => {

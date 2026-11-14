@@ -188,9 +188,9 @@ export function isPinnedGroup(entry: TabGroup): boolean {
   return entry.pinned;
 }
 
-/** What a new chat is called by its words alone: "New chat" until it has some. */
+/** What a new chat is called by its words alone: "New Tab" until it has some. */
 export function draftWordsTitle(draft: Draft): string {
-  return draft.words.trim() === "" ? "New chat" : draftTitle(draft.words);
+  return draft.words.trim() === "" ? "New Tab" : draftTitle(draft.words);
 }
 
 /**
@@ -266,7 +266,7 @@ function openEntry(
       title: name ?? draftWordsTitle(draft),
     };
   }
-  return { ...own, kind: "tabs", title: name ?? "New chat" };
+  return { ...own, kind: "tabs", title: name ?? "New Tab" };
 }
 
 /** The tab groups as this window lists them (`groupLists`). */

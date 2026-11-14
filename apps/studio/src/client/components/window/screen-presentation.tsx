@@ -197,7 +197,7 @@ export function screenPresentation(
     case "newTab": {
       return {
         icon: <MagnifyingGlassIcon className="size-3.5" />,
-        title: "New tab",
+        title: "New Tab",
       };
     }
     // A built-in page by its own name and mark; one Settings tab whichever
@@ -251,7 +251,7 @@ const SCREEN_OF_KIND = {
 
 /**
  * The chat a screen address stands on, by the title the window has for it,
- * and a new chat as one.
+ * and a new chat as the new tab it is until something is sent from it.
  */
 function chatTitleOf(
   screen: Extract<
@@ -261,7 +261,7 @@ function chatTitleOf(
   chatTitles: ScreenNames["chatTitles"],
 ) {
   if (screen.kind === "inbox") {
-    return "New chat";
+    return "New Tab";
   }
   return (
     (screen.kind === "chat" ? chatTitles?.get(screen.chat) : undefined) ??

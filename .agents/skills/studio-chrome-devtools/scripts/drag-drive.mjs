@@ -30,10 +30,20 @@
 //
 // Native drags (files from the Finder) cannot be made with mouse input; a
 // file drop is `Input.dispatchDragEvent` with the paths, which `files` in
-// place of `from` does: { "files": ["/abs/a.txt"], "path": [...] }.
+// place of `from` does: { "files": ["/abs/a.txt"], "path": [...] }. On a Mac
+// the paths also go on the system's drag pasteboard, as a Finder drag puts
+// them, which the app reads to name the files while they are held.
 
+import { execFileSync } from "node:child_process";
 import { mkdirSync } from "node:fs";
 import path from "node:path";
+
+const WRITE_DRAG_PASTEBOARD = `function run(paths) {
+  ObjC.import("AppKit");
+  const board = $.NSPasteboard.pasteboardWithName($.NSPasteboardNameDrag);
+  board.clearContents;
+  board.writeObjects($(paths.map((each) => $.NSURL.fileURLWithPath(each))));
+}`;
 
 const sleep = (ms) =>
   new Promise((resolve) => {
@@ -93,6 +103,15 @@ export default async (app, args) => {
       }
     : undefined;
   if (isFiles) {
+    if (process.platform === "darwin") {
+      execFileSync("osascript", [
+        "-l",
+        "JavaScript",
+        "-e",
+        WRITE_DRAG_PASTEBOARD,
+        ...args.files,
+      ]);
+    }
     at = await pointOf(app, args.path[0]?.to ?? { x: 10, y: 10 });
     await app.cdp.send("Input.dispatchDragEvent", {
       data: dragData,

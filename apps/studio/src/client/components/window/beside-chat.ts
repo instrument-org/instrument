@@ -99,7 +99,7 @@ export type BesidePlacement =
  * same chat, file, folder or one-of-a-kind screen (`showsSame`), or a web
  * page at exactly the same address.
  */
-export function showsSameThing(a: WindowTab, b: WindowTab): boolean {
+function showsSameThing(a: WindowTab, b: WindowTab): boolean {
   if (a.kind === "page" && b.kind === "page") {
     return a.url !== undefined && a.url === b.url;
   }
@@ -125,7 +125,7 @@ export function showsSameThing(a: WindowTab, b: WindowTab): boolean {
  * - Everything else is a new tab right after the chat's tab, in its side:
  *   in front, except for a Cmd-click or a middle click, which waits behind.
  */
-export function personPlacementOf(
+function personPlacementOf(
   layout: GroupLayout,
   { chatTab, gesture }: { chatTab: string; gesture: ChatGesture },
   opening: WindowTab,
@@ -218,7 +218,7 @@ export function agentPlacementOf(
 }
 
 /** Where an open from a chat lands: the person's (`personPlacementOf`) or the agent's (`agentPlacementOf`). */
-export function besidePlacementOf(
+function besidePlacementOf(
   layout: GroupLayout,
   ask: BesideAsk,
   opening: WindowTab,

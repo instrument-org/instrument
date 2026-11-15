@@ -17,7 +17,15 @@ import {
 } from "@instrument-org/workspace/client";
 import { useQuery } from "@tanstack/react-query";
 import { useAtomValue } from "jotai";
-import { createContext, type ReactNode, use, useEffect, useState } from "react";
+import {
+  createContext,
+  type ReactNode,
+  use,
+  useEffect,
+  useLayoutEffect,
+  useRef,
+  useState,
+} from "react";
 
 import { useAppsBySlug } from "./apps-by-slug";
 import { chatListOptions } from "./chat-list-query";
@@ -116,9 +124,96 @@ export function RowHalf({
  * than one tab, is the question its first click puts in the half's place.
  */
 export interface RowClose {
-  ask?: string | undefined;
+  ask?: CloseQuestion | undefined;
   label: string;
   run: () => void;
+}
+
+/** A close's question in full, and the short form it takes where the full one would not fit. */
+interface CloseQuestion {
+  full: string;
+  short: string;
+}
+
+/**
+ * A close's question in the half's place, the whole half one button: the
+ * full question with its X where it fits on one line, else the short one
+ * alone, never cut off. Leaving it, Escape or focus going elsewhere puts the
+ * half back. The button is its own sign of focus, so it draws no ring.
+ */
+function CloseAsk({
+  ask,
+  onClose,
+  onLeave,
+}: {
+  ask: CloseQuestion;
+  onClose: () => void;
+  onLeave: () => void;
+}) {
+  const buttonRef = useRef<HTMLButtonElement>(null);
+  const fullRef = useRef<HTMLSpanElement>(null);
+  const [isFull, setFull] = useState(true);
+  useLayoutEffect(() => {
+    const button = buttonRef.current;
+    const full = fullRef.current;
+    if (!button || !full) {
+      return;
+    }
+    button.focus({ preventScroll: true });
+    const fit = () => {
+      const style = getComputedStyle(button);
+      const room =
+        button.clientWidth -
+        Number.parseFloat(style.paddingLeft) -
+        Number.parseFloat(style.paddingRight);
+      setFull(full.offsetWidth <= room);
+    };
+    fit();
+    // The half's width moves as a side opens or closes beside it.
+    const observer = new ResizeObserver(fit);
+    observer.observe(button);
+    return () => {
+      observer.disconnect();
+    };
+  }, []);
+  const fullLabel = (
+    <>
+      <XIcon className="size-3 shrink-0 text-foreground/70" />
+      {ask.full}
+    </>
+  );
+  return (
+    <div className="flex min-w-0 flex-1 basis-0" data-row-half="">
+      <button
+        className="relative flex h-10 min-w-0 flex-1 items-center justify-center gap-1 overflow-hidden rounded-md bg-foreground/8 px-2 text-[13px] font-medium whitespace-nowrap text-foreground outline-none focus-visible:outline-none"
+        onAuxClick={stopHere}
+        onBlur={onLeave}
+        onClick={(event) => {
+          event.stopPropagation();
+          onClose();
+        }}
+        onKeyDown={(event) => {
+          event.stopPropagation();
+          if (event.key === "Escape") {
+            onLeave();
+          }
+        }}
+        onPointerLeave={onLeave}
+        ref={buttonRef}
+        type="button"
+      >
+        {/* The full question at its natural width, measured against the room. */}
+        <span
+          aria-hidden
+          className="invisible absolute flex items-center gap-1"
+          ref={fullRef}
+        >
+          {fullLabel}
+        </span>
+        {isFull ? fullLabel : ask.short}
+      </button>
+    </div>
+  );
 }
 
 /**
@@ -140,36 +235,16 @@ export function RowLinesView({
   const [isAsking, setAsking] = useState(false);
   if (isAsking && close?.ask !== undefined) {
     return (
-      <div className="flex min-w-0 flex-1 basis-0" data-row-half="">
-        <button
-          className="flex h-10 min-w-0 flex-1 items-center justify-center gap-1 rounded-md bg-foreground/8 px-2 text-[13px] font-medium text-foreground"
-          onAuxClick={stopHere}
-          onBlur={() => {
-            setAsking(false);
-          }}
-          onClick={(event) => {
-            event.stopPropagation();
-            setAsking(false);
-            close.run();
-          }}
-          onKeyDown={(event) => {
-            event.stopPropagation();
-            if (event.key === "Escape") {
-              setAsking(false);
-            }
-          }}
-          onPointerLeave={() => {
-            setAsking(false);
-          }}
-          ref={(button) => {
-            button?.focus({ preventScroll: true });
-          }}
-          type="button"
-        >
-          <XIcon className="size-3 shrink-0 text-foreground/70" />
-          <span className="truncate">{close.ask}</span>
-        </button>
-      </div>
+      <CloseAsk
+        ask={close.ask}
+        onClose={() => {
+          setAsking(false);
+          close.run();
+        }}
+        onLeave={() => {
+          setAsking(false);
+        }}
+      />
     );
   }
   // The X stands at the half's end, centered on both lines.

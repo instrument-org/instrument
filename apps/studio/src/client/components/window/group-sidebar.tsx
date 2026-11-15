@@ -750,7 +750,9 @@ export function GroupRow({
   const label = `${ups.length > 0 ? ups.map(titleOf).join(" and ") : entry.title} tab group`;
   // What a half's X closes, asking first when that is more than one tab.
   const askOf = (count: number) =>
-    count > 1 ? `Close ${count} tabs?` : undefined;
+    count > 1
+      ? { full: `Close ${count} tabs?`, short: `Close ${count}?` }
+      : undefined;
   const closeOf = (tab: WindowTab, side: number) => {
     if (ups.length > 1) {
       return onCloseSide

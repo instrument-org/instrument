@@ -1703,6 +1703,35 @@ describe("FileSystemRowGlyph", () => {
       "instrument://computer-x/photo.png?version=1&thumbnail=64&theme=dark",
     );
   });
+
+  it("keeps a picture out of sight until it has loaded", () => {
+    seeEverything();
+    vi.useFakeTimers();
+    onTestFinished(() => {
+      vi.useRealTimers();
+    });
+    const { container } = renderWithProviders(
+      <FileSystemRowGlyph
+        entry={{
+          kind: "file",
+          name: "still.png",
+          previewImageUrl: "instrument://computer-x/still.png?version=1",
+        }}
+      />,
+    );
+    act(() => {
+      vi.advanceTimersByTime(200);
+    });
+    const picture = container.querySelector("img");
+
+    expect(picture?.classList.contains("invisible")).toBe(true);
+    if (picture) {
+      fireEvent.load(picture);
+    }
+    expect(
+      container.querySelector("img")?.classList.contains("invisible"),
+    ).toBe(false);
+  });
 });
 
 describe("FileSystem's List", () => {

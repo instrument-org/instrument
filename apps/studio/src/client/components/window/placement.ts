@@ -1,3 +1,4 @@
+import { type ChatGesture } from "./beside-chat";
 import { type OpenOptions } from "./context";
 import { isGroupScreenHref } from "./group-screen";
 import { matchScreen } from "./window-href";
@@ -156,24 +157,34 @@ export function screenPlacementOf(
 /**
  * An open as it lands inside the window, where only a menu's Open in New Tab
  * Group or Open in New Window (`into`) makes a group: a Shift-click's window
- * of its own is a new tab in front, and a new tab asked for beside a chat
- * (`chat`) waits behind, as a Cmd-click there does.
+ * of its own is a new tab in front.
  */
 export function inGroup(options: OpenOptions): OpenOptions {
   const { newWindow, ...rest } = options;
-  if (newWindow === true) {
-    return { ...rest, behind: false, newTab: true };
-  }
-  return rest.newTab === true && rest.chat !== undefined
-    ? { ...rest, behind: true }
+  return newWindow === true
+    ? { ...rest, behind: false, newTab: true }
     : rest;
+}
+
+/**
+ * What the person did, read from an open's options: a tab asked to wait
+ * behind (a Cmd-click, a middle click), a new tab asked for in front (Open
+ * in New Tab, a Shift-click), or a plain click.
+ */
+export function gestureOf(options: OpenOptions): ChatGesture {
+  if (options.behind === true) {
+    return "background";
+  }
+  return options.newTab === true || options.newWindow === true
+    ? "newTab"
+    : "click";
 }
 
 /** Where a chat opened from inside the window goes (`chatPlacementOf`). */
 export type ChatPlacement =
-  /** Beside the chat it was clicked in (`besidePlacementOf`). */
-  | { behind: boolean; chatTab: string; kind: "beside" }
-  /** Right after the chat tab it was clicked in, which opens nothing beside it. */
+  /** From the chat it was clicked in (`openBesideChat`). */
+  | { chatTab: string; gesture: ChatGesture; kind: "beside" }
+  /** Right after the tab it was clicked in, which is no chat. */
   | { after: string; behind: boolean; group: string; kind: "after" }
   /** Right after the tab up in the group on screen. */
   | { behind: boolean; kind: "group-new-tab" }
@@ -184,9 +195,10 @@ export type ChatPlacement =
 
 /**
  * Where a chat opened from inside the window goes: a tab, never a group of
- * its own unless a menu asked for one or the window has no group up. Beside
- * the chat it was clicked in (`place`, from `OpenOptions.chat`), else right
- * after the tab up, waiting behind on a Cmd-click.
+ * its own unless a menu asked for one or the window has no group up. From
+ * the chat it was clicked in (`place`, from `OpenOptions.chat`) by the
+ * person's gesture, else right after the tab up, in front unless asked to
+ * wait behind.
  */
 export function chatPlacementOf(
   asked: OpenOptions,
@@ -196,9 +208,9 @@ export function chatPlacementOf(
   if (asked.into) {
     return { into: asked.into, kind: "menu" };
   }
-  const behind = inGroup(asked).behind === true;
+  const behind = asked.behind === true;
   if (place?.isBeside === true) {
-    return { behind, chatTab: place.after, kind: "beside" };
+    return { chatTab: place.after, gesture: gestureOf(asked), kind: "beside" };
   }
   if (place !== undefined) {
     return { after: place.after, behind, group: place.group, kind: "after" };

@@ -14,12 +14,19 @@ import { type AddressTarget, hrefOfPath, targetOfAddress } from "./address";
  * waiting behind that one, on the other side of the group on screen, or as
  * the first tab of a new tab group or a new window.
  */
-export type OpenHow = "here" | "newGroup" | "newTab" | "newWindow" | "split";
+export type OpenHow =
+  | "background"
+  | "here"
+  | "newGroup"
+  | "newTab"
+  | "newWindow"
+  | "split";
 
 /** The open each place but `here` asks of the window. */
 const OPEN_OPTIONS = {
   newGroup: { into: "group" },
-  newTab: { behind: true, newTab: true },
+  background: { behind: true, newTab: true },
+  newTab: { newTab: true },
   newWindow: { into: "window" },
   split: { into: "split" },
 } satisfies Record<Exclude<OpenHow, "here">, OpenOptions>;
@@ -43,7 +50,7 @@ export function hrefOfTarget(
   return target.href;
 }
 
-/** What a click asks for: ⌘-click a new tab behind this one, ⇧-click a new tab group. */
+/** What a click asks for: ⌘-click a new tab behind this one, ⇧-click a new tab in front. */
 export function openHowOf(event: {
   altKey: boolean;
   ctrlKey: boolean;
@@ -51,9 +58,9 @@ export function openHowOf(event: {
   shiftKey: boolean;
 }): OpenHow {
   if (wantsNewTab(event)) {
-    return "newTab";
+    return "background";
   }
-  return wantsNewWindow(event) ? "newGroup" : "here";
+  return wantsNewWindow(event) ? "newTab" : "here";
 }
 
 /**

@@ -111,9 +111,8 @@ export interface BrowserTabsHandle {
    */
   openBehind: (url: string | undefined, place: BehindPlace) => StoreId.Tab;
   /**
-   * Opens a page beside a chat's tab, as a click inside the chat
-   * (`besidePlacementOf`), as a tab of its own every time. Answers the
-   * tab, and whether it is up on its side; nothing for a chat's tab no
+   * Opens a page from a chat's tab (`openBesideChat`). Answers the tab that
+   * shows it, and whether it is up on its side; nothing for a chat's tab no
    * group has.
    */
   openBeside: (
@@ -637,14 +636,17 @@ export function BrowserTabs({
             },
             { ...ask, ...(previous === undefined ? {} : { previous }) },
           );
-          opened = { front: placed.front, id };
+          opened = { front: placed.front, id: StoreId.TabSchema.parse(placed.id) };
           return placed.state;
         });
         // A page already loaded is opened with no address, so it stays as
-        // it is; the window browser keeps its lifetime from here.
-        if (opened !== undefined) {
+        // it is; the window browser keeps its lifetime from here. A tab
+        // already showing the page has its guest.
+        if (opened?.id === id) {
           const audible =
-            ask.isShown && url !== undefined && document.hasFocus();
+            (ask.isShown === true || ask.gesture !== undefined) &&
+            url !== undefined &&
+            document.hasFocus();
           void rpcClient.workspace.browser.open
             .call({
               targetId: browserTargetOf(id),

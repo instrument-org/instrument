@@ -274,7 +274,7 @@ describe("a link's menu in a window with tabs", () => {
 
   it.each([
     ["Open in Split", { from: "tab-left", into: "split" }],
-    ["Open in New Tab", { behind: true, newTab: true }],
+    ["Open in New Tab", { newTab: true }],
     ["Open in New Tab Group", { into: "group" }],
     ["Open in New Window", { into: "window" }],
   ])("opens a page from %s in the place it names", (label, options) => {
@@ -284,7 +284,7 @@ describe("a link's menu in a window with tabs", () => {
     expect(openPage).toHaveBeenCalledWith("https://example.com/", options);
   });
 
-  it("opens with Shift and a click as a new tab, never a group", () => {
+  it("opens with Shift and a click as a new tab in front, never a group", () => {
     menuOf({ kind: "page", url: "https://example.com/" }).onClick({
       altKey: false,
       ctrlKey: false,
@@ -293,7 +293,6 @@ describe("a link's menu in a window with tabs", () => {
       shiftKey: true,
     } as unknown as React.MouseEvent);
     expect(openPage).toHaveBeenCalledWith("https://example.com/", {
-      behind: true,
       newTab: true,
     });
   });

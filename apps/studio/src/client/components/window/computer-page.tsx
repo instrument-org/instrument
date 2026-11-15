@@ -2044,7 +2044,7 @@ export function ComputerPage({
   // the selection moves.
   const placeActions = useSteadyCallbacks({
     openInNewTab: (place: string) => {
-      openScreen(folderHref(place), { behind: true, newTab: true });
+      openScreen(folderHref(place), { newTab: true });
     },
     openInNewWindow: (place: string) => {
       openScreen(folderHref(place), { into: "window" });
@@ -2108,7 +2108,7 @@ export function ComputerPage({
               openSeveral(group);
             },
             onOpenInNewTab: () => {
-              openInTabs(group, { behind: true });
+              openInTabs(group, { behind: false });
             },
             onOpenInNewWindow: () => {
               openInWindow(group);
@@ -2258,7 +2258,7 @@ export function ComputerPage({
       }
     },
     onOpenInNewTab: () => {
-      openInTabs(item ? [item] : [], { behind: true });
+      openInTabs(item ? [item] : [], { behind: false });
     },
     onOpenInNewWindow: () => {
       openInWindow(item ? [item] : []);
@@ -2580,8 +2580,8 @@ export function ComputerPage({
                   ? { "data-file-drop-region": "", "data-folder-drop": "" }
                   : {})}
                 // A middle click on a row opens it in a tab of its own, waiting
-                // behind, the way Open in New Tab does: a double-click is what
-                // opens one here, since a single click selects.
+                // behind, as a browser's does: a double-click is what opens
+                // one here, since a single click selects.
                 onAuxClick={(event) => {
                   if (
                     event.button !== 1 ||
@@ -2595,7 +2595,7 @@ export function ComputerPage({
                   const item = items.find((entry) => entry.path === itemPath);
                   if (item) {
                     event.preventDefault();
-                    menuActionsFor(item).onOpenInNewTab();
+                    openInTabs([item], { behind: true });
                   }
                 }}
                 // The middle button's own answer is to scroll; here it opens.

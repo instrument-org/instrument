@@ -58,7 +58,7 @@ const MIDDLE_BUTTON = 1;
 /**
  * What a press on a bookmark does: a click opens it in this tab, a
  * Cmd-click or a middle click in a new tab behind this one, and a
- * Shift-click as the first tab of a new tab group.
+ * Shift-click in a new tab in front.
  */
 export function bookmarkClicks(
   bookmark: Bookmark,
@@ -68,7 +68,7 @@ export function bookmarkClicks(
     onAuxClick: (event: MouseEvent) => {
       if (event.button === MIDDLE_BUTTON) {
         event.preventDefault();
-        open(bookmark.url, "newTab");
+        open(bookmark.url, "background");
       }
     },
     onClick: (event: MouseEvent) => {
@@ -85,7 +85,7 @@ export function bookmarkClicks(
 
 /** The places a bookmark opens in from its menu, after its own Open, in the order a link's menu has them. */
 const BOOKMARK_PLACES: {
-  how: Exclude<OpenHow, "here">;
+  how: Exclude<OpenHow, "background" | "here">;
   id: OpenDestination["id"];
   label: string;
 }[] = [

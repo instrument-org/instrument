@@ -596,7 +596,7 @@ function ContextChip({
                 wantsNewWindow(event)
                   ? { newWindow: true }
                   : wantsNewTab(event)
-                    ? { newTab: true }
+                    ? { behind: true, newTab: true }
                     : {},
               );
             }}

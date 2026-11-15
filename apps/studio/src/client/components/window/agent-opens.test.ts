@@ -89,7 +89,6 @@ describe("an agent never makes a tab group", () => {
   // somewhere (`adopt`), and a file or folder: each lands where
   // `openBesideChat` puts it, which only ever adds to the chat's group.
   const AGENT: BesideAsk = {
-    behind: false,
     chatTab: `chat-${G}`,
     isShown: false,
   };

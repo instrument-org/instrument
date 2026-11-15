@@ -503,10 +503,9 @@ export function useWindowTabs() {
       }, undefined);
     },
     /**
-     * A screen opened beside a chat's tab, as a click inside the chat
-     * (`besidePlacementOf`), as a tab of its own every time. Answers the
-     * tab, and whether it is up on its side; nothing for a chat's tab no
-     * group has.
+     * A screen opened from a chat's tab (`openBesideChat`). Answers the tab
+     * that shows it, and whether it is up on its side; nothing for a chat's
+     * tab no group has.
      */
     openScreenBeside: (
       to: string,
@@ -544,7 +543,10 @@ export function useWindowTabs() {
           },
           { ...ask, ...(previous === undefined ? {} : { previous }) },
         );
-        return { state: placed.state, value: { front: placed.front, id } };
+        return {
+          state: placed.state,
+          value: { front: placed.front, id: placed.id },
+        };
       }, undefined);
     },
     /**

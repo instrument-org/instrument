@@ -24,19 +24,16 @@ const MIDDLE_BUTTON = 1;
 
 /**
  * What a press on a page kept in a list does: a plain click opens it where
- * the list says, and a middle click or a Cmd-click (Ctrl-click off a Mac)
+ * the list says, a middle click or a Cmd-click (Ctrl-click off a Mac)
  * opens it in a tab of its own, waiting behind, the way a browser treats its
- * favorites.
+ * favorites, and a Shift-click in a tab of its own in front.
  */
 export function usePageClicks() {
   const gesturesFor = useGesturesFor();
   return (url: string, onOpen: (url: string) => void) => {
-    const { destinations } = gesturesFor({ kind: "page", url });
+    const { destinations, separate } = gesturesFor({ kind: "page", url });
     const inNewTab = destinations.find(
       (destination) => destination.id === "openNewTab",
-    );
-    const inNewGroup = destinations.find(
-      (destination) => destination.id === "openNewGroup",
     );
     return {
       onAuxClick: (event: MouseEvent) => {
@@ -44,15 +41,15 @@ export function usePageClicks() {
           return;
         }
         event.preventDefault();
-        inNewTab.run();
+        separate?.run();
       },
       onClick: (event: MouseEvent) => {
-        if (inNewGroup && wantsNewWindow(event)) {
-          inNewGroup.run();
+        if (inNewTab && wantsNewWindow(event)) {
+          inNewTab.run();
           return;
         }
         if (inNewTab && wantsNewTab(event)) {
-          inNewTab.run();
+          separate?.run();
           return;
         }
         onOpen(url);

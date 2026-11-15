@@ -140,16 +140,18 @@ export function ChatRow({
 }) {
   const filed = projects.find((entry) => entry.id === chat.project);
   const appWindow = useWindow();
-  // A Cmd-click or a middle click, and the menu's row, open the chat in a
-  // tab of the window's own behind the one up, where a plain click opens
-  // it beside the list.
-  const openInNewTab = () => {
-    appWindow.openScreen(chatHref(chat.id), {
-      behind: true,
-      newTab: true,
-    });
+  // A Cmd-click or a middle click opens the chat in a tab of the window's
+  // own behind the one up, and the menu's row in front, where a plain click
+  // opens it beside the list.
+  const openInNewTab = (behind: boolean) => {
+    appWindow.openScreen(chatHref(chat.id), { behind, newTab: true });
   };
-  const clicks = openClickGestures({ open: onOpen, openInNewTab });
+  const clicks = openClickGestures({
+    open: onOpen,
+    openInNewTab: () => {
+      openInNewTab(true);
+    },
+  });
   const [isPicking, setPicking] = useState(false);
   // Held in the flow for a moment after the list closes: the list animates
   // out anchored to the control, and a control that vanished with the
@@ -404,7 +406,11 @@ export function ChatRow({
         }}
       >
         <ContextMenuItem onSelect={onOpen}>Open</ContextMenuItem>
-        <ContextMenuItem onSelect={openInNewTab}>
+        <ContextMenuItem
+          onSelect={() => {
+            openInNewTab(false);
+          }}
+        >
           <NewTabIcon className="size-4" />
           Open in New Tab
         </ContextMenuItem>

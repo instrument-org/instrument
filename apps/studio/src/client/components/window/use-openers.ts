@@ -28,6 +28,7 @@ import { openMenuLink } from "./menu-link";
 import { openLinkAddress } from "./open-link-address";
 import {
   chatPlacementOf,
+  gestureOf,
   inGroup,
   pagePlacementOf,
   type PlacementContext,
@@ -200,17 +201,16 @@ export function useOpeners({
     }
     const place = placeOf(asked);
     const options = inGroup(place ? { ...asked, group: place.group } : asked);
-    // What a chat opened lands beside the chat's tab (`placeOf`), a new tab
-    // waiting behind as anywhere else.
+    // What a chat opened lands where the person's gesture there says
+    // (`openBesideChat`).
     if (place !== undefined) {
       if (options.show) {
         bringUp(place.group);
       }
       if (place.isBeside) {
         return browser?.openBeside(url, {
-          behind: options.behind === true,
           chatTab: place.after,
-          isShown: true,
+          gesture: gestureOf(asked),
         })?.id;
       }
       const isUp =
@@ -286,9 +286,8 @@ export function useOpeners({
       }
       case "beside": {
         windowTabs.openScreenBeside(href, {
-          behind: placement.behind,
           chatTab: placement.chatTab,
-          isShown: true,
+          gesture: placement.gesture,
         });
         return;
       }
@@ -435,9 +434,8 @@ export function useOpeners({
         into.group === windowTabs.groupOnScreen && windowTabs.selectShowing(at);
       if (!isShowing && into.isBeside) {
         windowTabs.openScreenBeside(at, {
-          behind: options.behind === true,
           chatTab: into.after,
-          isShown: true,
+          gesture: gestureOf(asked),
         });
       } else if (!isShowing) {
         windowTabs.openOrFocusScreen(at, {
@@ -456,8 +454,8 @@ export function useOpeners({
       sayNoChat();
       return;
     }
-    // What a chat opened lands beside the chat's tab (`placeOf`), a new
-    // tab waiting behind as anywhere else.
+    // What a chat opened lands where the person's gesture there says
+    // (`openBesideChat`).
     if (
       place !== undefined &&
       isGroupScreenHref(href) &&
@@ -468,9 +466,8 @@ export function useOpeners({
       }
       if (place.isBeside) {
         windowTabs.openScreenBeside(href, {
-          behind: options.behind === true,
           chatTab: place.after,
-          isShown: true,
+          gesture: gestureOf(asked),
         });
         return;
       }
@@ -620,7 +617,6 @@ export function useOpeners({
       }
       if (target.kind === "page") {
         const opened = browser?.openBeside(target.url, {
-          behind: false,
           chatTab: place.after,
           isShown: action.show,
           openedBy: chat,
@@ -642,7 +638,6 @@ export function useOpeners({
         };
       }
       const opened = windowTabs.openScreenBeside(href, {
-        behind: false,
         chatTab: place.after,
         isShown: action.show,
         openedBy: chat,
@@ -661,7 +656,6 @@ export function useOpeners({
         return { error: place.error };
       }
       browser?.openBeside(action.url, {
-        behind: false,
         chatTab: place.after,
         id: id.data,
         isLoaded: true,

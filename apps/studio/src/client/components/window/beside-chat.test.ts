@@ -4,8 +4,9 @@ import { ChatIdSchema } from "@instrument-org/workspace/client";
 import { describe, expect, it } from "vitest";
 
 import {
+  agentPlacementOf,
   type BesideAsk,
-  besidePlacementOf,
+  type ChatGesture,
   OPENS_BESIDE,
   openBesideChat,
   opensBeside,
@@ -61,16 +62,17 @@ function windowOf(
   };
 }
 
-const PERSON: BesideAsk = { behind: false, chatTab: "chat", isShown: true };
-const AGENT: BesideAsk = { behind: false, chatTab: "chat", isShown: false };
-const CMD_CLICK: BesideAsk = { ...PERSON, behind: true };
+const PERSON: BesideAsk = { chatTab: "chat", gesture: "click" };
+const AGENT: BesideAsk = { chatTab: "chat", isShown: false };
+const SHOWN: BesideAsk = { chatTab: "chat", isShown: true };
+const CMD_CLICK: BesideAsk = { chatTab: "chat", gesture: "background" };
 
-describe("where an open from a chat lands", () => {
+describe("where an agent's open from its chat lands", () => {
   it.each<[string, WindowTabs, BesideAsk, unknown]>([
     [
-      "A: alone, a click makes the right side, in front",
+      "A: alone, a page it shows makes the right side, in front",
       windowOf([chatTab], "chat"),
-      PERSON,
+      SHOWN,
       { after: undefined, front: true, kind: "insert", side: 1 },
     ],
     [
@@ -94,19 +96,19 @@ describe("where an open from a chat lands", () => {
     [
       "A: an unwritten New Tab with the keyboard is replaced all the same",
       windowOf([chatTab, newTab("blank", 1)], "blank", "chat"),
-      PERSON,
+      SHOWN,
       { kind: "replace", tab: "blank" },
     ],
     [
       "B: a New Tab with words in it is in use",
       windowOf([chatTab, newTab("draft", 1, "d1")], "chat", "draft"),
-      PERSON,
+      SHOWN,
       { after: "draft", front: true, kind: "insert", side: 1 },
     ],
     [
       "B: a right side in use takes it last, in front",
       windowOf([chatTab, page("a", 1), page("b", 1)], "chat", "a"),
-      PERSON,
+      SHOWN,
       { after: "b", front: true, kind: "insert", side: 1 },
     ],
     [
@@ -118,7 +120,7 @@ describe("where an open from a chat lands", () => {
     [
       "B: with the keyboard in the right side, behind",
       windowOf([chatTab, page("a", 1), page("b", 1)], "b", "chat"),
-      PERSON,
+      SHOWN,
       { after: "b", front: false, kind: "insert", side: 1 },
     ],
     [
@@ -128,15 +130,15 @@ describe("where an open from a chat lands", () => {
       { after: "blank", front: true, kind: "insert", side: 1 },
     ],
     [
-      "C: chat on the right, a click opens right after it, in front",
+      "C: chat on the right, a page it shows opens right after it, in front",
       windowOf([page("a"), onRight(chatTab), page("b", 1)], "chat", "a"),
-      PERSON,
+      SHOWN,
       { after: "chat", front: true, kind: "insert", side: 1 },
     ],
     [
       "C: in front even with the keyboard on the left",
       windowOf([page("a"), onRight(chatTab)], "a", "chat"),
-      PERSON,
+      SHOWN,
       { after: "chat", front: true, kind: "insert", side: 1 },
     ],
     [
@@ -149,24 +151,6 @@ describe("where an open from a chat lands", () => {
       "C: nothing opens to the left of it, an unwritten New Tab there included",
       windowOf([newTab("blank"), onRight(chatTab)], "chat", "blank"),
       AGENT,
-      { after: "chat", front: false, kind: "insert", side: 1 },
-    ],
-    [
-      "D: Cmd-click, alone, makes the right side but never brings it forward",
-      windowOf([chatTab], "chat"),
-      CMD_CLICK,
-      { after: undefined, front: false, kind: "insert", side: 1 },
-    ],
-    [
-      "D: Cmd-click, right side in use, behind",
-      windowOf([chatTab, page("a", 1)], "chat", "a"),
-      CMD_CLICK,
-      { after: "a", front: false, kind: "insert", side: 1 },
-    ],
-    [
-      "D: Cmd-click, chat on the right, behind",
-      windowOf([page("a"), onRight(chatTab)], "chat", "a"),
-      CMD_CLICK,
       { after: "chat", front: false, kind: "insert", side: 1 },
     ],
     [
@@ -204,7 +188,7 @@ describe("where an open from a chat lands", () => {
       { after: undefined, front: true, kind: "insert", side: 1 },
     ],
   ])("%s", (_label, state, ask, expected) => {
-    expect(besidePlacementOf(groupLayoutOf(state, G), ask)).toEqual(expected);
+    expect(agentPlacementOf(groupLayoutOf(state, G), ask)).toEqual(expected);
   });
 });
 
@@ -280,7 +264,7 @@ describe("opening beside a chat", () => {
 
   it.each([
     ["an agent's page", agentOpened, AGENT],
-    ["an agent's page it shows", agentOpened, PERSON],
+    ["an agent's page it shows", agentOpened, SHOWN],
     ["a Cmd-click", opened, CMD_CLICK],
   ])("leaves the keyboard in the chat for %s", (_label, tab, ask) => {
     const { state } = openBesideChat(
@@ -304,6 +288,173 @@ describe("opening beside a chat", () => {
       "chat",
     );
     expect(previousOpenedIn(state, G, CHAT)).toBe("c");
+  });
+});
+
+const OTHER_CHAT = ChatIdSchema.parse("2026-11-15-pricing");
+const NOTES = "/Users/mac-user/notes.md";
+
+/** What the person opens, by kind, under the id `opened`. */
+const TARGETS = {
+  chat: { ...screenAt(chatHref(OTHER_CHAT)), id: "opened" },
+  file: { ...screenAt(fileHref(NOTES)), id: "opened" },
+  website: page("opened"),
+} satisfies Record<string, WindowTab>;
+
+/** Where the chat sits: the only side (with another tab), the left of two, the right of two. */
+const POSITIONS = {
+  alone: windowOf([chatTab, page("x")], "chat"),
+  left: windowOf([chatTab, page("a", 1)], "chat", "a"),
+  right: windowOf([page("a"), onRight(chatTab)], "chat", "a"),
+} satisfies Record<string, WindowTabs>;
+
+/**
+ * Where an open landed, as a line: its side, whether it is up there, the
+ * side with the keyboard and the tab it went right after.
+ */
+function landingOf(state: WindowTabs, id: string): string {
+  const layout = groupLayoutOf(state, G);
+  const at = layout.sides.findIndex((side) =>
+    side.tabs.some((tab) => tab.id === id),
+  );
+  const side = layout.sides[at];
+  const index = side?.tabs.findIndex((tab) => tab.id === id) ?? -1;
+  const letter = (n: number) => (n === 0 ? "L" : "R");
+  return [
+    letter(at),
+    side?.up === id ? "up" : "behind",
+    `keyboard ${letter(layout.focused)}`,
+    `after ${side?.tabs[index - 1]?.id ?? "-"}`,
+  ].join(", ");
+}
+
+/**
+ * The one rule for what the person opens in a chat: only a plain click in a
+ * chat on the left (or alone) goes to the other side; everything else is a
+ * browser's new tab right after the chat, in front unless asked to wait.
+ */
+const EXPECTED: Record<
+  ChatGesture,
+  Record<keyof typeof POSITIONS, string>
+> = {
+  background: {
+    alone: "L, behind, keyboard L, after chat",
+    left: "L, behind, keyboard L, after chat",
+    right: "R, behind, keyboard R, after chat",
+  },
+  click: {
+    alone: "R, up, keyboard R, after -",
+    left: "R, up, keyboard R, after a",
+    right: "R, up, keyboard R, after chat",
+  },
+  newTab: {
+    alone: "L, up, keyboard L, after chat",
+    left: "L, up, keyboard L, after chat",
+    right: "R, up, keyboard R, after chat",
+  },
+};
+
+describe("what the person opens in a chat", () => {
+  const cases = (["click", "background", "newTab"] as const).flatMap(
+    (gesture) =>
+      (["alone", "left", "right"] as const).flatMap((position) =>
+        (["website", "file", "chat"] as const).map(
+          (kind): [ChatGesture, keyof typeof POSITIONS, keyof typeof TARGETS] => [
+            gesture,
+            position,
+            kind,
+          ],
+        ),
+      ),
+  );
+  it.each(cases)("%s, chat %s, a %s", (gesture, position, kind) => {
+    const { front, id, state } = openBesideChat(
+      POSITIONS[position],
+      TARGETS[kind],
+      { chatTab: "chat", gesture },
+    );
+    expect(id).toBe("opened");
+    expect(front).toBe(gesture !== "background");
+    expect(landingOf(state, "opened")).toBe(EXPECTED[gesture][position]);
+  });
+
+  it("replaces an unwritten New Tab that is all the right side has", () => {
+    const { state } = openBesideChat(
+      windowOf([chatTab, newTab("blank", 1)], "chat", "chat"),
+      page("opened"),
+      PERSON,
+    );
+    expect(groupLayoutOf(state, G).sides[1]?.tabs.map((tab) => tab.id)).toEqual(
+      ["opened"],
+    );
+  });
+
+  // A plain click from a chat on the left brings up the right side's tab
+  // already showing the same thing, rather than opening another copy.
+  const sameOnRight = (tab: WindowTab) =>
+    windowOf(
+      [chatTab, page("a", 1), { ...tab, id: "same", side: 1 }],
+      "chat",
+      "a",
+    );
+  it.each<[string, WindowTab, WindowTab]>([
+    ["the same chat", TARGETS.chat, TARGETS.chat],
+    ["the same file", TARGETS.file, TARGETS.file],
+    [
+      "the same file shown as a page",
+      { group: G, id: "same", kind: "page", openedAt: 0, url: `file://${NOTES}` },
+      TARGETS.file,
+    ],
+    ["a page at the same address", page("opened"), page("opened")],
+  ])("brings up %s on a plain click", (_label, there, opening) => {
+    const { front, id, state } = openBesideChat(
+      sameOnRight(there),
+      opening,
+      PERSON,
+    );
+    expect(id).toBe("same");
+    expect(front).toBe(true);
+    expect(state.tabs.some((tab) => tab.id === "opened")).toBe(false);
+    expect(groupLayoutOf(state, G).focused).toBe(1);
+  });
+
+  it("opens another tab for a page at another address on the same site", () => {
+    const { id } = openBesideChat(
+      sameOnRight({
+        group: G,
+        id: "x",
+        kind: "page",
+        openedAt: 0,
+        url: "https://opened.example/pricing",
+      }),
+      page("opened"),
+      PERSON,
+    );
+    expect(id).toBe("opened");
+  });
+
+  it.each<[string, ChatGesture]>([
+    ["a Cmd-click", "background"],
+    ["Open in New Tab", "newTab"],
+  ])("always opens a new tab for %s", (_label, gesture) => {
+    const { id } = openBesideChat(sameOnRight(TARGETS.file), TARGETS.file, {
+      chatTab: "chat",
+      gesture,
+    });
+    expect(id).toBe("opened");
+  });
+
+  it("never reuses a tab from a chat on the right", () => {
+    const { id } = openBesideChat(
+      windowOf(
+        [page("a"), onRight(chatTab), { ...TARGETS.file, id: "same", side: 1 }],
+        "chat",
+        "a",
+      ),
+      TARGETS.file,
+      PERSON,
+    );
+    expect(id).toBe("opened");
   });
 });
 

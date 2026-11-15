@@ -21,10 +21,7 @@ import { GlyphButton } from "@/client/components/window/glyph-button";
 import { chatListOptions } from "@/client/components/window/chat-list-query";
 import { chatHref } from "@/client/components/window/window-href";
 import { useModalBack } from "@/client/hooks/use-modal-back";
-import {
-  openClickGestures,
-  useOpenGestures,
-} from "@/client/hooks/use-open-target";
+import { useOpenGestures } from "@/client/hooks/use-open-target";
 import { displayPath } from "@/client/lib/path-utils";
 import { showInFolder, showInFolderLabel } from "@/client/lib/show-in-files";
 import { cn } from "@/client/lib/utils";
@@ -920,16 +917,8 @@ function MemoryRow({
     kind: "screen",
   });
   const open = gestures.destinations.find((entry) => entry.id === "open");
-  const separate = gestures.destinations.find(
-    (entry) => entry.id === "openNewTab",
-  );
-  const clicks = openClickGestures({
-    open: () => {
-      open?.run();
-    },
-    openInNewTab: () => {
-      separate?.run();
-    },
+  const clicks = gestures.opening(() => {
+    open?.run();
   });
 
   return (

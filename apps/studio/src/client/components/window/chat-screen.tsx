@@ -186,22 +186,30 @@ function ChatScreenOfRecord({
   }
   const modelURI = info.data?.modelURI ?? defaultModelURI;
   const reach = folders.data;
-  // Beside this copy of the chat, shown: an open from a chat's transcript
-  // is the chat's whatever the window has up at that moment, and never a
-  // silent nothing because the group on screen was another's. A new-tab
-  // gesture (a Cmd-click, a middle click, a Shift-click, Open in New Tab)
-  // goes to the same place and stays behind; a menu's split, new tab group
-  // or new window asks for a place of the window's own.
+  // From this copy of the chat: an open from a chat's transcript is the
+  // chat's whatever the window has up at that moment, and never a silent
+  // nothing because the group on screen was another's. Where it lands is the
+  // gesture's (`openBesideChat`): a plain click, a new tab in front (Open in
+  // New Tab, a Shift-click) or one waiting behind (a Cmd-click, a middle
+  // click); a menu's split, new tab group or new window asks for a place of
+  // the window's own.
   const into = {
     chat: chatId,
     ...(groupTab ? { from: groupTab.id } : {}),
     ownTab: true,
     show: true,
   };
-  const intoOr = (options?: OpenOptions): OpenOptions =>
-    (options?.newTab || options?.newWindow) && !options.into
-      ? { ...into, behind: true, show: false }
-      : (ownPlaceOf(options) ?? into);
+  const intoOr = (options?: OpenOptions): OpenOptions => {
+    if (options?.into) {
+      return ownPlaceOf(options) ?? into;
+    }
+    if (options?.behind === true) {
+      return { ...into, behind: true, newTab: true, show: false };
+    }
+    return options?.newTab === true || options?.newWindow === true
+      ? { ...into, newTab: true }
+      : into;
+  };
   return (
     <div className="flex h-full min-h-0 flex-col">
       {/* The chat stands over its tabs, so what a reply hands over opens

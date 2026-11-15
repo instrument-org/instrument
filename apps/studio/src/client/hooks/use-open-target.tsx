@@ -88,6 +88,8 @@ export interface OpenDestination {
     | "openSplit";
   label: string;
   run: () => void;
+  /** Open in New Tab's tab waiting behind, as a Cmd-click or a middle click asks. */
+  runBehind?: () => void;
 }
 
 /** The rows after the places a thing opens: keeping it and copying it. */
@@ -137,12 +139,19 @@ export function useGesturesFor() {
     const primary = destinations.find(
       (destination) => destination.id !== "copy",
     );
+    const newTab = destinations.find(
+      (destination) => destination.id === "openNewTab",
+    );
+    // A Cmd-click or a middle click: Open in New Tab's tab, waiting behind.
     const separate =
-      destinations.find((destination) => destination.id === "openNewTab") ??
-      primary;
+      newTab === undefined
+        ? primary
+        : { ...newTab, run: newTab.runBehind ?? newTab.run };
+    const inFront = newTab ?? primary;
     const clicks = openClickGestures({
       open: () => primary?.run(),
-      openInNewTab: () => (separate ?? primary)?.run(),
+      openInFront: () => inFront?.run(),
+      openInNewTab: () => separate?.run(),
     });
     return {
       onAuxClick: clicks.onAuxClick,
@@ -164,7 +173,8 @@ export function useGesturesFor() {
       opening: (open: () => void) =>
         openClickGestures({
           open,
-          openInNewTab: () => (separate ?? primary)?.run(),
+          openInFront: () => inFront?.run(),
+          openInNewTab: () => separate?.run(),
         }),
       primary,
       separate,
@@ -192,17 +202,18 @@ export function useOpenGestures(target: OpenTarget, options?: OpenAsked) {
 
 /**
  * The clicks every openable row and card answers the same way: a plain click
- * opens it where the surface says, and a Cmd-click (Ctrl off macOS) or a
- * middle click opens it in a tab of its own behind the one up, the way a
- * browser opens a link. For a surface whose own open is not a target's
- * (a chat opened beside the list, a page in the router), spread onto the
- * row alongside its menu's Open in New Tab, which does what these do.
+ * opens it where the surface says, a Cmd-click (Ctrl off macOS) or a middle
+ * click opens it in a tab of its own behind the one up, the way a browser
+ * opens a link, and a Shift-click in a tab of its own in front
+ * (`openInFront`, the background tab where none is given).
  */
 export function openClickGestures({
   open,
+  openInFront,
   openInNewTab,
 }: {
   open: () => void;
+  openInFront?: () => void;
   openInNewTab: () => void;
 }) {
   return {
@@ -219,7 +230,9 @@ export function openClickGestures({
     onClick: (event: React.MouseEvent) => {
       // Shift and a click, a browser's new window, is a new tab here: only
       // a menu's Open in New Tab Group makes a group.
-      if (wantsNewWindow(event) || wantsNewTab(event)) {
+      if (wantsNewWindow(event)) {
+        (openInFront ?? openInNewTab)();
+      } else if (wantsNewTab(event)) {
         openInNewTab();
       } else {
         open();
@@ -264,7 +277,7 @@ export function wantsNewWindow(event: {
  * The places of the window's own a link or a file opens in from its menu,
  * after its own Open, in this order wherever one is offered: Open in Split,
  * on the other side from the tab the menu was raised in, made where the
- * group has one side; Open in New Tab, waiting behind the tab up; Open in New
+ * group has one side; Open in New Tab, in front; Open in New
  * Tab Group; and Open in New Window. A link's rows say Open Link, as a
  * browser's do. `open` opens the target with the options the row picked.
  */
@@ -287,6 +300,9 @@ export function useWindowPlaces() {
         id: "openNewTab",
         label: `${opens} in New Tab`,
         run: () => {
+          open({ newTab: true });
+        },
+        runBehind: () => {
           open({ behind: true, newTab: true });
         },
       },

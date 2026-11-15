@@ -4,6 +4,7 @@ import { describe, expect, it } from "vitest";
 import { type OpenOptions } from "./context";
 import {
   chatPlacementOf,
+  gestureOf,
   inGroup,
   pagePlacementOf,
   type PlacementContext,
@@ -177,8 +178,8 @@ describe("where a screen opens", () => {
 // inside a window, whatever the gesture.
 const GESTURES: [string, OpenOptions][] = [
   ["a plain click", {}],
-  ["a Cmd-click", { newTab: true }],
-  ["a middle click or Open in New Tab", { behind: true, newTab: true }],
+  ["a Cmd-click or a middle click", { behind: true, newTab: true }],
+  ["Open in New Tab", { newTab: true }],
   ["a Shift-click", { newWindow: true }],
 ];
 
@@ -188,12 +189,20 @@ describe("a gesture inside the window", () => {
     expect(inGroup({ ...gesture, chat: CHAT }).newWindow).toBeUndefined();
   });
 
-  it("waits behind beside a chat, as a Cmd-click there does", () => {
+  it("keeps Open in New Tab from a chat in front", () => {
     expect(inGroup({ chat: CHAT, newTab: true })).toEqual({
-      behind: true,
       chat: CHAT,
       newTab: true,
     });
+  });
+
+  it.each<[string, OpenOptions, ReturnType<typeof gestureOf>]>([
+    ["a plain click", { show: true }, "click"],
+    ["a Cmd-click or a middle click", { behind: true, newTab: true }, "background"],
+    ["Open in New Tab", { newTab: true }, "newTab"],
+    ["a Shift-click", { newWindow: true }, "newTab"],
+  ])("reads %s as its gesture", (_label, options, gesture) => {
+    expect(gestureOf(options)).toBe(gesture);
   });
 
   it("brings a Shift-click's tab up", () => {
@@ -235,25 +244,32 @@ describe("where a chat opened inside the window goes", () => {
     ]
   >([
     [
-      "clicked in a chat: beside it, up",
+      "clicked in a chat: from it, a click",
       { chat: OTHER },
       beside,
       inChat(SCREEN),
-      { behind: false, chatTab: "chat-tab", kind: "beside" },
+      { chatTab: "chat-tab", gesture: "click", kind: "beside" },
     ],
     [
-      "Cmd-clicked in a chat: beside it, behind",
+      "Cmd-clicked in a chat: from it, in the background",
+      { behind: true, chat: OTHER, newTab: true },
+      beside,
+      inChat(SCREEN),
+      { chatTab: "chat-tab", gesture: "background", kind: "beside" },
+    ],
+    [
+      "Open in New Tab in a chat: from it, a new tab",
       { chat: OTHER, newTab: true },
       beside,
       inChat(SCREEN),
-      { behind: true, chatTab: "chat-tab", kind: "beside" },
+      { chatTab: "chat-tab", gesture: "newTab", kind: "beside" },
     ],
     [
-      "Shift-clicked in a chat: beside it",
+      "Shift-clicked in a chat: from it, a new tab",
       { chat: OTHER, newWindow: true },
       beside,
       inChat(SCREEN),
-      { behind: false, chatTab: "chat-tab", kind: "beside" },
+      { chatTab: "chat-tab", gesture: "newTab", kind: "beside" },
     ],
     [
       "from a tab that opens nothing beside it: right after it",

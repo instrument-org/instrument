@@ -25,7 +25,7 @@ import { useAppsBySlug } from "./apps-by-slug";
 import { BookmarksBar } from "./bookmarks-bar";
 import { type PageChromeSlots } from "./browser-tabs";
 import { asksOwnPlace, useWindow, WindowContext } from "./context";
-import { useRowSlots } from "./row-slots";
+import { ScreenToolsRow, useRowSlots } from "./row-slots";
 import { BrowserExtensionButtons } from "./browser-extension-buttons";
 import { BrowserStartTail } from "./browser-start-controls";
 import { PageAgentOverlay } from "./page-agent-overlay";
@@ -366,11 +366,7 @@ export function GroupItem({
             onOpen={openHere}
             onVisit={takeOver}
           />
-          {isFiles && (
-            <div className="flex h-11 shrink-0 items-center gap-1.5 border-b border-border bg-background px-1.5">
-              {rowProps.leading}
-            </div>
-          )}
+          {isFiles && <ScreenToolsRow>{rowProps.leading}</ScreenToolsRow>}
         </>
       }
     >

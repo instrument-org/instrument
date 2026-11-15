@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { type ReactNode, useState } from "react";
 
 /**
  * The places in a tab's location row that whatever is up draws into: the
@@ -50,4 +50,18 @@ export function useRowSlots() {
     },
     slots: { field, lead, reload, tail } satisfies RowSlots,
   };
+}
+
+/**
+ * The second row a Files tab wears under the shared one, for the folder's own
+ * controls, drawn into its lead slot (`rowProps.leading`). Away while nothing
+ * is in that slot: a file open alone in the tab has no folder controls, and
+ * the file starts right under the rows above.
+ */
+export function ScreenToolsRow({ children }: { children: ReactNode }) {
+  return (
+    <div className="flex h-11 shrink-0 items-center gap-1.5 border-b border-border bg-background px-1.5 has-[>:empty]:hidden">
+      {children}
+    </div>
+  );
 }

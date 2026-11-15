@@ -253,12 +253,12 @@
           "type": "string"
         },
         "allowOverwrite": {
-          "description": "Replace an existing file at filePath instead of saving under a new name. Only set when the user clearly wants to replace the earlier image in place.",
+          "description": "Replace the image at filePath, as a revision of it does. Leave unset for an alternative they will want beside it.",
           "type": "boolean"
         },
         "filePath": {
           "type": "string",
-          "description": "Path with filename but WITHOUT extension, relative to your work folder (e.g. ./poster/image-name) or the full path in a folder you may write to; the extension is added automatically. For a revised or alternative image, prefer a fresh descriptive name; reusing an existing path saves under a new name (image-name-2) so earlier versions are kept. Generate after explanation."
+          "description": "Path with filename but WITHOUT extension, relative to your work folder (e.g. ./poster/image-name) or the full path in a folder you may write to; the extension is added automatically. A revision reuses the image's path with allowOverwrite; an alternative takes a fresh descriptive name. Reusing a path without it saves under a new name (image-name-2). Generate after explanation."
         },
         "parameters": {
           "description": "Optional model-specific image parameters (e.g. quality, aspect ratio). Your system information lists which parameters and values the selected image model supports, and a later note says when they change; unsupported entries are ignored.",

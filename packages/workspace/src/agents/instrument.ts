@@ -9,6 +9,7 @@ import { chatModelURI } from "../lib/chat-settings";
 import { ChatWrites } from "../lib/chat-writes";
 import { folderReach } from "../lib/chat/folder-reach";
 import { endOfTurnNote } from "../lib/end-of-turn-checks";
+import { keepTurnFileVersions } from "../lib/chat/turn-file-versions";
 import { currentEnvironment } from "../lib/environment";
 import { runningModelText } from "../model-text/notes/model-change-model-text";
 import { TypedError } from "../lib/errors";
@@ -212,10 +213,22 @@ export const instrumentAgent = setupAgent({
     beginSetupChangeTracking({ id: chatId, sessionId });
     beginChatChangeTracking({ id: chatId, sessionId });
   },
-  // A reply whose links open nothing gets one step more to correct them.
-  shouldContinue: async (options) =>
-    (await shouldContinueAfterHandingOff(options)) ||
-    (await endOfTurnNote(options)) !== undefined,
+  // A reply whose links open nothing gets one step more to correct them. A
+  // turn that ends keeps a version of each file its reply handed over, before
+  // the session can start the next.
+  shouldContinue: async (options) => {
+    const goesOn =
+      (await shouldContinueAfterHandingOff(options)) ||
+      (await endOfTurnNote(options)) !== undefined;
+    if (!goesOn) {
+      await keepTurnFileVersions(options).catch((error: unknown) => {
+        getWorkspaceConfig().captureException(error, {
+          area: "file-versions",
+        });
+      });
+    }
+    return goesOn;
+  },
   systemPrompt,
 }));
 

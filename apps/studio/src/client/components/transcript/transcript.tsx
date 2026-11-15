@@ -2,6 +2,8 @@ import { chatSeparators } from "@/client/lib/chat-separators";
 import { instructionsChanges } from "@/client/lib/instructions-changes";
 import { type AIGatewayModelURI } from "@instrument-org/ai-gateway/client";
 import {
+  type CardFileVersion,
+  cardFileVersions,
   type ChatId,
   type StoreId,
   type TranscriptMessage,
@@ -34,6 +36,7 @@ import {
   type TranscriptActions,
   TranscriptActionsContext,
 } from "./transcript-actions";
+import { CardFileVersionsContext } from "./card-file-versions-context";
 import { TurnView } from "./turn-view";
 
 /** What only a developer reads, loaded only for a developer. */
@@ -87,6 +90,7 @@ export function Transcript({
   const turns = turnsOf(messages, { isRunning, sessionId }, cache);
   const separators = useMemo(() => chatSeparators(messages), [messages]);
   const changes = useMemo(() => instructionsChanges(messages), [messages]);
+  const versions = useMemo(() => cardFileVersions(messages), [messages]);
   const actions = useStableActions({
     isRunning,
     onBranch,
@@ -103,19 +107,21 @@ export function Transcript({
   const pausedAtMaxSteps =
     !isRunning && last?.replies.at(-1)?.metadata.finishReason === "max-steps";
   const drawTurn = (turn: Turn) => (
-    <TurnView
-      chatId={chatId}
-      changes={turn.opener && changes.get(turn.opener.message.id)}
-      hasCard={turn.id === cardTurn}
-      isLast={turn === last}
-      key={turn.id}
-      carriesOn={replies.carriedOn.has(turn.id)}
-      replyEnd={replies.ends.get(turn.id)}
-      separator={turn.opener && separators.get(turn.opener.message.id)}
-      sessionId={sessionId}
-      turn={turn}
-      waitsForStep={turn === last && waitsForStep(turns)}
-    />
+    <CardFileVersionsContext key={turn.id} value={turnVersions(versions, turn)}>
+      <TurnView
+        chatId={chatId}
+        changes={turn.opener && changes.get(turn.opener.message.id)}
+        hasCard={turn.id === cardTurn}
+        isLast={turn === last}
+
+        carriesOn={replies.carriedOn.has(turn.id)}
+        replyEnd={replies.ends.get(turn.id)}
+        separator={turn.opener && separators.get(turn.opener.message.id)}
+        sessionId={sessionId}
+        turn={turn}
+        waitsForStep={turn === last && waitsForStep(turns)}
+      />
+    </CardFileVersionsContext>
   );
   return (
     <TranscriptActionsContext value={actions}>
@@ -282,4 +288,15 @@ function useStableActions(actions: TranscriptActions): TranscriptActions {
       onChooseModel,
     ],
   );
+}
+
+/** The files a turn's replies draw other than as they are now, merged. */
+function turnVersions(
+  versions: ReturnType<typeof cardFileVersions>,
+  turn: Turn,
+): ReadonlyMap<string, CardFileVersion> | undefined {
+  const found = turn.replies.flatMap((reply) => [
+    ...(versions.get(reply.id) ?? []),
+  ]);
+  return found.length === 0 ? undefined : new Map(found);
 }

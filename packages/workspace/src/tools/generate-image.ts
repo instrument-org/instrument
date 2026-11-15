@@ -63,10 +63,10 @@ export const generateImageCapability = defineCapability({
       .boolean()
       .optional()
       .meta({
-        description: `Replace an existing file at ${INPUT_PARAMS.filePath} instead of saving under a new name. Only set when the user clearly wants to replace the earlier image in place.`,
+        description: `Replace the image at ${INPUT_PARAMS.filePath}, as a revision of it does. Leave unset for an alternative they will want beside it.`,
       }),
     [INPUT_PARAMS.filePath]: z.string().meta({
-      description: `Path with filename but WITHOUT extension, relative to your work folder (e.g. ./poster/image-name) or the full path in a folder you may write to; the extension is added automatically. For a revised or alternative image, prefer a fresh descriptive name; reusing an existing path saves under a new name (image-name-2) so earlier versions are kept. Generate after ${TOOL_EXPLANATION_PARAM_NAME}.`,
+      description: `Path with filename but WITHOUT extension, relative to your work folder (e.g. ./poster/image-name) or the full path in a folder you may write to; the extension is added automatically. A revision reuses the image's path with ${INPUT_PARAMS.allowOverwrite}; an alternative takes a fresh descriptive name. Reusing a path without it saves under a new name (image-name-2). Generate after ${TOOL_EXPLANATION_PARAM_NAME}.`,
     }),
     [INPUT_PARAMS.parameters]: z
       .record(z.string(), z.union([z.string(), z.number(), z.boolean()]))

@@ -29,6 +29,7 @@ import { FileTypeIcon } from "./extend/file-system";
 import { FolderRowCard, UnreachableFileRowCard } from "./file-preview-card";
 import { FilesGrid, rowCardLayout } from "./files-grid";
 import { FilesLayoutContext } from "./files-layout-context";
+import { CardFileVersionsContext } from "./transcript/card-file-versions-context";
 import { SystemFolderIcon } from "./icons/folder-glyph";
 import { MarkdownChatContext } from "./markdown-chat-context";
 import { MessageCard } from "./message-card";
@@ -128,6 +129,7 @@ export function FilePathsGrid({
   pendingFilePath?: string;
 }) {
   const { assetVersion, chatId } = useContext(MarkdownChatContext);
+  const versions = useContext(CardFileVersionsContext);
   const layout = useContext(FilesLayoutContext);
   const showChatFile = useShowChatFile();
   const [folderPaths, filePaths] = fork(paths, isFolderPath);
@@ -187,6 +189,16 @@ export function FilePathsGrid({
   const isUnreachable = (path: string) => hostPaths[path] === null;
 
   const fileOf = (filePath: string): undefined | ViewerFile => {
+    // A file a later turn changed is drawn from the copy this one kept.
+    const version = versions?.get(filePath);
+    if (version?.changedSince === false) {
+      return {
+        filename: nameOfPath(filePath),
+        hostPath: version.copy,
+        chatFile: { filePath: version.copy, chatId },
+        url: getComputerFileUrl({ hostPath: version.copy }),
+      };
+    }
     const hostPath = hostPaths[filePath];
     if (!hostPath) {
       return;
@@ -239,6 +251,9 @@ export function FilePathsGrid({
     );
   }
 
+  const changedSince = filePaths.filter(
+    (path) => versions?.get(path)?.changedSince === true,
+  );
   const folderCards = rowCardLayout({
     chatColumn,
     count: folderPaths.length,
@@ -287,6 +302,11 @@ export function FilePathsGrid({
         pendingFilePath={pendingFilePath}
         preserveOrder
       />
+      {changedSince.length > 0 && (
+        <p className="text-xs text-muted-foreground">
+          {changedSince.map(nameOfPath).join(", ")} changed since this reply.
+        </p>
+      )}
       {unreachablePaths.length > 0 && (
         <div className="@container">
           <div className={unreachableCards.grid} data-slot="files-grid-cards">

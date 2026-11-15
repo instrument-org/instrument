@@ -90,7 +90,9 @@ const DRAG_STATE = `(() => {
   const drag = window.__studioDrive?.drag?.();
   if (!drag) return null;
   const { held, hints, input, isOff, landing } = drag;
-  return { held, hints, input, isOff, landing };
+  // What the line under what is held says letting go does.
+  const line = document.querySelector("[data-held-line]")?.textContent ?? null;
+  return { held, hints, input, isOff, landing, line };
 })()`;
 
 export default async (app, args) => {

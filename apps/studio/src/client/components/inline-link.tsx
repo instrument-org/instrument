@@ -309,10 +309,12 @@ function AppLink({
     <ChipButton
       className={className}
       onActivate={(event) => {
-        if (
-          (wantsNewWindow(event) || wantsNewTab(event)) &&
-          gestures.separate
-        ) {
+        const inFront = gestures.destinations.find(
+          (entry) => entry.id === "openNewTab",
+        );
+        if (wantsNewWindow(event) && inFront) {
+          inFront.run();
+        } else if (wantsNewTab(event) && gestures.separate) {
           gestures.separate.run();
         } else {
           open.run();

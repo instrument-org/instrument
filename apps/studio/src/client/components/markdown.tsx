@@ -499,15 +499,22 @@ const ChatFileLink = ({
       onActivate={(event) => {
         showChatFile(
           filePath,
-          hasTabs && wantsNewWindow(event)
-            ? { newTab: true }
-            : { newTab: hasTabs && wantsNewTab(event) },
+          !hasTabs
+            ? {}
+            : wantsNewWindow(event)
+              ? { newTab: true }
+              : wantsNewTab(event)
+                ? { behind: true, newTab: true }
+                : {},
         );
       }}
       onAuxClick={(event) => {
         if (event.button === 1) {
           event.preventDefault();
-          showChatFile(filePath, { newTab: hasTabs });
+          showChatFile(
+            filePath,
+            hasTabs ? { behind: true, newTab: true } : {},
+          );
         }
       }}
       title={filePath}
@@ -729,7 +736,9 @@ const MarkdownLink = ({
               hostPath,
               wantsNewWindow(event)
                 ? { newWindow: true }
-                : { newTab: wantsNewTab(event) },
+                : wantsNewTab(event)
+                  ? { behind: true, newTab: true }
+                  : {},
             );
           }}
           title={hostPath}

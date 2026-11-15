@@ -38,7 +38,7 @@ export function SentFolderChips({
             wantsNewWindow(event)
               ? { newWindow: true }
               : wantsNewTab(event)
-                ? { newTab: true }
+                ? { behind: true, newTab: true }
                 : {},
           );
           return;

@@ -27,20 +27,20 @@ const HELD: Record<string, Held> = {
     kind: "files",
   },
   "link (page or reply)": {
-    id: ":standing",
+    id: "tab_01M7HE1DL1NK000000000000",
     kind: "link",
     title: "Pricing",
     url: "https://example.com/pricing",
   },
   "chat chip or Chats row": {
-    id: ":standing",
+    id: "tab_01M7HE1DL1NK000000000000",
     kind: "link",
     title: "Roof quotes",
     url: "instrument://chat/c1",
   },
   "bookmark (bar)": {
-    id: "b1",
-    isKept: true,
+    bookmark: "b1",
+    id: "tab_b1",
     kind: "link",
     title: "Example",
     url: "https://example.com/",
@@ -96,7 +96,7 @@ describe("outcomeOf", () => {
         other side → move · "Move to this side"
         new tab's page → move · "Open here"
         sidebar row → move · "Add to this group"
-        sidebar room → move · "New tab group"
+        sidebar room → move
         bookmarks bar → keep · "Add to bookmarks"
         past the window → move · "New window"
         nowhere → nothing
@@ -118,7 +118,7 @@ describe("outcomeOf", () => {
         other side → open · "Open on this side"
         new tab's page → open · "Open here"
         sidebar row → open · "Add to this group"
-        sidebar room → open · "New tab group"
+        sidebar room → open
         bookmarks bar → keep · "Add to bookmarks"
         past the window → open · "New window"
         nowhere → nothing
@@ -129,7 +129,7 @@ describe("outcomeOf", () => {
         other side → open · "Open on this side"
         new tab's page → open · "Open here"
         sidebar row → open · "Add to this group"
-        sidebar room → open · "New tab group"
+        sidebar room → open
         bookmarks bar → keep · "Add to bookmarks"
         past the window → open · "New window"
         nowhere → nothing
@@ -140,7 +140,7 @@ describe("outcomeOf", () => {
         other side → open · "Open on this side"
         new tab's page → open · "Open here"
         sidebar row → open · "Add to this group"
-        sidebar room → open · "New tab group"
+        sidebar room → open
         bookmarks bar → keep · "Add to bookmarks"
         past the window → open · "New window"
         nowhere → nothing
@@ -151,7 +151,7 @@ describe("outcomeOf", () => {
         other side → open · "Open on this side"
         new tab's page → open · "Open here"
         sidebar row → open · "Add to this group"
-        sidebar room → open · "New tab group"
+        sidebar room → open
         bookmarks bar → keep
         past the window → open · "New window"
         nowhere → remove · "Remove from bookmarks""
@@ -203,7 +203,7 @@ describe("what a held link or files open as", () => {
       [
         {
           "href": "/chats/c1",
-          "id": ":standing",
+          "id": "tab_01M7HE1DL1NK000000000000",
           "kind": "screen",
         },
       ]

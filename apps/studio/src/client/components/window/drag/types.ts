@@ -44,10 +44,10 @@ export type Held =
       kind: "files";
     }
   | {
-      /** What it stands under while held: in a strip, a room, or among the bookmarks; a bookmark's own id. */
+      /** The bookmark of the bar it is, which moves on the bar and goes from it where nothing takes it. */
+      bookmark?: string;
+      /** The tab id it stands under while held, in a strip, a room or a side shown, and opens under. */
       id: string;
-      /** Whether it is a bookmark of the bar, which moves on the bar and goes from it where nothing takes it. */
-      isKept?: true;
       kind: "link";
       /** Its name, empty where the system's drag says it only at the release. */
       title: string;
@@ -73,5 +73,5 @@ export type Landing =
 
 /** A link that is a bookmark of the bar. */
 export function isBookmark(held: Held): boolean {
-  return held.kind === "link" && held.isKept === true;
+  return held.kind === "link" && held.bookmark !== undefined;
 }

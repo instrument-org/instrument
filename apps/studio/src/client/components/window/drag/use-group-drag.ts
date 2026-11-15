@@ -18,7 +18,7 @@ import {
   sideZoneAt,
   splitTargetsOf,
 } from "./landing";
-import { currentDrag, dragAtom, pressToDrag, useDropTarget } from "./session";
+import { currentDrag, dragAtom, pressToHold, useDropTarget } from "./session";
 import { type Held } from "./types";
 
 /**
@@ -386,13 +386,11 @@ export function pressSideTab(
   event: React.PointerEvent<HTMLElement>,
   { group, side, tab }: { group: string; side: 0 | 1; tab: WindowTab },
 ) {
-  const element = event.currentTarget;
-  const pressedAt = { x: event.clientX, y: event.clientY };
-  pressToDrag(event, () => {
-    const bounds = element.getBoundingClientRect();
-    return {
-      grab: { x: pressedAt.x - bounds.left, y: pressedAt.y - bounds.top },
-      held: { group, id: tab.id, key: stripKeyOf(tab), kind: "tab", side },
-    };
-  });
+  pressToHold(event, () => ({
+    group,
+    id: tab.id,
+    key: stripKeyOf(tab),
+    kind: "tab",
+    side,
+  }));
 }

@@ -397,15 +397,15 @@ function barBookmark(store: Store): Held {
   const [kept] = store.get(bookmarksAtom);
   return kept
     ? {
-        id: kept.id,
-        isKept: true,
+        bookmark: kept.id,
+        id: "tab_01M7HE1DB00KMARK0000000000",
         kind: "link",
         title: kept.title,
         url: kept.url,
       }
     : {
-        id: "held-bookmark",
-        isKept: true,
+        bookmark: "held-bookmark",
+        id: "tab_01M7HE1DB00KMARK0000000000",
         kind: "link",
         title: "Zendesk pricing",
         url: "https://www.zendesk.com/pricing/",

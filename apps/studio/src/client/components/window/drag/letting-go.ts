@@ -64,8 +64,9 @@ export function outcomeOf(
           ? goes(undefined)
           : { does: "nothing", line: undefined };
       }
+      // In a room what is held stands as the row it makes.
       return goes(
-        landing.drop.kind === "into" ? "Add to this group" : "New tab group",
+        landing.drop.kind === "into" ? "Add to this group" : undefined,
       );
     }
     case "window": {

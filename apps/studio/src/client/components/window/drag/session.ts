@@ -410,6 +410,31 @@ export function pressToDrag(
   return true;
 }
 
+/**
+ * A press on something that can be held, which past the start becomes it
+ * held where the press was in it: `heldOf` says what, at that moment, from
+ * where the press was (in the window's px), or nothing to let the press be
+ * a click. Every draggable thing in the window starts its drag here.
+ */
+export function pressToHold(
+  event: React.PointerEvent<HTMLElement>,
+  heldOf: (pressedAt: Point) => Held | undefined,
+) {
+  const element = event.currentTarget;
+  const pressedAt = { x: event.clientX, y: event.clientY };
+  pressToDrag(event, () => {
+    const held = heldOf(pressedAt);
+    if (!held) {
+      return undefined;
+    }
+    const bounds = element.getBoundingClientRect();
+    return {
+      grab: { x: pressedAt.x - bounds.left, y: pressedAt.y - bounds.top },
+      held,
+    };
+  });
+}
+
 /** The element a page is drawn in by a frame of its own: a guest's `<webview>`, or an iframe. */
 function isPageFrame(element: Element | null): element is HTMLElement {
   return (

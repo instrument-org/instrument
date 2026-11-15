@@ -167,7 +167,7 @@ function useLander(
     placing: {
       after?: string;
       group: string;
-      id?: string | undefined;
+      id?: string;
       side?: 0 | 1;
     },
     replacing?: string,
@@ -193,12 +193,8 @@ function useLander(
 
   /** Opens what a link or files name as tabs where they landed, the first up and the rest right after it. */
   const openAt = (held: Held, landing: Landing) => {
-    // Files open under the ids their stand-ins were drawn under; a link's
-    // id is a bookmark's, or only what it stands under while held.
-    const [first, ...rest] = opensOf(held).map(({ id, opens }) => ({
-      id: held.kind === "files" ? id : undefined,
-      opens,
-    }));
+    // Each opens under the id its stand-in was drawn under while held.
+    const [first, ...rest] = opensOf(held);
     if (!first) {
       return;
     }
@@ -403,7 +399,7 @@ function useLander(
       case "remove": {
         const dragged = store
           .get(bookmarksAtom)
-          .find((bookmark) => held.kind === "link" && bookmark.id === held.id);
+          .find((bookmark) => held.kind === "link" && bookmark.id === held.bookmark);
         if (dragged) {
           removeWithUndo(dragged);
         }

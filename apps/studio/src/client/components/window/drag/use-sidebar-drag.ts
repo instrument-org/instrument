@@ -15,7 +15,7 @@ import {
   currentDrag,
   dragAtom,
   dragPoint,
-  pressToDrag,
+  pressToHold,
   useDragFrame,
   useDropTarget,
 } from "./session";
@@ -165,9 +165,7 @@ export function pressGroupRow(
     return;
   }
   const element = event.currentTarget;
-  const pressedAt = { x: event.clientX, y: event.clientY };
-  pressToDrag(event, () => {
-    const bounds = element.getBoundingClientRect();
+  pressToHold(event, (pressedAt) => {
     // The room it opens is the row's own place in the list, which shuts as it lifts.
     const item = element.closest<HTMLElement>("[data-drop-item]");
     const halves = [...element.querySelectorAll("[data-row-half]")];
@@ -179,13 +177,10 @@ export function pressGroupRow(
           })
         : -1;
     return {
-      grab: { x: pressedAt.x - bounds.left, y: pressedAt.y - bounds.top },
-      held: {
-        group,
-        ...(half === 0 || half === 1 ? { half } : {}),
-        height: item ? item.offsetHeight + LIST_GAP_PX : ROW_GAP_PX,
-        kind: "group",
-      },
+      group,
+      ...(half === 0 || half === 1 ? { half } : {}),
+      height: item ? item.offsetHeight + LIST_GAP_PX : ROW_GAP_PX,
+      kind: "group",
     };
   });
 }

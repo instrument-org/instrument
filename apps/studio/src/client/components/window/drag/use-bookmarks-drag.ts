@@ -12,10 +12,12 @@ import { segmentsOf } from "../host-path";
 import { bareAddress } from "../omnibar-match";
 import { useWindowTabs } from "../window-tabs";
 import { type Point } from "./landing";
-import { STANDING_ID } from "./press-link";
 import { dragAtom, useDropTarget } from "./session";
 import { outcomeOf } from "./letting-go";
 import { type DroppedFile, type Held } from "./types";
+
+/** The id what is held stands under among the bookmarks while it is held over them, where nothing kept stands for it. */
+const STANDING_ID = ":standing";
 
 
 /** A bookmark as the bar draws it in a drag: kept, or what is held standing where it would be kept. */
@@ -86,10 +88,10 @@ export function keptAs(
       );
     }
     case "link": {
-      if (held.isKept) {
+      if (held.bookmark !== undefined) {
         return [
           {
-            id: held.id,
+            id: held.bookmark,
             isStanding: true,
             order: 0,
             title: held.title,
@@ -234,6 +236,6 @@ export function useShownBookmarks(
   // Opened somewhere it stays kept here; a bookmark let go where nothing
   // takes it goes from here.
   return held.kind === "link" && outcomeOf(held, landing).does === "remove"
-    ? bookmarks.filter((bookmark) => bookmark.id !== held.id)
+    ? bookmarks.filter((bookmark) => bookmark.id !== held.bookmark)
     : bookmarks;
 }

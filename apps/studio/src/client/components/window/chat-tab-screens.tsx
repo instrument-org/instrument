@@ -11,6 +11,7 @@ import { ChatHeader } from "./chat-header";
 import { useListedChat } from "./chat-tab-menu";
 import { useWindow } from "./context";
 import { ChatScreen } from "./chat-screen";
+import { ChatListToggle, WithChatList } from "./chats-page";
 import { chatContextItems } from "./context-items";
 import { ContextChips } from "./context-chip";
 import { layoutReadOf } from "./group-awareness";
@@ -56,57 +57,60 @@ export function GroupChatScreen({ chatId }: { chatId: ChatId }) {
   const aware =
     awareTabs.length > 0 ? <AwarenessLine tabs={awareTabs} /> : undefined;
   return (
-    <div className="absolute inset-0 flex flex-col">
-      <ChatTabHead chatId={chatId} />
-      <div className="relative min-h-0 flex-1">
-        <ChatScreen
-          chatId={chatId}
-          composerLead={
-            aware || chips.length > 0 ? (
-              <>
-                {aware}
-                {chips.length > 0 && (
-                  <ContextChips
-                    items={chips}
-                    onLeaveOut={(item) => {
-                      setLeftOut(item.key);
-                    }}
-                    onShow={() => {
-                      if (beside) {
-                        windowTabs.select(beside.id);
-                      }
-                    }}
-                  />
-                )}
-              </>
-            ) : undefined
-          }
-          isUp={isActive && hasKeyboard}
-          key={chatId}
-          {...(tabId === undefined
-            ? {}
-            : { layoutContext: () => shell.layoutContext(tabId) })}
-          onGone={() => {
-            groupTab?.close();
-          }}
-          sendContext={() =>
-            shell.sendContext({
-              chatId,
-              isViewOpen: chips.length > 0,
-              ...(tabId === undefined ? {} : { tabId }),
-              taken: [],
-            })
-          }
-          sentPrompt={shell.sentWords.get(chatId)}
-          takesCaret={isActive && hasKeyboard}
-        />
+    <WithChatList openChatId={chatId}>
+      <div className="absolute inset-0 flex flex-col">
+        <ChatTabHead chatId={chatId} />
+        <div className="relative min-h-0 flex-1">
+          <ChatScreen
+            chatId={chatId}
+            composerLead={
+              aware || chips.length > 0 ? (
+                <>
+                  {aware}
+                  {chips.length > 0 && (
+                    <ContextChips
+                      items={chips}
+                      onLeaveOut={(item) => {
+                        setLeftOut(item.key);
+                      }}
+                      onShow={() => {
+                        if (beside) {
+                          windowTabs.select(beside.id);
+                        }
+                      }}
+                    />
+                  )}
+                </>
+              ) : undefined
+            }
+            isUp={isActive && hasKeyboard}
+            key={chatId}
+            {...(tabId === undefined
+              ? {}
+              : { layoutContext: () => shell.layoutContext(tabId) })}
+            onGone={() => {
+              groupTab?.close();
+            }}
+            sendContext={() =>
+              shell.sendContext({
+                chatId,
+                isViewOpen: chips.length > 0,
+                ...(tabId === undefined ? {} : { tabId }),
+                taken: [],
+              })
+            }
+            sentPrompt={shell.sentWords.get(chatId)}
+            takesCaret={isActive && hasKeyboard}
+          />
+        </div>
       </div>
-    </div>
+    </WithChatList>
   );
 }
 
 /**
- * The head over a chat in its tab: its title, which renames it, and the
+ * The head over a chat in its tab: the toggle for the chat list, its title,
+ * which renames it, and the
  * caret that opens its menu at the left; at the right, the chat's folder
  * while it has files, opened beside the chat as a click in the chat opens
  * a folder.
@@ -128,6 +132,7 @@ function ChatTabHead({ chatId }: { chatId: ChatId }) {
   return (
     <ChatHeader
       chat={chat}
+      leading={<ChatListToggle />}
       onArchived={() => {
         groupTab?.close();
       }}
@@ -209,14 +214,20 @@ export function GroupNewChatScreen({ draftId }: { draftId?: string }) {
   const group = groupTab?.group;
   const hasKeyboard = groupTab?.hasKeyboard ?? true;
   return (
-    <NewChatView
-      draftId={draftId}
-      ensureGroup={() => group ?? ""}
-      isCentered
-      isPaneShown={false}
-      onOpenBeside={() => undefined}
-      tabId={tabId}
-      takesCaret={isActive && hasKeyboard}
-    />
+    <WithChatList openChatId={undefined}>
+      <div className="absolute inset-0 flex flex-col">
+        <NewChatView
+          draftId={draftId}
+          ensureGroup={() => group ?? ""}
+          isCentered
+          isPaneShown={false}
+          onOpenBeside={() => undefined}
+          tabId={tabId}
+          takesCaret={isActive && hasKeyboard}
+        />
+        {/* Where a chat's head has it, ahead of the title. */}
+        <ChatListToggle className="absolute top-2.5 left-3" />
+      </div>
+    </WithChatList>
   );
 }

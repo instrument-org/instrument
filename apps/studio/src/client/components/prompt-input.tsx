@@ -1,4 +1,5 @@
 import { displayLocale } from "@/client/lib/display-locale";
+import { mayTakeKeyboard } from "@/client/lib/keyboard-home";
 import { lookAtAtom, lookTargetOf } from "@/client/components/window/look-at";
 import { dismissedModelOffersAtom } from "@/client/atoms/dismissed-model-offers";
 import { providerMetadataAtom } from "@/client/atoms/provider-metadata";
@@ -529,7 +530,9 @@ export const PromptInput = ({
   }, [transientDraftId]);
 
   useLayoutEffect(() => {
-    if (!autoFocus || !isActiveTab) {
+    // Not while the person walks a list with the arrows: each chat they pass
+    // opens with its composer, and the keyboard stays in the list.
+    if (!autoFocus || !isActiveTab || !mayTakeKeyboard()) {
       return;
     }
     promptEditorRef.current?.focus();

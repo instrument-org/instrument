@@ -515,7 +515,7 @@ function RowDot({ chat, density }: { chat: Chat; density: RowDensity }) {
 }
 
 /** The project a chat is filed under, as its name in the project's ink. */
-function ProjectWords({ project }: { project: Project }) {
+export function ProjectWords({ project }: { project: Project }) {
   return (
     <span
       className="max-w-32 shrink-0 truncate text-[12px] leading-5 font-medium text-(--project-tint-ink) project-tint"

@@ -3,6 +3,7 @@ import {
   AppMenuRow,
   type ComposerApp,
 } from "@/client/components/app-mention";
+import { mayTakeKeyboard } from "@/client/lib/keyboard-home";
 import {
   type ComposerAction,
   MenuGroupHeader,
@@ -540,7 +541,8 @@ export function PromptEditor({
       }),
     });
     viewRef.current = view;
-    if (initialProps.autoFocus) {
+    // Not while the person walks a list with the arrows (`mayTakeKeyboard`).
+    if (initialProps.autoFocus && mayTakeKeyboard()) {
       view.focus();
     }
     return () => {

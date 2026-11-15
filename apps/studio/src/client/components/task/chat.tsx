@@ -2,6 +2,7 @@ import {
   type PromptDraftKey,
   promptDraftRefAtom,
 } from "@/client/atoms/prompt-value";
+import { mayTakeKeyboard } from "@/client/lib/keyboard-home";
 import {
   beginReplySendAtom,
   chatBoxesAtom,
@@ -501,9 +502,10 @@ export function ChatConversation({
   });
   // A chat coming on screen is a place to reply from, so the caret lands
   // in the field as it opens, unless it opened on the side of a tab group
-  // without the keyboard (`takesCaret`).
+  // without the keyboard (`takesCaret`) or as the person walked the chat
+  // list with the arrows (`mayTakeKeyboard`).
   useLayoutEffect(() => {
-    if (!takesCaret || !isActiveTab) {
+    if (!takesCaret || !isActiveTab || !mayTakeKeyboard()) {
       return;
     }
     promptEditor?.focus();

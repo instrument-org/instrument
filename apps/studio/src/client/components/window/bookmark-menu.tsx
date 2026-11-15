@@ -1,4 +1,3 @@
-import { type OpenHow, openHowOf } from "@/client/bookmarks/open-address";
 import {
   ContextMenu,
   ContextMenuCheckboxItem,
@@ -8,7 +7,11 @@ import {
   ContextMenuTrigger,
 } from "@/client/components/ui/context-menu";
 import { contextMenuComponents } from "@/client/components/ui/menu-components";
-import { type OpenDestination } from "@/client/hooks/use-open-target";
+import { type OpenOptions } from "@/client/components/window/context";
+import {
+  openClickGestures,
+  useWindowPlaces,
+} from "@/client/hooks/use-open-target";
 import { rpcClient } from "@/client/rpc/client";
 import { type Bookmark } from "@/shared/bookmarks";
 import { ArrowSquareInIcon } from "@phosphor-icons/react/ArrowSquareIn";
@@ -17,7 +20,7 @@ import { CopyIcon } from "@phosphor-icons/react/Copy";
 import { PencilSimpleIcon } from "@phosphor-icons/react/PencilSimple";
 import { XCircleIcon } from "@phosphor-icons/react/XCircle";
 import { useMutation, useQuery } from "@tanstack/react-query";
-import { type MouseEvent, type ReactElement, useRef } from "react";
+import { type ReactElement, useRef } from "react";
 
 import { PlaceItems } from "./place-items";
 import { useBookmarkEdits } from "./web-start";
@@ -52,48 +55,29 @@ export function ShowBookmarksBarItem() {
   );
 }
 
-/** The middle button, which asks for a tab of its own. */
-const MIDDLE_BUTTON = 1;
+/** Opens an address: in this tab with no options, else where the options place it. */
+export type OpenAddress = (address: string, asked?: OpenOptions) => void;
 
 /**
- * What a press on a bookmark does: a click opens it in this tab, a
- * Cmd-click or a middle click in a new tab behind this one, and a
- * Shift-click in a new tab in front.
+ * What a press on a bookmark, or any mark on the bookmarks bar, does, as on
+ * any link the app draws (`openClickGestures`): a click opens it in this
+ * tab, whatever it names, a Cmd-click or a middle click in a new tab behind
+ * this one, and a Shift-click in a new tab in front, as the menu's Open in
+ * New Tab does.
  */
-export function bookmarkClicks(
-  bookmark: Bookmark,
-  open: (address: string, how: OpenHow) => void,
-) {
-  return {
-    onAuxClick: (event: MouseEvent) => {
-      if (event.button === MIDDLE_BUTTON) {
-        event.preventDefault();
-        open(bookmark.url, "background");
-      }
+export function bookmarkClicks(address: string, open: OpenAddress) {
+  return openClickGestures({
+    open: () => {
+      open(address);
     },
-    onClick: (event: MouseEvent) => {
-      open(bookmark.url, openHowOf(event));
+    openInFront: () => {
+      open(address, { newTab: true });
     },
-    // The middle button's own answer is to scroll; here it opens.
-    onMouseDown: (event: MouseEvent) => {
-      if (event.button === MIDDLE_BUTTON) {
-        event.preventDefault();
-      }
+    openInNewTab: () => {
+      open(address, { behind: true, newTab: true });
     },
-  };
+  });
 }
-
-/** The places a bookmark opens in from its menu, after its own Open, in the order a link's menu has them. */
-const BOOKMARK_PLACES: {
-  how: Exclude<OpenHow, "background" | "here">;
-  id: OpenDestination["id"];
-  label: string;
-}[] = [
-  { how: "split", id: "openSplit", label: "Open in Split" },
-  { how: "newTab", id: "openNewTab", label: "Open in New Tab" },
-  { how: "newGroup", id: "openNewGroup", label: "Open in New Tab Group" },
-  { how: "newWindow", id: "openNewWindow", label: "Open in New Window" },
-];
 
 /**
  * The menu over a bookmark: opening it here or in a place of the window's
@@ -111,9 +95,10 @@ export function BookmarkContextMenu({
   children: ReactElement;
   /** Starts naming the bookmark in its row, once the menu has let go of the keyboard. */
   onRename: () => void;
-  open: (address: string, how: OpenHow) => void;
+  open: OpenAddress;
 }) {
   const edits = useBookmarkEdits();
+  const placesOf = useWindowPlaces();
   // A rename asked for is started as the menu closes: a field focused while
   // the menu still holds the keyboard loses it at once.
   const renaming = useRef(false);
@@ -132,7 +117,7 @@ export function BookmarkContextMenu({
       >
         <ContextMenuItem
           onClick={() => {
-            open(bookmark.url, "here");
+            open(bookmark.url);
           }}
         >
           <ArrowSquareInIcon className="size-4" />
@@ -140,13 +125,9 @@ export function BookmarkContextMenu({
         </ContextMenuItem>
         <PlaceItems
           components={contextMenuComponents}
-          destinations={BOOKMARK_PLACES.map(({ how, id, label }) => ({
-            id,
-            label,
-            run: () => {
-              open(bookmark.url, how);
-            },
-          }))}
+          destinations={placesOf((options) => {
+            open(bookmark.url, options);
+          })}
         />
         <ContextMenuSeparator />
         <ContextMenuItem

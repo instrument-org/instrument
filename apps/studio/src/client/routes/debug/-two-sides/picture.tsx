@@ -684,7 +684,7 @@ function SidePage({
     <div className="flex h-full flex-col bg-background">
       {head}
       <BookmarksBar
-        files={{ group, onOpen: noop }}
+        files={{ group }}
         onOpen={noop}
         onVisit={noop}
       />

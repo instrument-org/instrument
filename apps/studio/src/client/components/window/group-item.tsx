@@ -1,12 +1,5 @@
 import { type WindowTab } from "@/client/atoms/window";
 import { addressOfTab } from "@/client/bookmarks/actions";
-import {
-  newChatBoxesAtom,
-  newChatWordsKey,
-} from "@/client/drafts/new-chat-box";
-import { flushWords } from "@/client/drafts/settle-words";
-import { draftsAtom } from "@/client/drafts/store";
-import { holdsSomething } from "@/shared/drafts";
 import { getGuest, onPageThumb } from "@/client/lib/browser-pool";
 import { registerHistorySurface } from "@/client/lib/history-surfaces";
 import { hostPathOfFileUrl } from "@/client/lib/file-url";
@@ -18,7 +11,7 @@ import { ArrowClockwiseIcon } from "@phosphor-icons/react/ArrowClockwise";
 import { useQueryClient } from "@tanstack/react-query";
 import { RouterProvider } from "@tanstack/react-router";
 import { noop } from "radashi";
-import { useAtomValue, useStore } from "jotai";
+import { useAtomValue } from "jotai";
 import {
   type ReactNode,
   type Ref,
@@ -45,7 +38,7 @@ import { type TabLocation, tasksOfHref } from "./tab-location";
 import { TabLocationRow, TabRowControl } from "./tab-location-row";
 import { surfaceLocation, tabSurfaceAtom } from "./tab-surface";
 import { useTaskTitles } from "./task-titles";
-import { chatOfTab, draftOfTab } from "./tab-model";
+import { chatOfTab } from "./tab-model";
 import { useTabSteps } from "./use-tab-steps";
 import { matchScreen, type Screen } from "./window-href";
 import { useShell } from "./shell-context";
@@ -125,27 +118,16 @@ export function GroupItem({
   // sidebar, the view, the sort, search) in a row of their own under it.
   const isFiles = screenKind === "computer";
   const isChat = screenKind === "chat";
-  const store = useStore();
-  /** Whether the new chat up here has nothing written in it, words still settling counted. */
-  const isUnwritten = () => {
-    flushWords(newChatWordsKey(up.id));
-    const written = [
-      store.get(newChatBoxesAtom)[up.id]?.draftId,
-      draftOfTab(up),
-    ];
-    return !store
-      .get(draftsAtom)
-      .some((draft) => written.includes(draft.id) && holdsSomething(draft));
-  };
   /**
-   * Files at a folder: in place of a new chat with nothing written in it, so
-   * back returns there; in a tab of its own after anything else.
+   * What a bookmark opens with a plain click: this tab goes there, whatever
+   * it is and whatever it names (a chat, Files, a built-in page), as a
+   * browser's bookmark takes over the tab it is clicked in, and Back returns.
    */
-  const openFiles = (href: string) => {
-    if (isNewChat && isUnwritten()) {
-      windowTabs.visitHref(up.id, href);
+  const takeOver = (href: string) => {
+    if (before) {
+      appWindow.openScreen(href);
     } else {
-      windowTabs.openScreen(href, { after: up.id, group, select: true });
+      windowTabs.visitHref(up.id, href);
     }
   };
   /**
@@ -320,9 +302,9 @@ export function GroupItem({
                   },
             )}
             <BookmarksBar
-              files={{ group, onOpen: openFiles }}
+              files={{ group }}
               onOpen={openHere}
-              onVisit={visitHere}
+              onVisit={takeOver}
             />
           </>
         }
@@ -380,9 +362,9 @@ export function GroupItem({
         <>
           {head}
           <BookmarksBar
-            files={{ group, onOpen: openFiles }}
+            files={{ group }}
             onOpen={openHere}
-            onVisit={visitHere}
+            onVisit={takeOver}
           />
           {isFiles && (
             <div className="flex h-11 shrink-0 items-center gap-1.5 border-b border-border bg-background px-1.5">

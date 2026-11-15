@@ -1,3 +1,4 @@
+import { targetOfAddress } from "@/client/bookmarks/address";
 import { useOpenAddress } from "@/client/bookmarks/open-address";
 import { bookmarksAtom } from "@/client/bookmarks/store";
 import {
@@ -13,13 +14,13 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/client/components/ui/dropdown-menu";
+import { type OpenOptions, useWindow } from "@/client/components/window/context";
 import { noteTypedPage } from "@/client/hooks/use-browser-history";
 import { filesHrefAtom } from "@/client/atoms/window";
 import { BAR_MOTION } from "@/client/lib/motion";
 import { cn } from "@/client/lib/utils";
 import { folderHref } from "@/shared/computer-href";
 import { FileSystemFolderGlyph } from "@/client/components/extend/file-system";
-import { isInstrumentAddress } from "@instrument-org/shared";
 import { CaretDoubleRightIcon } from "@phosphor-icons/react/CaretDoubleRight";
 import { CaretDownIcon } from "@phosphor-icons/react/CaretDown";
 import { StarIcon } from "@phosphor-icons/react/Star";
@@ -30,6 +31,7 @@ import { useLayoutEffect, useRef, useState } from "react";
 import { AddressMark } from "./app-chip";
 import {
   BookmarkContextMenu,
+  type OpenAddress,
   ShowBookmarksBarItem,
   bookmarkClicks,
   useShowsBookmarksBar,
@@ -50,9 +52,11 @@ import { BookmarkNameField, bookmarkName, useBookmarkEdits } from "./web-start";
  * mark its tab wears and a short name, the way a browser's bookmarks bar
  * keeps them, after Files where the row is given it (`files`). Those past
  * the row's end are under a chevron at its right. A click opens one in this
- * tab (a site by `onOpen`, a place of the app's own by `onVisit`), a
- * Cmd-click or a middle click in a new tab behind this one, a Shift-click as
- * a new tab group, and a right click offers the rest (`BookmarkContextMenu`).
+ * tab whatever it names (a site by `onOpen`, a place of the app's own, a
+ * chat's included, by `onVisit`), a Cmd-click or a middle click in a new tab
+ * behind this one, a Shift-click in a new tab in front, and a right click
+ * offers the rest (`BookmarkContextMenu`). Files and its places open the
+ * same way.
  * A bookmark dragged along the bar moves there, a tab dragged onto it is
  * kept there, and either stands where it would be while it is held. A right
  * click on the bar itself offers to hide it; hidden, it is not drawn in any
@@ -81,8 +85,8 @@ export function BookmarksBar(props: BarProps) {
 }
 
 type BarProps = {
-  /** Files for a group, opening a folder (`onOpen`) as that group's bar does. */
-  files?: { group: string; onOpen: (href: string) => void };
+  /** Files at the bar's start, with the places of this group's Files sidebar. */
+  files?: { group: string };
   onOpen: (url: string) => void;
   /** A place of the app's own in this tab, where a tab can stand at it; the window opens it otherwise. */
   onVisit?: (href: string) => void;
@@ -129,14 +133,23 @@ function Bar({ files, onOpen, onVisit }: BarProps) {
   // A bookmark is an address the person chose, so opening a site's counts
   // the way typing it would.
   const openAddress = useOpenAddress({
-    page: onOpen,
-    ...(onVisit ? { screen: onVisit } : {}),
+    loadHere: onOpen,
+    ...(onVisit ? { visitHere: onVisit } : {}),
   });
-  const open: typeof openAddress = (address, how) => {
-    if (!isInstrumentAddress(address)) {
+  const open: typeof openAddress = (address, asked) => {
+    if (targetOfAddress(address)?.kind === "page") {
       noteTypedPage(address);
     }
-    openAddress(address, how);
+    openAddress(address, asked);
+  };
+  const appWindow = useWindow();
+  /** Files at a place: in this tab with no options, else where they place it. */
+  const openFilesAt = (href: string, asked?: OpenOptions) => {
+    if (asked === undefined && onVisit) {
+      onVisit(href);
+    } else {
+      appWindow.openScreen(href, asked);
+    }
   };
   const overflow = bookmarks
     .slice(fitting)
@@ -157,7 +170,7 @@ function Bar({ files, onOpen, onVisit }: BarProps) {
         >
           {files && (
             <>
-              <FilesMark group={files.group} onOpen={files.onOpen} />
+              <FilesMark group={files.group} open={openFilesAt} />
               <span aria-hidden className="mx-1 h-4 w-px shrink-0 bg-border" />
             </>
           )}
@@ -230,7 +243,7 @@ function Bar({ files, onOpen, onVisit }: BarProps) {
                         "flex h-6 max-w-40 shrink-0 cursor-default items-center gap-1.5 rounded-md px-1.5 text-xs text-foreground/80 hover:bg-foreground/8 hover:text-foreground data-[state=open]:bg-foreground/8",
                         isOver && "invisible",
                       )}
-                      {...bookmarkClicks(bookmark, open)}
+                      {...bookmarkClicks(bookmark.url, open)}
                       data-bookmark-id={bookmark.id}
                       onPointerDown={(event) => {
                         pressLink(event, {
@@ -262,7 +275,7 @@ function Bar({ files, onOpen, onVisit }: BarProps) {
                 {overflow.map((bookmark) => (
                   <DropdownMenuItem
                     key={bookmark.id}
-                    {...bookmarkClicks(bookmark, open)}
+                    {...bookmarkClicks(bookmark.url, open)}
                     title={bookmark.url}
                   >
                     <AddressMark address={bookmark.url} />
@@ -286,23 +299,22 @@ function Bar({ files, onOpen, onVisit }: BarProps) {
 /**
  * Files at the bar's start: a press opens it where it last stood, and the
  * chevron beside it lists the places the Files sidebar keeps, the group's
- * project first, to open it at one of them.
+ * project first, to open it at one of them. Each opens as a bookmark does
+ * (`bookmarkClicks`).
  */
 function FilesMark({
   group,
-  onOpen,
+  open,
 }: {
   group: string;
-  onOpen: (href: string) => void;
+  open: OpenAddress;
 }) {
   const filesHref = useAtomValue(filesHrefAtom);
   const { places, project } = useFilesPlaces(group);
   const placeItem = (place: Place) => (
     <DropdownMenuItem
       key={place.path}
-      onSelect={() => {
-        onOpen(folderHref(place.path));
-      }}
+      {...bookmarkClicks(folderHref(place.path), open)}
       title={place.path}
     >
       <span className="flex size-4 shrink-0 items-center justify-center">
@@ -315,9 +327,7 @@ function FilesMark({
     <div className="flex h-6 shrink-0 items-center rounded-md text-xs text-foreground/80 has-data-[state=open]:bg-foreground/8 has-[button:hover]:bg-foreground/5">
       <button
         className="flex h-6 cursor-default items-center gap-1.5 rounded-l-md pr-1 pl-1.5 hover:bg-foreground/8 hover:text-foreground"
-        onClick={() => {
-          onOpen(filesHref);
-        }}
+        {...bookmarkClicks(filesHref, open)}
         type="button"
       >
         <FileSystemFolderGlyph className="h-3 w-auto" />

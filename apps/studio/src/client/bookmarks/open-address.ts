@@ -4,32 +4,9 @@ import {
 } from "@/client/components/window/context";
 import { isGroupScreenHref } from "@/client/components/window/group-screen";
 import { matchScreen } from "@/client/components/window/window-href";
-import { wantsNewTab, wantsNewWindow } from "@/client/hooks/use-open-target";
 import { isScreenName, SCREENS } from "@/shared/instrument-screens";
 
 import { type AddressTarget, hrefOfPath, targetOfAddress } from "./address";
-
-/**
- * Where an address opens: in the tab it was chosen from, in a new tab
- * waiting behind that one, on the other side of the group on screen, or as
- * the first tab of a new tab group or a new window.
- */
-export type OpenHow =
-  | "background"
-  | "here"
-  | "newGroup"
-  | "newTab"
-  | "newWindow"
-  | "split";
-
-/** The open each place but `here` asks of the window. */
-const OPEN_OPTIONS = {
-  newGroup: { into: "group" },
-  background: { behind: true, newTab: true },
-  newTab: { newTab: true },
-  newWindow: { into: "window" },
-  split: { into: "split" },
-} satisfies Record<Exclude<OpenHow, "here">, OpenOptions>;
 
 /**
  * The screen href an address of the app's own opens at: a file's or a
@@ -50,56 +27,69 @@ export function hrefOfTarget(
   return target.href;
 }
 
-/** What a click asks for: ⌘-click a new tab behind this one, ⇧-click a new tab in front. */
-export function openHowOf(event: {
-  altKey: boolean;
-  ctrlKey: boolean;
-  metaKey: boolean;
-  shiftKey: boolean;
-}): OpenHow {
-  if (wantsNewTab(event)) {
-    return "background";
-  }
-  return wantsNewWindow(event) ? "newTab" : "here";
+/** Whether a tab can be taken over by a screen: anything a group's tab stands at, a chat included. */
+function canStandHere(href: string): boolean {
+  return isGroupScreenHref(href) || matchScreen(href).kind === "chat";
+}
+
+/** Where an address opens: the tab it was chosen from (`here`), and the window's own opens. */
+export interface AddressSinks {
+  /** This tab goes to a site. */
+  loadHere?: (url: string) => void;
+  openPage: (url: string, options?: OpenOptions) => void;
+  openScreen: (href: string, options?: OpenOptions) => void;
+  /** This tab goes to a screen of the app's own, a chat's included. */
+  visitHere?: (href: string) => void;
 }
 
 /**
- * Opens any address, a site's or the app's own, the way a bookmark opens.
- * `here` is the tab it was chosen from, when it is chosen from one: a page
- * goes there, and so does a screen a tab of a group can stand at. Anything
- * else opens where the app keeps it: a chat where its tab is, or as a tab
- * group of its own.
+ * Opens any address, a site's or the app's own, the way a bookmark opens
+ * it. With no `asked`, a plain click: the tab it was chosen from goes there,
+ * whatever it names (a site, a file, a folder, a chat, a built-in page), and
+ * Back returns. With `asked`, the window's one open (`openPage`,
+ * `openScreen`) places it as any other open with those options is placed:
+ * a new tab after this one, in front or waiting behind, the other side, a
+ * new tab group or a new window.
  */
+export function openAddressBy(
+  address: string,
+  asked: OpenOptions | undefined,
+  sinks: AddressSinks,
+): void {
+  const target = targetOfAddress(address);
+  if (!target) {
+    return;
+  }
+  if (target.kind === "page") {
+    if (asked === undefined && sinks.loadHere) {
+      sinks.loadHere(target.url);
+    } else {
+      sinks.openPage(target.url, asked);
+    }
+    return;
+  }
+  const href = hrefOfTarget(target);
+  if (asked === undefined && sinks.visitHere && canStandHere(href)) {
+    sinks.visitHere(href);
+  } else {
+    sinks.openScreen(href, asked);
+  }
+}
+
+/** `openAddressBy` against this window, `here` being the tab the address is chosen from. */
 export function useOpenAddress(
-  here: { page?: (url: string) => void; screen?: (href: string) => void } = {},
+  here: Pick<AddressSinks, "loadHere" | "visitHere"> = {},
 ) {
   const appWindow = useWindow();
-  return (address: string, how: OpenHow = "here") => {
-    const target = targetOfAddress(address);
-    if (!target) {
-      return;
-    }
-    if (target.kind === "page") {
-      if (how === "here") {
-        if (here.page) {
-          here.page(target.url);
-        } else {
-          appWindow.openPage(target.url);
-        }
-        return;
-      }
-      appWindow.openPage(target.url, OPEN_OPTIONS[how]);
-      return;
-    }
-    const href = hrefOfTarget(target);
-    if (how === "here") {
-      if (here.screen && isGroupScreenHref(href)) {
-        here.screen(href);
-      } else {
-        appWindow.openScreen(href);
-      }
-      return;
-    }
-    appWindow.openScreen(href, OPEN_OPTIONS[how]);
+  return (address: string, asked?: OpenOptions) => {
+    openAddressBy(address, asked, {
+      ...here,
+      openPage: (url, options) => {
+        appWindow.openPage(url, options);
+      },
+      openScreen: (href, options) => {
+        appWindow.openScreen(href, options);
+      },
+    });
   };
 }

@@ -6,9 +6,7 @@ import { rpcClient } from "@/client/rpc/client";
 import { safe } from "@orpc/client";
 import { SidebarSimpleIcon } from "@phosphor-icons/react/SidebarSimple";
 import { useAtom, useAtomValue } from "jotai";
-import { useEffect } from "react";
-
-import { WINDOW_CARD_GAP } from "./window-frame";
+import { type ReactNode, useEffect } from "react";
 
 /** Puts the sidebar of tab groups away and brings it back. */
 function InboxToggle() {
@@ -32,26 +30,28 @@ function InboxToggle() {
 }
 
 /**
- * How far the sidebar toggle stands from the window's left edge: just past
- * the traffic lights on a Mac while the sidebar is out, since they keep
- * their size whatever the app's zoom, or 12px in, where its mark stands on
- * the sidebar's column of icons, elsewhere and while the sidebar and the
- * traffic lights are away.
+ * Where the sidebar toggle stands: first in the leftmost side's tab strip,
+ * just before its first tab, the same spot whether the sidebar is out or
+ * away, centered on the strip as its tabs are.
  */
-export function toggleLeft(isSidebarOpen: boolean) {
-  return isMacOS() && isSidebarOpen
-    ? "calc(4.5rem / var(--app-zoom, 1))"
-    : "12px";
+export function SidebarToggleSlot({ children }: { children: ReactNode }) {
+  return <div className="flex shrink-0 items-center px-1">{children}</div>;
+}
+
+/** The sidebar toggle in its slot at the start of the leftmost tab strip. */
+export function SidebarToggle() {
+  return (
+    <SidebarToggleSlot>
+      <InboxToggle />
+    </SidebarToggleSlot>
+  );
 }
 
 /**
- * The sidebar toggle in its one spot at the window's top left: first in the
- * sidebar's top row while the sidebar is out, and over the card's top row,
- * which leaves it room (`SidebarToggleRoom`) and whose tabs it lines up
- * with, while it is away. The Mac's traffic lights go and come back with the
- * sidebar.
+ * The Mac's traffic lights go and come back with the sidebar, so a window
+ * whose sidebar is away has its top left to its tabs.
  */
-export function SidebarToggleCorner() {
+export function TrafficLightsWithSidebar() {
   const isSidebarOpen = useAtomValue(sidebarOpenAtom);
   useEffect(() => {
     if (isMacOS()) {
@@ -60,29 +60,14 @@ export function SidebarToggleCorner() {
       );
     }
   }, [isSidebarOpen]);
-  return (
-    <div
-      className="absolute z-30 flex h-10 items-center [-webkit-app-region:no-drag]"
-      style={{
-        left: toggleLeft(isSidebarOpen),
-        top: isSidebarOpen ? 0 : WINDOW_CARD_GAP,
-      }}
-    >
-      <InboxToggle />
-    </div>
-  );
+  return null;
 }
 
 /**
- * The room a row at the card's top left leaves for the toggle while the
- * sidebar is away: the toggle's spot and its 28px, less the card's 8px
- * inset, and a 4px gap.
+ * How far the sidebar's top row starts from the window's left edge: past
+ * the traffic lights on a Mac, which keep their size whatever the app's
+ * zoom, and 12px in elsewhere.
  */
-export function SidebarToggleRoom() {
-  return (
-    <div
-      className="shrink-0"
-      style={{ width: `calc(${toggleLeft(false)} + 1.5rem)` }}
-    />
-  );
+export function sidebarTopInset() {
+  return isMacOS() ? "calc(4.5rem / var(--app-zoom, 1))" : "12px";
 }

@@ -29,7 +29,7 @@ export const WINDOW_CARD =
   "overflow-hidden rounded-[18px] bg-background shadow-xs";
 
 /** The ground left between the card and the window's edges, in layout px, and between two cards side by side. */
-export const WINDOW_CARD_GAP = 8;
+export { WINDOW_CARD_GAP } from "@/shared/constants";
 
 /**
  * The window's chrome: no title bar, so it drags by its top-left corner,

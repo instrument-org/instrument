@@ -1,3 +1,4 @@
+import { WINDOW_CARD_GAP } from "@/shared/constants";
 import {
   chatOutputFolder,
   workDir,
@@ -33,7 +34,10 @@ import {
 } from "@/electron-main/lib/exception-store";
 import { base } from "@/electron-main/rpc/base";
 import { publisher } from "@/electron-main/rpc/publisher";
-import { isOnlyAppWindow } from "@/electron-main/windows/app-window";
+import {
+  isAppWindow,
+  isOnlyAppWindow,
+} from "@/electron-main/windows/app-window";
 import { getAppZoom } from "@/electron-main/stores/workspace/window-state";
 import { getCallingWindow } from "@/electron-main/windows/calling-window";
 import {
@@ -487,7 +491,12 @@ const restoreClearedExceptions = base.input(z.void()).handler(() => {
 const syncZoom = base
   .input(z.object({ zoom: z.number() }))
   .handler(({ context, input }) => {
-    setTrafficLightForZoom(getCallingWindow(context.webContentsId), input.zoom);
+    const window = getCallingWindow(context.webContentsId);
+    setTrafficLightForZoom(
+      window,
+      input.zoom,
+      window && isAppWindow(window) ? WINDOW_CARD_GAP : 0,
+    );
   });
 
 // The macOS traffic lights of the window that asked, shown while its sidebar
@@ -499,6 +508,7 @@ const showTrafficLights = base
       getCallingWindow(context.webContentsId),
       input.isShown,
       getAppZoom(),
+      WINDOW_CARD_GAP,
     );
   });
 

@@ -155,7 +155,7 @@ import { useWindowCommands } from "./use-window-commands";
 import { useWindowDropFallback } from "./use-window-drop-fallback";
 import { WindowFrame } from "./window-frame";
 import { GroupSidebar, sidebarBounds } from "./group-sidebar";
-import { SidebarToggleCorner } from "./inbox-toggle";
+import { TrafficLightsWithSidebar } from "./inbox-toggle";
 import { isGroupScreenHref } from "./group-screen";
 import { DragLayer } from "./drag/drag-layer";
 import { useDragSystem } from "./drag/use-drag-system";
@@ -1547,7 +1547,7 @@ function WindowShell({
       >
         <PageOpenContext value={openPage}>
           <WindowFrame
-            corner={<SidebarToggleCorner />}
+            corner={<TrafficLightsWithSidebar />}
             hasBar={false}
             overlay={
               <ComposeLayer

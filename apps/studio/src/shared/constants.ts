@@ -23,4 +23,6 @@ export const CODE_EDITOR_FOCUS_CHANNEL = "code-editor-focus";
 export const CAPTURE_EXCEPTION_CHANNEL = "capture-exception";
 
 export const TOOLBAR_HEIGHT = 40;
+/** The ground an app window leaves above its card, in layout px: the tab strips stand under it, and the window's top row with them. */
+export const WINDOW_CARD_GAP = 8;
 export const SIDEBAR_WIDTH = 250;

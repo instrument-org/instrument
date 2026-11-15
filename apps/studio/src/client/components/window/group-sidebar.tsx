@@ -52,7 +52,7 @@ import {
 import { FadeTitle } from "./fade-title";
 import { GroupRowMenu, type GroupRowMenuActions } from "./group-row-menu";
 import { HelpMenu } from "./help-menu";
-import { toggleLeft } from "./inbox-toggle";
+import { sidebarTopInset } from "./inbox-toggle";
 import { useAppsBySlug } from "./apps-by-slug";
 import { type Project } from "./chats";
 import { ActiveChatsList } from "./active-chats-list";
@@ -886,16 +886,16 @@ function RowHalfPlace({
 }
 
 /**
- * The sidebar's top row, which drags the window: room for the traffic lights
- * on a Mac and for the sidebar's toggle, which stands over the row's start
- * (`SidebarToggleCorner`), then the app's menu off the Mac; the update pill,
- * then History and the bell at its end.
+ * The sidebar's top row, which drags the window, centered on the tab strips
+ * beside it, under the ground above their card: room for the traffic
+ * lights on a Mac, then the app's menu off the Mac; the update pill, then
+ * History and the bell at its end.
  */
 function SidebarTop() {
   return (
     <div
-      className="flex h-10 shrink-0 items-center gap-1 pr-1 [-webkit-app-region:drag] [&_button]:[-webkit-app-region:no-drag]"
-      style={{ paddingLeft: `calc(${toggleLeft(true)} + 2rem)` }}
+      className="flex h-12 shrink-0 items-center gap-1 pt-2 pr-1 [-webkit-app-region:drag] [&_button]:[-webkit-app-region:no-drag]"
+      style={{ paddingLeft: sidebarTopInset() }}
     >
       {!isMacOS() && <AppMenuButton />}
       <span className="flex-1" />

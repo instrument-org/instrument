@@ -1,3 +1,4 @@
+import { WINDOW_CARD_GAP } from "@/shared/constants";
 import { getBrowserViewManager } from "@/electron-main/browser-view/manager";
 import { logBootMark } from "@/electron-main/lib/boot-timing";
 import { getAppSession } from "@/electron-main/lib/app-session";
@@ -722,7 +723,7 @@ export function takeSpareWindow(): SpareWindow | null {
   const taken = waitingSpare;
   waitingSpare = null;
   taken.window.setBackgroundColor(getBackgroundColor());
-  setTrafficLightForZoom(taken.window, getAppZoom());
+  setTrafficLightForZoom(taken.window, getAppZoom(), WINDOW_CARD_GAP);
   return taken;
 }
 
@@ -1082,7 +1083,7 @@ function createAppWindow(
   // this window mounts and syncs its own. Set here rather than through the
   // `trafficLightPosition` option, which only applies to frameless windows; this
   // one keeps its macOS frame.
-  setTrafficLightForZoom(window, getAppZoom());
+  setTrafficLightForZoom(window, getAppZoom(), WINDOW_CARD_GAP);
 
   if (!isSpare) {
     showWhenReady(window, () => {

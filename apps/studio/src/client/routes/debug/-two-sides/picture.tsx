@@ -14,10 +14,7 @@ import {
   GROUP_GROUNDS,
   SIDE_TABS,
 } from "@/client/components/window/group-view";
-import {
-  SidebarToggleRoom,
-  toggleLeft,
-} from "@/client/components/window/inbox-toggle";
+import { SidebarToggleSlot } from "@/client/components/window/inbox-toggle";
 import { PaneTabs } from "@/client/components/window/pane-tabs";
 import { useRowSlots } from "@/client/components/window/row-slots";
 import { RowSourcesContext } from "@/client/components/window/row-half";
@@ -394,7 +391,6 @@ export function WindowPicture({
           <div className={GROUP_GROUNDS} data-own-cards="">
             <Sides
               group={group}
-              isSidebarClosed={sidebar === "closed"}
               share={share ?? SIDE_SHARE_DEFAULT}
               sideBodies={sideBodies ?? {}}
             />
@@ -412,36 +408,35 @@ export function WindowPicture({
 const TRAFFIC_LIGHTS = ["#ff5f57", "#febc2e", "#28c840"];
 
 /**
- * The window's sidebar toggle where `SidebarToggleCorner` stands it, after
- * the Mac's traffic lights while the sidebar is out: a picture of it, since
- * the toggle itself shows and hides the window's own sidebar and lights.
+ * The Mac's traffic lights while the sidebar is out, centered on the tab
+ * strips: a picture of them, since the window's own come and go with its
+ * own sidebar.
  */
 function ToggleMark({ isSidebarOpen }: { isSidebarOpen: boolean }) {
+  return isMacOS() && isSidebarOpen ? (
+    <div
+      className="absolute left-5 flex h-10 items-center gap-2"
+      style={{ top: WINDOW_CARD_GAP }}
+    >
+      {TRAFFIC_LIGHTS.map((color) => (
+        <span
+          className="size-3 rounded-full"
+          key={color}
+          style={{ backgroundColor: color }}
+        />
+      ))}
+    </div>
+  ) : null;
+}
+
+/** The sidebar toggle in its slot, a picture of it, since the toggle itself shows and hides the window's own sidebar. */
+function ToggleInStrip() {
   return (
-    <>
-      {isMacOS() && isSidebarOpen && (
-        <div className="absolute top-0 left-5 flex h-10 items-center gap-2">
-          {TRAFFIC_LIGHTS.map((color) => (
-            <span
-              className="size-3 rounded-full"
-              key={color}
-              style={{ backgroundColor: color }}
-            />
-          ))}
-        </div>
-      )}
-      <div
-        className="absolute z-30 flex h-10 items-center"
-        style={{
-          left: toggleLeft(isSidebarOpen),
-          top: isSidebarOpen ? 0 : WINDOW_CARD_GAP,
-        }}
-      >
-        <span className="flex size-7 items-center justify-center text-muted-foreground/70">
-          <SidebarSimpleIcon className="size-4" />
-        </span>
-      </div>
-    </>
+    <SidebarToggleSlot>
+      <span className="flex size-7 items-center justify-center text-muted-foreground/70">
+        <SidebarSimpleIcon className="size-4" />
+      </span>
+    </SidebarToggleSlot>
   );
 }
 
@@ -477,12 +472,10 @@ export function SidebarPicture({
 /** A group's sides in their row, as `GroupSides` lays them out: shared by the share, never under a side's narrowest, scrolling sideways below that. */
 function Sides({
   group,
-  isSidebarClosed,
   share,
   sideBodies,
 }: {
   group: string;
-  isSidebarClosed: boolean;
   share: number;
   sideBodies: Partial<Record<0 | 1, ReactNode>>;
 }) {
@@ -527,7 +520,6 @@ function Sides({
               group={group}
               isFirst={at === 0}
               isLast={index === layout.sides.length - 1}
-              isSidebarClosed={isSidebarClosed}
               key={at}
               layout={layout}
               sideIndex={at}
@@ -546,7 +538,6 @@ function Side({
   group,
   isFirst,
   isLast,
-  isSidebarClosed,
   layout,
   sideIndex,
   style,
@@ -555,7 +546,6 @@ function Side({
   group: string;
   isFirst: boolean;
   isLast: boolean;
-  isSidebarClosed: boolean;
   layout: GroupLayout;
   sideIndex: 0 | 1;
   style: CSSProperties;
@@ -584,7 +574,7 @@ function Side({
         className={SIDE_TABS}
         heldAt={drawn.heldAt}
         isIncoming={drawn.isIncoming}
-        lead={isFirst && isSidebarClosed ? <SidebarToggleRoom /> : undefined}
+        lead={isFirst ? <ToggleInStrip /> : undefined}
         onClose={noop}
         onDuplicate={noop}
         onNew={noop}

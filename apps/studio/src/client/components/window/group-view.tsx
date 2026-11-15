@@ -1,5 +1,4 @@
 import { NEW_TAB_HREF, type WindowTab } from "@/client/atoms/window";
-import { sidebarOpenAtom } from "@/client/atoms/tab-groups";
 import { ResizeHandle } from "@/client/components/resize-handle";
 import { CaptionRoom } from "@/client/components/window-controls";
 import { useIsActiveTab } from "@/client/hooks/use-active-tab";
@@ -35,7 +34,7 @@ import {
 import { type PageChromeSlots } from "./browser-tabs";
 import { useWindow } from "./context";
 import { GroupItem } from "./group-item";
-import { SidebarToggleRoom } from "./inbox-toggle";
+import { SidebarToggle } from "./inbox-toggle";
 import { usePageHost } from "./page-hosts";
 import { PaneTabs, type SplitMenuActions, stripKeyOf } from "./pane-tabs";
 import {
@@ -495,7 +494,6 @@ function SideCard({
   const windowTabs = useWindowTabs();
   const groups = useTabGroupActions();
   const moves = useGroupTabMoves();
-  const isSidebarOpen = useAtomValue(sidebarOpenAtom);
   const listedGroups = useAtomValue(windowTabGroupsAtom);
   const isActive = useIsActiveTab();
   const { tabs } = side;
@@ -765,7 +763,7 @@ function SideCard({
         className={SIDE_TABS}
         heldAt={drawn.heldAt}
         isIncoming={drawn.isIncoming}
-        lead={isFirst && !isSidebarOpen ? <SidebarToggleRoom /> : undefined}
+        lead={isFirst ? <SidebarToggle /> : undefined}
         onClose={shell.requestClose}
         onDuplicate={(tab) => {
           copyOf(tab, { after: tab.id, side: "same" });

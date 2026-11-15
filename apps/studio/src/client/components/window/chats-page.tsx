@@ -21,6 +21,7 @@ import {
 } from "react";
 
 import { ChatPane } from "./chat-pane";
+import { CHAT_WIDTH_MIN, isListOver, LIST_WIDTH_MIN } from "./chat-list-width";
 import { useGroupTab } from "./group-tab";
 import { useShell } from "./shell-context";
 import { CHATS_INDEX_HREF, chatHref, newChatHref } from "./window-href";
@@ -63,16 +64,10 @@ function useChatListOpen(
   ] as const;
 }
 
-/** The list's narrowest beside a chat, as the inbox was. */
-const LIST_WIDTH_MIN = 320;
 /** The list's widest beside a chat: a list to pick from, so the room past this goes to the chat. */
 const LIST_WIDTH_MAX = 440;
 /** Dragged narrower than this, the list slides shut. */
 const LIST_COLLAPSE = 240;
-/** The least the chat keeps beside the list while the list is dragged wider, and the narrowest its composer still has room to write in. */
-const CHAT_WIDTH_MIN = 360;
-/** A tab narrower than this lays the list over its chat rather than squeezing the chat beside it. */
-const LIST_OVER_BELOW = LIST_WIDTH_MIN + CHAT_WIDTH_MIN;
 
 /** The list's open state where the toggle and the list read it: beside the chat, or over it in a narrow tab. */
 const ChatListOpenContext = createContext<{
@@ -162,6 +157,7 @@ export function WithChatList({
   const tabId = groupTab?.id;
   const [isBeside, setBeside] = useChatListOpen(tabId);
   const [isOver, setOver] = useChatListOpen(tabId, listOverTabsAtom);
+  const listWidth = useAtomValue(listWidthAtom);
   // The entry in the tab's history the page stands at, which the page drawn
   // again keeps and a visit of its own does not.
   const visit = useLocation({ select: (location) => location.state.__TSR_key });
@@ -180,7 +176,7 @@ export function WithChatList({
     }
     listOpenedVisits.add(key);
     setBeside(true);
-    if ((ref.current?.offsetWidth ?? 0) < LIST_OVER_BELOW) {
+    if (isListOver(ref.current?.offsetWidth ?? 0, listWidth)) {
       setOver(true);
     }
   });
@@ -202,7 +198,7 @@ export function WithChatList({
       observer.disconnect();
     };
   }, []);
-  const isOverlay = width > 0 && width < LIST_OVER_BELOW;
+  const isOverlay = isListOver(width, listWidth);
   // Widened past it, the list over the chat is put away, so narrowing again
   // does not bring it back over the chat.
   useLayoutEffect(() => {

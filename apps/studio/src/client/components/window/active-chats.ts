@@ -9,12 +9,18 @@ function wantsLook(chat: Chat): boolean {
   return chat.status === "waiting" || chat.unread || chat.working;
 }
 
+/** How many chats the list shows before the rest wait behind its More row. */
+export const ACTIVE_CHATS_SHOWN = 3;
+
 /**
  * The chats the sidebar's Chats list shows: each that wants a look
  * (`wantsLook`) and that no tab in this window holds, in any group, up or
- * not. `before` is the list as it last stood: those still in it keep their
- * places, and newcomers join at its end in the order `chats` has them, so
- * nothing moves under the pointer but a row that leaves.
+ * not. `before` is the list as it last stood, and those still in it keep
+ * their places. The list grows upward from the sidebar's foot, so a newcomer
+ * joins at its top while fewer than `ACTIVE_CHATS_SHOWN` show, leaving the
+ * rows under it where they were, and at its end, behind the More row, once
+ * that many do. Newcomers join in the order `chats` has them. Nothing moves
+ * under the pointer but a row that leaves.
  */
 export function activeChats(
   chats: readonly Chat[],
@@ -31,5 +37,16 @@ export function activeChats(
     return chat === undefined ? [] : [chat];
   });
   const stayed = new Set(before);
-  return [...kept, ...[...shown.values()].filter((c) => !stayed.has(c.id))];
+  const list = [...kept];
+  for (const chat of shown.values()) {
+    if (stayed.has(chat.id)) {
+      continue;
+    }
+    if (list.length < ACTIVE_CHATS_SHOWN) {
+      list.unshift(chat);
+    } else {
+      list.push(chat);
+    }
+  }
+  return list;
 }

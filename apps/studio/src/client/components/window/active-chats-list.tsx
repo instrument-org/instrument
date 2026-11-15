@@ -10,7 +10,7 @@ import { useQuery } from "@tanstack/react-query";
 import { atom, useAtom, useAtomValue, useStore } from "jotai";
 import { useEffect, useEffectEvent, useState } from "react";
 
-import { activeChats } from "./active-chats";
+import { ACTIVE_CHATS_SHOWN, activeChats } from "./active-chats";
 import { useAppsBySlug } from "./apps-by-slug";
 import { useChatActionsFor } from "./chat-actions";
 import { chatListOptions } from "./chat-list-query";
@@ -23,9 +23,6 @@ import { useNow } from "./use-now";
 import { useSetChatProject } from "./use-set-chat-project";
 import { CHATS_INDEX_HREF, chatHref } from "./window-href";
 import { useWindowTabs, windowTabsAtom } from "./window-tabs";
-
-/** How many chats the list shows before the rest wait behind its More row. */
-const SHOWN = 3;
 
 /**
  * The chats that want a look with no tab in this window (`activeChats`),
@@ -65,7 +62,7 @@ export function ActiveChatsList({
       projects={projects}
     />
   );
-  const rest = chats.length - SHOWN;
+  const rest = chats.length - ACTIVE_CHATS_SHOWN;
   return (
     <section aria-label="Chats" className="flex shrink-0 flex-col px-2 pt-1">
       <button
@@ -79,7 +76,7 @@ export function ActiveChatsList({
       </button>
       {/* The rows draw their own hairlines, and the foot's line closes the last. */}
       <div className="flex flex-col *:last:border-b-0">
-        {chats.slice(0, SHOWN).map(row)}
+        {chats.slice(0, ACTIVE_CHATS_SHOWN).map(row)}
       </div>
       {rest > 0 && (
         <Popover onOpenChange={setMoreOpen} open={isMoreOpen}>

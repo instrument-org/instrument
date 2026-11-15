@@ -90,23 +90,62 @@ describe("the sidebar's Chats list", () => {
     },
   );
 
-  it("keeps the order chats joined in, newcomers at the end", () => {
-    const chats = [
-      chat(ROME, { unread: true }),
-      chat(PARIS, { working: true }),
-      chat(LISBON, { status: "waiting" }),
-    ];
+  const OSLO = ChatIdSchema.parse("2026-11-10-oslo");
+  const ALL = [LISBON, PARIS, ROME, OSLO];
+  const waiting = (ids: readonly Chat["id"][]) =>
+    ALL.map((id) => chat(id, ids.includes(id) ? { unread: true } : {}));
+
+  it.each([
+    [
+      "joins at the top while fewer than three show",
+      [PARIS, LISBON],
+      [ROME],
+      [ROME, PARIS, LISBON],
+    ],
+    ["joins at the top of an empty list", [], [ROME], [ROME]],
+    [
+      "joins behind More once three show",
+      [PARIS, LISBON, OSLO],
+      [ROME],
+      [PARIS, LISBON, OSLO, ROME],
+    ],
+    [
+      "two at once fill the top, then More",
+      [PARIS, LISBON],
+      [ROME, OSLO],
+      [ROME, PARIS, LISBON, OSLO],
+    ],
+  ] as const)("a newcomer %s", (_label, before, joining, expected) => {
     expect(
-      activeChats(chats, windowWith("none"), [LISBON, PARIS]).map(
-        (each) => each.id,
-      ),
-    ).toEqual([LISBON, PARIS, ROME]);
+      activeChats(
+        waiting([...before, ...joining]),
+        windowWith("none"),
+        before,
+      ).map((each) => each.id),
+    ).toEqual(expected);
+  });
+
+  it("fills a visible row's place from behind More when it leaves", () => {
+    expect(
+      activeChats(waiting([PARIS, OSLO, ROME]), windowWith("none"), [
+        PARIS,
+        LISBON,
+        OSLO,
+        ROME,
+      ])
+        .slice(0, 3)
+        .map((each) => each.id),
+    ).toEqual([PARIS, OSLO, ROME]);
   });
 
   it("drops a chat once it's seen with nothing waiting, and the rest stay put", () => {
     expect(
       activeChats(
-        [chat(LISBON, { unread: true }), chat(PARIS), chat(ROME, { working: true })],
+        [
+          chat(LISBON, { unread: true }),
+          chat(PARIS),
+          chat(ROME, { working: true }),
+        ],
         windowWith("none"),
         [PARIS, LISBON, ROME],
       ).map((each) => each.id),

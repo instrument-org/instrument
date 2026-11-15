@@ -27,6 +27,10 @@ vi.mock("@/electron-main/stores/workspace/preferences", () => ({
 vi.mock("@/electron-main/lib/setup-state", () => ({ isSetupUp: () => false }));
 
 async function macMenuBar() {
+  // Loaded first on the real platform: a package under it picks its binary by
+  // platform as it loads (@vscode/ripgrep), and only a Mac has the Mac one.
+  // Node keeps that package loaded through vi.resetModules.
+  await import("@/electron-main/menus/app-window");
   const platform = process.platform;
   Object.defineProperty(process, "platform", { value: "darwin" });
   vi.resetModules();

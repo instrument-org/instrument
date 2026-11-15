@@ -729,11 +729,15 @@ export function GroupRow({
   onShow?: (group: string, options: { newWindow: boolean }) => void;
 }) {
   const { layoutOf } = useWindowTabs();
+  const titleOf = useTabTitle(chatTitles);
   const layout = layoutOf(entry.group);
   const ups = layout.sides.flatMap((side) => {
     const up = side.tabs.find((tab) => tab.id === side.up) ?? side.tabs[0];
     return up ? [up] : [];
   });
+  // Named as a group, so a row whose tab is a page the sidebar also has a
+  // button for (Activity) is told apart from that button.
+  const label = `${ups.length > 0 ? ups.map(titleOf).join(" and ") : entry.title} tab group`;
   const closeOf = (tab: WindowTab) => {
     if (ups.length > 1) {
       return onCloseTab
@@ -836,7 +840,7 @@ export function GroupRow({
             }
           : undefined
       }
-      role={isLifted ? undefined : "button"}
+      {...(isLifted ? {} : { "aria-label": label, role: "button" })}
     >
       {inner}
     </div>

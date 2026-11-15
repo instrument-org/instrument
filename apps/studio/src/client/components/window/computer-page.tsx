@@ -2509,51 +2509,32 @@ export function ComputerPage({
           />,
           beside.pickedInto,
         )}
-      {isNarrow && isPlacesOpen && (
-        <button
-          aria-label="Hide the sidebar"
-          className="absolute inset-0 z-20 cursor-default"
-          onClick={() => {
+      {/* Beside the folder the way the window's own rail is: its edge
+          drags, an over-drag puts it away, and it slides at its width, away
+          while a file is open beside the folder. In a narrow tab it slides
+          over the folder instead, and a press outside it puts it away. */}
+      <StudioSidebarRail
+        bounds={PLACES_BOUNDS}
+        isOpen={(isNarrow ? isPlacesOpen : isPlacesShown) && !isBesideOpen}
+        isOverlay={isNarrow}
+        label="Resize the sidebar"
+        onCollapse={() => {
+          if (isNarrow) {
             setPlacesOpen(false);
-          }}
-          tabIndex={-1}
-          type="button"
-        />
-      )}
-      {isNarrow ? (
-        isBesideOpen ? null : (
-          <nav
-            className={cn(
-              "absolute inset-y-0 left-0 z-30 flex w-44 flex-col gap-4 overflow-y-auto border-r border-border bg-background px-2 py-2 text-sm shadow-xl-soft",
-              !isPlacesOpen && "hidden",
-            )}
-            onKeyDown={onPlacesKeyDown}
-          >
-            {placeLists}
-          </nav>
-        )
-      ) : (
-        // Beside the folder the way the window's own rail is: its edge
-        // drags, an over-drag puts it away, and it slides at its width,
-        // away while a file is open beside the folder.
-        <StudioSidebarRail
-          bounds={PLACES_BOUNDS}
-          isOpen={isPlacesShown && !isBesideOpen}
-          label="Resize the sidebar"
-          onCollapse={() => {
+          } else {
             setPlacesShown(false);
-          }}
-          panelClassName="bg-background"
-          widthAtom={finderPlacesWidthAtom}
+          }
+        }}
+        panelClassName="bg-background"
+        widthAtom={finderPlacesWidthAtom}
+      >
+        <nav
+          className="flex min-h-0 flex-1 flex-col gap-4 overflow-y-auto px-2 py-2 text-sm"
+          onKeyDown={onPlacesKeyDown}
         >
-          <nav
-            className="flex min-h-0 flex-1 flex-col gap-4 overflow-y-auto px-2 py-2 text-sm"
-            onKeyDown={onPlacesKeyDown}
-          >
-            {placeLists}
-          </nav>
-        </StudioSidebarRail>
-      )}
+          {placeLists}
+        </nav>
+      </StudioSidebarRail>
       {isComputer ? (
         <ComputerOverview
           {...(rowLead

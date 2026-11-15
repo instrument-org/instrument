@@ -33,6 +33,7 @@ import {
   ExtensionPageBadge,
   isExtensionPageUrl,
 } from "@/client/components/window/browser-extensions";
+import { pressLink } from "@/client/components/window/drag/press-link";
 import { Omnibar } from "@/client/components/window/omnibar";
 import { editField } from "@/client/components/window/omnibar-field";
 import {
@@ -223,15 +224,44 @@ export function TabLocationRow({
               event.button !== 0 ||
               (event.ctrlKey && isMacOS()) ||
               (event.target instanceof Element &&
-                event.target.closest("button, [data-drags-out]"))
+                event.target.closest("[data-drags-out]"))
             ) {
               return;
             }
             const input = event.currentTarget.querySelector("input");
-            if (input && event.target !== input) {
-              event.preventDefault();
-              editField(input);
+            // While the words are being edited, a press selects in them.
+            if (input && document.activeElement === input) {
+              return;
             }
+            // Anywhere else in the field, the chip and the place's parts
+            // included, a press past the start holds the place as its
+            // address, as a browser's address bar does; one that goes
+            // nowhere is a click, which edits the field or does what the
+            // part pressed does.
+            const wasHeld = address
+              ? pressLink(event, {
+                  title: title || bookmarkTitleOf(location),
+                  url: address,
+                })
+              : () => false;
+            if (
+              !input ||
+              event.target === input ||
+              (event.target instanceof Element &&
+                event.target.closest("button"))
+            ) {
+              return;
+            }
+            event.preventDefault();
+            window.addEventListener(
+              "pointerup",
+              () => {
+                if (!wasHeld()) {
+                  editField(input);
+                }
+              },
+              { once: true },
+            );
           }}
         >
           <Omnibar

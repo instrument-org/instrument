@@ -91,7 +91,7 @@ Moving a tab to the other side and joining the two sides into one (Join Sides, t
 
 One drag system carries everything that can be held, and every place that takes a drop answers through it, so hover states, drop marks and what rides on the cursor agree everywhere.
 
-- **Held**: a tab, a group (its sidebar row), files (from Files or from the Finder), and a link: anything else the app names by an address, a site's link in a page or a reply, a chip in a reply or the composer (a chat, a task, a file, a page), a row of the Chats list, and a bookmark, which is a link the bar keeps.
+- **Held**: a tab, a group (its sidebar row), files (from Files or from the Finder), and a link: anything else the app names by an address, a site's link in a page or a reply, a chip in a reply or the composer (a chat, a task, a file, a page), a row of the Chats list, the address field of a tab while it is not being edited (its chip and parts included, the place it shows held as its address, as a browser's address bar drags it), and a bookmark, which is a link the bar keeps.
 - **Landings**:
   - a side's tab row, between two tabs;
   - a side's page: with one side, the left or right half lights and letting go makes that half a side holding the tab; with two, the side under the pointer lights and takes it as its last tab;

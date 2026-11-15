@@ -27,7 +27,6 @@ import {
   chatOfTab,
   draftOfTab,
   isFreshTab,
-  isHomeTab,
   isNewChatTab,
 } from "./tab-model";
 import { type TabSurface } from "./tab-surface";
@@ -52,8 +51,6 @@ export interface SendContextWindow {
   chatTitles: Map<ChatId, string>;
   /** The router's address, which is the screen's own. */
   href: string;
-  /** The tab beside each new tab its first message leaves out, by the new tab's id (`leftOutBesideAtom`). */
-  leftOutBeside?: Readonly<Record<string, string>>;
   /** The computer's volumes, which name a folder chip the way the Finder does. */
   volumes?: Volume[];
   /** What the screen that is up says it shows, or nothing while none has said. */
@@ -81,7 +78,6 @@ export function contextReaders({
   browser,
   chatTitles,
   href,
-  leftOutBeside = {},
   screenView,
   state,
   surfaces,
@@ -311,9 +307,12 @@ export function contextReaders({
         };
         continue;
       }
-      // What is selected in a Finder goes as picked, beside the folder it
-      // is in; a file or folder past the first thing shown goes as picked.
+      // A tab of the sending group's own is in view, never picked: only
+      // what the person attached goes as picked. What is selected in a
+      // Finder from elsewhere goes as picked, beside the folder it is in,
+      // and a file or folder past the first thing shown goes as picked.
       const picks =
+        item.owned ||
         item.items === undefined ||
         (shown === undefined &&
           (finderOf(item.tab.id)?.selected.length ?? 0) === 0)
@@ -385,24 +384,29 @@ export function contextReaders({
     };
   };
   /**
-   * The items a draft carries now (see draftContextItems): its group's tab
-   * up, as its composer shows it, and none for a new tab. `tabId` is the tab
-   * the draft is written in, where the caller knows it: a draft made a
-   * moment ago is not in its tab's address yet.
+   * The items a draft carries now. Written in a tab, it carries what a
+   * chat's composer does: the tab up beside it, as what is in view. Written
+   * in a window along the foot, it carries its `context` (see
+   * draftContextItems). `tabId` is the tab the draft is written in, where
+   * the caller knows it: a draft made a moment ago is not in its tab's
+   * address yet.
    */
   const draftItems = (draft: Draft, tabId?: string) => {
     const group = draftGroupOfTab(draft.id, tabId);
     const tab = windowTabs.allTabs.find((each) =>
       tabId === undefined ? draftOfTab(each) === draft.id : each.id === tabId,
     );
-    const beside = tab === undefined ? undefined : windowTabs.besideOf(tab.id);
-    const up =
-      tab !== undefined && beside?.id === leftOutBeside[tab.id]
-        ? undefined
-        : beside;
+    if (tab !== undefined) {
+      return chatContextItems({
+        finderOf,
+        group,
+        taken: [],
+        up: windowTabs.besideOf(tab.id),
+      });
+    }
     return draftContextItems({
       allTabs: windowTabs.allTabs,
-      band: up && !isHomeTab(up) ? [up] : [],
+      band: [],
       draft,
       finderOf,
       group,
@@ -441,7 +445,6 @@ export function contextReaders({
     return contextOf(
       group,
       chatContextItems({
-        chatId,
         finderOf,
         group,
         taken,

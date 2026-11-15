@@ -5,6 +5,7 @@ import {
   type WindowTab,
 } from "@/client/atoms/window";
 import { fileUrlOf } from "@/client/lib/file-url";
+import { folderHref } from "@/shared/computer-href";
 import {
   MountedFolder,
   type SessionMessageDataPart,
@@ -481,6 +482,50 @@ describe("draftContext", () => {
     expect(sent?.attached).toBeUndefined();
     expect(sent?.tabs).toMatchObject([{ id: "band" }]);
   });
+
+  it.each<[string, WindowTab]>([
+    [
+      "another chat",
+      { group: "group:1", href: `${CHATS_HREF}/${CHAT}`, id: "other", kind: "screen" },
+    ],
+    [
+      "a folder with a file selected in it",
+      {
+        group: "group:1",
+        href: folderHref("/Users/casey/Trips"),
+        id: "other",
+        kind: "screen",
+      },
+    ],
+  ])(
+    "attaches nothing for %s beside the tab the draft is sent from",
+    async (_, beside) => {
+      const newChat: WindowTab = {
+        group: "group:1",
+        href: newChatHref(),
+        id: "new",
+        kind: "screen",
+        side: 1,
+      };
+      const { draftContext } = contextReaders(
+        windowOf({
+          surfaces: {
+            other: {
+              finder: {
+                folder: "/Users/casey/Trips",
+                selected: [{ kind: "file", path: "/Users/casey/Trips/plan.md" }],
+              },
+            },
+          },
+          windowTabs: tabsOf([beside, newChat]),
+        }),
+      );
+      const sent = await draftContext(DRAFT, "new");
+      expect(sent?.attached).toBeUndefined();
+      expect(sent?.chat).toBeUndefined();
+      expect(sent?.chosen).toBeUndefined();
+    },
+  );
 
   const APP = "/apps/notion";
 

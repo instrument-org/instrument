@@ -1,4 +1,3 @@
-import { atom } from "jotai";
 import { type WindowTab } from "@/client/atoms/window";
 import { type ChosenItem, type Draft, draftGroupOf } from "@/shared/drafts";
 
@@ -9,13 +8,6 @@ import {
   draftSuggestionOf,
 } from "./context-items";
 import { type BandTarget, useBandContext } from "./draft-band";
-
-/**
- * The tab beside a new tab that the person left out of its first message,
- * by the new tab's id: the id of the tab whose chip they took off. The page
- * stays open; a different tab up there is a chip again.
- */
-export const leftOutBesideAtom = atom<Record<string, string>>({});
 
 /**
  * A draft's chips (see `draftContextItems`) and what the window has in view

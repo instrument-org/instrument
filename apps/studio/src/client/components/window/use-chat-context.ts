@@ -105,8 +105,8 @@ export function useChatContext({
     }));
   };
   const items = chatContextItems({
-    chatId,
     finderOf,
+    group: chatId,
     taken,
     up: isViewOpen ? windowTabs.selectedTabIn(chatId) : undefined,
   });

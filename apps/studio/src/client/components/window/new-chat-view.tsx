@@ -9,7 +9,6 @@ import {
 } from "@/client/components/draft-staging";
 import { FileDropRegion } from "@/client/components/file-drop-region";
 import { fileHref, folderHref } from "@/shared/computer-href";
-import { type WindowTab } from "@/client/atoms/window";
 import {
   PromptInput,
   type PromptInputRef,
@@ -28,11 +27,11 @@ import {
   draftsLoadedAtom,
   updateDraftAtom,
 } from "@/client/drafts/store";
-import { type Draft, draftGroupOf } from "@/shared/drafts";
+import { type Draft } from "@/shared/drafts";
 import { cn, osConventions } from "@/client/lib/utils";
 import { APP_NAME } from "@instrument-org/shared";
 import { useRouter } from "@tanstack/react-router";
-import { useAtom, useAtomValue, useSetAtom, useStore } from "jotai";
+import { useAtomValue, useSetAtom, useStore } from "jotai";
 import {
   type ReactNode,
   useEffect,
@@ -46,14 +45,9 @@ import { type Project } from "./chats";
 import { projectColor } from "./project-colors";
 import { ProjectMark } from "./project-mark";
 import { projectTint } from "./project-tint";
-import { ContextChips } from "./context-chip";
-import { type BandTarget, openInBand } from "./draft-band";
 import { includedItemsOf } from "./draft-context";
-import { isHomeTab } from "./tab-model";
-import { tabSurfaceAtom } from "./tab-surface";
 import { useShell } from "./shell-context";
 import { useComposerAsks } from "./staged-asks";
-import { leftOutBesideAtom, useDraftChips } from "./use-draft-chips";
 import { useDraftProjectSuggestion } from "./use-draft-project-suggestion";
 import { newChatHref } from "./window-href";
 import { useWindowTabs } from "./window-tabs";
@@ -66,7 +60,8 @@ import { useWindowTabs } from "./window-tabs";
  * it arrives. In the column
  * beside the group's tabs, the composer is at the foot. The draft its first words make is named in the tab's address, so a
  * draft opened from the Chats page's Drafts comes up here. What it carries besides its words
- * follows the group's tab up. Its title and menu are the chat's tab's.
+ * is what a chat's composer carries: its group's tabs, summed up in `lead`,
+ * and what the person attached. Its title and menu are the chat's tab's.
  *
  * Its draft is its tab group's, kept however empty it gets while the group
  * is open; closing the group throws away one that holds nothing.
@@ -76,6 +71,7 @@ export function NewChatView({
   ensureGroup,
   isCentered,
   isPaneShown,
+  lead,
   onOpenBeside,
   tabId,
   takesCaret,
@@ -88,6 +84,8 @@ export function NewChatView({
   isCentered: boolean;
   /** Whether the side panel shows the draft's tab up, where its tabs stand as a strip rather than as chips. */
   isPaneShown: boolean;
+  /** Drawn at the head of the composer, as a chat's has it: what goes with a message besides its words. */
+  lead?: ReactNode;
   /** Brings the side panel up for something just opened into it. */
   onOpenBeside: (group: string) => void;
   tabId: string;
@@ -205,33 +203,10 @@ export function NewChatView({
     [],
   );
 
-  // The group this tab is in, and the tab up on its other side, which the
-  // draft carries as a chat's next message does; nothing for a new tab, or
-  // with one side.
-  const group =
-    windowTabs.allTabs.find((tab) => tab.id === tabId)?.group ??
-    (draft ? draftGroupOf(draft.id) : undefined);
+  // The tab up on the other side: the attached file or folder it shows has
+  // its chip raised.
   const up = isPaneShown ? undefined : windowTabs.besideOf(tabId);
-  // What the other side shows: the attached file or folder there has its
-  // chip raised.
   const shownPath = up ? includedItemsOf(up, null, [])?.[0]?.path : undefined;
-  const chips = useNewChatChips(draft, {
-    band: up && !isHomeTab(up) ? [up] : [],
-    group,
-    onSelect: (id) => {
-      if (group === undefined) {
-        return;
-      }
-      windowTabs.select(id);
-      onOpenBeside(group);
-    },
-    open: (target) =>
-      group === undefined
-        ? undefined
-        : openInBand({ group, target, windowTabs }),
-    selectedId: up?.id,
-    tabId,
-  });
 
   const staging = useDraftStaging({
     // A paste is on disk the moment it arrives, so it makes the draft.
@@ -309,7 +284,7 @@ export function NewChatView({
           draftKey={key}
           isLoading={false}
           keyboardHome
-          lead={chips}
+          lead={lead}
           modelURI={shell.defaultModelURI}
           onFolders={(paths) => {
             for (const path of paths) {
@@ -404,71 +379,6 @@ function ProjectRoom({ project }: { project: Project }) {
 function MarkedPills({ draftId }: { draftId: string }) {
   const marked = useComposerAsks({ draftId, kind: "draft" });
   return marked.length > 0 ? <AskPills asks={marked} /> : null;
-}
-
-/** What a new chat with no draft yet carries: nothing. */
-const NO_DRAFT: Draft = { createdAt: 0, id: "", updatedAt: 0, words: "" };
-
-/**
- * What the draft carries besides its words, as its chips, as a docked
- * draft's window has them: every tab of its band, whether or not the side
- * panel is showing them too, each bringing the panel up on its tab when
- * pressed, the one the panel shows raised; then another chat it names. None
- * at all for a new chat with no draft yet, or with nothing to name, so the
- * row closes when its last chip goes.
- */
-function useNewChatChips(
-  draft: Draft | undefined,
-  {
-    band,
-    group,
-    onSelect,
-    open,
-    selectedId,
-    tabId,
-  }: {
-    band: WindowTab[];
-    /** The group the new chat's tab is in. */
-    group: string | undefined;
-    /** The new tab the chips are in. */
-    tabId: string;
-    onSelect: (tabId: string) => void;
-    open: (target: BandTarget) => string | undefined;
-    selectedId: string | undefined;
-  },
-): ReactNode {
-  const windowTabs = useWindowTabs();
-  const updateDraft = useSetAtom(updateDraftAtom);
-  const surfaces = useAtomValue(tabSurfaceAtom);
-  // The page beside a new tab is the group's, so taking its chip off
-  // leaves it out of the message and leaves the page open, as a chat's
-  // composer does.
-  const [leftOut, setLeftOut] = useAtom(leftOutBesideAtom);
-  const shown = band.filter((tab) => leftOut[tabId] !== tab.id);
-  const { items, leaveOut } = useDraftChips({
-    allTabs: windowTabs.allTabs,
-    band: shown,
-    closeTab: (id) => {
-      setLeftOut((current) => ({ ...current, [tabId]: id }));
-    },
-    draft: draft ?? NO_DRAFT,
-    finderOf: (id) => surfaces[id]?.finder ?? null,
-    ...(group === undefined ? {} : { group }),
-    inView: undefined,
-    onChange: (update) => {
-      if (draft) {
-        updateDraft({ id: draft.id, update });
-      }
-    },
-    open,
-  });
-  return draft && items.length > 0 ? (
-    <ContextChips
-      band={{ group: group ?? draftGroupOf(draft.id), onSelect, selectedId }}
-      items={items}
-      onLeaveOut={leaveOut}
-    />
-  ) : undefined;
 }
 
 /** Files the draft under the project what was written fits, as its window does. */

@@ -43,13 +43,7 @@ export function GroupChatScreen({ chatId }: { chatId: ChatId }) {
         <div className="relative min-h-0 flex-1">
           <ChatScreen
             chatId={chatId}
-            composerLead={
-              // Only a chip with something to say goes in, so the composer
-              // keeps no empty row for it.
-              awareTabs.length > 0 ? (
-                <AwarenessLine tabs={awareTabs} />
-              ) : undefined
-            }
+            composerLead={awarenessOf(awareTabs)}
             isUp={isActive && hasKeyboard}
             key={chatId}
             {...(tabId === undefined
@@ -136,10 +130,10 @@ function ChatTabHead({ chatId }: { chatId: ChatId }) {
 }
 
 /**
- * What the chat's agent sees of the group this tab is in: how many other
- * tabs it has, files counted apart, as a quiet line at the head
- * of the composer, whose hover says they go with each message and lists
- * each by its mark and title. Nothing while the chat is alone in its group.
+ * What the agent reads of the group a chat's or a new chat's tab is in:
+ * how many other tabs it has, files counted apart, as a quiet line at the
+ * head of the composer, whose hover says they go with each message and
+ * lists each by its mark and title.
  */
 function AwarenessLine({ tabs }: { tabs: readonly LayoutTab[] }) {
   const windowTabs = useWindowTabs();
@@ -190,7 +184,16 @@ function AwarenessLine({ tabs }: { tabs: readonly LayoutTab[] }) {
   );
 }
 
-/** The other tabs of the group a chat's tab is in, as its agent reads them. */
+/**
+ * The line for a composer's head, or nothing while the tab is alone in its
+ * group: only a chip with something to say goes in, so the composer keeps
+ * no empty row for it.
+ */
+function awarenessOf(tabs: readonly LayoutTab[]) {
+  return tabs.length > 0 ? <AwarenessLine tabs={tabs} /> : undefined;
+}
+
+/** The other tabs of the group a chat's or a new chat's tab is in, as its agent reads them. */
 function useAwareTabs(chatTab: string | undefined) {
   const windowTabs = useWindowTabs();
   const appsBySlug = useAppsBySlug();
@@ -226,6 +229,7 @@ export function GroupNewChatScreen({
   const tabId = groupTab?.id ?? "";
   const group = groupTab?.group;
   const hasKeyboard = groupTab?.hasKeyboard ?? true;
+  const awareTabs = useAwareTabs(groupTab?.id);
   return (
     <WithChatList openChatId={undefined} opensList={opensList}>
       <div className="absolute inset-0 flex flex-col">
@@ -234,6 +238,7 @@ export function GroupNewChatScreen({
           ensureGroup={() => group ?? ""}
           isCentered
           isPaneShown={false}
+          lead={awarenessOf(awareTabs)}
           onOpenBeside={() => undefined}
           tabId={tabId}
           takesCaret={isActive && hasKeyboard}

@@ -49,8 +49,8 @@ describe("a chat's next message", () => {
     const site = offered(page("site", "site:1"));
     expect(site).toBeDefined();
     const items = chatContextItems({
-      chatId: CHAT,
       finderOf: () => null,
+      group: CHAT,
       taken: site ? [site] : [],
       up: page("own", CHAT),
     });
@@ -63,12 +63,11 @@ describe("a chat's next message", () => {
   });
 
   it.each([
-    ["another chat beside it goes as that chat", `/chats/${OTHER}`, "chat"],
+    ["another chat beside it names nothing", `/chats/${OTHER}`, undefined],
     ["a new chat beside it names nothing", "/chats?draft=d1", undefined],
     ["the same chat beside it names nothing", `/chats/${CHAT}`, undefined],
   ])("%s", (_, href, kind) => {
     const items = chatContextItems({
-      chatId: CHAT,
       finderOf: () => null,
       group: "group:1",
       taken: [],

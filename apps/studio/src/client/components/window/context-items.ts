@@ -31,8 +31,8 @@ const CHOSEN_KEY = "chosen:";
  *   A page or an app a draft names by its address is a tab too: the
  *   window's own showing it, or one standing for it.
  * - `chat`: another chat, by its id alone: what is in it is that chat's. A
- *   draft names one in its `context`, and a chat's tab up beside the
- *   sending one's in its group is one.
+ *   draft names one in its `context`; a chat's tab in the sending group is
+ *   never one.
  */
 export type ContextItem =
   | { item: ChosenItem; key: string; kind: "chosen" }
@@ -71,13 +71,12 @@ function itemOfTab(
   if (otherChat !== undefined) {
     return;
   }
-  // A chat beside the sender in its group goes as that chat; a new chat
-  // there has nothing to name yet.
-  const besideChat = tab.group === group ? chatOfTab(tab) : undefined;
-  if (besideChat !== undefined) {
-    return { chat: besideChat, key, kind: "chat" };
-  }
-  if (tab.group === group && isNewChatTab(tab)) {
+  // A chat or a new chat in the sender's group is a conversation of its
+  // own, never something a message carries.
+  if (
+    tab.group === group &&
+    (chatOfTab(tab) !== undefined || isNewChatTab(tab))
+  ) {
     return;
   }
   // The sending group's own screens (a chat's tasks, say) say what they
@@ -415,32 +414,28 @@ function contextItemOf(
 }
 
 /**
- * What a chat's next message carries: the chat's own tab up while its view
- * of it is open, then what the person took for this message from what was
- * offered (`chatSuggestionOf`), as it was when taken. Another chat is never
- * one of them.
+ * What a message from a tab carries, a chat's or a new chat's: the tab up
+ * beside the sending one while its view of it is open, then what the person
+ * took for this message from what was offered (`chatSuggestionOf`), as it
+ * was when taken. Another chat is never one of them.
  */
 export function chatContextItems({
-  chatId,
   finderOf,
-  group = chatId,
+  group,
   taken,
   up,
 }: {
-  chatId: ChatId;
   finderOf: (id: string) => null | { folder: string; selected: ChosenItem[] };
-  /** The group the chat's tab is in, whose tabs are its own. */
-  group?: string;
+  /** The group the sending tab is in, whose tabs are its own. */
+  group: string;
   /** What the person took for the next message. */
   taken: readonly ContextItem[];
-  /** The tab up beside the chat's, while it goes with the message. */
+  /** The tab up beside the sending one, while it goes with the message. */
   up: undefined | WindowTab;
 }): ContextItem[] {
-  const beside = up
+  const own = up
     ? itemOfTab(up, { finderOf, group, held: [], key: keyOfTab(up) })
     : undefined;
-  const own =
-    beside?.kind === "chat" && beside.chat === chatId ? undefined : beside;
   return own
     ? [own, ...taken.filter((item) => item.key !== own.key)]
     : [...taken];

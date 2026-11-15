@@ -76,11 +76,21 @@ describe("pageForChord", () => {
     where({ keyboard: TYPED_IN, looking: LOOKED_AT });
     keyboardSide.mockReturnValue({});
     pageOfSide.mockReturnValue(LOOKED_AT);
-    for (const chord of ["back", "reloadPage", "zoomIn", "printPage"] as const) {
+    for (const chord of [
+      "back",
+      "reloadPage",
+      "zoomIn",
+      "printPage",
+    ] as const) {
       expect(pageForChord(chord)).toBe(LOOKED_AT);
     }
     pageOfSide.mockReturnValue(null);
-    for (const chord of ["back", "reloadPage", "zoomIn", "printPage"] as const) {
+    for (const chord of [
+      "back",
+      "reloadPage",
+      "zoomIn",
+      "printPage",
+    ] as const) {
       expect(pageForChord(chord)).toBeNull();
     }
   });

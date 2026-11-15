@@ -325,11 +325,7 @@ export function PaneTabs({
             setSpaceMenu(undefined);
           }}
         >
-          <WindowSpaceMenu
-            kind="tab"
-            onNew={onNew}
-            onReopenLast={reopen}
-          />
+          <WindowSpaceMenu kind="tab" onNew={onNew} onReopenLast={reopen} />
         </TabMenuAtPoint>
       )}
       {deleting && (

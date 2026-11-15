@@ -267,7 +267,9 @@ describe("a field searching the app its chip names", () => {
     await userEvent.keyboard("https://example.org");
 
     await expect.element(field).toHaveAttribute("placeholder", "Search chats");
-    await expect.element(page.getByText("Chats", { exact: true })).toBeVisible();
+    await expect
+      .element(page.getByText("Chats", { exact: true }))
+      .toBeVisible();
     await expect
       .element(page.getByRole("option", { selected: true }))
       .toMatchTextContent("Search chats for “https://example.org”");

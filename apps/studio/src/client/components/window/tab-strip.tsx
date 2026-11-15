@@ -219,15 +219,15 @@ export function TabStrip({
   const [iconsFit, setIconsFit] = useState(true);
   const scrolls = overflow === "scroll" || (squeezes && !iconsFit);
   const plus = onNew ? (
-      <ContextMenu>
-        <ToolbarTooltip chord="newTab" label="New tab">
-          <ContextMenuTrigger asChild disabled={newMenu === undefined}>
-            <NewTabButton onClick={onNew} />
-          </ContextMenuTrigger>
-        </ToolbarTooltip>
-        {newMenu}
-      </ContextMenu>
-    ) : null;
+    <ContextMenu>
+      <ToolbarTooltip chord="newTab" label="New tab">
+        <ContextMenuTrigger asChild disabled={newMenu === undefined}>
+          <NewTabButton onClick={onNew} />
+        </ContextMenuTrigger>
+      </ToolbarTooltip>
+      {newMenu}
+    </ContextMenu>
+  ) : null;
   const hasNew = plus !== null;
   const fixedTabs = tabs.filter((tab) => tab.isFixed);
   const movableTabs = tabs.filter((tab) => !tab.isFixed);

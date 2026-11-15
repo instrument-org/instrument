@@ -85,7 +85,11 @@ export function NetworkStatusIndicator({
     >
       <HoverCardTrigger asChild>
         {isRow ? (
-          <button className={ROW_CLASS} onClick={() => setOpen(true)} type="button">
+          <button
+            className={ROW_CLASS}
+            onClick={() => setOpen(true)}
+            type="button"
+          >
             <StatusIcon status={status} />
             <span className="min-w-0 truncate">{labels[status]}</span>
           </button>

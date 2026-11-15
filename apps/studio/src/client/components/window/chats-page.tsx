@@ -8,9 +8,17 @@ import { keptAtom } from "@/client/lib/kept-state";
 import { cn } from "@/client/lib/utils";
 import { type ChatId } from "@instrument-org/workspace/client";
 import { SidebarSimpleIcon } from "@phosphor-icons/react/SidebarSimple";
-import { useRouter } from "@tanstack/react-router";
+import { useLocation, useRouter } from "@tanstack/react-router";
 import { atom, useAtomValue, useSetAtom } from "jotai";
-import { type ReactNode, useLayoutEffect, useRef, useState } from "react";
+import {
+  createContext,
+  type ReactNode,
+  use,
+  useEffectEvent,
+  useLayoutEffect,
+  useRef,
+  useState,
+} from "react";
 
 import { ChatPane } from "./chat-pane";
 import { useGroupTab } from "./group-tab";
@@ -20,10 +28,19 @@ import { CHATS_INDEX_HREF, chatHref, newChatHref } from "./window-href";
 /** The tabs showing the chat list beside their chat, by id: none until the person opens it, or opens a chat from the Chats page. */
 const listOpenTabsAtom = atom<ReadonlySet<string>>(new Set<string>());
 
-/** Whether one tab shows the chat list beside its chat, and setting it. */
-function useChatListOpen(tabId: string | undefined) {
-  const open = useAtomValue(listOpenTabsAtom);
-  const setOpen = useSetAtom(listOpenTabsAtom);
+/** The tabs too narrow to share with the list that show it over their chat, by id: put away again once a chat is picked, a press lands outside it, or the tab widens. */
+const listOverTabsAtom = atom<ReadonlySet<string>>(new Set<string>());
+
+/** The Chats page's visits that have opened the list, by the tab's history entry, so the page drawn again (its group come back up, its tab moved) leaves the list as the person left it. */
+const listOpenedVisits = new Set<string>();
+
+/** Whether one tab shows the chat list, beside its chat or over it, and setting it. */
+function useChatListOpen(
+  tabId: string | undefined,
+  tabsAtom: typeof listOpenTabsAtom = listOpenTabsAtom,
+) {
+  const open = useAtomValue(tabsAtom);
+  const setOpen = useSetAtom(tabsAtom);
   return [
     tabId !== undefined && open.has(tabId),
     (isOpen: boolean) => {
@@ -52,8 +69,17 @@ const LIST_WIDTH_MIN = 320;
 const LIST_WIDTH_MAX = 440;
 /** Dragged narrower than this, the list slides shut. */
 const LIST_COLLAPSE = 240;
-/** The least the chat keeps beside the list while the list is dragged wider. */
+/** The least the chat keeps beside the list while the list is dragged wider, and the narrowest its composer still has room to write in. */
 const CHAT_WIDTH_MIN = 360;
+/** A tab narrower than this lays the list over its chat rather than squeezing the chat beside it. */
+const LIST_OVER_BELOW = LIST_WIDTH_MIN + CHAT_WIDTH_MIN;
+
+/** The list's open state where the toggle and the list read it: beside the chat, or over it in a narrow tab. */
+const ChatListOpenContext = createContext<{
+  isOpen: boolean;
+  isOverlay: boolean;
+  setOpen: (isOpen: boolean) => void;
+} | null>(null);
 
 const storedListWidthAtom = keptAtom<number>(
   "view",
@@ -77,10 +103,10 @@ const listWidthAtom = atom(
 function TabChatList({ openChatId }: { openChatId: ChatId | undefined }) {
   const shell = useShell();
   const router = useRouter();
-  const groupTab = useGroupTab();
-  const [, setListOpen] = useChatListOpen(groupTab?.id);
+  const list = use(ChatListOpenContext);
   const go = (href: string, replace = false) => {
-    setListOpen(true);
+    // Beside the chat it stays; over the chat it makes way for the one picked.
+    list?.setOpen(!list.isOverlay);
     if (replace) {
       router.history.replace(href);
     } else {
@@ -145,18 +171,34 @@ export function WithChatList({
   opensList?: boolean;
 }) {
   const groupTab = useGroupTab();
-  const [isOpen, setOpen] = useChatListOpen(groupTab?.id);
   const tabId = groupTab?.id;
-  const setOpenTabs = useSetAtom(listOpenTabsAtom);
-  // Only as the page arrives: the toggle closes it from then on.
-  useLayoutEffect(() => {
-    if (opensList && tabId !== undefined) {
-      setOpenTabs((current) =>
-        current.has(tabId) ? current : new Set(current).add(tabId),
-      );
-    }
-  }, [opensList, setOpenTabs, tabId]);
+  const [isBeside, setBeside] = useChatListOpen(tabId);
+  const [isOver, setOver] = useChatListOpen(tabId, listOverTabsAtom);
+  // The entry in the tab's history the page stands at, which the page drawn
+  // again keeps and a visit of its own does not.
+  const visit = useLocation({ select: (location) => location.state.__TSR_key });
   const ref = useRef<HTMLDivElement>(null);
+  // Only as the page arrives: the toggle closes it from then on, however
+  // often the page is drawn again in the same visit. Read as it is drawn,
+  // not as the address moves on: the page still stands a moment as its
+  // first words take the tab to their draft's address.
+  const arrive = useEffectEvent(() => {
+    if (!opensList || tabId === undefined || visit === undefined) {
+      return;
+    }
+    const key = `${tabId} ${visit}`;
+    if (listOpenedVisits.has(key)) {
+      return;
+    }
+    listOpenedVisits.add(key);
+    setBeside(true);
+    if ((ref.current?.offsetWidth ?? 0) < LIST_OVER_BELOW) {
+      setOver(true);
+    }
+  });
+  useLayoutEffect(() => {
+    arrive();
+  }, [opensList, tabId]);
   const [width, setWidth] = useState(0);
   useLayoutEffect(() => {
     const element = ref.current;
@@ -172,23 +214,36 @@ export function WithChatList({
       observer.disconnect();
     };
   }, []);
+  const isOverlay = width > 0 && width < LIST_OVER_BELOW;
+  // Widened past it, the list over the chat is put away, so narrowing again
+  // does not bring it back over the chat.
+  useLayoutEffect(() => {
+    if (width > 0 && !isOverlay) {
+      setOver(false);
+    }
+  });
+  const isOpen = isOverlay ? isOver : isBeside;
+  const setOpen = isOverlay ? setOver : setBeside;
   return (
     <div className="absolute inset-0 flex min-w-0" ref={ref}>
-      <StudioSidebarRail
-        bounds={listBounds(width)}
-        isOpen={isOpen}
-        label="Resize the chat list"
-        onCollapse={() => {
-          setOpen(false);
-        }}
-        panelClassName="border-r-0 bg-background after:pointer-events-none after:absolute after:inset-y-0 after:right-0 after:z-10 after:w-px after:bg-border/70"
-        widthAtom={listWidthAtom}
-      >
-        <div className="flex min-h-0 w-full flex-1 flex-col [&_.prose]:text-[13px] [&_.prose]:leading-5 [&_.text-sm]:text-[13px]">
-          {isOpen && <TabChatList openChatId={openChatId} />}
-        </div>
-      </StudioSidebarRail>
-      <div className="relative min-w-0 flex-1">{children}</div>
+      <ChatListOpenContext value={{ isOpen, isOverlay, setOpen }}>
+        <StudioSidebarRail
+          bounds={listBounds(width)}
+          isOpen={isOpen}
+          isOverlay={isOverlay}
+          label="Resize the chat list"
+          onCollapse={() => {
+            setOpen(false);
+          }}
+          panelClassName="border-r-0 bg-background after:pointer-events-none after:absolute after:inset-y-0 after:right-0 after:z-10 after:w-px after:bg-border/70"
+          widthAtom={listWidthAtom}
+        >
+          <div className="flex min-h-0 w-full flex-1 flex-col [&_.prose]:text-[13px] [&_.prose]:leading-5 [&_.text-sm]:text-[13px]">
+            {isOpen && <TabChatList openChatId={openChatId} />}
+          </div>
+        </StudioSidebarRail>
+        <div className="relative min-w-0 flex-1">{children}</div>
+      </ChatListOpenContext>
     </div>
   );
 }
@@ -207,8 +262,8 @@ function listBounds(width: number): RailBounds {
 
 /** The control ahead of a chat's title that shows the chat list beside it in this tab, and puts it away. */
 export function ChatListToggle({ className }: { className?: string }) {
-  const groupTab = useGroupTab();
-  const [isOpen, setOpen] = useChatListOpen(groupTab?.id);
+  const list = use(ChatListOpenContext);
+  const isOpen = list?.isOpen ?? false;
   const label = isOpen ? "Hide chats" : "Show chats";
   return (
     <ToolbarTooltip label={label}>
@@ -217,7 +272,7 @@ export function ChatListToggle({ className }: { className?: string }) {
         aria-pressed={isOpen}
         className={cn("size-7 shrink-0 text-muted-foreground/70", className)}
         onClick={() => {
-          setOpen(!isOpen);
+          list?.setOpen(!isOpen);
         }}
         size="icon"
         variant="ghost-toolbar"

@@ -11,7 +11,6 @@ export { dataPartVisibility };
 import { FilePathsGrid } from "../agent-files-block";
 import { ChatChangesNote } from "../chat-changes-note";
 import { FolderChangesNote } from "../folder-changes-note";
-import { LayoutChangesNote } from "../layout-changes-note";
 import { PermissionAnswerNote } from "../permission-asks";
 import { SetupChangesNote } from "../setup-changes-note";
 import { TaskEventNote } from "../task-event-note";
@@ -43,9 +42,6 @@ export function renderDataPart(
     }
     case "data-folderChanges": {
       return <FolderChangesNote data={part.data} key={part.metadata.id} />;
-    }
-    case "data-layoutChanges": {
-      return <LayoutChangesNote data={part.data} key={part.metadata.id} />;
     }
     case "data-fileChanges": {
       // Only the `output/` folder tasks wrote deliverables to when this part

@@ -69,9 +69,10 @@ const DATA_PART_DISPLAY: Record<DataPartType, DataPartVisibility> = {
   // task's finish in the chat, the reply that follows says what came of it,
   // so the note itself is a developer's peek.
   "data-jobEvent": "dev",
-  // What changed in the chat's tab group since the last message, as a dim
-  // line on the message it went with.
-  "data-layoutChanges": "always",
+  // What changed in the chat's tab group since the agent last heard: context
+  // for the model, and a developer's peek, since the person made or watched
+  // every change in the window.
+  "data-layoutChanges": "dev",
   "data-maxSteps": "dev",
   // What the agent is told it remembers about the user. Context for the
   // model; the user's copy is the Memory section of Settings.

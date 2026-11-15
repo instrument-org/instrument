@@ -131,7 +131,13 @@ export default defineConfig({
             // is what makes a failure here readable without reproducing it,
             // which matters most for the failures that are expensive to
             // reproduce. Open one at https://trace.playwright.dev.
-            trace: "retain-on-failure",
+            //
+            // One folder for every trace, since Vitest copies each into
+            // `.vitest/attachments` under a name made of its whole path, and a
+            // long test name under its file's own `__traces__/<file>/` passes
+            // the 255-byte file name limit. That copy failing fails the run
+            // and skips the retries.
+            trace: { mode: "retain-on-failure", tracesDir: ".vitest/traces" },
             // Vitest's default is a phone, which is not a size any part of this
             // app is designed against: anything not given a width by its test
             // would lay itself out for one. Pinned rather than left to follow

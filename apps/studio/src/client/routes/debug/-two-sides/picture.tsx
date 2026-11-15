@@ -592,6 +592,7 @@ function Side({
         split={{
           group,
           hasOtherSide: layout.sides.length === 2,
+          onJoinSides: undefined,
           onMoveToNewGroup: undefined,
           onMoveToNewWindow: undefined,
           onMoveToOtherSide: noop,

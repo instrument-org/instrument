@@ -8,6 +8,7 @@ import {
   PopoverContent,
 } from "@/client/components/ui/popover";
 import { useCloseOnWindowBlur } from "@/client/hooks/use-close-on-window-blur";
+import { keyboardPlace } from "@/client/lib/keyboard-place";
 import { cn } from "@/client/lib/utils";
 import { StarIcon } from "@phosphor-icons/react/Star";
 import { useEffect, useEffectEvent, useId, useRef, useState } from "react";
@@ -24,12 +25,12 @@ const stars = new Set<{
 /**
  * The window's Bookmark This Tab: the star of the tab the keyboard is in
  * keeps it, or shows its bookmark when it is kept already. Among the stars
- * on screen, the one sharing the most of its surroundings with the element
- * holding the keyboard answers, so a chat's own row and the row of the tab
+ * on screen, the one sharing the most of its surroundings with where the
+ * keyboard is (`keyboardPlace`) answers, so a chat's own row and the row of the tab
  * beside it each answer for their side.
  */
 export function requestBookmarkTab() {
-  const held = document.activeElement;
+  const held = keyboardPlace();
   let best: { depth: number; press: () => void } | undefined;
   for (const star of stars) {
     const element = star.element();

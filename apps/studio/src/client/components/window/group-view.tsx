@@ -135,35 +135,6 @@ function GroupSides({ group }: { group: string }) {
     scroller: () => scrollerRef.current,
   });
 
-  // A page pressed on the other side takes the keyboard there: the guest
-  // stands over its side rather than in it, so the side hears no press.
-  const { focusSide } = windowTabs;
-  const sidesNow = useRef(layout);
-  useEffect(() => {
-    sidesNow.current = layout;
-  });
-  useEffect(() => {
-    const onFocus = () => {
-      const target = pageHoldingKeyboard();
-      if (target === null) {
-        return;
-      }
-      const { focused, sides } = sidesNow.current;
-      const at = sides.findIndex((side) =>
-        side.tabs.some(
-          (tab) => tab.kind === "page" && browserTargetOf(tab.id) === target,
-        ),
-      );
-      if (at !== -1 && at !== focused) {
-        focusSide(group, at === 1 ? 1 : 0);
-      }
-    };
-    document.addEventListener("focusin", onFocus);
-    return () => {
-      document.removeEventListener("focusin", onFocus);
-    };
-  }, [focusSide, group]);
-
   // The row's width, which the gutter stands along.
   const [rowWidth, setRowWidth] = useState(0);
   useEffect(() => {
@@ -270,7 +241,9 @@ function GroupSides({ group }: { group: string }) {
 
   return (
     <div
-      className="relative min-h-0 min-w-0 flex-1 overflow-x-auto overflow-y-hidden"
+      // Two pixels of room past the cards, which the focused side's line
+      // (`FOCUSED_SIDE`) is drawn in, taken back by the margin.
+      className="relative -m-0.5 min-h-0 min-w-0 flex-1 overflow-x-auto overflow-y-hidden p-0.5"
       style={
         {
           "--gutter-at": `${gutterAt}px`,
@@ -287,6 +260,7 @@ function GroupSides({ group }: { group: string }) {
     >
       <div
         className="flex h-full"
+        data-group-sides=""
         ref={rowRef}
         style={{
           minWidth:
@@ -499,6 +473,13 @@ function SideMotion({
 }
 
 /**
+ * How the side with the keyboard is marked while a group shows two, so
+ * typing has a visible home: an ink line round its card in the theme's own
+ * ring color.
+ */
+const FOCUSED_SIDE = "outline-2 outline-ring";
+
+/**
  * One side of a group: a card with the side's tabs across its head, ending
  * in the new tab control, over what its tab up shows. The side with the
  * keyboard draws its page in the window's slot; the other in a slot of its
@@ -616,7 +597,8 @@ function SideCard({
     return (
       holder !== null &&
       holder !== card &&
-      holder.parentElement === card.parentElement
+      holder.closest("[data-group-sides]") ===
+        card.closest("[data-group-sides]")
     );
   };
   const takeCaret = useEffectEvent(() => {
@@ -643,6 +625,37 @@ function SideCard({
       takeCaret();
     }
   }, [hasKeyboard]);
+
+  // What the person does on a side gives it the keyboard, caught here for
+  // every kind of tab rather than by each: a press anywhere on it, or the
+  // caret landing in it (Tab, a field focusing itself), both on the way down
+  // (below), and one of its pages taking the caret, which a page does in a
+  // guest standing over the side rather than in it.
+  const takeKeyboard = () => {
+    if (!hasKeyboard) {
+      windowTabs.focusSide(group, sideIndex);
+    }
+  };
+  const pageTakesKeyboard = useEffectEvent(takeKeyboard);
+  const pagesKey = tabs
+    .flatMap((tab) => (tab.kind === "page" ? [browserTargetOf(tab.id)] : []))
+    .join(" ");
+  useEffect(() => {
+    if (pagesKey === "") {
+      return;
+    }
+    const targets = new Set(pagesKey.split(" "));
+    const onFocus = () => {
+      const target = pageHoldingKeyboard();
+      if (target !== null && targets.has(target)) {
+        pageTakesKeyboard();
+      }
+    };
+    document.addEventListener("focusin", onFocus);
+    return () => {
+      document.removeEventListener("focusin", onFocus);
+    };
+  }, [pagesKey]);
 
   /** A copy of a tab, a page at its address or a screen at its own, placed in the group. */
   const copyOf = (
@@ -677,6 +690,12 @@ function SideCard({
   const split: SplitMenuActions = {
     group,
     hasOtherSide: layout.sides.length === 2,
+    onJoinSides:
+      layout.sides.length === 2
+        ? () => {
+            windowTabs.joinSides(group);
+          }
+        : undefined,
     onMoveToNewGroup:
       groupTabCount > 1
         ? (tab) => {
@@ -714,11 +733,19 @@ function SideCard({
 
   return (
     <div
-      className={cn("flex h-full min-h-0 min-w-0 flex-col", WINDOW_CARD)}
+      className={cn(
+        "flex h-full min-h-0 min-w-0 flex-col",
+        WINDOW_CARD,
+        layout.sides.length === 2 &&
+          hasKeyboard &&
+          preview === undefined &&
+          FOCUSED_SIDE,
+      )}
       {...(preview
         ? { "data-side-preview": "" }
         : { "data-group-side": sideIndex })}
       {...(hasKeyboard ? { "data-keyboard": "" } : {})}
+      {...(up?.kind === "page" ? { "data-page-tab": up.id } : {})}
       ref={cardRef}
       onPointerDownCapture={() => {
         isPressed.current = true;
@@ -740,7 +767,12 @@ function SideCard({
           if (card) {
             dropCaretOutside(card);
           }
-          windowTabs.focusSide(group, sideIndex);
+          takeKeyboard();
+        }
+      }}
+      onFocusCapture={() => {
+        if (!isPressed.current) {
+          takeKeyboard();
         }
       }}
       style={style}
@@ -749,15 +781,7 @@ function SideCard({
         carriedKey={drawn.carriedKey}
         chatTitles={shell.chatTitles}
         chosenId={drawn.chosenId ?? up?.id}
-        className={cn(
-          SIDE_TABS,
-          // With two sides, the tabs of the one without the keyboard fade a
-          // little, so typing has a visible home.
-          layout.sides.length === 2 &&
-            !hasKeyboard &&
-            preview === undefined &&
-            "[&_[role=tab]]:opacity-60",
-        )}
+        className={SIDE_TABS}
         heldAt={drawn.heldAt}
         isIncoming={drawn.isIncoming}
         lead={isFirst && !isSidebarOpen ? <SidebarToggleRoom /> : undefined}

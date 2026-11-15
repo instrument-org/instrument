@@ -66,7 +66,7 @@ const CHORD_SYMBOLS: Record<WindowShortcutId, string> = {
   focusLeftSide: "rectangle.lefthalf.filled",
   focusRightSide: "rectangle.righthalf.filled",
   forward: "chevron.forward",
-  moveTabToOtherSide: "rectangle.split.2x1",
+  newTabInSplit: "rectangle.split.2x1",
   newChat: "square.and.pencil",
   newTab: "plus.square.on.square",
   nextChat: "arrow.down",
@@ -206,9 +206,9 @@ const ACTIVITY_CHORDS: WindowChord[] = [chord("showActivity")];
 /** The star at the end of the address field of the tab the keyboard is in. */
 const BOOKMARK_CHORDS: WindowChord[] = [chord("bookmarkTab")];
 
-/** The tab up across to the other side of its group, made where it has one side. */
+/** A new tab on the other side of the group, made where it has one side, and the keyboard to either side. */
 const SIDE_CHORDS: WindowChord[] = [
-  chord("moveTabToOtherSide"),
+  chord("newTabInSplit"),
   chord("focusLeftSide"),
   chord("focusRightSide"),
 ];

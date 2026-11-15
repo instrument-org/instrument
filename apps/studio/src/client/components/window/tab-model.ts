@@ -395,6 +395,32 @@ export function moveTabTo(
   return select ? selectTab(next, id) : next;
 }
 
+/**
+ * A group's two sides made one: the right side's tabs after the left's, in
+ * their order, with the tab up on the side that had the keyboard still up.
+ */
+export function joinSides(state: WindowTabs, group: string): WindowTabs {
+  const layout = groupLayoutOf(state, group);
+  if (layout.sides.length < 2) {
+    return state;
+  }
+  const joined = layout.sides.flatMap((side) =>
+    side.tabs.map((tab) => {
+      const { side: _side, ...rest } = tab;
+      return rest;
+    }),
+  );
+  const first = state.tabs.findIndex((tab) => tab.group === group);
+  const others = state.tabs.filter((tab) => tab.group !== group);
+  const before = state.tabs
+    .slice(0, first)
+    .filter((tab) => tab.group !== group).length;
+  return normalizeSides(
+    { ...state, tabs: others.toSpliced(before, 0, ...joined) },
+    group,
+  );
+}
+
 /** The side with the keyboard moved to a side of a group, its tab up there now up with it. */
 export function focusSide(
   state: WindowTabs,

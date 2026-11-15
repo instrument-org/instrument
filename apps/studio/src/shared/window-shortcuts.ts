@@ -70,14 +70,15 @@ export const WINDOW_SHORTCUTS = {
     label: "Focus Right Side",
   },
   forward: { accelerator: historyChord("]", "Right"), label: "Forward" },
-  // The tab up to the other side of its group, as a code editor splits on
-  // the same chord; the group's only tab opens a copy there instead.
-  moveTabToOtherSide: {
-    accelerator: "CmdOrCtrl+\\",
-    label: "Move Tab to Other Side",
-  },
   newChat: { accelerator: "CmdOrCtrl+N", label: "New Tab Group" },
   newTab: { accelerator: "CmdOrCtrl+T", label: "New Tab" },
+  // A new tab on the other side of the group on screen, made where it has
+  // one side: Chrome's split chord, Option and Command and N on a Mac, and
+  // Alt+Shift+N elsewhere, beside the side chords.
+  newTabInSplit: {
+    accelerator: { darwin: "Alt+CmdOrCtrl+N", default: "Alt+Shift+N" },
+    label: "New Tab in Split",
+  },
   nextChat: { accelerator: chatChord("Down"), label: "Next Tab Group" },
   nextTab: { accelerator: "Ctrl+Tab", label: "Show Next Tab" },
   previousChat: { accelerator: chatChord("Up"), label: "Previous Tab Group" },

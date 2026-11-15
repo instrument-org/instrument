@@ -1,4 +1,6 @@
 import { captureException } from "@/client/lib/capture-exception";
+import { focusHomeIn } from "@/client/lib/keyboard-home";
+import { keyboardSide, pageOfSide } from "@/client/lib/keyboard-place";
 import { rpcClient } from "@/client/rpc/client";
 import {
   BROWSER_GUEST_VIEWPORT,
@@ -419,13 +421,19 @@ function recordHostFocus(event: FocusEvent) {
 // commit, so a blur there becomes `webview.focus()` and the guest takes the
 // keyboard back from whatever the new screen focused (a new tab's address
 // field).
+//
+// A page up on the side of a tab group with the keyboard keeps it: it leaves
+// one slot for another as that side takes the keyboard, and handing focus
+// back then would put it in the side that just lost the keyboard.
 function releaseGuestFocus(targetId: BrowserTargetId) {
   queueMicrotask(() => {
     const pooled = pool.get(targetId);
+    const side = keyboardSide();
     if (
       !pooled ||
       paintOwners.has(targetId) ||
-      document.activeElement !== pooled.webview
+      document.activeElement !== pooled.webview ||
+      (side !== null && pageOfSide(side) === targetId)
     ) {
       return;
     }
@@ -435,6 +443,20 @@ function releaseGuestFocus(targetId: BrowserTargetId) {
 }
 
 function restoreHostFocus() {
+  // The caret goes back to where it was only on the side of a tab group
+  // that still has the keyboard; otherwise into that side's home, since a
+  // caret landing on the other side gives that side the keyboard.
+  const side = keyboardSide();
+  const holder = lastHostFocusedElement?.closest("[data-group-side]");
+  if (
+    side !== null &&
+    holder !== null &&
+    holder !== undefined &&
+    holder !== side
+  ) {
+    focusHomeIn(side);
+    return;
+  }
   if (lastHostFocusedElement?.isConnected) {
     lastHostFocusedElement.focus({ preventScroll: true });
   }

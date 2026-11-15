@@ -1,3 +1,4 @@
+import { keyboardSide } from "@/client/lib/keyboard-place";
 import { OUTSIDE_FILES_MAX } from "@instrument-org/shared";
 import {
   setFilesTabOpener,
@@ -19,6 +20,7 @@ import {
   type AppPlace,
   chatFiltersAtom,
   filesFolderAtom,
+  NEW_TAB_HREF,
   type WindowTab,
 } from "@/client/atoms/window";
 import { openBuiltInPage } from "@/client/atoms/page-requests";
@@ -130,7 +132,6 @@ import {
   isBlankNewTab,
   isNewChatTab,
   selectedTabIn,
-  sideIndexOf,
 } from "./tab-model";
 import { useSignInLanding } from "./use-sign-in-landing";
 import { WindowLook } from "./look-panel";
@@ -436,11 +437,11 @@ function AppTabView({
 }
 
 /**
- * The caret into the address field of the tab up, or of the chat while it
- * fills its group, with what is in it selected.
+ * The caret into the address field of the tab up on the side with the
+ * keyboard, with what is in it selected.
  */
 function focusField() {
-  const field = document.querySelector<HTMLInputElement>(
+  const field = (keyboardSide() ?? document).querySelector<HTMLInputElement>(
     "[data-app-tab-active] [data-tab-location] input",
   );
   if (field) {
@@ -1227,6 +1228,14 @@ function WindowShell({
     }
     return true;
   };
+  // The group on screen's tabs as they stand across it: the left side's
+  // strip, then the right's.
+  const tabsLeftToRight = () => {
+    const group = windowTabs.groupOnScreen;
+    return group === undefined
+      ? []
+      : windowTabs.layoutOf(group).sides.flatMap((side) => side.tabs);
+  };
   useWindowCommands(
     {
       back: () => {
@@ -1366,34 +1375,26 @@ function WindowShell({
           groupTabMoves.toNewWindow(up.id);
         }
       },
-      // The tab up across to the other side of its group, as its menu's
-      // Move to Other Side; a side's only tab in a group of one side has
-      // nothing to leave behind, so a copy opens there, as Open in Split.
-      moveTabToOtherSide: () => {
-        const up = windowTabs.active;
-        if (up?.group === undefined) {
+      // A new tab on the other side of the group on screen, after the tab
+      // up there, with the keyboard, as its tabs' menus' New Tab in Split;
+      // where the group has one side, it becomes the right side.
+      newTabInSplit: () => {
+        const group = windowTabs.groupOnScreen;
+        if (group === undefined) {
           return;
         }
-        const layout = windowTabs.layoutOf(up.group);
-        const here = sideIndexOf(layout, up.id) ?? layout.focused;
-        if (
-          layout.sides.length === 2 ||
-          (layout.sides[here]?.tabs.length ?? 0) > 1
-        ) {
-          windowTabs.moveTo({
-            group: up.group,
-            id: up.id,
+        const layout = windowTabs.layoutOf(group);
+        const other = layout.focused === 1 ? 0 : 1;
+        const upThere = layout.sides[other]?.up;
+        windowTabs.openIn(
+          { group, href: NEW_TAB_HREF, id: newScreenId(), kind: "screen" },
+          {
+            group,
             select: true,
-            side: here === 1 ? 0 : 1,
-          });
-        } else if (up.kind === "page") {
-          const url = up.url ?? up.openedUrl;
-          if (url !== undefined) {
-            openPage(url, { from: up.id, into: "split" });
-          }
-        } else {
-          openScreen(up.href, { from: up.id, into: "split" });
-        }
+            side: other,
+            ...(upThere === undefined ? {} : { after: upThere }),
+          },
+        );
       },
       receiveGroupTab: groupTabMoves.receive,
       receiveTab,
@@ -1408,9 +1409,10 @@ function WindowShell({
         openBuiltInPage(SCREENS.activity.href);
       },
       // The tab chords step the tabs of the group up, as a browser's step
-      // its strip, round from either end.
+      // its strip, across both sides and round from either end.
       selectRelative: (direction) => {
-        const { active, tabs: groupTabs } = windowTabs;
+        const { active } = windowTabs;
+        const groupTabs = tabsLeftToRight();
         const at = groupTabs.findIndex((tab) => tab.id === active?.id);
         const next =
           groupTabs[(at + direction + groupTabs.length) % groupTabs.length];
@@ -1420,7 +1422,7 @@ function WindowShell({
       },
       // Cmd+1 to Cmd+8 by place, and Cmd+9 the last.
       selectTab: (index) => {
-        const groupTabs = windowTabs.tabs;
+        const groupTabs = tabsLeftToRight();
         const next = index === 9 ? groupTabs.at(-1) : groupTabs[index - 1];
         if (next) {
           windowTabs.select(next.id);

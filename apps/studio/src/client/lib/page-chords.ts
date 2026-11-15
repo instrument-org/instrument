@@ -4,6 +4,7 @@ import {
   stepPage,
 } from "@/client/lib/browser-pool";
 import { foregroundBrowser } from "@/client/lib/foreground-browser-registry";
+import { keyboardSide, pageOfSide } from "@/client/lib/keyboard-place";
 import { BROWSER_ZOOM_MAX, BROWSER_ZOOM_MIN } from "@/shared/browser";
 import { steppedZoom } from "@/shared/zoom";
 import { type BrowserTargetId } from "@instrument-org/workspace/client";
@@ -28,14 +29,20 @@ export type PageChord =
  * The page a chord means, or null when it means the window's own (its tab's
  * history, its zoom) or nothing at all:
  *
- * - history and zoom mean the page on screen that holds the keyboard, as
- *   they would in a browser; with the caret anywhere else they are the
- *   window's.
+ * - in a tab group, the page up on the side with the keyboard, wherever the
+ *   caret is, and none when that side shows something else.
+ * - elsewhere, history and zoom mean the page on screen that holds the
+ *   keyboard, as they would in a browser; with the caret anywhere else they
+ *   are the window's.
  * - reload and print mean that page too, and otherwise the page the person
  *   is looking at, since the window itself has nothing to reload but every
  *   tab at once, and nothing of its own to print.
  */
 export function pageForChord(chord: PageChord): BrowserTargetId | null {
+  const side = keyboardSide();
+  if (side !== null) {
+    return pageOfSide(side);
+  }
   switch (chord) {
     case "printPage":
     case "reloadPage": {

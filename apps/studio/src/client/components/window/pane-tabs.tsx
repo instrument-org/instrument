@@ -356,6 +356,8 @@ export interface SplitMenuActions {
   hasOtherSide: boolean;
   /** The group this strip is a side of. */
   group: string;
+  /** The group's two sides made one; none for a group of one side. */
+  onJoinSides: (() => void) | undefined;
   /** The tab to a new tab group of its own, up in the window; none for a group's only tab, which would make the same group again. */
   onMoveToNewGroup: ((tab: WindowTab) => void) | undefined;
   /** The tab to a window of its own; none for the window's only tab. */
@@ -424,7 +426,8 @@ function PaneTabMenu({
   const chat = chatOfTab(tab);
   const draftId = draftOfTab(tab);
   const draft = useAtomValue(draftsAtom).find((each) => each.id === draftId);
-  const { onMoveToNewGroup, onMoveToNewWindow, onMoveToWindow } = split ?? {};
+  const { onJoinSides, onMoveToNewGroup, onMoveToNewWindow, onMoveToWindow } =
+    split ?? {};
   const otherWindows = useQuery(
     rpcClient.window.live.others.experimental_liveOptions(),
   ).data;
@@ -462,6 +465,7 @@ function PaneTabMenu({
       onDuplicate={() => {
         onDuplicate(tab);
       }}
+      onJoinSides={onJoinSides}
       onMoveToNewGroup={
         onMoveToNewGroup &&
         (() => {

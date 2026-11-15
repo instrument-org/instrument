@@ -17,6 +17,7 @@ import {
   closeTab,
   dropGroup,
   focusSide,
+  joinSides,
   groupLayoutOf,
   isBlankNewTab,
   moveTabTo,
@@ -756,6 +757,17 @@ describe("a group's sides", () => {
   it("leaves the other side whole when a side's last tab closes", () => {
     const closed = closeTab(closeTab(twoSides(), "a"), "b");
     expect(sidesOf(closed, GROUP)).toEqual(["> *c d"]);
+  });
+
+  it("joins two sides into one, the left side's tabs first, the tab up with the keyboard still up", () => {
+    const [a, b, c, d] = twoSides().tabs;
+    const interleaved: WindowTabs = {
+      ...twoSides(),
+      tabs: [c, a, d, b].filter((tab) => tab !== undefined),
+    };
+    expect(sidesOf(joinSides(interleaved, GROUP), GROUP)).toEqual([
+      "> a b *c d",
+    ]);
   });
 
   it("moves the keyboard to the other side, its tab up with it", () => {

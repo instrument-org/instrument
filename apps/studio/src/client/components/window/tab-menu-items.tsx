@@ -16,6 +16,7 @@ import { ArrowLineRightIcon } from "@phosphor-icons/react/ArrowLineRight";
 import { ArrowsLeftRightIcon } from "@phosphor-icons/react/ArrowsLeftRight";
 import { ChatCircleIcon } from "@phosphor-icons/react/ChatCircle";
 import { CopyIcon } from "@phosphor-icons/react/Copy";
+import { RectangleIcon } from "@phosphor-icons/react/Rectangle";
 import { SquareSplitHorizontalIcon } from "@phosphor-icons/react/SquareSplitHorizontal";
 import { StackIcon } from "@phosphor-icons/react/Stack";
 import { StarIcon } from "@phosphor-icons/react/Star";
@@ -96,7 +97,8 @@ function TabMenuContent({
  * What a tab's menu offers, in every place a tab is drawn, in one order:
  * the tab's place among the group's sides and the window's groups (moved to
  * the other side, or a copy opened there where nothing would be left to
- * move; a new chat there; the tab to a group or a window of its own), then
+ * move; a new tab there; the two sides joined; the tab to a group or a
+ * window of its own), then
  * the tab copied, kept as a bookmark or reloaded, then closing it or the
  * tabs around it,
  * and last what only this tab has, such as a chat's own items, under a
@@ -115,6 +117,7 @@ export function TabMenuItems({
   onCloseToRight,
   onCopyUrl,
   onDuplicate,
+  onJoinSides,
   onMoveToNewGroup,
   onMoveToNewWindow,
   onMoveToOtherSide,
@@ -141,6 +144,8 @@ export function TabMenuItems({
   onCloseToRight: (() => void) | undefined;
   onCopyUrl: (() => void) | undefined;
   onDuplicate: () => void;
+  /** The group's two sides made one; none for a group of one side. */
+  onJoinSides: (() => void) | undefined;
   onMoveToNewGroup: (() => void) | undefined;
   onMoveToNewWindow: (() => void) | undefined;
   /** The tab across to the other side, made where the group has one side. */
@@ -152,14 +157,9 @@ export function TabMenuItems({
   /** What only this tab has, after the rest under a divider: a chat's own items. */
   own?: ReactNode;
 }) {
-  // One chord does whichever of the two the tab's menu offers.
-  const sideChord = isSelected ? (
-    <Shortcut>
-      {formatAcceleratorText(WINDOW_SHORTCUTS.moveTabToOtherSide.accelerator)}
-    </Shortcut>
-  ) : null;
   const placing =
     onMoveToOtherSide ??
+    onJoinSides ??
     onOpenInSplit ??
     onNewChatInSplit ??
     onMoveToNewGroup ??
@@ -171,19 +171,30 @@ export function TabMenuItems({
         <Item onClick={onMoveToOtherSide}>
           <ArrowsLeftRightIcon className="size-4" />
           <span>Move to Other Side</span>
-          {sideChord}
         </Item>
       ) : onOpenInSplit ? (
         <Item onClick={onOpenInSplit}>
           <SquareSplitHorizontalIcon className="size-4" />
           <span>Open in Split</span>
-          {sideChord}
         </Item>
       ) : null}
       {onNewChatInSplit && (
         <Item onClick={onNewChatInSplit}>
           <ChatCircleIcon className="size-4" />
           <span>New Tab in Split</span>
+          {isSelected ? (
+            <Shortcut>
+              {formatAcceleratorText(
+                WINDOW_SHORTCUTS.newTabInSplit.accelerator,
+              )}
+            </Shortcut>
+          ) : null}
+        </Item>
+      )}
+      {onJoinSides && (
+        <Item onClick={onJoinSides}>
+          <RectangleIcon className="size-4" />
+          <span>Join Sides</span>
         </Item>
       )}
       {onMoveToNewGroup && (

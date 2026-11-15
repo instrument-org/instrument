@@ -29,6 +29,7 @@ import {
   dropGroup,
   everyTabId,
   focusSide,
+  joinSides,
   type GroupOwn,
   markOpenedBy,
   markPrompted,
@@ -340,6 +341,10 @@ export function useWindowTabs() {
     /** A tab marked as the one its chat was last sent a message from. */
     markPrompted: (id: string) => {
       apply((current) => markPrompted(current, id, Date.now()));
+    },
+    /** A group's two sides made one (`joinSides`). */
+    joinSides: (group: string) => {
+      apply((current) => joinSides(current, group));
     },
     /** The side with the keyboard, in a group of two sides, moved to the other. */
     focusSide: (group: string, side: 0 | 1) => {

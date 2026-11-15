@@ -105,8 +105,8 @@ export function useWindowCommands(
     openGroup: (hrefs: readonly string[]) => void;
     /** The tab up to a window of its own. */
     moveTabToNewWindow: () => void;
-    /** The tab up across to the other side of its group, or a copy of it there for a side's only tab. */
-    moveTabToOtherSide: () => void;
+    /** A new tab on the other side of the group on screen, made where it has one side. */
+    newTabInSplit: () => void;
     /** A tab another window handed over, up here at a point along the strip. */
     receiveTab: (tab: Tab, index?: number) => void;
     /** A tab group's tab another window let go over this one, into a group here by where it landed. */
@@ -313,8 +313,8 @@ export function useWindowCommands(
               requestBookmarkTab();
               break;
             }
-            case "moveTabToOtherSide": {
-              latest.current.moveTabToOtherSide();
+            case "newTabInSplit": {
+              latest.current.newTabInSplit();
               break;
             }
             case "closeTab": {

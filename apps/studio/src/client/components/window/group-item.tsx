@@ -34,6 +34,7 @@ import { type PageChromeSlots } from "./browser-tabs";
 import { asksOwnPlace, useWindow, WindowContext } from "./context";
 import { useRowSlots } from "./row-slots";
 import { BrowserExtensionButtons } from "./browser-extension-buttons";
+import { BrowserStartTail } from "./browser-start-controls";
 import { PageAgentOverlay } from "./page-agent-overlay";
 import { GroupTabContext } from "./group-tab";
 import { liveFileAddress, liveHostedFileAddress } from "./hosted-page";
@@ -364,6 +365,7 @@ export function GroupItem({
           onClick={noop}
         />
       }
+      trailing={<BrowserStartTail onOpenPage={openHere} />}
     />
   ) : (
     row(location)

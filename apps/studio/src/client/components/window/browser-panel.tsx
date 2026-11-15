@@ -1,14 +1,11 @@
-import { TOOLBAR_ICON_BUTTON_CLASSNAME } from "@/client/components/toolbar-control";
 import { applyBookmarkOpsAtom, bookmarksAtom } from "@/client/bookmarks/store";
 import { orderAfter } from "@/shared/bookmarks";
-import { OpenInAppMenuItems } from "@/client/components/open-in-app";
 import { BrowserDownloadsButton } from "@/client/components/window/browser-downloads";
 import {
   BrowserExtensionButtons,
-  ManageItems,
 } from "@/client/components/window/browser-extension-buttons";
 import { BrowserFindCard } from "@/client/components/window/browser-find-card";
-import { BrowserHistoryMenu } from "@/client/components/window/browser-history-menu";
+import { BrowserPageMenu } from "@/client/components/window/browser-page-menu";
 import {
   CertificateErrorNotice,
   SignInSheet,
@@ -19,27 +16,15 @@ import { Button } from "@/client/components/ui/button";
 import { Delayed } from "@/client/components/ui/delayed";
 import {
   DropdownMenu,
-  DropdownMenuCheckboxItem,
   DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuRadioGroup,
-  DropdownMenuRadioItem,
-  DropdownMenuSeparator,
-  DropdownMenuShortcut,
-  DropdownMenuSub,
-  DropdownMenuSubContent,
-  DropdownMenuSubTrigger,
   DropdownMenuTrigger,
 } from "@/client/components/ui/dropdown-menu";
-import { formatAcceleratorText } from "@/client/lib/format-accelerator";
-import { WINDOW_SHORTCUTS } from "@/shared/window-shortcuts";
 import {
   InputGroup,
   InputGroupAddon,
   InputGroupButton,
   InputGroupInput,
 } from "@/client/components/ui/input-group";
-import { dropdownMenuComponents } from "@/client/components/ui/menu-components";
 import { Spinner } from "@/client/components/ui/spinner";
 import { WindowContext } from "@/client/components/window/context";
 import { LoadProgress } from "@/client/components/window/load-progress";
@@ -62,7 +47,6 @@ import {
   stepPage,
 } from "@/client/lib/browser-pool";
 import {
-  EMULATED_DEVICES,
   type EmulatedDevice,
 } from "@/client/lib/emulated-devices";
 import {
@@ -89,10 +73,9 @@ import { windowTabsAtom } from "@/client/components/window/window-tabs";
 import { type TypedPath } from "@/client/lib/typed-path";
 import { fileHref } from "@/shared/computer-href";
 import { displayHostPath } from "@instrument-org/shared";
-import { cn, isMacOS } from "@/client/lib/utils";
+import { cn } from "@/client/lib/utils";
 import { rpcClient } from "@/client/rpc/client";
 import { safe } from "@orpc/client";
-import { openClearBrowsingData } from "@/client/atoms/clear-browsing-data-modal";
 import {
   BROWSER_ZOOM_MAX,
   BROWSER_ZOOM_MIN,
@@ -106,24 +89,9 @@ import {
   type StoreId,
 } from "@instrument-org/workspace/client";
 import { ArrowClockwiseIcon } from "@phosphor-icons/react/ArrowClockwise";
-import { ArrowCounterClockwiseIcon } from "@phosphor-icons/react/ArrowCounterClockwise";
 import { ArrowLeftIcon } from "@phosphor-icons/react/ArrowLeft";
 import { ArrowRightIcon } from "@phosphor-icons/react/ArrowRight";
 import { ArrowSquareOutIcon } from "@phosphor-icons/react/ArrowSquareOut";
-import { BookmarkSimpleIcon } from "@phosphor-icons/react/BookmarkSimple";
-import { BrowsersIcon } from "@phosphor-icons/react/Browsers";
-import { CodeIcon } from "@phosphor-icons/react/Code";
-import { CopyIcon } from "@phosphor-icons/react/Copy";
-import { DeviceMobileIcon } from "@phosphor-icons/react/DeviceMobile";
-import { DotsThreeVerticalIcon } from "@phosphor-icons/react/DotsThreeVertical";
-import { BroomIcon } from "@phosphor-icons/react/Broom";
-import { ExportIcon } from "@phosphor-icons/react/Export";
-import { FloppyDiskIcon } from "@phosphor-icons/react/FloppyDisk";
-import { PrinterIcon } from "@phosphor-icons/react/Printer";
-import { PuzzlePieceIcon } from "@phosphor-icons/react/PuzzlePiece";
-import { TerminalWindowIcon } from "@phosphor-icons/react/TerminalWindow";
-import { MagnifyingGlassIcon } from "@phosphor-icons/react/MagnifyingGlass";
-import { ShieldCheckIcon } from "@phosphor-icons/react/ShieldCheck";
 import { ShieldSlashIcon } from "@phosphor-icons/react/ShieldSlash";
 import { WarningCircleIcon } from "@phosphor-icons/react/WarningCircle";
 import { XIcon } from "@phosphor-icons/react/X";
@@ -693,11 +661,17 @@ export function BrowserPanel({
       {(() => {
         // The page's menu, the same in either shape of the bar.
         const menu = (
-          <DropdownMenu
-            // Non-modal so clicking into the guest `<webview>` (a separate
-            // WebContents) isn't blocked by the modal body `pointer-events: none`;
-            // combined with the window-blur close above, that dismisses the menu.
-            modal={false}
+          <BrowserPageMenu
+            afterBlockAds={() => guestNow()?.reload()}
+            {...(inWindow
+              ? {
+                  bookmark: {
+                    isBookmarked,
+                    toggle: pageUrl ? toggleBookmark : undefined,
+                  },
+                }
+              : {})}
+            editSource={onEditSource}
             onOpenChange={(open) => {
               // Not ready yet: the last known zoom stands.
               const current = open ? guestNow() : null;
@@ -706,230 +680,84 @@ export function BrowserPanel({
               }
               setMenuOpen(open);
             }}
+            onOpenHistory={navigateTo}
             open={menuOpen}
-          >
-            <DropdownMenuTrigger asChild>
-              <Button
-                aria-label="More actions"
-                className={TOOLBAR_ICON_BUTTON_CLASSNAME}
-                size="icon-sm"
-                variant="ghost"
-              >
-                <DotsThreeVerticalIcon className="size-4" />
-              </Button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent align="end" className="w-56">
-              {openInBrowserTab && (
-                <>
-                  <DropdownMenuItem
-                    disabled={!pageUrl}
-                    onSelect={() => {
+            openInBrowserTab={
+              openInBrowserTab &&
+              (() => {
+                const url = currentUrl();
+                if (url) {
+                  openInBrowserTab(url);
+                }
+              })
+            }
+            page={
+              pageUrl
+                ? {
+                    copyUrl: () => {
                       const url = currentUrl();
                       if (url) {
-                        openInBrowserTab(url);
+                        void navigator.clipboard.writeText(url);
                       }
-                    }}
-                  >
-                    <BrowsersIcon className="size-4" />
-                    Open in Browser Tab
-                  </DropdownMenuItem>
-                  <DropdownMenuSeparator />
-                </>
-              )}
-              <BrowserHistoryMenu onOpen={navigateTo} />
-              {inWindow && (
-                <DropdownMenuItem disabled={!pageUrl} onSelect={toggleBookmark}>
-                  <BookmarkSimpleIcon className="size-4" />
-                  {isBookmarked ? "Remove from bookmarks" : "Add to bookmarks"}
-                </DropdownMenuItem>
-              )}
-              <DropdownMenuItem onSelect={openClearBrowsingData}>
-                <BroomIcon className="size-4" />
-                Clear browsing data…
-              </DropdownMenuItem>
-              {pageUrl && (
-                <>
-                  <DropdownMenuSeparator />
-                  <div className="flex items-center justify-between px-2 py-1.5">
-                    <span className="text-sm">Zoom</span>
-                    <ZoomStepperControl
-                      canZoomIn={zoomFactor < BROWSER_ZOOM_MAX}
-                      canZoomOut={zoomFactor > BROWSER_ZOOM_MIN}
-                      onZoomIn={() => {
-                        stepZoom("in");
-                      }}
-                      onZoomOut={() => {
-                        stepZoom("out");
-                      }}
-                      readout={
-                        <ZoomLevelMenu
-                          max={BROWSER_ZOOM_MAX}
-                          min={BROWSER_ZOOM_MIN}
-                          nested
-                          onSelect={applyZoom}
-                          zoom={zoomFactor}
-                        />
+                    },
+                    devTools: () => {
+                      guestNow()?.openDevTools();
+                    },
+                    find: () => {
+                      find.openFind();
+                    },
+                    hardReload: () => {
+                      guestNow()?.reload({ ignoreCache: true });
+                    },
+                    openIn: openInTarget,
+                    print: () => {
+                      guestNow()?.print();
+                    },
+                    save: () => {
+                      const current = guestNow();
+                      if (current) {
+                        savePage.mutate({
+                          webContentsId: current.webContentsId,
+                        });
                       }
-                    />
-                  </div>
-                </>
-              )}
-              <DropdownMenuSeparator />
-              <DropdownMenuItem
-                disabled={!pageUrl}
-                onSelect={() => {
-                  guestNow()?.print();
-                }}
-              >
-                <PrinterIcon className="size-4" />
-                Print…
-                <DropdownMenuShortcut>
-                  {formatAcceleratorText(
-                    WINDOW_SHORTCUTS.printPage.accelerator,
-                  )}
-                </DropdownMenuShortcut>
-              </DropdownMenuItem>
-              <DropdownMenuItem
-                disabled={!pageUrl}
-                onSelect={() => {
-                  find.openFind();
-                }}
-              >
-                <MagnifyingGlassIcon className="size-4" />
-                Find in page
-                <DropdownMenuShortcut>
-                  {formatAcceleratorText(
-                    WINDOW_SHORTCUTS.findInPage.accelerator,
-                  )}
-                </DropdownMenuShortcut>
-              </DropdownMenuItem>
-              <DropdownMenuItem
-                disabled={!pageUrl}
-                onSelect={() => {
-                  const current = guestNow();
-                  if (current) {
-                    savePage.mutate({ webContentsId: current.webContentsId });
+                    },
+                    share: () => {
+                      const url = currentUrl();
+                      if (url) {
+                        sharePage.mutate({ url });
+                      }
+                    },
+                    viewAs: {
+                      device: emulatedDevice,
+                      onChange: setEmulatedDevice,
+                    },
                   }
-                }}
-              >
-                <FloppyDiskIcon className="size-4" />
-                Save page as…
-              </DropdownMenuItem>
-              <DropdownMenuItem
-                disabled={!pageUrl}
-                onSelect={() => {
-                  const url = currentUrl();
-                  if (url) {
-                    void navigator.clipboard.writeText(url);
-                  }
-                }}
-              >
-                <CopyIcon className="size-4" />
-                Copy URL
-              </DropdownMenuItem>
-              {isMacOS() && (
-                <DropdownMenuItem
-                  disabled={!pageUrl}
-                  onSelect={() => {
-                    const url = currentUrl();
-                    if (url) {
-                      sharePage.mutate({ url });
-                    }
+                : undefined
+            }
+            zoom={
+              pageUrl && (
+                <ZoomStepperControl
+                  canZoomIn={zoomFactor < BROWSER_ZOOM_MAX}
+                  canZoomOut={zoomFactor > BROWSER_ZOOM_MIN}
+                  onZoomIn={() => {
+                    stepZoom("in");
                   }}
-                >
-                  <ExportIcon className="size-4" />
-                  Share…
-                </DropdownMenuItem>
-              )}
-              {/* In a row of the window's the app is the address field's own
-                  button, and the menu names it too, with the others that
-                  could open a page's file. */}
-              {typeof chrome === "object" && openInTarget && (
-                <OpenInAppMenuItems
-                  menuComponents={dropdownMenuComponents}
-                  target={openInTarget}
+                  onZoomOut={() => {
+                    stepZoom("out");
+                  }}
+                  readout={
+                    <ZoomLevelMenu
+                      max={BROWSER_ZOOM_MAX}
+                      min={BROWSER_ZOOM_MIN}
+                      nested
+                      onSelect={applyZoom}
+                      zoom={zoomFactor}
+                    />
+                  }
                 />
-              )}
-              <DropdownMenuSeparator />
-              <DropdownMenuSub>
-                <DropdownMenuSubTrigger>
-                  <PuzzlePieceIcon className="size-4" />
-                  Extensions
-                </DropdownMenuSubTrigger>
-                <DropdownMenuSubContent>
-                  <ManageItems />
-                </DropdownMenuSubContent>
-              </DropdownMenuSub>
-              <DropdownMenuSeparator />
-              <DropdownMenuSub>
-                <DropdownMenuSubTrigger disabled={!pageUrl}>
-                  <DeviceMobileIcon className="size-4" />
-                  View as
-                  {emulatedDevice && (
-                    <span className="ml-auto text-xs whitespace-nowrap text-muted-foreground">
-                      {emulatedDevice.label}
-                    </span>
-                  )}
-                </DropdownMenuSubTrigger>
-                <DropdownMenuSubContent>
-                  <DropdownMenuRadioGroup
-                    onValueChange={(value) => {
-                      setEmulatedDevice(
-                        EMULATED_DEVICES.find(
-                          (device) => device.id === value,
-                        ) ?? null,
-                      );
-                    }}
-                    value={emulatedDevice?.id ?? "actual-size"}
-                  >
-                    <DropdownMenuRadioItem value="actual-size">
-                      Actual size
-                    </DropdownMenuRadioItem>
-                    <DropdownMenuSeparator />
-                    {EMULATED_DEVICES.map((device) => (
-                      <DropdownMenuRadioItem key={device.id} value={device.id}>
-                        {device.label}
-                        <span className="ml-auto text-xs text-muted-foreground">
-                          {device.width}×{device.height}
-                        </span>
-                      </DropdownMenuRadioItem>
-                    ))}
-                  </DropdownMenuRadioGroup>
-                </DropdownMenuSubContent>
-              </DropdownMenuSub>
-              <DropdownMenuItem
-                disabled={!pageUrl}
-                onSelect={() => {
-                  guestNow()?.reload({ ignoreCache: true });
-                }}
-              >
-                <ArrowCounterClockwiseIcon className="size-4" />
-                Hard reload
-              </DropdownMenuItem>
-              <DropdownMenuCheckboxItem
-                checked={preferences?.blockAds ?? true}
-                onCheckedChange={setBlocking}
-              >
-                <ShieldCheckIcon className="size-4" />
-                Block ads
-              </DropdownMenuCheckboxItem>
-              {onEditSource && (
-                <DropdownMenuItem onSelect={onEditSource}>
-                  <CodeIcon className="size-4" />
-                  Edit source
-                </DropdownMenuItem>
-              )}
-              <DropdownMenuItem
-                disabled={!pageUrl}
-                onSelect={() => {
-                  guestNow()?.openDevTools();
-                }}
-              >
-                <TerminalWindowIcon className="size-4" />
-                Developer tools
-              </DropdownMenuItem>
-            </DropdownMenuContent>
-          </DropdownMenu>
+              )
+            }
+          />
         );
         // The page's controls and the menu, which the row above can carry as
         // they are, and reload, which it keeps beside its arrows; the

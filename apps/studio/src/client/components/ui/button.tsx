@@ -21,15 +21,18 @@ export const buttonVariants = tv({
     },
     variant: {
       brand:
-        "bg-brand-600 button-sheen text-brand-foreground shadow-xs not-disabled:hover:bg-brand-700",
+        "bg-brand-600 button-sheen text-brand-foreground shadow-xs button-press",
       default:
-        "bg-card button-sheen text-card-foreground shadow-sm not-disabled:hover:bg-secondary dark:bg-gray-700 dark:text-foreground dark:shadow-sm dark:not-disabled:hover:bg-gray-600",
+        // In dark mode a solid fill a step under gray-700, so nothing behind
+        // it shows through, its words a touch under full strength until
+        // it's hovered.
+        "bg-card button-sheen text-card-foreground shadow-sm button-press dark:bg-[color-mix(in_oklab,var(--color-gray-700)_65%,var(--color-gray-800))] dark:text-foreground/85 dark:shadow-sm dark:not-disabled:hover:text-foreground",
       destructive:
-        "bg-destructive button-sheen text-white not-disabled:hover:bg-destructive/90 focus-visible:outline-destructive/20 dark:bg-destructive/60 dark:focus-visible:outline-destructive/40",
+        "bg-destructive button-sheen text-white button-press focus-visible:outline-destructive/20 dark:bg-destructive/70 dark:focus-visible:outline-destructive/40",
       ghost:
         // A share of the ink rather than `muted`, which is two levels off the
-        // window's main card in light mode.
-        "not-disabled:hover:bg-foreground/7 not-disabled:hover:text-accent-foreground dark:not-disabled:hover:bg-accent/50",
+        // window's main card in light mode, so it shows on any surface.
+        "not-disabled:hover:bg-foreground/6 not-disabled:hover:text-accent-foreground not-disabled:active:bg-foreground/9 dark:not-disabled:hover:bg-foreground/7 dark:not-disabled:active:bg-foreground/5",
       "ghost-destructive":
         "text-destructive not-disabled:hover:bg-destructive/10 dark:not-disabled:hover:bg-destructive/20",
       // For the toolbar surface, where `accent` is the same gray as the
@@ -40,13 +43,13 @@ export const buttonVariants = tv({
         "border-0 bg-linear-to-b from-white to-[#fafaf9] text-foreground shadow-sm not-disabled:hover:brightness-95 dark:border dark:border-input dark:bg-input/30 dark:bg-none dark:from-transparent dark:to-transparent dark:not-disabled:hover:bg-input/50",
       link: "text-primary underline-offset-4 not-disabled:hover:underline",
       outline:
-        "border border-black/5 text-muted-foreground not-disabled:hover:bg-black/5 dark:border-white/10 dark:not-disabled:hover:bg-white/10",
+        "border border-black/5 text-muted-foreground not-disabled:hover:bg-foreground/4 not-disabled:hover:text-foreground not-disabled:active:bg-foreground/7 dark:border-white/10 dark:not-disabled:hover:bg-foreground/6 dark:not-disabled:active:bg-foreground/4",
       // `outline` for a button that floats over a scroll area: an opaque fill
       // and an opaque hover, so content passing beneath can't show through it.
       "outline-opaque":
-        "border border-black/5 bg-background text-muted-foreground not-disabled:hover:bg-secondary dark:border-white/10 dark:not-disabled:hover:bg-gray-800",
+        "border border-black/5 bg-background button-veil text-muted-foreground button-press not-disabled:hover:text-foreground dark:border-white/10",
       secondary:
-        "bg-secondary button-sheen text-secondary-foreground shadow-xs not-disabled:hover:bg-muted not-disabled:hover:text-secondary-foreground dark:bg-gray-800 dark:not-disabled:hover:bg-gray-700",
+        "bg-secondary button-sheen text-secondary-foreground shadow-xs button-press dark:bg-gray-800 dark:text-foreground/75 dark:not-disabled:hover:text-foreground",
     },
   },
 });

@@ -6529,6 +6529,9 @@ function FileSystemListView({
 // Row thumbnails that did not load, so a row drawn again goes straight to the
 // file's type icon rather than trying the picture once per mount.
 const failedRowThumbnails = new Set<string>();
+// Row thumbnails that have loaded once, so a row drawn again shows the
+// picture at once rather than the type icon while the cached image decodes.
+const loadedRowThumbnails = new Set<string>();
 /**
  * The small picture a row leads with: the folder glyph, a picture's own
  * thumbnail in its own shape with a hairline around it, an app's icon, or
@@ -6547,6 +6550,7 @@ export function FileSystemRowGlyph({
       > & { kind: "file"; name: string });
 }) {
   const [, setFailed] = React.useState(false);
+  const [loadedSrc, setLoadedSrc] = React.useState<string>();
   const coverUrl =
     entry.kind === "file" &&
     (entry.previewIsIcon ||
@@ -6611,18 +6615,40 @@ export function FileSystemRowGlyph({
       />
     );
   }
+  // The picture is sized by its own shape, so until it has loaded it is
+  // drawn at no size and its hairline and white ground show as a speck; the
+  // type icon stands in until then.
+  const loaded = loadedSrc === src || loadedRowThumbnails.has(src);
   return (
-    // eslint-disable-next-line @next/next/no-img-element -- Cover thumbnails come from caller-provided file preview URLs.
-    <img
-      alt=""
-      className="max-h-4 max-w-4 rounded-[1.5px] bg-white object-contain shadow-[0_0_0_0.5px_color-mix(in_oklab,var(--color-foreground)_35%,transparent)]"
-      draggable={false}
-      onError={() => {
-        failedRowThumbnails.add(src);
-        setFailed(true);
-      }}
-      src={src}
-    />
+    <span className="relative flex size-4 shrink-0 items-center justify-center">
+      {loaded ? null : (
+        <FileTypeIcon
+          className="size-4"
+          {...(entry.contentType === undefined
+            ? {}
+            : { contentType: entry.contentType })}
+          fileName={entry.name}
+        />
+      )}
+      {/* eslint-disable-next-line @next/next/no-img-element -- Cover thumbnails come from caller-provided file preview URLs. */}
+      <img
+        alt=""
+        className={cn(
+          "max-h-4 max-w-4 rounded-[1.5px] bg-white object-contain shadow-[0_0_0_0.5px_color-mix(in_oklab,var(--color-foreground)_35%,transparent)]",
+          !loaded && "invisible absolute",
+        )}
+        draggable={false}
+        onError={() => {
+          failedRowThumbnails.add(src);
+          setFailed(true);
+        }}
+        onLoad={() => {
+          loadedRowThumbnails.add(src);
+          setLoadedSrc(src);
+        }}
+        src={src}
+      />
+    </span>
   );
 }
 function FileSystemColumnsView(props: FileSystemViewProps) {

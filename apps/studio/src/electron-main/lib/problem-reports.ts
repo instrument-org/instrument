@@ -44,9 +44,9 @@ import {
   listApps,
   listMemories,
   memoryDir,
-  parseRecordFileName,
   readActions,
 } from "@instrument-org/workspace/electron";
+import { parseRecordFileName } from "@instrument-org/workspace/record-file-names";
 import { outlineSessionLog } from "@instrument-org/workspace/report-outline";
 import { createHash } from "node:crypto";
 import fs from "node:fs";

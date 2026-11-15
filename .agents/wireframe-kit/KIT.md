@@ -52,7 +52,7 @@ node .agents/wireframe-kit/check.mjs ~/wireframes/YYYY-MM-DD-<surface>-<variant>
 
 ## Starting from the running app
 
-A frame can be a snapshot of Studio as it runs, edited by name, instead of a redrawing: `snap(state, edit)`. Read [`SNAPSHOTS.md`](SNAPSHOTS.md) before a round, and reach for a snapshot whenever the frame is about a screen the app already has; the kit below draws what no snapshot holds.
+A frame can be a snapshot of Studio as it runs, edited by name, instead of a redrawing: `snap(state, edit)`, drawn by the wireframe skill's snapshot frames. Read [`SNAPSHOTS.md`](SNAPSHOTS.md) and the skill's "Frames from a snapshot" before a round, and reach for a snapshot whenever the frame is about a screen the app already has; the kit below draws what no snapshot holds.
 
 ## The kit
 

@@ -157,8 +157,7 @@ jobs:
           if-no-files-found: ignore
           name: browser-test-failures-${{ github.run_attempt }}
           path: |
-            apps/studio/.vitest-attachments
-            apps/studio/src/**/__screenshots__
+            apps/studio/.vitest/attachments
           retention-days: 7
 
   # What this push to main changed against the run before it: tests newly

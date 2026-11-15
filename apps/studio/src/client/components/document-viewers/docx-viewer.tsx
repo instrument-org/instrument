@@ -41,7 +41,14 @@ export function DocxViewer({
   filename: string;
   url: string;
 }) {
-  const editor = useDocxEditor({ initialFileName: filename });
+  // The library otherwise takes Cmd+Z, Shift+Cmd+Z and Cmd+Y window-wide while
+  // a document is open, in a tab kept mounted out of sight too, canceling the
+  // keys before the folder's undo of a rename or a move to the Trash sees them.
+  // A read-only document has nothing to undo (`patches/@extend-ai__react-docx`).
+  const editor = useDocxEditor({
+    historyShortcuts: false,
+    initialFileName: filename,
+  });
   const [railOpen, setRailOpen] = useState(false);
   const [scrollElement, setScrollElement] = useState<HTMLDivElement | null>(
     null,

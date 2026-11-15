@@ -151,7 +151,7 @@ export const TurnView = memo(function TurnView({
       <MessageScrollerItem
         className={cn(
           "group/assistant-turn flex flex-col gap-2",
-          carriesOn && "-mt-4",
+          carriesOn && "-mt-2",
         )}
         ref={floorRef}
         {...(turn.opener ? {} : { messageId: turn.id })}

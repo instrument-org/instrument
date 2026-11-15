@@ -96,6 +96,7 @@ overrides:
   "neverthrow>@rollup/rollup-linux-x64-gnu": "-"
 
 patchedDependencies:
+  "@extend-ai/react-docx@0.8.4": patches/@extend-ai__react-docx@0.8.4.patch
   "@milkdown/plugin-block@7.22.3": patches/@milkdown__plugin-block@7.22.3.patch
   "@shadcn/react@0.2.11": patches/@shadcn__react@0.2.11.patch
   conf@14.0.0: patches/conf@14.0.0.patch

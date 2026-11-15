@@ -223,6 +223,18 @@ export function ActivityRowView({
   const opened = thought ? [...row.steps, thought] : row.steps;
   const label =
     isLive && !lastStep ? (row.title ?? "Thinking") : activityLine(row);
+  // A row that has just come settles on its first words without a roll, its
+  // name arriving included, since it has only just moved into place; after
+  // that a new call in a row the agent didn't name rolls it on. A name that
+  // arrives later keeps the key it found, so the words change without a roll.
+  const unnamedKey =
+    row.title === undefined && steps.length > 1
+      ? (lastStep?.metadata.id ?? "settled")
+      : "settled";
+  const [rollKey, setRollKey] = useState(unnamedKey);
+  if (row.title === undefined && unnamedKey !== rollKey) {
+    setRollKey(unnamedKey);
+  }
   return (
     <RowLine
       isLive={isLive}
@@ -247,16 +259,7 @@ export function ActivityRowView({
           )}
         </>
       }
-      // A row that has just come settles on its first words without a roll,
-      // its name arriving included, since it has only just moved into place;
-      // after that a new call in a row the agent didn't name rolls it on.
-      rollKey={
-        isLive
-          ? row.title === undefined && steps.length > 1
-            ? lastStep?.metadata.id
-            : "settled"
-          : undefined
-      }
+      rollKey={isLive ? rollKey : undefined}
     >
       {isLive && (
         <span className="ml-7 block truncate text-xs text-muted-foreground">

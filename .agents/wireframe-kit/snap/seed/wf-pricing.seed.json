@@ -1,0 +1,23 @@
+{
+  "name": "wf-pricing",
+  "room": "Instrument",
+  "chatModel": "Claude",
+  "chats": [
+    "How does our help desk pricing compare with Zendesk, Intercom and Freshdesk? Ours, per agent per month billed annually: Team $49, Growth $79, Professional $109. Zendesk Suite: $55, $89, $115. Intercom: $39, $99, $139. Freshdesk: $15, $49, $79. Line them up for a 10-agent team in a short table and give a one-line read. No files, no tools.",
+    "Four firms quoted our SOC 2 audit: Ridgeline $18,500 including a readiness review, Northgate $21,000, Clearpath $19,800, Avalon $24,000. Summarize them in a short table and pick one in a line. No files, no tools.",
+    "Outline a Q3 board update for a small help desk software company in five bullets. No files, no tools.",
+    "Write a two-sentence renewal reminder for our October accounts. No files, no tools."
+  ],
+  "files": {
+    "comparison-index.html": "@files/comparison-index.html",
+    "pricing-comparison.html": "@files/pricing-comparison.html",
+    "claude-usage-report.md": "@files/claude-usage-report.md",
+    "pricing-page-faq.md": "@files/pricing-page-faq.md",
+    "competitor-prices.csv": "@files/competitor-prices.csv",
+    "demo-page.html": "@files/demo-page.html",
+    "q3-board-update.md": "@files/q3-board-update.md",
+    "Screenshots/harbor-desk-pricing.png": "@files/Screenshots/harbor-desk-pricing.png",
+    "Screenshots/beacon-pricing.png": "@files/Screenshots/beacon-pricing.png",
+    "Screenshots/ticketloft-pricing.png": "@files/Screenshots/ticketloft-pricing.png"
+  }
+}

@@ -90,7 +90,7 @@ Render through the helpers rather than `render` directly. Each carries the docbl
 
 Confirm an assertion fails against the unfixed code before keeping it. A DOM test passes for reasons unrelated to what it claims to cover far more easily than a node test does.
 
-Browser tests need `pnpm exec playwright install chromium` once, then `pnpm test:browser`; a failure leaves a Playwright trace under `__traces__/`.
+Browser tests need `pnpm exec playwright install chromium` once, then `pnpm test:browser`; a failure leaves a Playwright trace under `.vitest/traces/`.
 
 Outside the three projects, `vitest.smoke.config.ts` (`pnpm smoke-test`) runs the packaged-app boot smoke test CI gates releases on, saving screenshots under `smoke-test-screenshots/`.
 

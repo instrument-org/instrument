@@ -1106,6 +1106,10 @@ function SeveralPicked({ items }: { items: ChosenItem[] }) {
   const poses = PILE_POSES.slice(-shown.length);
   const files = items.filter((item) => item.kind === "file").length;
   const folders = items.length - files;
+  // A thumbnail is sized by its own shape, so one still loading is drawn at
+  // no size and its ring and ground show as a speck; each stays hidden until
+  // it has loaded.
+  const [loaded, setLoaded] = useState<ReadonlySet<string>>(() => new Set());
   const kinds = [
     folders > 0 && `${folders} ${folders === 1 ? "folder" : "folders"}`,
     files > 0 && `${files} ${files === 1 ? "document" : "documents"}`,
@@ -1118,8 +1122,14 @@ function SeveralPicked({ items }: { items: ChosenItem[] }) {
           return (
             <img
               alt=""
-              className="absolute inset-0 m-auto max-h-full max-w-full rounded-md bg-card object-contain shadow-md ring-1 ring-black/10"
+              className={cn(
+                "absolute inset-0 m-auto max-h-full max-w-full rounded-md bg-card object-contain shadow-md ring-1 ring-black/10",
+                !loaded.has(item.path) && "invisible",
+              )}
               key={item.path}
+              onLoad={() => {
+                setLoaded((before) => new Set(before).add(item.path));
+              }}
               src={getComputerThumbnailUrl({
                 hostPath: item.path,
                 size: 512,

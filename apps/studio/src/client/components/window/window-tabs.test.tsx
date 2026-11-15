@@ -15,10 +15,12 @@ import { describe, expect, it, vi } from "vitest";
 
 import { appTabsAtom } from "./app-tabs";
 import {
+  arrivingNewChatTabsAtom,
   groupOnScreenAtom,
   useWindowTabs,
   windowTabsAtom,
 } from "./window-tabs";
+import { newChatHref } from "./window-href";
 
 const CHAT = ChatIdSchema.parse("2026-10-01-roofer");
 const GROUP = "group:1";
@@ -109,6 +111,25 @@ describe("opening into a group", () => {
     expect(router.history.location.pathname).toBe("/apps");
     expect(router.history.length).toBe(2);
     deleteGroupTabRouter(id);
+  });
+});
+
+describe("a new chat tab arriving", () => {
+  it("marks only an empty new chat this window opened, for its composer's one glint", () => {
+    const { result, store } = at(ON_GROUP);
+    let fresh: string | undefined;
+    let kept: string | undefined;
+    let page: string | undefined;
+    act(() => {
+      fresh = result.current.openScreen(newChatHref());
+      kept = result.current.openScreen(newChatHref("d1"));
+      page = result.current.openScreen(BROWSER_HREF);
+    });
+    const arriving = store.get(arrivingNewChatTabsAtom);
+    expect(fresh && arriving.has(fresh)).toBe(true);
+    expect(kept && arriving.has(kept)).toBe(false);
+    expect(page && arriving.has(page)).toBe(false);
+    expect(arriving.size).toBe(1);
   });
 });
 

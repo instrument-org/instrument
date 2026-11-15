@@ -32,9 +32,11 @@ import {
   groupLayoutOf,
   closeSide,
   closeTab,
+  draftOfTab,
   dropGroup,
   everyTabId,
   focusSide,
+  isNewChatTab,
   joinSides,
   type GroupOwn,
   markOpenedBy,
@@ -239,6 +241,17 @@ export const chatFiltersUpAtom = atom(
 /** Every tab id the window holds, past and future visits included, so nothing is opened twice. */
 export const everyTabIdAtom = atom((get) => everyTabId(get(storedTabsAtom)));
 
+/** No tabs, one set for every reader. */
+const NO_TAB_IDS: ReadonlySet<string> = new Set();
+
+/**
+ * Empty new chat tabs this window opened since it loaded whose composer has
+ * not come up yet. Their arrival is the one moment a new chat's composer
+ * glints (`NewChatView`, which takes its tab out as it comes up), so a tab
+ * restored at launch, one shown again, and one naming a kept draft never do.
+ */
+export const arrivingNewChatTabsAtom = atom(NO_TAB_IDS);
+
 /** One change to the tabs, given the group on screen as it is at that moment. */
 const applyAtom = atom(
   null,
@@ -256,8 +269,22 @@ const applyAtom = atom(
     }
     const current = get(storedTabsAtom);
     const next = update(current, get(groupOnScreenAtom));
-    if (next !== current) {
-      set(storedTabsAtom, next);
+    if (next === current) {
+      return;
+    }
+    set(storedTabsAtom, next);
+    const before = new Set(current.tabs.map((tab) => tab.id));
+    const arriving = next.tabs.filter(
+      (tab) =>
+        !before.has(tab.id) &&
+        isNewChatTab(tab) &&
+        draftOfTab(tab) === undefined,
+    );
+    if (arriving.length > 0) {
+      set(
+        arrivingNewChatTabsAtom,
+        (ids) => new Set([...ids, ...arriving.map((tab) => tab.id)]),
+      );
     }
   },
 );

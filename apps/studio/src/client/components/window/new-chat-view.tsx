@@ -59,14 +59,14 @@ import { screenPresentation, type ScreenNames } from "./screen-presentation";
 import { useComposerAsks } from "./staged-asks";
 import { useDraftProjectSuggestion } from "./use-draft-project-suggestion";
 import { newChatHref } from "./window-href";
-import { useWindowTabs } from "./window-tabs";
+import { arrivingNewChatTabsAtom, useWindowTabs } from "./window-tabs";
 
 /**
  * A new chat, written in its tab group: the room a chat would have, with the
  * chat's own composer and nothing made until something is written in it.
  * Filling the group, it opens as a new chat did in 1.0: the composer at the
- * middle, under the Instrument mark and a line, a pale glint crossing it as
- * it arrives. In the column
+ * middle, under the Instrument mark and a line, a pale glint crossing it
+ * once as a new tab opens on it. In the column
  * beside the group's tabs, the composer is at the foot. The draft its first words make is named in the tab's address, so a
  * draft opened from the Chats page's Drafts comes up here. What it carries besides its words
  * is what a chat's composer carries: its group's tabs, marked in `besidePlus`,
@@ -118,6 +118,17 @@ export function NewChatView({
   const draft = draftInNewChatBox(drafts, boxes, tabId);
   const boundId = boxes[tabId]?.draftId ?? null;
   const key = { scope: "newChat" as const, tabId };
+  const [glints, setGlints] = useState(() =>
+    store.get(arrivingNewChatTabsAtom).has(tabId),
+  );
+  useEffect(() => {
+    const ids = store.get(arrivingNewChatTabsAtom);
+    if (ids.has(tabId)) {
+      const rest = new Set(ids);
+      rest.delete(tabId);
+      store.set(arrivingNewChatTabsAtom, rest);
+    }
+  }, [store, tabId]);
 
   // The address says which draft is written here: one arriving there (from
   // a window expanded, from Drafts, from back) is taken up, its words and
@@ -436,13 +447,17 @@ export function NewChatView({
             <Kbd>↵</Kbd>
           </button>
         )}
-        {/* Drawn again for each new chat that fills its group, so the glint
-            crosses the composer as the chat arrives. */}
-        {isCentered && (
+        {/* Once, as a new tab's composer first comes up: never as the tab
+            is shown again or its first words name a draft. */}
+        {isCentered && glints && (
           <span
             aria-hidden
             className="pointer-events-none absolute -top-0.5 right-2.5 -bottom-0.5 left-2.5 z-10 field-glint rounded-[20px]"
-            key={draftId ?? tabId}
+            onAnimationEnd={(event) => {
+              if (event.animationName === "field-glint-ring") {
+                setGlints(false);
+              }
+            }}
           />
         )}
       </div>

@@ -59,7 +59,7 @@ import { useWindowTabs } from "./window-tabs";
  * it arrives. In the column
  * beside the group's tabs, the composer is at the foot. The draft its first words make is named in the tab's address, so a
  * draft opened from the Chats page's Drafts comes up here. What it carries besides its words
- * is what a chat's composer carries: its group's tabs, summed up in `lead`,
+ * is what a chat's composer carries: its group's tabs, counted in `besidePlus`,
  * and what the person attached. Its title and menu are the chat's tab's.
  *
  * Its draft is its tab group's, kept however empty it gets while the group
@@ -69,8 +69,8 @@ export function NewChatView({
   draftId,
   ensureGroup,
   isCentered,
+  besidePlus,
   isPaneShown,
-  lead,
   onOpenBeside,
   tabId,
   takesCaret,
@@ -83,8 +83,8 @@ export function NewChatView({
   isCentered: boolean;
   /** Whether the side panel shows the draft's tab up, where its tabs stand as a strip rather than as chips. */
   isPaneShown: boolean;
-  /** Drawn at the head of the composer, as a chat's has it: what goes with a message besides its words. */
-  lead?: ReactNode;
+  /** Drawn beside the composer's plus, as a chat's has it: what goes with a message besides its words. */
+  besidePlus?: ReactNode;
   /** Brings the side panel up for something just opened into it. */
   onOpenBeside: (group: string) => void;
   tabId: string;
@@ -282,7 +282,7 @@ export function NewChatView({
           draftKey={key}
           isLoading={false}
           keyboardHome
-          lead={lead}
+          besidePlus={besidePlus}
           modelURI={shell.defaultModelURI}
           onFolders={(paths) => {
             for (const path of paths) {

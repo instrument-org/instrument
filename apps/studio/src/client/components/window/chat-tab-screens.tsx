@@ -25,7 +25,7 @@ import { useWindowTabs } from "./window-tabs";
 
 /**
  * A chat in a tab of a group, as its route draws it: the conversation, with
- * the group's other tabs counted in a line at the head of its composer.
+ * the group's other tabs counted beside its composer's plus.
  * Every tab in the group goes with each message, so none of them is a chip
  * to leave out. It marks itself read and takes the caret only on the side
  * with the keyboard.
@@ -44,7 +44,7 @@ export function GroupChatScreen({ chatId }: { chatId: ChatId }) {
         <div className="relative min-h-0 flex-1">
           <ChatScreen
             chatId={chatId}
-            composerLead={awarenessOf(awareTabs)}
+            composerOffer={awarenessOf(awareTabs)}
             isUp={isActive && hasKeyboard}
             key={chatId}
             {...(tabId === undefined
@@ -132,9 +132,9 @@ function ChatTabHead({ chatId }: { chatId: ChatId }) {
 
 /**
  * What the agent reads of the group a chat's or a new chat's tab is in:
- * how many other tabs it has (`summaryOf`), as a quiet line at the
- * head of the composer, whose hover says each message shares them and
- * lists each by its mark and title.
+ * how many other tabs it has (`summaryOf`), quiet beside the composer's
+ * plus, whose hover says each message shares them and lists each by its
+ * mark and title.
  */
 function AwarenessLine({ tabs }: { tabs: readonly LayoutTab[] }) {
   const windowTabs = useWindowTabs();
@@ -180,9 +180,8 @@ function AwarenessLine({ tabs }: { tabs: readonly LayoutTab[] }) {
 }
 
 /**
- * The line for a composer's head, or nothing while the tab is alone in its
- * group: only a chip with something to say goes in, so the composer keeps
- * no empty row for it.
+ * The count beside a composer's plus, or nothing while the tab is alone in
+ * its group.
  */
 function awarenessOf(tabs: readonly LayoutTab[]) {
   return tabs.length > 0 ? <AwarenessLine tabs={tabs} /> : undefined;
@@ -203,9 +202,9 @@ function useAwareTabs(chatTab: string | undefined) {
   );
 }
 
-/** The line's words: every other tab of the group counted as a tab, whatever it shows. */
+/** The count's words: every other tab of the group counted as a tab, whatever it shows. */
 function summaryOf(tabs: readonly LayoutTab[]): string {
-  return `Includes ${tabs.length.toString()} tab${tabs.length === 1 ? "" : "s"}`;
+  return `${tabs.length.toString()} tab${tabs.length === 1 ? "" : "s"}`;
 }
 
 /**
@@ -234,7 +233,7 @@ export function GroupNewChatScreen({
           ensureGroup={() => group ?? ""}
           isCentered
           isPaneShown={false}
-          lead={awarenessOf(awareTabs)}
+          besidePlus={awarenessOf(awareTabs)}
           onOpenBeside={() => undefined}
           tabId={tabId}
           takesCaret={isActive && hasKeyboard}

@@ -23,7 +23,6 @@ import { type RowDensity } from "./chat-list-view";
 import { ChatRow } from "./chat-row";
 import { type Chat, type Project } from "./chats";
 import { WindowContext, type WindowContextValue } from "./context";
-import { type RowAction } from "./row-shell";
 
 /** What each of the row's own routes was asked, by name. */
 
@@ -298,15 +297,12 @@ async function renderRows(
   chats: Chat[],
   {
     density,
-    leading = [],
     onOpen = vi.fn(),
     onSetProject = vi.fn(),
     openScreen = vi.fn(),
     store,
   }: {
     density?: RowDensity;
-    /** Actions the list puts ahead of the chat's own, as it does Pop out. */
-    leading?: RowAction[];
     onOpen?: Mock<() => void>;
     onSetProject?: Mock<(project: null | string) => void>;
     openScreen?: Mock<(href: string) => void>;
@@ -320,7 +316,7 @@ async function renderRows(
     return chats.map((entry, index) => (
       <div key={index} style={{ width: "400px" }}>
         <ChatRow
-          actions={[...leading, ...actionsFor(entry)]}
+          actions={actionsFor(entry)}
           appsBySlug={
             new Map([
               ["github", { name: "GitHub", site: "https://github.com" }],
@@ -805,24 +801,6 @@ describe("ChatRow", () => {
     await expect
       .element(page.getByRole("menuitem", { name: "Open in New Tab" }))
       .toBeVisible();
-  });
-
-  it("offers Pop Out beside the ways to open the chat when the list gives it", async () => {
-    const run = vi.fn();
-    const { rows } = await renderRows([chat()], {
-      leading: [{ icon: null, id: "popOut", label: "Pop out", run }],
-    });
-    const [row] = rows;
-    if (!row) {
-      throw new Error("no row");
-    }
-    row.dispatchEvent(
-      new MouseEvent("contextmenu", { bubbles: true, cancelable: true }),
-    );
-    const items = page.getByRole("menuitem");
-    await expect.element(items.nth(3)).toHaveTextContent("Pop Out");
-    await userEvent.click(items.nth(3));
-    expect(run).toHaveBeenCalledOnce();
   });
 
   it("keeps what it holds to one line, the files first, clipped at the row's edge rather than wrapped", async () => {

@@ -474,7 +474,6 @@ describe("a tab let go in the open", () => {
     await letGo();
 
     expect(tabsOf("from")).toEqual(["a"]);
-    expect(state.kept.get("from")?.get("compose.v2")).toEqual([]);
     expect(boundsWhenDrawn).toEqual(BOUNDS);
     // Short of opaque, or a window under it on macOS stops drawing.
     expect(spareOpacityWhenDrawn).toBeLessThan(1);
@@ -1171,16 +1170,12 @@ describe("a window's only tab", () => {
     expect(from.opacity).toBe(1);
   });
 
-  it("goes to that window, whose floats take its own, and its window closes", async () => {
-    state.kept.get("from")?.set("compose.v2", [{ chatId: "c" }]);
+  it("goes to that window, and its window closes", async () => {
     press(moving(), true);
     moveTo(OVER_STRIP);
     const end = await letGo();
 
     expect(end).toEqual({ kind: "closes" });
-    expect(state.kept.get("other")?.get("compose.v2")).toEqual([
-      { chatId: "c" },
-    ]);
     expect(closeEmptiedWindow).toHaveBeenCalledWith(from);
   });
 

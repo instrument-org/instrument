@@ -27,11 +27,7 @@ import {
 } from "@/electron-main/windows/app-window";
 import { keepsOffScreen } from "@/electron-main/windows/on-screen";
 import { TOOLBAR_HEIGHT } from "@/shared/constants";
-import {
-  APP_TABS_KEY,
-  COMPOSE_KEY,
-  isHostedPageKey,
-} from "@/shared/kept-state";
+import { APP_TABS_KEY, isHostedPageKey } from "@/shared/kept-state";
 import {
   type GroupTabLanding,
   groupOfWholeKey,
@@ -53,7 +49,6 @@ import {
   type CarryPhase,
   isSamePhase,
   landsBy,
-  mergeFloats,
   overlapOf,
   phaseAt,
   type Point,
@@ -1067,7 +1062,6 @@ async function standAlone(
       return NONE;
     }
     await leaveOthersBehind(ending);
-    tellWindowKeptState(ending.fromId, from.webContents, COMPOSE_KEY, []);
     tellWhatItHolds(ending, {
       recentlyClosed: [],
       selectedId: moving.tab.id,
@@ -1129,8 +1123,7 @@ async function land(
     stopCarry();
     return NONE;
   }
-  const { from, fromId, goes, isGroupTab, moving, phase, picture, spare } =
-    ending;
+  const { from, goes, isGroupTab, moving, phase, picture, spare } = ending;
   const isThere = phase.kind === "docked" && phase.window === target;
   const landsAt = isThere ? phase.landsAt : undefined;
   const isJoining =
@@ -1157,18 +1150,6 @@ async function land(
     return takeStrip(ending, target, targetId, landsAt);
   }
   handPages(moving.pages, target);
-  // An only tab's window closes with nothing to come back to, its floats aside.
-  if (!spare) {
-    tellWindowKeptState(
-      targetId,
-      target.webContents,
-      COMPOSE_KEY,
-      mergeFloats(
-        getWindowKeptState(targetId, COMPOSE_KEY),
-        getWindowKeptState(fromId, COMPOSE_KEY),
-      ),
-    );
-  }
   // Raised only now: until the tab is drawn there, the window shows it held.
   void (
     isGroupTab
@@ -1220,15 +1201,11 @@ async function takeStrip(
     ...windowKeptKeys(fromId),
   ])) {
     if (key !== APP_TABS_KEY && !isHostedPageKey(key)) {
-      const value = getWindowKeptState(targetId, key);
       tellWindowKeptState(
         fromId,
         from.webContents,
         key,
-        // An only tab's window has its floats yet, where another's left them behind.
-        key === COMPOSE_KEY && !spare
-          ? mergeFloats(getWindowKeptState(fromId, key), value)
-          : value,
+        getWindowKeptState(targetId, key),
       );
     }
   }

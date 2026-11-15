@@ -4,7 +4,6 @@ import {
   boundsAtRelease,
   boundsUnderPointer,
   landsBy,
-  mergeFloats,
   phaseAt,
   placeOnWindow,
   whatGoes,
@@ -38,33 +37,6 @@ describe("what leaves as the tab is let go", () => {
     ],
   ] as const)("when %s", (_case, facts, goes) => {
     expect(whatGoes({ ...usual, ...facts })).toBe(goes);
-  });
-});
-
-describe("two windows' floats as one", () => {
-  it("keeps each once, the first window's first", () => {
-    expect(
-      mergeFloats(
-        [
-          { chatId: "a", kind: "chat" },
-          { draftId: "b", kind: "draft" },
-        ],
-        [
-          { chatId: "a", kind: "chat", placement: "bar" },
-          { chatId: "c", kind: "chat" },
-        ],
-      ),
-    ).toEqual([
-      { chatId: "a", kind: "chat" },
-      { draftId: "b", kind: "draft" },
-      { chatId: "c", kind: "chat" },
-    ]);
-  });
-
-  it("takes what is not a list of floats as none", () => {
-    expect(mergeFloats(undefined, [{ chatId: "a" }])).toEqual([
-      { chatId: "a" },
-    ]);
   });
 });
 

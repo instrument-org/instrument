@@ -12,13 +12,11 @@ import { createContext, useContext } from "react";
 import { type AIGatewayModelURI } from "@instrument-org/ai-gateway/client";
 
 import { type Project } from "./chats";
-import { type DraftSend } from "./compose-window";
-import { type ContextItem } from "./context-items";
-import { type useCompose } from "./use-compose";
+import { type DraftSend } from "./use-drafts";
 
 /**
- * What the window keeps once and every app tab reads: its lists, the drafts
- * and floating windows, and the ways back into the window's own state from
+ * What the window keeps once and every app tab reads: its lists, the drafts,
+ * and the ways back into the window's own state from
  * inside a tab.
  */
 export interface WindowShell {
@@ -29,7 +27,6 @@ export interface WindowShell {
   childTitles: Map<StoreId.Session, string>;
   /** Closes a tab group, asking first while its agent works. */
   closeGroup: (group: string) => void;
-  compose: ReturnType<typeof useCompose>;
   /** The model a new chat starts on, and setting it. */
   defaultModelURI: AIGatewayModelURI.Type | undefined;
   /** Throws a draft away, with a moment to take it back. */
@@ -46,8 +43,6 @@ export interface WindowShell {
   onNewProject: (chatId: ChatId, name?: string) => void;
   /** A project asked for from a draft's menu, with what was typed: the project it makes files that draft. */
   onNewDraftProject: (draftId: string, name?: string) => void;
-  /** Sends the draft the Chat screen is writing to a window along the foot. */
-  popOutDraft: (id: string) => void;
   setDefaultModelURI: (modelURI: AIGatewayModelURI.Type) => void;
   /** Starts the chat a draft is for, from what its composer sends, in the tab it was written in. */
   startChat: (id: string, send: DraftSend, tabId: string) => void;
@@ -77,10 +72,8 @@ export interface WindowShell {
   /** What goes with a message in a chat; see `contextReaders`. */
   sendContext: (options: {
     chatId: ChatId;
-    isViewOpen: boolean;
     /** The chat's tab the message is written in, whose other side's tab up goes with it. */
     tabId?: string;
-    taken: readonly ContextItem[];
   }) => Promise<SessionMessageDataPart.ViewContextDataPart | undefined>;
   setChatProject: (id: ChatId, project: null | string) => void;
   showDraft: (id: string) => void;

@@ -185,7 +185,7 @@ interface PromptInputProps {
   actionsInto?: HTMLElement | null;
   /** Whether the plus is drawn in the button row; off where the host offers its own ways in. A typed slash still offers what the plus would. */
   addMenu?: boolean;
-  /** What stands beside the plus along the box's foot: something offered to the message, such as what is in view behind a draft or a popped-out chat. */
+  /** What stands beside the plus along the box's foot: something offered to the message, such as the tabs it goes with. */
   besidePlus?: React.ReactNode;
   /** Shows an attached file or folder on disk where the host shows what goes with the message; without it a picture opens large. */
   onShowItem?: (item: { kind: "file" | "folder"; path: string }) => void;

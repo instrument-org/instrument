@@ -13,22 +13,13 @@ import { type AppsBySlug } from "./apps-by-slug";
 import { isSiteGroup } from "./app-tabs";
 import { type BrowserTabsHandle } from "./browser-tabs";
 import { heldChipOf } from "./context-chip";
-import {
-  chatContextItems,
-  type ContextItem,
-  draftContextItems,
-} from "./context-items";
+import { chatContextItems, type ContextItem } from "./context-items";
 import { tabInView } from "./draft-context";
 import { computerTabOf, reachablePath } from "./file-tabs";
 import { joinHostPath, segmentsOf } from "./host-path";
 import { screenLocation, screenPresentation } from "./screen-presentation";
 import { type Volume } from "./tab-location";
-import {
-  chatOfTab,
-  draftOfTab,
-  isFreshTab,
-  isNewChatTab,
-} from "./tab-model";
+import { chatOfTab, draftOfTab, isFreshTab, isNewChatTab } from "./tab-model";
 import { type TabSurface } from "./tab-surface";
 import { matchScreen } from "./window-href";
 import { type useWindowTabs } from "./window-tabs";
@@ -388,11 +379,9 @@ export function contextReaders({
     };
   };
   /**
-   * The items a draft carries now. Written in a tab, it carries what a
-   * chat's composer does: the tab up beside it, as what is in view. Written
-   * in a window along the foot, it carries its `context` (see
-   * draftContextItems). `tabId` is the tab the draft is written in, where
-   * the caller knows it: a draft made a moment ago is not in its tab's
+   * The items a draft carries now, what a chat's composer does: the tab up
+   * beside the tab it is written in, as what is in view. `tabId` is that tab,
+   * where the caller knows it: a draft made a moment ago is not in its tab's
    * address yet.
    */
   const draftItems = (draft: Draft, tabId?: string) => {
@@ -404,17 +393,10 @@ export function contextReaders({
       return chatContextItems({
         finderOf,
         group,
-        taken: [],
         up: windowTabs.besideOf(tab.id),
       });
     }
-    return draftContextItems({
-      allTabs: windowTabs.allTabs,
-      band: [],
-      draft,
-      finderOf,
-      group,
-    });
+    return [];
   };
   /** What a draft carries as its chat starts, from the tab it was written in when it was. */
   const draftContext = async (
@@ -426,22 +408,15 @@ export function contextReaders({
     });
   /**
    * What goes with a message in a chat: the tab up on the other side of the
-   * chat's tab, while its chip is there, and what the person took for the
-   * message from what was offered; and the files open in the chat's group.
+   * chat's tab, and the files open in the chat's group.
    */
   const sendContext = async ({
     chatId,
-    isViewOpen,
     tabId,
-    taken,
   }: {
     chatId: ChatId;
-    /** Whether what stands beside the chat's tab goes with the message. */
-    isViewOpen: boolean;
     /** The chat's tab the message is written in. */
     tabId?: string;
-    /** What the person took for the message. */
-    taken: readonly ContextItem[];
   }): Promise<SessionMessageDataPart.ViewContextDataPart | undefined> => {
     const group =
       windowTabs.allTabs.find((tab) => tab.id === tabId)?.group ?? chatId;
@@ -450,11 +425,7 @@ export function contextReaders({
       chatContextItems({
         finderOf,
         group,
-        taken,
-        up:
-          isViewOpen && tabId !== undefined
-            ? windowTabs.besideOf(tabId)
-            : undefined,
+        up: tabId === undefined ? undefined : windowTabs.besideOf(tabId),
       }),
       { isReply: true },
     );

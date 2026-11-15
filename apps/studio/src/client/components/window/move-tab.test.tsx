@@ -1,4 +1,3 @@
-import { composeAtom } from "@/client/atoms/window";
 import { type Tab, type TabCarryView, type TabId } from "@/shared/tabs";
 import { getDefaultStore } from "jotai";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
@@ -47,7 +46,6 @@ beforeEach(() => {
     selectedId: asId("a"),
     tabs: [asTab("a"), asTab("b"), asTab("c")],
   }));
-  store.set(composeAtom, []);
   layOutStrip(["a", "b", "c"]);
 });
 

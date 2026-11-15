@@ -56,9 +56,7 @@ export function GroupChatScreen({ chatId }: { chatId: ChatId }) {
             sendContext={() =>
               shell.sendContext({
                 chatId,
-                isViewOpen: true,
                 ...(tabId === undefined ? {} : { tabId }),
-                taken: [],
               })
             }
             sentPrompt={shell.sentWords.get(chatId)}

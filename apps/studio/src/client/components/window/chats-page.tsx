@@ -113,11 +113,6 @@ function TabChatList({ openChatId }: { openChatId: ChatId | undefined }) {
       router.history.push(href);
     }
   };
-  const outIds = new Set(
-    shell.compose.entries.flatMap((entry) =>
-      entry.kind === "chat" ? [entry.chatId] : [],
-    ),
-  );
   return (
     // The search the chord for searching chats puts the caret in.
     <div className="flex min-h-0 w-full flex-1 flex-col" data-chats-search="">
@@ -142,14 +137,7 @@ function TabChatList({ openChatId }: { openChatId: ChatId | undefined }) {
         onOpenDraft={(id) => {
           go(newChatHref(id));
         }}
-        onPopOut={(chat) => {
-          shell.compose.float(chat.id);
-          if (chat.id === openChatId) {
-            go(CHATS_INDEX_HREF);
-          }
-        }}
         openChatId={openChatId}
-        outIds={outIds}
       />
     </div>
   );

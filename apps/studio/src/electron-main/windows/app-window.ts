@@ -31,7 +31,6 @@ import {
 } from "@/electron-main/stores/workspace/kept-state";
 import {
   APP_TABS_KEY,
-  COMPOSE_KEY,
   isHostedPageKey,
   keptTabGroupsOf,
   TAB_GROUPS_KEY,
@@ -103,8 +102,6 @@ import {
 import { app, BrowserWindow, powerMonitor } from "electron";
 import { statSync } from "node:fs";
 import path from "node:path";
-
-import { mergeFloats } from "./tab-carry-rules";
 
 /** The shape a window takes the first time, before it has been sized. */
 const WINDOW_WIDTH = 1240;
@@ -841,7 +838,6 @@ export function mergeAllWindows() {
   const kept = keptTabsOf(to);
   const recentlyClosed = [...kept.recentlyClosed];
   const groups = new Set(keptTabGroupsOfWindow(to));
-  let floats = getWindowKeptState(to, COMPOSE_KEY);
   for (const other of others) {
     const from = appWindowIdOfWindow(other);
     if (from !== undefined) {
@@ -849,7 +845,6 @@ export function mergeAllWindows() {
       for (const group of keptTabGroupsOfWindow(from)) {
         groups.add(group);
       }
-      floats = mergeFloats(floats, getWindowKeptState(from, COMPOSE_KEY));
       manager.handOffGuestsOf(
         other.webContents.id,
         front.webContents.id,
@@ -862,7 +857,6 @@ export function mergeAllWindows() {
     recentlyClosed,
   });
   tellWindowKeptState(to, front.webContents, TAB_GROUPS_KEY, [...groups]);
-  tellWindowKeptState(to, front.webContents, COMPOSE_KEY, floats);
   for (const other of others) {
     closeEmptiedWindow(other);
   }
@@ -1274,7 +1268,6 @@ export function takePendingAppWindowAsks(
     // gone unheard: it read its state as it loaded and listens only now.
     for (const key of new Set([
       APP_TABS_KEY,
-      COMPOSE_KEY,
       TAB_GROUPS_KEY,
       ...windowKeptKeys(started.id),
     ])) {

@@ -142,7 +142,7 @@ export function ChatConversation({
   };
   /** A chip at the head of the composer's box: what goes with the prompt besides its words. */
   composerLead?: ReactNode;
-  /** What stands beside the composer's plus: something offered to the message, such as what is behind a popped-out chat. */
+  /** What stands beside the composer's plus: something offered to the message, such as the tabs it goes with. */
   composerOffer?: ReactNode;
   /** Which draft the composer edits, and the one "Add to chat" in the transcript writes to. */
   draftKey: PromptDraftKey;

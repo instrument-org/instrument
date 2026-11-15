@@ -1,17 +1,13 @@
-import { ToolbarTooltip } from "@/client/components/toolbar-tooltip";
-import { Button } from "@/client/components/ui/button";
 import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuTrigger,
 } from "@/client/components/ui/dropdown-menu";
 import { MenuScrollArea } from "@/client/components/ui/menu-scroll-area";
-import { toolbarClassName } from "@/client/components/ui/toggle";
 import { cn } from "@/client/lib/utils";
 import { rpcClient } from "@/client/rpc/client";
 import { FolderSimpleIcon } from "@phosphor-icons/react/FolderSimple";
 import { PencilSimpleIcon } from "@phosphor-icons/react/PencilSimple";
-import { PictureInPictureIcon } from "@phosphor-icons/react/PictureInPicture";
 import { PlusIcon } from "@phosphor-icons/react/Plus";
 import { StopIcon } from "@phosphor-icons/react/Stop";
 import { CardsThreeIcon } from "@phosphor-icons/react/CardsThree";
@@ -42,15 +38,10 @@ import { type ChatRename, useChatRename } from "./use-chat-rename";
 import { useTitleArrival } from "./use-title-arrival";
 
 /**
- * The head over a chat's conversation, wherever the chat is shown: beside the
- * inbox and popped out into its small window alike. Its title at the left,
- * which renames the chat, and the caret that opens its menu, with the project it
- * is filed under after them and,
- * under a hand, the glyph that pops the conversation out (lit, and always
- * there, while it is out, when pressing it brings the conversation back). At
- * the right, the commands the chat and its tasks left running, then whatever
- * the place it is shown in adds: beside the inbox the pane button, popped out
- * the window's own buttons.
+ * The head over a chat's conversation. Its title at the left, which renames
+ * the chat, and the caret that opens its menu, with the project it is filed
+ * under after them. At the right, the commands the chat and its tasks left
+ * running, then whatever the place it is shown in adds.
  */
 export function ChatHeader({
   chat,
@@ -61,7 +52,6 @@ export function ChatHeader({
   onDeleted,
   onNewProject,
   onSetProject,
-  popOut,
   projects,
   trailing,
 }: {
@@ -79,14 +69,11 @@ export function ChatHeader({
   /** Makes a project, named for what was typed in the picker when anything was, and files the chat under it. */
   onNewProject: (name?: string) => void;
   onSetProject: (project: null | string) => void;
-  /** Whether the conversation is in its small view, and the press that sends it there or brings it back. */
-  popOut?: { isOut: boolean; onToggle: () => void };
   projects: Project[];
-  /** What sits at the head's right: the pane button, or the popped-out window's buttons. */
+  /** What sits at the head's right. */
   trailing?: ReactNode;
 }) {
   const [isDeleting, setDeleting] = useState(false);
-  const popOutButton = popOut && <PopOutButton {...popOut} />;
   return (
     <>
       {chat && (
@@ -117,16 +104,11 @@ export function ChatHeader({
               onSetProject={onSetProject}
               titleClassName="text-sm font-medium"
               projects={projects}
-            >
-              {popOutButton}
-            </ChatHeading>
+            />
           ) : (
-            <>
-              <h2 className="min-w-0 truncate text-sm font-medium">
-                {fallbackTitle}
-              </h2>
-              {popOutButton}
-            </>
+            <h2 className="min-w-0 truncate text-sm font-medium">
+              {fallbackTitle}
+            </h2>
           )}
         </div>
         <div className="flex h-8 shrink-0 items-center gap-x-1">
@@ -139,42 +121,8 @@ export function ChatHeader({
 }
 
 /**
- * The glyph after a head's title that pops the conversation out into its
- * small window, shown under a hand over the head; lit, and always there,
- * while it is out, when pressing it brings the conversation back.
- */
-function PopOutButton({
-  isOut,
-  onToggle,
-}: {
-  isOut: boolean;
-  onToggle: () => void;
-}) {
-  return (
-    <ToolbarTooltip label={isOut ? "Bring back" : "Pop out"}>
-      <Button
-        aria-label={isOut ? "Bring back" : "Pop out"}
-        aria-pressed={isOut}
-        className={cn(
-          toolbarClassName({ pressed: isOut }),
-          "shrink-0",
-          isOut
-            ? "bg-brand-100 text-brand-700 hover:bg-brand-100 hover:text-brand-700 dark:bg-brand-900/40 dark:text-brand-300"
-            : "text-muted-foreground/70 opacity-0 group-hover/head:opacity-100 not-disabled:hover:text-foreground focus-visible:opacity-100",
-        )}
-        onClick={onToggle}
-        size="icon-sm"
-        variant="ghost"
-      >
-        <PictureInPictureIcon className="size-4" />
-      </Button>
-    </ToolbarTooltip>
-  );
-}
-
-/**
- * A chat's title and the project it is filed under, as the chat's head and
- * its popped-out window both draw them: a press on the title puts a field in
+ * A chat's title and the project it is filed under, as the chat's head
+ * draws them: a press on the title puts a field in
  * its place, the caret after it opens the chat's menu, and the
  * project follows them the way mail puts a label after a subject. The title
  * gives way first, truncating; on a narrow head the project stands as its

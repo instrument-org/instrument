@@ -40,7 +40,6 @@ export function WindowFrame({
   children,
   corner,
   hasBar = true,
-  overlay,
   rail,
   rowRef,
 }: {
@@ -50,8 +49,6 @@ export function WindowFrame({
   corner?: ReactNode;
   /** Whether the window keeps a row across its top; without one, the columns reach the top and drag the window there themselves. */
   hasBar?: boolean;
-  /** Laid over the whole window, for the draft windows that float over it. */
-  overlay?: ReactNode;
   /** The rail down the window's left edge, outside the row the columns share. */
   rail?: ReactNode;
   /** The row the columns share, for whoever sizes them against it. */
@@ -136,10 +133,6 @@ export function WindowFrame({
           </div>
         )}
         {corner}
-        {/* Over the whole window, so a draft or a popped-out chat stands on
-          the window's own foot and right edge rather than inside the card's
-          margin, and a grown one is centered over the bar and the rail too. */}
-        {overlay}
         {!isSetupUp && (
           <>
             {/* Settings, the report and the other dialogs belong to no

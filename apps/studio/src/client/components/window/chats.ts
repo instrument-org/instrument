@@ -377,7 +377,7 @@ export function strongestMark(
  * rail's dot sits on its icon for a reply not yet seen or a question waiting,
  * except where the chat is up, which is the chat on screen.
  */
-export function chatMarkShown(
+function chatMarkShown(
   mark: RailChatMark | undefined,
   { isUp }: { isUp: boolean },
 ): { dot?: "unread" | "waiting"; isWorking: boolean } {

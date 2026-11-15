@@ -57,9 +57,7 @@ export function ChatPane({
   onListed,
   onOpenChat,
   onOpenDraft,
-  onPopOut,
   openChatId,
-  outIds,
 }: {
   /** The chat that just started from a draft, whose row arrives with a motion of its own. */
   arrivedId?: string;
@@ -76,12 +74,8 @@ export function ChatPane({
   onOpenChat: (chat: Chat) => void;
   /** Opens a draft to go on writing it. */
   onOpenDraft: (id: string) => void;
-  /** Floats a chat in a window of its own over the row, from its row. */
-  onPopOut?: (chat: Chat) => void;
   /** The chat open beside the list, if one is. */
   openChatId: string | undefined;
-  /** The chats already up in a window of their own. */
-  outIds?: ReadonlySet<string>;
 }) {
   const appsBySlug = useAppsBySlug();
   const shell = useShell();
@@ -353,7 +347,6 @@ export function ChatPane({
           }}
           onOpen={onOpenChat}
           onOpenDraft={onOpenDraft}
-          onPopOut={onPopOut}
           onSetProject={(chat, next) => {
             setChatProject(chat.id, next);
           }}
@@ -361,7 +354,6 @@ export function ChatPane({
             setWidenedIn(viewKey);
           }}
           openId={openChatId}
-          outIds={outIds}
           outside={outside.length}
           outsideChats={shownOutside}
           scrollSignal={scrollSignal}

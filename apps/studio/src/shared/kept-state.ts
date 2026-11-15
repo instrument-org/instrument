@@ -41,9 +41,6 @@ export function keptTabGroupsOf(value: unknown): string[] | undefined {
   return z.array(z.string()).safeParse(value).data;
 }
 
-/** The key a window keeps its floating drafts and chats under. */
-export const COMPOSE_KEY = "compose.v2";
-
 /** Every kept file's keys and values, as a window loads them. */
 export type KeptSnapshot = Partial<Record<KeptFile, Record<string, unknown>>>;
 

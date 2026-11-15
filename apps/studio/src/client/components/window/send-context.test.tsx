@@ -1,19 +1,10 @@
 import { type Draft, draftGroupOf } from "@/shared/drafts";
-import {
-  CHATS_HREF,
-  NEW_TAB_HREF,
-  type WindowTab,
-} from "@/client/atoms/window";
+import { CHATS_HREF, type WindowTab } from "@/client/atoms/window";
 import { fileUrlOf } from "@/client/lib/file-url";
 import { folderHref } from "@/shared/computer-href";
-import {
-  MountedFolder,
-  type SessionMessageDataPart,
-  ChatIdSchema,
-} from "@instrument-org/workspace/client";
+import { MountedFolder, ChatIdSchema } from "@instrument-org/workspace/client";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
-import { chatSuggestionOf, type ContextItem } from "./context-items";
 import { contextReaders, type SendContextWindow } from "./send-context";
 import { besideOf } from "./tab-model";
 import { newChatHref } from "./window-href";
@@ -108,9 +99,7 @@ describe("sendContext", () => {
     await expect(
       sendContext({
         chatId: CHAT,
-        isViewOpen: true,
         tabId: "chat",
-        taken: [],
       }),
     ).resolves.toMatchObject({
       page: { selection: "Words on the page" },
@@ -119,59 +108,19 @@ describe("sendContext", () => {
     });
   });
 
-  it("says only the conversation while its view is put away and nothing else is up", async () => {
+  it("says only the conversation when the message names no tab", async () => {
     const { sendContext } = contextReaders(
       windowOf({ windowTabs: tabsOf([SITE], CHAT) }),
     );
     await expect(
       sendContext({
         chatId: CHAT,
-        isViewOpen: false,
-        taken: [],
       }),
     ).resolves.toMatchInlineSnapshot(`
       {
         "screen": "conversation",
       }
     `);
-  });
-
-  it("tells a popped-out chat nothing about the chat on screen", async () => {
-    const other = ChatIdSchema.parse("2026-10-02-other");
-    const { sendContext } = contextReaders(
-      windowOf({
-        windowTabs: tabsOf([SITE], CHAT),
-      }),
-    );
-    await expect(
-      sendContext({
-        chatId: other,
-        isViewOpen: false,
-        taken: [],
-      }),
-    ).resolves.toBeUndefined();
-  });
-
-  it("sends what is in view behind a chat only once it is taken", async () => {
-    const site: WindowTab = { ...SITE, group: "site:1", id: "site" };
-    const { sendContext } = contextReaders(
-      windowOf({
-        windowTabs: tabsOf([site], "site:1"),
-      }),
-    );
-    const taken = chatSuggestionOf({
-      chatId: CHAT,
-      finderOf: () => null,
-      inView: site,
-      sent: [],
-      taken: [],
-    });
-    const send = (items: ContextItem[]) =>
-      sendContext({ chatId: CHAT, isViewOpen: false, taken: items });
-    await expect(send([])).resolves.toBeUndefined();
-    await expect(send(taken ? [taken] : [])).resolves.toMatchObject({
-      screen: "browser",
-    });
   });
 
   it("sends nothing before the chat's state is read", async () => {
@@ -185,9 +134,7 @@ describe("sendContext", () => {
     await expect(
       sendContext({
         chatId: CHAT,
-        isViewOpen: true,
         tabId: "chat",
-        taken: [],
       }),
     ).resolves.toBeUndefined();
   });
@@ -203,9 +150,7 @@ describe("sendContext", () => {
     await expect(
       sendContext({
         chatId: CHAT,
-        isViewOpen: true,
         tabId: "chat",
-        taken: [],
       }),
     ).resolves.toMatchInlineSnapshot(`
       {
@@ -247,9 +192,7 @@ describe("sendContext", () => {
     await expect(
       sendContext({
         chatId: CHAT,
-        isViewOpen: true,
         tabId: "chat",
-        taken: [],
       }),
     ).resolves.toMatchInlineSnapshot(`
       {
@@ -279,9 +222,7 @@ describe("sendContext", () => {
     );
     const sent = sendContext({
       chatId: CHAT,
-      isViewOpen: true,
       tabId: "chat",
-      taken: [],
     });
     await vi.advanceTimersByTimeAsync(5000);
     await expect(sent).resolves.toMatchInlineSnapshot(`
@@ -317,9 +258,7 @@ describe("sendContext", () => {
     await expect(
       sendContext({
         chatId: CHAT,
-        isViewOpen: true,
         tabId: "chat",
-        taken: [],
       }),
     ).resolves.toMatchInlineSnapshot(`
       {
@@ -344,18 +283,6 @@ describe("draftContext", () => {
     words: "Plan the trip",
   };
   const GROUP = draftGroupOf(DRAFT.id);
-  /** The band's own face, which is not carried to the chat. */
-  const HOME_TAB: WindowTab = {
-    group: GROUP,
-    href: NEW_TAB_HREF,
-    id: "home",
-    kind: "screen",
-  };
-
-  it("sends nothing for a draft whose window has nothing up", async () => {
-    const { draftContext } = contextReaders(windowOf());
-    await expect(draftContext(DRAFT, undefined)).resolves.toBeUndefined();
-  });
 
   it("shows the tab up as the chat starts, attaching none of the draft's tabs", async () => {
     const band: WindowTab = {
@@ -433,7 +360,12 @@ describe("draftContext", () => {
   it.each<[string, WindowTab]>([
     [
       "another chat",
-      { group: "group:1", href: `${CHATS_HREF}/${CHAT}`, id: "other", kind: "screen" },
+      {
+        group: "group:1",
+        href: `${CHATS_HREF}/${CHAT}`,
+        id: "other",
+        kind: "screen",
+      },
     ],
     [
       "a folder with a file selected in it",
@@ -460,7 +392,9 @@ describe("draftContext", () => {
             other: {
               finder: {
                 folder: "/Users/casey/Trips",
-                selected: [{ kind: "file", path: "/Users/casey/Trips/plan.md" }],
+                selected: [
+                  { kind: "file", path: "/Users/casey/Trips/plan.md" },
+                ],
               },
             },
           },
@@ -473,197 +407,4 @@ describe("draftContext", () => {
       expect(sent?.chosen).toBeUndefined();
     },
   );
-
-  const APP = "/apps/notion";
-
-  it.each<
-    [string, Draft["context"], SessionMessageDataPart.ViewContextDataPart]
-  >([
-    [
-      "app",
-      [{ kind: "link", url: "instrument://app/notion" }],
-      {
-        app: {
-          name: "Notion",
-          site: "https://notion.so",
-          slug: "notion",
-          standing: "unknown",
-        },
-        screen: "apps",
-        url: APP,
-      },
-    ],
-    [
-      "page",
-      [{ kind: "link", url: "https://example.com/" }],
-      {
-        page: {
-          selection: "Words on the page",
-          title: "Example",
-          url: "https://example.com/",
-        },
-        screen: "browser",
-        url: "https://example.com/",
-      },
-    ],
-  ])(
-    "describes the %s the draft names by its address, without an id",
-    async (_kind, context, expected) => {
-      const { draftContext } = contextReaders(
-        windowOf({ windowTabs: tabsOf([HOME_TAB]) }),
-      );
-      await expect(
-        draftContext({ ...DRAFT, ...(context ? { context } : {}) }, undefined),
-      ).resolves.toMatchObject(expected);
-    },
-  );
-
-  it("reads a page the draft names from the window's own tab at that address", async () => {
-    const open: WindowTab = {
-      group: "site:1",
-      id: "open",
-      kind: "page",
-      openedAt: 1,
-      title: "Example",
-      url: "https://example.com/",
-    };
-    const readPage = vi.fn(() => Promise.resolve(undefined));
-    const { draftContext } = contextReaders(
-      windowOf({
-        browser: { readPage },
-        windowTabs: tabsOf([HOME_TAB, open]),
-      }),
-    );
-    await draftContext(
-      { ...DRAFT, context: [{ kind: "link", url: "https://example.com/" }] },
-      undefined,
-    );
-    expect(readPage).toHaveBeenCalledWith("open");
-  });
-
-  it("sends nothing for a band that shows only a new tab", async () => {
-    const { draftContext } = contextReaders(
-      windowOf({ windowTabs: tabsOf([HOME_TAB]) }),
-    );
-    await expect(draftContext(DRAFT, undefined)).resolves.toMatchInlineSnapshot(
-      `undefined`,
-    );
-  });
-
-  it("sends what the draft names by its path, reached through its grant", async () => {
-    const { draftContext } = contextReaders(windowOf());
-    await expect(
-      draftContext(
-        {
-          ...DRAFT,
-          context: [
-            { kind: "file", path: "/Users/casey/Notes/plan.md" },
-            { kind: "folder", path: "/Volumes/Backup" },
-          ],
-        },
-        undefined,
-      ),
-    ).resolves.toMatchInlineSnapshot(`
-      {
-        "attached": [
-          {
-            "items": [
-              {
-                "kind": "file",
-                "path": "/Users/casey/Notes/plan.md",
-              },
-            ],
-            "kind": "paths",
-          },
-          {
-            "items": [
-              {
-                "kind": "folder",
-                "path": "/Volumes/Backup",
-              },
-            ],
-            "kind": "paths",
-          },
-        ],
-        "chosen": [
-          {
-            "kind": "file",
-            "mount": "/Users/casey/Notes/plan.md",
-            "name": "plan.md",
-            "path": "/Users/casey/Notes/plan.md",
-          },
-          {
-            "kind": "folder",
-            "name": "Backup",
-            "path": "/Volumes/Backup",
-          },
-        ],
-        "screen": "home",
-      }
-    `);
-  });
-
-  it("sends what is in view behind the draft only once it is taken", async () => {
-    const PLACE = "place:files";
-    const file: WindowTab = {
-      group: PLACE,
-      href: "/files?file=%2FUsers%2Fcasey%2FNotes%2Fplan.md&path=&root=~",
-      id: "file",
-      kind: "screen",
-    };
-    const behindFile = (draft: Draft) =>
-      contextReaders(
-        windowOf({ windowTabs: tabsOf([file], PLACE) }),
-      ).draftContext(draft, undefined);
-    await expect(behindFile(DRAFT)).resolves.toBeUndefined();
-    await expect(
-      behindFile({
-        ...DRAFT,
-        context: [{ kind: "file", path: "/Users/casey/Notes/plan.md" }],
-      }),
-    ).resolves.toMatchObject({
-      attached: [
-        {
-          items: [{ kind: "file", path: "/Users/casey/Notes/plan.md" }],
-          kind: "paths",
-        },
-      ],
-    });
-  });
-
-  it("never sends the chat on screen as what was in view", async () => {
-    const page: WindowTab = {
-      group: CHAT,
-      id: "page",
-      kind: "page",
-      openedAt: 1,
-      title: "Hotels",
-      url: "https://hotels.example/",
-    };
-    const { draftContext } = contextReaders(
-      windowOf({ windowTabs: tabsOf([page], CHAT) }),
-    );
-    await expect(draftContext(DRAFT, undefined)).resolves.toBeUndefined();
-  });
-
-  it("names the chat the draft names, and nothing for one trashed since", async () => {
-    const { draftContext } = contextReaders(windowOf());
-    await expect(
-      draftContext(
-        { ...DRAFT, context: [{ chat: CHAT, kind: "chat" }] },
-        undefined,
-      ),
-    ).resolves.toMatchObject({
-      chat: { id: CHAT, title: "Lisbon" },
-      screen: "chat",
-    });
-
-    const gone = ChatIdSchema.parse("2026-10-02-gone");
-    await expect(
-      draftContext(
-        { ...DRAFT, context: [{ chat: gone, kind: "chat" }] },
-        undefined,
-      ),
-    ).resolves.toBeUndefined();
-  });
 });

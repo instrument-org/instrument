@@ -1,5 +1,4 @@
-import { type ChosenItem, draftGroupOf } from "@/shared/drafts";
-import { COMPOSE_KEY } from "@/shared/kept-state";
+import { type ChosenItem } from "@/shared/drafts";
 import {
   type FileSystemListColumn,
   type FileSystemGroupKey,
@@ -59,35 +58,6 @@ export interface FinderShown {
   folder: string;
   selected: ChosenItem[];
 }
-
-/**
- * One window along the foot: a draft being written, or a chat floating in
- * its small view, and how the window stands. A chat's entry remembers the
- * draft it grew from, so the window that was the draft is the window that
- * is the chat, with no arrival between them.
- */
-export type ComposeEntry = { placement: ComposePlacement } & (
-  | { draftId: string; kind: "draft" }
-  | { chatId: ChatId; fromDraft?: string; kind: "chat" }
-);
-
-/** How a window stands: docked along the window's foot, or put down to a bar along it. */
-export type ComposePlacement = "bar" | "docked";
-
-/** The group key of what a window shows: the draft's tabs, or the chat's. */
-export function composeKeyOf(entry: ComposeEntry): string {
-  return entry.kind === "draft" ? draftGroupOf(entry.draftId) : entry.chatId;
-}
-
-/**
- * The windows floating over the row, the way a mail client keeps several
- * compose windows along its foot, oldest first: the newest stands at the
- * right, and the ones there is no room for are not drawn. The drafts being
- * written and the chats in their small views share the row. Kept across
- * launches, so what was floating when the app quit floats again; the drafts
- * themselves are in `draftsAtom` (`client/drafts/store.ts`).
- */
-export const composeAtom = keptAtom<ComposeEntry[]>("window", COMPOSE_KEY, []);
 
 /** The places the rail at the window's edge switches between: the chat, the files, the browser, and the apps. */
 export type AppPlace = "apps" | "browser" | "chat" | "files";

@@ -1,4 +1,4 @@
-import { composeAtom, type WindowTab } from "@/client/atoms/window";
+import { type WindowTab } from "@/client/atoms/window";
 import { makeNewChatDraftAtom } from "@/client/drafts/new-chat-box";
 import { renderWithProviders } from "@/tests/render";
 import { AIGatewayModelURI } from "@instrument-org/ai-gateway/schemas";
@@ -6,7 +6,6 @@ import { ChatIdSchema } from "@instrument-org/workspace/client";
 import { waitFor } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 
-import { useCompose } from "./use-compose";
 import { useDrafts } from "./use-drafts";
 import { chatHref, newChatHref } from "./window-href";
 
@@ -51,18 +50,14 @@ function Drafts({
 }: {
   onDrafts: (drafts: ReturnType<typeof useDrafts>) => void;
 }) {
-  const compose = useCompose(1000);
   onDrafts(
     useDrafts({
       browser: null,
-      compose,
       draftContext: () => Promise.resolve(undefined),
       folders: {},
       isChat: false,
       isOpen: true,
       openDraftInChat: () => undefined,
-      openDrafts: () => undefined,
-      openNewChat: () => undefined,
       projects: [],
       saveDefaultModelURI: () => undefined,
       windowTabs: { allTabs: [TAB], replace: () => undefined },
@@ -95,7 +90,5 @@ describe("starting a chat from a new chat's tab", () => {
     expect(calls.turn).toHaveBeenCalledWith(
       chatHref(ChatIdSchema.parse(calls.chat)),
     );
-    // Nothing is left along the foot for a chat sent from a tab.
-    expect(store.get(composeAtom)).toEqual([]);
   });
 });

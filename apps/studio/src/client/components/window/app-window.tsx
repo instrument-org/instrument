@@ -15,7 +15,7 @@ import {
   pickNewChatProjectAtom,
   settleMadeDraft,
 } from "@/client/drafts/new-chat-box";
-import { type Draft, draftGroupOf, holdsSomething } from "@/shared/drafts";
+import { type Draft, holdsSomething } from "@/shared/drafts";
 import {
   type AppPlace,
   chatFiltersByTabAtom,
@@ -49,7 +49,6 @@ import { useRefreshSkillsOnChange } from "@/client/hooks/use-refresh-skills-on-c
 import { useRefreshProjectsOnChange } from "@/client/hooks/use-refresh-projects-on-change";
 import { useTabRouters } from "@/client/hooks/use-tab-routers";
 import { pageHoldingKeyboard } from "@/client/lib/browser-pool";
-import { keptInOtherWindows } from "@/client/lib/kept-state";
 import { resolveComputerFileBase } from "@/client/lib/computer-file-url";
 import { ICON_CONTEXT_VALUE } from "@/client/lib/icon-context";
 import {
@@ -117,13 +116,11 @@ import {
   siteGroupsOf,
   useAppTabs,
 } from "./app-tabs";
-import { COMPOSE_KEY } from "@/shared/kept-state";
 import { useAppsBySlug } from "./apps-by-slug";
 import { editField } from "./omnibar-field";
 import { BrowserTabs, type BrowserTabsHandle } from "./browser-tabs";
 import { chatListOptions, chromeOfChats } from "./chat-list-query";
 import { type ChatFilters, inPlace } from "./chats";
-import { ComposeLayer } from "./compose-layer";
 import { useComputerVolumes } from "./computer-volumes";
 import { type WindowContextValue as Screens, WindowContext } from "./context";
 import {
@@ -148,7 +145,6 @@ import { type WindowShell as Shell, ShellContext } from "./shell-context";
 import { useStagedAskActions } from "./staged-asks";
 import { tabSurfaceAtom } from "./tab-surface";
 import { useTaskTitles } from "./task-titles";
-import { useCompose } from "./use-compose";
 import { useDrafts } from "./use-drafts";
 import { useOpeners } from "./use-openers";
 import { CommandMenu } from "./command-menu";
@@ -210,23 +206,11 @@ interface Closing {
   tabs: WindowTab[];
 }
 
-/** The drafts floating in what another window kept of its floating windows. */
-function floatingDraftIdsOf(kept: unknown): string[] {
-  return (Array.isArray(kept) ? (kept as unknown[]) : []).flatMap((entry) =>
-    typeof entry === "object" &&
-    entry !== null &&
-    "draftId" in entry &&
-    typeof entry.draftId === "string"
-      ? [entry.draftId]
-      : [],
-  );
-}
-
 /**
  * The app window: its tabs across the bar, each a router of its own kept
  * mounted and live behind the one on screen, and around them what the window
- * keeps once whatever tab is up: the rail, the drafts and popped-out chats
- * along the foot, the window's browser, and its chords.
+ * keeps once whatever tab is up: the rail, the drafts, the window's browser,
+ * and its chords.
  *
  * A first launch has no workspace until setup's first step places one, so
  * the window draws setup alone, and loads again once the workspace runs.
@@ -648,7 +632,7 @@ function WindowShell({
   );
   const layoutContextRef = useRef<Shell["layoutContext"]>(() => undefined);
   // The card the tabs are drawn in, measured in layout px, which the inbox
-  // and the floating windows size themselves against.
+  // sizes itself against.
   const [rowElement, setRowElement] = useState<HTMLDivElement | null>(null);
   const [rowWidth, setRowWidth] = useState(0);
   useEffect(() => {
@@ -683,27 +667,15 @@ function WindowShell({
     }
   }, [filesFolder, setFilesFolder]);
 
-  const compose = useCompose(rowWidth);
-  // A draft is written over the screen, never on it, and a draft with no
-  // words is not kept past its window, so one left over from a launch goes,
-  // unless its window came back with it. A window whose draft is gone goes.
+  // A draft with no words is not kept, so one left over from a launch goes.
   // Once, over what was restored, once main has read the drafts: before
   // then every draft looks gone.
   const isSwept = useRef(false);
   const sweepRestored = useEffectEvent(() => {
-    // Another window's are as much its own as this one's are this one's.
-    const floating = new Set([
-      ...compose.entries.flatMap((entry) =>
-        entry.kind === "draft" ? [entry.draftId] : [],
-      ),
-      ...keptInOtherWindows(COMPOSE_KEY).flatMap(floatingDraftIdsOf),
-    ]);
     // A reply waiting in a chat's box is kept by the chat, not by a window
     // of its own, so nothing here takes one away.
     const isKept = (draft: Draft) =>
-      draft.chatId !== undefined ||
-      isWorthKeeping(draft) ||
-      floating.has(draft.id);
+      draft.chatId !== undefined || isWorthKeeping(draft);
     // A draft's folder goes with it, and what was pasted into it. Once a launch,
     // since a window opening later finds another's new chat box as empty as these.
     void rpcClient.window.takeLaunchSweep.call().then((isFirstUp) => {
@@ -715,14 +687,6 @@ function WindowShell({
         }
       }
     });
-    for (const entry of compose.entries) {
-      if (
-        entry.kind === "draft" &&
-        !drafts.some((draft) => draft.id === entry.draftId)
-      ) {
-        compose.remove(draftGroupOf(entry.draftId));
-      }
-    }
   });
   useEffect(() => {
     if (draftsLoaded && !isSwept.current) {
@@ -810,12 +774,6 @@ function WindowShell({
       host.append(stage);
     }
   }, [pageHost, stage]);
-
-  /** Takes a chat out of the corner: the window goes and the chat opens as a group. */
-  const expandChat = (chatId: ChatId) => {
-    compose.remove(chatId);
-    groups.openChat(chatId);
-  };
 
   const appsBySlug = useAppsBySlug();
   const { openNamedPath, openPage, openScreen } = useOpeners({
@@ -906,7 +864,6 @@ function WindowShell({
         }),
       );
     }
-    // Any group's: a popped-out chat's rail closes its tabs here too.
     windowTabs.close(id);
   };
   /**
@@ -1147,13 +1104,10 @@ function WindowShell({
   });
   const {
     arrivedId,
-    closeDraft,
     discardDraft,
     discardingIds,
     draftFromLink,
     draftWith,
-    expandDraft,
-    popOutDraft,
     sentProjects,
     sentWords,
     showDraft,
@@ -1162,25 +1116,12 @@ function WindowShell({
   } = useDrafts({
     browser,
     folders: opened?.folders ?? {},
-    compose,
     draftContext,
     isOpen: opened !== undefined,
     layoutOf: (tabId) => layoutContextRef.current(tabId),
     isChat,
     openDraftInChat: (id) => {
       appTabs.navigate(newChatHref(id));
-    },
-    openNewChat: (projectId) => {
-      const tabId = appTabs.model.selectedId;
-      if (tabId) {
-        pickNewChatProject({ projectId, tabId });
-      }
-      appTabs.navigate(newChatHref());
-    },
-    openDrafts: () => {
-      openBuiltInPage(
-        `${CHATS_INDEX_HREF}?${new URLSearchParams({ place: "drafts" }).toString()}`,
-      );
     },
     saveDefaultModelURI,
     projects,
@@ -1584,7 +1525,6 @@ function WindowShell({
   const shell: Shell = {
     arrivedId,
     childTitles,
-    compose,
     defaultModelURI,
     discardDraft,
     // Only a draft holding something is a draft to come back to; one being
@@ -1624,7 +1564,6 @@ function WindowShell({
     openProjectInFiles: (project) => {
       void showProjectInFiles(project);
     },
-    popOutDraft,
     reopenClosed,
     reopenTab,
     requestClose,
@@ -1651,36 +1590,6 @@ function WindowShell({
           <WindowFrame
             corner={<TrafficLightsWithSidebar />}
             hasBar={false}
-            overlay={
-              <ComposeLayer
-                browser={browser}
-                compose={compose}
-                drafts={drafts}
-                modelURI={defaultModelURI}
-                onChangeDraft={(id, update) => {
-                  updateDraft({ id, update });
-                }}
-                onCloseChat={(chatId) => {
-                  compose.remove(chatId);
-                }}
-                onCloseDraft={closeDraft}
-                onDiscardDraft={discardDraft}
-                onExpandChat={expandChat}
-                onExpandDraft={expandDraft}
-                onModelChange={setDefaultModelURI}
-                onNewChatProject={(chatId, name) => {
-                  setNewProject({ chatId, ...(name ? { name } : {}) });
-                }}
-                onNewProject={(draftId, name) => {
-                  setNewProject({ draftId, ...(name ? { name } : {}) });
-                }}
-                onSetChatProject={setChatProject}
-                onStart={startChat}
-                sendContext={(options) => sendContextRef.current(options)}
-                sentWords={sentWords}
-                projects={projects}
-              />
-            }
             rail={
               <StudioSidebarRail
                 bounds={sidebarBounds(

@@ -1,6 +1,5 @@
 import { type GroupTabLanding } from "@/shared/tabs";
 import { clamp } from "radashi";
-import { z } from "zod";
 
 /** How far below a new window's top the pointer stands when a tab is let go in the open. */
 const BELOW_WINDOW_TOP_PX = 40;
@@ -189,28 +188,4 @@ export function landsBy({
   isTabPageUsed: boolean;
 }): "joining" | "takingStrip" {
   return goes === "tab" || !isTabPageUsed ? "joining" : "takingStrip";
-}
-
-const FloatsSchema = z
-  .array(
-    z.looseObject({
-      chatId: z.string().optional(),
-      draftId: z.string().optional(),
-    }),
-  )
-  .catch([]);
-
-/** Two windows' floats as one, a chat or a draft floating in both counted once. */
-export function mergeFloats(kept: unknown, more: unknown) {
-  const seen = new Set<string | undefined>();
-  return [...FloatsSchema.parse(kept), ...FloatsSchema.parse(more)].filter(
-    ({ chatId, draftId }) => {
-      const key = draftId ?? chatId;
-      if (seen.has(key)) {
-        return false;
-      }
-      seen.add(key);
-      return true;
-    },
-  );
 }

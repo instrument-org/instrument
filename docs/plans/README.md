@@ -142,7 +142,6 @@ Each entry is the plan's title and the opening of its status.
 - [Skills in Studio](skills-in-studio.md): Completed.
 - [Skills mount instead of copy, and a task installs once](skills-mount-instead-of-copy.md): Landed, with a different answer for Node dependencies.
 - [Switchable workspaces](switchable-workspaces.md): Landed.
-- [The floating chat](the-floating-chat.md): Landed.
 - [Rename threads to chats](threads-to-chats-rename.md): Landed.
 - [Bound tool results before they consume the context window](tool-result-context-budgets.md): Complete, two phases of three.
 - [Rename topics to projects](topics-to-projects-rename.md): Landed in one change.
@@ -163,6 +162,7 @@ Each entry is the plan's title and the opening of its status.
 - [Multiple top-level app windows](multi-window-support.md): Not built from this plan: the investigation below is of the 1.x main window (`windows/main/`, `MainWindow`, `menus/main-window.ts`), removed in `a73917f45`,...
 - [One browser abstraction, many tabs](one-browser-many-tabs.md): Superseded by agent-browser-multiple-tabs, which built the tabs on the 2.0 window's own tab ids instead of a per-page id migration.
 - [Temporary tasks](temporary-tasks.md): Not built;
+- [The floating chat](the-floating-chat.md): Popped-out chats and the draft windows along the foot were removed;
 - [Store tool-result media once, by content hash](tool-result-media-dedup.md): Overtaken by the chat records (`4a4af7b36`): a log keeps every `base64Data` in a tool part's output as a blob in the chat's `blobs/`, named by the SHA-256 of...
 - [Folders decoupled from tasks, writable in place](user-chosen-working-folder.md): Overtaken by 2.0's folder model;
 - [Wake on background job exit](wake-on-background-job-exit.md): Overtaken.

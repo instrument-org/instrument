@@ -150,8 +150,8 @@ export function NewChatView({
     followAddress();
   }, [draftId, draftsLoaded, tabId]);
   // What the box held besides its words (a picture's own preview among it)
-  // is kept with the draft as the box lets go of it, popped out or left, so
-  // its window or this screen shows it again as it was.
+  // is kept with the draft as the box lets go of it, so this screen shows it
+  // again as it was.
   useLayoutEffect(() => {
     if (boundId === null) {
       return;

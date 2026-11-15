@@ -7,11 +7,9 @@ import {
   ARRIVING_SEARCH,
   settingsHrefOf,
 } from "@/client/components/settings/settings-href";
+import { settingsTabOfSection } from "@/client/components/settings/settings-index";
 import { SettingsPage } from "@/client/components/settings/settings-page";
-import {
-  isSettingsSection,
-  SETTINGS_SECTIONS,
-} from "@/shared/instrument-screens";
+import { isSettingsSection } from "@/shared/instrument-screens";
 import { createFileRoute, redirect } from "@tanstack/react-router";
 import { z } from "zod";
 
@@ -56,7 +54,7 @@ function SettingsRoute() {
     });
   });
   const tab: SettingsTab = isSettingsSection(section)
-    ? SETTINGS_SECTIONS[section]
+    ? settingsTabOfSection(section)
     : "General";
   return (
     <SettingsAskContext value={ask}>

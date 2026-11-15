@@ -189,7 +189,7 @@ export function ActivityDetails({
           <Tooltip>
             <TooltipTrigger asChild>
               <Button
-                aria-label="Remove from Activity"
+                aria-label="Remove from History"
                 onClick={onRemove}
                 size="icon-sm"
                 variant="ghost"
@@ -197,7 +197,7 @@ export function ActivityDetails({
                 <TrashIcon className="size-4" />
               </Button>
             </TooltipTrigger>
-            <TooltipContent>Remove from Activity</TooltipContent>
+            <TooltipContent>Remove from History</TooltipContent>
           </Tooltip>
         ) : null}
         <Button

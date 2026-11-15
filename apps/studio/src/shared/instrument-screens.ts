@@ -15,7 +15,7 @@ export const SCREENS = {
     detail:
       "What you did in Instrument, with the AI requests your chats made, to search and clear.",
     href: "/activity",
-    title: "Activity",
+    title: "History",
   },
   apps: {
     detail: "The services Instrument can work in for you, and connecting one.",
@@ -90,7 +90,7 @@ export const SETTINGS_SECTIONS = {
   providers: "Providers",
   permissions: "Permissions",
   storage: "Storage",
-  activity: "Activity",
+  activity: "History",
   developer: "Developer",
 } as const;
 

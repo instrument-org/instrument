@@ -17,17 +17,17 @@ describe("clearing activity", () => {
   });
 
   it.each([
-    [true, false, "hour", "Cleared your activity from the last hour."],
-    [true, false, "all", "Cleared all your activity."],
+    [true, false, "hour", "Cleared your history from the last hour."],
+    [true, false, "all", "Cleared all your history."],
     [false, true, "hour", "Cleared your AI requests from the last hour."],
     [false, true, "all", "Cleared all your AI requests."],
     [
       true,
       true,
       "week",
-      "Cleared your activity and AI requests from the last 7 days.",
+      "Cleared your history and AI requests from the last 7 days.",
     ],
-    [true, true, "all", "Cleared all your activity and AI requests."],
+    [true, true, "all", "Cleared all your history and AI requests."],
   ] as const)(
     "toasts activity %s and requests %s from %s",
     (actions, requests, range, message) => {

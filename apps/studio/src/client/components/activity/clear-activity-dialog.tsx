@@ -94,7 +94,7 @@ function ClearActivityContent({
         since: sinceOf(range, Date.now()),
       }),
     onError: (error) => {
-      toast.error("Couldn't clear your activity", { cause: error });
+      toast.error("Couldn't clear your history", { cause: error });
     },
     onSuccess: () => {
       toast.success(activityClearedMessage({ ...picked, range }));
@@ -106,7 +106,7 @@ function ClearActivityContent({
   return (
     <DialogContent maxWidth="28rem" onExitComplete={onExitComplete}>
       <div className="flex flex-col gap-2">
-        <DialogTitle>Clear activity</DialogTitle>
+        <DialogTitle>Clear history</DialogTitle>
         <DialogDescription>
           Your chats and files stay as they are.
         </DialogDescription>

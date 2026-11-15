@@ -348,7 +348,7 @@ export function ActivityPage({
   const remove = useMutation(
     rpcClient.activity.remove.mutationOptions({
       onError: (error) => {
-        toast.error("Couldn't remove that from Activity", { cause: error });
+        toast.error("Couldn't remove that from History", { cause: error });
       },
       onSuccess: ({ requestsKept }) => {
         setChecked(new Set());
@@ -426,7 +426,7 @@ export function ActivityPage({
         the history is kept and who reads it, which someone landing here
         from the window's corner should see before anything else. */}
       <div className="flex shrink-0 flex-wrap items-center gap-x-3 gap-y-2 border-b border-border px-4 py-3 @min-[640px]/activity:px-6">
-        <h1 className="mr-1 text-base font-semibold">Activity</h1>
+        <h1 className="mr-1 text-base font-semibold">History</h1>
         {checkedEntries.length > 0 ? (
           <div
             className={cn(
@@ -455,7 +455,7 @@ export function ActivityPage({
               size="sm"
               variant="destructive"
             >
-              Remove from Activity
+              Remove from History
             </Button>
           </div>
         ) : (
@@ -470,7 +470,7 @@ export function ActivityPage({
                 onChange={(value) => {
                   onSearch({ item: undefined, q: value });
                 }}
-                placeholder="Search activity"
+                placeholder="Search history"
                 value={q}
               />
             </div>
@@ -614,7 +614,7 @@ function PageMenu({
       <DropdownMenuContent align="end" className="w-52">
         <DropdownMenuItem onSelect={onClear}>
           <TrashIcon className="size-4" />
-          Clear activity…
+          Clear history…
         </DropdownMenuItem>
         <DropdownMenuItem onSelect={onExport}>
           <DownloadSimpleIcon className="size-4" />
@@ -626,7 +626,7 @@ function PageMenu({
           }}
         >
           <GearSixIcon className="size-4" />
-          Activity settings
+          History settings
         </DropdownMenuItem>
       </DropdownMenuContent>
     </DropdownMenu>
@@ -809,7 +809,7 @@ function ActivityList({
             "separator" as const,
             {
               destructive: true,
-              label: "Remove from Activity",
+              label: "Remove from History",
               run: () => {
                 onRemove(entry);
               },

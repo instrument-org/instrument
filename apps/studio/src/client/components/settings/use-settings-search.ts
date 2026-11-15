@@ -5,6 +5,7 @@ import {
   SETTINGS_INDEX,
   type SettingsEntry,
   type SettingsMatch,
+  settingsTabTitle,
 } from "@/client/components/settings/settings-index";
 import { type DecisionAnswer, useDecision } from "@/client/hooks/use-decision";
 import { useDeveloperMode } from "@/client/hooks/use-developer-mode";
@@ -105,7 +106,7 @@ function useSettingsEntries({
       id: `page:${tab}`,
       page: true,
       tab,
-      title: tab,
+      title: settingsTabTitle(tab),
     }),
   );
   const entries: SettingsEntry[] = [
@@ -228,7 +229,7 @@ function questionsFor(candidates: SettingsEntry[]) {
   for (const [index, entry] of candidates.entries()) {
     const gist = entry.detail ? ` (${entry.detail})` : "";
     questions[String(index)] = {
-      instructions: `Is "${entry.title}"${gist} on the ${entry.tab} page of the app's settings what the search in the state is looking for?`,
+      instructions: `Is "${entry.title}"${gist} on the ${settingsTabTitle(entry.tab)} page of the app's settings what the search in the state is looking for?`,
       type: "noul",
     };
   }

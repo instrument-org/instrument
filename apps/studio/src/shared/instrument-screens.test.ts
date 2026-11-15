@@ -37,7 +37,7 @@ it("offers every built-in page by name, each part of Settings with it", () => {
   expect(builtInPages().map(({ address, title }) => `${title}: ${address}`))
     .toMatchInlineSnapshot(`
       [
-        "Activity: instrument://screen/activity",
+        "History: instrument://screen/activity",
         "Apps: instrument://screen/apps",
         "Browser: instrument://screen/browser",
         "Chats: instrument://screen/chats",
@@ -50,7 +50,7 @@ it("offers every built-in page by name, each part of Settings with it", () => {
         "Settings › Providers: instrument://settings/providers",
         "Settings › Permissions: instrument://settings/permissions",
         "Settings › Storage: instrument://settings/storage",
-        "Settings › Activity: instrument://settings/activity",
+        "Settings › History: instrument://settings/activity",
         "Keyboard shortcuts: instrument://screen/shortcuts",
         "Skills: instrument://screen/skills",
       ]

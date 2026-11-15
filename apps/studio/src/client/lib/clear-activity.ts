@@ -28,9 +28,9 @@ export function activityClearedMessage({
 }): string {
   const what =
     actions && requests
-      ? "your activity and AI requests"
+      ? "your history and AI requests"
       : actions
-        ? "your activity"
+        ? "your history"
         : "your AI requests";
   const phrase =
     TIME_RANGES.find((option) => option.id === range)?.phrase ?? null;

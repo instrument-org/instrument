@@ -139,7 +139,7 @@ const MAX_ELEMENTS = 3000;
 const MIN_SIDE = 12;
 
 const SCREEN_NAMES: Record<string, string> = {
-  activity: "Activity",
+  activity: "History",
   app: "App",
   apps: "Apps",
   browser: "Browser",

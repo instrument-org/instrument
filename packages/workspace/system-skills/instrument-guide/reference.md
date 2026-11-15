@@ -56,20 +56,20 @@ Where your Instrument folder is, and chats in it that can’t be opened.
 - **Instrument folder** (`instrument-folder`): Where your chats, projects, and memories are kept, and moving them.
 - **Chats that can’t be opened** (`broken-folders`): Chats in your Instrument folder that can’t be opened.
 
-### Activity (`activity`)
+### History (`activity`)
 
 Whether Instrument keeps a history of what you do in it, whether chats can use it, and clearing it.
 
 - **Keep a history** (`keep-history`): Whether Instrument keeps the pages, files and chats you open, so you can find them again and a chat can tell which file you mean.
 - **Chats can see this** (`share-activity`): Whether chats see what you just did in Instrument, like a folder you opened or files you moved, so they can tell what you mean.
-- **Your activity** (`activity-history`): The history of what you did in Instrument and when, with the AI requests your chats made, which you can search, export, or clear.
-- **Clear activity** (`clear-activity`): Delete what you did in Instrument, its AI requests, or both, from a time range.
+- **Your history** (`activity-history`): The history of what you did in Instrument and when, with the AI requests your chats made, which you can search, export, or clear.
+- **Clear history** (`clear-activity`): Delete what you did in Instrument, its AI requests, or both, from a time range.
 
 ## Screens
 
 Link one as `[Label](instrument://screen/<name>)`. A row listed under one is linked as a setting is, `[Label](instrument://settings/<name>)`.
 
-- **Activity** (`activity`): What you did in Instrument, with the AI requests your chats made, to search and clear.
+- **History** (`activity`): What you did in Instrument, with the AI requests your chats made, to search and clear.
 - **Apps** (`apps`): The services Instrument can work in for you, and connecting one.
 - **Browser** (`browser`): The web's start page, with the sites you kept and lately saw.
 - **Chats** (`chats`): Every chat there is, open or not, to search and open.
@@ -91,7 +91,7 @@ On a Mac these are the menu bar's menus, the first named for Instrument; on Wind
 - **Instrument**: Check for Updates…, Settings…
 - **File**: New Tab Group, Command Menu, Open Location…, Find, Find Next, Find Previous, Search Chats, Print…, Info, New Window, New Tab, Close Tab, Reopen Closed Tab, Reopen Closed Window, Close Window
 - **View**: Toggle Sidebar, Show Bookmarks Bar, Edit Page, Reload Page, Next Tab Group, Previous Tab Group, Actual Size, Zoom In, Zoom Out
-- **History**: Back, Forward, Show Activity, Clear Browsing Data…
+- **History**: Back, Forward, Show History, Clear Browsing Data…
 - **Bookmarks**: Bookmark This Tab…
 - **Tab**: Show Next Tab, Show Previous Tab, New Tab in Split, Focus Left Side, Focus Right Side, Move Tab to New Window
 - **Window**: Merge All Windows
@@ -116,7 +116,7 @@ Each is written as on a Mac, then as on Windows and Linux.
 - Quit: ⌘Q / Ctrl+Q (not on Windows)
 - Search Chats: ⇧⌘F / Ctrl+Shift+F
 - Settings…: ⌘, / Ctrl+,
-- Show Activity: ⌘Y / Ctrl+H
+- Show History: ⌘Y / Ctrl+H
 
 ### Tab Groups
 

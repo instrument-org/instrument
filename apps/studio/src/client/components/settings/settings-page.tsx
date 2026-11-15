@@ -13,6 +13,7 @@ import {
   SETTINGS_PAGES,
   type SettingsEntry,
   type SettingsMatch,
+  settingsTabTitle,
 } from "@/client/components/settings/settings-index";
 import { type SettingsAsk } from "@/client/components/settings/settings-ask";
 import { useSettingsSearch } from "@/client/components/settings/use-settings-search";
@@ -34,7 +35,7 @@ import { FingerprintIcon } from "@phosphor-icons/react/Fingerprint";
 import { HardDrivesIcon } from "@phosphor-icons/react/HardDrives";
 import { LockKeyIcon } from "@phosphor-icons/react/LockKey";
 import { MagnifyingGlassIcon } from "@phosphor-icons/react/MagnifyingGlass";
-import { PulseIcon } from "@phosphor-icons/react/Pulse";
+import { ClockCounterClockwiseIcon } from "@phosphor-icons/react/ClockCounterClockwise";
 import { UserCircleIcon } from "@phosphor-icons/react/UserCircle";
 import { WrenchIcon } from "@phosphor-icons/react/Wrench";
 import { XIcon } from "@phosphor-icons/react/X";
@@ -482,7 +483,7 @@ function SearchResults({
                     <FuzzyHighlight
                       matchClassName={MATCH_CLASS}
                       ranges={pageRanges}
-                      text={entry.tab}
+                      text={settingsTabTitle(entry.tab)}
                     />
                   </span>
                 )}
@@ -586,7 +587,7 @@ const NAV_ICONS: Record<SettingsTab, ElementType> = {
   Skills: CubeIcon,
   Storage: HardDrivesIcon,
   Account: UserCircleIcon,
-  Activity: PulseIcon,
+  Activity: ClockCounterClockwiseIcon,
 };
 
 function useNavItems(): NavItem[] {
@@ -594,6 +595,6 @@ function useNavItems(): NavItem[] {
     icon: NAV_ICONS[tab],
     isDeveloperMode: SETTINGS_PAGES[tab].developerOnly === true,
     tab,
-    title: tab,
+    title: settingsTabTitle(tab),
   }));
 }

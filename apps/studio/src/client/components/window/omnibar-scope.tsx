@@ -8,6 +8,7 @@ import {
 import { type SettingsTab } from "@/client/atoms/settings-modal";
 import { memoryMatches } from "@/client/components/settings/memory-groups";
 import { settingsHrefOf } from "@/client/components/settings/settings-href";
+import { settingsTabTitle } from "@/client/components/settings/settings-index";
 import { useSettingsSearch } from "@/client/components/settings/use-settings-search";
 import { useSettingsTabs } from "@/client/components/settings/use-settings-tabs";
 import { AppIcon } from "@/client/components/window/app-icon";
@@ -62,7 +63,7 @@ export interface OmniRow {
 
 /** What a scoped field says it is for, empty and to a screen reader. */
 export const SCOPE_PROMPTS: Record<FieldScope, string> = {
-  activity: "Search activity",
+  activity: "Search history",
   apps: "Search apps",
   chat: "Search chats",
   memory: "Search memories",
@@ -169,7 +170,7 @@ function useScopeRows({
             }),
           ),
           searchRow(
-            `Search activity for “${typed}”`,
+            `Search history for “${typed}”`,
             `${SCREENS.activity.href}?${searched}`,
           ),
         ],
@@ -259,7 +260,7 @@ function useScopeRows({
         rows: [
           ...settings.matches.slice(0, SCOPE_ROWS_SHOWN).map(
             ({ entry }): OmniRow => ({
-              detail: entry.page ? undefined : entry.tab,
+              detail: entry.page ? undefined : settingsTabTitle(entry.tab),
               icon: (
                 <AppMark
                   app={

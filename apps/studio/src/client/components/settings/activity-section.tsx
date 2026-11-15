@@ -58,7 +58,7 @@ export function ActivitySection() {
   return (
     <div className="space-y-5">
       <div>
-        <h3 className="text-base font-semibold">Activity</h3>
+        <h3 className="text-base font-semibold">History</h3>
         <p className="mt-1 flex items-center gap-1.5 text-sm text-muted-foreground">
           <LockSimpleIcon className="size-3.25 shrink-0" />
           {`${APP_NAME} keeps a history of what you do in it on this computer.`}
@@ -129,11 +129,11 @@ export function ActivitySection() {
               size="sm"
               variant="outline"
             >
-              Show activity
+              Show history
             </Button>
           }
           line="Search what you did and the AI requests your chats made."
-          title="Your activity"
+          title="Your history"
         />
         <Row
           anchor={settingAnchor("clear-activity")}
@@ -145,11 +145,11 @@ export function ActivitySection() {
               size="sm"
               variant="outline"
             >
-              Clear activity…
+              Clear history…
             </Button>
           }
           line="Remove what you did, your AI requests, or both, from a time range."
-          title="Clear activity"
+          title="Clear history"
         />
       </Card>
       <StopKeepingDialog

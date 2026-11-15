@@ -19,7 +19,7 @@ import { KeyboardIcon } from "@phosphor-icons/react/Keyboard";
 import { ChatsCircleIcon } from "@phosphor-icons/react/ChatsCircle";
 import { NewspaperClippingIcon } from "@phosphor-icons/react/NewspaperClipping";
 import { PuzzlePieceIcon } from "@phosphor-icons/react/PuzzlePiece";
-import { PulseIcon } from "@phosphor-icons/react/Pulse";
+import { ClockCounterClockwiseIcon } from "@phosphor-icons/react/ClockCounterClockwise";
 import { ShapesIcon } from "@phosphor-icons/react/Shapes";
 import { type ComponentType, type ReactNode } from "react";
 
@@ -41,7 +41,7 @@ type Glyph = ComponentType<{ className?: string }>;
  * chip and a row or bookmark of it wear.
  */
 const SCREEN_MARKS: Record<ScreenName, Glyph> = {
-  activity: PulseIcon,
+  activity: ClockCounterClockwiseIcon,
   apps: ShapesIcon,
   chats: ChatsCircleIcon,
   browser: GlobeIcon,

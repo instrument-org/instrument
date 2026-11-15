@@ -194,7 +194,7 @@ describe("ActivityPage", () => {
     });
     expect(details.textContent).toMatch(/Edited.*Today at /);
     fireEvent.click(
-      screen.getByRole("button", { name: "Remove from Activity" }),
+      screen.getByRole("button", { name: "Remove from History" }),
     );
     await waitFor(() => {
       expect(remove).toHaveBeenCalledWith({
@@ -220,7 +220,7 @@ describe("ActivityPage", () => {
     fireEvent.click(screen.getByRole("checkbox", { name: "Select Zoom" }));
     expect(screen.getByText("2 selected")).toBeTruthy();
     fireEvent.click(
-      screen.getByRole("button", { name: "Remove from Activity" }),
+      screen.getByRole("button", { name: "Remove from History" }),
     );
     await waitFor(() => {
       expect(remove).toHaveBeenCalledWith({

@@ -2,6 +2,7 @@ import {
   SETTINGS_INDEX,
   SETTINGS_PAGES,
   type SettingsEntry,
+  settingsTabTitle,
 } from "@/client/components/settings/settings-index";
 import { formatAcceleratorFor } from "@/shared/format-accelerator";
 import { type ScreenName, SCREENS } from "@/shared/instrument-screens";
@@ -60,7 +61,11 @@ function settingsSection() {
     if (page.developerOnly || tab in OWN_PAGES) {
       continue;
     }
-    lines.push(`### ${tab} (\`${tab.toLowerCase()}\`)`, "", page.detail);
+    lines.push(
+      `### ${settingsTabTitle(tab)} (\`${tab.toLowerCase()}\`)`,
+      "",
+      page.detail,
+    );
     if (page.shownWhen) {
       lines.push(
         "",

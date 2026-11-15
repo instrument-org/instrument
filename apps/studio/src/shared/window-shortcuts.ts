@@ -97,7 +97,7 @@ export const WINDOW_SHORTCUTS = {
   // browsers elsewhere.
   showActivity: {
     accelerator: { darwin: "CmdOrCtrl+Y", default: "Ctrl+H" },
-    label: "Show Activity",
+    label: "Show History",
   },
   // A browser's own key for its bookmarks bar.
   toggleBookmarksBar: {

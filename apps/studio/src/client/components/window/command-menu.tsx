@@ -14,6 +14,7 @@ import {
   FileSystemFolderGlyph,
   FileTypeIcon,
 } from "@/client/components/extend/file-system";
+import { settingsTabTitle } from "@/client/components/settings/settings-index";
 import { useSettingsTabs } from "@/client/components/settings/use-settings-tabs";
 import { folderOf } from "@/client/components/window/host-path";
 import { SCREEN_ROUTES } from "@/client/components/window/window-href";
@@ -100,7 +101,7 @@ import { MoonIcon } from "@phosphor-icons/react/Moon";
 import { NotePencilIcon } from "@phosphor-icons/react/NotePencil";
 import { NewspaperIcon } from "@phosphor-icons/react/Newspaper";
 import { PuzzlePieceIcon } from "@phosphor-icons/react/PuzzlePiece";
-import { PulseIcon } from "@phosphor-icons/react/Pulse";
+import { ClockCounterClockwiseIcon } from "@phosphor-icons/react/ClockCounterClockwise";
 import { FingerprintIcon } from "@phosphor-icons/react/Fingerprint";
 import { CubeIcon } from "@phosphor-icons/react/Cube";
 import { PlusIcon } from "@phosphor-icons/react/Plus";
@@ -383,9 +384,9 @@ export function useCommandMenuRows({
     },
     {
       chord: WINDOW_SHORTCUTS.showActivity.accelerator,
-      icon: <PulseIcon />,
+      icon: <ClockCounterClockwiseIcon />,
       id: "activity",
-      label: "Activity",
+      label: "History",
       run: () => {
         openScreen(SCREEN_ROUTES.activity);
       },
@@ -469,7 +470,7 @@ export function useCommandMenuRows({
   const settingsRows = settingsTabs.map((tab) => ({
     icon: <GearIcon />,
     id: `settings-${tab}`,
-    label: `Settings: ${tab}`,
+    label: `Settings: ${settingsTabTitle(tab)}`,
     run: () => {
       openSettings({ tab });
     },

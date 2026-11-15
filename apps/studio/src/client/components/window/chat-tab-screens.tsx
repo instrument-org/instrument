@@ -6,6 +6,7 @@ import {
   HoverCardTrigger,
 } from "@/client/components/ui/hover-card";
 
+import { PageFavicon } from "@/client/components/favicon";
 import { folderHref } from "@/shared/computer-href";
 
 import { useAppsBySlug } from "./apps-by-slug";
@@ -132,10 +133,11 @@ function ChatTabHead({ chatId }: { chatId: ChatId }) {
  * quiet beside the composer's plus: each other tab's mark in grey, with no
  * words, so it never reads as something to press. Past `SHOWN_MARKS` the
  * row stops and its last two marks fade out, so it never widens the
- * composer. Its hover lists every tab by its mark, in its own colors, and
- * its title.
+ * composer. Its hover says what the marks are for, then lists every tab by
+ * its mark, in its own colors, and its title. No mark names itself on hover,
+ * so the list is the one thing a hover shows.
  */
-function AwarenessLine({ tabs }: { tabs: readonly LayoutTab[] }) {
+export function AwarenessLine({ tabs }: { tabs: readonly LayoutTab[] }) {
   const isCut = tabs.length > SHOWN_MARKS;
   return (
     <HoverCard closeDelay={100} openDelay={200}>
@@ -169,6 +171,9 @@ function AwarenessLine({ tabs }: { tabs: readonly LayoutTab[] }) {
         data-slot="group-awareness-list"
         side="top"
       >
+        <span className="px-1.5 pt-1 pb-1.5 text-[13px] text-muted-foreground">
+          {AWARENESS_NOTE}
+        </span>
         {tabs.map((tab) => (
           <span
             className="flex h-7 min-w-0 items-center gap-2 px-1.5 text-[13px]"
@@ -185,6 +190,9 @@ function AwarenessLine({ tabs }: { tabs: readonly LayoutTab[] }) {
   );
 }
 
+/** The line over the hover's list, the same in a new chat and a begun one. */
+const AWARENESS_NOTE = "Messages you send here include these tabs.";
+
 /** How many of the group's other tabs the row beside the plus draws a mark for. */
 const SHOWN_MARKS = 5;
 /** How strongly a grey mark shows. */
@@ -192,11 +200,25 @@ const MUTED_MARK = 0.55;
 /** How strongly the row's last marks show while it leaves tabs out, fading to its end. */
 const FADING_MARKS = [0.3, 0.14];
 
-/** A tab of the group by the mark its strip tab wears: a page's favicon, a chat's bubble, a file's type. */
+/**
+ * A tab of the group by the mark its strip tab wears: a page's favicon, a
+ * chat's bubble, a file's type. A favicon here never names its site on
+ * hover, which would cover the list.
+ */
 function AwareTabMark({ tab }: { tab: LayoutTab }) {
   const windowTabs = useWindowTabs();
   const appsBySlug = useAppsBySlug();
   const open = windowTabs.allTabs.find((each) => each.id === tab.id);
+  if (open?.kind === "page") {
+    return (
+      <PageFavicon
+        className="size-3.5"
+        favicon={open.favicon}
+        hasTooltip={false}
+        url={open.url}
+      />
+    );
+  }
   return open ? <HeldMark appsBySlug={appsBySlug} tab={open} /> : null;
 }
 

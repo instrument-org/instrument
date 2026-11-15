@@ -8,6 +8,12 @@ export interface OmnibarField {
   canComplete: boolean;
   /** Which row the arrows have picked; the first is what Enter does with the words as they stand. */
   highlight: number;
+  /**
+   * Whether the person asked for the field (a press on it, the chord for
+   * it, a letter typed), rather than the caret only arriving there, as it
+   * does on a new tab: only then does the empty field list the bookmarks.
+   */
+  isAsked: boolean;
   /** Whether the box is open for typing rather than showing the place. */
   isEditing: boolean;
   /**
@@ -27,7 +33,7 @@ export type OmnibarFieldEvent =
   | { place?: string | undefined; type: "blur" }
   /** The box empties, and nothing else about it changes. */
   | { type: "clear" }
-  /** The box opens for typing, with the caret already in it: a press on the field once the keyboard brought the caret there. */
+  /** The box opens for typing, with the caret already in it: a press on the field, or the chord for it. */
   | { type: "edit" }
   /**
    * The caret goes into the box. With `edits`, asked for (a press on the
@@ -55,6 +61,7 @@ export function initialOmnibarField(
   return {
     canComplete: false,
     highlight: 0,
+    isAsked: false,
     isEditing,
     isFocused: false,
     place: query,
@@ -74,6 +81,7 @@ export function omnibarField(
         ...state,
         canComplete: false,
         highlight: 0,
+        isAsked: false,
         isEditing: false,
         isFocused: false,
         place: event.place ?? state.place,
@@ -84,7 +92,7 @@ export function omnibarField(
       return { ...state, query: "" };
     }
     case "edit": {
-      return { ...state, isEditing: true };
+      return { ...state, isAsked: true, isEditing: true };
     }
     case "focus": {
       const isEditing = state.isEditing || event.edits;
@@ -107,6 +115,7 @@ export function omnibarField(
         ...state,
         canComplete: event.canComplete,
         highlight: 0,
+        isAsked: true,
         isEditing: true,
         query: event.query,
       };

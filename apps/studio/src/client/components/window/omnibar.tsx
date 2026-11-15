@@ -4,7 +4,7 @@ import {
   noteTypedPage,
   useCompletionPages,
 } from "@/client/hooks/use-browser-history";
-import { targetOfAddress } from "@/client/bookmarks/address";
+import { sameAddress, targetOfAddress } from "@/client/bookmarks/address";
 import { hrefOfTarget } from "@/client/bookmarks/open-address";
 import { bookmarksAtom } from "@/client/bookmarks/store";
 import {
@@ -61,6 +61,7 @@ import { siteFromWords } from "@/client/lib/site-from-words";
 import { cn } from "@/client/lib/utils";
 import { computerFolderOptions } from "@/client/lib/live-computer-folder";
 import { rpcClient } from "@/client/rpc/client";
+import { type Bookmark, inOrder } from "@/shared/bookmarks";
 import { COMPUTER_ROOT, fileHref } from "@/shared/computer-href";
 import {
   type BuiltInPage,
@@ -101,12 +102,14 @@ import {
   ScopeList,
   type ScopeListHandle,
 } from "./omnibar-scope";
+import { bookmarkName } from "./web-start";
 
 /** Rows past the one Enter takes: enough to choose from, few enough to read at a glance. */
 const PAGES_SHOWN = 4;
 const SUGGESTIONS_SHOWN = 5;
 const ENTRIES_SHOWN = 8;
 const APP_ROWS_SHOWN = 4;
+const BOOKMARKS_SHOWN = 4;
 
 /**
  * What a tab's field reaches once it searches no one app (`FieldScope`):
@@ -207,11 +210,13 @@ export function Omnibar({
   const routerLocation = useRouterState({
     select: (routerState) => routerState.location,
   });
-  const [{ canComplete, highlight, isEditing, isFocused, place, query }, send] =
-    useReducer(
-      omnibarField,
-      initialOmnibarField(initial, resting === undefined),
-    );
+  const [
+    { canComplete, highlight, isAsked, isEditing, isFocused, place, query },
+    send,
+  ] = useReducer(
+    omnibarField,
+    initialOmnibarField(initial, resting === undefined),
+  );
   const input = useRef<HTMLInputElement>(null);
   const listId = useId();
   // What was typed over the place, which is what the rows answer to; the
@@ -385,6 +390,11 @@ export function Omnibar({
     }
   };
 
+  // The field emptied, once asked for, lists every bookmark, as a browser's
+  // lists what it would go to before anything is typed. A field searching
+  // one app lists only that app's.
+  const listsBookmarks =
+    isEditing && isFocused && isAsked && scope === undefined && query === "";
   const found = useOmnibarRows({
     canComplete,
     // A field searching one app reads none of the general rows.
@@ -413,7 +423,7 @@ export function Omnibar({
   const rowsNow = () =>
     scope === undefined ? rows : (scopeList.current?.rows() ?? []);
   const current = Math.min(highlight, Math.max(0, rows.length - 1));
-  const isListShown = isEditing && typed.trim() !== "";
+  const isListShown = isEditing && (typed.trim() !== "" || listsBookmarks);
   const picked = scope === undefined && current > 0 ? rows[current] : undefined;
   // The field says what Enter will do: the words with the rest of an address
   // written in ahead of the caret, or the row the arrows are on.
@@ -507,6 +517,9 @@ export function Omnibar({
           // in a browser's address bar.
           event.currentTarget.select();
         }}
+        onPointerDown={() => {
+          send({ type: "edit" });
+        }}
         onKeyDown={(event) => {
           const now = rowsNow();
           const at = Math.min(highlight, Math.max(0, now.length - 1));
@@ -549,6 +562,10 @@ export function Omnibar({
             }
             case "Enter": {
               event.preventDefault();
+              if (listsBookmarks) {
+                run(now[at]);
+                break;
+              }
               if (typed.trim() !== "") {
                 // A path with no row for it (a hidden name, a folder past the
                 // listing's cut or refused to it, a listing still on its way)
@@ -747,8 +764,25 @@ function useOmnibarRows({
     ),
   );
 
-  // An address of the app's own, typed or pasted, is one place.
   const { openAddress } = open;
+  // Nothing typed: every bookmark, in the bar's order.
+  if (words === "") {
+    return {
+      completion: "",
+      rows: inOrder(bookmarks).map((bookmark) =>
+        bookmarkRow(bookmark, { home, openAddress }),
+      ),
+    };
+  }
+  // The bookmarks the words name, which come before anything but what
+  // Enter does with them.
+  const markRows = matchBookmarks(words, bookmarks)
+    .slice(0, BOOKMARKS_SHOWN)
+    .map((bookmark) => bookmarkRow(bookmark, { home, openAddress }));
+  const isBookmarked = (url: string) =>
+    bookmarks.some((bookmark) => sameAddress(bookmark.url, url));
+
+  // An address of the app's own, typed or pasted, is one place.
   if (isInstrumentAddress(words) && targetOfAddress(words)) {
     return {
       completion: "",
@@ -809,7 +843,7 @@ function useOmnibarRows({
           }
         : searchRow;
     const pageRows = matchPages(words, pages)
-      .filter((page) => page.url !== known?.url)
+      .filter((page) => page.url !== known?.url && !isBookmarked(page.url))
       .slice(0, PAGES_SHOWN)
       .map(
         (page): OmniRow => ({
@@ -849,21 +883,30 @@ function useOmnibarRows({
     // The app's own places the words name: Enter's when they name one
     // whole, and under it otherwise.
     const appRows = appPlaceRows(words, {
-      bookmarks,
       chatTitles: shell?.chatTitles,
+      isBookmarked,
       openAddress,
     });
-    const isNamed =
-      appRows[0] !== undefined &&
-      appRows[0].name.toLowerCase() === words.toLowerCase();
+    // A bookmark or a place of the app's own named whole is what Enter
+    // takes.
+    const placeRows = [...markRows, ...appRows];
+    const named = placeRows.find(
+      (row) => row.name.toLowerCase() === words.toLowerCase(),
+    );
     return {
-      completion: isNamed ? "" : completion,
-      rows: isNamed
-        ? [...appRows, first, ...pageRows, ...suggestionRows]
+      completion: named ? "" : completion,
+      rows: named
+        ? [
+            named,
+            ...placeRows.filter((row) => row !== named),
+            first,
+            ...pageRows,
+            ...suggestionRows,
+          ]
         : [
             first,
             ...(typedPath?.alsoSearch ? [searchRow] : []),
-            ...appRows,
+            ...placeRows,
             ...pageRows,
             ...suggestionRows,
           ],
@@ -955,7 +998,7 @@ function useOmnibarRows({
           }),
         ]
       : [];
-  const rows = [
+  const [enterRow, ...restRows] = [
     ...folderRows,
     ...(finished ? [entryRow(finished)] : []),
     ...entries
@@ -963,6 +1006,9 @@ function useOmnibarRows({
       .slice(0, ENTRIES_SHOWN)
       .map(entryRow),
   ];
+  // The bookmarks the words name come next to what Enter does, and never
+  // in its place: Enter on a path with no row still looks for the path.
+  const rows = enterRow ? [enterRow, ...markRows, ...restRows] : [];
   const folderName = displayHostPath(path.folder, home);
   return {
     completion,
@@ -984,19 +1030,20 @@ function useOmnibarRows({
 
 /**
  * The app's own places whose names start with the words, or a word of them
- * does: an app address kept as a bookmark, a built-in page (Files and each
- * part of Settings among them), and a chat by its title. Two letters at least, so a single letter typed on the
- * way to a site's address offers none.
+ * does: a built-in page (Files and each part of Settings among them), and a
+ * chat by its title, each but those kept as bookmarks, which have rows of
+ * their own. Two letters at least, so a single letter typed on the way to a
+ * site's address offers none.
  */
 function appPlaceRows(
   words: string,
   {
-    bookmarks,
     chatTitles,
+    isBookmarked,
     openAddress,
   }: {
-    bookmarks: { title: string; url: string }[];
     chatTitles: ReadonlyMap<string, string> | undefined;
+    isBookmarked: (address: string) => boolean;
     openAddress: (address: string) => void;
   },
 ): OmniRow[] {
@@ -1039,24 +1086,8 @@ function appPlaceRows(
     );
   };
   const rows = [
-    ...bookmarks
-      .filter(
-        (bookmark) =>
-          isInstrumentAddress(bookmark.url) &&
-          targetOfAddress(bookmark.url) !== undefined &&
-          named(bookmark.title),
-      )
-      .map((bookmark) =>
-        place(
-          bookmark.url,
-          bookmark.title,
-          bookmark.url,
-          <AddressMark address={bookmark.url} className="size-4" />,
-          "Bookmark",
-        ),
-      ),
     ...builtInPages()
-      .filter(pageNamed)
+      .filter((page) => pageNamed(page) && !isBookmarked(page.address))
       .map((page) =>
         place(
           page.part === undefined ? page.name : `${page.name}/${page.part}`,
@@ -1066,7 +1097,7 @@ function appPlaceRows(
         ),
       ),
     ...[...(chatTitles ?? [])]
-      .filter(([, title]) => named(title))
+      .filter(([id, title]) => named(title) && !isBookmarked(chatAddressOf(id)))
       .map(([id, title]) =>
         place(
           id,
@@ -1078,6 +1109,55 @@ function appPlaceRows(
       ),
   ];
   return unique(rows, (row) => row.id).slice(0, APP_ROWS_SHOWN);
+}
+
+/**
+ * The bookmarks the words name, best first: a site's by its address or its
+ * name, as the pages the window knows are matched, and a place of the
+ * app's own by its name alone, since its address is the app's to spell.
+ */
+function matchBookmarks(
+  words: string,
+  bookmarks: readonly Bookmark[],
+): Bookmark[] {
+  const known = inOrder(bookmarks).map((bookmark) => ({
+    bookmark,
+    title: bookmark.title,
+    url: isInstrumentAddress(bookmark.url) ? "" : bookmark.url,
+  }));
+  return matchPages(words, known).map(({ bookmark }) => bookmark);
+}
+
+/**
+ * A bookmark as a row, worn as the bar wears it: its mark and its name,
+ * after it a site's address or where a file or a folder is.
+ */
+function bookmarkRow(
+  bookmark: Bookmark,
+  {
+    home,
+    openAddress,
+  }: { home: string | undefined; openAddress: (address: string) => void },
+): OmniRow {
+  const target = targetOfAddress(bookmark.url);
+  const detail =
+    target?.kind === "page"
+      ? bareAddress(target.url)
+      : target?.kind === "path"
+        ? displayHostPath(target.path, home)
+        : undefined;
+  return {
+    detail,
+    ...(target?.kind === "page" ? { fill: target.url } : {}),
+    icon: <AddressMark address={bookmark.url} className="size-4" />,
+    id: `bookmark:${bookmark.id}`,
+    // A path is looked for first, and the words stay if nothing is there.
+    ...(target?.kind === "path" ? { leavesItself: true } : {}),
+    name: bookmarkName(bookmark),
+    run: () => {
+      openAddress(bookmark.url);
+    },
+  };
 }
 
 /** The row that opens a path on the computer, which says it before looking. */

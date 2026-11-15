@@ -137,7 +137,7 @@ function ChatTabHead({ chatId }: { chatId: ChatId }) {
 
 /**
  * What the chat's agent sees of the group this tab is in: how many other
- * tabs it has, and how many of them are files, as a quiet line at the head
+ * tabs it has, files counted apart, as a quiet line at the head
  * of the composer, whose hover says they go with each message and lists
  * each by its mark and title. Nothing while the chat is alone in its group.
  */
@@ -153,8 +153,12 @@ function AwarenessLine({ tabs }: { tabs: readonly LayoutTab[] }) {
           data-slot="group-awareness"
           tabIndex={0}
         >
-          {countOf(tabs.length, "tab")}
-          {files > 0 && `, ${countOf(files, "file")}`}
+          {[
+            ...(tabs.length > files
+              ? [countOf(tabs.length - files, "tab")]
+              : []),
+            ...(files > 0 ? [countOf(files, "file")] : []),
+          ].join(", ")}
         </span>
       </HoverCardTrigger>
       <HoverCardContent
@@ -164,8 +168,8 @@ function AwarenessLine({ tabs }: { tabs: readonly LayoutTab[] }) {
         side="top"
       >
         <p className="px-1.5 pb-1 text-xs text-muted-foreground">
-          {tabs.length === 1 ? "This tab goes" : "These tabs go"} with every
-          message you send here.
+          {tabs.length === 1 ? "This goes" : "These go"} with every message
+          you send here.
         </p>
         {tabs.map((tab) => {
           const open = windowTabs.allTabs.find((each) => each.id === tab.id);

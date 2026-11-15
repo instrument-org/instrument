@@ -27,6 +27,7 @@ import { pageTabTitle } from "./file-tabs";
 import { CaptureTabIcon, usePageCaptures } from "./page-capture-mark";
 import { ScreenMark } from "./pane-tabs";
 import { RowActionBar } from "./row-action-bar";
+import { stopHere } from "./row-shell";
 import {
   chatLines,
   type LineTone,
@@ -91,7 +92,7 @@ export function RowHalf({
   tab,
 }: {
   chatTitles: Map<ChatId, string>;
-  close?: { label: string; run: () => void };
+  close?: RowClose;
   /** The X kept up whatever the pointer does, for a picture of the row under it. */
   isCloseShown?: boolean;
   tab: WindowTab;
@@ -110,18 +111,67 @@ export function RowHalf({
   );
 }
 
-/** A row half's two lines, its mark leading the first. */
+/**
+ * What a half's X closes: `label` names it, and `ask`, when it closes more
+ * than one tab, is the question its first click puts in the half's place.
+ */
+export interface RowClose {
+  ask?: string | undefined;
+  label: string;
+  run: () => void;
+}
+
+/**
+ * A row half's two lines, its mark leading the first. An X that asks turns
+ * the whole half into its question on the first click, under the pointer, so
+ * a second click in the same spot closes; the pointer leaving puts it back.
+ */
 export function RowLinesView({
   close,
   isCloseShown = false,
   lines,
   mark,
 }: {
-  close?: { label: string; run: () => void } | undefined;
+  close?: RowClose | undefined;
   isCloseShown?: boolean;
   lines: RowLines;
   mark?: ReactNode;
 }) {
+  const [isAsking, setAsking] = useState(false);
+  if (isAsking && close?.ask !== undefined) {
+    return (
+      <div className="flex min-w-0 flex-1 basis-0" data-row-half="">
+        <button
+          className="flex h-10 min-w-0 flex-1 items-center justify-center gap-1 rounded-md bg-foreground/8 px-2 text-[13px] font-medium text-foreground"
+          onAuxClick={stopHere}
+          onBlur={() => {
+            setAsking(false);
+          }}
+          onClick={(event) => {
+            event.stopPropagation();
+            setAsking(false);
+            close.run();
+          }}
+          onKeyDown={(event) => {
+            event.stopPropagation();
+            if (event.key === "Escape") {
+              setAsking(false);
+            }
+          }}
+          onPointerLeave={() => {
+            setAsking(false);
+          }}
+          ref={(button) => {
+            button?.focus({ preventScroll: true });
+          }}
+          type="button"
+        >
+          <XIcon className="size-3 shrink-0 text-foreground/70" />
+          <span className="truncate">{close.ask}</span>
+        </button>
+      </div>
+    );
+  }
   // The X stands at the half's end, centered on both lines.
   return (
     <div
@@ -170,7 +220,13 @@ export function RowLinesView({
               icon: <XIcon />,
               id: "close",
               label: close.label,
-              run: close.run,
+              run: () => {
+                if (close.ask === undefined) {
+                  close.run();
+                } else {
+                  setAsking(true);
+                }
+              },
             },
           ]}
           isHeld={isCloseShown}

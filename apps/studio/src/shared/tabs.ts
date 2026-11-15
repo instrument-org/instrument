@@ -65,13 +65,16 @@ export type Tab = z.output<typeof TabSchema>;
  * there, and when it closed, so a window closed since comes back before it.
  * A tab group's tab stands on its group's address and holds the tab as the
  * group had it (`groupTab`), with its place among the group's tabs. A
- * whole tab group closed holds every tab it had (`groupTabs`).
+ * whole tab group closed holds every tab it had (`groupTabs`); one side of
+ * a group closed holds that side's tabs the same way, with which side it was
+ * (`side`) and, as `index`, the place among them of the tab it had up.
  */
 const ClosedTabSchema = TabSchema.extend({
   closedAt: z.number().optional(),
   groupTab: z.unknown().optional(),
   groupTabs: z.unknown().optional(),
   index: z.number().optional(),
+  side: z.union([z.literal(0), z.literal(1)]).optional(),
 });
 
 export const TabsModelSchema = z.object({

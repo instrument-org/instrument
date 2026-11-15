@@ -63,6 +63,7 @@ import { getRouterHistory } from "@/client/lib/tab-router-history";
 import { getTabRouter } from "@/client/lib/tab-router-registry";
 import { restoreTabView } from "@/client/lib/tab-view-state";
 import {
+  closeGroupSide,
   closeGroupTab,
   closeTabGroup,
   forgetClosed,
@@ -128,11 +129,15 @@ import { type WindowContextValue as Screens, WindowContext } from "./context";
 import {
   chatOfTab,
   closedGroupTabOf,
+  closedSideOf,
   closedTabGroupOf,
   isBlankNewTab,
   isNewChatTab,
   selectedTabIn,
+  sideIndexOf,
 } from "./tab-model";
+import { useTabTitle } from "./tab-title";
+import { toastWithUndo } from "./undo-offers";
 import { useSignInLanding } from "./use-sign-in-landing";
 import { WindowLook } from "./look-panel";
 import { ProjectDialog } from "./project-dialog";
@@ -197,6 +202,12 @@ import { sitesLeaving, sitesNoLongerHere, sitesPutAway } from "./site-let-go";
 // Resolve the computer file channel once at boot so file URLs derive locally
 // from a host path; not awaited, so it never holds up the first render.
 void resolveComputerFileBase();
+
+/** What a close from the sidebar put on the window's closed list, and the tabs it held. */
+interface Closing {
+  entries: TabId[];
+  tabs: WindowTab[];
+}
 
 /** The drafts floating in what another window kept of its floating windows. */
 function floatingDraftIdsOf(kept: unknown): string[] {
@@ -530,7 +541,9 @@ function WindowShell({
   // Closing a group leaves its chats working: a chat goes on with no tab,
   // and the Chats page shows it at work. With `keep`, the group a row's menu asked
   // from, which the window moves to.
-  const closeGroups = (closed: readonly string[], keep?: string) => {
+  // What went on the closed list comes back, for the sidebar's Undo.
+  const closeGroups = (closed: readonly string[], keep?: string): Closing => {
+    const closing: Closing = { entries: [], tabs: [] };
     // Each group goes on the window's closed list whole, so Shift+Cmd+T
     // brings it back as it was; a group of only blank new tabs leaves
     // nothing to bring back.
@@ -542,13 +555,16 @@ function WindowShell({
           : [];
       });
       if (kept.length > 0) {
+        const id = freshTabId();
         store.set(appTabsAtom, (current) =>
           closeTabGroup(current, {
-            id: freshTabId(),
+            id,
             pathname: groupHref(group),
             tabs: kept,
           }),
         );
+        closing.entries.push(id);
+        closing.tabs.push(...kept);
       }
     }
     if (keep === undefined) {
@@ -558,6 +574,7 @@ function WindowShell({
     } else {
       groups.closeAll(closed, keep);
     }
+    return closing;
   };
   // The window shows one group at a time, in one tab: tabs restored from
   // the strip a build before this one kept fold into the one up.
@@ -615,6 +632,7 @@ function WindowShell({
   // Undefined until the list has been read.
   const chatChrome = useChatChrome();
   const { chatTitles } = chatChrome;
+  const titleOfTab = useTabTitle(chatTitles);
   const [defaultModelURI, setDefaultModelURI, saveDefaultModelURI] =
     useDefaultModelURI();
   const drafts = useAtomValue(draftsAtom);
@@ -891,6 +909,67 @@ function WindowShell({
     windowTabs.close(id);
   };
   /**
+   * The whole side a tab stands on closed, onto the window's closed list as
+   * one entry that brings the side back; a group of one side closes whole.
+   */
+  const closeSideOf = (id: string): Closing => {
+    const tab = windowTabs.allTabs.find((each) => each.id === id);
+    if (tab?.group === undefined) {
+      return { entries: [], tabs: [] };
+    }
+    const { group } = tab;
+    const layout = windowTabs.layoutOf(group);
+    const side = sideIndexOf(layout, id);
+    if (side === undefined || layout.sides.length < 2) {
+      return closeGroups([group]);
+    }
+    const sideTabs = layout.sides[side]?.tabs ?? [];
+    const upId = layout.sides[side]?.up;
+    const kept = sideTabs.flatMap((each) => {
+      const closedAs = closingAsWritten(each);
+      return closedAs && !isBlankNewTab(closedAs) ? [closedAs] : [];
+    });
+    const closing: Closing = { entries: [], tabs: kept };
+    if (kept.length > 0) {
+      const entry = freshTabId();
+      store.set(appTabsAtom, (current) =>
+        closeGroupSide(current, {
+          id: entry,
+          pathname: groupHref(group),
+          side,
+          tabs: kept,
+          up: Math.max(
+            0,
+            kept.findIndex((each) => each.id === upId),
+          ),
+        }),
+      );
+      closing.entries.push(entry);
+    }
+    windowTabs.closeSide(group, side);
+    return closing;
+  };
+  /** A toast saying what the sidebar closed, whose Undo brings it all back. */
+  const offerUndo = ({ entries, tabs: closedTabs }: Closing) => {
+    const [first] = closedTabs;
+    if (entries.length === 0 || !first) {
+      return;
+    }
+    toastWithUndo(
+      closedTabs.length === 1
+        ? `Closed ${titleOfTab(first)}`
+        : `Closed ${closedTabs.length} tabs`,
+      {
+        journalIds: [],
+        undo: () => {
+          for (const entry of entries) {
+            reopenClosed(entry);
+          }
+        },
+      },
+    );
+  };
+  /**
    * One entry of the window's closed list back, by its id: a whole tab group
    * as a group again, its tabs on their sides; a tab into its group, up
    * there, or as a group of its own when its group has closed.
@@ -906,6 +985,19 @@ function WindowShell({
     // A tab id is never opened twice. A page's guest went with it, and
     // comes back when the page shows, at the address it had, the way a
     // launch brings a tab's page back.
+    const side = closedSideOf(entry);
+    if (
+      side &&
+      groupList.open.some((each) => each.group === side.group) &&
+      windowTabs.allTabs.some((each) => each.group === side.group)
+    ) {
+      windowTabs.reopenSide({
+        ...side,
+        tabs: side.tabs.map((each) => ({ ...each, id: newScreenId() })),
+      });
+      groups.show(side.group);
+      return;
+    }
     const tab = closedGroupTabOf(entry);
     const isOpen =
       tab !== undefined &&
@@ -919,8 +1011,9 @@ function WindowShell({
       return;
     }
     // A tab alone stands on the one side its new group has.
-    const reopened =
-      closedTabGroupOf(entry) ?? (tab ? [{ ...tab, side: undefined }] : []);
+    const reopened = side
+      ? side.tabs.map((each) => ({ ...each, side: undefined }))
+      : (closedTabGroupOf(entry) ?? (tab ? [{ ...tab, side: undefined }] : []));
     groups.make({
       fill: (group) => {
         windowTabs.restoreGroup(
@@ -1596,12 +1689,14 @@ function WindowShell({
                   chatTitles={chatTitles}
                   groupUp={groupUp}
                   onClose={(group) => {
-                    closeGroups([group]);
+                    offerUndo(closeGroups([group]));
                   }}
                   onCloseAll={(closed, keep) => {
-                    closeGroups(closed, keep);
+                    offerUndo(closeGroups(closed, keep));
                   }}
-                  onCloseTab={requestClose}
+                  onCloseSide={(tab) => {
+                    offerUndo(closeSideOf(tab));
+                  }}
                   onDuplicate={(entry) => {
                     groups.duplicate(entry);
                   }}

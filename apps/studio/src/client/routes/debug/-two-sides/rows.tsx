@@ -272,7 +272,7 @@ function row(key: string, options: { isCloseShown?: boolean } = {}) {
       entry={entryOf(key)}
       isUp={false}
       onClose={noop}
-      onCloseTab={noop}
+      onCloseSide={noop}
       {...options}
     />
   );

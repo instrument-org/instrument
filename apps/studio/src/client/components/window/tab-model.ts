@@ -635,6 +635,23 @@ export function closedTabGroupOf({
     : undefined;
 }
 
+/**
+ * One side of a group a closed entry holds (`closeGroupSide`): its group,
+ * which side it was, its tabs and the place among them of the one it had
+ * up; none for any other entry.
+ */
+export function closedSideOf(entry: {
+  groupTabs?: unknown;
+  index?: number;
+  side?: 0 | 1;
+}): undefined | { group: string; side: 0 | 1; tabs: WindowTab[]; up: number } {
+  const tabs = closedTabGroupOf(entry);
+  const [first] = tabs ?? [];
+  return entry.side === undefined || !tabs || !first
+    ? undefined
+    : { group: first.group, side: entry.side, tabs, up: entry.index ?? 0 };
+}
+
 /** Whether a kept value is a tab of a group, as `closeGroupTab` alone writes one. */
 function isGroupTabRecord(
   value: unknown,
@@ -1310,6 +1327,64 @@ export function reopenTab(
     side,
   });
   return selectTab(normalizeSides({ ...state, tabs }, group), tab.id);
+}
+
+/**
+ * One side of a group of two closed whole, every tab on it, which leaves the
+ * other side as the whole group, with the keyboard. A group of one side has
+ * no side to close apart from the group.
+ */
+export function closeSide(
+  state: WindowTabs,
+  group: string,
+  side: 0 | 1,
+): WindowTabs {
+  const layout = groupLayoutOf(state, group);
+  if (layout.sides.length < 2) {
+    return state;
+  }
+  return (layout.sides[side]?.tabs ?? []).reduce(
+    (current, tab) => closeTab(current, tab.id),
+    state,
+  );
+}
+
+/**
+ * A closed side back in its group as the side it was, its tabs in their
+ * order, the one it had up (`up`, by its place among them) up there with
+ * the keyboard. A left side coming back moves a group of one side over to
+ * the right; with two sides there already, the tabs join the side they had.
+ */
+export function reopenSide(
+  state: WindowTabs,
+  {
+    group,
+    side,
+    tabs,
+    up = 0,
+  }: { group: string; side: 0 | 1; tabs: WindowTab[]; up?: number },
+): WindowTabs {
+  const isOneSide = groupLayoutOf(state, group).sides.length < 2;
+  const moved =
+    isOneSide && side === 0
+      ? state.tabs.map((tab) =>
+          tab.group === group ? { ...tab, side: 1 as const } : tab,
+        )
+      : state.tabs;
+  const placed = tabs.map(({ side: _side, ...tab }) =>
+    side === 1 ? { ...tab, group, side: 1 as const } : { ...tab, group },
+  );
+  const last = moved.findLastIndex((tab) => tab.group === group);
+  const next = {
+    ...state,
+    tabs:
+      last === -1
+        ? [...moved, ...placed]
+        : moved.toSpliced(last + 1, 0, ...placed),
+  };
+  const shown = placed[up] ?? placed[0];
+  const normal = normalizeSides(next, group);
+  return shown ? selectTab(normal, shown.id) : normal;
 }
 
 /** Every tab id the window holds, past and future visits included, so nothing is opened twice. */

@@ -25,6 +25,7 @@ import {
   besideOf,
   chatUpIn,
   groupLayoutOf,
+  closeSide,
   closeTab,
   dropGroup,
   everyTabId,
@@ -44,6 +45,7 @@ import {
   patchPage,
   type Placing,
   raiseTab,
+  reopenSide,
   reopenTab,
   reorderGroup,
   replaceTab,
@@ -324,6 +326,14 @@ export function useWindowTabs() {
     },
     close: (id: string) => {
       apply((current) => closeTab(current, id));
+    },
+    /** One side of a group of two closed whole (`closeSide`). */
+    closeSide: (group: string, side: 0 | 1) => {
+      apply((current) => closeSide(current, group, side));
+    },
+    /** A closed side back as the side it was, up with the keyboard (`reopenSide`). */
+    reopenSide: (placing: Parameters<typeof reopenSide>[1]) => {
+      apply((current) => reopenSide(current, placing));
     },
     dropGroup: (group: string) => {
       apply((current) => dropGroup(current, group));

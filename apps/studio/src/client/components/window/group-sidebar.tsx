@@ -136,7 +136,7 @@ export function GroupSidebar({
   groupUp,
   onClose,
   onCloseAll,
-  onCloseTab,
+  onCloseSide,
   onDuplicate,
   onNew,
   onNewChatProject,
@@ -153,8 +153,8 @@ export function GroupSidebar({
   onClose: (group: string) => void;
   /** Closes several groups at once, from the row whose menu asked (`keep`). */
   onCloseAll: (groups: string[], keep: string) => void;
-  /** Closes one tab, from a half of a row of two sides. */
-  onCloseTab: (tab: string) => void;
+  /** Closes the whole side a tab is up on, from its half of a row of two sides. */
+  onCloseSide: (tab: string) => void;
   /** A copy of a group just below it, up in the window. */
   onDuplicate: (entry: TabGroup) => void;
   onNew: (projectId?: string) => void;
@@ -267,7 +267,7 @@ export function GroupSidebar({
       key={entry.group}
       menu={menuOf(entry)}
       onClose={onClose}
-      onCloseTab={onCloseTab}
+      onCloseSide={onCloseSide}
       onPress={pressGroupRow}
       onShow={onShow}
     />
@@ -701,8 +701,10 @@ function BackRow({ label, onBack }: { label: string; onBack: () => void }) {
  * mark leads its title, and what it says goes under them, its state among
  * it: a chat's is its own, so a chat in two groups says the same in both.
  * The whole row is one press. While the pointer is on it, an X stands at
- * each half's end, centered on its two lines, which closes that half's tab, or the group for a
- * row of one side; a middle click closes the group. While a tab held over
+ * each half's end, centered on its two lines, which closes that half's whole
+ * side, or the group for a row of one side; when that is more than one tab,
+ * the first click asks in the half's place and a second there closes
+ * (`RowLinesView`). A middle click closes the group. While a tab held over
  * it would land in its group, it takes a quiet fill in place of any other
  * tone. A right click raises its menu (`GroupRowMenu`).
  */
@@ -715,7 +717,7 @@ export function GroupRow({
   isUp,
   menu,
   onClose,
-  onCloseTab,
+  onCloseSide,
   onPress,
   onShow,
 }: {
@@ -730,8 +732,8 @@ export function GroupRow({
   /** What its menu does, for a row of this window's own groups. */
   menu?: GroupRowMenuActions;
   onClose?: (group: string) => void;
-  /** Closes one tab, the one up on a half of a row of two sides. */
-  onCloseTab?: (tab: string) => void;
+  /** Closes the whole side a tab is up on, from its half of a row of two sides. */
+  onCloseSide?: (tab: string) => void;
   /** A press that may become a drag of the row. */
   onPress?: (group: string, event: ReactPointerEvent<HTMLElement>) => void;
   onShow?: (group: string, options: { newWindow: boolean }) => void;
@@ -746,19 +748,24 @@ export function GroupRow({
   // Named as a group, so a row whose tab is a page the sidebar also has a
   // button for (Activity) is told apart from that button.
   const label = `${ups.length > 0 ? ups.map(titleOf).join(" and ") : entry.title} tab group`;
-  const closeOf = (tab: WindowTab) => {
+  // What a half's X closes, asking first when that is more than one tab.
+  const askOf = (count: number) =>
+    count > 1 ? `Close ${count} tabs?` : undefined;
+  const closeOf = (tab: WindowTab, side: number) => {
     if (ups.length > 1) {
-      return onCloseTab
+      return onCloseSide
         ? {
-            label: "Close Tab",
+            ask: askOf(layout.sides[side]?.tabs.length ?? 1),
+            label: "Close This Side",
             run: () => {
-              onCloseTab(tab.id);
+              onCloseSide(tab.id);
             },
           }
         : undefined;
     }
     return onClose
       ? {
+          ask: askOf(layout.sides[0]?.tabs.length ?? 1),
           label: "Close Tab Group",
           run: () => {
             onClose(entry.group);
@@ -766,10 +773,10 @@ export function GroupRow({
         }
       : undefined;
   };
-  const half = (tab: WindowTab) => (
+  const half = (tab: WindowTab, side: number) => (
     <RowHalf
       chatTitles={chatTitles}
-      close={closeOf(tab)}
+      close={closeOf(tab, side)}
       isCloseShown={isCloseShown}
       key={tab.id}
       tab={tab}
@@ -785,7 +792,7 @@ export function GroupRow({
         <AnimatePresence initial={false}>
           {ups.map((tab, index) => (
             <RowHalfPlace isLater={index > 0} key={keys[index] ?? index}>
-              {half(tab)}
+              {half(tab, index)}
             </RowHalfPlace>
           ))}
         </AnimatePresence>

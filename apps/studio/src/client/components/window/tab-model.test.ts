@@ -14,6 +14,7 @@ import {
   addScreen,
   besideOf,
   closedGroupTabOf,
+  closeSide,
   closeTab,
   dropGroup,
   focusSide,
@@ -33,6 +34,7 @@ import {
   patchPage,
   putUpBack,
   raiseTab,
+  reopenSide,
   reopenTab,
   reorderGroup,
   replaceTab,
@@ -666,6 +668,28 @@ function twoSides(): WindowTabs {
     ],
   };
 }
+
+describe("closeSide and reopenSide", () => {
+  it.each([
+    [0, ["> *c d"], ["> a *b", "*c d"]],
+    [1, ["> a *b"], ["a *b", "> c *d"]],
+  ] as const)(
+    "closes side %i whole and puts it back as it was, up",
+    (side, closed, reopened) => {
+      const before = twoSides();
+      const gone = closeSide(before, GROUP, side);
+      expect(sidesOf(gone, GROUP)).toEqual(closed);
+      const tabs = groupLayoutOf(before, GROUP).sides[side]?.tabs ?? [];
+      const back = reopenSide(gone, { group: GROUP, side, tabs, up: 1 });
+      expect(sidesOf(back, GROUP)).toEqual(reopened);
+    },
+  );
+
+  it("leaves a group of one side alone", () => {
+    const one = windowOf(THREE.tabs);
+    expect(closeSide(one, CHAT, 0)).toBe(one);
+  });
+});
 
 describe("a group's sides", () => {
   it("reads one side with its first tab up, and two with an up each", () => {

@@ -131,6 +131,36 @@ export function closeTabGroup(
   };
 }
 
+/**
+ * One side of a tab group closed, on the window's closed list: at the
+ * group's address, holding the side's tabs, which side it was, and which of
+ * its tabs was up, so a reopen brings the side back as it was.
+ */
+export function closeGroupSide(
+  model: TabsModel,
+  {
+    id,
+    pathname,
+    side,
+    tabs,
+    up,
+  }: {
+    id: TabId;
+    pathname: string;
+    side: 0 | 1;
+    tabs: WindowTab[];
+    up: number;
+  },
+): TabsModel {
+  return {
+    ...model,
+    recentlyClosed: [
+      { closedAt: Date.now(), groupTabs: tabs, id, index: up, pathname, side },
+      ...model.recentlyClosed,
+    ].slice(0, MAX_RECENTLY_CLOSED),
+  };
+}
+
 /** The closed list without one entry, by its id: one reopened. */
 export function forgetClosed(model: TabsModel, { id }: { id: TabId }) {
   return {

@@ -167,6 +167,46 @@ function passIntoWordsOnArrival(home: HTMLElement) {
 }
 
 /**
+ * After a press in a side of a tab group, which has given the side the
+ * keyboard: a press on nothing that takes the caret (empty space, a chip's
+ * row, padding) still puts it in the side, in its home, unless the press
+ * selected words.
+ */
+export function placeCaretAfterPress(side: HTMLElement) {
+  requestAnimationFrame(() => {
+    const now = document.activeElement;
+    const selection = document.getSelection();
+    if (
+      (now === null || now === document.body) &&
+      (selection === null || selection.isCollapsed)
+    ) {
+      focusHomeIn(side);
+    }
+  });
+}
+
+/**
+ * A caret that landed in a side of a tab group without the keyboard by no
+ * press (a field focusing itself, Tab) goes to the home of the side with
+ * the keyboard, once the commit it came in has settled which side that is:
+ * which side has the keyboard changes only on purpose.
+ */
+export function keepCaretOnKeyboardSide(side: HTMLElement) {
+  requestAnimationFrame(() => {
+    const keyboard = side
+      .closest("[data-group-sides]")
+      ?.querySelector<HTMLElement>("[data-group-side][data-keyboard]");
+    if (
+      keyboard &&
+      keyboard !== side &&
+      side.contains(document.activeElement)
+    ) {
+      focusHomeIn(keyboard);
+    }
+  });
+}
+
+/**
  * Takes away a caret left in editable words outside `part`. An editor let
  * go of by a blur, or by the keyboard going into something that types
  * nothing (a page's scroller), keeps its selection, and Chromium puts words

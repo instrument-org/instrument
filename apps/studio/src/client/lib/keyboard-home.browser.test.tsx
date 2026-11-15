@@ -1,7 +1,14 @@
-import { afterEach, beforeEach, expect, it } from "vitest";
+import { browserTargetOf } from "@instrument-org/workspace/client";
+import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { userEvent } from "vitest/browser";
 
-import { focusScreenHome, installKeyboardHome } from "./keyboard-home";
+import {
+  focusScreenHome,
+  installKeyboardHome,
+  keepCaretOnKeyboardSide,
+  placeCaretAfterPress,
+} from "./keyboard-home";
+import { isPageOnSideWithoutKeyboard } from "./keyboard-place";
 
 let uninstall: () => void;
 
@@ -218,4 +225,71 @@ it("sends the keyboard home after a press on a tab lets go of it", async () => {
   await frames(3);
 
   expect(document.activeElement).toBe(file);
+});
+
+describe("the sides of a tab group", () => {
+  /** A group of two sides, a chat's composer on the left and a page on the right, with the keyboard on `keyboard`. */
+  const groupSides = (keyboard: "left" | "right") => {
+    document.body.innerHTML = `
+      <div data-app-tab-active>
+        <div data-group-sides>
+          <div data-group-side="0" ${keyboard === "left" ? "data-keyboard" : ""}>
+            <p style="user-select: text">Words to read</p>
+            <div data-keyboard-home><div contenteditable="true">Prompt</div></div>
+          </div>
+          <div data-group-side="1" data-page-tab="tab_01M7EKJA7JST69N0RVMKWTP7Q8" ${keyboard === "right" ? "data-keyboard" : ""}>
+            <input aria-label="Field">
+          </div>
+        </div>
+      </div>
+      <button type="button" aria-label="Page">a page's guest, drawn over the window</button>
+    `;
+    const [left, right] =
+      document.querySelectorAll<HTMLElement>("[data-group-side]");
+    const prompt = document.querySelector<HTMLElement>("[contenteditable]");
+    const field = document.querySelector<HTMLElement>("input");
+    const page = document.querySelector<HTMLElement>("button");
+    if (!left || !right || !prompt || !field || !page) {
+      throw new Error("fixture missing");
+    }
+    return { field, left, page, prompt, right };
+  };
+
+  it("puts the caret in a side's home after a press on nothing in it", async () => {
+    const { left, prompt } = groupSides("left");
+    placeCaretAfterPress(left);
+    await frames(2);
+    expect(document.activeElement).toBe(prompt);
+  });
+
+  it("leaves words a press in a side selected", async () => {
+    const { left } = groupSides("left");
+    const words = left.querySelector("p")?.firstChild;
+    if (!words) {
+      throw new Error("fixture missing");
+    }
+    document.getSelection()?.setBaseAndExtent(words, 0, words, 5);
+    placeCaretAfterPress(left);
+    await frames(2);
+    expect([
+      document.activeElement,
+      document.getSelection()?.toString(),
+    ]).toEqual([document.body, "Words"]);
+  });
+
+  it("sends a caret that landed in the side without the keyboard to the side with it", async () => {
+    const { field, prompt, right } = groupSides("left");
+    field.focus();
+    keepCaretOnKeyboardSide(right);
+    await frames(2);
+    expect(document.activeElement).toBe(prompt);
+  });
+
+  it("knows a page up on the side without the keyboard, which may not hold it", () => {
+    groupSides("left");
+    const onLeft = isPageOnSideWithoutKeyboard(browserTargetOf("tab_01M7EKJA7JST69N0RVMKWTP7Q8"));
+    groupSides("right");
+    const onRight = isPageOnSideWithoutKeyboard(browserTargetOf("tab_01M7EKJA7JST69N0RVMKWTP7Q8"));
+    expect([onLeft, onRight]).toEqual([true, false]);
+  });
 });

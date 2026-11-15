@@ -21,6 +21,19 @@ export function pageOfSide(side: Element): BrowserTargetId | null {
 }
 
 /**
+ * Whether a page is up on a side of the tab group on screen that does not
+ * have the keyboard, which the page may then not hold: the keyboard is in
+ * the side that has it, whatever a page does on its own.
+ */
+export function isPageOnSideWithoutKeyboard(targetId: BrowserTargetId) {
+  return [
+    ...document.querySelectorAll(
+      "[data-app-tab-active] [data-group-side]:not([data-keyboard])",
+    ),
+  ].some((side) => pageOfSide(side) === targetId);
+}
+
+/**
  * Where the person is in the window's document, for a chord whose meaning
  * depends on it (Cmd+F finds in that surface): the element holding focus, or,
  * when focus is on nothing in the side with the keyboard (fallen back to the

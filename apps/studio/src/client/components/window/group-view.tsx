@@ -5,12 +5,14 @@ import { CaptionRoom } from "@/client/components/window-controls";
 import { useIsActiveTab } from "@/client/hooks/use-active-tab";
 import {
   giveKeyboardTo,
-  onPageFocus,
+  onPagePress,
   pageHoldingKeyboard,
 } from "@/client/lib/browser-pool";
 import {
   dropCaretOutside,
   focusHomeIn,
+  keepCaretOnKeyboardSide,
+  placeCaretAfterPress,
   focusOnceLayersClose,
   setHomeFocus,
 } from "@/client/lib/keyboard-home";
@@ -630,11 +632,13 @@ function SideCard({
     }
   }, [hasKeyboard]);
 
-  // What the person does on a side gives it the keyboard, caught here for
-  // every kind of tab rather than by each: a press anywhere on it, or the
-  // caret landing in it (Tab, a field focusing itself), both on the way down
-  // (below), and one of its pages taking the caret, which a page does in a
-  // guest standing over the side rather than in it.
+  // Which side has the keyboard is the group's state (`focusSide`), which
+  // changes only on purpose: here, for every kind of tab rather than by each,
+  // a press of the pointer anywhere on the side, on the way down (below), or
+  // in one of its pages, which a guest standing over the side takes and main
+  // reports (`onPagePress`). A caret landing in the side otherwise (a field
+  // or a page focusing itself) changes nothing, and goes back to the side
+  // with the keyboard; a page is sent back by the browser pool.
   const takeKeyboard = () => {
     if (!hasKeyboard) {
       windowTabs.focusSide(group, sideIndex);
@@ -649,7 +653,7 @@ function SideCard({
       return;
     }
     const targets = new Set(pagesKey.split(" "));
-    return onPageFocus((target) => {
+    return onPagePress((target) => {
       if (targets.has(target)) {
         pageTakesKeyboard();
       }
@@ -752,6 +756,10 @@ function SideCard({
           "pointerup",
           () => {
             isPressed.current = false;
+            const card = cardRef.current;
+            if (card) {
+              placeCaretAfterPress(card);
+            }
           },
           { capture: true, once: true },
         );
@@ -770,8 +778,9 @@ function SideCard({
         }
       }}
       onFocusCapture={() => {
-        if (!isPressed.current) {
-          takeKeyboard();
+        const card = cardRef.current;
+        if (card && !isPressed.current && !hasKeyboard) {
+          keepCaretOnKeyboardSide(card);
         }
       }}
       style={style}

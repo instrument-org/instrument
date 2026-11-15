@@ -619,6 +619,9 @@ function createBrowserViewManager(): BrowserViewManager {
       if (isPersonUse(input.type, focusGuard.isGuarded(targetId))) {
         notePersonUsedTab(targetId, () => keptOpenerOfTab(targetId));
       }
+      if (byPerson && input.type === "mouseDown") {
+        publisher.publish("browser.page-pressed", { targetId });
+      }
       if (
         record &&
         byPerson &&

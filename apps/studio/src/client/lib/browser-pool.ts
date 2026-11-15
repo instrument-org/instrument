@@ -1,6 +1,10 @@
 import { captureException } from "@/client/lib/capture-exception";
 import { focusHomeIn } from "@/client/lib/keyboard-home";
-import { keyboardSide, pageOfSide } from "@/client/lib/keyboard-place";
+import {
+  isPageOnSideWithoutKeyboard,
+  keyboardSide,
+  pageOfSide,
+} from "@/client/lib/keyboard-place";
 import { rpcClient } from "@/client/rpc/client";
 import {
   BROWSER_GUEST_VIEWPORT,
@@ -239,8 +243,14 @@ let lastHostFocusedElement: HTMLElement | null = null;
 // `document.activeElement` survives losing and regaining focus, so this alone
 // puts typing back into whatever the agent last clicked.
 function focusGuest(targetId: BrowserTargetId) {
+  agentFocused.add(targetId);
   pool.get(targetId)?.webview.focus({ preventScroll: true });
 }
+
+// Pages an agent's input put the keyboard in, until they lose it: they keep
+// it on either side, since the keys must reach the page the agent drives,
+// and main hands it back once the agent goes quiet.
+const agentFocused = new Set<BrowserTargetId>();
 
 /** How long a page opened in place of what the person was in waits to come on screen and take the keyboard. */
 const HEIR_WAIT_MS = 5000;
@@ -360,6 +370,10 @@ function passKeyboardTo(targetId: BrowserTargetId) {
   const lapses = keyboardHeirs.get(targetId);
   keyboardSends.delete(targetId);
   keyboardHeirs.delete(targetId);
+  // A page on the side without the keyboard never takes it.
+  if (isPageOnSideWithoutKeyboard(targetId)) {
+    return;
+  }
   if (sent !== undefined && Date.now() <= sent) {
     pooled.webview.focus({ preventScroll: true });
     return;
@@ -631,6 +645,29 @@ export function initBrowserPool(): () => void {
     }
   }
 
+  async function runPagePresses() {
+    while (true) {
+      if (signal.aborted) {
+        return;
+      }
+      try {
+        const subscription = await rpcClient.browser.events.pagePressed.call(
+          undefined,
+          { signal },
+        );
+        for await (const { targetId } of subscription) {
+          pagePressed(targetId);
+        }
+      } catch (error) {
+        if (controller.signal.aborted) {
+          return;
+        }
+        captureException(error);
+      }
+      await sleep(RECONNECT_DELAY_MS);
+    }
+  }
+
   async function runGuestFocusRequests() {
     while (true) {
       if (signal.aborted) {
@@ -707,6 +744,8 @@ export function initBrowserPool(): () => void {
   void run();
   void runFocusRestores();
   void runGuestFocusRequests();
+  void runPagePresses();
+  window.addEventListener("blur", onHostBlur, { signal });
   void runGuestSurfaces();
   void runPageSteps();
 
@@ -736,44 +775,72 @@ export function pageHoldingKeyboard(): BrowserTargetId | null {
   return null;
 }
 
-const pageFocusListeners = new Set<(targetId: BrowserTargetId) => void>();
+const pagePressListeners = new Set<(targetId: BrowserTargetId) => void>();
 
-/** Tells every listener the page holding the keyboard, when one on screen does. */
-function tellPageFocused() {
-  const target = pageHoldingKeyboard();
-  if (target !== null) {
-    for (const listener of pageFocusListeners) {
-      listener(target);
-    }
-  }
-}
-
-/** The host document losing the keyboard, which it does to a page clicked into, read once the guest's frame has it. */
-function onHostBlur() {
-  queueMicrotask(tellPageFocused);
-}
+/** When the person last pressed the pointer in each page, which main reports since the host document never sees it. */
+const pagePressedAt = new Map<BrowserTargetId, number>();
 
 /**
- * Calls `listener` with a page on screen each time it takes the keyboard,
- * a click in it included. The host document fires no `focusin` for that,
- * since the keyboard goes into the guest's frame rather than to an element
- * of the host's; two signals stand in for it, either enough alone: the
- * host window's `blur` as its frame gives the keyboard up, and the
- * `<webview>`'s own `focus`, which Electron dispatches (not bubbling) once
- * the guest's window reports taking it through main. A listener may hear
- * one taking of the keyboard more than once.
+ * Calls `listener` with a page each time the person presses the pointer in
+ * it: a press the host document never sees, since it goes to the guest.
+ * The one way a page gives its side of a tab group the keyboard; a page
+ * taking focus otherwise (autofocus, a script, a load) does not.
  */
-export function onPageFocus(listener: (targetId: BrowserTargetId) => void) {
-  if (pageFocusListeners.size === 0) {
-    window.addEventListener("blur", onHostBlur);
-  }
-  pageFocusListeners.add(listener);
+export function onPagePress(listener: (targetId: BrowserTargetId) => void) {
+  pagePressListeners.add(listener);
   return () => {
-    pageFocusListeners.delete(listener);
-    if (pageFocusListeners.size === 0) {
-      window.removeEventListener("blur", onHostBlur);
-    }
+    pagePressListeners.delete(listener);
   };
+}
+
+function pagePressed(targetId: BrowserTargetId) {
+  pagePressedAt.set(targetId, Date.now());
+  for (const listener of pagePressListeners) {
+    listener(targetId);
+  }
+}
+
+/** How long a page that took the keyboard waits for the press main reports, which may arrive after the focus, in ms. */
+const PRESS_REPORT_WAIT_MS = 150;
+
+/**
+ * Hands the keyboard back to the side that has it from a page on the other
+ * side that took it without a press of the person's: a page focusing
+ * itself, or one a load or a script focused. Waits a moment first for a
+ * press main may still be reporting, which gives the page's side the
+ * keyboard instead.
+ */
+function keepKeyboardOnItsSide(targetId: BrowserTargetId) {
+  if (!isPageOnSideWithoutKeyboard(targetId)) {
+    return;
+  }
+  setTimeout(() => {
+    const pooled = pool.get(targetId);
+    const side = keyboardSide();
+    const pressed = pagePressedAt.get(targetId) ?? 0;
+    if (
+      !pooled ||
+      agentFocused.has(targetId) ||
+      document.activeElement !== pooled.webview ||
+      Date.now() - pressed < PRESS_REPORT_WAIT_MS * 4 ||
+      !isPageOnSideWithoutKeyboard(targetId) ||
+      side === null
+    ) {
+      return;
+    }
+    pooled.webview.blur();
+    focusHomeIn(side);
+  }, PRESS_REPORT_WAIT_MS);
+}
+
+/** The host document losing the keyboard, as it does to a page taking it. */
+function onHostBlur() {
+  queueMicrotask(() => {
+    const target = pageHoldingKeyboard();
+    if (target !== null) {
+      keepKeyboardOnItsSide(target);
+    }
+  });
 }
 
 /**
@@ -1044,9 +1111,10 @@ function ensureWebview(
   // tracks the host document's activeElement correctly.
   webview.addEventListener("focus", () => {
     void rpcClient.browser.syncFocus.call({ focused: true, targetId });
-    tellPageFocused();
+    keepKeyboardOnItsSide(targetId);
   });
   webview.addEventListener("blur", () => {
+    agentFocused.delete(targetId);
     void rpcClient.browser.syncFocus.call({ focused: false, targetId });
   });
   // A thumb button pressed over the page, which steps it as a history chord
@@ -1311,7 +1379,10 @@ function onFullScreenChange() {
     leaveFullScreen(pooled);
     // Esc reaches the page only while it holds the keyboard, which a page an
     // agent sent into full screen need not.
-    if (paintOwners.has(pooled.targetId)) {
+    if (
+      paintOwners.has(pooled.targetId) &&
+      !isPageOnSideWithoutKeyboard(pooled.targetId)
+    ) {
       pooled.webview.focus({ preventScroll: true });
     }
   }

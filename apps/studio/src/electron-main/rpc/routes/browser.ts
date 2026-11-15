@@ -74,6 +74,15 @@ const events = {
       }
     }
   }),
+  pagePressed: base.handler(async function* ({ context, signal }) {
+    for await (const event of publisher.subscribe("browser.page-pressed", {
+      signal,
+    })) {
+      if (isForHost(context.webContentsId, event.targetId)) {
+        yield event;
+      }
+    }
+  }),
   navigationRefused: base.handler(async function* ({ context, signal }) {
     for await (const event of publisher.subscribe(
       "browser.navigation-refused",

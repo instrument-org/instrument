@@ -48,6 +48,9 @@ interface PublisherEvents {
   // element moves Chromium's keyboard focus across the process boundary;
   // `webContents.focus()` on the guest does not.
   "browser.focus-guest": { targetId: BrowserTargetId };
+  // The person pressed the pointer in a guest, which the host document
+  // never sees, so the renderer can give the side showing it the keyboard.
+  "browser.page-pressed": { targetId: BrowserTargetId };
   // A page in a tab an agent drives tried to go to a file outside the agent's
   // folders and was kept where it is. The app window says so,
   // since otherwise a link the person clicked just does nothing.

@@ -1151,11 +1151,39 @@ body {
  * physical depth. Works in both themes since it's a translucent overlay, and
  * the variant's own background-color (including :hover) still shows through. */
 @utility button-sheen {
+  background-image:
+    linear-gradient(
+      var(--button-veil, transparent),
+      var(--button-veil, transparent)
+    ),
+    linear-gradient(to bottom, rgb(255 255 255 / 0.03), rgb(0 0 0 / 0));
+}
+
+/* A button's hover and press: a veil laid over whatever color it is, so
+ * every fill moves by the same small step, darker in light mode and lighter
+ * in dark, rather than jumping to a neighboring shade, which reads as a
+ * different button in dark mode and goes the wrong way for brand. A button
+ * with `button-sheen` has the veil already; one without takes this. */
+@utility button-veil {
   background-image: linear-gradient(
-    to bottom,
-    rgb(255 255 255 / 0.03),
-    rgb(0 0 0 / 0)
+    var(--button-veil, transparent),
+    var(--button-veil, transparent)
   );
+}
+
+@utility button-press {
+  &:not(:disabled):hover {
+    --button-veil: rgb(0 0 0 / 0.05);
+  }
+  &:not(:disabled):active {
+    --button-veil: rgb(0 0 0 / 0.09);
+  }
+  &:where(.dark, .dark *):not(:disabled):hover {
+    --button-veil: rgb(255 255 255 / 0.035);
+  }
+  &:where(.dark, .dark *):not(:disabled):active {
+    --button-veil: rgb(255 255 255 / 0.015);
+  }
 }
 
 @layer base {

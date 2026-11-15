@@ -1,5 +1,5 @@
 import { draftSnapshotsAtom } from "@/client/atoms/prompt-value";
-import { ChatCircleIcon } from "@phosphor-icons/react/ChatCircle";
+import { AnimatedOutlineBrandIconGlyph } from "@/client/components/brand-icon";
 import { APPS_HREF, BROWSER_HREF, filesHrefAtom } from "@/client/atoms/window";
 import { sidebarProjectAtom } from "@/client/atoms/tab-groups";
 import {
@@ -423,42 +423,73 @@ export function NewChatView({
   );
 }
 
-/** The chat bubble over a line, as a new chat in 1.0 opened under them. */
-function NewChatIntro() {
+/**
+ * What stands over a new chat's composer: a mark over a line. Both kinds,
+ * the plain new chat's and a project's, are this one block, so switching
+ * between them changes what it shows and nothing moves.
+ */
+function NewChatHead({
+  caption,
+  heading,
+  mark,
+}: {
+  /** A quieter line under the heading, hung below it so the mark and the heading stay where the plain new chat has them. */
+  caption?: ReactNode;
+  heading: ReactNode;
+  mark: ReactNode;
+}) {
   return (
-    <div className="flex flex-col items-center gap-y-5">
-      <ChatCircleIcon
-        className="size-18 text-brown-300/34 dark:text-brown-900/34"
-        weight="fill"
-      />
-      <h1 className="font-serif text-2xl leading-none font-normal tracking-[-0.03em] whitespace-nowrap text-foreground @xl/app-content:text-3xl @3xl/app-content:text-4xl">
-        How can I help?
+    <div className="relative flex flex-col items-center gap-y-5">
+      <div className="grid size-18 place-items-center">{mark}</div>
+      <h1 className="font-serif text-2xl leading-none font-normal tracking-[-0.03em] whitespace-nowrap @xl/app-content:text-3xl @3xl/app-content:text-4xl">
+        {heading}
       </h1>
+      {caption !== undefined && (
+        <p className="absolute top-full mt-3 text-sm whitespace-nowrap text-muted-foreground">
+          {caption}
+        </p>
+      )}
     </div>
   );
 }
 
-/** The project a new chat beside its list opens in: its mark, its name, and where the chat goes. */
+/** The Instrument mark over a line, as a new chat in 1.0 opened under them; the mark draws itself in outline under the pointer. */
+function NewChatIntro() {
+  return (
+    <NewChatHead
+      heading={<span className="text-foreground">How can I help?</span>}
+      mark={
+        <div className="text-brown-300/34 dark:text-brown-900/34">
+          <AnimatedOutlineBrandIconGlyph className="size-18" />
+        </div>
+      }
+    />
+  );
+}
+
+/** The project a new chat is filed under, in the plain new chat's place: its mark, its name, and where the chat goes. */
 function ProjectRoom({ project }: { project: Project }) {
   return (
     <div
-      className="project-room-in flex flex-col items-center pb-16 text-center project-tint"
+      className="project-room-in project-tint"
       style={projectTint(projectColor(project))}
     >
-      <span className="grid size-12 place-items-center rounded-xl bg-background shadow-xs ring-1 ring-border/60">
-        <ProjectMark
-          className="size-7 text-[22px]"
-          plain
-          project={project}
-          size="lg"
-        />
-      </span>
-      <h3 className="mt-3 text-xl font-semibold text-(--project-tint-ink)">
-        {project.name}
-      </h3>
-      <p className="mt-1 text-sm text-muted-foreground">
-        New chats here go into this project.
-      </p>
+      <NewChatHead
+        caption="New chats here go into this project."
+        heading={
+          <span className="text-(--project-tint-ink)">{project.name}</span>
+        }
+        mark={
+          <span className="grid size-16 place-items-center rounded-2xl bg-background shadow-xs ring-1 ring-border/60">
+            <ProjectMark
+              className="size-10 text-[32px]"
+              plain
+              project={project}
+              size="lg"
+            />
+          </span>
+        }
+      />
     </div>
   );
 }

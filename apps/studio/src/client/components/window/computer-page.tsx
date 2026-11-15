@@ -183,6 +183,7 @@ import {
 import { pictureHoldingKeyboard } from "@/client/lib/picture-keys";
 
 import { openInNewWindow } from "./app-tabs";
+import { useFileDrag } from "@/client/hooks/use-file-drag";
 import { useWindow } from "./context";
 import { arrivalView } from "./files-step";
 import { useGroupTab } from "./group-tab";
@@ -4606,50 +4607,89 @@ function PlaceList({
         </ContextMenu>
       )}
       <ul className="flex flex-col gap-px">
-        {places.map((place) => {
-          const placeMenu = menu?.(place.path);
-          return (
-            <li key={place.path}>
-              <ContextMenu>
-                <ContextMenuTrigger asChild disabled={placeMenu === undefined}>
-                  <button
-                    className={cn(
-                      "flex w-full items-center gap-2 rounded-md px-2 py-1 text-left hover:bg-foreground/5 data-[state=open]:bg-foreground/5",
-                      place.isActive && "bg-foreground/8",
-                    )}
-                    onAuxClick={(event) => {
-                      if (event.button === 1) {
-                        event.preventDefault();
-                        onOpenInNewTab(place.path);
-                      }
-                    }}
-                    onClick={(event) => {
-                      if (onOpenInNewWindow && wantsNewWindow(event)) {
-                        onOpenInNewWindow(place.path);
-                      } else {
-                        onOpen(place.path);
-                      }
-                    }}
-                    onMouseDown={(event) => {
-                      if (event.button === 1) {
-                        event.preventDefault();
-                      }
-                    }}
-                    type="button"
-                  >
-                    <span className="flex size-4 shrink-0 items-center justify-center">
-                      {place.icon}
-                    </span>
-                    <span className="truncate">{place.name}</span>
-                  </button>
-                </ContextMenuTrigger>
-                {placeMenu}
-              </ContextMenu>
-            </li>
-          );
-        })}
+        {places.map((place) => (
+          <PlaceRow
+            key={place.path}
+            menu={menu?.(place.path)}
+            onOpen={onOpen}
+            onOpenInNewTab={onOpenInNewTab}
+            onOpenInNewWindow={onOpenInNewWindow}
+            place={place}
+          />
+        ))}
       </ul>
     </div>
+  );
+}
+
+/**
+ * A place in the sidebar, which drags as the folder it is, as a folder's
+ * row in the listing does: out to the Finder, onto a side or the bookmarks
+ * bar, or into another folder. The recents and the computer are no folder,
+ * and stay put.
+ */
+function PlaceRow({
+  menu,
+  onOpen,
+  onOpenInNewTab,
+  onOpenInNewWindow,
+  place,
+}: {
+  menu: ReactNode;
+  onOpen: (path: string) => void;
+  onOpenInNewTab: (path: string) => void;
+  onOpenInNewWindow?: ((path: string) => void) | undefined;
+  place: {
+    icon: ReactNode;
+    isActive: boolean;
+    name: string;
+    path: string;
+  };
+}) {
+  const isFolder = place.path !== RECENTS_ROOT && place.path !== COMPUTER_ROOT;
+  const dragProps = useFileDrag(
+    isFolder ? { hostPath: place.path } : undefined,
+    { isRow: true },
+  );
+  return (
+    <li>
+      <ContextMenu>
+        <ContextMenuTrigger asChild disabled={menu === undefined}>
+          <button
+            {...dragProps}
+            className={cn(
+              "flex w-full items-center gap-2 rounded-md px-2 py-1 text-left hover:bg-foreground/5 data-[state=open]:bg-foreground/5",
+              place.isActive && "bg-foreground/8",
+            )}
+            onAuxClick={(event) => {
+              if (event.button === 1) {
+                event.preventDefault();
+                onOpenInNewTab(place.path);
+              }
+            }}
+            onClick={(event) => {
+              if (onOpenInNewWindow && wantsNewWindow(event)) {
+                onOpenInNewWindow(place.path);
+              } else {
+                onOpen(place.path);
+              }
+            }}
+            onMouseDown={(event) => {
+              if (event.button === 1) {
+                event.preventDefault();
+              }
+            }}
+            type="button"
+          >
+            <span className="flex size-4 shrink-0 items-center justify-center">
+              {place.icon}
+            </span>
+            <span className="truncate">{place.name}</span>
+          </button>
+        </ContextMenuTrigger>
+        {menu}
+      </ContextMenu>
+    </li>
   );
 }
 

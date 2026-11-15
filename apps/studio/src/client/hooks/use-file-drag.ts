@@ -54,9 +54,13 @@ interface Gesture {
  * element is simply not draggable rather than starting a drag that carries
  * nothing.
  */
-export function useFileDrag(file: DraggedFiles | undefined) {
+export function useFileDrag(
+  file: DraggedFiles | undefined,
+  /** Whether it is one of the Finder's own folders, whose drag onto another of them moves it, as a row's does. */
+  { isRow = false }: { isRow?: boolean } = {},
+) {
   const canDrag = Boolean(file && window.api.startFileDrag);
-  const gesture = useDragGesture();
+  const gesture = useDragGesture({ isRows: isRow });
 
   return {
     draggable: canDrag,

@@ -347,12 +347,15 @@ function AtPointer({
           x: Math.min(drag.grab.x, CHIP_GRAB_PX.x),
           y: Math.min(drag.grab.y, CHIP_GRAB_PX.y),
         };
-    element.style.left = `${(dragPoint.x - grab.x + (draw?.x ?? 0)) / zoom}px`;
-    element.style.top = `${(dragPoint.y - grab.y + (draw?.y ?? 0)) / zoom}px`;
     element.style.width =
       isGroup && !isWindow
         ? `${list ? list.width / zoom - 16 : ROW_WIDTH_PX}px`
         : "";
+    keepInWindow(element, {
+      left: (dragPoint.x - grab.x + (draw?.x ?? 0)) / zoom,
+      pointer: (dragPoint.x + (draw?.x ?? 0)) / zoom,
+      top: (dragPoint.y - grab.y + (draw?.y ?? 0)) / zoom,
+    });
   };
   /** Whether a split has taken what is held, which then rides at the pointer over the side sliding in. */
   const isPulledToSplit = () =>
@@ -432,6 +435,32 @@ function AtPointer({
   );
 }
 
+/** How far from the window's edges what rides on the pointer keeps, in px. */
+const EDGE_GAP_PX = 8;
+
+/**
+ * Stands what rides on the pointer at `left` and `top` (the layer's px),
+ * inside the window: past the right edge it goes to the pointer's left
+ * instead, its line under it lined up on its right (`data-flipped`), and at
+ * the other edges it stops short of them.
+ */
+function keepInWindow(
+  element: HTMLElement,
+  { left, pointer, top }: { left: number; pointer: number; top: number },
+) {
+  const layer = element.parentElement;
+  if (!layer) {
+    return;
+  }
+  const { offsetHeight: height, offsetWidth: width } = element;
+  const right = layer.clientWidth - EDGE_GAP_PX;
+  const isFlipped = left + width > right;
+  const x = isFlipped ? pointer - width - EDGE_GAP_PX : left;
+  element.toggleAttribute("data-flipped", isFlipped);
+  element.style.left = `${String(clamp(x, EDGE_GAP_PX, Math.max(right - width, EDGE_GAP_PX)))}px`;
+  element.style.top = `${String(clamp(top, EDGE_GAP_PX, Math.max(layer.clientHeight - EDGE_GAP_PX - height, EDGE_GAP_PX)))}px`;
+}
+
 /** What rides on the pointer, with what letting go does said under it. */
 function Riding({
   children,
@@ -446,7 +475,7 @@ function Riding({
 }) {
   return (
     <div
-      className="absolute flex flex-col items-start gap-1"
+      className="absolute flex w-max flex-col items-start gap-1 data-flipped:items-end"
       data-held=""
       ref={riderRef}
     >

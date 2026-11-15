@@ -64,7 +64,7 @@ function asksPartOf(asked: string, shown: string): boolean {
  * (`openBuiltInPage`, `openSettings`): the tab of the group up already
  * showing the page comes forward, at the part asked for, and otherwise the
  * page opens as a new tab right after the tab up, as a browser opens its
- * settings. Settings with no part named opens at General.
+ * settings, or in place of a blank New Tab up (`besideUpOf`). Settings with no part named opens at General.
  */
 export function BuiltInPageOpener() {
   const request = useAtomValue(pageRequestAtom);
@@ -76,7 +76,7 @@ export function BuiltInPageOpener() {
       return;
     }
     appWindow.openScreen(href === "/settings" ? SCREENS.settings.href : href, {
-      newTab: true,
+      besideUp: true,
     });
   });
   useEffect(() => {

@@ -50,6 +50,12 @@ export interface OpenOptions {
   into?: "group" | "split" | "window";
   /** A tab of its own in the group, beside the one up rather than in its place: what a conversation or an agent opens. */
   ownTab?: boolean;
+  /**
+   * A new tab right after the tab up that the app picks rather than the
+   * person, as a browser opens its settings: in place of a blank New Tab up
+   * instead (`besideUpOf`).
+   */
+  besideUp?: boolean;
   /** Takes the place of the address the window's tab stands on rather than stepping on from it: a screen handing its file to the page. */
   replace?: boolean;
   show?: boolean;

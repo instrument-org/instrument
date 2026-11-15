@@ -72,7 +72,9 @@ function HistoryRows({ onOpen }: { onOpen: (url: string) => void }) {
       <DropdownMenuSeparator />
       <DropdownMenuItem
         onSelect={() => {
-          openScreen(`${SCREEN_ROUTES.activity}?show=pages`, { newTab: true });
+          openScreen(`${SCREEN_ROUTES.activity}?show=pages`, {
+            besideUp: true,
+          });
         }}
       >
         Show full history

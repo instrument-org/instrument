@@ -601,7 +601,7 @@ function UpdateReadyCardBody({
         <Button
           className="px-0 text-brand-text"
           onClick={() => {
-            openScreen("/release-notes", { newTab: true });
+            openScreen("/release-notes", { besideUp: true });
           }}
           size="sm"
           variant="link"

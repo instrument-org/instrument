@@ -124,7 +124,9 @@ export function ActivitySection() {
           end={
             <Button
               onClick={() => {
-                appWindow?.openScreen(SCREEN_ROUTES.activity, { newTab: true });
+                appWindow?.openScreen(SCREEN_ROUTES.activity, {
+                  besideUp: true,
+                });
               }}
               size="sm"
               variant="outline"

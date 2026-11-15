@@ -159,6 +159,28 @@ export function screenPlacementOf(
 }
 
 /**
+ * An open the app gives a new tab right after the tab up (`besideUp`), as
+ * it lands: in place of a blank New Tab up, which has nothing worth keeping
+ * beside it, and a new tab (`newTab`) otherwise. A new tab, a window or a
+ * place the person asked for stays as asked.
+ */
+export function besideUpOf(
+  options: OpenOptions,
+  { up }: Pick<PlacementContext, "up">,
+): OpenOptions {
+  const { besideUp, ...rest } = options;
+  if (
+    besideUp !== true ||
+    rest.newTab === true ||
+    rest.newWindow === true ||
+    rest.into !== undefined
+  ) {
+    return rest;
+  }
+  return up?.isFresh === true ? rest : { ...rest, newTab: true };
+}
+
+/**
  * An open as it lands inside the window, where only a menu's Open in New Tab
  * Group or Open in New Window (`into`) makes a group: a Shift-click's window
  * of its own is a new tab in front.

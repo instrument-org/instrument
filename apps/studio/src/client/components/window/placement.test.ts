@@ -3,6 +3,7 @@ import { describe, expect, it } from "vitest";
 
 import { type OpenOptions } from "./context";
 import {
+  besideUpOf,
   chatPlacementOf,
   gestureOf,
   inGroup,
@@ -333,5 +334,60 @@ describe("where a chat opened inside the window goes", () => {
     ],
   ])("%s", (_label, asked, place, context, expected) => {
     expect(chatPlacementOf(asked, place, context)).toEqual(expected);
+  });
+});
+
+describe("what the app opens beside the tab up", () => {
+  it.each<[string, OpenOptions, PlacementContext, unknown]>([
+    [
+      "from a blank New Tab: takes the tab over",
+      { besideUp: true },
+      inChat(FRESH),
+      { kind: "group-navigate" },
+    ],
+    [
+      "from a tab with something in it: a new tab after it",
+      { besideUp: true },
+      inChat(SCREEN),
+      { behind: false, kind: "group-new-tab" },
+    ],
+    [
+      "from a page: a new tab after it",
+      { besideUp: true },
+      inChat(OWN_PAGE),
+      { behind: false, kind: "group-new-tab" },
+    ],
+    [
+      "with no group up: a window tab",
+      { besideUp: true },
+      NO_GROUP,
+      { behind: false, kind: "window-tab" },
+    ],
+    [
+      "Open in New Tab from a blank New Tab: still a new tab",
+      { newTab: true },
+      inChat(FRESH),
+      { behind: false, kind: "group-new-tab" },
+    ],
+    [
+      "a Cmd-click from a blank New Tab: still a tab behind",
+      { behind: true, newTab: true },
+      inChat(FRESH),
+      { behind: true, kind: "group-new-tab" },
+    ],
+  ])("%s", (_label, asked, context, expected) => {
+    expect(
+      screenPlacementOf(
+        "/settings/general",
+        besideUpOf(asked, context),
+        context,
+      ),
+    ).toEqual(expected);
+  });
+
+  it("leaves a menu's place as picked", () => {
+    expect(
+      besideUpOf({ besideUp: true, into: "split" }, inChat(FRESH)),
+    ).toEqual({ into: "split" });
   });
 });

@@ -133,7 +133,7 @@ function About() {
   const appWindow = useContext(WindowContext);
 
   const handleOpenReleaseNotes = () => {
-    appWindow?.openScreen("/release-notes", { newTab: true });
+    appWindow?.openScreen("/release-notes", { besideUp: true });
   };
 
   const { data: appEnvironment } = useQuery({

@@ -56,11 +56,11 @@ interface Gesture {
  */
 export function useFileDrag(
   file: DraggedFiles | undefined,
-  /** Whether it is one of the Finder's own folders, whose drag onto another of them moves it, as a row's does. */
-  { isRow = false }: { isRow?: boolean } = {},
+  /** Whether it is a place of Files' sidebar, which no folder of Files takes. */
+  { isPlace = false }: { isPlace?: boolean } = {},
 ) {
   const canDrag = Boolean(file && window.api.startFileDrag);
-  const gesture = useDragGesture({ isRows: isRow });
+  const gesture = useDragGesture({ isPlace });
 
   return {
     draggable: canDrag,
@@ -159,7 +159,7 @@ function prepare(file: FileRef | undefined) {
  * One press at a time, from the pointer going down on a file to either the
  * drag being handed to the OS or the pointer coming back up.
  */
-function useDragGesture({ isRows = false } = {}) {
+function useDragGesture({ isPlace = false, isRows = false } = {}) {
   // Cancelling the dragstart keeps Blink out of a drag state, so it never
   // applies its own rule that a drag suppresses the click after it. A press and
   // release on one element is a click by every measure Blink has left, which
@@ -222,7 +222,7 @@ function useDragGesture({ isRows = false } = {}) {
         // Both set before the drag exists rather than after, so a release quick
         // enough to beat the OS still finds them.
         const paths = [file.hostPath, ...(file.others ?? [])];
-        trackSelfFileDrag(isRows ? paths : []);
+        trackSelfFileDrag(isRows || isPlace ? paths : [], { isPlace });
         draggedRef.current = true;
         window.api.startFileDrag?.(paths);
       };

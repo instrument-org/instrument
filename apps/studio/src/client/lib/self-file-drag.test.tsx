@@ -3,6 +3,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
   endOwnFileDrag,
   isOwnFileDragOf,
+  isPlaceDragInAir,
   isSelfFileDrag,
   releaseSelfFileDrag,
   sawOwnFileDrag,
@@ -116,5 +117,17 @@ describe("self file drag", () => {
       sawOwnFileDrag();
       expect(isOwnFileDragOf(["/a.txt"])).toBe(false);
     });
+  });
+
+  // A place of Files' sidebar (a home folder, a disk) goes into no
+  // folder, for as long as it is held, and a row's drag is no place.
+  it("says a place of the sidebar is in the air until it ends", () => {
+    trackSelfFileDrag(["/Users/sam/Documents"], { isPlace: true });
+    vi.advanceTimersByTime(10_000);
+    expect(isPlaceDragInAir()).toBe(true);
+    endOwnFileDrag();
+    expect(isPlaceDragInAir()).toBe(false);
+    trackSelfFileDrag(["/Users/sam/Documents"]);
+    expect(isPlaceDragInAir()).toBe(false);
   });
 });

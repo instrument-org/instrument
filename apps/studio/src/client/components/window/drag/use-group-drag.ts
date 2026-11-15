@@ -1,3 +1,4 @@
+import { isPlaceDragInAir } from "@/client/lib/self-file-drag";
 import { type WindowTab } from "@/client/atoms/window";
 import { getDefaultStore, useAtomValue } from "jotai";
 import { useRef } from "react";
@@ -168,7 +169,8 @@ function heldInGroup(held: Held, group: string, layout: GroupLayout) {
 
 /**
  * Whether what a side's page shows takes files at a point itself: a chat's
- * composer and a folder in Files do (`data-file-drop-region`), and so does
+ * composer and a folder in Files do (`data-file-drop-region`), a folder
+ * never a place of Files' sidebar (`isPlaceDragInAir`), and so does
  * anything standing over the page there, as a dialog does. Nothing else in a
  * page does, an open file's editor included, so files let go there open
  * beside it as tabs instead of going into it.
@@ -179,6 +181,11 @@ function takesFilesItself(page: Element | null | undefined, point: Point) {
     return true;
   }
   const region = under.closest("[data-file-drop-region]");
+  // A place of Files' sidebar goes into no folder, so over one it opens on
+  // the side instead.
+  if (region?.hasAttribute("data-folder-drop") && isPlaceDragInAir()) {
+    return false;
+  }
   return region !== null && page.contains(region);
 }
 

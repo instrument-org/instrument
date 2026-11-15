@@ -91,6 +91,7 @@ import { isTypingTarget } from "@/client/lib/is-typing-target";
 import {
   endOwnFileDrag,
   isOwnFileDragOf,
+  isPlaceDragInAir,
   isSelfFileDrag,
   ownFileDragInAir,
   sawOwnFileDrag,
@@ -1357,6 +1358,15 @@ export function ComputerPage({
       }
       event.preventDefault();
       event.stopPropagation();
+      // A place of the sidebar goes into no folder, and nothing here offers
+      // to take it.
+      if (isPlaceDragInAir()) {
+        event.dataTransfer.dropEffect = "none";
+        sawOwnFileDrag();
+        clear();
+        spring.rest(null);
+        return;
+      }
       const prefix = dropHandlers.current.dropIntoOf(event.target);
       const into = dropHostPathRef.current(prefix);
       const carried = ownFileDragInAir();
@@ -1415,6 +1425,12 @@ export function ComputerPage({
       event.preventDefault();
       event.stopPropagation();
       clear();
+      if (isPlaceDragInAir()) {
+        endSpring(false);
+        releaseSelfFileDrag();
+        endOwnFileDrag();
+        return;
+      }
       endSpring(true);
       const wasSelfDrag = isSelfFileDrag();
       releaseSelfFileDrag();
@@ -2578,7 +2594,9 @@ export function ComputerPage({
                 className="relative min-h-0 flex-1"
                 // Files let go here go into the folder, not into tabs
                 // (`useSidePagesTarget`).
-                {...(isDropOpen ? { "data-file-drop-region": "" } : {})}
+                {...(isDropOpen
+                  ? { "data-file-drop-region": "", "data-folder-drop": "" }
+                  : {})}
                 // A middle click on a row opens it in a tab of its own, waiting
                 // behind, the way Open in New Tab does: a double-click is what
                 // opens one here, since a single click selects.
@@ -4623,10 +4641,11 @@ function PlaceList({
 }
 
 /**
- * A place in the sidebar, which drags as the folder it is, as a folder's
- * row in the listing does: out to the Finder, onto a side or the bookmarks
- * bar, or into another folder. The recents and the computer are no folder,
- * and stay put.
+ * A place in the sidebar, which drags as the folder it is: out to the
+ * Finder (which copies what another app hands it), onto a side, or onto the
+ * bookmarks bar. No folder here takes it, so a stray drop never moves a
+ * home folder or a disk. The recents and the computer are no folder, and
+ * stay put.
  */
 function PlaceRow({
   menu,
@@ -4649,7 +4668,7 @@ function PlaceRow({
   const isFolder = place.path !== RECENTS_ROOT && place.path !== COMPUTER_ROOT;
   const dragProps = useFileDrag(
     isFolder ? { hostPath: place.path } : undefined,
-    { isRow: true },
+    { isPlace: true },
   );
   return (
     <li>

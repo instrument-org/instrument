@@ -745,6 +745,10 @@ function SideCard({
           takeKeyboard();
         }
       }}
+      // A drop the side's own page takes (a folder in Files, a composer)
+      // gives the side the keyboard, as a press in it does; one the window's
+      // drag lands goes through its moves, which give it there.
+      onDropCapture={takeKeyboard}
       onFocusCapture={() => {
         const card = cardRef.current;
         if (card && !isPressed.current && !hasKeyboard) {
@@ -795,10 +799,7 @@ function SideCard({
         taskTitles={shell.childTitles}
         trailing={isLast ? <CaptionRoom /> : undefined}
       />
-      <div
-        className="relative min-h-0 flex-1"
-        data-side-page={sideIndex}
-      >
+      <div className="relative min-h-0 flex-1" data-side-page={sideIndex}>
         {up && (
           <GroupItem
             closeTab={shell.requestClose}

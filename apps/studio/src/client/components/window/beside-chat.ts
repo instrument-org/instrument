@@ -10,6 +10,7 @@ import {
   openInGroup,
   raiseTab,
   replaceTab,
+  selectTab,
   sideIndexOf,
   type WindowTabs,
 } from "./tab-model";
@@ -160,8 +161,10 @@ export function previousOpenedIn(
 
 /**
  * A tab opened beside a chat's tab, where `besidePlacementOf` puts it, and
- * whether it is up on its side afterward. Nothing happens for a chat's tab
- * no group has.
+ * whether it is up on its side afterward. What the person opens there takes
+ * the keyboard to its side, unless asked to stay behind; what an agent
+ * opens (`openedBy`) never moves the keyboard. Nothing happens for a chat's
+ * tab no group has.
  */
 export function openBesideChat(
   state: WindowTabs,
@@ -187,6 +190,9 @@ export function openBesideChat(
     if (placement.front) {
       next = raiseTab(next, tab.id);
     }
+  }
+  if (tab.openedBy === undefined && !ask.behind) {
+    next = selectTab(next, tab.id);
   }
   const after = groupLayoutOf(next, group);
   const front = after.sides.some((side) => side.up === tab.id);

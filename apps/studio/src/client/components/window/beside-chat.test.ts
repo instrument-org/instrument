@@ -210,8 +210,9 @@ describe("where an open from a chat lands", () => {
 
 describe("opening beside a chat", () => {
   const opened = page("opened");
+  const agentOpened = page("opened", undefined, CHAT);
 
-  it("makes the right side of a chat alone, the keyboard staying in the chat", () => {
+  it("makes the right side of a chat alone, the keyboard going with a click", () => {
     const { front, state } = openBesideChat(
       windowOf([chatTab], "chat"),
       opened,
@@ -219,7 +220,7 @@ describe("opening beside a chat", () => {
     );
     const layout = groupLayoutOf(state, G);
     expect(front).toBe(true);
-    expect(layout.focused).toBe(0);
+    expect(layout.focused).toBe(1);
     expect(layout.sides.map((side) => side.tabs.map((tab) => tab.id))).toEqual([
       ["chat"],
       ["opened"],
@@ -242,7 +243,7 @@ describe("opening beside a chat", () => {
   it("leaves what is up on the chat's side up when it waits behind", () => {
     const { front, state } = openBesideChat(
       windowOf([page("a"), onRight(chatTab)], "chat", "a"),
-      opened,
+      agentOpened,
       AGENT,
     );
     const layout = groupLayoutOf(state, G);
@@ -265,16 +266,29 @@ describe("opening beside a chat", () => {
     expect(state.tabs.some((tab) => tab.id === "chat")).toBe(true);
   });
 
-  it("brings it up on the right without taking the keyboard from the chat", () => {
+  it("takes the keyboard to the right with what a click brings up there", () => {
     const { state } = openBesideChat(
       windowOf([chatTab, page("a", 1)], "chat", "a"),
       opened,
       PERSON,
     );
     const layout = groupLayoutOf(state, G);
-    expect(layout.focused).toBe(0);
+    expect(layout.focused).toBe(1);
     expect(layout.sides[0]?.up).toBe("chat");
     expect(layout.sides[1]?.up).toBe("opened");
+  });
+
+  it.each([
+    ["an agent's page", agentOpened, AGENT],
+    ["an agent's page it shows", agentOpened, PERSON],
+    ["a Cmd-click", opened, CMD_CLICK],
+  ])("leaves the keyboard in the chat for %s", (_label, tab, ask) => {
+    const { state } = openBesideChat(
+      windowOf([chatTab, page("a", 1)], "chat", "a"),
+      tab,
+      ask,
+    );
+    expect(groupLayoutOf(state, G).focused).toBe(0);
   });
 
   it("does nothing for a chat's tab no group has", () => {

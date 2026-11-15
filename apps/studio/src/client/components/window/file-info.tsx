@@ -460,6 +460,9 @@ function FileInfo({ item }: { item: FileInfoItem }) {
     }),
   );
   const title = titles.data?.[item.hostPath];
+  // The picture is sized by its own shape, so until it has loaded it is drawn
+  // at no size and its ring shows as a speck.
+  const [loadedPicture, setLoadedPicture] = useState<string>();
   return (
     <InfoFrame
       name={item.name}
@@ -467,7 +470,13 @@ function FileInfo({ item }: { item: FileInfoItem }) {
         item.previewImageUrl ? (
           <img
             alt=""
-            className="max-h-14 max-w-11 rounded-sm object-contain shadow-xs ring-1 ring-black/10"
+            className={cn(
+              "max-h-14 max-w-11 rounded-sm object-contain shadow-xs ring-1 ring-black/10",
+              loadedPicture !== item.previewImageUrl && "invisible",
+            )}
+            onLoad={() => {
+              setLoadedPicture(item.previewImageUrl);
+            }}
             src={item.previewImageUrl}
           />
         ) : (

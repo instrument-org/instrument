@@ -7,6 +7,7 @@ import { ChatIdSchema, StoreId } from "@instrument-org/workspace/client";
 
 import { type Chat } from "./chats";
 import {
+  asksForDraft,
   copiedTabs,
   chatsWithNoTab,
   groupLists,
@@ -22,7 +23,17 @@ import {
   selectTab,
   type WindowTabs,
 } from "./tab-model";
-import { chatHref, newChatHref } from "./window-href";
+import { chatHref, groupHref, newChatHref } from "./window-href";
+
+describe("asksForDraft", () => {
+  it.each([
+    ["a new tab", newChatHref(), false],
+    ["a tab group", groupHref("group:a"), false],
+    ["a draft by its id", newChatHref("d"), true],
+  ])("%s waits on the drafts: %s", (_case, href, waits) => {
+    expect(asksForDraft(href)).toBe(waits);
+  });
+});
 
 describe("a draft no chat has started, closed", () => {
   const draft = { createdAt: 0, id: "d", updatedAt: 0, words: "" };

@@ -687,6 +687,12 @@ export function useTabGroupActions() {
   };
 }
 
+/** Whether an address asks for a draft by its id, which upkeep can act on only once main has read the drafts. Every other address, a new tab's included, is kept without them. */
+export function asksForDraft(href: string): boolean {
+  const screen = matchScreen(href);
+  return screen.kind === "inbox" && screen.draft !== undefined;
+}
+
 /**
  * Keeps what the window's one app tab stands on a tab group of this
  * window's list. A group the tab came to some other way than through the
@@ -698,8 +704,10 @@ export function useTabGroupActions() {
  * inbox shows the group last up, or the first, or a new one. Groups another
  * window has open too leave this one's list once, as it opens, unless this
  * window is showing them: a window closed with them and brought back since
- * they were opened elsewhere. None of this happens until main has read the
- * drafts, since a draft missing before then may only be unread.
+ * they were opened elsewhere. A draft's address waits until main has read
+ * the drafts, since a draft missing before then may only be unread; nothing
+ * else here reads a draft, so the window never waits on them for a group to
+ * show.
  */
 export function useTabGroupUpkeep(href: string, open: readonly TabGroup[]) {
   const store = useStore();
@@ -713,7 +721,9 @@ export function useTabGroupUpkeep(href: string, open: readonly TabGroup[]) {
   const asked = useRef<string>(undefined);
 
   const keep = useEffectEvent(() => {
-    if (!draftsLoaded) {
+    const screen = matchScreen(href);
+    const isDraftAsked = asksForDraft(href);
+    if (isDraftAsked && !draftsLoaded) {
       return;
     }
     const listed = store.get(windowTabGroupsAtom) ?? [];
@@ -725,17 +735,16 @@ export function useTabGroupUpkeep(href: string, open: readonly TabGroup[]) {
     if (kept.length !== listed.length) {
       store.set(windowTabGroupsAtom, kept);
     }
-    const screen = matchScreen(href);
     // A chat or a draft asked for by its address, once per ask: a chat open
     // in a tab comes up there.
-    if (screen.kind === "chat" || (screen.kind === "inbox" && screen.draft)) {
+    if (screen.kind === "chat" || isDraftAsked) {
       if (asked.current === href) {
         return;
       }
       asked.current = href;
       if (screen.kind === "chat") {
         groups.revealChat(screen.chat, { replace: true });
-      } else if (screen.draft !== undefined) {
+      } else if (screen.kind === "inbox" && screen.draft !== undefined) {
         groups.openDraft(screen.draft, { replace: true });
       }
       return;

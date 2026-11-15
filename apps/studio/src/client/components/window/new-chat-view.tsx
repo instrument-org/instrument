@@ -69,7 +69,7 @@ import { useWindowTabs } from "./window-tabs";
  * it arrives. In the column
  * beside the group's tabs, the composer is at the foot. The draft its first words make is named in the tab's address, so a
  * draft opened from the Chats page's Drafts comes up here. What it carries besides its words
- * is what a chat's composer carries: its group's tabs, counted in `besidePlus`,
+ * is what a chat's composer carries: its group's tabs, marked in `besidePlus`,
  * and what the person attached. Its title and menu are the chat's tab's.
  *
  * Its draft is its tab group's, kept however empty it gets while the group

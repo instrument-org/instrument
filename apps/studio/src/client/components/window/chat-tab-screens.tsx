@@ -7,7 +7,6 @@ import {
 } from "@/client/components/ui/hover-card";
 
 import { folderHref } from "@/shared/computer-href";
-import { APP_NAME } from "@instrument-org/shared";
 
 import { useAppsBySlug } from "./apps-by-slug";
 import { ChatFolderButton, useChatFolderWithFiles } from "./chat-folder-button";
@@ -25,7 +24,7 @@ import { useWindowTabs } from "./window-tabs";
 
 /**
  * A chat in a tab of a group, as its route draws it: the conversation, with
- * the group's other tabs counted beside its composer's plus.
+ * the group's other tabs marked beside its composer's plus.
  * Every tab in the group goes with each message, so none of them is a chip
  * to leave out. It marks itself read and takes the caret only on the side
  * with the keyboard.
@@ -129,56 +128,80 @@ function ChatTabHead({ chatId }: { chatId: ChatId }) {
 }
 
 /**
- * What the agent reads of the group a chat's or a new chat's tab is in:
- * how many other tabs it has (`summaryOf`), quiet beside the composer's
- * plus, whose hover says each message shares them and lists each by its
- * mark and title.
+ * What the agent reads of the group a chat's or a new chat's tab is in,
+ * quiet beside the composer's plus: each other tab's mark in grey, with no
+ * words, so it never reads as something to press. Past `SHOWN_MARKS` the
+ * row stops and its last two marks fade out, so it never widens the
+ * composer. Its hover lists every tab by its mark, in its own colors, and
+ * its title.
  */
 function AwarenessLine({ tabs }: { tabs: readonly LayoutTab[] }) {
-  const windowTabs = useWindowTabs();
-  const appsBySlug = useAppsBySlug();
+  const isCut = tabs.length > SHOWN_MARKS;
   return (
     <HoverCard closeDelay={100} openDelay={200}>
       <HoverCardTrigger asChild>
         <span
-          className="flex h-7 shrink-0 cursor-default items-center px-1 text-xs text-muted-foreground"
+          aria-label={summaryOf(tabs)}
+          className="flex h-7 shrink-0 cursor-default items-center gap-1.5 px-1 text-muted-foreground"
           data-slot="group-awareness"
           tabIndex={0}
         >
-          {summaryOf(tabs)}
+          {tabs.slice(0, SHOWN_MARKS).map((tab, index) => (
+            <span
+              className="grid size-3.5 shrink-0 place-items-center grayscale [&_img]:size-3.5 [&_svg]:size-3.5"
+              key={tab.id}
+              style={{
+                opacity: isCut
+                  ? (FADING_MARKS[
+                      index - (SHOWN_MARKS - FADING_MARKS.length)
+                    ] ?? MUTED_MARK)
+                  : MUTED_MARK,
+              }}
+            >
+              <AwareTabMark tab={tab} />
+            </span>
+          ))}
         </span>
       </HoverCardTrigger>
       <HoverCardContent
         align="start"
-        className="flex w-72 flex-col gap-1 p-2"
+        className="flex w-72 flex-col p-1.5"
         data-slot="group-awareness-list"
         side="top"
       >
-        <p className="px-1.5 pb-1 text-xs text-muted-foreground">
-          Each message you send here shares{" "}
-          {tabs.length === 1 ? "this tab" : "these tabs"} with {APP_NAME}.
-        </p>
-        {tabs.map((tab) => {
-          const open = windowTabs.allTabs.find((each) => each.id === tab.id);
-          return (
-            <span
-              className="flex h-7 min-w-0 items-center gap-2 px-1.5 text-[13px]"
-              key={tab.id}
-            >
-              <span className="grid size-4 shrink-0 place-items-center [&_img]:size-4 [&_svg]:size-4">
-                {open && <HeldMark appsBySlug={appsBySlug} tab={open} />}
-              </span>
-              <span className="truncate">{tab.title || tab.address}</span>
+        {tabs.map((tab) => (
+          <span
+            className="flex h-7 min-w-0 items-center gap-2 px-1.5 text-[13px]"
+            key={tab.id}
+          >
+            <span className="grid size-4 shrink-0 place-items-center [&_img]:size-4 [&_svg]:size-4">
+              <AwareTabMark tab={tab} />
             </span>
-          );
-        })}
+            <span className="truncate">{tab.title || tab.address}</span>
+          </span>
+        ))}
       </HoverCardContent>
     </HoverCard>
   );
 }
 
+/** How many of the group's other tabs the row beside the plus draws a mark for. */
+const SHOWN_MARKS = 5;
+/** How strongly a grey mark shows. */
+const MUTED_MARK = 0.55;
+/** How strongly the row's last marks show while it leaves tabs out, fading to its end. */
+const FADING_MARKS = [0.3, 0.14];
+
+/** A tab of the group by the mark its strip tab wears: a page's favicon, a chat's bubble, a file's type. */
+function AwareTabMark({ tab }: { tab: LayoutTab }) {
+  const windowTabs = useWindowTabs();
+  const appsBySlug = useAppsBySlug();
+  const open = windowTabs.allTabs.find((each) => each.id === tab.id);
+  return open ? <HeldMark appsBySlug={appsBySlug} tab={open} /> : null;
+}
+
 /**
- * The count beside a composer's plus, or nothing while the tab is alone in
+ * The marks beside a composer's plus, or nothing while the tab is alone in
  * its group.
  */
 function awarenessOf(tabs: readonly LayoutTab[]) {
@@ -200,7 +223,7 @@ function useAwareTabs(chatTab: string | undefined) {
   );
 }
 
-/** The count's words: every other tab of the group counted as a tab, whatever it shows. */
+/** The marks' words for a screen reader: every other tab of the group counted as a tab, whatever it shows. */
 function summaryOf(tabs: readonly LayoutTab[]): string {
   return `${tabs.length.toString()} tab${tabs.length === 1 ? "" : "s"}`;
 }

@@ -67,9 +67,9 @@ function middleOf(rect: Rect): Point {
 /**
  * What a drag draws over the window that nothing else draws: a lone side's
  * split targets, from its start, each leaning toward the pointer as it
- * nears and taking what is held short of touching it, giving way to the
- * side that slides in to show the split (`splitPreviewOf`); a side or a new
- * tab lit; and at the pointer, the whole drag, what is held raised with a
+ * nears and taking what is held short of touching it, the one taken held
+ * at its strongest; a side, the half a split takes, or a new tab lit; and
+ * at the pointer, the whole drag, what is held raised with a
  * line under it saying what letting go does. Only a strip, which stands the
  * tab at the pointer among its tabs, goes without it; under the system's
  * own picture of its drag goes the line alone, and nothing while main shows
@@ -99,30 +99,8 @@ export function DragLayer({
   } else if (!drag && shown) {
     setShown(undefined);
   }
-  // A split shows as the side sliding in, ringed, where the group can draw
-  // it; where it cannot (another window's tab), as its half lit.
-  // Read from the page each frame, so it is marked on the layer
-  // (`data-previewing`) rather than drawn again.
-  const layer = useRef<HTMLDivElement>(null);
-  const ring = useRef<HTMLDivElement>(null);
-  const placeRing = () => {
-    const preview = document.querySelector("[data-side-preview]");
-    layer.current?.toggleAttribute(
-      "data-previewing",
-      splitSide !== undefined && preview !== null,
-    );
-    const element = ring.current;
-    if (!element || !preview) {
-      return;
-    }
-    const rect = preview.getBoundingClientRect();
-    element.style.left = `${rect.left / zoom}px`;
-    element.style.top = `${rect.top / zoom}px`;
-    element.style.width = `${rect.width / zoom}px`;
-    element.style.height = `${rect.height / zoom}px`;
-  };
-  useLayoutEffect(placeRing);
-  useDragFrame(placeRing);
+  // Nothing in the group is drawn again while something is held over it:
+  // the page stays as it is, and only this layer shows where it would land.
   if (!drag) {
     return null;
   }
@@ -130,14 +108,12 @@ export function DragLayer({
   return (
     <div
       aria-hidden
-      className="group/layer pointer-events-none fixed inset-0 z-[60] overflow-hidden"
+      className="pointer-events-none fixed inset-0 z-[60] overflow-hidden"
       data-drag-layer=""
-      ref={layer}
     >
       {drag.hints?.map((target) => (
         <SplitTargetCard
-          // Once a split is taken, the side sliding in says what it makes.
-          isLit={splitSide !== undefined}
+          isTaken={splitSide === target.side}
           key={target.side}
           target={target}
         />
@@ -147,8 +123,6 @@ export function DragLayer({
           className={cn(
             "absolute rounded-xl transition-[left,top,width,height,opacity] duration-150 ease-out motion-reduce:transition-none",
             DROP_AREA_TONE,
-            (!isLit || splitSide !== undefined) &&
-              "group-data-previewing/layer:opacity-0",
             !isLit && "opacity-0",
           )}
           data-drop-lit=""
@@ -160,14 +134,6 @@ export function DragLayer({
           }}
         />
       )}
-      <div
-        className={cn(
-          "absolute rounded-xl opacity-0 ring-2 ring-[rgb(128_128_128/0.85)] transition-opacity duration-150 ease-out ring-inset motion-reduce:transition-none",
-          splitSide !== undefined && "group-data-previewing/layer:opacity-100",
-        )}
-        data-split-ring=""
-        ref={ring}
-      />
       <AtPointer chatTitles={chatTitles} drag={drag} entries={entries} />
     </div>
   );
@@ -177,14 +143,14 @@ export function DragLayer({
  * A split target at one end of a lone side's page: a raised card short of
  * the page's height, naming the split it makes. It slides in from its end
  * as the drag starts, leans toward the pointer and grows as the pointer
- * nears (`pullOf`), and fades out, with the other end's, once a split is
- * taken and the side it makes slides in.
+ * nears (`pullOf`), and holds at its strongest while it has taken what is
+ * held.
  */
 function SplitTargetCard({
-  isLit,
+  isTaken,
   target,
 }: {
-  isLit: boolean;
+  isTaken: boolean;
   target: SplitTarget;
 }) {
   const zoom = useAtomValue(zoomAtom);
@@ -196,7 +162,7 @@ function SplitTargetCard({
     if (!element) {
       return;
     }
-    const pull = isLit ? 1 : pullOf(target, dragPoint);
+    const pull = isTaken ? 1 : pullOf(target, dragPoint);
     const middle = middleOf(rect);
     const x = clamp((dragPoint.x - middle.x) * 0.15, -LEAN_PX, LEAN_PX) * pull;
     const y = clamp((dragPoint.y - middle.y) * 0.08, -LEAN_PX, LEAN_PX) * pull;
@@ -223,7 +189,6 @@ function SplitTargetCard({
         className={cn(
           "group/target grid size-full place-items-center rounded-2xl p-2 transition-[transform,opacity] duration-150 ease-out motion-reduce:transition-none",
           HELD_LOOK,
-          isLit && "opacity-0",
         )}
         ref={lean}
       >
@@ -320,7 +285,7 @@ function AtPointer({
       top: (dragPoint.y - grab.y + (draw?.y ?? 0)) / zoom,
     });
   };
-  /** Whether a split has taken what is held, which then rides at the pointer over the side sliding in. */
+  /** Whether a split has taken what is held, which then rides at the pointer itself. */
   const isPulledToSplit = () =>
     landing?.kind === "side" && landing.split === true;
   /** How far toward the split target pulling on it what is held is drawn. */

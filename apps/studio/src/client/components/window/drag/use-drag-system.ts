@@ -62,10 +62,10 @@ import {
   filesOfDrop,
   type Opens,
   opensOf,
+  tabsOfHeldGroup,
 } from "./held-tabs";
 import { outcomeOf } from "./letting-go";
 import { keptAs } from "./use-bookmarks-drag";
-import { tabsOfHeldGroup } from "./split-preview";
 import { type Point } from "./landing";
 import {
   type Carry,

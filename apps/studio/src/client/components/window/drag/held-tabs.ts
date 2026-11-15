@@ -3,6 +3,7 @@ import { hrefOfTarget } from "@/client/bookmarks/open-address";
 import { targetOfAddress } from "@/client/bookmarks/address";
 import { fileHref, folderHref } from "@/shared/computer-href";
 
+import { groupLayoutOf, type WindowTabs } from "../tab-model";
 import { type DroppedFile, type Held } from "./types";
 
 /** The files a drop carries, by path, folders told from files. */
@@ -105,4 +106,20 @@ export function heldKeysOf(held: Held): string[] {
       return [];
     }
   }
+}
+
+/**
+ * The tabs a whole group brings to a side, in their strip order, left side
+ * first, and the one that comes up there: the tab up on the half its row
+ * was pressed by, else the tab up on the side with the keyboard.
+ */
+export function tabsOfHeldGroup(
+  held: Extract<Held, { kind: "group" }>,
+  state: WindowTabs,
+): { front: string | undefined; ids: string[] } {
+  const layout = groupLayoutOf(state, held.group);
+  return {
+    front: layout.sides[held.half ?? layout.focused]?.up,
+    ids: layout.sides.flatMap((side) => side.tabs.map((tab) => tab.id)),
+  };
 }

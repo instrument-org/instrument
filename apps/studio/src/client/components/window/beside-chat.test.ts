@@ -192,6 +192,12 @@ describe("where an open from a chat lands", () => {
       { after: "chat", front: false, kind: "insert", side: 1 },
     ],
     [
+      "the agent's last page before a chat on the right, in its strip, never takes the next",
+      windowOf([page("a"), page("mine", 1), onRight(chatTab)], "chat", "a"),
+      { ...AGENT, previous: "mine" },
+      { after: "chat", front: false, kind: "insert", side: 1 },
+    ],
+    [
       "an agent's last page that closed leaves the rule as it is",
       windowOf([chatTab], "chat"),
       { ...AGENT, previous: "gone" },

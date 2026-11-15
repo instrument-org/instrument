@@ -103,10 +103,21 @@ export function besidePlacementOf(
   const chatSide = sideIndexOf(layout, chatTab) ?? 0;
   const isFront = (side: 0 | 1) =>
     !behind && (side === chatSide ? isShown : layout.focused !== side);
-  // Never to the left of a chat on the right, wherever the last page went.
+  // Never to the left of a chat on the right, wherever the last page went:
+  // not on the left, and not before the chat in its own strip.
   const after =
     previous === undefined ? undefined : sideIndexOf(layout, previous);
-  if (previous !== undefined && after !== undefined && after >= chatSide) {
+  const strip = layout.sides[chatSide]?.tabs ?? [];
+  const isBeforeChat =
+    after === chatSide &&
+    strip.findIndex((tab) => tab.id === previous) <
+      strip.findIndex((tab) => tab.id === chatTab);
+  if (
+    previous !== undefined &&
+    after !== undefined &&
+    after >= chatSide &&
+    !(chatSide === 1 && isBeforeChat)
+  ) {
     return {
       after: previous,
       front: isFront(after),

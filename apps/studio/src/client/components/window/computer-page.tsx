@@ -2606,7 +2606,7 @@ export function ComputerPage({
                 ref={browserRef}
               >
                 {dropInto === current ? (
-                  <div className="pointer-events-none absolute inset-1 z-10 rounded-lg ring-2 ring-brand-500 ring-inset" />
+                  <div className="pointer-events-none absolute inset-1 z-10 rounded-lg border-2 border-dashed border-brand-500 bg-brand-500/5" />
                 ) : null}
                 {isAnythingCut ? (
                   // Faded where each view draws its rows, whichever that is.

@@ -92,7 +92,7 @@ export function DragLayer({
       : undefined;
   const splitSide =
     landing?.kind === "side" && landing.split ? landing.side : undefined;
-  // The place last lit, which the light slides on from, and fades out over.
+  // The place last lit, which the light fades out over.
   const [shown, setShown] = useState<Rect>();
   if (lit && JSON.stringify(lit) !== JSON.stringify(shown)) {
     setShown(lit);
@@ -121,7 +121,7 @@ export function DragLayer({
       {shown && (
         <div
           className={cn(
-            "absolute rounded-xl transition-[left,top,width,height,opacity] duration-150 ease-out motion-reduce:transition-none",
+            "absolute rounded-xl transition-opacity duration-150 ease-out motion-reduce:transition-none",
             DROP_AREA_TONE,
             !isLit && "opacity-0",
           )}
@@ -141,7 +141,7 @@ export function DragLayer({
 
 /**
  * A split target at one end of a lone side's page: a raised card short of
- * the page's height, naming the split it makes. It slides in from its end
+ * the page's height, naming the split it makes. It fades in where it stands
  * as the drag starts, leans toward the pointer and grows as the pointer
  * nears (`pullOf`), and holds at its strongest while it has taken what is
  * held.
@@ -173,10 +173,7 @@ function SplitTargetCard({
   useDragFrame(follow);
   return (
     <div
-      className={cn(
-        "absolute animate-in duration-200 ease-out fade-in-0 motion-reduce:animate-none",
-        isLeft ? "slide-in-from-left-6" : "slide-in-from-right-6",
-      )}
+      className="absolute animate-in duration-150 ease-out fade-in-0 motion-reduce:animate-none"
       data-split-target={isLeft ? "left" : "right"}
       style={{
         height: rect.height / zoom,
@@ -192,7 +189,7 @@ function SplitTargetCard({
         )}
         ref={lean}
       >
-        <div className="flex size-full flex-col items-center justify-center gap-2 rounded-xl border-[1.5px] border-dashed border-foreground/15 text-[13px] font-medium text-muted-foreground group-data-near/target:border-foreground/35 group-data-near/target:text-foreground">
+        <div className="flex size-full flex-col items-center justify-center gap-2 rounded-xl border-[1.5px] border-dashed border-foreground/15 text-[13px] font-medium text-muted-foreground group-data-near/target:border-brand-500 group-data-near/target:text-foreground">
           <SquareHalfIcon
             className={cn("size-5", isLeft && "-scale-x-100")}
             weight="duotone"

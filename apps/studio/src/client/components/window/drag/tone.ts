@@ -10,13 +10,13 @@ export const DROP_TONE =
 
 /**
  * The tone of a stretch of a page that takes what is held, a side it joins,
- * the half a split takes or a new tab it turns into: a mid gray rather than
- * the theme's foreground, so it shows over a white web page in the dark
- * theme as well as over the app, edged dashed as the split targets are, so
- * it never reads as the outline of the side with the keyboard.
+ * the half a split takes or a new tab it turns into: the brand's dashed
+ * edge and wash that the composer's box and a folder in Files take a drop
+ * with, so every place that takes one reads alike, and never the solid
+ * outline of the side with the keyboard.
  */
 export const DROP_AREA_TONE =
-  "border-2 border-dashed border-[rgb(128_128_128/0.85)] bg-[rgb(128_128_128/0.12)]";
+  "border-2 border-dashed border-brand-500 bg-brand-500/5";
 
 /** What is held as it rides on the pointer: raised off the window with a shadow, at full strength. */
 export const HELD_LOOK =

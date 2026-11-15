@@ -1,6 +1,7 @@
 import { type OpenHow, openHowOf } from "@/client/bookmarks/open-address";
 import {
   ContextMenu,
+  ContextMenuCheckboxItem,
   ContextMenuContent,
   ContextMenuItem,
   ContextMenuSeparator,
@@ -8,15 +9,48 @@ import {
 } from "@/client/components/ui/context-menu";
 import { contextMenuComponents } from "@/client/components/ui/menu-components";
 import { type OpenDestination } from "@/client/hooks/use-open-target";
+import { rpcClient } from "@/client/rpc/client";
 import { type Bookmark } from "@/shared/bookmarks";
 import { ArrowSquareInIcon } from "@phosphor-icons/react/ArrowSquareIn";
+import { BookmarksSimpleIcon } from "@phosphor-icons/react/BookmarksSimple";
 import { CopyIcon } from "@phosphor-icons/react/Copy";
 import { PencilSimpleIcon } from "@phosphor-icons/react/PencilSimple";
 import { XCircleIcon } from "@phosphor-icons/react/XCircle";
+import { useMutation, useQuery } from "@tanstack/react-query";
 import { type MouseEvent, type ReactElement, useRef } from "react";
 
 import { PlaceItems } from "./place-items";
 import { useBookmarkEdits } from "./web-start";
+
+/** Whether the bookmarks bar shows, a preference of the workspace's: shown until it says otherwise. */
+export function useShowsBookmarksBar() {
+  const { data: preferences } = useQuery(
+    rpcClient.preferences.live.get.experimental_liveOptions(),
+  );
+  return preferences?.showBookmarksBar !== false;
+}
+
+/**
+ * The bookmarks bar's own switch, ticked while it shows: the whole of the
+ * bar's menu, and the last of a bookmark's, as a browser has it.
+ */
+export function ShowBookmarksBarItem() {
+  const isShown = useShowsBookmarksBar();
+  const setShown = useMutation(
+    rpcClient.preferences.setShowBookmarksBar.mutationOptions(),
+  );
+  return (
+    <ContextMenuCheckboxItem
+      checked={isShown}
+      onCheckedChange={(enabled) => {
+        setShown.mutate({ enabled });
+      }}
+    >
+      <BookmarksSimpleIcon className="size-4" />
+      <span>Show Bookmarks Bar</span>
+    </ContextMenuCheckboxItem>
+  );
+}
 
 /** The middle button, which asks for a tab of its own. */
 const MIDDLE_BUTTON = 1;
@@ -63,7 +97,8 @@ const BOOKMARK_PLACES: {
 
 /**
  * The menu over a bookmark: opening it here or in a place of the window's
- * own, renaming it, copying its address, and deleting it.
+ * own, renaming it, copying its address, deleting it, and the bar's own
+ * switch at the end.
  */
 export function BookmarkContextMenu({
   bookmark,
@@ -139,6 +174,8 @@ export function BookmarkContextMenu({
           <XCircleIcon className="size-4" />
           <span>Delete</span>
         </ContextMenuItem>
+        <ContextMenuSeparator />
+        <ShowBookmarksBarItem />
       </ContextMenuContent>
     </ContextMenu>
   );

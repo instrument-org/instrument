@@ -23,6 +23,8 @@ vi.mock("electron", () => ({
 vi.mock("@/electron-main/stores/workspace/preferences", () => ({
   getWorkspacePreferences: () => ({ get: () => undefined }),
   isDeveloperMode: () => false,
+  showsBookmarksBar: () => true,
+  toggleBookmarksBar: () => undefined,
 }));
 vi.mock("@/electron-main/lib/setup-state", () => ({ isSetupUp: () => false }));
 

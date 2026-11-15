@@ -1,7 +1,11 @@
 import { isSetupUp } from "@/electron-main/lib/setup-state";
 import { matchesAccelerator } from "@/electron-main/menus/match-accelerator";
 import { commandWindow } from "@/electron-main/windows/window-command";
-import { isDeveloperMode } from "@/electron-main/stores/workspace/preferences";
+import {
+  isDeveloperMode,
+  showsBookmarksBar,
+  toggleBookmarksBar,
+} from "@/electron-main/stores/workspace/preferences";
 import { CODE_EDITOR_FOCUS_CHANNEL } from "@/shared/constants";
 import { OS_CONVENTIONS, osOf } from "@/shared/os-conventions";
 import { resolveAccelerator } from "@/shared/shortcuts";
@@ -79,6 +83,7 @@ const CHORD_SYMBOLS: Record<WindowShortcutId, string> = {
   search: "magnifyingglass",
   searchChats: "text.magnifyingglass",
   showActivity: "clock.arrow.circlepath",
+  toggleBookmarksBar: "book",
   toggleSidebar: "sidebar.left",
 };
 
@@ -154,6 +159,14 @@ const TAB_CHORDS: WindowChord[] = [
   chord("closeTab"),
   chord("reopenTab"),
 ];
+
+/**
+ * The bookmarks bar shown or hidden in every window at once, a preference the
+ * main process keeps, so the chord changes it here and no window is asked.
+ */
+const BOOKMARKS_BAR_CHORD = chord("toggleBookmarksBar", () => {
+  toggleBookmarksBar();
+});
 
 /** The sidebar of tab groups put away and brought back, on the usual sidebar chord. */
 const VIEW_CHORDS: WindowChord[] = [
@@ -237,6 +250,7 @@ const WINDOW_CHORDS = [
   ...FILE_ALIAS_CHORDS,
   ...VIEW_CHORDS,
   ...VIEW_ALIAS_CHORDS,
+  BOOKMARKS_BAR_CHORD,
   ...TAB_CHORDS,
   ...TAB_ALIAS_CHORDS,
   ...CHAT_CHORDS,
@@ -416,7 +430,14 @@ export function createAppWindowMenu(
   const viewMenu: MenuItemConstructorOptions = {
     ...shared,
     submenu: [
-      ...menuItems(VIEW_CHORDS, windows),
+      ...menuItems(VIEW_CHORDS.slice(0, 1), windows),
+      // Ticked while the bar shows, as Chrome's View menu has it.
+      ...menuItems([BOOKMARKS_BAR_CHORD], windows).map((item) => ({
+        ...item,
+        checked: showsBookmarksBar(),
+        type: "checkbox" as const,
+      })),
+      ...menuItems(VIEW_CHORDS.slice(1), windows),
       ...menuItems(VIEW_ALIAS_CHORDS, windows),
       { type: "separator" },
       ...menuItems(CHAT_CHORDS, windows),

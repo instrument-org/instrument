@@ -135,6 +135,13 @@ const setBlockAds = base
     getWorkspacePreferences().set("blockAds", input.enabled);
   });
 
+/** Shows or hides the bookmarks bar in every window. */
+const setShowBookmarksBar = base
+  .input(z.object({ enabled: z.boolean() }))
+  .handler(({ input }) => {
+    getWorkspacePreferences().set("showBookmarksBar", input.enabled);
+  });
+
 const setSuggestNextMessage = base
   .input(z.object({ enabled: z.boolean() }))
   .handler(({ input }) => {
@@ -293,6 +300,7 @@ export const preferences = {
   setReleaseChannel,
   setKeepHistory,
   setShareActionsWithChats,
+  setShowBookmarksBar,
   setSuggestNextMessage,
   setTheme,
   unpinSidebarPlace,

@@ -84,6 +84,7 @@ const WINDOW_GROUPS: Record<
   searchChats: "General",
   showActivity: "General",
   tabByPlace: "Tabs",
+  toggleBookmarksBar: "View",
   toggleFullScreen: "View",
   toggleSidebar: "Tab Groups",
   zoomIn: "View",

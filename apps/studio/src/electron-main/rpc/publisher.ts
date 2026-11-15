@@ -181,6 +181,7 @@ export type WindowCommand =
   | "search"
   | "searchChats"
   | "showActivity"
+  | "toggleBookmarksBar"
   | "toggleSidebar"
   | "zoomIn"
   | "zoomOut"

@@ -156,6 +156,11 @@ const ROUTES: Record<string, Mapper> = {
     Enabled,
     ({ enabled }) => onOff(enabled),
   ),
+  "preferences.setShowBookmarksBar": setting(
+    "Show bookmarks bar",
+    Enabled,
+    ({ enabled }) => onOff(enabled),
+  ),
   "preferences.setSuggestNextMessage": setting(
     "Suggest a next message",
     Enabled,

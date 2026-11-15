@@ -24,6 +24,8 @@ const publish = vi.hoisted(() =>
 vi.mock("@/electron-main/rpc/publisher", () => ({ publisher: { publish } }));
 vi.mock("@/electron-main/stores/workspace/preferences", () => ({
   isDeveloperMode: () => false,
+  showsBookmarksBar: () => true,
+  toggleBookmarksBar: () => undefined,
 }));
 vi.mock("@/electron-main/lib/setup-state", () => ({ isSetupUp: () => false }));
 vi.mock("./other-window", () => ({

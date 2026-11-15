@@ -133,6 +133,7 @@ describe("formatAcceleratorFor", () => {
         "search: ⌘ L  /  Ctrl L  /  Ctrl L",
         "searchChats: ⇧ ⌘ F  /  Ctrl Shift F  /  Ctrl Shift F",
         "showActivity: ⌘ Y  /  Ctrl H  /  Ctrl H",
+        "toggleBookmarksBar: ⇧ ⌘ B  /  Ctrl Shift B  /  Ctrl Shift B",
         "toggleSidebar: ⌘ B  /  Ctrl B  /  Ctrl B",
         "actualSize: ⌘ 0  /  Ctrl 0  /  Ctrl 0",
         "closeWindow: ⇧ ⌘ W  /  Ctrl Shift W  /  Ctrl Shift W",

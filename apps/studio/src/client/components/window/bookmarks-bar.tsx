@@ -1,6 +1,11 @@
 import { useOpenAddress } from "@/client/bookmarks/open-address";
 import { bookmarksAtom } from "@/client/bookmarks/store";
 import {
+  ContextMenu,
+  ContextMenuContent,
+  ContextMenuTrigger,
+} from "@/client/components/ui/context-menu";
+import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
@@ -21,10 +26,18 @@ import { useAtomValue } from "jotai";
 import { useLayoutEffect, useRef, useState } from "react";
 
 import { AddressMark } from "./app-chip";
-import { BookmarkContextMenu, bookmarkClicks } from "./bookmark-menu";
+import {
+  BookmarkContextMenu,
+  ShowBookmarksBarItem,
+  bookmarkClicks,
+  useShowsBookmarksBar,
+} from "./bookmark-menu";
 import { DROP_TONE } from "./drag/tone";
 import { pressLink } from "./drag/press-link";
-import { useBookmarksTarget, useShownBookmarks } from "./drag/use-bookmarks-drag";
+import {
+  useBookmarksTarget,
+  useShownBookmarks,
+} from "./drag/use-bookmarks-drag";
 import { type Place, useFilesPlaces } from "./files-places";
 import { useShell } from "./shell-context";
 import { useTabTitle } from "./tab-title";
@@ -39,19 +52,23 @@ import { BookmarkNameField, bookmarkName, useBookmarkEdits } from "./web-start";
  * Cmd-click or a middle click in a new tab behind this one, a Shift-click as
  * a new tab group, and a right click offers the rest (`BookmarkContextMenu`).
  * A bookmark dragged along the bar moves there, a tab dragged onto it is
- * kept there, and either stands where it would be while it is held.
+ * kept there, and either stands where it would be while it is held. A right
+ * click on the bar itself offers to hide it; hidden, it is not drawn in any
+ * tab of any window, and nothing can be dropped onto it.
  */
-export function BookmarksBar({
-  files,
-  onOpen,
-  onVisit,
-}: {
+export function BookmarksBar(props: BarProps) {
+  return useShowsBookmarksBar() ? <Bar {...props} /> : null;
+}
+
+type BarProps = {
   /** Files for a group, opening a folder (`onOpen`) as that group's bar does. */
   files?: { group: string; onOpen: (href: string) => void };
   onOpen: (url: string) => void;
   /** A place of the app's own in this tab, where a tab can stand at it; the window opens it otherwise. */
   onVisit?: (href: string) => void;
-}) {
+};
+
+function Bar({ files, onOpen, onVisit }: BarProps) {
   const { chatTitles } = useShell();
   const bookmarks = useShownBookmarks(
     useAtomValue(bookmarksAtom),
@@ -110,128 +127,139 @@ export function BookmarksBar({
   });
 
   return (
-    <div
-      aria-label="Bookmarks"
-      className="flex h-8 shrink-0 items-center gap-1 border-b border-border bg-background px-1.5"
-      ref={bar}
-      role="toolbar"
-    >
-      {files && (
-        <>
-          <FilesMark group={files.group} onOpen={files.onOpen} />
-          <span aria-hidden className="mx-1 h-4 w-px shrink-0 bg-border" />
-        </>
-      )}
-      {bookmarks.length === 0 ? (
-        <NoBookmarks />
-      ) : (
-        // Every mark is laid out, the ones past the end kept out of sight,
-        // so where each one ends can be read off the row as it stands. The
-        // row clips them, so it pads them by a focus ring's width, drawn
-        // outside a mark, and gives the width back at its sides.
+    <ContextMenu>
+      <ContextMenuTrigger asChild>
         <div
-          className="relative -mx-0.5 flex min-w-0 flex-1 items-center gap-0.5 overflow-hidden p-0.5"
-          ref={row}
+          aria-label="Bookmarks"
+          className="flex h-8 shrink-0 items-center gap-1 border-b border-border bg-background px-1.5"
+          ref={bar}
+          role="toolbar"
         >
-          {bookmarks.map((bookmark, index) => {
-            const name = bookmarkName(bookmark);
-            const isOver = index >= fitting;
-            if (bookmark.isStanding) {
-              return (
-                <div
-                  className={cn(
-                    "flex h-6 max-w-40 shrink-0 items-center gap-1.5 rounded-md px-1.5 text-xs text-foreground/85",
-                    DROP_TONE,
-                  )}
-                  data-bookmark-id={bookmark.id}
-                  key={bookmark.id}
-                >
-                  <AddressMark address={bookmark.url} />
-                  <span className="min-w-0 truncate">{name}</span>
-                </div>
-              );
-            }
-            if (bookmark.id === renamingId) {
-              return (
-                <div
-                  className="flex h-6 w-40 shrink-0 items-center gap-1.5 px-1.5"
-                  data-bookmark-id={bookmark.id}
-                  key={bookmark.id}
-                >
-                  <AddressMark address={bookmark.url} />
-                  <BookmarkNameField
-                    name={name}
-                    onCancel={() => {
-                      setRenamingId(undefined);
+          {files && (
+            <>
+              <FilesMark group={files.group} onOpen={files.onOpen} />
+              <span aria-hidden className="mx-1 h-4 w-px shrink-0 bg-border" />
+            </>
+          )}
+          {bookmarks.length === 0 ? (
+            <NoBookmarks />
+          ) : (
+            // Every mark is laid out, the ones past the end kept out of sight,
+            // so where each one ends can be read off the row as it stands. The
+            // row clips them, so it pads them by a focus ring's width, drawn
+            // outside a mark, and gives the width back at its sides.
+            <div
+              className="relative -mx-0.5 flex min-w-0 flex-1 items-center gap-0.5 overflow-hidden p-0.5"
+              ref={row}
+            >
+              {bookmarks.map((bookmark, index) => {
+                const name = bookmarkName(bookmark);
+                const isOver = index >= fitting;
+                if (bookmark.isStanding) {
+                  return (
+                    <div
+                      className={cn(
+                        "flex h-6 max-w-40 shrink-0 items-center gap-1.5 rounded-md px-1.5 text-xs text-foreground/85",
+                        DROP_TONE,
+                      )}
+                      data-bookmark-id={bookmark.id}
+                      key={bookmark.id}
+                    >
+                      <AddressMark address={bookmark.url} />
+                      <span className="min-w-0 truncate">{name}</span>
+                    </div>
+                  );
+                }
+                if (bookmark.id === renamingId) {
+                  return (
+                    <div
+                      className="flex h-6 w-40 shrink-0 items-center gap-1.5 px-1.5"
+                      data-bookmark-id={bookmark.id}
+                      key={bookmark.id}
+                      // The field's own text menu, not the bar's.
+                      onContextMenu={(event) => {
+                        event.stopPropagation();
+                      }}
+                    >
+                      <AddressMark address={bookmark.url} />
+                      <BookmarkNameField
+                        name={name}
+                        onCancel={() => {
+                          setRenamingId(undefined);
+                        }}
+                        onCommit={(title) => {
+                          setRenamingId(undefined);
+                          edits.rename(bookmark, title);
+                        }}
+                      />
+                    </div>
+                  );
+                }
+                return (
+                  <BookmarkContextMenu
+                    bookmark={bookmark}
+                    key={bookmark.id}
+                    onRename={() => {
+                      setRenamingId(bookmark.id);
                     }}
-                    onCommit={(title) => {
-                      setRenamingId(undefined);
-                      edits.rename(bookmark, title);
-                    }}
-                  />
-                </div>
-              );
-            }
-            return (
-              <BookmarkContextMenu
-                bookmark={bookmark}
-                key={bookmark.id}
-                onRename={() => {
-                  setRenamingId(bookmark.id);
-                }}
-                open={open}
+                    open={open}
+                  >
+                    <button
+                      {...(isOver ? { "aria-hidden": true, tabIndex: -1 } : {})}
+                      className={cn(
+                        "flex h-6 max-w-40 shrink-0 cursor-default items-center gap-1.5 rounded-md px-1.5 text-xs text-foreground/80 hover:bg-foreground/8 hover:text-foreground data-[state=open]:bg-foreground/8",
+                        isOver && "invisible",
+                      )}
+                      {...bookmarkClicks(bookmark, open)}
+                      data-bookmark-id={bookmark.id}
+                      onPointerDown={(event) => {
+                        pressLink(event, {
+                          bookmark: bookmark.id,
+                          title: bookmark.title,
+                          url: bookmark.url,
+                        });
+                      }}
+                      title={`${name}\n${bookmark.url}`}
+                      type="button"
+                    >
+                      <AddressMark address={bookmark.url} />
+                      <span className="min-w-0 truncate">{name}</span>
+                    </button>
+                  </BookmarkContextMenu>
+                );
+              })}
+            </div>
+          )}
+          {overflow.length > 0 && (
+            <DropdownMenu modal={false}>
+              <DropdownMenuTrigger
+                aria-label="More bookmarks"
+                className="grid size-6 shrink-0 cursor-default place-items-center rounded-md text-foreground/60 hover:bg-foreground/8 hover:text-foreground data-[state=open]:bg-foreground/8"
               >
-                <button
-                  {...(isOver ? { "aria-hidden": true, tabIndex: -1 } : {})}
-                  className={cn(
-                    "flex h-6 max-w-40 shrink-0 cursor-default items-center gap-1.5 rounded-md px-1.5 text-xs text-foreground/80 hover:bg-foreground/8 hover:text-foreground data-[state=open]:bg-foreground/8",
-                    isOver && "invisible",
-                  )}
-                  {...bookmarkClicks(bookmark, open)}
-                  data-bookmark-id={bookmark.id}
-                  onPointerDown={(event) => {
-                    pressLink(event, {
-                      bookmark: bookmark.id,
-                      title: bookmark.title,
-                      url: bookmark.url,
-                    });
-                  }}
-                  title={`${name}\n${bookmark.url}`}
-                  type="button"
-                >
-                  <AddressMark address={bookmark.url} />
-                  <span className="min-w-0 truncate">{name}</span>
-                </button>
-              </BookmarkContextMenu>
-            );
-          })}
+                <CaretDoubleRightIcon className="size-3.5" />
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end" className="max-w-72 min-w-48">
+                {overflow.map((bookmark) => (
+                  <DropdownMenuItem
+                    key={bookmark.id}
+                    {...bookmarkClicks(bookmark, open)}
+                    title={bookmark.url}
+                  >
+                    <AddressMark address={bookmark.url} />
+                    <span className="min-w-0 truncate">
+                      {bookmarkName(bookmark)}
+                    </span>
+                  </DropdownMenuItem>
+                ))}
+              </DropdownMenuContent>
+            </DropdownMenu>
+          )}
         </div>
-      )}
-      {overflow.length > 0 && (
-        <DropdownMenu modal={false}>
-          <DropdownMenuTrigger
-            aria-label="More bookmarks"
-            className="grid size-6 shrink-0 cursor-default place-items-center rounded-md text-foreground/60 hover:bg-foreground/8 hover:text-foreground data-[state=open]:bg-foreground/8"
-          >
-            <CaretDoubleRightIcon className="size-3.5" />
-          </DropdownMenuTrigger>
-          <DropdownMenuContent align="end" className="max-w-72 min-w-48">
-            {overflow.map((bookmark) => (
-              <DropdownMenuItem
-                key={bookmark.id}
-                {...bookmarkClicks(bookmark, open)}
-                title={bookmark.url}
-              >
-                <AddressMark address={bookmark.url} />
-                <span className="min-w-0 truncate">
-                  {bookmarkName(bookmark)}
-                </span>
-              </DropdownMenuItem>
-            ))}
-          </DropdownMenuContent>
-        </DropdownMenu>
-      )}
-    </div>
+      </ContextMenuTrigger>
+      <ContextMenuContent className="min-w-52">
+        <ShowBookmarksBarItem />
+      </ContextMenuContent>
+    </ContextMenu>
   );
 }
 

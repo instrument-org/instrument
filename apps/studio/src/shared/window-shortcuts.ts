@@ -99,6 +99,11 @@ export const WINDOW_SHORTCUTS = {
     accelerator: { darwin: "CmdOrCtrl+Y", default: "Ctrl+H" },
     label: "Show Activity",
   },
+  // A browser's own key for its bookmarks bar.
+  toggleBookmarksBar: {
+    accelerator: "Shift+CmdOrCtrl+B",
+    label: "Show Bookmarks Bar",
+  },
   toggleSidebar: { accelerator: "CmdOrCtrl+B", label: "Toggle Sidebar" },
 } as const satisfies Record<string, WindowShortcut>;
 

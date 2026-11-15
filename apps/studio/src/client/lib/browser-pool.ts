@@ -241,16 +241,16 @@ let lastHostFocusedElement: HTMLElement | null = null;
 // holding focus, and only this renderer-side DOM focus moves it across the
 // process boundary -- the main process cannot do it for us. The guest's own
 // `document.activeElement` survives losing and regaining focus, so this alone
-// puts typing back into whatever the agent last clicked.
+// puts typing back into whatever the agent last clicked. A page on the side
+// of a tab group without the keyboard never gets it this way, since the
+// person's keys would follow it there: main then refuses the agent's keys
+// that need focus, and plain typing reaches the page without it.
 function focusGuest(targetId: BrowserTargetId) {
-  agentFocused.add(targetId);
+  if (isPageOnSideWithoutKeyboard(targetId)) {
+    return;
+  }
   pool.get(targetId)?.webview.focus({ preventScroll: true });
 }
-
-// Pages an agent's input put the keyboard in, until they lose it: they keep
-// it on either side, since the keys must reach the page the agent drives,
-// and main hands it back once the agent goes quiet.
-const agentFocused = new Set<BrowserTargetId>();
 
 /** How long a page opened in place of what the person was in waits to come on screen and take the keyboard. */
 const HEIR_WAIT_MS = 5000;
@@ -806,7 +806,7 @@ const PRESS_REPORT_WAIT_MS = 150;
 /**
  * Hands the keyboard back to the side that has it from a page on the other
  * side that took it without a press of the person's: a page focusing
- * itself, or one a load or a script focused. Waits a moment first for a
+ * itself, or one a load, a script or an agent's click focused. Waits a moment first for a
  * press main may still be reporting, which gives the page's side the
  * keyboard instead.
  */
@@ -820,7 +820,6 @@ function keepKeyboardOnItsSide(targetId: BrowserTargetId) {
     const pressed = pagePressedAt.get(targetId) ?? 0;
     if (
       !pooled ||
-      agentFocused.has(targetId) ||
       document.activeElement !== pooled.webview ||
       Date.now() - pressed < PRESS_REPORT_WAIT_MS * 4 ||
       !isPageOnSideWithoutKeyboard(targetId) ||
@@ -1114,7 +1113,6 @@ function ensureWebview(
     keepKeyboardOnItsSide(targetId);
   });
   webview.addEventListener("blur", () => {
-    agentFocused.delete(targetId);
     void rpcClient.browser.syncFocus.call({ focused: false, targetId });
   });
   // A thumb button pressed over the page, which steps it as a history chord

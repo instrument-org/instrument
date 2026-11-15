@@ -7,6 +7,7 @@ import {
 } from "@/client/components/ui/hover-card";
 
 import { folderHref } from "@/shared/computer-href";
+import { APP_NAME } from "@instrument-org/shared";
 
 import { useAppsBySlug } from "./apps-by-slug";
 import { ChatFolderButton, useChatFolderWithFiles } from "./chat-folder-button";
@@ -131,14 +132,13 @@ function ChatTabHead({ chatId }: { chatId: ChatId }) {
 
 /**
  * What the agent reads of the group a chat's or a new chat's tab is in:
- * how many other tabs it has, files counted apart, as a quiet line at the
- * head of the composer, whose hover says they go with each message and
+ * how many other tabs it has (`summaryOf`), as a quiet line at the
+ * head of the composer, whose hover says each message shares them and
  * lists each by its mark and title.
  */
 function AwarenessLine({ tabs }: { tabs: readonly LayoutTab[] }) {
   const windowTabs = useWindowTabs();
   const appsBySlug = useAppsBySlug();
-  const files = tabs.filter((tab) => tab.kind === "file").length;
   return (
     <HoverCard closeDelay={100} openDelay={200}>
       <HoverCardTrigger asChild>
@@ -147,12 +147,7 @@ function AwarenessLine({ tabs }: { tabs: readonly LayoutTab[] }) {
           data-slot="group-awareness"
           tabIndex={0}
         >
-          {[
-            ...(tabs.length > files
-              ? [countOf(tabs.length - files, "tab")]
-              : []),
-            ...(files > 0 ? [countOf(files, "file")] : []),
-          ].join(", ")}
+          {summaryOf(tabs)}
         </span>
       </HoverCardTrigger>
       <HoverCardContent
@@ -162,8 +157,8 @@ function AwarenessLine({ tabs }: { tabs: readonly LayoutTab[] }) {
         side="top"
       >
         <p className="px-1.5 pb-1 text-xs text-muted-foreground">
-          {tabs.length === 1 ? "This goes" : "These go"} with every message
-          you send here.
+          Each message you send here shares{" "}
+          {tabs.length === 1 ? "this tab" : "these tabs"} with {APP_NAME}.
         </p>
         {tabs.map((tab) => {
           const open = windowTabs.allTabs.find((each) => each.id === tab.id);
@@ -208,8 +203,9 @@ function useAwareTabs(chatTab: string | undefined) {
   );
 }
 
-function countOf(count: number, noun: string): string {
-  return `${count.toString()} ${noun}${count === 1 ? "" : "s"}`;
+/** The line's words: every other tab of the group counted as a tab, whatever it shows. */
+function summaryOf(tabs: readonly LayoutTab[]): string {
+  return `Includes ${tabs.length.toString()} tab${tabs.length === 1 ? "" : "s"}`;
 }
 
 /**

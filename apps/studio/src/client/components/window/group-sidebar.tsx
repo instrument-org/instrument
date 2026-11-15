@@ -56,6 +56,7 @@ import { HelpMenu } from "./help-menu";
 import { toggleLeft } from "./inbox-toggle";
 import { useAppsBySlug } from "./apps-by-slug";
 import { type Project } from "./chats";
+import { ActiveChatsList } from "./active-chats-list";
 import { NotificationsBell } from "./notifications-bell";
 import { ProjectBanner } from "./project-banner";
 import { projectColor } from "./project-colors";
@@ -139,6 +140,7 @@ export function GroupSidebar({
   onCloseTab,
   onDuplicate,
   onNew,
+  onNewChatProject,
   onNewProject,
   onPin,
   onReopenLast,
@@ -157,6 +159,8 @@ export function GroupSidebar({
   /** A copy of a group just below it, up in the window. */
   onDuplicate: (entry: TabGroup) => void;
   onNew: (projectId?: string) => void;
+  /** Opens the new-project dialog for a chat, from its row in the Chats list. */
+  onNewChatProject: (chat: ChatId, name?: string) => void;
   onNewProject: () => void;
   /** Pins a group above the line, or takes it back down. */
   onPin: (group: string, pinned: boolean) => void;
@@ -419,6 +423,10 @@ export function GroupSidebar({
             )}
           </GroupList>
         </div>
+        <ActiveChatsList
+          onNewProject={onNewChatProject}
+          projects={projects}
+        />
         <SidebarAlerts>
           <NetworkStatusIndicator isRow />
         </SidebarAlerts>

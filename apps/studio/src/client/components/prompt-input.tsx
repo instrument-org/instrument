@@ -308,6 +308,8 @@ export const PromptInput = ({
   }, [attachedItems]);
   const [menuView, setMenuView] = useState<ComposerMenuView | null>(null);
   const [pickerOpen, setPickerOpen] = useState(false);
+  // Whether the picker's close follows a pick, which takes the caret back to the words.
+  const hasPicked = useRef(false);
   const setLookAt = useSetAtom(lookAtAtom);
   const promptEditorRef = useRef<PromptEditorRef>(null);
   // The box the prompt is written in: what this composer's menus are sized and
@@ -1095,9 +1097,12 @@ export const PromptInput = ({
                   onAddProvider={addProvider}
                   onClose={() => {
                     setPickerOpen(false);
-                    if (modelURI) {
+                    // A model picked just now is not in `modelURI` until
+                    // the next render.
+                    if (modelURI || hasPicked.current) {
                       promptEditorRef.current?.focus();
                     }
+                    hasPicked.current = false;
                   }}
                   onOpenChange={(open) => {
                     setPickerOpen(open);
@@ -1105,7 +1110,10 @@ export const PromptInput = ({
                       void modelsRefetch();
                     }
                   }}
-                  onValueChange={onModelChange}
+                  onValueChange={(uri) => {
+                    hasPicked.current = true;
+                    onModelChange(uri);
+                  }}
                   open={pickerOpen}
                   selectedModel={selectedModel}
                 />

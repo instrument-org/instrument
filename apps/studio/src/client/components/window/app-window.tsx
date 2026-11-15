@@ -514,6 +514,7 @@ function WindowShell({
   routers: ReadonlyMap<string, TabRouter>;
   tabs: Tab[];
 }) {
+  const store = useStore();
   const appTabs = useAppTabs();
   const groups = useTabGroupActions();
   const groupTabMoves = useGroupTabMoves();
@@ -1152,7 +1153,6 @@ function WindowShell({
   // However the list leaves a project (its Inbox, a chat from elsewhere,
   // the project deleted), a new chat in any tab that the project filed and
   // that has nothing written yet stops being filed under it.
-  const store = useStore();
   const lastStanding = useRef(standingProject);
   useEffect(() => {
     const left = lastStanding.current;

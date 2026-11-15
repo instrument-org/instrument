@@ -31,7 +31,7 @@ export function useDraftChips({
   closeTab,
   draft,
   finderOf,
-  group = draftGroupOf(draft.id),
+  group: givenGroup,
   inView,
   onChange,
   open,
@@ -50,6 +50,7 @@ export function useDraftChips({
   /** Opens a target in the draft's band, answering the tab's id. */
   open: (target: BandTarget) => string | undefined;
 }) {
+  const group = givenGroup ?? draftGroupOf(draft.id);
   useBandContext({ band, close: closeTab, draft, finderOf, onChange, open });
   const items = draftContextItems({ allTabs, band, draft, finderOf, group });
   const suggestion = draftSuggestionOf({

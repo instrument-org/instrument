@@ -9,9 +9,9 @@ import {
 } from "@/client/atoms/tab-groups";
 import { type WindowTab } from "@/client/atoms/window";
 import { NetworkStatusIndicator } from "@/client/components/network-status/network-status-pill";
+import { HistoryButton } from "@/client/components/activity/history-popover";
 import { type RailBounds } from "@/client/components/studio-sidebar-rail";
 import { ToolbarTooltip } from "@/client/components/toolbar-tooltip";
-import { Button } from "@/client/components/ui/button";
 import {
   Avatar,
   AvatarFallback,
@@ -29,7 +29,6 @@ import { SCREENS } from "@/shared/instrument-screens";
 import { WINDOW_SHORTCUTS } from "@/shared/window-shortcuts";
 import { CaretLeftIcon } from "@phosphor-icons/react/CaretLeft";
 import { CaretRightIcon } from "@phosphor-icons/react/CaretRight";
-import { ClockCounterClockwiseIcon } from "@phosphor-icons/react/ClockCounterClockwise";
 import { GearSixIcon } from "@phosphor-icons/react/GearSix";
 import { ChatsCircleIcon } from "@phosphor-icons/react/ChatsCircle";
 import { PlusIcon } from "@phosphor-icons/react/Plus";
@@ -890,7 +889,7 @@ function RowHalfPlace({
  * The sidebar's top row, which drags the window: room for the traffic lights
  * on a Mac and for the sidebar's toggle, which stands over the row's start
  * (`SidebarToggleCorner`), then the app's menu off the Mac; the update pill,
- * then Activity and the bell at its end.
+ * then History and the bell at its end.
  */
 function SidebarTop() {
   return (
@@ -901,28 +900,13 @@ function SidebarTop() {
       {!isMacOS() && <AppMenuButton />}
       <span className="flex-1" />
       <UpdateStatusIndicator />
-      <ActivityButton />
-      <NotificationsBell />
-    </div>
-  );
-}
-
-/** Activity, where what was opened and closed is found again, beside the bell and in its grey. */
-function ActivityButton() {
-  return (
-    <ToolbarTooltip chord="showActivity" label={SCREENS.activity.title}>
-      <Button
-        aria-label={SCREENS.activity.title}
-        className="size-7 text-muted-foreground/70 [-webkit-app-region:no-drag]"
-        onClick={() => {
+      <HistoryButton
+        onShowAll={() => {
           openBuiltInPage(SCREENS.activity.href);
         }}
-        size="icon-sm"
-        variant="ghost-toolbar"
-      >
-        <ClockCounterClockwiseIcon className="size-4" />
-      </Button>
-    </ToolbarTooltip>
+      />
+      <NotificationsBell />
+    </div>
   );
 }
 

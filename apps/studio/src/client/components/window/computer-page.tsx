@@ -2454,6 +2454,11 @@ export function ComputerPage({
                 >
                   {isBesideOpen ? null : (
                     <div
+                      // Drawn anew as the tab's width moves the places over
+                      // the folder or beside it, so the width that follows
+                      // lands at once rather than sliding, the way the
+                      // places do.
+                      key={isNarrow ? "narrow" : "wide"}
                       className={cn(
                         "flex h-11 shrink-0 items-center transition-[width] [interpolate-size:allow-keywords]",
                         EDGE_DIVIDER_CLASSNAME,

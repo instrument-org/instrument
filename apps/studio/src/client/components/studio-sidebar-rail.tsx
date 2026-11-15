@@ -119,7 +119,16 @@ export function StudioSidebarRail({
   // are driven directly by their handlers, so this only reacts to open/close. A
   // drag drives the width by hand and a mid-drag collapse animates itself, so
   // both are skipped here.
+  //
+  // An open or close that comes with a switch between lying over the content
+  // and beside it is the box's width deciding, not the person, so it lands at
+  // once. That covers the first measurement too: a rail drawn before its box
+  // is measured starts beside the content, and one in a narrow box then
+  // switches over it, already in the state that width gives it.
+  const shownOverlayRef = useRef(isOverlay);
   useEffect(() => {
+    const isOverlaySwitch = shownOverlayRef.current !== isOverlay;
+    shownOverlayRef.current = isOverlay;
     if (isOpen) {
       collapsingRef.current = false;
     }
@@ -127,7 +136,7 @@ export function StudioSidebarRail({
       return;
     }
 
-    if (currentIsAtOnce()) {
+    if (currentIsAtOnce() || isOverlaySwitch) {
       for (const control of widthAnimationsRef.current) {
         control.stop();
       }

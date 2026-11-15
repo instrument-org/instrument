@@ -75,6 +75,7 @@ overrides:
   neverthrow>@rollup/rollup-linux-x64-gnu: '-'
 
 patchedDependencies:
+  '@extend-ai/react-docx@0.8.4': b9c98629c5f4822f3883ef9e88760f6cbab06da1fbf10d676d10601d23bcb2dd
   '@milkdown/plugin-block@7.22.3': b9318632951eb16125b92ecbd278cb0ec78cb55b6d3470261e4d68edb9b61a4c
   '@shadcn/react@0.2.11': da1bf28bb1f6016f67560c8850b6dc0c60acb8e50ff0e178e97cac6f1e1ebaff
   conf@14.0.0: 56254a98f20461a96d6b30db95d31a459ca15443a73844e166da79dcb6392d02
@@ -326,7 +327,7 @@ importers:
         version: 0.18.1(@types/react-dom@19.3.0(@types/react@19.3.0))(@types/react@19.3.0)(react-dom@19.3.0(react@19.3.0))(react@19.3.0)
       '@extend-ai/react-docx':
         specifier: 0.8.4
-        version: 0.8.4(react-dom@19.3.0(react@19.3.0))(react@19.3.0)
+        version: 0.8.4(patch_hash=b9c98629c5f4822f3883ef9e88760f6cbab06da1fbf10d676d10601d23bcb2dd)(react-dom@19.3.0(react@19.3.0))(react@19.3.0)
       '@extend-ai/react-pptx':
         specifier: 0.1.2
         version: 0.1.2(react-dom@19.3.0(react@19.3.0))(react@19.3.0)
@@ -10983,7 +10984,7 @@ snapshots:
     optionalDependencies:
       '@noble/hashes': 2.2.0
 
-  '@extend-ai/react-docx@0.8.4(react-dom@19.3.0(react@19.3.0))(react@19.3.0)':
+  '@extend-ai/react-docx@0.8.4(patch_hash=b9c98629c5f4822f3883ef9e88760f6cbab06da1fbf10d676d10601d23bcb2dd)(react-dom@19.3.0(react@19.3.0))(react@19.3.0)':
     dependencies:
       '@chenglou/pretext': 0.0.8
       '@tanstack/react-virtual': 3.14.22(react-dom@19.3.0(react@19.3.0))(react@19.3.0)

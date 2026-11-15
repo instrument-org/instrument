@@ -101,7 +101,6 @@ export const PAGE_START_LINES = {
   chats: "",
   extensions: "",
   files: "Home",
-  history: "",
   memory: "",
   "release-notes": "",
   settings: "General",

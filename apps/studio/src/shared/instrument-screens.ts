@@ -29,7 +29,7 @@ export const SCREENS = {
   },
   chats: {
     detail: "Every chat there is, open or not, to search and open.",
-    href: "/history?show=chats",
+    href: "/chat-list",
     title: "Chats",
   },
   extensions: {
@@ -42,12 +42,6 @@ export const SCREENS = {
     detail: "The folders and files on this computer, starting at home.",
     href: "/files",
     title: "Files",
-  },
-  history: {
-    detail:
-      "Every chat and kept draft no window has open, newest first, to open again.",
-    href: "/history",
-    title: "History",
   },
   memory: {
     detail:
@@ -115,9 +109,8 @@ export function screenOfHref(
   href: string,
 ): undefined | { name: ScreenName; part?: SettingsSection } {
   let pathname: string;
-  let search: URLSearchParams;
   try {
-    ({ pathname, searchParams: search } = new URL(href, "http://tabs"));
+    ({ pathname } = new URL(href, "http://tabs"));
   } catch {
     return undefined;
   }
@@ -139,9 +132,6 @@ export function screenOfHref(
   if (second !== undefined) {
     return undefined;
   }
-  if (first === "history" && search.get("show") === "chats") {
-    return { name: "chats" };
-  }
   const name = Object.entries(SCREENS).find(
     ([, screen]) => "href" in screen && screen.href === `/${first}`,
   )?.[0];
@@ -152,7 +142,7 @@ export function screenOfHref(
  * The `instrument://` address of what a tab's address shows, as the released
  * app answers to it: a part of Settings by its own name
  * (`instrument://settings/providers`), any other built-in page as a screen
- * (`instrument://screen/history`), and a chat, an app or a task by the
+ * (`instrument://screen/chats`), and a chat, an app or a task by the
  * address a reply links it with. Files stands as a screen only at its start,
  * since a folder or a file is named by its path. Undefined for an address
  * nothing names.

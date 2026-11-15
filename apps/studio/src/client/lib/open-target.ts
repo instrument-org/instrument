@@ -39,7 +39,7 @@ export type OpenTarget =
  *
  * A screen copies as the app's own address for the thing on it, which is the
  * same address a reply links it by, so a chat, a task or a built-in page
- * (`instrument://screen/history`, `instrument://settings/providers`) can be
+ * (`instrument://screen/chats`, `instrument://settings/providers`) can be
  * pasted anywhere a link can and comes back here. A screen no address names
  * copies as nothing.
  */

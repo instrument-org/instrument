@@ -124,13 +124,13 @@ interface Slot {
  * the group of the row under it, rows meeting halfway across the space
  * between them, or as a group of its own in a room: near the line between
  * two rows, or at the first or last row's outer edge, among the pinned rows,
- * pinned, or the rest; over New, at the top of the rest; and over History
- * or the empty list under the rows, at their end. A whole group lands in the room between
+ * pinned, or the rest; over New, at the top of the rest; and over All
+ * chats or the empty list under the rows, at their end. A whole group lands in the room between
  * rows whose edge is nearest, among the pinned rows or the rest. Measured from the list as laid
  * out, so the rows moved aside for a room do not move the room, and in the
  * list's own px, which the window's zoom scales. Over the sidebar but not its
- * list (its search, a project's banner), or over a list showing search or
- * History, it lands nowhere but is still over the sidebar.
+ * list (its search, a project's banner), or over a list showing search,
+ * it lands nowhere but is still over the sidebar.
  */
 export function sidebarDropAt(
   x: number,

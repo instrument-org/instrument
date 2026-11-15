@@ -108,10 +108,8 @@ export function screenLocation(
       return { kind: "newChat" };
     }
     // Every chat, which is Chat's own index.
-    case "history": {
-      return screen.chats
-        ? { kind: "chats" }
-        : { kind: "builtin", screen: "history" };
+    case "chats": {
+      return { kind: "chats" };
     }
     // What Activity shows, when it is one kind of row, is the part it is at,
     // and the row open inside it says itself (`TabSurface.item`).
@@ -233,12 +231,11 @@ export function screenPresentation(
         title: debugPageTitle(screen.pathname),
       };
     }
-    // History, or the index of every chat under the bubbles of many chats.
-    case "history": {
-      const name = screen.chats ? "chats" : "history";
+    // The index of every chat, under the bubbles of many chats.
+    case "chats": {
       return {
-        icon: <ScreenMark className="size-3.5" name={name} />,
-        title: SCREENS[name].title,
+        icon: <ScreenMark className="size-3.5" name="chats" />,
+        title: SCREENS.chats.title,
       };
     }
     // A built-in page by its own name and mark; one Settings tab whichever
@@ -293,7 +290,6 @@ const SCREEN_OF_KIND = {
   activity: "activity",
   browser: "browser",
   extensions: "extensions",
-  history: "history",
   memories: "memory",
   releaseNotes: "release-notes",
   settings: "settings",

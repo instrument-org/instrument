@@ -22,16 +22,15 @@ import {
   newChatWordsKey,
   settleMadeDraft,
 } from "@/client/drafts/new-chat-box";
-import { cancelWords, flushWords } from "@/client/drafts/settle-words";
+import { cancelWords } from "@/client/drafts/settle-words";
 import {
   draftsAtom,
   draftsLoadedAtom,
   updateDraftAtom,
 } from "@/client/drafts/store";
-import { type Draft, draftGroupOf, holdsSomething } from "@/shared/drafts";
+import { type Draft, draftGroupOf } from "@/shared/drafts";
 import { cn, osConventions } from "@/client/lib/utils";
 import { APP_NAME } from "@instrument-org/shared";
-import { type ChatId } from "@instrument-org/workspace/client";
 import { useRouter } from "@tanstack/react-router";
 import { useAtom, useAtomValue, useSetAtom, useStore } from "jotai";
 import {
@@ -44,7 +43,6 @@ import {
 
 import { AskPills } from "./ask-pills";
 import { type Project } from "./chats";
-import { ClosedRecently } from "./closed-recently";
 import { projectColor } from "./project-colors";
 import { ProjectMark } from "./project-mark";
 import { projectTint } from "./project-tint";
@@ -57,7 +55,7 @@ import { useShell } from "./shell-context";
 import { useComposerAsks } from "./staged-asks";
 import { leftOutBesideAtom, useDraftChips } from "./use-draft-chips";
 import { useDraftProjectSuggestion } from "./use-draft-project-suggestion";
-import { chatHref, newChatHref } from "./window-href";
+import { newChatHref } from "./window-href";
 import { useWindowTabs } from "./window-tabs";
 
 /**
@@ -65,9 +63,9 @@ import { useWindowTabs } from "./window-tabs";
  * chat's own composer and nothing made until something is written in it.
  * Filling the group, it opens as a new chat did in 1.0: the composer at the
  * middle, under the Instrument mark and a line, a pale glint crossing it as
- * it arrives, and the chats closed lately listed under it. In the column
+ * it arrives. In the column
  * beside the group's tabs, the composer is at the foot. The draft its first words make is named in the tab's address, so a
- * draft opened from History comes up here. What it carries besides its words
+ * draft opened from the Chats page's Drafts comes up here. What it carries besides its words
  * follows the group's tab up. Its title and menu are the chat's tab's.
  *
  * Its draft is its tab group's, kept however empty it gets while the group
@@ -263,28 +261,6 @@ export function NewChatView({
     });
     onOpenBeside(opened);
   };
-  /**
-   * A chat closed lately, in place of a new chat with nothing written in it,
-   * so back returns here; in a tab of its own right after it otherwise, so
-   * the words stay where they were written.
-   */
-  const openClosed = (chat: ChatId) => {
-    flushWords(newChatWordsKey(tabId));
-    const written = draftInNewChatBox(
-      store.get(draftsAtom),
-      store.get(newChatBoxesAtom),
-      tabId,
-    );
-    if (written && holdsSomething(written) && group !== undefined) {
-      windowTabs.openScreen(chatHref(chat), {
-        after: tabId,
-        group,
-        select: true,
-      });
-    } else {
-      windowTabs.visitHref(tabId, chatHref(chat));
-    }
-  };
   const places = {
     computerName: osConventions().computer,
     onOpenApps: () => {
@@ -377,19 +353,8 @@ export function NewChatView({
         )}
       </div>
       {/* As much room under the composer as over it, so it stands at the
-          middle, with the chats closed lately at its top. */}
-      <div
-        className={cn(
-          "min-h-0",
-          isCentered ? "flex-1 overflow-y-auto" : "hidden",
-        )}
-      >
-        {isCentered && (
-          <div className="mx-auto w-full max-w-2xl px-3 pt-8 pb-6">
-            <ClosedRecently onOpen={openClosed} />
-          </div>
-        )}
-      </div>
+          middle. */}
+      {isCentered && <div className="min-h-0 flex-1" />}
       {draft && <ProjectSuggestion draft={draft} />}
     </FileDropRegion>
   );

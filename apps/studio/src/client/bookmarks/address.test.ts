@@ -29,7 +29,7 @@ describe("addressOfTab", () => {
       "instrument://file/Users/mac-user/Notes/plan %232.md",
     ],
     ["/activity", "instrument://screen/activity"],
-    ["/history?q=roof", "instrument://screen/history"],
+    ["/chat-list?q=roof", "instrument://screen/chats"],
     ["/settings/providers", "instrument://settings/providers"],
     ["/settings", "instrument://settings/general"],
     ["/apps/", "instrument://screen/apps"],

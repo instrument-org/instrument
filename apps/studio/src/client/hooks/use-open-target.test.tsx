@@ -217,7 +217,7 @@ describe("a link's menu in a window with tabs", () => {
   it.each([
     { kind: "page", url: "https://example.com/" },
     { chatId, kind: "path", path: "/Users/sam/report.md" },
-    { href: "/history", kind: "screen" },
+    { href: "/chat-list", kind: "screen" },
   ] as const)("lists the places for a $kind in one order", (target) => {
     expect(menuOf(target).destinations.map((row) => row.label)).toEqual([
       "Open",
@@ -232,7 +232,7 @@ describe("a link's menu in a window with tabs", () => {
 
   it.each([
     { kind: "page", url: "https://example.com/" },
-    { href: "/history", kind: "screen" },
+    { href: "/chat-list", kind: "screen" },
   ] as const)(
     "words a link's menu as a browser does, without the Open its click does, for a $kind",
     async (target) => {
@@ -304,7 +304,7 @@ describe("a link's menu in a window with tabs", () => {
         .destinations.find((row) => row.id === "bookmark")
         ?.run();
     keep({ kind: "page", url: "https://example.com/" });
-    keep({ href: "/history", kind: "screen" });
+    keep({ href: "/chat-list", kind: "screen" });
     keep({ chatId, kind: "path", path: "workspace:/Notes/plan.md" });
     keep({ kind: "page", url: "https://example.com" });
     await waitFor(
@@ -317,7 +317,7 @@ describe("a link's menu in a window with tabs", () => {
       store.get(bookmarksAtom).map(({ title, url }) => ({ title, url })),
     ).toEqual([
       { title: "", url: "https://example.com/" },
-      { title: "History", url: "instrument://screen/history" },
+      { title: "Chats", url: "instrument://screen/chats" },
       {
         title: "plan.md",
         url: "instrument://file/Users/sam/Instrument/Notes/plan.md",

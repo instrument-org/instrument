@@ -96,7 +96,7 @@ export const WINDOW_SHORTCUTS = {
   // browsers elsewhere.
   showActivity: {
     accelerator: { darwin: "CmdOrCtrl+Y", default: "Ctrl+H" },
-    label: "Show History",
+    label: "Show Activity",
   },
   toggleSidebar: { accelerator: "CmdOrCtrl+B", label: "Toggle Sidebar" },
 } as const satisfies Record<string, WindowShortcut>;

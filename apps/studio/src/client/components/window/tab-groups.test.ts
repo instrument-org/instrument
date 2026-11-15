@@ -8,6 +8,7 @@ import { ChatIdSchema, StoreId } from "@instrument-org/workspace/client";
 import { type Chat } from "./chats";
 import {
   copiedTabs,
+  chatsWithNoTab,
   groupLists,
   isWorthKeeping,
   listedWith,
@@ -140,11 +141,15 @@ describe("the tab groups another window has open", () => {
     ).toEqual(["group:mine", "group:lisbon"]);
   });
 
-  it("puts only a chat with no tab in History", () => {
+  it("finds the chats with no tab in this window", () => {
     expect(
-      lists.history.map((entry) =>
-        entry.kind === "chat" ? entry.chat.id : entry.draft.id,
-      ),
+      chatsWithNoTab(
+        [chat(LISBON, "Trip to Lisbon"), chat(PARIS, "Trip to Paris")],
+        {
+          activeByGroup: {},
+          tabs: [screen("group:mine", "m1", chatHref(LISBON))],
+        },
+      ).map((each) => each.id),
     ).toEqual([PARIS]);
   });
 });

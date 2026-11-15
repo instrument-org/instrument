@@ -9,12 +9,15 @@ import {
   PopoverTrigger,
 } from "@/client/components/ui/popover";
 import { useWindow } from "@/client/components/window/context";
+import { useAtomValue } from "jotai";
 import { type Chat } from "@/client/components/window/chats";
 import { chatOfHref } from "@/client/components/window/window-href";
+import { chatListOptions } from "@/client/components/window/chat-list-query";
 import {
-  useOpenGroups,
+  chatsWithNoTab,
   useTabGroupActions,
 } from "@/client/components/window/tab-groups";
+import { windowTabsAtom } from "@/client/components/window/window-tabs";
 import { pendingProblemReport } from "@/client/lib/problem-reports";
 import { formatAbsoluteTime } from "@/client/lib/relative-time";
 import { toast } from "@/client/lib/toast";
@@ -55,9 +58,10 @@ export function NotificationsBell() {
   const { openScreen } = useWindow();
   // Chats waiting on the person with no tab open, whose question or
   // permission card would otherwise show nowhere.
-  const waiting = useOpenGroups().history.flatMap((entry) =>
-    entry.kind === "chat" && entry.chat.status === "waiting" ? [entry] : [],
-  );
+  const waiting = chatsWithNoTab(
+    useQuery(chatListOptions()).data ?? [],
+    useAtomValue(windowTabsAtom),
+  ).filter((chat) => chat.status === "waiting");
   const groups = useTabGroupActions();
   const openAction = (notice: BellNotice) => {
     // Acting on a notice from its toast has shown it, so the bell's dot for
@@ -141,13 +145,13 @@ export function NotificationsBell() {
           </p>
         ) : (
           <div className="max-h-[min(480px,calc(var(--radix-popover-content-available-height)/var(--content-zoom)))] divide-y divide-border overflow-y-auto">
-            {waiting.map((entry) => (
+            {waiting.map((chat) => (
               <WaitingChatItem
-                chat={entry.chat}
-                key={entry.chat.id}
+                chat={chat}
+                key={chat.id}
                 onOpen={() => {
                   setOpen(false);
-                  groups.revealChat(entry.chat.id);
+                  groups.revealChat(chat.id);
                 }}
               />
             ))}

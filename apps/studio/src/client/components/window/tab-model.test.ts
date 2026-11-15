@@ -815,19 +815,19 @@ describe("a chat's tab sent somewhere else", () => {
     [
       "sent there",
       (state: WindowTabs) =>
-        tabToScreen(state, { href: "/history", id: "c", newId: "h" }),
+        tabToScreen(state, { href: "/chat-list", id: "c", newId: "h" }),
     ],
     [
       "up as a screen is opened in place",
       (state: WindowTabs) =>
-        navigateScreen(state, { group: GROUP, href: "/history", id: "h" }),
+        navigateScreen(state, { group: GROUP, href: "/chat-list", id: "h" }),
     ],
   ])("walks to a screen %s, the chat a step back", (_case, send) => {
     const opened = send(twoSides());
     expect(sidesOf(opened, GROUP)).toEqual(["a *b", "> *c d"]);
     expect(opened.tabs[2]).toMatchObject({
-      history: { entries: [`/chats/${ROOFER}`, "/history"], index: 1 },
-      href: "/history",
+      history: { entries: [`/chats/${ROOFER}`, "/chat-list"], index: 1 },
+      href: "/chat-list",
       id: "c",
     });
   });

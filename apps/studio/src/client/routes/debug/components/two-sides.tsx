@@ -243,7 +243,7 @@ function PageTypes({ files }: { files: ReturnType<typeof useFiles> }) {
     { name: "Settings", tab: (id) => screen(id, "/settings/general") },
     { name: "Memory", tab: (id) => screen(id, "/memory") },
     { name: "Skills", tab: (id) => screen(id, "/skills") },
-    { name: "History", tab: (id) => screen(id, "/history") },
+    { name: "Chats", tab: (id) => screen(id, "/chat-list") },
     { name: "Activity", tab: (id) => screen(id, "/activity") },
     { name: "Apps", tab: (id) => screen(id, "/apps") },
   ];

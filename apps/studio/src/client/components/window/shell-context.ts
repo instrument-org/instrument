@@ -27,7 +27,7 @@ export interface WindowShell {
   chatTitles: Map<ChatId, string>;
   /** Each task's title, for a tab standing on one. */
   childTitles: Map<StoreId.Session, string>;
-  /** Closes a tab group to History, asking first while its agent works. */
+  /** Closes a tab group, asking first while its agent works. */
   closeGroup: (group: string) => void;
   compose: ReturnType<typeof useCompose>;
   /** The model a new chat starts on, and setting it. */

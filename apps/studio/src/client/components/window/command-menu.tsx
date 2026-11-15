@@ -99,7 +99,6 @@ import { MonitorIcon } from "@phosphor-icons/react/Monitor";
 import { MoonIcon } from "@phosphor-icons/react/Moon";
 import { NotePencilIcon } from "@phosphor-icons/react/NotePencil";
 import { NewspaperIcon } from "@phosphor-icons/react/Newspaper";
-import { ClockCounterClockwiseIcon } from "@phosphor-icons/react/ClockCounterClockwise";
 import { PuzzlePieceIcon } from "@phosphor-icons/react/PuzzlePiece";
 import { PulseIcon } from "@phosphor-icons/react/Pulse";
 import { FingerprintIcon } from "@phosphor-icons/react/Fingerprint";
@@ -383,20 +382,12 @@ export function useCommandMenuRows({
       },
     },
     {
+      chord: WINDOW_SHORTCUTS.showActivity.accelerator,
       icon: <PulseIcon />,
       id: "activity",
       label: "Activity",
       run: () => {
         openScreen(SCREEN_ROUTES.activity);
-      },
-    },
-    {
-      chord: WINDOW_SHORTCUTS.showActivity.accelerator,
-      icon: <ClockCounterClockwiseIcon />,
-      id: "history",
-      label: "History",
-      run: () => {
-        openBuiltInPage(SCREENS.history.href);
       },
     },
     {

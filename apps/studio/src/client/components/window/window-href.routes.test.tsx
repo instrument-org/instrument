@@ -46,7 +46,7 @@ describe("matchScreen against the route tree", () => {
     "/tasks/ses_01JAAAAAAAAAAAAAAAAAAAAAAA?chat=2026-10-02-trip",
     "/release-notes",
     "/extensions",
-    "/history",
+    "/chat-list",
     "/memory",
     "/skills",
     "/settings/providers",

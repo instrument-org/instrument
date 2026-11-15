@@ -3,7 +3,7 @@ import { z } from "zod";
 /**
  * What a tab shows, in the words the agent reads: a website, a chat, a new
  * chat (the zero state), a folder or a file in Files, or a page of the app's
- * own (Settings, Memory, Skills, History, Activity, Apps).
+ * own (Settings, Memory, Skills, Chats, Activity, Apps).
  */
 const LayoutTabKindSchema = z.enum([
   "builtIn",

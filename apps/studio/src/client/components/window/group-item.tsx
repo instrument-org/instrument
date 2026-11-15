@@ -450,7 +450,7 @@ const RELOADED_SCREENS = new Set<Screen["kind"]>([
   "browser",
   "chat",
   "extensions",
-  "history",
+  "chats",
   "memories",
   "releaseNotes",
   "settings",

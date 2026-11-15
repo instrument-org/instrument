@@ -79,7 +79,7 @@ export type TabLocation =
   | { kind: "apps" }
   /**
    * A built-in page of the app, by its name in `SCREENS` (Settings,
-   * Memory, Skills, History, Activity, the browser's extensions): the part
+   * Memory, Skills, Chats, Activity, the browser's extensions): the part
    * of it shown where it has parts (a part of Settings, what Activity is
    * showing), and the one thing open inside it (an Activity row's
    * details), each by the name the field reads it by. A part with something
@@ -249,7 +249,6 @@ export type FieldScope =
   | "activity"
   | "apps"
   | "chat"
-  | "history"
   | "memory"
   | "settings"
   | "skills";
@@ -257,7 +256,6 @@ export type FieldScope =
 /** The built-in pages whose field searches in them. */
 const PAGE_SCOPES: Partial<Record<ScreenName, FieldScope>> = {
   activity: "activity",
-  history: "history",
   memory: "memory",
   settings: "settings",
   skills: "skills",

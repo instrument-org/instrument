@@ -147,8 +147,7 @@ describe("screenLocation", () => {
   });
 
   it.each([
-    ["History", "/history?q=trip", { kind: "builtin", screen: "history" }],
-    ["every chat", "/history?q=trip&show=chats", { kind: "chats" }],
+    ["every chat", "/chat-list?q=trip", { kind: "chats" }],
     ["Activity", "/activity", { kind: "builtin", screen: "activity" }],
     [
       "what Activity shows",
@@ -165,9 +164,7 @@ describe("screenLocation", () => {
   });
 
   it("names the chats' index Chats", () => {
-    expect(screenPresentation("/history?show=chats", CONTEXT).title).toBe(
-      "Chats",
-    );
+    expect(screenPresentation("/chat-list", CONTEXT).title).toBe("Chats");
   });
 
   it("places a chat tab on its chat", () => {

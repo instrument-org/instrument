@@ -615,7 +615,7 @@ const RELOADED = new Set([
   "activity",
   "apps",
   "chat",
-  "history",
+  "chats",
   "memories",
   "settings",
   "skills",

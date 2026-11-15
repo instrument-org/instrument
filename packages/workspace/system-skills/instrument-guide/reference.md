@@ -75,7 +75,6 @@ Link one as `[Label](instrument://screen/<name>)`. A row listed under one is lin
 - **Chats** (`chats`): Every chat there is, open or not, to search and open.
 - **Extensions** (`extensions`): The Chrome extensions in your browser, and adding more from the Chrome Web Store.
 - **Files** (`files`): The folders and files on this computer, starting at home.
-- **History** (`history`): Every chat and kept draft no window has open, newest first, to open again.
 - **Memory** (`memory`): What Instrument remembers about you, one file per memory, to search, forget, or import from another AI.
   - **Import from another AI** (`memory-import`): Bring in what another AI knows about you.
   - **Memory folder** (`memory-folder`): Open the folder of your memories, where each one is a file you can read or change.
@@ -92,7 +91,7 @@ On a Mac these are the menu bar's menus, the first named for Instrument; on Wind
 - **Instrument**: Check for Updates…, Settings…
 - **File**: New Tab Group, Command Menu, Open Location…, Find, Find Next, Find Previous, Search Chats, Print…, Info, New Window, New Tab, Close Tab, Reopen Closed Tab, Reopen Closed Window, Close Window
 - **View**: Toggle Sidebar, Edit Page, Reload Page, Next Tab Group, Previous Tab Group, Actual Size, Zoom In, Zoom Out
-- **History**: Back, Forward, Show History, Clear Browsing Data…
+- **History**: Back, Forward, Show Activity, Clear Browsing Data…
 - **Bookmarks**: Bookmark This Tab…
 - **Tab**: Show Next Tab, Show Previous Tab, Move Tab to Other Side, Focus Left Side, Focus Right Side, Move Tab to New Window
 - **Window**: Merge All Windows
@@ -117,7 +116,7 @@ Each is written as on a Mac, then as on Windows and Linux.
 - Quit: ⌘Q / Ctrl+Q (not on Windows)
 - Search Chats: ⇧⌘F / Ctrl+Shift+F
 - Settings…: ⌘, / Ctrl+,
-- Show History: ⌘Y / Ctrl+H
+- Show Activity: ⌘Y / Ctrl+H
 
 ### Tab Groups
 

@@ -86,7 +86,7 @@ export function useDrafts({
   layoutOf?: (tabId: string) => LayoutRead | undefined;
   /** Puts the tab up on the Chat screen writing a draft, beside the chat list. */
   openDraftInChat: (id: string) => void;
-  /** Opens History, where a kept draft no tab writes is listed. */
+  /** Opens the Chats page at its Drafts. */
   openDrafts: () => void;
   /** Puts the tab up on the Chat screen writing a new chat with nothing in it yet, filed under the project named. */
   openNewChat: (projectId: string | undefined) => void;
@@ -279,7 +279,7 @@ export function useDrafts({
   };
   /**
    * Closes a draft's window: one with anything in it is kept, listed in
-   * History, with a toast offering to go there, and
+   * the Chats page's Drafts, with a toast offering to go there, and
    * one left empty (`isLeftEmpty`, the rule the Chat
    * screen's new chat keeps too) is thrown away, so a draft opened and
    * closed again leaves nothing behind. The words come from the window,
@@ -296,7 +296,7 @@ export function useDrafts({
       return;
     }
     compose.remove(draftGroupOf(id));
-    toast("Your draft is saved in History", {
+    toast("Your draft is saved in Drafts", {
       action: {
         label: "View",
         onClick: () => {

@@ -365,7 +365,6 @@ describe("fieldScopeOf", () => {
       { kind: "builtin", part: "Providers", screen: "settings" },
       "settings",
     ],
-    ["History", { kind: "builtin", screen: "history" }, "history"],
     [
       "an Activity row",
       { item: "Read report.pdf", kind: "builtin", screen: "activity" },

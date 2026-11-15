@@ -527,7 +527,7 @@ function WindowShell({
   });
   useTabGroupUpkeep(appTabHref, groupList.open);
   // Closing a group leaves its chats working: a chat goes on with no tab,
-  // and History shows it at work. With `keep`, the group a row's menu asked
+  // and the Chats page shows it at work. With `keep`, the group a row's menu asked
   // from, which the window moves to.
   const closeGroups = (closed: readonly string[], keep?: string) => {
     // Each group goes on the window's closed list whole, so Shift+Cmd+T
@@ -1084,7 +1084,8 @@ function WindowShell({
       appTabs.navigate(newChatHref());
     },
     openDrafts: () => {
-      openBuiltInPage(SCREENS.history.href);
+      setChatFilters((current) => inPlace(current, "drafts"));
+      openBuiltInPage(CHATS_INDEX_HREF);
     },
     saveDefaultModelURI,
     projects,
@@ -1233,7 +1234,7 @@ function WindowShell({
       },
       // The tab up on the side with the keyboard in the group on screen; the
       // group's last tab closes the group with it, which Shift+Cmd+T and
-      // History bring back.
+      // Activity bring back.
       closeTab: () => {
         const group = store.get(groupOnScreenAtom);
         if (group === undefined) {
@@ -1403,9 +1404,8 @@ function WindowShell({
         openBuiltInPage(CHATS_INDEX_HREF);
         focusChatsSearch();
       },
-      // The History page, on the chord Activity had.
       showActivity: () => {
-        openBuiltInPage(SCREENS.history.href);
+        openBuiltInPage(SCREENS.activity.href);
       },
       // The tab chords step the tabs of the group up, as a browser's step
       // its strip, round from either end.

@@ -75,27 +75,6 @@ export type TabGroup =
     };
 
 /**
- * What History lists: a chat no group on this computer has a tab on, or a
- * kept draft no tab is writing. Each is itself, never a group: opening one
- * makes a new group for it.
- */
-export type HistoryEntry =
-  | { chat: Chat; kind: "chat" }
-  | { draft: Draft; kind: "draft" };
-
-/** A History entry's key among the others: its chat's id or its draft's. */
-export function historyKeyOf(entry: HistoryEntry): string {
-  return entry.kind === "chat" ? entry.chat.id : `draft:${entry.draft.id}`;
-}
-
-/** A History entry's title: its chat's, or its draft's words. */
-export function historyTitleOf(entry: HistoryEntry): string {
-  return entry.kind === "chat"
-    ? entry.chat.title
-    : draftWordsTitle(entry.draft);
-}
-
-/**
  * A window's groups with one more: at the top, under New, unless it has it
  * already, or at a place, where it moves to when it is listed already. A
  * place names groups the list has, so it holds whatever else the list keeps
@@ -156,19 +135,8 @@ function draftWordsTitle(draft: Draft): string {
 }
 
 /**
- * When something last happened in a History entry: in a chat, as its row
- * tells, the person's last message or the latest step, question or reply
- * after it; in a draft, its last change.
- */
-export function lastActiveAt(entry: HistoryEntry): number {
-  return entry.kind === "chat"
-    ? Math.max(entry.chat.lastUserMessageAt, entry.chat.latest?.at ?? 0)
-    : entry.draft.updatedAt;
-}
-
-/**
- * Whether a draft is worth coming back to from History: a new chat's, not
- * on its way, with words or files in it.
+ * Whether a draft is worth keeping: a new chat's, not on its way, with
+ * words or files in it.
  */
 export function isWorthKeeping(draft: Draft): boolean {
   return (
@@ -223,15 +191,12 @@ export function useOpenGroups(): GroupLists {
 
 interface GroupLists {
   elsewhere: TabGroup[];
-  history: HistoryEntry[];
   open: TabGroup[];
 }
 
 /**
- * The tab groups as a window lists them: its own open ones in its order;
- * the groups another open window has open; and History, every chat no group
- * on this computer has a tab on, and every draft worth keeping
- * (`isWorthKeeping`) no tab is writing, most recently active first.
+ * The tab groups as a window lists them: its own open ones in its order,
+ * and the groups another open window has open.
  */
 export function groupLists({
   chats,
@@ -249,17 +214,6 @@ export function groupLists({
 }): GroupLists {
   const byId = new Map<string, Chat>(chats.map((chat) => [chat.id, chat]));
   const isListed = new Set(listed);
-  const grouped = state.tabs.filter((tab) => tab.group !== undefined);
-  const chatsWithTabs = new Set(grouped.map((tab) => chatOfTab(tab)));
-  const draftsWithTabs = new Set(grouped.map((tab) => draftOfTab(tab)));
-  const history: HistoryEntry[] = [
-    ...chats
-      .filter((chat) => !chatsWithTabs.has(chat.id))
-      .map((chat): HistoryEntry => ({ chat, kind: "chat" })),
-    ...drafts
-      .filter((draft) => isWorthKeeping(draft) && !draftsWithTabs.has(draft.id))
-      .map((draft): HistoryEntry => ({ draft, kind: "draft" })),
-  ];
   return {
     elsewhere: (elsewhere ?? [])
       .filter(
@@ -267,9 +221,21 @@ export function groupLists({
           !isListed.has(group) && state.tabs.some((tab) => tab.group === group),
       )
       .map((group) => openEntry(group, { byId, drafts, state })),
-    history: history.toSorted((a, b) => lastActiveAt(b) - lastActiveAt(a)),
     open: listed.map((group) => openEntry(group, { byId, drafts, state })),
   };
+}
+
+/** The chats no tab group in this window has a tab on. */
+export function chatsWithNoTab(
+  chats: readonly Chat[],
+  state: WindowTabs,
+): Chat[] {
+  const withTabs = new Set(
+    state.tabs.flatMap((tab) =>
+      tab.group === undefined ? [] : [chatOfTab(tab)],
+    ),
+  );
+  return chats.filter((chat) => !withTabs.has(chat.id));
 }
 
 /**
@@ -575,7 +541,7 @@ export function useTabGroupActions() {
   /**
    * Closes a group: it leaves this window's list and goes, tabs and all. Its
    * chats go on with whatever they were doing, and one with no tab left
-   * anywhere is in History. The window moves on to the next group when it
+   * anywhere is on the Chats page. The window moves on to the next group when it
    * was showing this one.
    */
   const close = (group: string, list: readonly TabGroup[]) => {

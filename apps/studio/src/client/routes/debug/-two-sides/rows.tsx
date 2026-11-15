@@ -129,9 +129,9 @@ const KINDS_PLACES: (Kind | "rule")[] = [
     tab: (id) => screen(id, "/skills"),
   },
   {
-    label: "History",
+    label: "Chats",
     note: "where the page starts",
-    tab: (id) => screen(id, "/history"),
+    tab: (id) => screen(id, "/chat-list"),
   },
   {
     label: "Activity",

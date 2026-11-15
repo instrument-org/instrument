@@ -10,7 +10,6 @@ import {
   screenOfHref,
 } from "@/shared/instrument-screens";
 import { AppWindowIcon } from "@phosphor-icons/react/AppWindow";
-import { ClockCounterClockwiseIcon } from "@phosphor-icons/react/ClockCounterClockwise";
 import { CubeIcon } from "@phosphor-icons/react/Cube";
 import { FingerprintIcon } from "@phosphor-icons/react/Fingerprint";
 import { FolderSimpleIcon } from "@phosphor-icons/react/FolderSimple";
@@ -39,9 +38,7 @@ type Glyph = ComponentType<{ className?: string }>;
 
 /**
  * Each built-in page's mark, by its name in `SCREENS`: what its tab, its
- * chip and a row or bookmark of it wear. History keeps the clock a
- * browser's history wears, so Activity, the other record of the past, wears
- * a pulse.
+ * chip and a row or bookmark of it wear.
  */
 const SCREEN_MARKS: Record<ScreenName, Glyph> = {
   activity: PulseIcon,
@@ -50,7 +47,6 @@ const SCREEN_MARKS: Record<ScreenName, Glyph> = {
   browser: GlobeIcon,
   extensions: PuzzlePieceIcon,
   files: FolderSimpleIcon,
-  history: ClockCounterClockwiseIcon,
   memory: FingerprintIcon,
   "release-notes": NewspaperClippingIcon,
   settings: GearSixIcon,

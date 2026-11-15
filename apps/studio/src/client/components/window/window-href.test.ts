@@ -126,8 +126,8 @@ it("reads every kind of address", () => {
     "/extensions",
     "/debug",
     "/debug/components/colors",
-    "/history",
-    "/history?show=chats&q=trip",
+    "/chat-list",
+    "/chat-list?q=trip",
     "/memory",
     "/memory/trip-notes",
     "/memory/a/b",
@@ -159,6 +159,12 @@ it("reads every kind of address", () => {
         },
         "/browser": {
           "kind": "browser",
+        },
+        "/chat-list": {
+          "kind": "chats",
+        },
+        "/chat-list?q=trip": {
+          "kind": "chats",
         },
         "/chats": {
           "kind": "inbox",
@@ -204,13 +210,6 @@ it("reads every kind of address", () => {
           "kind": "computer",
           "path": "",
           "root": "~",
-        },
-        "/history": {
-          "kind": "history",
-        },
-        "/history?show=chats&q=trip": {
-          "chats": true,
-          "kind": "history",
         },
         "/memory": {
           "kind": "memories",

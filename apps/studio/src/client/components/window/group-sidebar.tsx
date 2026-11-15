@@ -347,12 +347,12 @@ export function GroupSidebar({
         {rest.map((entry) => listItem(entry, "rest"))}
         {project && (
           <ListItem key=":history" {...place(":history")}>
-            <HistoryRow
+            <AllChatsRow
               icon={<ChatsCircleIcon className="size-4" />}
               label="All chats"
               onOpen={() => {
                 openBuiltInPage(
-                  `${CHATS_INDEX_HREF}&${new URLSearchParams({ project: project.id }).toString()}`,
+                  `${CHATS_INDEX_HREF}?${new URLSearchParams({ project: project.id }).toString()}`,
                 );
               }}
             />
@@ -456,7 +456,7 @@ const ARRIVAL_MS = 320;
 
 /**
  * The groups the window has taken on since the sidebar came up, for as long
- * as their rows take to arrive: one made, opened from History or search, or
+ * as their rows take to arrive: one made, opened from the Chats page or search, or
  * dropped in. Read off the window's list rather than the rows, so groups
  * whose chats are still loading as the window opens never count.
  */
@@ -647,7 +647,7 @@ function NewRow({ onNew }: { onNew: () => void }) {
  * The row under a project's groups that opens the page of its chats, dimmed
  * so it reads as past the groups rather than one of them.
  */
-function HistoryRow({
+function AllChatsRow({
   icon,
   label,
   onOpen,

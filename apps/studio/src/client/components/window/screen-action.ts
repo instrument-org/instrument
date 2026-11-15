@@ -85,8 +85,8 @@ export function screenActionOf({
           : "Settings",
       };
     }
-    case "history": {
-      return { kind: "screen", name: "History" };
+    case "chats": {
+      return { kind: "screen", name: "Chats" };
     }
     case "memories": {
       return { kind: "screen", name: "Memory" };

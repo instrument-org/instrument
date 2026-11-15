@@ -14,9 +14,9 @@ import { Route as AppRouteRouteImport } from './routes/_app/route'
 import { Route as DebugRouteRouteImport } from './routes/debug/route'
 import { Route as AppActivityRouteImport } from './routes/_app/activity'
 import { Route as AppBrowserRouteImport } from './routes/_app/browser'
+import { Route as AppChatListRouteImport } from './routes/_app/chat-list'
 import { Route as AppExtensionsRouteImport } from './routes/_app/extensions'
 import { Route as AppFilesRouteImport } from './routes/_app/files'
-import { Route as AppHistoryRouteImport } from './routes/_app/history'
 import { Route as AppMemoryRouteImport } from './routes/_app/memory'
 import { Route as AppReleaseNotesRouteImport } from './routes/_app/release-notes'
 import { Route as AppSkillsRouteImport } from './routes/_app/skills'
@@ -74,6 +74,11 @@ const AppBrowserRoute = AppBrowserRouteImport.update({
   path: '/browser',
   getParentRoute: () => AppRouteRoute,
 } as any)
+const AppChatListRoute = AppChatListRouteImport.update({
+  id: '/chat-list',
+  path: '/chat-list',
+  getParentRoute: () => AppRouteRoute,
+} as any)
 const AppExtensionsRoute = AppExtensionsRouteImport.update({
   id: '/extensions',
   path: '/extensions',
@@ -82,11 +87,6 @@ const AppExtensionsRoute = AppExtensionsRouteImport.update({
 const AppFilesRoute = AppFilesRouteImport.update({
   id: '/files',
   path: '/files',
-  getParentRoute: () => AppRouteRoute,
-} as any)
-const AppHistoryRoute = AppHistoryRouteImport.update({
-  id: '/history',
-  path: '/history',
   getParentRoute: () => AppRouteRoute,
 } as any)
 const AppMemoryRoute = AppMemoryRouteImport.update({
@@ -263,9 +263,9 @@ export interface FileRoutesByFullPath {
   '/debug': typeof DebugRouteRouteWithChildren
   '/activity': typeof AppActivityRoute
   '/browser': typeof AppBrowserRoute
+  '/chat-list': typeof AppChatListRoute
   '/extensions': typeof AppExtensionsRoute
   '/files': typeof AppFilesRoute
-  '/history': typeof AppHistoryRoute
   '/memory': typeof AppMemoryRoute
   '/release-notes': typeof AppReleaseNotesRoute
   '/skills': typeof AppSkillsRoute
@@ -303,9 +303,9 @@ export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/activity': typeof AppActivityRoute
   '/browser': typeof AppBrowserRoute
+  '/chat-list': typeof AppChatListRoute
   '/extensions': typeof AppExtensionsRoute
   '/files': typeof AppFilesRoute
-  '/history': typeof AppHistoryRoute
   '/memory': typeof AppMemoryRoute
   '/release-notes': typeof AppReleaseNotesRoute
   '/skills': typeof AppSkillsRoute
@@ -345,9 +345,9 @@ export interface FileRoutesById {
   '/debug': typeof DebugRouteRouteWithChildren
   '/_app/activity': typeof AppActivityRoute
   '/_app/browser': typeof AppBrowserRoute
+  '/_app/chat-list': typeof AppChatListRoute
   '/_app/extensions': typeof AppExtensionsRoute
   '/_app/files': typeof AppFilesRoute
-  '/_app/history': typeof AppHistoryRoute
   '/_app/memory': typeof AppMemoryRoute
   '/_app/release-notes': typeof AppReleaseNotesRoute
   '/_app/skills': typeof AppSkillsRoute
@@ -388,9 +388,9 @@ export interface FileRouteTypes {
     | '/debug'
     | '/activity'
     | '/browser'
+    | '/chat-list'
     | '/extensions'
     | '/files'
-    | '/history'
     | '/memory'
     | '/release-notes'
     | '/skills'
@@ -428,9 +428,9 @@ export interface FileRouteTypes {
     | '/'
     | '/activity'
     | '/browser'
+    | '/chat-list'
     | '/extensions'
     | '/files'
-    | '/history'
     | '/memory'
     | '/release-notes'
     | '/skills'
@@ -469,9 +469,9 @@ export interface FileRouteTypes {
     | '/debug'
     | '/_app/activity'
     | '/_app/browser'
+    | '/_app/chat-list'
     | '/_app/extensions'
     | '/_app/files'
-    | '/_app/history'
     | '/_app/memory'
     | '/_app/release-notes'
     | '/_app/skills'
@@ -549,6 +549,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AppBrowserRouteImport
       parentRoute: typeof AppRouteRoute
     }
+    '/_app/chat-list': {
+      id: '/_app/chat-list'
+      path: '/chat-list'
+      fullPath: '/chat-list'
+      preLoaderRoute: typeof AppChatListRouteImport
+      parentRoute: typeof AppRouteRoute
+    }
     '/_app/extensions': {
       id: '/_app/extensions'
       path: '/extensions'
@@ -561,13 +568,6 @@ declare module '@tanstack/react-router' {
       path: '/files'
       fullPath: '/files'
       preLoaderRoute: typeof AppFilesRouteImport
-      parentRoute: typeof AppRouteRoute
-    }
-    '/_app/history': {
-      id: '/_app/history'
-      path: '/history'
-      fullPath: '/history'
-      preLoaderRoute: typeof AppHistoryRouteImport
       parentRoute: typeof AppRouteRoute
     }
     '/_app/memory': {
@@ -800,9 +800,9 @@ declare module '@tanstack/react-router' {
 interface AppRouteRouteChildren {
   AppActivityRoute: typeof AppActivityRoute
   AppBrowserRoute: typeof AppBrowserRoute
+  AppChatListRoute: typeof AppChatListRoute
   AppExtensionsRoute: typeof AppExtensionsRoute
   AppFilesRoute: typeof AppFilesRoute
-  AppHistoryRoute: typeof AppHistoryRoute
   AppMemoryRoute: typeof AppMemoryRoute
   AppReleaseNotesRoute: typeof AppReleaseNotesRoute
   AppSkillsRoute: typeof AppSkillsRoute
@@ -819,9 +819,9 @@ interface AppRouteRouteChildren {
 const AppRouteRouteChildren: AppRouteRouteChildren = {
   AppActivityRoute: AppActivityRoute,
   AppBrowserRoute: AppBrowserRoute,
+  AppChatListRoute: AppChatListRoute,
   AppExtensionsRoute: AppExtensionsRoute,
   AppFilesRoute: AppFilesRoute,
-  AppHistoryRoute: AppHistoryRoute,
   AppMemoryRoute: AppMemoryRoute,
   AppReleaseNotesRoute: AppReleaseNotesRoute,
   AppSkillsRoute: AppSkillsRoute,

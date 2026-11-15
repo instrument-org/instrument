@@ -19,6 +19,7 @@ import { fileHref, folderHref } from "@/shared/computer-href";
 import { SCREENS } from "@/shared/instrument-screens";
 import { MagnifyingGlassIcon } from "@phosphor-icons/react/MagnifyingGlass";
 import { useQuery } from "@tanstack/react-query";
+import { useAtomValue } from "jotai";
 import {
   type ReactNode,
   type Ref,
@@ -28,11 +29,12 @@ import {
 
 import { AppMark } from "./app-chip";
 import { chatListOptions } from "./chat-list-query";
-import { hasWords, matchesSearch } from "./chats";
+import { matchesSearch } from "./chats";
 import { matchNames } from "./omnibar-match";
 import { ShellContext } from "./shell-context";
 import { type FieldScope, type TabLocation } from "./tab-location";
-import { historyKeyOf, historyTitleOf, useOpenGroups } from "./tab-groups";
+import { chatsWithNoTab } from "./tab-groups";
+import { windowTabsAtom } from "./window-tabs";
 import { CHATS_INDEX_HREF, chatHref } from "./window-href";
 
 /** One row under the address field: what the words in it could mean. */
@@ -63,7 +65,6 @@ export const SCOPE_PROMPTS: Record<FieldScope, string> = {
   activity: "Search activity",
   apps: "Search apps",
   chat: "Search chats",
-  history: "Search history",
   memory: "Search memories",
   settings: "Search settings",
   skills: "Search skills",
@@ -93,7 +94,7 @@ interface ScopeOpeners {
  * entries that match, best first, then, for a page that keeps its search in
  * its address, the search itself on that page. A row does what pressing
  * that entry on its page does: a chat comes up where it is open, and opens
- * as History opens it otherwise, except from a chat's own field, where it
+ * as a group of its own otherwise, except from a chat's own field, where it
  * opens as a tab right after that chat; a part of Settings, an Activity row,
  * a memory, a skill or an app goes in this tab.
  *
@@ -113,7 +114,7 @@ function useScopeRows({
 }): { empty?: string; rows: OmniRow[] } {
   const typed = words.trim();
   const shell = useContext(ShellContext);
-  const { history } = useOpenGroups();
+  const windowState = useAtomValue(windowTabsAtom);
   const chats = useQuery({
     ...chatListOptions(),
     enabled: scope === "chat",
@@ -201,9 +202,7 @@ function useScopeRows({
     }
     case "chat": {
       const closed = new Set(
-        history.flatMap((entry) =>
-          entry.kind === "chat" ? [entry.chat.id] : [],
-        ),
+        chatsWithNoTab(chats ?? [], windowState).map((chat) => chat.id),
       );
       const found = (chats ?? [])
         .filter((chat) => matchesSearch(chat, typed, projectNames))
@@ -231,39 +230,7 @@ function useScopeRows({
           ),
           searchRow(
             `Search chats for “${typed}”`,
-            `${CHATS_INDEX_HREF}&${searched}`,
-          ),
-        ],
-      };
-    }
-    case "history": {
-      const found = history
-        .filter((entry) =>
-          entry.kind === "chat"
-            ? matchesSearch(entry.chat, typed, projectNames)
-            : hasWords(typed, [entry.draft.words]),
-        )
-        .slice(0, SCOPE_ROWS_SHOWN);
-      return {
-        rows: [
-          ...found.map(
-            (entry): OmniRow => ({
-              detail: entry.kind === "draft" ? "Draft" : undefined,
-              icon: <AppMark app="chat" className="size-4" />,
-              id: `history:${historyKeyOf(entry)}`,
-              name: historyTitleOf(entry),
-              run: () => {
-                if (entry.kind === "chat") {
-                  open.openScreen(chatHref(entry.chat.id));
-                } else if (entry.kind === "draft") {
-                  shell?.showDraft(entry.draft.id);
-                }
-              },
-            }),
-          ),
-          searchRow(
-            `Search history for “${typed}”`,
-            `${SCREENS.history.href}?${searched}`,
+            `${CHATS_INDEX_HREF}?${searched}`,
           ),
         ],
       };

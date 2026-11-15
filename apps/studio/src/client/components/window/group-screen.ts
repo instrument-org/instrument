@@ -4,7 +4,7 @@ import { matchScreen } from "./window-href";
  * Whether a tab in a chat's or a draft's group can stand at an address: the
  * computer, a chat's tasks or one task, the web's start, the new tab, the
  * apps or one app's front, the built-in pages (Settings, Memory, Skills,
- * History, Activity), the release notes and the extensions. Anything else
+ * Chats, Activity), the release notes and the extensions. Anything else
  * the window shows (the debug pages) is the window's own and never a tab of
  * a group, so an address outside this list opens at the window's level and
  * a stored tab at one is dropped.
@@ -17,7 +17,7 @@ export function isGroupScreenHref(href: string): boolean {
     case "browser":
     case "computer":
     case "extensions":
-    case "history":
+    case "chats":
     case "memories":
     case "releaseNotes":
     case "settings":

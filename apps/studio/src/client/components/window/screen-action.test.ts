@@ -31,11 +31,7 @@ describe("screenActionOf", () => {
       { href: "/settings" },
       { kind: "screen", name: "Settings" },
     ],
-    [
-      "History",
-      { href: "/history?q=roof" },
-      { kind: "screen", name: "History" },
-    ],
+    ["Chats", { href: "/chat-list?q=roof" }, { kind: "screen", name: "Chats" }],
     ["Memory", { href: "/memory" }, { kind: "screen", name: "Memory" }],
     ["Skills", { href: "/skills" }, { kind: "screen", name: "Skills" }],
     [

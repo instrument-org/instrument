@@ -18,6 +18,7 @@ import {
   makeNewChatDraftAtom,
   newChatBoxesAtom,
   newChatWordsKey,
+  pickNewChatProjectAtom,
   settleMadeDraft,
 } from "@/client/drafts/new-chat-box";
 import { cancelWords } from "@/client/drafts/settle-words";
@@ -227,10 +228,35 @@ export function NewChatView({
 
   const projectId = draft?.projectId ?? boxes[tabId]?.projectId;
   const project = shell.projects.find((entry) => entry.id === projectId);
-  // With the sidebar standing in the project it is filed under, the new
-  // chat is that project's room, and says so.
+  // Picked for it (New in a project, or a project from the plus), or with
+  // the sidebar standing in the project it is filed under, the new chat is
+  // that project's room, and says so. A project only suggested by its words
+  // files it quietly.
   const sidebarProject = useAtomValue(sidebarProjectAtom);
-  const roomOf = project && sidebarProject === project.id ? project : undefined;
+  const roomOf =
+    project &&
+    (sidebarProject === project.id || boxes[tabId]?.projectId === project.id)
+      ? project
+      : undefined;
+  const pickProject = useSetAtom(pickNewChatProjectAtom);
+  /**
+   * The new chat filed under a project from the plus, as New in that
+   * project files one; picking the project it is under takes it off.
+   */
+  const fileUnder = (picked: Project) => {
+    const next = roomOf?.id === picked.id ? undefined : picked.id;
+    pickProject({ projectId: next, tabId });
+    if (draft) {
+      updateDraft({
+        id: draft.id,
+        update: ({ projectId: _was, ...current }) => ({
+          ...current,
+          ...(next === undefined ? {} : { projectId: next }),
+          projectSource: "chosen",
+        }),
+      });
+    }
+  };
 
   // The plus opens the web, the computer and Apps beside the new chat, in
   // the side panel, the way a chat's plus opens them beside the chat.
@@ -287,6 +313,11 @@ export function NewChatView({
     },
     onOpenWeb: () => {
       openBeside(BROWSER_HREF);
+    },
+    projects: {
+      list: shell.projects.filter((entry) => !entry.retired),
+      onPick: fileUnder,
+      picked: roomOf?.id,
     },
   };
 

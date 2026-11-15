@@ -17,14 +17,18 @@ import { zoomAtom } from "@/client/atoms/zoom";
 import { cn } from "@/client/lib/utils";
 import { type Icon } from "@phosphor-icons/react";
 import { ArrowLeftIcon } from "@phosphor-icons/react/ArrowLeft";
+import { CheckIcon } from "@phosphor-icons/react/Check";
 import { CubeIcon } from "@phosphor-icons/react/Cube";
 import { DesktopIcon } from "@phosphor-icons/react/Desktop";
+import { CardsThreeIcon } from "@phosphor-icons/react/CardsThree";
 import { GlobeIcon } from "@phosphor-icons/react/Globe";
 import { PlusIcon } from "@phosphor-icons/react/Plus";
 import { useAtomValue } from "jotai";
 import { useRef } from "react";
 
 import { AppIcon } from "./window/app-icon";
+import { type Project } from "./window/chats";
+import { ProjectMark } from "./window/project-mark";
 
 /**
  * Something the composer can be given, offered by name in the menu that adds
@@ -47,7 +51,7 @@ export interface ComposerAction {
  * Which face the menu is wearing, or `null` for closed. A list replaces the
  * menu rather than opening a second one beside it, and the caller owns this.
  */
-export type ComposerMenuView = "apps" | "root" | "skills";
+export type ComposerMenuView = "apps" | "projects" | "root" | "skills";
 
 /**
  * What a chat's plus opens beside the chat, where the composer is a chat's:
@@ -65,6 +69,13 @@ export interface ComposerPlaces {
   onOpenApps: () => void;
   onOpenComputer: () => void;
   onOpenWeb: () => void;
+  /** The projects a new chat's plus files it under, before it is sent: none in a chat's. */
+  projects?: {
+    list: Project[];
+    onPick: (project: Project) => void;
+    /** The project it is filed under, checked in the list. */
+    picked: string | undefined;
+  };
 }
 
 /** The actions a chat's plus draws as its two attach buttons rather than as rows. */
@@ -220,6 +231,32 @@ export function ComposerAddMenu({
                 Connect an app…
               </DropdownMenuItem>
             </>
+          ) : view === "projects" && places?.projects ? (
+            <>
+              <BackItem
+                label="Projects"
+                onBack={() => {
+                  onViewChange("root");
+                }}
+              />
+              {places.projects.list.map((project) => (
+                <DropdownMenuItem
+                  key={project.id}
+                  onSelect={() => {
+                    chose.current = "prompt";
+                    places.projects?.onPick(project);
+                  }}
+                >
+                  <ProjectMark project={project} />
+                  <span className="min-w-0 flex-1 truncate">
+                    {project.name}
+                  </span>
+                  {places.projects?.picked === project.id && (
+                    <CheckIcon className="size-4" />
+                  )}
+                </DropdownMenuItem>
+              ))}
+            </>
           ) : view === "skills" && places ? (
             <>
               <BackItem
@@ -286,6 +323,17 @@ export function ComposerAddMenu({
                 <PlaceIcon className="size-4" place="apps" />
                 <span className="min-w-0 flex-1">Apps</span>
               </DropdownMenuItem>
+              {places.projects && places.projects.list.length > 0 && (
+                <DropdownMenuItem
+                  onSelect={(event) => {
+                    event.preventDefault();
+                    onViewChange("projects");
+                  }}
+                >
+                  <CardsThreeIcon className="size-4" />
+                  <span className="min-w-0 flex-1">Projects</span>
+                </DropdownMenuItem>
+              )}
               {skills.length > 0 && (
                 <DropdownMenuItem
                   onSelect={(event) => {

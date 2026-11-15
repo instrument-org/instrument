@@ -702,7 +702,7 @@ function useOmnibarRows({
   const pages = unique(
     [
       ...bookmarks
-        .filter((bookmark) => !isInstrumentAddress(bookmark.url))
+        .filter((bookmark) => targetOfAddress(bookmark.url)?.kind === "page")
         .map((bookmark) => ({
           favicon: undefined,
           title: bookmark.title,
@@ -1123,7 +1123,7 @@ function matchBookmarks(
   const known = inOrder(bookmarks).map((bookmark) => ({
     bookmark,
     title: bookmark.title,
-    url: isInstrumentAddress(bookmark.url) ? "" : bookmark.url,
+    url: targetOfAddress(bookmark.url)?.kind === "page" ? bookmark.url : "",
   }));
   return matchPages(words, known).map(({ bookmark }) => bookmark);
 }

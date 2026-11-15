@@ -11,10 +11,10 @@
  */
 
 /**
- * An address the person kept: a website's, or the app's own
- * (`instrument://chat/<id>`, `instrument://file/<path>`,
- * `instrument://screen/<name>`), for a chat, a folder, a file or a built-in
- * page.
+ * An address the person kept: a website's, a file's or a folder's
+ * (`file://<path>`, or the `instrument://file/<path>` an earlier build
+ * kept), or the app's own for a chat or a built-in page
+ * (`instrument://chat/<id>`, `instrument://screen/<name>`).
  */
 export interface Bookmark {
   id: string;

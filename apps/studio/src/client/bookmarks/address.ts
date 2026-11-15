@@ -1,5 +1,6 @@
 import { type WindowTab } from "@/client/atoms/window";
 import { joinHostPath } from "@/client/components/window/host-path";
+import { fileUrlOf, hostPathOfFileUrl } from "@/client/lib/file-url";
 import { matchScreen } from "@/client/components/window/window-href";
 import {
   COMPUTER_ROOT,
@@ -9,7 +10,6 @@ import {
 } from "@/shared/computer-href";
 import { instrumentAddressOf } from "@/shared/instrument-screens";
 import {
-  APP_NAME_SLUG,
   expandHomePath,
   filePathOfInstrumentLink,
   instrumentLinkOf,
@@ -17,10 +17,10 @@ import {
 } from "@instrument-org/shared";
 
 /**
- * A tab's address, the one thing the field shows while it has the caret, a
- * bookmark keeps and a link names: a page's own, a file's or a folder's
- * path (`instrument://file/<path>`), and for anything else the app shows the
- * address `instrumentAddressOf` gives it (`instrument://chat/<id>`,
+ * A tab's address, the one thing a bookmark keeps and a link names, the
+ * truest one it has: a page's own, a file's or a folder's `file://` address
+ * (the one the field shows and copies for a file), and for anything else the
+ * app shows, which has no other, the address `instrumentAddressOf` gives it (`instrument://chat/<id>`,
  * `instrument://screen/<name>`, `instrument://settings/<part>`). Nothing for
  * a tab with nothing to keep: a new tab, a new chat, the recents.
  */
@@ -61,20 +61,15 @@ export function addressOfTab(
 }
 
 /**
- * The address of a file or a folder on this computer: its path after
- * `instrument://file`, a folder's ending in a slash. Only what would end the
- * path early in an address is escaped, so the field reads the path as it is.
+ * The address of a file or a folder on this computer: its `file://` address,
+ * the one a browser opens it at (`fileUrlOf`), a folder's ending in a slash.
  */
 export function fileAddressOf(
   hostPath: string,
   { isFolder = false }: { isFolder?: boolean } = {},
 ): string {
-  const escaped = hostPath.replaceAll(/[%#?]/g, (character) =>
-    encodeURIComponent(character),
-  );
-  const lead = escaped.startsWith("/") ? "" : "/";
-  const tail = isFolder && !escaped.endsWith("/") ? "/" : "";
-  return `${APP_NAME_SLUG}://file${lead}${escaped}${tail}`;
+  const url = fileUrlOf(hostPath);
+  return isFolder && !url.endsWith("/") ? `${url}/` : url;
 }
 
 /** What an address opens: a page, a screen of the app by its href, or a file or folder by its path. */
@@ -85,9 +80,18 @@ export type AddressTarget =
 
 /**
  * What an address opens, or nothing for an `instrument://` address this
- * build does not know. Anything that is not the app's own is a page.
+ * build does not know. A `file://` address names a file or a folder, as the
+ * address field reads one typed there, and so does the
+ * `instrument://file/<path>` an earlier build kept; a `file://` address to a
+ * place in a page (`?frame=2`, `#part`) is a page, since only the page
+ * reaches it. Anything else that is not the app's own is a page.
  */
 export function targetOfAddress(address: string): AddressTarget | undefined {
+  if (/^file:/i.test(address)) {
+    return isPlaceInPage(address)
+      ? { kind: "page", url: address }
+      : pathTarget(hostPathOfFileUrl(address));
+  }
   if (!isInstrumentAddress(address)) {
     return { kind: "page", url: address };
   }
@@ -95,12 +99,25 @@ export function targetOfAddress(address: string): AddressTarget | undefined {
   if (link) {
     return { href: link.href, kind: "screen" };
   }
-  const path = filePathOfInstrumentLink(address);
-  if (path === undefined) {
+  return pathTarget(filePathOfInstrumentLink(address));
+}
+
+/** A path as an address names it, a folder's by the separator after it. */
+function pathTarget(path: string | undefined): AddressTarget | undefined {
+  if (path === undefined || path === "") {
     return undefined;
   }
   const isFolder = path.length > 1 && /[/\\]$/.test(path);
   return { isFolder, kind: "path", path: isFolder ? path.slice(0, -1) : path };
+}
+
+/** Whether a `file://` address names a place in its page, by a query or a fragment. */
+function isPlaceInPage(address: string): boolean {
+  if (!URL.canParse(address)) {
+    return false;
+  }
+  const url = new URL(address);
+  return url.search !== "" || url.hash !== "";
 }
 
 /** The screen href a file or folder opens at in Files. */
@@ -112,15 +129,21 @@ export function hrefOfPath({
 }
 
 /**
- * Whether two addresses name the same thing: the app's own however a reply
- * spelled it (the scheme of another build, a folder's slash, encoding), and
- * a page's as a browser reads it.
+ * Whether two addresses name the same thing: a file or a folder by its path
+ * however it is spelled (`file://` or the `instrument://file` an earlier
+ * build kept, a folder's slash, encoding), the app's own however a reply
+ * spelled it (the scheme of another build), and a page's as a browser reads
+ * it.
  */
 export function sameAddress(a: string, b: string): boolean {
   return a === b || addressKey(a) === addressKey(b);
 }
 
 function addressKey(address: string): string {
+  const target = targetOfAddress(address);
+  if (target?.kind === "path") {
+    return `path:${target.path}`;
+  }
   if (!URL.canParse(address)) {
     return address;
   }

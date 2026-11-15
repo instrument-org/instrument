@@ -319,7 +319,7 @@ describe("a link's menu in a window with tabs", () => {
       { title: "Chats", url: "instrument://screen/chats" },
       {
         title: "plan.md",
-        url: "instrument://file/Users/sam/Instrument/Notes/plan.md",
+        url: "file:///Users/sam/Instrument/Notes/plan.md",
       },
     ]);
     // The file's is said once its place on this computer is found.

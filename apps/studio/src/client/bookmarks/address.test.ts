@@ -18,15 +18,15 @@ describe("addressOfTab", () => {
     ],
     [
       folderHref("/Users/mac-user/Downloads"),
-      "instrument://file/Users/mac-user/Downloads/",
+      "file:///Users/mac-user/Downloads/",
     ],
     [
       "/files?path=Documents%2F&root=~",
-      "instrument://file/Users/mac-user/Documents/",
+      "file:///Users/mac-user/Documents/",
     ],
     [
       fileHref("/Users/mac-user/Notes/plan #2.md"),
-      "instrument://file/Users/mac-user/Notes/plan %232.md",
+      "file:///Users/mac-user/Notes/plan%20%232.md",
     ],
     ["/activity", "instrument://screen/activity"],
     ["/chat-list?q=roof", "instrument://screen/chats"],
@@ -62,6 +62,22 @@ describe("targetOfAddress", () => {
       { isFolder: true, kind: "path", path: "/Users/mac-user/Downloads" },
     ],
     [
+      "file:///Users/mac-user/Downloads/",
+      { isFolder: true, kind: "path", path: "/Users/mac-user/Downloads" },
+    ],
+    [
+      "instrument://file/Users/mac-user/Notes/plan %232.md",
+      {
+        isFolder: false,
+        kind: "path",
+        path: "/Users/mac-user/Notes/plan #2.md",
+      },
+    ],
+    [
+      "file:///Users/mac-user/Site/index.html#intro",
+      { kind: "page", url: "file:///Users/mac-user/Site/index.html#intro" },
+    ],
+    [
       fileAddressOf("/Users/mac-user/Notes/plan #2.md"),
       {
         isFolder: false,
@@ -84,4 +100,22 @@ it("takes two spellings of the app's address as one", () => {
   ).toBe(true);
   expect(sameAddress("https://example.com", "https://example.com/")).toBe(true);
   expect(sameAddress("instrument://chat/a", "instrument://chat/b")).toBe(false);
+});
+
+it("takes a file kept by an earlier build's address as the same file", () => {
+  expect(
+    sameAddress(
+      "instrument://file/Users/mac-user/My Notes/plan %232.md",
+      fileAddressOf("/Users/mac-user/My Notes/plan #2.md"),
+    ),
+  ).toBe(true);
+  expect(
+    sameAddress(
+      "instrument://file/Users/mac-user/Downloads/",
+      "file:///Users/mac-user/Downloads/",
+    ),
+  ).toBe(true);
+  expect(
+    sameAddress("file:///Users/mac-user/a.md", "file:///Users/mac-user/b.md"),
+  ).toBe(false);
 });

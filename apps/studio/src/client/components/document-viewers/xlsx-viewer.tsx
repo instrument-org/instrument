@@ -6,6 +6,7 @@ import {
   XlsxViewerProvider,
   XlsxViewer as XlsxWorkbookViewer,
 } from "@extend-ai/react-xlsx";
+import { useQuery } from "@tanstack/react-query";
 import { list } from "radashi";
 import { useEffect, useEffectEvent, useState } from "react";
 
@@ -19,6 +20,41 @@ import {
   ViewerToolbarSpacer,
   ViewerZoomControl,
 } from "./viewer-toolbar";
+import { withRelativeTargets } from "./xlsx-package";
+
+export function XlsxViewer({
+  filename,
+  url,
+}: {
+  filename: string;
+  url: string;
+}) {
+  // The engine is handed bytes rather than the URL so the package can be
+  // read first: its relationship targets are made relative (`xlsx-package.ts`)
+  // or the engine drops the charts, images, comments and tables they name.
+  const { data: file, error } = useQuery({
+    queryFn: async () => {
+      const response = await fetch(url);
+      if (!response.ok) {
+        throw new Error(`Failed to load file: ${response.statusText}`);
+      }
+      const bytes = await withRelativeTargets(
+        new Uint8Array(await response.arrayBuffer()),
+      );
+      return bytes.slice().buffer;
+    },
+    queryKey: ["xlsx-file", url],
+    retry: false,
+  });
+  // Thrown rather than rendered so it reaches the surface's `CatchBoundary`.
+  if (error) {
+    throw error;
+  }
+  if (!file) {
+    return <FileLoading />;
+  }
+  return <XlsxWorkbook file={file} filename={filename} />;
+}
 
 /**
  * Spreadsheets get no page rail and no find control: a workbook has sheets
@@ -29,12 +65,12 @@ import {
  * so turning it off means supplying the tabs here. They sit at the bottom,
  * where a spreadsheet's tabs belong, rather than above the grid.
  */
-export function XlsxViewer({
+function XlsxWorkbook({
+  file,
   filename,
-  url,
 }: {
+  file: ArrayBuffer;
   filename: string;
-  url: string;
 }) {
   // Both of these belong on the controller, not the viewer component: the
   // component reads its editing state from whichever controller it is handed,
@@ -46,8 +82,8 @@ export function XlsxViewer({
   const controller = useXlsxViewerController({
     allowResizeInReadOnly: true,
     fileName: filename,
+    file,
     readOnly: true,
-    src: url,
   });
 
   const [grid, setGrid] = useState<HTMLDivElement | null>(null);

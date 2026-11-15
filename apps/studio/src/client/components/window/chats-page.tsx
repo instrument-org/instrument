@@ -130,31 +130,32 @@ function TabChatList({ openChatId }: { openChatId: ChatId | undefined }) {
 }
 
 /**
- * The Chats page: the chat list across the whole tab. A chat picked from it
- * opens to the list's right in this same tab.
- */
-export function ChatsPage() {
-  return (
-    <main className="flex h-full min-h-0 flex-col bg-background">
-      <TabChatList openChatId={undefined} />
-    </main>
-  );
-}
-
-/**
  * A chat's or a new chat's tab with the chat list down its left while the
  * person has it open, and the toggle ahead of the chat's title that opens
- * and closes it (`ChatListToggle`). Closed until it is opened in this tab.
+ * and closes it (`ChatListToggle`). Closed until it is opened in this tab,
+ * or open from the start where `opensList` says so: the Chats page.
  */
 export function WithChatList({
   children,
   openChatId,
+  opensList = false,
 }: {
   children: ReactNode;
   openChatId: ChatId | undefined;
+  opensList?: boolean;
 }) {
   const groupTab = useGroupTab();
   const [isOpen, setOpen] = useChatListOpen(groupTab?.id);
+  const tabId = groupTab?.id;
+  const setOpenTabs = useSetAtom(listOpenTabsAtom);
+  // Only as the page arrives: the toggle closes it from then on.
+  useLayoutEffect(() => {
+    if (opensList && tabId !== undefined) {
+      setOpenTabs((current) =>
+        current.has(tabId) ? current : new Set(current).add(tabId),
+      );
+    }
+  }, [opensList, setOpenTabs, tabId]);
   const ref = useRef<HTMLDivElement>(null);
   const [width, setWidth] = useState(0);
   useLayoutEffect(() => {

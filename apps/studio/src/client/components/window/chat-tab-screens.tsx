@@ -205,16 +205,23 @@ function countOf(count: number, noun: string): string {
 
 /**
  * A new chat in a tab of a group, as its route draws it: the zero state,
- * writing into the draft its address names once it has words.
+ * writing into the draft its address names once it has words. The Chats
+ * page is this with the chat list open beside it (`opensList`).
  */
-export function GroupNewChatScreen({ draftId }: { draftId?: string }) {
+export function GroupNewChatScreen({
+  draftId,
+  opensList = false,
+}: {
+  draftId?: string;
+  opensList?: boolean;
+}) {
   const groupTab = useGroupTab();
   const isActive = useIsActiveTab();
   const tabId = groupTab?.id ?? "";
   const group = groupTab?.group;
   const hasKeyboard = groupTab?.hasKeyboard ?? true;
   return (
-    <WithChatList openChatId={undefined}>
+    <WithChatList openChatId={undefined} opensList={opensList}>
       <div className="absolute inset-0 flex flex-col">
         <NewChatView
           draftId={draftId}

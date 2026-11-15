@@ -38,6 +38,7 @@ import {
   useSideStrip,
   useStripTarget,
 } from "./drag/use-group-drag";
+import { RecentlyClosedMenu } from "./recently-closed-menu";
 import { useShell } from "./shell-context";
 import { useSideMotion } from "./side-motion";
 import { windowTabGroupsAtom } from "./open-groups";
@@ -653,6 +654,9 @@ function SideCard({
       : (tab) => {
           moves.toNewWindow(tab.id);
         },
+    onMoveToWindow: (tab, windowId) => {
+      moves.toWindow(tab.id, windowId);
+    },
     onMoveToOtherSide: (tab) => {
       windowTabs.moveTo({ group, id: tab.id, select: true, side: otherSide });
     },
@@ -735,6 +739,13 @@ function SideCard({
         onSelect={(id) => {
           windowTabs.select(id);
         }}
+        newMenu={
+          <RecentlyClosedMenu
+            chatTitles={shell.chatTitles}
+            onReopen={shell.reopenClosed}
+          />
+        }
+        reopen={shell.reopenTab}
         onTabPress={(key, event) => {
           const tab = tabs.find((each) => stripKeyOf(each) === key);
           if (tab) {

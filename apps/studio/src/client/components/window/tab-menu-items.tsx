@@ -106,8 +106,9 @@ function TabMenuContent({
  */
 export function TabMenuItems({
   bookmark,
-  components: { Item, Separator, Shortcut },
+  components: { Item, Separator, Shortcut, Sub, SubContent, SubTrigger },
   isSelected,
+  moveToWindow,
   onClose,
   onCloseOthers,
   onCloseToLeft,
@@ -127,6 +128,13 @@ export function TabMenuItems({
   components: MenuComponents;
   /** The tab up on the side with the keyboard, whose chords the rows show. */
   isSelected: boolean;
+  /** The other open windows the tab can move to, each by its title; none while this is the only window. */
+  moveToWindow?:
+    | {
+        onMove: (windowId: string) => void;
+        windows: readonly { id: string; title: string }[];
+      }
+    | undefined;
   onClose: () => void;
   onCloseOthers: (() => void) | undefined;
   onCloseToLeft: (() => void) | undefined;
@@ -155,7 +163,8 @@ export function TabMenuItems({
     onOpenInSplit ??
     onNewChatInSplit ??
     onMoveToNewGroup ??
-    onMoveToNewWindow;
+    onMoveToNewWindow ??
+    moveToWindow;
   return (
     <>
       {onMoveToOtherSide ? (
@@ -183,12 +192,39 @@ export function TabMenuItems({
           <span>Move to New Tab Group</span>
         </Item>
       )}
-      {onMoveToNewWindow && (
+      {moveToWindow ? (
+        <Sub>
+          <SubTrigger>
+            <AppWindowIcon className="size-4" />
+            <span>Move to Another Window</span>
+          </SubTrigger>
+          <SubContent>
+            {onMoveToNewWindow && (
+              <>
+                <Item onClick={onMoveToNewWindow}>
+                  <span>New Window</span>
+                </Item>
+                <Separator />
+              </>
+            )}
+            {moveToWindow.windows.map((other) => (
+              <Item
+                key={other.id}
+                onClick={() => {
+                  moveToWindow.onMove(other.id);
+                }}
+              >
+                <span className="truncate">{other.title}</span>
+              </Item>
+            ))}
+          </SubContent>
+        </Sub>
+      ) : onMoveToNewWindow ? (
         <Item onClick={onMoveToNewWindow}>
           <AppWindowIcon className="size-4" />
           <span>Move to New Window</span>
         </Item>
-      )}
+      ) : null}
       {placing && <Separator />}
       <Item onClick={onDuplicate}>
         <NewTabIcon className="size-4" />

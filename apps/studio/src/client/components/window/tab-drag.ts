@@ -5,6 +5,7 @@ import {
   groupOfWholeKey,
   neighborAt,
   TabIdSchema,
+  type TabMoveDestination,
   type TabStanding,
   wholeGroupKey,
 } from "@/shared/tabs";
@@ -130,6 +131,29 @@ export function useGroupTabMoves() {
   const groups = useTabGroupActions();
   const { open } = useOpenGroups();
   const letGoOfWholeGroup = useLetGoOfWholeGroup();
+  /** The tab out to a window of its own or another open one, by main's carry (`moveTab`). */
+  const moveOut = (id: string, to: TabMoveDestination) => {
+    const state = store.get(windowTabsAtom);
+    const tab = state.tabs.find((each) => each.id === id);
+    const { group } = tab ?? {};
+    if (!tab || group === undefined) {
+      return;
+    }
+    const key = stripKeyOf(tab);
+    const moving = groupTabStanding(state, key);
+    const isOnlyTab = holdsOnly(group, tabsIn(state, group), open);
+    // A window's only tab is in a window of its own already.
+    if (!moving || (isOnlyTab && to.kind === "new")) {
+      return;
+    }
+    void rpcClient.window.moveTab
+      .call({ isOnlyTab, moving, to })
+      .catch(() => ({ kind: "none" as const }))
+      .then((end) => {
+        settleTabMove(key, end);
+        letGoOfWholeGroup(key, end, group);
+      });
+  };
   /**
    * A window come up for what landed lists it alone: the new group it came
    * up on leaves its list, along with any other it had.
@@ -241,25 +265,12 @@ export function useGroupTabMoves() {
       }
     },
     toNewWindow: (id: string) => {
-      const state = store.get(windowTabsAtom);
-      const tab = state.tabs.find((each) => each.id === id);
-      const { group } = tab ?? {};
-      if (!tab || group === undefined) {
-        return;
-      }
-      const key = stripKeyOf(tab);
-      const moving = groupTabStanding(state, key);
-      // A window's only tab is in a window of its own already.
-      if (!moving || holdsOnly(group, tabsIn(state, group), open)) {
-        return;
-      }
-      void rpcClient.window.moveTab
-        .call({ isOnlyTab: false, moving, to: { kind: "new" } })
-        .catch(() => ({ kind: "none" as const }))
-        .then((end) => {
-          settleTabMove(key, end);
-          letGoOfWholeGroup(key, end, group);
-        });
+      moveOut(id, { kind: "new" });
+    },
+    /** The tab to another window that is open, as a drag let go over it would; a window's only tab takes its window's place there. */
+    toWindow: (id: string, windowId: string) => {
+      moveOut(id, { id: windowId, kind: "window" });
     },
   };
 }
+

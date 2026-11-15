@@ -63,6 +63,8 @@ export interface WindowShell {
   sentWords: ReadonlyMap<ChatId, string>;
   /** Brings back one entry of the window's closed list, by its id, as Shift+Cmd+T brings back the last. */
   reopenClosed: (id: TabId) => void;
+  /** What was closed last back, as Shift+Cmd+T does, a window closed since included. */
+  reopenTab: () => void;
   /** Closes one of a chat's tabs, asking first while a task is working in it. */
   requestClose: (id: string) => void;
   /** The width of the card the tabs are drawn in, in layout px. */

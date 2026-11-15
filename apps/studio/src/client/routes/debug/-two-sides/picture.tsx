@@ -465,6 +465,7 @@ export function SidebarPicture({
       onNew={noop}
       onNewProject={noop}
       onPin={noop}
+      onReopenLast={noop}
       onShow={noop}
       open={[...rows]}
       projects={[]}
@@ -594,6 +595,7 @@ function Side({
           onMoveToNewGroup: undefined,
           onMoveToNewWindow: undefined,
           onMoveToOtherSide: noop,
+          onMoveToWindow: noop,
           onNewChatInSplit: noop,
           onOpenInSplit: noop,
         }}

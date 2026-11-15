@@ -18,6 +18,8 @@ import {
   browserTargetOf,
   parseBrowserTargetId,
 } from "@instrument-org/workspace/client";
+import { rpcClient } from "@/client/rpc/client";
+import { useQuery } from "@tanstack/react-query";
 import { useAtomValue } from "jotai";
 import { type ReactNode, useRef, useState } from "react";
 
@@ -37,8 +39,9 @@ import { screenPresentation, screenLocation } from "./screen-presentation";
 import { siteTabTitles } from "./site-tab-titles";
 import { chatOfTab, draftOfTab } from "./tab-model";
 import { TabMenuAtPoint, TabMenuItems } from "./tab-menu-items";
-import { NewTabButton, type StripTab, TabStrip } from "./tab-strip";
+import { type StripTab, TabStrip } from "./tab-strip";
 import { useBookmarkEdits } from "./web-start";
+import { isOnEmptySpace, WindowSpaceMenu } from "./window-space-menu";
 
 type Presentation = Parameters<typeof screenPresentation>[1];
 
@@ -75,7 +78,9 @@ export function PaneTabs({
   onDuplicate,
   onNew,
   onSelect,
+  newMenu,
   onTabPress,
+  reopen,
   tabs,
   taskTitles,
   trailing,
@@ -100,6 +105,10 @@ export function PaneTabs({
   onSelect: (id: string) => void;
   /** A press on a tab, by its strip key, which may become a drag. */
   onTabPress?: (key: string, event: React.PointerEvent<HTMLElement>) => void;
+  /** What a right click on the plus offers: the tabs and groups closed lately (`RecentlyClosedMenu`). */
+  newMenu?: ReactNode;
+  /** The last thing the window closed back, as Shift+Cmd+T does; with it, the row's empty space has the window's menu. */
+  reopen?: (() => void) | undefined;
   /** Which side of its group the strip heads, which a drag along it reads it by (`data-group-tabs`). */
   side?: 0 | 1;
   /** What a tab's menu does with the group's sides; none for a strip of no group's. */
@@ -124,6 +133,7 @@ export function PaneTabs({
     }),
   );
   const [menu, setMenu] = useState<{ key: string; x: number; y: number }>();
+  const [spaceMenu, setSpaceMenu] = useState<{ x: number; y: number }>();
   // What a row of the menu does once the menu has let go of the keyboard,
   // for a row that puts it somewhere of its own: a rename's field.
   const afterMenu = useRef<(() => void) | null>(null);
@@ -223,6 +233,16 @@ export function PaneTabs({
       )}
       data-group-tabs={side}
       {...(isIncoming ? { "data-incoming": "" } : {})}
+      onContextMenu={
+        reopen &&
+        ((event) => {
+          if (!isOnEmptySpace(event)) {
+            return;
+          }
+          event.preventDefault();
+          setSpaceMenu({ x: event.clientX, y: event.clientY });
+        })
+      }
     >
       {lead}
       <TabStrip
@@ -239,7 +259,8 @@ export function PaneTabs({
               : "Right side tabs"
             : "Tabs"
         }
-        newControl={<NewTabButton onClick={onNew} title="New Tab" />}
+        {...(newMenu ? { newMenu } : {})}
+        onNew={onNew}
         onClose={(key) => {
           const tab = tabOf(key);
           if (tab) {
@@ -297,6 +318,20 @@ export function PaneTabs({
           />
         )}
       </TabMenuAtPoint>
+      {reopen && (
+        <TabMenuAtPoint
+          at={spaceMenu}
+          onDismiss={() => {
+            setSpaceMenu(undefined);
+          }}
+        >
+          <WindowSpaceMenu
+            kind="tab"
+            onNew={onNew}
+            onReopenLast={reopen}
+          />
+        </TabMenuAtPoint>
+      )}
       {deleting && (
         <DeleteChatDialog
           chat={deleting.chat}
@@ -327,6 +362,8 @@ export interface SplitMenuActions {
   onMoveToNewWindow: ((tab: WindowTab) => void) | undefined;
   /** The tab to the other side, made where the group has one side. */
   onMoveToOtherSide: (tab: WindowTab) => void;
+  /** The tab to another open window, by its id. */
+  onMoveToWindow: (tab: WindowTab, windowId: string) => void;
   /** A new chat on the other side, made where the group has one side. */
   onNewChatInSplit: (tab: WindowTab) => void;
   /** A copy of the tab on the other side, made where the group has one side. */
@@ -387,7 +424,10 @@ function PaneTabMenu({
   const chat = chatOfTab(tab);
   const draftId = draftOfTab(tab);
   const draft = useAtomValue(draftsAtom).find((each) => each.id === draftId);
-  const { onMoveToNewGroup, onMoveToNewWindow } = split ?? {};
+  const { onMoveToNewGroup, onMoveToNewWindow, onMoveToWindow } = split ?? {};
+  const otherWindows = useQuery(
+    rpcClient.window.live.others.experimental_liveOptions(),
+  ).data;
   return (
     <TabMenuItems
       bookmark={
@@ -433,6 +473,16 @@ function PaneTabMenu({
         (() => {
           onMoveToNewWindow(tab);
         })
+      }
+      moveToWindow={
+        onMoveToWindow && otherWindows && otherWindows.length > 0
+          ? {
+              onMove: (windowId) => {
+                onMoveToWindow(tab, windowId);
+              },
+              windows: otherWindows,
+            }
+          : undefined
       }
       onMoveToOtherSide={
         split && canMove

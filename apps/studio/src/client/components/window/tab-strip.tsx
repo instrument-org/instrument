@@ -170,7 +170,6 @@ export function TabStrip({
   groupKey,
   isStill,
   label = "Open tabs",
-  newControl,
   onClose,
   onContextMenu,
   newMenu,
@@ -197,8 +196,6 @@ export function TabStrip({
   isStill?: boolean;
   /** What the row is called to a screen reader. */
   label?: string;
-  /** Drawn where the plus is, for a strip whose new tab is a choice: a menu's trigger around `NewTabButton`. */
-  newControl?: ReactNode;
   onClose: (key: string) => void;
   /** A right click on a tab, for a menu the caller draws. */
   onContextMenu?: (key: string, event: React.MouseEvent) => void;
@@ -221,9 +218,7 @@ export function TabStrip({
   // Whether a squeezing row has room for every tab as at least an icon.
   const [iconsFit, setIconsFit] = useState(true);
   const scrolls = overflow === "scroll" || (squeezes && !iconsFit);
-  const plus =
-    newControl ??
-    (onNew ? (
+  const plus = onNew ? (
       <ContextMenu>
         <ToolbarTooltip chord="newTab" label="New tab">
           <ContextMenuTrigger asChild disabled={newMenu === undefined}>
@@ -232,7 +227,7 @@ export function TabStrip({
         </ToolbarTooltip>
         {newMenu}
       </ContextMenu>
-    ) : null);
+    ) : null;
   const hasNew = plus !== null;
   const fixedTabs = tabs.filter((tab) => tab.isFixed);
   const movableTabs = tabs.filter((tab) => !tab.isFixed);
@@ -615,8 +610,8 @@ export function TabStrip({
   );
 }
 
-/** The strip's plus, for a strip that wraps it in a trigger of its own (`newControl`). */
-export function NewTabButton(props: ComponentProps<"button">) {
+/** The strip's plus, whose right click lists what was closed when the strip is given `newMenu`. */
+function NewTabButton(props: ComponentProps<"button">) {
   return (
     <button
       aria-label="New tab"

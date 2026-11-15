@@ -82,6 +82,8 @@ import { chatListOptions } from "./chat-list-query";
 import { chatOfTab } from "./tab-model";
 import { CHATS_INDEX_HREF } from "./window-href";
 import { useWindowTabs } from "./window-tabs";
+import { TabMenuAtPoint } from "./tab-menu-items";
+import { isOnEmptySpace, WindowSpaceMenu } from "./window-space-menu";
 
 /** A key printed beside the control it works, in a light keycap. */
 function SoftKey({ children }: { children: ReactNode }) {
@@ -137,6 +139,7 @@ export function GroupSidebar({
   onNew,
   onNewProject,
   onPin,
+  onReopenLast,
   onShow,
   open,
   projects,
@@ -155,11 +158,14 @@ export function GroupSidebar({
   onNewProject: () => void;
   /** Pins a group above the line, or takes it back down. */
   onPin: (group: string, pinned: boolean) => void;
+  /** What was closed last back, as Shift+Cmd+T does, from the menu of the list's empty space. */
+  onReopenLast: () => void;
   onShow: (group: string, options: { newWindow: boolean }) => void;
   open: TabGroup[];
   projects: Project[];
 }) {
   const [projectId, setProjectId] = useAtom(sidebarProjectAtom);
+  const [spaceMenu, setSpaceMenu] = useState<{ x: number; y: number }>();
   const project = projects.find((entry) => entry.id === projectId);
   // The list slides in as the sidebar steps into a project or back out of
   // one.
@@ -375,6 +381,13 @@ export function GroupSidebar({
         project && "project-tint",
       )}
       style={project ? projectTint(projectColor(project)) : undefined}
+      onContextMenu={(event) => {
+        if (!isOnEmptySpace(event)) {
+          return;
+        }
+        event.preventDefault();
+        setSpaceMenu({ x: event.clientX, y: event.clientY });
+      }}
     >
       {/* While the list is one project, its tint washes down from the
           window's top and fades out past the banner, behind the first rows;
@@ -411,6 +424,20 @@ export function GroupSidebar({
           chatId={groupUp === undefined ? undefined : chatUpIn(groupUp)}
         />
       </div>
+      <TabMenuAtPoint
+        at={spaceMenu}
+        onDismiss={() => {
+          setSpaceMenu(undefined);
+        }}
+      >
+        <WindowSpaceMenu
+          kind="group"
+          onNew={() => {
+            onNew(project?.id);
+          }}
+          onReopenLast={onReopenLast}
+        />
+      </TabMenuAtPoint>
     </nav>
   );
 }

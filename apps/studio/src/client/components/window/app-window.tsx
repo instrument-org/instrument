@@ -1524,6 +1524,7 @@ function WindowShell({
     },
     popOutDraft,
     reopenClosed,
+    reopenTab,
     requestClose,
     rowWidth,
     layoutContext: (tabId) => layoutContextRef.current(tabId),
@@ -1613,6 +1614,7 @@ function WindowShell({
                   onPin={(group, pinned) => {
                     groups.pin(group, pinned);
                   }}
+                  onReopenLast={reopenTab}
                   onShow={(group, { newWindow }) => {
                     if (newWindow) {
                       groups.moveToNewWindow(group, groupList.open);

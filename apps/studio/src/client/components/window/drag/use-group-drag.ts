@@ -1,7 +1,6 @@
 import { isPlaceDragInAir } from "@/client/lib/self-file-drag";
 import { type WindowTab } from "@/client/atoms/window";
 import { getDefaultStore, useAtomValue } from "jotai";
-import { useRef } from "react";
 
 import { windowTabGroupsAtom } from "../open-groups";
 import { stripKeyOf } from "../pane-tabs";
@@ -233,12 +232,11 @@ function attachesToNewTab(page: Element | null | undefined, point: Point) {
  * and into a link away from a lone side's ends. A link opens as its tab
  * wherever a tab would land. The split targets show from the start of a drag that could make one a
  * side. A whole group pulled out of the sidebar makes a side of all its
- * tabs at a split target, and anywhere else on the pages goes to a window
- * of its own, where the window has another group to show.
- *
- * While a side made at an end slides in to show what letting go makes
- * (`useSplitPreview`), the pages are measured as they stood before it, so
- * what lands where stays put under the pointer.
+ * tabs at a split target, joins the side under the pointer of a group of
+ * two sides with all of them, as a tab joins it, and anywhere else on the
+ * pages goes to a window of its own, where the window has another group to
+ * show. Nothing in the group is drawn again while something is held over
+ * it, so the pages stay put under the pointer.
  */
 export function useSidePagesTarget({
   group,
@@ -255,27 +253,14 @@ export function useSidePagesTarget({
 }) {
   const pageOf = (side: number) =>
     scroller()?.querySelector(`[data-side-page="${side}"]`);
-  // The pages as they stood before a side slid in to show a split, or as it
-  // slides out again.
-  const before = useRef<Rect[]>(undefined);
   // Each side's page as much of it as the row shows, scrolled sideways.
   const pages = () => {
-    const row = scroller();
-    const isShowingSplit =
-      row?.querySelector("[data-side-preview], [data-side-leaving]") != null;
-    if (isShowingSplit && before.current) {
-      return before.current;
-    }
-    const shown = rectOf(row);
-    const measured = layout.sides.flatMap((_, side) => {
+    const shown = rectOf(scroller());
+    return layout.sides.flatMap((_, side) => {
       const rect = rectOf(pageOf(side));
       const cut = rect && shown ? clipped(rect, shown) : undefined;
       return cut ? [cut] : [];
     });
-    if (!isShowingSplit) {
-      before.current = measured;
-    }
-    return measured;
   };
   const upOf = (side: number) =>
     layout.sides[side]?.tabs.find((tab) => tab.id === layout.sides[side]?.up);
@@ -340,7 +325,14 @@ export function useSidePagesTarget({
                   sides,
                 })
               : undefined;
-            if (held.kind === "group" && zone?.kind !== "split") {
+            // A whole group joins a side of two as a tab does, and makes a
+            // side at a lone side's end; the middle of a lone side has no
+            // side to give it, so it goes to a window of its own there.
+            if (
+              held.kind === "group" &&
+              zone?.kind !== "split" &&
+              !(zone?.kind === "join" && sides.length === 2)
+            ) {
               return at !== -1 && mayLeave() ? { kind: "window" } : undefined;
             }
             if (

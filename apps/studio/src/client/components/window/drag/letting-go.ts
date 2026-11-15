@@ -22,7 +22,7 @@ export type Outcome =
 export function outcomeOf(
   held: Held,
   landing: Landing | undefined,
-  /** How many tabs a whole group held brings, said where it makes a side of them. */
+  /** How many tabs a whole group held brings, said where it goes to a side. */
   tabCount = 1,
 ): Outcome {
   const isOwnTab = held.kind === "tab" || held.kind === "group";
@@ -46,13 +46,14 @@ export function outcomeOf(
       return goes(undefined);
     }
     case "side": {
-      if (landing.split) {
-        const split = landing.side === 0 ? "Add left split" : "Add right split";
-        return goes(
-          tabCount > 1 ? `${split} · ${String(tabCount)} tabs` : split,
-        );
-      }
-      return goes(isOwnTab ? "Move to this side" : "Open on this side");
+      const line = landing.split
+        ? landing.side === 0
+          ? "Add left split"
+          : "Add right split"
+        : isOwnTab
+          ? "Move to this side"
+          : "Open on this side";
+      return goes(tabCount > 1 ? `${line} · ${String(tabCount)} tabs` : line);
     }
     case "newTab": {
       return goes("Open here");

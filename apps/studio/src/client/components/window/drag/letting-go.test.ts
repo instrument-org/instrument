@@ -158,14 +158,13 @@ describe("outcomeOf", () => {
     `);
   });
 
-  it("says how many tabs a whole group brings to a split", () => {
+  it.each([
+    ["Add left split", "Add left split · 3 tabs"],
+    ["other side", "Move to this side · 3 tabs"],
+  ] as const)("says how many tabs a whole group brings to %s", (at, line) => {
     expect(
-      outcomeOf(
-        HELD["whole group (sidebar row)"]!,
-        LANDINGS["Add left split"],
-        3,
-      ).line,
-    ).toBe("Add left split · 3 tabs");
+      outcomeOf(HELD["whole group (sidebar row)"]!, LANDINGS[at], 3).line,
+    ).toBe(line);
   });
 });
 

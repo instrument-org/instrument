@@ -9,13 +9,14 @@ export const DROP_TONE =
   "bg-card shadow-[0_6px_16px_rgb(0_0_0/0.14)] ring-[1.5px] ring-foreground/30 ring-inset dark:shadow-[0_6px_16px_rgb(0_0_0/0.5)]";
 
 /**
- * The tone of a stretch of a page that takes what is held, a side it joins
- * or a new tab it turns into: a mid gray rather than the theme's
- * foreground, so it shows over a white web page in the dark theme as well
- * as over the app.
+ * The tone of a stretch of a page that takes what is held, a side it joins,
+ * the half a split takes or a new tab it turns into: a mid gray rather than
+ * the theme's foreground, so it shows over a white web page in the dark
+ * theme as well as over the app, edged dashed as the split targets are, so
+ * it never reads as the outline of the side with the keyboard.
  */
 export const DROP_AREA_TONE =
-  "bg-[rgb(128_128_128/0.12)] ring-2 ring-[rgb(128_128_128/0.85)] ring-inset";
+  "border-2 border-dashed border-[rgb(128_128_128/0.85)] bg-[rgb(128_128_128/0.12)]";
 
 /** What is held as it rides on the pointer: raised off the window with a shadow, at full strength. */
 export const HELD_LOOK =

@@ -474,7 +474,10 @@ export function ActivityPage({
                 value={q}
               />
             </div>
-            <div className="flex items-center gap-1" role="radiogroup">
+            <div
+              className="flex flex-wrap items-center gap-1"
+              role="radiogroup"
+            >
               {[undefined, ...SHOWS].map((each) => (
                 <button
                   aria-checked={show === each}
@@ -878,6 +881,7 @@ function ActivityList({
                   context={context}
                   icon={<EntryIcon entry={item} />}
                   isPicked={picked === item.id}
+                  keepContext={item.kind === "closed"}
                   onCheck={(on) => {
                     onCheck(item, on);
                   }}
@@ -927,6 +931,7 @@ function ActivityRow({
   context,
   icon,
   isPicked,
+  keepContext,
   menu,
   onCheck,
   onOpen,
@@ -938,6 +943,8 @@ function ActivityRow({
   context: React.ReactNode;
   icon: React.ReactNode;
   isPicked: boolean;
+  /** Whether what was done is never cut short, as a closed tab group's count. */
+  keepContext: boolean;
   /** What its ⋮ and a right click offer. */
   menu: RowMenuItem[];
   onCheck: (on: boolean) => void;
@@ -952,7 +959,8 @@ function ActivityRow({
         <div
           aria-selected={isPicked}
           className={cn(
-            "group/row flex h-10 cursor-default items-center gap-3 rounded-lg px-2.5 select-none",
+            "group/row flex min-h-10 cursor-default items-center gap-3 rounded-lg px-2.5 select-none",
+            ENTRY_ROW,
             isPicked ? "bg-foreground/8" : "hover:bg-foreground/5",
           )}
           onAuxClick={(event) => {
@@ -975,7 +983,7 @@ function ActivityRow({
           {/* The whole gutter around the box ticks it, so a click a little
         off the box never picks the row instead. */}
           <span
-            className="-my-1 -ml-2.5 grid shrink-0 place-items-center self-stretch pr-1 pl-2.5"
+            className="-my-1 -ml-2.5 grid shrink-0 place-items-center self-stretch pr-1 pl-2.5 @max-[16rem]/entry:hidden"
             onClick={(event) => {
               event.stopPropagation();
               if (event.target === event.currentTarget) {
@@ -994,22 +1002,29 @@ function ActivityRow({
               }}
             />
           </span>
-          <span className="w-16 shrink-0 text-[13px] text-muted-foreground tabular-nums">
+          <span
+            className={cn(
+              "w-16 shrink-0 text-[13px] text-muted-foreground tabular-nums",
+              TIME_COLUMN,
+            )}
+          >
             {timeFormat.format(at)}
           </span>
           <span className="grid size-5 shrink-0 place-items-center">
             {icon}
           </span>
-          <span className="min-w-0 shrink truncate text-sm">{title}</span>
-          <span className="min-w-0 flex-1 truncate text-[13px] text-muted-foreground">
-            {context}
-          </span>
+          <EntryWords
+            at={at}
+            context={context}
+            keepContext={keepContext}
+            title={title}
+          />
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
               <Button
                 aria-label="More"
                 className={cn(
-                  "shrink-0 text-foreground/60 data-[state=open]:opacity-100",
+                  "shrink-0 text-foreground/60 data-[state=open]:opacity-100 @max-[16rem]/entry:hidden",
                   isPicked
                     ? ""
                     : "opacity-0 group-hover/row:opacity-100 focus-visible:opacity-100",
@@ -1036,6 +1051,67 @@ function ActivityRow({
         <RowMenu components={contextMenuComponents} items={menu} />
       </ContextMenuContent>
     </ContextMenu>
+  );
+}
+
+/**
+ * A row of History's, the page's and the sidebar's alike, is a container
+ * its words and its time answer to: on one line where there is room, and
+ * where there is not, the time leaves its own column for the line under
+ * the name. The narrowest page rows leave out the box and the ⋮ too, for
+ * the words; a right click and the details still have what the ⋮ has.
+ */
+export const ENTRY_ROW = "@container/entry";
+
+/** The time's own column, on a row with room for one line. */
+export const TIME_COLUMN = "@max-[30rem]/entry:hidden";
+
+/**
+ * What a row names and what was done with it, and when on a narrow row: on
+ * one line where there is room, the name cut short first, and on two where
+ * there is not. A closed tab or tab group's own words are never cut short,
+ * so the row always says what it is: on two lines they take the time's
+ * place, which its details still show, and wrap where even that is too
+ * narrow.
+ */
+export function EntryWords({
+  at,
+  context,
+  keepContext,
+  title,
+}: {
+  at: number;
+  context: React.ReactNode;
+  keepContext: boolean;
+  title: string;
+}) {
+  return (
+    <span className="flex min-w-0 flex-1 flex-col py-1 leading-5 @min-[30rem]/entry:flex-row @min-[30rem]/entry:items-center @min-[30rem]/entry:gap-3 @min-[30rem]/entry:py-0">
+      {title ? (
+        <span className="min-w-0 shrink truncate text-sm">{title}</span>
+      ) : null}
+      <span
+        className={cn(
+          "flex min-w-0 flex-1 flex-wrap items-center gap-x-1.5 text-[13px] text-muted-foreground",
+          keepContext && "@min-[30rem]/entry:flex-none",
+        )}
+      >
+        {context ? (
+          <span className={keepContext ? "min-w-0" : "min-w-0 truncate"}>
+            {context}
+          </span>
+        ) : null}
+        <span
+          className={cn(
+            "flex shrink-0 gap-x-1.5 whitespace-nowrap tabular-nums @min-[30rem]/entry:hidden",
+            keepContext && "hidden",
+          )}
+        >
+          {context ? <span aria-hidden>·</span> : null}
+          {timeFormat.format(at)}
+        </span>
+      </span>
+    </span>
   );
 }
 

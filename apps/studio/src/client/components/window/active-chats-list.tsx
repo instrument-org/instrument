@@ -10,13 +10,19 @@ import { useQuery } from "@tanstack/react-query";
 import { atom, useAtom, useAtomValue, useStore } from "jotai";
 import { useEffect, useEffectEvent, useState } from "react";
 
-import { ACTIVE_CHATS_SHOWN, activeChats } from "./active-chats";
+import {
+  ACTIVE_CHATS_SHOWN,
+  type ActiveChatsKept,
+  activeChats,
+  chatsInView,
+} from "./active-chats";
 import { useAppsBySlug } from "./apps-by-slug";
 import { useChatActionsFor } from "./chat-actions";
 import { chatListOptions } from "./chat-list-query";
 import { ChatRow } from "./chat-row";
 import { type Chat, type Project } from "./chats";
 import { DeleteChatDialog } from "./delete-chat-dialog";
+import { windowTabGroupsAtom } from "./open-groups";
 import { useTabGroupActions } from "./tab-groups";
 import { selectedTabIn } from "./tab-model";
 import { useNow } from "./use-now";
@@ -25,10 +31,10 @@ import { CHATS_INDEX_HREF, chatHref } from "./window-href";
 import { useWindowTabs, windowTabsAtom } from "./window-tabs";
 
 /**
- * The chats that want a look with no tab in this window (`activeChats`),
- * over the sidebar's foot: a question waiting, a reply not yet seen, or work
- * still going. Up to three rows, drawn as the Chats page draws them, then a
- * row that opens the whole list above it. Takes no room while none do.
+ * The chats that came to want a look while no sidebar row showed them
+ * (`activeChats`), over the sidebar's foot: a reply not yet seen, or a
+ * question waiting. Up to three rows, drawn as the Chats page draws them,
+ * then a row that opens the whole list above it. Takes no room while none do.
  */
 export function ActiveChatsList({
   onNewProject,
@@ -154,33 +160,40 @@ function ActiveChatRow({
 }
 
 /**
- * The order the list last stood in, kept for the window rather than for the
- * list, so a sidebar folded away and opened again finds its rows where they
- * were.
+ * What the list last kept (`ActiveChatsKept`), for the window rather than for
+ * the list, so a sidebar folded away and opened again finds its rows where
+ * they were.
  */
-const activeOrderAtom = atom<readonly ChatId[]>([]);
+const activeKeptAtom = atom<ActiveChatsKept>({ list: [] });
 
 /**
  * The list's chats, kept in the order they joined it from one render to the
- * next. Nothing changes while the chats are still on their way, so a list
- * loading again never shuffles it.
+ * next. Nothing changes while the chats or the window's groups are still on
+ * their way, so a list loading again never shuffles it.
  */
 function useActiveChats(): Chat[] {
   const { data } = useQuery(chatListOptions());
   const state = useAtomValue(windowTabsAtom);
-  const [order, setOrder] = useAtom(activeOrderAtom);
-  const shown =
-    data === undefined ? undefined : activeChats(data, state, order);
-  const key = shown?.map((chat) => chat.id).join(" ");
+  const listed = useAtomValue(windowTabGroupsAtom);
+  const [kept, setKept] = useAtom(activeKeptAtom);
+  const next =
+    data === undefined || listed === null
+      ? undefined
+      : activeChats(data, chatsInView(state, listed), kept);
+  const key = next && keyOf(next.kept);
   const keep = useEffectEvent(() => {
-    if (shown !== undefined && key !== order.join(" ")) {
-      setOrder(shown.map((chat) => chat.id));
+    if (next !== undefined && key !== keyOf(kept)) {
+      setKept(next.kept);
     }
   });
   useEffect(() => {
     keep();
   }, [key]);
-  return shown ?? [];
+  return next?.chats ?? [];
+}
+
+function keyOf(kept: ActiveChatsKept): string {
+  return `${kept.list.join(" ")}|${kept.wanting?.join(" ") ?? ""}`;
 }
 
 /**

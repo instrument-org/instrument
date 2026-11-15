@@ -75,7 +75,11 @@ const windowWith = (place: Place): WindowTabs => {
       : {}),
     tabs: [
       screen("up", "shown", place === "up in group up" ? lisbon : "/new-tab"),
-      screen("other", "site", place === "up in other group" ? lisbon : "/new-tab"),
+      screen(
+        "other",
+        "site",
+        place === "up in other group" ? lisbon : "/new-tab",
+      ),
       ...(place === "behind in group up"
         ? [screen("up", "lisbon", lisbon)]
         : []),
@@ -154,25 +158,95 @@ describe("the sidebar's Chats list", () => {
     was: { marks: keyof typeof MARKS; place: Place },
     now: { marks: keyof typeof MARKS; place: Place },
   ) => {
-    const first = activeChats([chat(LISBON, MARKS[was.marks])], inView(was.place), {
-      list: [],
-    });
+    const first = activeChats(
+      [chat(LISBON, MARKS[was.marks])],
+      inView(was.place),
+      {
+        list: [],
+      },
+    );
     return idsOf(
-      activeChats([chat(LISBON, MARKS[now.marks])], inView(now.place), first.kept)
-        .chats,
+      activeChats(
+        [chat(LISBON, MARKS[now.marks])],
+        inView(now.place),
+        first.kept,
+      ).chats,
     );
   };
 
   it.each([
-    ["finishes behind another tab", "working", "behind in group up", "unread", "behind in group up", true],
-    ["asks behind another tab", "working", "behind in other group", "ask", "behind in other group", true],
-    ["asks in view", "working", "up in group up", "ask", "up in group up", false],
-    ["finishes in view, then goes behind another tab", "unread", "up in group up", "unread", "behind in group up", false],
-    ["asks in view, then goes behind another tab", "ask", "up in group up", "ask", "behind in group up", false],
-    ["listed, comes into view still unread", "unread", "nowhere", "unread", "up in group up", true],
-    ["listed, is seen in view", "unread", "nowhere", "idle", "up in group up", false],
-    ["listed, still asks once seen", "ask", "nowhere", "ask", "up in group up", true],
-    ["listed, its ask answered", "ask", "behind in group up", "working", "behind in group up", false],
+    [
+      "finishes behind another tab",
+      "working",
+      "behind in group up",
+      "unread",
+      "behind in group up",
+      true,
+    ],
+    [
+      "asks behind another tab",
+      "working",
+      "behind in other group",
+      "ask",
+      "behind in other group",
+      true,
+    ],
+    [
+      "asks in view",
+      "working",
+      "up in group up",
+      "ask",
+      "up in group up",
+      false,
+    ],
+    [
+      "finishes in view, then goes behind another tab",
+      "unread",
+      "up in group up",
+      "unread",
+      "behind in group up",
+      false,
+    ],
+    [
+      "asks in view, then goes behind another tab",
+      "ask",
+      "up in group up",
+      "ask",
+      "behind in group up",
+      false,
+    ],
+    [
+      "listed, comes into view still unread",
+      "unread",
+      "nowhere",
+      "unread",
+      "up in group up",
+      true,
+    ],
+    [
+      "listed, is seen in view",
+      "unread",
+      "nowhere",
+      "idle",
+      "up in group up",
+      false,
+    ],
+    [
+      "listed, still asks once seen",
+      "ask",
+      "nowhere",
+      "ask",
+      "up in group up",
+      true,
+    ],
+    [
+      "listed, its ask answered",
+      "ask",
+      "behind in group up",
+      "working",
+      "behind in group up",
+      false,
+    ],
   ] as const)(
     "a chat that %s shows: %s",
     (_label, wasMarks, wasPlace, nowMarks, nowPlace, shows) => {

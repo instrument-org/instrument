@@ -81,7 +81,7 @@ import { useSideMotion } from "./side-motion";
 import { windowTabGroupsAtom } from "./open-groups";
 import { isPinnedGroup, type TabGroup } from "./tab-groups";
 import { chatListOptions } from "./chat-list-query";
-import { chatOfTab } from "./tab-model";
+import { chatOfTab, keptOnCloseCount } from "./tab-model";
 import { CHATS_INDEX_HREF } from "./window-href";
 import { useWindowTabs } from "./window-tabs";
 import { TabMenuAtPoint } from "./tab-menu-items";
@@ -749,16 +749,19 @@ export function GroupRow({
   // Named as a group, so a row whose tab is a page the sidebar also has a
   // button for (Activity) is told apart from that button.
   const label = `${ups.length > 0 ? ups.map(titleOf).join(" and ") : entry.title} tab group`;
-  // What a half's X closes, asking first when that is more than one tab.
-  const askOf = (count: number) =>
-    count > 1
+  // What a half's X closes, asking first when that is more than one tab
+  // worth bringing back: a blank new tab beside one page asks nothing.
+  const askOf = (tabs: readonly WindowTab[] = []) => {
+    const count = keptOnCloseCount(tabs);
+    return count > 1
       ? { full: `Close ${count} tabs?`, short: `Close ${count}?` }
       : undefined;
+  };
   const closeOf = (tab: WindowTab, side: number) => {
     if (ups.length > 1) {
       return onCloseSide
         ? {
-            ask: askOf(layout.sides[side]?.tabs.length ?? 1),
+            ask: askOf(layout.sides[side]?.tabs),
             label: "Close This Side",
             run: () => {
               onCloseSide(tab.id);
@@ -768,7 +771,7 @@ export function GroupRow({
     }
     return onClose
       ? {
-          ask: askOf(layout.sides[0]?.tabs.length ?? 1),
+          ask: askOf(layout.sides[0]?.tabs),
           label: "Close Tab Group",
           run: () => {
             onClose(entry.group);

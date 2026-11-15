@@ -21,6 +21,7 @@ import {
   joinSides,
   groupLayoutOf,
   isBlankNewTab,
+  keptOnCloseCount,
   moveTabTo,
   moveToGroup,
   navigateScreen,
@@ -581,6 +582,24 @@ describe("closeGroupTab", () => {
     ["a folder", screenTab("f", "/files", DRAFT), false],
   ])("counts %s as blank: %s", (_case, tab, isBlank) => {
     expect(isBlankNewTab(tab)).toBe(isBlank);
+  });
+});
+
+describe("keptOnCloseCount", () => {
+  it("counts every tab but a blank new tab", () => {
+    expect(
+      keptOnCloseCount([
+        screenTab("n", NEW_TAB_HREF, DRAFT),
+        screenTab("s", "/settings", DRAFT),
+      ]),
+    ).toBe(1);
+    expect(
+      keptOnCloseCount([
+        screenTab("f", "/files", DRAFT),
+        screenTab("s", "/settings", DRAFT),
+        screenTab("n", NEW_TAB_HREF, DRAFT),
+      ]),
+    ).toBe(2);
   });
 });
 

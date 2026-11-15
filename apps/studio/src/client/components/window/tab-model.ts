@@ -610,6 +610,11 @@ export function isBlankNewTab(tab: WindowTab): boolean {
   );
 }
 
+/** How many of these tabs a close would put on the closed list: every one but a blank new tab, which has nothing to bring back. */
+export function keptOnCloseCount(tabs: readonly WindowTab[]): number {
+  return tabs.filter((tab) => !isBlankNewTab(tab)).length;
+}
+
 /**
  * The tab group's tab a closed entry of the window holds (`closeGroupTab`),
  * in a group; none for a closed tab of the window's own.

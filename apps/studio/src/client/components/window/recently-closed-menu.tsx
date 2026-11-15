@@ -6,8 +6,11 @@ import {
   ContextMenuShortcut,
 } from "@/client/components/ui/context-menu";
 import { formatAcceleratorText } from "@/client/lib/format-accelerator";
+import { focusHomeIn } from "@/client/lib/keyboard-home";
+import { keyboardSide } from "@/client/lib/keyboard-place";
 import { WINDOW_SHORTCUTS } from "@/shared/window-shortcuts";
 import { type ChatId } from "@instrument-org/workspace/client";
+import { useRef } from "react";
 
 import { useAppsBySlug } from "./apps-by-slug";
 import { TabMark } from "./row-half";
@@ -19,6 +22,8 @@ import { useRecentlyClosed } from "./window-space-menu";
  * offers them: each by its mark and name, a group by its first tab's with
  * how many tabs it brings back, and a pick brings that one back where it
  * stood. The first row names Reopen Closed Tab's key, which brings it back.
+ * After a pick the caret goes where the side with the keyboard puts it, as
+ * reopening from Activity does, and stays off the plus.
  */
 export function RecentlyClosedMenu({
   chatTitles,
@@ -30,8 +35,22 @@ export function RecentlyClosedMenu({
   const closed = useRecentlyClosed();
   const appsBySlug = useAppsBySlug();
   const titleOf = useTabTitle(chatTitles);
+  const hasPicked = useRef(false);
   return (
-    <ContextMenuContent className="max-w-80 min-w-48">
+    <ContextMenuContent
+      className="max-w-80 min-w-48"
+      onCloseAutoFocus={(event) => {
+        if (!hasPicked.current) {
+          return;
+        }
+        hasPicked.current = false;
+        event.preventDefault();
+        const side = keyboardSide();
+        if (side) {
+          focusHomeIn(side);
+        }
+      }}
+    >
       <ContextMenuLabel>Recently Closed</ContextMenuLabel>
       {closed.length === 0 ? (
         <ContextMenuItem disabled>No closed tabs</ContextMenuItem>
@@ -40,6 +59,7 @@ export function RecentlyClosedMenu({
           <ContextMenuItem
             key={entry.id}
             onClick={() => {
+              hasPicked.current = true;
               onReopen(entry.id);
             }}
           >

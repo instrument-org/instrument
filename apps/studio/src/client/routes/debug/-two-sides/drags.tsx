@@ -187,7 +187,7 @@ export function inStrip({
       ? held.key
       : held.kind === "files"
         ? held.ids[0]
-        : held.kind === "bookmark"
+        : held.kind === "link"
           ? held.id
           : undefined;
   return async (stage) => {
@@ -398,13 +398,15 @@ function barBookmark(store: Store): Held {
   return kept
     ? {
         id: kept.id,
-        kind: "bookmark",
+        isKept: true,
+        kind: "link",
         title: kept.title,
         url: kept.url,
       }
     : {
         id: "held-bookmark",
-        kind: "bookmark",
+        isKept: true,
+        kind: "link",
         title: "Zendesk pricing",
         url: "https://www.zendesk.com/pricing/",
       };

@@ -23,10 +23,14 @@ import {
 } from "./landing";
 import { type Drag, dragAtom, dragPoint, useDragFrame } from "./session";
 import { DROP_AREA_TONE, HELD_LOOK } from "./tone";
+import { outcomeOf } from "./letting-go";
 import { isPulledFree } from "./use-sidebar-drag";
 
 /** How far left of the pointer a chip's mark stands, and above it the chip's top, at most. */
 const CHIP_GRAB_PX = { x: 22, y: 16 };
+
+/** Where the line under the system's own picture of a drag stands from the pointer: below and right of it, as a grab. */
+const NATIVE_LINE_GRAB_PX = { x: -14, y: -34 };
 
 /** How wide a whole group's row is held, where no list says. */
 const ROW_WIDTH_PX = 240;
@@ -61,56 +65,14 @@ function middleOf(rect: Rect): Point {
 }
 
 /**
- * What letting go does, said under what is held: where it lands, or for a
- * bookmark that lands nowhere, that letting go removes it. Nothing where
- * what is held already stands where it would go (a strip, a room, the bar).
- */
-function lineOf(
-  { held, landing }: Pick<Drag, "held" | "landing">,
-  /** How many tabs a whole group held brings, said where it makes a side of them. */
-  tabCount = 1,
-) {
-  if (!landing) {
-    return held.kind === "bookmark" ? "Remove from bookmarks" : undefined;
-  }
-  switch (landing.kind) {
-    case "side": {
-      if (landing.split) {
-        const split = landing.side === 0 ? "Add left split" : "Add right split";
-        return tabCount > 1 ? `${split} · ${String(tabCount)} tabs` : split;
-      }
-      return held.kind === "tab" ? "Move to this side" : "Open on this side";
-    }
-    case "newTab": {
-      return "Open here";
-    }
-    case "sidebar": {
-      if (held.kind === "group") {
-        return undefined;
-      }
-      return landing.drop.kind === "into" ? "Add to this group" : undefined;
-    }
-    case "bookmarks": {
-      return held.kind === "bookmark" ? undefined : "Add to bookmarks";
-    }
-    case "window": {
-      return "New window";
-    }
-    case "strip": {
-      return undefined;
-    }
-  }
-}
-
-/**
  * What a drag draws over the window that nothing else draws: a lone side's
  * split targets, from its start, each leaning toward the pointer as it
  * nears and taking what is held short of touching it, giving way to the
  * side that slides in to show the split (`splitPreviewOf`); a side or a new
  * tab lit; and at the pointer, the whole drag, what is held raised with a
  * line under it saying what letting go does. Only a strip, which stands the
- * tab at the pointer among its tabs, goes without it, and nothing goes with
- * the pointer while the system's drag shows its own picture or main shows
+ * tab at the pointer among its tabs, goes without it; under the system's
+ * own picture of its drag goes the line alone, and nothing while main shows
  * the window's.
  */
 export function DragLayer({
@@ -280,11 +242,12 @@ function SplitTargetCard({
 }
 
 /**
- * What goes with the pointer: a tab, files or a bookmark as a raised chip;
+ * What goes with the pointer: a tab, files or a link as a raised chip;
  * a whole group as its row, keeping to the sidebar's list until it is
  * pulled free; and a whole group pulled free, where letting go makes a
  * window of its own, as a picture of that window. Under it, what letting
- * go does (`lineOf`). Near a split target, it is drawn a little toward it.
+ * go does (`outcomeOf`), alone under the system's own picture of a drag.
+ * Near a split target, it is drawn a little toward it.
  */
 function AtPointer({
   chatTitles,
@@ -306,9 +269,10 @@ function AtPointer({
   // What is held stays at the pointer the whole drag, whatever it is over,
   // so it is never lost: everywhere but a strip, which stands it among its
   // tabs at the pointer itself, a whole group as all its tabs. Off the
-  // window main shows its picture, and the system's drag shows its own.
-  const isShown =
-    !drag.isOff && drag.input !== "native" && landing?.kind !== "strip";
+  // window main shows its picture. The system's drag shows its own, so
+  // under it goes only the line.
+  const isShown = !drag.isOff && landing?.kind !== "strip";
+  const isNative = drag.input === "native";
   const isDocked = isGroup && landing?.kind === "sidebar";
   const isWindow = landing?.kind === "window";
   // Stood again every frame from the pointer, never by drawing again.
@@ -338,7 +302,9 @@ function AtPointer({
       return;
     }
     const draw = isWindow || isPulledToSplit() ? undefined : drawnToward();
-    const grab = isGroup
+    const grab = isNative
+      ? NATIVE_LINE_GRAB_PX
+      : isGroup
       ? { x: Math.min(drag.grab.x, 48), y: Math.min(drag.grab.y, 20) }
       : {
           x: Math.min(drag.grab.x, CHIP_GRAB_PX.x),
@@ -374,8 +340,9 @@ function AtPointer({
   if (!isShown) {
     return null;
   }
-  const line = lineOf(
-    drag,
+  const { line } = outcomeOf(
+    held,
+    landing,
     held.kind === "group"
       ? layoutOf(held.group).sides.reduce(
           (count, side) => count + side.tabs.length,
@@ -383,6 +350,13 @@ function AtPointer({
         )
       : 1,
   );
+  if (isNative) {
+    return line === undefined ? null : (
+      <Riding line={line} riderRef={ref}>
+        {null}
+      </Riding>
+    );
+  }
   if (held.kind === "group" && isGroup) {
     const entry = entries.find((each) => each.group === held.group);
     if (!entry) {
@@ -553,7 +527,7 @@ function WindowPicture({
   );
 }
 
-/** A held tab's (a whole group's tab up), files', bookmark's or link's mark and name, files saying how many more go with the first. */
+/** A held tab's (a whole group's tab up), files' or link's mark and name, files saying how many more go with the first. */
 function HeldChip({
   chatTitles,
   drag,
@@ -572,7 +546,7 @@ function HeldChip({
     const up = side?.tabs.find((tab) => tab.id === side.up);
     return up ? [up] : [];
   };
-  if (held.kind === "bookmark" || held.kind === "link") {
+  if (held.kind === "link") {
     return (
       <>
         <span className="grid size-4 shrink-0 place-items-center">

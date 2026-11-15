@@ -12,11 +12,11 @@ import { segmentsOf } from "../host-path";
 import { bareAddress } from "../omnibar-match";
 import { useWindowTabs } from "../window-tabs";
 import { type Point } from "./landing";
-import { dragAtom, pressToDrag, useDropTarget } from "./session";
+import { STANDING_ID } from "./press-link";
+import { dragAtom, useDropTarget } from "./session";
+import { outcomeOf } from "./letting-go";
 import { type DroppedFile, type Held } from "./types";
 
-/** The id what is held stands under among the bookmarks while it is held over them, where nothing kept stands for it. */
-const STANDING_ID = ":standing";
 
 /** A bookmark as the bar draws it in a drag: kept, or what is held standing where it would be kept. */
 export type ShownBookmark = Bookmark & { isStanding?: true };
@@ -68,17 +68,6 @@ export function keptAs(
       : [];
   };
   switch (held.kind) {
-    case "bookmark": {
-      return [
-        {
-          id: held.id,
-          isStanding: true,
-          order: 0,
-          title: held.title,
-          url: held.url,
-        },
-      ];
-    }
     case "tab": {
       return ofTab(allTabs.find((each) => each.id === held.id));
     }
@@ -97,6 +86,17 @@ export function keptAs(
       );
     }
     case "link": {
+      if (held.isKept) {
+        return [
+          {
+            id: held.id,
+            isStanding: true,
+            order: 0,
+            title: held.title,
+            url: held.url,
+          },
+        ];
+      }
       return [
         keptAt(
           {
@@ -233,51 +233,7 @@ export function useShownBookmarks(
   }
   // Opened somewhere it stays kept here; a bookmark let go where nothing
   // takes it goes from here.
-  return landing === undefined && held.kind === "bookmark"
+  return held.kind === "link" && outcomeOf(held, landing).does === "remove"
     ? bookmarks.filter((bookmark) => bookmark.id !== held.id)
     : bookmarks;
-}
-
-/**
- * A press on a bookmark, which past the start becomes the bookmark held, by
- * where in it the press was; a press that goes nowhere stays a click.
- */
-export function pressBookmark(
-  event: React.PointerEvent<HTMLElement>,
-  bookmark: Bookmark,
-) {
-  const element = event.currentTarget;
-  const pressedAt = { x: event.clientX, y: event.clientY };
-  pressToDrag(event, () => {
-    const bounds = element.getBoundingClientRect();
-    return {
-      grab: { x: pressedAt.x - bounds.left, y: pressedAt.y - bounds.top },
-      held: {
-        id: bookmark.id,
-        kind: "bookmark",
-        title: bookmark.title,
-        url: bookmark.url,
-      },
-    };
-  });
-}
-
-/**
- * A press on something the app lists by its address, a chat's row among
- * them, which past the start becomes a link held, for the bookmarks bar to
- * keep; a press that goes nowhere stays a click.
- */
-export function pressLink(
-  event: React.PointerEvent<HTMLElement>,
-  link: { title: string; url: string },
-) {
-  const element = event.currentTarget;
-  const pressedAt = { x: event.clientX, y: event.clientY };
-  pressToDrag(event, () => {
-    const bounds = element.getBoundingClientRect();
-    return {
-      grab: { x: pressedAt.x - bounds.left, y: pressedAt.y - bounds.top },
-      held: { id: STANDING_ID, kind: "link", ...link },
-    };
-  });
 }

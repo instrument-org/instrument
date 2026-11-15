@@ -1,7 +1,5 @@
 import { type WindowTab } from "@/client/atoms/window";
 import { type ChatId } from "@instrument-org/workspace/client";
-import { targetOfAddress } from "@/client/bookmarks/address";
-import { hrefOfTarget } from "@/client/bookmarks/open-address";
 import { bookmarksAtom, applyBookmarkOpsAtom } from "@/client/bookmarks/store";
 import {
   endOwnFileDrag,
@@ -59,7 +57,13 @@ import {
   useWindowTabsChange,
   windowTabsAtom,
 } from "../window-tabs";
-import { droppedFileHref, filesOfDrop } from "./held-tabs";
+import {
+  droppedFileHref,
+  filesOfDrop,
+  type Opens,
+  opensOf,
+} from "./held-tabs";
+import { outcomeOf } from "./letting-go";
 import { keptAs } from "./use-bookmarks-drag";
 import { tabsOfHeldGroup } from "./split-preview";
 import { type Point } from "./landing";
@@ -139,12 +143,11 @@ export function useDragSystem({
 }
 
 /**
- * What letting go does where the window's own moves land it: a tab moves
- * among a side's tabs, onto a side's page (as its last tab, or a side of
- * its own), into a sidebar row's group or a group of its own in a room
- * between rows, or onto the bookmarks, where it is kept; files and a
- * bookmark open as tabs at the same places; a whole group takes its place
- * in the list. A bookmark let go where nothing takes it is removed, with
+ * What letting go does where the window's own moves land it, as
+ * `outcomeOf` says: a tab or a whole group moves there; a link or files
+ * open there as the tabs their addresses name, through the same openers as
+ * every other tab (`opensOf`); anything let go on the bookmarks is kept
+ * there; and a bookmark let go where nothing takes it is removed, with
  * Undo.
  */
 function useLander(
@@ -158,28 +161,68 @@ function useLander(
   const store = useStore();
   const removeWithUndo = useRemoveBookmarkWithUndo();
 
-  /** Opens tabs, by what they show, where something held landed; the first up. */
-  const openAt = (
-    opens: readonly ((placing: {
+  /** Opens a tab at a place, under an id when it has one; a new tab named turns into it. */
+  const openOne = (
+    opens: Opens,
+    placing: {
       after?: string;
       group: string;
+      id?: string | undefined;
       side?: 0 | 1;
-    }) => string | undefined)[],
-    landing: Landing,
-  ) => {
-    const openRest = (group: string, after: string, from: number) => {
-      let previous = after;
-      for (const open of opens.slice(from)) {
-        previous = open({ after: previous, group }) ?? previous;
+    },
+    replacing?: string,
+  ): string | undefined => {
+    const { id, ...place } = placing;
+    if (replacing !== undefined) {
+      const tab = store
+        .get(windowTabsAtom)
+        .tabs.find((each) => each.id === replacing);
+      if (opens.kind === "screen") {
+        windowTabs.visitHref(replacing, opens.href);
+        return replacing;
       }
-    };
-    const [first] = opens;
+      return tab ? browser?.open(opens.url, { ...place, replacing: tab }) : undefined;
+    }
+    return opens.kind === "page"
+      ? browser?.open(opens.url, place)
+      : windowTabs.openScreen(opens.href, {
+          ...place,
+          ...(id === undefined ? {} : { id }),
+        });
+  };
+
+  /** Opens what a link or files name as tabs where they landed, the first up and the rest right after it. */
+  const openAt = (held: Held, landing: Landing) => {
+    // Files open under the ids their stand-ins were drawn under; a link's
+    // id is a bookmark's, or only what it stands under while held.
+    const [first, ...rest] = opensOf(held).map(({ id, opens }) => ({
+      id: held.kind === "files" ? id : undefined,
+      opens,
+    }));
     if (!first) {
       return;
     }
+    const openRest = (group: string, after: string) => {
+      let previous = after;
+      for (const { id, opens } of rest) {
+        previous = openOne(opens, { after: previous, group, id }) ?? previous;
+      }
+    };
+    /** The first in a new group, made here or for a window of its own, the rest after it. */
+    const fill = (group: string) => {
+      const id = openOne(first.opens, { group, id: first.id });
+      if (id !== undefined) {
+        windowTabs.select(id);
+        openRest(group, id);
+      }
+    };
     switch (landing.kind) {
       case "strip": {
-        const id = first({ group: landing.group, side: landing.side });
+        const id = openOne(first.opens, {
+          group: landing.group,
+          id: first.id,
+          side: landing.side,
+        });
         if (id === undefined) {
           return;
         }
@@ -190,7 +233,7 @@ function useLander(
           select: true,
           side: landing.side,
         });
-        openRest(landing.group, id, 1);
+        openRest(landing.group, id);
         return;
       }
       case "side": {
@@ -201,7 +244,7 @@ function useLander(
           store.get(windowTabsAtom),
           landing.group,
         ).sides.map((side) => side.up);
-        const id = first({ group: landing.group });
+        const id = openOne(first.opens, { group: landing.group, id: first.id });
         if (id === undefined) {
           return;
         }
@@ -212,7 +255,7 @@ function useLander(
           side: landing.side,
           split: landing.split,
         });
-        openRest(landing.group, id, 1);
+        openRest(landing.group, id);
         const layout = groupLayoutOf(store.get(windowTabsAtom), landing.group);
         const landedOn = sideIndexOf(layout, id);
         for (const up of upBefore) {
@@ -223,20 +266,110 @@ function useLander(
         }
         return;
       }
+      case "newTab": {
+        const id = openOne(first.opens, { group: landing.group }, landing.tab);
+        if (id !== undefined) {
+          windowTabs.select(id);
+          openRest(landing.group, id);
+        }
+        return;
+      }
       case "sidebar": {
         const { drop } = landing;
-        const fill = (group: string) => {
-          const id = first({ group });
-          if (id !== undefined) {
-            windowTabs.select(id);
-            openRest(group, id, 1);
-          }
-        };
         if (drop.kind === "into") {
           fill(drop.group);
           return;
         }
         fillRoom(groups.make({ fill, place: drop.place }));
+        return;
+      }
+      case "window": {
+        groups.moveToNewWindow(
+          groups.make({ fill, isShownHere: false }),
+          openGroups,
+        );
+        return;
+      }
+      case "bookmarks": {
+        return;
+      }
+    }
+  };
+
+  /** A tab, or a whole group's tabs, moved where they landed. */
+  const moveTo = (
+    held: Extract<Held, { kind: "group" | "tab" }>,
+    landing: Landing,
+  ) => {
+    if (held.kind === "tab") {
+      switch (landing.kind) {
+        case "strip": {
+          windowTabs.moveTo({
+            group: landing.group,
+            id: held.id,
+            index: landing.index,
+            select: true,
+            side: landing.side,
+          });
+          return;
+        }
+        case "side": {
+          windowTabs.moveTo({
+            group: landing.group,
+            id: held.id,
+            select: true,
+            side: landing.side,
+            split: landing.split,
+          });
+          return;
+        }
+        case "sidebar": {
+          const { drop } = landing;
+          // The window follows the tab, which stays the one up, as a
+          // browser's tab dragged into another window does.
+          if (drop.kind === "between") {
+            fillRoom(groups.make({ moving: held.id, place: drop.place }));
+          } else {
+            groups.moveTab(held.id, drop.group);
+            groups.show(drop.group);
+          }
+          return;
+        }
+        default: {
+          return;
+        }
+      }
+    }
+    switch (landing.kind) {
+      case "sidebar": {
+        if (landing.drop.kind === "between") {
+          groups.place(held.group, landing.drop.place);
+          fillRoom(held.group);
+        }
+        return;
+      }
+      // In a strip a group's tabs stand at the gap, in their order, the
+      // front one up; at a split target they make a side of their own. The
+      // group closes once it has none.
+      case "strip":
+      case "side": {
+        const { front, ids } = tabsOfHeldGroup(held, store.get(windowTabsAtom));
+        ids.forEach((id, index) => {
+          groups.moveTab(
+            id,
+            landing.group,
+            landing.kind === "strip"
+              ? { index: landing.index + index, side: landing.side, split: false }
+              : { side: landing.side, split: landing.split && index === 0 },
+          );
+        });
+        if (front !== undefined) {
+          windowTabs.select(front);
+        }
+        return;
+      }
+      case "window": {
+        groups.moveToNewWindow(held.group, openGroups);
         return;
       }
       default: {
@@ -245,172 +378,50 @@ function useLander(
     }
   };
 
-  /** What a tab, files or a bookmark open as, one opener each. */
-  const openersOf = (held: Held) => {
-    if (held.kind === "files") {
-      return (held.files ?? []).map(
-        (file, index) =>
-          (placing: { after?: string; group: string; side?: 0 | 1 }) =>
-            windowTabs.openScreen(droppedFileHref(file), {
-              ...placing,
-              ...(held.ids[index] === undefined ? {} : { id: held.ids[index] }),
-            }),
-      );
-    }
-    if (held.kind === "bookmark") {
-      const target = targetOfAddress(held.url);
-      if (!target) {
-        return [];
-      }
-      return [
-        (placing: { after?: string; group: string; side?: 0 | 1 }) =>
-          target.kind === "page"
-            ? browser?.open(target.url, placing)
-            : windowTabs.openScreen(hrefOfTarget(target), placing),
-      ];
-    }
-    return [];
-  };
-
   return (held: Held, landing: Landing | undefined) => {
-    if (landing?.kind === "bookmarks") {
-      keep(
-        keptAs(held, {
-          allTabs: windowTabs.allTabs,
-          bookmarks: store.get(bookmarksAtom),
-          titleOf,
-          upOf: (group, half) => {
-            const layout = windowTabs.layoutOf(group);
-            const side = layout.sides[half ?? layout.focused];
-            return side?.tabs.find((tab) => tab.id === side.up);
-          },
-        }),
-        landing,
-      );
-      return;
-    }
-    if (!landing) {
-      const dragged =
-        held.kind === "bookmark"
-          ? store.get(bookmarksAtom).find((bookmark) => bookmark.id === held.id)
-          : undefined;
-      if (dragged) {
-        removeWithUndo(dragged);
+    const outcome = outcomeOf(held, landing);
+    switch (outcome.does) {
+      case "keep": {
+        if (landing?.kind !== "bookmarks") {
+          return;
+        }
+        keep(
+          keptAs(held, {
+            allTabs: windowTabs.allTabs,
+            bookmarks: store.get(bookmarksAtom),
+            titleOf,
+            upOf: (group, half) => {
+              const layout = windowTabs.layoutOf(group);
+              const side = layout.sides[half ?? layout.focused];
+              return side?.tabs.find((tab) => tab.id === side.up);
+            },
+          }),
+          landing,
+        );
+        return;
       }
-      return;
-    }
-    switch (held.kind) {
-      case "tab": {
-        switch (landing.kind) {
-          case "strip": {
-            windowTabs.moveTo({
-              group: landing.group,
-              id: held.id,
-              index: landing.index,
-              select: true,
-              side: landing.side,
-            });
-            return;
-          }
-          case "side": {
-            windowTabs.moveTo({
-              group: landing.group,
-              id: held.id,
-              select: true,
-              side: landing.side,
-              split: landing.split,
-            });
-            return;
-          }
-          case "sidebar": {
-            const { drop } = landing;
-            // The window follows the tab, which stays the one up, as a
-            // browser's tab dragged into another window does.
-            if (drop.kind === "between") {
-              fillRoom(groups.make({ moving: held.id, place: drop.place }));
-            } else {
-              groups.moveTab(held.id, drop.group);
-              groups.show(drop.group);
-            }
-            return;
-          }
-          default: {
-            return;
-          }
-        }
-      }
-      case "group": {
-        if (landing.kind === "sidebar" && landing.drop.kind === "between") {
-          groups.place(held.group, landing.drop.place);
-          fillRoom(held.group);
-          return;
-        }
-        // In a strip a group's tabs stand at the gap, in their order, the
-        // front one up, and it closes once it has none.
-        if (landing.kind === "strip") {
-          const { front, ids } = tabsOfHeldGroup(
-            held,
-            store.get(windowTabsAtom),
-          );
-          ids.forEach((id, index) => {
-            groups.moveTab(id, landing.group, {
-              index: landing.index + index,
-              side: landing.side,
-              split: false,
-            });
-          });
-          if (front !== undefined) {
-            windowTabs.select(front);
-          }
-          return;
-        }
-        // At a split target a group makes a side of all its tabs, in
-        // their order, the front one up, and closes once it has none.
-        if (landing.kind === "side") {
-          const { front, ids } = tabsOfHeldGroup(
-            held,
-            store.get(windowTabsAtom),
-          );
-          ids.forEach((id, index) => {
-            groups.moveTab(id, landing.group, {
-              side: landing.side,
-              split: landing.split && index === 0,
-            });
-          });
-          if (front !== undefined) {
-            windowTabs.select(front);
-          }
-          return;
-        }
-        if (landing.kind === "window") {
-          groups.moveToNewWindow(held.group, openGroups);
+      case "remove": {
+        const dragged = store
+          .get(bookmarksAtom)
+          .find((bookmark) => held.kind === "link" && bookmark.id === held.id);
+        if (dragged) {
+          removeWithUndo(dragged);
         }
         return;
       }
-      case "files": {
-        if (landing.kind === "newTab") {
-          const [first, ...rest] = openersOf(held);
-          const [file] = held.files ?? [];
-          if (!first || !file) {
-            return;
-          }
-          windowTabs.visitHref(landing.tab, droppedFileHref(file));
-          windowTabs.select(landing.tab);
-          let previous = landing.tab;
-          for (const open of rest) {
-            previous =
-              open({ after: previous, group: landing.group }) ?? previous;
-          }
-          return;
+      case "move": {
+        if (landing && (held.kind === "tab" || held.kind === "group")) {
+          moveTo(held, landing);
         }
-        openAt(openersOf(held), landing);
         return;
       }
-      case "bookmark": {
-        openAt(openersOf(held), landing);
+      case "open": {
+        if (landing) {
+          openAt(held, landing);
+        }
         return;
       }
-      case "link": {
+      case "nothing": {
         return;
       }
     }

@@ -198,6 +198,9 @@ function publish(drag: Drag | undefined) {
   store.set(dragAtom, drag);
 }
 
+/** Letting go in a window of its own. */
+const WINDOW_LANDING: Landing = { kind: "window" };
+
 /** Every target under a point, the innermost first. */
 function targetsAt(point: Point) {
   return [...targets]
@@ -211,11 +214,7 @@ function targetsAt(point: Point) {
     .map(({ target }) => target);
 }
 
-/**
- * Where what is held lands at a point; "native" where only the system's
- * drag reaches. A link lands only on the bookmarks, and anywhere else goes
- * on to whatever is under it, as a link dragged in a browser does.
- */
+/** Where what is held lands at a point; "native" where only the system's drag reaches. */
 function measure(
   point: Point,
   drag: Pick<Drag, "grab" | "held" | "input">,
@@ -225,7 +224,7 @@ function measure(
     if (found === "native") {
       return { native: true };
     }
-    if (found && (drag.held.kind !== "link" || found.kind === "bookmarks")) {
+    if (found) {
       return { landing: found };
     }
   }
@@ -240,15 +239,24 @@ function hintsOf(drag: Pick<Drag, "grab" | "held" | "input">) {
 /** Measures the session where the pointer is now, and shows what it found. */
 function evaluate(current: Session) {
   const { drag } = current;
+  const isPast =
+    drag.input === "pointer" &&
+    isOffWindow(dragPoint, {
+      height: window.innerHeight,
+      width: window.innerWidth,
+    });
+  // Past the window main carries a tab or a group, and the window draws
+  // nothing of it; a link stays drawn at the window's edge, and letting go
+  // there opens it in a window of its own.
   const isOff =
     current.carry?.followsPointer === true ||
-    (drag.input === "pointer" &&
-      isOffWindow(dragPoint, {
-        height: window.innerHeight,
-        width: window.innerWidth,
-      }));
-  const { landing } = isOff ? {} : measure(dragPoint, drag);
-  const hints = isOff ? [] : hintsOf(drag);
+    (isPast && current.carry !== undefined);
+  const { landing } = isOff
+    ? {}
+    : isPast
+      ? { landing: drag.held.kind === "link" ? WINDOW_LANDING : undefined }
+      : measure(dragPoint, drag);
+  const hints = isOff || isPast ? [] : hintsOf(drag);
   const changed = JSON.stringify(drag.landing) !== JSON.stringify(landing);
   current.drag = { ...drag, hints, isOff, landing };
   if (changed) {

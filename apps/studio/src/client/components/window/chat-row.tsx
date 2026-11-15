@@ -42,7 +42,7 @@ import { chatMenuGroups } from "./chat-actions";
 import { type RowDensity } from "./chat-list-view";
 import { ChatMarkDot } from "./chat-mark";
 import { ChatTitleField } from "./chat-title";
-import { pressLink } from "./drag/use-bookmarks-drag";
+import { pressLink } from "./drag/press-link";
 import {
   activityLabel,
   type Chat,

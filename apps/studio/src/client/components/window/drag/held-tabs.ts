@@ -21,52 +21,72 @@ export function droppedFileHref({ hostPath, isFolder }: DroppedFile) {
   return isFolder ? folderHref(hostPath) : fileHref(hostPath);
 }
 
+/** What a tab opens as: a site's page, or a screen of the app's own. */
+export type Opens = { kind: "page"; url: string } | { href: string; kind: "screen" };
+
 /**
- * The tabs what is held would be, drawn as they would stand while it is
- * held over a strip or a room: a tab as itself, files one each under the
- * ids kept for the drag, a bookmark as the tab it opens. A whole group is
- * its row, and a link, which only the bookmarks take, is no tab.
+ * What an address opens as: a site's page, or a screen of the app's own (a
+ * file or folder in Files, a chat, a built-in page). Nothing for an address
+ * that names nothing the app opens, or none yet (the system's drag says a
+ * link's only at the release).
  */
-export function heldTabsOf(
-  held: Held,
-  allTabs: readonly WindowTab[],
-): WindowTab[] {
+function openedAs(url: string): Opens | undefined {
+  const target = url === "" ? undefined : targetOfAddress(url);
+  if (!target) {
+    return undefined;
+  }
+  return target.kind === "page"
+    ? target
+    : { href: hrefOfTarget(target), kind: "screen" };
+}
+
+/** The tabs what is held opens as, each under the id it is drawn under while held: a link's address, and each file or folder in Files. */
+export function opensOf(held: Held): { id: string; opens: Opens }[] {
   switch (held.kind) {
-    case "tab": {
-      const tab = allTabs.find((each) => each.id === held.id);
-      return tab ? [tab] : [];
-    }
     case "files": {
       return (held.files ?? []).flatMap((file, index) => {
         const id = held.ids[index];
         return id === undefined
           ? []
-          : [{ href: droppedFileHref(file), id, kind: "screen" as const }];
+          : [{ id, opens: { href: droppedFileHref(file), kind: "screen" } }];
       });
     }
-    case "bookmark": {
-      const target = targetOfAddress(held.url);
-      if (!target) {
-        return [];
-      }
-      return [
-        target.kind === "page"
-          ? {
-              id: held.id,
-              kind: "page",
-              openedAt: 0,
-              openedUrl: target.url,
-              title: held.title,
-              url: target.url,
-            }
-          : { href: hrefOfTarget(target), id: held.id, kind: "screen" },
-      ];
+    case "link": {
+      const opens = openedAs(held.url);
+      return opens ? [{ id: held.id, opens }] : [];
     }
     case "group":
-    case "link": {
+    case "tab": {
       return [];
     }
   }
+}
+
+/**
+ * The tabs what is held would be, drawn as they would stand while it is
+ * held over a strip or a room: a tab as itself, files and a link as the
+ * tabs their addresses open as. A whole group is its row.
+ */
+export function heldTabsOf(
+  held: Held,
+  allTabs: readonly WindowTab[],
+): WindowTab[] {
+  if (held.kind === "tab") {
+    const tab = allTabs.find((each) => each.id === held.id);
+    return tab ? [tab] : [];
+  }
+  return opensOf(held).map(({ id, opens }): WindowTab =>
+    opens.kind === "page"
+      ? {
+          id,
+          kind: "page",
+          openedAt: 0,
+          openedUrl: opens.url,
+          title: held.kind === "link" ? held.title : "",
+          url: opens.url,
+        }
+      : { href: opens.href, id, kind: "screen" },
+  );
 }
 
 /** The strip keys what is held is drawn under, which a measure of a strip leaves out. */
@@ -78,7 +98,6 @@ export function heldKeysOf(held: Held): string[] {
     case "files": {
       return [...held.ids];
     }
-    case "bookmark":
     case "link": {
       return [held.id];
     }

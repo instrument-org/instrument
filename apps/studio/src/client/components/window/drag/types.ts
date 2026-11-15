@@ -10,8 +10,11 @@ export interface DroppedFile {
 /**
  * What a drag holds: a group's tab, a whole group by its sidebar row, files
  * (the system's drag, from the Finder or from this app's own Files and file
- * cards), a bookmark, or a link: an address not kept yet, out of a web page
- * or a list of the app's own, which only the bookmarks take.
+ * cards), or a link. Everything else that can be held is a link, by the
+ * address it names (`targetOfAddress`): a site's link in a page or a reply,
+ * a chip naming a chat, a task, a file or a page, a row of the Chats list,
+ * and a bookmark, a link the bar keeps. A link opens as the tab its address
+ * names wherever it lands.
  */
 export type Held =
   | {
@@ -41,15 +44,10 @@ export type Held =
       kind: "files";
     }
   | {
+      /** What it stands under while held: in a strip, a room, or among the bookmarks; a bookmark's own id. */
       id: string;
-      kind: "bookmark";
-      title: string;
-      /** The address it keeps, a site's or the app's own. */
-      url: string;
-    }
-  | {
-      /** What it stands under among the bookmarks while it is held over them. */
-      id: string;
+      /** Whether it is a bookmark of the bar, which moves on the bar and goes from it where nothing takes it. */
+      isKept?: true;
       kind: "link";
       /** Its name, empty where the system's drag says it only at the release. */
       title: string;
@@ -61,8 +59,9 @@ export type Held =
  * What letting go would do: stand among a side's tabs at a place; join a
  * side as its last tab, or make one end of a lone side a side of its own; go
  * into a sidebar row's group, or be a group of its own in a room between
- * rows; turn a new tab into it; stand among the bookmarks on the bar; or,
- * for a whole group pulled free of the sidebar, go to a window of its own.
+ * rows; turn a new tab into it; stand among the bookmarks on the bar; or go
+ * to a window of its own: a whole group pulled free of the sidebar, or a
+ * link let go past the window's edge.
  */
 export type Landing =
   | { group: string; index: number; kind: "strip"; side: 0 | 1 }
@@ -71,3 +70,8 @@ export type Landing =
   | { group: string; kind: "newTab"; lit: Rect; tab: string }
   | { index: number; kind: "bookmarks" }
   | { kind: "window" };
+
+/** A link that is a bookmark of the bar. */
+export function isBookmark(held: Held): boolean {
+  return held.kind === "link" && held.isKept === true;
+}

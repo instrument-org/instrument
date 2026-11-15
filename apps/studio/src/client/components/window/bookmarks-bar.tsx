@@ -23,11 +23,8 @@ import { useLayoutEffect, useRef, useState } from "react";
 import { AddressMark } from "./app-chip";
 import { BookmarkContextMenu, bookmarkClicks } from "./bookmark-menu";
 import { DROP_TONE } from "./drag/tone";
-import {
-  pressBookmark,
-  useBookmarksTarget,
-  useShownBookmarks,
-} from "./drag/use-bookmarks-drag";
+import { pressLink } from "./drag/press-link";
+import { useBookmarksTarget, useShownBookmarks } from "./drag/use-bookmarks-drag";
 import { type Place, useFilesPlaces } from "./files-places";
 import { useShell } from "./shell-context";
 import { useTabTitle } from "./tab-title";
@@ -188,7 +185,11 @@ export function BookmarksBar({
                   {...bookmarkClicks(bookmark, open)}
                   data-bookmark-id={bookmark.id}
                   onPointerDown={(event) => {
-                    pressBookmark(event, bookmark);
+                    pressLink(event, {
+                      bookmark: bookmark.id,
+                      title: bookmark.title,
+                      url: bookmark.url,
+                    });
                   }}
                   title={`${name}\n${bookmark.url}`}
                   type="button"

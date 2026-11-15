@@ -229,8 +229,9 @@ function attachesToNewTab(page: Element | null | undefined, point: Point) {
  * open as tabs the same way, except where the page takes them itself: a
  * site, and away from a lone side's ends, a chat's composer or a folder in
  * Files (`takesFilesItself`); a new tab up nobody has written in turns into
- * them, except over its composer, which attaches them (`attachesToNewTab`).
- * The split targets show from the start of a drag that could make one a
+ * them, except over its composer, which attaches them (`attachesToNewTab`),
+ * and into a link away from a lone side's ends. A link opens as its tab
+ * wherever a tab would land. The split targets show from the start of a drag that could make one a
  * side. A whole group pulled out of the sidebar makes a side of all its
  * tabs at a split target, and anywhere else on the pages goes to a window
  * of its own, where the window has another group to show.
@@ -348,6 +349,17 @@ export function useSidePagesTarget({
               takesFilesItself(pageOf(at), point)
             ) {
               return "native";
+            }
+            // A new tab nobody has written in turns into a link let go on it.
+            const page = sides[at];
+            if (
+              held.kind === "link" &&
+              zone?.kind !== "split" &&
+              page &&
+              up &&
+              isNewTab(up)
+            ) {
+              return { group, kind: "newTab", lit: page, tab: up.id };
             }
             return zone
               ? {

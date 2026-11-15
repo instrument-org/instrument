@@ -115,17 +115,28 @@ export function closeGroupTab(
 
 /**
  * A whole tab group closed, on the window's closed list beside its own
- * tabs: at the group's address, holding every tab it had, so a reopen
- * brings the group back as it was.
+ * tabs: at the group's address, holding every tab it had and which of them
+ * were up (`ups`, by their places among them), so a reopen brings the
+ * group back as it was.
  */
 export function closeTabGroup(
   model: TabsModel,
-  { id, pathname, tabs }: { id: TabId; pathname: string; tabs: WindowTab[] },
+  {
+    id,
+    pathname,
+    tabs,
+    ups,
+  }: {
+    id: TabId;
+    pathname: string;
+    tabs: WindowTab[];
+    ups?: { active: number; beside?: number };
+  },
 ): TabsModel {
   return {
     ...model,
     recentlyClosed: [
-      { closedAt: Date.now(), groupTabs: tabs, id, pathname },
+      { closedAt: Date.now(), groupTabs: tabs, id, pathname, ups },
       ...model.recentlyClosed,
     ].slice(0, MAX_RECENTLY_CLOSED),
   };
@@ -133,18 +144,21 @@ export function closeTabGroup(
 
 /**
  * One side of a tab group closed, on the window's closed list: at the
- * group's address, holding the side's tabs, which side it was, and which of
- * its tabs was up, so a reopen brings the side back as it was.
+ * group's address, holding the side's tabs, which side it was, which of
+ * its tabs was up, and whether it had the keyboard, so a reopen brings the
+ * side back as it was.
  */
 export function closeGroupSide(
   model: TabsModel,
   {
+    focused,
     id,
     pathname,
     side,
     tabs,
     up,
   }: {
+    focused: boolean;
     id: TabId;
     pathname: string;
     side: 0 | 1;
@@ -155,7 +169,15 @@ export function closeGroupSide(
   return {
     ...model,
     recentlyClosed: [
-      { closedAt: Date.now(), groupTabs: tabs, id, index: up, pathname, side },
+      {
+        closedAt: Date.now(),
+        focused,
+        groupTabs: tabs,
+        id,
+        index: up,
+        pathname,
+        side,
+      },
       ...model.recentlyClosed,
     ].slice(0, MAX_RECENTLY_CLOSED),
   };

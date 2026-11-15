@@ -132,6 +132,7 @@ import {
   isNewChatTab,
   selectedTabIn,
   sideIndexOf,
+  upsAmong,
 } from "./tab-model";
 import { useTabTitle } from "./tab-title";
 import { toastWithUndo } from "./undo-offers";
@@ -546,6 +547,7 @@ function WindowShell({
             id,
             pathname: groupHref(group),
             tabs: kept,
+            ups: upsAmong(windowTabs.layoutOf(group), kept),
           }),
         );
         closing.entries.push(id);
@@ -892,6 +894,7 @@ function WindowShell({
       const entry = freshTabId();
       store.set(appTabsAtom, (current) =>
         closeGroupSide(current, {
+          focused: layout.focused === side,
           id: entry,
           pathname: groupHref(group),
           side,
@@ -968,7 +971,8 @@ function WindowShell({
       groups.show(tab.group);
       return;
     }
-    // A tab alone stands on the one side its new group has.
+    // A tab alone, or a side whose group has closed, stands on the one side
+    // its new group has.
     const reopened = side
       ? side.tabs.map((each) => ({ ...each, side: undefined }))
       : (closedTabGroupOf(entry) ?? (tab ? [{ ...tab, side: undefined }] : []));
@@ -977,6 +981,7 @@ function WindowShell({
         windowTabs.restoreGroup(
           group,
           reopened.map((each) => ({ ...each, group, id: newScreenId() })),
+          side ? { active: side.up } : entry.ups,
         );
       },
     });

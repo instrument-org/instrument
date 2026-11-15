@@ -354,7 +354,7 @@ export function useWindowTabs() {
     closeSide: (group: string, side: 0 | 1) => {
       apply((current) => closeSide(current, group, side));
     },
-    /** A closed side back as the side it was, up with the keyboard (`reopenSide`). */
+    /** A closed side back as the side it was, its tab up, the keyboard where it was (`reopenSide`). */
     reopenSide: (placing: Parameters<typeof reopenSide>[1]) => {
       apply((current) => reopenSide(current, placing));
     },
@@ -662,8 +662,12 @@ export function useWindowTabs() {
     replace: (id: string, next: WindowTab) => {
       apply((current) => replaceTab(current, id, next));
     },
-    restoreGroup: (group: string, tabs: WindowTab[]) => {
-      apply((current) => restoreGroup(current, group, tabs));
+    restoreGroup: (
+      group: string,
+      tabs: WindowTab[],
+      ups?: Parameters<typeof restoreGroup>[3],
+    ) => {
+      apply((current) => restoreGroup(current, group, tabs, ups));
     },
     /** A closed tab back where it stood in its group, up in it. */
     reopen: (tab: WindowTab, index: number) => {

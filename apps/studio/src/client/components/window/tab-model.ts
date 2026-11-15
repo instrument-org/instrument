@@ -637,19 +637,57 @@ export function closedTabGroupOf({
 
 /**
  * One side of a group a closed entry holds (`closeGroupSide`): its group,
- * which side it was, its tabs and the place among them of the one it had
- * up; none for any other entry.
+ * which side it was, its tabs, the place among them of the one it had up,
+ * and whether it had the keyboard; none for any other entry.
  */
 export function closedSideOf(entry: {
+  focused?: boolean;
   groupTabs?: unknown;
   index?: number;
   side?: 0 | 1;
-}): undefined | { group: string; side: 0 | 1; tabs: WindowTab[]; up: number } {
+}):
+  | undefined
+  | {
+      focused: boolean;
+      group: string;
+      side: 0 | 1;
+      tabs: WindowTab[];
+      up: number;
+    } {
   const tabs = closedTabGroupOf(entry);
   const [first] = tabs ?? [];
   return entry.side === undefined || !tabs || !first
     ? undefined
-    : { group: first.group, side: entry.side, tabs, up: entry.index ?? 0 };
+    : {
+        focused: entry.focused ?? true,
+        group: first.group,
+        side: entry.side,
+        tabs,
+        up: entry.index ?? 0,
+      };
+}
+
+/**
+ * Where among a closing group's kept tabs the ones it has up stand: the one
+ * on the side with the keyboard, and the one on the other side, for a reopen
+ * to put them up again. None when the tab with the keyboard is not kept.
+ */
+export function upsAmong(
+  layout: GroupLayout,
+  kept: readonly WindowTab[],
+): undefined | { active: number; beside?: number } {
+  const placeOf = (side: number) => {
+    const id = layout.sides[side]?.up;
+    const at = kept.findIndex((tab) => tab.id === id);
+    return at === -1 ? undefined : at;
+  };
+  const active = placeOf(layout.focused);
+  const beside = placeOf(layout.focused === 0 ? 1 : 0);
+  return active === undefined
+    ? undefined
+    : beside === undefined
+      ? { active }
+      : { active, beside };
 }
 
 /** Whether a kept value is a tab of a group, as `closeGroupTab` alone writes one. */
@@ -1288,20 +1326,33 @@ export function pageNavigated(
 }
 
 /**
- * A site's tabs put back after its window tab was reopened: they take the
- * group's place, the first of them up.
+ * A group's tabs put back, as a site's after its window tab was reopened or
+ * a closed group's: they take the group's place, with the tabs `ups` names
+ * by their places among them up as they were (the keyboard on `active`'s
+ * side), else the first of them up.
  */
 export function restoreGroup(
   state: WindowTabs,
   group: string,
   tabs: WindowTab[],
+  ups?: { active: number; beside?: number },
 ): WindowTabs {
   const restored = {
     ...state,
     tabs: [...state.tabs.filter((tab) => tab.group !== group), ...tabs],
   };
-  const first = tabs[0];
-  return first ? pointAt(restored, group, first.id) : restored;
+  const active = tabs[ups?.active ?? 0] ?? tabs[0];
+  if (!active) {
+    return restored;
+  }
+  const pointed = pointAt(restored, group, active.id);
+  const beside = ups?.beside === undefined ? undefined : tabs[ups.beside];
+  return beside
+    ? {
+        ...pointed,
+        besideByGroup: { ...state.besideByGroup, [group]: beside.id },
+      }
+    : pointed;
 }
 
 /**
@@ -1352,19 +1403,32 @@ export function closeSide(
 /**
  * A closed side back in its group as the side it was, its tabs in their
  * order, the one it had up (`up`, by its place among them) up there with
- * the keyboard. A left side coming back moves a group of one side over to
- * the right; with two sides there already, the tabs join the side they had.
+ * the keyboard when it had it on closing (`focused`), else with the keyboard
+ * left on the other side. A left side coming back moves a group of one side
+ * over to the right; with two sides there already, the tabs join the side
+ * they had.
  */
 export function reopenSide(
   state: WindowTabs,
   {
+    focused = true,
     group,
     side,
     tabs,
     up = 0,
-  }: { group: string; side: 0 | 1; tabs: WindowTab[]; up?: number },
+  }: {
+    focused?: boolean;
+    group: string;
+    side: 0 | 1;
+    tabs: WindowTab[];
+    up?: number;
+  },
 ): WindowTabs {
-  const isOneSide = groupLayoutOf(state, group).sides.length < 2;
+  const layout = groupLayoutOf(state, group);
+  // The tab up with the keyboard now, which keeps it when the side coming
+  // back did not have it.
+  const stayed = layout.sides[layout.focused]?.up;
+  const isOneSide = layout.sides.length < 2;
   const moved =
     isOneSide && side === 0
       ? state.tabs.map((tab) =>
@@ -1384,7 +1448,10 @@ export function reopenSide(
   };
   const shown = placed[up] ?? placed[0];
   const normal = normalizeSides(next, group);
-  return shown ? selectTab(normal, shown.id) : normal;
+  const raised = shown ? selectTab(normal, shown.id) : normal;
+  return !focused && stayed !== undefined && stayed !== shown?.id
+    ? selectTab(raised, stayed)
+    : raised;
 }
 
 /** Every tab id the window holds, past and future visits included, so nothing is opened twice. */

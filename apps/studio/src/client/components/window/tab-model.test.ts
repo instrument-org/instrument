@@ -38,6 +38,7 @@ import {
   reopenTab,
   reorderGroup,
   replaceTab,
+  restoreGroup,
   screenMoved,
   selectTab,
   stepTrail,
@@ -47,6 +48,7 @@ import {
   tabToScreen,
   visitScreen,
   upTabsIn,
+  upsAmong,
   type WindowTabs,
 } from "./tab-model";
 import { stepOf, stepStackOf } from "./tab-steps";
@@ -671,16 +673,23 @@ function twoSides(): WindowTabs {
 
 describe("closeSide and reopenSide", () => {
   it.each([
-    [0, ["> *c d"], ["> a *b", "*c d"]],
-    [1, ["> a *b"], ["a *b", "> c *d"]],
+    [0, false, ["> *c d"], ["a *b", "> *c d"]],
+    [0, true, ["> *c d"], ["> a *b", "*c d"]],
+    [1, true, ["> a *b"], ["a *b", "> c *d"]],
   ] as const)(
-    "closes side %i whole and puts it back as it was, up",
-    (side, closed, reopened) => {
+    "closes side %i whole and puts it back as it was, its tab up, keyboard there: %s",
+    (side, focused, closed, reopened) => {
       const before = twoSides();
       const gone = closeSide(before, GROUP, side);
       expect(sidesOf(gone, GROUP)).toEqual(closed);
       const tabs = groupLayoutOf(before, GROUP).sides[side]?.tabs ?? [];
-      const back = reopenSide(gone, { group: GROUP, side, tabs, up: 1 });
+      const back = reopenSide(gone, {
+        focused,
+        group: GROUP,
+        side,
+        tabs,
+        up: 1,
+      });
       expect(sidesOf(back, GROUP)).toEqual(reopened);
     },
   );
@@ -688,6 +697,38 @@ describe("closeSide and reopenSide", () => {
   it("leaves a group of one side alone", () => {
     const one = windowOf(THREE.tabs);
     expect(closeSide(one, CHAT, 0)).toBe(one);
+  });
+});
+
+describe("a closed group back", () => {
+  it.each([
+    ["c", "b", ["a *b", "> *c d"]],
+    ["d", "a", ["*a b", "> c *d"]],
+    ["a", "d", ["> *a b", "c *d"]],
+  ] as const)(
+    "puts up %s with the keyboard and %s beside it, as they were",
+    (active, beside, expected) => {
+      const before: WindowTabs = {
+        ...twoSides(),
+        activeByGroup: { [GROUP]: active },
+        besideByGroup: { [GROUP]: beside },
+      };
+      expect(sidesOf(before, GROUP)).toEqual(expected);
+      const kept = before.tabs;
+      const ups = upsAmong(groupLayoutOf(before, GROUP), kept);
+      const back = restoreGroup(
+        { activeByGroup: {}, tabs: [] },
+        GROUP,
+        kept,
+        ups,
+      );
+      expect(sidesOf(back, GROUP)).toEqual(expected);
+    },
+  );
+
+  it("names nothing up when the tab with the keyboard is not kept", () => {
+    const layout = groupLayoutOf(twoSides(), GROUP);
+    expect(upsAmong(layout, [screenTab("a", "/apps", GROUP)])).toBeUndefined();
   });
 });
 

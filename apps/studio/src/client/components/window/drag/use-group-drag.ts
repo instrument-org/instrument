@@ -124,6 +124,7 @@ export function useStripTarget({
   strip: () => HTMLElement | null | undefined;
   tabs: readonly WindowTab[];
 }) {
+  const { layoutOf } = useWindowTabs();
   useDropTarget(
     isOn
       ? {
@@ -138,10 +139,18 @@ export function useStripTarget({
             ) {
               return undefined;
             }
+            // A group held over the strip is drawn there as its tabs
+            // (`useSideStrip`), which are left out as one, as a tab is.
+            const heldKeys =
+              held.kind === "group"
+                ? layoutOf(held.group).sides.flatMap((each) =>
+                    each.tabs.map(stripKeyOf),
+                  )
+                : heldKeysOf(held);
             const index = stripIndexAt(
               point.x - grab.x,
               tabs.map((tab) => ({ id: stripKeyOf(tab) })),
-              heldKeysOf(held),
+              heldKeys,
               root,
             );
             return { group, index, kind: "strip", side };

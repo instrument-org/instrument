@@ -430,13 +430,20 @@ export function GroupItem({
         >
           {/* A chat opens at its end, as it always does, rather than where
               it was left. */}
-          {isChat || isNewChat ? (
-            <div className="relative h-full">{content}</div>
-          ) : (
-            <KeptScrolls href={up.href} tabId={up.id}>
+          {/* One shape for every screen, so a tab moving between a chat
+              and another screen (the Chats page's first words making a
+              draft) keeps its page rather than drawing it afresh. */}
+          <KeptScrolls
+            href={up.href}
+            isKept={!isChat && !isNewChat}
+            tabId={up.id}
+          >
+            <div
+              className={isChat || isNewChat ? "relative h-full" : "contents"}
+            >
               {content}
-            </KeptScrolls>
-          )}
+            </div>
+          </KeptScrolls>
         </WindowContext>
       </GroupTabContext>
     </Bare>

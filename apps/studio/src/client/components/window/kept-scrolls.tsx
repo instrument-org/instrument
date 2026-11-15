@@ -21,17 +21,22 @@ const TAKEOVER_EVENTS = ["keydown", "pointerdown", "wheel"] as const;
 export function KeptScrolls({
   children,
   href,
+  isKept = true,
   tabId,
 }: {
   children: ReactNode;
   /** Where the tab stands. */
   href: string;
+  /** Whether the screen at this address goes back to where it was left; one that opens at its end keeps nothing. */
+  isKept?: boolean;
   tabId: string;
 }) {
   const rootRef = useRef<HTMLDivElement>(null);
   const hrefNow = useRef(href);
+  const isKeptNow = useRef(isKept);
   useLayoutEffect(() => {
     hrefNow.current = href;
+    isKeptNow.current = isKept;
   });
   useLayoutEffect(() => {
     const root = rootRef.current;
@@ -48,7 +53,8 @@ export function KeptScrolls({
     root.addEventListener("scroll", onScroll, { capture: true, passive: true });
 
     const kept = scrollsByTab.get(tabId);
-    let isRestoring = kept !== undefined && kept.href === hrefNow.current;
+    let isRestoring =
+      kept !== undefined && kept.href === hrefNow.current && isKeptNow.current;
     let stopRestoring: (() => void) | undefined;
     // Put back once the screen is laid out at the width it is shown at: a tab
     // drawn as its group comes up stands for a frame in a split still at the
@@ -89,7 +95,7 @@ export function KeptScrolls({
       if (kept && isRestoring) {
         return;
       }
-      const scrolls = scrollsOf(root, offsets);
+      const scrolls = isKeptNow.current ? scrollsOf(root, offsets) : [];
       if (scrolls.length > 0) {
         scrollsByTab.set(tabId, { href: hrefNow.current, scrolls });
       } else {

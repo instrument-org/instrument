@@ -304,14 +304,11 @@ function AtPointer({
   // so the bar shows where it would stand.
   const isGroup = held.kind === "group" && landing?.kind !== "bookmarks";
   // What is held stays at the pointer the whole drag, whatever it is over,
-  // so it is never lost: everywhere but a strip, which stands a tab among
-  // its tabs at the pointer itself, and a group's row held there, which
-  // stands in the strip's place. Off the window main shows its picture, and
-  // the system's drag shows its own.
+  // so it is never lost: everywhere but a strip, which stands it among its
+  // tabs at the pointer itself, a whole group as all its tabs. Off the
+  // window main shows its picture, and the system's drag shows its own.
   const isShown =
-    !drag.isOff &&
-    drag.input !== "native" &&
-    (landing?.kind !== "strip" || isGroup);
+    !drag.isOff && drag.input !== "native" && landing?.kind !== "strip";
   const isDocked = isGroup && landing?.kind === "sidebar";
   const isWindow = landing?.kind === "window";
   // Stood again every frame from the pointer, never by drawing again.

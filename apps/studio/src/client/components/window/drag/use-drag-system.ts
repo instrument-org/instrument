@@ -345,6 +345,25 @@ function useLander(
           fillRoom(held.group);
           return;
         }
+        // In a strip a group's tabs stand at the gap, in their order, the
+        // front one up, and it closes once it has none.
+        if (landing.kind === "strip") {
+          const { front, ids } = tabsOfHeldGroup(
+            held,
+            store.get(windowTabsAtom),
+          );
+          ids.forEach((id, index) => {
+            groups.moveTab(id, landing.group, {
+              index: landing.index + index,
+              side: landing.side,
+              split: false,
+            });
+          });
+          if (front !== undefined) {
+            windowTabs.select(front);
+          }
+          return;
+        }
         // At a split target a group makes a side of all its tabs, in
         // their order, the front one up, and closes once it has none.
         if (landing.kind === "side") {

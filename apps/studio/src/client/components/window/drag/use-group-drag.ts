@@ -69,7 +69,7 @@ export function useSideStrip({
   tabs: WindowTab[];
 } {
   const drag = useAtomValue(dragAtom);
-  const { allTabs } = useWindowTabs();
+  const { allTabs, layoutOf } = useWindowTabs();
   if (!drag) {
     return { isIncoming: false, tabs };
   }
@@ -85,7 +85,11 @@ export function useSideStrip({
       ? { carriedKey: held.key, isIncoming: false, tabs }
       : { isIncoming: false, tabs };
   }
-  const heldTabs = heldTabsOf(held, allTabs);
+  // A whole group stands as all its tabs, in their order.
+  const heldTabs =
+    held.kind === "group"
+      ? layoutOf(held.group).sides.flatMap((each) => each.tabs)
+      : heldTabsOf(held, allTabs);
   const [first] = heldTabs;
   if (!first) {
     return { isIncoming: false, tabs };
@@ -123,9 +127,15 @@ export function useStripTarget({
   useDropTarget(
     isOn
       ? {
-          landingAt: (point, { grab, held }) => {
+          landingAt: (point, { grab, held, input }) => {
             const root = strip();
-            if (held.kind === "group" || !root) {
+            // A group lands its tabs in another group's strip, and only from
+            // this window, as at a split target.
+            if (
+              !root ||
+              (held.kind === "group" &&
+                (held.group === group || input === "remote"))
+            ) {
               return undefined;
             }
             const index = stripIndexAt(

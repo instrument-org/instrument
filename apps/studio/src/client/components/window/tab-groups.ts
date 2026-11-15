@@ -422,7 +422,7 @@ export function useTabGroupActions() {
   const moveTab = (
     id: string,
     group: string,
-    placing?: { side: 0 | 1; split: boolean },
+    placing?: { index?: number; side: 0 | 1; split: boolean },
   ) => {
     const state = store.get(windowTabsAtom);
     const tab = state.tabs.find((entry) => entry.id === id);
@@ -431,6 +431,7 @@ export function useTabGroupActions() {
       id,
       select: true,
       side: placing?.side ?? groupLayoutOf(state, group).focused,
+      ...(placing?.index === undefined ? {} : { index: placing.index }),
       ...(placing?.split === true ? { split: true } : {}),
     });
     const from = tab?.group;

@@ -232,7 +232,7 @@
     "node-api-headers": "^1.9.0",
     "papaparse": "^5.5.4",
     "parse5": "8.0.1",
-    "playwright": "^1.57.0",
+    "playwright": "^1.64.1",
     "prosemirror-commands": "^1.7.1",
     "prosemirror-history": "^1.5.0",
     "prosemirror-keymap": "^1.2.3",

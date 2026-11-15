@@ -1,8 +1,7 @@
 import { isPlaceDragInAir } from "@/client/lib/self-file-drag";
 import { type WindowTab } from "@/client/atoms/window";
-import { getDefaultStore, useAtomValue } from "jotai";
+import { useAtomValue } from "jotai";
 
-import { windowTabGroupsAtom } from "../open-groups";
 import { stripKeyOf } from "../pane-tabs";
 import { stripIndexAt } from "../tab-carry-view";
 import { type GroupLayout, isHomeTab, sideIndexOf } from "../tab-model";
@@ -272,9 +271,6 @@ export function useSidePagesTarget({
   /** Whether a tab is a new tab nobody has written in, which turns into files let go over it. */
   const isNewTab = (tab: WindowTab | undefined) =>
     tab !== undefined && isHomeTab(tab);
-  /** Whether a group held here may go to a window of its own: one this window shows another group beside. */
-  const mayLeave = () =>
-    (getDefaultStore().get(windowTabGroupsAtom)?.length ?? 0) > 1;
   /** Whether a held group's tabs may make a side here: another group's, held in this window. */
   const maySplitGroup = (held: Held, input: string) =>
     held.kind !== "group" || (held.group !== group && input !== "remote");
@@ -341,19 +337,12 @@ export function useSidePagesTarget({
                 return "native";
               }
             }
-            // A whole group joins a side of two as a tab does; the middle of
-            // a lone side has no side to give it, so it goes to a window of
-            // its own there.
-            if (
-              held.kind === "group" &&
-              !(zone?.kind === "join" && sides.length === 2)
-            ) {
-              return at !== -1 && mayLeave() ? { kind: "window" } : undefined;
-            }
             // A new tab nobody has written in turns into a link let go on it.
             if (held.kind === "link" && page && up && isNewTab(up)) {
               return { group, kind: "newTab", lit: page, tab: up.id };
             }
+            // Anything else, a whole group included, joins the side it is
+            // held over, as a tab does.
             return zone
               ? {
                   group,

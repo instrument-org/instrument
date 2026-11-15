@@ -21,6 +21,7 @@ import { createContext, type ReactNode, use, useEffect, useState } from "react";
 import { useAppsBySlug } from "./apps-by-slug";
 import { chatListOptions } from "./chat-list-query";
 import { type Chat } from "./chats";
+import { FadeTitle } from "./fade-title";
 import { pageTabTitle } from "./file-tabs";
 import { CaptureTabIcon, usePageCaptures } from "./page-capture-mark";
 import { ScreenMark } from "./pane-tabs";
@@ -133,16 +134,16 @@ export function RowLinesView({
           {mark && (
             <span className="flex shrink-0 text-foreground/65">{mark}</span>
           )}
-          <span
+          <FadeTitle
             className={cn(
-              "min-w-0 flex-1 truncate text-[13px] leading-5",
+              "min-w-0 flex-1 text-[13px] leading-5",
               lines.strong
                 ? "font-semibold text-foreground"
                 : "font-medium text-foreground/85",
             )}
           >
             {lines.title}
-          </span>
+          </FadeTitle>
         </div>
         {lines.line !== "" && (
           <div className="flex h-5 min-w-0 items-center text-[12px] leading-5">

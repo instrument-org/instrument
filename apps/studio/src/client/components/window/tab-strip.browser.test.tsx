@@ -82,27 +82,23 @@ describe("a press on a tab", () => {
   });
 });
 
-describe("a tab's long name", () => {
-  it("is gone before its close button starts", async () => {
-    await renderInBrowser(
-      <div style={{ width: 800 }}>
+describe("a tab's name", () => {
+  const strip = (title: string) =>
+    renderInBrowser(
+      <div style={{ width: 300 }}>
         <TabStrip
           onClose={() => undefined}
           onSelect={() => undefined}
-          selectedKey="long"
-          tabs={[
-            {
-              icon: <span />,
-              key: "long",
-              title:
-                "A name far too long to fit in any tab there could ever be",
-            },
-          ]}
+          selectedKey="one"
+          tabs={[{ icon: <span />, key: "one", title }]}
         />
       </div>,
     );
-    const title = tab("long").querySelector(".tab-title-fade");
-    const close = tab("long").querySelector("button");
+
+  it("fades out before its close button starts when it is too long", async () => {
+    await strip("A name far too long to fit in any tab there could ever be");
+    const title = tab("one").querySelector(".title-fade");
+    const close = tab("one").querySelector("button");
     if (!title || !close) {
       throw new Error("no title or close button");
     }
@@ -111,8 +107,15 @@ describe("a tab's long name", () => {
         /calc\(100% - ([\d.]+)px\)/g,
       ),
     ].map((stop) => Number(stop[1]));
+    expect(stops).toHaveLength(2);
     const gone = title.getBoundingClientRect().right - Math.min(...stops);
     expect(gone).toBeLessThan(close.getBoundingClientRect().left);
+  });
+
+  it("shows whole, unfaded, when it fits", async () => {
+    await strip("Short");
+    const title = tab("one").querySelector(".title-fade");
+    expect(title && getComputedStyle(title).maskImage).toBe("none");
   });
 });
 

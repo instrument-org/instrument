@@ -1045,21 +1045,25 @@ body {
   }
 }
 
-/* Ends a tab's title before the close control drawn over its end, whose hover
- * background would otherwise sit on the last faint letters. The stops are
- * measured from the title's own box, where the control begins 1rem in, and the
- * name is gone 0.125rem before that. The same with or without the control on
- * screen, so that a name stays put as the pointer comes and goes. */
-@utility tab-title-fade {
-  --tab-title-fade: linear-gradient(
-    to right,
-    #000 0%,
-    #000 calc(100% - 2rem),
-    transparent calc(100% - 1.125rem),
-    transparent 100%
-  );
-  mask-image: var(--tab-title-fade);
-  -webkit-mask-image: var(--tab-title-fade);
+/* A name too long for its room fades out over its last 2rem (`FadeTitle`,
+ * which marks it `data-overflows`), rather than ending in an ellipsis or cut
+ * through a letter. `--title-fade-clear` keeps that much of its end clear,
+ * for something drawn over it: a tab's close control begins 1rem into the
+ * title's own box, and the name is gone 0.125rem before that, with or
+ * without the control on screen, so that a name stays put as the pointer
+ * comes and goes. */
+@utility title-fade {
+  overflow: hidden;
+  white-space: nowrap;
+  &[data-overflows] {
+    --title-fade: linear-gradient(
+      to right,
+      #000 calc(100% - var(--title-fade-clear, 0px) - 2rem),
+      transparent calc(100% - var(--title-fade-clear, 0px))
+    );
+    mask-image: var(--title-fade);
+    -webkit-mask-image: var(--title-fade);
+  }
 }
 
 /* Hairline closing the file viewer's chrome band, inset so it costs no height.

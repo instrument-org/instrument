@@ -49,6 +49,7 @@ import {
 } from "react";
 
 import { ScreenMark } from "./app-chip";
+import { FadeTitle } from "./fade-title";
 import { GroupRowMenu, type GroupRowMenuActions } from "./group-row-menu";
 import { HelpMenu } from "./help-menu";
 import { toggleLeft } from "./inbox-toggle";
@@ -606,9 +607,9 @@ function StandingRow({
       >
         <div className="min-w-0 flex-1">
           <div className="flex h-5 min-w-0 items-center">
-            <span className="min-w-0 flex-1 truncate text-[13px] leading-5 font-medium text-foreground/85">
+            <FadeTitle className="min-w-0 flex-1 text-[13px] leading-5 font-medium text-foreground/85">
               {titleOf(first)}
-            </span>
+            </FadeTitle>
           </div>
           <div className="flex h-5 min-w-0 items-center gap-1 overflow-hidden text-[12px] leading-5 text-muted-foreground">
             {tabs.slice(0, 8).map((tab) => (

@@ -32,6 +32,7 @@ import {
 import { IconGlint, ShimmerSweep } from "@/client/components/shimmer-sweep";
 
 import { dragPoint } from "./drag/session";
+import { FadeTitle } from "./fade-title";
 import { EDGE_FADE, EDGE_FADE_WIDTH, useEdgeFade } from "./use-edge-fade";
 
 /** A tab on the strip: what it is called and what stands for it. */
@@ -939,25 +940,30 @@ function Tab({
         >
           {tab.field}
         </span>
-      ) : (
+      ) : density !== "full" && hasIcon ? (
+        <span className="sr-only">{tab.title}</span>
+      ) : isFixed ? (
         <span
           className={cn(
-            "min-w-0",
-            // A name that does not fit fades out at its end, selected or not:
-            // an ellipsis reads as a different name.
-            density === "full" || !hasIcon
-              ? cn(
-                  isFixed
-                    ? "whitespace-nowrap"
-                    : "flex-1 overflow-hidden pr-8 tab-title-fade whitespace-nowrap",
-                )
-              : "sr-only",
+            "min-w-0 whitespace-nowrap",
             tab.isWorking && "brand-shiny-text",
           )}
         >
           {tab.title}
           {tab.isWorking && <ShimmerSweep text={tab.title} />}
         </span>
+      ) : (
+        // A name that does not fit fades out at its end, selected or not:
+        // an ellipsis reads as a different name.
+        <FadeTitle
+          className={cn(
+            "min-w-0 flex-1 pr-8 [--title-fade-clear:1.125rem]",
+            tab.isWorking && "brand-shiny-text",
+          )}
+        >
+          {tab.title}
+          {tab.isWorking && <ShimmerSweep text={tab.title} />}
+        </FadeTitle>
       )}
       {tab.badge}
       {isClosable && !tab.field && density !== "icon" && (

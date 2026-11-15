@@ -83,43 +83,57 @@ describe("a press on a tab", () => {
 });
 
 describe("a tab's name", () => {
-  const strip = (title: string) =>
+  const long = "A name far too long to fit in any tab there could ever be";
+  const strip = (title: string, selectedKey?: string) =>
     renderInBrowser(
       <div style={{ width: 300 }}>
         <TabStrip
           onClose={() => undefined}
           onSelect={() => undefined}
-          selectedKey="one"
+          selectedKey={selectedKey}
           tabs={[{ icon: <span />, key: "one", title }]}
         />
       </div>,
     );
+  // Where the fade's two stops stand, in px left of the title's right edge.
+  const stopsOf = (title: Element) =>
+    [
+      ...getComputedStyle(title).maskImage.matchAll(
+        /calc\(100% - ([\d.]+)px\)|(100%)\)/g,
+      ),
+    ].map((stop) => (stop[2] ? 0 : Number(stop[1])));
+  const titleOf = () => {
+    const title = tab("one").querySelector(".title-fade");
+    if (!title) {
+      throw new Error("no title");
+    }
+    return title;
+  };
 
   it("fades out before its close button starts when it is too long", async () => {
-    await strip("A name far too long to fit in any tab there could ever be");
-    const title = tab("one").querySelector(".title-fade");
+    await strip(long, "one");
     const close = tab("one").querySelector("button");
-    if (!title || !close) {
-      throw new Error("no title or close button");
+    if (!close) {
+      throw new Error("no close button");
     }
-    const stops = [
-      ...getComputedStyle(title).maskImage.matchAll(
-        /calc\(100% - ([\d.]+)px\)/g,
-      ),
-    ].map((stop) => Number(stop[1]));
+    const stops = stopsOf(titleOf());
     expect(stops).toHaveLength(2);
-    const gone = title.getBoundingClientRect().right - Math.min(...stops);
+    const gone = titleOf().getBoundingClientRect().right - Math.min(...stops);
     expect(gone).toBeLessThan(close.getBoundingClientRect().left);
+  });
+
+  it("runs to its end when its close button is not showing", async () => {
+    await strip(long);
+    expect(stopsOf(titleOf())).toEqual([32, 0]);
   });
 
   it("shows whole, unfaded, when it fits", async () => {
     await strip("Short");
-    const title = tab("one").querySelector(".title-fade");
-    expect(title && getComputedStyle(title).maskImage).toBe("none");
+    expect(getComputedStyle(titleOf()).maskImage).toBe("none");
   });
 });
 
-describe("a wide tab", () => {
+describe("a tab's width", () => {
   const widths = async (titles: string[], width: number) => {
     await renderInBrowser(
       <div style={{ width }}>
@@ -133,7 +147,6 @@ describe("a wide tab", () => {
             key: `t${String(index)}`,
             title,
           }))}
-          wideTabs
         />
       </div>,
     );
@@ -142,20 +155,20 @@ describe("a wide tab", () => {
     );
   };
 
-  it("is 240px with room, however short its name", async () => {
-    expect(await widths(["Hi", "There"], 1000)).toEqual([240, 240]);
+  it("is 240px with room, however short or long its name", async () => {
+    expect(
+      await widths(
+        ["Hi", "A name longer than any 240px tab has room for, by a lot"],
+        1000,
+      ),
+    ).toEqual([240, 240]);
   });
 
-  it("grows past 240px to fit a longer name", async () => {
-    const [long] = await widths(
-      ["A name longer than any 240px tab has room for, by a lot"],
-      1000,
+  it("shares a crowded row equally, whatever the names", async () => {
+    const [first, second] = await widths(
+      ["Hi", "A name longer than any tab has room for"],
+      300,
     );
-    expect(long).toBeGreaterThan(240);
-  });
-
-  it("shares a crowded row equally", async () => {
-    const [first, second] = await widths(["Hi", "There"], 300);
     expect(first).toBeLessThan(240);
     expect(first).toBe(second);
   });

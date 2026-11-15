@@ -281,7 +281,6 @@ export function PaneTabs({
         overflow="squeeze"
         selectedKey={chosen ? stripKeyOf(chosen) : undefined}
         tabs={presented}
-        wideTabs={split?.hasOtherSide !== true}
       />
       {trailing}
       <TabMenuAtPoint

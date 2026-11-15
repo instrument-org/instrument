@@ -20,6 +20,7 @@ import { createContext, use } from "react";
 import { useChatTasks } from "../window/child-tasks-query";
 import { useWindowTabs } from "../window/window-tabs";
 import { type CommandFacts, type TaskCardFacts } from "./surface";
+import { drivenTabOf, pagesOf } from "./driven-tab";
 import { taskCardFacts } from "./task-card-facts";
 import { transcriptFeedOptions } from "./use-transcript-feed";
 
@@ -163,11 +164,10 @@ export function useTaskMessages(
 type PageTab = Extract<WindowTab, { kind: "page" }>;
 
 /**
- * The page a session's work is on: the chat's tab that session sent its
- * latest command, read live as it works, so a session that moves to another
- * tab is pictured there. Every session of a chat drives every tab of it, so
- * none is the session's until it acts in one. Nothing is read while
- * `sessionId` is absent, or without a live chat.
+ * The page a session's work is on: the window's page tab that session sent
+ * its latest command, read live as it works, so a session that moves to
+ * another tab is pictured there. Nothing is read while `sessionId` is
+ * absent, or without a live chat.
  */
 export function useDrivenTab(
   sessionId: StoreId.Session | undefined,
@@ -175,11 +175,7 @@ export function useDrivenTab(
   const chat = useLiveChat();
   const { allTabs } = useWindowTabs();
   const pages =
-    sessionId === undefined || chat === undefined
-      ? []
-      : allTabs.filter(
-          (tab): tab is PageTab => tab.kind === "page" && tab.group === chat,
-        );
+    sessionId === undefined || chat === undefined ? [] : pagesOf(allTabs);
   const driven = useQueries({
     combine: (results) => results.map((result) => result.data?.lastAt ?? 0),
     queries: pages.map((tab) =>
@@ -193,16 +189,10 @@ export function useDrivenTab(
       ),
     ),
   });
-  let newest: PageTab | undefined;
-  let newestAt = 0;
-  for (const [index, tab] of pages.entries()) {
-    const at = driven[index] ?? 0;
-    if (at > newestAt) {
-      newest = tab;
-      newestAt = at;
-    }
-  }
-  return newest;
+  const lastAt = new Map(
+    pages.map((tab, index) => [tab.id, driven[index] ?? 0]),
+  );
+  return drivenTabOf(pages, (tab) => lastAt.get(tab.id) ?? 0);
 }
 
 /** What the page a session's work is on says it is, as its tab last heard. */

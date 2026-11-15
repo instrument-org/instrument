@@ -51,7 +51,6 @@ import {
   sideOf,
   tabsIn,
   upTabsIn,
-  type WindowTabs,
 } from "../tab-model";
 import {
   newScreenId,
@@ -60,6 +59,7 @@ import {
   windowTabsAtom,
 } from "../window-tabs";
 import { droppedFileHref, filesOfDrop } from "./held-tabs";
+import { tabsOfHeldGroup } from "./split-preview";
 import { type Point } from "./landing";
 import {
   type Carry,
@@ -154,6 +154,7 @@ function useLander(
 ) {
   const windowTabs = useWindowTabs();
   const groups = useTabGroupActions();
+  const { open: openGroups } = useOpenGroups();
   const keep = useKeepBookmark();
   const store = useStore();
   const removeWithUndo = useRemoveBookmarkWithUndo();
@@ -337,16 +338,26 @@ function useLander(
           fillRoom(held.group);
           return;
         }
-        // On a side's page a row gives up its tab there, the rest staying in
-        // their group, which closes once it has none.
+        // At a split target a group makes a side of all its tabs, in
+        // their order, the front one up, and closes once it has none.
         if (landing.kind === "side") {
-          const id = tabOfHeldGroup(held, store.get(windowTabsAtom));
-          if (id !== undefined) {
+          const { front, ids } = tabsOfHeldGroup(
+            held,
+            store.get(windowTabsAtom),
+          );
+          ids.forEach((id, index) => {
             groups.moveTab(id, landing.group, {
               side: landing.side,
-              split: landing.split,
+              split: landing.split && index === 0,
             });
+          });
+          if (front !== undefined) {
+            windowTabs.select(front);
           }
+          return;
+        }
+        if (landing.kind === "window") {
+          groups.moveToNewWindow(held.group, openGroups);
         }
         return;
       }
@@ -379,19 +390,6 @@ function useLander(
       }
     }
   };
-}
-
-/**
- * The tab a group's row gives up where a side's page takes it: the tab up on
- * the half the row was pressed by, else the tab up on the side with the
- * keyboard, the one the group shows in front.
- */
-function tabOfHeldGroup(
-  held: Extract<Held, { kind: "group" }>,
-  state: WindowTabs,
-): string | undefined {
-  const layout = groupLayoutOf(state, held.group);
-  return layout.sides[held.half ?? layout.focused]?.up;
 }
 
 /**

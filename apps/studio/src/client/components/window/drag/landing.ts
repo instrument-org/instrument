@@ -95,13 +95,72 @@ export function onPages(point: Point, pages: readonly Rect[]): Point {
   };
 }
 
+/** How far a split target stands in from its end of a lone side's page. */
+const TARGET_INSET_PX = 16;
+
 /**
- * How wide the band at each end of a lone side's page is, where something
- * held makes that end a side of its own: a fifth of the page, never under
- * 120 or over 360, and never more than a third of a narrow page.
+ * How near the pointer comes to a split target before the target leans
+ * toward it and what is held is drawn toward the target (`pullOf`).
  */
-export function splitBandWidth(width: number) {
-  return Math.min(clamp(width * 0.2, 120, 360), width / 3);
+const MAGNET_PX = 140;
+
+/**
+ * How near the pointer comes to a split target before the target takes what
+ * is held: short of touching it, so the target pulls the last of the way.
+ */
+const CAPTURE_PX = 36;
+
+/**
+ * How near a lone side's end the pointer comes before that end takes what
+ * is held at any height, so a tab flung to the window's edge still splits.
+ */
+const END_PX = TARGET_INSET_PX + 8;
+
+/**
+ * Where something held can make a lone side's end a side of its own: the
+ * page, which the target is drawn in, and the end (0 the left).
+ */
+export interface SplitTarget {
+  page: Rect;
+  side: 0 | 1;
+}
+
+/**
+ * A split target as drawn at rest: a card short of the page's height, in
+ * from its end, centered down it. Narrower than the half it makes and
+ * shorter than the page, so it reads as a place to aim for.
+ */
+export function splitTargetRect({ page, side }: SplitTarget): Rect {
+  const width = Math.min(clamp(page.width * 0.18, 112, 220), page.width / 3);
+  const height = Math.min(
+    clamp(page.height * 0.5, 160, 360),
+    page.height - TARGET_INSET_PX * 2,
+  );
+  return {
+    height,
+    left:
+      side === 0
+        ? page.left + TARGET_INSET_PX
+        : page.left + page.width - TARGET_INSET_PX - width,
+    top: page.top + (page.height - height) / 2,
+    width,
+  };
+}
+
+/** How far a point is from a rect, nothing inside it. */
+function distanceTo(rect: Rect, { x, y }: Point) {
+  const dx = Math.max(rect.left - x, 0, x - (rect.left + rect.width));
+  const dy = Math.max(rect.top - y, 0, y - (rect.top + rect.height));
+  return Math.hypot(dx, dy);
+}
+
+/**
+ * How strongly a split target draws what is held toward it, from 0 at the
+ * edge of its pull (`MAGNET_PX` away) to 1 where it takes it (`CAPTURE_PX`).
+ */
+export function pullOf(target: SplitTarget, point: Point) {
+  const distance = distanceTo(splitTargetRect(target), point);
+  return clamp((MAGNET_PX - distance) / (MAGNET_PX - CAPTURE_PX), 0, 1);
 }
 
 /** What is held, in terms of the group the sides are: the side it stands on there, if any, and whether it is that side's only tab. */
@@ -118,36 +177,45 @@ function maySplit(held: HeldInGroup) {
 }
 
 /**
- * The bands at a lone side's ends where what is held would make a side of
- * its own, left first: none over two sides, or for a side's only tab. What
- * a drag shows faintly from its start, so the ends are found before the
+ * The targets at a lone side's ends where what is held would make a side
+ * of its own, left first: none over two sides, or for a side's only tab.
+ * What a drag shows from its start, so the ends are found before the
  * pointer reaches them.
  */
-export function splitBands({
+export function splitTargetsOf({
   held,
   sides,
 }: {
   held: HeldInGroup;
   sides: readonly Rect[];
-}): Rect[] {
+}): SplitTarget[] {
   const [page] = sides;
   if (!page || sides.length !== 1 || !maySplit(held)) {
     return [];
   }
-  const band = splitBandWidth(page.width);
   return [
-    { ...page, width: band },
-    { ...page, left: page.left + page.width - band, width: band },
+    { page, side: 0 },
+    { page, side: 1 },
   ];
+}
+
+/** The half of a lone side's page a side made at an end would take. */
+function halfOf(page: Rect, side: 0 | 1): Rect {
+  const half = page.width / 2;
+  return side === 0
+    ? { ...page, width: half }
+    : { ...page, left: page.left + half, width: half };
 }
 
 /**
  * What a side's page does with something held over it at a point: it joins
  * a side as its last tab, the side lit whole; or it makes a side of its own
- * of one end of a group of one side, that half lit, as soon as the pointer
- * is in the end's band. None where it would change nothing, as a tab over
- * its own side's page, or where a side may not be made, as from a side's
- * only tab.
+ * of one end of a group of one side, that half lit. A lone side's end takes
+ * what is held once the pointer is within `CAPTURE_PX` of its target, or
+ * at the page's very end, and keeps it while the pointer stays in the half
+ * the new side takes (`lit`), so a hand wandering over the side sliding in
+ * never loses it. None where it would change nothing, as a tab over its own
+ * side's page, or where a side may not be made, as from a side's only tab.
  */
 export type SideZone =
   | { kind: "join"; lit: Rect; side: 0 | 1 }
@@ -155,10 +223,13 @@ export type SideZone =
 
 export function sideZoneAt({
   held,
+  lit,
   point,
   sides,
 }: {
   held: HeldInGroup;
+  /** The end a split already lit, which keeps it over its whole half. */
+  lit?: 0 | 1;
   point: Point;
   /** Each side's page, left first, in the window's px. */
   sides: readonly Rect[];
@@ -172,17 +243,26 @@ export function sideZoneAt({
   if (sides.length === 2) {
     return held.side !== side ? { kind: "join", lit: rect, side } : undefined;
   }
-  const [start, end] = splitBands({ held, sides });
-  const half = rect.width / 2;
-  if (start && holds(start, point)) {
-    return { kind: "split", lit: { ...rect, width: half }, side: 0 };
+  const targets = splitTargetsOf({ held, sides });
+  if (
+    lit !== undefined &&
+    targets.length > 0 &&
+    holds(halfOf(rect, lit), point)
+  ) {
+    return { kind: "split", lit: halfOf(rect, lit), side: lit };
   }
-  if (end && holds(end, point)) {
-    return {
-      kind: "split",
-      lit: { ...rect, left: rect.left + half, width: half },
-      side: 1,
-    };
+  for (const target of targets) {
+    const atEnd =
+      target.side === 0
+        ? point.x < rect.left + END_PX
+        : point.x >= rect.left + rect.width - END_PX;
+    if (atEnd || distanceTo(splitTargetRect(target), point) <= CAPTURE_PX) {
+      return {
+        kind: "split",
+        lit: halfOf(rect, target.side),
+        side: target.side,
+      };
+    }
   }
   return held.side === undefined
     ? { kind: "join", lit: rect, side: 0 }

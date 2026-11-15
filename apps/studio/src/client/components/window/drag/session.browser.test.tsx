@@ -206,6 +206,10 @@ it("shows a page's end from the drag's start, lights it the moment the pointer r
   const landed = vi.fn();
   setLander(landed);
   const band = { height: 400, left: 300, top: 0, width: 100 };
+  const target = {
+    page: { height: 400, left: 0, top: 0, width: 400 },
+    side: 1,
+  } as const;
   const split = {
     group: "group",
     kind: "side",
@@ -216,7 +220,7 @@ it("shows a page's end from the drag's start, lights it the moment the pointer r
   await renderInBrowser(
     <Target
       target={{
-        hints: () => [band],
+        hints: () => [target],
         landingAt: (point) => (point.x >= band.left ? split : undefined),
         rect: () => ({ height: 400, left: 0, top: 0, width: 400 }),
       }}
@@ -225,7 +229,7 @@ it("shows a page's end from the drag's start, lights it the moment the pointer r
   pressTab();
   drag();
   expect([currentDrag()?.hints, currentDrag()?.landing]).toEqual([
-    [band],
+    [target],
     undefined,
   ]);
 

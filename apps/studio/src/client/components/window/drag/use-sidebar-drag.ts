@@ -10,14 +10,65 @@ import {
 } from "../sidebar-drop";
 import { useWindowTabs } from "../window-tabs";
 import { heldTabsOf } from "./held-tabs";
-import { dragAtom, pressToDrag, useDragFrame, useDropTarget } from "./session";
+import { type Rect } from "./landing";
+import {
+  currentDrag,
+  dragAtom,
+  dragPoint,
+  pressToDrag,
+  useDragFrame,
+  useDropTarget,
+} from "./session";
+import { type Held } from "./types";
+
+/**
+ * How far past the sidebar's edge a row lifted out of its list still keeps
+ * to the list, before it pulls free of it.
+ */
+const SIDEBAR_PULL_PX = 72;
+
+/** The row that has pulled free of the list, until it comes back over the sidebar. */
+let pulledFree: Held | undefined;
+
+/**
+ * Whether a whole group held has pulled free of the sidebar it was lifted
+ * from: it keeps to the list until the pointer goes `SIDEBAR_PULL_PX` past
+ * the sidebar's edge, and keeps to it again once the pointer is back over
+ * the sidebar.
+ */
+export function isPulledFree(held: Held) {
+  return pulledFree === held;
+}
+
+/**
+ * Where the sidebar holds what is held, read once a frame: the sidebar, and
+ * for a row lifted out of the list and not yet pulled free, the band past
+ * its edge it keeps to the list over.
+ */
+function sidebarReach(bounds: Rect): Rect {
+  const drag = currentDrag();
+  if (drag?.held.kind !== "group" || drag.input !== "pointer") {
+    return bounds;
+  }
+  const edge = bounds.left + bounds.width;
+  if (pulledFree === drag.held && dragPoint.x < edge) {
+    pulledFree = undefined;
+  } else if (pulledFree !== drag.held && dragPoint.x > edge + SIDEBAR_PULL_PX) {
+    pulledFree = drag.held;
+  }
+  return pulledFree === drag.held
+    ? bounds
+    : { ...bounds, width: bounds.width + SIDEBAR_PULL_PX };
+}
 
 /**
  * The sidebar's list of groups as a place to land: a tab, files or a
  * bookmark go into the group of the row under them, which lights, or make a
  * group of their own in a room opened between two rows; a whole group, by
  * its row's top edge wherever the pointer crosses the list, takes the room
- * nearest it. The list scrolls under a pointer near its ends.
+ * nearest it, and keeps to the list a little way past the sidebar's edge
+ * (`SIDEBAR_PULL_PX`) until it pulls free. The list scrolls under a pointer
+ * near its ends.
  */
 export function useSidebarTarget(nav: () => HTMLElement | null) {
   useDropTarget({
@@ -45,12 +96,12 @@ export function useSidebarTarget(nav: () => HTMLElement | null) {
     rect: () => {
       const bounds = nav()?.getBoundingClientRect();
       return bounds && bounds.width > 0
-        ? {
+        ? sidebarReach({
             height: bounds.height,
             left: bounds.left,
             top: bounds.top,
             width: bounds.width,
-          }
+          })
         : undefined;
     },
     scrolls: {

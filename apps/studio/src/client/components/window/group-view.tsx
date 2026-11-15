@@ -39,7 +39,12 @@ import {
   useStripTarget,
 } from "./drag/use-group-drag";
 import { RecentlyClosedMenu } from "./recently-closed-menu";
+import { dragAtom } from "./drag/session";
+import { splitPreviewOf } from "./drag/split-preview";
 import { useShell } from "./shell-context";
+import { useAppsBySlug } from "./apps-by-slug";
+import { TabMark } from "./row-half";
+import { useTabTitle } from "./tab-title";
 import { useSideMotion } from "./side-motion";
 import { windowTabGroupsAtom } from "./open-groups";
 import { useTabGroupActions } from "./tab-groups";
@@ -54,7 +59,7 @@ import {
 } from "./side-widths";
 import { useTabSurface } from "./tab-surface";
 import { WINDOW_CARD, WINDOW_CARD_GAP } from "./window-frame";
-import { newScreenId, useWindowTabs } from "./window-tabs";
+import { newScreenId, useWindowTabs, windowTabsAtom } from "./window-tabs";
 
 /**
  * One tab group, as the window's tab shows it: one side or two, each a card
@@ -100,7 +105,20 @@ function showSideWithKeyboard(scroller: HTMLElement) {
 /** The sides of a group in their row, the gutter between, scrolling sideways below their narrowest. */
 function GroupSides({ group }: { group: string }) {
   const windowTabs = useWindowTabs();
-  const layout = windowTabs.layoutOf(group);
+  const kept = windowTabs.layoutOf(group);
+  // Something held at a lone side's end shows the side letting go makes,
+  // sliding in as the side there narrows, before it is let go.
+  const drag = useAtomValue(dragAtom);
+  const tabsNow = useAtomValue(windowTabsAtom);
+  const preview =
+    drag?.landing?.kind === "side" && drag.landing.group === group
+      ? splitPreviewOf({
+          held: drag.held,
+          landing: drag.landing,
+          state: tabsNow,
+        })
+      : undefined;
+  const layout = preview?.layout ?? kept;
   const [dragged, setDragged] = useState<number>();
   // The share a drag last reached, read as it ends: the handle keeps the
   // callbacks of the render the press began in, so `dragged` there is stale.
@@ -113,7 +131,7 @@ function GroupSides({ group }: { group: string }) {
   useSidePagesTarget({
     group,
     isOn: useIsActiveTab(),
-    layout,
+    layout: kept,
     scroller: () => scrollerRef.current,
   });
 
@@ -343,6 +361,7 @@ function GroupSides({ group }: { group: string }) {
               {each.leaving || each.side === undefined ? (
                 <div
                   className={cn("h-full shrink-0", WINDOW_CARD)}
+                  data-side-leaving=""
                   style={{ width }}
                 />
               ) : (
@@ -351,10 +370,15 @@ function GroupSides({ group }: { group: string }) {
                   hasKeyboard={layout.focused === each.at}
                   isFirst={each.at === 0}
                   isLast={each.at === layout.sides.length - 1}
+                  {...(preview?.side === each.at
+                    ? { preview: { standIns: preview.standIns } }
+                    : {})}
                   layout={layout}
                   place={`${group}:${each.at}:${isTwo ? growOf(each.at) : 1}`}
                   side={each.side}
-                  sideIndex={each.at}
+                  // The side the group has stands where it stood in the
+                  // group, whichever end the side shown beside it takes.
+                  sideIndex={preview && preview.side !== each.at ? 0 : each.at}
                   style={
                     motionSides.entering.has(each.key)
                       ? { flexShrink: 0, width }
@@ -368,7 +392,8 @@ function GroupSides({ group }: { group: string }) {
         })}
       </div>
       {isTwo &&
-        !isMoving && (
+        !isMoving &&
+        !preview && (
           // The gap between the cards is the gutter, standing over the row at
           // the left side's edge.
           <ResizeHandle
@@ -486,6 +511,7 @@ function SideCard({
   isLast,
   layout,
   place,
+  preview,
   side,
   sideIndex,
   style,
@@ -495,6 +521,8 @@ function SideCard({
   isFirst: boolean;
   isLast: boolean;
   layout: GroupLayout;
+  /** Drawn only to show the side letting go of what is held makes: it takes no drop, and its stand-in tabs show no page. */
+  preview?: { standIns: ReadonlySet<string> };
   /** Where the side stands, which changes as its page's host moves. */
   place: string;
   side: GroupSide;
@@ -514,7 +542,13 @@ function SideCard({
   const cardRef = useRef<HTMLDivElement>(null);
   const strip = () =>
     cardRef.current?.querySelector<HTMLElement>("[data-group-tabs]");
-  useStripTarget({ group, isOn: isActive, side: sideIndex, strip, tabs });
+  useStripTarget({
+    group,
+    isOn: isActive && preview === undefined,
+    side: sideIndex,
+    strip,
+    tabs,
+  });
   // What is held over the strip stands among its tabs where it would land.
   const drawn = useSideStrip({ group, side: sideIndex, tabs });
 
@@ -681,7 +715,9 @@ function SideCard({
   return (
     <div
       className={cn("flex h-full min-h-0 min-w-0 flex-col", WINDOW_CARD)}
-      data-group-side={sideIndex}
+      {...(preview
+        ? { "data-side-preview": "" }
+        : { "data-group-side": sideIndex })}
       {...(hasKeyboard ? { "data-keyboard": "" } : {})}
       ref={cardRef}
       onPointerDownCapture={() => {
@@ -719,6 +755,7 @@ function SideCard({
           // little, so typing has a visible home.
           layout.sides.length === 2 &&
             !hasKeyboard &&
+            preview === undefined &&
             "[&_[role=tab]]:opacity-60",
         )}
         heldAt={drawn.heldAt}
@@ -758,19 +795,53 @@ function SideCard({
         taskTitles={shell.childTitles}
         trailing={isLast ? <CaptionRoom /> : undefined}
       />
-      <div className="relative min-h-0 flex-1" data-side-page={sideIndex}>
-        {up && (
-          <GroupItem
-            closeTab={shell.requestClose}
-            group={group}
-            hasKeyboard={hasKeyboard}
-            isShown
-            key={up.id}
-            onPageChrome={setPageChrome}
-            onPageHost={setPageHost}
-            up={up}
-          />
+      <div
+        className="relative min-h-0 flex-1"
+        {...(preview ? {} : { "data-side-page": sideIndex })}
+      >
+        {up && preview?.standIns.has(up.id) === true ? (
+          <StandInPage tab={up} />
+        ) : (
+          up && (
+            <GroupItem
+              closeTab={shell.requestClose}
+              group={group}
+              hasKeyboard={hasKeyboard}
+              isShown
+              key={up.id}
+              onPageChrome={setPageChrome}
+              onPageHost={setPageHost}
+              up={up}
+            />
+          )
         )}
+      </div>
+    </div>
+  );
+}
+
+/**
+ * What a tab that does not exist yet shows in a side drawn to preview a
+ * drop: files or a bookmark, held, shown by their mark and name, since
+ * their page opens only once they are let go.
+ */
+function StandInPage({ tab }: { tab: WindowTab }) {
+  const shell = useShell();
+  const appsBySlug = useAppsBySlug();
+  const titleOf = useTabTitle(shell.chatTitles);
+  return (
+    <div className="grid h-full place-items-center">
+      <div className="flex max-w-[80%] flex-col items-center gap-2 text-foreground/70">
+        <span className="grid size-8 place-items-center [&_svg]:size-6 [&>*]:size-6">
+          <TabMark
+            appsBySlug={appsBySlug}
+            chatTitles={shell.chatTitles}
+            tab={tab}
+          />
+        </span>
+        <span className="max-w-full truncate text-[15px] font-medium">
+          {titleOf(tab)}
+        </span>
       </div>
     </div>
   );

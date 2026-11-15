@@ -4,10 +4,11 @@ import {
   isOffWindow,
   onPages,
   pagesReach,
+  pullOf,
   scrollSpeed,
   sideZoneAt,
-  splitBands,
-  splitBandWidth,
+  splitTargetRect,
+  splitTargetsOf,
 } from "./landing";
 
 const page = { height: 600, left: 100, top: 80, width: 900 };
@@ -91,8 +92,43 @@ describe("a side's page under something held", () => {
       });
       zones.push(zone ? `${zone.kind} ${zone.side}` : "none");
     }
-    expect(zones.indexOf("split 1")).toBe(zones.indexOf("none") + 32);
+    // The right target starts at 822, and takes it 36px short of that.
+    expect(500 + zones.indexOf("split 1") * 10).toBe(790);
     expect(new Set(zones)).toEqual(new Set(["none", "split 1"]));
+  });
+
+  it("splits only near a target, short of the page's full height", () => {
+    expect(
+      [100, 300, 660].map(
+        (y) =>
+          sideZoneAt({
+            held: { isAlone: false, side: 0 },
+            point: { x: 900, y },
+            sides: [page],
+          })?.kind ?? "none",
+      ),
+    ).toEqual(["none", "split", "none"]);
+  });
+
+  it("splits at the very end at any height, as a tab flung to the edge does", () => {
+    expect(
+      sideZoneAt({
+        held: { isAlone: false, side: 0 },
+        point: { x: 990, y: 100 },
+        sides: [page],
+      })?.side,
+    ).toBe(1);
+  });
+
+  it("keeps a split it took over the whole half it makes", () => {
+    const at = (lit?: 0 | 1) =>
+      sideZoneAt({
+        held: { isAlone: false, side: 0 },
+        ...(lit === undefined ? {} : { lit }),
+        point: { x: 600, y: 120 },
+        sides: [page],
+      })?.kind ?? "none";
+    expect([at(), at(1), at(0)]).toEqual(["none", "split", "none"]);
   });
 
   it.each([
@@ -120,43 +156,51 @@ describe("a side's page under something held", () => {
   });
 });
 
-describe("the band at a lone side's end", () => {
-  it.each([
-    [440, 120],
-    [900, 180],
-    [2400, 360],
-    [300, 100],
-  ])("of a page %ipx wide is %ipx", (width, band) => {
-    expect(splitBandWidth(width)).toBe(band);
+describe("a lone side's split targets", () => {
+  it("stand in from each end, narrower than the half and shorter than the page", () => {
+    expect(
+      [0, 1].map((side) => splitTargetRect({ page, side: side === 1 ? 1 : 0 })),
+    ).toMatchInlineSnapshot(`
+        [
+          {
+            "height": 300,
+            "left": 116,
+            "top": 230,
+            "width": 162,
+          },
+          {
+            "height": 300,
+            "left": 822,
+            "top": 230,
+            "width": 162,
+          },
+        ]
+      `);
   });
-});
 
-describe("a lone side's ends shown from a drag's start", () => {
-  it("are the bands that split, left first", () => {
-    expect(splitBands({ held: { isAlone: false, side: 0 }, sides: [page] }))
-      .toMatchInlineSnapshot(`
-      [
-        {
-          "height": 600,
-          "left": 100,
-          "top": 80,
-          "width": 180,
-        },
-        {
-          "height": 600,
-          "left": 820,
-          "top": 80,
-          "width": 180,
-        },
-      ]
-    `);
+  it("are shown from a drag's start, left first", () => {
+    expect(
+      splitTargetsOf({ held: { isAlone: false, side: 0 }, sides: [page] }).map(
+        (target) => target.side,
+      ),
+    ).toEqual([0, 1]);
   });
 
   it.each([
     ["a side's only tab", { isAlone: true, side: 0 as const }, [page]],
     ["two sides", {}, [left, right]],
   ])("are none for %s", (_, held, sides) => {
-    expect(splitBands({ held, sides })).toEqual([]);
+    expect(splitTargetsOf({ held, sides })).toEqual([]);
+  });
+
+  it.each([
+    ["far off", 600, 0],
+    ["at the edge of its pull", 822 - 140, 0],
+    ["halfway in", 822 - 88, 0.5],
+    ["where it takes what is held", 822 - 36, 1],
+    ["over it", 900, 1],
+  ])("pull %s", (_, x, pull) => {
+    expect(pullOf({ page, side: 1 }, { x, y: 380 })).toBeCloseTo(pull);
   });
 });
 

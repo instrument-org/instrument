@@ -12,6 +12,7 @@ import {
   type Point,
   type Rect,
   scrollSpeed,
+  type SplitTarget,
   START_PX,
 } from "./landing";
 import { type Held, type Landing } from "./types";
@@ -35,11 +36,11 @@ export interface Drag {
   /** The pointer here, the system's drag (files from elsewhere), or main, for another window's tab held over this one. */
   input: "native" | "pointer" | "remote";
   /**
-   * Places the drag could land that show faintly from its start, before the
-   * pointer reaches them: a lone side's ends, which make a side of their own.
-   * None past the window's edges.
+   * Places the drag could land that show from its start, before the pointer
+   * reaches them: a lone side's split targets, which make a side of their
+   * own. None past the window's edges.
    */
-  hints?: readonly Rect[];
+  hints?: readonly SplitTarget[];
   /** Past every edge of this window, where main has what is held. */
   isOff: boolean;
   landing: Landing | undefined;
@@ -55,8 +56,10 @@ export const dragPoint: Point = { x: 0, y: 0 };
 
 /** A place in the window that takes something held, which the window's own moves land (`setLander`). */
 export interface DropTarget {
-  /** Where in it what is held could land that shows faintly from the drag's start (`Drag.hints`). */
-  hints?: (drag: Pick<Drag, "grab" | "held" | "input">) => readonly Rect[];
+  /** Where in it what is held could land that shows from the drag's start (`Drag.hints`). */
+  hints?: (
+    drag: Pick<Drag, "grab" | "held" | "input">,
+  ) => readonly SplitTarget[];
   /**
    * What letting go at a point would do, or nothing, or "native" where only
    * the system's drag can hand the files over (a web page, a composer).

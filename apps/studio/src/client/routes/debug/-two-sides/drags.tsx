@@ -3,7 +3,7 @@ import {
   type Point,
   type Rect,
   sideZoneAt,
-  splitBands,
+  splitTargetsOf,
 } from "@/client/components/window/drag/landing";
 import { type Drag, dragAtom } from "@/client/components/window/drag/session";
 import { type Held } from "@/client/components/window/drag/types";
@@ -257,7 +257,10 @@ export function overSide({
       // Where nothing on the page takes it, what is held goes with the pointer.
       grab: stage.grabAt(point),
       held,
-      hints: splitBands({ held: heldIn, sides }).map(stage.rel),
+      hints: splitTargetsOf({ held: heldIn, sides }).map((target) => ({
+        ...target,
+        page: stage.rel(target.page),
+      })),
       input,
       isOff: false,
       landing: zone

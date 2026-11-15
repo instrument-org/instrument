@@ -1,6 +1,8 @@
 import { type WindowTab } from "@/client/atoms/window";
-import { useAtomValue } from "jotai";
+import { getDefaultStore, useAtomValue } from "jotai";
+import { useRef } from "react";
 
+import { windowTabGroupsAtom } from "../open-groups";
 import { stripKeyOf } from "../pane-tabs";
 import { stripIndexAt } from "../tab-carry-view";
 import { type GroupLayout, isHomeTab, sideIndexOf } from "../tab-model";
@@ -13,9 +15,9 @@ import {
   type Point,
   type Rect,
   sideZoneAt,
-  splitBands,
+  splitTargetsOf,
 } from "./landing";
-import { dragAtom, pressToDrag, useDropTarget } from "./session";
+import { currentDrag, dragAtom, pressToDrag, useDropTarget } from "./session";
 import { type Held } from "./types";
 
 /**
@@ -193,17 +195,23 @@ function attachesToNewTab(page: Element | null | undefined, point: Point) {
 }
 
 /**
- * A group's sides' pages as a place to land: with one side, its left or
- * right end makes that half a side of its own, and its middle joins the
- * side; with two, the side under the pointer takes it as its last tab. The
- * margin between an outer page and the window's edge counts as that page's
- * end (`pagesReach`). Files open as tabs the same way, except where the page
- * takes them itself: a site, and away from a lone side's ends, a chat's
- * composer or a folder in Files (`takesFilesItself`); a new tab up nobody
- * has written in turns into them, except over its composer, which attaches
- * them (`attachesToNewTab`). A lone side's ends show faintly from the start
- * of a drag that could make one a side (`splitBands`). Another group's row
- * lands as the tab it gives up would (`tabOfHeldGroup`).
+ * A group's sides' pages as a place to land: with one side, a split target
+ * at each end makes that half a side of its own once the pointer nears it
+ * (`sideZoneAt`), and the middle joins the side; with two, the side under
+ * the pointer takes it as its last tab. The margin between an outer page
+ * and the window's edge counts as that page's end (`pagesReach`). Files
+ * open as tabs the same way, except where the page takes them itself: a
+ * site, and away from a lone side's ends, a chat's composer or a folder in
+ * Files (`takesFilesItself`); a new tab up nobody has written in turns into
+ * them, except over its composer, which attaches them (`attachesToNewTab`).
+ * The split targets show from the start of a drag that could make one a
+ * side. A whole group pulled out of the sidebar makes a side of all its
+ * tabs at a split target, and anywhere else on the pages goes to a window
+ * of its own, where the window has another group to show.
+ *
+ * While a side made at an end slides in to show what letting go makes
+ * (`useSplitPreview`), the pages are measured as they stood before it, so
+ * what lands where stays put under the pointer.
  */
 export function useSidePagesTarget({
   group,
@@ -220,14 +228,27 @@ export function useSidePagesTarget({
 }) {
   const pageOf = (side: number) =>
     scroller()?.querySelector(`[data-side-page="${side}"]`);
+  // The pages as they stood before a side slid in to show a split, or as it
+  // slides out again.
+  const before = useRef<Rect[]>(undefined);
   // Each side's page as much of it as the row shows, scrolled sideways.
   const pages = () => {
-    const shown = rectOf(scroller());
-    return layout.sides.flatMap((_, side) => {
+    const row = scroller();
+    const isShowingSplit =
+      row?.querySelector("[data-side-preview], [data-side-leaving]") != null;
+    if (isShowingSplit && before.current) {
+      return before.current;
+    }
+    const shown = rectOf(row);
+    const measured = layout.sides.flatMap((_, side) => {
       const rect = rectOf(pageOf(side));
       const cut = rect && shown ? clipped(rect, shown) : undefined;
       return cut ? [cut] : [];
     });
+    if (!isShowingSplit) {
+      before.current = measured;
+    }
+    return measured;
   };
   const upOf = (side: number) =>
     layout.sides[side]?.tabs.find((tab) => tab.id === layout.sides[side]?.up);
@@ -239,18 +260,23 @@ export function useSidePagesTarget({
     const up = upOf(side);
     return up?.kind === "page" || isNewTab(up);
   };
+  /** Whether a group held here may go to a window of its own: one this window shows another group beside. */
+  const mayLeave = () =>
+    (getDefaultStore().get(windowTabGroupsAtom)?.length ?? 0) > 1;
+  /** Whether a held group's tabs may make a side here: another group's, held in this window. */
+  const maySplitGroup = (held: Held, input: string) =>
+    held.kind !== "group" || (held.group !== group && input !== "remote");
   useDropTarget(
     isOn
       ? {
           hints: ({ held, input }) => {
             if (
-              (held.kind === "group" &&
-                (held.group === group || input === "remote")) ||
+              !maySplitGroup(held, input) ||
               (held.kind === "files" && takesFilesWhole(0))
             ) {
               return [];
             }
-            return splitBands({
+            return splitTargetsOf({
               held: heldInGroup(held, group, layout),
               sides: pages(),
             });
@@ -260,13 +286,7 @@ export function useSidePagesTarget({
             const point = onPages(reached, sides);
             const at = sides.findIndex((rect) => holds(rect, point));
             const up = upOf(at);
-            // Another group's row lands as its tab would (`tabOfHeldGroup`);
-            // the group up has nowhere here to go, and another window's
-            // group lands only in this window's list.
-            if (
-              held.kind === "group" &&
-              (held.group === group || input === "remote")
-            ) {
+            if (held.kind === "group" && input === "remote") {
               return undefined;
             }
             if (held.kind === "files") {
@@ -282,11 +302,20 @@ export function useSidePagesTarget({
                 return "native";
               }
             }
-            const zone = sideZoneAt({
-              held: heldInGroup(held, group, layout),
-              point,
-              sides,
-            });
+            const was = currentDrag()?.landing;
+            const zone = maySplitGroup(held, input)
+              ? sideZoneAt({
+                  held: heldInGroup(held, group, layout),
+                  ...(was?.kind === "side" && was.split && was.group === group
+                    ? { lit: was.side }
+                    : {}),
+                  point,
+                  sides,
+                })
+              : undefined;
+            if (held.kind === "group" && zone?.kind !== "split") {
+              return at !== -1 && mayLeave() ? { kind: "window" } : undefined;
+            }
             if (
               held.kind === "files" &&
               zone?.kind !== "split" &&

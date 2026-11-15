@@ -51,11 +51,13 @@ export type Held =
  * What letting go would do: stand among a side's tabs at a place; join a
  * side as its last tab, or make one end of a lone side a side of its own; go
  * into a sidebar row's group, or be a group of its own in a room between
- * rows; turn a new tab into it; or stand among the bookmarks on the bar.
+ * rows; turn a new tab into it; stand among the bookmarks on the bar; or,
+ * for a whole group pulled free of the sidebar, go to a window of its own.
  */
 export type Landing =
   | { group: string; index: number; kind: "strip"; side: 0 | 1 }
   | { group: string; kind: "side"; lit: Rect; side: 0 | 1; split: boolean }
   | { drop: SidebarDrop; kind: "sidebar" }
   | { group: string; kind: "newTab"; lit: Rect; tab: string }
-  | { index: number; kind: "bookmarks" };
+  | { index: number; kind: "bookmarks" }
+  | { kind: "window" };

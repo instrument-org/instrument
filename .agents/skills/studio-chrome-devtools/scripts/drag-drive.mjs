@@ -32,7 +32,9 @@
 // file drop is `Input.dispatchDragEvent` with the paths, which `files` in
 // place of `from` does: { "files": ["/abs/a.txt"], "path": [...] }. On a Mac
 // the paths also go on the system's drag pasteboard, as a Finder drag puts
-// them, which the app reads to name the files while they are held.
+// them, which the app reads to name the files while they are held. A link
+// out of a page is the same, its address handed over as a page's link
+// hands it: { "link": { "url": "https://…", "title": "…" }, "path": [...] }.
 //
 // A drag carried to another window shows there, so `watch` names other app
 // windows (`window:<n>`, as `--page` does) that every shot also takes, as
@@ -128,14 +130,35 @@ export default async (app, args) => {
 
   let at;
   const isFiles = Array.isArray(args.files);
+  const isLink = args.link !== undefined;
   const dragData = isFiles
     ? {
         dragOperationsMask: 1,
         files: args.files,
         items: [],
       }
-    : undefined;
-  if (isFiles) {
+    : isLink
+      ? {
+          dragOperationsMask: 1,
+          items: [
+            { data: args.link.url, mimeType: "text/uri-list" },
+            { data: args.link.url, mimeType: "text/plain" },
+            {
+              data: `<a href="${args.link.url}">${args.link.title ?? ""}</a>`,
+              mimeType: "text/html",
+            },
+          ],
+        }
+      : undefined;
+  if (isLink) {
+    at = await pointOf(app, args.path[0]?.to ?? { x: 10, y: 10 });
+    await app.cdp.send("Input.dispatchDragEvent", {
+      data: dragData,
+      type: "dragEnter",
+      x: at.x,
+      y: at.y,
+    });
+  } else if (isFiles) {
     if (process.platform === "darwin") {
       execFileSync("osascript", [
         "-l",
@@ -170,7 +193,7 @@ export default async (app, args) => {
         x: Math.round(at.x + ((to.x - at.x) * step) / steps),
         y: Math.round(at.y + ((to.y - at.y) * step) / steps),
       };
-      if (isFiles) {
+      if (dragData) {
         await app.cdp.send("Input.dispatchDragEvent", {
           data: dragData,
           type: "dragOver",
@@ -189,7 +212,7 @@ export default async (app, args) => {
     if (leg.rest) {
       // A drag the system holds is heard of only as it moves, so a rest is
       // the same point told again, as the system does several times a second.
-      if (isFiles) {
+      if (dragData) {
         for (let waited = 0; waited < leg.rest; waited += 100) {
           await app.cdp.send("Input.dispatchDragEvent", {
             data: dragData,
@@ -214,7 +237,7 @@ export default async (app, args) => {
   if (end === "escape") {
     await app.press("Escape");
   } else if (end === "release") {
-    if (isFiles) {
+    if (dragData) {
       await app.cdp.send("Input.dispatchDragEvent", {
         data: dragData,
         type: "drop",

@@ -19,10 +19,7 @@ import { z } from "zod";
 
 import { CHAT_FOLDER_NAMES } from "../../constants";
 import { appEventModelNote } from "../../model-text/notes/app-event-model-text";
-import {
-  groupLayoutModelNote,
-  layoutChangesModelNote,
-} from "../../model-text/notes/group-layout-model-text";
+import { tabGroupModelNote } from "../../model-text/notes/group-layout-model-text";
 import { permissionAnswerModelNote } from "../../model-text/notes/permission-answer-model-text";
 import { questionAnswerModelNote } from "../../model-text/notes/question-answer-model-text";
 import { pageTakeoverModelNote } from "../../model-text/notes/page-takeover-model-text";
@@ -758,6 +755,32 @@ function stated(
 }
 
 /**
+ * The tab group's layout and what changed in it, said as one note: the
+ * changes where there are some, the whole layout where there is nothing to
+ * change from (`tabGroupModelNote`).
+ */
+function tabGroupNote(parts: readonly SessionMessagePart.Type[]) {
+  const layout = parts.find(
+    (part): part is NamedDataPart<"groupLayout"> =>
+      part.type === "data-groupLayout",
+  );
+  const changes = parts.find(
+    (part): part is NamedDataPart<"layoutChanges"> =>
+      part.type === "data-layoutChanges",
+  );
+  const part = changes ?? layout;
+  return part === undefined
+    ? undefined
+    : {
+        part,
+        text: tabGroupModelNote({
+          ...(changes && { changes: changes.data }),
+          ...(layout && { layout: layout.data }),
+        }),
+      };
+}
+
+/**
  * The notes a user turn carries after the user's words, in this order. The
  * order is part of the text every earlier turn is sent as, and so of the
  * prefix a provider caches: a new note is added where it reads best, and the
@@ -811,8 +834,7 @@ const USER_TURN_NOTES = [
   noted("questionAnswer", ({ data }) => questionAnswerModelNote(data)),
   noted("signedIn", ({ data }) => signedInModelNote(data)),
   noted("viewContext", stated),
-  noted("groupLayout", ({ data }) => groupLayoutModelNote(data)),
-  noted("layoutChanges", ({ data }) => layoutChangesModelNote(data)),
+  tabGroupNote,
   noted("actions", ({ data }) => actionsModelNote(data)),
   noted("asks", ({ data }) => asksModelNote(data)),
   noted("workspaceInstructions", stated),

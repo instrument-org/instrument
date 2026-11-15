@@ -170,7 +170,7 @@ export function contextReaders({
    */
   const tabContext = async (
     tab: WindowTab,
-    { owned, own }: { own: WindowTab[]; owned: boolean },
+    { owned }: { owned: boolean },
   ): Promise<SessionMessageDataPart.ViewContextDataPart | undefined> => {
     if (tab.kind === "page") {
       const url = tab.url ?? "about:blank";
@@ -179,10 +179,13 @@ export function contextReaders({
         return { file: fileOf(filePath), screen: "file", url };
       }
       const read = await readPage(tab.id);
-      // The sending group's other tabs, by the ids `tab` and "--tab" take.
-      const ownTabs = describeTabs(own.filter((other) => other.id !== tab.id))
-        .filter((other) => other.id !== undefined)
-        .map(({ at, id, title }) => ({ id: id ?? "", title, url: at }));
+      // The page itself among the tabs, for the task working in it, which the
+      // workspace marks; the group's other tabs are the tab group note's.
+      const ownTabs = owned
+        ? describeTabs([tab]).flatMap(({ at, id, title }) =>
+            id === undefined ? [] : [{ id, title, url: at }],
+          )
+        : [];
       const page = read
         ? (() => {
             const { tab: _read, tabs: _readTabs, ...words } = read;
@@ -193,7 +196,7 @@ export function contextReaders({
                 : tab.group === undefined || isSiteGroup(tab.group)
                   ? { tab: tab.id, theirs: true }
                   : {}),
-              tabs: ownTabs,
+              ...(ownTabs.length > 0 ? { tabs: ownTabs } : {}),
             };
           })()
         : undefined;
@@ -263,8 +266,9 @@ export function contextReaders({
    * The context a group's items carry. What points at this computer goes as
    * picked; the first page or screen is what the window showed and any after
    * it are named among the tabs; another chat is named and nothing more; and
-   * the group's own tabs are listed by the ids `tab` and "--tab" take.
-   * Nothing goes when there is nothing to say.
+   * the group's own files go as files the chat may change. The group's tabs
+   * are the layout's to list (`layoutReadOf`), not this part's. Nothing goes
+   * when there is nothing to say.
    */
   const contextOf = async (
     group: string,
@@ -336,7 +340,7 @@ export function contextReaders({
         }
         continue;
       }
-      shown = await tabContext(item.tab, { own, owned: item.owned });
+      shown = await tabContext(item.tab, { owned: item.owned });
       // The record open in an app's inspector goes only to a chat a draft
       // starts over it, never into a reply to one already going.
       if (isReply && shown?.app) {
@@ -380,7 +384,7 @@ export function contextReaders({
       ...(chat ? { chat } : {}),
       ...(chosen.length > 0 ? { chosen } : {}),
       ...(groupFiles.length > 0 ? { groupFiles } : {}),
-      tabs: [...describeTabs(own), ...named],
+      ...(named.length > 0 ? { tabs: named } : {}),
     };
   };
   /**
@@ -423,8 +427,7 @@ export function contextReaders({
   /**
    * What goes with a message in a chat: the tab up on the other side of the
    * chat's tab, while its chip is there, and what the person took for the
-   * message from what was offered; and the tabs of the chat's group, by the
-   * ids a task can be handed.
+   * message from what was offered; and the files open in the chat's group.
    */
   const sendContext = async ({
     chatId,

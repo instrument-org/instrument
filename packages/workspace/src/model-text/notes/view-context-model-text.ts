@@ -134,19 +134,20 @@ function pageNote(data: ViewContext) {
       ? ""
       : theirs
         ? `, in their own tab ${page.tab}, outside their tab group`
-        : ` (tab ${page.tab} in their tab group, yours to read and change${heldClause(shown?.heldBy)})`;
+        : ` (tab ${page.tab}${heldClause(shown?.heldBy)})`;
   const ways =
     theirs && page.tab !== undefined
       ? " Act in this very tab when they ask you to; for work that needs only the site, open its address in a tab of your own, which has their sign-ins but not what they typed or scrolled to."
       : "";
+  // The group's other pages, which only notes earlier builds wrote list
+  // here: the tab group note names every tab now.
   const others = (page.tabs ?? []).filter((other) => other.id !== page.tab);
   const tabs =
     others.length > 0
-      ? `${theirs ? "Pages" : "Other pages"} in their tab group, not on screen: ${others.map((other) => `"${other.title || other.url}" at ${other.url} (tab ${other.id}${heldClause(other.heldBy)})`).join("; ")}.`
-      : `Their tab group has no ${theirs ? "" : "other "}pages.`;
+      ? `\n${theirs ? "Pages" : "Other pages"} in their tab group, not on screen: ${others.map((other) => `"${other.title || other.url}" at ${other.url} (tab ${other.id}${heldClause(other.heldBy)})`).join("; ")}.`
+      : "";
   return systemNote`
-    When the user sent this, the browser showed${title} at ${page.url}${tab}. "This page", "this site", "this" and "here" refer to it.${words}${focus}${ways}
-    ${tabs}
+    When the user sent this, the browser showed${title} at ${page.url}${tab}. "This page", "this site", "this" and "here" refer to it.${words}${focus}${ways}${tabs}
   `;
 }
 
@@ -165,10 +166,11 @@ function screenNote(data: ViewContext, shellPath: ShellPath) {
     case "browser": {
       return pageNote(data);
     }
-    case "conversation": {
-      return systemNote`
-        When the user sent this, they were in this chat, and nothing else on screen went with the message.
-      `;
+    // Only this chat on screen, or the new tab it started in: nothing to
+    // name that the tab group note does not already say.
+    case "conversation":
+    case "home": {
+      return "";
     }
     case "chat": {
       return data.chat
@@ -186,11 +188,6 @@ function screenNote(data: ViewContext, shellPath: ShellPath) {
     }
     case "file": {
       return fileNote(data, shellPath);
-    }
-    case "home": {
-      return systemNote`
-        When the user sent this, they wrote it in a new tab, which became this chat. Nothing else on screen went with the message.
-      `;
     }
     case "skills": {
       return systemNote`

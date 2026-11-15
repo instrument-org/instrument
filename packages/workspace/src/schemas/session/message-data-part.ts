@@ -243,9 +243,9 @@ export namespace SessionMessageDataPart {
   /**
    * The tabs of the user's chat, every session's to drive, each by the id
    * `agent-browser tab` takes, with where each stands and what it costs.
-   * The figures are coarse (memory to 10 MB, CPU to a whole percent and left
-   * out under one, the time left to five minutes) so the picture reads the
-   * same from turn to turn while nothing much changes.
+   * The figures are coarse (memory to 100 MB, CPU to 10 percent and left
+   * out under 10) so the picture reads the same from turn to turn while
+   * nothing much changes; earlier builds wrote finer ones and the time left.
    */
   const BrowserStatusDataPartSchema = z.object({
     /** Tabs the app closed since the session was last told, and why. */
@@ -274,7 +274,7 @@ export namespace SessionMessageDataPart {
         /** The other tabs its process draws too, whose cost this is as well. */
         sharedWith: z.array(z.string()).optional(),
         title: z.string().optional(),
-        /** Minutes until its page is unloaded unless it is used. */
+        /** Minutes until its page is unloaded unless it is used: only in notes earlier builds wrote, and no longer told. */
         unloadsInMin: z.number().optional(),
         url: z.string(),
       }),

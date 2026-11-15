@@ -119,7 +119,7 @@ describe("sendContext", () => {
     });
   });
 
-  it("names only the chat's tabs while its view is put away and nothing else is up", async () => {
+  it("says only the conversation while its view is put away and nothing else is up", async () => {
     const { sendContext } = contextReaders(
       windowOf({ windowTabs: tabsOf([SITE], CHAT) }),
     );
@@ -132,13 +132,6 @@ describe("sendContext", () => {
     ).resolves.toMatchInlineSnapshot(`
       {
         "screen": "conversation",
-        "tabs": [
-          {
-            "at": "https://example.com/",
-            "id": "guest",
-            "title": "Example",
-          },
-        ],
       }
     `);
   });
@@ -199,7 +192,7 @@ describe("sendContext", () => {
     ).resolves.toBeUndefined();
   });
 
-  it("sends the page's words with the tabs the conversation can name", async () => {
+  it("sends the page's words with its own tab, which a task may be working in", async () => {
     const other: WindowTab = { ...SITE, id: "other", title: "Other" };
     const { sendContext } = contextReaders(
       windowOf({
@@ -221,8 +214,8 @@ describe("sendContext", () => {
           "tab": "guest",
           "tabs": [
             {
-              "id": "other",
-              "title": "Other",
+              "id": "guest",
+              "title": "Example",
               "url": "https://example.com/",
             },
           ],
@@ -230,18 +223,6 @@ describe("sendContext", () => {
           "url": "https://example.com/",
         },
         "screen": "browser",
-        "tabs": [
-          {
-            "at": "https://example.com/",
-            "id": "guest",
-            "title": "Example",
-          },
-          {
-            "at": "https://example.com/",
-            "id": "other",
-            "title": "Other",
-          },
-        ],
         "url": "https://example.com/",
       }
     `);
@@ -281,13 +262,6 @@ describe("sendContext", () => {
           "/Users/casey/Downloads/receipt.pdf",
         ],
         "screen": "file",
-        "tabs": [
-          {
-            "at": "/Users/casey/Downloads/receipt.pdf",
-            "id": "file",
-            "title": "receipt.pdf",
-          },
-        ],
         "url": "file:///Users/casey/Downloads/receipt.pdf",
       }
     `);
@@ -313,13 +287,6 @@ describe("sendContext", () => {
     await expect(sent).resolves.toMatchInlineSnapshot(`
       {
         "screen": "browser",
-        "tabs": [
-          {
-            "at": "https://example.com/",
-            "id": "guest",
-            "title": "Example",
-          },
-        ],
         "url": "https://example.com/",
       }
     `);
@@ -357,18 +324,6 @@ describe("sendContext", () => {
     ).resolves.toMatchInlineSnapshot(`
       {
         "screen": "task",
-        "tabs": [
-          {
-            "at": "/tasks/ses_01ARZ3NDEKTSV4RRFFQ69G5FAV?chat=2026-10-01-lisbon",
-            "id": "task",
-            "title": "Task",
-          },
-          {
-            "at": "https://example.com/",
-            "id": "guest",
-            "title": "Example",
-          },
-        ],
         "task": {
           "id": "scan",
           "status": "working",
@@ -402,7 +357,7 @@ describe("draftContext", () => {
     await expect(draftContext(DRAFT, undefined)).resolves.toBeUndefined();
   });
 
-  it("shows the tab up as the chat starts and lists the draft's other tabs, attaching none of them", async () => {
+  it("shows the tab up as the chat starts, attaching none of the draft's tabs", async () => {
     const band: WindowTab = {
       group: GROUP,
       id: "band",
@@ -430,8 +385,8 @@ describe("draftContext", () => {
           "tab": "band",
           "tabs": [
             {
-              "id": "maps",
-              "title": "Maps",
+              "id": "band",
+              "title": "Hotels",
               "url": "https://hotels.example/",
             },
           ],
@@ -439,18 +394,6 @@ describe("draftContext", () => {
           "url": "https://example.com/",
         },
         "screen": "browser",
-        "tabs": [
-          {
-            "at": "https://hotels.example/",
-            "id": "band",
-            "title": "Hotels",
-          },
-          {
-            "at": "https://hotels.example/",
-            "id": "maps",
-            "title": "Maps",
-          },
-        ],
         "url": "https://hotels.example/",
       }
     `);
@@ -480,7 +423,11 @@ describe("draftContext", () => {
     );
     const sent = await draftContext(DRAFT, "new");
     expect(sent?.attached).toBeUndefined();
-    expect(sent?.tabs).toMatchObject([{ id: "band" }]);
+    expect(sent).toMatchObject({
+      screen: "browser",
+      url: "https://hotels.example/",
+    });
+    expect(sent?.tabs).toBeUndefined();
   });
 
   it.each<[string, WindowTab]>([
@@ -543,7 +490,6 @@ describe("draftContext", () => {
           standing: "unknown",
         },
         screen: "apps",
-        tabs: [],
         url: APP,
       },
     ],
@@ -557,7 +503,6 @@ describe("draftContext", () => {
           url: "https://example.com/",
         },
         screen: "browser",
-        tabs: [],
         url: "https://example.com/",
       },
     ],
@@ -654,7 +599,6 @@ describe("draftContext", () => {
           },
         ],
         "screen": "home",
-        "tabs": [],
       }
     `);
   });

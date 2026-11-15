@@ -1,68 +1,57 @@
 import {
-  type ChangedTab,
   type LayoutChange,
   type LayoutSideName,
   type LayoutSnapshot,
   type LayoutTab,
-  type LayoutTabKind,
 } from "../../schemas/group-layout";
 import { type SessionMessageDataPart } from "../../schemas/session/message-data-part";
 import { stripMarkdown } from "@instrument-org/shared/strip-markdown";
 
 import { systemNote } from "./system-note";
 
-/** How the note names a tab's kind ahead of its title. */
-const KIND_WORDS: Record<LayoutTabKind, string> = {
-  builtIn: "app page",
-  chat: "chat",
-  file: "file",
-  folder: "folder",
-  newChat: "new chat",
-  website: "website",
-};
-
 const SIDE_NAMES = ["left", "right"] as const;
 
 /**
- * The tab group the chat works in, as it stands now: each side's tabs in
- * order with the one showing marked, the side with the keyboard, which tab
- * is this chat, and a line saying what the user sees, side by side. Written
- * only when it reads differently from the one before, so each one is news.
+ * The tab group the chat works in, every tab by its id: said whole the
+ * first time, and again only when the chat is in another group. Later
+ * layouts go with their changes, which say only what is different.
  */
 export function groupLayoutModelNote(
   data: SessionMessageDataPart.GroupLayoutDataPart,
 ) {
-  if (isChatAlone(data) && data.isShown !== false) {
-    return systemNote`
-      Your tab group is just you now.
-    `;
-  }
   return systemNote`
-    Your tab group, ${layoutLines(data)}
+    Your tab group (${data.group.id}):
+    ${layoutLines(data)}
   `;
 }
 
 /**
- * A group's sides, one line each: its shape and what the star means, the
- * tabs of each side, and the line saying what is on screen (`showingLine`).
+ * A group's sides, one line each, tabs in strip order, the one each side
+ * shows marked; and a line when the window shows another group.
  */
 function layoutLines(layout: LayoutSnapshot): string {
   const isTwo = layout.sides.length === 2;
-  const head = isTwo
-    ? "two sides side by side (* = the tab each side shows; its other tabs are hidden behind it):"
-    : "one side (* = the tab it shows; the other tabs are hidden behind it):";
   const sides = layout.sides.map(({ tabs }, side) => {
-    const line = tabs
-      .map(
-        (tab) =>
-          `${layoutTabName(tab)}${tab.isThisChat ? " (you)" : ""}${tab.isUp ? "*" : ""}`,
-      )
-      .join(" · ");
-    return isTwo
-      ? `${SIDE_NAMES[side] ?? "left"}${layout.focused === side ? " (keyboard)" : ""}: ${line}`
-      : line;
+    const line = tabs.map(tabWords).join(" · ");
+    return isTwo ? `${SIDE_NAMES[side] ?? "left"}: ${line}` : line;
   });
-  return [head, ...sides, showingLine(layout)].join("\n");
+  return [...sides, ...(layout.isShown === false ? [NOT_SHOWN] : [])].join(
+    "\n",
+  );
+}
+
+const NOT_SHOWN =
+  "The window shows another tab group, so none of this is on screen.";
+
+/** A tab in a note: you, or its name and id; marked when its side shows it. */
+function tabWords(
+  tab: Pick<
+    LayoutTab,
+    "address" | "id" | "isThisChat" | "isUp" | "kind" | "title"
+  >,
+): string {
+  const name = tab.isThisChat ? "you" : `${layoutTabName(tab)} [${tab.id}]`;
+  return tab.isUp ? `${name} (showing)` : name;
 }
 
 /**
@@ -192,71 +181,81 @@ function shortAddress(address: string): string {
     : short;
 }
 
-/** A tab by its kind and title, or as this chat. */
-function named(tab: Pick<ChangedTab, "isThisChat" | "kind" | "title">) {
-  if (tab.isThisChat) {
-    return "this chat";
+/**
+ * The tab group as a message finds it: what changed since the agent last
+ * heard, or the whole group where there is nothing it heard before to
+ * change from (the first layout, or one in another group). Nothing when
+ * neither part is on the message.
+ */
+export function tabGroupModelNote({
+  changes,
+  layout,
+}: {
+  changes?: SessionMessageDataPart.LayoutChangesDataPart;
+  layout?: SessionMessageDataPart.GroupLayoutDataPart;
+}): string | undefined {
+  const isMoved = changes?.changes.some((one) => one.change === "chatMoved");
+  if (layout !== undefined && (changes === undefined || isMoved === true)) {
+    return groupLayoutModelNote(layout);
   }
-  return tab.kind === "newChat"
-    ? KIND_WORDS.newChat
-    : `${KIND_WORDS[tab.kind]} "${tab.title}"`;
+  return changes === undefined ? undefined : layoutChangesModelNote(changes);
 }
 
-/**
- * What changed in the group since the layout before, whoever changed it:
- * tabs opened, closed, moved and navigated, the chat's own moves, and tabs
- * moved to or from other groups.
- */
+/** What changed in the group since the agent last heard, theirs or its own, in one line. */
 export function layoutChangesModelNote(
   data: SessionMessageDataPart.LayoutChangesDataPart,
 ) {
   return systemNote`
-    Changes to the tab group since you were last told, theirs or yours: ${data.changes.map(changeWords).join("; ")}.
+    Tab group changes: ${data.changes.map(changeWords).join("; ")}.
   `;
 }
 
 function changeWords(change: LayoutChange): string {
   switch (change.change) {
     case "chatMoved": {
-      return `this chat moved from the tab group ${change.from} to ${change.to}`;
+      return `you moved to the tab group ${change.to}`;
     }
     case "closed": {
-      return `closed ${withId(change.tab)}`;
+      return `closed ${tabWords({ ...change.tab, isUp: false })}`;
+    }
+    case "groupShown": {
+      return change.isShown
+        ? "the window shows this group again"
+        : "the window shows another tab group, so none of this one is on screen";
     }
     case "moved": {
       const where =
         change.from === change.to
           ? change.after === undefined
-            ? `to the front of its side`
-            : `after "${change.after}"`
+            ? "to the front of its side"
+            : `after ${change.after}`
           : change.to === undefined
-            ? "into the group's one side"
+            ? "into the one side"
             : `to the ${change.to}`;
-      return `moved ${withId(change.tab)} ${where}${change.beside && change.from !== change.to ? ", beside this chat" : ""}`;
+      return `moved ${tabWords(change.tab)} ${where}`;
     }
     case "movedIn": {
-      return `moved ${withId(change.tab)} in from the tab group ${change.from}${placed(change.side, change.beside)}`;
+      return `${tabWords(change.tab)} moved in from the tab group ${change.from}${onSide(change.side)}`;
     }
     case "movedOut": {
-      return `moved ${withId(change.tab)} out to the tab group ${change.to}`;
+      return `${tabWords(change.tab)} moved out to the tab group ${change.to}`;
     }
     case "navigated": {
-      return `${change.tab.id} went from ${change.from.address} to ${named(change.tab)} at ${change.tab.address}`;
+      return `${change.tab.id} went to ${layoutTabName(change.tab)}`;
     }
     case "opened": {
-      return `opened ${withId(change.tab)}${placed(change.side, change.beside)}`;
+      return `opened ${tabWords(change.tab)}${onSide(change.side)}`;
+    }
+    case "shown": {
+      const shown = tabWords({ ...change.tab, isUp: false });
+      return change.side === undefined
+        ? `now showing ${shown}`
+        : `the ${change.side} shows ${shown}`;
     }
   }
 }
 
-function withId(tab: ChangedTab): string {
-  return tab.isThisChat ? "this chat" : `${named(tab)} (${tab.id})`;
-}
-
-/** Where a tab now stands, after its name. */
-function placed(side: LayoutSideName, beside: boolean | undefined): string {
-  if (side === undefined) {
-    return "";
-  }
-  return beside ? ` on the ${side}, beside this chat` : ` on the ${side}`;
+/** Where a tab now stands, after its name, in a group of two sides. */
+function onSide(side: LayoutSideName): string {
+  return side === undefined ? "" : ` on the ${side}`;
 }

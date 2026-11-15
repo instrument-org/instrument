@@ -14,29 +14,22 @@ export function browserStatusModelNote(data: Status) {
   }
 
   const tabs = data.tabs.map(tabLine).join("; ");
-  const theirs = data.tabs.some((tab) => tab.openedBy !== "task")
-    ? " Act in any of them when the user's words point at it; a tab no agent opened goes to another address only when they ask, so open pages of your own with `agent-browser tab new <url>`."
-    : "";
-  const asleep = data.tabs.some((tab) => tab.asleep)
-    ? " A tab asleep draws nothing and runs its timers slowly until a command reaches it, which wakes it with its page as it was."
-    : "";
-  const unloads = data.tabs.some((tab) => tab.unloadsInMin !== undefined)
-    ? " A page unloaded out of sight comes back from its address the next time the tab is used, without what was typed or scrolled in it."
-    : "";
   return systemNote`
-    The pages in the user's tab group, which the chat and each of its tasks all see: ${tabs}. \`agent-browser tab <id>\` switches to one.${theirs}${asleep}${unloads}${closed}
+    Pages in the user's tab group: ${tabs}.${closed}
   `;
 }
 
+/**
+ * One page by its id and address, with what changes slowly enough to be
+ * news: who opened it, whether it is out of sight or asleep, and what it
+ * costs. How sleep and unloading work is the system prompt's.
+ */
 function tabLine(tab: Tab) {
-  const title = tab.title ? ` ("${tab.title}")` : "";
   const opened = tab.openedBy === "task" ? ", opened by an agent" : "";
   const place =
-    tab.onScreen === undefined
-      ? ""
-      : tab.onScreen
-        ? ", on the user's screen"
-        : `, out of the user's sight${tab.asleep ? " and asleep" : ""}`;
+    tab.onScreen === false
+      ? `, out of sight${tab.asleep ? " and asleep" : ""}`
+      : "";
   const shared =
     tab.sharedWith && tab.sharedWith.length > 0
       ? ` (one process with ${tab.sharedWith.join(", ")})`
@@ -44,12 +37,32 @@ function tabLine(tab: Tab) {
   const cost =
     tab.memoryMb === undefined
       ? ""
-      : `, using ${tab.memoryMb} MB${tab.cpuPercent === undefined ? "" : ` and ${tab.cpuPercent}% CPU`}${shared}`;
-  const unloads =
-    tab.unloadsInMin === undefined
-      ? ""
-      : `, its page unloads in about ${tab.unloadsInMin} min unless used`;
-  return `${tab.id} at ${tab.url}${title}${opened}${place}${cost}${unloads}`;
+      : `, ${tab.memoryMb} MB${tab.cpuPercent === undefined ? "" : `, ${tab.cpuPercent}% CPU`}${shared}`;
+  return `${tab.id} at ${tab.url}${opened}${place}${cost}`;
+}
+
+/**
+ * The pages that changed since the note before: each opened or changed by
+ * its whole line, each gone by its id, and what the app closed. A note the
+ * same as the one before says nothing, so this is said only when one did.
+ */
+export function browserStatusChangesModelNote(before: Status, now: Status) {
+  const was = new Map(before.tabs.map((tab) => [tab.id, tabLine(tab)]));
+  const changed = now.tabs
+    .map(tabLine)
+    .filter((line, at) => was.get(now.tabs[at]?.id ?? "") !== line);
+  const gone = before.tabs
+    .filter((tab) => !now.tabs.some((other) => other.id === tab.id))
+    .map((tab) => tab.id);
+  const said = [
+    changed.length === 0 ? "" : `Pages changed: ${changed.join("; ")}.`,
+    gone.length === 0 ? "" : `Pages gone: ${gone.join(", ")}.`,
+  ]
+    .filter((line) => line !== "")
+    .join(" ");
+  return systemNote`
+    ${`${said}${closedNote(now.closed ?? [])}`.trim()}
+  `;
 }
 
 function closedNote(closed: NonNullable<Status["closed"]>) {

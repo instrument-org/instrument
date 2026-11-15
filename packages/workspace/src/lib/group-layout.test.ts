@@ -6,7 +6,6 @@ import {
   type LayoutTab,
 } from "../schemas/group-layout";
 import {
-  changesByPerson,
   type LayoutMoves,
   layoutChanges,
   layoutChangesLine,
@@ -78,13 +77,20 @@ function brief(change: LayoutChange): string {
     case "opened": {
       return `opened ${change.tab.id} ${change.side ?? "whole"}${change.beside ? " beside" : ""}`;
     }
+    case "shown": {
+      return `shown ${change.tab.isThisChat ? "@" : change.tab.id} ${change.side ?? "whole"}`;
+    }
+    case "groupShown": {
+      return change.isShown ? "group shown" : "group hidden";
+    }
   }
 }
 
 describe("layoutChanges", () => {
   it.each<[string, string, string, string[], LayoutMoves?]>([
     ["nothing changed", "A* | @*", "A* | @*", []],
-    ["only the tab up changed", "A* B | @*", "A B* | @*", []],
+    ["only the tab up changed", "A* B | @*", "A B* | @*", ["shown B left"]],
+    ["the chat came back up on its side", "A* @", "A @*", ["shown @ whole"]],
     ["a tab opened beside the chat", "@*", "A* | @*", ["opened A left beside"]],
     [
       "a tab opened in front of others",
@@ -207,20 +213,21 @@ describe("layoutChanges", () => {
   it("names a tab as it stands after, with where it went", () => {
     expect(layoutChanges(layout("@*"), layout("A* | @*")))
       .toMatchInlineSnapshot(`
-      [
-        {
-          "beside": true,
-          "change": "opened",
-          "side": "left",
-          "tab": {
-            "address": "https://a.example/",
-            "id": "A",
-            "kind": "website",
-            "title": "A",
+        [
+          {
+            "beside": true,
+            "change": "opened",
+            "side": "left",
+            "tab": {
+              "address": "https://a.example/",
+              "id": "A",
+              "isUp": true,
+              "kind": "website",
+              "title": "A",
+            },
           },
-        },
-      ]
-    `);
+        ]
+      `);
   });
 });
 
@@ -263,23 +270,11 @@ describe("layoutChangesLine", () => {
   });
 });
 
-describe("changesByPerson", () => {
-  it("leaves out what an agent opened, closed or went to", () => {
-    const changes = layoutChanges(layout("A* B | @*"), layout("A:c C* | @*"));
-    const agents = changes.map((one): LayoutChange => {
-      switch (one.change) {
-        case "navigated":
-        case "opened": {
-          return { ...one, byAgent: true };
-        }
-        default: {
-          return one;
-        }
-      }
-    });
-    expect(layoutChangesLine(changes)).toBe(
-      "Opened C beside this chat, closed B, went to C",
-    );
-    expect(layoutChangesLine(changesByPerson(agents))).toBe("Closed B");
+describe("groupShown", () => {
+  it("says when the window stops or starts showing the group", () => {
+    const shown = layout("A* | @*");
+    const hidden = { ...shown, isShown: false };
+    expect(layoutChanges(shown, hidden).map(brief)).toEqual(["group hidden"]);
+    expect(layoutChanges(hidden, shown).map(brief)).toEqual(["group shown"]);
   });
 });

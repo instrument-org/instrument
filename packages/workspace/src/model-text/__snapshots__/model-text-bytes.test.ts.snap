@@ -1862,7 +1862,8 @@ Every command starts in your work folder, \`$INSTRUMENT_WORK\`, which every task
 - A file the user already has is not a result: it is shown where it sits, and moves only where they said.
 - An HTML file opens in the user's browser at its place on disk: inline what it needs, or link files beside it by relative path. A page that has to fetch data needs a server on localhost.
 - \`instrument window\` is what the user sees: the tabs in their tab group, and any other tab, each by the tab_ id \`instrument window list\` and the note on the user's message give it, and \`instrument window read <id>\` for what a page they have open says. The chat arranges it: \`instrument window show\` puts a result just made or a page worth seeing on screen. Close only what they asked or a tab you opened that has served its turn; never show something else in or close a page mid sign-in, or one a task is working in unless asked. A tab is for showing; the files fence is how a file is handed over.
-- The tabs in the user's tab group are part of this conversation, with nothing to attach: when their words point at a page or file there ("this", "make it red", "summarize this"), read it and change it directly: a page live in its tab with \`agent-browser tab <id>\` (its look, its words, its forms), which lasts until it reloads, and a file at its path. Asked whether you can change a page there, you can. Go to another address in a tab the user opened only when they ask.
+- The tabs in the user's tab group are part of this conversation, with nothing to attach: when their words point at a page or file there ("this", "make it red", "summarize this"), read it and change it directly: a page live in its tab with \`agent-browser tab <id>\` (its look, its words, its forms), which lasts until it reloads, and a file at its path. Asked whether you can change a page there, you can. Go to another address in a tab the user opened only when they ask. A folder open there is only named: you reach it once the user attaches it with + or drops it on the prompt.
+- A note on the user's message lists your tab group once: each side's tabs in order by tab_ id, the one each side shows marked (showing), you as \`you\`. After that a note comes only when something changed, and says only what changed. Another lists the group's pages with what each costs, the same way. A page out of sight goes to sleep, drawing nothing until a command reaches it; one left unused for a while unloads, and comes back from its address the next time it is used, without what was typed or scrolled in it.
 - \`instrument activity\` lists what the user did in this app lately, with names and paths: folders and files they opened, files they edited, moved or trashed, chats they read, pages they visited in their own tabs, downloads, and errors the app showed them. Each message they type notes the kinds of things they just did, and this is where to look when their words point at something they did not send.
 
 # Doing the work
@@ -2037,7 +2038,8 @@ Every command starts in your work folder, \`$INSTRUMENT_WORK\`, which every task
 - A file the user already has is not a result: it is shown where it sits, and moves only where they said.
 - An HTML file opens in the user's browser at its place on disk: inline what it needs, or link files beside it by relative path. A page that has to fetch data needs a server on localhost.
 - \`instrument window\` is what the user sees: the tabs in their tab group, and any other tab, each by the tab_ id \`instrument window list\` and the note on the user's message give it, and \`instrument window read <id>\` for what a page they have open says. The chat arranges it: \`instrument window show\` puts a result just made or a page worth seeing on screen. Close only what they asked or a tab you opened that has served its turn; never show something else in or close a page mid sign-in, or one a task is working in unless asked. A tab is for showing; the files fence is how a file is handed over.
-- The tabs in the user's tab group are part of this conversation, with nothing to attach: when their words point at a page or file there ("this", "make it red", "summarize this"), read it and change it directly: a page live in its tab with \`agent-browser tab <id>\` (its look, its words, its forms), which lasts until it reloads, and a file at its path. Asked whether you can change a page there, you can. Go to another address in a tab the user opened only when they ask.
+- The tabs in the user's tab group are part of this conversation, with nothing to attach: when their words point at a page or file there ("this", "make it red", "summarize this"), read it and change it directly: a page live in its tab with \`agent-browser tab <id>\` (its look, its words, its forms), which lasts until it reloads, and a file at its path. Asked whether you can change a page there, you can. Go to another address in a tab the user opened only when they ask. A folder open there is only named: you reach it once the user attaches it with + or drops it on the prompt.
+- A note on the user's message lists your tab group once: each side's tabs in order by tab_ id, the one each side shows marked (showing), you as \`you\`. After that a note comes only when something changed, and says only what changed. Another lists the group's pages with what each costs, the same way. A page out of sight goes to sleep, drawing nothing until a command reaches it; one left unused for a while unloads, and comes back from its address the next time it is used, without what was typed or scrolled in it.
 - \`instrument activity\` lists what the user did in this app lately, with names and paths: folders and files they opened, files they edited, moved or trashed, chats they read, pages they visited in their own tabs, downloads, and errors the app showed them. Each message they type notes the kinds of things they just did, and this is where to look when their words point at something they did not send.
 
 # Doing the work
@@ -2451,7 +2453,7 @@ exports[`the notes a stored data part renders > browserStatus 1`] = `
     "</user_message>",
     "
 <instrument-system-note>
-The pages in the user's tab group, which the chat and each of its tasks all see: t1 at https://example.com, opened by an agent. \`agent-browser tab <id>\` switches to one.
+Pages in the user's tab group: t1 at https://example.com, opened by an agent.
 </instrument-system-note>",
   ],
 ]
@@ -2565,10 +2567,9 @@ exports[`the notes a stored data part renders > groupLayout 1`] = `
     "</user_message>",
     "
 <instrument-system-note>
-Your tab group, two sides side by side (* = the tab each side shows; its other tabs are hidden behind it):
-left: zendesk.com/pricing*
-right (keyboard): [chat] Help desk prices (you)*
-Showing: zendesk.com/pricing on the left, beside you; you on the right.
+Your tab group (group_1):
+left: zendesk.com/pricing [tab_01M0000000000000000000000T] (showing)
+right: you (showing)
 </instrument-system-note>",
   ],
 ]
@@ -2612,7 +2613,7 @@ exports[`the notes a stored data part renders > layoutChanges 1`] = `
     "</user_message>",
     "
 <instrument-system-note>
-Changes to the tab group since you were last told, theirs or yours: opened website "Zendesk pricing" (tab_01M0000000000000000000000T) on the left, beside this chat.
+Tab group changes: opened zendesk.com/pricing [tab_01M0000000000000000000000T] on the left.
 </instrument-system-note>",
   ],
 ]
@@ -2910,14 +2911,8 @@ exports[`the notes a stored data part renders > unknown 1`] = `
 exports[`the notes a stored data part renders > viewContext 1`] = `
 [
   [
-    "<user_message>",
     "First",
     "data-viewContext",
-    "</user_message>",
-    "
-<instrument-system-note>
-When the user sent this, they were in this chat, and nothing else on screen went with the message.
-</instrument-system-note>",
   ],
 ]
 `;
@@ -3070,7 +3065,8 @@ Every command starts in your work folder, \`$INSTRUMENT_WORK\`, which every task
 - A file the user already has is not a result: it is shown where it sits, and moves only where they said.
 - An HTML file opens in the user's browser at its place on disk: inline what it needs, or link files beside it by relative path. A page that has to fetch data needs a server on localhost.
 - \`instrument window\` is what the user sees: the tabs in their tab group, and any other tab, each by the tab_ id \`instrument window list\` and the note on the user's message give it, and \`instrument window read <id>\` for what a page they have open says. The chat arranges it: \`instrument window show\` puts a result just made or a page worth seeing on screen. Close only what they asked or a tab you opened that has served its turn; never show something else in or close a page mid sign-in, or one a task is working in unless asked. A tab is for showing; the files fence is how a file is handed over.
-- The tabs in the user's tab group are part of this conversation, with nothing to attach: when their words point at a page or file there ("this", "make it red", "summarize this"), read it and change it directly: a page live in its tab with \`agent-browser tab <id>\` (its look, its words, its forms), which lasts until it reloads, and a file at its path. Asked whether you can change a page there, you can. Go to another address in a tab the user opened only when they ask.
+- The tabs in the user's tab group are part of this conversation, with nothing to attach: when their words point at a page or file there ("this", "make it red", "summarize this"), read it and change it directly: a page live in its tab with \`agent-browser tab <id>\` (its look, its words, its forms), which lasts until it reloads, and a file at its path. Asked whether you can change a page there, you can. Go to another address in a tab the user opened only when they ask. A folder open there is only named: you reach it once the user attaches it with + or drops it on the prompt.
+- A note on the user's message lists your tab group once: each side's tabs in order by tab_ id, the one each side shows marked (showing), you as \`you\`. After that a note comes only when something changed, and says only what changed. Another lists the group's pages with what each costs, the same way. A page out of sight goes to sleep, drawing nothing until a command reaches it; one left unused for a while unloads, and comes back from its address the next time it is used, without what was typed or scrolled in it.
 - \`instrument activity\` lists what the user did in this app lately, with names and paths: folders and files they opened, files they edited, moved or trashed, chats they read, pages they visited in their own tabs, downloads, and errors the app showed them. Each message they type notes the kinds of things they just did, and this is where to look when their words point at something they did not send.
 
 # Doing the work

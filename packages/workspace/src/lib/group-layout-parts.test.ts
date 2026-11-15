@@ -113,10 +113,22 @@ describe("layoutParts", () => {
     ).toEqual(["focused", "group", "sides"]);
   });
 
-  it("writes a layout only when what it says changed", async () => {
+  it("writes a layout only when its tabs or what shows changed", async () => {
     const { send } = await setup("layout-parts-said");
-    expect(await send(read([CHAT, PAGE]))).toEqual(["data-groupLayout"]);
+    // The first message goes from the new tab the chat starts in.
+    expect(
+      await send(
+        read([
+          { ...CHAT, address: "instrument://new-chat", kind: "newChat" },
+          PAGE,
+        ]),
+      ),
+    ).toEqual(["data-groupLayout"]);
+    expect(await send(read([CHAT, PAGE]))).toEqual([]);
     expect(await send(read([CHAT, { ...PAGE, title: "Renamed" }]))).toEqual([]);
+    expect(
+      await send(read([{ ...CHAT, title: "Retitled chat" }, PAGE])),
+    ).toEqual([]);
     expect(
       await send(
         read([
@@ -124,6 +136,6 @@ describe("layoutParts", () => {
           { ...PAGE, isUp: true },
         ]),
       ),
-    ).toEqual(["data-groupLayout"]);
+    ).toEqual(["data-groupLayout", ["shown"]]);
   });
 });

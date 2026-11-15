@@ -470,7 +470,7 @@ describe("SessionMessage.toModelMessages", () => {
             {
               "text": "
       <instrument-system-note>
-      The pages in the user's tab group, which the chat and each of its tasks all see: t1 at https://example.com ("Example"), opened by an agent. \`agent-browser tab <id>\` switches to one.
+      Pages in the user's tab group: t1 at https://example.com, opened by an agent.
       </instrument-system-note>",
               "type": "text",
             },
@@ -496,7 +496,7 @@ describe("SessionMessage.toModelMessages", () => {
   // thing a message carries.
   it("does not repeat an unchanged screen note", async () => {
     const viewing = (metadata: ReturnType<typeof baseMetadata>) => ({
-      data: { screen: "home" as const, url: "/new-tab" },
+      data: { screen: "apps" as const, url: "/apps" },
       metadata: { ...metadata.partMetadata, id: StoreId.newPartId() },
       type: "data-viewContext" as const,
     });

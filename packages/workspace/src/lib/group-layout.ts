@@ -86,6 +86,7 @@ export function layoutChanges(
       );
       continue;
     }
+    const isMoved = became[old.side] !== side || reordered.has(key);
     if (became[old.side] !== side) {
       changes.push({
         ...beside,
@@ -105,6 +106,13 @@ export function layoutChanges(
         to: sideName(after, side),
       });
     }
+    if (!isMoved && tab.isUp === true && old.tab.isUp !== true) {
+      changes.push({
+        change: "shown",
+        side: sideName(after, side),
+        tab: named(tab),
+      });
+    }
     if (
       !tab.isThisChat &&
       (old.tab.address !== tab.address || old.tab.kind !== tab.kind)
@@ -119,6 +127,9 @@ export function layoutChanges(
         tab: named(tab),
       });
     }
+  }
+  if ((before.isShown ?? true) !== (after.isShown ?? true)) {
+    changes.push({ change: "groupShown", isShown: after.isShown ?? true });
   }
   return changes;
 }
@@ -234,12 +245,18 @@ function named({
   address,
   id,
   isThisChat,
+  isUp,
   kind,
   title,
 }: LayoutTab): ChangedTab {
-  return isThisChat
-    ? { address, id, isThisChat, kind, title }
-    : { address, id, kind, title };
+  return {
+    address,
+    id,
+    ...(isThisChat ? { isThisChat } : {}),
+    ...(isUp ? { isUp } : {}),
+    kind,
+    title,
+  };
 }
 
 /** An agent's change, for a tab an agent opened. */
@@ -251,17 +268,10 @@ function titleOf(tab: LayoutTab): string {
   return tab.isThisChat ? "this chat" : tab.title;
 }
 
-/** The changes the person made: every one but those an agent made. */
-export function changesByPerson(
-  changes: readonly LayoutChange[],
-): LayoutChange[] {
-  return changes.filter((one) => !("byAgent" in one && one.byAgent === true));
-}
-
 /**
- * The changes in one short line for the person, on the message they went
- * with: "Opened Zendesk pricing beside this chat, closed Intercom". Empty
- * when nothing changed.
+ * The changes in one short line, for a developer's note on the message
+ * they went with: "Opened Zendesk pricing beside this chat, closed
+ * Intercom". Empty when nothing changed.
  */
 export function layoutChangesLine(changes: readonly LayoutChange[]): string {
   const opened = changes.filter((one) => one.change === "opened");
@@ -304,6 +314,14 @@ export function layoutChangesLine(changes: readonly LayoutChange[]): string {
         }
         case "navigated": {
           return [`went to ${one.tab.title}`];
+        }
+        case "shown": {
+          return [`showed ${one.tab.isThisChat ? "this chat" : one.tab.title}`];
+        }
+        case "groupShown": {
+          return [
+            one.isShown ? "showed this tab group" : "showed another tab group",
+          ];
         }
       }
     }),

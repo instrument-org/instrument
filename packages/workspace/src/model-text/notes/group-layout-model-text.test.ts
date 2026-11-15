@@ -4,6 +4,7 @@ import { type LayoutTab } from "../../schemas/group-layout";
 import {
   groupLayoutModelNote,
   layoutChangesModelNote,
+  tabGroupModelNote,
   tabPlace,
 } from "./group-layout-model-text";
 
@@ -70,10 +71,9 @@ describe("groupLayoutModelNote", () => {
     ).toMatchInlineSnapshot(`
       "
       <instrument-system-note>
-      Your tab group, two sides side by side (* = the tab each side shows; its other tabs are hidden behind it):
-      left (keyboard): [chat] Renewal reminders (you)* · /Users/mac-user/Documents/notes.md
-      right: zendesk.com/pricing* · g2.com/compare
-      Showing: you on the left; zendesk.com/pricing on the right, beside you.
+      Your tab group (group_prices):
+      left: you (showing) · /Users/mac-user/Documents/notes.md [tab_01NOTES]
+      right: zendesk.com/pricing [tab_01ZEN] (showing) · g2.com/compare [tab_01G2]
       </instrument-system-note>"
     `);
   });
@@ -97,10 +97,9 @@ describe("groupLayoutModelNote", () => {
     ).toMatchInlineSnapshot(`
       "
       <instrument-system-note>
-      Your tab group, two sides side by side (* = the tab each side shows; its other tabs are hidden behind it):
-      left (keyboard): [folder] /Users/mac-user/Downloads* · [app] Settings
-      right: [chat] Help desk prices (you) · zendesk.com/pricing* · New Tab
-      Showing: [folder] /Users/mac-user/Downloads on the left; zendesk.com/pricing on the right, covering you. The user cannot see this chat now.
+      Your tab group (group_prices):
+      left: [folder] /Users/mac-user/Downloads [tab_01DL] (showing) · [app] Settings [tab_01SET]
+      right: you · zendesk.com/pricing [tab_01ZEN] (showing) · New Tab [tab_01NEW]
       </instrument-system-note>"
     `);
   });
@@ -115,9 +114,8 @@ describe("groupLayoutModelNote", () => {
     ).toMatchInlineSnapshot(`
       "
       <instrument-system-note>
-      Your tab group, one side (* = the tab it shows; the other tabs are hidden behind it):
-      [chat] Help desk prices (you)* · [folder] /Users/mac-user/Downloads
-      Showing: only you.
+      Your tab group (group_prices):
+      you (showing) · [folder] /Users/mac-user/Downloads [tab_01DL]
       </instrument-system-note>"
     `);
   });
@@ -143,9 +141,8 @@ describe("groupLayoutModelNote", () => {
     ).toMatchInlineSnapshot(`
       "
       <instrument-system-note>
-      Your tab group, one side (* = the tab it shows; the other tabs are hidden behind it):
-      [chat] Help desk prices (you)* · google.com/search?q=help+desk+help+desk+help+desk+help+desk+help+desk+help+desk…
-      Showing: only you.
+      Your tab group (group_prices):
+      you (showing) · google.com/search?q=help+desk+help+desk+help+desk+help+desk+help+desk+help+desk… [tab_01ZEN]
       </instrument-system-note>"
     `);
   });
@@ -161,23 +158,25 @@ describe("groupLayoutModelNote", () => {
     ).toMatchInlineSnapshot(`
       "
       <instrument-system-note>
-      Your tab group, one side (* = the tab it shows; the other tabs are hidden behind it):
-      [chat] Help desk prices (you)*
-      The window shows another tab group now, so none of this is on screen. This group shows: only you.
+      Your tab group (group_prices):
+      you (showing)
+      The window shows another tab group, so none of this is on screen.
       </instrument-system-note>"
     `);
   });
 
-  it.each([
-    ["the chat alone", [CHAT]],
-    ["the chat beside unwritten new chats", [CHAT, NEW_CHAT]],
-  ])("says %s in a line", (_label, tabs) => {
+  it("says the chat alone in a line", () => {
     expect(
-      groupLayoutModelNote({ focused: 0, group: GROUP, sides: [{ tabs }] }),
+      groupLayoutModelNote({
+        focused: 0,
+        group: GROUP,
+        sides: [{ tabs: [CHAT] }],
+      }),
     ).toMatchInlineSnapshot(`
       "
       <instrument-system-note>
-      Your tab group is just you now.
+      Your tab group (group_prices):
+      you (showing)
       </instrument-system-note>"
     `);
   });
@@ -258,12 +257,15 @@ describe("layoutChangesModelNote", () => {
             to: "left",
           },
           { change: "moved", from: "right", tab: ZENDESK, to: undefined },
+          { change: "shown", side: "right", tab: { ...G2, isUp: true } },
+          { change: "shown", side: undefined, tab: CHAT },
+          { change: "groupShown", isShown: false },
         ],
       }),
     ).toMatchInlineSnapshot(`
       "
       <instrument-system-note>
-      Changes to the tab group since you were last told, theirs or yours: closed folder "Downloads" (tab_01DL); moved new chat (tab_01NEW) out to the tab group group_launch; opened website "Zendesk pricing" (tab_01ZEN) on the left, beside this chat; tab_01ZEN went from https://www.intercom.com/pricing to website "Zendesk pricing" at https://www.zendesk.com/pricing; moved folder "Downloads" (tab_01DL) in from the tab group group_launch on the left, beside this chat; moved this chat to the right; moved folder "Downloads" (tab_01DL) after "Zendesk pricing"; moved website "Zendesk pricing" (tab_01ZEN) into the group's one side.
+      Tab group changes: closed [folder] /Users/mac-user/Downloads [tab_01DL]; New Tab [tab_01NEW] moved out to the tab group group_launch; opened zendesk.com/pricing [tab_01ZEN] (showing) on the left; tab_01ZEN went to zendesk.com/pricing; [folder] /Users/mac-user/Downloads [tab_01DL] moved in from the tab group group_launch on the left; moved you (showing) to the right; moved [folder] /Users/mac-user/Downloads [tab_01DL] after Zendesk pricing; moved zendesk.com/pricing [tab_01ZEN] (showing) into the one side; the right shows g2.com/compare [tab_01G2]; now showing you; the window shows another tab group, so none of this one is on screen.
       </instrument-system-note>"
     `);
   });
@@ -278,7 +280,58 @@ describe("layoutChangesModelNote", () => {
     ).toMatchInlineSnapshot(`
       "
       <instrument-system-note>
-      Changes to the tab group since you were last told, theirs or yours: this chat moved from the tab group group_prices to group_launch.
+      Tab group changes: you moved to the tab group group_launch.
+      </instrument-system-note>"
+    `);
+  });
+});
+
+describe("tabGroupModelNote", () => {
+  const layout = {
+    focused: 0,
+    group: GROUP,
+    sides: [{ tabs: [CHAT, ZENDESK] }],
+  };
+  const opened = {
+    changes: [{ change: "opened" as const, side: undefined, tab: ZENDESK }],
+  };
+
+  it("says the whole group with no changes beside it, and only the changes with them", () => {
+    expect({
+      first: tabGroupModelNote({ layout }),
+      later: tabGroupModelNote({ changes: opened, layout }),
+      neither: tabGroupModelNote({}),
+    }).toMatchInlineSnapshot(`
+      {
+        "first": "
+      <instrument-system-note>
+      Your tab group (group_prices):
+      you (showing) · zendesk.com/pricing [tab_01ZEN] (showing)
+      </instrument-system-note>",
+        "later": "
+      <instrument-system-note>
+      Tab group changes: opened zendesk.com/pricing [tab_01ZEN] (showing).
+      </instrument-system-note>",
+        "neither": undefined,
+      }
+    `);
+  });
+
+  it("says the whole group again in another group", () => {
+    expect(
+      tabGroupModelNote({
+        changes: {
+          changes: [
+            { change: "chatMoved", from: "group_prices", to: "group_launch" },
+          ],
+        },
+        layout: { ...layout, group: { id: "group_launch" } },
+      }),
+    ).toMatchInlineSnapshot(`
+      "
+      <instrument-system-note>
+      Your tab group (group_launch):
+      you (showing) · zendesk.com/pricing [tab_01ZEN] (showing)
       </instrument-system-note>"
     `);
   });

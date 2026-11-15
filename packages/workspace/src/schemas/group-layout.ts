@@ -64,6 +64,7 @@ const ChangedTabSchema = LayoutTabSchema.pick({
   address: true,
   id: true,
   isThisChat: true,
+  isUp: true,
   kind: true,
   title: true,
 });
@@ -120,6 +121,18 @@ export const LayoutChangeSchema = z.discriminatedUnion("change", [
     change: z.literal("navigated"),
     from: ChangedTabSchema.pick({ address: true, kind: true, title: true }),
     tab: ChangedTabSchema,
+  }),
+  z.object({
+    change: z.literal("shown"),
+    /** The side that shows it now. */
+    side: SideSchema,
+    /** A tab that was in the group before and is now the one its side shows. */
+    tab: ChangedTabSchema,
+  }),
+  z.object({
+    change: z.literal("groupShown"),
+    /** Whether the window shows the group now, after showing another or before it. */
+    isShown: z.boolean(),
   }),
   z.object({
     change: z.literal("chatMoved"),

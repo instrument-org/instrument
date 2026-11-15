@@ -45,22 +45,15 @@ describe("viewContextModelNote", () => {
     ).toMatchInlineSnapshot(`
       "
       <instrument-system-note>
-      When the user sent this, they wrote it in a new tab, which became this chat. Nothing else on screen went with the message.
-      </instrument-system-note>
-      <instrument-system-note>
       They chose to send these with the message: the file \`/Users/casey/Notes/plan.md\`; the folder \`/Volumes/Backup\`. "This", "these" and "it" refer to them first, then to what was on screen.
       </instrument-system-note>"
     `);
   });
 
-  it("says the conversation was all that was in view", () => {
-    expect(viewContextModelNote({ screen: "conversation", tabs: [] }))
-      .toMatchInlineSnapshot(`
-        "
-        <instrument-system-note>
-        When the user sent this, they were in this chat, and nothing else on screen went with the message.
-        </instrument-system-note>"
-      `);
+  it("says nothing when the chat alone was in view", () => {
+    expect(
+      viewContextModelNote({ screen: "conversation", tabs: [] }),
+    ).toMatchInlineSnapshot(`""`);
   });
 
   it("names another chat the user had open, and nothing in it", () => {
@@ -94,9 +87,6 @@ describe("viewContextModelNote", () => {
       }),
     ).toMatchInlineSnapshot(`
       "
-      <instrument-system-note>
-      When the user sent this, they wrote it in a new tab, which became this chat. Nothing else on screen went with the message.
-      </instrument-system-note>
       Tabs in their tab group: "New tab" at /new-tab (tab screen-1); "Example" at https://example.com/ (tab tab_01M3AX9RF3C2E9RTATMB602W0B, task read-the-page is working in it)."
     `);
   });
@@ -117,7 +107,6 @@ describe("viewContextModelNote", () => {
       "
       <instrument-system-note>
       When the user sent this, the browser showed "Amazon.com. Spend less. Smile more." at https://www.amazon.com/?ref_=nav_signin, in their own tab tab_01M5Q1ZK8AAAAAAAAAAAAAAAAA, outside their tab group. "This page", "this site", "this" and "here" refer to it. Act in this very tab when they ask you to; for work that needs only the site, open its address in a tab of your own, which has their sign-ins but not what they typed or scrolled to.
-      Their tab group has no pages.
       </instrument-system-note>"
     `);
   });
@@ -149,7 +138,7 @@ describe("viewContextModelNote", () => {
     ).toMatchInlineSnapshot(`
       "
       <instrument-system-note>
-      When the user sent this, the browser showed "Example" at https://example.com/ (tab tab_01M3AX9RF3C2E9RTATMB602W0B in their tab group, yours to read and change, task read-the-page is working in it). "This page", "this site", "this" and "here" refer to it.
+      When the user sent this, the browser showed "Example" at https://example.com/ (tab tab_01M3AX9RF3C2E9RTATMB602W0B, task read-the-page is working in it). "This page", "this site", "this" and "here" refer to it.
       Other pages in their tab group, not on screen: "Shop" at https://shop.example/ (tab tab_01M3AX9RF3C2E9RTATMB602W0C, task compare-prices is working in it).
       </instrument-system-note>"
     `);

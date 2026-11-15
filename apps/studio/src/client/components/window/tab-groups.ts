@@ -621,17 +621,23 @@ export function useTabGroupActions() {
 
   /**
    * Brings forward a chat asked for from outside the window's own clicks (a
-   * notification, the bell, a link from another app): the tab on it the
-   * person last sent from comes up in its group, here or in the window that
-   * has it, and a chat with no tab opens as a group of its own (`openChat`).
+   * notification, the bell, a link from another app, its address): the tab
+   * on it the person last sent from comes up in its group, here or in the
+   * window that has it, and a chat with no tab opens as a group of its own
+   * (`openChat`). With `replace`, the window's address it was asked at is
+   * replaced rather than walked past.
    */
-  const revealChat = (chat: ChatId) => {
+  const revealChat = (chat: ChatId, options: { replace?: boolean } = {}) => {
     const tab = windowTabs.chatTab(chat);
     if (tab?.group === undefined) {
-      openChat(chat);
+      openChat(chat, options);
       return;
     }
     windowTabs.select(tab.id);
+    if (options.replace === true && isListedHere(tab.group)) {
+      appTabs.navigate(groupHref(tab.group), { replace: true });
+      return;
+    }
     show(tab.group);
   };
 
@@ -722,14 +728,15 @@ export function useTabGroupUpkeep(href: string, open: readonly TabGroup[]) {
       store.set(windowTabGroupsAtom, kept);
     }
     const screen = matchScreen(href);
-    // A chat or a draft asked for by its address, once per ask.
+    // A chat or a draft asked for by its address, once per ask: a chat open
+    // in a tab comes up there.
     if (screen.kind === "chat" || (screen.kind === "inbox" && screen.draft)) {
       if (asked.current === href) {
         return;
       }
       asked.current = href;
       if (screen.kind === "chat") {
-        groups.openChat(screen.chat, { replace: true });
+        groups.revealChat(screen.chat, { replace: true });
       } else if (screen.draft !== undefined) {
         groups.openDraft(screen.draft, { replace: true });
       }

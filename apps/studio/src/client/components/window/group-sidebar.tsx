@@ -422,16 +422,17 @@ export function GroupSidebar({
             )}
           </GroupList>
         </div>
-        <ActiveChatsList
-          onNewProject={onNewChatProject}
-          projects={projects}
-        />
-        <SidebarAlerts>
-          <NetworkStatusIndicator isRow />
-        </SidebarAlerts>
-        <SidebarFoot
-          chatId={groupUp === undefined ? undefined : chatUpIn(groupUp)}
-        />
+        {/* The foot, the Chats list over the account, set off from the
+            groups by its one line. */}
+        <div className="flex shrink-0 flex-col border-t border-border/60">
+          <ActiveChatsList
+            onNewProject={onNewChatProject}
+            projects={projects}
+          />
+          <SidebarFoot
+            chatId={groupUp === undefined ? undefined : chatUpIn(groupUp)}
+          />
+        </div>
       </div>
       <TabMenuAtPoint
         at={spaceMenu}
@@ -780,6 +781,7 @@ export function GroupRow({
       chatTitles={chatTitles}
       close={closeOf(tab, side)}
       isCloseShown={isCloseShown}
+      isOnScreen={isUp}
       key={tab.id}
       tab={tab}
     />
@@ -897,8 +899,9 @@ function RowHalfPlace({
 /**
  * The sidebar's top row, which drags the window, centered on the tab strips
  * beside it, under the ground above their card: room for the traffic
- * lights on a Mac, then the app's menu off the Mac; the update pill, then
- * History and the bell at its end.
+ * lights on a Mac, then the app's menu off the Mac; the update pill, the
+ * mark that Instrument is out of reach while it is, then History and the
+ * bell at its end.
  */
 function SidebarTop() {
   return (
@@ -909,28 +912,13 @@ function SidebarTop() {
       {!isMacOS() && <AppMenuButton />}
       <span className="flex-1" />
       <UpdateStatusIndicator />
+      <NetworkStatusIndicator isIcon />
       <HistoryButton
         onShowAll={() => {
           openBuiltInPage(SCREENS.activity.href);
         }}
       />
       <NotificationsBell />
-    </div>
-  );
-}
-
-/**
- * What the sidebar has to say about the app itself, a plain row each, over
- * its foot: Instrument out of reach, today. Takes no room while every row in
- * it is absent.
- */
-function SidebarAlerts({ children }: { children: ReactNode }) {
-  return (
-    <div
-      className="flex shrink-0 flex-col gap-0.5 pb-1 pl-2 empty:hidden"
-      data-sidebar-alerts=""
-    >
-      {children}
     </div>
   );
 }
@@ -960,7 +948,7 @@ function SidebarFoot({ chatId }: { chatId: ChatId | undefined }) {
     rpcClient.workspaces.current.queryOptions(),
   );
   return (
-    <div className="flex h-11 shrink-0 items-center gap-1 border-t border-border/60 pr-1 pl-2">
+    <div className="flex h-11 shrink-0 items-center gap-1 pr-1 pl-2">
       <button
         className="flex h-9 min-w-0 flex-1 items-center gap-1.5 rounded-lg px-1.5 text-left hover:bg-foreground/5"
         onClick={() => {

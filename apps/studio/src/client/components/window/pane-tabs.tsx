@@ -30,6 +30,8 @@ import {
   ChatTabRenameField,
   DraftTabItems,
 } from "./chat-tab-menu";
+import { chatListOptions } from "./chat-list-query";
+import { chatDotOf, ChatMarkIcon } from "./chat-mark";
 import { type Chat } from "./chats";
 import { useComputerVolumes } from "./computer-volumes";
 import { DeleteChatDialog } from "./delete-chat-dialog";
@@ -124,6 +126,7 @@ export function PaneTabs({
     tabs.map((tab) => (tab.kind === "page" ? undefined : tab.href)),
   );
   const captures = usePageCaptures();
+  const { data: chats } = useQuery(chatListOptions());
   const driven = useTargetsAgentActivity(
     // A bookmark held over the strip stands in as a page with no browser
     // view of its own, under an id that is no tab's.
@@ -170,6 +173,7 @@ export function PaneTabs({
     } else if (named.url !== undefined) {
       tooltip = tabTooltip("", named);
     }
+    const chat = chatOfTab(tab);
     let icon: ReactNode = null;
     // A page using the microphone or camera wears that in place of its
     // favicon, so the tab in a call is the one to look for.
@@ -193,15 +197,24 @@ export function PaneTabs({
         />
       );
     } else {
+      // A chat's tab wears its dot while it is not the tab up on this side.
       icon = (
-        <ScreenMark
-          appsBySlug={appsBySlug}
-          chatTitles={chatTitles}
-          href={tab.href}
+        <ChatMarkIcon
+          dot={
+            chat === undefined || tab.id === chosenId
+              ? undefined
+              : chatDotOf(chats?.find((each) => each.id === chat))
+          }
+          icon={
+            <ScreenMark
+              appsBySlug={appsBySlug}
+              chatTitles={chatTitles}
+              href={tab.href}
+            />
+          }
         />
       );
     }
-    const chat = chatOfTab(tab);
     return {
       ...(chat !== undefined && renaming === named.key
         ? {

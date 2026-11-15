@@ -5,6 +5,7 @@ import {
   PopoverTrigger,
 } from "@/client/components/ui/popover";
 import { type ChatId } from "@instrument-org/workspace/client";
+import { CaretRightIcon } from "@phosphor-icons/react/CaretRight";
 import { CaretUpIcon } from "@phosphor-icons/react/CaretUp";
 import { useQuery } from "@tanstack/react-query";
 import { atom, useAtom, useAtomValue, useStore } from "jotai";
@@ -15,14 +16,17 @@ import {
   type ActiveChatsKept,
   activeChats,
   chatsInView,
+  tabHoldingChat,
 } from "./active-chats";
 import { useAppsBySlug } from "./apps-by-slug";
 import { useChatActionsFor } from "./chat-actions";
 import { chatListOptions } from "./chat-list-query";
+import { chatDotOf, ChatMarkIcon } from "./chat-mark";
 import { ChatRow } from "./chat-row";
 import { type Chat, type Project } from "./chats";
 import { DeleteChatDialog } from "./delete-chat-dialog";
-import { windowTabGroupsAtom } from "./open-groups";
+import { useIsGroupOpen, windowTabGroupsAtom } from "./open-groups";
+import { ScreenMark } from "./pane-tabs";
 import { useTabGroupActions } from "./tab-groups";
 import { selectedTabIn } from "./tab-model";
 import { useNow } from "./use-now";
@@ -33,9 +37,10 @@ import { useWindowTabs, windowTabsAtom } from "./window-tabs";
 /**
  * The chats that came to want a look while no sidebar row showed them
  * (`activeChats`), over the sidebar's foot: a reply not yet seen, or a
- * question waiting. Up to three rows, drawn as the Chats page draws them at
- * one line, then a row that opens the whole list above it. Takes no room
- * while none do.
+ * question waiting. Under a Chats heading that opens the Chats page, up to
+ * three rows, drawn as the Chats page draws them at one line with no
+ * controls, each chat's mark wearing its dot, then a row that opens the whole
+ * list above it. Takes no room while none do.
  */
 export function ActiveChatsList({
   onNewProject,
@@ -71,28 +76,25 @@ export function ActiveChatsList({
   );
   const rest = chats.length - ACTIVE_CHATS_SHOWN;
   return (
-    <section
-      aria-label="Chats"
-      className="mt-2 flex shrink-0 flex-col border-t border-border/60 px-2 pt-1"
-    >
+    <section aria-label="Chats" className="flex shrink-0 flex-col pt-1.5 pl-2">
       <button
-        className="flex h-7 w-fit shrink-0 items-center rounded-md px-2.5 text-[12px] font-medium text-muted-foreground hover:text-foreground"
+        className="group/heading flex h-7 w-fit shrink-0 items-center gap-1 rounded-md px-2.5 text-[12px] font-medium text-muted-foreground hover:bg-foreground/[0.04] hover:text-foreground"
         onClick={() => {
           openBuiltInPage(CHATS_INDEX_HREF);
         }}
         type="button"
       >
         Chats
+        <CaretRightIcon className="size-3 text-muted-foreground/70 group-hover/heading:text-foreground" />
       </button>
-      {/* The rows draw their own hairlines, and the foot's line closes the last. */}
-      <div className="flex flex-col *:last:border-b-0">
+      <div className="flex flex-col">
         {chats.slice(0, ACTIVE_CHATS_SHOWN).map(row)}
       </div>
       {rest > 0 && (
         <Popover onOpenChange={setMoreOpen} open={isMoreOpen}>
           <PopoverTrigger asChild>
             <button
-              className="mb-1 flex h-8 w-full shrink-0 items-center gap-1.5 rounded-lg px-2.5 text-[12.5px] font-medium text-muted-foreground hover:bg-foreground/5 hover:text-foreground"
+              className="flex h-8 w-full shrink-0 items-center gap-1.5 rounded-lg px-2.5 text-[12.5px] font-medium text-muted-foreground hover:bg-foreground/5 hover:text-foreground"
               type="button"
             >
               <CaretUpIcon className="size-3" />
@@ -101,7 +103,7 @@ export function ActiveChatsList({
           </PopoverTrigger>
           <PopoverContent
             align="start"
-            className="flex max-h-[min(480px,calc(var(--radix-popover-content-available-height)/var(--content-zoom)))] w-80 flex-col overflow-y-auto p-0"
+            className="flex max-h-[min(480px,calc(var(--radix-popover-content-available-height)/var(--content-zoom)))] w-80 flex-col overflow-y-auto p-1"
             side="top"
           >
             {chats.map(row)}
@@ -126,7 +128,7 @@ export function ActiveChatsList({
   );
 }
 
-/** One chat of the list, the Chats page's own row at one line. */
+/** One chat of the list, the Chats page's own row at one line, with no controls, led by the chat's mark. */
 function ActiveChatRow({
   chat,
   onDelete,
@@ -151,6 +153,21 @@ function ActiveChatRow({
       chat={chat}
       density="one"
       isOpen={false}
+      isPlain
+      mark={
+        <ChatMarkIcon
+          dot={chatDotOf(chat)}
+          icon={
+            <span className="grid size-3.5 shrink-0 place-items-center [&_svg]:size-3.5">
+              <ScreenMark
+                appsBySlug={appsBySlug}
+                chatTitles={NO_TITLES}
+                href={chatHref(chat.id)}
+              />
+            </span>
+          }
+        />
+      }
       now={now}
       onDelete={onDelete}
       onNewProject={onNewProject}
@@ -200,16 +217,32 @@ function keyOf(kept: ActiveChatsKept): string {
   return `${kept.list.join(" ")}|${kept.wanting?.join(" ") ?? ""}`;
 }
 
+/** The list's marks name no chat: a chat's mark is the same whatever its title. */
+const NO_TITLES = new Map<ChatId, string>();
+
 /**
- * Opens a chat as a new tab in the group up, right after the tab up on the
- * side with the keyboard, up there itself; in a new group only when no group
- * is up.
+ * Brings up the tab already holding a chat (`tabHoldingChat`): its group up,
+ * the tab up in its side, that side with the keyboard. Only when no tab
+ * holds it, opens it as a new tab in the group up, right after the tab up on
+ * the side with the keyboard, up there itself; in a new group only when no
+ * group is up.
  */
 function useOpenChatTab() {
   const store = useStore();
   const windowTabs = useWindowTabs();
   const groups = useTabGroupActions();
+  const isOpen = useIsGroupOpen();
   return (chat: ChatId) => {
+    const listed = store.get(windowTabGroupsAtom);
+    const held = tabHoldingChat(store.get(windowTabsAtom).tabs, chat, {
+      isHere: (group) => listed?.includes(group) === true,
+      isOpen,
+    });
+    if (held) {
+      windowTabs.select(held.id);
+      groups.show(held.group);
+      return;
+    }
     const group = groups.groupUp();
     if (group === undefined) {
       groups.openChat(chat);

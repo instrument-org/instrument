@@ -1,3 +1,4 @@
+import { workingTabOf } from "@/shared/working-tab";
 import { type ChatId } from "@instrument-org/workspace/client";
 
 import { type Chat } from "./chats";
@@ -91,4 +92,27 @@ export function activeChats(
       wanting: [...wanting.keys()],
     },
   };
+}
+
+/**
+ * The tab a chat clicked in the list comes up in, rather than a copy: of its
+ * tabs in this window's groups, the one its agent works from
+ * (`workingTabOf`), else the same of its tabs in another open window's
+ * groups. None while no open group holds it, and the list opens it a tab of
+ * its own.
+ */
+export function tabHoldingChat<
+  T extends { group?: string; href?: string; promptedAt?: number },
+>(
+  tabs: readonly T[],
+  chat: ChatId,
+  {
+    isHere,
+    isOpen,
+  }: {
+    isHere: (group: string) => boolean;
+    isOpen: (group: string) => boolean;
+  },
+): (T & { group: string }) | undefined {
+  return workingTabOf(tabs, chat, isHere) ?? workingTabOf(tabs, chat, isOpen);
 }

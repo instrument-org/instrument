@@ -5,7 +5,7 @@ vi.mock("@/client/rpc/client", () => ({ rpcClient: {} }));
 import { type WindowTab } from "@/client/atoms/window";
 import { ChatIdSchema, StoreId } from "@instrument-org/workspace/client";
 
-import { activeChats, chatsInView } from "./active-chats";
+import { activeChats, chatsInView, tabHoldingChat } from "./active-chats";
 import { type Chat } from "./chats";
 import { type WindowTabs } from "./tab-model";
 import { chatHref } from "./window-href";
@@ -335,5 +335,44 @@ describe("the sidebar's Chats list", () => {
         ).chats,
       ),
     ).toEqual([LISBON, ROME]);
+  });
+});
+
+describe("the tab a listed chat comes up in", () => {
+  const here = new Set(["up", "other"]);
+  const elsewhere = new Set(["far"]);
+  const where = {
+    isHere: (group: string) => here.has(group),
+    isOpen: (group: string) => here.has(group) || elsewhere.has(group),
+  };
+  const lisbon = chatHref(LISBON);
+
+  it.each([
+    ["nowhere", [], undefined],
+    ["only in a closed group", [screen("closed", "t1", lisbon)], undefined],
+    [
+      "behind another tab in this window",
+      [screen("up", "t0", chatHref(PARIS)), screen("up", "t1", lisbon)],
+      "t1",
+    ],
+    ["in another window's group alone", [screen("far", "t1", lisbon)], "t1"],
+    [
+      "here and in another window",
+      [screen("far", "t1", lisbon), screen("other", "t2", lisbon)],
+      "t2",
+    ],
+  ] satisfies [string, WindowTab[], string | undefined][])(
+    "finds it %s",
+    (_case, tabs, found) => {
+      expect(tabHoldingChat(tabs, LISBON, where)?.id).toBe(found);
+    },
+  );
+
+  it("takes the tab last sent a message from among two here", () => {
+    const tabs: WindowTab[] = [
+      { ...screen("up", "t1", lisbon), promptedAt: 1 },
+      { ...screen("other", "t2", lisbon), promptedAt: 2 },
+    ];
+    expect(tabHoldingChat(tabs, LISBON, where)?.id).toBe("t2");
   });
 });

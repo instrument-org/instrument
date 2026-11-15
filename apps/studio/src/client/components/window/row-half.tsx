@@ -29,6 +29,7 @@ import {
 
 import { useAppsBySlug } from "./apps-by-slug";
 import { chatListOptions } from "./chat-list-query";
+import { chatDotOf, ChatMarkIcon } from "./chat-mark";
 import { type Chat } from "./chats";
 import { FadeTitle } from "./fade-title";
 import { pageTabTitle } from "./file-tabs";
@@ -97,23 +98,41 @@ export function RowHalf({
   chatTitles,
   close,
   isCloseShown = false,
+  isOnScreen,
   tab,
 }: {
   chatTitles: Map<ChatId, string>;
   close?: RowClose;
   /** The X kept up whatever the pointer does, for a picture of the row under it. */
   isCloseShown?: boolean;
+  /** Whether the tab is on screen, its group up: a chat's mark wears no dot there. */
+  isOnScreen: boolean;
   tab: WindowTab;
 }) {
   const appsBySlug = useAppsBySlug();
+  const { chats } = useRowSources();
   const lines = useRowLines(tab, chatTitles);
+  const chat = chatOfTab(tab);
   return (
     <RowLinesView
       close={close}
       isCloseShown={isCloseShown}
       lines={lines}
       mark={
-        <TabMark appsBySlug={appsBySlug} chatTitles={chatTitles} tab={tab} />
+        <ChatMarkIcon
+          dot={
+            chat === undefined || isOnScreen
+              ? undefined
+              : chatDotOf(chats.find((each) => each.id === chat))
+          }
+          icon={
+            <TabMark
+              appsBySlug={appsBySlug}
+              chatTitles={chatTitles}
+              tab={tab}
+            />
+          }
+        />
       }
     />
   );

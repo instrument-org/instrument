@@ -1630,7 +1630,6 @@ function WindowShell({
                 />
               </StudioSidebarRail>
             }
-            railWidth={isSidebarOpen ? sidebarWidth : 0}
             rowRef={setRowElement}
           >
             <ShellContext value={shell}>

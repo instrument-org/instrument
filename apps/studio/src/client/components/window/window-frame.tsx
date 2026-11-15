@@ -18,9 +18,9 @@ import {
 import { cn } from "@/client/lib/utils";
 import { LinkSurface } from "./link-surface";
 
-// The toasts' corner, 12px in from the card's own: past the rail and the
-// card's `ml-2` on its left, and the card's `mb-2` foot below it.
-const CARD_CORNER = { bottom: 8 + 12, left: 8 + 12 };
+// The toasts' corner, 12px in from the window's own lower left, over the
+// sidebar when it is open.
+const WINDOW_CORNER = { bottom: 12, left: 12 };
 // Just under the bell, at the bar's right end.
 const BELL_CORNER = { right: 8, top: TOOLBAR_HEIGHT + 4 };
 
@@ -42,7 +42,6 @@ export function WindowFrame({
   hasBar = true,
   overlay,
   rail,
-  railWidth = 0,
   rowRef,
 }: {
   bar?: ReactNode;
@@ -55,8 +54,6 @@ export function WindowFrame({
   overlay?: ReactNode;
   /** The rail down the window's left edge, outside the row the columns share. */
   rail?: ReactNode;
-  /** How wide the rail stands out, for the toasts' corner past it: 0 while it is put away. */
-  railWidth?: number;
   /** The row the columns share, for whoever sizes them against it. */
   rowRef?: Ref<HTMLDivElement>;
 }) {
@@ -69,9 +66,8 @@ export function WindowFrame({
   const drawsCaptionButtons = !hasBar && drawsControls;
   // Toasts are placed from the viewport's foot, which the developer band sits on.
   const toastCorner = {
-    ...CARD_CORNER,
-    left: CARD_CORNER.left + railWidth,
-    bottom: CARD_CORNER.bottom + (isStripShown ? DEVELOPER_STRIP_HEIGHT : 0),
+    ...WINDOW_CORNER,
+    bottom: WINDOW_CORNER.bottom + (isStripShown ? DEVELOPER_STRIP_HEIGHT : 0),
   };
   return (
     // The band across the top is the window's, so every menu, popover and
@@ -152,14 +148,9 @@ export function WindowFrame({
             <PageOpenContext value={null}>
               <StudioModals />
             </PageOpenContext>
-            {/* Bottom left, inside the card's corner past the rail, so the
-              rail stays in reach: clear of the drafts and the floating chat,
-              which dock at the bottom right. */}
-            <Toaster
-              {...(railWidth > 0
-                ? { mobileOffset: toastCorner, offset: toastCorner }
-                : {})}
-            />
+            {/* In the window's lower left corner: clear of the drafts and
+              the floating chat, which dock at the bottom right. */}
+            <Toaster mobileOffset={toastCorner} offset={toastCorner} />
             <Toaster
               id={BELL_TOASTER}
               mobileOffset={BELL_CORNER}

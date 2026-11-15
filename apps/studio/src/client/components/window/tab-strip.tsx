@@ -180,6 +180,7 @@ export function TabStrip({
   overflow = "compress",
   selectedKey,
   tabs,
+  wideTabs = false,
 }: {
   /** A tab being carried out of the strip, which gives its place up to the tabs beside it. */
   carriedKey?: string | undefined;
@@ -214,6 +215,12 @@ export function TabStrip({
   overflow?: "compress" | "scroll" | "squeeze";
   selectedKey: string | undefined;
   tabs: StripTab[];
+  /**
+   * Tabs as wide as the window bar's (240px) while the row has room, growing
+   * past that to fit a longer name: a lone side's strip, which has the
+   * window's width. Without it a tab is as wide as its name.
+   */
+  wideTabs?: boolean;
 }) {
   const squeezes = overflow === "squeeze";
   // Whether a squeezing row has room for every tab as at least an icon.
@@ -492,6 +499,7 @@ export function TabStrip({
           isScrolled={scrolls}
           isStill={isStill}
           isReordering={isReordering}
+          isWide={wideTabs}
           {...(heldAt?.key === tab.key ? { heldGrab: heldAt.grabX } : {})}
           isSelected={tab.key === selectedKey}
           key={tab.key}
@@ -761,6 +769,7 @@ function Tab({
   isScrolled,
   isSelected,
   isStill,
+  isWide = false,
   nextIsSelected,
   onClose,
   onContextMenu,
@@ -786,6 +795,8 @@ function Tab({
   /** In a row that scrolls: as wide as its name wants, whatever the row's room. */
   isScrolled?: boolean;
   isSelected: boolean;
+  /** At least the window bar's 240px while its row has room (`wideTabs`). */
+  isWide?: boolean;
   nextIsSelected: boolean;
   onClose?: () => void;
   onContextMenu?: (event: React.MouseEvent) => void;
@@ -847,7 +858,9 @@ function Tab({
           ? "w-8 max-w-8 min-w-0 shrink-0"
           : "w-40 max-w-40 min-w-0 shrink-0"
         : cn(
-            "max-w-fit flex-1",
+            isWide
+              ? "max-w-[calc-size(fit-content,max(size,15rem))] flex-1"
+              : "max-w-fit flex-1",
             { compact: "min-w-15", full: "min-w-20", icon: "min-w-8" }[density],
           ),
     density === "full" ? "gap-2 px-2.5" : "justify-center px-1",

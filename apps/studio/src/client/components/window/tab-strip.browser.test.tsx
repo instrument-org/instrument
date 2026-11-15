@@ -119,6 +119,48 @@ describe("a tab's name", () => {
   });
 });
 
+describe("a wide tab", () => {
+  const widths = async (titles: string[], width: number) => {
+    await renderInBrowser(
+      <div style={{ width }}>
+        <TabStrip
+          onClose={() => undefined}
+          onSelect={() => undefined}
+          overflow="squeeze"
+          selectedKey="t0"
+          tabs={titles.map((title, index) => ({
+            icon: <span />,
+            key: `t${String(index)}`,
+            title,
+          }))}
+          wideTabs
+        />
+      </div>,
+    );
+    return titles.map((_, index) =>
+      Math.round(tab(`t${String(index)}`).getBoundingClientRect().width),
+    );
+  };
+
+  it("is 240px with room, however short its name", async () => {
+    expect(await widths(["Hi", "There"], 1000)).toEqual([240, 240]);
+  });
+
+  it("grows past 240px to fit a longer name", async () => {
+    const [long] = await widths(
+      ["A name longer than any 240px tab has room for, by a lot"],
+      1000,
+    );
+    expect(long).toBeGreaterThan(240);
+  });
+
+  it("shares a crowded row equally", async () => {
+    const [first, second] = await widths(["Hi", "There"], 300);
+    expect(first).toBeLessThan(240);
+    expect(first).toBe(second);
+  });
+});
+
 describe("a tab let go after passing other tabs", () => {
   it("settles from where it stood", async () => {
     let takeBack = () => undefined as void;

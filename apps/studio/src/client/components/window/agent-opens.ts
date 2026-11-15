@@ -1,3 +1,10 @@
+import {
+  isScreenName,
+  isSettingsSection,
+  SCREENS,
+} from "@/shared/instrument-screens";
+import { instrumentLinkOf } from "@instrument-org/shared";
+
 /**
  * Where what an agent opens may go. An agent never makes a tab group: its
  * pages go only into the group of its chat's tab, beside that tab
@@ -46,4 +53,41 @@ export function pageOpenPlaceOf(
     return { after: asking.id, group: asking.group, kind: "after" };
   }
   return isAgent ? { kind: "none" } : { kind: "free" };
+}
+
+/**
+ * The tab address an agent's `instrument://` address opens at: a chat, an
+ * app, a task, a built-in page or a part of Settings, as `window list` names
+ * them. Undefined for one that names no tab: a memory, a skill or a project
+ * opens outside the tabs, and a single setting inside Settings.
+ */
+export function tabHrefOfAppAddress(address: string): string | undefined {
+  const link = instrumentLinkOf(address);
+  switch (link?.kind) {
+    case "app":
+    case "chat":
+    case "task": {
+      return link.href;
+    }
+    case "screen": {
+      if (!isScreenName(link.name)) {
+        return undefined;
+      }
+      const screen = SCREENS[link.name];
+      return "href" in screen ? screen.href : undefined;
+    }
+    case "settings": {
+      return isSettingsSection(link.name)
+        ? `/settings/${link.name}`
+        : undefined;
+    }
+    default: {
+      return undefined;
+    }
+  }
+}
+
+/** Why an `instrument://` address opened no tab. */
+export function noTabAt(address: string): string {
+  return `${address} names no tab: a chat, an app, a task, a built-in page or a part of Settings opens as one, by the address \`instrument window list\` prints.`;
 }

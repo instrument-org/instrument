@@ -249,6 +249,48 @@ describe("window show, for something new", () => {
     );
   });
 
+  it.each([
+    ["a chat", "instrument://chat/2026-11-14-make-this-red-6zks"],
+    ["a part of Settings", "instrument://settings/providers"],
+    ["a built-in page", "instrument://screen/chats"],
+    ["an app", "instrument://app/notion"],
+  ])("opens %s by the address window list prints", async (_label, address) => {
+    const result = await run({}, "show", address);
+
+    expect(result.exitCode).toBe(0);
+    expect(asked[0]?.action).toEqual({
+      kind: "open",
+      show: true,
+      target: { address, kind: "app" },
+    });
+  });
+
+  it("opens a file's app address as its path", async () => {
+    const result = await run(
+      {},
+      "show",
+      "instrument://file/Users/me/Instrument/report.md",
+    );
+
+    expect(result.exitCode).toBe(0);
+    expect(asked[0]?.action).toEqual({
+      kind: "open",
+      show: true,
+      target: { kind: "path", path: "/Users/me/Instrument/report.md" },
+    });
+  });
+
+  it("refuses an app address that names nothing", async () => {
+    const result = await run({}, "show", "instrument://new-chat");
+
+    expect(result.exitCode).toBe(1);
+    expect(result.stderr).toMatchInlineSnapshot(`
+      "instrument window: "instrument://new-chat" names nothing the window shows.
+      "
+    `);
+    expect(asked).toEqual([]);
+  });
+
   it("names the chat that asked", async () => {
     await run({}, "show", "https://example.com/");
 
@@ -410,7 +452,7 @@ describe("window list", () => {
     expect(result.exitCode).toBe(0);
     expect(result.stdout.replaceAll(pageTab, "<page>")).toMatchInlineSnapshot(`
       "left:
-        tab_known  showing  [chat] Prices (you)
+        tab_known  showing  [chat] Prices · instrument://chat/this (you)
       right (keyboard):
         <page>  showing  Suite plans · https://www.zendesk.com/pricing/  task t1 is working in it
       Showing: you on the left; zendesk.com/pricing on the right, beside you.
@@ -426,7 +468,7 @@ describe("window list", () => {
     expect(result.exitCode).toBe(0);
     expect(result.stdout.replaceAll(pageTab, "<page>")).toMatchInlineSnapshot(`
       "left:
-        tab_known  showing  [chat] Prices (you)
+        tab_known  showing  [chat] Prices · instrument://chat/this (you)
       right (keyboard):
         <page>  showing  Suite plans · https://www.zendesk.com/pricing/  you are working in it
       Showing: you on the left; zendesk.com/pricing on the right, beside you.

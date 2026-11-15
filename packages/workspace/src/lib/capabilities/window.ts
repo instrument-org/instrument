@@ -1,3 +1,8 @@
+import {
+  filePathOfInstrumentLink,
+  instrumentLinkOf,
+  isInstrumentAddress,
+} from "@instrument-org/shared";
 import { z } from "zod";
 
 import { LayoutSnapshotSchema } from "../../schemas/group-layout";
@@ -82,7 +87,17 @@ function isTabId(arg: string): boolean {
 }
 
 function describeTarget(target: WindowTabTarget) {
-  return target.kind === "page" ? (target.url ?? "a new page") : target.path;
+  switch (target.kind) {
+    case "app": {
+      return target.address;
+    }
+    case "page": {
+      return target.url ?? "a new page";
+    }
+    case "path": {
+      return target.path;
+    }
+  }
 }
 
 /** The agent opening a page is its first work in it, which the tab's working mark shows from the start. */
@@ -94,7 +109,8 @@ function noteOpenedPage(tabId: string | undefined) {
 }
 
 /**
- * What an argument asks a tab to show: a page by its address, or a file or
+ * What an argument asks a tab to show: a page by its address, a chat, an
+ * app, a task or a built-in page by its `instrument://` address, or a file or
  * folder the window can show, by its path. A folder is handed on with the
  * trailing slash that names one everywhere else a path reaches the user, so
  * the window has a single opener to answer with rather than one per kind of
@@ -106,6 +122,16 @@ async function targetOf(
 ): Promise<WindowTabTarget | { error: string }> {
   if (arg.startsWith("http://") || arg.startsWith("https://")) {
     return { kind: "page", url: arg };
+  }
+  if (isInstrumentAddress(arg)) {
+    // A file's app address names its path, which opens as the path does.
+    const path = filePathOfInstrumentLink(arg);
+    if (path !== undefined) {
+      return targetOf(path, ctx);
+    }
+    return instrumentLinkOf(arg) === undefined
+      ? { error: `"${arg}" names nothing the window shows.` }
+      : { address: arg, kind: "app" };
   }
   if (ctx.shellPath === undefined) {
     return { error: `"${arg}" is a path, which only the shell resolves.` };
@@ -206,10 +232,14 @@ export const windowList = defineCapability({
           : []),
         ...tabs.map((tab) => {
           const task = tasks[tab.id];
+          // Every tab but a New Tab by an address `show` takes again: a
+          // site's URL, a file's or folder's path, the app's own address.
           const shows =
             tab.kind === "website" && tab.title !== ""
               ? `${tab.title} · ${tab.address}`
-              : layoutTabName(tab);
+              : isInstrumentAddress(tab.address) && tab.kind !== "newChat"
+                ? `${layoutTabName(tab)} · ${tab.address}`
+                : layoutTabName(tab);
           return `${isTwo ? "  " : ""}${tab.id}  ${tab.isUp ? "showing" : "hidden "}  ${shows}${tab.isThisChat ? " (you)" : ""}${task ? (task.you ? "  you are working in it" : `  task ${task.id} is working in it`) : ""}`;
         }),
       ]),
@@ -280,11 +310,11 @@ export const windowShow = defineCapability({
     return outcomes;
   },
   summary:
-    "Show each to the user: a url, file or folder opens in a tab of its own, never in place of you, printing the tab's id, which `agent-browser tab` takes, and where it landed; a tab's id makes it the tab its side shows.",
+    "Show each to the user: a url, file, folder or app address (a chat, an app, a task, a built-in page) opens in a tab of its own, never in place of you, printing the tab's id, which `agent-browser tab` takes, and where it landed; a tab's id makes it the tab its side shows.",
   surfaces: {
     cli: {
       flagNames: { into: "in" },
-      help: "A path is a file or folder you can read. It opens nothing in the user's own\napplications and downloads nothing.",
+      help: "A path is a file or folder you can read; an app address is the instrument://\naddress `window list` prints. It opens nothing in the user's own\napplications and downloads nothing.",
       positional: ["targets"],
       words: ["window", "show"],
     },

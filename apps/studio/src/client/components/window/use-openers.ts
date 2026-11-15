@@ -43,7 +43,12 @@ import {
   matchScreen,
 } from "./window-href";
 import { newScreenId, type useWindowTabs } from "./window-tabs";
-import { agentChatTabOf, pageOpenPlaceOf } from "./agent-opens";
+import {
+  agentChatTabOf,
+  noTabAt,
+  pageOpenPlaceOf,
+  tabHrefOfAppAddress,
+} from "./agent-opens";
 import { type AppsBySlug } from "./apps-by-slug";
 import { groupReadOf } from "./group-awareness";
 
@@ -595,9 +600,17 @@ export function useOpeners({
           ? { behind: !opened.front, tabId: opened.id }
           : { error: "the window did not open a tab." };
       }
-      const href = await hrefOfNamedPath(target.path, chat);
+      const href =
+        target.kind === "app"
+          ? tabHrefOfAppAddress(target.address)
+          : await hrefOfNamedPath(target.path, chat);
       if (href === undefined) {
-        return { error: `nothing this window can show is at ${target.path}.` };
+        return {
+          error:
+            target.kind === "app"
+              ? noTabAt(target.address)
+              : `nothing this window can show is at ${target.path}.`,
+        };
       }
       const opened = windowTabs.openScreenBeside(href, {
         behind: false,
@@ -607,7 +620,7 @@ export function useOpeners({
       });
       return opened
         ? { behind: !opened.front, tabId: opened.id }
-        : { error: `nothing this window can show is at ${target.path}.` };
+        : { error: "the window did not open a tab." };
     }
     if (action.kind === "adopt") {
       const id = StoreId.TabSchema.safeParse(action.tabId);
@@ -679,10 +692,16 @@ export function useOpeners({
           }
           return { tabId: browser?.pageInPlaceOf(tab, target.url) };
         }
-        const href = await hrefOfNamedPath(target.path, chat);
+        const href =
+          target.kind === "app"
+            ? tabHrefOfAppAddress(target.address)
+            : await hrefOfNamedPath(target.path, chat);
         if (href === undefined) {
           return {
-            error: `nothing this window can show is at ${target.path}.`,
+            error:
+              target.kind === "app"
+                ? noTabAt(target.address)
+                : `nothing this window can show is at ${target.path}.`,
           };
         }
         const next = visitInTab(tab, {

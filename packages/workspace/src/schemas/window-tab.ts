@@ -3,9 +3,14 @@ import { z } from "zod";
 import { ChatIdSchema } from "./chat-id";
 import { LayoutReadSchema } from "./group-layout";
 
-/** What a tab is asked to show: a page by its address, or a file or folder of the user's by its path. */
+/**
+ * What a tab is asked to show: a page by its address, a file or folder of
+ * the user's by its path, or a chat, a built-in page, an app or a task by its
+ * `instrument://` address.
+ */
 const WindowTabTargetSchema = z.discriminatedUnion("kind", [
   z.object({ kind: z.literal("page"), url: z.string().optional() }),
+  z.object({ address: z.string(), kind: z.literal("app") }),
   z.object({
     kind: z.literal("path"),
     /** The path as the agent wrote it; a folder's ends with a slash. */

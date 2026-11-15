@@ -7,6 +7,7 @@ import {
   NO_CHAT,
   NO_CHAT_TAB,
   pageOpenPlaceOf,
+  tabHrefOfAppAddress,
 } from "./agent-opens";
 import { type BesideAsk, openBesideChat } from "./beside-chat";
 import { type WindowTabs } from "./tab-model";
@@ -165,5 +166,20 @@ describe("a tab a page asks for", () => {
     ],
   ])("%s", (_label, asking, isAgent, expected) => {
     expect(pageOpenPlaceOf(asking, { isAgent })).toEqual(expected);
+  });
+});
+
+describe("an app address an agent opens", () => {
+  it.each([
+    ["instrument://chat/2026-11-14-make-this-red-6zks", "/chats/2026-11-14-make-this-red-6zks"],
+    ["instrument://app/notion", "/apps/notion"],
+    ["instrument://settings/providers", "/settings/providers"],
+    ["instrument://screen/chats", "/chat-list"],
+    ["instrument://screen/activity", "/activity"],
+    ["instrument://memory/no-stevia", undefined],
+    ["instrument://settings/no-such-row", undefined],
+    ["instrument://new-chat", undefined],
+  ])("%s opens at %s", (address, href) => {
+    expect(tabHrefOfAppAddress(address)).toBe(href);
   });
 });

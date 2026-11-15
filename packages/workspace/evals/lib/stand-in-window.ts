@@ -117,7 +117,7 @@ export function createStandInWindow(chrome?: SharedChrome) {
             kind: "page",
           }
         : {
-            at: target.path,
+            at: target.kind === "app" ? target.address : target.path,
             id: StoreId.newTabId(),
             kind: "screen",
           };

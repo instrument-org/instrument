@@ -211,7 +211,11 @@ function targetsAt(point: Point) {
     .map(({ target }) => target);
 }
 
-/** Where what is held lands at a point; "native" where only the system's drag reaches. */
+/**
+ * Where what is held lands at a point; "native" where only the system's
+ * drag reaches. A link lands only on the bookmarks, and anywhere else goes
+ * on to whatever is under it, as a link dragged in a browser does.
+ */
 function measure(
   point: Point,
   drag: Pick<Drag, "grab" | "held" | "input">,
@@ -221,7 +225,7 @@ function measure(
     if (found === "native") {
       return { native: true };
     }
-    if (found) {
+    if (found && (drag.held.kind !== "link" || found.kind === "bookmarks")) {
       return { landing: found };
     }
   }
@@ -577,9 +581,9 @@ export function followRemote(
   return current.drag.landing;
 }
 
-/** Files from elsewhere held over the window by the system's drag, as it says where the pointer is. */
+/** Files or a link from elsewhere held over the window by the system's drag, as it says where the pointer is. */
 export function followNative(
-  held: Extract<Held, { kind: "files" }>,
+  held: Extract<Held, { kind: "files" | "link" }>,
   point: Point,
 ): Landing | undefined {
   dragPoint.x = point.x;

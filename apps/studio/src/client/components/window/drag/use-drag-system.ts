@@ -1,10 +1,6 @@
 import { type WindowTab } from "@/client/atoms/window";
 import { type ChatId } from "@instrument-org/workspace/client";
-import {
-  addressOfTab,
-  sameAddress,
-  targetOfAddress,
-} from "@/client/bookmarks/address";
+import { targetOfAddress } from "@/client/bookmarks/address";
 import { hrefOfTarget } from "@/client/bookmarks/open-address";
 import { bookmarksAtom, applyBookmarkOpsAtom } from "@/client/bookmarks/store";
 import {
@@ -15,7 +11,12 @@ import {
 } from "@/client/lib/self-file-drag";
 import { afterNextPaint } from "@/client/lib/tab-view-state";
 import { rpcClient } from "@/client/rpc/client";
-import { type Bookmark, inOrder, orderAfter } from "@/shared/bookmarks";
+import {
+  type Bookmark,
+  type BookmarkOp,
+  inOrder,
+  orderAfter,
+} from "@/shared/bookmarks";
 import {
   type GroupTabLanding,
   groupOfWholeKey,
@@ -59,6 +60,7 @@ import {
   windowTabsAtom,
 } from "../window-tabs";
 import { droppedFileHref, filesOfDrop } from "./held-tabs";
+import { keptAs } from "./use-bookmarks-drag";
 import { tabsOfHeldGroup } from "./split-preview";
 import { type Point } from "./landing";
 import {
@@ -112,11 +114,8 @@ export function useDragSystem({
   useRemoteDrags();
   const groups = useTabGroupActions();
   const windowTabs = useWindowTabs();
-  useSystemFileDrags((files, ids, landing) => {
-    latest.current.land(
-      { count: files.length, files, ids, kind: "files" },
-      landing,
-    );
+  useSystemDrags((held, landing) => {
+    latest.current.land(held, landing);
   });
   return {
     /** Files let go where nothing else takes them, opened as a tab group of their own, the first up. */
@@ -274,6 +273,22 @@ function useLander(
   };
 
   return (held: Held, landing: Landing | undefined) => {
+    if (landing?.kind === "bookmarks") {
+      keep(
+        keptAs(held, {
+          allTabs: windowTabs.allTabs,
+          bookmarks: store.get(bookmarksAtom),
+          titleOf,
+          upOf: (group, half) => {
+            const layout = windowTabs.layoutOf(group);
+            const side = layout.sides[half ?? layout.focused];
+            return side?.tabs.find((tab) => tab.id === side.up);
+          },
+        }),
+        landing,
+      );
+      return;
+    }
     if (!landing) {
       const dragged =
         held.kind === "bookmark"
@@ -316,14 +331,6 @@ function useLander(
             } else {
               groups.moveTab(held.id, drop.group);
               groups.show(drop.group);
-            }
-            return;
-          }
-          case "bookmarks": {
-            const tab = windowTabs.allTabs.find((each) => each.id === held.id);
-            const url = tab ? addressOfTab(tab) : undefined;
-            if (tab && url !== undefined) {
-              keep({ title: titleOf(tab), url }, landing);
             }
             return;
           }
@@ -381,11 +388,10 @@ function useLander(
         return;
       }
       case "bookmark": {
-        if (landing.kind === "bookmarks") {
-          keep({ id: held.id, title: held.title, url: held.url }, landing);
-          return;
-        }
         openAt(openersOf(held), landing);
+        return;
+      }
+      case "link": {
         return;
       }
     }
@@ -393,53 +399,57 @@ function useLander(
 }
 
 /**
- * Keeps an address on the bar at a place among the bookmarks there: a
- * bookmark already kept, the one held or the one kept for the address,
- * moves there.
+ * Keeps what is held on the bar at a place among the bookmarks there, in
+ * its order (`keptAs`): one kept already, the bookmark held or the one kept
+ * for its address, moves there, and anything else is added there.
  */
 function useKeepBookmark() {
   const store = useStore();
   const apply = useSetAtom(applyBookmarkOpsAtom);
   return (
-    what: { id?: string; title: string; url: string },
+    what: readonly Bookmark[],
     landing: Extract<Landing, { kind: "bookmarks" }>,
   ) => {
     const all = store.get(bookmarksAtom);
-    const kept =
-      what.id === undefined
-        ? all.find((bookmark) => sameAddress(bookmark.url, what.url))
-        : all.find((bookmark) => bookmark.id === what.id);
-    const there = inOrder(all).filter((bookmark) => bookmark.id !== kept?.id);
-    const order = orderAt(there, landing.index, all);
-    if (kept) {
-      void apply([{ id: kept.id, order, type: "move" }]);
-      return;
-    }
-    const bookmark: Bookmark = {
-      id: crypto.randomUUID(),
-      order,
-      title: what.title || what.url,
-      url: what.url,
-    };
-    void apply([{ bookmark, type: "add" }]);
+    const keptIds = new Set(all.map((bookmark) => bookmark.id));
+    const moving = new Set(what.map((each) => each.id));
+    const there = inOrder(all).filter((bookmark) => !moving.has(bookmark.id));
+    const orders = ordersAt(there, landing.index, what.length, all);
+    void apply(
+      what.map((each, index): BookmarkOp => {
+        const order = orders[index] ?? orderAfter(all);
+        if (keptIds.has(each.id)) {
+          return { id: each.id, order, type: "move" };
+        }
+        const bookmark: Bookmark = {
+          id: crypto.randomUUID(),
+          order,
+          title: each.title || each.url,
+          url: each.url,
+        };
+        return { bookmark, type: "add" };
+      }),
+    );
   };
 }
 
-/** The order that sorts a bookmark at a place among others, halfway between its neighbors. */
-function orderAt(
+/** The orders that sort some bookmarks, in turn, at a place among others, evenly between its neighbors. */
+function ordersAt(
   there: readonly Bookmark[],
   index: number,
+  count: number,
   all: readonly Bookmark[],
-) {
+): number[] {
   const before = there[index - 1];
   const after = there[index];
-  if (before && after) {
-    return (before.order + after.order) / 2;
-  }
-  if (after) {
-    return after.order - 1;
-  }
-  return before ? before.order + 1 : orderAfter(all);
+  const from = before
+    ? before.order
+    : after
+      ? after.order - count
+      : orderAfter(all) - 1;
+  const to = after ? after.order : from + count + 1;
+  const step = (to - from) / (count + 1);
+  return Array.from({ length: count }, (_, at) => from + step * (at + 1));
 }
 
 /**
@@ -797,18 +807,19 @@ function useRemoteDrags() {
 
 /**
  * Files the system's drag holds over the window, from the Finder or from
- * this app's own Files and file cards, measured as any drag here is. A drag
- * carries only its count until it is let go, so main reads what it carries
+ * this app's own Files and file cards, and a link (one out of a web page,
+ * a chat or another app), measured as any drag here is. A drag carries only
+ * its count until it is let go, so main reads what it carries
  * (`files.dragged`), and until it answers nothing is drawn but where it
- * lands. Listens on the window ahead of everything in it, and takes a drag
- * only where it lands: anywhere else it goes on to whatever is under it,
- * Files' folders, the composer that attaches it and the window's last
- * resort among them (`useWindowDropFallback`).
+ * lands; a link says where it goes only as it is let go. Listens on the
+ * window ahead of everything in it, and takes a drag only where it lands:
+ * anywhere else it goes on to whatever is under it, Files' folders, the
+ * composer that attaches it and the window's last resort among them
+ * (`useWindowDropFallback`).
  */
-function useSystemFileDrags(
+function useSystemDrags(
   onLand: (
-    files: readonly DroppedFile[],
-    ids: readonly string[],
+    held: Extract<Held, { kind: "files" | "link" }>,
     landing: Landing,
   ) => void,
 ) {
@@ -817,7 +828,7 @@ function useSystemFileDrags(
     onLandRef.current = onLand;
   });
   useEffect(() => {
-    let held: Extract<Held, { kind: "files" }> | undefined;
+    let held: Extract<Held, { kind: "files" | "link" }> | undefined;
     // Entering one element leaves another, so what the drag is over in the
     // window empties only as it leaves the window, or goes over a page,
     // which takes it. One taken out from under it, as a tab making way for
@@ -834,9 +845,16 @@ function useSystemFileDrags(
     };
     const hasFiles = (event: DragEvent) =>
       event.dataTransfer?.types.includes("Files") ?? false;
+    /** Whether the drag carries files, or else a link, which is all it takes. */
+    const carries = (event: DragEvent) =>
+      hasFiles(event) ||
+      (event.dataTransfer?.types.includes("text/uri-list") ?? false);
 
-    /** A drag first seen: how many it carries now, and what they are once main says. */
-    const begin = (event: DragEvent) => {
+    /** A drag first seen: how many it carries now, and what they are once main says; a link, which says nothing until it is let go. */
+    const begin = (event: DragEvent): NonNullable<typeof held> => {
+      if (!hasFiles(event)) {
+        return { id: newScreenId(), kind: "link", title: "", url: "" };
+      }
       const count = [...(event.dataTransfer?.items ?? [])].filter(
         (item) => item.kind === "file",
       ).length;
@@ -874,14 +892,16 @@ function useSystemFileDrags(
     };
 
     const over = (event: DragEvent) => {
-      if (!hasFiles(event)) {
+      if (!carries(event)) {
         return;
       }
       point = { x: event.clientX, y: event.clientY };
       if (!held) {
         held = begin(event);
       }
-      sawOwnFileDrag();
+      if (held.kind === "files") {
+        sawOwnFileDrag();
+      }
       window.clearTimeout(goneTimer);
       goneTimer = window.setTimeout(end, GONE_AFTER_MS);
       if (followNative(held, point)) {
@@ -895,7 +915,7 @@ function useSystemFileDrags(
       }
     };
     const enter = (event: DragEvent) => {
-      if (!hasFiles(event)) {
+      if (!carries(event)) {
         return;
       }
       if (event.target instanceof Node) {
@@ -904,7 +924,7 @@ function useSystemFileDrags(
       over(event);
     };
     const leave = (event: DragEvent) => {
-      if (!hasFiles(event) || entered.size === 0) {
+      if (!carries(event) || entered.size === 0) {
         return;
       }
       if (event.target instanceof Node) {
@@ -920,27 +940,37 @@ function useSystemFileDrags(
       }
     };
     const drop = (event: DragEvent) => {
-      if (!hasFiles(event)) {
+      if (!carries(event)) {
         return;
       }
-      const ids = held?.ids ?? [];
+      const was = held;
       const landing = held
         ? releaseNative({ x: event.clientX, y: event.clientY })
         : undefined;
       window.clearTimeout(goneTimer);
       held = undefined;
       entered.clear();
-      if (!landing || !event.dataTransfer) {
+      if (!was || !landing || !event.dataTransfer) {
         return;
       }
       // Taken here and nowhere else, so the window's last resort leaves it.
       event.preventDefault();
       event.stopPropagation();
+      if (was.kind === "link") {
+        const link = linkOfDrop(event.dataTransfer);
+        if (link) {
+          onLandRef.current({ ...was, ...link }, landing);
+        }
+        return;
+      }
       releaseSelfFileDrag();
       endOwnFileDrag();
       const files = filesOfDrop(event.dataTransfer);
       if (files.length > 0) {
-        onLandRef.current(files, ids, landing);
+        onLandRef.current(
+          { count: files.length, files, ids: was.ids, kind: "files" },
+          landing,
+        );
       }
     };
 
@@ -957,4 +987,30 @@ function useSystemFileDrags(
       window.removeEventListener("drop", drop, options);
     };
   }, []);
+}
+
+/**
+ * The link a drop carries: the first address its list gives, and the words
+ * it was dragged by, which a page's link carries as the link's own markup.
+ */
+function linkOfDrop(
+  transfer: DataTransfer,
+): { title: string; url: string } | undefined {
+  const url = transfer
+    .getData("text/uri-list")
+    .split(/\r?\n/)
+    .map((line) => line.trim())
+    .find((line) => line !== "" && !line.startsWith("#"));
+  if (!url || !URL.canParse(url)) {
+    return undefined;
+  }
+  const html = transfer.getData("text/html");
+  const words = html
+    ? new DOMParser()
+        .parseFromString(html, "text/html")
+        .querySelector("a")
+        ?.textContent?.replaceAll(/\s+/g, " ")
+        .trim()
+    : undefined;
+  return { title: words && words !== url ? words : "", url };
 }

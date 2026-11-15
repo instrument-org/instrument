@@ -25,7 +25,7 @@ export function droppedFileHref({ hostPath, isFolder }: DroppedFile) {
  * The tabs what is held would be, drawn as they would stand while it is
  * held over a strip or a room: a tab as itself, files one each under the
  * ids kept for the drag, a bookmark as the tab it opens. A whole group is
- * its row, and no tab.
+ * its row, and a link, which only the bookmarks take, is no tab.
  */
 export function heldTabsOf(
   held: Held,
@@ -62,7 +62,8 @@ export function heldTabsOf(
           : { href: hrefOfTarget(target), id: held.id, kind: "screen" },
       ];
     }
-    case "group": {
+    case "group":
+    case "link": {
       return [];
     }
   }
@@ -77,7 +78,8 @@ export function heldKeysOf(held: Held): string[] {
     case "files": {
       return [...held.ids];
     }
-    case "bookmark": {
+    case "bookmark":
+    case "link": {
       return [held.id];
     }
     case "group": {

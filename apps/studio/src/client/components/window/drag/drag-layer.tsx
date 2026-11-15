@@ -300,7 +300,9 @@ function AtPointer({
   const ref = useRef<HTMLDivElement>(null);
   const mode = useRef<string>(undefined);
   const { held, landing } = drag;
-  const isGroup = held.kind === "group";
+  // A whole group over the bookmarks rides as a chip of the tab it keeps,
+  // so the bar shows where it would stand.
+  const isGroup = held.kind === "group" && landing?.kind !== "bookmarks";
   // What is held stays at the pointer the whole drag, whatever it is over,
   // so it is never lost: everywhere but a strip, which stands a tab among
   // its tabs at the pointer itself, and a group's row held there, which
@@ -347,9 +349,10 @@ function AtPointer({
         };
     element.style.left = `${(dragPoint.x - grab.x + (draw?.x ?? 0)) / zoom}px`;
     element.style.top = `${(dragPoint.y - grab.y + (draw?.y ?? 0)) / zoom}px`;
-    if (isGroup && !isWindow) {
-      element.style.width = `${list ? list.width / zoom - 16 : ROW_WIDTH_PX}px`;
-    }
+    element.style.width =
+      isGroup && !isWindow
+        ? `${list ? list.width / zoom - 16 : ROW_WIDTH_PX}px`
+        : "";
   };
   /** Whether a split has taken what is held, which then rides at the pointer over the side sliding in. */
   const isPulledToSplit = () =>
@@ -380,7 +383,7 @@ function AtPointer({
         )
       : 1,
   );
-  if (held.kind === "group") {
+  if (held.kind === "group" && isGroup) {
     const entry = entries.find((each) => each.group === held.group);
     if (!entry) {
       return null;
@@ -524,7 +527,7 @@ function WindowPicture({
   );
 }
 
-/** A held tab's, files' or bookmark's mark and name, files saying how many more go with the first. */
+/** A held tab's (a whole group's tab up), files', bookmark's or link's mark and name, files saying how many more go with the first. */
 function HeldChip({
   chatTitles,
   drag,
@@ -532,11 +535,18 @@ function HeldChip({
   chatTitles: Map<ChatId, string>;
   drag: Drag;
 }) {
-  const { allTabs } = useWindowTabs();
+  const { allTabs, layoutOf } = useWindowTabs();
   const titleOf = useTabTitle(chatTitles);
   const appsBySlug = useAppsBySlug();
   const { held } = drag;
-  if (held.kind === "bookmark") {
+  /** The tab up on a group's half, or its side with the keyboard. */
+  const upTabOf = (group: string, half: 0 | 1 | undefined) => {
+    const layout = layoutOf(group);
+    const side = layout.sides[half ?? layout.focused];
+    const up = side?.tabs.find((tab) => tab.id === side.up);
+    return up ? [up] : [];
+  };
+  if (held.kind === "bookmark" || held.kind === "link") {
     return (
       <>
         <span className="grid size-4 shrink-0 place-items-center">
@@ -546,7 +556,10 @@ function HeldChip({
       </>
     );
   }
-  const tabs = heldTabsOf(held, allTabs);
+  const tabs =
+    held.kind === "group"
+      ? upTabOf(held.group, held.half)
+      : heldTabsOf(held, allTabs);
   const [first] = tabs;
   if (!first) {
     return held.kind === "files" ? (

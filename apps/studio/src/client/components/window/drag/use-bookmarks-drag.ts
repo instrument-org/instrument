@@ -1,53 +1,127 @@
 import { type WindowTab } from "@/client/atoms/window";
-import { addressOfTab, sameAddress } from "@/client/bookmarks/address";
+import {
+  addressOfTab,
+  fileAddressOf,
+  sameAddress,
+} from "@/client/bookmarks/address";
 import { bookmarksAtom } from "@/client/bookmarks/store";
 import { type Bookmark } from "@/shared/bookmarks";
 import { useAtomValue } from "jotai";
 
+import { segmentsOf } from "../host-path";
+import { bareAddress } from "../omnibar-match";
 import { useWindowTabs } from "../window-tabs";
 import { type Point } from "./landing";
 import { dragAtom, pressToDrag, useDropTarget } from "./session";
-import { type Held } from "./types";
+import { type DroppedFile, type Held } from "./types";
 
-/** The id a tab stands under among the bookmarks while it is held over them. */
+/** The id what is held stands under among the bookmarks while it is held over them, where nothing kept stands for it. */
 const STANDING_ID = ":standing";
 
 /** A bookmark as the bar draws it in a drag: kept, or what is held standing where it would be kept. */
 export type ShownBookmark = Bookmark & { isStanding?: true };
 
-/**
- * What is held as the bookmark it would be kept as: a bookmark as itself; a
- * tab as the bookmark its address is kept as already, which moves where it
- * is let go, since an address is kept once; else a tab as its address under
- * its title. Nothing else is kept.
- */
-function keptAs(
-  held: Held,
-  allTabs: readonly WindowTab[],
+/** What a drag knows of the window to say what is held would be kept as. */
+interface KeptContext {
+  allTabs: readonly WindowTab[];
+  bookmarks: readonly Bookmark[];
+  /** The tab up on a side of a group, the side with the keyboard unless a half is named. */
+  upOf: (group: string, half: 0 | 1 | undefined) => WindowTab | undefined;
+  titleOf: (tab: WindowTab) => string;
+}
+
+/** An address under a name, as the bookmark it is kept as already, or would be kept as. */
+function keptAt(
+  { id, title, url }: { id: string; title: string; url: string },
   bookmarks: readonly Bookmark[],
-  titleOf: (tab: WindowTab) => string,
-): ShownBookmark | undefined {
-  if (held.kind === "bookmark") {
-    return {
-      id: held.id,
-      isStanding: true,
-      order: 0,
-      title: held.title,
-      url: held.url,
-    };
-  }
-  if (held.kind !== "tab") {
-    return undefined;
-  }
-  const tab = allTabs.find((each) => each.id === held.id);
-  const url = tab ? addressOfTab(tab) : undefined;
-  if (!tab || url === undefined) {
-    return undefined;
-  }
+): ShownBookmark {
   const kept = bookmarks.find((bookmark) => sameAddress(bookmark.url, url));
   return kept
     ? { ...kept, isStanding: true }
-    : { id: STANDING_ID, isStanding: true, order: 0, title: titleOf(tab), url };
+    : { id, isStanding: true, order: 0, title, url };
+}
+
+/** A file or a folder as the address it is kept under, by its name. */
+function fileKept({ hostPath, isFolder }: DroppedFile) {
+  return {
+    title: segmentsOf(hostPath).at(-1) ?? hostPath,
+    url: fileAddressOf(hostPath, { isFolder }),
+  };
+}
+
+/**
+ * What is held as the bookmarks it would be kept as: a bookmark as itself;
+ * a tab, a whole group's row (the tab up on its half) and each file or
+ * folder as the bookmark its address is kept as already, which moves where
+ * it is let go, since an address is kept once, else as its address under
+ * its name; a link the same, under its name or its address, and while the
+ * system's drag has not said where it goes, as a link. Nothing else is kept.
+ */
+export function keptAs(
+  held: Held,
+  { allTabs, bookmarks, titleOf, upOf }: KeptContext,
+): ShownBookmark[] {
+  const ofTab = (tab: WindowTab | undefined) => {
+    const url = tab ? addressOfTab(tab) : undefined;
+    return tab && url !== undefined
+      ? [keptAt({ id: STANDING_ID, title: titleOf(tab), url }, bookmarks)]
+      : [];
+  };
+  switch (held.kind) {
+    case "bookmark": {
+      return [
+        {
+          id: held.id,
+          isStanding: true,
+          order: 0,
+          title: held.title,
+          url: held.url,
+        },
+      ];
+    }
+    case "tab": {
+      return ofTab(allTabs.find((each) => each.id === held.id));
+    }
+    case "group": {
+      return ofTab(upOf(held.group, held.half));
+    }
+    case "files": {
+      return (held.files ?? []).map((file, index) =>
+        keptAt(
+          { id: held.ids[index] ?? `${STANDING_ID}${String(index)}`, ...fileKept(file) },
+          bookmarks,
+        ),
+      );
+    }
+    case "link": {
+      return [
+        keptAt(
+          {
+            id: held.id,
+            title: held.title || (held.url ? bareAddress(held.url) : "Link"),
+            url: held.url,
+          },
+          bookmarks,
+        ),
+      ];
+    }
+  }
+}
+
+/** What a drag knows of the window, read as it draws. */
+function useKeptContext(
+  titleOf: (tab: WindowTab) => string,
+): Omit<KeptContext, "bookmarks"> {
+  const { allTabs, layoutOf } = useWindowTabs();
+  return {
+    allTabs,
+    titleOf,
+    upOf: (group, half) => {
+      const layout = layoutOf(group);
+      const side = layout.sides[half ?? layout.focused];
+      return side?.tabs.find((tab) => tab.id === side.up);
+    },
+  };
 }
 
 /**
@@ -107,17 +181,20 @@ export function useBookmarksTarget({
   /** The bookmarks' own row in it, if there are any. */
   row: () => HTMLElement | null;
 }) {
-  const { allTabs } = useWindowTabs();
+  const context = useKeptContext(() => "");
   const bookmarks = useAtomValue(bookmarksAtom);
   useDropTarget({
     landingAt: (point, { held }) => {
-      const kept = keptAs(held, allTabs, bookmarks, () => "");
-      if (!kept) {
+      const kept = keptAs(held, { ...context, bookmarks });
+      if (kept.length === 0) {
         return undefined;
       }
       const element = row();
       const index = element
-        ? bookmarkIndexAt(point, element, [STANDING_ID, kept.id])
+        ? bookmarkIndexAt(point, element, [
+            STANDING_ID,
+            ...kept.map((each) => each.id),
+          ])
         : 0;
       return { index, kind: "bookmarks" };
     },
@@ -137,18 +214,18 @@ export function useShownBookmarks(
 ): readonly ShownBookmark[] {
   const drag = useAtomValue(dragAtom);
   const all = useAtomValue(bookmarksAtom);
-  const { allTabs } = useWindowTabs();
+  const context = useKeptContext(titleOf);
   if (!drag) {
     return bookmarks;
   }
   const { held, landing } = drag;
-  const kept = keptAs(held, allTabs, all, titleOf);
-  const movingId = kept && kept.id !== STANDING_ID ? kept.id : undefined;
   if (landing?.kind === "bookmarks") {
-    return kept
+    const kept = keptAs(held, { ...context, bookmarks: all });
+    const moving = new Set(kept.map((each) => each.id));
+    return kept.length > 0
       ? bookmarks
-          .filter((bookmark) => bookmark.id !== movingId)
-          .toSpliced(landing.index, 0, kept)
+          .filter((bookmark) => !moving.has(bookmark.id))
+          .toSpliced(landing.index, 0, ...kept)
       : bookmarks;
   }
   // Opened somewhere it stays kept here; a bookmark let go where nothing

@@ -10,7 +10,8 @@ export interface DroppedFile {
 /**
  * What a drag holds: a group's tab, a whole group by its sidebar row, files
  * (the system's drag, from the Finder or from this app's own Files and file
- * cards), or a bookmark.
+ * cards), a bookmark, or a link: an address not kept yet, out of a web page
+ * or a list of the app's own, which only the bookmarks take.
  */
 export type Held =
   | {
@@ -44,6 +45,15 @@ export type Held =
       kind: "bookmark";
       title: string;
       /** The address it keeps, a site's or the app's own. */
+      url: string;
+    }
+  | {
+      /** What it stands under among the bookmarks while it is held over them. */
+      id: string;
+      kind: "link";
+      /** Its name, empty where the system's drag says it only at the release. */
+      title: string;
+      /** The address it names, empty where the system's drag says it only at the release. */
       url: string;
     };
 

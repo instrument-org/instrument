@@ -212,7 +212,7 @@ export function setArchived(
   call.then(
     (at) => {
       painting.landed(at);
-      toast(archived ? "Archived" : "Unarchived", {
+      toast(archived ? "Archived" : "Moved to Inbox", {
         action: {
           label: "Undo",
           onClick: () => {
@@ -224,7 +224,9 @@ export function setArchived(
     (error: unknown) => {
       painting.failed();
       toast.error(
-        archived ? "Couldn't archive the chat" : "Couldn't unarchive the chat",
+        archived
+          ? "Couldn't archive the chat"
+          : "Couldn't move the chat to the inbox",
         { cause: error },
       );
     },

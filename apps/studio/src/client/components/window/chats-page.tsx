@@ -21,7 +21,7 @@ import { CHATS_INDEX_HREF, chatHref, newChatHref } from "./window-href";
 const listOpenTabsAtom = atom<ReadonlySet<string>>(new Set<string>());
 
 /** Whether one tab shows the chat list beside its chat, and setting it. */
-export function useChatListOpen(tabId: string | undefined) {
+function useChatListOpen(tabId: string | undefined) {
   const open = useAtomValue(listOpenTabsAtom);
   const setOpen = useSetAtom(listOpenTabsAtom);
   return [

@@ -11,6 +11,7 @@ import { type WindowTab } from "@/client/atoms/window";
 import { NetworkStatusIndicator } from "@/client/components/network-status/network-status-pill";
 import { type RailBounds } from "@/client/components/studio-sidebar-rail";
 import { ToolbarTooltip } from "@/client/components/toolbar-tooltip";
+import { Button } from "@/client/components/ui/button";
 import {
   Avatar,
   AvatarFallback,
@@ -28,6 +29,7 @@ import { SCREENS } from "@/shared/instrument-screens";
 import { WINDOW_SHORTCUTS } from "@/shared/window-shortcuts";
 import { CaretLeftIcon } from "@phosphor-icons/react/CaretLeft";
 import { CaretRightIcon } from "@phosphor-icons/react/CaretRight";
+import { ClockCounterClockwiseIcon } from "@phosphor-icons/react/ClockCounterClockwise";
 import { GearSixIcon } from "@phosphor-icons/react/GearSix";
 import { ChatsCircleIcon } from "@phosphor-icons/react/ChatsCircle";
 import { PlusIcon } from "@phosphor-icons/react/Plus";
@@ -48,7 +50,6 @@ import {
   useState,
 } from "react";
 
-import { ScreenMark } from "./app-chip";
 import { FadeTitle } from "./fade-title";
 import { GroupRowMenu, type GroupRowMenuActions } from "./group-row-menu";
 import { HelpMenu } from "./help-menu";
@@ -120,10 +121,10 @@ export function sidebarBounds(width: number): RailBounds {
 
 /**
  * The sidebar of tab groups down the window's left: the window's own row at
- * its top (past the traffic lights, the bell; the update pill at its end),
+ * its top (past the traffic lights, Activity and the bell; the update pill at its end),
  * the projects, the pinned groups over a plain line, New, the
  * rest under it, newest first, and, in a project, the way into its chats at
- * the list's end; at its foot, Activity, the account, Settings and Help. Opening a project takes the list over,
+ * the list's end; at its foot, the account, Settings and Help. Opening a project takes the list over,
  * under its banner. A row dragged within the list lands where it is let
  * go, pinned above the line or unpinned below it, and one dragged out goes
  * to a window of its own or to another window's list (`pressGroupRow`).
@@ -881,7 +882,7 @@ function RowHalfPlace({
  * The sidebar's top row, which drags the window: room for the traffic lights
  * on a Mac and for the sidebar's toggle, which stands over the row's start
  * (`SidebarToggleCorner`), then the app's menu off the Mac; the update pill,
- * and the bell at its end.
+ * then Activity and the bell at its end.
  */
 function SidebarTop() {
   return (
@@ -892,8 +893,28 @@ function SidebarTop() {
       {!isMacOS() && <AppMenuButton />}
       <span className="flex-1" />
       <UpdateStatusIndicator />
+      <ActivityButton />
       <NotificationsBell />
     </div>
+  );
+}
+
+/** Activity, where what was opened and closed is found again, beside the bell and in its grey. */
+function ActivityButton() {
+  return (
+    <ToolbarTooltip chord="showActivity" label={SCREENS.activity.title}>
+      <Button
+        aria-label={SCREENS.activity.title}
+        className="size-7 text-muted-foreground/70 [-webkit-app-region:no-drag]"
+        onClick={() => {
+          openBuiltInPage(SCREENS.activity.href);
+        }}
+        size="icon-sm"
+        variant="ghost-toolbar"
+      >
+        <ClockCounterClockwiseIcon className="size-4" />
+      </Button>
+    </ToolbarTooltip>
   );
 }
 
@@ -931,10 +952,7 @@ function AppMenuButton() {
   );
 }
 
-/**
- * The sidebar's foot: Activity at its corner, where what was closed is found
- * again; the account, which opens Settings; Settings itself; and Help.
- */
+/** The sidebar's foot: the account, which opens Settings; Settings itself; and Help. */
 function SidebarFoot({ chatId }: { chatId: ChatId | undefined }) {
   const { data: user } = useLiveUser();
   const { data: workspace } = useQuery(
@@ -942,18 +960,6 @@ function SidebarFoot({ chatId }: { chatId: ChatId | undefined }) {
   );
   return (
     <div className="flex h-11 shrink-0 items-center gap-1 border-t border-border/60 pr-1 pl-2">
-      <ToolbarTooltip label={SCREENS.activity.title}>
-        <button
-          aria-label={SCREENS.activity.title}
-          className="grid size-7 shrink-0 place-items-center rounded-lg text-muted-foreground hover:bg-foreground/5 hover:text-foreground"
-          onClick={() => {
-            openBuiltInPage(SCREENS.activity.href);
-          }}
-          type="button"
-        >
-          <ScreenMark className="size-4" name="activity" />
-        </button>
-      </ToolbarTooltip>
       <button
         className="flex h-9 min-w-0 flex-1 items-center gap-1.5 rounded-lg px-1.5 text-left hover:bg-foreground/5"
         onClick={() => {

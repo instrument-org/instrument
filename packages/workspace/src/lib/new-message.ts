@@ -218,6 +218,9 @@ export async function newMessage({
   for (const item of chippedPaths(viewing)) {
     await grantChipped(chatId, item);
   }
+  for (const path of viewing?.groupFiles ?? []) {
+    await grantChipped(chatId, { kind: "file", path });
+  }
 
   const backgroundProcessesPart = await createBackgroundProcessesPart({
     createdAt,

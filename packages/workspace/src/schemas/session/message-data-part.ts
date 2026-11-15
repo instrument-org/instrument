@@ -1222,8 +1222,8 @@ export namespace SessionMessageDataPart {
     /** The tab on screen, by its id. */
     tab: z.string().optional(),
     /**
-     * Whether that tab is the person's own, outside the chat: one it may
-     * not drive until the person adds it to a message.
+     * Whether that tab is the person's own, outside the chat's tab group:
+     * one it acts in only when asked.
      */
     theirs: z.boolean().optional(),
     /** The chat's other tabs, on screen or not. */
@@ -1328,6 +1328,12 @@ export namespace SessionMessageDataPart {
         }),
       )
       .optional(),
+    /**
+     * The files open in the chat's tab group, by path: part of the
+     * conversation as long as they are there, so each is granted to the chat
+     * as the message is sent, as a file sent with it is.
+     */
+    groupFiles: z.array(z.string()).optional(),
     /** A file open on This Mac, as the person writes its path. */
     file: z
       .object({

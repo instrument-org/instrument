@@ -15,7 +15,7 @@ export function browserStatusModelNote(data: Status) {
 
   const tabs = data.tabs.map(tabLine).join("; ");
   const theirs = data.tabs.some((tab) => tab.openedBy !== "task")
-    ? " A tab no agent opened is the user's: navigate it only when they ask, and open pages of your own with `agent-browser tab new <url>`."
+    ? " Act in any of them when the user's words point at it; a tab no agent opened goes to another address only when they ask, so open pages of your own with `agent-browser tab new <url>`."
     : "";
   const asleep = data.tabs.some((tab) => tab.asleep)
     ? " A tab asleep draws nothing and runs its timers slowly until a command reaches it, which wakes it with its page as it was."

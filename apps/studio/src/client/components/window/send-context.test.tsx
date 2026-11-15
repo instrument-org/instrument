@@ -276,6 +276,9 @@ describe("sendContext", () => {
           "name": "receipt.pdf",
           "path": "/Users/casey/Downloads/receipt.pdf",
         },
+        "groupFiles": [
+          "/Users/casey/Downloads/receipt.pdf",
+        ],
         "screen": "file",
         "tabs": [
           {

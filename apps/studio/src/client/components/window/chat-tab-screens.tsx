@@ -1,7 +1,10 @@
 import { useIsActiveTab } from "@/client/hooks/use-active-tab";
-import { type ChatId } from "@instrument-org/workspace/client";
-import { useAtomValue } from "jotai";
-import { useState } from "react";
+import { type ChatId, type LayoutTab } from "@instrument-org/workspace/client";
+import {
+  HoverCard,
+  HoverCardContent,
+  HoverCardTrigger,
+} from "@/client/components/ui/hover-card";
 
 import { folderHref } from "@/shared/computer-href";
 
@@ -12,50 +15,27 @@ import { useListedChat } from "./chat-tab-menu";
 import { useWindow } from "./context";
 import { ChatScreen } from "./chat-screen";
 import { ChatListToggle, WithChatList } from "./chats-page";
-import { chatContextItems } from "./context-items";
-import { ContextChips } from "./context-chip";
+import { HeldMark } from "./context-chip";
 import { layoutReadOf } from "./group-awareness";
 import { useGroupTab } from "./group-tab";
 import { NewChatView } from "./new-chat-view";
 import { useShell } from "./shell-context";
-import { tabSurfaceAtom } from "./tab-surface";
 import { useWindowTabs } from "./window-tabs";
 
 /**
- * A chat in a tab of a group, as its route draws it: the conversation, its
- * composer carrying the tab up on the other side of the group as a chip,
- * which the person can leave out of the next message. It marks itself read
- * and takes the caret only on the side with the keyboard.
+ * A chat in a tab of a group, as its route draws it: the conversation, with
+ * the group's other tabs counted in a line at the head of its composer.
+ * Every tab in the group goes with each message, so none of them is a chip
+ * to leave out. It marks itself read and takes the caret only on the side
+ * with the keyboard.
  */
 export function GroupChatScreen({ chatId }: { chatId: ChatId }) {
   const groupTab = useGroupTab();
   const shell = useShell();
-  const windowTabs = useWindowTabs();
   const isActive = useIsActiveTab();
-  const surfaces = useAtomValue(tabSurfaceAtom);
-  // The chip left out of the next message, by its key: a tab up beside it
-  // later is a chip again.
-  const [leftOut, setLeftOut] = useState<string>();
   const tabId = groupTab?.id;
-  const group = groupTab?.group;
   const hasKeyboard = groupTab?.hasKeyboard ?? true;
-  const beside = tabId === undefined ? undefined : windowTabs.besideOf(tabId);
-  const chips = (
-    beside && group !== undefined
-      ? chatContextItems({
-          chatId,
-          finderOf: (id) => surfaces[id]?.finder ?? null,
-          group,
-          taken: [],
-          up: beside,
-        })
-      : []
-  ).filter((item) => item.key !== leftOut);
   const awareTabs = useAwareTabs(tabId);
-  // Only a line with something to say goes in, so the composer keeps no
-  // empty row for it.
-  const aware =
-    awareTabs.length > 0 ? <AwarenessLine tabs={awareTabs} /> : undefined;
   return (
     <WithChatList openChatId={chatId}>
       <div className="absolute inset-0 flex flex-col">
@@ -64,23 +44,10 @@ export function GroupChatScreen({ chatId }: { chatId: ChatId }) {
           <ChatScreen
             chatId={chatId}
             composerLead={
-              aware || chips.length > 0 ? (
-                <>
-                  {aware}
-                  {chips.length > 0 && (
-                    <ContextChips
-                      items={chips}
-                      onLeaveOut={(item) => {
-                        setLeftOut(item.key);
-                      }}
-                      onShow={() => {
-                        if (beside) {
-                          windowTabs.select(beside.id);
-                        }
-                      }}
-                    />
-                  )}
-                </>
+              // Only a chip with something to say goes in, so the composer
+              // keeps no empty row for it.
+              awareTabs.length > 0 ? (
+                <AwarenessLine tabs={awareTabs} />
               ) : undefined
             }
             isUp={isActive && hasKeyboard}
@@ -94,7 +61,7 @@ export function GroupChatScreen({ chatId }: { chatId: ChatId }) {
             sendContext={() =>
               shell.sendContext({
                 chatId,
-                isViewOpen: chips.length > 0,
+                isViewOpen: true,
                 ...(tabId === undefined ? {} : { tabId }),
                 taken: [],
               })
@@ -169,18 +136,53 @@ function ChatTabHead({ chatId }: { chatId: ChatId }) {
 }
 
 /**
- * What the chat's agent sees of the group this tab is in, once a message
- * goes from here: how many other tabs it has, and how many of them are
- * files, as a quiet line at the head of the composer. Nothing while the
- * chat is alone in its group.
+ * What the chat's agent sees of the group this tab is in: how many other
+ * tabs it has, and how many of them are files, as a quiet line at the head
+ * of the composer, whose hover says they go with each message and lists
+ * each by its mark and title. Nothing while the chat is alone in its group.
  */
-function AwarenessLine({ tabs }: { tabs: readonly { kind: string }[] }) {
+function AwarenessLine({ tabs }: { tabs: readonly LayoutTab[] }) {
+  const windowTabs = useWindowTabs();
+  const appsBySlug = useAppsBySlug();
   const files = tabs.filter((tab) => tab.kind === "file").length;
   return (
-    <span className="flex h-7 shrink-0 items-center px-1 text-xs text-muted-foreground">
-      {countOf(tabs.length, "tab")}
-      {files > 0 && `, ${countOf(files, "file")}`}
-    </span>
+    <HoverCard closeDelay={100} openDelay={200}>
+      <HoverCardTrigger asChild>
+        <span
+          className="flex h-7 shrink-0 cursor-default items-center px-1 text-xs text-muted-foreground"
+          data-slot="group-awareness"
+          tabIndex={0}
+        >
+          {countOf(tabs.length, "tab")}
+          {files > 0 && `, ${countOf(files, "file")}`}
+        </span>
+      </HoverCardTrigger>
+      <HoverCardContent
+        align="start"
+        className="flex w-72 flex-col gap-1 p-2"
+        data-slot="group-awareness-list"
+        side="top"
+      >
+        <p className="px-1.5 pb-1 text-xs text-muted-foreground">
+          {tabs.length === 1 ? "This tab goes" : "These tabs go"} with every
+          message you send here.
+        </p>
+        {tabs.map((tab) => {
+          const open = windowTabs.allTabs.find((each) => each.id === tab.id);
+          return (
+            <span
+              className="flex h-7 min-w-0 items-center gap-2 px-1.5 text-[13px]"
+              key={tab.id}
+            >
+              <span className="grid size-4 shrink-0 place-items-center [&_img]:size-4 [&_svg]:size-4">
+                {open && <HeldMark appsBySlug={appsBySlug} tab={open} />}
+              </span>
+              <span className="truncate">{tab.title || tab.address}</span>
+            </span>
+          );
+        })}
+      </HoverCardContent>
+    </HoverCard>
   );
 }
 

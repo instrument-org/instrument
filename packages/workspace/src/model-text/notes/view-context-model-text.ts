@@ -134,10 +134,10 @@ function pageNote(data: ViewContext) {
       ? ""
       : theirs
         ? `, in their own tab ${page.tab}, outside their tab group`
-        : ` (tab ${page.tab} in their tab group${heldClause(shown?.heldBy)})`;
+        : ` (tab ${page.tab} in their tab group, yours to read and change${heldClause(shown?.heldBy)})`;
   const ways =
     theirs && page.tab !== undefined
-      ? " To work in it, open its address in a tab of your own, which has their sign-ins but not what they typed or scrolled to. To act in this very tab as it stands, say so in your reply and ask them to add it to their next message."
+      ? " Act in this very tab when they ask you to; for work that needs only the site, open its address in a tab of your own, which has their sign-ins but not what they typed or scrolled to."
       : "";
   const others = (page.tabs ?? []).filter((other) => other.id !== page.tab);
   const tabs =

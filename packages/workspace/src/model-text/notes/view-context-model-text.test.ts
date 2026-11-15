@@ -116,7 +116,7 @@ describe("viewContextModelNote", () => {
     ).toMatchInlineSnapshot(`
       "
       <instrument-system-note>
-      When the user sent this, the browser showed "Amazon.com. Spend less. Smile more." at https://www.amazon.com/?ref_=nav_signin, in their own tab tab_01M5Q1ZK8AAAAAAAAAAAAAAAAA, outside their tab group. "This page", "this site", "this" and "here" refer to it. To work in it, open its address in a tab of your own, which has their sign-ins but not what they typed or scrolled to. To act in this very tab as it stands, say so in your reply and ask them to add it to their next message.
+      When the user sent this, the browser showed "Amazon.com. Spend less. Smile more." at https://www.amazon.com/?ref_=nav_signin, in their own tab tab_01M5Q1ZK8AAAAAAAAAAAAAAAAA, outside their tab group. "This page", "this site", "this" and "here" refer to it. Act in this very tab when they ask you to; for work that needs only the site, open its address in a tab of your own, which has their sign-ins but not what they typed or scrolled to.
       Their tab group has no pages.
       </instrument-system-note>"
     `);
@@ -149,7 +149,7 @@ describe("viewContextModelNote", () => {
     ).toMatchInlineSnapshot(`
       "
       <instrument-system-note>
-      When the user sent this, the browser showed "Example" at https://example.com/ (tab tab_01M3AX9RF3C2E9RTATMB602W0B in their tab group, task read-the-page is working in it). "This page", "this site", "this" and "here" refer to it.
+      When the user sent this, the browser showed "Example" at https://example.com/ (tab tab_01M3AX9RF3C2E9RTATMB602W0B in their tab group, yours to read and change, task read-the-page is working in it). "This page", "this site", "this" and "here" refer to it.
       Other pages in their tab group, not on screen: "Shop" at https://shop.example/ (tab tab_01M3AX9RF3C2E9RTATMB602W0C, task compare-prices is working in it).
       </instrument-system-note>"
     `);

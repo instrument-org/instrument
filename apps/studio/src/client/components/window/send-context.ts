@@ -169,8 +169,8 @@ export function contextReaders({
    * is, a folder or an app as its screen reports it, and otherwise as much as
    * its address says. A page's tab id goes for a tab of the sending group's
    * own, which the conversation may hand a task, and for one of the
-   * person's own outside every chat, marked theirs, which it may ask them
-   * for; a page of another chat's goes without one.
+   * person's own outside every chat, marked theirs, which it acts in when
+   * asked; a page of another chat's goes without one.
    */
   const tabContext = async (
     tab: WindowTab,
@@ -347,6 +347,15 @@ export function contextReaders({
     if (!shown && !chat && chosen.length === 0 && own.length === 0) {
       return;
     }
+    // A file open in the group is part of the conversation, so the chat may
+    // read and change it with no chip of its own.
+    const groupFiles = own.flatMap((tab) => {
+      const path =
+        tab.kind === "page"
+          ? hostPathOfFileUrl(tab.url)
+          : computerTabOf(tab.href)?.file;
+      return path === undefined ? [] : [path];
+    });
     // The chips the person put on the message, which are what the chat is
     // granted. A tab of the sending group's own goes without one: being in
     // the group tells the agent of it, and grants nothing.
@@ -371,6 +380,7 @@ export function contextReaders({
       ...(attached.length > 0 ? { attached } : {}),
       ...(chat ? { chat } : {}),
       ...(chosen.length > 0 ? { chosen } : {}),
+      ...(groupFiles.length > 0 ? { groupFiles } : {}),
       tabs: [...describeTabs(own), ...named],
     };
   };

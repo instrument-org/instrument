@@ -17,7 +17,7 @@ import { thisDevice } from "./asks";
 const MOST_FILES = 10;
 
 /** The folder in a chat's work folder its versions are kept in. */
-export const VERSIONS_FOLDER = ".versions";
+const VERSIONS_FOLDER = ".versions";
 
 type Entry = SessionMessageDataPart.FileVersionsDataPart["files"][number];
 

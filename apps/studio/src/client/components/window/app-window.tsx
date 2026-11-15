@@ -1603,44 +1603,48 @@ function WindowShell({
                 panelClassName="border-r-0 bg-transparent"
                 widthAtom={sidebarWidthAtom}
               >
-                <GroupSidebar
-                  chatTitles={chatTitles}
-                  groupUp={groupUp}
-                  onClose={(group) => {
-                    offerUndo(closeGroups([group]));
-                  }}
-                  onCloseAll={(closed, keep) => {
-                    offerUndo(closeGroups(closed, keep));
-                  }}
-                  onCloseSide={(tab) => {
-                    offerUndo(closeSideOf(tab));
-                  }}
-                  onDuplicate={(entry) => {
-                    groups.duplicate(entry);
-                  }}
-                  onNew={(projectId) => {
-                    groups.make(projectId === undefined ? {} : { projectId });
-                  }}
-                  onNewChatProject={(chatId, name) => {
-                    setNewProject({ chatId, ...(name ? { name } : {}) });
-                  }}
-                  onNewProject={() => {
-                    setNewProject({});
-                  }}
-                  onPin={(group, pinned) => {
-                    groups.pin(group, pinned);
-                  }}
-                  onReopenLast={reopenTab}
-                  onShow={(group, { newWindow }) => {
-                    if (newWindow) {
-                      groups.moveToNewWindow(group, groupList.open);
-                    } else {
-                      groups.show(group);
-                    }
-                  }}
-                  open={groupList.open}
-                  projects={projects}
-                />
+                {/* The sidebar's History lists the window's closed tabs and
+                  restores them, which it reads from the shell. */}
+                <ShellContext value={shell}>
+                  <GroupSidebar
+                    chatTitles={chatTitles}
+                    groupUp={groupUp}
+                    onClose={(group) => {
+                      offerUndo(closeGroups([group]));
+                    }}
+                    onCloseAll={(closed, keep) => {
+                      offerUndo(closeGroups(closed, keep));
+                    }}
+                    onCloseSide={(tab) => {
+                      offerUndo(closeSideOf(tab));
+                    }}
+                    onDuplicate={(entry) => {
+                      groups.duplicate(entry);
+                    }}
+                    onNew={(projectId) => {
+                      groups.make(projectId === undefined ? {} : { projectId });
+                    }}
+                    onNewChatProject={(chatId, name) => {
+                      setNewProject({ chatId, ...(name ? { name } : {}) });
+                    }}
+                    onNewProject={() => {
+                      setNewProject({});
+                    }}
+                    onPin={(group, pinned) => {
+                      groups.pin(group, pinned);
+                    }}
+                    onReopenLast={reopenTab}
+                    onShow={(group, { newWindow }) => {
+                      if (newWindow) {
+                        groups.moveToNewWindow(group, groupList.open);
+                      } else {
+                        groups.show(group);
+                      }
+                    }}
+                    open={groupList.open}
+                    projects={projects}
+                  />
+                </ShellContext>
               </StudioSidebarRail>
             }
             rowRef={setRowElement}

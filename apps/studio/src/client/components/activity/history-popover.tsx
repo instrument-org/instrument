@@ -1,6 +1,12 @@
 import { EntryIcon } from "@/client/components/activity/activity-icons";
+import {
+  ENTRY_ROW,
+  EntryWords,
+  TIME_COLUMN,
+} from "@/client/components/activity/activity-page";
 import { useModelName } from "@/client/components/activity/activity-requests";
 import {
+  bringsBack,
   entryText,
   type TimelineEntry,
   timelineOf,
@@ -20,7 +26,7 @@ import {
 } from "@/client/components/ui/popover";
 import { useGesturesFor } from "@/client/hooks/use-open-target";
 import { displayLocale } from "@/client/lib/display-locale";
-import { osConventions } from "@/client/lib/utils";
+import { cn, osConventions } from "@/client/lib/utils";
 import { rpcClient } from "@/client/rpc/client";
 import { SCREENS } from "@/shared/instrument-screens";
 import { ClockCounterClockwiseIcon } from "@phosphor-icons/react/ClockCounterClockwise";
@@ -30,14 +36,25 @@ import { useState } from "react";
 /** How many rows the popover lists, newest first. */
 const SHOWN = 8;
 
+/**
+ * How many of the newest actions are read for those rows: most of what a
+ * person does is a place visited, so this many leaves enough after the
+ * rest are taken out.
+ */
+const READ = 100;
+
+/** How often the rows are read again while the popover is open. */
+const LIVE_MS = 2000;
+
 const timeFormat = new Intl.DateTimeFormat(displayLocale, {
   hour: "numeric",
   minute: "2-digit",
 });
 
 /**
- * The sidebar's History button: a press opens the newest rows of History,
- * as its page lists them, over a row that opens the whole page as a tab.
+ * The sidebar's History button: a press opens the newest of History's rows
+ * that bring something back, drawn as its page draws them, over a row that
+ * opens the whole page as a tab.
  * ⌘Y opens the page itself.
  */
 export function HistoryButton({
@@ -89,44 +106,42 @@ export function HistoryButton({
   );
 }
 
-/** The newest rows of both logs and the tabs closed, read while the popover is open. */
+/**
+ * The newest of History's rows that bring something back: the tabs and tab
+ * groups closed, restored by a press, and the places visited, opened by one.
+ * Read afresh as it opens and every few seconds while it is open, and the
+ * closed list as it changes.
+ */
 function HistoryRows({ onDone }: { onDone: () => void }) {
   const modelName = useModelName();
   const gesturesFor = useGesturesFor();
   const restore = useRestoreClosed();
   const closed = useClosedTabs();
   const words = { trash: osConventions().trash };
-  const actions = useQuery(
-    rpcClient.actions.list.queryOptions({
-      input: { limit: SHOWN, since: 0 },
+  const actions = useQuery({
+    ...rpcClient.actions.list.queryOptions({
+      input: { limit: READ, since: 0 },
     }),
-  );
-  const requests = useQuery(
-    rpcClient.workspace.activity.list.queryOptions({
-      input: {
-        filter: {},
-        limit: SHOWN,
-        offset: 0,
-        sort: { column: "startedAt", direction: "desc" },
-      },
-    }),
-  );
-  if (actions.isPending || requests.isPending) {
+    refetchInterval: LIVE_MS,
+  });
+  if (actions.isPending) {
     return <div className="h-20" />;
   }
-  // Each read is its log's newest, so the newest of them together are the
-  // newest of all.
+  // The closed tabs go in among the actions read, as far back as those go.
   const { entries } = timelineOf({
-    actions: { complete: true, items: actions.data?.actions ?? [] },
+    actions: {
+      complete: actions.data?.next === null,
+      items: actions.data?.actions ?? [],
+    },
     closed,
-    requests: { complete: true, items: requests.data ?? [] },
-    view: "all",
+    requests: { complete: true, items: [] },
+    view: "yours",
   });
-  const shown = entries.slice(0, SHOWN);
+  const shown = entries.filter(bringsBack).slice(0, SHOWN);
   if (shown.length === 0) {
     return (
       <p className="px-4 py-8 text-center text-[13px] text-muted-foreground">
-        What you do in Instrument shows up here.
+        Tabs you close and places you visit show up here.
       </p>
     );
   }
@@ -148,7 +163,10 @@ function HistoryRows({ onDone }: { onDone: () => void }) {
         const text = entryText(entry, { modelName, words });
         return (
           <button
-            className="flex h-9 w-full cursor-default items-center gap-3 rounded-md px-3 text-left outline-none hover:bg-foreground/5 focus-visible:bg-foreground/5"
+            className={cn(
+              "flex min-h-9 w-full cursor-default items-center gap-3 rounded-md px-3 text-left outline-none hover:bg-foreground/5 focus-visible:bg-foreground/5",
+              ENTRY_ROW,
+            )}
             key={entry.id}
             onClick={() => {
               openEntry(entry);
@@ -158,13 +176,18 @@ function HistoryRows({ onDone }: { onDone: () => void }) {
             <span className="grid size-5 shrink-0 place-items-center">
               <EntryIcon entry={entry} />
             </span>
-            <span className="min-w-0 shrink truncate text-[13px]">
-              {text.title || text.context}
-            </span>
-            <span className="min-w-0 flex-1 truncate text-[13px] text-muted-foreground">
-              {text.title ? text.context : ""}
-            </span>
-            <span className="shrink-0 text-xs text-muted-foreground tabular-nums">
+            <EntryWords
+              at={entry.at}
+              context={text.context}
+              keepContext={entry.kind === "closed"}
+              title={text.title}
+            />
+            <span
+              className={cn(
+                "shrink-0 text-xs text-muted-foreground tabular-nums",
+                TIME_COLUMN,
+              )}
+            >
               {timeFormat.format(entry.at)}
             </span>
           </button>

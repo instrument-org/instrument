@@ -5,6 +5,7 @@ import { describe, expect, it } from "vitest";
 import {
   acrossSeam,
   type ActivityRequest,
+  bringsBack,
   actionText,
   type ActivityView,
   type ClosedTabs,
@@ -224,7 +225,10 @@ describe("timelineOf", () => {
       ids = 0;
       return rows(
         timelineOf({
-          actions: { complete, items: [action(at(14, 50)), action(at(14, 30))] },
+          actions: {
+            complete,
+            items: [action(at(14, 50)), action(at(14, 30))],
+          },
           closed,
           requests: done([request(at(14, 40))]),
           view,
@@ -637,6 +641,14 @@ describe("entriesShown", () => {
     expect(shown("kitchen", "chats")).toEqual(["3"]);
   });
 
+  it("lists in the sidebar's History the places visited, never a setting or an AI turn", () => {
+    expect(entries.filter(bringsBack).map((each) => each.id)).toEqual([
+      "1",
+      "2",
+      "3",
+    ]);
+  });
+
   it("searches More from a page's site, a file's folder, and a turn's chat", () => {
     expect(entries.map((each) => moreFromOf(each)?.q ?? null)).toEqual([
       "irs.gov",
@@ -663,7 +675,11 @@ describe("closed tabs", () => {
   };
 
   it("names a closed tab by its title and a group by its first tab, with how many it had", () => {
-    expect([group, tab].map((each) => each.kind === "closed" && closedText(each.closed))).toEqual([
+    expect(
+      [group, tab].map(
+        (each) => each.kind === "closed" && closedText(each.closed),
+      ),
+    ).toEqual([
       { context: "Closed tab group · 3 tabs", title: "Example Domain" },
       { context: "Closed tab", title: "Example Domain" },
     ]);
@@ -682,6 +698,10 @@ describe("closed tabs", () => {
     expect(shown("wikipedia")).toEqual(["closed:t1"]);
     expect(shown("tab group")).toEqual(["closed:t1"]);
     expect(moreFromOf(group)).toBeUndefined();
+  });
+
+  it("lists them in the sidebar's History", () => {
+    expect([group, tab].every(bringsBack)).toBe(true);
   });
 });
 

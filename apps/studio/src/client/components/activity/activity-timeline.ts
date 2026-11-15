@@ -432,6 +432,32 @@ export function entryText(
     : actionText(entry.action, words);
 }
 
+/**
+ * Whether a row is one the sidebar's History lists: a closed tab or tab
+ * group, which it restores, or a place visited (a page, a chat, a file or a
+ * folder opened), which it opens. What was done to files, AI requests and
+ * the rest stay on the page.
+ */
+export function bringsBack(entry: TimelineEntry): boolean {
+  if (entry.kind === "closed") {
+    return true;
+  }
+  if (entry.kind === "turn") {
+    return false;
+  }
+  switch (entry.action.kind) {
+    case "page":
+    case "chat":
+    case "file":
+    case "folder": {
+      return placeOf(entry.action) !== undefined;
+    }
+    default: {
+      return false;
+    }
+  }
+}
+
 /** The filter an entry shows under, besides All. */
 function showOf(entry: TimelineEntry): Show | undefined {
   if (entry.kind === "turn") {
@@ -548,14 +574,14 @@ export function entriesShown(
             ]),
           ]
         : entry.kind === "turn"
-        ? [
-            ...Object.values(turnText(entry.turn, modelName)),
-            ...entry.turn.requests.flatMap((request) => [
-              request.chatTitle ?? "",
-              modelOf(request) ?? "",
-            ]),
-          ]
-        : actionHaystack(entry.action, words)
+          ? [
+              ...Object.values(turnText(entry.turn, modelName)),
+              ...entry.turn.requests.flatMap((request) => [
+                request.chatTitle ?? "",
+                modelOf(request) ?? "",
+              ]),
+            ]
+          : actionHaystack(entry.action, words)
     )
       .join("\n")
       .toLowerCase();

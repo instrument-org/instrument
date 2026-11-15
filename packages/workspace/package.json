@@ -21,6 +21,7 @@
     "./layout": "./src/lib/workspace-layout.ts",
     "./mac-apps-server": "./src/lib/mac-apps/main.ts",
     "./page-title": "./src/lib/page-title.ts",
+    "./record-file-names": "./src/lib/records/file-names.ts",
     "./report-outline": "./src/lib/report-outline.ts",
     "./work-folders": "./src/lib/work-folders.ts",
     "./fixture-workspaces": "./scripts/lib/fixture-workspaces.ts",

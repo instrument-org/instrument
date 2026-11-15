@@ -3,8 +3,6 @@ import os from "node:os";
 import path from "node:path";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-type WorkspaceElectron = typeof import("@instrument-org/workspace/electron");
-
 import {
   buildExceptionEvent,
   type ExceptionEvent,
@@ -36,21 +34,16 @@ vi.mock("./exception-store", () => ({
   listExceptionEvents: () => stored.events,
 }));
 
-vi.mock(
-  "@instrument-org/workspace/electron",
-  async (importOriginal: () => Promise<WorkspaceElectron>) => ({
-    // The record file parser is pure, and what the feedback picks turns on it.
-    parseRecordFileName: (await importOriginal()).parseRecordFileName,
-    chatDir: () => {
-      throw new Error("No chat in these tests");
-    },
-    chatIds: () => [],
-    chatSessions: () => Promise.resolve([]),
-    chatStartedWithApp: () => Promise.resolve(undefined),
-    listMemories: () => Promise.resolve([]),
-    memoryDir: () => "/no-memory",
-  }),
-);
+vi.mock("@instrument-org/workspace/electron", () => ({
+  chatDir: () => {
+    throw new Error("No chat in these tests");
+  },
+  chatIds: () => [],
+  chatSessions: () => Promise.resolve([]),
+  chatStartedWithApp: () => Promise.resolve(undefined),
+  listMemories: () => Promise.resolve([]),
+  memoryDir: () => "/no-memory",
+}));
 
 // `now` is who is known without asking, `later` who asking adds.
 vi.mock("@/electron-main/lib/apps", () => ({ getAppsDir: () => undefined }));

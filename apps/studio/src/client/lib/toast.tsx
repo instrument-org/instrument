@@ -1,6 +1,6 @@
 import { ORPCError } from "@orpc/client";
 import { EyeIcon } from "@phosphor-icons/react/Eye";
-import type { ReactNode } from "react";
+import type { ReactElement, ReactNode } from "react";
 import { toast as sonnerToast, type ExternalToast } from "sonner";
 
 import { recordWindowAction } from "./actions";
@@ -64,13 +64,14 @@ export function spokenMessage(
 
 function withDuration(
   data: ExternalToast | undefined,
-  { isError = false } = {},
+  // A toast that draws its own action says so here, since `data` has none.
+  { actionable = !!data?.action, isError = false } = {},
 ): ExternalToast {
   if (data?.duration !== undefined) {
     return data;
   }
   const duration =
-    isError || data?.action
+    isError || actionable
       ? ACTIONABLE_MS
       : data?.description
         ? DESCRIBED_MS
@@ -222,6 +223,32 @@ export const toast = Object.assign(
     sonnerToast(message, withDuration(data)),
   {
     custom: sonnerToast.custom,
+    /**
+     * A toast that draws its own card, so its words and whether it has an
+     * action come along to time it like the rest; a `warning` one goes in
+     * the action log, as `toast.warning` does.
+     */
+    drawn: (
+      render: (id: number | string) => ReactElement,
+      {
+        actionable,
+        title,
+        warning,
+        ...data
+      }: ExternalToast & {
+        actionable: boolean;
+        title: string;
+        warning: boolean;
+      },
+    ) => {
+      if (warning) {
+        recordShown(title, data.description);
+      }
+      // Sonner draws a description under a custom card too, so it times the
+      // toast and goes no further.
+      const { description: _, ...shown } = withDuration(data, { actionable });
+      return sonnerToast.custom(render, shown);
+    },
     dev: showDev,
     dismiss: sonnerToast.dismiss,
     error: showError,

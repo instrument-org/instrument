@@ -1,6 +1,7 @@
 import { displayLocale } from "@/client/lib/display-locale";
 import { openReportDialog } from "@/client/atoms/report-dialog";
 import { openSettings } from "@/client/atoms/settings-modal";
+import { AIProviderIcon } from "@/client/components/ai-provider-icon";
 import { Button } from "@/client/components/ui/button";
 import { BELL_TOASTER } from "@/client/components/ui/sonner";
 import {
@@ -14,19 +15,26 @@ import { formatAbsoluteTime } from "@/client/lib/relative-time";
 import { toast } from "@/client/lib/toast";
 import { rpcClient } from "@/client/rpc/client";
 import { cn } from "@/client/lib/utils";
-import { type BellNotice } from "@/shared/notices";
+import { type BellNotice, isSignInAccountType } from "@/shared/notices";
 import { type PendingProblem } from "@/shared/problem-reports";
 import { APP_NAME } from "@instrument-org/shared";
 import { BellIcon } from "@phosphor-icons/react/Bell";
+import { ExclamationMarkIcon } from "@phosphor-icons/react/ExclamationMark";
 import { MegaphoneSimpleIcon } from "@phosphor-icons/react/MegaphoneSimple";
-import { NewspaperClippingIcon } from "@phosphor-icons/react/NewspaperClipping";
 import { ShieldCheckIcon } from "@phosphor-icons/react/ShieldCheck";
 import { SparkleIcon } from "@phosphor-icons/react/Sparkle";
 import { UserCircleIcon } from "@phosphor-icons/react/UserCircle";
 import { ShieldWarningIcon } from "@phosphor-icons/react/ShieldWarning";
 import { WarningCircleIcon } from "@phosphor-icons/react/WarningCircle";
+import { XIcon } from "@phosphor-icons/react/X";
 import { useMutation, useQuery } from "@tanstack/react-query";
-import { useEffect, useRef, useState, useSyncExternalStore } from "react";
+import {
+  type ReactNode,
+  useEffect,
+  useRef,
+  useState,
+  useSyncExternalStore,
+} from "react";
 
 /**
  * The window's notifications, in its corner: what needs the person, and what
@@ -81,6 +89,12 @@ export function NotificationsBell() {
     <Popover
       onOpenChange={(next) => {
         setOpen(next);
+        // The bell lists what its toasts said, and they'd sit over it.
+        if (next) {
+          for (const notice of notices) {
+            toast.dismiss(notice.id);
+          }
+        }
         if (next && unseen.length > 0) {
           markSeen.mutate({ ids: unseen.map((notice) => notice.id) });
         }
@@ -110,16 +124,32 @@ export function NotificationsBell() {
           )}
         </Button>
       </PopoverTrigger>
-      <PopoverContent align="end" className="w-95 overflow-hidden p-0">
-        <div className="flex h-10 items-center border-b border-border px-4 text-[13px] font-semibold">
+      <PopoverContent
+        align="end"
+        className="w-95 overflow-hidden p-0"
+        // Focus the panel, not its first row's button, so opening the bell
+        // doesn't light that row up; Tab still walks into the rows.
+        onOpenAutoFocus={(event) => {
+          event.preventDefault();
+          if (event.currentTarget instanceof HTMLElement) {
+            event.currentTarget.focus();
+          }
+        }}
+      >
+        <div className="flex h-11 items-center px-4 text-[13px] font-semibold">
           Notifications
         </div>
         {empty ? (
-          <p className="px-4 py-8 text-center text-[13px] text-muted-foreground">
-            You don't have any notifications.
-          </p>
+          <div className="flex flex-col items-center gap-2 px-4 pt-4 pb-9 text-center">
+            <span className="grid size-9 place-items-center rounded-full bg-foreground/6 text-muted-foreground">
+              <BellIcon className="size-4.5" />
+            </span>
+            <p className="text-[13px] text-muted-foreground">
+              You're all caught up.
+            </p>
+          </div>
         ) : (
-          <div className="max-h-[min(480px,calc(var(--radix-popover-content-available-height)/var(--content-zoom)))] divide-y divide-border overflow-y-auto">
+          <div className="flex max-h-[min(480px,calc(var(--radix-popover-content-available-height)/var(--content-zoom)))] flex-col gap-px overflow-y-auto px-1.5 pb-1.5">
             {problems.map((problem) => (
               <ProblemItem
                 key={problem.fingerprint}
@@ -187,19 +217,9 @@ function useToastLoudNotices(
           if (!granted) {
             return;
           }
-          const show = warns(notice) ? toast.warning : toast.info;
           shown.current.add(notice.id);
-          show(notice.title, {
-            id: notice.id,
-            action: notice.action && {
-              label: notice.action.label,
-              onClick: () => {
-                onAction(notice);
-              },
-            },
-            description: notice.body,
-            duration: notice.severity === "critical" ? Infinity : undefined,
-            toasterId: BELL_TOASTER,
+          showNoticeToast(notice, () => {
+            onAction(notice);
           });
         })
         .catch(() => {
@@ -207,6 +227,44 @@ function useToastLoudNotices(
         });
     }
   }, [focused, notices, onAction]);
+}
+
+/**
+ * Toasts a notice as the bell's card, from the bell's corner: critical ones
+ * stay until closed. Closing it leaves the notice in the bell; its action
+ * closes it and does what it says.
+ */
+export function showNoticeToast(notice: BellNotice, onAction: () => void) {
+  toast.drawn(
+    (id) => (
+      <BellRow
+        action={
+          notice.action && {
+            label: notice.action.label,
+            onClick: () => {
+              toast.dismiss(id);
+              onAction();
+            },
+          }
+        }
+        body={notice.body}
+        onDismiss={() => {
+          toast.dismiss(id);
+        }}
+        title={notice.title}
+        {...noticeLook(notice)}
+      />
+    ),
+    {
+      actionable: !!notice.action,
+      description: notice.body,
+      duration: notice.severity === "critical" ? Infinity : undefined,
+      id: notice.id,
+      title: notice.title,
+      toasterId: BELL_TOASTER,
+      warning: warns(notice),
+    },
+  );
 }
 
 function subscribeToWindowFocus(onChange: () => void) {
@@ -245,8 +303,62 @@ const NOTICE_ICON = {
   announcement: MegaphoneSimpleIcon,
   security: ShieldCheckIcon,
   update: SparkleIcon,
-  "whats-new": NewspaperClippingIcon,
+  "whats-new": MegaphoneSimpleIcon,
 } satisfies Record<BellNotice["kind"], unknown>;
+
+/**
+ * How urgent a row reads, in its icon's color: a problem or a critical
+ * notice is red, one that warns is amber, and the rest are quiet.
+ */
+type Tone = "danger" | "neutral" | "warning";
+
+const TONE_CLASS = {
+  danger: "bg-destructive/10 text-destructive dark:bg-destructive/20",
+  neutral: "bg-foreground/6 text-muted-foreground",
+  warning:
+    "bg-warning-500/15 text-warning-700 dark:bg-warning-500/15 dark:text-warning-300",
+} satisfies Record<Tone, string>;
+
+function noticeTone(notice: BellNotice): Tone {
+  if (notice.severity === "critical") {
+    return "danger";
+  }
+  return warns(notice) ? "warning" : "neutral";
+}
+
+/**
+ * How a notice's row looks at its left: the icon for its kind, tinted by how
+ * urgent it is. A signed-out account shows its provider's own mark instead,
+ * so which account it is reads before the title does, with an amber badge
+ * when signing back in is what the default model is waiting on.
+ */
+function noticeLook(
+  notice: BellNotice,
+): Pick<BellRowProps, "alert" | "icon" | "mark" | "tone"> {
+  const setting =
+    notice.action && "setting" in notice.action
+      ? notice.action.setting
+      : undefined;
+  if (
+    notice.kind === "account" &&
+    setting !== undefined &&
+    isSignInAccountType(setting)
+  ) {
+    return {
+      alert: notice.severity === "critical",
+      icon: NOTICE_ICON.account,
+      mark: <AIProviderIcon className="size-4" colored type={setting} />,
+      tone: "neutral",
+    };
+  }
+  return {
+    icon:
+      notice.kind === "security" && warns(notice)
+        ? ShieldWarningIcon
+        : NOTICE_ICON[notice.kind],
+    tone: noticeTone(notice),
+  };
+}
 
 function NoticeItem({
   notice,
@@ -261,52 +373,21 @@ function NoticeItem({
       toast.error("Couldn't dismiss it", { cause: error });
     },
   });
-  const Icon = warns(notice) ? ShieldWarningIcon : NOTICE_ICON[notice.kind];
 
   return (
-    <div className="flex gap-3 px-4 py-3">
-      <span
-        className={cn(
-          "mt-0.5 grid size-7 shrink-0 place-items-center rounded-lg bg-muted",
-          warns(notice)
-            ? "text-warning-700 dark:text-warning-300"
-            : "text-muted-foreground",
-        )}
-      >
-        <Icon className="size-4" />
-      </span>
-      <div className="min-w-0 flex-1">
-        <div className="flex items-baseline gap-2">
-          <span className="min-w-0 flex-1 text-[13px] font-medium">
-            {notice.title}
-          </span>
-          <span
-            className="shrink-0 text-[11px] text-muted-foreground/60"
-            title={formatAbsoluteTime(new Date(notice.publishedAt))}
-          >
-            {formatWhen(Date.parse(notice.publishedAt))}
-          </span>
-        </div>
-        <p className="mt-0.5 text-xs text-muted-foreground">{notice.body}</p>
-        <div className="mt-2 flex gap-1.5">
-          {notice.action && (
-            <Button onClick={onAction} size="xs">
-              {notice.action.label}
-            </Button>
-          )}
-          <Button
-            disabled={dismiss.isPending}
-            onClick={() => {
-              dismiss.mutate();
-            }}
-            size="xs"
-            variant="outline"
-          >
-            Dismiss
-          </Button>
-        </div>
-      </div>
-    </div>
+    <BellRow
+      action={
+        notice.action && { label: notice.action.label, onClick: onAction }
+      }
+      at={Date.parse(notice.publishedAt)}
+      body={notice.body}
+      dismissing={dismiss.isPending}
+      onDismiss={() => {
+        dismiss.mutate();
+      }}
+      title={notice.title}
+      {...noticeLook(notice)}
+    />
   );
 }
 
@@ -325,47 +406,138 @@ function ProblemItem({
     },
   });
   const crashed = problem.kind === "crash";
-  const title = crashed
-    ? `${APP_NAME} quit unexpectedly`
-    : `${APP_NAME} didn't close properly`;
-  const line = crashed
-    ? "Sending a report helps us fix what went wrong."
-    : "It may have stopped responding before it was quit. A report helps us find out why.";
 
   return (
-    <div className="flex gap-3 px-4 py-3">
-      <span className="mt-0.5 grid size-7 shrink-0 place-items-center rounded-lg bg-muted text-destructive">
-        <WarningCircleIcon className="size-4" />
+    <BellRow
+      action={{ label: "Send a report", onClick: onReport }}
+      at={problem.lastAt}
+      body={
+        crashed
+          ? "Sending a report helps us fix what went wrong."
+          : "It may have stopped responding before it was quit. A report helps us find out why."
+      }
+      dismissing={dismiss.isPending}
+      icon={WarningCircleIcon}
+      onDismiss={() => {
+        dismiss.mutate();
+      }}
+      title={
+        crashed
+          ? `${APP_NAME} quit unexpectedly`
+          : `${APP_NAME} didn't close properly`
+      }
+      tone="danger"
+    />
+  );
+}
+
+type BellRowProps = {
+  action?: { label: string; onClick: () => void };
+  /** An amber badge on the icon, for a row that needs the person now. */
+  alert?: boolean;
+  at?: number;
+  body: string;
+  dismissing?: boolean;
+  icon: typeof BellIcon;
+  /** Drawn in the icon's place, on the quiet circle, in its own colors. */
+  mark?: ReactNode;
+  onDismiss: () => void;
+  title: string;
+  tone: Tone;
+};
+
+/**
+ * One row of the bell: its icon tinted by how urgent it is, the title and
+ * when, the line under it, and its one action. Dismissing is the close
+ * button that takes the time's place while the row is hovered or holds
+ * focus, so a list of several doesn't read as a column of Dismiss buttons.
+ *
+ * As a toast (`at` left out) it is the same card on its own: no time, since
+ * it has just come, and a close button that's always there and only closes
+ * the toast, leaving the notice waiting in the bell.
+ */
+function BellRow({
+  action,
+  alert = false,
+  at,
+  body,
+  dismissing = false,
+  icon: Icon,
+  mark,
+  onDismiss,
+  title,
+  tone,
+}: BellRowProps) {
+  const inList = at !== undefined;
+  return (
+    <div
+      className={cn(
+        "group/row relative flex gap-3 rounded-xl pr-3 pl-2",
+        // The list's rows stand further apart, for the hairline between them.
+        inList ? "py-3.5" : "py-2.5",
+        // A hairline above each row after the first, which a highlighted
+        // row hides on both its edges so the highlight stands on its own.
+        inList &&
+          "before:pointer-events-none before:absolute before:inset-x-2 before:top-0 before:h-px before:bg-foreground/6 first:before:hidden hover:bg-foreground/4 hover:before:opacity-0 has-focus-visible:bg-foreground/4 has-focus-visible:before:opacity-0 [:has(:focus-visible)+&]:before:opacity-0 [:hover+&]:before:opacity-0",
+      )}
+    >
+      <span
+        className={cn(
+          "relative grid size-8 shrink-0 place-items-center rounded-full",
+          TONE_CLASS[tone],
+        )}
+      >
+        {mark ?? <Icon className="size-4" weight="bold" />}
+        {alert && (
+          <span className="absolute -right-0.5 -bottom-0.5 grid size-3.5 place-items-center rounded-full bg-warning-500 text-warning-900 ring-2 ring-popover">
+            <ExclamationMarkIcon className="size-2.5" weight="bold" />
+          </span>
+        )}
       </span>
       <div className="min-w-0 flex-1">
-        <div className="flex items-baseline gap-2">
-          <span className="min-w-0 flex-1 text-[13px] font-medium">
+        <div className={cn("flex items-start gap-3", !inList && "pr-6")}>
+          <span className="min-w-0 flex-1 text-[13px] leading-5 font-medium text-pretty">
             {title}
           </span>
-          <span
-            className="shrink-0 text-[11px] text-muted-foreground/60"
-            title={formatAbsoluteTime(new Date(problem.lastAt))}
-          >
-            {formatWhen(problem.lastAt)}
-          </span>
+          {inList && (
+            <span
+              className="shrink-0 text-[11px] leading-4.5 text-muted-foreground/50 tabular-nums group-hover/row:invisible group-has-focus-visible/row:invisible"
+              title={formatAbsoluteTime(new Date(at))}
+            >
+              {formatWhen(at)}
+            </span>
+          )}
         </div>
-        <p className="mt-0.5 text-xs text-muted-foreground">{line}</p>
-        <div className="mt-2 flex gap-1.5">
-          <Button onClick={onReport} size="xs">
-            Send a report
-          </Button>
+        <p className="mt-0.5 text-[13px] leading-5 text-pretty text-muted-foreground">
+          {body}
+        </p>
+        {action && (
           <Button
-            disabled={dismiss.isPending}
-            onClick={() => {
-              dismiss.mutate();
-            }}
+            className="mt-2"
+            onClick={action.onClick}
             size="xs"
-            variant="outline"
+            variant="secondary"
           >
-            Dismiss
+            {action.label}
           </Button>
-        </div>
+        )}
       </div>
+      <Button
+        aria-label={inList ? "Dismiss" : "Close"}
+        className={cn(
+          "absolute right-2 size-6 text-muted-foreground/60 not-disabled:hover:text-muted-foreground",
+          // Centered on the title's first line, whichever padding the row has.
+          inList ? "top-3" : "top-2",
+          inList &&
+            "opacity-0 group-hover/row:opacity-100 group-has-focus-visible/row:opacity-100",
+        )}
+        disabled={dismissing}
+        onClick={onDismiss}
+        size="icon-sm"
+        variant="ghost"
+      >
+        <XIcon className="size-3.5" />
+      </Button>
     </div>
   );
 }

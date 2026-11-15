@@ -74,6 +74,10 @@ export const SIGN_IN_ACCOUNT_NAMES = {
 
 export type SignInAccountType = keyof typeof SIGN_IN_ACCOUNT_NAMES;
 
+/** Whether a provider type, or a row of Settings › Providers, is one of these. */
+export const isSignInAccountType = (type: string): type is SignInAccountType =>
+  type in SIGN_IN_ACCOUNT_NAMES;
+
 /** An account signed out without the person asking, by its connection id. */
 export interface SignedOutAccount {
   /** When this was first seen, which the notice is dated and named by. */

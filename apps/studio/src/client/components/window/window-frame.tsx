@@ -9,7 +9,7 @@ import { BELL_TOASTER, Toaster } from "@/client/components/ui/sonner";
 import { PageOpenContext } from "@/client/components/page-open-context";
 import { ChromeInsetProvider } from "@/client/hooks/use-chrome-inset";
 import { TOOLBAR_HEIGHT } from "@/shared/constants";
-import { type ReactNode, type Ref } from "react";
+import { type CSSProperties, type ReactNode, type Ref } from "react";
 
 import { APP_RAIL_WIDTH } from "./app-rail";
 import { LinkSurface } from "./link-surface";
@@ -17,8 +17,11 @@ import { LinkSurface } from "./link-surface";
 // The toasts' corner, 12px in from the card's own: the rail on its left, and
 // the card's `mb-2` foot below it.
 const CARD_CORNER = { bottom: 8 + 12, left: APP_RAIL_WIDTH + 12 };
-// Just under the bell, at the bar's right end.
-const BELL_CORNER = { right: 8, top: TOOLBAR_HEIGHT + 4 };
+// Just under the bell, 4px inside the card's top right corner on both
+// sides: the card stands 8px in from the window's right edge (`mr-2`).
+const BELL_CORNER = { right: 8 + 4, top: TOOLBAR_HEIGHT + 4 };
+// The bell's popover's width (`w-95`), so a toast is the row it becomes.
+const BELL_WIDTH = 380;
 
 /**
  * The window's chrome: no title bar, so it drags by its top-left corner,
@@ -112,11 +115,26 @@ export function WindowFrame({
                 ? { mobileOffset: toastCorner, offset: toastCorner }
                 : {})}
             />
+            {/* A bell toast draws its own card, the bell's row, so the
+              toaster only gives it the popover's surface and width. */}
             <Toaster
               id={BELL_TOASTER}
               mobileOffset={BELL_CORNER}
               offset={BELL_CORNER}
               position="top-right"
+              // React's style type has no custom properties; Sonner sizes
+              // its stack and every toast in it from this one.
+              style={{ "--width": `${BELL_WIDTH}px` } as CSSProperties}
+              toastOptions={{
+                classNames: {
+                  toast:
+                    // A card stacked behind another is cut to the front one's
+                    // height, so what's in it hides until the stack opens.
+                    "w-(--width) overflow-hidden rounded-xl bg-popover p-1 text-popover-foreground shadow-float-md data-[expanded=false]:data-[front=false]:*:opacity-0",
+                },
+                style: { pointerEvents: "auto" },
+                unstyled: true,
+              }}
             />
           </>
         )}

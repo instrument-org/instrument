@@ -9,6 +9,7 @@ import {
   routeModel,
 } from "@instrument-org/ai-gateway/client";
 import {
+  isSignInAccountType,
   SIGN_IN_ACCOUNT_NAMES,
   type SignInAccountType,
 } from "@/shared/notices";
@@ -210,7 +211,7 @@ export function readModelStatus({
       !stillListed &&
       source &&
       signedOut?.has(source.providerConfigId) &&
-      isSignInAccount(source.provider)
+      isSignInAccountType(source.provider)
         ? source.provider
         : undefined;
     const provider =
@@ -281,9 +282,6 @@ function oursFirst(models: AIGatewayModel.Type[]) {
 }
 
 const withFix = (fix: AIGatewayModel.Type | undefined) => (fix ? { fix } : {});
-
-const isSignInAccount = (type: AIProviderType): type is SignInAccountType =>
-  type in SIGN_IN_ACCOUNT_NAMES;
 
 /** What the user does about a status. */
 export type ModelAction =

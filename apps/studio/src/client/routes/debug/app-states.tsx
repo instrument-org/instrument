@@ -5,6 +5,7 @@ import { openShortcutGuide } from "@/client/atoms/shortcut-guide-modal";
 import { forceWindowControlsAtom } from "@/client/atoms/window-controls";
 import { Button } from "@/client/components/ui/button";
 import { Switch } from "@/client/components/ui/switch";
+import { showNoticeToast } from "@/client/components/window/notifications-bell";
 import { isMacOS } from "@/client/lib/utils";
 import { rpcClient } from "@/client/rpc/client";
 import { useMutation, useQuery } from "@tanstack/react-query";
@@ -36,6 +37,15 @@ function RouteComponent() {
   const { mutate: simulateUpdated } = useMutation(
     rpcClient.debug.trigger.testUpdatedNotice.mutationOptions(),
   );
+  const { mutate: fillBell } = useMutation(
+    rpcClient.debug.trigger.fillBell.mutationOptions(),
+  );
+  // The bell's notices that pop up when they arrive, to show again at will:
+  // the bell itself shows each once, ever.
+  const { data: notices = [] } = useQuery(
+    rpcClient.notices.live.list.experimental_liveOptions(),
+  );
+  const loudNotices = notices.filter((notice) => notice.severity !== "info");
   const { mutate: clearBadge } = useMutation(
     rpcClient.debug.trigger.testSilentNoUpdate.mutationOptions(),
   );
@@ -102,6 +112,33 @@ function RouteComponent() {
             clearBadge(undefined);
           }}
         />
+      </StateSection>
+      <StateSection title="Notifications">
+        <StateButton
+          label="Fill the bell"
+          onClick={() => {
+            fillBell(undefined);
+          }}
+        />
+      </StateSection>
+      <StateSection title="Notification pop-ups">
+        {loudNotices.length === 0 ? (
+          <p className="text-[13px] text-muted-foreground">
+            The bell has nothing loud enough to pop up. Fill the bell to see
+            them here.
+          </p>
+        ) : (
+          loudNotices.map((notice) => (
+            <StateButton
+              key={notice.id}
+              label={notice.title}
+              onClick={() => {
+                // A preview: its action only closes it.
+                showNoticeToast(notice, () => {});
+              }}
+            />
+          ))
+        )}
       </StateSection>
       <StateSection title="Setup">
         <StateButton

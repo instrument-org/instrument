@@ -186,6 +186,7 @@ import { pictureHoldingKeyboard } from "@/client/lib/picture-keys";
 import { openInNewWindow } from "./app-tabs";
 import { useFileDrag } from "@/client/hooks/use-file-drag";
 import { useWindow } from "./context";
+import { DROP_LOOK } from "./drag/tone";
 import { arrivalView } from "./files-step";
 import { useGroupTab } from "./group-tab";
 import { maySpring, springTimer } from "./spring-loading";
@@ -2606,7 +2607,12 @@ export function ComputerPage({
                 ref={browserRef}
               >
                 {dropInto === current ? (
-                  <div className="pointer-events-none absolute inset-1 z-10 rounded-lg border-2 border-dashed border-brand-500 bg-brand-500/5" />
+                  <div
+                    className={cn(
+                      "pointer-events-none absolute inset-1 z-10 rounded-lg",
+                      DROP_LOOK.open,
+                    )}
+                  />
                 ) : null}
                 {isAnythingCut ? (
                   // Faded where each view draws its rows, whichever that is.

@@ -1,4 +1,5 @@
 import { dragAtom } from "@/client/components/window/drag/session";
+import { DROP_LOOK } from "@/client/components/window/drag/tone";
 import { type DropHandlers } from "@/client/hooks/use-file-drop-region";
 import {
   isSelfFileDrag,
@@ -184,7 +185,12 @@ export function FileDropRegion({
     >
       {children}
       {isDragging && !isTakenElsewhere && (
-        <div className="pointer-events-none absolute -inset-1.5 z-10 flex items-center justify-center rounded-[26px] border-2 border-dashed border-brand-500 bg-brand-500/5">
+        <div
+          className={cn(
+            "pointer-events-none absolute -inset-1.5 z-10 flex items-center justify-center rounded-[26px]",
+            DROP_LOOK.attach,
+          )}
+        >
           <span className="flex items-center gap-2 rounded-full bg-popover px-4 py-2 text-sm font-medium shadow-float-lg">
             <PaperclipIcon className="size-4 text-brand-600" />
             {note}

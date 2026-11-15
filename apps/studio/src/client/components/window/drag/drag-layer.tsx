@@ -22,7 +22,7 @@ import {
   splitTargetRect,
 } from "./landing";
 import { type Drag, dragAtom, dragPoint, useDragFrame } from "./session";
-import { DROP_AREA_TONE, HELD_LOOK } from "./tone";
+import { DROP_LOOK, HELD_LOOK } from "./tone";
 import { outcomeOf } from "./letting-go";
 import { isPulledFree } from "./use-sidebar-drag";
 
@@ -122,7 +122,7 @@ export function DragLayer({
         <div
           className={cn(
             "absolute rounded-xl transition-opacity duration-150 ease-out motion-reduce:transition-none",
-            DROP_AREA_TONE,
+            DROP_LOOK.open,
             !isLit && "opacity-0",
           )}
           data-drop-lit=""
@@ -189,7 +189,13 @@ function SplitTargetCard({
         )}
         ref={lean}
       >
-        <div className="flex size-full flex-col items-center justify-center gap-2 rounded-xl border-[1.5px] border-dashed border-foreground/15 text-[13px] font-medium text-muted-foreground group-data-near/target:border-brand-500 group-data-near/target:text-foreground">
+        <div className="relative flex size-full flex-col items-center justify-center gap-2 rounded-xl border-[1.5px] border-dashed border-foreground/15 text-[13px] font-medium text-muted-foreground group-data-near/target:border-transparent group-data-near/target:text-foreground">
+          <div
+            className={cn(
+              "absolute -inset-[1.5px] rounded-xl opacity-0 group-data-near/target:opacity-100",
+              DROP_LOOK.open,
+            )}
+          />
           <SquareHalfIcon
             className={cn("size-5", isLeft && "-scale-x-100")}
             weight="duotone"
@@ -267,11 +273,11 @@ function AtPointer({
     const grab = isNative
       ? NATIVE_LINE_GRAB_PX
       : isGroup
-      ? { x: Math.min(drag.grab.x, 48), y: Math.min(drag.grab.y, 20) }
-      : {
-          x: Math.min(drag.grab.x, CHIP_GRAB_PX.x),
-          y: Math.min(drag.grab.y, CHIP_GRAB_PX.y),
-        };
+        ? { x: Math.min(drag.grab.x, 48), y: Math.min(drag.grab.y, 20) }
+        : {
+            x: Math.min(drag.grab.x, CHIP_GRAB_PX.x),
+            y: Math.min(drag.grab.y, CHIP_GRAB_PX.y),
+          };
     element.style.width =
       isGroup && !isWindow
         ? `${list ? list.width / zoom - 16 : ROW_WIDTH_PX}px`

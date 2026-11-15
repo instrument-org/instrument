@@ -457,9 +457,10 @@ function SideMotion({
 /**
  * How the side with the keyboard is marked while a group shows two, so
  * typing has a visible home: an ink line round its card in the theme's own
- * ring color.
+ * ring color, softened a little, the same ink a place letting go opens
+ * something in is edged with (`DROP_LOOK.open`).
  */
-const FOCUSED_SIDE = "outline-2 outline-ring";
+const FOCUSED_SIDE = "outline-2 outline-ring/75";
 
 /**
  * One side of a group: a card with the side's tabs across its head, ending

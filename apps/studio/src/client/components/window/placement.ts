@@ -152,3 +152,58 @@ export function screenPlacementOf(
     ? { kind: "group-own-tab" }
     : { kind: "group-navigate" };
 }
+
+/**
+ * An open as it lands inside the window, where only a menu's Open in New Tab
+ * Group or Open in New Window (`into`) makes a group: a Shift-click's window
+ * of its own is a new tab in front, and a new tab asked for beside a chat
+ * (`chat`) waits behind, as a Cmd-click there does.
+ */
+export function inGroup(options: OpenOptions): OpenOptions {
+  const { newWindow, ...rest } = options;
+  if (newWindow === true) {
+    return { ...rest, behind: false, newTab: true };
+  }
+  return rest.newTab === true && rest.chat !== undefined
+    ? { ...rest, behind: true }
+    : rest;
+}
+
+/** Where a chat opened from inside the window goes (`chatPlacementOf`). */
+export type ChatPlacement =
+  /** Beside the chat it was clicked in (`besidePlacementOf`). */
+  | { behind: boolean; chatTab: string; kind: "beside" }
+  /** Right after the chat tab it was clicked in, which opens nothing beside it. */
+  | { after: string; behind: boolean; group: string; kind: "after" }
+  /** Right after the tab up in the group on screen. */
+  | { behind: boolean; kind: "group-new-tab" }
+  /** The place a menu's Open in Split, New Tab Group or New Window picked. */
+  | { into: "group" | "split" | "window"; kind: "menu" }
+  /** A group of its own, for a window with no group up to put a tab in. */
+  | { kind: "own-group" };
+
+/**
+ * Where a chat opened from inside the window goes: a tab, never a group of
+ * its own unless a menu asked for one or the window has no group up. Beside
+ * the chat it was clicked in (`place`, from `OpenOptions.chat`), else right
+ * after the tab up, waiting behind on a Cmd-click.
+ */
+export function chatPlacementOf(
+  asked: OpenOptions,
+  place: undefined | { after: string; group: string; isBeside: boolean },
+  { groupOnScreen }: Pick<PlacementContext, "groupOnScreen">,
+): ChatPlacement {
+  if (asked.into) {
+    return { into: asked.into, kind: "menu" };
+  }
+  const behind = inGroup(asked).behind === true;
+  if (place?.isBeside === true) {
+    return { behind, chatTab: place.after, kind: "beside" };
+  }
+  if (place !== undefined) {
+    return { after: place.after, behind, group: place.group, kind: "after" };
+  }
+  return groupOnScreen === undefined
+    ? { kind: "own-group" }
+    : { behind, kind: "group-new-tab" };
+}

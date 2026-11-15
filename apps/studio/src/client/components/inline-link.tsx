@@ -305,9 +305,10 @@ function AppLink({
     <ChipButton
       className={className}
       onActivate={(event) => {
-        if (wantsNewWindow(event) && gestures.ownGroup) {
-          gestures.ownGroup.run();
-        } else if (wantsNewTab(event) && gestures.separate) {
+        if (
+          (wantsNewWindow(event) || wantsNewTab(event)) &&
+          gestures.separate
+        ) {
           gestures.separate.run();
         } else {
           open.run();

@@ -106,7 +106,7 @@ export function LinkSurface({
         showFile(
           target.path,
           gesture === "newWindow"
-            ? { into: "group" }
+            ? { newTab: true }
             : gesture === "newTab"
               ? { behind: true, newTab: true }
               : undefined,
@@ -128,11 +128,9 @@ export function LinkSurface({
       }
       return;
     }
-    (gesture === "newWindow"
-      ? (gestures.ownGroup ?? gestures.primary)
-      : gesture === "newTab"
-        ? gestures.separate
-        : gestures.primary
+    (gesture === "newWindow" || gesture === "newTab"
+      ? gestures.separate
+      : gestures.primary
     )?.run();
   };
 

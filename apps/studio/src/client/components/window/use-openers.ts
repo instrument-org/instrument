@@ -27,6 +27,8 @@ import { isGroupScreenHref } from "./group-screen";
 import { openMenuLink } from "./menu-link";
 import { openLinkAddress } from "./open-link-address";
 import {
+  chatPlacementOf,
+  inGroup,
   pagePlacementOf,
   type PlacementContext,
   screenPlacementOf,
@@ -196,16 +198,11 @@ export function useOpeners({
       });
       return id;
     }
-    if (asked.newWindow) {
-      let id: string | undefined;
-      newGroup((group) => {
-        id = browser?.open(url, { group });
-      });
-      return id;
-    }
     const place = placeOf(asked);
-    const options = place ? { ...asked, group: place.group } : asked;
-    if (place !== undefined && !options.newTab) {
+    const options = inGroup(place ? { ...asked, group: place.group } : asked);
+    // What a chat opened lands beside the chat's tab (`placeOf`), a new tab
+    // waiting behind as anywhere else.
+    if (place !== undefined) {
       if (options.show) {
         bringUp(place.group);
       }
@@ -217,9 +214,10 @@ export function useOpeners({
         })?.id;
       }
       const isUp =
-        options.show === true ||
-        options.activate === true ||
-        place.group === windowTabs.groupOnScreen;
+        options.behind !== true &&
+        (options.show === true ||
+          options.activate === true ||
+          place.group === windowTabs.groupOnScreen);
       return browser?.openOrFocus(url, {
         after: place.after,
         behind: !isUp,
@@ -275,6 +273,44 @@ export function useOpeners({
       }
     }
   };
+  /** Opens a chat as a tab where `chatPlacementOf` says. */
+  const openChatTab = (chat: ChatId, asked: OpenOptions) => {
+    const href = chatHref(chat);
+    const placement = chatPlacementOf(asked, placeOf(asked), placing);
+    switch (placement.kind) {
+      case "menu": {
+        openInto({ ...asked, into: placement.into }, (picked) => {
+          windowTabs.openScreen(href, { ...picked, select: true });
+        });
+        return;
+      }
+      case "beside": {
+        windowTabs.openScreenBeside(href, {
+          behind: placement.behind,
+          chatTab: placement.chatTab,
+          isShown: true,
+        });
+        return;
+      }
+      case "after": {
+        windowTabs.openScreen(href, {
+          after: placement.after,
+          group: placement.group,
+          isOpened: true,
+          select: !placement.behind,
+        });
+        return;
+      }
+      case "group-new-tab": {
+        windowTabs.openBeside(href, { behind: placement.behind });
+        return;
+      }
+      case "own-group": {
+        openChat(chat);
+        return;
+      }
+    }
+  };
   const openScreen = (href: string, asked: OpenOptions = {}): void => {
     // A chat named by its session, as an older reply's link names it,
     // opens at the chat that session is.
@@ -310,16 +346,7 @@ export function useOpeners({
         chatOfSessionPrefix(href, chats))
       : chatOfHref(href);
     if (chat) {
-      // A chat opens as a group of its own, however many tabs it has
-      // elsewhere. Asked for in a place of a menu's, it is a tab of its own
-      // there.
-      if (asked.into || asked.newWindow) {
-        openInto({ ...asked, into: asked.into ?? "window" }, (picked) => {
-          windowTabs.openScreen(chatHref(chat), { ...picked, select: true });
-        });
-        return;
-      }
-      openChat(chat);
+      openChatTab(chat, asked);
       return;
     }
     const screen = matchScreen(href);
@@ -358,7 +385,7 @@ export function useOpeners({
       return;
     }
     const place = placeOf(asked);
-    const options = place ? { ...asked, group: place.group } : asked;
+    const options = inGroup(place ? { ...asked, group: place.group } : asked);
     // A task is a tab beside the chat it was filed from, in the group with
     // the chat's tab. A task's tab already up there walks there in place;
     // anything else brings up the tab at that address, or opens one beside
@@ -380,8 +407,15 @@ export function useOpeners({
     if (tasks && owner) {
       const at = taskHref(tasks.task, owner);
       const into = placeOf({ ...asked, chat: owner });
+      // A task whose chat has no tab opens as a tab of its own after the
+      // tab up, as anything else would.
       if (into === undefined) {
-        openChat(owner);
+        if (
+          windowTabs.openBeside(at, { behind: options.behind === true }) ===
+          undefined
+        ) {
+          openChat(owner);
+        }
         return;
       }
       const up = windowTabs.selectedTabIn(into.group);
@@ -413,7 +447,7 @@ export function useOpeners({
           select: true,
         });
       }
-      showGroup(into.group, { newWindow: options.newWindow === true });
+      showGroup(into.group);
       return;
     }
     // A task stands only beside its chat, so one whose chat is not named and
@@ -422,16 +456,10 @@ export function useOpeners({
       sayNoChat();
       return;
     }
-    if (options.newWindow) {
-      newGroup((group) => {
-        windowTabs.openScreen(href, { group, select: true });
-      });
-      return;
-    }
-    // What a chat opened lands beside the chat's tab (`placeOf`).
+    // What a chat opened lands beside the chat's tab (`placeOf`), a new
+    // tab waiting behind as anywhere else.
     if (
       place !== undefined &&
-      !options.newTab &&
       isGroupScreenHref(href) &&
       screen.kind !== "app"
     ) {
@@ -447,9 +475,10 @@ export function useOpeners({
         return;
       }
       const isUp =
-        options.show === true ||
-        options.activate === true ||
-        place.group === windowTabs.groupOnScreen;
+        options.behind !== true &&
+        (options.show === true ||
+          options.activate === true ||
+          place.group === windowTabs.groupOnScreen);
       windowTabs.openOrFocusScreen(href, {
         after: place.after,
         group: place.group,
@@ -762,14 +791,14 @@ export function useOpeners({
 
   /**
    * A tab a page asked for (a `target=_blank` link, a sign-in button, a
-   * middle- or Cmd-click, the page's menu) opens right after the page that
-   * asked, on its side of its group, so a sign-in started there stays
-   * there.
+   * middle-, Cmd- or Shift-click, the page's menu) opens right after the page
+   * that asked, on its side of its group, so a sign-in started there stays
+   * there. Only the page menu's Open Link in New Tab Group or New Window
+   * makes a group.
    */
   const openFromPage = ({
     background,
     into,
-    newWindow = false,
     tabId,
     targetId,
     url,
@@ -784,12 +813,6 @@ export function useOpeners({
     // A place the page's menu picked, the split across from the page's tab.
     if (into) {
       openPage(url, { from: targetId, into });
-      return;
-    }
-    // A group of its own has the page on its own, whichever group's page
-    // asked for it.
-    if (newWindow) {
-      openPage(url, { newWindow });
       return;
     }
     const asking = windowTabs.allTabs.find((tab) => tab.id === targetId);

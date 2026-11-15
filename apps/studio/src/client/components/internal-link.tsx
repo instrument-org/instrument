@@ -1,7 +1,4 @@
-import {
-  openInNewWindow,
-  useAppTabs,
-} from "@/client/components/window/app-tabs";
+import { useAppTabs } from "@/client/components/window/app-tabs";
 import { wantsNewWindow } from "@/client/hooks/use-open-target";
 // The one place TanStack Router's Link belongs: this is the tab-aware wrapper
 // every other call site is pointed at.
@@ -77,10 +74,11 @@ export function InternalLink(
   };
 
   const handleClick = (e: MouseEvent<HTMLAnchorElement>) => {
-    if (e.button === 0 && wantsNewWindow(e) && allowOpenNewTab) {
-      e.preventDefault();
-      void openInNewWindow(hrefOfLink());
-    } else if (e.button === 0 && commandKeyHeld(e) && allowOpenNewTab) {
+    if (
+      e.button === 0 &&
+      (wantsNewWindow(e) || commandKeyHeld(e)) &&
+      allowOpenNewTab
+    ) {
       e.preventDefault();
       openInNewTab(true);
     }

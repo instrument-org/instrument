@@ -142,25 +142,24 @@ describe("a click on a link", () => {
   const press = (keys: { meta?: boolean; shift?: boolean }) => {
     const open = vi.fn();
     const openInNewTab = vi.fn();
-    const openInNewWindow = vi.fn();
-    openClickGestures({ open, openInNewTab, openInNewWindow }).onClick({
+    openClickGestures({ open, openInNewTab }).onClick({
       altKey: false,
       button: 0,
       ctrlKey: keys.meta ?? false,
       metaKey: keys.meta ?? false,
       shiftKey: keys.shift ?? false,
     } as React.MouseEvent);
-    return [open, openInNewTab, openInNewWindow].map(
-      (each) => each.mock.calls.length,
-    );
+    return [open, openInNewTab].map((each) => each.mock.calls.length);
   };
 
+  // Only a menu's Open in New Tab Group makes a group, so Shift, a
+  // browser's new window, is a new tab too.
   it.each([
-    { expected: [1, 0, 0], keys: {}, name: "plain, here" },
-    { expected: [0, 1, 0], keys: { meta: true }, name: "Command, a tab" },
-    { expected: [0, 0, 1], keys: { shift: true }, name: "Shift, a window" },
+    { expected: [1, 0], keys: {}, name: "plain, here" },
+    { expected: [0, 1], keys: { meta: true }, name: "Command, a tab" },
+    { expected: [0, 1], keys: { shift: true }, name: "Shift, a tab" },
     {
-      expected: [0, 1, 0],
+      expected: [0, 1],
       keys: { meta: true, shift: true },
       name: "Command and Shift, a tab",
     },
@@ -285,7 +284,7 @@ describe("a link's menu in a window with tabs", () => {
     expect(openPage).toHaveBeenCalledWith("https://example.com/", options);
   });
 
-  it("opens with Shift and a click as the first tab of a new tab group", () => {
+  it("opens with Shift and a click as a new tab, never a group", () => {
     menuOf({ kind: "page", url: "https://example.com/" }).onClick({
       altKey: false,
       ctrlKey: false,
@@ -294,7 +293,8 @@ describe("a link's menu in a window with tabs", () => {
       shiftKey: true,
     } as unknown as React.MouseEvent);
     expect(openPage).toHaveBeenCalledWith("https://example.com/", {
-      into: "group",
+      behind: true,
+      newTab: true,
     });
   });
 

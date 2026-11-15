@@ -181,7 +181,7 @@ export function PathChip({ path }: { path: TypedPath }) {
       className={cn(isMissing && "opacity-60")}
       onActivate={(event) => {
         if (wantsNewWindow(event)) {
-          open({ into: "group" });
+          open({ newTab: true });
         } else if (wantsNewTab(event)) {
           open({ behind: true, newTab: true });
         } else {

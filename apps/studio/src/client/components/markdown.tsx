@@ -500,7 +500,7 @@ const ChatFileLink = ({
         showChatFile(
           filePath,
           hasTabs && wantsNewWindow(event)
-            ? { into: "group" }
+            ? { newTab: true }
             : { newTab: hasTabs && wantsNewTab(event) },
         );
       }}

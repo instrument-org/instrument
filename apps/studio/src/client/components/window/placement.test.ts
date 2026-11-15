@@ -3,6 +3,8 @@ import { describe, expect, it } from "vitest";
 
 import { type OpenOptions } from "./context";
 import {
+  chatPlacementOf,
+  inGroup,
   pagePlacementOf,
   type PlacementContext,
   screenPlacementOf,
@@ -168,5 +170,127 @@ describe("where a screen opens", () => {
     ],
   ])("opens %s", (_case, href, options, context, expected) => {
     expect(screenPlacementOf(href, options, context)).toEqual(expected);
+  });
+});
+
+// Only a menu's Open in New Tab Group (or New Window) makes a group from
+// inside a window, whatever the gesture.
+const GESTURES: [string, OpenOptions][] = [
+  ["a plain click", {}],
+  ["a Cmd-click", { newTab: true }],
+  ["a middle click or Open in New Tab", { behind: true, newTab: true }],
+  ["a Shift-click", { newWindow: true }],
+];
+
+describe("a gesture inside the window", () => {
+  it.each(GESTURES)("%s keeps to the group", (_label, gesture) => {
+    expect(inGroup(gesture).newWindow).toBeUndefined();
+    expect(inGroup({ ...gesture, chat: CHAT }).newWindow).toBeUndefined();
+  });
+
+  it("waits behind beside a chat, as a Cmd-click there does", () => {
+    expect(inGroup({ chat: CHAT, newTab: true })).toEqual({
+      behind: true,
+      chat: CHAT,
+      newTab: true,
+    });
+  });
+
+  it("brings a Shift-click's tab up", () => {
+    expect(inGroup({ newWindow: true })).toEqual({
+      behind: false,
+      newTab: true,
+    });
+  });
+
+  it.each(GESTURES)(
+    "%s opens a page as a tab of the group up",
+    (_label, gesture) => {
+      expect(
+        pagePlacementOf(inGroup(gesture), inChat(OWN_PAGE)).kind,
+      ).not.toMatch(/^window-/);
+    },
+  );
+
+  it.each(GESTURES)(
+    "%s opens a screen as a tab of the group up",
+    (_label, gesture) => {
+      expect(
+        screenPlacementOf("/activity", inGroup(gesture), inChat(SCREEN)).kind,
+      ).not.toBe("window-tab");
+    },
+  );
+});
+
+describe("where a chat opened inside the window goes", () => {
+  const beside = { after: "chat-tab", group: CHAT, isBeside: true };
+  const after = { after: "page-tab", group: CHAT, isBeside: false };
+  it.each<
+    [
+      string,
+      OpenOptions,
+      Parameters<typeof chatPlacementOf>[1],
+      PlacementContext,
+      ReturnType<typeof chatPlacementOf>,
+    ]
+  >([
+    [
+      "clicked in a chat: beside it, up",
+      { chat: OTHER },
+      beside,
+      inChat(SCREEN),
+      { behind: false, chatTab: "chat-tab", kind: "beside" },
+    ],
+    [
+      "Cmd-clicked in a chat: beside it, behind",
+      { chat: OTHER, newTab: true },
+      beside,
+      inChat(SCREEN),
+      { behind: true, chatTab: "chat-tab", kind: "beside" },
+    ],
+    [
+      "Shift-clicked in a chat: beside it",
+      { chat: OTHER, newWindow: true },
+      beside,
+      inChat(SCREEN),
+      { behind: false, chatTab: "chat-tab", kind: "beside" },
+    ],
+    [
+      "from a tab that opens nothing beside it: right after it",
+      { chat: OTHER },
+      after,
+      inChat(SCREEN),
+      { after: "page-tab", behind: false, group: CHAT, kind: "after" },
+    ],
+    [
+      "from a chip, ⌘K or the omnibar: after the tab up",
+      {},
+      undefined,
+      inChat(SCREEN),
+      { behind: false, kind: "group-new-tab" },
+    ],
+    [
+      "the Chats list's Cmd-click: after the tab up, behind",
+      { behind: true, newTab: true },
+      undefined,
+      inChat(SCREEN),
+      { behind: true, kind: "group-new-tab" },
+    ],
+    [
+      "Open in New Tab Group: a group, as the menu says",
+      { into: "group" },
+      beside,
+      inChat(SCREEN),
+      { into: "group", kind: "menu" },
+    ],
+    [
+      "with no group up: a group of its own, having nowhere else",
+      {},
+      undefined,
+      NO_GROUP,
+      { kind: "own-group" },
+    ],
+  ])("%s", (_label, asked, place, context, expected) => {
+    expect(chatPlacementOf(asked, place, context)).toEqual(expected);
   });
 });

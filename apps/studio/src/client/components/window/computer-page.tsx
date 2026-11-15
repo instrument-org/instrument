@@ -2046,7 +2046,7 @@ export function ComputerPage({
       openScreen(folderHref(place), { behind: true, newTab: true });
     },
     openInNewWindow: (place: string) => {
-      openScreen(folderHref(place), { newWindow: true });
+      openScreen(folderHref(place), { into: "window" });
     },
     restoreDefaults: () => {
       void rpcClient.preferences.restoreDefaultSidebarPlaces

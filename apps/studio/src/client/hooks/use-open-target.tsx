@@ -140,15 +140,9 @@ export function useGesturesFor() {
     const separate =
       destinations.find((destination) => destination.id === "openNewTab") ??
       primary;
-    // Shift and a click, as a browser's new window: here a new tab group.
-    const ownGroup = destinations.find(
-      (destination) => destination.id === "openNewGroup",
-    );
-
     const clicks = openClickGestures({
       open: () => primary?.run(),
       openInNewTab: () => (separate ?? primary)?.run(),
-      ...(ownGroup ? { openInNewWindow: ownGroup.run } : {}),
     });
     return {
       onAuxClick: clicks.onAuxClick,
@@ -171,9 +165,7 @@ export function useGesturesFor() {
         openClickGestures({
           open,
           openInNewTab: () => (separate ?? primary)?.run(),
-          ...(ownGroup ? { openInNewWindow: ownGroup.run } : {}),
         }),
-      ownGroup,
       primary,
       separate,
     };
@@ -209,12 +201,9 @@ export function useOpenGestures(target: OpenTarget, options?: OpenAsked) {
 export function openClickGestures({
   open,
   openInNewTab,
-  openInNewWindow,
 }: {
   open: () => void;
   openInNewTab: () => void;
-  /** What Shift and a click ask, where the surface has windows to open. */
-  openInNewWindow?: () => void;
 }) {
   return {
     onAuxClick: (event: React.MouseEvent) => {
@@ -228,9 +217,9 @@ export function openClickGestures({
       openInNewTab();
     },
     onClick: (event: React.MouseEvent) => {
-      if (openInNewWindow && wantsNewWindow(event)) {
-        openInNewWindow();
-      } else if (wantsNewTab(event)) {
+      // Shift and a click, a browser's new window, is a new tab here: only
+      // a menu's Open in New Tab Group makes a group.
+      if (wantsNewWindow(event) || wantsNewTab(event)) {
         openInNewTab();
       } else {
         open();

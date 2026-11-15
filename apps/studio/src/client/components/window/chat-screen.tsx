@@ -190,9 +190,9 @@ function ChatScreenOfRecord({
   // Beside this copy of the chat, shown: an open from a chat's transcript
   // is the chat's whatever the window has up at that moment, and never a
   // silent nothing because the group on screen was another's. A new-tab
-  // gesture (a Cmd-click, a middle click, Open in New Tab) goes to the same
-  // place and stays behind; a new-window or split gesture asks for a place
-  // of the window's own.
+  // gesture (a Cmd-click, a middle click, a Shift-click, Open in New Tab)
+  // goes to the same place and stays behind; a menu's split, new tab group
+  // or new window asks for a place of the window's own.
   const into = {
     chat: chatId,
     ...(groupTab ? { from: groupTab.id } : {}),
@@ -200,7 +200,7 @@ function ChatScreenOfRecord({
     show: true,
   };
   const intoOr = (options?: OpenOptions): OpenOptions =>
-    options?.newTab && !options.into && !options.newWindow
+    (options?.newTab || options?.newWindow) && !options.into
       ? { ...into, behind: true, show: false }
       : (ownPlaceOf(options) ?? into);
   return (

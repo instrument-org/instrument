@@ -157,7 +157,7 @@ export function usePlaceMenuProps() {
       onOpenInNewWindow: () => {
         openScreen(
           kind === "folder" ? folderHref(hostPath) : fileHref(hostPath),
-          { newWindow: true },
+          { into: "window" },
         );
       },
       ...(kind === "folder"

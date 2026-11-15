@@ -171,7 +171,10 @@ describe("a tab a page asks for", () => {
 
 describe("an app address an agent opens", () => {
   it.each([
-    ["instrument://chat/2026-11-14-make-this-red-6zks", "/chats/2026-11-14-make-this-red-6zks"],
+    [
+      "instrument://chat/2026-11-14-make-this-red-6zks",
+      "/chats/2026-11-14-make-this-red-6zks",
+    ],
     ["instrument://app/notion", "/apps/notion"],
     ["instrument://settings/providers", "/settings/providers"],
     ["instrument://screen/chats", "/chat-list"],

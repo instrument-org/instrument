@@ -754,7 +754,9 @@ export function BrowserTabs({
               ) : (
                 <FilePageReload
                   isShown={tab.id === active?.id}
-                  key={tab.id}
+                  // A page drawn in Files goes on to the next file in the
+                  // same tab; the version it is showing is that file's.
+                  key={`${tab.id}\n${filePath}`}
                   path={filePath}
                   target={targetOf(tab)}
                 />

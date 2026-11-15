@@ -33,8 +33,9 @@ import { useWindowTabs, windowTabsAtom } from "./window-tabs";
 /**
  * The chats that came to want a look while no sidebar row showed them
  * (`activeChats`), over the sidebar's foot: a reply not yet seen, or a
- * question waiting. Up to three rows, drawn as the Chats page draws them,
- * then a row that opens the whole list above it. Takes no room while none do.
+ * question waiting. Up to three rows, drawn as the Chats page draws them at
+ * one line, then a row that opens the whole list above it. Takes no room
+ * while none do.
  */
 export function ActiveChatsList({
   onNewProject,
@@ -70,7 +71,10 @@ export function ActiveChatsList({
   );
   const rest = chats.length - ACTIVE_CHATS_SHOWN;
   return (
-    <section aria-label="Chats" className="flex shrink-0 flex-col px-2 pt-1">
+    <section
+      aria-label="Chats"
+      className="mt-2 flex shrink-0 flex-col border-t border-border/60 px-2 pt-1"
+    >
       <button
         className="flex h-7 w-fit shrink-0 items-center rounded-md px-2.5 text-[12px] font-medium text-muted-foreground hover:text-foreground"
         onClick={() => {
@@ -122,7 +126,7 @@ export function ActiveChatsList({
   );
 }
 
-/** One chat of the list, the Chats page's own row at two lines. */
+/** One chat of the list, the Chats page's own row at one line. */
 function ActiveChatRow({
   chat,
   onDelete,
@@ -145,7 +149,7 @@ function ActiveChatRow({
       actions={actionsFor(chat)}
       appsBySlug={appsBySlug}
       chat={chat}
-      density="two"
+      density="one"
       isOpen={false}
       now={now}
       onDelete={onDelete}

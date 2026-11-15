@@ -5,8 +5,13 @@ import { getAppZoom } from "@/electron-main/stores/workspace/window-state";
 
 import { type Bounds, type Point } from "./tab-carry-rules";
 
-/** How wide the picture is drawn on the pointer. */
+/**
+ * The box the picture is drawn in on the pointer, keeping the aspect of what
+ * it shows: a whole window comes out the box's width, and a side's tall,
+ * narrow page the box's height.
+ */
 const PICTURE_WIDTH = 320;
+const PICTURE_HEIGHT = 240;
 /** How wide it is kept, to stay sharp as it grows into the window. */
 const IMAGE_WIDTH = 1280;
 /** How long it takes to grow into the window it stands for, from the release, and how often it moves. */
@@ -55,9 +60,12 @@ export interface TabPicture {
 export function openTabPicture(from: BrowserWindow, page?: Bounds): TabPicture {
   const { height: fromHeight, width: fromWidth } =
     page ?? from.getContentBounds();
-  const width = PICTURE_WIDTH + SHADOW_ROOM * 2;
-  const height =
-    Math.round((PICTURE_WIDTH * fromHeight) / fromWidth) + SHADOW_ROOM * 2;
+  const scale = Math.min(
+    PICTURE_WIDTH / fromWidth,
+    PICTURE_HEIGHT / fromHeight,
+  );
+  const width = Math.round(fromWidth * scale) + SHADOW_ROOM * 2;
+  const height = Math.round(fromHeight * scale) + SHADOW_ROOM * 2;
   const window = new BrowserWindow({
     alwaysOnTop: true,
     enableLargerThanScreen: true,

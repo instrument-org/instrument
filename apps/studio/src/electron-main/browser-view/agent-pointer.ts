@@ -337,8 +337,6 @@ async function runInPage(
 const POINTER_CONFIG = {
   /** The brand teal of the app, so the pointer reads as the app's agent rather than the page's own cursor. */
   color: "#0e7869",
-  /** What the tag beside the dart says between acts, while the agent works out its next step. */
-  resting: "Thinking",
 };
 
 // Runs in the page's document, in the pointer's own world, once per document:
@@ -475,7 +473,8 @@ const POINTER_SOURCE = String.raw`function (config) {
     "writing-mode": "horizontal-tb",
     "user-select": "none",
     "box-shadow": "0 0 0 1px white, 0 1px 3px rgb(0 0 0 / 0.25)",
-    transition: "opacity 120ms ease",
+    opacity: "0",
+    transition: "opacity 320ms ease",
   });
   body.append(pose, tag);
   root.append(ring, body);
@@ -515,8 +514,11 @@ const POINTER_SOURCE = String.raw`function (config) {
     } catch {}
   };
 
+  // The tag shows only while it names an act; between acts it fades out
+  // with its last words still on it, and the dart alone stays.
   const label = (words) => {
-    if (s.words === words) return;
+    tag.style.opacity = words ? "1" : "0";
+    if (!words || s.words === words) return;
     s.words = words;
     say(tag, words);
     s.tagW = tag.offsetWidth;
@@ -526,9 +528,8 @@ const POINTER_SOURCE = String.raw`function (config) {
   const verb = (words) => {
     label(words);
     clearTimeout(s.verb);
-    s.verb = setTimeout(() => label(config.resting), VERB_MS);
+    s.verb = setTimeout(() => label(""), VERB_MS);
   };
-  label(config.resting);
 
   // Near the page's right or bottom edge the tag goes to the other side of
   // the tip, where it is not cut off.
@@ -713,7 +714,7 @@ const POINTER_SOURCE = String.raw`function (config) {
     setTimeout(() => {
       if (s.shown) return;
       s.leaving = false;
-      label(config.resting);
+      label("");
       try {
         host.hidePopover();
       } catch {}

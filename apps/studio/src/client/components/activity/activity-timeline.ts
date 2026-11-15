@@ -45,12 +45,13 @@ export type Turn = {
 };
 
 /**
- * A tab or a whole tab group the window closed, from the list Shift+Cmd+T
- * reopens, by that list's id, with its tabs as they were and their titles.
+ * A tab, one side of a tab group, or a whole tab group the window closed,
+ * from the list Shift+Cmd+T reopens, by that list's id, with its tabs as
+ * they were and their titles.
  */
 export type ClosedTabs = {
   id: TabId;
-  isGroup: boolean;
+  kind: "group" | "side" | "tab";
   tabs: readonly { tab: WindowTab; title: string }[];
 };
 
@@ -405,15 +406,31 @@ export const SHOW_LABELS: Record<Show, { label: string; title: string }> = {
   tabs: { label: "Tabs", title: "Tabs and tab groups you closed" },
 };
 
-/** What a closed tab's or tab group's row says: the first tab's title, and what closed. */
+/**
+ * What a closed row says: a tab or a whole tab group by its first tab's
+ * title and what closed; one side of a group as the Undo toast says it,
+ * "Closed 2 tabs", or "Closed" and the title of a side of one.
+ */
 export function closedText(closed: ClosedTabs): RowText {
   const count = closed.tabs.length;
-  return {
-    context: closed.isGroup
-      ? `Closed tab group · ${count} ${count === 1 ? "tab" : "tabs"}`
-      : "Closed tab",
-    title: closed.tabs[0]?.title ?? "",
-  };
+  const first = closed.tabs[0]?.title ?? "";
+  switch (closed.kind) {
+    case "group": {
+      return {
+        context: `Closed tab group · ${count} ${count === 1 ? "tab" : "tabs"}`,
+        title: first,
+      };
+    }
+    case "side": {
+      return {
+        context: "",
+        title: count === 1 ? `Closed ${first}` : `Closed ${count} tabs`,
+      };
+    }
+    case "tab": {
+      return { context: "Closed tab", title: first };
+    }
+  }
 }
 
 /** What a row says, whichever log it is from. */
@@ -567,7 +584,7 @@ export function entriesShown(
     const haystack = (
       entry.kind === "closed"
         ? [
-            closedText(entry.closed).context,
+            ...Object.values(closedText(entry.closed)),
             ...entry.closed.tabs.flatMap(({ tab, title }) => [
               title,
               tab.kind === "page" ? (tab.url ?? "") : "",

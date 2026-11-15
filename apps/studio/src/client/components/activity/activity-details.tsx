@@ -14,6 +14,7 @@ import {
 } from "@/client/components/activity/recently-closed";
 import {
   actionText,
+  type ClosedTabs,
   closedText,
   placeOf,
   type ShownAction,
@@ -517,6 +518,13 @@ function TurnDetails({
   );
 }
 
+/** What closed, under a closed row's title in its details. */
+const CLOSED_KINDS: Record<ClosedTabs["kind"], string> = {
+  group: "Tab group",
+  side: "Side of a tab group",
+  tab: "Tab",
+};
+
 /** What a closed tab or tab group had: its tabs, a line each, and when it closed. */
 function ClosedDetails({
   entry,
@@ -527,11 +535,7 @@ function ClosedDetails({
   const { title } = closedText(closed);
   return (
     <>
-      <OwnInfo
-        entry={entry}
-        sub={closed.isGroup ? "Tab group" : "Tab"}
-        title={title}
-      >
+      <OwnInfo entry={entry} sub={CLOSED_KINDS[closed.kind]} title={title}>
         <WhenRow at={entry.at} did="Closed" />
       </OwnInfo>
       <Section title={closed.tabs.length === 1 ? "Tab" : "Tabs"}>

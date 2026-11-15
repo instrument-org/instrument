@@ -5,6 +5,7 @@ import { TabMark } from "@/client/components/window/row-half";
 import { ShellContext } from "@/client/components/window/shell-context";
 import {
   closedGroupTabOf,
+  closedSideOf,
   closedTabGroupOf,
 } from "@/client/components/window/tab-model";
 import { useTabTitle } from "@/client/components/window/tab-title";
@@ -18,7 +19,7 @@ import { useContext } from "react";
 const NO_TITLES = new Map<ChatId, string>();
 
 /**
- * The tabs and tab groups this window closed, from the list Shift+Cmd+T
+ * The tabs, sides and tab groups this window closed, from the list Shift+Cmd+T
  * reopens, each with when it closed, for Activity to list among the rest.
  * An entry from before closes were timed has no place in time, so it stays
  * off the list, as does a tab of the window's own strip rather than a group.
@@ -41,7 +42,12 @@ export function useClosedTabs(): { at: number; closed: ClosedTabs }[] {
         at: entry.closedAt,
         closed: {
           id: entry.id,
-          isGroup: group !== undefined,
+          kind:
+            group === undefined
+              ? "tab"
+              : closedSideOf(entry)
+                ? "side"
+                : "group",
           tabs: tabs.map((tab) => ({ tab, title: titleOf(tab) })),
         },
       },
@@ -57,7 +63,7 @@ export function useRestoreClosed() {
   };
 }
 
-/** A closed row's mark: its tab's own, or a stack for a whole tab group. */
+/** A closed row's mark: its tab's own, or a stack for a whole tab group or a side of several. */
 export function ClosedMark({
   className,
   closed,
@@ -66,7 +72,11 @@ export function ClosedMark({
   closed: ClosedTabs;
 }) {
   const [first] = closed.tabs;
-  if (closed.isGroup || !first) {
+  if (
+    !first ||
+    closed.kind === "group" ||
+    (closed.kind === "side" && closed.tabs.length > 1)
+  ) {
     return <StackIcon className={cn("size-4 text-foreground/60", className)} />;
   }
   return <ClosedTabMark tab={first.tab} />;

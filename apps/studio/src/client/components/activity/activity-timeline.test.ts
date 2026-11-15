@@ -67,10 +67,14 @@ function request(
 }
 
 /** A closed tab, or a tab group of several, by the closed list's id and its tabs' titles. */
-function closedTabs(id: string, titles: string[]): ClosedTabs {
+function closedTabs(
+  id: string,
+  titles: string[],
+  kind: ClosedTabs["kind"] = titles.length > 1 ? "group" : "tab",
+): ClosedTabs {
   return {
     id: TabIdSchema.parse(id),
-    isGroup: titles.length > 1,
+    kind,
     tabs: titles.map((title, n) => ({
       tab: {
         group: "g1",
@@ -682,6 +686,16 @@ describe("closed tabs", () => {
     ).toEqual([
       { context: "Closed tab group · 3 tabs", title: "Example Domain" },
       { context: "Closed tab", title: "Example Domain" },
+    ]);
+  });
+
+  it("names a closed side as the Undo toast does, never as a tab group", () => {
+    expect([
+      closedText(closedTabs("t3", ["Example Domain", "Wikipedia"], "side")),
+      closedText(closedTabs("t4", ["Example Domain"], "side")),
+    ]).toEqual([
+      { context: "", title: "Closed 2 tabs" },
+      { context: "", title: "Closed Example Domain" },
     ]);
   });
 

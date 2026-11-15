@@ -1104,7 +1104,7 @@ export function EntryWords({
         <span
           className={cn(
             "flex shrink-0 gap-x-1.5 whitespace-nowrap tabular-nums @min-[30rem]/entry:hidden",
-            keepContext && "hidden",
+            keepContext && Boolean(context) && "hidden",
           )}
         >
           {context ? <span aria-hidden>·</span> : null}

@@ -190,3 +190,34 @@ test("keeps ignoring its own drag through a leave it never entered", async () =>
   fire(region, "drop", fileDrag());
   expect(onFilesDropped).not.toHaveBeenCalled();
 });
+
+test("takes a drag this app started from outside the region at once", async () => {
+  const { isRingUp, onFilesDropped, region } = await drawRegion();
+  const elsewhere = document.createElement("div");
+  document.body.append(elsewhere);
+
+  // A file card in another chat, or a row of Files, dragged onto this composer.
+  trackSelfFileDrag([], { from: elsewhere });
+  fire(region, "dragenter", fileDrag());
+  await vi.waitFor(() => {
+    expect(isRingUp()).toBe(true);
+  });
+
+  fire(region, "drop", fileDrag());
+  await vi.waitFor(() => {
+    expect(onFilesDropped).toHaveBeenCalledTimes(1);
+  });
+  elsewhere.remove();
+});
+
+test("ignores a drag this app started from inside the region", async () => {
+  const { isRingUp, onFilesDropped, region } = await drawRegion();
+  const inside = region.querySelector("p");
+
+  trackSelfFileDrag([], { from: inside });
+  fire(region, "dragenter", fileDrag());
+  expect(isRingUp()).toBe(false);
+
+  fire(region, "drop", fileDrag());
+  expect(onFilesDropped).not.toHaveBeenCalled();
+});

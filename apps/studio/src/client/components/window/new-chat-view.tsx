@@ -7,7 +7,6 @@ import {
   useDraftStaging,
   useFolderItems,
 } from "@/client/components/draft-staging";
-import { FileDropRegion } from "@/client/components/file-drop-region";
 import { fileHref, folderHref } from "@/shared/computer-href";
 import {
   PromptInput,
@@ -250,7 +249,7 @@ export function NewChatView({
   };
 
   return (
-    <FileDropRegion className="flex h-full min-h-0 flex-col">
+    <div className="flex h-full min-h-0 flex-col">
       {/* Over the composer: filling the group, the mark and its line, with
           the composer at the middle; in the column, the room over a
           composer at the foot. */}
@@ -274,7 +273,6 @@ export function NewChatView({
           "relative isolate mx-auto w-full shrink-0 px-3",
           isCentered ? "max-w-2xl" : "max-w-3xl pb-3",
         )}
-        data-attaches-files=""
       >
         <PromptInput
           attachmentsLead={
@@ -331,7 +329,7 @@ export function NewChatView({
           middle. */}
       {isCentered && <div className="min-h-0 flex-1" />}
       {draft && <ProjectSuggestion draft={draft} />}
-    </FileDropRegion>
+    </div>
   );
 }
 

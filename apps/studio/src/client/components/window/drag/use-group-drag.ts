@@ -208,15 +208,20 @@ function takesFilesItself(page: Element | null | undefined, point: Point) {
 }
 
 /**
- * Whether files let go at a point over a new tab nobody has written in go
- * to its composer, as the first message's attachments: only over the
- * composer itself (`data-attaches-files`). Anywhere else on the tab the
- * tab turns into them, as a browser's new tab does.
+ * Whether files let go at a point go into a box in the page that takes
+ * them, a composer's (`data-file-drop-region`), as its message's
+ * attachments. A folder in Files takes them too, but over the whole page,
+ * so it is a page that takes files (`takesFilesItself`), not a box.
  */
-function attachesToNewTab(page: Element | null | undefined, point: Point) {
+function attachesToBox(page: Element | null | undefined, point: Point) {
   const under = document.elementFromPoint(point.x, point.y);
-  const box = under?.closest("[data-attaches-files]");
-  return box !== null && box !== undefined && page?.contains(box) === true;
+  const box = under?.closest("[data-file-drop-region]");
+  return (
+    box !== null &&
+    box !== undefined &&
+    !box.hasAttribute("data-folder-drop") &&
+    page?.contains(box) === true
+  );
 }
 
 /**
@@ -267,11 +272,6 @@ export function useSidePagesTarget({
   /** Whether a tab is a new tab nobody has written in, which turns into files let go over it. */
   const isNewTab = (tab: WindowTab | undefined) =>
     tab !== undefined && isHomeTab(tab);
-  /** Whether files over a side's page go to the whole of it, a new tab turning into them or a site taking them, so neither end splits. */
-  const takesFilesWhole = (side: number) => {
-    const up = upOf(side);
-    return up?.kind === "page" || isNewTab(up);
-  };
   /** Whether a group held here may go to a window of its own: one this window shows another group beside. */
   const mayLeave = () =>
     (getDefaultStore().get(windowTabGroupsAtom)?.length ?? 0) > 1;
@@ -282,9 +282,11 @@ export function useSidePagesTarget({
     isOn
       ? {
           hints: ({ held, input }) => {
+            // A site hears the system's drag of files over it itself, and
+            // the window never does, so over one there is no end to reach.
             if (
               !maySplitGroup(held, input) ||
-              (held.kind === "files" && takesFilesWhole(0))
+              (held.kind === "files" && upOf(0)?.kind === "page")
             ) {
               return [];
             }
@@ -298,21 +300,9 @@ export function useSidePagesTarget({
             const point = onPages(reached, sides);
             const at = sides.findIndex((rect) => holds(rect, point));
             const up = upOf(at);
+            const page = sides[at];
             if (held.kind === "group" && input === "remote") {
               return undefined;
-            }
-            if (held.kind === "files") {
-              const page = sides[at];
-              if (page && up && isNewTab(up)) {
-                return attachesToNewTab(pageOf(at), point)
-                  ? "native"
-                  : { group, kind: "newTab", lit: page, tab: up.id };
-              }
-              // A site takes files the way it takes them from the Finder,
-              // only by the system's drag.
-              if (up?.kind === "page") {
-                return "native";
-              }
             }
             const was = currentDrag()?.landing;
             const zone = maySplitGroup(held, input)
@@ -325,32 +315,43 @@ export function useSidePagesTarget({
                   sides,
                 })
               : undefined;
-            // A whole group joins a side of two as a tab does, and makes a
-            // side at a lone side's end; the middle of a lone side has no
-            // side to give it, so it goes to a window of its own there.
+            if (zone?.kind === "split") {
+              return {
+                group,
+                kind: "side",
+                lit: zone.lit,
+                side: zone.side,
+                split: true,
+              };
+            }
+            // A box in the page that takes files (a composer) takes them
+            // wherever it shows past the split targets drawn over the page.
+            if (held.kind === "files" && attachesToBox(pageOf(at), point)) {
+              return "native";
+            }
+            // Away from a lone side's ends, a page that takes files
+            // everywhere has them: a new tab nobody has written in turns
+            // into them, a site takes them by the system's drag, and so
+            // does a folder in Files.
+            if (held.kind === "files") {
+              if (page && up && isNewTab(up)) {
+                return { group, kind: "newTab", lit: page, tab: up.id };
+              }
+              if (up?.kind === "page" || takesFilesItself(pageOf(at), point)) {
+                return "native";
+              }
+            }
+            // A whole group joins a side of two as a tab does; the middle of
+            // a lone side has no side to give it, so it goes to a window of
+            // its own there.
             if (
               held.kind === "group" &&
-              zone?.kind !== "split" &&
               !(zone?.kind === "join" && sides.length === 2)
             ) {
               return at !== -1 && mayLeave() ? { kind: "window" } : undefined;
             }
-            if (
-              held.kind === "files" &&
-              zone?.kind !== "split" &&
-              takesFilesItself(pageOf(at), point)
-            ) {
-              return "native";
-            }
             // A new tab nobody has written in turns into a link let go on it.
-            const page = sides[at];
-            if (
-              held.kind === "link" &&
-              zone?.kind !== "split" &&
-              page &&
-              up &&
-              isNewTab(up)
-            ) {
+            if (held.kind === "link" && page && up && isNewTab(up)) {
               return { group, kind: "newTab", lit: page, tab: up.id };
             }
             return zone
@@ -359,7 +360,7 @@ export function useSidePagesTarget({
                   kind: "side",
                   lit: zone.lit,
                   side: zone.side,
-                  split: zone.kind === "split",
+                  split: false,
                 }
               : undefined;
           },

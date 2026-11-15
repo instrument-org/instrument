@@ -1,4 +1,3 @@
-import { FileDropRegion } from "@/client/components/file-drop-region";
 import { FileOpenContext } from "@/client/components/file-open-context";
 import { PageOpenContext } from "@/client/components/page-open-context";
 import { ChatConversation } from "@/client/components/task/chat";
@@ -204,9 +203,7 @@ function ChatScreenOfRecord({
       ? { ...into, behind: true, show: false }
       : (ownPlaceOf(options) ?? into);
   return (
-    // The chat is the drop region, so a file let go anywhere over it lands
-    // in the reply, and the pane beside it stays outside.
-    <FileDropRegion className="flex h-full min-h-0 flex-col">
+    <div className="flex h-full min-h-0 flex-col">
       {/* The chat stands over its tabs, so what a reply hands over opens
           as a tab under it rather than in place of one: the openers all say
           so, and a line a card asks the conversation lands in this chat. */}
@@ -284,7 +281,7 @@ function ChatScreenOfRecord({
           </FileOpenContext>
         </WindowContext>
       </div>
-    </FileDropRegion>
+    </div>
   );
 }
 

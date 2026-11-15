@@ -4,7 +4,6 @@ import {
 } from "@/client/atoms/prompt-value";
 import { type Draft, draftGroupOf, isLeftEmpty } from "@/shared/drafts";
 import { APPS_HREF, BROWSER_HREF, filesHrefAtom } from "@/client/atoms/window";
-import { FileDropRegion } from "@/client/components/file-drop-region";
 import { FileOpenContext } from "@/client/components/file-open-context";
 import { PageOpenContext } from "@/client/components/page-open-context";
 import {
@@ -520,7 +519,7 @@ export function ComposeWindow({
               }
             }}
           >
-            <FileDropRegion className="flex h-full min-h-0 flex-col">
+            <div className="flex h-full min-h-0 flex-col">
               <div className="flex h-11 shrink-0 items-center gap-1.5 pr-2 pl-3 select-none">
                 <span className="inline-flex h-7 shrink-0 items-center px-1.5 text-[13px] font-medium">
                   New chat
@@ -665,7 +664,7 @@ export function ComposeWindow({
                   </LinkSurface>
                 </div>
               )}
-            </FileDropRegion>
+            </div>
           </PageOpenContext>
         </FileOpenContext>
       </WindowContext>

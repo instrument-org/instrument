@@ -8,9 +8,15 @@ import {
 } from "@/client/components/extend/file-system";
 import { PageFavicon } from "@/client/components/favicon";
 import { ModelMakerIcon } from "@/client/components/model-maker-icon";
+import { ScreenMark } from "@/client/components/window/app-chip";
 import { nameOf } from "@/client/components/window/host-path";
 import { PlaceIcon } from "@/client/components/window/place-icons";
 import { cn } from "@/client/lib/utils";
+import {
+  isScreenName,
+  type ScreenName,
+  SCREENS,
+} from "@/shared/instrument-screens";
 import { AppWindowIcon } from "@phosphor-icons/react/AppWindow";
 import { ArrowBendDownRightIcon } from "@phosphor-icons/react/ArrowBendDownRight";
 import { ArrowCircleUpIcon } from "@phosphor-icons/react/ArrowCircleUp";
@@ -112,9 +118,21 @@ function ActionIcon({
       return <GearSixIcon className={glyph} />;
     }
     case "screen": {
-      return <AppWindowIcon className={glyph} />;
+      const screen = screenTitled(action.name.split(" › ")[0] ?? "");
+      return screen ? (
+        <ScreenMark className={glyph} name={screen} />
+      ) : (
+        <AppWindowIcon className={glyph} />
+      );
     }
   }
+}
+
+/** The built-in page a screen row names by its title, as "Chats" or the "Settings" of "Settings › General". */
+function screenTitled(title: string): ScreenName | undefined {
+  return Object.keys(SCREENS)
+    .filter(isScreenName)
+    .find((name) => SCREENS[name].title === title);
 }
 
 /** A model's maker's mark, or nothing for a model no maker is known for. */

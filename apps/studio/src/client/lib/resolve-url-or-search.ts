@@ -49,7 +49,7 @@ function isLoopbackHost(authority: string): boolean {
   );
 }
 
-function looksLikeHost(authority: string): boolean {
+export function looksLikeHost(authority: string): boolean {
   if (!authority || /\s/.test(authority)) {
     return false;
   }

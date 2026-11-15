@@ -28,6 +28,9 @@ import {
 } from "@/client/drafts/store";
 import { type Draft } from "@/shared/drafts";
 import { cn, osConventions } from "@/client/lib/utils";
+import { addressInMessage } from "@/client/lib/address-in-message";
+import { PageFavicon } from "@/client/components/favicon";
+import { Kbd } from "@/client/components/ui/kbd";
 import { APP_NAME } from "@instrument-org/shared";
 import { useRouter } from "@tanstack/react-router";
 import { useAtomValue, useSetAtom, useStore } from "jotai";
@@ -37,6 +40,7 @@ import {
   useEffectEvent,
   useLayoutEffect,
   useRef,
+  useState,
 } from "react";
 
 import { AskPills } from "./ask-pills";
@@ -46,6 +50,7 @@ import { ProjectMark } from "./project-mark";
 import { projectTint } from "./project-tint";
 import { includedItemsOf } from "./draft-context";
 import { useShell } from "./shell-context";
+import { useGroupTab } from "./group-tab";
 import { useComposerAsks } from "./staged-asks";
 import { useDraftProjectSuggestion } from "./use-draft-project-suggestion";
 import { newChatHref } from "./window-href";
@@ -235,6 +240,19 @@ export function NewChatView({
     });
     onOpenBeside(opened);
   };
+  // A message that is one web address offers to go there: Enter goes in
+  // this tab, where Back comes back to these words, and the command key
+  // with Enter (or Send) sends it to the chat as it is.
+  const groupTab = useGroupTab();
+  const { keyJoiner, modifierKeys } = osConventions();
+  const commandEnter = [modifierKeys.command, "↵"].join(keyJoiner);
+  const [words, setWords] = useState("");
+  const address = groupTab ? addressInMessage(words) : undefined;
+  const goToAddress = () => {
+    if (address && groupTab) {
+      groupTab.showPage(address.url);
+    }
+  };
   const places = {
     computerName: osConventions().computer,
     onOpenApps: () => {
@@ -273,6 +291,21 @@ export function NewChatView({
           "relative isolate mx-auto w-full shrink-0 px-3",
           isCentered ? "max-w-2xl" : "max-w-3xl pb-3",
         )}
+        onKeyDownCapture={(event) => {
+          if (
+            address &&
+            event.key === "Enter" &&
+            !event.shiftKey &&
+            !event.altKey &&
+            !event.metaKey &&
+            !event.ctrlKey &&
+            !event.nativeEvent.isComposing
+          ) {
+            event.preventDefault();
+            event.stopPropagation();
+            goToAddress();
+          }
+        }}
       >
         <PromptInput
           attachmentsLead={
@@ -282,7 +315,18 @@ export function NewChatView({
           draftKey={key}
           isLoading={false}
           keyboardHome
-          besidePlus={besidePlus}
+          besidePlus={
+            address ? (
+              <>
+                {besidePlus}
+                <span className="text-xs whitespace-nowrap text-muted-foreground">
+                  {commandEnter} sends to chat
+                </span>
+              </>
+            ) : (
+              besidePlus
+            )
+          }
           modelURI={shell.defaultModelURI}
           onFolders={(paths) => {
             for (const path of paths) {
@@ -302,6 +346,7 @@ export function NewChatView({
           }}
           shownPath={shownPath}
           onModelChange={shell.setDefaultModelURI}
+          onWordsChange={setWords}
           onSubmit={(sending) => {
             const send = staging.asStaged(sending);
             cancelWords(newChatWordsKey(tabId));
@@ -315,6 +360,29 @@ export function NewChatView({
           places={places}
           ref={inputRef}
         />
+        {/* Under the box without moving it, so the box stays where it was
+            as the row comes and goes; over it for a box at the foot. */}
+        {address && (
+          <button
+            className={cn(
+              "absolute inset-x-3 flex h-10 items-center gap-2.5 rounded-xl bg-card px-3 text-left text-sm shadow-xs ring-1 ring-foreground/6 hover:bg-accent",
+              isCentered ? "top-full mt-2" : "bottom-full mb-2",
+            )}
+            data-address-go=""
+            onClick={goToAddress}
+            type="button"
+          >
+            <PageFavicon
+              className="size-4 shrink-0"
+              hasTooltip={false}
+              url={address.url}
+            />
+            <span className="min-w-0 flex-1 truncate">
+              Go to <span className="font-medium">{address.shown}</span>
+            </span>
+            <Kbd>↵</Kbd>
+          </button>
+        )}
         {/* Drawn again for each new chat that fills its group, so the glint
             crosses the composer as the chat arrives. */}
         {isCentered && (

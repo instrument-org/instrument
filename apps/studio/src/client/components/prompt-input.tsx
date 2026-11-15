@@ -250,6 +250,8 @@ interface PromptInputProps {
   onCommandEnterWhenEmpty?: () => void;
   /** Whether the box has nothing in it, as it opens and each time that changes. */
   onEmptyChange?: (empty: boolean) => void;
+  /** The box's words, as it opens and each time they change. */
+  onWordsChange?: (words: string) => void;
 }
 
 /**
@@ -288,6 +290,7 @@ export const PromptInput = ({
   selectedSessionId,
   onCommandEnterWhenEmpty,
   onEmptyChange,
+  onWordsChange,
 }: PromptInputProps) => {
   const features = useAtomValue(featuresAtom);
   const isActiveTab = useIsActiveTab();
@@ -323,6 +326,12 @@ export const PromptInput = ({
   const fileInputRef = useRef<HTMLInputElement>(null);
   const draftKeyed = draftKeyString(draftKey);
   const { setValue, value } = useComposerWords(draftKey, promptEditorRef);
+  const onWordsChangeEvent = useEffectEvent((words: string) => {
+    onWordsChange?.(words);
+  });
+  useEffect(() => {
+    onWordsChangeEvent(value);
+  }, [value]);
   const setInputRef = useSetAtom(promptDraftRefAtom(draftKey));
   const releaseInputRef = useSetAtom(releasePromptDraftRefAtom);
   const appendDictation = useSetAtom(appendDictationToPromptAtom);

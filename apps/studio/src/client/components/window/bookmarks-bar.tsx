@@ -70,7 +70,10 @@ export function BookmarksBar({
       return;
     }
     const measure = () => {
-      const room = element.clientWidth;
+      // The row's padding is room for a focused mark's ring, not for a mark.
+      const room =
+        element.clientWidth -
+        Number.parseFloat(getComputedStyle(element).paddingRight);
       const marks = [...element.children].filter(
         (child): child is HTMLElement => child instanceof HTMLElement,
       );
@@ -123,9 +126,11 @@ export function BookmarksBar({
         <NoBookmarks />
       ) : (
         // Every mark is laid out, the ones past the end kept out of sight,
-        // so where each one ends can be read off the row as it stands.
+        // so where each one ends can be read off the row as it stands. The
+        // row clips them, so it pads them by a focus ring's width, drawn
+        // outside a mark, and gives the width back at its sides.
         <div
-          className="relative flex min-w-0 flex-1 items-center gap-0.5 overflow-hidden"
+          className="relative -mx-0.5 flex min-w-0 flex-1 items-center gap-0.5 overflow-hidden p-0.5"
           ref={row}
         >
           {bookmarks.map((bookmark, index) => {

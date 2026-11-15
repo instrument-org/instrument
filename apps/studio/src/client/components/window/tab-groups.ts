@@ -452,7 +452,6 @@ export function useTabGroupActions() {
   const make = ({
     fill,
     href,
-    isListedBehind = false,
     isShownHere = true,
     moving,
     place,
@@ -463,8 +462,6 @@ export function useTabGroupActions() {
     fill?: (group: string) => void;
     /** A screen the group starts on, as a tab. */
     href?: string;
-    /** Listed in this window, which stays on the group it shows: for one a chat's agent opened. */
-    isListedBehind?: boolean;
     /** Whether this window comes up on it: not for one a window of its own is opening on. */
     isShownHere?: boolean;
     /** A tab to move into the new group in place of opening one. */
@@ -476,7 +473,7 @@ export function useTabGroupActions() {
     replace?: boolean;
   } = {}) => {
     const group = newGroupKey();
-    if (isShownHere || isListedBehind) {
+    if (isShownHere) {
       setListed((list) => listedWith(list, group, place));
     }
     if (place?.pinned === true) {
@@ -493,7 +490,7 @@ export function useTabGroupActions() {
         pickProject({ projectId, tabId: tab.id });
       }
     }
-    if (isShownHere && !isListedBehind) {
+    if (isShownHere) {
       // From a screen or page that is no tab group's, the new group takes its place.
       const up = groupUp();
       appTabs.navigate(groupHref(group), {

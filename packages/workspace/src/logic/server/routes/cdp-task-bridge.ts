@@ -273,6 +273,9 @@ export function handleTaskCdpClient(
       show: false,
       url: address,
     });
+    if (typeof tabId === "object") {
+      return `The window opened no tab: ${tabId.error}`;
+    }
     if (!tabId) {
       return "The window did not open a tab. Try again.";
     }

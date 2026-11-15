@@ -43,6 +43,7 @@ import {
   matchScreen,
 } from "./window-href";
 import { newScreenId, type useWindowTabs } from "./window-tabs";
+import { agentChatTabOf, pageOpenPlaceOf } from "./agent-opens";
 import { type AppsBySlug } from "./apps-by-slug";
 import { groupReadOf } from "./group-awareness";
 
@@ -78,7 +79,7 @@ export function useOpeners({
    */
   newGroup: (
     fill: (group: string) => void,
-    options?: { isListedBehind?: boolean; isShownHere?: boolean },
+    options?: { isShownHere?: boolean },
   ) => string;
   /** Opens a chat as a new tab group of its own (`useTabGroupActions().openChat`). */
   openChat: (chat: ChatId) => void;
@@ -120,31 +121,11 @@ export function useOpeners({
   };
   /**
    * Where what a chat's agent opens goes: right after the chat's tab the
-   * person last sent from (`chatTab`). A chat with no tab, as one still at
-   * work after its group closed, gets a new group at the top of the list
-   * with a tab on the chat, which the window does not move to.
+   * person last sent from (`chatTab`), in that tab's group, or why nothing
+   * opens (`agentChatTabOf`). An agent never makes a group.
    */
-  const agentPlaceOf = (chat: ChatId): { after: string; group: string } => {
-    const tab = windowTabs.chatTab(chat);
-    if (tab !== undefined) {
-      return { after: tab.id, group: tab.group };
-    }
-    let place: { after: string; group: string } | undefined;
-    newGroup(
-      (group) => {
-        const after = windowTabs.openScreen(chatHref(chat), {
-          group,
-          select: true,
-        });
-        place = after === undefined ? undefined : { after, group };
-      },
-      { isListedBehind: true },
-    );
-    if (place === undefined) {
-      throw new Error("a new group always opens the chat's tab.");
-    }
-    return place;
-  };
+  const agentPlaceOf = (chat: ChatId | undefined) =>
+    agentChatTabOf(chat, windowTabs.chatTab);
   /**
    * Opens something in a place picked from a menu (`OpenOptions.into`):
    * `put` opens it in a group, at a place there. In a split, that is the
@@ -595,56 +576,51 @@ export function useOpeners({
   }: WindowTabRequest): Promise<Omit<WindowTabAnswer, "requestId">> => {
     if (action.kind === "open") {
       const { target } = action;
+      if (target.kind === "page" && action.show && target.url === undefined) {
+        return { error: "a tab on screen needs an address." };
+      }
+      // Only beside the chat's tab, in its group: never a group of its own.
+      const place = agentPlaceOf(chat);
+      if ("error" in place) {
+        return { error: place.error };
+      }
       if (target.kind === "page") {
-        if (action.show && target.url === undefined) {
-          return { error: "a tab on screen needs an address." };
-        }
-        if (chat !== undefined) {
-          const opened = browser?.openBeside(target.url, {
-            behind: false,
-            chatTab: agentPlaceOf(chat).after,
-            isShown: action.show,
-            openedBy: chat,
-          });
-          return opened
-            ? { behind: !opened.front, tabId: opened.id }
-            : { error: "the window did not open a tab." };
-        }
-        return target.url === undefined
-          ? { error: "a tab on screen needs an address." }
-          : { tabId: openPage(target.url, { ownTab: true }) };
-      }
-      const href = await hrefOfNamedPath(target.path, chat);
-      if (href === undefined) {
-        return { error: `nothing this window can show is at ${target.path}.` };
-      }
-      if (chat !== undefined) {
-        const opened = windowTabs.openScreenBeside(href, {
+        const opened = browser?.openBeside(target.url, {
           behind: false,
-          chatTab: agentPlaceOf(chat).after,
+          chatTab: place.after,
           isShown: action.show,
           openedBy: chat,
         });
         return opened
           ? { behind: !opened.front, tabId: opened.id }
-          : { error: `nothing this window can show is at ${target.path}.` };
+          : { error: "the window did not open a tab." };
       }
-      const into = windowTabs.groupOnScreen;
-      const tabId = windowTabs.openOrFocusScreen(href, {
-        ...(into ? { group: into } : {}),
-        isOpened: true,
-        select: true,
+      const href = await hrefOfNamedPath(target.path, chat);
+      if (href === undefined) {
+        return { error: `nothing this window can show is at ${target.path}.` };
+      }
+      const opened = windowTabs.openScreenBeside(href, {
+        behind: false,
+        chatTab: place.after,
+        isShown: action.show,
+        openedBy: chat,
       });
-      return { tabId };
+      return opened
+        ? { behind: !opened.front, tabId: opened.id }
+        : { error: `nothing this window can show is at ${target.path}.` };
     }
     if (action.kind === "adopt") {
       const id = StoreId.TabSchema.safeParse(action.tabId);
       if (chat === undefined || !id.success) {
         return { error: "only a chat's page can be given a tab." };
       }
+      const place = agentPlaceOf(chat);
+      if ("error" in place) {
+        return { error: place.error };
+      }
       browser?.openBeside(action.url, {
         behind: false,
-        chatTab: agentPlaceOf(chat).after,
+        chatTab: place.after,
         id: id.data,
         isLoaded: true,
         isShown: false,
@@ -798,19 +774,24 @@ export function useOpeners({
       return;
     }
     const asking = windowTabs.allTabs.find((tab) => tab.id === targetId);
-    if (asking?.group === undefined) {
+    // Only an agent's popup is named a tab by the workspace, and it never
+    // makes a group: from a page with no tab it opens nothing.
+    const place = pageOpenPlaceOf(asking, { isAgent: tabId !== undefined });
+    if (place.kind === "free") {
       openPage(url, { behind: background, newTab: true });
-    } else if (background) {
+    } else if (place.kind === "after" && background) {
       // The workspace names a popup's tab to the session that worked in the
       // page, so the tab opens under that id.
       browser?.openBehind(url, {
-        after: asking.id,
-        group: asking.group,
+        after: place.after,
+        group: place.group,
         ...(tabId === undefined ? {} : { id: tabId }),
-        ...(asking.openedBy === undefined ? {} : { openedBy: asking.openedBy }),
+        ...(asking?.openedBy === undefined
+          ? {}
+          : { openedBy: asking.openedBy }),
       });
-    } else {
-      browser?.open(url, { after: asking.id, group: asking.group });
+    } else if (place.kind === "after") {
+      browser?.open(url, { after: place.after, group: place.group });
     }
   };
 

@@ -89,6 +89,7 @@ import {
   otherStripShowing,
   type StripOf,
   stripShowing,
+  windowListingGroup,
 } from "@/electron-main/windows/tab-showing";
 import { commandWindow } from "@/electron-main/windows/window-command";
 import { trackWindowBounds } from "@/electron-main/windows/window-bounds";
@@ -247,8 +248,9 @@ function isListedOpen(group: string) {
 }
 
 /**
- * The first of some windows with the tab group an address stands on open
- * (`TAB_GROUPS_KEY`), up or not.
+ * Of some windows with the tab group an address stands on open
+ * (`TAB_GROUPS_KEY`), the first with it up, else the first with it behind
+ * (`windowListingGroup`).
  */
 function windowListingGroupOf(
   href: string,
@@ -263,7 +265,24 @@ function windowListingGroupOf(
   if (group === undefined) {
     return null;
   }
-  return among.find((window) => listsGroup(window, group)) ?? null;
+  return windowListingGroup(
+    group,
+    among.flatMap((window) => {
+      const id = appWindowIdOfWindow(window);
+      if (id === undefined) {
+        return [];
+      }
+      const { selectedId, tabs } = keptTabsOf(id);
+      const up = tabs.find((tab) => tab.id === selectedId)?.pathname;
+      return [
+        {
+          listed: keptTabGroupsOfWindow(id),
+          ...(up === undefined ? {} : { up: tabGroupOfAddress(up) }),
+          window,
+        },
+      ];
+    }),
+  );
 }
 
 /** The tab groups the open windows other than this one have open. */

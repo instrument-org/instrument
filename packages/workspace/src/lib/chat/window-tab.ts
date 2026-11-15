@@ -67,10 +67,11 @@ export async function askWindow({
 }
 
 /**
- * Asks the window for a page tab and returns its id, or undefined when no
- * window answered. The tab lands beside the chat as a click in it would;
- * without `show`, as every tab an agent opens for its own work arrives, it
- * stays behind on the chat's own side.
+ * Asks the window for a page tab and returns its id, why the window opened
+ * none (a chat with no tab gets none, never a group of its own), or
+ * undefined when no window answered. The tab lands beside the chat as a
+ * click in it would; without `show`, as every tab an agent opens for its own
+ * work arrives, it stays behind on the chat's own side.
  */
 export async function requestWindowTab({
   askedBy,
@@ -84,7 +85,7 @@ export async function requestWindowTab({
   show: boolean;
   timeoutMs?: number;
   url?: string;
-}): Promise<StoreId.Tab | undefined> {
+}): Promise<StoreId.Tab | undefined | { error: string }> {
   const answer = await askWindow({
     action: {
       kind: "open",
@@ -95,6 +96,9 @@ export async function requestWindowTab({
     group,
     ...(timeoutMs === undefined ? {} : { timeoutMs }),
   });
+  if (answer?.error !== undefined) {
+    return { error: answer.error };
+  }
   const tabId = StoreId.TabSchema.safeParse(answer?.tabId);
   return tabId.success ? tabId.data : undefined;
 }

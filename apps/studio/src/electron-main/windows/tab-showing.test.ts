@@ -2,7 +2,11 @@ import { fileHref } from "@/shared/computer-href";
 import { type TabsModel, TabIdSchema } from "@/shared/tabs";
 import { describe, expect, it } from "vitest";
 
-import { otherStripShowing, stripShowing } from "./tab-showing";
+import {
+  otherStripShowing,
+  stripShowing,
+  windowListingGroup,
+} from "./tab-showing";
 
 const HOME = "/Users/mac-user";
 const NOTES = `${HOME}/notes.md`;
@@ -73,5 +77,36 @@ describe("otherStripShowing", () => {
     expect(
       otherStripShowing(fileHref(NOTES), strips.slice(0, 1), 1, HOME),
     ).toBeNull();
+  });
+});
+
+describe("windowListingGroup", () => {
+  it.each<
+    [string, { listed: string[]; up?: string; window: string }[], string | null]
+  >([
+    [
+      "takes the window with the group up over one listing it behind",
+      [
+        { listed: ["g", "h"], up: "h", window: "behind" },
+        { listed: ["g"], up: "g", window: "up" },
+      ],
+      "up",
+    ],
+    [
+      "takes the first listing it when none has it up",
+      [
+        { listed: ["h"], up: "h", window: "none" },
+        { listed: ["g", "h"], up: "h", window: "first" },
+        { listed: ["g"], window: "second" },
+      ],
+      "first",
+    ],
+    [
+      "finds none where no window lists it",
+      [{ listed: ["h"], up: "h", window: "a" }],
+      null,
+    ],
+  ])("%s", (_label, windows, expected) => {
+    expect(windowListingGroup("g", windows)).toBe(expected);
   });
 });

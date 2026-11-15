@@ -6,8 +6,8 @@ import { chatOfAddress } from "./tab-identity";
  * (`promptedAt`), else the first. Its agent's pages open right after it, and
  * its group is the one the agent sees by default. Undefined while no such
  * group has a tab on the chat: a chat whose only tabs are in a closed
- * window's groups gets a new group. The one rule the windows and main read
- * a chat's place by.
+ * window's groups has none, and its agent opens nothing. The one rule the
+ * windows and main read a chat's place by.
  */
 export function workingTabOf<
   T extends { group?: string; href?: string; promptedAt?: number },

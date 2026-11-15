@@ -62,3 +62,16 @@ export function otherStripShowing<W>(
     homeDir,
   );
 }
+
+/**
+ * Of the windows listing a tab group, in the order given, the first with it
+ * up, else the first with it behind: the window a chat's asks go to, so what
+ * its agent opens is placed by the window the person sees the group in.
+ */
+export function windowListingGroup<W>(
+  group: string,
+  windows: readonly { listed: readonly string[]; up?: string; window: W }[],
+): W | null {
+  const listing = windows.filter(({ listed }) => listed.includes(group));
+  return (listing.find(({ up }) => up === group) ?? listing[0])?.window ?? null;
+}

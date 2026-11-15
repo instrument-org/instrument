@@ -85,6 +85,8 @@ vi.mock("../../../lib/session-layout", async () => {
 const asked: WindowTabAction[] = [];
 /** Whether the window leaves a restore ask unanswered, as it does past the ask's timeout. */
 let restoreUnanswered = false;
+/** Why the window opens no tab, as for a chat whose tab the person closed. */
+let openRefused: string | undefined;
 vi.mock("../../../lib/chat/window-tab", () => ({
   askWindow: ({ action }: { action: WindowTabAction }) => {
     asked.push(action);
@@ -115,6 +117,9 @@ vi.mock("../../../lib/chat/window-tab", () => ({
       show: options.show,
       target: { kind: "page", ...(options.url ? { url: options.url } : {}) },
     });
+    if (openRefused !== undefined) {
+      return Promise.resolve({ error: openRefused });
+    }
     const tabId = StoreId.newTabId();
     windowList = [
       ...windowList,
@@ -530,6 +535,22 @@ describe("a session's browser", () => {
     const tabId = made.result?.targetId;
     expect(record.openedTabs.at(-1)).toEqual({ id: tabId });
     expect(created(events)).toContain(tabId);
+  });
+
+  it("says why when the window opens no tab, never making a group for it", async () => {
+    tab();
+    openRefused = "the user closed this chat's tab, so nothing opened.";
+    const { command } = connect();
+
+    const made = await command("Target.createTarget", {
+      url: "https://example.org/",
+    });
+    openRefused = undefined;
+
+    expect(made.error?.message).toMatchInlineSnapshot(
+      `"The window opened no tab: the user closed this chat's tab, so nothing opened."`,
+    );
+    expect(record.openedTabs).toEqual([]);
   });
 
   it("refuses a new tab at an address the browser cannot load, and closes the blank tab it made", async () => {

@@ -47,6 +47,7 @@ Each entry is the plan's title and the opening of its status.
 - [Moving files in the Finder](finder-moving-files.md): Accepted, 2026-10-02: undo-backed drag-to-move.
 - [Run the transcript scrollbar the full height of the pane](full-height-transcript-scrollbar.md): Proposed, not started: the composer is still a flex sibling below the `MessageScroller` in `task/chat.tsx`.
 - [Grouping a run of tool calls under what it is for](grouped-activities.md): In progress -- the `activity` field, the heading, and collapsing groups are built;
+- [Import bookmarks and history from another browser](import-from-another-browser.md): Not started.
 - [Incremental live transcript updates](incremental-live-transcript-updates.md): Partly overtaken.
 - [Everything visible in the Instrument folder](instrument-folder.md): Built and landed, apart from what is listed below.
 - [Bringing 1.x tasks and projects into chats](legacy-data-migration.md): Migration built (`packages/workspace/src/lib/migrate-legacy-tasks.ts`, first in `3d7504b0f`) and shipped in the 2.0 betas, then reshaped so the 1.x task's fo...

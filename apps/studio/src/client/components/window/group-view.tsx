@@ -3,7 +3,11 @@ import { sidebarOpenAtom } from "@/client/atoms/tab-groups";
 import { ResizeHandle } from "@/client/components/resize-handle";
 import { CaptionRoom } from "@/client/components/window-controls";
 import { useIsActiveTab } from "@/client/hooks/use-active-tab";
-import { giveKeyboardTo, pageHoldingKeyboard } from "@/client/lib/browser-pool";
+import {
+  giveKeyboardTo,
+  onPageFocus,
+  pageHoldingKeyboard,
+} from "@/client/lib/browser-pool";
 import {
   dropCaretOutside,
   focusHomeIn,
@@ -645,16 +649,11 @@ function SideCard({
       return;
     }
     const targets = new Set(pagesKey.split(" "));
-    const onFocus = () => {
-      const target = pageHoldingKeyboard();
-      if (target !== null && targets.has(target)) {
+    return onPageFocus((target) => {
+      if (targets.has(target)) {
         pageTakesKeyboard();
       }
-    };
-    document.addEventListener("focusin", onFocus);
-    return () => {
-      document.removeEventListener("focusin", onFocus);
-    };
+    });
   }, [pagesKey]);
 
   /** A copy of a tab, a page at its address or a screen at its own, placed in the group. */

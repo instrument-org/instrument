@@ -736,6 +736,46 @@ export function pageHoldingKeyboard(): BrowserTargetId | null {
   return null;
 }
 
+const pageFocusListeners = new Set<(targetId: BrowserTargetId) => void>();
+
+/** Tells every listener the page holding the keyboard, when one on screen does. */
+function tellPageFocused() {
+  const target = pageHoldingKeyboard();
+  if (target !== null) {
+    for (const listener of pageFocusListeners) {
+      listener(target);
+    }
+  }
+}
+
+/** The host document losing the keyboard, which it does to a page clicked into, read once the guest's frame has it. */
+function onHostBlur() {
+  queueMicrotask(tellPageFocused);
+}
+
+/**
+ * Calls `listener` with a page on screen each time it takes the keyboard,
+ * a click in it included. The host document fires no `focusin` for that,
+ * since the keyboard goes into the guest's frame rather than to an element
+ * of the host's; two signals stand in for it, either enough alone: the
+ * host window's `blur` as its frame gives the keyboard up, and the
+ * `<webview>`'s own `focus`, which Electron dispatches (not bubbling) once
+ * the guest's window reports taking it through main. A listener may hear
+ * one taking of the keyboard more than once.
+ */
+export function onPageFocus(listener: (targetId: BrowserTargetId) => void) {
+  if (pageFocusListeners.size === 0) {
+    window.addEventListener("blur", onHostBlur);
+  }
+  pageFocusListeners.add(listener);
+  return () => {
+    pageFocusListeners.delete(listener);
+    if (pageFocusListeners.size === 0) {
+      window.removeEventListener("blur", onHostBlur);
+    }
+  };
+}
+
 /**
  * A step for one page: the surface showing it walks its tab, which runs out
  * into the tab's own history at either end; with none, the page steps its
@@ -1004,6 +1044,7 @@ function ensureWebview(
   // tracks the host document's activeElement correctly.
   webview.addEventListener("focus", () => {
     void rpcClient.browser.syncFocus.call({ focused: true, targetId });
+    tellPageFocused();
   });
   webview.addEventListener("blur", () => {
     void rpcClient.browser.syncFocus.call({ focused: false, targetId });

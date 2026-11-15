@@ -295,7 +295,7 @@ export function ChatRow({
           )}
           data-open={isOpen || undefined}
           {...clicks}
-          // Dragged, the row is the chat's address, for the bookmarks bar.
+          // Dragged, the row is the chat's address, held like any link.
           onPointerDown={(event) => {
             if (!rename.isEditing) {
               pressLink(event, {

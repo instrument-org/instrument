@@ -11,6 +11,7 @@ import {
 } from "@/client/components/ui/tooltip";
 import { FileOpenContext } from "@/client/components/file-open-context";
 import { useFileDrag } from "@/client/hooks/use-file-drag";
+import { addressOfTab, fileAddressOf } from "@/client/bookmarks/address";
 import { wantsNewTab, wantsNewWindow } from "@/client/hooks/use-open-target";
 import { displayPath } from "@/client/lib/path-utils";
 import {
@@ -25,6 +26,7 @@ import {
   isFolderPath,
   type SessionMessageDataPart,
 } from "@instrument-org/workspace/client";
+import { chatAddressOf } from "@instrument-org/shared";
 import { ChatCircleIcon } from "@phosphor-icons/react/ChatCircle";
 import { PlusIcon } from "@phosphor-icons/react/Plus";
 import { XIcon } from "@phosphor-icons/react/X";
@@ -38,6 +40,7 @@ import { TabIcon } from "./browser-tabs";
 import { chatListOptions } from "./chat-list-query";
 import { useComputerVolumes } from "./computer-volumes";
 import { type OpenOptions, WindowContext } from "./context";
+import { pressLink } from "./drag/press-link";
 import {
   type ContextItem,
   type DrawnChip,
@@ -186,6 +189,13 @@ function IncludedChip({
           <HeldMark appsBySlug={appsBySlug} tab={tab} />
         )
       }
+      holds={{
+        title: nameOfChip(chip),
+        url:
+          items?.length === 1 && one !== undefined
+            ? addressOfItem(one)
+            : addressOfTab(tab),
+      }}
       isSelected={isSelected}
       name={nameOfChip(chip)}
       onLeaveOut={onLeaveOut}
@@ -303,6 +313,7 @@ function ChatChip({
   return (
     <ContextChip
       label={<ChipLabel paths={[]} said={SENT_WITH_MESSAGE} />}
+      holds={{ title: title ?? "Chat", url: chatAddressOf(chatId) }}
       mark={<ChatCircleIcon />}
       name={title ?? "Chat"}
       onLeaveOut={onLeaveOut}
@@ -321,6 +332,7 @@ function ChosenChip({
 }) {
   return (
     <ContextChip
+      holds={{ title: nameOfPath(item.path), url: addressOfItem(item) }}
       label={<ChipLabel paths={[item.path]} said={SENT_WITH_MESSAGE} />}
       mark={<ItemMark item={item} />}
       name={nameOfPath(item.path)}
@@ -412,6 +424,7 @@ export function SentChips({ chips }: { chips: SentChip[] }) {
                 }
               : undefined
           }
+          holds={{ title: nameOfChip(chip), url: addressOfSent(chip) }}
           name={nameOfChip(chip)}
           onOpen={openerOf(chip)}
           slot="sent-chip"
@@ -419,6 +432,30 @@ export function SentChips({ chips }: { chips: SentChip[] }) {
       ))}
     </div>
   );
+}
+
+/** The address a file or folder chosen for a draft is kept and opened under. */
+function addressOfItem(item: Pick<ChosenItem, "kind" | "path">) {
+  return fileAddressOf(item.path, { isFolder: item.kind === "folder" });
+}
+
+/** The address a chip over a sent message names: a chat's, a page's, a screen's, or its one file or folder's. */
+function addressOfSent(chip: SentChip): string | undefined {
+  switch (chip.kind) {
+    case "chat": {
+      return chatAddressOf(ChatIdSchema.parse(chip.id));
+    }
+    case "page": {
+      return chip.url;
+    }
+    case "screen": {
+      return addressOfTab({ href: chip.url, kind: "screen" });
+    }
+    case "paths": {
+      const [one] = chip.items;
+      return chip.items.length === 1 && one ? addressOfItem(one) : undefined;
+    }
+  }
 }
 
 /** One thing a group holds, as its mark: a page's icon, or a screen's. */
@@ -460,6 +497,7 @@ function ChipLabel({ paths, said }: { paths: string[]; said: string }) {
  */
 function ContextChip({
   drags,
+  holds,
   isSelected = false,
   label,
   mark,
@@ -471,6 +509,8 @@ function ContextChip({
 }: {
   /** What dragging the chip out of the window carries: a sent chip's files and folders, never a draft's. */
   drags?: { hostPath: string; others: string[] };
+  /** The address the chip names, held as a link when it is dragged and it carries no files. */
+  holds?: { title: string; url: string | undefined };
   /** Whether the chip's tab is the one its band has up. */
   isSelected?: boolean;
   label: ReactNode;
@@ -490,7 +530,16 @@ function ContextChip({
     isSelected && COMPOSER_CHIP_SELECTED_CLASSNAME,
   );
   const fileDragProps = useFileDrag(drags);
-  const dragProps = drags ? fileDragProps : {};
+  const held = holds?.url;
+  const dragProps = drags
+    ? fileDragProps
+    : held === undefined
+      ? {}
+      : {
+          onPointerDown: (event: React.PointerEvent<HTMLElement>) => {
+            pressLink(event, { title: holds?.title ?? "", url: held });
+          },
+        };
   const markAndName = (
     <>
       <span className="grid size-4 shrink-0 place-items-center [&_img]:size-4 [&_svg]:size-4">

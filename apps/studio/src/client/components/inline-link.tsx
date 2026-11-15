@@ -37,6 +37,7 @@ import { FAVICON_SURFACE_CLASS_NAME } from "./favicon";
 import { Tooltip, TooltipContent, TooltipTrigger } from "./ui/tooltip";
 import { AppIcon } from "./window/app-icon";
 import { useAppsBySlug } from "./window/apps-by-slug";
+import { pressLink } from "./window/drag/press-link";
 import { InstrumentGlyph } from "./wordmark";
 
 /**
@@ -225,7 +226,7 @@ export function InlineLink({
   const link = instrumentLinkOf(href);
   if (link) {
     return (
-      <AppLink className={className} link={link}>
+      <AppLink address={href} className={className} link={link}>
         {children}
       </AppLink>
     );
@@ -275,10 +276,13 @@ export function AppChipIcon({ slug }: { slug: string }) {
  * rather than a broken link.
  */
 function AppLink({
+  address,
   children,
   className,
   link,
 }: {
+  /** The address the link was written as, which a drag of the chip holds. */
+  address: string;
   children: ReactNode;
   className?: string;
   link: InstrumentLink;
@@ -316,6 +320,9 @@ function AppLink({
       }}
       onAuxClick={gestures.onAuxClick}
       onContextMenu={gestures.onContextMenu}
+      onPointerDown={(event) => {
+        pressLink(event, { title: textOf(children) ?? "", url: address });
+      }}
     >
       {body}
     </ChipButton>
@@ -550,7 +557,15 @@ function WebLink({
     <ExternalLink
       {...props}
       className={cn(INLINE_LINK_CLASS_NAME, className)}
+      // Held by the window's own drag, as every link in the app is, rather
+      // than the system's.
+      draggable={false}
       href={href}
+      onPointerDown={(event) => {
+        if (url) {
+          pressLink(event, { title: pageTitle ?? label ?? "", url: href });
+        }
+      }}
       // A Markdown title is the same hover, drawn by the OS a beat later. The
       // tooltip below says it instead, so the attribute stays only on the links
       // that get no tooltip; left on the rest, the two arrive stacked.

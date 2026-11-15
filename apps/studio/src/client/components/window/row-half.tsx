@@ -1,5 +1,6 @@
 import { type WindowTab } from "@/client/atoms/window";
 import { PageFavicon } from "@/client/components/favicon";
+import { ShimmerSweep } from "@/client/components/shimmer-sweep";
 import { draftsAtom } from "@/client/drafts/store";
 import { useGuest } from "@/client/hooks/use-browser-targets";
 import { hostPathOfFileUrl } from "@/client/lib/file-url";
@@ -69,14 +70,13 @@ function useRowSources(): RowSources {
 
 const NO_CHATS: readonly Chat[] = [];
 
-/** The ink of each tone of a row's second line. */
-const TONE_INK: Record<LineTone, string> = {
+/** The ink of each tone of a row's second line; `work` shimmers as the chat list's working line does. */
+const TONE_INK: Record<Exclude<LineTone, "work">, string> = {
   ask: "text-foreground",
   draft: "text-foreground/70",
   fail: "text-error-700 dark:text-error-300",
   news: "text-foreground/80",
   quiet: "text-muted-foreground",
-  work: "text-brand-600 dark:text-brand-300",
 };
 
 /**
@@ -147,9 +147,19 @@ export function RowLinesView({
         </div>
         {lines.line !== "" && (
           <div className="flex h-5 min-w-0 items-center text-[12px] leading-5">
-            <span className={cn("min-w-0 truncate", TONE_INK[lines.tone])}>
-              {lines.line}
-            </span>
+            {lines.tone === "work" ? (
+              // The chat list's working line: `brand-shiny-text` is an
+              // inline-block, which a parent's truncate cannot shrink, so it
+              // carries its own.
+              <span className="brand-shiny-text min-w-0 truncate">
+                {lines.line}
+                <ShimmerSweep text={lines.line} />
+              </span>
+            ) : (
+              <span className={cn("min-w-0 truncate", TONE_INK[lines.tone])}>
+                {lines.line}
+              </span>
+            )}
           </div>
         )}
       </div>

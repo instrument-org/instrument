@@ -9,15 +9,8 @@ import {
   PopoverTrigger,
 } from "@/client/components/ui/popover";
 import { useWindow } from "@/client/components/window/context";
-import { useAtomValue } from "jotai";
-import { type Chat } from "@/client/components/window/chats";
 import { chatOfHref } from "@/client/components/window/window-href";
-import { chatListOptions } from "@/client/components/window/chat-list-query";
-import {
-  chatsWithNoTab,
-  useTabGroupActions,
-} from "@/client/components/window/tab-groups";
-import { windowTabsAtom } from "@/client/components/window/window-tabs";
+import { useTabGroupActions } from "@/client/components/window/tab-groups";
 import { pendingProblemReport } from "@/client/lib/problem-reports";
 import { formatAbsoluteTime } from "@/client/lib/relative-time";
 import { toast } from "@/client/lib/toast";
@@ -29,7 +22,6 @@ import { APP_NAME } from "@instrument-org/shared";
 import { BellIcon } from "@phosphor-icons/react/Bell";
 import { MegaphoneSimpleIcon } from "@phosphor-icons/react/MegaphoneSimple";
 import { NewspaperClippingIcon } from "@phosphor-icons/react/NewspaperClipping";
-import { QuestionIcon } from "@phosphor-icons/react/Question";
 import { ShieldCheckIcon } from "@phosphor-icons/react/ShieldCheck";
 import { SparkleIcon } from "@phosphor-icons/react/Sparkle";
 import { UserCircleIcon } from "@phosphor-icons/react/UserCircle";
@@ -56,12 +48,6 @@ export function NotificationsBell() {
   const [open, setOpen] = useState(false);
   const markSeen = useMutation(rpcClient.notices.markSeen.mutationOptions());
   const { openScreen } = useWindow();
-  // Chats waiting on the person with no tab open, whose question or
-  // permission card would otherwise show nowhere.
-  const waiting = chatsWithNoTab(
-    useQuery(chatListOptions()).data ?? [],
-    useAtomValue(windowTabsAtom),
-  ).filter((chat) => chat.status === "waiting");
   const groups = useTabGroupActions();
   const openAction = (notice: BellNotice) => {
     // Acting on a notice from its toast has shown it, so the bell's dot for
@@ -95,10 +81,8 @@ export function NotificationsBell() {
   const hasProblems =
     problems.length > 0 ||
     notices.some((notice) => notice.severity === "critical");
-  const hasWaiting = waiting.length > 0;
   const unseen = notices.filter((notice) => !notice.seen);
-  const empty =
-    problems.length === 0 && notices.length === 0 && waiting.length === 0;
+  const empty = problems.length === 0 && notices.length === 0;
 
   useToastLoudNotices(notices, openAction);
 
@@ -115,7 +99,7 @@ export function NotificationsBell() {
       <PopoverTrigger asChild>
         <Button
           aria-label={
-            hasProblems || hasWaiting || unseen.length > 0
+            hasProblems || unseen.length > 0
               ? "Notifications, something new"
               : "Notifications"
           }
@@ -125,7 +109,7 @@ export function NotificationsBell() {
           variant="ghost-toolbar"
         >
           <BellIcon className="size-4" />
-          {(hasProblems || hasWaiting || unseen.length > 0) && (
+          {(hasProblems || unseen.length > 0) && (
             <span
               className={cn(
                 "absolute top-1 right-1 size-2 rounded-full ring-2 ring-ground",
@@ -145,16 +129,6 @@ export function NotificationsBell() {
           </p>
         ) : (
           <div className="max-h-[min(480px,calc(var(--radix-popover-content-available-height)/var(--content-zoom)))] divide-y divide-border overflow-y-auto">
-            {waiting.map((chat) => (
-              <WaitingChatItem
-                chat={chat}
-                key={chat.id}
-                onOpen={() => {
-                  setOpen(false);
-                  groups.revealChat(chat.id);
-                }}
-              />
-            ))}
             {problems.map((problem) => (
               <ProblemItem
                 key={problem.fingerprint}
@@ -338,30 +312,6 @@ function NoticeItem({
             variant="outline"
           >
             Dismiss
-          </Button>
-        </div>
-      </div>
-    </div>
-  );
-}
-
-/** A chat with no tab open that waits on the person: a question or a card to answer. */
-function WaitingChatItem({ chat, onOpen }: { chat: Chat; onOpen: () => void }) {
-  return (
-    <div className="flex gap-3 px-4 py-3">
-      <span className="mt-0.5 grid size-7 shrink-0 place-items-center rounded-lg bg-muted text-foreground/80">
-        <QuestionIcon className="size-4" />
-      </span>
-      <div className="min-w-0 flex-1">
-        <span className="block truncate text-[13px] font-medium">
-          {chat.title}
-        </span>
-        <p className="mt-0.5 text-xs text-muted-foreground">
-          This chat is waiting for your answer.
-        </p>
-        <div className="mt-2 flex gap-1.5">
-          <Button onClick={onOpen} size="xs">
-            Open chat
           </Button>
         </div>
       </div>

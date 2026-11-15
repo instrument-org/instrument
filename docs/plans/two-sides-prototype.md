@@ -74,7 +74,7 @@ With two sides, the side with the keyboard is drawn with a 2px ink line round it
 
 ## Built-in pages
 
-Settings, Memory, Skills, Chats, Activity and Apps are tabs with addresses, opened from the address field by name, from the bookmarks bar, from the sidebar's foot (Activity at its corner, Settings) and from links. Each must work at half width: a built-in page narrower than 640px folds its own sidebar to a rail of icons, as Files folds its places. Each part of Settings has its own address. Memory and Skills leave Settings for pages of their own. ⌘Y opens Activity, which at the sidebar's corner, lists the window's recently closed tabs and tab groups above its first day, each brought back on a press (`RecentlyClosed`), the list ⇧⌘T reopens from. Settings open beside a chat while the agent changes a setting is the case to get right.
+Settings, Memory, Skills, Chats, Activity and Apps are tabs with addresses, opened from the address field by name, from the bookmarks bar, from the sidebar (Activity beside the bell at its top, Settings at its foot) and from links. Each must work at half width: a built-in page narrower than 640px folds its own sidebar to a rail of icons, as Files folds its places. Each part of Settings has its own address. Memory and Skills leave Settings for pages of their own. ⌘Y opens Activity, which lists each tab and tab group the window closed among its other rows by when it closed, under its Tabs filter too (`useClosedTabs`, from the list ⇧⌘T reopens): a row's details name the tabs it had, and Restore brings it back as ⇧⌘T would. Settings open beside a chat while the agent changes a setting is the case to get right.
 
 ## Menus are the main way to make and manage splits
 

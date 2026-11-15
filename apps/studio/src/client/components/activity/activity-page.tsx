@@ -26,7 +26,11 @@ import {
   withDayHeads,
 } from "@/client/components/activity/activity-timeline";
 import { ClearActivityDialog } from "@/client/components/activity/clear-activity-dialog";
-import { RecentlyClosed } from "@/client/components/activity/recently-closed";
+import {
+  useClosedTabs,
+  useForgetClosed,
+  useRestoreClosed,
+} from "@/client/components/activity/recently-closed";
 import { Button } from "@/client/components/ui/button";
 import { Checkbox } from "@/client/components/ui/checkbox";
 import {
@@ -63,7 +67,6 @@ import { DotsThreeIcon } from "@phosphor-icons/react/DotsThree";
 import { DotsThreeVerticalIcon } from "@phosphor-icons/react/DotsThreeVertical";
 import { DownloadSimpleIcon } from "@phosphor-icons/react/DownloadSimple";
 import { GearSixIcon } from "@phosphor-icons/react/GearSix";
-import { LockSimpleIcon } from "@phosphor-icons/react/LockSimple";
 import { PauseCircleIcon } from "@phosphor-icons/react/PauseCircle";
 import { TrashIcon } from "@phosphor-icons/react/Trash";
 import {
@@ -100,6 +103,7 @@ const EMPTY: Record<Show, string> = {
   chats: "No chats yet.",
   files: "No files yet.",
   pages: "No pages yet.",
+  tabs: "No closed tabs yet.",
 };
 
 const timeFormat = new Intl.DateTimeFormat(displayLocale, {
@@ -125,7 +129,7 @@ function isIn<T>(query: UseInfiniteQueryResult<InfiniteData<T>>) {
   return !query.isPending && !query.isPlaceholderData;
 }
 
-/** What a removal takes: the person's own rows, and the AI requests of the turns picked. */
+/** What a removal takes from the logs: the person's own rows, and the AI requests of the turns picked. */
 function removalOf(entries: readonly TimelineEntry[]) {
   return {
     actions: entries.flatMap((entry) =>
@@ -143,7 +147,7 @@ function removalOf(entries: readonly TimelineEntry[]) {
 
 /** Whether a row can come out of Activity: a permission answered is its chat's rule, which stays. */
 function isRemovable(entry: TimelineEntry) {
-  return entry.kind === "turn" || entry.action.kind !== "permission";
+  return entry.kind !== "action" || entry.action.kind !== "permission";
 }
 
 /**
@@ -278,6 +282,8 @@ export function ActivityPage({
     setLiveSince(until);
   }
 
+  const closed = useClosedTabs();
+  const forgetClosed = useForgetClosed();
   const { entries, waitingOn } = timelineOf({
     actions: {
       complete: isComplete(actions),
@@ -298,6 +304,7 @@ export function ActivityPage({
         timeOf: (request) => request.startedAt,
       }),
     },
+    closed,
     view,
   });
   const shown = entriesShown(entries, { modelName, q, show, words });
@@ -355,8 +362,20 @@ export function ActivityPage({
       },
     }),
   );
+  // A closed tab or group comes off the window's closed list at once; the
+  // rest come out of the logs.
   const removeEntries = (removed: readonly TimelineEntry[]) => {
-    remove.mutate(removalOf(removed.filter(isRemovable)));
+    const taken = removed.filter(isRemovable);
+    forgetClosed(
+      taken.flatMap((entry) => (entry.kind === "closed" ? [entry.closed] : [])),
+    );
+    const logged = taken.filter((entry) => entry.kind !== "closed");
+    if (logged.length > 0) {
+      remove.mutate(removalOf(logged));
+    } else {
+      setChecked(new Set());
+      pick(undefined);
+    }
   };
 
   const preferences = useQuery(
@@ -533,16 +552,6 @@ export function ActivityPage({
             // Days are named from the latest read, which the live reads keep
             // within `LIVE_MS` of the clock while the tab is up.
             items={withDayHeads(shown, new Date(today), displayLocale)}
-            notice={
-              <>
-                {show === undefined && !q && <RecentlyClosed />}
-                <AboutCard
-                  canChatsRead={
-                    preferences.data?.shareActionsWithChats !== false
-                  }
-                />
-              </>
-            }
             loadMore={loadMore}
             onCheck={(entry, on) => {
               setChecked((current) => {
@@ -587,33 +596,6 @@ export function ActivityPage({
 const UNDER_TITLE_WHEN_NARROW =
   "@max-[640px]/activity:order-last @max-[640px]/activity:basis-full";
 
-/**
- * What the history is and who reads it, as a card above the first day:
- * someone can land here from the window's corner without looking for it.
- */
-function AboutCard({ canChatsRead }: { canChatsRead: boolean }) {
-  return (
-    <div className="mb-3 flex items-center gap-3 rounded-xl border border-border bg-card py-2.5 pr-2.5 pl-4">
-      <LockSimpleIcon className="size-4 shrink-0 text-muted-foreground" />
-      <p className="min-w-0 flex-1 text-[13px] leading-5 text-muted-foreground">
-        {canChatsRead
-          ? "Only you can see this history, and it stays on this computer. Chats use it to tell which file or page you're talking about."
-          : "Only you can see this history, and it stays on this computer. Chats can't look at it right now."}
-      </p>
-      <Button
-        className="shrink-0"
-        onClick={() => {
-          openSettings({ tab: "Activity" });
-        }}
-        size="sm"
-        variant="outline"
-      >
-        Settings
-      </Button>
-    </div>
-  );
-}
-
 /** The page's ⋮: what is done with the whole history, and where its settings are. */
 function PageMenu({
   onClear,
@@ -651,8 +633,11 @@ function PageMenu({
   );
 }
 
-/** Where a row opens, if anywhere. */
+/** Where a row opens, if anywhere; a closed tab is restored rather than opened. */
 function targetOf(entry: TimelineEntry): OpenTarget | undefined {
+  if (entry.kind === "closed") {
+    return undefined;
+  }
   return entry.kind === "turn"
     ? turnPlaceOf(entry.turn)
     : placeOf(entry.action);
@@ -669,7 +654,6 @@ function ActivityList({
   hasMore,
   items: listed,
   loadMore,
-  notice,
   onCheck,
   onMoreFrom,
   onPick,
@@ -682,8 +666,6 @@ function ActivityList({
   hasMore: boolean;
   items: TimelineItem[];
   loadMore: () => void;
-  /** What the page says above its first day, scrolled with the days. */
-  notice?: React.ReactNode;
   onCheck: (entry: TimelineEntry, on: boolean) => void;
   onMoreFrom: (q: string) => void;
   onPick: (entry: TimelineEntry | undefined) => void;
@@ -691,11 +673,10 @@ function ActivityList({
   picked: null | string;
 }) {
   const [scroller, setScroller] = useState<HTMLDivElement | null>(null);
-  const items: (TimelineItem | { id: string; kind: "notice" })[] = notice
-    ? [{ id: "notice", kind: "notice" }, ...listed]
-    : listed;
+  const items = listed;
   const modelName = useModelName();
   const gesturesFor = useGesturesFor();
+  const restore = useRestoreClosed();
   const words = { trash: osConventions().trash };
 
   // Measured in layout px: inside the window's CSS `zoom` the default reads
@@ -703,12 +684,7 @@ function ActivityList({
   // oxlint-disable-next-line react/incompatible-library
   const virtualizer = useVirtualizer({
     count: items.length,
-    estimateSize: (index) =>
-      items[index]?.kind === "notice"
-        ? 76
-        : items[index]?.kind === "day"
-          ? 44
-          : 40,
+    estimateSize: (index) => (items[index]?.kind === "day" ? 44 : 40),
     getItemKey: (index) => items[index]?.id ?? index,
     getScrollElement: () => scroller,
     measureElement: (element) =>
@@ -769,7 +745,10 @@ function ActivityList({
     } else if (event.key === "Enter" && at !== -1) {
       const entry = entries[at];
       const target = entry ? targetOf(entry) : undefined;
-      if (target) {
+      if (entry?.kind === "closed") {
+        event.preventDefault();
+        restore(entry.closed);
+      } else if (target) {
         event.preventDefault();
         gesturesFor(target).primary?.run();
       }
@@ -791,6 +770,16 @@ function ActivityList({
     );
     const more = moreFromOf(entry);
     return [
+      ...(entry.kind === "closed"
+        ? [
+            {
+              label: "Restore",
+              run: () => {
+                restore(entry.closed);
+              },
+            },
+          ]
+        : []),
       ...opens.map((destination) => ({
         label: destination.label,
         run: destination.run,
@@ -851,25 +840,12 @@ function ActivityList({
             ref: virtualizer.measureElement,
             style: { transform: `translateY(${virtual.start}px)` },
           };
-          if (item.kind === "notice") {
-            return (
-              <div
-                className="absolute inset-x-0 top-0"
-                key={item.id}
-                {...placed}
-              >
-                {notice}
-              </div>
-            );
-          }
           if (item.kind === "day") {
             return (
               <div
                 className={cn(
                   "absolute inset-x-0 top-0",
-                  virtual.index > 0 &&
-                    items[virtual.index - 1]?.kind !== "notice" &&
-                    "pt-3",
+                  virtual.index > 0 && "pt-3",
                 )}
                 key={item.id}
                 {...placed}
@@ -907,6 +883,10 @@ function ActivityList({
                   }}
                   menu={menuOf(item)}
                   onOpen={({ newTab }) => {
+                    if (item.kind === "closed") {
+                      restore(item.closed);
+                      return;
+                    }
                     if (!target) {
                       return;
                     }

@@ -6,6 +6,7 @@ import {
   FileSystemFolderGlyph,
   FileTypeIcon,
 } from "@/client/components/extend/file-system";
+import { ClosedMark } from "@/client/components/activity/recently-closed";
 import { PageFavicon } from "@/client/components/favicon";
 import { ModelMakerIcon } from "@/client/components/model-maker-icon";
 import { ScreenMark } from "@/client/components/window/app-chip";
@@ -32,7 +33,8 @@ const GLYPH = "size-4 text-foreground/60";
 
 /**
  * The mark a row wears: a page's icon, a file's by its kind, a folder's,
- * the chat's for an AI row, and a plain glyph for the rest. Several
+ * the chat's for an AI row, a closed tab's own or a tab group's stack,
+ * and a plain glyph for the rest. Several
  * files moved or thrown away together wear the move's or the bin's.
  */
 export function EntryIcon({
@@ -46,6 +48,9 @@ export function EntryIcon({
   // stands beside the model's name.
   if (entry.kind === "turn") {
     return <PlaceIcon className={cn(GLYPH, className)} place="chat" />;
+  }
+  if (entry.kind === "closed") {
+    return <ClosedMark className={className} closed={entry.closed} />;
   }
   return <ActionIcon action={entry.action} className={className} />;
 }

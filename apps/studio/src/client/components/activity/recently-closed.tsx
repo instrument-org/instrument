@@ -1,3 +1,4 @@
+import { type ClosedTabs } from "@/client/components/activity/activity-timeline";
 import { useAppsBySlug } from "@/client/components/window/apps-by-slug";
 import { appTabsAtom } from "@/client/components/window/app-tabs";
 import { TabMark } from "@/client/components/window/row-half";
@@ -7,96 +8,107 @@ import {
   closedTabGroupOf,
 } from "@/client/components/window/tab-model";
 import { useTabTitle } from "@/client/components/window/tab-title";
-import { RelativeTime } from "@/client/components/relative-time";
+import { forgetClosed } from "@/client/lib/tabs-model";
+import { cn } from "@/client/lib/utils";
 import { type ChatId } from "@instrument-org/workspace/client";
-import { useAtomValue } from "jotai";
+import { StackIcon } from "@phosphor-icons/react/Stack";
+import { useAtomValue, useStore } from "jotai";
 import { useContext } from "react";
 
 const NO_TITLES = new Map<ChatId, string>();
 
 /**
- * The tabs and tab groups this window closed lately, newest first, from the
- * list Shift+Cmd+T reopens: a card above the first day, a row each, which
- * brings that one back on a press. Nothing shows while the list is empty.
+ * The tabs and tab groups this window closed, from the list Shift+Cmd+T
+ * reopens, each with when it closed, for Activity to list among the rest.
+ * An entry from before closes were timed has no place in time, so it stays
+ * off the list, as does a tab of the window's own strip rather than a group.
  */
-export function RecentlyClosed() {
+export function useClosedTabs(): { at: number; closed: ClosedTabs }[] {
   const shell = useContext(ShellContext);
-  const closed = useAtomValue(appTabsAtom).recentlyClosed;
-  const appsBySlug = useAppsBySlug();
-  const chatTitles = shell?.chatTitles ?? NO_TITLES;
-  const titleOf = useTabTitle(chatTitles);
-  const rows = closed.flatMap((entry) => {
-    const group = closedTabGroupOf(entry);
-    const tab = group?.[0] ?? closedGroupTabOf(entry);
-    return tab ? [{ entry, size: group?.length ?? 0, tab }] : [];
-  });
-  if (!shell || rows.length === 0) {
-    return null;
+  const list = useAtomValue(appTabsAtom).recentlyClosed;
+  const titleOf = useTabTitle(shell?.chatTitles ?? NO_TITLES);
+  if (!shell) {
+    return [];
   }
-  // A group says so, since its row names only its first tab.
-  const kindOf = (size: number) =>
-    size > 1 ? `Tab group of ${size}` : size === 1 ? "Tab group" : undefined;
+  return list.flatMap((entry) => {
+    const group = closedTabGroupOf(entry);
+    const tabs = group ?? [closedGroupTabOf(entry)].filter((tab) => !!tab);
+    if (entry.closedAt === undefined || tabs.length === 0) {
+      return [];
+    }
+    return [
+      {
+        at: entry.closedAt,
+        closed: {
+          id: entry.id,
+          isGroup: group !== undefined,
+          tabs: tabs.map((tab) => ({ tab, title: titleOf(tab) })),
+        },
+      },
+    ];
+  });
+}
+
+/** Brings one closed entry back as it was, the way Shift+Cmd+T would. */
+export function useRestoreClosed() {
+  const shell = useContext(ShellContext);
+  return (closed: ClosedTabs) => {
+    shell?.reopenClosed(closed.id);
+  };
+}
+
+/** A closed row's mark: its tab's own, or a stack for a whole tab group. */
+export function ClosedMark({
+  className,
+  closed,
+}: {
+  className?: string;
+  closed: ClosedTabs;
+}) {
+  const [first] = closed.tabs;
+  if (closed.isGroup || !first) {
+    return <StackIcon className={cn("size-4 text-foreground/60", className)} />;
+  }
+  return <ClosedTabMark tab={first.tab} />;
+}
+
+function ClosedTabMark({ tab }: { tab: ClosedTabs["tabs"][number]["tab"] }) {
+  const shell = useContext(ShellContext);
+  const appsBySlug = useAppsBySlug();
   return (
-    <section
-      aria-label="Recently closed"
-      className="mb-3 rounded-xl border border-border bg-card p-1.5"
-    >
-      <h2 className="px-2.5 pt-1 pb-1.5 text-xs font-medium text-muted-foreground">
-        Recently closed
-      </h2>
-      {rows.map(({ entry, size, tab }) => (
-        <ClosedRow
-          closedAt={entry.closedAt}
-          kind={kindOf(size)}
-          key={entry.id}
-          mark={
-            <TabMark
-              appsBySlug={appsBySlug}
-              chatTitles={chatTitles}
-              tab={tab}
-            />
-          }
-          onReopen={() => {
-            shell.reopenClosed(entry.id);
-          }}
-          title={titleOf(tab)}
-        />
-      ))}
-    </section>
+    <TabMark
+      appsBySlug={appsBySlug}
+      chatTitles={shell?.chatTitles ?? NO_TITLES}
+      tab={tab}
+    />
   );
 }
 
-function ClosedRow({
-  closedAt,
-  kind,
-  mark,
-  onReopen,
-  title,
-}: {
-  closedAt: number | undefined;
-  kind: string | undefined;
-  mark: React.ReactNode;
-  onReopen: () => void;
-  title: string;
-}) {
+/** The tabs a closed entry had, a line each with its mark and title, in their order. */
+export function ClosedTabRows({ closed }: { closed: ClosedTabs }) {
   return (
-    <button
-      className="flex h-9 w-full min-w-0 items-center gap-2.5 rounded-lg px-2.5 text-left text-[13px] hover:bg-foreground/5"
-      onClick={onReopen}
-      type="button"
-    >
-      {mark}
-      <span className="min-w-0 truncate font-medium text-foreground/85">
-        {title}
-      </span>
-      {kind && <span className="shrink-0 text-muted-foreground">{kind}</span>}
-      {closedAt !== undefined && (
-        <RelativeTime
-          className="shrink-0 text-muted-foreground"
-          date={new Date(closedAt)}
-          tooltip={false}
-        />
-      )}
-    </button>
+    <ul className="flex flex-col">
+      {closed.tabs.map(({ tab, title }) => (
+        <li
+          className="flex h-8 min-w-0 items-center gap-2.5 px-1 text-sm"
+          key={tab.id}
+        >
+          <span className="grid size-4 shrink-0 place-items-center">
+            <ClosedTabMark tab={tab} />
+          </span>
+          <span className="min-w-0 truncate">{title}</span>
+        </li>
+      ))}
+    </ul>
   );
+}
+
+/** Takes closed entries off the list, so neither Activity nor Shift+Cmd+T brings them back. */
+export function useForgetClosed() {
+  const store = useStore();
+  return (closed: readonly ClosedTabs[]) => {
+    for (const { id } of closed) {
+      store.set(appTabsAtom, (current) => forgetClosed(current, { id }));
+    }
+  };
 }

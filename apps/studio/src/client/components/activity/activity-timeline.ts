@@ -1,5 +1,5 @@
 import { folderOf, nameOf } from "@/client/components/window/host-path";
-import { APPS_HREF } from "@/client/atoms/window";
+import { APPS_HREF, type WindowTab } from "@/client/atoms/window";
 import {
   chatHref,
   LINK_ADDRESSES,
@@ -10,6 +10,7 @@ import { isWebPage, type OpenTarget } from "@/client/lib/open-target";
 // Types alone: the client opens its channel to the main process on import.
 import type { RPCInput, RPCOutput } from "@/client/rpc/client";
 import { fileHref, folderHref } from "@/shared/computer-href";
+import { type TabId } from "@/shared/tabs";
 import { APP_NAME } from "@instrument-org/shared";
 import { ChatIdSchema, gatherTurns } from "@instrument-org/workspace/client";
 
@@ -43,8 +44,19 @@ export type Turn = {
   requests: ActivityRequest[];
 };
 
+/**
+ * A tab or a whole tab group the window closed, from the list Shift+Cmd+T
+ * reopens, by that list's id, with its tabs as they were and their titles.
+ */
+export type ClosedTabs = {
+  id: TabId;
+  isGroup: boolean;
+  tabs: readonly { tab: WindowTab; title: string }[];
+};
+
 export type TimelineEntry =
   | { action: ShownAction; at: number; id: string; kind: "action" }
+  | { at: number; closed: ClosedTabs; id: string; kind: "closed" }
   | { at: number; id: string; kind: "turn"; turn: Turn };
 
 export type TimelineItem =
@@ -82,14 +94,18 @@ function isShown(action: PersonAction): action is ShownAction {
  * stop it there are the ones to read next.
  *
  * The requests gather into turns by `gatherTurns`, the rule
- * `instrument activity` reads them by too.
+ * `instrument activity` reads them by too. The tabs and groups closed go
+ * in among the person's own rows by when they closed, as far back as the
+ * logs have loaded.
  */
 export function timelineOf({
   actions,
+  closed = [],
   requests,
   view,
 }: {
   actions: Loaded<PersonAction>;
+  closed?: readonly { at: number; closed: ClosedTabs }[];
   requests: Loaded<ActivityRequest>;
   view: ActivityView;
 }): { entries: TimelineEntry[]; waitingOn: Source[] } {
@@ -124,7 +140,7 @@ export function timelineOf({
     ),
   ].toSorted((a, b) => b.at - a.at);
 
-  const entries = gatherTurns(merged).map((entry): TimelineEntry => {
+  const gathered = gatherTurns(merged).map((entry): TimelineEntry => {
     if (entry.kind === "action") {
       return { ...entry.action, at: entry.at, kind: "action" };
     }
@@ -136,6 +152,24 @@ export function timelineOf({
       turn: { id, requests: entry.requests },
     };
   });
+  const entries =
+    view === "ai"
+      ? gathered
+      : [
+          ...gathered,
+          ...closed.flatMap((each): TimelineEntry[] =>
+            each.at >= shownFrom
+              ? [
+                  {
+                    at: each.at,
+                    closed: each.closed,
+                    id: `closed:${each.closed.id}`,
+                    kind: "closed",
+                  },
+                ]
+              : [],
+          ),
+        ].toSorted((a, b) => b.at - a.at);
 
   const waitingOn = (["actions", "requests"] as const).filter(
     (source) => reach[source] !== -Infinity && reach[source] === shownFrom,
@@ -352,12 +386,13 @@ export function actionText(action: ShownAction, words: Words): RowText {
 }
 
 /** Which of the page's filters a row shows under, past All: none for the rest. */
-export type Show = "ai" | "chats" | "files" | "pages";
+export type Show = "ai" | "chats" | "files" | "pages" | "tabs";
 
 export const SHOWS = [
   "pages",
   "files",
   "chats",
+  "tabs",
   "ai",
 ] as const satisfies Show[];
 
@@ -367,7 +402,19 @@ export const SHOW_LABELS: Record<Show, { label: string; title: string }> = {
   chats: { label: "Chats", title: "Chats you opened" },
   files: { label: "Files", title: "Files and folders you opened or changed" },
   pages: { label: "Pages", title: "Pages you visited in the browser" },
+  tabs: { label: "Tabs", title: "Tabs and tab groups you closed" },
 };
+
+/** What a closed tab's or tab group's row says: the first tab's title, and what closed. */
+export function closedText(closed: ClosedTabs): RowText {
+  const count = closed.tabs.length;
+  return {
+    context: closed.isGroup
+      ? `Closed tab group · ${count} ${count === 1 ? "tab" : "tabs"}`
+      : "Closed tab",
+    title: closed.tabs[0]?.title ?? "",
+  };
+}
 
 /** What a row says, whichever log it is from. */
 export function entryText(
@@ -377,6 +424,9 @@ export function entryText(
     words,
   }: { modelName: (id: null | string) => string; words: Words },
 ): RowText {
+  if (entry.kind === "closed") {
+    return closedText(entry.closed);
+  }
   return entry.kind === "turn"
     ? turnText(entry.turn, modelName)
     : actionText(entry.action, words);
@@ -386,6 +436,9 @@ export function entryText(
 function showOf(entry: TimelineEntry): Show | undefined {
   if (entry.kind === "turn") {
     return "ai";
+  }
+  if (entry.kind === "closed") {
+    return "tabs";
   }
   switch (entry.action.kind) {
     case "page": {
@@ -486,7 +539,15 @@ export function entriesShown(
       return true;
     }
     const haystack = (
-      entry.kind === "turn"
+      entry.kind === "closed"
+        ? [
+            closedText(entry.closed).context,
+            ...entry.closed.tabs.flatMap(({ tab, title }) => [
+              title,
+              tab.kind === "page" ? (tab.url ?? "") : "",
+            ]),
+          ]
+        : entry.kind === "turn"
         ? [
             ...Object.values(turnText(entry.turn, modelName)),
             ...entry.turn.requests.flatMap((request) => [
@@ -512,6 +573,9 @@ export function moreFromOf(
   if (entry.kind === "turn") {
     const title = leadOf(entry.turn)?.chatTitle;
     return title ? { label: title, q: title } : undefined;
+  }
+  if (entry.kind === "closed") {
+    return undefined;
   }
   const { action } = entry;
   switch (action.kind) {

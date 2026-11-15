@@ -23,6 +23,7 @@ import { withoutPathQuotes } from "@/client/lib/path-text";
 import { formatAbsoluteTime } from "@/client/lib/relative-time";
 import { cn } from "@/client/lib/utils";
 import { type ChatId } from "@instrument-org/workspace/client";
+import { chatAddressOf } from "@instrument-org/shared";
 import { PencilSimpleIcon } from "@phosphor-icons/react/PencilSimple";
 import { PictureInPictureIcon } from "@phosphor-icons/react/PictureInPicture";
 import { PlusIcon } from "@phosphor-icons/react/Plus";
@@ -41,6 +42,7 @@ import { chatMenuGroups } from "./chat-actions";
 import { type RowDensity } from "./chat-list-view";
 import { ChatMarkDot } from "./chat-mark";
 import { ChatTitleField } from "./chat-title";
+import { pressLink } from "./drag/use-bookmarks-drag";
 import {
   activityLabel,
   type Chat,
@@ -293,6 +295,15 @@ export function ChatRow({
           )}
           data-open={isOpen || undefined}
           {...clicks}
+          // Dragged, the row is the chat's address, for the bookmarks bar.
+          onPointerDown={(event) => {
+            if (!rename.isEditing) {
+              pressLink(event, {
+                title: chat.title,
+                url: chatAddressOf(chat.id),
+              });
+            }
+          }}
           onKeyDown={(event) => {
             if (event.key === "Enter" && event.target === event.currentTarget) {
               onOpen();

@@ -88,7 +88,10 @@ export function keptAs(
     case "files": {
       return (held.files ?? []).map((file, index) =>
         keptAt(
-          { id: held.ids[index] ?? `${STANDING_ID}${String(index)}`, ...fileKept(file) },
+          {
+            id: held.ids[index] ?? `${STANDING_ID}${String(index)}`,
+            ...fileKept(file),
+          },
           bookmarks,
         ),
       );
@@ -255,6 +258,26 @@ export function pressBookmark(
         title: bookmark.title,
         url: bookmark.url,
       },
+    };
+  });
+}
+
+/**
+ * A press on something the app lists by its address, a chat's row among
+ * them, which past the start becomes a link held, for the bookmarks bar to
+ * keep; a press that goes nowhere stays a click.
+ */
+export function pressLink(
+  event: React.PointerEvent<HTMLElement>,
+  link: { title: string; url: string },
+) {
+  const element = event.currentTarget;
+  const pressedAt = { x: event.clientX, y: event.clientY };
+  pressToDrag(event, () => {
+    const bounds = element.getBoundingClientRect();
+    return {
+      grab: { x: pressedAt.x - bounds.left, y: pressedAt.y - bounds.top },
+      held: { id: STANDING_ID, kind: "link", ...link },
     };
   });
 }

@@ -29,7 +29,8 @@ import {
 import { type Draft } from "@/shared/drafts";
 import { cn, osConventions } from "@/client/lib/utils";
 import { addressInMessage } from "@/client/lib/address-in-message";
-import { PageFavicon } from "@/client/components/favicon";
+import { targetOfAddress } from "@/client/bookmarks/address";
+import { hrefOfTarget } from "@/client/bookmarks/open-address";
 import { Kbd } from "@/client/components/ui/kbd";
 import { APP_NAME } from "@instrument-org/shared";
 import { useRouter } from "@tanstack/react-router";
@@ -50,7 +51,10 @@ import { ProjectMark } from "./project-mark";
 import { projectTint } from "./project-tint";
 import { includedItemsOf } from "./draft-context";
 import { useShell } from "./shell-context";
+import { AddressMark } from "./app-chip";
+import { useAppsBySlug } from "./apps-by-slug";
 import { useGroupTab } from "./group-tab";
+import { screenPresentation, type ScreenNames } from "./screen-presentation";
 import { useComposerAsks } from "./staged-asks";
 import { useDraftProjectSuggestion } from "./use-draft-project-suggestion";
 import { newChatHref } from "./window-href";
@@ -240,17 +244,37 @@ export function NewChatView({
     });
     onOpenBeside(opened);
   };
-  // A message that is one web address offers to go there: Enter goes in
-  // this tab, where Back comes back to these words, and the command key
-  // with Enter (or Send) sends it to the chat as it is.
+  // A message that is one address offers to go there: Enter goes in this
+  // tab, where Back comes back to these words, and the command key with
+  // Enter (or Send) sends it to the chat as it is. An address of the app's
+  // own goes by the name of what it opens.
   const groupTab = useGroupTab();
+  const appsBySlug = useAppsBySlug();
   const { keyJoiner, modifierKeys } = osConventions();
   const commandEnter = [modifierKeys.command, "↵"].join(keyJoiner);
   const [words, setWords] = useState("");
   const address = groupTab ? addressInMessage(words) : undefined;
+  const goTo = address && {
+    address: address.kind === "page" ? address.url : address.address,
+    shown:
+      address.kind === "page"
+        ? address.shown
+        : appAddressName(address.address, {
+            appsBySlug,
+            chatTitles: shell.chatTitles,
+          }),
+  };
+  // In this tab whatever it opens, a chat included, as sending turns a new
+  // tab into its chat in place.
   const goToAddress = () => {
-    if (address && groupTab) {
-      groupTab.showPage(address.url);
+    const target = goTo && targetOfAddress(goTo.address);
+    if (!target) {
+      return;
+    }
+    if (target.kind === "page") {
+      groupTab?.showPage(target.url);
+    } else {
+      windowTabs.visitHref(tabId, hrefOfTarget(target));
     }
   };
   const places = {
@@ -362,7 +386,7 @@ export function NewChatView({
         />
         {/* Under the box without moving it, so the box stays where it was
             as the row comes and goes; over it for a box at the foot. */}
-        {address && (
+        {goTo && (
           <button
             className={cn(
               "absolute inset-x-3 flex h-10 items-center gap-2.5 rounded-xl bg-card px-3 text-left text-sm shadow-xs ring-1 ring-foreground/6 hover:bg-accent",
@@ -372,13 +396,11 @@ export function NewChatView({
             onClick={goToAddress}
             type="button"
           >
-            <PageFavicon
-              className="size-4 shrink-0"
-              hasTooltip={false}
-              url={address.url}
-            />
+            <span className="grid size-4 shrink-0 place-items-center">
+              <AddressMark address={goTo.address} className="size-4" />
+            </span>
             <span className="min-w-0 flex-1 truncate">
-              Go to <span className="font-medium">{address.shown}</span>
+              Go to <span className="font-medium">{goTo.shown}</span>
             </span>
             <Kbd>↵</Kbd>
           </button>
@@ -460,4 +482,12 @@ function ProjectSuggestion({ draft }: { draft: Draft }) {
     words: draft.words,
   });
   return null;
+}
+
+/** What an address of the app's own opens, named as its tab would be: a chat's title, a page's name. */
+function appAddressName(address: string, names: ScreenNames): string {
+  const target = targetOfAddress(address);
+  return target && target.kind !== "page"
+    ? screenPresentation(hrefOfTarget(target), names).title
+    : address;
 }

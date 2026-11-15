@@ -93,6 +93,7 @@ import {
   pendingPrompt,
   unsettledPrompts,
 } from "./pending-prompts";
+import { TURN_GAP } from "../transcript/card-motion";
 import { FoldsOpenedByFind } from "../transcript/folds-opened-by-find";
 import { ChatFind } from "./chat-find";
 import { ScrollToEndBridge } from "./scroll-to-end-bridge";
@@ -735,12 +736,13 @@ export function ChatConversation({
               >
                 <MessageScrollerContent
                   className={cn(
-                    "mx-auto w-full max-w-3xl gap-4 p-4 pb-8 [--transcript-room:100cqi]",
+                    "mx-auto w-full max-w-3xl p-4 pb-8 [--transcript-room:100cqi]",
                     // Room for the find card over the top of the transcript,
                     // so the chat's first lines can be read below it.
                     isFindOpen && "pt-15",
                   )}
                   ref={contentRef}
+                  style={{ gap: TURN_GAP }}
                 >
                   {sentPrompt !== undefined && messages.length === 0 ? (
                     <SentPrompt

@@ -16,6 +16,12 @@ export const FOLD_TRANSITION = {
 export const ROW_GAP = 8;
 
 /**
+ * The gap between turns in a chat's transcript. A turn that carries on the one
+ * above sits at `ROW_GAP` instead.
+ */
+export const TURN_GAP = 16;
+
+/**
  * How long after the card went a card coming back takes its place at once: a
  * card that flickers out and back for a render or two would otherwise open from
  * nothing again.

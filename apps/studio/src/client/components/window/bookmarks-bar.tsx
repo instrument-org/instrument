@@ -15,6 +15,7 @@ import {
 } from "@/client/components/ui/dropdown-menu";
 import { noteTypedPage } from "@/client/hooks/use-browser-history";
 import { filesHrefAtom } from "@/client/atoms/window";
+import { BAR_MOTION } from "@/client/lib/motion";
 import { cn } from "@/client/lib/utils";
 import { folderHref } from "@/shared/computer-href";
 import { FileSystemFolderGlyph } from "@/client/components/extend/file-system";
@@ -23,6 +24,7 @@ import { CaretDoubleRightIcon } from "@phosphor-icons/react/CaretDoubleRight";
 import { CaretDownIcon } from "@phosphor-icons/react/CaretDown";
 import { StarIcon } from "@phosphor-icons/react/Star";
 import { useAtomValue } from "jotai";
+import { AnimatePresence, motion, useReducedMotion } from "motion/react";
 import { useLayoutEffect, useRef, useState } from "react";
 
 import { AddressMark } from "./app-chip";
@@ -54,10 +56,28 @@ import { BookmarkNameField, bookmarkName, useBookmarkEdits } from "./web-start";
  * A bookmark dragged along the bar moves there, a tab dragged onto it is
  * kept there, and either stands where it would be while it is held. A right
  * click on the bar itself offers to hide it; hidden, it is not drawn in any
- * tab of any window, and nothing can be dropped onto it.
+ * tab of any window, and nothing can be dropped onto it. Shown or hidden
+ * while a tab is open, it grows in or folds away and fades (`BAR_MOTION`),
+ * the page under it moving with it; a tab opening draws it as it stands.
  */
 export function BookmarksBar(props: BarProps) {
-  return useShowsBookmarksBar() ? <Bar {...props} /> : null;
+  const isShown = useShowsBookmarksBar();
+  const isReduced = useReducedMotion() === true;
+  return (
+    <AnimatePresence initial={false}>
+      {isShown && (
+        <motion.div
+          animate={{ height: "auto", opacity: 1 }}
+          className="shrink-0 overflow-hidden"
+          exit={{ height: 0, opacity: 0 }}
+          initial={{ height: 0, opacity: 0 }}
+          transition={isReduced ? { duration: 0 } : BAR_MOTION}
+        >
+          <Bar {...props} />
+        </motion.div>
+      )}
+    </AnimatePresence>
+  );
 }
 
 type BarProps = {

@@ -39,3 +39,13 @@ export const SIDE_MOTION: Transition = {
   duration: 0.38,
   ease: [0.2, 0, 0, 1],
 };
+
+/**
+ * How a bar in a tab's head shows and hides, the bookmarks bar under the
+ * toolbar: the side's curve, quicker, since the bar is one row and the page
+ * under it only has to be seen moving down or up.
+ */
+export const BAR_MOTION: Transition = {
+  duration: 0.2,
+  ease: [0.2, 0, 0, 1],
+};

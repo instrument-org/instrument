@@ -44,7 +44,7 @@ const CHAT: WindowTab = {
 
 const TABS: LayoutTab[] = [
   {
-    address: PAGE.kind === "page" ? PAGE.url : "",
+    address: PAGE.kind === "page" ? (PAGE.url ?? "") : "",
     id: PAGE.id,
     kind: "website",
     title: "Help desk software",

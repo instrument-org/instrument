@@ -12,7 +12,6 @@ import {
   removeDraftAtom,
 } from "@/client/drafts/store";
 import { type Draft, draftGroupOf, isLeftEmpty } from "@/shared/drafts";
-import { chatFiltersAtom } from "@/client/atoms/window";
 import { type useDefaultModelURI } from "@/client/hooks/use-default-model-uri";
 import { holdSendsUntilOpened } from "@/client/lib/message-sends";
 import { rpcClient } from "@/client/rpc/client";
@@ -37,7 +36,7 @@ import { type DraftSend } from "./compose-window";
 import { asksPart, stagedAsksAtom, useStagedAskActions } from "./staged-asks";
 import { type useCompose } from "./use-compose";
 import { isHomeTab } from "./tab-model";
-import { type useWindowTabs } from "./window-tabs";
+import { chatFiltersUpAtom, type useWindowTabs } from "./window-tabs";
 import { getGroupTabRouter } from "@/client/lib/group-tab-router-registry";
 import { chatHref, newChatHref } from "./window-href";
 
@@ -104,7 +103,7 @@ export function useDrafts({
   const releaseDraft = useSetAtom(releaseDraftAtom);
   const draftSent = useSetAtom(draftSentAtom);
   const setDraftSnapshots = useSetAtom(draftSnapshotsAtom);
-  const chatFilters = useAtomValue(chatFiltersAtom);
+  const chatFilters = useAtomValue(chatFiltersUpAtom);
   const queryClient = useQueryClient();
   const stagedAsks = useAtomValue(stagedAsksAtom);
   const { remove: removeAsks, returnTo: returnAsks } = useStagedAskActions();

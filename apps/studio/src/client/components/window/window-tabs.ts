@@ -1,5 +1,9 @@
-import { type BrowserTab, type WindowTab } from "@/client/atoms/window";
-import { atom, useAtomValue, useSetAtom } from "jotai";
+import {
+  type BrowserTab,
+  tabChatFiltersAtom,
+  type WindowTab,
+} from "@/client/atoms/window";
+import { atom, type SetStateAction, useAtomValue, useSetAtom } from "jotai";
 import { z } from "zod";
 
 import { getGroupTabRouter } from "@/client/lib/group-tab-router-registry";
@@ -14,6 +18,7 @@ import { workingTabOf } from "@/shared/working-tab";
 import { type ChatId, StoreId } from "@instrument-org/workspace/client";
 
 import { appTabsAtom, groupOfHref } from "./app-tabs";
+import { type ChatFilters, NO_FILTERS } from "./chats";
 import {
   type BesideAsk,
   openBesideChat,
@@ -212,6 +217,24 @@ export const groupOnScreenAtom = atom((get) => {
   const tab = model.tabs.find((entry) => entry.id === model.selectedId);
   return tab ? groupOfHref(tab.pathname) : undefined;
 });
+
+/**
+ * What the chat list of the tab up in the group on screen is narrowed to,
+ * and narrowing it: for what acts on the tab in front rather than from
+ * inside one. Nothing, with no group on screen.
+ */
+export const chatFiltersUpAtom = atom(
+  (get) => {
+    const up = selectedTabIn(get(windowTabsAtom), get(groupOnScreenAtom));
+    return up ? get(tabChatFiltersAtom(up.id)) : NO_FILTERS;
+  },
+  (get, set, update: SetStateAction<ChatFilters>) => {
+    const up = selectedTabIn(get(windowTabsAtom), get(groupOnScreenAtom));
+    if (up) {
+      set(tabChatFiltersAtom(up.id), update);
+    }
+  },
+);
 
 /** Every tab id the window holds, past and future visits included, so nothing is opened twice. */
 export const everyTabIdAtom = atom((get) => everyTabId(get(storedTabsAtom)));

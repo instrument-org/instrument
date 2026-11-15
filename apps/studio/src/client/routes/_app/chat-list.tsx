@@ -1,4 +1,4 @@
-import { chatFiltersAtom } from "@/client/atoms/window";
+import { tabChatFiltersAtom } from "@/client/atoms/window";
 import { NO_FILTERS } from "@/client/components/window/chats";
 import { GroupNewChatScreen } from "@/client/components/window/chat-tab-screens";
 import { useGroupTab } from "@/client/components/window/group-tab";
@@ -12,8 +12,9 @@ import { z } from "zod";
  * them, beside a new chat's zero state, the index Chat's chip goes to. A
  * chat picked from the list takes the zero state's place in this tab, and
  * a message sent from it starts its chat here. An address naming a project stands
- * the list in it, as a project's All chats opens it, and one naming words
- * searches for them, as the address field's search row opens it.
+ * the list in it, as a project's All chats opens it, one naming a place
+ * stands it there, as Drafts opens it, and one naming words searches for
+ * them, as the address field's search row opens it.
  */
 export const Route = createFileRoute("/_app/chat-list")({
   component: ChatListRoute,
@@ -23,6 +24,8 @@ export const Route = createFileRoute("/_app/chat-list")({
   validateSearch: z.object({
     /** The project the list stands in. */
     project: z.string().optional().catch(undefined),
+    /** The place the list stands in, when not the inbox. */
+    place: z.enum(["archived", "drafts"]).optional().catch(undefined),
     /** Words every chat shown has in it. */
     q: z.coerce.string().optional().catch(undefined),
   }),
@@ -30,18 +33,19 @@ export const Route = createFileRoute("/_app/chat-list")({
 
 function ChatListRoute() {
   const groupTab = useGroupTab();
-  const { project, q } = Route.useSearch();
-  const setFilters = useSetAtom(chatFiltersAtom);
+  const { place, project, q } = Route.useSearch();
+  const setFilters = useSetAtom(tabChatFiltersAtom(groupTab?.id ?? ""));
   useEffect(() => {
-    if (project === undefined && q === undefined) {
+    if (place === undefined && project === undefined && q === undefined) {
       return;
     }
     setFilters({
       ...NO_FILTERS,
+      ...(place === undefined ? {} : { place }),
       ...(project === undefined ? {} : { projects: [project] }),
       ...(q === undefined ? {} : { search: q }),
     });
-  }, [project, q, setFilters]);
+  }, [place, project, q, setFilters]);
   // The screen lays itself over the whole of its box, as a chat's does.
   return groupTab ? (
     <div className="relative h-full">

@@ -11,21 +11,36 @@ import {
   type ChatId,
   type SessionMessageDataPart,
 } from "@instrument-org/workspace/client";
-import { atom } from "jotai";
+import { atom, type SetStateAction } from "jotai";
+import { atomFamily } from "jotai/utils";
 
 import { keptAtom } from "@/client/lib/kept-state";
 import { folderHref } from "@/shared/computer-href";
 
 /**
- * What the chat column is narrowed to.
- *
- * Here rather than in the pane that reads it, because anything that opens a
- * brand new chat has to put the list back where that chat is visible: a
- * column standing in a project or a place is a column the new chat is very
- * likely not in, and a button that appears to do nothing is a button someone
- * presses again.
+ * What each tab's chat list is narrowed to, by the tab's id: its project,
+ * its place, its search and its marks. A tab not named here lists every
+ * chat, so a new tab's list opens in the inbox whatever another tab's
+ * stands in.
  */
-export const chatFiltersAtom = atom<ChatFilters>(NO_FILTERS);
+export const chatFiltersByTabAtom = atom<
+  Readonly<Partial<Record<string, ChatFilters>>>
+>({});
+
+/** What one tab's chat list is narrowed to, and narrowing it. */
+export const tabChatFiltersAtom = atomFamily((tabId: string) =>
+  atom(
+    (get) => get(chatFiltersByTabAtom)[tabId] ?? NO_FILTERS,
+    (get, set, update: SetStateAction<ChatFilters>) => {
+      const byTab = get(chatFiltersByTabAtom);
+      const next =
+        typeof update === "function"
+          ? update(byTab[tabId] ?? NO_FILTERS)
+          : update;
+      set(chatFiltersByTabAtom, { ...byTab, [tabId]: next });
+    },
+  ),
+);
 
 /** The files cut in this window, by host path: a paste of exactly these moves them. */
 export const filesCutAtom = atom<readonly string[]>([]);

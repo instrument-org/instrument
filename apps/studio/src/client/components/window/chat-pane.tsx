@@ -1,6 +1,6 @@
 import { type Draft } from "@/shared/drafts";
 import { openProjectDetails } from "@/client/atoms/project-details-modal";
-import { chatFiltersAtom } from "@/client/atoms/window";
+import { tabChatFiltersAtom } from "@/client/atoms/window";
 import { cn } from "@/client/lib/utils";
 import { rpcClient } from "@/client/rpc/client";
 import { type ChatId } from "@instrument-org/workspace/client";
@@ -26,6 +26,7 @@ import {
   type Project,
 } from "./chats";
 import { FilterHead } from "./filter-head";
+import { useGroupTab } from "./group-tab";
 import { DeleteChatDialog } from "./delete-chat-dialog";
 import { ProjectDialog } from "./project-dialog";
 import { ProjectBanner } from "./project-banner";
@@ -105,7 +106,11 @@ export function ChatPane({
   );
   const setChatProject = useSetChatProject();
 
-  const [filters, setFilters] = useAtom(chatFiltersAtom);
+  // The list's filters are its tab's, so each tab's list stands where it
+  // was left.
+  const [filters, setFilters] = useAtom(
+    tabChatFiltersAtom(useGroupTab()?.id ?? ""),
+  );
   /** The list standing in one project, under its own head, in its tint. */
   const enterProject = (projectId: string) => {
     setFilters({ ...NO_FILTERS, projects: [projectId] });

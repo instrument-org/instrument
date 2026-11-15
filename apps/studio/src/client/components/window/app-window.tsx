@@ -18,7 +18,7 @@ import {
 import { type Draft, draftGroupOf, holdsSomething } from "@/shared/drafts";
 import {
   type AppPlace,
-  chatFiltersAtom,
+  chatFiltersByTabAtom,
   filesFolderAtom,
   NEW_TAB_HREF,
   type WindowTab,
@@ -122,7 +122,7 @@ import { useAppsBySlug } from "./apps-by-slug";
 import { editField } from "./omnibar-field";
 import { BrowserTabs, type BrowserTabsHandle } from "./browser-tabs";
 import { chatListOptions, chromeOfChats } from "./chat-list-query";
-import { inPlace } from "./chats";
+import { type ChatFilters, inPlace } from "./chats";
 import { ComposeLayer } from "./compose-layer";
 import { useComputerVolumes } from "./computer-volumes";
 import { type WindowContextValue as Screens, WindowContext } from "./context";
@@ -189,6 +189,7 @@ import {
   sameHref,
 } from "./window-href";
 import {
+  chatFiltersUpAtom,
   groupOnScreenAtom,
   newScreenId,
   useWindowTabs,
@@ -640,7 +641,7 @@ function WindowShell({
   const updateDraft = useSetAtom(updateDraftAtom);
   const removeDraft = useSetAtom(removeDraftAtom);
   const setFilesFolder = useSetAtom(filesFolderAtom);
-  const [chatFilters, setChatFilters] = useAtom(chatFiltersAtom);
+  const [chatFilters, setChatFilters] = useAtom(chatFiltersUpAtom);
   const pickNewChatProject = useSetAtom(pickNewChatProjectAtom);
   const sendContextRef = useRef<Shell["sendContext"]>(() =>
     Promise.resolve(undefined),
@@ -1177,8 +1178,9 @@ function WindowShell({
       appTabs.navigate(newChatHref());
     },
     openDrafts: () => {
-      setChatFilters((current) => inPlace(current, "drafts"));
-      openBuiltInPage(CHATS_INDEX_HREF);
+      openBuiltInPage(
+        `${CHATS_INDEX_HREF}?${new URLSearchParams({ place: "drafts" }).toString()}`,
+      );
     },
     saveDefaultModelURI,
     projects,
@@ -1241,23 +1243,30 @@ function WindowShell({
       setChatFilters((current) => inPlace(current, undefined));
     }
   }, [isChatOutsideProject, setChatFilters]);
-  // However the list leaves a project (its Inbox, a chat from elsewhere,
-  // the project deleted), a new chat in any tab that the project filed and
-  // that has nothing written yet stops being filed under it.
-  const lastStanding = useRef(standingProject);
+  // However a tab's list leaves a project (its Inbox, a chat from
+  // elsewhere, the project deleted), that tab's new chat, filed by the
+  // project and with nothing written yet, stops being filed under it.
+  const filtersByTab = useAtomValue(chatFiltersByTabAtom);
+  const lastFilters = useRef(filtersByTab);
   useEffect(() => {
-    const left = lastStanding.current;
-    lastStanding.current = standingProject;
-    if (left === undefined || left === standingProject) {
-      return;
-    }
+    const before = lastFilters.current;
+    lastFilters.current = filtersByTab;
+    const standingIn = (filters: ChatFilters | undefined) =>
+      filters?.projects.length === 1 ? filters.projects[0] : undefined;
     const boxes = store.get(newChatBoxesAtom);
-    for (const [tabId, box] of Object.entries(boxes)) {
-      if (box?.projectId === left && box.draftId === null) {
+    for (const [tabId, filters] of Object.entries(before)) {
+      const left = standingIn(filters);
+      const box = boxes[tabId];
+      if (
+        left !== undefined &&
+        left !== standingIn(filtersByTab[tabId]) &&
+        box?.projectId === left &&
+        box.draftId === null
+      ) {
         pickNewChatProject({ projectId: undefined, tabId });
       }
     }
-  }, [pickNewChatProject, standingProject, store]);
+  }, [filtersByTab, pickNewChatProject, store]);
   /**
    * The tab up to one of the places, from their chords, the command menu or
    * a place's mark in the address row. Chat is the chat of the tab group up:

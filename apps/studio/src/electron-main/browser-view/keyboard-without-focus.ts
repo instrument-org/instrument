@@ -26,10 +26,10 @@ import { ARM_SOURCE, FOCUSED_FRAME_OWNER } from "./typing-page-scripts";
 // the caller's focus-taking path.
 
 /**
- * The isolated world the check, its listeners and the caller's focus probe run
- * in: the page's own scripts cannot see or redefine what runs there.
+ * The isolated world the check and its listeners run in: the page's own
+ * scripts cannot see or redefine what runs there.
  */
-export const TYPING_WORLD = 1078;
+const TYPING_WORLD = 1078;
 // How many frames in processes of their own, one inside the next, focus is
 // followed through.
 const MAX_FRAME_DEPTH = 4;

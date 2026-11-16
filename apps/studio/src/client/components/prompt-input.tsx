@@ -75,7 +75,8 @@ import { PaperclipIcon } from "@phosphor-icons/react/Paperclip";
 import { ChatTextIcon } from "@phosphor-icons/react/ChatText";
 import { useQuery } from "@tanstack/react-query";
 import { useAtom, useAtomValue, useSetAtom } from "jotai";
-import { AnimatePresence } from "motion/react";
+import { AnimatePresence, motion } from "motion/react";
+import { BLOCK_CLOSE, BLOCK_OPEN } from "@/client/lib/motion";
 import {
   Fragment,
   useEffect,
@@ -210,7 +211,7 @@ interface PromptInputProps {
   /**
    * The chat's note about the account its model runs on, drawn above the box,
    * outside it, while the model has no problem or the note says the next turn
-   * can't run; the model's own row stays inside the box. A model problem, or a
+   * can't run; the model's own note docks under it. A model problem, or a
    * note that says it holds sends, holds a send and flashes the note.
    */
   note?: ChatNote;
@@ -501,8 +502,8 @@ export const PromptInput = ({
     />
   );
   // The chat's note over the box, unless the model has a problem to fix
-  // first: the model's row says that inside the box, and only a note that
-  // the next turn can't run outranks it.
+  // first: the model's note says that, and only a chat note that the next
+  // turn can't run shows beside it.
   const isModelProblem = modelNotice?.tone === "problem";
   const chatNote =
     note && (note.rank === "stop" || !isModelProblem)
@@ -1026,11 +1027,28 @@ export const PromptInput = ({
       className={cn("relative flex flex-col", className)}
       data-keyboard-home={keyboardHome ? "1" : undefined}
     >
-      {chatNote && (
-        <div className="mb-2" data-slot="reply-note-slot">
-          {chatNote}
-        </div>
-      )}
+      {/* Notes dock over the box, never inside it: the chat's note, then the
+          model's, nearest the words it holds back. */}
+      <AnimatePresence initial={false}>
+        {(chatNote || noticeRow) && (
+          <motion.div
+            animate={{ height: "auto", opacity: 1 }}
+            className="shrink-0 overflow-hidden"
+            exit={{ height: 0, opacity: 0, transition: BLOCK_CLOSE }}
+            initial={{ height: 0, opacity: 0 }}
+            key="notes"
+            transition={BLOCK_OPEN}
+          >
+            <div
+              className="flex flex-col gap-2 pb-2"
+              data-slot="reply-note-slot"
+            >
+              {chatNote}
+              {noticeRow}
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
       {/* The box itself takes files, so the page around it still takes them
           as a page does. */}
       <FileDropRegion
@@ -1225,7 +1243,6 @@ export const PromptInput = ({
               </AnimatePresence>
             )
           }
-          notice={noticeRow}
           maxHeight={maxHeight}
           ref={setComposerBounds}
         >

@@ -43,7 +43,6 @@ export function ComposerFrame({
   attachments,
   children,
   maxHeight,
-  notice,
   overlay,
   ref,
 }: {
@@ -61,8 +60,6 @@ export function ComposerFrame({
   children: React.ReactNode;
   /** Layout px: inside the zoom root, so the cap scales with the rest of the UI. Null for no cap but the host's layout. */
   maxHeight: null | number;
-  /** One row about the chosen model, over everything else: a newer release on offer, or a problem to fix before sending. */
-  notice?: React.ReactNode;
   /** Laid over the whole box, out of flow: the drop target, the re-entry ring. */
   overlay?: React.ReactNode;
   /** The box itself, for anything that has to be sized or placed against it. */
@@ -118,46 +115,23 @@ export function ComposerFrame({
           The row opens the box rather than appearing inside it, so what was
           attached is read as arriving. `initial={false}`: a draft restored with
           files already had them. */}
-      {/* The notice and what is attached share the first row, stacked. The row
-          clips, as the attachments did when they were the row themselves, so
-          a long list of files gives way under the cap; the notice is one line
-          and keeps its height. */}
-      {/* The row's padding, given back by its margin, moves its clip out to
-          where the attachments' own negative margin reaches, so the chips'
-          rings and remove buttons are not cut along it. */}
-      <div className="row-start-1 -mx-2 -mt-2 flex min-h-0 min-w-0 flex-col overflow-hidden px-2 pt-2">
-        <AnimatePresence initial={false}>
-          {notice && (
-            <motion.div
-              animate={{ height: "auto", opacity: 1 }}
-              className="shrink-0 overflow-hidden"
-              exit={{ height: 0, opacity: 0, transition: BLOCK_CLOSE }}
-              initial={{ height: 0, opacity: 0 }}
-              key="notice"
-              transition={BLOCK_OPEN}
-            >
-              <div className="pb-2" data-slot="composer-notice">
-                {notice}
-              </div>
-            </motion.div>
-          )}
-          {attachments && (
-            // The negative margin carries the clip out past the chips, so the
-            // remove buttons that sit outside them survive both it and the
-            // scroller's own.
-            <motion.div
-              animate={{ height: "auto", opacity: 1 }}
-              className="-mx-2 -mt-2 mb-2 min-h-0 overflow-hidden"
-              exit={{ height: 0, opacity: 0, transition: BLOCK_CLOSE }}
-              initial={{ height: 0, opacity: 0 }}
-              key="attachments"
-              transition={BLOCK_OPEN}
-            >
-              <AttachmentsScroller>{attachments}</AttachmentsScroller>
-            </motion.div>
-          )}
-        </AnimatePresence>
-      </div>
+      <AnimatePresence initial={false}>
+        {attachments && (
+          // The negative margin carries the clip out past the chips, so the
+          // remove buttons that sit outside them survive both it and the
+          // scroller's own.
+          <motion.div
+            animate={{ height: "auto", opacity: 1 }}
+            className="row-start-1 -mx-2 -mt-2 mb-2 min-h-0 overflow-hidden"
+            exit={{ height: 0, opacity: 0, transition: BLOCK_CLOSE }}
+            initial={{ height: 0, opacity: 0 }}
+            key="attachments"
+            transition={BLOCK_OPEN}
+          >
+            <AttachmentsScroller>{attachments}</AttachmentsScroller>
+          </motion.div>
+        )}
+      </AnimatePresence>
 
       {/* `min-w-0`: a grid item is floored at the width of its own content,
           and a pasted link is one word as wide as a paragraph. Without this the

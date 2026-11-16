@@ -28,7 +28,7 @@ import {
 import { log } from "./log";
 import { withMacEditingCommands } from "./mac-editing-commands";
 import { withoutMacNativeKeyCode } from "./mac-native-key-code";
-import { TYPING_WORLD, typeWithoutFocus } from "./keyboard-without-focus";
+import { typeWithoutFocus } from "./keyboard-without-focus";
 import { handlePrintToPDF } from "./print-to-pdf";
 import { startScreencast, stopScreencast } from "./screencast";
 
@@ -981,24 +981,24 @@ const RENDERING_REUSE_MS = 1000;
 const renderingSeenAt = new WeakMap<BrowserEntry, number>();
 
 // Whether the guest currently holds Chromium's keyboard focus, which is the
-// precondition for CDP keyboard input reaching it at all. Asked of the guest
-// document rather than derived from our own bookkeeping: `webContents`
-// focus state is unreliable for `<webview>` guests, and a page-level `focus()`
-// call does not move focus across the process boundary, so only the guest can
-// answer this. Asked in an isolated world, since a page that redefined
-// `document.hasFocus` would otherwise send keys meant for it to whatever holds
-// the window's focus. Fails closed on every error path.
+// precondition for CDP keyboard input reaching it at all. Asked of the
+// window's own renderer: the guest holds the keyboard exactly when the window
+// has focus and its focused element is this guest's `<webview>`. The guest
+// cannot answer this itself, since an agent-driven guest runs under focus
+// emulation (`document.hasFocus()` is always true there) and a page can
+// redefine `document.hasFocus`; a wrong yes sends the agent's keys to
+// whatever holds the window's focus. `webContents` focus state is unreliable
+// for `<webview>` guests. Fails closed on every error path.
 async function guestHoldsKeyboardFocus(entry: BrowserEntry): Promise<boolean> {
   const wc = entry.webContents;
-  if (!wc || wc.isDestroyed()) {
+  const host = wc?.hostWebContents;
+  if (!wc || wc.isDestroyed() || !host || host.isDestroyed()) {
     return false;
   }
   let timeout: ReturnType<typeof setTimeout> | undefined;
   try {
     const hasFocus: unknown = await Promise.race([
-      wc.executeJavaScriptInIsolatedWorld(TYPING_WORLD, [
-        { code: "document.hasFocus()" },
-      ]),
+      host.executeJavaScript(holdsKeyboardScript(wc.id)),
       new Promise<false>((resolve) => {
         timeout = setTimeout(() => {
           resolve(false);
@@ -1014,6 +1014,15 @@ async function guestHoldsKeyboardFocus(entry: BrowserEntry): Promise<boolean> {
     }
   }
 }
+
+const holdsKeyboardScript = (guestId: number) => `(() => {
+  const focused = document.activeElement;
+  try {
+    return document.hasFocus() && focused?.tagName === "WEBVIEW" && focused.getWebContentsId() === ${guestId};
+  } catch {
+    return false;
+  }
+})()`;
 
 // A guest that does not answer the probe at all has a blocked main thread
 // rather than a hidden window, and fails the command as unresponsive.

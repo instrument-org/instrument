@@ -118,6 +118,9 @@ export interface BrowserEntry {
   navigated: boolean;
   // An agent has clicked or typed in it, which leaves state a reload loses.
   hasAgentInput: boolean;
+  // CDP focus emulation is on for the debugger attached now, so the page
+  // keeps believing it has focus when an agent's click hands it back.
+  focusEmulated: boolean;
   // When an agent's command last reached the guest, which keeps another window
   // from taking the page out from under it.
   lastAgentCommandAt: number;
@@ -200,6 +203,7 @@ export function createEntry({
     disposers: new Set(),
     downloadsRunning: 0,
     eventListeners: new Set(),
+    focusEmulated: false,
     frameSessions: new Map(),
     generation: ++generationCounter,
     hostId,

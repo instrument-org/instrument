@@ -8,6 +8,7 @@ import { ChatIdSchema, type ChatId } from "../../schemas/chat-id";
 import { WorkDirSchema } from "../../schemas/paths";
 import { StoreId } from "../../schemas/store-id";
 import { type WindowTabAction } from "../../schemas/window-tab";
+import { tabStanding } from "../capabilities/window";
 import { getWorkspaceConfig, setWorkspaceConfig } from "../workspace-config";
 import { buildWorkspaceFsLayout } from "../workspace-fs-layout";
 import { createWindowCommand } from "./window";
@@ -312,6 +313,53 @@ beforeEach(() => {
 
 afterEach(() => {
   stopAnswering();
+});
+
+describe("tabStanding", () => {
+  it("reads where a tab stands, and whether the user sees it, changing nothing", async () => {
+    const tabs = {
+      page: pageTab,
+      chat: "tab_known",
+      otherGroup: "tab_settings",
+      otherGroupUp: "tab_hn",
+      otherWindow: "tab_far",
+      gone: "tab_gone",
+    };
+    const standings = Object.fromEntries(
+      await Promise.all(
+        Object.entries(tabs).map(
+          async ([name, tab]) =>
+            [name, await tabStanding(chatId, tab)] as const,
+        ),
+      ),
+    );
+    expect(asked.every(({ action }) => action.kind === "list")).toBe(true);
+    expect(standings).toMatchInlineSnapshot(`
+      {
+        "chat": {
+          "place": "showing on your side, the left, covering this chat, which is hidden until the user switches back to it",
+          "shown": true,
+        },
+        "gone": undefined,
+        "otherGroup": {
+          "place": "in the tab group "report.md" instrument://group/group:docs, hidden in the group's one side, behind /Users/me/Instrument/report.md, since the user is working on that side; the window shows another tab group now, so it is not on screen",
+          "shown": false,
+        },
+        "otherGroupUp": {
+          "place": "in the tab group "Meeting notes" instrument://group/group:notes, showing on the right side; the window shows another tab group now, so it is not on screen",
+          "shown": false,
+        },
+        "otherWindow": {
+          "place": "in the tab group "report.md" instrument://group/group:far, showing in the group's one side",
+          "shown": true,
+        },
+        "page": {
+          "place": "showing on the right side, beside you",
+          "shown": true,
+        },
+      }
+    `);
+  });
 });
 
 describe("window show, for something new", () => {

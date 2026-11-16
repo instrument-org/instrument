@@ -6,6 +6,7 @@ import {
 } from "@instrument-org/shared";
 import { z } from "zod";
 
+import { type ChatId } from "../../schemas/chat-id";
 import {
   type LayoutSnapshot,
   LayoutSnapshotSchema,
@@ -449,11 +450,28 @@ async function showOne(
  * group, or in another group, named; undefined when the window does not say.
  */
 async function placeOf(tabId: string, ctx: CapabilityContext) {
-  const answer = await ask({ kind: "list" }, ctx);
+  return (await tabStanding(ctx.chatId, tabId))?.place;
+}
+
+/**
+ * Where a tab of the window stands for a chat, as {@link placeOf} words it,
+ * and whether the user sees it: up on its side, in the group on screen.
+ * Only reads the window; undefined when it does not say.
+ */
+export async function tabStanding(
+  chatId: ChatId,
+  tabId: string,
+): Promise<{ place: string; shown: boolean } | undefined> {
+  const answer = await askWindow({
+    action: { kind: "list" },
+    askedBy: chatId,
+    group: chatId,
+    timeoutMs: WINDOW_TAB_TIMEOUT_MS,
+  });
   const own = answer?.read?.layout;
   const place = own === undefined ? undefined : tabPlace(own, tabId);
-  if (place !== undefined) {
-    return place;
+  if (own !== undefined && place !== undefined) {
+    return { place, shown: isTabShown(own, tabId) };
   }
   const layout = (answer?.windows ?? [])
     .flatMap((window) => window.groups)
@@ -463,7 +481,19 @@ async function placeOf(tabId: string, ctx: CapabilityContext) {
   const there = layout === undefined ? undefined : tabPlace(layout, tabId);
   return layout === undefined || there === undefined
     ? undefined
-    : `in the tab group ${groupWords(layout)}, ${there}`;
+    : {
+        place: `in the tab group ${groupWords(layout)}, ${there}`,
+        shown: isTabShown(layout, tabId),
+      };
+}
+
+function isTabShown(layout: LayoutSnapshot, tabId: string): boolean {
+  return (
+    layout.isShown !== false &&
+    layout.sides.some((side) =>
+      side.tabs.some((tab) => tab.id === tabId && tab.isUp),
+    )
+  );
 }
 
 /** Shows something else in a tab the chat has, in its place. */

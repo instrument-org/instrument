@@ -152,6 +152,33 @@ describe("BashTool toModelOutput", () => {
     );
   });
 
+  it("says where the tab a browser command opened stands, ahead of the page", () => {
+    expect(
+      renderedText({
+        commands: ["agent-browser"],
+        durationMs: 120,
+        output: "✓ ChatGPT\n  https://chatgpt.com/\n",
+        pageAfter: { after: "open", kind: "unchanged", text: "" },
+        tabPlace: {
+          after: "open",
+          place: "hidden on your side, the left, behind you",
+          shown: false,
+          tab: "tab_01ABC",
+        },
+      })
+        .split("\n\n")
+        .slice(1, -1),
+    ).toMatchInlineSnapshot(`
+      [
+        "Command output:",
+        "✓ ChatGPT
+        https://chatgpt.com/",
+        "Duration: 120 ms",
+        "Tab tab_01ABC after \`open\`: hidden on your side, the left, behind you.",
+      ]
+    `);
+  });
+
   it("names browser commands that failed where the output does not show it", () => {
     expect({
       quiet: renderedText({

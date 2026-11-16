@@ -52,6 +52,52 @@ export const PageAfterSchema = z.object({
 
 export type PageAfter = z.output<typeof PageAfterSchema>;
 
+/**
+ * Where the tab a call's agent-browser commands last put a page in stands in
+ * the user's window when the call ends, in the words `instrument window
+ * show` uses for a tab it opened: read from the window, never changing it.
+ */
+export const TabPlaceSchema = z.object({
+  /** The subcommand that put the page up, which the line names. */
+  after: z.string(),
+  /** The window's words for where the tab stands (`tabPlace`). */
+  place: z.string(),
+  /** Whether the user can see the tab: up on its side, in the group on screen. */
+  shown: z.boolean(),
+  /** The tab's id, as `instrument window` takes it. */
+  tab: z.string(),
+});
+
+export type TabPlace = z.output<typeof TabPlaceSchema>;
+
+/** Reads where the tab the commands act on stands, or nothing when the window does not say. */
+type ReadPlace = (
+  signal: AbortSignal,
+) => Promise<Omit<TabPlace, "after"> | undefined>;
+
+/**
+ * Whether a command puts a page in a tab the user may or may not see: a
+ * navigation to another page, a new tab, or switching to one. A reload
+ * leaves the tab as it was, and closing a tab puts none up.
+ */
+export function placesTab(args: string[]): boolean {
+  const { subArgs, subcommand } = parseAgentBrowserArgs(args);
+  if (subcommand === "tab") {
+    const first = subArgs[1]?.value;
+    return first !== undefined && first !== "list" && first !== "close";
+  }
+  return (
+    subcommand !== undefined &&
+    NAVIGATIONS.has(subcommand) &&
+    subcommand !== "reload"
+  );
+}
+
+/** The line a result ends with: the tab and where it stands, in the window's words. */
+export function tabPlaceText({ after, place, tab }: TabPlace): string {
+  return `Tab ${tab} after \`${after}\`: ${place}.`;
+}
+
 /** The snapshot a follow-up takes, matching what the note tells the model. */
 export const FOLLOW_UP_SNAPSHOT_ARGS = ["snapshot", "-i", "--delta"];
 
@@ -522,6 +568,9 @@ export class BrowserFollowUp {
   /** The last change since the page was last read, which the snapshot is after. */
   #pending: { after: string; read: ReadPage } | undefined;
 
+  /** The last command that put a page in a tab, whose tab the result places. */
+  #placing: { after: string; read: ReadPlace } | undefined;
+
   /**
    * The in-page actions since the page's text was last read, from the first
    * one in the current document: when it began, and the document the reading
@@ -544,6 +593,7 @@ export class BrowserFollowUp {
     args,
     before,
     exitCode,
+    place,
     read,
     startedAt,
   }: {
@@ -551,10 +601,22 @@ export class BrowserFollowUp {
     /** The document the live regions were read in before the command, when they were. */
     before?: PageDocument;
     exitCode: number;
+    /** Reads where the command's tab stands; absent for a browser that is not the window's. */
+    place?: ReadPlace;
     read: ReadPage;
     /** When the command began, in epoch milliseconds. */
     startedAt: number;
   }) {
+    if (place !== undefined && exitCode === 0 && placesTab(args)) {
+      const { subArgs, subcommand = "" } = parseAgentBrowserArgs(args);
+      this.#placing = {
+        after:
+          subcommand === "tab" && subArgs[1]?.value === "new"
+            ? "tab new"
+            : subcommand,
+        read: place,
+      };
+    }
     const effect = pageEffect(args);
     if (effect === "reads") {
       this.#pending = undefined;
@@ -641,6 +703,27 @@ export class BrowserFollowUp {
     const screenshot = this.#screenshot;
     this.#screenshot = undefined;
     return screenshot;
+  }
+
+  /**
+   * Where the tab the call last put a page in stands now, once. Read even
+   * when the call read the page itself, since no read of the page says
+   * whether the user sees its tab.
+   */
+  async takePlace(signal: AbortSignal): Promise<TabPlace | undefined> {
+    const placing = this.#placing;
+    this.#placing = undefined;
+    if (placing === undefined) {
+      return undefined;
+    }
+    try {
+      const place = await placing.read(
+        AbortSignal.any([signal, AbortSignal.timeout(FOLLOW_UP_TIMEOUT_MS)]),
+      );
+      return place && { after: placing.after, ...place };
+    } catch {
+      return undefined;
+    }
   }
 
   /**

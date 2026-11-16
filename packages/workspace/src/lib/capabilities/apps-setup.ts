@@ -357,8 +357,16 @@ function signInKind(manifest: AppManifest): string {
     : "key";
 }
 
-/** Where an app connects: its server's address, or the package that runs one here. */
+/**
+ * Where an app connects, as far as what the user gave it is concerned: for a
+ * key, the origin it was saved for, so a new base path on the same server
+ * keeps it; for a sign-in, the server's whole address or the package that
+ * runs one here.
+ */
 function endpointOf(manifest: AppManifest): string {
+  if (signInKind(manifest) === "key") {
+    return credentialOrigin(manifest);
+  }
   return manifest.type === "mcp-local"
     ? `${manifest.runtime}:${manifest.package}`
     : manifest.url;
@@ -432,12 +440,12 @@ async function runSetup(slug: string, text: string | undefined, role: Role) {
       `setup: not written. ${read.kind === "invalid" ? read.message : "It names no app."}\nExpected shape:\n${APP_MANIFEST_EXAMPLE}`,
     );
   }
+  await writeAppSetup(app.slug, parsed);
   const signedOut = await signOutWhereReachChanged(
     app.slug,
     app.manifest,
     read.app.manifest,
   );
-  await writeAppSetup(app.slug, parsed);
   recordSetupTouch({ existedBefore: true, kind: "app", name: app.name });
   await appChanged(app.slug);
   const retest =
@@ -681,9 +689,6 @@ async function runNew(input: z.output<typeof NewInput>) {
   // A guide written for another way in describes tools this one does not have.
   const reachChanged =
     existing.isOk() && existing.value.manifest.type !== manifest.type;
-  const signedOut = existing.isOk()
-    ? await signOutWhereReachChanged(slug, existing.value.manifest, manifest)
-    : "";
   const named = await writeApp({
     guide,
     manifest,
@@ -691,6 +696,9 @@ async function runNew(input: z.output<typeof NewInput>) {
     replacesGuide: reachChanged,
     slug,
   });
+  const signedOut = existing.isOk()
+    ? await signOutWhereReachChanged(slug, existing.value.manifest, manifest)
+    : "";
   recordSetupTouch({
     existedBefore: existing.isOk(),
     kind: "app",

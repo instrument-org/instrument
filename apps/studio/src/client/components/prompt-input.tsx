@@ -221,9 +221,8 @@ interface PromptInputProps {
   /** What the box holds besides the words, each time that changes after it first draws. */
   onItemsChange?: (items: AttachedItem[]) => void;
   /**
-   * Where a folder picked, dropped or pasted goes in place of the box's own
-   * row: a draft opens it in its pane, the way its computer's place does, so
-   * the person sees what is in it.
+   * A folder picked or dropped, once it is attached to the box: a draft
+   * also opens it in its pane, so the person sees what is in it.
    */
   onFolders?: (paths: string[]) => void;
   /** An item the person took out of the box, by its chip or by putting its words back in the message. */
@@ -603,10 +602,6 @@ export const PromptInput = ({
   };
 
   const attachFolders = (folders: DroppedFolder[]) => {
-    if (onFolders) {
-      onFolders(folders.map((folder) => folder.path));
-      return;
-    }
     // Split the drop against the rendered list so the toast happens here,
     // once, rather than inside the updater -- React may call an updater more
     // than once and would repeat the notification.
@@ -653,6 +648,7 @@ export const PromptInput = ({
       const unseen = newFolders.filter((f) => !paths.has(f.path));
       return unseen.length > 0 ? [...prev, ...unseen] : prev;
     });
+    onFolders?.(newFolders.map((folder) => folder.path));
   };
 
   const removeAttachedItem = (attachedItemId: string) => {
@@ -690,10 +686,6 @@ export const PromptInput = ({
       return;
     }
     const folderPath = result.path;
-    if (onFolders) {
-      onFolders([folderPath]);
-      return;
-    }
 
     // Notify outside the updater: React may run an updater more than once, and
     // a duplicate pick would then toast twice.
@@ -716,6 +708,7 @@ export const PromptInput = ({
             },
           ],
     );
+    onFolders?.([folderPath]);
   };
 
   useImperativeHandle(ref, () => ({

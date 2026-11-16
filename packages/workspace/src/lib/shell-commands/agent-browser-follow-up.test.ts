@@ -326,7 +326,8 @@ describe("placesTab", () => {
     { args: ["reload"], places: false },
     { args: ["tab"], places: false },
     { args: ["tab", "list"], places: false },
-    { args: ["tab", "close", "tab_01ABC"], places: false },
+    { args: ["tab", "close", "tab_01ABC"], places: true },
+    { args: ["tab", "close"], places: true },
     { args: ["click", "@e1"], places: false },
     { args: ["snapshot", "-i"], places: false },
   ])("$args -> $places", ({ args, places }) => {
@@ -400,6 +401,27 @@ describe("BrowserFollowUp tab place", () => {
     followUp.note({ args, exitCode, place, read, startedAt: 0 });
     expect(await followUp.takePlace(signal)).toBeUndefined();
     expect(place).not.toHaveBeenCalled();
+  });
+
+  it("places the tab commands act in after a tab closes", async () => {
+    const followUp = new BrowserFollowUp();
+    followUp.note({
+      args: ["tab", "close", "tab_b"],
+      exitCode: 0,
+      place: () =>
+        Promise.resolve({
+          place: "hidden on the right side, beside you, behind example.com",
+          shown: false,
+          tab: "tab_a",
+        }),
+      read,
+      startedAt: 0,
+    });
+    const placed = await followUp.takePlace(signal);
+    expect(placed?.after).toBe("tab close");
+    expect(placed && tabPlaceText(placed)).toMatchInlineSnapshot(
+      `"Commands now act in tab tab_a: hidden on the right side, beside you, behind example.com."`,
+    );
   });
 
   it("places nothing when the window does not say", async () => {

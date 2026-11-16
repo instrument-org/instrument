@@ -58,7 +58,7 @@ export type PageAfter = z.output<typeof PageAfterSchema>;
  * show` uses for a tab it opened: read from the window, never changing it.
  */
 export const TabPlaceSchema = z.object({
-  /** The subcommand that put the page up, which the line names. */
+  /** The subcommand that put the page up, or `tab close`, which the line names. */
   after: z.string(),
   /** The window's words for where the tab stands (`tabPlace`). */
   place: z.string(),
@@ -76,15 +76,16 @@ type ReadPlace = (
 ) => Promise<Omit<TabPlace, "after"> | undefined>;
 
 /**
- * Whether a command puts a page in a tab the user may or may not see: a
- * navigation to another page, a new tab, or switching to one. A reload
- * leaves the tab as it was, and closing a tab puts none up.
+ * Whether a command changes which tab the next commands act in, or what it
+ * shows: a navigation to another page, a new tab, switching to one, or
+ * closing one, after which another tab is the one acted in. A reload leaves
+ * the tab as it was.
  */
 export function placesTab(args: string[]): boolean {
   const { subArgs, subcommand } = parseAgentBrowserArgs(args);
   if (subcommand === "tab") {
     const first = subArgs[1]?.value;
-    return first !== undefined && first !== "list" && first !== "close";
+    return first !== undefined && first !== "list";
   }
   return (
     subcommand !== undefined &&
@@ -95,7 +96,9 @@ export function placesTab(args: string[]): boolean {
 
 /** The line a result ends with: the tab and where it stands, in the window's words. */
 export function tabPlaceText({ after, place, tab }: TabPlace): string {
-  return `Tab ${tab} after \`${after}\`: ${place}.`;
+  return after === "tab close"
+    ? `Commands now act in tab ${tab}: ${place}.`
+    : `Tab ${tab} after \`${after}\`: ${place}.`;
 }
 
 /** The snapshot a follow-up takes, matching what the note tells the model. */
@@ -611,8 +614,9 @@ export class BrowserFollowUp {
       const { subArgs, subcommand = "" } = parseAgentBrowserArgs(args);
       this.#placing = {
         after:
-          subcommand === "tab" && subArgs[1]?.value === "new"
-            ? "tab new"
+          subcommand === "tab" &&
+          (subArgs[1]?.value === "new" || subArgs[1]?.value === "close")
+            ? `tab ${subArgs[1].value}`
             : subcommand,
         read: place,
       };

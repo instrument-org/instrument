@@ -97,6 +97,13 @@ export function describeMessageError(
         summary: "Provider problem",
       };
     }
+    case "content-policy": {
+      return {
+        detail:
+          "The model's provider stopped this reply under its content rules. Rewording your message, or switching to another model, can get past it.",
+        summary: "Blocked by the provider's content rules",
+      };
+    }
     case "unsendable-content": {
       return {
         detail:

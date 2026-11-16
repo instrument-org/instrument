@@ -618,6 +618,10 @@ function errorActions({
   if (classification === "usage-limit") {
     return [providerSettings, ...tryAgain, ...changeModel];
   }
+  // The same request meets the same rules, so another model leads.
+  if (classification === "content-policy") {
+    return [...changeModel, ...tryAgain];
+  }
   if (classification === "auth" || kind === "api-key") {
     if (provider === OUR_MODELS.providerType) {
       return [...tryAgain, ...changeModel];

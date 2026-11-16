@@ -436,6 +436,7 @@ describe("MessageError", () => {
               ["usage limit", apiCall("usage-limit")],
               ["context overflow", apiCall("context-overflow")],
               ["unsendable content", apiCall("unsendable-content")],
+              ["content policy", apiCall("content-policy")],
               ["api key", { kind: "api-key", message: "No key" }],
               ["repetition", { kind: "repetition", message: "Looping" }],
               [
@@ -454,6 +455,7 @@ describe("MessageError", () => {
         {
           "api key": "Open provider settings, Try again, Change model",
           "auth": "Open provider settings, Try again, Change model",
+          "content policy": "Change model, Try again",
           "context overflow": "Try again, Change model",
           "disk full": "Try again",
           "rate limit": "Try again, Change model",

@@ -112,8 +112,12 @@ export function getErrorAction(message: SessionMessage.Assistant): ErrorAction {
   }
 
   // Content the provider refused goes out byte for byte on a retry and is
-  // refused again. Stopping leaves the error on the message for the user.
-  if (classification === "unsendable-content") {
+  // refused again, and so does a request its content rules refused.
+  // Stopping leaves the error on the message for the user.
+  if (
+    classification === "unsendable-content" ||
+    classification === "content-policy"
+  ) {
     return { type: "stop" };
   }
 

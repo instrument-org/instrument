@@ -12,7 +12,7 @@ import { readAppIcon, writeAppIcon } from "./store";
  * checking it draws well. SVG first, since it is sharp at every size; an
  * earlier build's app folder kept it as one of these files.
  */
-const APP_ICON_FILE_NAMES = ["icon.svg", "icon.png"] as const;
+export const APP_ICON_FILE_NAMES = ["icon.svg", "icon.png"] as const;
 
 /** Drawn up to 64px on a 2x screen, so smaller goes soft. */
 const MIN_PNG_SIZE = 128;

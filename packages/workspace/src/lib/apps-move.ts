@@ -12,7 +12,7 @@ import {
   unusedAppName,
 } from "./apps/app-file";
 import { type AppConnectionStore } from "./apps/connection";
-import { readIconInFolder } from "./apps/icon";
+import { APP_ICON_FILE_NAMES, readIconInFolder } from "./apps/icon";
 import { AppSlugSchema, manifestHash } from "./apps/manifest";
 import { appIconKey, appKey, appsStore } from "./apps/store";
 import { type SyncedStore } from "./synced-store/synced-store";
@@ -103,7 +103,7 @@ export async function takeInAppFolders(
         }
         taken.done.push(`took in ${path.join(dir, folder)} as ${app.slug}`);
         if (!ownsDir) {
-          await trash(path.join(dir, folder));
+          await trashTakenIn(path.join(dir, folder), trash);
         }
       } catch (error) {
         leftHere = true;
@@ -142,9 +142,9 @@ async function readAppFolder(
     }
   | undefined
 > {
-  const appFile = await readOldFile(path.join(dir, APP_FILE_NAME));
+  const appFile = await readOwnFile(dir, APP_FILE_NAME);
   const front = appFile === undefined ? undefined : frontMatterOf(appFile);
-  const legacy = await readRecord(path.join(dir, MANIFEST_FILE_NAME));
+  const legacy = await readRecord(dir, MANIFEST_FILE_NAME);
   const legacyHash = legacy ? { legacyHash: manifestHash(legacy) } : {};
   if (front?.kind === "broken") {
     throw new Error(front.message);
@@ -187,7 +187,7 @@ async function readAppFolder(
   // The folder's name was its app's slug in the builds that wrote `app.json`,
   // and the name was the manifest's own, which two apps of one service
   // shared; the second is numbered, as `instrument app new` numbers one.
-  const guide = (await readOldFile(path.join(dir, GUIDE_FILE_NAME))) ?? "";
+  const guide = (await readOwnFile(dir, GUIDE_FILE_NAME)) ?? "";
   const { baseUrl, name, ...rest } = legacy;
   const read = appFileOf(
     { ...rest, ...(baseUrl === undefined ? {} : { url: baseUrl }), id: folder },
@@ -309,6 +309,59 @@ async function changedAt(file: string): Promise<number> {
 
 /** The folders in `dir`, by name; nothing where there is no such folder. */
 /** Whether every entry left in `dir` is the system's, such as a `.DS_Store`. */
+/** The files an app folder's app is taken in from. */
+const TAKEN_IN: readonly string[] = [
+  APP_FILE_NAME,
+  MANIFEST_FILE_NAME,
+  GUIDE_FILE_NAME,
+  ...APP_ICON_FILE_NAMES,
+];
+
+/**
+ * Sends what an app was taken in from to the Trash: the folder whole where
+ * that is all it holds, and otherwise those files alone, so what else the
+ * person or an agent kept beside them stays where it was.
+ */
+async function trashTakenIn(
+  appDir: string,
+  trash: (dir: string) => Promise<void>,
+): Promise<void> {
+  const names = await fs.readdir(appDir);
+  if (names.every((name) => TAKEN_IN.includes(name) || isSystemClutter(name))) {
+    await trash(appDir);
+    return;
+  }
+  for (const name of names.filter((each) => TAKEN_IN.includes(each))) {
+    await trash(path.join(appDir, name));
+  }
+}
+
+/**
+ * A file in an app folder, read only where it is a plain file there: a link
+ * could point anywhere on the computer, and what it pointed at would reach
+ * the agent through the app's guide. Nothing where there is no such file;
+ * throws for a link or a folder in its place, which leaves the app folder.
+ */
+async function readOwnFile(
+  dir: string,
+  fileName: string,
+): Promise<string | undefined> {
+  const file = path.join(dir, fileName);
+  let stat;
+  try {
+    stat = await fs.lstat(file);
+  } catch (error) {
+    if (isRecord(error) && (error.code === "ENOENT" || error.code === "ENOTDIR")) {
+      return undefined;
+    }
+    throw error;
+  }
+  if (!stat.isFile()) {
+    throw new Error(`${fileName} is not a plain file in the app's folder.`);
+  }
+  return readOldFile(file);
+}
+
 async function holdsNothingOfAnyones(dir: string): Promise<boolean> {
   try {
     return (await fs.readdir(dir)).every((name) => isSystemClutter(name));
@@ -330,9 +383,10 @@ async function folderNames(dir: string): Promise<string[] | undefined> {
 
 /** What an app's old manifest held, or nothing where there is no readable one. */
 async function readRecord(
-  file: string,
+  dir: string,
+  fileName: string,
 ): Promise<Record<string, unknown> | undefined> {
-  const text = await readOldFile(file);
+  const text = await readOwnFile(dir, fileName);
   if (text === undefined) {
     return undefined;
   }

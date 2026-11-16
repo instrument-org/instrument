@@ -156,9 +156,9 @@ describe("a window's ops", () => {
     );
 
     expect(read()).toContain(`project: "${id}"`);
-    expect(fs.existsSync(path.join(root, "Projects", "Trips", "AGENTS.md"))).toBe(
-      false,
-    );
+    expect(
+      fs.existsSync(path.join(root, "Projects", "Trips", "AGENTS.md")),
+    ).toBe(false);
   });
 
   it("take a thrown-away draft away, with what was pasted into it moved to the Trash", async () => {

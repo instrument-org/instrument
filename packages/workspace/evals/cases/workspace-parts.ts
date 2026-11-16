@@ -29,10 +29,7 @@ import { existsSync, readdirSync, readFileSync } from "node:fs";
 import os from "node:os";
 import path from "node:path";
 
-import {
-  AGENT_MESSAGE_LANGUAGE,
-  PROJECT_FILE_NAME,
-} from "../../src/constants";
+import { AGENT_MESSAGE_LANGUAGE, PROJECT_FILE_NAME } from "../../src/constants";
 import { createProject, projectsDir } from "../../src/lib/chat/projects";
 import { getWorkspaceConfig } from "../../src/lib/workspace-config";
 import { getWorkspaceSkillsDir } from "../../src/lib/workspace-skills-dir";

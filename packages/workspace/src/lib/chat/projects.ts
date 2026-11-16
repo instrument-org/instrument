@@ -230,7 +230,7 @@ interface FolderRead {
   /** When the folder was made, or failing that last changed. */
   made: Date;
   name: string;
-  /** Its `AGENTS.md` is there but cannot be read just now. */
+  /** Its `AGENTS.md` or its `.instrument-project` is there but cannot be read just now. */
   unreadable?: true;
 }
 
@@ -296,7 +296,9 @@ async function readProjects(rootDir: string): Promise<Project[]> {
  * or else the one its name gives. Where two folders name one id, the older
  * folder keeps it and the other, a copy, becomes a project of its own. A
  * folder whose `AGENTS.md` cannot be read keeps its id from the others and
- * is left out of the list until it can.
+ * is left out of the list until it can, and one whose `.instrument-project`
+ * cannot be read claims and writes nothing until it can, since the id it
+ * names is the only tie to its chats.
  */
 function settled(
   rootDir: string,
@@ -306,7 +308,7 @@ function settled(
   const records = readProjectRecords(rootDir);
   const claimed = new Set<string>();
   const idFiles: { folder: string; id: string }[] = [];
-  const toWrite: { id: string; record: ProjectRecord }[] = [];
+  const toWrite: { at: number; id: string; record: ProjectRecord }[] = [];
   const projects: Project[] = [];
   const oldestFirst = folders
     .flatMap((folder) => (folder ? [folder] : []))
@@ -316,16 +318,19 @@ function settled(
     );
   for (const folder of oldestFirst) {
     const named = folder.idFile ?? folder.file?.id;
+    if (folder.unreadable && named === undefined) {
+      continue;
+    }
     const id =
       named !== undefined && !claimed.has(named)
         ? named
         : unusedFolderId(folder.name, claimed);
     claimed.add(id);
-    if (folder.idFile !== id) {
-      idFiles.push({ folder: folder.name, id });
-    }
     if (folder.unreadable) {
       continue;
+    }
+    if (folder.idFile !== id) {
+      idFiles.push({ folder: folder.name, id });
     }
     const record = records.get(id);
     const fromFile = {
@@ -347,7 +352,10 @@ function settled(
       created: toTheSecond(folder.made),
     };
     const project: Project = { ...file, id, name: folder.name };
-    toWrite.push({ id, record: recordOf(project) });
+    // Stamped at the start of time, so the record the computer that made
+    // the project wrote outranks this one whenever it syncs in after the
+    // folder.
+    toWrite.push({ at: 0, id, record: recordOf(project) });
     projects.push(
       device === undefined ? { ...project, unsaved: true } : project,
     );
@@ -355,7 +363,12 @@ function settled(
   if (device !== undefined) {
     writeProjectRecords(rootDir, device, toWrite);
     for (const { folder, id } of idFiles) {
-      writeIdFileSync(path.join(projectsDirOf(rootDir), folder), id);
+      try {
+        writeIdFileSync(path.join(projectsDirOf(rootDir), folder), id);
+      } catch {
+        // A folder that cannot be written to just now takes its id file
+        // at a later read, and the other projects list meanwhile.
+      }
     }
   }
   return inListOrder(projects);
@@ -574,6 +587,16 @@ function writeInstructionsSync(
   );
 }
 
+/** A folder's `.instrument-project`: nothing where there is none, and `unreadable` where it is there but cannot be read. */
+function readIdFile(file: string): string | "unreadable" | undefined {
+  try {
+    // oxlint-disable-next-line studio/no-sync-content-read -- synchronous on purpose, as readProjectFolder is.
+    return fs.readFileSync(file, "utf8");
+  } catch (error) {
+    return isMissing(error) ? undefined : "unreadable";
+  }
+}
+
 function readTextIfThere(file: string): string | undefined {
   try {
     // oxlint-disable-next-line studio/no-sync-content-read -- synchronous on purpose: each project write reads, checks and writes in one run, so two cannot interleave.
@@ -653,9 +676,14 @@ function createProjectNow({
     ...(color ? { color } : {}),
     created: toTheSecond(new Date()),
     ...markAfter({}, { emoji, icon }),
+    // An id with a record but no folder belonged to a project whose folder
+    // was deleted, so a new one of the same name does not take its chats.
     id: unusedFolderId(
       wanted,
-      new Set(readProjectsSync(rootDir).map((each) => each.id)),
+      new Set([
+        ...readProjectRecords(rootDir).keys(),
+        ...readProjectsSync(rootDir).map((each) => each.id),
+      ]),
     ),
     ...(instructions ? { instructions } : {}),
     name: wanted,
@@ -728,7 +756,7 @@ function readProjectFolder(folderPath: string): FolderRead | undefined {
     return undefined;
   }
   const name = path.basename(folderPath);
-  const idFile = readTextIfThere(path.join(folderPath, PROJECT_ID_FILE_NAME));
+  const idFile = readIdFile(path.join(folderPath, PROJECT_ID_FILE_NAME));
   const file = path.join(folderPath, PROJECT_FILE_NAME);
   try {
     // When the file was last written stands in for a `created` it does not
@@ -758,7 +786,9 @@ async function readProjectFolderAsync(
     ),
     fs.promises
       .readFile(path.join(folderPath, PROJECT_ID_FILE_NAME), "utf8")
-      .catch(() => undefined),
+      .catch((error: unknown): "unreadable" | undefined =>
+        isMissing(error) ? undefined : "unreadable",
+      ),
     Promise.all([
       fs.promises.readFile(file, "utf8"),
       fs.promises.stat(file),
@@ -779,17 +809,19 @@ function folderRead({
   name,
   read,
 }: {
-  idFile: string | undefined;
+  idFile: string | "unreadable" | undefined;
   made: Date;
   name: string;
   read: { at: Date; text: string } | "none" | "unreadable";
 }): FolderRead {
-  const id = idFile?.trim();
+  const id = idFile === "unreadable" ? undefined : idFile?.trim();
   return {
     ...(id ? { idFile: id } : {}),
     made,
     name,
-    ...(read === "unreadable" ? { unreadable: true } : {}),
+    ...(read === "unreadable" || idFile === "unreadable"
+      ? { unreadable: true }
+      : {}),
     ...(typeof read === "object"
       ? { file: parseProjectFile(read.text, { at: read.at }) }
       : {}),

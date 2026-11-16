@@ -181,9 +181,9 @@ function answeringWindow() {
   /** The tabs closed, which a list leaves out, as the window does. */
   const closed = new Set<string>();
   /** A group as the window lists it once the closed tabs are gone: the next tab on a side comes up, and a side or group left empty goes. */
-  const open = (layout: LayoutSnapshot): LayoutSnapshot => ({
-    ...layout,
-    sides: layout.sides.flatMap((side) => {
+  const open = (group: LayoutSnapshot): LayoutSnapshot => ({
+    ...group,
+    sides: group.sides.flatMap((side) => {
       const tabs = side.tabs.filter((tab) => !closed.has(tab.id));
       const [first, ...rest] = tabs;
       if (first === undefined) {
@@ -269,7 +269,7 @@ function answeringWindow() {
                 {
                   groups: [own, ...OTHER_GROUPS]
                     .map(open)
-                    .filter((layout) => layout.sides.length > 0),
+                    .filter((group) => group.sides.length > 0),
                   isThisWindow: true,
                 },
                 { groups: [ELSEWHERE].map(open) },

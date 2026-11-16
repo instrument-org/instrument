@@ -6,13 +6,22 @@
  * notification's click (any of them, since a click on an earlier one says
  * as much as one on the latest); `allowed` has seen it; `off` is the system
  * saying no, until the person turns them on in the system's own settings
- * (`turnedOn`), which needs no test to prove. Only `allowed` makes Continue the main button: everywhere else
- * it is quiet, a skip that is always there.
+ * (`turnedOn`), which needs no test to prove; `blocked` is the system
+ * refusing with no prompt shown (an unsigned build, a managed Mac). Only
+ * `allowed` makes Continue the main button: everywhere else it is quiet, a
+ * skip that is always there.
  */
-export type NotificationsState = "allowed" | "ask" | "asking" | "off" | "sent";
+export type NotificationsState =
+  | "allowed"
+  | "ask"
+  | "asking"
+  | "blocked"
+  | "off"
+  | "sent";
 
 export type NotificationsEvent =
-  | { granted: boolean; type: "answered" }
+  /** `blocked` when the system refused without showing its prompt. */
+  | { blocked?: boolean; granted: boolean; type: "answered" }
   | { type: "allow" }
   | { type: "clicked" }
   | { type: "turnedOn" };
@@ -29,15 +38,20 @@ export function notificationsStep(
       if (state !== "asking") {
         return state;
       }
-      return event.granted ? "sent" : "off";
+      return event.granted ? "sent" : event.blocked ? "blocked" : "off";
     }
     case "clicked": {
       return state === "sent" ? "allowed" : state;
     }
     case "turnedOn": {
-      return state === "off" ? "allowed" : state;
+      return state === "off" || state === "blocked" ? "allowed" : state;
     }
   }
+}
+
+/** The footer's label for a state: Continue once notifications are on, Skip before. */
+export function footerLabelFor(state: NotificationsState): "Continue" | "Skip" {
+  return state === "allowed" || state === "sent" ? "Continue" : "Skip";
 }
 
 /** The footer's Continue for a state. */

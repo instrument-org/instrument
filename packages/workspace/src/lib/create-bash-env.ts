@@ -63,6 +63,15 @@ import { ACTIVITY_COMMAND } from "../model-text/commands/activity-command";
 import { createDuCommand } from "./shell-commands/du";
 import { createFfmpegCommand, FFMPEG_COMMAND } from "./shell-commands/ffmpeg";
 import {
+  createOfficeCommand,
+  createSofficeCommand,
+} from "./shell-commands/office";
+import {
+  OFFICE_COMMAND,
+  SOFFICE_COMMAND,
+} from "../model-text/commands/office-command";
+import { downloadedOffice } from "./office/install";
+import {
   createFfprobeCommand,
   FFPROBE_COMMAND,
 } from "./shell-commands/ffprobe";
@@ -479,6 +488,19 @@ const ALL_CUSTOM_COMMAND_DEFS: CustomCommandDef[] = [
     scripting: NODE_COMMAND.scripting,
   },
   {
+    description: OFFICE_COMMAND.description,
+    factory: ({ chatId }) => createOfficeCommand(chatId),
+    listInDescription: true,
+    name: OFFICE_COMMAND.name,
+  },
+  {
+    description: SOFFICE_COMMAND.description,
+    factory: ({ chatId }) => createSofficeCommand(chatId),
+    // Named in `office`'s description.
+    listInDescription: false,
+    name: SOFFICE_COMMAND.name,
+  },
+  {
     description: "Refuses AppleScript the agent writes.",
     // AppleScript the agent writes would have to run outside the sandbox to
     // reach an app, which no check of its text can make safe. By its path,
@@ -595,6 +617,7 @@ const COMMAND_PROGRAMS: Record<string, (chatId: ChatId) => string | undefined> =
     [PYTHON_COMMAND.name]: pythonProgram,
     [PYTHON3_COMMAND.name]: pythonProgram,
     [RG_COMMAND.name]: () => RG_DISK_PATH,
+    [SOFFICE_COMMAND.name]: () => downloadedOffice()?.soffice,
     [UV_COMMAND.name]: () => getUvBinPath(),
   };
 

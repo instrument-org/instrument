@@ -58,6 +58,7 @@ describe("createBashDescription", () => {
         "ffprobe",
         "git",
         "node",
+        "office",
         "pnpm",
         "pnx",
         "uv",

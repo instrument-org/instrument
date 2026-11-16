@@ -54,6 +54,7 @@ import {
   ensurePythonBase,
   interruptTasksForQuit,
   killAllBackgroundProcesses,
+  linkOfficeIfInstalled,
   loadChatIndex,
   prepareBundledSkills,
   setBashWorkerFactory,
@@ -317,6 +318,11 @@ export async function createWorkspaceActor(deviceId: DeviceId) {
     if (failure) {
       logger.warn("Could not install the base Python packages", failure);
     }
+  });
+  // The `soffice` a script finds on its PATH, where LibreOffice is
+  // installed, since a launch may have made the `bin/` links anew.
+  linkOfficeIfInstalled().catch((error: unknown) => {
+    logger.warn("Could not link soffice", error);
   });
 
   // Quitting mid-dictation throws away what was said, which the person likely

@@ -16,6 +16,7 @@ import { isMacOS } from "@/client/lib/utils";
 import { rpcClient } from "@/client/rpc/client";
 import { APP_NAME } from "@instrument-org/shared";
 import { FolderOpenIcon } from "@phosphor-icons/react/FolderOpen";
+import { HouseIcon } from "@phosphor-icons/react/House";
 import { skipToken, useQuery } from "@tanstack/react-query";
 import { useReducer, useState } from "react";
 
@@ -129,7 +130,7 @@ export function FolderStep({ hold, onBack, onContinue }: SetupStepProps) {
         path: folderOf(current.inHome),
       });
       dispatch({
-        note: reason === "unwritable" ? "denied" : null,
+        note: reason === "unwritable" ? "denied" : "noDocuments",
         picked: home.folder,
         type: "fellBack",
       });
@@ -207,6 +208,12 @@ export function FolderStep({ hold, onBack, onContinue }: SetupStepProps) {
             onContinue();
             return true;
           }
+          if (opened.outcome === "canceled") {
+            toast.info("Your folder wasn’t opened", {
+              description: `${APP_NAME} stayed open so your chats can finish.`,
+            });
+            return false;
+          }
           toast.error(`${APP_NAME} can’t open that folder`);
           return false;
         }
@@ -221,6 +228,11 @@ export function FolderStep({ hold, onBack, onContinue }: SetupStepProps) {
         if (moved.kind === "refused") {
           await refuse(current, path, moved.reason);
           return true;
+        }
+        if (moved.kind === "canceled") {
+          toast.info("Your folder wasn’t moved", {
+            description: `${APP_NAME} stayed open so your chats can finish.`,
+          });
         }
         return false;
       },
@@ -387,6 +399,13 @@ export function FolderStep({ hold, onBack, onContinue }: SetupStepProps) {
                   }}
                   line="Most users place their Instrument folder in Documents. If you don't allow access, we'll place it in your home folder instead."
                   title={`${APP_NAME} was denied access to your Documents folder.`}
+                />
+              )}
+              {note === "noDocuments" && (
+                <FolderNote
+                  icon={<HouseIcon />}
+                  line={`${APP_NAME} will put its folder in your home folder instead. Press Continue to use it, or Change to pick another place.`}
+                  title="You don’t have a Documents folder"
                 />
               )}
               {note === "unfinished" && (

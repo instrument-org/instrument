@@ -30,6 +30,7 @@ import { WINDOW_SHORTCUTS } from "@/shared/window-shortcuts";
 import { CaretLeftIcon } from "@phosphor-icons/react/CaretLeft";
 import { CaretRightIcon } from "@phosphor-icons/react/CaretRight";
 import { GearSixIcon } from "@phosphor-icons/react/GearSix";
+import { UserCircleIcon } from "@phosphor-icons/react/UserCircle";
 import { ChatsCircleIcon } from "@phosphor-icons/react/ChatsCircle";
 import { PlusIcon } from "@phosphor-icons/react/Plus";
 import { type ChatId } from "@instrument-org/workspace/client";
@@ -974,30 +975,43 @@ function AppMenuButton() {
   );
 }
 
-/** The sidebar's foot: the account, which opens Settings; Settings itself; and Help. */
+/**
+ * The sidebar's foot: the person signed in, or Sign in when nobody is, either
+ * opening Settings at Account; Settings itself; and Help.
+ */
 function SidebarFoot({ chatId }: { chatId: ChatId | undefined }) {
-  const { data: user } = useLiveUser();
-  const { data: workspace } = useQuery(
-    rpcClient.workspaces.current.queryOptions(),
-  );
+  const { data: user, isPending } = useLiveUser();
   return (
     <div className="flex h-11 shrink-0 items-center gap-1 pr-1 pl-2">
       <button
         className="flex h-9 min-w-0 flex-1 items-center gap-1.5 rounded-lg px-1.5 text-left hover:bg-foreground/5"
         onClick={() => {
-          openSettings();
+          openSettings({ tab: "Account" });
         }}
         type="button"
       >
-        <Avatar className="size-6 rounded-md">
-          <AvatarImage alt="" src={user?.image ?? undefined} />
-          <AvatarFallback className="rounded-md text-[10px]">
-            {user ? getInitials(user.name) : "?"}
-          </AvatarFallback>
-        </Avatar>
-        <span className="min-w-0 truncate text-[13px] font-medium">
-          {user?.name ?? workspace?.name ?? "Sign in"}
-        </span>
+        {user ? (
+          <>
+            <Avatar className="size-6 rounded-md">
+              <AvatarImage alt="" src={user.image ?? undefined} />
+              <AvatarFallback className="rounded-md text-[10px]">
+                {getInitials(user.name)}
+              </AvatarFallback>
+            </Avatar>
+            <span className="min-w-0 truncate text-[13px] font-medium">
+              {user.name}
+            </span>
+          </>
+        ) : (
+          !isPending && (
+            <>
+              <UserCircleIcon className="size-6 text-muted-foreground" />
+              <span className="min-w-0 truncate text-[13px] font-medium">
+                Sign in
+              </span>
+            </>
+          )
+        )}
       </button>
       <ToolbarTooltip label="Settings">
         <button

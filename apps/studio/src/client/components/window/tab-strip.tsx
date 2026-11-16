@@ -50,7 +50,7 @@ export interface StripTab {
    * is the one thing a narrow tab still has room to say.
    */
   badge?: ReactNode;
-  /** The keys that pick it, drawn under it while their modifier is held. */
+  /** The keys that pick it, at its end in its close control's place while their modifier is held. */
   chord?: string;
   /** What stands for it before its name;a tab with none shows its name alone, narrowed or not. */
   icon: ReactNode;
@@ -964,6 +964,7 @@ function Tab({
             "min-w-0 flex-1",
             isClosable &&
               density !== "icon" &&
+              tab.chord === undefined &&
               (isSelected
                 ? "title-fade-under-close"
                 : "group-hover/pane-tab:title-fade-under-close"),
@@ -976,35 +977,43 @@ function Tab({
       )}
       {tab.badge}
       {tab.chord !== undefined && (
-        // As far under the tab as the row's clip allows.
-        <ChordHint className="absolute -bottom-1.5 left-1/2 h-4 -translate-x-1/2 text-[10px]">
+        // At the tab's end, in the close control's place.
+        <ChordHint
+          className={cn(
+            "shrink-0 bg-transparent px-0",
+            density === "full" ? "-mr-1" : "ml-1",
+          )}
+        >
           {tab.chord}
         </ChordHint>
       )}
-      {isClosable && !tab.field && density !== "icon" && (
-        <button
-          aria-label={`Close ${tab.title}`}
-          className={cn(
-            "absolute top-1/2 right-1.5 size-5 -translate-y-1/2 items-center justify-center rounded-md hover:bg-foreground/10",
-            "focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none focus-visible:ring-inset",
-            isSelected ? "flex" : "hidden group-hover/pane-tab:flex",
-          )}
-          onClick={(event) => {
-            event.stopPropagation();
-            onClose();
-          }}
-          // A press here is not one on the tab, so it neither selects nor
-          // drags it; a middle press still closes it, as anywhere on the tab.
-          onPointerDown={(event) => {
-            if (event.button !== 1) {
+      {isClosable &&
+        !tab.field &&
+        density !== "icon" &&
+        tab.chord === undefined && (
+          <button
+            aria-label={`Close ${tab.title}`}
+            className={cn(
+              "absolute top-1/2 right-1.5 size-5 -translate-y-1/2 items-center justify-center rounded-md hover:bg-foreground/10",
+              "focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none focus-visible:ring-inset",
+              isSelected ? "flex" : "hidden group-hover/pane-tab:flex",
+            )}
+            onClick={(event) => {
               event.stopPropagation();
-            }
-          }}
-          type="button"
-        >
-          <XIcon className="size-3" />
-        </button>
-      )}
+              onClose();
+            }}
+            // A press here is not one on the tab, so it neither selects nor
+            // drags it; a middle press still closes it, as anywhere on the tab.
+            onPointerDown={(event) => {
+              if (event.button !== 1) {
+                event.stopPropagation();
+              }
+            }}
+            type="button"
+          >
+            <XIcon className="size-3" />
+          </button>
+        )}
     </>
   );
 

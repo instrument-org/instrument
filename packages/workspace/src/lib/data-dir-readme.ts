@@ -7,6 +7,7 @@ import {
   FILES_FOLDER_NAME,
   MEMORY_FOLDER_NAME,
   PROJECT_FILE_NAME,
+  PROJECT_ID_FILE_NAME,
   PROJECTS_FOLDER_NAME,
   SKILLS_FOLDER_NAME,
 } from "../constants";
@@ -37,7 +38,7 @@ export function dataDirReadme(): string {
     `The folders beside \`${data}/\` are the person's, free to read and edit:`,
     "",
     `- \`${FILES_FOLDER_NAME}/\`: kept work, a folder per piece of work.`,
-    `- \`${PROJECTS_FOLDER_NAME}/<Name>/${PROJECT_FILE_NAME}\`: a project, its \`${PROJECT_FILE_NAME}\` the instructions every chat filed under it reads.`,
+    `- \`${PROJECTS_FOLDER_NAME}/<Name>/${PROJECT_FILE_NAME}\`: a project, its \`${PROJECT_FILE_NAME}\` the instructions every chat filed under it reads. Leave its \`${PROJECT_ID_FILE_NAME}\` where it is: it names the project, so a renamed folder keeps its chats.`,
     `- \`${MEMORY_FOLDER_NAME}/<name>.md\`: one memory per Markdown note.`,
     `- \`${SKILLS_FOLDER_NAME}/<name>/SKILL.md\`: a skill per folder.`,
     `- \`${PROJECT_FILE_NAME}\`: instructions every chat reads.`,

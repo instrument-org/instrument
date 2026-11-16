@@ -2,6 +2,7 @@ import {
   PRIVATE_FOLDER_NAME,
   SETTINGS_FILE_NAME,
 } from "@instrument-org/shared";
+import fsSync from "node:fs";
 import fs from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
@@ -13,6 +14,7 @@ import {
   folderProjectId,
   readProjectsSync,
   PROJECT_FILE_NAME,
+  PROJECT_ID_FILE_NAME,
   PROJECTS_FOLDER_NAME,
   writeProjectSync,
 } from "./chat/projects";
@@ -151,10 +153,10 @@ describe("convertProjectsToProjectFiles", () => {
       color: "amber",
       created: "2026-09-02T14:14:00Z",
       emoji: "🍳",
-      folder: "Kitchen",
       legacyId: "prj_01KXB5K5ZSQNZ8NQJPQRYRAAS1",
     });
     expect(await fs.readdir(path.join(folder(), "Kitchen"))).toEqual([
+      PROJECT_ID_FILE_NAME,
       PROJECT_FILE_NAME,
     ]);
     // And the project reads back as the one the two files held, its folders a
@@ -412,11 +414,11 @@ describe("settleProjectFiles", () => {
       "
     `);
     expect(await projectFile("Garden")).toBe("Water on Sundays.\n");
-    expect(await fs.readdir(path.join(folder(), "Trips"))).toEqual([]);
+    expect(await fs.readdir(path.join(folder(), "Trips"))).toEqual([
+      PROJECT_ID_FILE_NAME,
+    ]);
     const records = Object.fromEntries(readProjectRecords(root));
-    expect(records).toMatchObject({
-      [folderProjectId("Garden")]: { folder: "Garden" },
-    });
+    expect(records).toHaveProperty(folderProjectId("Garden"));
     expect({
       prj_kitchen: records.prj_kitchen,
       prj_trips: records.prj_trips,
@@ -427,13 +429,11 @@ describe("settleProjectFiles", () => {
           "color": "amber",
           "created": "2026-09-02T09:14:00Z",
           "emoji": "🍳",
-          "folder": "Kitchen",
           "legacyId": "prj_old",
           "retired": true,
         },
         "prj_trips": {
           "created": "2026-09-03T09:14:00Z",
-          "folder": "Trips",
         },
       }
     `);
@@ -460,7 +460,6 @@ describe("settleProjectFiles", () => {
     expect(readProjectRecords(root).get("prj_kitchen")).toEqual({
       created: "2026-09-02T09:14:00Z",
       emoji: "🔪",
-      folder: "Kitchen",
     });
     expect(readProjectRecords(root).has("prj_drawnfromname")).toBe(false);
     expect(await projectFile("Kitchen")).toBe("Induction only.\n");
@@ -505,6 +504,13 @@ describe("settleProjectFiles", () => {
     expect(readProjectsSync(root)).toMatchObject([
       { id: "prj_kitchen", instructions: "Induction only.", name: "Cooking" },
     ]);
-    expect(readProjectRecords(root).get("prj_kitchen")?.folder).toBe("Cooking");
+    expect(
+      fsSync
+        .readFileSync(
+          path.join(folder(), "Cooking", PROJECT_ID_FILE_NAME),
+          "utf8",
+        )
+        .trim(),
+    ).toBe("prj_kitchen");
   });
 });

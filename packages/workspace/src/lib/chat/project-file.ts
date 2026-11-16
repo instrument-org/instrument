@@ -26,7 +26,11 @@ import { isRecord } from "../skills";
  */
 
 /** Where the person's projects are, and the one file that says a folder is one. */
-export { PROJECT_FILE_NAME, PROJECTS_FOLDER_NAME } from "../../constants";
+export {
+  PROJECT_FILE_NAME,
+  PROJECT_ID_FILE_NAME,
+  PROJECTS_FOLDER_NAME,
+} from "../../constants";
 
 /**
  * The front-matter keys earlier builds wrote, and so the ones that are nobody

@@ -12,7 +12,12 @@ import { ChatReads } from "../chat-reads";
 import { ChatWrites } from "../chat-writes";
 import { markCardUndone } from "../chat/card-undone";
 import { readProjectRecords } from "../chat/project-records";
-import { createProject, listProjects, updateProject } from "../chat/projects";
+import {
+  createProject,
+  listProjects,
+  PROJECT_ID_FILE_NAME,
+  updateProject,
+} from "../chat/projects";
 import { undoProjectChanges } from "../chat/undo-project-changes";
 import { createLocalBashEnv } from "../create-bash-env";
 import {
@@ -210,12 +215,12 @@ describe("instrument projects create", () => {
     );
     const kitchen = await project("Kitchen");
     expect(results[0]?.stdout).toBe(`Created Kitchen, id ${kitchen?.id}.\n`);
-    // A project with no instructions is its folder alone.
+    // A project with no instructions is its folder and its id file alone.
     expect(
       fs.readdirSync(
         path.join(getWorkspaceConfig().rootDir, "Projects/Kitchen"),
       ),
-    ).toEqual([]);
+    ).toEqual([PROJECT_ID_FILE_NAME]);
     const { created: _created, ...record } =
       readProjectRecords(getWorkspaceConfig().rootDir).get(kitchen?.id ?? "") ??
       {};
@@ -223,7 +228,6 @@ describe("instrument projects create", () => {
       {
         "about": "Recipes and meal plans",
         "color": "#765fca",
-        "folder": "Kitchen",
         "icon": "cooking-pot",
       }
     `);
@@ -298,8 +302,8 @@ describe("instrument projects list", () => {
     await createProject({ emoji: "📚", name: "Reading" });
     const listed = (await turn("instrument projects list")).results[0]?.stdout;
     expect(listed?.replaceAll(/prj_\w+/g, "<id>")).toMatchInlineSnapshot(`
-      "  X Growth  <id>  icon bird  color pale-blue
-        Reading  <id>  emoji 📚
+      "  Reading  <id>  emoji 📚
+        X Growth  <id>  icon bird  color pale-blue
       "
     `);
   });

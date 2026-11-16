@@ -1,7 +1,6 @@
 import { createHash } from "node:crypto";
 import fs from "node:fs";
 import path from "node:path";
-import { monotonicFactory } from "ulid";
 import { z } from "zod";
 
 import { type DeviceId } from "../../schemas/device-id";
@@ -22,22 +21,20 @@ import {
   type ProjectFileRead,
   parseProjectFile,
   PROJECT_FILE_NAME,
+  PROJECT_ID_FILE_NAME,
   ProjectFileSchema,
   PROJECTS_FOLDER_NAME,
   renderInstructionsFile,
   toTheSecond,
 } from "./project-file";
 import {
-  matchProjectFolders,
   PROJECTS_DOMAIN,
   type ProjectRecord,
   readProjectRecords,
   writeProjectRecords,
 } from "./project-records";
 
-const ulid = monotonicFactory();
-
-/** The shape of a 1.x project's id too, which the migration keeps as the project's. */
+/** How every project's id starts, a 1.x project's included, which the migration keeps. */
 const PROJECT_ID_PREFIX = "prj_";
 
 /** Crockford's base 32, which a ULID is written in. */
@@ -46,7 +43,11 @@ const CROCKFORD = "0123456789ABCDEFGHJKMNPQRSTVWXYZ";
 /** How long a project's name may be. Short names keep the marks readable. */
 export const PROJECT_NAME_MAX = 24;
 
-export { PROJECT_FILE_NAME, PROJECTS_FOLDER_NAME } from "./project-file";
+export {
+  PROJECT_FILE_NAME,
+  PROJECT_ID_FILE_NAME,
+  PROJECTS_FOLDER_NAME,
+} from "./project-file";
 
 /**
  * A project: a folder in the workspace's `Projects/`, named for it, that chats
@@ -167,16 +168,11 @@ export async function listProjects(): Promise<ListedProject[]> {
   });
 }
 
-/** A new project's id: stable across renames, which move its folder. */
-function newProjectId(at?: number): string {
-  return `${PROJECT_ID_PREFIX}${ulid(at)}`;
-}
-
 /**
- * The id a project with no record goes by: drawn from its folder's name, so
- * every computer reading the same folder agrees on it, and in a new id's
- * shape. Builds before this one gave a folder whose file named no id the
- * same one.
+ * The id a new project takes, and a folder with no `.instrument-project`
+ * yet: drawn from its folder's name, so a computer that sees the folder
+ * before the file in it agrees on it. Builds before this one gave a folder
+ * whose file named no id the same one.
  */
 export function folderProjectId(name: string): string {
   const digest = createHash("sha256").update(name.toLowerCase()).digest();
@@ -226,12 +222,17 @@ export function saveProjectId(
 }
 
 /** What a read of one project folder found. */
-type FolderRead =
-  | { file: ProjectFileRead; name: string }
-  | { file?: undefined; made: Date; name: string }
-  /** A folder whose `AGENTS.md` is there but cannot be read just now. */
-  | { name: string; unreadable: true }
-  | undefined;
+interface FolderRead {
+  /** What its `AGENTS.md` says; nothing where it has none. */
+  file?: ProjectFileRead;
+  /** The id its `.instrument-project` names, where it has one. */
+  idFile?: string;
+  /** When the folder was made, or failing that last changed. */
+  made: Date;
+  name: string;
+  /** Its `AGENTS.md` is there but cannot be read just now. */
+  unreadable?: true;
+}
 
 /**
  * Every project under a workspace root, in list order. Synchronous and
@@ -239,8 +240,9 @@ type FolderRead =
  * is up, and for the writes, which read the projects they change.
  *
  * A read that knows its device (given, or the running workspace's) writes
- * down what it settles: a record for a folder that has none, and a folder a
- * record has moved to (`matchProjectFolders`). One that does not, or is
+ * down what it settles: a record for a folder that has none, and the
+ * `.instrument-project` of a folder that names no id, or one an older folder
+ * already has (a copy made in a file manager). One that does not, or is
  * given `null`, leaves them as they read, marking the projects with no
  * record `unsaved`.
  */
@@ -288,50 +290,56 @@ async function readProjects(rootDir: string): Promise<Project[]> {
 /**
  * The projects the folders make, each with its record, writing down what a
  * read settles where it knows its device.
+ *
+ * A folder is the project its `.instrument-project` names, or, where it has
+ * none yet, the one its `AGENTS.md` front matter named in an earlier build,
+ * or else the one its name gives. Where two folders name one id, the older
+ * folder keeps it and the other, a copy, becomes a project of its own. A
+ * folder whose `AGENTS.md` cannot be read keeps its id from the others and
+ * is left out of the list until it can.
  */
 function settled(
   rootDir: string,
-  folders: readonly FolderRead[],
+  folders: readonly (FolderRead | undefined)[],
   device: DeviceId | undefined,
 ): Project[] {
-  const present = folders.flatMap((folder) => (folder ? [folder] : []));
-  const read = present.flatMap((folder) =>
-    "unreadable" in folder ? [] : [folder],
-  );
   const records = readProjectRecords(rootDir);
-  const fileIds = new Map(
-    read.flatMap((folder) =>
-      folder.file?.id === undefined ? [] : [[folder.name, folder.file.id]],
-    ),
-  );
-  // A folder whose file cannot be read is left out of the list but still
-  // has its record, so its id is never taken for another folder.
-  const match = matchProjectFolders({
-    fileIds,
-    folders: present.map((folder) => folder.name),
-    records,
-  });
-  const taken = new Set([...records.keys(), ...match.byFolder.values()]);
-  const toWrite: { id: string; record: ProjectRecord }[] =
-    match.renamed.flatMap(({ folder, id }) => {
-      const record = records.get(id);
-      return record ? [{ id, record: { ...record, folder } }] : [];
-    });
-  const projects = read.map((folder): Project => {
-    let id = match.byFolder.get(folder.name);
-    const record = id === undefined ? undefined : records.get(id);
+  const claimed = new Set<string>();
+  const idFiles: { folder: string; id: string }[] = [];
+  const toWrite: { id: string; record: ProjectRecord }[] = [];
+  const projects: Project[] = [];
+  const oldestFirst = folders
+    .flatMap((folder) => (folder ? [folder] : []))
+    .toSorted(
+      (a, b) =>
+        a.made.getTime() - b.made.getTime() || a.name.localeCompare(b.name),
+    );
+  for (const folder of oldestFirst) {
+    const named = folder.idFile ?? folder.file?.id;
+    const id =
+      named !== undefined && !claimed.has(named)
+        ? named
+        : unusedFolderId(folder.name, claimed);
+    claimed.add(id);
+    if (folder.idFile !== id) {
+      idFiles.push({ folder: folder.name, id });
+    }
+    if (folder.unreadable) {
+      continue;
+    }
+    const record = records.get(id);
     const fromFile = {
       ...(folder.file?.instructions
         ? { instructions: folder.file.instructions }
         : {}),
       ...(folder.file?.others ? { others: folder.file.others } : {}),
     };
-    if (id !== undefined && record) {
-      return { ...projectOfRecord(id, record), ...fromFile, name: folder.name };
-    }
-    if (id === undefined) {
-      id = unusedFolderId(folder.name, taken);
-      taken.add(id);
+    if (record) {
+      projects.push({
+        ...projectOfRecord(id, record, folder.name),
+        ...fromFile,
+      });
+      continue;
     }
     // No record yet: what an earlier build's front matter said, or the
     // folder alone.
@@ -340,10 +348,15 @@ function settled(
     };
     const project: Project = { ...file, id, name: folder.name };
     toWrite.push({ id, record: recordOf(project) });
-    return device === undefined ? { ...project, unsaved: true } : project;
-  });
+    projects.push(
+      device === undefined ? { ...project, unsaved: true } : project,
+    );
+  }
   if (device !== undefined) {
     writeProjectRecords(rootDir, device, toWrite);
+    for (const { folder, id } of idFiles) {
+      writeIdFileSync(path.join(projectsDirOf(rootDir), folder), id);
+    }
   }
   return inListOrder(projects);
 }
@@ -358,7 +371,11 @@ function unusedFolderId(name: string, taken: ReadonlySet<string>): string {
 }
 
 /** A project as its record has it, before its instructions are read. */
-function projectOfRecord(id: string, record: ProjectRecord): Project {
+function projectOfRecord(
+  id: string,
+  record: ProjectRecord,
+  name: string,
+): Project {
   return {
     ...(record.about ? { about: record.about } : {}),
     ...(record.color ? { color: record.color } : {}),
@@ -367,23 +384,31 @@ function projectOfRecord(id: string, record: ProjectRecord): Project {
     ...(record.icon ? { icon: record.icon } : {}),
     id,
     ...(record.legacyId ? { legacyId: record.legacyId } : {}),
-    name: record.folder,
+    name,
     ...(record.retired ? { retired: true } : {}),
   };
 }
 
-/** The record a project is written down as: everything but its words. */
+/** The record a project is written down as: everything but its name and words. */
 function recordOf(project: Project): ProjectRecord {
   return {
     ...(project.about ? { about: project.about } : {}),
     ...(project.color ? { color: project.color } : {}),
     created: utcStamp(project.created),
     ...(project.emoji ? { emoji: project.emoji } : {}),
-    folder: project.name,
     ...(project.icon ? { icon: project.icon } : {}),
     ...(project.legacyId ? { legacyId: project.legacyId } : {}),
     ...(project.retired ? { retired: true } : {}),
   };
+}
+
+/** Writes a project folder's `.instrument-project`, where it names another id or none. */
+function writeIdFileSync(folder: string, id: string): void {
+  const file = path.join(folder, PROJECT_ID_FILE_NAME);
+  if (readTextIfThere(file)?.trim() === id) {
+    return;
+  }
+  fs.writeFileSync(file, `${id}\n`);
 }
 
 /** Every folder in `Projects/` but what the system leaves there. */
@@ -397,7 +422,9 @@ function projectFolderNames(entries: fs.Dirent[]): string[] {
 function inListOrder(projects: Project[]): Project[] {
   const sorted = projects.toSorted(
     (a, b) =>
-      a.created.getTime() - b.created.getTime() || a.id.localeCompare(b.id),
+      a.created.getTime() - b.created.getTime() ||
+      a.name.localeCompare(b.name) ||
+      a.id.localeCompare(b.id),
   );
   return [
     ...sorted.filter((project) => !project.retired),
@@ -501,6 +528,7 @@ export function writeProjectSync(
   const { unsaved: _unsaved, ...written } = project;
   const folder = path.join(projectsDirOf(rootDir), written.name);
   fs.mkdirSync(folder, { recursive: true });
+  writeIdFileSync(folder, written.id);
   writeProjectRecords(rootDir, deviceFor(device), [
     { id: written.id, record: recordOf(written) },
   ]);
@@ -625,7 +653,10 @@ function createProjectNow({
     ...(color ? { color } : {}),
     created: toTheSecond(new Date()),
     ...markAfter({}, { emoji, icon }),
-    id: newProjectId(),
+    id: unusedFolderId(
+      wanted,
+      new Set(readProjectsSync(rootDir).map((each) => each.id)),
+    ),
     ...(instructions ? { instructions } : {}),
     name: wanted,
   };
@@ -673,6 +704,7 @@ function takeBackProject(made: MadeProject): void {
     });
     const folder = path.join(projectsDirOf(rootDir), made.project.name);
     fs.rmSync(path.join(folder, PROJECT_FILE_NAME), { force: true });
+    fs.rmSync(path.join(folder, PROJECT_ID_FILE_NAME), { force: true });
     try {
       fs.rmdirSync(folder);
     } catch {
@@ -687,54 +719,88 @@ function nameKey(name: string): string {
 
 /**
  * One project folder: what its `AGENTS.md` says, front matter an earlier
- * build wrote included, or only when the folder was made where it has no
- * file. A folder whose file is there but cannot be read is only its name.
+ * build wrote included, and the id its `.instrument-project` names. Nothing
+ * where the folder is gone.
  */
-function readProjectFolder(folderPath: string): FolderRead {
-  const file = path.join(folderPath, PROJECT_FILE_NAME);
+function readProjectFolder(folderPath: string): FolderRead | undefined {
+  const made = folderMade(() => fs.statSync(folderPath));
+  if (made === undefined) {
+    return undefined;
+  }
   const name = path.basename(folderPath);
+  const idFile = readTextIfThere(path.join(folderPath, PROJECT_ID_FILE_NAME));
+  const file = path.join(folderPath, PROJECT_FILE_NAME);
   try {
     // When the file was last written stands in for a `created` it does not
     // hold, which is what a project the person made by hand has.
     // oxlint-disable-next-line studio/no-sync-content-read -- synchronous on purpose: each project write reads, checks the name and writes in one run, so two cannot interleave, and listProjects reads every AGENTS.md async first.
     const text = fs.readFileSync(file, "utf8");
-    return {
-      file: parseProjectFile(text, { at: fs.statSync(file).mtime }),
-      name,
-    };
+    const at = fs.statSync(file).mtime;
+    return folderRead({ idFile, made, name, read: { at, text } });
   } catch (error) {
-    return isMissing(error)
-      ? folderOnly(folderPath)
-      : { name, unreadable: true };
+    return folderRead({
+      idFile,
+      made,
+      name,
+      read: isMissing(error) ? "none" : "unreadable",
+    });
   }
 }
 
-async function readProjectFolderAsync(folderPath: string): Promise<FolderRead> {
+async function readProjectFolderAsync(
+  folderPath: string,
+): Promise<FolderRead | undefined> {
   const file = path.join(folderPath, PROJECT_FILE_NAME);
-  try {
-    const [text, stat] = await Promise.all([
+  const [made, idFile, read] = await Promise.all([
+    fs.promises.stat(folderPath).then(
+      (stat) => folderMade(() => stat),
+      () => undefined,
+    ),
+    fs.promises
+      .readFile(path.join(folderPath, PROJECT_ID_FILE_NAME), "utf8")
+      .catch(() => undefined),
+    Promise.all([
       fs.promises.readFile(file, "utf8"),
       fs.promises.stat(file),
-    ]);
-    return {
-      file: parseProjectFile(text, { at: stat.mtime }),
-      name: path.basename(folderPath),
-    };
-  } catch (error) {
-    return isMissing(error)
-      ? folderOnly(folderPath)
-      : { name: path.basename(folderPath), unreadable: true };
-  }
+    ]).then(
+      ([text, stat]) => ({ at: stat.mtime, text }),
+      (error: unknown): "none" | "unreadable" =>
+        isMissing(error) ? "none" : "unreadable",
+    ),
+  ]);
+  return made === undefined
+    ? undefined
+    : folderRead({ idFile, made, name: path.basename(folderPath), read });
 }
 
-/** A project folder with no `AGENTS.md` in it, made when the folder was. */
-function folderOnly(folderPath: string): FolderRead {
+function folderRead({
+  idFile,
+  made,
+  name,
+  read,
+}: {
+  idFile: string | undefined;
+  made: Date;
+  name: string;
+  read: { at: Date; text: string } | "none" | "unreadable";
+}): FolderRead {
+  const id = idFile?.trim();
+  return {
+    ...(id ? { idFile: id } : {}),
+    made,
+    name,
+    ...(read === "unreadable" ? { unreadable: true } : {}),
+    ...(typeof read === "object"
+      ? { file: parseProjectFile(read.text, { at: read.at }) }
+      : {}),
+  };
+}
+
+/** When a folder was made, where the disk says, or else when it last changed. */
+function folderMade(stat: () => fs.Stats): Date | undefined {
   try {
-    const stat = fs.statSync(folderPath);
-    return {
-      made: stat.birthtimeMs > 0 ? stat.birthtime : stat.mtime,
-      name: path.basename(folderPath),
-    };
+    const found = stat();
+    return found.birthtimeMs > 0 ? found.birthtime : found.mtime;
   } catch {
     return undefined;
   }

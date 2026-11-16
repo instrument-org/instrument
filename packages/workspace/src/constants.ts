@@ -89,6 +89,13 @@ export const PROJECTS_FOLDER_NAME = "Projects";
 export const PROJECT_FILE_NAME = "AGENTS.md";
 
 /**
+ * The hidden file in a project's folder that names the project's id, one
+ * line, so the id goes wherever the folder goes: a rename in a file manager,
+ * or the folder syncing to another computer ahead of the projects store.
+ */
+export const PROJECT_ID_FILE_NAME = ".instrument-project";
+
+/**
  * Where the person's memories are, at the workspace's top level: one
  * Markdown file per memory, which they read and edit in a file manager like
  * any other file. One of the five folders a person opens, and the one with no

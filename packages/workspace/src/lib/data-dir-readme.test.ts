@@ -28,7 +28,7 @@ describe("the workspace guide in .instrument/README.md", () => {
       The folders beside \`.instrument/\` are the person's, free to read and edit:
 
       - \`Files/\`: kept work, a folder per piece of work.
-      - \`Projects/<Name>/AGENTS.md\`: a project, its \`AGENTS.md\` the instructions every chat filed under it reads.
+      - \`Projects/<Name>/AGENTS.md\`: a project, its \`AGENTS.md\` the instructions every chat filed under it reads. Leave its \`.instrument-project\` where it is: it names the project, so a renamed folder keeps its chats.
       - \`Memory/<name>.md\`: one memory per Markdown note.
       - \`Skills/<name>/SKILL.md\`: a skill per folder.
       - \`AGENTS.md\`: instructions every chat reads.

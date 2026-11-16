@@ -132,7 +132,7 @@ async function convertProjectFolder(
   }
   const name = path.basename(folder);
   writeProjectSync(rootDir, { ...project, name }, { device, keepWords: true });
-  if (readProjectRecords(rootDir).get(project.id)?.folder !== name) {
+  if (!readProjectRecords(rootDir).has(project.id)) {
     throw new Error("its record did not read back as the project");
   }
   // The instructions, under the settings keys this build does not know: the
@@ -285,8 +285,9 @@ export async function moveTopicsToProjects(
  * the workspace, writes front matter back; a file with none is read and left
  * alone. What a file says is taken as of when the file was last written, so
  * a change made since in the app, on any device, outranks it. Each folder
- * with no record gets one, and a folder renamed in a file manager keeps its
- * record (`matchProjectFolders`), as any read in a running workspace does.
+ * with no record gets one, and the id its front matter named goes into its
+ * `.instrument-project` before the front matter comes out, as any read in a
+ * running workspace does.
  */
 export function settleProjectFiles(
   rootDir: string,

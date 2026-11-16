@@ -2,7 +2,7 @@ import fsSync from "node:fs";
 import fs from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
-import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { AbsolutePathSchema, WorkspaceDirSchema } from "../../schemas/paths";
 import { utcStamp } from "../utc-stamp";
@@ -14,6 +14,7 @@ import {
   listProjects,
   retireProject,
   PROJECT_FILE_NAME,
+  PROJECT_ID_FILE_NAME,
   projectName,
   ProjectNameError,
   projectsDir,
@@ -57,8 +58,11 @@ describe("projectName", () => {
 
 describe("createProject", () => {
   it("adds a project with an id of its own, keeping the order", async () => {
+    vi.useFakeTimers({ now: Date.UTC(2026, 10, 16), toFake: ["Date"] });
     const reddit = await createProject({ emoji: "🦆", name: "# Reddit" });
+    vi.advanceTimersByTime(1000);
     const home = await createProject({ name: "Home" });
+    vi.useRealTimers();
 
     expect(reddit.id).toMatch(/^prj_/);
     expect(reddit.name).toBe("Reddit");
@@ -152,7 +156,6 @@ describe("project folders", () => {
       color: "amber",
       created: utcStamp(made.created),
       emoji: "🛒",
-      folder: "Shopping",
     });
     expect(await listProjects()).toEqual([
       {
@@ -241,7 +244,7 @@ describe("project folders", () => {
         "Travel/AGENTS.md",
       ]
     `);
-    expect(storeOf(made.id)?.folder).toBe("Travel");
+    expect(idFileOf("Travel")).toBe(made.id);
 
     await fs.rename(
       path.join(projectsDir(), "Travel"),
@@ -250,8 +253,7 @@ describe("project folders", () => {
     expect(await listProjects()).toEqual([
       { ...made, instructions: "Aisle seats.", name: "Away" },
     ]);
-    // Written down, so a folder made later cannot make it ambiguous.
-    expect(storeOf(made.id)?.folder).toBe("Away");
+    expect(idFileOf("Away")).toBe(made.id);
     await fs.mkdir(path.join(projectsDir(), "Garden"));
     expect((await listProjects()).map(({ id, name }) => [name, id])).toEqual([
       ["Away", made.id],
@@ -268,7 +270,52 @@ describe("project folders", () => {
     expect((await listProjects()).map(({ id, name }) => [name, id])).toEqual([
       ["Garden", folderProjectId("Garden")],
     ]);
-    expect(storeOf(made.id)?.folder).toBe("Trips");
+    expect(idFileOf("Trips")).toBe(made.id);
+    expect(storeOf(made.id)).toBeDefined();
+  });
+
+  it("makes a folder made where a deleted one was a project of its own", async () => {
+    const old = await createProject({ emoji: "🧳", name: "Old" });
+    await retireProject(old.id);
+    await fs.rm(path.join(projectsDir(), "Old"), { recursive: true });
+    await fs.mkdir(path.join(projectsDir(), "Recipes"));
+
+    expect(await listProjects()).toMatchObject([
+      { id: folderProjectId("Recipes"), name: "Recipes" },
+    ]);
+    expect((await listProjects())[0]).not.toHaveProperty("retired");
+    expect((await listProjects())[0]).not.toHaveProperty("emoji");
+  });
+
+  it("makes a copy of a project's folder a project of its own", async () => {
+    const made = await createProject({ emoji: "🧳", name: "Trips" });
+    await fs.cp(
+      path.join(projectsDir(), "Trips"),
+      path.join(projectsDir(), "Trips copy"),
+      { recursive: true },
+    );
+
+    const listed = await listProjects();
+
+    expect(listed.map(({ id, name }) => [name, id])).toEqual([
+      ["Trips", made.id],
+      ["Trips copy", folderProjectId("Trips copy")],
+    ]);
+    expect(idFileOf("Trips copy")).toBe(folderProjectId("Trips copy"));
+  });
+
+  it("follows the folder that arrives with its id before its record", async () => {
+    const made = await createProject({ emoji: "🧳", name: "Trips" });
+    // Renamed on another computer: the folder and its id file arrive here
+    // under the new name, and nothing in the store names a folder.
+    await fs.rename(
+      path.join(projectsDir(), "Trips"),
+      path.join(projectsDir(), "Away"),
+    );
+
+    expect(await listProjects()).toMatchObject([
+      { emoji: "🧳", id: made.id, name: "Away" },
+    ]);
   });
 
   it("keeps working when another agent rewrites AGENTS.md whole", async () => {
@@ -322,7 +369,8 @@ describe("project folders", () => {
       folderProjectId("Garden"),
       folderProjectId("Repo"),
     ]);
-    expect(storeOf(folderProjectId("Garden"))?.folder).toBe("Garden");
+    expect(storeOf(folderProjectId("Garden"))).toBeDefined();
+    expect(idFileOf("Garden")).toBe(folderProjectId("Garden"));
     expect((await listProjects()).map((project) => project.id)).toEqual(
       listed.map((project) => project.id),
     );
@@ -431,18 +479,35 @@ async function projectFile(
 }
 
 /** A project's record as the projects store has it. */
+/** The id a project folder's `.instrument-project` names. */
+function idFileOf(folder: string): string | undefined {
+  try {
+    return fsSync
+      .readFileSync(
+        path.join(projectsDir(), folder, PROJECT_ID_FILE_NAME),
+        "utf8",
+      )
+      .trim();
+  } catch {
+    return undefined;
+  }
+}
+
 function storeOf(id: string) {
   return readProjectRecords(getWorkspaceConfig().rootDir).get(id);
 }
 
 function tree(dir: string): string[] {
-  return fsSync
-    .readdirSync(dir, { recursive: true, withFileTypes: true })
-    .filter((entry) => entry.isFile())
-    .map((entry) =>
-      path
-        .relative(dir, path.join(entry.parentPath, entry.name))
-        .replaceAll(path.sep, "/"),
-    )
-    .sort();
+  return (
+    fsSync
+      .readdirSync(dir, { recursive: true, withFileTypes: true })
+      // The id file is in every project folder; these trees are what else is.
+      .filter((entry) => entry.isFile() && entry.name !== PROJECT_ID_FILE_NAME)
+      .map((entry) =>
+        path
+          .relative(dir, path.join(entry.parentPath, entry.name))
+          .replaceAll(path.sep, "/"),
+      )
+      .sort()
+  );
 }

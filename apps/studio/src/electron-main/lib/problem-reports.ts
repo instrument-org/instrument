@@ -47,6 +47,7 @@ import {
   readActions,
 } from "@instrument-org/workspace/electron";
 import { parseRecordFileName } from "@instrument-org/workspace/record-file-names";
+import { workspaceLayout } from "@instrument-org/workspace/layout";
 import { outlineSessionLog } from "@instrument-org/workspace/report-outline";
 import { createHash } from "node:crypto";
 import fs from "node:fs";
@@ -55,6 +56,7 @@ import path from "node:path";
 import { z } from "zod";
 
 import { createScopedLogger, getMainLogFilePath } from "./electron-logger";
+import { getWorkspaceFolder } from "./get-workspace-folder";
 import { listExceptionEvents } from "./exception-store";
 import { describeFreeze, type Freeze } from "./main-thread-freezes";
 import {
@@ -298,9 +300,11 @@ export function describeProblem({
     ...found,
   ].join("\n");
   const tail = readLogLines(LOG_TAIL_BYTES).slice(-LOG_TAIL_LINES);
-  const logLines =
-    tail.length > 0 ? ["Last log lines:", ...tail].join("\n") : undefined;
   const redactor = reportRedactor({ people });
+  const logLines =
+    tail.length > 0
+      ? ["Last log lines:", redactor.log(tail.join("\n"))].join("\n")
+      : undefined;
   const compose = (events: readonly ExceptionEvent[]) =>
     redactor.text(
       [
@@ -362,10 +366,36 @@ function reportRedactor({
   return createReportRedactor({
     ...extra,
     chatIds: chats,
+    computers: [os.hostname(), ...workspaceComputerNames()],
     home: os.homedir(),
     login,
     people,
   });
+}
+
+/**
+ * The names the workspace's devices give their computers (`device.json`),
+ * which a chat's context states; none before a workspace is open.
+ */
+function workspaceComputerNames(): string[] {
+  try {
+    const { devicesDir } = workspaceLayout(getWorkspaceFolder());
+    return fs.readdirSync(devicesDir).flatMap((device) => {
+      try {
+        const file: unknown = JSON.parse(
+          fs.readFileSync(path.join(devicesDir, device, "device.json"), "utf8"),
+        );
+        const { success, data } = z
+          .object({ name: z.string().min(1) })
+          .safeParse(file);
+        return success ? [data.name] : [];
+      } catch {
+        return [];
+      }
+    });
+  } catch {
+    return [];
+  }
 }
 
 function redactEvent(
@@ -512,6 +542,33 @@ export async function sendReport(
 
 /** How much of the log's end feedback carries, in whole lines. */
 const FEEDBACK_LOG_BYTES = 512 * 1024;
+
+/**
+ * How far back feedback's log goes. A quiet install's last 512 KB reaches
+ * back months, to builds whose log kept what this one's takes out.
+ */
+const FEEDBACK_LOG_MAX_AGE_MS = 7 * 24 * 60 * 60 * 1000;
+
+/** When a log line was written, from its `[2026-11-13T13:55:29.697Z]` or `[2026-10-27 13:24:43.886]` stamp. */
+const LOG_STAMP =
+  /^\[(\d{4}-\d{2}-\d{2})[ T](\d{2}:\d{2}:\d{2}(?:\.\d+)?)(Z?)\]/;
+
+/**
+ * The log lines written since `since`. A line with no stamp of its own (a
+ * stack frame, the rest of a long message) goes with the line before it.
+ */
+export function logLinesSince(lines: readonly string[], since: number) {
+  let keep = true;
+  return lines.filter((line) => {
+    const stamp = LOG_STAMP.exec(line);
+    if (stamp) {
+      const [, day = "", time = "", utc = ""] = stamp;
+      const at = Date.parse(`${day}T${time}${utc}`);
+      keep = Number.isNaN(at) || at >= since;
+    }
+    return keep;
+  });
+}
 
 /** Where the app's log goes in a feedback report. */
 export const FEEDBACK_LOG_PATH = "diagnostics/app.log";
@@ -989,7 +1046,10 @@ function diagnosticsItem(
     .toSorted((a, b) => b.lastAt - a.lastAt)
     .slice(0, MAX_REPORT_EVENTS)
     .map((event) => redactEvent(redactor, withProblemBreadcrumbs(event)));
-  const logLines = readLogLines(FEEDBACK_LOG_BYTES);
+  const logLines = logLinesSince(
+    readLogLines(FEEDBACK_LOG_BYTES),
+    Date.now() - FEEDBACK_LOG_MAX_AGE_MS,
+  );
   return feedbackItem({
     ...(events.length > 0 && { events }),
     files: [
@@ -1001,7 +1061,7 @@ function diagnosticsItem(
       ...(logLines.length > 0
         ? [
             {
-              content: redactor.text(`${logLines.join("\n")}\n`),
+              content: redactor.log(`${logLines.join("\n")}\n`),
               label: "App log",
               path: FEEDBACK_LOG_PATH,
             },

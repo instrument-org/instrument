@@ -1,5 +1,8 @@
 import { homeSpellings } from "@instrument-org/shared/home-folder";
-import { redactSecrets } from "@instrument-org/shared/secrets";
+import {
+  redactSecrets,
+  redactUrlQueries,
+} from "@instrument-org/shared/secrets";
 
 /** Someone a report may name: an account signed in on this computer. */
 type Person = { email: string; name?: string };
@@ -16,6 +19,8 @@ export type ReportKnownValues = {
   chatId?: string;
   /** Every chat's id, `chatId`'s aside, each spelling out its chat's title. */
   chatIds?: readonly string[];
+  /** The names the workspace's computers go by, which the prompt states. */
+  computers?: readonly string[];
   home?: string;
   login?: string;
   memories?: readonly { name: string; text: string }[];
@@ -27,6 +32,39 @@ const MIN_LITERAL = 4;
 
 /** The shortest memory text taken out of free text, so a stock phrase stays. */
 const MIN_MEMORY_TEXT = 12;
+
+/**
+ * The shortest part of an address before its `@` taken out on its own, so a
+ * short one that is also an ordinary word stays.
+ */
+const MIN_ADDRESS_NAME = 5;
+
+/** The parts before an `@` that name a role, not a person. */
+const ROLE_ADDRESS_NAMES = new Set([
+  "accounts",
+  "admin",
+  "billing",
+  "contact",
+  "hello",
+  "inbox",
+  "no-reply",
+  "noreply",
+  "office",
+  "sales",
+  "support",
+]);
+
+/** A computer name a system gives every computer of its kind, which names no one. */
+const MODEL_COMPUTER_NAME =
+  /^(?:iMac|Mac|MacBook)(?: (?:Air|mini|Pro|Studio))?$/;
+
+/**
+ * A chat id as the app log writes it: a date and the words of the chat's
+ * first message (`2026-10-21-add-all-bills-from-this`), including the ids
+ * of chats an earlier build kept, which the index no longer lists.
+ */
+const DATED_CHAT_ID =
+  /(?<![\w-])\d{4}-\d{2}-\d{2}-[a-z0-9]+(?:-[a-z0-9]+)+(?![\w-])/g;
 
 /** How a session's context names the person (`getUserText`). */
 const USER_LINE =
@@ -108,6 +146,22 @@ export function createReportRedactor(known: ReportKnownValues) {
     if (known.login) {
       add(known.login, "[login]", true);
     }
+    // What comes before an address's `@` is often a username, and shows up
+    // alone in a path or a handle once the address itself is taken out.
+    for (const person of people) {
+      const name = person.email.split("@")[0] ?? "";
+      if (
+        name.length >= MIN_ADDRESS_NAME &&
+        !ROLE_ADDRESS_NAMES.has(name.toLowerCase())
+      ) {
+        add(name, "[email name]", true);
+      }
+    }
+    for (const computer of known.computers ?? []) {
+      if (!MODEL_COMPUTER_NAME.test(computer.trim())) {
+        add(computer, "[computer]", true);
+      }
+    }
     // A one-word memory name is too likely an ordinary word to take out of
     // free text; a hyphenated one is not.
     for (const [name, alias] of memoryNames) {
@@ -138,17 +192,32 @@ export function createReportRedactor(known: ReportKnownValues) {
 
   const text = (value: string): string => {
     let out = value;
+    // Addresses first, since a login or name inside one would otherwise be
+    // taken out alone and leave the rest of the address unmatched.
+    if (emails) {
+      out = out.replaceAll(emails, "[email]");
+    }
     if (pattern) {
       out = out.replaceAll(
         pattern,
         (match) => replacements.get(match) ?? match,
       );
     }
-    if (emails) {
-      out = out.replaceAll(emails, "[email]");
-    }
     return redactSecrets(out);
   };
+
+  /**
+   * The app log as a report sends it: every chat id by its shape, the
+   * reported chat's aside, since the log names chats the index no longer
+   * knows, and every web address's query, which lines written before the
+   * log was redacted as it was written still carry.
+   */
+  const log = (value: string): string =>
+    text(
+      redactUrlQueries(value).replaceAll(DATED_CHAT_ID, (id) =>
+        id === known.chatId ? id : "[other chat]",
+      ),
+    );
 
   const deep = (value: unknown): unknown => {
     if (typeof value === "string") {
@@ -331,7 +400,7 @@ export function createReportRedactor(known: ReportKnownValues) {
     }));
   };
 
-  return { chatFiles, deep, text };
+  return { chatFiles, deep, log, text };
 }
 
 /** A field written as its kind and length: `[memory, 47 chars]`. */

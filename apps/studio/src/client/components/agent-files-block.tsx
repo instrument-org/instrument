@@ -1,3 +1,4 @@
+import { MiddleTruncate } from "@/client/components/middle-truncate";
 import { type ViewerFile } from "@/client/atoms/viewer-file";
 import {
   FILE_MISSING_LABEL,
@@ -351,7 +352,9 @@ function FileLine({
       type="button"
     >
       <FileTypeIcon className="size-4" fileName={filename} />
-      <span className="min-w-0 flex-1 truncate">{filename}</span>
+      <span className="flex min-w-0 flex-1">
+        <MiddleTruncate extension text={filename} />
+      </span>
       <span className="shrink-0 text-[10px] text-muted-foreground">
         {isMissing ? missingLabel : getFileKindLabel({ filename })}
       </span>
@@ -382,7 +385,9 @@ function FolderLine({ onClick, path }: { onClick: () => void; path: string }) {
       type="button"
     >
       <SystemFolderIcon className="size-4 shrink-0" />
-      <span className="min-w-0 flex-1 truncate">{nameOfPath(path)}</span>
+      <span className="flex min-w-0 flex-1">
+        <MiddleTruncate text={nameOfPath(path)} />
+      </span>
       <span className="shrink-0 text-[10px] text-muted-foreground">Folder</span>
       <ArrowUpRightIcon className="size-3 shrink-0 text-muted-foreground" />
     </button>

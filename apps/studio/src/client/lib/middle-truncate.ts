@@ -7,7 +7,7 @@
  * first time and none after.
  */
 
-const ELLIPSIS = "…";
+export const ELLIPSIS = "…";
 
 /** Widths by font, then by string. */
 const widths = new Map<string, Map<string, number>>();

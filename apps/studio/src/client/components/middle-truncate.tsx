@@ -1,4 +1,5 @@
 import {
+  ELLIPSIS,
   fitMiddle,
   fitTwoLines,
   fontOf,
@@ -7,7 +8,13 @@ import {
   type TextFont,
 } from "@/client/lib/middle-truncate";
 import { cn } from "@/client/lib/utils";
-import { useEffectEvent, useLayoutEffect, useRef, useState } from "react";
+import {
+  type ReactNode,
+  useEffectEvent,
+  useLayoutEffect,
+  useRef,
+  useState,
+} from "react";
 
 /** What each measured box does when its width changes. */
 const onResize = new WeakMap<Element, () => void>();
@@ -68,8 +75,7 @@ function useFit(
       // and the page never clips the last letter.
       const lines = fits ? [text] : fit((width - 1) / measured.scale, font);
       setFitted((previous) =>
-        previous.text === text &&
-        previous.lines.join("\n") === lines.join("\n")
+        previous.text === text && previous.lines.join("\n") === lines.join("\n")
           ? previous
           : { lines, text },
       );
@@ -111,6 +117,14 @@ function useFit(
 }
 
 /**
+ * The whole text, drawn out of sight from the box's `data-text`, sizes the
+ * box, so what is shown in it never decides how wide it is. Being a pseudo
+ * element, it adds nothing to the box's text.
+ */
+const SIZED_BY_WHOLE_TEXT =
+  "grid min-w-0 grid-cols-[minmax(0,auto)] before:invisible before:col-start-1 before:row-start-1 before:h-0 before:min-w-0 before:overflow-hidden before:whitespace-pre before:content-[attr(data-text)]";
+
+/**
  * A name on one line, cut in its middle to fit its box, the way the Finder
  * shows a long file name: `Quarterly rep…2026.pdf`. `extension` keeps a
  * file's extension whole after the cut.
@@ -121,24 +135,28 @@ function useFit(
 export function MiddleTruncate({
   className,
   extension = false,
+  renderText = (piece) => piece,
   text,
 }: {
   className?: string;
   extension?: boolean;
+  /** Draws a piece of the text, given where it starts in the whole, for marks such as a search's matches. */
+  renderText?: (piece: string, start: number) => ReactNode;
   text: string;
 }) {
   const { box, lines } = useFit(text, (width, font) => [
     fitMiddle(text, width, font, { extension }),
   ]);
   const shown = lines[0] ?? text;
+  // Where the cut is: the letters kept from the start, and from the end.
+  let head = 0;
+  while (head < shown.length && shown[head] === text[head]) {
+    head += 1;
+  }
+  const tail = Math.max(0, shown.length - head - ELLIPSIS.length);
   return (
     <span
-      className={cn(
-        // The whole name, drawn out of sight, sizes the box, so what is
-        // shown in it never decides how wide it is.
-        "grid min-w-0 grid-cols-[minmax(0,auto)] before:invisible before:col-start-1 before:row-start-1 before:h-0 before:min-w-0 before:overflow-hidden before:whitespace-pre before:content-[attr(data-text)]",
-        className,
-      )}
+      className={cn(SIZED_BY_WHOLE_TEXT, className)}
       data-text={text}
       ref={box}
     >
@@ -147,7 +165,7 @@ export function MiddleTruncate({
           className="col-start-1 row-start-1 overflow-hidden whitespace-pre"
           data-fit-line=""
         >
-          {text}
+          {renderText(text, 0)}
         </span>
       ) : (
         <>
@@ -155,7 +173,11 @@ export function MiddleTruncate({
             aria-hidden
             className="col-start-1 row-start-1 overflow-hidden whitespace-pre"
           >
-            {shown}
+            {renderText(text.slice(0, head), 0)}
+            {ELLIPSIS}
+            {tail > 0
+              ? renderText(text.slice(-tail), text.length - tail)
+              : null}
           </span>
           <span className="sr-only">{text}</span>
         </>
@@ -181,20 +203,31 @@ export function TwoLineTruncate({
     fitTwoLines(text, width, font, { extension }),
   );
   return (
-    <span className={cn("block min-w-0", className)} ref={box}>
-      {lines.length === 1 ? (
-        <span className="block overflow-hidden whitespace-pre" data-fit-line="">{lines[0]}</span>
-      ) : (
-        <>
-          <span aria-hidden className="block overflow-hidden whitespace-pre">
+    <span
+      className={cn(SIZED_BY_WHOLE_TEXT, className)}
+      data-text={text}
+      ref={box}
+    >
+      <span className="col-start-1 row-start-1 min-w-0">
+        {lines.length === 1 ? (
+          <span
+            className="block overflow-hidden whitespace-pre"
+            data-fit-line=""
+          >
             {lines[0]}
           </span>
-          <span aria-hidden className="block overflow-hidden whitespace-pre">
-            {lines[1]}
-          </span>
-          <span className="sr-only">{text}</span>
-        </>
-      )}
+        ) : (
+          <>
+            <span aria-hidden className="block overflow-hidden whitespace-pre">
+              {lines[0]}
+            </span>
+            <span aria-hidden className="block overflow-hidden whitespace-pre">
+              {lines[1]}
+            </span>
+            <span className="sr-only">{text}</span>
+          </>
+        )}
+      </span>
     </span>
   );
 }

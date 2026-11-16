@@ -1,3 +1,4 @@
+import { MiddleTruncate } from "@/client/components/middle-truncate";
 import { type ChosenItem } from "@/shared/drafts";
 import { type WindowTab } from "@/client/atoms/window";
 import {
@@ -184,6 +185,7 @@ function IncludedChip({
         )
       }
       isSelected={isSelected}
+      cutsMiddle={isOnePath(chip)}
       name={nameOfChip(chip)}
       onLeaveOut={onLeaveOut}
       {...(onSelect ? { onSelect } : {})}
@@ -320,6 +322,7 @@ function ChosenChip({
     <ContextChip
       label={<ChipLabel paths={[item.path]} said={SENT_WITH_MESSAGE} />}
       mark={<ItemMark item={item} />}
+      cutsMiddle
       name={nameOfPath(item.path)}
       onLeaveOut={onLeaveOut}
       slot="chosen-chip"
@@ -409,6 +412,7 @@ export function SentChips({ chips }: { chips: SentChip[] }) {
                 }
               : undefined
           }
+          cutsMiddle={isOnePath(chip)}
           name={nameOfChip(chip)}
           onOpen={openerOf(chip)}
           slot="sent-chip"
@@ -456,6 +460,7 @@ function ChipLabel({ paths, said }: { paths: string[]; said: string }) {
  * and the one up stands raised on the card's color.
  */
 function ContextChip({
+  cutsMiddle = false,
   drags,
   isSelected = false,
   label,
@@ -466,6 +471,8 @@ function ContextChip({
   onSelect,
   slot,
 }: {
+  /** Whether the name is a file or folder's, cut in its middle when the chip is short of room. */
+  cutsMiddle?: boolean;
   /** What dragging the chip out of the window carries: a sent chip's files and folders, never a draft's. */
   drags?: { hostPath: string; others: string[] };
   /** Whether the chip's tab is the one its band has up. */
@@ -493,7 +500,11 @@ function ContextChip({
       <span className="grid size-4 shrink-0 place-items-center [&_img]:size-4 [&_svg]:size-4">
         {mark}
       </span>
-      <span className="truncate">{name}</span>
+      {cutsMiddle ? (
+        <MiddleTruncate extension text={name} />
+      ) : (
+        <span className="truncate">{name}</span>
+      )}
     </>
   );
   const content = (
@@ -575,6 +586,11 @@ function ItemMark({ item }: { item: Pick<ChosenItem, "kind" | "path"> }) {
 }
 
 /** What a chip calls the thing it names. */
+/** Whether a chip names one file or folder, by its name. */
+function isOnePath(chip: SentChip) {
+  return chip.kind === "paths" && chip.items.length === 1;
+}
+
 function nameOfChip(chip: SentChip) {
   if (chip.kind !== "paths") {
     return chip.title;

@@ -14,18 +14,24 @@ import {
   MemoryNameSchema,
   readMemory,
   saveMemory,
+  settleMemoryFiles,
 } from "./store";
+import { getWorkspaceConfig } from "../workspace-config";
+import { readMemoryRecords } from "./memory-records";
 
+/** The workspace, whose `.instrument/devices/` holds the memory store. */
+let root: string;
+/** Its `Memory/`. */
 let dir: AbsolutePath;
 
 beforeEach(async () => {
-  dir = AbsolutePathSchema.parse(
-    await fs.mkdtemp(path.join(os.tmpdir(), "memory-store-test-")),
-  );
+  root = await fs.mkdtemp(path.join(os.tmpdir(), "memory-store-test-"));
+  dir = AbsolutePathSchema.parse(path.join(root, "Memory"));
+  await fs.mkdir(dir);
 });
 
 afterEach(async () => {
-  await fs.rm(dir, { force: true, recursive: true });
+  await fs.rm(root, { force: true, recursive: true });
 });
 
 describe("MemoryNameSchema", () => {
@@ -49,7 +55,7 @@ describe("MemoryNameSchema", () => {
 });
 
 describe("saveMemory", () => {
-  it("writes a file the user can read, and lists it back", async () => {
+  it("writes a file of the memory's text alone, keeps its source in the store, and lists it back", async () => {
     const saved = await saveMemory(dir, {
       chat: ChatIdSchema.parse("2026-10-21-roofer-call"),
       name: "pacific-time",
@@ -58,10 +64,13 @@ describe("saveMemory", () => {
 
     expect(saved.replaced).toBe(false);
     expect(saved.memory.path).toBe(path.join(dir, "pacific-time.md"));
-    const file = await fs.readFile(saved.memory.path, "utf8");
-    expect(file).toMatch(
-      /^---\nchat: instrument:\/\/chat\/2026-10-21-roofer-call\nupdated: \d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}Z\n---\nYou are on Pacific time and mornings are best for calls.\n$/,
+    expect(await fs.readFile(saved.memory.path, "utf8")).toBe(
+      "You are on Pacific time and mornings are best for calls.\n",
     );
+    expect(readMemoryRecords(dir).get("pacific-time.md")).toEqual({
+      chat: "2026-10-21-roofer-call",
+      updated: new Date(saved.memory.at).toISOString().replace(".000Z", "Z"),
+    });
 
     const listed = await listMemories(dir);
     expect(listed).toEqual([saved.memory]);
@@ -101,9 +110,13 @@ describe("saveMemory", () => {
 
     await saveMemory(dir, { name: "sweetener", text: "Stevia is fine." });
 
-    const written = await fs.readFile(file, "utf8");
-    expect(written).toContain("project: Kitchen");
-    expect(written).toContain("Stevia is fine.");
+    expect(await fs.readFile(file, "utf8")).toMatchInlineSnapshot(`
+      "---
+      project: Kitchen
+      ---
+      Stevia is fine.
+      "
+    `);
   });
 
   it("refuses an empty memory, a bad name, and one past the ceiling", async () => {
@@ -178,13 +191,14 @@ describe("listMemories", () => {
 });
 
 describe("forgetMemory", () => {
-  it("deletes the file and hands back what it held", async () => {
+  it("deletes the file and its record, and hands back what it held", async () => {
     await saveMemory(dir, { name: "roofer", text: "Your roofer is Dave." });
 
     const forgotten = await forgetMemory(dir, "roofer");
 
     expect(forgotten?.text).toBe("Your roofer is Dave.");
     expect(await listMemories(dir)).toEqual([]);
+    expect(readMemoryRecords(dir).has("roofer.md")).toBe(false);
     expect(await forgetMemory(dir, "roofer")).toBeUndefined();
   });
 });
@@ -244,6 +258,81 @@ describe("memoryDigests", () => {
 
     await forgetMemory(dir, "one");
     expect(memoryDigests(await listMemories(dir))).toEqual({ two: first.two });
+  });
+});
+
+describe("settleMemoryFiles", () => {
+  const device = () => getWorkspaceConfig().deviceId;
+
+  it("takes an earlier build's front matter into the store, leaving the text", async () => {
+    await fs.writeFile(
+      path.join(dir, "zevia.md"),
+      "---\nchat: instrument://chat/2026-10-21-zevia\nupdated: 2026-10-21T15:04:11Z\nproject: Kitchen\n---\nZevia is back in.\n",
+    );
+    await fs.writeFile(
+      path.join(dir, "roofer.md"),
+      "---\nupdated: 2026-10-22T09:00:00Z\n---\nYour roofer is Dave.\n",
+    );
+    await fs.writeFile(path.join(dir, "address.md"), "1420 Alder St.\n");
+    const before = await listMemories(dir);
+
+    expect(await settleMemoryFiles(root, device())).toMatchInlineSnapshot(`
+      {
+        "done": [
+          "took roofer.md's front matter into the memory store",
+          "took zevia.md's front matter into the memory store",
+        ],
+        "left": [],
+      }
+    `);
+
+    expect(
+      await fs.readFile(path.join(dir, "zevia.md"), "utf8"),
+    ).toMatchInlineSnapshot(`
+      "---
+      project: Kitchen
+      ---
+      Zevia is back in.
+      "
+    `);
+    expect(await fs.readFile(path.join(dir, "roofer.md"), "utf8")).toBe(
+      "Your roofer is Dave.\n",
+    );
+    expect(Object.fromEntries(readMemoryRecords(dir))).toMatchInlineSnapshot(`
+      {
+        "roofer.md": {
+          "updated": "2026-10-22T09:00:00Z",
+        },
+        "zevia.md": {
+          "chat": "2026-10-21-zevia",
+          "updated": "2026-10-21T15:04:11Z",
+        },
+      }
+    `);
+    // What Settings › Memory shows is the same before and after.
+    expect(await listMemories(dir)).toEqual(before);
+    expect(await settleMemoryFiles(root, device())).toEqual({
+      done: [],
+      left: [],
+    });
+  });
+
+  it("lets a memory saved since the file was written outrank it", async () => {
+    await saveMemory(dir, { name: "roofer", text: "Your roofer is Dave." });
+    const { at } = (await readMemory(dir, "roofer")) ?? { at: 0 };
+    const file = path.join(dir, "roofer.md");
+    // An older build on another computer writes its front matter back.
+    await fs.writeFile(
+      file,
+      "---\nupdated: 2026-01-01T00:00:00Z\n---\nYour roofer is Dave.\n",
+    );
+    const past = new Date("2026-01-01T00:00:00Z");
+    await fs.utimes(file, past, past);
+
+    await settleMemoryFiles(root, device());
+
+    expect((await readMemory(dir, "roofer"))?.at).toBe(at);
+    expect(await fs.readFile(file, "utf8")).toBe("Your roofer is Dave.\n");
   });
 });
 

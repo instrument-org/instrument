@@ -4,12 +4,12 @@ import path from "node:path";
 
 import {
   APPS_FOLDER_NAME,
+  MEMORY_FOLDER_NAME,
   PROJECT_FILE_NAME,
   PROJECTS_FOLDER_NAME,
 } from "../constants";
 import { type SessionMessageDataPart } from "../schemas/session/message-data-part";
 import { APP_FILE_NAME } from "./apps/app-file";
-import { memoryDir } from "./memory/store";
 import {
   beginTurn,
   endTurn,
@@ -54,7 +54,9 @@ export const SETUP_KINDS: Record<
     presence: (name) => `${name}/${APP_FILE_NAME}`,
   },
   memory: {
-    folder: () => memoryDir(),
+    // Not `memoryDir()`: the memory store's module reaches the session
+    // schemas, which reach this one.
+    folder: () => path.join(getWorkspaceConfig().rootDir, MEMORY_FOLDER_NAME),
     itemOf: (entry) => (entry.endsWith(".md") ? entry.slice(0, -3) : undefined),
     marker: (name) => `${name}.md`,
     presence: (name) => `${name}.md`,

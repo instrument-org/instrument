@@ -12,6 +12,7 @@ import {
   TASK_STATE_FILE_NAME,
   TASKS_DIR_NAME,
 } from "../constants";
+import { type DeviceId } from "../schemas/device-id";
 import { ProjectIdSchema } from "../schemas/project-id";
 import { foldTaskStateFile } from "./fold-task-state-file";
 import { foldTaskWorkDir } from "./fold-task-work-dir";
@@ -152,11 +153,14 @@ export interface WorkspaceLayoutMigration {
 // Synchronous, and renames rather than copies except for the browser-profile
 // clones it deletes outright; no db handle open.
 export function migrateWorkspaceLayout({
+  device,
   machineDir,
   marks,
   rootDir,
   workFoldersDir,
 }: {
+  /** The device the projects made from 1.x projects are written as; the running workspace's when left out. */
+  device?: DeviceId;
   /** This computer's folder for the workspace. */
   machineDir: string;
   marks: LayoutMarkStore;
@@ -205,7 +209,7 @@ export function migrateWorkspaceLayout({
   const removedBrowserProfileCloneCount = normalizeTasks(rootDir, normalized);
   // After the task sweep, so each task an earlier version ran is in its
   // current shape when it is made into a chat.
-  const legacyTasks = migrateLegacyTasks(rootDir, machineDir);
+  const legacyTasks = migrateLegacyTasks(rootDir, machineDir, device);
   // After the 1.x migration, which turns the projects in `projects/` into
   // projects first.
   const projectsLeft = setAsideLegacyProjectsDir({ machineDir, rootDir });

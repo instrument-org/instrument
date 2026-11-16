@@ -21,6 +21,8 @@ import {
   renameChatDatabases,
   settleDrafts,
   settleKeyFolderCase,
+  settleMemoryFiles,
+  settleProjectFiles,
   withholdChats,
   settleWorkspaceDb,
 } from "@instrument-org/workspace/electron";
@@ -91,7 +93,7 @@ export async function sweepWorkspaceFolder({
   markProjectFoldersSeen();
   let layoutSettled = true;
   if (inAppData) {
-    layoutSettled = sweepWorkspaceLayout(rootDir);
+    layoutSettled = sweepWorkspaceLayout(deviceId, rootDir);
   } else {
     logger.info(
       "Workspace layout migration: none for a folder the person picked",
@@ -127,19 +129,30 @@ export async function sweepWorkspaceFolder({
   // The person's own folders come out of `.instrument/` before anything
   // reads one of them.
   await moveFolderOut("Memory", () => moveMemoriesToFolder(rootDir));
+  // Then each memory file becomes its text alone, what an earlier build
+  // wrote over it going into the memory store.
+  await timeBootStep("sweep.settleMemoryFiles", () =>
+    settleMemoryFolder(deviceId, rootDir),
+  );
   await moveFolderOut("Skills", () => moveSkillsToFolder(rootDir));
   await moveFolderOut("Projects", () => moveProjectsToFolder(rootDir));
   await moveFolderOut("Apps", () => moveAppsToFolder(rootDir));
-  // And once the projects and the apps are out, each one's files become the
-  // one file a person reads, which is its own step: the folder moves whatever
-  // is inside it, and one already converted is left alone.
+  // And once the projects and the apps are out, each one's files become what
+  // this build reads, which is its own step: the folder moves whatever is
+  // inside it, and one already converted is left alone.
   await timeBootStep("sweep.convertProjectFiles", () =>
-    convertProjectFiles(rootDir),
+    convertProjectFiles(deviceId, rootDir),
   );
-  // Once every project is its `AGENTS.md`, the folders an earlier build
-  // granted in one come onto this computer's permission settings, before the
-  // moves below rewrite the paths those settings hold.
-  carryProjectFolders(rootDir);
+  // Then every project has its record, and its `AGENTS.md` is its
+  // instructions alone: what an earlier build, here or on another computer,
+  // wrote over them goes into the projects store.
+  await timeBootStep("sweep.settleProjectFiles", () => {
+    settleProjects(deviceId, rootDir);
+  });
+  // The folders an earlier build granted in a project's file come onto this
+  // computer's permission settings, before the moves below rewrite the paths
+  // those settings hold.
+  carryProjectFolders(deviceId, rootDir);
   await timeBootStep("sweep.convertAppFiles", () => convertAppFiles(rootDir));
   // Then each chat the converter just brought onto its records gets the
   // folder a person opens, written once. After the projects, because a
@@ -231,9 +244,10 @@ function markProjectFoldersSeen() {
   }
 }
 
-function carryProjectFolders(rootDir: string) {
+function carryProjectFolders(deviceId: DeviceId, rootDir: string) {
   try {
     const { moved } = moveProjectFolders({
+      device: deviceId,
       machineDir: workspaceMachineDir(),
       rootDir,
     });
@@ -411,15 +425,48 @@ async function moveFolderOut(what: string, move: () => Promise<FolderMoved>) {
 }
 
 /**
- * Turn each project's hidden settings and instructions into the one
- * `AGENTS.md` a person reads and edits. Runs after the folder itself is out,
- * for every workspace, since every build so far wrote the two files.
+ * Turn each project's hidden settings and instructions into its record and
+ * the `AGENTS.md` a person reads and edits. Runs after the folder itself is
+ * out, for every workspace, since every build so far wrote the two files.
  * Idempotent, and a project that already has its file is left alone; a
  * failure must not block boot.
  */
-async function convertProjectFiles(rootDir: string) {
+async function convertProjectFiles(deviceId: DeviceId, rootDir: string) {
   try {
-    logProjectSteps(await convertProjectsToProjectFiles(rootDir));
+    logProjectSteps(await convertProjectsToProjectFiles(rootDir, deviceId));
+  } catch (error) {
+    captureServerException(error);
+  }
+}
+
+/**
+ * Take what earlier builds wrote over each project's instructions into the
+ * projects store, and give every project folder its record. Every launch,
+ * every workspace, since an earlier build on another computer writes it
+ * back; a failure must not block boot, and the next launch tries again.
+ */
+function settleProjects(deviceId: DeviceId, rootDir: string) {
+  try {
+    logProjectSteps(settleProjectFiles(rootDir, deviceId));
+  } catch (error) {
+    captureServerException(error);
+  }
+}
+
+/**
+ * Take what earlier builds wrote over each memory into the memory store,
+ * leaving each file its text. Every launch, every workspace; a failure must
+ * not block boot, and the next launch tries again.
+ */
+async function settleMemoryFolder(deviceId: DeviceId, rootDir: string) {
+  try {
+    const settled = await settleMemoryFiles(rootDir, deviceId);
+    logDone("Memory", settled.done);
+    for (const each of settled.left) {
+      logger.warn(
+        `Memory: left ${each.where} as it was, and the next launch tries again: ${each.reason}`,
+      );
+    }
   } catch (error) {
     captureServerException(error);
   }
@@ -487,10 +534,11 @@ async function convertAppFiles(rootDir: string) {
  * block boot. Says whether every app folder is where this build reads it,
  * which is false when a move was left for the next boot or the sweep threw.
  */
-function sweepWorkspaceLayout(rootDir: string): boolean {
+function sweepWorkspaceLayout(deviceId: DeviceId, rootDir: string): boolean {
   try {
     const migrationStartedAt = performance.now();
     const migration = migrateWorkspaceLayout({
+      device: deviceId,
       machineDir: workspaceMachineDir(),
       marks: workspaceLayoutMarks(rootDir),
       rootDir,

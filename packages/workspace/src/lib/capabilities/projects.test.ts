@@ -11,6 +11,7 @@ import { createMockChatConfig } from "../../test/helpers/mock-chat-config";
 import { ChatReads } from "../chat-reads";
 import { ChatWrites } from "../chat-writes";
 import { markCardUndone } from "../chat/card-undone";
+import { readProjectRecords } from "../chat/project-records";
 import { createProject, listProjects, updateProject } from "../chat/projects";
 import { undoProjectChanges } from "../chat/undo-project-changes";
 import { createLocalBashEnv } from "../create-bash-env";
@@ -203,27 +204,28 @@ describe("instrument projects set", () => {
 });
 
 describe("instrument projects create", () => {
-  it("makes the project's folder and file with its front matter, and records it as made", async () => {
+  it("makes the project's folder and its record, and records it as made", async () => {
     const { changes, results } = await turn(
       'instrument projects create Kitchen --icon cooking-pot --color deep-violet --about "Recipes and meal plans"',
     );
     const kitchen = await project("Kitchen");
     expect(results[0]?.stdout).toBe(`Created Kitchen, id ${kitchen?.id}.\n`);
-    const file = fs.readFileSync(
-      path.join(getWorkspaceConfig().rootDir, "Projects/Kitchen/AGENTS.md"),
-      "utf8",
-    );
+    // A project with no instructions is its folder alone.
     expect(
-      file.replace(/prj_\w+/, "<id>").replace(/created: .+/, "created: <at>"),
-    ).toMatchInlineSnapshot(`
-      "---
-      id: <id>
-      icon: cooking-pot
-      color: "#765fca"
-      about: Recipes and meal plans
-      created: <at>
-      ---
-      "
+      fs.readdirSync(
+        path.join(getWorkspaceConfig().rootDir, "Projects/Kitchen"),
+      ),
+    ).toEqual([]);
+    const { created: _created, ...record } =
+      readProjectRecords(getWorkspaceConfig().rootDir).get(kitchen?.id ?? "") ??
+      {};
+    expect(record).toMatchInlineSnapshot(`
+      {
+        "about": "Recipes and meal plans",
+        "color": "#765fca",
+        "folder": "Kitchen",
+        "icon": "cooking-pot",
+      }
     `);
     expect(changes).toEqual([
       {

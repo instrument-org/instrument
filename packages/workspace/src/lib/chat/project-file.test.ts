@@ -3,33 +3,66 @@ import { describe, expect, it } from "vitest";
 import {
   listedFolderPaths,
   parseProjectFile,
-  renderProjectFile,
-  type ProjectFile,
+  renderInstructionsFile,
   toTheSecond,
+  withoutFrontMatterKeys,
 } from "./project-file";
 
 /** When the file was last written, for a project whose front matter says no. */
 const AT = new Date("2026-10-16T18:04:11.231Z");
 
-const KITCHEN: ProjectFile = {
-  about: "Kitchen plans and appliances",
-  color: "amber",
-  created: new Date("2026-09-02T09:14:00Z"),
-  emoji: "🍳",
-  id: "top_01K8ZQ2N4C",
-  instructions:
-    "The standing instructions every chat under this project is read with.",
-};
+/** A file as a build before this one wrote it, with a key of someone else's. */
+const EARLIER = `---
+id: top_01K8ZQ2N4C
+emoji: 🍳
+color: amber
+about: Kitchen plans and appliances
+created: 2026-09-02T09:14:00Z
+projectId: prj_01KXB5K5ZSQNZ8NQJPQRYRAAS1
+sortsAfter: Trips
+---
 
-describe("renderProjectFile", () => {
-  it("writes the front matter a person reads, then the instructions", () => {
-    expect(renderProjectFile(KITCHEN)).toMatchInlineSnapshot(`
+The standing instructions every chat under this project is read with.
+`;
+
+describe("renderInstructionsFile", () => {
+  it("writes the instructions alone", () => {
+    expect(renderInstructionsFile({ instructions: "  Aisle seats.\n\n" }))
+      .toMatchInlineSnapshot(`
+      "Aisle seats.
+      "
+    `);
+  });
+
+  it("writes nothing for a project with no instructions", () => {
+    expect(renderInstructionsFile({})).toBe("");
+  });
+
+  it("keeps someone else's front matter over them, long lines unfolded", () => {
+    const note = "a kitchen ".repeat(20).trim();
+
+    expect(
+      renderInstructionsFile({
+        instructions: "Aisle seats.",
+        others: { note, sortsAfter: "Trips" },
+      }),
+    ).toMatchInlineSnapshot(`
       "---
-      id: top_01K8ZQ2N4C
-      emoji: 🍳
-      color: amber
-      about: Kitchen plans and appliances
-      created: 2026-09-02T09:14:00Z
+      note: a kitchen a kitchen a kitchen a kitchen a kitchen a kitchen a kitchen a kitchen a kitchen a kitchen a kitchen a kitchen a kitchen a kitchen a kitchen a kitchen a kitchen a kitchen a kitchen a kitchen
+      sortsAfter: Trips
+      ---
+
+      Aisle seats.
+      "
+    `);
+  });
+});
+
+describe("withoutFrontMatterKeys", () => {
+  it("takes out what an earlier build wrote, keeping the rest", () => {
+    expect(withoutFrontMatterKeys(EARLIER)).toMatchInlineSnapshot(`
+      "---
+      sortsAfter: Trips
       ---
 
       The standing instructions every chat under this project is read with.
@@ -37,73 +70,37 @@ describe("renderProjectFile", () => {
     `);
   });
 
-  it("writes a project with nothing but an id and a date", () => {
-    expect(renderProjectFile({ created: KITCHEN.created, id: "top_1" }))
-      .toMatchInlineSnapshot(`
-        "---
-        id: top_1
-        created: 2026-09-02T09:14:00Z
-        ---
-        "
-      `);
+  it("leaves nothing of a file that held only the app's keys", () => {
+    expect(
+      withoutFrontMatterKeys("---\nid: top_1\ncreated: 2026-09-02\n---\n"),
+    ).toBe("");
   });
 
-  it("names retired only when it is", () => {
-    expect(renderProjectFile({ ...KITCHEN, retired: false })).not.toContain(
-      "retired",
-    );
-    expect(renderProjectFile({ ...KITCHEN, retired: true })).toContain(
-      "retired: true",
-    );
-  });
-
-  it("quotes what YAML would read as something else", () => {
-    const file = renderProjectFile({
-      ...KITCHEN,
-      about: "Dishwashers: quiet ones",
-      color: "true",
-    });
-
-    expect(file).toContain('about: "Dishwashers: quiet ones"');
-    expect(file).toContain('color: "true"');
-    expect(parseProjectFile(file, { at: AT })?.color).toBe("true");
-  });
-
-  it("leaves a long line long rather than folding it", () => {
-    const about = "a kitchen ".repeat(20).trim();
-
-    const file = renderProjectFile({ ...KITCHEN, about });
-
-    expect(file).toContain(`about: ${about}\n`);
-    expect(parseProjectFile(file, { at: AT })?.about).toBe(about);
+  it.each([
+    ["no front matter", "# Garden\n\nWater on Sundays.\n"],
+    ["only someone else's keys", "---\nsortsAfter: Trips\n---\nWords.\n"],
+    ["front matter YAML cannot read", "---\nid: 'top_1\n---\nWords.\n"],
+  ])("has nothing to do for a file with %s", (_case, text) => {
+    expect(withoutFrontMatterKeys(text)).toBeUndefined();
   });
 });
 
 describe("parseProjectFile", () => {
-  it("round-trips a project with every key", () => {
-    const project: ProjectFile = {
-      ...KITCHEN,
-      others: {
-        projectId: "prj_01KXB5K5ZSQNZ8NQJPQRYRAAS1",
-        seen: ["phone"],
-        sortsAfter: "Trips",
-      },
-      retired: true,
-    };
-
-    expect(parseProjectFile(renderProjectFile(project), { at: AT })).toEqual(
-      project,
-    );
-  });
-
-  it("round-trips an icon, written after the emoji's place", () => {
-    const { emoji: _emoji, ...rest } = KITCHEN;
-    const project: ProjectFile = { ...rest, icon: "cooking-pot" };
-
-    const file = renderProjectFile(project);
-
-    expect(file).toContain("id: top_01K8ZQ2N4C\nicon: cooking-pot\n");
-    expect(parseProjectFile(file, { at: AT })).toEqual(project);
+  it("reads every key an earlier build wrote", () => {
+    expect(parseProjectFile(EARLIER, { at: AT })).toMatchInlineSnapshot(`
+      {
+        "about": "Kitchen plans and appliances",
+        "color": "amber",
+        "created": 2026-09-02T09:14:00.000Z,
+        "emoji": "🍳",
+        "id": "top_01K8ZQ2N4C",
+        "instructions": "The standing instructions every chat under this project is read with.",
+        "legacyId": "prj_01KXB5K5ZSQNZ8NQJPQRYRAAS1",
+        "others": {
+          "sortsAfter": "Trips",
+        },
+      }
+    `);
   });
 
   it("takes the instructions as the body, however it is spaced", () => {

@@ -2,17 +2,27 @@ import {
   PRIVATE_FOLDER_NAME,
   SETTINGS_FILE_NAME,
 } from "@instrument-org/shared";
+import fsSync from "node:fs";
 import fs from "node:fs/promises";
 import path from "node:path";
 
+import { type DeviceId } from "../schemas/device-id";
 import {
   parseProjectFile,
-  renderProjectFile,
   PROJECT_FILE_NAME,
   type ProjectFile,
+  type ProjectFileRead,
   projectFileOf,
   PROJECTS_FOLDER_NAME,
+  renderInstructionsFile,
+  withoutFrontMatterKeys,
 } from "./chat/project-file";
+import {
+  type ProjectRecord,
+  readProjectRecords,
+  writeProjectRecords,
+} from "./chat/project-records";
+import { readProjectsSync, writeProjectSync } from "./chat/projects";
 import { type FolderMoved, moveOutOfDataDir } from "./move-out-of-data-dir";
 import { readOldFile } from "./read-old-file";
 import { rewriteFileSync } from "./rewrite-file";
@@ -52,18 +62,21 @@ export interface ProjectFilesConverted {
 }
 
 /**
- * Turns each project's two hidden files into the one file the person opens: a
- * `.instrument/settings.json` and an `instructions.md` in `Projects/<Name>/`
- * become the front matter and the body of an `AGENTS.md` beside them.
+ * Turns each project's two hidden files into what this build reads: a
+ * `.instrument/settings.json` in `Projects/<Name>/` becomes the project's
+ * record in the projects store, and an `instructions.md` beside it its
+ * `AGENTS.md`.
  *
  * Safe to run again: a folder that already holds an `AGENTS.md` is left alone,
  * and so is one holding no settings, which is a folder of the person's that
- * was never a project. The old files go only once the new one has been written
- * and read back as the project it was written from, so a conversion that fails
- * halfway leaves a readable project behind either way.
+ * was never a project. The old files go only once the record has been written
+ * and read back, so a conversion that fails halfway leaves a readable project
+ * behind either way.
  */
 export async function convertProjectsToProjectFiles(
   rootDir: string,
+  /** The device the records are written as; the running workspace's when left out. */
+  device?: DeviceId,
 ): Promise<ProjectFilesConverted> {
   const converted: ProjectFilesConverted = { done: [], left: [] };
   const dir = path.join(rootDir, PROJECTS_FOLDER_NAME);
@@ -78,7 +91,7 @@ export async function convertProjectsToProjectFiles(
   for (const name of names.toSorted()) {
     const folder = path.join(dir, name);
     try {
-      const line = await convertProjectFolder(folder);
+      const line = await convertProjectFolder(rootDir, folder, device);
       if (line) {
         converted.done.push(line);
       }
@@ -94,7 +107,9 @@ export async function convertProjectsToProjectFiles(
  * folder there was nothing to do to.
  */
 async function convertProjectFolder(
+  rootDir: string,
   folder: string,
+  device: DeviceId | undefined,
 ): Promise<string | undefined> {
   const file = path.join(folder, PROJECT_FILE_NAME);
   const already = await fs
@@ -115,18 +130,21 @@ async function convertProjectFolder(
   if (!project) {
     throw new Error(`${SETTINGS_FILE_NAME} names no project`);
   }
-  // Whole or not at all: a file cut short would read as the project
-  // converted, and the two files it came from would never be read again.
-  rewriteFileSync(file, () => renderProjectFile(project));
-  const again = parseProjectFile(await fs.readFile(file, "utf8"), {
-    at: new Date(),
-  });
-  if (again?.id !== project.id) {
-    throw new Error(`${PROJECT_FILE_NAME} did not read back as the project`);
+  const name = path.basename(folder);
+  writeProjectSync(rootDir, { ...project, name }, { device, keepWords: true });
+  if (readProjectRecords(rootDir).get(project.id)?.folder !== name) {
+    throw new Error("its record did not read back as the project");
+  }
+  // The instructions, under the settings keys this build does not know: the
+  // folders an earlier build granted, which the launch takes onto this
+  // computer's settings next (`moveProjectFolders`), and anyone else's.
+  const words = renderInstructionsFile(project);
+  if (words !== "") {
+    rewriteFileSync(file, () => words);
   }
   await fs.rm(instructionsFile, { force: true });
   await fs.rm(hidden, { force: true, recursive: true });
-  return `converted ${path.basename(folder)} to ${PROJECT_FILE_NAME}`;
+  return `converted ${name} to its record`;
 }
 
 /**
@@ -253,4 +271,111 @@ export async function moveTopicsToProjects(
     );
   }
   return moved;
+}
+
+/**
+ * Takes what earlier builds wrote into each project's `AGENTS.md` as front
+ * matter (its id, mark, tint, about line, when it was made, whether it was
+ * retired, the 1.x project it was joined to) into the projects store, and
+ * writes the file back as the person's words alone: the instructions, under
+ * any front matter of anyone else's, as it was. A file left with nothing in
+ * it is deleted, since a project with no instructions needs none.
+ *
+ * Every launch, since a build before this one, on another computer sharing
+ * the workspace, writes front matter back; a file with none is read and left
+ * alone. What a file says is taken as of when the file was last written, so
+ * a change made since in the app, on any device, outranks it. Each folder
+ * with no record gets one, and a folder renamed in a file manager keeps its
+ * record (`matchProjectFolders`), as any read in a running workspace does.
+ */
+export function settleProjectFiles(
+  rootDir: string,
+  device: DeviceId,
+): ProjectFilesConverted {
+  const settled: ProjectFilesConverted = { done: [], left: [] };
+  const projects = readProjectsSync(rootDir, { device });
+  const records = readProjectRecords(rootDir);
+  for (const project of projects) {
+    const file = path.join(
+      rootDir,
+      PROJECTS_FOLDER_NAME,
+      project.name,
+      PROJECT_FILE_NAME,
+    );
+    try {
+      let text: string;
+      let at: Date;
+      try {
+        // oxlint-disable-next-line studio/no-sync-content-read -- a launch step before the workspace is up, synchronous like the projects' own reads.
+        text = fsSync.readFileSync(file, "utf8");
+        at = fsSync.statSync(file).mtime;
+      } catch {
+        continue;
+      }
+      const stripped = withoutFrontMatterKeys(text);
+      if (stripped === undefined) {
+        continue;
+      }
+      const record = records.get(project.id);
+      if (record) {
+        writeProjectRecords(rootDir, device, [
+          {
+            at: at.getTime(),
+            id: project.id,
+            record: absorbed(record, parseProjectFile(text, { at })),
+          },
+        ]);
+      }
+      if (!readProjectRecords(rootDir).has(project.id)) {
+        throw new Error("its record is not in the projects store");
+      }
+      if (stripped === "") {
+        fsSync.rmSync(file, { force: true });
+      } else {
+        rewriteFileSync(
+          file,
+          (current) =>
+            (current === undefined
+              ? undefined
+              : withoutFrontMatterKeys(current)) ??
+            current ??
+            stripped,
+        );
+      }
+      settled.done.push(
+        `took ${project.name}'s front matter into its record${stripped === "" ? `, and removed its empty ${PROJECT_FILE_NAME}` : ""}`,
+      );
+    } catch (error) {
+      settled.left.push({ reason: String(error), where: file });
+    }
+  }
+  return settled;
+}
+
+/**
+ * A record with what a file's front matter says over it, key by key: only
+ * what the file names, and never its id or when it was made, which the
+ * record already has. An emoji takes the icon's place, and an icon the
+ * emoji's.
+ */
+function absorbed(record: ProjectRecord, file: ProjectFileRead): ProjectRecord {
+  const { emoji, icon, ...rest } = record;
+  const mark =
+    file.emoji !== undefined || file.icon !== undefined
+      ? {
+          ...(file.emoji === undefined ? {} : { emoji: file.emoji }),
+          ...(file.icon === undefined ? {} : { icon: file.icon }),
+        }
+      : {
+          ...(emoji === undefined ? {} : { emoji }),
+          ...(icon === undefined ? {} : { icon }),
+        };
+  return {
+    ...rest,
+    ...(file.about === undefined ? {} : { about: file.about }),
+    ...(file.color === undefined ? {} : { color: file.color }),
+    ...mark,
+    ...(file.legacyId === undefined ? {} : { legacyId: file.legacyId }),
+    ...(file.retired ? { retired: true } : {}),
+  };
 }

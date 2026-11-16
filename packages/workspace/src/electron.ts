@@ -157,7 +157,7 @@ export { chatModelURI } from "./lib/chat-settings";
 export { giveChatsTheirFolders } from "./lib/chat-folders/first-folders";
 export { type DraftsSettled, settleDrafts } from "./lib/drafts/boot";
 export { type MemoriesMoved, moveMemoriesToFolder } from "./lib/memory/move";
-export { listMemories, memoryDir } from "./lib/memory/store";
+export { listMemories, memoryDir, settleMemoryFiles } from "./lib/memory/store";
 export {
   type AppFilesConverted,
   convertAppsToAppFiles,
@@ -172,6 +172,7 @@ export {
   moveProjectsToFolder,
   moveTopicsToProjects,
   type ProjectsMoved,
+  settleProjectFiles,
 } from "./lib/projects-move";
 export { chatRecords } from "./lib/records/chat-records";
 export {

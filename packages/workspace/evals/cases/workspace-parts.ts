@@ -10,7 +10,8 @@
  * mean the workspace's skills folder. What these measure:
  *
  * - **A project is edited where it lives.** Asked to add to "my Travel project",
- *   the agent changes `Projects/Travel/AGENTS.md` and reaches for no app.
+ *   the agent changes `Projects/Travel/AGENTS.md` and reaches for no app, and
+ *   makes the file where the project has no instructions yet, so none.
  * - **A skill from a link is installed into the workspace's skills.** Given
  *   a skills.sh page, the skill lands in the workspace's skills folder, and
  *   in no other agent's.
@@ -237,6 +238,18 @@ export const WORKSPACE_PARTS_EVALS = [
         instructions: "Plan trips with a day of slack.",
         name: "Travel",
       });
+    },
+  }),
+
+  // A project with no instructions is its folder alone, with no AGENTS.md.
+  defineEval({
+    assertions: [editedTheProjectFile, reachedForNoApp],
+    kind: "chat",
+    name: "workspace-parts-starts-a-project-file",
+    prompt:
+      "Add to my Travel project that I prefer trains over flights for trips under four hours.",
+    setup: async () => {
+      await createProject({ emoji: "🧳", name: "Travel" });
     },
   }),
 

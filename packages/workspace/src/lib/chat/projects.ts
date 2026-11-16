@@ -4,24 +4,36 @@ import path from "node:path";
 import { monotonicFactory } from "ulid";
 import { z } from "zod";
 
+import { type DeviceId } from "../../schemas/device-id";
 import { type AbsolutePath, AbsolutePathSchema } from "../../schemas/paths";
 import {
   everyProjectsFolderPaths,
   setProjectFolders,
 } from "../permissions/project-folders";
 import { validateFolderName } from "../project-folder-name";
+import { writingChatRecords } from "../records/installed-records";
 import { rewriteFileSync } from "../rewrite-file";
+import { applySyncedOps } from "../synced-store/synced-files";
 import { isSystemClutter } from "../system-clutter";
-import { getWorkspaceConfig } from "../workspace-config";
+import { utcStamp } from "../utc-stamp";
+import { getWorkspaceConfig, hasWorkspaceConfig } from "../workspace-config";
+import { workspaceLayout } from "../workspace-layout";
 import {
   type ProjectFileRead,
   parseProjectFile,
-  renderProjectFile,
   PROJECT_FILE_NAME,
   ProjectFileSchema,
   PROJECTS_FOLDER_NAME,
+  renderInstructionsFile,
   toTheSecond,
 } from "./project-file";
+import {
+  matchProjectFolders,
+  PROJECTS_DOMAIN,
+  type ProjectRecord,
+  readProjectRecords,
+  writeProjectRecords,
+} from "./project-records";
 
 const ulid = monotonicFactory();
 
@@ -40,14 +52,16 @@ export { PROJECT_FILE_NAME, PROJECTS_FOLDER_NAME } from "./project-file";
  * A project: a folder in the workspace's `Projects/`, named for it, that chats
  * are filed under. The `AGENTS.md` in it holds the instructions every chat
  * filed under it is read with; a folder without one is a project with none.
+ * What else the app knows about it is its record in the projects store
+ * (`project-records.ts`).
  */
 export const ProjectSchema = ProjectFileSchema.extend({
   name: z.string(),
   /**
-   * Its id is not in its file yet: a folder the person made, or an
-   * `AGENTS.md` they copied in, goes by an id drawn from the folder's name,
-   * the same on every computer, until something points at it by that id and
-   * it is written down (`saveProjectId`).
+   * It has no record yet: a folder the person made goes by an id drawn from
+   * its name, the same on every computer, until a read that knows its device
+   * writes the record down (`saveProjectId`, or any read in a running
+   * workspace).
    */
   unsaved: z.literal(true).optional(),
 });
@@ -159,9 +173,10 @@ function newProjectId(at?: number): string {
 }
 
 /**
- * The id a project whose file names none goes by: drawn from its folder's
- * name, so every computer reading the same folder agrees on it, and in a new
- * id's shape.
+ * The id a project with no record goes by: drawn from its folder's name, so
+ * every computer reading the same folder agrees on it, and in a new id's
+ * shape. Builds before this one gave a folder whose file named no id the
+ * same one.
  */
 export function folderProjectId(name: string): string {
   const digest = createHash("sha256").update(name.toLowerCase()).digest();
@@ -173,10 +188,30 @@ export function folderProjectId(name: string): string {
 }
 
 /**
- * Writes a project's id into its file if it is not there yet, before anything
- * keeps that id, so the project keeps it when its folder is renamed. Answers
- * whether the workspace has a project by that id. `rootDir` is the
- * workspace's, for a caller that holds it rather than the workspace config.
+ * The device this process writes as, where the workspace is running: the one
+ * its chat records are written as. Nothing before the workspace is set up,
+ * when a read writes nothing down.
+ */
+function runningDevice(): DeviceId | undefined {
+  return (
+    writingChatRecords()?.device ??
+    (hasWorkspaceConfig() ? getWorkspaceConfig().deviceId : undefined)
+  );
+}
+
+function deviceFor(device: DeviceId | undefined): DeviceId {
+  const found = device ?? runningDevice();
+  if (found === undefined) {
+    throw new Error("A project is written as a device, and none is set up");
+  }
+  return found;
+}
+
+/**
+ * Writes a project's record down if it has none yet, before anything keeps
+ * its id, so the project keeps it when its folder is renamed. Answers whether
+ * the workspace has a project by that id. `rootDir` is the workspace's, for a
+ * caller that holds it rather than the workspace config.
  */
 export function saveProjectId(
   projectId: string,
@@ -184,41 +219,53 @@ export function saveProjectId(
 ): Promise<boolean> {
   return Promise.resolve().then(() => {
     const root = rootDir ?? getWorkspaceConfig().rootDir;
-    const project = readProjectsSync(root).find(
+    return readProjectsSync(root, { device: deviceFor(undefined) }).some(
       (entry) => entry.id === projectId,
     );
-    if (project?.unsaved) {
-      rewriteProjectSync(root, project, (current) => current);
-    }
-    return project !== undefined;
   });
 }
+
+/** What a read of one project folder found. */
+type FolderRead =
+  | { file: ProjectFileRead; name: string }
+  | { file?: undefined; made: Date; name: string }
+  | undefined;
 
 /**
  * Every project under a workspace root, in list order. Synchronous and
  * file-level, for the boot migrations that write projects before the workspace
  * is up, and for the writes, which read the projects they change.
+ *
+ * A read that knows its device (given, or the running workspace's) writes
+ * down what it settles: a record for a folder that has none, and a folder a
+ * record has moved to (`matchProjectFolders`). One that does not, or is
+ * given `null`, leaves them as they read, marking the projects with no
+ * record `unsaved`.
  */
-export function readProjectsSync(rootDir: string): Project[] {
-  const dir = projectsDirOf(rootDir);
+export function readProjectsSync(
+  rootDir: string,
+  { device = runningDevice() }: { device?: DeviceId | null } = {},
+): Project[] {
   let entries: fs.Dirent[];
   try {
-    entries = fs.readdirSync(dir, { withFileTypes: true });
+    entries = fs.readdirSync(projectsDirOf(rootDir), { withFileTypes: true });
   } catch {
     return [];
   }
-  return inListOrder(
-    projectFolderNames(entries).flatMap((name) => {
-      const project = readProjectFolder(path.join(dir, name));
-      return project ? [project] : [];
-    }),
+  const dir = projectsDirOf(rootDir);
+  return settled(
+    rootDir,
+    projectFolderNames(entries).map((name) =>
+      readProjectFolder(path.join(dir, name)),
+    ),
+    device ?? undefined,
   );
 }
 
 /**
- * Every project under a workspace root, in list order, read off the main
- * thread and all at once. A `AGENTS.md` a cloud drive moved off this computer
- * takes most of a second to read, while the drive downloads it.
+ * Every project under a workspace root, in list order, its files read off the
+ * main thread and all at once. A `AGENTS.md` a cloud drive moved off this
+ * computer takes most of a second to read, while the drive downloads it.
  */
 async function readProjects(rootDir: string): Promise<Project[]> {
   const dir = projectsDirOf(rootDir);
@@ -233,7 +280,103 @@ async function readProjects(rootDir: string): Promise<Project[]> {
       readProjectFolderAsync(path.join(dir, name)),
     ),
   );
-  return inListOrder(read.flatMap((project) => (project ? [project] : [])));
+  return settled(rootDir, read, runningDevice());
+}
+
+/**
+ * The projects the folders make, each with its record, writing down what a
+ * read settles where it knows its device.
+ */
+function settled(
+  rootDir: string,
+  folders: readonly FolderRead[],
+  device: DeviceId | undefined,
+): Project[] {
+  const read = folders.flatMap((folder) => (folder ? [folder] : []));
+  const records = readProjectRecords(rootDir);
+  const fileIds = new Map(
+    read.flatMap((folder) =>
+      folder.file?.id === undefined ? [] : [[folder.name, folder.file.id]],
+    ),
+  );
+  const match = matchProjectFolders({
+    fileIds,
+    folders: read.map((folder) => folder.name),
+    records,
+  });
+  const taken = new Set([...records.keys(), ...match.byFolder.values()]);
+  const toWrite: { id: string; record: ProjectRecord }[] =
+    match.renamed.flatMap(({ folder, id }) => {
+      const record = records.get(id);
+      return record ? [{ id, record: { ...record, folder } }] : [];
+    });
+  const projects = read.map((folder): Project => {
+    let id = match.byFolder.get(folder.name);
+    const record = id === undefined ? undefined : records.get(id);
+    const fromFile = {
+      ...(folder.file?.instructions
+        ? { instructions: folder.file.instructions }
+        : {}),
+      ...(folder.file?.others ? { others: folder.file.others } : {}),
+    };
+    if (id !== undefined && record) {
+      return { ...projectOfRecord(id, record), ...fromFile, name: folder.name };
+    }
+    if (id === undefined) {
+      id = unusedFolderId(folder.name, taken);
+      taken.add(id);
+    }
+    // No record yet: what an earlier build's front matter said, or the
+    // folder alone.
+    const { id: _fileId, ...file } = folder.file ?? {
+      created: toTheSecond(folder.made),
+    };
+    const project: Project = { ...file, id, name: folder.name };
+    toWrite.push({ id, record: recordOf(project) });
+    return device === undefined ? { ...project, unsaved: true } : project;
+  });
+  if (device !== undefined) {
+    writeProjectRecords(rootDir, device, toWrite);
+  }
+  return inListOrder(projects);
+}
+
+/** The id drawn from a folder's name, or the next one past an id in use. */
+function unusedFolderId(name: string, taken: ReadonlySet<string>): string {
+  let id = folderProjectId(name);
+  for (let n = 2; taken.has(id); n += 1) {
+    id = folderProjectId(`${name}\n${n}`);
+  }
+  return id;
+}
+
+/** A project as its record has it, before its instructions are read. */
+function projectOfRecord(id: string, record: ProjectRecord): Project {
+  return {
+    ...(record.about ? { about: record.about } : {}),
+    ...(record.color ? { color: record.color } : {}),
+    created: toTheSecond(new Date(record.created)),
+    ...(record.emoji ? { emoji: record.emoji } : {}),
+    ...(record.icon ? { icon: record.icon } : {}),
+    id,
+    ...(record.legacyId ? { legacyId: record.legacyId } : {}),
+    name: record.folder,
+    ...(record.retired ? { retired: true } : {}),
+  };
+}
+
+/** The record a project is written down as: everything but its words. */
+export function recordOf(project: Project): ProjectRecord {
+  return {
+    ...(project.about ? { about: project.about } : {}),
+    ...(project.color ? { color: project.color } : {}),
+    created: utcStamp(project.created),
+    ...(project.emoji ? { emoji: project.emoji } : {}),
+    folder: project.name,
+    ...(project.icon ? { icon: project.icon } : {}),
+    ...(project.legacyId ? { legacyId: project.legacyId } : {}),
+    ...(project.retired ? { retired: true } : {}),
+  };
 }
 
 /** Every folder in `Projects/` but what the system leaves there. */
@@ -332,47 +475,77 @@ export async function updateProject(
 }
 
 /**
- * Writes a project whole into the `AGENTS.md` in the folder named for it, making
- * the folder the first time. The name is the caller's to have made unique and
- * safe. A key this build does not know rides along on the project's `others`,
- * read off the file it came from, so a round trip through the app keeps what
- * another client wrote.
+ * Writes a project: its record, as `device` (the running workspace's when
+ * none is given), and its folder, made the first time. Its `AGENTS.md` is
+ * left as it is with `keepWords`, so a change to anything else never touches
+ * the file or an edit to it made since it was read; otherwise it is written
+ * only where the instructions differ from what it says, and instructions left
+ * empty take the file away, with nothing of anyone else's in it. The name is
+ * the caller's to have made unique and safe.
  */
-export function writeProjectSync(rootDir: string, project: Project): Project {
-  return rewriteProjectSync(rootDir, project, () => project);
+export function writeProjectSync(
+  rootDir: string,
+  project: Project,
+  {
+    device,
+    keepWords = false,
+  }: { device?: DeviceId; keepWords?: boolean } = {},
+): Project {
+  const { unsaved: _unsaved, ...written } = project;
+  const folder = path.join(projectsDirOf(rootDir), written.name);
+  fs.mkdirSync(folder, { recursive: true });
+  writeProjectRecords(rootDir, deviceFor(device), [
+    { id: written.id, record: recordOf(written) },
+  ]);
+  if (!keepWords) {
+    writeInstructionsSync(folder, written.instructions);
+  }
+  return written;
 }
 
 /**
- * Applies `change` to the project as its `AGENTS.md` holds it at the moment of
- * writing, so a change to its front matter keeps instructions the person
- * edited since the project was read, and answers with what was written. `project`
- * stands in where the file is gone or names another project. A file that
- * names no id yet is this project's, and is written with the id it went by.
+ * Puts the instructions in a project folder's `AGENTS.md`, keeping front
+ * matter of anyone else's as it is on disk at the moment of writing. Leaves
+ * the file alone where it already says them.
  */
-function rewriteProjectSync(
-  rootDir: string,
-  project: Project,
-  change: (onDisk: Project) => Project,
-): Project {
-  let written = project;
-  rewriteFileSync(
-    path.join(projectsDirOf(rootDir), project.name, PROJECT_FILE_NAME),
-    (text) => {
-      const onDisk =
-        text === undefined
+function writeInstructionsSync(
+  folder: string,
+  instructions: string | undefined,
+): void {
+  const file = path.join(folder, PROJECT_FILE_NAME);
+  const wanted = instructions?.trim() ?? "";
+  const held = readTextIfThere(file);
+  const onDisk =
+    held === undefined ? undefined : parseProjectFile(held, { at: new Date() });
+  if ((onDisk?.instructions ?? "") === wanted) {
+    return;
+  }
+  const next = renderInstructionsFile({
+    instructions: wanted,
+    others: onDisk?.others,
+  });
+  if (next === "") {
+    fs.rmSync(file, { force: true });
+    return;
+  }
+  rewriteFileSync(file, (current) =>
+    renderInstructionsFile({
+      instructions: wanted,
+      others:
+        current === undefined
           ? undefined
-          : parseProjectFile(text, { at: project.created });
-      const { unsaved: _unsaved, ...kept } = project;
-      written = change(
-        onDisk !== undefined && (onDisk.id ?? project.id) === project.id
-          ? { ...onDisk, id: project.id, name: project.name }
-          : kept,
-      );
-      const { name: _name, unsaved: _stillUnsaved, ...file } = written;
-      return renderProjectFile(file);
-    },
+          : parseProjectFile(current, { at: new Date() }).others,
+    }),
   );
-  return written;
+}
+
+function readTextIfThere(file: string): string | undefined {
+  try {
+    // oxlint-disable-next-line studio/no-sync-content-read -- synchronous on purpose: each project write reads, checks and writes in one run, so two cannot interleave.
+    return fs.readFileSync(file, "utf8");
+  } catch {
+    return undefined;
+  }
 }
 
 /** A name the person typed, or a `ProjectNameError` saying why a folder cannot take it. */
@@ -421,21 +594,23 @@ function createProjectNow({
     if (!existing.retired) {
       return { project: existing, was: "in use" };
     }
-    const project = rewriteProjectSync(rootDir, existing, (current) => {
-      const {
-        emoji: _emoji,
-        icon: _icon,
-        retired: _retired,
-        ...revived
-      } = current;
-      return {
+    const {
+      emoji: _emoji,
+      icon: _icon,
+      retired: _retired,
+      ...revived
+    } = existing;
+    const project = writeProjectSync(
+      rootDir,
+      {
         ...revived,
         ...(about ? { about } : {}),
         ...(color ? { color } : {}),
-        ...markAfter(current, { emoji, icon }),
+        ...markAfter(existing, { emoji, icon }),
         ...(instructions ? { instructions } : {}),
-      };
-    });
+      },
+      { keepWords: !instructions },
+    );
     return { retired: existing, project, was: "retired" };
   }
   const project: Project = {
@@ -472,8 +647,9 @@ function markAfter(
 
 /**
  * Puts back what `createProjectNow` changed: a retired project retired again as
- * it was, or a new one's file gone, with its folder when nothing else is in
- * it, since a folder of the person's can stand where the project was made.
+ * it was, or a new one's record and file gone, with its folder when nothing
+ * else is in it, since a folder of the person's can stand where the project
+ * was made.
  */
 function takeBackProject(made: MadeProject): void {
   const rootDir = getWorkspaceConfig().rootDir;
@@ -482,6 +658,12 @@ function takeBackProject(made: MadeProject): void {
     return;
   }
   if (made.was === "new") {
+    applySyncedOps({
+      device: deviceFor(undefined),
+      devicesDir: workspaceLayout(rootDir).devicesDir,
+      domain: PROJECTS_DOMAIN,
+      ops: [{ key: made.project.id, t: "del" }],
+    });
     const folder = path.join(projectsDirOf(rootDir), made.project.name);
     fs.rmSync(path.join(folder, PROJECT_FILE_NAME), { force: true });
     try {
@@ -497,60 +679,54 @@ function nameKey(name: string): string {
 }
 
 /**
- * One project by its folder: what its `AGENTS.md` says, or a project with no
- * instructions where the folder has none. Nothing where the file is there
- * but cannot be read. The name is the folder's, so a folder renamed in a file
- * manager is a project renamed.
+ * One project folder: what its `AGENTS.md` says, front matter an earlier
+ * build wrote included, or only when the folder was made where it has no
+ * file. Nothing where the file is there but cannot be read.
  */
-function readProjectFolder(folderPath: string): Project | undefined {
+function readProjectFolder(folderPath: string): FolderRead {
   const file = path.join(folderPath, PROJECT_FILE_NAME);
+  const name = path.basename(folderPath);
   try {
     // When the file was last written stands in for a `created` it does not
     // hold, which is what a project the person made by hand has.
     // oxlint-disable-next-line studio/no-sync-content-read -- synchronous on purpose: each project write reads, checks the name and writes in one run, so two cannot interleave, and listProjects reads every AGENTS.md async first.
     const text = fs.readFileSync(file, "utf8");
-    return projectIn(
-      folderPath,
-      parseProjectFile(text, { at: fs.statSync(file).mtime }),
-    );
+    return {
+      file: parseProjectFile(text, { at: fs.statSync(file).mtime }),
+      name,
+    };
   } catch (error) {
-    return isMissing(error) ? folderOnlyProject(folderPath) : undefined;
+    return isMissing(error) ? folderOnly(folderPath) : undefined;
   }
 }
 
-async function readProjectFolderAsync(
-  folderPath: string,
-): Promise<Project | undefined> {
+async function readProjectFolderAsync(folderPath: string): Promise<FolderRead> {
   const file = path.join(folderPath, PROJECT_FILE_NAME);
   try {
     const [text, stat] = await Promise.all([
       fs.promises.readFile(file, "utf8"),
       fs.promises.stat(file),
     ]);
-    return projectIn(folderPath, parseProjectFile(text, { at: stat.mtime }));
+    return {
+      file: parseProjectFile(text, { at: stat.mtime }),
+      name: path.basename(folderPath),
+    };
   } catch (error) {
-    return isMissing(error) ? folderOnlyProject(folderPath) : undefined;
+    return isMissing(error) ? folderOnly(folderPath) : undefined;
   }
 }
 
 /** A project folder with no `AGENTS.md` in it, made when the folder was. */
-function folderOnlyProject(folderPath: string): Project | undefined {
+function folderOnly(folderPath: string): FolderRead {
   try {
     const stat = fs.statSync(folderPath);
-    return projectIn(folderPath, {
-      created: toTheSecond(stat.birthtimeMs > 0 ? stat.birthtime : stat.mtime),
-    });
+    return {
+      made: stat.birthtimeMs > 0 ? stat.birthtime : stat.mtime,
+      name: path.basename(folderPath),
+    };
   } catch {
     return undefined;
   }
-}
-
-/** The project a folder's file makes it, by the folder's name when the file names no id. */
-function projectIn(folderPath: string, file: ProjectFileRead): Project {
-  const name = path.basename(folderPath);
-  return file.id === undefined
-    ? { ...file, id: folderProjectId(name), name, unsaved: true }
-    : { ...file, id: file.id, name };
 }
 
 function isMissing(error: unknown): boolean {
@@ -573,10 +749,11 @@ function retireProjectNow(projectId: string): void {
     (entry) => entry.id === projectId,
   );
   if (project) {
-    rewriteProjectSync(rootDir, project, (current) => ({
-      ...current,
-      retired: true,
-    }));
+    writeProjectSync(
+      rootDir,
+      { ...project, retired: true },
+      { keepWords: true },
+    );
   }
 }
 
@@ -597,7 +774,7 @@ function projectFolderName(raw: string): string {
   return validateFolderName(name, "Project").isOk() ? name : "Project";
 }
 
-/** Writes the change to the project's file; false for a project not there. */
+/** Writes the change to the project; false for a project not there. */
 function updateProjectNow(projectId: string, change: ProjectChange): boolean {
   const rootDir = getWorkspaceConfig().rootDir;
   const projects = readProjectsSync(rootDir);
@@ -622,32 +799,35 @@ function updateProjectNow(projectId: string, change: ProjectChange): boolean {
       fs.renameSync(path.join(dir, project.name), path.join(dir, name));
     }
   }
-  rewriteProjectSync(rootDir, { ...project, name }, (current) => {
-    const {
-      about,
-      color,
-      emoji: _emoji,
-      icon: _icon,
-      instructions,
-      retired,
-      ...rest
-    } = current;
-    // Empty takes the line away, as it does for instructions.
-    const nextAbout = change.about ?? about;
-    const nextColor = change.color ?? color;
-    const nextRetired = change.retired ?? retired;
-    const nextInstructions =
-      change.instructions === undefined
-        ? instructions
-        : change.instructions.trim();
-    return {
+  const {
+    about,
+    color,
+    emoji: _emoji,
+    icon: _icon,
+    instructions,
+    retired,
+    ...rest
+  } = project;
+  // Empty takes the line away, as it does for instructions.
+  const nextAbout = change.about ?? about;
+  const nextColor = change.color ?? color;
+  const nextRetired = change.retired ?? retired;
+  const nextInstructions =
+    change.instructions === undefined
+      ? instructions
+      : change.instructions.trim();
+  writeProjectSync(
+    rootDir,
+    {
       ...rest,
       ...(nextAbout ? { about: nextAbout } : {}),
       ...(nextColor ? { color: nextColor } : {}),
-      ...markAfter(current, change),
+      ...markAfter(project, change),
       ...(nextInstructions ? { instructions: nextInstructions } : {}),
+      name,
       ...(nextRetired ? { retired: true } : {}),
-    };
-  });
+    },
+    { keepWords: change.instructions === undefined },
+  );
   return true;
 }

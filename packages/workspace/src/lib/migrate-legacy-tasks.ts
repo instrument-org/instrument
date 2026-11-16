@@ -12,6 +12,7 @@ import {
   CHAT_FOLDER_NAMES,
   TASKS_DIR_NAME,
 } from "../constants";
+import { type DeviceId } from "../schemas/device-id";
 import { RelativePathSchema } from "../schemas/paths";
 import { ProjectIdSchema } from "../schemas/project-id";
 import { type Session } from "../schemas/session";
@@ -141,6 +142,8 @@ interface StoreRow {
 export function migrateLegacyTasks(
   rootDir: string,
   machineDir: string,
+  /** The device the projects it makes are written as; the running workspace's when left out. */
+  device?: DeviceId,
 ): LegacyTasksMigration {
   const migration: LegacyTasksMigration = {
     adoptedCount: 0,
@@ -170,11 +173,12 @@ export function migrateLegacyTasks(
 
   const legacyProjects = readLegacyProjects(rootDir);
   const projectOf = new Map<string, string>();
-  const projects = readProjectsSync(rootDir);
+  const projects = readProjectsSync(rootDir, { device });
   const legacyIds = new Set(legacyProjects.map((each) => each.id));
   for (const legacyProject of legacyProjects) {
     try {
       const project = projectForLegacy({
+        device,
         legacy: legacyProject,
         legacyIds,
         projects,
@@ -867,11 +871,13 @@ function storedValue(blob: null | Uint8Array): unknown {
  * what it would add is already there.
  */
 function projectForLegacy({
+  device,
   legacy,
   legacyIds,
   projects,
   rootDir,
 }: {
+  device: DeviceId | undefined;
   legacy: LegacyProject;
   /** Every 1.x project's id, each of which names a project made from it. */
   legacyIds: Set<string>;
@@ -906,7 +912,7 @@ function projectForLegacy({
         ...existing,
         ...(existing.id === legacy.id || legacyIdOf(existing) !== undefined
           ? {}
-          : { others: { ...existing.others, projectId: legacy.id } }),
+          : { legacyId: legacy.id }),
         ...(addsInstructions
           ? {
               instructions: body
@@ -915,7 +921,7 @@ function projectForLegacy({
             }
           : {}),
       };
-      writeProjectSync(rootDir, next);
+      writeProjectSync(rootDir, next, { device });
       projects[index] = next;
     }
     return { id: existing.id, made: false };
@@ -930,18 +936,18 @@ function projectForLegacy({
       projects.map((known) => known.name),
     ),
   };
-  writeProjectSync(rootDir, project);
+  writeProjectSync(rootDir, project, { device });
   projects.push(project);
   return { id: project.id, made: true };
 }
 
 /**
  * The 1.x project a project was joined to, which a build that called
- * projects topics kept as `projectId` in its front matter.
+ * projects topics kept as `projectId` in its front matter, and its record
+ * keeps now.
  */
 function legacyIdOf(project: Project): string | undefined {
-  const id = project.others?.projectId;
-  return typeof id === "string" ? id : undefined;
+  return project.legacyId;
 }
 
 function validDate(value: unknown): Date | undefined {

@@ -7,6 +7,7 @@ import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { AbsolutePathSchema, WorkspaceDirSchema } from "../../schemas/paths";
 import { utcStamp } from "../utc-stamp";
 import { getWorkspaceConfig, setWorkspaceConfig } from "../workspace-config";
+import { readProjectRecords } from "./project-records";
 import {
   createProject,
   folderProjectId,
@@ -16,6 +17,7 @@ import {
   projectName,
   ProjectNameError,
   projectsDir,
+  readProjectsSync,
   saveProjectId,
   updateProject,
 } from "./projects";
@@ -123,12 +125,13 @@ describe("retireProject", () => {
 });
 
 describe("project folders", () => {
-  it("keeps the whole project in one AGENTS.md, in a folder by name", async () => {
+  it("keeps the instructions alone in AGENTS.md and the rest in the projects store", async () => {
     const made = await createProject({
       about: "What to buy and where",
       emoji: "🛒",
       name: "Shopping",
     });
+    expect(tree(projectsDir())).toEqual([]);
     await updateProject(made.id, {
       color: "amber",
       folders: [{ path: "/Users/someone/Deals" }],
@@ -141,17 +144,16 @@ describe("project folders", () => {
       ]
     `);
     expect(await projectFile("Shopping")).toMatchInlineSnapshot(`
-      "---
-      id: <id>
-      emoji: 🛒
-      color: amber
-      about: What to buy and where
-      created: <created>
-      ---
-
-      I have the Prime card.
+      "I have the Prime card.
       "
     `);
+    expect(storeOf(made.id)).toEqual({
+      about: "What to buy and where",
+      color: "amber",
+      created: utcStamp(made.created),
+      emoji: "🛒",
+      folder: "Shopping",
+    });
     expect(await listProjects()).toEqual([
       {
         ...made,
@@ -162,40 +164,59 @@ describe("project folders", () => {
     ]);
   });
 
-  it("writes the created stamp as ISO 8601 in UTC, to the second", async () => {
+  it("takes the file away when the instructions are cleared", async () => {
+    const made = await createProject({
+      instructions: "Aisle seats.",
+      name: "Trips",
+    });
+    expect(tree(projectsDir())).toEqual(["Trips/AGENTS.md"]);
+
+    await updateProject(made.id, { instructions: "" });
+
+    expect(tree(projectsDir())).toEqual([]);
+    expect(fsSync.existsSync(path.join(projectsDir(), "Trips"))).toBe(true);
+  });
+
+  it("never touches AGENTS.md for a change to anything else", async () => {
+    const made = await createProject({ name: "Trips" });
+    const file = path.join(projectsDir(), "Trips", PROJECT_FILE_NAME);
+    // Written by hand, or by another agent opened in the folder.
+    await fs.writeFile(file, "Aisle seats, always.\n");
+
+    await updateProject(made.id, { color: "amber", emoji: "✈️" });
+    await retireProject(made.id);
+
+    expect(await fs.readFile(file, "utf8")).toBe("Aisle seats, always.\n");
+    expect(storeOf(made.id)).toMatchObject({
+      color: "amber",
+      emoji: "✈️",
+      retired: true,
+    });
+  });
+
+  it("keeps the created stamp in the store as ISO 8601 in UTC, to the second", async () => {
     const made = await createProject({ name: "Shopping" });
 
-    const front = await projectFile("Shopping", { stamps: false });
-    expect(front).toMatch(/^created: \d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}Z$/m);
-    expect(front).toContain(`created: ${utcStamp(made.created)}`);
-    // What is in hand and what is on disk are the same project, to the second.
+    expect(storeOf(made.id)?.created).toMatch(
+      /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}Z$/,
+    );
+    expect(storeOf(made.id)?.created).toBe(utcStamp(made.created));
+    // What is in hand and what is read back are the same project, to the second.
     expect((await listProjects())[0]?.created).toEqual(made.created);
   });
 
-  it("marks a retired project, and says nothing of one in the menus", async () => {
-    const made = await createProject({ name: "Trips" });
-    expect(await projectFile("Trips")).not.toContain("retired");
-
-    await retireProject(made.id);
-
-    expect(await projectFile("Trips")).toContain("retired: true");
-  });
-
-  it("writes back a key it does not know, where it found it", async () => {
+  it("keeps a key in the front matter it does not know, where it found it", async () => {
     const made = await createProject({ emoji: "✈️", name: "Trips" });
     // Two keys another client wrote, which this build has never heard of.
     await fs.writeFile(
       path.join(projectsDir(), "Trips", PROJECT_FILE_NAME),
-      `---\nid: ${made.id}\nemoji: ✈️\ncreated: ${utcStamp(made.created)}\nsortsAfter: Home\nseen:\n  - phone\n---\n`,
+      `---\nsortsAfter: Home\nseen:\n  - phone\n---\n`,
     );
 
     await updateProject(made.id, { instructions: "Aisle seats." });
 
     expect(await projectFile("Trips")).toMatchInlineSnapshot(`
       "---
-      id: <id>
-      emoji: ✈️
-      created: <created>
       sortsAfter: Home
       seen:
         - phone
@@ -220,6 +241,7 @@ describe("project folders", () => {
         "Travel/AGENTS.md",
       ]
     `);
+    expect(storeOf(made.id)?.folder).toBe("Travel");
 
     await fs.rename(
       path.join(projectsDir(), "Travel"),
@@ -228,8 +250,32 @@ describe("project folders", () => {
     expect(await listProjects()).toEqual([
       { ...made, instructions: "Aisle seats.", name: "Away" },
     ]);
-    // The name is the folder's, so nothing in the file says it.
-    expect(await projectFile("Away")).not.toContain("Away");
+    // Written down, so a folder made later cannot make it ambiguous.
+    expect(storeOf(made.id)?.folder).toBe("Away");
+    await fs.mkdir(path.join(projectsDir(), "Garden"));
+    expect((await listProjects()).map(({ id, name }) => [name, id])).toEqual([
+      ["Away", made.id],
+      ["Garden", folderProjectId("Garden")],
+    ]);
+  });
+
+  it("keeps working when another agent rewrites AGENTS.md whole", async () => {
+    const made = await createProject({
+      emoji: "🌱",
+      instructions: "Water on Sundays.",
+      name: "Garden",
+    });
+    await fs.writeFile(
+      path.join(projectsDir(), "Garden", PROJECT_FILE_NAME),
+      "# Garden\n\nWater on Sundays and Wednesdays.\n",
+    );
+
+    expect(await listProjects()).toEqual([
+      {
+        ...made,
+        instructions: "# Garden\n\nWater on Sundays and Wednesdays.",
+      },
+    ]);
   });
 
   it("lists every folder as a project, the person's own included, and none of the system's", async () => {
@@ -251,50 +297,49 @@ describe("project folders", () => {
         unsaved,
       })),
     ).toEqual([
-      { instructions: undefined, name: "Garden", unsaved: true },
+      { instructions: undefined, name: "Garden", unsaved: undefined },
       {
         instructions: "# Repo\n\nRun the tests first.",
         name: "Repo",
-        unsaved: true,
+        unsaved: undefined,
       },
     ]);
-    // Each goes by an id drawn from its folder's name, the same on every read,
-    // and nothing is written until something points at one.
+    // Each goes by an id drawn from its folder's name, the same on every
+    // read and every computer, and a running workspace writes it down.
     expect(listed.map((project) => project.id)).toEqual([
       folderProjectId("Garden"),
       folderProjectId("Repo"),
     ]);
+    expect(storeOf(folderProjectId("Garden"))?.folder).toBe("Garden");
     expect((await listProjects()).map((project) => project.id)).toEqual(
       listed.map((project) => project.id),
     );
     expect(tree(projectsDir())).toEqual(["Repo/AGENTS.md", "notes.txt"]);
   });
 
-  it("writes the id it went by into a file with none, keeping every word, when something points at it", async () => {
+  it("writes nothing down where it reads with no device, and the id waits for saveProjectId", async () => {
     await fs.mkdir(path.join(projectsDir(), "Repo"), { recursive: true });
     await fs.writeFile(
       path.join(projectsDir(), "Repo", PROJECT_FILE_NAME),
       "# Repo\n\nRun the tests first.\n",
     );
-    await fs.mkdir(path.join(projectsDir(), "Garden"));
     const id = folderProjectId("Repo");
+    expect(
+      readProjectsSync(getWorkspaceConfig().rootDir, { device: null }),
+    ).toMatchObject([{ id, unsaved: true }]);
+    expect(storeOf(id)).toBeUndefined();
 
     expect(await saveProjectId(id)).toBe(true);
-    expect(await saveProjectId(folderProjectId("Garden"))).toBe(true);
     expect(await saveProjectId("prj_nothing")).toBe(false);
 
-    expect(await projectFile("Repo")).toBe(
-      "---\nid: <id>\ncreated: <created>\n---\n\n# Repo\n\nRun the tests first.\n",
-    );
+    expect(await projectFile("Repo")).toBe("# Repo\n\nRun the tests first.\n");
     await fs.rename(
       path.join(projectsDir(), "Repo"),
       path.join(projectsDir(), "Code"),
     );
-    const [garden, code] = await listProjects();
+    const [code] = await listProjects();
     expect(code).toMatchObject({ id, name: "Code" });
     expect(code).not.toHaveProperty("unsaved");
-    expect(garden).toMatchObject({ id: folderProjectId("Garden") });
-    expect(garden).not.toHaveProperty("unsaved");
   });
 
   it.each([
@@ -371,6 +416,11 @@ async function projectFile(
         .replace(/^id: .+$/m, "id: <id>")
         .replace(/^created: .+$/m, "created: <created>")
     : text;
+}
+
+/** A project's record as the projects store has it. */
+function storeOf(id: string) {
+  return readProjectRecords(getWorkspaceConfig().rootDir).get(id);
 }
 
 function tree(dir: string): string[] {

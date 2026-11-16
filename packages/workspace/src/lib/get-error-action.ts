@@ -106,6 +106,12 @@ export function getErrorAction(message: SessionMessage.Assistant): ErrorAction {
     return { type: "stop" };
   }
 
+  // The provider refused the request for size. The next request is the one
+  // that answers it, by rolling the window over (`lib/context-overflow.ts`).
+  if (classification === "context-overflow") {
+    return { type: "retry" };
+  }
+
   if (error.kind === "unknown") {
     return { error: new Error(error.message), type: "error" };
   }
@@ -149,6 +155,19 @@ export function getErrorAction(message: SessionMessage.Assistant): ErrorAction {
         return { type: "stop" };
       }
       return { type: "retry" };
+    }
+
+    // Any other 4xx refused this request as it stands, and the same request
+    // sent again is refused again. 408 and 409 are the two the SDK counts as
+    // worth another try.
+    if (
+      error.statusCode !== undefined &&
+      error.statusCode >= 400 &&
+      error.statusCode < 500 &&
+      error.statusCode !== 408 &&
+      error.statusCode !== 409
+    ) {
+      return { type: "stop" };
     }
 
     // For other providers with API errors, default to retryable

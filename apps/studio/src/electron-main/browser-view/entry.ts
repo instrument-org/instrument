@@ -86,6 +86,13 @@ export interface BrowserEntry {
   // hears it go, so nothing they send in answer wakes or reaches the guest.
   closing: boolean;
   authorizedDownloadPath: null | string;
+  /**
+   * When the agent last authorized a download (`Date.now()`). A person's input
+   * in the guest after it makes the next download theirs: agent-browser sends
+   * the authorization ahead of its own click, and a click of theirs that
+   * starts nothing would otherwise leave it to claim the person's.
+   */
+  authorizedDownloadAt: number;
   // Listeners notified once when the entry is removed from the manager (for
   // any reason: explicit close, detach, renderer crash). Drained as part of
   // the disposer chain so they never fire more than once. Used to surface
@@ -197,6 +204,7 @@ export function createEntry({
     asleep: false,
     attach: createAttachSignal(),
     closing: false,
+    authorizedDownloadAt: 0,
     authorizedDownloadPath: null,
     destructionListeners: new Set(),
     detachListeners: new Set(),

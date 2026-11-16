@@ -16,6 +16,7 @@ import {
   WindowControls,
 } from "@/client/components/window-controls";
 import { cn } from "@/client/lib/utils";
+import { FeedbackBar } from "./feedback-bar";
 import { LinkSurface } from "./link-surface";
 
 // The toasts' corner, 12px in from the window's own lower left, over the
@@ -138,6 +139,8 @@ export function WindowFrame({
         {corner}
         {!isSetupUp && (
           <>
+            {/* Feedback put down, at the right end of the window's own foot. */}
+            <FeedbackBar />
             {/* Settings, the report and the other dialogs belong to no
               chat, so a page they link to opens in the default browser
               rather than beside whatever chat is on screen behind them. */}

@@ -257,4 +257,59 @@ describe("createReportRedactor", () => {
       `"/files?root=~%2FDesktop and /files?root=%2FVolumes%2F[login]"`,
     );
   });
+
+  it("takes an address out whole even when its first part is the login", () => {
+    const redactor = createReportRedactor({
+      login: "samrivera",
+      people: [{ email: "samrivera@riverabikes.com" }],
+    });
+    expect(
+      redactor.text("Signed in as samrivera@riverabikes.com, home samrivera."),
+    ).toMatchInlineSnapshot(`"Signed in as [email], home [login]."`);
+  });
+
+  it("takes an address's first part out alone, unless it names a role or is short", () => {
+    const redactor = createReportRedactor({
+      people: [
+        { email: "tinychef@example.com" },
+        { email: "support@example.com" },
+        { email: "sam@example.com" },
+      ],
+    });
+    expect(
+      redactor.text(
+        "notes=C:\\Users\\tinychef\\Documents; ask support; sam said hi; tinychefs",
+      ),
+    ).toMatchInlineSnapshot(
+      `"notes=C:\\Users\\[email name]\\Documents; ask support; sam said hi; tinychefs"`,
+    );
+  });
+
+  it("takes out a computer's own name, but not a model name every computer has", () => {
+    const redactor = createReportRedactor({
+      computers: ["Sam’s MacBook Air", "DESKTOP-226IHOV", "MacBook Pro"],
+    });
+    expect(
+      redactor.text(
+        "The user's computer: Sam’s MacBook Air, macOS 27. Also DESKTOP-226IHOV and a MacBook Pro.",
+      ),
+    ).toMatchInlineSnapshot(
+      `"The user's computer: [computer], macOS 27. Also [computer] and a MacBook Pro."`,
+    );
+  });
+
+  it("takes other chats' ids and every address's query out of the app log", () => {
+    const redactor = createReportRedactor({ chatId: CHAT });
+    expect(
+      redactor.log(
+        [
+          `did-fail-load targetId=2026-09-23-add-all-bills-from-this-statement-to/ses_01M37 url=https://mail.google.com/mail/u/0/data?token=abc123`,
+          `opened ${CHAT} at [2026-10-27 13:24:43.886] for /Users/x/2026-11-12.png`,
+        ].join("\n"),
+      ),
+    ).toMatchInlineSnapshot(`
+      "did-fail-load targetId=[other chat]/ses_01M37 url=https://mail.google.com/mail/u/0/data?[query]
+      opened 2026-10-20-dinner-party-menu-6d4a at [2026-10-27 13:24:43.886] for /Users/x/2026-11-12.png"
+    `);
+  });
 });

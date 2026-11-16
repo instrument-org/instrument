@@ -410,6 +410,30 @@ describe("Markdown fences", () => {
     ).toBe(isOff);
   });
 
+  // The info string says what a fence is, and it is only final once its line
+  // ends: a pause after the backticks must not flash an empty code block, or
+  // one labeled with half of `files`.
+  it.each([
+    ["only its backticks", "Here:\n\n```", false],
+    ["half its language", "Here:\n\n```fi", false],
+    ["its whole language", "Here:\n\n```files", false],
+    ["its language inside a list", "- Here:\n\n  ```sh", false],
+    ["its opening line ended", "Here:\n\n```sh\n", true],
+  ])("draws a fence arriving with %s", (_case, text, isDrawn) => {
+    const { container } = renderWithProviders(
+      <Markdown isStreaming markdown={text} />,
+    );
+
+    expect(container.querySelector("pre") !== null).toBe(isDrawn);
+    expect(container.textContent).not.toContain("fi");
+  });
+
+  it("draws a fence whose opening line never ended once the reply finished", () => {
+    const { container } = renderWithProviders(<Markdown markdown={"```sh"} />);
+
+    expect(container.querySelector("pre")).not.toBeNull();
+  });
+
   // A finished reply that never closed its fence has nothing more coming, so
   // what the block holds is all of it.
   it("offers copying an unclosed fence once the reply has finished", () => {

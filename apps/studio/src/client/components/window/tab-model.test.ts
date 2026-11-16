@@ -29,6 +29,7 @@ import {
   openInGroup,
   openOrFocusScreen,
   openPage,
+  pageBecameDownload,
   type PageTab,
   type ScreenTab,
   pageNavigated,
@@ -962,5 +963,51 @@ describe("a chat's tab sent somewhere else", () => {
     expect(
       tabToScreen(state, { href: `/chats/${ROOFER}`, id: "c", newId: "h" }),
     ).toBe(state);
+  });
+});
+
+describe("pageBecameDownload", () => {
+  it("closes a tab that showed nothing else when its strip has another", () => {
+    const state = selectTab(
+      windowOf([
+        pageTab("opener", "https://example.com", CHAT),
+        { ...pageTab("dl", "https://example.com/a.zip", CHAT), isOpened: true },
+      ]),
+      "dl",
+    );
+
+    expect(pageBecameDownload(state, "dl").tabs.map((tab) => tab.id)).toEqual([
+      "opener",
+    ]);
+  });
+
+  it("keeps a strip's only tab", () => {
+    const state = windowOf([pageTab("dl", "https://example.com/a.zip", CHAT)]);
+
+    expect(pageBecameDownload(state, "dl")).toBe(state);
+  });
+
+  it("takes a tab back to what it showed, leaving the page out of its history", () => {
+    const state = windowOf([
+      {
+        ...pageTab("dl", "https://example.com/a.zip", CHAT),
+        past: [screenTab("new", NEW_TAB_HREF, CHAT)],
+      },
+      pageTab("other", "https://example.com", CHAT),
+    ]);
+
+    const [tab] = pageBecameDownload(state, "dl").tabs;
+
+    expect(tab).toMatchObject({ href: NEW_TAB_HREF, id: "new", past: [] });
+    expect(tab?.future).toBeUndefined();
+  });
+
+  it("leaves a screen tab alone", () => {
+    const state = windowOf([
+      screenTab("s", NEW_TAB_HREF, CHAT),
+      pageTab("p", "https://example.com", CHAT),
+    ]);
+
+    expect(pageBecameDownload(state, "s")).toBe(state);
   });
 });

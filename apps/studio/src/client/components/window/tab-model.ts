@@ -1086,6 +1086,29 @@ export function closeTab(state: WindowTabs, id: string): WindowTabs {
   return group === undefined ? out : normalizeSides(out, group);
 }
 
+/**
+ * A page whose first navigation became a download, so it has nothing to
+ * show, handled as Chromium's `DownloadUIController` handles one. A tab that
+ * showed something before goes back to it, and the page leaves its history.
+ * One that showed nothing else closes when its group has another tab, and a
+ * group's only tab stays. The close is not the person's, so it puts nothing
+ * on the closed list.
+ */
+export function pageBecameDownload(state: WindowTabs, id: string): WindowTabs {
+  const tab = state.tabs.find((entry) => entry.id === id);
+  if (tab?.kind !== "page") {
+    return state;
+  }
+  if (tab.past?.length) {
+    const back = stepTabVisit(tab, -1);
+    return back
+      ? replaceTab(state, id, { ...back, future: tab.future })
+      : state;
+  }
+  const strip = state.tabs.filter((entry) => entry.group === tab.group);
+  return strip.length > 1 ? closeTab(state, id) : state;
+}
+
 /** A group gone with everything in it, its pin and share with it. */
 export function dropGroup(state: WindowTabs, group: string): WindowTabs {
   if (

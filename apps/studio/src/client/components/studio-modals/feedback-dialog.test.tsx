@@ -1,4 +1,9 @@
-import { reportDialogAtom } from "@/client/atoms/report-dialog";
+import {
+  feedbackBarAtom,
+  feedbackDraftAtom,
+  openReportDialog,
+  reportDialogAtom,
+} from "@/client/atoms/report-dialog";
 import { modalBackStackAtom } from "@/client/atoms/tab-navigation-block";
 import { ReportDialog } from "@/client/components/studio-modals/report-dialog";
 import { feedbackReport } from "@/client/lib/problem-reports";
@@ -7,9 +12,10 @@ import { rpcClient } from "@/client/rpc/client";
 import { type FeedbackItem, type FeedbackTag } from "@/shared/problem-reports";
 import { renderWithDefaultStore } from "@/tests/render";
 import { fireEvent, screen, waitFor } from "@testing-library/react";
+import { ChatIdSchema } from "@instrument-org/workspace/client";
 import { getDefaultStore } from "jotai";
 import { act } from "react";
-import { describe, expect, it, vi } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const item = (
   id: string,
@@ -285,5 +291,132 @@ describe("FeedbackDialogContent", () => {
     expect(
       screen.getByRole("switch", { name: "Send your activity" }),
     ).toHaveProperty("ariaChecked", "true");
+  });
+});
+
+describe("the feedback draft", () => {
+  beforeEach(() => {
+    getDefaultStore().set(feedbackDraftAtom, null);
+  });
+
+  const typeNote = (words: string) => {
+    fireEvent.change(screen.getByRole("textbox", { name: "Your note" }), {
+      target: { value: words },
+    });
+  };
+
+  it("comes back as it was left when feedback is asked for again", async () => {
+    await open();
+    typeNote("The list jumps to the top.");
+    fireEvent.click(screen.getByRole("button", { name: "Bug" }));
+    fireEvent.click(screen.getByRole("button", { name: "Minimize" }));
+    const store = getDefaultStore();
+    expect(store.get(reportDialogAtom)).toBeNull();
+    expect(store.get(feedbackBarAtom)?.note).toBe("The list jumps to the top.");
+
+    act(() => {
+      openReportDialog(feedbackReport({ surface: "rail" }));
+    });
+    expect(store.get(reportDialogAtom)).toMatchObject({ surface: "test" });
+    expect(store.get(feedbackBarAtom)).toBeNull();
+    expect(screen.getByRole("textbox", { name: "Your note" })).toHaveProperty(
+      "value",
+      "The list jumps to the top.",
+    );
+    expect(
+      screen.getByRole("button", { name: "Bug" }).getAttribute("aria-pressed"),
+    ).toBe("true");
+  });
+
+  it("goes on Cancel, so feedback asked for next starts fresh", async () => {
+    await open();
+    typeNote("Too slow to open.");
+    fireEvent.click(screen.getByRole("button", { name: "Cancel" }));
+    const store = getDefaultStore();
+    expect(store.get(feedbackBarAtom)).toBeNull();
+
+    act(() => {
+      openReportDialog(feedbackReport({ surface: "rail" }));
+    });
+    expect(store.get(reportDialogAtom)).toMatchObject({ surface: "rail" });
+    expect(screen.getByRole("textbox", { name: "Your note" })).toHaveProperty(
+      "value",
+      "",
+    );
+  });
+
+  const chatA = ChatIdSchema.parse("chat-a");
+  const chatB = ChatIdSchema.parse("chat-b");
+
+  it("takes in what another opening about the same chat brings", async () => {
+    renderWithDefaultStore(<ReportDialog />);
+    act(() => {
+      openReportDialog(feedbackReport({ chatId: chatA, surface: "rail" }));
+    });
+    await screen.findByRole("button", { name: "View Diagnostics" });
+    typeNote("It stopped halfway.");
+    fireEvent.click(screen.getByRole("button", { name: "Minimize" }));
+
+    const onSent = vi.fn();
+    act(() => {
+      openReportDialog(
+        feedbackReport({
+          chatId: chatA,
+          onSent,
+          surface: "agent-offer",
+          tag: "bug",
+          writeup: { text: "The tab crashed.", title: "Tab crashed" },
+        }),
+      );
+    });
+    expect(screen.getByRole("textbox", { name: "Your note" })).toHaveProperty(
+      "value",
+      "It stopped halfway.",
+    );
+    expect(
+      screen.getByRole("button", { name: "View Instrument's write-up" }),
+    ).toBeTruthy();
+    expect(
+      screen.getByRole("button", { name: "Bug" }).getAttribute("aria-pressed"),
+    ).toBe("true");
+    expect(getDefaultStore().get(feedbackDraftAtom)?.onSent).toEqual([onSent]);
+  });
+
+  it("asks before starting feedback about another chat", async () => {
+    renderWithDefaultStore(<ReportDialog />);
+    act(() => {
+      openReportDialog(feedbackReport({ chatId: chatA, surface: "rail" }));
+    });
+    await screen.findByRole("button", { name: "View Diagnostics" });
+    typeNote("About the first chat.");
+    fireEvent.click(screen.getByRole("button", { name: "Minimize" }));
+
+    act(() => {
+      openReportDialog(
+        feedbackReport({
+          chatId: chatB,
+          surface: "model-error",
+          writeup: { text: "Details.", title: "Model error" },
+        }),
+      );
+    });
+    expect(screen.getByRole("textbox", { name: "Your note" })).toHaveProperty(
+      "value",
+      "About the first chat.",
+    );
+    expect(
+      screen.queryByRole("button", { name: "View Instrument's write-up" }),
+    ).toBeNull();
+
+    fireEvent.click(screen.getByRole("button", { name: "Start new" }));
+    expect(getDefaultStore().get(reportDialogAtom)).toMatchObject({
+      chatId: chatB,
+      surface: "model-error",
+    });
+    await screen.findByRole("button", { name: "View Instrument's write-up" });
+    expect(screen.getByRole("textbox", { name: "Your note" })).toHaveProperty(
+      "value",
+      "",
+    );
   });
 });

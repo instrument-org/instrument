@@ -45,6 +45,16 @@ function wheel(target: Element, init: WheelEventInit) {
   );
 }
 
+// A trackpad pinch to `factor` times the scale, as Chromium sends one: a run of
+// ctrl+wheel events whose deltaY adds up to -100 * ln(factor).
+function pinch(target: Element, factor: number, init: WheelEventInit = {}) {
+  const total = -100 * Math.log(factor);
+  const count = Math.ceil(Math.abs(total) / 10);
+  for (let step = 0; step < count; step++) {
+    wheel(target, { ...init, ctrlKey: true, deltaY: total / count });
+  }
+}
+
 const transformOf = (image: Element) =>
   image.parentElement?.style.transform ?? "";
 const scaleOf = (image: Element) =>
@@ -94,7 +104,7 @@ describe("ImageViewer", () => {
     // A magnifier while a click would zoom in, an open hand once it can move.
     expect(globalThis.getComputedStyle(image).cursor).toBe("zoom-in");
 
-    wheel(image, { ctrlKey: true, deltaY: -400 });
+    pinch(image, 2);
     await vi.waitFor(() => {
       expect(scaleOf(image)).toBeGreaterThan(1.5);
     });
@@ -134,7 +144,7 @@ describe("ImageViewer", () => {
       if (!(pane instanceof HTMLElement)) {
         throw new Error("the picture should be in a pane");
       }
-      wheel(image, { clientX: 20, clientY: 20, ctrlKey: true, deltaY: -600 });
+      pinch(image, 3, { clientX: 20, clientY: 20 });
       await vi.waitFor(() => {
         expect(scaleOf(image)).toBeGreaterThan(2);
       });
@@ -184,12 +194,7 @@ describe("ImageViewer", () => {
     it("keeps the picture on its edges zooming out somewhere else", async () => {
       const { image, pane } = await zoomedIn();
       const rect = pane.getBoundingClientRect();
-      wheel(image, {
-        clientX: rect.right - 5,
-        clientY: rect.bottom - 5,
-        ctrlKey: true,
-        deltaY: 250,
-      });
+      pinch(image, 0.5, { clientX: rect.right - 5, clientY: rect.bottom - 5 });
       await vi.waitFor(() => {
         expect(scaleOf(image)).toBeLessThan(2);
       });
@@ -241,7 +246,7 @@ describe("ImageViewer", () => {
     const atFit = fit.element().getBoundingClientRect();
     const image = screen.getByRole("img").element();
 
-    wheel(image, { ctrlKey: true, deltaY: -600 });
+    pinch(image, 3);
     const zoomed = screen.getByRole("button", { name: /^Zoom: \d+%$/ });
     await expect.element(zoomed).toBeVisible();
     expect(zoomed.element().getBoundingClientRect().width).toBeGreaterThan(

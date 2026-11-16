@@ -829,3 +829,24 @@ describe("feedback images", () => {
     ).rejects.toThrow(reports.FeedbackImageRefusedError);
   });
 });
+
+describe("feedback log age", () => {
+  it("keeps lines since the cutoff, a stampless line going with the one before it", async () => {
+    const { logLinesSince } = await import("./problem-reports");
+    const lines = [
+      "[2026-09-23 10:37:19.524] [error] old failure",
+      "    at old frame",
+      "[2026-11-13T13:55:29.697Z] [info] recent line",
+      "    at recent frame",
+      "[2026-11-14 08:00:00.000] [warn] newer local-time line",
+    ];
+    expect(logLinesSince(lines, Date.parse("2026-11-09T00:00:00Z")))
+      .toMatchInlineSnapshot(`
+      [
+        "[2026-11-13T13:55:29.697Z] [info] recent line",
+        "    at recent frame",
+        "[2026-11-14 08:00:00.000] [warn] newer local-time line",
+      ]
+    `);
+  });
+});

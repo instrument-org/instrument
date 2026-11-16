@@ -13,7 +13,13 @@ import {
   zoomedAt,
 } from "@/client/lib/picture-view";
 import { commandKeyHeld, normalizeWheelDeltaPx } from "@/client/lib/utils";
-import { type RefObject, useEffect, useRef, useState } from "react";
+import {
+  type RefObject,
+  startTransition,
+  useEffect,
+  useRef,
+  useState,
+} from "react";
 
 // The image viewer tags the panzoom viewport element with this class (see
 // image-viewer).
@@ -32,9 +38,12 @@ const ARROW_STEP = 64;
 const ANIMATED_TRANSITION = "transform 200ms ease-out";
 const ARROW_TRANSITION = "transform 120ms ease-out";
 
-// Percentage change per wheel pixel, so it feels consistent whether
-// wheel/trackpad deltas are large or small, and at any zoom level.
-const WHEEL_ZOOM_SENSITIVITY = 0.0015;
+// Chromium sends a trackpad pinch as a ctrl+wheel whose deltaY is
+// -100 * ln(the fingers' scale), so 0.01 keeps the picture under the fingers.
+const WHEEL_ZOOM_SENSITIVITY = 0.01;
+// The most one wheel event zooms by, in px of delta: a mouse notch (100 px)
+// zooms about 16%, while a pinch's small deltas pass whole.
+const WHEEL_ZOOM_MAX_DELTA = 15;
 
 const ARROWS: Record<string, { x: number; y: number }> = {
   ArrowDown: { x: 0, y: 1 },
@@ -91,12 +100,26 @@ export function useImagePanzoom({
       return reach.x > 0 || reach.y > 0;
     };
 
-    const show = (next: PictureView, transition = "none") => {
+    // A move under way (a wheel, a drag, a pinch) renders the row's zoom word
+    // and the cursor behind the transform, so its frames never wait on React.
+    const show = (next: PictureView, transition = "none", moving = false) => {
       view = settleView(next, boxNow());
       content.style.transition = transition;
       content.style.transform = `translate(${view.x}px, ${view.y}px) scale(${view.scale})`;
-      setScale(view.scale);
-      setCanPan(canPanNow());
+      const scaleNow = view.scale;
+      const canPanAfter = canPanNow();
+      const render = () => {
+        setScale(scaleNow);
+        setCanPan(canPanAfter);
+      };
+      if (moving) {
+        startTransition(render);
+      } else {
+        render();
+      }
+    };
+    const showMoving = (next: PictureView) => {
+      show(next, "none", true);
     };
 
     /** On-screen px to layout px, from the pane's center. */
@@ -197,27 +220,30 @@ export function useImagePanzoom({
     let pendingPanX = 0;
     let pendingPanY = 0;
     let wheelFrame: number | undefined;
+    // One write per frame: a second would read layout the first just dirtied.
     const applyPendingWheel = () => {
       wheelFrame = undefined;
-      if (pendingPanX !== 0 || pendingPanY !== 0) {
-        show({ ...view, x: view.x - pendingPanX, y: view.y - pendingPanY });
-      }
+      const point = pendingWheelPoint;
+      const panned = {
+        ...view,
+        x: view.x - pendingPanX,
+        y: view.y - pendingPanY,
+      };
+      const deltaPx = pendingDeltaPx;
       pendingPanX = 0;
       pendingPanY = 0;
-      const point = pendingWheelPoint;
-      const deltaPx = pendingDeltaPx;
       pendingWheelPoint = null;
       pendingDeltaPx = 0;
-      if (point) {
-        show(
-          zoomedAt(
-            view,
-            view.scale * Math.exp(-deltaPx * WHEEL_ZOOM_SENSITIVITY),
-            pointIn(point),
-            boxNow(),
-          ),
-        );
-      }
+      showMoving(
+        point
+          ? zoomedAt(
+              panned,
+              panned.scale * Math.exp(-deltaPx * WHEEL_ZOOM_SENSITIVITY),
+              pointIn(point),
+              boxNow(),
+            )
+          : panned,
+      );
     };
     // Accumulated and applied once per frame rather than per wheel event, since
     // a trackpad sends many in a frame and each write forces layout reads.
@@ -225,7 +251,10 @@ export function useImagePanzoom({
       event.preventDefault();
       // A trackpad pinch arrives as a wheel with ctrl held.
       if (event.ctrlKey || commandKeyHeld(event)) {
-        pendingDeltaPx += normalizeWheelDeltaPx(event);
+        const deltaPx = normalizeWheelDeltaPx(event);
+        pendingDeltaPx +=
+          Math.sign(deltaPx) *
+          Math.min(Math.abs(deltaPx), WHEEL_ZOOM_MAX_DELTA);
         pendingWheelPoint = event;
       } else {
         pendingPanX += normalizeWheelDeltaPx(event, event.deltaX);
@@ -309,11 +338,15 @@ export function useImagePanzoom({
           was,
           boxNow(),
         );
-        show({ ...zoomed, x: zoomed.x + x - was.x, y: zoomed.y + y - was.y });
+        showMoving({
+          ...zoomed,
+          x: zoomed.x + x - was.x,
+          y: zoomed.y + y - was.y,
+        });
       } else if (drag) {
         const point = pointIn(event);
         const was = pointIn(drag.press);
-        show({
+        showMoving({
           ...drag.start,
           x: drag.start.x + point.x - was.x,
           y: drag.start.y + point.y - was.y,

@@ -1170,9 +1170,21 @@ export function useOpeners({
       setLinkedShower(undefined);
     };
   }, []);
-  const openers = useRef({ actOnTab, addBookmark, openFromPage, openPage });
+  const openers = useRef({
+    actOnTab,
+    addBookmark,
+    openFromPage,
+    openPage,
+    pageBecameDownload: windowTabs.pageBecameDownload,
+  });
   useEffect(() => {
-    openers.current = { actOnTab, addBookmark, openFromPage, openPage };
+    openers.current = {
+      actOnTab,
+      addBookmark,
+      openFromPage,
+      openPage,
+      pageBecameDownload: windowTabs.pageBecameDownload,
+    };
   });
   // A link in text being edited, opened from the window's native menu.
   useEffect(() => {
@@ -1211,6 +1223,23 @@ export function useOpeners({
       controller.signal,
       (ask) => {
         openers.current.openFromPage(ask);
+      },
+    );
+    return () => {
+      controller.abort();
+    };
+  }, []);
+  // A page whose first navigation became a download, left with nothing to show.
+  useEffect(() => {
+    const controller = new AbortController();
+    void eachSent(
+      (signal) =>
+        rpcClient.browser.events.pageBecameDownload.call(undefined, {
+          signal,
+        }),
+      controller.signal,
+      ({ targetId }) => {
+        openers.current.pageBecameDownload(targetId);
       },
     );
     return () => {

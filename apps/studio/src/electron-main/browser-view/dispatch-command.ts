@@ -982,8 +982,9 @@ const renderingSeenAt = new WeakMap<BrowserEntry, number>();
 
 // Whether the guest currently holds Chromium's keyboard focus, which is the
 // precondition for CDP keyboard input reaching it at all. Asked of the
-// window's own renderer: the guest holds the keyboard exactly when the window
-// has focus and its focused element is this guest's `<webview>`. The guest
+// window's own renderer: keyboard input follows the window's focus tree to the
+// guest exactly when the window's focused element is this guest's `<webview>`,
+// whether or not the window itself is in front. The guest
 // cannot answer this itself, since an agent-driven guest runs under focus
 // emulation (`document.hasFocus()` is always true there) and a page can
 // redefine `document.hasFocus`; a wrong yes sends the agent's keys to
@@ -1018,7 +1019,7 @@ async function guestHoldsKeyboardFocus(entry: BrowserEntry): Promise<boolean> {
 const holdsKeyboardScript = (guestId: number) => `(() => {
   const focused = document.activeElement;
   try {
-    return document.hasFocus() && focused?.tagName === "WEBVIEW" && focused.getWebContentsId() === ${guestId};
+    return focused?.tagName === "WEBVIEW" && focused.getWebContentsId() === ${guestId};
   } catch {
     return false;
   }

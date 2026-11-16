@@ -1,12 +1,36 @@
 import {
+  type FeedbackDraft,
+  feedbackDraftAtom,
   type FeedbackRequest,
+  isFeedbackWaiting,
   type ProblemReportRequest,
 } from "@/client/atoms/report-dialog";
 import { type Condition, type PendingProblem } from "@/shared/problem-reports";
 import { captureOnce } from "@/client/lib/capture-exception";
+import { toast } from "@/client/lib/toast";
 import { rpcClient } from "@/client/rpc/client";
 import { APP_NAME } from "@instrument-org/shared";
 import { type ExceptionEvent } from "@instrument-org/shared/exceptions";
+import { getDefaultStore } from "jotai";
+
+/**
+ * Throws the feedback draft away, with an Undo that brings it back to its
+ * bar along the window's foot when there was anything in it.
+ */
+export function discardFeedback(draft: FeedbackDraft) {
+  const store = getDefaultStore();
+  store.set(feedbackDraftAtom, { ...draft, finished: true });
+  if (isFeedbackWaiting(draft)) {
+    toast("Feedback discarded", {
+      action: {
+        label: "Undo",
+        onClick: () => {
+          store.set(feedbackDraftAtom, { ...draft, finished: false });
+        },
+      },
+    });
+  }
+}
 
 /**
  * Feedback the person starts: from a chat's menu or a slash command in its

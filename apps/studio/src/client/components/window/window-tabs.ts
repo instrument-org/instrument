@@ -47,6 +47,7 @@ import {
   openInGroup,
   openOrFocusScreen,
   openPage,
+  pageBecameDownload,
   pageNavigated,
   pageTakesOver,
   patchPage,
@@ -387,6 +388,10 @@ export function useWindowTabs() {
     },
     dropGroup: (group: string) => {
       apply((current) => dropGroup(current, group));
+    },
+    /** A page whose first navigation became a download: its tab goes back, or closes (`pageBecameDownload`). */
+    pageBecameDownload: (id: string) => {
+      apply((current) => pageBecameDownload(current, id));
     },
     /** A group's pin, or the left side's share of two, set (`withGroupOwn`). */
     setGroupOwn: (group: string, change: GroupOwn) => {

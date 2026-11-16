@@ -1,9 +1,5 @@
-import {
-  Tooltip,
-  TooltipContent,
-  TooltipTrigger,
-} from "@/client/components/ui/tooltip";
 import { FoldingTrail } from "@/client/components/window/folding-trail";
+import { FolderMark } from "@/client/components/window/folder-mark";
 import { isInside } from "@/client/components/window/host-path";
 import { locationCrumbs } from "@/client/components/window/tab-location";
 import {
@@ -55,17 +51,13 @@ async function copyText(text: string) {
 /** Where a name may break onto the next line, after a space, hyphen, underscore or dot, as Finder breaks one. */
 const BREAK_AFTER = /(?<=[-_.\s])/;
 
-/** The place's mark before the first name, and the gap after it, in pixels. */
-const PLACE_MARK_ROOM = 18;
-
 /**
  * A folder's path as a person reads it, the way Files' location bar names
  * it: from the place it is in (iCloud Drive, a disk, or the home folder by
- * its own name) with that place's mark, then each folder, with carets
- * between. Always one line: when it runs out of room the folders in its
- * middle fold into a …, keeping the place and the last names, and hovering
- * the path shows the whole of it, start to end, in a tooltip. `wrap` shows
- * the whole of it instead, onto as many lines as it takes, for a place
+ * its own name), then each folder, each with its mark and carets between.
+ * Always one line: short of room it gives way as the Finder's path bar does
+ * (`FoldingTrail`), and pointing at a folder shows its whole name. `wrap`
+ * shows the whole of it instead, onto as many lines as it takes, for a place
  * whose point is to say where something is (Info, Activity's details).
  */
 export function FolderTrail({
@@ -80,10 +72,11 @@ export function FolderTrail({
   const places = useQuery(rpcClient.workspace.computer.places.queryOptions());
   const volumes = places.data?.volumes;
   const home = window.api.homeDir;
-  const labels = locationCrumbs(
+  const crumbs = locationCrumbs(
     { kind: "folder", path },
     { home, ...(volumes ? { volumes } : {}) },
-  ).map((crumb) => crumb.label);
+  );
+  const labels = crumbs.map((crumb) => crumb.label);
   const hostPath = expandHomePath(path, home);
   const Lead = placeIcon(hostPath, volumes);
   // Its room is padding rather than a gap, so the trail's measure of it
@@ -91,21 +84,6 @@ export function FolderTrail({
   const separator = (
     <span aria-hidden className="flex shrink-0 px-1">
       <PathSeparator />
-    </span>
-  );
-  const named = (at: number) => (
-    <span
-      className={cn(
-        "inline-flex min-w-0 items-center gap-1",
-        at < labels.length - 1
-          ? "max-w-max min-w-6 flex-1 truncate"
-          : "shrink-0",
-      )}
-    >
-      {at === 0 && Lead ? (
-        <Lead aria-hidden className="size-3.5 shrink-0" />
-      ) : null}
-      <span className="truncate">{labels[at]}</span>
     </span>
   );
   const whole = labels.join(" › ");
@@ -169,45 +147,28 @@ export function FolderTrail({
     );
   }
   return (
-    <Tooltip>
-      <TooltipTrigger asChild>
-        <span
-          aria-label={whole}
-          className={cn(
-            "flex min-w-0 cursor-default items-center select-text",
-            className,
-          )}
-        >
-          <FoldingTrail
-            className="flex min-w-0 flex-1 items-center"
-            fold={() => (
-              <span className="shrink-0 rounded bg-muted px-1 text-muted-foreground">
-                …
-              </span>
-            )}
-            foldMark={<span className="px-1">…</span>}
-            // Only where it starts and the folder it names have to stay
-            // whole, so the one before the last folds too before any name is
-            // cut; the place's mark is room the measure of the names misses.
-            keepBeforeLast={false}
-            labels={labels}
-            reserve={Lead ? PLACE_MARK_ROOM : 0}
-            part={(at) => (
-              <Fragment key={`${String(at)}:${labels[at] ?? ""}`}>
-                {at > 0 ? separator : null}
-                {named(at)}
-              </Fragment>
-            )}
-            separator={separator}
-          />
-        </span>
-      </TooltipTrigger>
-      {/* One line from start to end, wrapping only where the window can't
-        fit it. */}
-      <TooltipContent align="start" maxWidth="40rem">
-        {whole}
-      </TooltipContent>
-    </Tooltip>
+    <span
+      aria-label={whole}
+      className={cn(
+        "flex min-w-0 cursor-default items-center select-text",
+        className,
+      )}
+    >
+      <FoldingTrail
+        className="flex-1"
+        labels={labels}
+        mark={(at) => {
+          const crumbPath = crumbs[at]?.path;
+          return crumbPath === undefined ? null : (
+            <FolderMark path={crumbPath} />
+          );
+        }}
+        part={(_, content) => (
+          <span className="flex min-w-0 items-center">{content}</span>
+        )}
+        separator={separator}
+      />
+    </span>
   );
 }
 

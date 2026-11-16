@@ -3,7 +3,6 @@ import { fireEvent, screen } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { FolderRow } from "./folder-row";
-import { TooltipProvider } from "./ui/tooltip";
 
 // Paths shorten against the home directory the dom setup pins on the preload
 // bridge, `/Users/sam`.
@@ -17,23 +16,6 @@ describe("FolderRow", () => {
     renderWithProviders(<FolderRow path="/Users/sam/Documents/Taxes" />);
 
     expect(screen.getByLabelText("sam › Documents › Taxes")).toBeTruthy();
-  });
-
-  it("shows the whole path, start to end on one line, under the pointer", async () => {
-    // No hover delay: the tooltip's content is under test, not its timing.
-    renderWithProviders(
-      <TooltipProvider delayDuration={0}>
-        <FolderRow path="/Users/sam/Documents/Taxes" />
-      </TooltipProvider>,
-    );
-
-    fireEvent.pointerMove(screen.getByLabelText("sam › Documents › Taxes"), {
-      pointerType: "mouse",
-    });
-
-    expect(
-      (await screen.findByRole("tooltip")).textContent,
-    ).toMatchInlineSnapshot(`"sam › Documents › Taxes"`);
   });
 
   it("opens in Files first, copies the real path, then lists what the row adds", () => {

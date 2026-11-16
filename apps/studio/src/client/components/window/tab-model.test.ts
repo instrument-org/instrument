@@ -12,6 +12,7 @@ import { describe, expect, it } from "vitest";
 
 import {
   addScreen,
+  agentCloseKeeps,
   besideOf,
   closedGroupTabOf,
   closeSide,
@@ -582,6 +583,34 @@ describe("closeGroupTab", () => {
     ["a folder", screenTab("f", "/files", DRAFT), false],
   ])("counts %s as blank: %s", (_case, tab, isBlank) => {
     expect(isBlankNewTab(tab)).toBe(isBlank);
+  });
+});
+
+describe("agentCloseKeeps", () => {
+  const agent = ChatIdSchema.parse("2026-11-16-scratch");
+  const agentPage = {
+    ...pageTab("p", "https://example.com", DRAFT),
+    openedBy: agent,
+  };
+  const agentFolder = { ...screenTab("f", "/files", DRAFT), openedBy: agent };
+  const pressed = new Set(["pressed"]);
+  const pressedPage = { ...agentPage, id: "pressed" };
+  const personsPage = pageTab("mine", "https://example.com", DRAFT);
+
+  it.each([
+    ["a page an agent opened", false, [agentPage]],
+    ["a folder an agent opened", false, [agentFolder]],
+    ["a page an agent opened that the person pressed in", true, [pressedPage]],
+    ["the person's own page", true, [personsPage]],
+    ["a group of only an agent's tabs", false, [agentPage, agentFolder]],
+    ["a group with one of the person's tabs", true, [agentPage, personsPage]],
+    [
+      "a group with a page the person pressed in",
+      true,
+      [agentFolder, pressedPage],
+    ],
+  ])("%s goes on the closed list: %s", (_case, keeps, tabs) => {
+    expect(agentCloseKeeps(tabs, (id) => pressed.has(id))).toBe(keeps);
   });
 });
 

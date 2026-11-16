@@ -47,7 +47,9 @@ const { agent, tabDone } = vi.hoisted(() => {
 });
 
 const spies = vi.hoisted(() => ({
-  closeGroup: vi.fn((_group: string) => true),
+  closeGroup: vi.fn((_group: string): { isListed: boolean } | undefined => ({
+    isListed: true,
+  })),
   closeTab: vi.fn((_id: string) => {}),
   groupTabs: vi.fn((_ids: readonly string[]) => "group_made"),
   moveTabs: vi.fn((_ids: readonly string[], _group: string) => {}),
@@ -387,8 +389,18 @@ describe("an agent and the window's other tab groups", () => {
       { group: OTHER_GROUP, kind: "closeGroup" },
       "c1",
     );
-    expect(answer).toEqual({ requestId: "c1" });
+    expect(answer).toEqual({ isListed: true, requestId: "c1" });
     expect(spies.closeGroup).toHaveBeenCalledWith(OTHER_GROUP);
+  });
+
+  it("says when a group it closed stayed off the closed list", async () => {
+    windowOnTwoSides();
+    spies.closeGroup.mockReturnValueOnce({ isListed: false });
+    const answer = await answerTo(
+      { group: OTHER_GROUP, kind: "closeGroup" },
+      "c3",
+    );
+    expect(answer).toEqual({ isListed: false, requestId: "c3" });
   });
 
   it("closes a tab the way the person's close does", async () => {

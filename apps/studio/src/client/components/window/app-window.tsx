@@ -48,7 +48,7 @@ import { useRefetchOnWindowSwitch } from "@/client/hooks/use-refetch-on-window-s
 import { useRefreshSkillsOnChange } from "@/client/hooks/use-refresh-skills-on-change";
 import { useRefreshProjectsOnChange } from "@/client/hooks/use-refresh-projects-on-change";
 import { useTabRouters } from "@/client/hooks/use-tab-routers";
-import { pageHoldingKeyboard } from "@/client/lib/browser-pool";
+import { pageHoldingKeyboard, wasPagePressed } from "@/client/lib/browser-pool";
 import { resolveComputerFileBase } from "@/client/lib/computer-file-url";
 import { ICON_CONTEXT_VALUE } from "@/client/lib/icon-context";
 import {
@@ -128,6 +128,7 @@ import {
   closedGroupTabOf,
   closedSideOf,
   closedTabGroupOf,
+  agentCloseKeeps,
   isBlankNewTab,
   isNewChatTab,
   selectedTabIn,
@@ -535,11 +536,16 @@ function WindowShell({
   // and the Chats page shows it at work. With `keep`, the group a row's menu asked
   // from, which the window moves to.
   // What went on the closed list comes back, for the sidebar's Undo.
-  const closeGroups = (closed: readonly string[], keep?: string): Closing => {
+  const closeGroups = (
+    closed: readonly string[],
+    keep?: string,
+    { byAgent = false }: { byAgent?: boolean } = {},
+  ): Closing => {
     const closing: Closing = { entries: [], tabs: [] };
     // Each group goes on the window's closed list whole, so Shift+Cmd+T
     // brings it back as it was; a group of only blank new tabs leaves
-    // nothing to bring back.
+    // nothing to bring back, and neither does an agent's close of a group
+    // of only agents' own tabs (`agentCloseKeeps`).
     for (const group of closed) {
       const kept = windowTabs.allTabs.flatMap((tab) => {
         const closedAs = closingAsWritten(tab);
@@ -547,7 +553,10 @@ function WindowShell({
           ? [closedAs]
           : [];
       });
-      if (kept.length > 0) {
+      if (
+        kept.length > 0 &&
+        (!byAgent || agentCloseKeeps(kept, wasPagePressed))
+      ) {
         const id = freshTabId();
         store.set(appTabsAtom, (current) =>
           closeTabGroup(current, {
@@ -798,16 +807,18 @@ function WindowShell({
           ? closedTabs.some((each) => each.group === id) || tab?.group === id
           : closedTabs.some((each) => each.id === id) || tab?.id === id;
       })?.id,
-    // The sidebar's X: onto the closed list whole, with an Undo.
+    // The sidebar's X: onto the closed list whole, with an Undo, unless
+    // it was only the agent's own tabs.
     closeGroup: (group) => {
       if (!groupList.open.some((entry) => entry.group === group)) {
-        return false;
+        return undefined;
       }
-      offerUndo(closeGroups([group]));
-      return true;
+      const closing = closeGroups([group], undefined, { byAgent: true });
+      offerUndo(closing);
+      return { isListed: closing.entries.length > 0 };
     },
     closeTab: (id) => {
-      requestClose(id);
+      requestClose(id, { byAgent: true });
     },
     groupTabs: (ids) => {
       const onScreen = groups.groupUp();
@@ -888,8 +899,12 @@ function WindowShell({
       : { ...tab, href: newChatHref(made) };
   };
   // A group's tab closed goes on the window's closed list, with the window's
-  // own tabs, so Shift+Cmd+T brings it back.
-  const requestClose = (id: string) => {
+  // own tabs, so Shift+Cmd+T brings it back; an agent's close of its own
+  // scratch tab leaves it off (`agentCloseKeeps`).
+  const requestClose = (
+    id: string,
+    { byAgent = false }: { byAgent?: boolean } = {},
+  ) => {
     const tab = windowTabs.allTabs.find((each) => each.id === id);
     const closedAs = closingAsWritten(tab);
     // A group's last tab closes the group.
@@ -900,10 +915,15 @@ function WindowShell({
         (each) => each.group !== tab.group || each.id === id,
       )
     ) {
-      closeGroups([tab.group]);
+      closeGroups([tab.group], undefined, { byAgent });
       return;
     }
-    if (tab?.group !== undefined && closedAs && !isBlankNewTab(closedAs)) {
+    if (
+      tab?.group !== undefined &&
+      closedAs &&
+      !isBlankNewTab(closedAs) &&
+      (!byAgent || agentCloseKeeps([closedAs], wasPagePressed))
+    ) {
       const { group } = tab;
       const index = windowTabs.allTabs
         .filter((each) => each.group === group)

@@ -41,7 +41,7 @@ const WindowTabActionSchema = z.discriminatedUnion("kind", [
   z.object({ kind: z.literal("show"), tabId: z.string() }),
   /** Brings a tab group's window forward, showing that group. */
   z.object({ group: z.string(), kind: z.literal("showGroup") }),
-  /** Closes a tab group whole, as the sidebar's X does: onto the closed list, with an Undo. */
+  /** Closes a tab group whole, as the sidebar's X does: onto the closed list, with an Undo, unless every tab is an agent's own the person never used. */
   z.object({ group: z.string(), kind: z.literal("closeGroup") }),
   /** Makes a new tab group of tabs, moved there as Move to New Tab Group moves one; the window stays on the group it shows. */
   z.object({ kind: z.literal("groupTabs"), tabIds: z.array(z.string()) }),
@@ -101,6 +101,8 @@ export const WindowTabAnswerSchema = z.object({
   error: z.string().optional(),
   /** For a group of tabs: the group made. */
   group: z.string().optional(),
+  /** For a group's close: whether it went on the closed list, which leaves off a group of only an agent's own tabs the person never used. */
+  isListed: z.boolean().optional(),
   /** For a history: its entries, newest first. */
   history: z
     .array(

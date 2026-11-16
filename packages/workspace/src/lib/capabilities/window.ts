@@ -538,7 +538,7 @@ export const windowClose = defineCapability({
     return outcomes;
   },
   summary:
-    "Close tabs, or a tab group whole by its id; the user can bring back either from the closed list, and a group with the Undo its close shows.",
+    "Close tabs, or a tab group whole by its id; the user can bring back from the closed list what was theirs, not an agent's tab they never used.",
   surfaces: {
     cli: { help: "", positional: ["tabs"], words: ["window", "close"] },
   },
@@ -562,7 +562,7 @@ async function closeGroup(
   const count = layout?.sides.reduce((sum, side) => sum + side.tabs.length, 0);
   return {
     failed: false,
-    said: `Closed the tab group ${layout ? groupWords(layout) : group}${count === undefined ? "" : count === 1 ? ", its one tab" : `, its ${count} tabs`}. The user can bring it back with Undo or from the closed list.`,
+    said: `Closed the tab group ${layout ? groupWords(layout) : group}${count === undefined ? "" : count === 1 ? ", its one tab" : `, its ${count} tabs`}.${answer?.isListed === false ? "" : " The user can bring it back with Undo or from the closed list."}`,
     target: group,
   };
 }
@@ -687,7 +687,9 @@ export const windowMove = defineCapability({
       .string({
         error: `move needs the group to move them into: ${NAME} move <tab id>... --group <group>.`,
       })
-      .meta({ description: "The tab group to move them into, by its id or name." }),
+      .meta({
+        description: "The tab group to move them into, by its id or name.",
+      }),
   }),
   name: "window.move",
   output: z.string(),
@@ -793,7 +795,10 @@ export const windowRestore = defineCapability({
     if (answer.error !== undefined) {
       throw new Error(answer.error);
     }
-    const back = answer.group === undefined ? undefined : await groupById(answer.group, ctx);
+    const back =
+      answer.group === undefined
+        ? undefined
+        : await groupById(answer.group, ctx);
     return `Restored ${entry}${back ? ` in the tab group ${groupWords(back)}` : ""}, as History's restore does.`;
   },
   summary:

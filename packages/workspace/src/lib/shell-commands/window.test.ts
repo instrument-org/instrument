@@ -233,7 +233,10 @@ function answeringWindow() {
               action.kind === "closeGroup" ||
               action.kind === "moveTabs"
             ? groups.has(action.group)
-              ? {}
+              ? action.kind === "closeGroup"
+                ? // The docs group holds only tabs an agent opened.
+                  { isListed: action.group !== "group:docs" }
+                : {}
               : { error: `no tab group ${action.group} is open.` }
             : action.kind === "groupTabs"
               ? { group: "group:docs" }
@@ -717,6 +720,16 @@ describe("window show and close, of a group", () => {
       "list",
       "closeGroup",
     ]);
+  });
+
+  it("closes a group of only an agent's tabs without offering it back", async () => {
+    const result = await run({}, "close", "group:docs");
+
+    expect(result.exitCode).toBe(0);
+    expect(result.stdout).toMatchInlineSnapshot(`
+      "Closed the tab group "report.md" instrument://group/group:docs, its 2 tabs.
+      "
+    `);
   });
 
   it("passes on the window's refusal of a group it does not have", async () => {

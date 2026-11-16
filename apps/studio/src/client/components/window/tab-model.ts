@@ -610,6 +610,24 @@ export function isBlankNewTab(tab: WindowTab): boolean {
   );
 }
 
+/**
+ * Whether an agent's close puts these tabs on the closed list, which
+ * Shift+Cmd+T and History bring back what the person lost from: unless every
+ * one is an agent's own scratch, a tab an agent opened (`openedBy`) whose page
+ * the person has not pressed in (`personPressed`, by tab id). A group with any
+ * tab of the person's goes on whole, so nothing of theirs is lost.
+ */
+export function agentCloseKeeps(
+  tabs: readonly WindowTab[],
+  personPressed: (id: string) => boolean,
+): boolean {
+  return tabs.some(
+    (tab) =>
+      tab.openedBy === undefined ||
+      (tab.kind === "page" && personPressed(tab.id)),
+  );
+}
+
 /** How many of these tabs a close would put on the closed list: every one but a blank new tab, which has nothing to bring back. */
 export function keptOnCloseCount(tabs: readonly WindowTab[]): number {
   return tabs.filter((tab) => !isBlankNewTab(tab)).length;

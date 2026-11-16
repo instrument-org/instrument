@@ -18,7 +18,10 @@ import {
   PAGE_THUMB_CHANNEL,
   type PageRemoteMessage,
 } from "@/shared/page-editor-channels";
-import { type BrowserTargetId } from "@instrument-org/workspace/client";
+import {
+  type BrowserTargetId,
+  parseBrowserTargetId,
+} from "@instrument-org/workspace/client";
 import { sleep } from "radashi";
 
 // Backoff before re-establishing a dropped desired-targets stream so a hard
@@ -791,6 +794,12 @@ export function onPagePress(listener: (targetId: BrowserTargetId) => void) {
   return () => {
     pagePressListeners.delete(listener);
   };
+}
+
+/** Whether the person has pressed the pointer in a tab's page since launch. */
+export function wasPagePressed(tabId: string): boolean {
+  const targetId = parseBrowserTargetId(tabId);
+  return targetId !== null && pagePressedAt.has(targetId);
 }
 
 function pagePressed(targetId: BrowserTargetId) {

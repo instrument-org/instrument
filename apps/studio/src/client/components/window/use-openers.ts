@@ -104,9 +104,14 @@ export function useOpeners({
   chatTitles: Map<ChatId, string>;
   /** The entry of this window's closed list a closed tab group or tab is on, by the group's or the tab's id. */
   closedEntryOf: (kind: "group" | "tab", id: string) => string | undefined;
-  /** Closes a tab group this window lists as its sidebar's X does, with an Undo; false for one it does not list. */
-  closeGroup: (group: string) => boolean;
-  /** Closes a tab as the person's close does, onto the closed list. */
+  /**
+   * Closes a tab group this window lists as its sidebar's X does, with an
+   * Undo, answering whether it went on the closed list, which a group of only
+   * an agent's own tabs does not (`agentCloseKeeps`); undefined for one it
+   * does not list.
+   */
+  closeGroup: (group: string) => { isListed: boolean } | undefined;
+  /** Closes a tab as the person's close does, onto the closed list unless it is an agent's own (`agentCloseKeeps`). */
   closeTab: (id: string) => void;
   /** Makes a new tab group of tabs in this window, as Move to New Tab Group moves one, the window staying on its group; answers the group. */
   groupTabs: (ids: readonly string[]) => string;
@@ -941,8 +946,9 @@ export function useOpeners({
       if (!windowTabs.allTabs.some((tab) => tab.group === action.group)) {
         return { error: `no tab group ${action.group} is open.` };
       }
-      return closeGroup(action.group)
-        ? {}
+      const closed = closeGroup(action.group);
+      return closed
+        ? { isListed: closed.isListed }
         : {
             error: `the tab group ${action.group} is open in another window; it closes from there.`,
           };

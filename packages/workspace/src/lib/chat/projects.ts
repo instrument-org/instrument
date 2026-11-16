@@ -587,13 +587,15 @@ function writeInstructionsSync(
   );
 }
 
-/** A folder's `.instrument-project`: nothing where there is none, and `unreadable` where it is there but cannot be read. */
-function readIdFile(file: string): string | "unreadable" | undefined {
+/** What reading a folder's `.instrument-project` found. */
+type IdFileRead = { text: string } | "none" | "unreadable";
+
+function readIdFile(file: string): IdFileRead {
   try {
     // oxlint-disable-next-line studio/no-sync-content-read -- synchronous on purpose, as readProjectFolder is.
-    return fs.readFileSync(file, "utf8");
+    return { text: fs.readFileSync(file, "utf8") };
   } catch (error) {
-    return isMissing(error) ? undefined : "unreadable";
+    return isMissing(error) ? "none" : "unreadable";
   }
 }
 
@@ -786,8 +788,10 @@ async function readProjectFolderAsync(
     ),
     fs.promises
       .readFile(path.join(folderPath, PROJECT_ID_FILE_NAME), "utf8")
-      .catch((error: unknown): "unreadable" | undefined =>
-        isMissing(error) ? undefined : "unreadable",
+      .then(
+        (text): IdFileRead => ({ text }),
+        (error: unknown): IdFileRead =>
+          isMissing(error) ? "none" : "unreadable",
       ),
     Promise.all([
       fs.promises.readFile(file, "utf8"),
@@ -809,12 +813,12 @@ function folderRead({
   name,
   read,
 }: {
-  idFile: string | "unreadable" | undefined;
+  idFile: IdFileRead;
   made: Date;
   name: string;
   read: { at: Date; text: string } | "none" | "unreadable";
 }): FolderRead {
-  const id = idFile === "unreadable" ? undefined : idFile?.trim();
+  const id = typeof idFile === "object" ? idFile.text.trim() : undefined;
   return {
     ...(id ? { idFile: id } : {}),
     made,

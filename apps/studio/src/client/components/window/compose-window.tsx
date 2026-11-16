@@ -95,9 +95,7 @@ const COMPOSE_HEIGHT = 640;
 
 /**
  * The draft put down: a dark bar along the window's foot with its first
- * words, brought back up by a press, closed by its cross. Flush with the foot
- * in the light theme, where it has no ring to double the edge the system
- * draws there; a screen pixel up in the dark one, where it has.
+ * words, brought back up by a press, closed by its cross.
  */
 export function ComposeBar({
   draft,
@@ -106,6 +104,40 @@ export function ComposeBar({
   right,
 }: {
   draft: Draft;
+  onClose: () => void;
+  onOpen: () => void;
+  /** Where the bar stands along the foot, in layout px from the right edge. */
+  right: number;
+}) {
+  return (
+    <FootBar
+      closeLabel="Close draft"
+      icon={<CircleDashedIcon className="size-3.5 shrink-0" />}
+      label={draftTitle(draft.words)}
+      onClose={onClose}
+      onOpen={onOpen}
+      right={right}
+    />
+  );
+}
+
+/**
+ * Something put down to a dark bar along the window's foot: its icon and
+ * first words, brought back up by a press, closed by its cross. Flush with
+ * the foot in the light theme, where it has no ring to double the edge the
+ * system draws there; a screen pixel up in the dark one, where it has.
+ */
+export function FootBar({
+  closeLabel,
+  icon,
+  label,
+  onClose,
+  onOpen,
+  right,
+}: {
+  closeLabel: string;
+  icon: ReactNode;
+  label: string;
   onClose: () => void;
   onOpen: () => void;
   /** Where the bar stands along the foot, in layout px from the right edge. */
@@ -128,13 +160,11 @@ export function ComposeBar({
         onClick={onOpen}
         type="button"
       >
-        <CircleDashedIcon className="size-3.5 shrink-0" />
-        <span className="min-w-0 flex-1 truncate">
-          {draftTitle(draft.words)}
-        </span>
+        {icon}
+        <span className="min-w-0 flex-1 truncate">{label}</span>
       </button>
       <button
-        aria-label="Close draft"
+        aria-label={closeLabel}
         className="grid h-full w-8 shrink-0 place-items-center text-white/80 hover:bg-white/8 hover:text-white"
         onClick={onClose}
         type="button"

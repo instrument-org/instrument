@@ -5,11 +5,17 @@ import {
   composeKeyOf,
   type ComposePlacement,
 } from "@/client/atoms/window";
+import { feedbackBarAtom } from "@/client/atoms/report-dialog";
 import { zoomAtom } from "@/client/atoms/zoom";
 import { type ChatId } from "@instrument-org/workspace/client";
 import { atom, useAtom, useAtomValue, useSetAtom } from "jotai";
 
-import { layoutCompose } from "./compose-layout";
+import {
+  COMPOSE_BAR_WIDTH,
+  COMPOSE_EDGE_GAP,
+  COMPOSE_GAP,
+  layoutCompose,
+} from "./compose-layout";
 
 /**
  * The draft window last asked to come up, by its group, counted so asking
@@ -41,7 +47,19 @@ export function useCompose(width: number) {
   );
   const askFocus = useSetAtom(composeFocusAtom);
   const zoom = useAtomValue(zoomAtom);
-  const placed = layoutCompose(entries, width, zoom);
+  // Feedback put down stands at the right end of the row, and the windows
+  // line up beside it.
+  const feedbackDraft = useAtomValue(feedbackBarAtom);
+  const feedback = feedbackDraft && {
+    draft: feedbackDraft,
+    right: COMPOSE_EDGE_GAP / zoom,
+  };
+  const placed = layoutCompose(
+    entries,
+    width,
+    zoom,
+    feedback ? COMPOSE_BAR_WIDTH + COMPOSE_GAP : 0,
+  );
   /** Whether a window is standing: a new one at the right, or the bar it was put down to, raised. */
   const raise = (key: string, make: () => ComposeEntry) => {
     setEntries((current) =>
@@ -122,6 +140,7 @@ export function useCompose(width: number) {
     becomeChat,
     becomeDraft,
     entries,
+    feedback,
     float,
     open,
     placed,

@@ -1,4 +1,14 @@
-import { type FeedbackRequest } from "@/client/atoms/report-dialog";
+import {
+  type AttachedImage,
+  feedbackDraftAtom,
+  type FeedbackDraft,
+  type FeedbackRequest,
+  type FeedbackWriteup,
+  newFeedbackDraft,
+  openReportDialog,
+} from "@/client/atoms/report-dialog";
+import { ToolbarTooltip } from "@/client/components/toolbar-tooltip";
+import { discardFeedback } from "@/client/lib/problem-reports";
 import { Button } from "@/client/components/ui/button";
 import {
   DialogBody,
@@ -62,19 +72,23 @@ import { type ExceptionEvent } from "@instrument-org/shared/exceptions";
 import { ArrowLeftIcon } from "@phosphor-icons/react/ArrowLeft";
 import { CaretDownIcon } from "@phosphor-icons/react/CaretDown";
 import { CaretRightIcon } from "@phosphor-icons/react/CaretRight";
+import { MinusIcon } from "@phosphor-icons/react/Minus";
 import { WarningCircleIcon } from "@phosphor-icons/react/WarningCircle";
+import { XIcon } from "@phosphor-icons/react/X";
+import { useAtom } from "jotai";
 import { useQuery } from "@tanstack/react-query";
 import { Fragment, type ReactNode, useEffect, useRef, useState } from "react";
 
-/** The agent's write-up as one file of what goes, sent like the rest. */
-function writeupItem(writeup: { text: string; title: string }): FeedbackItem {
+/** A write-up as one file of what goes, sent like the rest; the first is `writeup.md`, the next `writeup-2.md`. */
+function writeupItem(writeup: FeedbackWriteup, index: number): FeedbackItem {
   const content = `# ${writeup.title}\n\n${writeup.text}\n`;
+  const id = index === 0 ? "writeup" : `writeup-${index + 1}`;
   return {
     bytes: new TextEncoder().encode(content).byteLength,
-    files: [{ content, path: "writeup.md" }],
-    id: "writeup",
+    files: [{ content, path: `${id}.md` }],
+    id,
     kind: "writeup",
-    label: "writeup.md",
+    label: `${id}.md`,
   };
 }
 
@@ -108,18 +122,6 @@ const TAGS: readonly {
   { label: "Idea", placeholder: "What's your idea?", tag: "idea" },
   { label: "Other", tag: "other" },
 ];
-
-/** An image the person attached: a picked, pasted or dropped file, or a developer capture. */
-type AttachedImage = {
-  /** The capture it is, which says where it was taken. */
-  capture?: Capture;
-  file: Blob;
-  id: string;
-  name: string;
-  size: number;
-  /** A data URL, so a picture shown needs nothing released when it goes. */
-  src: string;
-};
 
 function readDataUrl(file: Blob) {
   return new Promise<string>((resolve, reject) => {
@@ -215,26 +217,22 @@ function partsOf({
   described,
   sendActions,
   sendChat,
-  writeup,
+  writeups,
   yourComputer,
 }: {
   described: FeedbackDescription | undefined;
   sendActions: NonNullable<Part["sending"]>;
   sendChat: NonNullable<Part["sending"]>;
-  writeup: FeedbackRequest["writeup"];
+  writeups: readonly FeedbackWriteup[];
   yourComputer: string;
 }): Part[] {
   const chat = described?.chat;
   return [
-    ...(writeup
-      ? [
-          {
-            item: writeupItem(writeup),
-            line: writeup.title,
-            title: `${APP_NAME}'s write-up`,
-          },
-        ]
-      : []),
+    ...writeups.map((writeup, index) => ({
+      item: writeupItem(writeup, index),
+      line: writeup.title,
+      title: `${APP_NAME}'s write-up`,
+    })),
     ...(chat
       ? [
           {
@@ -291,8 +289,29 @@ export function FeedbackDialogContent({
   onExitComplete: () => void;
   request: FeedbackRequest;
 }) {
-  const [note, setNote] = useState("");
-  const [tag, setTag] = useState(request.tag);
+  // What is written lives in the draft rather than here, so the dialog can
+  // go and come back with it: Minimize, Escape, a click outside or Back put
+  // it down to its bar along the window's foot.
+  const [stored, setDraft] = useAtom(feedbackDraftAtom);
+  const [blank] = useState(() => newFeedbackDraft(request));
+  const draft = stored?.request === request ? stored : blank;
+  const update = (
+    change:
+      | ((current: FeedbackDraft) => Partial<FeedbackDraft>)
+      | Partial<FeedbackDraft>,
+  ) => {
+    setDraft((current) => {
+      const base = current?.request === request ? current : blank;
+      return {
+        ...base,
+        ...(typeof change === "function" ? change(base) : change),
+      };
+    });
+  };
+  const { captureChat, images, note, sendActions, sendChat, tag } = draft;
+  const setNote = (value: string) => {
+    update({ note: value });
+  };
   const noteDictation = useDictatedText({
     maxLength: NOTE_MAX_LENGTH,
     onChange: setNote,
@@ -301,16 +320,10 @@ export function FeedbackDialogContent({
   });
   const canDictate = useCanDictate();
   const [viewing, setViewing] = useState<string | null>(null);
-  // Offered, never assumed: it is about more than what is being reported.
-  const [sendActions, setSendActions] = useState(false);
-  const [images, setImages] = useState<AttachedImage[]>([]);
   const [imageProblems, setImageProblems] = useState<string[]>([]);
   const pickerRef = useRef<HTMLInputElement>(null);
   const [pickingCaptures, setPickingCaptures] = useState(false);
-  // A chat a capture was taken in, when the dialog opened about none.
-  const [captureChat, setCaptureChat] = useState<ChatId | undefined>();
-  const [sendChat, setSendChat] = useState(true);
-  const chatId = request.chatId ?? captureChat;
+  const chatId = draft.chatId ?? captureChat;
   const isDeveloperMode = useDeveloperMode();
   const { data: build } = useQuery({
     ...rpcClient.captures.build.queryOptions(),
@@ -324,7 +337,7 @@ export function FeedbackDialogContent({
       return;
     }
     const { accepted, problems } = await offerImages(images.length, files);
-    setImages((current) => [...current, ...accepted]);
+    update((current) => ({ images: [...current.images, ...accepted] }));
     setImageProblems(problems);
   };
 
@@ -340,23 +353,36 @@ export function FeedbackDialogContent({
     if (!offered) {
       return;
     }
-    setImages((current) => [...current, ...offered.accepted]);
+    update((current) => ({
+      images: [...current.images, ...offered.accepted],
+    }));
     setImageProblems(offered.problems);
     const takenIn = chatTakenIn(offered.accepted);
     if (!chatId && takenIn) {
-      setCaptureChat(takenIn);
+      update({ captureChat: takenIn });
     }
   };
 
-  // Captures the dialog was opened with go in once, as if picked; the chat
-  // the first was taken in comes with them.
-  const offeredOnOpen = useRef(false);
+  // Captures a request brought go in once each, as if picked; the chat the
+  // first was taken in comes with them.
+  const taking = useRef(new Set<Capture>());
   useEffect(() => {
-    if (offeredOnOpen.current || !request.captures?.length) {
+    const fresh = draft.pendingCaptures.filter(
+      (capture) => !taking.current.has(capture),
+    );
+    if (fresh.length === 0) {
       return;
     }
-    offeredOnOpen.current = true;
-    void addCaptures(request.captures);
+    for (const capture of fresh) {
+      taking.current.add(capture);
+    }
+    void addCaptures(fresh).then(() => {
+      update((current) => ({
+        pendingCaptures: current.pendingCaptures.filter(
+          (capture) => !fresh.includes(capture),
+        ),
+      }));
+    });
   });
 
   // Read once per opening, and again for a chat a capture brings: what the
@@ -369,13 +395,23 @@ export function FeedbackDialogContent({
     staleTime: Infinity,
   });
 
-  const sendActionsSwitch = { on: sendActions, set: setSendActions };
-  const sendChatSwitch = { on: sendChat, set: setSendChat };
+  const sendActionsSwitch = {
+    on: sendActions,
+    set: (on: boolean) => {
+      update({ sendActions: on });
+    },
+  };
+  const sendChatSwitch = {
+    on: sendChat,
+    set: (on: boolean) => {
+      update({ sendChat: on });
+    },
+  };
   const parts = partsOf({
     described: described.data,
     sendActions: sendActionsSwitch,
     sendChat: sendChatSwitch,
-    writeup: request.writeup,
+    writeups: draft.writeups,
     yourComputer,
   });
   const reviewed = parts.find((part) => part.item.id === viewing);
@@ -400,7 +436,7 @@ export function FeedbackDialogContent({
         described: gathered,
         sendActions: sendActionsSwitch,
         sendChat: sendChatSwitch,
-        writeup: request.writeup,
+        writeups: draft.writeups,
         yourComputer,
       }),
     );
@@ -422,14 +458,19 @@ export function FeedbackDialogContent({
       tag,
       title:
         trimmed.split("\n")[0]?.slice(0, 300) ||
-        request.writeup?.title ||
+        draft.writeups[0]?.title ||
         (chatId ? "Feedback about a chat" : "Feedback"),
     };
+    update({ finished: true });
     onClose();
     toast.work({
       done: "Thanks! Feedback submitted.",
       failed: "Error sending your feedback",
-      onDone: request.onSent,
+      onDone: () => {
+        for (const heard of draft.onSent) {
+          heard();
+        }
+      },
       run: async () => {
         await rpcClient.problems.sendFeedback.call({
           ...feedback,
@@ -460,6 +501,11 @@ export function FeedbackDialogContent({
       Send
     </Button>
   );
+
+  const discard = () => {
+    discardFeedback(draft);
+    onClose();
+  };
 
   // One `DialogContent` for the form and the review, so moving
   // between them swaps what is inside rather than opening the dialog again.
@@ -513,7 +559,7 @@ export function FeedbackDialogContent({
           void addImages(files);
         }
       }}
-      showCloseButton={!reviewed}
+      showCloseButton={false}
       style={reviewed ? { height: REVIEW_HEIGHT } : undefined}
     >
       {reviewed ? (
@@ -526,13 +572,35 @@ export function FeedbackDialogContent({
         />
       ) : (
         <>
-          <div className="flex shrink-0 flex-col gap-2 px-6 pt-6 pr-12 pb-5">
+          <div className="absolute top-3 right-3 flex items-center gap-0.5">
+            <HeadButton label="Minimize" onClick={onClose}>
+              <MinusIcon className="size-4" />
+            </HeadButton>
+            <HeadButton label="Discard" onClick={discard}>
+              <XIcon className="size-4" />
+            </HeadButton>
+          </div>
+          <div className="flex shrink-0 flex-col gap-2 px-6 pt-6 pr-20 pb-5">
             <DialogTitle>Send feedback</DialogTitle>
             <DialogDescription>
               Only the {APP_NAME} team will see what you send, and you can look
               it over first.
             </DialogDescription>
           </div>
+          {draft.offered && (
+            <OfferedElsewhere
+              onKeep={() => {
+                update({ offered: undefined });
+              }}
+              onStartNew={() => {
+                const { offered } = draft;
+                if (offered) {
+                  discardFeedback(draft);
+                  openReportDialog(offered);
+                }
+              }}
+            />
+          )}
 
           <DialogBody className="mx-0 flex flex-col gap-5">
             <div className="flex shrink-0 flex-col gap-2">
@@ -551,7 +619,7 @@ export function FeedbackDialogContent({
                     )}
                     key={each.tag}
                     onClick={() => {
-                      setTag(tag === each.tag ? undefined : each.tag);
+                      update({ tag: tag === each.tag ? undefined : each.tag });
                     }}
                     type="button"
                   >
@@ -578,7 +646,7 @@ export function FeedbackDialogContent({
               onRemove={(id) => {
                 const removed = images.find((image) => image.id === id);
                 const rest = images.filter((image) => image.id !== id);
-                setImages(rest);
+                update({ images: rest });
                 setImageProblems([]);
                 // The chat a capture brought leaves with the last capture taken in it.
                 if (
@@ -588,7 +656,7 @@ export function FeedbackDialogContent({
                     (image) => image.capture?.meta?.chatId === captureChat,
                   )
                 ) {
-                  setCaptureChat(undefined);
+                  update({ captureChat: undefined });
                 }
               }}
               problems={imageProblems}
@@ -616,7 +684,7 @@ export function FeedbackDialogContent({
                   setNote(event.target.value);
                 }}
                 placeholder={
-                  request.writeup
+                  draft.writeups.length > 0
                     ? "Anything to add? You can also send it as it is."
                     : (TAGS.find((each) => each.tag === tag)?.placeholder ??
                       "What happened, and what did you expect?")
@@ -654,10 +722,9 @@ export function FeedbackDialogContent({
               </p>
               <div className="divide-y divide-border rounded-xl border border-border">
                 {described.isPending
-                  ? (request.chatId
-                      ? ["chat", "diagnostics"]
-                      : ["diagnostics"]
-                    ).map((id) => <PartRowLoading key={id} />)
+                  ? (chatId ? ["chat", "diagnostics"] : ["diagnostics"]).map(
+                      (id) => <PartRowLoading key={id} />,
+                    )
                   : parts.map((part) => (
                       <PartRow
                         key={part.item.id}
@@ -680,7 +747,7 @@ export function FeedbackDialogContent({
                 </p>
               )}
             </div>
-            <Button onClick={onClose} variant="outline">
+            <Button onClick={discard} variant="outline">
               Cancel
             </Button>
             {sendButton}
@@ -688,6 +755,61 @@ export function FeedbackDialogContent({
         </>
       )}
     </DialogContent>
+  );
+}
+
+/**
+ * Said over the form when feedback about another chat was asked for while
+ * this draft waited: what that chat brought goes with feedback about it, so
+ * the person keeps writing this one or starts that one.
+ */
+function OfferedElsewhere({
+  onKeep,
+  onStartNew,
+}: {
+  onKeep: () => void;
+  onStartNew: () => void;
+}) {
+  return (
+    <div className="mx-6 mb-4 flex shrink-0 flex-col gap-2.5 rounded-xl bg-muted px-4 py-3">
+      <p className="text-sm">
+        You already started feedback about another chat. You can finish it
+        first, or start new feedback about this one.
+      </p>
+      <div className="flex gap-2">
+        <Button onClick={onKeep} size="sm" variant="outline">
+          Keep writing
+        </Button>
+        <Button onClick={onStartNew} size="sm" variant="outline">
+          Start new
+        </Button>
+      </div>
+    </div>
+  );
+}
+
+/** One of the buttons in the dialog's corner: Minimize, or the cross that discards. */
+function HeadButton({
+  children,
+  label,
+  onClick,
+}: {
+  children: ReactNode;
+  label: string;
+  onClick: () => void;
+}) {
+  return (
+    <ToolbarTooltip label={label}>
+      <Button
+        aria-label={label}
+        className="size-7 text-muted-foreground hover:text-foreground"
+        onClick={onClick}
+        size="icon-sm"
+        variant="ghost"
+      >
+        {children}
+      </Button>
+    </ToolbarTooltip>
   );
 }
 

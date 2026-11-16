@@ -53,9 +53,11 @@ export function layoutCompose(
   width: number,
   /** The UI's zoom, which the row is laid out in and the window's edge is not. */
   zoom = 1,
+  /** Room kept at the right end of the row, in layout px, for a bar standing there. */
+  reserved = 0,
 ): PlacedCompose[] {
   const placed: PlacedCompose[] = [];
-  let right = COMPOSE_EDGE_GAP / zoom;
+  let right = COMPOSE_EDGE_GAP / zoom + reserved;
   for (const [index, entry] of entries.toReversed().entries()) {
     const own = widthOf(entry);
     const room = width - right - COMPOSE_GAP;

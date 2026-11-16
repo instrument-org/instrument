@@ -13,6 +13,7 @@ import { chatListOptions } from "./chat-list-query";
 import { ChatBar, ChatWindow } from "./chat-window";
 import { type Project } from "./chats";
 import { ComposeBar, ComposeWindow, type DraftSend } from "./compose-window";
+import { FeedbackBar } from "./feedback-bar";
 import { type ContextItem } from "./context-items";
 import { type useCompose } from "./use-compose";
 
@@ -111,6 +112,13 @@ export function ComposeLayer({
   return (
     <div className="pointer-events-none absolute inset-0 z-40">
       <AnimatePresence initial={false}>
+        {compose.feedback && (
+          <FeedbackBar
+            draft={compose.feedback.draft}
+            key="bar:feedback"
+            right={compose.feedback.right}
+          />
+        )}
         {compose.placed.map((entry) => {
           if (entry.kind === "chat") {
             const { chatId } = entry;

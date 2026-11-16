@@ -120,6 +120,15 @@ export function ChatHeader({
 }
 
 /**
+ * An element's width in layout px. Read through a function so the React
+ * Compiler keys `start` on the element alone: written inline, it keys it on
+ * `offsetWidth` too, reading it, and laying the window out, on every render.
+ */
+function layoutWidthOf(element: HTMLElement | null) {
+  return element?.offsetWidth;
+}
+
+/**
  * A chat's title and the project it is filed under, as the chat's head
  * draws them: a press on the title puts a field in
  * its place, the caret after it opens the chat's menu, and the
@@ -155,15 +164,14 @@ function ChatHeading({
   const titleArrival = useTitleArrival(chat);
   // The title's width as renaming begins, which the field opens at, read
   // in layout px (offsetWidth, not a rect) since the app scales with CSS zoom.
-  // A ref, read only as renaming begins: the compiler checks an element in
-  // state for whether `start` changed by reading its width on every render,
-  // which lays the window out in the middle of rendering it.
-  const titleButton = useRef<HTMLButtonElement>(null);
+  const [titleButton, setTitleButton] = useState<HTMLButtonElement | null>(
+    null,
+  );
   const [fieldWidth, setFieldWidth] = useState<number>();
   const rename = {
     ...chatRename,
     start: () => {
-      setFieldWidth(titleButton.current?.offsetWidth);
+      setFieldWidth(layoutWidthOf(titleButton));
       chatRename.start();
     },
   };
@@ -190,7 +198,7 @@ function ChatHeading({
               arrival={titleArrival}
               className={titleClassName}
               onClick={rename.start}
-              ref={titleButton}
+              ref={setTitleButton}
               title={chat.title}
             />
             <ChatMenu

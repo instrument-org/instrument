@@ -75,18 +75,13 @@ export const CHATS_FOLDER_NAME = "Chats";
 export const CHAT_FILE_NAME = "CHAT.md";
 
 /**
- * Where the person's drafts are, at the workspace's top level: a folder per
- * draft, named for the day the draft was started, holding what was pasted
- * into it beside the draft itself.
- */
-export const DRAFTS_FOLDER_NAME = "Drafts";
-/**
- * A draft in its folder: its front matter says which draft it is and, for a
- * reply, which chat it goes into, and the body is the person's own words.
- * Capitalized like the one file that says what a folder is in each of the
- * six. A folder may hold more than one, since two devices can each write a
- * draft on the same day offline, so the name is matched as a prefix
- * (`DRAFT 2.md`, a sync engine's conflict copy) rather than exactly.
+ * A draft in its folder (`.instrument/drafts/<date>/`): its front matter says
+ * which draft it is and, for a reply, which chat it goes into, and the body
+ * is the person's own words. Capitalized like the one file that says what a
+ * folder is in each of the key folders. A folder may hold more than one,
+ * since two devices can each write a draft on the same day offline, so the
+ * name is matched as a prefix (`DRAFT 2.md`, a sync engine's conflict copy)
+ * rather than exactly.
  */
 export const DRAFT_FILE_NAME = "DRAFT.md";
 
@@ -139,14 +134,13 @@ export const APPS_FOLDER_NAME = "Apps";
 export const FILES_FOLDER_NAME = "Files";
 
 /**
- * The six folders a person opens, at the workspace's top level, in the order
+ * The key folders a person opens, at the workspace's top level, in the order
  * they are listed to a reader. Collected so that something which has to treat
  * them as a set -- the notice for one the person deleted, say -- cannot miss
  * one that is added later.
  */
 export const KEY_FOLDER_NAMES = [
   CHATS_FOLDER_NAME,
-  DRAFTS_FOLDER_NAME,
   PROJECTS_FOLDER_NAME,
   MEMORY_FOLDER_NAME,
   SKILLS_FOLDER_NAME,

@@ -165,7 +165,7 @@ export async function sweepWorkspaceFolder({
   await timeBootStep("sweep.writeConvertedChatFolders", () =>
     writeConvertedChatFolders(rootDir, converted),
   );
-  // And the drafts move out to `Drafts/`, where a send the app was
+  // And the drafts come into `.instrument/drafts/`, where a send the app was
   // interrupted partway through is finished from the records just converted.
   await timeBootStep("sweep.settleWorkspaceDrafts", () =>
     settleWorkspaceDrafts(rootDir),
@@ -363,22 +363,26 @@ async function writeConvertedChatFolders(
 }
 
 /**
- * Move the drafts an earlier build hid in the workspace's `.instrument/` out
- * to `Drafts/`, and finish any send the app was interrupted partway through:
+ * Move the drafts a build before kept in the top-level `Drafts/` into
+ * `.instrument/drafts/`, convert the ones an early beta left there in its own
+ * shape, and finish any send the app was interrupted partway through:
  * a draft whose chat already holds the message naming it was sent, and only
  * its folder was left behind. Runs after the converter, so that message can
  * be read. Idempotent; a failure must not block boot.
  */
 async function settleWorkspaceDrafts(rootDir: string) {
   try {
-    const { finished, moved } = await settleDrafts(rootDir, {
-      moveToTrash: (target) => shell.trashItem(target),
-    });
-    for (const step of moved.done) {
-      logger.info(`Drafts: ${step}`);
-    }
-    for (const { reason, where } of moved.left) {
-      logger.warn(`Drafts: left ${where} where it is: ${reason}`);
+    const { converted, finished, movedIn } = await settleDrafts(
+      { machineDir: workspaceMachineDir(), rootDir },
+      { moveToTrash: (target) => shell.trashItem(target) },
+    );
+    for (const moved of [movedIn, converted]) {
+      for (const step of moved.done) {
+        logger.info(`Drafts: ${step}`);
+      }
+      for (const { reason, where } of moved.left) {
+        logger.warn(`Drafts: left ${where} where it is: ${reason}`);
+      }
     }
     if (finished.finished.length > 0) {
       logger.info(

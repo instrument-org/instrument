@@ -84,7 +84,7 @@ function tree(): string[] {
 }
 
 const fileOf = (folder = "2026-10-19") =>
-  path.join(root, "Drafts", folder, "DRAFT.md");
+  path.join(root, ".instrument", "drafts", folder, "DRAFT.md");
 
 const read = (folder?: string) => fs.readFileSync(fileOf(folder), "utf8");
 
@@ -101,7 +101,7 @@ describe("a window's ops", () => {
       set: { words: "Plan the trip" },
       type: "update",
     });
-    expect(tree()).toEqual(["Drafts/2026-10-19/DRAFT.md"]);
+    expect(tree()).toEqual([".instrument/drafts/2026-10-19/DRAFT.md"]);
     expect(read()).toMatchInlineSnapshot(`
       "---
       id: "a"
@@ -398,9 +398,9 @@ describe("the folder changing under the app", () => {
     const { apply, store } = await open();
     apply({ draft: draft("a", { words: "Plan" }), type: "create" });
     fs.writeFileSync(fileOf(), read().replace("Plan", "Plan the trip"));
-    fs.mkdirSync(path.join(root, "Drafts", "copied in"));
+    fs.mkdirSync(path.join(root, ".instrument", "drafts", "copied in"));
     fs.writeFileSync(
-      path.join(root, "Drafts", "copied in", "DRAFT.md"),
+      path.join(root, ".instrument", "drafts", "copied in", "DRAFT.md"),
       '---\nid: "b"\ncreated: 2026-10-19T13:00:00.000Z\n---\n\nFrom the phone\n',
     );
 
@@ -588,7 +588,7 @@ describe("a paste into a draft", () => {
     });
 
     expect(path.relative(root, path.dirname(first.path))).toBe(
-      "Drafts/2026-10-19",
+      ".instrument/drafts/2026-10-19",
     );
     expect(path.dirname(second.path)).toBe(path.dirname(first.path));
     expect(path.basename(second.path)).toBe("image 2.png");
@@ -608,8 +608,8 @@ describe("a paste into a draft", () => {
     const first = stage();
     expect(stage().path).toBe(first.path);
     expect(tree()).toEqual([
-      "Drafts/2026-10-19/DRAFT.md",
-      "Drafts/2026-10-19/notes.txt",
+      ".instrument/drafts/2026-10-19/DRAFT.md",
+      ".instrument/drafts/2026-10-19/notes.txt",
     ]);
   });
 

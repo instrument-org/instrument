@@ -667,6 +667,7 @@ describe.each(SHAPES)("the app's data $name", (shape) => {
         `${other}/attachments (read)`,
         `${other}/attachments/a.pdf (read)`,
         `${other}/chat.db (read)`,
+        ".instrument/drafts (read)",
       ]);
     });
 
@@ -696,7 +697,7 @@ describe.each(SHAPES)("the app's data $name", (shape) => {
   describe("what the rules still open inside the app's own data", () => {
     const layout = layoutUnder(paths, {});
 
-    it("is every chat's records to read, and the chat's own two things", () => {
+    it("is every chat's records and the drafts to read, and the chat's own two things", () => {
       const dataDir = workspaceLayout(paths.workspace).dataDir;
       const open = layout.rules.rules
         .filter(
@@ -724,6 +725,10 @@ describe.each(SHAPES)("the app's data $name", (shape) => {
           "2026-10-13-chat",
           "handoff-notes.md",
         ) + " (allow)",
+        // The person's drafts, read when they ask about the message in
+        // their box, and never written, since a draft can ask a computer to
+        // send it.
+        path.join(".instrument", "drafts") + " (readOnly)",
       ]);
     });
   });
@@ -1263,7 +1268,7 @@ describe.each(SHAPES)("the app's data $name", (shape) => {
       };
       const people = [{}, { grants: [fresh.appFiles] }];
       // A first run makes the folders the app keeps read-only inside a
-      // writable one (Drafts/), which every later run then binds.
+      // closed one (the drafts folder), which every later run then binds.
       people.map(argsFor);
       const two = people.map(argsFor);
       for (let i = 0; i < 198; i++) {

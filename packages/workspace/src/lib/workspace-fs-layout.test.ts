@@ -296,11 +296,11 @@ describe("buildBashFs", () => {
       );
     });
 
-    // The workspace folder is one every chat reaches (`folderReach`), and
-    // a draft in it can ask a computer to send it.
-    it("reads a draft in the workspace it reaches and changes none of the drafts", async () => {
+    // The drafts are in the workspace's `.instrument/`, which is otherwise
+    // closed, and a draft can ask a computer to send it.
+    it("reads a draft and changes none of the drafts", async () => {
       const root = getWorkspaceConfig().rootDir;
-      const drafts = path.join(root, "Drafts");
+      const drafts = workspaceLayout(root).draftsDir;
       await fs.mkdir(path.join(drafts, "2026-10-27"), { recursive: true });
       await fs.writeFile(path.join(drafts, "2026-10-27", "DRAFT.md"), "words");
       const layout = buildWorkspaceFsLayout({

@@ -248,8 +248,8 @@ export function bwrapArgs(
     }
   }
   // So is a folder the app keeps read-only inside any folder bound writable
-  // (the workspace's Drafts/ before its first draft), which unbound would be
-  // as writable as the folder around it.
+  // (the workspace's drafts folder before its first draft), which unbound
+  // would be as writable as the folder around it.
   const writable = entries
     .filter((entry) => entry.access === "write")
     .map((entry) => entry.path);

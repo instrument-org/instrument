@@ -3,10 +3,11 @@ import path from "node:path";
 import { unique } from "radashi";
 import { ulid } from "ulid";
 
-import { DRAFT_FILE_NAME, DRAFTS_FOLDER_NAME } from "../../constants";
+import { DRAFT_FILE_NAME } from "../../constants";
 import { claimFolderNamedSync, safeName } from "../chat-folders/folder-name";
 import { isSystemClutter, removeFolderLeftEmpty } from "../system-clutter";
 import { CachedReads } from "../workspace-files";
+import { workspaceLayout } from "../workspace-layout";
 import { pastedPathOf } from "./context-line";
 import {
   type DraftFile,
@@ -16,9 +17,9 @@ import {
 } from "./draft-file";
 
 /**
- * Where the person's drafts are: `Drafts/<date>/`, a folder per draft with
- * the draft in it and everything that goes with its message beside the
- * draft ({@link draftFolderItems}).
+ * Where the person's drafts are: `.instrument/drafts/<date>/`, a folder per
+ * draft with the draft in it and everything that goes with its message
+ * beside the draft ({@link draftFolderItems}).
  *
  * The folder is named for the day the draft was started, numbered beside the
  * ones already there (`2026-10-14`, then `2026-10-14 2`), because a name from
@@ -51,9 +52,9 @@ export interface DraftOnDisk {
   file: string;
 }
 
-/** Where every draft is: `Drafts/` at the workspace's top level. */
+/** Where every draft is: `drafts/` in the workspace's `.instrument/`. */
 export function draftsFolderDir(rootDir: string): string {
-  return path.join(rootDir, DRAFTS_FOLDER_NAME);
+  return workspaceLayout(rootDir).draftsDir;
 }
 
 /**
@@ -93,7 +94,7 @@ export function readDraftsSync(rootDir: string): DraftOnDisk[] {
   );
 }
 
-/** Every `DRAFT*.md` in a folder under `Drafts/`, by listing alone. */
+/** Every `DRAFT*.md` in a folder under the drafts folder, by listing alone. */
 function draftFilesIn(rootDir: string): { dir: string; file: string }[] {
   const drafts = draftsFolderDir(rootDir);
   let folders: string[];

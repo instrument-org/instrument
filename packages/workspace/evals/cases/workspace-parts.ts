@@ -36,12 +36,12 @@ import path from "node:path";
 import {
   AGENT_MESSAGE_LANGUAGE,
   CHAT_FILE_NAME,
-  DRAFTS_FOLDER_NAME,
   PROJECT_FILE_NAME,
 } from "../../src/constants";
 import { createProject, projectsDir } from "../../src/lib/chat/projects";
 import { getWorkspaceConfig } from "../../src/lib/workspace-config";
 import { getWorkspaceSkillsDir } from "../../src/lib/workspace-skills-dir";
+import { workspaceLayout } from "../../src/lib/workspace-layout";
 import { type Session } from "../../src/schemas/session";
 import { type Assertion, type AssertionResult, defineEval } from "../harness";
 import { said } from "./handoff";
@@ -198,7 +198,7 @@ const saidItWontLast: Assertion = {
 const leftDraftsAlone: Assertion = {
   check: () => {
     const text = "put nothing in the Drafts folder";
-    const dir = path.join(getWorkspaceConfig().rootDir, DRAFTS_FOLDER_NAME);
+    const dir = workspaceLayout(getWorkspaceConfig().rootDir).draftsDir;
     const entries = existsSync(dir)
       ? readdirSync(dir, { recursive: true }).map(String)
       : [];

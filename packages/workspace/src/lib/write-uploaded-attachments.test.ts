@@ -170,7 +170,8 @@ describe("writeUploadedAttachments", () => {
     const pasted = path.join(
       root,
       "workspace",
-      "Drafts",
+      ".instrument",
+      "drafts",
       "2026-10-17",
       "photo.jpg",
     );
@@ -199,7 +200,8 @@ describe("writeUploadedAttachments", () => {
     const inDraft = path.join(
       root,
       "workspace",
-      "Drafts",
+      ".instrument",
+      "drafts",
       "2026-10-17",
       "Photos",
     );

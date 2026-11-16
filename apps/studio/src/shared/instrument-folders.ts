@@ -9,7 +9,7 @@ import { isProtectedFolder, normalized } from "./protected-folders";
 
 /**
  * What a folder is to Instrument: the workspace's own folder, a folder the
- * workspace is somewhere inside, one of the six key folders at its top level
+ * workspace is somewhere inside, one of the key folders at its top level
  * (`KEY_FOLDER_NAMES`), or its `.instrument`. Each is a folder the app runs
  * on, so Files leaves it where it is; what is inside the key folders is the
  * person's to change.
@@ -64,7 +64,6 @@ export function instrumentFolderOf(
 const KEY_FOLDER_WORDS = {
   Apps: "apps",
   Chats: "chats",
-  Drafts: "drafts",
   Memory: "memories",
   Skills: "skills",
   Projects: "projects",

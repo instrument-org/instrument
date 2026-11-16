@@ -1,4 +1,8 @@
-import { APP_NAME, APP_NAME_SLUG } from "@instrument-org/shared";
+import {
+  APP_NAME,
+  APP_NAME_SLUG,
+  PRIVATE_FOLDER_NAME,
+} from "@instrument-org/shared";
 import { dedent } from "radashi";
 
 import {
@@ -8,7 +12,6 @@ import {
   APPS_FOLDER_NAME,
   CHAT_FOLDER_NAMES as F,
   DRAFT_FILE_NAME,
-  DRAFTS_FOLDER_NAME,
   FOLDER_VARIABLES as V,
   MEMORY_FOLDER_NAME,
   SKILLS_FOLDER_NAME,
@@ -20,6 +23,7 @@ import {
 import { APP_FILE_NAME } from "../lib/apps/app-file";
 import { PYTHON_BASE_PACKAGES, pythonBaseReady } from "../lib/python-base";
 import { AGENT_BROWSER_COMMAND } from "../lib/shell-commands/agent-browser";
+import { WORKSPACE_DATA_ENTRIES } from "../lib/workspace-layout";
 import { scriptSurfaceOpen } from "../lib/capabilities/script-surface";
 import { ACTIVITY_COMMAND } from "./commands/activity-command";
 import { APP_COMMAND } from "./commands/app-command";
@@ -85,7 +89,7 @@ export function systemPrompt(): string {
     - \`${MEMORY_FOLDER_NAME}/<name>.md\`: a memory, one fact each, kept with \`${MEMORY_COMMAND.name}\`.
     - \`${SKILLS_FOLDER_NAME}/<name>/SKILL.md\`: a skill of the workspace's own.
     - \`${APPS_FOLDER_NAME}/<Name>/${APP_FILE_NAME}\`: an app: front matter saying how the service is reached, over its guide. Set it up and change it with \`${APP_COMMAND.name}\`, and by hand only what the command cannot change. The folder's name is the app's, and its \`id\` is what its sign-in is kept under.
-    - \`${DRAFTS_FOLDER_NAME}/<date>/${DRAFT_FILE_NAME}\`: a message to you the user has not sent yet, saved as they type and shown in their reply box, and what sits beside it goes along when they send it. What you write there is in their box as their own words, so change one only when they ask about the message in their box. A draft they ask you to write (a post, a letter, a document) is their work, never one of these.
+    - \`${PRIVATE_FOLDER_NAME}/${WORKSPACE_DATA_ENTRIES.drafts}/<date>/${DRAFT_FILE_NAME}\`: a message to you the user has not sent yet, shown in their reply box, with what sits beside it going along when they send it. Read one when they ask about the message in their box; you cannot change it. A draft they ask you to write (a post, a letter, a document) is their work, never one of these.
 
     # Memory
     - What will matter in a chat next week is kept with \`${MEMORY_COMMAND.name}\`, a command in your bash tool: how they like things done, standing facts about them (their time zone, their address, their roofer's name), a decision that stands, a correction they gave you. A fact about one project (where its game is installed, its budget) goes in that project's \`${PROJECT_FILE_NAME}\` instead, since a memory reaches every chat. Save it in the reply where you learn it with \`${MEMORY_COMMAND.name} save <name> <<'EOF'\`, one memory per fact, and say so in a few words ("Noted, no stevia."); \`${MEMORY_COMMAND.name} forget <name>\` when they say to forget it or it stopped being true. A task's report is a place you learn them too, since it cannot save one.

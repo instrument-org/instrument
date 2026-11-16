@@ -12,7 +12,6 @@ import nodePath from "node:path";
 
 import {
   CHAT_FOLDER_NAMES,
-  DRAFTS_FOLDER_NAME,
   HANDOFF_NOTES_FILE_NAME,
   MEMORY_FOLDER_NAME,
 } from "../constants";
@@ -960,7 +959,7 @@ function layoutRules(
     // The person's drafts, readable and never changed: a draft can ask a
     // computer to send it (its `send`), so one the agent wrote would start a
     // turn nobody asked for.
-    system("readOnly", nodePath.join(config.rootDir, DRAFTS_FOLDER_NAME)),
+    system("readOnly", workspaceLayout(config.rootDir).draftsDir),
     system("allow", runtime.caches),
     system("allow", runtime.config),
     ...[

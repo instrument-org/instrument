@@ -19,8 +19,8 @@ import { APPS_FOLDER_NAME, CHAT_FOLDER_NAMES } from "../constants";
  *
  * The first group is what the app reads and writes. The second is what only
  * the migrations read: where earlier builds kept what is at the workspace's
- * top level today (`Apps/`, `Drafts/`, `Memory/`, `Skills/`, `Projects/`), and
- * the window's record folder that launch removes.
+ * top level today (`Apps/`, `Memory/`, `Skills/`, `Projects/`), and the
+ * window's record folder that launch removes.
  */
 export const WORKSPACE_DATA_ENTRIES = {
   /**
@@ -41,6 +41,16 @@ export const WORKSPACE_DATA_ENTRIES = {
    */
   devices: "devices",
   /**
+   * The person's drafts, a folder per draft named for the day it was
+   * started (`<date>/`), holding its `DRAFT.md` and everything that goes
+   * with its message (`lib/drafts/`). An early beta's drafts here, a folder
+   * each named by the draft's id with its words in `draft.md` and the rest
+   * of its record in `.instrument/settings.json`, are converted in place at
+   * launch (`lib/drafts/migrate.ts`), and so are drafts a build before kept
+   * at the workspace's top level in `Drafts/` (`lib/drafts/move-in.ts`).
+   */
+  drafts: "drafts",
+  /**
    * What the migrations set aside rather than delete: 1.x projects and empty
    * tasks, the records of tasks an earlier build kept in a chat, and the
    * empty database a chat held while its sessions were in another file.
@@ -56,14 +66,6 @@ export const WORKSPACE_DATA_ENTRIES = {
    * what the migration reads (`lib/apps-move.ts`).
    */
   apps: "apps",
-  /**
-   * Where earlier builds kept the drafts, a folder each: the words in
-   * `draft.md`, what was pasted into them beside those, and the rest of each
-   * record in its own `.instrument/settings.json`. A draft is in `Drafts/` at
-   * the workspace's top level, and this is only what the migration reads
-   * (`lib/drafts/migrate.ts`).
-   */
-  drafts: "drafts",
   /**
    * Where earlier builds kept the memories, one Markdown file each. Memory is
    * `Memory/` at the workspace's top level, and this is only what the
@@ -94,12 +96,14 @@ export const WORKSPACE_DATA_ENTRIES = {
 /**
  * What in a workspace's `.instrument/` is the person's own to look at, each
  * as the names below it, `*` standing for any one: what they attached to a
- * chat. Everything else there (a chat's records, the workspace's own
- * records, the window's) is the app's, and so is a record folder of its own
- * inside one of these, which carries the same `.instrument` name.
+ * chat, and their drafts with what goes with each. Everything else there (a
+ * chat's records, the workspace's own records, the window's) is the app's,
+ * and so is a record folder of its own inside one of these, which carries
+ * the same `.instrument` name.
  */
 export const PERSON_FOLDERS_IN_DATA_DIR: readonly (readonly string[])[] = [
   [WORKSPACE_DATA_ENTRIES.chats, "*", CHAT_FOLDER_NAMES.attachments],
+  [WORKSPACE_DATA_ENTRIES.drafts, "*"],
 ];
 
 /**
@@ -124,13 +128,13 @@ export function workspaceLayout(workspaceDir: string) {
      */
     dataDir,
     devicesDir: entry(WORKSPACE_DATA_ENTRIES.devices),
+    draftsDir: entry(WORKSPACE_DATA_ENTRIES.drafts),
     setAsideDir: entry(WORKSPACE_DATA_ENTRIES.setAside),
 
     // Migration only, from here down: where earlier builds kept what is at
     // the workspace's top level today, and the window's record folder that
     // launch removes. Nothing but a migration, a launch sweep or its tests
     // reads these.
-    draftsDir: entry(WORKSPACE_DATA_ENTRIES.drafts),
     memoryDir: entry(WORKSPACE_DATA_ENTRIES.memory),
     skillsDir: entry(WORKSPACE_DATA_ENTRIES.skills),
     topicsDir: entry(WORKSPACE_DATA_ENTRIES.topics),

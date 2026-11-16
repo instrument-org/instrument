@@ -36,7 +36,7 @@ describe("instrumentFolderOf", () => {
     ["windows", "c:/users/windows-user/instrument/", "workspace"],
     ["windows", "C:\\Users", "around"],
     ["windows", "C:\\", "around"],
-    ["windows", "C:\\Users\\windows-user\\Instrument\\Drafts", "key:Drafts"],
+    ["windows", "C:\\Users\\windows-user\\Instrument\\Memory", "key:Memory"],
     ["windows", "C:\\Users\\windows-user\\Instrument\\apps.", "key:Apps"],
     [
       "windows",

@@ -63,7 +63,7 @@ export async function finishSentDrafts({
   chatsDir: string;
   /** Moves a file or folder to the system's Trash. */
   moveToTrash: (target: string) => Promise<void>;
-  /** The workspace's own folder, which `Drafts/` is at the top of. */
+  /** The workspace's own folder, whose `.instrument/drafts/` the drafts are in. */
   rootDir: string;
 }): Promise<DraftsFinished> {
   const drafts = await readDrafts(rootDir);

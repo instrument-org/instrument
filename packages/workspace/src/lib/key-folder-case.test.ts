@@ -25,18 +25,18 @@ function ignoresCase() {
 describe("settleKeyFolderCase", () => {
   it("gives a folder of the six its own name where the case is all that differs", () => {
     write("skills", "tdd", "SKILL.md");
-    write("drafts", "2026-10-09", "DRAFT.md");
+    write("memory", "no-stevia.md");
     const ignores = ignoresCase();
 
     const done = settleKeyFolderCase(workspace.path);
 
     if (ignores) {
       expect(done).toEqual([
-        "renamed drafts/ to Drafts/",
+        "renamed memory/ to Memory/",
         "renamed skills/ to Skills/",
       ]);
       expect(fs.readdirSync(workspace.path).toSorted()).toEqual([
-        "Drafts",
+        "Memory",
         "Skills",
       ]);
       expect(
@@ -46,7 +46,7 @@ describe("settleKeyFolderCase", () => {
       // Two folders here: the lowercase one is the person's.
       expect(done).toEqual([]);
       expect(fs.readdirSync(workspace.path).toSorted()).toEqual([
-        "drafts",
+        "memory",
         "skills",
       ]);
     }

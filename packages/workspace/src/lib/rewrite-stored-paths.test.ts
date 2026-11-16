@@ -200,7 +200,7 @@ describe("a project's granted folders", () => {
 });
 
 describe("a draft's context", () => {
-  const draftFile = () => at("Drafts", "2026-10-16", "DRAFT.md");
+  const draftFile = () => at(".instrument", "drafts", "2026-10-16", "DRAFT.md");
 
   function writeDraft(...context: string[]) {
     write(

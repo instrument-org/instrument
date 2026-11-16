@@ -6,7 +6,7 @@
  * They split by what losing one costs: `layout` is where the person left off,
  * and `view` is how they like things laid out. Both stay on this computer, in
  * the workspace's machine folder. Drafts are not kept here: main owns them
- * as a folder each in the workspace's `Drafts/` (`shared/drafts.ts`). Nor are
+ * as a folder each in the workspace's `.instrument/drafts/` (`shared/drafts.ts`). Nor are
  * bookmarks: they are a synced store every device writes its own file of
  * (`shared/bookmarks.ts`).
  */

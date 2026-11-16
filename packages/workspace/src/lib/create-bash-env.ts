@@ -144,7 +144,8 @@ import { AGENT_BROWSER_PATH } from "./agent-browser";
 import { FFMPEG_PATH, FFPROBE_PATH } from "./ffmpeg";
 import { gitBinaryPath } from "./git";
 import { RG_DISK_PATH } from "./ripgrep";
-import { finishedWorkFolder } from "./chat/output-folder";
+import { filesFolderPath } from "./chat/output-folder";
+import { filedProjectFolder } from "./chat/folder-reach";
 import { foundManagedPython } from "./run-uv";
 import { getUvBinPath, nearestVenv, venvPython } from "./uv";
 import { workDir } from "./work-dir";
@@ -837,24 +838,23 @@ export function createBashDescription() {
 /**
  * The folders the agent works with, by the names the shell gives them: the
  * workspace's apps, every chat's records (none for the window), its work
- * folder, the output folder, the folder of the skill it loaded last,
+ * folder, the user's Files folder, the folder of the project the chat is
+ * filed under, the folder of the skill it loaded last,
  * where it has loaded one, and the workspace's own skills, in the shell's
  * spelling.
  */
 function folderVariables(
   layout: WorkspaceFsLayout,
   loadedSkillDir: string | undefined,
+  projectFolder: string | undefined,
 ): Record<string, string> {
   return {
     [FOLDER_VARIABLES.apps]: shellPath(getWorkspaceConfig().appsDir),
     ...(layout.chats && { [FOLDER_VARIABLES.chats]: layout.chats.shellRoot }),
-    // The chat's own folder, so finished work lands beside the transcript
-    // the person reads. A chat with no folder yet, the window, which never
-    // has one, and a workspace whose folders the person does not open fall
-    // back to the Instrument folder (see `finishedWorkFolder`).
-    [FOLDER_VARIABLES.output]: shellPath(
-      finishedWorkFolder(layout.folder?.hostRoot),
-    ),
+    [FOLDER_VARIABLES.files]: shellPath(filesFolderPath()),
+    ...(projectFolder !== undefined && {
+      [FOLDER_VARIABLES.project]: shellPath(projectFolder),
+    }),
     ...(loadedSkillDir !== undefined && {
       [FOLDER_VARIABLES.skill]: shellPath(loadedSkillDir),
     }),
@@ -915,6 +915,7 @@ export async function createLocalBashEnv({
   /** Replaces each of `MAIN_THREAD_COMMANDS`; set by the bash worker. */
   standIn?: (name: string) => Command;
 }) {
+  const projectFolder = await filedProjectFolder(chatId);
   // Read as they stand when the shell is made, which is once per bash call.
   const rules = await chatRules({
     chatId,
@@ -1063,7 +1064,7 @@ export async function createLocalBashEnv({
       // The home the rules hold, so `~` in the shell is the folder its
       // native commands call home, rather than just-bash's default of `/`.
       HOME: shellPath(rules.home),
-      ...folderVariables(layout, loadedSkillDir),
+      ...folderVariables(layout, loadedSkillDir, projectFolder),
       NO_COLOR: "1",
       PATH: SHELL_PATH,
       // The system's temp folder, which every program it runs gets too.

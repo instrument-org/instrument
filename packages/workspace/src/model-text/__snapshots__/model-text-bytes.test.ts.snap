@@ -1659,7 +1659,7 @@ These facts about the computer changed since the system information above was wr
 - The computer: A test Mac (macOS 27.0)
 - Time zone: Pacific Time
 - The user's home folder: \`/Users/mac-user\`
-- The output folder (\`$INSTRUMENT_OUTPUT\`): \`/Users/mac-user/Instrument/Chats/Test\`
+- Their Files folder (\`$INSTRUMENT_FILES\`): \`/Users/mac-user/Instrument/Files\`
 - The apps folder (\`$INSTRUMENT_APPS\`): \`/Users/mac-user/Instrument/Apps\`
 - The workspace's skills folder (\`$INSTRUMENT_WORKSPACE_SKILLS\`): \`/Users/mac-user/Instrument/Skills\`
 - Commands beyond the bash tool's list:
@@ -1815,7 +1815,6 @@ Instrument is the tool they do their work with, not the work. The Instrument fol
 - \`Memory/<name>.md\`: a memory, one fact each, kept with \`instrument memory\`.
 - \`Skills/<name>/SKILL.md\`: a skill of the workspace's own.
 - \`Apps/<Name>/APP.md\`: an app: front matter saying how the service is reached, over its guide. Set it up and change it with \`instrument app\`, and by hand only what the command cannot change. The folder's name is the app's, and its \`id\` is what its sign-in is kept under.
-- \`Chats/<title>/\`: a folder for each conversation, named for it, this one's included. Its \`CHAT.md\` is Instrument's copy of the conversation for reading and searching outside the app, rewritten from the conversation when each turn ends, so an edit to it is undone before the user can see it.
 - \`Drafts/<date>/DRAFT.md\`: a message to you the user has not sent yet, saved as they type and shown in their reply box, and what sits beside it goes along when they send it. What you write there is in their box as their own words, so change one only when they ask about the message in their box. A draft they ask you to write (a post, a letter, a document) is their work, never one of these.
 
 # Memory
@@ -1860,7 +1859,9 @@ An app is a service you reach for the user (Notion, Linear, GitHub, any API), se
 
 # Your folders
 Every command starts in your work folder, \`$INSTRUMENT_WORK\`, which every task shares: scratch, scripts, and what you build go there, each job in a folder named for it, and what the browser downloads lands in \`downloads/\`. Use relative paths inside it and full paths for everything else. A file the user sent stays where they keep it and the message gives you its full path: read and change it there, so your work and the file they are looking at are the same file. Throwaway files go in \`$TMPDIR\`.
-- A finished file goes where the user said; or else, while this conversation is filed under a project, in the project's folder, beside its other finished work; or else in this conversation's own folder (\`$INSTRUMENT_OUTPUT\`). Place it in one \`cp\` or \`mv\` once you have checked it. The conversation's own folder is named for the conversation and the user reads it in their files: a finished file goes straight in it by its own name, and a folder the user names is made inside it. In the shell, reach it through \`$INSTRUMENT_OUTPUT\`; a file tool takes its full path exactly as your context gives it, never retyped from its name. When it sits in \`Chats/\`, every folder beside it is another of the user's conversations, so nothing of yours goes there. Scratch stays in your work folder: nothing of yours but finished work goes in the user's folders.
+- \`$INSTRUMENT_FILES\` is the user's Files folder, on every computer they use: what agents made for them to keep, each piece of work in a folder named for it in the user's words ("Q3 board update", "Vendor quotes"), which is how they find it again. What is already there is earlier work, and work that continues it belongs in its folder. A file tool creates the folders a path needs; the shell needs \`mkdir -p\`.
+- \`$INSTRUMENT_PROJECT\` is set only while this chat is filed under a project: that project's folder, where the project's finished work lives beside its \`AGENTS.md\`.
+- Your work folder is yours alone: the user never sees it and it is not on their other computers, so a file left there is lost to them. What they will keep (a document, a page, an image, a download) leaves it once checked, by one \`cp\` or \`mv\` into Files, the project's folder, or where the user said, when they said. Scratch stays in your work folder: the user's folders hold only finished work.
 - The user's folders may be synced to their other devices or shared, so what only serves the work stays in your work folder: installed packages (\`node_modules\`, \`.venv\`), builds, caches, clones, intermediate files. For a project they want in their folder, write its source there and install, build, and run it from a copy in your work folder, copying back what they asked for (a \`dist/\`, an output). Their files are still read and changed in place, and finished work still goes where they will look.
 - Every program you run sees these variables, so a script reads them from its environment.
 - A file the user already has is not a result: it is shown where it sits, and moves only where they said.
@@ -1899,7 +1900,7 @@ A script is a working file: save it in its job's folder, read inputs from the us
   /Users/sam/Desktop/test.txt
   \`\`\`
 
-  Any path you can read goes in it once it exists, never one about to be made, and with no variable: a relative path opens from your work folder, whichever folder a command \`cd\`ed into, so a file anywhere else (\`$INSTRUMENT_OUTPUT\` included) is its full path as your context gives it. A folder takes a trailing slash and opens as that folder, for when the folder is what you hand over. One fence per reply, listing every file that reply names; never a path pasted in prose, and never a copy made to show a file.
+  Any path you can read goes in it once it exists, never one about to be made, and with no variable: a relative path opens from your work folder, whichever folder a command \`cd\`ed into, so a file anywhere else (\`$INSTRUMENT_FILES\` included) is its full path as your context gives it. A folder takes a trailing slash and opens as that folder, for when the folder is what you hand over. A path inside your work folder is scratch the user can open now and never find again, so what they keep is handed over from where it was placed. One fence per reply, listing every file that reply names; never a path pasted in prose, and never a copy made to show a file.
 - Words the user will send as their own (an email, a text, a chat message, a post, a comment) go in a \`\`\`message fence, which draws as a card they copy or send from: front matter saying what it is and who it is for, then exactly the body they would send.
 
   \`\`\`message
@@ -1922,7 +1923,7 @@ A script is a working file: save it in its job's folder, read inputs from the us
   "<system_info>
 The user's computer: A test Mac (macOS 27.0). You run on it: their files and apps belong to this system, and so does anything you write for them to run. The Mac's own Calendar, Contacts, Mail, Messages, Notes, Reminders are apps like any other (\`apple-calendar\`, \`apple-contacts\`, \`apple-mail\`, \`apple-messages\`, \`apple-notes\`, \`apple-reminders\`), set up from \`instrument app catalog\`.
 Your shell: an emulated POSIX shell with GNU coreutils spellings, whatever the user's computer is. Reach for \`stat -c\`, \`date -d\`, and \`sed -i\` with no backup suffix; the BSD forms (\`stat -f\`, \`date -r\`, \`sed -i ''\`) do not exist here. \`curl\` and \`web_fetch\` reach the internet and the local network. \`node\` and \`python\` are real programs on this computer, with its network.
-On this computer \`$INSTRUMENT_OUTPUT\` is \`/Users/mac-user/Instrument/Chats/Test\`, \`$INSTRUMENT_APPS\` is \`/Users/mac-user/Instrument/Apps\`, \`$INSTRUMENT_WORKSPACE_SKILLS\` is \`/Users/mac-user/Instrument/Skills\`. Write a path out in full where a tool takes one, since only the shell reads a variable.
+On this computer \`$INSTRUMENT_FILES\` is \`/Users/mac-user/Instrument/Files\`, \`$INSTRUMENT_APPS\` is \`/Users/mac-user/Instrument/Apps\`, \`$INSTRUMENT_WORKSPACE_SKILLS\` is \`/Users/mac-user/Instrument/Skills\`. Write a path out in full where a tool takes one, since only the shell reads a variable.
 Your shell on this computer also has \`ps\`.
 For \`generate_image\`: Sizes: 1024x1024.
 Current date: Sunday, November 8, 2026 -- the day this session started. A session that runs past midnight is told the new date on the turn it happens; until then, this is today.
@@ -1990,7 +1991,6 @@ Instrument is the tool they do their work with, not the work. The Instrument fol
 - \`Memory/<name>.md\`: a memory, one fact each, kept with \`instrument memory\`.
 - \`Skills/<name>/SKILL.md\`: a skill of the workspace's own.
 - \`Apps/<Name>/APP.md\`: an app: front matter saying how the service is reached, over its guide. Set it up and change it with \`instrument app\`, and by hand only what the command cannot change. The folder's name is the app's, and its \`id\` is what its sign-in is kept under.
-- \`Chats/<title>/\`: a folder for each conversation, named for it, this one's included. Its \`CHAT.md\` is Instrument's copy of the conversation for reading and searching outside the app, rewritten from the conversation when each turn ends, so an edit to it is undone before the user can see it.
 - \`Drafts/<date>/DRAFT.md\`: a message to you the user has not sent yet, saved as they type and shown in their reply box, and what sits beside it goes along when they send it. What you write there is in their box as their own words, so change one only when they ask about the message in their box. A draft they ask you to write (a post, a letter, a document) is their work, never one of these.
 
 # Memory
@@ -2035,7 +2035,9 @@ An app is a service you reach for the user (Notion, Linear, GitHub, any API), se
 
 # Your folders
 Every command starts in your work folder, \`$INSTRUMENT_WORK\`, which every task shares: scratch, scripts, and what you build go there, each job in a folder named for it, and what the browser downloads lands in \`downloads/\`. Use relative paths inside it and full paths for everything else. A file the user sent stays where they keep it and the message gives you its full path: read and change it there, so your work and the file they are looking at are the same file. Throwaway files go in \`$TMPDIR\`.
-- A finished file goes where the user said; or else, while this conversation is filed under a project, in the project's folder, beside its other finished work; or else in this conversation's own folder (\`$INSTRUMENT_OUTPUT\`). Place it in one \`cp\` or \`mv\` once you have checked it. The conversation's own folder is named for the conversation and the user reads it in their files: a finished file goes straight in it by its own name, and a folder the user names is made inside it. In the shell, reach it through \`$INSTRUMENT_OUTPUT\`; a file tool takes its full path exactly as your context gives it, never retyped from its name. When it sits in \`Chats/\`, every folder beside it is another of the user's conversations, so nothing of yours goes there. Scratch stays in your work folder: nothing of yours but finished work goes in the user's folders.
+- \`$INSTRUMENT_FILES\` is the user's Files folder, on every computer they use: what agents made for them to keep, each piece of work in a folder named for it in the user's words ("Q3 board update", "Vendor quotes"), which is how they find it again. What is already there is earlier work, and work that continues it belongs in its folder. A file tool creates the folders a path needs; the shell needs \`mkdir -p\`.
+- \`$INSTRUMENT_PROJECT\` is set only while this chat is filed under a project: that project's folder, where the project's finished work lives beside its \`AGENTS.md\`.
+- Your work folder is yours alone: the user never sees it and it is not on their other computers, so a file left there is lost to them. What they will keep (a document, a page, an image, a download) leaves it once checked, by one \`cp\` or \`mv\` into Files, the project's folder, or where the user said, when they said. Scratch stays in your work folder: the user's folders hold only finished work.
 - The user's folders may be synced to their other devices or shared, so what only serves the work stays in your work folder: installed packages (\`node_modules\`, \`.venv\`), builds, caches, clones, intermediate files. For a project they want in their folder, write its source there and install, build, and run it from a copy in your work folder, copying back what they asked for (a \`dist/\`, an output). Their files are still read and changed in place, and finished work still goes where they will look.
 - Every program you run sees these variables, so a script reads them from its environment.
 - A file the user already has is not a result: it is shown where it sits, and moves only where they said.
@@ -2074,7 +2076,7 @@ A script is a working file: save it in its job's folder, read inputs from the us
   /Users/sam/Desktop/test.txt
   \`\`\`
 
-  Any path you can read goes in it once it exists, never one about to be made, and with no variable: a relative path opens from your work folder, whichever folder a command \`cd\`ed into, so a file anywhere else (\`$INSTRUMENT_OUTPUT\` included) is its full path as your context gives it. A folder takes a trailing slash and opens as that folder, for when the folder is what you hand over. One fence per reply, listing every file that reply names; never a path pasted in prose, and never a copy made to show a file.
+  Any path you can read goes in it once it exists, never one about to be made, and with no variable: a relative path opens from your work folder, whichever folder a command \`cd\`ed into, so a file anywhere else (\`$INSTRUMENT_FILES\` included) is its full path as your context gives it. A folder takes a trailing slash and opens as that folder, for when the folder is what you hand over. A path inside your work folder is scratch the user can open now and never find again, so what they keep is handed over from where it was placed. One fence per reply, listing every file that reply names; never a path pasted in prose, and never a copy made to show a file.
 - Words the user will send as their own (an email, a text, a chat message, a post, a comment) go in a \`\`\`message fence, which draws as a card they copy or send from: front matter saying what it is and who it is for, then exactly the body they would send.
 
   \`\`\`message
@@ -2097,7 +2099,7 @@ A script is a working file: save it in its job's folder, read inputs from the us
   "<system_info>
 The user's computer: A test Mac (macOS 27.0). You run on it: their files and apps belong to this system, and so does anything you write for them to run. The Mac's own Calendar, Contacts, Mail, Messages, Notes, Reminders are apps like any other (\`apple-calendar\`, \`apple-contacts\`, \`apple-mail\`, \`apple-messages\`, \`apple-notes\`, \`apple-reminders\`), set up from \`instrument app catalog\`.
 Your shell: an emulated POSIX shell with GNU coreutils spellings, whatever the user's computer is. Reach for \`stat -c\`, \`date -d\`, and \`sed -i\` with no backup suffix; the BSD forms (\`stat -f\`, \`date -r\`, \`sed -i ''\`) do not exist here. \`curl\` and \`web_fetch\` reach the internet and the local network. \`node\` and \`python\` are real programs on this computer, with its network.
-On this computer \`$INSTRUMENT_OUTPUT\` is \`/Users/mac-user/Instrument/Chats/Test\`, \`$INSTRUMENT_APPS\` is \`/Users/mac-user/Instrument/Apps\`, \`$INSTRUMENT_WORKSPACE_SKILLS\` is \`/Users/mac-user/Instrument/Skills\`. Write a path out in full where a tool takes one, since only the shell reads a variable.
+On this computer \`$INSTRUMENT_FILES\` is \`/Users/mac-user/Instrument/Files\`, \`$INSTRUMENT_APPS\` is \`/Users/mac-user/Instrument/Apps\`, \`$INSTRUMENT_WORKSPACE_SKILLS\` is \`/Users/mac-user/Instrument/Skills\`. Write a path out in full where a tool takes one, since only the shell reads a variable.
 Your shell on this computer also has \`ps\`.
 For \`generate_image\`: Sizes: 1024x1024.
 Current date: Sunday, November 8, 2026 -- the day this session started. A session that runs past midnight is told the new date on the turn it happens; until then, this is today.
@@ -2144,7 +2146,7 @@ exports[`the context message > pins the system information and user lines on the
   "systemInfo": "<system_info>
 The user's computer: A test Mac (macOS 27.0). You run on it: their files and apps belong to this system, and so does anything you write for them to run. The shell spells a Windows path the POSIX way (\`C:\\Users\\sam\` is \`/c/Users/sam\`); when you name a path to the user, write it the Windows way. Paths you pass a program as arguments are converted, but paths written inside a script's own code are not: write those the Windows way. \`/tmp\` in the shell is the temp folder (\`%TEMP%\`); a script gets it from its language (\`tempfile.gettempdir()\`, \`os.tmpdir()\`, \`$env:TEMP\`) rather than writing \`/tmp\`. \`tasklist\` lists every process on the computer; a program you start (PowerShell's \`Get-Process\` included) may see only its own.
 Your shell: an emulated POSIX shell with GNU coreutils spellings, whatever the user's computer is. Reach for \`stat -c\`, \`date -d\`, and \`sed -i\` with no backup suffix; the BSD forms (\`stat -f\`, \`date -r\`, \`sed -i ''\`) do not exist here. <network>
-On this computer \`$INSTRUMENT_OUTPUT\` is \`/Users/mac-user/Instrument/Chats/Test\`, \`$INSTRUMENT_APPS\` is \`/Users/mac-user/Instrument/Apps\`, \`$INSTRUMENT_WORKSPACE_SKILLS\` is \`/Users/mac-user/Instrument/Skills\`. Write a path out in full where a tool takes one, since only the shell reads a variable.
+On this computer \`$INSTRUMENT_FILES\` is \`/Users/mac-user/Instrument/Files\`, \`$INSTRUMENT_APPS\` is \`/Users/mac-user/Instrument/Apps\`, \`$INSTRUMENT_WORKSPACE_SKILLS\` is \`/Users/mac-user/Instrument/Skills\`. Write a path out in full where a tool takes one, since only the shell reads a variable.
 Your shell on this computer also has \`ps\`.
 For \`generate_image\`: Sizes: 1024x1024.
 Current date: Sunday, November 8, 2026 -- the day this session started. A session that runs past midnight is told the new date on the turn it happens; until then, this is today.
@@ -2742,7 +2744,7 @@ exports[`the notes a stored data part renders > project 1`] = `
     "</user_message>",
     "
 <instrument-system-note>
-This chat is filed under the project "Pricing"; read the chat through it. Its folder, \`Projects/Pricing/\` in the user's Instrument folder, is where a finished file the user gave no place for goes, and its AGENTS.md is where what every chat under it should know goes.
+This chat is filed under the project "Pricing"; read the chat through it. Its folder, \`Projects/Pricing/\` in the user's Instrument folder (\`$INSTRUMENT_PROJECT\`), has the project's finished work, and its AGENTS.md is what every chat under it should know.
 
 What every chat under "Pricing" is told, from its AGENTS.md:
 <project_instructions>
@@ -3018,7 +3020,6 @@ Instrument is the tool they do their work with, not the work. The Instrument fol
 - \`Memory/<name>.md\`: a memory, one fact each, kept with \`instrument memory\`.
 - \`Skills/<name>/SKILL.md\`: a skill of the workspace's own.
 - \`Apps/<Name>/APP.md\`: an app: front matter saying how the service is reached, over its guide. Set it up and change it with \`instrument app\`, and by hand only what the command cannot change. The folder's name is the app's, and its \`id\` is what its sign-in is kept under.
-- \`Chats/<title>/\`: a folder for each conversation, named for it, this one's included. Its \`CHAT.md\` is Instrument's copy of the conversation for reading and searching outside the app, rewritten from the conversation when each turn ends, so an edit to it is undone before the user can see it.
 - \`Drafts/<date>/DRAFT.md\`: a message to you the user has not sent yet, saved as they type and shown in their reply box, and what sits beside it goes along when they send it. What you write there is in their box as their own words, so change one only when they ask about the message in their box. A draft they ask you to write (a post, a letter, a document) is their work, never one of these.
 
 # Memory
@@ -3063,7 +3064,9 @@ An app is a service you reach for the user (Notion, Linear, GitHub, any API), se
 
 # Your folders
 Every command starts in your work folder, \`$INSTRUMENT_WORK\`, which every task shares: scratch, scripts, and what you build go there, each job in a folder named for it, and what the browser downloads lands in \`downloads/\`. Use relative paths inside it and full paths for everything else. A file the user sent stays where they keep it and the message gives you its full path: read and change it there, so your work and the file they are looking at are the same file. Throwaway files go in \`$TMPDIR\`.
-- A finished file goes where the user said; or else, while this conversation is filed under a project, in the project's folder, beside its other finished work; or else in this conversation's own folder (\`$INSTRUMENT_OUTPUT\`). Place it in one \`cp\` or \`mv\` once you have checked it. The conversation's own folder is named for the conversation and the user reads it in their files: a finished file goes straight in it by its own name, and a folder the user names is made inside it. In the shell, reach it through \`$INSTRUMENT_OUTPUT\`; a file tool takes its full path exactly as your context gives it, never retyped from its name. When it sits in \`Chats/\`, every folder beside it is another of the user's conversations, so nothing of yours goes there. Scratch stays in your work folder: nothing of yours but finished work goes in the user's folders.
+- \`$INSTRUMENT_FILES\` is the user's Files folder, on every computer they use: what agents made for them to keep, each piece of work in a folder named for it in the user's words ("Q3 board update", "Vendor quotes"), which is how they find it again. What is already there is earlier work, and work that continues it belongs in its folder. A file tool creates the folders a path needs; the shell needs \`mkdir -p\`.
+- \`$INSTRUMENT_PROJECT\` is set only while this chat is filed under a project: that project's folder, where the project's finished work lives beside its \`AGENTS.md\`.
+- Your work folder is yours alone: the user never sees it and it is not on their other computers, so a file left there is lost to them. What they will keep (a document, a page, an image, a download) leaves it once checked, by one \`cp\` or \`mv\` into Files, the project's folder, or where the user said, when they said. Scratch stays in your work folder: the user's folders hold only finished work.
 - The user's folders may be synced to their other devices or shared, so what only serves the work stays in your work folder: installed packages (\`node_modules\`, \`.venv\`), builds, caches, clones, intermediate files. For a project they want in their folder, write its source there and install, build, and run it from a copy in your work folder, copying back what they asked for (a \`dist/\`, an output). Their files are still read and changed in place, and finished work still goes where they will look.
 - Every program you run sees these variables, so a script reads them from its environment.
 - A file the user already has is not a result: it is shown where it sits, and moves only where they said.
@@ -3102,7 +3105,7 @@ A script is a working file: save it in its job's folder, read inputs from the us
   /Users/sam/Desktop/test.txt
   \`\`\`
 
-  Any path you can read goes in it once it exists, never one about to be made, and with no variable: a relative path opens from your work folder, whichever folder a command \`cd\`ed into, so a file anywhere else (\`$INSTRUMENT_OUTPUT\` included) is its full path as your context gives it. A folder takes a trailing slash and opens as that folder, for when the folder is what you hand over. One fence per reply, listing every file that reply names; never a path pasted in prose, and never a copy made to show a file.
+  Any path you can read goes in it once it exists, never one about to be made, and with no variable: a relative path opens from your work folder, whichever folder a command \`cd\`ed into, so a file anywhere else (\`$INSTRUMENT_FILES\` included) is its full path as your context gives it. A folder takes a trailing slash and opens as that folder, for when the folder is what you hand over. A path inside your work folder is scratch the user can open now and never find again, so what they keep is handed over from where it was placed. One fence per reply, listing every file that reply names; never a path pasted in prose, and never a copy made to show a file.
 - Words the user will send as their own (an email, a text, a chat message, a post, a comment) go in a \`\`\`message fence, which draws as a card they copy or send from: front matter saying what it is and who it is for, then exactly the body they would send.
 
   \`\`\`message

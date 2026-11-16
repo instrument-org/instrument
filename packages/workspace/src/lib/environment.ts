@@ -15,7 +15,7 @@ import { type SessionMessagePart } from "../schemas/session/message-part";
 import { StoreId } from "../schemas/store-id";
 import { type ChatId } from "../schemas/chat-id";
 import { ChatReads } from "./chat-reads";
-import { chatOutputFolder, outputFolderPath } from "./chat/output-folder";
+import { filesFolderPath } from "./chat/output-folder";
 import { getCurrentDate } from "./get-current-date";
 import { getSystemInfo } from "./get-system-info";
 import { baselineRecorded, partsAfter } from "./last-told";
@@ -38,7 +38,7 @@ import { getWorkspaceSkillsDir } from "./workspace-skills-dir";
  * provider is told as a change.
  */
 export async function currentEnvironment(
-  chatId?: ChatId,
+  _chatId?: ChatId,
   runsOn?: AIGatewayModelURI.Type,
 ): Promise<Environment> {
   // Imported when asked: the shell's module reaches this one through the
@@ -50,9 +50,7 @@ export async function currentEnvironment(
     computer: await getSystemInfo(),
     homeFolder: shellPath(os.homedir()),
     imageOptions: imageOptionsFor(runsOn),
-    outputFolder: shellPath(
-      chatId === undefined ? outputFolderPath() : chatOutputFolder(chatId),
-    ),
+    outputFolder: shellPath(filesFolderPath()),
     platform: process.platform,
     timeZone: Intl.DateTimeFormat().resolvedOptions().timeZone,
     workspaceSkillsFolder: shellPath(getWorkspaceSkillsDir()),

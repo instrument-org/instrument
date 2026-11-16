@@ -143,7 +143,7 @@ const ENVIRONMENT: Environment = {
   computer: "A test Mac (macOS 27.0)",
   homeFolder: "/Users/mac-user",
   imageOptions: "Sizes: 1024x1024.",
-  outputFolder: "/Users/mac-user/Instrument/Chats/Test",
+  outputFolder: "/Users/mac-user/Instrument/Files",
   platform: "darwin",
   timeZone: "America/Los_Angeles",
   workspaceSkillsFolder: "/Users/mac-user/Instrument/Skills",

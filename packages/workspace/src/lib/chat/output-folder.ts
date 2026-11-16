@@ -68,6 +68,14 @@ export function outputFolderPath(): string {
 }
 
 /**
+ * The user's Files folder at the top of their Instrument folder: what the
+ * agents made for them, in folders the agents name for the work.
+ */
+export function filesFolderPath(): string {
+  return path.join(outputFolderPath(), "Files");
+}
+
+/**
  * Where a chat's finished work goes: its own folder under `Chats/`, when
  * that folder is inside the person's Instrument folder, and otherwise the
  * Instrument folder itself.

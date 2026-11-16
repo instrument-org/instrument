@@ -126,7 +126,7 @@ describe("fileTouches", () => {
     await write(inHome);
     await write(inSub);
     const { files } = await fileTouches(watching, {
-      command: `cat > "$${FOLDER_VARIABLES.output}/note.md"; cp x ~/home-note.md; cd "${elsewhere}/sub" && touch deep.txt`,
+      command: `cat > "$${FOLDER_VARIABLES.files}/note.md"; cp x ~/home-note.md; cd "${elsewhere}/sub" && touch deep.txt`,
       output: "",
     });
     expect(files.map((touch) => touch.path).toSorted()).toEqual(

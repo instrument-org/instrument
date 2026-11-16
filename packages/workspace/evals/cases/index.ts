@@ -1,3 +1,4 @@
+import { FILES_FOLDER_EVALS } from "./files-folder";
 import { WORKSPACE_INSTRUCTIONS_EVALS } from "./workspace-instructions";
 import { ACTIVITY_CONTEXT_EVALS } from "./activity-context";
 import { AI_REQUESTS_EVALS } from "./ai-requests";
@@ -74,6 +75,7 @@ import { WHITEBOARD_EVALS } from "./whiteboard";
 
 export const EVALS = [
   ...WORKSPACE_INSTRUCTIONS_EVALS,
+  ...FILES_FOLDER_EVALS,
   ...ACTIVITY_CONTEXT_EVALS,
   ...AI_REQUESTS_EVALS,
   ...APP_ACCOUNTS_EVALS,

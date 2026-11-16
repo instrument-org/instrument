@@ -1,5 +1,9 @@
 import { APP_NAME } from "@instrument-org/shared";
-import { PROJECT_FILE_NAME, PROJECTS_FOLDER_NAME } from "../../constants";
+import {
+  FOLDER_VARIABLES,
+  PROJECT_FILE_NAME,
+  PROJECTS_FOLDER_NAME,
+} from "../../constants";
 import { type SessionMessageDataPart } from "../../schemas/session/message-data-part";
 import { instructionsInContext } from "../../lib/instructions-in-context";
 import { systemNote } from "./system-note";
@@ -37,7 +41,7 @@ export function projectModelNote({
         ]
       : []),
   ];
-  const filed = `This chat is filed under the project ${mark}"${project.name}"${about}; read the chat through it. Its folder, \`${PROJECTS_FOLDER_NAME}/${project.name}/\` in the user's ${APP_NAME} folder, is where a finished file the user gave no place for goes, and its ${PROJECT_FILE_NAME} is where what every chat under it should know goes.`;
+  const filed = `This chat is filed under the project ${mark}"${project.name}"${about}; read the chat through it. Its folder, \`${PROJECTS_FOLDER_NAME}/${project.name}/\` in the user's ${APP_NAME} folder (\`$${FOLDER_VARIABLES.project}\`), has the project's finished work, and its ${PROJECT_FILE_NAME} is what every chat under it should know.`;
   return systemNote`
     ${[filed, ...standing].join("\n\n")}
   `;

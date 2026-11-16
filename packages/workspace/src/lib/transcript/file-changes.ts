@@ -322,7 +322,7 @@ export async function watchCall({
     variables: {
       [FOLDER_VARIABLES.work]: workFolder,
       ...(outputFolder !== undefined && {
-        [FOLDER_VARIABLES.output]: outputFolder,
+        [FOLDER_VARIABLES.files]: outputFolder,
       }),
     },
     workFolder,

@@ -31,7 +31,7 @@ export function timeZoneRegion(timeZone: string): string {
 
 /** The folders the system prompt names by variable, and what each is called. */
 const VARIABLE_FOLDERS = [
-  ["outputFolder", "The output folder", FOLDER_VARIABLES.output],
+  ["outputFolder", "Their Files folder", FOLDER_VARIABLES.files],
   ["appsFolder", "The apps folder", FOLDER_VARIABLES.apps],
   [
     "workspaceSkillsFolder",

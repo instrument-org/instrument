@@ -33,7 +33,8 @@ export const CHAT_FOLDER_NAMES = {
 /**
  * The variables the agent's shell sets, naming the folders it works with:
  * the workspace's apps; its chat's work folder, where every command starts;
- * the output folder, where finished work goes; the folder of the skill it
+ * the user's Files folder, where finished work goes; the folder of the
+ * project the chat is filed under, when it is; the folder of the skill it
  * loaded last, where that skill's scripts run from; and the workspace's own
  * writable skills; and every chat's records, read-only. Every program the shell starts sees them too. The system
  * prompt names folders by these, never by path, so it reads the same on
@@ -43,7 +44,8 @@ export const CHAT_FOLDER_NAMES = {
 export const FOLDER_VARIABLES = {
   apps: "INSTRUMENT_APPS",
   chats: "INSTRUMENT_CHATS",
-  output: "INSTRUMENT_OUTPUT",
+  files: "INSTRUMENT_FILES",
+  project: "INSTRUMENT_PROJECT",
   skill: "INSTRUMENT_SKILL_DIR",
   work: "INSTRUMENT_WORK",
   workspaceSkills: "INSTRUMENT_WORKSPACE_SKILLS",

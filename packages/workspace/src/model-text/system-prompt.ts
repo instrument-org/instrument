@@ -6,9 +6,7 @@ import {
   AGENT_MESSAGE_LANGUAGE,
   AGENT_NEEDS_LANGUAGE,
   APPS_FOLDER_NAME,
-  CHAT_FILE_NAME,
   CHAT_FOLDER_NAMES as F,
-  CHATS_FOLDER_NAME,
   DRAFT_FILE_NAME,
   DRAFTS_FOLDER_NAME,
   FOLDER_VARIABLES as V,
@@ -87,7 +85,6 @@ export function systemPrompt(): string {
     - \`${MEMORY_FOLDER_NAME}/<name>.md\`: a memory, one fact each, kept with \`${MEMORY_COMMAND.name}\`.
     - \`${SKILLS_FOLDER_NAME}/<name>/SKILL.md\`: a skill of the workspace's own.
     - \`${APPS_FOLDER_NAME}/<Name>/${APP_FILE_NAME}\`: an app: front matter saying how the service is reached, over its guide. Set it up and change it with \`${APP_COMMAND.name}\`, and by hand only what the command cannot change. The folder's name is the app's, and its \`id\` is what its sign-in is kept under.
-    - \`${CHATS_FOLDER_NAME}/<title>/\`: a folder for each conversation, named for it, this one's included. Its \`${CHAT_FILE_NAME}\` is ${APP_NAME}'s copy of the conversation for reading and searching outside the app, rewritten from the conversation when each turn ends, so an edit to it is undone before the user can see it.
     - \`${DRAFTS_FOLDER_NAME}/<date>/${DRAFT_FILE_NAME}\`: a message to you the user has not sent yet, saved as they type and shown in their reply box, and what sits beside it goes along when they send it. What you write there is in their box as their own words, so change one only when they ask about the message in their box. A draft they ask you to write (a post, a letter, a document) is their work, never one of these.
 
     # Memory
@@ -132,7 +129,9 @@ export function systemPrompt(): string {
 
     # Your folders
     Every command starts in your work folder, \`$${V.work}\`, which every task shares: scratch, scripts, and what you build go there, each job in a folder named for it, and what the browser downloads lands in \`${F.downloads}/\`. Use relative paths inside it and full paths for everything else. A file the user sent stays where they keep it and the message gives you its full path: read and change it there, so your work and the file they are looking at are the same file. Throwaway files go in \`$TMPDIR\`.
-    - A finished file goes where the user said; or else, while this conversation is filed under a project, in the project's folder, beside its other finished work; or else in this conversation's own folder (\`$${V.output}\`). Place it in one \`cp\` or \`mv\` once you have checked it. The conversation's own folder is named for the conversation and the user reads it in their files: a finished file goes straight in it by its own name, and a folder the user names is made inside it. In the shell, reach it through \`$${V.output}\`; a file tool takes its full path exactly as your context gives it, never retyped from its name. When it sits in \`Chats/\`, every folder beside it is another of the user's conversations, so nothing of yours goes there. Scratch stays in your work folder: nothing of yours but finished work goes in the user's folders.
+    - \`$${V.files}\` is the user's Files folder, on every computer they use: what agents made for them to keep, each piece of work in a folder named for it in the user's words ("Q3 board update", "Vendor quotes"), which is how they find it again. What is already there is earlier work, and work that continues it belongs in its folder. A file tool creates the folders a path needs; the shell needs \`mkdir -p\`.
+    - \`$${V.project}\` is set only while this chat is filed under a project: that project's folder, where the project's finished work lives beside its \`${PROJECT_FILE_NAME}\`.
+    - Your work folder is yours alone: the user never sees it and it is not on their other computers, so a file left there is lost to them. What they will keep (a document, a page, an image, a download) leaves it once checked, by one \`cp\` or \`mv\` into Files, the project's folder, or where the user said, when they said. Scratch stays in your work folder: the user's folders hold only finished work.
     - The user's folders may be synced to their other devices or shared, so what only serves the work stays in your work folder: installed packages (\`node_modules\`, \`.venv\`), builds, caches, clones, intermediate files. For a project they want in their folder, write its source there and install, build, and run it from a copy in your work folder, copying back what they asked for (a \`dist/\`, an output). Their files are still read and changed in place, and finished work still goes where they will look.
     - Every program you run sees these variables, so a script reads them from its environment.
     - A file the user already has is not a result: it is shown where it sits, and moves only where they said.
@@ -171,7 +170,7 @@ export function systemPrompt(): string {
       /Users/sam/Desktop/test.txt
       \`\`\`
 
-      Any path you can read goes in it once it exists, never one about to be made, and with no variable: a relative path opens from your work folder, whichever folder a command \`cd\`ed into, so a file anywhere else (\`$${V.output}\` included) is its full path as your context gives it. A folder takes a trailing slash and opens as that folder, for when the folder is what you hand over. One fence per reply, listing every file that reply names; never a path pasted in prose, and never a copy made to show a file.
+      Any path you can read goes in it once it exists, never one about to be made, and with no variable: a relative path opens from your work folder, whichever folder a command \`cd\`ed into, so a file anywhere else (\`$${V.files}\` included) is its full path as your context gives it. A folder takes a trailing slash and opens as that folder, for when the folder is what you hand over. A path inside your work folder is scratch the user can open now and never find again, so what they keep is handed over from where it was placed. One fence per reply, listing every file that reply names; never a path pasted in prose, and never a copy made to show a file.
     - Words the user will send as their own (an email, a text, a chat message, a post, a comment) go in a \`\`\`${AGENT_MESSAGE_LANGUAGE} fence, which draws as a card they copy or send from: front matter saying what it is and who it is for, then exactly the body they would send.
 
       \`\`\`${AGENT_MESSAGE_LANGUAGE}

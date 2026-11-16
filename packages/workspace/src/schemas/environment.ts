@@ -26,7 +26,7 @@ export const EnvironmentSchema = z.object({
    * words them. Absent on a baseline written before it was told.
    */
   imageOptions: z.string().optional(),
-  /** Where finished work goes, behind `$INSTRUMENT_OUTPUT`. */
+  /** The user's Files folder, where finished work goes, behind `$INSTRUMENT_FILES`. */
   outputFolder: z.string(),
   /** `process.platform`, which decides the shell guidance a computer gets. */
   platform: z.string(),

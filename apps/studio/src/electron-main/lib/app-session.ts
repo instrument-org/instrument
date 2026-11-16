@@ -8,6 +8,7 @@ import { setTimeout as sleep } from "node:timers/promises";
 
 import { registerAppProtocol } from "./app-protocol";
 import { logger } from "./electron-logger";
+import { applySpellCheckerLanguages } from "./spellcheck-languages";
 import { applyStandardUserAgent } from "./user-agent";
 
 /**
@@ -21,6 +22,7 @@ export function configureAppSession(ses: Session): void {
   // client hints, for compatibility with services that respond differently to
   // the Electron UA.
   applyStandardUserAgent(ses);
+  applySpellCheckerLanguages(ses);
 
   ses.setPermissionRequestHandler((_webContents, permission, callback) => {
     // Disable fullscreen API for things like video players

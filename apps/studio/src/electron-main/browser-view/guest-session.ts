@@ -3,6 +3,7 @@ import { BrowserWindow, session, type Session } from "electron";
 import fs from "node:fs";
 import path from "node:path";
 
+import { applySpellCheckerLanguages } from "../lib/spellcheck-languages";
 import { applyStandardUserAgent } from "../lib/user-agent";
 import { followPageEdits } from "../page-editor/sessions";
 import {
@@ -185,6 +186,7 @@ export function configureGuestSession(profileDir: string): Session {
   // like one. Branded with the app's own name because the guest's pages get the
   // matching metadata over CDP; see applyProductBrandedMetadata.
   applyStandardUserAgent(guestSession, { productBranded: true });
+  applySpellCheckerLanguages(guestSession);
   confineLocalPagesToTheirFolder(guestSession, blockedRequestResponse);
   enableContentBlocking(guestSession, (id) => guests.isAdBlockExempt(id));
   refusePasskeys(guestSession, cspResponse);

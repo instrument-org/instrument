@@ -334,6 +334,7 @@ describe("a card asking for several apps", () => {
 
     await answerRow("docs", "failed");
 
+    await vi.waitFor(() => expect(wakes()).not.toEqual([]));
     expect(wakes().map(({ events, signIns }) => ({ events, signIns }))).toEqual(
       [
         {
@@ -438,6 +439,7 @@ describe("a card asking for several apps", () => {
     expect(wakes()).toEqual([]);
     await answerRow("gmail", "connected");
 
+    await vi.waitFor(() => expect(wakes()).not.toEqual([]));
     expect(wakes()).toEqual([
       expect.objectContaining({ notOnCard: [{ reason, slug: "sheets" }] }),
     ]);

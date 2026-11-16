@@ -48,6 +48,7 @@ type Recorded = SessionMessageDataPart.FileVersionsDataPart["files"][number] & {
   device: string;
   kind: FileVersion["kind"];
   label: string;
+  messageId: StoreId.Message;
 };
 
 /**
@@ -157,6 +158,51 @@ export async function restoreFileVersion({
   return before?.copy === undefined ? {} : { replaced: before.copy };
 }
 
+/**
+ * Puts back every file a reply handed over as it was before that reply's
+ * turn: the copy a tool kept before first changing it, or else the newest
+ * version recorded before the turn. Each goes back the way a restore does,
+ * so each can be undone from its versions list. A file the turn made, or
+ * whose earlier version is on another computer, is left as it is.
+ */
+export async function undoReplyFiles({
+  chatId,
+  messageId,
+}: {
+  chatId: ChatId;
+  messageId: StoreId.Message;
+}): Promise<{ left: string[]; restored: string[] }> {
+  const here = thisDevice();
+  const records = (await recordsOf(chatId)).filter(
+    (record) => record.device === here,
+  );
+  const ofReply = records.filter((record) => record.messageId === messageId);
+  const startedAt = Math.min(...ofReply.map((record) => record.at.getTime()));
+  const left: string[] = [];
+  const restored: string[] = [];
+  for (const handed of ofReply.filter((record) => record.kind === "reply")) {
+    const name = path.basename(handed.hostPath);
+    const ofFile = records.filter(
+      (record) => path.basename(record.hostPath) === name,
+    );
+    const before =
+      ofReply.find(
+        (record) =>
+          record.kind === "original" && path.basename(record.hostPath) === name,
+      ) ?? ofFile.findLast((record) => record.at.getTime() < startedAt);
+    const file = ofFile.at(-1)?.hostPath ?? handed.hostPath;
+    if (before?.copy === undefined) {
+      left.push(name);
+      continue;
+    }
+    if ((await contentsOf(file))?.hash !== before.hash) {
+      await restoreFileVersion({ chatId, copy: before.copy, file });
+    }
+    restored.push(name);
+  }
+  return { left, restored };
+}
+
 async function saveOnLastReply(
   chatId: ChatId,
   parts: {
@@ -222,6 +268,7 @@ async function recordsOf(chatId: ChatId): Promise<Recorded[]> {
           at: part.metadata.createdAt,
           device: part.data.device,
           kind: part.data.kind ?? "reply",
+          messageId: message.id,
           label: part.data.kind === undefined ? askOf(opener) : "",
         });
       }

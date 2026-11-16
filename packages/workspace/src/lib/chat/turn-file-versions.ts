@@ -27,8 +27,9 @@ type Entry = SessionMessageDataPart.FileVersionsDataPart["files"][number];
  * fence, as the turn left it, and records them on the reply
  * (`data-fileVersions`), so its card can still show them once a later turn
  * changes one. Only what the reply listed: a file the turn changed without
- * listing it is not known to be the turn's. A file in the chat's own work
- * folder is scratch and is skipped. Run as the turn ends, before the next one
+ * listing it is not known to be the turn's. A listed file in the work
+ * folder is kept like any other, since listing it hands it over; a kept
+ * copy itself is not. Run as the turn ends, before the next one
  * can start, so no later write is taken for this turn's.
  */
 export async function keepTurnFileVersions({
@@ -94,8 +95,7 @@ export async function keepTurnFileVersions({
   if (named.length === 0) {
     return;
   }
-  const work = workDir(chatId);
-  const folder = path.join(work, VERSIONS_FOLDER);
+  const folder = path.join(workDir(chatId), VERSIONS_FOLDER);
   const resolved = await resolveWorkspaceFilePaths({
     chatId,
     filePaths: named,
@@ -105,7 +105,7 @@ export async function keepTurnFileVersions({
   const files: Entry[] = [];
   for (const written of named) {
     const hostPath = resolved.get(written);
-    if (!hostPath || isInside(work, hostPath)) {
+    if (!hostPath || isInside(folder, hostPath)) {
       continue;
     }
     const kept = await keepVersion({

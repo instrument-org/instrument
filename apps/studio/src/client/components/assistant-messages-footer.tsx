@@ -1,4 +1,5 @@
 import {
+  type ChatId,
   type SessionMessage,
   type SessionMessagePart,
   type TranscriptPart,
@@ -11,6 +12,7 @@ import { modelsAnswering } from "../lib/models-answered";
 import { MESSAGE_FOOTER_ICON_SIZE, SHARED } from "../lib/styles";
 import { cn } from "../lib/utils";
 import { BranchFromReply } from "./branch-from-reply";
+import { UndoReplyFiles } from "./undo-reply-files";
 import { CopyButton } from "./copy-button";
 import { Favicon } from "./favicon";
 import { ModelUsageChip, TooltipRow } from "./model-usage-chip";
@@ -32,6 +34,8 @@ interface AssistantMessagesFooterProps {
    * is a band of blank whose height is real and whose contents are not.
    */
   alwaysVisible?: boolean;
+  /** The chat the reply is in, for undoing the files it changed; absent where it can't be undone. */
+  chatId?: ChatId;
   /**
    * The turn this footer belongs to is still being produced, so the row holds
    * its space and shows nothing.
@@ -52,6 +56,7 @@ interface AssistantMessagesFooterProps {
 
 export function AssistantMessagesFooter({
   alwaysVisible = false,
+  chatId,
   isTurnLive = false,
   messages,
   onBranch,
@@ -129,6 +134,15 @@ export function AssistantMessagesFooter({
     await navigator.clipboard.writeText(messageText);
   };
 
+  // The files the reply handed over that its turn kept versions of.
+  const handedOver = messages.flatMap((message) =>
+    message.parts.flatMap((part) =>
+      part.type === "data-fileVersions" && part.data.kind === undefined
+        ? [{ files: part.data.files.map((file) => file.path), id: message.id }]
+        : [],
+    ),
+  )[0];
+
   const generationDuration = messages.reduce(
     (sum, message) => sum + (message.metadata.msToFinish ?? 0),
     0,
@@ -176,6 +190,13 @@ export function AssistantMessagesFooter({
                 at={latestCreatedAt}
                 onBranch={onBranch}
                 text={messageText}
+              />
+            )}
+            {chatId !== undefined && handedOver && (
+              <UndoReplyFiles
+                chatId={chatId}
+                files={handedOver.files}
+                messageId={handedOver.id}
               />
             )}
           </div>

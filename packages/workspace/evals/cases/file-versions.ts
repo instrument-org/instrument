@@ -4,7 +4,9 @@ import { type Assertion, defineEval } from "../harness";
 /**
  * A file the agent revises is changed in place, each turn's reply keeps a
  * version of what it listed, and asked to go back the agent finds the
- * earlier version in `.versions/` and copies it back.
+ * earlier version in `.versions/` and copies it back. The picture case is
+ * the one where copying is the only way back: a generated image cannot be
+ * made again from memory.
  */
 
 type Kept = SessionMessageDataPart.FileVersionsDataPart["files"][number];
@@ -17,7 +19,9 @@ const keptByReply = (
     .flatMap((session) => session.messages)
     .flatMap((message) =>
       message.parts.flatMap((part) =>
-        part.type === "data-fileVersions" ? [part.data.files] : [],
+        part.type === "data-fileVersions" && part.data.kind === undefined
+          ? [part.data.files]
+          : [],
       ),
     );
 
@@ -63,5 +67,15 @@ export const FILE_VERSIONS_EVALS = [
     name: "file-versions-revise-and-go-back",
     prompt:
       "Draw me an SVG of a purple moon over a dark hilltop observatory and show it to me.",
+  }),
+  defineEval({
+    assertions: [assertInPlace, assertWentBack],
+    followUps: [
+      "make it nighttime",
+      "now add a full moon",
+      "hmm, actually go back to the very first one",
+    ],
+    name: "file-versions-image-go-back",
+    prompt: "Make me a picture of a red fox in a snowy forest.",
   }),
 ];

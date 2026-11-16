@@ -11,7 +11,10 @@ import { useShowChatFile } from "@/client/hooks/use-show-chat-file";
 import { getComputerFileUrl } from "@/client/lib/computer-file-url";
 import { getFileKindLabel, isMediaFile } from "@/client/lib/get-file-type";
 import { cn } from "@/client/lib/utils";
+import { Button } from "@/client/components/ui/button";
+import { ClockCounterClockwiseIcon } from "@phosphor-icons/react/ClockCounterClockwise";
 import {
+  type ChatId,
   isAddressableChatFilePath,
   isFolderPath,
   isMessageDocument,
@@ -30,6 +33,7 @@ import { FolderRowCard, UnreachableFileRowCard } from "./file-preview-card";
 import { FilesGrid, rowCardLayout } from "./files-grid";
 import { FilesLayoutContext } from "./files-layout-context";
 import { CardFileVersionsContext } from "./transcript/card-file-versions-context";
+import { useRestoreFileVersion } from "./window/file-versions";
 import { SystemFolderIcon } from "./icons/folder-glyph";
 import { MarkdownChatContext } from "./markdown-chat-context";
 import { MessageCard } from "./message-card";
@@ -254,6 +258,15 @@ export function FilePathsGrid({
   const changedSince = filePaths.filter(
     (path) => versions?.get(path)?.changedSince === true,
   );
+  // A file a later turn changed is drawn from this reply's copy, which can
+  // be put back over the file.
+  const restorable = filePaths.flatMap((path) => {
+    const version = versions?.get(path);
+    const file = hostPaths[path];
+    return version?.changedSince === false && file
+      ? [{ copy: version.copy, file, path }]
+      : [];
+  });
   const folderCards = rowCardLayout({
     chatColumn,
     count: folderPaths.length,
@@ -293,15 +306,20 @@ export function FilePathsGrid({
           </div>
         </div>
       )}
-      <FilesGrid
-        chatColumn={chatColumn}
-        files={filePaths
-          .filter((path) => !isMessage(path))
-          .map(fileOf)
-          .filter((file) => file !== undefined)}
-        pendingFilePath={pendingFilePath}
-        preserveOrder
-      />
+      <div className="group/versions relative">
+        <FilesGrid
+          chatColumn={chatColumn}
+          files={filePaths
+            .filter((path) => !isMessage(path))
+            .map(fileOf)
+            .filter((file) => file !== undefined)}
+          pendingFilePath={pendingFilePath}
+          preserveOrder
+        />
+        {chatId !== undefined && restorable.length > 0 && (
+          <RestoreVersions chatId={chatId} files={restorable} />
+        )}
+      </div>
       {changedSince.length > 0 && (
         <p className="text-xs text-muted-foreground">
           {changedSince.map(nameOfPath).join(", ")} changed since this reply.
@@ -453,4 +471,43 @@ function useMessageFiles(
       ? [{ message: parseMessage(text), path }]
       : [];
   });
+}
+
+/**
+ * Restore on a reply's cards drawn from the copies its turn kept, shown
+ * while the pointer is over them: one per file, named when there are
+ * several.
+ */
+function RestoreVersions({
+  chatId,
+  files,
+}: {
+  chatId: ChatId;
+  files: { copy: string; file: string; path: string }[];
+}) {
+  const restore = useRestoreFileVersion(chatId);
+  return (
+    <div className="absolute top-2 right-2 flex flex-col items-end gap-1 opacity-0 transition-opacity group-hover/versions:opacity-100 focus-within:opacity-100">
+      {files.map(({ copy, file, path }) => (
+        <Button
+          className="shadow-sm"
+          key={path}
+          onClick={() => {
+            void restore({
+              copy,
+              file,
+              said: `Restored this reply’s version of ${nameOfPath(path)}`,
+            });
+          }}
+          size="sm"
+          variant="secondary"
+        >
+          <ClockCounterClockwiseIcon className="size-4" />
+          {files.length > 1
+            ? `Restore ${nameOfPath(path)}`
+            : "Restore this version"}
+        </Button>
+      ))}
+    </div>
+  );
 }

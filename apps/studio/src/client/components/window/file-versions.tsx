@@ -199,41 +199,13 @@ export function FileVersionStrip({
   onOpen: (hostPath: string) => void;
   path: string;
 }) {
-  const queryClient = useQueryClient();
+  const restore = useRestoreFileVersion(chatId);
   const history = useFileVersions(chatId, path);
   const viewing = history.data?.viewing;
   const file = history.data?.file;
   if (!viewing || file === undefined) {
     return null;
   }
-  const restore = async (copy: string, said: string) => {
-    const done = await rpcClient.workspace.chats.restoreFileVersion
-      .call({ copy, file, id: chatId })
-      .catch((error: unknown) => {
-        toast.error("Couldn’t restore that version", { cause: error });
-        return undefined;
-      });
-    if (!done) {
-      return;
-    }
-    await queryClient.invalidateQueries({
-      queryKey: rpcClient.workspace.chats.fileVersions.key(),
-    });
-    onOpen(file);
-    const { replaced } = done;
-    if (replaced === undefined || said === "Undone") {
-      toast(said);
-      return;
-    }
-    toast(said, {
-      action: {
-        label: "Undo",
-        onClick: () => {
-          void restore(replaced, "Undone");
-        },
-      },
-    });
-  };
   return (
     <div className="flex h-11 shrink-0 items-center gap-2 border-b border-border bg-secondary px-3 text-[13px]">
       <ClockCounterClockwiseIcon className="size-4 shrink-0 text-muted-foreground" />
@@ -253,7 +225,15 @@ export function FileVersionStrip({
       {viewing.copy !== undefined && !viewing.now && (
         <Button
           onClick={() => {
-            void restore(path, `Restored the ${timeOf(viewing.at)} version`);
+            void restore({
+              copy: path,
+              file,
+              said: `Restored the ${timeOf(viewing.at)} version`,
+            }).then((isDone) => {
+              if (isDone) {
+                onOpen(file);
+              }
+            });
           }}
           size="sm"
           variant="secondary"
@@ -263,6 +243,52 @@ export function FileVersionStrip({
       )}
     </div>
   );
+}
+
+/**
+ * Puts a version the chat kept back over its file, saying so in a toast
+ * with Undo, which puts back what the restore replaced. Resolves whether
+ * it did.
+ */
+export function useRestoreFileVersion(chatId: ChatId) {
+  const queryClient = useQueryClient();
+  const restore = async ({
+    copy,
+    file,
+    said,
+  }: {
+    copy: string;
+    file: string;
+    said: string;
+  }): Promise<boolean> => {
+    const done = await rpcClient.workspace.chats.restoreFileVersion
+      .call({ copy, file, id: chatId })
+      .catch((error: unknown) => {
+        toast.error("Couldn’t restore that version", { cause: error });
+        return undefined;
+      });
+    if (!done) {
+      return false;
+    }
+    await queryClient.invalidateQueries({
+      queryKey: rpcClient.workspace.chats.fileVersions.key(),
+    });
+    const { replaced } = done;
+    if (replaced === undefined || said === "Undone") {
+      toast(said);
+      return true;
+    }
+    toast(said, {
+      action: {
+        label: "Undo",
+        onClick: () => {
+          void restore({ copy: replaced, file, said: "Undone" });
+        },
+      },
+    });
+    return true;
+  };
+  return restore;
 }
 
 /** What a version's row says under its time. */

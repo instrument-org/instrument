@@ -40,6 +40,7 @@ import {
   FileVersionHistorySchema,
   fileVersionHistory,
   restoreFileVersion,
+  undoReplyFiles,
 } from "../../lib/chat/file-version-history";
 import { StoreId } from "../../schemas/store-id";
 import { ChatIdSchema, type ChatId } from "../../schemas/chat-id";
@@ -447,6 +448,19 @@ const restoreFileVersionRoute = base
   );
 
 /**
+ * Puts back every file a reply handed over as it was before its turn,
+ * naming the ones it put back and the ones it left.
+ */
+const undoReplyFilesRoute = base
+  .input(z.object({ id: ChatIdSchema, messageId: StoreId.MessageSchema }))
+  .output(
+    z.object({ left: z.array(z.string()), restored: z.array(z.string()) }),
+  )
+  .handler(({ input }) =>
+    undoReplyFiles({ chatId: input.id, messageId: input.messageId }),
+  );
+
+/**
  * The chat a session is, or none: for an address that names a chat by its
  * session, as a link in an older reply does.
  */
@@ -716,5 +730,6 @@ export const chats = {
   trash: trashChatRoute,
   unarchive: unarchiveChatRoute,
   undoChanges: undoChatChangesRoute,
+  undoReplyFiles: undoReplyFilesRoute,
   unread: unreadChatRoute,
 };

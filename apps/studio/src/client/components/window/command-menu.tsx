@@ -103,6 +103,7 @@ import { NewspaperIcon } from "@phosphor-icons/react/Newspaper";
 import { PuzzlePieceIcon } from "@phosphor-icons/react/PuzzlePiece";
 import { ClockCounterClockwiseIcon } from "@phosphor-icons/react/ClockCounterClockwise";
 import { FingerprintIcon } from "@phosphor-icons/react/Fingerprint";
+import { ShapesIcon } from "@phosphor-icons/react/Shapes";
 import { CubeIcon } from "@phosphor-icons/react/Cube";
 import { PlusIcon } from "@phosphor-icons/react/Plus";
 import { StackIcon } from "@phosphor-icons/react/Stack";
@@ -411,6 +412,14 @@ export function useCommandMenuRows({
       label: "History",
       run: () => {
         openBuiltInPage(SCREENS.activity.href);
+      },
+    },
+    {
+      icon: <ShapesIcon />,
+      id: "apps",
+      label: "Apps",
+      run: () => {
+        openBuiltInPage(SCREENS.apps.href);
       },
     },
     {

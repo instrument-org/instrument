@@ -9,7 +9,10 @@ import {
   type ExceptionEvent,
 } from "@instrument-org/shared/exceptions";
 
-import { registerCrashDiagnostics } from "./register-crash-diagnostics";
+import {
+  noteSystemEndingSession,
+  registerCrashDiagnostics,
+} from "./register-crash-diagnostics";
 
 const CONTEXTS = {
   app: {
@@ -606,6 +609,42 @@ describe("registerCrashDiagnostics", () => {
     registerCrashDiagnostics(createFakeApp().app);
 
     expect(log.warn).not.toHaveBeenCalled();
+  });
+
+  it("reads a session the system ended while it quit as no problem", () => {
+    registerCrashDiagnostics(createFakeApp().app);
+    noteSystemEndingSession("SIGTERM");
+    // The process the logout killed, seen from the next start.
+    const marker: unknown = JSON.parse(
+      fs.readFileSync(sessionMarkerPath(), "utf8"),
+    );
+    expect(marker).toMatchObject({ endedBy: "SIGTERM", pid: process.pid });
+    fs.writeFileSync(
+      sessionMarkerPath(),
+      JSON.stringify({ ...Object(marker), pid: 999_999_999 }),
+    );
+    vi.clearAllMocks();
+
+    registerCrashDiagnostics(createFakeApp().app);
+
+    expect(log.warn).not.toHaveBeenCalled();
+    expect(log.info).toHaveBeenCalledWith(
+      expect.stringContaining(
+        "was ended by the system (SIGTERM) while it quit",
+      ),
+    );
+  });
+
+  it("leaves a marker Windows already took away gone", () => {
+    const { app, emit } = createFakeApp();
+    registerCrashDiagnostics(app);
+    const once = vi.fn();
+    emit("browser-window-created", {}, { once });
+    once.mock.calls[0]?.[1]();
+
+    noteSystemEndingSession("session-end");
+
+    expect(fs.existsSync(sessionMarkerPath())).toBe(false);
   });
 
   it("takes the marker away when Windows ends the session", () => {

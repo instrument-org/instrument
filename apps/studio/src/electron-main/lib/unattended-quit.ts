@@ -2,6 +2,7 @@ import { app, BrowserWindow, powerMonitor } from "electron";
 
 import { logger } from "./electron-logger";
 import { requestUnattendedQuit } from "./quit";
+import { noteSystemEndingSession } from "./register-crash-diagnostics";
 import { takeSignal } from "./take-signal";
 
 /** What a logout, a shutdown, `systemctl stop`, a closed terminal or Ctrl+C sends. */
@@ -28,6 +29,7 @@ const QUIT_SIGNALS = ["SIGTERM", "SIGINT", "SIGHUP"] as const;
 export function registerUnattendedQuit() {
   const quitUnattended = (source: string) => {
     logger.info(`Unattended quit: ${source}`);
+    noteSystemEndingSession(source);
     requestUnattendedQuit();
     // Before the workspace starts there is no quit machine to tell, and this
     // is an ordinary quit.

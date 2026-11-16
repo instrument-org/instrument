@@ -15,6 +15,7 @@ import {
   agentCloseKeeps,
   besideOf,
   closedGroupTabOf,
+  closedSidesOf,
   closeSide,
   closeTab,
   dropGroup,
@@ -778,6 +779,31 @@ describe("a closed group back", () => {
   it("names nothing up when the tab with the keyboard is not kept", () => {
     const layout = groupLayoutOf(twoSides(), GROUP);
     expect(upsAmong(layout, [screenTab("a", "/apps", GROUP)])).toBeUndefined();
+  });
+});
+
+describe("closedSidesOf", () => {
+  const ids = (sides: ReturnType<typeof closedSidesOf>) =>
+    sides?.map((side) =>
+      side.tabs.map((tab) => (tab.id === side.up ? `*${tab.id}` : tab.id)),
+    );
+
+  it("lays a closed group out as a reopen does, each side with its tab up", () => {
+    const before = twoSides();
+    const ups = upsAmong(groupLayoutOf(before, GROUP), before.tabs);
+    expect(ids(closedSidesOf({ groupTabs: before.tabs, ups }))).toEqual([
+      ["a", "*b"],
+      ["*c", "d"],
+    ]);
+  });
+
+  it("draws a closed side alone, and a lone tab", () => {
+    const [a, b] = twoSides().tabs;
+    expect(
+      ids(closedSidesOf({ groupTabs: [a, b], index: 1, side: 0 })),
+    ).toEqual([["a", "*b"]]);
+    expect(ids(closedSidesOf({ groupTab: a }))).toEqual([["*a"]]);
+    expect(closedSidesOf({})).toBeUndefined();
   });
 });
 

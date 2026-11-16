@@ -47,11 +47,13 @@ export type Turn = {
 /**
  * A tab, one side of a tab group, or a whole tab group the window closed,
  * from the list Shift+Cmd+T reopens, by that list's id, with its tabs as
- * they were and their titles.
+ * they were and their titles, and how they stood: one side or two, each
+ * with the tab it had up (`closedSidesOf`).
  */
 export type ClosedTabs = {
   id: TabId;
   kind: "group" | "side" | "tab";
+  sides: readonly { tabs: readonly WindowTab[]; up: string | undefined }[];
   tabs: readonly { tab: WindowTab; title: string }[];
 };
 

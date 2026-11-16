@@ -691,6 +691,39 @@ export function closedSideOf(entry: {
 }
 
 /**
+ * How a closed entry's tabs stood: a whole group's sides as a reopen lays
+ * them out again (`restoreGroup`), each with the tab it had up; one side of
+ * a group alone, with its own; or a lone tab. None for an entry holding no
+ * group's tabs.
+ */
+export function closedSidesOf(entry: {
+  focused?: boolean;
+  groupTab?: unknown;
+  groupTabs?: unknown;
+  index?: number;
+  side?: 0 | 1;
+  ups?: { active: number; beside?: number };
+}): GroupSide[] | undefined {
+  const side = closedSideOf(entry);
+  if (side) {
+    return [{ tabs: side.tabs, up: side.tabs[side.up]?.id }];
+  }
+  const tabs = closedTabGroupOf(entry);
+  const [first] = tabs ?? [];
+  if (tabs && first) {
+    const state = restoreGroup(
+      { activeByGroup: {}, tabs: [] },
+      first.group,
+      tabs,
+      entry.ups,
+    );
+    return groupLayoutOf(state, first.group).sides;
+  }
+  const tab = closedGroupTabOf(entry);
+  return tab ? [{ tabs: [tab], up: tab.id }] : undefined;
+}
+
+/**
  * Where among a closing group's kept tabs the ones it has up stand: the one
  * on the side with the keyboard, and the one on the other side, for a reopen
  * to put them up again. None when the tab with the keyboard is not kept.

@@ -68,7 +68,12 @@ import { instrumentUrlOf } from "@instrument-org/shared";
 import { appTabsAtom } from "./app-tabs";
 import { pageTabTitle } from "./file-tabs";
 import { screenPresentation } from "./screen-presentation";
-import { closedGroupTabOf, closedSideOf, closedTabGroupOf } from "./tab-model";
+import {
+  closedGroupTabOf,
+  closedSideOf,
+  closedSidesOf,
+  closedTabGroupOf,
+} from "./tab-model";
 import { groupLayoutFor, groupReadOf } from "./group-awareness";
 import { windowTabGroupsAtom } from "./open-groups";
 import { openLinkAddress, setLinkedShower } from "./open-link-address";
@@ -763,7 +768,8 @@ export function useOpeners({
     const closed = store.get(appTabsAtom).recentlyClosed.flatMap((entry) => {
       const whole = closedTabGroupOf(entry);
       const tabs = whole ?? [closedGroupTabOf(entry)].filter((tab) => !!tab);
-      if (entry.closedAt === undefined || tabs.length === 0) {
+      const sides = closedSidesOf(entry);
+      if (entry.closedAt === undefined || tabs.length === 0 || !sides) {
         return [];
       }
       const kind: ClosedTabs["kind"] =
@@ -774,6 +780,7 @@ export function useOpeners({
           closed: {
             id: entry.id,
             kind,
+            sides,
             tabs: tabs.map((tab) => ({ tab, title: titleOf(tab) })),
           },
         },

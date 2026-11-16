@@ -14,6 +14,7 @@ import {
   placeOf,
 } from "@/client/components/activity/activity-timeline";
 import {
+  ClosedTabsPicture,
   useClosedTabs,
   useRestoreClosed,
 } from "@/client/components/activity/recently-closed";
@@ -161,6 +162,30 @@ function HistoryRows({ onDone }: { onDone: () => void }) {
     <div className="p-1">
       {shown.map((entry) => {
         const text = entryText(entry, { modelName, words });
+        // Several tabs closed together are drawn as they stood, so it is
+        // plain what a press brings back.
+        if (entry.kind === "closed" && entry.closed.tabs.length > 1) {
+          const what = entry.closed.kind === "side" ? text.title : text.context;
+          return (
+            <button
+              aria-label={`${what}: ${entry.closed.tabs.map(({ title }) => title).join(", ")}`}
+              className="flex w-full cursor-default flex-col gap-1 rounded-md px-2 pt-1.5 pb-2 text-left outline-none hover:bg-foreground/5 focus-visible:bg-foreground/5"
+              key={entry.id}
+              onClick={() => {
+                openEntry(entry);
+              }}
+              type="button"
+            >
+              <span className="flex items-center gap-3 px-1 text-[12px] text-muted-foreground">
+                <span className="min-w-0 flex-1 truncate">{what}</span>
+                <span className="shrink-0 tabular-nums">
+                  {timeFormat.format(entry.at)}
+                </span>
+              </span>
+              <ClosedTabsPicture closed={entry.closed} />
+            </button>
+          );
+        }
         return (
           <button
             className={cn(

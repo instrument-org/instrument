@@ -72,18 +72,20 @@ function closedTabs(
   titles: string[],
   kind: ClosedTabs["kind"] = titles.length > 1 ? "group" : "tab",
 ): ClosedTabs {
+  const tabs = titles.map((title, n) => ({
+    tab: {
+      group: "g1",
+      href: "/settings",
+      id: `tab-${id}-${n}`,
+      kind: "screen",
+    } satisfies WindowTab,
+    title,
+  }));
   return {
     id: TabIdSchema.parse(id),
     kind,
-    tabs: titles.map((title, n) => ({
-      tab: {
-        group: "g1",
-        href: "/settings",
-        id: `tab-${id}-${n}`,
-        kind: "screen",
-      } satisfies WindowTab,
-      title,
-    })),
+    sides: [{ tabs: tabs.map(({ tab }) => tab), up: tabs[0]?.tab.id }],
+    tabs,
   };
 }
 

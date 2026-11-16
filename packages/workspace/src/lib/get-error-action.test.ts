@@ -191,6 +191,26 @@ describe("getErrorAction", () => {
       provider: "openai" as const,
     })),
     {
+      case: "stops when the provider says not to retry",
+      error: apiCall({
+        classification: "transient",
+        shouldRetry: false,
+        statusCode: 503,
+      }),
+      expected: { type: "stop" },
+      provider: "openai",
+    },
+    {
+      case: "retries when the provider says to, whatever the status",
+      error: apiCall({
+        classification: "unknown",
+        shouldRetry: true,
+        statusCode: 400,
+      }),
+      expected: { type: "retry" },
+      provider: "openai",
+    },
+    {
       case: "retries a 400 that refused the request for size, so it rolls over",
       error: apiCall({ classification: "context-overflow", statusCode: 400 }),
       expected: { type: "retry" },

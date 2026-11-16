@@ -77,6 +77,13 @@ export function getErrorAction(message: SessionMessage.Assistant): ErrorAction {
     return { type: "stop" };
   }
 
+  // The provider's own verdict on its response, which the OpenAI and
+  // Anthropic SDKs put ahead of the status too. A "yes" waits below the
+  // refusals no retry can change.
+  if (error.kind === "api-call" && error.shouldRetry === false) {
+    return { type: "stop" };
+  }
+
   // Waiting is the whole fix for these two, and the machine already knows how
   // to wait. Checked ahead of `kind`, which says how the rejection reached us
   // rather than what it was: an upstream throttle reported inside a 200 stream
@@ -91,6 +98,10 @@ export function getErrorAction(message: SessionMessage.Assistant): ErrorAction {
   // same way; the user has to act before the next request can work.
   if (classification === "auth" || classification === "usage-limit") {
     return { type: "stop" };
+  }
+
+  if (error.kind === "api-call" && error.shouldRetry === true) {
+    return { type: "retry" };
   }
 
   // A refusal blamed on media its request newly carried: the next request

@@ -133,6 +133,10 @@ export namespace SessionMessage {
       message: z.string(),
       name: z.string(),
       responseBody: z.string().optional(),
+      /** How long the provider asked to wait before the next attempt. */
+      retryAfterMs: z.number().optional(),
+      /** The provider's `x-should-retry` verdict, when it sent one. */
+      shouldRetry: z.boolean().optional(),
       statusCode: z.number().optional(),
       url: z.string(),
     }),

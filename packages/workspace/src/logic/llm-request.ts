@@ -27,6 +27,7 @@ import { fromPromise } from "xstate";
 
 import { type AnyAgent } from "../agents/types";
 import { classifyProviderError } from "../lib/classify-provider-error";
+import { readRetryHeaders } from "../lib/provider-retry";
 import { describeErrorCause } from "../lib/describe-error-cause";
 import { getCurrentDate } from "../lib/get-current-date";
 import { isStorageFullError } from "../lib/is-storage-full-error";
@@ -1103,6 +1104,7 @@ export const llmRequestLogic = fromPromise<
           message: error.message,
           name: error.name,
           responseBody: error.responseBody,
+          ...readRetryHeaders(error.responseHeaders),
           statusCode: error.statusCode,
           url: error.url,
         };

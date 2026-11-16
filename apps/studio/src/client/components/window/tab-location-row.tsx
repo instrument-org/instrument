@@ -336,6 +336,7 @@ function Field({ location }: { location: TabLocation }) {
             crumb.path,
             isHere && location.kind === "file" ? "file" : "folder",
           )}
+          name={crumb.label}
         />
       );
     const part = open ? (

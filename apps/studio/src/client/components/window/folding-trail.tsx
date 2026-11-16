@@ -6,7 +6,14 @@ import {
   type TextFont,
 } from "@/client/lib/middle-truncate";
 import { cn } from "@/client/lib/utils";
-import { type ReactNode, useLayoutEffect, useRef, useState } from "react";
+import {
+  type ReactNode,
+  useEffect,
+  useEffectEvent,
+  useLayoutEffect,
+  useRef,
+  useState,
+} from "react";
 
 /** What the page measured of one part at its natural size. */
 type PartSize = {
@@ -192,6 +199,7 @@ export function FoldingTrail({
   labelClassName,
   labels,
   mark,
+  onShortChange,
   part,
   reserve = 0,
   separator,
@@ -202,6 +210,8 @@ export function FoldingTrail({
   labels: string[];
   /** The mark a part shows before its name, and folds to. */
   mark: (index: number) => ReactNode;
+  /** Told whether any part is cut or folded, each time that changes. */
+  onShortChange?: (isShort: boolean) => void;
   /** The part at an index, keyed, given its mark and name, with the separator before it when it is not the first. */
   part: (index: number, content: ReactNode) => ReactNode;
   /** Pixels the trail takes beyond its parts. */
@@ -297,6 +307,15 @@ export function FoldingTrail({
       element.scrollLeft = element.scrollWidth - element.clientWidth;
     }
   }, [fits, pointedAt]);
+  const isShort = (fits.trail === trail ? fits.parts : []).some(
+    (fit) => fit.kind !== "whole",
+  );
+  const tellShort = useEffectEvent((short: boolean) => {
+    onShortChange?.(short);
+  });
+  useEffect(() => {
+    tellShort(isShort);
+  }, [isShort]);
   const point = (index: number | null) => {
     setMoving([pointedAt, index].filter((one): one is number => one !== null));
     setPointedAt(index);

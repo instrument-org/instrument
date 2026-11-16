@@ -6,18 +6,30 @@ import {
   ContextMenu,
   ContextMenuContent,
   ContextMenuItem,
+  ContextMenuSeparator,
   ContextMenuTrigger,
 } from "@/client/components/ui/context-menu";
-import { showInFolder, showInFolderLabel } from "@/client/lib/show-in-files";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipTrigger,
+} from "@/client/components/ui/tooltip";
+import {
+  hasFilesView,
+  revealInFileManager,
+  showInFolder,
+  showInFolderLabel,
+} from "@/client/lib/show-in-files";
 import { toast } from "@/client/lib/toast";
-import { cn } from "@/client/lib/utils";
+import { cn, osConventions } from "@/client/lib/utils";
+import { copyPathLabel } from "@/client/components/window/place-menu";
 import { rpcClient } from "@/client/rpc/client";
 import { expandHomePath } from "@instrument-org/shared";
 import { CloudIcon } from "@phosphor-icons/react/Cloud";
 import { HardDriveIcon } from "@phosphor-icons/react/HardDrive";
 import { HouseIcon } from "@phosphor-icons/react/House";
 import { useQuery } from "@tanstack/react-query";
-import { Fragment } from "react";
+import { Fragment, useState } from "react";
 
 /**
  * The mark between two folders of a path: a small solid triangle, as the
@@ -48,6 +60,48 @@ async function copyText(text: string) {
   }
 }
 
+/**
+ * What can be done to one folder along a path: opening it, showing it in
+ * the system's file manager when Files is what opens it, and copying its
+ * path, named, since a folded part shows only its mark.
+ */
+function FolderPartMenu({
+  hostPath,
+  name,
+}: {
+  hostPath: string;
+  name: string;
+}) {
+  return (
+    <ContextMenuContent>
+      <ContextMenuItem
+        onClick={() => {
+          void showInFolder(hostPath, { kind: "folder" });
+        }}
+      >
+        {showInFolderLabel("folder")}
+      </ContextMenuItem>
+      {hasFilesView() ? (
+        <ContextMenuItem
+          onClick={() => {
+            void revealInFileManager(hostPath);
+          }}
+        >
+          {osConventions().showInFileManager}
+        </ContextMenuItem>
+      ) : null}
+      <ContextMenuSeparator />
+      <ContextMenuItem
+        onClick={() => {
+          void copyText(hostPath);
+        }}
+      >
+        {copyPathLabel(name)}
+      </ContextMenuItem>
+    </ContextMenuContent>
+  );
+}
+
 /** Where a name may break onto the next line, after a space, hyphen, underscore or dot, as Finder breaks one. */
 const BREAK_AFTER = /(?<=[-_.\s])/;
 
@@ -62,13 +116,17 @@ const BREAK_AFTER = /(?<=[-_.\s])/;
  */
 export function FolderTrail({
   className,
+  lastHasMenu = true,
   path,
   wrap = false,
 }: {
   className?: string;
+  /** Whether the last folder has a menu of its own; off where what it sits in already offers one for that folder. */
+  lastHasMenu?: boolean;
   path: string;
   wrap?: boolean;
 }) {
+  const [isShort, setIsShort] = useState(false);
   const places = useQuery(rpcClient.workspace.computer.places.queryOptions());
   const volumes = places.data?.volumes;
   const home = window.api.homeDir;
@@ -146,7 +204,7 @@ export function FolderTrail({
       </ContextMenu>
     );
   }
-  return (
+  const trail = (
     <span
       aria-label={whole}
       className={cn(
@@ -163,12 +221,41 @@ export function FolderTrail({
             <FolderMark path={crumbPath} />
           );
         }}
-        part={(_, content) => (
-          <span className="flex min-w-0 items-center">{content}</span>
-        )}
+        onShortChange={setIsShort}
+        part={(at, content) => {
+          const crumbPath = crumbs[at]?.path;
+          const shown = (
+            <span className="flex min-w-0 items-center">{content}</span>
+          );
+          return crumbPath === undefined ||
+            (!lastHasMenu && at === labels.length - 1) ? (
+            shown
+          ) : (
+            <ContextMenu>
+              <ContextMenuTrigger asChild>{shown}</ContextMenuTrigger>
+              <FolderPartMenu
+                hostPath={expandHomePath(crumbPath, home)}
+                name={labels[at] ?? ""}
+              />
+            </ContextMenu>
+          );
+        }}
         separator={separator}
       />
     </span>
+  );
+  // Only a path that has given way says the whole of it, after a longer
+  // rest than a tooltip takes, and under the path so it never covers the
+  // folder a pointer is opening.
+  return (
+    <Tooltip delayDuration={1000}>
+      <TooltipTrigger asChild>{trail}</TooltipTrigger>
+      {isShort ? (
+        <TooltipContent align="start" maxWidth="40rem" side="bottom">
+          {whole}
+        </TooltipContent>
+      ) : null}
+    </Tooltip>
   );
 }
 

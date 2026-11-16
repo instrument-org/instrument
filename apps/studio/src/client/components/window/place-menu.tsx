@@ -31,12 +31,15 @@ import { useWindow } from "./context";
  */
 export function PlaceMenu({
   hostPath,
+  name,
   onNewDraft,
   onOpenInNewTab,
   onOpenInNewWindow,
   pin,
 }: {
   hostPath: string;
+  /** The name it goes by where it was pressed, for Copy Path to say whose path it copies. */
+  name?: string;
   /** Left out where no draft can be opened. */
   onNewDraft: (() => void) | undefined;
   onOpenInNewTab: () => void;
@@ -110,7 +113,7 @@ export function PlaceMenu({
         }
       >
         <ClipboardTextIcon className="size-4" />
-        <span>Copy Path</span>
+        <span>{copyPathLabel(name)}</span>
       </ContextMenuItem>
       {pin ? (
         <>
@@ -129,6 +132,11 @@ export function PlaceMenu({
       ) : null}
     </ContextMenuContent>
   );
+}
+
+/** Copy Path, naming the folder or file whose path it copies when that is known. */
+export function copyPathLabel(name?: string) {
+  return name ? `Copy Path of “${name}”` : "Copy Path";
 }
 
 function placeActionFailed(title: string, error: unknown) {

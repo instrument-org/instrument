@@ -7,7 +7,7 @@ import { type TranscriptMessage } from "./transcript-message";
 const reply = (
   id: string,
   files: [string, string, string?][],
-  restore?: "restored",
+  kind?: "restored",
 ) =>
   ({
     id,
@@ -22,7 +22,7 @@ const reply = (
             size: 1,
             ...(copy && { copy }),
           })),
-          ...(restore && { restore }),
+          ...(kind && { kind }),
         },
         type: "data-fileVersions",
       },

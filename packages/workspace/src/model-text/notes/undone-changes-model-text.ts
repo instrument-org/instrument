@@ -127,3 +127,20 @@ export function undoneMemoriesModelNote(
     The user clicked Undo on your earlier memory changes: ${said.join("; ")}${except(data.memoryUndone.skipped)}. Do not save them again unless asked.
   `;
 }
+
+/**
+ * Tells the agent the person put back an earlier version of a file from its
+ * versions list, so it works from the file as it is now. Nothing for a
+ * record no restore wrote.
+ */
+export function restoredFileModelNote(
+  data: SessionMessageDataPart.FileVersionsDataPart,
+): string | undefined {
+  const [file] = data.files;
+  if (data.kind !== "restored" || file === undefined) {
+    return undefined;
+  }
+  return systemNote`
+    The user restored ${file.hostPath} to an earlier version${file.copy === undefined ? "" : `, the one kept at ${file.copy}`}. That is the file now.
+  `;
+}

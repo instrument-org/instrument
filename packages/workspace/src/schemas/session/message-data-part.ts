@@ -732,12 +732,14 @@ export namespace SessionMessageDataPart {
       }),
     ),
     /**
-     * Set when the person put a version back rather than a reply handing
-     * the file over: `restored` for what it put back, `before` for what that
-     * replaced when no earlier record has those contents. A card never draws
-     * one; it only says the file is no longer as the replies left it.
+     * Set when no reply handed the files over: `original` for a file as it
+     * was before a tool first changed it in the turn, `restored` for a
+     * version the person put back, and `before-restore` for what that
+     * replaced. Each is written only for contents no earlier record has,
+     * but `restored`. A card never draws one; it only learns the file's
+     * newest contents from it.
      */
-    restore: z.enum(["before", "restored"]).optional(),
+    kind: z.enum(["before-restore", "original", "restored"]).optional(),
   });
 
   export type FileVersionsDataPart = z.output<

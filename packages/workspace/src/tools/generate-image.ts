@@ -1,7 +1,6 @@
 import { imageSize } from "image-size";
 import mime from "mime-types";
 import ms from "ms";
-import { type IFileSystem } from "just-bash";
 import { err, ok, Result } from "neverthrow";
 import path from "node:path";
 import { dedent } from "radashi";
@@ -13,11 +12,11 @@ import { APP_NAME, PlanRefusalSchema } from "@instrument-org/shared";
 import { TOOL_EXPLANATION_PARAM_NAME } from "../constants";
 import { waitForSignIn } from "../lib/chat/sign-in-wake";
 import { executeError } from "../lib/execute-error";
-import { findAvailableName } from "../lib/find-available-name";
 import { formatBytes } from "../lib/format-bytes";
 import { generateImageStream } from "../lib/generate-images";
 import { normalizePath } from "../lib/normalize-path";
 import { prepareSourceImage } from "../lib/prepare-source-image";
+import { keepOriginal } from "../lib/chat/turn-file-versions";
 import { isMissing, sessionToolFs } from "../lib/tool-fs";
 import { getWorkspaceConfig } from "../lib/workspace-config";
 import { getWorkspaceServerURL } from "../logic/server/url";
@@ -31,7 +30,6 @@ import {
 import { modelTool, recordedResult } from "../lib/capabilities/tool";
 
 const INPUT_PARAMS = {
-  allowOverwrite: "allowOverwrite",
   filePath: "filePath",
   parameters: "parameters",
   prompt: "prompt",
@@ -59,14 +57,8 @@ const SourceImageFileSchema = z.object({
 
 export const generateImageCapability = defineCapability({
   input: z.object({
-    [INPUT_PARAMS.allowOverwrite]: z
-      .boolean()
-      .optional()
-      .meta({
-        description: `Replace the image at ${INPUT_PARAMS.filePath}, as a revision of it does. Leave unset for an alternative they will want beside it.`,
-      }),
     [INPUT_PARAMS.filePath]: z.string().meta({
-      description: `Path with filename but WITHOUT extension, relative to your work folder (e.g. ./poster/image-name) or the full path in a folder you may write to; the extension is added automatically. A revision reuses the image's path with ${INPUT_PARAMS.allowOverwrite}; an alternative takes a fresh descriptive name. Reusing a path without it saves under a new name (image-name-2). Generate after ${TOOL_EXPLANATION_PARAM_NAME}.`,
+      description: `Path with filename but WITHOUT extension, relative to your work folder (e.g. ./poster/image-name) or the full path in a folder you may write to; the extension is added automatically. An image already at that path is replaced. Generate after ${TOOL_EXPLANATION_PARAM_NAME}.`,
     }),
     [INPUT_PARAMS.parameters]: z
       .record(z.string(), z.union([z.string(), z.number(), z.boolean()]))
@@ -94,8 +86,6 @@ export const generateImageCapability = defineCapability({
       }),
     ),
     model: z.string(),
-    /** The path asked for was taken, so the image was saved under a new name. */
-    renamed: z.boolean(),
   }),
   async run(input, ctx) {
     const last = await recordedResult(
@@ -125,7 +115,6 @@ export const generateImageCapability = defineCapability({
         ...(width === undefined ? {} : { width }),
       })),
       model: output.modelId,
-      renamed: output.renamedToAvoidOverwrite,
     };
   },
   summary: "Makes an image with an AI image model and saves it.",
@@ -186,15 +175,9 @@ export const generateImageCapability = defineCapability({
           })
           .join("\n");
 
-        // State the outcome factually and terminally. Deliberately no "use
-        // allowOverwrite to replace" call-to-action: that baited agents into a
-        // retry loop trying to overwrite a path that was intentionally versioned.
-        const keptEarlier = output.renamedToAvoidOverwrite
-          ? ` (${input.filePath} already existed and was kept)`
-          : "";
         const summary =
           imageCount === 1
-            ? `Successfully generated image and saved to ${imageList}${keptEarlier}`
+            ? `Successfully generated image and saved to ${imageList}`
             : `Successfully generated ${imageCount} images:\n${imageList}`;
 
         const droppedNote = unsupportedParametersNote(
@@ -228,8 +211,6 @@ export const generateImageCapability = defineCapability({
           // The quality the image was generated at, when it is known.
           quality: z.string().optional(),
           provider: ProviderOutputSchema,
-          // The requested path was taken, so the image was saved under a new name.
-          renamedToAvoidOverwrite: z.boolean(),
           sourceImages: z.array(SourceImageFileSchema),
           state: z.literal("success"),
           usage: UsageOutputSchema,
@@ -258,55 +239,31 @@ export const generateImageCapability = defineCapability({
 export const GenerateImage = modelTool(generateImageCapability);
 
 /**
- * The names calls still making their image have taken, by chat, so calls a
- * script runs at once each pick a name of their own before any file exists.
- */
-const namesInFlight = new Set<string>();
-
-/**
  * One generation as the tool records it, a frame at a time as the model
  * streams them, each written over the last: the images and what made them,
  * or why there are none.
  */
-async function* imageFrames(
-  call: Parameters<typeof framesHolding>[0],
-): ReturnType<typeof framesHolding> {
-  const held = new Set<string>();
-  try {
-    return yield* framesHolding(call, held);
-  } finally {
-    for (const name of held) {
-      namesInFlight.delete(name);
-    }
-  }
-}
-
-async function* framesHolding(
-  {
-    chatId,
-    input,
-    model,
-    partId,
-    sessionId,
-    signal,
-  }: {
-    chatId: ChatId;
-    input: {
-      allowOverwrite?: boolean;
-      filePath: string;
-      parameters?: Record<string, boolean | number | string>;
-      prompt: string;
-      sourceImages?: string[];
-    };
-    model: AIGatewayModel.Type;
-    /** The tool call, where a call made it; a script's call has none. */
-    partId?: StoreId.Part;
-    sessionId: StoreId.Session;
-    signal: AbortSignal;
-  },
-  /** Where the name this call takes is kept until it ends. */
-  held: Set<string>,
-) {
+async function* imageFrames({
+  chatId,
+  input,
+  model,
+  partId,
+  sessionId,
+  signal,
+}: {
+  chatId: ChatId;
+  input: {
+    filePath: string;
+    parameters?: Record<string, boolean | number | string>;
+    prompt: string;
+    sourceImages?: string[];
+  };
+  model: AIGatewayModel.Type;
+  /** The tool call, where a call made it; a script's call has none. */
+  partId?: StoreId.Part;
+  sessionId: StoreId.Session;
+  signal: AbortSignal;
+}) {
   const files = await sessionToolFs({ chatId, partId, sessionId });
   const typed = files.resolve(input.filePath);
   if (typed.isErr()) {
@@ -325,32 +282,7 @@ async function* framesHolding(
     return;
   }
 
-  // Auto-version the path unless allowOverwrite is set, so iterating on the
-  // same filePath doesn't clobber an earlier image. Resolved once before
-  // streaming so this call's partial frames don't bump its own final frame.
-  let pathWithoutExt = path.posix.join(parsedPath.dir, parsedPath.name);
-  let renamedToAvoidOverwrite = false;
-  if (!input.allowOverwrite) {
-    // Match on name without extension: the output extension is model-derived,
-    // so a prior foo.jpg must block a new foo.png.
-    const existingNames = await readExistingBaseNames(files.fs, parsedPath.dir);
-    // A free name is taken the moment it is found: the search awaits between
-    // candidates, and a call running beside this one is searching too.
-    const { name, renamed } = await findAvailableName({
-      isTaken: (candidate) => {
-        const key = `${chatId}:${path.posix.join(parsedPath.dir, candidate)}`;
-        if (existingNames.has(candidate) || namesInFlight.has(key)) {
-          return true;
-        }
-        namesInFlight.add(key);
-        held.add(key);
-        return false;
-      },
-      name: parsedPath.name,
-    });
-    renamedToAvoidOverwrite = renamed;
-    pathWithoutExt = path.posix.join(parsedPath.dir, name);
-  }
+  const pathWithoutExt = path.posix.join(parsedPath.dir, parsedPath.name);
 
   let sourceImageBuffers: Buffer[] | undefined;
   const sourceImages: z.output<typeof SourceImageFileSchema>[] = [];
@@ -415,6 +347,8 @@ async function* framesHolding(
 
         const imageBuffer = Buffer.from(image.base64, "base64");
 
+        // Once a call, before its first frame replaces an image there.
+        await keepOriginal({ chatId, hostPath: filename, sessionId });
         await files.fs.writeFile(filename, imageBuffer);
         const stats = await files.fs.stat(filename);
 
@@ -537,7 +471,6 @@ async function* framesHolding(
         id: config.id,
         type: config.type,
       },
-      renamedToAvoidOverwrite,
       sourceImages,
       state: "success" as const,
       usage: {
@@ -573,20 +506,6 @@ function failureForModel(output: {
     default: {
       return output.errorMessage;
     }
-  }
-}
-
-// Extension-less names of a directory's entries, for collision checks before
-// the model-derived output extension is known. Empty if the dir is absent.
-async function readExistingBaseNames(
-  fs: IFileSystem,
-  dir: string,
-): Promise<Set<string>> {
-  try {
-    const entries = await fs.readdir(dir);
-    return new Set(entries.map((entry) => path.parse(entry).name));
-  } catch {
-    return new Set();
   }
 }
 

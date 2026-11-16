@@ -6,6 +6,7 @@ import { dedent } from "radashi";
 import { z } from "zod";
 
 import { TOOL_EXPLANATION_PARAM_NAME } from "../constants";
+import { keepOriginal } from "../lib/chat/turn-file-versions";
 import { sessionToolFs } from "../lib/tool-fs";
 import { defineCapability } from "../lib/capabilities/define";
 import { modelTool } from "../lib/capabilities/tool";
@@ -47,6 +48,9 @@ const writeFileCapability = defineCapability({
 
         const isNewFile = !(await files.fs.exists(target));
 
+        if (!isNewFile) {
+          await keepOriginal({ chatId, hostPath: target, sessionId });
+        }
         try {
           // Makes the folders it needs, as `tee` does.
           await files.fs.writeFile(target, input.content);

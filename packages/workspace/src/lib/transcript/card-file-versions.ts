@@ -38,10 +38,7 @@ export function cardFileVersions(
   const found = new Map<StoreId.Message, Map<string, CardFileVersion>>();
   for (const message of messages) {
     for (const part of message.parts) {
-      if (
-        part.type !== "data-fileVersions" ||
-        part.data.restore !== undefined
-      ) {
+      if (part.type !== "data-fileVersions" || part.data.kind !== undefined) {
         continue;
       }
       for (const file of part.data.files) {

@@ -24,8 +24,8 @@ const FileVersionSchema = z.object({
   /** Where its copy is on this computer; absent when it is on another, or none was made. */
   copy: z.string().optional(),
   hash: z.string(),
-  /** A reply's version, one the person put back, or what that replaced. */
-  kind: z.enum(["reply", "restored", "before"]),
+  /** A reply's version, the file before the chat first changed it, one the person put back, or what that replaced. */
+  kind: z.enum(["before-restore", "original", "reply", "restored"]),
   /** For a reply's, the first words the person asked it with. */
   label: z.string(),
   /** Whether the file holds these contents now: the newest such version only. */
@@ -149,8 +149,10 @@ export async function restoreFileVersion({
     before !== undefined &&
     !ofFile.some((record) => record.hash === before.hash);
   await saveOnLastReply(chatId, [
-    ...(isNew ? [{ entry: entry(before), restore: "before" as const }] : []),
-    { entry: entry(version), restore: "restored" as const },
+    ...(isNew
+      ? [{ entry: entry(before), kind: "before-restore" as const }]
+      : []),
+    { entry: entry(version), kind: "restored" as const },
   ]);
   return before?.copy === undefined ? {} : { replaced: before.copy };
 }
@@ -159,7 +161,7 @@ async function saveOnLastReply(
   chatId: ChatId,
   parts: {
     entry: SessionMessageDataPart.FileVersionsDataPart["files"][number];
-    restore: "before" | "restored";
+    kind: "before-restore" | "restored";
   }[],
 ): Promise<void> {
   const sessionId = sessionOfChat(chatId);
@@ -174,10 +176,10 @@ async function saveOnLastReply(
   if (reply === undefined) {
     return;
   }
-  for (const { entry, restore } of parts) {
+  for (const { entry, kind } of parts) {
     const saved = await ChatWrites.savePart(
       {
-        data: { device: thisDevice(), files: [entry], restore },
+        data: { device: thisDevice(), files: [entry], kind },
         metadata: {
           createdAt: new Date(),
           id: StoreId.newPartId(),
@@ -219,8 +221,8 @@ async function recordsOf(chatId: ChatId): Promise<Recorded[]> {
           ...file,
           at: part.metadata.createdAt,
           device: part.data.device,
-          kind: part.data.restore ?? "reply",
-          label: part.data.restore === undefined ? askOf(opener) : "",
+          kind: part.data.kind ?? "reply",
+          label: part.data.kind === undefined ? askOf(opener) : "",
         });
       }
     }

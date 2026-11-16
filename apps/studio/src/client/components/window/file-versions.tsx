@@ -64,10 +64,12 @@ export function FileVersionsButton({
   const isTooBig = versions.every((version) =>
     version.hash.startsWith("stat:"),
   );
-  if (versions.length < 2 && !isTooBig && history.data?.viewing === undefined) {
-    return null;
-  }
-  if (versions.length === 0) {
+  // Shown once there is something other than the file as it is to go to.
+  const hasEarlier = versions.some((version) => !version.now);
+  if (
+    versions.length === 0 ||
+    (!hasEarlier && !isTooBig && history.data?.viewing === undefined)
+  ) {
     return null;
   }
   return (
@@ -268,8 +270,11 @@ function lineOf(version: Version, versions: readonly Version[]): string {
   if (version.away) {
     return "Kept on your other computer";
   }
-  if (version.kind === "before") {
+  if (version.kind === "before-restore") {
     return "Before you restored a version";
+  }
+  if (version.kind === "original") {
+    return "Before this chat changed it";
   }
   if (version.kind === "restored") {
     const from = versions.find(

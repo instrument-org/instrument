@@ -252,27 +252,28 @@ describe("GenerateImage source images", () => {
   });
 });
 
-describe("GenerateImage calls made at once", () => {
-  it("saves each under its own name", async () => {
-    const results = await Promise.all(
-      [1, 2].map(() =>
-        runTool(
+describe("GenerateImage at a path that has an image", () => {
+  it("saves to the path asked for, replacing an image there", async () => {
+    const results = [];
+    for (const prompt of ["A poster", "A bigger poster"]) {
+      results.push(
+        await runTool(
           GenerateImage,
           makeExecuteArgs({
-            explanation: "two posters",
+            explanation: "a poster",
             filePath: photo("posters/poster"),
-            prompt: "A poster",
+            prompt,
           }),
         ),
-      ),
-    );
+      );
+    }
 
     const paths = results.map((result) => {
       const output = result._unsafeUnwrap();
       return output.state === "success" ? output.images[0]?.filePath : "";
     });
-    expect(paths.sort()).toEqual([
-      photo("posters/poster-2.png"),
+    expect(paths).toEqual([
+      photo("posters/poster.png"),
       photo("posters/poster.png"),
     ]);
   });

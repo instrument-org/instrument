@@ -128,7 +128,10 @@ it("takes each APP.md into the store, named for its folder, and sends Apps/ to t
   const taken = await takeIn();
 
   expect(taken.left).toEqual([]);
-  expect(trashed).toEqual([APPS_FOLDER_NAME]);
+  expect(trashed).toEqual([
+    path.join(APPS_FOLDER_NAME, "My Linear"),
+    APPS_FOLDER_NAME,
+  ]);
   const app = (await loadApp("linear"))._unsafeUnwrap();
   expect(app.name).toBe("My Linear");
   expect(await readAppGuide(app.slug)).toBe("Issues by team.\n");
@@ -199,13 +202,16 @@ it("takes in an app whose setup this build cannot read, for the Apps page to say
 
   await takeIn();
 
-  expect(trashed).toEqual([APPS_FOLDER_NAME]);
+  expect(trashed).toEqual([
+    path.join(APPS_FOLDER_NAME, "Odd"),
+    APPS_FOLDER_NAME,
+  ]);
   expect((await listApps()).invalid.map((entry) => entry.slug)).toEqual([
     "odd",
   ]);
 });
 
-it("leaves Apps/ where it is when one app's file cannot be read", async () => {
+it("leaves an app whose file cannot be read, and Apps/ around it", async () => {
   await writeAppFolder("Linear", linearFile);
   await writeAppFolder("Broken", "---\nid: broken\nurl: [unclosed\n---\n");
 
@@ -214,8 +220,22 @@ it("leaves Apps/ where it is when one app's file cannot be read", async () => {
   expect(taken.left.map((entry) => path.basename(entry.where))).toEqual([
     "Broken",
   ]);
-  expect(trashed).toEqual([]);
+  expect(trashed).toEqual([path.join(APPS_FOLDER_NAME, "Linear")]);
   expect((await loadApp("linear")).isOk()).toBe(true);
+});
+
+it("leaves what the person keeps in Apps/ beside the apps it takes in", async () => {
+  await writeAppFolder("Linear", linearFile);
+  await fs.writeFile(path.join(root, APPS_FOLDER_NAME, "notes.md"), "mine");
+  await fs.mkdir(path.join(root, APPS_FOLDER_NAME, "Scripts"));
+  await fs.writeFile(path.join(root, APPS_FOLDER_NAME, ".DS_Store"), "");
+
+  await takeIn();
+
+  expect(trashed).toEqual([path.join(APPS_FOLDER_NAME, "Linear")]);
+  expect(
+    (await fs.readdir(path.join(root, APPS_FOLDER_NAME))).toSorted(),
+  ).toEqual([".DS_Store", "Scripts", "notes.md"]);
 });
 
 it("ignores a folder of the person's own that was never an app", async () => {

@@ -19,6 +19,7 @@ import { type SyncedStore } from "./synced-store/synced-store";
 import { type DeviceId } from "./records/device-id";
 import { readOldFile } from "./read-old-file";
 import { isRecord } from "./skills";
+import { isSystemClutter } from "./system-clutter";
 import { type SyncedOp } from "./synced-store/synced-record";
 import { WORKSPACE_DATA_ENTRIES, workspaceLayout } from "./workspace-layout";
 
@@ -53,9 +54,11 @@ export interface AppFoldersTaken {
  * and dropping `name` and renaming `baseUrl` change that digest, so a record
  * pinned to the old one is restamped with the new.
  *
- * A folder goes to the Trash only once every app in it is in the store: one
- * whose file could not be read is left, with the folder around it, for the
- * next launch.
+ * `.instrument/apps/` goes to the Trash only once every app in it is in the
+ * store: one whose file could not be read is left, with the folder around
+ * it, for the next launch. In `Apps/`, which is at the person's top level,
+ * each app's folder goes once that app is in the store, and `Apps/` itself
+ * only once nothing of anyone's is left in it.
  */
 export async function takeInAppFolders(
   rootDir: string,
@@ -72,14 +75,16 @@ export async function takeInAppFolders(
   const taken: AppFoldersTaken = { done: [], left: [] };
   const layout = workspaceLayout(rootDir);
   const store = await appsStore({ device, devicesDir: layout.devicesDir });
+  const topLevel = path.join(rootDir, APPS_FOLDER_NAME);
   for (const dir of [
     path.join(layout.dataDir, WORKSPACE_DATA_ENTRIES.apps),
-    path.join(rootDir, APPS_FOLDER_NAME),
+    topLevel,
   ]) {
     const names = await folderNames(dir);
     if (names === undefined) {
       continue;
     }
+    const ownsDir = dir !== topLevel;
     let leftHere = false;
     for (const folder of names) {
       try {
@@ -97,6 +102,9 @@ export async function takeInAppFolders(
           });
         }
         taken.done.push(`took in ${path.join(dir, folder)} as ${app.slug}`);
+        if (!ownsDir) {
+          await trash(path.join(dir, folder));
+        }
       } catch (error) {
         leftHere = true;
         taken.left.push({
@@ -105,7 +113,7 @@ export async function takeInAppFolders(
         });
       }
     }
-    if (!leftHere) {
+    if (ownsDir ? !leftHere : await holdsNothingOfAnyones(dir)) {
       await trash(dir);
       taken.done.push(`sent ${dir} to the Trash`);
     }
@@ -300,6 +308,15 @@ async function changedAt(file: string): Promise<number> {
 }
 
 /** The folders in `dir`, by name; nothing where there is no such folder. */
+/** Whether every entry left in `dir` is the system's, such as a `.DS_Store`. */
+async function holdsNothingOfAnyones(dir: string): Promise<boolean> {
+  try {
+    return (await fs.readdir(dir)).every((name) => isSystemClutter(name));
+  } catch {
+    return false;
+  }
+}
+
 async function folderNames(dir: string): Promise<string[] | undefined> {
   try {
     return (await fs.readdir(dir, { withFileTypes: true }))

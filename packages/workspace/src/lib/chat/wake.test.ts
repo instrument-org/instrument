@@ -622,6 +622,78 @@ describe("a task's finish", () => {
   });
 });
 
+describe("a task a crash cut off", () => {
+  it("leaves the chat the quit's note once the next launch finds it, without starting a turn", async () => {
+    const { chatId, taskSession } = await chatWithTask();
+    const chatSession = sessionOfChat(chatId) ?? taskSession;
+    const sentBefore = sent.length;
+
+    // As the store's open-time sweep names what it settled, the chat's own
+    // session among them.
+    publisher.publish("sessions.cutOff", {
+      id: chatId,
+      sessionIds: [chatSession, taskSession],
+    });
+
+    await vi.waitFor(async () => {
+      expect(await notesIn(chatId)).toHaveLength(1);
+    }, 5000);
+    expect((await childTask(chatId, taskSession))?.stoppedBy).toBe("app");
+    expect(sent.slice(sentBefore)).toEqual([]);
+    const chatMessages = await ChatReads.transcript({
+      chatId,
+      sessionId: chatSession,
+    });
+    expect(
+      chatMessages
+        ._unsafeUnwrap()
+        .flatMap((message) => message.parts)
+        .flatMap((part) =>
+          part.type === "data-taskEvent" ? [taskEventModelNote(part.data)] : [],
+        ),
+    ).toMatchInlineSnapshot(`
+      [
+        "
+      <instrument-system-note>
+      The app closed while a task you created was working:
+      - t1 ("Audit the vault") did not finish: the app closed before it finished (1 second of work, 0 tokens so far).
+      The app has been opened again since, and nothing ran while it was closed.
+      </instrument-system-note>",
+      ]
+    `);
+  });
+
+  it("says nothing of a task whose turn a stop already ended", async () => {
+    const { chatId, taskSession } = await chatWithTask();
+    publisher.publish("session.done", {
+      id: chatId,
+      notice: { by: "agent", wakesChat: false },
+      sessionId: taskSession,
+    });
+    await vi.waitFor(async () => {
+      expect((await childTask(chatId, taskSession))?.stoppedBy).toBe("agent");
+    });
+
+    publisher.publish("sessions.cutOff", {
+      id: chatId,
+      sessionIds: [taskSession],
+    });
+    // Behind the stop's handling in the same queue, so a second cut-off
+    // that does write lands after this one would have.
+    const { chatId: other, taskSession: otherTask } = await chatWithTask();
+    publisher.publish("sessions.cutOff", {
+      id: other,
+      sessionIds: [otherTask],
+    });
+    await vi.waitFor(async () => {
+      expect(await notesIn(other)).toHaveLength(1);
+    }, 5000);
+
+    expect(await notesIn(chatId)).toEqual([]);
+    expect((await childTask(chatId, taskSession))?.stoppedBy).toBe("agent");
+  });
+});
+
 describe("a task the app's quit cut off", () => {
   it("reads as cut off after relaunch, and leaves the chat a note naming what the quit ended, without starting a turn", async () => {
     const { chatId, taskSession } = await chatWithTask();

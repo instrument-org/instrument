@@ -128,6 +128,15 @@ export function startChatWake(workspaceRef: WorkspaceActorRef): void {
       })
       .finally(release);
   });
+  // A crash ends tasks without the quit's note, so the chat hears of them
+  // as the next launch finds them cut off, in the same note a quit writes.
+  publisher.subscribe("sessions.cutOff", ({ id, sessionIds }) => {
+    previous = previous
+      .then(() => noteTasksCutOffByCrash(id, sessionIds))
+      .catch((error: unknown) => {
+        getWorkspaceConfig().captureException(error);
+      });
+  });
   // The clock on every child: a task that has worked past the mark wakes its
   // chat with where it is, so a task lost in the weeds is found by
   // the agent rather than by the person.
@@ -300,6 +309,47 @@ export async function noteTasksInterruptedByQuit(
     }),
   );
   return tasks;
+}
+
+/**
+ * Writes a chat the note a quit writes, for its tasks a process that ended
+ * without quitting (a crash, a force quit, the power going) left cut off,
+ * and marks each as stopped by the app. A task whose turn already ended on
+ * a stop is left out: the quit or the person that stopped it said so. The
+ * note starts no turn, as the quit's does.
+ */
+async function noteTasksCutOffByCrash(
+  id: ChatId,
+  sessionIds: readonly StoreId.Session[],
+): Promise<void> {
+  const chatId = resolveChat(id);
+  const chatSessionId = chatId ? sessionOfChat(chatId) : undefined;
+  if (
+    !chatId ||
+    chatSessionId === undefined ||
+    !(await hasConversation(chatId))
+  ) {
+    return;
+  }
+  const tasks = (
+    await Promise.all(
+      sessionIds.map(async (sessionId) => {
+        const task = await childTask(chatId, sessionId);
+        return task && task.stoppedBy === undefined ? task : undefined;
+      }),
+    )
+  ).filter((task) => task !== undefined);
+  if (tasks.length === 0) {
+    return;
+  }
+  const events = await Promise.all(tasks.map(interruptedEvent));
+  await Promise.all(
+    tasks.map((task) => touchTask(chatId, task.id, { stoppedBy: "app" })),
+  );
+  await saveNote(chatId, chatSessionId, {
+    data: { events },
+    type: "data-taskEvent",
+  });
 }
 
 /**

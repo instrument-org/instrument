@@ -322,9 +322,18 @@ describe("ChatRecords", () => {
       dirOf: records.dirOf,
       fsync: false,
     });
+    const cutOff: unknown[] = [];
+    const stopListening = publisher.subscribe("sessions.cutOff", (event) => {
+      cutOff.push(event);
+    });
     const read = await next.read(CHAT);
     const [chat, task] = read.chat.sessions;
     const reply = chat?.messages[1];
+    // Named once settled, and only the sessions this device's process left.
+    await vi.waitFor(() => {
+      expect(cutOff).toEqual([{ id: CHAT, sessionIds: [chatSession] }]);
+    });
+    stopListening();
 
     expect(reply?.role === "assistant" && reply.metadata).toMatchObject({
       error: { kind: "aborted", reason: "unknown" },

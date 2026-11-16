@@ -1028,25 +1028,39 @@ describe("a folder beside an open file", () => {
     expect(row.getAttribute("aria-selected")).toBe("true");
   });
 
+  // Held the way the Files screen holds it: a selection stands in the folder
+  // the columns show for it.
+  let standIn: (step: { path: string; selected: string }) => void = () => {};
+  const HeldPath = () => {
+    const [step, setStep] = React.useState({ path: "", selected: "docs/" });
+    standIn = setStep;
+    return (
+      <FileSystem
+        besideWidth={300}
+        defaultView="columns"
+        items={NESTED}
+        onSelectionChange={(item) => {
+          const selected = item?.path ?? "";
+          setStep((previous) => ({
+            path: !selected
+              ? previous.path
+              : selected.endsWith("/")
+                ? selected
+                : selected.slice(0, selected.lastIndexOf("/") + 1),
+            selected,
+          }));
+        }}
+        onWalk={(path) => {
+          setStep({ path, selected: "" });
+        }}
+        path={step.path}
+        selectedPath={step.selected || null}
+        title="The top"
+      />
+    );
+  };
+
   it("comes back to the first column from a folder the caller stands in", () => {
-    let standIn: (step: { path: string; selected: string }) => void = () => {};
-    const HeldPath = () => {
-      const [step, setStep] = React.useState({ path: "", selected: "docs/" });
-      standIn = setStep;
-      return (
-        <FileSystem
-          besideWidth={300}
-          defaultView="columns"
-          items={NESTED}
-          onWalk={(path) => {
-            setStep({ path, selected: "" });
-          }}
-          path={step.path}
-          selectedPath={step.selected || null}
-          title="The top"
-        />
-      );
-    };
     renderWithProviders(<HeldPath />);
     // Walked into the folder from the top, a file in it open beside.
     act(() => {
@@ -1059,6 +1073,39 @@ describe("a folder beside an open file", () => {
       clientX: spot,
     });
     expect(rowOf("notes.txt")).toBeTruthy();
+  });
+
+  it("shows the column the selection is in as the arrows leave a folder", () => {
+    renderWithProviders(<HeldPath />);
+    act(() => {
+      standIn({ path: "docs/", selected: "docs/inner.txt" });
+    });
+    const inner = rowOf("inner.txt");
+    if (!inner) throw new Error("no row");
+    fireEvent.keyDown(inner, { key: "ArrowLeft" });
+    expect(rowOf("docs")?.getAttribute("aria-selected")).toBe("true");
+    expect(rowOf("inner.txt")).toBeUndefined();
+
+    const docs = rowOf("docs");
+    if (!docs) throw new Error("no row");
+    fireEvent.keyDown(docs, { key: "ArrowDown" });
+    expect(rowOf("notes.txt")?.getAttribute("aria-selected")).toBe("true");
+  });
+
+  it("goes into a folder in the columns on one click, keeping its way back", () => {
+    renderWithProviders(<HeldPath />);
+    act(() => {
+      standIn({ path: "", selected: "notes.txt" });
+    });
+    clickRow("docs");
+    expect(rowOf("inner.txt")).toBeTruthy();
+    expect(rowOf("notes.txt")).toBeUndefined();
+
+    spot += 50;
+    fireEvent.click(screen.getByRole("button", { name: "The top" }), {
+      clientX: spot,
+    });
+    expect(rowOf("docs")?.getAttribute("aria-selected")).toBe("true");
   });
 
   it("stays put on one click with no file open", () => {

@@ -1,6 +1,5 @@
 import { type ChatSeparator } from "@/client/lib/chat-separators";
 import { type InstructionsChange } from "@/client/lib/instructions-changes";
-import { cn } from "@/client/lib/utils";
 import { workedLine } from "@/client/lib/worked-line";
 import {
   type ChatId,
@@ -44,6 +43,7 @@ import {
   CardPresence,
   FOLD_TRANSITION,
   ROW_GAP,
+  TURN_GAP,
   useCardOpens,
 } from "./card-motion";
 import {
@@ -149,11 +149,9 @@ export const TurnView = memo(function TurnView({
         </MessageScrollerItem>
       )}
       <MessageScrollerItem
-        className={cn(
-          "group/assistant-turn flex flex-col gap-2",
-          carriesOn && "-mt-2",
-        )}
+        className="group/assistant-turn flex flex-col gap-2"
         ref={floorRef}
+        style={carriesOn ? { marginTop: ROW_GAP - TURN_GAP } : undefined}
         {...(turn.opener ? {} : { messageId: turn.id })}
       >
         <TurnBody

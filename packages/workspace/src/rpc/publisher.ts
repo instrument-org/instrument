@@ -123,6 +123,15 @@ export const publisher = new EventPublisher<{
    * `recordChanges` in `lib/record-changes.ts`.
    */
   "record.changed": RecordChanged;
+  /**
+   * Sessions of a chat whose newest reply a process of this device's that
+   * is gone left unfinished, as a crash does, once the store's open-time
+   * sweep has settled them. A clean quit settles its turns itself.
+   */
+  "sessions.cutOff": {
+    id: ChatId;
+    sessionIds: StoreId.Session[];
+  };
   "session.done": {
     id: ChatId;
     /** Present when a stop ended the turn and said whose it was. */

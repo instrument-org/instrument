@@ -234,6 +234,13 @@ export const SETTINGS_INDEX = [
     title: "Workspaces",
   },
   {
+    detail:
+      "The LibreOffice downloaded for Word, PowerPoint and Excel files, and removing it",
+    id: "libreoffice",
+    tab: "Storage",
+    title: "LibreOffice",
+  },
+  {
     detail: "Chats in your Instrument folder that can’t be opened",
     id: "broken-folders",
     tab: "Storage",

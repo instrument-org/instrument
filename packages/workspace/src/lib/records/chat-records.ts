@@ -22,6 +22,7 @@ import { type StoreId } from "../../schemas/store-id";
 import { isDeveloperNotePart } from "../data-part-visibility";
 import { getCurrentDate } from "../get-current-date";
 import { isToolPart } from "../is-tool-part";
+import { publisher } from "../../rpc/publisher";
 import { recordChanged, recordMessageChanged } from "../record-changes";
 import { chatDir } from "../record-folders";
 import { getWorkspaceConfig } from "../workspace-config";
@@ -1323,10 +1324,14 @@ export class ChatRecords {
    * Settles what a process of this device's that is gone left in flight in
    * each session: the calls in its newest reply that never finished, as
    * interrupted, and the reply itself, as cut off. Another device's are its
-   * own to settle, since that device may still be at work.
+   * own to settle, since that device may still be at work. Once the replies
+   * are settled it names their sessions on `sessions.cutOff`, which is how
+   * a chat hears of a task a crash ended (`lib/chat/wake.ts`).
    */
   #sweep(chat: OpenChat): void {
     const now = this.#now();
+    const cutOff: StoreId.Session[] = [];
+    const settling: Promise<void>[] = [];
     for (const session of chat.fold.chat().sessions) {
       const own = session.messages.findLast(
         (message) =>
@@ -1337,6 +1342,9 @@ export class ChatRecords {
         continue;
       }
       const { parts, ...message } = own;
+      // A step's reply is finished once it asks for its calls, so a call
+      // still going is a cut-off turn on its own.
+      let wasCutOff = false;
       for (const part of parts) {
         if (
           isToolPart(part) &&
@@ -1344,33 +1352,54 @@ export class ChatRecords {
             part.state === "input-streaming") &&
           session.writtenBy.get(part.metadata.id) === this.device
         ) {
-          this.#part(
-            chat,
-            SessionMessagePart.coerce({
-              ...part,
-              errorText: INTERRUPTED_TOOL_CALL_ERROR_TEXT,
-              metadata: { ...part.metadata, endedAt: now },
-              state: "output-error",
-            }),
-            true,
-          ).catch(this.#onError);
+          settling.push(
+            this.#part(
+              chat,
+              SessionMessagePart.coerce({
+                ...part,
+                errorText: INTERRUPTED_TOOL_CALL_ERROR_TEXT,
+                metadata: { ...part.metadata, endedAt: now },
+                state: "output-error",
+              }),
+              true,
+            ).catch(this.#onError),
+          );
+          wasCutOff = true;
         }
       }
       if (message.metadata.finishedAt === undefined) {
-        this.#message(
-          chat,
-          {
-            ...message,
-            metadata: {
-              ...message.metadata,
-              error: { kind: "aborted", message: "Aborted", reason: "unknown" },
-              finishedAt: now,
-              finishReason: "aborted",
+        wasCutOff = true;
+        settling.push(
+          this.#message(
+            chat,
+            {
+              ...message,
+              metadata: {
+                ...message.metadata,
+                error: {
+                  kind: "aborted",
+                  message: "Aborted",
+                  reason: "unknown",
+                },
+                finishedAt: now,
+                finishReason: "aborted",
+              },
             },
-          },
-          true,
-        ).catch(this.#onError);
+            true,
+          ).catch(this.#onError),
+        );
       }
+      if (wasCutOff) {
+        cutOff.push(session.id);
+      }
+    }
+    if (cutOff.length > 0) {
+      void Promise.all(settling).then(() => {
+        publisher.publish("sessions.cutOff", {
+          id: chat.id,
+          sessionIds: cutOff,
+        });
+      });
     }
   }
 

@@ -1,3 +1,4 @@
+import { MiddleTruncate } from "@/client/components/middle-truncate";
 import { chatNotesAtom } from "@/client/atoms/chat-notes";
 import { commandMenuOpenAtom } from "@/client/atoms/command-menu";
 import { openBuiltInPage } from "@/client/atoms/page-requests";
@@ -152,6 +153,26 @@ const LISTED_COMMANDS = new Set([
   "shortcuts",
 ]);
 
+/**
+ * A search's matched ranges, as start and end pairs, within the piece of a
+ * label that starts at `start` and runs `length` letters, counted from the
+ * piece's own start.
+ */
+function rangesWithin(ranges: null | number[], start: number, length: number) {
+  if (!ranges) {
+    return null;
+  }
+  const within: number[] = [];
+  for (let at = 0; at + 1 < ranges.length; at += 2) {
+    const from = Math.max(ranges[at] ?? 0, start);
+    const to = Math.min(ranges[at + 1] ?? 0, start + length);
+    if (from < to) {
+      within.push(from - start, to - start);
+    }
+  }
+  return within;
+}
+
 const COMMAND_MENU_PLACEHOLDER = "Search or type an address";
 
 type Item = {
@@ -161,6 +182,8 @@ type Item = {
   dot?: "unread" | "waiting" | undefined;
   icon: ReactNode;
   id: string;
+  /** A file's name, cut in its middle when the row is short of room, with its folder giving way first. */
+  isFileName?: true;
   label: string;
   /**
    * Whether the row puts the menu away itself, once it knows it has gone
@@ -740,6 +763,7 @@ export function useCommandMenuRows({
               detail: displayPath(folderOf(file.path)),
               icon: <FileTypeIcon fileName={file.name} />,
               id: `file:${file.path}`,
+              isFileName: true,
               label: file.name,
               ranges,
               run: () => {
@@ -1353,14 +1377,39 @@ function ResultRows({
                       <ChatMarkDot className="size-2 ring-0" mark={row.dot} />
                     ) : null}
                   </span>
-                  <span className="min-w-0 flex-1 truncate">
-                    <FuzzyHighlight ranges={row.ranges} text={row.label} />
-                    {row.detail ? (
-                      <span className="ml-2 text-xs text-muted-foreground">
-                        {row.detail}
-                      </span>
-                    ) : null}
-                  </span>
+                  {row.isFileName ? (
+                    <span className="flex min-w-0 flex-1 items-baseline">
+                      <MiddleTruncate
+                        className="max-w-full shrink-0"
+                        extension
+                        renderText={(piece, start) => (
+                          <FuzzyHighlight
+                            ranges={rangesWithin(
+                              row.ranges,
+                              start,
+                              piece.length,
+                            )}
+                            text={piece}
+                          />
+                        )}
+                        text={row.label}
+                      />
+                      {row.detail ? (
+                        <span className="ml-2 min-w-0 truncate text-xs text-muted-foreground">
+                          {row.detail}
+                        </span>
+                      ) : null}
+                    </span>
+                  ) : (
+                    <span className="min-w-0 flex-1 truncate">
+                      <FuzzyHighlight ranges={row.ranges} text={row.label} />
+                      {row.detail ? (
+                        <span className="ml-2 text-xs text-muted-foreground">
+                          {row.detail}
+                        </span>
+                      ) : null}
+                    </span>
+                  )}
                   {row.trailing ? (
                     <span className="flex shrink-0 items-center gap-1">
                       {row.trailing}

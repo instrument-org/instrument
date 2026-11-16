@@ -1,7 +1,13 @@
-import { cpSync, mkdtempSync, readFileSync, writeFileSync } from "node:fs";
+import {
+  cpSync,
+  mkdtempSync,
+  readFileSync,
+  rmSync,
+  writeFileSync,
+} from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, onTestFinished } from "vitest";
 
 import { FFMPEG_VERSION } from "./ffmpeg-release";
 import {
@@ -41,6 +47,7 @@ describe("verifyFfmpegBinary", () => {
 
   it("throws when the binary is too small to be complete", () => {
     const dir = mkdtempSync(path.join(tmpdir(), "ffmpeg-verify-"));
+    onTestFinished(() => rmSync(dir, { force: true, recursive: true }));
     const truncated = path.join(dir, "ffmpeg");
     writeFileSync(truncated, "MZ not a real binary");
     expect(() => verifyFfmpegBinary(truncated, { name: "ffmpeg" })).toThrow(
@@ -66,6 +73,7 @@ describe("verifyFfmpegTree", () => {
 
   it("throws when a file differs from the pin", () => {
     const dir = mkdtempSync(path.join(tmpdir(), "ffmpeg-tree-"));
+    onTestFinished(() => rmSync(dir, { force: true, recursive: true }));
     cpSync(FFMPEG_DIR, dir, { recursive: true, verbatimSymlinks: true });
     writeFileSync(path.join(dir, "bin", `ffprobe${exe}`), "x", { flag: "a" });
     expect(() => verifyFfmpegTree(dir, host)).toThrow(/is pinned to/);

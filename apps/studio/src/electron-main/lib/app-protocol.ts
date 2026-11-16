@@ -21,7 +21,11 @@ import {
 import { handleDirectoryIconRequest } from "./directory-icons";
 import { getResourcePath } from "./resource-path";
 import { type Deps as SiteIconDeps, siteIconFor } from "./site-icons";
-import { RENDERER_HOST, rendererDir } from "./renderer-host";
+import {
+  RENDERER_DOCUMENT_POLICY,
+  RENDERER_HOST,
+  rendererDir,
+} from "./renderer-host";
 
 const FILE_OPEN_ICON_HOST = "file-open-icon";
 const SITE_ICON_HOST = "site-icon";
@@ -269,7 +273,10 @@ async function handleRendererRequest({
   }
   try {
     return new Response(await fs.readFile(file), {
-      headers: { "Content-Type": contentType },
+      headers: {
+        "Content-Type": contentType,
+        ...(contentType.startsWith("text/html") && RENDERER_DOCUMENT_POLICY),
+      },
     });
   } catch {
     return new Response(null, { status: 404 });

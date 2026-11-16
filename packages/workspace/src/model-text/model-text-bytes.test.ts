@@ -42,6 +42,7 @@ import * as setupNews from "./notes/setup-news-model-text";
 import * as appCommand from "./commands/app-command";
 import * as instrumentCommand from "./commands/instrument-command";
 import * as memoryCommand from "./commands/memory-command";
+import * as officeCommand from "./commands/office-command";
 import * as taskCommand from "./commands/task-command";
 import * as windowCommand from "./commands/window-command";
 import * as xCommand from "./commands/x-command";
@@ -209,6 +210,7 @@ const MODULES = {
   messageGap,
   modelChange,
   nativeSandboxRefusals,
+  officeCommand,
   outputLimit,
   pageTakeover,
   permissionAnswer,

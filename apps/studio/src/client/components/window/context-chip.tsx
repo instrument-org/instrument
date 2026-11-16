@@ -1,3 +1,4 @@
+import { MiddleTruncate } from "@/client/components/middle-truncate";
 import { type ChosenItem } from "@/shared/drafts";
 import { type WindowTab } from "@/client/atoms/window";
 import {
@@ -156,6 +157,7 @@ export function SentChips({ chips }: { chips: SentChip[] }) {
               : undefined
           }
           holds={{ title: nameOfChip(chip), url: addressOfSent(chip) }}
+          cutsMiddle={isOnePath(chip)}
           name={nameOfChip(chip)}
           onOpen={openerOf(chip)}
           slot="sent-chip"
@@ -227,6 +229,7 @@ function ChipLabel({ paths, said }: { paths: string[]; said: string }) {
  * and the one up stands raised on the card's color.
  */
 function ContextChip({
+  cutsMiddle = false,
   drags,
   holds,
   isSelected = false,
@@ -238,6 +241,8 @@ function ContextChip({
   onSelect,
   slot,
 }: {
+  /** Whether the name is a file or folder's, cut in its middle when the chip is short of room. */
+  cutsMiddle?: boolean;
   /** What dragging the chip out of the window carries: a sent chip's files and folders, never a draft's. */
   drags?: { hostPath: string; others: string[] };
   /** The address the chip names, held as a link when it is dragged and it carries no files. */
@@ -272,7 +277,11 @@ function ContextChip({
       <span className="grid size-4 shrink-0 place-items-center [&_img]:size-4 [&_svg]:size-4">
         {mark}
       </span>
-      <span className="truncate">{name}</span>
+      {cutsMiddle ? (
+        <MiddleTruncate extension text={name} />
+      ) : (
+        <span className="truncate">{name}</span>
+      )}
     </>
   );
   const content = (
@@ -354,6 +363,11 @@ function ItemMark({ item }: { item: Pick<ChosenItem, "kind" | "path"> }) {
 }
 
 /** What a chip calls the thing it names. */
+/** Whether a chip names one file or folder, by its name. */
+function isOnePath(chip: SentChip) {
+  return chip.kind === "paths" && chip.items.length === 1;
+}
+
 function nameOfChip(chip: SentChip) {
   if (chip.kind !== "paths") {
     return chip.title;

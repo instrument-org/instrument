@@ -280,9 +280,43 @@ describe("a task waiting on a card", () => {
     expect((await notesIn(chatId))[0]).not.toHaveProperty("needs");
     expect(wokenSince(sentBefore)).toEqual([]);
   });
+  it("is said to have stopped when the person stops the whole chat", async () => {
+    const { chatId, task } = await chatWithTask();
+    await recordAsk({ chatId, sessionId: task }, "folder", "/Users/me/Pantry");
+    await said(chatId, task, "I need the Pantry folder to go on.");
+    const sentBefore = sent.length;
+
+    await call(session.stop, { id: chatId }, { context: context() });
+
+    await vi.waitFor(async () => {
+      expect(await notesIn(chatId)).toHaveLength(1);
+    }, 5000);
+    expect((await notesIn(chatId))[0]).toMatchObject({
+      sessionId: task,
+      stoppedBy: "person",
+    });
+    expect((await childTask(chatId, task))?.stoppedBy).toBe("person");
+    expect(wokenSince(sentBefore)).toEqual([]);
+  });
 });
 
 describe("session.stop", () => {
+  // A task at work ends with the chat, and its chat is told so with the
+  // person's next message rather than left waiting on it.
+  it("has every task the whole chat's Stop ends write the chat its note", async () => {
+    const { chatId } = await chatWithTask();
+    const sentBefore = sent.length;
+
+    await call(session.stop, { id: chatId }, { context: context() });
+
+    expect(sent.slice(sentBefore)).toEqual([
+      {
+        type: "stopSessions",
+        value: { id: chatId, notice: { by: "person", wakesChat: true } },
+      },
+    ]);
+  });
+
   it("ends the processes a task has running when the person stops it, and starts no turn", async () => {
     const { chatId, task } = await chatWithTask();
     const job = running({ chatId, sessionId: task });

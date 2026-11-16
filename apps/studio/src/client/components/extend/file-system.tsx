@@ -1,3 +1,7 @@
+import {
+  MiddleTruncate,
+  TwoLineTruncate,
+} from "@/client/components/middle-truncate";
 import { thumbnailUrlAtSize } from "@/client/lib/computer-file-url";
 import { useSteadyCallbacks } from "@/client/hooks/use-steady-callbacks";
 import {
@@ -5048,7 +5052,10 @@ function FileSystemIconsView({
           )}
           data-file-system-name=""
         >
-          <span className="line-clamp-2">{shownName(entry)}</span>
+          <TwoLineTruncate
+            extension={entry.kind === "file"}
+            text={shownName(entry)}
+          />
         </span>
       </button>
     );
@@ -6107,11 +6114,17 @@ function FileSystemTableView({
                           renderNameField(entry, "-mr-0.5 ml-1 h-5")
                         ) : (
                           <span
-                            className="ml-1.5 min-w-0 flex-1 truncate"
+                            className="ml-1.5 flex min-w-0 flex-1"
                             data-file-system-name=""
                           >
-                            <span data-file-system-name-text="">
-                              {shownName(entry)}
+                            <span
+                              className="flex min-w-0"
+                              data-file-system-name-text=""
+                            >
+                              <MiddleTruncate
+                                extension={entry.kind === "file"}
+                                text={shownName(entry)}
+                              />
                             </span>
                           </span>
                         )}
@@ -6394,10 +6407,10 @@ function FileSystemListView({
               renderNameField(entry, "-ml-0.5 h-5")
             ) : (
               <span
-                className="min-w-0 flex-1 truncate text-sm leading-5 font-medium"
+                className="flex min-w-0 flex-1 text-sm leading-5 font-medium"
                 data-file-system-name=""
               >
-                {shownName(entry)}
+                <MiddleTruncate text={shownName(entry)} />
               </span>
             )}
             <span
@@ -6417,10 +6430,13 @@ function FileSystemListView({
               renderNameField(entry, "-ml-0.5 h-5")
             ) : (
               <span
-                className="truncate text-sm leading-5 font-medium"
+                className="flex min-w-0 text-sm leading-5 font-medium"
                 data-file-system-name=""
               >
-                {titledName(entry)}
+                <MiddleTruncate
+                  extension={!entry.title}
+                  text={titledName(entry)}
+                />
               </span>
             )}
             <span
@@ -7331,10 +7347,13 @@ const FileSystemColumn = React.memo(function FileSystemColumn({
                   >
                     {glyph}
                     <span
-                      className="min-w-0 flex-1 truncate"
+                      className="flex min-w-0 flex-1"
                       data-file-system-name=""
                     >
-                      {shownName(entry)}
+                      <MiddleTruncate
+                        extension={entry.kind === "file"}
+                        text={shownName(entry)}
+                      />
                     </span>
                     {entry.kind === "folder" &&
                     folderHasChildren(index, entry) ? (

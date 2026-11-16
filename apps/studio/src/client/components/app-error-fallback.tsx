@@ -4,6 +4,7 @@ import { TOOLBAR_HEIGHT } from "@/shared/constants";
 import { IconContext } from "@phosphor-icons/react/dist/lib/context";
 
 import { ErrorCardShell } from "./error-card-shell";
+import { ErrorDetails } from "./error-details";
 import { ReportErrorButton } from "./report-error-button";
 import { Button } from "./ui/button";
 import { WindowControls } from "./window-controls";
@@ -70,7 +71,8 @@ export function AppErrorCard({ error }: { error: unknown }) {
         </div>
       }
       description="The app hit an unexpected error. Reload to recover, or send us a report if it keeps happening."
-      error={error}
-    />
+    >
+      <ErrorDetails error={error} />
+    </ErrorCardShell>
   );
 }

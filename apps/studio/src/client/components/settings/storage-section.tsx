@@ -27,6 +27,7 @@ import { showInFolder, showInFolderLabel } from "@/client/lib/show-in-files";
 import { osConventions } from "@/client/lib/utils";
 import { rpcClient, type RPCOutput } from "@/client/rpc/client";
 import { APP_NAME } from "@instrument-org/shared";
+import { formatBytes } from "@instrument-org/workspace/client";
 import { ArrowRightIcon } from "@phosphor-icons/react/ArrowRight";
 import { ClipboardTextIcon } from "@phosphor-icons/react/ClipboardText";
 import { DotsThreeOutlineVerticalIcon } from "@phosphor-icons/react/DotsThreeOutlineVertical";
@@ -56,8 +57,75 @@ export function StorageSection() {
       <h3 className="text-base font-semibold">Storage</h3>
       <InstrumentFolder />
       <StorageWorkspaces />
+      <OfficeDownload />
       <UnrecognizedFolders />
     </div>
+  );
+}
+
+/**
+ * The LibreOffice the app downloaded for Word, PowerPoint and Excel files,
+ * with its size and a way to remove it. Shown only once it is there.
+ */
+function OfficeDownload() {
+  const queryClient = useQueryClient();
+  const { data: office } = useQuery(
+    rpcClient.workspace.storage.office.get.queryOptions(),
+  );
+  const removal = useMutation(
+    rpcClient.workspace.storage.office.remove.mutationOptions(),
+  );
+
+  if (!office) {
+    return null;
+  }
+
+  const remove = async () => {
+    try {
+      const { removed } = await removal.mutateAsync(undefined);
+      await queryClient.invalidateQueries({
+        queryKey: rpcClient.workspace.storage.office.get.key(),
+      });
+      if (removed) {
+        toast.success("Removed LibreOffice");
+      } else {
+        toast.info(
+          "LibreOffice is still downloading. Try again when it’s done.",
+        );
+      }
+    } catch (error) {
+      toast.error("Couldn’t remove LibreOffice", { cause: error });
+    }
+  };
+
+  return (
+    <section className="space-y-2" {...settingAnchor("libreoffice")}>
+      <h4 className="text-sm font-medium text-muted-foreground">LibreOffice</h4>
+      <p className="text-sm text-muted-foreground">
+        {APP_NAME} downloaded LibreOffice to check, convert and recalculate
+        Word, PowerPoint and Excel files. If you remove it, {APP_NAME} downloads
+        it again the next time it’s needed.
+      </p>
+      <div className="overflow-hidden rounded-lg border">
+        <FolderRow
+          end={
+            <Button
+              disabled={removal.isPending}
+              onClick={() => {
+                void remove();
+              }}
+              size="sm"
+              variant="outline"
+            >
+              Remove
+            </Button>
+          }
+          name={`LibreOffice ${office.version}`}
+          note={formatBytes(office.bytes)}
+          path={office.path}
+        />
+      </div>
+    </section>
   );
 }
 

@@ -54,6 +54,7 @@ Which folders and places on this computer Instrument may use.
 Where your Instrument folder is, and chats in it that can’t be opened.
 
 - **Instrument folder** (`instrument-folder`): Where your chats, projects, and memories are kept, and moving them.
+- **LibreOffice** (`libreoffice`): The LibreOffice downloaded for Word, PowerPoint and Excel files, and removing it.
 - **Chats that can’t be opened** (`broken-folders`): Chats in your Instrument folder that can’t be opened.
 
 ### History (`activity`)

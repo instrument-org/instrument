@@ -867,6 +867,9 @@ function createBrowserViewManager(): BrowserViewManager {
       // behavior, which also covers the gap before a page paints its own
       // background (runtime-compiled CSS, slow loads, about:blank).
       webPreferences.transparent = false;
+      // Pages stretch past their edge and spring back on macOS, as they do in
+      // Chrome and Safari.
+      webPreferences.scrollBounce = true;
       // In an agent's instance a page keeps drawing while the window is off
       // screen or covered; the window's own setting does not reach its guests.
       if (isDrivenInstance()) {

@@ -12,6 +12,7 @@
  *   pnpm script:run-bash -- --attach /some/dir "ls /some/dir" # reach a folder read-only at its own path
  *   pnpm script:run-bash -- --attach-writable /some/dir "..." # reach it read-write instead
  *   pnpm script:run-bash -- --skill pdf 'echo $INSTRUMENT_SKILL_DIR' # load a skill first, as load_skill does
+ *   pnpm script:run-bash -- --python-base "office render a.docx" # install the base Python packages first, as a launch does
  *
  * Header/metadata always go to stderr so stdout stays clean for agent use.
  */
@@ -42,6 +43,7 @@ import {
   resolveChat,
 } from "../src/lib/record-folders";
 import { prepareBundledSkills } from "../src/lib/prepare-bundled-skills";
+import { ensurePythonBase, pythonBaseDir } from "../src/lib/python-base";
 import { getSkillRuntime } from "../src/lib/skill-runtime";
 import {
   findSkills,
@@ -73,6 +75,7 @@ function parseArgs(argv: string[]) {
   const commands: string[] = [];
   let chatId: string | undefined;
   let chatsDir: string | undefined;
+  let pythonBase = false;
   let skill: string | undefined;
 
   const remaining = [...argv];
@@ -121,6 +124,11 @@ function parseArgs(argv: string[]) {
 
         break;
       }
+      case "--python-base": {
+        pythonBase = true;
+
+        break;
+      }
       default: {
         if (arg !== undefined && !arg.startsWith("-")) {
           commands.push(arg);
@@ -129,7 +137,7 @@ function parseArgs(argv: string[]) {
     }
   }
 
-  return { attach, bail, chatsDir, commands, chatId, skill };
+  return { attach, bail, chatsDir, commands, chatId, pythonBase, skill };
 }
 
 const args = parseArgs(process.argv.slice(2));
@@ -267,6 +275,18 @@ const folders = Object.fromEntries(
     return [hostPath, { access: folder.access, id: folder.id, path: hostPath }];
   }),
 );
+
+// What a launch installs: the packages every chat's `python` imports
+// without a `pip install`.
+if (args.pythonBase) {
+  const started = performance.now();
+  const failure = await ensurePythonBase();
+  process.stderr.write(
+    failure
+      ? `python base: failed (${failure.output})\n`
+      : `python base: ${pythonBaseDir() ?? "none"} (${Math.round(performance.now() - started)}ms)\n`,
+  );
+}
 
 const bash = await createBashEnv({
   folders,

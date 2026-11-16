@@ -15,6 +15,7 @@ import { setChatModel } from "../chat-settings";
 import { recordAsk } from "./asks";
 import { ChatReads } from "../chat-reads";
 import { ChatWrites } from "../chat-writes";
+import { dropTrailingFailedMessages } from "../drop-trailing-failed-messages";
 import { sessionOfChat } from "../record-folders";
 import { taskEventModelNote } from "../../model-text/notes/task-event-model-text";
 import { getWorkspaceConfig, setWorkspaceConfig } from "../workspace-config";
@@ -48,6 +49,17 @@ vi.mock(import("./wake-queue"), async (importOriginal) => {
 vi.mock(import("./activity"), async (importOriginal) => {
   const original = await importOriginal();
   return { ...original, leftRunning: vi.fn(original.leftRunning) };
+});
+
+// A wake gives up on the chat's model after about two minutes of retries;
+// here the waits between them pass at once.
+vi.mock(import("node:timers/promises"), async (importOriginal) => {
+  const original = await importOriginal();
+  return {
+    ...original,
+    setTimeout: <T = void>(_delay?: number, value?: T) =>
+      original.setTimeout<T>(0, value),
+  };
 });
 
 // The chat's model is looked up to start the turn a wake writes; the turn
@@ -493,6 +505,76 @@ describe("a wake on its way", () => {
   });
 });
 
+describe("a wake whose chat's model cannot be found", () => {
+  // The person answered a card, and the chat's model is not in its
+  // provider's catalog after every retry: the answer's note stays, and a
+  // failed turn after it says why nothing answered, as a turn's own failure
+  // would, so Try again runs the turn with the note in it.
+  it("writes the failure after the note and starts no turn", async () => {
+    const { chatId } = await chatWithTask();
+    const sessionId = sessionOfChat(chatId);
+    if (!sessionId) {
+      throw new Error("expected the chat's session");
+    }
+    // As `fetchModel` reports a model its provider's catalog left out.
+    const notListed = Object.assign(
+      new Error("Model zai-org/glm-5.3-flash not found"),
+      { type: "gateway-not-listed-error" },
+    );
+    vi.mocked(fetchModel).mockImplementation(() =>
+      Promise.resolve({ error: notListed, ok: false } as never),
+    );
+    const sentBefore = sent.length;
+
+    await expect(
+      wakeAskers(
+        {
+          data: {
+            answer: "allowed",
+            kind: "folder",
+            target: "/Users/me/Pantry",
+          },
+          type: "data-permissionAnswer",
+        },
+        workspaceRef,
+        chatId,
+        [sessionId],
+      ),
+    ).rejects.toThrow("not found");
+    vi.mocked(fetchModel).mockReset();
+
+    expect(sent.slice(sentBefore)).toEqual([]);
+    const history = (
+      await ChatReads.history({ chatId, sessionId })
+    )._unsafeUnwrap();
+    const failure = history.at(-1);
+    expect(failure?.role === "assistant" && failure.parts).toEqual([]);
+    expect(
+      failure?.role === "assistant" && {
+        error: failure.metadata.error,
+        finishReason: failure.metadata.finishReason,
+        synthetic: failure.metadata.synthetic,
+      },
+    ).toMatchInlineSnapshot(`
+      {
+        "error": {
+          "classification": "transient",
+          "kind": "unknown",
+          "message": "Model zai-org/glm-5.3-flash not found",
+        },
+        "finishReason": "error",
+        "synthetic": true,
+      }
+    `);
+    // What Try again's turn sends: the failure dropped, the note last.
+    expect(
+      dropTrailingFailedMessages(history)
+        .at(-1)
+        ?.parts.map((part) => part.type),
+    ).toEqual(["data-permissionAnswer"]);
+  });
+});
+
 describe("a task's finish", () => {
   // The chat is at work from the moment the task's turn ends: what the task
   // said is read for the note before the debounce even starts.
@@ -537,6 +619,78 @@ describe("a task's finish", () => {
     expect(
       wakesOf(chatId).map((each) => (each as { summary: string }).summary),
     ).toEqual(["done", "done"]);
+  });
+});
+
+describe("a task a crash cut off", () => {
+  it("leaves the chat the quit's note once the next launch finds it, without starting a turn", async () => {
+    const { chatId, taskSession } = await chatWithTask();
+    const chatSession = sessionOfChat(chatId) ?? taskSession;
+    const sentBefore = sent.length;
+
+    // As the store's open-time sweep names what it settled, the chat's own
+    // session among them.
+    publisher.publish("sessions.cutOff", {
+      id: chatId,
+      sessionIds: [chatSession, taskSession],
+    });
+
+    await vi.waitFor(async () => {
+      expect(await notesIn(chatId)).toHaveLength(1);
+    }, 5000);
+    expect((await childTask(chatId, taskSession))?.stoppedBy).toBe("app");
+    expect(sent.slice(sentBefore)).toEqual([]);
+    const chatMessages = await ChatReads.transcript({
+      chatId,
+      sessionId: chatSession,
+    });
+    expect(
+      chatMessages
+        ._unsafeUnwrap()
+        .flatMap((message) => message.parts)
+        .flatMap((part) =>
+          part.type === "data-taskEvent" ? [taskEventModelNote(part.data)] : [],
+        ),
+    ).toMatchInlineSnapshot(`
+      [
+        "
+      <instrument-system-note>
+      The app closed while a task you created was working:
+      - t1 ("Audit the vault") did not finish: the app closed before it finished (1 second of work, 0 tokens so far).
+      The app has been opened again since, and nothing ran while it was closed.
+      </instrument-system-note>",
+      ]
+    `);
+  });
+
+  it("says nothing of a task whose turn a stop already ended", async () => {
+    const { chatId, taskSession } = await chatWithTask();
+    publisher.publish("session.done", {
+      id: chatId,
+      notice: { by: "agent", wakesChat: false },
+      sessionId: taskSession,
+    });
+    await vi.waitFor(async () => {
+      expect((await childTask(chatId, taskSession))?.stoppedBy).toBe("agent");
+    });
+
+    publisher.publish("sessions.cutOff", {
+      id: chatId,
+      sessionIds: [taskSession],
+    });
+    // Behind the stop's handling in the same queue, so a second cut-off
+    // that does write lands after this one would have.
+    const { chatId: other, taskSession: otherTask } = await chatWithTask();
+    publisher.publish("sessions.cutOff", {
+      id: other,
+      sessionIds: [otherTask],
+    });
+    await vi.waitFor(async () => {
+      expect(await notesIn(other)).toHaveLength(1);
+    }, 5000);
+
+    expect(await notesIn(chatId)).toEqual([]);
+    expect((await childTask(chatId, taskSession))?.stoppedBy).toBe("agent");
   });
 });
 

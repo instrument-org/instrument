@@ -201,6 +201,85 @@ export function registerCrashDiagnostics(app: Electron.App) {
       },
     );
   });
+
+  // The app's own windows only: a guest's page is a site that never opted in
+  // to handing over its stack.
+  app.on("web-contents-created", (_event, contents) => {
+    if (contents.getType() === "window") {
+      watchUnresponsive(gate, contents);
+    }
+  });
+}
+
+/**
+ * Record a window that stops responding, with the JavaScript stack its
+ * renderer is stuck in, once per hang: Chromium repeats `unresponsive` while
+ * the hang lasts, and `responsive` ends it. The stack comes from interrupting
+ * the renderer's script, so it arrives while the hang is still going on; a
+ * page that did not opt in, or a hang outside JavaScript (layout, paint, the
+ * GPU), gives none, and the event says so. Chromium raises it only for a
+ * window it counts as visible, so a covered window's hang goes unrecorded.
+ */
+function watchUnresponsive(gate: FaultGate, contents: Electron.WebContents) {
+  let hung = false;
+  contents.on("responsive", () => {
+    hung = false;
+  });
+  contents.on("unresponsive", () => {
+    if (hung) {
+      return;
+    }
+    hung = true;
+    const startedAt = Date.now();
+    void readCallStack(contents).then((stack) => {
+      const value = "A window stopped responding";
+      const error = Object.assign(new Error(value), {
+        name: "RendererUnresponsive",
+      });
+      error.stack =
+        stack === undefined
+          ? `RendererUnresponsive: ${value} (no JavaScript stack)`
+          : `RendererUnresponsive: ${value}\n${stack}`;
+      gate.handle(error, () => {
+        const event = gate.admit(
+          buildMainExceptionEvent(error, {
+            data: {
+              stackMs: Date.now() - startedAt,
+              webContents: identifyWebContents(contents),
+            },
+            handled: false,
+            level: "error",
+            mechanism: "unresponsive",
+          }),
+        );
+        if (event) {
+          log.error(
+            `unresponsive ${identifyWebContents(contents)}\n${error.stack ?? value}`,
+          );
+          recordExceptionEvent(event);
+        }
+      });
+    });
+  });
+}
+
+/**
+ * The stack a hung renderer's main frame is stuck in, when it gives one. A
+ * page that did not opt in answers with a sentence saying so, which has no
+ * frames and is no stack.
+ */
+async function readCallStack(
+  contents: Electron.WebContents,
+): Promise<string | undefined> {
+  try {
+    const stack: unknown =
+      await contents.mainFrame.collectJavaScriptCallStack();
+    return typeof stack === "string" && /^\s+at /m.test(stack)
+      ? stack
+      : undefined;
+  } catch {
+    return undefined;
+  }
 }
 
 /** How long the limits below count over. */

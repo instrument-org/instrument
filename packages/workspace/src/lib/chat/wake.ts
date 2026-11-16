@@ -80,12 +80,12 @@ const overdueReportedAt = new Map<StoreId.Session, number>();
 
 /**
  * Who stopped a task's working turn, and whether the chat hears of it.
- * The chat's own `instrument task stop` is a step it took, and the user's Stop on the
- * whole chat stops the chat too, so the chat hears of neither. The user
- * stopping one task while the chat carries on is written into the chat as a
- * note, so its agent knows the task did not finish and leaves it stopped,
- * but wakes nothing: the person who stopped it knows already, and the agent
- * reads the note with their next message, the way a quit's note is read.
+ * The chat's own `instrument task stop` is a step it took, so the chat hears
+ * nothing of it. The user's Stop, of one task or of the whole chat, is
+ * written into the chat as a note, so its agent knows the task did not
+ * finish and leaves it stopped, but wakes nothing: the person who stopped it
+ * knows already, and the agent reads the note with their next message, the
+ * way a quit's note is read.
  */
 /**
  * Wakes a chat about one of its tasks with an event composed elsewhere,
@@ -126,6 +126,15 @@ export function startChatWake(workspaceRef: WorkspaceActorRef): void {
         getWorkspaceConfig().captureException(error);
       })
       .finally(release);
+  });
+  // A crash ends tasks without the quit's note, so the chat hears of them
+  // as the next launch finds them cut off, in the same note a quit writes.
+  publisher.subscribe("sessions.cutOff", ({ id, sessionIds }) => {
+    previous = previous
+      .then(() => noteTasksCutOffByCrash(id, sessionIds))
+      .catch((error: unknown) => {
+        getWorkspaceConfig().captureException(error);
+      });
   });
   // The clock on every child: a task that has worked past the mark wakes its
   // chat with where it is, so a task lost in the weeds is found by
@@ -299,6 +308,47 @@ export async function noteTasksInterruptedByQuit(
     }),
   );
   return tasks;
+}
+
+/**
+ * Writes a chat the note a quit writes, for its tasks a process that ended
+ * without quitting (a crash, a force quit, the power going) left cut off,
+ * and marks each as stopped by the app. A task whose turn already ended on
+ * a stop is left out: the quit or the person that stopped it said so. The
+ * note starts no turn, as the quit's does.
+ */
+async function noteTasksCutOffByCrash(
+  id: ChatId,
+  sessionIds: readonly StoreId.Session[],
+): Promise<void> {
+  const chatId = resolveChat(id);
+  const chatSessionId = chatId ? sessionOfChat(chatId) : undefined;
+  if (
+    !chatId ||
+    chatSessionId === undefined ||
+    !(await hasConversation(chatId))
+  ) {
+    return;
+  }
+  const tasks = (
+    await Promise.all(
+      sessionIds.map(async (sessionId) => {
+        const task = await childTask(chatId, sessionId);
+        return task && task.stoppedBy === undefined ? task : undefined;
+      }),
+    )
+  ).filter((task) => task !== undefined);
+  if (tasks.length === 0) {
+    return;
+  }
+  const events = await Promise.all(tasks.map(interruptedEvent));
+  await Promise.all(
+    tasks.map((task) => touchTask(chatId, task.id, { stoppedBy: "app" })),
+  );
+  await saveNote(chatId, chatSessionId, {
+    data: { events },
+    type: "data-taskEvent",
+  });
 }
 
 /**

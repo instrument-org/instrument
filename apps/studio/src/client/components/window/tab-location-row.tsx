@@ -13,12 +13,6 @@ import {
   ContextMenu,
   ContextMenuTrigger,
 } from "@/client/components/ui/context-menu";
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-} from "@/client/components/ui/dropdown-menu";
 import { AppIcon } from "@/client/components/window/app-icon";
 import { FoldingTrail } from "@/client/components/window/folding-trail";
 import {
@@ -56,7 +50,6 @@ import { ArrowLeftIcon } from "@phosphor-icons/react/ArrowLeft";
 import { ArrowRightIcon } from "@phosphor-icons/react/ArrowRight";
 import { ArrowsOutSimpleIcon } from "@phosphor-icons/react/ArrowsOutSimple";
 import { CaretRightIcon } from "@phosphor-icons/react/CaretRight";
-import { DotsThreeIcon } from "@phosphor-icons/react/DotsThree";
 import { FilesIcon } from "@phosphor-icons/react/Files";
 import { CheckSquareIcon } from "@phosphor-icons/react/CheckSquare";
 import { InfoIcon } from "@phosphor-icons/react/Info";
@@ -64,7 +57,7 @@ import { MagnifyingGlassIcon } from "@phosphor-icons/react/MagnifyingGlass";
 import { WarningIcon } from "@phosphor-icons/react/Warning";
 import { useQuery } from "@tanstack/react-query";
 import { useSetAtom } from "jotai";
-import { Fragment, type ReactNode, useContext, useState } from "react";
+import { type ReactNode, useContext, useState } from "react";
 
 import {
   AppChip,
@@ -430,7 +423,7 @@ function Field({
   const separator = (
     <CaretRightIcon className="size-3 shrink-0 text-muted-foreground/50" />
   );
-  const crumbAt = (crumb: LocationCrumb, index: number) => {
+  const crumbAt = (crumb: LocationCrumb, index: number, content: ReactNode) => {
     const gestures = crumb.to ? gesturesFor(crumb.to) : undefined;
     const open = gestures?.destinations.find(
       (destination) => destination.id === "open",
@@ -439,23 +432,6 @@ function Field({
     // Several picked read as a count, set apart from the folder it is in.
     const isCount =
       isHere && location.kind === "folder" && location.picked !== undefined;
-    // Where you are keeps its whole name. The walk down to it gives its
-    // letters up as the box narrows, each part on its own: an equal
-    // share of what is left over, never more than its name needs and
-    // never narrower than the mark saying a name was cut. So the short
-    // names stay whole while the long ones shorten, which is the shape a
-    // folder window's path takes and the one a person reads a path by.
-    // A name no longer than the mark (`~`, `/`) has nothing to give up,
-    // and held to the mark's width it would stand in a gap wider than
-    // itself: it keeps its own width instead.
-    const size = isHere
-      ? cn(
-          "max-w-full shrink-0 truncate",
-          isCount && "rounded-md bg-foreground/8 font-medium",
-        )
-      : crumb.label.length <= 2
-        ? "shrink-0"
-        : "min-w-6 max-w-max flex-1 truncate";
     // A part of a path on the computer offers what the sidebar offers for a
     // place, the last one included: a press there still opens the field, and
     // its pill shows only while its menu is up.
@@ -466,14 +442,12 @@ function Field({
             crumb.path,
             isHere && location.kind === "file" ? "file" : "folder",
           )}
+          name={crumb.label}
         />
       );
     const part = open ? (
       <button
-        className={cn(
-          "cursor-default rounded px-1 py-0.5 text-muted-foreground group-hover/field:text-foreground/70 hover:bg-foreground/8 hover:text-foreground data-[state=open]:bg-foreground/8 data-[state=open]:text-foreground",
-          size,
-        )}
+        className="flex cursor-default items-center rounded px-1 py-0.5 text-muted-foreground group-hover/field:text-foreground/70 hover:bg-foreground/8 hover:text-foreground data-[state=open]:bg-foreground/8 data-[state=open]:text-foreground"
         onAuxClick={gestures?.onAuxClick}
         onClick={() => {
           // A part of one of the app's own pages is a step back out on this
@@ -492,42 +466,29 @@ function Field({
         {...(menu ? {} : { onContextMenu: gestures?.onContextMenu })}
         type="button"
       >
-        {crumb.label}
+        {content}
       </button>
     ) : (
       <span
         className={cn(
-          "px-1 select-text",
-          size,
-          isHere && itemMark && "flex items-center gap-1.5",
+          "flex items-center px-1 select-text",
+          isCount && "rounded-md bg-foreground/8 font-medium",
           // A part with nowhere to go, before the last, is a place
           // the window cannot open: it reads as the lead it is.
           !isHere && "text-muted-foreground",
           menu && "rounded data-[state=open]:bg-foreground/8",
         )}
       >
-        {isHere && itemMark ? (
-          <>
-            {itemMark}
-            <span className="min-w-0 truncate">{crumb.label}</span>
-          </>
-        ) : (
-          crumb.label
-        )}
+        {content}
       </span>
     );
-    return (
-      <Fragment key={`${index}:${crumb.label}`}>
-        {index > 0 ? separator : null}
-        {menu ? (
-          <ContextMenu>
-            <ContextMenuTrigger asChild>{part}</ContextMenuTrigger>
-            {menu}
-          </ContextMenu>
-        ) : (
-          part
-        )}
-      </Fragment>
+    return menu ? (
+      <ContextMenu>
+        <ContextMenuTrigger asChild>{part}</ContextMenuTrigger>
+        {menu}
+      </ContextMenu>
+    ) : (
+      part
     );
   };
   return (
@@ -541,59 +502,21 @@ function Field({
           where it read before there was anything to press. */}
       <FoldingTrail
         className="-mx-1 flex-1"
-        fold={(indexes) => (
-          <DropdownMenu>
-            <DropdownMenuTrigger asChild>
-              <button
-                aria-label="Folders along the path"
-                className="shrink-0 cursor-default rounded px-1 py-0.5 text-muted-foreground group-hover/field:text-foreground/70 hover:bg-foreground/8 hover:text-foreground data-[state=open]:bg-foreground/8"
-                type="button"
-              >
-                <DotsThreeIcon className="size-4" />
-              </button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent align="start" className="min-w-48">
-              {indexes.map((at) => {
-                const crumb = crumbs[at];
-                if (!crumb) {
-                  return null;
-                }
-                const open = crumb.to
-                  ? gesturesFor(crumb.to).destinations.find(
-                      (destination) => destination.id === "open",
-                    )
-                  : undefined;
-                return (
-                  <DropdownMenuItem
-                    disabled={!open}
-                    key={`${at}:${crumb.label}`}
-                    onSelect={() => {
-                      open?.run();
-                    }}
-                  >
-                    {crumb.path === undefined ? null : (
-                      <FolderMark size="large" path={crumb.path} />
-                    )}
-                    <span className="min-w-0 truncate">{crumb.label}</span>
-                  </DropdownMenuItem>
-                );
-              })}
-            </DropdownMenuContent>
-          </DropdownMenu>
-        )}
-        foldMark={
-          <span className="px-1 py-0.5">
-            <DotsThreeIcon className="size-4" />
-          </span>
-        }
         labelClassName="px-1"
         labels={crumbs.map((crumb) => crumb.label)}
-        part={(at) => {
+        mark={(at) => {
           const crumb = crumbs[at];
-          return crumb ? crumbAt(crumb, at) : null;
+          if (at === crumbs.length - 1) {
+            return itemMark;
+          }
+          return crumb?.path === undefined ? null : (
+            <FolderMark path={crumb.path} />
+          );
         }}
-        // The mark beside the last name, and the gap after it.
-        reserve={itemMark ? 22 : 0}
+        part={(at, content) => {
+          const crumb = crumbs[at];
+          return crumb ? crumbAt(crumb, at, content) : null;
+        }}
         separator={separator}
       />
     </>

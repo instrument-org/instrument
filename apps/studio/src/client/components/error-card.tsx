@@ -6,6 +6,7 @@ import {
 } from "@tanstack/react-router";
 
 import { ErrorCardShell } from "./error-card-shell";
+import { ErrorDetails } from "./error-details";
 import { InternalLink } from "./internal-link";
 import { ReportErrorButton } from "./report-error-button";
 import { Button } from "./ui/button";
@@ -54,7 +55,8 @@ export function ErrorCard({ error }: { error: unknown }) {
         </div>
       }
       description="Something didn't work as expected. Try again, or go back if it keeps happening."
-      error={error}
-    />
+    >
+      <ErrorDetails error={error} />
+    </ErrorCardShell>
   );
 }

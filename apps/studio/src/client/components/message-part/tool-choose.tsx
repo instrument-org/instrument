@@ -10,17 +10,32 @@ import {
 import { ArrowRightIcon } from "@phosphor-icons/react/ArrowRight";
 import { ArrowUpIcon } from "@phosphor-icons/react/ArrowUp";
 import { CaretDownIcon } from "@phosphor-icons/react/CaretDown";
+import { ChatCircleIcon } from "@phosphor-icons/react/ChatCircle";
 import { CheckIcon } from "@phosphor-icons/react/Check";
 import { MinusIcon } from "@phosphor-icons/react/Minus";
 import { QuestionIcon } from "@phosphor-icons/react/Question";
 import { useMutation, useQuery } from "@tanstack/react-query";
-import { type ReactNode, useEffect, useEffectEvent, useState } from "react";
+import {
+  type KeyboardEvent,
+  type ReactNode,
+  useEffect,
+  useEffectEvent,
+  useLayoutEffect,
+  useRef,
+  useState,
+} from "react";
 import { toast } from "@/client/lib/toast";
 
 import { cn } from "../../lib/utils";
 import { Button } from "../ui/button";
-import { DictatedTextarea, useDictatedText } from "../dictation-controls";
-import { isDictating } from "@/client/hooks/use-dictation";
+import {
+  DictatedTextarea,
+  DictationControls,
+  DictationReadout,
+  useCanDictate,
+  useDictatedText,
+} from "../dictation-controls";
+import { type Dictation, isDictating } from "@/client/hooks/use-dictation";
 import { ToolCard, ToolCardEmpty } from "./tool-card";
 
 /** The answer to a card: a reply to each of its questions, and a note. */
@@ -64,16 +79,28 @@ function hasReply(draft: Draft) {
  *
  * `sending` is an answer on its way, drawn as given before the agent has it.
  * `place` says where an open card is among several waiting ("1 of 2").
+ *
+ * While focus is in an open card and not in a field, a digit picks that
+ * choice of the question on show and Enter sends (or moves on) once it has
+ * an answer. `onChatAbout` offers writing back in the chat instead, under
+ * the choices; `collapsed` then draws the card as one row naming the
+ * question, with `onBack` to open it again, and keeps what was picked.
  */
 export function QuestionCard({
+  collapsed = false,
   onAnswer,
+  onBack,
+  onChatAbout,
   output,
   place,
   questions,
   sending,
   status,
 }: {
+  collapsed?: boolean;
   onAnswer: (output: ChooseOutput) => void;
+  onBack?: () => void;
+  onChatAbout?: () => void;
   output?: ChooseOutput;
   place?: string;
   questions: ChooseQuestion[];
@@ -84,6 +111,7 @@ export function QuestionCard({
   const [step, setStep] = useState(0);
   const [isNoteOpen, setIsNoteOpen] = useState(false);
   const [note, setNote] = useState("");
+  const cardRef = useRef<HTMLDivElement>(null);
 
   const isOpen = status === "open" && sending === undefined;
   const noteDictation = useDictatedText({
@@ -91,16 +119,70 @@ export function QuestionCard({
     surface: "question-note",
     value: note,
   });
-  // The note's box goes once the card stops being open, so a take still
-  // recording into it is thrown away rather than left on with no controls.
-  const cancelNoteDictation = useEffectEvent(() => {
+  const draftAt = (index: number) => drafts[index] ?? EMPTY_DRAFT;
+  const setDraft = (index: number, change: (draft: Draft) => Draft) => {
+    setDrafts((all) =>
+      questions.map((_, each) =>
+        each === index
+          ? change(all[each] ?? EMPTY_DRAFT)
+          : (all[each] ?? EMPTY_DRAFT),
+      ),
+    );
+  };
+  const typeOwnAt = (index: number, own: string) => {
+    setDraft(index, (draft) => ({
+      own,
+      // Their own words are the answer to a question of one choice, so a
+      // choice picked before goes.
+      picked:
+        questions[index]?.multiSelect || own.trim() === "" ? draft.picked : [],
+      skipped: false,
+    }));
+  };
+  // The question a take into the own-answer row writes into: the one on show
+  // as it starts, kept until its words land, whichever step is on show then.
+  const [ownAt, setOwnAt] = useState(0);
+  const ownDictation = useDictatedText({
+    onChange: (own) => {
+      typeOwnAt(ownAt, own);
+    },
+    surface: "question-note",
+    value: draftAt(ownAt).own,
+  });
+  if (!isDictating(ownDictation.phase) && ownAt !== step) {
+    setOwnAt(step);
+  }
+  // The boxes go once the card stops being open or folds to its row, so a
+  // take still recording into one is thrown away rather than left on with no
+  // controls.
+  const cancelDictation = useEffectEvent(() => {
     noteDictation.cancel();
+    ownDictation.cancel();
   });
   useEffect(() => {
-    if (!isOpen) {
-      cancelNoteDictation();
+    if (!isOpen || collapsed) {
+      cancelDictation();
     }
-  }, [isOpen]);
+  }, [isOpen, collapsed]);
+  // Moving between steps hides the one the keyboard was in, so it goes on to
+  // the step on show rather than falling out of the card.
+  const shownStep = useRef(step);
+  useLayoutEffect(() => {
+    if (shownStep.current === step) {
+      return;
+    }
+    shownStep.current = step;
+    const card = cardRef.current;
+    const focused = document.activeElement;
+    if (
+      card &&
+      focused !== null &&
+      card.contains(focused) &&
+      focused.closest("[inert]") !== null
+    ) {
+      focusQuestionCard(card);
+    }
+  }, [step]);
 
   if (!isOpen) {
     return (
@@ -112,13 +194,34 @@ export function QuestionCard({
     );
   }
 
-  // Answering waits for dictated words, so the note goes with them.
-  const isHolding = isDictating(noteDictation.phase);
+  // Answering waits for dictated words, so they go with it.
+  const isHolding =
+    isDictating(noteDictation.phase) || isDictating(ownDictation.phase);
   const isSeveral = questions.length > 1;
   const isReview = isSeveral && step >= questions.length;
-  const draftAt = (index: number) => drafts[index] ?? EMPTY_DRAFT;
   const current = draftAt(step);
   const question = questions[step];
+
+  if (collapsed) {
+    return (
+      <ToolCard>
+        <div className="flex h-10 items-center gap-2 pr-1.5 pl-4">
+          <QuestionIcon className="size-4 shrink-0 text-muted-foreground" />
+          <span className="min-w-0 flex-1 truncate text-[13px] text-muted-foreground">
+            {(question ?? questions[0])?.question}
+          </span>
+          <Button
+            className="shrink-0 font-medium"
+            onClick={onBack}
+            size="xs"
+            variant="ghost"
+          >
+            Back to question
+          </Button>
+        </div>
+      </ToolCard>
+    );
+  }
 
   const send = (replies: SessionMessageDataPart.QuestionReply[]) => {
     if (isHolding) {
@@ -132,15 +235,6 @@ export function QuestionCard({
   };
   const skipAll = () => {
     send(questions.map(() => ({ skipped: true })));
-  };
-  const setDraft = (index: number, change: (draft: Draft) => Draft) => {
-    setDrafts((all) =>
-      questions.map((_, each) =>
-        each === index
-          ? change(all[each] ?? EMPTY_DRAFT)
-          : (all[each] ?? EMPTY_DRAFT),
-      ),
-    );
   };
   const next = () => {
     setStep((at) => Math.min(at + 1, questions.length));
@@ -163,15 +257,6 @@ export function QuestionCard({
       next();
     }
   };
-  const typeOwn = (own: string) => {
-    setDraft(step, (draft) => ({
-      own,
-      // Their own words are the answer to a question of one choice, so a
-      // choice picked before goes.
-      picked: question?.multiSelect || own.trim() === "" ? draft.picked : [],
-      skipped: false,
-    }));
-  };
   const submitOwn = () => {
     if (!hasReply(current)) {
       return;
@@ -180,6 +265,53 @@ export function QuestionCard({
       next();
     } else {
       sendDrafts();
+    }
+  };
+
+  /** What Enter does from the card once there is something to send: Send, or Next on a step. */
+  const primary = isReview
+    ? isHolding
+      ? undefined
+      : sendDrafts
+    : !hasReply(current)
+      ? undefined
+      : isSeveral
+        ? next
+        : isHolding
+          ? undefined
+          : sendDrafts;
+  const onCardKeyDown = (event: KeyboardEvent<HTMLDivElement>) => {
+    const target = event.target;
+    if (
+      event.defaultPrevented ||
+      event.altKey ||
+      event.ctrlKey ||
+      event.metaKey ||
+      event.nativeEvent.isComposing ||
+      !(target instanceof HTMLElement) ||
+      target.closest("input, textarea, [contenteditable='true']")
+    ) {
+      return;
+    }
+    if (/^[1-9]$/.test(event.key)) {
+      const choice = isReview
+        ? undefined
+        : question?.choices[Number(event.key) - 1];
+      if (choice) {
+        event.preventDefault();
+        pick(choice.label);
+      }
+      return;
+    }
+    // A button other than a choice keeps Enter as its own press.
+    if (
+      event.key === "Enter" &&
+      !event.shiftKey &&
+      primary &&
+      (target.closest("[data-choice]") || !target.closest("button"))
+    ) {
+      event.preventDefault();
+      primary();
     }
   };
 
@@ -199,7 +331,8 @@ export function QuestionCard({
 
   return (
     <ToolCard>
-      <div className="px-4 py-3">
+      {/* The keys reach the choices inside, each a button of its own. */}
+      <div className="px-4 py-3" onKeyDown={onCardKeyDown} ref={cardRef}>
         {isSeveral ? (
           <Steps
             drafts={questions.map((_, index) => draftAt(index))}
@@ -224,8 +357,11 @@ export function QuestionCard({
                 key={index}
               >
                 <QuestionStep
+                  dictation={index === ownAt ? ownDictation : undefined}
                   draft={draftAt(index)}
-                  onOwn={typeOwn}
+                  onOwn={(own) => {
+                    typeOwnAt(index, own);
+                  }}
                   onPick={pick}
                   onSubmitOwn={submitOwn}
                   question={each}
@@ -266,12 +402,35 @@ export function QuestionCard({
           </div>
         ) : question ? (
           <QuestionStep
+            dictation={ownDictation}
             draft={current}
-            onOwn={typeOwn}
+            onOwn={(own) => {
+              typeOwnAt(step, own);
+            }}
             onPick={pick}
             onSubmitOwn={submitOwn}
             question={question}
           />
+        ) : null}
+
+        {onChatAbout ? (
+          // Across the card under a hairline, apart from the choices it is
+          // not one of, with its mark where theirs are.
+          <div className="-mx-4 mt-2 border-t border-border px-2 pt-2">
+            <button
+              className={cn(rowClassName(false), "text-muted-foreground")}
+              onClick={onChatAbout}
+              type="button"
+            >
+              <span
+                aria-hidden
+                className="grid size-4.5 shrink-0 place-items-center"
+              >
+                <ChatCircleIcon className="size-4" />
+              </span>
+              Chat about this
+            </button>
+          </div>
         ) : null}
 
         {!isSeveral && isNoteOpen ? noteBox : null}
@@ -365,42 +524,49 @@ export function QuestionCard({
 
 /** One question while the card is open: its choices and a row for the person's own words. */
 function QuestionStep({
+  dictation,
   draft,
   onOwn,
   onPick,
   onSubmitOwn,
   question,
 }: {
+  /** The microphone of the own-answer row, on the step a take writes into. */
+  dictation?: Dictation;
   draft: Draft;
   onOwn: (own: string) => void;
   onPick: (label: string) => void;
   onSubmitOwn: () => void;
   question: ChooseQuestion;
 }) {
+  const canDictate = useCanDictate();
   const isMulti = question.multiSelect === true;
   const hasOwn = draft.own.trim() !== "";
+  const isOwnDictating =
+    dictation !== undefined && isDictating(dictation.phase);
   return (
     <>
       <p className="mb-2 text-sm font-medium text-pretty">
         {question.question}
       </p>
-      {/* Pulled out by the rows' own padding, so the marks line up with the
-          question while a highlighted row still has room around its text. */}
-      <div
-        className="-mx-2 flex flex-col gap-0.5"
-        role={isMulti ? "group" : "radiogroup"}
-      >
+      <ChoiceList role={isMulti ? "group" : "radiogroup"}>
         {question.choices.map((choice, index) => {
           const isSelected = draft.picked.includes(choice.label);
           return (
             <button
               aria-checked={isSelected}
+              aria-keyshortcuts={index < 9 ? String(index + 1) : undefined}
               className={rowClassName(isSelected)}
+              data-card-home={index === 0 ? "" : undefined}
+              data-choice=""
               key={index}
               onClick={() => {
                 onPick(choice.label);
               }}
               role={isMulti ? "checkbox" : "radio"}
+              // Named, so the window's keyboard home lands on the first
+              // choice rather than on whatever button comes first.
+              tabIndex={index === 0 ? 0 : undefined}
               type="button"
             >
               <ChoiceRow isMulti={isMulti} isSelected={isSelected}>
@@ -417,7 +583,8 @@ function QuestionStep({
           );
         })}
         {/* The answer none of the choices are, as one more row: typed into
-            rather than clicked. */}
+            rather than clicked, growing a line at a time like the reply box
+            up to a few lines, then scrolling. */}
         <div
           className={cn(
             rowClassName(hasOwn),
@@ -425,26 +592,157 @@ function QuestionStep({
           )}
         >
           <ChoiceRow isMulti={isMulti} isSelected={hasOwn}>
-            <input
-              aria-label="Your own answer"
-              className="w-full bg-transparent py-0.5 outline-none placeholder:text-muted-foreground"
-              onChange={(event) => {
-                onOwn(event.target.value);
-              }}
-              onKeyDown={(event) => {
-                if (event.key === "Enter" && !event.nativeEvent.isComposing) {
-                  event.preventDefault();
-                  onSubmitOwn();
-                }
-              }}
-              placeholder="Something else…"
-              value={draft.own}
-            />
+            <span className="flex flex-col gap-1">
+              <span className="flex items-start gap-2">
+                <textarea
+                  aria-label="Your own answer"
+                  className="field-sizing-content max-h-32 min-w-0 flex-1 resize-none bg-transparent py-0.5 outline-none placeholder:text-muted-foreground"
+                  onChange={(event) => {
+                    onOwn(event.target.value);
+                  }}
+                  onKeyDown={(event) => {
+                    if (
+                      event.key === "Enter" &&
+                      !event.shiftKey &&
+                      !event.nativeEvent.isComposing
+                    ) {
+                      event.preventDefault();
+                      onSubmitOwn();
+                    }
+                  }}
+                  placeholder="Something else…"
+                  rows={1}
+                  value={draft.own}
+                />
+                {dictation && (canDictate || isOwnDictating) ? (
+                  // Pulled into the row's padding, so the microphone leaves
+                  // the row a line tall.
+                  <DictationControls
+                    className="-my-1 -mr-1"
+                    dictation={dictation}
+                    size="sm"
+                  />
+                ) : null}
+              </span>
+              {dictation && isOwnDictating ? (
+                <DictationReadout dictation={dictation} />
+              ) : null}
+            </span>
           </ChoiceRow>
         </div>
-      </div>
+      </ChoiceList>
     </>
   );
+}
+
+/**
+ * The rows of a question, pulled out by their own padding so the marks line
+ * up with the question while a highlighted row still has room around its
+ * text. In a chat's composer they stop at a share of the chat's height
+ * (`--conversation-height`, set by the chat) and scroll, with a fade along
+ * each edge while there is more past it, so the question and Send stay in
+ * view. A field typed into keeps its whole row in view as it grows, so the
+ * line being written is never under the fade.
+ */
+function ChoiceList({
+  children,
+  role,
+}: {
+  children: ReactNode;
+  role: "group" | "radiogroup";
+}) {
+  const listRef = useRef<HTMLDivElement>(null);
+  const [more, setMore] = useState({ above: false, below: false });
+  useLayoutEffect(() => {
+    const list = listRef.current;
+    if (!list) {
+      return;
+    }
+    const observer = new ResizeObserver(() => {
+      revealTypedRow(list);
+      setMore(moreOf(list));
+    });
+    observer.observe(list);
+    for (const row of list.children) {
+      observer.observe(row);
+    }
+    return () => {
+      observer.disconnect();
+    };
+  }, []);
+  return (
+    <div className="relative -mx-2">
+      {/* Positioned, so each row's offsetTop is measured from the list. */}
+      <div
+        className="relative flex max-h-[calc(var(--conversation-height)*0.4)] flex-col gap-0.5 overflow-y-auto *:shrink-0"
+        onFocus={(event) => {
+          revealTypedRow(event.currentTarget);
+        }}
+        onScroll={(event) => {
+          setMore(moreOf(event.currentTarget));
+        }}
+        ref={listRef}
+        role={role}
+      >
+        {children}
+      </div>
+      {more.above ? (
+        <div
+          aria-hidden
+          className="pointer-events-none absolute inset-x-0 top-0 h-10 bg-linear-to-b from-card to-transparent"
+        />
+      ) : null}
+      {more.below ? (
+        <div
+          aria-hidden
+          className="pointer-events-none absolute inset-x-0 bottom-0 h-10 bg-linear-to-t from-card to-transparent"
+        />
+      ) : null}
+    </div>
+  );
+}
+
+function moreOf(list: HTMLElement) {
+  return {
+    above: list.scrollTop > 1,
+    below: list.scrollHeight - list.scrollTop - list.clientHeight > 1,
+  };
+}
+
+/** Scrolls the list until the row of a focused field in it ends inside it. */
+function revealTypedRow(list: HTMLElement) {
+  const focused = document.activeElement;
+  if (!(focused instanceof HTMLTextAreaElement) || !list.contains(focused)) {
+    return;
+  }
+  const row = [...list.children].find((each) => each.contains(focused));
+  if (!(row instanceof HTMLElement)) {
+    return;
+  }
+  const bottom = row.offsetTop + row.offsetHeight;
+  if (bottom > list.scrollTop + list.clientHeight) {
+    list.scrollTop = bottom - list.clientHeight;
+  }
+}
+
+/**
+ * Puts the keyboard on the first choice of the question on show in an open
+ * card under `root`, or on its first button where no choice is on show (the
+ * review of a card of several). Returns whether anything took it.
+ */
+export function focusQuestionCard(root: HTMLElement) {
+  const reachable = (element: HTMLElement) =>
+    element.closest("[inert]") === null &&
+    element.checkVisibility({ visibilityProperty: true });
+  const target =
+    [...root.querySelectorAll<HTMLElement>("[data-card-home]")].find(
+      reachable,
+    ) ??
+    [...root.querySelectorAll<HTMLElement>("button:not([disabled])")].find(
+      reachable,
+    );
+  target?.focus({ preventScroll: true });
+  return target !== undefined;
 }
 
 /** The headers of a card of several questions, each a way back to its question, then Review. */

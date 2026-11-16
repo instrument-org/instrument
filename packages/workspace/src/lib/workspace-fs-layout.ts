@@ -966,6 +966,7 @@ function layoutRules(
     ...[
       runtime.bin,
       runtime.environments,
+      runtime.office,
       runtime.preload,
       runtime.python,
       runtime.skills,

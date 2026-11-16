@@ -1,3 +1,4 @@
+import { MiddleTruncate } from "@/client/components/middle-truncate";
 import { useSteadyCallbacks } from "@/client/hooks/use-steady-callbacks";
 import { type ChosenItem } from "@/shared/drafts";
 import {
@@ -4695,7 +4696,7 @@ function PlaceRow({
             <span className="flex size-4 shrink-0 items-center justify-center">
               {place.icon}
             </span>
-            <span className="truncate">{place.name}</span>
+            <MiddleTruncate text={place.name} />
           </button>
         </ContextMenuTrigger>
         {menu}

@@ -91,7 +91,12 @@ export function FolderRow({
       <span className="flex min-w-0 flex-1 flex-col gap-0.5 text-left">
         <span className="truncate text-sm">{label}</span>
         {line === undefined ? (
-          <FolderTrail className="text-xs text-muted-foreground" path={path} />
+          <FolderTrail
+            className="text-xs text-muted-foreground"
+            // The row's own menu is the last folder's.
+            lastHasMenu={!actions}
+            path={path}
+          />
         ) : line === null ? null : (
           <span className="truncate text-xs text-muted-foreground">{line}</span>
         )}

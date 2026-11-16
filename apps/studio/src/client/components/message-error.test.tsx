@@ -117,6 +117,7 @@ function openDetails() {
 }
 
 function renderError({
+  canChooseModel = true,
   canRunAgain = true,
   draws,
   isAgentRunning = false,
@@ -128,8 +129,10 @@ function renderError({
   isLastMessage = true,
   isLatestAttempt,
   provider = OUR_MODELS.providerType,
+  onChooseModel = vi.fn(),
   onModelChange = vi.fn(),
 }: {
+  canChooseModel?: boolean;
   canRunAgain?: boolean;
   draws?: "card" | "nothing" | "online-retry";
   error?: MessageErrorData;
@@ -137,6 +140,7 @@ function renderError({
   isLastMessage?: boolean;
   isLatestAttempt?: boolean;
   provider?: null | string;
+  onChooseModel?: () => void;
   onModelChange?: (uri: string) => void;
 }) {
   return renderWithProviders(
@@ -148,6 +152,7 @@ function renderError({
         isLastMessage={isLastMessage}
         isLatestAttempt={isLatestAttempt}
         message={messageWithError(error, provider)}
+        onChooseModel={canChooseModel ? onChooseModel : undefined}
         onModelChange={onModelChange}
         onRunAgain={canRunAgain ? vi.fn() : undefined}
       />
@@ -389,6 +394,114 @@ describe("MessageError", () => {
         },
       }
     `);
+  });
+
+  describe("Change model", () => {
+    const apiCall = (
+      classification: Extract<
+        MessageErrorData,
+        { kind: "api-call" }
+      >["classification"],
+    ): MessageErrorData => ({
+      classification,
+      kind: "api-call",
+      message: "Refused",
+      name: "AI_APICallError",
+      statusCode: 400,
+      url: "http://localhost/ai-gateway/providers/openrouter/responses",
+    });
+    const buttonsFor = (error: MessageErrorData, provider = "openrouter") => {
+      const { unmount } = renderError({ error, provider });
+      const labels = screen
+        .queryAllByRole("button")
+        .map((button) => button.textContent)
+        .filter((label) => label !== "Details" && label !== "Send a report");
+      unmount();
+      return labels.join(", ");
+    };
+
+    it("is offered where another model might get past the error", () => {
+      expect(
+        Object.fromEntries(
+          (
+            [
+              [
+                "unknown",
+                { classification: "unknown", kind: "unknown", message: "?" },
+              ],
+              ["unclassified", apiCall(undefined)],
+              ["transient", apiCall("transient")],
+              ["rate limit", apiCall("rate-limit")],
+              ["auth", apiCall("auth")],
+              ["usage limit", apiCall("usage-limit")],
+              ["context overflow", apiCall("context-overflow")],
+              ["unsendable content", apiCall("unsendable-content")],
+              ["api key", { kind: "api-key", message: "No key" }],
+              ["repetition", { kind: "repetition", message: "Looping" }],
+              [
+                "timeout",
+                { kind: "aborted", message: "Timed out", reason: "timeout" },
+              ],
+              ["disk full", { kind: "disk-full", message: "ENOSPC" }],
+              [
+                "stopped",
+                { kind: "aborted", message: "Stopped", reason: "manual" },
+              ],
+            ] satisfies [string, MessageErrorData][]
+          ).map(([name, error]) => [name, buttonsFor(error)]),
+        ),
+      ).toMatchInlineSnapshot(`
+        {
+          "api key": "Open provider settings, Try again, Change model",
+          "auth": "Open provider settings, Try again, Change model",
+          "context overflow": "Try again, Change model",
+          "disk full": "Try again",
+          "rate limit": "Try again, Change model",
+          "repetition": "Try again, Change model",
+          "stopped": "Try again",
+          "timeout": "Try again, Change model",
+          "transient": "Try again, Change model",
+          "unclassified": "Try again, Change model",
+          "unknown": "Try again, Change model",
+          "unsendable content": "Try again, Change model",
+          "usage limit": "Open provider settings, Try again, Change model",
+        }
+      `);
+    });
+
+    it("gives way to the switch a refused model of ours offers", async () => {
+      renderError({
+        error: {
+          kind: "api-call",
+          message: "Forbidden",
+          name: "AI_APICallError",
+          responseBody: JSON.stringify({
+            error: { code: "model-not-found", message: "Not found." },
+          }),
+          statusCode: 404,
+          url: "http://localhost/ai-gateway/providers/instrument/responses",
+        },
+      });
+
+      expect(
+        await screen.findByRole("button", { name: "Switch to Auto" }),
+      ).toBeTruthy();
+      expect(screen.queryByRole("button", { name: "Change model" })).toBeNull();
+    });
+
+    it("is left off where nothing opens the picker", () => {
+      renderError({ canChooseModel: false, error: apiCall("transient") });
+
+      expect(screen.queryByRole("button", { name: "Change model" })).toBeNull();
+    });
+
+    it("opens the picker", () => {
+      const onChooseModel = vi.fn();
+      renderError({ error: apiCall("transient"), onChooseModel });
+
+      fireEvent.click(screen.getByRole("button", { name: "Change model" }));
+      expect(onChooseModel).toHaveBeenCalledOnce();
+    });
   });
 
   it("says nothing about a throttle the session already got past", () => {

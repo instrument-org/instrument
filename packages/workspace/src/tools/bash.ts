@@ -1,6 +1,6 @@
 import { TOOL_NAMES } from "./name";
 import os from "node:os";
-import { chatDir, chatOwnFolder } from "../lib/record-folders";
+import { filesFolderPath } from "../lib/chat/output-folder";
 import { fileTouches, watchCall } from "../lib/transcript/file-changes";
 import { openStepFacts, settleStepFacts } from "../lib/transcript/step-facts";
 import { type ChatId } from "../schemas/chat-id";
@@ -276,9 +276,9 @@ const bashOutputSchema = z.object({
 /** Starts a look at the folders a chat's programs write in. */
 function watchChatFolders(chatId: ChatId) {
   const workFolder = workDir(chatId);
-  const outputFolder = chatOwnFolder(chatDir(chatId));
+  const outputFolder = filesFolderPath();
   return watchCall({
-    folders: outputFolder ? [workFolder, outputFolder] : [workFolder],
+    folders: [workFolder, outputFolder],
     home: os.homedir(),
     outputFolder,
     workFolder,

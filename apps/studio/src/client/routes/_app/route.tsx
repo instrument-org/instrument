@@ -26,7 +26,7 @@ import { useAppsBySlug } from "@/client/components/window/apps-by-slug";
 import { type PageChromeSlots } from "@/client/components/window/browser-tabs";
 import {
   ChatFolderButton,
-  useChatFolderWithFiles,
+  useChatWrittenFolders,
 } from "@/client/components/window/chat-folder-button";
 import { ChatHeader } from "@/client/components/window/chat-header";
 import { chatListOptions } from "@/client/components/window/chat-list-query";
@@ -239,38 +239,38 @@ function ChatView({
     />
   );
 
-  // The chat's own folder, while it has files in it, beside the pane's
-  // button: open in the pane as one tab, brought forward rather than opened
-  // again, and lit while the pane shows it.
-  const folderWithFiles = useChatFolderWithFiles(chat);
-  const folderTab =
-    folderWithFiles === null
-      ? undefined
-      : tabs.find(
-          (tab) =>
-            tab.kind === "screen" && tab.href === folderHref(folderWithFiles),
-        );
-  const isFolderShown =
-    showsPane && folderTab !== undefined && up.id === folderTab.id;
+  // The folders the chat saved files in, beside the pane's button: each
+  // opens in the pane as one tab, brought forward rather than opened again,
+  // and the button is lit while the pane shows one of them.
+  const writtenFolders = useChatWrittenFolders(chat);
+  const folderTabOf = (folder: string) =>
+    tabs.find(
+      (tab) => tab.kind === "screen" && tab.href === folderHref(folder),
+    );
+  const shownFolder = showsPane
+    ? writtenFolders.find((folder) => folderTabOf(folder)?.id === up.id)
+    : undefined;
   const chatTrailing = (
     <>
-      {folderWithFiles !== null && chat !== undefined && (
+      {chat !== undefined && (
         <ChatFolderButton
-          isOpen={isFolderShown}
-          onToggle={() => {
-            if (isFolderShown) {
-              setPaneOpen(chat, false);
-            } else if (folderTab) {
+          folders={writtenFolders}
+          onHide={() => {
+            setPaneOpen(chat, false);
+          }}
+          onOpen={(folder) => {
+            const folderTab = folderTabOf(folder);
+            if (folderTab) {
               windowTabs.select(folderTab.id);
-              setPaneOpen(chat, true);
             } else {
-              windowTabs.openScreen(folderHref(folderWithFiles), {
+              windowTabs.openScreen(folderHref(folder), {
                 group: chat,
                 select: true,
               });
-              setPaneOpen(chat, true);
             }
+            setPaneOpen(chat, true);
           }}
+          shown={shownFolder}
         />
       )}
       {paneToggle}

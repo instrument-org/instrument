@@ -68,26 +68,6 @@ afterEach(async () => {
 });
 
 describe("rg command", () => {
-  it("searches the chat's apps folder, which the chat's shell has", async () => {
-    const appDir = path.join(getWorkspaceConfig().appsDir, "rg-weather");
-    await fs.mkdir(appDir, { recursive: true });
-    await fs.writeFile(path.join(appDir, "app.ts"), "const NEEDLE = 2;\n");
-    try {
-      const bash = await createBashEnv({
-        role: "chat",
-        sessionId,
-        chatId,
-      });
-      const result = await bash.exec(`rg -l NEEDLE '${shellPath(appDir)}'`, {
-        signal: AbortSignal.timeout(30_000),
-      });
-      expect(result.stderr).toBe("");
-      expect(result.stdout).toBe(`${shellPath(appDir)}/app.ts\n`);
-    } finally {
-      await fs.rm(appDir, { force: true, recursive: true });
-    }
-  });
-
   it("shadows the built-in and searches the task", async () => {
     const result = await run("rg NEEDLE");
     expect(result.exitCode).toBe(0);

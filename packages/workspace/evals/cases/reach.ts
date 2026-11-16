@@ -24,7 +24,6 @@
  */
 import { listApps } from "../../src/lib/apps/store";
 import { openPermissionAsks } from "../../src/lib/chat/asks";
-import { getWorkspaceConfig } from "../../src/lib/workspace-config";
 import { type Session } from "../../src/schemas/session";
 import { chooseQuestions as questionsOfCard } from "../../src/lib/choose-call";
 import {
@@ -353,7 +352,7 @@ function pickTheMacApp(app: RegExp) {
 const setUpNoGoogleCalendar: Assertion = {
   check: async () => {
     const text = "set up no Google Calendar app";
-    const { apps } = await listApps(getWorkspaceConfig().appsDir);
+    const { apps } = await listApps();
     const made = apps
       .filter((app) => /google|gcal|calendar/i.test(`${app.slug} ${app.name}`))
       .filter((app) => !app.slug.startsWith("apple-"));

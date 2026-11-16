@@ -207,7 +207,7 @@ const GAMING = {
   name: "Gaming",
 };
 
-/** The body of a project's `AGENTS.md`, under its front matter. */
+/** The body of a project's `AGENTS.md`, under any front matter. */
 function projectBody(name: string): string {
   const file = path.join(projectsDir(), name, PROJECT_FILE_NAME);
   if (!existsSync(file)) {

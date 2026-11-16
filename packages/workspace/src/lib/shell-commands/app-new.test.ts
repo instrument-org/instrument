@@ -4,8 +4,6 @@ import {
   encodeUtf8ToBytes,
   InMemoryFs,
 } from "just-bash";
-import fs from "node:fs/promises";
-import path from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { ChatIdSchema } from "../../schemas/chat-id";
@@ -14,10 +12,9 @@ import { serveRegisteredClient } from "../../test/helpers/serve-registered-clien
 import { resetServedAppCatalog } from "../apps/catalog";
 import { createMemoryAppsConfig } from "../apps/memory-config";
 import { mcpSignInSupport, packageExists } from "../apps/preflight";
-import { APP_FILE_NAME } from "../apps/app-file";
-import { loadApp, readAppGuide } from "../apps/store";
+import { findAppIcon, setAppIcon } from "../apps/icon";
+import { loadApp, readAppGuide, removeApp } from "../apps/store";
 import { getWorkspaceConfig, setWorkspaceConfig } from "../workspace-config";
-import { shellPath } from "../workspace-fs-layout";
 import { createAppCommand } from "./app";
 import { knowChat } from "../../test/helpers/mock-chat-config";
 
@@ -62,13 +59,13 @@ async function appWithStdin(stdin: string | undefined, ...args: string[]) {
 
 /** The app `instrument app new` just wrote, as everything that reads one reads it. */
 async function appOf(slug: string) {
-  const loaded = await loadApp(getWorkspaceConfig().appsDir, slug);
+  const loaded = await loadApp(slug);
   return loaded._unsafeUnwrap();
 }
 
-/** The guide in the app's file: the body under the front matter. */
+/** The app's guide. */
 async function guideOf(slug: string) {
-  return (await readAppGuide((await appOf(slug)).dir)) ?? "";
+  return (await readAppGuide((await appOf(slug)).slug)) ?? "";
 }
 
 /** The manifest in the app's file, as the app loader reads it. */
@@ -206,9 +203,7 @@ describe("app test and the guide skeleton", () => {
       "guide",
       "real-guide",
     );
-    expect(written.stdout).toContain(
-      `Wrote the guide in ${shellPath((await appOf("real-guide")).dir)}/${APP_FILE_NAME}.`,
-    );
+    expect(written.stdout).toContain("Wrote the guide.");
     expect(await guideOf("real-guide")).toContain("GET /things");
 
     const result = await app("test", "real-guide");
@@ -385,10 +380,9 @@ describe("app test and the guide skeleton", () => {
       expect(result.stdout).toContain(
         "Ask the user to sign in with connect_app; the app connects on its own when they do.",
       );
-      expect(
-        (await loadApp(getWorkspaceConfig().appsDir, "outlook"))._unsafeUnwrap()
-          .manifest,
-      ).toMatchObject({ auth: { kind: "oauth" }, service: "outlook" });
+      expect((await loadApp("outlook"))._unsafeUnwrap().manifest).toMatchObject(
+        { auth: { kind: "oauth" }, service: "outlook" },
+      );
     } finally {
       resetServedAppCatalog();
     }
@@ -410,7 +404,7 @@ describe("app test and the guide skeleton", () => {
         ...rest,
       );
     const serviceOf = async (slug: string) => {
-      const loaded = await loadApp(getWorkspaceConfig().appsDir, slug);
+      const loaded = await loadApp(slug);
       return loaded.isOk() ? loaded.value.manifest.service : undefined;
     };
 
@@ -614,8 +608,8 @@ describe("app icon", () => {
       "--local",
       "@agiletortoise/drafts-mcp-server",
     );
-    const appDir = (await appOf("drafts-icon")).dir;
-    await fs.writeFile(path.join(appDir, "icon.png"), "old");
+    const slug = (await appOf("drafts-icon")).slug;
+    await setAppIcon(slug, new TextEncoder().encode("old"), "icon.png");
 
     const result = await setIcon(
       "drafts-icon",
@@ -624,10 +618,7 @@ describe("app icon", () => {
     );
 
     expect(result.exitCode).toBe(0);
-    expect(await fs.readdir(appDir)).toEqual(
-      expect.arrayContaining(["icon.svg"]),
-    );
-    expect(await fs.readdir(appDir)).not.toContain("icon.png");
+    expect((await findAppIcon(slug))?.fileName).toBe("icon.svg");
   });
 
   it("refuses a file that would not draw as a square", async () => {
@@ -692,9 +683,7 @@ describe("app new --web", () => {
 
   it("refuses a call, saying how a web app is worked", async () => {
     await app("new", "zoom-call", "--name", "Zoom", "--web", "https://zoom.us");
-    const { manifestHash } = (
-      await loadApp(getWorkspaceConfig().appsDir, "zoom-call")
-    )._unsafeUnwrap();
+    const { manifestHash } = (await loadApp("zoom-call"))._unsafeUnwrap();
     await getWorkspaceConfig().apps.connections.set("zoom-call", {
       manifestHash,
       status: "connected",
@@ -760,7 +749,7 @@ describe("app new refuses what cannot connect", () => {
     );
     // The next case sets Gmail up as the first of its kind.
     for (const slug of ["gmail", "gmail-personal"]) {
-      await fs.rm((await appOf(slug)).dir, { force: true, recursive: true });
+      await removeApp((await appOf(slug)).slug);
     }
   });
 
@@ -815,9 +804,7 @@ describe("app new refuses what cannot connect", () => {
       "signs in only with a client registered with its vendor ahead of time",
     );
     expect(result.stderr).toContain("--web https://www.pagerduty.com");
-    expect(
-      (await loadApp(getWorkspaceConfig().appsDir, "pagerduty")).isErr(),
-    ).toBe(true);
+    expect((await loadApp("pagerduty")).isErr()).toBe(true);
   });
 
   it("refuses an unlisted server whose metadata offers no registration", async () => {
@@ -955,10 +942,10 @@ describe("app account", () => {
       "--web",
       "https://inbox.example",
     );
-    const before = await loadApp(getWorkspaceConfig().appsDir, "inbox-two");
+    const before = await loadApp("inbox-two");
 
     const named = await app("account", "inbox-two", "name@example.com");
-    const after = await loadApp(getWorkspaceConfig().appsDir, "inbox-two");
+    const after = await loadApp("inbox-two");
 
     expect(named.stdout).toBe(
       "inbox-two is Inbox at work (name@example.com) wherever it appears now.\n",
@@ -974,8 +961,7 @@ describe("app account", () => {
 
     await app("account", "inbox-two", "--clear");
     expect(
-      (await loadApp(getWorkspaceConfig().appsDir, "inbox-two"))._unsafeUnwrap()
-        .manifest.account,
+      (await loadApp("inbox-two"))._unsafeUnwrap().manifest.account,
     ).toBeUndefined();
   });
 

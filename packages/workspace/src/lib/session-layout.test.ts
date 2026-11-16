@@ -9,7 +9,6 @@ import {
 } from "../schemas/paths";
 import { StoreId } from "../schemas/store-id";
 import { WINDOW_ID } from "../schemas/window-id";
-import { getWorkspaceConfig } from "./workspace-config";
 import { sessionLayout } from "./session-layout";
 
 const chatId = ChatIdSchema.parse("reach");
@@ -52,22 +51,22 @@ vi.mock(import("./permissions/chat-rules"), async (importOriginal) => ({
 }));
 
 // Every role works in the chat's work folder with its record folder, the
-// chat's folders and skills; only the chat reaches its apps, and only a
+// chat's folders and skills; only the chat keeps memories, and only a
 // session asks.
 describe("sessionLayout", () => {
   it.each([
-    ["the chat's session", CHAT_SESSION, { apps: true, asks: true }],
-    ["a task's session", TASK_SESSION, { apps: false, asks: true }],
+    ["the chat's session", CHAT_SESSION, { asks: true, keepsMemory: true }],
+    ["a task's session", TASK_SESSION, { asks: true, keepsMemory: false }],
     [
       "no session (a surface the person sees)",
       undefined,
-      { apps: true, asks: false },
+      { asks: false, keepsMemory: true },
     ],
   ])("%s", async (_name, sessionId, expected) => {
     const layout = await sessionLayout({ chatId, sessionId });
     expect({
-      apps: layout.apps?.hostRoot === getWorkspaceConfig().appsDir,
       asks: layout.rules.asker !== undefined,
+      keepsMemory: layout.keepsMemory === true,
     }).toEqual(expected);
     expect(layout.chat.hostRoot).toBe(chatRoot);
     expect(layout.record?.hostRoot).toBe(recordRoot);

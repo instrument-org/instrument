@@ -1,5 +1,3 @@
-import fs from "node:fs/promises";
-import path from "node:path";
 import {
   afterEach,
   beforeEach,
@@ -13,7 +11,7 @@ import {
 import { applyServedAppCatalog, resetServedAppCatalog } from "./catalog";
 import seed from "./catalog-seed.json";
 import { getWorkspaceConfig, setWorkspaceConfig } from "../workspace-config";
-import { APP_FILE_NAME } from "./app-file";
+import { seedApp } from "../../test/helpers/seed-app";
 import { createMemoryAppsConfig } from "./memory-config";
 import { recordConnection } from "./connection";
 import { moveAppToWeb, setUpFromDirectory } from "./set-up";
@@ -39,8 +37,7 @@ afterEach(() => {
 });
 
 async function manifestOf(slug: string) {
-  return (await loadApp(getWorkspaceConfig().appsDir, slug))._unsafeUnwrap()
-    .manifest;
+  return (await loadApp(slug))._unsafeUnwrap().manifest;
 }
 
 describe("setUpFromDirectory", () => {
@@ -59,13 +56,8 @@ describe("setUpFromDirectory", () => {
     ).toBe("needs-sign-in");
   });
 
-  it("passes by an id whose file cannot be read", async () => {
-    const dir = path.join(getWorkspaceConfig().appsDir, "Sentry");
-    await fs.mkdir(dir, { recursive: true });
-    await fs.writeFile(
-      path.join(dir, APP_FILE_NAME),
-      "---\nid: sentry\ntype: mcp\n---\n",
-    );
+  it("passes by an id whose setup cannot be read", async () => {
+    await seedApp("sentry", { name: "Sentry", setup: { type: "mcp" } });
 
     expect(await setUpFromDirectory({ slug: "sentry" })).toEqual({
       kind: "set-up",

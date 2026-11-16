@@ -528,10 +528,14 @@ describe("notices", () => {
 
     it("asks loudly when new chats start on the account, and quietly otherwise", async () => {
       const notices = await load();
+      // ChatGPT is seen signed out a moment later, so it lists first.
+      const now = vi.spyOn(Date, "now").mockReturnValue(1000);
       notices.noteSignedOut("claude-account", [{ id: "claude-account" }]);
+      now.mockReturnValue(2000);
       notices.noteSignedOut("chatgpt-account", [
         { id: "01J0000000000000000000000A", label: "me@example.com" },
       ]);
+      now.mockRestore();
       workspace.defaultModelURI = claudeOpus;
 
       expect(

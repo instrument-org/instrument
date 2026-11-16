@@ -15,7 +15,10 @@ import { STORE_TABLE, writeStoreRowsSync } from "./store-table";
 // The tasks here are 1.x-shaped on purpose, which is what the adoption into
 // chats looks for; it has tests of its own, and would move them out from under
 // the normalization these check.
-vi.mock("./migrate-legacy-tasks", () => ({ migrateLegacyTasks: vi.fn() }));
+vi.mock(import("./migrate-legacy-tasks"), async (importOriginal) => ({
+  ...(await importOriginal()),
+  migrateLegacyTasks: vi.fn(),
+}));
 
 const NOTHING_ADOPTED = {
   adoptedCount: 0,
@@ -121,6 +124,7 @@ function writeTaskSettings(chatId: string, settings: Record<string, unknown>) {
 
 function migrate() {
   return migrateWorkspaceLayout({
+    filesDir: path.join(machineDir, "Files"),
     machineDir,
     marks: {
       read: () => marks,

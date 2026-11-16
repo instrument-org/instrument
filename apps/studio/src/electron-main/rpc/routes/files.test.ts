@@ -191,7 +191,7 @@ it("leaves the workspace's key folders and records where they are, and what is i
   const real = path.join(dir, "Instrument");
   for (const folder of [
     "Projects/Travel",
-    "Chats",
+    "Memory",
     ".instrument",
     "Work/Skills",
   ]) {
@@ -221,7 +221,11 @@ it("leaves the workspace's key folders and records where they are, and what is i
         ),
       ),
       refusal(
-        call(files.trash, { path: path.join(dir, "linked", "Chats") }, options),
+        call(
+          files.trash,
+          { path: path.join(dir, "linked", "Memory") },
+          options,
+        ),
       ),
       refusal(
         call(
@@ -241,14 +245,14 @@ it("leaves the workspace's key folders and records where they are, and what is i
   ).toMatchInlineSnapshot(`
     [
       "PROTECTED: Instrument saves your projects in this folder, so you can’t rename or delete it.",
-      "PROTECTED: Instrument saves your chats in this folder, so you can’t rename or delete it.",
+      "PROTECTED: Instrument saves your memories in this folder, so you can’t rename or delete it.",
       "PROTECTED: Instrument saves its own data in this folder, so you can’t rename or delete it.",
       "PROTECTED: Instrument saves your projects in this folder, so you can’t rename or delete it.",
     ]
   `);
   expect((await fs.readdir(real)).toSorted()).toEqual([
     ".instrument",
-    "Chats",
+    "Memory",
     "Projects",
     "Work",
   ]);

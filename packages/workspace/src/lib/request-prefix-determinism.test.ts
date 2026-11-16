@@ -90,7 +90,6 @@ function computer(
   return {
     config: {
       ...base,
-      appsDir: AbsolutePathSchema.parse(layout.appsDir),
       chatsDir: AbsolutePathSchema.parse(layout.chatsDir),
       getAIProviderConfigs: () => rest.providers,
       legacyTasksDir: WorkspaceDirSchema.parse(path.join(root, "tasks")),
@@ -306,7 +305,6 @@ async function writeLiveFiles(root: string, version: string) {
     [path.join(chatDir(chatId), HANDOFF_NOTES_FILE_NAME), "# Notes"],
     [path.join(layout.topicsDir, "Work", "TOPIC.md"), "---\nid: work\n---\n"],
     [path.join(root, "Skills", "demo", "SKILL.md"), "---\nname: demo\n---\n"],
-    [path.join(layout.appsDir, "Demo", "APP.md"), "---\nid: demo\n---\n"],
     [path.join(layout.memoryDir, "note.md"), "Likes tea."],
   ];
   for (const [file, text] of files) {

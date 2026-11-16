@@ -77,7 +77,7 @@ import { getBrowserViewManager } from "../browser-view/manager";
 import { flushKeptState } from "../stores/workspace/kept-state";
 import { searchWeb } from "../platform-api/web-search";
 import { recordInstalledUpdate } from "./actions";
-import { createAppsConfig, rememberAppsDir } from "./apps";
+import { createAppsConfig, rememberAppsReady } from "./apps";
 import { timeBootStep } from "./boot-timing";
 import { captureFor, captureServerException } from "./capture-server-exception";
 import { isDictationInProgress } from "./dictation-in-progress";
@@ -89,7 +89,7 @@ import {
   workspaceMachineDir,
   workspaceWorkFoldersDir,
 } from "./get-workspace-folder";
-import { unchosenOutputFolder, workspaceDbFileOf } from "./workspaces";
+import { appDataOutputFolder, workspaceDbFileOf } from "./workspaces";
 import { sweepWorkspaceFolder } from "./workspace-launch-sweeps";
 import { ensureOutputFolderIcon } from "./output-folder-icon";
 import { isRefusedFile } from "./refused-files";
@@ -217,15 +217,10 @@ export async function createWorkspaceActor(deviceId: DeviceId) {
       },
       // A folder the person picked is where their finished work goes too,
       // and only the app's own data ever held 1.x tasks.
-      // `INSTRUMENT_OUTPUT_FOLDER` is a driven fixture's own folder, set by
-      // studio-drive, so its agents never write into the developer's real
-      // Instrument folder.
       ...(inAppData
         ? {
             legacyTasks: true,
-            outputDir: process.env.INSTRUMENT_OUTPUT_FOLDER
-              ? path.resolve(process.env.INSTRUMENT_OUTPUT_FOLDER)
-              : unchosenOutputFolder(getUserDataDir()),
+            outputDir: appDataOutputFolder(getUserDataDir()),
           }
         : { outputDir: rootDir }),
       // Passwords and sign-ins stay out of every native command's reach.
@@ -273,7 +268,7 @@ export async function createWorkspaceActor(deviceId: DeviceId) {
   }
 
   const workspaceConfig = snapshot.context.config;
-  rememberAppsDir(workspaceConfig.appsDir);
+  rememberAppsReady();
   recordInstalledUpdate();
   startAppSignInChecks();
   // What another device writes into the chats folder reaches the app while

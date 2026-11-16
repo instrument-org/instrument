@@ -144,7 +144,6 @@ export function nativeReachFor(
         .map((mount) => mount.hostRoot),
       runtime.caches,
       runtime.config,
-      ...(layout.apps ? [layout.apps.hostRoot] : []),
     ],
     rules,
   };

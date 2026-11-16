@@ -1,24 +1,25 @@
 import { APP_NAME } from "@instrument-org/shared";
 import { err, ok, type Result } from "neverthrow";
-import fs from "node:fs/promises";
+import { createHash } from "node:crypto";
 import path from "node:path";
 import { omit } from "radashi";
+import { z } from "zod";
 
-import { type AbsolutePath } from "../../schemas/paths";
-import { absolutePathJoin } from "../absolute-path-join";
-import { writeOwnFile } from "../own-file";
-import { shellPath } from "../shell-path";
-import { CachedReads } from "../workspace-files";
+import { type DeviceId } from "../records/device-id";
+import {
+  openSyncedStore,
+  type SyncedStore,
+} from "../synced-store/synced-store";
+import { type SyncedOp } from "../synced-store/synced-record";
+import { getWorkspaceConfig } from "../workspace-config";
+import { workspaceLayout } from "../workspace-layout";
 import { macAppNamed } from "../mac-apps/apps";
 import { APP_COMMAND } from "../../model-text/commands/app-command";
 import { macAppGuide } from "../../model-text/guides/mac-app-guide";
 import {
   type AppFile,
-  APP_FILE_NAME,
-  type AppFileRead,
-  APPS_FOLDER_NAME,
-  parseAppFile,
-  renderAppFile,
+  appFileOf,
+  isOwnSetupKey,
   unusedAppName,
 } from "./app-file";
 import { type AppCatalogEntry, catalogEntryForApp } from "./catalog";
@@ -30,12 +31,52 @@ import {
   AppSlugSchema,
 } from "./manifest";
 
+/**
+ * The workspace's apps: the `apps` synced store (`docs/architecture/synced-stores.md`),
+ * each device appending to its own `.instrument/devices/<device>/apps.jsonl`.
+ * An app is one key, `app/<slug>`, whose value is its name, its setup (the
+ * manifest, with every key this build does not read kept beside it) and its
+ * guide; its own icon, when it has one, is a key of its own, `icon/<slug>`,
+ * so a change to the guide never writes the icon's bytes again.
+ *
+ * The slug is the app's identity, since the credential store and the
+ * connection record are keyed by it. Nothing writes an app but the
+ * `instrument app` command, the Apps page and the launch that takes in the
+ * folders earlier builds kept.
+ */
+
+/** The store's file name, before `.jsonl`. */
+const APPS_DOMAIN = "apps";
+
+const APP_PREFIX = "app/";
+const ICON_PREFIX = "icon/";
+
+/**
+ * An app's value in the store. Loose, so a field a newer build adds goes
+ * back out as it came in when this build rewrites the app.
+ */
+const AppValueSchema = z.looseObject({
+  guide: z.string().default(""),
+  name: z.string().min(1),
+  /** What `APP.md`'s front matter held but its `id`: the manifest, and any key this build does not read. */
+  setup: z.record(z.string(), z.unknown()).default({}),
+});
+
+type AppValue = z.output<typeof AppValueSchema>;
+
+const AppIconValueSchema = z.object({
+  /** The icon's bytes, base64. */
+  data: z.string().min(1),
+  fileName: z.enum(["icon.svg", "icon.png"]),
+});
+
+export type AppIconValue = z.output<typeof AppIconValueSchema>;
+
 export interface AppInfo {
-  dir: AbsolutePath;
   manifest: AppManifest;
-  /** What the connection record is pinned to: the manifest as it is on disk. */
+  /** What the connection record is pinned to: the manifest as the store has it. */
   manifestHash: string;
-  /** What the person calls it: the name of its folder. */
+  /** What the person calls it. */
   name: string;
   slug: AppSlug;
 }
@@ -45,55 +86,177 @@ interface AppLoadError {
   reason: "invalid-manifest" | "invalid-slug" | "not-found";
 }
 
-/**
- * Read every app folder under `appsDir`. A folder with no `APP.md` is not an
- * app's and is passed over; one whose `APP.md` names an app this build cannot
- * read is returned separately, so callers (the Apps screen, `instrument app list`) can
- * say so instead of letting the app disappear.
- *
- * Two folders carrying one `id` is a copy-paste: the first by name is the
- * app, and the other is reported, since whichever way they were told apart
- * would be a guess at which one the key belongs to.
- */
-export async function listApps(appsDir: AbsolutePath): Promise<{
-  apps: AppInfo[];
-  invalid: { message: string; slug: string }[];
-}> {
-  const apps: AppInfo[] = [];
-  const invalid: { message: string; slug: string }[] = [];
-  const taken = new Map<string, string>();
+/** One store per workspace and device in this process, opened on first use. */
+const stores = new Map<string, Promise<SyncedStore>>();
 
-  for (const { folder, read } of await readAppFolders(appsDir)) {
-    if (read.kind === "none" || read.kind === "unreadable") {
-      continue;
-    }
-    if (read.kind === "invalid") {
-      invalid.push({ message: read.message, slug: read.id });
-      continue;
-    }
-    const first = taken.get(read.app.id);
-    if (first !== undefined) {
-      invalid.push({
-        message: `"${folder}" says it is "${read.app.id}", which "${first}" already is. Give one of them an id of its own, or take it away.`,
-        slug: read.app.id,
-      });
-      continue;
-    }
-    taken.set(read.app.id, folder);
-    apps.push(appInfoOf(appsDir, folder, read.app));
-  }
+/** Each store's writes, one at a time, so a read-then-write never loses another's change. */
+const writing = new Map<string, Promise<unknown>>();
 
-  return { apps, invalid };
+function storeKey({
+  device,
+  devicesDir,
+}: {
+  device: DeviceId;
+  devicesDir: string;
+}) {
+  return `${path.resolve(devicesDir)}\0${device}`;
+}
+
+function currentPlace() {
+  const config = getWorkspaceConfig();
+  return {
+    device: config.deviceId,
+    devicesDir: workspaceLayout(config.rootDir).devicesDir,
+  };
 }
 
 /**
- * One app by its id, found by reading the apps folder: its name is its
- * folder's, which the person may rename at any time, so nothing but the `id`
- * in its `APP.md` says which app a folder holds. The folder is listed on
- * every look, and a file is read again once it changes.
+ * The apps store of the workspace this process runs, or of the one `place`
+ * names (a launch step that runs before the workspace's config is set).
  */
+export function appsStore(
+  place: { device: DeviceId; devicesDir: string } = currentPlace(),
+): Promise<SyncedStore> {
+  const key = storeKey(place);
+  let store = stores.get(key);
+  if (!store) {
+    store = openSyncedStore({
+      ...place,
+      domain: APPS_DOMAIN,
+      onError: (error) => {
+        if (process.env.NODE_ENV !== "test") {
+          console.warn("Apps: could not read another device's changes", error);
+        }
+      },
+    });
+    stores.set(key, store);
+    // A store that failed to open is opened again by the next caller.
+    store.catch(() => {
+      if (stores.get(key) === store) {
+        stores.delete(key);
+      }
+    });
+  }
+  return store;
+}
+
+/** Stops every store's watch and forgets it; for tests that start a workspace over. */
+export async function closeAppStores(): Promise<void> {
+  const open = [...stores.values()];
+  stores.clear();
+  writing.clear();
+  for (const store of await Promise.allSettled(open)) {
+    if (store.status === "fulfilled") {
+      store.value.close();
+    }
+  }
+}
+
+/**
+ * Makes the changes `make` answers for the store as it is, after every write
+ * asked for before it has landed.
+ */
+async function writeApps<T>(
+  make: (
+    store: SyncedStore,
+  ) => Promise<{ ops: SyncedOp[]; result: T }> | { ops: SyncedOp[]; result: T },
+  place: { device: DeviceId; devicesDir: string } = currentPlace(),
+): Promise<T> {
+  const key = storeKey(place);
+  const store = await appsStore(place);
+  const before = writing.get(key) ?? Promise.resolve();
+  const run = before
+    .catch(() => undefined)
+    .then(async () => {
+      const { ops, result } = await make(store);
+      await store.apply(ops);
+      return result;
+    });
+  writing.set(key, run);
+  return run;
+}
+
+function appValueOf(value: unknown): AppValue | undefined {
+  const parsed = AppValueSchema.safeParse(value);
+  return parsed.success ? parsed.data : undefined;
+}
+
+/** An app's key in the store. */
+export function appKey(slug: AppSlug): string {
+  return `${APP_PREFIX}${slug}`;
+}
+
+/** An app's icon's key in the store. */
+export function appIconKey(slug: AppSlug): string {
+  return `${ICON_PREFIX}${slug}`;
+}
+
+/** What the store holds for an app, read the way an `APP.md` was. */
+function readValue(slug: string, value: AppValue) {
+  return appFileOf(
+    { ...value.setup, id: slug },
+    { guide: value.guide, what: `${slug}'s setup` },
+  );
+}
+
+/**
+ * The value an app is written as: its name, its setup with every key found
+ * with it kept, and its guide.
+ */
+function appValue({
+  app,
+  kept,
+  name,
+}: {
+  app: AppFile;
+  /** The value it replaces, whose fields this build does not write are kept. */
+  kept?: AppValue;
+  name: string;
+}): AppValue {
+  return {
+    ...kept,
+    guide: app.guide.trim(),
+    name,
+    setup: { ...app.others, ...app.manifest },
+  };
+}
+
+/**
+ * Every app in the store, by name. One whose setup this build cannot read is
+ * returned separately, so callers (the Apps screen, `instrument app list`)
+ * can say so instead of letting the app disappear.
+ */
+export async function listApps(): Promise<{
+  apps: AppInfo[];
+  invalid: { message: string; slug: string }[];
+}> {
+  const store = await appsStore();
+  const apps: AppInfo[] = [];
+  const invalid: { message: string; slug: string }[] = [];
+  for (const [key, raw] of store.entries(APP_PREFIX)) {
+    const slug = key.slice(APP_PREFIX.length);
+    const value = appValueOf(raw);
+    if (!value) {
+      invalid.push({ message: `"${slug}" has no name.`, slug });
+      continue;
+    }
+    const read = readValue(slug, value);
+    if (read.kind === "app") {
+      apps.push(appInfoOf(value.name, read.app));
+    } else if (read.kind === "invalid") {
+      invalid.push({ message: read.message, slug });
+    }
+  }
+  return {
+    apps: apps.toSorted(
+      (a, b) => a.name.localeCompare(b.name) || a.slug.localeCompare(b.slug),
+    ),
+    invalid: invalid.toSorted((a, b) => a.slug.localeCompare(b.slug)),
+  };
+}
+
+/** One app by its id. */
 export async function loadApp(
-  appsDir: AbsolutePath,
   rawSlug: string,
 ): Promise<Result<AppInfo, AppLoadError>> {
   const slugResult = AppSlugSchema.safeParse(rawSlug);
@@ -104,55 +267,93 @@ export async function loadApp(
     });
   }
   const slug = slugResult.data;
-  let broken: string | undefined;
-  for (const { folder, read } of await readAppFolders(appsDir)) {
-    if (read.kind === "app" && read.app.id === slug) {
-      return ok(appInfoOf(appsDir, folder, read.app));
-    }
-    if (read.kind === "invalid" && read.id === slug) {
-      broken ??= read.message;
-    }
+  const value = appValueOf((await appsStore()).get(appKey(slug)));
+  if (!value) {
+    return err({
+      message: `No app is "${slug}". \`${APP_COMMAND.name} list\` lists the apps set up here.`,
+      reason: "not-found",
+    });
   }
-  return broken === undefined
-    ? err({
-        message: `No app is "${slug}": no ${APP_FILE_NAME} in ${APPS_FOLDER_NAME}/ gives that as its id.`,
-        reason: "not-found",
-      })
-    : err({ message: broken, reason: "invalid-manifest" });
+  const read = readValue(slug, value);
+  return read.kind === "app"
+    ? ok(appInfoOf(value.name, read.app))
+    : err({
+        message:
+          read.kind === "invalid" ? read.message : `"${slug}" is not an app.`,
+        reason: "invalid-manifest",
+      });
 }
 
-/** The app's guide: the body of its `APP.md`, or nothing where it has none. */
-export async function readAppGuide(
-  appDir: AbsolutePath,
-): Promise<null | string> {
-  let read: AppFileRead;
-  try {
-    read = await readAppFile(path.dirname(appDir), path.basename(appDir));
-  } catch {
-    // Unreadable for now: nothing to show.
-    return null;
-  }
-  return read.kind === "app" && read.app.guide !== ""
-    ? `${read.app.guide}\n`
-    : null;
+/** The app's guide, or nothing where it has none. */
+export async function readAppGuide(slug: AppSlug): Promise<null | string> {
+  const value = appValueOf((await appsStore()).get(appKey(slug)));
+  const guide = value?.guide.trim() ?? "";
+  return guide === "" ? null : `${guide}\n`;
 }
 
 /**
- * Writes the app's guide, keeping the manifest above it and every key found
- * with it, since the guide is the body of the one file the manifest is in.
+ * The app's setup as the store has it: the manifest and every key kept with
+ * it, whether or not this build can read them as a manifest.
  */
-export async function writeAppGuide(appDir: AbsolutePath, guide: string) {
-  const appsDir = path.dirname(appDir);
-  const read = await readAppFile(appsDir, path.basename(appDir));
-  if (read.kind !== "app") {
-    throw new Error(
-      `${path.join(appDir, APP_FILE_NAME)} is not an app, so there is no guide to write.`,
+export async function readAppSetup(
+  slug: AppSlug,
+): Promise<Record<string, unknown> | undefined> {
+  return appValueOf((await appsStore()).get(appKey(slug)))?.setup;
+}
+
+/** Writes the app's guide, keeping everything else about it. */
+export async function writeAppGuide(slug: AppSlug, guide: string) {
+  await writeApps((store) => {
+    const value = appValueOf(store.get(appKey(slug)));
+    if (!value) {
+      throw new Error(`No app is "${slug}", so there is no guide to write.`);
+    }
+    return {
+      ops: [
+        {
+          key: appKey(slug),
+          t: "set",
+          value: { ...value, guide: guide.trim() },
+        },
+      ],
+      result: undefined,
+    };
+  });
+}
+
+/**
+ * Writes the app's setup whole, keeping its name and guide: what `setup`
+ * holds becomes the manifest, with any key the manifest does not have kept
+ * beside it. Throws, writing nothing, for a setup that is not a manifest.
+ */
+export async function writeAppSetup(
+  slug: AppSlug,
+  setup: Record<string, unknown>,
+): Promise<AppManifest> {
+  return writeApps((store) => {
+    const value = appValueOf(store.get(appKey(slug)));
+    if (!value) {
+      throw new Error(`No app is "${slug}", so there is no setup to write.`);
+    }
+    const read = appFileOf(
+      { ...omit(setup, ["id"]), id: slug },
+      { guide: value.guide, what: "The setup" },
     );
-  }
-  writeOwnFile({
-    data: renderAppFile({ ...read.app, guide }),
-    file: path.join(appDir, APP_FILE_NAME),
-    folder: appsDir,
+    if (read.kind !== "app") {
+      throw new Error(
+        read.kind === "invalid" ? read.message : "the setup names no app.",
+      );
+    }
+    return {
+      ops: [
+        {
+          key: appKey(slug),
+          t: "set",
+          value: appValue({ app: read.app, kept: value, name: value.name }),
+        },
+      ],
+      result: read.app.manifest,
+    };
   });
 }
 
@@ -197,8 +398,7 @@ export function guidePlaceholdersLeft(
  * the directory's endpoints and conventions when it has them, and otherwise
  * the prompts the agent answers before connecting.
  *
- * It opens with no heading: the folder is the app's name, and the guide is
- * the body of the file under it.
+ * It opens with no heading: the app's name is shown above it.
  */
 export function guideSkeleton(
   manifest: AppManifest,
@@ -236,21 +436,19 @@ export function guideSkeleton(
  * Clearing the name leaves the address where it is.
  */
 export async function setAppAccount(
-  appsDir: AbsolutePath,
   slug: AppSlug,
   account: string | undefined,
 ): Promise<AppManifest> {
-  const current = (await requireApp(appsDir, slug)).manifest;
+  const current = (await requireApp(slug)).manifest;
   const rest = omit(current, ["account"]);
   if (account === undefined) {
-    return writeManifest(appsDir, slug, AppManifestSchema.parse(rest));
+    return writeManifest(slug, AppManifestSchema.parse(rest));
   }
   const accountHome =
     current.type === "web"
       ? catalogEntryForApp(slug, current)?.accountHome
       : undefined;
   return writeManifest(
-    appsDir,
     slug,
     AppManifestSchema.parse({
       ...rest,
@@ -263,228 +461,161 @@ export async function setAppAccount(
 }
 
 /**
- * Writes an app's folder: its `APP.md`, the manifest as front matter over the
- * guide. An app already here keeps the folder it is in, whatever the person
- * has renamed it to, and keeps the guide unless `replacesGuide` says the
- * service is reached another way now. A new one takes `name` as its folder,
- * numbered where another app has that name, which is what a second account
- * of one service comes to.
+ * Writes an app: its manifest over the setup it had, keeping the keys this
+ * build does not read. An app already here keeps its name, whatever the
+ * person has renamed it to, and keeps its guide unless `replacesGuide` says
+ * the service is reached another way now. A new one takes `name`, numbered
+ * where another app has that name, which is what a second account of one
+ * service comes to. Answers the name the app has.
  */
-export async function writeAppFolder({
-  appsDir,
+export async function writeApp({
   guide,
   manifest,
   name,
   replacesGuide = false,
   slug,
 }: {
-  appsDir: AbsolutePath;
   guide: string;
   manifest: AppManifest;
-  /** What the app is called, and so what its folder is called when it is new. */
+  /** What the app is called when it is new. */
   name: string;
   /** Writes the guide over one already there, for a manifest that reaches the service another way. */
   replacesGuide?: boolean;
   slug: AppSlug;
-}): Promise<AbsolutePath> {
-  const found = await findApp(appsDir, slug);
-  if (found?.kind === "invalid") {
-    // Writing a folder beside it would make two apps of one id, the new one
-    // taking the key and connection while the person's guide stays in the
-    // broken file.
-    throw new Error(
-      `${shellPath(path.join(found.dir, APP_FILE_NAME))} is already "${slug}" and cannot be read: ${found.message} Fix that file rather than writing another.`,
+}): Promise<string> {
+  return writeApps((store) => {
+    const here = appValueOf(store.get(appKey(slug)));
+    // Keys of the old setup this build reads are the new manifest's to say,
+    // so one it leaves out goes; the rest stay as they were.
+    const kept = Object.fromEntries(
+      Object.entries(here?.setup ?? {}).filter(([key]) => !isOwnSetupKey(key)),
     );
-  }
-  if (found?.kind === "unreadable") {
-    // It may be this app, so a folder beside it could be a second of one id.
-    throw new Error(
-      `${shellPath(path.join(found.dir, APP_FILE_NAME))} could not be read, and may already be "${slug}". Try again once it can be read.`,
+    const taken = [...store.entries(APP_PREFIX)].flatMap(([key, value]) =>
+      key === appKey(slug) ? [] : [appValueOf(value)?.name ?? ""],
     );
-  }
-  const here = found?.kind === "app" ? found.app : undefined;
-  const dir =
-    here?.dir ??
-    absolutePathJoin(
-      appsDir,
-      unusedAppName(name, await appFolderNames(appsDir)),
-    );
-  const kept = here === undefined || replacesGuide ? "" : here.guide;
-  writeOwnFile({
-    data: renderAppFile({
-      guide: kept || guide,
-      id: slug,
-      manifest,
-      ...(here?.others ? { others: here.others } : {}),
-    }),
-    file: path.join(dir, APP_FILE_NAME),
-    folder: appsDir,
+    const named = here?.name ?? unusedAppName(name, taken);
+    const keptGuide = here === undefined || replacesGuide ? "" : here.guide;
+    return {
+      ops: [
+        {
+          key: appKey(slug),
+          t: "set",
+          value: appValue({
+            app: {
+              guide: keptGuide || guide,
+              id: slug,
+              manifest,
+              ...(Object.keys(kept).length > 0 ? { others: kept } : {}),
+            },
+            ...(here ? { kept: here } : {}),
+            name: named,
+          }),
+        },
+      ],
+      result: named,
+    };
   });
-  return dir;
 }
 
-/** The folders in the apps folder, in name order; none where there is no such folder. */
-async function appFolderNames(appsDir: string): Promise<string[]> {
-  try {
-    return (await fs.readdir(appsDir, { withFileTypes: true }))
-      .filter((entry) => entry.isDirectory() && !entry.name.startsWith("."))
-      .map((entry) => entry.name)
-      .toSorted();
-  } catch {
-    return [];
-  }
+/** Takes the app and its icon out of the store. */
+export async function removeApp(slug: AppSlug): Promise<void> {
+  await writeApps(() => ({
+    ops: [
+      { key: appKey(slug), t: "del" },
+      { key: appIconKey(slug), t: "del" },
+    ],
+    result: undefined,
+  }));
 }
 
-/**
- * Why there is no `APP.md` to read in a folder: no such file, or a link or
- * folder at its name. Anything else (another program holding it, a file
- * iCloud has yet to bring down) leaves the file there and unread.
- */
-const NO_APP_FILE = new Set(["EISDIR", "ELOOP", "ENOENT", "ENOTDIR"]);
-
-function isNoAppFile(error: unknown): boolean {
-  return (
-    error instanceof Error &&
-    "code" in error &&
-    typeof error.code === "string" &&
-    NO_APP_FILE.has(error.code)
+/** The app's own icon, when it has one. */
+export async function readAppIcon(
+  slug: AppSlug,
+): Promise<AppIconValue | undefined> {
+  const parsed = AppIconValueSchema.safeParse(
+    (await appsStore()).get(appIconKey(slug)),
   );
+  return parsed.success ? parsed.data : undefined;
+}
+
+/** Draws the app with this icon from now on. */
+export async function writeAppIcon(
+  slug: AppSlug,
+  icon: AppIconValue,
+): Promise<void> {
+  await writeApps(() => ({
+    ops: [{ key: appIconKey(slug), t: "set", value: icon }],
+    result: undefined,
+  }));
 }
 
 /**
- * What each app's file says, kept until the file's size or modification time
- * changes: the chat list reads every app on each refresh, and the files
- * rarely change.
+ * What the store holds for an app, its icon included, as one string that
+ * changes when any of it does: what a chat's agent is told an app changed by.
  */
-const appFiles = new CachedReads(parseAppFile);
-
-/**
- * What an app's file says, read as the app itself rather than through the
- * sandbox: a program the agent runs can put a link at any name in here, and
- * nothing on the way to the file is followed (`ownFolder`). Read off the main
- * thread, waiting for a file a sync service keeps by name only, since nothing
- * else downloads it. `none` where the folder has no such file; throws for one
- * it could not read.
- */
-async function readAppFile(
-  appsDir: string,
-  folder: string,
-): Promise<AppFileRead> {
-  try {
-    return await appFiles.read(path.join(appsDir, folder, APP_FILE_NAME), {
-      ownFolder: appsDir,
-    });
-  } catch (error) {
-    if (isNoAppFile(error)) {
-      return parseAppFile("");
-    }
-    throw error;
-  }
+export async function appFingerprint(slug: AppSlug): Promise<string> {
+  const store = await appsStore();
+  return createHash("sha256")
+    .update(
+      JSON.stringify([
+        store.get(appKey(slug)) ?? null,
+        store.get(appIconKey(slug)) ?? null,
+      ]),
+    )
+    .digest("base64url");
 }
 
 /**
- * Every folder in the apps folder with what its `APP.md` says, in name order.
- * One whose file could not be read is `unreadable`: it may be any app.
+ * Hears of each change to the apps, made here or arriving from another
+ * device; answers the stop.
  */
-async function readAppFolders(appsDir: AbsolutePath): Promise<
-  {
-    folder: string;
-    read: AppFileRead | { kind: "unreadable"; message: string };
-  }[]
-> {
-  return Promise.all(
-    (await appFolderNames(appsDir)).map(async (folder) => {
-      try {
-        return { folder, read: await readAppFile(appsDir, folder) };
-      } catch (error) {
-        return {
-          folder,
-          read: {
-            kind: "unreadable" as const,
-            message: `${APP_FILE_NAME} could not be read: ${String(error)}`,
-          },
-        };
-      }
-    }),
-  );
+export async function subscribeApps(listener: () => void): Promise<() => void> {
+  return (await appsStore()).subscribe(listener);
 }
 
-function appInfoOf(
-  appsDir: AbsolutePath,
-  folder: string,
-  app: AppFile,
-): AppInfo {
+function appInfoOf(name: string, app: AppFile): AppInfo {
   return {
-    dir: absolutePathJoin(appsDir, folder),
     manifest: app.manifest,
     manifestHash: manifestHash(app.manifest),
-    name: folder,
+    name,
     slug: app.id,
   };
 }
 
-/**
- * The app as its file holds it, with the folder it is in: what a write that
- * keeps the rest of the file needs. A file that gives the id and cannot be
- * read is found too, so nothing writes a second app of that id. Nothing where
- * no folder gives that id.
- */
-async function findApp(
-  appsDir: AbsolutePath,
-  slug: AppSlug,
-): Promise<
-  | { app: AppFile & { dir: AbsolutePath }; kind: "app" }
-  | { dir: AbsolutePath; kind: "invalid" | "unreadable"; message: string }
-  | undefined
-> {
-  let broken:
-    | { dir: AbsolutePath; kind: "invalid" | "unreadable"; message: string }
-    | undefined;
-  for (const { folder, read } of await readAppFolders(appsDir)) {
-    const dir = absolutePathJoin(appsDir, folder);
-    if (read.kind === "app" && read.app.id === slug) {
-      return { app: { ...read.app, dir }, kind: "app" };
-    }
-    if (
-      read.kind === "invalid" &&
-      read.id === slug &&
-      broken?.kind !== "invalid"
-    ) {
-      broken = { dir, kind: "invalid", message: read.message };
-    }
-    if (read.kind === "unreadable") {
-      broken ??= { dir, kind: "unreadable", message: read.message };
-    }
-  }
-  return broken;
-}
-
 /** The app, or why there is none to write to. */
-async function requireApp(
-  appsDir: AbsolutePath,
-  slug: AppSlug,
-): Promise<AppFile & { dir: AbsolutePath }> {
-  const found = await findApp(appsDir, slug);
-  if (found?.kind !== "app") {
-    const loaded = await loadApp(appsDir, slug);
-    throw new Error(
-      loaded.isErr() ? loaded.error.message : `"${slug}" is not an app.`,
-    );
+async function requireApp(slug: AppSlug): Promise<AppInfo> {
+  const loaded = await loadApp(slug);
+  if (loaded.isErr()) {
+    throw new Error(loaded.error.message);
   }
-  return found.app;
+  return loaded.value;
 }
 
-/** Writes a manifest over the one in the app's file, keeping everything else in it. */
+/** Writes a manifest over the app's, keeping everything else about it. */
 async function writeManifest(
-  appsDir: AbsolutePath,
   slug: AppSlug,
   manifest: AppManifest,
 ): Promise<AppManifest> {
-  const app = await requireApp(appsDir, slug);
-  writeOwnFile({
-    data: renderAppFile({ ...app, manifest }),
-    file: path.join(app.dir, APP_FILE_NAME),
-    folder: appsDir,
+  await writeApps((store) => {
+    const value = appValueOf(store.get(appKey(slug)));
+    const read = value ? readValue(slug, value) : undefined;
+    if (!value || read?.kind !== "app") {
+      throw new Error(`"${slug}" is not an app.`);
+    }
+    return {
+      ops: [
+        {
+          key: appKey(slug),
+          t: "set",
+          value: appValue({
+            app: { ...read.app, manifest },
+            kept: value,
+            name: value.name,
+          }),
+        },
+      ],
+      result: undefined,
+    };
   });
   return manifest;
 }

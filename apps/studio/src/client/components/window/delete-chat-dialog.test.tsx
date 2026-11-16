@@ -7,7 +7,7 @@ import { type Chat } from "./chats";
 import { DeleteChatDialog } from "./delete-chat-dialog";
 
 const { trash } = vi.hoisted(() => ({
-  trash: vi.fn<(input: { id: string; itsFolder?: boolean }) => Promise<void>>(),
+  trash: vi.fn<(input: { id: string }) => Promise<void>>(),
 }));
 
 vi.mock("@/client/rpc/client", () => ({
@@ -48,11 +48,6 @@ function openDialog() {
   );
 }
 
-/** The box that takes the chat's own folder with it, by its label. */
-function folderBox() {
-  return screen.getByRole("checkbox", { name: "Delete its folder too" });
-}
-
 beforeEach(() => {
   trash.mockReset();
   trash.mockResolvedValue(undefined);
@@ -66,36 +61,13 @@ afterAll(async () => {
 });
 
 describe("deleting a chat", () => {
-  it("leaves the chat's folder alone unless the person asks for it", async () => {
+  it("moves the chat to the trash", async () => {
     openDialog();
 
-    expect(folderBox().getAttribute("aria-checked")).toBe("false");
     fireEvent.click(screen.getByRole("button", { name: "Move to Trash" }));
 
     await waitFor(() => {
-      expect(trash).toHaveBeenCalledWith({ id: CHAT.id, itsFolder: false });
+      expect(trash).toHaveBeenCalledWith({ id: CHAT.id });
     });
-  });
-
-  it("takes the folder too once the box is ticked", async () => {
-    openDialog();
-
-    fireEvent.click(folderBox());
-    expect(folderBox().getAttribute("aria-checked")).toBe("true");
-    fireEvent.click(screen.getByRole("button", { name: "Move to Trash" }));
-
-    await waitFor(() => {
-      expect(trash).toHaveBeenCalledWith({ id: CHAT.id, itsFolder: true });
-    });
-  });
-
-  it("says what is in the folder, so the box is a choice and not a guess", () => {
-    openDialog();
-
-    expect(
-      screen.getByText(
-        "The transcript and anything the agent made for you are in there.",
-      ),
-    ).toBeTruthy();
   });
 });

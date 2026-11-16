@@ -16,7 +16,7 @@ import { type Environment } from "../../schemas/environment";
 
 /** The folders list's opening line, when the conversation reaches any. */
 export const FOLDERS_INTRO =
-  "These are the user's folders this conversation reaches: their home folder, the Instrument folder this conversation's own folder is in, and any folder they sent, allowed, or filed the conversation's project with:";
+  "These are the user's folders this conversation reaches: their home folder, their Instrument folder, and any folder they sent, allowed, or filed the conversation's project with:";
 
 /** What the context message says in place of the folders list, when there is none. */
 export const NO_FOLDERS_TEXT = `You reach none of the user's folders yet. Reaching for one shows the person a card; folders allowed later are announced on the message they arrive with.`;

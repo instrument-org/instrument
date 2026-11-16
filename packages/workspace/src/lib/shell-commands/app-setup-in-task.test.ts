@@ -4,13 +4,14 @@ import {
   encodeUtf8ToBytes,
   InMemoryFs,
 } from "just-bash";
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { ChatIdSchema } from "../../schemas/chat-id";
 import { StoreId } from "../../schemas/store-id";
 import { knowChat } from "../../test/helpers/mock-chat-config";
+import { createMemoryAppsConfig } from "../apps/memory-config";
 import { readAppGuide, loadApp } from "../apps/store";
-import { getWorkspaceConfig } from "../workspace-config";
+import { getWorkspaceConfig, setWorkspaceConfig } from "../workspace-config";
 import { createAppCommand } from "./app";
 import {
   APP_SETUP_IS_THE_CHATS,
@@ -94,17 +95,15 @@ describe("app setup from a task", () => {
     ["disconnect", ["disconnect", "task-force"]],
   ])("refuses %s, saying how to hand it to the chat", async (_word, args) => {
     await chatSetsUp("task-force");
-    const before = await loadApp(getWorkspaceConfig().appsDir, "task-force");
+    const before = await loadApp("task-force");
     const result = await app("task", args, {
       files: { "icon.svg": '<svg viewBox="0 0 16 16"></svg>' },
     });
     expect(result.exitCode).toBe(1);
     expect(result.stderr).toBe(`instrument app: ${APP_SETUP_IS_THE_CHATS}\n`);
-    expect(
-      (
-        await loadApp(getWorkspaceConfig().appsDir, "task-force")
-      )._unsafeUnwrap().manifestHash,
-    ).toBe(before._unsafeUnwrap().manifestHash);
+    expect((await loadApp("task-force"))._unsafeUnwrap().manifestHash).toBe(
+      before._unsafeUnwrap().manifestHash,
+    );
   });
 
   it("says what to do in words a task can act on", () => {
@@ -115,10 +114,8 @@ describe("app setup from a task", () => {
 
   it("reads a guide and refuses to write one", async () => {
     await chatSetsUp("task-guide");
-    const { dir } = (
-      await loadApp(getWorkspaceConfig().appsDir, "task-guide")
-    )._unsafeUnwrap();
-    const guide = await readAppGuide(dir);
+    const { slug } = (await loadApp("task-guide"))._unsafeUnwrap();
+    const guide = await readAppGuide(slug);
 
     const read = await app("task", ["guide", "task-guide"]);
     expect(read.exitCode).toBe(0);
@@ -129,7 +126,7 @@ describe("app setup from a task", () => {
     });
     expect(written.exitCode).toBe(1);
     expect(written.stderr).toBe(`instrument app: ${APP_SETUP_IS_THE_CHATS}\n`);
-    expect(await readAppGuide(dir)).toBe(guide);
+    expect(await readAppGuide(slug)).toBe(guide);
   });
 
   it("reads the account an app names and refuses to name one", async () => {
@@ -187,5 +184,46 @@ describe("app setup from a task", () => {
       "/me",
     ]);
     expect(chat.stderr).toContain("instrument app test");
+  });
+});
+
+// A key is approved for an origin, so a setup that keeps sending requests
+// there keeps it, and one pointed at another server clears it.
+describe("app setup from the chat", () => {
+  const originalApps = getWorkspaceConfig().apps;
+  afterEach(() => {
+    setWorkspaceConfig({ ...getWorkspaceConfig(), apps: originalApps });
+  });
+
+  it.each([
+    [
+      "keeps the key for a new base path on its server",
+      "path-move",
+      "https://api.example.com/v2",
+      true,
+    ],
+    [
+      "clears the key for another server",
+      "host-move",
+      "https://collector.example",
+      false,
+    ],
+  ])("%s", async (_, slug, url, kept) => {
+    const apps = createMemoryAppsConfig({
+      credentials: {
+        [slug]: { origin: "https://api.example.com", value: "k3y" },
+      },
+    });
+    setWorkspaceConfig({ ...getWorkspaceConfig(), apps });
+    await chatSetsUp(slug);
+    const printed = await app("chat", ["setup", slug]);
+    expect(printed.exitCode).toBe(0);
+
+    const written = await app("chat", ["setup", slug], {
+      stdin: printed.stdout.replace("https://api.example.com", url),
+    });
+
+    expect(written.stderr).toBe("");
+    expect((await apps.getCredential(slug)) !== null).toBe(kept);
   });
 });

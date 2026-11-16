@@ -6,7 +6,6 @@ import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { AbsolutePathSchema, WorkspaceDirSchema } from "../schemas/paths";
 import { chatFor } from "../test/helpers/chat-record";
 import { chatTaskFor, writtenIn } from "../test/helpers/chat-task";
-import { recordChatFolderName } from "./chat-folders/own-folder";
 import { grantFolder } from "./chat/grants";
 import { ChatReads } from "./chat-reads";
 import { setDenied } from "./permissions/denials";
@@ -123,51 +122,6 @@ describe("trashChat", () => {
 
     const { chats } = await readPermissionSettings();
     expect(Object.keys(chats)).toEqual([otherChat]);
-  });
-
-  it("leaves the chat's own folder alone unless the person asked for it", async () => {
-    const chat = await chatFor();
-    const own = path.join(rootDir, "Chats", "A chat");
-    await fs.mkdir(own, { recursive: true });
-    await recordChatFolderName(
-      getWorkspaceConfig().workspaceMachineDir,
-      chat,
-      "A chat",
-    );
-
-    await trashChat({
-      id: chat,
-      workspaceConfig: getWorkspaceConfig(),
-      workspaceRef,
-    });
-
-    // Their transcript and whatever the agent finished are theirs to keep.
-    expect(trashed).toEqual([path.join("chats", chat)]);
-    await expect(fs.access(own)).resolves.toBeUndefined();
-  });
-
-  it("takes the chat's own folder when the person asked for it", async () => {
-    const chat = await chatFor();
-    const own = path.join(rootDir, "Chats", "A chat");
-    await fs.mkdir(own, { recursive: true });
-    await recordChatFolderName(
-      getWorkspaceConfig().workspaceMachineDir,
-      chat,
-      "A chat",
-    );
-
-    await trashChat({
-      id: chat,
-      itsFolder: true,
-      workspaceConfig: getWorkspaceConfig(),
-      workspaceRef,
-    });
-
-    // Last, so a failure there leaves files rather than losing them.
-    expect(trashed).toEqual([
-      path.join("chats", chat),
-      path.join("Chats", "A chat"),
-    ]);
   });
 
   it("trashes the chat's work folder too, without the packages it can rebuild", async () => {

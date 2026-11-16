@@ -30,7 +30,7 @@ function getStore() {
 }
 
 /**
- * Opens the drafts in the workspace's `Drafts/` and watches them, once the
+ * Opens the drafts in the workspace's `.instrument/drafts/` and watches them, once the
  * workspace has a folder: at launch, or once setup's first step places it.
  */
 export function openDrafts() {

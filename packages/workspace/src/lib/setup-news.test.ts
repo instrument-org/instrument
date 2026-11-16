@@ -4,7 +4,6 @@ import path from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
 import {
-  APPS_FOLDER_NAME,
   MEMORY_FOLDER_NAME,
   SKILLS_FOLDER_NAME,
   PROJECT_FILE_NAME,
@@ -16,7 +15,6 @@ import { chatFor } from "../test/helpers/chat-record";
 import { removeChatsDir } from "../test/helpers/remove-chats-dir";
 import { writeBaseline, writeMessage } from "../test/helpers/told-history";
 import { withTestRecords } from "../test/helpers/with-test-records";
-import { APP_FILE_NAME } from "./apps/app-file";
 import { createSession } from "./create-session";
 import { forgetChatFolders } from "./record-folders";
 import {
@@ -70,7 +68,6 @@ describe("setupTouchesBetween", () => {
     await fs.rm(path.join(rootDir, SKILLS_FOLDER_NAME, "stale"), {
       recursive: true,
     });
-    await write(path.join(APPS_FOLDER_NAME, "Linear", APP_FILE_NAME));
     await write(path.join(MEMORY_FOLDER_NAME, "mornings.md"), "Later.\n");
     // A folder with no SKILL.md is not a skill, so writing in one is no news.
     await write(skill("loose", "notes.md"));
@@ -80,7 +77,6 @@ describe("setupTouchesBetween", () => {
         a.name.localeCompare(b.name),
       ),
     ).toEqual([
-      { existedBefore: false, kind: "app", name: "Linear" },
       { existedBefore: true, kind: "memory", name: "mornings" },
       { existedBefore: true, kind: "skill", name: "stale" },
       { existedBefore: true, kind: "skill", name: "tidy" },
@@ -138,11 +134,9 @@ describe("createSetupNewsPart", () => {
     await fs.rm(path.join(rootDir, SKILLS_FOLDER_NAME, "stale"), {
       recursive: true,
     });
-    await write(path.join(APPS_FOLDER_NAME, "Linear", APP_FILE_NAME));
     // Memories have news of their own.
     await write(path.join(MEMORY_FOLDER_NAME, "mornings.md"));
 
-    // Apps and memories have news of their own.
     await expect(next()).resolves.toEqual({
       changes: [{ change: "changed", kind: "skill", name: "tidy" }],
     });

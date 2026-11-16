@@ -5,7 +5,11 @@ import path from "node:path";
 import { afterEach, beforeEach, expect, it, vi } from "vitest";
 
 import { readPermissionSettings } from "../../lib/permissions/rules";
-import { PROJECT_FILE_NAME, projectsDir } from "../../lib/chat/projects";
+import {
+  PROJECT_FILE_NAME,
+  PROJECT_ID_FILE_NAME,
+  projectsDir,
+} from "../../lib/chat/projects";
 import {
   getWorkspaceConfig,
   setWorkspaceConfig,
@@ -132,7 +136,12 @@ it("keeps a folder of the person's that stood where a failed project was made", 
     ),
   ).rejects.toThrow();
 
-  expect(fs.readdirSync(theirs)).toEqual(["seeds.txt"]);
+  // Every folder in Projects/ is a project, this one before the create too,
+  // so it keeps its id file beside what the person put there.
+  expect(fs.readdirSync(theirs).toSorted()).toEqual([
+    PROJECT_ID_FILE_NAME,
+    "seeds.txt",
+  ]);
 });
 
 it("puts a retired project back as it was when its folders cannot be granted", async () => {

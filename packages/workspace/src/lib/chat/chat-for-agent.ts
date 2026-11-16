@@ -3,7 +3,6 @@ import path from "node:path";
 import { APP_NAME } from "@instrument-org/shared";
 
 import {
-  CHAT_FILE_NAME,
   MEMORY_FOLDER_NAME,
   PROJECT_FILE_NAME,
   PROJECTS_FOLDER_NAME,
@@ -13,16 +12,14 @@ import { type ChatId } from "../../schemas/chat-id";
 import { chatTitle } from "../chat-info";
 import { ChatReads } from "../chat-reads";
 import { pathIsWithin } from "../path-is-within";
-import { chatDir, chatOwnFolder, sessionOfChat } from "../record-folders";
+import { chatDir, sessionOfChat } from "../record-folders";
 import { workDir } from "../work-dir";
 import { getWorkspaceConfig } from "../workspace-config";
-import { chatFolderTheyOpen, outputFolderPath } from "./output-folder";
+import { outputFolderPath } from "./output-folder";
 import { listProjects } from "./projects";
 
 /** Where one chat's things are on this computer, for telling another agent or a developer about it. */
 export interface ChatPlaces {
-  /** The chat's own folder under `Chats/`, when it is one the person opens. */
-  chatFolder?: string;
   id: ChatId;
   /** The person's Instrument folder, when the workspace is one they picked. */
   instrumentFolder?: string;
@@ -44,7 +41,6 @@ export async function chatPlaces(id: ChatId): Promise<ChatPlaces> {
     : undefined;
   const name = await projectName(id);
   return {
-    chatFolder: chatFolderTheyOpen(chatOwnFolder(records)),
     id,
     instrumentFolder,
     project:
@@ -93,15 +89,12 @@ export function chatForAgentText(places: ChatPlaces): string {
       .filter(Boolean)
       .join("\n"),
   ];
-  if (places.chatFolder) {
-    blocks.push(
-      [
-        `Its folder: ${folder(places.chatFolder)}`,
-        `  ${CHAT_FILE_NAME} there is the whole conversation in Markdown. Read it first. ${APP_NAME} rewrites it as the chat goes on, so changes to it won't last.`,
-        "  Everything else there is what the chat made.",
-      ].join("\n"),
-    );
-  }
+  blocks.push(
+    [
+      `Its records: ${folder(places.recordsFolder)}`,
+      "  The whole conversation, as one JSON Lines log per thread per computer, and what the person sent it in attachments/. Read the logs first, and don't change anything there.",
+    ].join("\n"),
+  );
   if (places.project?.folder) {
     blocks.push(
       [
@@ -118,7 +111,7 @@ export function chatForAgentText(places: ChatPlaces): string {
   );
   if (places.instrumentFolder) {
     blocks.push(
-      `The person's ${APP_NAME} folder is ${folder(places.instrumentFolder)}. ${MEMORY_FOLDER_NAME}/ there has one Markdown file per thing ${APP_NAME} remembers about them, and ${SKILLS_FOLDER_NAME}/ has the skills its agent uses. Leave .instrument/ alone, since it has the app's own records.`,
+      `The person's ${APP_NAME} folder is ${folder(places.instrumentFolder)}. Files/ there has what ${APP_NAME} made for them, a folder per piece of work. ${MEMORY_FOLDER_NAME}/ there has one Markdown file per thing ${APP_NAME} remembers about them, and ${SKILLS_FOLDER_NAME}/ has the skills its agent uses. Leave the rest of .instrument/ alone, since it has the app's own records.`,
     );
   }
   return blocks.join("\n\n");
@@ -137,7 +130,6 @@ export function chatDeveloperDetailsText(
   return [
     `Chat: ${places.title}`,
     `Chat ID: ${places.id}`,
-    places.chatFolder && `Chat folder: ${folder(places.chatFolder)}`,
     `Work folder: ${folder(places.workFolder)}`,
     `Records folder: ${folder(places.recordsFolder)}`,
     "  One log per thread per computer, settings, and attachments.",

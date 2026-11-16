@@ -16,7 +16,7 @@ import { beginMcpOAuth } from "./mcp/oauth-flow";
 import { withAppMcpClient } from "./mcp/run";
 import { type McpOAuthStore } from "./mcp/oauth-provider";
 import { type OriginBound } from "./origin-bound";
-import { loadApp, writeAppFolder } from "./store";
+import { loadApp, writeApp } from "./store";
 import { runAppTest } from "./test-app";
 
 // Every server here is on loopback, which the request guard answers without a
@@ -161,9 +161,8 @@ function useApps(apps: WorkspaceAppsConfig) {
   setWorkspaceConfig({ ...getWorkspaceConfig(), apps });
 }
 
-async function writeApp(slug: string, name: string, manifest: AppManifest) {
-  await writeAppFolder({
-    appsDir: getWorkspaceConfig().appsDir,
+async function putApp(slug: string, name: string, manifest: AppManifest) {
+  await writeApp({
     guide: "GET /me answers who the key belongs to.\n",
     manifest,
     name,
@@ -173,7 +172,6 @@ async function writeApp(slug: string, name: string, manifest: AppManifest) {
 
 function testApp(slug: string) {
   return runAppTest({
-    appsDir: getWorkspaceConfig().appsDir,
     signal: AbortSignal.timeout(10_000),
     slug,
   });
@@ -202,7 +200,7 @@ describe("an API app's key", () => {
   });
 
   it("is sent to the origin it was saved for", async () => {
-    await writeApp(slug, "Keyed", manifestAt(approved.origin));
+    await putApp(slug, "Keyed", manifestAt(approved.origin));
 
     const report = await testApp(slug);
 
@@ -211,7 +209,7 @@ describe("an API app's key", () => {
   });
 
   it("is not sent once the manifest points at another origin", async () => {
-    await writeApp(slug, "Keyed", manifestAt(elsewhere.origin));
+    await putApp(slug, "Keyed", manifestAt(elsewhere.origin));
 
     const report = await testApp(slug);
 
@@ -262,11 +260,10 @@ describe("an MCP app's sign-in", () => {
   });
 
   it("connects to the server it was obtained from", async () => {
-    await writeApp(slug, "Signed in", manifestAt(approved.origin));
+    await putApp(slug, "Signed in", manifestAt(approved.origin));
 
     const report = await testApp(slug);
     const begun = await beginMcpOAuth({
-      appsDir: getWorkspaceConfig().appsDir,
       redirectUrl: "http://127.0.0.1:1/auth/callback/app",
       relayRedirectUrl: (service) =>
         `https://api.example/oauth/${service}/callback`,
@@ -281,11 +278,10 @@ describe("an MCP app's sign-in", () => {
   });
 
   it("is not sent once the manifest points at another server", async () => {
-    await writeApp(slug, "Signed in", manifestAt(elsewhere.origin));
+    await putApp(slug, "Signed in", manifestAt(elsewhere.origin));
 
     const report = await testApp(slug);
     const begun = await beginMcpOAuth({
-      appsDir: getWorkspaceConfig().appsDir,
       redirectUrl: "http://127.0.0.1:1/auth/callback/app",
       relayRedirectUrl: (service) =>
         `https://api.example/oauth/${service}/callback`,
@@ -324,7 +320,7 @@ describe("a local MCP server that fails to start", () => {
         },
       }),
     );
-    await writeApp(slug, "Local", manifest);
+    await putApp(slug, "Local", manifest);
     vi.mocked(withAppMcpClient).mockResolvedValueOnce(
       err({
         message: `MCP server closed the connection. stderr: invalid token ${KEY}`,
@@ -355,7 +351,7 @@ describe("a web app", () => {
   });
 
   it("fails until the user says they are signed in, and says how to ask", async () => {
-    await writeApp(slug, "Google Drive", manifest);
+    await putApp(slug, "Google Drive", manifest);
 
     const report = await testApp(slug);
 
@@ -373,10 +369,8 @@ describe("a web app", () => {
 
   it("passes once the sign-in is recorded, saying it cannot check the session and how to work the site", async () => {
     const { apps } = getWorkspaceConfig();
-    await writeApp(slug, "Google Drive", manifest);
-    const { manifestHash } = (
-      await loadApp(getWorkspaceConfig().appsDir, slug)
-    )._unsafeUnwrap();
+    await putApp(slug, "Google Drive", manifest);
+    const { manifestHash } = (await loadApp(slug))._unsafeUnwrap();
     await apps.connections.set(slug, {
       connectedAt: 1,
       manifestHash,
@@ -403,7 +397,7 @@ describe("a web app", () => {
 
   it("asks again once the manifest moves to another site", async () => {
     const { apps } = getWorkspaceConfig();
-    await writeApp(slug, "Google Drive", manifest);
+    await putApp(slug, "Google Drive", manifest);
     await apps.connections.set(slug, {
       manifestHash: "an-older-manifest",
       status: "connected",

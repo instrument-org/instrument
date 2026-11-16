@@ -148,7 +148,6 @@ function homeShaped(appFiles: string, workspaceIn?: string) {
     `${workspace}/.instrument/preferences.json`,
     `${data.skillsDir}/mine/SKILL.md`,
     `${workspace}/Skills/mine/SKILL.md`,
-    `${data.appsDir}/Linear/APP.md`,
     `${workspace}/.instrument/apps/linear/app.json`,
     `${workspaceMachine}/keys/x`,
     `${workspaceMachine}/browser/Cookies`,
@@ -193,7 +192,6 @@ type Paths = ReturnType<typeof homeShaped>;
 function useApp(paths: Paths) {
   setWorkspaceConfig({
     ...previous,
-    appsDir: AbsolutePathSchema.parse(paths.data.appsDir),
     chatsDir: AbsolutePathSchema.parse(paths.data.chatsDir),
     userDataDir: AbsolutePathSchema.parse(paths.userData),
     // A folder the person picked is where their finished work goes too,
@@ -219,13 +217,13 @@ function useApp(paths: Paths) {
 function layoutUnder(
   paths: Paths,
   {
-    apps = true,
+    keepsMemory = true,
     grants = [],
     opened = [],
     dangerouslyAllowEveryFolder = false,
   }: {
-    /** Whether the apps folder is the session's to write, as the chat's is. */
-    apps?: boolean;
+    /** Whether the memories are the session's to write, as the chat's are. */
+    keepsMemory?: boolean;
     /** Folders the chat was allowed by a card. */
     grants?: string[];
     /** Folders Settings › Permissions allows. */
@@ -254,7 +252,7 @@ function layoutUnder(
     asker: { chatId: ChatIdSchema.parse("2026-10-13-chat"), sessionId },
   };
   return buildWorkspaceFsLayout({
-    apps,
+    keepsMemory,
     chatHostRoot: WorkDirSchema.parse(paths.work),
     folders: {
       [paths.home]: {
@@ -402,12 +400,6 @@ function reachTable(p: Paths) {
       "never",
     ],
     [
-      "the workspace's apps",
-      "write",
-      `${p.data.appsDir}/Linear/APP.md`,
-      "allow",
-    ],
-    [
       "where an older build hid the apps",
       "write",
       `${p.workspace}/.instrument/apps/linear/app.json`,
@@ -530,11 +522,6 @@ describe.each(SHAPES)("the app's data $name", (shape) => {
 
   describe.each(personRules(paths))("under $name", (person) => {
     const layout = layoutUnder(paths, person);
-    // The same rules for a task, which leaves the apps to the chat; built
-    // once, on first use.
-    let taskLayout: ReturnType<typeof layoutUnder> | undefined;
-    const taskUnder = () =>
-      (taskLayout ??= layoutUnder(paths, { ...person, apps: false }));
 
     it("reaches each place in and around it as the table says", () => {
       const table = reachTable(paths);
@@ -577,29 +564,6 @@ describe.each(SHAPES)("the app's data $name", (shape) => {
       },
     );
 
-    // Every chat uses the apps, so a task reads them and changes none, whatever
-    // folder of the person's holds them.
-    it("leaves the apps to the chat to change", () => {
-      const app = path.join(getWorkspaceConfig().appsDir, "Linear", "APP.md");
-      expect(reachOf(taskUnder().rules, app, "read").level).toBe("allow");
-      expect(reachOf(taskUnder().rules, app, "write").level).not.toBe("allow");
-      expect(reachOf(layout.rules, app, "write").level).toBe("allow");
-    });
-
-    // A grant deeper than the apps folder would otherwise win there.
-    it("keeps a grant to an app's own folder from opening it to a task", () => {
-      const folder = path.join(getWorkspaceConfig().appsDir, "Linear");
-      const app = path.join(folder, "APP.md");
-      const task = layoutUnder(paths, {
-        ...person,
-        apps: false,
-        grants: [folder],
-        opened: [folder],
-      });
-      expect(reachOf(task.rules, app, "read").level).toBe("allow");
-      expect(reachOf(task.rules, app, "write").level).not.toBe("allow");
-    });
-
     // What every chat remembers is the chat's to keep, so a task reads the
     // memories and changes none, granted their folder or not.
     it.runIf(shape.workspace !== undefined).each([false, true])(
@@ -610,7 +574,7 @@ describe.each(SHAPES)("the app's data $name", (shape) => {
         const grants = granted ? [folder] : [];
         const task = layoutUnder(paths, {
           ...person,
-          apps: false,
+          keepsMemory: false,
           grants,
           opened: grants,
         });
@@ -633,7 +597,7 @@ describe.each(SHAPES)("the app's data $name", (shape) => {
           1,
         ],
       ])("a task's native command %s", async (_name, script, exitCode) => {
-      const task = layoutUnder(paths, { ...person, apps: false });
+      const task = layoutUnder(paths, { ...person, keepsMemory: false });
       const spawned = wrapNativeCommand(
         "/bin/sh",
         ["-c", script],
@@ -667,6 +631,7 @@ describe.each(SHAPES)("the app's data $name", (shape) => {
         `${other}/attachments (read)`,
         `${other}/attachments/a.pdf (read)`,
         `${other}/chat.db (read)`,
+        ".instrument/drafts (read)",
       ]);
     });
 
@@ -696,7 +661,7 @@ describe.each(SHAPES)("the app's data $name", (shape) => {
   describe("what the rules still open inside the app's own data", () => {
     const layout = layoutUnder(paths, {});
 
-    it("is every chat's records to read, and the chat's own two things", () => {
+    it("is every chat's records and the drafts to read, and the chat's own two things", () => {
       const dataDir = workspaceLayout(paths.workspace).dataDir;
       const open = layout.rules.rules
         .filter(
@@ -724,6 +689,10 @@ describe.each(SHAPES)("the app's data $name", (shape) => {
           "2026-10-13-chat",
           "handoff-notes.md",
         ) + " (allow)",
+        // The person's drafts, read when they ask about the message in
+        // their box, and never written, since a draft can ask a computer to
+        // send it.
+        path.join(".instrument", "drafts") + " (readOnly)",
       ]);
     });
   });
@@ -748,7 +717,7 @@ describe.each(SHAPES)("the app's data $name", (shape) => {
           (error: unknown) => files.failure(error, resolved),
         );
         expect(typeof read !== "string" && read.error.message).toBe(
-          `${JSON.stringify(shellPath(target))} is Instrument's own data, which no command reads or changes; don't look for another way in. Your work folder ($INSTRUMENT_WORK) and this conversation's own folder ($INSTRUMENT_OUTPUT) stay open to you, and a file the person sent is read where they keep it.`,
+          `${JSON.stringify(shellPath(target))} is Instrument's own data, which no command reads or changes; don't look for another way in. Your work folder ($INSTRUMENT_WORK) and their Files folder ($INSTRUMENT_FILES) stay open to you, and a file the person sent is read where they keep it.`,
         );
       },
     );
@@ -1263,7 +1232,7 @@ describe.each(SHAPES)("the app's data $name", (shape) => {
       };
       const people = [{}, { grants: [fresh.appFiles] }];
       // A first run makes the folders the app keeps read-only inside a
-      // writable one (Drafts/), which every later run then binds.
+      // closed one (the drafts folder), which every later run then binds.
       people.map(argsFor);
       const two = people.map(argsFor);
       for (let i = 0; i < 198; i++) {

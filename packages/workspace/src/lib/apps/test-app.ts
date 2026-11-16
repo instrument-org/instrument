@@ -1,17 +1,14 @@
 import { TOOL_NAMES } from "../../tools/name";
 import { APP_NAME } from "@instrument-org/shared";
 
-import { type AbsolutePath } from "../../schemas/paths";
 import { APP_COMMAND } from "../../model-text/commands/app-command";
 import { getWorkspaceConfig } from "../workspace-config";
-import { shellPath } from "../workspace-fs-layout";
 import { isConnected, readConnection, recordConnection } from "./connection";
 import {
   credentialMovedMessage,
   lookupAppCredential,
   redactorFor,
 } from "./credential-origin";
-import { APP_FILE_NAME } from "./app-file";
 import {
   APP_MANIFEST_EXAMPLE,
   isMcpManifest,
@@ -25,12 +22,13 @@ import { performSignedInRequest, SignInNeededError } from "./api-oauth";
 import { webInsteadUrl } from "./site";
 import { webInsteadCommand } from "./web-instead";
 import { performAppRequest, redactCredential } from "./request";
-import { scanAppFolder } from "./secret-scan";
+import { scanAppRecord } from "./secret-scan";
 import {
   type AppInfo,
   guidePlaceholdersLeft,
   loadApp,
   readAppGuide,
+  readAppSetup,
 } from "./store";
 
 export interface AppTestReport {
@@ -65,24 +63,22 @@ export function formatAppTestReport(report: AppTestReport): string {
 }
 
 /**
- * The red/green loop for an app folder: validate the manifest, require a
- * guide, confirm a credential is present when the auth mode needs one, scan
- * the folder for leaked secrets, and reach the service for real (an MCP app
+ * The red/green loop for an app: validate the manifest, require a guide,
+ * confirm a credential is present when the auth mode needs one, scan the
+ * setup and guide for leaked secrets, and reach the service for real (an MCP app
  * connects and lists its tools; an API app hits its canary path). A pass
  * records the connection, pinned to this manifest; a failure records why, so
  * the card and the page can say.
  *
  * The only way an app becomes connected apart from finishing a sign-in (for
  * a web app, the user saying on the card that they are signed in), and it
- * runs outside every mount, so the agent iterates on the folder and this
+ * runs outside every mount, so the agent iterates on the app and this
  * decides.
  */
 export async function runAppTest({
-  appsDir,
   signal,
   slug,
 }: {
-  appsDir: AbsolutePath;
   signal: AbortSignal;
   slug: string;
 }): Promise<AppTestReport> {
@@ -99,7 +95,7 @@ export async function runAppTest({
     return report();
   };
 
-  const loaded = await loadApp(appsDir, slug);
+  const loaded = await loadApp(slug);
   if (loaded.isErr()) {
     checks.push({
       name: "manifest",
@@ -114,7 +110,7 @@ export async function runAppTest({
   }
   const app = loaded.value;
   checks.push({
-    detail: `${APP_FILE_NAME} parses: a ${app.manifest.type} app named "${app.name}".`,
+    detail: `The setup parses: a ${app.manifest.type} app named "${app.name}".`,
     name: "manifest",
     status: "pass",
   });
@@ -125,7 +121,7 @@ export async function runAppTest({
     );
   }
 
-  const guide = await readAppGuide(app.dir);
+  const guide = await readAppGuide(app.slug);
   // A guide still carrying the skeleton's prompts is worse than none: it
   // passes as "present", and then the first request in a task is answered with
   // the blank form instead of the endpoint it asked about. The prompts left in
@@ -134,21 +130,21 @@ export async function runAppTest({
   // themselves.
   const unanswered =
     guide === null ? [] : guidePlaceholdersLeft(app.manifest, guide);
-  const write = `Write it with \`${APP_COMMAND.name} guide ${slug} <<'EOF'\`, the whole file on stdin.`;
+  const write = `Write it with \`${APP_COMMAND.name} guide ${slug} <<'EOF'\`, the whole guide on stdin.`;
   checks.push(
     app.manifest.type === "api"
       ? guide === null
         ? {
             name: "guide",
             ...failure(
-              `The guide is missing: there is nothing under the front matter in ${APP_FILE_NAME}. An API app needs one before connecting: what the service is for, the endpoints a request needs, and its conventions. ${write}`,
+              `The guide is missing. An API app needs one before connecting: what the service is for, the endpoints a request needs, and its conventions. ${write}`,
             ),
           }
         : unanswered.length > 0
           ? {
               name: "guide",
               ...failure(
-                `The guide in ${shellPath(app.dir)}/${APP_FILE_NAME} still has prompts \`${APP_COMMAND.name} new\` left: ${unanswered.length} unanswered. Answer them from what you know about the service before connecting, since the guide is what the first request in a task is handed instead of its answer. ${write} Still there: ${unanswered.map((prompt) => `"${prompt}"`).join(" ")}`,
+                `The guide still has prompts \`${APP_COMMAND.name} new\` left: ${unanswered.length} unanswered. Answer them from what you know about the service before connecting, since the guide is what the first request in a task is handed instead of its answer. ${write} Still there: ${unanswered.map((prompt) => `"${prompt}"`).join(" ")}`,
               ),
             }
           : {
@@ -251,7 +247,11 @@ export async function runAppTest({
   // service's answer can repeat the key it was handed.
   const redact = await redactorFor(slug, app.manifest, credential);
 
-  const findings = await scanAppFolder({ credential, dir: app.dir });
+  const findings = scanAppRecord({
+    credential,
+    guide: guide ?? "",
+    setup: (await readAppSetup(app.slug)) ?? {},
+  });
   checks.push(
     findings.length > 0
       ? {
@@ -263,7 +263,7 @@ export async function runAppTest({
           ),
         }
       : {
-          detail: "No secret-shaped strings in the app's files.",
+          detail: "No secret-shaped strings in the app's setup or guide.",
           name: "secret-scan",
           status: "pass",
         },
@@ -460,7 +460,7 @@ async function testWebApp({
   checks: AppTestCheck[];
 }): Promise<AppTestReport> {
   const { manifest, manifestHash, name, slug } = app;
-  const guide = await readAppGuide(app.dir);
+  const guide = await readAppGuide(app.slug);
   checks.push({
     detail:
       guide === null
@@ -487,7 +487,11 @@ async function testWebApp({
           ),
         },
   );
-  const findings = await scanAppFolder({ credential: null, dir: app.dir });
+  const findings = scanAppRecord({
+    credential: null,
+    guide: guide ?? "",
+    setup: (await readAppSetup(app.slug)) ?? {},
+  });
   checks.push(
     findings.length > 0
       ? {
@@ -499,7 +503,7 @@ async function testWebApp({
           ),
         }
       : {
-          detail: "No secret-shaped strings in the app's files.",
+          detail: "No secret-shaped strings in the app's setup or guide.",
           name: "secret-scan",
           status: "pass",
         },

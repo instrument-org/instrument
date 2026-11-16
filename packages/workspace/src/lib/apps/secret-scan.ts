@@ -1,67 +1,32 @@
 import { findSecrets } from "@instrument-org/shared/secrets";
-import fs from "node:fs/promises";
-import path from "node:path";
-
-import { type AbsolutePath } from "../../schemas/paths";
-
-// Only text-ish app files are scanned; anything larger than this is
-// almost certainly not a hand-written config/guide and gets flagged instead.
-const MAX_SCAN_BYTES = 512 * 1024;
+import { stringify as stringifyYaml } from "yaml";
 
 interface SecretFinding {
   detail: string;
-  file: string;
+  /** Which part of the app holds it: its setup or its guide. */
+  file: "guide" | "setup";
 }
 
 /**
- * Scan every file in a app folder for secret-shaped strings and for the
- * app's actual stored credential. App folders must never contain
- * secrets -- credentials live only in the app's encrypted store.
+ * Scan an app's setup and guide for secret-shaped strings and for the app's
+ * actual stored credential. Neither may ever hold a secret: credentials live
+ * only in the app's encrypted store, and every later chat reads the guide.
  */
-export async function scanAppFolder({
+export function scanAppRecord({
   credential,
-  dir,
+  guide,
+  setup,
 }: {
   credential: null | string;
-  dir: AbsolutePath;
-}): Promise<SecretFinding[]> {
+  guide: string;
+  setup: Record<string, unknown>;
+}): SecretFinding[] {
   const findings: SecretFinding[] = [];
-
-  let entries;
-  try {
-    entries = await fs.readdir(dir, { recursive: true, withFileTypes: true });
-  } catch {
-    return findings;
-  }
-
-  for (const entry of entries) {
-    if (!entry.isFile()) {
-      continue;
-    }
-    const filePath = path.join(entry.parentPath, entry.name);
-    const relative = path.relative(dir, filePath);
-
-    let stat;
-    try {
-      stat = await fs.stat(filePath);
-    } catch {
-      continue;
-    }
-    if (stat.size > MAX_SCAN_BYTES) {
-      findings.push({
-        detail: `File is unexpectedly large (${stat.size} bytes) and was not scanned; app folders should only hold small config and docs.`,
-        file: relative,
-      });
-      continue;
-    }
-
-    let text: string;
-    try {
-      text = await fs.readFile(filePath, "utf8");
-    } catch {
-      continue;
-    }
-
+  const parts = [
+    ["setup", stringifyYaml(setup, { lineWidth: 0 })],
+    ["guide", guide],
+  ] as const;
+  for (const [file, text] of parts) {
     if (
       credential !== null &&
       credential.length > 0 &&
@@ -69,22 +34,16 @@ export async function scanAppFolder({
     ) {
       findings.push({
         detail:
-          "Contains the app's stored credential verbatim. Remove it -- credentials are injected at request time and must never be written to app files.",
-        file: relative,
+          "Contains the app's stored credential verbatim. Remove it -- credentials are injected at request time and must never be written into an app.",
+        file,
       });
     }
-
-    for (const name of scanTextForSecrets(text)) {
+    for (const name of new Set(findSecrets(text).map(({ label }) => label))) {
       findings.push({
-        detail: `Contains a string that looks like a secret (${name}). App files must not contain secrets.`,
-        file: relative,
+        detail: `Contains a string that looks like a secret (${name}). An app's setup and guide must not contain secrets.`,
+        file,
       });
     }
   }
-
   return findings;
-}
-
-function scanTextForSecrets(text: string): string[] {
-  return [...new Set(findSecrets(text).map(({ label }) => label))];
 }

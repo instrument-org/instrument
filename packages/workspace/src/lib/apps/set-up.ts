@@ -1,4 +1,3 @@
-import { getWorkspaceConfig } from "../workspace-config";
 import {
   catalogEntryForApp,
   getAppCatalog,
@@ -12,7 +11,7 @@ import {
   guideSkeleton,
   listApps,
   loadApp,
-  writeAppFolder,
+  writeApp,
 } from "./store";
 import { runAppTest } from "./test-app";
 import { bundledMacAppHere } from "./mac-app";
@@ -24,7 +23,7 @@ const OPEN_TEST_TIMEOUT_MS = 30_000;
 /**
  * Sets a service the directory lists up as an app, from the way in the
  * directory has for it, with no agent: what the agent would otherwise copy
- * out of `instrument app catalog` and could get wrong. Writes the folder and leaves
+ * out of `instrument app catalog` and could get wrong. Writes the app and leaves
  * the app waiting on the one thing only the user gives (a sign-in, a key,
  * the go-ahead to run a server, signing in on the site); a server that
  * wants none of those is tested and connected on the spot.
@@ -57,8 +56,7 @@ export async function setUpFromDirectory({
       ? bundledMacAppHere(way.bundleId)
       : undefined;
   const name = macApp?.name ?? entry.name;
-  const { appsDir } = getWorkspaceConfig();
-  const { apps: present, invalid } = await listApps(appsDir);
+  const { apps: present, invalid } = await listApps();
   // A Mac app has one of itself, which covers every account added to it.
   const already = macApp
     ? present.find(
@@ -131,12 +129,11 @@ export async function setUpFromDirectory({
   if (guidePlaceholdersLeft(manifest, guide).length > 0) {
     return { kind: "agent" };
   }
-  await writeAppFolder({ appsDir, guide, manifest, name, slug });
+  await writeApp({ guide, manifest, name, slug });
 
   if (manifest.type === "mcp" && manifest.auth.kind === "none") {
     // Nothing for the user to give: the test is the whole of connecting.
     await runAppTest({
-      appsDir,
       signal: AbortSignal.any([
         AbortSignal.timeout(OPEN_TEST_TIMEOUT_MS),
         ...(signal ? [signal] : []),
@@ -159,7 +156,7 @@ export async function setUpFromDirectory({
 
 /**
  * Moves an app set up another way over to signing in on the web: the same
- * app, its name and folder kept, now a web app at the service's site, whose
+ * app, its name and guide kept, now a web app at the service's site, whose
  * sign-in starts where the directory says. What `instrument app new <slug>
  * --web <url> --force` writes, for the card's "Sign in here" after its
  * own sign-in failed. The chats still waiting on the app stay waiting, and
@@ -169,8 +166,7 @@ export async function setUpFromDirectory({
 export async function moveAppToWeb(
   slug: string,
 ): Promise<{ name: string; signIn: string }> {
-  const { appsDir } = getWorkspaceConfig();
-  const loaded = await loadApp(appsDir, slug);
+  const loaded = await loadApp(slug);
   if (loaded.isErr()) {
     throw new Error(loaded.error.message);
   }
@@ -183,7 +179,7 @@ export async function moveAppToWeb(
     throw new Error(`${name} has no site to sign in on.`);
   }
   const entry = catalogEntryForApp(slug, manifest);
-  const { apps: present } = await listApps(appsDir);
+  const { apps: present } = await listApps();
   const fields =
     entry === undefined
       ? {}
@@ -196,8 +192,7 @@ export async function moveAppToWeb(
           web: true,
         });
   const web = AppManifestSchema.parse({ ...fields, type: "web", url });
-  await writeAppFolder({
-    appsDir,
+  await writeApp({
     guide: guideSkeleton(web, entry),
     manifest: web,
     name,

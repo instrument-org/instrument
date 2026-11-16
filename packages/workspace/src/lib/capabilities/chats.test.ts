@@ -10,7 +10,6 @@ import { StoreId } from "../../schemas/store-id";
 import { chatFor } from "../../test/helpers/chat-record";
 import { createMockChatConfig } from "../../test/helpers/mock-chat-config";
 import { beginChatChangeTracking, consumeChatChanges } from "../chat-changes";
-import { titlesToFollow } from "../chat-folders/follow-title";
 import { ChatWrites } from "../chat-writes";
 import { type ChatActivity } from "../chat/activity";
 import { chatById, chatRecordTitle } from "../chat/chats";
@@ -108,7 +107,6 @@ async function chat(name: string, title: string, minute: number) {
 beforeEach(async () => {
   running.value = [];
   closedTabs.value = [];
-  titlesToFollow.clear();
   createMockChatConfig(
     ChatIdSchema.parse(`chats-command-${Date.now()}-${(counter += 1)}`),
   );
@@ -255,22 +253,6 @@ describe("instrument chats rename", () => {
         },
       ]
     `);
-  });
-
-  it("leaves a working chat's folder until its turn ends", async () => {
-    running.value = [
-      {
-        chat: own.sessionId,
-        sessionId: StoreId.newSessionId(),
-        title: "A task",
-        updatedAt: at(9).getTime(),
-      },
-    ];
-    await one("instrument chats rename organizer Tidying");
-    expect(titlesToFollow.has(own.chatId)).toBe(true);
-
-    await one("instrument chats rename lisbon Lisbon in October");
-    expect(titlesToFollow.has(ChatIdSchema.parse("lisbon"))).toBe(false);
   });
 
   it("refuses an id that is no chat's", async () => {

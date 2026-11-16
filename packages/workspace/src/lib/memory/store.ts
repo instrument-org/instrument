@@ -9,16 +9,18 @@ import { type AbsolutePath } from "../../schemas/paths";
 import { AbsolutePathSchema } from "../../schemas/paths";
 import { MEMORY_FOLDER_NAME } from "../../constants";
 import { ChatIdSchema } from "../../schemas/chat-id";
+import { type DeviceId } from "../../schemas/device-id";
 import { rewriteFileSync } from "../rewrite-file";
 import { utcStamp } from "../utc-stamp";
-import {
-  chatAddressOf,
-  chatIdNamedBy,
-  splitFrontMatter,
-} from "@instrument-org/shared";
+import { chatIdNamedBy, splitFrontMatter } from "@instrument-org/shared";
 
 import { isRecord } from "../skills";
 import { getWorkspaceConfig } from "../workspace-config";
+import {
+  type MemoryRecord,
+  readMemoryRecords,
+  writeMemoryRecords,
+} from "./memory-records";
 
 /**
  * What the conversation's agent keeps about the user across every chat: a
@@ -28,9 +30,8 @@ import { getWorkspaceConfig } from "../workspace-config";
  * Files rather than rows so the user can open the folder and read, edit, or
  * delete a memory with nothing but a file manager, and so a memory the agent
  * wrote and one the user typed into a new file are the same thing. Each file
- * is the memory's text under a short frontmatter naming the chat it was
- * learned in and when it last changed; a file with no frontmatter at all is
- * still a memory, read whole.
+ * is the memory's text alone; the chat it was learned in and when it last
+ * changed are its record in the memory store (`memory-records.ts`).
  *
  * One file per memory rather than one list, because a memory is corrected by
  * being replaced under its name and forgotten by being deleted, and both are
@@ -88,6 +89,13 @@ export async function forgetMemories(
   await Promise.all(
     memories.map((memory) => fs.rm(memory.path, { force: true })),
   );
+  writeMemoryRecords(
+    dir,
+    memories.map((memory) => ({
+      fileName: `${memory.name}${FILE_EXTENSION}`,
+      gone: true as const,
+    })),
+  );
   publisher.publish("memory.changed", null);
   return memories;
 }
@@ -112,15 +120,11 @@ export async function listMemories(dir: AbsolutePath): Promise<Memory[]> {
   } catch {
     return [];
   }
+  const records = readMemoryRecords(dir);
   const memories = await Promise.all(
     entries
-      .filter(
-        (entry) =>
-          entry.isFile() &&
-          entry.name.endsWith(FILE_EXTENSION) &&
-          !entry.name.startsWith("."),
-      )
-      .map((entry) => readMemoryFile(dir, entry.name)),
+      .filter((entry) => entry.isFile() && isMemoryFileName(entry.name))
+      .map((entry) => readMemoryFile(dir, entry.name, records)),
   );
   return memories
     .flatMap((memory) => (memory ? [memory] : []))
@@ -167,13 +171,18 @@ export async function readMemory(
   if (!MemoryNameSchema.safeParse(name).success) {
     return undefined;
   }
-  return readMemoryFile(dir, `${name}${FILE_EXTENSION}`);
+  return readMemoryFile(
+    dir,
+    `${name}${FILE_EXTENSION}`,
+    readMemoryRecords(dir),
+  );
 }
 
 /**
  * Keeps a memory under a name, replacing the one the name held: a fact that
  * supersedes another is saved to the same name, which is how memory stays one
- * corrected set rather than a pile.
+ * corrected set rather than a pile. The file gets the text alone, and the
+ * memory store the chat and the moment.
  */
 export async function saveMemory(
   dir: AbsolutePath,
@@ -189,18 +198,24 @@ export async function saveMemory(
       `A memory holds at most ${MEMORY_TEXT_MAX} characters; this one is ${body.length}. Keep the fact and leave the rest to the chat.`,
     );
   }
-  // To the second, as the file says it, so the memory handed back is the
-  // one a read of the file gives.
+  // To the second, as the store says it, so the memory handed back is the
+  // one a read gives.
   const at = Math.floor(Date.now() / 1000) * 1000;
-  const filePath = path.join(dir, `${parsedName}${FILE_EXTENSION}`);
-  // Built from the file as it is when written: correcting a memory rewrites
-  // it from these few fields, and anything else in its front matter, left by
-  // a newer build or by the person, would go with the old bytes.
+  const fileName = `${parsedName}${FILE_EXTENSION}`;
+  const filePath = path.join(dir, fileName);
+  // Built from the file as it is when written: front matter in it that this
+  // build does not know, left by the person or another program, stays.
   let replaced = false;
   rewriteFileSync(filePath, (held) => {
     replaced = held !== undefined;
-    return serialize({ at, body, chat, others: othersIn(held) });
+    return memoryFile({ body, others: othersIn(held) });
   });
+  writeMemoryRecords(dir, [
+    {
+      fileName,
+      record: { ...(chat ? { chat } : {}), updated: utcStamp(new Date(at)) },
+    },
+  ]);
   publisher.publish("memory.changed", null);
   return {
     memory: {
@@ -214,9 +229,21 @@ export async function saveMemory(
   };
 }
 
+/** Whether a name in the memory folder is a memory's: Markdown, and not hidden. */
+function isMemoryFileName(name: string): boolean {
+  return name.endsWith(FILE_EXTENSION) && !name.startsWith(".");
+}
+
+/**
+ * One memory: the file's text, with the chat and the moment its record
+ * names. A file with no record (one the person wrote, or renamed) is dated
+ * by the file, unless front matter an earlier build wrote says otherwise,
+ * which the launch takes into the store (`settleMemoryFiles`).
+ */
 async function readMemoryFile(
   dir: AbsolutePath,
   fileName: string,
+  records: ReadonlyMap<string, MemoryRecord>,
 ): Promise<Memory | undefined> {
   const filePath = path.join(dir, fileName);
   let raw: string;
@@ -230,35 +257,17 @@ async function readMemoryFile(
     return undefined;
   }
   const name = fileName.slice(0, -FILE_EXTENSION.length);
-  const split = splitFrontMatter(raw);
-  // A file the user wrote by hand has no frontmatter, and it is a memory all
-  // the same: its text, dated by the file.
-  if (!split.ok) {
-    const text = raw.trim();
-    return text ? { at: modifiedAt, name, path: filePath, text } : undefined;
-  }
-  let data: unknown;
-  try {
-    data = parseYaml(split.block) as unknown;
-  } catch {
-    data = {};
-  }
-  const record = isRecord(data) ? data : {};
-  const text = split.body.replaceAll("\r\n", "\n").trim();
+  // A file the user wrote by hand has no front matter, and it is a memory
+  // all the same.
+  const { front, text } = splitMemoryFile(raw);
   if (!text) {
     return undefined;
   }
-  const at =
-    typeof record.updated === "string" &&
-    !Number.isNaN(Date.parse(record.updated))
-      ? Date.parse(record.updated)
-      : modifiedAt;
-  const chat = ChatIdSchema.safeParse(
-    typeof record.chat === "string" ? chatIdNamedBy(record.chat) : undefined,
-  );
+  const record = records.get(fileName) ?? recordInFront(front);
+  const at = record ? Date.parse(record.updated) : modifiedAt;
   return {
     at,
-    ...(chat.success ? { chat: chat.data } : {}),
+    ...(record?.chat ? { chat: record.chat } : {}),
     name,
     path: filePath,
     text,
@@ -266,57 +275,155 @@ async function readMemoryFile(
 }
 
 /**
- * The file: frontmatter naming the chat by its address and the moment, then
- * the memory.
+ * A memory file's front matter, where it has some that is YAML, and its
+ * text. A file with none is all text.
  */
-function serialize({
-  at,
-  body,
-  chat,
-  others,
-}: {
-  at: number;
-  body: string;
-  chat: Memory["chat"];
-  others?: Record<string, unknown>;
-}): string {
-  const lines = ["---"];
-  if (chat) {
-    lines.push(`chat: ${chatAddressOf(chat)}`);
-  }
-  lines.push(`updated: ${utcStamp(new Date(at))}`);
-  if (others && Object.keys(others).length > 0) {
-    lines.push(stringifyYaml(others, { sortMapEntries: true }).trimEnd());
-  }
-  lines.push("---", body, "");
-  return lines.join("\n");
-}
-
-/** The keys this build writes, and so the ones that are nobody else's. */
-const OWN_KEYS = new Set(["chat", "updated"]);
-
-/**
- * Front matter in what the file held that this build does not write, so a
- * correction keeps it. A file with none, or one nobody can parse, has
- * nothing to keep.
- */
-function othersIn(held: string | undefined): Record<string, unknown> {
-  if (held === undefined) {
-    return {};
-  }
-  const split = splitFrontMatter(held);
+function splitMemoryFile(raw: string): {
+  front: Record<string, unknown> | undefined;
+  text: string;
+} {
+  const split = splitFrontMatter(raw);
   if (!split.ok) {
-    return {};
+    return { front: undefined, text: raw.trim() };
   }
   let data: unknown;
   try {
     data = parseYaml(split.block) as unknown;
   } catch {
-    return {};
+    data = {};
   }
-  return isRecord(data)
-    ? Object.fromEntries(
-        Object.entries(data).filter(([key]) => !OWN_KEYS.has(key)),
-      )
-    : {};
+  return {
+    front: isRecord(data) ? data : undefined,
+    text: split.body.replaceAll("\r\n", "\n").trim(),
+  };
+}
+
+/**
+ * The record front matter an earlier build wrote makes: its `chat` link and
+ * its `updated` moment. Nothing where it names no moment.
+ */
+function recordInFront(
+  front: Record<string, unknown> | undefined,
+): MemoryRecord | undefined {
+  const updated = front?.updated;
+  const at =
+    updated instanceof Date
+      ? updated.getTime()
+      : typeof updated === "string"
+        ? Date.parse(updated)
+        : Number.NaN;
+  if (Number.isNaN(at)) {
+    return undefined;
+  }
+  const chat = ChatIdSchema.safeParse(
+    typeof front?.chat === "string" ? chatIdNamedBy(front.chat) : undefined,
+  );
+  return {
+    ...(chat.success ? { chat: chat.data } : {}),
+    updated: utcStamp(new Date(at)),
+  };
+}
+
+/**
+ * The file: the memory, under any front matter of anyone else's, as it was
+ * found.
+ */
+function memoryFile({
+  body,
+  others,
+}: {
+  body: string;
+  others: Record<string, unknown>;
+}): string {
+  if (Object.keys(others).length === 0) {
+    return `${body}\n`;
+  }
+  return `---\n${stringifyYaml(others, { sortMapEntries: true }).trimEnd()}\n---\n${body}\n`;
+}
+
+/** The keys earlier builds wrote, and so the ones that are nobody else's. */
+const OWN_KEYS = new Set(["chat", "updated"]);
+
+/**
+ * Front matter in what the file held that this build does not know, so a
+ * correction keeps it. A file with none, or one nobody can parse, has
+ * nothing to keep.
+ */
+function othersIn(held: string | undefined): Record<string, unknown> {
+  const front = held === undefined ? undefined : splitMemoryFile(held).front;
+  return Object.fromEntries(
+    Object.entries(front ?? {}).filter(([key]) => !OWN_KEYS.has(key)),
+  );
+}
+
+/** What the launch did to the memory files, for the boot log. */
+export interface MemoryFilesSettled {
+  /** A line per memory whose front matter went into the store. */
+  done: string[];
+  /** Each file left as it was, with why. */
+  left: { reason: string; where: string }[];
+}
+
+/**
+ * Takes the front matter earlier builds wrote into each memory file (the
+ * `chat` it was learned in and when it was `updated`) into the memory store,
+ * and writes the file back as the memory's text alone, under any front
+ * matter of anyone else's. A file left with no text is deleted.
+ *
+ * Every launch, since a build before this one, on another computer sharing
+ * the workspace, writes front matter back; a file with none is read and left
+ * alone. What a file says is taken as of when the file was last written, so
+ * a memory saved since, on any device, outranks it.
+ */
+export async function settleMemoryFiles(
+  rootDir: string,
+  device: DeviceId,
+): Promise<MemoryFilesSettled> {
+  const settled: MemoryFilesSettled = { done: [], left: [] };
+  const dir = path.join(rootDir, MEMORY_FOLDER_NAME);
+  let names: string[];
+  try {
+    names = await fs.readdir(dir);
+  } catch {
+    return settled;
+  }
+  for (const fileName of names.filter(isMemoryFileName).toSorted()) {
+    const filePath = path.join(dir, fileName);
+    try {
+      const stat = await fs.stat(filePath);
+      if (!stat.isFile()) {
+        continue;
+      }
+      const raw = await fs.readFile(filePath, "utf8");
+      const { front, text } = splitMemoryFile(raw);
+      if (!front || !Object.keys(front).some((key) => OWN_KEYS.has(key))) {
+        continue;
+      }
+      const record = recordInFront(front) ?? {
+        updated: utcStamp(stat.mtime),
+      };
+      writeMemoryRecords(
+        dir,
+        [{ at: stat.mtime.getTime(), fileName, record }],
+        device,
+      );
+      if (!text) {
+        await fs.rm(filePath, { force: true });
+      } else {
+        rewriteFileSync(filePath, (held) => {
+          const now = held === undefined ? undefined : splitMemoryFile(held);
+          return memoryFile({
+            body: now?.text || text,
+            others: othersIn(held ?? raw),
+          });
+        });
+      }
+      settled.done.push(
+        `took ${fileName}'s front matter into the memory store`,
+      );
+    } catch (error) {
+      settled.left.push({ reason: String(error), where: filePath });
+    }
+  }
+  return settled;
 }

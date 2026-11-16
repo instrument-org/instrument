@@ -17,7 +17,7 @@ describe("projectModelNote", () => {
     ).toMatchInlineSnapshot(`
       "
       <instrument-system-note>
-      This chat is filed under the project ✈️ "Travel" (getting away); read the chat through it. Its folder, \`Projects/Travel/\` in the user's Instrument folder, is where a finished file the user gave no place for goes, and its AGENTS.md is where what every chat under it should know goes.
+      This chat is filed under the project ✈️ "Travel" (getting away); read the chat through it. Its folder, \`Projects/Travel/\` in the user's Instrument folder (\`$INSTRUMENT_PROJECT\`), has the project's finished work, and its AGENTS.md is what every chat under it should know.
 
       What every chat under "Travel" is told, from its AGENTS.md:
       <project_instructions>

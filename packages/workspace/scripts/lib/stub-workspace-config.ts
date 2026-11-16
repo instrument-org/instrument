@@ -32,7 +32,6 @@ export function createStubWorkspaceConfig({
 
   return {
     apps: createMemoryAppsConfig(),
-    appsDir: AbsolutePathSchema.parse(layout.appsDir),
     appVersion: "0.0.0-test",
     browser: createStubBrowserConfig(),
     captureException: () => {

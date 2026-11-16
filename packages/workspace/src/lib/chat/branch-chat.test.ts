@@ -5,7 +5,6 @@ import { describe, expect, it, vi } from "vitest";
 
 import { AIGatewayModelURI } from "@instrument-org/ai-gateway/schemas";
 
-import { CHATS_FOLDER_NAME } from "../../constants";
 import { type ChatId } from "../../schemas/chat-id";
 import { AbsolutePathSchema, RelativePathSchema } from "../../schemas/paths";
 import { type SessionMessage } from "../../schemas/session/message";
@@ -198,12 +197,11 @@ describe("branchChat", () => {
     ).resolves.toBe("tier,price\n");
   });
 
-  it("leaves no chat and no folder behind when a message cannot be written", async () => {
+  it("leaves no chat behind when a message cannot be written", async () => {
     const { chatId, reply } = await pricingChat("Vendor shortlist");
     const before = await conversationOf(chatId);
-    const { chatsDir, rootDir } = getWorkspaceConfig();
+    const { chatsDir } = getWorkspaceConfig();
     const onDisk = async () => ({
-      folders: await fs.readdir(path.join(rootDir, CHATS_FOLDER_NAME)),
       listed: (await listChats()).map((chat) => chat.id),
       records: await fs.readdir(chatsDir),
     });

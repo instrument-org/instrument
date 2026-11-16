@@ -2,23 +2,13 @@ import { eventIterator } from "@orpc/server";
 import { z } from "zod";
 
 import { folderReach } from "../../../lib/chat/folder-reach";
-import {
-  chatFolderEdits,
-  chatFolderWithFiles,
-} from "../../../lib/chat-folders/folder-with-files";
+import { foldersChatWrote } from "../../../lib/chat/written-folders";
 import { recordChanges } from "../../../lib/record-changes";
-import {
-  chatDir,
-  chatOfOwnFolder,
-  chatOwnFolder,
-  resolveChat,
-} from "../../../lib/record-folders";
 import { effectiveFolderAccess } from "../../../lib/workspace-fs-layout";
 import { MountedFolder } from "../../../schemas/mounted-folder";
 import { type ChatId, ChatIdSchema } from "../../../schemas/chat-id";
 import { base } from "../../base";
-import { distinct, liveRead, where } from "../../live-read";
-import { publisher } from "../../publisher";
+import { distinct, liveRead } from "../../live-read";
 
 /**
  * The folders a chat reaches, by the name each is mounted under: more than
@@ -48,95 +38,29 @@ export const liveChatFolders = base
   });
 
 /**
- * Where the chat's own folder under `Chats/` is, null for a chat with none,
- * read again each time it moves to the chat's title. A surface that shows
- * the chat's files asks for their places again when it changes.
+ * The folders holding files the chat wrote that are still there
+ * (`foldersChatWrote`): what the chat's head offers to open. Read again when
+ * the chat writes a message, which is when a turn saving a file says so.
  */
-export const liveChatOwnFolder = base
+export const liveChatWrittenFolders = base
   .input(z.object({ id: ChatIdSchema }))
-  .output(eventIterator(z.string().nullable()))
+  .output(eventIterator(z.array(z.string())))
   .handler(async function* ({ input, signal }) {
     yield* distinct(
       liveRead({
         changes: [
-          where(
-            publisher.subscribe("chat.folderMoved", { signal }),
-            (moved) => moved.id === input.id,
+          recordChanges(
+            signal,
+            (change) =>
+              change.id === input.id &&
+              change.kind === "messages" &&
+              change.live !== true,
           ),
         ],
-        // The window is no chat and has no folder.
-        read: () =>
-          resolveChat(input.id) === undefined
-            ? null
-            : (chatOwnFolder(chatDir(input.id)) ?? null),
+        read: () => foldersChatWrote(input.id),
       }),
     );
   });
-
-/**
- * Each move of a chat's own folder to its title, from where it was to where
- * it is, for every chat: what a window's tabs standing in the folder follow.
- */
-export const chatFolderMoves = base
-  .output(
-    eventIterator(
-      z.object({ from: z.string(), id: ChatIdSchema, to: z.string() }),
-    ),
-  )
-  .handler(async function* ({ signal }) {
-    for await (const { from, id, to } of publisher.subscribe(
-      "chat.folderMoved",
-      { signal },
-    )) {
-      yield { from, id, to };
-    }
-  });
-
-/**
- * The chat's own folder while it has files in it beside its `CHAT.md`, null
- * otherwise (`chatFolderWithFiles`): what the chat's head offers to open.
- * Read again when the chat writes a message (a turn saving a file, a person
- * sending one), when its folder moves to its title, and when the system
- * reports a change at the folder's top level.
- */
-export const liveChatFolderWithFiles = base
-  .input(z.object({ id: ChatIdSchema }))
-  .output(eventIterator(z.string().nullable()))
-  .handler(async function* ({ input, signal }) {
-    const ofChat = () => [
-      recordChanges(
-        signal,
-        (change) =>
-          change.id === input.id &&
-          change.kind === "messages" &&
-          change.live !== true,
-      ),
-      where(
-        publisher.subscribe("chat.folderMoved", { signal }),
-        (moved) => moved.id === input.id,
-      ),
-    ];
-    yield* distinct(
-      liveRead({
-        changes: [...ofChat(), chatFolderEdits(input.id, ofChat(), signal)],
-        read: () => chatFolderWithFiles(input.id),
-      }),
-    );
-  });
-
-/**
- * Which of `paths` are a chat's own folder (`chatOfOwnFolder`), with the
- * chat each is. Files asks before trashing, to offer deleting the chat.
- */
-export const chatsOfFolders = base
-  .input(z.object({ paths: z.array(z.string()) }))
-  .output(z.array(z.object({ id: ChatIdSchema, path: z.string() })))
-  .handler(({ input }) =>
-    input.paths.flatMap((at) => {
-      const id = chatOfOwnFolder(at);
-      return id === undefined ? [] : [{ id, path: at }];
-    }),
-  );
 
 async function reachedFolders(chatId: ChatId) {
   return Object.fromEntries(

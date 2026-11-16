@@ -1,42 +1,24 @@
-import fs from "node:fs/promises";
-import os from "node:os";
-import path from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
 import { publisher } from "../../rpc/publisher";
+import { forgetApps, seedApp } from "../../test/helpers/seed-app";
 import { actionLog } from "../actions/log";
-import { AbsolutePathSchema } from "../../schemas/paths";
-import { getWorkspaceConfig, setWorkspaceConfig } from "../workspace-config";
-import { APP_FILE_NAME } from "./app-file";
 import { appChanged } from "./changed";
 
-let appsDir: string;
-
 beforeEach(async () => {
-  appsDir = await fs.mkdtemp(path.join(os.tmpdir(), "app-changed-"));
-  setWorkspaceConfig({
-    ...getWorkspaceConfig(),
-    appsDir: AbsolutePathSchema.parse(appsDir),
+  await seedApp("drafts", {
+    name: "Drafts",
+    setup: {
+      auth: { kind: "none" },
+      package: "@agiletortoise/drafts-mcp-server",
+      runtime: "node",
+      type: "mcp-local",
+    },
   });
-  await fs.mkdir(path.join(appsDir, "Drafts"));
-  await fs.writeFile(
-    path.join(appsDir, "Drafts", APP_FILE_NAME),
-    [
-      "---",
-      "id: drafts",
-      "type: mcp-local",
-      "package: '@agiletortoise/drafts-mcp-server'",
-      "runtime: node",
-      "auth:",
-      "  kind: none",
-      "---",
-      "",
-    ].join("\n"),
-  );
 });
 
 afterEach(async () => {
-  await fs.rm(appsDir, { force: true, recursive: true });
+  await forgetApps();
 });
 
 /** What `act` publishes about apps, in order. */
@@ -89,18 +71,10 @@ describe("appChanged", () => {
   });
 
   it("tells the chat the site a web app is worked on", async () => {
-    await fs.mkdir(path.join(appsDir, "Google Drive"));
-    await fs.writeFile(
-      path.join(appsDir, "Google Drive", APP_FILE_NAME),
-      [
-        "---",
-        "id: drive",
-        "type: web",
-        "url: https://drive.google.com",
-        "---",
-        "",
-      ].join("\n"),
-    );
+    await seedApp("drive", {
+      name: "Google Drive",
+      setup: { type: "web", url: "https://drive.google.com" },
+    });
     expect(
       await heard(() => appChanged("drive", { event: "connected" })),
     ).toEqual([
@@ -114,27 +88,21 @@ describe("appChanged", () => {
     ]);
   });
 
-  it("names an app whose folder is gone by its slug", async () => {
+  it("names an app that is gone by its slug", async () => {
     expect(await heard(() => appChanged("gone", { event: "removed" }))).toEqual(
       ["app.updated", { event: "removed", name: "gone", slug: "gone" }],
     );
   });
 
   it("gives a sign-in of the app's own that failed the site to sign in on instead", async () => {
-    await fs.mkdir(path.join(appsDir, "Linear"));
-    await fs.writeFile(
-      path.join(appsDir, "Linear", APP_FILE_NAME),
-      [
-        "---",
-        "id: linear",
-        "type: mcp",
-        "url: https://mcp.linear.app/mcp",
-        "auth:",
-        "  kind: oauth",
-        "---",
-        "",
-      ].join("\n"),
-    );
+    await seedApp("linear", {
+      name: "Linear",
+      setup: {
+        auth: { kind: "oauth" },
+        type: "mcp",
+        url: "https://mcp.linear.app/mcp",
+      },
+    });
     expect(
       await heard(async () => {
         await appChanged("linear", {

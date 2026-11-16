@@ -46,7 +46,7 @@ vi.mock("@instrument-org/workspace/electron", () => ({
 }));
 
 // `now` is who is known without asking, `later` who asking adds.
-vi.mock("@/electron-main/lib/apps", () => ({ getAppsDir: () => undefined }));
+vi.mock("@/electron-main/lib/apps", () => ({ appsReady: () => false }));
 vi.mock("@/electron-main/lib/get-signed-in-user", () => ({
   knownSignedInPeople: () => signedIn.now,
   signedInPeople: () =>

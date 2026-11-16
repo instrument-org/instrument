@@ -42,7 +42,7 @@ import { wakeChatWithTaskEvent } from "../src/lib/chat/wake";
 import { closeAgentBrowserSessionsForSessions } from "../src/lib/agent-browser-cleanup";
 import { type ChatTask, listChildTasks } from "../src/lib/chat/children";
 import {
-  chatFolderTheyOpen,
+  filesFolderPath,
   outputFolderPath,
 } from "../src/lib/chat/output-folder";
 import { openAsks } from "../src/lib/chat/open-asks";
@@ -113,8 +113,6 @@ import {
   write,
 } from "./utils";
 import {
-  chatDir,
-  chatOwnFolder,
   loadChatIndex,
   resolveChat,
   sessionOfChat,
@@ -396,10 +394,9 @@ const ENFORCEMENT_INTERVAL_MS = 15_000;
 /** How often a run's programs are checked against `MAX_PROCESS_BYTES`. */
 const MEMORY_CHECK_INTERVAL_MS = 5000;
 
-/** The folders a chat's programs work in: its work folder and its own. */
+/** The folders a chat's programs work in: its work folder and the Files folder. */
 function caseFolders(chatId: ChatId): string[] {
-  const own = chatFolderTheyOpen(chatOwnFolder(chatDir(chatId)));
-  return [workDir(chatId), ...(own === undefined ? [] : [own])];
+  return [workDir(chatId), filesFolderPath()];
 }
 
 /**
@@ -1045,9 +1042,8 @@ export async function runEvals(
         nodeExecEnv: {},
         ...(reasoningEffort ? { reasoningEffort } : {}),
         // A workspace the person picked, which is what makes its top level
-        // theirs: each chat's own folder under `Chats/` is then where its
-        // finished work goes, as it is for anyone who picked where their
-        // Instrument folder is kept. Without this a run measures the
+        // theirs: its Files folder is then where finished work goes, as it
+        // is for anyone who picked where their Instrument folder is kept. Without this a run measures the
         // fallback, and nothing measures what the prompt tells the agent.
         outputDir: personFolder,
         pnpmBinPath: PNPM_BIN,
@@ -1126,7 +1122,6 @@ export async function runEvals(
     );
     const appFixtures = await seedConnectedApps(declaredApps, {
       apps: appsConfig,
-      appsDir: workspaceLayout(personFolder).appsDir,
     });
     for (const app of declaredApps) {
       write(
@@ -1136,7 +1131,7 @@ export async function runEvals(
     for (const server of _.unique(
       runs.flatMap((run) => run.evalCase.macApps?.connected ?? []),
     )) {
-      await connectMacApp(getWorkspaceConfig().appsDir, server);
+      await connectMacApp(server);
       write(
         `${c.dim}App       :${c.reset} ${server} ${c.dim}connected, on the stand-in server${c.reset}\n`,
       );
@@ -1741,10 +1736,11 @@ export async function runEvals(
             const served = evalCase.apps?.some(
               (app) => app.slug === slug && app.viewer !== undefined,
             );
-            await answerSignIn(slug, answer, {
-              ...(served ? {} : { account: "you@example.com" }),
-              appsDir: workspaceLayout(personFolder).appsDir,
-            });
+            await answerSignIn(
+              slug,
+              answer,
+              served ? {} : { account: "you@example.com" },
+            );
           }
           signInCards.clear();
         }

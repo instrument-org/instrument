@@ -10,7 +10,7 @@ import { type McpOAuthStore } from "./mcp/oauth-provider";
 import { withAppMcpClient } from "./mcp/run";
 import { SignInAgainError } from "./mcp/tool-auth";
 import { checkAppSignIns, noteSignInLost, signInLost } from "./sign-in-lost";
-import { loadApp, writeAppFolder } from "./store";
+import { loadApp, writeApp } from "./store";
 
 vi.mock("./mcp/run", () => ({ withAppMcpClient: vi.fn() }));
 
@@ -49,14 +49,13 @@ function useApps(apps: WorkspaceAppsConfig) {
 }
 
 async function writeConnectedApp(slug: string, manifest: AppManifest) {
-  await writeAppFolder({
-    appsDir: getWorkspaceConfig().appsDir,
+  await writeApp({
     guide: "A service.\n",
     manifest,
     name: slug,
     slug: AppSlugSchema.parse(slug),
   });
-  const app = await loadApp(getWorkspaceConfig().appsDir, slug);
+  const app = await loadApp(slug);
   await recordConnection(slug, {
     connectedAt: 1000,
     manifestHash: app._unsafeUnwrap().manifestHash,
@@ -148,9 +147,7 @@ describe("checkAppSignIns", () => {
       ),
     );
 
-    const lost = await checkAppSignIns({
-      appsDir: getWorkspaceConfig().appsDir,
-    });
+    const lost = await checkAppSignIns({});
 
     expect(lost).toEqual(["refused"]);
     const connections = await getWorkspaceConfig().apps.connections.list();

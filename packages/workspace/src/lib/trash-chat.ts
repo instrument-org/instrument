@@ -11,9 +11,8 @@ import { killChatBackgroundProcesses } from "./background-processes";
 import { TypedError } from "./errors";
 import { pathExists } from "./path-exists";
 import { forgetChatPermissions } from "./permissions/rules";
-import { recordChatFolderName } from "./chat-folders/own-folder";
 import { chatGone } from "./chat-gone";
-import { chatOwnFolder, chatDir, sessionOfChat } from "./record-folders";
+import { chatDir, sessionOfChat } from "./record-folders";
 import { closeAgentBrowserSessionsForSessions } from "./agent-browser-cleanup";
 import { writingChatRecords } from "./records/chat-records";
 import { workDir } from "./work-dir";
@@ -52,18 +51,10 @@ const RETRY_DELAYS_MS = [ms("500 milliseconds"), ms("1.5 seconds")];
  */
 export async function trashChat({
   id,
-  itsFolder = false,
   workspaceConfig,
   workspaceRef,
 }: {
   id: ChatId;
-  /**
-   * Whether the chat's own folder goes too, with the transcript and
-   * whatever the agent made in it. Off unless the person asked on the
-   * delete screen: what is in there is theirs, and a chat they deleted to
-   * tidy their list is not a request to throw the work away.
-   */
-  itsFolder?: boolean;
   workspaceConfig: WorkspaceConfig;
   workspaceRef: WorkspaceActorRef;
 }) {
@@ -114,11 +105,6 @@ export async function trashChat({
         // node_modules will fail. Since node_modules can be recreated, we delete
         // it first using the fastest removal method available.
         const work = workDir(chatId);
-        // Read before the chat goes: its own folder is found through the
-        // chat, and the name this computer recorded is forgotten with it.
-        const ownFolder = itsFolder
-          ? chatOwnFolder(chatDir(chatId))
-          : undefined;
         const nodeModulesPath = absolutePathJoin(work, "node_modules");
 
         // A package that will not go leaves its folder to the work folder's
@@ -139,13 +125,6 @@ export async function trashChat({
         // The records first: once they are gone the chat is, and a work
         // folder that would not follow is only files left behind.
         await toTrash(workspaceConfig, records);
-        await recordChatFolderName(
-          workspaceConfig.workspaceMachineDir,
-          chatId,
-          undefined,
-        ).catch((error: unknown) => {
-          workspaceConfig.captureException(error);
-        });
         // What it was allowed and refused goes with it: a deleted chat is
         // not coming back, and its grants would only pile up in the file.
         await forgetChatPermissions(chatId).catch((error: unknown) => {
@@ -155,13 +134,6 @@ export async function trashChat({
         // A chat whose agent never ran a command has no work folder.
         if (await pathExists(work)) {
           await toTrash(workspaceConfig, work).catch((error: unknown) => {
-            workspaceConfig.captureException(error);
-          });
-        }
-        // Last, and only when asked: the person can put it back from the
-        // trash, and a failure here leaves files rather than losing them.
-        if (ownFolder !== undefined && (await pathExists(ownFolder))) {
-          await toTrash(workspaceConfig, ownFolder).catch((error: unknown) => {
             workspaceConfig.captureException(error);
           });
         }

@@ -4,28 +4,32 @@ import {
 } from "@/electron-main/lib/notices";
 import {
   type ChatRecordsSplit,
-  convertAppsToAppFiles,
   convertChatSettingsFiles,
   convertProjectsToProjectFiles,
   type DeviceId,
+  FILES_FOLDER_NAME,
   type FolderMoved,
-  giveChatsTheirFolders,
   markedWhereNoSettings,
   migrateWorkspaceLayout,
-  moveAppsToFolder,
   moveMemoriesToFolder,
   moveSkillsToFolder,
   moveProjectFolders,
   moveProjectsToFolder,
   moveTopicsToProjects,
   renameChatDatabases,
+  retireChatsFolder,
   settleDrafts,
   settleKeyFolderCase,
+  settleMemoryFiles,
+  settleProjectFiles,
+  takeInAppFolders,
   withholdChats,
   settleWorkspaceDb,
+  writeDataDirReadme,
 } from "@instrument-org/workspace/electron";
 import { workspaceLayout } from "@instrument-org/workspace/layout";
 import { app, shell } from "electron";
+import path from "node:path";
 
 import { appConnectionStore } from "../stores/workspace/app-connections";
 import { timeBootStep } from "./boot-timing";
@@ -33,11 +37,12 @@ import { captureServerException } from "./capture-server-exception";
 import { convertChatRecords } from "./convert-chat-records";
 import { logger } from "./electron-logger";
 import {
+  getUserDataDir,
   workspaceMachineDir,
   workspaceWorkFoldersDir,
 } from "./get-workspace-folder";
 import { getOpenedWithoutRecords } from "./workspace-run";
-import { workspaceLayoutMarks } from "./workspaces";
+import { appDataOutputFolder, workspaceLayoutMarks } from "./workspaces";
 
 /**
  * The launch's sweeps over the workspace folder, in order, before the
@@ -91,7 +96,7 @@ export async function sweepWorkspaceFolder({
   markProjectFoldersSeen();
   let layoutSettled = true;
   if (inAppData) {
-    layoutSettled = sweepWorkspaceLayout(rootDir);
+    layoutSettled = sweepWorkspaceLayout(deviceId, rootDir);
   } else {
     logger.info(
       "Workspace layout migration: none for a folder the person picked",
@@ -101,7 +106,7 @@ export async function sweepWorkspaceFolder({
   // Before the workspace starts, which puts in place the writer every write
   // to a chat's store appends through: a chat whose conversation is still in
   // its `chat.db` has to be on its records before one can reach them.
-  const converted = await timeBootStep("sweep.convertChatDatabases", () =>
+  await timeBootStep("sweep.convertChatDatabases", () =>
     convertChatDatabases(deviceId, rootDir),
   );
   // Then what each chat's `settings.json` held goes where this build keeps
@@ -127,33 +132,60 @@ export async function sweepWorkspaceFolder({
   // The person's own folders come out of `.instrument/` before anything
   // reads one of them.
   await moveFolderOut("Memory", () => moveMemoriesToFolder(rootDir));
+  // Then each memory file becomes its text alone, what an earlier build
+  // wrote over it going into the memory store.
+  await timeBootStep("sweep.settleMemoryFiles", () =>
+    settleMemoryFolder(deviceId, rootDir),
+  );
   await moveFolderOut("Skills", () => moveSkillsToFolder(rootDir));
   await moveFolderOut("Projects", () => moveProjectsToFolder(rootDir));
-  await moveFolderOut("Apps", () => moveAppsToFolder(rootDir));
-  // And once the projects and the apps are out, each one's files become the
-  // one file a person reads, which is its own step: the folder moves whatever
-  // is inside it, and one already converted is left alone.
+  // And once the projects are out, each one's files become what this build
+  // reads, which is its own step: the folder moves whatever is inside it, and
+  // one already converted is left alone.
   await timeBootStep("sweep.convertProjectFiles", () =>
-    convertProjectFiles(rootDir),
+    convertProjectFiles(deviceId, rootDir),
   );
-  // Once every project is its `AGENTS.md`, the folders an earlier build
-  // granted in one come onto this computer's permission settings, before the
-  // moves below rewrite the paths those settings hold.
-  carryProjectFolders(rootDir);
-  await timeBootStep("sweep.convertAppFiles", () => convertAppFiles(rootDir));
-  // Then each chat the converter just brought onto its records gets the
-  // folder a person opens, written once. After the projects, because a
-  // transcript names the project its chat is filed under. No other chat is
-  // read here: a chat's folder is written when its turn ends or the person
-  // sends it a message.
-  await timeBootStep("sweep.writeConvertedChatFolders", () =>
-    writeConvertedChatFolders(rootDir, converted),
+  // Then every project has its record, and its `AGENTS.md` is its
+  // instructions alone: what an earlier build, here or on another computer,
+  // wrote over them goes into the projects store.
+  await timeBootStep("sweep.settleProjectFiles", () => {
+    settleProjects(deviceId, rootDir);
+  });
+  // The folders an earlier build granted in a project's file come onto this
+  // computer's permission settings, before the moves below rewrite the paths
+  // those settings hold.
+  carryProjectFolders(deviceId, rootDir);
+  await timeBootStep("sweep.takeInAppFolders", () =>
+    takeInApps(deviceId, rootDir),
   );
-  // And the drafts move out to `Drafts/`, where a send the app was
+  // The `Chats/` an earlier build kept, a folder per chat, empties into the
+  // places this build keeps those things, once every chat is on its records,
+  // which take back what the person sent.
+  await timeBootStep("sweep.retireChatsFolder", () =>
+    emptyChatsFolder({ deviceId, inAppData, rootDir }),
+  );
+  // And the drafts come into `.instrument/drafts/`, where a send the app was
   // interrupted partway through is finished from the records just converted.
   await timeBootStep("sweep.settleWorkspaceDrafts", () =>
     settleWorkspaceDrafts(rootDir),
   );
+  // Last, the guide for another coding agent opened in the workspace, once
+  // `.instrument/` is in this build's shape.
+  await timeBootStep("sweep.writeDataDirReadme", () => writeGuide(rootDir));
+}
+
+/**
+ * Write `.instrument/README.md` where it differs from this build's guide.
+ * A failure must not block boot.
+ */
+async function writeGuide(rootDir: string) {
+  try {
+    if (await writeDataDirReadme(rootDir)) {
+      logger.info("Wrote the workspace guide in .instrument/README.md");
+    }
+  } catch (error) {
+    captureServerException(error);
+  }
 }
 
 function settleDatabase(rootDir: string) {
@@ -231,9 +263,10 @@ function markProjectFoldersSeen() {
   }
 }
 
-function carryProjectFolders(rootDir: string) {
+function carryProjectFolders(deviceId: DeviceId, rootDir: string) {
   try {
     const { moved } = moveProjectFolders({
+      device: deviceId,
       machineDir: workspaceMachineDir(),
       rootDir,
     });
@@ -253,12 +286,9 @@ function carryProjectFolders(rootDir: string) {
  * databases are named, so a chat whose conversation is in the file beside
  * its own store converts from the one that holds it. Idempotent, and a chat
  * it could not convert keeps its database and is said back; a failure must
- * not block boot. Answers with the chats converted at this launch.
+ * not block boot.
  */
-async function convertChatDatabases(
-  deviceId: DeviceId,
-  rootDir: string,
-): Promise<string[]> {
+async function convertChatDatabases(deviceId: DeviceId, rootDir: string) {
   try {
     const converted = await convertChatRecords({
       appVersion: app.getVersion(),
@@ -279,11 +309,9 @@ async function convertChatDatabases(
     // went.
     withholdChats(converted.onDatabaseAlone);
     noteChatsLeftBehind(converted.left.length);
-    return converted.converted;
   } catch (error) {
     captureServerException(error);
     withholdChats([]);
-    return [];
   }
 }
 
@@ -312,33 +340,39 @@ async function convertChatSettings(deviceId: DeviceId, rootDir: string) {
 }
 
 /**
- * Give each chat the converter just brought onto its records the folder a
- * person opens, `Chats/<title>/`, with its transcript written from those
- * records. Only those chats, and only at the launch that converted them, so
- * a launch after it reads no chat at all. A failure must not block boot; the
- * chat's next turn or message writes its folder anyway.
+ * Empty the `Chats/` an earlier build kept into the chats' records and the
+ * Files folder, for every workspace, a folder the person picked included.
+ * Idempotent, and a failure must not block boot; what is left the next
+ * launch tries again.
  */
-async function writeConvertedChatFolders(
-  rootDir: string,
-  chats: readonly string[],
-) {
-  if (chats.length === 0) {
-    return;
-  }
+async function emptyChatsFolder({
+  deviceId,
+  inAppData,
+  rootDir,
+}: {
+  deviceId: DeviceId;
+  inAppData: boolean;
+  rootDir: string;
+}) {
   try {
-    const startedAt = performance.now();
-    const written = await giveChatsTheirFolders(
+    const retired = await retireChatsFolder({
+      device: deviceId,
+      filesDir: path.join(
+        workspaceOutputDir({ inAppData, rootDir }),
+        FILES_FOLDER_NAME,
+      ),
+      machineDir: workspaceMachineDir(),
       rootDir,
-      workspaceMachineDir(),
-      chats,
-    );
-    logger.info(
-      `Chat folders: wrote ${written.filter((chat) => chat.kind === "written").length} for the chats just converted, in ${Math.round(performance.now() - startedAt)}ms`,
-    );
-    for (const chat of written) {
-      if (chat.kind === "failed") {
-        logger.warn(`Chat folders: ${chat.id} has none: ${chat.error}`);
-      }
+    });
+    if (retired.moved + retired.deleted + retired.returned > 0) {
+      logger.info(
+        `Chats folder: moved ${retired.moved} to Files, deleted ${retired.deleted} with only a transcript, put ${retired.returned} sent files and notes back in their chats`,
+      );
+    }
+    for (const { reason, where } of retired.left) {
+      logger.warn(
+        `Chats folder: left ${where} where it is, and the next launch tries again: ${reason}`,
+      );
     }
   } catch (error) {
     captureServerException(error);
@@ -346,22 +380,41 @@ async function writeConvertedChatFolders(
 }
 
 /**
- * Move the drafts an earlier build hid in the workspace's `.instrument/` out
- * to `Drafts/`, and finish any send the app was interrupted partway through:
+ * Where a workspace's finished work goes, the config's `outputDir`: the
+ * folder the person picked, and for a workspace in the app's own data the
+ * flavor's Instrument folder in the home folder (or a driven fixture's own).
+ */
+function workspaceOutputDir({
+  inAppData,
+  rootDir,
+}: {
+  inAppData: boolean;
+  rootDir: string;
+}): string {
+  return inAppData ? appDataOutputFolder(getUserDataDir()) : rootDir;
+}
+
+/**
+ * Move the drafts a build before kept in the top-level `Drafts/` into
+ * `.instrument/drafts/`, convert the ones an early beta left there in its own
+ * shape, and finish any send the app was interrupted partway through:
  * a draft whose chat already holds the message naming it was sent, and only
  * its folder was left behind. Runs after the converter, so that message can
  * be read. Idempotent; a failure must not block boot.
  */
 async function settleWorkspaceDrafts(rootDir: string) {
   try {
-    const { finished, moved } = await settleDrafts(rootDir, {
-      moveToTrash: (target) => shell.trashItem(target),
-    });
-    for (const step of moved.done) {
-      logger.info(`Drafts: ${step}`);
-    }
-    for (const { reason, where } of moved.left) {
-      logger.warn(`Drafts: left ${where} where it is: ${reason}`);
+    const { converted, finished, movedIn } = await settleDrafts(
+      { machineDir: workspaceMachineDir(), rootDir },
+      { moveToTrash: (target) => shell.trashItem(target) },
+    );
+    for (const moved of [movedIn, converted]) {
+      for (const step of moved.done) {
+        logger.info(`Drafts: ${step}`);
+      }
+      for (const { reason, where } of moved.left) {
+        logger.warn(`Drafts: left ${where} where it is: ${reason}`);
+      }
     }
     if (finished.finished.length > 0) {
       logger.info(
@@ -411,15 +464,48 @@ async function moveFolderOut(what: string, move: () => Promise<FolderMoved>) {
 }
 
 /**
- * Turn each project's hidden settings and instructions into the one
- * `AGENTS.md` a person reads and edits. Runs after the folder itself is out,
- * for every workspace, since every build so far wrote the two files.
+ * Turn each project's hidden settings and instructions into its record and
+ * the `AGENTS.md` a person reads and edits. Runs after the folder itself is
+ * out, for every workspace, since every build so far wrote the two files.
  * Idempotent, and a project that already has its file is left alone; a
  * failure must not block boot.
  */
-async function convertProjectFiles(rootDir: string) {
+async function convertProjectFiles(deviceId: DeviceId, rootDir: string) {
   try {
-    logProjectSteps(await convertProjectsToProjectFiles(rootDir));
+    logProjectSteps(await convertProjectsToProjectFiles(rootDir, deviceId));
+  } catch (error) {
+    captureServerException(error);
+  }
+}
+
+/**
+ * Take what earlier builds wrote over each project's instructions into the
+ * projects store, and give every project folder its record. Every launch,
+ * every workspace, since an earlier build on another computer writes it
+ * back; a failure must not block boot, and the next launch tries again.
+ */
+function settleProjects(deviceId: DeviceId, rootDir: string) {
+  try {
+    logProjectSteps(settleProjectFiles(rootDir, deviceId));
+  } catch (error) {
+    captureServerException(error);
+  }
+}
+
+/**
+ * Take what earlier builds wrote over each memory into the memory store,
+ * leaving each file its text. Every launch, every workspace; a failure must
+ * not block boot, and the next launch tries again.
+ */
+async function settleMemoryFolder(deviceId: DeviceId, rootDir: string) {
+  try {
+    const settled = await settleMemoryFiles(rootDir, deviceId);
+    logDone("Memory", settled.done);
+    for (const each of settled.left) {
+      logger.warn(
+        `Memory: left ${each.where} as it was, and the next launch tries again: ${each.reason}`,
+      );
+    }
   } catch (error) {
     captureServerException(error);
   }
@@ -456,16 +542,20 @@ function logProjectSteps({
 }
 
 /**
- * Turn each app's manifest and guide into the one `APP.md` a person reads and
- * edits, in a folder named for the app. Runs after the folder itself is out,
- * for every workspace rather than only one in the app's own data, and carries
- * each connected app's approval onto the manifest as this build hashes it, so
- * nothing is asked for again. Idempotent; a failure must not block boot.
+ * Take every app an earlier build kept as a folder (`Apps/` at the
+ * workspace's top level, and the betas' `.instrument/apps/`) into the apps
+ * store, then send the folder to the Trash. Runs at every launch, for every
+ * workspace, since a computer still on an earlier build writes `Apps/`
+ * again, and carries each connected app's approval onto the manifest as this
+ * build hashes it, so nothing is asked for again. Idempotent; a failure must
+ * not block boot.
  */
-async function convertAppFiles(rootDir: string) {
+async function takeInApps(deviceId: DeviceId, rootDir: string) {
   try {
-    const converted = await convertAppsToAppFiles(rootDir, {
+    const converted = await takeInAppFolders(rootDir, {
       connections: appConnectionStore,
+      device: deviceId,
+      trash: (dir) => shell.trashItem(dir),
     });
     for (const line of converted.done) {
       logger.info(`Apps: ${line}`);
@@ -487,11 +577,16 @@ async function convertAppFiles(rootDir: string) {
  * block boot. Says whether every app folder is where this build reads it,
  * which is false when a move was left for the next boot or the sweep threw.
  */
-function sweepWorkspaceLayout(rootDir: string): boolean {
+function sweepWorkspaceLayout(deviceId: DeviceId, rootDir: string): boolean {
   try {
     const migrationStartedAt = performance.now();
     const migration = migrateWorkspaceLayout({
+      device: deviceId,
       machineDir: workspaceMachineDir(),
+      filesDir: path.join(
+        appDataOutputFolder(getUserDataDir()),
+        FILES_FOLDER_NAME,
+      ),
       marks: workspaceLayoutMarks(rootDir),
       rootDir,
       workFoldersDir: workspaceWorkFoldersDir(),

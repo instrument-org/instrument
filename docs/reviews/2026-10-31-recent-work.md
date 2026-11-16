@@ -98,7 +98,7 @@ Five blind readers took one area each, following `REVIEW.md`: the capability reg
 ### K. With the original `CHAT.md` evicted, a duplicated chat folder is recorded as the chat's own
 
 - Status: fixed `0e7146a7d`
-- Where: [record-folders.ts:247](/packages/workspace/src/lib/record-folders.ts#L247), [own-folder.ts:76](/packages/workspace/src/lib/chat-folders/own-folder.ts#L76)
+- Where: [record-folders.ts:247](/packages/workspace/src/lib/record-folders.ts#L247), `own-folder.ts:76`
 - What: the sync scan passes over a `CHAT.md` kept by name only, so with the person's copy of a chat's folder beside an evicted original it sees one folder naming the chat, and `chatOwnFolder` records the copy for good, where reading both would have found two and recorded nothing.
 - Verification: traced statically.
 - History: `0e2063521`.

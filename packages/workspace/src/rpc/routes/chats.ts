@@ -12,17 +12,13 @@ import {
   chatById,
   markChatRead,
   markChatUnread,
+  renameChat,
   setChatStarred,
   setChatProject,
   settleChatTitle,
   unarchiveChat,
 } from "../../lib/chat/chats";
-import {
-  archiveChatAndTabs,
-  followTitleBetweenTurns,
-  renameChatAndFolder,
-  undoChatChanges,
-} from "../../lib/chat/organize";
+import { archiveChatAndTabs, undoChatChanges } from "../../lib/chat/organize";
 import { ChatTaskSchema, listChildTasks } from "../../lib/chat/children";
 import { chatRow, ChatRowSchema } from "../../lib/chat/chat-row";
 import { liveChatRows, refreshChatRow } from "../../lib/chat/live-chat-list";
@@ -327,17 +323,16 @@ const retitleChatRoute = base
       return { listed: null };
     }
     await settleChatTitle(input.id);
-    await followTitleBetweenTurns(input.id, title);
     return { listed: await refreshChatRow(input.id), title };
   });
 
-/** Names a chat as the user typed it, and its folder with it. */
+/** Names a chat as the user typed it. */
 const renameChatRoute = base
   .input(z.object({ id: ChatIdSchema, title: z.string().trim().min(1) }))
   .output(ListedAtSchema)
   .handler(async ({ input }) => {
     return await whenChat(input.id, (chatId) =>
-      renameChatAndFolder(chatId, input.title),
+      renameChat(chatId, input.title),
     );
   });
 
@@ -431,23 +426,13 @@ const chatOfSessionRoute = base
 
 /**
  * Deletes a chat with every task it started: their work stops, and the
- * records and work folder, which hold theirs, go to the trash.
- *
- * The chat's own folder under `Chats/` goes only when asked. What is in it
- * is the person's: a transcript they can read and whatever the agent
- * finished for them, and deleting a chat to tidy a list is not a request to
- * throw that away.
+ * records and work folder, which hold theirs, go to the trash. What the
+ * chat saved into the person's own folders stays where it is.
  *
  * Answers with where the live chat list stands once the chat has left it.
  */
 const trashChatRoute = base
-  .input(
-    z.object({
-      id: ChatIdSchema,
-      /** Whether the chat's own folder goes with it; off unless asked. */
-      itsFolder: z.boolean().optional(),
-    }),
-  )
+  .input(z.object({ id: ChatIdSchema }))
   .output(ListedAtSchema)
   .handler(async ({ context, errors, input }) => {
     const id = resolveChat(input.id);
@@ -456,7 +441,6 @@ const trashChatRoute = base
     }
     const result = await trashChat({
       id,
-      itsFolder: input.itsFolder,
       workspaceConfig: context.workspaceConfig,
       workspaceRef: context.workspaceRef,
     });

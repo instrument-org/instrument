@@ -8,9 +8,7 @@ import fs from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 
-import { type ChatId } from "../../schemas/chat-id";
-import { pathIsWithin } from "../path-is-within";
-import { chatDir, chatOwnFolder } from "../record-folders";
+import { FILES_FOLDER_NAME } from "../../constants";
 import { getWorkspaceConfig, hasWorkspaceConfig } from "../workspace-config";
 
 /** Creates the output folder if it is not there yet, answering whether it made it now. */
@@ -68,36 +66,9 @@ export function outputFolderPath(): string {
 }
 
 /**
- * Where a chat's finished work goes: its own folder under `Chats/`, when
- * that folder is inside the person's Instrument folder, and otherwise the
- * Instrument folder itself.
- *
- * A workspace kept in the app's own data is the reason for the condition.
- * Its `Chats/` is somewhere the person never opens, and the app's data is a
- * place the rules ask about rather than allow, so a chat's folder there is
- * neither where they would look for their work nor somewhere the agent may
- * write. Once the workspace is a folder they picked, every chat's folder is
- * inside it and wins on its own.
+ * The user's Files folder at the top of their Instrument folder: what the
+ * agents made for them, in folders the agents name for the work.
  */
-export function finishedWorkFolder(ownFolder: string | undefined): string {
-  return chatFolderTheyOpen(ownFolder) ?? outputFolderPath();
-}
-
-/** Where a chat's finished work goes, as {@link finishedWorkFolder} answers it for that chat. */
-export function chatOutputFolder(chatId: ChatId): string {
-  return finishedWorkFolder(chatOwnFolder(chatDir(chatId)));
-}
-
-/**
- * A chat's own folder when it is one the person opens, which means inside
- * their Instrument folder, and nothing when it is not: what the agent may
- * write into it goes to the Instrument folder or stays in the records
- * instead. See {@link finishedWorkFolder} for why.
- */
-export function chatFolderTheyOpen<Folder extends string>(
-  ownFolder: Folder | undefined,
-): Folder | undefined {
-  return ownFolder !== undefined && pathIsWithin(ownFolder, outputFolderPath())
-    ? ownFolder
-    : undefined;
+export function filesFolderPath(): string {
+  return path.join(outputFolderPath(), FILES_FOLDER_NAME);
 }

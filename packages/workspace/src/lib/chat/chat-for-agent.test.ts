@@ -14,7 +14,6 @@ const posix = (text: string) => text.replaceAll("\\", "/");
 const root = "/Users/mac-user/Instrument";
 
 const filed: ChatPlaces = {
-  chatFolder: `${root}/Chats/Help desk pricing`,
   id,
   instrumentFolder: root,
   project: { folder: `${root}/Projects/Pricing`, name: "Pricing" },
@@ -31,9 +30,8 @@ describe("chatForAgentText", () => {
       Chat: Help desk pricing
       Project: Pricing
 
-      Its folder: /Users/mac-user/Instrument/Chats/Help desk pricing/
-        CHAT.md there is the whole conversation in Markdown. Read it first. Instrument rewrites it as the chat goes on, so changes to it won't last.
-        Everything else there is what the chat made.
+      Its records: /Users/mac-user/Instrument/.instrument/chats/2026-11-08-help-desk-pricing/
+        The whole conversation, as one JSON Lines log per thread per computer, and what the person sent it in attachments/. Read the logs first, and don't change anything there.
 
       Its project's folder: /Users/mac-user/Instrument/Projects/Pricing/
         AGENTS.md there has the standing instructions this chat followed. A chat filed under a project saves its lasting files here.
@@ -41,7 +39,7 @@ describe("chatForAgentText", () => {
       Its work folder: /Users/mac-user/.instrument/work/Instrument/2026-11-08-help-desk-pricing/
         Scratch space on this computer: downloads, drafts and in-between files the chat didn't keep. It may not exist if the chat left nothing there.
 
-      The person's Instrument folder is /Users/mac-user/Instrument/. Memory/ there has one Markdown file per thing Instrument remembers about them, and Skills/ has the skills its agent uses. Leave .instrument/ alone, since it has the app's own records."
+      The person's Instrument folder is /Users/mac-user/Instrument/. Files/ there has what Instrument made for them, a folder per piece of work. Memory/ there has one Markdown file per thing Instrument remembers about them, and Skills/ has the skills its agent uses. Leave the rest of .instrument/ alone, since it has the app's own records."
     `);
   });
 
@@ -59,6 +57,9 @@ describe("chatForAgentText", () => {
       "This is a chat from Instrument, a desktop app where a person works with an AI agent on their own computer. They copied it so you can pick up from what it did.
 
       Chat: Help desk pricing
+
+      Its records: /Users/mac-user/Instrument/.instrument/chats/2026-11-08-help-desk-pricing/
+        The whole conversation, as one JSON Lines log per thread per computer, and what the person sent it in attachments/. Read the logs first, and don't change anything there.
 
       Its work folder: /Users/mac-user/.instrument/work/Instrument/2026-11-08-help-desk-pricing/
         Scratch space on this computer: downloads, drafts and in-between files the chat didn't keep. It may not exist if the chat left nothing there."
@@ -80,7 +81,6 @@ describe("chatDeveloperDetailsText", () => {
     ).toMatchInlineSnapshot(`
       "Chat: Help desk pricing
       Chat ID: 2026-11-08-help-desk-pricing
-      Chat folder: /Users/mac-user/Instrument/Chats/Help desk pricing/
       Work folder: /Users/mac-user/.instrument/work/Instrument/2026-11-08-help-desk-pricing/
       Records folder: /Users/mac-user/Instrument/.instrument/chats/2026-11-08-help-desk-pricing/
         One log per thread per computer, settings, and attachments.

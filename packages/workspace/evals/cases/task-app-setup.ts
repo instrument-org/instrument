@@ -7,8 +7,8 @@
  * card, and sends the task on.
  *
  * `task-app-setup-refused` tells a task in so many words to set an app up,
- * the way a chat's assignment can. Scored: no folder for the app appeared in
- * the workspace, by `instrument app new` or the task's own file tools, and
+ * the way a chat's assignment can. Scored: no app for the service was set
+ * up in the workspace by `instrument app new`, and
  * the task's last message ends on a needs fence naming it.
  *
  * `task-app-setup-hop` is the chat's half. Linear is connected and the user
@@ -23,7 +23,6 @@
  */
 import { listApps } from "../../src/lib/apps/store";
 import { needsNamedIn } from "../../src/lib/parse-needs-block";
-import { getWorkspaceConfig } from "../../src/lib/workspace-config";
 import { type Session } from "../../src/schemas/session";
 import { askedOnCard } from "../../src/tools/connect-app-output";
 import { type Assertion, defineEval } from "../harness";
@@ -103,12 +102,12 @@ function lastText(sessions: Session.WithMessagesAndParts[]): string {
   return texts.at(-1) ?? "";
 }
 
-/** No folder for the service appeared in the workspace's apps. */
+/** No app for the service was set up in the workspace. */
 function setUpNoApp(service: RegExp, label: string): Assertion {
   const text = `set up no ${label} app`;
   return {
     check: async () => {
-      const { apps, invalid } = await listApps(getWorkspaceConfig().appsDir);
+      const { apps, invalid } = await listApps();
       const made = [
         ...apps.map((app) => `${app.slug} (${app.name})`),
         ...invalid.map((entry) => entry.slug),

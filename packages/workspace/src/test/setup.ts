@@ -55,7 +55,6 @@ const rejectBrowserTarget = () => {
 readChatIndexOnFirstUse();
 setWorkspaceConfig({
   apps: createMemoryAppsConfig(),
-  appsDir: AbsolutePathSchema.parse(layout.appsDir),
   appVersion: "0.0.0-test",
   browser: {
     closeTarget: () => Promise.resolve(),

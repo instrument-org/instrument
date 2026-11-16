@@ -1,10 +1,10 @@
 /**
  * Does the chat make and delete projects with `instrument projects`, so the
- * file it writes has only keys the app knows and a delete can be undone?
+ * project has its record and a delete can be undone?
  *
  * - **projects-create.** Asked for a new project with an icon. Scored on
- *   the project's file: its id written down and no key the app does not
- *   know, as a folder made by hand with a `name:` key had.
+ *   the project: its record written down and no front matter in its file,
+ *   as a folder made by hand with a `name:` key had.
  * - **projects-delete.** Asked to delete a project. Scored on the project
  *   being retired, as the app's Delete does, its folder still there, and on
  *   no `rm` of a folder in `Projects/`.
@@ -36,7 +36,7 @@ const madeByCommand: Assertion = {
       /\binstrument projects create\b(?![^;&|]*--help)/.test(command),
     );
     const evidence = made
-      ? `${made.name}: icon ${made.icon ?? "-"}, ${made.unsaved ? "no id in its file" : "id written"}, unknown keys ${Object.keys(made.others ?? {}).join(", ") || "none"}; create ran: ${String(ran)}`
+      ? `${made.name}: icon ${made.icon ?? "-"}, ${made.unsaved ? "no record" : "record written"}, unknown keys ${Object.keys(made.others ?? {}).join(", ") || "none"}; create ran: ${String(ran)}`
       : "no project named for the garden";
     return made && ran && !made.unsaved && made.others === undefined
       ? pass(text, evidence)

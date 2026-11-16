@@ -63,8 +63,8 @@ interface OnDisk {
 }
 
 /**
- * The workspace's drafts, owned by the main process: `Drafts/<date>/DRAFT.md`
- * per draft (the format and folder are `@instrument-org/workspace/drafts`).
+ * The workspace's drafts, owned by the main process:
+ * `.instrument/drafts/<date>/DRAFT.md` per draft (the format and folder are `@instrument-org/workspace/drafts`).
  *
  * The one writer of that folder while the app runs. A window changes a draft
  * by sending ops, which this applies, writes through at once, and answers by
@@ -92,7 +92,7 @@ export function createDraftStore({
 }: {
   /** Called with the drafts each time they change, from a window or from disk. */
   onChange: (snapshot: DraftsSnapshot) => void;
-  /** The workspace's own folder, which `Drafts/` is at the top of. */
+  /** The workspace's own folder, whose `.instrument/drafts/` the drafts are in. */
   rootDir: string;
   /** The zone a new draft's folder is named in: this computer's own. */
   timeZone: string;

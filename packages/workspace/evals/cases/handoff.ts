@@ -24,10 +24,9 @@ import path from "node:path";
 import {
   AGENT_FILES_LANGUAGE,
   AGENT_MESSAGE_LANGUAGE,
-  CHATS_FOLDER_NAME,
 } from "../../src/constants";
 import {
-  chatOutputFolder,
+  filesFolderPath,
   outputFolderPath,
 } from "../../src/lib/chat/output-folder";
 import { memoryDir, saveMemory } from "../../src/lib/memory/store";
@@ -45,7 +44,6 @@ import {
   pickChoice,
 } from "../harness";
 import { deliveredFile } from "../lib/delivered-file";
-import { leavesChatsToConversations } from "./work-folder";
 import { sheetHasAChart, sheetRecomputes, wroteADocument } from "./worker";
 
 export type Context = Parameters<Assertion["check"]>[0];
@@ -126,7 +124,7 @@ function lastReply(sessions: Session.WithMessagesAndParts[]): string {
  * chat's own folder, where finished work goes.
  */
 function treeDirs({ chatId }: { chatId: ChatId }): string[] {
-  return [workDir(chatId), chatOutputFolder(chatId)];
+  return [workDir(chatId), filesFolderPath()];
 }
 
 /**
@@ -200,11 +198,8 @@ async function writtenFiles(ctx: Context): Promise<string[]> {
 function writtenSince(run: { chatId: ChatId }, since: number): string[] {
   const dirs = [HOME, ...treeDirs(run)];
   // The top of the Instrument folder too, where "in my workspace folder"
-  // puts a file, leaving out other chats' own folders under Chats/.
-  const otherChats = path.join(workspaceFolder(), CHATS_FOLDER_NAME);
-  const top = recentFilesUnder(workspaceFolder(), since).filter(
-    (file) => !pathIsInside(file, otherChats),
-  );
+  // puts a file.
+  const top = recentFilesUnder(workspaceFolder(), since);
   return [
     ...new Set([
       ...dirs.flatMap((dir) => recentFilesUnder(dir, since)),
@@ -1090,7 +1085,7 @@ const wroteTheGroceryList: Assertion = {
     if (!body) {
       return fail(
         text,
-        `no groceries.md; the run wrote: ${[HOME, chatOutputFolder(chatId)]
+        `no groceries.md; the run wrote: ${[HOME, filesFolderPath()]
           .flatMap((dir) => recentFilesUnder(dir, since))
           .join(", ")}`,
       );
@@ -2767,12 +2762,7 @@ const SCENARIOS: Scenario[] = [
     allowsFolders: 1,
     // Seen: the brief added "directly in Downloads", and the newest PDFs
     // were all in subfolders.
-    assertions: [
-      wroteThreeSummaries,
-      summarizedTheRightPdfs,
-      toldWhichPdfs,
-      leavesChatsToConversations,
-    ],
+    assertions: [wroteThreeSummaries, summarizedTheRightPdfs, toldWhichPdfs],
     prompt:
       "Look through the PDFs in my Downloads folder, pick the three most recent, and write a one-page summary of each into a folder called PDF summaries. Tell me which ones you picked.",
     setup: seedDownloads,

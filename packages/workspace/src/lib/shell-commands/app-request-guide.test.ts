@@ -166,9 +166,7 @@ describe("app request and the app's guide", () => {
     ]);
     expect(made.stderr).toBe("");
     expect(made.exitCode).toBe(0);
-    const loaded = (
-      await loadApp(getWorkspaceConfig().appsDir, slug)
-    )._unsafeUnwrap();
+    const loaded = (await loadApp(slug))._unsafeUnwrap();
     await getWorkspaceConfig().apps.connections.set(slug, {
       manifestHash: loaded.manifestHash,
       status: "connected",
@@ -189,7 +187,7 @@ describe("app request and the app's guide", () => {
     const slug = `guide-${chats}`;
     await connectedApiApp(slug);
     await writeAppGuide(
-      (await loadApp(getWorkspaceConfig().appsDir, slug))._unsafeUnwrap().dir,
+      (await loadApp(slug))._unsafeUnwrap().slug,
       "# Guide\n\nGET /me answers who the key belongs to.",
     );
 
@@ -259,16 +257,16 @@ describe("app request and the app's guide", () => {
 
   it("counts a guide the session's start told whole, until it is edited", async () => {
     const slug = `guide-${chats}`;
-    const { dir } = await connectedApiApp(slug);
+    const { slug: id } = await connectedApiApp(slug);
     await writeAppGuide(
-      dir,
+      id,
       "# Guide\n\nGET /me answers who the key belongs to.",
     );
     await writeBaseline(chatId, sessionId, { apps: await currentChatApps() });
 
     expect(await handsOver(slug)).toBe(false);
 
-    await writeAppGuide(dir, "# Guide\n\nGET /me answers whose key it is.");
+    await writeAppGuide(id, "# Guide\n\nGET /me answers whose key it is.");
     expect(await handsOver(slug)).toBe(true);
   });
 
@@ -293,10 +291,10 @@ describe("app request and the app's guide", () => {
 
   it("hands it over again once the guide was edited", async () => {
     const slug = `guide-${chats}`;
-    const { dir } = await connectedApiApp(slug);
+    const { slug: id } = await connectedApiApp(slug);
     expect(await handsOver(slug)).toBe(true);
 
-    await writeAppGuide(dir, "# Guide\n\nEvery path takes a trailing slash.");
+    await writeAppGuide(id, "# Guide\n\nEvery path takes a trailing slash.");
 
     expect(await handsOver(slug)).toBe(true);
     expect(await handsOver(slug)).toBe(false);

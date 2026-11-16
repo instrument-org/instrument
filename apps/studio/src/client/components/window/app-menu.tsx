@@ -28,14 +28,7 @@ import {
 import { type OpenDestination } from "@/client/hooks/use-open-target";
 import { useConnectFromDirectory } from "@/client/components/window/use-connect-from-directory";
 import { rpcClient, type RPCOutput } from "@/client/rpc/client";
-import {
-  hasFilesView,
-  revealInFileManager,
-  showInFolder,
-  showInFolderLabel,
-} from "@/client/lib/show-in-files";
 import { toast } from "@/client/lib/toast";
-import { osConventions } from "@/client/lib/utils";
 import { DotsThreeVerticalIcon } from "@phosphor-icons/react/DotsThreeVertical";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { Fragment, type ReactElement, useRef, useState } from "react";
@@ -213,23 +206,6 @@ function useAppMenu({ app, name, onInspect, onRemoved }: AppMenuProps) {
           }}
         >
           Connect Another Account
-        </Item>
-      ) : null}
-      <Separator />
-      <Item
-        onSelect={() => {
-          void showInFolder(app.dir, { kind: "folder" });
-        }}
-      >
-        {showInFolderLabel("folder")}
-      </Item>
-      {hasFilesView() ? (
-        <Item
-          onSelect={() => {
-            void revealInFileManager(app.dir);
-          }}
-        >
-          {osConventions().showInFileManager}
         </Item>
       ) : null}
       <Separator />

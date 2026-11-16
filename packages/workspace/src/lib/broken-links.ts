@@ -204,7 +204,7 @@ async function missingThing({
   const config = getWorkspaceConfig();
   switch (noun) {
     case "app": {
-      const { apps } = await listApps(config.appsDir);
+      const { apps } = await listApps();
       return apps.some((app) => app.slug === name) ||
         getAppCatalog().some((entry) => entry.slug === name)
         ? undefined

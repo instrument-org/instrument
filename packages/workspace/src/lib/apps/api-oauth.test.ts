@@ -185,14 +185,13 @@ describe("an API app signed in with Instrument's Microsoft client", () => {
 
   it("signs in through the relay, redeems and refreshes at our API, and calls Graph", async () => {
     const microsoft = serveMicrosoft();
-    const { appsDir } = getWorkspaceConfig();
 
     const setUp = await setUpFromDirectory({ slug: "outlook" });
     if (setUp.kind !== "set-up") {
       throw new Error("Expected Outlook to be set up from the directory");
     }
     const { slug } = setUp;
-    const app = (await loadApp(appsDir, slug))._unsafeUnwrap();
+    const app = (await loadApp(slug))._unsafeUnwrap();
     const { manifest } = app;
     if (manifest.type !== "api") {
       throw new Error("Expected an API app");
@@ -210,7 +209,6 @@ describe("an API app signed in with Instrument's Microsoft client", () => {
 
     const begun = (
       await beginMcpOAuth({
-        appsDir,
         redirectUrl: LOOPBACK,
         relayRedirectUrl,
         relayTokenUrl,
@@ -381,14 +379,12 @@ describe("an API app signed in with Instrument's Microsoft client", () => {
       heard.push(event);
     });
     try {
-      const { appsDir } = getWorkspaceConfig();
       const setUp = await setUpFromDirectory({ slug: "outlook" });
       if (setUp.kind !== "set-up") {
         throw new Error("Expected Outlook to be set up from the directory");
       }
       const begun = (
         await beginMcpOAuth({
-          appsDir,
           redirectUrl: LOOPBACK,
           relayRedirectUrl,
           relayTokenUrl,

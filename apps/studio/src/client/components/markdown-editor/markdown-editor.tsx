@@ -31,7 +31,6 @@ import { splitFrontMatter } from "@instrument-org/shared";
 import {
   AGENT_FILES_LANGUAGE,
   AGENT_MESSAGE_LANGUAGE,
-  isChatTranscript,
   isMessageDocument,
   parseMessage,
   WINDOW_ID,
@@ -98,9 +97,7 @@ export function MarkdownEditor({
 }: {
   hostPath: string;
   /**
-   * What shows instead when the file is in an encoding the app only reads,
-   * or is a chat's `CHAT.md`, which the app rewrites after every
-   * reply and whose own head says so.
+   * What shows instead when the file is in an encoding the app only reads.
    */
   readOnlyView: ReactNode;
 }) {
@@ -133,9 +130,6 @@ export function MarkdownEditor({
         <div className="relative min-h-0 flex-1">{readOnlyView}</div>
       </div>
     );
-  }
-  if (isChatTranscript(hostPath, initial.data.content)) {
-    return readOnlyView;
   }
   return (
     <LiveDocument

@@ -3,13 +3,11 @@ import fs from "node:fs/promises";
 import path from "node:path";
 
 import {
-  APPS_FOLDER_NAME,
+  MEMORY_FOLDER_NAME,
   PROJECT_FILE_NAME,
   PROJECTS_FOLDER_NAME,
 } from "../constants";
 import { type SessionMessageDataPart } from "../schemas/session/message-data-part";
-import { APP_FILE_NAME } from "./apps/app-file";
-import { memoryDir } from "./memory/store";
 import {
   beginTurn,
   endTurn,
@@ -23,20 +21,24 @@ import { getWorkspaceSkillsDir } from "./workspace-skills-dir";
 
 /**
  * The parts of a person's setup a turn can change that outlast the chat: a
- * skill (a folder in `Skills/`), an app (a folder in `Apps/`), a project (a
- * folder in `Projects/`), a memory (a file in `Memory/`). Each is named the way
- * its folder or file is.
+ * skill (a folder in `Skills/`), an app (a record in the apps store, which
+ * only `instrument app` writes), a project (a folder in `Projects/`), a
+ * memory (a file in `Memory/`). Each is named the way its folder or file is,
+ * and an app by its name.
  */
 export type SetupKind = "app" | "memory" | "skill" | "project";
 
+/** The kinds that are a folder or a file of the person's. */
+export type FolderSetupKind = Exclude<SetupKind, "app">;
+
 /**
- * Where each kind lives, how a name in its folder is an item, the file that
- * says what it is, and what makes the item there: a skill folder without its
- * `SKILL.md` is not a skill, while every folder in `Projects/` is a project,
- * its `AGENTS.md` only what it says.
+ * Where each kind in a folder lives, how a name in its folder is an item, the
+ * file that says what it is, and what makes the item there: a skill folder
+ * without its `SKILL.md` is not a skill, while every folder in `Projects/` is
+ * a project, its `AGENTS.md` only what it says.
  */
 export const SETUP_KINDS: Record<
-  SetupKind,
+  FolderSetupKind,
   {
     folder: () => string;
     /** The item a name directly in the folder is, if any. */
@@ -47,14 +49,10 @@ export const SETUP_KINDS: Record<
     presence: (name: string) => string;
   }
 > = {
-  app: {
-    folder: () => path.join(getWorkspaceConfig().rootDir, APPS_FOLDER_NAME),
-    itemOf: (entry) => entry,
-    marker: (name) => `${name}/${APP_FILE_NAME}`,
-    presence: (name) => `${name}/${APP_FILE_NAME}`,
-  },
   memory: {
-    folder: () => memoryDir(),
+    // Not `memoryDir()`: the memory store's module reaches the session
+    // schemas, which reach this one.
+    folder: () => path.join(getWorkspaceConfig().rootDir, MEMORY_FOLDER_NAME),
     itemOf: (entry) => (entry.endsWith(".md") ? entry.slice(0, -3) : undefined),
     marker: (name) => `${name}.md`,
     presence: (name) => `${name}.md`,
@@ -320,6 +318,11 @@ export async function consumeSetupChanges(
 
 /** Whether an item of that kind and name is there now. */
 async function setupItemExists(kind: SetupKind, name: string) {
+  if (kind === "app") {
+    // Only `instrument app` touches an app, writing it, and no turn removes
+    // one, so an app touched is an app there.
+    return true;
+  }
   const { folder, presence } = SETUP_KINDS[kind];
   return fs.stat(path.join(folder(), presence(name))).then(
     (stats) => (kind === "project" ? stats.isDirectory() : stats.isFile()),
@@ -343,7 +346,7 @@ function trackerForCurrentTurn(): TurnTracker | undefined {
 
 /** A setup folder as a mounted filesystem names it. */
 export interface SetupFolder {
-  kind: SetupKind;
+  kind: FolderSetupKind;
   /**
    * The folder as the delegate is handed paths, without a trailing slash:
    * `""` when the mount is the folder itself.

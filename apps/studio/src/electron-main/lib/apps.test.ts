@@ -1,5 +1,4 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { z } from "zod";
 
 const mocks = vi.hoisted(() => ({
   calls: [] as unknown[],
@@ -38,7 +37,7 @@ vi.mock("@instrument-org/workspace/electron", () => ({
   pendingMcpOAuthSlug: (state: string) => mocks.pending.get(state),
 }));
 
-import { receiveAppCallback, rememberAppsDir, signInRefusalOf } from "./apps";
+import { receiveAppCallback, rememberAppsReady, signInRefusalOf } from "./apps";
 
 beforeEach(() => {
   mocks.calls.length = 0;
@@ -48,7 +47,7 @@ beforeEach(() => {
     value: { opensIn: "app", slug: "linear" },
   });
   // Branded as the workspace brands it, whose schemas are mocked away here.
-  rememberAppsDir(z.string().brand("AbsolutePath").parse("/apps"));
+  rememberAppsReady();
 });
 
 describe("receiveAppCallback", () => {

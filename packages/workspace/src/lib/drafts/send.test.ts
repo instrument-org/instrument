@@ -17,6 +17,7 @@ import {
 import { workspaceLayout } from "../workspace-layout";
 import { type DraftFile } from "./draft-file";
 import {
+  draftsFolderDir,
   makeDraftFolder,
   findDraft,
   readDrafts,
@@ -122,7 +123,7 @@ function messageNaming(fromDraft: string | undefined, chatId: ChatId = CHAT) {
   );
 }
 
-/** What is left in `Drafts/`, by draft id and words. */
+/** What is left in the drafts folder, by draft id and words. */
 async function drafts(): Promise<{ id: string; words: string }[]> {
   return (await readDrafts(rootDir)).map((entry) => ({
     id: entry.draft.id,
@@ -196,7 +197,7 @@ describe("a send stopped between its steps", () => {
       left: [],
       untrashed: [],
     });
-    expect(fs.readdirSync(path.join(rootDir, "Drafts"))).toEqual([]);
+    expect(fs.readdirSync(draftsFolderDir(rootDir))).toEqual([]);
   });
 
   it("comes to the same place however often a launch runs it", async () => {

@@ -3,7 +3,7 @@ import { MotionGlobalConfig } from "motion/react";
 import { useState } from "react";
 import { flushSync } from "react-dom";
 import { beforeEach, describe, expect, it, onTestFinished } from "vitest";
-import { userEvent } from "vitest/browser";
+import { page, userEvent } from "vitest/browser";
 
 import { dragPoint } from "./drag/session";
 import { TabStrip } from "./tab-strip";
@@ -84,8 +84,10 @@ describe("a press on a tab", () => {
 
 describe("a tab's name", () => {
   const long = "A name far too long to fit in any tab there could ever be";
-  const strip = (title: string, selectedKey?: string) =>
-    renderInBrowser(
+  // The pointer is parked below the strip, since a tab under it shows its X
+  // and the page's pointer stays wherever an earlier test file left it.
+  const strip = async (title: string, selectedKey?: string) => {
+    await renderInBrowser(
       <div style={{ width: 300 }}>
         <TabStrip
           onClose={() => undefined}
@@ -93,8 +95,11 @@ describe("a tab's name", () => {
           selectedKey={selectedKey}
           tabs={[{ icon: <span />, key: "one", title }]}
         />
+        <div data-testid="away" style={{ height: 40 }} />
       </div>,
     );
+    await userEvent.hover(page.getByTestId("away"));
+  };
   // Where the fade's two stops stand, in px left of the title's right edge.
   const stopsOf = (title: Element) =>
     [
@@ -110,21 +115,37 @@ describe("a tab's name", () => {
     return title;
   };
 
-  it("fades out before its close button starts when it is too long", async () => {
-    await strip(long, "one");
+  const closeOf = () => {
     const close = tab("one").querySelector("button");
     if (!close) {
       throw new Error("no close button");
     }
-    const stops = stopsOf(titleOf());
-    expect(stops).toHaveLength(2);
-    const gone = titleOf().getBoundingClientRect().right - Math.min(...stops);
-    expect(gone).toBeLessThan(close.getBoundingClientRect().left);
+    return close;
+  };
+  // Where the name is gone, in px from the window's left.
+  const goneAt = () =>
+    titleOf().getBoundingClientRect().right - Math.min(...stopsOf(titleOf()));
+
+  it("fades out before its close button starts when it is too long", async () => {
+    await strip(long, "one");
+    expect(stopsOf(titleOf())).toHaveLength(2);
+    expect(goneAt()).toBeLessThan(closeOf().getBoundingClientRect().left);
   });
 
   it("runs to its end when its close button is not showing", async () => {
     await strip(long);
-    expect(stopsOf(titleOf())).toEqual([32, 0]);
+    expect(getComputedStyle(closeOf()).display).toBe("none");
+    expect(stopsOf(titleOf())).toHaveLength(2);
+    expect(goneAt()).toBe(titleOf().getBoundingClientRect().right);
+  });
+
+  it("fades out before its close button once the pointer is on it", async () => {
+    await strip(long);
+    await userEvent.hover(tab("one"));
+    await expect
+      .poll(() => getComputedStyle(closeOf()).display)
+      .not.toBe("none");
+    expect(goneAt()).toBeLessThan(closeOf().getBoundingClientRect().left);
   });
 
   it("shows whole, unfaded, when it fits", async () => {

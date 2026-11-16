@@ -51,8 +51,12 @@ function convertedChat(
   }
 }
 
+/** Everything under `dir`, with `/` between names on every system. */
 function listed(dir: string): string[] {
-  return fs.readdirSync(dir, { recursive: true, encoding: "utf8" }).toSorted();
+  return fs
+    .readdirSync(dir, { recursive: true, encoding: "utf8" })
+    .map((entry) => entry.split(path.sep).join("/"))
+    .toSorted();
 }
 
 function move() {

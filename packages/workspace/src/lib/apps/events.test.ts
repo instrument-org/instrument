@@ -494,6 +494,16 @@ describe("Not now from another computer", () => {
   it("settles a card with a sign-in that failed, and leaves an app that just connected", async () => {
     const { chatId, sessionId } = await chatWithCard();
     await answerRow("drive", "failed");
+    // The failed row wakes the chat on its own; on a slow machine that wake
+    // can land after the fixed wait, so wait for it before counting.
+    await vi.waitFor(() => {
+      expect(
+        wakes().some(
+          (wake) =>
+            wake.chatId === chatId && wake.events.includes("drive failed"),
+        ),
+      ).toBe(true);
+    });
     // Connected on this computer since the card's rows were last written.
     await setStatus("gmail", "connected");
     woken.mockClear();

@@ -10,9 +10,11 @@ import { cn } from "@/client/lib/utils";
 import { rpcClient } from "@/client/rpc/client";
 import {
   detailOf,
+  type Feature,
   planPage,
   type Release,
   versionLabel,
+  whatsNewOf,
 } from "@/client/lib/release-notes";
 import { RELEASE_NOTES_URL } from "@instrument-org/shared";
 import { ArrowSquareOutIcon } from "@phosphor-icons/react/ArrowSquareOut";
@@ -20,7 +22,7 @@ import { ArrowsClockwiseIcon } from "@phosphor-icons/react/ArrowsClockwise";
 import { CaretDownIcon } from "@phosphor-icons/react/CaretDown";
 import { CheckCircleIcon } from "@phosphor-icons/react/CheckCircle";
 import { WifiSlashIcon } from "@phosphor-icons/react/WifiSlash";
-import { useMutation, useQuery } from "@tanstack/react-query";
+import { skipToken, useMutation, useQuery } from "@tanstack/react-query";
 import { createFileRoute } from "@tanstack/react-router";
 import { useState } from "react";
 import { z } from "zod";
@@ -28,7 +30,7 @@ import { z } from "zod";
 export const Route = createFileRoute("/_app/release-notes")({
   component: RouteComponent,
   head: () => ({
-    meta: [{ title: "Release notes" }],
+    meta: [{ title: "What's new" }],
   }),
   staticData: { tabIcon: "file-text" },
   validateSearch: z.object({
@@ -39,7 +41,17 @@ export const Route = createFileRoute("/_app/release-notes")({
 
 function RouteComponent() {
   const { since } = Route.useSearch();
-  const releasesQuery = useQuery(rpcClient.releases.list.queryOptions());
+  const releasesQuery = useQuery({
+    ...rpcClient.releases.list.queryOptions(),
+    // A release whose pictures are on their way is asked about again until
+    // they arrive, so the page fills in while it is open.
+    refetchInterval: ({ state }) =>
+      state.data?.releases.some(
+        (release) => whatsNewOf(release, state.dataUpdatedAt)?.waiting,
+      )
+        ? PICTURES_RECHECK_MS
+        : false,
+  });
   const { data: appVersion } = useQuery(
     rpcClient.preferences.getAppVersion.queryOptions(),
   );
@@ -56,6 +68,10 @@ function RouteComponent() {
     since,
     staged,
   });
+  const features = plan.full.flatMap(
+    (release) =>
+      whatsNewOf(release, releasesQuery.dataUpdatedAt)?.features ?? [],
+  );
 
   return (
     <div className="h-full overflow-y-auto scroll-fade-y select-text">
@@ -87,6 +103,7 @@ function RouteComponent() {
                 version={staged}
               />
             )}
+            {features.length > 0 && <Features features={features} />}
             {plan.newer.map((release) => (
               <FoldedEntry key={release.version} release={release} />
             ))}
@@ -118,6 +135,83 @@ function RouteComponent() {
         )}
       </div>
     </div>
+  );
+}
+
+/** How often a release waiting on its pictures is asked about again. */
+const PICTURES_RECHECK_MS = 10 * 60 * 1000;
+
+/**
+ * What the versions shown in full lead with, the first as the largest, ahead
+ * of their notes.
+ */
+function Features({ features }: { features: Feature[] }) {
+  const [lead, ...rest] = features;
+  return (
+    <div className="pb-12">
+      {lead && <FeatureCard feature={lead} lead />}
+      {rest.length > 0 && (
+        <div className="grid gap-x-6 gap-y-8 pt-10 @xl/app-content:grid-cols-2">
+          {rest.map((feature) => (
+            <FeatureCard
+              feature={feature}
+              key={`${feature.version} ${feature.title}`}
+            />
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+/** A feature: its picture once there is one, its name, and its line. */
+function FeatureCard({
+  feature,
+  lead = false,
+}: {
+  feature: Feature;
+  lead?: boolean;
+}) {
+  const { data: src } = useQuery({
+    ...rpcClient.releases.picture.queryOptions({
+      input: feature.picture
+        ? { name: feature.picture, version: feature.version }
+        : skipToken,
+    }),
+    staleTime: Number.POSITIVE_INFINITY,
+  });
+  return (
+    <section className="min-w-0">
+      {src && (
+        <img
+          alt=""
+          className={cn(
+            "mb-4 w-full rounded-xl object-cover ring-1 ring-foreground/6",
+            lead ? "aspect-[3/2]" : "aspect-[16/10]",
+          )}
+          src={src}
+        />
+      )}
+      <div className="flex items-baseline gap-3">
+        <h2
+          className={cn("font-semibold", lead ? "text-[17px]" : "text-[15px]")}
+        >
+          {feature.title}
+        </h2>
+        <span className="flex-1" />
+        <span className="text-xs whitespace-nowrap text-muted-foreground">
+          {versionLabel(feature.version)}
+        </span>
+      </div>
+      <p
+        className={cn(
+          "mt-1 text-foreground/80",
+          lead ? "text-[15px] leading-6" : "text-sm leading-5",
+        )}
+      >
+        {feature.line}
+      </p>
+    </section>
   );
 }
 

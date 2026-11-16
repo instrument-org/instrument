@@ -3,8 +3,10 @@ import { describe, expect, it } from "vitest";
 import {
   detailOf,
   planPage,
+  PICTURES_WAIT_MS,
   type Release,
   versionLabel,
+  whatsNewOf,
 } from "./release-notes";
 
 const release = (version: string, body = ""): Release => ({
@@ -139,5 +141,74 @@ describe("detailOf", () => {
       body: "## What's changed\n\n- x",
     };
     expect(detailOf(list)).toBe(list.body);
+  });
+});
+
+const NOTES = (note: string) => `Zoom into pictures, and find in chats.
+
+## What's new
+
+${note}
+
+- **Zoom into pictures.** Click a large picture to zoom in where you clicked.
+- **Find in chats.** Press Command-F to find words in a chat.
+
+## Fixes and polish
+
+- Shortened dates show in full on hover.
+`;
+
+const PUBLISHED = Date.parse("2026-10-29T12:00:00Z");
+
+describe("whatsNewOf", () => {
+  const of = (note: string, now = PUBLISHED + 60_000) =>
+    whatsNewOf({ ...release("2.0.10", NOTES(note)) }, now);
+
+  it("pairs each feature with its picture once the pictures are ready", () => {
+    expect(
+      of("<!-- whats-new\nstatus: ready\nZoom into pictures: zoom.gif\n-->"),
+    ).toMatchInlineSnapshot(`
+      {
+        "features": [
+          {
+            "line": "Click a large picture to zoom in where you clicked.",
+            "picture": "zoom.gif",
+            "title": "Zoom into pictures",
+            "version": "2.0.10",
+          },
+          {
+            "line": "Press Command-F to find words in a chat.",
+            "picture": undefined,
+            "title": "Find in chats",
+            "version": "2.0.10",
+          },
+        ],
+        "waiting": false,
+      }
+    `);
+  });
+
+  it("waits while the pictures are pending, and gives up a day after publishing", () => {
+    const note = "<!-- whats-new\nstatus: pending\n-->";
+    expect(of(note)?.waiting).toBe(true);
+    expect(of(note)?.features.every((f) => f.picture === undefined)).toBe(true);
+    expect(of(note, PUBLISHED + PICTURES_WAIT_MS + 1)?.waiting).toBe(false);
+  });
+
+  it("takes a section with no note as words alone, and notes without one as none", () => {
+    expect(of("")?.waiting).toBe(false);
+    expect(of("")?.features.map((f) => f.title)).toEqual([
+      "Zoom into pictures",
+      "Find in chats",
+    ]);
+    expect(
+      whatsNewOf(release("2.0.9", "A small release.\n\n## Chats\n\n- One."), 0),
+    ).toBeNull();
+  });
+
+  it("leaves the section out of the notes shown under each version", () => {
+    expect(
+      detailOf(release("2.0.10", NOTES("<!-- whats-new\nstatus: ready\n-->"))),
+    ).toBe("## Fixes and polish\n\n- Shortened dates show in full on hover.");
   });
 });

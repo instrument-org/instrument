@@ -33,7 +33,7 @@ export const SCREENS = {
   "release-notes": {
     detail: "What changed in each version.",
     href: "/release-notes",
-    title: "Release notes",
+    title: "What's new",
   },
   shortcuts: {
     detail: "Every keyboard shortcut, by section.",

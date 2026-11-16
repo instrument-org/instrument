@@ -97,6 +97,24 @@ A beta or alpha tag publishes immediately as a prerelease. **A stable tag lands 
 
 The release body is the tag's notes followed by the **Full Changelog** and **Skills Changelog** compare links. Open it and check it rendered. A correction goes in with `gh release edit v<version> --notes-file <path>`, which reaches the release page and the app's changelog, but not the Slack post already made.
 
+## What's new pictures
+
+When asked to follow the release with What's new pictures, the notes go out with words alone and the pictures follow once they are approved, so nobody waits on them before publishing.
+
+1. Before tagging, put this note on its own line under the notes' `## What's new` heading. The app reads it, and Slack, GitHub and older builds show nothing of it:
+
+   ```markdown
+   <!-- whats-new
+   status: pending
+   -->
+   ```
+
+   While a release is pending, an open What's new page asks again every 10 minutes and fills in when the pictures land. A day after publishing the app stops waiting and shows the words alone.
+
+2. Once the release is published, post an Instrument page with the candidate features to picture, and take only the ones approved. Take them from a clean room (the `studio-walkthrough` skill), then post a review page of the pictures with each feature's line.
+3. For the approved pictures, upload each to the release under a name of lowercase letters, digits and dashes (`gh release upload v<version> find-in-chats.png`), and edit the note to `status: ready` with one `<feature name>: <file name>` line per picture, the name exactly as the bullet's bold words give it, without the period. `gh release edit v<version> --notes-file <path>` reaches every app within about 5 minutes; the API serves the pictures, so the app never asks GitHub. A retake goes up under a new name, since the API keeps a picture for a day by its name.
+4. If the follow-up is dropped, edit the note to `status: ready` with no pictures, and the features show as words.
+
 ## Verify the feed
 
 ```bash

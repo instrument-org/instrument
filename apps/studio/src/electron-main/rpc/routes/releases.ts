@@ -137,7 +137,49 @@ const notesFor = base
     }
   });
 
+/** An asset name as the What's new notes give one, so nothing else reaches the URL. */
+const PICTURE_NAME = /^[a-z0-9][a-z0-9-]*\.(?:gif|png|jpe?g|webp)$/;
+
+/**
+ * A picture attached to a release for its What's new, as a data URL the page
+ * shows in place: the window's policy keeps images to the app's own sources,
+ * and the API serves the asset from GitHub so the app makes no request there.
+ * Null when it cannot be had, which the page shows as the words alone. Not
+ * kept here: the page holds what it got for as long as it is open.
+ */
+const picture = base
+  .input(z.object({ name: z.string(), version: z.string() }))
+  .handler(async ({ input }) => {
+    const apiBase = platformApiBaseUrl();
+    if (!apiBase || !PICTURE_NAME.test(input.name)) {
+      return null;
+    }
+    const url = new URL("/release-notes/picture", apiBase);
+    url.searchParams.set("version", input.version);
+    url.searchParams.set("name", input.name);
+    try {
+      const response = await fetch(url, {
+        headers: getAnonymousPlatformApiHeaders(),
+        signal: AbortSignal.timeout(ms("30 seconds")),
+      });
+      if (!response.ok) {
+        log.warn(`release picture answered ${String(response.status)}`);
+        return null;
+      }
+      const type = response.headers.get("content-type") ?? "";
+      if (!type.startsWith("image/")) {
+        return null;
+      }
+      const bytes = Buffer.from(await response.arrayBuffer());
+      return `data:${type};base64,${bytes.toString("base64")}`;
+    } catch (error) {
+      log.warn("release picture could not be fetched", error);
+      return null;
+    }
+  });
+
 export const releases = {
   list,
   notesFor,
+  picture,
 };

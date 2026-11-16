@@ -18,6 +18,8 @@ These stay, whatever the answer:
 - `retire-chats-folder/folder-moves.ts` and the `chatfoldermoves` store. Records are append-only and are never rewritten, so a `workspace:/Chats/...` path in an old chat is found through these moves for as long as that chat exists (`resolve-workspace-file-path.ts`).
 - The 1.x path: `migrate-workspace-layout.ts` (the top-level `tasks/`) and `legacy-outputs.ts`. A 1.x user can upgrade at any time.
 
+One thing to remove at the same time: what `split-chat-records.ts` set aside, each old task's own records (`task.db`, logs, screenshots) under `.instrument/.pre-chats/chat-task-records/`. Each of those tasks is already a session in its chat's records, so the copy is never read, and on a workspace used through the betas it is hundreds of megabytes and thousands of files that a cloud drive syncs to every computer. The split itself stays, since the 1.x path runs it, so the step to add removes a `chat-task-records/` folder only once it is older than the check's four weeks, which a 1.x upgrade's fresh one is not.
+
 ## The signal
 
 - Problem reports and launch logs from beta testers show only versions at or after the first release that carries these migrations, and none of them reports a leftover `Chats/`, `Apps/` or `Topics/` folder, or front matter left in `AGENTS.md` or a memory file.
@@ -29,7 +31,7 @@ The version on each recent problem report (the reports CLI in the `internal` ref
 
 ## What each answer means
 
-- **Every tester is past the release:** delete the beta-only migrations listed above, their tests and their launch steps, keep the pieces listed as staying, and update `docs/architecture/synced-stores.md`, `chat-records.md` and `system-overview.md`, which describe the takeovers.
+- **Every tester is past the release:** delete the beta-only migrations listed above, their tests and their launch steps, add the launch step that removes an old `.pre-chats/chat-task-records/`, keep the pieces listed as staying, and update `docs/architecture/synced-stores.md`, `chat-records.md` and `system-overview.md`, which describe the takeovers.
 - **Someone is still on an older build:** move the date, and ask them to update.
 
 ## Result

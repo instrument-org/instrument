@@ -8,13 +8,13 @@ export interface DroppedFile {
 }
 
 /**
- * What a drag holds: a group's tab, a whole group by its sidebar row, files
- * (the system's drag, from the Finder or from this app's own Files and file
- * cards), or a link. Everything else that can be held is a link, by the
- * address it names (`targetOfAddress`): a site's link in a page or a reply,
- * a chip naming a chat, a task, a file or a page, a row of the Chats list,
- * and a bookmark, a link the bar keeps. A link opens as the tab its address
- * names wherever it lands.
+ * What a drag holds, on one of two paths decided by what was grabbed. A
+ * piece of the window (a group's tab, a whole group by its sidebar row, a
+ * bookmark of the bar) is held by the pointer (`WindowHeld`); content (files
+ * from the Finder, Files, a file card or the address field, and a link from a
+ * page, a reply, a chip, a row of the Chats list or the address field) is
+ * held by the system's drag (`ContentHeld`). A link opens as the tab its
+ * address names (`targetOfAddress`) wherever it lands.
  */
 export type Held =
   | {
@@ -75,6 +75,22 @@ export type Landing =
       kind: "bookmarks";
     }
   | { kind: "window" };
+
+/**
+ * What the pointer path holds: a piece of the window itself, a tab, a whole
+ * group by its row, or a bookmark of the bar. It moves where it lands, as
+ * itself, and leaves the window only as main carries a tab or a group.
+ */
+export type WindowHeld =
+  | Extract<Held, { kind: "group" | "tab" }>
+  | (Extract<Held, { kind: "link" }> & { bookmark: string });
+
+/**
+ * What the system's drag holds: files or a link, from another app or from
+ * this one's own content (`useContentDrag`), which every target here takes
+ * the same way and which can leave the app.
+ */
+export type ContentHeld = Extract<Held, { kind: "files" | "link" }>;
 
 /** A link that is a bookmark of the bar. */
 export function isBookmark(held: Held): boolean {

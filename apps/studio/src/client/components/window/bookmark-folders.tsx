@@ -39,7 +39,7 @@ import {
   bookmarkClicks,
 } from "./bookmark-menu";
 import { DROP_TONE } from "./drag/tone";
-import { pressLink } from "./drag/press-link";
+import { pressBookmark } from "./drag/press-bookmark";
 import {
   useFolderDropLine,
   useFolderMenuTarget,
@@ -220,11 +220,7 @@ function FolderItems({
         className={cn("relative", line?.held.has(bookmark.id) && "opacity-50")}
         data-bookmark-id={bookmark.id}
         onPointerDown={(event) => {
-          pressLink(event, {
-            bookmark: bookmark.id,
-            title: bookmark.title,
-            url: bookmark.url,
-          });
+          pressBookmark(event, bookmark);
         }}
         title={bookmark.url}
       >

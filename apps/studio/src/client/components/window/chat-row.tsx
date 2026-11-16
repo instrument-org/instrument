@@ -41,7 +41,7 @@ import { chatMenuGroups } from "./chat-actions";
 import { type RowDensity } from "./chat-list-view";
 import { ChatMarkDot } from "./chat-mark";
 import { ChatTitleField } from "./chat-title";
-import { pressLink } from "./drag/press-link";
+import { useContentDrag } from "./drag/content-drag";
 import {
   activityLabel,
   type Chat,
@@ -179,6 +179,11 @@ export function ChatRow({
   };
   const isUnseen = chat.unread;
   const rename = useChatRename(chat);
+  // Dragged, the row is the chat's address, held like any link.
+  const dragProps = useContentDrag(
+    { kind: "link", title: chat.title, url: chatAddressOf(chat.id) },
+    { isOff: rename.isEditing },
+  );
   const titleArrival = useTitleArrival(chat);
   // The menu hands focus back to the row as it closes, which would land
   // after the field took it and blur the rename shut.
@@ -308,15 +313,7 @@ export function ChatRow({
           )}
           data-open={isOpen || undefined}
           {...clicks}
-          // Dragged, the row is the chat's address, held like any link.
-          onPointerDown={(event) => {
-            if (!rename.isEditing) {
-              pressLink(event, {
-                title: chat.title,
-                url: chatAddressOf(chat.id),
-              });
-            }
-          }}
+          {...dragProps}
           onKeyDown={(event) => {
             if (event.key === "Enter" && event.target === event.currentTarget) {
               onOpen();

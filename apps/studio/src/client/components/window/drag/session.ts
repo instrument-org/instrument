@@ -15,7 +15,12 @@ import {
   type SplitTarget,
   START_PX,
 } from "./landing";
-import { type Held, type Landing } from "./types";
+import {
+  type ContentHeld,
+  type Held,
+  type Landing,
+  type WindowHeld,
+} from "./types";
 
 /**
  * The one drag a window has going: whatever is held, by the pointer, the
@@ -357,7 +362,7 @@ interface Press {
  */
 export function pressToDrag(
   press: Press,
-  begin: () => undefined | { grab: Point; held: Held },
+  begin: () => undefined | { grab: Point; held: WindowHeld },
 ): boolean {
   if (
     press.button !== 0 ||
@@ -418,7 +423,7 @@ export function pressToDrag(
  */
 export function pressToHold(
   event: React.PointerEvent<HTMLElement>,
-  heldOf: (pressedAt: Point) => Held | undefined,
+  heldOf: (pressedAt: Point) => WindowHeld | undefined,
 ) {
   const element = event.currentTarget;
   const pressedAt = { x: event.clientX, y: event.clientY };
@@ -444,7 +449,7 @@ function isPageFrame(element: Element | null): element is HTMLElement {
 }
 
 /** A drag the pointer holds, from its first movement past the start. */
-function startPointerDrag(held: Held, grab: Point, event: PointerEvent) {
+function startPointerDrag(held: WindowHeld, grab: Point, event: PointerEvent) {
   if (session) {
     end(session);
   }
@@ -625,7 +630,7 @@ export function followRemote(
 
 /** Files or a link from elsewhere held over the window by the system's drag, as it says where the pointer is. */
 export function followNative(
-  held: Extract<Held, { kind: "files" | "link" }>,
+  held: ContentHeld,
   point: Point,
 ): Landing | undefined {
   dragPoint.x = point.x;

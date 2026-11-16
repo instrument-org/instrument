@@ -33,7 +33,10 @@ import {
   ExtensionPageBadge,
   isExtensionPageUrl,
 } from "@/client/components/window/browser-extensions";
-import { pressLink } from "@/client/components/window/drag/press-link";
+import {
+  contentOfAddress,
+  useContentDrag,
+} from "@/client/components/window/drag/content-drag";
 import { Omnibar } from "@/client/components/window/omnibar";
 import { editField } from "@/client/components/window/omnibar-field";
 import {
@@ -41,7 +44,6 @@ import {
   openInAppTargetOfUrl,
 } from "@/client/hooks/use-open-in-app";
 import { useCloseOnWindowBlur } from "@/client/hooks/use-close-on-window-blur";
-import { useFileDrag } from "@/client/hooks/use-file-drag";
 import { useGesturesFor } from "@/client/hooks/use-open-target";
 import { fileUrlOf } from "@/client/lib/file-url";
 import { pageConnection } from "@/client/lib/page-connection";
@@ -160,6 +162,15 @@ export function TabLocationRow({
   const openIn = openInAppTargetOf(location);
   const setLookAt = useSetAtom(lookAtAtom);
   const place = locationText(location);
+  // Whether the field's words have the caret, where a press selects in them
+  // rather than carrying the address out.
+  const [isEditing, setIsEditing] = useState(false);
+  const fieldDrag = useContentDrag(
+    address
+      ? contentOfAddress(address, title || bookmarkTitleOf(location))
+      : undefined,
+    { isOff: isEditing },
+  );
   // A file is drawn larger over the window; a page is already as large as
   // the tab, and a live site does not survive being lifted out of it.
   const lookTarget: LookTarget | undefined =
@@ -217,15 +228,21 @@ export function TabLocationRow({
             // to breathe inside the curve.
             (openIn || address) && "pr-2",
           )}
+          {...fieldDrag}
+          onBlur={(event) => {
+            if (event.target instanceof HTMLInputElement) {
+              setIsEditing(false);
+            }
+          }}
+          onFocus={(event) => {
+            if (event.target instanceof HTMLInputElement) {
+              setIsEditing(true);
+            }
+          }}
           onPointerDown={(event) => {
             // Only a primary press edits: a right press on the place is its
             // menu, and so is a Control press on a Mac.
-            if (
-              event.button !== 0 ||
-              (event.ctrlKey && isMacOS()) ||
-              (event.target instanceof Element &&
-                event.target.closest("[data-drags-out]"))
-            ) {
+            if (event.button !== 0 || (event.ctrlKey && isMacOS())) {
               return;
             }
             const input = event.currentTarget.querySelector("input");
@@ -234,16 +251,12 @@ export function TabLocationRow({
               return;
             }
             // Anywhere else in the field, the chip and the place's parts
-            // included, a press past the start holds the place as its
-            // address, as a browser's address bar does; one that goes
-            // nowhere is a click, which edits the field or does what the
-            // part pressed does.
-            const wasHeld = address
-              ? pressLink(event, {
-                  title: title || bookmarkTitleOf(location),
-                  url: address,
-                })
-              : () => false;
+            // included, a press that moves carries what the address names
+            // out by the system's drag (`fieldDrag`), the file itself for a
+            // file or folder and the link for anything else, as a browser's
+            // address bar does; one that goes nowhere is a click, which
+            // edits the field or does what the part pressed does.
+            fieldDrag.onPointerDown?.(event);
             if (
               !input ||
               event.target === input ||
@@ -252,16 +265,12 @@ export function TabLocationRow({
             ) {
               return;
             }
-            event.preventDefault();
-            window.addEventListener(
-              "pointerup",
-              () => {
-                if (!wasHeld()) {
-                  editField(input);
-                }
-              },
-              { once: true },
-            );
+            // A canceled press never becomes the system's drag, so only a
+            // field with nothing to carry keeps the press to itself.
+            if (!fieldDrag.draggable) {
+              event.preventDefault();
+            }
+            editOnClick(input, event);
           }}
         >
           <Omnibar
@@ -646,24 +655,46 @@ function ConnectionBadge({ url }: { url: string }) {
 }
 
 /**
- * The mark of a file or folder, which drags it out of the window the way a
- * Mac window's title bar icon does.
+ * The mark of the place, which drags it out of the window with the rest of
+ * the field (`fieldDrag`), the way a Mac window's title bar icon does.
  */
 function LocationMark({ location }: { location: TabLocation }) {
-  const hostPath = draggedHostPath(location);
-  const dragProps = useFileDrag(hostPath ? { hostPath } : undefined);
-  if (!hostPath) {
+  if (!draggedHostPath(location)) {
     return locationMark(location);
   }
   return (
-    <span
-      {...dragProps}
-      className="flex shrink-0 cursor-default items-center"
-      data-drags-out=""
-    >
+    <span className="flex shrink-0 cursor-default items-center">
       {locationMark(location)}
     </span>
   );
+}
+
+/** How far a press may stray and still be a click that edits the field. */
+const CLICK_SLOP_PX = 20;
+
+/**
+ * Puts the caret in the field once a press on it ends as a click: not once
+ * it has become a drag, which takes the release (`pointercancel` for a
+ * link's, nothing at all for a file's), and not past the next press.
+ */
+function editOnClick(input: HTMLInputElement, press: React.PointerEvent) {
+  const stop = () => {
+    window.removeEventListener("pointerup", up);
+    window.removeEventListener("pointercancel", stop);
+    window.removeEventListener("pointerdown", stop, { capture: true });
+  };
+  const up = (event: PointerEvent) => {
+    stop();
+    if (
+      Math.hypot(event.clientX - press.clientX, event.clientY - press.clientY) <
+      CLICK_SLOP_PX
+    ) {
+      editField(input);
+    }
+  };
+  window.addEventListener("pointerup", up);
+  window.addEventListener("pointercancel", stop);
+  window.addEventListener("pointerdown", stop, { capture: true });
 }
 
 /**

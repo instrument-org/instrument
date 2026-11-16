@@ -80,7 +80,13 @@ import {
   setCarrier,
   setLander,
 } from "./session";
-import { type DroppedFile, type Held, type Landing } from "./types";
+import { ownLinkInAir } from "./content-drag";
+import {
+  type ContentHeld,
+  type DroppedFile,
+  type Held,
+  type Landing,
+} from "./types";
 
 /**
  * How long a drag of files goes unheard from before it is taken to have
@@ -848,9 +854,10 @@ function useRemoteDrags() {
 }
 
 /**
- * Files the system's drag holds over the window, from the Finder or from
- * this app's own Files and file cards, and a link (one out of a web page,
- * a chat or another app), measured as any drag here is. A drag carries only
+ * Content the system's drag holds over the window, measured as any drag
+ * here is: the one way in for files and links, whether from the Finder,
+ * another app or a web page, or from this app's own content (Files, a
+ * file card, the address field, a link in a reply, `useContentDrag`). A drag carries only
  * its count until it is let go, so main reads what it carries
  * (`files.dragged`), and until it answers nothing is drawn but where it
  * lands; a link says where it goes only as it is let go. Listens on the
@@ -859,18 +866,15 @@ function useRemoteDrags() {
  * composer that attaches it and the window's last resort among them
  * (`useWindowDropFallback`).
  */
-function useSystemDrags(
-  onLand: (
-    held: Extract<Held, { kind: "files" | "link" }>,
-    landing: Landing,
-  ) => void,
+export function useSystemDrags(
+  onLand: (held: ContentHeld, landing: Landing) => void,
 ) {
   const onLandRef = useRef(onLand);
   useLayoutEffect(() => {
     onLandRef.current = onLand;
   });
   useEffect(() => {
-    let held: Extract<Held, { kind: "files" | "link" }> | undefined;
+    let held: ContentHeld | undefined;
     // Entering one element leaves another, so what the drag is over in the
     // window empties only as it leaves the window, or goes over a page,
     // which takes it. One taken out from under it, as a tab making way for
@@ -895,7 +899,14 @@ function useSystemDrags(
     /** A drag first seen: how many it carries now, and what they are once main says; a link, which says nothing until it is let go. */
     const begin = (event: DragEvent): NonNullable<typeof held> => {
       if (!hasFiles(event)) {
-        return { id: newScreenId(), kind: "link", title: "", url: "" };
+        // This window's own link is known by name from the start.
+        const own = ownLinkInAir();
+        return {
+          id: newScreenId(),
+          kind: "link",
+          title: own?.title ?? "",
+          url: own?.url ?? "",
+        };
       }
       const count = [...(event.dataTransfer?.items ?? [])].filter(
         (item) => item.kind === "file",

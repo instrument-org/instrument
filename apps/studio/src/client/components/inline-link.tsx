@@ -37,7 +37,7 @@ import { FAVICON_SURFACE_CLASS_NAME } from "./favicon";
 import { Tooltip, TooltipContent, TooltipTrigger } from "./ui/tooltip";
 import { AppIcon } from "./window/app-icon";
 import { useAppsBySlug } from "./window/apps-by-slug";
-import { pressLink } from "./window/drag/press-link";
+import { contentOfAddress, useContentDrag } from "./window/drag/content-drag";
 import { InstrumentGlyph } from "./wordmark";
 
 /**
@@ -291,6 +291,9 @@ function AppLink({
     { href: link.href, kind: "screen" },
     { isLink: true },
   );
+  const dragProps = useContentDrag(
+    contentOfAddress(address, textOf(children) ?? ""),
+  );
   const open = gestures.destinations.find((entry) => entry.id === "open");
   const body = (
     <ChipBody icon={<AppLinkIcon link={link} />}>{children}</ChipBody>
@@ -307,6 +310,7 @@ function AppLink({
   }
   const chip = (
     <ChipButton
+      {...dragProps}
       className={className}
       onActivate={(event) => {
         const inFront = gestures.destinations.find(
@@ -322,9 +326,6 @@ function AppLink({
       }}
       onAuxClick={gestures.onAuxClick}
       onContextMenu={gestures.onContextMenu}
-      onPointerDown={(event) => {
-        pressLink(event, { title: textOf(children) ?? "", url: address });
-      }}
     >
       {body}
     </ChipButton>
@@ -559,20 +560,21 @@ function WebLink({
     }),
   );
   const titled = pageTitle ? titleLabel(pageTitle, href) : undefined;
+  // Held by the system's drag, as a link in a browser's page is, so it goes
+  // to a page, a field or another app as well as to a tab.
+  const dragProps = useContentDrag(
+    url
+      ? { kind: "link", title: pageTitle ?? label ?? "", url: href }
+      : undefined,
+  );
 
   const anchor = (
     <ExternalLink
       {...props}
-      className={cn(INLINE_LINK_CLASS_NAME, className)}
-      // Held by the window's own drag, as every link in the app is, rather
-      // than the system's.
       draggable={false}
+      {...dragProps}
+      className={cn(INLINE_LINK_CLASS_NAME, className)}
       href={href}
-      onPointerDown={(event) => {
-        if (url) {
-          pressLink(event, { title: pageTitle ?? label ?? "", url: href });
-        }
-      }}
       // A Markdown title is the same hover, drawn by the OS a beat later. The
       // tooltip below says it instead, so the attribute stays only on the links
       // that get no tooltip; left on the rest, the two arrive stacked.

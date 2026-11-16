@@ -32,7 +32,7 @@ import { type ReactNode, useContext } from "react";
 import { type AppsBySlug, useAppsBySlug } from "./apps-by-slug";
 import { TabIcon } from "./browser-tabs";
 import { type OpenOptions, WindowContext } from "./context";
-import { pressLink } from "./drag/press-link";
+import { contentOfAddress, useContentDrag } from "./drag/content-drag";
 import { pageTabTitle } from "./file-tabs";
 import { segmentsOf } from "./host-path";
 import { screenPresentation, type ScreenNames } from "./screen-presentation";
@@ -262,15 +262,11 @@ function ContextChip({
   );
   const fileDragProps = useFileDrag(drags);
   const held = holds?.url;
-  const dragProps = drags
-    ? fileDragProps
-    : held === undefined
-      ? {}
-      : {
-          onPointerDown: (event: React.PointerEvent<HTMLElement>) => {
-            pressLink(event, { title: holds?.title ?? "", url: held });
-          },
-        };
+  const linkDragProps = useContentDrag(
+    held === undefined ? undefined : contentOfAddress(held, holds?.title ?? ""),
+    { isOff: drags !== undefined },
+  );
+  const dragProps = drags ? fileDragProps : linkDragProps;
   const markAndName = (
     <>
       <span className="grid size-4 shrink-0 place-items-center [&_img]:size-4 [&_svg]:size-4">

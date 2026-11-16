@@ -52,7 +52,7 @@ import {
 } from "./bookmark-folders";
 import { dragAtom } from "./drag/session";
 import { DROP_TONE } from "./drag/tone";
-import { pressLink } from "./drag/press-link";
+import { pressBookmark } from "./drag/press-bookmark";
 import {
   useBookmarksTarget,
   useShownBookmarks,
@@ -312,11 +312,7 @@ function Bar({ files, onOpen, onVisit }: BarProps) {
                         {...bookmarkClicks(bookmark.url, open)}
                         data-bookmark-id={bookmark.id}
                         onPointerDown={(event) => {
-                          pressLink(event, {
-                            bookmark: bookmark.id,
-                            title: bookmark.title,
-                            url: bookmark.url,
-                          });
+                          pressBookmark(event, bookmark);
                         }}
                         title={`${name}\n${bookmark.url}`}
                         type="button"

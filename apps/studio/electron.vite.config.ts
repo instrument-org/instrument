@@ -608,6 +608,12 @@ export default defineConfig(({ command }) => {
       // about a second later than with no warmup at all. Warming the entry
       // alone stays inside the head start and is ahead on every measure.
       server: {
+        // The same policy the app scheme sends with the built renderer's
+        // pages (`RENDERER_DOCUMENT_POLICY`), so a frozen dev window reports
+        // what its JavaScript was running.
+        headers: {
+          "Document-Policy": "include-js-call-stacks-in-crash-reports",
+        },
         warmup: {
           clientFiles: ["./client/main.tsx"],
         },

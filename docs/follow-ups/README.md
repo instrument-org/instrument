@@ -45,6 +45,7 @@ Each entry is the follow-up's title and the opening of its own `Status:` line.
 - [What a second computer shows of a chat whose task waits on a card](multi-computer-sync-audit.md): open (cards resolved, see Result) · Check after: when using one workspace from more than one computer is taken on · Last checked: 2026-10-30
 - [Whether page links without a link token can stop opening](page-links-without-a-token.md): open · Check after: 2026-12-13, 30 days after the pages worker began giving every new page a link token, plus a day for its bucket's lifecycle rule · Last ch...
 - [A third sighting of the quit-teardown livelock](quit-teardown-livelock.md): open, passive · Check after: 2026-12-01, or at once after an update that left the app spinning with no window · Last checked: 2026-10-24
+- [Where app windows freeze, from the stacks their hangs record](renderer-hangs.md): open · Check after: 2026-12-07, or once a build carrying the `unresponsive` events has run two weeks of daily use on macOS and Windows · Last checked: never
 - [Why Responses streams end without a terminal event](responses-streams-ending-early.md): open · Check after: 2026-11-22, or when production exception reports are accessible · Last checked: 2026-11-08
 - [Which RPC procedures send a window megabytes](rpc-payload-sizes.md): open · Check after: 2026-11-29, after a week or more on a beta that carries the payload warnings · Last checked: never
 - [Whether the unattended-step and output-limit caps ever trip](step-and-output-caps.md): open · Check after: 2026-11-21 · Last checked: 2026-10-24

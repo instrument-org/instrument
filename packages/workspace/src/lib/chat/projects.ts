@@ -366,7 +366,7 @@ function projectOfRecord(id: string, record: ProjectRecord): Project {
 }
 
 /** The record a project is written down as: everything but its words. */
-export function recordOf(project: Project): ProjectRecord {
+function recordOf(project: Project): ProjectRecord {
   return {
     ...(project.about ? { about: project.about } : {}),
     ...(project.color ? { color: project.color } : {}),

@@ -22,7 +22,7 @@ import { workspaceLayout } from "../workspace-layout";
 
 export const PROJECTS_DOMAIN = "projects";
 
-export const ProjectRecordSchema = z.object({
+const ProjectRecordSchema = z.object({
   /** The agent's line about what goes here, for later. */
   about: z.string().optional(),
   /** The tint its mark is drawn on. */

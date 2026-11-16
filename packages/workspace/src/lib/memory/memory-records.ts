@@ -22,9 +22,9 @@ import { workspaceLayout } from "../workspace-layout";
  * left would also match a memory written by hand to one deleted by hand.
  */
 
-export const MEMORY_DOMAIN = "memory";
+const MEMORY_DOMAIN = "memory";
 
-export const MemoryRecordSchema = z.object({
+const MemoryRecordSchema = z.object({
   /** The chat it was learned in, when a chat saved it. */
   chat: ChatIdSchema.optional(),
   /** When it was saved or last corrected. */

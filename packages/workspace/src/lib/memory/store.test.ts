@@ -286,9 +286,8 @@ describe("settleMemoryFiles", () => {
       }
     `);
 
-    expect(
-      await fs.readFile(path.join(dir, "zevia.md"), "utf8"),
-    ).toMatchInlineSnapshot(`
+    expect(await fs.readFile(path.join(dir, "zevia.md"), "utf8"))
+      .toMatchInlineSnapshot(`
       "---
       project: Kitchen
       ---

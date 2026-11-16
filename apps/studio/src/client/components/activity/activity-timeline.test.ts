@@ -689,7 +689,7 @@ describe("closed tabs", () => {
     ]);
   });
 
-  it("names a closed side as the Undo toast does, never as a tab group", () => {
+  it("names a closed side by how many tabs it had, never as a tab group", () => {
     expect([
       closedText(closedTabs("t3", ["Example Domain", "Wikipedia"], "side")),
       closedText(closedTabs("t4", ["Example Domain"], "side")),

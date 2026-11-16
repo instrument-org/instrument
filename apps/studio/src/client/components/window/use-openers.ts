@@ -105,10 +105,9 @@ export function useOpeners({
   /** The entry of this window's closed list a closed tab group or tab is on, by the group's or the tab's id. */
   closedEntryOf: (kind: "group" | "tab", id: string) => string | undefined;
   /**
-   * Closes a tab group this window lists as its sidebar's X does, with an
-   * Undo, answering whether it went on the closed list, which a group of only
-   * an agent's own tabs does not (`agentCloseKeeps`); undefined for one it
-   * does not list.
+   * Closes a tab group this window lists as its sidebar's X does, answering
+   * whether it went on the closed list, which a group of only an agent's own
+   * tabs does not (`agentCloseKeeps`); undefined for one it does not list.
    */
   closeGroup: (group: string) => { isListed: boolean } | undefined;
   /** Closes a tab as the person's close does, onto the closed list unless it is an agent's own (`agentCloseKeeps`). */

@@ -27,7 +27,7 @@ export interface WindowShell {
   childTitles: Map<StoreId.Session, string>;
   /** Closes a tab group, asking first while its agent works. */
   closeGroup: (group: string) => void;
-  /** Closes the whole side a tab stands on, onto the closed list as one entry, with an Undo toast. */
+  /** Closes the whole side a tab stands on, onto the closed list as one entry. */
   closeSide: (tab: string) => void;
   /** The model a new chat starts on, and setting it. */
   defaultModelURI: AIGatewayModelURI.Type | undefined;

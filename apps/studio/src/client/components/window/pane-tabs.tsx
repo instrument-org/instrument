@@ -394,7 +394,7 @@ export interface SplitMenuActions {
   onMoveToWindow: (tab: WindowTab, windowId: string) => void;
   /** A new chat on the other side, made where the group has one side. */
   onNewChatInSplit: () => void;
-  /** This strip's whole side closed, with Undo; none for a group of one side. */
+  /** This strip's whole side closed; none for a group of one side. */
   onCloseSplit: (() => void) | undefined;
   /** This strip's side has the keyboard, so the side chords are its. */
   hasKeyboard: boolean;

@@ -408,8 +408,8 @@ export const SHOW_LABELS: Record<Show, { label: string; title: string }> = {
 
 /**
  * What a closed row says: a tab or a whole tab group by its first tab's
- * title and what closed; one side of a group as the Undo toast says it,
- * "Closed 2 tabs", or "Closed" and the title of a side of one.
+ * title and what closed; one side of a group as "Closed 2 tabs", or
+ * "Closed" and the title of a side of one.
  */
 export function closedText(closed: ClosedTabs): RowText {
   const count = closed.tabs.length;

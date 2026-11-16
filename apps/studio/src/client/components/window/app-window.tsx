@@ -135,13 +135,11 @@ import {
   sideIndexOf,
   upsAmong,
 } from "./tab-model";
-import { useTabTitle } from "./tab-title";
 import {
   sidebarRowOrderAtom,
   tabAtChord,
   useHeldChordHints,
 } from "./held-chord-hints";
-import { toastWithUndo } from "./undo-offers";
 import { useSignInLanding } from "./use-sign-in-landing";
 import { WindowLook } from "./look-panel";
 import { ProjectDialog } from "./project-dialog";
@@ -208,12 +206,6 @@ import { sitesLeaving, sitesNoLongerHere, sitesPutAway } from "./site-let-go";
 // Resolve the computer file channel once at boot so file URLs derive locally
 // from a host path; not awaited, so it never holds up the first render.
 void resolveComputerFileBase();
-
-/** What a close from the sidebar put on the window's closed list, and the tabs it held. */
-interface Closing {
-  entries: TabId[];
-  tabs: WindowTab[];
-}
 
 /**
  * The app window: its tabs across the bar, each a router of its own kept
@@ -536,14 +528,14 @@ function WindowShell({
   useCloseStrandedHostedPages();
   // Closing a group leaves its chats working: a chat goes on with no tab,
   // and the Chats page shows it at work. With `keep`, the group a row's menu asked
-  // from, which the window moves to.
-  // What went on the closed list comes back, for the sidebar's Undo.
+  // from, which the window moves to. Answers the entries it put on the
+  // closed list.
   const closeGroups = (
     closed: readonly string[],
     keep?: string,
     { byAgent = false }: { byAgent?: boolean } = {},
-  ): Closing => {
-    const closing: Closing = { entries: [], tabs: [] };
+  ): TabId[] => {
+    const entries: TabId[] = [];
     // Each group goes on the window's closed list whole, so Shift+Cmd+T
     // brings it back as it was; a group of only blank new tabs leaves
     // nothing to bring back, and neither does an agent's close of a group
@@ -568,8 +560,7 @@ function WindowShell({
             ups: upsAmong(windowTabs.layoutOf(group), kept),
           }),
         );
-        closing.entries.push(id);
-        closing.tabs.push(...kept);
+        entries.push(id);
       }
     }
     if (keep === undefined) {
@@ -579,7 +570,7 @@ function WindowShell({
     } else {
       groups.closeAll(closed, keep);
     }
-    return closing;
+    return entries;
   };
   // The window shows one group at a time, in one tab: tabs restored from
   // the strip a build before this one kept fold into the one up.
@@ -637,7 +628,6 @@ function WindowShell({
   // Undefined until the list has been read.
   const chatChrome = useChatChrome();
   const { chatTitles } = chatChrome;
-  const titleOfTab = useTabTitle(chatTitles);
   const [defaultModelURI, setDefaultModelURI, saveDefaultModelURI] =
     useDefaultModelURI();
   const drafts = useAtomValue(draftsAtom);
@@ -809,15 +799,14 @@ function WindowShell({
           ? closedTabs.some((each) => each.group === id) || tab?.group === id
           : closedTabs.some((each) => each.id === id) || tab?.id === id;
       })?.id,
-    // The sidebar's X: onto the closed list whole, with an Undo, unless
-    // it was only the agent's own tabs.
+    // The sidebar's X: onto the closed list whole, unless it was only the
+    // agent's own tabs.
     closeGroup: (group) => {
       if (!groupList.open.some((entry) => entry.group === group)) {
         return undefined;
       }
-      const closing = closeGroups([group], undefined, { byAgent: true });
-      offerUndo(closing);
-      return { isListed: closing.entries.length > 0 };
+      const entries = closeGroups([group], undefined, { byAgent: true });
+      return { isListed: entries.length > 0 };
     },
     closeTab: (id) => {
       requestClose(id, { byAgent: true });
@@ -945,16 +934,17 @@ function WindowShell({
    * The whole side a tab stands on closed, onto the window's closed list as
    * one entry that brings the side back; a group of one side closes whole.
    */
-  const closeSideOf = (id: string): Closing => {
+  const closeSideOf = (id: string) => {
     const tab = windowTabs.allTabs.find((each) => each.id === id);
     if (tab?.group === undefined) {
-      return { entries: [], tabs: [] };
+      return;
     }
     const { group } = tab;
     const layout = windowTabs.layoutOf(group);
     const side = sideIndexOf(layout, id);
     if (side === undefined || layout.sides.length < 2) {
-      return closeGroups([group]);
+      closeGroups([group]);
+      return;
     }
     const sideTabs = layout.sides[side]?.tabs ?? [];
     const upId = layout.sides[side]?.up;
@@ -962,13 +952,11 @@ function WindowShell({
       const closedAs = closingAsWritten(each);
       return closedAs && !isBlankNewTab(closedAs) ? [closedAs] : [];
     });
-    const closing: Closing = { entries: [], tabs: kept };
     if (kept.length > 0) {
-      const entry = freshTabId();
       store.set(appTabsAtom, (current) =>
         closeGroupSide(current, {
           focused: layout.focused === side,
-          id: entry,
+          id: freshTabId(),
           pathname: groupHref(group),
           side,
           tabs: kept,
@@ -978,30 +966,8 @@ function WindowShell({
           ),
         }),
       );
-      closing.entries.push(entry);
     }
     windowTabs.closeSide(group, side);
-    return closing;
-  };
-  /** A toast saying what the sidebar closed, whose Undo brings it all back. */
-  const offerUndo = ({ entries, tabs: closedTabs }: Closing) => {
-    const [first] = closedTabs;
-    if (entries.length === 0 || !first) {
-      return;
-    }
-    toastWithUndo(
-      closedTabs.length === 1
-        ? `Closed ${titleOfTab(first)}`
-        : `Closed ${closedTabs.length} tabs`,
-      {
-        journalIds: [],
-        undo: () => {
-          for (const entry of entries) {
-            reopenClosed(entry);
-          }
-        },
-      },
-    );
   };
   /**
    * One entry of the window's closed list back, by its id: a whole tab group
@@ -1525,7 +1491,7 @@ function WindowShell({
         const layout = windowTabs.layoutOf(group);
         const first = layout.sides[layout.focused]?.tabs[0];
         if (layout.sides.length === 2 && first) {
-          offerUndo(closeSideOf(first.id));
+          closeSideOf(first.id);
         }
       },
       receiveGroupTab: groupTabMoves.receive,
@@ -1651,7 +1617,7 @@ function WindowShell({
       closeGroups([group]);
     },
     closeSide: (tab) => {
-      offerUndo(closeSideOf(tab));
+      closeSideOf(tab);
     },
     goToPlace: choosePlace,
     newGroup: () => {
@@ -1717,13 +1683,13 @@ function WindowShell({
                     chatTitles={chatTitles}
                     groupUp={groupUp}
                     onClose={(group) => {
-                      offerUndo(closeGroups([group]));
+                      closeGroups([group]);
                     }}
                     onCloseAll={(closed, keep) => {
-                      offerUndo(closeGroups(closed, keep));
+                      closeGroups(closed, keep);
                     }}
                     onCloseSide={(tab) => {
-                      offerUndo(closeSideOf(tab));
+                      closeSideOf(tab);
                     }}
                     onDuplicate={(entry) => {
                       groups.duplicate(entry);

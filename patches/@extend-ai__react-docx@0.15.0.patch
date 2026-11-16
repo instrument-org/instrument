@@ -1,33 +1,33 @@
 diff --git a/dist/index.cjs b/dist/index.cjs
-index 87fa8bd760bbb6af4342007a98308d3b1422ce8d..c5fdb97b4c9759c9837badb7e48a86e5745cf054 100644
+index d12d26c..3307ab3 100644
 --- a/dist/index.cjs
 +++ b/dist/index.cjs
-@@ -24768,7 +24768,11 @@ function useDocxEditor(options = {}) {
+@@ -40653,7 +40653,11 @@ function useDocxEditor(options = {}) {
      });
      setStatus("Redo");
    }, [applyCanonicalEditorStateAction]);
 +  const historyShortcuts = options.historyShortcuts !== false;
-   React.useEffect(() => {
+   React9.useEffect(() => {
 +    if (!historyShortcuts) {
 +      return;
 +    }
      const onKeyDown = (event) => {
        if (event.defaultPrevented) {
          return;
-@@ -24812,7 +24816,7 @@ function useDocxEditor(options = {}) {
+@@ -40697,7 +40701,7 @@ function useDocxEditor(options = {}) {
      return () => {
        window.removeEventListener("keydown", onKeyDown);
      };
 -  }, [redo, undo]);
 +  }, [historyShortcuts, redo, undo]);
-   const applyToSelectedParagraphNode = React.useCallback(
+   const applyToSelectedParagraphNode = React9.useCallback(
      (mutate) => {
        applyModelChange((current) => {
 diff --git a/dist/index.d.cts b/dist/index.d.cts
-index 205e10b7ddc30267854f98e78f277f94fb27be55..527f5a79ef2d0cbba0c146af2d801839874efae7 100644
+index 75130f8..2072178 100644
 --- a/dist/index.d.cts
 +++ b/dist/index.d.cts
-@@ -881,6 +881,12 @@ type DocxBorderPresetState = Record<DocxBorderPreset, boolean>;
+@@ -1641,6 +1641,12 @@ type DocxBorderPresetState = Record<DocxBorderPreset, boolean>;
   * imports update the controller through `editor.importDocxFile`.
   */
  interface UseDocxEditorOptions {
@@ -38,13 +38,13 @@ index 205e10b7ddc30267854f98e78f277f94fb27be55..527f5a79ef2d0cbba0c146af2d801839
 +     */
 +    historyShortcuts?: boolean;
      /**
-      * Model used for `editor.newDocument()` and for the initial empty editor.
-      *
+      * Parsed document to use as the initial editor state without reading or
+      * parsing the source again.
 diff --git a/dist/index.d.ts b/dist/index.d.ts
-index 205e10b7ddc30267854f98e78f277f94fb27be55..527f5a79ef2d0cbba0c146af2d801839874efae7 100644
+index 75130f8..2072178 100644
 --- a/dist/index.d.ts
 +++ b/dist/index.d.ts
-@@ -881,6 +881,12 @@ type DocxBorderPresetState = Record<DocxBorderPreset, boolean>;
+@@ -1641,6 +1641,12 @@ type DocxBorderPresetState = Record<DocxBorderPreset, boolean>;
   * imports update the controller through `editor.importDocxFile`.
   */
  interface UseDocxEditorOptions {
@@ -55,30 +55,30 @@ index 205e10b7ddc30267854f98e78f277f94fb27be55..527f5a79ef2d0cbba0c146af2d801839
 +     */
 +    historyShortcuts?: boolean;
      /**
-      * Model used for `editor.newDocument()` and for the initial empty editor.
-      *
+      * Parsed document to use as the initial editor state without reading or
+      * parsing the source again.
 diff --git a/dist/index.js b/dist/index.js
-index 5218fe3cc3e64a24ef6a91d9ff664e9ea7ba2e93..eaadd3959d6de7712fd0d78cbb50ce5f11e11fd6 100644
+index 1e2bb49..f09c50a 100644
 --- a/dist/index.js
 +++ b/dist/index.js
-@@ -23309,7 +23309,11 @@ function useDocxEditor(options = {}) {
+@@ -39125,7 +39125,11 @@ function useDocxEditor(options = {}) {
      });
      setStatus("Redo");
    }, [applyCanonicalEditorStateAction]);
 +  const historyShortcuts = options.historyShortcuts !== false;
-   React.useEffect(() => {
+   React9.useEffect(() => {
 +    if (!historyShortcuts) {
 +      return;
 +    }
      const onKeyDown = (event) => {
        if (event.defaultPrevented) {
          return;
-@@ -23353,7 +23357,7 @@ function useDocxEditor(options = {}) {
+@@ -39169,7 +39173,7 @@ function useDocxEditor(options = {}) {
      return () => {
        window.removeEventListener("keydown", onKeyDown);
      };
 -  }, [redo, undo]);
 +  }, [historyShortcuts, redo, undo]);
-   const applyToSelectedParagraphNode = React.useCallback(
+   const applyToSelectedParagraphNode = React9.useCallback(
      (mutate) => {
        applyModelChange((current) => {

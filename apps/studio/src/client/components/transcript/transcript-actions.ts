@@ -9,6 +9,8 @@ export interface TranscriptActions {
   isRunning: boolean;
   /** Starts a new chat with the conversation up to `upTo`, a reply's last message; only a chat's own transcript can. */
   onBranch?: (upTo: StoreId.Message) => Promise<void>;
+  /** Opens the chat's model picker, the one in its reply box. */
+  onChooseModel?: () => void;
   onModelChange?: (modelURI: AIGatewayModelURI.Type) => void;
   onRetry: (prompt: string) => void;
   onRunAgain?: RunAgain;

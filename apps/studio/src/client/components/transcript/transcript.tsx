@@ -55,6 +55,7 @@ export function Transcript({
   isRunning,
   messages,
   onBranch,
+  onChooseModel,
   onContinue,
   onLoadOlder,
   onModelChange,
@@ -73,6 +74,8 @@ export function Transcript({
   messages: readonly TranscriptMessage[];
   /** Starts a new chat up to a reply; given only for a chat's own conversation. */
   onBranch?: (upTo: StoreId.Message) => Promise<void>;
+  /** Opens the chat's model picker; failed replies offer no Change model without it. */
+  onChooseModel?: () => void;
   onContinue?: () => void;
   onLoadOlder?: () => void;
   onModelChange?: (modelURI: AIGatewayModelURI.Type) => void;
@@ -87,6 +90,7 @@ export function Transcript({
   const actions = useStableActions({
     isRunning,
     onBranch,
+    onChooseModel,
     onModelChange,
     onRetry,
     onRunAgain,
@@ -242,9 +246,12 @@ function useStableActions(actions: TranscriptActions): TranscriptActions {
   useLayoutEffect(() => {
     latest.current = actions;
   });
-  const [{ onBranch, ...handlers }] = useState(() => ({
+  const [{ onBranch, onChooseModel, ...handlers }] = useState(() => ({
     onBranch: (upTo: StoreId.Message) =>
       latest.current.onBranch?.(upTo) ?? Promise.resolve(),
+    onChooseModel: () => {
+      latest.current.onChooseModel?.();
+    },
     onModelChange: (modelURI: AIGatewayModelURI.Type) => {
       latest.current.onModelChange?.(modelURI);
     },
@@ -257,12 +264,22 @@ function useStableActions(actions: TranscriptActions): TranscriptActions {
   }));
   // Whether the transcript offers Branch at all, which a task's never does.
   const canBranch = actions.onBranch !== undefined;
+  // Whether failed replies offer Change model, which needs a picker to open.
+  const canChooseModel = actions.onChooseModel !== undefined;
   return useMemo(
     () => ({
       ...handlers,
       isRunning: actions.isRunning,
       ...(canBranch && { onBranch }),
+      ...(canChooseModel && { onChooseModel }),
     }),
-    [actions.isRunning, canBranch, handlers, onBranch],
+    [
+      actions.isRunning,
+      canBranch,
+      canChooseModel,
+      handlers,
+      onBranch,
+      onChooseModel,
+    ],
   );
 }

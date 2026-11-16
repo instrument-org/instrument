@@ -72,6 +72,8 @@ interface MessageErrorProps {
   /** Last, or above a retry that hasn't said anything yet (`isLatestAttempt`). */
   isLatestAttempt?: boolean;
   message: SessionMessage.Assistant;
+  /** Opens the chat's model picker; the card offers no Change model without it. */
+  onChooseModel?: () => void;
   /** Retries the pending request with another model; the card offers no switch without it. */
   onModelChange?: (modelURI: AIGatewayModelURI.Type) => void;
   /** Sends the last message again; the card offers no retry without it. */
@@ -113,6 +115,7 @@ export function MessageError({
   isLastMessage,
   isLatestAttempt = isLastMessage,
   message,
+  onChooseModel,
   onModelChange,
   onRunAgain,
 }: MessageErrorProps) {
@@ -226,6 +229,7 @@ export function MessageError({
     switchTo: needsAutoRecovery
       ? recoveryFor(message.metadata.aiGatewayModel?.uri, modelsData?.models)
       : undefined,
+    chooseModel: helpedByAnotherModel(error) ? onChooseModel : undefined,
     classification,
     kind: error.kind,
     onModelChange,
@@ -560,6 +564,7 @@ function detailsText(facts: [string, string][], body: string | undefined) {
 }
 
 function errorActions({
+  chooseModel,
   switchTo,
   classification,
   kind,
@@ -568,6 +573,8 @@ function errorActions({
   provider,
   signIn,
 }: {
+  /** Opens the chat's model picker, where another model might get past it. */
+  chooseModel: (() => void) | undefined;
   /** Starts the account's own sign-in again. */
   signIn: (() => void) | undefined;
   switchTo: AIGatewayModel.Type | undefined;
@@ -605,18 +612,33 @@ function errorActions({
       },
     ];
   }
+  const changeModel = chooseModel
+    ? [{ label: "Change model", onClick: chooseModel }]
+    : [];
   if (classification === "usage-limit") {
-    return [providerSettings, ...tryAgain];
+    return [providerSettings, ...tryAgain, ...changeModel];
   }
   if (classification === "auth" || kind === "api-key") {
     if (provider === OUR_MODELS.providerType) {
-      return tryAgain;
+      return [...tryAgain, ...changeModel];
     }
     return isSignInAccount(provider) && signIn
-      ? [{ label: "Sign in", onClick: signIn }, ...tryAgain]
-      : [providerSettings, ...tryAgain];
+      ? [{ label: "Sign in", onClick: signIn }, ...tryAgain, ...changeModel]
+      : [providerSettings, ...tryAgain, ...changeModel];
   }
-  return tryAgain;
+  return [...tryAgain, ...changeModel];
+}
+
+/**
+ * Whether running the turn on another model might get past the error: all but
+ * a full disk, which no model fixes, and a stop, which the person or the app
+ * asked for. A timeout is the model going quiet, so it counts.
+ */
+function helpedByAnotherModel(error: MessageErrorData): boolean {
+  if (error.kind === "disk-full") {
+    return false;
+  }
+  return error.kind !== "aborted" || error.reason === "timeout";
 }
 
 /**

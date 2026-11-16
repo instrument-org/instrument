@@ -1011,6 +1011,7 @@ function FrameTranscript({
             isLoadingOlder={isLoadingOlder}
             isRunning={frame.isAgentRunning}
             messages={messages}
+            onChooseModel={noop}
             onContinue={noop}
             onLoadOlder={() => {
               if (isLoadingOlder) {

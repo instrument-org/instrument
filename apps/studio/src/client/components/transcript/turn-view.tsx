@@ -601,6 +601,7 @@ function RowView({
           isLastMessage={row.isLastMessage}
           isLatestAttempt={row.isLatestAttempt}
           message={row.message}
+          onChooseModel={actions.onChooseModel}
           onModelChange={actions.onModelChange}
           onRunAgain={actions.onRunAgain}
         />

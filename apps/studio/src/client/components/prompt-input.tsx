@@ -157,6 +157,8 @@ export interface PromptInputRef {
     gone: string[];
     keep?: (path: string) => boolean;
   }) => void;
+  /** Opens the model picker, the way the note's "Change model" does. */
+  openModelPicker: () => void;
   /** Opens the file chooser, the way the plus menu's "Add files" does. */
   pickFiles: () => void;
   /** Opens the folder chooser, the way the plus menu's "Work in a local folder" does. */
@@ -749,6 +751,9 @@ export const PromptInput = ({
           ? prev
           : [...kept, ...arriving];
       });
+    },
+    openModelPicker: () => {
+      setPickerOpen(true);
     },
     pickFiles: () => {
       fileInputRef.current?.click();

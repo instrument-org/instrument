@@ -167,6 +167,24 @@ export function ChatConversation({
   const id = chatId;
 
   const promptInputRef = useRef<PromptInputRef>(null);
+  // Change model on a failed reply opens the reply box's picker. While the box
+  // is away, such as when a question takes its place, the picker opens as soon
+  // as it is back.
+  const pickerWanted = useRef(false);
+  const chooseModel = () => {
+    if (promptInputRef.current) {
+      promptInputRef.current.openModelPicker();
+    } else {
+      pickerWanted.current = true;
+    }
+  };
+  const attachPromptInput = (input: PromptInputRef | null) => {
+    promptInputRef.current = input;
+    if (input && pickerWanted.current) {
+      pickerWanted.current = false;
+      input.openModelPicker();
+    }
+  };
   const [composerDictating, setComposerDictating] = useState(false);
   const contentRef = useRef<HTMLDivElement>(null);
   const conversationRef = useRef<HTMLDivElement>(null);
@@ -681,7 +699,7 @@ export function ChatConversation({
       onEmptyChange={setIsBoxEmpty}
       placeholder={`Talk to ${APP_NAME}`}
       places={places}
-      ref={promptInputRef}
+      ref={attachPromptInput}
       selectedSessionId={selectedSessionId}
     />
   );
@@ -802,6 +820,8 @@ export function ChatConversation({
                           }
                           messages={shownMessages}
                           onBranch={handleBranch}
+                          // An archived chat has no reply box, so no picker.
+                          onChooseModel={isArchived ? undefined : chooseModel}
                           onLoadOlder={messagesQuery.loadOlder}
                           slideToSentRef={slideToSentRef}
                           sessionId={selectedSessionId}

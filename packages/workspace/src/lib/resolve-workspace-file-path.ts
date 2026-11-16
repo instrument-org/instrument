@@ -192,6 +192,9 @@ async function chatHistoryPaths(
   const home = shellPath(os.homedir());
   const chats = shellPath(path.join(rootDir, CHATS_FOLDER_NAME));
   const asks = filePaths.some((given) => {
+    if (isInWorkspacePath(given.trim())) {
+      return given.trim().startsWith(`workspace:/${CHATS_FOLDER_NAME}/`);
+    }
     const spelled = absoluteSpelling(given);
     return (
       spelled !== undefined &&
@@ -381,7 +384,8 @@ function onDiskOrNull(
  * sent, in the record folder, and an earlier build's `/tasks/<task>/...` is
  * in the work folder's `tasks/`, where those folders went. What a 1.x task
  * handed over in its `output/` is in the Files folder, where the layout sweep
- * moved it (`movedOutputOf`). A name macOS spells another way than the one
+ * moved it (`movedOutputOf`). A path in `Chats/`, absolute or by its place
+ * in the workspace, is read in the folder of `Files/` it went to. A name macOS spells another way than the one
  * kept is found too.
  */
 function storedPathOnDisk(
@@ -398,7 +402,15 @@ function storedPathOnDisk(
       trimmed,
       getWorkspaceConfig().rootDir,
     );
-    return inWorkspace === null ? null : spelledOnDisk(inWorkspace);
+    if (inWorkspace === null) {
+      return null;
+    }
+    const found = spelledOnDisk(inWorkspace);
+    return existsSync(found)
+      ? found
+      : spelledOnDisk(
+          hostPathOf(underCurrentName(shellPath(inWorkspace), history.moved)),
+        );
   }
   const spelled = shellPath(trimmed);
   if (!path.posix.isAbsolute(spelled)) {

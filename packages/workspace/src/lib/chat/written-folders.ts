@@ -46,9 +46,11 @@ export async function foldersChatWrote(chatId: ChatId): Promise<string[]> {
     return [];
   }
   const { hostPaths, shellPaths } = filesWritten(chat);
+  // A shell call's file is read where it is now as well as where it was, so
+  // one written in a folder a migration moved is found where it went.
   const resolved = await resolveWorkspaceFilePaths({
     chatId,
-    filePaths: shellPaths,
+    filePaths: [...shellPaths, ...hostPaths],
   });
   const files = unique([
     ...hostPaths,

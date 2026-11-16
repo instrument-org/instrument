@@ -106,6 +106,15 @@ describe("a file named in a folder moved out of Chats/", () => {
     ).toBe(path.join(rootDir, "Files", "Hello World", "test.md"));
   });
 
+  it("is found where the folder went when kept by its place in the workspace", async () => {
+    const chatId = await chatTold("Hello World");
+    await movedToFiles("Hello World", chatId);
+
+    expect(
+      await hostPathOf(chatId, "workspace:/Chats/Hello World/test.md"),
+    ).toBe(path.join(rootDir, "Files", "Hello World", "test.md"));
+  });
+
   it("is found under the name the chat's folder had before its title settled", async () => {
     const chatId = await chatTold("Untitled chat");
     await movedToFiles("Say hello", chatId);

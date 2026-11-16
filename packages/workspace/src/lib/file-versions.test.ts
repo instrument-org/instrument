@@ -71,6 +71,24 @@ describe("keepVersion", () => {
       await keepVersion({ file: path.join(dir, "no"), folder: dir, label: "" }),
     ).toBeUndefined();
   });
+  it("gives two keepers at once their own copies", async () => {
+    const first = path.join(dir, "a", "report.md");
+    const second = path.join(dir, "b", "report.md");
+    await fs.mkdir(path.dirname(first), { recursive: true });
+    await fs.mkdir(path.dirname(second), { recursive: true });
+    await fs.writeFile(first, "sales");
+    await fs.writeFile(second, "staffing");
+    const folder = path.join(dir, ".versions");
+    const kept = await Promise.all(
+      [first, second].map((file) =>
+        keepVersion({ file, folder, label: "before changes", now: at }),
+      ),
+    );
+    const copies = await Promise.all(
+      kept.map((version) => fs.readFile(version?.copy ?? "", "utf8")),
+    );
+    expect(copies).toEqual(["sales", "staffing"]);
+  });
 });
 
 describe("trimVersions", () => {

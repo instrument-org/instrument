@@ -57,12 +57,12 @@ export async function keepVersion({
   }
   const into = path.join(folder, path.basename(file));
   await fs.mkdir(into, { recursive: true });
-  const copy = await freeName(
+  const copy = await copyUnder(
+    file,
     into,
     `${stampOf(now)} ${label}`.trim(),
     path.extname(file),
   );
-  await fs.copyFile(file, copy, fs.constants.COPYFILE_FICLONE);
   return { copy, hash, size };
 }
 
@@ -133,8 +133,13 @@ function stampOf(now: Date): string {
   return `${String(now.getFullYear())}-${two(now.getMonth() + 1)}-${two(now.getDate())} ${two(now.getHours())}.${two(now.getMinutes())}`;
 }
 
-/** `<folder>/<name><ext>`, or `<name> 2<ext>` and on when that is taken. */
-async function freeName(
+/**
+ * Copies `file` to `<folder>/<name><ext>`, or `<name> 2<ext>` and on when
+ * that is taken, claiming the name with the copy itself so two keepers at
+ * once never land on one.
+ */
+async function copyUnder(
+  file: string,
   folder: string,
   name: string,
   ext: string,
@@ -144,8 +149,19 @@ async function freeName(
       folder,
       `${n === 1 ? name : `${name} ${String(n)}`}${ext}`,
     );
-    if (!(await fs.stat(at).catch(() => undefined))) {
+    try {
+      await fs.copyFile(
+        file,
+        at,
+        fs.constants.COPYFILE_FICLONE | fs.constants.COPYFILE_EXCL,
+      );
       return at;
+    } catch (error) {
+      if (
+        !(error instanceof Error && "code" in error && error.code === "EEXIST")
+      ) {
+        throw error;
+      }
     }
   }
 }

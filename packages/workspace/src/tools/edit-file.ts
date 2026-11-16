@@ -769,7 +769,7 @@ const editFileCapability = defineCapability({
           }
         }
 
-        await keepOriginal({ chatId, hostPath: target, sessionId });
+        await keepOriginal({ chatId, files, sessionId, target });
         let modifiedAt: number;
         try {
           // Makes the folders a new file needs, as `tee` does.

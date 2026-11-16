@@ -348,7 +348,7 @@ async function* imageFrames({
         const imageBuffer = Buffer.from(image.base64, "base64");
 
         // Once a call, before its first frame replaces an image there.
-        await keepOriginal({ chatId, hostPath: filename, sessionId });
+        await keepOriginal({ chatId, files, sessionId, target: filename });
         await files.fs.writeFile(filename, imageBuffer);
         const stats = await files.fs.stat(filename);
 

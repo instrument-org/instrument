@@ -1,3 +1,4 @@
+import { existsSync } from "node:fs";
 import fs from "node:fs/promises";
 import path from "node:path";
 
@@ -8,10 +9,12 @@ import { AbsolutePathSchema } from "../../schemas/paths";
 import { type SessionMessage } from "../../schemas/session/message";
 import { type SessionMessageDataPart } from "../../schemas/session/message-data-part";
 import { StoreId } from "../../schemas/store-id";
+import { chatSessions } from "../chat-info";
 import { ChatReads } from "../chat-reads";
 import { ChatWrites } from "../chat-writes";
 import { contentsOf, keepVersion } from "../file-versions";
 import { sessionOfChat } from "../record-folders";
+import { resolveWorkspaceFilePaths } from "../resolve-workspace-file-path";
 import { workDir } from "../work-dir";
 import { thisDevice } from "./asks";
 import { VERSIONS_FOLDER } from "./turn-file-versions";
@@ -46,6 +49,8 @@ export const FileVersionHistorySchema = z.object({
 type Recorded = SessionMessageDataPart.FileVersionsDataPart["files"][number] & {
   at: Date;
   device: string;
+  /** Where the file is now, through any rename of the folder it was in since. */
+  file: string;
   kind: FileVersion["kind"];
   label: string;
   messageId: StoreId.Message;
@@ -53,9 +58,10 @@ type Recorded = SessionMessageDataPart.FileVersionsDataPart["files"][number] & {
 
 /**
  * The versions a chat kept of the file at `path`, or of the file `path` is a
- * copy of: every record of it, matched by name since the chat's folder can
- * be renamed between turns, with runs of the same contents told once. Null
- * when the chat kept none.
+ * copy of: every record of it in any of the chat's sessions, matched by
+ * where the file is now, with runs of the same contents told once. A copy
+ * the trim has since removed is left out, so its version cannot be opened.
+ * Null when the chat kept none.
  */
 export async function fileVersionHistory({
   chatId,
@@ -66,15 +72,11 @@ export async function fileVersionHistory({
 }): Promise<null | z.output<typeof FileVersionHistorySchema>> {
   const records = await recordsOf(chatId);
   const copied = records.find((record) => record.copy === at);
-  const name = path.basename(copied?.hostPath ?? at);
-  const ofFile = records.filter(
-    (record) => path.basename(record.hostPath) === name,
-  );
-  const newest = ofFile.at(-1);
-  if (newest === undefined) {
+  const file = copied?.file ?? at;
+  const ofFile = records.filter((record) => record.file === file);
+  if (ofFile.length === 0) {
     return null;
   }
-  const file = copied ? newest.hostPath : at;
   const current = await contentsOf(file);
   const here = thisDevice();
   const versions: FileVersion[] = [];
@@ -86,7 +88,8 @@ export async function fileVersionHistory({
       at: record.at,
       away: record.device !== here,
       ...(record.copy !== undefined &&
-        record.device === here && { copy: record.copy }),
+        record.device === here &&
+        existsSync(record.copy) && { copy: record.copy }),
       hash: record.hash,
       kind: record.kind,
       label: record.label,
@@ -121,9 +124,7 @@ export async function restoreFileVersion({
 }): Promise<{ replaced?: string }> {
   const here = thisDevice();
   const ofFile = (await recordsOf(chatId)).filter(
-    (record) =>
-      record.device === here &&
-      path.basename(record.hostPath) === path.basename(file),
+    (record) => record.device === here && record.file === file,
   );
   const version = ofFile.find((record) => record.copy === copy);
   if (version === undefined) {
@@ -181,17 +182,16 @@ export async function undoReplyFiles({
   const left: string[] = [];
   const restored: string[] = [];
   for (const handed of ofReply.filter((record) => record.kind === "reply")) {
-    const name = path.basename(handed.hostPath);
-    const ofFile = records.filter(
-      (record) => path.basename(record.hostPath) === name,
-    );
+    const { file } = handed;
+    const name = path.basename(file);
     const before =
       ofReply.find(
-        (record) =>
-          record.kind === "original" && path.basename(record.hostPath) === name,
-      ) ?? ofFile.findLast((record) => record.at.getTime() < startedAt);
-    const file = ofFile.at(-1)?.hostPath ?? handed.hostPath;
-    if (before?.copy === undefined) {
+        (record) => record.kind === "original" && record.file === file,
+      ) ??
+      records.findLast(
+        (record) => record.file === file && record.at.getTime() < startedAt,
+      );
+    if (before?.copy === undefined || !existsSync(before.copy)) {
       left.push(name);
       continue;
     }
@@ -242,39 +242,61 @@ async function saveOnLastReply(
   }
 }
 
-/** Every file version the chat recorded, oldest first, with the ask each reply answered. */
+/**
+ * Every file version the chat recorded, in its own session and its tasks',
+ * oldest first, with the ask each reply answered and where each file is now.
+ * A task's transcript carries its parent's messages up to where it started,
+ * so a part is counted once.
+ */
 async function recordsOf(chatId: ChatId): Promise<Recorded[]> {
-  const sessionId = sessionOfChat(chatId);
-  if (sessionId === undefined) {
-    return [];
-  }
-  const read = await ChatReads.transcript({ chatId, sessionId });
-  if (read.isErr()) {
-    return [];
-  }
-  const records: Recorded[] = [];
-  let opener: SessionMessage.WithParts | undefined;
-  for (const message of read.value) {
-    if (message.role === "user") {
-      opener = message;
+  const sessions = await chatSessions(chatId);
+  const own = sessionOfChat(chatId);
+  const ids =
+    sessions.length > 0
+      ? sessions.map((session) => session.id)
+      : own === undefined
+        ? []
+        : [own];
+  const seen = new Set<string>();
+  const records: Omit<Recorded, "file">[] = [];
+  for (const sessionId of ids) {
+    const read = await ChatReads.transcript({ chatId, sessionId });
+    if (read.isErr()) {
+      continue;
     }
-    for (const part of message.parts) {
-      if (part.type !== "data-fileVersions") {
-        continue;
+    let opener: SessionMessage.WithParts | undefined;
+    for (const message of read.value) {
+      if (message.role === "user") {
+        opener = message;
       }
-      for (const file of part.data.files) {
-        records.push({
-          ...file,
-          at: part.metadata.createdAt,
-          device: part.data.device,
-          kind: part.data.kind ?? "reply",
-          messageId: message.id,
-          label: part.data.kind === undefined ? askOf(opener) : "",
-        });
+      for (const part of message.parts) {
+        if (part.type !== "data-fileVersions" || seen.has(part.metadata.id)) {
+          continue;
+        }
+        seen.add(part.metadata.id);
+        for (const file of part.data.files) {
+          records.push({
+            ...file,
+            at: part.metadata.createdAt,
+            device: part.data.device,
+            kind: part.data.kind ?? "reply",
+            messageId: message.id,
+            label: part.data.kind === undefined ? askOf(opener) : "",
+          });
+        }
       }
     }
   }
-  return records.toSorted((a, b) => a.at.getTime() - b.at.getTime());
+  const now = await resolveWorkspaceFilePaths({
+    chatId,
+    filePaths: [...new Set(records.map((record) => record.hostPath))],
+  });
+  return records
+    .map((record) => ({
+      ...record,
+      file: now.get(record.hostPath) ?? record.hostPath,
+    }))
+    .toSorted((a, b) => a.at.getTime() - b.at.getTime());
 }
 
 /** What the person asked a turn with, on one line; the list cuts it to fit. */

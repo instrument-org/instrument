@@ -1,3 +1,4 @@
+import { existsSync } from "node:fs";
 import path from "node:path";
 
 import { type ChatId } from "../../schemas/chat-id";
@@ -11,6 +12,7 @@ import { keepVersion, type KeptVersion, trimVersions } from "../file-versions";
 import { filesNamedIn } from "../parse-files-block";
 import { resolveWorkspaceFilePaths } from "../resolve-workspace-file-path";
 import { workDir } from "../work-dir";
+import { type ToolFs } from "../tool-fs";
 import { getWorkspaceConfig } from "../workspace-config";
 import { thisDevice } from "./asks";
 
@@ -178,27 +180,36 @@ function isInside(folder: string, file: string): boolean {
 }
 
 /**
- * The messages with every kept copy another computer made left out, since a
- * copy is only on the computer that made it: a card on this one shows the
- * file as it is now, and says it changed since.
+ * The messages with every kept copy left out that is not on this computer:
+ * one another computer made, since a copy is only on the computer that made
+ * it, and one the trim has since removed. A card shows such a file as it is
+ * now, and says it changed since.
  */
 export function withCopiesHere(
   messages: SessionMessage.WithParts[],
 ): SessionMessage.WithParts[] {
   const here = thisDevice();
+  const isHere = (device: string, copy: string | undefined) =>
+    copy === undefined || (device === here && existsSync(copy));
   return messages.map((message) =>
     message.parts.some(
-      (part) => part.type === "data-fileVersions" && part.data.device !== here,
+      (part) =>
+        part.type === "data-fileVersions" &&
+        part.data.files.some((file) => !isHere(part.data.device, file.copy)),
     )
       ? {
           ...message,
           parts: message.parts.map((part) =>
-            part.type === "data-fileVersions" && part.data.device !== here
+            part.type === "data-fileVersions"
               ? {
                   ...part,
                   data: {
                     ...part.data,
-                    files: part.data.files.map(({ copy: _, ...file }) => file),
+                    files: part.data.files.map(({ copy, ...file }) =>
+                      isHere(part.data.device, copy) && copy !== undefined
+                        ? { ...file, copy }
+                        : file,
+                    ),
                   },
                 }
               : part,
@@ -215,46 +226,44 @@ const pending = new Map<
 >();
 
 /**
- * Keeps a copy of the file at `hostPath` before a tool first changes it in
- * this turn, unless this chat already has a record of what it holds now.
- * That is the version nothing else keeps: the file as it was before this
- * chat touched it, or as the person left it since. A new file, one in the
- * chat's own work folder, and one too big to copy are passed over. Never
- * fails the write it guards.
+ * Keeps what the file at `target` holds before a tool first changes it in
+ * this turn, and records it as the turn's starting point, which Undo puts
+ * back: the file as it was before this chat touched it, or as the person
+ * left it since. Contents the chat already kept reuse that copy. A new
+ * file, one in the chat's own work folder, and one too big to copy are
+ * passed over. Never fails the write it guards.
  */
 export async function keepOriginal({
   chatId,
-  hostPath,
+  files,
   sessionId,
+  target,
 }: {
   chatId: ChatId;
-  hostPath: string;
+  files: Pick<ToolFs, "hostPath">;
   sessionId: StoreId.Session;
+  /** The path as the tool resolved it, in the shell's spelling. */
+  target: string;
 }): Promise<void> {
   const turn = pending.get(sessionId) ?? { files: [], seen: new Set() };
   pending.set(sessionId, turn);
-  if (turn.seen.has(hostPath)) {
+  if (turn.seen.has(target)) {
     return;
   }
-  turn.seen.add(hostPath);
+  turn.seen.add(target);
   try {
-    if (isInside(workDir(chatId), hostPath)) {
+    const hostPath = await files.hostPath(target).catch(() => undefined);
+    if (hostPath === undefined || isInside(workDir(chatId), hostPath)) {
       return;
     }
     const name = path.basename(hostPath);
-    const kept = [...(await keptBefore(chatId, sessionId))]
-      .filter(([at]) => path.basename(at) === name)
-      .flatMap(([, versions]) => versions);
     const version = await keepVersion({
       file: hostPath,
       folder: path.join(workDir(chatId), VERSIONS_FOLDER),
-      kept,
+      kept: (await keptBefore(chatId, sessionId)).get(hostPath),
       label: "before changes",
     });
-    if (
-      version?.copy === undefined ||
-      kept.some((earlier) => earlier.hash === version.hash)
-    ) {
+    if (version?.copy === undefined) {
       return;
     }
     turn.files.push({

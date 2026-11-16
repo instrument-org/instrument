@@ -49,7 +49,7 @@ const writeFileCapability = defineCapability({
         const isNewFile = !(await files.fs.exists(target));
 
         if (!isNewFile) {
-          await keepOriginal({ chatId, hostPath: target, sessionId });
+          await keepOriginal({ chatId, files, sessionId, target });
         }
         try {
           // Makes the folders it needs, as `tee` does.

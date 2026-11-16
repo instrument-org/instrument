@@ -28,7 +28,11 @@ import { reachModel } from "@/client/lib/model-status";
 import { createMessageOptions } from "@/client/lib/message-sends";
 import { cn, osConventions } from "@/client/lib/utils";
 import { PermissionAsksFoot } from "@/client/components/permission-asks";
-import { QuestionDock } from "@/client/components/question-dock";
+import {
+  QuestionDock,
+  useQuestionBox,
+  useQuestionDock,
+} from "@/client/components/question-dock";
 import { rpcClient } from "@/client/rpc/client";
 import { type AIGatewayModelURI } from "@instrument-org/ai-gateway/client";
 import { APP_NAME } from "@instrument-org/shared";
@@ -47,6 +51,7 @@ import {
   type ReactNode,
   useContext,
   useEffect,
+  useEffectEvent,
   useLayoutEffect,
   useRef,
   useState,
@@ -167,23 +172,10 @@ export function ChatConversation({
   const id = chatId;
 
   const promptInputRef = useRef<PromptInputRef>(null);
-  // Change model on a failed reply opens the reply box's picker. While the box
-  // is away, such as when a question takes its place, the picker opens as soon
-  // as it is back.
-  const pickerWanted = useRef(false);
+  // Change model on a failed reply opens the reply box's picker, which brings
+  // the box back first where a question has taken its place.
   const chooseModel = () => {
-    if (promptInputRef.current) {
-      promptInputRef.current.openModelPicker();
-    } else {
-      pickerWanted.current = true;
-    }
-  };
-  const attachPromptInput = (input: PromptInputRef | null) => {
-    promptInputRef.current = input;
-    if (input && pickerWanted.current) {
-      pickerWanted.current = false;
-      input.openModelPicker();
-    }
+    promptInputRef.current?.openModelPicker();
   };
   const [composerDictating, setComposerDictating] = useState(false);
   const contentRef = useRef<HTMLDivElement>(null);
@@ -424,6 +416,41 @@ export function ChatConversation({
   const isActiveTab = useIsActiveTab();
   const filesHref = useAtomValue(filesHrefAtom);
   const promptEditor = useAtomValue(promptDraftRefAtom(draftKey));
+  const composerRef = useRef<HTMLDivElement>(null);
+  const questionDockRef = useRef<HTMLDivElement>(null);
+  const questionDock = useQuestionDock(id);
+  const questionBox = useQuestionBox({
+    askId: isArchived ? undefined : questionDock.first?.id,
+    composerRef,
+    dockRef: questionDockRef,
+    focusBox: () => {
+      promptEditor?.focus();
+      promptEditor?.moveCaretToEnd();
+    },
+    isActive: isActiveTab,
+    isBoxEmpty,
+  });
+  // The chat's height, for the question's choices to stop at a share of it
+  // and scroll: a length the composer's own column, which grows with them,
+  // cannot give. Set on the element rather than through state, so a pane
+  // being dragged wider redraws nothing.
+  useLayoutEffect(() => {
+    const conversation = conversationRef.current;
+    const composer = composerRef.current;
+    if (!conversation || !composer) {
+      return;
+    }
+    const observer = new ResizeObserver(() => {
+      composer.style.setProperty(
+        "--conversation-height",
+        `${conversation.clientHeight}px`,
+      );
+    });
+    observer.observe(conversation);
+    return () => {
+      observer.disconnect();
+    };
+  }, []);
   // The reply the box is writing into, where it is writing into a chat's:
   // the message says which draft it came from, and the draft goes once that
   // message is written.
@@ -486,6 +513,7 @@ export function ChatConversation({
     if (!picked) {
       return;
     }
+    questionBox.keepBox();
     promptInputRef.current?.swapIn({
       items: itemsOf(picked),
       prompt: picked.words,
@@ -510,14 +538,17 @@ export function ChatConversation({
     // Every render until the box is there to draw into, and once per chat.
   });
   // A chat coming on screen is a place to reply from, so the caret lands
-  // in the field as it opens, unless it opened as the person walked the
-  // chat list with the arrows (`mayTakeKeyboard`).
+  // in the field as it opens (on the question standing in its place, while
+  // one does), unless it opened as the person walked the chat list with the
+  // arrows (`mayTakeKeyboard`).
+  const focusReplyOnShow = useEffectEvent(() => {
+    questionBox.focus();
+  });
   useLayoutEffect(() => {
     if (!isActiveTab || !mayTakeKeyboard()) {
       return;
     }
-    promptEditor?.focus();
-    promptEditor?.moveCaretToEnd();
+    focusReplyOnShow();
   }, [isActiveTab, selectedSessionId, promptEditor]);
 
   // A chat's plus opens things beside the chat: the web's starting view and
@@ -585,7 +616,18 @@ export function ChatConversation({
 
   const promptInput = (
     <PromptInput
+      above={
+        <QuestionDock
+          collapsed={questionBox.isCollapsed}
+          dock={questionDock}
+          onBack={questionBox.onBack}
+          onChatAbout={questionBox.onChatAbout}
+          ref={questionDockRef}
+        />
+      }
       attachmentsLead={asks?.pills}
+      isBoxHidden={questionBox.isBoxHidden}
+      onShowBox={questionBox.showBox}
       autoFocus
       // The box shares a column with the conversation, so it gives way to
       // it sooner than a box on a page of its own: a handful of lines, then
@@ -699,7 +741,7 @@ export function ChatConversation({
       onEmptyChange={setIsBoxEmpty}
       placeholder={`Talk to ${APP_NAME}`}
       places={places}
-      ref={attachPromptInput}
+      ref={promptInputRef}
       selectedSessionId={selectedSessionId}
     />
   );
@@ -853,7 +895,7 @@ export function ChatConversation({
                 loadOlderThrough={messagesQuery.loadOlderThrough}
                 loadedIds={new Set(shownMessages.map((message) => message.id))}
                 onClose={() => {
-                  promptInputRef.current?.focus();
+                  questionBox.focus();
                 }}
                 onFoldsToOpen={setFoldsOpenedByFind}
                 onOpenChange={setFindOpen}
@@ -881,13 +923,18 @@ export function ChatConversation({
             </MessageScroller>
 
             {/* isolate: keep the prompt input's z-10 contained to the composer. */}
-            <div className="isolate mx-auto w-full max-w-3xl px-3 pb-3">
+            <div
+              className="isolate mx-auto w-full max-w-3xl px-3 pb-3"
+              ref={composerRef}
+            >
               {/* Inside the column rather than above it, so it is exactly as wide
               as the composer it belongs to. */}
               <PermissionAsksFoot chatId={id} />
-              <QuestionDock chatId={id} />
               {isArchived ? (
-                <ArchivedFoot chatId={id} />
+                <>
+                  <QuestionDock dock={questionDock} />
+                  <ArchivedFoot chatId={id} />
+                </>
               ) : (
                 <>
                   {draftKey.scope === "chat" && (

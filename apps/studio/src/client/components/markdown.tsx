@@ -328,6 +328,17 @@ const isFenceOpen = (source: string, node: FenceNode | undefined) => {
   );
 };
 
+/**
+ * Whether a fence's opening line is still being written. Its info string, which
+ * says what the block is (`files`, `mermaid`, a language), is only final once a
+ * newline follows it, so until then the fence has nothing to draw: ``` ``` ```
+ * is an empty block and ``` ```fi ``` one labeled `fi` on the way to `files`.
+ */
+const isFenceOpenerArriving = (source: string, node: FenceNode | undefined) => {
+  const start = node?.position?.start.offset;
+  return start !== undefined && !source.includes("\n", start);
+};
+
 // Only the `pre` is told which code is which: an inline `code` element is
 // indistinguishable from the one inside a fence when all you have is the
 // element itself. Reading the fence from here is what lets a fence with no
@@ -341,6 +352,13 @@ const MarkdownPre: Components["pre"] = ({ children, node }) => {
   // read; whatever it holds has already been rendered.
   if (!fence) {
     return <pre>{children}</pre>;
+  }
+
+  if (
+    arrivingSource !== undefined &&
+    isFenceOpenerArriving(arrivingSource, node)
+  ) {
+    return null;
   }
 
   if (fence.language === AGENT_FILES_LANGUAGE) {

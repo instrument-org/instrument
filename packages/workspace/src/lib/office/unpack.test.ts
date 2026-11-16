@@ -144,7 +144,7 @@ describe.skipIf(process.platform === "win32")("unpackDebTarball", () => {
 });
 
 describe.skipIf(process.platform !== "darwin")("unpackDmg", () => {
-  it("copies the app out of the disk image and detaches it", async () => {
+  it("copies the app out of the disk image under a name no app has, and detaches it", async () => {
     const dir = await tempDir();
     const source = path.join(dir, "source");
     const macos = path.join(source, "LibreOffice.app", "Contents", "MacOS");
@@ -168,7 +168,7 @@ describe.skipIf(process.platform !== "darwin")("unpackDmg", () => {
     const dest = path.join(dir, "out");
     await unpackDmg(dmg, dest);
     expect(await findSoffice(dest, "darwin")).toBe(
-      "LibreOffice.app/Contents/MacOS/soffice",
+      "LibreOffice/Contents/MacOS/soffice",
     );
     const { stdout } = await execa("/usr/bin/hdiutil", ["info"]);
     expect(stdout).not.toContain(dmg);

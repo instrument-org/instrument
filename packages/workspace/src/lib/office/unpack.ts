@@ -17,7 +17,13 @@ import { TDF_TEAM_ID } from "./manifest";
 
 const UNPACK_TIMEOUT_MS = 10 * 60 * 1000;
 
-/** `hdiutil attach`, `ditto` the app out, detach. */
+/**
+ * `hdiutil attach`, `ditto` the app out, detach. The copy's folder drops the
+ * `.app`: started from a folder named like an app, LibreOffice checks in
+ * with Launch Services, which adds it to every Open With menu, registers its
+ * Quick Look extensions and Spotlight importer, and shows the person a
+ * notice saying so. The signature does not cover the folder's name.
+ */
 export async function unpackDmg(dmg: string, dest: string): Promise<void> {
   const mount = await fs.mkdtemp(path.join(os.tmpdir(), "office-dmg-"));
   try {
@@ -46,7 +52,7 @@ export async function unpackDmg(dmg: string, dest: string): Promise<void> {
       await fs.mkdir(dest, { recursive: true });
       await execa(
         "/usr/bin/ditto",
-        [path.join(mount, app), path.join(dest, app)],
+        [path.join(mount, app), path.join(dest, app.replace(/\.app$/, ""))],
         {
           cancelSignal: AbortSignal.timeout(UNPACK_TIMEOUT_MS),
           stdin: "ignore",
@@ -203,7 +209,7 @@ export async function findSoffice(
 ): Promise<string | undefined> {
   const wanted =
     platform === "darwin"
-      ? /(^|\/)[^/]+\.app\/Contents\/MacOS\/soffice$/
+      ? /(^|\/)[^/]+\/Contents\/MacOS\/soffice$/
       : platform === "win32"
         ? /(^|\/)program\/soffice\.exe$/i
         : /(^|\/)program\/soffice$/;

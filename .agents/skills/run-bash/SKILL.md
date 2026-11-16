@@ -66,7 +66,7 @@ The path to type is the folder's real one. The sandbox shell's `~` and `$HOME` a
 
 ### The base Python packages
 
-The runner's runtime folder starts without the base Python packages a launch installs (pypdfium2, openpyxl and the rest), so `office render`'s page ONGs and any script importing them fail there. `--python-base` installs them before the commands run, as a launch does, and prints where they went and how long it took; the first time takes a while, later runs reuse them.
+The runner's runtime folder starts without the base Python packages a launch installs (pypdfium2, openpyxl and the rest), so `office render`'s page PNGs and any script importing them fail there. `--python-base` installs them before the commands run, as a launch does, and prints where they went and how long it took; the first time takes a while, later runs reuse them.
 
 ### Loading a skill
 

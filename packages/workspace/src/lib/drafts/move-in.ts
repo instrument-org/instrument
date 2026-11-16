@@ -12,7 +12,7 @@ import { draftsFolderDir } from "./draft-folder";
  * Where a build before kept the drafts, at the workspace's top level.
  * Spelled out: it is a name from builds before, and nothing writes there now.
  */
-export const TOP_LEVEL_DRAFTS_FOLDER_NAME = "Drafts";
+const TOP_LEVEL_DRAFTS_FOLDER_NAME = "Drafts";
 
 /**
  * Moves every folder in a top-level `Drafts/`, where a build before kept the

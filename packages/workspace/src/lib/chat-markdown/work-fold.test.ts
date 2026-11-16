@@ -70,7 +70,7 @@ it("writes each call as the fold's Markdown", () => {
         "read_file",
         { explanation: "Reading kyoto.md", filePath: "kyoto.md" },
         {
-          output: { filePath: "/Users/someone/Workspace/Chats/Kyoto/kyoto.md" },
+          output: { filePath: "/Users/someone/Workspace/Files/Kyoto/kyoto.md" },
         },
       ),
     },
@@ -209,7 +209,7 @@ it("writes each call as the fold's Markdown", () => {
     <!-- a file under the home folder -->
     **Reading kyoto.md**
 
-    [Chats/Kyoto/kyoto.md](../../Chats/Kyoto/kyoto.md)
+    [Files/Kyoto/kyoto.md](file:///Users/someone/Workspace/Files/Kyoto/kyoto.md)
 
     <!-- a file outside the workspace -->
     **Read a file**
@@ -245,7 +245,7 @@ it("writes each call as the fold's Markdown", () => {
     <!-- a multi-line edit in the workspace, as a diff -->
     **Adding Day 4**
 
-    [Notes/Kyoto trip.md](../../Notes/Kyoto%20trip.md)
+    [Notes/Kyoto trip.md](file:///Users/someone/Workspace/Notes/Kyoto%20trip.md)
 
     \`\`\`diff
       Day 3: Nara
@@ -255,7 +255,7 @@ it("writes each call as the fold's Markdown", () => {
     <!-- a picture made in the workspace, shown -->
     **Making a header** · 12s
 
-    ![header.png](../../Notes/header.png)
+    ![header.png](file:///Users/someone/Workspace/Notes/header.png)
 
     <!-- a skill its label already names -->
     **Loading the photo-editing skill**

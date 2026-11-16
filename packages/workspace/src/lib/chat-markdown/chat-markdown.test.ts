@@ -228,7 +228,7 @@ it("renders a chat whole", () => {
     project: top_1
     ---
 
-    [Open this chat in Instrument](instrument://chat/records-test). This file is a copy of the chat that Instrument keeps up to date, so changes you make here won't last.
+    [Open this chat in Instrument](instrument://chat/records-test)
 
     ## Wednesday, October 14, 2026
 

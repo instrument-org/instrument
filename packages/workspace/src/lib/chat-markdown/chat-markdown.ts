@@ -24,17 +24,14 @@ import {
 } from "./work-fold";
 
 /**
- * A chat's `CHAT.md`: its conversation as Markdown, for the person to read in
- * a file manager, a Markdown editor or their own search of the folder, and
- * for a chat's agent to read what another chat said without opening any
- * records.
+ * A chat as Markdown, for the person to export and read in a Markdown editor,
+ * keep beside their own notes, or hand to someone else.
  *
- * The same records render the same bytes, every time, on any computer. So
- * nothing here reads the clock, the process's time zone or a folder's
- * listing: every day and time is written in UTC, the front matter's as ISO
- * 8601 and the headings' as words with `UTC` after the time, and every list
- * is ordered by an id or by a time the records carry. A `Map` is only ever
- * asked for one key, never iterated.
+ * The same records render the same bytes, every time, on any computer: every
+ * day and time is written in UTC, the front matter's as ISO 8601 and the
+ * headings' as words with `UTC` after the time, and every list is ordered by
+ * an id or by a time the records carry. A `Map` is only ever asked for one
+ * key, never iterated.
  *
  * What the person sees in the chat stays visible: what they and the agent
  * said, what they sent, the cards they answered, a model switch. The work
@@ -50,7 +47,7 @@ export interface ChatMarkdownInput {
   chat: FoldedChat;
   /** The chat, for the address that opens it in the app. */
   id: ChatId;
-  /** The workspace, which the files the work touched are named from. */
+  /** The workspace, which the files the work touched are named and linked from. */
   rootDir: string;
 }
 
@@ -120,7 +117,7 @@ interface WorkLine {
 }
 
 /**
- * The chat's `CHAT.md`, or nothing for a record folder that names no
+ * The chat as Markdown, or nothing for a record folder that names no
  * conversation of the chat's own, which is not yet a chat to read.
  */
 export function renderChatMarkdown({
@@ -134,8 +131,7 @@ export function renderChatMarkdown({
   }
   const blocks: string[] = [
     frontMatter(own, id),
-    // The file is rewritten from the records at the end of every turn.
-    `[Open this chat in ${APP_NAME}](${chatAddressOf(id)}). This file is a copy of the chat that ${APP_NAME} keeps up to date, so changes you make here won't last.`,
+    `[Open this chat in ${APP_NAME}](${chatAddressOf(id)})`,
   ];
   const work = workLines(chat, own.id, rootDir);
   let taken = 0;
@@ -184,7 +180,7 @@ export function renderChatMarkdown({
   return `${blocks.join("\n\n")}\n`;
 }
 
-/** The title the chat's folder is named by, as the chat list shows it. */
+/** The chat's title as the chat list shows it, which an export is named by. */
 export function chatTitleOf(chat: FoldedChat): string | undefined {
   const own = ownSession(chat);
   return own && titleOf(own);
@@ -206,17 +202,16 @@ function ownSession(chat: FoldedChat): FoldedSession | undefined {
 /**
  * The file's front matter: what the chat is called, which chat it is, when it
  * began, and the project it is filed under. Nothing lists its files, its pages
- * or its apps, which the folder beside it and the app already say.
+ * or its apps, which the app already says.
  *
- * `chat` is the chat's id, what ties a folder back to its chat, and the link
- * in the first line of the body says it again as something to click. It is
- * no `id`: this file is a render the app rewrites whole, where a draft or a
- * project carries an `id` because the app has to find it again after the
- * person moves it.
+ * `chat` is the chat's address, which the link in the first line of the body
+ * says again as something to click. It is no `id`: this file is a render,
+ * where a draft or a project carries an `id` because the app has to find it
+ * again after the person moves it.
  *
  * `title` is here so a Markdown viewer's properties panel and the file's
- * thumbnail name the conversation, and so the name survives the person
- * moving the folder. `project` is singular: a chat is filed under one.
+ * thumbnail name the conversation, and so the name survives a rename of the
+ * file. `project` is singular: a chat is filed under one.
  */
 function frontMatter(own: FoldedSession, id: ChatId): string {
   const project = own.settings.project?.value;

@@ -5,8 +5,8 @@ import { TOOL_NAMES } from "../../tools/name";
 import { clipLine, partCreatedAt, partEndedAt } from "../chat/call-label";
 
 /**
- * How one call reads inside a `CHAT.md` work fold, as Markdown, and what the
- * fold's summary line says it did.
+ * How one call reads inside an exported chat's work fold, as Markdown, and
+ * what the fold's summary line says it did.
  *
  * A call is its own label in bold, then at most a few blocks of what it
  * touched: the command in a shell block, the file as a link a reader can
@@ -15,9 +15,10 @@ import { clipLine, partCreatedAt, partEndedAt } from "../chat/call-label";
  * stays small, so a chat of hundreds of calls is still a file to read: a
  * command's output is kept only when it failed, and then only its last lines.
  *
- * `CHAT.md` is always `Chats/<title>/CHAT.md`, so a file in the workspace is
- * linked as `../../<path>`. One outside it is named but not linked: its path
- * is written from `~`, the same on every computer, which no reader resolves.
+ * The export is saved wherever the person picks, so a file in the workspace
+ * is named by its path from the workspace and linked by its `file://`
+ * address on this computer. One outside it is named but not linked: its path
+ * is written from `~`.
  */
 
 /** How much of a command, a path or an address the fold keeps. */
@@ -26,9 +27,6 @@ const DETAIL_MAX_LENGTH = 200;
 /** How many lines of each side of an edit the fold keeps, and how much of each. */
 const EDIT_MAX_LINES = 6;
 const EDIT_MAX_LENGTH = 120;
-
-/** Where `CHAT.md` is from the workspace's top level: `Chats/<title>/`. */
-const TO_ROOT = "../../";
 
 /** A file a reader draws as a picture, by its extension. */
 const IMAGE = /\.(?:avif|gif|jpe?g|png|svg|webp)$/iu;
@@ -465,7 +463,7 @@ function pageLink(url: string, title?: string): string {
   return `[${linkText(clipLine(shown, DETAIL_MAX_LENGTH))}](${encodeURI(decodeURISafe(url))})`;
 }
 
-/** The link from `CHAT.md` to a file in the workspace, or none for one outside it. */
+/** The `file://` address of a file in the workspace, or none for one outside it. */
 function hrefInRoot(filePath: string, rootDir: string): string | undefined {
   const shown = fromRoot(filePath, rootDir);
   if (
@@ -475,7 +473,23 @@ function hrefInRoot(filePath: string, rootDir: string): string | undefined {
   ) {
     return undefined;
   }
-  return `${TO_ROOT}${shown.split(/[/\\]/u).map(encodeURIComponent).join("/")}`;
+  return fileAddress([...rootDir.split(/[/\\]/u), ...shown.split(/[/\\]/u)]);
+}
+
+/**
+ * A path's `file://` address from its segments, built by hand rather than by
+ * `pathToFileURL`, which reads a path by the system it runs on: a Windows
+ * drive (`C:`) stays as it is, every other segment is encoded.
+ */
+function fileAddress(segments: string[]): string {
+  const named = segments.filter((segment) => segment !== "");
+  return `file:///${named
+    .map((segment, index) =>
+      index === 0 && /^[A-Za-z]:$/u.test(segment)
+        ? segment
+        : encodeURIComponent(segment),
+    )
+    .join("/")}`;
 }
 
 /** Text for inside a link's brackets. */

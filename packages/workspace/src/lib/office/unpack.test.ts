@@ -8,6 +8,7 @@ import {
   arMembers,
   findSoffice,
   msiAdminInstallArgs,
+  settleMsiImage,
   sha256Of,
   tdfSignatureRequirement,
   unpackDebTarball,
@@ -188,6 +189,28 @@ describe("the Windows administrative install", () => {
       "/qn",
       'TARGETDIR="C:\\Users\\windows-user\\AppData\\Roaming\\Instrument\\runtime\\office\\.26.2.7.3.building"',
     ]);
+  });
+
+  it("moves the image's fonts where LibreOffice reads them and drops the MSI copy", async () => {
+    const dir = await tempDir();
+    await fs.mkdir(path.join(dir, "Fonts"), { recursive: true });
+    await fs.mkdir(path.join(dir, "share", "config"), { recursive: true });
+    await fs.writeFile(path.join(dir, "Fonts", "Carlito-Regular.ttf"), "");
+    await fs.writeFile(path.join(dir, "LibreOffice.msi"), "");
+    await settleMsiImage(dir, "LibreOffice.msi");
+    expect(
+      (await fs.readdir(dir, { recursive: true }))
+        .map((entry) => entry.split(path.sep).join("/"))
+        .sort(),
+    ).toMatchInlineSnapshot(`
+      [
+        "share",
+        "share/config",
+        "share/fonts",
+        "share/fonts/truetype",
+        "share/fonts/truetype/Carlito-Regular.ttf",
+      ]
+    `);
   });
 
   it("finds soffice.exe in the program folder it leaves", async () => {

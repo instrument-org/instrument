@@ -115,6 +115,41 @@ export async function unpackMsi(msi: string, dest: string): Promise<void> {
       `msiexec /a exited ${String(result.exitCode)}${result.all ? `: ${result.all.trim()}` : ""}`,
     );
   }
+  await settleMsiImage(dest, path.basename(msi));
+}
+
+/**
+ * Puts an administrative image in the shape LibreOffice runs from. The
+ * image keeps the files a real install puts in Windows' own folders under
+ * folders of their own: its bundled fonts (Carlito, Caladea, Liberation,
+ * DejaVu) in `Fonts`, which LibreOffice never reads there, so a document set
+ * in one of them renders in a stand-in. They go to `share\fonts\truetype`,
+ * where LibreOffice loads fonts for itself alone. The image also keeps a
+ * copy of the MSI, emptied of its files, which nothing reads.
+ */
+export async function settleMsiImage(
+  dest: string,
+  msiName: string,
+): Promise<void> {
+  const fonts = path.join(dest, "Fonts");
+  const share = path.join(dest, "share");
+  const bundled = path.join(share, "fonts", "truetype");
+  if (
+    (await isDirectory(fonts)) &&
+    (await isDirectory(share)) &&
+    !(await isDirectory(bundled))
+  ) {
+    await fs.mkdir(path.dirname(bundled), { recursive: true });
+    await fs.rename(fonts, bundled);
+  }
+  await fs.rm(path.join(dest, msiName), { force: true });
+}
+
+async function isDirectory(dir: string): Promise<boolean> {
+  return fs
+    .stat(dir)
+    .then((stat) => stat.isDirectory())
+    .catch(() => false);
 }
 
 /** One member of an `ar` archive, the format a `.deb` is. */

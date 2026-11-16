@@ -353,6 +353,9 @@ export const SETTINGS_PAGES: Record<
   Providers: {
     detail: `The AI models ${APP_NAME} can use: your ChatGPT, Claude or Grok plan, or a provider you add with your own key.`,
   },
+  Apps: {
+    detail: `The services ${APP_NAME} works in for you, and connecting another.`,
+  },
   Memory: {
     detail: `What ${APP_NAME} remembers about you, one file per memory, which you can search, open, forget, or add to from another AI.`,
   },

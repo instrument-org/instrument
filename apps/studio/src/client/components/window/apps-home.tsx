@@ -673,7 +673,7 @@ function UnlistedTile({
 }
 
 /** What an app not yet connected is waiting for, in a few words under its name. */
-function waitingLine(app: Pick<App, "status">): string {
+export function waitingLine(app: Pick<App, "status">): string {
   switch (app.status) {
     case "declined": {
       return "Not connected";

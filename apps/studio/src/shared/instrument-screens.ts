@@ -88,6 +88,7 @@ export const SETTINGS_SECTIONS = {
   general: "General",
   account: "Account",
   providers: "Providers",
+  apps: "Apps",
   permissions: "Permissions",
   storage: "Storage",
   activity: "History",

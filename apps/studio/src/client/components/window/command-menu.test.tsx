@@ -117,6 +117,7 @@ describe("Settings tabs in the command menu in developer mode", () => {
     expect(listed()).toEqual(
       [
         "Settings: Account",
+        "Settings: Apps",
         "Settings: History",
         "Settings: Developer",
         "Settings: Permissions",

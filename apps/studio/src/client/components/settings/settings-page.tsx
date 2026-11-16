@@ -1,6 +1,7 @@
 import { type SettingsTab } from "@/client/atoms/settings-modal";
 import { AccountSection } from "@/client/components/settings/account-section";
 import { ActivitySection } from "@/client/components/settings/activity-section";
+import { AppsSection } from "@/client/components/settings/apps-section";
 import { DeveloperSection } from "@/client/components/settings/developer-section";
 import { GeneralSection } from "@/client/components/settings/general-section";
 import { MemorySection } from "@/client/components/settings/memory-section";
@@ -35,6 +36,7 @@ import { FingerprintIcon } from "@phosphor-icons/react/Fingerprint";
 import { HardDrivesIcon } from "@phosphor-icons/react/HardDrives";
 import { LockKeyIcon } from "@phosphor-icons/react/LockKey";
 import { MagnifyingGlassIcon } from "@phosphor-icons/react/MagnifyingGlass";
+import { ShapesIcon } from "@phosphor-icons/react/Shapes";
 import { ClockCounterClockwiseIcon } from "@phosphor-icons/react/ClockCounterClockwise";
 import { UserCircleIcon } from "@phosphor-icons/react/UserCircle";
 import { WrenchIcon } from "@phosphor-icons/react/Wrench";
@@ -549,6 +551,9 @@ function SettingsSectionBody({ tab }: { tab: SettingsTab }) {
     case "Activity": {
       return <ActivitySection />;
     }
+    case "Apps": {
+      return <AppsSection />;
+    }
     case "Developer": {
       return <DeveloperSection />;
     }
@@ -579,6 +584,7 @@ function SettingsSectionBody({ tab }: { tab: SettingsTab }) {
 
 /** Each tab's mark in the sidebar. */
 const NAV_ICONS: Record<SettingsTab, ElementType> = {
+  Apps: ShapesIcon,
   Developer: WrenchIcon,
   General: FadersHorizontalIcon,
   Memory: FingerprintIcon,

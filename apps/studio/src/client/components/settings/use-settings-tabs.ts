@@ -13,6 +13,7 @@ export function useSettingsTabs(): SettingsTab[] {
     "General",
     "Account",
     "Providers",
+    "Apps",
     "Permissions",
     "Storage",
     "Activity",

@@ -48,6 +48,7 @@ it("offers every built-in page by name, each part of Settings with it", () => {
         "Settings: instrument://settings/general",
         "Settings › Account: instrument://settings/account",
         "Settings › Providers: instrument://settings/providers",
+        "Settings › Apps: instrument://settings/apps",
         "Settings › Permissions: instrument://settings/permissions",
         "Settings › Storage: instrument://settings/storage",
         "Settings › History: instrument://settings/activity",

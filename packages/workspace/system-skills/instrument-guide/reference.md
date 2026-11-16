@@ -41,6 +41,10 @@ The AI models Instrument can use: your ChatGPT, Claude or Grok plan, or a provid
 - **Claude account** (`claude-account`): Use your Claude plan.
 - **Grok account** (`grok-account`): Use your eligible Grok or X subscription here.
 
+### Apps (`apps`)
+
+The services Instrument works in for you, and connecting another.
+
 ### Permissions (`permissions`)
 
 Which folders and places on this computer Instrument may use.

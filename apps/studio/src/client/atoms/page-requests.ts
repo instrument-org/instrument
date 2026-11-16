@@ -4,6 +4,7 @@ import { atom, getDefaultStore } from "jotai";
 export type SettingsTab =
   | "Account"
   | "Activity"
+  | "Apps"
   | "Developer"
   | "General"
   | "Memory"

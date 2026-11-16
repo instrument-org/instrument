@@ -204,9 +204,9 @@ export const WORKSPACE_MACHINE_ENTRIES = {
   /** The Chromium profiles of the app and its browser, history, page pictures, downloads. */
   browser: "browser",
   /**
-   * The name of each chat's own folder under `Chats/` as this computer last
-   * knew it, by chat id: where to look first. A folder's `CHAT.md` names
-   * its chat, which is what finds one a person renamed.
+   * The name of each chat's own folder under `Chats/` as an earlier build
+   * on this computer last knew it, by chat id: read by the launch that
+   * empties `Chats/`, which then removes it.
    */
   chatFolders: "chat-folders.json",
   /**

@@ -34,11 +34,7 @@ import {
 } from "./drop-trailing-failed-messages";
 import { effectiveContextLength } from "./effective-context-length";
 import { filterUnsupportedMedia } from "./filter-unsupported-media";
-import {
-  agentHandoffNotesPath,
-  agentTranscriptPath,
-  readHandoffNotes,
-} from "./handoff-notes";
+import { agentHandoffNotesPath, readHandoffNotes } from "./handoff-notes";
 import { contextRolloverNotice } from "../model-text/request/context-rollover-notice";
 import { modelChangeSincePreviousTurn } from "./model-change";
 import { modelWindow } from "./model-window";
@@ -192,17 +188,13 @@ const failedSummaryAt = new Map<StoreId.Session, number>();
 function rolloverSummary(
   history: readonly SessionMessage.WithParts[],
   boundary: StoreId.Message | undefined,
-  chatId: ChatId,
-): { summary: string; transcriptPath: string | undefined } | undefined {
+): { summary: string } | undefined {
   const part = history
     .find((message) => message.id === boundary)
     ?.parts.find((candidate) => candidate.type === "data-contextRollover");
   return part?.type === "data-contextRollover" &&
     part.data.summary !== undefined
-    ? {
-        summary: part.data.summary,
-        transcriptPath: agentTranscriptPath(chatId),
-      }
+    ? { summary: part.data.summary }
     : undefined;
 }
 
@@ -655,11 +647,7 @@ export async function prepareModelMessages({
         contextRolloverNotice(
           await readHandoffNotes(chatId),
           agentHandoffNotesPath(chatId),
-          rolloverSummary(
-            allNonContextMessages,
-            rolledOverAfterMessageId,
-            chatId,
-          ),
+          rolloverSummary(allNonContextMessages, rolledOverAfterMessageId),
         ),
       ),
     );

@@ -31,7 +31,7 @@ import path from "node:path";
 import { inflateRawSync } from "node:zlib";
 
 import {
-  chatOutputFolder,
+  filesFolderPath,
   outputFolderPath,
 } from "../../src/lib/chat/output-folder";
 import { workDir } from "../../src/lib/work-dir";
@@ -62,7 +62,7 @@ const MIN_DOCUMENT_BYTES = 4000;
 async function deliverables(chatId: ChatId): Promise<string[]> {
   return [
     ...(await filesUnder(workDir(chatId))),
-    ...(await filesUnder(chatOutputFolder(chatId))),
+    ...(await filesUnder(filesFolderPath())),
     ...(await topLevelFiles(outputFolderPath())),
   ];
 }

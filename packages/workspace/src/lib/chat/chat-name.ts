@@ -1,13 +1,10 @@
 import { type AIGatewayModel } from "@instrument-org/ai-gateway";
 import { ok, type Result } from "neverthrow";
-import path from "node:path";
 
-import { CHATS_FOLDER_NAME } from "../../constants";
 import { type ChatId } from "../../schemas/chat-id";
 import { type SessionMessage } from "../../schemas/session/message";
 import { type WorkspaceConfig } from "../../types";
 import { cappedTitle, numberedName, safeName } from "../folder-name";
-import { chatFolderNames, foldersIn } from "../chat-folders/own-folder";
 import { generateTitleFromUserMessage } from "../generate-title-from-user-message";
 import { listChats } from "./chats";
 
@@ -18,9 +15,9 @@ import { listChats } from "./chats";
 export const RECENT_TITLES = 20;
 
 /**
- * What a title is compared by to say two chats share a name: the folder name
- * it makes, in one case, since a disk that ignores case (a Mac's, Windows')
- * already counts two such folders as one.
+ * What a title is compared by to say two chats share a name: the name it
+ * makes as a folder (`safeName`), in one case, so two titles that differ
+ * only in characters a name can't carry, or in capitals, count as one.
  */
 export function nameKey(title: string): string {
   return safeName(title).toLowerCase();
@@ -30,20 +27,15 @@ export function nameKey(title: string): string {
 export interface NamesBeside {
   /** The titles of the person's other recent chats, newest first. */
   recent: string[];
-  /** Every name another chat has, by {@link nameKey}: its title, or a folder under `Chats/`. */
+  /** Every other chat's title, by {@link nameKey}. */
   taken: ReadonlySet<string>;
 }
 
 /**
  * The names a chat's title has to stand apart from: every other chat's
- * title, archived ones included, since a search still finds them by it, and
- * every folder under `Chats/` but the chat's own, which is what the folder's
- * rename would otherwise have to number around.
+ * title, archived ones included, since a search still finds them by it.
  */
-export async function namesBeside(
-  chatId: ChatId,
-  workspaceConfig: Pick<WorkspaceConfig, "rootDir" | "workspaceMachineDir">,
-): Promise<NamesBeside> {
+export async function namesBeside(chatId: ChatId): Promise<NamesBeside> {
   const others = (await listChats()).filter(
     (chat) => chat.id !== chatId && chat.titled,
   );
@@ -52,15 +44,9 @@ export async function namesBeside(
     .toSorted((a, b) => b.updatedAt - a.updatedAt)
     .slice(0, RECENT_TITLES)
     .map((chat) => chat.title);
-  const own = chatFolderNames(workspaceConfig.workspaceMachineDir).get(chatId);
-  const folders = foldersIn(
-    path.join(workspaceConfig.rootDir, CHATS_FOLDER_NAME),
-  ).filter((name) => own === undefined || nameKey(name) !== nameKey(own));
   return {
     recent,
-    taken: new Set(
-      [...others.map((chat) => chat.title), ...folders].map(nameKey),
-    ),
+    taken: new Set(others.map((chat) => nameKey(chat.title))),
   };
 }
 
@@ -68,8 +54,7 @@ export async function namesBeside(
  * A title no other chat has: the one asked for first, and where that is
  * taken, the one asked for again with the taken name handed back. A second
  * answer that is taken as well, or that fails, leaves the first one numbered
- * the way the folder would be (`Weather 2`), so the chat and its folder still
- * read the same.
+ * the way a copied folder is (`Weather 2`).
  *
  * `ask` is the titler, given the name it may not use on the second try. Its
  * failure on the first try is the whole answer: there is nothing to number.
@@ -137,7 +122,7 @@ export async function nameChat({
 }): Promise<Result<string, { message: string; originalError: unknown }>> {
   // A list that cannot be read leaves the chat named as if it were alone,
   // with nothing to tell it apart from and no name taken.
-  const { recent, taken } = await namesBeside(chatId, workspaceConfig).catch(
+  const { recent, taken } = await namesBeside(chatId).catch(
     (error: unknown): NamesBeside => {
       workspaceConfig.captureException(error);
       return { recent: [], taken: new Set() };

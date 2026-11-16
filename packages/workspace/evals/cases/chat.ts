@@ -25,7 +25,7 @@ import os from "node:os";
 import path from "node:path";
 
 import {
-  chatOutputFolder,
+  filesFolderPath,
   outputFolderPath,
 } from "../../src/lib/chat/output-folder";
 import { getCurrentFileInfo } from "../../src/lib/get-file-info";
@@ -275,16 +275,15 @@ function repliedWith(phrase: string): Assertion {
 }
 
 /**
- * A file landed in the user's Instrument folder: in the chat's own folder
- * there, where `$INSTRUMENT_OUTPUT` points, or at its top level. Deeper is
- * another chat's folder.
+ * A file landed in the user's Instrument folder: under its Files folder,
+ * where `$INSTRUMENT_FILES` points, or at its top level.
  */
 const wroteIntoTheInstrumentFolder: Assertion = {
-  check: ({ chatId }) => {
+  check: () => {
     const text = "a file landed in the user's Instrument folder";
     const top = outputFolderPath();
     const written = [
-      ...recentFilesUnder(chatOutputFolder(chatId)),
+      ...recentFilesUnder(filesFolderPath()),
       ...recentFilesUnder(top).filter((file) => path.dirname(file) === top),
     ];
     return written.length > 0
@@ -317,7 +316,7 @@ function madeDocuments(extensions: string[]): Assertion {
       const written = [
         os.homedir(),
         workDir(chatId),
-        chatOutputFolder(chatId),
+        filesFolderPath(),
       ].flatMap((dir) => recentFilesUnder(dir));
       const missing = extensions.filter(
         (extension) => !written.some((file) => file.endsWith(extension)),

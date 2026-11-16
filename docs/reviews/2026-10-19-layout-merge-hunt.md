@@ -55,7 +55,7 @@ A retroactive review of the workspace-layout merge and what landed around it, re
 ### H. Renaming a chat's folder while the app runs splits its work into two folders
 
 - Status: fixed `cdf24d8fe`
-- Where: [chat-folder.ts:66](/packages/workspace/src/lib/chat-folders/chat-folder.ts#L66), `sweep.ts:219`
+- Where: `chat-folder.ts:66`, `sweep.ts:219`
 - What: the app knew a chat's `Chats/` folder only by a stored name, and at the end of a turn a missing named folder was answered by claiming a fresh one from the title. A rename in a file manager while the app runs left finished work in two folders, and the launch adoption never reconnected the renamed one because nothing was missing any more. `CHAT.md` already carried the chat id to find it by.
 
 ### I. Every launch reads every chat's whole history before the window opens

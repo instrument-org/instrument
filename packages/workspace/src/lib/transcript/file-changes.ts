@@ -1,11 +1,7 @@
 import fs from "node:fs/promises";
 import path from "node:path";
 
-import {
-  CHAT_FILE_NAME,
-  CHAT_FOLDER_NAMES,
-  FOLDER_VARIABLES,
-} from "../../constants";
+import { CHAT_FOLDER_NAMES, FOLDER_VARIABLES } from "../../constants";
 import { type SessionMessageDataPart } from "../../schemas/session/message-data-part";
 import { isSystemClutter } from "../system-clutter";
 
@@ -29,14 +25,13 @@ const SKIPPED = new Set([
 const CLOCK_SLACK_MS = 50;
 
 /**
- * Whether a file is the app's or the system's rather than the work's: the
- * transcript the app keeps in a chat's folder, a background command's log, and
- * what file managers and programs leave beside things.
+ * Whether a file is the app's or the system's rather than the work's: a
+ * background command's log, and what file managers and programs leave beside
+ * things.
  */
 function isTheWork(file: string): boolean {
   const name = path.basename(file);
   return (
-    name !== CHAT_FILE_NAME &&
     !isSystemClutter(name) &&
     !file.split(/[/\\]/).some((segment) => SKIPPED.has(segment))
   );

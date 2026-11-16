@@ -650,7 +650,7 @@ export const agentMachine = setup({
         /**
          * The turn is over once what it wrote is in the chat's files, so
          * everything that hears `agent.done` (the session's end, and the
-         * wake, retitle, unread mark and CHAT.md it starts) reads all of it.
+         * wake, retitle and unread mark it starts) reads all of it.
          */
         LandingRecords: {
           invoke: {

@@ -1,9 +1,7 @@
 import { DeleteWithProgressDialog } from "@/client/components/delete-with-progress-dialog";
-import { Checkbox } from "@/client/components/ui/checkbox";
 import { osConventions } from "@/client/lib/utils";
 import { rpcClient } from "@/client/rpc/client";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { useId, useState } from "react";
 import { toast } from "@/client/lib/toast";
 
 import { paintChatRow } from "./chat-list-query";
@@ -18,11 +16,6 @@ const TASKS_NAMED = 5;
  * which: the conversation and each task by its title. What its tasks saved
  * into the user's own folders stays where it is, which the dialog says too,
  * since it is the thing most worth knowing before pressing the button.
- *
- * The chat's own folder under `Chats/` is offered rather than taken: the
- * transcript and what the agent finished are in there, and deleting a chat
- * to tidy a list is not a request to throw that away. So the box starts
- * clear, and the folder goes only for someone who asked.
  */
 export function DeleteChatDialog({
   chat,
@@ -45,8 +38,6 @@ export function DeleteChatDialog({
   const tasks = children.data ?? [];
   const named = tasks.slice(0, TASKS_NAMED);
   const more = tasks.length - named.length;
-  const [itsFolder, setItsFolder] = useState(false);
-  const folderOption = useId();
 
   return (
     <DeleteWithProgressDialog
@@ -80,28 +71,6 @@ export function DeleteChatDialog({
               </>
             )}
           </div>
-          <label className="flex cursor-default items-start gap-3 px-1">
-            <Checkbox
-              aria-describedby={`${folderOption}-detail`}
-              aria-labelledby={`${folderOption}-label`}
-              checked={itsFolder}
-              className="mt-0.5"
-              onCheckedChange={(value) => {
-                setItsFolder(value === true);
-              }}
-            />
-            <span className="flex min-w-0 flex-col gap-0.5">
-              <span className="text-sm" id={`${folderOption}-label`}>
-                Delete its folder too
-              </span>
-              <span
-                className="text-xs text-muted-foreground"
-                id={`${folderOption}-detail`}
-              >
-                The transcript and anything the agent made for you are in there.
-              </span>
-            </span>
-          </label>
         </div>
       }
       description={`This chat and the tasks it started move to your ${trashTerminology}, where you can restore them. Files they saved to your own folders stay where they are.`}
@@ -110,7 +79,6 @@ export function DeleteChatDialog({
         try {
           const at = await rpcClient.workspace.chats.trash.call({
             id: chat.id,
-            itsFolder,
           });
           // Kept out of the list until the list has it gone.
           paintChatRow(queryClient, chat.id, "gone").landed(at);
@@ -129,14 +97,7 @@ export function DeleteChatDialog({
         });
         onDeleted();
       }}
-      onOpenChange={(next) => {
-        // Asked again each time, so the folder is never taken by a box the
-        // person ticked for another chat.
-        if (!next) {
-          setItsFolder(false);
-        }
-        onOpenChange(next);
-      }}
+      onOpenChange={onOpenChange}
       open={open}
       title="Delete this chat?"
     />

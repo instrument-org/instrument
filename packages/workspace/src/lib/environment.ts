@@ -26,11 +26,9 @@ import { getWorkspaceSkillsDir } from "./workspace-skills-dir";
 /**
  * The computer this process runs on, as a session's model is told it.
  *
- * The output folder is worked out exactly as `$INSTRUMENT_OUTPUT` is
- * (`finishedWorkFolder`), so what the model reads and what its shell holds
- * are the same folder; a change to it between turns is told as any other
- * move of a folder is. Without a chat, as for the window, it is the
- * Instrument folder.
+ * The output folder is the Files folder, worked out exactly as
+ * `$INSTRUMENT_FILES` is (`filesFolderPath`), so what the model reads and
+ * what its shell holds are the same folder.
  *
  * The image options are for the image model `runsOn` would pick among the
  * providers connected now: the chat's model, which every session of it runs

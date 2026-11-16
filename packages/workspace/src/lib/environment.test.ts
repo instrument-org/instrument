@@ -177,7 +177,7 @@ describe("environmentChangeModelNote", () => {
       These facts about the computer changed since the system information above was written, which they supersede:
       - The computer: Windows (win32 10.0.26200)
       - The user's home folder: \`/c/Users/windows-user\`
-      - The output folder (\`$INSTRUMENT_OUTPUT\`): \`/c/Users/windows-user/Instrument\`
+      - Their Files folder (\`$INSTRUMENT_FILES\`): \`/c/Users/windows-user/Instrument\`
       - The apps folder (\`$INSTRUMENT_APPS\`): \`/c/Users/windows-user/Instrument/.instrument/apps\`
       - The workspace's skills folder (\`$INSTRUMENT_WORKSPACE_SKILLS\`): \`/c/Users/windows-user/Instrument/.instrument/skills\`
       Paths named earlier in this conversation may belong to the computer it ran on before; check one before you rely on it.
@@ -189,13 +189,13 @@ describe("environmentChangeModelNote", () => {
   it("points paths named before a workspace move at the new folders", () => {
     expect(
       environmentChangeModelNote({
-        outputFolder: "/Volumes/Archive/Instrument/Chats/Trip",
+        outputFolder: "/Volumes/Archive/Instrument/Files",
       }),
     ).toMatchInlineSnapshot(`
       "
       <instrument-system-note>
       These facts about the computer changed since the system information above was written, which they supersede:
-      - The output folder (\`$INSTRUMENT_OUTPUT\`): \`/Volumes/Archive/Instrument/Chats/Trip\`
+      - Their Files folder (\`$INSTRUMENT_FILES\`): \`/Volumes/Archive/Instrument/Files\`
       Paths named earlier in this conversation, such as the files the user sent, may point where these folders were before; look under the new ones instead.
       </instrument-system-note>"
     `);

@@ -3,9 +3,9 @@
  * about the world, and does it still go there for a question about their own
  * things?
  *
- * Every case runs in the same workspace: twenty earlier chats, whose real
- * `CHAT.md` copies sit under `Chats/` and many of which mention the words the
- * prompts use, and a few files, which truly answer the local cases.
+ * Every case runs in the same workspace: twenty earlier chats, many of which
+ * mention the words the prompts use, and a few files, which truly answer the
+ * local cases.
  *
  * - `world`: only the web can answer.
  * - `ambiguous`: the words could be about something local. Two of these have
@@ -22,7 +22,6 @@ import path from "node:path";
 
 import { ensureChat } from "../../src/lib/chat/chat-records";
 import { ChatWrites } from "../../src/lib/chat-writes";
-import { rewriteChatFolder } from "../../src/lib/chat-folders/write-chat-folder";
 import { getWorkspaceConfig } from "../../src/lib/workspace-config";
 import { type SessionMessagePart } from "../../src/schemas/session/message-part";
 import { StoreId } from "../../src/schemas/store-id";
@@ -210,7 +209,7 @@ function homeFiles(): Record<string, string> {
   return files;
 }
 
-/** One earlier chat, written the way a real one is, and its `CHAT.md`. */
+/** One earlier chat, written the way a real one is. */
 async function seedOldChat(old: (typeof OLD_CHATS)[number], at: number) {
   const sessionId = StoreId.newSessionId();
   const chatId = await ensureChat(sessionId, old.ask);
@@ -259,7 +258,6 @@ async function seedOldChat(old: (typeof OLD_CHATS)[number], at: number) {
       chatId,
     )
   )._unsafeUnwrap();
-  await rewriteChatFolder(chatId);
 }
 
 async function seedWorkspace() {

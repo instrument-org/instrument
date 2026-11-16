@@ -1,5 +1,4 @@
 import { WORKSPACE_MACHINE_ENTRIES } from "@instrument-org/shared";
-import fs from "node:fs";
 
 import {
   BROWSER_FOLDER_NAMES,
@@ -13,7 +12,6 @@ import {
 } from "../schemas/paths";
 import { absolutePathJoin } from "./absolute-path-join";
 import { type DeviceId } from "./records/device-id";
-import { chatOwnFolder } from "./record-folders";
 import { workspaceMachineDir } from "./workspace-machine-dir";
 
 /** The in-app browser's Chromium profile, on this computer's side of the workspace. */
@@ -57,36 +55,9 @@ export function getScreenshotsDir(dir: WorkDir): AbsolutePath {
   return absolutePathJoin(dir, CHAT_FOLDER_NAMES.screenshots);
 }
 
-/**
- * What the person sent the chat, in its record folder: where every build
- * before this one kept it, and where a chat whose folder it could not be
- * moved to keeps it still. Read through {@link chatAttachmentsDir}, which
- * is what everything outside this file wants.
- */
-function inRecordFolder(dir: ChatDir): AbsolutePath {
-  return absolutePathJoin(dir, CHAT_FOLDER_NAMES.attachments);
-}
-
-/**
- * What the person sent the chat, wherever it is: `attachments/` in the
- * chat's own folder under `Chats/`, which is where writing the chat's
- * folder moves it and where pasted bytes are written once the folder is
- * there, and its record folder for a chat that has no folder or whose move
- * was refused.
- *
- * Whichever one is there wins, rather than whichever one should be: the
- * move is best effort, so a chat can still be reading its files out of the
- * record folder on this computer while another has them in its own folder.
- * A file left in the record folder because its name was taken in the
- * chat's folder is named at the chat's folder all the same.
- */
+/** What the person sent the chat: `attachments/` in its record folder. */
 export function chatAttachmentsDir(dir: ChatDir): AbsolutePath {
-  const own = chatOwnFolder(dir);
-  if (own === undefined) {
-    return inRecordFolder(dir);
-  }
-  const inFolder = absolutePathJoin(own, CHAT_FOLDER_NAMES.attachments);
-  return fs.existsSync(inFolder) ? inFolder : inRecordFolder(dir);
+  return absolutePathJoin(dir, CHAT_FOLDER_NAMES.attachments);
 }
 
 /** Where one device left off in a chat, in its record folder; only that device writes it. */

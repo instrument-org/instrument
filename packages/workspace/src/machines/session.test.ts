@@ -8,7 +8,6 @@ import { simulateReadableStream } from "ai";
 import { MockLanguageModelV4 } from "ai/test";
 import mockFs from "mock-fs";
 import { ok, ResultAsync } from "neverthrow";
-import fs from "node:fs/promises";
 import path from "node:path";
 import { noop, pick } from "radashi";
 import {
@@ -32,12 +31,10 @@ import {
 import { setupAgent } from "../agents/create-agent";
 import { instrumentAgent } from "../agents/instrument";
 import { type AnyAgent } from "../agents/types";
-import { CHAT_FILE_NAME, CHATS_FOLDER_NAME } from "../constants";
 import {
   killSessionBackgroundProcesses,
   listBackgroundProcesses,
 } from "../lib/background-processes";
-import { writeChatFolder } from "../lib/chat-folders/write-chat-folder";
 import { openAsks } from "../lib/chat/open-asks";
 import * as children from "../lib/chat/children";
 import * as bashEnv from "../lib/create-bash-env";
@@ -45,6 +42,7 @@ import * as recordFolders from "../lib/record-folders";
 import { ChatReads } from "../lib/chat-reads";
 import { ChatWrites } from "../lib/chat-writes";
 import { chatRecords } from "../lib/records/chat-records";
+import { foldChatInFolder } from "../lib/records/fold-folder";
 import { publisher } from "../rpc/publisher";
 import { type RelativePath } from "../schemas/paths";
 import { type SessionMessage } from "../schemas/session/message";
@@ -955,7 +953,7 @@ describe("sessionMachine", () => {
     });
   });
 
-  // The chat's folder is written as each turn ends (`on-turn-end.ts`), from
+  // Whatever reads a chat when its turn ends (an export, another chat) reads
   // the records on disk, so the words a stopped reply had reached have to be
   // written by then. Read once this session is done, not on the first
   // `session.done` the process publishes, which any session can send.
@@ -970,25 +968,15 @@ describe("sessionMachine", () => {
           }),
       }),
     });
-    const rootDir = MOCK_WORKSPACE_DIRS.root;
-    let folder: string | undefined;
-    const transcript = async () => {
-      const written = await writeChatFolder({
-        chatsDir: MOCK_WORKSPACE_DIRS.chats,
-        id: result.chatId,
-        machineDir: MOCK_WORKSPACE_DIRS.machine,
-        rootDir,
-      });
-      if (written.kind === "written") {
-        folder = written.folder;
-      } else if (written.kind !== "already-there" || folder === undefined) {
-        throw new Error(`Expected a written folder, got ${written.kind}`);
-      }
-      return fs.readFile(
-        path.join(rootDir, CHATS_FOLDER_NAME, folder, CHAT_FILE_NAME),
-        "utf8",
+    // The records as they are on disk, read afresh each time.
+    const transcript = async () =>
+      JSON.stringify(
+        (
+          await foldChatInFolder(
+            path.join(MOCK_WORKSPACE_DIRS.chats, result.chatId),
+          )
+        ).sessions,
       );
-    };
     result.actor.start();
     stream.push({ id: "1", type: "text-start" });
     stream.push({ delta: "Half of the answer", id: "1", type: "text-delta" });

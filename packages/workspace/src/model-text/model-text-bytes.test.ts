@@ -377,11 +377,9 @@ describe.skipIf(WINDOWS)("the rollover notice", () => {
       noNotes: contextRolloverNotice(undefined, notesPath),
       summarized: contextRolloverNotice("Notes.", notesPath, {
         summary: "A summary.",
-        transcriptPath: "/Users/mac-user/transcript.md",
       }),
-      summarizedNoTranscript: contextRolloverNotice(undefined, notesPath, {
+      summarizedNoNotes: contextRolloverNotice(undefined, notesPath, {
         summary: "A summary.",
-        transcriptPath: undefined,
       }),
       withNotes: contextRolloverNotice("Notes.", notesPath),
     }).toMatchSnapshot();

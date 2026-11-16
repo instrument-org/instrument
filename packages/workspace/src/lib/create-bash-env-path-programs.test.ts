@@ -7,7 +7,7 @@ import { type ChatId } from "../schemas/chat-id";
 import { ChatDirSchema } from "../schemas/paths";
 import { StoreId } from "../schemas/store-id";
 import { createMockChatConfigForDir } from "../test/helpers/mock-chat-config";
-import { outputFolderPath } from "./chat/output-folder";
+import { filesFolderPath } from "./chat/output-folder";
 import { createBashEnv } from "./create-bash-env";
 import { RG_DISK_PATH } from "./ripgrep";
 
@@ -73,18 +73,18 @@ describe.skipIf(process.platform === "win32")("programs on PATH", () => {
     });
   });
 
-  it("names the work and output folders to the shell and to every program it starts", async () => {
+  it("names the work and Files folders to the shell and to every program it starts", async () => {
     await writeProgram(
       binDir,
       "folder-vars",
-      'printf "%s\\n" "$INSTRUMENT_WORK" "$INSTRUMENT_OUTPUT"',
+      'printf "%s\\n" "$INSTRUMENT_WORK" "$INSTRUMENT_FILES"',
     );
     const result = await run(
-      'echo "$INSTRUMENT_WORK"; echo "$INSTRUMENT_OUTPUT"; folder-vars',
+      'echo "$INSTRUMENT_WORK"; echo "$INSTRUMENT_FILES"; folder-vars',
     );
     // No attachments variable: a file the person sends is read where they
     // keep it, so there is no folder of copies to name.
-    const folders = [chatRoot, outputFolderPath()];
+    const folders = [chatRoot, filesFolderPath()];
     expect(result.stdout.split("\n")).toEqual([...folders, ...folders, ""]);
   });
 

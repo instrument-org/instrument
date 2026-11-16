@@ -71,9 +71,8 @@ export function buildReportWorkspaceConfig(
     modelCache: noopModelCache,
     nodeExecEnv: {},
     // A workspace the person picked, which is what makes its top level
-    // theirs: each chat's own folder under `Chats/` is then where its
-    // finished work goes, as it is for anyone who picked where their
-    // Instrument folder is kept. Without this a run measures the fallback,
+    // theirs: its Files folder is then where finished work goes, as it is
+    // for anyone who picked where their Instrument folder is kept. Without this a run measures the fallback,
     // and nothing measures what the prompt actually tells the agent.
     outputDir: AbsolutePathSchema.parse(absoluteWorkspaceDir),
     pnpmBinPath: AbsolutePathSchema.parse("/usr/bin/pnpm"),

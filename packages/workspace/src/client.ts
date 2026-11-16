@@ -17,7 +17,6 @@ export {
   type ConnectAppResult,
   connectAppResults,
 } from "./tools/connect-app-output";
-export { isChatTranscript } from "./lib/retire-chats-folder/chat-transcript";
 export { backgroundProcessesModelNote } from "./model-text/notes/background-processes-model-text";
 export { projectModelNote } from "./model-text/notes/project-model-text";
 export { dateChangeModelNote } from "./model-text/notes/date-change-model-text";

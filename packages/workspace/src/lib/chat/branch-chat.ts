@@ -6,8 +6,6 @@ import { type ChatId } from "../../schemas/chat-id";
 import { type SessionMessage } from "../../schemas/session/message";
 import { StoreId } from "../../schemas/store-id";
 import { chatAttachmentsDir, handoffNotesPath } from "../chat-dir-utils";
-import { recordChatFolderName } from "../chat-folders/own-folder";
-import { rewriteChatFolder } from "../chat-folders/write-chat-folder";
 import { chatGone } from "../chat-gone";
 import { ChatReads } from "../chat-reads";
 import { chatModelURI, setChatModel } from "../chat-settings";
@@ -18,7 +16,7 @@ import {
   readChatPermissions,
   updateChatPermissions,
 } from "../permissions/rules";
-import { chatDir, chatOwnFolder, sessionOfChat } from "../record-folders";
+import { chatDir, sessionOfChat } from "../record-folders";
 import { BLOBS_FOLDER_NAME, blobPath, isBlobName } from "../records/blobs";
 import { writingChatRecords } from "../records/chat-records";
 import { getWorkspaceConfig } from "../workspace-config";
@@ -129,9 +127,6 @@ export async function branchChat({
           {
             data: {
               chat: chatId,
-              ...(places.chatFolder !== undefined && {
-                folder: places.chatFolder,
-              }),
               records: places.recordsFolder,
               title: places.title,
               work: places.workFolder,
@@ -152,9 +147,6 @@ export async function branchChat({
     if (note.isErr()) {
       throw note.error;
     }
-    // The folder has its `CHAT.md` now rather than at the branch's first
-    // turn, and what the person sent moves into it.
-    await rewriteChatFolder(branch);
   } catch (error) {
     // A branch that stopped partway is a chat the person never saw whole,
     // so none of it stays, and what stopped it is what the caller hears
@@ -168,28 +160,18 @@ export async function branchChat({
 }
 
 /**
- * Removes a branch that was never finished: its records and the folder
- * claimed for it under `Chats/` are deleted outright rather than put in the
- * trash, where the person would find part of a conversation, and this
- * computer forgets the folder's name and what the branch was allowed. It has
- * no work folder yet, since no command has run in it.
+ * Removes a branch that was never finished: its records are deleted
+ * outright rather than put in the trash, where the person would find part of
+ * a conversation, and this computer forgets what the branch was allowed. It
+ * has no work folder yet, since no command has run in it.
  */
 async function removeBranch(branch: ChatId): Promise<void> {
   const records = chatDir(branch);
-  const folder = chatOwnFolder(records);
   // Nothing more is written to it until the index has forgotten it: an
   // append landing after its folder went would make the folder again.
   const release = await writingChatRecords()?.refuse(branch);
   try {
     await fs.rm(records, { force: true, recursive: true });
-    if (folder !== undefined) {
-      await fs.rm(folder, { force: true, recursive: true });
-    }
-    await recordChatFolderName(
-      getWorkspaceConfig().workspaceMachineDir,
-      branch,
-      undefined,
-    );
     await forgetChatPermissions(branch);
     await chatGone(branch);
   } finally {

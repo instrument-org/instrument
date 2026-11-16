@@ -1,13 +1,12 @@
 import fsSync from "node:fs";
-import fs from "node:fs/promises";
 import path from "node:path";
 
 import { UNTITLED_CHAT_TITLE } from "../constants";
 
 /**
- * What a folder a person opens is called, in `Chats/` or in any other of the
- * six: the name it is for, spelled so that every system and every sync engine
- * can carry it, with a number on the end where the name is already taken.
+ * What a folder a person opens is called: the name it is for, spelled so
+ * that every system and every sync engine can carry it, with a number on the
+ * end where the name is already taken.
  *
  * The rules are the ones a name has to keep to travel: iCloud Drive, Dropbox
  * and OneDrive each carry a folder to Windows, which refuses the characters
@@ -93,35 +92,12 @@ export function cappedTitle(title: string): string {
  * Makes a folder in `parentDir` under a free name from `base` and answers
  * with it. The name is taken by the act of making the folder, which the
  * system does in one step: a candidate another folder already holds fails,
- * and the next number is tried.
+ * and the next number is tried. Rather than listing what is there and picking
+ * what is free, because two folders claiming one name at the same moment
+ * would both see it free and share the folder they made.
  *
- * Rather than listing what is there and picking what is free, because two
- * folders claiming one name at the same moment would both see it free and
- * share the folder they made.
- */
-export async function claimFolderNamed(
-  parentDir: string,
-  base: string,
-): Promise<{ name: string; path: string }> {
-  await fs.mkdir(parentDir, { recursive: true });
-  for (let suffix = 1; ; suffix += 1) {
-    const name = suffix === 1 ? base : numberedName(base, suffix);
-    const made = path.join(parentDir, name);
-    try {
-      await fs.mkdir(made);
-      return { name, path: made };
-    } catch (error) {
-      if (!isTakenError(error)) {
-        throw error;
-      }
-    }
-  }
-}
-
-/**
- * {@link claimFolderNamed} without awaiting, for a caller that cannot: the
- * drafts the windows keep are written on a timer and again as the app quits,
- * and a quit runs no promise to its end.
+ * Synchronous, for the drafts the windows keep, which are written on a timer
+ * and again as the app quits, and a quit runs no promise to its end.
  */
 export function claimFolderNamedSync(
   parentDir: string,
@@ -143,7 +119,7 @@ export function claimFolderNamedSync(
 }
 
 /** Whether making the folder failed because something is already there. */
-export function isTakenError(error: unknown): boolean {
+function isTakenError(error: unknown): boolean {
   return (
     error instanceof Error &&
     "code" in error &&

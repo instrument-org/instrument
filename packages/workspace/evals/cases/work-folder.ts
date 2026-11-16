@@ -1,21 +1,16 @@
 import fs from "node:fs";
 import path from "node:path";
 
-import { finishedWorkFolder } from "../../src/lib/chat/output-folder";
-import { chatDir, chatOwnFolder } from "../../src/lib/record-folders";
 import { workDir } from "../../src/lib/work-dir";
-import { getWorkspaceConfig } from "../../src/lib/workspace-config";
-import { workspaceLayout } from "../../src/lib/workspace-layout";
 import { getWorkspaceSkillsDir } from "../../src/lib/workspace-skills-dir";
-import { CHATS_FOLDER_NAME } from "../../src/constants";
 import { type Session } from "../../src/schemas/session";
 import { type Assertion, defineEval } from "../harness";
 
 /**
  * Where the agent puts things, now that its shell names its folders
- * (`INSTRUMENT_WORK`, `INSTRUMENT_OUTPUT`) and its work folder is no
- * package of its own: finished work goes in the conversation's own folder
- * by its own name; what the person sent is read where it lies; a package
+ * (`INSTRUMENT_WORK`, `INSTRUMENT_FILES`) and its work folder is no
+ * package of its own: the person hears each finished file named in full
+ * (where it goes is `files-folder.ts`'s); what the person sent is read where it lies; a package
  * goes in where the job is, in a `package.json` there (pnpm makes one
  * where there is none). A unit test shows the variables are set and pnpm
  * makes the manifest; only a model shows whether it goes where the prompt
@@ -60,108 +55,6 @@ function filesUnder(root: string): string[] {
     return [];
   }
 }
-
-const deliversIntoTheChatsOwnFolder: Assertion = {
-  check: ({ chatId }) => {
-    // Where the shell's `$INSTRUMENT_OUTPUT` pointed, worked out the same
-    // way: the chat's own folder under `Chats/`, named for the
-    // conversation. The prompt asks for the finished file in it by its own
-    // name, so a folder of its own in there is a miss rather than a pass.
-    const folder = finishedWorkFolder(chatOwnFolder(chatDir(chatId)));
-    const squares = filesUnder(folder).filter(
-      (file) =>
-        file.endsWith(".csv") &&
-        /\b10\s*,\s*100\b/.test(
-          fs.readFileSync(path.join(folder, file), "utf8"),
-        ),
-    );
-    const placed = squares.filter((file) => !file.includes(path.sep));
-    const inASubfolder = squares.filter((file) => file.includes(path.sep));
-    return {
-      evidence:
-        placed.length > 0
-          ? `Placed ${placed.join(", ")} in ${folder}`
-          : inASubfolder.length > 0
-            ? `Put it in a folder of its own: ${inASubfolder.join(", ")}`
-            : `No CSV of the squares in ${folder}`,
-      passed: placed.length > 0,
-      text: "Puts the finished CSV in the conversation's own folder, by its own name",
-    };
-  },
-  text: "Puts the finished CSV in the conversation's own folder, by its own name",
-};
-
-/**
- * A folder the person asked for by name, with no place given, made inside
- * the conversation's own folder. The same name anywhere else under the
- * Instrument folder is a miss: beside the conversation's folder under
- * `Chats/` it reads as another conversation.
- */
-function makesTheNamedFolderInside(name: RegExp, label: string): Assertion {
-  const text = `Makes the ${label} folder inside the conversation's own folder`;
-  return {
-    check: ({ chatId }) => {
-      const folder = finishedWorkFolder(chatOwnFolder(chatDir(chatId)));
-      const inside = fs
-        .readdirSync(folder, { withFileTypes: true })
-        .filter((entry) => entry.isDirectory() && name.test(entry.name))
-        .filter(
-          (entry) => filesUnder(path.join(folder, entry.name)).length > 0,
-        );
-      return {
-        evidence:
-          inside.length > 0
-            ? `Made ${inside.map((entry) => entry.name).join(", ")} in ${folder}`
-            : `No ${label} folder with files in ${folder}`,
-        passed: inside.length > 0,
-        text,
-      };
-    },
-    text,
-  };
-}
-
-/**
- * Nothing in `Chats/` but conversations' own folders. Every chat of the run
- * names its own folder in its settings, so anything else there is a folder
- * an agent made beside them; it counts against this run when its own tool
- * calls named it, since every case in a run shares the workspace.
- */
-export const leavesChatsToConversations: Assertion = {
-  check: ({ sessions }) => {
-    const named = sessions
-      .flatMap((session) => session.messages)
-      .flatMap((message) => message.parts)
-      .filter((part) => part.type.startsWith("tool-"))
-      .map((part) => JSON.stringify(part))
-      .join("\n");
-    const { rootDir } = getWorkspaceConfig();
-    const records = workspaceLayout(rootDir).chatsDir;
-    // Which folder is a chat's own is the records' to say, as the app reads it.
-    const own = new Set(
-      fs.readdirSync(records).flatMap((id) => {
-        const folder = chatOwnFolder(path.join(records, id));
-        return folder === undefined ? [] : [path.basename(folder)];
-      }),
-    );
-    const stray = fs.readdirSync(path.join(rootDir, CHATS_FOLDER_NAME)).filter(
-      (entry) =>
-        !entry.startsWith(".") &&
-        !own.has(entry) &&
-        // A whole path segment, so "…and" is not found inside "…and 3".
-        [`/${entry}/`, `/${entry}"`].some((segment) => named.includes(segment)),
-    );
-    return {
-      evidence:
-        stray.length > 0
-          ? `Made beside the conversations' folders: ${stray.join(", ")}`
-          : "Only conversations' folders in Chats/",
-      passed: stray.length === 0,
-      text: "Leaves Chats/ to the conversations' own folders",
-    };
-  },
-  text: "Leaves Chats/ to the conversations' own folders",
-};
 
 const namesFilesInFull: Assertion = {
   check: ({ sessions }) => {
@@ -325,32 +218,8 @@ const reportsTheSlug: Assertion = {
 };
 
 export const WORK_FOLDER_EVALS = [
-  // A folder asked for by name, with nowhere said: it goes inside the
-  // conversation's own folder, never beside it under Chats/.
   defineEval({
-    assertions: [
-      makesTheNamedFolderInside(/trip\s*ideas/i, "Trip ideas"),
-      leavesChatsToConversations,
-    ],
-    name: "work-folder-named-folder",
-    prompt:
-      "Make a folder called Trip ideas with a short note in it for each of three weekend trips from Chicago.",
-  }),
-  defineEval({
-    assertions: [
-      makesTheNamedFolderInside(/poems/i, "Poems"),
-      leavesChatsToConversations,
-    ],
-    name: "work-folder-named-folder-of-files",
-    prompt:
-      "Write three short poems about autumn, one per file, and put them in a folder named Poems.",
-  }),
-  defineEval({
-    assertions: [
-      deliversIntoTheChatsOwnFolder,
-      namesFilesInFull,
-      leavesChatsToConversations,
-    ],
+    assertions: [namesFilesInFull],
     name: "work-folder-output",
     prompt:
       "Write a Python script that makes a CSV of the numbers 1 to 10 and their squares, and give me the CSV.",

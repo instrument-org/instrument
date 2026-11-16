@@ -62,19 +62,6 @@ export const LEGACY_TASK_DB_FILE_NAME = "task.db";
 export const TASK_STATE_FILE_NAME = "state.json";
 
 /**
- * Where every chat's own folder is, at the workspace's top level: the one
- * folder of the six a person opens that the app writes rather than reads,
- * holding a folder per chat named for what the chat is about.
- */
-export const CHATS_FOLDER_NAME = "Chats";
-/**
- * A chat's transcript in its folder, written from its records at the end of
- * each turn. Capitalized like the one file that says what a folder is in each
- * of the six: a folder in `Chats/` without it is not a chat's.
- */
-export const CHAT_FILE_NAME = "CHAT.md";
-
-/**
  * A draft in its folder (`.instrument/drafts/<date>/`): its front matter says
  * which draft it is and, for a reply, which chat it goes into, and the body
  * is the person's own words. Capitalized like the one file that says what a
@@ -140,7 +127,6 @@ export const FILES_FOLDER_NAME = "Files";
  * one that is added later.
  */
 export const KEY_FOLDER_NAMES = [
-  CHATS_FOLDER_NAME,
   PROJECTS_FOLDER_NAME,
   MEMORY_FOLDER_NAME,
   SKILLS_FOLDER_NAME,

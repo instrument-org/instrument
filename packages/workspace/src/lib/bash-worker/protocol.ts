@@ -39,7 +39,7 @@ export const WORKER_CONFIG_KEYS = [
   "nodeExecEnv",
   // The person's choice to run programs where no sandbox holds them.
   "programsWithoutSandbox",
-  // Where finished work goes, which the shell names `INSTRUMENT_OUTPUT`.
+  // The Instrument folder, whose Files folder the shell names `INSTRUMENT_FILES`.
   "outputDir",
   "pnpmBinPath",
   "registryDir",

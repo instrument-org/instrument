@@ -38,7 +38,6 @@ import {
   realRoot,
 } from "./host-path";
 import { normalizePath } from "./normalize-path";
-import { chatOwnFolder } from "./record-folders";
 import { relativeWithin } from "./path-containment";
 import { pathExists } from "./path-exists";
 import { pathIsWithin } from "./path-is-within";
@@ -110,12 +109,6 @@ export interface WorkspaceFsLayout {
    * window.
    */
   chats?: WorkspaceFsMount & { readOnly: false };
-  /**
-   * The chat's own folder under `Chats/`, which the person sees: where its
-   * finished work goes and what they sent it lives. Absent for the window,
-   * and for a chat whose settings name no folder yet.
-   */
-  folder?: WorkspaceFsMount & { readOnly: false };
   /**
    * The system's temp folders, writable, where any program keeps scratch
    * files (the config's, or {@link tempFolders}). Listed whether or not each exists;
@@ -366,12 +359,6 @@ export function buildWorkspaceFsLayout({
   /** The chat's record folder; none for the window. */
   recordHostRoot?: ChatDir;
 }): WorkspaceFsLayout {
-  // The folder the person sees, found from the name the chat's settings
-  // hold. Read here rather than passed in, so every caller that builds a
-  // layout for a chat gets it without knowing to ask.
-  const ownFolder =
-    recordHostRoot === undefined ? undefined : chatOwnFolder(recordHostRoot);
-  const chatFolderHostRoot = ownFolder;
   const chatsHostRoot = workspaceLayout(getWorkspaceConfig().rootDir).chatsDir;
   const mounts: WorkspaceFsMount[] = Object.values(folders ?? {}).map(
     (folder) => ({
@@ -413,13 +400,6 @@ export function buildWorkspaceFsLayout({
         hostRoot: recordHostRoot,
         shellRoot: shellPath(recordHostRoot),
         // What in it the agent reads or writes is the rules' to say.
-        readOnly: false as const,
-      },
-    }),
-    ...(chatFolderHostRoot && {
-      folder: {
-        hostRoot: chatFolderHostRoot,
-        shellRoot: shellPath(chatFolderHostRoot),
         readOnly: false as const,
       },
     }),

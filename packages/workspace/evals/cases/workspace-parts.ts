@@ -18,10 +18,6 @@
  * - **Instructions for every chat go in the top-level `AGENTS.md`.** The file
  *   has no screen in the app, and until it has text no note names it, so
  *   only the prompt says where it is.
- * - **`CHAT.md` is a copy.** Asked to change it, the agent says the change
- *   will be undone, since the app rewrites it when each turn ends. Whether
- *   it edits the file anyway is recorded: measured 2026-11-09 on Claude
- *   Haiku 5.5, asked outright it edited and said so in 6 of 6 runs.
  * - **"Draft" is a message, not the Drafts folder.** A drafted email is a
  *   message card, and nothing lands in the user's reply boxes.
  *
@@ -35,7 +31,6 @@ import path from "node:path";
 
 import {
   AGENT_MESSAGE_LANGUAGE,
-  CHAT_FILE_NAME,
   PROJECT_FILE_NAME,
 } from "../../src/constants";
 import { createProject, projectsDir } from "../../src/lib/chat/projects";
@@ -136,65 +131,6 @@ const wroteWorkspaceInstructions: Assertion = {
   text: "added the rule to the workspace's own AGENTS.md",
 };
 
-/** The file tool calls and commands that changed a `CHAT.md`. */
-function chatFileWrites(sessions: Session.WithMessagesAndParts[]): string[] {
-  const edits = sessions.flatMap((session) =>
-    session.messages.flatMap((message) =>
-      message.parts.flatMap((part) => {
-        if (part.type !== "tool-write_file" && part.type !== "tool-edit_file") {
-          return [];
-        }
-        const input = JSON.stringify(part.input ?? {});
-        return input.includes(CHAT_FILE_NAME)
-          ? [`${part.type} ${input.slice(0, 120)}`]
-          : [];
-      }),
-    ),
-  );
-  const changes = commands(sessions).filter(
-    (command) =>
-      command.includes(CHAT_FILE_NAME) &&
-      /\bsed\s+-i|\bperl\s+-[a-z]*i|>\s*\S*CHAT\.md|\btee\b|write_text|writeFile|\bmv\b|\bcp\b|\brm\b/.test(
-        command,
-      ),
-  );
-  return [...edits, ...changes];
-}
-
-/**
- * Whether it edited the copy anyway. Recorded, not scored: asked outright,
- * doing it and saying it will be undone is carrying out the ask.
- */
-const editedChatFile: Assertion = {
-  check: ({ sessions }) => {
-    const text = `whether it edited ${CHAT_FILE_NAME} (recorded, not scored)`;
-    const writes = chatFileWrites(sessions);
-    return result(
-      true,
-      text,
-      writes.length === 0 ? "left it alone" : `edited: ${writes.join(" | ")}`,
-    );
-  },
-  text: `whether it edited ${CHAT_FILE_NAME} (recorded, not scored)`,
-};
-
-const saidItWontLast: Assertion = {
-  check: ({ sessions }) => {
-    const text = `said a change to ${CHAT_FILE_NAME} would not last`;
-    const reply = said(sessions)
-      .map((one) => one.text)
-      .join("\n");
-    return result(
-      /rewrit|regenerat|overwrit|re-?created|(?:won'?t|wouldn'?t|doesn'?t|does not|will not|would not)\s+(?:last|stick|stay|survive|be kept|persist)/i.test(
-        reply,
-      ),
-      text,
-      JSON.stringify(reply.slice(-400)),
-    );
-  },
-  text: `said a change to ${CHAT_FILE_NAME} would not last`,
-};
-
 const leftDraftsAlone: Assertion = {
   check: () => {
     const text = "put nothing in the Drafts folder";
@@ -267,22 +203,6 @@ export const WORKSPACE_PARTS_EVALS = [
     name: "workspace-parts-instructions-for-every-chat",
     prompt:
       "Add to the instructions every chat in this workspace follows: give temperatures in both Celsius and Fahrenheit.",
-  }),
-
-  defineEval({
-    // The chat's own CHAT.md is written when its first turn ends, so the
-    // ask comes once that turn has settled.
-    assertions: [saidItWontLast, editedChatFile],
-    followUps: [
-      {
-        prompt:
-          "Open this chat's CHAT.md and change my first message to say 12 plus 12, so it reads right later.",
-        settled: true,
-      },
-    ],
-    kind: "chat",
-    name: "workspace-parts-chat-file-is-a-copy",
-    prompt: "What's 12 times 12?",
   }),
 
   defineEval({

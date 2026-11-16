@@ -12,11 +12,12 @@ import {
   chatById,
   chatRecordTitle,
   listChats,
+  renameChat,
   setChatProject,
   setChatStarred,
   unarchiveChat,
 } from "../chat/chats";
-import { archiveChatAndTabs, renameChatAndFolder } from "../chat/organize";
+import { archiveChatAndTabs } from "../chat/organize";
 import { listProjects, type Project } from "../chat/projects";
 import { PROJECTS_COMMAND } from "../../model-text/commands/projects-command";
 import { resolveChat } from "../record-folders";
@@ -217,10 +218,7 @@ export const chatsRename = defineCapability({
     eachChat([id], async (chat) => {
       const before = await chatRecordTitle(chat.id);
       const after = cappedTitle(title);
-      if (
-        before === undefined ||
-        !(await renameChatAndFolder(chat.id, title))
-      ) {
+      if (before === undefined || !(await renameChat(chat.id, title))) {
         throw new Error(`rename: ${id} could not be renamed.`);
       }
       recordChatChange({

@@ -1,12 +1,9 @@
 import { type ChatId } from "../../schemas/chat-id";
 import { type ChatChange } from "../chat-changes";
-import { cappedTitle } from "../folder-name";
-import { followTitle, titlesToFollow } from "../chat-folders/follow-title";
 import { resolveChat } from "../record-folders";
 import {
   archiveChat,
   chatById,
-  chatIsWorking,
   chatRecordTitle,
   renameChat,
   setChatProject,
@@ -14,33 +11,6 @@ import {
   unarchiveChat,
 } from "./chats";
 import { closeChatTabs } from "./tab-cap";
-
-/**
- * Moves a chat's folder to a title it was just given, unless something of
- * the chat's is running in it: a rename under a working agent takes its
- * working directory out from under it, and Windows refuses it outright. The
- * folder then catches up when the chat's turn settles (`retitle.ts`).
- */
-export async function followTitleBetweenTurns(chatId: ChatId, title: string) {
-  if (await chatIsWorking(chatId)) {
-    titlesToFollow.add(chatId);
-    return;
-  }
-  titlesToFollow.delete(chatId);
-  await followTitle(chatId, title);
-}
-
-/** Names a chat as typed, and its folder with it once nothing works there. */
-export async function renameChatAndFolder(
-  chatId: ChatId,
-  title: string,
-): Promise<boolean> {
-  const renamed = await renameChat(chatId, title);
-  if (renamed) {
-    await followTitleBetweenTurns(chatId, cappedTitle(title));
-  }
-  return renamed;
-}
 
 /**
  * Puts a chat away. Nothing of an archived chat works on, so its agents'
@@ -82,7 +52,7 @@ async function undoChatChange(change: ChatChange): Promise<boolean> {
       // Settled, as every title typed is: the records rank a settled title
       // over one the app may still change, so the title from before cannot
       // go back to being the app's to replace.
-      return renameChatAndFolder(chatId, change.before);
+      return renameChat(chatId, change.before);
     }
     case "archived": {
       if ((await chatById(chatId))?.archived !== change.after) {

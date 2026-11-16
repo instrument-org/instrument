@@ -40,8 +40,8 @@ describe("instrumentFolderOf", () => {
     ["windows", "C:\\Users\\windows-user\\Instrument\\apps.", "key:Apps"],
     [
       "windows",
-      "\\\\?\\C:\\Users\\windows-user\\Instrument\\Chats",
-      "key:Chats",
+      "\\\\?\\C:\\Users\\windows-user\\Instrument\\Skills",
+      "key:Skills",
     ],
     ["windows", "C:\\Users\\windows-user\\Instrument\\Work\\Chats", undefined],
     ["windows", "D:\\Users\\windows-user\\Instrument\\Chats", undefined],
@@ -70,7 +70,7 @@ it.each<[Os, string, string, string | undefined]>([
   ["windows", "D:\\", "d:\\.instrument", "private"],
   ["windows", "D:\\", "D:\\Projects\\Projects", undefined],
   ["linux", "/", "/Skills", "key:Skills"],
-  ["mac", "/", "/Chats", "key:Chats"],
+  ["mac", "/", "/Skills", "key:Skills"],
   ["mac", "/", "/Users", undefined],
 ])(
   "on %s with the workspace at %s, %s is %s",

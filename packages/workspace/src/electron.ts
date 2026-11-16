@@ -247,7 +247,6 @@ export {
   rewriteStoredPaths,
 } from "./lib/rewrite-stored-paths";
 export {
-  chatOutputFolder,
   instrumentFolderInDocuments,
   instrumentFolderUnchosen,
   outputFolderPath,

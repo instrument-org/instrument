@@ -10,7 +10,6 @@ import {
   type DeviceId,
   FILES_FOLDER_NAME,
   type FolderMoved,
-  giveChatsTheirFolders,
   markedWhereNoSettings,
   migrateWorkspaceLayout,
   moveAppsToFolder,
@@ -20,6 +19,7 @@ import {
   moveProjectsToFolder,
   moveTopicsToProjects,
   renameChatDatabases,
+  retireChatsFolder,
   settleDrafts,
   settleKeyFolderCase,
   settleMemoryFiles,
@@ -107,7 +107,7 @@ export async function sweepWorkspaceFolder({
   // Before the workspace starts, which puts in place the writer every write
   // to a chat's store appends through: a chat whose conversation is still in
   // its `chat.db` has to be on its records before one can reach them.
-  const converted = await timeBootStep("sweep.convertChatDatabases", () =>
+  await timeBootStep("sweep.convertChatDatabases", () =>
     convertChatDatabases(deviceId, rootDir),
   );
   // Then what each chat's `settings.json` held goes where this build keeps
@@ -158,13 +158,11 @@ export async function sweepWorkspaceFolder({
   // those settings hold.
   carryProjectFolders(deviceId, rootDir);
   await timeBootStep("sweep.convertAppFiles", () => convertAppFiles(rootDir));
-  // Then each chat the converter just brought onto its records gets the
-  // folder a person opens, written once. After the projects, because a
-  // transcript names the project its chat is filed under. No other chat is
-  // read here: a chat's folder is written when its turn ends or the person
-  // sends it a message.
-  await timeBootStep("sweep.writeConvertedChatFolders", () =>
-    writeConvertedChatFolders(rootDir, converted),
+  // The `Chats/` an earlier build kept, a folder per chat, empties into the
+  // places this build keeps those things, once every chat is on its records,
+  // which take back what the person sent.
+  await timeBootStep("sweep.retireChatsFolder", () =>
+    emptyChatsFolder({ deviceId, inAppData, rootDir }),
   );
   // And the drafts come into `.instrument/drafts/`, where a send the app was
   // interrupted partway through is finished from the records just converted.
@@ -288,12 +286,9 @@ function carryProjectFolders(deviceId: DeviceId, rootDir: string) {
  * databases are named, so a chat whose conversation is in the file beside
  * its own store converts from the one that holds it. Idempotent, and a chat
  * it could not convert keeps its database and is said back; a failure must
- * not block boot. Answers with the chats converted at this launch.
+ * not block boot.
  */
-async function convertChatDatabases(
-  deviceId: DeviceId,
-  rootDir: string,
-): Promise<string[]> {
+async function convertChatDatabases(deviceId: DeviceId, rootDir: string) {
   try {
     const converted = await convertChatRecords({
       appVersion: app.getVersion(),
@@ -314,11 +309,9 @@ async function convertChatDatabases(
     // went.
     withholdChats(converted.onDatabaseAlone);
     noteChatsLeftBehind(converted.left.length);
-    return converted.converted;
   } catch (error) {
     captureServerException(error);
     withholdChats([]);
-    return [];
   }
 }
 
@@ -347,37 +340,58 @@ async function convertChatSettings(deviceId: DeviceId, rootDir: string) {
 }
 
 /**
- * Give each chat the converter just brought onto its records the folder a
- * person opens, `Chats/<title>/`, with its transcript written from those
- * records. Only those chats, and only at the launch that converted them, so
- * a launch after it reads no chat at all. A failure must not block boot; the
- * chat's next turn or message writes its folder anyway.
+ * Empty the `Chats/` an earlier build kept into the chats' records and the
+ * Files folder, for every workspace, a folder the person picked included.
+ * Idempotent, and a failure must not block boot; what is left the next
+ * launch tries again.
  */
-async function writeConvertedChatFolders(
-  rootDir: string,
-  chats: readonly string[],
-) {
-  if (chats.length === 0) {
-    return;
-  }
+async function emptyChatsFolder({
+  deviceId,
+  inAppData,
+  rootDir,
+}: {
+  deviceId: DeviceId;
+  inAppData: boolean;
+  rootDir: string;
+}) {
   try {
-    const startedAt = performance.now();
-    const written = await giveChatsTheirFolders(
+    const retired = await retireChatsFolder({
+      device: deviceId,
+      filesDir: path.join(
+        workspaceOutputDir({ inAppData, rootDir }),
+        FILES_FOLDER_NAME,
+      ),
+      machineDir: workspaceMachineDir(),
       rootDir,
-      workspaceMachineDir(),
-      chats,
-    );
-    logger.info(
-      `Chat folders: wrote ${written.filter((chat) => chat.kind === "written").length} for the chats just converted, in ${Math.round(performance.now() - startedAt)}ms`,
-    );
-    for (const chat of written) {
-      if (chat.kind === "failed") {
-        logger.warn(`Chat folders: ${chat.id} has none: ${chat.error}`);
-      }
+    });
+    if (retired.moved + retired.deleted + retired.returned > 0) {
+      logger.info(
+        `Chats folder: moved ${retired.moved} to Files, deleted ${retired.deleted} with only a transcript, put ${retired.returned} sent files and notes back in their chats`,
+      );
+    }
+    for (const { reason, where } of retired.left) {
+      logger.warn(
+        `Chats folder: left ${where} where it is, and the next launch tries again: ${reason}`,
+      );
     }
   } catch (error) {
     captureServerException(error);
   }
+}
+
+/**
+ * Where a workspace's finished work goes, the config's `outputDir`: the
+ * folder the person picked, and for a workspace in the app's own data the
+ * flavor's Instrument folder in the home folder (or a driven fixture's own).
+ */
+function workspaceOutputDir({
+  inAppData,
+  rootDir,
+}: {
+  inAppData: boolean;
+  rootDir: string;
+}): string {
+  return inAppData ? appDataOutputFolder(getUserDataDir()) : rootDir;
 }
 
 /**

@@ -1,7 +1,5 @@
-import { WORKSPACE_MACHINE_ENTRIES } from "@instrument-org/shared";
 import {
   convertChatSettingsFiles,
-  giveChatsTheirFolders,
   migrateWorkspaceLayout,
   type AppConnectionStore,
   convertAppsToAppFiles,
@@ -12,6 +10,7 @@ import {
   convertProjectsToProjectFiles,
   newDeviceId,
   renameChatDatabases,
+  retireChatsFolder,
   settleDrafts,
   settleWorkspaceDb,
 } from "@instrument-org/workspace/electron";
@@ -76,9 +75,9 @@ const TRANSFORMED = [
   /(?:^|\/)history\.db(?:-wal|-shm)?$/,
   /(?:^|\/)migrations\.json$/,
   /(?:^|\/)\.layout-version$/,
-  // A render: the app writes it from the chat's records and rewrites it
-  // whole, so a build that renders differently leaves none of the old bytes.
-  /(?:^|\/)CHAT\.md$/,
+  // A render an earlier build wrote from the chat's records, deleted with
+  // the folder it was in, and the copies a sync engine kept of it.
+  /(?:^|\/)CHAT(?: \d+|-[^/]*| \([^/]*\)|\.sync-conflict-[^/]*)*\.md$/,
   // A project's two hidden files become its one AGENTS.md, and an app's two
   // become its one APP.md.
   /(?:^|\/)instructions\.md$/,
@@ -185,75 +184,14 @@ describe.skipIf(!SOURCE)("the launch migrations on a real workspace", () => {
     });
   });
 
-  it("gives every chat one folder, and no folder two chats", () => {
-    const claimed = chatFolderClaims();
-    const folders = foldersUnder(path.join(clone, "Chats"));
-    const twice = [...claimed.values()].filter(
-      (name, index, all) => all.indexOf(name) !== index,
+  it("empties Chats/ into the chats' records and Files/", () => {
+    // What a chat's folder held either went back into the chat's records or
+    // on to `Files/`; that nothing was lost on the way is the assertion
+    // above.
+    const left = [...after.keys()].filter((where) =>
+      where.startsWith(`Chats${path.sep}`),
     );
-    expect({
-      chats: claimed.size,
-      claimedTwice: twice,
-      folders: folders.length,
-      unclaimed: folders.filter(
-        (name) => ![...claimed.values()].includes(name),
-      ),
-      withoutAFolder: [...claimed]
-        .filter(([, name]) => !folders.includes(name))
-        .map(([id]) => id),
-    }).toEqual({
-      chats: claimed.size,
-      claimedTwice: [],
-      folders: claimed.size,
-      unclaimed: [],
-      withoutAFolder: [],
-    });
-  });
-
-  it("writes a CHAT.md in every chat's folder, naming the chat it is", () => {
-    const claimed = chatFolderClaims();
-    const problems: string[] = [];
-    for (const [id, name] of claimed) {
-      const file = path.join(clone, "Chats", name, "CHAT.md");
-      let text: string;
-      try {
-        text = fs.readFileSync(file, "utf8");
-      } catch {
-        problems.push(`${name}: no CHAT.md`);
-        continue;
-      }
-      const front = frontMatterOf(text);
-      if (front === undefined) {
-        problems.push(`${name}: front matter does not parse`);
-      }
-      if (!text.includes(`instrument://chat/${id}`)) {
-        problems.push(`${name}: does not link to ${id}`);
-      }
-    }
-    expect(problems).toEqual([]);
-  });
-
-  it("keeps what the person sent in one place, never in both", () => {
-    // What was sent moves into the chat's own folder only where the person
-    // opens that folder, and then at the chat's next write; a workspace in
-    // the app's own data, like this clone, keeps it in the record folder.
-    // That nothing sent was lost is the assertion above.
-    const claimed = chatFolderClaims();
-    const inBoth = [...after.keys()]
-      .filter(
-        (where) =>
-          where.startsWith(path.join(".instrument", "chats")) &&
-          where.includes(`${path.sep}attachments${path.sep}`),
-      )
-      .filter((where) => {
-        const [, , id, , ...rest] = where.split(path.sep);
-        const name = id === undefined ? undefined : claimed.get(id);
-        return (
-          name !== undefined &&
-          fs.existsSync(path.join(clone, "Chats", name, "attachments", ...rest))
-        );
-      });
-    expect(inBoth).toEqual([]);
+    expect(left.slice(0, 20)).toEqual([]);
   });
 
   it("brings the person's own folders out of .instrument", () => {
@@ -400,7 +338,7 @@ async function runLaunchMigrations(): Promise<void> {
   });
   settleWorkspaceDb({ machineDir, rootDir: clone });
   const deviceId = newDeviceId();
-  const { converted } = await convertChatRecords({
+  await convertChatRecords({
     appVersion: "0.0.0-rehearsal",
     deviceId,
     machineDir,
@@ -417,7 +355,12 @@ async function runLaunchMigrations(): Promise<void> {
   await moveAppsToFolder(clone);
   await convertProjectsToProjectFiles(clone);
   await convertAppsToAppFiles(clone, { connections: forgottenConnections() });
-  await giveChatsTheirFolders(clone, machineDir, converted);
+  await retireChatsFolder({
+    device: deviceId,
+    filesDir: path.join(clone, "Files"),
+    machineDir,
+    rootDir: clone,
+  });
   // A rehearsal moves nothing out of the clone: what a draft left stays.
   await settleDrafts(
     { machineDir, rootDir: clone },
@@ -437,29 +380,6 @@ function forgottenConnections(): AppConnectionStore {
     remove: () => Promise.resolve(),
     set: () => Promise.resolve(),
   };
-}
-
-/** Each chat's id and the folder this computer recorded it claimed. */
-function chatFolderClaims(): Map<string, string> {
-  let parsed: unknown;
-  try {
-    parsed = JSON.parse(
-      fs.readFileSync(
-        path.join(machineDir, WORKSPACE_MACHINE_ENTRIES.chatFolders),
-        "utf8",
-      ),
-    );
-  } catch {
-    return new Map();
-  }
-  if (typeof parsed !== "object" || parsed === null) {
-    return new Map();
-  }
-  return new Map(
-    Object.entries(parsed).flatMap(([id, folder]: [string, unknown]) =>
-      typeof folder === "string" && folder ? [[id, folder] as const] : [],
-    ),
-  );
 }
 
 /** A clone on macOS, a copy anywhere else. `to` must not exist. */

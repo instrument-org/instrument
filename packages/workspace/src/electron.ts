@@ -155,7 +155,7 @@ export {
 } from "./lib/records/convert/convert-chat";
 export { convertChatSettingsFiles } from "./lib/records/convert/convert-chat-settings";
 export { chatModelURI } from "./lib/chat-settings";
-export { giveChatsTheirFolders } from "./lib/chat-folders/first-folders";
+export { retireChatsFolder } from "./lib/retire-chats-folder/retire-chats-folder";
 export { type DraftsSettled, settleDrafts } from "./lib/drafts/boot";
 export { writeDataDirReadme } from "./lib/data-dir-readme";
 export { type MemoriesMoved, moveMemoriesToFolder } from "./lib/memory/move";

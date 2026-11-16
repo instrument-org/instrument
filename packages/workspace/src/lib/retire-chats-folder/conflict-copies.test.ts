@@ -3,7 +3,7 @@ import os from "node:os";
 import path from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
-import { CHAT_FILE_NAME } from "../../constants";
+import { CHAT_FILE_NAME } from "./chat-transcript";
 import { ChatIdSchema } from "../../schemas/chat-id";
 import {
   deleteChatFileConflictCopies,
@@ -11,7 +11,7 @@ import {
 } from "./conflict-copies";
 
 /**
- * A copy of `CHAT.md` a sync engine left is garbage: the transcript is
+ * A copy of `CHAT.md` a sync engine left is garbage: the transcript was
  * rendered from the records and read back as nothing. What is under test is
  * that each engine's naming is recognized, and that the files beside it
  * survive: the transcript itself, a transcript of another chat, and a file
@@ -103,8 +103,7 @@ describe("a copy of a chat's transcript", () => {
       transcript(CHAT),
     );
 
-    expect(await deleteChatFileConflictCopies({ folder, id: CHAT }))
-      .toMatchInlineSnapshot(`
+    expect(await deleteChatFileConflictCopies(folder)).toMatchInlineSnapshot(`
       [
         "CHAT (Alex's conflicted copy 2026-10-16).md",
         "CHAT 2.md",
@@ -121,9 +120,7 @@ describe("a copy of a chat's transcript", () => {
     await write("CHAT-notes.md", "# Things to ask about the quiet one\n");
     await write("CHAT 2.md", "My own second take on this.\n");
 
-    expect(await deleteChatFileConflictCopies({ folder, id: CHAT })).toEqual(
-      [],
-    );
+    expect(await deleteChatFileConflictCopies(folder)).toEqual([]);
     expect(await names()).toEqual([
       "CHAT 2.md",
       "CHAT-notes.md",
@@ -131,22 +128,17 @@ describe("a copy of a chat's transcript", () => {
     ]);
   });
 
-  it("stays when it is another chat's transcript", async () => {
+  it("goes when it is another chat's transcript", async () => {
     await write(CHAT_FILE_NAME, transcript(CHAT));
     await write("CHAT 2.md", transcript(OTHER));
 
-    expect(await deleteChatFileConflictCopies({ folder, id: CHAT })).toEqual(
-      [],
-    );
-    expect(await names()).toEqual(["CHAT 2.md", CHAT_FILE_NAME]);
+    expect(await deleteChatFileConflictCopies(folder)).toEqual(["CHAT 2.md"]);
+    expect(await names()).toEqual([CHAT_FILE_NAME]);
   });
 
   it("is nothing to do where the chat has no folder yet", async () => {
     expect(
-      await deleteChatFileConflictCopies({
-        folder: path.join(folder, "not there"),
-        id: CHAT,
-      }),
+      await deleteChatFileConflictCopies(path.join(folder, "not there")),
     ).toEqual([]);
   });
 });

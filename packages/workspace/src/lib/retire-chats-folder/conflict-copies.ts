@@ -1,8 +1,7 @@
 import fs from "node:fs/promises";
 import path from "node:path";
 
-import { CHAT_FILE_NAME } from "../../constants";
-import { type ChatId } from "../../schemas/chat-id";
+import { CHAT_FILE_NAME } from "./chat-transcript";
 import { COPY_PATTERN } from "../records/file-names";
 import { chatLinkedInFile } from "./chat-link";
 
@@ -13,16 +12,14 @@ import { chatLinkedInFile } from "./chat-link";
  * `.sync-conflict-<date>-<time>-<device>` (findings:
  * syncing-a-data-folder-through-file-sync.md).
  *
- * `CHAT.md` is rendered from the records at the end of every turn and is
- * never read back as one, so a copy of it says nothing the records do not.
- * It is deleted rather than kept, wherever we are already walking the chat's
- * folder, because a folder that fills up with transcripts of the same chat
- * is the thing the person has to tidy by hand.
+ * Earlier builds rendered `CHAT.md` from the records after every turn, so a
+ * copy of it says nothing the records do not, and it goes with the
+ * transcript when `Chats/` is emptied.
  *
  * A name is not enough to delete a file by. `CHAT-notes.md` is both what
  * OneDrive's copy looks like and what a person's own notes look like, so the
- * file has to say it is ours too: its head names this chat, as every
- * transcript we write does and nothing a person writes does.
+ * file has to say it is ours too: its head names a chat, as every transcript
+ * we wrote does and nothing a person writes does.
  */
 
 const EXTENSION = path.extname(CHAT_FILE_NAME);
@@ -49,22 +46,19 @@ export function isChatFileConflictCopy(name: string): boolean {
 }
 
 /**
- * Deletes the sync engines' copies of a chat's transcript from its folder,
- * and answers with the names that went.
+ * Deletes the sync engines' copies of a chat's transcript from a folder
+ * under `Chats/`, and answers with the names that went.
  *
- * Only a file whose name is a copied `CHAT.md` and whose head names this
- * chat: anything else in the folder is the person's or the agent's. A real
- * delete rather than the trash, because this runs where the trash is not
- * reachable (a launch migration, before the workspace is up) and what goes
- * is a file the next turn writes again.
+ * Only a file whose name is a copied `CHAT.md` and whose head names a chat:
+ * anything else in the folder is the person's or the agent's. A copy a cloud
+ * service keeps by name only is left, since its head cannot be read without
+ * downloading it, and moves on with the person's files. A real delete rather
+ * than the trash, because this runs before the workspace is up, where the
+ * trash is not reachable.
  */
-export async function deleteChatFileConflictCopies({
-  folder,
-  id,
-}: {
-  folder: string;
-  id: ChatId;
-}): Promise<string[]> {
+export async function deleteChatFileConflictCopies(
+  folder: string,
+): Promise<string[]> {
   let entries;
   try {
     entries = await fs.readdir(folder, { withFileTypes: true });
@@ -77,7 +71,7 @@ export async function deleteChatFileConflictCopies({
       continue;
     }
     const file = path.join(folder, entry.name);
-    if ((await chatLinkedInFile(file)) !== id) {
+    if ((await chatLinkedInFile(file)) === undefined) {
       continue;
     }
     try {
@@ -85,7 +79,7 @@ export async function deleteChatFileConflictCopies({
       deleted.push(entry.name);
     } catch {
       // Something holds it, or it went on its own between the listing and
-      // here. Either way the next turn looks again.
+      // here; the next launch looks again.
     }
   }
   return deleted.toSorted();

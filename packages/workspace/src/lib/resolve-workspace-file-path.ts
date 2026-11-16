@@ -6,7 +6,6 @@ import { unique } from "radashi";
 import {
   APPS_FOLDER_NAME,
   CHAT_FOLDER_NAMES,
-  CHATS_FOLDER_NAME,
   SKILLS_FOLDER_NAME,
   TASKS_DIR_NAME,
 } from "../constants";
@@ -19,11 +18,13 @@ import {
   WorkspaceFilePathSchema,
 } from "../schemas/paths";
 import { type ChatId } from "../schemas/chat-id";
+import { filesFolderPath } from "./chat/output-folder";
 import { toldEnvironments } from "./environment";
 import { movedOutputOf } from "./moved-outputs";
 import { normalizePath } from "./normalize-path";
-import { chatDir, chatOwnFolder, resolveChat } from "./record-folders";
 import { relativeWithin } from "./path-containment";
+import { CHATS_FOLDER_NAME } from "./retire-chats-folder/chat-transcript";
+import { readChatFolderMoves } from "./retire-chats-folder/folder-moves";
 import { resolvePathWithinChatDir } from "./resolve-path-within-chat-dir";
 import { sessionLayout } from "./session-layout";
 import { nameVariants } from "./tool-fs";
@@ -34,6 +35,7 @@ import {
   type WorkspaceFsLayout,
 } from "./workspace-fs-layout";
 import { getWorkspaceConfig } from "./workspace-config";
+import { workspaceLayout } from "./workspace-layout";
 import {
   isInWorkspacePath,
   workspaceHostPath,
@@ -124,7 +126,7 @@ async function resolvePlaces<Given extends string>({
   chatId: ChatId;
 }): Promise<Map<Given, { here: AbsolutePath | null; on?: string }>> {
   const layout = await sessionLayout({ chatId });
-  const history = await chatHistoryPaths(layout, chatId, filePaths);
+  const history = await chatHistoryPaths(chatId, filePaths);
   return new Map(
     filePaths.map((given) => {
       const here = onDiskOrNull(layout, given, history, chatId);
@@ -138,15 +140,15 @@ async function resolvePlaces<Given extends string>({
  * What the chat's records say about the computers its messages were written
  * on, read once for a surface's paths. A message keeps a path as the
  * computer that wrote it spelled it: under that computer's home and its
- * place for the workspace, and in the chat's folder under the name it had
- * then.
+ * place for the workspace, and in the chat's folder under `Chats/` that an
+ * earlier build kept, under the name it had then.
  */
 interface ChatHistoryPaths {
   /** This computer's home, in the shell's spelling. */
   home: string;
   /** This computer's workspace, in the shell's spelling. */
   here: string;
-  moved: MovedChatFolder | undefined;
+  moved: FolderMoves | undefined;
   /** The computers the chat's sessions were told they ran on, this one aside. */
   writers: Writer[];
 }
@@ -161,27 +163,28 @@ interface Writer {
 }
 
 /**
- * The names the chat's own folder had and the one it has, in the shell's
- * spelling. The folder is named for the chat's first words until its title
- * settles, after the first turn, so a file that turn made is named in the
- * folder under its first name and found in the titled folder after it.
+ * Where folders under `Chats/` went, in the shell's spelling: each folder an
+ * earlier build kept there, under any name it had, and the folder in `Files/`
+ * it was moved to when `Chats/` was emptied (`retire-chats-folder.ts`).
  */
-type MovedChatFolder = { from: string[]; to: string }[];
+type FolderMoves = { from: string[]; to: string }[];
 
 /**
- * The names the chat's folder had are the output folders its sessions were
- * told, which is the path the agent wrote with, read under this computer's
- * workspace. A name another chat holds now still means this chat's folder in
- * this chat's messages. The history is read only when a path names something
- * in `Chats/` or lies outside this computer's home, since only then can it
- * change an answer.
+ * The folders moved out of `Chats/` are read from the record the move
+ * wrote, by the names they had when they moved. The chat's own folder was
+ * named for its first words until its title settled, after the first turn,
+ * so a file that turn made is named under the folder's first name: the
+ * names it had are the output folders its sessions were told, which is the
+ * path the agent wrote with, read under this computer's workspace, and they
+ * mean wherever the chat's folder went. The history is read only when a path
+ * names something in `Chats/` or lies outside this computer's home, since
+ * only then can it change an answer.
  *
  * A branch's copied conversation names the folder of the chat it came from,
- * under whichever name it had then, so those names mean that chat's folder
- * as it is named now, while that chat is there.
+ * under whichever name it had then, so those names mean where that chat's
+ * folder went.
  */
 async function chatHistoryPaths(
-  layout: WorkspaceFsLayout,
   chatId: ChatId,
   filePaths: readonly string[],
 ): Promise<ChatHistoryPaths> {
@@ -209,36 +212,33 @@ async function chatHistoryPaths(
       (writer.root !== undefined && writer.root !== here) ||
       (writer.home !== undefined && writer.home !== home),
   );
-  const to = layout.folder?.shellRoot;
-  if (to === undefined) {
+  const records = await readChatFolderMoves(
+    workspaceLayout(rootDir).devicesDir,
+  );
+  if (records.size === 0) {
     return { home, here, moved: undefined, writers };
   }
-  const movedFrom = (environments: EnvironmentChange[], target: string) => ({
-    from: unique(
+  const files = shellPath(filesFolderPath());
+  const namesTold = (environments: EnvironmentChange[]) =>
+    unique(
       environments.flatMap(({ outputFolder }) =>
         outputFolder === undefined
           ? []
           : [inThisWorkspace(normalizePath(outputFolder), here, writers)],
       ),
-    ).filter(
-      (folder) => folder !== target && path.posix.dirname(folder) === chats,
-    ),
-    to: target,
-  });
-  const moves: MovedChatFolder = [];
-  const origin = copied && resolveChat(copied.chat);
-  const originFolder = origin && chatOwnFolder(chatDir(origin));
-  if (copied && originFolder !== undefined) {
-    moves.push(movedFrom(copied.told, shellPath(originFolder)));
+    ).filter((folder) => path.posix.dirname(folder) === chats);
+  const moved: FolderMoves = [];
+  for (const record of records.values()) {
+    const from = [`${chats}/${record.from}`];
+    if (record.chat === chatId) {
+      from.push(...namesTold(told));
+    }
+    if (copied && record.chat === copied.chat) {
+      from.push(...namesTold(copied.told));
+    }
+    moved.push({ from: unique(from), to: `${files}/${record.to}` });
   }
-  moves.push(movedFrom(told, to));
-  const kept = moves.filter((move) => move.from.length > 0);
-  return {
-    home,
-    here,
-    moved: kept.length === 0 ? undefined : kept,
-    writers,
-  };
+  return { home, here, moved, writers };
 }
 
 function writerOf(told: EnvironmentChange): Writer {
@@ -313,10 +313,10 @@ function computerHolding(
   )?.computer;
 }
 
-/** A path in the chat's folder under a name it had, spelled under the one it has. */
+/** A path in a folder moved out of `Chats/`, spelled where the folder went. */
 function underCurrentName(
   spelled: string,
-  moved: MovedChatFolder | undefined,
+  moved: FolderMoves | undefined,
 ): string {
   if (moved === undefined) {
     return spelled;

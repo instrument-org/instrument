@@ -8,17 +8,43 @@ import { StoreId } from "../schemas/store-id";
 import { type ChatId } from "../schemas/chat-id";
 import { ensureChat } from "./chat/chat-records";
 import { ChatWrites } from "./chat-writes";
-import { chatFolderNames } from "./chat-folders/own-folder";
 import { sessionOfChat } from "./record-folders";
+import { recordChatFolderMoves } from "./retire-chats-folder/folder-moves";
 import {
   computersHolding,
   resolveWorkspaceFilePaths,
 } from "./resolve-workspace-file-path";
-import { getWorkspaceConfig } from "./workspace-config";
+import { AbsolutePathSchema } from "../schemas/paths";
+import { getWorkspaceConfig, setWorkspaceConfig } from "./workspace-config";
+import { workspaceLayout } from "./workspace-layout";
 
 // A chat that ran on another computer and is read on this one: its messages
 // keep paths as that computer spelled them, under its home and its place for
-// the workspace, and in the chat's folder under the name it had then.
+// the workspace, and in the chat's folder under `Chats/` an earlier build
+// kept, under the name it had then, which a launch moved into `Files/`.
+
+/** Puts a file where the chat's folder `name` went, and records the move. */
+async function movedToFiles(name: string, chat: ChatId, file: string) {
+  const { deviceId, rootDir } = getWorkspaceConfig();
+  const folder = path.join(rootDir, "Files", name);
+  await fs.mkdir(folder, { recursive: true });
+  await fs.writeFile(path.join(folder, file), "made");
+  await recordChatFolderMoves({
+    device: deviceId,
+    devicesDir: workspaceLayout(rootDir).devicesDir,
+    moves: [{ chat, from: name, to: name }],
+  });
+  return folder;
+}
+
+beforeEach(() => {
+  // A workspace the person picked, which is where finished work goes.
+  const config = getWorkspaceConfig();
+  setWorkspaceConfig({
+    ...config,
+    outputDir: AbsolutePathSchema.parse(config.rootDir),
+  });
+});
 
 const OTHER_HOME = "/Users/other-mac-user";
 const OTHER_ROOT = `${OTHER_HOME}/Library/Mobile Documents/com~apple~CloudDocs/Instrument`;
@@ -111,15 +137,11 @@ describe("a chat written on another computer", () => {
     const sessionId = StoreId.newSessionId();
     chatId = await ensureChat(sessionId, "Caffeinated water enhancers");
     rootDir = getWorkspaceConfig().rootDir;
-    const name = chatFolderNames(getWorkspaceConfig().workspaceMachineDir).get(
+    ownFolder = await movedToFiles(
+      "Caffeinated water enhancers",
       chatId,
+      "explained.md",
     );
-    if (name === undefined) {
-      throw new Error("the chat has no folder");
-    }
-    ownFolder = path.join(rootDir, "Chats", name);
-    await fs.mkdir(ownFolder, { recursive: true });
-    await fs.writeFile(path.join(ownFolder, "explained.md"), "made");
     await fs.mkdir(path.join(rootDir, "Projects", "Drinks"), {
       recursive: true,
     });
@@ -178,19 +200,16 @@ describe("a chat written on another computer", () => {
 describe("a branch of a chat written on another computer", () => {
   // The branch's copied history was told the original chat's folder, on the
   // computer it ran on, so a file a copied reply named there is the
-  // original's, in its folder as it is named here now.
+  // original's, where its folder went.
   it("finds a copied reply's file in the original's folder", async () => {
     const original = await ensureChat(StoreId.newSessionId(), "Original chat");
     const branchSession = StoreId.newSessionId();
     const branch = await ensureChat(branchSession, "Branch of it");
-    const { rootDir, workspaceMachineDir } = getWorkspaceConfig();
-    const originalName = chatFolderNames(workspaceMachineDir).get(original);
-    if (originalName === undefined) {
-      throw new Error("the original has no folder");
-    }
-    const originalFolder = path.join(rootDir, "Chats", originalName);
-    await fs.mkdir(originalFolder, { recursive: true });
-    await fs.writeFile(path.join(originalFolder, "made.md"), "made");
+    const originalFolder = await movedToFiles(
+      "Original chat",
+      original,
+      "made.md",
+    );
     const session = sessionOfChat(branch);
     if (!session) {
       throw new Error("the branch has no session");

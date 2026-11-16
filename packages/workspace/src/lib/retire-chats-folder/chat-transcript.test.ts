@@ -1,24 +1,6 @@
 import { expect, it } from "vitest";
 
-import { chatLinkedInText, isChatTranscript } from "./chat-transcript";
-
-const HEAD = `---
-title: Kyoto
----
-
-[Open this chat in Instrument](instrument://chat/2026-09-16-kyoto)
-`;
-
-it.each([
-  ["/Users/sam/Workspace/Chats/Kyoto/CHAT.md", HEAD, true],
-  ["C:\\Users\\sam\\Workspace\\Chats\\Kyoto\\CHAT.md", HEAD, true],
-  ["/Users/sam/Workspace/Chats/Kyoto/CHAT.md", "# My own notes\n", false],
-  ["/Users/sam/Workspace/Notes/Kyoto/CHAT.md", HEAD, false],
-  ["/Users/sam/Workspace/Chats/CHAT.md", HEAD, false],
-  ["/Users/sam/Workspace/Chats/Kyoto/notes.md", HEAD, false],
-])("%s", (hostPath, text, expected) => {
-  expect(isChatTranscript(hostPath, text)).toBe(expected);
-});
+import { chatLinkedInText } from "./chat-transcript";
 
 it.each(["instrument://chat/2026-09-16-kyoto", "2026-09-16-kyoto"])(
   "reads the chat from the front matter's key before the link: %s",
@@ -30,3 +12,15 @@ it.each(["instrument://chat/2026-09-16-kyoto", "2026-09-16-kyoto"])(
     ).toBe("2026-09-16-kyoto");
   },
 );
+
+it("reads the chat from the link in a transcript written before the key", () => {
+  expect(
+    chatLinkedInText(
+      "---\ntitle: Kyoto\n---\n\n[Open this chat in Instrument](instrument://chat/2026-09-16-kyoto)\n",
+    ),
+  ).toBe("2026-09-16-kyoto");
+});
+
+it("reads nothing from a person's own notes", () => {
+  expect(chatLinkedInText("# My own notes\n")).toBeUndefined();
+});

@@ -6,40 +6,40 @@ import { type ChatId } from "../schemas/chat-id";
 import { AbsolutePathSchema } from "../schemas/paths";
 import { StoreId } from "../schemas/store-id";
 import { ensureChat } from "./chat/chat-records";
-import { followTitle } from "./chat-folders/follow-title";
 import { ChatWrites } from "./chat-writes";
 import { currentEnvironment } from "./environment";
-import { chatDir, chatOwnFolder, sessionOfChat } from "./record-folders";
+import { sessionOfChat } from "./record-folders";
+import { recordChatFolderMoves } from "./retire-chats-folder/folder-moves";
 import { resolveWorkspaceFilePaths } from "./resolve-workspace-file-path";
 import { getWorkspaceConfig, setWorkspaceConfig } from "./workspace-config";
 import { shellPath } from "./workspace-fs-layout";
+import { workspaceLayout } from "./workspace-layout";
 
 /**
- * A chat's folder follows its title, which settles after the first turn has
- * already written into the folder under the name it began with. The agent
- * names those files by the folder it was told, so the person's views find
- * them where the folder went.
+ * Earlier builds kept each chat's work in `Chats/<title>/`, which a launch
+ * empties into `Files/<title>/`. A chat's messages still name its files in
+ * `Chats/`, under the name its folder had when the agent wrote them, so the
+ * person's views find them where the folder went.
  */
+
+let rootDir: string;
 
 beforeEach(() => {
   // A workspace the person picked, which is where finished work goes.
   const config = getWorkspaceConfig();
+  rootDir = config.rootDir;
   setWorkspaceConfig({
     ...config,
     outputDir: AbsolutePathSchema.parse(config.rootDir),
   });
 });
 
-/** A chat whose agent was told its folder as it is now. */
-async function chatToldItsFolder(): Promise<{
-  chatId: ChatId;
-  folder: string;
-}> {
+/** A chat whose agent was told `Chats/<told>/` as its output folder. */
+async function chatTold(told: string): Promise<ChatId> {
   const chatId = await ensureChat(StoreId.newSessionId());
   const sessionId = sessionOfChat(chatId);
-  const folder = chatOwnFolder(chatDir(chatId));
-  if (sessionId === undefined || folder === undefined) {
-    throw new Error("The chat has no session or folder");
+  if (sessionId === undefined) {
+    throw new Error("The chat has no session");
   }
   const id = StoreId.newMessageId();
   const createdAt = new Date();
@@ -49,7 +49,10 @@ async function chatToldItsFolder(): Promise<{
       metadata: {
         agentName: "instrument",
         createdAt,
-        environment: await currentEnvironment(chatId),
+        environment: {
+          ...(await currentEnvironment(chatId)),
+          outputFolder: shellPath(path.join(rootDir, "Chats", told)),
+        },
         realRole: "user",
         sessionId,
       },
@@ -70,7 +73,18 @@ async function chatToldItsFolder(): Promise<{
     },
     chatId,
   );
-  return { chatId, folder };
+  return chatId;
+}
+
+/** Puts a file where `Chats/<name>/` went, and records the move. */
+async function movedToFiles(name: string, chat: ChatId | undefined) {
+  await fs.mkdir(path.join(rootDir, "Files", name), { recursive: true });
+  await fs.writeFile(path.join(rootDir, "Files", name, "test.md"), "made");
+  await recordChatFolderMoves({
+    device: getWorkspaceConfig().deviceId,
+    devicesDir: workspaceLayout(rootDir).devicesDir,
+    moves: [{ ...(chat !== undefined && { chat }), from: name, to: name }],
+  });
 }
 
 async function hostPathOf(chatId: ChatId, filePath: string) {
@@ -79,36 +93,41 @@ async function hostPathOf(chatId: ChatId, filePath: string) {
   ).get(filePath);
 }
 
-describe("a file named in the chat's folder before it followed the title", () => {
+describe("a file named in a folder moved out of Chats/", () => {
   it("is found where the folder went", async () => {
-    const { chatId, folder } = await chatToldItsFolder();
-    await fs.writeFile(path.join(folder, "test.md"), "made in the first turn");
-    const named = shellPath(path.join(folder, "test.md"));
+    const chatId = await chatTold("Hello World");
+    await movedToFiles("Hello World", chatId);
 
-    await followTitle(chatId, "Hello World");
-
-    expect(path.basename(folder)).toBe("Untitled chat");
-    expect(await hostPathOf(chatId, named)).toBe(
-      path.join(path.dirname(folder), "Hello World", "test.md"),
-    );
-    expect(await hostPathOf(chatId, shellPath(folder))).toBe(
-      path.join(path.dirname(folder), "Hello World"),
-    );
+    expect(
+      await hostPathOf(
+        chatId,
+        shellPath(path.join(rootDir, "Chats", "Hello World", "test.md")),
+      ),
+    ).toBe(path.join(rootDir, "Files", "Hello World", "test.md"));
   });
 
-  it("is found where the folder went once another chat holds the old name", async () => {
-    const { chatId, folder } = await chatToldItsFolder();
-    await fs.writeFile(path.join(folder, "test.md"), "mine");
-    await followTitle(chatId, "Say hello");
-    const other = await chatToldItsFolder();
-    await fs.writeFile(path.join(other.folder, "test.md"), "theirs");
+  it("is found under the name the chat's folder had before its title settled", async () => {
+    const chatId = await chatTold("Untitled chat");
+    await movedToFiles("Say hello", chatId);
 
-    expect(other.folder).toBe(folder);
     expect(
-      await hostPathOf(chatId, shellPath(path.join(folder, "test.md"))),
-    ).toBe(path.join(path.dirname(folder), "Say hello", "test.md"));
-    expect(
-      await hostPathOf(other.chatId, shellPath(path.join(folder, "test.md"))),
-    ).toBe(path.join(folder, "test.md"));
+      await hostPathOf(
+        chatId,
+        shellPath(path.join(rootDir, "Chats", "Untitled chat", "test.md")),
+      ),
+    ).toBe(path.join(rootDir, "Files", "Say hello", "test.md"));
+  });
+
+  it("is another chat's first name only for that chat", async () => {
+    const mine = await chatTold("Untitled chat");
+    await movedToFiles("Say hello", mine);
+    const theirs = await chatTold("Untitled chat");
+    const named = shellPath(
+      path.join(rootDir, "Chats", "Untitled chat", "test.md"),
+    );
+
+    expect(await hostPathOf(theirs, named)).toBe(
+      path.join(rootDir, "Chats", "Untitled chat", "test.md"),
+    );
   });
 });

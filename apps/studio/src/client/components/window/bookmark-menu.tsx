@@ -4,6 +4,9 @@ import {
   ContextMenuContent,
   ContextMenuItem,
   ContextMenuSeparator,
+  ContextMenuSub,
+  ContextMenuSubContent,
+  ContextMenuSubTrigger,
   ContextMenuTrigger,
 } from "@/client/components/ui/context-menu";
 import { contextMenuComponents } from "@/client/components/ui/menu-components";
@@ -13,7 +16,12 @@ import {
   useWindowPlaces,
 } from "@/client/hooks/use-open-target";
 import { rpcClient } from "@/client/rpc/client";
-import { type Bookmark } from "@/shared/bookmarks";
+import { useBookmarkFolders } from "@/client/bookmarks/folders";
+import { bookmarksStateAtom } from "@/client/bookmarks/store";
+import { type Bookmark, folderOf } from "@/shared/bookmarks";
+import { FolderSimpleIcon } from "@phosphor-icons/react/FolderSimple";
+import { FolderSimplePlusIcon } from "@phosphor-icons/react/FolderSimplePlus";
+import { useAtomValue } from "jotai";
 import { ArrowSquareInIcon } from "@phosphor-icons/react/ArrowSquareIn";
 import { BookmarksSimpleIcon } from "@phosphor-icons/react/BookmarksSimple";
 import { CopyIcon } from "@phosphor-icons/react/Copy";
@@ -87,13 +95,16 @@ export function bookmarkClicks(address: string, open: OpenAddress) {
 export function BookmarkContextMenu({
   bookmark,
   children,
+  onNewFolder,
   onRename,
   open,
 }: {
   bookmark: Bookmark;
   /** The bookmark's own row, which the menu comes up over. */
   children: ReactElement;
-  /** Starts naming the bookmark in its row, once the menu has let go of the keyboard. */
+  /** Makes a folder on the bar, offered where one can go beside the bookmark. */
+  onNewFolder?: () => void;
+  /** Starts naming the bookmark, once the menu has let go of the keyboard. */
   onRename: () => void;
   open: OpenAddress;
 }) {
@@ -146,6 +157,7 @@ export function BookmarkContextMenu({
           <CopyIcon className="size-4" />
           <span>Copy Address</span>
         </ContextMenuItem>
+        <MoveToItems bookmark={bookmark} />
         <ContextMenuSeparator />
         <ContextMenuItem
           onClick={() => {
@@ -156,8 +168,70 @@ export function BookmarkContextMenu({
           <span>Delete</span>
         </ContextMenuItem>
         <ContextMenuSeparator />
+        {onNewFolder && (
+          <>
+            <NewFolderItem onSelect={onNewFolder} />
+            <ContextMenuSeparator />
+          </>
+        )}
         <ShowBookmarksBarItem />
       </ContextMenuContent>
     </ContextMenu>
+  );
+}
+
+/**
+ * Filing a bookmark in one of the bar's folders, or taking it out onto the
+ * bar, from its menu: the way to do it without dragging. None while the bar
+ * has no folders.
+ */
+function MoveToItems({ bookmark }: { bookmark: Bookmark }) {
+  const state = useAtomValue(bookmarksStateAtom);
+  const folders = useBookmarkFolders();
+  const filedIn = folderOf(state, bookmark)?.id;
+  const others = state.folders.filter((folder) => folder.id !== filedIn);
+  if (others.length === 0 && filedIn === undefined) {
+    return null;
+  }
+  return (
+    <ContextMenuSub>
+      <ContextMenuSubTrigger>
+        <FolderSimpleIcon className="size-4" />
+        <span>Move To</span>
+      </ContextMenuSubTrigger>
+      <ContextMenuSubContent className="max-w-72 min-w-44">
+        {filedIn !== undefined && (
+          <ContextMenuItem
+            onClick={() => {
+              folders.moveTo(bookmark, undefined);
+            }}
+          >
+            <BookmarksSimpleIcon className="size-4" />
+            <span>Bookmarks Bar</span>
+          </ContextMenuItem>
+        )}
+        {others.map((folder) => (
+          <ContextMenuItem
+            key={folder.id}
+            onClick={() => {
+              folders.moveTo(bookmark, folder.id);
+            }}
+          >
+            <FolderSimpleIcon className="size-4" />
+            <span className="min-w-0 truncate">{folder.title}</span>
+          </ContextMenuItem>
+        ))}
+      </ContextMenuSubContent>
+    </ContextMenuSub>
+  );
+}
+
+/** Making a folder on the bar, from any of the bar's menus. */
+export function NewFolderItem({ onSelect }: { onSelect: () => void }) {
+  return (
+    <ContextMenuItem onClick={onSelect}>
+      <FolderSimplePlusIcon className="size-4" />
+      <span>New Folder…</span>
+    </ContextMenuItem>
   );
 }

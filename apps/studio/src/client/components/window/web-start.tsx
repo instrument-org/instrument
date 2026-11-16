@@ -1,5 +1,8 @@
-import { applyBookmarkOpsAtom, bookmarksAtom } from "@/client/bookmarks/store";
-import { type Bookmark } from "@/shared/bookmarks";
+import {
+  applyBookmarkOpsAtom,
+  bookmarksStateAtom,
+} from "@/client/bookmarks/store";
+import { type Bookmark, inBarOrder } from "@/shared/bookmarks";
 import { PageFavicon } from "@/client/components/favicon";
 import {
   noteTypedPage,
@@ -32,7 +35,8 @@ export function WebStart({
 }: {
   onOpenPage: (url: string) => void;
 }) {
-  const bookmarks = useAtomValue(bookmarksAtom);
+  // In the bar's order, so the two read alike.
+  const bookmarks = inBarOrder(useAtomValue(bookmarksStateAtom));
   const { recent, frequent } = useBrowserStartPages(
     bookmarks.map((bookmark) => bookmark.url),
   );

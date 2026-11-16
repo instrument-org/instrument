@@ -260,6 +260,13 @@ export function orderOnBar(state: Bookmarks): number {
   return orderAfter(siblingsIn(state, undefined));
 }
 
+/** Every bookmark in the order the bar shows them, each folder's in its place among them. */
+export function inBarOrder(state: Bookmarks): Bookmark[] {
+  return barItems(state).flatMap((item) =>
+    item.kind === "folder" ? item.items : [item.bookmark],
+  );
+}
+
 /** What sits in `folder` (on the bar without one), in order, as the ids and orders a place among them is found by. */
 export function siblingsIn(
   state: Bookmarks,

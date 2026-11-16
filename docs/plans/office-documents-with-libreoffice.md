@@ -69,7 +69,7 @@ What the agent is told: the bash tool's description names `office` and says its 
 - **Linux.** bubblewrap already leaves the system and `/tmp` as they are. Fontconfig's cache goes to `XDG_CACHE_HOME`, which native commands already write.
 - **Windows.** Unconfined, as every native program is until [the Windows sandbox](../architecture/windows-sandbox.md) lands. LibreOffice adds no reach `python` lacks there.
 
-Cold start on an Apple-silicon Mac, stock 26.2.6: 6.6 seconds on the first launch of a fresh install, then 1.3 to 2 seconds a conversion with a new profile. Through `office` on 26.2.7, under the chat's Seatbelt profile, a call takes 1.9 to 2.8 seconds including the page ONGs, and two renders started at once each finish in under 3. Codex's trimmed build does a conversion in 0.5 to 0.7 seconds with a warm or copied profile.
+Cold start on an Apple-silicon Mac, stock 26.2.6: 6.6 seconds on the first launch of a fresh install, then 1.3 to 2 seconds a conversion with a new profile. Through `office` on 26.2.7, under the chat's Seatbelt profile, a call takes 1.9 to 2.8 seconds including the page PNGs, and two renders started at once each finish in under 3. Codex's trimmed build does a conversion in 0.5 to 0.7 seconds with a warm or copied profile.
 
 ## Recalculation
 

@@ -430,7 +430,10 @@ async function downloadFile(
  * which is the first launch's slow start paid at install, and the check
  * that it runs at all on this computer (a Linux system missing a library
  * fails here, with LibreOffice's own message). Held like any program the
- * app starts: it may change only the folder it is being installed in.
+ * app starts: it may change only the folder it is being installed in, and
+ * on Linux `/tmp`, where LibreOffice makes its single-instance pipe whatever
+ * `TMPDIR` says; with no writable `/tmp` or `/var/tmp` it stops at once
+ * with "no valid pipe path found".
  */
 async function warmUp(soffice: string, profile: string, staging: string) {
   await writeProfileTemplate(profile);
@@ -445,7 +448,10 @@ async function warmUp(soffice: string, profile: string, staging: string) {
       "--nologo",
       "--terminate_after_init",
     ],
-    appNativeReach([staging]),
+    appNativeReach([
+      staging,
+      ...(process.platform === "linux" ? ["/tmp"] : []),
+    ]),
   );
   const env = {
     ...inheritedEnv(process.env, spawned),

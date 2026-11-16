@@ -14,6 +14,7 @@ import {
 } from "@/client/components/extend/file-system";
 import { useSettingsTabs } from "@/client/components/settings/use-settings-tabs";
 import { folderOf } from "@/client/components/window/host-path";
+import { useAppTabs } from "@/client/components/window/app-tabs";
 import { SCREEN_ROUTES } from "@/client/components/window/window-href";
 import { displayPath } from "@/client/lib/path-utils";
 import { fileHref, folderHref } from "@/shared/computer-href";
@@ -230,6 +231,7 @@ export function useCommandMenuRows({
 } {
   const words = useDeferredValue(typed);
   const shell = useShell();
+  const appTabs = useAppTabs();
   const { setTheme, theme } = useTheme();
   const developerMode = useDeveloperMode();
   // The apps set up here, by the names the window has for them: one only in
@@ -404,7 +406,7 @@ export function useCommandMenuRows({
       id: "activity",
       label: "Activity",
       run: () => {
-        openScreen(SCREEN_ROUTES.activity);
+        appTabs.showScreen(SCREEN_ROUTES.activity);
       },
     },
     {
@@ -412,7 +414,7 @@ export function useCommandMenuRows({
       id: "release-notes",
       label: "Release notes",
       run: () => {
-        openScreen("/release-notes");
+        appTabs.showScreen(SCREEN_ROUTES.releaseNotes);
       },
     },
     {
@@ -420,7 +422,7 @@ export function useCommandMenuRows({
       id: "extensions",
       label: "Extensions",
       run: () => {
-        openScreen("/extensions");
+        appTabs.showScreen(SCREEN_ROUTES.extensions);
       },
     },
   ];

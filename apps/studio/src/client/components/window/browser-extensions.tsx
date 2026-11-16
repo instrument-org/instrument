@@ -5,6 +5,7 @@ import {
   PopoverTrigger,
 } from "@/client/components/ui/popover";
 import { useCloseOnWindowBlur } from "@/client/hooks/use-close-on-window-blur";
+import { useAppTabs } from "@/client/components/window/app-tabs";
 import { WindowContext } from "@/client/components/window/context";
 import { useOpenExternalLink } from "@/client/hooks/use-open-external-link";
 import { toast } from "@/client/lib/toast";
@@ -50,6 +51,7 @@ export function useBrowserExtensions(): BrowserExtension[] {
 /** What the row, the puzzle menu and the Extensions page do to an extension. */
 export function useExtensionActions() {
   const appWindow = useContext(WindowContext);
+  const appTabs = useAppTabs();
   const openExternalLink = useOpenExternalLink();
   const { mutate: remove } = useMutation(
     rpcClient.browserExtensions.remove.mutationOptions({
@@ -80,7 +82,9 @@ export function useExtensionActions() {
   };
   return {
     manage: () => {
-      appWindow?.openScreen(SCREEN_ROUTES.extensions);
+      if (appWindow) {
+        appTabs.showScreen(SCREEN_ROUTES.extensions);
+      }
     },
     openDesktopApp: (extension: BrowserExtension) => {
       openDesktopApp({ id: extension.id });

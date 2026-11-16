@@ -342,6 +342,21 @@ export function useAppTabs() {
   };
   /** The tab up to an address, or a tab of its own when asked, as `goHere`. */
   const go = goHere;
+  /**
+   * A screen of the app's own, such as Activity or Extensions, opened the
+   * way a browser opens its settings pages: in a tab of its own, except
+   * over a new tab or the same screen, where the tab up goes there.
+   */
+  const showScreen = (href: string, { newTab = false } = {}) => {
+    const up = activeRouter
+      ? matchScreen(activeRouter.history.location.href).kind
+      : undefined;
+    if (!newTab && (up === "newTab" || up === matchScreen(href).kind)) {
+      navigate(href);
+    } else {
+      open(href, { newTab: true });
+    }
+  };
   const closeInModel = (id: TabId) => {
     setModel((current) =>
       closeTab(current, {
@@ -408,6 +423,7 @@ export function useAppTabs() {
     model,
     navigate,
     open,
+    showScreen,
     /**
      * Brings up the tab that has a chat, or a new one at it. Decided from the
      * tabs as they stand at the call rather than as this render saw them, so a

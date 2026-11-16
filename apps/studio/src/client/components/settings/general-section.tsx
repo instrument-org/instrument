@@ -40,9 +40,10 @@ import {
   TooltipContent,
   TooltipTrigger,
 } from "@/client/components/ui/tooltip";
-import { WindowContext } from "@/client/components/window/context";
+import { SCREEN_ROUTES } from "@/client/components/window/window-href";
 import { ZoomStepper } from "@/client/components/zoom-controls";
 import { useDeveloperMode } from "@/client/hooks/use-developer-mode";
+import { useOpenGestures } from "@/client/hooks/use-open-target";
 import { feedbackReport } from "@/client/lib/problem-reports";
 import { cn, isLinux } from "@/client/lib/utils";
 import { rpcClient } from "@/client/rpc/client";
@@ -58,7 +59,7 @@ import { BellSimpleIcon } from "@phosphor-icons/react/BellSimple";
 import { DownloadSimpleIcon } from "@phosphor-icons/react/DownloadSimple";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { useSettingsAsk } from "@/client/components/settings/settings-ask";
-import { type ReactNode, useContext, useEffect, useState } from "react";
+import { type ReactNode, useEffect, useState } from "react";
 import { toast } from "@/client/lib/toast";
 
 export function SettingsSection({
@@ -130,11 +131,12 @@ function About() {
 
   const developerMode = useDeveloperMode();
 
-  const appWindow = useContext(WindowContext);
-
-  const handleOpenReleaseNotes = () => {
-    appWindow?.openScreen("/release-notes", { besideUp: true });
-  };
+  // A built-in page: a click walks this tab there, as a browser's settings
+  // open its history.
+  const releaseNotes = useOpenGestures(
+    { href: SCREEN_ROUTES.releaseNotes, kind: "screen" },
+    { isLink: true },
+  );
 
   const { data: appEnvironment } = useQuery({
     ...rpcClient.debug.getAppEnvironment.queryOptions(),
@@ -331,6 +333,7 @@ function About() {
             <Button asChild>
               <ExternalLink
                 href={`${MANUAL_DOWNLOAD_URL}?ref=studio-settings-error`}
+                target="_blank"
               >
                 Download manually
               </ExternalLink>
@@ -381,7 +384,9 @@ function About() {
               {getUpdateStatusContent()}
               <Button
                 className="h-auto p-0 text-xs font-normal text-foreground"
-                onClick={handleOpenReleaseNotes}
+                onAuxClick={releaseNotes.onAuxClick}
+                onClick={releaseNotes.onClick}
+                onContextMenu={releaseNotes.onContextMenu}
                 variant="link"
               >
                 Release notes
@@ -403,7 +408,7 @@ function About() {
             </div>
             <div className="flex flex-wrap gap-2">
               <Button asChild size="sm" variant="outline">
-                <ExternalLink href={APP_REPO_URL}>
+                <ExternalLink href={APP_REPO_URL} target="_blank">
                   View source on GitHub
                   <ArrowSquareOutIcon className="size-3.5" />
                 </ExternalLink>

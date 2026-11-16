@@ -15,15 +15,15 @@ import {
   DialogTitle,
 } from "@/client/components/ui/dialog";
 import { Switch } from "@/client/components/ui/switch";
-import { WindowContext } from "@/client/components/window/context";
 import { SCREEN_ROUTES } from "@/client/components/window/window-href";
+import { useOpenGestures } from "@/client/hooks/use-open-target";
 import { toast } from "@/client/lib/toast";
 import { rpcClient } from "@/client/rpc/client";
 import { APP_NAME } from "@instrument-org/shared";
 import { LockSimpleIcon } from "@phosphor-icons/react/LockSimple";
 import { PauseCircleIcon } from "@phosphor-icons/react/PauseCircle";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { type ReactNode, useContext, useId, useState } from "react";
+import { type ReactNode, useId, useState } from "react";
 
 /**
  * Settings › Activity: whether the app keeps a history of what the person
@@ -32,7 +32,12 @@ import { type ReactNode, useContext, useId, useState } from "react";
  */
 export function ActivitySection() {
   const queryClient = useQueryClient();
-  const appWindow = useContext(WindowContext);
+  // A built-in page: a click walks this tab there, as a browser's settings
+  // open its history.
+  const history = useOpenGestures(
+    { href: SCREEN_ROUTES.activity, kind: "screen" },
+    { isLink: true },
+  );
   const { data: preferences } = useQuery(
     rpcClient.preferences.live.get.experimental_liveOptions(),
   );
@@ -123,11 +128,9 @@ export function ActivitySection() {
           anchor={settingAnchor("activity-history")}
           end={
             <Button
-              onClick={() => {
-                appWindow?.openScreen(SCREEN_ROUTES.activity, {
-                  besideUp: true,
-                });
-              }}
+              onAuxClick={history.onAuxClick}
+              onClick={history.onClick}
+              onContextMenu={history.onContextMenu}
               size="sm"
               variant="outline"
             >

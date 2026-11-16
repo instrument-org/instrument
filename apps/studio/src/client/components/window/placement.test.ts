@@ -74,6 +74,14 @@ describe("where a page opens", () => {
       inChat(SCREEN),
       { kind: "new-page", replacesUp: true },
     ],
+    // A website linked from a built-in page (Settings) asks for a new tab,
+    // as a browser's `target="_blank"` does, and keeps the page beside it.
+    [
+      "in a new tab in front beside a built-in page, never a group",
+      { newTab: true },
+      inChat(SCREEN),
+      { behind: false, kind: "group-new-tab" },
+    ],
     [
       "in a tab of its own when asked",
       { ownTab: true },
@@ -190,6 +198,25 @@ describe("where a screen opens", () => {
       {},
       inChat(OWN_PAGE),
       { kind: "group-navigate" },
+    ],
+    // A built-in page linked from another (Settings' release notes or
+    // history) walks the tab there, and back returns.
+    ...(["/release-notes", "/activity"] as const).map(
+      (href) =>
+        [
+          `${href} in place of the built-in page up`,
+          href,
+          {},
+          inChat(SCREEN),
+          { kind: "group-navigate" },
+        ] satisfies [string, string, OpenOptions, PlacementContext, unknown],
+    ),
+    [
+      "a built-in page behind, beside the one up, from a Cmd-click",
+      "/release-notes",
+      { behind: true, newTab: true },
+      inChat(SCREEN),
+      { behind: true, kind: "group-new-tab" },
     ],
   ])("opens %s", (_case, href, options, context, expected) => {
     expect(screenPlacementOf(href, options, context)).toEqual(expected);

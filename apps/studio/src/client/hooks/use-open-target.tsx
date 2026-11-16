@@ -122,6 +122,13 @@ interface OpenAsked {
    * does, which opens beside rather than in place of what the link is in.
    */
   isLink?: boolean;
+  /**
+   * A link a plain click opens in a new tab in front, right after the tab
+   * it is in, as a browser opens a `target="_blank"` link: one to a website
+   * from a built-in page. Where the window has no tabs, the click opens it
+   * where it would anyway.
+   */
+  opensNewTab?: boolean;
   title?: string;
 }
 
@@ -149,7 +156,7 @@ export function useGesturesFor() {
         : { ...newTab, run: newTab.runBehind ?? newTab.run };
     const inFront = newTab ?? primary;
     const clicks = openClickGestures({
-      open: () => primary?.run(),
+      open: () => (options?.opensNewTab === true ? inFront : primary)?.run(),
       openInFront: () => inFront?.run(),
       openInNewTab: () => separate?.run(),
     });

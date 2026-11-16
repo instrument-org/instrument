@@ -18,6 +18,7 @@ import {
   AlertDialogTitle,
 } from "@/client/components/ui/alert-dialog";
 import { settingAnchor } from "@/client/components/settings/settings-index";
+import { ExternalLink } from "@/client/components/external-link";
 import { Button } from "@/client/components/ui/button";
 import { Switch } from "@/client/components/ui/switch";
 import {
@@ -42,7 +43,6 @@ import {
 import { useComputerVolumes } from "@/client/components/window/computer-volumes";
 import { FoldersMark } from "@/client/components/window/folder-mark";
 import { isInside, nameOf } from "@/client/components/window/host-path";
-import { useOpenExternalLink } from "@/client/hooks/use-open-external-link";
 import { displayPath } from "@/client/lib/path-utils";
 import { privacyPaneForApp } from "@/client/lib/privacy-pane";
 import { isLinux, isWindows } from "@/client/lib/utils";
@@ -121,7 +121,6 @@ function nestFolders(places: Place[], folders: Folder[]) {
 
 export function PermissionsSection() {
   const queryClient = useQueryClient();
-  const openLink = useOpenExternalLink();
   const [confirmingWithoutAsking, setConfirmingWithoutAsking] = useState(false);
   const [confirmingReset, setConfirmingReset] = useState(false);
   const { data: view } = useQuery(
@@ -267,19 +266,18 @@ export function PermissionsSection() {
             On Windows, Instrument's built-in tools follow this list, but
             programs the agent runs, including its Python and Node scripts, can
             reach any file you can.{" "}
-            <button
+            <ExternalLink
+              addReferral={false}
               className="underline underline-offset-2 hover:text-foreground"
-              onClick={() => {
-                openLink(WINDOWS_SANDBOX_URL, { addReferral: false });
-              }}
-              type="button"
+              href={WINDOWS_SANDBOX_URL}
+              target="_blank"
             >
               Learn more
-            </button>
+            </ExternalLink>
           </p>
         </div>
       ) : view.sandboxOff ? (
-        <SandboxOffWarning off={view.sandboxOff} openLink={openLink} />
+        <SandboxOffWarning off={view.sandboxOff} />
       ) : null}
       <section className="space-y-2">
         <div
@@ -813,10 +811,8 @@ function LevelSelect({
  */
 function SandboxOffWarning({
   off,
-  openLink,
 }: {
   off: Exclude<View["sandboxOff"], "windows" | undefined>;
-  openLink: ReturnType<typeof useOpenExternalLink>;
 }) {
   const { data: preferences } = useQuery(
     rpcClient.preferences.live.get.experimental_liveOptions(),
@@ -858,14 +854,14 @@ function SandboxOffWarning({
           />
         </label>
         <div className="mt-1 flex flex-wrap gap-2">
-          <Button
-            onClick={() => {
-              openLink(SANDBOX_OFF_URL, { addReferral: false });
-            }}
-            size="sm"
-            variant="outline"
-          >
-            Learn more
+          <Button asChild size="sm" variant="outline">
+            <ExternalLink
+              addReferral={false}
+              href={SANDBOX_OFF_URL}
+              target="_blank"
+            >
+              Learn more
+            </ExternalLink>
           </Button>
           <SendReportButton
             request={(onSent) =>

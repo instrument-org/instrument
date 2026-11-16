@@ -284,6 +284,57 @@ describe("a link's menu in a window with tabs", () => {
     expect(openPage).toHaveBeenCalledWith("https://example.com/", options);
   });
 
+  describe("a link that opens a new tab, as a built-in page's link to a website does", () => {
+    const click = (keys: { meta?: boolean; shift?: boolean } = {}) => {
+      menuOf(
+        { kind: "page", url: "https://example.com/" },
+        { isLink: true, opensNewTab: true },
+      ).onClick({
+        altKey: false,
+        ctrlKey: false,
+        metaKey: keys.meta ?? false,
+        preventDefault: vi.fn(),
+        shiftKey: keys.shift ?? false,
+      } as unknown as React.MouseEvent);
+    };
+
+    it.each([
+      { keys: {}, name: "a plain click", options: { newTab: true } },
+      { keys: { shift: true }, name: "Shift", options: { newTab: true } },
+      {
+        keys: { meta: true },
+        name: "Command",
+        options: { behind: true, newTab: true },
+      },
+    ])("opens from $name as a tab of the group", ({ keys, options }) => {
+      click(keys);
+      expect(surfaceOpen).not.toHaveBeenCalled();
+      expect(openPage).toHaveBeenCalledWith("https://example.com/", options);
+    });
+
+    it("opens where the surface would where the window has no tabs", () => {
+      const open = vi.fn();
+      const bare = ({ children }: { children: ReactNode }) => (
+        <Provider store={store}>
+          <PageOpenContext value={open}>{children}</PageOpenContext>
+        </Provider>
+      );
+      renderHook(() => useGesturesFor(), { wrapper: bare })
+        .result.current(
+          { kind: "page", url: "https://example.com/" },
+          { isLink: true, opensNewTab: true },
+        )
+        .onClick({
+          altKey: false,
+          ctrlKey: false,
+          metaKey: false,
+          preventDefault: vi.fn(),
+          shiftKey: false,
+        } as unknown as React.MouseEvent);
+      expect(open).toHaveBeenCalledWith("https://example.com/");
+    });
+  });
+
   it("opens with Shift and a click as a new tab in front, never a group", () => {
     menuOf({ kind: "page", url: "https://example.com/" }).onClick({
       altKey: false,

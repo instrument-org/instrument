@@ -178,17 +178,19 @@ it("moves the keyboard on to the next step's first choice as a digit answers a s
   expect(document.activeElement?.textContent).toContain("Hiking");
 });
 
-it("scrolls the choices past a share of the chat's height, fading the foot while there are more below", async () => {
-  const many: ChooseQuestion[] = [
-    {
-      choices: Array.from({ length: 8 }, (_, index) => ({
-        description: `Option ${index + 1}'s line, which says a little more`,
-        label: `Option ${index + 1}`,
-      })),
-      header: "Many",
-      question: "Which one?",
-    },
-  ];
+const MANY: ChooseQuestion[] = [
+  {
+    choices: Array.from({ length: 8 }, (_, index) => ({
+      description: `Option ${index + 1}'s line, which says a little more`,
+      label: `Option ${index + 1}`,
+    })),
+    header: "Many",
+    question: "Which one?",
+  },
+];
+
+/** The card in a chat 400px tall, so its list stops at 160px. */
+async function renderCapped() {
   const style = {
     "--conversation-height": "400px",
     width: 440,
@@ -198,22 +200,57 @@ it("scrolls the choices past a share of the chat's height, fading the foot while
       <QuestionCard
         onAnswer={noop}
         onChatAbout={noop}
-        questions={many}
+        questions={MANY}
         status="open"
       />
     </div>,
   );
   const list = screen.getByRole("radiogroup").element();
-  const fade = () =>
-    list.parentElement?.querySelector(":scope > [aria-hidden]") ?? null;
+  const fades = () => {
+    const shown = [
+      ...(list.parentElement?.querySelectorAll<HTMLElement>(
+        ":scope > [aria-hidden]",
+      ) ?? []),
+    ];
+    return {
+      above: shown.some((fade) => fade.classList.contains("top-0")),
+      below: shown.some((fade) => fade.classList.contains("bottom-0")),
+    };
+  };
+  return { fades, list, screen };
+}
+
+it("scrolls the choices past a share of the chat's height, fading each edge while there is more past it", async () => {
+  const { fades, list, screen } = await renderCapped();
 
   expect(list.clientHeight).toBe(160);
   expect(list.scrollHeight).toBeGreaterThan(list.clientHeight);
   await expect.element(screen.getByText("Chat about this")).toBeVisible();
-  await expect.poll(fade).not.toBe(null);
+  await expect.poll(fades).toEqual({ above: false, below: true });
+
+  list.scrollTop = 100;
+  await expect.poll(fades).toEqual({ above: true, below: true });
 
   list.scrollTop = list.scrollHeight;
-  await expect.poll(fade).toBe(null);
+  await expect.poll(fades).toEqual({ above: true, below: false });
+});
+
+it("keeps a growing own answer's last line in view, with no fade over it", async () => {
+  const { fades, list, screen } = await renderCapped();
+  const own = screen.getByRole("textbox", { name: "Your own answer" });
+  own.element().focus();
+
+  await userEvent.keyboard(
+    "One{Shift>}{Enter}{/Shift}two{Shift>}{Enter}{/Shift}three",
+  );
+
+  await expect
+    .poll(() => {
+      const row = own.element().getBoundingClientRect();
+      return row.bottom <= list.getBoundingClientRect().bottom + 0.5;
+    })
+    .toBe(true);
+  await expect.poll(fades).toEqual({ above: true, below: false });
 });
 
 /**

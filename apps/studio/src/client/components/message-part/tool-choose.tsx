@@ -640,7 +640,9 @@ function QuestionStep({
  * up with the question while a highlighted row still has room around its
  * text. In a chat's composer they stop at a share of the chat's height
  * (`--conversation-height`, set by the chat) and scroll, with a fade along
- * the foot while there is more below, so the question and Send stay in view.
+ * each edge while there is more past it, so the question and Send stay in
+ * view. A field typed into keeps its whole row in view as it grows, so the
+ * line being written is never under the fade.
  */
 function ChoiceList({
   children,
@@ -650,14 +652,15 @@ function ChoiceList({
   role: "group" | "radiogroup";
 }) {
   const listRef = useRef<HTMLDivElement>(null);
-  const [isMoreBelow, setIsMoreBelow] = useState(false);
+  const [more, setMore] = useState({ above: false, below: false });
   useLayoutEffect(() => {
     const list = listRef.current;
     if (!list) {
       return;
     }
     const observer = new ResizeObserver(() => {
-      setIsMoreBelow(hasMoreBelow(list));
+      revealTypedRow(list);
+      setMore(moreOf(list));
     });
     observer.observe(list);
     for (const row of list.children) {
@@ -669,17 +672,27 @@ function ChoiceList({
   }, []);
   return (
     <div className="relative -mx-2">
+      {/* Positioned, so each row's offsetTop is measured from the list. */}
       <div
-        className="flex max-h-[calc(var(--conversation-height)*0.4)] flex-col gap-0.5 overflow-y-auto *:shrink-0"
+        className="relative flex max-h-[calc(var(--conversation-height)*0.4)] flex-col gap-0.5 overflow-y-auto *:shrink-0"
+        onFocus={(event) => {
+          revealTypedRow(event.currentTarget);
+        }}
         onScroll={(event) => {
-          setIsMoreBelow(hasMoreBelow(event.currentTarget));
+          setMore(moreOf(event.currentTarget));
         }}
         ref={listRef}
         role={role}
       >
         {children}
       </div>
-      {isMoreBelow ? (
+      {more.above ? (
+        <div
+          aria-hidden
+          className="pointer-events-none absolute inset-x-0 top-0 h-10 bg-linear-to-b from-card to-transparent"
+        />
+      ) : null}
+      {more.below ? (
         <div
           aria-hidden
           className="pointer-events-none absolute inset-x-0 bottom-0 h-10 bg-linear-to-t from-card to-transparent"
@@ -689,8 +702,27 @@ function ChoiceList({
   );
 }
 
-function hasMoreBelow(list: HTMLElement) {
-  return list.scrollHeight - list.scrollTop - list.clientHeight > 1;
+function moreOf(list: HTMLElement) {
+  return {
+    above: list.scrollTop > 1,
+    below: list.scrollHeight - list.scrollTop - list.clientHeight > 1,
+  };
+}
+
+/** Scrolls the list until the row of a focused field in it ends inside it. */
+function revealTypedRow(list: HTMLElement) {
+  const focused = document.activeElement;
+  if (!(focused instanceof HTMLTextAreaElement) || !list.contains(focused)) {
+    return;
+  }
+  const row = [...list.children].find((each) => each.contains(focused));
+  if (!(row instanceof HTMLElement)) {
+    return;
+  }
+  const bottom = row.offsetTop + row.offsetHeight;
+  if (bottom > list.scrollTop + list.clientHeight) {
+    list.scrollTop = bottom - list.clientHeight;
+  }
 }
 
 /**

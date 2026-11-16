@@ -17,7 +17,6 @@ import {
 import { settingsTabTitle } from "@/client/components/settings/settings-index";
 import { useSettingsTabs } from "@/client/components/settings/use-settings-tabs";
 import { folderOf } from "@/client/components/window/host-path";
-import { SCREEN_ROUTES } from "@/client/components/window/window-href";
 import { displayPath } from "@/client/lib/path-utils";
 import { fileHref, folderHref } from "@/shared/computer-href";
 import { FuzzyHighlight } from "@/client/components/fuzzy-highlight";
@@ -388,7 +387,7 @@ export function useCommandMenuRows({
       id: "activity",
       label: "History",
       run: () => {
-        openScreen(SCREEN_ROUTES.activity);
+        openBuiltInPage(SCREENS.activity.href);
       },
     },
     {
@@ -412,7 +411,7 @@ export function useCommandMenuRows({
       id: "release-notes",
       label: "Release notes",
       run: () => {
-        openScreen("/release-notes");
+        openBuiltInPage(SCREENS["release-notes"].href);
       },
     },
     {
@@ -420,7 +419,7 @@ export function useCommandMenuRows({
       id: "extensions",
       label: "Extensions",
       run: () => {
-        openScreen("/extensions");
+        openBuiltInPage(SCREENS.extensions.href);
       },
     },
   ];

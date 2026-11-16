@@ -1,4 +1,6 @@
+import { pageRequestAtom } from "@/client/atoms/page-requests";
 import { renderWithProviders } from "@/tests/render";
+import { getDefaultStore } from "jotai";
 import { installWindowStubs } from "@/tests/window-stubs";
 import { fireEvent, screen } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
@@ -226,5 +228,43 @@ describe("folders and bookmarks in the command menu", () => {
         "Search the web for “weather”",
       ]
     `);
+  });
+});
+
+// A built-in page the menu lists opens as every command opens one
+// (`BuiltInPageOpener`): a new tab after the tab up, or the tab already
+// showing it brought forward, never in place of the tab up.
+describe("built-in pages in the command menu", () => {
+  it.each([
+    ["History", "/activity"],
+    ["Memory", "/memory"],
+    ["Skills", "/skills"],
+    ["Release notes", "/release-notes"],
+    ["Extensions", "/extensions"],
+  ])("asks for %s as a built-in page", (label, href) => {
+    const openScreen = vi.fn();
+    function Rows() {
+      const { rows } = useCommandMenuRows({
+        active: true,
+        done: (run) => run,
+        openPage: () => undefined,
+        openScreen,
+        words: label.toLowerCase(),
+      });
+      const row = rows.find(
+        (each) => each.type === "item" && each.label === label,
+      );
+      return row?.type === "item" ? (
+        <button onClick={row.run} type="button">
+          {row.label}
+        </button>
+      ) : null;
+    }
+    renderWithProviders(<Rows />);
+    fireEvent.click(screen.getByRole("button", { name: label }));
+
+    expect(getDefaultStore().get(pageRequestAtom)).toEqual({ href });
+    expect(openScreen).not.toHaveBeenCalled();
+    getDefaultStore().set(pageRequestAtom, null);
   });
 });

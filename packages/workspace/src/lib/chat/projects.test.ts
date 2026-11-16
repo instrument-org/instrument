@@ -259,6 +259,18 @@ describe("project folders", () => {
     ]);
   });
 
+  it("keeps a project's id for its folder while its AGENTS.md cannot be read", async () => {
+    const made = await createProject({ name: "Trips" });
+    // A file that is there but cannot be read, on every system.
+    await fs.mkdir(path.join(projectsDir(), "Trips", PROJECT_FILE_NAME));
+    await fs.mkdir(path.join(projectsDir(), "Garden"));
+
+    expect((await listProjects()).map(({ id, name }) => [name, id])).toEqual([
+      ["Garden", folderProjectId("Garden")],
+    ]);
+    expect(storeOf(made.id)?.folder).toBe("Trips");
+  });
+
   it("keeps working when another agent rewrites AGENTS.md whole", async () => {
     const made = await createProject({
       emoji: "🌱",

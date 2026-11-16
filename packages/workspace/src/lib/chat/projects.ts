@@ -229,6 +229,8 @@ export function saveProjectId(
 type FolderRead =
   | { file: ProjectFileRead; name: string }
   | { file?: undefined; made: Date; name: string }
+  /** A folder whose `AGENTS.md` is there but cannot be read just now. */
+  | { name: string; unreadable: true }
   | undefined;
 
 /**
@@ -292,16 +294,21 @@ function settled(
   folders: readonly FolderRead[],
   device: DeviceId | undefined,
 ): Project[] {
-  const read = folders.flatMap((folder) => (folder ? [folder] : []));
+  const present = folders.flatMap((folder) => (folder ? [folder] : []));
+  const read = present.flatMap((folder) =>
+    "unreadable" in folder ? [] : [folder],
+  );
   const records = readProjectRecords(rootDir);
   const fileIds = new Map(
     read.flatMap((folder) =>
       folder.file?.id === undefined ? [] : [[folder.name, folder.file.id]],
     ),
   );
+  // A folder whose file cannot be read is left out of the list but still
+  // has its record, so its id is never taken for another folder.
   const match = matchProjectFolders({
     fileIds,
-    folders: read.map((folder) => folder.name),
+    folders: present.map((folder) => folder.name),
     records,
   });
   const taken = new Set([...records.keys(), ...match.byFolder.values()]);
@@ -681,7 +688,7 @@ function nameKey(name: string): string {
 /**
  * One project folder: what its `AGENTS.md` says, front matter an earlier
  * build wrote included, or only when the folder was made where it has no
- * file. Nothing where the file is there but cannot be read.
+ * file. A folder whose file is there but cannot be read is only its name.
  */
 function readProjectFolder(folderPath: string): FolderRead {
   const file = path.join(folderPath, PROJECT_FILE_NAME);
@@ -696,7 +703,9 @@ function readProjectFolder(folderPath: string): FolderRead {
       name,
     };
   } catch (error) {
-    return isMissing(error) ? folderOnly(folderPath) : undefined;
+    return isMissing(error)
+      ? folderOnly(folderPath)
+      : { name, unreadable: true };
   }
 }
 
@@ -712,7 +721,9 @@ async function readProjectFolderAsync(folderPath: string): Promise<FolderRead> {
       name: path.basename(folderPath),
     };
   } catch (error) {
-    return isMissing(error) ? folderOnly(folderPath) : undefined;
+    return isMissing(error)
+      ? folderOnly(folderPath)
+      : { name: path.basename(folderPath), unreadable: true };
   }
 }
 

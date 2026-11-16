@@ -1,6 +1,6 @@
 # Plan: Word, PowerPoint and Excel files through LibreOffice, fetched on first need
 
-Status: open. Phases 1, 2, 3 and 5 are built and checked on an Apple-silicon Mac through `run-bash`; phase 4 (skills), the Windows and Linux host runs, the packaged-app checks and the evals remain. See [What is not yet checked](#what-is-not-yet-checked).
+Status: open. Phases 1, 2, 3 and 5 are built and checked through `run-bash` on an Apple-silicon Mac, an arm64 Ubuntu host and an arm64 Windows 11 host; phase 4 (skills), an x64 Windows run, the packaged-app checks and the evals remain. See [What is not yet checked](#what-is-not-yet-checked).
 
 Related: [render-a-file-to-look-at-it.md](render-a-file-to-look-at-it.md), which this plan complements and narrows (see [How this fits the render plan](#how-this-fits-the-render-plan)); [document-viewers.md](document-viewers.md) and [the pdfium decision](../decisions/2026-07-31-pdfium-is-the-pdf-engine.md), which render for the person, not the agent; [agent-sandbox.md](../architecture/agent-sandbox.md) and [programs on the PATH run natively](../decisions/2026-10-12-programs-on-path-run-natively.md), which hold whatever this adds.
 
@@ -97,15 +97,15 @@ LibreOffice is not Word, PowerPoint or Excel, and the agent is told that a rende
 | --- | --- | --- | --- |
 | macOS arm64 | `LibreOffice_<v>_MacOS_aarch64.dmg` | 298 MB | `hdiutil attach -nobrowse -readonly -mountpoint <temp>`, `ditto` the app out to a folder named `LibreOffice` with no `.app`, detach; 801 MB on disk |
 | macOS x64 | `LibreOffice_<v>_MacOS_x86-64.dmg` | 308 MB | as above |
-| Windows x64 / arm64 | `LibreOffice_<v>_Win_<arch>.msi` | 373 / 360 MB | administrative install, `msiexec /a <msi> /qn TARGETDIR=<dir>`, which unpacks without installing or registering ([msiexec](https://learn.microsoft.com/en-us/windows-server/administration/windows-commands/msiexec), [parallel installs](https://wiki.documentfoundation.org/Installing_in_parallel/Windows)) |
-| Linux x64 / arm64 | `LibreOffice_<v>_Linux_<arch>_deb.tar.gz` | 217 / 207 MB | unpack each `.deb`'s `data.tar` without `dpkg`; runs from `opt/libreoffice<major>/program/soffice` |
+| Windows x64 / arm64 | `LibreOffice_<v>_Win_<arch>.msi` | 373 / 360 MB | administrative install, `msiexec /a <msi> /qn TARGETDIR=<dir>`, which unpacks without installing or registering ([msiexec](https://learn.microsoft.com/en-us/windows-server/administration/windows-commands/msiexec), [parallel installs](https://wiki.documentfoundation.org/Installing_in_parallel/Windows)); about 1.5 GB on disk (arm64) |
+| Linux x64 / arm64 | `LibreOffice_<v>_Linux_<arch>_deb.tar.gz` | 217 / 207 MB | unpack each `.deb`'s `data.tar` without `dpkg`; runs from `opt/libreoffice<major>/program/soffice`; 751 MB on disk (arm64) |
 
 Sizes and SHA-256s are in `packages/workspace/src/lib/office/manifest.generated.ts`, from [TDF's archive](https://downloadarchive.documentfoundation.org/libreoffice/old/).
 
 - **macOS registration.** Started from a folder named `LibreOffice.app`, a conversion checks the app in with Launch Services: it joins every Open With menu, its two Quick Look extensions and its Spotlight importer register, and macOS shows a notice that a Spotlight importer was added. Copying it or `soffice --version` registers nothing. The same app in a folder named `LibreOffice` registers nothing on a conversion either, and still passes `codesign --verify --deep --strict`, since the signature does not cover the bundle folder's name.
 - **macOS signing.** The stock app is signed with TDF's Developer ID, hardened runtime, and notarized (`spctl` accepts it). It is not covered by Instrument's signature and needs not be: a file the app writes itself carries no quarantine flag ([`LSFileQuarantineEnabled`](https://developer.apple.com/documentation/bundleresources/information-property-list/lsfilequarantineenabled)), so Gatekeeper does not assess it, and notarization holds if it ever is. Codex's build is signed but not notarized (`spctl` rejects it) and runs for exactly that reason; a stock notarized build does not lean on it.
-- **Windows.** The install runs `msiexec /a <msi> /qn TARGETDIR=<dir>` and looks for `program\soffice.exe` under it; the person's own install is found by `reg query` of `HKLM\SOFTWARE\LibreOffice\UNO\InstallPath`. The bin folder gets an `soffice.cmd` wrapper that copies the template with `xcopy`. None of this has run on a Windows host: whether `msiexec /a` into a per-user folder needs no elevation on every Windows we support is the first thing to check; if it does, an MSI reader in Node unpacks the cabinet instead.
-- **Linux.** The install takes each `.deb`'s `data.tar.*` out of its `ar` archive and extracts it with `tar`, no `dpkg`. The `.deb` builds expect a handful of system libraries a desktop has and a minimal system may not; the install starts `soffice` once before it renames into place, and a failure carries its output, which names the missing library. Only the unpacking has been run, against small fixtures.
+- **Windows.** The install runs `msiexec /a <msi> /qn TARGETDIR=<dir>` and looks for `program\soffice.exe` under it. A standard user at medium integrity runs it with no elevation and no prompt. It adds no file association, Explorer handler, Start menu entry or uninstall entry; Windows Installer keeps a 20 KB `SourceHash{<product code>}` file in `C:\Windows\Installer`. The image keeps what a real install puts in Windows' own folders under folders of its own: the bundled fonts (Carlito, Caladea, Liberation, DejaVu) in `Fonts`, which the install moves to `share\fonts\truetype` so LibreOffice loads them (left in `Fonts`, a document set in Liberation Serif renders in Times New Roman), and the Visual C++ runtime in `System` and `System64`, which nothing reads. The arm64 MSI's `System64` holds the x64 runtime, not the arm64 one, so `soffice.exe` runs on the arm64 runtime Windows already has; a computer without the Visual C++ 2015-2022 runtime for its architecture has not been tried. The person's own install is found by `reg query` of `HKLM\SOFTWARE\LibreOffice\UNO\InstallPath`. The bin folder gets an `soffice.cmd` wrapper that copies the template with `xcopy`; Python's `shutil.which("soffice")` finds it. A call takes 4 to 7 seconds on the arm64 host, where the same calls on Linux take under 1.5.
+- **Linux.** The install takes each `.deb`'s `data.tar.*` out of its `ar` archive and extracts it with `tar`, no `dpkg`. The `.deb` builds expect a handful of system libraries a desktop has and a minimal system may not; the install starts `soffice` once before it renames into place, and a failure carries its output, which names the missing library (`soffice.bin: error while loading shared libraries: libcups.so.2: …`, exit 127). That warm-up runs under bubblewrap with `/tmp` writable: LibreOffice on Linux makes its single-instance pipe in `/tmp`, or `/var/tmp`, whatever `TMPDIR` says, and with neither writable stops with "no valid pipe path found". The binary needs NSS, cairo, X11, CUPS and D-Bus libraries even headless; Ubuntu's desktop has them all.
 
 ## License
 
@@ -154,14 +154,14 @@ Per the `validate-changes` skill:
 
 ## What is not yet checked
 
-- **Windows**: the `msiexec /a` unpack, the registry lookup of a person's own install, and the `soffice.cmd` wrapper have unit tests for their arguments and no host run.
-- **Linux**: the `.deb` unpack is tested against small fixtures only; bubblewrap's reach into `runtime/office` and the missing-library failure have not run.
+- **Windows x64**: only arm64 has run. Whether the x64 image's `soffice.exe` starts on a computer without the Visual C++ runtime installed is open: if that image, like the arm64 one, carries the runtime only in `System64`, `program\` does not find it there.
+- **Windows page images**: `office render` has drawn no PNGs on Windows, because the base Python packages did not install on the arm64 host (the rename of the built folder into place failed with `EPERM`). The PDF, convert and recalc paths ran.
+- **Linux on a minimal system**: run only on a desktop install; the missing-library failure was produced by hiding `libcups.so.2`, not on a system without it.
 - **The packaged app**: the first-need download with progress in a chat, the offline failure, a second chat on the same install, and Settings' Remove have not been driven in the app.
 - **Evals**: none run.
 
 ## Open questions
 
 - Whether `office render` of a Word or PowerPoint file should be the skills' first road, ahead of the browser preview, or second to it.
-- Whether `msiexec /a` works unelevated on every supported Windows, or the MSI is unpacked in Node.
 
-Settled while building: a person's own LibreOffice at or above the pinned major is used; `office recalc` writes values back into the original; the install lives in the runtime folder.
+Settled while building: a person's own LibreOffice at or above the pinned major is used; `msiexec /a` needs no elevation; `office recalc` writes values back into the original; the install lives in the runtime folder.

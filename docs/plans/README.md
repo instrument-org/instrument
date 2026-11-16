@@ -53,7 +53,7 @@ Each entry is the plan's title and the opening of its status.
 - [Bringing 1.x tasks and projects into chats](legacy-data-migration.md): Migration built (`packages/workspace/src/lib/migrate-legacy-tasks.ts`, first in `3d7504b0f`) and shipped in the 2.0 betas, then reshaped so the 1.x task's fo...
 - [Memory: what the conversation keeps about the user](memory.md): Built, first version, global only.
 - [Model request controls](model-request-controls.md): Phases 1 and 3 built;
-- [Word, PowerPoint and Excel files through LibreOffice, fetched on first need](office-documents-with-libreoffice.md): Phases 1, 2, 3 and 5 are built and checked on an Apple-silicon Mac through `run-bash`;
+- [Word, PowerPoint and Excel files through LibreOffice, fetched on first need](office-documents-with-libreoffice.md): Phases 1, 2, 3 and 5 are built and checked through `run-bash` on an Apple-silicon Mac, an arm64 Ubuntu host and an arm64 Windows 11 host;
 - [The onboarding setup assistant](onboarding-setup-assistant.md): Building.
 - [Plugins](plugins.md): Phase 1 landed under another shape, phase 2 not adopted, phase 3 overtaken, phase 4 not started.
 - [How the agent presents files, data, and artifacts](presentation-syntax.md): The file group is built and measured;

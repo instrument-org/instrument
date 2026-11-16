@@ -439,6 +439,190 @@ const cases: {
     expected: { evidence: "structured", kind: "transient" },
     name: "a Responses stream that closed partway through its output",
   },
+  // From opencode's provider-error suite, which records each one from the
+  // provider named.
+  {
+    error: apiCallError({
+      message: "Request failed",
+      responseBody:
+        '{"error":{"code":"insufficient_quota","message":"Request failed"}}',
+      statusCode: 429,
+    }),
+    expected: { evidence: "structured", kind: "usage-limit" },
+    name: "OpenAI's spent balance on a 429",
+  },
+  ...(
+    [
+      ["1113", "Insufficient balance or no resource package. Please recharge."],
+      [
+        "1308",
+        "Usage limit reached for 5 hours. Your limit will reset at 2026-10-01 00:00:00",
+      ],
+      [
+        "1310",
+        "Weekly/Monthly Limit Exhausted. Your limit will reset at 2026-10-01 00:00:00",
+      ],
+      [
+        "1311",
+        "Your current subscription plan does not yet include access to glm-5",
+      ],
+    ] as const
+  ).map(([code, message]) => ({
+    error: apiCallError({
+      message,
+      responseBody: JSON.stringify({ error: { code, message } }),
+      statusCode: 429,
+    }),
+    expected: { evidence: "structured", kind: "usage-limit" } as const,
+    name: `z.ai's plan limit ${code} on a 429`,
+  })),
+  {
+    error: apiCallError({
+      message: "Go usage limit exceeded",
+      responseBody: JSON.stringify({
+        error: {
+          message: "Go usage limit exceeded",
+          type: "GoUsageLimitError",
+        },
+        type: "error",
+      }),
+      statusCode: 429,
+    }),
+    expected: { evidence: "structured", kind: "usage-limit" },
+    name: "opencode Go's usage limit on a 429",
+  },
+  {
+    error: apiCallError({
+      message: "Upstream request failed: Account budget exceeded",
+      responseBody: JSON.stringify({
+        error: {
+          message: "Upstream request failed: Account budget exceeded",
+          type: "server_error",
+        },
+      }),
+      statusCode: 429,
+    }),
+    expected: { evidence: "prose", kind: "usage-limit" },
+    name: "opencode Zen's spent budget, named only in prose",
+  },
+  {
+    error: apiCallError({
+      message: "Tokens per minute limit exceeded - too many tokens processed.",
+      responseBody:
+        '{"message":"Tokens per minute limit exceeded - too many tokens processed.","type":"too_many_tokens_error","param":"quota","code":"token_quota_exceeded"}',
+      statusCode: 429,
+    }),
+    expected: { evidence: "status", kind: "rate-limit" },
+    name: "Cerebras's per-minute token throttle",
+  },
+  {
+    error: apiCallError({
+      message: "User 10s request rate limit exhausted (3 of 3).",
+      responseBody:
+        '{"error":{"message":"User 10s request rate limit exhausted (3 of 3).","type":"rate_limit_exceeded","code":null}}',
+      statusCode: 429,
+    }),
+    expected: { evidence: "status", kind: "rate-limit" },
+    name: "a request rate limit worded as exhausted",
+  },
+  {
+    error: { code: 502, message: "Provider returned error" },
+    expected: { evidence: "status", kind: "transient" },
+    name: "OpenRouter's upstream failure inside a stream",
+  },
+  {
+    error: {
+      message: "Upstream request failed: Model is unavailable.",
+      type: "server_error",
+    },
+    expected: { evidence: "structured", kind: "transient" },
+    name: "a gateway's server_error inside a stream",
+  },
+  {
+    error: apiCallError({
+      message: "Upstream request failed: validation failed",
+      responseBody: JSON.stringify({
+        error: {
+          message: "Upstream request failed: validation failed",
+          type: "server_error",
+        },
+      }),
+      statusCode: 400,
+    }),
+    expected: { evidence: "none", kind: "unknown" },
+    name: "a gateway's server_error on a 400 it refused",
+  },
+  {
+    error: apiCallError({
+      message: "API key not valid. Please pass a valid API key.",
+      responseBody: JSON.stringify({
+        error: {
+          code: 400,
+          details: [
+            {
+              "@type": "type.googleapis.com/google.rpc.ErrorInfo",
+              domain: "googleapis.com",
+              reason: "API_KEY_INVALID",
+            },
+          ],
+          message: "API key not valid. Please pass a valid API key.",
+          status: "INVALID_ARGUMENT",
+        },
+      }),
+      statusCode: 400,
+    }),
+    expected: { evidence: "structured", kind: "auth" },
+    name: "Google's invalid key on a 400",
+  },
+  {
+    error: apiCallError({
+      message:
+        "Incorrect API key provided. You can obtain an API key from https://console.x.ai.",
+      responseBody:
+        '{"code":"invalid-argument","error":"Incorrect API key provided."}',
+      statusCode: 400,
+    }),
+    expected: { evidence: "prose", kind: "auth" },
+    name: "xAI's invalid key on a 400",
+  },
+  {
+    error: apiCallError({
+      message: "[1261][Prompt too long][2026092913]",
+      responseBody: JSON.stringify({
+        error: {
+          code: "1261",
+          message: "[1261][Prompt too long][2026092913]",
+          type: "invalid_request_error",
+        },
+        type: "error",
+      }),
+      statusCode: 400,
+    }),
+    expected: { evidence: "structured", kind: "context-overflow" },
+    name: "z.ai's prompt length code",
+  },
+  ...[
+    "Prompt exceeds max length",
+    "Requested input length 600010 exceeds maximum input length 131071",
+    "The input is longer than the model's context length trace_id: 39d8c3a5c6c91dbc8dd9055f0b37e084",
+    "the request exceeds the available context size, try increasing it",
+    "Input validation error: `inputs` tokens + `max_new_tokens` must be <= 131073. Given: 600035 `inputs` tokens and 16 `max_new_tokens`",
+    "This text request is too large for the model's configured input limit.",
+    "litellm.ContextWindowExceededError: litellm.BadRequestError: litellm._pre_call_checks: Context Window exceeded for given call. No models have context window large enough for this call.",
+  ].map((message) => ({
+    error: apiCallError({ message, statusCode: 400 }),
+    expected: { evidence: "prose", kind: "context-overflow" } as const,
+    name: `overflow worded "${message.slice(0, 40)}"`,
+  })),
+  {
+    error: apiCallError({
+      message:
+        "too many tokens: max tokens must be less than or equal to 4096, the maximum output length for this model - received 1000000.",
+      statusCode: 400,
+    }),
+    expected: { evidence: "none", kind: "unknown" },
+    name: "Cohere's output limit, which a smaller context does not fix",
+  },
 ];
 
 describe("classifyProviderError", () => {

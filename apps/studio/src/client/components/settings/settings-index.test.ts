@@ -71,7 +71,7 @@ describe("matchSettings", () => {
   });
 
   it("finds a button by its label", () => {
-    expect(titles("release notes")).toEqual(["Release notes"]);
+    expect(titles("what's new")).toEqual(["What's new"]);
   });
 
   it("finds Activity's switch and history by the words on them", () => {
@@ -183,7 +183,7 @@ describe("settingsTargetOf", () => {
         "release-notes": {
           "kind": "row",
           "mark": "version",
-          "path": "Settings › General › Release notes",
+          "path": "Settings › General › What's new",
           "tab": "General",
         },
         "text-size": {

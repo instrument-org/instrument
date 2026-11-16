@@ -386,7 +386,7 @@ function About() {
                 onClick={handleOpenReleaseNotes}
                 variant="link"
               >
-                Release notes
+                What's new
               </Button>
             </div>
             <div className="shrink-0">{getActionButton()}</div>

@@ -17,7 +17,7 @@ How Instrument looks, notifications, dictation, suggested messages, updates, and
 - **Dictation language** (`dictation-language`): Pick the language you speak, or let dictation detect it.
 - **Dictation sounds** (`dictation-sounds`): A sound when dictation starts and stops.
 - **Microphone access** (`microphone-access`): Whether your computer lets Instrument use the microphone.
-- **Version and updates** (`version`): Which version of Instrument you have, and updates. On it: Release notes (`release-notes`), Check for updates (`check-for-updates`).
+- **Version and updates** (`version`): Which version of Instrument you have, and updates. On it: What's new (`release-notes`), Check for updates (`check-for-updates`).
 - **Open source** (`open-source`): View the source, or tell us about something that isn't working. On it: View source on GitHub (`view-source`), Send feedback (`send-feedback`), Third-party licenses (`third-party-licenses`).
 - **Suggest a next message** (`suggest-next-message`): After a reply, show a few things you might say next.
 - **Diagnostic log** (`diagnostic-log`): A local record to send with a problem report. On it: View log (`view-log`).
@@ -87,7 +87,7 @@ Link one as `[Label](instrument://screen/<name>)`.
 - **Apps** (`apps`): The services Instrument can work in for you, and connecting one.
 - **Browser** (`browser`): A browser of your own, which tasks can work in beside you.
 - **Extensions** (`extensions`): The Chrome extensions in your browser, and adding more from the Chrome Web Store.
-- **Release notes** (`release-notes`): What changed in each version.
+- **What's new** (`release-notes`): What changed in each version.
 - **Keyboard shortcuts** (`shortcuts`): Every keyboard shortcut, by section.
 
 ## Menu bar

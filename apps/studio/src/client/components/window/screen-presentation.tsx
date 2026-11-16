@@ -178,7 +178,7 @@ export function screenPresentation(
     case "releaseNotes": {
       return {
         icon: <FileTextIcon className="size-3.5" />,
-        title: "Release notes",
+        title: "What's new",
       };
     }
     case "activity": {

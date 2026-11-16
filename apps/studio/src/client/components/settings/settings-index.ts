@@ -275,7 +275,7 @@ export const SETTINGS_INDEX = [
     id: "release-notes",
     mark: "version",
     tab: "General",
-    title: "Release notes",
+    title: "What's new",
   },
   {
     id: "check-for-updates",

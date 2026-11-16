@@ -606,7 +606,7 @@ function UpdateReadyCardBody({
           size="sm"
           variant="link"
         >
-          {notes ? "See what's new" : "Release notes"}
+          {notes ? "See what's new" : "What's new"}
         </Button>
         <Button onClick={onRestart} size="sm" variant="brand">
           Restart to update

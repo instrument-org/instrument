@@ -16,6 +16,7 @@ import {
   type WindowTabTarget,
 } from "../../schemas/window-tab";
 import {
+  layoutTabName,
   showingLine,
   tabPlace,
 } from "../../model-text/notes/group-layout-model-text";
@@ -521,9 +522,10 @@ async function replace(
   // A tab that changes kind, a page becoming a file's tab or the reverse,
   // comes back under a new id, which is the one to use next.
   const now = answer?.tabId ?? tabId;
+  const place = await placeOf(now, ctx);
   return {
     failed: false,
-    said: `Tab ${tabId} now shows ${describeTarget(target)}${now !== tabId ? `, as tab ${now}` : ""}.${holder}`,
+    said: `Tab ${tabId} now shows ${describeTarget(target)}${now !== tabId ? `, as tab ${now}` : ""}${place ? `: ${place}` : ""}.${holder}`,
     tab: now,
     target: arg,
   };
@@ -552,13 +554,14 @@ export const windowClose = defineCapability({
         continue;
       }
       const holder = await holderClause(tabId, ctx);
+      const side = sideOf(await windowsOf(ctx), tabId);
       const answer = await ask({ kind: "close", tabId }, ctx);
       const error = answer ? answer.error : NO_WINDOW;
       outcomes.push(
         error === undefined
           ? {
               failed: false,
-              said: `Closed tab ${tabId}.${holder}`,
+              said: `Closed tab ${tabId}.${side ? await closedSideLine(side, ctx) : ""}${holder}`,
               tab: tabId,
               target: tabId,
             }
@@ -575,6 +578,57 @@ export const windowClose = defineCapability({
   text: (outcomes) => outcomes.map((each) => each.said).join("\n"),
   where: CHATS,
 });
+
+/** The group a tab is in and the other tabs on its side, read before it closes. */
+function sideOf(windows: WindowGroups, tabId: string) {
+  for (const layout of windows.flatMap((window) => window.groups)) {
+    const side = layout.sides.find((each) =>
+      each.tabs.some((tab) => tab.id === tabId),
+    );
+    if (side !== undefined) {
+      return {
+        group: layout.group.id,
+        mates: side.tabs.filter((tab) => tab.id !== tabId).map((tab) => tab.id),
+      };
+    }
+  }
+  return undefined;
+}
+
+/**
+ * What the side a tab closed from shows now, read from the window after the
+ * close, as a sentence after the one saying it closed; empty when the window
+ * does not answer.
+ */
+async function closedSideLine(
+  before: { group: string; mates: readonly string[] },
+  ctx: CapabilityContext,
+): Promise<string> {
+  const answer = await ask({ kind: "list" }, ctx);
+  if (!answer?.windows) {
+    return "";
+  }
+  const layout = answer.windows
+    .flatMap((window) => window.groups)
+    .find((each) => each.group.id === before.group);
+  if (layout === undefined) {
+    return " Its tab group closed with it.";
+  }
+  const where =
+    layout.group.id === answer.read?.layout.group.id
+      ? ""
+      : ` of the tab group ${groupWords(layout)}`;
+  const side = layout.sides.find((each) =>
+    each.tabs.some((tab) => before.mates.includes(tab.id)),
+  );
+  if (side === undefined) {
+    return ` Its side${where} closed. ${showingLine(layout)}`;
+  }
+  const up = side.tabs.find((tab) => tab.isUp);
+  const name =
+    up === undefined ? "nothing" : up.isThisChat ? "you" : layoutTabName(up);
+  return ` That side${where} now shows ${name}${layout.isShown === false ? "; the window shows another tab group, so it is out of sight" : ""}.`;
+}
 
 /** Closes a group whole, as the sidebar's X does, naming it and its tabs. */
 async function closeGroup(
@@ -646,8 +700,16 @@ export const windowWait = defineCapability({
           : `no tab ${tab} in this chat. \`${NAME} list\` names its tabs.`,
       );
     }
-    // Showing, so the page they are asked to use is the one they see.
-    await ask({ kind: "show", tabId: tab }, ctx);
+    // Showing, so the page they are asked to use is the one they see. A card
+    // over a page the window did not show asks for what they cannot do.
+    const shown = await ask({ kind: "show", tabId: tab }, ctx);
+    const failed = shown ? shown.error : NO_WINDOW;
+    if (failed !== undefined) {
+      throw new Error(
+        `tab ${tab} could not be shown, so no card was raised: ${failed}`,
+      );
+    }
+    const place = await placeOf(tab, ctx);
     const askId = await recordAsk(
       { ...ctx.asker, reason: reason.trim(), title: title.trim() },
       "page",
@@ -655,7 +717,7 @@ export const windowWait = defineCapability({
       { page: { title: page.title, url: page.url } },
     );
     recordRaisedAsk(askId);
-    return `Showed the user tab ${tab} ("${page.title || page.url}") with a card titled "${title.trim()}", your reason, Done and Skip. Your turn ends here; their answer wakes you.`;
+    return `Showed the user tab ${tab} ("${page.title || page.url}") with a card titled "${title.trim()}", your reason, Done and Skip.${place ? ` Tab ${tab}: ${place}.` : ""} Your turn ends here; their answer wakes you.`;
   },
   summary:
     "Hand the user a page of this chat's for what only they can do there (sign in, prove they are a person) and wait: a card shows your title and reason with Done and Skip, your turn ends, and their answer wakes you.",
@@ -739,7 +801,8 @@ export const windowMove = defineCapability({
     if (answer.error !== undefined) {
       throw new Error(answer.error);
     }
-    return `Moved ${ids.join(", ")} into the tab group ${groupWords(named.group)}.`;
+    const into = await groupById(named.group.group.id, ctx);
+    return `Moved ${ids.join(", ")} into the tab group ${groupWords(named.group)}${into ? `; ${sightOf(into)}` : ""}.`;
   },
   summary:
     "Move tabs into an existing tab group, by its id or name, as dropping each on its row does; a group left with no tab closes.",
@@ -749,6 +812,47 @@ export const windowMove = defineCapability({
   text: (said) => said,
   where: CHATS,
 });
+
+/** Whether a group tabs went into is the one the window shows, as a clause. */
+function sightOf(layout: LayoutSnapshot): string {
+  return layout.isShown === false
+    ? "the window shows another group, so they are out of sight"
+    : "it is on screen";
+}
+
+/**
+ * The tabs a restore brought back, as a sentence: one tab's id and where it
+ * stands, or several tabs' ids and whether their group is on screen.
+ */
+async function restoredLine(
+  restored: readonly string[],
+  groups: readonly LayoutSnapshot[],
+  ctx: CapabilityContext,
+): Promise<string> {
+  const [first] = restored;
+  if (first === undefined) {
+    return "";
+  }
+  if (restored.length === 1) {
+    const place = await placeOf(first, ctx);
+    return place ? ` Tab ${first}: ${place}.` : ` As tab ${first}.`;
+  }
+  const layout = groups.find((each) =>
+    each.sides.some((side) => side.tabs.some((tab) => tab.id === first)),
+  );
+  return ` As tabs ${restored.join(", ")}${layout ? `; ${sightOf(layout)}` : ""}.`;
+}
+
+/** Every tab id open in any window. */
+function tabIdsOf(windows: WindowGroups): Set<string> {
+  return new Set(
+    windows.flatMap((window) =>
+      window.groups.flatMap((layout) =>
+        layout.sides.flatMap((side) => side.tabs.map((tab) => tab.id)),
+      ),
+    ),
+  );
+}
 
 /** How many History rows a list prints unless asked for another number. */
 const HISTORY_LIMIT = 20;
@@ -818,6 +922,7 @@ export const windowRestore = defineCapability({
   name: "window.restore",
   output: z.string(),
   async run({ entry }, ctx) {
+    const open = tabIdsOf(await windowsOf(ctx));
     const answer = await ask({ entry, kind: "reopenClosed" }, ctx);
     if (!answer) {
       throw new Error(NO_WINDOW);
@@ -825,11 +930,16 @@ export const windowRestore = defineCapability({
     if (answer.error !== undefined) {
       throw new Error(answer.error);
     }
+    // The window names no tab it brought back, so they are the ones open now
+    // that were not before.
+    const windows = await windowsOf(ctx);
+    const groups = windows.flatMap((window) => window.groups);
     const back =
       answer.group === undefined
         ? undefined
-        : await groupById(answer.group, ctx);
-    return `Restored ${entry}${back ? ` in the tab group ${groupWords(back)}` : ""}, as History's restore does.`;
+        : groups.find((each) => each.group.id === answer.group);
+    const restored = [...tabIdsOf(windows)].filter((id) => !open.has(id));
+    return `Restored ${entry}${back ? ` in the tab group ${groupWords(back)}` : ""}, as History's restore does.${await restoredLine(restored, groups, ctx)}`;
   },
   summary:
     "Reopen a closed tab, side or tab group by its History id, exactly as History's restore does.",

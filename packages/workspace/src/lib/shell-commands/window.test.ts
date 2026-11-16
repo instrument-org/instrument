@@ -7,6 +7,7 @@ import { publisher } from "../../rpc/publisher";
 import { ChatIdSchema, type ChatId } from "../../schemas/chat-id";
 import { WorkDirSchema } from "../../schemas/paths";
 import { StoreId } from "../../schemas/store-id";
+import { type LayoutSnapshot } from "../../schemas/group-layout";
 import { type WindowTabAction } from "../../schemas/window-tab";
 import { tabStanding } from "../capabilities/window";
 import { getWorkspaceConfig, setWorkspaceConfig } from "../workspace-config";
@@ -158,6 +159,8 @@ const ELSEWHERE = {
 };
 
 let asked: { action: WindowTabAction; chatId?: ChatId }[];
+/** Tabs the window refuses to show. */
+const refusedShows = new Set<string>();
 let stopAnswering: () => void;
 
 /**
@@ -166,16 +169,53 @@ let stopAnswering: () => void;
  * an id it has not got.
  */
 function answeringWindow() {
-  const known = new Set<string>(["tab_known", pageTab, "tab_docs"]);
-  const groups = new Set<string>(["group:docs", "group:notes", "group:far"]);
+  const known = new Set<string>(["tab_known", pageTab, "tab_docs", "tab_hn"]);
+  const groups = new Set<string>([
+    "group_a",
+    "group:docs",
+    "group:notes",
+    "group:far",
+  ]);
   /** What each open made, which the right side then shows, as the window puts a page the chat shows beside it. */
   const made: string[] = [];
+  /** The tabs closed, which a list leaves out, as the window does. */
+  const closed = new Set<string>();
+  /** A group as the window lists it once the closed tabs are gone: the next tab on a side comes up, and a side or group left empty goes. */
+  const open = (layout: LayoutSnapshot): LayoutSnapshot => ({
+    ...layout,
+    sides: layout.sides.flatMap((side) => {
+      const tabs = side.tabs.filter((tab) => !closed.has(tab.id));
+      const [first, ...rest] = tabs;
+      if (first === undefined) {
+        return [];
+      }
+      return [
+        {
+          ...side,
+          tabs: tabs.some((tab) => tab.isUp)
+            ? tabs
+            : [{ ...first, isUp: true }, ...rest],
+        },
+      ];
+    }),
+  });
   return publisher.subscribe("window.tab", (ask) => {
     asked.push({
       action: ask.action,
       ...(ask.chatId ? { chatId: ask.chatId } : {}),
     });
     const { action } = ask;
+    if (action.kind === "close" && known.has(action.tabId)) {
+      closed.add(action.tabId);
+    }
+    if (action.kind === "reopenClosed") {
+      // A tab back for a closed tab, two for a closed side.
+      made.push(
+        ...({ tab_closed1: ["tab_back"], tab_closed2: ["tab_b1", "tab_b2"] }[
+          action.entry
+        ] ?? []),
+      );
+    }
     const own = {
       focused: 1 as const,
       group: { id: "group_a" },
@@ -224,10 +264,15 @@ function answeringWindow() {
                   url: "https://www.zendesk.com/pricing/",
                 },
               ],
-              read: { layout: own, movedIn: {}, movedOut: {} },
+              read: { layout: open(own), movedIn: {}, movedOut: {} },
               windows: [
-                { groups: [own, ...OTHER_GROUPS], isThisWindow: true },
-                { groups: [ELSEWHERE] },
+                {
+                  groups: [own, ...OTHER_GROUPS]
+                    .map(open)
+                    .filter((layout) => layout.sides.length > 0),
+                  isThisWindow: true,
+                },
+                { groups: [ELSEWHERE].map(open) },
               ],
             }
           : action.kind === "showGroup" ||
@@ -244,21 +289,26 @@ function answeringWindow() {
               : action.kind === "history"
                 ? { history: HISTORY.slice(0, action.limit) }
                 : action.kind === "reopenClosed"
-                  ? action.entry === "tab_closed1"
+                  ? action.entry === "tab_closed1" ||
+                    action.entry === "tab_closed2"
                     ? {}
                     : { error: `nothing in History is ${action.entry}.` }
                   : action.kind === "handOver"
                     ? {}
-                    : known.has(action.tabId)
+                    : action.kind === "show" && refusedShows.has(action.tabId)
                       ? {
-                          tabId: action.tabId,
-                          ...(action.kind === "read"
-                            ? { text: "Jar\nA rigid container." }
-                            : {}),
+                          error: `tab ${action.tabId} is in a window that is closing.`,
                         }
-                      : {
-                          error: `no tab ${action.tabId} is open in this chat.`,
-                        };
+                      : known.has(action.tabId)
+                        ? {
+                            tabId: action.tabId,
+                            ...(action.kind === "read"
+                              ? { text: "Jar\nA rigid container." }
+                              : {}),
+                          }
+                        : {
+                            error: `no tab ${action.tabId} is open in this chat.`,
+                          };
     publisher.publish("window.tabDone", {
       id: ask.id,
       requestId: ask.requestId,
@@ -297,6 +347,7 @@ function run(
 beforeEach(() => {
   asked = [];
   raised.length = 0;
+  refusedShows.clear();
   holders.clear();
   pageUrls = [];
   const config = getWorkspaceConfig();
@@ -483,7 +534,30 @@ describe("window close, show and read on a tab", () => {
     const result = await run({}, "close", "tab_known");
 
     expect(result.exitCode).toBe(0);
-    expect(result.stdout).toBe("Closed tab tab_known.\n");
+    expect(result.stdout).toMatchInlineSnapshot(`
+      "Closed tab tab_known. Its side closed. Showing: zendesk.com/pricing.
+      "
+    `);
+  });
+
+  it("says what the side a tab closed from shows now", async () => {
+    await run({}, "show", "https://example.com/");
+
+    const result = await run({}, "close", pageTab);
+
+    expect(result.stdout.replaceAll(pageTab, "<page>")).toMatchInlineSnapshot(`
+      "Closed tab <page>. That side now shows example.com.
+      "
+    `);
+  });
+
+  it("says what a side of another group shows once its tab closed", async () => {
+    const result = await run({}, "close", "tab_hn");
+
+    expect(result.stdout).toMatchInlineSnapshot(`
+      "Closed tab tab_hn. That side of the tab group "Meeting notes" instrument://group/group:notes now shows example.com; the window shows another tab group, so it is out of sight.
+      "
+    `);
   });
 
   it("says which task was working in a tab it closed", async () => {
@@ -515,15 +589,16 @@ describe("window close, show and read on a tab", () => {
       "show",
       "https://example.com/",
       "--in",
-      "tab_known",
+      pageTab,
     );
 
-    expect(result.stdout).toBe(
-      "Tab tab_known now shows https://example.com/.\n",
-    );
+    expect(result.stdout.replaceAll(pageTab, "<page>")).toMatchInlineSnapshot(`
+      "Tab <page> now shows https://example.com/: showing on the right side, beside you.
+      "
+    `);
     expect(asked[0]?.action).toEqual({
       kind: "replace",
-      tabId: "tab_known",
+      tabId: pageTab,
       target: { kind: "page", url: "https://example.com/" },
     });
   });
@@ -824,7 +899,7 @@ describe("window group, move, history and restore", () => {
       tabIds: ["tab_ex"],
     });
     expect(result.stdout).toMatchInlineSnapshot(`
-      "Moved tab_ex into the tab group "Meeting notes" instrument://group/group:notes.
+      "Moved tab_ex into the tab group "Meeting notes" instrument://group/group:notes; the window shows another group, so they are out of sight.
       "
     `);
   });
@@ -850,7 +925,70 @@ describe("window group, move, history and restore", () => {
 
     expect(result.exitCode).toBe(0);
     expect(result.stdout).toMatchInlineSnapshot(`
-      "Restored tab_closed1, as History's restore does.
+      "Restored tab_closed1, as History's restore does. Tab tab_back: showing on the right side, beside you.
+      "
+    `);
+  });
+
+  it("names the tabs a restore brought back and whether they are on screen", async () => {
+    const result = await run({}, "restore", "tab_closed2");
+
+    expect(result.stdout).toMatchInlineSnapshot(`
+      "Restored tab_closed2, as History's restore does. As tabs tab_b1, tab_b2; it is on screen.
+      "
+    `);
+  });
+
+  it("says a group tabs moved into is on screen", async () => {
+    const result = await run({}, "move", "tab_ex", "--group", "group_a");
+
+    expect(result.stdout).toMatchInlineSnapshot(`
+      "Moved tab_ex into the tab group "Prices" instrument://group/group_a; it is on screen.
+      "
+    `);
+  });
+
+  it("shows the page it waits on and says where it stands", async () => {
+    const result = await run(
+      {},
+      "wait",
+      pageTab,
+      "--title",
+      "Log in",
+      "--reason",
+      "Only you can sign in.",
+    );
+
+    expect(result.exitCode).toBe(0);
+    expect(asked.map(({ action }) => action.kind)).toEqual([
+      "list",
+      "show",
+      "list",
+    ]);
+    expect(raised).toHaveLength(1);
+    expect(result.stdout.replaceAll(pageTab, "<page>")).toMatchInlineSnapshot(`
+      "Showed the user tab <page> ("Suite plans") with a card titled "Log in", your reason, Done and Skip. Tab <page>: showing on the right side, beside you. Your turn ends here; their answer wakes you.
+      "
+    `);
+  });
+
+  it("raises no card when the window would not show the page", async () => {
+    refusedShows.add(pageTab);
+
+    const result = await run(
+      {},
+      "wait",
+      pageTab,
+      "--title",
+      "Log in",
+      "--reason",
+      "Only you can sign in.",
+    );
+
+    expect(result.exitCode).toBe(1);
+    expect(raised).toEqual([]);
+    expect(result.stderr.replaceAll(pageTab, "<page>")).toMatchInlineSnapshot(`
+      "instrument window: tab <page> could not be shown, so no card was raised: tab <page> is in a window that is closing.
       "
     `);
   });

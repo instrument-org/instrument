@@ -217,3 +217,29 @@ describe("storage.invalidFolders", () => {
     );
   });
 });
+
+describe("storage.office", () => {
+  it("shows the downloaded LibreOffice with its size, and removes it", async () => {
+    const runtimeDir = AbsolutePathSchema.parse(path.join(root, "runtime"));
+    setWorkspaceConfig({ ...getWorkspaceConfig(), runtimeDir });
+    const context = createContext();
+    expect(await call(storage.office.get, undefined, { context })).toBeNull();
+
+    const program = path.join(runtimeDir, "office", "26.2.7.3", "program");
+    fs.mkdirSync(program, { recursive: true });
+    fs.writeFileSync(path.join(program, "soffice"), "x".repeat(1000));
+    fs.mkdirSync(path.join(runtimeDir, "bin"), { recursive: true });
+    fs.writeFileSync(path.join(runtimeDir, "bin", "soffice"), "#!/bin/sh\n");
+
+    expect(await call(storage.office.get, undefined, { context })).toEqual({
+      bytes: 1000,
+      path: path.join(runtimeDir, "office"),
+      version: "26.2.7.3",
+    });
+    expect(await call(storage.office.remove, undefined, { context })).toEqual({
+      removed: true,
+    });
+    expect(await call(storage.office.get, undefined, { context })).toBeNull();
+    expect(fs.existsSync(path.join(runtimeDir, "bin", "soffice"))).toBe(false);
+  });
+});

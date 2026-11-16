@@ -6,6 +6,7 @@ import {
   listInvalidChatFolders,
   trashInvalidChatFolder,
 } from "../../lib/invalid-chat-folders";
+import { officeStorage, removeOffice } from "../../lib/office/install";
 import { chatsDir } from "../../lib/record-folders";
 import { base, toORPCError } from "../base";
 
@@ -49,10 +50,34 @@ const trashInvalidFolder = base
     }
   });
 
+/**
+ * The LibreOffice the app downloaded for `office`, with its size on disk,
+ * or null when there is none.
+ */
+const officeInstall = base
+  .output(
+    z
+      .object({ bytes: z.number(), path: z.string(), version: z.string() })
+      .nullable(),
+  )
+  .handler(async () => (await officeStorage()) ?? null);
+
+/**
+ * Removes it; the next `office` call downloads it again. Refused while it
+ * is being installed.
+ */
+const removeOfficeInstall = base
+  .output(z.object({ removed: z.boolean() }))
+  .handler(async () => ({ removed: (await removeOffice()) === undefined }));
+
 export const storage = {
   invalidFolders: {
     list: listInvalidFolders,
     trash: trashInvalidFolder,
   },
   location,
+  office: {
+    get: officeInstall,
+    remove: removeOfficeInstall,
+  },
 };

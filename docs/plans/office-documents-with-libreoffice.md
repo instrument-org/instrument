@@ -1,6 +1,6 @@
 # Plan: Word, PowerPoint and Excel files through LibreOffice, fetched on first need
 
-Status: open. Proposed, not started.
+Status: open. Phases 1, 2, 3 and 5 are built and checked on an Apple-silicon Mac through `run-bash`; phase 4 (skills), the Windows and Linux host runs, the packaged-app checks and the evals remain. See [What is not yet checked](#what-is-not-yet-checked).
 
 Related: [render-a-file-to-look-at-it.md](render-a-file-to-look-at-it.md), which this plan complements and narrows (see [How this fits the render plan](#how-this-fits-the-render-plan)); [document-viewers.md](document-viewers.md) and [the pdfium decision](../decisions/2026-07-31-pdfium-is-the-pdf-engine.md), which render for the person, not the agent; [agent-sandbox.md](../architecture/agent-sandbox.md) and [programs on the PATH run natively](../decisions/2026-10-12-programs-on-path-run-natively.md), which hold whatever this adds.
 
@@ -37,15 +37,15 @@ $ office recalc work/model.xlsx
 ✗ 2 errors
   Summary!C7  #REF!   =Data!Z99/Data!B2
   Summary!D9  #NAME?  =SUMIFZ(A:A,"x",B:B)
-! 3 cells use functions LibreOffice does not compute (VSTACK); Excel computes them when the file opens
+! 3 cells use functions LibreOffice does not compute (PERCENTOF); Excel computes them when the file opens. Their cached values are left empty.
 
 $ office convert inbox/old-budget.xls --to xlsx
 ✓ work/old-budget.xlsx
 ```
 
 - `render` takes `.docx`, `.doc`, `.odt`, `.rtf`, `.pptx`, `.ppt`, `.odp`, `.xlsx`, `.xls`, `.ods`: a PDF beside the file, and with `--pages` (default all, capped) a PNG per page through `pypdfium2`, which the agent's Python is to carry preinstalled with the other document packages. For a workbook it prints each sheet's used range, which is the one render the browser path has no answer for.
-- `recalc` takes `.xlsx` and `.ods`, and `--check` reports without writing.
-- `convert` wraps `--convert-to` with a target the agent names by extension; `csv` writes one file per sheet with computed values (the CSV filter's sheet option `-1`, [csv_params](https://help.libreoffice.org/latest/en-US/text/shared/guide/csv_params.html)).
+- `recalc` takes `.xlsx` and `.xlsm`, and `--check` reports without writing; it exits 1 when any formula is an error. An `.ods` is LibreOffice's own format and recalculates on load, so it has no stale cache to fix.
+- `convert` wraps `--convert-to` with a target the agent names by extension, into the working folder or `--out`; `csv` writes one file per sheet with computed values (the CSV filter's sheet option `-1`, [csv_params](https://help.libreoffice.org/latest/en-US/text/shared/guide/csv_params.html)).
 - `soffice` itself is linked into the app's bin folder once installed, through a wrapper that adds a fresh profile when the call has none, the way Codex's does. That makes the powerpoint skill's `thumbnail.py`, which already looks for `soffice`, and any script a model writes from memory work as written.
 
 What the agent is told: the bash tool's description names `office` and says its first use downloads LibreOffice. The skills change in the skills repository: the spreadsheet skill's quality gate becomes `office recalc` before delivery, and the docx and powerpoint gates offer `office render` beside the browser preview, as the road that works offline and matches a PDF export. Nothing tells the agent to render before every reply; the gates already ask it to look.
@@ -53,23 +53,23 @@ What the agent is told: the bash tool's description names `office` and says its 
 ## Download on first need
 
 - **Trigger.** The first `office` or `soffice` call with nothing installed. The app installs it, outside any chat's reach, the way `ensureManagedPython` installs Python: one install in flight per machine, a failure tried again by the next call. Nothing downloads at launch, and nothing asks first: like a large package the agent installs, it simply starts, and the install stays in the runtime folder for every later call and chat.
-- **Prefer what is there.** A LibreOffice the person installed, at or above the pinned major version, is used instead of downloading (`/Applications/LibreOffice.app`, the registry's install path on Windows, `soffice` on the PATH on Linux). It runs with our profile, so their settings never apply.
-- **Progress.** The command prints the download's progress as it goes, so a long first call promotes to a background job under the usual `yieldMs` rule and the agent can keep working. Install is about 300 MB down, then extraction (about 10 seconds for the Mac image).
+- **Prefer what is there.** A LibreOffice the person installed, at or above the pinned major version, is used instead of downloading (`/Applications/LibreOffice.app` or `~/Applications/LibreOffice.app` by its `Info.plist` version, the registry's install path on Windows, `soffice` on the PATH or `/usr/lib/libreoffice` on Linux by `soffice --version`). It runs with our profile, kept in `runtime/office/own-profile`, so their settings never apply. Either one is linked into the bin folder as `soffice` once found.
+- **Progress.** The command prints the download's progress at each tenth, so a long first call promotes to a background job under the usual `yieldMs` rule and the agent can keep working. Measured on the Mac: the whole first need (download, hash, mount, copy, signature check, warm-up) takes 26 to 39 seconds on a fast connection, of which the copy out of the image is about 6.
 - **Offline.** The command fails with one line saying LibreOffice could not be downloaded and that the browser preview still works for Word and PowerPoint, and the spreadsheet skill tells the agent to say plainly that the workbook was not recalculated.
-- **Pinning and verification.** A manifest in the workspace package names one version and, per platform and architecture, the file name and SHA-256. Files come from TDF's archive (`downloadarchive.documentfoundation.org/libreoffice/old/<version>/`), which keeps every build at a stable address, unlike the `stable/` tree. The hash is checked before anything is extracted; on macOS the extracted app must also pass `codesign --verify --deep --strict` with TDF's team identifier (`7P5S3ZLCN7`). A script in the shape of `download-uv.ts` refreshes the manifest.
-- **Where.** `runtime/office/<version>/`, extracted beside it and renamed into place when whole, like the base Python packages. The runtime folder is read-only to chats, so no chat can change the binary another chat runs. A profile template sits beside it.
+- **Pinning and verification.** A manifest in the workspace package names one version and, per platform and architecture, the file name and SHA-256. Files come from TDF's archive (`downloadarchive.documentfoundation.org/libreoffice/old/<version>/`), which keeps every build at a stable address, unlike the `stable/` tree. The hash is checked before anything is extracted; on macOS the extracted app must also pass `codesign --verify --deep --strict` with TDF's team identifier (`7P5S3ZLCN7`). `pnpm --filter @instrument-org/workspace script:refresh-office-manifest <version>` refreshes the manifest from each artifact's size and its `.sha256` beside it in the archive (the archive's folders have no checksum listing, but every file has one).
+- **Where.** `runtime/office/<version>/` (`runtimeLayout`'s `office`), extracted beside it and renamed into place when whole, like the base Python packages, with an `instrument-office.json` naming the version and where `soffice` is inside. One install runs at a time per machine, under a lock file in `runtime/office/` naming its process. `runtime/office` is read-only to chats, so no chat can change the binary another chat runs. The profile template sits in the version folder.
 - **Updates.** The pin moves with app releases, on TDF's "still" branch, promptly when a point release fixes a document-parsing CVE: LibreOffice parses files the person did not write. A new pin downloads on its first need; the old version is deleted once nothing runs from it. Settings shows the install with its size and a Remove button, since 800 MB is worth being able to find.
 
 ## The sandbox profile
 
 `soffice` needs to read its own install, the system fonts and the document, and to write its profile, `$TMPDIR` and the output folder. Measured on the stock 26.2.6 Mac build under a Seatbelt profile that denies writes anywhere in the home folder but `~/Library/Caches` and the output folder, with the profile in `$TMPDIR`: a `.docx` converts to PDF in about 2 seconds, and nothing is written to `~/Library`.
 
-- **Profile per call.** Each call copies the template (about 300 KB) into a fresh folder under `$TMPDIR` and deletes it after. LibreOffice allows one running instance per profile and hands a second call's arguments to the first over a pipe, which is where parallel conversions go wrong; a profile per call removes the shared state, so no lock is needed. The template carries recalculation on load, macro security at its highest, and links and external data never updated.
-- **macOS.** No change to the profile `seatbeltProfile` builds: the runtime folder is readable and `$TMPDIR` writable. The Seatbelt profile's denial of Apple Events and opening apps does not affect `--headless`.
+- **Profile per call.** Each call copies the template (about 8 KB: the settings file the install's warm-up start leaves) into a fresh folder under `$TMPDIR` and deletes it after. LibreOffice allows one running instance per profile and hands a second call's arguments to the first over a pipe, which is where parallel conversions go wrong; a profile per call removes the shared state, so no lock is needed. The template carries recalculation on load, macro security at its highest with macro execution off, untrusted referer links blocked, and links never updated (Calc's link mode is `1` for never, Writer's `0`). `office` runs at most two `soffice` at once per process.
+- **macOS.** `runtime/office` joins the chat's read-only reach; nothing else in the Seatbelt profile changes, and `$TMPDIR` is already writable. The Seatbelt profile's denial of Apple Events and opening apps does not affect `--headless`. Every start logs two lines of noise under Seatbelt (`sandbox_extension_issue_file_to_process failed`, `Task policy set failed`), which `office` and `soffice` drop.
 - **Linux.** bubblewrap already leaves the system and `/tmp` as they are. Fontconfig's cache goes to `XDG_CACHE_HOME`, which native commands already write.
 - **Windows.** Unconfined, as every native program is until [the Windows sandbox](../architecture/windows-sandbox.md) lands. LibreOffice adds no reach `python` lacks there.
 
-Cold start on an Apple-silicon Mac, stock 26.2.6: 6.6 seconds on the first launch of a fresh install, then 1.3 to 2 seconds a conversion with a new profile. Codex's trimmed build does a conversion in 0.5 to 0.7 seconds with a warm or copied profile.
+Cold start on an Apple-silicon Mac, stock 26.2.6: 6.6 seconds on the first launch of a fresh install, then 1.3 to 2 seconds a conversion with a new profile. Through `office` on 26.2.7, under the chat's Seatbelt profile, a call takes 1.9 to 2.8 seconds including the page ONGs, and two renders started at once each finish in under 3. Codex's trimmed build does a conversion in 0.5 to 0.7 seconds with a warm or copied profile.
 
 ## Recalculation
 
@@ -79,7 +79,9 @@ By default LibreOffice computes a formula cell with no cached value and keeps an
 
 1. Loads the workbook in LibreOffice with forced recalculation and exports a copy to a temporary folder.
 2. Reads every formula cell's value from the copy and writes it into the original file's sheet XML as the cell's cached value (`<v>`, with `t="str"`, `"b"` or `"e"` as the value needs), and sets `fullCalcOnLoad` so Excel recalculates on open regardless. Styles, charts, validation, conditional formats and everything else in the original stay byte for byte. LibreOffice's own `.xlsx` export is not the deliverable because it rewrites the whole package.
-3. Reports every error value by cell, error and formula, and separates the cells LibreOffice could not compute from the agent's mistakes. Measured on 26.2.6: `XLOOKUP`, `LET` and `TEXTJOIN` compute; `VSTACK` and `TEXTSPLIT` give `#NAME?`; `LAMBDA` gives `Err:509`. A function Excel knows and LibreOffice does not is reported as "Excel computes this when the file opens", not as an error. A newer function written without its `_xlfn.` prefix is `#NAME?` in Excel too, and is reported as the agent's error, which it is.
+3. Reports every error value by cell, error and formula, and separates the cells LibreOffice could not compute from the agent's mistakes. Measured on 26.2.7: `XLOOKUP`, `LET`, `TEXTJOIN`, `VSTACK` and `TEXTSPLIT` compute; `GROUPBY`, `PERCENTOF`, `REGEXTEST`, `TRIMRANGE`, `MAP` and `IMAGE` give `#NAME?`; `LAMBDA` gives `#VALUE!`. LibreOffice's export writes a function it does not know in lower case (`_xlfn.percentof(`), which is how `office recalc` tells them apart: such a cell, and an error cell whose formula reaches one, is reported as "Excel computes this when the file opens", not as an error, and keeps no cached value. A newer function written without its `_xlfn.` prefix is `#NAME?` in Excel too, and is reported as the agent's error, which it is. A reference to a missing sheet, and a literal `#REF!` openpyxl writes into a formula, both come back as `#NAME?` from LibreOffice, and are reported as errors.
+
+The write-back reads and rewrites the package with a small ZIP reader of its own (no ZIP64, no encryption, either of which fails the call with the file untouched): every part it does not change is copied byte for byte, and on a three-sheet budget only the two sheets with formulas and `workbook.xml` change. A formula cell LibreOffice left out of its copy keeps what it had.
 
 ## Fidelity
 
@@ -91,18 +93,18 @@ LibreOffice is not Word, PowerPoint or Excel, and the agent is told that a rende
 
 ## Per platform
 
-| | Artifact (26.2.6) | Download | How it is unpacked |
+| | Artifact (26.2.7.3) | Download | How it is unpacked |
 | --- | --- | --- | --- |
-| macOS arm64 | `LibreOffice_<v>_MacOS_aarch64.dmg` | 298 MB | `hdiutil attach -nobrowse -readonly`, `ditto` the app out, detach; 801 MB on disk |
+| macOS arm64 | `LibreOffice_<v>_MacOS_aarch64.dmg` | 298 MB | `hdiutil attach -nobrowse -readonly -mountpoint <temp>`, `ditto` the app out, detach; 801 MB on disk |
 | macOS x64 | `LibreOffice_<v>_MacOS_x86-64.dmg` | 308 MB | as above |
 | Windows x64 / arm64 | `LibreOffice_<v>_Win_<arch>.msi` | 373 / 360 MB | administrative install, `msiexec /a <msi> /qn TARGETDIR=<dir>`, which unpacks without installing or registering ([msiexec](https://learn.microsoft.com/en-us/windows-server/administration/windows-commands/msiexec), [parallel installs](https://wiki.documentfoundation.org/Installing_in_parallel/Windows)) |
 | Linux x64 / arm64 | `LibreOffice_<v>_Linux_<arch>_deb.tar.gz` | 217 / 207 MB | unpack each `.deb`'s `data.tar` without `dpkg`; runs from `opt/libreoffice<major>/program/soffice` |
 
-Sizes from [TDF's download tree](https://download.documentfoundation.org/libreoffice/stable/).
+Sizes and SHA-256s are in `packages/workspace/src/lib/office/manifest.generated.ts`, from [TDF's archive](https://downloadarchive.documentfoundation.org/libreoffice/old/).
 
 - **macOS signing.** The stock app is signed with TDF's Developer ID, hardened runtime, and notarized (`spctl` accepts it). It is not covered by Instrument's signature and needs not be: a file the app writes itself carries no quarantine flag ([`LSFileQuarantineEnabled`](https://developer.apple.com/documentation/bundleresources/information-property-list/lsfilequarantineenabled)), so Gatekeeper does not assess it, and notarization holds if it ever is. Codex's build is signed but not notarized (`spctl` rejects it) and runs for exactly that reason; a stock notarized build does not lean on it.
-- **Windows.** Whether `msiexec /a` into a per-user folder needs no elevation on every Windows we support is the first thing to check; if it does, an MSI reader in Node unpacks the cabinet instead.
-- **Linux.** The `.deb` builds expect a handful of system libraries a desktop has and a minimal system may not; the install checks `soffice --version` before it renames into place, and a failure names the missing library.
+- **Windows.** The install runs `msiexec /a <msi> /qn TARGETDIR=<dir>` and looks for `program\soffice.exe` under it; the person's own install is found by `reg query` of `HKLM\SOFTWARE\LibreOffice\UNO\InstallPath`. The bin folder gets an `soffice.cmd` wrapper that copies the template with `xcopy`. None of this has run on a Windows host: whether `msiexec /a` into a per-user folder needs no elevation on every Windows we support is the first thing to check; if it does, an MSI reader in Node unpacks the cabinet instead.
+- **Linux.** The install takes each `.deb`'s `data.tar.*` out of its `ar` archive and extracts it with `tar`, no `dpkg`. The `.deb` builds expect a handful of system libraries a desktop has and a minimal system may not; the install starts `soffice` once before it renames into place, and a failure carries its output, which names the missing library. Only the unpacking has been run, against small fixtures.
 
 ## License
 
@@ -149,10 +151,16 @@ Per the `validate-changes` skill:
 - **Write-back edge cases.** Dynamic-array spill ranges and shared formulas need care in the sheet XML; `fullCalcOnLoad` makes Excel the final word either way.
 - **Memory.** Each `soffice` holds a few hundred MB while it runs. A profile per call allows parallel conversions, so `office` runs at most two at once.
 
+## What is not yet checked
+
+- **Windows**: the `msiexec /a` unpack, the registry lookup of a person's own install, and the `soffice.cmd` wrapper have unit tests for their arguments and no host run.
+- **Linux**: the `.deb` unpack is tested against small fixtures only; bubblewrap's reach into `runtime/office` and the missing-library failure have not run.
+- **The packaged app**: the first-need download with progress in a chat, the offline failure, a second chat on the same install, and Settings' Remove have not been driven in the app.
+- **Evals**: none run.
+
 ## Open questions
 
-- Whether an installed LibreOffice of the person's should be used, or only ours, for a result that does not depend on what is on the machine.
-- Whether `office recalc` writes values back into the original (as above) or delivers LibreOffice's own re-export, which is simpler and loses whatever its `.xlsx` filter drops. Decide after measuring what a round trip loses on the eval workbooks.
 - Whether `office render` of a Word or PowerPoint file should be the skills' first road, ahead of the browser preview, or second to it.
-- Where the install lives if this lands before the runtime folder does: beside uv's data folder under userData, moved later.
 - Whether `msiexec /a` works unelevated on every supported Windows, or the MSI is unpacked in Node.
+
+Settled while building: a person's own LibreOffice at or above the pinned major is used; `office recalc` writes values back into the original; the install lives in the runtime folder.

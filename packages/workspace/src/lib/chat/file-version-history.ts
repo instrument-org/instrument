@@ -16,7 +16,7 @@ import { workDir } from "../work-dir";
 import { thisDevice } from "./asks";
 import { VERSIONS_FOLDER } from "./turn-file-versions";
 
-export const FileVersionSchema = z.object({
+const FileVersionSchema = z.object({
   /** When it was kept. */
   at: z.date(),
   /** Whether another computer kept it, so its copy is there. */
@@ -32,7 +32,7 @@ export const FileVersionSchema = z.object({
   now: z.boolean(),
 });
 
-export type FileVersion = z.output<typeof FileVersionSchema>;
+type FileVersion = z.output<typeof FileVersionSchema>;
 
 export const FileVersionHistorySchema = z.object({
   /** The file the versions are of, where it is now. */

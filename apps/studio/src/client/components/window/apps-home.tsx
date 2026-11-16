@@ -71,7 +71,7 @@ export function AppsHome({
   // Beside a chat or in a draft there is no search or Connect, so the way to
   // a new app is the Apps place itself, in a tab of the window's own.
   const openAppsPlace = () => {
-    openScreen(APPS_HREF, { besideUp: true });
+    openScreen(APPS_HREF, { newTab: "reuseBlank" });
   };
   const list = useQuery(rpcClient.apps.live.list.experimental_liveOptions());
   const catalog = useQuery(

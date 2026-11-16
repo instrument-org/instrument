@@ -27,7 +27,7 @@ import { bringForwardShowing } from "./built-in-pages";
 import { isGroupScreenHref } from "./group-screen";
 import { openMenuLink } from "./menu-link";
 import {
-  besideUpOf,
+  reuseBlankOf,
   chatPlacementOf,
   gestureOf,
   inGroup,
@@ -234,7 +234,7 @@ export function useOpeners({
    * behind. One a chat asked for opens beside the chat (`placeOf`).
    */
   const openPage = (url: string, opened: OpenOptions = {}) => {
-    const asked = besideUpOf(opened, placing);
+    const asked = reuseBlankOf(opened, placing);
     if (asked.into) {
       let id: string | undefined;
       openInto({ ...asked, into: asked.into }, (picked) => {
@@ -1295,7 +1295,7 @@ export function useOpeners({
     openNamedPath,
     openPage,
     openScreen: (href: string, options?: OpenOptions) => {
-      openScreen(href, besideUpOf(options ?? {}, placing));
+      openScreen(href, reuseBlankOf(options ?? {}, placing));
     },
   });
 }

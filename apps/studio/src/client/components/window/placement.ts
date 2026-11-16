@@ -159,22 +159,20 @@ export function screenPlacementOf(
 }
 
 /**
- * An open the app gives a new tab right after the tab up (`besideUp`), as
- * it lands: in place of a blank New Tab up, which has nothing worth keeping
- * beside it, and a new tab (`newTab`) otherwise. A new tab, a window or a
- * place the person asked for stays as asked.
+ * An open asking for a new tab the way a browser opens its own pages
+ * (`newTab: "reuseBlank"`), as it lands: in place of a blank New Tab up,
+ * which has nothing worth keeping beside it, and a new tab otherwise. A
+ * window or a place the person asked for stays as asked.
  */
-export function besideUpOf(
+export function reuseBlankOf(
   options: OpenOptions,
   { up }: Pick<PlacementContext, "up">,
 ): OpenOptions {
-  const { besideUp, ...rest } = options;
-  if (
-    besideUp !== true ||
-    rest.newTab === true ||
-    rest.newWindow === true ||
-    rest.into !== undefined
-  ) {
+  const { newTab, ...rest } = options;
+  if (newTab !== "reuseBlank") {
+    return options;
+  }
+  if (rest.newWindow === true || rest.into !== undefined) {
     return rest;
   }
   return up?.isFresh === true ? rest : { ...rest, newTab: true };

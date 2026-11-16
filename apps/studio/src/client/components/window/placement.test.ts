@@ -3,7 +3,7 @@ import { describe, expect, it } from "vitest";
 
 import { type OpenOptions } from "./context";
 import {
-  besideUpOf,
+  reuseBlankOf,
   chatPlacementOf,
   gestureOf,
   inGroup,
@@ -368,25 +368,25 @@ describe("what the app opens beside the tab up", () => {
   it.each<[string, OpenOptions, PlacementContext, unknown]>([
     [
       "from a blank New Tab: takes the tab over",
-      { besideUp: true },
+      { newTab: "reuseBlank" },
       inChat(FRESH),
       { kind: "group-navigate" },
     ],
     [
       "from a tab with something in it: a new tab after it",
-      { besideUp: true },
+      { newTab: "reuseBlank" },
       inChat(SCREEN),
       { behind: false, kind: "group-new-tab" },
     ],
     [
       "from a page: a new tab after it",
-      { besideUp: true },
+      { newTab: "reuseBlank" },
       inChat(OWN_PAGE),
       { behind: false, kind: "group-new-tab" },
     ],
     [
       "with no group up: a window tab",
-      { besideUp: true },
+      { newTab: "reuseBlank" },
       NO_GROUP,
       { behind: false, kind: "window-tab" },
     ],
@@ -406,7 +406,7 @@ describe("what the app opens beside the tab up", () => {
     expect(
       screenPlacementOf(
         "/settings/general",
-        besideUpOf(asked, context),
+        reuseBlankOf(asked, context),
         context,
       ),
     ).toEqual(expected);
@@ -414,7 +414,7 @@ describe("what the app opens beside the tab up", () => {
 
   it("leaves a menu's place as picked", () => {
     expect(
-      besideUpOf({ besideUp: true, into: "split" }, inChat(FRESH)),
+      reuseBlankOf({ newTab: "reuseBlank", into: "split" }, inChat(FRESH)),
     ).toEqual({ into: "split" });
   });
 });

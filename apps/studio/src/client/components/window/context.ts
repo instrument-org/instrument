@@ -32,8 +32,11 @@ export interface OpenOptions {
   /**
    * A tab of the window's own, across its bar, wherever it was asked for
    * from: what a middle click, a Cmd-click, or Open in New Tab asks.
+   * `"reuseBlank"` is how a browser opens its own pages: a new tab right
+   * after the tab up, or the tab up itself when it is a blank New Tab
+   * (`reuseBlankOf`).
    */
-  newTab?: boolean;
+  newTab?: boolean | "reuseBlank";
   /**
    * A window of its own beside this one, with the thing as its tab: what
    * Shift-click and Open in New Window ask. A page opens on its own there,
@@ -50,12 +53,6 @@ export interface OpenOptions {
   into?: "group" | "split" | "window";
   /** A tab of its own in the group, beside the one up rather than in its place: what a conversation or an agent opens. */
   ownTab?: boolean;
-  /**
-   * A new tab right after the tab up that the app picks rather than the
-   * person, as a browser opens its settings: in place of a blank New Tab up
-   * instead (`besideUpOf`).
-   */
-  besideUp?: boolean;
   /** Takes the place of the address the window's tab stands on rather than stepping on from it: a screen handing its file to the page. */
   replace?: boolean;
   show?: boolean;
@@ -76,7 +73,7 @@ export function ownPlaceOf(options?: OpenOptions): OpenOptions | undefined {
   if (options?.newWindow) {
     return { newWindow: true };
   }
-  if (options?.newTab) {
+  if (options?.newTab === true) {
     return { behind: options.behind, newTab: true };
   }
   return undefined;

@@ -33,7 +33,7 @@ function groupUp(...hrefs: string[]) {
 // A built-in page asked for by a command or a chord (Settings from Cmd+,,
 // History, Release notes) brings forward the group's tab already showing
 // it, walked to the part asked for; with none, the caller opens a new tab
-// after the tab up (`besideUpOf`), never in place of it.
+// after the tab up (`reuseBlankOf`), never in place of it.
 describe("a built-in page asked for by a command", () => {
   it("is for a new tab where no tab of the group shows it", () => {
     const { handle, select } = groupUp("/chats/2026-10-01-roofer");

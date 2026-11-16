@@ -108,8 +108,8 @@ function ChatTabHead({ chatId }: { chatId: ChatId }) {
         <ChatFolderButton
           folders={writtenFolders}
           onHide={() => {
-            if (beside) {
-              windowTabs.select(beside.id);
+            if (beside && shownFolder) {
+              windowTabs.close(beside.id);
             }
           }}
           onOpen={(folder) => {

@@ -55,6 +55,88 @@ vi.mock(import("../chat/asks"), async (importOriginal) => ({
 
 // A tab of the user's own, outside the chat, which a note named.
 
+/** The window's other groups: one of a tab, behind the chat's, and a split one. */
+const OTHER_GROUPS = [
+  {
+    focused: 0 as const,
+    group: { id: "group:docs" },
+    isShown: false,
+    sides: [
+      {
+        tabs: [
+          {
+            address: "/Users/me/Instrument/report.md",
+            id: "tab_docs",
+            isUp: true,
+            kind: "file" as const,
+            title: "report.md",
+          },
+          {
+            address: "instrument://screen/settings",
+            id: "tab_settings",
+            kind: "builtIn" as const,
+            title: "Settings",
+          },
+        ],
+      },
+    ],
+  },
+  {
+    focused: 0 as const,
+    group: { id: "group:notes" },
+    isShown: false,
+    sides: [
+      {
+        tabs: [
+          {
+            address: "instrument://chat/notes",
+            id: "tab_notes",
+            isUp: true,
+            kind: "chat" as const,
+            title: "Meeting **notes**",
+          },
+        ],
+      },
+      {
+        tabs: [
+          {
+            address: "https://news.ycombinator.com/",
+            id: "tab_hn",
+            isUp: true,
+            kind: "website" as const,
+            title: "Hacker News",
+          },
+          {
+            address: "https://example.com/",
+            id: "tab_ex",
+            kind: "website" as const,
+            title: "Example",
+          },
+        ],
+      },
+    ],
+  },
+];
+
+/** The one group another window has open, which it shows. */
+const ELSEWHERE = {
+  focused: 0 as const,
+  group: { id: "group:far" },
+  sides: [
+    {
+      tabs: [
+        {
+          address: "https://example.org/",
+          id: "tab_far",
+          isUp: true,
+          kind: "website" as const,
+          title: "report.md",
+        },
+      ],
+    },
+  ],
+};
+
 let asked: { action: WindowTabAction; chatId?: ChatId }[];
 let stopAnswering: () => void;
 
@@ -64,7 +146,8 @@ let stopAnswering: () => void;
  * an id it has not got.
  */
 function answeringWindow() {
-  const known = new Set<string>(["tab_known", pageTab]);
+  const known = new Set<string>(["tab_known", pageTab, "tab_docs"]);
+  const groups = new Set<string>(["group:docs", "group:notes", "group:far"]);
   /** What each open made, which the right side then shows, as the window puts a page the chat shows beside it. */
   const made: string[] = [];
   return publisher.subscribe("window.tab", (ask) => {
@@ -73,6 +156,42 @@ function answeringWindow() {
       ...(ask.chatId ? { chatId: ask.chatId } : {}),
     });
     const { action } = ask;
+    const own = {
+      focused: 1 as const,
+      group: { id: "group_a" },
+      sides: [
+        {
+          tabs: [
+            {
+              address: "instrument://chat/this",
+              id: "tab_known",
+              isThisChat: true,
+              isUp: true,
+              kind: "chat" as const,
+              title: "Prices",
+            },
+          ],
+        },
+        {
+          tabs: [
+            {
+              address: "https://www.zendesk.com/pricing/",
+              id: pageTab,
+              ...(made.length === 0 && { isUp: true }),
+              kind: "website" as const,
+              title: "Suite plans",
+            },
+            ...made.map((id, index) => ({
+              address: "https://example.com/",
+              id,
+              ...(index === made.length - 1 && { isUp: true }),
+              kind: "website" as const,
+              title: "Example",
+            })),
+          ],
+        },
+      ],
+    };
     const answer =
       action.kind === "open"
         ? { tabId: `made-${made.push(`made-${made.length + 1}`)}` }
@@ -85,55 +204,24 @@ function answeringWindow() {
                   url: "https://www.zendesk.com/pricing/",
                 },
               ],
-              read: {
-                layout: {
-                  focused: 1,
-                  group: { id: "group_a" },
-                  sides: [
-                    {
-                      tabs: [
-                        {
-                          address: "instrument://chat/this",
-                          id: "tab_known",
-                          isThisChat: true,
-                          isUp: true,
-                          kind: "chat" as const,
-                          title: "Prices",
-                        },
-                      ],
-                    },
-                    {
-                      tabs: [
-                        {
-                          address: "https://www.zendesk.com/pricing/",
-                          id: pageTab,
-                          ...(made.length === 0 && { isUp: true }),
-                          kind: "website" as const,
-                          title: "Suite plans",
-                        },
-                        ...made.map((id, index) => ({
-                          address: "https://example.com/",
-                          id,
-                          ...(index === made.length - 1 && { isUp: true }),
-                          kind: "website" as const,
-                          title: "Example",
-                        })),
-                      ],
-                    },
-                  ],
-                },
-                movedIn: {},
-                movedOut: {},
-              },
+              read: { layout: own, movedIn: {}, movedOut: {} },
+              windows: [
+                { groups: [own, ...OTHER_GROUPS], isThisWindow: true },
+                { groups: [ELSEWHERE] },
+              ],
             }
-          : known.has(action.tabId)
-            ? {
-                tabId: action.tabId,
-                ...(action.kind === "read"
-                  ? { text: "Jar\nA rigid container." }
-                  : {}),
-              }
-            : { error: `no tab ${action.tabId} is open in this chat.` };
+          : action.kind === "showGroup" || action.kind === "closeGroup"
+            ? groups.has(action.group)
+              ? {}
+              : { error: `no tab group ${action.group} is open.` }
+            : known.has(action.tabId)
+              ? {
+                  tabId: action.tabId,
+                  ...(action.kind === "read"
+                    ? { text: "Jar\nA rigid container." }
+                    : {}),
+                }
+              : { error: `no tab ${action.tabId} is open in this chat.` };
     publisher.publish("window.tabDone", {
       id: ask.id,
       requestId: ask.requestId,
@@ -451,11 +539,13 @@ describe("window list", () => {
 
     expect(result.exitCode).toBe(0);
     expect(result.stdout.replaceAll(pageTab, "<page>")).toMatchInlineSnapshot(`
-      "left:
-        tab_known  showing  [chat] Prices · instrument://chat/this (you)
-      right (keyboard):
-        <page>  showing  Suite plans · https://www.zendesk.com/pricing/  task t1 is working in it
+      "Tab group "Prices" instrument://group/group_a, split, on screen:
+        left:
+          tab_known  left     [chat] Prices (you)  instrument://chat/this
+        right (keyboard):
+          <page>  right    Suite plans · https://www.zendesk.com/pricing/  instrument://tab/<page>  task t1 is working in it
       Showing: you on the left; zendesk.com/pricing on the right, beside you.
+      2 other tab groups in this window: "report.md", "Meeting notes". 1 other window has 1 tab group. \`instrument window list --all\` lists their tabs.
       "
     `);
   });
@@ -467,13 +557,146 @@ describe("window list", () => {
 
     expect(result.exitCode).toBe(0);
     expect(result.stdout.replaceAll(pageTab, "<page>")).toMatchInlineSnapshot(`
-      "left:
-        tab_known  showing  [chat] Prices · instrument://chat/this (you)
-      right (keyboard):
-        <page>  showing  Suite plans · https://www.zendesk.com/pricing/  you are working in it
+      "Tab group "Prices" instrument://group/group_a, split, on screen:
+        left:
+          tab_known  left     [chat] Prices (you)  instrument://chat/this
+        right (keyboard):
+          <page>  right    Suite plans · https://www.zendesk.com/pricing/  instrument://tab/<page>  you are working in it
       Showing: you on the left; zendesk.com/pricing on the right, beside you.
+      2 other tab groups in this window: "report.md", "Meeting notes". 1 other window has 1 tab group. \`instrument window list --all\` lists their tabs.
       "
     `);
+  });
+});
+
+describe("window list, of other groups", () => {
+  it("lists every window's groups with --all", async () => {
+    const result = await run({}, "list", "--all");
+
+    expect(result.exitCode).toBe(0);
+    expect(result.stdout.replaceAll(pageTab, "<page>")).toMatchInlineSnapshot(`
+      "Window 1, in front, yours: 3 tab groups
+        Tab group "Prices" instrument://group/group_a, split, on screen:
+          left:
+            tab_known  left     [chat] Prices (you)  instrument://chat/this
+          right (keyboard):
+            <page>  right    Suite plans · https://www.zendesk.com/pricing/  instrument://tab/<page>
+        Tab group "report.md" instrument://group/group:docs, not on screen:
+          tab_docs  showing  /Users/me/Instrument/report.md  instrument://tab/tab_docs
+          tab_settings  hidden   [app] Settings · instrument://screen/settings  instrument://tab/tab_settings
+        Tab group "Meeting notes" instrument://group/group:notes, split, not on screen:
+          left (keyboard):
+            tab_notes  left     [chat] Meeting notes  instrument://chat/notes
+          right:
+            tab_hn  right    Hacker News · https://news.ycombinator.com/  instrument://tab/tab_hn
+            tab_ex  hidden   Example · https://example.com/  instrument://tab/tab_ex
+      Window 2: 1 tab group
+        Tab group "report.md" instrument://group/group:far, on screen:
+          tab_far  showing  report.md · https://example.org/  instrument://tab/tab_far
+      "
+    `);
+  });
+
+  it("lists a group by its name, in any case, where one group has it", async () => {
+    const result = await run({}, "list", "meeting NOTES");
+
+    expect(result.exitCode).toBe(0);
+    expect(result.stdout).toMatchInlineSnapshot(`
+      "Tab group "Meeting notes" instrument://group/group:notes, split, not on screen:
+        left (keyboard):
+          tab_notes  left     [chat] Meeting notes  instrument://chat/notes
+        right:
+          tab_hn  right    Hacker News · https://news.ycombinator.com/  instrument://tab/tab_hn
+          tab_ex  hidden   Example · https://example.com/  instrument://tab/tab_ex
+      The window shows another tab group now, so none of this is on screen. This group shows: [chat] Meeting notes on the left; news.ycombinator.com on the right.
+      2 other tab groups in this window: "Prices", "report.md". 1 other window has 1 tab group. \`instrument window list --all\` lists their tabs.
+      "
+    `);
+  });
+
+  it("lists a group by its address", async () => {
+    const result = await run({}, "list", "instrument://group/group:docs");
+
+    expect(result.exitCode).toBe(0);
+    expect(result.stdout).toContain('Tab group "report.md"');
+  });
+
+  it("names every group a name could mean", async () => {
+    const result = await run({}, "list", "report.md");
+
+    expect(result.exitCode).toBe(1);
+    expect(result.stderr).toMatchInlineSnapshot(`
+      "instrument window: 2 tab groups are named "report.md": instrument://group/group:docs, instrument://group/group:far. Name one by its id.
+      "
+    `);
+  });
+});
+
+describe("window show and close, of a group", () => {
+  it("switches the window to a group by its id", async () => {
+    const result = await run({}, "show", "group:docs");
+
+    expect(result.exitCode).toBe(0);
+    expect(result.stdout).toMatchInlineSnapshot(`
+      "Tab group "report.md" instrument://group/group:docs: on screen, its window in front.
+      "
+    `);
+    expect(asked[0]?.action).toEqual({
+      group: "group:docs",
+      kind: "showGroup",
+    });
+  });
+
+  it("takes a tab's address as the tab, and says which group it is in", async () => {
+    const result = await run({}, "show", "instrument://tab/tab_docs");
+
+    expect(result.exitCode).toBe(0);
+    expect(result.stdout).toMatchInlineSnapshot(`
+      "Tab tab_docs: in the tab group "report.md" instrument://group/group:docs, showing in the group's one side; the window shows another tab group now, so it is not on screen.
+      "
+    `);
+    expect(asked[0]?.action).toEqual({ kind: "show", tabId: "tab_docs" });
+  });
+
+  it("opens into another group by its name, without switching to it", async () => {
+    const result = await run(
+      {},
+      "show",
+      "https://example.com/",
+      "--group",
+      "Meeting notes",
+    );
+
+    expect(result.exitCode).toBe(0);
+    expect(asked[1]?.action).toEqual({
+      group: "group:notes",
+      kind: "open",
+      show: true,
+      target: { kind: "page", url: "https://example.com/" },
+    });
+  });
+
+  it("closes a group whole, naming it and how to bring it back", async () => {
+    const result = await run({}, "close", "group:notes");
+
+    expect(result.exitCode).toBe(0);
+    expect(result.stdout).toMatchInlineSnapshot(`
+      "Closed the tab group "Meeting notes" instrument://group/group:notes, its 3 tabs. The user can bring it back with Undo or from the closed list.
+      "
+    `);
+    expect(asked.map(({ action }) => action.kind)).toEqual([
+      "list",
+      "closeGroup",
+    ]);
+  });
+
+  it("passes on the window's refusal of a group it does not have", async () => {
+    const result = await run({}, "close", "group:gone");
+
+    expect(result.exitCode).toBe(1);
+    expect(result.stderr).toBe(
+      "instrument window: no tab group group:gone is open.\n",
+    );
   });
 });
 

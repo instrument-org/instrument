@@ -1,20 +1,31 @@
 import {
   filePathOfInstrumentLink,
+  groupAddressOf,
   instrumentLinkOf,
   isInstrumentAddress,
 } from "@instrument-org/shared";
 import { z } from "zod";
 
-import { LayoutSnapshotSchema } from "../../schemas/group-layout";
+import {
+  type LayoutSnapshot,
+  LayoutSnapshotSchema,
+} from "../../schemas/group-layout";
 import {
   type WindowTabAction,
   type WindowTabTarget,
 } from "../../schemas/window-tab";
 import {
-  layoutTabName,
   showingLine,
   tabPlace,
 } from "../../model-text/notes/group-layout-model-text";
+import {
+  allWindowsLines,
+  groupLines,
+  groupName,
+  groupNamed,
+  otherGroupsLine,
+  type WindowGroups,
+} from "../../model-text/notes/window-list-model-text";
 import { parseBrowserTargetId } from "../../types";
 import { noteBrowserAgentActivity } from "../browser-agent-activity";
 import { recordAsk } from "../chat/asks";
@@ -84,6 +95,30 @@ async function holderClause(tabId: string, ctx: CapabilityContext) {
 /** Whether an argument names a tab rather than a page, file or folder to show. */
 function isTabId(arg: string): boolean {
   return /^tab_[0-9A-Za-z]+$/.test(arg);
+}
+
+/** Whether an argument names a tab group by its id. */
+function isGroupId(arg: string): boolean {
+  return /^group:[\w-]+$/.test(arg);
+}
+
+/**
+ * An argument as the id it names: a tab's or a group's `instrument://`
+ * address is that tab or group, the way a reply links it.
+ */
+function idOf(arg: string): string {
+  const link = instrumentLinkOf(arg);
+  return link?.kind === "group" || link?.kind === "tab" ? link.name : arg;
+}
+
+/** Every window's tab groups as the window last said, or none when it did not answer. */
+async function windowsOf(ctx: CapabilityContext): Promise<WindowGroups> {
+  return (await ask({ kind: "list" }, ctx))?.windows ?? [];
+}
+
+/** A group's name and address, as a result line names it. */
+function groupWords(layout: LayoutSnapshot): string {
+  return `"${groupName(layout)}" ${groupAddressOf(layout.group.id)}`;
 }
 
 function describeTarget(target: WindowTabTarget) {
@@ -173,79 +208,86 @@ function outsideFile(tabId: string) {
 const TabField = (verb: string, form: string) =>
   z.string({ error: `${verb} takes one tab id: ${NAME} ${verb} ${form}.` });
 
+/** What a list prints from: the group it is of (none for `--all`), every window's groups, and which task is at work in each tab. */
+const ListedSchema = z.object({
+  all: z.boolean(),
+  layout: LayoutSnapshotSchema.optional(),
+  /** The task at work in a tab, by the tab's id, and whether that is the session asking. */
+  tasks: z.record(
+    z.string(),
+    z.object({ id: z.string(), title: z.string(), you: z.boolean() }),
+  ),
+  windows: z.array(
+    z.object({
+      groups: z.array(LayoutSnapshotSchema),
+      isThisWindow: z.boolean().optional(),
+    }),
+  ),
+});
+
 export const windowList = defineCapability({
   input: z.object({
     group: z.string().optional().meta({
       description:
-        "A tab group's id; by default the group of the chat's tab the person last sent from.",
+        "A tab group's id or name; by default the group of the chat's tab the person last sent from.",
+    }),
+    all: z.boolean().default(false).meta({
+      description: "Every window's tab groups and their tabs.",
     }),
   }),
   name: "window.list",
-  output: z.object({
-    layout: LayoutSnapshotSchema,
-    /** The task at work in a tab, by the tab's id, and whether that is the session asking. */
-    tasks: z.record(
-      z.string(),
-      z.object({ id: z.string(), title: z.string(), you: z.boolean() }),
-    ),
-  }),
-  async run({ group }, ctx) {
-    const answer = await ask(
-      { kind: "list", ...(group === undefined ? {} : { group }) },
-      ctx,
-    );
+  output: ListedSchema,
+  async run({ all, group }, ctx) {
+    const answer = await ask({ kind: "list" }, ctx);
     if (!answer) {
       throw new Error(NO_WINDOW);
     }
-    if (answer.error || !answer.read) {
-      throw new Error(answer.error ?? NO_WINDOW);
+    if (answer.error) {
+      throw new Error(answer.error);
     }
+    const windows = answer.windows ?? [];
     const holders = await tabHolders(ctx.chatId);
-    return {
-      layout: answer.read.layout,
-      tasks: Object.fromEntries(
-        [...holders].map(([tab, holder]) => [
-          tab,
-          {
-            id: holder.id,
-            title: holder.title,
-            you: holder.session === ctx.sessionId,
-          },
-        ]),
-      ),
-    };
+    const tasks = Object.fromEntries(
+      [...holders].map(([tab, holder]) => [
+        tab,
+        {
+          id: holder.id,
+          title: holder.title,
+          you: holder.session === ctx.sessionId,
+        },
+      ]),
+    );
+    if (all) {
+      return { all, tasks, windows };
+    }
+    if (group !== undefined) {
+      const named = groupNamed(windows, group);
+      if ("error" in named) {
+        throw new Error(named.error);
+      }
+      return { all, layout: named.group, tasks, windows };
+    }
+    if (!answer.read) {
+      throw new Error(
+        `this chat has no tab in any group. \`${NAME} list --all\` lists every group.`,
+      );
+    }
+    return { all, layout: answer.read.layout, tasks, windows };
   },
   summary:
-    "A tab group's sides and tabs, one line each, by default the group the chat works in: the id every other subcommand and `agent-browser tab` take, which tab each side shows and which are hidden behind it, which side has the keyboard, what each tab has open, and which task is at work in it; then what the user sees.",
+    "A tab group's sides and tabs, one line each, by default the group the chat works in: the group's address and whether it is on screen, each tab's id (which every other subcommand and `agent-browser tab` take), where it stands, what it has open and the address a reply links it by, and which task is at work in it; then what the user sees, and the other groups there are. A group is named by its id or its name; --all lists every window's groups.",
   surfaces: {
     cli: { help: "", positional: ["group"], words: ["window", "list"] },
     script: { positional: ["group"] },
   },
-  text: ({ layout, tasks }) => {
-    const isTwo = layout.sides.length === 2;
-    return [
-      ...layout.sides.flatMap(({ tabs }, side) => [
-        ...(isTwo
-          ? [
-              `${side === 0 ? "left" : "right"}${layout.focused === side ? " (keyboard)" : ""}:`,
-            ]
-          : []),
-        ...tabs.map((tab) => {
-          const task = tasks[tab.id];
-          // Every tab but a New Tab by an address `show` takes again: a
-          // site's URL, a file's or folder's path, the app's own address.
-          const shows =
-            tab.kind === "website" && tab.title !== ""
-              ? `${tab.title} · ${tab.address}`
-              : isInstrumentAddress(tab.address) && tab.kind !== "newChat"
-                ? `${layoutTabName(tab)} · ${tab.address}`
-                : layoutTabName(tab);
-          return `${isTwo ? "  " : ""}${tab.id}  ${tab.isUp ? "showing" : "hidden "}  ${shows}${tab.isThisChat ? " (you)" : ""}${task ? (task.you ? "  you are working in it" : `  task ${task.id} is working in it`) : ""}`;
-        }),
-      ]),
-      showingLine(layout),
-    ].join("\n");
-  },
+  text: ({ all, layout, tasks, windows }) =>
+    all || layout === undefined
+      ? allWindowsLines(windows, tasks).join("\n")
+      : [
+          ...groupLines(layout, { tasks }),
+          showingLine(layout),
+          otherGroupsLine(windows, layout.group.id),
+        ].join("\n"),
 });
 
 export const windowRead = defineCapability({
@@ -293,24 +335,36 @@ export const windowShow = defineCapability({
       description:
         "A tab of the chat's, by its id, to show the one url or path in, in place of what it shows.",
     }),
+    group: z.string().optional().meta({
+      description:
+        "A tab group, by its id or name, to open each in, without the window switching to it.",
+    }),
   }),
   name: "window.show",
   output: Outcomes,
   render: renderOutcomes,
-  async run({ into, targets }, ctx) {
+  async run({ group, into, targets }, ctx) {
     if (into !== undefined) {
       return [await replace(into, targets, ctx)];
     }
-    // Each in turn: a tab the chat has by its id comes forward, and a page,
+    let inGroup: LayoutSnapshot | undefined;
+    if (group !== undefined) {
+      const named = groupNamed(await windowsOf(ctx), group);
+      if ("error" in named) {
+        throw new Error(named.error);
+      }
+      inGroup = named.group;
+    }
+    // Each in turn: a tab or a group by its id comes forward, and a page,
     // file or folder opens in a tab of its own.
     const outcomes: Outcome[] = [];
     for (const arg of targets) {
-      outcomes.push(await showOne(arg, ctx));
+      outcomes.push(await showOne(idOf(arg), ctx, inGroup));
     }
     return outcomes;
   },
   summary:
-    "Show each to the user: a url, file, folder or app address (a chat, an app, a task, a built-in page) opens in a tab of its own, never in place of you, printing the tab's id, which `agent-browser tab` takes, and where it landed; a tab's id makes it the tab its side shows.",
+    "Show each to the user: a url, file, folder or app address (a chat, an app, a task, a built-in page) opens in a tab of its own, never in place of you, printing the tab's id, which `agent-browser tab` takes, and where it landed; a tab's id makes it the tab its side shows, switching the window to its group when another is on screen; a group's id switches the window to that group. With --group, what opens goes into that group and the window stays where it is.",
   surfaces: {
     cli: {
       flagNames: { into: "in" },
@@ -323,7 +377,26 @@ export const windowShow = defineCapability({
   where: CHATS,
 });
 
-async function showOne(arg: string, ctx: CapabilityContext): Promise<Outcome> {
+async function showOne(
+  arg: string,
+  ctx: CapabilityContext,
+  inGroup?: LayoutSnapshot,
+): Promise<Outcome> {
+  if (isGroupId(arg)) {
+    const answer = await ask({ group: arg, kind: "showGroup" }, ctx);
+    const error = answer ? answer.error : NO_WINDOW;
+    if (error !== undefined) {
+      return { failed: true, said: error, target: arg };
+    }
+    const shown = (await windowsOf(ctx))
+      .flatMap((window) => window.groups)
+      .find((each) => each.group.id === arg);
+    return {
+      failed: false,
+      said: `Tab group ${shown ? groupWords(shown) : arg}: on screen, its window in front.`,
+      target: arg,
+    };
+  }
   if (isTabId(arg)) {
     const answer = await ask({ kind: "show", tabId: arg }, ctx);
     const error = answer ? answer.error : NO_WINDOW;
@@ -340,7 +413,15 @@ async function showOne(arg: string, ctx: CapabilityContext): Promise<Outcome> {
   if ("error" in target) {
     return { failed: true, said: target.error, target: arg };
   }
-  const answer = await ask({ kind: "open", show: true, target }, ctx);
+  const answer = await ask(
+    {
+      kind: "open",
+      show: true,
+      target,
+      ...(inGroup === undefined ? {} : { group: inGroup.group.id }),
+    },
+    ctx,
+  );
   if (answer?.error) {
     return { failed: true, said: answer.error, target: arg };
   }
@@ -363,11 +444,26 @@ async function showOne(arg: string, ctx: CapabilityContext): Promise<Outcome> {
   };
 }
 
-/** Where a tab stands in the chat's group now, read from the window (`tabPlace`); undefined when the window does not say. */
+/**
+ * Where a tab stands now, read from the window (`tabPlace`): in the chat's
+ * group, or in another group, named; undefined when the window does not say.
+ */
 async function placeOf(tabId: string, ctx: CapabilityContext) {
   const answer = await ask({ kind: "list" }, ctx);
-  const layout = answer?.read?.layout;
-  return layout === undefined ? undefined : tabPlace(layout, tabId);
+  const own = answer?.read?.layout;
+  const place = own === undefined ? undefined : tabPlace(own, tabId);
+  if (place !== undefined) {
+    return place;
+  }
+  const layout = (answer?.windows ?? [])
+    .flatMap((window) => window.groups)
+    .find((each) =>
+      each.sides.some((side) => side.tabs.some((tab) => tab.id === tabId)),
+    );
+  const there = layout === undefined ? undefined : tabPlace(layout, tabId);
+  return layout === undefined || there === undefined
+    ? undefined
+    : `in the tab group ${groupWords(layout)}, ${there}`;
 }
 
 /** Shows something else in a tab the chat has, in its place. */
@@ -407,16 +503,24 @@ export const windowClose = defineCapability({
   input: z.object({
     tabs: z
       .array(z.string(), {
-        error: `close needs the id of a tab (${NAME} close <id>...).`,
+        error: `close needs the id of a tab or a tab group (${NAME} close <id>...).`,
       })
-      .min(1, `close needs the id of a tab (${NAME} close <id>...).`),
+      .min(
+        1,
+        `close needs the id of a tab or a tab group (${NAME} close <id>...).`,
+      ),
   }),
   name: "window.close",
   output: Outcomes,
   render: renderOutcomes,
   async run({ tabs }, ctx) {
     const outcomes: Outcome[] = [];
-    for (const tabId of tabs) {
+    for (const arg of tabs) {
+      const tabId = idOf(arg);
+      if (isGroupId(tabId)) {
+        outcomes.push(await closeGroup(tabId, ctx));
+        continue;
+      }
       const holder = await holderClause(tabId, ctx);
       const answer = await ask({ kind: "close", tabId }, ctx);
       const error = answer ? answer.error : NO_WINDOW;
@@ -433,13 +537,35 @@ export const windowClose = defineCapability({
     }
     return outcomes;
   },
-  summary: "Close tabs of the chat's.",
+  summary:
+    "Close tabs, or a tab group whole by its id; the user can bring back either from the closed list, and a group with the Undo its close shows.",
   surfaces: {
     cli: { help: "", positional: ["tabs"], words: ["window", "close"] },
   },
   text: (outcomes) => outcomes.map((each) => each.said).join("\n"),
   where: CHATS,
 });
+
+/** Closes a group whole, as the sidebar's X does, naming it and its tabs. */
+async function closeGroup(
+  group: string,
+  ctx: CapabilityContext,
+): Promise<Outcome> {
+  const layout = (await windowsOf(ctx))
+    .flatMap((window) => window.groups)
+    .find((each) => each.group.id === group);
+  const answer = await ask({ group, kind: "closeGroup" }, ctx);
+  const error = answer ? answer.error : NO_WINDOW;
+  if (error !== undefined) {
+    return { failed: true, said: error, target: group };
+  }
+  const count = layout?.sides.reduce((sum, side) => sum + side.tabs.length, 0);
+  return {
+    failed: false,
+    said: `Closed the tab group ${layout ? groupWords(layout) : group}${count === undefined ? "" : count === 1 ? ", its one tab" : `, its ${count} tabs`}. The user can bring it back with Undo or from the closed list.`,
+    target: group,
+  };
+}
 
 /**
  * Hands the user a page of the chat's to do there what only they can (a

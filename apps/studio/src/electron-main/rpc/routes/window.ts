@@ -8,6 +8,7 @@ import {
   canReopenClosedAppWindow,
   reopenClosedAppWindow,
   showInOtherWindow as showElsewhere,
+  tabGroupsByWindow as groupsByWindow,
   tabGroupsInOtherWindows,
   tabShown as noteTabShown,
   takeLaunchSweep as takeSweep,
@@ -127,6 +128,22 @@ const tabGroupsElsewhere = base.handler(async function* ({ context, signal }) {
   });
 });
 
+/**
+ * Every open window's tab groups, the one in front first: each window's in
+ * its own order, the group it shows, and whether it is the window asking.
+ */
+const tabGroupsByWindow = base
+  .output(
+    z.array(
+      z.object({
+        groups: z.array(z.string()),
+        isThisWindow: z.boolean(),
+        shown: z.string().optional(),
+      }),
+    ),
+  )
+  .handler(({ context }) => groupsByWindow(context.webContentsId));
+
 /** A window of its own, opening on the inbox, or on a tab given it. Answers whether one opened. */
 const openNew = base
   .input(z.object({ tabs: z.array(TabSchema).optional() }).optional())
@@ -217,6 +234,19 @@ const placeTabCarry = base
     placeCarry(context.webContentsId, input.index);
   });
 
+/** The asking window in front of the others, as a tab group shown on an agent's ask comes up. */
+const bringForward = base.handler(({ context }) => {
+  const window = getCallingWindow(context.webContentsId);
+  if (!window || window.isDestroyed()) {
+    return;
+  }
+  if (window.isMinimized()) {
+    window.restore();
+  }
+  window.show();
+  window.focus();
+});
+
 /** The window's menu, drawn by the system at a point of the window, where no bar of the system's shows it. */
 const showAppMenu = base.input(PointSchema).handler(({ context, input }) => {
   const window = getCallingWindow(context.webContentsId);
@@ -247,6 +277,7 @@ const endTabCarry = base
   .handler(({ input }) => endCarry(input));
 
 export const window = {
+  bringForward,
   canReopenClosed,
   endTabCarry,
   events,
@@ -258,6 +289,7 @@ export const window = {
   placeTabCarry,
   openNew,
   reopenClosed,
+  tabGroupsByWindow,
   showAppMenu,
   showInOtherWindow,
   startTabCarry,

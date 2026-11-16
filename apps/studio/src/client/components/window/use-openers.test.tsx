@@ -4,9 +4,11 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { act, renderHook, waitFor } from "@testing-library/react";
 import { createStore, Provider } from "jotai";
 import { type ReactNode } from "react";
-import { describe, expect, it, vi } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { appTabsAtom, useAppTabs } from "./app-tabs";
+import { windowTabGroupsAtom } from "./open-groups";
+import { openLinkAddress } from "./open-link-address";
 import { useOpeners } from "./use-openers";
 import { groupHref } from "./window-href";
 import {
@@ -42,6 +44,17 @@ const { agent, tabDone } = vi.hoisted(() => {
   };
 });
 
+const spies = vi.hoisted(() => ({
+  closeGroup: vi.fn((_group: string) => true),
+  closeTab: vi.fn((_id: string) => {}),
+  closedEntry: { current: undefined as string | undefined },
+  reopenClosed: vi.fn((_entry: string) => {}),
+  showGroup: vi.fn((_group: string) => {}),
+  toast: vi.fn(),
+}));
+
+vi.mock("@/client/lib/toast", () => ({ toast: spies.toast }));
+
 /** A stream that stays open and sends nothing. */
 function silent(): AsyncIterable<never> {
   return {
@@ -57,7 +70,15 @@ vi.mock("@/client/rpc/client", () => ({
         openInNewTab: { call: async () => silent() },
       },
     },
-    window: { events: { openMenuLink: { call: async () => silent() } } },
+    window: {
+      bringForward: { call: async () => {} },
+      events: { openMenuLink: { call: async () => silent() } },
+      tabGroupsByWindow: {
+        call: async () => [
+          { groups: [GROUP, OTHER_GROUP], isThisWindow: true, shown: GROUP },
+        ],
+      },
+    },
     workspace: {
       window: {
         events: { tab: { call: async () => agent.stream() } },
@@ -77,6 +98,9 @@ const LEFT_PAGE = "tab_left";
 const RIGHT_UP = "tab_right_up";
 const RIGHT_BEHIND = "tab_right_behind";
 const WINDOW_TAB = TabIdSchema.parse("window");
+const OTHER_GROUP = "group_b";
+const OTHER_UP = "tab_b_up";
+const OTHER_BEHIND = "tab_b_behind";
 
 /**
  * A window on a group of two sides: the person in the chat on the left, a
@@ -94,10 +118,14 @@ function windowOnTwoSides() {
         appTabs,
         browser: null,
         chatTitles: new Map(),
+        closedEntryOf: () => spies.closedEntry.current,
+        closeGroup: spies.closeGroup,
+        closeTab: spies.closeTab,
         isOpen: true,
         newGroup: () => GROUP,
         openChat: () => {},
-        showGroup: () => {},
+        reopenClosed: spies.reopenClosed,
+        showGroup: spies.showGroup,
         windowTabs,
       });
       return { change: useWindowTabsChange(), openers, windowTabs };
@@ -111,6 +139,7 @@ function windowOnTwoSides() {
     },
   );
   act(() => {
+    store.set(windowTabGroupsAtom, [GROUP, OTHER_GROUP]);
     store.set(appTabsAtom, {
       recentlyClosed: [],
       selectedId: WINDOW_TAB,
@@ -119,7 +148,7 @@ function windowOnTwoSides() {
   });
   act(() => {
     result.current.change(() => ({
-      activeByGroup: { [GROUP]: CHAT_TAB },
+      activeByGroup: { [GROUP]: CHAT_TAB, [OTHER_GROUP]: OTHER_UP },
       besideByGroup: { [GROUP]: RIGHT_UP },
       groups: {},
       tabs: [
@@ -127,6 +156,8 @@ function windowOnTwoSides() {
         { group: GROUP, id: LEFT_PAGE, kind: "page", openedAt: 1 },
         { group: GROUP, id: RIGHT_UP, kind: "page", openedAt: 2, side: 1 },
         { group: GROUP, id: RIGHT_BEHIND, kind: "page", openedAt: 3, side: 1 },
+        { group: OTHER_GROUP, id: OTHER_UP, kind: "page", openedAt: 4 },
+        { group: OTHER_GROUP, id: OTHER_BEHIND, kind: "page", openedAt: 5 },
       ],
     }));
   });
@@ -222,5 +253,174 @@ describe("an app asked for in a tab of its own", () => {
     });
     expect(appTabs(store.get(windowTabsAtom))).toEqual([first]);
     expect(result.current.windowTabs.active?.id).toBe(first);
+  });
+});
+
+beforeEach(() => {
+  vi.clearAllMocks();
+  spies.closedEntry.current = undefined;
+});
+
+/** Sends an ask down the tab stream and waits for the window's answer to it. */
+async function answerTo(action: WindowTabRequest["action"], requestId: string) {
+  agent.ask({ action, requestId });
+  await waitFor(() => {
+    expect(tabDone).toHaveBeenCalledWith(
+      expect.objectContaining({ requestId }),
+    );
+  });
+  return tabDone.mock.calls
+    .map(([answer]: unknown[]) => answer)
+    .find(
+      (answer): answer is { requestId: string } =>
+        typeof answer === "object" &&
+        answer !== null &&
+        "requestId" in answer &&
+        answer.requestId === requestId,
+    );
+}
+
+describe("an agent and the window's other tab groups", () => {
+  it("lists every group of the window, the one not on screen marked so", async () => {
+    windowOnTwoSides();
+    const answer = await answerTo({ kind: "list" }, "l1");
+    const windows = (answer as { windows?: unknown }).windows as {
+      groups: { group: { id: string }; isShown?: boolean }[];
+      isThisWindow?: boolean;
+    }[];
+    expect(
+      windows.map((window) => ({
+        groups: window.groups.map((group) => [group.group.id, group.isShown]),
+        isThisWindow: window.isThisWindow,
+      })),
+    ).toEqual([
+      {
+        groups: [
+          [GROUP, undefined],
+          [OTHER_GROUP, false],
+        ],
+        isThisWindow: true,
+      },
+    ]);
+  });
+
+  it("switches the window to a group by its id", async () => {
+    windowOnTwoSides();
+    await answerTo({ group: OTHER_GROUP, kind: "showGroup" }, "g1");
+    expect(spies.showGroup).toHaveBeenCalledWith(OTHER_GROUP);
+  });
+
+  it("refuses a group that is not open", async () => {
+    windowOnTwoSides();
+    const answer = await answerTo(
+      { group: "group_gone", kind: "showGroup" },
+      "g2",
+    );
+    expect(answer).toEqual({
+      error: "no tab group group_gone is open.",
+      requestId: "g2",
+    });
+    expect(spies.showGroup).not.toHaveBeenCalled();
+  });
+
+  it("takes the person to a tab in a group not on screen, up on its side", async () => {
+    const { result } = windowOnTwoSides();
+    await answerTo({ kind: "show", tabId: OTHER_BEHIND }, "t1");
+    expect(spies.showGroup).toHaveBeenCalledWith(OTHER_GROUP);
+    expect(result.current.windowTabs.layoutOf(OTHER_GROUP).sides[0]?.up).toBe(
+      OTHER_BEHIND,
+    );
+  });
+
+  it("leaves the group on screen for a tab in it", async () => {
+    windowOnTwoSides();
+    await answerTo({ kind: "show", tabId: RIGHT_BEHIND }, "t2");
+    expect(spies.showGroup).not.toHaveBeenCalled();
+  });
+
+  it("opens into another group without switching the window to it", async () => {
+    const { result, store } = windowOnTwoSides();
+    const answer = await answerTo(
+      {
+        group: OTHER_GROUP,
+        kind: "open",
+        show: true,
+        target: { address: "instrument://app/github", kind: "app" },
+      },
+      "o1",
+    );
+    const opened = store
+      .get(windowTabsAtom)
+      .tabs.find((tab) => tab.id === (answer as { tabId?: string }).tabId);
+    expect(opened?.group).toBe(OTHER_GROUP);
+    expect(result.current.windowTabs.groupOnScreen).toBe(GROUP);
+    expect(result.current.windowTabs.layoutOf(OTHER_GROUP).sides[0]?.up).toBe(
+      opened?.id,
+    );
+    expect(spies.showGroup).not.toHaveBeenCalled();
+  });
+
+  it("closes a group the way the sidebar's X does", async () => {
+    windowOnTwoSides();
+    const answer = await answerTo(
+      { group: OTHER_GROUP, kind: "closeGroup" },
+      "c1",
+    );
+    expect(answer).toEqual({ requestId: "c1" });
+    expect(spies.closeGroup).toHaveBeenCalledWith(OTHER_GROUP);
+  });
+
+  it("closes a tab the way the person's close does", async () => {
+    windowOnTwoSides();
+    await answerTo({ kind: "close", tabId: OTHER_BEHIND }, "c2");
+    expect(spies.closeTab).toHaveBeenCalledWith(OTHER_BEHIND);
+  });
+});
+
+describe("a link to a tab group or a tab", () => {
+  it("brings up the group it names", () => {
+    windowOnTwoSides();
+    act(() => {
+      openLinkAddress(`/tab-groups/${OTHER_GROUP}`);
+    });
+    expect(spies.showGroup).toHaveBeenCalledWith(OTHER_GROUP);
+  });
+
+  it("takes the person to the tab it names", () => {
+    const { result } = windowOnTwoSides();
+    act(() => {
+      openLinkAddress(`/window-tabs/${OTHER_BEHIND}`);
+    });
+    expect(spies.showGroup).toHaveBeenCalledWith(OTHER_GROUP);
+    expect(result.current.windowTabs.layoutOf(OTHER_GROUP).sides[0]?.up).toBe(
+      OTHER_BEHIND,
+    );
+  });
+
+  it("offers to reopen a closed group from the closed list", () => {
+    windowOnTwoSides();
+    spies.closedEntry.current = "entry_1";
+    act(() => {
+      openLinkAddress("/tab-groups/group_closed");
+    });
+    expect(spies.toast).toHaveBeenCalledWith("That tab group is closed", {
+      action: { label: "Reopen", onClick: expect.any(Function) },
+    });
+    const [, options] = spies.toast.mock.calls[0] as [
+      string,
+      { action: { onClick: () => void } },
+    ];
+    options.action.onClick();
+    expect(spies.reopenClosed).toHaveBeenCalledWith("entry_1");
+  });
+
+  it("says a tab no closed list has is gone", () => {
+    windowOnTwoSides();
+    act(() => {
+      openLinkAddress("/window-tabs/tab_gone");
+    });
+    expect(spies.toast).toHaveBeenCalledWith("That tab is gone", {
+      description: "It was closed, and it's no longer in History.",
+    });
   });
 });

@@ -7,6 +7,19 @@ import { APP_NAME } from "@instrument-org/shared";
 import { type LINK_ADDRESSES, matchScreen } from "./window-href";
 
 /**
+ * Brings up the tab group or tab a reply linked, or says it closed: set by
+ * the window's openers once they are up (`useOpeners`).
+ */
+let showLinked: ((kind: "group" | "tab", id: string) => void) | undefined;
+
+/** Sets what a link to a tab group or a tab does in this window. */
+export function setLinkedShower(
+  show: ((kind: "group" | "tab", id: string) => void) | undefined,
+) {
+  showLinked = show;
+}
+
+/**
  * Where each kind of link address opens, by the name it carries: somewhere
  * outside the tabs (Settings, a dialog), answering nothing, or the route a
  * tab stands at for it. Keyed by every link address, so one added there is
@@ -61,6 +74,15 @@ const OPEN_LINK = {
     );
     return undefined;
   },
+  // A tab group or a tab is no screen: the window brings it up where it is.
+  tabGroup: (group) => {
+    showLinked?.("group", group);
+    return undefined;
+  },
+  windowTab: (tab) => {
+    showLinked?.("tab", tab);
+    return undefined;
+  },
 } satisfies Record<
   keyof typeof LINK_ADDRESSES,
   (name: string) => string | undefined
@@ -83,7 +105,9 @@ export function openLinkAddress(href: string): string | undefined {
     case "namedScreen":
     case "project":
     case "setting":
-    case "skill": {
+    case "skill":
+    case "tabGroup":
+    case "windowTab": {
       return OPEN_LINK[screen.kind](screen.name);
     }
     default: {

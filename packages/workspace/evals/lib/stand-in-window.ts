@@ -181,6 +181,9 @@ export function createStandInWindow(chrome?: SharedChrome) {
         },
       };
     }
+    if (action.kind === "showGroup" || action.kind === "closeGroup") {
+      return { error: `no tab group ${action.group} is open.` };
+    }
     const tab = tabs.get(action.tabId);
     if (!tab) {
       return { error: `no tab ${action.tabId} is open.` };

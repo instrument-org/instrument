@@ -371,6 +371,11 @@ function AppLinkIcon({ link }: { link: InstrumentLink }) {
     case "skill": {
       return <CubeIcon className={INLINE_CHIP_ICON_CLASS_NAME} />;
     }
+    // A tab group or a tab is a place in the window.
+    case "group":
+    case "tab": {
+      return <AppWindowIcon className={INLINE_CHIP_ICON_CLASS_NAME} />;
+    }
     // A task wears the app's own mark, the way the tab's location row draws
     // one: a task is the app at work rather than a thing it holds.
     case "task": {

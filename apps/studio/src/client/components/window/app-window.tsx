@@ -69,7 +69,7 @@ import {
   setTabPathname,
 } from "@/client/lib/tabs-model";
 import { freshTabId } from "@/client/lib/tab-actions";
-import { type TabId } from "@/shared/tabs";
+import { type TabId, TabIdSchema } from "@/shared/tabs";
 import { spokenMessage, toast } from "@/client/lib/toast";
 import { captureComponentError } from "@/client/lib/capture-exception";
 import { cn } from "@/client/lib/utils";
@@ -790,10 +790,32 @@ function WindowShell({
     appTabs,
     browser,
     chatTitles,
+    closedEntryOf: (kind, id) =>
+      store.get(appTabsAtom).recentlyClosed.find((entry) => {
+        const closedTabs = closedTabGroupOf(entry) ?? [];
+        const tab = closedGroupTabOf(entry);
+        return kind === "group"
+          ? closedTabs.some((each) => each.group === id) || tab?.group === id
+          : closedTabs.some((each) => each.id === id) || tab?.id === id;
+      })?.id,
+    // The sidebar's X: onto the closed list whole, with an Undo.
+    closeGroup: (group) => {
+      if (!groupList.open.some((entry) => entry.group === group)) {
+        return false;
+      }
+      offerUndo(closeGroups([group]));
+      return true;
+    },
+    closeTab: (id) => {
+      requestClose(id);
+    },
     isOpen: opened !== undefined,
     newGroup: (fill, options) => groups.make({ fill, ...options }),
     openChat: (chat) => {
       groups.openChat(chat);
+    },
+    reopenClosed: (entry) => {
+      reopenClosed(TabIdSchema.parse(entry));
     },
     showGroup: (group, { newWindow = false } = {}) => {
       if (newWindow) {

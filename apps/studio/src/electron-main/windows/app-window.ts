@@ -293,6 +293,31 @@ export function tabGroupsInOtherWindows(webContentsId: number): string[] {
     });
 }
 
+/**
+ * Every open window's tab groups, the one in front first: each in its own
+ * order, the group it shows, and which window asked.
+ */
+export function tabGroupsByWindow(webContentsId: number) {
+  return getAppWindows()
+    .filter((window) => window.isVisible())
+    .flatMap((window) => {
+      const id = appWindowIdOfWindow(window);
+      if (id === undefined) {
+        return [];
+      }
+      const model = keptTabsOf(id);
+      const up = model.tabs.find((tab) => tab.id === model.selectedId);
+      const shown = up === undefined ? undefined : tabGroupOfAddress(up.pathname);
+      return [
+        {
+          groups: keptTabGroupsOfWindow(id),
+          isThisWindow: window.webContents.id === webContentsId,
+          ...(shown === undefined ? {} : { shown }),
+        },
+      ];
+    });
+}
+
 /** A window's tabs, as it keeps them. */
 export function keptTabsOf(id: string): TabsModel {
   const parsed = TabsModelSchema.safeParse(

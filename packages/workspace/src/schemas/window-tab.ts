@@ -1,7 +1,7 @@
 import { z } from "zod";
 
 import { ChatIdSchema } from "./chat-id";
-import { LayoutReadSchema } from "./group-layout";
+import { LayoutReadSchema, LayoutSnapshotSchema } from "./group-layout";
 
 /**
  * What a tab is asked to show: a page by its address, a file or folder of
@@ -26,6 +26,8 @@ export type WindowTabTarget = z.output<typeof WindowTabTargetSchema>;
  */
 const WindowTabActionSchema = z.discriminatedUnion("kind", [
   z.object({
+    /** A tab group to open it in, by its id, in place of beside the chat; the window stays on the group it shows. */
+    group: z.string().optional(),
     kind: z.literal("open"),
     show: z.boolean(),
     target: WindowTabTargetSchema,
@@ -37,6 +39,10 @@ const WindowTabActionSchema = z.discriminatedUnion("kind", [
   }),
   z.object({ kind: z.literal("close"), tabId: z.string() }),
   z.object({ kind: z.literal("show"), tabId: z.string() }),
+  /** Brings a tab group's window forward, showing that group. */
+  z.object({ group: z.string(), kind: z.literal("showGroup") }),
+  /** Closes a tab group whole, as the sidebar's X does: onto the closed list, with an Undo. */
+  z.object({ group: z.string(), kind: z.literal("closeGroup") }),
   /** Reads the text of the page in a page tab, as the person sees it. */
   z.object({ kind: z.literal("read"), tabId: z.string() }),
   /**
@@ -81,6 +87,20 @@ export const WindowTabAnswerSchema = z.object({
   tabId: z.string().optional(),
   /** For a list: the group as the chat reads it, the shape of its log's layout part. */
   read: LayoutReadSchema.optional(),
+  /**
+   * For a list: every open window, the one in front first, each with its
+   * tab groups in sidebar order, every group's layout marked shown where its
+   * window shows it.
+   */
+  windows: z
+    .array(
+      z.object({
+        /** The window that answered, which the chat works in. */
+        isThisWindow: z.boolean().optional(),
+        groups: z.array(LayoutSnapshotSchema),
+      }),
+    )
+    .optional(),
   /** For a list: the group's page tabs, each with the address its page shows. */
   pages: z
     .array(z.object({ id: z.string(), title: z.string(), url: z.string() }))

@@ -149,6 +149,8 @@ export function screenLocation(
     case "setting":
     case "site":
     case "skill":
+    case "tabGroup":
+    case "windowTab":
     case "unknown": {
       // A screen the window has no words for reads as the new tab: the
       // place with nothing in particular in it.
@@ -265,6 +267,8 @@ export function screenPresentation(
     case "setting":
     case "site":
     case "skill":
+    case "tabGroup":
+    case "windowTab":
     case "unknown": {
       return {
         icon: <MagnifyingGlassIcon className="size-3.5" />,

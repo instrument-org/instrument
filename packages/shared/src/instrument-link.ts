@@ -20,11 +20,13 @@ export interface InstrumentLink {
 type InstrumentLinkKind =
   | "app"
   | "chat"
+  | "group"
   | "memory"
   | "project"
   | "screen"
   | "settings"
   | "skill"
+  | "tab"
   | "task";
 
 /**
@@ -34,11 +36,13 @@ type InstrumentLinkKind =
 const HOSTS = {
   app: { kind: "app", prefix: "/apps" },
   chat: { kind: "chat", prefix: "/chats" },
+  group: { kind: "group", prefix: "/tab-groups" },
   memory: { kind: "memory", prefix: "/memory" },
   project: { kind: "project", prefix: "/projects" },
   screen: { kind: "screen", prefix: "/screen" },
   settings: { kind: "settings", prefix: "/settings" },
   skill: { kind: "skill", prefix: "/skills" },
+  tab: { kind: "tab", prefix: "/window-tabs" },
   task: { kind: "task", prefix: "/tasks" },
 } as const satisfies Record<
   string,
@@ -265,6 +269,16 @@ function filesOf(
 /** A chat's address, which is how a file names the chat it belongs to. */
 export function chatAddressOf(id: string): string {
   return `${APP_NAME_SLUG}://chat/${id}`;
+}
+
+/** A tab group's address, which the window's own list names it by. */
+export function groupAddressOf(id: string): string {
+  return `${APP_NAME_SLUG}://group/${id}`;
+}
+
+/** A window tab's address, by the tab's id. */
+export function tabAddressOf(id: string): string {
+  return `${APP_NAME_SLUG}://tab/${id}`;
 }
 
 /**

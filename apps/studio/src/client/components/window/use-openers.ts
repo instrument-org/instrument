@@ -14,6 +14,7 @@ import {
 } from "@instrument-org/workspace/client";
 import { safe } from "@orpc/client";
 import { useQueryClient } from "@tanstack/react-query";
+import { useStore } from "jotai";
 import { useEffect, useRef } from "react";
 import { toast } from "@/client/lib/toast";
 
@@ -25,7 +26,6 @@ import { opensBeside } from "./beside-chat";
 import { bringForwardShowing } from "./built-in-pages";
 import { isGroupScreenHref } from "./group-screen";
 import { openMenuLink } from "./menu-link";
-import { openLinkAddress } from "./open-link-address";
 import {
   besideUpOf,
   chatPlacementOf,
@@ -54,7 +54,9 @@ import {
   tabHrefOfAppAddress,
 } from "./agent-opens";
 import { type AppsBySlug } from "./apps-by-slug";
-import { groupReadOf } from "./group-awareness";
+import { groupLayoutFor, groupReadOf } from "./group-awareness";
+import { windowTabGroupsAtom } from "./open-groups";
+import { openLinkAddress, setLinkedShower } from "./open-link-address";
 
 /**
  * What the conversation asks to open, as it asks: a page as a tab, a path
@@ -66,9 +68,13 @@ export function useOpeners({
   appTabs,
   browser,
   chatTitles,
+  closedEntryOf,
+  closeGroup,
+  closeTab,
   isOpen,
   newGroup,
   openChat,
+  reopenClosed,
   showGroup,
   windowTabs,
 }: {
@@ -79,6 +85,12 @@ export function useOpeners({
   /** The window's browser; null until it is mounted. */
   browser: BrowserTabsHandle | null;
   chatTitles: Map<ChatId, string>;
+  /** The entry of this window's closed list a closed tab group or tab is on, by the group's or the tab's id. */
+  closedEntryOf: (kind: "group" | "tab", id: string) => string | undefined;
+  /** Closes a tab group this window lists as its sidebar's X does, with an Undo; false for one it does not list. */
+  closeGroup: (group: string) => boolean;
+  /** Closes a tab as the person's close does, onto the closed list. */
+  closeTab: (id: string) => void;
   /** Whether what the window opens on is made; nothing is opened before it is. */
   isOpen: boolean;
   /**
@@ -92,11 +104,14 @@ export function useOpeners({
   ) => string;
   /** Opens a chat as a new tab group of its own (`useTabGroupActions().openChat`). */
   openChat: (chat: ChatId) => void;
+  /** Brings one entry of this window's closed list back, as Shift+Cmd+T does. */
+  reopenClosed: (entry: string) => void;
   /** Brings a tab group up, here or in the window that has it open, or moves it to a window of its own. */
   showGroup: (group: string, options?: { newWindow?: boolean }) => void;
   windowTabs: ReturnType<typeof useWindowTabs>;
 }) {
   const queryClient = useQueryClient();
+  const store = useStore();
   const { active } = windowTabs;
   /** The window as an open is placed against, read at the ask. */
   const placing: PlacementContext = {
@@ -596,6 +611,155 @@ export function useOpeners({
     });
   };
   /**
+   * Brings a tab group up where the person can see it: its window in front,
+   * showing it. Which side has the keyboard stays as the group left it.
+   */
+  const showWholeGroup = (group: string): { error?: string } => {
+    if (!windowTabs.allTabs.some((tab) => tab.group === group)) {
+      return { error: `no tab group ${group} is open.` };
+    }
+    showGroup(group);
+    if (!document.hasFocus()) {
+      void safe(rpcClient.window.bringForward.call());
+    }
+    return {};
+  };
+  /**
+   * Brings a tab up on its side, and its group with it when the window
+   * shows another: the keyboard stays on the side the group had it.
+   */
+  const showTabWhereItIs = (tabId: string): { error?: string } => {
+    const tab = windowTabs.allTabs.find((entry) => entry.id === tabId);
+    if (tab?.group === undefined) {
+      return { error: `no tab ${tabId} is open.` };
+    }
+    windowTabs.raise(tab.id);
+    if (tab.group !== windowTabs.groupOnScreen) {
+      return showWholeGroup(tab.group);
+    }
+    return {};
+  };
+  /**
+   * What a link to a tab group or a tab does: brings it up, as `show` does,
+   * or says it closed, with Reopen where this window's closed list has it.
+   */
+  const showLinked = (kind: "group" | "tab", id: string) => {
+    const shown = kind === "group" ? showWholeGroup(id) : showTabWhereItIs(id);
+    if (shown.error === undefined) {
+      return;
+    }
+    const entry = closedEntryOf(kind, id);
+    const what = kind === "group" ? "tab group" : "tab";
+    if (entry === undefined) {
+      toast(`That ${what} is gone`, {
+        description: `It was closed, and it's no longer in History.`,
+      });
+      return;
+    }
+    toast(`That ${what} is closed`, {
+      action: {
+        label: "Reopen",
+        onClick: () => {
+          reopenClosed(entry);
+        },
+      },
+    });
+  };
+  /**
+   * Opens what an agent asked for in a tab group it named, not the one its
+   * chat is in: after the tab up on the side with the keyboard, up there
+   * unless the group is on screen, where it waits behind. The window stays
+   * on the group it shows.
+   */
+  const openInNamedGroup = async (
+    group: string,
+    target: Extract<WindowTabRequest["action"], { kind: "open" }>["target"],
+    chat: ChatId | undefined,
+  ): Promise<Omit<WindowTabAnswer, "requestId">> => {
+    if (!windowTabs.allTabs.some((tab) => tab.group === group)) {
+      return { error: `no tab group ${group} is open.` };
+    }
+    const layout = windowTabs.layoutOf(group);
+    const after = layout.sides[layout.focused]?.up;
+    const isOnScreen = group === windowTabs.groupOnScreen;
+    if (target.kind === "page") {
+      if (target.url === undefined) {
+        return { error: "a tab in another group needs an address." };
+      }
+      const id = isOnScreen
+        ? browser?.openBehind(target.url, {
+            ...(after === undefined ? {} : { after }),
+            group,
+          })
+        : browser?.open(target.url, {
+            ...(after === undefined ? {} : { after }),
+            group,
+            show: false,
+          });
+      return id === undefined
+        ? { error: "the window did not open a tab." }
+        : { behind: isOnScreen, tabId: id };
+    }
+    const href =
+      target.kind === "app"
+        ? tabHrefOfAppAddress(target.address)
+        : await hrefOfNamedPath(target.path, chat);
+    if (href === undefined) {
+      return {
+        error:
+          target.kind === "app"
+            ? noTabAt(target.address)
+            : `nothing this window can show is at ${target.path}.`,
+      };
+    }
+    const id = newScreenId();
+    windowTabs.openIn(
+      { group, href, id, kind: "screen" },
+      { ...(after === undefined ? {} : { after }), group, select: !isOnScreen },
+    );
+    return { behind: isOnScreen, tabId: id };
+  };
+  /**
+   * Every open window's tab groups as a chat reads them, the one in front
+   * first, each marked shown where its window shows it; the chat's own tab
+   * marked in whichever group has it.
+   */
+  const windowsRead = async (
+    chatTab: string | undefined,
+  ): Promise<NonNullable<WindowTabAnswer["windows"]>> => {
+    const [, windows] = await safe(rpcClient.window.tabGroupsByWindow.call());
+    const listedHere = store.get(windowTabGroupsAtom) ?? [];
+    const byWindow = windows ?? [
+      {
+        groups: listedHere,
+        isThisWindow: true,
+        ...(windowTabs.groupOnScreen === undefined
+          ? {}
+          : { shown: windowTabs.groupOnScreen }),
+      },
+    ];
+    const hasTabs = (group: string) =>
+      windowTabs.allTabs.some((tab) => tab.group === group);
+    return byWindow.map((window) => {
+      // This window's own list is read here, as fresh as it is.
+      const listed = window.isThisWindow ? listedHere : window.groups;
+      const shown = window.isThisWindow
+        ? windowTabs.groupOnScreen
+        : window.shown;
+      return {
+        ...(window.isThisWindow ? { isThisWindow: true } : {}),
+        groups: listed.filter(hasTabs).map((group) => {
+          const { isShown: _shownHere, ...layout } = groupLayoutFor(
+            { appsBySlug, chatTitles, windowTabs },
+            group,
+            chatTab,
+          );
+          return group === shown ? layout : { ...layout, isShown: false };
+        }),
+      };
+    });
+  };
+  /**
    * Does what an agent asked of the tabs, and says what came of it: the tab
    * it made or acted on, or why it did nothing. A tab is any tab of the
    * window's, by its id. What it opens lands beside the chat's tab the
@@ -611,6 +775,12 @@ export function useOpeners({
       const { target } = action;
       if (target.kind === "page" && action.show && target.url === undefined) {
         return { error: "a tab on screen needs an address." };
+      }
+      if (action.group !== undefined) {
+        const own = chat === undefined ? undefined : windowTabs.chatTab(chat);
+        if (action.group !== own?.group) {
+          return openInNamedGroup(action.group, target, chat);
+        }
       }
       // Only beside the chat's tab, in its group: never a group of its own.
       const place = agentPlaceOf(chat);
@@ -666,13 +836,28 @@ export function useOpeners({
       });
       return { tabId: id.data };
     }
+    if (action.kind === "showGroup") {
+      return showWholeGroup(action.group);
+    }
+    if (action.kind === "closeGroup") {
+      if (!windowTabs.allTabs.some((tab) => tab.group === action.group)) {
+        return { error: `no tab group ${action.group} is open.` };
+      }
+      return closeGroup(action.group)
+        ? {}
+        : {
+            error: `the tab group ${action.group} is open in another window; it closes from there.`,
+          };
+    }
     if (action.kind === "list") {
       const own = chat === undefined ? undefined : windowTabs.chatTab(chat);
       const group = action.group ?? own?.group;
+      const windows = await windowsRead(own?.id);
       if (group === undefined) {
-        return { error: "name a tab group to list; this chat has no tab." };
+        return { windows };
       }
       return {
+        windows,
         pages: windowTabs.allTabs.flatMap((entry) =>
           entry.group === group && entry.kind === "page"
             ? [
@@ -697,7 +882,7 @@ export function useOpeners({
     }
     switch (action.kind) {
       case "close": {
-        windowTabs.close(tab.id);
+        closeTab(tab.id);
         return { tabId: tab.id };
       }
       case "replace": {
@@ -756,12 +941,10 @@ export function useOpeners({
           : { error: `tab ${tab.id} is not a page.` };
       }
       case "show": {
-        // Up on its side of its group; which group the window has on screen,
-        // and which side has the keyboard, are the person's, so they stay.
-        if (tab.group !== undefined) {
-          windowTabs.raise(tab.id);
-        }
-        return { tabId: tab.id };
+        // Up on its side of its group, and the group on screen when the
+        // window shows another; which side has the keyboard stays.
+        const shown = showTabWhereItIs(tab.id);
+        return shown.error === undefined ? { tabId: tab.id } : shown;
       }
     }
   };
@@ -834,6 +1017,18 @@ export function useOpeners({
   };
 
   const addBookmark = useAddBookmark();
+  const linked = useRef(showLinked);
+  useEffect(() => {
+    linked.current = showLinked;
+  });
+  useEffect(() => {
+    setLinkedShower((kind, id) => {
+      linked.current(kind, id);
+    });
+    return () => {
+      setLinkedShower(undefined);
+    };
+  }, []);
   const openers = useRef({ actOnTab, addBookmark, openFromPage, openPage });
   useEffect(() => {
     openers.current = { actOnTab, addBookmark, openFromPage, openPage };

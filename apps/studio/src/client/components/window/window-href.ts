@@ -38,6 +38,10 @@ export type Screen =
   /** What Instrument remembers, as a page of its own. */
   | { kind: "memories" }
   | { kind: "memory"; name: string }
+  /** A tab group a reply links by its id: the window brings it up, or says it closed. */
+  | { kind: "tabGroup"; name: string }
+  /** A tab a reply links by its id: the window brings it up, or says it closed. */
+  | { kind: "windowTab"; name: string }
   | { kind: "namedScreen"; name: string }
   /** A project, by its id or its name: its details open over the window. */
   | { kind: "project"; name: string }
@@ -102,6 +106,8 @@ export const LINK_ADDRESSES = {
   project: "/projects/$name",
   setting: "/settings/$name",
   skill: "/skills/$name",
+  tabGroup: "/tab-groups/$name",
+  windowTab: "/window-tabs/$name",
 } as const;
 
 /** The parameters a path template names, by name. */
@@ -261,6 +267,8 @@ export function matchScreen(href: string): Screen {
     "project",
     "setting",
     "skill",
+    "tabGroup",
+    "windowTab",
   ] as const) {
     const link = at(LINK_ADDRESSES[kind]);
     if (link) {

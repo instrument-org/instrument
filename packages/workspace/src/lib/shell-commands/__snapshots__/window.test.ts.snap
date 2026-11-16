@@ -1,7 +1,7 @@
 // Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
 
 exports[`window close, show and read on a tab > names the form it takes for [ 'close' ] 1`] = `
-"instrument window: close needs the id of a tab (instrument window close <id>...).
+"instrument window: close needs the id of a tab or a tab group (instrument window close <id>...).
 "
 `;
 

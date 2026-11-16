@@ -16,6 +16,7 @@ const cases: {
       isAppWindowFocused: false,
       isSupported: true,
       mode: "unfocused",
+      systemStatus: "allowed",
     },
   },
   {
@@ -25,6 +26,7 @@ const cases: {
       isAppWindowFocused: true,
       isSupported: true,
       mode: "always",
+      systemStatus: "allowed",
     },
   },
   {
@@ -34,6 +36,7 @@ const cases: {
       isAppWindowFocused: true,
       isSupported: true,
       mode: "unfocused",
+      systemStatus: "allowed",
     },
   },
   {
@@ -43,6 +46,7 @@ const cases: {
       isAppWindowFocused: false,
       isSupported: true,
       mode: "never",
+      systemStatus: "allowed",
     },
   },
   {
@@ -52,6 +56,7 @@ const cases: {
       isAppWindowFocused: false,
       isSupported: true,
       mode: "unfocused",
+      systemStatus: "allowed",
     },
   },
   {
@@ -61,6 +66,27 @@ const cases: {
       isAppWindowFocused: false,
       isSupported: false,
       mode: "unfocused",
+      systemStatus: "allowed",
+    },
+  },
+  {
+    expected: false,
+    input: {
+      canRevealChat: true,
+      isAppWindowFocused: false,
+      isSupported: true,
+      mode: "always",
+      systemStatus: "not-asked",
+    },
+  },
+  {
+    expected: true,
+    input: {
+      canRevealChat: true,
+      isAppWindowFocused: false,
+      isSupported: true,
+      mode: "unfocused",
+      systemStatus: "unsupported",
     },
   },
 ];

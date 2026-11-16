@@ -1,5 +1,9 @@
 import { logger } from "@/electron-main/lib/electron-logger";
 import {
+  type NotificationStatus,
+  notificationStatus,
+} from "@/electron-main/lib/mac-native";
+import {
   type AgentCompletionNotificationMode,
   getWorkspacePreferences,
 } from "@/electron-main/stores/workspace/preferences";
@@ -39,13 +43,20 @@ export function shouldShowAgentCompletionNotification({
   isAppWindowFocused,
   isSupported,
   mode,
+  systemStatus,
 }: {
   canRevealChat: boolean;
   isAppWindowFocused: boolean;
   isSupported: boolean;
   mode: AgentCompletionNotificationMode;
+  systemStatus: NotificationStatus["status"];
 }) {
   if (mode === "never") {
+    return false;
+  }
+  // Until the person allows notifications (in setup or Settings), the first
+  // one would put macOS's own prompt up out of context, so none is shown.
+  if (systemStatus === "not-asked") {
     return false;
   }
   if (!isSupported || !canRevealChat) {
@@ -102,10 +113,10 @@ export function startAgentCompletionNotifications({
     // done: on Windows the answer costs a process start.
     if (
       !settleIsNews(settle) ||
-      !canShowAgentCompletionNotification({
+      !(await canShowAgentCompletionNotification({
         canRevealChat,
         inFront: false,
-      })
+      }))
     ) {
       return;
     }
@@ -133,10 +144,10 @@ export function startAgentCompletionNotifications({
     const chat = await chatOf({ context, id });
 
     if (
-      !canShowAgentCompletionNotification({
+      !(await canShowAgentCompletionNotification({
         canRevealChat,
         inFront: await isAppInFront(),
-      })
+      }))
     ) {
       return;
     }
@@ -228,7 +239,7 @@ export function notificationText(reply: string): string {
   return stripMarkdown(words).replaceAll(/\s+/g, " ").trim();
 }
 
-function canShowAgentCompletionNotification({
+async function canShowAgentCompletionNotification({
   canRevealChat,
   inFront,
 }: {
@@ -250,6 +261,9 @@ function canShowAgentCompletionNotification({
     isAppWindowFocused: inFront,
     isSupported: Notification.isSupported(),
     mode: getWorkspacePreferences().get("agentCompletionNotifications"),
+    systemStatus: await notificationStatus()
+      .then(({ status }) => status)
+      .catch((): NotificationStatus["status"] => "unknown"),
   });
 }
 

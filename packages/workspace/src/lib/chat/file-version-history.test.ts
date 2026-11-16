@@ -27,6 +27,12 @@ vi.mock("../resolve-workspace-file-path", () => ({
   resolveWorkspaceFilePaths: ({ filePaths }: { filePaths: string[] }) =>
     Promise.resolve(new Map(filePaths.map((at) => [at, at]))),
 }));
+vi.mock("../tool-fs", () => ({
+  sessionToolFs: () =>
+    Promise.resolve({
+      fs: { readFileBuffer: (at: string) => fs.readFile(at) },
+    }),
+}));
 vi.mock("../work-dir", () => ({ workDir: () => path.join(dir, "work") }));
 vi.mock("./asks", () => ({ thisDevice: () => "mac" }));
 vi.mock("../chat-reads", () => ({
@@ -163,9 +169,8 @@ describe("fileVersionHistory", () => {
       chatId: "c" as never,
       path: file,
     });
-    expect(
-      history?.versions.map((version) => version.copy !== undefined),
-    ).toMatchInlineSnapshot(`
+    expect(history?.versions.map((version) => version.copy !== undefined))
+      .toMatchInlineSnapshot(`
       [
         true,
         false,

@@ -89,6 +89,32 @@ describe("keepVersion", () => {
     );
     expect(copies).toEqual(["sales", "staffing"]);
   });
+  it("keeps nothing when the agent's rules refuse the read", async () => {
+    const file = path.join(dir, "linked.txt");
+    await fs.writeFile(file, "closed");
+    const kept = await keepVersion({
+      file,
+      folder: path.join(dir, ".versions"),
+      label: "list it",
+      now: at,
+      read: () => Promise.reject(new Error("EACCES")),
+    });
+    expect(kept).toBeUndefined();
+    await expect(fs.readdir(path.join(dir, ".versions"))).rejects.toThrow();
+  });
+
+  it("copies the bytes the agent's read returned", async () => {
+    const file = path.join(dir, "notes.md");
+    await fs.writeFile(file, "on disk");
+    const kept = await keepVersion({
+      file,
+      folder: path.join(dir, ".versions"),
+      label: "list it",
+      now: at,
+      read: () => Promise.resolve(new TextEncoder().encode("as read")),
+    });
+    expect(await fs.readFile(kept?.copy ?? "", "utf8")).toBe("as read");
+  });
 });
 
 describe("trimVersions", () => {

@@ -15,7 +15,9 @@ import { ChatWrites } from "../chat-writes";
 import { contentsOf, keepVersion } from "../file-versions";
 import { sessionOfChat } from "../record-folders";
 import { resolveWorkspaceFilePaths } from "../resolve-workspace-file-path";
+import { sessionToolFs } from "../tool-fs";
 import { workDir } from "../work-dir";
+import { shellPath } from "../workspace-fs-layout";
 import { thisDevice } from "./asks";
 import { VERSIONS_FOLDER } from "./turn-file-versions";
 
@@ -130,12 +132,19 @@ export async function restoreFileVersion({
   if (version === undefined) {
     throw new Error("That is not a version this chat kept of the file.");
   }
+  if ((await fs.lstat(file).catch(() => undefined))?.isSymbolicLink()) {
+    // A link swapped in since would aim the restore, and the copy of what it
+    // replaces, at a file the version was never of.
+    throw new Error("That file is now a link, so it can't be restored.");
+  }
   const folder = path.join(workDir(chatId), VERSIONS_FOLDER);
+  const agentFs = await sessionToolFs({ chatId });
   const before = await keepVersion({
     file,
     folder,
     kept: ofFile,
     label: "before restoring",
+    read: () => agentFs.fs.readFileBuffer(shellPath(file)),
   });
   await fs.copyFile(copy, file, fs.constants.COPYFILE_FICLONE);
   const entry = (kept: { copy?: string; hash: string; size: number }) => ({

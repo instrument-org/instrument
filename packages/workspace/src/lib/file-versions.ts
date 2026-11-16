@@ -24,6 +24,10 @@ export interface KeptVersion {
  * clone where the disk makes one (APFS), so it takes no room until one side
  * changes. Undefined for anything that is not a file.
  *
+ * With `read`, the copy is made from the bytes it returns, so a file the
+ * rules holding the agent refuse it, or a symlink leading out of what they
+ * let it read, keeps nothing; the copy is then a plain one.
+ *
  * Knows nothing of who wrote the file or why: a chat's turn and an editor's
  * save are both callers.
  */
@@ -33,6 +37,7 @@ export async function keepVersion({
   kept = [],
   label,
   now = new Date(),
+  read,
 }: {
   file: string;
   folder: string;
@@ -40,12 +45,24 @@ export async function keepVersion({
   kept?: readonly KeptVersion[];
   label: string;
   now?: Date;
+  /** Reads the file through the agent's rules, refusing what they refuse. */
+  read?: () => Promise<Uint8Array>;
 }): Promise<KeptVersion | undefined> {
-  const contents = await contentsOf(file);
-  if (contents === undefined || contents.isTooBig) {
-    return contents && { hash: contents.hash, size: contents.size };
+  const stats = await fs.stat(file).catch(() => undefined);
+  if (!stats?.isFile()) {
+    return undefined;
   }
-  const { hash, size } = contents;
+  const { size } = stats;
+  if (size > MOST_COPIED_BYTES) {
+    return { hash: statHash(stats), size };
+  }
+  const bytes = read && (await read().catch(() => undefined));
+  if (read && bytes === undefined) {
+    return undefined;
+  }
+  const hash = bytes
+    ? createHash("sha256").update(bytes).digest("hex")
+    : await hashOf(file);
   for (const version of kept.toReversed()) {
     if (
       version.hash === hash &&
@@ -58,7 +75,7 @@ export async function keepVersion({
   const into = path.join(folder, path.basename(file));
   await fs.mkdir(into, { recursive: true });
   const copy = await copyUnder(
-    file,
+    bytes ?? file,
     into,
     `${stampOf(now)} ${label}`.trim(),
     path.extname(file),
@@ -79,11 +96,7 @@ export async function contentsOf(
     return undefined;
   }
   if (stats.size > MOST_COPIED_BYTES) {
-    return {
-      hash: `stat:${stats.size}:${stats.mtimeMs}`,
-      isTooBig: true,
-      size: stats.size,
-    };
+    return { hash: statHash(stats), isTooBig: true, size: stats.size };
   }
   return { hash: await hashOf(file), isTooBig: false, size: stats.size };
 }
@@ -119,6 +132,11 @@ export async function trimVersions(
   }
 }
 
+/** What a file too big to copy is recorded by: enough to tell that it changed. */
+function statHash(stats: { mtimeMs: number; size: number }): string {
+  return `stat:${String(stats.size)}:${String(stats.mtimeMs)}`;
+}
+
 async function hashOf(file: string): Promise<string> {
   const hash = createHash("sha256");
   for await (const chunk of createReadStream(file)) {
@@ -134,12 +152,12 @@ function stampOf(now: Date): string {
 }
 
 /**
- * Copies `file` to `<folder>/<name><ext>`, or `<name> 2<ext>` and on when
- * that is taken, claiming the name with the copy itself so two keepers at
- * once never land on one.
+ * Copies `source`, a file or its bytes, to `<folder>/<name><ext>`, or
+ * `<name> 2<ext>` and on when that is taken, claiming the name with the copy
+ * itself so two keepers at once never land on one.
  */
 async function copyUnder(
-  file: string,
+  source: string | Uint8Array,
   folder: string,
   name: string,
   ext: string,
@@ -150,11 +168,13 @@ async function copyUnder(
       `${n === 1 ? name : `${name} ${String(n)}`}${ext}`,
     );
     try {
-      await fs.copyFile(
-        file,
-        at,
-        fs.constants.COPYFILE_FICLONE | fs.constants.COPYFILE_EXCL,
-      );
+      await (typeof source === "string"
+        ? fs.copyFile(
+            source,
+            at,
+            fs.constants.COPYFILE_FICLONE | fs.constants.COPYFILE_EXCL,
+          )
+        : fs.writeFile(at, source, { flag: "wx" }));
       return at;
     } catch (error) {
       if (

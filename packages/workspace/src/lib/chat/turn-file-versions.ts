@@ -12,7 +12,8 @@ import { keepVersion, type KeptVersion, trimVersions } from "../file-versions";
 import { filesNamedIn } from "../parse-files-block";
 import { resolveWorkspaceFilePaths } from "../resolve-workspace-file-path";
 import { workDir } from "../work-dir";
-import { type ToolFs } from "../tool-fs";
+import { sessionToolFs, type ToolFs } from "../tool-fs";
+import { shellPath } from "../workspace-fs-layout";
 import { getWorkspaceConfig } from "../workspace-config";
 import { thisDevice } from "./asks";
 
@@ -103,6 +104,9 @@ export async function keepTurnFileVersions({
     filePaths: named,
   });
   const previous = await keptBefore(chatId, sessionId);
+  // Read as the agent reads, so a listed symlink cannot copy out what the
+  // rules keep it from.
+  const agentFs = await sessionToolFs({ chatId, sessionId });
   const label = labelOf(messages[start]);
   const files: Entry[] = [];
   for (const written of named) {
@@ -115,6 +119,7 @@ export async function keepTurnFileVersions({
       folder,
       label,
       kept: previous.get(hostPath),
+      read: () => agentFs.fs.readFileBuffer(shellPath(hostPath)),
     });
     if (kept) {
       files.push({
@@ -240,7 +245,7 @@ export async function keepOriginal({
   target,
 }: {
   chatId: ChatId;
-  files: Pick<ToolFs, "hostPath">;
+  files: Pick<ToolFs, "fs" | "hostPath">;
   sessionId: StoreId.Session;
   /** The path as the tool resolved it, in the shell's spelling. */
   target: string;
@@ -262,6 +267,7 @@ export async function keepOriginal({
       folder: path.join(workDir(chatId), VERSIONS_FOLDER),
       kept: (await keptBefore(chatId, sessionId)).get(hostPath),
       label: "before changes",
+      read: () => files.fs.readFileBuffer(target),
     });
     if (version?.copy === undefined) {
       return;

@@ -163,10 +163,11 @@ interface Writer {
 
 /**
  * Where folders under `Chats/` went, in the shell's spelling: each folder an
- * earlier build kept there, under any name it had, and the folder in `Files/`
- * it was moved to when `Chats/` was emptied (`retire-chats-folder.ts`).
+ * earlier build kept there, under any name it had, the chat it was for when
+ * that was known, and the folder in `Files/` it was moved to when `Chats/`
+ * was emptied (`retire-chats-folder.ts`).
  */
-type FolderMoves = { from: string[]; to: string }[];
+type FolderMoves = { chat: ChatId | undefined; from: string[]; to: string }[];
 
 /**
  * The folders moved out of `Chats/` are read from the record the move
@@ -238,7 +239,11 @@ async function chatHistoryPaths(
     if (copied && record.chat === copied.chat) {
       from.push(...namesTold(copied.told));
     }
-    moved.push({ from: unique(from), to: `${files}/${record.to}` });
+    moved.push({
+      chat: record.chat,
+      from: unique(from),
+      to: `${files}/${record.to}`,
+    });
   }
   return { home, here, moved, writers };
 }
@@ -385,7 +390,8 @@ function onDiskOrNull(
  * in the work folder's `tasks/`, where those folders went. What a 1.x task
  * handed over in its `output/` is in the Files folder, where the layout sweep
  * moved it (`movedOutputOf`). A path in `Chats/`, absolute or by its place
- * in the workspace, is read in the folder of `Files/` it went to. A name macOS spells another way than the one
+ * in the workspace, is read in the folder of `Files/` it went to, and one
+ * under the chat's own `attachments/` there in its records. A name macOS spells another way than the one
  * kept is found too.
  */
 function storedPathOnDisk(
@@ -408,9 +414,10 @@ function storedPathOnDisk(
     const found = spelledOnDisk(inWorkspace);
     return existsSync(found)
       ? found
-      : spelledOnDisk(
-          hostPathOf(underCurrentName(shellPath(inWorkspace), history.moved)),
-        );
+      : (sentInRecords(layout, shellPath(inWorkspace), history.moved, chatId) ??
+          spelledOnDisk(
+            hostPathOf(underCurrentName(shellPath(inWorkspace), history.moved)),
+          ));
   }
   const spelled = shellPath(trimmed);
   if (!path.posix.isAbsolute(spelled)) {
@@ -418,21 +425,60 @@ function storedPathOnDisk(
     return found === null ? null : spelledOnDisk(found);
   }
   const found =
+    sentInRecords(layout, spelled, history.moved, chatId) ??
     absoluteOnDisk(layout, underCurrentName(spelled, history.moved)) ??
-    inThisWorkspaceOnDisk(spelled, history);
+    inThisWorkspaceOnDisk(layout, spelled, history, chatId);
   return found === null ? null : spelledOnDisk(found);
 }
 
 /** A path another computer kept in its workspace, on this computer's disk. */
 function inThisWorkspaceOnDisk(
+  layout: WorkspaceFsLayout,
   spelled: string,
   { here, moved, writers }: ChatHistoryPaths,
+  chatId: ChatId,
 ): null | string {
   const normalized = normalizePath(spelled);
   const translated = inThisWorkspace(normalized, here, writers);
   return translated === normalized
     ? null
-    : hostPathOf(underCurrentName(translated, moved));
+    : (sentInRecords(layout, translated, moved, chatId) ??
+        hostPathOf(underCurrentName(translated, moved)));
+}
+
+/**
+ * What the person sent, by its path in the chat's own folder under `Chats/`:
+ * emptying `Chats/` put it back in the chat's records, where it is read when
+ * it is there. One whose name the records already had moved on with the
+ * rest, to `Files/`.
+ */
+function sentInRecords(
+  { record }: WorkspaceFsLayout,
+  spelled: string,
+  moved: FolderMoves | undefined,
+  chatId: ChatId,
+): AbsolutePath | null {
+  if (moved === undefined || !record) {
+    return null;
+  }
+  const normalized = normalizePath(spelled);
+  for (const { chat, from } of moved) {
+    if (chat !== chatId) {
+      continue;
+    }
+    for (const folder of from) {
+      const rest = relativeWithin(folder, normalized);
+      if (rest?.startsWith(`/${CHAT_FOLDER_NAMES.attachments}/`)) {
+        const inRecord = path.join(record.hostRoot, rest.slice(1));
+        return [inRecord, ...nameVariants(inRecord)].some((candidate) =>
+          existsSync(candidate),
+        )
+          ? spelledOnDisk(inRecord)
+          : null;
+      }
+    }
+  }
+  return null;
 }
 
 /**

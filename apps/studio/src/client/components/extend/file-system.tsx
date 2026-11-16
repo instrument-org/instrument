@@ -2578,11 +2578,16 @@ export function FileSystem({
   );
   // Walking to a folder, with `select` selected in it. Navigation exits
   // search, like Finder. A caller holding the folder is told of the walk
-  // alone, which takes the search and the selection with it.
+  // alone, which takes the search and the selection with it. Going into a
+  // folder in the columns keeps the columns that lead there.
   const navigateTo = React.useCallback(
-    (folderPath: string, select: null | string = null) => {
+    (
+      folderPath: string,
+      select: null | string = null,
+      { keepsColumns = false } = {},
+    ) => {
       const next = normalizeFolderPath(folderPath);
-      setColumnsFrom(next);
+      if (!keepsColumns) setColumnsFrom(next);
       setIsSearchExpanded(false);
       setSearchKinds([]);
       if (searchProp === undefined) {
@@ -2612,17 +2617,19 @@ export function FileSystem({
   }, [currentPath, ensureChildren]);
   // Navigation unmounts the focused row, dropping focus to <body> and killing
   // the ⌘ shortcuts; reclaim focus onto the component root when that happens.
-  const previousPathRef = React.useRef(currentPath);
+  // Going in beside a file leaves the first column where it was.
+  const walkedTo = `${currentPath}\n${standingIn}`;
+  const previousPathRef = React.useRef(walkedTo);
   React.useEffect(() => {
-    if (previousPathRef.current === currentPath) {
+    if (previousPathRef.current === walkedTo) {
       return;
     }
-    previousPathRef.current = currentPath;
+    previousPathRef.current = walkedTo;
     const root = rootRef.current;
     if (root && document.activeElement === document.body) {
       root.focus({ preventScroll: true });
     }
-  }, [currentPath]);
+  }, [walkedTo]);
   const [openedFile, setOpenedFile] = React.useState<null | {
     file: FileEntry;
     kind: FileSystemViewerKind;
@@ -3069,18 +3076,16 @@ export function FileSystem({
     canRenameRef.current = canRename;
   });
   // Beside a file one click on a folder goes in, as one click on a file shows
-  // it. Columns already moves on the selection, and the gallery's stage is the
-  // selection.
+  // it: the columns keep the columns that lead there, and the gallery's stage
+  // is the selection.
   const walksOnClick =
     besideWidth !== undefined && view !== "columns" && view !== "gallery";
-  const walksOnClickRef = React.useRef(walksOnClick);
+  const walksInColumns = besideWidth !== undefined && view === "columns";
+  const walksOnClickRef = React.useRef(walksOnClick || walksInColumns);
+  const walksInColumnsRef = React.useRef(walksInColumns);
   React.useLayoutEffect(() => {
-    walksOnClickRef.current = walksOnClick;
-  });
-  const movesOnClick = besideWidth !== undefined && view === "columns";
-  const movesOnClickRef = React.useRef(movesOnClick);
-  React.useLayoutEffect(() => {
-    movesOnClickRef.current = movesOnClick;
+    walksOnClickRef.current = walksOnClick || walksInColumns;
+    walksInColumnsRef.current = walksInColumns;
   });
   const gestureRef = React.useRef<GestureState>(GESTURE_IDLE);
   const gestureTimerRef = React.useRef<number | undefined>(undefined);
@@ -3134,7 +3139,9 @@ export function FileSystem({
         if (!entry) continue;
         if (effect.type === "walk") {
           swallowSecondClick(effect.point);
-          effectsRef.current.navigateTo(effect.path);
+          effectsRef.current.navigateTo(effect.path, null, {
+            keepsColumns: walksInColumnsRef.current,
+          });
         } else if (effect.type === "rename") {
           startRenameRef.current(effect.path);
         } else if (effect.type === "select" && effect.mode) {
@@ -3187,17 +3194,6 @@ export function FileSystem({
           },
           order,
         );
-        // The columns move on the selection, with the same result under the
-        // pointer as going in.
-        if (
-          movesOnClickRef.current &&
-          entry.kind === "folder" &&
-          event.detail < 2 &&
-          selectionModeOf(event) === null &&
-          selectedPathsOf(selectionRef.current).length === 1
-        ) {
-          swallowSecondClick({ x: event.clientX, y: event.clientY });
-        }
       },
       doubleClick: () => {
         sendGesture({ type: "double-click" });
@@ -6698,43 +6694,6 @@ function FileSystemColumnsView(props: FileSystemViewProps) {
     enabled: moveFocusWithSelection,
     preventScroll: false,
   });
-  // Up and down walk the column the selection is in; left goes back to the
-  // folder that column lists, right into the first of a selected folder.
-  // Letters and ⌘A stay within that column, like the Finder's.
-  const isInColumns =
-    selectedEntry !== null && selectedPath?.startsWith(currentPath) === true;
-  const activeColumn = isInColumns
-    ? (index.children.get(selectedEntry.parentPath) ?? [])
-    : (index.children.get(currentPath) ?? []);
-  useListingNav(listingNavRef, {
-    move: (direction) => {
-      if (!isInColumns) {
-        const first = index.children.get(currentPath)?.[0];
-        return first ? { entry: first, order: null } : false;
-      }
-      if (direction === "up" || direction === "down") {
-        const at = activeColumn.findIndex(
-          (sibling) => sibling.path === selectedEntry.path,
-        );
-        const next = activeColumn[at + (direction === "up" ? -1 : 1)];
-        return next ? { entry: next, order: activeColumn } : false;
-      }
-      const next =
-        direction === "left"
-          ? selectedEntry.parentPath === currentPath
-            ? undefined
-            : index.folders.get(selectedEntry.parentPath)
-          : selectedEntry.kind === "folder"
-            ? index.children.get(selectedEntry.path)?.[0]
-            : undefined;
-      return next ? { entry: next, order: null } : false;
-    },
-    renames: true,
-    reveal: (entry) => {
-      focusRow(entry.path);
-    },
-    rows: activeColumn,
-  });
   // Several selected open nothing past the column they are in.
   const deferredIsSeveral = React.useDeferredValue(isSeveral);
   const columnPaths = React.useMemo(() => {
@@ -6763,6 +6722,57 @@ function FileSystemColumnsView(props: FileSystemViewProps) {
     deferredSelectedPath,
     standingIn,
   ]);
+  // Beside a file one column stands, filling the folder's width: the one the
+  // selection is in, or with nothing selected there, the trail's end. The
+  // file is open beside it, so there is no preview to make room for, and the
+  // columns before it are a step back (left, or the folder's menu). As the
+  // file goes, every column and the preview are back at once, for the
+  // widening folder to uncover.
+  const isBeside = besideWidth !== undefined && !besideClosing;
+  const standingColumnPath = !isBeside
+    ? null
+    : deferredSelectedEntry && deferredSelectedPath?.startsWith(currentPath)
+      ? deferredSelectedEntry.parentPath
+      : (columnPaths.at(-1) ?? currentPath);
+  // Up and down walk the column the selection is in; left goes back to the
+  // folder that column lists, right into the first of a selected folder.
+  // Letters and ⌘A stay within that column, like the Finder's.
+  // With nothing selected in them, the keys start in the column standing
+  // beside a file, else in the first.
+  const isInColumns =
+    selectedEntry !== null && selectedPath?.startsWith(currentPath) === true;
+  const activeColumn = isInColumns
+    ? (index.children.get(selectedEntry.parentPath) ?? [])
+    : (index.children.get(standingColumnPath ?? currentPath) ?? []);
+  useListingNav(listingNavRef, {
+    move: (direction) => {
+      if (!isInColumns) {
+        const first = activeColumn[0];
+        return first ? { entry: first, order: null } : false;
+      }
+      if (direction === "up" || direction === "down") {
+        const at = activeColumn.findIndex(
+          (sibling) => sibling.path === selectedEntry.path,
+        );
+        const next = activeColumn[at + (direction === "up" ? -1 : 1)];
+        return next ? { entry: next, order: activeColumn } : false;
+      }
+      const next =
+        direction === "left"
+          ? selectedEntry.parentPath === currentPath
+            ? undefined
+            : index.folders.get(selectedEntry.parentPath)
+          : selectedEntry.kind === "folder"
+            ? index.children.get(selectedEntry.path)?.[0]
+            : undefined;
+      return next ? { entry: next, order: null } : false;
+    },
+    renames: true,
+    reveal: (entry) => {
+      focusRow(entry.path);
+    },
+    rows: activeColumn,
+  });
   // Roving tabindex: all columns together form a single tab stop (the
   // selected row when its column is mounted, else the first row), so
   // Shift+Tab returns to the toolbar like in the table.
@@ -6778,8 +6788,11 @@ function FileSystemColumnsView(props: FileSystemViewProps) {
         }
       }
     }
-    return index.children.get(columnPaths[0] ?? "")?.[0]?.path ?? null;
-  }, [columnPaths, index, selectedPath]);
+    return (
+      index.children.get(standingColumnPath ?? columnPaths[0] ?? "")?.[0]
+        ?.path ?? null
+    );
+  }, [columnPaths, index, selectedPath, standingColumnPath]);
   // The first folder in the trail that cannot be listed stands in its
   // column's place, and nothing past it can be open. The first column is the
   // folder on screen, which the browser stands in for as a whole.
@@ -6816,12 +6829,6 @@ function FileSystemColumnsView(props: FileSystemViewProps) {
     const container = scrollContainerRef.current;
     if (container) container.scrollLeft = container.scrollWidth;
   }, [columnPaths.length, deferredSelectedPath]);
-  // Beside a file only the last column stands, filling the folder's width:
-  // the file is open beside it, so there is no preview to make room for,
-  // and the columns before it are a step back (left, or the folder's menu).
-  // As the file goes, every column and the preview are back at once, for the
-  // widening folder to uncover.
-  const isBeside = besideWidth !== undefined && !besideClosing;
   // Where the columns were scrolled to before a file opened beside them,
   // which they come back to: the one column standing meanwhile has nowhere
   // to scroll. A trail walked while the file was open comes back at its end.
@@ -6900,11 +6907,7 @@ function FileSystemColumnsView(props: FileSystemViewProps) {
             style={{ display: "flex", minWidth: "100%" }}
           >
             {listedColumnPaths.map((columnPath, columnIndex) => {
-              if (
-                isBeside &&
-                (unreadableColumnPath !== undefined ||
-                  columnIndex < listedColumnPaths.length - 1)
-              ) {
+              if (isBeside && columnPath !== standingColumnPath) {
                 return null;
               }
               const column = (
@@ -6970,30 +6973,21 @@ function FileSystemColumnsView(props: FileSystemViewProps) {
               if (!isBeside || columnIndex === 0) {
                 return column;
               }
-              // The way back to the column before.
+              // The way back to the column before, with the folder this column
+              // lists selected in it, as the left arrow goes.
               const backPath =
                 listedColumnPaths[columnIndex - 1] ?? currentPath;
-              const backFolder =
-                columnIndex === 1
-                  ? null
-                  : (index.folders.get(backPath) ?? null);
+              const ownFolder = index.folders.get(columnPath);
               return (
                 <div
                   className="flex min-w-0 flex-1 flex-col"
                   key={columnPath || "(root)"}
                 >
                   <BesideBackRow
-                    name={
-                      backFolder?.name ??
-                      index.folders.get(backPath)?.name ??
-                      rootTitle
-                    }
-                    // Back to the first column walks there: with nothing
-                    // selected, the trail ends at the folder the browser stands
-                    // in, which is the one being left.
+                    name={index.folders.get(backPath)?.name ?? rootTitle}
                     onBack={() => {
-                      if (backFolder) {
-                        onSelect(backFolder);
+                      if (ownFolder) {
+                        onSelect(ownFolder);
                       } else {
                         onWalk(backPath);
                       }
@@ -7003,7 +6997,8 @@ function FileSystemColumnsView(props: FileSystemViewProps) {
                 </div>
               );
             })}
-            {unreadableColumnPath !== undefined ? (
+            {unreadableColumnPath !== undefined &&
+            (!isBeside || unreadableColumnPath === standingColumnPath) ? (
               <div className="min-w-72 flex-1 contain-inline-size">
                 {renderUnreadable?.(unreadableColumnPath, "pane")}
               </div>

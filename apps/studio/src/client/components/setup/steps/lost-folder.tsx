@@ -63,6 +63,9 @@ export function LostFolderPage({
   onStartOver: () => void;
 }) {
   const [reason, setReason] = useState<LostReason>(lost.reason);
+  // A Continue that tried again and still couldn't open the folder, so the
+  // page shows the press did something.
+  const [stillFailing, setStillFailing] = useState(false);
   const [reaching, setReaching] = useState(
     lost.reason === "cloud" && autoReach,
   );
@@ -78,6 +81,7 @@ export function LostFolderPage({
         await onOpen();
       } else {
         setReason(reached.reason);
+        setStillFailing(true);
       }
     } catch (error) {
       toast.error(`${APP_NAME} couldn’t open your folder`, { cause: error });
@@ -177,7 +181,7 @@ export function LostFolderPage({
       >
         <div className="mt-8 flex w-140 max-w-full flex-col">
           <FolderLocation dim path={lost.path}>
-            {isMacOS() && (
+            {isMacOS() ? (
               <FolderNote
                 action={{
                   label: "Open Settings",
@@ -188,9 +192,20 @@ export function LostFolderPage({
                   },
                 }}
                 // oxlint-disable-next-line studio/no-os-words -- shown only on macOS
-                line={`Turn on ${iCloud ? "iCloud Drive" : "access"} for ${APP_NAME} in Privacy & Security › Files & Folders.`}
-                title={`${APP_NAME} couldn’t access the folder`}
+                line={`Turn on ${iCloud ? "iCloud Drive" : "access"} for ${APP_NAME} in Privacy & Security › Files & Folders${stillFailing ? ", then press Continue" : ""}.`}
+                title={
+                  stillFailing
+                    ? "Still no access"
+                    : `${APP_NAME} couldn’t access the folder`
+                }
               />
+            ) : (
+              stillFailing && (
+                <FolderNote
+                  line={`Make sure ${APP_NAME} is allowed to open this folder, then press Continue.`}
+                  title="Still no access"
+                />
+              )
             )}
           </FolderLocation>
         </div>
@@ -219,6 +234,12 @@ export function LostFolderPage({
             <FolderNote
               line={`Check that you’re online and that your ${computerKind} has free space.`}
               title={`${APP_NAME} couldn’t download the folder`}
+            />
+          )}
+          {reason !== "cloud" && stillFailing && (
+            <FolderNote
+              line="Wait a moment and press Continue again, or use a different folder."
+              title={`${APP_NAME} still can’t read it`}
             />
           )}
         </FolderLocation>

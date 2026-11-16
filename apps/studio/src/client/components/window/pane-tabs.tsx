@@ -9,7 +9,11 @@ import {
   FileSystemFolderGlyph,
   FileTypeIcon,
 } from "@/client/components/extend/file-system";
+import { ToolbarTooltip } from "@/client/components/toolbar-tooltip";
+import { Button } from "@/client/components/ui/button";
 import { dropdownMenuComponents } from "@/client/components/ui/menu-components";
+import { WINDOW_SHORTCUTS } from "@/shared/window-shortcuts";
+import { XIcon } from "@phosphor-icons/react/X";
 import { draftsAtom } from "@/client/drafts/store";
 import { useTargetsAgentActivity } from "@/client/hooks/use-target-agent-activity";
 import { getGuest } from "@/client/lib/browser-pool";
@@ -39,7 +43,7 @@ import { useFileTabTitles } from "./file-tab-titles";
 import { CaptureTabIcon, usePageCaptures } from "./page-capture-mark";
 import { screenPresentation, screenLocation } from "./screen-presentation";
 import { siteTabTitles } from "./site-tab-titles";
-import { chatOfTab, draftOfTab } from "./tab-model";
+import { chatOfTab, draftOfTab, keptOnCloseCount } from "./tab-model";
 import { TabMenuAtPoint, TabMenuItems } from "./tab-menu-items";
 import { type StripTab, TabStrip } from "./tab-strip";
 import { useBookmarkEdits } from "./web-start";
@@ -295,6 +299,13 @@ export function PaneTabs({
         selectedKey={chosen ? stripKeyOf(chosen) : undefined}
         tabs={presented}
       />
+      {split?.onCloseSplit && (
+        <CloseSplitButton
+          hasKeyboard={split.hasKeyboard}
+          onClose={split.onCloseSplit}
+          tabs={tabs}
+        />
+      )}
       {trailing}
       <TabMenuAtPoint
         at={menu}
@@ -338,7 +349,19 @@ export function PaneTabs({
             setSpaceMenu(undefined);
           }}
         >
-          <WindowSpaceMenu kind="tab" onNew={onNew} onReopenLast={reopen} />
+          <WindowSpaceMenu
+            kind="tab"
+            onNew={onNew}
+            onReopenLast={reopen}
+            sides={
+              split && {
+                hasKeyboard: split.hasKeyboard,
+                onCloseSplit: split.onCloseSplit,
+                onJoinSides: split.onJoinSides,
+                onNewTabInSplit: split.onNewChatInSplit,
+              }
+            }
+          />
         </TabMenuAtPoint>
       )}
       {deleting && (
@@ -376,7 +399,11 @@ export interface SplitMenuActions {
   /** The tab to another open window, by its id. */
   onMoveToWindow: (tab: WindowTab, windowId: string) => void;
   /** A new chat on the other side, made where the group has one side. */
-  onNewChatInSplit: (tab: WindowTab) => void;
+  onNewChatInSplit: () => void;
+  /** This strip's whole side closed, with Undo; none for a group of one side. */
+  onCloseSplit: (() => void) | undefined;
+  /** This strip's side has the keyboard, so the side chords are its. */
+  hasKeyboard: boolean;
   /** A copy of the tab on the other side, made where the group has one side. */
   onOpenInSplit: (tab: WindowTab) => void;
 }
@@ -504,12 +531,8 @@ function PaneTabMenu({
             }
           : undefined
       }
-      onNewChatInSplit={
-        split &&
-        (() => {
-          split.onNewChatInSplit(tab);
-        })
-      }
+      onNewChatInSplit={split?.onNewChatInSplit}
+      onCloseSplit={split?.onCloseSplit}
       onOpenInSplit={
         split && !canMove
           ? () => {
@@ -563,4 +586,77 @@ export function ScreenMark({
     return <FileSystemFolderGlyph className="h-3 w-auto" />;
   }
   return screenPresentation(href, { appsBySlug, chatTitles }).icon;
+}
+
+/**
+ * The strip's Close Split, at its right end while the group has two sides:
+ * the side's every tab closed as one entry, which Undo and Shift+Cmd+T bring
+ * back. Closing more than one tab worth bringing back asks first, as a row
+ * half's X does: the first click turns the button into its question, a
+ * second closes, and the pointer leaving, Escape or focus going elsewhere
+ * puts it back.
+ */
+function CloseSplitButton({
+  hasKeyboard,
+  onClose,
+  tabs,
+}: {
+  /** The side has the keyboard, so its tooltip names the chord. */
+  hasKeyboard: boolean;
+  onClose: () => void;
+  tabs: readonly WindowTab[];
+}) {
+  const [isAsking, setAsking] = useState(false);
+  const count = keptOnCloseCount(tabs);
+  const { label } = WINDOW_SHORTCUTS.closeSplit;
+  if (isAsking) {
+    return (
+      <Button
+        autoFocus
+        className="h-7 shrink-0 gap-1 px-2 text-[13px] font-medium text-foreground"
+        onBlur={() => {
+          setAsking(false);
+        }}
+        onClick={() => {
+          setAsking(false);
+          onClose();
+        }}
+        onKeyDown={(event) => {
+          if (event.key === "Escape") {
+            event.stopPropagation();
+            setAsking(false);
+          }
+        }}
+        onPointerLeave={() => {
+          setAsking(false);
+        }}
+        variant="ghost-toolbar"
+      >
+        <XIcon className="size-3 shrink-0 text-foreground/70" />
+        {`Close ${count} tabs?`}
+      </Button>
+    );
+  }
+  return (
+    <ToolbarTooltip
+      {...(hasKeyboard ? { chord: "closeSplit" as const } : {})}
+      label={label}
+    >
+      <Button
+        aria-label={label}
+        className="size-7 shrink-0 text-muted-foreground/70"
+        onClick={() => {
+          if (count > 1) {
+            setAsking(true);
+          } else {
+            onClose();
+          }
+        }}
+        size="icon"
+        variant="ghost-toolbar"
+      >
+        <XIcon className="size-4" />
+      </Button>
+    </ToolbarTooltip>
+  );
 }

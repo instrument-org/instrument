@@ -1442,6 +1442,19 @@ function WindowShell({
           },
         );
       },
+      // The side with the keyboard of the group on screen closed whole, as
+      // its strip's Close Split does; nothing where the group has one side.
+      closeSplit: () => {
+        const group = windowTabs.groupOnScreen;
+        if (group === undefined) {
+          return;
+        }
+        const layout = windowTabs.layoutOf(group);
+        const first = layout.sides[layout.focused]?.tabs[0];
+        if (layout.sides.length === 2 && first) {
+          offerUndo(closeSideOf(first.id));
+        }
+      },
       receiveGroupTab: groupTabMoves.receive,
       receiveTab,
       reopenTab,
@@ -1550,6 +1563,9 @@ function WindowShell({
     ),
     closeGroup: (group) => {
       closeGroups([group]);
+    },
+    closeSide: (tab) => {
+      offerUndo(closeSideOf(tab));
     },
     goToPlace: choosePlace,
     newGroup: () => {

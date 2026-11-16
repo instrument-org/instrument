@@ -107,6 +107,8 @@ export function useWindowCommands(
     moveTabToNewWindow: () => void;
     /** A new tab on the other side of the group on screen, made where it has one side. */
     newTabInSplit: () => void;
+    /** The side with the keyboard of the group on screen closed whole, where the group has two. */
+    closeSplit: () => void;
     /** A tab another window handed over, up here at a point along the strip. */
     receiveTab: (tab: Tab, index?: number) => void;
     /** A tab group's tab another window let go over this one, into a group here by where it landed. */
@@ -315,6 +317,10 @@ export function useWindowCommands(
             }
             case "newTabInSplit": {
               latest.current.newTabInSplit();
+              break;
+            }
+            case "closeSplit": {
+              latest.current.closeSplit();
               break;
             }
             case "closeTab": {

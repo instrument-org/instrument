@@ -56,6 +56,7 @@ function Commands({
       selectTab: vi.fn(),
       moveTabToNewWindow: vi.fn(),
       newTabInSplit: vi.fn(),
+      closeSplit: vi.fn(),
       receiveGroupTab: vi.fn(),
       receiveTab: vi.fn(),
       showActivity: vi.fn(),

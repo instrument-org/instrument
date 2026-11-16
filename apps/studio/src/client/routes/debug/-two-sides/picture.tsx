@@ -582,7 +582,9 @@ function Side({
         side={sideIndex}
         split={{
           group,
+          hasKeyboard: false,
           hasOtherSide: layout.sides.length === 2,
+          onCloseSplit: undefined,
           onJoinSides: undefined,
           onMoveToNewGroup: undefined,
           onMoveToNewWindow: undefined,
@@ -683,11 +685,7 @@ function SidePage({
   return (
     <div className="flex h-full flex-col bg-background">
       {head}
-      <BookmarksBar
-        files={{ group }}
-        onOpen={noop}
-        onVisit={noop}
-      />
+      <BookmarksBar files={{ group }} onOpen={noop} onVisit={noop} />
       <div className="relative min-h-0 flex-1">
         {body ?? <SideBody group={group} slots={slots} up={up} />}
       </div>

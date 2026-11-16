@@ -65,6 +65,7 @@ describe("SHORTCUT_GUIDE_ENTRIES", () => {
         "Files: Scroll Page  Space",
         "Files: Zoom In on Picture  ⌘+",
         "Files: Zoom Out of Picture  ⌘-",
+        "Tabs: Close Split  ⌥⌘W",
         "Tabs: Close Tab  ⌘W",
         "Tabs: Focus Left Side  ⌥⌘←",
         "Tabs: Focus Right Side  ⌥⌘→",
@@ -124,6 +125,7 @@ describe("matchShortcuts", () => {
         "Reopen Closed [Tab]",
         "Show Previous [Tab]",
         "Toggle Sidebar",
+        "Close Split",
         "Focus Left Side",
         "Focus Right Side",
       ]

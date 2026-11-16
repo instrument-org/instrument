@@ -93,7 +93,7 @@ On a Mac these are the menu bar's menus, the first named for Instrument; on Wind
 - **View**: Toggle Sidebar, Show Bookmarks Bar, Edit Page, Reload Page, Next Tab Group, Previous Tab Group, Actual Size, Zoom In, Zoom Out
 - **History**: Back, Forward, Show History, Clear Browsing Data…
 - **Bookmarks**: Bookmark This Tab…
-- **Tab**: Show Next Tab, Show Previous Tab, New Tab in Split, Focus Left Side, Focus Right Side, Move Tab to New Window
+- **Tab**: Show Next Tab, Show Previous Tab, New Tab in Split, Close Split, Focus Left Side, Focus Right Side, Move Tab to New Window
 - **Window**: Merge All Windows
 - **Help**: Send Feedback…, Support, Keyboard Shortcuts
 
@@ -138,6 +138,7 @@ Each is written as on a Mac, then as on Windows and Linux.
 
 ### Tabs
 
+- Close Split: ⌥⌘W / Alt+Shift+W
 - Close Tab: ⌘W / Ctrl+W
 - Focus Left Side: ⌥⌘← / Alt+Shift+←
 - Focus Right Side: ⌥⌘→ / Alt+Shift+→

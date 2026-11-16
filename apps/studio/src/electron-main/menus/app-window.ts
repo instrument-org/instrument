@@ -60,6 +60,7 @@ interface WindowChord {
 const CHORD_SYMBOLS: Record<WindowShortcutId, string> = {
   back: "chevron.backward",
   bookmarkTab: "star",
+  closeSplit: "xmark.rectangle",
   closeTab: "xmark.square",
   commandMenu: "command",
   editPage: "pencil",
@@ -219,9 +220,10 @@ const ACTIVITY_CHORDS: WindowChord[] = [chord("showActivity")];
 /** The star at the end of the address field of the tab the keyboard is in. */
 const BOOKMARK_CHORDS: WindowChord[] = [chord("bookmarkTab")];
 
-/** A new tab on the other side of the group, made where it has one side, and the keyboard to either side. */
+/** A new tab on the other side of the group, made where it has one side, the side with the keyboard closed, and the keyboard to either side. */
 const SIDE_CHORDS: WindowChord[] = [
   chord("newTabInSplit"),
+  chord("closeSplit"),
   chord("focusLeftSide"),
   chord("focusRightSide"),
 ];

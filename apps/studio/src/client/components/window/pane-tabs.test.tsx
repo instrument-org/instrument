@@ -125,6 +125,90 @@ describe("PaneTabs", () => {
     expect(pane.onSelect).toHaveBeenCalledExactlyOnceWith("a");
   });
 
+  describe("a side of a split group", () => {
+    const sideOfSplit = () => {
+      const onCloseSplit = vi.fn();
+      const onJoinSides = vi.fn();
+      const onNewChatInSplit = vi.fn();
+      const view = renderWithProviders(
+        <PaneTabs
+          chatTitles={new Map()}
+          chosenId="a"
+          onClose={() => {}}
+          onDuplicate={() => {}}
+          onNew={() => {}}
+          onSelect={() => {}}
+          reopen={() => {}}
+          split={{
+            group: "g",
+            hasKeyboard: true,
+            hasOtherSide: true,
+            onCloseSplit,
+            onJoinSides,
+            onMoveToNewGroup: undefined,
+            onMoveToNewWindow: undefined,
+            onMoveToOtherSide: () => {},
+            onMoveToWindow: () => {},
+            onNewChatInSplit,
+            onOpenInSplit: () => {},
+          }}
+          tabs={[tab("a"), tab("b")]}
+          taskTitles={new Map()}
+        />,
+      );
+      return { onCloseSplit, onJoinSides, onNewChatInSplit, view };
+    };
+
+    it("offers the side's actions on a right click in the strip's empty space", async () => {
+      const { onCloseSplit, view } = sideOfSplit();
+      const strip = view.container.querySelector("[data-group-tabs]");
+      if (!strip) {
+        throw new Error("no strip");
+      }
+
+      fireEvent.contextMenu(strip);
+
+      const rows = (await screen.findAllByRole("menuitem")).map(
+        (item) => item.querySelector("span")?.textContent,
+      );
+      expect(rows).toEqual([
+        "New Tab",
+        "Reopen Closed Tab",
+        "New Tab in Split",
+        "Join Sides",
+        "Close Split",
+        "New Window",
+      ]);
+      fireEvent.click(screen.getByRole("menuitem", { name: /^Close Split/ }));
+      expect(onCloseSplit).toHaveBeenCalledTimes(1);
+    });
+
+    it("offers Close Split in a tab's menu", async () => {
+      const { onCloseSplit } = sideOfSplit();
+      const [first] = screen.getAllByRole("tab");
+      if (!first) {
+        throw new Error("no tab");
+      }
+
+      fireEvent.contextMenu(first);
+      fireEvent.click(
+        await screen.findByRole("menuitem", { name: /^Close Split/ }),
+      );
+
+      expect(onCloseSplit).toHaveBeenCalledTimes(1);
+    });
+
+    it("asks before its Close Split button closes two tabs", () => {
+      const { onCloseSplit } = sideOfSplit();
+
+      fireEvent.click(screen.getByRole("button", { name: "Close Split" }));
+      expect(onCloseSplit).not.toHaveBeenCalled();
+      fireEvent.click(screen.getByRole("button", { name: "Close 2 tabs?" }));
+
+      expect(onCloseSplit).toHaveBeenCalledTimes(1);
+    });
+  });
+
   it("opens and closes a tab with the window's motions", () => {
     const view = renderWithProviders(panes([tab("a"), tab("b")]));
 

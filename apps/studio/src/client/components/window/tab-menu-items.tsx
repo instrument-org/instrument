@@ -14,8 +14,8 @@ import { ArrowClockwiseIcon } from "@phosphor-icons/react/ArrowClockwise";
 import { ArrowLineLeftIcon } from "@phosphor-icons/react/ArrowLineLeft";
 import { ArrowLineRightIcon } from "@phosphor-icons/react/ArrowLineRight";
 import { ArrowsLeftRightIcon } from "@phosphor-icons/react/ArrowsLeftRight";
-import { ChatCircleIcon } from "@phosphor-icons/react/ChatCircle";
 import { CopyIcon } from "@phosphor-icons/react/Copy";
+import { PlusIcon } from "@phosphor-icons/react/Plus";
 import { RectangleIcon } from "@phosphor-icons/react/Rectangle";
 import { SquareSplitHorizontalIcon } from "@phosphor-icons/react/SquareSplitHorizontal";
 import { StackIcon } from "@phosphor-icons/react/Stack";
@@ -99,8 +99,8 @@ function TabMenuContent({
  * the other side, or a copy opened there where nothing would be left to
  * move; a new tab there; the two sides joined; the tab to a group or a
  * window of its own), then
- * the tab copied, kept as a bookmark or reloaded, then closing it or the
- * tabs around it,
+ * the tab copied, kept as a bookmark or reloaded, then closing it, the
+ * tabs around it or its whole side,
  * and last what only this tab has, such as a chat's own items, under a
  * divider. Drawn with whichever menu's parts it is raised in, since a
  * menu's items only work in their own menu. A row is left out where its
@@ -113,6 +113,7 @@ export function TabMenuItems({
   moveToWindow,
   onClose,
   onCloseOthers,
+  onCloseSplit,
   onCloseToLeft,
   onCloseToRight,
   onCopyUrl,
@@ -140,6 +141,8 @@ export function TabMenuItems({
     | undefined;
   onClose: () => void;
   onCloseOthers: (() => void) | undefined;
+  /** The whole side the tab is on closed; none for a group of one side. */
+  onCloseSplit?: (() => void) | undefined;
   onCloseToLeft: (() => void) | undefined;
   onCloseToRight: (() => void) | undefined;
   onCopyUrl: (() => void) | undefined;
@@ -180,7 +183,7 @@ export function TabMenuItems({
       ) : null}
       {onNewChatInSplit && (
         <Item onClick={onNewChatInSplit}>
-          <ChatCircleIcon className="size-4" />
+          <PlusIcon className="size-4" />
           <span>New Tab in Split</span>
           {isSelected ? (
             <Shortcut>
@@ -295,6 +298,17 @@ export function TabMenuItems({
         <Item onClick={onCloseToRight}>
           <ArrowLineRightIcon className="size-4" />
           <span>Close Tabs to the Right</span>
+        </Item>
+      )}
+      {onCloseSplit && (
+        <Item onClick={onCloseSplit}>
+          <XIcon className="size-4" />
+          <span>{WINDOW_SHORTCUTS.closeSplit.label}</span>
+          {isSelected ? (
+            <Shortcut>
+              {formatAcceleratorText(WINDOW_SHORTCUTS.closeSplit.accelerator)}
+            </Shortcut>
+          ) : null}
         </Item>
       )}
       {own && (

@@ -49,6 +49,13 @@ export const WINDOW_SHORTCUTS = {
   back: { accelerator: historyChord("[", "Left"), label: "Back" },
   // A browser's own key for the star at the end of its address field.
   bookmarkTab: { accelerator: "CmdOrCtrl+D", label: "Bookmark This Tab…" },
+  // The side with the keyboard closed whole, where the group has two: Close
+  // Tab's chord with Option on a Mac, the system's Close All, and with
+  // Alt+Shift elsewhere, beside New Tab in Split's.
+  closeSplit: {
+    accelerator: { darwin: "Alt+CmdOrCtrl+W", default: "Alt+Shift+W" },
+    label: "Close Split",
+  },
   closeTab: { accelerator: "CmdOrCtrl+W", label: "Close Tab" },
   // The system's file manager's own key: Get Info's on a Mac, and Properties'
   // in File Explorer, GNOME's Files and Dolphin.

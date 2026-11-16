@@ -11,7 +11,10 @@ import {
 import { AppWindowIcon } from "@phosphor-icons/react/AppWindow";
 import { ArrowUUpLeftIcon } from "@phosphor-icons/react/ArrowUUpLeft";
 import { ArrowsMergeIcon } from "@phosphor-icons/react/ArrowsMerge";
+import { PlusIcon } from "@phosphor-icons/react/Plus";
+import { RectangleIcon } from "@phosphor-icons/react/Rectangle";
 import { StackIcon } from "@phosphor-icons/react/Stack";
+import { XIcon } from "@phosphor-icons/react/X";
 import { useQuery } from "@tanstack/react-query";
 import { useAtomValue } from "jotai";
 
@@ -50,19 +53,30 @@ export function useRecentlyClosed(): ClosedEntry[] {
 /**
  * What a right click on the window's empty space offers, as a browser's tab
  * bar does: something new to open (a tab in a side's strip, a tab group in
- * the sidebar), the last thing closed, a new window, and the other windows'
- * groups brought into this one. Drawn with the dropdown's parts, for
- * `TabMenuAtPoint`.
+ * the sidebar), the last thing closed, what a side's strip does with the
+ * group's sides, a new window, and the other windows' groups brought into
+ * this one. Drawn with the dropdown's parts, for `TabMenuAtPoint`.
  */
 export function WindowSpaceMenu({
   kind,
   onNew,
   onReopenLast,
+  sides,
 }: {
   /** Whether the space is a side's strip, whose new thing is a tab, or the sidebar, whose is a tab group. */
   kind: "group" | "tab";
   onNew: () => void;
   onReopenLast: () => void;
+  /** What a side's strip does with its group's sides, as its tabs' menus do; a row is left out where its action is. */
+  sides?:
+    | {
+        /** The side the strip heads has the keyboard, so the chords are its. */
+        hasKeyboard: boolean;
+        onCloseSplit: (() => void) | undefined;
+        onJoinSides: (() => void) | undefined;
+        onNewTabInSplit: () => void;
+      }
+    | undefined;
 }) {
   const hasClosedTab = useRecentlyClosed().length > 0;
   const others = useQuery(
@@ -97,6 +111,41 @@ export function WindowSpaceMenu({
           {formatAcceleratorText(WINDOW_SHORTCUTS.reopenTab.accelerator)}
         </Shortcut>
       </Item>
+      {sides && (
+        <>
+          <Separator />
+          <Item onClick={sides.onNewTabInSplit}>
+            <PlusIcon className="size-4" />
+            <span>{WINDOW_SHORTCUTS.newTabInSplit.label}</span>
+            {sides.hasKeyboard ? (
+              <Shortcut>
+                {formatAcceleratorText(
+                  WINDOW_SHORTCUTS.newTabInSplit.accelerator,
+                )}
+              </Shortcut>
+            ) : null}
+          </Item>
+          {sides.onJoinSides && (
+            <Item onClick={sides.onJoinSides}>
+              <RectangleIcon className="size-4" />
+              <span>Join Sides</span>
+            </Item>
+          )}
+          {sides.onCloseSplit && (
+            <Item onClick={sides.onCloseSplit}>
+              <XIcon className="size-4" />
+              <span>{WINDOW_SHORTCUTS.closeSplit.label}</span>
+              {sides.hasKeyboard ? (
+                <Shortcut>
+                  {formatAcceleratorText(
+                    WINDOW_SHORTCUTS.closeSplit.accelerator,
+                  )}
+                </Shortcut>
+              ) : null}
+            </Item>
+          )}
+        </>
+      )}
       <Separator />
       <Item
         onClick={() => {

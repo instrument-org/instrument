@@ -662,9 +662,17 @@ function SideCard({
   const isWindowsOnlyTab =
     groupTabCount === 1 &&
     (listedGroups ?? []).every((listed) => listed === group);
+  const [firstHere] = tabs;
   const split: SplitMenuActions = {
     group,
+    hasKeyboard,
     hasOtherSide: layout.sides.length === 2,
+    onCloseSplit:
+      layout.sides.length === 2 && firstHere
+        ? () => {
+            shell.closeSide(firstHere.id);
+          }
+        : undefined,
     onJoinSides:
       layout.sides.length === 2
         ? () => {

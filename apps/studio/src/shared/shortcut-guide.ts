@@ -56,6 +56,7 @@ const WINDOW_GROUPS: Record<
   actualSize: "View",
   back: "Pages",
   bookmarkTab: "Pages",
+  closeSplit: "Tabs",
   closeTab: "Tabs",
   closeWindow: "General",
   commandMenu: "General",

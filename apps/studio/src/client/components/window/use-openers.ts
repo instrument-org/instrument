@@ -754,10 +754,10 @@ export function useOpeners({
           : { error: `tab ${tab.id} is not a page.` };
       }
       case "show": {
-        // Up in its group; which group the window has on screen is the
-        // person's, so that stays as it is.
+        // Up on its side of its group; which group the window has on screen,
+        // and which side has the keyboard, are the person's, so they stay.
         if (tab.group !== undefined) {
-          windowTabs.select(tab.id);
+          windowTabs.raise(tab.id);
         }
         return { tabId: tab.id };
       }

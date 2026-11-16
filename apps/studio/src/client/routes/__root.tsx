@@ -19,7 +19,7 @@ export const Route = createRootRouteWithContext<{
 }>()({
   component: RootComponent,
   errorComponent: ErrorComponent,
-  notFoundComponent: NotFoundRouteComponent,
+  notFoundComponent: NotFoundComponent,
   pendingComponent: PendingComponent,
 });
 
@@ -27,6 +27,14 @@ function ErrorComponent(props: ErrorComponentProps) {
   return (
     <Root>
       <DefaultErrorComponent {...props} />
+    </Root>
+  );
+}
+
+function NotFoundComponent() {
+  return (
+    <Root>
+      <NotFoundRouteComponent />
     </Root>
   );
 }

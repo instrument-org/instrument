@@ -80,7 +80,7 @@ export function errorReport({
 }: {
   error: unknown;
   onSent?: () => void;
-  surface: "route-error" | "window-error";
+  surface: "not-found" | "route-error" | "window-error";
 }): ProblemReportRequest {
   return {
     dialogTitle: "Send a report",

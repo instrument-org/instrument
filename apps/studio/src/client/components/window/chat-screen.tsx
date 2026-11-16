@@ -88,7 +88,7 @@ export function ChatScreen(props: ChatScreenProps) {
   if (!sessionId) {
     return isGone ? (
       <div className="flex h-full flex-col items-center justify-center gap-3 text-sm text-muted-foreground">
-        <p>This chat no longer exists.</p>
+        <p className="select-text">This chat no longer exists.</p>
         <Button onClick={props.onGone} size="sm" variant="outline">
           Close
         </Button>

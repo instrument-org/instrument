@@ -19,7 +19,7 @@ export function ReportErrorButton({
   surface,
 }: {
   error: unknown;
-  surface: "route-error" | "window-error";
+  surface: "not-found" | "route-error" | "window-error";
 }) {
   const [sent, setSent] = useState(false);
   useSendAutomatically({
@@ -105,7 +105,7 @@ function useSendAutomatically({
 }: {
   error: unknown;
   onSent: () => void;
-  surface: "route-error" | "window-error";
+  surface: "not-found" | "route-error" | "window-error";
 }) {
   const { data: preferences } = useQuery(
     rpcClient.preferences.live.get.experimental_liveOptions(),

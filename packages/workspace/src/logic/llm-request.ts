@@ -28,6 +28,10 @@ import { fromPromise } from "xstate";
 import { type AnyAgent } from "../agents/types";
 import { classifyProviderError } from "../lib/classify-provider-error";
 import { readRetryHeaders } from "../lib/provider-retry";
+import {
+  REPLY_CONTENT_PART_TYPES,
+  unfinishedReply,
+} from "../lib/unfinished-reply";
 import { describeErrorCause } from "../lib/describe-error-cause";
 import { getCurrentDate } from "../lib/get-current-date";
 import { isStorageFullError } from "../lib/is-storage-full-error";
@@ -502,6 +506,7 @@ export const llmRequestLogic = fromPromise<
       tools: request.tools,
     });
 
+    let repliedWithContent = false;
     for await (const part of result.stream) {
       if (isSignalAborted() || part.type === "abort") {
         // Ensures we don't try to process any more parts
@@ -511,6 +516,9 @@ export const llmRequestLogic = fromPromise<
         throw storageFullError;
       }
       input.self.send({ type: "llmRequest.chunkReceived" });
+      if (REPLY_CONTENT_PART_TYPES.has(part.type)) {
+        repliedWithContent = true;
+      }
       if (isNativeSearchPart(part, request.ownToolNames, nativeCallIds)) {
         continue;
       }
@@ -546,6 +554,14 @@ export const llmRequestLogic = fromPromise<
           throw part.error;
         }
         case "finish": {
+          const unfinished = unfinishedReply({
+            finishReason: part.finishReason,
+            repliedWithContent,
+            usage: part.totalUsage,
+          });
+          if (unfinished !== undefined) {
+            throw unfinished;
+          }
           msToFinish = msSinceRequestStart();
           const completionTokensPerSecond =
             part.totalUsage.outputTokens && msToFinish

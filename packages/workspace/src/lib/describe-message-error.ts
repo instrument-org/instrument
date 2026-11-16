@@ -1,6 +1,7 @@
 import {
   APP_NAME,
   isConnectFailureMessage,
+  EMPTY_RESPONSE_MESSAGE,
   STREAM_ENDED_EARLY_MESSAGE,
 } from "@instrument-org/shared";
 
@@ -47,6 +48,13 @@ export function describeMessageError(
     return {
       detail: "The model stopped partway through its reply. Try again.",
       summary: "Reply was cut off",
+    };
+  }
+
+  if (error.message === EMPTY_RESPONSE_MESSAGE) {
+    return {
+      detail: "The model sent back an empty reply. Try again.",
+      summary: "Empty reply",
     };
   }
 

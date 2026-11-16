@@ -75,6 +75,7 @@ import { pageEditTabsAtom, usePageEditToggleOnScreen } from "./page-edit-state";
 import { useFileInfo } from "./file-info";
 import { useQuickLook } from "./quick-look";
 import { useTabSurface } from "./tab-surface";
+import { useInstantUntilFitted } from "./use-instant-until-fitted";
 import { hostGroupOf, useWindowTabs } from "./window-tabs";
 
 /** A viewer that is the whole of its tab: no card of its own inside the pane's. */
@@ -347,6 +348,12 @@ export function FilesScreen({
   const isArrowHeld = useRef(false);
   const besideFolderRef = useRef<HTMLDivElement>(null);
   const besideFileRef = useRef<HTMLDivElement>(null);
+  // The folder and the file land at their first fit, the folder folded away
+  // in a narrow tab above all, and slide only for what comes after it.
+  const isFitInstant = useInstantUntilFitted(
+    isLaidOut && !isFitPending && (layoutWidth ?? 0) > 0,
+    besideFolderRef,
+  );
   const heldShow = useRef<{ path: string; timer: number } | null>(null);
   const clearHeldShow = () => {
     if (heldShow.current) {
@@ -838,7 +845,7 @@ export function FilesScreen({
             className={cn(
               "relative h-full shrink-0 overflow-hidden transition-[width]",
               BESIDE_MOTION_CLASSNAME,
-              draggedWidth !== null && "transition-none",
+              (draggedWidth !== null || isFitInstant) && "transition-none",
             )}
             // Folded away, nothing in it takes the keyboard.
             inert={isFileOpen && !isFolderShown}
@@ -955,7 +962,8 @@ export function FilesScreen({
                     className={cn(
                       "absolute inset-y-0 left-0 bg-background transition-[width]",
                       BESIDE_MOTION_CLASSNAME,
-                      draggedWidth !== null && "transition-none",
+                      (draggedWidth !== null || isFitInstant) &&
+                        "transition-none",
                       isFolderShown && "border-l border-border",
                     )}
                     exit={{ opacity: 0 }}

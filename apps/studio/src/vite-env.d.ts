@@ -57,6 +57,8 @@ declare namespace NodeJS {
       INSTRUMENT_BASH_WORKER: string | undefined;
       /** Dev only: shrinks every model's context window to this many tokens. */
       INSTRUMENT_CONTEXT_LENGTH_OVERRIDE: string | undefined;
+      /** Evals only: treats every model as priced higher from this many prompt tokens. */
+      INSTRUMENT_PRICE_STEP_OVERRIDE: string | undefined;
       /** `0` opens no channel for a script's `instrument`, as the evals' bash-only arm does. */
       INSTRUMENT_SCRIPT_CHANNEL: string | undefined;
       /** Dev only: set by scripts/dev-supervisor.mjs, which restarts electron-vite on request. */

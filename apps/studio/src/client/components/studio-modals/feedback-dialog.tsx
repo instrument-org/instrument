@@ -580,8 +580,9 @@ export function FeedbackDialogContent({
               <XIcon className="size-4" />
             </HeadButton>
           </div>
-          <div className="flex shrink-0 flex-col gap-2 px-6 pt-6 pr-20 pb-5">
-            <DialogTitle>Send feedback</DialogTitle>
+          <div className="flex shrink-0 flex-col gap-2 px-6 pt-6 pb-5">
+            {/* Only the title shares a line with the corner buttons; the description runs under them. */}
+            <DialogTitle className="pr-14">Send feedback</DialogTitle>
             <DialogDescription>
               Only the {APP_NAME} team will see what you send, and you can look
               it over first.

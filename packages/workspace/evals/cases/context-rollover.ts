@@ -1,5 +1,9 @@
+import fs from "node:fs";
+import path from "node:path";
+
 import { HANDOFF_NOTES_FILE_NAME } from "../../src/constants";
 import { type Assertion, defineEval } from "../harness";
+import { fail, HOME, pass } from "./handoff";
 
 /**
  * A rollover drops the agent's own turns and keeps the user's. Anything the
@@ -216,9 +220,17 @@ const keptItsBookkeepingPrivate: Assertion = {
     const rolledOver = parts.some(
       (part) => part.type === "data-contextRollover",
     );
+    // Words are read outside code and link targets: an eval's home folder is
+    // named for its case, so a linked file's path carries "context-rollover".
+    const prose = (text: string) =>
+      text
+        .replaceAll(/```[\s\S]*?```/gu, "")
+        .replaceAll(/`[^`]*`/gu, "")
+        .replaceAll(/\]\([^)]*\)/gu, "]");
     const told = assistantTexts(sessions).filter(
       (text) =>
-        BOOKKEEPING_WORDS.test(text) || text.includes(HANDOFF_NOTES_FILE_NAME),
+        BOOKKEEPING_WORDS.test(prose(text)) ||
+        text.includes(HANDOFF_NOTES_FILE_NAME),
     );
     return {
       evidence: !rolledOver
@@ -244,6 +256,162 @@ const RESEARCH_FOLLOW_UPS = [
   "So what should I pick? Give me your recommendation.",
 ];
 
+// ---------------------------------------------------------------------------
+// What a summary carries: a finding the agent worked out from files, asked
+// for after the files' contents and its own turns are gone.
+
+interface Doc {
+  fact: string;
+  name: string;
+}
+
+/**
+ * A document long enough that a folder of six fills a price step's worth of
+ * window in a turn or two: the one line that matters, buried in filler that
+ * reads like the real thing.
+ */
+function longDoc(title: string, fact: string, seed: number): string {
+  const filler = Array.from({ length: 90 }, (_, line) => {
+    const n = (seed * 31 + line * 17) % 97;
+    return `Line ${line + 1}: item ${n}-${seed}, standard terms apply, see section ${(n % 9) + 1} for the conditions that govern this line and the schedule it ships on.`;
+  });
+  return [
+    title,
+    "",
+    ...filler.slice(0, 45),
+    "",
+    fact,
+    "",
+    ...filler.slice(45),
+  ].join("\n");
+}
+
+const QUOTES: Doc[] = [
+  {
+    fact: "Quote QX-11872. M4 stainless bolts: $0.094 per bolt. No minimum order.",
+    name: "Brightline Supply",
+  },
+  {
+    fact: "Quote HF-58213. M4 stainless bolts: $0.071 per bolt. Minimum order 40,000 bolts.",
+    name: "Harlow Fasteners",
+  },
+  {
+    fact: "Quote 7731-B. M4 stainless bolts: $0.088 per bolt. Minimum order 5,000 bolts.",
+    name: "Kestrel Industrial",
+  },
+  {
+    fact: "Quote NW-2290. M4 stainless bolts: $0.079 per bolt. No minimum order.",
+    name: "Northwind Parts",
+  },
+  {
+    fact: "Quote OP-6604. M4 stainless bolts: $0.102 per bolt. No minimum order.",
+    name: "Oakpoint Hardware",
+  },
+  {
+    fact: "Quote TS-4417. M4 stainless bolts: $0.083 per bolt. Minimum order 10,000 bolts.",
+    name: "Tidewater Supply",
+  },
+];
+
+const CARRIERS: Doc[] = [
+  { fact: "Ground to Denver: 4 business days.", name: "Arrow Freight" },
+  { fact: "Ground to Denver: 2 business days.", name: "Summit Logistics" },
+  { fact: "Ground to Denver: 5 business days.", name: "Coastal Carriers" },
+  { fact: "Ground to Denver: 3 business days.", name: "Prairie Express" },
+  { fact: "Ground to Denver: 6 business days.", name: "Redline Haulage" },
+  { fact: "Ground to Denver: 4 business days.", name: "Granite Transport" },
+];
+
+const RETURN_DAYS = [30, 14, 60, 21, 45, 7];
+
+const RETURNS: Doc[] = QUOTES.map((quote, index) => ({
+  fact: `Returns accepted within ${String(RETURN_DAYS[index] ?? 30)} days of delivery.`,
+  name: quote.name,
+}));
+
+function writeDocs(folder: string, kind: string, docs: Doc[]) {
+  const dir = path.join(HOME, "Documents", folder);
+  fs.mkdirSync(dir, { recursive: true });
+  docs.forEach((doc, index) =>
+    fs.writeFileSync(
+      path.join(dir, `${doc.name} ${kind}.txt`),
+      longDoc(`${doc.name}: ${kind}`, doc.fact, index + 1),
+    ),
+  );
+}
+
+interface StoredPart {
+  input?: unknown;
+  text?: string;
+  type: string;
+}
+interface StoredMessage {
+  parts: StoredPart[];
+  role: string;
+}
+
+function messagesOf(sessions: { messages: unknown[] }[]): StoredMessage[] {
+  return sessions.flatMap((s) => s.messages as StoredMessage[]);
+}
+
+const summarizedFirst: Assertion = {
+  check: ({ sessions }) => {
+    const summaries = messagesOf(sessions)
+      .flatMap((m) => m.parts)
+      .filter(
+        (part) =>
+          part.type === "data-contextRollover" &&
+          JSON.stringify(part).includes('"summary"'),
+      ).length;
+    return summaries > 0
+      ? pass("summarized before the last question", `${summaries} summaries`)
+      : fail(
+          "summarized before the last question",
+          "Inconclusive: no summarized rollover, so the recall proves nothing",
+        );
+  },
+  text: "summarized before the last question",
+};
+
+function lastTurn(sessions: { messages: unknown[] }[]): StoredMessage[] {
+  const messages = messagesOf(sessions);
+  const lastUser = messages.findLastIndex((m) => m.role === "user");
+  return messages.slice(lastUser + 1);
+}
+
+/** Recorded rather than scored when it reopens: a cheap check is no failure. */
+const recalledFromTheSummary: Assertion = {
+  check: ({ sessions }) => {
+    const turn = lastTurn(sessions);
+    const text = turn
+      .filter((m) => m.role === "assistant")
+      .flatMap((m) => m.parts)
+      .filter((part) => part.type === "text")
+      .map((part) => part.text ?? "")
+      .join("\n");
+    const reopened = turn
+      .flatMap((m) => m.parts)
+      .some(
+        (part) =>
+          part.type.startsWith("tool-") &&
+          JSON.stringify(part.input ?? "").includes("Supplier quotes"),
+      );
+    const wanted = [/HF-58213/u, /0?\.071/u, /40,?000/u, /Harlow/iu];
+    const missing = wanted.filter((pattern) => !pattern.test(text));
+    const evidence = `${reopened ? "reopened the quotes; " : ""}${text.replaceAll("\n", " ").slice(0, 400)}`;
+    return missing.length === 0 && !reopened
+      ? pass(
+          "recalled the cheapest quote, its number, price and minimum",
+          evidence,
+        )
+      : fail(
+          "recalled the cheapest quote, its number, price and minimum",
+          `missing ${missing.map(String).join(", ") || "nothing"}; ${evidence}`,
+        );
+  },
+  text: "recalled the cheapest quote, its number, price and minimum",
+};
+
 export const CONTEXT_ROLLOVER_EVALS = [
   defineEval({
     assertions: [
@@ -267,5 +435,35 @@ export const CONTEXT_ROLLOVER_EVALS = [
     name: "context-rollover-summary-stays-private",
     prompt:
       "How much gold per hour are people making in WoW Classic right now? Search a few sources and tell me what they report.",
+  }),
+  /**
+   * Whether a summary keeps what the agent worked out: the answer to the first
+   * question comes from files, not from anything the user said, so after a
+   * summary only the summary has it. Needs
+   * `INSTRUMENT_PRICE_STEP_OVERRIDE=50000`, so the conversation summarizes
+   * more than once, which is where a summary has gone wrong.
+   */
+  defineEval({
+    assertions: [
+      summarizedFirst,
+      recalledFromTheSummary,
+      keptItsBookkeepingPrivate,
+    ],
+    followUps: [
+      "Now go through every file in Documents/Shipping terms and tell me which carrier gets to Denver fastest.",
+      "And go through every file in Documents/Returns policies: which supplier takes returns for longest?",
+      "Without opening the quotes again: which supplier was cheapest per bolt, what was its quote number and price, and what was the catch?",
+    ],
+    // Granted up front: a folder card ends the first turn, the next follow-up
+    // lands at once, and the agent answers it instead of the quotes.
+    folders: [{ inPlace: true, path: path.join(HOME, "Documents") }],
+    name: "context-rollover-summary-keeps-a-finding",
+    prompt:
+      "Go through every quote in Documents/Supplier quotes and tell me which supplier is cheapest per bolt, with its quote number and any catch.",
+    setup: () => {
+      writeDocs("Supplier quotes", "quote", QUOTES);
+      writeDocs("Shipping terms", "shipping terms", CARRIERS);
+      writeDocs("Returns policies", "returns policy", RETURNS);
+    },
   }),
 ];

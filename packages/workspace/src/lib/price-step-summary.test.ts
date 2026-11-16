@@ -8,6 +8,19 @@ const usage = {
   outputTokens: { reasoning: 0, text: 20, total: 20 },
 };
 
+const SUMMARY = [
+  "## Goal",
+  "Plan the move.",
+  "## Done and found",
+  "(none)",
+  "## Files",
+  "(none)",
+  "## Decisions",
+  "(none)",
+  "## Next",
+  "Pick a date.",
+].join("\n");
+
 /** A model that writes `text` and stops for `reason`. */
 function writing(text: string, reason: "length" | "stop") {
   return new MockLanguageModelV4({
@@ -33,10 +46,46 @@ function summarize(model: MockLanguageModelV4) {
   });
 }
 
+/** A model that answers with a tool call `calls` times, then writes `text`. */
+function carryingOn(calls: number, text: string) {
+  let asked = 0;
+  return new MockLanguageModelV4({
+    doGenerate: () => {
+      asked += 1;
+      return Promise.resolve(
+        asked <= calls
+          ? {
+              content: [
+                {
+                  text: "I'll keep going on the returns question.",
+                  type: "text" as const,
+                },
+                {
+                  input: "{}",
+                  toolCallId: `call-${String(asked)}`,
+                  toolName: "bash",
+                  type: "tool-call" as const,
+                },
+              ],
+              finishReason: { raw: "tool_use", unified: "tool-calls" as const },
+              usage,
+              warnings: [],
+            }
+          : {
+              content: [{ text, type: "text" as const }],
+              finishReason: { raw: "stop", unified: "stop" as const },
+              usage,
+              warnings: [],
+            },
+      );
+    },
+  });
+}
+
 describe("summarizeBeforePriceStep", () => {
   it("keeps a summary the model finished as it wrote it", async () => {
-    expect((await summarize(writing(" The goal. ", "stop")))?.summary).toBe(
-      "The goal.",
+    expect((await summarize(writing(` ${SUMMARY} `, "stop")))?.summary).toBe(
+      SUMMARY,
     );
   });
 
@@ -51,5 +100,25 @@ describe("summarizeBeforePriceStep", () => {
 
   it("gives nothing for a model that wrote nothing", async () => {
     expect(await summarize(writing("  ", "stop"))).toBeUndefined();
+  });
+
+  // Measured on Haiku 5.5: the reply carried on with the task, and its one
+  // line of narration was kept as the summary.
+  it("asks again when the answer calls a tool, and counts both asks", async () => {
+    const result = await summarize(carryingOn(1, SUMMARY));
+    expect(result?.summary).toBe(SUMMARY);
+    expect(result?.usage?.inputTokens).toBe(200);
+  });
+
+  it("gives nothing when the second answer calls a tool too", async () => {
+    expect(await summarize(carryingOn(2, SUMMARY))).toBeUndefined();
+  });
+
+  // Measured on Haiku 5.5: the reply answered the user's last question and
+  // offered to write "the conversation summary you asked for".
+  it("gives nothing for an answer without the headings", async () => {
+    expect(
+      await summarize(writing("Harlow is cheapest, at $0.071.", "stop")),
+    ).toBeUndefined();
   });
 });

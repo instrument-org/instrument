@@ -29,7 +29,12 @@ export type FolderFlowState = {
   triedOpen: boolean;
 };
 
-type FolderNoteKind = "denied" | "unfinished";
+/**
+ * `denied`: Documents refused; `noDocuments`: the computer has no Documents
+ * folder; both put the home folder on screen instead. `unfinished`: an
+ * earlier build's update of the folder is still going.
+ */
+type FolderNoteKind = "denied" | "noDocuments" | "unfinished";
 
 export type FolderFlowEvent =
   /** The folder Continue looked at was refused, and another put in its place. */

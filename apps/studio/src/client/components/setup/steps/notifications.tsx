@@ -7,6 +7,7 @@ import { SetupFooter, SetupPage } from "../kit/setup-page";
 import { NotificationRow } from "../kit/setup-row";
 import {
   continueFor,
+  footerLabelFor,
   type NotificationsEvent,
   notificationsStep,
   type NotificationsState,
@@ -26,17 +27,26 @@ async function notificationsAreOn(): Promise<boolean> {
   }
 }
 
-/** Asks the system for notifications, then whether they are on. */
-async function requestNotifications(): Promise<boolean> {
+/**
+ * Asks the system for notifications, then whether they are on, and whether
+ * a refusal came with no prompt shown (the request's `error`).
+ */
+async function requestNotifications(): Promise<{
+  blocked: boolean;
+  granted: boolean;
+}> {
+  let blocked = false;
   try {
-    await rpcClient.mac.notifications.request.call();
+    const answer = await rpcClient.mac.notifications.request.call();
+    blocked = answer.error !== undefined;
   } catch {
-    return false;
+    return { blocked: false, granted: false };
   }
   // The status, not the request's answer: a click on the body of macOS's
   // prompt reads as a refusal, and turning them on afterwards in System
   // Settings shows up only here.
-  return notificationsAreOn();
+  const granted = await notificationsAreOn();
+  return { blocked: blocked && !granted, granted };
 }
 
 /**
@@ -66,7 +76,7 @@ export function NotificationsStep({
   // A refusal is undone in the system's settings, in another window, so the
   // row asks the system again each time the person comes back to this one.
   useEffect(() => {
-    if (state !== "off") {
+    if (state !== "off" && state !== "blocked") {
       return;
     }
     const onFocus = async () => {
@@ -92,8 +102,8 @@ export function NotificationsStep({
   const allow = async () => {
     hold();
     dispatch({ type: "allow" });
-    const granted = await requestNotifications();
-    dispatch({ granted, type: "answered" });
+    const { blocked, granted } = await requestNotifications();
+    dispatch({ blocked, granted, type: "answered" });
     if (granted) {
       void sendTest();
     }
@@ -105,7 +115,7 @@ export function NotificationsStep({
       footer={
         <SetupFooter
           back={!isNewStepOnly}
-          label={state === "allowed" ? "Continue" : "Skip"}
+          label={footerLabelFor(state)}
           next={continueFor(state)}
           onBack={onBack}
           onContinue={isLast ? onFinish : onContinue}
@@ -140,7 +150,7 @@ export function NotificationsStep({
           onSendAgain={() => {
             void sendTest();
           }}
-          state={state === "asking" ? "ask" : state}
+          state={state}
         />
       </div>
     </SetupPage>

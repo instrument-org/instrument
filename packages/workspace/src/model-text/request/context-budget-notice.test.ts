@@ -38,6 +38,8 @@ describe("contextBudgetNotice", () => {
       There is still room to work, so finish what you are in the middle of rather than stopping to write notes. Write them to /workspace/chats/c/handoff-notes.md, which is a real file that outlives this conversation. That exact path is where they will be read back from, so notes anywhere else are notes nobody finds.
 
       Write your handoff notes before the room runs out. Say what a future reader needs in order to pick this up cold: the goal in the user's own terms, the decisions taken and why, what is finished, what is left, and the paths that matter.
+
+      Rollovers, summaries and handoff notes are your own bookkeeping, not part of the answer: never mention them or link the notes file in a reply. Asking the user about a detail you lost is fine.
       </context-budget>"
     `);
   });
@@ -50,6 +52,8 @@ describe("contextBudgetNotice", () => {
       Write your handoff notes now, before doing anything else. Write them to /workspace/chats/c/handoff-notes.md, which is a real file that outlives this conversation. That exact path is where they will be read back from, so notes anywhere else are notes nobody finds.
 
       Say what a future reader needs in order to pick this up cold: the goal in the user's own terms, the decisions taken and why, what is finished, what is left, and the paths that matter.
+
+      Rollovers, summaries and handoff notes are your own bookkeeping, not part of the answer: never mention them or link the notes file in a reply. Asking the user about a detail you lost is fine.
       </context-budget>"
     `);
   });

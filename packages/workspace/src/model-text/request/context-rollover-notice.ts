@@ -10,6 +10,11 @@
  * Derived per request and never persisted, so it tracks the file as the agent
  * rewrites it, and appended after the cache breakpoints so its contents cannot
  * move the cached prefix.
+ *
+ * After a summarized rollover the summary is the record, so the agent is not
+ * asked for notes: it was not running out of room, and an agent asked for
+ * notes on every request writes them as a visible step and then tells the
+ * person about them.
  */
 export function contextRolloverNotice(
   notes: string | undefined,
@@ -27,27 +32,39 @@ export function contextRolloverNotice(
       ? []
       : ["", "<summary>", summarized.summary, "</summary>"];
 
-  if (notes === undefined) {
-    return [
-      "<context-rollover>",
-      preamble,
-      ...summary,
-      "",
-      `No handoff notes were found at \`${notesPath}\`. Treat what is in this window as the remainder of the task rather than the whole of it, and write your notes there before the room runs out again.`,
-      "</context-rollover>",
-    ].join("\n");
-  }
+  const handedBack =
+    notes === undefined
+      ? summarized === undefined
+        ? [
+            "",
+            `No handoff notes were found at \`${notesPath}\`. Treat what is in this window as the remainder of the task rather than the whole of it, and write your notes there before the room runs out again.`,
+          ]
+        : []
+      : [
+          "",
+          `These are the handoff notes you left at \`${notesPath}\`. They are your own account of the work above${summarized === undefined ? ", and the only one still in front of you" : ""}, so treat what they say about the task as established rather than something to rediscover:`,
+          "",
+          notes,
+          ...(summarized === undefined
+            ? ["", `Keep them current at \`${notesPath}\` as the task moves.`]
+            : []),
+        ];
 
   return [
     "<context-rollover>",
     preamble,
     ...summary,
+    ...handedBack,
     "",
-    `These are the handoff notes you left at \`${notesPath}\`. They are your own account of the work above, and the only one still in front of you, so treat what they say about the task as established rather than something to rediscover:`,
-    "",
-    notes,
-    "",
-    `Keep them current at \`${notesPath}\` as the task moves.`,
+    CONTEXT_PRIVATE,
     "</context-rollover>",
   ].join("\n");
 }
+
+/**
+ * Said wherever the agent is told about rollovers or its notes. The notes file
+ * sits in the chat's folder beside what the agent made, so without this an
+ * agent offers it to the person as one more result.
+ */
+export const CONTEXT_PRIVATE =
+  "Rollovers, summaries and handoff notes are your own bookkeeping, not part of the answer: never mention them or link the notes file in a reply. Asking the user about a detail you lost is fine.";

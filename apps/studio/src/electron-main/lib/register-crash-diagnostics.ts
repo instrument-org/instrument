@@ -373,6 +373,42 @@ function isOtherLiveProcess(pid: unknown): boolean {
   }
 }
 
+/** This session's marker, once `reportUncleanExit` has written it. */
+let liveMarkerPath: string | undefined;
+
+/**
+ * Notes on this session's marker that the system is ending the session (a
+ * signal, a logout, a shutdown), so a process killed before its quit's
+ * teardown finishes is read at the next start as ended by the system rather
+ * than as one that stopped responding. A WindowServer crash on macOS is one:
+ * loginwindow logs the person out at once and kills what is still running a
+ * moment later. A teardown that stalls is still ended by the quit watchdog,
+ * and a frozen main thread is still reported through the freeze marker.
+ * Leaves a marker already taken away (Windows' `session-end`) or another
+ * instance's alone.
+ */
+export function noteSystemEndingSession(source: string) {
+  if (!liveMarkerPath) {
+    return;
+  }
+  try {
+    const marker = readSessionMarker(liveMarkerPath);
+    if (marker?.pid !== process.pid) {
+      return;
+    }
+    fs.writeFileSync(
+      liveMarkerPath,
+      JSON.stringify({ ...marker, endedBy: source }),
+    );
+  } catch (error) {
+    log.warn(
+      new Error("Could not note the system ending this session", {
+        cause: error,
+      }),
+    );
+  }
+}
+
 /**
  * Say so when the last session never got to exit, then mark this one.
  *
@@ -410,6 +446,10 @@ function reportUncleanExit(app: Electron.App): {
           : "";
         if (previous && startedBeforeThisBoot(previous.startedAt)) {
           log.info(`Previous session${details} ended with the computer.`);
+        } else if (previous?.endedBy) {
+          log.info(
+            `Previous session${details} was ended by the system (${previous.endedBy}) while it quit.`,
+          );
         } else {
           unclean = true;
           log.warn(
@@ -443,6 +483,7 @@ function reportUncleanExit(app: Electron.App): {
       // Already gone, or another instance has it.
     }
   };
+  liveMarkerPath = markerPath;
   process.on("exit", removeMarker);
   // Windows ends the process with its session, before Node's `exit`. A shut
   // down with Fast Startup also keeps the uptime running, so the boot time
@@ -501,9 +542,15 @@ function startedBeforeThisBoot(startedAt: string): boolean {
   return Date.parse(startedAt) < Date.now() - os.uptime() * 1000;
 }
 
-function readSessionMarker(
-  markerPath: string,
-): { pid: number; startedAt: string; version: string } | undefined {
+type SessionMarker = {
+  /** What the system sent to end the session, once its quit has started. */
+  endedBy?: string;
+  pid: number;
+  startedAt: string;
+  version: string;
+};
+
+function readSessionMarker(markerPath: string): SessionMarker | undefined {
   try {
     const parsed: unknown = JSON.parse(fs.readFileSync(markerPath, "utf8"));
     if (
@@ -517,6 +564,10 @@ function readSessionMarker(
       typeof parsed.version === "string"
     ) {
       return {
+        endedBy:
+          "endedBy" in parsed && typeof parsed.endedBy === "string"
+            ? parsed.endedBy
+            : undefined,
         pid: parsed.pid,
         startedAt: parsed.startedAt,
         version: parsed.version,

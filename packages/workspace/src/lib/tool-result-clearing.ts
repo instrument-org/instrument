@@ -82,6 +82,23 @@ const PLACEHOLDER_TOKENS = 90;
 /** Characters from which a string in a call's input is cleared. */
 const MIN_CLEARED_INPUT_CHARACTERS = 1_000;
 
+/**
+ * Treat every model as priced higher from this many prompt tokens, so an eval
+ * reaches clearing and the summarized rollover in a few turns on a model whose
+ * provider lists no step (a subscription, say). Lowers a listed step, never
+ * raises one.
+ */
+const PRICE_STEP_OVERRIDE_ENV_VAR = "INSTRUMENT_PRICE_STEP_OVERRIDE";
+
+function priceStepOf(model: AIGatewayModel.Type): number | undefined {
+  const listed = model.pricing?.higherPriceFromPromptTokens;
+  const override = Number(process.env[PRICE_STEP_OVERRIDE_ENV_VAR]);
+  if (!Number.isFinite(override) || override <= 0) {
+    return listed;
+  }
+  return Math.min(listed ?? Infinity, Math.floor(override));
+}
+
 /** A stored tool call whose result or input may be cleared. */
 interface ClearableResult {
   messageId: StoreId.Message;
@@ -471,7 +488,7 @@ export async function clearOldToolResults({
   const results = clearableResults(messages, rendered);
   let through = toolResultsClearedThrough(messages);
 
-  const priceStepTokens = model.pricing?.higherPriceFromPromptTokens;
+  const priceStepTokens = priceStepOf(model);
   const projectedTokens =
     priceStepTokens === undefined
       ? undefined

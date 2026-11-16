@@ -1,4 +1,5 @@
 import { Button } from "@/client/components/ui/button";
+import { Spinner } from "@/client/components/ui/spinner";
 import { cn } from "@/client/lib/utils";
 import { APP_NAME } from "@instrument-org/shared";
 import { BellRingingIcon } from "@phosphor-icons/react/BellRinging";
@@ -128,8 +129,9 @@ export function SetupRowButton({
 }
 
 /**
- * The notifications row in each of its states: asking, a test notification
- * sent and waiting on its click, allowed, and turned off by the system.
+ * The notifications row in each of its states: offering Allow, waiting on
+ * the system's prompt, a test notification sent and waiting on its click,
+ * allowed, turned off by the system, and turned off with no prompt shown.
  */
 export function NotificationRow({
   line,
@@ -143,9 +145,30 @@ export function NotificationRow({
   onAllow?: () => void;
   onOpenSettings?: () => void;
   onSendAgain?: () => void;
-  state: "allowed" | "ask" | "off" | "sent";
+  state: "allowed" | "ask" | "asking" | "blocked" | "off" | "sent";
 }) {
   switch (state) {
+    case "asking": {
+      return (
+        <SetupRow
+          icon={<Spinner delay={0} />}
+          // oxlint-disable-next-line studio/no-os-words -- the notifications step shows only on macOS
+          line={`Your Mac is asking whether ${APP_NAME} can send you notifications.`}
+          title="Check the top-right corner of your screen"
+        />
+      );
+    }
+    case "blocked": {
+      return (
+        <SetupRow
+          icon={<BellSimpleSlashIcon />}
+          line="This happened without asking you. You can skip this step for now."
+          muted
+          // oxlint-disable-next-line studio/no-os-words -- the notifications step shows only on macOS
+          title={`Your Mac turned off notifications for ${APP_NAME}`}
+        />
+      );
+    }
     case "ask": {
       return (
         <SetupRow

@@ -91,3 +91,45 @@ describe("context rollover: kept the format it chose", () => {
     expect(result?.evidence).toContain("Inconclusive");
   });
 });
+
+describe("context rollover: kept its bookkeeping private", () => {
+  const privacy = CONTEXT_ROLLOVER_EVALS[1]?.assertions?.[0];
+  const run = (rolledOver: boolean, ...answers: string[]) =>
+    privacy?.check({
+      childSessions: () => Promise.resolve([]),
+      sessions: [
+        {
+          messages: [
+            ...answers.map((text) => ({
+              parts: [{ text, type: "text" }],
+              role: "assistant",
+            })),
+            ...(rolledOver
+              ? [{ parts: [{ type: "data-contextRollover" }], role: "user" }]
+              : []),
+          ],
+        },
+      ] as unknown as Session.WithMessagesAndParts[],
+      chatId: "task" as ChatId,
+    });
+
+  it("passes when no reply mentions it", async () => {
+    const result = await run(true, "Herbalism makes about 40g an hour.");
+    expect(result?.passed).toBe(true);
+  });
+
+  // The recorded reply, from feedback:76pmzbpfqf3h.
+  it("fails when a reply offers the notes file", async () => {
+    const result = await run(
+      true,
+      "I also saved my research notes to `handoff-notes.md` in this chat's folder.",
+    );
+    expect(result?.passed).toBe(false);
+  });
+
+  it("reports inconclusive when the run never rolled over", async () => {
+    const result = await run(false, "Herbalism makes about 40g an hour.");
+    expect(result?.passed).toBe(false);
+    expect(result?.evidence).toContain("Inconclusive");
+  });
+});

@@ -528,10 +528,17 @@ describe("notices", () => {
 
     it("asks loudly when new chats start on the account, and quietly otherwise", async () => {
       const notices = await load();
+      // A millisecond apart, so newest-first never rests on a tie.
+      vi.useFakeTimers({
+        now: Date.parse("2026-11-16T12:00:00Z"),
+        toFake: ["Date"],
+      });
       notices.noteSignedOut("claude-account", [{ id: "claude-account" }]);
+      vi.setSystemTime(Date.parse("2026-11-16T12:00:00.001Z"));
       notices.noteSignedOut("chatgpt-account", [
         { id: "01J0000000000000000000000A", label: "me@example.com" },
       ]);
+      vi.useRealTimers();
       workspace.defaultModelURI = claudeOpus;
 
       expect(

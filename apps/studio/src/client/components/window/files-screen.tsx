@@ -68,7 +68,11 @@ import { type SettledStep } from "./files-step";
 import { scrollOpenFileOnSpace } from "./scroll-open-file";
 import { useFilesStep } from "./use-files-step";
 import { folderOf, relativeHostPath, segmentsOf } from "./host-path";
-import { useHostedPage, useHostedPageNavigation } from "./hosted-page";
+import {
+  useHostedPage,
+  useHostedPageNavigation,
+  useKeepsHostedPage,
+} from "./hosted-page";
 import { LinkSurface } from "./link-surface";
 import { PageEditToggle } from "./page-edit";
 import { pageEditTabsAtom, usePageEditToggleOnScreen } from "./page-edit-state";
@@ -441,6 +445,9 @@ export function FilesScreen({
   // menu is the file's own.
   const hostGroup = hostGroupOf(tabId);
   const hostedFile = isPageFile ? activeFile.hostPath : undefined;
+  // A group's tab is drawn only while it is up on its side, so this screen
+  // goes whenever another tab comes up there; its page stays live for it.
+  const keepsHostedPage = useKeepsHostedPage(tabId);
   const {
     release: releaseHosted,
     setSlot,
@@ -455,6 +462,7 @@ export function FilesScreen({
       },
       isActive: isActiveTab && (groupTab?.isShown ?? true),
     },
+    ...(groupTab ? { keepsPage: keepsHostedPage } : {}),
     url: hostedFile === undefined ? undefined : fileUrlOf(hostedFile),
   });
   // The element the page is drawn into, which the window hands the keyboard

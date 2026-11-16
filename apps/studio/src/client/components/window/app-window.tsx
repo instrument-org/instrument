@@ -165,6 +165,7 @@ import { WindowFrame } from "./window-frame";
 import { GroupSidebar, sidebarBounds } from "./group-sidebar";
 import { TrafficLightsWithSidebar } from "./inbox-toggle";
 import { isGroupScreenHref } from "./group-screen";
+import { useCloseStrandedHostedPages } from "./hosted-page";
 import { DragLayer } from "./drag/drag-layer";
 import { useDragSystem } from "./drag/use-drag-system";
 import { useGroupTabMoves } from "./tab-drag";
@@ -532,6 +533,7 @@ function WindowShell({
     select: (routerState) => routerState.location.href,
   });
   useTabGroupUpkeep(appTabHref, groupList.open);
+  useCloseStrandedHostedPages();
   // Closing a group leaves its chats working: a chat goes on with no tab,
   // and the Chats page shows it at work. With `keep`, the group a row's menu asked
   // from, which the window moves to.

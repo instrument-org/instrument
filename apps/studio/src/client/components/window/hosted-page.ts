@@ -11,12 +11,20 @@ import {
   browserTargetOf,
   type BrowserTargetId,
 } from "@instrument-org/workspace/client";
+import { useAtomValue, useStore } from "jotai";
 import { noop } from "radashi";
 import { useEffect, useEffectEvent, useRef, useState } from "react";
 
 import { useWindow } from "./context";
 import { type PageHost, usePageHost } from "./page-hosts";
-import { hostGroupOf, useWindowTabs } from "./window-tabs";
+import { closeTab, groupLayoutOf, type WindowTabs } from "./tab-model";
+import { matchScreen } from "./window-href";
+import {
+  hostGroupOf,
+  useWindowTabs,
+  useWindowTabsChange,
+  windowTabsAtom,
+} from "./window-tabs";
 
 /**
  * What a page drawn in a file tab's viewer moving means for the
@@ -200,10 +208,13 @@ function sameDocument(a: string, b: string) {
 export function useHostedPage({
   group,
   host,
+  keepsPage,
   url,
 }: {
   group: string;
   host: Omit<PageHost, "into">;
+  /** Whether the page outlives the surface, asked as the surface goes; without it the page closes then. */
+  keepsPage?: () => boolean;
   url: string | undefined;
 }) {
   const { browser } = useWindow();
@@ -285,6 +296,12 @@ export function useHostedPage({
     showPage();
   }, [url, group, hasBrowser]);
   const closeAll = useEffectEvent(() => {
+    // A page still on its file stays live in its guest when the surface
+    // says so, for the surface coming back to take up; one put away blank
+    // closes as it would have.
+    if (parked.current === undefined && keepsPage?.() === true) {
+      return;
+    }
     window.clearTimeout(parked.current);
     for (const id of tabIdsNow.current) {
       hostLoads.delete(browserTargetOf(id));
@@ -310,4 +327,81 @@ export function useHostedPage({
     /** The page's tab, once the group has one. */
     tabId: url === undefined ? undefined : tabIds[0],
   };
+}
+
+/** Whether a group tab shows Files, the one screen that draws a page in its viewer. */
+function isFilesTab(tab: WindowTab | undefined) {
+  return tab?.kind === "screen" && matchScreen(tab.href).kind === "computer";
+}
+
+/**
+ * Whether the page a group's file tab draws in its viewer outlives the
+ * viewer going: while the tab is still Files, only put behind another tab
+ * on its side. Its guest stays live in the pool, so switching back takes the
+ * page up as it was, the way switching groups does.
+ */
+export function keepsHostedPage(state: WindowTabs, tabId: string) {
+  const tab = state.tabs.find((each) => each.id === tabId);
+  if (!isFilesTab(tab) || tab?.group === undefined) {
+    return false;
+  }
+  return !groupLayoutOf(state, tab.group).sides.some(
+    (side) => side.up === tabId,
+  );
+}
+
+/** The tab a hosted page's group was made for, for a group named by `hostGroupOf`. */
+function ownerOfHostGroup(group: string | undefined) {
+  const prefix = hostGroupOf("");
+  return group?.startsWith(prefix) ? group.slice(prefix.length) : undefined;
+}
+
+/**
+ * The pages kept live for file tabs behind others ({@link keepsHostedPage})
+ * whose tab has since closed or gone on from Files. A tab counts as closed
+ * only once it was `seen`, so a page whose tab the window has not read yet
+ * is left alone.
+ */
+export function strandedHostedPages(
+  state: WindowTabs,
+  seen: ReadonlySet<string>,
+) {
+  const byId = new Map(state.tabs.map((tab) => [tab.id, tab]));
+  return state.tabs.flatMap((page) => {
+    const owner = ownerOfHostGroup(page.group);
+    if (owner === undefined || !seen.has(owner)) {
+      return [];
+    }
+    return isFilesTab(byId.get(owner)) ? [] : [page.id];
+  });
+}
+
+/** Closes the window's {@link strandedHostedPages} as they come about. */
+export function useCloseStrandedHostedPages() {
+  const state = useAtomValue(windowTabsAtom);
+  const change = useWindowTabsChange();
+  const seen = useRef(new Set<string>());
+  useEffect(() => {
+    for (const tab of state.tabs) {
+      if (ownerOfHostGroup(tab.group) === undefined) {
+        seen.current.add(tab.id);
+      }
+    }
+    const stranded = strandedHostedPages(state, seen.current);
+    if (stranded.length === 0) {
+      return;
+    }
+    for (const id of stranded) {
+      hostLoads.delete(browserTargetOf(id));
+    }
+    change((current) =>
+      stranded.reduce((next, id) => closeTab(next, id), current),
+    );
+  }, [state, change]);
+}
+
+/** {@link keepsHostedPage} for a file tab's viewer, read from the window's tabs as the viewer goes. */
+export function useKeepsHostedPage(tabId: string) {
+  const store = useStore();
+  return () => keepsHostedPage(store.get(windowTabsAtom), tabId);
 }

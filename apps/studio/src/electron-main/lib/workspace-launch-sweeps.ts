@@ -26,6 +26,7 @@ import {
   settleProjectFiles,
   withholdChats,
   settleWorkspaceDb,
+  writeDataDirReadme,
 } from "@instrument-org/workspace/electron";
 import { workspaceLayout } from "@instrument-org/workspace/layout";
 import { app, shell } from "electron";
@@ -170,6 +171,23 @@ export async function sweepWorkspaceFolder({
   await timeBootStep("sweep.settleWorkspaceDrafts", () =>
     settleWorkspaceDrafts(rootDir),
   );
+  // Last, the guide for another coding agent opened in the workspace, once
+  // `.instrument/` is in this build's shape.
+  await timeBootStep("sweep.writeDataDirReadme", () => writeGuide(rootDir));
+}
+
+/**
+ * Write `.instrument/README.md` where it differs from this build's guide.
+ * A failure must not block boot.
+ */
+async function writeGuide(rootDir: string) {
+  try {
+    if (await writeDataDirReadme(rootDir)) {
+      logger.info("Wrote the workspace guide in .instrument/README.md");
+    }
+  } catch (error) {
+    captureServerException(error);
+  }
 }
 
 function settleDatabase(rootDir: string) {

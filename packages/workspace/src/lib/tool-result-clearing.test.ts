@@ -98,7 +98,7 @@ describe("nextToolResultClearing", () => {
   it("does nothing below 85% of the price step", () => {
     expect(
       nextToolResultClearing({
-        priceStepTokens: 100_000,
+        stepTokens: 100_000,
         projectedTokens: 84_999,
         results: results({ a1: [30_000], a2: [30_000], a3: [1], a4: [1] }),
         through: undefined,
@@ -109,7 +109,7 @@ describe("nextToolResultClearing", () => {
   it("clears whole messages, oldest first, until the request is under 45% of the step", () => {
     expect(
       nextToolResultClearing({
-        priceStepTokens: 100_000,
+        stepTokens: 100_000,
         projectedTokens: 90_000,
         // 45,000 has to go: a1 and a2 free 40,000, so a3 goes too, both of its results.
         results: results({
@@ -129,7 +129,7 @@ describe("nextToolResultClearing", () => {
   it("never clears the newest three results", () => {
     expect(
       nextToolResultClearing({
-        priceStepTokens: 100_000,
+        stepTokens: 100_000,
         projectedTokens: 95_000,
         results: results({ a1: [25_000], a2: [20_000], a3: [20_000, 20_000] }),
         through: undefined,
@@ -140,7 +140,7 @@ describe("nextToolResultClearing", () => {
   it("starts after the clearing in force", () => {
     expect(
       nextToolResultClearing({
-        priceStepTokens: 100_000,
+        stepTokens: 100_000,
         projectedTokens: 90_000,
         results: results({
           a1: [50_000],
@@ -158,7 +158,7 @@ describe("nextToolResultClearing", () => {
   it("does nothing when clearing would free less than 20% of the step", () => {
     expect(
       nextToolResultClearing({
-        priceStepTokens: 100_000,
+        stepTokens: 100_000,
         projectedTokens: 99_000,
         results: results({
           a1: [10_000],

@@ -1195,6 +1195,13 @@ describe("prepareModelMessages", () => {
         ...createMockAIGatewayModel({ contextLength: 1_000_000 }),
         pricing: { higherPriceFromPromptTokens: 1000, input: 0.1, output: 0.5 },
       };
+      // No price step, and a window whose usable 1,000 tokens (past the
+      // 250-token reserve) act the same way.
+      const windowedModel = createMockAIGatewayModel({ contextLength: 1250 });
+      const stepCases = [
+        ["near the price step", steppedModel],
+        ["near the window, with no price step", windowedModel],
+      ] as const;
 
       /** A step that read a file `characters` long, under a call id of its own. */
       function readStep(characters: number, inputTokens: number) {
@@ -1228,11 +1235,12 @@ describe("prepareModelMessages", () => {
 
       async function prepareWith(
         summarize: Parameters<typeof prepareModelMessages>[0]["summarize"],
+        model: typeof windowedModel = steppedModel,
       ) {
         const result = await prepareModelMessages({
           agent,
           chatId,
-          model: steppedModel,
+          model,
           sessionId,
           signal: AbortSignal.timeout(30_000),
           summarize,
@@ -1240,57 +1248,65 @@ describe("prepareModelMessages", () => {
         return result._unsafeUnwrap();
       }
 
-      it("clears old tool results first, and asks for no summary", async () => {
-        await save(userMessage("Read them all"));
-        for (let index = 0; index < 5; index++) {
-          await save(readStep(3000, 900));
-        }
-        const summarize = vi.fn(() => Promise.resolve(undefined));
+      it.each(stepCases)(
+        "%s, clears old tool results first, and asks for no summary",
+        async (_, model) => {
+          await save(userMessage("Read them all"));
+          for (let index = 0; index < 5; index++) {
+            await save(readStep(3000, 900));
+          }
+          const summarize = vi.fn(() => Promise.resolve(undefined));
 
-        const messages = await prepareWith(summarize);
+          const messages = await prepareWith(summarize, model);
 
-        expect(summarize).not.toHaveBeenCalled();
-        expect(
-          modelTexts(messages).filter((text) =>
-            text.includes("cleared from context to save space"),
-          ),
-        ).toHaveLength(2);
-      });
+          expect(summarize).not.toHaveBeenCalled();
+          expect(
+            modelTexts(messages).filter((text) =>
+              text.includes("cleared from context to save space"),
+            ),
+          ).toHaveLength(2);
+        },
+      );
 
-      it("rolls over onto a summary written from the request itself once nothing is left to clear", async () => {
-        await save(userMessage("First question"));
-        for (let index = 0; index < 4; index++) {
-          await save(assistantMessageWithUsage(`turn ${index}`, 900));
-        }
-        const summarize = vi.fn((sent: ModelMessage[]) =>
-          Promise.resolve(
-            modelTexts(sent).some((text) => text.includes("turn 3"))
-              ? { summary: "The user asked a first question.", usage: {} }
-              : undefined,
-          ),
-        );
+      it.each(stepCases)(
+        "%s, rolls over onto a summary written from the request itself once nothing is left to clear",
+        async (_, model) => {
+          await save(userMessage("First question"));
+          for (let index = 0; index < 4; index++) {
+            await save(assistantMessageWithUsage(`turn ${index}`, 900));
+          }
+          const summarize = vi.fn((sent: ModelMessage[]) =>
+            Promise.resolve(
+              modelTexts(sent).some((text) => text.includes("turn 3"))
+                ? { summary: "The user asked a first question.", usage: {} }
+                : undefined,
+            ),
+          );
 
-        const messages = await prepareWith(summarize);
-        const notice = modelTexts(messages).find((text) =>
-          text.includes("<context-rollover>"),
-        );
+          const messages = await prepareWith(summarize, model);
+          const notice = modelTexts(messages).find((text) =>
+            text.includes("<context-rollover>"),
+          );
 
-        expect(summarize).toHaveBeenCalledOnce();
-        expect(await storedBoundary()).toBeDefined();
-        expect(
-          modelTexts(messages).some((text) => text.includes("turn 0")),
-        ).toBe(false);
-        expect(notice).toContain(
-          "<summary>\nThe user asked a first question.\n</summary>",
-        );
+          expect(summarize).toHaveBeenCalledOnce();
+          expect(await storedBoundary()).toBeDefined();
+          expect(
+            modelTexts(messages).some((text) => text.includes("turn 0")),
+          ).toBe(false);
+          expect(notice).toContain(
+            "<summary>\nThe user asked a first question.\n</summary>",
+          );
 
-        // Read back from the record on every later request, with no call.
-        await save(userMessage("and again"));
-        const later = await prepareWith(undefined);
-        expect(
-          modelTexts(later).find((text) => text.includes("<context-rollover>")),
-        ).toContain("The user asked a first question.");
-      });
+          // Read back from the record on every later request, with no call.
+          await save(userMessage("and again"));
+          const later = await prepareWith(undefined, model);
+          expect(
+            modelTexts(later).find((text) =>
+              text.includes("<context-rollover>"),
+            ),
+          ).toContain("The user asked a first question.");
+        },
+      );
 
       it("draws no boundary when the summary cannot be written", async () => {
         await save(userMessage("First question"));

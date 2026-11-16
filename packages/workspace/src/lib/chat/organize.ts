@@ -1,6 +1,6 @@
 import { type ChatId } from "../../schemas/chat-id";
 import { type ChatChange } from "../chat-changes";
-import { cappedTitle } from "../chat-folders/folder-name";
+import { cappedTitle } from "../folder-name";
 import { followTitle, titlesToFollow } from "../chat-folders/follow-title";
 import { resolveChat } from "../record-folders";
 import {

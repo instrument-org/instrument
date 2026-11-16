@@ -13,7 +13,7 @@ import { type ChatId, ChatIdSchema } from "../../schemas/chat-id";
 import { ChatReads } from "../chat-reads";
 import { listApps } from "../apps/store";
 import { ChatWrites } from "../chat-writes";
-import { cappedTitle } from "../chat-folders/folder-name";
+import { cappedTitle } from "../folder-name";
 import { isUntitledChatSessionTitle } from "../generate-session-title";
 import { pathsNamedInMessage } from "../paths-named-in-message";
 import { type AskState, askStates, movedPastOf } from "./ask-states";

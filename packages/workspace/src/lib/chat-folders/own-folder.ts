@@ -7,7 +7,7 @@ import { CHAT_FILE_NAME } from "../../constants";
 import { type ChatId } from "../../schemas/chat-id";
 import { readJsonRecordSync, updateJsonRecord } from "../json-record-file";
 import { keptByNameOnly } from "../workspace-files";
-import { chatLinkedInText, LINK_HEAD_BYTES } from "./chat-transcript";
+import { chatLinkedInText, LINK_HEAD_BYTES } from "../retire-chats-folder/chat-transcript";
 
 /**
  * Which folder under `Chats/` is each chat's own, on this computer.

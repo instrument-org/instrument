@@ -3,7 +3,7 @@ import path from "node:path";
 
 import { CHAT_FILE_NAME, CHATS_FOLDER_NAME } from "../../constants";
 import { syncDirectory } from "../records/sync-directory";
-import { claimFolderNamed, isTakenError, safeName } from "./folder-name";
+import { claimFolderNamed, isTakenError, safeName } from "../folder-name";
 
 /**
  * A chat's own folder, the one a person opens: `Chats/<title>/`, holding its

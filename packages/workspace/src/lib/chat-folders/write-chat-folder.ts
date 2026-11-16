@@ -14,8 +14,8 @@ import { foldChatInFolder } from "../records/fold-folder";
 import { getWorkspaceConfig } from "../workspace-config";
 import { workspaceLayout } from "../workspace-layout";
 import { ensureChatFolder, writeChatFile } from "./chat-folder";
-import { chatTitleOf, renderChatMarkdown } from "./chat-markdown";
-import { deleteChatFileConflictCopies } from "./conflict-copies";
+import { chatTitleOf, renderChatMarkdown } from "../chat-markdown/chat-markdown";
+import { deleteChatFileConflictCopies } from "../retire-chats-folder/conflict-copies";
 import {
   chatFolderNames,
   folderLinkedToReading,

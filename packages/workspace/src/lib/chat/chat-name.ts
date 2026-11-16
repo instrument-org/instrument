@@ -6,11 +6,7 @@ import { CHATS_FOLDER_NAME } from "../../constants";
 import { type ChatId } from "../../schemas/chat-id";
 import { type SessionMessage } from "../../schemas/session/message";
 import { type WorkspaceConfig } from "../../types";
-import {
-  cappedTitle,
-  numberedName,
-  safeName,
-} from "../chat-folders/folder-name";
+import { cappedTitle, numberedName, safeName } from "../folder-name";
 import { chatFolderNames, foldersIn } from "../chat-folders/own-folder";
 import { generateTitleFromUserMessage } from "../generate-title-from-user-message";
 import { listChats } from "./chats";

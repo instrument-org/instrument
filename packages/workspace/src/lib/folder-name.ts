@@ -2,7 +2,7 @@ import fsSync from "node:fs";
 import fs from "node:fs/promises";
 import path from "node:path";
 
-import { UNTITLED_CHAT_TITLE } from "../../constants";
+import { UNTITLED_CHAT_TITLE } from "../constants";
 
 /**
  * What a folder a person opens is called, in `Chats/` or in any other of the

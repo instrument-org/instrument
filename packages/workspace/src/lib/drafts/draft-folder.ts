@@ -4,7 +4,7 @@ import { unique } from "radashi";
 import { ulid } from "ulid";
 
 import { DRAFT_FILE_NAME } from "../../constants";
-import { claimFolderNamedSync, safeName } from "../chat-folders/folder-name";
+import { claimFolderNamedSync, safeName } from "../folder-name";
 import { isSystemClutter, removeFolderLeftEmpty } from "../system-clutter";
 import { CachedReads } from "../workspace-files";
 import { workspaceLayout } from "../workspace-layout";

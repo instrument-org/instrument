@@ -6,7 +6,7 @@ import {
 } from "../../model-text/commands/chats-command";
 import { type ChatId } from "../../schemas/chat-id";
 import { recordChatChange } from "../chat-changes";
-import { cappedTitle } from "../chat-folders/folder-name";
+import { cappedTitle } from "../folder-name";
 import {
   type Chat,
   chatById,

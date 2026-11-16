@@ -54,6 +54,21 @@ import {
   tabHrefOfAppAddress,
 } from "./agent-opens";
 import { type AppsBySlug } from "./apps-by-slug";
+import {
+  bringsBack,
+  type ClosedTabs,
+  entryText,
+  placeOf as placeOfAction,
+  timelineOf,
+} from "@/client/components/activity/activity-timeline";
+import { type WindowTab } from "@/client/atoms/window";
+import { type OpenTarget } from "@/client/lib/open-target";
+import { osConventions } from "@/client/lib/utils";
+import { instrumentUrlOf } from "@instrument-org/shared";
+import { appTabsAtom } from "./app-tabs";
+import { pageTabTitle } from "./file-tabs";
+import { screenPresentation } from "./screen-presentation";
+import { closedGroupTabOf, closedSideOf, closedTabGroupOf } from "./tab-model";
 import { groupLayoutFor, groupReadOf } from "./group-awareness";
 import { windowTabGroupsAtom } from "./open-groups";
 import { openLinkAddress, setLinkedShower } from "./open-link-address";
@@ -71,7 +86,9 @@ export function useOpeners({
   closedEntryOf,
   closeGroup,
   closeTab,
+  groupTabs,
   isOpen,
+  moveTabs,
   newGroup,
   openChat,
   reopenClosed,
@@ -91,6 +108,10 @@ export function useOpeners({
   closeGroup: (group: string) => boolean;
   /** Closes a tab as the person's close does, onto the closed list. */
   closeTab: (id: string) => void;
+  /** Makes a new tab group of tabs in this window, as Move to New Tab Group moves one, the window staying on its group; answers the group. */
+  groupTabs: (ids: readonly string[]) => string;
+  /** Moves tabs into a tab group, as dropping each on its row does. */
+  moveTabs: (ids: readonly string[], group: string) => void;
   /** Whether what the window opens on is made; nothing is opened before it is. */
   isOpen: boolean;
   /**
@@ -720,6 +741,83 @@ export function useOpeners({
     return { behind: isOnScreen, tabId: id };
   };
   /**
+   * The window's History as its list shows it, newest first: the tabs,
+   * sides and groups this window closed, by the closed list's ids, and,
+   * unless only those are asked for, the places visited, from the log.
+   */
+  const historyRows = async ({
+    closedOnly,
+    limit,
+  }: {
+    closedOnly: boolean;
+    limit: number;
+  }): Promise<NonNullable<WindowTabAnswer["history"]>> => {
+    const titleOf = (tab: WindowTab) =>
+      tab.kind === "page"
+        ? pageTabTitle(tab) || (tab.url ?? tab.openedUrl ?? "")
+        : screenPresentation(tab.href, { appsBySlug, chatTitles }).title;
+    const closed = store.get(appTabsAtom).recentlyClosed.flatMap((entry) => {
+      const whole = closedTabGroupOf(entry);
+      const tabs = whole ?? [closedGroupTabOf(entry)].filter((tab) => !!tab);
+      if (entry.closedAt === undefined || tabs.length === 0) {
+        return [];
+      }
+      const kind: ClosedTabs["kind"] =
+        whole === undefined ? "tab" : closedSideOf(entry) ? "side" : "group";
+      return [
+        {
+          at: entry.closedAt,
+          closed: {
+            id: entry.id,
+            kind,
+            tabs: tabs.map((tab) => ({ tab, title: titleOf(tab) })),
+          },
+        },
+      ];
+    });
+    const [, read] = closedOnly
+      ? [undefined, undefined]
+      : await safe(
+          rpcClient.actions.list.call({ limit: Math.max(limit, 50), since: 0 }),
+        );
+    const { entries } = timelineOf({
+      actions: {
+        complete: read?.next === null,
+        items: read?.actions ?? [],
+      },
+      closed,
+      requests: { complete: true, items: [] },
+      view: "yours",
+    });
+    const words = { trash: osConventions().trash };
+    return entries
+      .filter(bringsBack)
+      .slice(0, limit)
+      .map((entry) => {
+        const text = entryText(entry, { modelName: () => "", words });
+        if (entry.kind === "closed") {
+          const kind = (
+            {
+              group: "closedGroup",
+              side: "closedSide",
+              tab: "closedTab",
+            } as const
+          )[entry.closed.kind];
+          return { at: entry.at, ...text, id: entry.closed.id, kind };
+        }
+        const target =
+          entry.kind === "action" ? placeOfAction(entry.action) : undefined;
+        const address = target === undefined ? undefined : addressOf(target);
+        return {
+          ...(address === undefined ? {} : { address }),
+          at: entry.at,
+          ...text,
+          id: entry.id,
+          kind: "visit" as const,
+        };
+      });
+  };
+  /**
    * Every open window's tab groups as a chat reads them, the one in front
    * first, each marked shown where its window shows it; the chat's own tab
    * marked in whichever group has it.
@@ -848,6 +946,43 @@ export function useOpeners({
         : {
             error: `the tab group ${action.group} is open in another window; it closes from there.`,
           };
+    }
+    if (action.kind === "groupTabs" || action.kind === "moveTabs") {
+      const missing = action.tabIds.filter(
+        (id) =>
+          windowTabs.allTabs.find((tab) => tab.id === id)?.group === undefined,
+      );
+      if (missing.length > 0) {
+        return { error: `no tab ${missing.join(", ")} is open.` };
+      }
+      if (action.kind === "groupTabs") {
+        return { group: groupTabs(action.tabIds) };
+      }
+      if (!windowTabs.allTabs.some((tab) => tab.group === action.group)) {
+        return { error: `no tab group ${action.group} is open.` };
+      }
+      moveTabs(action.tabIds, action.group);
+      return {};
+    }
+    if (action.kind === "history") {
+      return { history: await historyRows(action) };
+    }
+    if (action.kind === "reopenClosed") {
+      const entry = store
+        .get(appTabsAtom)
+        .recentlyClosed.find((each) => each.id === action.entry);
+      if (!entry) {
+        return {
+          error: `nothing in History is ${action.entry}; \`instrument window history --closed\` lists what can come back.`,
+        };
+      }
+      const group =
+        closedSideOf(entry)?.group ?? closedGroupTabOf(entry)?.group;
+      const isOpenStill =
+        group !== undefined &&
+        windowTabs.allTabs.some((tab) => tab.group === group);
+      reopenClosed(entry.id);
+      return isOpenStill ? { group } : {};
     }
     if (action.kind === "list") {
       const own = chat === undefined ? undefined : windowTabs.chatTab(chat);
@@ -1109,6 +1244,21 @@ export function useOpeners({
       openScreen(href, besideUpOf(options ?? {}, placing));
     },
   });
+}
+
+/** Where a place History lists is, as the agent names it: a page's URL, a file's or folder's path, an app address. */
+function addressOf(target: OpenTarget): string | undefined {
+  if (target.kind === "page") {
+    return target.url;
+  }
+  if (target.kind === "path") {
+    return target.path;
+  }
+  const screen = matchScreen(target.href);
+  if (screen.kind === "computer") {
+    return screen.file ?? screen.path;
+  }
+  return instrumentUrlOf(target.href);
 }
 
 /** Says a chat's address named none of the chats here. */

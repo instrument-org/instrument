@@ -181,8 +181,18 @@ export function createStandInWindow(chrome?: SharedChrome) {
         },
       };
     }
-    if (action.kind === "showGroup" || action.kind === "closeGroup") {
+    if (
+      action.kind === "showGroup" ||
+      action.kind === "closeGroup" ||
+      action.kind === "moveTabs"
+    ) {
       return { error: `no tab group ${action.group} is open.` };
+    }
+    if (action.kind === "history") {
+      return { history: [] };
+    }
+    if (action.kind === "groupTabs" || action.kind === "reopenClosed") {
+      return { error: "the stand-in window has one tab group." };
     }
     const tab = tabs.get(action.tabId);
     if (!tab) {

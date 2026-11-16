@@ -6,6 +6,8 @@ import { createStore, Provider } from "jotai";
 import { type ReactNode } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
+import { closeTabGroup } from "@/client/lib/tabs-model";
+
 import { appTabsAtom, useAppTabs } from "./app-tabs";
 import { windowTabGroupsAtom } from "./open-groups";
 import { openLinkAddress } from "./open-link-address";
@@ -47,6 +49,8 @@ const { agent, tabDone } = vi.hoisted(() => {
 const spies = vi.hoisted(() => ({
   closeGroup: vi.fn((_group: string) => true),
   closeTab: vi.fn((_id: string) => {}),
+  groupTabs: vi.fn((_ids: readonly string[]) => "group_made"),
+  moveTabs: vi.fn((_ids: readonly string[], _group: string) => {}),
   closedEntry: { current: undefined as string | undefined },
   reopenClosed: vi.fn((_entry: string) => {}),
   showGroup: vi.fn((_group: string) => {}),
@@ -64,6 +68,21 @@ function silent(): AsyncIterable<never> {
 
 vi.mock("@/client/rpc/client", () => ({
   rpcClient: {
+    actions: {
+      list: {
+        call: async () => ({
+          actions: [
+            {
+              at: "2026-11-15T09:00:00.000Z",
+              kind: "page",
+              title: "Example Domain",
+              url: "https://example.com/",
+            },
+          ],
+          next: null,
+        }),
+      },
+    },
     browser: {
       events: {
         bookmarkLink: { call: async () => silent() },
@@ -121,7 +140,9 @@ function windowOnTwoSides() {
         closedEntryOf: () => spies.closedEntry.current,
         closeGroup: spies.closeGroup,
         closeTab: spies.closeTab,
+        groupTabs: spies.groupTabs,
         isOpen: true,
+        moveTabs: spies.moveTabs,
         newGroup: () => GROUP,
         openChat: () => {},
         reopenClosed: spies.reopenClosed,
@@ -422,5 +443,71 @@ describe("a link to a tab group or a tab", () => {
     expect(spies.toast).toHaveBeenCalledWith("That tab is gone", {
       description: "It was closed, and it's no longer in History.",
     });
+  });
+});
+
+describe("an agent tidying tabs and reading History", () => {
+  it("makes a group of tabs it names, and refuses a tab that is not open", async () => {
+    windowOnTwoSides();
+    expect(
+      await answerTo(
+        { kind: "groupTabs", tabIds: [OTHER_UP, LEFT_PAGE] },
+        "m1",
+      ),
+    ).toEqual({ group: "group_made", requestId: "m1" });
+    expect(spies.groupTabs).toHaveBeenCalledWith([OTHER_UP, LEFT_PAGE]);
+    expect(
+      await answerTo({ kind: "groupTabs", tabIds: ["tab_gone"] }, "m2"),
+    ).toEqual({ error: "no tab tab_gone is open.", requestId: "m2" });
+  });
+
+  it("moves tabs into a group", async () => {
+    windowOnTwoSides();
+    await answerTo(
+      { group: OTHER_GROUP, kind: "moveTabs", tabIds: [LEFT_PAGE] },
+      "v1",
+    );
+    expect(spies.moveTabs).toHaveBeenCalledWith([LEFT_PAGE], OTHER_GROUP);
+  });
+
+  it("lists a closed group by the id its reopen takes, and reopens it", async () => {
+    const { store } = windowOnTwoSides();
+    act(() => {
+      store.set(appTabsAtom, (current) =>
+        closeTabGroup(current, {
+          id: TabIdSchema.parse("closed_1"),
+          pathname: groupHref("group_old"),
+          tabs: [
+            {
+              group: "group_old",
+              href: "/settings/",
+              id: "tab_old",
+              kind: "screen",
+            },
+          ],
+        }),
+      );
+    });
+    const answer = await answerTo(
+      { closedOnly: false, kind: "history", limit: 10 },
+      "h1",
+    );
+    expect(
+      (answer as { history?: { id: string; kind: string }[] }).history?.map(
+        (row) => [row.kind, row.kind === "visit" ? "" : row.id],
+      ),
+    ).toEqual([
+      ["closedGroup", "closed_1"],
+      ["visit", ""],
+    ]);
+    await answerTo({ entry: "closed_1", kind: "reopenClosed" }, "h2");
+    expect(spies.reopenClosed).toHaveBeenCalledWith("closed_1");
+    const refused = await answerTo(
+      { entry: "closed_nope", kind: "reopenClosed" },
+      "h3",
+    );
+    expect((refused as { error?: string }).error).toContain(
+      "nothing in History is closed_nope",
+    );
   });
 });

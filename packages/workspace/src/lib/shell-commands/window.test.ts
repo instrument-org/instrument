@@ -118,6 +118,25 @@ const OTHER_GROUPS = [
   },
 ];
 
+/** History as the window lists it, newest first. */
+const HISTORY = [
+  {
+    at: Date.UTC(2026, 10, 15, 9, 30),
+    context: "3 tabs",
+    id: "tab_closed1",
+    kind: "closedGroup" as const,
+    title: "Trip planning",
+  },
+  {
+    address: "https://example.com/",
+    at: Date.UTC(2026, 10, 15, 9, 20),
+    context: "example.com",
+    id: "2026-11-15T09:20:00.000Z#0",
+    kind: "visit" as const,
+    title: "Example Domain",
+  },
+];
+
 /** The one group another window has open, which it shows. */
 const ELSEWHERE = {
   focused: 0 as const,
@@ -210,18 +229,28 @@ function answeringWindow() {
                 { groups: [ELSEWHERE] },
               ],
             }
-          : action.kind === "showGroup" || action.kind === "closeGroup"
+          : action.kind === "showGroup" ||
+              action.kind === "closeGroup" ||
+              action.kind === "moveTabs"
             ? groups.has(action.group)
               ? {}
               : { error: `no tab group ${action.group} is open.` }
-            : known.has(action.tabId)
-              ? {
-                  tabId: action.tabId,
-                  ...(action.kind === "read"
-                    ? { text: "Jar\nA rigid container." }
-                    : {}),
-                }
-              : { error: `no tab ${action.tabId} is open in this chat.` };
+            : action.kind === "groupTabs"
+              ? { group: "group:docs" }
+              : action.kind === "history"
+                ? { history: HISTORY.slice(0, action.limit) }
+                : action.kind === "reopenClosed"
+                  ? action.entry === "tab_closed1"
+                    ? {}
+                    : { error: `nothing in History is ${action.entry}.` }
+                  : known.has(action.tabId)
+                    ? {
+                        tabId: action.tabId,
+                        ...(action.kind === "read"
+                          ? { text: "Jar\nA rigid container." }
+                          : {}),
+                      }
+                    : { error: `no tab ${action.tabId} is open in this chat.` };
     publisher.publish("window.tabDone", {
       id: ask.id,
       requestId: ask.requestId,
@@ -700,6 +729,75 @@ describe("window show and close, of a group", () => {
   });
 });
 
+describe("window group, move, history and restore", () => {
+  it("makes a group of tabs and names it by its link", async () => {
+    const result = await run(
+      {},
+      "group",
+      "tab_docs",
+      "instrument://tab/tab_hn",
+    );
+
+    expect(result.exitCode).toBe(0);
+    expect(asked[0]?.action).toEqual({
+      kind: "groupTabs",
+      tabIds: ["tab_docs", "tab_hn"],
+    });
+    expect(result.stdout).toMatchInlineSnapshot(`
+      "Made the tab group "report.md" instrument://group/group:docs of tab_docs, tab_hn; the window stays on the group it shows.
+      "
+    `);
+  });
+
+  it("moves tabs into a group named by its name", async () => {
+    const result = await run({}, "move", "tab_ex", "--group", "meeting notes");
+
+    expect(result.exitCode).toBe(0);
+    expect(asked[1]?.action).toEqual({
+      group: "group:notes",
+      kind: "moveTabs",
+      tabIds: ["tab_ex"],
+    });
+    expect(result.stdout).toMatchInlineSnapshot(`
+      "Moved tab_ex into the tab group "Meeting notes" instrument://group/group:notes.
+      "
+    `);
+  });
+
+  it("lists History newest first, the closed entries by the id restore takes", async () => {
+    const result = await run({}, "history", "--limit", "5");
+
+    expect(result.exitCode).toBe(0);
+    expect(asked[0]?.action).toEqual({
+      closedOnly: false,
+      kind: "history",
+      limit: 5,
+    });
+    expect(result.stdout).toMatchInlineSnapshot(`
+      "tab_closed1  2026-11-15T09:30:00.000Z  closed tab group: Trip planning (3 tabs)
+      2026-11-15T09:20:00.000Z  visited: Example Domain (example.com)  https://example.com/
+      "
+    `);
+  });
+
+  it("restores a closed entry by its id", async () => {
+    const result = await run({}, "restore", "tab_closed1");
+
+    expect(result.exitCode).toBe(0);
+    expect(result.stdout).toMatchInlineSnapshot(`
+      "Restored tab_closed1, as History's restore does.
+      "
+    `);
+  });
+
+  it("passes on the window's refusal of an id History does not have", async () => {
+    const result = await run({}, "restore", "tab_nope");
+
+    expect(result.exitCode).toBe(1);
+    expect(result.stderr).toContain("nothing in History is tab_nope");
+  });
+});
+
 describe("in a task", () => {
   it.each([["list"], ["read", "tab_known"]])(
     "reads the window: %j",
@@ -716,6 +814,9 @@ describe("in a task", () => {
     ["show", "tab_known"],
     ["show", "https://example.com/", "--in", "tab_known"],
     ["close", "tab_known"],
+    ["group", "tab_known"],
+    ["move", "tab_known", "--group", "group:docs"],
+    ["restore", "tab_closed1"],
   ])("changes nothing, and says what to do instead: %j", async (...args) => {
     const result = await run({ role: "task" }, ...args);
 

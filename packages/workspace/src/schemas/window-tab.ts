@@ -43,6 +43,22 @@ const WindowTabActionSchema = z.discriminatedUnion("kind", [
   z.object({ group: z.string(), kind: z.literal("showGroup") }),
   /** Closes a tab group whole, as the sidebar's X does: onto the closed list, with an Undo. */
   z.object({ group: z.string(), kind: z.literal("closeGroup") }),
+  /** Makes a new tab group of tabs, moved there as Move to New Tab Group moves one; the window stays on the group it shows. */
+  z.object({ kind: z.literal("groupTabs"), tabIds: z.array(z.string()) }),
+  /** Moves tabs into a tab group, as dropping each on its row does. */
+  z.object({
+    group: z.string(),
+    kind: z.literal("moveTabs"),
+    tabIds: z.array(z.string()),
+  }),
+  /** The window's History, newest first: what was closed, and with `closedOnly` false the places visited too. */
+  z.object({
+    closedOnly: z.boolean(),
+    kind: z.literal("history"),
+    limit: z.number().int().min(1),
+  }),
+  /** One entry of the window's closed list back, as History's restore and Shift+Cmd+T bring it. */
+  z.object({ entry: z.string(), kind: z.literal("reopenClosed") }),
   /** Reads the text of the page in a page tab, as the person sees it. */
   z.object({ kind: z.literal("read"), tabId: z.string() }),
   /**
@@ -83,6 +99,26 @@ export const WindowTabAnswerSchema = z.object({
   /** For an open: the tab waits behind what is up on its side, since the user is working there. */
   behind: z.boolean().optional(),
   error: z.string().optional(),
+  /** For a group of tabs: the group made. */
+  group: z.string().optional(),
+  /** For a history: its entries, newest first. */
+  history: z
+    .array(
+      z.object({
+        /** Where a visit went: a page's URL, a file's or folder's path, a chat's address. */
+        address: z.string().optional(),
+        /** When, in milliseconds since the epoch. */
+        at: z.number(),
+        /** A closed entry's id, which a reopen takes; a visit's, for telling rows apart. */
+        id: z.string(),
+        /** What it was: a tab, a side or a whole group closed, or a place visited. */
+        kind: z.enum(["closedGroup", "closedSide", "closedTab", "visit"]),
+        /** The row's words, as History shows them. */
+        title: z.string(),
+        context: z.string(),
+      }),
+    )
+    .optional(),
   requestId: z.string(),
   tabId: z.string().optional(),
   /** For a list: the group as the chat reads it, the shape of its log's layout part. */

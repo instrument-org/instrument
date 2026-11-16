@@ -809,6 +809,28 @@ function WindowShell({
     closeTab: (id) => {
       requestClose(id);
     },
+    groupTabs: (ids) => {
+      const onScreen = groups.groupUp();
+      const made = groups.make({
+        fill: (group) => {
+          for (const id of ids) {
+            groups.moveTab(id, group);
+          }
+        },
+        isShownHere: false,
+      });
+      groups.place(made, {});
+      // The person's screen goes where its tabs went when none stayed.
+      if (onScreen !== undefined && !groups.hasTabs(onScreen)) {
+        groups.show(made);
+      }
+      return made;
+    },
+    moveTabs: (ids, group) => {
+      for (const id of ids) {
+        groups.moveTab(id, group);
+      }
+    },
     isOpen: opened !== undefined,
     newGroup: (fill, options) => groups.make({ fill, ...options }),
     openChat: (chat) => {

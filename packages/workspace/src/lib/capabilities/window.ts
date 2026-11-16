@@ -635,3 +635,172 @@ export const windowWait = defineCapability({
   text: (said) => said,
   where: { roleRefusal: WAITING_IS_THE_CHATS, roles: ["chat"] },
 });
+
+/** A group's layout as every window's list has it, by its id; undefined for one none has. */
+async function groupById(group: string, ctx: CapabilityContext) {
+  return (await windowsOf(ctx))
+    .flatMap((window) => window.groups)
+    .find((each) => each.group.id === group);
+}
+
+const TabsField = (verb: string, form: string) =>
+  z
+    .array(z.string(), {
+      error: `${verb} needs the id of a tab (${NAME} ${verb} ${form}).`,
+    })
+    .min(1, `${verb} needs the id of a tab (${NAME} ${verb} ${form}).`);
+
+export const windowGroup = defineCapability({
+  input: z.object({ tabs: TabsField("group", "<tab id>...") }),
+  name: "window.group",
+  output: z.string(),
+  async run({ tabs }, ctx) {
+    const ids = tabs.map(idOf);
+    const answer = await ask({ kind: "groupTabs", tabIds: ids }, ctx);
+    if (!answer) {
+      throw new Error(NO_WINDOW);
+    }
+    if (answer.error !== undefined || answer.group === undefined) {
+      throw new Error(answer.error ?? NO_WINDOW);
+    }
+    const made = await groupById(answer.group, ctx);
+    const words = made ? groupWords(made) : groupAddressOf(answer.group);
+    const shown =
+      made?.isShown === false
+        ? "the window stays on the group it shows"
+        : "it is on screen, since the group the window showed had no tab left";
+    return `Made the tab group ${words} of ${ids.join(", ")}; ${shown}.`;
+  },
+  summary:
+    "Make a new tab group of tabs, moved out of their groups as Move to New Tab Group moves one, in the window the chat works in; the window stays on the group it shows. The sidebar titles a group by its tabs.",
+  surfaces: {
+    cli: { help: "", positional: ["tabs"], words: ["window", "group"] },
+  },
+  text: (said) => said,
+  where: CHATS,
+});
+
+export const windowMove = defineCapability({
+  input: z.object({
+    tabs: TabsField("move", "<tab id>... --group <group>"),
+    group: z
+      .string({
+        error: `move needs the group to move them into: ${NAME} move <tab id>... --group <group>.`,
+      })
+      .meta({ description: "The tab group to move them into, by its id or name." }),
+  }),
+  name: "window.move",
+  output: z.string(),
+  async run({ group, tabs }, ctx) {
+    const named = groupNamed(await windowsOf(ctx), idOf(group));
+    if ("error" in named) {
+      throw new Error(named.error);
+    }
+    const ids = tabs.map(idOf);
+    const answer = await ask(
+      { group: named.group.group.id, kind: "moveTabs", tabIds: ids },
+      ctx,
+    );
+    if (!answer) {
+      throw new Error(NO_WINDOW);
+    }
+    if (answer.error !== undefined) {
+      throw new Error(answer.error);
+    }
+    return `Moved ${ids.join(", ")} into the tab group ${groupWords(named.group)}.`;
+  },
+  summary:
+    "Move tabs into an existing tab group, by its id or name, as dropping each on its row does; a group left with no tab closes.",
+  surfaces: {
+    cli: { help: "", positional: ["tabs"], words: ["window", "move"] },
+  },
+  text: (said) => said,
+  where: CHATS,
+});
+
+/** How many History rows a list prints unless asked for another number. */
+const HISTORY_LIMIT = 20;
+
+const HISTORY_WORDS = {
+  closedGroup: "closed tab group",
+  closedSide: "closed side",
+  closedTab: "closed tab",
+  visit: "visited",
+} as const;
+
+export const windowHistory = defineCapability({
+  input: z.object({
+    closed: z.boolean().default(false).meta({
+      description: "Only the tabs, sides and tab groups closed.",
+    }),
+    limit: z.number().int().min(1).default(HISTORY_LIMIT).meta({
+      description: "How many rows, newest first.",
+    }),
+  }),
+  name: "window.history",
+  output: z.array(
+    z.object({
+      address: z.string().optional(),
+      at: z.number(),
+      context: z.string(),
+      id: z.string(),
+      kind: z.enum(["closedGroup", "closedSide", "closedTab", "visit"]),
+      title: z.string(),
+    }),
+  ),
+  async run({ closed, limit }, ctx) {
+    const answer = await ask(
+      { closedOnly: closed, kind: "history", limit },
+      ctx,
+    );
+    if (!answer) {
+      throw new Error(NO_WINDOW);
+    }
+    if (answer.error !== undefined) {
+      throw new Error(answer.error);
+    }
+    return answer.history ?? [];
+  },
+  summary:
+    "The window's History, newest first, as its History list shows it: the tabs, sides and tab groups closed, each by the id `restore` takes, and the places visited. --closed lists only what was closed.",
+  surfaces: {
+    cli: { help: "", words: ["window", "history"] },
+  },
+  text: (rows) =>
+    rows.length === 0
+      ? "Nothing in History yet."
+      : rows
+          .map(
+            (row) =>
+              `${row.kind === "visit" ? "" : `${row.id}  `}${new Date(row.at).toISOString()}  ${HISTORY_WORDS[row.kind]}: ${row.title}${row.context === "" ? "" : ` (${row.context})`}${row.address === undefined ? "" : `  ${row.address}`}`,
+          )
+          .join("\n"),
+});
+
+export const windowRestore = defineCapability({
+  input: z.object({
+    entry: z.string({
+      error: `restore takes the id \`${NAME} history --closed\` prints: ${NAME} restore <id>.`,
+    }),
+  }),
+  name: "window.restore",
+  output: z.string(),
+  async run({ entry }, ctx) {
+    const answer = await ask({ entry, kind: "reopenClosed" }, ctx);
+    if (!answer) {
+      throw new Error(NO_WINDOW);
+    }
+    if (answer.error !== undefined) {
+      throw new Error(answer.error);
+    }
+    const back = answer.group === undefined ? undefined : await groupById(answer.group, ctx);
+    return `Restored ${entry}${back ? ` in the tab group ${groupWords(back)}` : ""}, as History's restore does.`;
+  },
+  summary:
+    "Reopen a closed tab, side or tab group by its History id, exactly as History's restore does.",
+  surfaces: {
+    cli: { help: "", positional: ["entry"], words: ["window", "restore"] },
+  },
+  text: (said) => said,
+  where: CHATS,
+});

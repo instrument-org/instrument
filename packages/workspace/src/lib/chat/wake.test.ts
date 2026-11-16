@@ -15,6 +15,7 @@ import { setChatModel } from "../chat-settings";
 import { recordAsk } from "./asks";
 import { ChatReads } from "../chat-reads";
 import { ChatWrites } from "../chat-writes";
+import { dropTrailingFailedMessages } from "../drop-trailing-failed-messages";
 import { sessionOfChat } from "../record-folders";
 import { taskEventModelNote } from "../../model-text/notes/task-event-model-text";
 import { getWorkspaceConfig, setWorkspaceConfig } from "../workspace-config";
@@ -48,6 +49,17 @@ vi.mock(import("./wake-queue"), async (importOriginal) => {
 vi.mock(import("./activity"), async (importOriginal) => {
   const original = await importOriginal();
   return { ...original, leftRunning: vi.fn(original.leftRunning) };
+});
+
+// A wake gives up on the chat's model after about two minutes of retries;
+// here the waits between them pass at once.
+vi.mock(import("node:timers/promises"), async (importOriginal) => {
+  const original = await importOriginal();
+  return {
+    ...original,
+    setTimeout: <T = void>(_delay?: number, value?: T) =>
+      original.setTimeout<T>(0, value),
+  };
 });
 
 // The chat's model is looked up to start the turn a wake writes; the turn
@@ -490,6 +502,76 @@ describe("a wake on its way", () => {
     unsubscribe();
     expect(hasWakeOnItsWay(chatId)).toBe(false);
     expect(changes.at(-1)).toBe("agent");
+  });
+});
+
+describe("a wake whose chat's model cannot be found", () => {
+  // The person answered a card, and the chat's model is not in its
+  // provider's catalog after every retry: the answer's note stays, and a
+  // failed turn after it says why nothing answered, as a turn's own failure
+  // would, so Try again runs the turn with the note in it.
+  it("writes the failure after the note and starts no turn", async () => {
+    const { chatId } = await chatWithTask();
+    const sessionId = sessionOfChat(chatId);
+    if (!sessionId) {
+      throw new Error("expected the chat's session");
+    }
+    // As `fetchModel` reports a model its provider's catalog left out.
+    const notListed = Object.assign(
+      new Error("Model zai-org/glm-5.3-flash not found"),
+      { type: "gateway-not-listed-error" },
+    );
+    vi.mocked(fetchModel).mockImplementation(() =>
+      Promise.resolve({ error: notListed, ok: false } as never),
+    );
+    const sentBefore = sent.length;
+
+    await expect(
+      wakeAskers(
+        {
+          data: {
+            answer: "allowed",
+            kind: "folder",
+            target: "/Users/me/Pantry",
+          },
+          type: "data-permissionAnswer",
+        },
+        workspaceRef,
+        chatId,
+        [sessionId],
+      ),
+    ).rejects.toThrow("not found");
+    vi.mocked(fetchModel).mockReset();
+
+    expect(sent.slice(sentBefore)).toEqual([]);
+    const history = (
+      await ChatReads.history({ chatId, sessionId })
+    )._unsafeUnwrap();
+    const failure = history.at(-1);
+    expect(failure?.role === "assistant" && failure.parts).toEqual([]);
+    expect(
+      failure?.role === "assistant" && {
+        error: failure.metadata.error,
+        finishReason: failure.metadata.finishReason,
+        synthetic: failure.metadata.synthetic,
+      },
+    ).toMatchInlineSnapshot(`
+      {
+        "error": {
+          "classification": "transient",
+          "kind": "unknown",
+          "message": "Model zai-org/glm-5.3-flash not found",
+        },
+        "finishReason": "error",
+        "synthetic": true,
+      }
+    `);
+    // What Try again's turn sends: the failure dropped, the note last.
+    expect(
+      dropTrailingFailedMessages(history)
+        .at(-1)
+        ?.parts.map((part) => part.type),
+    ).toEqual(["data-permissionAnswer"]);
   });
 });
 

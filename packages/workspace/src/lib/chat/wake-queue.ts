@@ -1,4 +1,5 @@
 import { AIGatewayModelURI, fetchModel } from "@instrument-org/ai-gateway";
+import { SYNTHETIC_MODEL_ID } from "@instrument-org/shared";
 import ms from "ms";
 import { setTimeout as sleep } from "node:timers/promises";
 
@@ -10,6 +11,8 @@ import { type SessionMessageDataPart } from "../../schemas/session/message-data-
 import { StoreId } from "../../schemas/store-id";
 import { ChatWrites } from "../chat-writes";
 import { chatModelURI } from "../chat-settings";
+import { classifyProviderError } from "../classify-provider-error";
+import { describeErrorCause } from "../describe-error-cause";
 import { recordChanged } from "../record-changes";
 import { resolveChat, sessionOfChat } from "../record-folders";
 import { getWorkspaceConfig } from "../workspace-config";
@@ -115,8 +118,8 @@ let hearingTurnEnds = false;
  * Wakes a session with a part, through one delivery every source shares:
  * the debounce, the chat still being there, a turn running in a session
  * that takes wakes only at rest, the part read once the wait is over, the
- * chat's model, the note written, the model looked up with retries, and the
- * turn started. A session with a turn going hears the wake at its next step.
+ * note written, the chat's model looked up with retries, and the turn
+ * started, or a failed turn written where no model is found. A session with a turn going hears the wake at its next step.
  *
  * Settles once the wake has been delivered or dropped. One that goes at once
  * rejects with what went wrong for its caller; a debounced one, whose wait
@@ -329,15 +332,16 @@ async function deliver(wake: Wake, part: WakePart | undefined): Promise<void> {
   const release = countOnItsWay(chatId);
   try {
     const modelURI = await chatModelURI(chatId);
-    if (!modelURI) {
-      return;
-    }
     await wake.beforeNote?.(part);
     const message = await saveNote(chatId, sessionId, part);
     // Looked up after the note is written, so a model the chat cannot resolve
-    // yet still leaves the news in the conversation, where the user's next
-    // message carries it to the agent.
-    const model = await wakeModel(modelURI);
+    // still leaves the news in the conversation, where the user's next
+    // message, or Try again on the failure written after it, carries it to
+    // the agent.
+    const model = await wakeModel(modelURI).catch(async (error: unknown) => {
+      await saveFailedTurn(chatId, sessionId, error);
+      throw error;
+    });
     wake.workspaceRef.send({
       type: "addMessage",
       value: { id: chatId, message, model, saved: true, sessionId },
@@ -386,11 +390,56 @@ export async function saveNote(
 }
 
 /**
+ * Ends the turn a wake could not start as a turn that fails ends: an
+ * assistant message holding only the error, stored as `llm-request` stores
+ * one it has no closer kind for, so the transcript says why nothing answered
+ * and offers Try again. Written by the workspace, since no model answered.
+ */
+async function saveFailedTurn(
+  chatId: ChatId,
+  sessionId: StoreId.Session,
+  error: unknown,
+): Promise<void> {
+  const now = new Date();
+  const written = await ChatWrites.saveMessageWithParts(
+    {
+      id: StoreId.newMessageId(),
+      metadata: {
+        createdAt: now,
+        error: {
+          cause: describeErrorCause(error),
+          classification: classifyProviderError(error).kind,
+          kind: "unknown",
+          message:
+            error instanceof Error ? error.message : JSON.stringify(error),
+        },
+        finishedAt: now,
+        finishReason: "error",
+        modelId: SYNTHETIC_MODEL_ID,
+        providerId: "system",
+        sessionId,
+        synthetic: true,
+      },
+      parts: [],
+      role: "assistant",
+    },
+    chatId,
+  );
+  if (written.isErr()) {
+    getWorkspaceConfig().captureException(written.error);
+  }
+}
+
+/**
  * The chat's model, asked for again after each wait in
  * `WAKE_MODEL_RETRY_DELAYS_MS` while the lookup fails, since a provider's
- * catalog can leave a model out for a moment and list it again.
+ * catalog can leave a model out for a moment and list it again. Throws at
+ * once for a chat with no model it can read.
  */
-async function wakeModel(modelURI: AIGatewayModelURI.Type) {
+async function wakeModel(modelURI: AIGatewayModelURI.Type | undefined) {
+  if (!modelURI) {
+    throw new Error("The chat has no model chosen");
+  }
   const workspaceConfig = getWorkspaceConfig();
   const lookUp = () =>
     fetchModel({

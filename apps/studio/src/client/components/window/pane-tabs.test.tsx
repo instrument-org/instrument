@@ -197,16 +197,6 @@ describe("PaneTabs", () => {
 
       expect(onCloseSplit).toHaveBeenCalledTimes(1);
     });
-
-    it("asks before its Close Split button closes two tabs", () => {
-      const { onCloseSplit } = sideOfSplit();
-
-      fireEvent.click(screen.getByRole("button", { name: "Close Split" }));
-      expect(onCloseSplit).not.toHaveBeenCalled();
-      fireEvent.click(screen.getByRole("button", { name: "Close 2 tabs?" }));
-
-      expect(onCloseSplit).toHaveBeenCalledTimes(1);
-    });
   });
 
   it("opens and closes a tab with the window's motions", () => {

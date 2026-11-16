@@ -392,6 +392,7 @@ describe.skipIf(!SOURCE)("the launch migrations on a real workspace", () => {
 async function runLaunchMigrations(): Promise<void> {
   renameChatDatabases(clone);
   migrateWorkspaceLayout({
+    filesDir: path.join(machineDir, "Files"),
     machineDir,
     marks: workspaceLayoutMarks(clone),
     rootDir: clone,

@@ -8,6 +8,7 @@ import fs from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 
+import { FILES_FOLDER_NAME } from "../../constants";
 import { type ChatId } from "../../schemas/chat-id";
 import { pathIsWithin } from "../path-is-within";
 import { chatDir, chatOwnFolder } from "../record-folders";
@@ -72,7 +73,7 @@ export function outputFolderPath(): string {
  * agents made for them, in folders the agents name for the work.
  */
 export function filesFolderPath(): string {
-  return path.join(outputFolderPath(), "Files");
+  return path.join(outputFolderPath(), FILES_FOLDER_NAME);
 }
 
 /**

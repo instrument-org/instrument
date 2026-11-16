@@ -335,11 +335,7 @@ function adoptTask({
     validDate(settings.lastActivityAt) ??
     conversation.messages.at(-1)?.createdAt ??
     createdAt;
-  const title =
-    (typeof settings.name === "string" && settings.name.trim()) ||
-    conversation.title ||
-    firstLine(conversation.messages[0]?.texts[0]?.text ?? "") ||
-    "Chat";
+  const title = legacyTitle(settings, conversation);
   const chatName = chatFolderName({
     date: createdAt,
     isTaken: (candidate) => taken.has(candidate),
@@ -445,11 +441,7 @@ function finishStagedChat(stagingDir: string, rootDir: string) {
   const chatName =
     stagedChatName(path.basename(stagingDir)) ?? path.basename(stagingDir);
   const privateDir = path.join(stagingDir, PRIVATE_FOLDER_NAME);
-  const backup = path.join(
-    workspaceLayout(rootDir).setAsideDir,
-    TASK_RECORDS_DIR_NAME,
-    chatName,
-  );
+  const backup = legacyTaskRecordsDir(rootDir, chatName);
   const chatDb = path.join(privateDir, STAGED_CHAT_DB_FILE_NAME);
   if (present(chatDb)) {
     for (const suffix of DB_FILE_SUFFIXES) {
@@ -493,6 +485,50 @@ function finishStagedChats(
     }
   }
   return { left, staged: staged.length };
+}
+
+/**
+ * The title a 1.x task's chat is given: the name the person gave the task,
+ * the title of its conversation, or its first words.
+ */
+function legacyTitle(
+  settings: Record<string, unknown>,
+  conversation: Pick<ReturnType<typeof readConversation>, "messages" | "title">,
+): string {
+  return (
+    (typeof settings.name === "string" && settings.name.trim()) ||
+    conversation.title ||
+    firstLine(conversation.messages[0]?.texts[0]?.text ?? "") ||
+    "Chat"
+  );
+}
+
+/**
+ * Where the 1.x settings and database of the task a chat was made from are
+ * kept once the chat has its own (`finishStagedChat`): there for every chat
+ * this migration made, and for no other.
+ */
+export function legacyTaskRecordsDir(rootDir: string, chatId: string): string {
+  return path.join(legacyTaskRecordsRoot(rootDir), chatId);
+}
+
+/** The folder holding every {@link legacyTaskRecordsDir}, a folder per chat. */
+export function legacyTaskRecordsRoot(rootDir: string): string {
+  return path.join(workspaceLayout(rootDir).setAsideDir, TASK_RECORDS_DIR_NAME);
+}
+
+/**
+ * The title the chat made from a 1.x task was given, read again from the
+ * task's settings and database where they were set aside
+ * (`legacyTaskRecordsDir`), or nothing when neither is there.
+ */
+export function legacyChatTitle(recordsDir: string): string | undefined {
+  const settings = readJson(path.join(recordsDir, SETTINGS_FILE_NAME));
+  const dbPath = path.join(recordsDir, LEGACY_TASK_DB_FILE_NAME);
+  if (settings === undefined && !fs.existsSync(dbPath)) {
+    return undefined;
+  }
+  return legacyTitle(settings ?? {}, readConversation(dbPath));
 }
 
 function firstLine(text: string): string {

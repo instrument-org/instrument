@@ -133,6 +133,12 @@ export const SKILLS_FOLDER_NAME = "Skills";
 export const APPS_FOLDER_NAME = "Apps";
 
 /**
+ * Where the work agents made for the person is kept, at the top of their
+ * Instrument folder: a folder per piece of work, named for it.
+ */
+export const FILES_FOLDER_NAME = "Files";
+
+/**
  * The six folders a person opens, at the workspace's top level, in the order
  * they are listed to a reader. Collected so that something which has to treat
  * them as a set -- the notice for one the person deleted, say -- cannot miss

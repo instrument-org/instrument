@@ -238,6 +238,12 @@ export const WORKSPACE_MACHINE_ENTRIES = {
    * moving the same records.
    */
   moveLock: "move.lock",
+  /**
+   * Where each file a 1.x task handed over in its `output/` went in the
+   * Files folder, by chat id and the path the chat's messages name it by,
+   * so a file card in a chat made from one opens it there.
+   */
+  movedOutputs: "moved-outputs.json",
   /** The process that has the workspace open. */
   openMark: "open.pid",
   /**

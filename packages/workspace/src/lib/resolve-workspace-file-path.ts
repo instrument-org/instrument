@@ -20,6 +20,7 @@ import {
 } from "../schemas/paths";
 import { type ChatId } from "../schemas/chat-id";
 import { toldEnvironments } from "./environment";
+import { movedOutputOf } from "./moved-outputs";
 import { normalizePath } from "./normalize-path";
 import { chatDir, chatOwnFolder, resolveChat } from "./record-folders";
 import { relativeWithin } from "./path-containment";
@@ -126,7 +127,7 @@ async function resolvePlaces<Given extends string>({
   const history = await chatHistoryPaths(layout, chatId, filePaths);
   return new Map(
     filePaths.map((given) => {
-      const here = onDiskOrNull(layout, given, history);
+      const here = onDiskOrNull(layout, given, history, chatId);
       const on = here === null ? computerHolding(given, history) : undefined;
       return [given, on === undefined ? { here } : { here, on }];
     }),
@@ -354,13 +355,14 @@ function onDiskOrNull(
   layout: WorkspaceFsLayout,
   given: string,
   history: ChatHistoryPaths,
+  chatId: ChatId,
 ): AbsolutePath | null {
   const parsed = WorkspaceFilePathSchema.safeParse(shellSpelling(given));
   if (!parsed.success) {
     return null;
   }
   try {
-    return storedPathOnDisk(layout, parsed.data, history);
+    return storedPathOnDisk(layout, parsed.data, history, chatId);
   } catch {
     return null;
   }
@@ -385,13 +387,16 @@ function onDiskOrNull(
  * a chat's files and its records were once one folder, so a relative path
  * under `attachments/` the work folder does not hold is the file the person
  * sent, in the record folder, and an earlier build's `/tasks/<task>/...` is
- * in the work folder's `tasks/`, where those folders went. A name macOS
- * spells another way than the one kept is found too.
+ * in the work folder's `tasks/`, where those folders went. What a 1.x task
+ * handed over in its `output/` is in the Files folder, where the layout sweep
+ * moved it (`movedOutputOf`). A name macOS spells another way than the one
+ * kept is found too.
  */
 function storedPathOnDisk(
   layout: WorkspaceFsLayout,
   stored: string,
   history: ChatHistoryPaths,
+  chatId: ChatId,
 ): AbsolutePath | null {
   const trimmed = stored.trim();
   // A file kept by its place in the workspace is under the workspace's root
@@ -405,7 +410,7 @@ function storedPathOnDisk(
   }
   const spelled = shellPath(trimmed);
   if (!path.posix.isAbsolute(spelled)) {
-    const found = relativeOnDisk(layout, spelled);
+    const found = relativeOnDisk(layout, spelled, chatId);
     return found === null ? null : spelledOnDisk(found);
   }
   const found =
@@ -470,6 +475,7 @@ function absoluteOnDisk(
 function relativeOnDisk(
   layout: WorkspaceFsLayout,
   spelled: string,
+  chatId: ChatId,
 ): AbsolutePath | null {
   const relative = normalizePath(spelled).replace(/^\.\//, "");
   const inWork = resolvePathWithinChatDir({
@@ -481,6 +487,14 @@ function relativeOnDisk(
   }
   if (existsSync(inWork)) {
     return inWork;
+  }
+  const inFiles = movedOutputOf({
+    chatId,
+    machineDir: getWorkspaceConfig().workspaceMachineDir,
+    relative,
+  });
+  if (inFiles !== undefined && existsSync(inFiles)) {
+    return AbsolutePathSchema.parse(inFiles);
   }
   const { record } = layout;
   if (!record || relative.split("/")[0] !== CHAT_FOLDER_NAMES.attachments) {

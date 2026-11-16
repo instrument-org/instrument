@@ -16,6 +16,7 @@ import {
   installChatRecords,
 } from "../../src/lib/records/chat-records";
 import { chatDir, loadChatIndex } from "../../src/lib/record-folders";
+import { resolveWorkspaceFilePaths } from "../../src/lib/resolve-workspace-file-path";
 import { workDir } from "../../src/lib/work-dir";
 import { setWorkspaceActorRef } from "../../src/lib/workspace-actor-ref";
 import { setWorkspaceConfig } from "../../src/lib/workspace-config";
@@ -43,6 +44,8 @@ export interface ReadChat {
     own: number;
     title: string;
   }[];
+  /** Where each path asked for (`resolving`) opens in the chat, as its file cards open it. */
+  resolved: Record<string, null | string>;
   title: string;
   /** Its work folder (`workDir`). */
   workDir: string;
@@ -66,11 +69,14 @@ const idleWorkspace = {
  */
 export async function readWorkspace({
   machineDir,
+  resolving = [],
   rootDir,
   userDataDir,
   workFoldersDir,
 }: {
   machineDir: string;
+  /** Paths as a chat's messages name them, resolved in every chat. */
+  resolving?: readonly string[];
   rootDir: string;
   userDataDir: string;
   workFoldersDir: string;
@@ -115,6 +121,12 @@ export async function readWorkspace({
       read.push({
         grants: (await chatGrants(chat.id)).map((grant) => grant.path),
         id: chat.id,
+        resolved: Object.fromEntries(
+          await resolveWorkspaceFilePaths({
+            chatId: chat.id,
+            filePaths: resolving,
+          }),
+        ),
         tasks: tasks.toSorted((a, b) => a.handle.localeCompare(b.handle)),
         title: chat.title,
         workDir: workDir(chat.id),

@@ -21,12 +21,14 @@ import {
   migrateLegacyTasks,
 } from "./migrate-legacy-tasks";
 import { readJsonRecordSync, updateJsonRecordSync } from "./json-record-file";
+import { moveLegacyOutputsToFiles } from "./legacy-outputs";
 import {
   type AppFoldersMove,
   moveAppFoldersIntoDataDir,
 } from "./move-app-folders";
 import {
   entryExists,
+  freeEntryName,
   isDirectorySync,
   moveEntrySync,
   removeIfEmptySync,
@@ -84,7 +86,9 @@ const DB_FILE_SUFFIXES = ["", "-wal", "-shm", "-journal"];
 // 9: what a task's 1.x settings file holds filled into the settings it opens
 // (normalizeTaskSettingsFile), and an attachment whose name is taken landed
 // beside it in `attachments/` (normalizeTaskAttachments).
-export const WORKSPACE_LAYOUT_VERSION = 9;
+// 10: what a 1.x task handed over in its `output/` moved from its chat's
+// work folder into the Files folder (moveLegacyOutputsToFiles).
+export const WORKSPACE_LAYOUT_VERSION = 10;
 
 // The temp folder an external browser cloned the person's Chrome profile
 // into, in the workspace's `.instrument/`, which nothing writes since that
@@ -143,7 +147,8 @@ export interface WorkspaceLayoutMigration {
 //    tasks under tasks/ to current layout, then make 1.x tasks into chats and
 //    1.x projects into projects, then split every chat's records from its work,
 //    which the 1.x tasks just made into chats need as much as the chats an
-//    earlier build made. The folders move first, so the steps after it
+//    earlier build made, then move what each 1.x task handed over into the
+//    Files folder. The folders move first, so the steps after it
 //    (and a later sweep finishing what one left) find every chat and project
 //    where it now lives. Idempotent. Guard: the layoutVersion
 //    mark skips it once a sweep at the current version has completed, and
@@ -154,6 +159,7 @@ export interface WorkspaceLayoutMigration {
 // clones it deletes outright; no db handle open.
 export function migrateWorkspaceLayout({
   device,
+  filesDir,
   machineDir,
   marks,
   rootDir,
@@ -161,6 +167,8 @@ export function migrateWorkspaceLayout({
 }: {
   /** The device the projects made from 1.x projects are written as; the running workspace's when left out. */
   device?: DeviceId;
+  /** The Files folder, where what 1.x tasks handed over goes. */
+  filesDir: string;
   /** This computer's folder for the workspace. */
   machineDir: string;
   marks: LayoutMarkStore;
@@ -226,9 +234,17 @@ export function migrateWorkspaceLayout({
     rootDir,
     workFoldersDir,
   });
+  // After the split, which puts each 1.x task's `output/` in its chat's work
+  // folder, where an earlier build's sweep left it too.
+  const outputs = moveLegacyOutputsToFiles({
+    filesDir,
+    machineDir,
+    rootDir,
+    workFoldersDir,
+  });
   const chatRecords: ChatRecordsSplit = {
-    done: [...named.done, ...normalized.done, ...split.done],
-    failed: named.failed + normalized.failed + split.failed,
+    done: [...named.done, ...normalized.done, ...split.done, ...outputs.done],
+    failed: named.failed + normalized.failed + split.failed + outputs.failed,
   };
   fs.rmSync(
     path.join(workspaceLayout(rootDir).dataDir, EXTERNAL_BROWSER_TMP_DIR_NAME),
@@ -345,21 +361,6 @@ function mergeDirInto({
   if (fs.readdirSync(source).length === 0) {
     fs.rmdirSync(source);
   }
-}
-
-/**
- * A name nothing in `dir` holds: the one asked for, or it numbered before its
- * extension (`a.png`, then `a-2.png`), as every other name a person reads is
- * made free.
- */
-function freeEntryName(dir: string, name: string): string {
-  const extension = path.extname(name);
-  const stem = name.slice(0, name.length - extension.length);
-  let candidate = name;
-  for (let suffix = 2; entryExists(path.join(dir, candidate)); suffix += 1) {
-    candidate = `${stem}-${suffix.toString()}${extension}`;
-  }
-  return candidate;
 }
 
 function migrateLegacyProjectsDir(

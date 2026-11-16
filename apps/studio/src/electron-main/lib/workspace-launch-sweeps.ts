@@ -8,6 +8,7 @@ import {
   convertChatSettingsFiles,
   convertProjectsToProjectFiles,
   type DeviceId,
+  FILES_FOLDER_NAME,
   type FolderMoved,
   giveChatsTheirFolders,
   markedWhereNoSettings,
@@ -28,6 +29,7 @@ import {
 } from "@instrument-org/workspace/electron";
 import { workspaceLayout } from "@instrument-org/workspace/layout";
 import { app, shell } from "electron";
+import path from "node:path";
 
 import { appConnectionStore } from "../stores/workspace/app-connections";
 import { timeBootStep } from "./boot-timing";
@@ -35,11 +37,12 @@ import { captureServerException } from "./capture-server-exception";
 import { convertChatRecords } from "./convert-chat-records";
 import { logger } from "./electron-logger";
 import {
+  getUserDataDir,
   workspaceMachineDir,
   workspaceWorkFoldersDir,
 } from "./get-workspace-folder";
 import { getOpenedWithoutRecords } from "./workspace-run";
-import { workspaceLayoutMarks } from "./workspaces";
+import { appDataOutputFolder, workspaceLayoutMarks } from "./workspaces";
 
 /**
  * The launch's sweeps over the workspace folder, in order, before the
@@ -540,6 +543,10 @@ function sweepWorkspaceLayout(deviceId: DeviceId, rootDir: string): boolean {
     const migration = migrateWorkspaceLayout({
       device: deviceId,
       machineDir: workspaceMachineDir(),
+      filesDir: path.join(
+        appDataOutputFolder(getUserDataDir()),
+        FILES_FOLDER_NAME,
+      ),
       marks: workspaceLayoutMarks(rootDir),
       rootDir,
       workFoldersDir: workspaceWorkFoldersDir(),

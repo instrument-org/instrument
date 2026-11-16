@@ -191,6 +191,10 @@ export function createStandInWindow(chrome?: SharedChrome) {
     if (action.kind === "history") {
       return { history: [] };
     }
+    // What the app opens on its own as a turn ends is no ask of the agent's.
+    if (action.kind === "handOver") {
+      return {};
+    }
     if (action.kind === "groupTabs" || action.kind === "reopenClosed") {
       return { error: "the stand-in window has one tab group." };
     }

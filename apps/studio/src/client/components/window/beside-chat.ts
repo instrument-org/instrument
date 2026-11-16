@@ -1,5 +1,6 @@
 import { type WindowTab } from "@/client/atoms/window";
 import { hostPathOfFileUrl } from "@/client/lib/file-url";
+import { type ChatId } from "@instrument-org/workspace/client";
 
 import { computerTabOf } from "./file-tabs";
 import {
@@ -12,6 +13,7 @@ import {
   replaceTab,
   selectTab,
   sideIndexOf,
+  tabShowingIn,
   type WindowTabs,
 } from "./tab-model";
 import { matchScreen, showsSame } from "./window-href";
@@ -111,7 +113,9 @@ function showsSameThing(a: WindowTab, b: WindowTab): boolean {
     const file = fileOf(a);
     return file !== undefined && file === fileOf(b);
   }
-  return a.kind === "screen" && b.kind === "screen" && showsSame(a.href, b.href);
+  return (
+    a.kind === "screen" && b.kind === "screen" && showsSame(a.href, b.href)
+  );
 }
 
 /**
@@ -290,4 +294,46 @@ export function openBesideChat(
   const after = groupLayoutOf(next, group);
   const front = after.sides.some((side) => side.up === id);
   return { front, id, state: next };
+}
+
+/**
+ * A file a chat's reply handed over, opened beside the chat as its turn ends:
+ * the chat's group's tab already showing it brought up on its side
+ * (`tabShowingIn`), the keyboard staying where it is, or else a tab of the
+ * agent's own (`openedBy`), placed and shown as `window show` places one.
+ * `isNew` says which; nothing happens for a chat's tab no group has.
+ */
+export function handOverBesideChat(
+  state: WindowTabs,
+  {
+    chatTab,
+    href,
+    id,
+    openedBy,
+  }: { chatTab: string; href: string; id: string; openedBy: ChatId },
+): { front: boolean; id: string; isNew: boolean; state: WindowTabs } {
+  const group = state.tabs.find((tab) => tab.id === chatTab)?.group;
+  if (group === undefined) {
+    return { front: false, id, isNew: false, state };
+  }
+  const showing = tabShowingIn(state, group, href);
+  if (showing !== undefined) {
+    return {
+      front: true,
+      id: showing.id,
+      isNew: false,
+      state: raiseTab(state, showing.id),
+    };
+  }
+  const previous = previousOpenedIn(state, group, openedBy);
+  const placed = openBesideChat(
+    state,
+    { group, href, id, isOpened: true, kind: "screen", openedBy },
+    {
+      chatTab,
+      isShown: true,
+      ...(previous === undefined ? {} : { previous }),
+    },
+  );
+  return { ...placed, isNew: true };
 }

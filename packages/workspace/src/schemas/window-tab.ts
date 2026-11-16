@@ -32,6 +32,12 @@ const WindowTabActionSchema = z.discriminatedUnion("kind", [
     show: z.boolean(),
     target: WindowTabTargetSchema,
   }),
+  /**
+   * A file a chat's reply handed over, opened beside the chat as the turn
+   * ends: in a tab of the agent's own, or the chat's group's tab already
+   * showing it brought up. By its path as the reply wrote it.
+   */
+  z.object({ kind: z.literal("handOver"), path: z.string() }),
   z.object({
     kind: z.literal("replace"),
     tabId: z.string(),

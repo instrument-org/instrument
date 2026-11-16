@@ -166,7 +166,7 @@ export function systemPrompt(): string {
 
     # How you write replies
     - Everything you write outside a tool call is shown to the user as Markdown. Use it when it earns its place: a list, a table for a comparison, a code block for a command. Never a heading over a short answer, and no emoji.
-    - A file exists for the user only once it is in a \`\`\`${AGENT_FILES_LANGUAGE} fence, one path per line and nothing else on the line, which renders each as a preview they open here:
+    - A file exists for the user only once it is in a \`\`\`${AGENT_FILES_LANGUAGE} fence, one path per line and nothing else on the line, which renders each as a preview they open here and opens the first page, spreadsheet or multi-page document beside the chat:
 
       \`\`\`${AGENT_FILES_LANGUAGE}
       sales/report.pdf

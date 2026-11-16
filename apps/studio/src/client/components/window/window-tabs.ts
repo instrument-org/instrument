@@ -21,6 +21,7 @@ import { appTabsAtom, groupOfHref } from "./app-tabs";
 import { type ChatFilters, NO_FILTERS } from "./chats";
 import {
   type BesideAsk,
+  handOverBesideChat,
   openBesideChat,
   previousOpenedIn,
 } from "./beside-chat";
@@ -613,6 +614,38 @@ export function useWindowTabs() {
           value: { front: placed.front, id: placed.id },
         };
       }, undefined);
+    },
+    /**
+     * A file a chat's reply handed over, beside the chat's tab
+     * (`handOverBesideChat`): the group's tab showing it brought up, or a
+     * tab of the agent's own. Nothing for a chat's tab no group has.
+     */
+    handOverBeside: (
+      to: string,
+      { chatTab, openedBy }: { chatTab: string; openedBy: ChatId },
+    ): undefined | { front: boolean; id: string; isNew: boolean } => {
+      const href = openLinkAddress(to);
+      if (href === undefined) {
+        return undefined;
+      }
+      return answer<undefined | { front: boolean; id: string; isNew: boolean }>(
+        (current) => {
+          if (!current.tabs.some((tab) => tab.id === chatTab && tab.group)) {
+            return { state: current, value: undefined };
+          }
+          const placed = handOverBesideChat(current, {
+            chatTab,
+            href,
+            id: newScreenId(),
+            openedBy,
+          });
+          return {
+            state: placed.state,
+            value: { front: placed.front, id: placed.id, isNew: placed.isNew },
+          };
+        },
+        undefined,
+      );
     },
     /**
      * A screen of its own right after the tab the group on screen has up,

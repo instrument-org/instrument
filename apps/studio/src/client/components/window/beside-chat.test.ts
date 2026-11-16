@@ -7,6 +7,7 @@ import {
   agentPlacementOf,
   type BesideAsk,
   type ChatGesture,
+  handOverBesideChat,
   OPENS_BESIDE,
   openBesideChat,
   opensBeside,
@@ -333,10 +334,7 @@ function landingOf(state: WindowTabs, id: string): string {
  * chat on the left (or alone) goes to the other side; everything else is a
  * browser's new tab right after the chat, in front unless asked to wait.
  */
-const EXPECTED: Record<
-  ChatGesture,
-  Record<keyof typeof POSITIONS, string>
-> = {
+const EXPECTED: Record<ChatGesture, Record<keyof typeof POSITIONS, string>> = {
   background: {
     alone: "L, behind, keyboard L, after chat",
     left: "L, behind, keyboard L, after chat",
@@ -359,7 +357,9 @@ describe("what the person opens in a chat", () => {
     (gesture) =>
       (["alone", "left", "right"] as const).flatMap((position) =>
         (["website", "file", "chat"] as const).map(
-          (kind): [ChatGesture, keyof typeof POSITIONS, keyof typeof TARGETS] => [
+          (
+            kind,
+          ): [ChatGesture, keyof typeof POSITIONS, keyof typeof TARGETS] => [
             gesture,
             position,
             kind,
@@ -402,7 +402,13 @@ describe("what the person opens in a chat", () => {
     ["the same file", TARGETS.file, TARGETS.file],
     [
       "the same file shown as a page",
-      { group: G, id: "same", kind: "page", openedAt: 0, url: `file://${NOTES}` },
+      {
+        group: G,
+        id: "same",
+        kind: "page",
+        openedAt: 0,
+        url: `file://${NOTES}`,
+      },
       TARGETS.file,
     ],
     ["a page at the same address", page("opened"), page("opened")],
@@ -488,5 +494,67 @@ describe("which pages open beside them", () => {
   ])("reads %s", (_label, tab, type) => {
     expect(pageTypeOf(tab)).toBe(type);
     expect(opensBeside(tab)).toBe(type === "chat");
+  });
+});
+
+describe("a file a reply handed over, opened as the turn ends", () => {
+  const REPORT = fileHref("/Users/mac-user/report.html");
+  const hand = (state: WindowTabs) =>
+    handOverBesideChat(state, {
+      chatTab: "chat",
+      href: REPORT,
+      id: "handed",
+      openedBy: CHAT,
+    });
+
+  it("opens a tab of the agent's own beside the chat, in front", () => {
+    const opened = hand(windowOf([chatTab], "chat"));
+    expect(opened).toMatchObject({ front: true, id: "handed", isNew: true });
+    expect(opened.state.tabs.find((tab) => tab.id === "handed")).toMatchObject({
+      href: REPORT,
+      openedBy: CHAT,
+      side: 1,
+    });
+  });
+
+  it.each<[string, WindowTab]>([
+    ["a file tab", onRight({ ...screenAt(REPORT), id: "mine" })],
+    [
+      "the page the file's tab became",
+      {
+        group: G,
+        id: "mine",
+        kind: "page",
+        openedAt: 0,
+        side: 1,
+        url: "file:///Users/mac-user/report.html",
+      },
+    ],
+  ])(
+    "brings up %s already showing it, opening none and leaving it the person's",
+    (_label, mine) => {
+      const state = windowOf(
+        [chatTab, mine, onRight(page("other"))],
+        "chat",
+        "other",
+      );
+      const opened = hand(state);
+      expect(opened).toMatchObject({ id: "mine", isNew: false });
+      expect(opened.state.tabs).toHaveLength(3);
+      expect(
+        opened.state.tabs.find((tab) => tab.id === "mine")?.openedBy,
+      ).toBeUndefined();
+      expect(groupLayoutOf(opened.state, G).sides[1]?.up).toBe("mine");
+    },
+  );
+
+  it("opens beside the chat when only another group shows it", () => {
+    const elsewhere: WindowTab = {
+      ...screenAt(REPORT),
+      group: "group:two",
+      id: "elsewhere",
+    };
+    const opened = hand(windowOf([chatTab, elsewhere], "chat"));
+    expect(opened).toMatchObject({ id: "handed", isNew: true });
   });
 });

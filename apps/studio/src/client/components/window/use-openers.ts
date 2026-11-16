@@ -921,6 +921,25 @@ export function useOpeners({
         ? { behind: !opened.front, tabId: opened.id }
         : { error: "the window did not open a tab." };
     }
+    if (action.kind === "handOver") {
+      // Only beside a chat's tab in this window; a chat open nowhere here
+      // gets nothing.
+      const place = agentPlaceOf(chat);
+      if (chat === undefined || "error" in place) {
+        return { error: "the chat has no tab here." };
+      }
+      const href = await hrefOfNamedPath(action.path, chat);
+      const opened =
+        href === undefined
+          ? undefined
+          : windowTabs.handOverBeside(href, {
+              chatTab: place.after,
+              openedBy: chat,
+            });
+      return opened
+        ? { behind: !opened.front, tabId: opened.id }
+        : { error: "the window did not open a tab." };
+    }
     if (action.kind === "adopt") {
       const id = StoreId.TabSchema.safeParse(action.tabId);
       if (chat === undefined || !id.success) {

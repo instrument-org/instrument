@@ -246,14 +246,18 @@ function answeringWindow() {
                   ? action.entry === "tab_closed1"
                     ? {}
                     : { error: `nothing in History is ${action.entry}.` }
-                  : known.has(action.tabId)
-                    ? {
-                        tabId: action.tabId,
-                        ...(action.kind === "read"
-                          ? { text: "Jar\nA rigid container." }
-                          : {}),
-                      }
-                    : { error: `no tab ${action.tabId} is open in this chat.` };
+                  : action.kind === "handOver"
+                    ? {}
+                    : known.has(action.tabId)
+                      ? {
+                          tabId: action.tabId,
+                          ...(action.kind === "read"
+                            ? { text: "Jar\nA rigid container." }
+                            : {}),
+                        }
+                      : {
+                          error: `no tab ${action.tabId} is open in this chat.`,
+                        };
     publisher.publish("window.tabDone", {
       id: ask.id,
       requestId: ask.requestId,

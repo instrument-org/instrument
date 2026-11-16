@@ -190,6 +190,26 @@ it("drops a press whose button came up where the window never heard it", () => {
   expect(keyboard.holds).toBe(0);
 });
 
+it("ends a drag whose release the window never heard, landing nothing, and gives pages the pointer back", () => {
+  const lands = vi.fn();
+  setLander(lands);
+  pressTab();
+  drag();
+  expect(currentDrag()?.held.kind).toBe("tab");
+  expect(getComputedStyle(page).pointerEvents).toBe("none");
+
+  // The pointer comes back over the window with no button down.
+  pointer("pointermove", AT.x + 60, 0);
+  expect(currentDrag()).toBeUndefined();
+  expect(getComputedStyle(page).pointerEvents).not.toBe("none");
+
+  // The next press and release elsewhere lands nothing.
+  pointer("pointermove", AT.x + 80, 1);
+  pointer("pointerup", AT.x + 80);
+  expect(lands).not.toHaveBeenCalled();
+  setLander(undefined);
+});
+
 it("lets pages take the keyboard once a press ends as a click", () => {
   pressTab();
   pointer("pointerup", AT.x);

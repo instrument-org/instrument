@@ -455,6 +455,15 @@ function startPointerDrag(held: Held, grab: Point, event: PointerEvent) {
     if (!move.isPrimary || session !== current) {
       return;
     }
+    // The button came up where the window never heard it (over another
+    // app, or under the system's own menu): the drag is over, and nothing
+    // it held lands. Left going, it would follow the bare pointer and land
+    // on the next release anywhere, and pages would stay out of the
+    // pointer's way (`data-tab-held`) until then.
+    if ((move.buttons & 1) === 0) {
+      cancel(current);
+      return;
+    }
     dragPoint.x = move.clientX;
     dragPoint.y = move.clientY;
     evaluate(current);

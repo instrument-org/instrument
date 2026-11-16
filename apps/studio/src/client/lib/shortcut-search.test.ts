@@ -55,6 +55,7 @@ describe("SHORTCUT_GUIDE_ENTRIES", () => {
         "General: Show History  ⌘Y",
         "Tab Groups: Next Tab Group  ⌥⌘↓",
         "Tab Groups: Previous Tab Group  ⌥⌘↑",
+        "Tab Groups: Tab Group 1 to 9  ⌃1…9",
         "Tab Groups: Toggle Sidebar  ⌘B",
         "Files: Back in Page  ←",
         "Files: Close Page Viewer or File  Esc",
@@ -113,6 +114,7 @@ describe("matchShortcuts", () => {
     expect(highlighted("tab")).toMatchInlineSnapshot(`
       [
         "[Tab] 1 to 8",
+        "[Tab] Group 1 to 9",
         "New [Tab] Group",
         "New [Tab]",
         "New [Tab] in Split",

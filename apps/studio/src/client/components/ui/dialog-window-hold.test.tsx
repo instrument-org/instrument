@@ -53,6 +53,7 @@ function Commands({
       selectChat: vi.fn(),
       showTab: vi.fn(() => false),
       selectRelative: vi.fn(),
+      selectGroup: vi.fn(),
       selectTab: vi.fn(),
       moveTabToNewWindow: vi.fn(),
       newTabInSplit: vi.fn(),

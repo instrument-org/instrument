@@ -187,6 +187,22 @@ const VIEW_CHORDS: WindowChord[] = [
 const CHAT_CHORDS: WindowChord[] = [chord("nextChat"), chord("previousChat")];
 
 /**
+ * A sidebar row by its place (`groupByPlace`): Control and a number on a
+ * Mac, Alt and one elsewhere. Hidden rows, as the tabs' by place are.
+ */
+const GROUP_SWITCH_CHORDS: WindowChord[] = Array.from(
+  { length: 9 },
+  (_, index) => ({
+    accelerator: IS_MAC ? `Control+${index + 1}` : `Alt+${index + 1}`,
+    label: `Tab Group ${index + 1}`,
+    run: (window: BrowserWindow) => {
+      commandWindow(window, { index: index + 1, type: "selectGroup" });
+    },
+    visible: false,
+  }),
+);
+
+/**
  * The chords a tab group's tabs answer to: next and previous by Ctrl+Tab
  * (and by this system's own second chord, below), a tab by place with Cmd+1
  * through Cmd+8, and the last with Cmd+9, as browsers do.
@@ -256,6 +272,7 @@ const WINDOW_CHORDS = [
   ...TAB_CHORDS,
   ...TAB_ALIAS_CHORDS,
   ...CHAT_CHORDS,
+  ...GROUP_SWITCH_CHORDS,
   ...TAB_SWITCH_CHORDS,
   ...TAB_SWITCH_ALIAS_CHORDS,
   ...HISTORY_CHORDS,
@@ -443,6 +460,7 @@ export function createAppWindowMenu(
       ...menuItems(VIEW_ALIAS_CHORDS, windows),
       { type: "separator" },
       ...menuItems(CHAT_CHORDS, windows),
+      ...menuItems(GROUP_SWITCH_CHORDS, windows),
       { type: "separator" },
       ...(Array.isArray(shared.submenu)
         ? shared.submenu.filter(

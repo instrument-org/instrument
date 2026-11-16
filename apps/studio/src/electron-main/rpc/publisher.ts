@@ -195,7 +195,8 @@ export type WindowCommand =
   | { key: string; landing: GroupTabLanding; type: "receiveGroupTab" }
   /** Another window asked for what a tab here shows: bring it up and say so (`window.tabShown`). */
   | { href: string; requestId: string; type: "showTab" }
-  | { index: number; type: "selectTab" };
+  | { index: number; type: "selectTab" }
+  | { index: number; type: "selectGroup" };
 
 // Per subscription, starting empty when it subscribes: what a subscriber that
 // is still busy with one event holds of the ones after it. Several of these

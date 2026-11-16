@@ -427,7 +427,12 @@ function boundChords(isMac: boolean) {
               accelerator: `CmdOrCtrl+${index + 1}`,
               name: `tab ${index + 1}`,
             }))
-          : [{ accelerator: resolve(accelerator), name }],
+          : name === "groupByPlace"
+            ? Array.from({ length: 9 }, (_, index) => ({
+                accelerator: `${isMac ? "Control" : "Alt"}+${index + 1}`,
+                name: `group ${index + 1}`,
+              }))
+            : [{ accelerator: resolve(accelerator), name }],
     ),
     ...SHORTCUT_ENTRIES.map(({ descriptor, id }) => ({
       accelerator: resolve(descriptor.accelerator),

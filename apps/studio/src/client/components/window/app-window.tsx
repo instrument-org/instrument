@@ -135,6 +135,11 @@ import {
   upsAmong,
 } from "./tab-model";
 import { useTabTitle } from "./tab-title";
+import {
+  sidebarRowOrderAtom,
+  tabAtChord,
+  useHeldChordHints,
+} from "./held-chord-hints";
 import { toastWithUndo } from "./undo-offers";
 import { useSignInLanding } from "./use-sign-in-landing";
 import { WindowLook } from "./look-panel";
@@ -164,6 +169,7 @@ import { useDragSystem } from "./drag/use-drag-system";
 import { useGroupTabMoves } from "./tab-drag";
 import {
   groupAlong,
+  isPinnedGroup,
   isWorthKeeping,
   startTabGroupsFromZero,
   useOpenGroups,
@@ -515,6 +521,7 @@ function WindowShell({
   const groups = useTabGroupActions();
   const groupTabMoves = useGroupTabMoves();
   const groupList = useOpenGroups();
+  useHeldChordHints();
   const [isSidebarOpen, setSidebarOpen] = useAtom(sidebarOpenAtom);
   const sidebarWidth = useAtomValue(sidebarWidthAtom);
   const groupUp = useRouterState({
@@ -1481,10 +1488,23 @@ function WindowShell({
       },
       // Cmd+1 to Cmd+8 by place, and Cmd+9 the last.
       selectTab: (index) => {
-        const groupTabs = tabsLeftToRight();
-        const next = index === 9 ? groupTabs.at(-1) : groupTabs[index - 1];
+        const next = tabAtChord(tabsLeftToRight(), index);
         if (next) {
           windowTabs.select(next.id);
+        }
+      },
+      // Control+1 to Control+9 (Alt off the Mac): the sidebar's rows by
+      // place, as it lists them, pinned first.
+      selectGroup: (index) => {
+        const order = store.get(sidebarRowOrderAtom) ?? [
+          ...groupList.open.filter(isPinnedGroup).map((entry) => entry.group),
+          ...groupList.open
+            .filter((entry) => !isPinnedGroup(entry))
+            .map((entry) => entry.group),
+        ];
+        const next = order[index - 1];
+        if (next !== undefined) {
+          groups.show(next);
         }
       },
       toggleSidebar: () => {

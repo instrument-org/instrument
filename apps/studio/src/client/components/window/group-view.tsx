@@ -59,7 +59,12 @@ import {
 } from "./side-widths";
 import { useTabSurface } from "./tab-surface";
 import { WINDOW_CARD, WINDOW_CARD_GAP } from "./window-frame";
-import { newScreenId, useWindowTabs } from "./window-tabs";
+import { groupOnScreenAtom, newScreenId, useWindowTabs } from "./window-tabs";
+import {
+  heldHintAtom,
+  tabChordLabel,
+  tabChordNumbers,
+} from "./held-chord-hints";
 
 /**
  * One tab group, as the window's tab shows it: one side or two, each a card
@@ -496,6 +501,20 @@ function SideCard({
   const moves = useGroupTabMoves();
   const listedGroups = useAtomValue(windowTabGroupsAtom);
   const isActive = useIsActiveTab();
+  // While the tab chord's modifier is held, each tab wears the keys that
+  // pick it, numbered across both sides as the chords count them.
+  const heldHint = useAtomValue(heldHintAtom);
+  const isOnScreen = useAtomValue(groupOnScreenAtom) === group;
+  const chords =
+    heldHint === "tabs" && isActive && isOnScreen
+      ? new Map(
+          [
+            ...tabChordNumbers(
+              layout.sides.flatMap((each) => each.tabs.map((tab) => tab.id)),
+            ),
+          ].map(([id, number]) => [id, tabChordLabel(number)]),
+        )
+      : undefined;
   const { tabs } = side;
   const up = tabs.find((tab) => tab.id === side.up);
   const cardRef = useRef<HTMLDivElement>(null);
@@ -767,6 +786,7 @@ function SideCard({
       <PaneTabs
         carriedKey={drawn.carriedKey}
         chatTitles={shell.chatTitles}
+        chords={chords}
         chosenId={drawn.chosenId ?? up?.id}
         className={SIDE_TABS}
         heldAt={drawn.heldAt}

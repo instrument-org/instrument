@@ -75,6 +75,7 @@ export function PaneTabs({
   side = 0,
   split,
   chatTitles,
+  chords,
   className,
   chosenId,
   heldAt,
@@ -94,6 +95,8 @@ export function PaneTabs({
   /** A tab being carried off the row, by its strip key, which gives its place up to the tabs beside it. */
   carriedKey?: string | undefined;
   chatTitles: Presentation["chatTitles"];
+  /** The keys that pick each tab, by tab id, while their modifier is held. */
+  chords?: ReadonlyMap<string, string> | undefined;
   chosenId: string | undefined;
   /** The row's ground and the room at its ends, as the card it heads draws them. */
   className?: string;
@@ -219,7 +222,9 @@ export function PaneTabs({
         />
       );
     }
+    const chord = chords?.get(tab.id);
     return {
+      ...(chord === undefined ? {} : { chord }),
       ...(chat !== undefined && renaming === named.key
         ? {
             field: (

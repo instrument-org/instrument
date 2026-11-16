@@ -31,6 +31,7 @@ import {
 } from "react";
 import { IconGlint, ShimmerSweep } from "@/client/components/shimmer-sweep";
 
+import { ChordHint } from "./chord-hint";
 import { dragPoint } from "./drag/session";
 import { FadeTitle } from "./fade-title";
 import { EDGE_FADE, EDGE_FADE_WIDTH, useEdgeFade } from "./use-edge-fade";
@@ -49,7 +50,9 @@ export interface StripTab {
    * is the one thing a narrow tab still has room to say.
    */
   badge?: ReactNode;
-  /** What stands for it before its name; a tab with none shows its name alone, narrowed or not. */
+  /** The keys that pick it, drawn under it while their modifier is held. */
+  chord?: string;
+  /** What stands for it before its name;a tab with none shows its name alone, narrowed or not. */
   icon: ReactNode;
   /** Drawn first and held there: not dragged, not closed. */
   isFixed?: boolean;
@@ -972,6 +975,12 @@ function Tab({
         </FadeTitle>
       )}
       {tab.badge}
+      {tab.chord !== undefined && (
+        // As far under the tab as the row's clip allows.
+        <ChordHint className="absolute -bottom-1.5 left-1/2 h-4 -translate-x-1/2 text-[10px]">
+          {tab.chord}
+        </ChordHint>
+      )}
       {isClosable && !tab.field && density !== "icon" && (
         <button
           aria-label={`Close ${tab.title}`}

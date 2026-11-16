@@ -173,6 +173,14 @@ export const WINDOW_SHORTCUT_ALIASES: {
 export const WINDOW_MENU_SHORTCUTS = {
   actualSize: { accelerator: "CmdOrCtrl+0", label: "Actual Size" },
   closeWindow: { accelerator: "Shift+CmdOrCtrl+W", label: "Close Window" },
+  // Stands for nine chords, one per sidebar row, which the menu spells out
+  // itself: Control on a Mac, beside Command's tabs, and Alt elsewhere, where
+  // Ctrl is the tab key. macOS gives Control and a number to Spaces only for
+  // someone who turned those shortcuts on.
+  groupByPlace: {
+    accelerator: { darwin: "Control+1…9", default: "Alt+1…9" },
+    label: "Tab Group 1 to 9",
+  },
   lastTab: { accelerator: "CmdOrCtrl+9", label: "Last Tab" },
   // Cmd+N is a new tab group, so a window takes Shift, as it does in a
   // code editor and in Notion.

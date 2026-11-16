@@ -16,6 +16,7 @@ import {
 import { appZoomAfter, zoomAtom } from "@/client/atoms/zoom";
 import { requestBookmarkTab } from "@/client/components/window/bookmark-star";
 import { requestFileInfo } from "@/client/components/window/file-info";
+import { interruptHeldHints } from "@/client/components/window/held-chord-hints";
 import { requestPageEditToggle } from "@/client/components/window/page-edit-state";
 import {
   findAgainForKeyboard,
@@ -122,6 +123,8 @@ export function useWindowCommands(
     showActivity: () => void;
     /** The next or previous chat of the inbox, as listed. */
     selectChat: (direction: -1 | 1) => void;
+    /** A sidebar row by its place, 1 to 9. */
+    selectGroup: (index: number) => void;
     /** Brings up the tab here showing what another window asked for; false where none does. */
     showTab: (href: string) => boolean;
     selectRelative: (direction: -1 | 1) => void;
@@ -239,11 +242,21 @@ export function useWindowCommands(
           signal: controller.signal,
         });
         for await (const command of commands) {
+          // A chord the main process answered is a key the window never
+          // saw, which puts a held modifier's numbers away all the same.
+          interruptHeldHints();
           if (typeof command === "object") {
-            if (command.type === "selectTab") {
-              // A tab by its place is a tab chord too, held under a dialog.
+            if (
+              command.type === "selectTab" ||
+              command.type === "selectGroup"
+            ) {
+              // A tab or group by its place is a tab chord too, held under a dialog.
               if (getDefaultStore().get(windowHoldsAtom).length === 0) {
-                latest.current.selectTab(command.index);
+                if (command.type === "selectTab") {
+                  latest.current.selectTab(command.index);
+                } else {
+                  latest.current.selectGroup(command.index);
+                }
               }
             } else if (command.type === "receiveTab") {
               latest.current.receiveTab(command.tab, command.index);

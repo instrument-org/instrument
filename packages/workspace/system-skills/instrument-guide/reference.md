@@ -122,6 +122,7 @@ Each is written as on a Mac, then as on Windows and Linux.
 
 - Next Tab Group: ⌥⌘↓ / Alt+Shift+↓
 - Previous Tab Group: ⌥⌘↑ / Alt+Shift+↑
+- Tab Group 1 to 9: ⌃1…9 / Alt+1…9
 - Toggle Sidebar: ⌘B / Ctrl+B
 
 ### Files

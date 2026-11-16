@@ -68,6 +68,7 @@ const WINDOW_GROUPS: Record<
   focusLeftSide: "Tabs",
   focusRightSide: "Tabs",
   forward: "Pages",
+  groupByPlace: "Tab Groups",
   lastTab: "Tabs",
   newChat: "General",
   newTab: "Tabs",

@@ -34,7 +34,14 @@ import { ChatsCircleIcon } from "@phosphor-icons/react/ChatsCircle";
 import { PlusIcon } from "@phosphor-icons/react/Plus";
 import { type ChatId } from "@instrument-org/workspace/client";
 import { useQuery } from "@tanstack/react-query";
-import { useAtom, useAtomValue } from "jotai";
+import { useAtom, useAtomValue, useSetAtom } from "jotai";
+import { ChordHint } from "./chord-hint";
+import {
+  groupChordLabel,
+  groupChordNumbers,
+  heldHintAtom,
+  sidebarRowOrderAtom,
+} from "./held-chord-hints";
 import {
   AnimatePresence,
   motion,
@@ -221,8 +228,22 @@ export function GroupSidebar({
   const roomSnaps = useAtomValue(roomSnapsAtom);
   const filled = useAtomValue(filledRoomAtom);
   const room = drop?.kind === "between" ? drop : undefined;
-  // The rows the list shows, in its order, which a row's menu closes around.
+  // The rows the list shows, in its order, which a row's menu closes around
+  // and the group chords pick by place.
   const shownRows = [...pinned, ...rest];
+  const shownOrder = shownRows.map((entry) => entry.group);
+  const shownKey = shownOrder.join("\n");
+  const setRowOrder = useSetAtom(sidebarRowOrderAtom);
+  useEffect(() => {
+    setRowOrder(shownKey === "" ? [] : shownKey.split("\n"));
+    return () => {
+      setRowOrder(undefined);
+    };
+  }, [setRowOrder, shownKey]);
+  const groupNumbers =
+    useAtomValue(heldHintAtom) === "groups"
+      ? groupChordNumbers(shownOrder)
+      : undefined;
   const menuOf = (entry: TabGroup): GroupRowMenuActions => {
     // Pinned rows stay open, as a browser's pinned tabs do.
     const closing = (around: TabGroup[]) => {
@@ -261,6 +282,7 @@ export function GroupSidebar({
   const row = (entry: TabGroup) => (
     <GroupRow
       chatTitles={chatTitles}
+      chord={groupNumbers?.get(entry.group)}
       entry={entry}
       isDropInto={drop?.kind === "into" && drop.group === entry.group}
       isUp={entry.group === groupUp}
@@ -711,6 +733,7 @@ function BackRow({ label, onBack }: { label: string; onBack: () => void }) {
  */
 export function GroupRow({
   chatTitles,
+  chord,
   entry,
   isCloseShown = false,
   isDropInto = false,
@@ -723,6 +746,8 @@ export function GroupRow({
   onShow,
 }: {
   chatTitles: Map<ChatId, string>;
+  /** The group chord's number that picks it, shown at its end while that modifier is held. */
+  chord?: number | undefined;
   entry: TabGroup;
   /** Its X kept up whatever the pointer does, for a picture of the row under it. */
   isCloseShown?: boolean;
@@ -825,7 +850,7 @@ export function GroupRow({
   const shown = (
     <div
       className={cn(
-        "group/row flex shrink-0 flex-col rounded-lg px-2.5 py-1.5",
+        "group/row relative flex shrink-0 flex-col rounded-lg px-2.5 py-1.5",
         isDropInto
           ? DROP_TONE
           : isUp
@@ -865,6 +890,11 @@ export function GroupRow({
       {...(isLifted ? {} : { "aria-label": label, role: "button" })}
     >
       {inner}
+      {chord !== undefined && (
+        <ChordHint className="absolute top-1/2 right-2 -translate-y-1/2">
+          {groupChordLabel(chord)}
+        </ChordHint>
+      )}
     </div>
   );
   return menu ? <GroupRowMenu menu={menu}>{shown}</GroupRowMenu> : shown;

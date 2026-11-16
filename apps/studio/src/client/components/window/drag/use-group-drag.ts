@@ -6,6 +6,7 @@ import { stripKeyOf } from "../pane-tabs";
 import { stripIndexAt } from "../tab-carry-view";
 import { type GroupLayout, isHomeTab, sideIndexOf } from "../tab-model";
 import { useWindowTabs } from "../window-tabs";
+import { pageLandingOf, type SideShows, type UnderPoint } from "./accepts";
 import { heldKeysOf, heldTabsOf } from "./held-tabs";
 import {
   holds,
@@ -185,62 +186,66 @@ function heldInGroup(held: Held, group: string, layout: GroupLayout) {
 }
 
 /**
- * Whether what a side's page shows takes files at a point itself: a chat's
- * composer and a folder in Files do (`data-file-drop-region`), a folder
- * never a place of Files' sidebar (`isPlaceDragInAir`), and so does
- * anything standing over the page there, as a dialog does. Nothing else in a
- * page does, an open file's editor included, so files let go there open
- * beside it as tabs instead of going into it.
+ * What a side's page has under a point that takes a drop itself
+ * (`UnderPoint`): a composer's box and a folder in Files
+ * (`data-file-drop-region`), a folder never a place of Files' sidebar
+ * (`isPlaceDragInAir`), a field that takes words, and anything standing over
+ * the page there, as a dialog or a page in a frame of its own does. Nothing
+ * else in a page takes a drop, an open file's editor included, so files let
+ * go there open beside it as tabs instead of going into it.
  */
-function takesFilesItself(page: Element | null | undefined, point: Point) {
+function underPointOf(
+  page: Element | null | undefined,
+  point: Point,
+): UnderPoint | undefined {
   const under = document.elementFromPoint(point.x, point.y);
-  if (!page || !under || !page.contains(under)) {
-    return true;
+  if (
+    !page ||
+    !under ||
+    !page.contains(under) ||
+    under.tagName === "WEBVIEW" ||
+    under.tagName === "IFRAME"
+  ) {
+    return "over";
   }
   const region = under.closest("[data-file-drop-region]");
-  // A place of Files' sidebar goes into no folder, so over one it opens on
-  // the side instead.
-  if (region?.hasAttribute("data-folder-drop") && isPlaceDragInAir()) {
-    return false;
+  if (region && page.contains(region)) {
+    if (!region.hasAttribute("data-folder-drop")) {
+      return "box";
+    }
+    return isPlaceDragInAir() ? "place" : "folder";
   }
-  return region !== null && page.contains(region);
+  const isField =
+    (under instanceof HTMLElement && under.isContentEditable) ||
+    under.closest(
+      "textarea, input:not([type]), input[type=text], input[type=search], input[type=url], input[type=email]",
+    ) !== null;
+  return isField ? "text" : undefined;
+}
+
+/** What a side shows up, as a drop over its page reads it. */
+function sideShows(tab: WindowTab | undefined): SideShows {
+  if (tab?.kind === "page") {
+    return "site";
+  }
+  return tab !== undefined && isHomeTab(tab) ? "newTab" : "other";
 }
 
 /**
- * Whether files let go at a point go into a box in the page that takes
- * them, a composer's (`data-file-drop-region`), as its message's
- * attachments. A folder in Files takes them too, but over the whole page,
- * so it is a page that takes files (`takesFilesItself`), not a box.
- */
-function attachesToBox(page: Element | null | undefined, point: Point) {
-  const under = document.elementFromPoint(point.x, point.y);
-  const box = under?.closest("[data-file-drop-region]");
-  return (
-    box !== null &&
-    box !== undefined &&
-    !box.hasAttribute("data-folder-drop") &&
-    page?.contains(box) === true
-  );
-}
-
-/**
- * A group's sides' pages as a place to land: with one side, a split target
- * at each end makes that half a side of its own once the pointer nears it
- * (`sideZoneAt`), and the middle joins the side; with two, the side under
- * the pointer takes it as its last tab. The margin between an outer page
- * and the window's edge counts as that page's end (`pagesReach`). Files
- * open as tabs the same way, except where the page takes them itself: a
- * site, and away from a lone side's ends, a chat's composer or a folder in
- * Files (`takesFilesItself`); a new tab up nobody has written in turns into
- * them, except over its composer, which attaches them (`attachesToNewTab`),
- * and into a link away from a lone side's ends. A link opens as its tab
- * wherever a tab would land. The split targets show from the start of a drag that could make one a
- * side. A whole group pulled out of the sidebar makes a side of all its
- * tabs at a split target, joins the side under the pointer of a group of
- * two sides with all of them, as a tab joins it, and anywhere else on the
- * pages goes to a window of its own, where the window has another group to
- * show. Nothing in the group is drawn again while something is held over
- * it, so the pages stay put under the pointer.
+ * A group's sides' pages as a place to land, by one rule (`pageLandingOf`):
+ * with one side, a split target at each end makes that half a side of its
+ * own once the pointer nears it (`sideZoneAt`); content goes to whatever in
+ * the page takes it (a composer, a field, a web page, a folder in Files);
+ * a new tab nobody has written in turns into files or a link; and anything
+ * else joins the side under the pointer, as a tab does. The margin between
+ * an outer page and the window's edge counts as that page's end
+ * (`pagesReach`). The split targets show from the start of a drag that
+ * could make one a side. A whole group pulled out of the sidebar makes a
+ * side of all its tabs at a split target, joins the side under the pointer
+ * of a group of two sides with all of them, as a tab joins it, and anywhere
+ * else on the pages goes to a window of its own, where the window has
+ * another group to show. Nothing in the group is drawn again while
+ * something is held over it, so the pages stay put under the pointer.
  */
 export function useSidePagesTarget({
   group,
@@ -268,9 +273,6 @@ export function useSidePagesTarget({
   };
   const upOf = (side: number) =>
     layout.sides[side]?.tabs.find((tab) => tab.id === layout.sides[side]?.up);
-  /** Whether a tab is a new tab nobody has written in, which turns into files let go over it. */
-  const isNewTab = (tab: WindowTab | undefined) =>
-    tab !== undefined && isHomeTab(tab);
   /** Whether a held group's tabs may make a side here: another group's, held in this window. */
   const maySplitGroup = (held: Held, input: string) =>
     held.kind !== "group" || (held.group !== group && input !== "remote");
@@ -278,11 +280,11 @@ export function useSidePagesTarget({
     isOn
       ? {
           hints: ({ held, input }) => {
-            // A site hears the system's drag of files over it itself, and
+            // A site hears the system's drag of content over it itself, and
             // the window never does, so over one there is no end to reach.
             if (
               !maySplitGroup(held, input) ||
-              (held.kind === "files" && upOf(0)?.kind === "page")
+              (input === "native" && sideShows(upOf(0)) === "site")
             ) {
               return [];
             }
@@ -296,7 +298,6 @@ export function useSidePagesTarget({
             const point = onPages(reached, sides);
             const at = sides.findIndex((rect) => holds(rect, point));
             const up = upOf(at);
-            const page = sides[at];
             if (held.kind === "group" && input === "remote") {
               return undefined;
             }
@@ -311,47 +312,19 @@ export function useSidePagesTarget({
                   sides,
                 })
               : undefined;
-            if (zone?.kind === "split") {
-              return {
-                group,
-                kind: "side",
-                lit: zone.lit,
-                side: zone.side,
-                split: true,
-              };
-            }
-            // A box in the page that takes files (a composer) takes them
-            // wherever it shows past the split targets drawn over the page.
-            if (held.kind === "files" && attachesToBox(pageOf(at), point)) {
-              return "native";
-            }
-            // Away from a lone side's ends, a page that takes files
-            // everywhere has them: a new tab nobody has written in turns
-            // into them, a site takes them by the system's drag, and so
-            // does a folder in Files.
-            if (held.kind === "files") {
-              if (page && up && isNewTab(up)) {
-                return { group, kind: "newTab", lit: page, tab: up.id };
-              }
-              if (up?.kind === "page" || takesFilesItself(pageOf(at), point)) {
-                return "native";
-              }
-            }
-            // A new tab nobody has written in turns into a link let go on it.
-            if (held.kind === "link" && page && up && isNewTab(up)) {
-              return { group, kind: "newTab", lit: page, tab: up.id };
-            }
-            // Anything else, a whole group included, joins the side it is
-            // held over, as a tab does.
-            return zone
-              ? {
-                  group,
-                  kind: "side",
-                  lit: zone.lit,
-                  side: zone.side,
-                  split: false,
-                }
-              : undefined;
+            return pageLandingOf({
+              group,
+              held,
+              input,
+              page: sides[at],
+              shows: sideShows(up),
+              tab: up?.id,
+              under:
+                input === "native"
+                  ? underPointOf(pageOf(at), point)
+                  : undefined,
+              zone,
+            });
           },
           rect: () => pagesReach(pages(), window.innerWidth),
           scrolls: { axis: "x", element: scroller },

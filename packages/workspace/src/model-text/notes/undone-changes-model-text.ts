@@ -135,12 +135,14 @@ export function undoneMemoriesModelNote(
  */
 export function restoredFileModelNote(
   data: SessionMessageDataPart.FileVersionsDataPart,
+  /** Spells a host path the way the agent's shell does. */
+  shellPath: (hostPath: string) => string = (hostPath) => hostPath,
 ): string | undefined {
   const [file] = data.files;
   if (data.kind !== "restored" || file === undefined) {
     return undefined;
   }
   return systemNote`
-    The user restored ${file.hostPath} to an earlier version${file.copy === undefined ? "" : `, the one kept at ${file.copy}`}. That is the file now.
+    The user restored ${shellPath(file.hostPath)} to an earlier version${file.copy === undefined ? "" : `, the one kept at ${shellPath(file.copy)}`}. That is the file now.
   `;
 }

@@ -506,7 +506,7 @@ export namespace SessionMessage {
             ];
           }
           if (part.type === "data-fileVersions") {
-            const text = restoredFileModelNote(part.data);
+            const text = restoredFileModelNote(part.data, shellPath);
             return text
               ? [{ at: part.metadata.createdAt.getTime(), part, text }]
               : [];

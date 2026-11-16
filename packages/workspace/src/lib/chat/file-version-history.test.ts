@@ -195,4 +195,20 @@ describe("restoreFileVersion", () => {
     ).rejects.toThrow("not a version");
     expect(await fs.readFile(b, "utf8")).toBe("B1");
   });
+
+  it("refuses to replace a file it can't keep a copy of first", async () => {
+    const file = path.join(dir, "big.bin");
+    const small = await kept(file, "small");
+    turn("s-chat", "m1", [[[small]]]);
+    const big = Buffer.alloc(11 * 1024 * 1024, 1);
+    await fs.writeFile(file, big);
+    await expect(
+      restoreFileVersion({
+        chatId: "c" as never,
+        copy: small.copy ?? "",
+        file,
+      }),
+    ).rejects.toThrow("wasn’t restored");
+    expect((await fs.stat(file)).size).toBe(big.length);
+  });
 });

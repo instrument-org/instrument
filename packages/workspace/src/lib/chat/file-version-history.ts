@@ -83,7 +83,15 @@ export async function fileVersionHistory({
   const here = thisDevice();
   const versions: FileVersion[] = [];
   for (const record of ofFile) {
-    if (versions.at(-1)?.hash === record.hash) {
+    const last = versions.at(-1);
+    if (last?.hash === record.hash) {
+      // The same contents told once, from whichever record has a copy here.
+      if (last.copy === undefined && record.device === here) {
+        last.away = false;
+        if (record.copy !== undefined && existsSync(record.copy)) {
+          last.copy = record.copy;
+        }
+      }
       continue;
     }
     versions.push({
@@ -146,6 +154,13 @@ export async function restoreFileVersion({
     label: "before restoring",
     read: () => agentFs.fs.readFileBuffer(shellPath(file)),
   });
+  if (before?.copy === undefined && existsSync(file)) {
+    // Too big to copy, or unreadable to the agent: nothing would bring back
+    // what the restore replaces.
+    throw new Error(
+      "There’s no way to keep a copy of that file as it is now, so it wasn’t restored.",
+    );
+  }
   await fs.copyFile(copy, file, fs.constants.COPYFILE_FICLONE);
   const entry = (kept: { copy?: string; hash: string; size: number }) => ({
     ...(kept.copy !== undefined && {

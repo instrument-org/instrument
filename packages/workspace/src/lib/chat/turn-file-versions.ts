@@ -78,11 +78,35 @@ export async function keepTurnFileVersions({
       throw saved.error;
     }
   };
+  const folder = path.join(workDir(chatId), VERSIONS_FOLDER);
   // What the turn's tools kept before first changing a file goes first, so
   // the reply's own record of the file stays its newest.
   if (originals.length > 0) {
     await record(originals, "original");
   }
+  const files = await keepNamedFiles({ chatId, folder, messages, sessionId });
+  if (files.length > 0) {
+    await record(files);
+  }
+  if (originals.length > 0 || files.length > 0) {
+    await trimVersions(folder);
+  }
+}
+
+/** Keeps a version of each file the turn's reply names in its files fence. */
+async function keepNamedFiles({
+  chatId,
+  folder,
+  messages,
+  sessionId,
+}: {
+  chatId: ChatId;
+  folder: string;
+  messages: readonly SessionMessage.WithParts[];
+  sessionId: StoreId.Session;
+}): Promise<Entry[]> {
+  const start = messages.findLastIndex((message) => message.role === "user");
+  const turn = messages.slice(start + 1);
   const text = turn
     .flatMap((message) =>
       message.role === "assistant"
@@ -96,9 +120,8 @@ export async function keepTurnFileVersions({
     .filter((written) => !written.endsWith("/"))
     .slice(0, MOST_FILES);
   if (named.length === 0) {
-    return;
+    return [];
   }
-  const folder = path.join(workDir(chatId), VERSIONS_FOLDER);
   const resolved = await resolveWorkspaceFilePaths({
     chatId,
     filePaths: named,
@@ -133,11 +156,7 @@ export async function keepTurnFileVersions({
       });
     }
   }
-  if (files.length === 0) {
-    return;
-  }
-  await trimVersions(folder);
-  await record(files);
+  return files;
 }
 
 /** The versions this computer kept of each file in the session, oldest first, by where it is. */

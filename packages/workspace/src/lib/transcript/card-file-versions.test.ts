@@ -3,10 +3,10 @@ import { describe, expect, it } from "vitest";
 import { cardFileVersions } from "./card-file-versions";
 import { type TranscriptMessage } from "./transcript-message";
 
-/** A reply that kept `files`, each `[path, hash, copy?]`. */
+/** A reply that kept `files`, each `[path, hash, copy?, folder?]`. */
 const reply = (
   id: string,
-  files: [string, string, string?][],
+  files: [string, string, string?, string?][],
   kind?: "restored",
 ) =>
   ({
@@ -15,9 +15,9 @@ const reply = (
       {
         data: {
           device: "mac",
-          files: files.map(([path, hash, copy]) => ({
+          files: files.map(([path, hash, copy, folder = "/w"]) => ({
             hash,
-            hostPath: `/w/${path}`,
+            hostPath: `${folder}/${path}`,
             path,
             size: 1,
             ...(copy && { copy }),
@@ -77,5 +77,17 @@ describe("cardFileVersions", () => {
       copy: "/v/2.svg",
     });
     expect(found.get("m1" as never)).toBeUndefined();
+  });
+
+  it("keeps a namesake in another folder from passing for the file", () => {
+    const found = cardFileVersions([
+      reply("m1", [["chart.svg", "a", "/v/1.svg", "/a"]]),
+      reply("m2", [["chart.svg", "b", "/v/2.svg", "/a"]]),
+      reply("m3", [["chart.svg", "a", "/v/1.svg", "/b"]]),
+    ]);
+    expect(found.get("m1" as never)?.get("chart.svg")).toEqual({
+      changedSince: false,
+      copy: "/v/1.svg",
+    });
   });
 });

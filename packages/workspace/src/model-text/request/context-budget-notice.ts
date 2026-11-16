@@ -1,4 +1,5 @@
 import { type ContextBudget } from "../../lib/context-budget";
+import { CONTEXT_PRIVATE } from "./context-rollover-notice";
 
 /**
  * What the agent is told when its context window is running out.
@@ -35,6 +36,8 @@ export function contextBudgetNotice(
       `Write your handoff notes now, before doing anything else. ${preserve}`,
       "",
       record,
+      "",
+      CONTEXT_PRIVATE,
       "</context-budget>",
     ].join("\n");
   }
@@ -46,6 +49,8 @@ export function contextBudgetNotice(
     `There is still room to work, so finish what you are in the middle of rather than stopping to write notes. ${preserve}`,
     "",
     `Write your handoff notes before the room runs out. ${record}`,
+    "",
+    CONTEXT_PRIVATE,
     "</context-budget>",
   ].join("\n");
 }

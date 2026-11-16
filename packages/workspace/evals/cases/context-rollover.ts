@@ -200,12 +200,72 @@ const wroteNotesToTheNamedPath: Assertion = {
   text: "Wrote its handoff notes where the assembler reads them",
 };
 
+/**
+ * Words that only turn up in a reply when the agent is talking about its own
+ * rollover. The recorded failure (feedback:76pmzbpfqf3h) ended an answer with
+ * "I also saved my research notes to `handoff-notes.md`" and a link to it.
+ */
+const BOOKKEEPING_WORDS =
+  /hand-?off|rollover|rolled over|context window|ran out of context|was summari[sz]ed/iu;
+
+const keptItsBookkeepingPrivate: Assertion = {
+  check: ({ sessions }) => {
+    const parts = sessions
+      .flatMap((s) => s.messages as { parts: { type: string }[] }[])
+      .flatMap((m) => m.parts);
+    const rolledOver = parts.some(
+      (part) => part.type === "data-contextRollover",
+    );
+    const told = assistantTexts(sessions).filter(
+      (text) =>
+        BOOKKEEPING_WORDS.test(text) || text.includes(HANDOFF_NOTES_FILE_NAME),
+    );
+    return {
+      evidence: !rolledOver
+        ? "Inconclusive: the run never rolled over"
+        : told.length === 0
+          ? "No reply mentions the rollover, a summary or the notes"
+          : `Told the user:\n${told.map((text) => JSON.stringify(text)).join("\n")}`,
+      passed: rolledOver && told.length === 0,
+      text: "Rolled over without mentioning it or its notes to the user",
+    };
+  },
+  text: "Rolled over without mentioning it or its notes to the user",
+};
+
+/**
+ * Follow-ups for the summarized case: research turns, each a web search or
+ * two, so the conversation grows the way the recorded chat did.
+ */
+const RESEARCH_FOLLOW_UPS = [
+  "What about herbalism and mining on their own? Look up current numbers.",
+  "Which of those holds up on a fresh server? Check a couple more sources.",
+  "And alchemy once I can make flasks? Find what people report.",
+  "So what should I pick? Give me your recommendation.",
+];
+
 export const CONTEXT_ROLLOVER_EVALS = [
   defineEval({
-    assertions: [keepsItsFormat, wroteNotesToTheNamedPath],
+    assertions: [
+      keepsItsFormat,
+      wroteNotesToTheNamedPath,
+      keptItsBookkeepingPrivate,
+    ],
     followUps: Array.from({ length: FOLLOW_UP_COUNT }, () => "again"),
     name: "context-rollover-keeps-its-format",
     prompt:
       "Count from 1 to 3. Choose a distinctive way of writing the numbers, and use exactly that same way every time I say again.",
+  }),
+  /**
+   * The summarized rollover a price step takes, which asks for no notes.
+   * Needs `INSTRUMENT_PRICE_STEP_OVERRIDE=60000`: the fixed part of a request
+   * runs to about 33K tokens, so a step much under that summarizes every turn.
+   */
+  defineEval({
+    assertions: [keptItsBookkeepingPrivate],
+    followUps: RESEARCH_FOLLOW_UPS,
+    name: "context-rollover-summary-stays-private",
+    prompt:
+      "How much gold per hour are people making in WoW Classic right now? Search a few sources and tell me what they report.",
   }),
 ];

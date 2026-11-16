@@ -1,11 +1,10 @@
 import { renderInBrowser } from "@/tests/render-browser";
 import { type ChooseQuestion } from "@instrument-org/workspace/client";
 import { noop } from "radashi";
-import { type CSSProperties, useRef, useState } from "react";
-import { describe, expect, it, vi } from "vitest";
+import { type CSSProperties } from "react";
+import { expect, it, vi } from "vitest";
 import { userEvent } from "vitest/browser";
 
-import { useQuestionBox } from "../question-dock";
 import { QuestionCard } from "./tool-choose";
 
 // Steps of different heights: two choices, five with descriptions, and one.
@@ -197,12 +196,7 @@ async function renderCapped() {
   } as CSSProperties; // A custom property, which CSSProperties does not name.
   const screen = await renderInBrowser(
     <div style={style}>
-      <QuestionCard
-        onAnswer={noop}
-        onChatAbout={noop}
-        questions={MANY}
-        status="open"
-      />
+      <QuestionCard onAnswer={noop} questions={MANY} status="open" />
     </div>,
   );
   const list = screen.getByRole("radiogroup").element();
@@ -221,11 +215,10 @@ async function renderCapped() {
 }
 
 it("scrolls the choices past a share of the chat's height, fading each edge while there is more past it", async () => {
-  const { fades, list, screen } = await renderCapped();
+  const { fades, list } = await renderCapped();
 
   expect(list.clientHeight).toBe(160);
   expect(list.scrollHeight).toBeGreaterThan(list.clientHeight);
-  await expect.element(screen.getByText("Chat about this")).toBeVisible();
   await expect.poll(fades).toEqual({ above: false, below: true });
 
   list.scrollTop = 100;
@@ -251,122 +244,4 @@ it("keeps a growing own answer's last line in view, with no fade over it", async
     })
     .toBe(true);
   await expect.poll(fades).toEqual({ above: true, below: false });
-});
-
-/**
- * A stand-in for the chat's foot: the dock's card over a reply box, traded
- * by `useQuestionBox` as the chat trades them.
- */
-function Foot({ asked, draft = "" }: { asked: boolean; draft?: string }) {
-  const [box, setBox] = useState(draft);
-  const [answered, setAnswered] = useState(false);
-  const boxRef = useRef<HTMLTextAreaElement>(null);
-  const composerRef = useRef<HTMLDivElement>(null);
-  const dockRef = useRef<HTMLDivElement>(null);
-  const isUp = asked && !answered;
-  const questionBox = useQuestionBox({
-    askId: isUp ? "ask-1" : undefined,
-    composerRef,
-    dockRef,
-    focusBox: () => {
-      boxRef.current?.focus();
-    },
-    isActive: true,
-    isBoxEmpty: box === "",
-  });
-  return (
-    <div ref={composerRef}>
-      {isUp ? (
-        <div ref={dockRef}>
-          <QuestionCard
-            collapsed={questionBox.isCollapsed}
-            onAnswer={() => {
-              setAnswered(true);
-            }}
-            onBack={questionBox.onBack}
-            onChatAbout={questionBox.onChatAbout}
-            questions={[COMPETITORS]}
-            status="open"
-          />
-        </div>
-      ) : null}
-      <textarea
-        aria-label="Reply"
-        hidden={questionBox.isBoxHidden}
-        onChange={(event) => {
-          setBox(event.target.value);
-        }}
-        ref={boxRef}
-        value={box}
-      />
-    </div>
-  );
-}
-
-describe("the card in the reply box's place", () => {
-  it("takes the empty box's place with the keyboard, and gives both back once answered", async () => {
-    const screen = await renderInBrowser(<Foot asked={false} />);
-    const reply = screen.getByRole("textbox", { name: "Reply" });
-    const box = reply.element();
-    box.focus();
-
-    await screen.rerender(<Foot asked />);
-    await expect.poll(() => box.checkVisibility()).toBe(false);
-    expect(document.activeElement?.textContent).toContain("Zendesk");
-
-    await userEvent.keyboard("2{Enter}");
-    await expect.element(reply).toBeVisible();
-    expect(document.activeElement).toBe(reply.element());
-  });
-
-  it("keeps a box with words in it, and the keyboard where it was", async () => {
-    const screen = await renderInBrowser(
-      <Foot asked={false} draft="Before that" />,
-    );
-    const reply = screen.getByRole("textbox", { name: "Reply" });
-    reply.element().focus();
-
-    await screen.rerender(<Foot asked draft="Before that" />);
-
-    await expect
-      .element(screen.getByRole("radio", { name: /Zendesk/ }))
-      .toBeVisible();
-    await expect.element(reply).toBeVisible();
-    expect(document.activeElement).toBe(reply.element());
-  });
-
-  it("folds to a row beside the box on Chat about this, and opens again with the picks kept", async () => {
-    const screen = await renderInBrowser(<Foot asked />);
-    await screen.getByRole("radio", { name: /Intercom/ }).click();
-
-    await screen.getByRole("button", { name: "Chat about this" }).click();
-    const reply = screen.getByRole("textbox", { name: "Reply" });
-    await expect.element(reply).toBeVisible();
-    expect(document.activeElement).toBe(reply.element());
-    expect(screen.container.querySelector('[role="radio"]')).toBe(null);
-    await expect.element(screen.getByText(COMPETITORS.question)).toBeVisible();
-
-    const box = reply.element();
-    await screen.getByRole("button", { name: "Back to question" }).click();
-    await expect.poll(() => box.checkVisibility()).toBe(false);
-    await expect
-      .element(screen.getByRole("radio", { name: /Intercom/ }))
-      .toBeChecked();
-    expect(document.activeElement?.textContent).toContain("Zendesk");
-  });
-
-  it("keeps the box on Back to question once it has words", async () => {
-    const screen = await renderInBrowser(<Foot asked />);
-    await screen.getByRole("button", { name: "Chat about this" }).click();
-    await userEvent.keyboard("Hold on");
-
-    await screen.getByRole("button", { name: "Back to question" }).click();
-
-    await expect
-      .element(screen.getByRole("textbox", { name: "Reply" }))
-      .toHaveValue("Hold on");
-    await expect
-      .element(screen.getByRole("radio", { name: /Zendesk/ }))
-      .toBeVisible();
-  });
 });

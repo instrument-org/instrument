@@ -130,6 +130,8 @@ export function nativeReachFor(
       // The packages every chat's virtualenv imports (python-base.ts), and
       // the cache they were installed from, for the same reason.
       runtime.pythonBase,
+      // LibreOffice, which the app downloads and every chat runs.
+      runtime.office,
       // The store the install step outside the sandbox fills, which a
       // project's build in the sandbox reads: a link one chat planted there
       // would lead that unsandboxed install anywhere.

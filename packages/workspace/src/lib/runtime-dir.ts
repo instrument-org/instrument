@@ -59,6 +59,12 @@ export function runtimeLayout(runtimeDir: string) {
     /** That install step's own empty npm config files and `XDG_CONFIG_HOME`. */
     installConfig: path.join(runtimeDir, "install", "config"),
     /**
+     * LibreOffice, which the app downloads on the first `office` or
+     * `soffice` call and native commands only read: one folder per
+     * version (`office/install.ts`), with the profile every call copies.
+     */
+    office: path.join(runtimeDir, "office"),
+    /**
      * What the app loads into the programs a chat runs, which native
      * commands only read: the preload every `node` imports and the
      * `instrument` module every `python` finds. The app writes it, so no

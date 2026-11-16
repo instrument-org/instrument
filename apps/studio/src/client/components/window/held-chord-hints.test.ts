@@ -107,15 +107,21 @@ describe("createModifierHold", () => {
 
 describe("tab chord numbers", () => {
   it.each([
-    { count: 1, expected: [9] },
-    { count: 3, expected: [1, 2, 9] },
+    { count: 1, expected: [1] },
+    { count: 3, expected: [1, 2, 3] },
     { count: 9, expected: [1, 2, 3, 4, 5, 6, 7, 8, 9] },
-    { count: 11, expected: [1, 2, 3, 4, 5, 6, 7, 8, 9] },
-  ])("numbers $count tabs with 9 on the last", ({ count, expected }) => {
-    const ids = Array.from({ length: count }, (_, index) => `t${index}`);
-    const numbers = tabChordNumbers(ids);
-    expect([...numbers.values()]).toEqual(expected);
-    expect(numbers.get(ids.at(-1) ?? "")).toBe(9);
+    { count: 11, expected: [1, 2, 3, 4, 5, 6, 7, 8] },
+  ])(
+    "numbers $count tabs by place, 9 only on a ninth and last",
+    ({ count, expected }) => {
+      const ids = Array.from({ length: count }, (_, index) => `t${index}`);
+      expect([...tabChordNumbers(ids).values()]).toEqual(expected);
+    },
+  );
+
+  it("keeps 9 for the last tab wherever it is", () => {
+    expect(tabAtChord(["a", "b", "c"], 9)).toBe("c");
+    expect(tabAtChord(["a", "b", "c"], 3)).toBe("c");
   });
 
   it("picks the tab each number names", () => {

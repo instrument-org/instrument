@@ -118,15 +118,14 @@ export function createModifierHold({
 }
 
 /**
- * The tab chords' numbers by tab, in the order the chords pick them: the
- * first eight by place, and the last tab 9, as a browser numbers them.
+ * The tab chords' numbers by tab: each of the first nine by place, with 9
+ * only on a ninth tab that is also the last, since 9 picks the last tab
+ * wherever it is (`tabAtChord`).
  */
 export function tabChordNumbers(ids: readonly string[]): Map<string, number> {
   const numbers = new Map<string, number>();
-  ids.forEach((id, index) => {
-    if (index === ids.length - 1) {
-      numbers.set(id, 9);
-    } else if (index < 8) {
+  ids.slice(0, 9).forEach((id, index) => {
+    if (index < 8 || ids.length === 9) {
       numbers.set(id, index + 1);
     }
   });

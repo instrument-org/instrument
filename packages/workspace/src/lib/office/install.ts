@@ -64,7 +64,7 @@ const WARM_UP_TIMEOUT_MS = 2 * 60 * 1000;
 /** How long a call waits on another process's install before giving up. */
 const WAIT_FOR_OTHER_MS = 40 * 60 * 1000;
 
-export function officeRoot(): string {
+function officeRoot(): string {
   return runtimeLayout(getWorkspaceConfig().runtimeDir).office;
 }
 
@@ -166,7 +166,7 @@ async function ownOfficeCandidate(): Promise<
 }
 
 /** `LibreOffice 26.2.7.3 08df…` → `26.2.7.3`. */
-export function versionFromBanner(banner: string): string | undefined {
+function versionFromBanner(banner: string): string | undefined {
   return /LibreOffice\S*\s+(\d+\.\d+(?:\.\d+)*)/.exec(banner)?.[1];
 }
 

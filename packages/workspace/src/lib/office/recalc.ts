@@ -10,7 +10,7 @@ import {
 } from "./workbook";
 import { ZipPackage } from "./zip";
 
-export type FormulaError = {
+type FormulaError = {
   cell: string;
   error: string;
   formula: string;
@@ -81,14 +81,14 @@ function within(area: Area, sheet: string, at: [number, number]) {
 }
 
 /** A sheet name as a formula spells it: quoted when it has to be. */
-export function sheetLabel(name: string): string {
+function sheetLabel(name: string): string {
   return /^[A-Za-z_][\w.]*$/.test(name)
     ? name
     : `'${name.replaceAll("'", "''")}'`;
 }
 
 /** The cell's `<c>` element with its cached value set to `result`, or none. */
-export function withCachedValue(
+function withCachedValue(
   cell: CellElement,
   result: CellResult | undefined,
 ): string {

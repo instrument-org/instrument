@@ -45,7 +45,7 @@ function attribute(attributes: string, name: string): string | undefined {
   return found?.[1] === undefined ? undefined : decodeXml(found[1]);
 }
 
-export function decodeXml(text: string): string {
+function decodeXml(text: string): string {
   return text.replaceAll(
     /&(?:#x([0-9a-f]+)|#(\d+)|(amp|lt|gt|quot|apos));/gi,
     (_, hex: string | undefined, dec: string | undefined, named?: string) => {
@@ -228,7 +228,7 @@ export function cellPosition(ref: string): [number, number] | undefined {
   return [column, Number(found[2])];
 }
 
-export function columnName(column: number): string {
+function columnName(column: number): string {
   let name = "";
   for (let rest = column; rest > 0; rest = Math.floor((rest - 1) / 26)) {
     name = String.fromCharCode(65 + ((rest - 1) % 26)) + name;

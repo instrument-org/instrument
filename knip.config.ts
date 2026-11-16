@@ -110,6 +110,8 @@ const config: KnipConfig = {
         "mkfifo", // Makes the FIFO a tier B uutils file must not be (unsandboxed-uutils-operand.test.ts)
         "chflags", // macOS tool that locks the file the locked-file eval case writes to (evals/cases/permissions.ts)
         "uv", // Finds a managed Python for the instrument module's test (src/lib/capabilities/python-runtime.test.ts)
+        "msiexec", // Windows Installer, which unpacks the LibreOffice MSI (src/lib/office/unpack.ts)
+        "reg", // Windows' registry tool, which finds a LibreOffice the person installed (src/lib/office/install.ts)
       ],
       ignoreDependencies: [
         "@types/json-schema", // Types the ai package's JSONSchema7 re-export, never imported by name

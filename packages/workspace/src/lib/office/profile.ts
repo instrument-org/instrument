@@ -9,7 +9,7 @@ import { pathToFileURL } from "node:url";
  * links to is fetched, and every formula is computed on load rather than
  * read from the cached values a file carries.
  */
-export const PROFILE_SETTINGS = [
+const PROFILE_SETTINGS = [
   // Always recalculate an Excel file on load (the default, 1, keeps its
   // cached values, stale or not), and an ODF file LibreOffice did not write.
   {

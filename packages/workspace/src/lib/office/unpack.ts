@@ -167,7 +167,7 @@ export async function unpackDebTarball(
   }
 }
 
-export async function unpackDeb(
+async function unpackDeb(
   deb: string,
   dest: string,
   scratch: string,

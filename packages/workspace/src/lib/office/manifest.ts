@@ -15,8 +15,6 @@ export type OfficeArtifact = {
   sha256: string;
 };
 
-export type OfficeTarget = keyof typeof OFFICE_MANIFEST.artifacts;
-
 /** The pinned build, `26.2.7.3`. */
 export const OFFICE_VERSION: string = OFFICE_MANIFEST.version;
 

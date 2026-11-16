@@ -270,7 +270,7 @@ export async function keepOriginal({
 }
 
 /** The originals a session's turn kept, which the turn's end records; empties them. */
-export function takeOriginals(sessionId: StoreId.Session): Entry[] {
+function takeOriginals(sessionId: StoreId.Session): Entry[] {
   const turn = pending.get(sessionId);
   pending.delete(sessionId);
   return turn?.files ?? [];

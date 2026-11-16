@@ -1736,9 +1736,11 @@ export async function runEvals(
             const served = evalCase.apps?.some(
               (app) => app.slug === slug && app.viewer !== undefined,
             );
-            await answerSignIn(slug, answer, {
-              ...(served ? {} : { account: "you@example.com" }),
-            });
+            await answerSignIn(
+              slug,
+              answer,
+              served ? {} : { account: "you@example.com" },
+            );
           }
           signInCards.clear();
         }

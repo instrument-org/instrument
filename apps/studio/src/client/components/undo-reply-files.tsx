@@ -44,28 +44,29 @@ export function UndoReplyFiles({
   const names = files.map(nameOfPath);
   const undo = async () => {
     setUndoing(true);
-    try {
-      const { left, restored } =
-        await rpcClient.workspace.chats.undoReplyFiles.call({
-          id: chatId,
-          messageId,
-        });
-      await queryClient.invalidateQueries({
-        queryKey: rpcClient.workspace.chats.fileVersions.key(),
+    const done = await rpcClient.workspace.chats.undoReplyFiles
+      .call({ id: chatId, messageId })
+      .catch((error: unknown) => {
+        toast.error("Couldn’t undo those changes", { cause: error });
+        return undefined;
       });
-      setOpen(false);
-      toast(
-        restored.length === 0
-          ? "Nothing to put back. These files didn’t exist before this reply."
-          : `Put back ${restored.join(", ")}`,
-        left.length > 0 && restored.length > 0
-          ? { description: `${left.join(", ")} stayed as it is.` }
-          : {},
-      );
-    } catch (error) {
-      toast.error("Couldn’t undo those changes", { cause: error });
-    }
     setUndoing(false);
+    if (!done) {
+      return;
+    }
+    await queryClient.invalidateQueries({
+      queryKey: rpcClient.workspace.chats.fileVersions.key(),
+    });
+    setOpen(false);
+    const { left, restored } = done;
+    toast(
+      restored.length === 0
+        ? "Nothing to put back. These files didn’t exist before this reply."
+        : `Put back ${restored.join(", ")}`,
+      left.length > 0 && restored.length > 0
+        ? { description: `${left.join(", ")} stayed as it is.` }
+        : {},
+    );
   };
   return (
     <>

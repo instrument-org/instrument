@@ -27,7 +27,7 @@ describe("keepVersion", () => {
       now: at,
     });
     expect(path.relative(dir, first?.copy ?? "")).toBe(
-      ".versions/moon.svg/2026-11-15 12.01 make a moon.svg",
+      path.join(".versions", "moon.svg", "2026-11-15 12.01 make a moon.svg"),
     );
     const again = await keepVersion({
       file,

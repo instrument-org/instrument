@@ -798,10 +798,9 @@ function SideCard({
         }}
         onNew={() => {
           windowTabs.openScreen(NEW_TAB_HREF, {
-            ...(up ? { after: up.id } : {}),
             group,
             select: true,
-            ...(up ? {} : { side: sideIndex }),
+            side: sideIndex,
           });
         }}
         onSelect={(id) => {

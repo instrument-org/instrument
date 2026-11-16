@@ -645,20 +645,16 @@ export function useTabGroupActions() {
   };
 
   /**
-   * A new chat in a group, up at once with the keyboard: right after the
-   * tab up on the side with the keyboard. In a new group when none is up.
+   * A new chat in a group, up at once with the keyboard: at the end of the
+   * side with the keyboard, as a browser's new tab is. In a new group when
+   * none is up.
    */
   const newTab = (group = groupUp()) => {
     if (group === undefined) {
       make();
       return;
     }
-    const up = selectedTabIn(store.get(windowTabsAtom), group)?.id;
-    windowTabs.openScreen(NEW_TAB_HREF, {
-      ...(up === undefined ? {} : { after: up }),
-      group,
-      select: true,
-    });
+    windowTabs.openScreen(NEW_TAB_HREF, { group, select: true });
   };
 
   /** Whether a group has tabs, read now. */

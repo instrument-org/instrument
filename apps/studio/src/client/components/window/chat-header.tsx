@@ -156,14 +156,15 @@ function ChatHeading({
   const titleArrival = useTitleArrival(chat);
   // The title's width as renaming begins, which the field opens at, read
   // in layout px (offsetWidth, not a rect) since the app scales with CSS zoom.
-  const [titleButton, setTitleButton] = useState<HTMLButtonElement | null>(
-    null,
-  );
+  // A ref, read only as renaming begins: the compiler checks an element in
+  // state for whether `start` changed by reading its width on every render,
+  // which lays the window out in the middle of rendering it.
+  const titleButton = useRef<HTMLButtonElement>(null);
   const [fieldWidth, setFieldWidth] = useState<number>();
   const rename = {
     ...chatRename,
     start: () => {
-      setFieldWidth(titleButton?.offsetWidth);
+      setFieldWidth(titleButton.current?.offsetWidth);
       chatRename.start();
     },
   };
@@ -190,7 +191,7 @@ function ChatHeading({
               arrival={titleArrival}
               className={titleClassName}
               onClick={rename.start}
-              ref={setTitleButton}
+              ref={titleButton}
               title={chat.title}
             />
             <ChatMenu

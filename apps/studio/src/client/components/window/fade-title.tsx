@@ -18,7 +18,22 @@ export function FadeTitle({ className, ...props }: ComponentProps<"span">) {
     );
   };
   // Its words change without its box changing, and its box without them.
-  useLayoutEffect(measure);
+  // Measuring reads layout, which mid-commit makes the browser lay out the
+  // whole window early, so a render that leaves its words and look as they
+  // were skips it. The observer's first call measures it as it mounts, once
+  // the frame is laid out.
+  const measured = useRef<string>(undefined);
+  useLayoutEffect(() => {
+    const element = ref.current;
+    if (!element) {
+      return;
+    }
+    const drawn = `${element.className}\n${element.textContent}`;
+    if (measured.current !== undefined && measured.current !== drawn) {
+      measure();
+    }
+    measured.current = drawn;
+  });
   useLayoutEffect(() => {
     const element = ref.current;
     if (!element) {

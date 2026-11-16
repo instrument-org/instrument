@@ -219,3 +219,42 @@ describe("a chip at the head of the composer", () => {
     expect(cuts).toEqual([]);
   });
 });
+
+describe("an overlay on the composer", () => {
+  // A new tab's arrival glint once wrapped the note docked over the box too,
+  // because it was placed against the box's host rather than the box.
+  it("rings the box alone, never a note above it", async () => {
+    await render(
+      <div style={{ width: 480 }}>
+        <div data-testid="note" style={{ height: 40 }} />
+        <ComposerFrame
+          actions={<button type="button">Send</button>}
+          maxHeight={400}
+          overlay={
+            <span
+              className="pointer-events-none absolute -inset-0.5"
+              data-testid="glint"
+            />
+          }
+        >
+          <div>words</div>
+        </ComposerFrame>
+      </div>,
+    );
+    const rect = (selector: string) => {
+      const element = document.querySelector<HTMLElement>(selector);
+      if (!element) {
+        throw new Error(`${selector} is not mounted`);
+      }
+      return element.getBoundingClientRect();
+    };
+    const box = rect('[data-slot="composer-frame"]');
+    const glint = rect('[data-testid="glint"]');
+    const note = rect('[data-testid="note"]');
+
+    expect(glint.top).toBe(box.top - 2);
+    expect(glint.bottom).toBe(box.bottom + 2);
+    // Its 2px ring may touch the note's foot, never reach over the note.
+    expect(glint.top).toBeGreaterThan(note.top);
+  });
+});

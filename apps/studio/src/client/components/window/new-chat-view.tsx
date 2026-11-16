@@ -413,6 +413,24 @@ export function NewChatView({
           shownPath={shownPath}
           onModelChange={shell.setDefaultModelURI}
           onWordsChange={setWords}
+          // Once, as a new tab's composer first comes up: never as the tab
+          // is shown again or its first words name a draft. Over the box
+          // alone, so a note docked above it stays out of the ring.
+          overlay={
+            isCentered &&
+            glints && (
+              <span
+                aria-hidden
+                className="pointer-events-none absolute -inset-0.5 z-10 field-glint rounded-[20px]"
+                data-slot="composer-glint"
+                onAnimationEnd={(event) => {
+                  if (event.animationName === "field-glint-ring") {
+                    setGlints(false);
+                  }
+                }}
+              />
+            )
+          }
           onSubmit={(sending) => {
             const send = staging.asStaged(sending);
             cancelWords(newChatWordsKey(tabId));
@@ -446,19 +464,6 @@ export function NewChatView({
             </span>
             <Kbd>↵</Kbd>
           </button>
-        )}
-        {/* Once, as a new tab's composer first comes up: never as the tab
-            is shown again or its first words name a draft. */}
-        {isCentered && glints && (
-          <span
-            aria-hidden
-            className="pointer-events-none absolute -top-0.5 right-2.5 -bottom-0.5 left-2.5 z-10 field-glint rounded-[20px]"
-            onAnimationEnd={(event) => {
-              if (event.animationName === "field-glint-ring") {
-                setGlints(false);
-              }
-            }}
-          />
         )}
       </div>
       {/* As much room under the composer as over it, so it stands at the

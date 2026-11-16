@@ -226,6 +226,8 @@ interface PromptInputProps {
    * also opens it in its pane, so the person sees what is in it.
    */
   onFolders?: (paths: string[]) => void;
+  /** Laid over the box alone, never over the notes docked above it. */
+  overlay?: React.ReactNode;
   /** An item the person took out of the box, by its chip or by putting its words back in the message. */
   onItemRemoved?: (item: AttachedItem) => void;
   onModelChange: (modelURI: AIGatewayModelURI.Type) => void;
@@ -284,6 +286,7 @@ export const PromptInput = ({
   onItemRemoved,
   onModelChange,
   onSubmit,
+  overlay,
   placeholder,
   places,
   ref,
@@ -1244,6 +1247,7 @@ export const PromptInput = ({
             )
           }
           maxHeight={maxHeight}
+          overlay={overlay}
           ref={setComposerBounds}
         >
           {/* Keyed by draft: the editor reads its text once, at mount, so a

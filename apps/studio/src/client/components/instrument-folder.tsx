@@ -78,7 +78,7 @@ function madeByAppSentence(destination: Destination) {
  * What a destination already is, under its path, where that is worth
  * saying: one with other files in it, or an Instrument folder and its chats.
  * A folder still to be made, or an empty one, says nothing, and neither does
- * one a question is about (`withContents`), whose own words say it. And what
+ * one whose question or note says it (`withContents`). And what
  * the place is warned of, where that wasn't asked already.
  */
 function DestinationLine({
@@ -93,17 +93,20 @@ function DestinationLine({
   const isWorkspace = destination.verdict.kind === "workspace";
   const { data: summary } = useQuery(
     rpcClient.workspaces.summary.queryOptions({
-      input: isWorkspace ? { path: destination.path } : skipToken,
+      input:
+        isWorkspace && withContents ? { path: destination.path } : skipToken,
     }),
   );
   const chats = summary?.chats ?? 0;
-  const line = isWorkspace
-    ? chats > 0
-      ? `${APP_NAME} folder with ${String(chats)} ${chats === 1 ? "chat" : "chats"}`
-      : `${APP_NAME} folder`
-    : !withContents || destination.contents !== "files"
-      ? undefined
-      : (madeByAppSentence(destination) ?? "Already contains some files");
+  const line = !withContents
+    ? undefined
+    : isWorkspace
+      ? chats > 0
+        ? `${APP_NAME} folder with ${String(chats)} ${chats === 1 ? "chat" : "chats"}`
+        : `${APP_NAME} folder`
+      : destination.contents !== "files"
+        ? undefined
+        : (madeByAppSentence(destination) ?? "Already contains some files");
   const { warning } = destination.verdict;
   const warned =
     warning === undefined ? undefined : folderWarningSentence(warning);
@@ -146,7 +149,7 @@ export function DestinationRow({
   end?: ReactNode;
   path: string;
   trailClassName?: string;
-  /** Says what is in the folder already; a question about it says that itself. */
+  /** Says what is in the folder already; a question or note about it says that itself. */
   withContents?: boolean;
 }) {
   return (

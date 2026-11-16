@@ -15,6 +15,7 @@ import { toast } from "@/client/lib/toast";
 import { isMacOS } from "@/client/lib/utils";
 import { rpcClient } from "@/client/rpc/client";
 import { APP_NAME } from "@instrument-org/shared";
+import { FolderOpenIcon } from "@phosphor-icons/react/FolderOpen";
 import { skipToken, useQuery } from "@tanstack/react-query";
 import { useReducer, useState } from "react";
 
@@ -277,6 +278,12 @@ export function FolderStep({ hold, onBack, onContinue }: SetupStepProps) {
   const opens =
     shown !== undefined &&
     destinationStep(shown, { opens: true }).type === "open";
+  const { data: openedSummary } = useQuery(
+    rpcClient.workspaces.summary.queryOptions({
+      input: opens ? { path: shown.path } : skipToken,
+    }),
+  );
+  const openedChats = openedSummary?.chats ?? 0;
   return (
     <SetupPageSwitch
       depth={page.kind === "welcome" ? 0 : page.kind === "choose" ? 1 : 2}
@@ -355,7 +362,19 @@ export function FolderStep({ hold, onBack, onContinue }: SetupStepProps) {
                     }
               }
               path={target}
+              withContents={!opens}
             >
+              {opens && note === null && (
+                <FolderNote
+                  icon={<FolderOpenIcon />}
+                  line={
+                    openedChats > 0
+                      ? `Open it to pick up your ${openedChats === 1 ? "chat" : `${String(openedChats)} chats`} from before, or press Change to start fresh somewhere else.`
+                      : "Open it to pick up where you left off, or press Change to start fresh somewhere else."
+                  }
+                  title="You already have an Instrument folder here"
+                />
+              )}
               {note === "denied" && (
                 <FolderNote
                   action={{

@@ -23,6 +23,7 @@ export function FolderLocation({
   dim = false,
   onChange,
   path,
+  withContents = true,
 }: {
   changeLabel?: string;
   children?: ReactNode;
@@ -30,6 +31,8 @@ export function FolderLocation({
   dim?: boolean;
   onChange?: () => void;
   path?: string | undefined;
+  /** Says what is in the folder under its path; off where a note says it. */
+  withContents?: boolean;
 }) {
   const change = onChange && (
     <Button
@@ -62,6 +65,7 @@ export function FolderLocation({
             end={change}
             path={path}
             trailClassName="font-medium"
+            withContents={withContents}
           />
         )}
         {children}

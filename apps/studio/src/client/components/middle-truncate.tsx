@@ -135,6 +135,15 @@ function useFit(
 const SIZED_BY_WHOLE_TEXT =
   "grid min-w-0 grid-cols-[minmax(0,auto)] before:invisible before:col-start-1 before:row-start-1 before:h-0 before:min-w-0 before:overflow-hidden before:whitespace-pre before:content-[attr(data-text)]";
 
+/** Where a cut is: the letters kept from the start, and from the end. */
+function cutOf(text: string, shown: string) {
+  let head = 0;
+  while (head < shown.length && shown[head] === text[head]) {
+    head += 1;
+  }
+  return { head, tail: Math.max(0, shown.length - head - ELLIPSIS.length) };
+}
+
 /**
  * A name on one line, cut in its middle to fit its box, the way the Finder
  * shows a long file name: `Quarterly rep…2026.pdf`. `extension` keeps a
@@ -146,7 +155,7 @@ const SIZED_BY_WHOLE_TEXT =
 export function MiddleTruncate({
   className,
   extension = false,
-  renderText = (piece) => piece,
+  renderText,
   text,
 }: {
   className?: string;
@@ -159,12 +168,9 @@ export function MiddleTruncate({
     fitMiddle(text, width, font, { extension }),
   ]);
   const shown = lines[0] ?? text;
-  // Where the cut is: the letters kept from the start, and from the end.
-  let head = 0;
-  while (head < shown.length && shown[head] === text[head]) {
-    head += 1;
-  }
-  const tail = Math.max(0, shown.length - head - ELLIPSIS.length);
+  const { head, tail } = cutOf(text, shown);
+  const draw = (piece: string, start: number) =>
+    renderText ? renderText(piece, start) : piece;
   return (
     <span
       className={cn(SIZED_BY_WHOLE_TEXT, className)}
@@ -176,7 +182,7 @@ export function MiddleTruncate({
           className="col-start-1 row-start-1 overflow-hidden whitespace-pre"
           data-fit-line=""
         >
-          {renderText(text, 0)}
+          {draw(text, 0)}
         </span>
       ) : (
         <>
@@ -184,11 +190,9 @@ export function MiddleTruncate({
             aria-hidden
             className="col-start-1 row-start-1 overflow-hidden whitespace-pre"
           >
-            {renderText(text.slice(0, head), 0)}
+            {draw(text.slice(0, head), 0)}
             {ELLIPSIS}
-            {tail > 0
-              ? renderText(text.slice(-tail), text.length - tail)
-              : null}
+            {tail > 0 ? draw(text.slice(-tail), text.length - tail) : null}
           </span>
           <span className="sr-only">{text}</span>
         </>

@@ -1,7 +1,7 @@
 import fs from "node:fs";
 import path from "node:path";
 
-import { numberedName } from "../chat-folders/folder-name";
+import { numberedName } from "../folder-name";
 import { entryExists, moveEntrySync } from "../move-entry";
 import { type PathMove, rewriteStoredPaths } from "../rewrite-stored-paths";
 import { removeFolderLeftEmpty } from "../system-clutter";

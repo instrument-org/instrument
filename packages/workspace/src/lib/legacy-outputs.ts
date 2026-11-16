@@ -1,7 +1,7 @@
 import fs from "node:fs";
 import path from "node:path";
 
-import { safeName } from "./chat-folders/folder-name";
+import { safeName } from "./folder-name";
 import {
   legacyChatTitle,
   legacyTaskRecordsDir,

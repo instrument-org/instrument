@@ -8,6 +8,13 @@ import os from "node:os";
 import path from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
+// The workspace's own config module, the one `saveProjectId` reads the
+// running device from, which the package does not export.
+import {
+  getWorkspaceConfig,
+  hasWorkspaceConfig,
+  setWorkspaceConfig,
+} from "../../../../../packages/workspace/src/lib/workspace-config";
 import { createDraftStore } from "./draft-store";
 
 vi.mock("../lib/electron-logger", () => ({
@@ -29,6 +36,12 @@ let trashDir: string;
 beforeEach(() => {
   root = fs.mkdtempSync(path.join(os.tmpdir(), "draft-store-"));
   trashDir = fs.mkdtempSync(path.join(os.tmpdir(), "draft-store-trash-"));
+  // Only the device a project record is written as is read here, so the rest
+  // of the config is left unset.
+  setWorkspaceConfig({
+    ...(hasWorkspaceConfig() ? getWorkspaceConfig() : {}),
+    deviceId: "dev_TESTDEV1",
+  } as never);
 });
 
 afterEach(() => {
@@ -135,9 +148,7 @@ describe("a window's ops", () => {
       type: "create",
     });
     await vi.waitFor(() => {
-      expect(
-        fs.existsSync(path.join(root, "Projects", "Travel", "AGENTS.md")),
-      ).toBe(true);
+      expect(projectRecordLines()).toContain(id);
     });
     fs.renameSync(
       path.join(root, "Projects", "Travel"),
@@ -145,12 +156,9 @@ describe("a window's ops", () => {
     );
 
     expect(read()).toContain(`project: "${id}"`);
-    expect(
-      fs.readFileSync(
-        path.join(root, "Projects", "Trips", "AGENTS.md"),
-        "utf8",
-      ),
-    ).toContain(`id: ${id}\n`);
+    expect(fs.existsSync(path.join(root, "Projects", "Trips", "AGENTS.md"))).toBe(
+      false,
+    );
   });
 
   it("take a thrown-away draft away, with what was pasted into it moved to the Trash", async () => {
@@ -762,3 +770,17 @@ describe("a draft's folder as what goes with it", () => {
     expect(fs.existsSync(shared)).toBe(true);
   });
 });
+
+/** Every device's lines in the projects synced store, as one string. */
+function projectRecordLines(): string {
+  const devices = path.join(root, ".instrument", "devices");
+  if (!fs.existsSync(devices)) {
+    return "";
+  }
+  return fs
+    .readdirSync(devices)
+    .map((device) => path.join(devices, device, "projects.jsonl"))
+    .filter((file) => fs.existsSync(file))
+    .map((file) => fs.readFileSync(file, "utf8"))
+    .join("");
+}

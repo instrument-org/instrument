@@ -33,7 +33,8 @@ describe("fitTrail", () => {
     [300, "folded, folded, folded, cut 72, whole"],
     // Then the parent, and last of all the last name is cut.
     [230, "folded, folded, folded, folded, whole"],
-    [150, "folded, folded, folded, folded, cut 26"],
+    // Never narrower than its floor: past that, the head goes off the start.
+    [150, "folded, folded, folded, folded, cut 40"],
   ])("at %ipx: %s", (width, expected) => {
     expect(fitAt(width)).toBe(expected);
   });

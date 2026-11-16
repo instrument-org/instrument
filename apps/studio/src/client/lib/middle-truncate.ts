@@ -26,6 +26,23 @@ export function fontOf(element: Element): TextFont {
   };
 }
 
+/** The zoom an element is drawn at, from the app's zoom and any of its own. */
+export function cssZoomOf(element: Element) {
+  return "currentCSSZoom" in element &&
+    typeof element.currentCSSZoom === "number"
+    ? element.currentCSSZoom
+    : 1;
+}
+
+/**
+ * An element's width in its own CSS pixels, to the fraction: what
+ * `clientWidth` gives rounded, which differs by a pixel with where the
+ * element sits.
+ */
+export function layoutWidth(element: Element) {
+  return element.getBoundingClientRect().width / cssZoomOf(element);
+}
+
 /** The width of a string in a font, in CSS pixels. */
 export function textWidth(text: string, { font, letterSpacing }: TextFont) {
   const key = `${font}|${letterSpacing}`;

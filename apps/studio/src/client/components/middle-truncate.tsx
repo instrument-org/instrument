@@ -3,7 +3,9 @@ import {
   fitMiddle,
   fitTwoLines,
   fontOf,
+  cssZoomOf,
   forgetTextWidths,
+  layoutWidth,
   textWidth,
   type TextFont,
 } from "@/client/lib/middle-truncate";
@@ -47,11 +49,22 @@ if (typeof document !== "undefined" && "fonts" in document) {
 }
 
 /**
- * What the page said of the whole text: its width when it overflowed its
- * line, the width it fit in when it did not, and the canvas's measures
- * scaled to the page.
+ * What the page said of the whole text: its width on one line, and how much
+ * wider that is than the canvas measures it, which a font's alternate
+ * letters can make it.
  */
-type Measured = { fitsAt?: number; natural?: number; scale: number };
+type Measured = { natural: number; scale: number };
+
+/** The width of an element's text on one line, in its own CSS pixels. */
+function textWidthOf(element: HTMLElement) {
+  const range = document.createRange();
+  // A document with no layout (a test's) has no measure of a range.
+  if (typeof range.getBoundingClientRect !== "function") {
+    return element.scrollWidth;
+  }
+  range.selectNodeContents(element);
+  return range.getBoundingClientRect().width / cssZoomOf(element);
+}
 
 /**
  * Fits `text` to the width its box is given, keeping `fit` up to date as the
@@ -66,14 +79,13 @@ function useFit(
   const [fitted, setFitted] = useState({ lines: [text], text });
   const refit = useEffectEvent(
     (element: HTMLElement, font: TextFont, measured: Measured) => {
-      const width = element.clientWidth;
-      const fits =
-        measured.natural === undefined
-          ? measured.fitsAt !== undefined && width >= measured.fitsAt
-          : measured.natural <= width + 0.5;
-      // A pixel under the box, so a rounding difference between the canvas
-      // and the page never clips the last letter.
-      const lines = fits ? [text] : fit((width - 1) / measured.scale, font);
+      const width = layoutWidth(element);
+      // Half a pixel under the box, so a difference between the canvas and
+      // the page never clips the last letter.
+      const lines =
+        measured.natural <= width + 0.25
+          ? [text]
+          : fit((width - 0.5) / measured.scale, font);
       setFitted((previous) =>
         previous.text === text && previous.lines.join("\n") === lines.join("\n")
           ? previous
@@ -88,21 +100,20 @@ function useFit(
       return;
     }
     const font = fontOf(element);
-    // The whole text is showing now, so the page's own width for it says
-    // how far the canvas is off, which a font's alternate letters can make
-    // it: what the canvas measures is scaled to the page.
-    const overflows = line.scrollWidth > line.clientWidth;
-    let measured: Measured = overflows
-      ? {
-          natural: line.scrollWidth,
-          scale: line.scrollWidth / (textWidth(text, font) || 1),
-        }
-      : { fitsAt: line.clientWidth, scale: 1 };
+    // The whole text is showing now, so the page's own width for it is
+    // what the canvas's measures are scaled to.
+    const natural = textWidthOf(line);
+    let measured: Measured = {
+      natural,
+      scale: natural > 0 ? natural / (textWidth(text, font) || natural) : 1,
+    };
     const run = () => {
       refit(element, font, measured);
     };
+    // Measured with a font standing in for the one still loading: the
+    // canvas alone measures it again.
     const afterFonts = () => {
-      measured = { scale: 1 };
+      measured = { natural: textWidth(text, font), scale: 1 };
       run();
     };
     run();

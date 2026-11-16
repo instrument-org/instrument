@@ -1,4 +1,10 @@
-import { fitMiddle, fontOf, type TextFont } from "@/client/lib/middle-truncate";
+import {
+  cssZoomOf,
+  fitMiddle,
+  fontOf,
+  layoutWidth,
+  type TextFont,
+} from "@/client/lib/middle-truncate";
 import { cn } from "@/client/lib/utils";
 import { type ReactNode, useLayoutEffect, useRef, useState } from "react";
 
@@ -23,7 +29,7 @@ type PartFit =
  * longest give up letters first, each down to its floor, and `undefined`
  * when the floors alone take more than `free`.
  */
-export function shareWidths(
+function shareWidths(
   names: number[],
   floors: number[],
   free: number,
@@ -150,7 +156,7 @@ export function fitTrail(
   return sizes.map((size, index) => {
     if (index === last && lastSize) {
       const given = Math.max(
-        0,
+        Math.min(lastSize.name, floor),
         room - others - lastSize.markOnly - lastSize.gap,
       );
       return given < lastSize.name
@@ -227,34 +233,31 @@ export function FoldingTrail({
     const font = fontOf(element);
     const fontSize =
       Number.parseFloat(getComputedStyle(element).fontSize) || 13;
-    const crumbs = [...copy.querySelectorAll<HTMLElement>("[data-crumb]")];
-    const sizes = crumbs.map((crumb): PartSize => {
-      const markOf = crumb.querySelector<HTMLElement>("[data-crumb-mark]");
-      const name = crumb.querySelector<HTMLElement>("[data-crumb-name]");
-      const nameWidth = name?.offsetWidth ?? 0;
-      const gap =
-        markOf && name
-          ? name.offsetLeft - (markOf.offsetLeft + markOf.offsetWidth)
-          : 0;
-      return {
-        gap,
-        markOnly: crumb.offsetWidth - nameWidth - gap,
-        name: nameWidth,
-      };
-    });
-    const hasMark = crumbs.map(
-      (crumb) => crumb.querySelector("[data-crumb-mark]") !== null,
-    );
-    const separatorWidth =
-      copy.querySelector<HTMLElement>("[data-separator]")?.offsetWidth ?? 0;
-    const total =
-      sizes.reduce(
-        (sum, size) => sum + size.markOnly + size.gap + size.name,
-        0,
-      ) +
-      separatorWidth * Math.max(0, sizes.length - 1) +
-      reserve;
+    // Measured again on every fit: a part's mark can arrive after its name
+    // does, which changes the copy's size and so fits the trail again.
     const fit = () => {
+      const crumbs = [...copy.querySelectorAll<HTMLElement>("[data-crumb]")];
+      const sizes = crumbs.map((crumb): PartSize => {
+        const markOf = crumb.querySelector<HTMLElement>("[data-crumb-mark]");
+        const name = crumb.querySelector<HTMLElement>("[data-crumb-name]");
+        const nameWidth = name ? layoutWidth(name) : 0;
+        const gap =
+          markOf && name
+            ? (name.getBoundingClientRect().left -
+                markOf.getBoundingClientRect().right) /
+              cssZoomOf(name)
+            : 0;
+        return {
+          gap,
+          markOnly: layoutWidth(crumb) - nameWidth - gap,
+          name: nameWidth,
+        };
+      });
+      const hasMark = crumbs.map(
+        (crumb) => crumb.querySelector("[data-crumb-mark]") !== null,
+      );
+      const separatorOf = copy.querySelector<HTMLElement>("[data-separator]");
+      const separatorWidth = separatorOf ? layoutWidth(separatorOf) : 0;
       setFits({
         font,
         parts: fitTrail(sizes, {
@@ -264,9 +267,12 @@ export function FoldingTrail({
           hasMark,
           reserve,
           separator: separatorWidth,
-          width: element.clientWidth,
+          width: layoutWidth(element),
         }),
-        total,
+        // The copy draws one separator, and the trail one between each two
+        // parts.
+        total:
+          layoutWidth(copy) + separatorWidth * (crumbs.length - 2) + reserve,
         trail,
       });
     };
@@ -276,11 +282,21 @@ export function FoldingTrail({
       fit();
     });
     observer.observe(element);
+    observer.observe(copy);
     return () => {
       observer.disconnect();
     };
   }, [reserve, trail]);
   const current = fits.trail === trail ? fits : undefined;
+  // Past the point where even the marks fit, the head of the trail goes
+  // off its start, so where you are stays in view. Not while a part is
+  // pointed at: the trail moving would put another part under the pointer.
+  useLayoutEffect(() => {
+    const element = box.current;
+    if (element && pointedAt === null) {
+      element.scrollLeft = element.scrollWidth - element.clientWidth;
+    }
+  }, [fits, pointedAt]);
   const point = (index: number | null) => {
     setMoving([pointedAt, index].filter((one): one is number => one !== null));
     setPointedAt(index);
@@ -348,37 +364,39 @@ export function FoldingTrail({
         );
       })}
       {/* The whole trail at its natural width, out of sight, for the parts
-          to be measured against. */}
+          to be measured against. Held in a box of no size, so the trail
+          never scrolls onto it. */}
       <span
         aria-hidden
-        className="pointer-events-none invisible absolute top-0 left-0 flex w-max items-center"
-        ref={natural}
+        className="pointer-events-none invisible absolute top-0 left-0 size-0 overflow-hidden"
       >
-        {labels.map((label, index) => {
-          const markOf = mark(index);
-          const hasMark = markOf !== null && markOf !== undefined;
-          return (
-            <span
-              className={cn("flex items-center", labelClassName)}
-              data-crumb=""
-              key={`${String(index)}:${label}`}
-            >
-              {hasMark ? (
-                <span className="flex shrink-0" data-crumb-mark="">
-                  {markOf}
-                </span>
-              ) : null}
+        <span className="flex w-max items-center" ref={natural}>
+          {labels.map((label, index) => {
+            const markOf = mark(index);
+            const hasMark = markOf !== null && markOf !== undefined;
+            return (
               <span
-                className={cn("whitespace-pre", hasMark && "ml-1")}
-                data-crumb-name=""
+                className={cn("flex items-center", labelClassName)}
+                data-crumb=""
+                key={`${String(index)}:${label}`}
               >
-                {label}
+                {hasMark ? (
+                  <span className="flex shrink-0" data-crumb-mark="">
+                    {markOf}
+                  </span>
+                ) : null}
+                <span
+                  className={cn("whitespace-pre", hasMark && "ml-1")}
+                  data-crumb-name=""
+                >
+                  {label}
+                </span>
               </span>
-            </span>
-          );
-        })}
-        <span className="flex" data-separator="">
-          {separator}
+            );
+          })}
+          <span className="flex" data-separator="">
+            {separator}
+          </span>
         </span>
       </span>
     </span>

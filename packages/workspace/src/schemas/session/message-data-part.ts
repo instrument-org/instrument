@@ -731,6 +731,13 @@ export namespace SessionMessageDataPart {
         size: z.number(),
       }),
     ),
+    /**
+     * Set when the person put a version back rather than a reply handing
+     * the file over: `restored` for what it put back, `before` for what that
+     * replaced when no earlier record has those contents. A card never draws
+     * one; it only says the file is no longer as the replies left it.
+     */
+    restore: z.enum(["before", "restored"]).optional(),
   });
 
   export type FileVersionsDataPart = z.output<

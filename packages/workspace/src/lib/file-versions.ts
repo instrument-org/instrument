@@ -41,23 +41,18 @@ export async function keepVersion({
   label: string;
   now?: Date;
 }): Promise<KeptVersion | undefined> {
-  const stats = await fs.stat(file).catch(() => undefined);
-  if (!stats?.isFile()) {
-    return undefined;
+  const contents = await contentsOf(file);
+  if (contents === undefined || contents.isTooBig) {
+    return contents && { hash: contents.hash, size: contents.size };
   }
-  if (stats.size > MOST_COPIED_BYTES) {
-    // Too big to hash on every turn: its size and time stand for its
-    // contents, which is enough to tell that it changed.
-    return { hash: `stat:${stats.size}:${stats.mtimeMs}`, size: stats.size };
-  }
-  const hash = await hashOf(file);
+  const { hash, size } = contents;
   for (const version of kept.toReversed()) {
     if (
       version.hash === hash &&
       version.copy !== undefined &&
       (await fs.stat(version.copy).catch(() => undefined))
     ) {
-      return { copy: version.copy, hash, size: stats.size };
+      return { copy: version.copy, hash, size };
     }
   }
   const into = path.join(folder, path.basename(file));
@@ -68,7 +63,29 @@ export async function keepVersion({
     path.extname(file),
   );
   await fs.copyFile(file, copy, fs.constants.COPYFILE_FICLONE);
-  return { copy, hash, size: stats.size };
+  return { copy, hash, size };
+}
+
+/**
+ * What `file` holds, as the hash its versions are recorded by. A file too big
+ * to copy is hashed by its size and time instead, which is enough to tell
+ * that it changed. Undefined for anything that is not a file.
+ */
+export async function contentsOf(
+  file: string,
+): Promise<{ hash: string; isTooBig: boolean; size: number } | undefined> {
+  const stats = await fs.stat(file).catch(() => undefined);
+  if (!stats?.isFile()) {
+    return undefined;
+  }
+  if (stats.size > MOST_COPIED_BYTES) {
+    return {
+      hash: `stat:${stats.size}:${stats.mtimeMs}`,
+      isTooBig: true,
+      size: stats.size,
+    };
+  }
+  return { hash: await hashOf(file), isTooBig: false, size: stats.size };
 }
 
 /**

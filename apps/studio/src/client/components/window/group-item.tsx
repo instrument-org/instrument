@@ -24,6 +24,7 @@ import { BrowserExtensionButtons } from "./browser-extension-buttons";
 import { BrowserStartControls } from "./browser-start-controls";
 import { PageAgentOverlay } from "./page-agent-overlay";
 import { PageAskButton } from "./file-ask-button";
+import { FileVersionsButton, FileVersionStrip } from "./file-versions";
 import { GroupTabContext } from "./group-tab";
 import { liveFileAddress, liveHostedFileAddress } from "./hosted-page";
 import { segmentsOf } from "./host-path";
@@ -35,6 +36,7 @@ import { surfaceLocation, tabSurfaceAtom } from "./tab-surface";
 import { useTaskTitles } from "./task-titles";
 import { useTabSteps } from "./use-tab-steps";
 import { chatOfGroup } from "./window-href";
+import { fileHref } from "@/shared/computer-href";
 import { useWindowTabs } from "./window-tabs";
 
 /**
@@ -155,47 +157,60 @@ export function GroupItem({
    * sends a page somewhere else, or takes a screen's tab to a site.
    */
   const row = (location: TabLocation) => {
+    // A file a chat's replies handed over keeps a version per reply, listed
+    // from its row, and a kept copy open here says which one it is.
+    const openFile = (hostPath: string) => {
+      windowTabs.visitHref(up.id, fileHref(hostPath));
+    };
+    const versions =
+      chatId !== undefined && location.kind === "file"
+        ? { chatId, onOpen: openFile, path: location.path }
+        : undefined;
     return (
-      <TabLocationRow
-        canGoBack={canGoBack}
-        canGoForward={canGoForward}
-        {...(location.kind === "file"
-          ? { liveAddress: () => liveAddressOf(location.path) }
-          : {})}
-        location={location}
-        {...(before ? {} : { onBack: goBack, onForward: goForward })}
-        onSite={(url) => {
-          if (up.kind === "page" && page) {
-            void page.load(url).catch(noop);
-          } else {
-            browser?.open(url, { group, replacing: up });
-          }
-        }}
-        onVisit={(href) => {
-          // A site at the window's level is the window tab's page, so the
-          // window's tab goes to the screen the way the command menu sends
-          // it, and back returns to the page; in a chat's or a draft's
-          // group the tab up becomes the screen in its place.
-          if (before) {
-            appWindow.openScreen(href);
-          } else {
-            windowTabs.visitHref(up.id, href);
-          }
-        }}
-        {...rowProps}
-        trailing={
-          <>
-            {/* The extensions' buttons go before Ask, with the page's own
+      <>
+        <TabLocationRow
+          canGoBack={canGoBack}
+          canGoForward={canGoForward}
+          {...(location.kind === "file"
+            ? { liveAddress: () => liveAddressOf(location.path) }
+            : {})}
+          location={location}
+          {...(before ? {} : { onBack: goBack, onForward: goForward })}
+          onSite={(url) => {
+            if (up.kind === "page" && page) {
+              void page.load(url).catch(noop);
+            } else {
+              browser?.open(url, { group, replacing: up });
+            }
+          }}
+          onVisit={(href) => {
+            // A site at the window's level is the window tab's page, so the
+            // window's tab goes to the screen the way the command menu sends
+            // it, and back returns to the page; in a chat's or a draft's
+            // group the tab up becomes the screen in its place.
+            if (before) {
+              appWindow.openScreen(href);
+            } else {
+              windowTabs.visitHref(up.id, href);
+            }
+          }}
+          {...rowProps}
+          trailing={
+            <>
+              {/* The extensions' buttons go before Ask, with the page's own
               controls after it. */}
-            {location.kind === "page" && <BrowserExtensionButtons />}
-            {/* A page's file has the file's own Ask among its actions. */}
-            {before && location.kind === "page" && (
-              <PageAskButton onAsk={appWindow.askAboutView} />
-            )}
-            {rowProps.trailing}
-          </>
-        }
-      />
+              {location.kind === "page" && <BrowserExtensionButtons />}
+              {/* A page's file has the file's own Ask among its actions. */}
+              {before && location.kind === "page" && (
+                <PageAskButton onAsk={appWindow.askAboutView} />
+              )}
+              {rowProps.trailing}
+              {versions && <FileVersionsButton {...versions} />}
+            </>
+          }
+        />
+        {versions && <FileVersionStrip {...versions} />}
+      </>
     );
   };
 

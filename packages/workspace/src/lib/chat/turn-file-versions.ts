@@ -17,7 +17,7 @@ import { thisDevice } from "./asks";
 const MOST_FILES = 10;
 
 /** The folder in a chat's work folder its versions are kept in. */
-const VERSIONS_FOLDER = ".versions";
+export const VERSIONS_FOLDER = ".versions";
 
 type Entry = SessionMessageDataPart.FileVersionsDataPart["files"][number];
 
@@ -44,7 +44,10 @@ export async function keepTurnFileVersions({
   const reply = turn.findLast((message) => message.role === "assistant");
   if (
     reply === undefined ||
-    reply.parts.some((part) => part.type === "data-fileVersions")
+    reply.parts.some(
+      (part) =>
+        part.type === "data-fileVersions" && part.data.restore === undefined,
+    )
   ) {
     return;
   }

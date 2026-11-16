@@ -36,6 +36,11 @@ import {
   sessionOfChat,
 } from "../../lib/record-folders";
 import { trashChat } from "../../lib/trash-chat";
+import {
+  FileVersionHistorySchema,
+  fileVersionHistory,
+  restoreFileVersion,
+} from "../../lib/chat/file-version-history";
 import { StoreId } from "../../schemas/store-id";
 import { ChatIdSchema, type ChatId } from "../../schemas/chat-id";
 import { type ListedAt } from "../../lib/chat/chat-list-events";
@@ -416,6 +421,32 @@ const chatSessionRoute = base
   });
 
 /**
+ * The versions a chat kept of a file, or of the file a path is a copy of,
+ * newest first; null when it kept none.
+ */
+const fileVersionsRoute = base
+  .input(z.object({ id: ChatIdSchema, path: z.string() }))
+  .output(FileVersionHistorySchema.nullable())
+  .handler(({ input }) =>
+    fileVersionHistory({ chatId: input.id, path: input.path }),
+  );
+
+/**
+ * Puts a version the chat kept back over its file, keeping what it replaces;
+ * returns that copy, for Undo.
+ */
+const restoreFileVersionRoute = base
+  .input(z.object({ copy: z.string(), file: z.string(), id: ChatIdSchema }))
+  .output(z.object({ replaced: z.string().optional() }))
+  .handler(({ input }) =>
+    restoreFileVersion({
+      chatId: input.id,
+      copy: input.copy,
+      file: input.file,
+    }),
+  );
+
+/**
  * The chat a session is, or none: for an address that names a chat by its
  * session, as a link in an older reply does.
  */
@@ -663,6 +694,7 @@ export const chats = {
   branch: branchChatRoute,
   byId: chatByIdRoute,
   ensure: ensureChatRoute,
+  fileVersions: fileVersionsRoute,
   live: {
     ...chatRoutes.live,
     asks: liveAsksRoute,
@@ -675,6 +707,7 @@ export const chats = {
   ofSession: chatOfSessionRoute,
   read: readChatRoute,
   rename: renameChatRoute,
+  restoreFileVersion: restoreFileVersionRoute,
   retitle: retitleChatRoute,
   session: chatSessionRoute,
   setProject: setChatProjectRoute,

@@ -175,6 +175,8 @@ function loadBookmarks(): BookmarksSnapshot {
       typeof value === "object" &&
       "bookmarks" in value &&
       Array.isArray(value.bookmarks) &&
+      "folders" in value &&
+      Array.isArray(value.folders) &&
       "acks" in value &&
       value.acks !== null &&
       typeof value.acks === "object"
@@ -185,7 +187,7 @@ function loadBookmarks(): BookmarksSnapshot {
   } catch {
     // Starts with none, as below.
   }
-  return { acks: {}, bookmarks: [] };
+  return { acks: {}, bookmarks: [], folders: [] };
 }
 
 const keptInitial = loadKeptState();

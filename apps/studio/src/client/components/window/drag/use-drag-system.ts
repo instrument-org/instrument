@@ -1,6 +1,10 @@
 import { type WindowTab } from "@/client/atoms/window";
 import { type ChatId } from "@instrument-org/workspace/client";
-import { bookmarksAtom, applyBookmarkOpsAtom } from "@/client/bookmarks/store";
+import {
+  applyBookmarkOpsAtom,
+  bookmarksAtom,
+  bookmarksStateAtom,
+} from "@/client/bookmarks/store";
 import {
   endOwnFileDrag,
   ownFileDragInAir,
@@ -12,8 +16,8 @@ import { rpcClient } from "@/client/rpc/client";
 import {
   type Bookmark,
   type BookmarkOp,
-  inOrder,
   orderAfter,
+  siblingsIn,
 } from "@/shared/bookmarks";
 import {
   type GroupTabLanding,
@@ -181,7 +185,9 @@ function useLander(
         windowTabs.visitHref(replacing, opens.href);
         return replacing;
       }
-      return tab ? browser?.open(opens.url, { ...place, replacing: tab }) : undefined;
+      return tab
+        ? browser?.open(opens.url, { ...place, replacing: tab })
+        : undefined;
     }
     return opens.kind === "page"
       ? browser?.open(opens.url, place)
@@ -355,7 +361,11 @@ function useLander(
             id,
             landing.group,
             landing.kind === "strip"
-              ? { index: landing.index + index, side: landing.side, split: false }
+              ? {
+                  index: landing.index + index,
+                  side: landing.side,
+                  split: false,
+                }
               : { side: landing.side, split: landing.split && index === 0 },
           );
         });
@@ -399,7 +409,9 @@ function useLander(
       case "remove": {
         const dragged = store
           .get(bookmarksAtom)
-          .find((bookmark) => held.kind === "link" && bookmark.id === held.bookmark);
+          .find(
+            (bookmark) => held.kind === "link" && bookmark.id === held.bookmark,
+          );
         if (dragged) {
           removeWithUndo(dragged);
         }
@@ -425,7 +437,7 @@ function useLander(
 }
 
 /**
- * Keeps what is held on the bar at a place among the bookmarks there, in
+ * Keeps what is held at a place on the bar, or in one of its folders, in
  * its order (`keptAs`): one kept already, the bookmark held or the one kept
  * for its address, moves there, and anything else is added there.
  */
@@ -436,22 +448,26 @@ function useKeepBookmark() {
     what: readonly Bookmark[],
     landing: Extract<Landing, { kind: "bookmarks" }>,
   ) => {
-    const all = store.get(bookmarksAtom);
-    const keptIds = new Set(all.map((bookmark) => bookmark.id));
+    const state = store.get(bookmarksStateAtom);
+    const { folder } = landing;
+    const keptIds = new Set(state.bookmarks.map((bookmark) => bookmark.id));
     const moving = new Set(what.map((each) => each.id));
-    const there = inOrder(all).filter((bookmark) => !moving.has(bookmark.id));
+    const all = siblingsIn(state, folder);
+    const there = all.filter((each) => !moving.has(each.id));
     const orders = ordersAt(there, landing.index, what.length, all);
+    const into = folder === undefined ? {} : { folder };
     void apply(
       what.map((each, index): BookmarkOp => {
         const order = orders[index] ?? orderAfter(all);
         if (keptIds.has(each.id)) {
-          return { id: each.id, order, type: "move" };
+          return { id: each.id, order, type: "move", ...into };
         }
         const bookmark: Bookmark = {
           id: crypto.randomUUID(),
           order,
           title: each.title || each.url,
           url: each.url,
+          ...into,
         };
         return { bookmark, type: "add" };
       }),
@@ -461,10 +477,10 @@ function useKeepBookmark() {
 
 /** The orders that sort some bookmarks, in turn, at a place among others, evenly between its neighbors. */
 function ordersAt(
-  there: readonly Bookmark[],
+  there: readonly { order: number }[],
   index: number,
   count: number,
-  all: readonly Bookmark[],
+  all: readonly { order: number }[],
 ): number[] {
   const before = there[index - 1];
   const after = there[index];

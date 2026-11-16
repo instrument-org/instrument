@@ -18,7 +18,11 @@ import { createBookmarkStore, importBookmarksFile } from "./bookmark-store";
 let store: null | ReturnType<typeof createBookmarkStore> = null;
 
 /** What a window loading before the workspace opens reads. */
-const NO_BOOKMARKS: BookmarksSnapshot = { acks: {}, bookmarks: [] };
+const NO_BOOKMARKS: BookmarksSnapshot = {
+  acks: {},
+  bookmarks: [],
+  folders: [],
+};
 
 /**
  * Answers the windows about the bookmarks: all of them, synchronously, for a

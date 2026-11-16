@@ -5,6 +5,7 @@ import {
   type BookmarksBridge,
   type BookmarksSnapshot,
 } from "@/shared/bookmarks";
+import { atom } from "jotai";
 
 /**
  * The bookmarks as this window shows them: main's (`shared/bookmarks.ts`),
@@ -16,21 +17,21 @@ import {
 const bridge: BookmarksBridge =
   globalThis.window?.api?.bookmarks ??
   memoryMirrorBridge<BookmarksSnapshot, BookmarkOp>(
-    { acks: {}, bookmarks: [] },
-    (snapshot, ops) => ({
-      ...snapshot,
-      bookmarks: applyBookmarkOps(snapshot.bookmarks, ops),
-    }),
+    { acks: {}, bookmarks: [], folders: [] },
+    (snapshot, ops) => ({ ...snapshot, ...applyBookmarkOps(snapshot, ops) }),
   );
 
 const mirror = createOpMirror({
   bridge,
   show: (snapshot: BookmarksSnapshot, pending: BookmarkOp[]) =>
-    applyBookmarkOps(snapshot.bookmarks, pending),
+    applyBookmarkOps(snapshot, pending),
 });
 
-/** Every bookmark, in order, as this window shows them. */
-export const bookmarksAtom = mirror.shownAtom;
+/** Every bookmark and every folder of the bar, in order, as this window shows them. */
+export const bookmarksStateAtom = mirror.shownAtom;
+
+/** Every bookmark, on the bar or in a folder, in order, as this window shows them. */
+export const bookmarksAtom = atom((get) => get(bookmarksStateAtom).bookmarks);
 
 /** Sends ops to main and shows them at once; a batch main refused is taken back off. */
 export const applyBookmarkOpsAtom = mirror.applyOpsAtom;

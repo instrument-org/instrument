@@ -1,9 +1,9 @@
-import { type Bookmark, orderAfter } from "@/shared/bookmarks";
+import { type Bookmark, orderOnBar } from "@/shared/bookmarks";
 import { toast } from "@/client/lib/toast";
 import { useAtomValue, useSetAtom, useStore } from "jotai";
 
 import { sameAddress } from "./address";
-import { applyBookmarkOpsAtom, bookmarksAtom } from "./store";
+import { applyBookmarkOpsAtom, bookmarksStateAtom } from "./store";
 
 export { addressOfTab } from "./address";
 
@@ -14,7 +14,8 @@ export { addressOfTab } from "./address";
  * again returns the one already kept.
  */
 export function useBookmarkActions() {
-  const bookmarks = useAtomValue(bookmarksAtom);
+  const state = useAtomValue(bookmarksStateAtom);
+  const { bookmarks } = state;
   const applyBookmarkOps = useSetAtom(applyBookmarkOpsAtom);
   const bookmarkOf = (url: string) =>
     bookmarks.find((bookmark) => sameAddress(bookmark.url, url));
@@ -27,7 +28,7 @@ export function useBookmarkActions() {
       }
       const bookmark: Bookmark = {
         id: crypto.randomUUID(),
-        order: orderAfter(bookmarks),
+        order: orderOnBar(state),
         title,
         url,
       };
@@ -65,15 +66,17 @@ export function useBookmarkActions() {
 export function useAddBookmark() {
   const store = useStore();
   return ({ title, url }: { title: string; url: string }) => {
-    const bookmarks = store.get(bookmarksAtom);
-    const kept = bookmarks.find((bookmark) => sameAddress(bookmark.url, url));
+    const state = store.get(bookmarksStateAtom);
+    const kept = state.bookmarks.find((bookmark) =>
+      sameAddress(bookmark.url, url),
+    );
     if (kept) {
       toast("Already in Bookmarks", { description: kept.title || url });
       return;
     }
     const bookmark: Bookmark = {
       id: crypto.randomUUID(),
-      order: orderAfter(bookmarks),
+      order: orderOnBar(state),
       title,
       url,
     };

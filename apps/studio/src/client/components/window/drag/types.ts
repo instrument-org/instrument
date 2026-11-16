@@ -68,7 +68,12 @@ export type Landing =
   | { group: string; kind: "side"; lit: Rect; side: 0 | 1; split: boolean }
   | { drop: SidebarDrop; kind: "sidebar" }
   | { group: string; kind: "newTab"; lit: Rect; tab: string }
-  | { index: number; kind: "bookmarks" }
+  | {
+      /** The bar's folder it goes into, at `index` among what is in it; on the bar itself without one. */
+      folder?: string;
+      index: number;
+      kind: "bookmarks";
+    }
   | { kind: "window" };
 
 /** A link that is a bookmark of the bar. */

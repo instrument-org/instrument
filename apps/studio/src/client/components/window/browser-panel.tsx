@@ -1,9 +1,10 @@
-import { applyBookmarkOpsAtom, bookmarksAtom } from "@/client/bookmarks/store";
-import { orderAfter } from "@/shared/bookmarks";
-import { BrowserDownloadsButton } from "@/client/components/window/browser-downloads";
 import {
-  BrowserExtensionButtons,
-} from "@/client/components/window/browser-extension-buttons";
+  applyBookmarkOpsAtom,
+  bookmarksStateAtom,
+} from "@/client/bookmarks/store";
+import { orderOnBar } from "@/shared/bookmarks";
+import { BrowserDownloadsButton } from "@/client/components/window/browser-downloads";
+import { BrowserExtensionButtons } from "@/client/components/window/browser-extension-buttons";
 import { BrowserFindCard } from "@/client/components/window/browser-find-card";
 import { BrowserPageMenu } from "@/client/components/window/browser-page-menu";
 import {
@@ -46,9 +47,7 @@ import {
   type GuestEventMap,
   stepPage,
 } from "@/client/lib/browser-pool";
-import {
-  type EmulatedDevice,
-} from "@/client/lib/emulated-devices";
+import { type EmulatedDevice } from "@/client/lib/emulated-devices";
 import {
   type LocatedPath,
   locateTypedPath,
@@ -612,7 +611,8 @@ export function BrowserPanel({
           windowContext.openPage(url, { newTab: true });
         }
       : undefined;
-  const bookmarks = useAtomValue(bookmarksAtom);
+  const bookmarksState = useAtomValue(bookmarksStateAtom);
+  const { bookmarks } = bookmarksState;
   const applyBookmarkOps = useSetAtom(applyBookmarkOpsAtom);
   const isBookmarked = bookmarks.some((bookmark) => bookmark.url === pageUrl);
   const toggleBookmark = () => {
@@ -634,7 +634,7 @@ export function BrowserPanel({
       {
         bookmark: {
           id: crypto.randomUUID(),
-          order: orderAfter(bookmarks),
+          order: orderOnBar(bookmarksState),
           title,
           url: pageUrl,
         },

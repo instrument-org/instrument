@@ -429,7 +429,7 @@ export function useCommandMenuRows({
       id: "activity",
       label: "Activity",
       run: () => {
-        appTabs.showScreen(SCREEN_ROUTES.activity);
+        appTabs.open(SCREEN_ROUTES.activity, { newTab: "reuseBlank" });
       },
     },
     {
@@ -437,7 +437,7 @@ export function useCommandMenuRows({
       id: "release-notes",
       label: "Release notes",
       run: () => {
-        appTabs.showScreen(SCREEN_ROUTES.releaseNotes);
+        appTabs.open(SCREEN_ROUTES.releaseNotes, { newTab: "reuseBlank" });
       },
     },
     {
@@ -445,7 +445,7 @@ export function useCommandMenuRows({
       id: "extensions",
       label: "Extensions",
       run: () => {
-        appTabs.showScreen(SCREEN_ROUTES.extensions);
+        appTabs.open(SCREEN_ROUTES.extensions, { newTab: "reuseBlank" });
       },
     },
   ];

@@ -83,7 +83,7 @@ export function useExtensionActions() {
   return {
     manage: () => {
       if (appWindow) {
-        appTabs.showScreen(SCREEN_ROUTES.extensions);
+        appTabs.open(SCREEN_ROUTES.extensions, { newTab: "reuseBlank" });
       }
     },
     openDesktopApp: (extension: BrowserExtension) => {

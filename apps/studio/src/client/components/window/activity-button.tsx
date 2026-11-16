@@ -6,14 +6,17 @@ import { wantsNewTab } from "@/client/hooks/use-open-target";
 import { ClockCounterClockwiseIcon } from "@phosphor-icons/react/ClockCounterClockwise";
 
 /**
- * Activity from anywhere in the window, as `showScreen` opens it: a tab of
- * its own, except over a new tab, which becomes Activity. On Activity itself it goes back to the start, every row and no search,
- * which is what pressing it again is for.
+ * Activity from anywhere in the window, as a browser opens its own pages: a
+ * tab of its own, except over a new tab, which becomes Activity. On
+ * Activity itself it goes back to the start, every row and no search, which
+ * is what pressing it again is for.
  */
 export function useShowActivity() {
   const appTabs = useAppTabs();
   return ({ newTab = false }: { newTab?: boolean } = {}) => {
-    appTabs.showScreen(SCREEN_ROUTES.activity, { newTab });
+    appTabs.open(SCREEN_ROUTES.activity, {
+      newTab: newTab || "reuseBlank",
+    });
   };
 }
 
